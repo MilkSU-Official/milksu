@@ -1,4 +1,5 @@
 import DOMPurify from 'dompurify'
+import { t } from '@/lib/uiLocale'
 import type {
   CodingArtifactPreview,
   CodingEnvironmentSnapshot,
@@ -64,7 +65,7 @@ export function suggestedArtifactPaths(
 export function artifactKindLabel(kind: CodingArtifactPreview['kind']): string {
   if (kind === 'markdown') return 'Markdown'
   if (kind === 'html') return 'HTML'
-  return '图片'
+  return t('图片', 'Image')
 }
 
 export function buildArtifactHTMLDocument(content: string): string {

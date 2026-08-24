@@ -1,4 +1,5 @@
 import { computed, ref, type Ref } from 'vue'
+import { t } from '@/lib/uiLocale'
 
 export const QUICK_COLLECTION_ID = 'favorites'
 export const ALL_COLLECTIONS_ID = 'all'
@@ -30,7 +31,7 @@ export interface ItemCollectionStore {
 function defaultCollection(): ItemCollection {
   return {
     id: QUICK_COLLECTION_ID,
-    name: '收藏',
+    name: t('收藏', 'Favorites'),
     itemKeys: [],
     createdAt: new Date(0).toISOString(),
   }
@@ -116,9 +117,9 @@ export function createItemCollectionStore(storageKey: string): ItemCollectionSto
 
   function create(name: string, itemKey?: string) {
     const normalized = name.trim().replace(/\s+/g, ' ').slice(0, 30)
-    if (!normalized) throw new Error('请输入收藏夹名称')
+    if (!normalized) throw new Error(t('请输入收藏夹名称', 'Enter a collection name'))
     if (collections.value.some(collection => collection.name.toLocaleLowerCase() === normalized.toLocaleLowerCase())) {
-      throw new Error('已经有同名收藏夹')
+      throw new Error(t('已经有同名收藏夹', 'A collection with this name already exists'))
     }
     const id = createCollectionId()
     collections.value.push({

@@ -89,6 +89,7 @@ import type {
   SecurityToolSetupSnapshot,
   SecurityToolSnapshot,
 } from './securityToolsTypes'
+import type { EvalBoardSnapshot, EvalModelRef } from './evalTypes'
 
 type CommandArgs = Record<string, unknown>
 type UnlistenFn = () => void
@@ -167,6 +168,15 @@ interface DesktopAppBindings {
   GetSecurityToolSetup(id: string): Promise<SecurityToolSetupSnapshot>
   CheckSecurityTool(id: string): Promise<SecurityToolSnapshot>
   PrepareSecurityToolCodingHandoff(id: string): Promise<SecurityToolCodingHandoff>
+  GetEvalBoard(request: { models?: EvalModelRef[]; selected?: string }): Promise<EvalBoardSnapshot>
+  StartEvalRun(request: {
+    suite: string
+    provider: string
+    model: string
+    source?: string
+    models?: EvalModelRef[]
+  }): Promise<EvalBoardSnapshot>
+  StopEvalRun(): Promise<EvalBoardSnapshot>
   GetLocalDataStatus(): Promise<LocalDataStatus>
   GetUserArtifactDirectoryStatus(): Promise<UserArtifactDirectoryStatus>
   GetBuildTracking(): Promise<BuildTracking>
@@ -829,6 +839,21 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.CheckSecurityTool(args?.id as string) as Promise<T>
       case 'prepare_security_tool_coding_handoff':
         return app.PrepareSecurityToolCodingHandoff(args?.id as string) as Promise<T>
+      case 'get_eval_board':
+        return app.GetEvalBoard({
+          models: args?.models as EvalModelRef[] | undefined,
+          selected: args?.selected as string | undefined,
+        }) as Promise<T>
+      case 'start_eval_run':
+        return app.StartEvalRun({
+          suite: args?.suite as string,
+          provider: args?.provider as string,
+          model: args?.model as string,
+          source: args?.source as string | undefined,
+          models: args?.models as EvalModelRef[] | undefined,
+        }) as Promise<T>
+      case 'stop_eval_run':
+        return app.StopEvalRun() as Promise<T>
       case 'import_nssctf_challenge':
         return app.ImportNSSCTFChallenge(args?.url as string) as Promise<T>
       case 'sync_nssctf_catalog':

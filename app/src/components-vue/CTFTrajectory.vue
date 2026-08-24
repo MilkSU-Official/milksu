@@ -12,6 +12,7 @@ import {
 } from 'lucide-vue-next'
 import type { CTFProjection } from '@/ctfTypes'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
+import { t } from '@/lib/uiLocale'
 
 type TimelineKind = 'agent' | 'experiment' | 'submission' | 'failure'
 
@@ -36,13 +37,13 @@ const expanded = ref(false)
 function actionTitle(name: string) {
   switch (name) {
     case 'ctf.pi_agent_turn':
-      return { kind: 'agent' as const, title: 'PI Agent 解题回合' }
+      return { kind: 'agent' as const, title: t('PI Agent 解题回合', 'PI Agent solving turn') }
     case 'ctf.submit_flag':
-      return { kind: 'submission' as const, title: '候选进入 Judge 闸门' }
+      return { kind: 'submission' as const, title: t('候选进入 Judge 闸门', 'Candidate entered the Judge gate') }
     case 'ctf.record_learning':
-      return { kind: 'experiment' as const, title: '训练观察已记录' }
+      return { kind: 'experiment' as const, title: t('训练观察已记录', 'Training observation recorded') }
     default:
-      return { kind: 'experiment' as const, title: name || '可复现实验' }
+      return { kind: 'experiment' as const, title: name || t('可复现实验', 'Reproducible experiment') }
   }
 }
 
@@ -59,10 +60,10 @@ const entries = computed<TimelineEntry[]>(() => {
       id: experiment.id,
       number: experiment.number,
       kind: failed ? 'failure' as const : definition.kind,
-      title: failed ? `${definition.title}失败` : definition.title,
+      title: failed ? t(`${definition.title}失败`, `${definition.title} failed`) : definition.title,
       summary: failed
-        ? '这个回合没有完成。需要诊断时可回到关联的 Coding 会话继续处理。'
-        : observation || action?.rationale || '该步骤尚未形成完整观察。',
+        ? t('这个回合没有完成。需要诊断时可回到关联的 Coding 会话继续处理。', 'This turn did not complete. Open the related Coding session if you need to diagnose it.')
+        : observation || action?.rationale || t('该步骤尚未形成完整观察。', 'This step does not yet have a complete observation.'),
       status: failed ? 'failed' : experiment.status,
       detail: [attempt?.engine, attempt?.model].filter(Boolean).join(' · '),
       artifactCount: experiment.artifactIds.length,
@@ -75,8 +76,8 @@ const entries = computed<TimelineEntry[]>(() => {
       id: attempt.id,
       number: values.length + 1,
       kind: 'failure',
-      title: 'Agent 回合中断',
-      summary: '这个回合没有完成。需要诊断时可回到关联的 Coding 会话继续处理。',
+      title: t('Agent 回合中断', 'Agent turn interrupted'),
+      summary: t('这个回合没有完成。需要诊断时可回到关联的 Coding 会话继续处理。', 'This turn did not complete. Open the related Coding session if you need to diagnose it.'),
       status: attempt.status,
       detail: [attempt.engine, attempt.model].filter(Boolean).join(' · '),
       artifactCount: 0,
@@ -101,13 +102,13 @@ function formatTime(value: string) {
 
 function statusLabel(status: string) {
   switch (status) {
-    case 'completed': return '已完成'
-    case 'running': return '进行中'
-    case 'failed': return '失败'
+    case 'completed': return t('已完成', 'Completed')
+    case 'running': return t('进行中', 'In progress')
+    case 'failed': return t('失败', 'Failed')
     case 'cancelled':
     case 'aborted':
-    case 'interrupted': return '已中断'
-    default: return status || '等待'
+    case 'interrupted': return t('已中断', 'Interrupted')
+    default: return status || t('等待', 'Waiting')
   }
 }
 </script>
@@ -118,11 +119,11 @@ function statusLabel(status: string) {
       <div>
         <h2 class="flex items-center gap-2 text-label font-medium">
           <RotateCcw class="size-4" />
-          解题轨迹
+          {{ t('解题轨迹', 'Solving trajectory') }}
         </h2>
 
       </div>
-      <span class="flex items-center gap-2"><Badge variant="outline">{{ entries.length }} 步</Badge><ChevronDown class="size-4 text-muted-foreground transition-transform group-open:rotate-180" /></span>
+      <span class="flex items-center gap-2"><Badge variant="outline">{{ t(`${entries.length} 步`, `${entries.length} steps`) }}</Badge><ChevronDown class="size-4 text-muted-foreground transition-transform group-open:rotate-180" /></span>
     </summary>
 
     <div v-if="visibleEntries.length" class="mt-5 border-t border-border pt-5">
@@ -161,7 +162,7 @@ function statusLabel(status: string) {
           />
           <div v-if="entry.detail || entry.artifactCount" class="mt-2 flex flex-wrap gap-3 text-caption text-muted-foreground">
             <span v-if="entry.detail">{{ entry.detail }}</span>
-            <span v-if="entry.artifactCount">{{ entry.artifactCount }} 个制品</span>
+            <span v-if="entry.artifactCount">{{ t(`${entry.artifactCount} 个制品`, `${entry.artifactCount} artifacts`) }}</span>
           </div>
         </div>
       </article>
@@ -178,7 +179,7 @@ function statusLabel(status: string) {
     >
       <ChevronUp v-if="expanded" class="size-3.5" />
       <ChevronDown v-else class="size-3.5" />
-      {{ expanded ? '只看最近 5 步' : `展开全部 ${entries.length} 步` }}
+      {{ expanded ? t('只看最近 5 步', 'Show last 5 steps') : t(`展开全部 ${entries.length} 步`, `Expand all ${entries.length} steps`) }}
     </Button>
 
 

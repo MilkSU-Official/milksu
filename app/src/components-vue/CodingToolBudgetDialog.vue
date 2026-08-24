@@ -6,6 +6,7 @@ import {
   DialogDescription,
   DialogTitle,
 } from '@felinic/ui'
+import { t } from '@/lib/uiLocale'
 
 const props = defineProps<{
   open: boolean
@@ -22,16 +23,16 @@ const emit = defineEmits<{
 <template>
   <Dialog :open="props.open" @update:open="value => emit('update:open', value)">
     <DialogContent class="sm:max-w-md">
-      <DialogTitle>继续调用工具？</DialogTitle>
+      <DialogTitle>{{ t('继续调用工具？', 'Keep calling tools?') }}</DialogTitle>
       <DialogDescription>
-        已经调用了 {{ props.count }} 次工具，要继续吗？
+        {{ t(`已经调用了 ${props.count} 次工具，要继续吗？`, `Tools have already been called ${props.count} times. Continue?`) }}
       </DialogDescription>
       <div class="mt-4 flex justify-end gap-2">
         <Button type="button" variant="outline" @click="emit('stop')">
-          停止
+          {{ t('停止', 'Stop') }}
         </Button>
         <Button type="button" variant="brand" @click="emit('continue')">
-          继续
+          {{ t('继续', 'Continue') }}
         </Button>
       </div>
     </DialogContent>

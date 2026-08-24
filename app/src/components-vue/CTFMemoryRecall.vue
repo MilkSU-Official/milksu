@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { Archive, BrainCircuit } from 'lucide-vue-next'
-import { Badge, Button } from '@felinic/ui'
+import { Archive } from 'lucide-vue-next'
+import { Badge, Button, SettingsSection } from '@felinic/ui'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 import { redactProviderCredentials } from '@/lib/redaction'
+import { t } from '@/lib/uiLocale'
 import type { CTFTrainingMemory, CTFTrainingMemoryEvidenceLink } from '@/ctfTypes'
 
 defineProps<{
@@ -16,24 +17,24 @@ const emit = defineEmits<{
 }>()
 
 function verificationLabel(memory: CTFTrainingMemory) {
-  if (memory.verification === 'judge-verified') return 'Judge 验证'
-  if (memory.verification === 'user-confirmed') return '用户确认'
-  if (memory.verification === 'failure-observed') return '失败观察'
-  return '旧记录 · 未分级'
+  if (memory.verification === 'judge-verified') return t('Judge 验证', 'Judge verified')
+  if (memory.verification === 'user-confirmed') return t('用户确认', 'User confirmed')
+  if (memory.verification === 'failure-observed') return t('失败观察', 'Failure observed')
+  return t('旧记录 · 未分级', 'Legacy · ungraded')
 }
 
 function actorLabel(memory: CTFTrainingMemory) {
-  if (memory.actor === 'user') return '用户完成'
-  if (memory.actor === 'agent') return 'Agent 代做'
-  if (memory.actor === 'shared') return '共同完成'
-  return '贡献不可追溯'
+  if (memory.actor === 'user') return t('用户完成', 'Completed by user')
+  if (memory.actor === 'agent') return t('Agent 代做', 'Completed by Agent')
+  if (memory.actor === 'shared') return t('共同完成', 'Completed together')
+  return t('贡献不可追溯', 'Attribution unknown')
 }
 
 function assistanceLabel(memory: CTFTrainingMemory) {
-  if (memory.assistance === 'none') return '无协助'
-  if (memory.assistance === 'hint') return '依赖提示'
-  if (memory.assistance === 'copilot') return '搭档协作'
-  return '代理/未归属'
+  if (memory.assistance === 'none') return t('无协助', 'No assistance')
+  if (memory.assistance === 'hint') return t('依赖提示', 'Used hints')
+  if (memory.assistance === 'copilot') return t('搭档协作', 'Copilot collaboration')
+  return t('代理/未归属', 'Delegate / unattributed')
 }
 
 function fallbackEvidence(ref: string) {
@@ -68,29 +69,20 @@ function redactedEvidence(evidence: CTFTrainingMemoryEvidenceLink) {
 </script>
 
 <template>
-  <details class="group rounded-xl border border-border bg-card">
-    <summary class="flex cursor-pointer list-none items-center gap-3 px-5 py-4">
-      <span class="grid size-8 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground">
-        <BrainCircuit class="size-4" />
-      </span>
-      <span class="min-w-0 flex-1">
-        <span class="block text-label font-medium">解题记忆</span>
-        <span class="block truncate text-caption text-muted-foreground">
-          {{
-            loading
-              ? '正在匹配'
-              : memories.length
-                ? `${memories.length} 条待验证先验`
-                : '没有匹配的旧题技法'
-          }}
-        </span>
-      </span>
-      <Badge v-if="memories.length" variant="outline">
-        {{ memories.length }}
-      </Badge>
-    </summary>
-
-    <div class="border-t border-border px-5 py-4">
+  <SettingsSection :title="t('解题记忆', 'Solving memory')">
+    <template #actions>
+      <Badge v-if="memories.length" variant="outline">{{ memories.length }}</Badge>
+    </template>
+    <div class="px-5 py-4">
+      <p class="text-caption text-muted-foreground">
+        {{
+          loading
+            ? t('正在匹配', 'Matching')
+            : memories.length
+              ? t(`${memories.length} 条待验证先验`, `${memories.length} priors pending verification`)
+              : t('没有匹配的旧题技法', 'No matching prior techniques')
+        }}
+      </p>
       <div v-if="memories.length" class="space-y-3">
         <article
           v-for="memory in memories"
@@ -109,8 +101,8 @@ function redactedEvidence(evidence: CTFTrainingMemoryEvidenceLink) {
             <Button
               variant="ghost"
               size="icon-sm"
-              title="停用"
-              :aria-label="`停用记忆：${redactMemoryText(memory.title)}`"
+              :title="t('停用', 'Disable')"
+              :aria-label="t(`停用记忆：${redactMemoryText(memory.title)}`, `Disable memory: ${redactMemoryText(memory.title)}`)"
               @click="emit('archive', memory)"
             >
               <Archive class="size-3.5" />
@@ -123,7 +115,7 @@ function redactedEvidence(evidence: CTFTrainingMemoryEvidenceLink) {
             <Badge variant="outline">
               {{ actorLabel(memory) }} · {{ assistanceLabel(memory) }}
             </Badge>
-            <Badge variant="outline">置信 {{ Math.round(memory.confidence * 100) }}%</Badge>
+            <Badge variant="outline">{{ t(`置信 ${Math.round(memory.confidence * 100)}%`, `Confidence ${Math.round(memory.confidence * 100)}%`) }}</Badge>
             <Badge v-for="tag in memory.tags.slice(0, 2)" :key="tag" variant="secondary">
               {{ redactMemoryText(tag) }}
             </Badge>
@@ -133,10 +125,10 @@ function redactedEvidence(evidence: CTFTrainingMemoryEvidenceLink) {
             class="mt-3 rounded-md border border-border bg-background/60 p-2 text-caption leading-5 text-muted-foreground"
           >
             <p v-if="memory.recall?.reasons?.length">
-              推荐依据：{{ memory.recall.reasons.slice(0, 2).join('；') }}
+              {{ t(`推荐依据：${memory.recall.reasons.slice(0, 2).join('；')}`, `Recall reasons: ${memory.recall.reasons.slice(0, 2).join('; ')}`) }}
             </p>
             <p v-if="evidenceLinks(memory).length" class="mt-1">
-              可核对证据：
+              {{ t('可核对证据：', 'Checkable evidence:') }}
               <button
                 v-for="(evidence, index) in evidenceLinks(memory).slice(0, 4)"
                 :key="`${evidence.kind}:${evidence.id}`"
@@ -154,5 +146,5 @@ function redactedEvidence(evidence: CTFTrainingMemoryEvidenceLink) {
         </article>
       </div>
     </div>
-  </details>
+  </SettingsSection>
 </template>

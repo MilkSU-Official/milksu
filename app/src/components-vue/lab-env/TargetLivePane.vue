@@ -4,6 +4,7 @@ import { Button, Input } from '@felinic/ui'
 import { ArrowLeft, ArrowRight, Globe2, RefreshCw, Smartphone, SquareTerminal } from 'lucide-vue-next'
 import { invokeCommand } from '@/desktop'
 import { codingBrowserViewportSyncKey } from '@/lib/codingBrowserTabs'
+import { t } from '@/lib/uiLocale'
 import type { EnvLease } from '@/envbroker'
 
 defineOptions({ name: 'TargetLivePane' })
@@ -116,20 +117,20 @@ onBeforeUnmount(() => {
         <Smartphone class="ml-2 size-4 text-muted-foreground" />
         <span class="min-w-0 flex-1 truncate font-mono text-caption">{{ lease.address }}</span>
       </template>
-      <span class="ak-tag ak-tag--compact ak-tag--advanced mr-2">当前靶</span>
+      <span class="ak-tag ak-tag--compact ak-tag--advanced mr-2">{{ t('当前靶', 'Current target') }}</span>
     </header>
 
     <div v-if="surface() === 'browser'" ref="viewport" class="relative min-h-0 flex-1 bg-white" data-coding-browser-viewport>
       <div class="absolute inset-0 grid place-items-center text-caption text-muted-foreground">
-        隔离浏览器贴在这个槽上。地址钉死租约。
+        {{ t('隔离浏览器贴在这个槽上。地址钉死租约。', 'Isolated browser is pinned to this slot. The address is locked to the lease.') }}
       </div>
     </div>
     <pre v-else-if="surface() === 'shell'" class="min-h-0 flex-1 overflow-auto bg-[#0e1012] px-4 py-4 font-mono text-caption text-[#d7d7d2]">{{ probeError || probe || `curl ${lease.address}` }}</pre>
     <div v-else class="grid min-h-0 flex-1 place-items-center bg-[#0e1012] px-6 text-center">
       <div>
-        <p class="text-body">本机模拟器窗口已启动</p>
+        <p class="text-body">{{ t('本机模拟器窗口已启动', 'Local emulator window is running') }}</p>
         <p class="mt-2 font-mono text-caption text-muted-foreground">{{ lease.address }}</p>
-        <p class="mt-3 text-caption text-muted-foreground">题目在这个设备上。Agent 用租约串口的 adb，不要打宿主机其它 App。</p>
+        <p class="mt-3 text-caption text-muted-foreground">{{ t('题目在这个设备上。Agent 用租约串口的 adb，不要打宿主机其它 App。', 'The challenge is on this device. The agent uses the lease serial adb and must not touch other host apps.') }}</p>
       </div>
     </div>
 
@@ -138,7 +139,7 @@ onBeforeUnmount(() => {
         <Globe2 v-if="surface() === 'browser'" class="size-3.5" />
         <SquareTerminal v-else-if="surface() === 'shell'" class="size-3.5" />
         <Smartphone v-else class="size-3.5" />
-        人和 Agent 共用这个靶
+        {{ t('人和 Agent 共用这个靶', 'You and the agent share this target') }}
       </span>
     </footer>
   </section>

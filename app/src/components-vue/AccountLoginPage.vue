@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { Button } from '@felinic/ui'
 import { Github, Globe2, Mail, ShieldCheck } from 'lucide-vue-next'
 import brandLockup from '@/assets/milksu-brand-lockup.png'
+import { t } from '@/lib/uiLocale'
 import type { AccountStatus } from '@/types'
 
 const props = defineProps<{
@@ -17,14 +18,26 @@ defineEmits<{
 }>()
 
 const stateMessage = computed(() => {
-  if (props.status.state === 'authorizing') return '浏览器授权完成后会自动回到 MilkSU。'
-  if (props.status.state === 'invitation_required') return '这个 GitHub 账号尚未获得内测邀请。'
-  if (props.status.state === 'suspended') return '这个内测账号当前已暂停访问。'
-  if (props.status.state === 'unavailable') return '账户服务暂时不可用，你仍可使用自己的 API Key。'
-  return '使用受邀的 GitHub 账号继续'
+  if (props.status.state === 'authorizing') {
+    return t('浏览器授权完成后会自动回到 MilkSU。', 'After you finish in the browser, you will return to MilkSU automatically.')
+  }
+  if (props.status.state === 'invitation_required') {
+    return t('这个 GitHub 账号尚未获得内测邀请。', 'This GitHub account does not have a beta invitation yet.')
+  }
+  if (props.status.state === 'suspended') {
+    return t('这个内测账号当前已暂停访问。', 'This beta account is currently suspended.')
+  }
+  if (props.status.state === 'unavailable') {
+    return t('账户服务暂时不可用，你仍可使用自己的 API Key。', 'Account service is temporarily unavailable. You can still use your own API key.')
+  }
+  return t('使用受邀的 GitHub 账号继续', 'Continue with an invited GitHub account')
 })
 
-const loginLabel = computed(() => props.status.state === 'authorizing' ? '等待 GitHub 授权' : '使用 GitHub 登录')
+const loginLabel = computed(() => (
+  props.status.state === 'authorizing'
+    ? t('等待 GitHub 授权', 'Waiting for GitHub authorization')
+    : t('使用 GitHub 登录', 'Sign in with GitHub')
+))
 
 const loginSignalCells = Array.from({ length: 19 * 15 }, (_, index) => {
   const column = index % 19
@@ -41,7 +54,7 @@ const loginSignalCells = Array.from({ length: 19 * 15 }, (_, index) => {
 </script>
 
 <template>
-  <main class="account-login flex min-h-screen min-w-0 bg-background text-foreground" aria-label="登录 MilkSU">
+  <main class="account-login flex min-h-screen min-w-0 bg-background text-foreground" :aria-label="t('登录 MilkSU', 'Sign in to MilkSU')">
     <section class="flex min-w-0 flex-1 flex-col px-10 py-9 md:px-20 md:py-16">
       <header class="flex items-center gap-3">
         <img :src="brandLockup" alt="MilkSU" class="h-[2.6rem] w-auto object-contain">
@@ -50,13 +63,13 @@ const loginSignalCells = Array.from({ length: 19 * 15 }, (_, index) => {
       <div class="my-auto w-full max-w-[540px] py-14">
         <p class="game-kicker">Private Beta Access</p>
         <h1 class="tactical-display mt-3 text-5xl">
-          登录 <span class="text-primary">MilkSU</span>
+          {{ t('登录', 'Sign in') }} <span class="text-primary">MilkSU</span>
         </h1>
         <p class="mt-5 text-lg leading-7 text-muted-foreground">{{ stateMessage }}</p>
         <div v-if="error" class="ak-notice ak-notice--danger mt-4" role="alert">
-          <span class="ak-notice__code">AUTH<br />失败</span>
+          <span class="ak-notice__code">AUTH<br />{{ t('失败', 'failed') }}</span>
           <div class="ak-notice__body">
-            <strong class="ak-notice__title">登录没有完成</strong>
+            <strong class="ak-notice__title">{{ t('登录没有完成', 'Sign-in did not complete') }}</strong>
             <p class="ak-notice__message">{{ error }}</p>
           </div>
         </div>
@@ -74,16 +87,16 @@ const loginSignalCells = Array.from({ length: 19 * 15 }, (_, index) => {
         </Button>
 
         <div class="mt-9 space-y-4 text-sm text-muted-foreground">
-          <p class="flex items-center gap-3"><Globe2 class="size-4 text-primary" />将在系统浏览器中完成登录</p>
-          <p class="flex items-center gap-3"><ShieldCheck class="size-4 text-primary" />MilkSU 不保存你的 GitHub 密码</p>
+          <p class="flex items-center gap-3"><Globe2 class="size-4 text-primary" />{{ t('将在系统浏览器中完成登录', 'Sign-in continues in your system browser') }}</p>
+          <p class="flex items-center gap-3"><ShieldCheck class="size-4 text-primary" />{{ t('MilkSU 不保存你的 GitHub 密码', 'MilkSU does not store your GitHub password') }}</p>
         </div>
 
         <div class="mt-10 border-t border-border pt-8">
           <Button variant="ghost" class="px-0 text-muted-foreground hover:bg-transparent hover:text-foreground" @click="$emit('continueLocal')">
-            暂不登录，使用自己的 API Key
+            {{ t('暂不登录，使用自己的 API Key', 'Skip sign-in and use your own API key') }}
           </Button>
           <a href="mailto:milksu@proton.me" class="mt-5 flex w-fit items-center gap-2 text-sm text-muted-foreground hover:text-primary">
-            <Mail class="size-4" />尚未收到邀请？联系 milksu@proton.me
+            <Mail class="size-4" />{{ t('尚未收到邀请？联系 milksu@proton.me', 'No invitation yet? Contact milksu@proton.me') }}
           </a>
         </div>
       </div>

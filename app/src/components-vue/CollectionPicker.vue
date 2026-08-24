@@ -10,6 +10,7 @@ import {
 } from '@felinic/ui'
 import { Bookmark, Plus } from 'lucide-vue-next'
 import type { ItemCollectionStore } from '@/lib/itemCollections'
+import { t } from '@/lib/uiLocale'
 
 const props = defineProps<{
   itemKey: string
@@ -42,7 +43,7 @@ function createCollection() {
         variant="ghost"
         size="icon-sm"
         class="collection-bookmark shrink-0"
-        :aria-label="store.has(itemKey) ? '编辑收藏' : '收藏'"
+        :aria-label="store.has(itemKey) ? t('编辑收藏', 'Edit collections') : t('收藏', 'Save to collection')"
         @click.stop
       >
         <Bookmark
@@ -52,7 +53,7 @@ function createCollection() {
       </Button>
     </PopoverTrigger>
     <PopoverContent align="end" class="collection-popover w-64 p-2" @click.stop>
-      <p class="px-2 pb-1.5 pt-1 text-caption font-medium text-muted-foreground">收藏到</p>
+      <p class="px-2 pb-1.5 pt-1 text-caption font-medium text-muted-foreground">{{ t('收藏到', 'Save to') }}</p>
       <button
         v-for="collection in store.collections.value"
         :key="collection.id"
@@ -73,10 +74,10 @@ function createCollection() {
           v-model="newName"
           size="sm"
           class="min-w-0"
-          placeholder="新建收藏夹"
-          aria-label="新建收藏夹"
+          :placeholder="t('新建收藏夹', 'New collection')"
+          :aria-label="t('新建收藏夹', 'New collection')"
         />
-        <Button type="submit" variant="ghost" size="icon-sm" :disabled="!newName.trim()" aria-label="创建收藏夹">
+        <Button type="submit" variant="ghost" size="icon-sm" :disabled="!newName.trim()" :aria-label="t('创建收藏夹', 'Create collection')">
           <Plus class="size-4" />
         </Button>
       </form>

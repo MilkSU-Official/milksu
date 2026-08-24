@@ -13,7 +13,6 @@ const packages = stdout.split('\n').map(line => line.trim()).filter(line => (
   line
   && !line.includes('/build')
   && !line.includes('/spikes/')
-  && !line.includes('/evalsuite')
 ))
 if (packages.length === 0) {
   throw new Error('no product Go packages to test')

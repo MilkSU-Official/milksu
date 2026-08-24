@@ -28,6 +28,7 @@ import {
   FileDiff,
   FileImage,
   Flag,
+  FlaskConical,
   FolderOpen,
   GitBranch,
   Globe2,
@@ -48,6 +49,7 @@ import {
 } from 'lucide-vue-next'
 import { invokeCommand, listenEvent } from '@/desktop'
 import { nextChatAutoScrollPinned } from '@/lib/chatAutoScroll'
+import { t } from '@/lib/uiLocale'
 import { isGeneratedScratchWorkspace } from '@/lib/codingConversationGroups'
 import AkLoadingMark from '@/components-vue/AkLoadingMark.vue'
 import ChatActivityGroup from '@/components-vue/ChatActivityGroup.vue'
@@ -530,12 +532,12 @@ const codingCapabilities = computed(() => {
 const codingPolicyLabel = computed(() => {
   const mode = effectiveExecutionMode.value === 'plan' ? 'Plan' : 'Go'
   const approval = effectiveApprovalPolicy.value === 'read-only'
-    ? '只读'
+    ? t('只读', 'Read-only')
     : effectiveApprovalPolicy.value === 'ask'
-      ? '每次询问'
+      ? t('每次询问', 'Ask each time')
       : effectiveApprovalPolicy.value === 'full-auto'
-        ? '完全访问'
-        : '项目自动'
+        ? t('完全访问', 'Full access')
+        : t('项目自动', 'Project auto')
   return `${mode} · ${approval}`
 })
 const topbarPresentation = computed(() => chatTopbarPresentation({
@@ -551,7 +553,9 @@ const topbarModule = computed(() => (
     ? 'ctf'
     : props.vulnerabilitySession
       ? 'cve'
-      : 'coding'
+      : props.conversation?.domainTaskContext?.kind === 'lab'
+        ? 'lab'
+        : 'coding'
 ))
 const codingDraftIdle = computed(() => (
   !props.ctfSession
@@ -560,12 +564,12 @@ const codingDraftIdle = computed(() => (
 ))
 const approvalMenuLabel = computed(() => (
   effectiveApprovalPolicy.value === 'full-auto'
-    ? '完全访问'
+    ? t('完全访问', 'Full access')
     : effectiveApprovalPolicy.value === 'workspace-auto'
-      ? '替我审批'
+      ? t('替我审批', 'Approve for me')
       : effectiveApprovalPolicy.value === 'ask'
-        ? '请求批准'
-        : '只读'
+        ? t('请求批准', 'Ask before acting')
+        : t('只读', 'Read-only')
 ))
 const compactModelLabel = computed(() => {
   const provider = effectiveModelMode.value === 'auto'
@@ -575,19 +579,19 @@ const compactModelLabel = computed(() => {
     ? automaticModel.value?.model
     : props.modelId || props.settings?.active_model
   if (!provider || !model) {
-    return effectiveModelMode.value === 'auto' ? 'Default' : '选择模型'
+    return effectiveModelMode.value === 'auto' ? 'Default' : t('选择模型', 'Choose a model')
   }
   const modelName = providerModelLabel(provider, model).split(' · ').at(-1) || model
   return modelName.replace(/^DeepSeek\s+/i, '')
 })
 const capabilityStatusLabel = (status: string) => (
   status === 'allowed'
-    ? '允许'
+    ? t('允许', 'Allowed')
     : status === 'approval-required'
-      ? '需批准'
+      ? t('需批准', 'Needs approval')
       : status === 'unavailable'
-        ? '未接入'
-        : '阻止'
+        ? t('未接入', 'Not attached')
+        : t('阻止', 'Blocked')
 )
 const extensionLabel = (value: string) => (
   value === 'milksu-workflow'
@@ -621,7 +625,7 @@ const gitBranches = computed(() => codingEnvironment.value?.git.localBranches ??
 const gitBranch = computed(() => codingEnvironment.value?.git.branch ?? '')
 const gitRepository = computed(() => Boolean(codingEnvironment.value?.git.isRepository))
 const workspaceName = computed(() => {
-  if (automaticScratchWorkspace.value) return '无项目任务'
+  if (automaticScratchWorkspace.value) return t('无项目任务', 'No project')
   const context = props.conversation?.domainTaskContext
   if (context?.kind === 'ctf' && context.challengeTitle.trim()) return context.challengeTitle.trim()
   if (context?.kind === 'cve' && context.cveId.trim()) return context.cveId.trim()
@@ -634,10 +638,10 @@ const selectedCodingProjectName = computed(() => {
 })
 const codingEmptyHeading = computed(() => {
   const name = selectedCodingProjectName.value || workspaceName.value
-  if (name && name !== '~' && name !== '无项目任务' && !isGenericWorkspaceLabel(name)) {
-    return `我们在 ${name} 中构建什么`
+  if (name && name !== '~' && name !== t('无项目任务', 'No project') && !isGenericWorkspaceLabel(name)) {
+    return t(`我们在 ${name} 中构建什么`, `What should we build in ${name}`)
   }
-  return '我们要构建什么'
+  return t('我们要构建什么', 'What should we build')
 })
 const terminalConversationId = computed(() => (
   props.conversation?.id || LOCAL_CODING_SHELL_ID
@@ -658,20 +662,20 @@ const codingBrowserTabTitle = computed(() => (
   activeCodingBrowserTab.value?.title
   || codingBrowserPage.value?.title
   || codingBrowserStatus.value?.initialUrl
-  || '新标签页'
+  || t('新标签页', 'New tab')
 ))
 const workspaceLocked = computed(() => Boolean(props.conversation?.messages.length))
 const activeModelLabel = computed(() => {
   if (effectiveModelMode.value === 'auto') return automaticModelLabel.value.replace(/^Default · /, '')
   const provider = props.modelProvider || props.settings?.active_provider
   const model = props.modelId || props.settings?.active_model
-  return provider && model ? providerModelLabel(provider, model) : '等待选择'
+  return provider && model ? providerModelLabel(provider, model) : t('等待选择', 'Waiting for a choice')
 })
 const activeModelSourceLabel = computed(() => (
   props.conversation?.modelSource === 'account'
-    ? 'MilkSU 账户'
+    ? t('MilkSU 账户', 'MilkSU account')
     : props.conversation?.modelSource === 'personal'
-      ? 'TokenFlux 中转站'
+      ? t('TokenFlux 中转站', 'TokenFlux relay')
       : ''
 ))
 
@@ -739,28 +743,29 @@ const domainSessionKind = computed(() => (
   sharedCodingSessionKind(props.ctfSession, Boolean(props.vulnerabilitySession))
 ))
 const contextPanelTitle = computed(() => ({
-  domain: props.ctfSession ? 'CTF 领域上下文' : props.vulnerabilitySession ? 'CVE 领域上下文' : '领域上下文',
-  environment: props.ctfSession ? '解题环境' : '环境信息',
-  changes: '变更',
-  artifacts: '产物',
-  browser: '浏览器',
+  domain: props.ctfSession ? t('CTF 领域上下文', 'CTF domain context') : props.vulnerabilitySession ? t('CVE 领域上下文', 'CVE domain context') : t('领域上下文', 'Domain context'),
+  environment: props.ctfSession ? t('解题环境', 'Challenge environment') : t('环境信息', 'Environment'),
+  changes: t('变更', 'Changes'),
+  artifacts: t('产物', 'Artifacts'),
+  browser: t('浏览器', 'Browser'),
   'browser-use': 'Browser Use',
   'computer-use': 'Computer Use',
-  collaboration: 'Agent 协作',
-  evidence: '证据与 Judge',
+  collaboration: t('Agent 协作', 'Agent collaboration'),
+  evidence: t('证据与 Judge', 'Evidence and Judge'),
 })[contextPanel.value])
 const transientComputerUsePanel = computed(() => (
   contextPanel.value === 'browser-use' || contextPanel.value === 'computer-use'
 ))
 const ctfRoleLabel = computed(() => {
-  if (props.ctfRole === 'tool-builder') return 'Coding Agent 工具工坊'
-  if (props.ctfRole === 'strategist') return '策略 Agent 复盘'
-  return 'CTF 解题会话'
+  if (props.ctfRole === 'tool-builder') return t('Coding Agent 工具工坊', 'Coding Agent tool workshop')
+  if (props.ctfRole === 'strategist') return t('策略 Agent 复盘', 'Strategy Agent debrief')
+  return t('CTF 解题会话', 'CTF solving session')
 })
 const activeDomainTaskContext = computed<DomainTaskContext | null>(() => {
+  const attached = props.conversation?.domainTaskContext
+  if (attached?.kind === 'lab') return attached
   const kind = domainSessionKind.value
   if (kind === 'coding') return null
-  const attached = props.conversation?.domainTaskContext
   if (kind === 'ctf') {
     const base = attached?.kind === 'ctf'
       ? attached
@@ -795,14 +800,14 @@ function returnToDomain() {
 }
 const workshopSummary = computed(() => {
   const state = workshopState.value
-  if (!state) return '正在读取工具交接状态'
-  if (state.pendingCount) return `${state.pendingCount} 个工具请求待实现`
-  if (state.readyCount) return `${state.readyCount} 个工具已交付，等待解题 Agent 验收`
-  if (state.blockedCount) return `${state.blockedCount} 个工具请求被阻塞`
-  if (state.unknownCount) return `${state.unknownCount} 个请求缺少有效状态`
+  if (!state) return t('正在读取工具交接状态', 'Reading tool handoff status')
+  if (state.pendingCount) return t(`${state.pendingCount} 个工具请求待实现`, `${state.pendingCount} tool requests pending`)
+  if (state.readyCount) return t(`${state.readyCount} 个工具已交付，等待解题 Agent 验收`, `${state.readyCount} tools delivered, waiting for the solving agent to verify`)
+  if (state.blockedCount) return t(`${state.blockedCount} 个工具请求被阻塞`, `${state.blockedCount} tool requests blocked`)
+  if (state.unknownCount) return t(`${state.unknownCount} 个请求缺少有效状态`, `${state.unknownCount} requests are missing a valid status`)
   return state.toolCount
-    ? `${state.toolCount} 个本题工具已保存在工作区`
-    : '当前没有工具请求'
+    ? t(`${state.toolCount} 个本题工具已保存在工作区`, `${state.toolCount} challenge tools saved in the workspace`)
+    : t('当前没有工具请求', 'No tool requests')
 })
 function sendComposerMessage(
   prompt: string,
@@ -851,7 +856,7 @@ function resumeAfterFailure() {
   emit(
     'send',
     agentRecoveryPrompt(props.ctfSession),
-    '继续',
+    t('继续', 'Continue'),
     lastUserMessage?.attachments,
   )
 }
@@ -906,7 +911,7 @@ async function refreshMCPConfig() {
       servers: [],
       problem: reason instanceof Error
         ? reason.message
-        : '暂时无法读取项目 MCP 配置。',
+        : t('暂时无法读取项目 MCP 配置。', 'Project MCP config cannot be read right now.'),
     }
     if (selectedMCPServers.value.length) emit('changeMcpServers', [], '')
   } finally {
@@ -1035,7 +1040,7 @@ async function openPlaywrightBrowserExtension() {
   } catch (reason) {
     browserPanelError.value = reason instanceof Error
       ? reason.message
-      : '无法打开 Playwright MCP 官方扩展页面。'
+      : t('无法打开 Playwright MCP 官方扩展页面。', 'Could not open the official Playwright MCP extension page.')
   }
 }
 
@@ -1123,7 +1128,7 @@ async function checkoutGitBranch(branch: string) {
     if (result?.snapshot) codingEnvironment.value = result.snapshot
     else await refreshEnvironment()
   } catch (reason) {
-    gitBranchError.value = reason instanceof Error ? reason.message : '无法切换分支。'
+    gitBranchError.value = reason instanceof Error ? reason.message : t('无法切换分支。', 'Could not switch branches.')
   }
 }
 
@@ -1147,7 +1152,7 @@ async function runCodingProductAction(kind: CodingProductActionKind) {
     const environment = codingEnvironment.value
     if (!environment?.git.isRepository) {
       environmentError.value = environment?.git.problem
-        || '当前目录不是 Git 仓库，无法审阅变更。'
+        || t('当前目录不是 Git 仓库，无法审阅变更。', 'This directory is not a Git repository, so changes cannot be reviewed.')
       return
     }
     const changes = environment.git.changes ?? []
@@ -1229,7 +1234,7 @@ async function refreshEnvironment() {
         [budget, checkpoint].every(result => result.status === 'rejected')
         && !ctfProjection.value
       ) {
-        errors.push('暂时无法读取解题环境。')
+        errors.push(t('暂时无法读取解题环境。', 'The challenge environment cannot be read right now.'))
       }
     }
   } else {
@@ -1253,7 +1258,7 @@ async function refreshEnvironment() {
     codingEnvironment.value = null
     errors.push(reason instanceof Error
       ? reason.message
-      : '暂时无法读取项目环境。')
+      : t('暂时无法读取项目环境。', 'The project environment cannot be read right now.'))
   } finally {
     environmentLoading.value = false
   }
@@ -1294,7 +1299,7 @@ async function refreshBrowserPanel() {
     codingBrowserStatus.value = null
     browserPanelError.value = browser.reason instanceof Error
       ? browser.reason.message
-      : '暂时无法读取浏览器状态。'
+      : t('暂时无法读取浏览器状态。', 'Browser status cannot be read right now.')
   }
   if (computerUse.status === 'fulfilled') {
     computerUseStatus.value = computerUse.value
@@ -1303,7 +1308,7 @@ async function refreshBrowserPanel() {
     if (!browserPanelError.value) {
       browserPanelError.value = computerUse.reason instanceof Error
         ? computerUse.reason.message
-        : '暂时无法读取 Computer Use 状态。'
+        : t('暂时无法读取 Computer Use 状态。', 'Computer Use status cannot be read right now.')
     }
   }
   if (computerUseTargetsResult.status === 'fulfilled') {
@@ -1324,7 +1329,7 @@ async function refreshBrowserPanel() {
     if (!browserPanelError.value) {
       browserPanelError.value = computerUseTargetsResult.reason instanceof Error
         ? computerUseTargetsResult.reason.message
-        : '暂时无法读取可见 App 窗口。'
+        : t('暂时无法读取可见 App 窗口。', 'Visible app windows cannot be read right now.')
     }
   }
   codingBrowserLoading.value = false
@@ -1332,7 +1337,7 @@ async function refreshBrowserPanel() {
 }
 
 function applyCodingBrowserAddress(status: CodingBrowserStatus | null | undefined) {
-  if (document.activeElement?.getAttribute('aria-label') === '浏览器地址') return
+  if (document.activeElement?.getAttribute('aria-label') === t('浏览器地址', 'Address')) return
   codingBrowserURL.value = codingBrowserAddressFromStatus(status)
 }
 
@@ -1354,7 +1359,7 @@ async function ensureCodingBrowser() {
   } catch (reason) {
     browserPanelError.value = reason instanceof Error
       ? reason.message
-      : '浏览器启动失败。'
+      : t('浏览器启动失败。', 'The browser failed to start.')
   } finally {
     codingBrowserLoading.value = false
   }
@@ -1400,7 +1405,7 @@ async function startCodingBrowser() {
     initialURL = normalizeCodingBrowserAddress(codingBrowserURL.value)
     codingBrowserURL.value = initialURL
   } catch (reason) {
-    browserPanelError.value = reason instanceof Error ? reason.message : '无法识别这个地址。'
+    browserPanelError.value = reason instanceof Error ? reason.message : t('无法识别这个地址。', 'This address could not be recognized.')
     return
   }
   const workspaceName = props.workspacePath
@@ -1408,7 +1413,7 @@ async function startCodingBrowser() {
     .split('/')
     .at(-1)
   const conversationID = props.ensureConversation(
-    workspaceName ? `${workspaceName} · 浏览器` : '浏览器',
+    workspaceName ? t(`${workspaceName} · 浏览器`, `${workspaceName} · Browser`) : t('浏览器', 'Browser'),
   )
   codingBrowserLoading.value = true
   try {
@@ -1426,7 +1431,7 @@ async function startCodingBrowser() {
   } catch (reason) {
     browserPanelError.value = reason instanceof Error
       ? reason.message
-      : '浏览器启动失败。'
+      : t('浏览器启动失败。', 'The browser failed to start.')
   } finally {
     codingBrowserLoading.value = false
   }
@@ -1449,7 +1454,7 @@ async function stopCodingBrowser() {
   } catch (reason) {
     browserPanelError.value = reason instanceof Error
       ? reason.message
-      : '浏览器停止失败。'
+      : t('浏览器停止失败。', 'The browser failed to stop.')
   } finally {
     codingBrowserLoading.value = false
   }
@@ -1461,7 +1466,7 @@ async function navigateCodingBrowser() {
     initialURL = normalizeCodingBrowserAddress(codingBrowserURL.value)
     codingBrowserURL.value = initialURL
   } catch (reason) {
-    browserPanelError.value = reason instanceof Error ? reason.message : '无法识别这个地址。'
+    browserPanelError.value = reason instanceof Error ? reason.message : t('无法识别这个地址。', 'This address could not be recognized.')
     return
   }
   if (!codingBrowserStatus.value?.enabled) {
@@ -1481,7 +1486,7 @@ async function navigateCodingBrowser() {
   } catch (reason) {
     browserPanelError.value = reason instanceof Error
       ? reason.message
-      : '页面导航失败。'
+      : t('页面导航失败。', 'Page navigation failed.')
   } finally {
     codingBrowserLoading.value = false
   }
@@ -1506,7 +1511,7 @@ async function mutateCodingBrowserTab(
   } catch (reason) {
     browserPanelError.value = reason instanceof Error
       ? reason.message
-      : '标签页操作失败。'
+      : t('标签页操作失败。', 'The tab action failed.')
   }
 }
 
@@ -1544,7 +1549,7 @@ async function runCodingBrowserNavigation(action: 'back' | 'forward' | 'reload')
   } catch (reason) {
     browserPanelError.value = reason instanceof Error
       ? reason.message
-      : '浏览器操作失败。'
+      : t('浏览器操作失败。', 'The browser action failed.')
   }
 }
 
@@ -1586,7 +1591,7 @@ async function syncCodingBrowserViewport() {
   } catch (reason) {
     browserPanelError.value = reason instanceof Error
       ? reason.message
-      : '无法放置内嵌浏览器。'
+      : t('无法放置内嵌浏览器。', 'Could not place the embedded browser.')
   }
 }
 
@@ -1626,7 +1631,7 @@ async function refreshCodingBrowserState() {
 async function revealCodingBrowserEvidence() {
   const conversationID = props.conversation?.id
   if (!conversationID) {
-    codingBrowserEvidenceError.value = '当前会话尚未就绪，无法定位浏览器证据。'
+    codingBrowserEvidenceError.value = t('当前会话尚未就绪，无法定位浏览器证据。', 'This session is not ready yet, so browser evidence cannot be located.')
     return
   }
   // Only the trusted conversation id leaves the frontend: the backend derives
@@ -1646,7 +1651,7 @@ async function revealCodingBrowserEvidence() {
   } catch (reason) {
     codingBrowserEvidenceError.value = reason instanceof Error
       ? reason.message
-      : '无法在 Finder 中显示浏览器证据。'
+      : t('无法在 Finder 中显示浏览器证据。', 'Could not reveal browser evidence in Finder.')
   } finally {
     codingBrowserEvidenceLoading.value = false
   }
@@ -1665,7 +1670,7 @@ async function requestComputerUsePermissions(permission: CodingComputerUsePermis
   } catch (reason) {
     computerUsePermissionError.value = reason instanceof Error
       ? reason.message
-      : '无法请求 MilkSU 的系统权限。'
+      : t('无法请求 MilkSU 的系统权限。', 'Could not request MilkSU system permissions.')
   } finally {
     computerUsePermissionRequesting.value = null
   }
@@ -1682,7 +1687,7 @@ async function pollComputerUsePermissions() {
   } catch (reason) {
     computerUsePermissionError.value = reason instanceof Error
       ? reason.message
-      : '暂时无法读取 Computer Use 权限状态。'
+      : t('暂时无法读取 Computer Use 权限状态。', 'Computer Use permission status cannot be read right now.')
   } finally {
     computerUsePermissionPolling.value = false
   }
@@ -1704,7 +1709,7 @@ async function startComputerUse() {
   browserPanelError.value = ''
   const target = selectedComputerUseTarget.value
   if (!target) {
-    browserPanelError.value = '请先选择一个当前可见的 App 窗口。'
+    browserPanelError.value = t('请先选择一个当前可见的 App 窗口。', 'Choose a currently visible app window first.')
     return
   }
   const workspaceName = props.workspacePath
@@ -1712,7 +1717,7 @@ async function startComputerUse() {
     .split('/')
     .at(-1)
   const conversationID = props.ensureConversation(
-    workspaceName ? `${workspaceName} · ${target.name}` : `${target.name} 可见会话`,
+    workspaceName ? `${workspaceName} · ${target.name}` : t(`${target.name} 可见会话`, `${target.name} visible session`),
   )
   computerUseLoading.value = true
   try {
@@ -1732,7 +1737,7 @@ async function startComputerUse() {
   } catch (reason) {
     browserPanelError.value = reason instanceof Error
       ? reason.message
-      : 'Computer Use 可见会话启动失败。'
+      : t('Computer Use 可见会话启动失败。', 'The Computer Use visible session failed to start.')
   } finally {
     computerUseLoading.value = false
   }
@@ -1753,7 +1758,7 @@ async function stopComputerUse() {
   } catch (reason) {
     browserPanelError.value = reason instanceof Error
       ? reason.message
-      : 'Computer Use 可见会话停止失败。'
+      : t('Computer Use 可见会话停止失败。', 'The Computer Use visible session failed to stop.')
   } finally {
     computerUseLoading.value = false
   }
@@ -2072,8 +2077,8 @@ watch(
             size="icon-sm"
             class="app-no-drag"
             data-testid="coding-history-toggle"
-            aria-label="展开会话历史"
-            title="展开会话历史"
+            :aria-label="t('展开会话历史', 'Expand chat history')"
+            :title="t('展开会话历史', 'Expand chat history')"
             :aria-expanded="false"
             aria-controls="coding-context-sidebar"
             @click="$emit('toggleConversationDrawer')"
@@ -2085,17 +2090,17 @@ watch(
             size="icon-sm"
             class="app-no-drag"
             data-testid="coding-new-task-button"
-            aria-label="新建编码任务"
-            title="新建编码任务"
+            :aria-label="t('新建编码任务', 'New coding task')"
+            :title="t('新建编码任务', 'New coding task')"
             @click="$emit('newConversation')"
           >
             <MessageSquarePlus class="size-4" />
           </Button>
         </div>
       </template>
-      <template v-if="ctfSession || vulnerabilitySession" #badge>
+      <template v-if="ctfSession || vulnerabilitySession || domainTaskPresentation" #badge>
         <Badge variant="secondary" class="max-w-full truncate">
-          {{ ctfSession ? ctfRoleLabel : (domainTaskPresentation?.moduleLabel || 'CVE 接力') }}
+          {{ ctfSession ? ctfRoleLabel : (domainTaskPresentation?.moduleLabel || t('CVE 接力', 'CVE handoff')) }}
         </Badge>
       </template>
       <template #actions>
@@ -2107,14 +2112,15 @@ watch(
           @click="returnToDomain"
         >
           <Flag v-if="domainTaskPresentation.kind === 'ctf'" class="size-4" />
+          <FlaskConical v-else-if="domainTaskPresentation.kind === 'lab'" class="size-4" />
           <ShieldCheck v-else class="size-4" />
           {{ domainTaskPresentation.returnLabel }}
         </Button>
         <Button
           variant="ghost"
           size="icon-sm"
-          :aria-label="terminalOpen ? '关闭底部终端' : '打开底部终端'"
-          :title="terminalOpen ? '关闭底部终端' : '打开底部终端'"
+          :aria-label="terminalOpen ? t('关闭底部终端', 'Close bottom terminal') : t('打开底部终端', 'Open bottom terminal')"
+          :title="terminalOpen ? t('关闭底部终端', 'Close bottom terminal') : t('打开底部终端', 'Open bottom terminal')"
           @click="toggleTerminalPanel"
         >
           <SquareTerminal class="size-4" />
@@ -2123,8 +2129,8 @@ watch(
           variant="ghost"
           size="icon-sm"
           data-testid="coding-rail-toggle"
-          aria-label="打开右侧栏"
-          title="打开右侧栏"
+          :aria-label="t('打开右侧栏', 'Open right rail')"
+          :title="t('打开右侧栏', 'Open right rail')"
           @click="toggleManualContextSidebar"
         >
           <PanelRightOpen class="size-4" />
@@ -2140,8 +2146,8 @@ watch(
         size="icon-sm"
         class="app-no-drag"
         data-testid="coding-history-toggle"
-        aria-label="展开会话历史"
-        title="展开会话历史"
+        :aria-label="t('展开会话历史', 'Expand chat history')"
+        :title="t('展开会话历史', 'Expand chat history')"
         :aria-expanded="false"
         aria-controls="coding-context-sidebar"
         @click="$emit('toggleConversationDrawer')"
@@ -2153,8 +2159,8 @@ watch(
         size="icon-sm"
         class="app-no-drag"
         data-testid="coding-new-task-button"
-        aria-label="新建编码任务"
-        title="新建编码任务"
+        :aria-label="t('新建编码任务', 'New coding task')"
+        :title="t('新建编码任务', 'New coding task')"
         @click="$emit('newConversation')"
       >
         <MessageSquarePlus class="size-4" />
@@ -2171,12 +2177,12 @@ watch(
         <div class="mt-4 flex items-center gap-2">
           <Button v-if="!workspacePath" class="tactical-action" @click="$emit('chooseWorkspace')">
             <FolderOpen class="size-4" />
-            选择项目目录
+            {{ t('选择项目目录', 'Choose a project folder') }}
           </Button>
-          <Badge v-else variant="outline" class="max-w-md truncate">任务工作区已就绪</Badge>
+          <Badge v-else variant="outline" class="max-w-md truncate">{{ t('任务工作区已就绪', 'Task workspace is ready') }}</Badge>
           <Button v-if="!hasCredential" variant="outline" @click="$emit('openSettings')">
             <KeyRound class="size-4" />
-            配置模型
+            {{ t('配置模型', 'Configure models') }}
           </Button>
         </div>
       </div>
@@ -2210,7 +2216,7 @@ watch(
           />
         </template>
         <p v-if="waitingForModel && !compacting" class="chat-model-loading">
-          <AkLoadingMark label="模型回复中" show-label />
+          <AkLoadingMark :label="t('模型回复中', 'Model is replying')" show-label />
         </p>
       </div>
     </div>
@@ -2221,7 +2227,7 @@ watch(
       data-testid="context-compaction-status"
       role="status"
     >
-      <AkLoadingMark label="正在整理上下文" show-label />
+      <AkLoadingMark :label="t('正在整理上下文', 'Compacting context')" show-label />
     </p>
     <p
       v-else-if="compactionError"
@@ -2317,7 +2323,7 @@ watch(
         <SelectTrigger
           size="sm"
           class="app-no-drag min-w-44 border-0 bg-transparent px-0 shadow-none"
-          aria-label="选择右侧页面"
+          :aria-label="t('选择右侧页面', 'Choose the right-rail page')"
         >
           <Flag v-if="contextPanel === 'domain' && ctfSession" class="size-4 text-primary" />
           <ShieldCheck v-else-if="contextPanel === 'domain'" class="size-4 text-primary" />
@@ -2330,15 +2336,15 @@ watch(
           <SelectValue />
         </SelectTrigger>
         <SelectContent size="sm" align="start" class="min-w-56">
-          <SelectItem v-if="domainTaskPresentation" value="domain">领域上下文</SelectItem>
-          <SelectItem value="environment">{{ ctfSession ? '解题环境' : '环境信息' }}</SelectItem>
-          <SelectItem value="changes">变更</SelectItem>
-          <SelectItem value="artifacts">产物</SelectItem>
-          <SelectItem value="browser">浏览器</SelectItem>
+          <SelectItem v-if="domainTaskPresentation" value="domain">{{ t('领域上下文', 'Domain context') }}</SelectItem>
+          <SelectItem value="environment">{{ ctfSession ? t('解题环境', 'Challenge environment') : t('环境信息', 'Environment') }}</SelectItem>
+          <SelectItem value="changes">{{ t('变更', 'Changes') }}</SelectItem>
+          <SelectItem value="artifacts">{{ t('产物', 'Artifacts') }}</SelectItem>
+          <SelectItem value="browser">{{ t('浏览器', 'Browser') }}</SelectItem>
           <template v-if="ctfSession">
             <SelectSeparator />
-            <SelectItem value="collaboration">Agent 协作</SelectItem>
-            <SelectItem value="evidence">证据与 Judge</SelectItem>
+            <SelectItem value="collaboration">{{ t('Agent 协作', 'Agent collaboration') }}</SelectItem>
+            <SelectItem value="evidence">{{ t('证据与 Judge', 'Evidence and Judge') }}</SelectItem>
           </template>
         </SelectContent>
       </Select>
@@ -2353,18 +2359,18 @@ watch(
           variant="outline"
           size="sm"
           class="min-h-9 px-3"
-          aria-label="收起任务信息"
+          :aria-label="t('收起任务信息', 'Collapse task info')"
           data-testid="collapse-domain-to-pip"
           @click="domainContextCollapsed = true"
         >
-          收起
+          {{ t('收起', 'Collapse') }}
         </Button>
         <Button
           variant="ghost"
           size="icon-sm"
           data-testid="coding-rail-terminal"
-          :aria-label="terminalOpen ? '关闭底部终端' : '打开底部终端'"
-          :title="terminalOpen ? '关闭底部终端' : '打开底部终端'"
+          :aria-label="terminalOpen ? t('关闭底部终端', 'Close bottom terminal') : t('打开底部终端', 'Open bottom terminal')"
+          :title="terminalOpen ? t('关闭底部终端', 'Close bottom terminal') : t('打开底部终端', 'Open bottom terminal')"
           @click="toggleTerminalPanel"
         >
           <SquareTerminal class="size-4" />
@@ -2373,8 +2379,8 @@ watch(
           variant="ghost"
           size="icon-sm"
           data-testid="coding-rail-toggle"
-          aria-label="关闭右侧栏"
-          title="关闭右侧栏"
+          :aria-label="t('关闭右侧栏', 'Close right rail')"
+          :title="t('关闭右侧栏', 'Close right rail')"
           @click="toggleManualContextSidebar"
         >
           <PanelRightClose class="size-4" />
@@ -2402,7 +2408,7 @@ watch(
 
         <section class="border-b border-border px-4 py-4">
           <div class="flex items-center justify-between gap-3">
-            <p class="text-caption font-medium text-muted-foreground">工作区</p>
+            <p class="text-caption font-medium text-muted-foreground">{{ t('工作区', 'Workspace') }}</p>
             <Button
               type="button"
               variant="ghost"
@@ -2410,7 +2416,7 @@ watch(
               :disabled="running"
               @click="chooseWorkspaceFromCurrentTask"
             >
-              {{ workspaceLocked ? '新任务使用其他目录' : '更换' }}
+              {{ workspaceLocked ? t('新任务使用其他目录', 'Use another folder for a new task') : t('更换', 'Change') }}
             </Button>
           </div>
           <div class="mt-3 flex items-start gap-3">
@@ -2425,7 +2431,7 @@ watch(
                 :title="workspacePath"
               >
                 {{ automaticScratchWorkspace
-                  ? '无项目任务 · MilkSU 本地临时工作区'
+                  ? t('无项目任务 · MilkSU 本地临时工作区', 'No project · MilkSU local temporary workspace')
                   : workspacePath }}
               </p>
             </div>
@@ -2439,7 +2445,7 @@ watch(
               v-if="codingEnvironment?.git.isRepository"
               :variant="codingEnvironment.git.dirty ? 'secondary' : 'outline'"
             >
-              {{ codingEnvironment.git.dirty ? '有变更' : '干净' }}
+              {{ codingEnvironment.git.dirty ? t('有变更', 'Changed') : t('干净', 'Clean') }}
             </Badge>
           </div>
           <div v-if="codingEnvironment?.git.isRepository" class="mt-3 space-y-3 text-body">
@@ -2453,23 +2459,23 @@ watch(
               </span>
             </div>
             <div v-if="codingEnvironment.git.head" class="flex items-center justify-between gap-3">
-              <span class="text-muted-foreground">提交</span>
+              <span class="text-muted-foreground">{{ t('提交', 'Commit') }}</span>
               <span class="font-mono text-caption">{{ codingEnvironment.git.head }}</span>
             </div>
             <div class="flex items-center justify-between gap-3">
-              <span class="text-muted-foreground">变更</span>
+              <span class="text-muted-foreground">{{ t('变更', 'Changes') }}</span>
               <span class="font-mono text-caption">
-                {{ codingEnvironment.git.changedFiles }} 文件
+                {{ t(`${codingEnvironment.git.changedFiles} 文件`, `${codingEnvironment.git.changedFiles} files`) }}
                 <span class="text-primary">+{{ codingEnvironment.git.additions }}</span>
                 <span class="text-destructive">-{{ codingEnvironment.git.deletions }}</span>
               </span>
             </div>
             <div class="grid grid-cols-2 gap-x-3 gap-y-2 text-caption text-muted-foreground">
-              <span>暂存 {{ codingEnvironment.git.staged }}</span>
-              <span>修改 {{ codingEnvironment.git.modified }}</span>
-              <span>未跟踪 {{ codingEnvironment.git.untracked }}</span>
+              <span>{{ t(`暂存 ${codingEnvironment.git.staged}`, `Staged ${codingEnvironment.git.staged}`) }}</span>
+              <span>{{ t(`修改 ${codingEnvironment.git.modified}`, `Modified ${codingEnvironment.git.modified}`) }}</span>
+              <span>{{ t(`未跟踪 ${codingEnvironment.git.untracked}`, `Untracked ${codingEnvironment.git.untracked}`) }}</span>
               <span :class="{ 'text-destructive': codingEnvironment.git.conflicts }">
-                冲突 {{ codingEnvironment.git.conflicts }}
+                {{ t(`冲突 ${codingEnvironment.git.conflicts}`, `Conflicts ${codingEnvironment.git.conflicts}`) }}
               </span>
             </div>
             <Button
@@ -2479,35 +2485,35 @@ watch(
             >
               <span class="flex items-center gap-2">
                 <FileDiff class="size-4" />
-                查看文件级变更
+                {{ t('查看文件级变更', 'View file-level changes') }}
               </span>
               <span class="text-caption text-muted-foreground">
-                {{ codingEnvironment.git.changedFiles }} 文件
+                {{ t(`${codingEnvironment.git.changedFiles} 文件`, `${codingEnvironment.git.changedFiles} files`) }}
               </span>
             </Button>
           </div>
           <p v-else class="mt-3 text-caption leading-5 text-muted-foreground">
-            {{ codingEnvironment?.git.problem || '当前目录不是 Git 仓库。' }}
+            {{ codingEnvironment?.git.problem || t('当前目录不是 Git 仓库。', 'This directory is not a Git repository.') }}
           </p>
         </section>
 
         <section v-if="ctfSession" class="border-b border-border px-4 py-4">
-          <p class="text-caption font-medium text-muted-foreground">当前解题</p>
+          <p class="text-caption font-medium text-muted-foreground">{{ t('当前解题', 'Current challenge') }}</p>
           <div class="mt-3 space-y-3 text-body">
             <div class="flex items-center justify-between gap-3">
-              <span class="text-muted-foreground">角色</span>
+              <span class="text-muted-foreground">{{ t('角色', 'Role') }}</span>
               <span>{{ ctfRoleLabel }}</span>
             </div>
             <div class="flex items-center justify-between gap-3">
-              <span class="text-muted-foreground">协作</span>
-              <span>{{ ctfMode === 'coach' ? '教练' : ctfMode === 'delegate' ? '代理' : '搭档' }}</span>
+              <span class="text-muted-foreground">{{ t('协作', 'Collaboration') }}</span>
+              <span>{{ ctfMode === 'coach' ? t('教练', 'Coach') : ctfMode === 'delegate' ? t('代理', 'Delegate') : t('搭档', 'Partner') }}</span>
             </div>
             <div class="flex items-center justify-between gap-3">
-              <span class="text-muted-foreground">阶段</span>
-              <span>{{ ctfCheckpoint?.progress?.phase || ctfCheckpoint?.status || '待启动' }}</span>
+              <span class="text-muted-foreground">{{ t('阶段', 'Phase') }}</span>
+              <span>{{ ctfCheckpoint?.progress?.phase || ctfCheckpoint?.status || t('待启动', 'Not started') }}</span>
             </div>
             <div v-if="ctfBudget" class="flex items-center justify-between gap-3">
-              <span class="text-muted-foreground">回合预算</span>
+              <span class="text-muted-foreground">{{ t('回合预算', 'Turn budget') }}</span>
               <span class="font-mono text-caption">
                 {{ ctfBudget.remainingTurns }}/{{ ctfBudget.budget.maxTurns }}
               </span>
@@ -2524,18 +2530,18 @@ watch(
         <p class="text-caption font-medium text-muted-foreground">Agent</p>
         <div class="mt-3 space-y-3 text-body">
           <div class="flex items-center justify-between gap-3">
-            <span class="text-muted-foreground">状态</span>
+            <span class="text-muted-foreground">{{ t('状态', 'Status') }}</span>
             <span class="flex items-center gap-2">
-              <AkLoadingMark v-if="running" label="执行中" />
+              <AkLoadingMark v-if="running" :label="t('执行中', 'Running')" />
               <span
                 v-else
                 class="size-1.5 rounded-full bg-muted-foreground"
               />
-              {{ running ? '执行中' : '空闲' }}
+              {{ running ? t('执行中', 'Running') : t('空闲', 'Idle') }}
             </span>
           </div>
           <div v-if="runTimingPresentation" class="flex items-center justify-between gap-3">
-            <span class="text-muted-foreground">本轮用时</span>
+            <span class="text-muted-foreground">{{ t('本轮用时', 'This turn') }}</span>
             <span
               class="font-mono text-caption tabular-nums"
               data-testid="agent-run-elapsed"
@@ -2544,11 +2550,11 @@ watch(
             </span>
           </div>
           <div class="flex items-start justify-between gap-3">
-            <span class="shrink-0 text-muted-foreground">模型</span>
+            <span class="shrink-0 text-muted-foreground">{{ t('模型', 'Model') }}</span>
             <span class="text-right text-caption leading-5">{{ activeModelLabel }}</span>
           </div>
           <div class="flex items-start justify-between gap-3">
-            <span class="shrink-0 text-muted-foreground">来源</span>
+            <span class="shrink-0 text-muted-foreground">{{ t('来源', 'Source') }}</span>
             <span class="text-right text-caption leading-5">
               {{ activeModelSourceLabel }}
             </span>
@@ -2557,33 +2563,33 @@ watch(
             v-if="contextUsagePresentation"
             class="flex items-center justify-between gap-3"
           >
-            <span class="text-muted-foreground">上下文</span>
+            <span class="text-muted-foreground">{{ t('上下文', 'Context') }}</span>
             <ContextUsageMeter
               :usage="contextUsagePresentation"
               size="md"
             />
           </div>
           <div class="flex items-start justify-between gap-3">
-            <span class="shrink-0 text-muted-foreground">插件</span>
+            <span class="shrink-0 text-muted-foreground">{{ t('插件', 'Plugins') }}</span>
             <span class="text-right text-caption leading-5">
               {{ activeExtensions.length ? activeExtensions.map(extensionLabel).join(' · ') : '' }}
             </span>
           </div>
           <div v-if="activeSkills.length" class="flex items-start justify-between gap-3">
-            <span class="shrink-0 text-muted-foreground">技能</span>
+            <span class="shrink-0 text-muted-foreground">{{ t('技能', 'Skills') }}</span>
             <span class="text-right text-caption leading-5">
               {{ activeSkills.join(' · ') }}
             </span>
           </div>
           <div class="flex items-start justify-between gap-3">
-            <span class="shrink-0 text-muted-foreground">工具</span>
+            <span class="shrink-0 text-muted-foreground">{{ t('工具', 'Tools') }}</span>
             <span class="text-right text-caption leading-5">
-              {{ activeTools.length }} 个
+              {{ t(`${activeTools.length} 个`, `${activeTools.length} tools`) }}
             </span>
           </div>
           <details v-if="activeTools.length" class="rounded-md bg-muted/40 px-2.5 py-2">
             <summary class="cursor-pointer text-caption text-muted-foreground">
-              查看本任务工具
+              {{ t('查看本任务工具', 'View tools for this task') }}
             </summary>
             <p class="mt-2 break-words text-caption leading-5 text-muted-foreground">
               {{ activeTools.join(' · ') }}
@@ -2594,7 +2600,7 @@ watch(
 
         <section class="border-b border-border px-4 py-4">
           <div class="flex items-center justify-between gap-3">
-            <p class="text-caption font-medium text-muted-foreground">执行与权限</p>
+            <p class="text-caption font-medium text-muted-foreground">{{ t('执行与权限', 'Execution and permissions') }}</p>
             <Badge variant="outline">{{ codingPolicyLabel }}</Badge>
           </div>
           <div class="mt-3 space-y-3">
@@ -2623,9 +2629,9 @@ watch(
             </div>
           </div>
           <div class="mt-4 border-t border-border/70 pt-4">
-            <p class="text-caption font-medium text-muted-foreground">项目 MCP</p>
+            <p class="text-caption font-medium text-muted-foreground">{{ t('项目 MCP', 'Project MCP') }}</p>
             <p v-if="mcpConfigLoading" class="mt-2 text-caption text-muted-foreground">
-              正在读取
+              {{ t('正在读取', 'Reading') }}
             </p>
             <p
               v-else-if="mcpConfig?.problem"
@@ -2692,17 +2698,17 @@ watch(
                   ? 'border-border bg-background'
                   : 'border-transparent bg-transparent text-muted-foreground'"
                 :aria-current="tab.active ? 'page' : undefined"
-                :aria-label="tab.title || tab.url || '新标签页'"
+                :aria-label="tab.title || tab.url || t('新标签页', 'New tab')"
                 @click="tab.id === 'current' ? undefined : activateCodingBrowserTab(tab.id)"
               >
                 <Globe2 class="size-3.5 shrink-0 text-primary" />
-                <span class="min-w-0 flex-1 truncate text-left text-control">{{ tab.title || tab.url || '新标签页' }}</span>
+                <span class="min-w-0 flex-1 truncate text-left text-control">{{ tab.title || tab.url || t('新标签页', 'New tab') }}</span>
                 <span
                   v-if="codingBrowserStatus?.enabled"
                   role="button"
                   tabindex="0"
                   class="grid size-5 shrink-0 place-items-center rounded-sm text-muted-foreground hover:text-foreground"
-                  :aria-label="codingBrowserTabs.length > 1 ? `关闭 ${tab.title || '标签页'}` : '关闭浏览器'"
+                  :aria-label="codingBrowserTabs.length > 1 ? t(`关闭 ${tab.title || t('标签页', 'tab')}`, `Close ${tab.title || t('标签页', 'tab')}`) : t('关闭浏览器', 'Close browser')"
                   @click.stop="tab.id === 'current' ? stopCodingBrowser() : closeCodingBrowserTab(tab.id)"
                   @keydown.enter.prevent="tab.id === 'current' ? stopCodingBrowser() : closeCodingBrowserTab(tab.id)"
                 >
@@ -2714,7 +2720,7 @@ watch(
               variant="ghost"
               size="icon-sm"
               class="mb-1 size-7 shrink-0"
-              aria-label="新标签页"
+              :aria-label="t('新标签页', 'New tab')"
               :disabled="codingBrowserLoading || codingBrowserTabs.length >= 8"
               @click="createCodingBrowserTab"
             >
@@ -2727,7 +2733,7 @@ watch(
               variant="ghost"
               size="icon-sm"
               :disabled="!codingBrowserStatus?.enabled"
-              aria-label="后退"
+              :aria-label="t('后退', 'Back')"
               @click="runCodingBrowserNavigation('back')"
             >
               <ArrowLeft class="size-4" />
@@ -2736,7 +2742,7 @@ watch(
               variant="ghost"
               size="icon-sm"
               :disabled="!codingBrowserStatus?.enabled"
-              aria-label="前进"
+              :aria-label="t('前进', 'Forward')"
               @click="runCodingBrowserNavigation('forward')"
             >
               <ArrowRight class="size-4" />
@@ -2745,7 +2751,7 @@ watch(
               variant="ghost"
               size="icon-sm"
               :disabled="!codingBrowserStatus?.enabled || codingBrowserLoading"
-              aria-label="重新加载"
+              :aria-label="t('重新加载', 'Reload')"
               @click="runCodingBrowserNavigation('reload')"
             >
               <RefreshCw class="size-4" :class="{ 'animate-spin': codingBrowserLoading }" />
@@ -2754,15 +2760,15 @@ watch(
               v-model="codingBrowserURL"
               :disabled="codingBrowserLoading"
               class="h-8 min-w-0 flex-1 rounded-full bg-muted/55 px-3 font-mono text-caption"
-              aria-label="浏览器地址"
-              placeholder="输入网址或搜索内容"
+              :aria-label="t('浏览器地址', 'Address')"
+              :placeholder="t('输入网址或搜索内容', 'Enter a URL or search')"
               @keydown.enter.prevent="navigateCodingBrowser"
             />
             <Button
               variant="ghost"
               size="icon-sm"
               :disabled="codingBrowserLoading"
-              :aria-label="codingBrowserStatus?.enabled ? '打开地址' : '启动浏览器'"
+              :aria-label="codingBrowserStatus?.enabled ? t('打开地址', 'Open address') : t('启动浏览器', 'Start browser')"
               @click="navigateCodingBrowser"
             >
               <LoaderCircle v-if="codingBrowserLoading" class="size-4 animate-spin" />
@@ -2775,21 +2781,21 @@ watch(
               ref="codingBrowserViewport"
               class="absolute inset-0"
               data-coding-browser-viewport
-              :aria-label="codingBrowserStatus?.enabled ? '浏览器页面' : '浏览器未启动'"
+              :aria-label="codingBrowserStatus?.enabled ? t('浏览器页面', 'Browser page') : t('浏览器未启动', 'Browser not started')"
             />
             <div
               v-if="!codingBrowserStatus?.enabled"
               class="absolute inset-0 z-10 flex flex-col items-center justify-center bg-background px-8 text-center"
             >
               <Globe2 class="size-7 text-muted-foreground" />
-              <p class="mt-3 text-label font-medium">浏览器</p>
-              <p class="mt-1 text-caption text-muted-foreground">输入地址后按回车</p>
+              <p class="mt-3 text-label font-medium">{{ t('浏览器', 'Browser') }}</p>
+              <p class="mt-1 text-caption text-muted-foreground">{{ t('输入地址后按回车', 'Press Return after entering an address') }}</p>
             </div>
           </div>
 
           <footer class="flex h-9 shrink-0 items-center justify-between gap-3 border-t border-border bg-background px-3 text-caption text-muted-foreground">
             <span class="min-w-0 truncate">
-              {{ codingBrowserStatus?.enabled ? codingBrowserStatus.profileLabel : '独立 profile · 不读取日常浏览器' }}
+              {{ codingBrowserStatus?.enabled ? codingBrowserStatus.profileLabel : t('独立 profile · 不读取日常浏览器', 'Isolated profile · does not read your everyday browser') }}
             </span>
             <Button
               v-if="codingBrowserEvidencePath"
@@ -2797,12 +2803,12 @@ watch(
               size="sm"
               class="shrink-0"
               :disabled="codingBrowserEvidenceLoading"
-              aria-label="在 Finder 中显示浏览器证据"
+              :aria-label="t('在 Finder 中显示浏览器证据', 'Reveal browser evidence in Finder')"
               @click="revealCodingBrowserEvidence"
             >
               <LoaderCircle v-if="codingBrowserEvidenceLoading" class="size-3.5 animate-spin" />
               <FolderOpen v-else class="size-3.5" />
-              证据
+              {{ t('证据', 'Evidence') }}
             </Button>
           </footer>
         </section>
@@ -2817,9 +2823,9 @@ watch(
             <div class="flex items-start gap-3">
               <Globe2 class="mt-0.5 size-5 shrink-0 text-primary" />
               <div>
-                <p class="text-body font-medium">真实用户浏览器</p>
+                <p class="text-body font-medium">{{ t('真实用户浏览器', 'Real user browser') }}</p>
                 <p class="mt-1 text-caption leading-5 text-muted-foreground">
-                  发送任务后，在 Chrome/Edge 中批准要操作的标签页。
+                  {{ t('发送任务后，在 Chrome/Edge 中批准要操作的标签页。', 'After you send the task, approve the tab to operate in Chrome/Edge.') }}
                 </p>
               </div>
             </div>
@@ -2830,7 +2836,7 @@ watch(
               @click="openPlaywrightBrowserExtension"
             >
               <ExternalLink class="size-3.5" />
-              安装 Playwright 官方扩展
+              {{ t('安装 Playwright 官方扩展', 'Install the official Playwright extension') }}
             </Button>
           </div>
         </section>
@@ -2862,7 +2868,7 @@ watch(
 
       <template v-else-if="contextPanel === 'collaboration'">
         <section class="border-b border-border px-4 py-4">
-          <p class="text-caption font-medium text-muted-foreground">当前角色</p>
+          <p class="text-caption font-medium text-muted-foreground">{{ t('当前角色', 'Current role') }}</p>
           <div class="mt-3 grid gap-2">
             <Button
               :variant="ctfRole === 'solver' ? 'secondary' : 'outline'"
@@ -2870,7 +2876,7 @@ watch(
               @click="$emit('switchCtfAgent', 'solver')"
             >
               <Flag class="size-4" />
-              解题 Agent
+              {{ t('解题 Agent', 'Solving agent') }}
             </Button>
             <Button
               :variant="ctfRole === 'tool-builder' ? 'secondary' : 'outline'"
@@ -2878,7 +2884,7 @@ watch(
               @click="$emit('switchCtfAgent', 'tool-builder')"
             >
               <Wrench class="size-4" />
-              Coding Agent 工具工坊
+              {{ t('Coding Agent 工具工坊', 'Coding Agent tool workshop') }}
             </Button>
             <Button
               :variant="ctfRole === 'strategist' ? 'secondary' : 'outline'"
@@ -2886,16 +2892,16 @@ watch(
               @click="$emit('switchCtfAgent', 'strategist')"
             >
               <Route class="size-4" />
-              策略复盘
+              {{ t('策略复盘', 'Strategy debrief') }}
             </Button>
           </div>
           <div
             v-if="ctfRole === 'strategist'"
             class="mt-3 rounded-lg bg-primary/5 px-3 py-3"
           >
-            <p class="text-body font-medium">策略 Agent 复盘</p>
+            <p class="text-body font-medium">{{ t('策略 Agent 复盘', 'Strategy Agent debrief') }}</p>
             <p class="mt-1 text-caption leading-5 text-muted-foreground">
-              独立审阅题面、轨迹与证据；不执行命令，不修改解题笔记或候选。
+              {{ t('独立审阅题面、轨迹与证据；不执行命令，不修改解题笔记或候选。', 'Independently review the challenge, trajectory, and evidence. Do not run commands or change solving notes or candidates.') }}
             </p>
             <Button
               variant="link"
@@ -2903,12 +2909,12 @@ watch(
               class="mt-2"
               @click="$emit('switchCtfAgent', 'solver')"
             >
-              复盘完成后返回验证
+              {{ t('复盘完成后返回验证', 'Return to verification after debrief') }}
             </Button>
           </div>
         </section>
         <section class="border-b border-border px-4 py-4">
-          <p class="text-caption font-medium text-muted-foreground">工具交接</p>
+          <p class="text-caption font-medium text-muted-foreground">{{ t('工具交接', 'Tool handoff') }}</p>
           <p class="mt-2 text-body">{{ workshopSummary }}</p>
           <p
             v-if="workshopState?.latestRequest"
@@ -2925,7 +2931,7 @@ watch(
               :disabled="running"
               @click="verifyDeliveredTool"
             >
-              验收工具
+              {{ t('验收工具', 'Verify tool') }}
             </Button>
             <Button
               v-else-if="ctfRole !== 'tool-builder' && !workshopState?.pendingCount"
@@ -2934,29 +2940,29 @@ watch(
               :disabled="running"
               @click="requestTool"
             >
-              提出工具需求
+              {{ t('提出工具需求', 'Request a tool') }}
             </Button>
           </div>
         </section>
         <section class="px-4 py-4">
           <Button variant="outline" class="w-full justify-start" @click="returnToDomain">
             <Flag class="size-4" />
-            {{ domainTaskPresentation?.returnLabel || '返回 CTF' }}
+            {{ domainTaskPresentation?.returnLabel || t('返回 CTF', 'Back to CTF') }}
           </Button>
         </section>
       </template>
 
       <template v-else>
         <section class="border-b border-border px-4 py-4">
-          <p class="text-caption font-medium text-muted-foreground">证据与 Judge</p>
+          <p class="text-caption font-medium text-muted-foreground">{{ t('证据与 Judge', 'Evidence and Judge') }}</p>
           <div class="mt-3 grid grid-cols-2 gap-3">
             <div>
               <p class="text-xl font-semibold">{{ ctfProjection?.evidence.length ?? 0 }}</p>
-              <p class="text-caption text-muted-foreground">证据</p>
+              <p class="text-caption text-muted-foreground">{{ t('证据', 'Evidence') }}</p>
             </div>
             <div>
               <p class="text-xl font-semibold">{{ ctfProjection?.artifacts.length ?? 0 }}</p>
-              <p class="text-caption text-muted-foreground">制品</p>
+              <p class="text-caption text-muted-foreground">{{ t('制品', 'Artifacts') }}</p>
             </div>
           </div>
           <div v-if="latestJudge" class="mt-4 flex items-start gap-2">
@@ -2973,11 +2979,11 @@ watch(
               />
             </div>
           </div>
-          <p v-else class="mt-3 text-caption text-muted-foreground">尚无外部 Judge 回执。</p>
+          <p v-else class="mt-3 text-caption text-muted-foreground">{{ t('尚无外部 Judge 回执。', 'No external Judge receipts yet.') }}</p>
         </section>
         <section class="px-4 py-4">
           <Button variant="outline" class="w-full justify-start" @click="returnToDomain">
-            {{ domainTaskPresentation?.returnLabel || '返回 CTF' }}
+            {{ domainTaskPresentation?.returnLabel || t('返回 CTF', 'Back to CTF') }}
           </Button>
         </section>
       </template>
@@ -3003,13 +3009,13 @@ watch(
     v-if="!dockSurface && terminalOpen"
     class="coding-terminal-dock min-w-0 shrink-0 overflow-hidden border-t border-border bg-card"
     :style="terminalDockStyle"
-    aria-label="底部终端面板"
+    :aria-label="t('底部终端面板', 'Bottom terminal panel')"
   >
     <div
       class="coding-terminal-dock__resize app-no-drag"
       role="separator"
       aria-orientation="horizontal"
-      aria-label="调整终端高度"
+      :aria-label="t('调整终端高度', 'Resize terminal')"
       @pointerdown="startTerminalResize"
     />
     <CodingTerminalPanel

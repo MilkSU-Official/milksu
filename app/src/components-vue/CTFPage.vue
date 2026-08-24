@@ -17,7 +17,10 @@ import {
   SelectSeparator,
   SelectTrigger,
   SelectValue,
+  ModelListRow,
   SegmentedControl,
+  SettingsRow,
+  SettingsSection,
   buttonVariants,
   menuContentClass,
   menuItemClass,
@@ -85,6 +88,7 @@ import {
   type CTFManualStatus,
 } from '@/lib/ctfManualStatus'
 import { deriveCTFWorkspacePresentation } from '@/lib/ctfWorkspacePresentation'
+import { t } from '@/lib/uiLocale'
 import type {
   CTFAgentWorkspaceHandoff,
   CTFChallengeRequest,
@@ -114,10 +118,10 @@ type TrainingSource = CTFTrainingPlatform['id'] | 'custom'
 defineOptions({ name: 'CTFPage' })
 
 function catalogDifficultyLabel(value: number) {
-  if (!value || value <= 1.4) return '入门'
-  if (value <= 2.4) return '简单'
-  if (value <= 3.2) return '中等'
-  return '困难'
+  if (!value || value <= 1.4) return t('入门', 'Intro')
+  if (value <= 2.4) return t('简单', 'Easy')
+  if (value <= 3.2) return t('中等', 'Medium')
+  return t('困难', 'Hard')
 }
 
 function formatCategory(value: string) {
@@ -311,7 +315,7 @@ const catalogErrorMessage = computed(() => {
   const error = activeBank.value === 'nssctf'
     ? publicCatalog.error.value ?? training.error.value
     : ctfshow.error.value
-  return error ? '题库暂时没有同步成功，请稍后重试。' : ''
+  return error ? t('题库暂时没有同步成功，请稍后重试。', 'The catalog did not sync. Try again later.') : ''
 })
 const manualIntake = ref<InstanceType<typeof CTFManualIntake> | null>(null)
 let catalogSearchTimer: ReturnType<typeof setTimeout> | undefined
@@ -329,12 +333,6 @@ const isArenaWorkspace = computed(() => (
 const isWebWorkspace = computed(() => (
   activeProjection.value?.challenge.externalPlatform === 'nssctf-web'
 ))
-const compactBridgeStatus = computed(() => {
-  if (!isWebWorkspace.value) return ''
-  const id = activeBrowserPage.value?.nssctf.problemId
-  if (activeBrowserReady.value) return id ? `已连接 P${id}` : '已连接'
-  return '扩展未连接'
-})
 const isCTFShowWorkspace = computed(() => (
   activeProjection.value?.challenge.externalPlatform === 'ctfshow-web'
 ))
@@ -343,13 +341,13 @@ const externalJudgeLabel = computed(() => {
     case 'url':
     case 'managed-browser':
     case 'user-browser':
-      return '外部平台'
+      return t('外部平台', 'External platform')
     case 'socket':
-      return 'TCP 题目'
+      return t('TCP 题目', 'TCP challenge')
     case 'ssh':
-      return 'SSH 题目'
+      return t('SSH 题目', 'SSH challenge')
     default:
-      return '外部 Judge'
+      return t('外部 Judge', 'External Judge')
   }
 })
 const arenaAttempt = computed(() => arena.workspace.value?.arena.attempt)
@@ -445,7 +443,7 @@ function updateActiveJobManualStatus(event: Event) {
 const catalogAction = computed(() => (
   selectedCatalogReady.value
     ? null
-    : { label: '同步题库', action: 'catalog' as const }
+    : { label: t('同步题库', 'Sync catalog'), action: 'catalog' as const }
 ))
 const activeStartCost = computed(() => (
   activeBrowserPage.value?.nssctf.needsStart
@@ -466,19 +464,19 @@ const hasAgentRecoveryPoint = computed(() => {
     || run.lastAssistantSummary
   ))
 })
-const agentActionLabel = computed(() => '开始解题')
+const agentActionLabel = computed(() => t('开始解题', 'Start solving'))
 const agentBudgetStopMessage = computed(() => {
   const status = backend.agentBudget.value
   if (!status?.exhausted) return ''
   switch (status.reason) {
     case 'turn-budget-exhausted':
-      return `已用完 ${status.budget.maxTurns} 个 PI 回合。先复盘当前轨迹，再从题库建立一次新的受控训练。`
+      return t(`已用完 ${status.budget.maxTurns} 个 PI 回合。先复盘当前轨迹，再从题库建立一次新的受控训练。`, `${status.budget.maxTurns} PI turns used. Debrief the current trajectory, then start a new controlled session from the catalog.`)
     case 'time-budget-exhausted':
-      return `本次训练已达到 ${status.budget.maxWallMinutes} 分钟。先记录关键转折，再决定是否重新开始。`
+      return t(`本次训练已达到 ${status.budget.maxWallMinutes} 分钟。先记录关键转折，再决定是否重新开始。`, `This session reached ${status.budget.maxWallMinutes} minutes. Record the key turns, then decide whether to start again.`)
     case 'wrong-submission-budget-exhausted':
-      return `已经出现 ${status.budget.maxWrongSubmissions} 次平台 Rejected。MilkSU 已停止继续盲试。`
+      return t(`已经出现 ${status.budget.maxWrongSubmissions} 次平台 Rejected。MilkSU 已停止继续盲试。`, `${status.budget.maxWrongSubmissions} platform Rejected results already. MilkSU has stopped further blind attempts.`)
     default:
-      return '本次 PI 训练预算已停止；请先复盘，再由你决定下一次尝试。'
+      return t('本次 PI 训练预算已停止；请先复盘，再由你决定下一次尝试。', 'This PI training budget has stopped. Debrief first, then decide the next attempt.')
   }
 })
 const workspacePresentation = computed(() => {
@@ -549,24 +547,24 @@ const activeExternalPlatform = computed(() => (
 ))
 const activeSourceName = computed(() => (
   activeBank.value === 'custom'
-    ? '自定义题目'
-    : activeExternalPlatform.value?.name ?? '选择训练平台'
+    ? t('自定义题目', 'Custom challenge')
+    : activeExternalPlatform.value?.name ?? t('选择训练平台', 'Choose a training platform')
 ))
 const externalPlatformStatusLabel = computed(() => {
   switch (activeExternalPlatform.value?.status) {
-    case 'planned': return '接入中'
-    case 'restricted': return '受官方接口限制'
-    default: return '可用'
+    case 'planned': return t('接入中', 'Connecting')
+    case 'restricted': return t('受官方接口限制', 'Limited by official API')
+    default: return t('可用', 'Available')
   }
 })
 const externalPlatformSummary = computed(() => {
   switch (activeExternalPlatform.value?.id) {
     case 'hackthebox':
-      return 'HTB Labs 目前仅支持人工训练入口。'
+      return t('HTB Labs 目前仅支持人工训练入口。', 'HTB Labs currently supports a human training entry only.')
     case 'tryhackme':
-      return 'TryHackMe 个人版暂无完整 API，需 Business / Classroom。'
+      return t('TryHackMe 个人版暂无完整 API，需 Business / Classroom。', 'The TryHackMe personal plan has no complete API; Business / Classroom is required.')
     default:
-      return '该平台正在接入统一题库与 Judge。'
+      return t('该平台正在接入统一题库与 Judge。', 'This platform is being connected to the shared catalog and Judge.')
   }
 })
 const externalPlatformCapabilities = computed(() => {
@@ -575,14 +573,14 @@ const externalPlatformCapabilities = computed(() => {
     'starting-point': 'Starting Point',
     challenges: 'Challenges',
     vpn: 'VPN',
-    'instance-lifecycle': '靶机生命周期',
-    progress: '训练进度',
-    'human-only': '仅人工训练',
-    'written-permission': '需书面许可',
-    'room-catalog': '房间目录',
-    'room-questions': '房间题目',
-    scoreboard: '积分榜',
-    'time-report': '训练时长',
+    'instance-lifecycle': t('靶机生命周期', 'Machine lifecycle'),
+    progress: t('训练进度', 'Training progress'),
+    'human-only': t('仅人工训练', 'Human training only'),
+    'written-permission': t('需书面许可', 'Written permission required'),
+    'room-catalog': t('房间目录', 'Room catalog'),
+    'room-questions': t('房间题目', 'Room challenges'),
+    scoreboard: t('积分榜', 'Scoreboard'),
+    'time-report': t('训练时长', 'Training time'),
   }
   return (activeExternalPlatform.value?.capabilities ?? []).map(value => labels[value] ?? value)
 })
@@ -665,54 +663,54 @@ const deskLoading = computed(() => (
   || (activeBank.value === 'ctfshow' ? ctfshow.loading.value : publicCatalog.loading.value)
 ))
 const deskLoadingTitle = computed(() => {
-  if (activeBank.value === 'ctfshow') return '正在检查 CTFshow 连接'
-  if (training.syncing.value) return '正在首次同步 NSSCTF 公开题库'
-  return '正在读取 NSSCTF 本地题库'
+  if (activeBank.value === 'ctfshow') return t('正在检查 CTFshow 连接', 'Checking CTFshow connection')
+  if (training.syncing.value) return t('正在首次同步 NSSCTF 公开题库', 'First sync of the NSSCTF public catalog')
+  return t('正在读取 NSSCTF 本地题库', 'Reading the local NSSCTF catalog')
 })
 const deskLoadingDetail = computed(() => {
   if (activeBank.value === 'ctfshow') {
-    return '在 CTFshow 题库页打开 MilkSU 扩展以同步题目。'
+    return t('在 CTFshow 题库页打开 MilkSU 扩展以同步题目。', 'Open the MilkSU extension on a CTFshow catalog page to sync challenges.')
   }
-  if (training.syncing.value) return '正在同步 NSSCTF 公开题库'
+  if (training.syncing.value) return t('正在同步 NSSCTF 公开题库', 'Syncing the NSSCTF public catalog')
   return ''
 })
 const deskEmptyTitle = computed(() => {
-  if (deskQuery.value.trim() || deskCategory.value !== 'all') return '没有匹配题目'
+  if (deskQuery.value.trim() || deskCategory.value !== 'all') return t('没有匹配题目', 'No matching challenges')
   return ''
 })
 const deskEmptyDetail = computed(() => '')
 
-const modeItems = [
-  { value: 'coach' as const, label: '教练' },
-  { value: 'copilot' as const, label: '搭档' },
-  { value: 'delegate' as const, label: '代理' },
-]
+const modeItems = computed(() => [
+  { value: 'coach' as const, label: t('教练', 'Coach') },
+  { value: 'copilot' as const, label: t('搭档', 'Copilot') },
+  { value: 'delegate' as const, label: t('代理', 'Delegate') },
+])
 const dailyMission = computed(() => {
   if (resumableJob.value) {
     return {
       kind: 'resume' as const,
-      eyebrow: '继续上次训练',
+      eyebrow: t('继续上次训练', 'Continue last session'),
       title: resumableJob.value.title,
       meta: `${resumableJob.value.category} · ${jobSummaryLabel(resumableJob.value)}`,
-      action: '历史恢复',
+      action: t('历史恢复', 'Resume from history'),
     }
   }
   const recommendation = training.dashboard.value?.recommendations[0]
   if (recommendation) {
     return {
       kind: 'recommendation' as const,
-      eyebrow: '推荐训练',
+      eyebrow: t('推荐训练', 'Recommended training'),
       title: recommendation.problem.title,
-      meta: `${recommendation.problem.category} · 难度 ${recommendation.problem.difficulty.toFixed(1)} · ${recommendation.kind}`,
-      action: '开始训练',
+      meta: t(`${recommendation.problem.category} · 难度 ${recommendation.problem.difficulty.toFixed(1)} · ${recommendation.kind}`, `${recommendation.problem.category} · difficulty ${recommendation.problem.difficulty.toFixed(1)} · ${recommendation.kind}`),
+      action: t('开始训练', 'Start training'),
     }
   }
   return {
     kind: 'sync' as const,
-    eyebrow: '本地题库',
-    title: '同步 NSSCTF 公开题库',
-    meta: '0 题',
-    action: '同步题库',
+    eyebrow: t('本地题库', 'Local catalog'),
+    title: t('同步 NSSCTF 公开题库', 'Sync NSSCTF public catalog'),
+    meta: t('0 题', '0 challenges'),
+    action: t('同步题库', 'Sync catalog'),
   }
 })
 
@@ -748,13 +746,8 @@ async function openSelectedInCoding() {
   }
 }
 
-function seriesProgress(series: NSSCTFTrainingSeries) {
-  if (!series.problemCount) return 0
-  return Math.round(series.completedCount / series.problemCount * 100)
-}
-
 function difficultyLabel(difficulty: number) {
-  return difficulty > 0 ? difficulty.toFixed(1) : '待定'
+  return difficulty > 0 ? difficulty.toFixed(1) : t('待定', 'Pending')
 }
 
 function ctfshowProblemStatus(problemId: number) {
@@ -765,9 +758,9 @@ function ctfshowProblemStatus(problemId: number) {
 
 function ctfshowProblemStatusLabel(problemId: number) {
   switch (ctfshowProblemStatus(problemId)) {
-    case 'completed': return '已完成'
-    case 'attempted': return '再挑战'
-    default: return '未开始'
+    case 'completed': return t('已完成', 'Completed')
+    case 'attempted': return t('再挑战', 'Retry')
+    default: return t('未开始', 'Not started')
   }
 }
 
@@ -913,7 +906,7 @@ async function syncCatalog() {
   catalogNotice.value = ''
   const result = await training.sync()
   if (result) {
-    catalogNotice.value = `已把 ${result.total} 道公开题目更新到本地题库。`
+    catalogNotice.value = t(`已把 ${result.total} 道公开题目更新到本地题库。`, `Updated ${result.total} public challenges into the local catalog.`)
     if (screen.value === 'challenge' && !selectedSeries.value && !selectedProblem.value) {
       await loadPublicCatalog(1)
     }
@@ -979,7 +972,7 @@ async function refreshDailyChallenge(change = false) {
   const stored = parseCTFDailyChallengeRecord(window.localStorage.getItem(CTF_DAILY_CHALLENGE_STORAGE_KEY))
   if (!change && stored?.dateKey === dateKey && !completedIds.includes(stored.problem.platformId)) {
     dailyChallenge.value = stored.problem
-    dailyChallengeReason.value = stored.reason ?? '根据今天的训练记录推荐。'
+    dailyChallengeReason.value = stored.reason ?? t('根据今天的训练记录推荐。', 'Recommended from today’s training record.')
     return
   }
   const excludedProblemIds = change && dailyChallenge.value
@@ -1006,7 +999,7 @@ async function refreshDailyChallenge(change = false) {
     selection = {
       dateKey,
       problem,
-      reason: recommendation?.reason || '根据当前训练记录，从未完成题目中优先选择。',
+      reason: recommendation?.reason || t('根据当前训练记录，从未完成题目中优先选择。', 'Chosen from unfinished challenges based on the current training record.'),
       source: 'rules',
     }
   } finally {
@@ -1135,7 +1128,7 @@ async function refreshCTFShow() {
   catalogNotice.value = ''
   const result = await ctfshow.refresh()
   if (result?.catalog.total) {
-    catalogNotice.value = `CTFshow 本地题库：${result.catalog.total} 题`
+    catalogNotice.value = t(`CTFshow 本地题库：${result.catalog.total} 题`, `CTFshow local catalog: ${result.catalog.total} challenges`)
   }
 }
 
@@ -1161,7 +1154,7 @@ async function chooseCTFShowProblem(problemId: number) {
     await backend.adoptProjection(workspace.ctf)
     screen.value = 'workspace'
     if (workspace.challenge.warnings.length) {
-      outcomeNotice.value = `题目已建立工作区；导入提示：${workspace.challenge.warnings.join('；')}`
+      outcomeNotice.value = t(`题目已建立工作区；导入提示：${workspace.challenge.warnings.join('；')}`, `Workspace created for the challenge; import notes: ${workspace.challenge.warnings.join('; ')}`)
     }
   } finally {
     working.value = false
@@ -1216,7 +1209,7 @@ async function chooseLocalMaterials() {
     const selected = await invokeCommand<CTFMaterialRequest[]>('choose_ctf_materials')
     if (!selected.length) return
     localMaterials.value = selected
-    outcomeNotice.value = `已补充 ${selected.length} 项本地材料。`
+    outcomeNotice.value = t(`已补充 ${selected.length} 项本地材料。`, `Added ${selected.length} local materials.`)
   } catch (reason) {
     attachmentError.value = reason instanceof Error ? reason.message : String(reason)
   }
@@ -1246,7 +1239,7 @@ async function startPublicWorkspace() {
     }
     if (challenge.hasAttachment) {
       if (!selectedBrowserReady.value && materials.length === 0) {
-        materialWarning = `P${challenge.platformId} 的附件尚未导入；Coding 将先使用公开题面继续`
+        materialWarning = t(`P${challenge.platformId} 的附件尚未导入；Coding 将先使用公开题面继续`, `The attachment for P${challenge.platformId} is not imported yet; Coding will continue with the public statement first`)
       }
       if (selectedBrowserReady.value) {
         try {
@@ -1265,8 +1258,8 @@ async function startPublicWorkspace() {
       category: challenge.category.toLowerCase(),
       collaborationMode: collaborationMode.value,
       deferAgent: true,
-      trackName: 'NSSCTF 真实题库训练',
-      humanGoal: '完成一道真实 NSSCTF 题目，并能复述假设、关键观察与最终证据。',
+      trackName: t('NSSCTF 真实题库训练', 'NSSCTF live catalog training'),
+      humanGoal: t('完成一道真实 NSSCTF 题目，并能复述假设、关键观察与最终证据。', 'Complete a real NSSCTF challenge and be able to recount the hypothesis, key observations, and final evidence.'),
       sourceKind: 'url',
       sourceUri: challenge.sourceUrl,
       externalPlatform: 'nssctf-web',
@@ -1276,11 +1269,11 @@ async function startPublicWorkspace() {
       materials,
     })
     if (!started) {
-      attachmentError.value = backend.error.value ?? '无法建立 CTF 工作台。'
+      attachmentError.value = backend.error.value ?? t('无法建立 CTF 工作台。', 'Could not create the CTF workspace.')
       return
     }
     if (materialWarning) {
-      outcomeNotice.value = `${materialWarning}。工作台已使用公开题面和现有材料继续建立。`
+      outcomeNotice.value = t(`${materialWarning}。工作台已使用公开题面和现有材料继续建立。`, `${materialWarning}. The workspace continued with the public statement and existing materials.`)
     }
     screen.value = 'workspace'
     await openCodingAgent()
@@ -1322,7 +1315,7 @@ async function openCodingContext() {
     backend.agentRun.value = handoff.run
     emit('startCodingAgent', handoff)
   } catch (reason) {
-    outcomeNotice.value = `无法打开 Coding 上下文：${String(reason)}`
+    outcomeNotice.value = t(`无法打开 Coding 上下文：${String(reason)}`, `Could not open the Coding context: ${String(reason)}`)
   } finally {
     working.value = false
   }
@@ -1334,7 +1327,7 @@ async function openCodingAgent() {
   if (!props.modelReady) {
     // Opening Coding context is allowed; only the Agent turn needs the model.
     await openCodingContext()
-    outcomeNotice.value = '已打开本题对话。配置模型后再发送。'
+    outcomeNotice.value = t('已打开本题对话。配置模型后再发送。', 'Opened this challenge conversation. Configure a model before sending.')
     return
   }
   await openCodingContext()
@@ -1350,9 +1343,9 @@ async function requestEndpoint(request: CTFEndpointRequestInput) {
       request,
     })
     await backend.adoptProjection(projection)
-    outcomeNotice.value = '已记录申请'
+    outcomeNotice.value = t('已记录申请', 'Request recorded')
   } catch (reason) {
-    outcomeNotice.value = `无法记录 Endpoint 申请：${String(reason)}`
+    outcomeNotice.value = t(`无法记录 Endpoint 申请：${String(reason)}`, `Could not record the Endpoint request: ${String(reason)}`)
   } finally {
     working.value = false
   }
@@ -1368,9 +1361,9 @@ async function approveEndpoint(requestId: string) {
       requestId,
     })
     await backend.adoptProjection(projection)
-    outcomeNotice.value = '已为这一项生成独立 Scope。旧的 Agent 工具会话已关闭；恢复 Agent 后只加载新的精确协议权限，Shell 仍然禁网。'
+    outcomeNotice.value = t('已为这一项生成独立 Scope。旧的 Agent 工具会话已关闭；恢复 Agent 后只加载新的精确协议权限，Shell 仍然禁网。', 'Created an independent Scope for this item. The previous Agent tool session is closed; resume the Agent to load only the new exact-protocol permission. Shell stays offline.')
   } catch (reason) {
-    outcomeNotice.value = `无法批准 Endpoint：${String(reason)}`
+    outcomeNotice.value = t(`无法批准 Endpoint：${String(reason)}`, `Could not approve the Endpoint: ${String(reason)}`)
     await backend.selectJob(activeProjection.value.job.id)
   } finally {
     working.value = false
@@ -1387,9 +1380,9 @@ async function denyEndpoint(requestId: string) {
       requestId,
     })
     await backend.adoptProjection(projection)
-    outcomeNotice.value = '已拒绝这一项；没有创建 Scope，也没有启用网络工具。'
+    outcomeNotice.value = t('已拒绝这一项；没有创建 Scope，也没有启用网络工具。', 'Denied this item; no Scope was created and network tools stay disabled.')
   } catch (reason) {
-    outcomeNotice.value = `无法拒绝 Endpoint：${String(reason)}`
+    outcomeNotice.value = t(`无法拒绝 Endpoint：${String(reason)}`, `Could not deny the Endpoint: ${String(reason)}`)
   } finally {
     working.value = false
   }
@@ -1401,9 +1394,9 @@ async function sendDebriefReflection(content: string) {
   const recorded = await backend.recordLearning(activeProjection.value.job.id, {
     kind: 'reflection',
     content: content.trim(),
-    concept: 'CTF 解题复盘',
+    concept: t('CTF 解题复盘', 'CTF solving debrief'),
   })
-  if (recorded) outcomeNotice.value = '复盘已保存；现在可以沉淀为可复用技法。'
+  if (recorded) outcomeNotice.value = t('复盘已保存；现在可以沉淀为可复用技法。', 'Debrief saved; you can now save it as a reusable technique.')
   working.value = false
 }
 
@@ -1413,12 +1406,12 @@ async function sendIndependentStep(content: string) {
   const recorded = await backend.recordLearning(activeProjection.value.job.id, {
     kind: 'independent_step',
     content: content.trim(),
-    concept: '用户确认的解题步骤',
+    concept: t('用户确认的解题步骤', 'User-confirmed solving step'),
   })
   if (recorded) {
     outcomeNotice.value = activeProjection.value?.humanOutcome.contribution.assistance === 'none'
-      ? '已记录为有明确用户证据的独立步骤。'
-      : '已记录用户实际完成的步骤，并保留本次协助方式。'
+      ? t('已记录为有明确用户证据的独立步骤。', 'Recorded as an independent step with explicit user evidence.')
+      : t('已记录用户实际完成的步骤，并保留本次协助方式。', 'Recorded the step you actually completed, keeping this assistance mode.')
   }
   working.value = false
 }
@@ -1439,9 +1432,9 @@ async function saveTrainingMemory() {
       id: activeProjection.value.job.id,
     })
     await loadMemoryContext(activeProjection.value.job.id)
-    outcomeNotice.value = '已保存为本机可复用技法；以后同分类题会把它作为待验证先验交给 Agent。'
+    outcomeNotice.value = t('已保存为本机可复用技法；以后同分类题会把它作为待验证先验交给 Agent。', 'Saved as a local reusable technique. Future challenges in the same category will pass it to the Agent as a prior pending verification.')
   } catch (reason) {
-    outcomeNotice.value = `无法保存训练记忆：${String(reason)}`
+    outcomeNotice.value = t(`无法保存训练记忆：${String(reason)}`, `Could not save training memory: ${String(reason)}`)
   } finally {
     working.value = false
   }
@@ -1467,19 +1460,19 @@ async function archiveTrainingMemory(memory: CTFTrainingMemory) {
   try {
     await invokeCommand('archive_ctf_memory', {
       id: memory.id,
-      reason: `用户在 ${activeProjection.value.challenge.title} 的记忆上下文中停用`,
+      reason: t(`用户在 ${activeProjection.value.challenge.title} 的记忆上下文中停用`, `Disabled by the user in the memory context of ${activeProjection.value.challenge.title}`),
     })
     await loadMemoryContext(activeProjection.value.job.id)
-    outcomeNotice.value = '这条综合记忆已停用；原始训练轨迹和证据仍保留。'
+    outcomeNotice.value = t('这条综合记忆已停用；原始训练轨迹和证据仍保留。', 'This synthesized memory is disabled; the original training trajectory and evidence remain.')
   } catch (reason) {
-    outcomeNotice.value = `无法停用训练记忆：${String(reason)}`
+    outcomeNotice.value = t(`无法停用训练记忆：${String(reason)}`, `Could not disable training memory: ${String(reason)}`)
   } finally {
     working.value = false
   }
 }
 
 function inspectTrainingMemoryEvidence(evidence: CTFTrainingMemoryEvidenceLink) {
-  outcomeNotice.value = `正在核对记忆证据 ${evidence.kind}:${evidence.id}。请以当前题目证据、Judge 回执、提示和步骤记录为准，不把旧题记忆直接当作用户能力事实。`
+  outcomeNotice.value = t(`正在核对记忆证据 ${evidence.kind}:${evidence.id}。请以当前题目证据、Judge 回执、提示和步骤记录为准，不把旧题记忆直接当作用户能力事实。`, `Checking memory evidence ${evidence.kind}:${evidence.id}. Treat current challenge evidence, Judge receipts, hints, and step records as authoritative; do not take prior-challenge memory as a user-skill fact.`)
 }
 
 async function submitCandidate() {
@@ -1490,15 +1483,15 @@ async function submitCandidate() {
     submission => submission.candidate === candidate,
   )
   if (previousSubmission?.verdict === 'pass') {
-    outcomeNotice.value = '这个候选已经被平台确认 Accepted，无需再次提交。'
+    outcomeNotice.value = t('这个候选已经被平台确认 Accepted，无需再次提交。', 'This candidate has already been Accepted by the platform; no need to submit again.')
     return
   }
   if (previousSubmission?.verdict === 'fail') {
-    outcomeNotice.value = '这个候选已被平台拒绝，请修改后再提交。'
+    outcomeNotice.value = t('这个候选已被平台拒绝，请修改后再提交。', 'This candidate was Rejected by the platform; change it before submitting again.')
     return
   }
   if (previousSubmission?.verdict === 'needs_review') {
-    outcomeNotice.value = '这个候选正在等待平台判题，不能并发重复提交。'
+    outcomeNotice.value = t('这个候选正在等待平台判题，不能并发重复提交。', 'This candidate is waiting for a platform verdict; do not submit it again in parallel.')
     return
   }
   if (isArenaWorkspace.value && arenaAttempt.value) {
@@ -1512,8 +1505,8 @@ async function submitCandidate() {
       await backend.adoptProjection(result.ctf)
       await refreshTrainingProgress()
       outcomeNotice.value = result.arena.correct
-        ? 'NSSCTF Agent Arena 已确认 Accepted，平台回执已经写入证据链。'
-        : `NSSCTF Agent Arena 返回 Rejected，剩余错误次数 ${result.arena.remaining_wrong_attempts ?? '以平台为准'}。`
+        ? t('NSSCTF Agent Arena 已确认 Accepted，平台回执已经写入证据链。', 'NSSCTF Agent Arena confirmed Accepted. The platform receipt is written into the evidence chain.')
+        : t(`NSSCTF Agent Arena 返回 Rejected，剩余错误次数 ${result.arena.remaining_wrong_attempts ?? t('以平台为准', 'per the platform')}。`, `NSSCTF Agent Arena returned Rejected. Remaining wrong attempts: ${result.arena.remaining_wrong_attempts ?? t('以平台为准', 'per the platform')}.`)
     }
     working.value = false
     return
@@ -1532,7 +1525,7 @@ async function submitCandidate() {
         ? `CTFshow #${result.receipt.problemId} Accepted。`
         : `CTFshow #${result.receipt.problemId} Rejected。`
     } else {
-      outcomeNotice.value = ctfshow.error.value ?? 'CTFshow Judge 没有返回可确认结果。'
+      outcomeNotice.value = ctfshow.error.value ?? t('CTFshow Judge 没有返回可确认结果。', 'CTFshow Judge did not return a confirmable result.')
       await backend.loadJobs()
     }
     working.value = false
@@ -1566,7 +1559,7 @@ async function submitCandidate() {
   const prepared = await backend.prepareExternalSubmission(
     activeProjection.value.job.id,
     flagCandidate.value.trim(),
-    '用户确认该候选已有可复核依据，并准备交给已授权的外部 Judge。',
+    t('用户确认该候选已有可复核依据，并准备交给已授权的外部 Judge。', 'The user confirmed this candidate has reviewable evidence and is ready for the authorized external Judge.'),
   )
   if (prepared) {
     await navigator.clipboard.writeText(flagCandidate.value.trim())
@@ -1575,17 +1568,17 @@ async function submitCandidate() {
       try {
         await invokeCommand('open_ctf_source_url', { url: sourceURI })
       } catch (reason) {
-        outcomeNotice.value = `候选已复制并进入 Judge 闸门，但无法打开题目 URL：${String(reason)}`
+        outcomeNotice.value = t(`候选已复制并进入 Judge 闸门，但无法打开题目 URL：${String(reason)}`, `Candidate copied and entered the Judge gate, but the challenge URL could not be opened: ${String(reason)}`)
       }
     }
     platformReview.value = true
     if (!outcomeNotice.value) {
       outcomeNotice.value = sourceURI
-        ? `候选已复制并打开${externalJudgeLabel.value}；提交后回来记录结果。`
-        : `候选已复制；在${externalJudgeLabel.value}提交后回来记录结果。`
+        ? t(`候选已复制并打开${externalJudgeLabel.value}；提交后回来记录结果。`, `Candidate copied and ${externalJudgeLabel.value} opened; come back to record the result after submitting.`)
+        : t(`候选已复制；在${externalJudgeLabel.value}提交后回来记录结果。`, `Candidate copied; submit on ${externalJudgeLabel.value}, then come back to record the result.`)
     }
   } else {
-    outcomeNotice.value = backend.error.value ?? '候选没有进入外部 Judge 闸门。'
+    outcomeNotice.value = backend.error.value ?? t('候选没有进入外部 Judge 闸门。', 'The candidate did not enter the external Judge gate.')
   }
   working.value = false
 }
@@ -1598,22 +1591,22 @@ async function recordPlatformResult(accepted: boolean) {
         activeProjection.value.job.id,
         accepted,
         accepted
-          ? `用户根据${externalJudgeLabel.value}确认 Accepted。`
-          : `用户根据${externalJudgeLabel.value}确认 Rejected。`,
+          ? t(`用户根据${externalJudgeLabel.value}确认 Accepted。`, `The user confirmed Accepted from ${externalJudgeLabel.value}.`)
+          : t(`用户根据${externalJudgeLabel.value}确认 Rejected。`, `The user confirmed Rejected from ${externalJudgeLabel.value}.`),
       )
     : await backend.recordLearning(activeProjection.value.job.id, {
         kind: 'judge_observation',
         content: accepted
-          ? `${externalJudgeLabel.value}显示 Accepted。`
-          : `${externalJudgeLabel.value}显示 Rejected。`,
-        concept: '外部平台 Judge',
+          ? t(`${externalJudgeLabel.value}显示 Accepted。`, `${externalJudgeLabel.value} showed Accepted.`)
+          : t(`${externalJudgeLabel.value}显示 Rejected。`, `${externalJudgeLabel.value} showed Rejected.`),
+        concept: t('外部平台 Judge', 'External platform Judge'),
       })
   if (recorded) {
     await refreshTrainingProgress()
     platformReview.value = false
     outcomeNotice.value = accepted
-      ? `已记录${externalJudgeLabel.value} Accepted。`
-      : `已记录${externalJudgeLabel.value} Rejected。`
+      ? t(`已记录${externalJudgeLabel.value} Accepted。`, `Recorded ${externalJudgeLabel.value} Accepted.`)
+      : t(`已记录${externalJudgeLabel.value} Rejected。`, `Recorded ${externalJudgeLabel.value} Rejected.`)
   }
 }
 
@@ -1673,18 +1666,19 @@ onBeforeUnmount(() => {
     <CTFWorkspaceHeader
       v-if="screen === 'workspace'"
       :challenge-title="activeProjection?.challenge.title"
-      :source-uri="activeProjection?.challenge.source.uri"
+      :browser-status="isWebWorkspace ? (activeBrowserReady ? 'live' : 'off') : ''"
       @return-catalog="showProblems"
-      @open-source="openActiveChallenge"
+      @open-browser-settings="$emit('openSettings', 'browser')"
+      @refresh-bridge="webBridge.refresh"
     />
 
     <WorkspaceModuleTopBar
       module="ctf"
       v-else
-      :title="screen === 'detail' ? (selectedProblem?.title || selectedCTFShowProblem?.title || '题目') : '挑战'"
+      :title="screen === 'detail' ? (selectedProblem?.title || selectedCTFShowProblem?.title || t('题目', 'Challenge')) : t('挑战', 'Challenges')"
     >
       <template v-if="screen === 'detail'" #leading>
-        <Button variant="ghost" size="icon-sm" aria-label="返回题库" @click="returnToCatalog">
+        <Button variant="ghost" size="icon-sm" :aria-label="t('返回题库', 'Back to catalog')" @click="returnToCatalog">
           <ArrowLeft class="size-4" />
         </Button>
       </template>
@@ -1701,10 +1695,10 @@ onBeforeUnmount(() => {
           data-size="sm"
           :class="buttonVariants({ variant: 'outline', size: 'sm' })"
           class="list-none [&::-webkit-details-marker]:hidden"
-          aria-label="打开训练历史"
+          :aria-label="t('打开训练历史', 'Open training history')"
         >
           <Clock3 class="size-4" />
-          历史
+          {{ t('历史', 'History') }}
           <span class="font-mono text-caption text-muted-foreground">
             {{ backend.jobs.value.length }}
           </span>
@@ -1715,11 +1709,11 @@ onBeforeUnmount(() => {
           :class="[menuContentClass, menuViewportClass]"
           class="tactical-floating-surface absolute right-0 top-[calc(100%+4px)] z-[var(--z-overlay)] max-h-[min(480px,calc(100vh-7rem))] w-[min(420px,calc(100vw-2rem))] overflow-y-auto"
           role="menu"
-          aria-label="训练历史"
+          :aria-label="t('训练历史', 'Training history')"
         >
           <div :class="menuLabelClass" class="flex items-center justify-between gap-3 px-2.5 py-2">
-            <span>训练历史</span>
-            <span class="font-normal text-muted-foreground">仅保存在本机</span>
+            <span>{{ t('训练历史', 'Training history') }}</span>
+            <span class="font-normal text-muted-foreground">{{ t('仅保存在本机', 'Stored on this machine only') }}</span>
           </div>
           <div :class="menuSeparatorClass" />
           <button
@@ -1742,7 +1736,7 @@ onBeforeUnmount(() => {
                 {{ job.title }}
               </span>
               <span class="mt-0.5 block truncate text-caption text-muted-foreground">
-                {{ formatCategory(job.category) }} · {{ job.experimentCount }} 次实验
+                {{ t(`${formatCategory(job.category)} · ${job.experimentCount} 次实验`, `${formatCategory(job.category)} · ${job.experimentCount} experiments`) }}
               </span>
             </span>
             <span class="mt-1 shrink-0 text-caption text-muted-foreground">
@@ -1763,7 +1757,7 @@ onBeforeUnmount(() => {
           @click="openCustomImport"
         >
           <FilePlus2 class="size-4" />
-          导入
+          {{ t('导入', 'Import') }}
         </Button>
       </template>
       <template v-if="ctfSection === 'catalog' && activeQuestionBank" #filters>
@@ -1774,14 +1768,14 @@ onBeforeUnmount(() => {
         <SelectTrigger
           size="sm"
           class="app-no-drag min-w-44 shrink-0"
-          aria-label="选择训练平台"
+          :aria-label="t('选择训练平台', 'Choose a training platform')"
         >
           <Library class="size-4 text-muted-foreground" />
-          <SelectValue placeholder="选择训练平台">{{ activeSourceName }}</SelectValue>
+          <SelectValue :placeholder="t('选择训练平台', 'Choose a training platform')">{{ activeSourceName }}</SelectValue>
         </SelectTrigger>
         <SelectContent size="sm" class="min-w-64">
           <SelectGroup>
-            <SelectLabel>训练平台</SelectLabel>
+            <SelectLabel>{{ t('训练平台', 'Training platforms') }}</SelectLabel>
             <SelectItem
               v-for="platform in visibleTrainingPlatforms"
               :key="platform.id"
@@ -1791,21 +1785,21 @@ onBeforeUnmount(() => {
                 <span>{{ platform.name }}</span>
                 <span class="text-caption text-muted-foreground">
                   {{ platform.status === 'ready'
-                    ? '可用'
+                    ? t('可用', 'Available')
                     : platform.status === 'planned'
-                      ? '接入中'
-                      : '受限' }}
+                      ? t('接入中', 'Connecting')
+                      : t('受限', 'Restricted') }}
                 </span>
               </span>
             </SelectItem>
           </SelectGroup>
           <SelectSeparator />
           <SelectGroup>
-            <SelectLabel>本地</SelectLabel>
+            <SelectLabel>{{ t('本地', 'Local') }}</SelectLabel>
             <SelectItem value="custom">
               <span class="flex min-w-44 items-center justify-between gap-4">
-                <span>自定义题目</span>
-                <span class="text-caption text-muted-foreground">本地工作区</span>
+                <span>{{ t('自定义题目', 'Custom challenge') }}</span>
+                <span class="text-caption text-muted-foreground">{{ t('本地工作区', 'Local workspace') }}</span>
               </span>
             </SelectItem>
           </SelectGroup>
@@ -1817,17 +1811,17 @@ onBeforeUnmount(() => {
           v-model="deskQuery"
           size="sm"
           class="pl-9"
-          placeholder="搜索题号或题名"
-          aria-label="搜索题库"
+          :placeholder="t('搜索题号或题名', 'Search by id or title')"
+          :aria-label="t('搜索题库', 'Search catalog')"
         />
         </label>
         <NativeSelect
         v-model="deskCategory"
         size="sm"
         class="app-no-drag w-36"
-        aria-label="按题型筛选"
+        :aria-label="t('按题型筛选', 'Filter by category')"
       >
-        <NativeSelectOption value="all">全部分类</NativeSelectOption>
+        <NativeSelectOption value="all">{{ t('全部分类', 'All categories') }}</NativeSelectOption>
         <NativeSelectOption
           v-for="category in deskCategories"
           :key="category"
@@ -1840,11 +1834,11 @@ onBeforeUnmount(() => {
           variant="outline"
           size="sm"
           class="app-no-drag shrink-0"
-          aria-label="浏览器连接设置"
+          :aria-label="t('浏览器连接设置', 'Browser connection settings')"
           @click="$emit('openSettings', 'browser')"
         >
           <Cable class="size-4" />
-          {{ browserBridgeConnected ? '浏览器已连接' : '连接浏览器' }}
+          {{ browserBridgeConnected ? t('浏览器已连接', 'Browser connected') : t('连接浏览器', 'Connect browser') }}
           <span
             class="ak-status ak-status--compact"
             :class="browserBridgeConnected ? '' : 'ak-status--offline'"
@@ -1858,7 +1852,7 @@ onBeforeUnmount(() => {
         size="icon-sm"
         class="app-no-drag"
         :loading="activeBank === 'nssctf' ? training.syncing.value : ctfshow.loading.value"
-        aria-label="刷新当前题库"
+        :aria-label="t('刷新当前题库', 'Refresh current catalog')"
         @click="activeBank === 'nssctf' ? syncCatalog() : refreshCTFShow()"
       >
           <RefreshCw class="size-4" />
@@ -1877,12 +1871,12 @@ onBeforeUnmount(() => {
         class="w-full"
         :class="screen === 'challenge' ? 'h-full' : screen === 'source' ? 'mx-auto max-w-5xl' : 'mx-auto max-w-5xl'"
       >
-        <ol v-if="ctfSection === 'catalog' && screen === 'source'" class="tactical-paper mx-auto mb-8 grid max-w-3xl grid-cols-3 p-4" aria-label="训练步骤">
+        <ol v-if="ctfSection === 'catalog' && screen === 'source'" class="tactical-paper mx-auto mb-8 grid max-w-3xl grid-cols-3 p-4" :aria-label="t('训练步骤', 'Training steps')">
           <li
             v-for="item in [
-              { index: 1, label: '选择入口' },
-              { index: 2, label: '选择题目' },
-              { index: 3, label: 'Agent 工作台' },
+              { index: 1, label: t('选择入口', 'Choose a source') },
+              { index: 2, label: t('选择题目', 'Choose a challenge') },
+              { index: 3, label: t('Agent 工作台', 'Agent workspace') },
             ]"
             :key="item.index"
             class="relative flex flex-col items-center gap-2 text-center"
@@ -1912,7 +1906,7 @@ onBeforeUnmount(() => {
             <NativeSelect
               v-model="activeBank"
               size="sm"
-              aria-label="选择题库"
+              :aria-label="t('选择题库', 'Choose a catalog')"
             >
               <NativeSelectOption
                 v-for="platform in visibleTrainingPlatforms"
@@ -1921,21 +1915,21 @@ onBeforeUnmount(() => {
               >
                 {{ platform.name }}
               </NativeSelectOption>
-              <NativeSelectOption value="custom">自定义题目</NativeSelectOption>
+              <NativeSelectOption value="custom">{{ t('自定义题目', 'Custom challenge') }}</NativeSelectOption>
             </NativeSelect>
             <span class="text-caption text-muted-foreground">
               {{ activeBank === 'nssctf'
-                ? `${training.dashboard.value?.catalogTotal ?? 0} 题`
+                ? t(`${training.dashboard.value?.catalogTotal ?? 0} 题`, `${training.dashboard.value?.catalogTotal ?? 0} challenges`)
                 : activeBank === 'ctfshow'
-                  ? `${ctfshow.status.value?.catalog.total ?? 0} 题`
-                  : '统一训练工作区' }}
+                  ? t(`${ctfshow.status.value?.catalog.total ?? 0} 题`, `${ctfshow.status.value?.catalog.total ?? 0} challenges`)
+                  : t('统一训练工作区', 'Shared training workspace') }}
             </span>
           </div>
 
           <section
             v-if="catalogAction"
             class="mb-6 flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card px-4 py-3"
-            aria-label="当前操作"
+            :aria-label="t('当前操作', 'Current action')"
           >
             <Button
               variant="outline"
@@ -1958,58 +1952,55 @@ onBeforeUnmount(() => {
                   @click="refreshCTFShow"
                 >
                   <RefreshCw class="size-4" />
-                  重试同步
+                  {{ t('重试同步', 'Retry sync') }}
                 </Button>
               </AlertDescription>
             </Alert>
 
             <div class="mb-5 flex flex-wrap items-end justify-between gap-4">
               <div>
-                <h2 id="ctfshow-title" class="text-xl font-semibold tracking-[-0.025em]">CTFshow 题库</h2>
+                <h2 id="ctfshow-title" class="text-xl font-semibold tracking-[-0.025em]">{{ t('CTFshow 题库', 'CTFshow catalog') }}</h2>
                 <p class="mt-1 text-caption text-muted-foreground">
                   {{ ctfshow.status.value?.catalog.lastSyncedAt
-                    ? `更新于 ${new Date(ctfshow.status.value.catalog.lastSyncedAt).toLocaleString()}`
-                    : '尚未同步' }}
+                    ? t(`更新于 ${new Date(ctfshow.status.value.catalog.lastSyncedAt).toLocaleString()}`, `Updated ${new Date(ctfshow.status.value.catalog.lastSyncedAt).toLocaleString()}`)
+                    : t('尚未同步', 'Not synced yet') }}
                 </p>
               </div>
               <div class="flex flex-wrap gap-2">
                 <SegmentedControl
                   v-model="collaborationMode"
-                  aria-label="CTFshow 协作模式"
+                  :aria-label="t('CTFshow 协作模式', 'CTFshow collaboration mode')"
                   :items="modeItems"
                 />
                 <Button variant="outline" @click="ctfshow.open()">
                   <ExternalLink class="size-4" />
-                  打开 CTFshow
+                  {{ t('打开 CTFshow', 'Open CTFshow') }}
                 </Button>
                 <Button :loading="ctfshow.loading.value" @click="refreshCTFShow">
                   <RefreshCw class="size-4" />
-                  刷新
+                  {{ t('刷新', 'Refresh') }}
                 </Button>
               </div>
             </div>
 
-            <div
-              v-if="!ctfshowProblems.length"
-              class="rounded-xl border border-border bg-card px-6 py-12 text-center"
-            >
-              <Library class="mx-auto size-6 text-muted-foreground" />
-              <p class="mt-3 text-control font-medium">在 CTFshow 页点击 MilkSU 扩展</p>
-              <Button
-                class="mt-4"
-                variant="outline"
-                @click="$emit('openSettings', 'browser')"
-              >
-                <Cable class="size-4" />
-                前往浏览器设置
-              </Button>
-            </div>
+            <SettingsSection v-if="!ctfshowProblems.length" title="CTFshow">
+              <SettingsRow stack="always" :label="t('在 CTFshow 页点击 MilkSU 扩展', 'Click the MilkSU extension on a CTFshow page')" :divider="false">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  @click="$emit('openSettings', 'browser')"
+                >
+                  <Cable class="size-4" />
+                  {{ t('前往浏览器设置', 'Open browser settings') }}
+                </Button>
+              </SettingsRow>
+            </SettingsSection>
 
             <template v-else>
               <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_180px]">
-                <Input v-model="ctfshowQuery" size="sm" placeholder="搜索题号、题名或标签" />
-                <NativeSelect v-model="ctfshowCategory" size="sm" aria-label="题型">
-                  <NativeSelectOption value="all">全部题型</NativeSelectOption>
+                <Input v-model="ctfshowQuery" size="sm" :placeholder="t('搜索题号、题名或标签', 'Search by id, title, or tag')" />
+                <NativeSelect v-model="ctfshowCategory" size="sm" :aria-label="t('题型', 'Category')">
+                  <NativeSelectOption value="all">{{ t('全部题型', 'All categories') }}</NativeSelectOption>
                   <NativeSelectOption
                     v-for="category in ctfshowCategories"
                     :key="category"
@@ -2023,11 +2014,11 @@ onBeforeUnmount(() => {
               <div class="mt-4 overflow-hidden rounded-xl border border-border bg-card">
                 <div class="hidden grid-cols-[76px_minmax(0,1fr)_110px_90px_90px_96px_32px] gap-3 border-b border-border bg-muted/30 px-4 py-2.5 text-caption text-muted-foreground md:grid">
                   <span>ID</span>
-                  <span>题目</span>
-                  <span>题型</span>
-                  <span>分值</span>
-                  <span>解出</span>
-                  <span>进度</span>
+                  <span>{{ t('题目', 'Challenge') }}</span>
+                  <span>{{ t('题型', 'Category') }}</span>
+                  <span>{{ t('分值', 'Points') }}</span>
+                  <span>{{ t('解出', 'Solves') }}</span>
+                  <span>{{ t('进度', 'Progress') }}</span>
                   <span />
                 </div>
                 <button
@@ -2058,12 +2049,12 @@ onBeforeUnmount(() => {
                   <ChevronRight class="size-4 text-muted-foreground" />
                 </button>
                 <div v-if="!visibleCTFShowProblems.length" class="px-5 py-12 text-center text-control text-muted-foreground">
-                  没有匹配题目
+                  {{ t('没有匹配题目', 'No matching challenges') }}
                 </div>
               </div>
 
               <div class="mt-4 flex items-center justify-between gap-3 text-caption text-muted-foreground">
-                <span>{{ filteredCTFShowProblems.length }} 题</span>
+                <span>{{ t(`${filteredCTFShowProblems.length} 题`, `${filteredCTFShowProblems.length} challenges`) }}</span>
                 <div class="flex items-center gap-2">
                   <Button
                     variant="outline"
@@ -2072,7 +2063,7 @@ onBeforeUnmount(() => {
                     @click="ctfshowPage -= 1"
                   >
                     <ChevronLeft class="size-4" />
-                    上一页
+                    {{ t('上一页', 'Previous') }}
                   </Button>
                   <span class="min-w-14 text-center font-mono">{{ ctfshowPage }} / {{ ctfshowPageCount }}</span>
                   <Button
@@ -2081,7 +2072,7 @@ onBeforeUnmount(() => {
                     :disabled="ctfshowPage >= ctfshowPageCount"
                     @click="ctfshowPage += 1"
                   >
-                    下一页
+                    {{ t('下一页', 'Next') }}
                     <ChevronRight class="size-4" />
                   </Button>
                 </div>
@@ -2100,7 +2091,7 @@ onBeforeUnmount(() => {
                 @click="syncCatalog"
               >
                 <RefreshCw class="size-4" />
-                重试同步
+                {{ t('重试同步', 'Retry sync') }}
               </Button>
             </AlertDescription>
           </Alert>
@@ -2108,7 +2099,7 @@ onBeforeUnmount(() => {
           <Alert v-if="activeBank === 'nssctf' && training.syncing.value" class="mb-5">
             <RefreshCw class="size-4 animate-spin" />
             <AlertDescription>
-              正在限速同步 NSSCTF 公开题库；遇到平台限流会自动退避重试，完成前仍保留上一次完整快照。
+              {{ t('正在限速同步 NSSCTF 公开题库；遇到平台限流会自动退避重试，完成前仍保留上一次完整快照。', 'Syncing the NSSCTF public catalog at a limited rate. Rate limits trigger automatic backoff; the last complete snapshot is kept until this finishes.') }}
             </AlertDescription>
           </Alert>
 
@@ -2144,133 +2135,103 @@ onBeforeUnmount(() => {
                     class="inline-flex items-center gap-2 rounded-full border border-border bg-muted/40 px-3 py-1.5 text-caption text-muted-foreground"
                   >
                     <Clock3 class="size-4" />
-                    从右上角历史恢复
+                    {{ t('从右上角历史恢复', 'Resume from History in the top-right') }}
                   </span>
                   <span class="text-caption text-muted-foreground">{{ dailyMission.meta }}</span>
                 </div>
               </div>
               <div class="grid grid-cols-3 border-t border-border bg-muted/30 lg:grid-cols-1 lg:border-l lg:border-t-0">
                 <div class="px-5 py-4 lg:border-b lg:border-border">
-                  <p class="text-caption text-muted-foreground">已完成</p>
-                  <p class="mt-1 font-mono text-xl font-semibold">{{ solvedJobCount }} 题</p>
+                  <p class="text-caption text-muted-foreground">{{ t('已完成', 'Completed') }}</p>
+                  <p class="mt-1 font-mono text-xl font-semibold">{{ t(`${solvedJobCount} 题`, `${solvedJobCount} challenges`) }}</p>
                 </div>
                 <div class="border-x border-border px-5 py-4 lg:border-x-0 lg:border-b">
-                  <p class="text-caption text-muted-foreground">已实验</p>
-                  <p class="mt-1 font-mono text-xl font-semibold">{{ totalExperimentCount }} 次</p>
+                  <p class="text-caption text-muted-foreground">{{ t('已实验', 'Experiments') }}</p>
+                  <p class="mt-1 font-mono text-xl font-semibold">{{ t(`${totalExperimentCount} 次`, `${totalExperimentCount} runs`) }}</p>
                 </div>
                 <div class="px-5 py-4">
-                  <p class="text-caption text-muted-foreground">本地题库</p>
-                  <p class="mt-1 font-mono text-xl font-semibold">{{ training.dashboard.value?.catalogTotal ?? 0 }} 题</p>
+                  <p class="text-caption text-muted-foreground">{{ t('本地题库', 'Local catalog') }}</p>
+                  <p class="mt-1 font-mono text-xl font-semibold">{{ t(`${training.dashboard.value?.catalogTotal ?? 0} 题`, `${training.dashboard.value?.catalogTotal ?? 0} challenges`) }}</p>
                 </div>
               </div>
             </div>
           </section>
 
-          <section
+          <SettingsSection
             v-if="activeBank === 'nssctf' && training.dashboard.value"
-            class="overflow-hidden rounded-xl border border-border bg-card"
+            :title="t('推荐下一道 NSSCTF 题', 'Recommended next NSSCTF challenge')"
           >
-            <div class="p-5 sm:p-6">
-              <div class="flex items-center justify-between gap-4">
-                <h3 class="text-label font-medium">推荐下一道 NSSCTF 题</h3>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  :loading="training.syncing.value"
-                  @click="syncCatalog"
-                >
-                  <RefreshCw class="size-4" />
-                  更新题库
-                </Button>
-              </div>
-
-              <div v-if="training.dashboard.value.recommendations.length" class="mt-3 grid gap-x-6 md:grid-cols-2">
-                <button
-                  v-for="recommendation in training.dashboard.value.recommendations.slice(0, 4)"
-                  :key="recommendation.problem.platformId"
-                  type="button"
-                  class="group flex min-w-0 items-start gap-3 border-b border-border py-3 text-left"
-                  @click="chooseRecommendation(recommendation)"
-                >
-                  <span class="mt-0.5 grid size-8 shrink-0 place-items-center rounded-md bg-primary/10 font-mono text-caption font-semibold text-primary">
-                    {{ recommendation.problem.difficulty.toFixed(1) }}
-                  </span>
-                  <span class="min-w-0 flex-1">
-                    <span class="flex items-center gap-2 text-caption text-muted-foreground">
-                      <Badge variant="secondary">{{ recommendation.kind }}</Badge>
-                      <span class="font-mono">P{{ recommendation.problem.platformId }}</span>
-                    </span>
-                    <span class="mt-1 block truncate text-control font-medium group-hover:text-primary">
-                      {{ recommendation.problem.title }}
-                    </span>
-                  </span>
-                  <ChevronRight class="mt-3 size-4 shrink-0 text-muted-foreground" />
-                </button>
-              </div>
-
-              <div v-else class="mt-4 rounded-lg bg-muted/50 px-5 py-7 text-center">
-                <Button variant="brand" :loading="training.syncing.value" @click="syncCatalog">
-                  同步题库
-                </Button>
-              </div>
+            <template #actions>
+              <Button
+                variant="ghost"
+                size="sm"
+                :loading="training.syncing.value"
+                @click="syncCatalog"
+              >
+                <RefreshCw class="size-4" />
+                {{ t('更新题库', 'Update catalog') }}
+              </Button>
+            </template>
+            <div
+              v-for="(recommendation, index) in training.dashboard.value.recommendations.slice(0, 4)"
+              :key="recommendation.problem.platformId"
+              class="contents"
+            >
+              <ModelListRow
+                :label="recommendation.problem.title"
+                :meta="`${recommendation.kind} · P${recommendation.problem.platformId} · ${recommendation.problem.difficulty.toFixed(1)}`"
+                :last="index === Math.min(3, training.dashboard.value.recommendations.length - 1)"
+                @click="chooseRecommendation(recommendation)"
+              >
+                <template #trailing>
+                  <ChevronRight class="size-4 text-muted-foreground" />
+                </template>
+              </ModelListRow>
             </div>
-          </section>
+            <SettingsRow
+              v-if="!training.dashboard.value.recommendations.length"
+              stack="always"
+              :divider="false"
+            >
+              <Button variant="brand" :loading="training.syncing.value" @click="syncCatalog">
+                {{ t('同步题库', 'Sync catalog') }}
+              </Button>
+            </SettingsRow>
+          </SettingsSection>
 
-          <section v-if="activeBank === 'nssctf' && training.dashboard.value?.series.length" class="mt-6">
-            <div class="mb-3 flex flex-wrap items-end justify-between gap-3">
-              <h2 class="text-label font-medium">赛事题单</h2>
-              <Badge variant="outline">{{ training.dashboard.value.series.length }} 个系列</Badge>
-            </div>
-            <div class="grid gap-3 md:grid-cols-2">
-              <button
-                v-for="series in training.dashboard.value.series.slice(0, 4)"
-                :key="series.name"
-                type="button"
-                class="group rounded-xl border border-border bg-card p-5 text-left transition-colors hover:border-primary/40"
+          <SettingsSection v-if="activeBank === 'nssctf' && training.dashboard.value?.series.length" class="mt-6" :title="t('赛事题单', 'Event playlists')">
+            <template #actions>
+              <Badge variant="outline">{{ t(`${training.dashboard.value.series.length} 个系列`, `${training.dashboard.value.series.length} series`) }}</Badge>
+            </template>
+            <div
+              v-for="(series, index) in training.dashboard.value.series.slice(0, 4)"
+              :key="series.name"
+              class="contents"
+            >
+              <ModelListRow
+                :label="series.name"
+                :meta="series.attemptedCount
+                  ? t(`${series.problemCount} 题 · ${difficultyLabel(series.averageDifficulty)} · 完成 ${series.completedCount}/${series.problemCount}`, `${series.problemCount} challenges · ${difficultyLabel(series.averageDifficulty)} · completed ${series.completedCount}/${series.problemCount}`)
+                  : t(`${series.problemCount} 题 · ${difficultyLabel(series.averageDifficulty)} · 未开始`, `${series.problemCount} challenges · ${difficultyLabel(series.averageDifficulty)} · not started`)"
+                :last="index === Math.min(3, training.dashboard.value.series.length - 1)"
                 @click="chooseSeries(series)"
               >
-                <span class="flex items-start justify-between gap-4">
-                  <span class="min-w-0">
-                    <span class="block truncate text-control font-medium group-hover:text-primary">{{ series.name }}</span>
-                    <span class="mt-1 block text-caption text-muted-foreground">
-                      {{ series.problemCount }} 题 · 平均难度 {{ difficultyLabel(series.averageDifficulty) }}
-                    </span>
-                  </span>
-                  <ChevronRight class="mt-1 size-4 shrink-0 text-muted-foreground" />
-                </span>
-                <span class="mt-3 flex flex-wrap gap-1.5">
-                  <Badge v-for="category in series.categories.slice(0, 4)" :key="category" variant="secondary">
-                    {{ category }}
-                  </Badge>
-                  <Badge variant="outline">
-                    {{ series.attemptedCount ? `已尝试 ${series.attemptedCount}` : '未开始' }}
-                  </Badge>
-                </span>
-                <span v-if="series.attemptedCount" class="mt-4 block">
-                  <span class="flex items-center justify-between text-caption text-muted-foreground">
-                    <span>完成 {{ series.completedCount }} / {{ series.problemCount }}</span>
-                    <span class="font-mono">{{ seriesProgress(series) }}%</span>
-                  </span>
-                  <span class="mt-2 block h-1.5 overflow-hidden rounded-full bg-muted">
-                    <span
-                      class="block h-full rounded-full bg-primary"
-                      :style="{ width: `${seriesProgress(series)}%` }"
-                    />
-                  </span>
-                </span>
-              </button>
+                <template #trailing>
+                  <ChevronRight class="size-4 text-muted-foreground" />
+                </template>
+              </ModelListRow>
             </div>
-          </section>
+          </SettingsSection>
 
           <div v-if="activeBank === 'nssctf'" class="mt-6 grid gap-3 md:grid-cols-2">
             <ActionCard
-              title="NSSCTF 公开题库"
+              :title="t('NSSCTF 公开题库', 'NSSCTF public catalog')"
               @click="showProblems"
             >
               <template #icon><Library /></template>
               <template #trailing>
                 <span class="flex items-center gap-2 text-body font-medium">
-                  {{ training.dashboard.value?.catalogTotal ?? 0 }} 题
+                  {{ t(`${training.dashboard.value?.catalogTotal ?? 0} 题`, `${training.dashboard.value?.catalogTotal ?? 0} challenges`) }}
                   <ChevronRight class="size-4" />
                 </span>
               </template>
@@ -2283,10 +2244,10 @@ onBeforeUnmount(() => {
               <template #icon><Zap /></template>
               <template #trailing>
                 <LoaderCircle v-if="working" class="size-4 animate-spin" />
-                <Badge v-else-if="arenaReady" variant="outline">已连接</Badge>
+                <Badge v-else-if="arenaReady" variant="outline">{{ t('已连接', 'Connected') }}</Badge>
                 <span v-else class="flex items-center gap-2 text-body text-muted-foreground">
                   <KeyRound class="size-4" />
-                  配置 Token
+                  {{ t('配置 Token', 'Configure Token') }}
                 </span>
               </template>
             </ActionCard>
@@ -2294,16 +2255,16 @@ onBeforeUnmount(() => {
 
           <section v-if="activeBank === 'nssctf' && backend.jobs.value.length" class="mt-9 border-t border-border pt-6">
             <div class="mb-3 flex items-center justify-between">
-              <h2 class="text-label font-medium">最近训练</h2>
+              <h2 class="text-label font-medium">{{ t('最近训练', 'Recent training') }}</h2>
               <div class="flex items-center gap-3">
-                <span class="text-caption text-muted-foreground">{{ backend.jobs.value.length }} 个任务</span>
+                <span class="text-caption text-muted-foreground">{{ t(`${backend.jobs.value.length} 个任务`, `${backend.jobs.value.length} tasks`) }}</span>
                 <Button
                   v-if="backend.jobs.value.length > 3"
                   variant="link"
                   size="text"
                   @click="historyExpanded = !historyExpanded"
                 >
-                  {{ historyExpanded ? '收起' : '查看全部' }}
+                  {{ historyExpanded ? t('收起', 'Collapse') : t('查看全部', 'View all') }}
                 </Button>
               </div>
             </div>
@@ -2318,7 +2279,7 @@ onBeforeUnmount(() => {
               <span class="min-w-0 flex-1">
                 <span class="block truncate text-control font-medium">{{ job.title }}</span>
                 <span class="mt-0.5 block text-caption text-muted-foreground">
-                  {{ formatCategory(job.category) }} · {{ job.experimentCount }} 次实验
+                  {{ t(`${formatCategory(job.category)} · ${job.experimentCount} 次实验`, `${formatCategory(job.category)} · ${job.experimentCount} experiments`) }}
                 </span>
               </span>
               <Badge variant="outline">{{ jobSummaryLabel(job) }}</Badge>
@@ -2336,42 +2297,44 @@ onBeforeUnmount(() => {
           <div class="mx-auto max-w-4xl">
             <Button variant="ghost" size="sm" class="mb-4" @click="cancelCustomImport">
               <ArrowLeft class="size-4" />
-              取消导入并返回题库
+              {{ t('取消导入并返回题库', 'Cancel import and return to catalog') }}
             </Button>
-            <div class="rounded-xl border border-border bg-card p-7 sm:p-9">
+            <SettingsSection>
+              <div class="px-5 py-6 sm:px-6 sm:py-7">
               <span class="grid size-11 place-items-center rounded-lg bg-primary/10 text-primary">
                 <FilePlus2 class="size-5" />
               </span>
               <h2 id="custom-challenge-title" class="mt-5 text-2xl font-semibold tracking-[-0.035em]">
-                自定义题目
+                {{ t('自定义题目', 'Custom challenge') }}
               </h2>
               <p class="mt-2 max-w-2xl text-body leading-6 text-muted-foreground">
-                线下赛或自备题目，导入后在本机建立工作区。
+                {{ t('线下赛或自备题目，导入后在本机建立工作区。', 'Offline or self-hosted challenges. Import them to create a workspace on this machine.') }}
               </p>
 
               <div class="mt-7 grid gap-3 sm:grid-cols-3">
                 <div class="rounded-lg border border-border bg-background px-4 py-4">
                   <Archive class="size-4 text-muted-foreground" />
-                  <p class="mt-3 text-control font-medium">本地保存</p>
-                  <p class="mt-1 text-caption leading-5 text-muted-foreground">题面、截图和附件进入本题工作区。</p>
+                  <p class="mt-3 text-control font-medium">{{ t('本地保存', 'Saved locally') }}</p>
+                  <p class="mt-1 text-caption leading-5 text-muted-foreground">{{ t('题面、截图和附件进入本题工作区。', 'Statement, screenshots, and attachments go into this challenge workspace.') }}</p>
                 </div>
                 <div class="rounded-lg border border-border bg-background px-4 py-4">
                   <Bot class="size-4 text-muted-foreground" />
-                  <p class="mt-3 text-control font-medium">Agent 可读</p>
-                  <p class="mt-1 text-caption leading-5 text-muted-foreground">沿用同一套 Coding、证据与复盘能力。</p>
+                  <p class="mt-3 text-control font-medium">{{ t('Agent 可读', 'Readable by Agent') }}</p>
+                  <p class="mt-1 text-caption leading-5 text-muted-foreground">{{ t('沿用同一套 Coding、证据与复盘能力。', 'Uses the same Coding, evidence, and debrief capabilities.') }}</p>
                 </div>
                 <div class="rounded-lg border border-border bg-background px-4 py-4">
                   <ShieldCheck class="size-4 text-muted-foreground" />
-                  <p class="mt-3 text-control font-medium">不代替判题</p>
-                  <p class="mt-1 text-caption leading-5 text-muted-foreground">外部平台结果仍由你确认并记录。</p>
+                  <p class="mt-3 text-control font-medium">{{ t('不代替判题', 'Does not replace judging') }}</p>
+                  <p class="mt-1 text-caption leading-5 text-muted-foreground">{{ t('外部平台结果仍由你确认并记录。', 'You still confirm and record the external platform result.') }}</p>
                 </div>
               </div>
 
               <Button class="mt-7" size="lg" @click="manualIntake?.open()">
                 <FilePlus2 class="size-4" />
-                新建自定义题目
+                {{ t('新建自定义题目', 'New custom challenge') }}
               </Button>
-            </div>
+              </div>
+            </SettingsSection>
           </div>
         </section>
 
@@ -2381,7 +2344,8 @@ onBeforeUnmount(() => {
           :aria-labelledby="`${activeBank}-platform-title`"
         >
           <div v-if="activeExternalPlatform" class="mx-auto max-w-4xl">
-            <div class="rounded-xl border border-border bg-card p-7 sm:p-9">
+            <SettingsSection>
+              <div class="px-5 py-6 sm:px-6 sm:py-7">
               <div class="flex flex-wrap items-start justify-between gap-4">
                 <span class="grid size-11 place-items-center rounded-lg bg-primary/10 text-primary">
                   <Cable class="size-5" />
@@ -2411,83 +2375,86 @@ onBeforeUnmount(() => {
               <div class="mt-7 flex flex-wrap gap-3">
                 <Button variant="outline" @click="openExternalPlatform">
                   <ExternalLink class="size-4" />
-                  查看官方入口
+                  {{ t('查看官方入口', 'View official entry') }}
                 </Button>
               </div>
-            </div>
+              </div>
+            </SettingsSection>
           </div>
         </section>
 
         <section
           v-else-if="ctfSection === 'catalog' && screen === 'detail'"
           class="flex min-h-0 flex-1 flex-col overflow-auto"
-          aria-label="题目详情"
+          :aria-label="t('题目详情', 'Challenge details')"
         >
           <div class="mx-auto w-full max-w-5xl space-y-5 px-6 py-6">
-          <section v-if="selectedProblem" class="rounded-xl border border-border bg-card p-6">
-            <div class="flex flex-wrap items-start justify-between gap-4">
-              <div class="min-w-0">
-                <div class="flex flex-wrap items-center gap-2">
-                  <Badge variant="outline">{{ formatCategory(selectedProblem.category) }}</Badge>
-                  <Badge v-if="selectedProblem.difficulty" variant="outline">{{ catalogDifficultyLabel(selectedProblem.difficulty) }}</Badge>
-                  <NativeSelect
-                    :model-value="manualStatuses[`nssctf:${selectedProblem.platformId}`] ?? 'not_started'"
-                    size="sm"
-                    class="w-32"
-                    :aria-label="`${selectedProblem.title} 状态`"
-                    @change="updateCatalogProblemStatus"
-                  >
-                    <NativeSelectOption value="not_started">未开始</NativeSelectOption>
-                    <NativeSelectOption value="in_progress">进行中</NativeSelectOption>
-                    <NativeSelectOption value="paused">稍后继续</NativeSelectOption>
-                    <NativeSelectOption value="completed">已完成</NativeSelectOption>
-                  </NativeSelect>
-                </div>
-                <h1 class="mt-3 text-3xl font-semibold tracking-[-0.04em]">{{ selectedProblem.title }}</h1>
-                <p class="mt-2 font-mono text-caption text-muted-foreground">P{{ selectedProblem.platformId }}</p>
-              </div>
+          <SettingsSection v-if="selectedProblem" :title="t('题目', 'Challenge')">
+            <div class="px-4 py-3">
               <div class="flex flex-wrap items-center gap-2">
-                <Button
-                  v-if="dailyChallengeVisible?.platformId === selectedProblem.platformId"
-                  variant="outline"
-                  size="sm"
-                  @click="changeDailyChallenge"
-                >
-                  换一道
-                </Button>
-                <Button variant="outline" size="sm" @click="openProblem">
-                  <ExternalLink class="size-4" />
-                  打开题目
-                </Button>
-                <Button variant="brand" size="sm" :loading="working" @click="openSelectedInCoding">
-                  开始解题
-                </Button>
+                <Badge variant="outline">{{ formatCategory(selectedProblem.category) }}</Badge>
+                <Badge v-if="selectedProblem.difficulty" variant="outline">{{ catalogDifficultyLabel(selectedProblem.difficulty) }}</Badge>
               </div>
+              <h1 class="mt-3 text-3xl font-semibold tracking-[-0.04em]">{{ selectedProblem.title }}</h1>
+              <p class="mt-2 font-mono text-caption text-muted-foreground">P{{ selectedProblem.platformId }}</p>
+              <p
+                v-if="dailyChallengeVisible?.platformId === selectedProblem.platformId && dailyChallengeReason"
+                class="mt-3 border-l-2 border-primary pl-3 text-caption leading-5"
+              >
+                {{ dailyChallengeReason }}
+              </p>
+              <MarkdownContent
+                v-if="selectedProblem.statement"
+                class="mt-3 text-body leading-6"
+                :content="selectedProblem.statement"
+              />
             </div>
-            <p
-              v-if="dailyChallengeVisible?.platformId === selectedProblem.platformId && dailyChallengeReason"
-              class="mt-4 border-l-2 border-primary pl-3 text-caption leading-5"
-            >
-              {{ dailyChallengeReason }}
-            </p>
-            <MarkdownContent
-              v-if="selectedProblem.statement"
-              class="mt-4 text-body leading-6"
-              :content="selectedProblem.statement"
-            />
-          </section>
-          <section v-else-if="selectedCTFShowProblem" class="rounded-xl border border-border bg-card p-6">
-            <div class="flex flex-wrap items-start justify-between gap-4">
-              <div class="min-w-0">
-                <Badge variant="outline">{{ selectedCTFShowProblem.category }}</Badge>
-                <h1 class="mt-3 text-3xl font-semibold tracking-[-0.04em]">{{ selectedCTFShowProblem.title }}</h1>
-                <p class="mt-2 text-caption text-muted-foreground">#{{ selectedCTFShowProblem.platformId }} · {{ selectedCTFShowProblem.points }} 分</p>
-              </div>
-              <Button variant="brand" size="sm" :loading="working" @click="openSelectedInCoding">
-                开始解题
+            <SettingsRow v-if="selectedProblem.sourceUrl" :label="t('原文', 'Original')">
+              <Button variant="link" size="text" @click="openProblem">
+                {{ t('打开原文', 'Open original') }}
+                <ExternalLink class="size-3" />
               </Button>
+            </SettingsRow>
+            <SettingsRow :label="t('状态', 'Status')">
+              <NativeSelect
+                :model-value="manualStatuses[`nssctf:${selectedProblem.platformId}`] ?? 'not_started'"
+                size="sm"
+                class="w-32"
+                :aria-label="t(`${selectedProblem.title} 状态`, `${selectedProblem.title} status`)"
+                @change="updateCatalogProblemStatus"
+              >
+                <NativeSelectOption value="not_started">{{ t('未开始', 'Not started') }}</NativeSelectOption>
+                <NativeSelectOption value="in_progress">{{ t('进行中', 'In progress') }}</NativeSelectOption>
+                <NativeSelectOption value="paused">{{ t('稍后继续', 'Resume later') }}</NativeSelectOption>
+                <NativeSelectOption value="completed">{{ t('已完成', 'Completed') }}</NativeSelectOption>
+              </NativeSelect>
+            </SettingsRow>
+            <template #footer>
+              <Button
+                v-if="dailyChallengeVisible?.platformId === selectedProblem.platformId"
+                variant="outline"
+                size="sm"
+                @click="changeDailyChallenge"
+              >
+                {{ t('换一道', 'Try another') }}
+              </Button>
+              <Button variant="brand" size="sm" :loading="working" @click="openSelectedInCoding">
+                {{ t('开始解题', 'Start solving') }}
+              </Button>
+            </template>
+          </SettingsSection>
+          <SettingsSection v-else-if="selectedCTFShowProblem" :title="t('题目', 'Challenge')">
+            <div class="px-4 py-3">
+              <Badge variant="outline">{{ selectedCTFShowProblem.category }}</Badge>
+              <h1 class="mt-3 text-3xl font-semibold tracking-[-0.04em]">{{ selectedCTFShowProblem.title }}</h1>
+              <p class="mt-2 text-caption text-muted-foreground">{{ t(`#${selectedCTFShowProblem.platformId} · ${selectedCTFShowProblem.points} 分`, `#${selectedCTFShowProblem.platformId} · ${selectedCTFShowProblem.points} pts`) }}</p>
             </div>
-          </section>
+            <template #footer>
+              <Button variant="brand" size="sm" :loading="working" @click="openSelectedInCoding">
+                {{ t('开始解题', 'Start solving') }}
+              </Button>
+            </template>
+          </SettingsSection>
           </div>
         </section>
 
@@ -2564,86 +2531,77 @@ onBeforeUnmount(() => {
 
           <template v-if="activeProjection">
             <div class="mx-auto max-w-5xl space-y-5">
-            <section class="rounded-xl border border-border bg-card p-6">
-              <div class="flex flex-wrap items-start justify-between gap-5">
-                <div class="min-w-0">
-                  <div class="flex flex-wrap items-center gap-2">
-                    <Badge variant="outline">{{ formatCategory(activeProjection.challenge.category) }}</Badge>
-                    <NativeSelect
-                      :model-value="manualStatusForJob(activeProjection.job)"
-                      size="sm"
-                      class="w-32"
-                      :aria-label="`${activeProjection.challenge.title} 状态`"
-                      @change="updateActiveJobManualStatus"
-                    >
-                      <NativeSelectOption value="not_started">未开始</NativeSelectOption>
-                      <NativeSelectOption value="in_progress">进行中</NativeSelectOption>
-                      <NativeSelectOption value="paused">稍后继续</NativeSelectOption>
-                      <NativeSelectOption value="completed">已完成</NativeSelectOption>
-                    </NativeSelect>
-                    <Badge v-if="isArenaWorkspace" variant="secondary">Agent Arena</Badge>
-                    <Badge v-if="isWebWorkspace" variant="secondary">Chrome Judge</Badge>
-                  </div>
-                  <h1 id="workspace-title" class="mt-3 text-3xl font-semibold tracking-[-0.04em]">
-                    {{ activeProjection.challenge.title }}
-                  </h1>
-                  <p class="mt-2 text-body text-muted-foreground">
-                    {{ activeProjection.challenge.trackName }} · {{ activeProjection.challenge.agentPolicy.label }}模式
-                  </p>
-                  <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-caption text-muted-foreground">
-                    <span class="flex items-center gap-1.5">
-                      <Target class="size-3.5" />
-                      {{ remainingAgentTurns }} 回合
-                    </span>
-                    <span class="flex items-center gap-1.5">
-                      <Clock3 class="size-3.5" />
-                      {{ remainingAgentMinutes }} 分钟
-                      {{ backend.agentBudget.value?.firstTurnStartedAt ? '剩余' : '（启动后计时）' }}
-                    </span>
-                    <span class="flex items-center gap-1.5">
-                      <Flag class="size-3.5" />
-                      {{ remainingWrongSubmissions }} 次错误提交额度
-                    </span>
-                    <span v-if="activeProjection.challenge.materials.length" class="flex items-center gap-1.5">
-                      <FileSearch class="size-3.5" />
-                      {{ activeProjection.challenge.materials.length }} 个附件
-                    </span>
-                  </div>
-                </div>
+            <SettingsSection :title="t('题目', 'Challenge')">
+              <div class="px-4 py-3">
                 <div class="flex flex-wrap items-center gap-2">
-                  <Button :loading="working" :disabled="working" variant="brand" size="sm" @click="openCodingAgent">
-                    {{ agentActionLabel }}
-                  </Button>
+                  <Badge variant="outline">{{ formatCategory(activeProjection.challenge.category) }}</Badge>
+                  <Badge v-if="isArenaWorkspace" variant="secondary">Agent Arena</Badge>
+                  <Badge v-if="isWebWorkspace" variant="secondary">Chrome Judge</Badge>
                 </div>
+                <h1 id="workspace-title" class="mt-3 text-3xl font-semibold tracking-[-0.04em]">
+                  {{ activeProjection.challenge.title }}
+                </h1>
+                <p class="mt-2 text-body text-muted-foreground">
+                  {{ t(`${activeProjection.challenge.trackName} · ${activeProjection.challenge.agentPolicy.label}模式`, `${activeProjection.challenge.trackName} · ${activeProjection.challenge.agentPolicy.label} mode`) }}
+                </p>
+                <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-caption text-muted-foreground">
+                  <span class="flex items-center gap-1.5">
+                    <Target class="size-3.5" />
+                    {{ t(`${remainingAgentTurns} 回合`, `${remainingAgentTurns} turns`) }}
+                  </span>
+                  <span class="flex items-center gap-1.5">
+                    <Clock3 class="size-3.5" />
+                    {{ t(`${remainingAgentMinutes} 分钟`, `${remainingAgentMinutes} min`) }}
+                    {{ backend.agentBudget.value?.firstTurnStartedAt ? t('剩余', 'remaining') : t('（启动后计时）', '(starts with first turn)') }}
+                  </span>
+                  <span class="flex items-center gap-1.5">
+                    <Flag class="size-3.5" />
+                    {{ t(`${remainingWrongSubmissions} 次错误提交额度`, `${remainingWrongSubmissions} wrong-submission budget`) }}
+                  </span>
+                  <span v-if="activeProjection.challenge.materials.length" class="flex items-center gap-1.5">
+                    <FileSearch class="size-3.5" />
+                    {{ t(`${activeProjection.challenge.materials.length} 个附件`, `${activeProjection.challenge.materials.length} attachments`) }}
+                  </span>
+                </div>
+                <MarkdownContent
+                  v-if="activeProjection.challenge.statement"
+                  class="mt-4 text-body leading-6"
+                  :content="activeProjection.challenge.statement"
+                />
               </div>
-              <p v-if="isWebWorkspace" class="mt-3 flex flex-wrap items-center gap-2 text-caption text-muted-foreground">
-                <Cable class="size-3.5" />
-                <span>{{ compactBridgeStatus }}</span>
-                <Button
-                  v-if="!activeBrowserReady"
-                  variant="ghost"
+              <SettingsRow v-if="activeProjection.challenge.source.uri" :label="t('原文', 'Original')">
+                <Button variant="link" size="text" @click="openActiveChallenge">
+                  {{ t('打开原文', 'Open original') }}
+                  <ExternalLink class="size-3" />
+                </Button>
+              </SettingsRow>
+              <SettingsRow :label="t('状态', 'Status')" :divider="false">
+                <NativeSelect
+                  :model-value="manualStatusForJob(activeProjection.job)"
                   size="sm"
-                  @click="$emit('openSettings', 'browser')"
+                  class="w-32"
+                  :aria-label="t(`${activeProjection.challenge.title} 状态`, `${activeProjection.challenge.title} status`)"
+                  @change="updateActiveJobManualStatus"
                 >
-                  浏览器设置
+                  <NativeSelectOption value="not_started">{{ t('未开始', 'Not started') }}</NativeSelectOption>
+                  <NativeSelectOption value="in_progress">{{ t('进行中', 'In progress') }}</NativeSelectOption>
+                  <NativeSelectOption value="paused">{{ t('稍后继续', 'Resume later') }}</NativeSelectOption>
+                  <NativeSelectOption value="completed">{{ t('已完成', 'Completed') }}</NativeSelectOption>
+                </NativeSelect>
+              </SettingsRow>
+              <template #footer>
+                <Button :loading="working" :disabled="working" variant="brand" size="sm" @click="openCodingAgent">
+                  {{ agentActionLabel }}
                 </Button>
-                <Button variant="ghost" size="sm" :loading="webBridge.loading.value" @click="webBridge.refresh">
-                  检测
-                </Button>
-              </p>
-              <MarkdownContent
-                v-if="activeProjection.challenge.statement"
-                class="mt-5 text-body leading-6"
-                :content="activeProjection.challenge.statement"
-              />
-            </section>
+              </template>
+            </SettingsSection>
 
             <Alert v-if="agentBudgetStopMessage" variant="destructive">
               <Circle class="size-4" />
               <AlertDescription class="flex flex-wrap items-center justify-between gap-3">
                 <span>{{ agentBudgetStopMessage }}</span>
                 <Button variant="outline" size="sm" @click="showProblems">
-                  返回题库
+                  {{ t('返回题库', 'Back to catalog') }}
                 </Button>
               </AlertDescription>
             </Alert>
@@ -2779,12 +2737,12 @@ onBeforeUnmount(() => {
             />
           </template>
 
-          <div v-else class="rounded-xl border border-border bg-card px-6 py-16 text-center">
-            <LoaderCircle v-if="backend.loading.value" class="mx-auto size-5 animate-spin text-muted-foreground" />
-            <template v-else>
-              <Button class="mt-5" @click="showProblems">选择一道题</Button>
-            </template>
-          </div>
+          <SettingsSection v-else :title="t('工作区', 'Workspace')">
+            <SettingsRow stack="always" :divider="false">
+              <LoaderCircle v-if="backend.loading.value" class="size-5 animate-spin text-muted-foreground" />
+              <Button v-else @click="showProblems">{{ t('选择一道题', 'Choose a challenge') }}</Button>
+            </SettingsRow>
+          </SettingsSection>
         </section>
       </div>
     </div>

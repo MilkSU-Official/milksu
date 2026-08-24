@@ -43,7 +43,10 @@ describe('LabPage', () => {
     mountedApps.push(app)
     await nextTick()
     expect(host.textContent).toContain('实验室')
-    expect(host.textContent).toContain('新作业')
+    expect(host.textContent).toContain('自定义任务')
+    expect(host.querySelector('[aria-label="题目包"]')).not.toBeNull()
+    expect(host.querySelector('[data-testid="lab-new-custom"]')).toBeNull()
+    expect(host.textContent).not.toContain('自带靶')
     expect(host.textContent).not.toContain('授权测试')
     expect(host.textContent).not.toContain('授权靶')
   })
@@ -59,8 +62,10 @@ describe('LabPage', () => {
     mountedApps.push(app)
     await nextTick()
 
-    const newJob = [...host.querySelectorAll('button')].find(button => button.textContent?.includes('新作业'))
-    newJob?.click()
+    const customTab = [...host.querySelectorAll('button')].find(button => button.textContent?.trim() === '自定义任务')
+    customTab?.click()
+    await nextTick()
+    host.querySelector<HTMLButtonElement>('[data-testid="lab-new-custom"]')?.click()
     await nextTick()
 
     const dialog = document.body.querySelector<HTMLElement>('[role="dialog"]')
@@ -94,8 +99,10 @@ describe('LabPage', () => {
     mountedApps.push(app)
     await nextTick()
 
-    const newJob = [...host.querySelectorAll('button')].find(button => button.textContent?.includes('新作业'))
-    newJob?.click()
+    const customTab = [...host.querySelectorAll('button')].find(button => button.textContent?.trim() === '自定义任务')
+    customTab?.click()
+    await nextTick()
+    host.querySelector<HTMLButtonElement>('[data-testid="lab-new-custom"]')?.click()
     await nextTick()
     const dialog = document.body.querySelector<HTMLElement>('[role="dialog"]')!
     const request = dialog.querySelector<HTMLTextAreaElement>('[aria-label="要求"]')!
@@ -113,7 +120,7 @@ describe('LabPage', () => {
     title?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))
     await nextTick()
 
-    const input = host.querySelector<HTMLInputElement>('[aria-label="编辑作业标题"]')
+    const input = host.querySelector<HTMLInputElement>('[aria-label="编辑任务标题"]')
     expect(input).not.toBeNull()
     input!.value = '本地进程反病毒测试'
     input!.dispatchEvent(new Event('input', { bubbles: true }))
@@ -127,19 +134,101 @@ describe('LabPage', () => {
     expect(host.textContent).not.toContain('HTTP')
   })
 
-  it('exposes challenge-pack cards beside jobs', async () => {
+  it('lands on challenge-pack cards and keeps jobs as a resume list', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     const app = createApp(LabPage)
     app.mount(host)
     mountedApps.push(app)
     await nextTick()
-    expect(host.textContent).toContain('作业')
-    expect(host.textContent).toContain('题目包')
-    const packagesTab = [...host.querySelectorAll('button')].find(button => button.textContent?.trim() === '题目包')
-    packagesTab?.click()
-    await nextTick()
     expect(host.querySelector('[aria-label="题目包"]')).not.toBeNull()
+    expect(host.querySelector('[aria-label="自定义任务"]')).toBeNull()
+    const jobsTab = [...host.querySelectorAll('button')].find(button => button.textContent?.trim() === '自定义任务')
+    jobsTab?.click()
+    await nextTick()
+    expect(host.querySelector('[aria-label="自定义任务"]')).not.toBeNull()
+    expect(host.querySelector('[data-testid="lab-new-custom"]')).not.toBeNull()
+    expect(host.textContent).toContain('还没有自定义任务')
+  })
+
+  it('groups package cards by connectivity, web, linux, and android', async () => {
+    Object.defineProperty(window, 'go', {
+      configurable: true,
+      value: {
+        main: {
+          App: {
+            ListLabPackages: () => [
+              {
+                id: 'juice-shop',
+                name: 'OWASP Juice Shop',
+                category: 'web',
+                kindLabel: 'Web',
+                detail: '一家店',
+                difficulty: '入门',
+                purpose: '练 Web',
+                provider: 'docker',
+                surface: 'browser',
+                address: '127.0.0.1:3000',
+              },
+              {
+                id: 'whoami',
+                name: 'Whoami HTTP',
+                category: 'probe',
+                kindLabel: '连通性',
+                detail: '探活',
+                difficulty: '探活',
+                purpose: '确认本机靶能通',
+                provider: 'docker',
+                surface: 'shell',
+                address: '127.0.0.1:18080',
+              },
+              {
+                id: 'android-lab',
+                name: 'InjuredAndroid',
+                category: 'android',
+                kindLabel: '安卓',
+                detail: '一台模拟器',
+                difficulty: '初中级',
+                purpose: '12 面 Flag',
+                provider: 'android-avd',
+                surface: 'emulator',
+                address: 'emulator-5554',
+              },
+              {
+                id: 'struts2-s2-045',
+                name: 'Struts2 S2-045',
+                category: 'cve',
+                kindLabel: 'CVE',
+                detail: '公开复现',
+                difficulty: '初中级',
+                purpose: 'S2-045',
+                provider: 'docker',
+                surface: 'browser',
+                address: '127.0.0.1:18045',
+              },
+            ],
+            GetEnvLease: () => ({ ownerKind: 'lab', ownerId: '', provider: 'none', state: 'none' }),
+            ListEnvLeases: () => [],
+          },
+        },
+      },
+    })
+    const host = document.createElement('div')
+    document.body.append(host)
+    const app = createApp(LabPage)
+    app.mount(host)
+    mountedApps.push(app)
+    for (let i = 0; i < 8 && host.querySelectorAll('[data-testid="lab-pack-group"]').length < 4; i++) {
+      await Promise.resolve()
+      await nextTick()
+    }
+    const groups = [...host.querySelectorAll('[data-testid="lab-pack-group"]')]
+    expect(groups.map(group => group.getAttribute('aria-label'))).toEqual(['连通性', 'Web', '安卓', 'CVE'])
+    expect(groups[0]?.textContent).toContain('Whoami HTTP')
+    expect(groups[1]?.textContent).toContain('OWASP Juice Shop')
+    expect(groups[2]?.textContent).toContain('InjuredAndroid')
+    expect(groups[3]?.textContent).toContain('Struts2 S2-045')
+    expect(host.querySelectorAll('[data-testid="lab-pack-card"]').length).toBe(4)
   })
 
   it('opens an InjuredAndroid target card with guidance and no Computer Use CTA', async () => {
@@ -152,7 +241,10 @@ describe('LabPage', () => {
               id: 'android-lab',
               name: 'InjuredAndroid',
               kindLabel: '安卓',
-              detail: '一台设备上的 12 面 Flag',
+              detail: '一台模拟器 · 12 面 Flag',
+              source: 'B3nac InjuredAndroid（Apache-2.0）',
+              purpose: '练安卓组件、存储、Deep Link 等 12 面 Flag',
+              difficulty: '初中级',
               provider: 'android-avd',
               surface: 'emulator',
               address: 'emulator-5554',
@@ -160,7 +252,7 @@ describe('LabPage', () => {
                 { id: 'flag-1', title: '登录绕过', kind: '认证', guidance: '看登录页怎么判成功。' },
                 { id: 'flag-2', title: '导出 Activity', kind: '导出组件', guidance: '用 am start 打开未露出的 Activity。' },
               ],
-              brief: 'InjuredAndroid（Apache-2.0）',
+              brief: 'InjuredAndroid 是一台模拟器上的练习 App，不是 12 台设备。',
             }],
             GetEnvLease: () => ({
               ownerKind: 'lab',
@@ -186,31 +278,70 @@ describe('LabPage', () => {
     })
     const host = document.createElement('div')
     document.body.append(host)
-    const app = createApp(LabPage)
+    const expanded: unknown[][] = []
+    const app = createApp(LabPage, {
+      onExpand: (...args: unknown[]) => expanded.push(args),
+    })
     app.mount(host)
     mountedApps.push(app)
-    await nextTick()
-    await Promise.resolve()
-    await nextTick()
+    for (let i = 0; i < 8 && !host.textContent?.includes('InjuredAndroid'); i++) {
+      await Promise.resolve()
+      await nextTick()
+    }
 
-    const packagesTab = [...host.querySelectorAll('button')].find(button => button.textContent?.trim() === '题目包')
-    packagesTab?.click()
-    await nextTick()
     expect(host.textContent).toContain('InjuredAndroid')
-    expect(host.textContent).toContain('2 台靶机')
+    expect(host.textContent).toContain('初中级')
+    expect(host.textContent).toContain('12 面 Flag')
 
     host.querySelector<HTMLButtonElement>('[data-testid="lab-pack-card"]')?.click()
     await nextTick()
-    expect(host.querySelectorAll('[data-testid="lab-machine-card"]').length).toBe(2)
+    const intro = host.querySelector('[data-testid="lab-pack-intro"]')?.textContent ?? ''
+    expect(intro).toContain('B3nac InjuredAndroid')
+    expect(intro).toContain('初中级')
+    expect(intro).toContain('不是 12 台设备')
+    expect(host.querySelectorAll('[data-testid="lab-machine-card"]').length).toBe(1)
+    expect(host.querySelectorAll('[data-testid="lab-flag-row"]').length).toBe(2)
     expect(host.textContent).toContain('看登录页怎么判成功。')
 
-    const start = [...host.querySelectorAll('button')].find(button => button.textContent?.trim() === '启动')
-    start?.click()
+    host.querySelector<HTMLButtonElement>('[data-testid="lab-flag-row"] button')?.click()
     await nextTick()
     await Promise.resolve()
     await nextTick()
 
     expect(host.querySelector('[data-testid="lab-challenges"]')?.textContent).toContain('看登录页怎么判成功。')
+    expect([...host.querySelectorAll('button')].some(button => button.textContent?.trim() === '进入 Coding')).toBe(true)
+    expect([...host.querySelectorAll('button')].some(button => button.textContent?.trim() === '开始' && button.closest('[role="dialog"]') == null)).toBe(false)
+    ;[...host.querySelectorAll('button')].find(button => button.textContent?.trim() === '进入 Coding')?.click()
+    await nextTick()
+    expect(expanded).toHaveLength(1)
+    expect(host.querySelector('[data-testid="conversation-dock"]')?.className).not.toContain('is-column')
+    expect(host.querySelector('[aria-label="进入 Coding"]')).not.toBeNull()
+    expect(host.querySelector('[aria-label="左上角缩放"]')).not.toBeNull()
+    for (let i = 0; i < 12 && !host.querySelector('[data-testid="target-surface"]'); i++) {
+      await Promise.resolve()
+      await nextTick()
+    }
+    if (host.querySelector('[data-testid="target-surface"]')) {
+      expect(host.querySelector('[data-testid="dossier-split"]')).not.toBeNull()
+      expect(host.querySelector('[aria-label="调节题面宽度"]')).not.toBeNull()
+    }
+    const flagRows = [...host.querySelectorAll<HTMLButtonElement>('[data-testid="lab-flag-row"] button')]
+    flagRows[1]?.click()
+    await nextTick()
+    expect(host.querySelector('[data-testid="lab-challenges"]')?.textContent).toContain('用 am start 打开未露出的 Activity。')
+
+    host.querySelector<HTMLButtonElement>('[aria-label="返回实验室"]')?.click()
+    await nextTick()
+    expect(host.querySelector('[data-testid="lab-pack-intro"]')).not.toBeNull()
+    host.querySelectorAll<HTMLButtonElement>('[data-testid="lab-flag-row"] button')[1]?.click()
+    await nextTick()
+    host.querySelector<HTMLButtonElement>('[aria-label="返回实验室"]')?.click()
+    await nextTick()
+    host.querySelector<HTMLButtonElement>('[aria-label="返回题目包"]')?.click()
+    await nextTick()
+    ;[...host.querySelectorAll('button')].find(button => button.textContent?.trim() === '自定义任务')?.click()
+    await nextTick()
+    expect(host.querySelectorAll('[data-testid="catalog-row"]').length).toBe(0)
     expect(host.textContent).not.toContain('Computer Use')
     expect(host.querySelector('[data-testid="attach-computer-use"]')).toBeNull()
   })

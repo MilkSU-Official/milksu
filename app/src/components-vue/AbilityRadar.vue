@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { CTFAbilityDimension } from '@/nssctfTrainingTypes'
+import { t } from '@/lib/uiLocale'
 
 const props = defineProps<{
   dimensions: CTFAbilityDimension[]
@@ -54,15 +55,15 @@ const labels = computed(() => props.dimensions.map((dimension, index) => {
 
 <template>
   <figure class="w-full" aria-labelledby="ability-radar-title">
-    <figcaption id="ability-radar-title" class="sr-only">个人 CTF 能力雷达图</figcaption>
+    <figcaption id="ability-radar-title" class="sr-only">{{ t('个人 CTF 能力雷达图', 'Personal CTF ability radar') }}</figcaption>
     <svg
       class="mx-auto block h-auto w-full max-w-[320px] overflow-visible"
       :viewBox="`0 0 ${size} ${size}`"
       role="img"
       aria-describedby="ability-radar-description"
     >
-      <title>个人 CTF 能力雷达图</title>
-      <desc id="ability-radar-description">六个方向的能力分数，范围从 0 到 100；没有训练证据的方向显示为待校准。</desc>
+      <title>{{ t('个人 CTF 能力雷达图', 'Personal CTF ability radar') }}</title>
+      <desc id="ability-radar-description">{{ t('六个方向的能力分数，范围从 0 到 100；没有训练证据的方向显示为待校准。', 'Scores for six dimensions, from 0 to 100. Axes without training evidence stay uncalibrated.') }}</desc>
       <g class="text-border">
         <polygon
           v-for="level in [25, 50, 75, 100]"

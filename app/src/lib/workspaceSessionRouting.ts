@@ -47,7 +47,7 @@ export function conversationDomainIdentity(
   if (ctfJobId) return `ctf:${ctfJobId}`
   const legacyCveTitle = conversation.title
     ?.trim()
-    .match(/^(CVE-\d{4}-\d{4,})\s+研究接力$/iu)?.[1]
+    .match(/^(CVE-\d{4}-\d{4,})\s+(?:研究接力|research handoff)$/iu)?.[1]
     ?.toLocaleLowerCase()
   if (legacyCveTitle) return `cve:${legacyCveTitle}`
   return null

@@ -1,11 +1,15 @@
 <script setup lang="ts">
-withDefaults(defineProps<{
+import { computed } from 'vue'
+import { t } from '@/lib/uiLocale'
+
+const props = withDefaults(defineProps<{
   label?: string
   showLabel?: boolean
 }>(), {
-  label: '进行中',
   showLabel: false,
 })
+
+const resolvedLabel = computed(() => props.label ?? t('进行中', 'In progress'))
 </script>
 
 <template>
@@ -13,9 +17,9 @@ withDefaults(defineProps<{
     class="ak-loading-host"
     :class="{ 'ak-loading-host--labeled': showLabel }"
     role="status"
-    :aria-label="label"
+    :aria-label="resolvedLabel"
   >
     <span class="ak-loading ak-loading--compact" aria-hidden="true" />
-    <span v-if="showLabel" class="ak-loading-host__label">{{ label }}</span>
+    <span v-if="showLabel" class="ak-loading-host__label">{{ resolvedLabel }}</span>
   </span>
 </template>

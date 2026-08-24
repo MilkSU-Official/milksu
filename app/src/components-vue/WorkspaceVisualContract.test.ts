@@ -32,10 +32,11 @@ describe('Workspace visual contract', () => {
     expect(conversationDockSource).toContain('surface="dock"')
     expect(conversationDockSource).not.toContain("from '@/components-vue/ContextUsageMeter.vue'")
     expect(chatComposerSource).toContain('data-testid="composer-context-strip"')
-    expect(vulnPageSource).toContain('rounded-xl border border-border bg-card p-6')
+    expect(vulnPageSource).toContain('SettingsSection')
+    expect(vulnPageSource).not.toContain('rounded-xl border border-border bg-card p-6')
     expect(vulnPageSource).not.toContain('VulnerabilityLoopPanel')
     expect(vulnPageSource).not.toContain('当前下一步')
-    expect(vulnPageSource).toContain('<WorkspaceModuleTopBar module="cve" title="漏洞">')
+    expect(vulnPageSource).toContain('<WorkspaceModuleTopBar module="cve" :title="t(\'漏洞\', \'CVE\')">')
   })
 
   it('raises Coding reading surfaces and aligns its compact controls', () => {

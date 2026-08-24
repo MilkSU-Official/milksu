@@ -72,6 +72,7 @@ import type {
 import type { CodingGitChange, CodingRecentProject } from '@/codingEnvironmentTypes'
 import type { ContextUsagePresentation } from '@/lib/sessionTurnStatus'
 import { CODING_SKILLS } from '@/codingSkills'
+import { t } from '@/lib/uiLocale'
 
 interface ComposerGitSummary {
   changedFiles: number
@@ -216,127 +217,127 @@ const availableSkillOptions = computed(() => {
 const selectedMcpDescription = computed(() => {
   const servers = props.selectedMcpServers ?? []
   if (!servers.length) return ''
-  const names = servers.slice(0, 2).join('、')
-  return `${servers.length} 个已接入${names ? `：${names}` : ''}`
+  const names = servers.slice(0, 2).join(t('、', ', '))
+  return t(`${servers.length} 个已接入${names ? `：${names}` : ''}`, `${servers.length} connected${names ? `: ${names}` : ''}`)
 })
 
 const slashCommandCatalog = [
   {
     id: 'goal',
-    label: '目标',
-    description: '设置一个持续追踪的目标',
+    label: t('目标', 'Goal'),
+    description: t('设置一个持续追踪的目标', 'Set a goal to keep working toward'),
     keywords: ['target'],
     icon: markRaw(Target),
   },
   {
     id: 'new',
-    label: '新任务',
-    description: '开始一个新的编码会话',
+    label: t('新任务', 'New task'),
+    description: t('开始一个新的编码会话', 'Start a new coding session'),
     keywords: ['clear', '新建'],
     icon: markRaw(MessageSquarePlus),
   },
   {
     id: 'plan',
-    label: '计划模式',
-    description: '只分析和规划，不修改文件',
+    label: t('计划模式', 'Plan mode'),
+    description: t('只分析和规划，不修改文件', 'Analyze and plan only, without changing files'),
     keywords: ['mode', '规划'],
     icon: markRaw(Lightbulb),
   },
   {
     id: 'understand',
-    label: '理解项目',
-    description: '读取入口、结构、运行方式和风险',
+    label: t('理解项目', 'Understand the project'),
+    description: t('读取入口、结构、运行方式和风险', 'Read the entry points, structure, how it runs, and the risks'),
     keywords: ['project', '项目', '了解'],
     icon: markRaw(Compass),
   },
   {
     id: 'test',
-    label: '运行测试',
-    description: '自动识别并运行项目的主验证链',
+    label: t('运行测试', 'Run tests'),
+    description: t('自动识别并运行项目的主验证链', 'Detect and run the project’s main verification chain'),
     keywords: ['verify', '测试'],
     icon: markRaw(Terminal),
   },
   {
     id: 'review',
-    label: '审阅变更',
-    description: '按文件和风险检查当前 Git 变更',
+    label: t('审阅变更', 'Review changes'),
+    description: t('按文件和风险检查当前 Git 变更', 'Inspect current Git changes by file and risk'),
     keywords: ['diff', 'code-review', '审查', '审阅'],
     icon: markRaw(ScanSearch),
   },
   {
     id: 'fix',
-    label: '修复失败',
-    description: '复现最近失败并完成最小修复',
+    label: t('修复失败', 'Fix a failure'),
+    description: t('复现最近失败并完成最小修复', 'Reproduce the latest failure and make the smallest fix'),
     keywords: ['repair', '修复'],
     icon: markRaw(Wrench),
   },
   {
     id: 'summary',
-    label: '生成总结',
-    description: '汇总改动、验证、风险和下一步',
+    label: t('生成总结', 'Write a summary'),
+    description: t('汇总改动、验证、风险和下一步', 'Summarize changes, verification, risks, and next steps'),
     keywords: ['report', '总结'],
     icon: markRaw(FileText),
   },
   {
     id: 'compact',
-    label: '整理上下文',
-    description: '整理当前会话上下文',
+    label: t('整理上下文', 'Compact context'),
+    description: t('整理当前会话上下文', 'Compact the current conversation context'),
     keywords: ['context', '上下文', 'summarize'],
     icon: markRaw(Shrink),
   },
   {
     id: 'model',
-    label: '模型',
-    description: '打开当前任务的模型选择',
+    label: t('模型', 'Model'),
+    description: t('打开当前任务的模型选择', 'Open the model picker for this task'),
     keywords: ['provider', '模型'],
     icon: markRaw(Bot),
   },
   {
     id: 'permissions',
-    label: '权限',
-    description: '打开审批与访问范围选择',
+    label: t('权限', 'Permissions'),
+    description: t('打开审批与访问范围选择', 'Open approval and access-scope options'),
     keywords: ['approve', 'approval', '权限'],
     icon: markRaw(ShieldCheck),
   },
   {
     id: 'status',
-    label: '状态',
-    description: '查看会话、Git 和运行环境',
+    label: t('状态', 'Status'),
+    description: t('查看会话、Git 和运行环境', 'View the session, Git, and runtime environment'),
     keywords: ['session', 'environment', '状态'],
     icon: markRaw(Activity),
   },
   {
     id: 'diff',
-    label: '变更',
-    description: '查看当前工作区的文件改动',
+    label: t('变更', 'Changes'),
+    description: t('查看当前工作区的文件改动', 'View file changes in the current workspace'),
     keywords: ['changes', '变更'],
     icon: markRaw(FileDiff),
   },
   {
     id: 'mcp',
     label: 'MCP',
-    description: '查看或接入当前项目的 MCP 服务',
+    description: t('查看或接入当前项目的 MCP 服务', 'View or attach MCP servers for this project'),
     keywords: ['tools', '工具'],
     icon: markRaw(Plug),
   },
   {
     id: 'browser',
-    label: '浏览器',
-    description: '打开隔离浏览器',
+    label: t('浏览器', 'Browser'),
+    description: t('打开隔离浏览器', 'Open the isolated browser'),
     keywords: ['playwright', '浏览器'],
     icon: markRaw(Monitor),
   },
   {
     id: 'browser-use',
     label: 'Browser Use',
-    description: '把一个用户浏览器窗口加入本轮输入',
+    description: t('把一个用户浏览器窗口加入本轮输入', 'Add a user browser window to this turn'),
     keywords: ['chrome', 'safari', '浏览器'],
     icon: markRaw(Globe2),
   },
   {
     id: 'computer-use',
     label: 'Computer Use',
-    description: '把一个外部 App 窗口加入本轮输入',
+    description: t('把一个外部 App 窗口加入本轮输入', 'Add an external app window to this turn'),
     keywords: ['app', '窗口', '电脑'],
     icon: markRaw(MousePointer2),
   },
@@ -364,7 +365,7 @@ const slashCommands = computed(() => {
   const commands = slashCommandCatalog.map(command => ({
     ...command,
     description: command.id === 'goal' && hasUnfinishedGoal.value
-      ? '当前已有持续目标'
+      ? t('当前已有持续目标', 'A goal is already in progress')
       : command.description,
     disabled: slashCommandDisabled(command.id),
   })).filter(command => (
@@ -387,13 +388,13 @@ const activeSlashCommand = computed(() => (
 ))
 const goalStatusLabel = computed(() => {
   const status = props.goal?.status
-  if (status === 'active') return '进行中'
-  if (status === 'paused') return '已暂停'
-  if (status === 'blocked') return '受阻'
-  if (status === 'usage_limited') return '额度受限'
-  if (status === 'budget_limited') return '预算已用完'
-  if (status === 'queued') return '排队中'
-  return '已完成'
+  if (status === 'active') return t('进行中', 'In progress')
+  if (status === 'paused') return t('已暂停', 'Paused')
+  if (status === 'blocked') return t('受阻', 'Blocked')
+  if (status === 'usage_limited') return t('额度受限', 'Usage limited')
+  if (status === 'budget_limited') return t('预算已用完', 'Budget exhausted')
+  if (status === 'queued') return t('排队中', 'Queued')
+  return t('已完成', 'Completed')
 })
 const goalUsageLabel = computed(() => {
   const goal = props.goal
@@ -452,7 +453,7 @@ const showWorkspaceChip = computed(() => {
   if (props.ctfSession) return Boolean(props.workspacePath?.trim() || props.workspaceName?.trim())
   return Boolean(props.workspaceName?.trim() || !props.workspaceLocked)
 })
-const workspaceChipLabel = computed(() => props.workspaceName?.trim() || '选择项目')
+const workspaceChipLabel = computed(() => props.workspaceName?.trim() || t('选择项目', 'Choose a project'))
 const hasSelectedWorkspace = computed(() => Boolean(props.workspacePath?.trim()))
 const workspaceChipTitle = computed(() => (
   props.workspacePath || workspaceChipLabel.value
@@ -465,11 +466,11 @@ function formatAttachmentSize(size: number) {
 }
 
 function gitChangeStatus(change: CodingGitChange) {
-  if (change.conflict) return '冲突'
-  if (change.untracked) return '新增'
-  if (change.staged && change.modified) return '暂存/修改'
-  if (change.staged) return '已暂存'
-  return '修改'
+  if (change.conflict) return t('冲突', 'Conflict')
+  if (change.untracked) return t('新增', 'Added')
+  if (change.staged && change.modified) return t('暂存/修改', 'Staged/modified')
+  if (change.staged) return t('已暂存', 'Staged')
+  return t('修改', 'Modified')
 }
 
 function startCodingAttachmentChooser(event?: Event) {
@@ -499,14 +500,14 @@ async function chooseCodingAttachments() {
       merged.set(`${attachment.id}:${attachment.name}`, attachment)
     }
     if (merged.size > 8) {
-      attachmentError.value = '每条消息最多添加 8 个附件。'
+      attachmentError.value = t('每条消息最多添加 8 个附件。', 'Each message can have at most 8 attachments.')
       return
     }
     pendingAttachments.value = [...merged.values()]
   } catch (reason) {
     attachmentError.value = reason instanceof Error
       ? reason.message
-      : '暂时无法添加附件。'
+      : t('暂时无法添加附件。', 'Attachments cannot be added right now.')
   }
 }
 
@@ -518,7 +519,7 @@ function mergeCodingAttachments(selected: CodingAttachment[]) {
     merged.set(`${attachment.id}:${attachment.name}`, attachment)
   }
   if (merged.size > 8) {
-    attachmentError.value = '每条消息最多添加 8 个附件。'
+    attachmentError.value = t('每条消息最多添加 8 个附件。', 'Each message can have at most 8 attachments.')
     return false
   }
   pendingAttachments.value = [...merged.values()]
@@ -528,11 +529,11 @@ function mergeCodingAttachments(selected: CodingAttachment[]) {
 function fileAsBase64(file: File) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
-    reader.onerror = () => reject(reader.error ?? new Error('读取附件失败'))
+    reader.onerror = () => reject(reader.error ?? new Error(t('读取附件失败', 'Failed to read the attachment')))
     reader.onload = () => {
       const result = String(reader.result ?? '')
       const separator = result.indexOf(',')
-      if (separator < 0) reject(new Error('读取附件失败'))
+      if (separator < 0) reject(new Error(t('读取附件失败', 'Failed to read the attachment')))
       else resolve(result.slice(separator + 1))
     }
     reader.readAsDataURL(file)
@@ -550,22 +551,22 @@ function fallbackClipboardFileName(file: File, index: number) {
         : file.type === 'image/png'
           ? 'png'
           : 'bin'
-  return `粘贴附件-${Date.now()}-${index + 1}.${extension}`
+  return `${t('粘贴附件', 'Pasted attachment')}-${Date.now()}-${index + 1}.${extension}`
 }
 
 async function importCodingFiles(files: File[]) {
   if (!files.length || attachmentImporting.value) return
   attachmentError.value = ''
   if (pendingAttachments.value.length + files.length > 8) {
-    attachmentError.value = '每条消息最多添加 8 个附件。'
+    attachmentError.value = t('每条消息最多添加 8 个附件。', 'Each message can have at most 8 attachments.')
     return
   }
   if (files.some(file => file.size <= 0 || file.size > 32 * 1024 * 1024)) {
-    attachmentError.value = '单个附件必须在 1 字节到 32 MiB 之间。'
+    attachmentError.value = t('单个附件必须在 1 字节到 32 MiB 之间。', 'Each attachment must be between 1 byte and 32 MiB.')
     return
   }
   if (files.reduce((total, file) => total + file.size, 0) > 96 * 1024 * 1024) {
-    attachmentError.value = '附件合计不能超过 96 MiB。'
+    attachmentError.value = t('附件合计不能超过 96 MiB。', 'Attachments together cannot exceed 96 MiB.')
     return
   }
   attachmentImporting.value = true
@@ -578,7 +579,7 @@ async function importCodingFiles(files: File[]) {
     const imported = await invokeCommand<CodingAttachment[]>('import_coding_attachments', { payloads })
     mergeCodingAttachments(imported)
   } catch (reason) {
-    attachmentError.value = reason instanceof Error ? reason.message : '暂时无法添加附件。'
+    attachmentError.value = reason instanceof Error ? reason.message : t('暂时无法添加附件。', 'Attachments cannot be added right now.')
   } finally {
     attachmentImporting.value = false
   }
@@ -597,7 +598,7 @@ async function previewCodingAttachment(attachment: CodingAttachment) {
       { attachment },
     )
   } catch (reason) {
-    attachmentError.value = reason instanceof Error ? reason.message : '暂时无法预览附件。'
+    attachmentError.value = reason instanceof Error ? reason.message : t('暂时无法预览附件。', 'This attachment cannot be previewed right now.')
     if (typeof dialog?.close === 'function') dialog.close()
     else dialog?.removeAttribute('open')
   } finally {
@@ -847,7 +848,7 @@ function insertScopeToken(value: ComposerScopeToken) {
     value,
     label,
     label,
-    `移除 /${value}`,
+    t(`移除 /${value}`, `Remove /${value}`),
     () => removeScopeToken(),
   )
   if (!insertInlineToken(token)) return
@@ -867,8 +868,8 @@ function insertSkillToken(name: string) {
     'data-composer-skill-token',
     name,
     `Skill · ${label}`,
-    `${label} Skill 已加入`,
-    `移除 ${label} Skill`,
+    t(`${label} Skill 已加入`, `${label} Skill added`),
+    t(`移除 ${label} Skill`, `Remove ${label} Skill`),
     () => removeSkillToken(),
   )
   if (!insertInlineToken(token)) return
@@ -938,16 +939,16 @@ function handleComposerDrop(event: DragEvent) {
 
 function submit() {
   if (attachmentImporting.value) {
-    attachmentError.value = '附件仍在加入，请稍候。'
+    attachmentError.value = t('附件仍在加入，请稍候。', 'Attachments are still being added. Please wait.')
     return
   }
   draft.value = readComposerText()
   const attachments = [...pendingAttachments.value]
   const text = draft.value.trim()
-    || (attachments.length ? '请检查这些附件并完成我接下来需要处理的任务。' : '')
+    || (attachments.length ? t('请检查这些附件并完成我接下来需要处理的任务。', 'Please review these attachments and complete the task I need next.') : '')
   if (!text) return
   if (props.running && attachments.length) {
-    attachmentError.value = '运行中引导暂不支持附件；请等待当前回合结束后再发送附件。'
+    attachmentError.value = t('运行中引导暂不支持附件；请等待当前回合结束后再发送附件。', 'Steering while a turn is running does not support attachments. Wait until this turn finishes.')
     return
   }
   const activeSkillToken = skillToken.value ?? undefined
@@ -959,7 +960,7 @@ function submit() {
       ? `/skill:${activeSkillToken} ${text}`
       : text
   const visiblePrompt = !props.running && activeSkillToken && !props.goalMode
-    ? `使用 ${skillOption(activeSkillToken)?.label ?? activeSkillToken}\n${text}`
+    ? t(`使用 ${skillOption(activeSkillToken)?.label ?? activeSkillToken}\n${text}`, `Use ${skillOption(activeSkillToken)?.label ?? activeSkillToken}\n${text}`)
     : text
   const activeScopeToken = scopeToken.value ?? undefined
   const scopeReady = activeScopeToken === 'browser-use'
@@ -972,8 +973,8 @@ function submit() {
       ? activeScopeToken
       : null
     attachmentError.value = activeScopeToken === 'browser-use'
-      ? 'Browser Use 需要已选项目，并使用 Go 权限。'
-      : '请先在右栏锁定一个外部 App 窗口。'
+      ? t('Browser Use 需要已选项目，并使用 Go 权限。', 'Browser Use needs a selected project and Go permissions.')
+      : t('请先在右栏锁定一个外部 App 窗口。', 'Lock an external app window in the right rail first.')
     emit('runSlashCommand', activeScopeToken)
     return
   }
@@ -1014,11 +1015,11 @@ function chooseSlashCommand(command = activeSlashCommand.value) {
   removeSlashQueryText()
 
   if (command.id === 'model') {
-    openComposerChooser('选择本任务模型')
+    openComposerChooser(t('选择本任务模型', 'Choose a model for this task'))
     return
   }
   if (command.id === 'permissions') {
-    openComposerChooser('Coding 权限策略')
+    openComposerChooser(t('Coding 权限策略', 'Coding permission policy'))
     return
   }
 
@@ -1051,7 +1052,7 @@ function runComposerShortcut(command: 'browser' | 'mcp') {
 }
 
 function openAddMenu() {
-  openComposerChooser('添加内容与工具')
+  openComposerChooser(t('添加内容与工具', 'Add content and tools'))
 }
 
 function toggleCatalogMcpServer(server: { name: string; reviewReady: boolean }) {
@@ -1219,7 +1220,7 @@ defineExpose({
         id="coding-slash-command-menu"
         class="chat-composer__command-menu"
         role="listbox"
-        aria-label="斜杠命令"
+        :aria-label="t('斜杠命令', 'Slash commands')"
       >
         <button
           v-for="(command, index) in slashCommands"
@@ -1253,12 +1254,12 @@ defineExpose({
       <section
         v-if="queuedGuidance?.length"
         class="chat-composer__queued-guidance"
-        aria-label="待应用引导"
+        :aria-label="t('待应用引导', 'Queued steering')"
       >
         <div class="flex items-center gap-2 text-caption font-medium text-primary">
           <Clock3 class="size-3.5" />
-          <span>{{ queuedGuidance.length }} 条引导已排队</span>
-          <span class="font-normal text-muted-foreground">当前工具调用结束后应用</span>
+          <span>{{ t(`${queuedGuidance.length} 条引导已排队`, `${queuedGuidance.length} steering messages queued`) }}</span>
+          <span class="font-normal text-muted-foreground">{{ t('当前工具调用结束后应用', 'Applied after the current tool call finishes') }}</span>
         </div>
         <div
           v-for="(message, index) in queuedGuidance"
@@ -1273,8 +1274,8 @@ defineExpose({
             variant="ghost"
             size="icon-sm"
             class="shrink-0 text-muted-foreground hover:text-foreground"
-            :aria-label="`编辑排队消息 ${index + 1}`"
-            title="撤回并编辑"
+            :aria-label="t(`编辑排队消息 ${index + 1}`, `Edit queued message ${index + 1}`)"
+            :title="t('撤回并编辑', 'Withdraw and edit')"
             @click="$emit('editQueuedGuidance', index)"
           >
             <Pencil class="size-3.5" />
@@ -1284,8 +1285,8 @@ defineExpose({
             variant="ghost"
             size="icon-sm"
             class="shrink-0 text-muted-foreground hover:text-destructive"
-            :aria-label="`撤回排队消息 ${index + 1}`"
-            title="撤回"
+            :aria-label="t(`撤回排队消息 ${index + 1}`, `Withdraw queued message ${index + 1}`)"
+            :title="t('撤回', 'Withdraw')"
             @click="$emit('cancelQueuedGuidance', index)"
           >
             <X class="size-3.5" />
@@ -1297,7 +1298,7 @@ defineExpose({
         <div
           v-if="pendingAttachments.length"
           class="flex flex-wrap gap-2 px-1 pb-1"
-          aria-label="待发送附件"
+          :aria-label="t('待发送附件', 'Attachments to send')"
         >
           <span
             v-for="attachment in pendingAttachments"
@@ -1308,7 +1309,7 @@ defineExpose({
             <button
               type="button"
               class="inline-flex min-w-0 items-center gap-2 rounded-sm text-left hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              :aria-label="`预览 ${attachment.name}`"
+              :aria-label="t(`预览 ${attachment.name}`, `Preview ${attachment.name}`)"
               @click="previewCodingAttachment(attachment)"
             >
               <FileText class="size-3.5 shrink-0 text-muted-foreground" />
@@ -1318,7 +1319,7 @@ defineExpose({
             <button
               type="button"
               class="rounded-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              :aria-label="`移除 ${attachment.name}`"
+              :aria-label="t(`移除 ${attachment.name}`, `Remove ${attachment.name}`)"
               @click="removeCodingAttachment(attachment)"
             >
               <X class="size-3.5" />
@@ -1330,7 +1331,7 @@ defineExpose({
           class="chat-composer__input max-h-44 min-h-24 resize-none border-0 bg-transparent px-1 pb-2 pt-1.5 shadow-none focus-visible:ring-0"
           contenteditable="true"
           role="textbox"
-          aria-label="消息"
+          :aria-label="t('消息', 'Message')"
           aria-multiline="true"
           aria-autocomplete="list"
           :aria-controls="slashMenuOpen ? 'coding-slash-command-menu' : undefined"
@@ -1338,7 +1339,7 @@ defineExpose({
           :aria-activedescendant="slashMenuOpen && activeSlashCommand
             ? `coding-slash-command-${activeSlashCommand.id}`
             : undefined"
-          :data-placeholder="goalMode ? '写下一个可持续目标，MilkSU 会持续推进并保留恢复点' : ctfSession ? '告诉 Agent 你的观察、假设或下一步想法' : '描述你想让 MilkSU 完成的任务'"
+          :data-placeholder="goalMode ? t('写下一个可持续目标，MilkSU 会持续推进并保留恢复点', 'Write a lasting goal. MilkSU will keep working toward it and keep recovery points.') : ctfSession ? t('告诉 Agent 你的观察、假设或下一步想法', 'Tell the agent your observations, hypotheses, or next idea') : t('描述你想让 MilkSU 完成的任务', 'Describe the task you want MilkSU to complete')"
           @compositionstart="composing = true"
           @compositionend="handleCompositionEnd"
           @beforeinput="rememberComposerSnapshot"
@@ -1363,9 +1364,9 @@ defineExpose({
             v-if="runElapsedLabel"
             class="inline-flex shrink-0 items-center gap-1.5 font-mono text-caption tabular-nums text-muted-foreground"
             data-testid="composer-run-elapsed"
-            :title="running ? '本轮模型已运行' : '上次运行时长'"
+            :title="running ? t('本轮模型已运行', 'Model has been running this turn') : t('上次运行时长', 'Last run duration')"
           >
-            <AkLoadingMark v-if="running" label="本轮模型已运行" />
+            <AkLoadingMark v-if="running" :label="t('本轮模型已运行', 'Model has been running this turn')" />
             <Clock3 v-else class="size-3" />
             {{ runElapsedLabel }}
           </span>
@@ -1394,8 +1395,8 @@ defineExpose({
                     variant="ghost"
                     size="icon"
                     :disabled="running"
-                    aria-label="添加内容与工具"
-                    title="添加附件、工作方式或交互范围"
+                    :aria-label="t('添加内容与工具', 'Add content and tools')"
+                    :title="t('添加附件、工作方式或交互范围', 'Add attachments, a working mode, or an interaction scope')"
                   >
                     <Plus class="size-4" />
                   </Button>
@@ -1408,7 +1409,7 @@ defineExpose({
                   class="composer-add-menu app-no-drag w-[31rem] max-w-[calc(100vw-2rem)] max-h-[min(24rem,calc(100vh-8rem))] overflow-y-auto p-1"
                 >
                   <DropdownMenuLabel class="px-3 pb-1.5 pt-2 text-caption">
-                    添加
+                    {{ t('添加', 'Add') }}
                   </DropdownMenuLabel>
                   <DropdownMenuItem
                     class="composer-add-option app-no-drag cursor-pointer"
@@ -1417,7 +1418,7 @@ defineExpose({
                   >
                     <Paperclip class="size-4 shrink-0" />
                     <span class="min-w-0 flex-1">
-                      <span class="block text-label font-medium">本机文件或图片</span>
+                      <span class="block text-label font-medium">{{ t('本机文件或图片', 'Local files or images') }}</span>
                     </span>
                   </DropdownMenuItem>
                   <DropdownMenuItem
@@ -1427,7 +1428,7 @@ defineExpose({
                   >
                     <FolderOpen class="size-4 shrink-0" />
                     <span class="min-w-0 flex-1">
-                      <span class="block text-label font-medium">项目目录</span>
+                      <span class="block text-label font-medium">{{ t('项目目录', 'Project folder') }}</span>
                     </span>
                   </DropdownMenuItem>
                   <DropdownMenuItem
@@ -1437,9 +1438,9 @@ defineExpose({
                   >
                     <Target class="size-4 shrink-0" />
                     <span class="min-w-0 flex-1">
-                      <span class="block text-label font-medium">目标</span>
+                      <span class="block text-label font-medium">{{ t('目标', 'Goal') }}</span>
                       <span class="block text-caption text-muted-foreground">
-                        {{ hasUnfinishedGoal ? '当前已有持续目标' : '设置一个持续追踪的目标' }}
+                        {{ hasUnfinishedGoal ? t('当前已有持续目标', 'A goal is already in progress') : t('设置一个持续追踪的目标', 'Set a goal to keep working toward') }}
                       </span>
                     </span>
                   </DropdownMenuItem>
@@ -1447,17 +1448,17 @@ defineExpose({
                     <Lightbulb class="size-4 shrink-0" />
                     <span class="min-w-0 flex-1">
                       <span class="block text-label font-medium">
-                        {{ executionMode === 'plan' ? '退出计划模式' : '计划模式' }}
+                        {{ executionMode === 'plan' ? t('退出计划模式', 'Exit plan mode') : t('计划模式', 'Plan mode') }}
                       </span>
                       <span class="block text-caption text-muted-foreground">
-                        {{ executionMode === 'plan' ? '恢复使用当前授权工具' : '只分析和规划，不修改文件' }}
+                        {{ executionMode === 'plan' ? t('恢复使用当前授权工具', 'Resume using currently authorized tools') : t('只分析和规划，不修改文件', 'Analyze and plan only, without changing files') }}
                       </span>
                     </span>
                     <Check v-if="executionMode === 'plan'" class="size-4 shrink-0 text-primary" />
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuLabel class="px-3 pb-1.5 pt-2 text-caption">
-                    浏览与控制
+                    {{ t('浏览与控制', 'Browse and control') }}
                   </DropdownMenuLabel>
                   <DropdownMenuItem
                     class="composer-add-option"
@@ -1466,14 +1467,14 @@ defineExpose({
                   >
                     <Monitor class="size-4 shrink-0" />
                     <span class="min-w-0 flex-1">
-                      <span class="block text-label font-medium">浏览器</span>
+                      <span class="block text-label font-medium">{{ t('浏览器', 'Browser') }}</span>
                     </span>
                   </DropdownMenuItem>
                   <DropdownMenuItem class="composer-add-option" @select="addInteractionScope('browser-use')">
                     <Globe2 class="size-4 shrink-0" />
                     <span class="min-w-0 flex-1">
                       <span class="block text-label font-medium">Browser Use</span>
-                      <span class="block text-caption text-muted-foreground">选择真实浏览器标签页加入本轮输入</span>
+                      <span class="block text-caption text-muted-foreground">{{ t('选择真实浏览器标签页加入本轮输入', 'Choose a real browser tab for this turn') }}</span>
                     </span>
                     <Check v-if="scopeToken === 'browser-use'" class="size-4 shrink-0 text-primary" />
                   </DropdownMenuItem>
@@ -1481,7 +1482,7 @@ defineExpose({
                     <MousePointer2 class="size-4 shrink-0" />
                     <span class="min-w-0 flex-1">
                       <span class="block text-label font-medium">Computer Use</span>
-                      <span class="block text-caption text-muted-foreground">选择一个外部 App 窗口加入本轮输入</span>
+                      <span class="block text-caption text-muted-foreground">{{ t('选择一个外部 App 窗口加入本轮输入', 'Choose an external app window for this turn') }}</span>
                     </span>
                     <Check v-if="scopeToken === 'computer-use'" class="size-4 shrink-0 text-primary" />
                   </DropdownMenuItem>
@@ -1518,7 +1519,7 @@ defineExpose({
                     <span class="min-w-0 flex-1">
                       <span class="block text-label font-medium">{{ server.name }}</span>
                       <span class="block text-caption text-muted-foreground">
-                        {{ server.reviewReady ? '为本任务接入' : '审阅信息不完整' }}
+                        {{ server.reviewReady ? t('为本任务接入', 'Attach to this task') : t('审阅信息不完整', 'Review details incomplete') }}
                       </span>
                     </span>
                     <Check v-if="selectedMcpServers?.includes(server.name)" class="size-4 shrink-0 text-primary" />
@@ -1530,9 +1531,9 @@ defineExpose({
                   >
                     <Plug class="size-4 shrink-0" />
                     <span class="min-w-0 flex-1">
-                      <span class="block text-label font-medium">项目 MCP</span>
+                      <span class="block text-label font-medium">{{ t('项目 MCP', 'Project MCP') }}</span>
                       <span v-if="selectedMcpDescription" class="block truncate text-caption text-muted-foreground">{{ selectedMcpDescription }}</span>
-                      <span v-else class="block text-caption text-muted-foreground">查看当前项目的 MCP 服务</span>
+                      <span v-else class="block text-caption text-muted-foreground">{{ t('查看当前项目的 MCP 服务', 'View MCP servers for this project') }}</span>
                     </span>
                     <Check v-if="selectedMcpServers?.length" class="size-4 shrink-0 text-primary" />
                   </DropdownMenuItem>
@@ -1544,7 +1545,7 @@ defineExpose({
                 v-if="showGoalDock"
                 ref="goalSlot"
                 class="chat-composer__goal-slot"
-                aria-label="持续目标"
+                :aria-label="t('持续目标', 'Ongoing goal')"
               >
                 <button
                   type="button"
@@ -1552,25 +1553,25 @@ defineExpose({
                   :aria-haspopup="goal ? 'true' : undefined"
                   :aria-expanded="goal ? goalPanelOpen : undefined"
                   :title="goal
-                    ? `持续目标：${goal.text}（点击展开）`
-                    : '目标模式已开启；下一条消息会成为持续目标，点击退出'"
+                    ? t(`持续目标：${goal.text}（点击展开）`, `Ongoing goal: ${goal.text} (click to expand)`)
+                    : t('目标模式已开启；下一条消息会成为持续目标，点击退出', 'Goal mode is on. The next message becomes the ongoing goal. Click to exit.')"
                   @click="toggleGoalChip"
                 >
                   <Target class="size-3.5 shrink-0" />
                   <span class="chat-composer__chip__label">
-                    {{ goal ? goalStatusLabel : '目标' }}
+                    {{ goal ? goalStatusLabel : t('目标', 'Goal') }}
                   </span>
                   <ChevronDown class="chat-composer__chip__chevron size-3 shrink-0 opacity-60" />
                 </button>
                 <div
                   v-show="goalPanelOpen"
                   class="chat-composer__goal-panel"
-                  aria-label="持续目标详情"
+                  :aria-label="t('持续目标详情', 'Ongoing goal details')"
                 >
                   <div class="flex items-center gap-2">
                     <Target class="size-4 shrink-0 text-primary" />
                     <span class="shrink-0 text-caption font-medium text-primary">
-                      {{ goal ? goalStatusLabel : '正在设置' }}
+                      {{ goal ? goalStatusLabel : t('正在设置', 'Setting up') }}
                     </span>
                     <span
                       v-if="goalUsageLabel"
@@ -1580,7 +1581,7 @@ defineExpose({
                     </span>
                   </div>
                   <p class="mt-2 truncate text-body" :title="goal?.text">
-                    {{ goal?.text || '下一条消息会成为持续目标。' }}
+                    {{ goal?.text || t('下一条消息会成为持续目标。', 'The next message becomes the ongoing goal.') }}
                   </p>
                   <div class="mt-3 flex items-center gap-1">
                     <Button
@@ -1589,8 +1590,8 @@ defineExpose({
                       variant="ghost"
                       size="icon-sm"
                       :disabled="aborting"
-                      :aria-label="aborting ? '正在暂停目标' : '暂停目标'"
-                      :title="aborting ? '正在等待当前回合停止' : '暂停持续目标'"
+                      :aria-label="aborting ? t('正在暂停目标', 'Pausing goal') : t('暂停目标', 'Pause goal')"
+                      :title="aborting ? t('正在等待当前回合停止', 'Waiting for the current turn to stop') : t('暂停持续目标', 'Pause the ongoing goal')"
                       @click="$emit('controlGoal', 'pause')"
                     >
                       <LoaderCircle v-if="aborting" class="size-3.5 animate-spin" />
@@ -1602,8 +1603,8 @@ defineExpose({
                       variant="ghost"
                       size="icon-sm"
                       :disabled="running"
-                      aria-label="继续目标"
-                      title="继续持续目标"
+                      :aria-label="t('继续目标', 'Resume goal')"
+                      :title="t('继续持续目标', 'Resume the ongoing goal')"
                       @click="$emit('controlGoal', 'resume')"
                     >
                       <Play class="size-3.5" />
@@ -1613,8 +1614,8 @@ defineExpose({
                       type="button"
                       variant="ghost"
                       size="icon-sm"
-                      aria-label="清除当前目标"
-                      title="清除当前目标"
+                      :aria-label="t('清除当前目标', 'Clear current goal')"
+                      :title="t('清除当前目标', 'Clear current goal')"
                       @click="$emit('controlGoal', 'clear')"
                     >
                       <Trash2 class="size-3.5" />
@@ -1624,8 +1625,8 @@ defineExpose({
                       type="button"
                       variant="ghost"
                       size="icon-sm"
-                      aria-label="取消目标模式"
-                      title="取消目标模式"
+                      :aria-label="t('取消目标模式', 'Cancel goal mode')"
+                      :title="t('取消目标模式', 'Cancel goal mode')"
                       @click="$emit('consumeGoal')"
                     >
                       <X class="size-3.5" />
@@ -1637,40 +1638,40 @@ defineExpose({
                 v-if="executionMode === 'plan'"
                 type="button"
                 class="chat-composer__chip chat-composer__chip--plan"
-                aria-label="计划模式已开启"
-                title="只分析和规划，不修改文件；点击退出计划模式"
+                :aria-label="t('计划模式已开启', 'Plan mode is on')"
+                :title="t('只分析和规划，不修改文件；点击退出计划模式', 'Analyze and plan only, without changing files. Click to exit plan mode.')"
                 @click="$emit('changeExecutionMode', 'go')"
               >
                 <Lightbulb class="size-3.5 shrink-0" />
-                <span class="chat-composer__chip__label">计划</span>
+                <span class="chat-composer__chip__label">{{ t('计划', 'Plan') }}</span>
               </button>
               <div
                 v-if="showProgressSummary"
                 class="chat-composer__progress-pill"
-                aria-label="任务进度摘要"
+                :aria-label="t('任务进度摘要', 'Task progress summary')"
               >
                 <AkLoadingMark
                   v-if="goal?.status === 'active'"
-                  label="目标进行中"
+                  :label="t('目标进行中', 'Goal in progress')"
                 />
-                <span v-if="goal?.iteration">第 {{ goal.iteration }} 轮</span>
+                <span v-if="goal?.iteration">{{ t(`第 ${goal.iteration} 轮`, `Turn ${goal.iteration}`) }}</span>
                 <span v-if="goal?.iteration && showGitSummary" aria-hidden="true">·</span>
                 <HoverCard v-if="showGitSummary" :open-delay="120" :close-delay="80">
                   <HoverCardTrigger as-child>
                     <button
                       type="button"
                       class="chat-composer__git-trigger"
-                      aria-label="查看代码变更"
+                      :aria-label="t('查看代码变更', 'View code changes')"
                       @click="$emit('openChanges')"
                     >
-                      <span>代码</span>
+                      <span>{{ t('代码', 'Code') }}</span>
                       <span class="text-primary">+{{ gitSummary?.additions }}</span>
                       <span class="text-destructive">-{{ gitSummary?.deletions }}</span>
                     </button>
                   </HoverCardTrigger>
                   <HoverCardContent side="top" align="start" class="w-96 p-0">
                     <div class="border-b border-border px-3 py-2.5">
-                      <p class="text-label font-medium">{{ gitSummary?.changedFiles }} 个文件已更改</p>
+                      <p class="text-label font-medium">{{ t(`${gitSummary?.changedFiles} 个文件已更改`, `${gitSummary?.changedFiles} files changed`) }}</p>
                     </div>
                     <div class="max-h-64 overflow-y-auto px-2 py-2">
                       <button
@@ -1678,7 +1679,7 @@ defineExpose({
                         :key="`${change.indexStatus}${change.worktreeStatus}:${change.path}`"
                         type="button"
                         class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-caption hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        :aria-label="`在变更中打开 ${change.path}`"
+                        :aria-label="t(`在变更中打开 ${change.path}`, `Open ${change.path} in changes`)"
                         @click="$emit('openChanges', change.path)"
                       >
                         <span class="w-14 shrink-0 text-muted-foreground">{{ gitChangeStatus(change) }}</span>
@@ -1688,7 +1689,7 @@ defineExpose({
                       </button>
 
                       <p v-if="gitSummary?.changesTruncated" class="px-2 py-1 text-caption text-muted-foreground">
-                        仅显示前 {{ gitSummary?.changes?.length ?? 0 }} 项。
+                        {{ t(`仅显示前 ${gitSummary?.changes?.length ?? 0} 项。`, `Showing the first ${gitSummary?.changes?.length ?? 0} items.`) }}
                       </p>
                     </div>
                   </HoverCardContent>
@@ -1709,7 +1710,7 @@ defineExpose({
                     'chat-composer__chip--workspace-split': hasSelectedWorkspace,
                   }"
                   :disabled="running"
-                  :aria-label="hasSelectedWorkspace ? `会话目录：${workspaceChipLabel}` : '选择项目'"
+                  :aria-label="hasSelectedWorkspace ? t(`会话目录：${workspaceChipLabel}`, `Session folder: ${workspaceChipLabel}`) : t('选择项目', 'Choose a project')"
                   :title="workspaceChipTitle"
                   @click="$emit('chooseWorkspace')"
                 >
@@ -1719,7 +1720,7 @@ defineExpose({
                 <span
                   v-else
                   class="chat-composer__chip chat-composer__chip--workspace"
-                  :aria-label="`会话目录：${workspaceChipLabel}`"
+                  :aria-label="t(`会话目录：${workspaceChipLabel}`, `Session folder: ${workspaceChipLabel}`)"
                   :title="workspaceChipTitle"
                 >
                   <FolderOpen class="size-3.5 shrink-0" />
@@ -1730,8 +1731,8 @@ defineExpose({
                   type="button"
                   class="chat-composer__workspace-clear"
                   :disabled="running"
-                  aria-label="清空项目"
-                  title="清空项目"
+                  :aria-label="t('清空项目', 'Clear project')"
+                  :title="t('清空项目', 'Clear project')"
                   @click.stop="$emit('clearWorkspace')"
                 >
                   <X class="size-3.5" />
@@ -1743,11 +1744,11 @@ defineExpose({
                     type="button"
                     class="chat-composer__chip"
                     :disabled="running"
-                    :aria-label="`当前分支：${gitBranch || '选择分支'}`"
-                    :title="gitBranch || '选择分支'"
+                    :aria-label="t(`当前分支：${gitBranch || t('选择分支', 'Choose a branch')}`, `Current branch: ${gitBranch || t('选择分支', 'Choose a branch')}`)"
+                    :title="gitBranch || t('选择分支', 'Choose a branch')"
                   >
                     <GitBranch class="size-3.5 shrink-0" />
-                    <span class="chat-composer__chip__label">{{ gitBranch || '分支' }}</span>
+                    <span class="chat-composer__chip__label">{{ gitBranch || t('分支', 'Branch') }}</span>
                     <ChevronDown class="chat-composer__chip__chevron size-3 shrink-0 opacity-60" />
                   </button>
                 </DropdownMenuTrigger>
@@ -1771,8 +1772,8 @@ defineExpose({
               variant="destructive"
               size="icon"
               :disabled="aborting"
-              :aria-label="aborting ? '正在停止 Agent' : compacting ? '停止整理上下文' : '停止 Agent'"
-              :title="aborting ? '正在等待 Agent 安全停止' : compacting ? '取消当前上下文整理' : '停止当前 Agent 回合'"
+              :aria-label="aborting ? t('正在停止 Agent', 'Stopping agent') : compacting ? t('停止整理上下文', 'Stop compacting context') : t('停止 Agent', 'Stop agent')"
+              :title="aborting ? t('正在等待 Agent 安全停止', 'Waiting for the agent to stop safely') : compacting ? t('取消当前上下文整理', 'Cancel the current context compaction') : t('停止当前 Agent 回合', 'Stop the current agent turn')"
               @pointerdown.prevent.stop="$emit('abort')"
               @click.prevent.stop="$emit('abort')"
             >
@@ -1786,8 +1787,8 @@ defineExpose({
               size="icon"
               class="tactical-action"
               :disabled="attachmentImporting || (!draft.trim() && !pendingAttachments.length)"
-              :aria-label="running ? '发送引导' : '发送'"
-              :title="running ? '在当前工具调用结束后应用' : '发送'"
+              :aria-label="running ? t('发送引导', 'Send steering') : t('发送', 'Send')"
+              :title="running ? t('在当前工具调用结束后应用', 'Applied after the current tool call finishes') : t('发送', 'Send')"
             >
               <ArrowUp class="size-4" />
             </Button>
@@ -1797,7 +1798,7 @@ defineExpose({
         {{ attachmentError }}
       </p>
       <p v-else-if="attachmentImporting" class="chat-model-loading px-2 pt-1.5">
-        <AkLoadingMark label="正在加入附件" show-label />
+        <AkLoadingMark :label="t('正在加入附件', 'Adding attachments')" show-label />
       </p>
     </div>
     <dialog
@@ -1810,19 +1811,19 @@ defineExpose({
         <header class="flex items-center justify-between gap-4 border-b border-border px-5 py-4">
           <div class="min-w-0">
             <h2 id="coding-attachment-preview-title" class="truncate text-lg font-semibold">
-              {{ attachmentPreview?.name || '附件预览' }}
+              {{ attachmentPreview?.name || t('附件预览', 'Attachment preview') }}
             </h2>
             <p v-if="attachmentPreview" class="text-caption text-muted-foreground">
               {{ attachmentPreview.mediaType }} · {{ formatAttachmentSize(attachmentPreview.size) }}
             </p>
           </div>
-          <Button type="button" variant="ghost" size="icon-sm" aria-label="关闭附件预览" @click="attachmentPreviewDialog?.close()">
+          <Button type="button" variant="ghost" size="icon-sm" :aria-label="t('关闭附件预览', 'Close attachment preview')" @click="attachmentPreviewDialog?.close()">
             <X class="size-4" />
           </Button>
         </header>
         <div class="min-h-0 flex-1 overflow-auto p-5">
           <div v-if="attachmentPreviewLoading" class="grid min-h-48 place-items-center">
-            <AkLoadingMark label="正在加载预览" show-label />
+            <AkLoadingMark :label="t('正在加载预览', 'Loading preview')" show-label />
           </div>
           <img
             v-else-if="attachmentPreview?.kind === 'image' && attachmentPreview.dataUrl"
@@ -1835,7 +1836,7 @@ defineExpose({
             class="whitespace-pre-wrap break-words rounded-lg border border-border bg-muted/40 p-4 font-mono text-caption"
           >{{ attachmentPreview.text }}</pre>
           <p v-else class="text-body text-muted-foreground">
-            此附件已加入发送队列；当前格式不提供内嵌内容预览。
+            {{ t('此附件已加入发送队列；当前格式不提供内嵌内容预览。', 'This attachment is queued to send. This format has no inline preview.') }}
           </p>
         </div>
       </section>

@@ -12,6 +12,7 @@ import {
 } from '@felinic/ui'
 import { ArchiveRestore, Trash2 } from 'lucide-vue-next'
 import { invokeCommand } from '@/desktop'
+import { t } from '@/lib/uiLocale'
 import type { Conversation } from '@/types'
 
 const emit = defineEmits<{ changed: [] }>()
@@ -50,7 +51,9 @@ async function confirmAction() {
 }
 
 function archivedTime(value: number | undefined) {
-  return value ? `归档于 ${new Date(value).toLocaleString()}` : '归档时间未知'
+  return value
+    ? t(`归档于 ${new Date(value).toLocaleString()}`, `Archived ${new Date(value).toLocaleString()}`)
+    : t('归档时间未知', 'Archive time unknown')
 }
 
 onMounted(load)
@@ -59,7 +62,7 @@ onMounted(load)
 <template>
   <div>
     <p v-if="error" class="px-4 py-3 text-body text-destructive">{{ error }}</p>
-    <p v-if="loading" class="px-4 py-5 text-body text-muted-foreground">正在读取归档聊天…</p>
+    <p v-if="loading" class="px-4 py-5 text-body text-muted-foreground">{{ t('正在读取归档聊天…', 'Loading archived chats…') }}</p>
     <SettingsRow
       v-for="conversation in conversations"
       :key="conversation.id"
@@ -69,14 +72,14 @@ onMounted(load)
       <div class="flex items-center gap-1">
         <Button variant="ghost" size="sm" @click="confirmation = { action: 'restore', conversation }">
           <ArchiveRestore class="size-3.5" />
-          恢复
+          {{ t('恢复', 'Restore') }}
         </Button>
         <Button
           variant="ghost"
           size="icon-sm"
           class="text-destructive hover:text-destructive"
-          aria-label="永久删除归档聊天"
-          title="永久删除"
+          :aria-label="t('永久删除归档聊天', 'Permanently delete archived chat')"
+          :title="t('永久删除', 'Delete permanently')"
           @click="confirmation = { action: 'delete', conversation }"
         >
           <Trash2 class="size-3.5" />
@@ -87,18 +90,18 @@ onMounted(load)
     <Dialog :open="Boolean(confirmation)" @update:open="open => { if (!open) confirmation = null }">
       <DialogContent class="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{{ confirmation?.action === 'restore' ? '恢复聊天？' : '永久删除聊天？' }}</DialogTitle>
+          <DialogTitle>{{ confirmation?.action === 'restore' ? t('恢复聊天？', 'Restore this chat?') : t('永久删除聊天？', 'Permanently delete this chat?') }}</DialogTitle>
           <DialogDescription v-if="confirmation?.action === 'restore'">
-            “{{ confirmation.conversation.title }}”将恢复到 Agent 会话列表，可以继续原有上下文。
+            {{ t(`“${confirmation.conversation.title}”将恢复到 Agent 会话列表，可以继续原有上下文。`, `"${confirmation.conversation.title}" will return to the agent conversation list with its existing context.`) }}
           </DialogDescription>
           <DialogDescription v-else>
-            “{{ confirmation?.conversation.title }}”的聊天记录将被永久删除，此操作无法撤销。项目文件不会被删除。
+            {{ t(`“${confirmation?.conversation.title}”的聊天记录将被永久删除，此操作无法撤销。项目文件不会被删除。`, `"${confirmation?.conversation.title}" will be permanently deleted. This cannot be undone. Project files are not deleted.`) }}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="ghost" @click="confirmation = null">取消</Button>
+          <Button variant="ghost" @click="confirmation = null">{{ t('取消', 'Cancel') }}</Button>
           <Button :variant="confirmation?.action === 'delete' ? 'destructive' : 'default'" @click="confirmAction">
-            {{ confirmation?.action === 'restore' ? '确认恢复' : '确认永久删除' }}
+            {{ confirmation?.action === 'restore' ? t('确认恢复', 'Restore') : t('确认永久删除', 'Delete permanently') }}
           </Button>
         </DialogFooter>
       </DialogContent>

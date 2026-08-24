@@ -10,6 +10,7 @@ import {
 } from '@felinic/ui'
 import { CircleHelp } from 'lucide-vue-next'
 import type { CTFCollaborationMode } from '@/ctfTypes'
+import { t } from '@/lib/uiLocale'
 
 const props = defineProps<{
   modelValue: CTFCollaborationMode
@@ -20,38 +21,33 @@ const emit = defineEmits<{
 }>()
 
 const helpOpen = ref(false)
-const modeItems = [
-  { value: 'coach' as const, label: '教练' },
-  { value: 'copilot' as const, label: '搭档' },
-  { value: 'delegate' as const, label: '代理' },
-]
-const descriptions: Array<{
-  mode: CTFCollaborationMode
-  label: string
-  lead: string
-  detail: string
-}> = [
+const modeItems = computed(() => [
+  { value: 'coach' as const, label: t('教练', 'Coach') },
+  { value: 'copilot' as const, label: t('搭档', 'Copilot') },
+  { value: 'delegate' as const, label: t('代理', 'Delegate') },
+])
+const descriptions = computed(() => [
   {
-    mode: 'coach',
-    label: '教练',
-    lead: '你主导解题',
-    detail: '每轮一个最小提示。',
+    mode: 'coach' as const,
+    label: t('教练', 'Coach'),
+    lead: t('你主导解题', 'You lead solving'),
+    detail: t('每轮一个最小提示。', 'One minimal hint per turn.'),
   },
   {
-    mode: 'copilot',
-    label: '搭档',
-    lead: '你和 Agent 一起解',
-    detail: '一起完成材料基线和低成本实验。',
+    mode: 'copilot' as const,
+    label: t('搭档', 'Copilot'),
+    lead: t('你和 Agent 一起解', 'You and the Agent solve together'),
+    detail: t('一起完成材料基线和低成本实验。', 'Work together on the material baseline and low-cost experiments.'),
   },
   {
-    mode: 'delegate',
-    label: '代理',
-    lead: 'Agent 主导推进',
-    detail: '在授权与预算内连续实验；遇到边界时停下询问。',
+    mode: 'delegate' as const,
+    label: t('代理', 'Delegate'),
+    lead: t('Agent 主导推进', 'Agent leads progress'),
+    detail: t('在授权与预算内连续实验；遇到边界时停下询问。', 'Run consecutive experiments within authorization and budget; stop and ask at boundaries.'),
   },
-]
+])
 const activeDescription = computed(() => (
-  descriptions.find(item => item.mode === props.modelValue) ?? descriptions[1]
+  descriptions.value.find(item => item.mode === props.modelValue) ?? descriptions.value[1]
 ))
 </script>
 
@@ -59,7 +55,7 @@ const activeDescription = computed(() => (
   <div class="flex items-center gap-2">
     <SegmentedControl
       :model-value="modelValue"
-      aria-label="协作模式"
+      :aria-label="t('协作模式', 'Collaboration mode')"
       :aria-description="`${activeDescription.lead}。${activeDescription.detail}`"
       :items="modeItems"
       @update:model-value="emit('update:modelValue', $event as CTFCollaborationMode)"
@@ -69,7 +65,7 @@ const activeDescription = computed(() => (
         <Button
           variant="ghost"
           size="icon-sm"
-          aria-label="查看三种协作模式的区别"
+          :aria-label="t('查看三种协作模式的区别', 'View the three collaboration modes')"
           :aria-expanded="helpOpen"
           @click="helpOpen = !helpOpen"
         >
@@ -77,7 +73,7 @@ const activeDescription = computed(() => (
         </Button>
       </HoverCardTrigger>
       <HoverCardContent side="bottom" align="end" :align-offset="0" class="w-80">
-        <p class="text-control font-medium">三种协作模式</p>
+        <p class="text-control font-medium">{{ t('三种协作模式', 'Three collaboration modes') }}</p>
         <div class="mt-3 space-y-3">
           <div v-for="item in descriptions" :key="item.mode" class="flex items-start gap-3">
             <Badge

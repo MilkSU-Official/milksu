@@ -10,6 +10,7 @@ import {
   Target,
 } from 'lucide-vue-next'
 import type { DomainTaskContextPresentation } from '@/lib/domainTaskContext'
+import { t } from '@/lib/uiLocale'
 
 const props = defineProps<{
   presentation: DomainTaskContextPresentation
@@ -25,7 +26,7 @@ const DomainIcon = computed(() => (
   props.presentation.kind === 'ctf' ? Flag : ShieldCheck
 ))
 const topReturnLabel = computed(() => (
-  props.presentation.kind === 'ctf' ? '返回挑战' : '返回 CVE'
+  props.presentation.kind === 'ctf' ? t('返回挑战', 'Back to challenge') : t('返回 CVE', 'Back to CVE')
 ))
 
 function toggleCollapsed() {
@@ -37,21 +38,21 @@ function toggleCollapsed() {
   <aside
     class="domain-task-context app-no-drag"
     :class="collapsed ? 'domain-task-context--collapsed' : 'domain-task-context--expanded'"
-    :aria-label="`${presentation.moduleLabel} 任务信息`"
+    :aria-label="t(`${presentation.moduleLabel} 任务信息`, `${presentation.moduleLabel} task info`)"
     data-testid="domain-task-context-panel"
   >
     <template v-if="collapsed">
       <button
         type="button"
         class="domain-task-context__pip"
-        :aria-label="`展开 ${presentation.moduleLabel} 任务信息`"
+        :aria-label="t(`展开 ${presentation.moduleLabel} 任务信息`, `Expand ${presentation.moduleLabel} task info`)"
         :title="presentation.collapsedLabel"
         data-testid="reopen-domain-from-pip"
         @click="toggleCollapsed"
       >
         <component :is="DomainIcon" class="size-4 shrink-0" />
         <span class="min-w-0 truncate">{{ presentation.collapsedLabel }}</span>
-        <span class="shrink-0 text-caption font-medium text-primary">展开</span>
+        <span class="shrink-0 text-caption font-medium text-primary">{{ t('展开', 'Expand') }}</span>
       </button>
       <Button
         variant="outline"
@@ -69,7 +70,7 @@ function toggleCollapsed() {
       <header class="domain-dossier__header flex h-12 shrink-0 items-center justify-between gap-3 px-4">
         <div class="flex min-w-0 items-center gap-2 text-control font-medium">
           <component :is="DomainIcon" class="size-4 shrink-0 text-primary" />
-          <span>来自 {{ presentation.moduleLabel }}</span>
+          <span>{{ t(`来自 ${presentation.moduleLabel}`, `From ${presentation.moduleLabel}`) }}</span>
         </div>
         <Button variant="ghost" size="sm" class="shrink-0" @click="emit('returnDomain')">
           <RotateCcw class="size-3.5" />
@@ -111,7 +112,7 @@ function toggleCollapsed() {
           </section>
 
           <section v-if="presentation.materials.length">
-            <h3 class="tactical-section-heading">材料</h3>
+            <h3 class="tactical-section-heading">{{ t('材料', 'Materials') }}</h3>
             <div class="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
               <div
                 v-for="material in presentation.materials"
@@ -153,11 +154,11 @@ function toggleCollapsed() {
           variant="ghost"
           size="sm"
           class="min-h-9 w-full"
-          aria-label="收起任务信息"
+          :aria-label="t('收起任务信息', 'Collapse task info')"
           data-testid="collapse-domain-to-pip-inline"
           @click="toggleCollapsed"
         >
-          收起简报
+          {{ t('收起简报', 'Collapse briefing') }}
         </Button>
       </footer>
     </template>

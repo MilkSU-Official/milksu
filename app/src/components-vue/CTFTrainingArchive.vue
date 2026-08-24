@@ -1,12 +1,11 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { Alert, AlertDescription, Badge, Button } from '@felinic/ui'
+import { Alert, AlertDescription, Badge, Button, SettingsSection } from '@felinic/ui'
 import {
   Check,
   ChevronDown,
   ChevronUp,
   ClipboardCopy,
-  FileClock,
   FileDown,
   ShieldCheck,
   TerminalSquare,
@@ -14,6 +13,7 @@ import {
 import { invokeCommand } from '@/desktop'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 import { redactProviderCredentials } from '@/lib/redaction'
+import { t } from '@/lib/uiLocale'
 import type {
   CTFAgentReplay,
   CTFAgentReplayEvent,
@@ -78,7 +78,7 @@ async function generateReport() {
     report.value = await invokeCommand<CTFTrainingReportExport>('generate_ctf_training_report', {
       id: props.jobId,
     })
-    notice.value = '安全报告已生成。'
+    notice.value = t('安全报告已生成。', 'Security report generated.')
   } catch (reason) {
     error.value = errorMessage(reason)
   } finally {
@@ -91,26 +91,26 @@ async function copy(value: string, label: string) {
   error.value = ''
   try {
     await navigator.clipboard.writeText(value)
-    notice.value = `${label}已复制。`
+    notice.value = t(`${label}已复制。`, `${label} copied.`)
   } catch (reason) {
-    error.value = `复制失败：${errorMessage(reason)}`
+    error.value = t(`复制失败：${errorMessage(reason)}`, `Copy failed: ${errorMessage(reason)}`)
   }
 }
 
 function eventLabel(event: CTFAgentReplayEvent) {
   if (event.toolName) return event.toolName
   switch (event.type) {
-    case 'assistant_text': return 'Agent 回复'
-    case 'tool_call': return '工具调用'
-    case 'tool_result': return '工具结果'
-    case 'turn_end': return '回合完成'
-    case 'error': return '运行错误'
-    default: return event.type || '运行事件'
+    case 'assistant_text': return t('Agent 回复', 'Agent reply')
+    case 'tool_call': return t('工具调用', 'Tool call')
+    case 'tool_result': return t('工具结果', 'Tool result')
+    case 'turn_end': return t('回合完成', 'Turn completed')
+    case 'error': return t('运行错误', 'Run error')
+    default: return event.type || t('运行事件', 'Run event')
   }
 }
 
 function eventSummary(event: CTFAgentReplayEvent) {
-  return redactProviderCredentials(event.error || event.text || event.engine || '该事件没有附带文本。')
+  return redactProviderCredentials(event.error || event.text || event.engine || t('该事件没有附带文本。', 'This event has no attached text.'))
 }
 
 function formatTime(value?: string) {
@@ -123,30 +123,23 @@ function formatTime(value?: string) {
 }
 
 function actorLabel(actor: string) {
-  if (actor === 'user') return '用户完成'
-  if (actor === 'agent') return 'Agent 代做'
-  if (actor === 'shared') return '共同完成'
-  return '尚无可归属证据'
+  if (actor === 'user') return t('用户完成', 'Completed by user')
+  if (actor === 'agent') return t('Agent 代做', 'Completed by Agent')
+  if (actor === 'shared') return t('共同完成', 'Completed together')
+  return t('尚无可归属证据', 'No attributable evidence yet')
 }
 
 function assistanceLabel(assistance: string) {
-  if (assistance === 'none') return '无协助'
-  if (assistance === 'hint') return '依赖提示'
-  if (assistance === 'copilot') return '搭档协作'
-  return '代理完成'
+  if (assistance === 'none') return t('无协助', 'No assistance')
+  if (assistance === 'hint') return t('依赖提示', 'Used hints')
+  if (assistance === 'copilot') return t('搭档协作', 'Copilot collaboration')
+  return t('代理完成', 'Delegate completed')
 }
 </script>
 
 <template>
-  <section class="rounded-xl border border-border bg-card p-6" aria-labelledby="training-archive-title">
-    <div class="flex flex-wrap items-start justify-between gap-4">
-      <div>
-        <h2 id="training-archive-title" class="flex items-center gap-2 text-label font-medium">
-          <FileClock class="size-4" />
-          训练档案
-        </h2>
-
-      </div>
+  <SettingsSection :title="t('训练档案', 'Training archive')" aria-labelledby="training-archive-title">
+    <template #actions>
       <div class="flex flex-wrap gap-2">
         <Button
           variant="outline"
@@ -156,14 +149,15 @@ function assistanceLabel(assistance: string) {
           @click="loadReplay"
         >
           <TerminalSquare class="size-4" />
-          {{ replayOpen ? '收起回放' : '运行回放' }}
+          {{ replayOpen ? t('收起回放', 'Hide replay') : t('运行回放', 'Run replay') }}
         </Button>
         <Button size="sm" :loading="generatingReport" @click="generateReport">
           <FileDown class="size-4" />
-          {{ report ? '重新生成' : '生成报告' }}
+          {{ report ? t('重新生成', 'Regenerate') : t('生成报告', 'Generate report') }}
         </Button>
       </div>
-    </div>
+    </template>
+    <div class="px-5 py-5">
 
     <Alert v-if="error" variant="destructive" class="mt-4">
       <ShieldCheck class="size-4" />
@@ -177,9 +171,9 @@ function assistanceLabel(assistance: string) {
     <div v-if="report" class="mt-5 rounded-lg border border-border bg-muted/20 p-4">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div class="flex flex-wrap items-center gap-2">
-          <p class="text-control font-medium">可分享训练报告</p>
+          <p class="text-control font-medium">{{ t('可分享训练报告', 'Shareable training report') }}</p>
           <Badge :variant="report.report.verified ? 'secondary' : 'outline'">
-            {{ report.report.verified ? '平台已验证' : '尚未验证' }}
+            {{ report.report.verified ? t('平台已验证', 'Platform verified') : t('尚未验证', 'Not yet verified') }}
           </Badge>
           <Badge variant="outline">
             {{ actorLabel(report.report.contribution.primaryActor) }}
@@ -195,19 +189,19 @@ function assistanceLabel(assistance: string) {
 
       <div class="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
         <div class="rounded-md bg-background px-3 py-2">
-          <p class="text-caption text-muted-foreground">完成回合</p>
+          <p class="text-caption text-muted-foreground">{{ t('完成回合', 'Completed turns') }}</p>
           <p class="mt-1 font-mono text-control">{{ report.report.stats.completedTurns }}</p>
         </div>
         <div class="rounded-md bg-background px-3 py-2">
-          <p class="text-caption text-muted-foreground">工具调用</p>
+          <p class="text-caption text-muted-foreground">{{ t('工具调用', 'Tool calls') }}</p>
           <p class="mt-1 font-mono text-control">{{ report.report.stats.toolCalls }}</p>
         </div>
         <div class="rounded-md bg-background px-3 py-2">
-          <p class="text-caption text-muted-foreground">实验</p>
+          <p class="text-caption text-muted-foreground">{{ t('实验', 'Experiments') }}</p>
           <p class="mt-1 font-mono text-control">{{ report.report.stats.experiments }}</p>
         </div>
         <div class="rounded-md bg-background px-3 py-2">
-          <p class="text-caption text-muted-foreground">用户独立步骤</p>
+          <p class="text-caption text-muted-foreground">{{ t('用户独立步骤', 'Independent user steps') }}</p>
           <p class="mt-1 font-mono text-control">{{ report.report.stats.independentSteps }}</p>
         </div>
       </div>
@@ -217,7 +211,7 @@ function assistanceLabel(assistance: string) {
       </p>
       <details class="mt-3 overflow-hidden rounded-md border border-border bg-background">
         <summary class="cursor-pointer px-3 py-2 text-caption font-medium">
-          预览报告
+          {{ t('预览报告', 'Preview report') }}
         </summary>
         <MarkdownContent
           class="max-h-80 overflow-y-auto border-t border-border px-4 py-4 text-caption leading-5"
@@ -225,13 +219,13 @@ function assistanceLabel(assistance: string) {
         />
       </details>
       <div class="mt-3 flex flex-wrap gap-2">
-        <Button variant="outline" size="sm" @click="copy(report.report.markdown, 'Markdown 报告')">
+        <Button variant="outline" size="sm" @click="copy(report.report.markdown, t('Markdown 报告', 'Markdown report'))">
           <ClipboardCopy class="size-4" />
-          复制 Markdown
+          {{ t('复制 Markdown', 'Copy Markdown') }}
         </Button>
-        <Button variant="ghost" size="sm" @click="copy(report.markdownPath, '报告路径')">
+        <Button variant="ghost" size="sm" @click="copy(report.markdownPath, t('报告路径', 'Report path'))">
           <ClipboardCopy class="size-4" />
-          复制路径
+          {{ t('复制路径', 'Copy path') }}
         </Button>
       </div>
     </div>
@@ -239,12 +233,12 @@ function assistanceLabel(assistance: string) {
     <div v-if="replayOpen && replay" class="mt-5 border-t border-border pt-5">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div class="flex flex-wrap items-center gap-2">
-          <p class="text-control font-medium">PI 逐事件回放</p>
-          <Badge variant="outline">{{ replay.events.length }} 个事件</Badge>
-          <Badge v-if="replay.truncated" variant="secondary">后端已截断</Badge>
+          <p class="text-control font-medium">{{ t('PI 逐事件回放', 'PI event-by-event replay') }}</p>
+          <Badge variant="outline">{{ t(`${replay.events.length} 个事件`, `${replay.events.length} events`) }}</Badge>
+          <Badge v-if="replay.truncated" variant="secondary">{{ t('后端已截断', 'Truncated by backend') }}</Badge>
         </div>
         <p class="text-caption text-muted-foreground">
-          {{ replay.metrics.toolCalls }} 次工具调用 · {{ replay.metrics.toolErrors }} 次错误
+          {{ t(`${replay.metrics.toolCalls} 次工具调用 · ${replay.metrics.toolErrors} 次错误`, `${replay.metrics.toolCalls} tool calls · ${replay.metrics.toolErrors} errors`) }}
         </p>
       </div>
 
@@ -257,7 +251,7 @@ function assistanceLabel(assistance: string) {
           <div class="flex flex-wrap items-center gap-2">
             <span class="font-mono text-caption text-muted-foreground">#{{ event.sequence }}</span>
             <p class="text-control font-medium">{{ eventLabel(event) }}</p>
-            <Badge v-if="event.truncated" variant="secondary">内容已截断</Badge>
+            <Badge v-if="event.truncated" variant="secondary">{{ t('内容已截断', 'Content truncated') }}</Badge>
             <span class="ml-auto text-caption text-muted-foreground">{{ formatTime(event.timestamp) }}</span>
           </div>
           <pre
@@ -287,13 +281,14 @@ function assistanceLabel(assistance: string) {
         <ChevronDown v-else class="size-3.5" />
         {{
           replayExpanded
-            ? '只看最近 6 个事件'
-            : `查看最近 ${Math.min(100, replay.events.length)} 个事件`
+            ? t('只看最近 6 个事件', 'Show last 6 events')
+            : t(`查看最近 ${Math.min(100, replay.events.length)} 个事件`, `View last ${Math.min(100, replay.events.length)} events`)
         }}
       </Button>
       <p v-if="replayExpanded && replay.events.length > 100" class="mt-2 text-caption text-muted-foreground">
-        为避免界面卡顿，这里只展示最近 100 个事件；完整轨迹仍保存在本机证据目录。
+        {{ t('为避免界面卡顿，这里只展示最近 100 个事件；完整轨迹仍保存在本机证据目录。', 'To keep the UI responsive, only the last 100 events are shown here; the full trajectory remains in the local evidence directory.') }}
       </p>
     </div>
-  </section>
+    </div>
+  </SettingsSection>
 </template>

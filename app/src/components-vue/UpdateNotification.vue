@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { ArrowDownToLine, CheckCircle2, RefreshCw, RotateCcw, X } from 'lucide-vue-next'
 import { Button } from '@felinic/ui'
+import { t } from '@/lib/uiLocale'
 import type { UpdateStatus } from '@/types'
 
 const props = defineProps<{
@@ -34,7 +35,7 @@ const firstNote = computed(() => String(props.status?.notes ?? '').split(/\r?\n/
     data-testid="update-notification"
     data-shell-traffic-safe="x"
   >
-    <span class="ak-notice__code">OTA<br />更新</span>
+    <span class="ak-notice__code">OTA<br />{{ t('更新', 'update') }}</span>
     <div class="ak-notice__body flex flex-wrap items-center gap-x-3 gap-y-2 py-3 pr-5">
     <ArrowDownToLine v-if="status.state === 'available'" class="size-4 shrink-0 text-primary" />
     <RefreshCw v-else-if="status.state === 'downloading'" class="size-4 shrink-0 animate-spin text-primary" />
@@ -43,11 +44,11 @@ const firstNote = computed(() => String(props.status?.notes ?? '').split(/\r?\n/
 
     <div class="min-w-0 flex-1 text-body leading-5">
       <template v-if="status.state === 'available'">
-        <span class="font-medium">MilkSU {{ status.version }} 可以更新</span>
+        <span class="font-medium">{{ t(`MilkSU ${status.version} 可以更新`, `MilkSU ${status.version} is available`) }}</span>
         <span v-if="firstNote" class="ml-2 text-muted-foreground">{{ firstNote }}</span>
       </template>
       <template v-else-if="status.state === 'downloading'">
-        <span class="font-medium">正在下载 MilkSU {{ status.version }}</span>
+        <span class="font-medium">{{ t(`正在下载 MilkSU ${status.version}`, `Downloading MilkSU ${status.version}`) }}</span>
         <span class="ml-2 text-muted-foreground">{{ progress.toFixed(0) }}%</span>
         <div
           class="ak-progress mt-2 max-w-md"
@@ -61,31 +62,31 @@ const firstNote = computed(() => String(props.status?.notes ?? '').split(/\r?\n/
         </div>
       </template>
       <template v-else-if="status.state === 'downloaded'">
-        <span class="font-medium">MilkSU {{ status.version }} 已准备好</span>
-        <span class="ml-2 text-muted-foreground">重启后完成更新</span>
+        <span class="font-medium">{{ t(`MilkSU ${status.version} 已准备好`, `MilkSU ${status.version} is ready`) }}</span>
+        <span class="ml-2 text-muted-foreground">{{ t('重启后完成更新', 'Restart to finish the update') }}</span>
       </template>
       <template v-else>
-        <span class="font-medium">更新没有下载完成</span>
-        <span class="ml-2 text-muted-foreground">{{ status.message || '请稍后重试' }}</span>
+        <span class="font-medium">{{ t('更新没有下载完成', 'The update did not finish downloading') }}</span>
+        <span class="ml-2 text-muted-foreground">{{ status.message || t('请稍后重试', 'Please try again later') }}</span>
       </template>
     </div>
 
     <div class="flex shrink-0 items-center gap-2">
       <Button v-if="status.state === 'available'" size="sm" @click="emit('download')">
-        更新
+        {{ t('更新', 'Update') }}
       </Button>
       <Button v-else-if="status.state === 'downloaded'" size="sm" @click="emit('install')">
-        重启更新
+        {{ t('重启更新', 'Restart to update') }}
       </Button>
       <Button v-else-if="status.state === 'error'" size="sm" variant="outline" @click="emit('download')">
-        重试
+        {{ t('重试', 'Retry') }}
       </Button>
       <Button
         v-if="status.state === 'available'"
         size="icon-sm"
         variant="ghost"
-        aria-label="稍后更新"
-        title="稍后更新"
+        :aria-label="t('稍后更新', 'Update later')"
+        :title="t('稍后更新', 'Update later')"
         @click="emit('dismiss', status.version || '')"
       >
         <X class="size-4" />

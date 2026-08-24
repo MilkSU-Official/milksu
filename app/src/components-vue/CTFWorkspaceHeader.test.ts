@@ -13,7 +13,7 @@ afterEach(() => {
 
 async function mountHeader(props: {
   challengeTitle?: string
-  sourceUri?: string
+  browserStatus?: 'off' | 'live' | ''
 } = {}) {
   const host = document.createElement('div')
   document.body.append(host)
@@ -21,7 +21,8 @@ async function mountHeader(props: {
   const app = createApp(CTFWorkspaceHeader, {
     ...props,
     onReturnCatalog: () => events.push('returnCatalog'),
-    onOpenSource: () => events.push('openSource'),
+    onOpenBrowserSettings: () => events.push('openBrowserSettings'),
+    onRefreshBridge: () => events.push('refreshBridge'),
   })
   app.mount(host)
   mountedApps.push(app)
@@ -33,12 +34,12 @@ describe('CTFWorkspaceHeader', () => {
   it('keeps the catalog escape hatch visible in solve sessions', async () => {
     const { host, events } = await mountHeader({
       challengeTitle: 'NSSCTF P3879',
-      sourceUri: 'https://example.test/problem/3879',
+      browserStatus: 'off',
     })
 
     expect(host.textContent).toContain('解题会话')
     expect(host.textContent).toContain('NSSCTF P3879')
-    expect(host.textContent).toContain('打开题目')
+    expect(host.textContent).not.toContain('打开题目')
     expect(host.querySelector('[aria-label="打开设置"]')).toBeNull()
     expect(host.textContent).not.toContain('查看复盘')
     expect(host.textContent).not.toContain('返回解题')
@@ -48,9 +49,9 @@ describe('CTFWorkspaceHeader', () => {
     expect(host.querySelector('[data-workspace-topbar-title]')?.className).toContain('workspace-topbar__title')
 
     host.querySelector<HTMLButtonElement>('[aria-label="返回 CTF 题库"]')?.click()
-    host.querySelector<HTMLButtonElement>('[aria-label="打开当前 CTF 题目"]')?.click()
+    host.querySelector<HTMLButtonElement>('[aria-label="浏览器未连接，打开设置"]')?.click()
 
-    expect(events).toEqual(['returnCatalog', 'openSource'])
+    expect(events).toEqual(['returnCatalog', 'openBrowserSettings'])
   })
 
   it('does not split the workspace into solve and review modes', async () => {
@@ -67,6 +68,7 @@ describe('CTFWorkspaceHeader', () => {
 
     expect(host.textContent).toContain('离线附件题')
     expect(host.querySelector('[aria-label="返回 CTF 题库"]')).not.toBeNull()
-    expect(host.querySelector('[aria-label="打开当前 CTF 题目"]')).toBeNull()
+    expect(host.querySelector('[aria-label="浏览器未连接，打开设置"]')).toBeNull()
+    expect(host.querySelector('[aria-label="浏览器已连接"]')).toBeNull()
   })
 })

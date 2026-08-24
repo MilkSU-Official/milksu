@@ -10,6 +10,7 @@ import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 import { redactProviderCredentials } from '@/lib/redaction'
 import { isBlankAssistantMessage } from '@/lib/chatActivity'
 import { toolBudgetToolName } from '@/lib/toolBudget'
+import { t } from '@/lib/uiLocale'
 import type { Message } from '@/types'
 
 const props = defineProps<{
@@ -35,8 +36,8 @@ function visibleApprovalText(value?: string) {
 
 function recoveryHint() {
   return props.recoveryContext === 'ctf'
-    ? '从已保留的 notes、证据、Judge 回执和工具结果继续'
-    : '从已保留的工作区、Git 状态、工具结果和验证面板继续'
+    ? t('从已保留的 notes、证据、Judge 回执和工具结果继续', 'Continue from saved notes, evidence, Judge receipts, and tool results')
+    : t('从已保留的工作区、Git 状态、工具结果和验证面板继续', 'Continue from the saved workspace, Git state, tool results, and verification panel')
 }
 
 function userMessageTime(timestamp: number) {
@@ -87,15 +88,15 @@ const timeLabel = computed(() => (
           ? 'ak-notice--success'
           : 'ak-notice--danger'"
     >
-      <span class="ak-notice__code">ASK<br />批准</span>
+      <span class="ak-notice__code">ASK<br />{{ t('批准', 'Approve') }}</span>
       <div class="ak-notice__body">
       <div class="flex items-start justify-between gap-4">
         <div class="min-w-0">
-          <strong class="ak-notice__title">请求批准 · {{ message.toolName ?? 'tool' }}</strong>
+          <strong class="ak-notice__title">{{ t(`请求批准 · ${message.toolName ?? 'tool'}`, `Approval required · ${message.toolName ?? 'tool'}`) }}</strong>
           <p class="ak-notice__message">
             {{ message.approvalGrantable
-              ? 'Agent 已暂停。允许这一次只执行当前操作；本对话始终允许后，同类操作不再询问。'
-              : 'Agent 已暂停；只有允许本次操作后才会继续。' }}
+              ? t('Agent 已暂停。允许这一次只执行当前操作；本对话始终允许后，同类操作不再询问。', 'The agent is paused. Allow once to run only this action. Always allow for this conversation to skip the same kind of action later.')
+              : t('Agent 已暂停；只有允许本次操作后才会继续。', 'The agent is paused and will continue only after you allow this action.') }}
           </p>
         </div>
         <span
@@ -109,12 +110,12 @@ const timeLabel = computed(() => (
           <span class="ak-status__signal" />
           <span class="ak-status__label">{{ message.approvalState === 'pending' ? 'HOLD' : message.approvalState === 'approved' ? 'OK' : 'STOP' }}</span>
           <span class="ak-status__detail">{{ message.approvalState === 'pending'
-            ? '等待决定'
+            ? t('等待决定', 'Waiting')
             : message.approvalState === 'approved'
-              ? '已允许'
+              ? t('已允许', 'Allowed')
               : message.approvalState === 'denied'
-                ? '已拒绝'
-                : '已失效' }}</span>
+                ? t('已拒绝', 'Denied')
+                : t('已失效', 'Expired') }}</span>
         </span>
       </div>
       <pre
@@ -123,7 +124,7 @@ const timeLabel = computed(() => (
       >{{ visibleApprovalText(message.content) }}</pre>
       <details v-if="message.approvalInput" class="mt-2">
         <summary class="cursor-pointer text-caption text-muted-foreground">
-          查看完整参数
+          {{ t('查看完整参数', 'View full arguments') }}
         </summary>
         <pre class="mt-2 max-h-56 overflow-auto whitespace-pre-wrap break-words font-mono text-caption leading-5">{{ visibleApprovalText(message.approvalInput) }}</pre>
       </details>
@@ -137,7 +138,7 @@ const timeLabel = computed(() => (
           size="sm"
           @click="$emit('respondApproval', message.approvalRequestId, false)"
         >
-          拒绝
+          {{ t('拒绝', 'Deny') }}
         </Button>
         <Button
           type="button"
@@ -145,7 +146,7 @@ const timeLabel = computed(() => (
           size="sm"
           @click="$emit('respondApproval', message.approvalRequestId, true, 'once')"
         >
-          允许这一次
+          {{ t('允许这一次', 'Allow once') }}
         </Button>
         <Button
           v-if="message.approvalGrantable"
@@ -154,7 +155,7 @@ const timeLabel = computed(() => (
           size="sm"
           @click="$emit('respondApproval', message.approvalRequestId, true, 'conversation')"
         >
-          本对话始终允许
+          {{ t('本对话始终允许', 'Always allow in this chat') }}
         </Button>
       </div>
       <p v-else-if="message.approvalReason" class="mt-2 text-caption text-muted-foreground">
@@ -171,7 +172,7 @@ const timeLabel = computed(() => (
       <div
         v-if="message.attachments?.length"
         class="mb-2 flex flex-wrap gap-2"
-        aria-label="消息附件"
+        :aria-label="t('消息附件', 'Message attachments')"
       >
         <span
           v-for="attachment in message.attachments"
@@ -186,7 +187,7 @@ const timeLabel = computed(() => (
       </div>
       <MarkdownContent :content="message.content" :compact="message.role === 'user'" />
       <p v-if="message.status === 'running'" class="chat-model-loading">
-        <AkLoadingMark label="正在回复" />
+        <AkLoadingMark :label="t('正在回复', 'Replying')" />
       </p>
       <div
         v-if="recoverable"
@@ -199,7 +200,7 @@ const timeLabel = computed(() => (
           @click="$emit('retry')"
         >
           <RotateCcw class="size-3.5" />
-          继续
+          {{ t('继续', 'Continue') }}
         </Button>
         <span class="text-caption text-muted-foreground">
           {{ recoveryHint() }}

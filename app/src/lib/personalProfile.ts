@@ -1,6 +1,7 @@
 import type { CTFSummary } from '@/ctfTypes'
 import type { Conversation } from '@/types'
 import type { VulnerabilityIntel } from '@/vulnerabilityIntel'
+import { t } from '@/lib/uiLocale'
 
 export type PersonalActivityModule = 'ctf' | 'vuln' | 'coding'
 
@@ -33,10 +34,10 @@ export const MAX_PROFILE_AVATAR_BYTES = 1024 * 1024
 
 export function profileAvatarFileProblem(file: Pick<File, 'type' | 'size'>) {
   if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-    return '请选择 PNG、JPEG 或 WebP 图片。'
+    return t('请选择 PNG、JPEG 或 WebP 图片。', 'Choose a PNG, JPEG, or WebP image.')
   }
   if (file.size <= 0 || file.size > MAX_PROFILE_AVATAR_BYTES) {
-    return '头像文件不能超过 1 MB。'
+    return t('头像文件不能超过 1 MB。', 'Avatar files cannot exceed 1 MB.')
   }
   return ''
 }
@@ -55,10 +56,10 @@ export function localDayKey(timestamp: number) {
 }
 
 export function qualitativeStage(count: number) {
-  if (count <= 0) return '尚未开始'
-  if (count <= 4) return '刚开始'
-  if (count <= 15) return '持续练习'
-  return '比较熟悉'
+  if (count <= 0) return t('尚未开始', 'Not started yet')
+  if (count <= 4) return t('刚开始', 'Just getting started')
+  if (count <= 15) return t('持续练习', 'Practicing regularly')
+  return t('比较熟悉', 'Fairly familiar')
 }
 
 export function codingActivities(conversations: Conversation[]) {
@@ -75,13 +76,16 @@ export function codingActivities(conversations: Conversation[]) {
         message.role === 'assistant'
         && message.status === 'done'
         && message.content.trim() !== ''
-        && !/^(Agent 未启动|Agent 已停止|引导未加入|目标操作失败|停止 Agent 失败)/u.test(message.content.trim())
+        && !new RegExp(
+          `^(${t('Agent 未启动', 'Agent did not start')}|${t('Agent 已停止', 'Agent stopped')}|${t('引导未加入', 'Guidance was not added')}|${t('目标操作失败', 'Goal action failed')}|${t('停止 Agent 失败', 'Failed to stop Agent')})`,
+          'u',
+        ).test(message.content.trim())
       ))
     return [{
       id: `coding:${conversation.id}`,
       module: 'coding',
-      title: conversation.title || '未命名 Coding 对话',
-      detail: confirmed ? '完成一次 Coding 任务' : '推进一次真实 Coding 对话',
+      title: conversation.title || t('未命名 Coding 对话', 'Untitled Coding conversation'),
+      detail: confirmed ? t('完成一次 Coding 任务', 'Completed a Coding task') : t('推进一次真实 Coding 对话', 'Advanced a real Coding conversation'),
       timestamp,
       confirmed,
     }]
@@ -96,7 +100,7 @@ export function ctfActivities(jobs: CTFSummary[]) {
       id: `ctf:${job.id}`,
       module: 'ctf',
       title: job.title,
-      detail: job.verdict === 'pass' ? '答案已通过独立验证' : '更新一次 CTF 练习记录',
+      detail: job.verdict === 'pass' ? t('答案已通过独立验证', 'Answer independently verified') : t('更新一次 CTF 练习记录', 'Updated a CTF practice record'),
       timestamp,
       confirmed: job.verdict === 'pass',
     }]
@@ -121,7 +125,7 @@ export function vulnActivities(items: VulnerabilityIntel[], conversations: Conve
       id: `vuln:${conversation.id}`,
       module: 'vuln',
       title: `${item.id} · ${item.product || item.title}`,
-      detail: userVerified ? '用户已明确标记为已验证' : '推进一次 CVE 研究记录',
+      detail: userVerified ? t('用户已明确标记为已验证', 'Explicitly marked verified by the user') : t('推进一次 CVE 研究记录', 'Advanced a CVE research record'),
       timestamp,
       confirmed: userVerified,
     }]
@@ -134,7 +138,7 @@ function moduleSummary(
   unit: string,
   activities: PersonalActivity[],
   count = activities.filter(activity => activity.module === module).length,
-  recentFocus = activities.find(activity => activity.module === module)?.title ?? '暂无记录',
+  recentFocus = activities.find(activity => activity.module === module)?.title ?? t('暂无记录', 'No records yet'),
 ) {
   return {
     module,
@@ -174,9 +178,9 @@ export function buildPersonalProfileSnapshot(
     activities,
     activeDays: Object.keys(dayCounts).length,
     modules: [
-      moduleSummary('ctf', 'CTF', '题', activities, ctfJobs.length, ctf[0]?.title ?? '暂无记录'),
-      moduleSummary('vuln', 'CVE', '项', activities, vulnerabilities.length, vulnerabilities[0]?.id ?? '暂无记录'),
-      moduleSummary('coding', 'Coding', '次', activities, coding.length, coding[0]?.title ?? '暂无记录'),
+      moduleSummary('ctf', 'CTF', t('题', 'challenges'), activities, ctfJobs.length, ctf[0]?.title ?? t('暂无记录', 'No records yet')),
+      moduleSummary('vuln', 'CVE', t('项', 'items'), activities, vulnerabilities.length, vulnerabilities[0]?.id ?? t('暂无记录', 'No records yet')),
+      moduleSummary('coding', 'Coding', t('次', 'sessions'), activities, coding.length, coding[0]?.title ?? t('暂无记录', 'No records yet')),
     ],
     dayCounts,
   }

@@ -21,6 +21,7 @@ import {
   type AppSection,
   type WorkspaceSection,
 } from '@/lib/workspaceNavigation'
+import { t } from '@/lib/uiLocale'
 
 const props = defineProps<{
   activeSection: AppSection
@@ -62,16 +63,20 @@ const isBetaChannel = computed(() => {
 })
 const themeToggleLabel = computed(() => (
   props.themeMode === 'system'
-    ? '当前跟随系统，切换到日间模式'
+    ? t('当前跟随系统，切换到日间模式', 'Following system. Switch to light mode')
     : props.themeMode === 'light'
-      ? '当前日间模式，切换到夜间模式'
-      : '当前夜间模式，切换到跟随系统'
+      ? t('当前日间模式，切换到夜间模式', 'Light mode. Switch to dark mode')
+      : t('当前夜间模式，切换到跟随系统', 'Dark mode. Switch to follow system')
 ))
 const ThemeToggleIcon = computed(() => (
   props.themeMode === 'system' ? SunMoon : props.themeMode === 'light' ? Sun : Moon
 ))
 const themeModeLabel = computed(() => (
-  props.themeMode === 'system' ? '跟随系统' : props.themeMode === 'light' ? '日间' : '夜间'
+  props.themeMode === 'system'
+    ? t('跟随系统', 'System')
+    : props.themeMode === 'light'
+      ? t('日间', 'Light')
+      : t('夜间', 'Dark')
 ))
 
 function closeOnOutsidePointer(event: PointerEvent) {
@@ -117,20 +122,20 @@ function openSettings() {
       <button
         type="button"
         class="app-no-drag workspace-rail-profile"
-        aria-label="打开用户菜单"
+        :aria-label="t('打开用户菜单', 'Open user menu')"
         :aria-expanded="menuOpen"
         @click.stop="menuOpen = !menuOpen"
       >
         <span class="ak-media--album workspace-rail-profile__album">
           <img
             :src="avatarSource"
-            alt="用户头像"
+            :alt="t('用户头像', 'User avatar')"
             class="workspace-rail-profile__mark"
           >
           <span
             v-if="isBetaChannel"
             class="pointer-events-none absolute -right-2 -top-2 bg-indigo-600 px-1 py-0.5 text-[9px] font-semibold leading-none tracking-wide text-white"
-            aria-label="Beta 渠道"
+            :aria-label="t('Beta 渠道', 'Beta channel')"
             data-testid="beta-channel-badge"
           >BETA</span>
         </span>
@@ -139,17 +144,17 @@ function openSettings() {
       <section
         v-if="menuOpen"
         class="app-no-drag absolute left-[4.6rem] top-10 z-50 w-52 overflow-hidden border border-border bg-popover p-1.5 text-popover-foreground shadow-xl"
-        aria-label="用户菜单"
+        :aria-label="t('用户菜单', 'User menu')"
       >
-        <button class="user-menu-item" @click="openProfile"><UserRound class="size-4" />个人资料</button>
-        <button class="user-menu-item" @click="openSettings"><Settings class="size-4" />设置</button>
-        <button v-if="accountStatus.state === 'active'" class="user-menu-item" @click="menuOpen = false; emit('accountLogout')"><LogOut class="size-4" />退出登录</button>
-        <button v-else-if="accountStatus.configured" class="user-menu-item" @click="menuOpen = false; emit('accountLogin')"><LogOut class="size-4 rotate-180" />使用 GitHub 登录</button>
-        <button v-else class="user-menu-item text-muted-foreground" disabled><LogOut class="size-4" />账户未配置</button>
+        <button class="user-menu-item" @click="openProfile"><UserRound class="size-4" />{{ t('个人资料', 'Profile') }}</button>
+        <button class="user-menu-item" @click="openSettings"><Settings class="size-4" />{{ t('设置', 'Settings') }}</button>
+        <button v-if="accountStatus.state === 'active'" class="user-menu-item" @click="menuOpen = false; emit('accountLogout')"><LogOut class="size-4" />{{ t('退出登录', 'Sign out') }}</button>
+        <button v-else-if="accountStatus.configured" class="user-menu-item" @click="menuOpen = false; emit('accountLogin')"><LogOut class="size-4 rotate-180" />{{ t('使用 GitHub 登录', 'Sign in with GitHub') }}</button>
+        <button v-else class="user-menu-item text-muted-foreground" disabled><LogOut class="size-4" />{{ t('账户未配置', 'Account not configured') }}</button>
       </section>
     </div>
 
-    <nav class="app-no-drag workspace-rail-nav" aria-label="全局工作区">
+    <nav class="app-no-drag workspace-rail-nav" :aria-label="t('全局工作区', 'Workspace')">
       <button
         v-for="item in WORKSPACE_RAIL_ITEMS"
         :key="item.id"
@@ -185,13 +190,13 @@ function openSettings() {
         type="button"
         class="workspace-rail-item"
         :class="{ 'is-current': activeSection === 'settings' }"
-        aria-label="设置"
-        title="设置"
+        :aria-label="t('设置', 'Settings')"
+        :title="t('设置', 'Settings')"
         :data-ui-selected="activeSection === 'settings' ? '' : undefined"
         @click="openSettings"
       >
         <Settings class="size-4" />
-        <span>设置</span>
+        <span>{{ t('设置', 'Settings') }}</span>
       </button>
     </div>
   </div>

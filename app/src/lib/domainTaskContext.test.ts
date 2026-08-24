@@ -125,6 +125,13 @@ describe('domainTaskContext', () => {
     expect(sharedCodingSessionKind(true, false)).toBe('ctf')
     expect(sharedCodingSessionKind(false, true)).toBe('cve')
     expect(sharedCodingSessionKind(false, false)).toBe('coding')
+    expect(presentDomainTaskContext({
+      kind: 'lab',
+      jobId: 'job-2',
+      title: 'Juice Shop',
+      scope: 'local',
+      request: '练 XSS',
+    }).returnAriaLabel).toBe('返回实验室')
   })
 
   it('while Agent running=true, live projection still yields exact id/title/scope/materials/judge', () => {

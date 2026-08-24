@@ -42,8 +42,8 @@ describe('LabEnvironmentPreview', () => {
     const host = await mountPreview()
     expect(host.textContent).toContain('题目包')
     const juice = [...host.querySelectorAll('[data-testid="package-row"]')]
-      .find(row => row.textContent?.includes('Juice Shop'))
-    juice?.querySelector<HTMLButtonElement>('[data-testid="start-package"]')?.click()
+      .find(row => row.textContent?.includes('Juice Shop')) as HTMLButtonElement | undefined
+    juice?.click()
     await nextTick()
     expect(host.querySelector('[data-testid="environment-strip"]')?.textContent).toContain('就绪')
     expect(host.querySelector('[data-testid="environment-address"]')?.textContent).toContain('127.0.0.1:3000')
@@ -80,7 +80,8 @@ describe('LabEnvironmentPreview', () => {
     host.querySelector<HTMLButtonElement>('[data-testid="environment-open"]')?.click()
     await nextTick()
     expect(host.querySelector('[data-testid="target-surface"]')).not.toBeNull()
-    expect(host.querySelector('[data-testid="preview-dock"]')).toBeNull()
+    expect(host.querySelector('[data-testid="preview-dock"]')).not.toBeNull()
+    expect(host.querySelector('[data-testid="dossier-split"]')).not.toBeNull()
     host.querySelector<HTMLButtonElement>('[data-testid="start-repro"]')?.click()
     await nextTick()
     expect(host.querySelector('[data-testid="agent-driving"]')?.textContent).toContain('Agent 正在点')

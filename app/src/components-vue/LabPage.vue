@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
+  ActionCard,
   Button,
   Dialog,
   DialogContent,
@@ -12,9 +13,24 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   Input,
+  ModelListRow,
   SegmentedControl,
+  SettingsRow,
+  SettingsSection,
 } from '@felinic/ui'
-import { ArrowLeft, MoreVertical, Pencil, Plus } from 'lucide-vue-next'
+import {
+  ArrowLeft,
+  Box,
+  ChevronRight,
+  Globe,
+  MoreVertical,
+  Pencil,
+  Plus,
+  Radio,
+  ShieldAlert,
+  Smartphone,
+  SquareTerminal,
+} from 'lucide-vue-next'
 import { isComposingKey } from '@/lib/imeComposition'
 import ConversationDock from '@/components-vue/ConversationDock.vue'
 import ResearchReportPanel from '@/components-vue/ResearchReportPanel.vue'
@@ -26,7 +42,10 @@ import type { EnvChallenge, EnvLease, EnvPackage } from '@/envbroker'
 import EnvironmentStrip from '@/components-vue/lab-env/EnvironmentStrip.vue'
 import TargetLivePane from '@/components-vue/lab-env/TargetLivePane.vue'
 import { relatedDomainConversations } from '@/lib/workspaceSessionRouting'
+import { useDossierSplit } from '@/lib/useDossierSplit'
+import { groupLabPackages, type LabPackageCategory } from '@/lib/labPackageCategory'
 import type { CodingAgentSendArgs, CodingAgentSurfaceBind } from '@/lib/codingAgentSurface'
+import { t } from '@/lib/uiLocale'
 import type { Conversation } from '@/types'
 
 defineOptions({ name: 'LabPage' })
@@ -58,7 +77,13 @@ const props = withDefaults(defineProps<{
   mcpServers?: string[]
   mcpConfigDigest?: string
   pendingComposerDraft?: CodingAgentSurfaceBind['pendingComposerDraft']
-  ensureConversation?: (title?: string) => string
+  ensureConversation?: (
+    title?: string,
+    options?: {
+      conversationId?: string
+      domainTaskContext?: Conversation['domainTaskContext']
+    },
+  ) => string
 }>(), {
   conversations: () => [],
   conversation: null,
@@ -112,12 +137,12 @@ const {
   selected,
   createJob,
   rename,
+  focusChallenge,
 } = useLabJobs()
 const showNew = ref(false)
 const draftScope = ref<LabScope>('local')
 const draftRequest = ref('')
-const labTab = ref<'jobs' | 'packages'>('jobs')
-const newSource = ref<'package' | 'local' | 'remote'>('local')
+const labTab = ref<'jobs' | 'packages'>('packages')
 const targetOpen = ref(false)
 const ownerKind = computed(() => 'lab' as const)
 const ownerId = computed(() => selected.value?.id ?? '')
@@ -135,19 +160,16 @@ let leaseTimer: ReturnType<typeof setInterval> | null = null
 const editingJobId = ref<string | null>(null)
 const editingTitle = ref('')
 const renameInput = ref<HTMLInputElement | null>(null)
-const scopeItems = [
-  { value: 'local' as const, label: '本地' },
-  { value: 'remote' as const, label: '远程' },
-]
-const labTabItems = [
-  { value: 'jobs' as const, label: '作业' },
-  { value: 'packages' as const, label: '题目包' },
-]
-const sourceItems = [
-  { value: 'package' as const, label: '题目包' },
-  { value: 'local' as const, label: '本机地址' },
-  { value: 'remote' as const, label: '远程' },
-]
+const scopeItems = computed(() => [
+  { value: 'local' as const, label: t('本地', 'Local') },
+  { value: 'remote' as const, label: t('远程', 'Remote') },
+])
+const labTabItems = computed(() => [
+  { value: 'packages' as const, label: t('题目包', 'Packages') },
+  { value: 'jobs' as const, label: t('自定义任务', 'Custom jobs') },
+])
+const customJobs = computed(() => labJobs.value.filter(job => !job.packageId))
+const packageGroups = computed(() => groupLabPackages(envPackages.value))
 const dossierConversations = computed(() => relatedDomainConversations(
   props.conversations ?? [],
   props.conversation ?? null,
@@ -175,9 +197,11 @@ const stripLease = computed(() => {
   return toStripLease({
     ...envLease.value,
     provider: 'user-attached',
-    detail: '用户自带靶。没有经纪生命周期。',
+    detail: t('用户自带靶。没有经纪生命周期。', 'User-attached target. No broker lifecycle.'),
   })
 })
+const { width: briefWidth, startResize: startBriefResize } = useDossierSplit('milksu.lab-split.v1', 400)
+const liveTargetVisible = computed(() => targetOpen.value && envLease.value.state === 'ready')
 
 watch(selectedId, (id) => {
   if (!id) {
@@ -198,19 +222,19 @@ function parseOccupyOwner(value?: string) {
 }
 
 function jobEnvDot(job: LabJob) {
-  if (!job.packageId) return { className: 'bg-muted-foreground/40', title: '未绑定' }
+  if (!job.packageId) return { className: 'bg-muted-foreground/40', title: t('未绑定', 'Unbound') }
   const lease = allLeases.value.find(item => item.ownerKind === 'lab' && item.ownerId === job.id)
   switch (lease?.state) {
     case 'ready':
-      return { className: 'bg-primary', title: '就绪' }
+      return { className: 'bg-primary', title: t('就绪', 'Ready') }
     case 'pulling':
-      return { className: 'bg-accent', title: '启动中' }
+      return { className: 'bg-accent', title: t('启动中', 'Starting') }
     case 'failed':
     case 'docker-down':
     case 'busy':
-      return { className: 'bg-destructive', title: lease.state === 'busy' ? '被占用' : '失败' }
+      return { className: 'bg-destructive', title: lease.state === 'busy' ? t('被占用', 'Occupied') : t('失败', 'Failed') }
     default:
-      return { className: 'bg-muted-foreground/40', title: '已停止' }
+      return { className: 'bg-muted-foreground/40', title: t('已停止', 'Stopped') }
   }
 }
 
@@ -237,9 +261,49 @@ onBeforeUnmount(() => {
   if (leaseTimer) clearInterval(leaseTimer)
 })
 
+function packSummary(pkg: EnvPackage) {
+  if (pkg.difficulty && pkg.purpose) return `${pkg.difficulty} · ${pkg.purpose}`
+  return pkg.detail || pkg.kindLabel
+}
+
+function packCategoryIcon(category: LabPackageCategory) {
+  if (category === 'probe') return Radio
+  if (category === 'web') return Globe
+  if (category === 'linux') return SquareTerminal
+  if (category === 'android') return Smartphone
+  if (category === 'cve') return ShieldAlert
+  return Box
+}
+
+function packIntro(pkg: EnvPackage) {
+  return pkg.brief || pkg.detail
+}
+
+function packSubtitle(pkg: EnvPackage) {
+  if (pkg.difficulty) return `${pkg.kindLabel} · ${pkg.difficulty}`
+  return pkg.kindLabel
+}
+
+function packHostLine(pkg: EnvPackage) {
+  if (pkg.provider === 'android-avd') {
+    return pkg.id === 'android-lab'
+      ? t('模拟器 MilkSU-Lab · 已预装 InjuredAndroid', 'Emulator MilkSU-Lab · InjuredAndroid preinstalled')
+      : t('模拟器 MilkSU-Lab · 空白设备', 'Emulator MilkSU-Lab · blank device')
+  }
+  if (pkg.address) {
+    return `${pkg.surface === 'shell' ? t('终端', 'Terminal') : t('浏览器', 'Browser')} · ${pkg.address}`
+  }
+  return pkg.detail
+}
+
+function jobForPackage(packageId: string) {
+  return labJobs.value
+    .filter(job => job.packageId === packageId)
+    .sort((left, right) => right.updatedAt - left.updatedAt)[0] ?? null
+}
+
 function openNew() {
   showNew.value = true
-  newSource.value = 'local'
   draftScope.value = 'local'
   draftRequest.value = ''
 }
@@ -254,21 +318,37 @@ function closePack() {
   selectedPackId.value = ''
 }
 
-async function startChallenge(pkg: EnvPackage, challenge: EnvChallenge) {
+async function startPackage(pkg: EnvPackage, challenge?: EnvChallenge) {
   showNew.value = false
-  labTab.value = 'jobs'
-  selectedPackId.value = ''
+  const focused = challenge || ((pkg.challenges?.length || 0) === 1 ? pkg.challenges?.[0] : undefined)
+  const existing = jobForPackage(pkg.id)
+  if (existing) {
+    if (focused) focusChallenge(existing.id, focused.id, focused.guidance)
+    selectedPackId.value = ''
+    selectedId.value = existing.id
+    emit('enter', existing)
+    pendingOpen.value = true
+    await nextTick()
+    await startEnv(pkg.id)
+    return
+  }
   const job = createJob({
     scope: 'local',
-    request: challenge.guidance || pkg.brief || pkg.detail,
-    title: `${pkg.name} · ${challenge.title}`,
+    request: focused?.guidance || packIntro(pkg),
+    title: pkg.name,
     packageId: pkg.id,
-    challengeId: challenge.id,
+    challengeId: focused?.id,
   })
+  selectedPackId.value = ''
   emit('enter', job)
   pendingOpen.value = true
   await nextTick()
   await startEnv(pkg.id)
+}
+
+function selectChallenge(challenge: EnvChallenge) {
+  if (!selected.value) return
+  focusChallenge(selected.value.id, challenge.id, challenge.guidance)
 }
 
 function openDocker() {
@@ -295,11 +375,10 @@ watch(() => envLease.value.state, state => {
 })
 
 function submitNew() {
-  if (newSource.value === 'package') return
   const request = draftRequest.value.trim()
   if (!request) return
   const job = createJob({
-    scope: newSource.value === 'remote' ? 'remote' : draftScope.value,
+    scope: draftScope.value,
     request,
   })
   showNew.value = false
@@ -312,12 +391,30 @@ function openJob(job: LabJob) {
 }
 
 function back() {
+  const packId = selected.value?.packageId
   selectedId.value = ''
+  if (packId) {
+    labTab.value = 'packages'
+    selectedPackId.value = packId
+    return
+  }
+  labTab.value = 'jobs'
 }
 
-function startJob() {
-  if (!selected.value) return
-  emit('run', selected.value)
+function openCoding() {
+  const job = selected.value
+  if (!job) return
+  props.ensureConversation?.(job.title, {
+    conversationId: `lab-job-${job.id}`,
+    domainTaskContext: {
+      kind: 'lab',
+      jobId: job.id,
+      title: job.title,
+      scope: job.scope,
+      request: job.request,
+    },
+  })
+  emit('expand')
 }
 
 function setRenameInput(element: unknown) {
@@ -366,65 +463,109 @@ function abortRename(event: KeyboardEvent) {
     <template v-if="!selected">
       <WorkspaceModuleTopBar
         module="lab"
-        :title="selectedPack ? selectedPack.name : '实验室'"
-        :subtitle="selectedPack ? selectedPack.kindLabel : ''"
+        :title="selectedPack ? selectedPack.name : t('实验室', 'Lab')"
+        :subtitle="selectedPack ? packSubtitle(selectedPack) : ''"
       >
         <template v-if="selectedPack" #leading>
-          <Button variant="ghost" size="icon-sm" aria-label="返回题目包" @click="closePack">
+          <Button variant="ghost" size="icon-sm" :aria-label="t('返回题目包', 'Back to packages')" @click="closePack">
             <ArrowLeft class="size-4" />
           </Button>
         </template>
         <template #actions>
-          <SegmentedControl v-if="!selectedPack" v-model="labTab" aria-label="实验室分段" :items="labTabItems" />
-          <Button v-if="!selectedPack" variant="brand" size="sm" @click="openNew">
+          <SegmentedControl v-if="!selectedPack" v-model="labTab" :aria-label="t('实验室分段', 'Lab sections')" :items="labTabItems" />
+          <Button
+            v-if="!selectedPack && labTab === 'jobs'"
+            variant="ghost"
+            size="icon-sm"
+            :aria-label="t('新建自定义任务', 'New custom job')"
+            data-testid="lab-new-custom"
+            @click="openNew"
+          >
             <Plus class="size-4" />
-            新作业
           </Button>
         </template>
       </WorkspaceModuleTopBar>
 
-      <section v-if="labTab === 'packages' && selectedPack" class="min-h-0 flex-1 overflow-auto bg-background" aria-label="靶机">
-        <div class="mx-auto grid max-w-5xl gap-4 px-6 py-6 sm:grid-cols-2">
-          <p class="sm:col-span-2 text-body leading-6 text-muted-foreground">{{ selectedPack.detail }}</p>
-          <article
-            v-for="challenge in selectedPack.challenges"
-            :key="challenge.id"
-            class="rounded-xl border border-border bg-card p-5"
-            data-testid="lab-machine-card"
-          >
-            <span class="ak-tag ak-tag--compact">{{ challenge.kind }}</span>
-            <h2 class="mt-3 text-control font-medium">{{ challenge.title }}</h2>
-            <p class="mt-2 text-caption leading-6 text-muted-foreground">{{ challenge.guidance }}</p>
-            <Button class="mt-4" size="sm" variant="brand" @click="selectedPack && startChallenge(selectedPack, challenge)">启动</Button>
-          </article>
+      <section v-if="labTab === 'packages' && selectedPack" class="min-h-0 flex-1 overflow-auto bg-background" :aria-label="t('靶机', 'Target')">
+        <div class="mx-auto flex max-w-5xl flex-col gap-6 px-6 py-6">
+          <SettingsSection :title="t('简介', 'Overview')" data-testid="lab-pack-intro">
+            <SettingsRow v-if="selectedPack.source" :label="t('来源', 'Source')" :description="selectedPack.source" />
+            <SettingsRow v-if="selectedPack.purpose" :label="t('用途', 'Purpose')" :description="selectedPack.purpose" />
+            <SettingsRow v-if="selectedPack.difficulty" :label="t('难度', 'Difficulty')" :description="selectedPack.difficulty" />
+            <SettingsRow stack="always" :label="t('说明', 'Notes')" :description="packIntro(selectedPack)" :divider="false" />
+          </SettingsSection>
+          <SettingsSection :title="t('靶机', 'Target')" data-testid="lab-machine-card">
+            <SettingsRow :label="selectedPack.name" :description="packHostLine(selectedPack)" :divider="false">
+              <template #leading>
+                <Smartphone v-if="selectedPack.provider === 'android-avd'" class="size-4" />
+                <Box v-else class="size-4" />
+              </template>
+              <Button size="sm" variant="brand" @click="startPackage(selectedPack)">{{ t('启动', 'Start') }}</Button>
+            </SettingsRow>
+          </SettingsSection>
+          <SettingsSection v-if="(selectedPack.challenges?.length || 0) > 1" :title="t('题目', 'Challenges')">
+            <div
+              v-for="(challenge, index) in selectedPack.challenges"
+              :key="challenge.id"
+              class="contents"
+              data-testid="lab-flag-row"
+            >
+              <ModelListRow
+                :label="challenge.title"
+                :meta="`${challenge.kind} · ${challenge.guidance}`"
+                :last="index === (selectedPack.challenges?.length || 0) - 1"
+                @click="startPackage(selectedPack, challenge)"
+              >
+                <template #trailing>
+                  <ChevronRight class="size-4 text-muted-foreground" />
+                </template>
+              </ModelListRow>
+            </div>
+          </SettingsSection>
         </div>
       </section>
 
-      <section v-else-if="labTab === 'packages'" class="min-h-0 flex-1 overflow-auto bg-background" aria-label="题目包">
-        <div class="mx-auto grid max-w-5xl gap-4 px-6 py-6 sm:grid-cols-2 xl:grid-cols-3">
-          <button
-            v-for="item in envPackages"
-            :key="item.id"
-            type="button"
-            class="rounded-xl border border-border bg-card p-5 text-left transition-colors hover:border-primary/50"
-            data-testid="lab-pack-card"
-            @click="openPack(item)"
+      <section v-else-if="labTab === 'packages'" class="min-h-0 flex-1 overflow-auto bg-background" :aria-label="t('题目包', 'Packages')">
+        <div class="mx-auto flex max-w-5xl flex-col gap-8 px-6 py-6">
+          <section
+            v-for="group in packageGroups"
+            :key="group.category"
+            data-testid="lab-pack-group"
+            :aria-label="group.label"
           >
-            <span class="ak-tag ak-tag--compact">{{ item.kindLabel }}</span>
-            <span class="mt-3 block text-control font-medium">{{ item.name }}</span>
-            <span class="mt-2 block text-caption leading-6 text-muted-foreground">{{ item.detail }}</span>
-            <span class="mt-4 block text-caption text-muted-foreground">{{ item.challenges?.length || 0 }} 台靶机</span>
-          </button>
+            <h2 class="mb-3 flex items-baseline gap-2 text-label font-medium text-muted-foreground">
+              <span>{{ group.label }}</span>
+              <span class="font-mono text-caption">{{ group.packages.length }}</span>
+            </h2>
+            <div class="grid gap-3 sm:grid-cols-2">
+              <ActionCard
+                v-for="item in group.packages"
+                :key="item.id"
+                data-testid="lab-pack-card"
+                :title="item.name"
+                :description="packSummary(item)"
+                @click="openPack(item)"
+              >
+                <template #icon>
+                  <component :is="packCategoryIcon(group.category)" />
+                </template>
+              </ActionCard>
+            </div>
+          </section>
         </div>
       </section>
 
-      <section v-else class="tactical-paper-surface min-h-0 flex-1 overflow-auto bg-card" aria-label="实验室列表">
-        <div class="min-w-[720px]">
+      <section v-else class="tactical-paper-surface min-h-0 flex-1 overflow-auto bg-card" :aria-label="t('自定义任务', 'Custom jobs')">
+        <div v-if="!customJobs.length" class="flex min-h-full flex-col items-center justify-center gap-3 px-6 py-16 text-center">
+          <p class="text-body text-muted-foreground">{{ t('还没有自定义任务。', 'No custom jobs.') }}</p>
+          <Button size="sm" variant="brand" @click="labTab = 'packages'">{{ t('看题目包', 'Browse packages') }}</Button>
+        </div>
+        <div v-else class="min-w-[720px]">
           <div class="tactical-desk-head tactical-table-head grid h-12 grid-cols-[minmax(200px,1fr)_80px_56px_120px_40px_72px] items-center gap-4 border-b border-border px-6 text-caption text-muted-foreground">
-            <span>作业</span><span>范围</span><span>环境</span><span>最近</span><span class="sr-only">操作</span><span class="sr-only">打开</span>
+            <span>{{ t('任务', 'Job') }}</span><span>{{ t('范围', 'Scope') }}</span><span>{{ t('环境', 'Environment') }}</span><span>{{ t('最近', 'Recent') }}</span><span class="sr-only">{{ t('操作', 'Actions') }}</span><span class="sr-only">{{ t('打开', 'Open') }}</span>
           </div>
           <article
-            v-for="job in labJobs"
+            v-for="job in customJobs"
             :key="job.id"
             class="tactical-row grid min-h-[72px] w-full grid-cols-[minmax(200px,1fr)_80px_56px_120px_40px_72px] items-center gap-4 px-6 text-left"
             data-testid="catalog-row"
@@ -435,7 +576,7 @@ function abortRename(event: KeyboardEvent) {
               v-model="editingTitle"
               size="sm"
               class="h-8 min-w-0"
-              aria-label="编辑作业标题"
+              :aria-label="t('编辑任务标题', 'Edit job title')"
               maxlength="40"
               @keydown.enter="submitRename($event, job)"
               @keydown.escape="abortRename($event)"
@@ -460,59 +601,90 @@ function abortRename(event: KeyboardEvent) {
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  aria-label="作业操作"
+                  :aria-label="t('任务操作', 'Job actions')"
                   @click.stop
                 >
                   <MoreVertical class="size-3.5" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" :side-offset="4" class="w-40">
-                <DropdownMenuItem aria-label="重命名作业" @select="startRename(job)">
-                  <Pencil class="size-4" />重命名
+                <DropdownMenuItem :aria-label="t('重命名任务', 'Rename job')" @select="startRename(job)">
+                  <Pencil class="size-4" />{{ t('重命名', 'Rename') }}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
             <span v-else class="size-8" aria-hidden="true" />
-            <Button size="sm" variant="outline" data-testid="open-item" @click="openJob(job)">打开</Button>
+            <Button size="sm" variant="outline" data-testid="open-item" @click="openJob(job)">{{ t('打开', 'Open') }}</Button>
           </article>
         </div>
       </section>
       <footer class="flex h-14 shrink-0 items-center border-t border-border px-6">
         <span v-if="labTab === 'packages' && selectedPack" class="text-caption text-muted-foreground">
-          {{ selectedPack.challenges?.length || 0 }} 台靶机
+          {{ t('1 台靶机', '1 target') }}<span v-if="(selectedPack.challenges?.length || 0) > 1"> · {{ t(`${selectedPack.challenges?.length} 题`, `${selectedPack.challenges?.length} challenges`) }}</span>
         </span>
         <span v-else-if="labTab === 'packages'" class="text-caption text-muted-foreground">
-          {{ envPackages.length }} 个题目包
+          {{ t(`${envPackages.length} 个题目包`, `${envPackages.length} packages`) }}
         </span>
-        <span v-else class="text-caption text-muted-foreground">共 {{ labJobs.length }} 条</span>
+        <span v-else class="text-caption text-muted-foreground">{{ t(`共 ${customJobs.length} 条`, `${customJobs.length} items`) }}</span>
       </footer>
     </template>
 
     <template v-else>
       <WorkspaceModuleTopBar module="lab" :title="selected.title" :subtitle="labScopeLabel(selected.scope)">
         <template #leading>
-          <Button variant="ghost" size="icon-sm" aria-label="返回实验室" @click="back">
+          <Button variant="ghost" size="icon-sm" :aria-label="t('返回实验室', 'Back to Lab')" @click="back">
             <ArrowLeft class="size-4" />
           </Button>
         </template>
         <template #actions>
-          <Button variant="brand" size="sm" @click="startJob">开始</Button>
+          <Button variant="outline" size="sm" @click="openCoding">{{ t('进入 Coding', 'Open in Coding') }}</Button>
         </template>
       </WorkspaceModuleTopBar>
-      <div class="flex min-h-0 flex-1 overflow-hidden">
-        <div class="flex min-h-0 min-w-0 flex-1 flex-col" :class="targetOpen ? 'max-w-md border-r border-border' : ''">
+      <div class="flex min-h-0 flex-1 overflow-hidden" data-dossier-split>
+        <div
+          class="flex min-h-0 min-w-0 flex-col"
+          :class="liveTargetVisible ? '' : 'flex-1'"
+          :style="liveTargetVisible ? { width: `${briefWidth}px`, flex: 'none' } : undefined"
+        >
           <div class="min-h-0 flex-1 overflow-auto">
-          <div class="space-y-5 px-6 py-6" :class="targetOpen ? '' : 'mx-auto max-w-5xl'">
-            <section class="rounded-xl border border-border bg-card p-6">
-              <h2 class="text-label font-medium">题面</h2>
-              <div class="mt-3 flex flex-wrap items-center gap-2">
-                <span v-if="boundPackage" class="ak-tag ak-tag--compact">{{ boundPackage.kindLabel }}</span>
-                <span v-if="boundChallenge" class="ak-tag ak-tag--compact ak-tag--neutral">{{ boundChallenge.kind }}</span>
-                <span class="text-caption text-muted-foreground">{{ labScopeLabel(selected.scope) }}</span>
-              </div>
-              <p v-if="boundChallenge" class="mt-3 text-control font-medium">{{ boundChallenge.title }}</p>
-              <p class="mt-3 whitespace-pre-wrap text-body leading-6" data-testid="lab-challenges">{{ boundChallenge?.guidance || selected.request }}</p>
-            </section>
+          <div class="space-y-5 px-6 py-6" :class="liveTargetVisible ? '' : 'mx-auto max-w-5xl'">
+            <SettingsSection :title="t('题面', 'Brief')">
+              <SettingsRow v-if="boundPackage?.source" :label="t('来源', 'Source')" :description="boundPackage.source" />
+              <SettingsRow v-if="boundPackage?.purpose" :label="t('用途', 'Purpose')" :description="boundPackage.purpose" />
+              <SettingsRow v-if="boundPackage?.difficulty" :label="t('难度', 'Difficulty')" :description="boundPackage.difficulty" />
+              <SettingsRow
+                v-if="boundPackage"
+                stack="always"
+                :label="t('说明', 'Notes')"
+                :description="packIntro(boundPackage)"
+              />
+              <template v-if="(boundPackage?.challenges?.length || 0) > 1">
+                <div
+                  v-for="(challenge, index) in boundPackage?.challenges"
+                  :key="challenge.id"
+                  class="contents"
+                  data-testid="lab-flag-row"
+                >
+                  <ModelListRow
+                    :label="challenge.title"
+                    :meta="`${challenge.kind} · ${challenge.guidance}`"
+                    :last="index === (boundPackage?.challenges?.length || 0) - 1"
+                    @click="selectChallenge(challenge)"
+                  >
+                    <template #trailing>
+                      <ChevronRight class="size-4 text-muted-foreground" />
+                    </template>
+                  </ModelListRow>
+                </div>
+              </template>
+              <SettingsRow
+                stack="always"
+                :label="t('当前', 'Current')"
+                :description="boundChallenge?.guidance || selected.request"
+                :divider="false"
+                data-testid="lab-challenges"
+              />
+            </SettingsSection>
             <EnvironmentStrip
               :lease="stripLease"
               @start="startEnv(selected.packageId || envLease.packageId)"
@@ -524,77 +696,32 @@ function abortRename(event: KeyboardEvent) {
               @occupy-go="occupyGo"
               @occupy-stop="occupyStop"
             />
-            <section class="rounded-xl border border-border bg-card p-6">
-              <h2 class="text-label font-medium">报告</h2>
+            <SettingsSection :title="t('报告', 'Report')">
               <ResearchReportPanel
-                class="mt-4"
+                class="px-4 py-3 text-body leading-6"
                 :workspace-path="workspacePath || conversation?.workspacePath || ''"
                 :refresh-key="running ? 'run' : conversation?.messages.length"
               />
-            </section>
+            </SettingsSection>
           </div>
           </div>
-          <ConversationDock
-            v-if="targetOpen"
-            placement="column"
-            :conversation="conversation ?? null"
-            :conversations="dossierConversations"
-            :running="running"
-            :aborting="aborting"
-            :settings="settings"
-            :workspace-path="workspacePath"
-            :message-queue="messageQueue"
-            :session-ready="sessionReady"
-            :resumed="resumed"
-            :compacting="compacting"
-            :compacted-at="compactedAt"
-            :compaction-error="compactionError"
-            :turn-status="turnStatus"
-            :ctf-session="ctfSession"
-            :vulnerability-session="vulnerabilitySession"
-            :ctf-mode="ctfMode"
-            :ctf-role="ctfRole"
-            :model-mode="modelMode"
-            :model-provider="modelProvider"
-            :model-id="modelId"
-            :model-source-preference="modelSourcePreference"
-            :execution-mode="executionMode"
-            :approval-policy="approvalPolicy"
-            :mcp-servers="mcpServers"
-            :mcp-config-digest="mcpConfigDigest"
-            :ensure-conversation="ensureConversation"
-            :pending-composer-draft="pendingComposerDraft"
-            @send="(...args) => $emit('send', ...args)"
-            @abort="$emit('abort')"
-            @select="$emit('selectConversation', $event)"
-            @create="$emit('createConversation')"
-            @expand="$emit('expand')"
-            @consume-pending-draft="$emit('consumePendingDraft')"
-            @compact-context="$emit('compactContext')"
-            @control-goal="$emit('controlGoal', $event)"
-            @respond-approval="(requestId, approved, scope) => $emit('respondApproval', requestId, approved, scope)"
-            @change-model="(mode, provider, model) => $emit('changeModel', mode, provider, model)"
-            @change-model-source="$emit('changeModelSource', $event)"
-            @change-coding-policy="(mode, policy) => $emit('changeCodingPolicy', mode, policy)"
-            @change-mcp-servers="(servers, digest) => $emit('changeMcpServers', servers, digest)"
-            @choose-workspace="$emit('chooseWorkspace')"
-            @choose-workspace-for-new-task="$emit('chooseWorkspaceForNewTask')"
-            @select-workspace="$emit('selectWorkspace', $event)"
-            @forget-workspace="$emit('forgetWorkspace', $event)"
-            @clear-workspace="$emit('clearWorkspace')"
-            @cancel-queued-guidance="$emit('cancelQueuedGuidance', $event)"
-            @edit-queued-guidance="$emit('editQueuedGuidance', $event)"
-            @open-settings="$emit('openSettings')"
+        </div>
+        <div v-if="liveTargetVisible" class="relative flex min-h-0 min-w-0 flex-1">
+          <div
+            class="dossier-split-handle app-no-drag"
+            role="separator"
+            aria-orientation="vertical"
+            data-testid="dossier-split"
+            :aria-label="t('调节题面宽度', 'Resize the brief pane')"
+            @pointerdown="startBriefResize"
+          />
+          <TargetLivePane
+            :lease="envLease"
+            :conversation-id="conversation?.id"
           />
         </div>
-        <TargetLivePane
-          v-if="targetOpen && envLease.state === 'ready'"
-          :lease="envLease"
-          :conversation-id="conversation?.id"
-        />
       </div>
       <ConversationDock
-        v-if="!targetOpen"
         :conversation="conversation ?? null"
         :conversations="dossierConversations"
         :running="running"
@@ -649,47 +776,57 @@ function abortRename(event: KeyboardEvent) {
     <Dialog v-model:open="showNew">
       <DialogContent class="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>新作业</DialogTitle>
-          <DialogDescription class="sr-only">范围和要求</DialogDescription>
+          <DialogTitle>{{ t('自定义任务', 'Custom job') }}</DialogTitle>
+          <DialogDescription class="sr-only">{{ t('范围和要求', 'Scope and request') }}</DialogDescription>
         </DialogHeader>
         <form class="grid gap-4" @submit.prevent="submitNew">
           <div>
-            <p class="mb-2 text-caption text-muted-foreground">来源</p>
-            <SegmentedControl v-model="newSource" aria-label="来源" :items="sourceItems" />
-          </div>
-          <div v-if="newSource === 'package'" class="grid gap-2">
-            <button
-              v-for="item in envPackages"
-              :key="item.id"
-              type="button"
-              class="rounded-md border border-border px-3 py-3 text-left"
-              @click="openPack(item)"
-            >
-              <span class="text-control font-medium">{{ item.name }}</span>
-              <span class="mt-1 block text-caption text-muted-foreground">{{ item.detail }}</span>
-            </button>
-          </div>
-          <div v-if="newSource !== 'package'">
-            <p class="mb-2 text-caption text-muted-foreground">范围</p>
+            <p class="mb-2 text-caption text-muted-foreground">{{ t('范围', 'Scope') }}</p>
             <SegmentedControl
               v-model="draftScope"
-              aria-label="范围"
+              :aria-label="t('范围', 'Scope')"
               :items="scopeItems"
             />
           </div>
-          <label v-if="newSource !== 'package'" class="text-caption text-muted-foreground">要求
+          <label class="text-caption text-muted-foreground">{{ t('要求', 'Request') }}
             <textarea
               v-model="draftRequest"
               class="mt-1 min-h-32 w-full resize-y rounded-md border border-border px-3 py-2 text-body outline-none"
-              aria-label="要求"
+              :aria-label="t('要求', 'Request')"
             />
           </label>
           <div class="flex justify-end gap-2">
-            <Button type="button" variant="ghost" @click="showNew = false">取消</Button>
-            <Button type="submit" variant="brand" :disabled="!draftRequest.trim()">开始</Button>
+            <Button type="button" variant="ghost" @click="showNew = false">{{ t('取消', 'Cancel') }}</Button>
+            <Button type="submit" variant="brand" :disabled="!draftRequest.trim()">{{ t('开始', 'Start') }}</Button>
           </div>
         </form>
       </DialogContent>
     </Dialog>
   </main>
 </template>
+
+<style scoped>
+.dossier-split-handle {
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: 2;
+  width: 8px;
+  margin-left: -3px;
+  cursor: col-resize;
+  touch-action: none;
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+.dossier-split-handle::after {
+  position: absolute;
+  inset: 0 3px;
+  background: transparent;
+  content: '';
+}
+.dossier-split-handle:hover::after,
+.dossier-split-handle:focus-visible::after {
+  background: var(--brand);
+  opacity: .55;
+}
+</style>

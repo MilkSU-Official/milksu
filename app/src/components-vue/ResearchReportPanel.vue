@@ -3,6 +3,7 @@ import { onMounted, ref, watch } from 'vue'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 import { invokeCommand } from '@/desktop'
 import type { CodingArtifactPreview } from '@/codingEnvironmentTypes'
+import { t } from '@/lib/uiLocale'
 
 const props = defineProps<{
   workspacePath: string
@@ -46,7 +47,7 @@ watch(() => [props.workspacePath, props.refreshKey], load)
       class="research-report__html"
       sandbox=""
       :srcdoc="preview.content"
-      title="报告"
+      :title="t('报告', 'Report')"
     />
   </article>
 </template>

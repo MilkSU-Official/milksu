@@ -33,6 +33,7 @@ import {
   useModelCatalog,
 } from '@/modelCatalog'
 import ModelVendorIcon from '@/components-vue/ModelVendorIcon.vue'
+import { t } from '@/lib/uiLocale'
 
 const { pickerGroups, pickerModelLabel } = useModelCatalog()
 
@@ -97,7 +98,7 @@ function triggerModelText() {
             class="composer-control composer-permission justify-start rounded-full"
             :class="{ 'composer-permission--full': approvalPolicy === 'full-auto' }"
             :disabled="running"
-            aria-label="Coding 权限策略"
+            :aria-label="t('Coding 权限策略', 'Coding permission policy')"
             :title="approvalLabel"
           >
             <ShieldAlert
@@ -116,14 +117,14 @@ function triggerModelText() {
         >
           <div class="flex items-center justify-between gap-4 px-4 pb-2 pt-3">
             <p class="text-label font-medium text-muted-foreground">
-              应如何批准 MilkSU 操作？
+              {{ t('应如何批准 MilkSU 操作？', 'How should MilkSU get approval to act?') }}
             </p>
             <button
               type="button"
               class="shrink-0 text-label font-medium text-muted-foreground underline underline-offset-4 hover:text-foreground"
               @click.stop="$emit('showPermissions')"
             >
-              了解更多
+              {{ t('了解更多', 'Learn more') }}
             </button>
           </div>
           <DropdownMenuItem
@@ -132,9 +133,9 @@ function triggerModelText() {
           >
             <Hand class="approval-option__icon" />
             <div class="min-w-0 flex-1">
-              <p class="approval-option__title">请求批准</p>
+              <p class="approval-option__title">{{ t('请求批准', 'Ask before acting') }}</p>
               <p class="approval-option__description">
-                编辑文件、运行命令或使用互联网前始终询问
+                {{ t('编辑文件、运行命令或使用互联网前始终询问', 'Always ask before editing files, running commands, or using the internet') }}
               </p>
             </div>
             <Check
@@ -148,9 +149,9 @@ function triggerModelText() {
           >
             <ShieldCheck class="approval-option__icon" />
             <div class="min-w-0 flex-1">
-              <p class="approval-option__title">替我审批</p>
+              <p class="approval-option__title">{{ t('替我审批', 'Approve for me') }}</p>
               <p class="approval-option__description">
-                项目内和内置浏览器自动执行；用户浏览器、外部账户或高风险操作仍会拦截
+                {{ t('项目内和内置浏览器自动执行；用户浏览器、外部账户或高风险操作仍会拦截', 'Auto-run in the project and built-in browser. User browsers, external accounts, and high-risk actions still pause.') }}
               </p>
             </div>
             <Check
@@ -165,9 +166,9 @@ function triggerModelText() {
           >
             <ShieldAlert class="approval-option__icon" />
             <div class="min-w-0 flex-1">
-              <p class="approval-option__title">完全访问权限</p>
+              <p class="approval-option__title">{{ t('完全访问权限', 'Full access') }}</p>
               <p class="approval-option__description">
-                可不受限制地访问互联网和当前用户可访问的任何文件
+                {{ t('可不受限制地访问互联网和当前用户可访问的任何文件', 'Unrestricted internet access and any files the current user can reach') }}
               </p>
             </div>
             <Check
@@ -189,8 +190,8 @@ function triggerModelText() {
             size="sm"
             class="composer-control composer-thinking rounded-full"
             :disabled="running"
-            :aria-label="`思考层级：${thinkingLabel}`"
-            title="调整当前对话的思考层级"
+            :aria-label="t(`思考层级：${thinkingLabel}`, `Thinking level: ${thinkingLabel}`)"
+            :title="t('调整当前对话的思考层级', 'Adjust thinking level for this conversation')"
           >
             <BrainCircuit class="size-3.5 shrink-0" />
             <span>{{ thinkingLabel }}</span>
@@ -203,7 +204,7 @@ function triggerModelText() {
           class="thinking-menu w-[21rem] max-w-[calc(100vw-2rem)] p-4"
         >
           <div class="flex items-center justify-between gap-4">
-            <p class="text-label font-medium">思考层级</p>
+            <p class="text-label font-medium">{{ t('思考层级', 'Thinking level') }}</p>
             <span class="text-caption font-medium text-primary">{{ thinkingLabel }}</span>
           </div>
           <input
@@ -214,7 +215,7 @@ function triggerModelText() {
             step="1"
             :value="thinkingIndex"
             :style="{ '--thinking-progress': `${thinkingProgress}%` }"
-            aria-label="当前对话思考层级"
+            :aria-label="t('当前对话思考层级', 'Thinking level for this conversation')"
             @input="changeThinkingIndex(($event.target as HTMLInputElement).value)"
           >
           <div
@@ -241,10 +242,10 @@ function triggerModelText() {
         <SelectTrigger
           size="sm"
           class="composer-control composer-model min-w-0 rounded-full border-0 bg-transparent shadow-none"
-          aria-label="选择本任务模型"
+          :aria-label="t('选择本任务模型', 'Choose a model for this task')"
           :title="modelKey === 'auto'
-            ? '使用 MilkSU 默认模型；你可以仅为当前对话覆盖'
-            : '当前对话固定使用所选模型'"
+            ? t('使用 MilkSU 默认模型；你可以仅为当前对话覆盖', 'Use the MilkSU default model. You can override it for this conversation only.')
+            : t('当前对话固定使用所选模型', 'This conversation is pinned to the selected model')"
         >
           <SelectValue>
             <span class="inline-flex min-w-0 items-center gap-1.5">

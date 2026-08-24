@@ -23,6 +23,7 @@ import {
   withoutBlankAssistantMessages,
 } from '@/lib/chatActivity'
 import { redactProviderCredentials } from '@/lib/redaction'
+import { t } from '@/lib/uiLocale'
 import { normalizeDomainTaskContext } from '@/lib/domainTaskContext'
 import { shouldRememberCodingProject } from '@/lib/codingProjectMemory'
 import { resolveModelContextWindow } from '@/lib/knownContextWindow'
@@ -53,7 +54,7 @@ import type {
 } from '@/types'
 
 const BROWSER_USE_MCP_SERVER = 'milksu-playwright-user'
-const DEFAULT_CODING_CONVERSATION_TITLE = '新编码任务'
+const DEFAULT_CODING_CONVERSATION_TITLE = t('新编码任务', 'New coding task')
 type ComposerScopeToken = 'browser-use' | 'computer-use'
 
 export function fallbackConversationTitle(value: string) {
@@ -307,7 +308,7 @@ export function normalizeConversation(raw: Record<string, unknown>): Conversatio
   const messages = (raw.messages as Record<string, unknown>[] | undefined) ?? []
   return {
     id: String(raw.id ?? ''),
-    title: String(raw.title ?? '未命名对话'),
+    title: String(raw.title ?? t('未命名对话', 'Untitled conversation')),
     createdAt: Number(raw.createdAt ?? 0),
     workspacePath: typeof raw.workspacePath === 'string' ? raw.workspacePath : undefined,
     modelMode: ['auto', 'manual'].includes(String(raw.modelMode))
@@ -396,7 +397,7 @@ export function normalizeConversation(raw: Record<string, unknown>): Conversatio
         approvalState,
         approvalGrantable: message.approvalGrantable === true,
         approvalReason: approvalState === 'expired'
-          ? '应用或 Agent 已重启，本次审批已失效'
+          ? t('应用或 Agent 已重启，本次审批已失效', 'The app or Agent restarted, so this approval is no longer valid')
           : typeof message.approvalReason === 'string'
             ? message.approvalReason
             : undefined,
@@ -457,16 +458,16 @@ export function agentProviderErrorDetail(value: unknown) {
 export function agentErrorMessage(value: unknown) {
   const message = agentProviderErrorDetail(value) || 'Agent engine failed'
   if (/no API key is configured|No API key for/i.test(message)) {
-    return '当前模型没有可用的 API Key。'
+    return t('当前模型没有可用的 API Key。', 'No API key is available for the current model.')
   }
   if (/Model not found/i.test(message)) {
-    return '当前模型不受支持，请更换模型。'
+    return t('当前模型不受支持，请更换模型。', 'This model is not supported. Choose another model.')
   }
   if (
     /ECONNREFUSED|ECONNRESET|ENOTFOUND|ETIMEDOUT|network is unreachable|connection refused|\bconnection error\b|fetch failed|dial tcp/i
       .test(message)
   ) {
-    return '模型或 Agent 网络连接失败。'
+    return t('模型或 Agent 网络连接失败。', 'Model or Agent network connection failed.')
   }
   return message
 }
@@ -479,80 +480,83 @@ export function agentRuntimeErrorMessage(value: unknown) {
   const raw = String(value ?? '')
   const detail = agentProviderErrorDetail(value)
   const normalized = agentErrorMessage(value)
-  if (/具体路径|explicit path|可解析的具体路径/i.test(raw)) {
-    return '请提供具体目录路径，例如 ~/code/project。'
+  if (new RegExp(`${t('具体路径', 'explicit path')}|explicit path|${t('可解析的具体路径', 'a resolvable explicit path')}`, 'i').test(raw)) {
+    return t('请提供具体目录路径，例如 ~/code/project。', 'Provide a specific directory path, such as ~/code/project.')
   }
-  if (/filesystem root|whole user directory|整个用户目录|磁盘根目录/i.test(raw)) {
-    return '不能授权整个磁盘或用户主目录。'
+  if (new RegExp(`filesystem root|whole user directory|${t('整个用户目录', 'whole user directory')}|${t('磁盘根目录', 'disk root')}`, 'i').test(raw)) {
+    return t('不能授权整个磁盘或用户主目录。', 'The whole disk or home directory cannot be authorized.')
   }
-  if (/must have a primary workspace|还没有工作区/i.test(raw)) {
-    return '当前会话没有工作区。'
+  if (new RegExp(`must have a primary workspace|${t('还没有工作区', 'no workspace yet')}`, 'i').test(raw)) {
+    return t('当前会话没有工作区。', 'This conversation has no workspace.')
   }
   if (/CTF Agent directory scope/i.test(raw)) {
-    return 'CTF 会话不能扩大 Coding 目录权限。'
+    return t('CTF 会话不能扩大 Coding 目录权限。', 'A CTF session cannot expand Coding directory permissions.')
   }
-  if (/project access is (?:not|no longer) authorized|目录权限.*(?:未授权|已撤销)/i.test(raw)) {
-    return '当前会话没有这个目录的权限。'
+  if (new RegExp(`project access is (?:not|no longer) authorized|${t('目录权限', 'directory permission')}.*(?:${t('未授权', 'unauthorized')}|${t('已撤销', 'revoked')})`, 'i').test(raw)) {
+    return t('当前会话没有这个目录的权限。', 'This conversation does not have access to that directory.')
   }
   if (/supports at most 8 additional project directories|limited to 8 additional directories/i.test(raw)) {
-    return '额外目录最多 8 个。'
+    return t('额外目录最多 8 个。', 'At most 8 extra directories are allowed.')
   }
   if (/resolve Coding Agent project|open Coding Agent project|project must be a directory/i.test(raw)) {
-    return '无法打开该目录。'
+    return t('无法打开该目录。', 'Could not open that directory.')
   }
   if (/Access to this API has been restricted|--allow-fs-(?:read|write)|ERR_ACCESS_DENIED/i.test(raw)) {
-    return '本地 Agent 权限组件启动失败，请重试。'
+    return t('本地 Agent 权限组件启动失败，请重试。', 'The local Agent permission component failed to start. Try again.')
   }
   if (
     /both model sources are unavailable|enable the personal API key|add a personal API key|connect the beta account quota/i
       .test(raw)
   ) {
-    return '当前模型没有可用凭据。'
+    return t('当前模型没有可用凭据。', 'No credentials are available for the current model.')
   }
   if (/model provider .* is not supported|provider .* is not supported by the local Agent runtime/i.test(raw)) {
-    return '当前默认模型不可用，请在设置中改选 TokenFlux 或中转站。'
+    return t('当前默认模型不可用，请在设置中改选 TokenFlux 或中转站。', 'The current default model is unavailable. Choose TokenFlux or a relay in Settings.')
   }
   if (
     /COMPOSITE_KEY_MODEL_PREFIX_REQUIRED|composite api key model must use prefix\/model_id/i
       .test(raw)
   ) {
-    return '当前 Key 需要带厂商前缀的模型 ID（例如 x-ai/grok-4.5）。'
+    return t('当前 Key 需要带厂商前缀的模型 ID（例如 x-ai/grok-4.5）。', 'This key requires a vendor-prefixed model ID (for example x-ai/grok-4.5).')
   }
   // TokenFlux Claude Code-only groups reject OpenAI-compatible clients used by MilkSU/Pi.
   if (
     /restricted to Claude Code clients|\/v1\/messages only|Claude Code clients/i
       .test(raw)
   ) {
-    return '该模型仅支持 Claude Code 客户端，请改选 OpenAI 兼容模型。'
+    return t('该模型仅支持 Claude Code 客户端，请改选 OpenAI 兼容模型。', 'This model only supports Claude Code clients. Choose an OpenAI-compatible model.')
   }
-  if (/运行时正在启动/i.test(raw)) {
-    return '运行时正在启动，请稍候。'
+  if (new RegExp(t('运行时正在启动', 'Runtime is starting'), 'i').test(raw)) {
+    return t('运行时正在启动，请稍候。', 'Runtime is starting. Please wait.')
   }
-  if (/正在恢复运行时/i.test(raw)) {
-    return '正在恢复运行时。'
+  if (new RegExp(t('正在恢复运行时', 'Restoring runtime'), 'i').test(raw)) {
+    return t('正在恢复运行时。', 'Restoring runtime.')
   }
-  if (/Go runtime is unavailable|本地运行时已停止|本地运行时不可用/i.test(raw)) {
-    return '本地运行时已停止，请重新打开应用。'
+  if (new RegExp(`Go runtime is unavailable|${t('本地运行时已停止', 'The local runtime has stopped')}|${t('本地运行时不可用', 'The local runtime is unavailable')}`, 'i').test(raw)) {
+    return t('本地运行时已停止，请重新打开应用。', 'The local runtime has stopped. Reopen the app.')
   }
   if (/\b401\b|unauthori[sz]ed|invalid api key|authentication failed/i.test(raw)) {
-    return '模型凭据无效或无权访问。'
+    return t('模型凭据无效或无权访问。', 'Model credentials are invalid or unauthorized.')
   }
   if (/baseUrl.*required|required.*baseUrl/i.test(raw)) {
-    return '模型连接未就绪，请刷新配置后重试。'
+    return t('模型连接未就绪，请刷新配置后重试。', 'The model connection is not ready. Refresh the configuration and try again.')
   }
   // Overflow is normally recovered by Pi auto-compaction. This text is only a
   // fallback if a rare path still surfaces the provider error to chat.
   if (
-    /context overflow recovery failed|auto-compaction failed|context_length_exceeded|maximum context length|exceeds the context window|prompt is too long|token limit exceeded|too many tokens|上下文(?:窗口|过长|长度|已满)/i
+    new RegExp(
+      `context overflow recovery failed|auto-compaction failed|context_length_exceeded|maximum context length|exceeds the context window|prompt is too long|token limit exceeded|too many tokens|${t('上下文', 'context')}(?:${t('窗口', 'window')}|${t('过长', 'too long')}|${t('长度', 'length')}|${t('已满', 'full')})`,
+      'i',
+    )
       .test(raw)
   ) {
-    if (/recovery failed|auto-compaction failed|整理失败|压缩失败/i.test(raw)) {
-      return '自动整理上下文失败，请手动整理后再继续。'
+    if (new RegExp(`recovery failed|auto-compaction failed|${t('整理失败', 'compaction failed')}|${t('压缩失败', 'compression failed')}`, 'i').test(raw)) {
+      return t('自动整理上下文失败，请手动整理后再继续。', 'Automatic context compaction failed. Compact manually, then continue.')
     }
-    return '上下文过长，正在自动整理…'
+    return t('上下文过长，正在自动整理…', 'Context is too long. Compacting automatically…')
   }
-  if (/abort(?:ed)?|cancel(?:led|ed)|interrupted|context canceled|用户已中断|用户取消/i.test(raw)) {
-    return '本轮已停止。'
+  if (new RegExp(`abort(?:ed)?|cancel(?:led|ed)|interrupted|context canceled|${t('用户已中断', 'Interrupted by the user')}|${t('用户取消', 'Cancelled by the user')}`, 'i').test(raw)) {
+    return t('本轮已停止。', 'This turn was stopped.')
   }
   if (
     /no API key is configured|No API key for|Model not found|ECONNREFUSED|ECONNRESET|ENOTFOUND|ETIMEDOUT|network is unreachable|connection refused|\bconnection error\b|fetch failed|dial tcp/i
@@ -567,7 +571,7 @@ export function agentRuntimeErrorMessage(value: unknown) {
     return candidate.length > 480 ? `${candidate.slice(0, 477)}…` : candidate
   }
   // Internal stack / empty detail only: keep a short recovery hint.
-  return '本地 Agent 运行异常，请重试。'
+  return t('本地 Agent 运行异常，请重试。', 'The local Agent hit a runtime error. Try again.')
 }
 
 export function agentToolResultMessage(text: string, error?: string) {
@@ -579,7 +583,7 @@ export function agentToolResultMessage(text: string, error?: string) {
   ) {
     return agentRuntimeErrorMessage(raw)
   }
-  return redactProviderCredentials(text || raw) || '工具执行失败。'
+  return redactProviderCredentials(text || raw) || t('工具执行失败。', 'Tool execution failed.')
 }
 
 export function projectCodingAbortRequest(
@@ -885,11 +889,11 @@ export function useConversations() {
   const conversationActionError = ref('')
 
   async function archive(id: string) {
-    await runConversationAction('归档', 'archive_conversation', id)
+    await runConversationAction(t('归档', 'Archive'), 'archive_conversation', id)
   }
 
   async function remove(id: string) {
-    await runConversationAction('删除', 'delete_conversation', id)
+    await runConversationAction(t('删除', 'Delete'), 'delete_conversation', id)
   }
 
   async function runConversationAction(action: string, command: string, id: string) {
@@ -897,7 +901,8 @@ export function useConversations() {
     try {
       await invokeCommand(command, { id })
     } catch (cause) {
-      conversationActionError.value = `${action}失败：${cause instanceof Error ? cause.message : String(cause)}`
+      const causeText = cause instanceof Error ? cause.message : String(cause)
+      conversationActionError.value = t(`${action}失败：${causeText}`, `${action} failed: ${causeText}`)
       return
     }
     discard(id)
@@ -1304,7 +1309,7 @@ export function useConversations() {
             messages: [...conversation.messages, {
               id: crypto.randomUUID(),
               role: 'assistant',
-              content: `引导未加入当前回合：${agentErrorMessage(reason)}`,
+              content: t(`引导未加入当前回合：${agentErrorMessage(reason)}`, `Guidance was not added to this turn: ${agentErrorMessage(reason)}`),
               timestamp: Date.now(),
               status: 'done',
             }],
@@ -1351,7 +1356,7 @@ export function useConversations() {
         messages: [...conversation.messages, {
           id: crypto.randomUUID(),
           role: 'assistant',
-          content: `Agent 未启动：${agentRuntimeErrorMessage(reason)}`,
+          content: t(`Agent 未启动：${agentRuntimeErrorMessage(reason)}`, `Agent did not start: ${agentRuntimeErrorMessage(reason)}`),
           timestamp: Date.now(),
           status: 'done',
         }],
@@ -1467,7 +1472,7 @@ export function useConversations() {
         messages: [...conversation.messages, {
           id: crypto.randomUUID(),
           role: 'assistant',
-          content: `停止 Agent 失败：${agentErrorMessage(reason)}`,
+          content: t(`停止 Agent 失败：${agentErrorMessage(reason)}`, `Failed to stop Agent: ${agentErrorMessage(reason)}`),
           timestamp: Date.now(),
           status: 'done',
         }],
@@ -1485,11 +1490,12 @@ export function useConversations() {
         const messages = [...conversation.messages]
         const settledTools = settleRunningToolMessages(messages)
         const cleaned = withoutBlankAssistantMessages(settledTools)
-        if (cleaned[cleaned.length - 1]?.content !== '本轮已停止。') {
+        const stopped = t('本轮已停止。', 'This turn was stopped.')
+        if (cleaned[cleaned.length - 1]?.content !== stopped) {
           cleaned.push({
             id: crypto.randomUUID(),
             role: 'assistant',
-            content: '本轮已停止。',
+            content: stopped,
             timestamp: Date.now(),
             status: 'done',
           })
@@ -1567,7 +1573,7 @@ export function useConversations() {
         messages: [...current.messages, {
           id: crypto.randomUUID(),
           role: 'assistant',
-          content: `目标操作失败：${agentErrorMessage(reason)}`,
+          content: t(`目标操作失败：${agentErrorMessage(reason)}`, `Goal action failed: ${agentErrorMessage(reason)}`),
           timestamp: Date.now(),
           status: 'done',
         }],
@@ -1605,9 +1611,9 @@ export function useConversations() {
                 approvalState: approved ? 'approved' : 'denied',
                 approvalReason: approved
                   ? conversationGrant
-                    ? '已允许本对话后续同类操作'
-                    : '已允许本次操作'
-                  : '已拒绝本次操作',
+                    ? t('已允许本对话后续同类操作', 'Allowed similar actions for this conversation')
+                    : t('已允许本次操作', 'Allowed this action')
+                  : t('已拒绝本次操作', 'Denied this action'),
               }
             : message
         )),
@@ -1621,7 +1627,7 @@ export function useConversations() {
                 ...message,
                 status: 'done',
                 approvalState: 'expired',
-                approvalReason: `审批失败：${agentErrorMessage(reason)}`,
+                approvalReason: t(`审批失败：${agentErrorMessage(reason)}`, `Approval failed: ${agentErrorMessage(reason)}`),
               }
             : message
         )),
@@ -1669,14 +1675,16 @@ export function useConversations() {
             compactingId,
             {
               type: 'runtime.compaction_completed',
-              error: 'Agent 进程已停止，本次整理已中断。',
+              error: t('Agent 进程已停止，本次整理已中断。', 'The Agent process stopped. This compaction was interrupted.'),
             },
           )
           dismissCompactionErrorLater(compactingId)
         }
         const message = type === 'engine.protocol_error'
-          ? `Agent 通信异常：${agentRuntimeErrorMessage(error)}`
-          : `Agent 已停止${error ? `：${agentRuntimeErrorMessage(error)}` : '。'}`
+          ? t(`Agent 通信异常：${agentRuntimeErrorMessage(error)}`, `Agent communication error: ${agentRuntimeErrorMessage(error)}`)
+          : error
+            ? t(`Agent 已停止：${agentRuntimeErrorMessage(error)}`, `Agent stopped: ${agentRuntimeErrorMessage(error)}`)
+            : t('Agent 已停止。', 'Agent stopped.')
         conversations.value = conversations.value.map(conversation => (
           affected.includes(conversation.id)
             ? {
@@ -1688,7 +1696,7 @@ export function useConversations() {
                           ...item,
                           status: 'done' as const,
                           approvalState: 'expired' as const,
-                          approvalReason: 'Agent 进程已结束，本次审批已失效',
+                          approvalReason: t('Agent 进程已结束，本次审批已失效', 'The Agent process ended, so this approval is no longer valid'),
                         }
                       : item
                   )),
@@ -1812,7 +1820,7 @@ export function useConversations() {
           messages.push({
             id: crypto.randomUUID(),
             role: 'assistant',
-            content: `引导未加入当前回合：${agentErrorMessage(error)}`,
+            content: t(`引导未加入当前回合：${agentErrorMessage(error)}`, `Guidance was not added to this turn: ${agentErrorMessage(error)}`),
             timestamp: Date.now(),
             status: 'done',
           })
@@ -1850,12 +1858,12 @@ export function useConversations() {
               status: 'done',
               approvalState: approved ? 'approved' : 'denied',
               approvalReason: reason === 'approved for this conversation'
-                ? '已允许本对话后续同类操作'
+                ? t('已允许本对话后续同类操作', 'Allowed similar actions for this conversation')
                 : reason || (approved
                   ? conversationGrant
-                    ? '已允许本对话后续同类操作'
-                    : '已允许本次操作'
-                  : '已拒绝本次操作'),
+                    ? t('已允许本对话后续同类操作', 'Allowed similar actions for this conversation')
+                    : t('已允许本次操作', 'Allowed this action')
+                  : t('已拒绝本次操作', 'Denied this action')),
             }
           }
         } else if (type === 'assistant.delta') {
@@ -1953,14 +1961,14 @@ export function useConversations() {
                 ...messages[index],
                 status: 'done',
                 approvalState: 'expired',
-                approvalReason: 'Agent 运行失败，本次审批已失效',
+                approvalReason: t('Agent 运行失败，本次审批已失效', 'Agent failed, so this approval is no longer valid'),
               }
             }
           }
           messages.push({
             id: crypto.randomUUID(),
             role: 'assistant',
-            content: `Agent 运行失败：${agentRuntimeErrorMessage(error)}`,
+            content: t(`Agent 运行失败：${agentRuntimeErrorMessage(error)}`, `Agent failed: ${agentRuntimeErrorMessage(error)}`),
             timestamp: Date.now(),
             status: 'done',
           })
@@ -1989,9 +1997,10 @@ export function useConversations() {
           if (
             type === 'runtime.compaction_completed'
             && compactError
-            && /自动整理上下文失败|overflow recovery failed|auto-compaction failed/i.test(
-              String(error ?? compactError),
-            )
+            && new RegExp(
+              `${t('自动整理上下文失败', 'Automatic context compaction failed')}|overflow recovery failed|auto-compaction failed`,
+              'i',
+            ).test(String(error ?? compactError))
           ) {
             messages.push({
               id: crypto.randomUUID(),

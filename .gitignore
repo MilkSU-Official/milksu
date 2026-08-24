@@ -28,14 +28,10 @@ build/*.go
 build/tmp-*
 build/eval-ui-final/
 build/eval-ui-mockups/
-internal/evalsuite/
 spikes/eval-wip/
 app/eval-settings-preview.html
 app/src/eval-settings-preview.ts
-app/src/evalTypes.ts
 app/src/previews/EvalSettingsPreview.vue
-app/src/components-vue/EvalSettingsPanel.vue
-app/src/components-vue/EvalSettingsPanel.test.ts
 docs/.vitepress/cache/
 
 # Archify previews are reproducible local artifacts. Keep the compact JSON

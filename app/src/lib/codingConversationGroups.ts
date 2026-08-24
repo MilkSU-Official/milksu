@@ -1,4 +1,5 @@
 import type { Conversation } from '@/types'
+import { t } from '@/lib/uiLocale'
 import {
   conversationActivityAt,
   projectUniqueDomainConversations,
@@ -66,7 +67,7 @@ export function groupCodingConversations(
     const key = workspaceGroupKey(path)
     const group = groups.get(key) ?? {
       key,
-      name: path ? workspaceName(path) : '无项目任务',
+      name: path ? workspaceName(path) : t('无项目任务', 'No project task'),
       path,
       paths: path ? [path] : [],
       temporary: !path,

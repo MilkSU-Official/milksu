@@ -11,6 +11,8 @@ import {
   Input,
   NativeSelect,
   NativeSelectOption,
+  SettingsRow,
+  SettingsSection,
 } from '@felinic/ui'
 import {
   ArrowLeft,
@@ -39,6 +41,8 @@ import { vulnerabilityStatusLabel, type VulnerabilityIntel, type VulnerabilitySe
 import { ALL_COLLECTIONS_ID, createItemCollectionStore } from '@/lib/itemCollections'
 import { relatedDomainConversations } from '@/lib/workspaceSessionRouting'
 import { presentVulnerabilityVendorProduct } from '@/lib/vulnerabilityFeedImport'
+import { useDossierSplit } from '@/lib/useDossierSplit'
+import { t } from '@/lib/uiLocale'
 
 defineOptions({ name: 'VulnPage' })
 
@@ -140,12 +144,12 @@ const yearFilter = ref('')
 const page = ref(1)
 const pageSize = 20
 
-const statusOptions: Array<{ value: VulnerabilityStatus; label: string }> = [
-  { value: '待复现', label: '想研究' },
-  { value: '研究中', label: '研究中' },
-  { value: '已验证', label: '已验证' },
-  { value: '已分流', label: '已归档' },
-]
+const statusOptions = computed(() => [
+  { value: '待复现' as const, label: t('想研究', 'Want to research') },
+  { value: '研究中' as const, label: t('研究中', 'In research') },
+  { value: '已验证' as const, label: t('已验证', 'Verified') },
+  { value: '已分流' as const, label: t('已归档', 'Archived') },
+])
 
 const vendorOptions = computed(() => (
   [...new Set(dashboard.tracked.value.map(item => presentVendorProduct(item).vendor).filter(Boolean))].sort((left, right) => (
@@ -219,6 +223,8 @@ const {
 const stripLease = computed(() => toStripLease(envLease.value, cveBoundPackage.value
   ? { name: cveBoundPackage.value.name, provider: cveBoundPackage.value.provider }
   : undefined))
+const { width: briefWidth, startResize: startBriefResize } = useDossierSplit('milksu.cve-split.v1', 400)
+const liveTargetVisible = computed(() => targetOpen.value && envLease.value.state === 'ready')
 
 const dossierConversations = computed(() => relatedDomainConversations(
   props.conversations,
@@ -338,7 +344,7 @@ function presentVendorProduct(item: VulnerabilityIntel) {
 
 function setStatus(id: string, event: Event) {
   const raw = (event.target as HTMLSelectElement | null)?.value
-  const status = statusOptions.find(option => option.value === raw)?.value
+  const status = statusOptions.value.find(option => option.value === raw)?.value
   if (!status) return
   dashboard.setStatus(id, status)
 }
@@ -366,7 +372,10 @@ function recentResearch(item: VulnerabilityIntel) {
   if (Number.isNaN(date.getTime())) return item.updated
   const today = new Date()
   if (date.toDateString() === today.toDateString()) {
-    return `今天 ${date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`
+    return t(
+      `今天 ${date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`,
+      `Today ${date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`,
+    )
   }
   return date.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })
 }
@@ -418,10 +427,10 @@ function openCveSearch() {
 function readableCveSearchError(cause: unknown) {
   const message = cause instanceof Error ? cause.message : String(cause)
   if (/HTTP\s*(429|502|503|504)|timeout|timed out|deadline exceeded|network|fetch failed/i.test(message)) {
-    return '公开 CVE 服务暂时繁忙，请稍后重试。'
+    return t('公开 CVE 服务暂时繁忙，请稍后重试。', 'Public CVE service is busy. Try again later.')
   }
-  if (/请输入至少 2 个字符/.test(message)) return '请至少输入 2 个字符。'
-  return '暂时无法读取公开 CVE，请稍后重试。'
+  if (/请输入至少 2 个字符/.test(message)) return t('请至少输入 2 个字符。', 'Enter at least 2 characters.')
+  return t('暂时无法读取公开 CVE，请稍后重试。', 'Unable to load public CVEs. Try again later.')
 }
 
 async function searchCves() {
@@ -431,7 +440,7 @@ async function searchCves() {
   cveSearchLoading.value = true
   try {
     cveSearchResults.value = await dashboard.searchNvdCves(cveSearchQuery.value)
-    if (!cveSearchResults.value.length) cveSearchError.value = '没有找到匹配的公开 CVE。'
+    if (!cveSearchResults.value.length) cveSearchError.value = t('没有找到匹配的公开 CVE。', 'No matching public CVE found.')
   } catch (cause) {
     cveSearchError.value = readableCveSearchError(cause)
   } finally {
@@ -444,11 +453,11 @@ function addDirectCve() {
   try {
     dashboard.addTrackingItem({
       id: directCveId.value,
-      title: `${directCveId.value} · 待补公开资料`,
+      title: t(`${directCveId.value} · 待补公开资料`, `${directCveId.value} · public details pending`),
       vendor: '',
       product: '',
       affected: '',
-      summary: 'NVD 暂未返回公开记录；已按 CVE 编号加入。',
+      summary: t('NVD 暂未返回公开记录；已按 CVE 编号加入。', 'NVD has no public record yet. Added by CVE ID.'),
     })
     showCveSearch.value = false
   } catch (cause) {
@@ -472,11 +481,11 @@ function addSearchResult(candidate: VulnerabilitySearchCandidate) {
 
 <template>
   <main v-if="!selectedItem" class="tactical-page flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
-    <WorkspaceModuleTopBar module="cve" title="漏洞">
+    <WorkspaceModuleTopBar module="cve" :title="t('漏洞', 'CVE')">
       <template #actions>
         <Button variant="brand" size="sm" @click="openCveSearch">
           <Plus class="size-4" />
-          添加 CVE
+          {{ t('添加 CVE', 'Add CVE') }}
         </Button>
       </template>
 
@@ -490,37 +499,37 @@ function addSearchResult(candidate: VulnerabilitySearchCandidate) {
               v-model="dashboard.query.value"
               size="sm"
               class="pl-9"
-              placeholder="搜索我添加的 CVE…"
-              aria-label="搜索 CVE"
+              :placeholder="t('搜索我添加的 CVE…', 'Search CVEs I added…')"
+              :aria-label="t('搜索 CVE', 'Search CVE')"
             />
           </label>
-          <NativeSelect v-model="statusFilter" size="sm" class="w-40" aria-label="按我的状态筛选">
-            <NativeSelectOption value="all">我的状态：全部</NativeSelectOption>
+          <NativeSelect v-model="statusFilter" size="sm" class="w-40" :aria-label="t('按我的状态筛选', 'Filter by my status')">
+            <NativeSelectOption value="all">{{ t('我的状态：全部', 'My status: all') }}</NativeSelectOption>
             <NativeSelectOption v-for="option in statusOptions" :key="option.value" :value="option.value">
               {{ option.label }}
             </NativeSelectOption>
           </NativeSelect>
           </div>
           <div class="flex flex-wrap items-center gap-3">
-            <NativeSelect v-model="dashboard.severity.value" size="sm" class="w-40" aria-label="严重性">
-              <NativeSelectOption value="all">严重性：全部</NativeSelectOption>
-              <NativeSelectOption value="critical">严重</NativeSelectOption>
-              <NativeSelectOption value="high">高</NativeSelectOption>
-              <NativeSelectOption value="medium">中</NativeSelectOption>
+            <NativeSelect v-model="dashboard.severity.value" size="sm" class="w-40" :aria-label="t('严重性', 'Severity')">
+              <NativeSelectOption value="all">{{ t('严重性：全部', 'Severity: all') }}</NativeSelectOption>
+              <NativeSelectOption value="critical">{{ t('严重', 'Critical') }}</NativeSelectOption>
+              <NativeSelectOption value="high">{{ t('高', 'High') }}</NativeSelectOption>
+              <NativeSelectOption value="medium">{{ t('中', 'Medium') }}</NativeSelectOption>
             </NativeSelect>
-            <NativeSelect v-model="kevFilter" size="sm" class="w-40" aria-label="KEV">
-              <NativeSelectOption value="all">KEV：全部</NativeSelectOption>
-              <NativeSelectOption value="kev">在 KEV</NativeSelectOption>
-              <NativeSelectOption value="other">不在 KEV</NativeSelectOption>
+            <NativeSelect v-model="kevFilter" size="sm" class="w-40" :aria-label="t('KEV', 'KEV')">
+              <NativeSelectOption value="all">{{ t('KEV：全部', 'KEV: all') }}</NativeSelectOption>
+              <NativeSelectOption value="kev">{{ t('在 KEV', 'In KEV') }}</NativeSelectOption>
+              <NativeSelectOption value="other">{{ t('不在 KEV', 'Not in KEV') }}</NativeSelectOption>
             </NativeSelect>
-            <NativeSelect v-model="vendorFilter" size="sm" class="w-44" aria-label="厂商">
-              <NativeSelectOption value="">厂商：全部</NativeSelectOption>
+            <NativeSelect v-model="vendorFilter" size="sm" class="w-44" :aria-label="t('厂商', 'Vendor')">
+              <NativeSelectOption value="">{{ t('厂商：全部', 'Vendor: all') }}</NativeSelectOption>
               <NativeSelectOption v-for="vendor in vendorOptions" :key="vendor" :value="vendor">
                 {{ vendor }}
               </NativeSelectOption>
             </NativeSelect>
-            <NativeSelect v-model="yearFilter" size="sm" class="w-36" aria-label="年份">
-              <NativeSelectOption value="">年份：全部</NativeSelectOption>
+            <NativeSelect v-model="yearFilter" size="sm" class="w-36" :aria-label="t('年份', 'Year')">
+              <NativeSelectOption value="">{{ t('年份：全部', 'Year: all') }}</NativeSelectOption>
               <NativeSelectOption v-for="year in yearOptions" :key="year" :value="year">
                 {{ year }}
               </NativeSelectOption>
@@ -533,8 +542,8 @@ function addSearchResult(candidate: VulnerabilitySearchCandidate) {
     <Dialog v-model:open="showCveSearch">
       <DialogContent class="cve-search-dialog sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>查找公开 CVE</DialogTitle>
-          <DialogDescription>输入 CVE 编号、产品名或关键词，从 NVD 公开资料中选择。</DialogDescription>
+          <DialogTitle>{{ t('查找公开 CVE', 'Find public CVE') }}</DialogTitle>
+          <DialogDescription>{{ t('输入 CVE 编号、产品名或关键词，从 NVD 公开资料中选择。', 'Enter a CVE ID, product name, or keyword to choose from NVD public records.') }}</DialogDescription>
         </DialogHeader>
 
         <form class="flex gap-2" @submit.prevent="searchCves">
@@ -544,14 +553,14 @@ function addSearchResult(candidate: VulnerabilitySearchCandidate) {
               v-model="cveSearchQuery"
               class="pl-9"
               autofocus
-              aria-label="搜索公开 CVE"
-              placeholder="例如 CVE-2024-3400、ActiveMQ、Android deserialization"
+              :aria-label="t('搜索公开 CVE', 'Search public CVE')"
+              :placeholder="t('例如 CVE-2024-3400、ActiveMQ、Android deserialization', 'e.g. CVE-2024-3400, ActiveMQ, Android deserialization')"
             />
           </label>
           <Button type="submit" variant="brand" :disabled="cveSearchLoading || cveSearchQuery.trim().length < 2">
             <LoaderCircle v-if="cveSearchLoading" class="size-4 animate-spin" />
             <Search v-else class="size-4" />
-            搜索
+            {{ t('搜索', 'Search') }}
           </Button>
         </form>
 
@@ -559,10 +568,10 @@ function addSearchResult(candidate: VulnerabilitySearchCandidate) {
 
         <div v-if="canAddDirectCve" class="flex flex-wrap items-center justify-between gap-3 border border-border bg-muted/30 px-4 py-3">
           <p class="font-mono text-caption">{{ directCveId }}</p>
-          <Button size="sm" variant="outline" @click="addDirectCve">仅按编号加入</Button>
+          <Button size="sm" variant="outline" @click="addDirectCve">{{ t('仅按编号加入', 'Add by ID only') }}</Button>
         </div>
 
-        <div v-if="cveSearchResults.length" class="cve-search-results divide-y divide-border border border-border" aria-label="公开 CVE 搜索结果">
+        <div v-if="cveSearchResults.length" class="cve-search-results divide-y divide-border border border-border" :aria-label="t('公开 CVE 搜索结果', 'Public CVE search results')">
           <article v-for="candidate in cveSearchResults" :key="candidate.id" class="grid gap-3 px-4 py-4 md:grid-cols-[1fr_auto] md:items-center">
             <div class="min-w-0">
               <div class="flex flex-wrap items-center gap-2">
@@ -570,31 +579,31 @@ function addSearchResult(candidate: VulnerabilitySearchCandidate) {
                 <Badge v-if="candidate.cvss > 0" :variant="severityVariant(candidate.severity)" font="mono">{{ candidate.cvss.toFixed(1) }}</Badge>
               </div>
               <p class="mt-1 line-clamp-2 text-body font-medium">{{ candidate.title }}</p>
-              <p class="mt-1 text-caption text-muted-foreground">{{ candidate.updated || 'NVD 公开记录' }}</p>
+              <p class="mt-1 text-caption text-muted-foreground">{{ candidate.updated || t('NVD 公开记录', 'NVD public record') }}</p>
             </div>
             <Button
               size="sm"
               :disabled="dashboard.watched.value.includes(candidate.id)"
               @click="addSearchResult(candidate)"
             >
-              {{ dashboard.watched.value.includes(candidate.id) ? '已在列表' : '加入研究' }}
+              {{ dashboard.watched.value.includes(candidate.id) ? t('已在列表', 'Already listed') : t('加入研究', 'Add to research') }}
             </Button>
           </article>
         </div>
       </DialogContent>
     </Dialog>
 
-    <section class="tactical-paper-surface min-h-0 flex-1 overflow-auto bg-card" aria-label="CVE 列表">
+    <section class="tactical-paper-surface min-h-0 flex-1 overflow-auto bg-card" :aria-label="t('CVE 列表', 'CVE list')">
       <div class="min-w-[1120px]">
         <div class="tactical-desk-head tactical-table-head grid h-12 grid-cols-[170px_minmax(240px,1.2fr)_minmax(160px,.9fr)_88px_132px_42px_minmax(7rem,1fr)_72px] items-center gap-4 border-b border-border px-6 text-caption text-muted-foreground">
           <span class="whitespace-nowrap">CVE</span>
-          <span class="whitespace-nowrap">漏洞</span>
-          <span class="whitespace-nowrap">厂商/产品</span>
-          <span class="whitespace-nowrap">严重性</span>
-          <span class="whitespace-nowrap">我的状态</span>
-          <span class="sr-only">收藏</span>
-          <span class="whitespace-nowrap">最近研究</span>
-          <span class="sr-only">打开</span>
+          <span class="whitespace-nowrap">{{ t('漏洞', 'Title') }}</span>
+          <span class="whitespace-nowrap">{{ t('厂商/产品', 'Vendor / product') }}</span>
+          <span class="whitespace-nowrap">{{ t('严重性', 'Severity') }}</span>
+          <span class="whitespace-nowrap">{{ t('我的状态', 'My status') }}</span>
+          <span class="sr-only">{{ t('收藏', 'Collection') }}</span>
+          <span class="whitespace-nowrap">{{ t('最近研究', 'Recent research') }}</span>
+          <span class="sr-only">{{ t('打开', 'Open') }}</span>
         </div>
 
         <template v-for="item in visibleItems" :key="item.id">
@@ -612,24 +621,24 @@ function addSearchResult(candidate: VulnerabilitySearchCandidate) {
             <span class="ak-tag ak-tag--compact" :class="statusTag(item.status)">{{ vulnerabilityStatusLabel(item.status) }}</span>
             <CollectionPicker :item-key="item.id" :store="cveCollections" />
             <span class="text-caption text-muted-foreground">{{ recentResearch(item) }}</span>
-            <Button size="sm" variant="outline" data-testid="open-item" @click="selectItem(item.id)">打开</Button>
+            <Button size="sm" variant="outline" data-testid="open-item" @click="selectItem(item.id)">{{ t('打开', 'Open') }}</Button>
           </article>
         </template>
 
         <div v-if="!visibleItems.length" class="grid min-h-64 place-items-center px-8 text-center">
           <div>
-            <p v-if="dashboard.tracked.value.length" class="text-control font-medium">没有匹配的 CVE</p>
+            <p v-if="dashboard.tracked.value.length" class="text-control font-medium">{{ t('没有匹配的 CVE', 'No matching CVE') }}</p>
           </div>
         </div>
       </div>
     </section>
 
     <footer class="flex h-14 shrink-0 items-center justify-between border-t border-border px-6">
-      <span class="text-caption text-muted-foreground">共 {{ filteredItems.length }} 条</span>
+      <span class="text-caption text-muted-foreground">{{ t(`共 ${filteredItems.length} 条`, `${filteredItems.length} items`) }}</span>
       <div class="flex items-center gap-1">
-        <Button variant="ghost" size="icon-sm" :disabled="page <= 1" aria-label="上一页" @click="page -= 1"><ChevronLeft class="size-4" /></Button>
+        <Button variant="ghost" size="icon-sm" :disabled="page <= 1" :aria-label="t('上一页', 'Previous page')" @click="page -= 1"><ChevronLeft class="size-4" /></Button>
         <Button variant="outline" size="icon-sm">{{ page }}</Button>
-        <Button variant="ghost" size="icon-sm" :disabled="page >= pageCount" aria-label="下一页" @click="page += 1"><ChevronRight class="size-4" /></Button>
+        <Button variant="ghost" size="icon-sm" :disabled="page >= pageCount" :aria-label="t('下一页', 'Next page')" @click="page += 1"><ChevronRight class="size-4" /></Button>
       </div>
     </footer>
   </main>
@@ -637,46 +646,55 @@ function addSearchResult(candidate: VulnerabilitySearchCandidate) {
   <main v-else class="tactical-page flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
     <WorkspaceModuleTopBar module="cve" :title="selectedItem.id" :subtitle="selectedItem.title">
       <template #leading>
-        <Button variant="ghost" size="icon-sm" aria-label="返回漏洞列表" @click="clearSelection">
+        <Button variant="ghost" size="icon-sm" :aria-label="t('返回漏洞列表', 'Back to CVE list')" @click="clearSelection">
           <ArrowLeft class="size-4" />
         </Button>
       </template>
       <template #actions>
-        <NativeSelect
-          :model-value="selectedItem.status"
-          size="sm"
-          class="w-32"
-          :aria-label="`${selectedItem.id} 状态`"
-          @change="setStatus(selectedItem.id, $event)"
-        >
-          <NativeSelectOption v-for="option in statusOptions" :key="option.value" :value="option.value">
-            {{ option.label }}
-          </NativeSelectOption>
-        </NativeSelect>
-        <Button variant="brand" size="sm" @click="startReproduction">开始复现</Button>
+        <Button variant="brand" size="sm" @click="startReproduction">{{ t('开始复现', 'Start reproduction') }}</Button>
       </template>
     </WorkspaceModuleTopBar>
-    <div class="flex min-h-0 flex-1 overflow-hidden">
-      <div class="flex min-h-0 min-w-0 flex-1 flex-col" :class="targetOpen ? 'max-w-md border-r border-border' : ''">
+    <div class="flex min-h-0 flex-1 overflow-hidden" data-dossier-split>
+      <div
+        class="flex min-h-0 min-w-0 flex-col"
+        :class="liveTargetVisible ? '' : 'flex-1'"
+        :style="liveTargetVisible ? { width: `${briefWidth}px`, flex: 'none' } : undefined"
+      >
         <div class="min-h-0 flex-1 overflow-auto">
-        <div class="space-y-5 px-6 py-6" :class="targetOpen ? '' : 'mx-auto max-w-5xl'">
-          <section class="rounded-xl border border-border bg-card p-6">
-            <p class="text-body leading-6 text-muted-foreground">{{ selectedItem.summary }}</p>
-            <div v-if="selectedItem.references.length" class="mt-4 flex flex-wrap gap-2">
-              <Button
-                v-for="reference in keyReferences(selectedItem)"
-                :key="reference.href"
-                as="a"
-                :href="reference.href"
-                target="_blank"
-                rel="noreferrer"
-                variant="outline"
+        <div class="space-y-5 px-6 py-6" :class="liveTargetVisible ? '' : 'mx-auto max-w-5xl'">
+          <SettingsSection :title="t('摘要', 'Summary')">
+            <p class="px-4 py-3 text-body leading-6">{{ selectedItem.summary }}</p>
+            <SettingsRow v-if="selectedItem.references.length" :label="t('原文', 'Source')">
+              <div class="flex min-w-0 flex-col items-end gap-1">
+                <Button
+                  v-for="reference in keyReferences(selectedItem)"
+                  :key="reference.href"
+                  as="a"
+                  :href="reference.href"
+                  target="_blank"
+                  rel="noreferrer"
+                  variant="link"
+                  size="text"
+                >
+                  {{ referenceLabel(reference.label, reference.href) }}
+                  <ExternalLink class="size-3" />
+                </Button>
+              </div>
+            </SettingsRow>
+            <SettingsRow :label="t('状态', 'Status')" :divider="false">
+              <NativeSelect
+                :model-value="selectedItem.status"
                 size="sm"
+                class="w-32"
+                :aria-label="t(`${selectedItem.id} 状态`, `${selectedItem.id} status`)"
+                @change="setStatus(selectedItem.id, $event)"
               >
-                {{ referenceLabel(reference.label, reference.href) }}<ExternalLink class="size-3" />
-              </Button>
-            </div>
-          </section>
+                <NativeSelectOption v-for="option in statusOptions" :key="option.value" :value="option.value">
+                  {{ option.label }}
+                </NativeSelectOption>
+              </NativeSelect>
+            </SettingsRow>
+          </SettingsSection>
           <EnvironmentStrip
             :lease="stripLease"
             @start="startEnv(cvePackageId || envLease.packageId)"
@@ -688,85 +706,39 @@ function addSearchResult(candidate: VulnerabilitySearchCandidate) {
             @occupy-go="occupyGo"
             @occupy-stop="occupyStop"
           />
-          <section class="rounded-xl border border-border bg-card p-6">
-            <h2 class="text-label font-medium">关联 CVE</h2>
+          <SettingsSection :title="t('关联 CVE', 'Related CVE')">
             <RelatedCvePanel
-              class="mt-4"
+              class="px-4 py-3 text-body leading-6"
               :workspace-path="conversation?.workspacePath ?? workspacePath"
               :refresh-key="running ? 'run' : conversation?.messages.length"
             />
-          </section>
-          <section class="rounded-xl border border-border bg-card p-6">
-            <h2 class="text-label font-medium">报告</h2>
+          </SettingsSection>
+          <SettingsSection :title="t('报告', 'Report')">
             <ResearchReportPanel
-              class="mt-4"
+              class="px-4 py-3 text-body leading-6"
               :workspace-path="conversation?.workspacePath ?? ''"
               :refresh-key="running ? 'run' : conversation?.messages.length"
             />
-          </section>
+          </SettingsSection>
         </div>
         </div>
-        <ConversationDock
-          v-if="targetOpen"
-          placement="column"
-          :conversation="conversation ?? null"
-          :conversations="dossierConversations"
-          :running="running"
-          :aborting="aborting"
-          :settings="settings"
-          :workspace-path="workspacePath"
-          :message-queue="messageQueue"
-          :session-ready="sessionReady"
-          :resumed="resumed"
-          :compacting="compacting"
-          :compacted-at="compactedAt"
-          :compaction-error="compactionError"
-          :turn-status="turnStatus"
-          :ctf-session="ctfSession"
-          :vulnerability-session="vulnerabilitySession"
-          :ctf-mode="ctfMode"
-          :ctf-role="ctfRole"
-          :model-mode="modelMode"
-          :model-provider="modelProvider"
-          :model-id="modelId"
-          :model-source-preference="modelSourcePreference"
-          :execution-mode="executionMode"
-          :approval-policy="approvalPolicy"
-          :mcp-servers="mcpServers"
-          :mcp-config-digest="mcpConfigDigest"
-          :ensure-conversation="ensureConversation"
-          :pending-composer-draft="pendingComposerDraft"
-          @send="(...args) => $emit('send', ...args)"
-          @abort="$emit('abort')"
-          @select="$emit('selectConversation', $event)"
-          @create="$emit('createConversation')"
-          @expand="$emit('expand')"
-          @consume-pending-draft="$emit('consumePendingDraft')"
-          @compact-context="$emit('compactContext')"
-          @control-goal="$emit('controlGoal', $event)"
-          @respond-approval="(requestId, approved, scope) => $emit('respondApproval', requestId, approved, scope)"
-          @change-model="(mode, provider, model) => $emit('changeModel', mode, provider, model)"
-          @change-model-source="$emit('changeModelSource', $event)"
-          @change-coding-policy="(mode, policy) => $emit('changeCodingPolicy', mode, policy)"
-          @change-mcp-servers="(servers, digest) => $emit('changeMcpServers', servers, digest)"
-          @choose-workspace="$emit('chooseWorkspace')"
-          @choose-workspace-for-new-task="$emit('chooseWorkspaceForNewTask')"
-          @select-workspace="$emit('selectWorkspace', $event)"
-          @forget-workspace="$emit('forgetWorkspace', $event)"
-          @clear-workspace="$emit('clearWorkspace')"
-          @cancel-queued-guidance="$emit('cancelQueuedGuidance', $event)"
-          @edit-queued-guidance="$emit('editQueuedGuidance', $event)"
-          @open-settings="$emit('openSettings')"
+      </div>
+      <div v-if="liveTargetVisible" class="relative flex min-h-0 min-w-0 flex-1">
+        <div
+          class="dossier-split-handle app-no-drag"
+          role="separator"
+          aria-orientation="vertical"
+          data-testid="dossier-split"
+          :aria-label="t('调节档案宽度', 'Resize the dossier pane')"
+          @pointerdown="startBriefResize"
+        />
+        <TargetLivePane
+          :lease="envLease"
+          :conversation-id="conversation?.id"
         />
       </div>
-      <TargetLivePane
-        v-if="targetOpen && envLease.state === 'ready'"
-        :lease="envLease"
-        :conversation-id="conversation?.id"
-      />
     </div>
     <ConversationDock
-      v-if="!targetOpen"
       :conversation="conversation ?? null"
       :conversations="dossierConversations"
       :running="running"
@@ -820,12 +792,12 @@ function addSearchResult(candidate: VulnerabilitySearchCandidate) {
     <Dialog v-model:open="showStartEnv">
       <DialogContent class="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>这个洞有练习包。先启动？</DialogTitle>
-          <DialogDescription>启动后右侧打开活靶面。也可以只写报告。</DialogDescription>
+          <DialogTitle>{{ t('这个洞有练习包。先启动？', 'This CVE has a practice package. Start it first?') }}</DialogTitle>
+          <DialogDescription>{{ t('启动后右侧打开活靶面。也可以只写报告。', 'Starting opens the live target on the right. You can also write the report only.') }}</DialogDescription>
         </DialogHeader>
         <div class="flex justify-end gap-2">
-          <Button type="button" variant="ghost" data-testid="repro-report-only" @click="reportOnly">只写报告</Button>
-          <Button type="button" variant="brand" data-testid="repro-start-env" @click="confirmStartEnv">启动并复现</Button>
+          <Button type="button" variant="ghost" data-testid="repro-report-only" @click="reportOnly">{{ t('只写报告', 'Report only') }}</Button>
+          <Button type="button" variant="brand" data-testid="repro-start-env" @click="confirmStartEnv">{{ t('启动并复现', 'Start and reproduce') }}</Button>
         </div>
       </DialogContent>
     </Dialog>
@@ -838,4 +810,27 @@ function addSearchResult(candidate: VulnerabilitySearchCandidate) {
 .tactical-table-head { font-family: 'SFMono-Regular', monospace; letter-spacing: .08em; text-transform: uppercase; }
 .cve-search-dialog { max-height: min(760px, calc(100vh - 3rem)); overflow: hidden; }
 .cve-search-results { max-height: min(470px, calc(100vh - 17rem)); overflow: auto; }
+.dossier-split-handle {
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: 2;
+  width: 8px;
+  margin-left: -3px;
+  cursor: col-resize;
+  touch-action: none;
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+.dossier-split-handle::after {
+  position: absolute;
+  inset: 0 3px;
+  background: transparent;
+  content: '';
+}
+.dossier-split-handle:hover::after,
+.dossier-split-handle:focus-visible::after {
+  background: var(--brand);
+  opacity: .55;
+}
 </style>

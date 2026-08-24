@@ -7,6 +7,8 @@
  * Icons come from @lobehub/icons-static-svg (https://icons.lobehub.com/).
  */
 
+import { t } from '@/lib/uiLocale'
+
 export type ModelVendorId =
   | 'openai'
   | 'anthropic'
@@ -195,12 +197,12 @@ export const MODEL_VENDOR_LABELS: Record<ModelVendorId, string> = {
   mistral: 'Mistral',
   meta: 'Meta',
   moonshot: 'Moonshot',
-  zhipu: '智谱',
+  zhipu: t('智谱', 'Zhipu'),
   minimax: 'MiniMax',
   cohere: 'Cohere',
   perplexity: 'Perplexity',
   groq: 'Groq',
-  unknown: '未知厂商',
+  unknown: t('未知厂商', 'Unknown vendor'),
 }
 
 const VENDOR_BY_ID = Object.fromEntries(

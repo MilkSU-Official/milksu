@@ -1,0 +1,5 @@
+id,note,x
+1,hello,H
+2,world,T
+3,ok,B
+4,x,{CSV_COL}

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, useSlots } from 'vue'
 import { clampCodingRailWidth } from '@/lib/codingRailWidth'
+import { t } from '@/lib/uiLocale'
 
 const props = withDefaults(defineProps<{
   as?: string
@@ -68,7 +69,7 @@ function startResize(event: PointerEvent) {
       class="tactical-panel-shell__resize app-no-drag"
       role="separator"
       aria-orientation="vertical"
-      aria-label="调整右侧栏宽度"
+      :aria-label="t('调整右侧栏宽度', 'Resize the right panel')"
       @pointerdown="startResize"
     />
     <header v-if="hasHeader" class="tactical-panel-shell__header">

@@ -41,6 +41,7 @@ import {
   FileWarning,
   Flag,
   FolderOpen,
+  Gauge,
   Github,
   Globe2,
   KeyRound,
@@ -90,6 +91,7 @@ import {
 } from '@/modelCatalog'
 import VulnerabilityIntelSettingsPanel from '@/components-vue/VulnerabilityIntelSettingsPanel.vue'
 import SecurityToolsSettingsPanel from '@/components-vue/SecurityToolsSettingsPanel.vue'
+import EvalSettingsPanel from '@/components-vue/EvalSettingsPanel.vue'
 import ModelVendorIcon from '@/components-vue/ModelVendorIcon.vue'
 import ArchivedConversationsSettings from '@/components-vue/ArchivedConversationsSettings.vue'
 import type { SecurityToolCodingHandoff } from '@/securityToolsTypes'
@@ -101,6 +103,7 @@ import {
 } from '@/lib/externalEditor'
 import ExternalEditorIcon from '@/components-vue/ExternalEditorIcon.vue'
 import { buildDiagnosticText, isDebugMode, setDebugMode } from '@/lib/debugMode'
+import { applyUiLocale, normalizeUiLocale, t } from '@/lib/uiLocale'
 import {
   builtInModelThinking,
   MODEL_THINKING_LEVEL_LABELS,
@@ -109,18 +112,19 @@ import {
   resolveModelThinking,
 } from '@/lib/modelThinking'
 
-type SettingsCategory = 'general' | 'apikeys' | 'ctf' | 'cve' | 'coding' | 'chats' | 'browser' | 'security-tools'
+type SettingsCategory = 'general' | 'apikeys' | 'ctf' | 'cve' | 'coding' | 'chats' | 'browser' | 'security-tools' | 'eval'
 
-const settingsCategories = [
-  { value: 'general', label: '通用', icon: Settings2 },
-  { value: 'apikeys', label: '模型', icon: Box },
-  { value: 'ctf', label: 'CTF', icon: Flag },
-  { value: 'cve', label: 'CVE', icon: Bug },
-  { value: 'coding', label: 'Coding', icon: Code2 },
-  { value: 'chats', label: '归档聊天', icon: Archive },
-  { value: 'browser', label: '浏览器控制', icon: Globe2 },
-  { value: 'security-tools', label: '安全工具', icon: ShieldCheck },
-] as const
+const settingsCategories = computed(() => [
+  { value: 'general' as const, label: t('通用', 'General'), icon: Settings2 },
+  { value: 'apikeys' as const, label: t('模型', 'Models'), icon: Box },
+  { value: 'ctf' as const, label: 'CTF', icon: Flag },
+  { value: 'cve' as const, label: 'CVE', icon: Bug },
+  { value: 'coding' as const, label: 'Coding', icon: Code2 },
+  { value: 'chats' as const, label: t('归档聊天', 'Archived chats'), icon: Archive },
+  { value: 'browser' as const, label: t('浏览器控制', 'Browser'), icon: Globe2 },
+  { value: 'security-tools' as const, label: t('安全工具', 'Security tools'), icon: ShieldCheck },
+  { value: 'eval' as const, label: t('评测', 'Eval'), icon: Gauge },
+])
 
 const props = defineProps<{
   settings: AppSettings | null
@@ -185,22 +189,22 @@ const {
 } = useModelCatalog(pickerSettings)
 const account = computed<AccountStatus>(() => props.accountStatus ?? ({ configured: false, authenticated: false, state: 'unconfigured' }))
 const accountStateLabel = computed(() => ({
-  unconfigured: '未配置',
-  signed_out: '未登录',
-  authorizing: '等待授权',
-  active: '已登录',
-  suspended: '访问已暂停',
-  invitation_required: '等待邀请',
-  unavailable: '暂时不可用',
+  unconfigured: t('未配置', 'Not configured'),
+  signed_out: t('未登录', 'Signed out'),
+  authorizing: t('等待授权', 'Waiting for authorization'),
+  active: t('已登录', 'Signed in'),
+  suspended: t('访问已暂停', 'Access paused'),
+  invitation_required: t('等待邀请', 'Invitation required'),
+  unavailable: t('暂时不可用', 'Temporarily unavailable'),
 }[account.value.state]))
 
-const databaseStateLabels: Record<DatabaseCompatibilityState, string> = {
-  compatible: '兼容',
-  missing: '尚未创建',
-  newer: '数据库较新',
-  corrupt: '损坏或不可读',
-  remaining: '尚未纳入迁移',
-}
+const databaseStateLabels = computed<Record<DatabaseCompatibilityState, string>>(() => ({
+  compatible: t('兼容', 'Compatible'),
+  missing: t('尚未创建', 'Not created yet'),
+  newer: t('数据库较新', 'Database is newer'),
+  corrupt: t('损坏或不可读', 'Corrupt or unreadable'),
+  remaining: t('尚未纳入迁移', 'Not yet migrated'),
+}))
 
 const databaseStateVariants: Record<DatabaseCompatibilityState, 'secondary' | 'destructive' | 'outline'> = {
   compatible: 'secondary',
@@ -212,8 +216,8 @@ const databaseStateVariants: Record<DatabaseCompatibilityState, 'secondary' | 'd
 
 function databaseVersionText(database: DatabaseCompatibilityStatus): string {
   const parts: string[] = []
-  if (database.current !== undefined) parts.push(`当前 v${database.current}`)
-  if (database.supported !== undefined) parts.push(`支持 v${database.supported}`)
+  if (database.current !== undefined) parts.push(t(`当前 v${database.current}`, `current v${database.current}`))
+  if (database.supported !== undefined) parts.push(t(`支持 v${database.supported}`, `supported v${database.supported}`))
   return parts.join(' · ')
 }
 
@@ -226,6 +230,7 @@ watch(() => props.settings, value => {
   if (working.value) {
     ensureAccountRoute()
     alignDefaultModelToEnabledServices()
+    applyUiLocale(working.value.locale)
   }
 }, { immediate: true })
 watch(() => props.initialCategory, value => {
@@ -259,11 +264,18 @@ function selectCategory(value: SettingsCategory) {
   notice.value = null
 }
 
+async function changeLocale(value: unknown) {
+  if (!working.value) return
+  working.value.locale = normalizeUiLocale(value)
+  applyUiLocale(working.value.locale)
+  await save()
+}
+
 async function loadUserArtifactDirectory() {
   try {
     userArtifacts.value = await invokeCommand<UserArtifactDirectoryStatus>('get_user_artifact_directory_status')
   } catch (reason) {
-    notice.value = { tone: 'error', text: `无法读取产物目录：${String(reason)}` }
+    notice.value = { tone: 'error', text: t(`无法读取产物目录：${String(reason)}`, `Could not read the artifacts folder: ${String(reason)}`) }
   }
 }
 
@@ -345,7 +357,7 @@ const thinkingModelProvider = computed(() => thinkingModelSelection.value?.provi
 const thinkingModelID = computed(() => thinkingModelSelection.value?.model ?? '')
 const thinkingModelLabel = computed(() => {
   const selection = thinkingModelSelection.value
-  if (!selection) return '选择模型'
+  if (!selection) return t('选择模型', 'Select a model')
   const group = availablePickerGroups.value.find(item => (
     item.providerId === selection.providerId
     && item.models.includes(selection.model)
@@ -530,7 +542,7 @@ function addModelService() {
   if (!working.value) return
   const count = Object.values(working.value.providers).filter(item => item.custom).length
   if (count >= 8) {
-    notice.value = { tone: 'error', text: '最多可以添加 8 个自定义中转站。' }
+    notice.value = { tone: 'error', text: t('最多可以添加 8 个自定义中转站。', 'You can add up to 8 custom relays.') }
     return
   }
   const id = customRelayID()
@@ -542,7 +554,7 @@ function addModelService() {
       base_url: '',
       enabled: true,
       custom: true,
-      name: '我的中转站',
+      name: t('我的中转站', 'My relay'),
       models: [],
     },
   }
@@ -608,7 +620,7 @@ function addCustomRelayModel() {
     return
   }
   if (models.length >= 32) {
-    notice.value = { tone: 'error', text: '每个中转站最多可以添加 32 个模型。' }
+    notice.value = { tone: 'error', text: t('每个中转站最多可以添加 32 个模型。', 'Each relay can have up to 32 models.') }
     return
   }
   target.models = [...models, model]
@@ -704,8 +716,8 @@ function providerConfig(id: string): ProviderConfig | undefined {
 }
 
 function providerModelsText(info: ProviderInfo): string {
-  if (providerConfig(info.id)?.custom) return `${info.models.length} 个模型`
-  if (!info.models.length) return '等待模型目录'
+  if (providerConfig(info.id)?.custom) return t(`${info.models.length} 个模型`, `${info.models.length} models`)
+  if (!info.models.length) return t('等待模型目录', 'Waiting for model catalog')
   return info.models.slice(0, 3).map(model => {
     const label = providerModelLabel(info.id, model)
     return label.split(' · ').at(-1) ?? label
@@ -719,30 +731,30 @@ function modelDisplayLabel(providerID: string, model: string): string {
 
 function accountModelsText(): string {
   const info = accountProviderInfo.value
-  return info?.models.length ? providerModelsText(info) : '管理员分配的模型'
+  return info?.models.length ? providerModelsText(info) : t('管理员分配的模型', 'Models assigned by an admin')
 }
 
 function providerServiceName(info: ProviderInfo): string {
   if (providerConfig(info.id)?.custom) return info.name
-  if (info.id === 'tokenflux') return 'TokenFlux 中转站'
+  if (info.id === 'tokenflux') return t('TokenFlux 中转站', 'TokenFlux relay')
   return info.name
 }
 
 function serviceStatus(row: ModelServiceRow): string {
   if (row.source === 'account') {
-    if (!accountModelSourceReady.value) return '未连接'
-    return accountRoute.value?.enabled ? '已启用' : '已停用'
+    if (!accountModelSourceReady.value) return t('未连接', 'Not connected')
+    return accountRoute.value?.enabled ? t('已启用', 'Enabled') : t('已停用', 'Disabled')
   }
   const config = providerConfig(row.provider.id)
-  if (!config || !(config.has_api_key || config.api_key)) return '未配置'
-  if (!config.enabled) return '已停用'
-  return '已启用'
+  if (!config || !(config.has_api_key || config.api_key)) return t('未配置', 'Not configured')
+  if (!config.enabled) return t('已停用', 'Disabled')
+  return t('已启用', 'Enabled')
 }
 
 function serviceStatusClass(row: ModelServiceRow): string {
   const status = serviceStatus(row)
-  if (status === '已启用') return 'text-primary'
-  if (status === '未配置' || status === '未连接') return 'text-warning'
+  if (status === t('已启用', 'Enabled')) return 'text-primary'
+  if (status === t('未配置', 'Not configured') || status === t('未连接', 'Not connected')) return 'text-warning'
   return 'text-muted-foreground'
 }
 
@@ -822,7 +834,7 @@ async function loadLocalData() {
   try {
     localData.value = await invokeCommand<LocalDataStatus>('get_local_data_status')
   } catch (reason) {
-    notice.value = { tone: 'error', text: `无法读取本地数据状态：${String(reason)}` }
+    notice.value = { tone: 'error', text: t(`无法读取本地数据状态：${String(reason)}`, `Could not read local data status: ${String(reason)}`) }
   } finally {
     localDataLoading.value = false
   }
@@ -878,7 +890,7 @@ async function copyDebugDiagnostics() {
     document.execCommand('copy')
     area.remove()
   }
-  notice.value = { tone: 'ok', text: '调试诊断已复制到剪贴板。' }
+  notice.value = { tone: 'ok', text: t('调试诊断已复制到剪贴板。', 'Debug diagnostics copied to the clipboard.') }
 }
 
 async function copyBuildTracking() {
@@ -896,9 +908,9 @@ async function copyBuildTracking() {
       document.execCommand('copy')
       area.remove()
     }
-    notice.value = { tone: 'ok', text: '已复制构建追踪信息' }
+    notice.value = { tone: 'ok', text: t('已复制构建追踪信息', 'Build tracking copied') }
   } catch (reason) {
-    notice.value = { tone: 'error', text: `无法复制构建追踪：${String(reason)}` }
+    notice.value = { tone: 'error', text: t(`无法复制构建追踪：${String(reason)}`, `Could not copy build tracking: ${String(reason)}`) }
   } finally {
     buildTrackingCopying.value = false
   }
@@ -910,8 +922,8 @@ const computerUsePermissionsReady = computed(() => Boolean(
 ))
 const computerUseMissingPermissions = computed(() => {
   const missing: string[] = []
-  if (!computerUseStatus.value?.permissions.accessibility) missing.push('辅助功能')
-  if (!computerUseStatus.value?.permissions.screenRecording) missing.push('屏幕录制')
+  if (!computerUseStatus.value?.permissions.accessibility) missing.push(t('辅助功能', 'Accessibility'))
+  if (!computerUseStatus.value?.permissions.screenRecording) missing.push(t('屏幕录制', 'Screen Recording'))
   return missing
 })
 const computerUseSigning = computed<CodingComputerUseSigning | null>(() => (
@@ -919,36 +931,36 @@ const computerUseSigning = computed<CodingComputerUseSigning | null>(() => (
 ))
 const computerUseSigningLabel = computed(() => {
   const signing = computerUseSigning.value
-  if (!signing) return '当前构建身份：未检测'
+  if (!signing) return t('当前构建身份：未检测', 'Current build identity: not detected')
   const signature = signing.signature === 'adhoc'
     ? 'ad-hoc'
     : signing.signature === 'signed'
-      ? '已签名'
-      : signing.signature || '未知签名'
+      ? t('已签名', 'signed')
+      : signing.signature || t('未知签名', 'unknown signature')
   const team = signing.teamIdentifier && signing.teamIdentifier !== 'not set'
     ? signing.teamIdentifier
-    : '未设置'
-  return `当前构建身份：${signature} · Team ${team}`
+    : t('未设置', 'not set')
+  return t(`当前构建身份：${signature} · Team ${team}`, `Current build identity: ${signature} · Team ${team}`)
 })
 const computerUseSigningUnstable = computed(() => Boolean(
   computerUseSigning.value && !computerUseSigning.value.stableIdentity,
 ))
 const computerUsePermissionSummary = computed(() => {
   const status = computerUseStatus.value
-  if (!status) return '尚未检测'
-  if (!status.available) return status.problem || '当前不可用'
-  if (computerUsePermissionsReady.value) return '辅助功能与屏幕录制已授权'
-  const missing = computerUseMissingPermissions.value.join('、') || '系统权限'
+  if (!status) return t('尚未检测', 'Not checked yet')
+  if (!status.available) return status.problem || t('当前不可用', 'Currently unavailable')
+  if (computerUsePermissionsReady.value) return t('辅助功能与屏幕录制已授权', 'Accessibility and Screen Recording are granted')
+  const missing = computerUseMissingPermissions.value.join(t('、', ', ')) || t('系统权限', 'system permissions')
   if (computerUseSigningUnstable.value) {
-    return `${missing} 未生效；当前构建身份不稳定，授权后请重新检测`
+    return t(`${missing} 未生效；当前构建身份不稳定，授权后请重新检测`, `${missing} not in effect; this build identity is unstable. Recheck after granting access`)
   }
-  return `${missing} 未授权`
+  return t(`${missing} 未授权`, `${missing} not granted`)
 })
 const computerUsePermissionBadge = computed(() => {
-  if (!computerUseStatus.value) return { label: '未检测', variant: 'outline' as const }
-  if (!computerUseStatus.value.available) return { label: '不可用', variant: 'destructive' as const }
-  if (computerUsePermissionsReady.value) return { label: '已授权', variant: 'secondary' as const }
-  return { label: '需处理', variant: 'outline' as const }
+  if (!computerUseStatus.value) return { label: t('未检测', 'Not checked'), variant: 'outline' as const }
+  if (!computerUseStatus.value.available) return { label: t('不可用', 'Unavailable'), variant: 'destructive' as const }
+  if (computerUsePermissionsReady.value) return { label: t('已授权', 'Granted'), variant: 'secondary' as const }
+  return { label: t('需处理', 'Needs attention'), variant: 'outline' as const }
 })
 
 const browserBridgeConnected = computed(() => Boolean(browserBridgeStatus.value?.bridge.connected))
@@ -960,12 +972,12 @@ async function refreshBrowserBridgeStatus(options: { silent?: boolean } = {}) {
   try {
     browserBridgeStatus.value = await invokeCommand<NSSCTFWebBridgeStatus>('get_nssctf_web_bridge_status')
     if (!options.silent) {
-      notice.value = { tone: 'ok', text: '浏览器 Bridge 状态已重新检测。' }
+      notice.value = { tone: 'ok', text: t('浏览器 Bridge 状态已重新检测。', 'Browser bridge status rechecked.') }
     }
   } catch (reason) {
     browserBridgeStatus.value = null
     if (!options.silent) {
-      notice.value = { tone: 'error', text: `无法检测浏览器 Bridge：${String(reason)}` }
+      notice.value = { tone: 'error', text: t(`无法检测浏览器 Bridge：${String(reason)}`, `Could not check the browser bridge: ${String(reason)}`) }
     }
   } finally {
     browserBridgeLoading.value = false
@@ -979,10 +991,10 @@ async function prepareBrowserExtension() {
     await invokeCommand('reveal_browser_extension')
     notice.value = {
       tone: 'ok',
-      text: 'Chrome 扩展页和 MilkSU 扩展目录已打开；加载后回到这里复制配对码。',
+      text: t('Chrome 扩展页和 MilkSU 扩展目录已打开；加载后回到这里复制配对码。', 'Chrome extensions and the MilkSU extension folder are open. Load the extension, then come back here to copy the pairing code.'),
     }
   } catch (reason) {
-    notice.value = { tone: 'error', text: `无法打开浏览器扩展安装入口：${String(reason)}` }
+    notice.value = { tone: 'error', text: t(`无法打开浏览器扩展安装入口：${String(reason)}`, `Could not open the browser extension installer: ${String(reason)}`) }
   } finally {
     browserSetupBusy.value = false
   }
@@ -994,10 +1006,10 @@ async function openPlaywrightBrowserExtension() {
     await invokeCommand('open_playwright_browser_extension')
     notice.value = {
       tone: 'ok',
-      text: '已在浏览器打开 Playwright MCP 官方扩展页面。',
+      text: t('已在浏览器打开 Playwright MCP 官方扩展页面。', 'Opened the official Playwright MCP extension page in the browser.'),
     }
   } catch (reason) {
-    notice.value = { tone: 'error', text: `无法打开 Playwright MCP 官方扩展：${String(reason)}` }
+    notice.value = { tone: 'error', text: t(`无法打开 Playwright MCP 官方扩展：${String(reason)}`, `Could not open the official Playwright MCP extension: ${String(reason)}`) }
   } finally {
     browserUseOpening.value = false
   }
@@ -1008,9 +1020,9 @@ async function copyBrowserPairingCode() {
   if (!pairingCode) return
   try {
     await navigator.clipboard.writeText(pairingCode)
-    notice.value = { tone: 'ok', text: '本机浏览器配对码已复制。' }
+    notice.value = { tone: 'ok', text: t('本机浏览器配对码已复制。', 'Browser pairing code copied.') }
   } catch (reason) {
-    notice.value = { tone: 'error', text: `无法复制浏览器配对码：${String(reason)}` }
+    notice.value = { tone: 'error', text: t(`无法复制浏览器配对码：${String(reason)}`, `Could not copy the browser pairing code: ${String(reason)}`) }
   }
 }
 
@@ -1019,12 +1031,12 @@ async function refreshComputerUseStatus(options: { silent?: boolean } = {}) {
   try {
     computerUseStatus.value = await invokeCommand<CodingComputerUseStatus>('get_coding_computer_use_status')
     if (!options.silent) {
-      notice.value = { tone: 'ok', text: 'Computer Use 权限状态已重新检测；未操作任何外部 App。' }
+      notice.value = { tone: 'ok', text: t('Computer Use 权限状态已重新检测；未操作任何外部 App。', 'Computer Use permission status rechecked. No external app was controlled.') }
     }
   } catch (reason) {
     computerUseStatus.value = null
     if (!options.silent) {
-      notice.value = { tone: 'error', text: `无法重新检测 Computer Use：${String(reason)}` }
+      notice.value = { tone: 'error', text: t(`无法重新检测 Computer Use：${String(reason)}`, `Could not recheck Computer Use: ${String(reason)}`) }
     }
   } finally {
     computerUseLoading.value = false
@@ -1038,15 +1050,15 @@ async function requestComputerUsePermission(permission: CodingComputerUsePermiss
       'request_coding_computer_use_permissions',
       { permission },
     )
-    const label = permission === 'accessibility' ? '辅助功能' : '屏幕录制'
+    const label = permission === 'accessibility' ? t('辅助功能', 'Accessibility') : t('屏幕录制', 'Screen Recording')
     notice.value = {
       tone: 'ok',
       text: permission === 'screen-recording'
-        ? '已打开“屏幕录制”设置；若列表没有 MilkSU，点列表下方“+”并选择 /Applications/MilkSU.app，再开启并按系统提示重新打开。'
-        : `已打开“${label}”设置；开启 MilkSU 后回到应用，状态会在重新检测时更新。`,
+        ? t('已打开“屏幕录制”设置；若列表没有 MilkSU，点列表下方“+”并选择 /Applications/MilkSU.app，再开启并按系统提示重新打开。', 'Opened Screen Recording settings. If MilkSU is missing, click + under the list, choose /Applications/MilkSU.app, enable it, then reopen when macOS asks.')
+        : t(`已打开“${label}”设置；开启 MilkSU 后回到应用，状态会在重新检测时更新。`, `Opened ${label} settings. Enable MilkSU, then return here; status updates on the next check.`),
     }
   } catch (reason) {
-    notice.value = { tone: 'error', text: `无法打开 Computer Use 系统权限设置：${String(reason)}` }
+    notice.value = { tone: 'error', text: t(`无法打开 Computer Use 系统权限设置：${String(reason)}`, `Could not open Computer Use system settings: ${String(reason)}`) }
   } finally {
     computerUseRequesting.value = null
   }
@@ -1058,7 +1070,7 @@ async function relaunchDesktopApp() {
     await invokeCommand<boolean>('relaunch_desktop_app')
   } catch (reason) {
     computerUseRestarting.value = false
-    notice.value = { tone: 'error', text: `无法重新打开 MilkSU：${String(reason)}` }
+    notice.value = { tone: 'error', text: t(`无法重新打开 MilkSU：${String(reason)}`, `Could not reopen MilkSU: ${String(reason)}`) }
   }
 }
 
@@ -1066,7 +1078,7 @@ async function revealLocalData() {
   try {
     await invokeCommand('reveal_local_data_directory')
   } catch (reason) {
-    notice.value = { tone: 'error', text: `无法打开本地数据目录：${String(reason)}` }
+    notice.value = { tone: 'error', text: t(`无法打开本地数据目录：${String(reason)}`, `Could not open the local data folder: ${String(reason)}`) }
   }
 }
 
@@ -1074,7 +1086,7 @@ async function revealUserArtifacts() {
   try {
     await invokeCommand('reveal_user_artifact_directory')
   } catch (reason) {
-    notice.value = { tone: 'error', text: `无法打开产物目录：${String(reason)}` }
+    notice.value = { tone: 'error', text: t(`无法打开产物目录：${String(reason)}`, `Could not open the artifacts folder: ${String(reason)}`) }
   }
 }
 
@@ -1086,10 +1098,10 @@ async function exportLocalDataBackup() {
     if (exported.cancelled) return
     notice.value = {
       tone: 'ok',
-      text: `已导出 ${exported.fileCount} 个文件（${formatBytes(exported.bytes)}）；凭据库、浏览器配对令牌和 PI 认证文件未写入备份。`,
+      text: t(`已导出 ${exported.fileCount} 个文件（${formatBytes(exported.bytes)}）；凭据库、浏览器配对令牌和 PI 认证文件未写入备份。`, `Exported ${exported.fileCount} files (${formatBytes(exported.bytes)}). Credentials, browser pairing tokens, and Pi auth files are not in the backup.`),
     }
   } catch (reason) {
-    notice.value = { tone: 'error', text: `备份导出失败：${String(reason)}` }
+    notice.value = { tone: 'error', text: t(`备份导出失败：${String(reason)}`, `Backup export failed: ${String(reason)}`) }
   } finally {
     backupExporting.value = false
   }
@@ -1103,10 +1115,10 @@ async function scheduleLocalDataRestore() {
     if (restore.cancelled) return
     notice.value = {
       tone: 'ok',
-      text: `已验证并暂存 ${restore.fileCount} 个文件（${formatBytes(restore.bytes)}）。重新打开 MilkSU 后应用。`,
+      text: t(`已验证并暂存 ${restore.fileCount} 个文件（${formatBytes(restore.bytes)}）。重新打开 MilkSU 后应用。`, `Verified and staged ${restore.fileCount} files (${formatBytes(restore.bytes)}). They apply the next time you reopen MilkSU.`),
     }
   } catch (reason) {
-    notice.value = { tone: 'error', text: `备份恢复失败：${String(reason)}` }
+    notice.value = { tone: 'error', text: t(`备份恢复失败：${String(reason)}`, `Backup restore failed: ${String(reason)}`) }
   } finally {
     restoreScheduling.value = false
   }
@@ -1120,10 +1132,10 @@ async function exportLocalDiagnostics() {
     if (exported.cancelled) return
     notice.value = {
       tone: 'ok',
-      text: `诊断包已导出（${formatBytes(exported.bytes)}，${exported.eventCount} 条脱敏运行事件）；不包含会话正文、附件或凭据。`,
+      text: t(`诊断包已导出（${formatBytes(exported.bytes)}，${exported.eventCount} 条脱敏运行事件）；不包含会话正文、附件或凭据。`, `Diagnostics exported (${formatBytes(exported.bytes)}, ${exported.eventCount} redacted runtime events). Session text, attachments, and credentials are not included.`),
     }
   } catch (reason) {
-    notice.value = { tone: 'error', text: `诊断包导出失败：${String(reason)}` }
+    notice.value = { tone: 'error', text: t(`诊断包导出失败：${String(reason)}`, `Diagnostics export failed: ${String(reason)}`) }
   } finally {
     diagnosticExporting.value = false
   }
@@ -1141,15 +1153,15 @@ async function save(): Promise<boolean> {
   ))
   if (incompleteCustomProvider) {
     if (!incompleteCustomProvider.name?.trim()) {
-      notice.value = { tone: 'error', text: '请填写中转站名称。' }
+      notice.value = { tone: 'error', text: t('请填写中转站名称。', 'Enter a relay name.') }
       return false
     }
     if (!incompleteCustomProvider.base_url?.trim()) {
-      notice.value = { tone: 'error', text: '请填写 API 端点（Base URL）。' }
+      notice.value = { tone: 'error', text: t('请填写 API 端点（Base URL）。', 'Enter an API endpoint (base URL).') }
       return false
     }
     if (!(incompleteCustomProvider.models ?? []).length) {
-      notice.value = { tone: 'error', text: '请至少添加一个模型 ID 或关键词前缀。' }
+      notice.value = { tone: 'error', text: t('请至少添加一个模型 ID 或关键词前缀。', 'Add at least one model ID or keyword prefix.') }
       return false
     }
   }
@@ -1164,7 +1176,9 @@ async function save(): Promise<boolean> {
     if (category.value !== 'apikeys') {
       notice.value = {
         tone: 'ok',
-        text: category.value === 'coding' ? 'Skills 设置已保存。' : '设置已保存。',
+        text: category.value === 'coding'
+          ? t('Skills 设置已保存。', 'Skills settings saved.')
+          : t('设置已保存。', 'Settings saved.'),
       }
       return true
     }
@@ -1179,7 +1193,7 @@ async function save(): Promise<boolean> {
     if (!activeReady) {
       notice.value = {
         tone: 'ok',
-        text: '设置已保存。当前没有已启用且可用的模型服务，请启用账户或填写 TokenFlux / 自定义中转站后再验证。',
+        text: t('设置已保存。当前没有已启用且可用的模型服务，请启用账户或填写 TokenFlux / 自定义中转站后再验证。', 'Settings saved. No enabled model service is ready yet. Enable the account or add a TokenFlux / custom relay, then verify.'),
       }
       return true
     }
@@ -1192,15 +1206,15 @@ async function save(): Promise<boolean> {
       await refreshCallableModels()
       notice.value = {
         tone: 'ok',
-        text: `已保存并验证 ${result.provider}/${result.model}，PI 响应 ${result.latencyMs} ms。`,
+        text: t(`已保存并验证 ${result.provider}/${result.model}，PI 响应 ${result.latencyMs} ms。`, `Saved and verified ${result.provider}/${result.model}. Pi responded in ${result.latencyMs} ms.`),
       }
       return true
     } catch (reason) {
       await refreshCallableModels()
       const raw = desktopErrorMessage(reason)
       const friendly = /both model sources are unavailable|enable the personal API key/i.test(raw)
-        ? '凭据已保存，但当前没有可用的账户或个人模型来源。请启用 MilkSU 账户或 TokenFlux 个人 Key 后重试。'
-        : `凭据已保存，但 PI 模型验证失败：${raw}`
+        ? t('凭据已保存，但当前没有可用的账户或个人模型来源。请启用 MilkSU 账户或 TokenFlux 个人 Key 后重试。', 'Credentials saved, but no account or personal model source is available. Enable the MilkSU account or a personal TokenFlux key, then try again.')
+        : t(`凭据已保存，但 PI 模型验证失败：${raw}`, `Credentials saved, but Pi model verification failed: ${raw}`)
       notice.value = { tone: 'error', text: friendly }
       return true
     } finally {
@@ -1219,8 +1233,8 @@ async function save(): Promise<boolean> {
       || refreshed.nssctf_arena?.session_only
     )
     notice.value = { tone: 'error', text: sessionOnly
-      ? `${desktopErrorMessage(reason)} 当前密钥仅保留在本次运行内，退出应用后需要重新输入。`
-      : `设置未保存：${desktopErrorMessage(reason)}` }
+      ? t(`${desktopErrorMessage(reason)} 当前密钥仅保留在本次运行内，退出应用后需要重新输入。`, `${desktopErrorMessage(reason)} The current key stays in this session only and must be entered again after you quit.`)
+      : t(`设置未保存：${desktopErrorMessage(reason)}`, `Settings were not saved: ${desktopErrorMessage(reason)}`) }
     return false
   } finally {
     saving.value = false
@@ -1276,7 +1290,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
 <template>
   <main class="settings-page tactical-page flex min-w-0 flex-1 flex-col bg-background">
     <header class="app-drag settings-page-header flex h-14 shrink-0 items-center border-b border-border bg-background px-5 text-foreground">
-      <Button variant="ghost" size="icon-sm" class="app-no-drag mr-3" aria-label="返回" @click="$emit('close')">
+      <Button variant="ghost" size="icon-sm" class="app-no-drag mr-3" :aria-label="t('返回', 'Back')" @click="$emit('close')">
         <ArrowLeft class="size-4" />
       </Button>
       <p class="text-lg font-semibold tracking-[-0.02em]">
@@ -1285,7 +1299,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
     </header>
 
     <div class="settings-layout flex min-h-0 flex-1">
-      <nav class="settings-nav settings-nav-surface app-no-drag w-56 shrink-0 border-r px-3 py-5" aria-label="设置分类">
+      <nav class="settings-nav settings-nav-surface app-no-drag w-56 shrink-0 border-r px-3 py-5" :aria-label="t('设置分类', 'Settings categories')">
         <div class="ak-tabs settings-ak-tabs">
           <div class="ak-tabs__list">
             <button
@@ -1306,7 +1320,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
       </nav>
 
       <div class="min-h-0 min-w-0 flex-1 overflow-y-auto px-6 py-8">
-      <div :class="category === 'cve' || category === 'security-tools' ? 'mx-auto w-full max-w-6xl' : category === 'apikeys' ? 'mx-auto w-full max-w-5xl' : 'mx-auto max-w-3xl'">
+      <div :class="category === 'cve' || category === 'security-tools' || category === 'eval' ? 'mx-auto w-full max-w-6xl' : category === 'apikeys' ? 'mx-auto w-full max-w-5xl' : 'mx-auto max-w-3xl'">
 
         <Alert v-if="notice" :variant="notice.tone === 'error' ? 'destructive' : 'default'" class="mb-5">
           <AlertCircle v-if="notice.tone === 'error'" class="size-4" />
@@ -1315,54 +1329,42 @@ async function saveProviderEditor(closeAfterSave: boolean) {
         </Alert>
 
         <template v-if="working && category === 'general'">
-          <SettingsSection title="调试">
+          <SettingsSection :title="t('账户', 'Account')">
             <SettingsRow
-              stack="always"
-              label="调试模式"
-            >
-              <Switch
-                :model-value="debugModeOn"
-                :aria-label="'开启调试模式'"
-                @update:model-value="value => { debugModeOn = value; setDebugMode(Boolean(value)) }"
-              />
-            </SettingsRow>
-            <div v-if="debugModeOn" class="mt-3">
-              <Button variant="outline" size="sm" @click="copyDebugDiagnostics">复制诊断</Button>
-            </div>
-          </SettingsSection>
-          <SettingsSection title="账户">
-            <SettingsRow
-              label="GitHub 账户"
+              :label="t('GitHub 账户', 'GitHub account')"
               :description="account.state === 'active'
-                ? `@${account.user?.githubLogin || 'GitHub'} · 内测用户`
+                ? `@${account.user?.githubLogin || 'GitHub'} · ${t('内测用户', 'beta user')}`
                 : ''"
             >
               <div class="flex items-center gap-3">
                 <Badge :variant="account.state === 'active' ? 'secondary' : 'outline'">{{ accountStateLabel }}</Badge>
                 <Button v-if="account.state === 'active'" variant="ghost" size="sm" @click="$emit('accountLogout')">
-                  <LogOut class="size-4" />退出
+                  <LogOut class="size-4" />{{ t('退出', 'Sign out') }}
                 </Button>
                 <Button v-else-if="account.configured" variant="outline" size="sm" @click="$emit('accountLogin')">
-                  <Github class="size-4" />GitHub 登录
+                  <Github class="size-4" />{{ t('GitHub 登录', 'GitHub sign-in') }}
                 </Button>
               </div>
             </SettingsRow>
           </SettingsSection>
 
-          <SettingsSection title="应用" class="mt-6">
-            <div class="settings-focus-row px-3">
-              <SettingsRow label="界面语言">
-                <NativeSelect v-model="working.locale" size="sm" aria-label="界面语言">
-                  <NativeSelectOption value="zh">简体中文</NativeSelectOption>
-                  <NativeSelectOption value="en">English</NativeSelectOption>
-                </NativeSelect>
-              </SettingsRow>
-            </div>
+          <SettingsSection :title="t('应用', 'App')" class="mt-6">
+            <SettingsRow :label="t('界面语言', 'Interface language')">
+              <NativeSelect
+                :model-value="working.locale ?? 'zh'"
+                size="sm"
+                :aria-label="t('界面语言', 'Interface language')"
+                @change="changeLocale(($event.target as HTMLSelectElement).value)"
+              >
+                <NativeSelectOption value="zh">{{ t('简体中文', 'Simplified Chinese') }}</NativeSelectOption>
+                <NativeSelectOption value="en">English</NativeSelectOption>
+              </NativeSelect>
+            </SettingsRow>
           </SettingsSection>
-          <SettingsSection title="产物" class="mt-6">
+          <SettingsSection :title="t('产物', 'Artifacts')" class="mt-6">
             <SettingsRow
               stack="always"
-              label="工作产物"
+              :label="t('工作产物', 'Work artifacts')"
             >
               <p
                 v-if="userArtifacts?.directory"
@@ -1374,18 +1376,18 @@ async function saveProviderEditor(closeAfterSave: boolean) {
               </p>
               <Button variant="outline" size="sm" @click="revealUserArtifacts">
                 <FolderOpen class="size-3.5" />
-                打开产物目录
+                {{ t('打开产物目录', 'Open artifacts folder') }}
               </Button>
             </SettingsRow>
           </SettingsSection>
-          <SettingsSection title="本地数据" class="mt-6">
+          <SettingsSection :title="t('本地数据', 'Local data')" class="mt-6">
             <SettingsRow
               stack="always"
-              label="数据与备份"
+              :label="t('数据与备份', 'Data and backups')"
               :description="localDataLoading
-                ? '正在统计本地数据'
+                ? t('正在统计本地数据', 'Counting local data')
                 : localData
-                  ? `${localData.fileCount} 个文件 · ${formatBytes(localData.bytes)}`
+                  ? t(`${localData.fileCount} 个文件 · ${formatBytes(localData.bytes)}`, `${localData.fileCount} files · ${formatBytes(localData.bytes)}`)
                   : ''"
             >
               <p
@@ -1398,7 +1400,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
               <div class="flex flex-wrap gap-2">
                 <Button variant="outline" size="sm" @click="revealLocalData">
                   <FolderOpen class="size-3.5" />
-                  打开数据目录
+                  {{ t('打开数据目录', 'Open data folder') }}
                 </Button>
                 <Button
                   variant="outline"
@@ -1407,7 +1409,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                   @click="exportLocalDataBackup"
                 >
                   <Download class="size-3.5" />
-                  导出安全备份
+                  {{ t('导出安全备份', 'Export a safe backup') }}
                 </Button>
                 <Button
                   variant="outline"
@@ -1416,7 +1418,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                   @click="scheduleLocalDataRestore"
                 >
                   <RotateCcw class="size-3.5" />
-                  从备份恢复
+                  {{ t('从备份恢复', 'Restore from backup') }}
                 </Button>
                 <Button
                   variant="outline"
@@ -1425,14 +1427,14 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                   @click="exportLocalDiagnostics"
                 >
                   <FileWarning class="size-3.5" />
-                  导出诊断包
+                  {{ t('导出诊断包', 'Export diagnostics') }}
                 </Button>
               </div>
             </SettingsRow>
             <SettingsRow
               v-if="localData?.databases?.length"
               stack="always"
-              label="数据库兼容性"
+              :label="t('数据库兼容性', 'Database compatibility')"
             >
               <ul class="flex min-w-0 flex-col gap-3">
                 <li
@@ -1467,19 +1469,19 @@ async function saveProviderEditor(closeAfterSave: boolean) {
           </SettingsSection>
 
           <div class="mt-6 flex justify-end">
-            <Button :loading="saving" @click="save">保存设置</Button>
+            <Button :loading="saving" @click="save">{{ t('保存设置', 'Save settings') }}</Button>
           </div>
 
           <!-- Bottom of Settings: sealed/package provenance only; never a fake signature. -->
-          <SettingsSection title="构建追踪" class="mt-10 border-t border-border pt-6">
+          <SettingsSection :title="t('构建追踪', 'Build tracking')" class="mt-10 border-t border-border pt-6">
             <SettingsRow
               stack="always"
-              label="可复制构建追踪"
+              :label="t('可复制构建追踪', 'Copyable build tracking')"
             >
               <div
                 v-if="buildTracking"
                 class="rounded-xl border border-border bg-muted/30 p-3 font-mono text-caption leading-5 text-foreground"
-                aria-label="构建追踪"
+                :aria-label="t('构建追踪', 'Build tracking')"
                 data-testid="build-tracking"
               >
                 <pre class="whitespace-pre-wrap break-all">{{ formatBuildTrackingText(buildTracking) }}</pre>
@@ -1491,7 +1493,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                     @click="copyBuildTracking"
                   >
                     <Copy class="size-3.5" />
-                    复制完整追踪
+                    {{ t('复制完整追踪', 'Copy full tracking') }}
                   </Button>
                   <Badge
                     v-if="buildTracking.channel === 'beta' && !buildTracking.development"
@@ -1500,27 +1502,47 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                     BETA
                   </Badge>
                   <Badge v-if="buildTracking.development" variant="outline">development/unpackaged</Badge>
-                  <Badge v-else-if="buildTracking.missing" variant="destructive">sealed provenance 缺失</Badge>
+                  <Badge v-else-if="buildTracking.missing" variant="destructive">{{ t('sealed provenance 缺失', 'sealed provenance missing') }}</Badge>
                   <Badge v-else-if="buildTracking.dirty" variant="outline">dirty</Badge>
                   <Badge v-else variant="outline">clean</Badge>
                 </div>
               </div>
               <p v-else class="text-caption text-muted-foreground">
-                未能读取构建追踪。
+                {{ t('未能读取构建追踪。', 'Could not read build tracking.') }}
               </p>
+            </SettingsRow>
+            <SettingsRow
+              :label="t('调试模式', 'Debug mode')"
+              :divider="false"
+            >
+              <div class="flex items-center gap-2">
+                <Button
+                  v-if="debugModeOn"
+                  variant="ghost"
+                  size="sm"
+                  @click="copyDebugDiagnostics"
+                >
+                  {{ t('复制诊断', 'Copy diagnostics') }}
+                </Button>
+                <Switch
+                  :model-value="debugModeOn"
+                  :aria-label="t('开启调试模式', 'Turn on debug mode')"
+                  @update:model-value="value => { debugModeOn = value; setDebugMode(Boolean(value)) }"
+                />
+              </div>
             </SettingsRow>
           </SettingsSection>
         </template>
 
         <template v-else-if="working && category === 'coding'">
-          <SettingsSection title="编辑器">
-            <SettingsRow label="打开文件">
+          <SettingsSection :title="t('编辑器', 'Editor')">
+            <SettingsRow :label="t('打开文件', 'Open files')">
               <div class="flex items-center gap-2">
                 <ExternalEditorIcon :editor="working.preferred_external_editor" />
                 <NativeSelect
                   :model-value="normalizePreferredExternalEditor(working.preferred_external_editor)"
                   size="sm"
-                  aria-label="打开文件的编辑器"
+                  :aria-label="t('打开文件的编辑器', 'Editor for opening files')"
                   @update:model-value="working.preferred_external_editor = String($event)"
                 >
                   <NativeSelectOption
@@ -1544,28 +1566,28 @@ async function saveProviderEditor(closeAfterSave: boolean) {
             >
               <Switch
                 :model-value="skillEnabled(skill.name)"
-                :aria-label="`启用${skill.label}`"
+                :aria-label="t(`启用${skill.label}`, `Enable ${skill.label}`)"
                 @update:model-value="setSkillEnabled(skill.name, Boolean($event))"
               />
             </SettingsRow>
           </SettingsSection>
 
           <div class="mt-6 flex justify-end">
-            <Button :loading="saving" @click="save">保存设置</Button>
+            <Button :loading="saving" @click="save">{{ t('保存设置', 'Save settings') }}</Button>
           </div>
         </template>
 
         <template v-else-if="category === 'chats'">
-          <SettingsSection title="归档聊天">
+          <SettingsSection :title="t('归档聊天', 'Archived chats')">
             <ArchivedConversationsSettings @changed="$emit('conversationsChanged')" />
           </SettingsSection>
         </template>
 
         <template v-else-if="working && category === 'browser'">
-          <SettingsSection title="Browser Use（真实用户浏览器）">
+          <SettingsSection :title="t('Browser Use（真实用户浏览器）', 'Browser Use (your real browser)')">
             <SettingsRow
               stack="always"
-              label="Playwright MCP 官方扩展"
+              :label="t('Playwright MCP 官方扩展', 'Official Playwright MCP extension')"
             >
               <div class="flex flex-wrap gap-2">
                 <Button
@@ -1575,33 +1597,33 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                   @click="openPlaywrightBrowserExtension"
                 >
                   <ExternalLink class="size-3.5" />
-                  安装官方扩展
+                  {{ t('安装官方扩展', 'Install the official extension') }}
                 </Button>
               </div>
             </SettingsRow>
           </SettingsSection>
 
-          <SettingsSection title="CTF 平台 Bridge" class="mt-6">
+          <SettingsSection :title="t('CTF 平台 Bridge', 'CTF platform bridge')" class="mt-6">
             <SettingsRow
               stack="always"
-              label="MilkSU 本地扩展连接"
+              :label="t('MilkSU 本地扩展连接', 'MilkSU local extension connection')"
             >
               <div class="flex flex-wrap items-center gap-2">
                 <Badge :variant="browserBridgeConnected ? 'secondary' : 'outline'">
-                  {{ browserBridgeConnected ? '已连接' : '等待连接' }}
+                  {{ browserBridgeConnected ? t('已连接', 'Connected') : t('等待连接', 'Waiting to connect') }}
                 </Badge>
                 <Badge variant="outline">
-                  扩展 {{ browserExtensionReady ? '已就绪' : '未就绪' }}
+                  {{ t('扩展', 'Extension') }} {{ browserExtensionReady ? t('已就绪', 'ready') : t('未就绪', 'not ready') }}
                 </Badge>
                 <Badge variant="outline">
-                  配对码 {{ browserPairingReady ? '已就绪' : '未就绪' }}
+                  {{ t('配对码', 'Pairing code') }} {{ browserPairingReady ? t('已就绪', 'ready') : t('未就绪', 'not ready') }}
                 </Badge>
               </div>
               <p
                 v-if="!browserBridgeConnected"
                 class="mt-3 text-caption leading-5 text-muted-foreground"
               >
-                在目标页面打开扩展并粘贴配对码（已复制到剪贴板）。
+                {{ t('在目标页面打开扩展并粘贴配对码（已复制到剪贴板）。', 'Open the extension on the target page and paste the pairing code (already copied).') }}
               </p>
               <div class="mt-3 flex flex-wrap gap-2">
                 <Button
@@ -1612,7 +1634,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                   @click="prepareBrowserExtension"
                 >
                   <FolderOpen class="size-3.5" />
-                  安装本地扩展
+                  {{ t('安装本地扩展', 'Install the local extension') }}
                 </Button>
                 <Button
                   variant="outline"
@@ -1621,7 +1643,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                   @click="copyBrowserPairingCode"
                 >
                   <Copy class="size-3.5" />
-                  复制配对码
+                  {{ t('复制配对码', 'Copy pairing code') }}
                 </Button>
                 <Button
                   variant="outline"
@@ -1630,7 +1652,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                   @click="refreshBrowserBridgeStatus()"
                 >
                   <Cable class="size-3.5" />
-                  检测连接
+                  {{ t('检测连接', 'Check connection') }}
                 </Button>
               </div>
             </SettingsRow>
@@ -1639,7 +1661,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
           <SettingsSection title="Computer Use" class="mt-6">
             <SettingsRow
               stack="always"
-              label="外部 App 权限"
+              :label="t('外部 App 权限', 'External app permissions')"
               :description="computerUsePermissionSummary"
             >
               <div class="flex flex-wrap items-center gap-2">
@@ -1647,10 +1669,10 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                   {{ computerUsePermissionBadge.label }}
                 </Badge>
                 <Badge variant="outline">
-                  辅助功能 {{ computerUseStatus?.permissions.accessibility ? '已授权' : '未授权' }}
+                  {{ t('辅助功能', 'Accessibility') }} {{ computerUseStatus?.permissions.accessibility ? t('已授权', 'granted') : t('未授权', 'not granted') }}
                 </Badge>
                 <Badge variant="outline">
-                  屏幕录制 {{ computerUseStatus?.permissions.screenRecording ? '已授权' : '未授权' }}
+                  {{ t('屏幕录制', 'Screen Recording') }} {{ computerUseStatus?.permissions.screenRecording ? t('已授权', 'granted') : t('未授权', 'not granted') }}
                 </Badge>
               </div>
               <p
@@ -1662,21 +1684,21 @@ async function saveProviderEditor(closeAfterSave: boolean) {
               <div
                 v-if="!computerUsePermissionsReady"
                 class="mt-4 grid gap-3 sm:grid-cols-2"
-                aria-label="Computer Use 权限设置"
+                :aria-label="t('Computer Use 权限设置', 'Computer Use permission settings')"
               >
                 <div class="rounded-lg border border-border bg-background/60 p-3">
                   <div class="flex items-start justify-between gap-3">
                     <div>
-                      <p class="text-body font-medium">辅助功能</p>
+                      <p class="text-body font-medium">{{ t('辅助功能', 'Accessibility') }}</p>
                       <p
                         v-if="!computerUseStatus?.permissions.accessibility"
                         class="mt-1 text-caption leading-5 text-muted-foreground"
                       >
-                        在系统设置中开启 MilkSU
+                        {{ t('在系统设置中开启 MilkSU', 'Enable MilkSU in System Settings') }}
                       </p>
                     </div>
                     <Badge :variant="computerUseStatus?.permissions.accessibility ? 'secondary' : 'outline'">
-                      {{ computerUseStatus?.permissions.accessibility ? '已授权' : '待授权' }}
+                      {{ computerUseStatus?.permissions.accessibility ? t('已授权', 'Granted') : t('待授权', 'Needs access') }}
                     </Badge>
                   </div>
                   <Button
@@ -1689,22 +1711,22 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                     @click="requestComputerUsePermission('accessibility')"
                   >
                     <KeyRound class="size-3.5" />
-                    打开辅助功能设置
+                    {{ t('打开辅助功能设置', 'Open Accessibility settings') }}
                   </Button>
                 </div>
                 <div class="rounded-lg border border-border bg-background/60 p-3">
                   <div class="flex items-start justify-between gap-3">
                     <div>
-                      <p class="text-body font-medium">屏幕录制</p>
+                      <p class="text-body font-medium">{{ t('屏幕录制', 'Screen Recording') }}</p>
                       <p
                         v-if="!computerUseStatus?.permissions.screenRecording"
                         class="mt-1 text-caption leading-5 text-muted-foreground"
                       >
-                        列表没有 MilkSU 时，添加 /Applications/MilkSU.app
+                        {{ t('列表没有 MilkSU 时，添加 /Applications/MilkSU.app', 'If MilkSU is missing from the list, add /Applications/MilkSU.app') }}
                       </p>
                     </div>
                     <Badge :variant="computerUseStatus?.permissions.screenRecording ? 'secondary' : 'outline'">
-                      {{ computerUseStatus?.permissions.screenRecording ? '已授权' : '待授权' }}
+                      {{ computerUseStatus?.permissions.screenRecording ? t('已授权', 'Granted') : t('待授权', 'Needs access') }}
                     </Badge>
                   </div>
                   <Button
@@ -1717,7 +1739,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                     @click="requestComputerUsePermission('screen-recording')"
                   >
                     <KeyRound class="size-3.5" />
-                    打开屏幕录制设置
+                    {{ t('打开屏幕录制设置', 'Open Screen Recording settings') }}
                   </Button>
                 </div>
               </div>
@@ -1729,7 +1751,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                   @click="refreshComputerUseStatus()"
                 >
                   <RotateCcw class="size-3.5" />
-                  重新检测
+                  {{ t('重新检测', 'Recheck') }}
                 </Button>
                 <Button
                   v-if="computerUseStatus && computerUsePermissionsReady"
@@ -1739,7 +1761,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                   @click="relaunchDesktopApp"
                 >
                   <RotateCcw class="size-3.5" />
-                  重新打开 MilkSU
+                  {{ t('重新打开 MilkSU', 'Reopen MilkSU') }}
                 </Button>
               </div>
             </SettingsRow>
@@ -1747,12 +1769,12 @@ async function saveProviderEditor(closeAfterSave: boolean) {
         </template>
 
         <template v-else-if="working && category === 'apikeys'">
-          <SettingsSection title="调用">
+          <SettingsSection :title="t('调用', 'Invocation')">
             <div class="settings-focus-row">
               <SettingsRow
-                label="默认模型"
+                :label="t('默认模型', 'Default model')"
                 :description="!defaultModelAvailable && availableModelCount > 0
-                  ? '当前默认模型不可用'
+                  ? t('当前默认模型不可用', 'The current default model is unavailable')
                   : ''"
               >
               <Select
@@ -1763,7 +1785,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                   id="default-model"
                   size="sm"
                   class="w-72 max-w-full"
-                  aria-label="默认模型"
+                  :aria-label="t('默认模型', 'Default model')"
                 >
                   <SelectValue>
                     <span class="inline-flex min-w-0 items-center gap-2">
@@ -1777,14 +1799,14 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                 </SelectTrigger>
                 <SelectContent size="sm" align="start" class="min-w-96">
                   <SelectGroup v-if="!defaultModelAvailable && defaultModelKey">
-                    <SelectLabel>当前选择</SelectLabel>
+                    <SelectLabel>{{ t('当前选择', 'Current selection') }}</SelectLabel>
                     <SelectItem :value="defaultModelKey" disabled>
                       <span class="inline-flex min-w-0 items-center gap-2">
                         <ModelVendorIcon
                           :model="working?.active_model ?? ''"
                           :label="defaultModelLabel"
                         />
-                        <span class="min-w-0 truncate">{{ defaultModelLabel }}（当前不可用）</span>
+                        <span class="min-w-0 truncate">{{ t(`${defaultModelLabel}（当前不可用）`, `${defaultModelLabel} (unavailable)`) }}</span>
                       </span>
                     </SelectItem>
                   </SelectGroup>
@@ -1819,12 +1841,12 @@ async function saveProviderEditor(closeAfterSave: boolean) {
 
           <section class="mt-8">
             <div class="flex items-center justify-between gap-4">
-              <h2 class="text-title font-semibold">模型服务</h2>
+              <h2 class="text-title font-semibold">{{ t('模型服务', 'Model services') }}</h2>
               <Button
                 variant="outline"
                 size="icon-sm"
-                aria-label="新增模型服务"
-                title="新增自定义中转站"
+                :aria-label="t('新增模型服务', 'Add a model service')"
+                :title="t('新增自定义中转站', 'Add a custom relay')"
                 @click="addModelService"
               >
                 <Plus class="size-4" />
@@ -1849,19 +1871,19 @@ async function saveProviderEditor(closeAfterSave: boolean) {
 
                 <div class="min-w-0">
                   <p class="truncate font-medium">
-                    {{ row.source === 'account' ? 'MilkSU 账户' : providerServiceName(row.provider) }}
+                    {{ row.source === 'account' ? t('MilkSU 账户', 'MilkSU account') : providerServiceName(row.provider) }}
                   </p>
                   <p
                     v-if="row.source === 'account'"
                     class="mt-0.5 text-caption text-muted-foreground"
                   >
-                    登录后由管理员分配的 TokenFlux 配额
+                    {{ t('登录后由管理员分配的 TokenFlux 配额', 'TokenFlux quota assigned by an admin after sign-in') }}
                   </p>
                   <p
                     v-else-if="row.provider.id === 'tokenflux'"
                     class="mt-0.5 text-caption text-muted-foreground"
                   >
-                    你自己的 TokenFlux API Key
+                    {{ t('你自己的 TokenFlux API Key', 'Your own TokenFlux API key') }}
                   </p>
                 </div>
 
@@ -1883,7 +1905,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                       class="text-link hover:underline"
                       @click="openProviderEditor(row.provider.id)"
                     >
-                      编辑
+                      {{ t('编辑', 'Edit') }}
                     </button>
                     <span class="text-muted-foreground">/</span>
                     <button
@@ -1891,7 +1913,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                       class="text-destructive hover:underline"
                       @click="removeModelService(row.provider.id)"
                     >
-                      删除
+                      {{ t('删除', 'Delete') }}
                     </button>
                   </template>
                   <span v-else class="text-muted-foreground">—</span>
@@ -1899,7 +1921,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
 
                 <Switch
                   :model-value="row.source === 'account' ? Boolean(accountRoute?.enabled) : Boolean(providerConfig(row.provider.id)?.enabled)"
-                  :aria-label="`启用${row.source === 'account' ? 'MilkSU 账户' : providerServiceName(row.provider)}`"
+                  :aria-label="t(`启用${row.source === 'account' ? t('MilkSU 账户', 'MilkSU account') : providerServiceName(row.provider)}`, `Enable ${row.source === 'account' ? t('MilkSU 账户', 'MilkSU account') : providerServiceName(row.provider)}`)"
                   @update:model-value="setModelServiceEnabled(row, Boolean($event))"
                 />
               </article>
@@ -1907,23 +1929,23 @@ async function saveProviderEditor(closeAfterSave: boolean) {
           </section>
 
           <SettingsSection
-            title="模型能力"
+            :title="t('模型能力', 'Model capabilities')"
             class="mt-8"
           >
             <div class="rounded-lg border border-border bg-card p-4">
               <div class="flex flex-wrap items-start justify-between gap-4">
                 <div class="min-w-0 flex-1">
-                  <p class="font-medium">思考层级</p>
+                  <p class="font-medium">{{ t('思考层级', 'Thinking levels') }}</p>
                   <p class="mt-1 text-caption text-muted-foreground">
-                    GPT 与 Claude Opus、Sonnet、Fable 使用内置预设；其他模型需要手动启用并选择实际支持的档位
+                    {{ t('GPT 与 Claude Opus、Sonnet、Fable 使用内置预设；其他模型需要手动启用并选择实际支持的档位', 'GPT and Claude Opus, Sonnet, and Fable use built-in presets. Other models need thinking enabled by hand, with the levels they actually support.') }}
                   </p>
                 </div>
                 <Badge variant="outline">
                   {{ thinkingProfile.source === 'preset'
-                    ? '内置预设'
+                    ? t('内置预设', 'Built-in preset')
                     : thinkingProfile.source === 'manual'
-                      ? '手动配置'
-                      : '未启用' }}
+                      ? t('手动配置', 'Custom')
+                      : t('未启用', 'Off') }}
                 </Badge>
               </div>
 
@@ -1932,7 +1954,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                   <SelectTrigger
                     size="sm"
                     class="w-full"
-                    aria-label="配置思考层级的模型"
+                    :aria-label="t('配置思考层级的模型', 'Model for thinking levels')"
                   >
                     <SelectValue>
                       <span class="inline-flex min-w-0 items-center gap-2">
@@ -1977,19 +1999,19 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                     class="text-caption text-link hover:underline"
                     @click="resetModelThinkingOverride"
                   >
-                    恢复预设
+                    {{ t('恢复预设', 'Restore preset') }}
                   </button>
                   <Switch
                     :model-value="thinkingProfile.enabled"
                     :disabled="!thinkingModelID"
-                    aria-label="启用模型思考层级"
+                    :aria-label="t('启用模型思考层级', 'Enable model thinking levels')"
                     @update:model-value="setModelThinkingEnabled(Boolean($event))"
                   />
                 </div>
               </div>
 
               <div v-if="thinkingProfile.enabled" class="mt-4 border-t border-border pt-4">
-                <p class="text-label font-medium text-muted-foreground">支持档位</p>
+                <p class="text-label font-medium text-muted-foreground">{{ t('支持档位', 'Supported levels') }}</p>
                 <div class="mt-2 flex flex-wrap gap-2">
                   <button
                     v-for="level in MODEL_THINKING_LEVELS"
@@ -2008,11 +2030,11 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                 </div>
 
                 <label class="mt-4 flex items-center justify-between gap-4 text-caption">
-                  <span class="text-muted-foreground">默认档位</span>
+                  <span class="text-muted-foreground">{{ t('默认档位', 'Default level') }}</span>
                   <NativeSelect
                     :model-value="thinkingProfile.defaultLevel"
                     size="sm"
-                    aria-label="默认思考层级"
+                    :aria-label="t('默认思考层级', 'Default thinking level')"
                     @update:model-value="setModelThinkingDefault(String($event))"
                   >
                     <NativeSelectOption
@@ -2030,57 +2052,57 @@ async function saveProviderEditor(closeAfterSave: boolean) {
 
           <div class="mt-6 flex justify-end">
             <Button :loading="saving || verifying" @click="save">
-              {{ verifying ? '正在验证' : '保存并验证' }}
+              {{ verifying ? t('正在验证', 'Verifying') : t('保存并验证', 'Save and verify') }}
             </Button>
           </div>
 
           <Dialog v-model:open="providerEditorOpen">
             <DialogContent class="provider-editor-dialog sm:max-w-xl">
               <DialogHeader>
-                <DialogTitle>编辑 {{ editingProviderInfo ? providerServiceName(editingProviderInfo) : '模型服务' }}</DialogTitle>
-                <DialogDescription class="sr-only">配置这个模型服务的接口地址、凭据和可用模型。</DialogDescription>
+                <DialogTitle>{{ t(`编辑 ${editingProviderInfo ? providerServiceName(editingProviderInfo) : t('模型服务', 'model service')}`, `Edit ${editingProviderInfo ? providerServiceName(editingProviderInfo) : t('模型服务', 'model service')}`) }}</DialogTitle>
+                <DialogDescription class="sr-only">{{ t('配置这个模型服务的接口地址、凭据和可用模型。', 'Configure this model service endpoint, credentials, and available models.') }}</DialogDescription>
               </DialogHeader>
 
               <div v-if="editingProvider && editingProviderInfo" class="grid gap-4">
                 <label class="provider-editor-field">
-                  <span>API 端点</span>
+                  <span>{{ t('API 端点', 'API endpoint') }}</span>
                   <Input
                     :model-value="editingProvider.base_url ?? editingProviderInfo.defaultBaseUrl"
                     type="url"
                     autocomplete="url"
                     :placeholder="editingProviderInfo.defaultBaseUrl || 'https://example.com/v1'"
-                    aria-label="API 端点"
+                    :aria-label="t('API 端点', 'API endpoint')"
                     @update:model-value="value => { editingProvider!.base_url = String(value).trim() }"
                   />
                 </label>
 
                 <label v-if="editingProvider.custom" class="provider-editor-field">
-                  <span>自定义名字</span>
+                  <span>{{ t('自定义名字', 'Custom name') }}</span>
                   <Input
                     :model-value="editingProvider.name ?? ''"
                     autocomplete="off"
-                    placeholder="例如：我的中转站"
-                    aria-label="中转站名称"
+                    :placeholder="t('例如：我的中转站', 'e.g. My relay')"
+                    :aria-label="t('中转站名称', 'Relay name')"
                     @update:model-value="value => { editingProvider!.name = String(value) }"
                   />
                 </label>
                 <label v-else class="provider-editor-field">
-                  <span>名称</span>
-                  <Input :model-value="providerServiceName(editingProviderInfo)" readonly aria-label="名称" />
+                  <span>{{ t('名称', 'Name') }}</span>
+                  <Input :model-value="providerServiceName(editingProviderInfo)" readonly :aria-label="t('名称', 'Name')" />
                 </label>
 
                 <div v-if="editingProvider.custom" class="provider-editor-field items-start">
-                  <span class="pt-2">模型 / 前缀</span>
+                  <span class="pt-2">{{ t('模型 / 前缀', 'Models / prefixes') }}</span>
                   <div class="min-w-0">
                     <div class="flex gap-2">
                       <Input
                         v-model="customModelInput"
                         autocomplete="off"
-                        placeholder="例如：grok-4.5 或 openai/gpt-5"
-                        aria-label="模型 ID 或关键词前缀"
+                        :placeholder="t('例如：grok-4.5 或 openai/gpt-5', 'e.g. grok-4.5 or openai/gpt-5')"
+                        :aria-label="t('模型 ID 或关键词前缀', 'Model ID or keyword prefix')"
                         @keydown.enter.prevent="addCustomRelayModel"
                       />
-                      <Button variant="outline" @click="addCustomRelayModel">添加</Button>
+                      <Button variant="outline" @click="addCustomRelayModel">{{ t('添加', 'Add') }}</Button>
                     </div>
                     <div v-if="editingProvider.models?.length" class="mt-2 flex flex-wrap gap-2">
                       <span
@@ -2089,7 +2111,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                         class="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/30 px-2.5 py-1 font-mono text-caption"
                       >
                         {{ model }}
-                        <button type="button" class="text-muted-foreground hover:text-destructive" :aria-label="`移除模型 ${model}`" @click="removeCustomRelayModel(model)">
+                        <button type="button" class="text-muted-foreground hover:text-destructive" :aria-label="t(`移除模型 ${model}`, `Remove model ${model}`)" @click="removeCustomRelayModel(model)">
                           <Trash2 class="size-3.5" />
                         </button>
                       </span>
@@ -2113,7 +2135,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                 </label>
 
                 <label v-if="!editingProvider.custom" class="provider-editor-field items-start">
-                  <span class="pt-2">可用模型</span>
+                  <span class="pt-2">{{ t('可用模型', 'Available models') }}</span>
                   <div class="min-w-0">
                     <Select
                       :model-value="editingProviderModels.length
@@ -2129,7 +2151,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                         size="sm"
                         class="min-w-72"
                         :disabled="!editingProviderModels.length"
-                        aria-label="可用模型"
+                        :aria-label="t('可用模型', 'Available models')"
                       >
                         <SelectValue>
                           {{ editingProviderModels.length
@@ -2160,8 +2182,8 @@ async function saveProviderEditor(closeAfterSave: boolean) {
               </div>
 
               <DialogFooter>
-                <Button variant="outline" :loading="saving || verifying" @click="saveProviderEditor(false)">测试连接</Button>
-                <Button :loading="saving || verifying" @click="saveProviderEditor(true)">保存</Button>
+                <Button variant="outline" :loading="saving || verifying" @click="saveProviderEditor(false)">{{ t('测试连接', 'Test connection') }}</Button>
+                <Button :loading="saving || verifying" @click="saveProviderEditor(true)">{{ t('保存', 'Save') }}</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -2172,7 +2194,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
             <SettingsRow
               stack="always"
               label="Arena Token"
-              :description="working.nssctf_arena?.session_only ? '本地数据库写入失败；当前仅在本次运行可用' : ''"
+              :description="working.nssctf_arena?.session_only ? t('本地数据库写入失败；当前仅在本次运行可用', 'Could not write the local database; this value is only available in the current session.') : ''"
             >
               <Input
                 :model-value="working.nssctf_arena?.token ?? ''"
@@ -2189,18 +2211,18 @@ async function saveProviderEditor(closeAfterSave: boolean) {
               />
             </SettingsRow>
           </SettingsSection>
-          <SettingsSection title="题目浏览器扩展" class="mt-6">
+          <SettingsSection :title="t('题目浏览器扩展', 'Challenge browser extension')" class="mt-6">
             <SettingsRow
-              label="连接"
-              :description="browserBridgeConnected ? '已连接' : '未连接'"
+              :label="t('连接', 'Connection')"
+              :description="browserBridgeConnected ? t('已连接', 'Connected') : t('未连接', 'Not connected')"
             >
               <Button variant="outline" size="sm" :loading="browserBridgeLoading" @click="refreshBrowserBridgeStatus()">
-                检测
+                {{ t('检测', 'Check') }}
               </Button>
             </SettingsRow>
           </SettingsSection>
           <div class="mt-6 flex justify-end">
-            <Button :loading="saving" @click="save">保存设置</Button>
+            <Button :loading="saving" @click="save">{{ t('保存设置', 'Save settings') }}</Button>
           </div>
         </template>
 
@@ -2212,6 +2234,10 @@ async function saveProviderEditor(closeAfterSave: boolean) {
 
         <template v-else-if="category === 'cve'">
           <VulnerabilityIntelSettingsPanel :dashboard="dashboard" />
+        </template>
+
+        <template v-else-if="category === 'eval'">
+          <EvalSettingsPanel :settings="working" />
         </template>
       </div>
       </div>

@@ -10,8 +10,12 @@ export type EnvChallenge = {
 export type EnvPackage = {
   id: string
   name: string
+  category?: string
   kindLabel: string
   detail: string
+  source?: string
+  purpose?: string
+  difficulty?: string
   brief?: string
   provider: string
   surface: 'browser' | 'shell' | 'emulator' | 'device'

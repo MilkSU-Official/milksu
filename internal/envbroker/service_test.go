@@ -259,6 +259,27 @@ func TestCatalogPinsExpectedPackages(t *testing.T) {
 	}
 }
 
+func TestCatalogGroupsByCategory(t *testing.T) {
+	t.Parallel()
+	want := map[string]string{
+		"whoami":         "probe",
+		"juice-shop":     "web",
+		"webgoat":        "web",
+		"struts2-s2-045": "cve",
+		"android-avd":    "android",
+		"android-lab":    "android",
+	}
+	for _, item := range Catalog() {
+		if item.Category != want[item.ID] {
+			t.Fatalf("%s category=%q", item.ID, item.Category)
+		}
+	}
+	whoami, ok := PackageByID("whoami")
+	if !ok || whoami.KindLabel != "连通性" {
+		t.Fatalf("whoami should be a connectivity pack: %+v", whoami)
+	}
+}
+
 type fileAPKFetcher struct {
 	source string
 }
@@ -375,6 +396,15 @@ func TestAndroidLabStatusRequiresInstalledAPK(t *testing.T) {
 	}
 }
 
+func TestCatalogPackIntros(t *testing.T) {
+	t.Parallel()
+	for _, item := range Catalog() {
+		if item.Source == "" || item.Purpose == "" || item.Difficulty == "" || item.Brief == "" {
+			t.Fatalf("%s missing intro fields: source=%q purpose=%q difficulty=%q brief=%q", item.ID, item.Source, item.Purpose, item.Difficulty, item.Brief)
+		}
+	}
+}
+
 func TestAndroidLabPinsInjuredAndroid(t *testing.T) {
 	t.Parallel()
 	item, ok := PackageByID("android-lab")
@@ -386,6 +416,12 @@ func TestAndroidLabPinsInjuredAndroid(t *testing.T) {
 	}
 	if item.Launcher != "b3nac.injuredandroid/.MainActivity" || len(item.Challenges) != 12 || item.Challenges[0].ID != "flag-1" || item.Challenges[0].Guidance == "" || item.Brief == "" {
 		t.Fatalf("%+v", item)
+	}
+	if !strings.Contains(item.Brief, "不是 12 台设备") || !strings.Contains(item.Detail, "一台模拟器") {
+		t.Fatalf("android-lab intro should say one host: %+v", item)
+	}
+	if item.Source == "" || item.Purpose == "" || item.Difficulty != "初中级" {
+		t.Fatalf("android-lab missing source/purpose/difficulty: %+v", item)
 	}
 }
 

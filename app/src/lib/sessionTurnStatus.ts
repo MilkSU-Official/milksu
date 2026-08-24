@@ -4,6 +4,8 @@
  * model catalog — not a second harness.
  */
 
+import { t } from '@/lib/uiLocale'
+
 export interface SessionTurnUsage {
   inputTokens: number
   outputTokens: number
@@ -346,13 +348,13 @@ export function presentContextUsage(
   if (!usage) {
     if (!compacting) return null
     return {
-      strip: '整理中',
+      strip: t('整理中', 'Compacting'),
       nearLimit: false,
       inputLabel: '—',
       outputLabel: '—',
       windowLabel: '',
       totalLabel: '—',
-      ioLabel: '整理中',
+      ioLabel: t('整理中', 'Compacting'),
       compacting: true,
     }
   }
@@ -370,7 +372,7 @@ export function presentContextUsage(
   const percent = occupancy?.percent
   const nearLimit = (percent ?? 0) >= 85
   const ratio = windowLabel ? `${inputLabel}/${windowLabel}` : ''
-  const compactingMark = compacting ? ' · 整理中' : ''
+  const compactingMark = compacting ? t(' · 整理中', ' · Compacting') : ''
   const strip = ratio
     ? `${ioLabel} · ${ratio}${compactingMark}`
     : `${ioLabel}${compactingMark}`

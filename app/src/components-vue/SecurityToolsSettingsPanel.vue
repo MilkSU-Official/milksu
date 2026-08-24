@@ -18,6 +18,7 @@ import {
   X,
 } from 'lucide-vue-next'
 import { invokeCommand, listenEvent } from '@/desktop'
+import { t } from '@/lib/uiLocale'
 import type {
   SecurityToolCodingHandoff,
   SecurityToolSetupSnapshot,
@@ -68,7 +69,7 @@ async function loadTools() {
       selectedID.value = tools.value[0].id
     }
   } catch (reason) {
-    error.value = `无法检测本机工具：${String(reason)}`
+    error.value = t(`无法检测本机工具：${String(reason)}`, `Could not detect local tools: ${String(reason)}`)
   } finally {
     loading.value = false
   }
@@ -97,7 +98,7 @@ async function setEnabled(enabled: boolean) {
       ? { ...item, enabled, usableByAgent: enabled && item.status === 'ready' && item.codingSupported }
       : item)
   } catch (reason) {
-    error.value = `无法更新工具：${String(reason)}`
+    error.value = t(`无法更新工具：${String(reason)}`, `Could not update tool: ${String(reason)}`)
   } finally {
     actionBusy.value = false
   }
@@ -111,7 +112,7 @@ async function startSetup() {
   try {
     setup.value = await invokeCommand<SecurityToolSetupSnapshot>('start_security_tool_setup', { id: tool.id })
   } catch (reason) {
-    error.value = `无法开始配置：${String(reason)}`
+    error.value = t(`无法开始配置：${String(reason)}`, `Could not start setup: ${String(reason)}`)
   } finally {
     actionBusy.value = false
   }
@@ -127,7 +128,7 @@ async function checkTool() {
     tools.value = tools.value.map(item => item.id === checked.id ? checked : item)
     if (checked.status === 'ready') setup.value = null
   } catch (reason) {
-    error.value = `健康检查失败：${String(reason)}`
+    error.value = t(`健康检查失败：${String(reason)}`, `Health check failed: ${String(reason)}`)
   } finally {
     checking.value = false
   }
@@ -145,7 +146,7 @@ async function openCodingSetup() {
     )
     emit('codingHandoff', handoff)
   } catch (reason) {
-    error.value = `无法准备 Coding 任务：${String(reason)}`
+    error.value = t(`无法准备 Coding 任务：${String(reason)}`, `Could not prepare Coding task: ${String(reason)}`)
   } finally {
     actionBusy.value = false
   }
@@ -167,13 +168,13 @@ onBeforeUnmount(() => unlistenSetup?.())
 </script>
 
 <template>
-  <section class="security-tools-panel" aria-label="本机安全工具">
+  <section class="security-tools-panel" :aria-label="t('本机安全工具', 'Local security tools')">
     <div class="mb-6 flex items-start justify-between gap-5">
       <div>
-        <p class="text-control text-muted-foreground">本机安全工具</p>
+        <p class="text-control text-muted-foreground">{{ t('本机安全工具', 'Local security tools') }}</p>
       </div>
       <Button variant="ghost" size="sm" :loading="loading" @click="loadTools">
-        <RefreshCw class="size-3.5" />重新检测
+        <RefreshCw class="size-3.5" />{{ t('重新检测', 'Recheck') }}
       </Button>
     </div>
 
@@ -182,11 +183,11 @@ onBeforeUnmount(() => unlistenSetup?.())
     </div>
 
     <div v-if="loading && !tools.length" class="grid min-h-[34rem] place-items-center border-y border-border text-control text-muted-foreground">
-      正在检测本机工具
+      {{ t('正在检测本机工具', 'Detecting local tools') }}
     </div>
 
     <div v-else-if="selectedTool" class="tool-workbench grid min-h-[39rem] grid-cols-[minmax(18rem,0.8fr)_minmax(28rem,1.2fr)] border-y border-border">
-      <nav class="border-r border-border" aria-label="安全工具目录">
+      <nav class="border-r border-border" :aria-label="t('安全工具目录', 'Security tools')">
         <button
           v-for="tool in tools"
           :key="tool.id"
@@ -208,7 +209,7 @@ onBeforeUnmount(() => unlistenSetup?.())
 
       <article v-if="configuring" class="min-w-0 px-9 py-7" aria-live="polite">
         <header class="border-b border-border pb-5">
-          <p class="tactical-label text-primary">正在准备</p>
+          <p class="tactical-label text-primary">{{ t('正在准备', 'Preparing') }}</p>
           <h2 class="tactical-display mt-1 text-4xl">{{ selectedTool.name }}</h2>
           <p class="mt-2 text-control text-muted-foreground">{{ setup?.summary }}</p>
         </header>
@@ -235,7 +236,7 @@ onBeforeUnmount(() => unlistenSetup?.())
               </span>
               <div class="pb-5">
                 <p class="text-control font-medium">{{ step.label }}</p>
-                <p class="mt-1 text-caption text-muted-foreground">{{ step.detail || (step.status === 'pending' ? '等待中' : '进行中') }}</p>
+                <p class="mt-1 text-caption text-muted-foreground">{{ step.detail || (step.status === 'pending' ? t('等待中', 'Waiting') : t('进行中', 'Running')) }}</p>
               </div>
             </li>
           </ol>
@@ -255,21 +256,21 @@ onBeforeUnmount(() => unlistenSetup?.())
             <Switch
               :model-value="selectedTool.enabled"
               :disabled="actionBusy"
-              :aria-label="`允许 Coding 自动使用 ${selectedTool.name}`"
+              :aria-label="t(`允许 Coding 自动使用 ${selectedTool.name}`, `Allow Coding to use ${selectedTool.name} automatically`)"
               @update:model-value="setEnabled(Boolean($event))"
             />
           </div>
         </header>
 
         <dl class="grid grid-cols-[7rem_minmax(0,1fr)] gap-x-6 gap-y-3 border-b border-border py-5 text-control">
-          <dt>连接</dt><dd>{{ selectedTool.connection }}</dd>
-          <dt>版本</dt><dd>{{ selectedTool.version || '待检测' }}</dd>
-          <dt>模型调用</dt><dd>{{ selectedTool.usableByAgent ? '已加入自动能力目录' : '尚未加入能力目录' }}</dd>
-          <dt>运行方式</dt><dd>{{ selectedTool.runtime }}</dd>
+          <dt>{{ t('连接', 'Connection') }}</dt><dd>{{ selectedTool.connection }}</dd>
+          <dt>{{ t('版本', 'Version') }}</dt><dd>{{ selectedTool.version || t('待检测', 'Pending') }}</dd>
+          <dt>{{ t('模型调用', 'Model use') }}</dt><dd>{{ selectedTool.usableByAgent ? t('已加入自动能力目录', 'Added to auto-capability catalog') : t('尚未加入能力目录', 'Not in capability catalog') }}</dd>
+          <dt>{{ t('运行方式', 'Runtime') }}</dt><dd>{{ selectedTool.runtime }}</dd>
         </dl>
 
         <section class="py-5" aria-labelledby="security-tool-capabilities">
-          <h3 id="security-tool-capabilities" class="text-base font-semibold">能力</h3>
+          <h3 id="security-tool-capabilities" class="text-base font-semibold">{{ t('能力', 'Capabilities') }}</h3>
           <div class="mt-4 grid gap-3.5">
             <div v-for="capability in selectedTool.capabilities" :key="capability" class="flex items-center gap-3 text-control">
               <span class="grid size-5 place-items-center border border-border text-primary">
@@ -293,7 +294,7 @@ onBeforeUnmount(() => unlistenSetup?.())
             :loading="actionBusy"
             @click="startSetup"
           >
-            <Wrench class="size-4" />{{ selectedTool.primaryAction || '开始准备' }}
+            <Wrench class="size-4" />{{ selectedTool.primaryAction || t('开始准备', 'Start setup') }}
           </Button>
           <Button
             v-if="selectedTool.codingSupported && selectedTool.status !== 'ready'"
@@ -301,20 +302,20 @@ onBeforeUnmount(() => unlistenSetup?.())
             :disabled="actionBusy"
             @click="openCodingSetup"
           >
-            <TerminalSquare class="size-4" />在 Coding 中配置
+            <TerminalSquare class="size-4" />{{ t('在 Coding 中配置', 'Configure in Coding') }}
           </Button>
           <Button variant="ghost" :loading="checking" @click="checkTool">
-            <RefreshCw class="size-4" />运行健康检查
+            <RefreshCw class="size-4" />{{ t('运行健康检查', 'Run health check') }}
           </Button>
           <Button variant="ghost" @click="schemaOpen = !schemaOpen">
             <FileSearch class="size-4" />
-            {{ schemaOpen ? '收起工具 Schema' : '查看工具 Schema' }}
+            {{ schemaOpen ? t('收起工具 Schema', 'Hide tool schema') : t('查看工具 Schema', 'View tool schema') }}
             <ChevronUp v-if="schemaOpen" class="size-3.5" />
             <ChevronDown v-else class="size-3.5" />
           </Button>
         </div>
 
-        <section v-if="schemaOpen" class="mt-5 border-l-2 border-info px-4 py-3" aria-label="工具 Schema 摘要">
+        <section v-if="schemaOpen" class="mt-5 border-l-2 border-info px-4 py-3" :aria-label="t('工具 Schema 摘要', 'Tool schema summary')">
           <code class="block whitespace-pre-wrap text-caption leading-6 text-muted-foreground">{{ selectedTool.schema.join('\n') }}</code>
         </section>
       </article>

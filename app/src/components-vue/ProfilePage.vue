@@ -26,6 +26,7 @@ import {
   vulnActivities,
   type PersonalActivityModule,
 } from '@/lib/personalProfile'
+import { t } from '@/lib/uiLocale'
 
 type ProfileTab = 'ctf' | 'vuln' | 'coding'
 
@@ -50,7 +51,7 @@ const loading = ref(false)
 const error = ref('')
 const editing = ref(false)
 const displayName = ref(window.localStorage.getItem('milksu.profile.name') || '')
-const bio = ref(window.localStorage.getItem('milksu.profile.bio') || '记录真实练习，也保留自己的节奏。')
+const bio = ref(window.localStorage.getItem('milksu.profile.bio') || t('记录真实练习，也保留自己的节奏。', 'Keep a record of real practice, at your own pace.'))
 const customAvatar = ref(window.localStorage.getItem('milksu.profile.avatar') || '')
 const avatarInput = ref<HTMLInputElement | null>(null)
 const avatarError = ref('')
@@ -66,7 +67,7 @@ const vulnRecords = computed(() => vulnActivities(props.vulnerabilities, props.c
 const recentGrowth = computed(() => snapshot.value.activities.filter(activity => activity.confirmed).slice(0, 6))
 const shownAvatar = computed(() => customAvatar.value || props.accountStatus.user?.avatarUrl || profileAvatar)
 const shownName = computed(() => displayName.value || props.accountStatus.user?.displayName || 'MilkSU')
-const shownIdentity = computed(() => props.accountStatus.user?.githubLogin ? `@${props.accountStatus.user.githubLogin}` : '本机资料')
+const shownIdentity = computed(() => props.accountStatus.user?.githubLogin ? `@${props.accountStatus.user.githubLogin}` : t('本机资料', 'Local profile'))
 
 const rawDayCounts = computed<Record<string, number>>(() => {
   if (activeTab.value === 'coding') {
@@ -98,7 +99,7 @@ const monthLabels = computed(() => {
   calendar.value.forEach((cell, index) => {
     const month = cell.date.getMonth()
     if (month !== previous) {
-      labels.push({ key: `${cell.key}:${month}`, label: `${month + 1}月`, column: Math.floor(index / 7) + 2 })
+      labels.push({ key: `${cell.key}:${month}`, label: t(`${month + 1}月`, new Intl.DateTimeFormat('en', { month: 'short' }).format(cell.date)), column: Math.floor(index / 7) + 2 })
       previous = month
     }
   })
@@ -121,8 +122,8 @@ const selectedCTFJobs = computed(() => ctfJobs.value
 const selectedVulnRecords = computed(() => vulnRecords.value
   .filter(item => localDayKey(item.timestamp) === selectedDay.value.vuln))
 
-const ctfCategoryCounts = computed(() => aggregateLabels(ctfJobs.value.map(job => job.category || '未分类')))
-const ctfSourceCounts = computed(() => aggregateLabels(ctfJobs.value.map(job => job.externalPlatform || '本地练习')))
+const ctfCategoryCounts = computed(() => aggregateLabels(ctfJobs.value.map(job => job.category || t('未分类', 'Uncategorized'))))
+const ctfSourceCounts = computed(() => aggregateLabels(ctfJobs.value.map(job => job.externalPlatform || t('本地练习', 'Local practice'))))
 const ctfVerifiedCount = computed(() => ctfJobs.value.filter(job => job.verdict === 'pass').length)
 const vulnStatusCounts = computed(() => aggregateLabels(props.vulnerabilities.map(item => vulnerabilityStatusLabel(item.status))))
 const vulnReferenceCounts = computed(() => aggregateLabels(props.vulnerabilities.flatMap(item => item.references.map(referenceSource))))
@@ -157,8 +158,8 @@ async function load(options: { account?: boolean } = {}) {
     if (account) emit('accountStatusChange', account)
   } catch {
     error.value = options.account
-      ? '暂时无法刷新本机成长记录或账户状态，请稍后再试。'
-      : '暂时无法读取本机成长记录，请稍后再试。'
+      ? t('暂时无法刷新本机成长记录或账户状态，请稍后再试。', 'Could not refresh local progress or account status. Try again later.')
+      : t('暂时无法读取本机成长记录，请稍后再试。', 'Could not load local progress. Try again later.')
   } finally {
     loading.value = false
   }
@@ -168,7 +169,7 @@ async function refreshUsage() {
   try {
     codingUsage.value = await invokeCommand<CodingUsageSnapshot>('get_coding_usage_snapshot')
   } catch {
-    error.value = '模型用量已更新，但当前页面刷新失败，请手动刷新。'
+    error.value = t('模型用量已更新，但当前页面刷新失败，请手动刷新。', 'Model usage updated, but this page failed to refresh. Please refresh it yourself.')
   }
 }
 
@@ -184,7 +185,7 @@ function selectCalendarDay(day: string, future: boolean) {
 function aggregateLabels(values: string[]) {
   const counts = new Map<string, number>()
   for (const raw of values) {
-    const label = raw.trim() || '未标注'
+    const label = raw.trim() || t('未标注', 'Unlabeled')
     counts.set(label, (counts.get(label) ?? 0) + 1)
   }
   return [...counts.entries()]
@@ -198,14 +199,14 @@ function referenceSource(reference: { label: string, href: string }) {
   try {
     return new URL(reference.href).hostname.replace(/^www\./u, '')
   } catch {
-    return '其他来源'
+    return t('其他来源', 'Other source')
   }
 }
 
 function compactNumber(value: number) {
-  if (value >= 100_000_000) return `${trimDecimal(value / 100_000_000)}亿`
-  if (value >= 10_000) return `${trimDecimal(value / 10_000)}万`
-  return new Intl.NumberFormat('zh-CN').format(value)
+  if (value >= 100_000_000) return t(`${trimDecimal(value / 100_000_000)}亿`, `${trimDecimal(value / 1_000_000)}M`)
+  if (value >= 10_000) return t(`${trimDecimal(value / 10_000)}万`, `${trimDecimal(value / 1_000)}K`)
+  return t(new Intl.NumberFormat('zh-CN').format(value), new Intl.NumberFormat('en').format(value))
 }
 
 function trimDecimal(value: number) {
@@ -218,41 +219,45 @@ function modelLabel(provider: string, model: string) {
 }
 
 function sourceLabel(source: string) {
-  if (source === 'account') return '账户分配模型'
-  if (source === 'personal') return '个人 API'
-  return '未标注来源'
+  if (source === 'account') return t('账户分配模型', 'Account-assigned model')
+  if (source === 'personal') return t('个人 API', 'Personal API')
+  return t('未标注来源', 'Unlabeled source')
 }
 
 function formatDuration(durationMs: number) {
   if (durationMs < 1000) return `${Math.round(durationMs)} ms`
-  return `${trimDecimal(durationMs / 1000)} 秒`
+  return t(`${trimDecimal(durationMs / 1000)} 秒`, `${trimDecimal(durationMs / 1000)}s`)
 }
 
 function selectedDateLabel(day = currentDayKey.value) {
-  if (!day) return '尚无记录日期'
-  return new Intl.DateTimeFormat('zh-CN', { month: 'long', day: 'numeric' }).format(new Date(`${day}T12:00:00`))
+  if (!day) return t('尚无记录日期', 'No recorded date yet')
+  const date = new Date(`${day}T12:00:00`)
+  return t(
+    new Intl.DateTimeFormat('zh-CN', { month: 'long', day: 'numeric' }).format(date),
+    new Intl.DateTimeFormat('en', { month: 'long', day: 'numeric' }).format(date),
+  )
 }
 
 function calendarCellTitle(day: string) {
   const value = rawDayCounts.value[day] ?? 0
-  if (!value) return `${day} · 无记录`
-  if (activeTab.value === 'coding') return `${day} · ${compactNumber(value)} Token`
-  return `${day} · ${value} 条真实记录`
+  if (!value) return t(`${day} · 无记录`, `${day} · no activity`)
+  if (activeTab.value === 'coding') return t(`${day} · ${compactNumber(value)} Token`, `${day} · ${compactNumber(value)} tokens`)
+  return t(`${day} · ${value} 条真实记录`, `${day} · ${value} confirmed records`)
 }
 
 function ctfState(job: CTFSummary) {
-  if (job.verdict === 'pass') return 'Judge 已验证'
-  if (job.verdict === 'fail') return 'Judge 未通过'
-  if (job.pendingJudge) return '等待 Judge'
-  if (job.pendingSubmission) return '等待提交'
-  if (job.status === 'running') return '练习中'
-  if (job.status === 'failed') return '任务已结束'
-  return '继续练习'
+  if (job.verdict === 'pass') return t('Judge 已验证', 'Judge verified')
+  if (job.verdict === 'fail') return t('Judge 未通过', 'Judge failed')
+  if (job.pendingJudge) return t('等待 Judge', 'Waiting for Judge')
+  if (job.pendingSubmission) return t('等待提交', 'Waiting to submit')
+  if (job.status === 'running') return t('练习中', 'In practice')
+  if (job.status === 'failed') return t('任务已结束', 'Task ended')
+  return t('继续练习', 'Continue practice')
 }
 
 function saveProfile() {
   displayName.value = displayName.value.trim().slice(0, 40)
-  bio.value = bio.value.trim().slice(0, 100) || '记录真实练习，也保留自己的节奏。'
+  bio.value = bio.value.trim().slice(0, 100) || t('记录真实练习，也保留自己的节奏。', 'Keep a record of real practice, at your own pace.')
   window.localStorage.setItem('milksu.profile.name', displayName.value)
   window.localStorage.setItem('milksu.profile.bio', bio.value)
   editing.value = false
@@ -285,11 +290,11 @@ function updateAvatar(event: Event) {
     return
   }
   const reader = new FileReader()
-  reader.onerror = () => { avatarError.value = '头像读取失败，请重新选择。' }
+  reader.onerror = () => { avatarError.value = t('头像读取失败，请重新选择。', 'Could not read the avatar. Please choose another file.') }
   reader.onload = () => {
     const value = typeof reader.result === 'string' ? reader.result : ''
     if (!value.startsWith(`data:${file.type};base64,`)) {
-      avatarError.value = '头像读取失败，请重新选择。'
+      avatarError.value = t('头像读取失败，请重新选择。', 'Could not read the avatar. Please choose another file.')
       return
     }
     customAvatar.value = value
@@ -297,7 +302,7 @@ function updateAvatar(event: Event) {
       window.localStorage.setItem('milksu.profile.avatar', value)
       avatarError.value = ''
     } catch {
-      avatarError.value = '头像已用于当前页面，但没有保存到本机。'
+      avatarError.value = t('头像已用于当前页面，但没有保存到本机。', 'The avatar is used on this page, but it was not saved locally.')
     }
     if (input) input.value = ''
   }
@@ -305,7 +310,11 @@ function updateAvatar(event: Event) {
 }
 
 function formatDate(timestamp: number) {
-  return new Intl.DateTimeFormat('zh-CN', { month: 'numeric', day: 'numeric' }).format(new Date(timestamp))
+  const date = new Date(timestamp)
+  return t(
+    new Intl.DateTimeFormat('zh-CN', { month: 'numeric', day: 'numeric' }).format(date),
+    new Intl.DateTimeFormat('en', { month: 'numeric', day: 'numeric' }).format(date),
+  )
 }
 
 onMounted(async () => {
@@ -318,33 +327,33 @@ onBeforeUnmount(() => stopUsageEvents?.())
 </script>
 
 <template>
-  <main class="profile-page tactical-page min-w-0 flex-1 overflow-y-auto bg-background text-foreground" aria-label="个人资料">
+  <main class="profile-page tactical-page min-w-0 flex-1 overflow-y-auto bg-background text-foreground" :aria-label="t('个人资料', 'Profile')">
     <div class="mx-auto w-full max-w-[1280px] px-6 py-7 lg:px-9">
       <header class="flex items-center justify-between gap-5 pb-5">
         <div class="flex items-center gap-3">
           <UserRound class="size-6 text-primary" />
-          <h1 class="tactical-display text-4xl">个人资料</h1>
-          <span class="inline-flex items-center gap-1.5 text-caption text-success"><LockKeyhole class="size-3.5" />仅自己可见</span>
+          <h1 class="tactical-display text-4xl">{{ t('个人资料', 'Profile') }}</h1>
+          <span class="inline-flex items-center gap-1.5 text-caption text-success"><LockKeyhole class="size-3.5" />{{ t('仅自己可见', 'Only visible to you') }}</span>
         </div>
         <div class="flex items-center gap-2">
-          <Button variant="ghost" size="sm" :disabled="loading" @click="load({ account: true })"><RotateCw class="size-4" />刷新</Button>
-          <Button variant="outline" size="sm" @click="startEditingProfile"><Pencil class="size-4" />编辑资料</Button>
+          <Button variant="ghost" size="sm" :disabled="loading" @click="load({ account: true })"><RotateCw class="size-4" />{{ t('刷新', 'Refresh') }}</Button>
+          <Button variant="outline" size="sm" @click="startEditingProfile"><Pencil class="size-4" />{{ t('编辑资料', 'Edit profile') }}</Button>
         </div>
       </header>
 
       <section class="profile-identity tactical-paper flex flex-wrap items-center gap-6 px-7 py-6 text-[color:var(--tactical-paper-ink)]">
         <div class="relative shrink-0">
-          <img :src="shownAvatar" alt="个人头像" class="size-24 rounded-full border-2 border-primary object-cover shadow-sm">
+          <img :src="shownAvatar" :alt="t('个人头像', 'Profile photo')" class="size-24 rounded-full border-2 border-primary object-cover shadow-sm">
           <input ref="avatarInput" class="sr-only" type="file" accept="image/png,image/jpeg,image/webp" @change="updateAvatar">
-          <Button variant="outline" size="icon-sm" class="absolute -bottom-1 -right-1 rounded-full" aria-label="更换头像" @click="chooseAvatar">
+          <Button variant="outline" size="icon-sm" class="absolute -bottom-1 -right-1 rounded-full" :aria-label="t('更换头像', 'Change photo')" @click="chooseAvatar">
             <Pencil class="size-3.5" />
           </Button>
         </div>
         <div class="min-w-[15rem] flex-1">
           <template v-if="editing">
-            <input v-model="displayName" class="profile-name-input" aria-label="显示名称" maxlength="40">
-            <input v-model="bio" class="profile-bio-input" aria-label="个人介绍" maxlength="100" @keydown.enter="submitProfile">
-            <div class="mt-3 flex gap-2"><Button size="sm" @click="saveProfile">保存</Button><Button variant="ghost" size="sm" @click="editing = false">取消</Button></div>
+            <input v-model="displayName" class="profile-name-input" :aria-label="t('显示名称', 'Display name')" maxlength="40">
+            <input v-model="bio" class="profile-bio-input" :aria-label="t('个人介绍', 'Bio')" maxlength="100" @keydown.enter="submitProfile">
+            <div class="mt-3 flex gap-2"><Button size="sm" @click="saveProfile">{{ t('保存', 'Save') }}</Button><Button variant="ghost" size="sm" @click="editing = false">{{ t('取消', 'Cancel') }}</Button></div>
           </template>
           <template v-else>
             <h2 class="text-3xl font-semibold tracking-[-0.04em]">{{ shownName }}</h2>
@@ -353,7 +362,7 @@ onBeforeUnmount(() => stopUsageEvents?.())
           </template>
         </div>
         <div class="profile-summary flex flex-wrap items-center gap-7 border-l border-border pl-7">
-          <div><span class="game-kicker block">活跃天数</span><strong class="mt-1 block text-2xl font-semibold">{{ snapshot.activeDays }} 天</strong></div>
+          <div><span class="game-kicker block">{{ t('活跃天数', 'Active days') }}</span><strong class="mt-1 block text-2xl font-semibold">{{ t(`${snapshot.activeDays} 天`, `${snapshot.activeDays} days`) }}</strong></div>
           <div v-for="item in snapshot.modules" :key="`summary:${item.module}`"><span class="game-kicker block">{{ item.label }}</span><strong class="mt-1 block text-2xl font-semibold">{{ item.count }} {{ item.unit }}</strong></div>
         </div>
       </section>
@@ -365,7 +374,7 @@ onBeforeUnmount(() => stopUsageEvents?.())
           data-palette="graphite-cyan"
           aria-labelledby="profile-panel-heading"
         >
-          <div class="profile-tabs" role="tablist" aria-label="成长模块">
+          <div class="profile-tabs" role="tablist" :aria-label="t('成长模块', 'Progress modules')">
             <button
               v-for="tab in tabs"
               :id="`profile-tab-${tab.id}`"
@@ -387,9 +396,9 @@ onBeforeUnmount(() => stopUsageEvents?.())
           >
             <div class="flex flex-wrap items-end justify-between gap-4">
               <div>
-                <p class="game-kicker">过去一年</p>
+                <p class="game-kicker">{{ t('过去一年', 'Past year') }}</p>
                 <h2 id="profile-panel-heading" class="mt-1 text-2xl font-semibold">
-                  {{ activeTab === 'coding' ? 'Coding 活动与用量' : activeTab === 'ctf' ? 'CTF 练习与验证' : 'CVE 研究与来源' }}
+                  {{ activeTab === 'coding' ? t('Coding 活动与用量', 'Coding activity and usage') : activeTab === 'ctf' ? t('CTF 练习与验证', 'CTF practice and verification') : t('CVE 研究与来源', 'CVE research and sources') }}
                 </h2>
               </div>
 
@@ -398,32 +407,32 @@ onBeforeUnmount(() => stopUsageEvents?.())
             <div class="profile-metrics mt-4">
               <template v-if="activeTab === 'coding'">
                 <span><b>{{ compactNumber(codingUsage.totalTokens) }}</b> Token</span>
-                <span><b>{{ codingUsage.activeDays }}</b> 个用量日</span>
-                <span><b>{{ new Intl.NumberFormat('zh-CN').format(codingUsage.toolCalls) }}</b> 次工具调用</span>
+                <span><b>{{ codingUsage.activeDays }}</b> {{ t('个用量日', 'usage days') }}</span>
+                <span><b>{{ t(new Intl.NumberFormat('zh-CN').format(codingUsage.toolCalls), new Intl.NumberFormat('en').format(codingUsage.toolCalls)) }}</b> {{ t('次工具调用', 'tool calls') }}</span>
               </template>
               <template v-else-if="activeTab === 'ctf'">
-                <span><b>{{ ctfJobs.length }}</b> 个练习任务</span>
-                <span><b>{{ availableDays.ctf.length }}</b> 个活跃日</span>
-                <span><b>{{ ctfVerifiedCount }}</b> 个 Judge 通过</span>
+                <span><b>{{ ctfJobs.length }}</b> {{ t('个练习任务', 'practice tasks') }}</span>
+                <span><b>{{ availableDays.ctf.length }}</b> {{ t('个活跃日', 'active days') }}</span>
+                <span><b>{{ ctfVerifiedCount }}</b> {{ t('个 Judge 通过', 'Judge passes') }}</span>
               </template>
               <template v-else>
-                <span><b>{{ vulnerabilities.length }}</b> 个跟踪项</span>
-                <span><b>{{ availableDays.vuln.length }}</b> 个研究日</span>
-                <span><b>{{ vulnReferenceCounts.length }}</b> 类资料来源</span>
+                <span><b>{{ vulnerabilities.length }}</b> {{ t('个跟踪项', 'tracked items') }}</span>
+                <span><b>{{ availableDays.vuln.length }}</b> {{ t('个研究日', 'research days') }}</span>
+                <span><b>{{ vulnReferenceCounts.length }}</b> {{ t('类资料来源', 'source types') }}</span>
               </template>
             </div>
 
             <div class="calendar-heading mt-5 flex items-center justify-between gap-4">
-              <span>{{ activeTab === 'coding' ? '每日 Token' : activeTab === 'ctf' ? '每日练习更新' : '每日研究记录' }}</span>
-              <span>53 周</span>
+              <span>{{ activeTab === 'coding' ? t('每日 Token', 'Daily tokens') : activeTab === 'ctf' ? t('每日练习更新', 'Daily practice updates') : t('每日研究记录', 'Daily research records') }}</span>
+              <span>{{ t('53 周', '53 weeks') }}</span>
             </div>
             <div class="activity-scroll mt-3 overflow-x-auto pb-2">
-              <div class="activity-calendar" :aria-label="`${activeTab} 过去一年活动图`">
+              <div class="activity-calendar" :aria-label="t(`${activeTab} 过去一年活动图`, `${activeTab} activity in the past year`)">
                 <span v-for="month in monthLabels" :key="month.key" class="month-label" :style="{ gridColumn: month.column }">{{ month.label }}</span>
-                <span class="weekday-label weekday-mon">周一</span>
-                <span class="weekday-label weekday-wed">周三</span>
-                <span class="weekday-label weekday-fri">周五</span>
-                <span class="weekday-label weekday-sun">周日</span>
+                <span class="weekday-label weekday-mon">{{ t('周一', 'Mon') }}</span>
+                <span class="weekday-label weekday-wed">{{ t('周三', 'Wed') }}</span>
+                <span class="weekday-label weekday-fri">{{ t('周五', 'Fri') }}</span>
+                <span class="weekday-label weekday-sun">{{ t('周日', 'Sun') }}</span>
                 <button
                   v-for="(cell, cellIndex) in calendar"
                   :key="cell.key"
@@ -438,7 +447,7 @@ onBeforeUnmount(() => stopUsageEvents?.())
               </div>
             </div>
             <div class="calendar-legend mt-2 flex items-center justify-between text-caption text-muted-foreground">
-              <span class="inline-flex items-center gap-2">低 <i v-for="level in 4" :key="level" class="legend-cell" :class="`level-${level}`" /> 高</span>
+              <span class="inline-flex items-center gap-2">{{ t('低', 'Low') }} <i v-for="level in 4" :key="level" class="legend-cell" :class="`level-${level}`" /> {{ t('高', 'High') }}</span>
               <span>{{ selectedDateLabel() }}</span>
             </div>
 
@@ -450,18 +459,18 @@ onBeforeUnmount(() => stopUsageEvents?.())
                   <h3 id="coding-models-heading">{{ selectedDateLabel(selectedCodingDay.date) }} · {{ compactNumber(selectedCodingDay.totalTokens) }} Token</h3>
                   <ul class="detail-list">
                     <li v-for="model in selectedCodingDay.models" :key="`${model.provider}:${model.model}:${model.source}`">
-                      <span><b>{{ modelLabel(model.provider, model.model) }}</b><small>{{ sourceLabel(model.source) }} · {{ model.calls }} 次响应</small></span>
+                      <span><b>{{ modelLabel(model.provider, model.model) }}</b><small>{{ sourceLabel(model.source) }} · {{ t(`${model.calls} 次响应`, `${model.calls} responses`) }}</small></span>
                       <strong>{{ compactNumber(model.totalTokens) }}</strong>
                     </li>
                   </ul>
-                  <p class="detail-foot">输入 {{ compactNumber(selectedCodingDay.inputTokens) }} · 输出 {{ compactNumber(selectedCodingDay.outputTokens) }} · 缓存读取 {{ compactNumber(selectedCodingDay.cacheReadTokens) }}</p>
+                  <p class="detail-foot">{{ t(`输入 ${compactNumber(selectedCodingDay.inputTokens)} · 输出 ${compactNumber(selectedCodingDay.outputTokens)} · 缓存读取 ${compactNumber(selectedCodingDay.cacheReadTokens)}`, `Input ${compactNumber(selectedCodingDay.inputTokens)} · output ${compactNumber(selectedCodingDay.outputTokens)} · cache read ${compactNumber(selectedCodingDay.cacheReadTokens)}`) }}</p>
                 </section>
                 <section class="detail-column" aria-labelledby="coding-tools-heading">
-                  <h3 id="coding-tools-heading">工具活动</h3>
+                  <h3 id="coding-tools-heading">{{ t('工具活动', 'Tool activity') }}</h3>
                   <ul v-if="selectedCodingDay.tools.length" class="detail-list">
                     <li v-for="tool in selectedCodingDay.tools" :key="tool.name">
-                      <span><b class="font-mono">{{ tool.name }}</b><small>{{ formatDuration(tool.durationMs) }} · {{ tool.failures ? `${tool.failures} 次失败` : '无失败' }}</small></span>
-                      <strong>{{ tool.calls }} 次</strong>
+                      <span><b class="font-mono">{{ tool.name }}</b><small>{{ formatDuration(tool.durationMs) }} · {{ tool.failures ? t(`${tool.failures} 次失败`, `${tool.failures} failed`) : t('无失败', 'No failures') }}</small></span>
+                      <strong>{{ t(`${tool.calls} 次`, `${tool.calls} calls`) }}</strong>
                     </li>
                   </ul>
 
@@ -473,20 +482,20 @@ onBeforeUnmount(() => stopUsageEvents?.())
             <template v-else-if="activeTab === 'ctf'">
               <div v-if="ctfJobs.length" class="detail-grid mt-5">
                 <section class="detail-column" aria-labelledby="ctf-records-heading">
-                  <h3 id="ctf-records-heading">{{ selectedDateLabel(selectedDay.ctf) }} · 练习记录</h3>
+                  <h3 id="ctf-records-heading">{{ t(`${selectedDateLabel(selectedDay.ctf)} · 练习记录`, `${selectedDateLabel(selectedDay.ctf)} · practice records`) }}</h3>
                   <ul v-if="selectedCTFJobs.length" class="detail-list">
                     <li v-for="job in selectedCTFJobs" :key="job.id">
-                      <span><b>{{ job.title }}</b><small>{{ job.category || '未分类' }} · {{ ctfState(job) }}</small></span>
-                      <strong>{{ job.experimentCount }} 次实验</strong>
+                      <span><b>{{ job.title }}</b><small>{{ job.category || t('未分类', 'Uncategorized') }} · {{ ctfState(job) }}</small></span>
+                      <strong>{{ t(`${job.experimentCount} 次实验`, `${job.experimentCount} experiments`) }}</strong>
                     </li>
                   </ul>
 
                 </section>
                 <section class="detail-column" aria-labelledby="ctf-distribution-heading">
-                  <h3 id="ctf-distribution-heading">题型与来源</h3>
+                  <h3 id="ctf-distribution-heading">{{ t('题型与来源', 'Categories and sources') }}</h3>
                   <div class="compact-distributions">
-                    <div><p>题型</p><span v-for="item in ctfCategoryCounts.slice(0, 4)" :key="`category:${item.label}`"><b>{{ item.label }}</b>{{ item.count }} 题</span></div>
-                    <div><p>来源</p><span v-for="item in ctfSourceCounts.slice(0, 4)" :key="`source:${item.label}`"><b>{{ item.label }}</b>{{ item.count }} 题</span></div>
+                    <div><p>{{ t('题型', 'Category') }}</p><span v-for="item in ctfCategoryCounts.slice(0, 4)" :key="`category:${item.label}`"><b>{{ item.label }}</b>{{ t(`${item.count} 题`, `${item.count} challenges`) }}</span></div>
+                    <div><p>{{ t('来源', 'Source') }}</p><span v-for="item in ctfSourceCounts.slice(0, 4)" :key="`source:${item.label}`"><b>{{ item.label }}</b>{{ t(`${item.count} 题`, `${item.count} challenges`) }}</span></div>
                   </div>
                 </section>
               </div>
@@ -497,7 +506,7 @@ onBeforeUnmount(() => stopUsageEvents?.())
             <template v-else>
               <div v-if="vulnerabilities.length" class="detail-grid mt-5">
                 <section class="detail-column" aria-labelledby="vuln-records-heading">
-                  <h3 id="vuln-records-heading">{{ selectedDateLabel(selectedDay.vuln) }} · 研究记录</h3>
+                  <h3 id="vuln-records-heading">{{ t(`${selectedDateLabel(selectedDay.vuln)} · 研究记录`, `${selectedDateLabel(selectedDay.vuln)} · research records`) }}</h3>
                   <ul v-if="selectedVulnRecords.length" class="detail-list">
                     <li v-for="activity in selectedVulnRecords" :key="activity.id">
                       <span><b>{{ activity.title }}</b><small>{{ activity.detail }}</small></span>
@@ -506,10 +515,10 @@ onBeforeUnmount(() => stopUsageEvents?.())
 
                 </section>
                 <section class="detail-column" aria-labelledby="vuln-sources-heading">
-                  <h3 id="vuln-sources-heading">跟踪状态与资料来源</h3>
+                  <h3 id="vuln-sources-heading">{{ t('跟踪状态与资料来源', 'Tracking status and sources') }}</h3>
                   <div class="compact-distributions">
-                    <div><p>状态</p><span v-for="item in vulnStatusCounts" :key="`status:${item.label}`"><b>{{ item.label }}</b>{{ item.count }} 项</span></div>
-                    <div><p>来源</p><span v-for="item in vulnReferenceCounts.slice(0, 5)" :key="`reference:${item.label}`"><b>{{ item.label }}</b>{{ item.count }} 条</span></div>
+                    <div><p>{{ t('状态', 'Status') }}</p><span v-for="item in vulnStatusCounts" :key="`status:${item.label}`"><b>{{ item.label }}</b>{{ t(`${item.count} 项`, `${item.count} items`) }}</span></div>
+                    <div><p>{{ t('来源', 'Source') }}</p><span v-for="item in vulnReferenceCounts.slice(0, 5)" :key="`reference:${item.label}`"><b>{{ item.label }}</b>{{ t(`${item.count} 条`, `${item.count} sources`) }}</span></div>
                   </div>
                 </section>
               </div>
@@ -520,7 +529,7 @@ onBeforeUnmount(() => stopUsageEvents?.())
         </section>
 
         <section class="tactical-command-surface growth-panel px-5 py-5" aria-labelledby="growth-heading">
-          <div class="border-b border-border pb-4"><p class="game-kicker">有结果来源</p><h2 id="growth-heading" class="mt-1 text-xl font-semibold">最近确认的成长</h2></div>
+          <div class="border-b border-border pb-4"><p class="game-kicker">{{ t('有结果来源', 'Confirmed sources') }}</p><h2 id="growth-heading" class="mt-1 text-xl font-semibold">{{ t('最近确认的成长', 'Recent confirmed progress') }}</h2></div>
 
           <ol v-if="recentGrowth.length" class="growth-list mt-2">
             <li v-for="activity in recentGrowth" :key="activity.id" class="relative border-b border-border py-4 pl-5 last:border-b-0">

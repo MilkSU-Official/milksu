@@ -2,6 +2,8 @@
 // not become "resumed" until the current Pi runtime emits session.ready, and a
 // manual compaction failure never writes a success marker.
 
+import { t } from '@/lib/uiLocale'
+
 export interface CodingContinuityState {
   ready: Set<string>
   resumed: Set<string>
@@ -136,25 +138,25 @@ export function codingCompactionErrorMessage(value: unknown) {
     .replace(/^(?:Error:\s*)+/i, '')
     .trim()
   if (/session not found/i.test(message)) {
-    return '发送消息后再整理。'
+    return t('发送消息后再整理。', 'Send a message before compacting.')
   }
   if (/Nothing to compact|already compacted|session too small/i.test(message)) {
-    return '会话还太短或刚整理过。'
+    return t('会话还太短或刚整理过。', 'Session is still too short or was just compacted.')
   }
   if (/compaction timed out/i.test(message)) {
-    return '上下文压缩超时，已取消。'
+    return t('上下文压缩超时，已取消。', 'Context compaction timed out and was cancelled.')
   }
   if (/context overflow recovery failed|auto-compaction failed/i.test(message)) {
-    return '自动整理上下文失败，请手动整理后再继续。'
+    return t('自动整理上下文失败，请手动整理后再继续。', 'Automatic context compaction failed. Compact manually, then continue.')
   }
   if (/context compaction stopped/i.test(message)) {
-    return 'Agent 进程在整理上下文时停止，本次整理已中断。'
+    return t('Agent 进程在整理上下文时停止，本次整理已中断。', 'The Agent process stopped during compaction. This compaction was interrupted.')
   }
   if (/already compacting/i.test(message)) {
-    return '当前正在整理上下文，请等待完成。'
+    return t('当前正在整理上下文，请等待完成。', 'Context is already being compacted. Wait until it finishes.')
   }
   if (/session is busy/i.test(message)) {
-    return 'Agent 正在执行回合，请等待当前回合结束再整理。'
+    return t('Agent 正在执行回合，请等待当前回合结束再整理。', 'The Agent is still running this turn. Wait until it finishes before compacting.')
   }
-  return message || '上下文整理失败'
+  return message || t('上下文整理失败', 'Context compaction failed')
 }

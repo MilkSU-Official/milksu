@@ -16,10 +16,11 @@ describe('ChatPage routing contract', () => {
     expect(chatPageSource).toContain('vulnerabilitySession: props.vulnerabilitySession')
     expect(chatPageSource).toContain('const topbarModule = computed')
     expect(chatPageSource).toContain("? 'cve'")
-    expect(chatPageSource).toContain("{{ ctfSession ? ctfRoleLabel : (domainTaskPresentation?.moduleLabel || 'CVE 接力') }}")
     expect(chatPageSource).toContain('domainTaskPresentation')
     expect(chatPageSource).toContain('function returnToDomain()')
     expect(chatPageSource).toContain("emit('returnLab')")
+    expect(chatPageSource).toContain("attached?.kind === 'lab'")
+    expect(chatPageSource).toContain("? 'lab'")
     expect(chatPageSource).toContain(':module="topbarModule"')
   })
 
@@ -51,7 +52,7 @@ describe('ChatPage routing contract', () => {
   })
 
   it('gives the isolated browser real tab create, switch, and close actions', () => {
-    expect(chatPageSource).toContain('aria-label="新标签页"')
+    expect(chatPageSource).toContain("t('新标签页'")
     expect(chatPageSource).toContain('create_coding_browser_tab')
     expect(chatPageSource).toContain('activate_coding_browser_tab')
     expect(chatPageSource).toContain('close_coding_browser_tab')
@@ -84,8 +85,8 @@ describe('ChatPage routing contract', () => {
     expect(chatPageSource).toContain('v-if="!dockSurface && !contextRailVisible"')
     expect(chatPageSource).toContain('data-testid="coding-rail-terminal"')
     expect(chatPageSource).toContain('data-testid="coding-rail-toggle"')
-    expect(chatPageSource).toContain('aria-label="关闭右侧栏"')
-    expect(chatPageSource).toContain('aria-label="打开右侧栏"')
+    expect(chatPageSource).toContain("t('关闭右侧栏'")
+    expect(chatPageSource).toContain("t('打开右侧栏'")
     expect(chatPageSource).not.toContain('刷新${contextPanelTitle}')
   })
 
@@ -183,15 +184,16 @@ describe('ChatPage routing contract', () => {
   it('keeps Terminal as an independent bottom dock instead of a sidebar page', () => {
     expect(chatPageSource).toContain('function toggleTerminalPanel()')
     expect(chatPageSource).toContain('terminalOpen.value = !terminalOpen.value')
-    expect(chatPageSource).toContain("? '关闭底部终端' : '打开底部终端'")
-    expect(chatPageSource).toContain('aria-label="底部终端面板"')
+    expect(chatPageSource).toContain("t('关闭底部终端'")
+    expect(chatPageSource).toContain("t('打开底部终端'")
+    expect(chatPageSource).toContain("t('底部终端面板'")
     expect(chatPageSource).toContain('@close="terminalOpen = false"')
     expect(chatPageSource).toContain('<SquareTerminal class="size-4" />')
     expect(chatPageSource).not.toContain('<PanelBottomOpen')
     expect(chatPageSource).not.toContain('<PanelBottomClose')
     expect(chatPageSource).not.toContain("contextPanel === 'terminal'")
     expect(chatPageSource).not.toContain('<SelectItem v-if="!ctfSession" value="terminal">终端</SelectItem>')
-    expect(chatPageSource).toContain('aria-label="调整终端高度"')
+    expect(chatPageSource).toContain("t('调整终端高度'")
     expect(chatPageSource).toContain('startTerminalResize')
   })
 

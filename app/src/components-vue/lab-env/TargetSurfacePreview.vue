@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { Button, Input } from '@felinic/ui'
 import { ArrowLeft, ArrowRight, Globe2, RefreshCw, Smartphone, SquareTerminal } from 'lucide-vue-next'
+import { t } from '@/lib/uiLocale'
 import type { TargetSurfaceKind } from './environmentTypes'
 
 defineOptions({ name: 'TargetSurfacePreview' })
@@ -13,17 +14,17 @@ const props = defineProps<{
 }>()
 
 const kindLabel = computed(() => ({
-  browser: '浏览器',
-  shell: '终端',
-  emulator: '模拟器',
-  device: '真机',
+  browser: t('浏览器', 'Browser'),
+  shell: t('终端', 'Terminal'),
+  emulator: t('模拟器', 'Emulator'),
+  device: t('真机', 'Device'),
 }[props.kind]))
 
 const drivingText = computed(() => {
-  if (!props.driving) return '人和 Agent 共用这个靶'
-  if (props.kind === 'shell') return 'Agent 正在敲命令，你看见同一份终端'
-  if (props.kind === 'emulator' || props.kind === 'device') return 'Agent 正在点屏幕，你看见同一台设备'
-  return 'Agent 正在点页面，你看见同一页'
+  if (!props.driving) return t('人和 Agent 共用这个靶', 'You and the agent share this target')
+  if (props.kind === 'shell') return t('Agent 正在敲命令，你看见同一份终端', 'The agent is typing commands. You see the same terminal.')
+  if (props.kind === 'emulator' || props.kind === 'device') return t('Agent 正在点屏幕，你看见同一台设备', 'The agent is tapping the screen. You see the same device.')
+  return t('Agent 正在点页面，你看见同一页', 'The agent is clicking the page. You see the same view.')
 })
 </script>
 
@@ -31,13 +32,13 @@ const drivingText = computed(() => {
   <section class="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-l border-border bg-background" data-testid="target-surface" :data-kind="kind">
     <header class="flex h-12 shrink-0 items-center gap-1.5 border-b border-border px-2">
       <template v-if="kind === 'browser'">
-        <Button variant="ghost" size="icon-sm" disabled aria-label="后退"><ArrowLeft class="size-4" /></Button>
-        <Button variant="ghost" size="icon-sm" disabled aria-label="前进"><ArrowRight class="size-4" /></Button>
-        <Button variant="ghost" size="icon-sm" disabled aria-label="重新加载"><RefreshCw class="size-4" /></Button>
+        <Button variant="ghost" size="icon-sm" disabled :aria-label="t('后退', 'Back')"><ArrowLeft class="size-4" /></Button>
+        <Button variant="ghost" size="icon-sm" disabled :aria-label="t('前进', 'Forward')"><ArrowRight class="size-4" /></Button>
+        <Button variant="ghost" size="icon-sm" disabled :aria-label="t('重新加载', 'Reload')"><RefreshCw class="size-4" /></Button>
         <Input
           class="h-8 min-w-0 flex-1 rounded-full bg-muted/55 px-3 font-mono text-caption"
           :model-value="`http://${address}`"
-          aria-label="靶地址"
+          :aria-label="t('靶地址', 'Target address')"
           readonly
         />
       </template>
@@ -49,7 +50,7 @@ const drivingText = computed(() => {
         <Smartphone class="ml-2 size-4 shrink-0 text-muted-foreground" />
         <span class="min-w-0 flex-1 truncate font-mono text-caption">{{ address }}</span>
       </template>
-      <span class="ak-tag ak-tag--compact ak-tag--advanced mr-2">当前靶 · {{ kindLabel }}</span>
+      <span class="ak-tag ak-tag--compact ak-tag--advanced mr-2">{{ t('当前靶', 'Current target') }} · {{ kindLabel }}</span>
     </header>
 
     <div v-if="kind === 'browser'" class="relative min-h-0 flex-1 bg-white text-[#171a1d]">
@@ -83,9 +84,9 @@ const drivingText = computed(() => {
         <div class="flex h-full flex-col overflow-hidden rounded-[1.2rem] bg-[#1a1c1e]">
           <p class="px-3 py-2 text-center text-[10px] text-muted-foreground">Android API 34</p>
           <div class="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-4 text-center">
-            <p class="text-body">设置</p>
+            <p class="text-body">{{ t('设置', 'Settings') }}</p>
             <button type="button" class="relative rounded-md border border-border px-3 py-1.5 text-caption">
-              关于手机
+              {{ t('关于手机', 'About phone') }}
               <span v-if="driving" class="pointer-events-none absolute -inset-1 rounded ring-2 ring-[var(--signal-gold)]" />
             </button>
           </div>
@@ -106,9 +107,9 @@ const drivingText = computed(() => {
         <Globe2 v-if="kind === 'browser'" class="size-3.5" />
         <SquareTerminal v-else-if="kind === 'shell'" class="size-3.5" />
         <Smartphone v-else class="size-3.5" />
-        {{ kind === 'browser' ? '隔离 profile · 只打 Scope' : kind === 'shell' ? '受管终端 · 只打租约' : '本机模拟器 · 受限 adb' }}
+        {{ kind === 'browser' ? t('隔离 profile · 只打 Scope', 'Isolated profile · Scope only') : kind === 'shell' ? t('受管终端 · 只打租约', 'Managed terminal · lease only') : t('本机模拟器 · 受限 adb', 'Local emulator · restricted adb') }}
       </span>
-      <span>{{ driving ? 'Agent 在操作，你也可以动手' : '人和 Agent 共用这个靶' }}</span>
+      <span>{{ driving ? t('Agent 在操作，你也可以动手', 'The agent is driving. You can still act.') : t('人和 Agent 共用这个靶', 'You and the agent share this target') }}</span>
     </footer>
   </section>
 </template>

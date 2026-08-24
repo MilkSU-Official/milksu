@@ -1,23 +1,25 @@
 <script setup lang="ts">
 import { Badge, Button } from '@felinic/ui'
-import { ArrowLeft, ExternalLink } from 'lucide-vue-next'
+import { ArrowLeft, Cable } from 'lucide-vue-next'
 import WorkspaceModuleTopBar from '@/components-vue/WorkspaceModuleTopBar.vue'
+import { t } from '@/lib/uiLocale'
 
 defineProps<{
   challengeTitle?: string
-  sourceUri?: string
+  browserStatus?: 'off' | 'live' | ''
 }>()
 
 defineEmits<{
   returnCatalog: []
-  openSource: []
+  openBrowserSettings: []
+  refreshBridge: []
 }>()
 </script>
 
 <template>
-  <WorkspaceModuleTopBar module="ctf" subtitle="解题会话">
+  <WorkspaceModuleTopBar module="ctf" :subtitle="t('解题会话', 'Solving session')">
     <template #leading>
-      <Button variant="ghost" size="icon-sm" aria-label="返回 CTF 题库" @click="$emit('returnCatalog')">
+      <Button variant="ghost" size="icon-sm" :aria-label="t('返回 CTF 题库', 'Back to CTF catalog')" @click="$emit('returnCatalog')">
         <ArrowLeft class="size-4" />
       </Button>
     </template>
@@ -28,14 +30,20 @@ defineEmits<{
     </template>
     <template #actions>
       <Button
-        v-if="sourceUri"
-        variant="outline"
-        size="sm"
-        aria-label="打开当前 CTF 题目"
-        @click="$emit('openSource')"
+        v-if="browserStatus"
+        variant="ghost"
+        size="icon-sm"
+        :aria-label="browserStatus === 'live' ? t('浏览器已连接', 'Browser connected') : t('浏览器未连接，打开设置', 'Browser disconnected, open settings')"
+        :title="browserStatus === 'live' ? t('浏览器已连接', 'Browser connected') : t('浏览器未连接', 'Browser disconnected')"
+        @click="browserStatus === 'live' ? $emit('refreshBridge') : $emit('openBrowserSettings')"
       >
-        <ExternalLink class="size-4" />
-        打开题目
+        <Cable class="size-4" :class="browserStatus === 'live' ? 'text-foreground' : 'text-muted-foreground'" />
+        <span
+          class="ak-status ak-status--compact sr-only"
+          :class="browserStatus === 'live' ? '' : 'ak-status--offline'"
+        >
+          {{ browserStatus === 'live' ? 'LIVE' : 'OFF' }}
+        </span>
       </Button>
     </template>
   </WorkspaceModuleTopBar>

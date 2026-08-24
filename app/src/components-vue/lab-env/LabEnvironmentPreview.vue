@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import {
+  ActionCard,
   Button,
   Dialog,
   DialogContent,
@@ -11,8 +12,10 @@ import {
   NativeSelect,
   NativeSelectOption,
   SegmentedControl,
+  SettingsRow,
+  SettingsSection,
 } from '@felinic/ui'
-import { ArrowLeft, Maximize2, Plus, RotateCcw } from 'lucide-vue-next'
+import { ArrowLeft, Box, Maximize2, Plus, RotateCcw, Smartphone } from 'lucide-vue-next'
 import WorkspaceModuleTopBar from '@/components-vue/WorkspaceModuleTopBar.vue'
 import WorkspaceRail from '@/components-vue/WorkspaceRail.vue'
 import EnvironmentStrip from '@/components-vue/lab-env/EnvironmentStrip.vue'
@@ -20,12 +23,15 @@ import TargetSurfacePreview from '@/components-vue/lab-env/TargetSurfacePreview.
 import type { EnvironmentLease, TargetSurfaceKind } from '@/components-vue/lab-env/environmentTypes'
 import type { AccountStatus } from '@/types'
 import type { ThemeMode } from '@/lib/themeMode'
+import { t } from '@/lib/uiLocale'
+import { groupLabPackages } from '@/lib/labPackageCategory'
+import { useDossierSplit } from '@/lib/useDossierSplit'
 import type { AppSection, WorkspaceSection } from '@/lib/workspaceNavigation'
 
 defineOptions({ name: 'LabEnvironmentPreview' })
 
 type LabTab = 'jobs' | 'packages'
-type SourceKind = 'package' | 'local' | 'remote'
+type SourceKind = 'local' | 'remote'
 type PreviewScreen =
   | 'lab-packages'
   | 'lab-job'
@@ -42,7 +48,7 @@ const accountStatus: AccountStatus = {
   configured: true,
   authenticated: true,
   state: 'active',
-  user: { githubLogin: 'preview', displayName: '交互稿', avatarUrl: '' },
+  user: { githubLogin: 'preview', displayName: t('交互稿', 'Preview'), avatarUrl: '' },
 }
 const themeMode = ref<ThemeMode>('dark')
 const section = ref<AppSection>('lab')
@@ -52,7 +58,7 @@ const cveId = ref('')
 const codingFrom = ref<'lab' | 'cve'>('cve')
 const showNew = ref(false)
 const showReproAsk = ref(false)
-const newSource = ref<SourceKind>('package')
+const newSource = ref<SourceKind>('local')
 const selectedPackageId = ref('juice-shop')
 const dockerOk = ref(true)
 const targetOpen = ref(false)
@@ -63,41 +69,41 @@ const juiceLease = ref<EnvironmentLease>({
   provider: 'docker',
   state: 'stopped',
   packageName: 'OWASP Juice Shop',
-  detail: 'Docker · 无出网',
+  detail: t('Docker · 无出网', 'Docker · no outbound network'),
 })
 
-const packages = [
-  { id: 'juice-shop', name: 'OWASP Juice Shop', kind: 'Web', port: ':3000', size: '约 400MB' },
-  { id: 'webgoat', name: 'WebGoat', kind: 'Web', port: ':8080', size: '约 800MB' },
-  { id: 'activemq', name: 'Vulhub ActiveMQ', kind: 'Linux', port: ':61616', size: '约 350MB' },
-  { id: 'avd-34', name: 'Android API 34', kind: '模拟器', port: 'adb', size: '本机 AVD' },
-] as const
+const packages = computed(() => [
+  { id: 'juice-shop', name: 'OWASP Juice Shop', kind: 'Web', kindLabel: 'Web', category: 'web', provider: 'docker', surface: 'browser' as const, port: ':3000', size: t('约 400MB', 'About 400MB') },
+  { id: 'webgoat', name: 'WebGoat', kind: 'Web', kindLabel: 'Web', category: 'web', provider: 'docker', surface: 'browser' as const, port: ':8080', size: t('约 800MB', 'About 800MB') },
+  { id: 'activemq', name: 'Vulhub ActiveMQ', kind: 'Linux', kindLabel: 'Linux', category: 'linux', provider: 'docker', surface: 'shell' as const, port: ':61616', size: t('约 350MB', 'About 350MB') },
+  { id: 'avd-34', name: 'Android API 34', kind: t('模拟器', 'Emulator'), kindLabel: t('安卓', 'Android'), category: 'android', provider: 'android-avd', surface: 'emulator' as const, port: 'adb', size: t('本机 AVD', 'Local AVD') },
+])
+const packageGroups = computed(() => groupLabPackages(packages.value))
 
-const sourceItems = [
-  { value: 'package' as const, label: '题目包' },
-  { value: 'local' as const, label: '本机地址' },
-  { value: 'remote' as const, label: '远程' },
-]
-const labTabItems = [
-  { value: 'jobs' as const, label: '作业' },
-  { value: 'packages' as const, label: '题目包' },
-]
-const screenItems = [
-  { value: 'lab-packages' as const, label: '实验室·包' },
-  { value: 'lab-job' as const, label: '实验室·作业' },
-  { value: 'cve-ready' as const, label: 'CVE·有包' },
-  { value: 'cve-live' as const, label: '网页靶' },
-  { value: 'cve-shell' as const, label: '终端靶' },
-  { value: 'cve-emulator' as const, label: '模拟器' },
-  { value: 'cve-agent' as const, label: 'Agent 操作' },
-  { value: 'cve-none' as const, label: 'CVE·无包' },
-  { value: 'coding-from-cve' as const, label: '展开 Coding' },
-  { value: 'docker-down' as const, label: 'Docker 未运行' },
-]
-const cveStatusOptions = [
-  { value: '研究中', label: '研究中' },
-  { value: '想研究', label: '想研究' },
-]
+const sourceItems = computed(() => [
+  { value: 'local' as const, label: t('本地', 'Local') },
+  { value: 'remote' as const, label: t('远程', 'Remote') },
+])
+const labTabItems = computed(() => [
+  { value: 'packages' as const, label: t('题目包', 'Packages') },
+  { value: 'jobs' as const, label: t('自定义任务', 'Custom jobs') },
+])
+const screenItems = computed(() => [
+  { value: 'lab-packages' as const, label: t('实验室·包', 'Lab · packages') },
+  { value: 'lab-job' as const, label: t('实验室·作业', 'Lab · job') },
+  { value: 'cve-ready' as const, label: t('CVE·有包', 'CVE · with package') },
+  { value: 'cve-live' as const, label: t('网页靶', 'Web target') },
+  { value: 'cve-shell' as const, label: t('终端靶', 'Terminal target') },
+  { value: 'cve-emulator' as const, label: t('模拟器', 'Emulator') },
+  { value: 'cve-agent' as const, label: t('Agent 操作', 'Agent driving') },
+  { value: 'cve-none' as const, label: t('CVE·无包', 'CVE · no package') },
+  { value: 'coding-from-cve' as const, label: t('展开 Coding', 'Expand Coding') },
+  { value: 'docker-down' as const, label: t('Docker 未运行', 'Docker is not running') },
+])
+const cveStatusOptions = computed(() => [
+  { value: '研究中', label: t('研究中', 'In research') },
+  { value: '想研究', label: t('想研究', 'Want to research') },
+])
 
 const sidebarSection = computed(() => (section.value === 'chat' ? 'chat' : section.value))
 const screen = computed<PreviewScreen>(() => {
@@ -118,20 +124,20 @@ const screen = computed<PreviewScreen>(() => {
 const noneLease = computed<EnvironmentLease>(() => ({
   provider: 'none',
   state: 'none',
-  detail: '没有匹配的练习包。仍可按公开描述写报告。',
+  detail: t('没有匹配的练习包。仍可按公开描述写报告。', 'No matching practice package. You can still write a report from the public description.'),
 }))
 const dockerDownLease = computed<EnvironmentLease>(() => ({
   provider: 'docker',
   state: 'docker-down',
   packageName: 'OWASP Juice Shop',
-  detail: '打开 Docker Desktop 后再试。',
+  detail: t('打开 Docker Desktop 后再试。', 'Open Docker Desktop and try again.'),
 }))
 const userTargetLease = computed<EnvironmentLease>(() => ({
   provider: 'user-attached',
   state: 'ready',
-  packageName: '用户自带靶',
+  packageName: t('用户自带靶', 'User-attached target'),
   address: 'http://127.0.0.1:8081',
-  detail: '本机地址 · 不由 MilkSU 启动',
+  detail: t('本机地址 · 不由 MilkSU 启动', 'Local address · not started by MilkSU'),
 }))
 
 const cveLease = computed(() => {
@@ -145,6 +151,7 @@ const labLease = computed(() => {
   return juiceLease.value
 })
 const codingLease = computed(() => (codingFrom.value === 'lab' ? labLease.value : cveLease.value))
+const { width: briefWidth, startResize: startBriefResize } = useDossierSplit('milksu.preview-split.v1', 400)
 
 function applyScreen(next: PreviewScreen) {
   dockerOk.value = next !== 'docker-down'
@@ -174,7 +181,7 @@ function applyScreen(next: PreviewScreen) {
       state: 'ready',
       packageName: 'OWASP Juice Shop',
       address: '127.0.0.1:3000',
-      detail: 'Docker · 无出网',
+      detail: t('Docker · 无出网', 'Docker · no outbound network'),
     }
     return
   }
@@ -192,7 +199,7 @@ function applyScreen(next: PreviewScreen) {
         state: 'ready',
         packageName: 'Vulhub ActiveMQ',
         address: '127.0.0.1:61616',
-        detail: 'Docker · 无出网',
+        detail: t('Docker · 无出网', 'Docker · no outbound network'),
       }
     } else if (next === 'cve-emulator') {
       juiceLease.value = {
@@ -200,7 +207,7 @@ function applyScreen(next: PreviewScreen) {
         state: 'ready',
         packageName: 'Android API 34',
         address: 'emulator-5554',
-        detail: '本机 AVD · 受限 adb',
+        detail: t('本机 AVD · 受限 adb', 'Local AVD · restricted adb'),
       }
     } else {
       juiceLease.value = {
@@ -208,7 +215,7 @@ function applyScreen(next: PreviewScreen) {
         state: 'ready',
         packageName: 'OWASP Juice Shop',
         address: '127.0.0.1:3000',
-        detail: 'Docker · 无出网',
+        detail: t('Docker · 无出网', 'Docker · no outbound network'),
       }
     }
     return
@@ -222,7 +229,7 @@ function applyScreen(next: PreviewScreen) {
       state: 'ready',
       packageName: 'OWASP Juice Shop',
       address: '127.0.0.1:3000',
-      detail: 'Docker · 无出网',
+      detail: t('Docker · 无出网', 'Docker · no outbound network'),
     }
     return
   }
@@ -233,7 +240,7 @@ function applyScreen(next: PreviewScreen) {
     state: 'ready',
     packageName: 'OWASP Juice Shop',
     address: '127.0.0.1:3000',
-    detail: 'Docker · 无出网',
+    detail: t('Docker · 无出网', 'Docker · no outbound network'),
   }
 }
 
@@ -259,7 +266,7 @@ function startJuice() {
     state: 'ready',
     packageName: 'OWASP Juice Shop',
     address: '127.0.0.1:3000',
-    detail: 'Docker · 无出网',
+    detail: t('Docker · 无出网', 'Docker · no outbound network'),
   }
 }
 
@@ -268,7 +275,7 @@ function stopJuice() {
     provider: 'docker',
     state: 'stopped',
     packageName: 'OWASP Juice Shop',
-    detail: 'Docker · 无出网',
+    detail: t('Docker · 无出网', 'Docker · no outbound network'),
   }
   targetOpen.value = false
   agentDriving.value = false
@@ -295,7 +302,7 @@ function openPackage(id: string) {
       state: 'ready',
       packageName: 'Android API 34',
       address: 'emulator-5554',
-      detail: '本机 AVD · 受限 adb',
+      detail: t('本机 AVD · 受限 adb', 'Local AVD · restricted adb'),
     }
     labJobId.value = 'avd-job'
     targetOpen.value = true
@@ -308,7 +315,7 @@ function openPackage(id: string) {
       state: 'ready',
       packageName: 'Vulhub ActiveMQ',
       address: '127.0.0.1:61616',
-      detail: 'Docker · 无出网',
+      detail: t('Docker · 无出网', 'Docker · no outbound network'),
     }
     labJobId.value = 'mq-job'
     targetOpen.value = true
@@ -320,12 +327,7 @@ function openPackage(id: string) {
 
 function submitNew() {
   showNew.value = false
-  if (newSource.value === 'package' && selectedPackageId.value === 'juice-shop') {
-    startJuice()
-    labJobId.value = 'juice-job'
-    return
-  }
-  if (newSource.value !== 'package') labJobId.value = 'url-job'
+  labJobId.value = 'url-job'
 }
 
 function startRepro() {
@@ -357,19 +359,19 @@ function returnFromCoding() {
 
 onMounted(() => {
   const hash = window.location.hash.replace(/^#/, '') as PreviewScreen
-  if (screenItems.some(item => item.value === hash)) applyScreen(hash)
+  if (screenItems.value.some(item => item.value === hash)) applyScreen(hash)
 })
 </script>
 
 <template>
   <div class="flex h-screen min-h-0 flex-col bg-background text-foreground" data-testid="lab-env-preview">
     <p class="flex h-10 shrink-0 items-center gap-3 border-b border-border bg-card px-4 text-caption">
-      <span class="text-muted-foreground">交互稿 · 真组件 · 不写后端</span>
+      <span class="text-muted-foreground">{{ t('交互稿 · 真组件 · 不写后端', 'Preview · live components · no backend') }}</span>
       <SegmentedControl
         class="ml-auto"
         :model-value="screen"
         :items="screenItems"
-        aria-label="画面"
+        :aria-label="t('画面', 'Screen')"
         @update:model-value="applyScreen($event as PreviewScreen)"
       />
     </p>
@@ -386,79 +388,92 @@ onMounted(() => {
 
       <main class="tactical-page flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
         <template v-if="section === 'lab' && !labJobId">
-          <WorkspaceModuleTopBar module="lab" title="实验室">
+          <WorkspaceModuleTopBar module="lab" :title="t('实验室', 'Lab')">
             <template #actions>
-              <SegmentedControl v-model="labTab" aria-label="实验室分段" :items="labTabItems" />
-              <Button variant="brand" size="sm" @click="showNew = true">
+              <SegmentedControl v-model="labTab" :aria-label="t('实验室分段', 'Lab sections')" :items="labTabItems" />
+              <Button
+                v-if="labTab === 'jobs'"
+                variant="ghost"
+                size="icon-sm"
+                :aria-label="t('新建自定义任务', 'New custom job')"
+                @click="showNew = true"
+              >
                 <Plus class="size-4" />
-                新作业
               </Button>
             </template>
           </WorkspaceModuleTopBar>
 
-          <section v-if="labTab === 'packages'" class="min-h-0 flex-1 overflow-auto bg-background" aria-label="题目包">
-            <div class="grid gap-4 px-6 py-6 sm:grid-cols-2">
-              <article
-                v-for="item in packages"
-                :key="item.id"
-                class="rounded-xl border border-border bg-card p-5"
-                data-testid="package-row"
+          <section v-if="labTab === 'packages'" class="min-h-0 flex-1 overflow-auto bg-background" :aria-label="t('题目包', 'Packages')">
+            <div class="flex flex-col gap-8 px-6 py-6">
+              <section
+                v-for="group in packageGroups"
+                :key="group.category"
+                data-testid="lab-pack-group"
+                :aria-label="group.label"
               >
-                <span class="ak-tag ak-tag--compact">{{ item.kind }}</span>
-                <h2 class="mt-3 text-control font-medium">{{ item.name }}</h2>
-                <p class="mt-2 text-caption text-muted-foreground">{{ item.port }} · {{ item.size }}</p>
-                <Button
-                  class="mt-4"
-                  size="sm"
-                  variant="outline"
-                  data-testid="start-package"
-                  @click="openPackage(item.id)"
-                >
-                  打开
-                </Button>
-              </article>
+                <h2 class="mb-3 flex items-baseline gap-2 text-label font-medium text-muted-foreground">
+                  <span>{{ group.label }}</span>
+                  <span class="font-mono text-caption">{{ group.packages.length }}</span>
+                </h2>
+                <div class="grid gap-3 sm:grid-cols-2">
+                  <ActionCard
+                    v-for="item in group.packages"
+                    :key="item.id"
+                    data-testid="package-row"
+                    :title="item.name"
+                    :description="`${item.kind} · ${item.port}`"
+                    @click="openPackage(item.id)"
+                  >
+                    <template #icon>
+                      <Smartphone v-if="item.id === 'avd-34'" />
+                      <Box v-else />
+                    </template>
+                  </ActionCard>
+                </div>
+              </section>
             </div>
           </section>
 
-          <section v-else class="tactical-paper-surface min-h-0 flex-1 overflow-auto bg-card" aria-label="实验室列表">
+          <section v-else class="tactical-paper-surface min-h-0 flex-1 overflow-auto bg-card" :aria-label="t('自定义任务', 'Custom jobs')">
             <div class="min-w-[720px]">
               <div class="tactical-desk-head tactical-table-head grid h-12 grid-cols-[minmax(220px,1fr)_80px_88px_72px] items-center gap-4 border-b border-border px-6 text-caption text-muted-foreground">
-                <span>作业</span><span>范围</span><span>环境</span><span class="sr-only">打开</span>
+                <span>{{ t('任务', 'Job') }}</span><span>{{ t('范围', 'Scope') }}</span><span>{{ t('环境', 'Environment') }}</span><span class="sr-only">{{ t('打开', 'Open') }}</span>
               </div>
               <article class="tactical-row grid min-h-[72px] grid-cols-[minmax(220px,1fr)_80px_88px_72px] items-center gap-4 px-6">
-                <span class="truncate text-control font-medium">Juice Shop 练习</span>
-                <span class="text-body">本地</span>
-                <span class="text-caption">{{ juiceLease.state === 'ready' ? '就绪' : '已停止' }}</span>
-                <Button size="sm" variant="outline" data-testid="open-juice-job" @click="labJobId = 'juice-job'">打开</Button>
-              </article>
-              <article class="tactical-row grid min-h-[72px] grid-cols-[minmax(220px,1fr)_80px_88px_72px] items-center gap-4 px-6">
-                <span class="truncate text-control font-medium">本机 8081 探测</span>
-                <span class="text-body">本地</span>
-                <span class="text-caption">自带靶</span>
-                <Button size="sm" variant="outline" @click="labJobId = 'url-job'">打开</Button>
+                <span class="truncate text-control font-medium">{{ t('本机 8081 探测', 'Local 8081 probe') }}</span>
+                <span class="text-body">{{ t('本地', 'Local') }}</span>
+                <span class="text-caption">{{ t('用户目标', 'User target') }}</span>
+                <Button size="sm" variant="outline" @click="labJobId = 'url-job'">{{ t('打开', 'Open') }}</Button>
               </article>
             </div>
           </section>
         </template>
 
         <template v-else-if="section === 'lab'">
-          <WorkspaceModuleTopBar module="lab" :title="labJobId === 'url-job' ? '本机 8081 探测' : 'Juice Shop 练习'" subtitle="本地">
+          <WorkspaceModuleTopBar module="lab" :title="labJobId === 'url-job' ? t('本机 8081 探测', 'Local 8081 probe') : t('Juice Shop 练习', 'Juice Shop practice')" :subtitle="t('本地', 'Local')">
             <template #leading>
-              <Button variant="ghost" size="icon-sm" aria-label="返回实验室" @click="labJobId = ''; targetOpen = false; agentDriving = false">
+              <Button variant="ghost" size="icon-sm" :aria-label="t('返回实验室', 'Back to Lab')" @click="labJobId = ''; targetOpen = false; agentDriving = false">
                 <ArrowLeft class="size-4" />
               </Button>
             </template>
             <template #actions>
-              <Button variant="brand" size="sm" @click="openTarget(); agentDriving = true">开始</Button>
+              <Button variant="outline" size="sm" @click="expandToCoding('lab')">{{ t('进入 Coding', 'Open in Coding') }}</Button>
             </template>
           </WorkspaceModuleTopBar>
-          <div class="flex min-h-0 flex-1 overflow-hidden">
-            <div class="min-h-0 min-w-0 flex-1 overflow-auto" :class="targetOpen ? 'max-w-md border-r border-border' : ''">
-              <div class="space-y-5 px-6 py-6" :class="targetOpen ? '' : 'mx-auto max-w-5xl'">
-                <section class="rounded-xl border border-border bg-card p-6">
-                  <h2 class="text-label font-medium">作业</h2>
-                  <p class="mt-3 text-body leading-6">{{ labJobId === 'url-job' ? '扫一下本机 8081。' : '对 Juice Shop 做一轮授权练习，过程写入报告。' }}</p>
-                </section>
+          <div class="flex min-h-0 flex-1 overflow-hidden" data-dossier-split>
+            <div
+              class="min-h-0 min-w-0 overflow-auto"
+              :class="targetOpen && labLease.address ? '' : 'flex-1'"
+              :style="targetOpen && labLease.address ? { width: `${briefWidth}px`, flex: 'none' } : undefined"
+            >
+              <div class="space-y-5 px-6 py-6" :class="targetOpen && labLease.address ? '' : 'mx-auto max-w-5xl'">
+                <SettingsSection :title="t('题面', 'Brief')">
+                  <SettingsRow
+                    stack="always"
+                    :description="labJobId === 'url-job' ? t('扫一下本机 8081。', 'Probe local port 8081.') : t('对 Juice Shop 做一轮授权练习，过程写入报告。', 'Run an authorized Juice Shop practice round and write the process into the report.')"
+                    :divider="false"
+                  />
+                </SettingsSection>
                 <EnvironmentStrip
                   :lease="labLease"
                   @start="startJuice"
@@ -466,44 +481,47 @@ onMounted(() => {
                   @open-target="openTarget"
                   @retry="retryDocker"
                 />
-                <section class="rounded-xl border border-border bg-card p-6">
-                  <h2 class="text-label font-medium">报告</h2>
-                  <p class="mt-3 text-body leading-6 text-muted-foreground">摘要、范围、当前状况、步骤会写在 report.md。</p>
-                </section>
-                <section v-if="targetOpen" class="rounded-xl border border-border bg-card p-4">
-                  <p class="text-caption text-muted-foreground">对话 · 引用 Coding</p>
-                  <p class="mt-2 text-body">先看右边的活靶。Agent 动手时你能看见。</p>
-                  <Input class="mt-3" disabled placeholder="对这个靶说你想做什么" />
-                </section>
+                <SettingsSection :title="t('报告', 'Report')">
+                  <SettingsRow stack="always" :description="t('摘要、范围、当前状况、步骤会写在 report.md。', 'Summary, scope, current status, and steps are written to report.md.')" :divider="false" />
+                </SettingsSection>
               </div>
             </div>
-            <TargetSurfacePreview
-              v-if="targetOpen && labLease.address"
-              :kind="targetKind"
-              :address="labLease.address"
-              :driving="agentDriving"
-            />
+            <div v-if="targetOpen && labLease.address" class="relative flex min-h-0 min-w-0 flex-1">
+              <div
+                class="dossier-split-handle app-no-drag"
+                role="separator"
+                aria-orientation="vertical"
+                data-testid="dossier-split"
+                :aria-label="t('调节题面宽度', 'Resize the brief pane')"
+                @pointerdown="startBriefResize"
+              />
+              <TargetSurfacePreview
+                :kind="targetKind"
+                :address="labLease.address"
+                :driving="agentDriving"
+              />
+            </div>
           </div>
         </template>
 
         <template v-else-if="section === 'vuln' && !cveId">
           <WorkspaceModuleTopBar module="cve" title="CVE" />
-          <section class="tactical-paper-surface min-h-0 flex-1 overflow-auto bg-card" aria-label="CVE 列表">
+          <section class="tactical-paper-surface min-h-0 flex-1 overflow-auto bg-card" :aria-label="t('CVE 列表', 'CVE list')">
             <div class="min-w-[720px]">
               <div class="tactical-desk-head tactical-table-head grid h-12 grid-cols-[170px_minmax(240px,1fr)_88px_72px] items-center gap-4 border-b border-border px-6 text-caption text-muted-foreground">
-                <span>CVE</span><span>标题</span><span>状态</span><span class="sr-only">打开</span>
+                <span>CVE</span><span>{{ t('标题', 'Title') }}</span><span>{{ t('状态', 'Status') }}</span><span class="sr-only">{{ t('打开', 'Open') }}</span>
               </div>
               <article class="tactical-row grid min-h-[72px] grid-cols-[170px_minmax(240px,1fr)_88px_72px] items-center gap-4 px-6" data-testid="cve-row">
                 <span class="font-mono text-body">CVE-2023-46604</span>
                 <span class="truncate text-control font-medium">Apache ActiveMQ OpenWire RCE</span>
-                <span class="ak-tag ak-tag--compact">研究中</span>
-                <Button size="sm" variant="outline" data-testid="open-cve-ready" @click="cveId = 'CVE-2023-46604'">打开</Button>
+                <span class="ak-tag ak-tag--compact">{{ t('研究中', 'In research') }}</span>
+                <Button size="sm" variant="outline" data-testid="open-cve-ready" @click="cveId = 'CVE-2023-46604'">{{ t('打开', 'Open') }}</Button>
               </article>
               <article class="tactical-row grid min-h-[72px] grid-cols-[170px_minmax(240px,1fr)_88px_72px] items-center gap-4 px-6">
                 <span class="font-mono text-body">CVE-2024-3400</span>
-                <span class="truncate text-control font-medium">PAN-OS GlobalProtect 命令注入</span>
-                <span class="ak-tag ak-tag--compact ak-tag--neutral">想研究</span>
-                <Button size="sm" variant="outline" data-testid="open-cve-none" @click="cveId = 'CVE-2024-3400'">打开</Button>
+                <span class="truncate text-control font-medium">{{ t('PAN-OS GlobalProtect 命令注入', 'PAN-OS GlobalProtect command injection') }}</span>
+                <span class="ak-tag ak-tag--compact ak-tag--neutral">{{ t('想研究', 'Want to research') }}</span>
+                <Button size="sm" variant="outline" data-testid="open-cve-none" @click="cveId = 'CVE-2024-3400'">{{ t('打开', 'Open') }}</Button>
               </article>
             </div>
           </section>
@@ -513,32 +531,38 @@ onMounted(() => {
           <WorkspaceModuleTopBar
             module="cve"
             :title="cveId"
-            :subtitle="cveId === 'CVE-2024-3400' ? 'PAN-OS GlobalProtect 命令注入' : 'Apache ActiveMQ OpenWire RCE'"
+            :subtitle="cveId === 'CVE-2024-3400' ? t('PAN-OS GlobalProtect 命令注入', 'PAN-OS GlobalProtect command injection') : 'Apache ActiveMQ OpenWire RCE'"
           >
             <template #leading>
-              <Button variant="ghost" size="icon-sm" aria-label="返回漏洞列表" @click="cveId = ''; targetOpen = false; agentDriving = false">
+              <Button variant="ghost" size="icon-sm" :aria-label="t('返回漏洞列表', 'Back to CVE list')" @click="cveId = ''; targetOpen = false; agentDriving = false">
                 <ArrowLeft class="size-4" />
               </Button>
             </template>
             <template #actions>
-              <NativeSelect model-value="研究中" size="sm" class="w-32" aria-label="状态">
+              <NativeSelect model-value="研究中" size="sm" class="w-32" :aria-label="t('状态', 'Status')">
                 <NativeSelectOption v-for="option in cveStatusOptions" :key="option.value" :value="option.value">
                   {{ option.label }}
                 </NativeSelectOption>
               </NativeSelect>
-              <Button variant="brand" size="sm" data-testid="start-repro" @click="startRepro">开始复现</Button>
+              <Button variant="brand" size="sm" data-testid="start-repro" @click="startRepro">{{ t('开始复现', 'Start reproduction') }}</Button>
             </template>
           </WorkspaceModuleTopBar>
-          <div class="flex min-h-0 flex-1 overflow-hidden">
-            <div class="min-h-0 min-w-0 flex-1 overflow-auto" :class="targetOpen ? 'max-w-md border-r border-border' : ''">
-              <div class="space-y-5 px-6 py-6" :class="targetOpen ? '' : 'mx-auto max-w-5xl'">
-                <section class="rounded-xl border border-border bg-card p-6">
-                  <p class="text-body leading-6 text-muted-foreground">
-                    {{ cveId === 'CVE-2024-3400'
-                      ? '公开描述可在档案里复现阅读。当前切片没有匹配的练习包。'
-                      : 'OpenWire 反序列化导致远程代码执行。有白名单练习包时可在本机拉起。' }}
-                  </p>
-                </section>
+          <div class="flex min-h-0 flex-1 overflow-hidden" data-dossier-split>
+            <div
+              class="min-h-0 min-w-0 overflow-auto"
+              :class="targetOpen && cveLease.address ? '' : 'flex-1'"
+              :style="targetOpen && cveLease.address ? { width: `${briefWidth}px`, flex: 'none' } : undefined"
+            >
+              <div class="space-y-5 px-6 py-6" :class="targetOpen && cveLease.address ? '' : 'mx-auto max-w-5xl'">
+                <SettingsSection :title="t('摘要', 'Summary')">
+                  <SettingsRow
+                    stack="always"
+                    :description="cveId === 'CVE-2024-3400'
+                      ? t('公开描述可在档案里复现阅读。当前切片没有匹配的练习包。', 'The public description can be reread in the dossier. This slice has no matching practice package.')
+                      : t('OpenWire 反序列化导致远程代码执行。有白名单练习包时可在本机拉起。', 'OpenWire deserialization leads to remote code execution. An allowlisted practice package can be started locally.')"
+                    :divider="false"
+                  />
+                </SettingsSection>
                 <EnvironmentStrip
                   :lease="cveLease"
                   @start="startJuice"
@@ -546,53 +570,56 @@ onMounted(() => {
                   @open-target="openTarget"
                   @retry="retryDocker"
                 />
-                <section class="rounded-xl border border-border bg-card p-6">
-                  <h2 class="text-label font-medium">报告</h2>
-                  <p class="mt-3 text-body leading-6 text-muted-foreground">环境就绪不等于复现成功。过程写入 report.md。</p>
-                </section>
-                <section v-if="targetOpen" class="rounded-xl border border-border bg-card p-4">
-                  <p class="text-caption text-muted-foreground">对话 · 引用 Coding</p>
-                  <p class="mt-2 text-body">右侧是活靶面（网页 / 终端 / 模拟器）。Agent 打同一面，步骤写进报告。</p>
-                  <Input class="mt-3" disabled placeholder="继续指挥这一轮复现" />
-                </section>
+                <SettingsSection :title="t('报告', 'Report')">
+                  <SettingsRow stack="always" :description="t('环境就绪不等于复现成功。过程写入 report.md。', 'A ready environment is not a successful reproduction. The process is written to report.md.')" :divider="false" />
+                </SettingsSection>
               </div>
             </div>
-            <TargetSurfacePreview
-              v-if="targetOpen && cveLease.address"
-              :kind="targetKind"
-              :address="cveLease.address"
-              :driving="agentDriving"
-            />
+            <div v-if="targetOpen && cveLease.address" class="relative flex min-h-0 min-w-0 flex-1">
+              <div
+                class="dossier-split-handle app-no-drag"
+                role="separator"
+                aria-orientation="vertical"
+                data-testid="dossier-split"
+                :aria-label="t('调节档案宽度', 'Resize the dossier pane')"
+                @pointerdown="startBriefResize"
+              />
+              <TargetSurfacePreview
+                :kind="targetKind"
+                :address="cveLease.address"
+                :driving="agentDriving"
+              />
+            </div>
           </div>
         </template>
 
         <template v-else-if="section === 'chat'">
-          <WorkspaceModuleTopBar module="coding" title="Coding" :subtitle="codingFrom === 'lab' ? '来自实验室' : '来自 CVE'">
+          <WorkspaceModuleTopBar module="coding" title="Coding" :subtitle="codingFrom === 'lab' ? t('来自实验室', 'From Lab') : t('来自 CVE', 'From CVE')">
             <template #actions>
               <Button variant="outline" size="sm" data-testid="return-domain" @click="returnFromCoding">
                 <RotateCcw class="size-3.5" />
-                {{ codingFrom === 'lab' ? '返回实验室' : '返回 CVE' }}
+                {{ codingFrom === 'lab' ? t('返回实验室', 'Back to Lab') : t('返回 CVE', 'Back to CVE') }}
               </Button>
             </template>
           </WorkspaceModuleTopBar>
           <div class="flex min-h-0 flex-1">
-            <aside class="flex w-80 shrink-0 flex-col border-r border-border bg-card" aria-label="任务信息">
+            <aside class="flex w-80 shrink-0 flex-col border-r border-border bg-card" :aria-label="t('任务信息', 'Job info')">
               <header class="flex h-12 items-center gap-2 px-4 text-control font-medium">
-                来自 {{ codingFrom === 'lab' ? '实验室' : 'CVE' }}
+                {{ codingFrom === 'lab' ? t('来自实验室', 'From Lab') : t('来自 CVE', 'From CVE') }}
               </header>
               <div class="space-y-3 px-4 py-4 text-body">
-                <p class="font-medium">{{ codingFrom === 'lab' ? 'Juice Shop 练习' : 'CVE-2023-46604' }}</p>
-                <p class="text-caption text-muted-foreground">同一会话 · 展开不算离开作业</p>
+                <p class="font-medium">{{ codingFrom === 'lab' ? t('Juice Shop 练习', 'Juice Shop practice') : 'CVE-2023-46604' }}</p>
+                <p class="text-caption text-muted-foreground">{{ t('同一会话 · 展开不算离开作业', 'Same session · expanding is not leaving the job') }}</p>
                 <EnvironmentStrip compact :lease="codingLease" @start="startJuice" @stop="stopJuice" @open-target="targetOpen = true" @retry="retryDocker" />
               </div>
             </aside>
             <section class="flex min-w-0 flex-1 flex-col">
               <div class="min-h-0 flex-1 px-6 py-6 text-body text-muted-foreground">
-                Coding 大窗。Agent 只打 Scope 里的当前靶。实验室不嵌整页 Agent。
+                {{ t('Coding 大窗。Agent 只打 Scope 里的当前靶。实验室不嵌整页 Agent。', 'Coding full window. The agent only hits the current target in Scope. Lab does not embed a full-page agent.') }}
               </div>
               <div class="border-t border-border px-6 py-3">
-                <p v-if="codingLease.address" class="mb-2 text-caption" data-testid="coding-target-chip">当前靶 {{ codingLease.address }}</p>
-                <Input disabled placeholder="对话仍是同一条 Coding 会话" />
+                <p v-if="codingLease.address" class="mb-2 text-caption" data-testid="coding-target-chip">{{ t(`当前靶 ${codingLease.address}`, `Current target ${codingLease.address}`) }}</p>
+                <Input disabled :placeholder="t('对话仍是同一条 Coding 会话', 'Chat is still the same Coding session')" />
               </div>
             </section>
           </div>
@@ -601,27 +628,27 @@ onMounted(() => {
     </div>
 
     <aside
-      v-if="!targetOpen && (section === 'lab' && labJobId || section === 'vuln' && cveId)"
+      v-if="section !== 'chat' && ((section === 'lab' && labJobId) || (section === 'vuln' && cveId))"
       class="pointer-events-auto fixed bottom-5 right-5 z-40 w-80 rounded-xl border border-border bg-card shadow-xl"
       data-testid="preview-dock"
     >
       <header class="flex h-9 items-center gap-2 border-b border-border px-3 text-caption">
-        <strong class="text-control">对话</strong>
-        <span class="min-w-0 flex-1 truncate text-muted-foreground">引用 Coding</span>
+        <strong class="text-control">{{ t('对话', 'Chat') }}</strong>
+        <span class="min-w-0 flex-1 truncate text-muted-foreground">{{ t('引用 Coding', 'Cite Coding') }}</span>
         <span v-if="(section === 'lab' ? labLease.address : cveLease.address)" class="truncate text-caption">
-          当前靶 {{ section === 'lab' ? labLease.address : cveLease.address }}
+          {{ t(`当前靶 ${section === 'lab' ? labLease.address : cveLease.address}`, `Current target ${section === 'lab' ? labLease.address : cveLease.address}`) }}
         </span>
         <Button
           variant="ghost"
           size="icon-sm"
-          aria-label="进入 Coding"
+          :aria-label="t('进入 Coding', 'Open Coding')"
           data-testid="expand-coding"
           @click="expandToCoding(section === 'lab' ? 'lab' : 'cve')"
         >
           <Maximize2 class="size-3.5" />
         </Button>
       </header>
-      <p class="px-3 py-3 text-caption text-muted-foreground">小窗就是 Coding 循环。需要终端或 Git 再展开。</p>
+      <p class="px-3 py-3 text-caption text-muted-foreground">{{ t('小窗就是 Coding 循环。需要终端或 Git 再展开。', 'The small pane is the Coding loop. Expand when you need a terminal or Git.') }}</p>
     </aside>
 
 
@@ -629,30 +656,20 @@ onMounted(() => {
     <Dialog v-model:open="showNew">
       <DialogContent class="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>新作业</DialogTitle>
-          <DialogDescription class="sr-only">来源和练习包</DialogDescription>
+          <DialogTitle>{{ t('自定义任务', 'Custom job') }}</DialogTitle>
+          <DialogDescription class="sr-only">{{ t('范围和要求', 'Scope and request') }}</DialogDescription>
         </DialogHeader>
         <form class="grid gap-4" @submit.prevent="submitNew">
           <div>
-            <p class="mb-2 text-caption text-muted-foreground">来源</p>
-            <SegmentedControl v-model="newSource" aria-label="来源" :items="sourceItems" />
+            <p class="mb-2 text-caption text-muted-foreground">{{ t('范围', 'Scope') }}</p>
+            <SegmentedControl v-model="newSource" :aria-label="t('范围', 'Scope')" :items="sourceItems" />
           </div>
-          <button
-            v-if="newSource === 'package'"
-            type="button"
-            class="rounded-md border border-border px-3 py-3 text-left"
-            data-testid="pick-juice"
-            @click="selectedPackageId = 'juice-shop'"
-          >
-            <span class="text-control font-medium">OWASP Juice Shop</span>
-            <span class="mt-1 block text-caption text-muted-foreground">Web 练习靶 · :3000</span>
-          </button>
-          <label v-else class="text-caption text-muted-foreground">要求
-            <textarea class="mt-1 min-h-24 w-full rounded-md border border-border px-3 py-2 text-body" aria-label="要求" />
+          <label class="text-caption text-muted-foreground">{{ t('要求', 'Request') }}
+            <textarea class="mt-1 min-h-24 w-full rounded-md border border-border px-3 py-2 text-body" :aria-label="t('要求', 'Request')" />
           </label>
           <div class="flex justify-end gap-2">
-            <Button type="button" variant="ghost" @click="showNew = false">取消</Button>
-            <Button type="submit" variant="brand">启动并打开</Button>
+            <Button type="button" variant="ghost" @click="showNew = false">{{ t('取消', 'Cancel') }}</Button>
+            <Button type="submit" variant="brand">{{ t('启动并打开', 'Start and open') }}</Button>
           </div>
         </form>
       </DialogContent>
@@ -661,13 +678,39 @@ onMounted(() => {
     <Dialog v-model:open="showReproAsk">
       <DialogContent class="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>这个洞有练习包。先启动？</DialogTitle>
+          <DialogTitle>{{ t('这个洞有练习包。先启动？', 'This CVE has a practice package. Start it first?') }}</DialogTitle>
         </DialogHeader>
         <div class="flex justify-end gap-2">
-          <Button variant="ghost" @click="showReproAsk = false">只写报告</Button>
-          <Button variant="brand" data-testid="start-and-repro" @click="confirmStartAndRepro">启动并复现</Button>
+          <Button variant="ghost" @click="showReproAsk = false">{{ t('只写报告', 'Report only') }}</Button>
+          <Button variant="brand" data-testid="start-and-repro" @click="confirmStartAndRepro">{{ t('启动并复现', 'Start and reproduce') }}</Button>
         </div>
       </DialogContent>
     </Dialog>
   </div>
 </template>
+
+<style scoped>
+.dossier-split-handle {
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: 2;
+  width: 8px;
+  margin-left: -3px;
+  cursor: col-resize;
+  touch-action: none;
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+.dossier-split-handle::after {
+  position: absolute;
+  inset: 0 3px;
+  background: transparent;
+  content: '';
+}
+.dossier-split-handle:hover::after,
+.dossier-split-handle:focus-visible::after {
+  background: var(--brand);
+  opacity: .55;
+}
+</style>

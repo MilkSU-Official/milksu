@@ -1,5 +1,6 @@
 import { computed, shallowRef, unref, type MaybeRef } from 'vue'
 import { invokeCommand } from '@/desktop'
+import { t } from '@/lib/uiLocale'
 import {
   PROVIDERS,
   customProviderInfo,
@@ -187,7 +188,7 @@ export function callablePickerGroups(
       key: 'tokenflux:account',
       providerId: 'tokenflux',
       source: 'account',
-      label: 'MilkSU 账户',
+      label: t('MilkSU 账户', 'MilkSU account'),
       models: accountModels.map(model => model.id),
       visionModels: accountModels
         .filter(model => model.input.includes('image'))
@@ -200,7 +201,7 @@ export function callablePickerGroups(
       key: 'tokenflux:personal',
       providerId: 'tokenflux',
       source: 'personal',
-      label: 'TokenFlux 中转站',
+      label: t('TokenFlux 中转站', 'TokenFlux relay'),
       models: personalModels.map(model => model.id),
       visionModels: personalModels
         .filter(model => model.input.includes('image'))
@@ -280,7 +281,7 @@ function groupProviders(values: ProviderInfo[]) {
   return [
     {
       kind: 'relay' as const,
-      label: '模型服务',
+      label: t('模型服务', 'Model services'),
       providers: values.filter(provider => provider.kind === 'relay' || provider.kind === 'official'),
     },
   ].filter(group => group.providers.length > 0)

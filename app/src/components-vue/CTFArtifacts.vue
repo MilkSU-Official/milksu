@@ -10,6 +10,7 @@ import {
   ShieldCheck,
 } from 'lucide-vue-next'
 import { invokeCommand } from '@/desktop'
+import { t } from '@/lib/uiLocale'
 import type { CTFArtifactPreview, CTFProjection } from '@/ctfTypes'
 import type { ArtifactRecord } from '@/runtimeTypes'
 
@@ -32,8 +33,8 @@ const artifacts = computed(() => (
 function artifactLabel(artifact: ArtifactRecord) {
   const material = props.projection.challenge.materials.find(item => item.artifactId === artifact.id)
   if (material) return material.name
-  if (artifact.source.startsWith('action:')) return 'Agent 生成制品'
-  return artifact.source || 'Runtime 制品'
+  if (artifact.source.startsWith('action:')) return t('Agent 生成制品', 'Agent-generated artifact')
+  return artifact.source || t('Runtime 制品', 'Runtime artifact')
 }
 
 function formatBytes(size: number) {
@@ -71,7 +72,7 @@ async function selectArtifact(artifact: ArtifactRecord) {
       <div>
         <h2 id="artifacts-title" class="flex items-center gap-2 text-label font-medium">
           <FileArchive class="size-4" />
-          证据制品
+          {{ t('证据制品', 'Evidence artifacts') }}
         </h2>
 
       </div>
@@ -108,16 +109,16 @@ async function selectArtifact(artifact: ArtifactRecord) {
             <dl class="grid gap-2 text-caption sm:grid-cols-[88px_minmax(0,1fr)]">
               <dt class="text-muted-foreground">SHA-256</dt>
               <dd class="break-all font-mono">{{ preview.artifact.sha256 }}</dd>
-              <dt class="text-muted-foreground">来源</dt>
+              <dt class="text-muted-foreground">{{ t('来源', 'Source') }}</dt>
               <dd class="break-all">{{ preview.artifact.source }}</dd>
-              <dt class="text-muted-foreground">存储标识</dt>
+              <dt class="text-muted-foreground">{{ t('存储标识', 'Storage ID') }}</dt>
               <dd class="break-all font-mono">{{ preview.artifact.relativePath }}</dd>
             </dl>
 
             <div v-if="preview.previewable" class="mt-3">
               <div class="mb-2 flex items-center justify-between gap-3">
-                <p class="text-caption font-medium">只读文本预览</p>
-                <Badge v-if="preview.truncated" variant="secondary">前 128 KiB</Badge>
+                <p class="text-caption font-medium">{{ t('只读文本预览', 'Read-only text preview') }}</p>
+                <Badge v-if="preview.truncated" variant="secondary">{{ t('前 128 KiB', 'First 128 KiB') }}</Badge>
               </div>
               <pre class="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border bg-background p-3 font-mono text-caption leading-5">{{ preview.content }}</pre>
             </div>
@@ -139,7 +140,7 @@ async function selectArtifact(artifact: ArtifactRecord) {
     >
       <ChevronUp v-if="expanded" class="size-3.5" />
       <ChevronDown v-else class="size-3.5" />
-      {{ expanded ? '只看最近 5 个' : `查看全部 ${projection.artifacts.length} 个` }}
+      {{ expanded ? t('只看最近 5 个', 'Show last 5') : t(`查看全部 ${projection.artifacts.length} 个`, `View all ${projection.artifacts.length}`) }}
     </Button>
   </details>
 </template>

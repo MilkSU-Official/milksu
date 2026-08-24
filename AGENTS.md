@@ -55,6 +55,14 @@ status copy. If the control is missing a value, leave the surface blank and show
 control’s own label, such as “选择项目”. The Coding new-conversation canvas may show the
 product heading “我们要构建什么” or “我们在 {project} 中构建什么”.
 
+The product UI is bilingual: Simplified Chinese and English. Settings → 界面语言 / Interface
+language switches both. Default is Chinese. Every user-visible Chinese string in Vue, composables
+and frontend lib copy must be wrapped with `t('中文', 'English')` from `app/src/lib/uiLocale.ts`.
+When you add or change Chinese UI copy, change the English argument in the same edit. Do not
+leave a Chinese-only control, notice, empty state, aria-label, placeholder or button. Module
+names CTF, CVE, Lab and Coding stay as those product names in both languages. Enforcement:
+`app/src/lib/uiLocaleCoverage.test.ts`.
+
 ## Product UI Color Boundary
 
 - Current visual contract: [docs/design/current-visual.md](docs/design/current-visual.md).

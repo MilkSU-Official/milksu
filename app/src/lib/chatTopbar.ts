@@ -1,4 +1,5 @@
 import { isGeneratedScratchWorkspace } from '@/lib/codingConversationGroups'
+import { t } from '@/lib/uiLocale'
 
 export interface ChatTopbarInput {
   ctfSession: boolean
@@ -10,9 +11,9 @@ export interface ChatTopbarInput {
 }
 
 function ctfModeLabel(mode: ChatTopbarInput['ctfMode']) {
-  if (mode === 'coach') return '教练'
-  if (mode === 'delegate') return '代理'
-  return '搭档'
+  if (mode === 'coach') return t('教练', 'Coach')
+  if (mode === 'delegate') return t('代理', 'Delegate')
+  return t('搭档', 'Copilot')
 }
 
 function workspaceBaseName(path?: string) {
@@ -27,7 +28,7 @@ export function chatTopbarPresentation(input: ChatTopbarInput) {
   if (input.ctfSession) {
     return {
       title: 'CTF',
-      subtitle: `${input.conversationTitle || '解题会话'} · ${ctfModeLabel(input.ctfMode)}`,
+      subtitle: `${input.conversationTitle || t('解题会话', 'Solving session')} · ${ctfModeLabel(input.ctfMode)}`,
     }
   }
 
@@ -36,12 +37,12 @@ export function chatTopbarPresentation(input: ChatTopbarInput) {
   if (input.vulnerabilitySession) {
     return {
       title: 'CVE',
-      subtitle: `${input.conversationTitle || 'CVE 接力'} · ${workspaceLabel || `临时工作区 · ${input.codingPolicyLabel}`}`,
+      subtitle: `${input.conversationTitle || t('CVE 接力', 'CVE handoff')} · ${workspaceLabel || t(`临时工作区 · ${input.codingPolicyLabel}`, `Temporary workspace · ${input.codingPolicyLabel}`)}`,
     }
   }
 
   return {
-    title: input.conversationTitle || '新编码任务',
-    subtitle: workspaceLabel || `临时工作区 · ${input.codingPolicyLabel}`,
+    title: input.conversationTitle || t('新编码任务', 'New coding task'),
+    subtitle: workspaceLabel || t(`临时工作区 · ${input.codingPolicyLabel}`, `Temporary workspace · ${input.codingPolicyLabel}`),
   }
 }

@@ -16,6 +16,7 @@ import {
   QUICK_COLLECTION_ID,
   type ItemCollectionStore,
 } from '@/lib/itemCollections'
+import { t } from '@/lib/uiLocale'
 
 const props = defineProps<{
   modelValue: string
@@ -53,7 +54,7 @@ function selectCollection(id: string) {
 </script>
 
 <template>
-  <div class="collection-tabs flex min-w-0 shrink items-center gap-2 overflow-x-auto" role="tablist" aria-label="收藏夹">
+  <div class="collection-tabs flex min-w-0 shrink items-center gap-2 overflow-x-auto" role="tablist" :aria-label="t('收藏夹', 'Collections')">
     <div class="ak-segmented">
       <button
         type="button"
@@ -63,7 +64,7 @@ function selectCollection(id: string) {
         :aria-selected="modelValue === ALL_COLLECTIONS_ID"
         @click="selectCollection(ALL_COLLECTIONS_ID)"
       >
-        全部
+        {{ t('全部', 'All') }}
       </button>
       <button
         v-for="collection in store.collections.value"
@@ -79,17 +80,17 @@ function selectCollection(id: string) {
         <span v-if="collection.itemKeys.length" class="tab-count">{{ collection.itemKeys.length }}</span>
       </button>
     </div>
-    <button type="button" class="collection-tab-manage" aria-label="管理收藏夹" @click="managerOpen = true">
-      <Plus class="size-4" />新建收藏夹
+    <button type="button" class="collection-tab-manage" :aria-label="t('管理收藏夹', 'Manage collections')" @click="managerOpen = true">
+      <Plus class="size-4" />{{ t('新建收藏夹', 'New collection') }}
     </button>
-    <span v-if="modelValue !== ALL_COLLECTIONS_ID" class="sr-only">当前收藏夹 {{ selectedCount }} 条</span>
+    <span v-if="modelValue !== ALL_COLLECTIONS_ID" class="sr-only">{{ t(`当前收藏夹 ${selectedCount} 条`, `${selectedCount} items in this collection`) }}</span>
   </div>
 
   <Dialog v-model:open="managerOpen">
     <DialogContent class="sm:max-w-md">
       <DialogHeader>
-        <DialogTitle>收藏夹</DialogTitle>
-        <DialogDescription>一条记录可以放进多个收藏夹。</DialogDescription>
+        <DialogTitle>{{ t('收藏夹', 'Collections') }}</DialogTitle>
+        <DialogDescription>{{ t('一条记录可以放进多个收藏夹。', 'An item can belong to more than one collection.') }}</DialogDescription>
       </DialogHeader>
       <div class="divide-y divide-border rounded-lg border border-border">
         <div
@@ -103,7 +104,7 @@ function selectCollection(id: string) {
             v-if="collection.id !== QUICK_COLLECTION_ID"
             variant="ghost"
             size="icon-sm"
-            :aria-label="`删除收藏夹 ${collection.name}`"
+            :aria-label="t(`删除收藏夹 ${collection.name}`, `Delete collection ${collection.name}`)"
             @click="removeCollection(collection.id)"
           >
             <Trash2 class="size-3.5" />
@@ -111,12 +112,12 @@ function selectCollection(id: string) {
         </div>
       </div>
       <form class="flex gap-2" @submit.prevent="createCollection">
-        <Input v-model="newName" placeholder="新建收藏夹" aria-label="收藏夹名称" />
-        <Button type="submit" :disabled="!newName.trim()">新建</Button>
+        <Input v-model="newName" :placeholder="t('新建收藏夹', 'New collection')" :aria-label="t('收藏夹名称', 'Collection name')" />
+        <Button type="submit" :disabled="!newName.trim()">{{ t('新建', 'Create') }}</Button>
       </form>
       <p v-if="error" class="text-caption text-destructive">{{ error }}</p>
       <DialogFooter>
-        <Button type="button" variant="outline" @click="managerOpen = false">完成</Button>
+        <Button type="button" variant="outline" @click="managerOpen = false">{{ t('完成', 'Done') }}</Button>
       </DialogFooter>
     </DialogContent>
   </Dialog>

@@ -4,6 +4,7 @@ import type {
   CodingExecutionMode,
 } from '@/types'
 import type { CodingComputerUseTarget } from '@/codingEnvironmentTypes'
+import { t } from '@/lib/uiLocale'
 
 export const DEFAULT_CODING_EXECUTION_MODE: CodingExecutionMode = 'go'
 export const DEFAULT_CODING_APPROVAL_POLICY: CodingApprovalPolicy = 'workspace-auto'
@@ -35,43 +36,43 @@ export function previewCodingCapabilities(
   return [
     {
       id: 'workspace-read',
-      label: '文件读取',
+      label: t('文件读取', 'File read'),
       status: 'allowed',
-      detail: '读取当前用户可读的文件。',
+      detail: t('读取当前用户可读的文件。', 'Read files the current user can access.'),
     },
     {
       id: 'workspace-write',
-      label: '文件写入',
+      label: t('文件写入', 'File write'),
       status: mutating ? 'allowed' : ask ? 'approval-required' : 'blocked',
       detail: fullAuto
-        ? '使用当前系统用户权限。'
+        ? t('使用当前系统用户权限。', 'Uses the current system user permissions.')
         : workspaceAuto
-          ? '大范围递归删除仍需单独确认。'
+          ? t('大范围递归删除仍需单独确认。', 'Large recursive deletes still need a separate confirmation.')
         : ask
-          ? '每次改文件前会询问。'
-          : '当前模式禁止修改文件。',
+          ? t('每次改文件前会询问。', 'Asks before each file change.')
+          : t('当前模式禁止修改文件。', 'This mode cannot modify files.'),
     },
     {
       id: 'command',
-      label: '命令执行',
+      label: t('命令执行', 'Command execution'),
       status: mutating ? 'allowed' : ask ? 'approval-required' : 'blocked',
       detail: fullAuto
-        ? '命令自动执行。'
+        ? t('命令自动执行。', 'Commands run automatically.')
         : workspaceAuto
-          ? '可运行开发命令。'
+          ? t('可运行开发命令。', 'Development commands can run.')
         : ask
-          ? '每次运行命令前会询问。'
-          : '当前模式不能运行命令。',
+          ? t('每次运行命令前会询问。', 'Asks before each command.')
+          : t('当前模式不能运行命令。', 'This mode cannot run commands.'),
     },
     {
       id: 'network',
-      label: '网络',
+      label: t('网络', 'Network'),
       status: mutating ? 'allowed' : ask ? 'approval-required' : 'blocked',
       detail: mutating
-        ? '允许开发命令访问网络。'
+        ? t('允许开发命令访问网络。', 'Development commands may use the network.')
         : ask
-          ? '网络只能通过已展示并单次批准的命令使用。'
-          : '当前模式禁止网络命令。',
+          ? t('网络只能通过已展示并单次批准的命令使用。', 'Network is only available through a shown, one-time approved command.')
+          : t('当前模式禁止网络命令。', 'This mode cannot run network commands.'),
     },
     {
       id: 'imagegen',
@@ -82,30 +83,30 @@ export function previewCodingCapabilities(
           ? 'approval-required'
           : 'unavailable',
       detail: executionMode !== 'go' || approvalPolicy === 'read-only'
-        ? '当前模式不可用。'
+        ? t('当前模式不可用。', 'Unavailable in this mode.')
         : imageGenConfigured
-          ? '每次调用前确认输入与费用。'
-          : '需在设置中配置 OpenAI。',
+          ? t('每次调用前确认输入与费用。', 'Confirms the input and cost before each call.')
+          : t('需在设置中配置 OpenAI。', 'Configure OpenAI in Settings.'),
     },
     {
       id: 'credentials',
-      label: '凭据',
+      label: t('凭据', 'Credentials'),
       status: fullAuto ? 'allowed' : 'blocked',
       detail: fullAuto
-        ? '可使用当前系统用户凭据。'
-        : '当前模式不使用本机凭据。',
+        ? t('可使用当前系统用户凭据。', 'May use the current system user credentials.')
+        : t('当前模式不使用本机凭据。', 'This mode does not use local credentials.'),
     },
     {
       id: 'browser',
-      label: '浏览器 / MCP',
+      label: t('浏览器 / MCP', 'Browser / MCP'),
       status: 'unavailable',
-      detail: '选择后可用。',
+      detail: t('选择后可用。', 'Available after you select it.'),
     },
     {
       id: 'computer-use',
       label: 'Computer Use',
       status: 'unavailable',
-      detail: '选择窗口后可用。',
+      detail: t('选择窗口后可用。', 'Available after you select a window.'),
     },
   ]
 }
@@ -115,18 +116,18 @@ export function describeActiveComputerUseCapability(
   approvalPolicy: CodingApprovalPolicy,
   target: CodingComputerUseTarget,
 ): Pick<CodingCapability, 'status' | 'detail'> {
-  const targetLabel = `${target.name}（${target.bundleId}）`
+  const targetLabel = t(`${target.name}（${target.bundleId}）`, `${target.name} (${target.bundleId})`)
   if (executionMode !== 'go' || approvalPolicy === 'read-only') {
     return {
       status: 'blocked',
-      detail: `已锁定 ${targetLabel}；当前模式不能操作外部 App。`,
+      detail: t(`已锁定 ${targetLabel}；当前模式不能操作外部 App。`, `Locked to ${targetLabel}; this mode cannot control an external app.`),
     }
   }
   return {
     status: approvalPolicy === 'ask' ? 'approval-required' : 'allowed',
     detail: approvalPolicy === 'ask'
-      ? `已锁定 ${targetLabel}；操作前会确认。`
-      : `已锁定 ${targetLabel}。`,
+      ? t(`已锁定 ${targetLabel}；操作前会确认。`, `Locked to ${targetLabel}; confirms before acting.`)
+      : t(`已锁定 ${targetLabel}。`, `Locked to ${targetLabel}.`),
   }
 }
 
@@ -145,37 +146,37 @@ export function describePendingComputerUseCapability(
     return {
       status: 'unavailable',
       detail: state.problem
-        || 'Computer Use 当前不可用。',
+        || t('Computer Use 当前不可用。', 'Computer Use is currently unavailable.'),
     }
   }
   if (state.attachedToOtherTask) {
     return {
       status: 'unavailable',
-      detail: '可见会话正由另一个任务使用。',
+      detail: t('可见会话正由另一个任务使用。', 'The visible session is in use by another task.'),
     }
   }
   if (!state.permissionsReady) {
     return {
       status: 'unavailable',
-      detail: '需授权辅助功能与屏幕录制。',
+      detail: t('需授权辅助功能与屏幕录制。', 'Accessibility and Screen Recording permission are required.'),
     }
   }
   if (!target) {
     return {
       status: 'unavailable',
-      detail: '选择窗口',
+      detail: t('选择窗口', 'Select a window'),
     }
   }
-  const targetLabel = `${target.name}（${target.bundleId}）`
+  const targetLabel = t(`${target.name}（${target.bundleId}）`, `${target.name} (${target.bundleId})`)
   if (executionMode !== 'go' || approvalPolicy === 'read-only') {
     return {
       status: 'blocked',
-      detail: `已检测到 ${targetLabel}；当前模式不能操作外部 App。`,
+      detail: t(`已检测到 ${targetLabel}；当前模式不能操作外部 App。`, `Detected ${targetLabel}; this mode cannot control an external app.`),
     }
   }
   return {
     status: 'approval-required',
-    detail: `已检测到 ${targetLabel}；启动后锁定。`,
+    detail: t(`已检测到 ${targetLabel}；启动后锁定。`, `Detected ${targetLabel}; it will lock after start.`),
   }
 }
 

@@ -16,6 +16,7 @@ import {
   externalEditorLabel,
   normalizePreferredExternalEditor,
 } from '@/lib/externalEditor'
+import { t } from '@/lib/uiLocale'
 import type {
   CodingDiffSnapshot,
   CodingEnvironmentSnapshot,
@@ -52,7 +53,7 @@ const busy = computed(() => Boolean(props.running))
 const maxInlineDiffFiles = 40
 const editorId = computed(() => normalizePreferredExternalEditor(props.preferredEditor))
 const editorLabel = computed(() => externalEditorLabel(editorId.value))
-const openEditorAriaLabel = computed(() => `用 ${editorLabel.value} 打开`)
+const openEditorAriaLabel = computed(() => t(`用 ${editorLabel.value} 打开`, `Open with ${editorLabel.value}`))
 
 function changeStatus(change: CodingGitChange): string {
   return `${change.indexStatus}${change.worktreeStatus}`
@@ -79,7 +80,7 @@ async function loadFileDiff(change: CodingGitChange) {
       ...fileDiffErrors.value,
       [change.path]: reason instanceof Error
         ? reason.message
-        : '暂时无法读取文件 Diff。',
+        : t('暂时无法读取文件 Diff。', 'This file diff cannot be read right now.'),
     }
   } finally {
     const nextLoading = { ...loadingPaths.value }
@@ -123,7 +124,7 @@ async function openInEditor(path: string) {
   } catch (reason) {
     openErrors.value = {
       ...openErrors.value,
-      [path]: desktopErrorMessage(reason) || `无法用 ${editorLabel.value} 打开。`,
+      [path]: desktopErrorMessage(reason) || t(`无法用 ${editorLabel.value} 打开。`, `Could not open with ${editorLabel.value}.`),
     }
   } finally {
     openingPaths.value = openingPaths.value.filter(item => item !== path)
@@ -187,12 +188,12 @@ watch(
         <div class="min-w-0">
           <div class="flex items-center gap-2">
             <FileDiff class="size-4 text-primary" />
-            <p class="text-body font-medium">变更</p>
+            <p class="text-body font-medium">{{ t('变更', 'Changes') }}</p>
             <Badge
               v-if="git?.isRepository"
               :variant="git.dirty ? 'secondary' : 'outline'"
             >
-              {{ git.changedFiles }} 文件
+              {{ t(`${git.changedFiles} 文件`, `${git.changedFiles} files`) }}
             </Badge>
           </div>
           <p
@@ -208,15 +209,15 @@ watch(
           </p>
           <p v-else class="mt-1 text-caption text-muted-foreground">
             {{ !desktopRuntime
-              ? '浏览器预览不能读取 Git 状态；请在 MilkSU 桌面 App 中查看真实 Diff。'
-              : git?.problem || '当前目录不是 Git 仓库。' }}
+              ? t('浏览器预览不能读取 Git 状态；请在 MilkSU 桌面 App 中查看真实 Diff。', 'Browser preview cannot read Git status. View the real diff in the MilkSU desktop app.')
+              : git?.problem || t('当前目录不是 Git 仓库。', 'This directory is not a Git repository.') }}
           </p>
         </div>
         <Button
           variant="ghost"
           size="icon-sm"
           :disabled="busy || loadingAll"
-          aria-label="刷新 Git 变更"
+          :aria-label="t('刷新 Git 变更', 'Refresh Git changes')"
           @click="emit('refresh'); loadVisibleDiffs()"
         >
           <RefreshCw class="size-3.5" :class="{ 'animate-spin': loadingAll }" />
@@ -228,7 +229,7 @@ watch(
       <div
         ref="scrollRoot"
         class="coding-changes-scroll min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-3"
-        aria-label="文件变更列表"
+        :aria-label="t('文件变更列表', 'Changed files')"
       >
         <p v-if="error" class="text-caption leading-5 text-destructive">
           {{ error }}
@@ -300,7 +301,7 @@ watch(
             </p>
             <template v-else-if="fileDiffs[change.path]">
               <div v-if="fileDiffs[change.path]?.staged" class="mb-3">
-                <p class="mb-1 px-1 text-caption font-medium text-muted-foreground">已暂存</p>
+                <p class="mb-1 px-1 text-caption font-medium text-muted-foreground">{{ t('已暂存', 'Staged') }}</p>
                 <CodingDiffHunks
                   :diff="fileDiffs[change.path]!.staged!"
                   source="staged"
@@ -312,7 +313,7 @@ watch(
                   v-if="fileDiffs[change.path]?.staged"
                   class="mb-1 px-1 text-caption font-medium text-muted-foreground"
                 >
-                  工作区
+                  {{ t('工作区', 'Working tree') }}
                 </p>
                 <CodingDiffHunks
                   :diff="fileDiffs[change.path]!.workingTree!"
@@ -325,21 +326,21 @@ watch(
                 class="px-1 text-caption leading-5 text-muted-foreground"
               >
                 {{ change.untracked
-                  ? '未跟踪文件尚未进入 Git Diff。'
-                  : '当前文件没有可显示的文本 Diff。' }}
+                  ? t('未跟踪文件尚未进入 Git Diff。', 'Untracked files are not in the Git diff yet.')
+                  : t('当前文件没有可显示的文本 Diff。', 'This file has no displayable text diff.') }}
               </p>
               <p
                 v-if="fileDiffs[change.path]?.truncated"
                 class="mt-2 px-1 text-caption text-muted-foreground"
               >
-                Diff 过长，已截断。
+                {{ t('Diff 过长，已截断。', 'Diff is too long and was truncated.') }}
               </p>
             </template>
             <p
               v-else-if="!loadingPaths[change.path]"
               class="px-1 text-caption text-muted-foreground"
             >
-              尚未加载 Diff。
+              {{ t('尚未加载 Diff。', 'Diff is not loaded yet.') }}
             </p>
           </div>
         </article>
@@ -347,14 +348,14 @@ watch(
           v-if="changes.length > maxInlineDiffFiles"
           class="px-1 text-caption text-muted-foreground"
         >
-          仅展开前 {{ maxInlineDiffFiles }} 个文件的 Diff。
+          {{ t(`仅展开前 ${maxInlineDiffFiles} 个文件的 Diff。`, `Only the first ${maxInlineDiffFiles} file diffs are expanded.`) }}
         </p>
         <div
           v-else-if="!changes.length && !loadingAll"
           class="flex min-h-40 flex-col items-center justify-center text-center"
         >
           <FileDiff class="size-6 text-muted-foreground" />
-          <p class="mt-3 text-body font-medium">工作区没有未提交变更</p>
+          <p class="mt-3 text-body font-medium">{{ t('工作区没有未提交变更', 'No uncommitted changes in the workspace') }}</p>
         </div>
       </div>
     </template>
@@ -362,18 +363,18 @@ watch(
     <div
       v-else
       class="flex min-h-80 flex-1 flex-col items-center justify-center px-8 text-center"
-      aria-label="Git 变更空状态"
+      :aria-label="t('Git 变更空状态', 'Empty Git changes')"
     >
       <FileDiff class="size-7 text-muted-foreground" />
       <p class="mt-4 text-label font-medium">
-        {{ desktopRuntime ? '当前目录没有可显示的变更' : '浏览器预览不能读取 Git 状态' }}
+        {{ desktopRuntime ? t('当前目录没有可显示的变更', 'This directory has no displayable changes') : t('浏览器预览不能读取 Git 状态', 'Browser preview cannot read Git status') }}
       </p>
       <p class="mt-2 max-w-sm text-body leading-6 text-muted-foreground">
         <template v-if="desktopRuntime">
-          {{ git?.problem || '请选择一个 Git 仓库后查看文件级 Diff。' }}
+          {{ git?.problem || t('请选择一个 Git 仓库后查看文件级 Diff。', 'Choose a Git repository to view file-level diffs.') }}
         </template>
         <template v-else>
-          真实 Diff 需要在打包后的 MilkSU App 中读取。
+          {{ t('真实 Diff 需要在打包后的 MilkSU App 中读取。', 'The real diff must be read in the packaged MilkSU app.') }}
         </template>
       </p>
       <Button
@@ -385,7 +386,7 @@ watch(
         @click="emit('refresh')"
       >
         <RefreshCw class="size-3.5" />
-        重新读取 Git 状态
+        {{ t('重新读取 Git 状态', 'Reload Git status') }}
       </Button>
     </div>
   </section>

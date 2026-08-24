@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { FileCheck2, ScanSearch, ShieldCheck, Target } from 'lucide-vue-next'
 import type { DomainTaskContextPresentation } from '@/lib/domainTaskContext'
+import { t } from '@/lib/uiLocale'
 
 const props = defineProps<{
   presentation: DomainTaskContextPresentation
@@ -10,21 +11,21 @@ const props = defineProps<{
 
 const phases = computed(() => props.presentation.kind === 'ctf'
   ? [
-      { label: '读取与解析', state: '已就绪' },
-      { label: '逻辑分析', state: props.running ? '进行中' : '待行动' },
-      { label: '验证关键点', state: '待开始' },
-      { label: '提出结论', state: '待开始' },
+      { label: t('读取与解析', 'Read and parse'), state: t('已就绪', 'Ready') },
+      { label: t('逻辑分析', 'Analyze logic'), state: props.running ? t('进行中', 'In progress') : t('待行动', 'Waiting') },
+      { label: t('验证关键点', 'Verify key points'), state: t('待开始', 'Not started') },
+      { label: t('提出结论', 'Propose a conclusion'), state: t('待开始', 'Not started') },
     ]
   : [
-      { label: '来源整理', state: '已就绪' },
-      { label: '影响分析', state: props.running ? '进行中' : '待行动' },
-      { label: '安全验证', state: '待开始' },
-      { label: '形成结论', state: '待开始' },
+      { label: t('来源整理', 'Collect sources'), state: t('已就绪', 'Ready') },
+      { label: t('影响分析', 'Impact analysis'), state: props.running ? t('进行中', 'In progress') : t('待行动', 'Waiting') },
+      { label: t('安全验证', 'Security verification'), state: t('待开始', 'Not started') },
+      { label: t('形成结论', 'Form a conclusion'), state: t('待开始', 'Not started') },
     ])
 </script>
 
 <template>
-  <section class="mission-operation" aria-label="当前任务">
+  <section class="mission-operation" :aria-label="t('当前任务', 'Current task')">
     <article class="tactical-paper mission-operation__paper">
       <header class="mission-operation__paper-head">
         <span class="tactical-label">Active operation</span>
@@ -40,7 +41,7 @@ const phases = computed(() => props.presentation.kind === 'ctf'
           <strong>{{ presentation.meta[1] || presentation.moduleLabel }}</strong>
         </div>
       </div>
-      <ol class="mission-phase-rail" aria-label="任务阶段">
+      <ol class="mission-phase-rail" :aria-label="t('任务阶段', 'Task phases')">
         <li
           v-for="(phase, index) in phases"
           :key="phase.label"
@@ -67,26 +68,26 @@ const phases = computed(() => props.presentation.kind === 'ctf'
       </div>
     </article>
 
-    <section class="tactical-command-surface mission-activity" aria-label="活动记录">
+    <section class="tactical-command-surface mission-activity" :aria-label="t('活动记录', 'Activity')">
       <header>
-        <span class="tactical-section-heading">活动记录</span>
+        <span class="tactical-section-heading">{{ t('活动记录', 'Activity') }}</span>
         <span class="tactical-label">Live feed</span>
       </header>
       <article class="mission-activity__row">
         <span class="mission-activity__icon"><FileCheck2 /></span>
         <div class="min-w-0 flex-1">
-          <time>任务接入</time>
-          <strong>已读取任务与材料</strong>
+          <time>{{ t('任务接入', 'Task attached') }}</time>
+          <strong>{{ t('已读取任务与材料', 'Task and materials loaded') }}</strong>
         </div>
-        <span class="mission-activity__state">已完成</span>
+        <span class="mission-activity__state">{{ t('已完成', 'Completed') }}</span>
       </article>
       <article class="mission-activity__row">
         <span class="mission-activity__icon"><ScanSearch v-if="presentation.kind === 'ctf'" /><ShieldCheck v-else /></span>
         <div class="min-w-0 flex-1">
-          <time>{{ running ? 'Agent 执行中' : '等待指令' }}</time>
-          <strong>{{ running ? '正在推进当前目标' : '发送指令后开始分析' }}</strong>
+          <time>{{ running ? t('Agent 执行中', 'Agent is running') : t('等待指令', 'Waiting for a prompt') }}</time>
+          <strong>{{ running ? t('正在推进当前目标', 'Working on the current objective') : t('发送指令后开始分析', 'Send a prompt to start analysis') }}</strong>
         </div>
-        <span class="mission-activity__state" :class="{ active: running }">{{ running ? '进行中' : '待开始' }}</span>
+        <span class="mission-activity__state" :class="{ active: running }">{{ running ? t('进行中', 'In progress') : t('待开始', 'Not started') }}</span>
       </article>
     </section>
   </section>

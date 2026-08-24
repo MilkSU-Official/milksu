@@ -25,6 +25,7 @@ import type { CodingAgentSurfaceBind } from '@/lib/codingAgentSurface'
 import type { VulnerabilityIntel } from '@/vulnerabilityIntel'
 import { executeVulnerabilityCodingHandoff } from '@/lib/vulnerabilityCodingHandoff'
 import { debugLog } from '@/lib/debugMode'
+import { applyUiLocale, t } from '@/lib/uiLocale'
 import { readWorkspaceViewState, writeWorkspaceViewState } from '@/lib/workspaceViewState'
 import { buildCTFDomainTaskContext, buildCVEDomainTaskContext } from '@/lib/domainTaskContext'
 import { labBriefing } from '@/lib/researchBriefing'
@@ -68,7 +69,7 @@ const activeVulnerabilityCodingConversationId = ref<string | null>(null)
 // currently active Coding or CTF conversation workspace implicitly.
 const vulnerabilityCodingWorkspacePath = ref('')
 const settingsReturnTarget = ref<Exclude<Section, 'settings'>>(restoredViewState?.settingsReturnTarget ?? 'ctf')
-type SettingsCategory = 'general' | 'coding' | 'apikeys' | 'browser' | 'cve' | 'chats' | 'security-tools'
+type SettingsCategory = 'general' | 'coding' | 'apikeys' | 'browser' | 'cve' | 'chats' | 'security-tools' | 'ctf' | 'eval'
 const settingsCategory = ref<SettingsCategory>('general')
 const settings = ref<AppSettings | null>(null)
 const accountStatus = ref<AccountStatus>({ configured: false, authenticated: false, state: 'unconfigured' })
@@ -251,6 +252,7 @@ function applySettings(value: AppSettings) {
   const normalized = withAppSettingsDefaults(value)
   settings.value = normalized
   installAppModelSettings(normalized)
+  applyUiLocale(normalized.locale)
 }
 
 async function loadAccountStatus() {
@@ -268,7 +270,7 @@ async function startAccountLogin() {
   try {
     accountStatus.value = await invokeCommand<AccountStatus>('start_account_login')
   } catch {
-    accountLoginError.value = '无法打开 GitHub 登录。请检查网络或稍后再试；你仍可使用自己的 API Key。'
+    accountLoginError.value = t('无法打开 GitHub 登录。请检查网络或稍后再试；你仍可使用自己的 API Key。', 'Could not open GitHub sign-in. Check your network or try again later. You can still use your own API key.')
     accountStatus.value = {
       ...accountStatus.value,
       authenticated: false,
@@ -498,7 +500,7 @@ function domainContextFromCTFHandoff(handoff: CTFAgentWorkspaceHandoff) {
     objective: handoff.humanGoal,
     originLabel: handoff.externalPlatform
       ? `${handoff.externalPlatform.replace(/-web$/u, '').toUpperCase()}${handoff.externalAttemptId ? ` · P${handoff.externalAttemptId}` : ''}`
-      : '自定义题目',
+      : t('自定义题目', 'Custom challenge'),
     role,
     materials: handoff.materials,
     networkScopes: [],
@@ -538,7 +540,7 @@ function createDossierConversation() {
   const context = current?.domainTaskContext
   if (!current || !context) return
   const title = context.kind === 'cve'
-    ? `${context.cveId} 复现`
+    ? t(`${context.cveId} 复现`, `${context.cveId} reproduction`)
     : context.kind === 'lab'
       ? context.title
       : context.challengeTitle
@@ -576,7 +578,7 @@ async function bindDossierConversation(
 async function enterVulnerabilityDossier(item: VulnerabilityIntel) {
   const cveId = item.id.trim()
   await bindDossierConversation(
-    `${cveId} 复现`,
+    t(`${cveId} 复现`, `${cveId} reproduction`),
     `cve-research-${cveId.toLowerCase()}`,
     buildCVEDomainTaskContext({
       cveId,
@@ -764,8 +766,8 @@ async function runCTFChatAction(action: CTFChatAction) {
         request: {
           kind: 'hint',
           level: action.level,
-          concept: 'PI 分级提示',
-          content: `用户主动请求 ${action.level} 级提示。`,
+          concept: t('PI 分级提示', 'Pi graded hint'),
+          content: t(`用户主动请求 ${action.level} 级提示。`, `The user requested a level ${action.level} hint.`),
         },
       })
     } catch (reason) {
@@ -921,13 +923,13 @@ onBeforeUnmount(() => {
       v-if="runtimeStatus === 'recovering' || runtimeStatus === 'starting'"
       class="shrink-0 border-b border-border bg-card px-4 py-2 text-caption text-foreground"
     >
-      正在恢复运行时
+      {{ t('正在恢复运行时', 'Restoring the runtime') }}
     </p>
     <p
       v-else-if="runtimeStatus === 'exited'"
       class="shrink-0 border-b border-border bg-card px-4 py-2 text-caption text-foreground"
     >
-      本地运行时已停止
+      {{ t('本地运行时已停止', 'Local runtime stopped') }}
     </p>
     <div class="flex min-h-0 flex-1">
       <AppSidebar

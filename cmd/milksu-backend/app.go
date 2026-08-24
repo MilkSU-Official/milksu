@@ -27,6 +27,7 @@ import (
 	"github.com/MilkSU-Official/milksu/internal/ctfshow"
 	"github.com/MilkSU-Official/milksu/internal/engine"
 	"github.com/MilkSU-Official/milksu/internal/envbroker"
+	"github.com/MilkSU-Official/milksu/internal/evalsuite"
 	"github.com/MilkSU-Official/milksu/internal/lab"
 	"github.com/MilkSU-Official/milksu/internal/modelcatalog"
 	"github.com/MilkSU-Official/milksu/internal/modelusage"
@@ -72,6 +73,7 @@ type App struct {
 	ctfMemory         *ctf.MemoryStore
 	vulnJobs          *vuln.Service
 	sessionIndex      *sessionindex.Store
+	evalSuite         *evalsuite.Service
 	lifespanStart     appdata.LifespanStart
 	lifespanHandle    appdata.LifespanHandle
 }
@@ -310,6 +312,23 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 		_ = application.ctfshowCatalog.Close()
 		_ = application.nssctfCatalog.Close()
 		return nil, fmt.Errorf("create Coding Agent usage ledger: %w", err)
+	}
+	application.evalSuite, err = evalsuite.NewService(
+		application.sendEvalTurn,
+		application.AbortMessage,
+		application.emitEvalProgress,
+	)
+	if err != nil {
+		_ = application.modelUsage.Close()
+		_ = application.vulnJobs.Close()
+		_ = application.ctfMemory.Close()
+		_ = application.ctfJobs.Close()
+		_ = application.jobs.Close()
+		application.securityEngine.Close()
+		application.browserBridge.Close()
+		_ = application.ctfshowCatalog.Close()
+		_ = application.nssctfCatalog.Close()
+		return nil, fmt.Errorf("create eval suite: %w", err)
 	}
 	return application, nil
 }
@@ -743,6 +762,9 @@ func (a *App) SaveSettingsCmd(settings config.AppSettings) error {
 				a.diagnostics.Record("model-catalog", "warning", "align account model selection after settings save failed")
 			}
 		}
+	}
+	if a.evalSuite != nil {
+		a.evalSuite.SetSettings(a.settings.GetResolved())
 	}
 	return err
 }
@@ -1971,6 +1993,9 @@ func (a *App) emitEngineEvent(event engine.Event) {
 		_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedSidecarStopped)
 	case "engine.protocol_error":
 		_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedSidecarProtocolError)
+	}
+	if a.evalSuite != nil {
+		a.evalSuite.Observe(event)
 	}
 	usageChanged, usageErr := a.recordCodingUsage(event)
 	if usageErr != nil {

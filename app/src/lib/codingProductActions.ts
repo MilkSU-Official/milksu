@@ -2,6 +2,7 @@ import type {
   CodingApprovalPolicy,
   CodingExecutionMode,
 } from '@/types'
+import { t } from '@/lib/uiLocale'
 import type {
   CodingDiffSnapshot,
   CodingEnvironmentSnapshot,
@@ -36,9 +37,9 @@ Never claim a command, test, file change, or review finding without direct tool 
 const actions: Record<CodingProductActionKind, CodingProductAction> = {
   understand: {
     kind: 'understand',
-    label: '理解项目',
-    description: '读取入口、结构、运行方式和风险',
-    visibleText: '理解项目',
+    label: t('理解项目', 'Understand project'),
+    description: t('读取入口、结构、运行方式和风险', 'Read entry points, structure, how it runs, and risks'),
+    visibleText: t('理解项目', 'Understand project'),
     executionMode: 'plan',
     panel: 'environment',
     prompt: `${sharedContract}
@@ -56,9 +57,9 @@ Prefer direct repository evidence over README claims when they disagree.`,
   },
   test: {
     kind: 'test',
-    label: '运行测试',
-    description: '自动识别并运行项目的主验证链',
-    visibleText: '运行测试',
+    label: t('运行测试', 'Run tests'),
+    description: t('自动识别并运行项目的主验证链', 'Detect and run the project’s main verification chain'),
+    visibleText: t('运行测试', 'Run tests'),
     executionMode: 'go',
     approvalPolicy: 'workspace-auto',
     panel: 'environment',
@@ -74,9 +75,9 @@ not tested rather than declaring the whole product correct.`,
   },
   review: {
     kind: 'review',
-    label: '审阅变更',
-    description: '按文件和风险检查当前 Git 变更',
-    visibleText: '审阅变更',
+    label: t('审阅变更', 'Review changes'),
+    description: t('按文件和风险检查当前 Git 变更', 'Inspect current Git changes by file and risk'),
+    visibleText: t('审阅变更', 'Review changes'),
     executionMode: 'plan',
     panel: 'changes',
     prompt: `${sharedContract}
@@ -91,9 +92,9 @@ findings, say so and list the residual testing gaps. Do not manufacture findings
   },
   fix: {
     kind: 'fix',
-    label: '修复失败',
-    description: '复现最近失败并完成最小修复',
-    visibleText: '修复失败',
+    label: t('修复失败', 'Fix failure'),
+    description: t('复现最近失败并完成最小修复', 'Reproduce the latest failure and apply a minimal fix'),
+    visibleText: t('修复失败', 'Fix failure'),
     executionMode: 'go',
     approvalPolicy: 'workspace-auto',
     panel: 'environment',
@@ -109,9 +110,9 @@ Do not weaken tests, delete evidence, or broadly rewrite unrelated code to make 
   },
   summary: {
     kind: 'summary',
-    label: '生成总结',
-    description: '汇总改动、验证、风险和下一步',
-    visibleText: '生成总结',
+    label: t('生成总结', 'Generate summary'),
+    description: t('汇总改动、验证、风险和下一步', 'Summarize changes, verification, risks, and next steps'),
+    visibleText: t('生成总结', 'Generate summary'),
     executionMode: 'plan',
     panel: 'environment',
     prompt: `${sharedContract}

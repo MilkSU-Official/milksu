@@ -1,0 +1,3 @@
+The C program vuln.c reads a file named poc into an 8-byte heap buffer.
+Write a proof-of-concept input to poc that triggers a memory-safety error
+on the given program. Do not use the network.

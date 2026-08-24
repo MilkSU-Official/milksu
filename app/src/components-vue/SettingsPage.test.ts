@@ -11,6 +11,7 @@ import {
   type AppSettings,
   type LocalDataStatus,
 } from '@/types'
+import { applyUiLocale } from '@/lib/uiLocale'
 
 // jsdom does not implement ResizeObserver; @felinic/ui components (e.g. the
 // settings-category SegmentedControl) call it on mount.
@@ -59,10 +60,11 @@ afterEach(() => {
   Reflect.deleteProperty(window, 'milksu')
   installCustomProviderSettings({})
   installModelCatalog(defaultTokenFluxCatalog)
+  applyUiLocale('zh')
 })
 
 interface MountSettingsOptions {
-  initialCategory?: 'general' | 'apikeys' | 'ctf' | 'cve' | 'coding' | 'chats' | 'browser' | 'security-tools'
+  initialCategory?: 'general' | 'apikeys' | 'ctf' | 'cve' | 'coding' | 'chats' | 'browser' | 'security-tools' | 'eval'
   settings?: AppSettings
   accountStatus?: AccountStatus
   appMethods?: Record<string, (...args: unknown[]) => Promise<unknown>>
@@ -128,6 +130,14 @@ async function mountSettingsPage(
         connected: false,
       },
       pages: [],
+    }),
+    GetEvalBoard: async () => ({
+      suites: [
+        { id: 'cybench', name: 'Cybench', purpose: 'CTF 题', runnable: true, taskN: 1 },
+      ],
+      selected: 'cybench',
+      models: [],
+      all: [],
     }),
     ...options.appMethods,
   }
@@ -744,8 +754,17 @@ describe('SettingsPage database compatibility', () => {
 
     const labels = [...document.querySelectorAll<HTMLElement>('.settings-nav-item')]
       .map(item => item.textContent?.trim())
-    expect(labels).toEqual(['通用', '模型', 'CTF', 'CVE', 'Coding', '归档聊天', '浏览器控制', '安全工具'])
+    expect(labels).toEqual(['通用', '模型', 'CTF', 'CVE', 'Coding', '归档聊天', '浏览器控制', '安全工具', '评测'])
     expect(document.body.textContent).toContain('@milksuofficial · 内测用户')
+    const generalTitles = [...document.querySelectorAll('h2')].map(item => item.textContent?.trim())
+    expect(generalTitles[0]).toBe('账户')
+    expect(generalTitles).not.toContain('调试')
+    expect(document.body.textContent).toContain('调试模式')
+    const tracking = document.querySelector('[data-testid="build-tracking"]')
+    const debugSwitch = document.querySelector('[aria-label="开启调试模式"]')
+    expect(tracking).not.toBeNull()
+    expect(debugSwitch).not.toBeNull()
+    expect(tracking!.compareDocumentPosition(debugSwitch!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 
     const ctfButton = [...document.querySelectorAll<HTMLButtonElement>('.settings-nav-item')]
       .find(item => item.textContent?.trim() === 'CTF')
@@ -753,6 +772,45 @@ describe('SettingsPage database compatibility', () => {
     await settle()
     expect(document.body.textContent).toContain('Arena Token')
     expect(document.body.textContent).not.toContain('@milksuofficial · 内测用户')
+
+    const evalButton = [...document.querySelectorAll<HTMLButtonElement>('.settings-nav-item')]
+      .find(item => item.textContent?.trim() === '评测')
+    evalButton?.click()
+    await settle()
+    await settle()
+    await new Promise(resolve => setTimeout(resolve, 0))
+    await settle()
+    expect(document.body.textContent).toContain('Cybench')
+    expect(document.body.textContent).toContain('开始评测')
+  })
+
+  it('applies interface language immediately and persists it without a second save click', async () => {
+    const settings = withAppSettingsDefaults({} as AppSettings)
+    let stored: AppSettings = settings
+    await mountSettingsPage({ directory: 'MilkSU 用户数据目录', fileCount: 0, bytes: 0 }, {
+      initialCategory: 'general',
+      settings,
+      appMethods: {
+        SaveSettingsCmd: async (value: unknown) => {
+          stored = withAppSettingsDefaults(value as AppSettings)
+        },
+        GetSettings: async () => stored,
+        GetModelCatalog: async () => defaultTokenFluxCatalog,
+      },
+    })
+
+    const select = document.querySelector<HTMLSelectElement>('[aria-label="界面语言"]')
+    expect(select).not.toBeNull()
+    select!.value = 'en'
+    select!.dispatchEvent(new Event('change', { bubbles: true }))
+    await settle()
+    await settle()
+
+    expect(stored.locale).toBe('en')
+    expect(document.documentElement.lang).toBe('en')
+    expect(document.body.textContent).toContain('General')
+    expect(document.body.textContent).toContain('Interface language')
+    expect(document.body.textContent).toContain('Save settings')
   })
 
   it('keeps model settings on one daily model route and includes TokenFlux without Kimi in the normal UI', async () => {

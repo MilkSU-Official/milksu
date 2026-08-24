@@ -1,5 +1,6 @@
 import { computed, ref, watch } from 'vue'
 import { invokeCommand } from '@/desktop'
+import { t } from '@/lib/uiLocale'
 
 const STORAGE_KEY = 'milksu.lab-jobs.v1'
 
@@ -33,12 +34,12 @@ function storage(): Storage | null {
 }
 
 export function labScopeLabel(scope: LabScope) {
-  return scope === 'local' ? '本地' : '远程'
+  return scope === 'local' ? t('本地', 'Local') : t('远程', 'Remote')
 }
 
 export function labJobTitle(request: string) {
   const line = String(request ?? '').replace(/\s+/g, ' ').trim()
-  if (!line) return '实验室作业'
+  if (!line) return t('实验室作业', 'Lab job')
   const chars = Array.from(line)
   return chars.length <= 24 ? line : `${chars.slice(0, 24).join('')}…`
 }
@@ -179,6 +180,22 @@ export function useLabJobs() {
     if (updated) void persistJob(updated)
   }
 
+  function focusChallenge(id: string, challengeId: string, request?: string) {
+    const nextRequest = String(request ?? '').trim()
+    jobs.value = jobs.value.map(job => (
+      job.id === id
+        ? {
+            ...job,
+            challengeId,
+            request: nextRequest || job.request,
+            updatedAt: Date.now(),
+          }
+        : job
+    ))
+    const updated = jobs.value.find(job => job.id === id)
+    if (updated) void persistJob(updated)
+  }
+
   function touch(id: string) {
     jobs.value = jobs.value.map(job => (
       job.id === id ? { ...job, updatedAt: Date.now() } : job
@@ -191,6 +208,7 @@ export function useLabJobs() {
     selected,
     createJob,
     rename,
+    focusChallenge,
     touch,
   }
 }

@@ -409,3 +409,49 @@ describe('ChatPage Goal interaction', () => {
     expect(result.host.querySelector('[aria-label="底部终端面板"]')).toBeNull()
   })
 })
+
+describe('ChatPage Lab return', () => {
+  it('keeps a return-to-Lab action on the Coding topbar', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    const returned: string[] = []
+    const app = createApp(ChatPage, {
+      conversation: {
+        id: 'lab-job-1',
+        title: 'InjuredAndroid',
+        createdAt: 1,
+        messages: [{
+          id: 'm1',
+          role: 'user',
+          content: '看登录页',
+          timestamp: 1,
+        }],
+        domainTaskContext: {
+          kind: 'lab',
+          jobId: 'job-1',
+          title: 'InjuredAndroid',
+          scope: 'local',
+          request: '看登录页怎么判成功。',
+        },
+      } satisfies Conversation,
+      settings: null,
+      workspacePath: '/tmp/lab',
+      running: false,
+      aborting: false,
+      sessionReady: true,
+      resumed: false,
+      compacting: false,
+      ctfSession: false,
+      ensureConversation: () => 'lab-job-1',
+      onReturnLab: () => returned.push('lab'),
+    })
+    app.mount(host)
+    mountedApps.push(app)
+    await nextTick()
+    const back = host.querySelector<HTMLButtonElement>('[aria-label="返回实验室"]')
+    expect(back).not.toBeNull()
+    expect(back?.textContent).toContain('返回实验室')
+    back?.click()
+    expect(returned).toEqual(['lab'])
+  })
+})

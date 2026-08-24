@@ -26,6 +26,7 @@ import {
   listenEvent,
 } from '@/desktop'
 import { redactProviderCredentials } from '@/lib/redaction'
+import { t } from '@/lib/uiLocale'
 import type {
   CodingTerminalEvent,
   CodingTerminalSession,
@@ -42,7 +43,7 @@ const emit = defineEmits<{
 }>()
 
 const desktopRuntime = hasDesktopRuntime()
-const desktopRuntimeNotice = '真实 Shell 仅在 MilkSU 桌面 App 中可用。'
+const desktopRuntimeNotice = computed(() => t('真实 Shell 仅在 MilkSU 桌面 App 中可用。', 'A real shell is only available in the MilkSU desktop app.'))
 const shellContainer = ref<HTMLElement | null>(null)
 const terminalSessions = ref<CodingTerminalSession[]>([])
 const selectedTerminalId = ref('')
@@ -69,14 +70,14 @@ const runningShells = computed(() => (
 ))
 const workspaceName = computed(() => {
   const value = props.workspacePath.replace(/\/+$/, '')
-  return value.split('/').at(-1) || '终端'
+  return value.split('/').at(-1) || t('终端', 'Terminal')
 })
 
 function terminalStatusLabel(status: CodingTerminalSession['status']): string {
-  if (status === 'running') return '运行中'
-  if (status === 'exited') return '已退出'
-  if (status === 'stopped') return '已停止'
-  return '失败'
+  if (status === 'running') return t('运行中', 'Running')
+  if (status === 'exited') return t('已退出', 'Exited')
+  if (status === 'stopped') return t('已停止', 'Stopped')
+  return t('失败', 'Failed')
 }
 
 function errorMessage(reason: unknown, fallback: string) {
@@ -119,7 +120,7 @@ function renderTerminalSession(session: CodingTerminalSession) {
   terminal.reset()
   terminal.clear()
   if (session.outputTrimmed) {
-    terminal.write('\x1b[90m[更早的终端输出已省略]\x1b[0m\r\n')
+    terminal.write(`\x1b[90m[${t('更早的终端输出已省略', 'Earlier terminal output omitted')}]\x1b[0m\r\n`)
   }
   if (session.output) terminal.write(session.output)
   if (session.status !== 'running') {
@@ -180,7 +181,7 @@ async function startShell() {
     selectedTerminalId.value = session.id
     renderTerminalSession(session)
   } catch (reason) {
-    shellError.value = errorMessage(reason, '无法启动项目 Shell。')
+    shellError.value = errorMessage(reason, t('无法启动项目 Shell。', 'Could not start the project shell.'))
   } finally {
     shellLoading.value = false
   }
@@ -197,14 +198,14 @@ async function hydrateShellSessions() {
     terminal.reset()
     terminal.clear()
     terminal.write(
-      '\r\n\x1b[90m请在桌面 App 中新建 Shell。\x1b[0m\r\n',
+      `\r\n\x1b[90m${t('请在桌面 App 中新建 Shell。', 'Create a new shell in the desktop app.')}\x1b[0m\r\n`,
     )
     return
   }
   if (!props.conversationId || !props.workspacePath) {
     terminal.reset()
     terminal.clear()
-    terminal.write('\r\n\x1b[90m正在准备项目目录…\x1b[0m\r\n')
+    terminal.write(`\r\n\x1b[90m${t('正在准备项目目录…', 'Preparing the project directory…')}\x1b[0m\r\n`)
     return
   }
   hydratingShell = true
@@ -227,7 +228,7 @@ async function hydrateShellSessions() {
       await startShell()
     }
   } catch (reason) {
-    shellError.value = errorMessage(reason, '无法读取项目 Shell。')
+    shellError.value = errorMessage(reason, t('无法读取项目 Shell。', 'Could not read project shells.'))
   } finally {
     hydratingShell = false
     const buffered = pendingOutput.get(selectedTerminalId.value)
@@ -299,7 +300,7 @@ async function closeShell(session: CodingTerminalSession): Promise<boolean> {
     removeTerminalFromView(session.id)
     return true
   } catch (reason) {
-    shellError.value = errorMessage(reason, '无法关闭项目 Shell。')
+    shellError.value = errorMessage(reason, t('无法关闭项目 Shell。', 'Could not close the project shell.'))
     return false
   } finally {
     closingTerminals.value = closingTerminals.value.filter(id => id !== session.id)
@@ -324,7 +325,7 @@ function writeShell(data: string) {
       data,
     }))
     .catch(reason => {
-      shellError.value = errorMessage(reason, '无法写入项目 Shell。')
+    shellError.value = errorMessage(reason, t('无法写入项目 Shell。', 'Could not write to the project shell.'))
     })
 }
 
@@ -478,8 +479,8 @@ onBeforeUnmount(() => {
               type="button"
               class="mr-1 flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-background/70 hover:text-foreground"
               :disabled="closingTerminals.includes(session.id)"
-              :aria-label="`关闭 ${terminalLabel(session)}`"
-              :title="`关闭 ${terminalLabel(session)}`"
+              :aria-label="t(`关闭 ${terminalLabel(session)}`, `Close ${terminalLabel(session)}`)"
+              :title="t(`关闭 ${terminalLabel(session)}`, `Close ${terminalLabel(session)}`)"
               @click="closeShell(session)"
             >
               <LoaderCircle
@@ -504,8 +505,8 @@ onBeforeUnmount(() => {
           size="icon-sm"
           class="shrink-0"
           :disabled="!desktopRuntime || !workspacePath || shellLoading || runningShells.length >= 4"
-          aria-label="新建项目 Shell"
-          title="新建项目 Shell"
+          :aria-label="t('新建项目 Shell', 'New project shell')"
+          :title="t('新建项目 Shell', 'New project shell')"
           @click="startShell"
         >
           <LoaderCircle v-if="shellLoading" class="size-3.5 animate-spin" />
@@ -518,8 +519,8 @@ onBeforeUnmount(() => {
           size="icon-sm"
           class="shrink-0"
           :disabled="shellLoading || closingTerminals.includes(selectedTerminal.id)"
-          aria-label="重新启动当前 Shell"
-          title="重新启动当前 Shell"
+          :aria-label="t('重新启动当前 Shell', 'Restart this shell')"
+          :title="t('重新启动当前 Shell', 'Restart this shell')"
           @click="restartShell"
         >
           <RefreshCw class="size-3.5" />
@@ -530,8 +531,8 @@ onBeforeUnmount(() => {
           type="button"
           variant="ghost"
           size="icon-sm"
-          aria-label="关闭底部面板"
-          title="关闭底部面板"
+          :aria-label="t('关闭底部面板', 'Close bottom panel')"
+          :title="t('关闭底部面板', 'Close bottom panel')"
           @click="emit('close')"
         >
           <X class="size-4" />

@@ -19,6 +19,7 @@ import {
   isPreviewableArtifactPath,
   suggestedArtifactPaths,
 } from '@/lib/codingArtifact'
+import { t } from '@/lib/uiLocale'
 import type {
   CodingArtifactPreview,
   CodingEnvironmentSnapshot,
@@ -54,9 +55,9 @@ const artifactNextStep = computed<{
 }>(() => {
   if (!desktopRuntime) {
     return {
-      label: '打开桌面 App 验收产物',
+      label: t('打开桌面 App 验收产物', 'Open the desktop app to review artifacts'),
       detail: '',
-      cta: '桌面 App 中验收',
+      cta: t('桌面 App 中验收', 'Review in desktop app'),
       disabled: true,
     }
   }
@@ -64,22 +65,22 @@ const artifactNextStep = computed<{
     return {
       label: preview.value.relativePath,
       detail: `${artifactKindLabel(preview.value.kind)} · ${formatBytes(preview.value.sizeBytes)}`,
-      cta: '重新预览',
+      cta: t('重新预览', 'Preview again'),
       disabled: loading.value,
     }
   }
   if (suggestions.value.length) {
     return {
-      label: '预览第一个候选产物',
-      detail: `${suggestions.value.length} 个可预览候选`,
-      cta: '预览候选',
+      label: t('预览第一个候选产物', 'Preview the first candidate'),
+      detail: t(`${suggestions.value.length} 个可预览候选`, `${suggestions.value.length} previewable candidates`),
+      cta: t('预览候选', 'Preview candidate'),
       disabled: loading.value,
     }
   }
   return {
-    label: '输入产物相对路径',
+    label: t('输入产物相对路径', 'Enter an artifact relative path'),
     detail: '',
-    cta: '等待路径',
+    cta: t('等待路径', 'Waiting for a path'),
     disabled: true,
   }
 })
@@ -100,22 +101,22 @@ async function refresh() {
   error.value = ''
   if (!props.workspacePath) {
     preview.value = null
-    error.value = '请先选择 Coding 项目。'
+    error.value = t('请先选择 Coding 项目。', 'Choose a Coding project first.')
     return
   }
   if (!path) {
     preview.value = null
-    error.value = '请输入工作区内的相对路径。'
+    error.value = t('请输入工作区内的相对路径。', 'Enter a relative path inside the workspace.')
     return
   }
   if (!isPreviewableArtifactPath(path)) {
     preview.value = null
-    error.value = '请输入工作区内支持的 Markdown、HTML、PNG、JPEG、GIF 或 WebP 相对路径。'
+    error.value = t('请输入工作区内支持的 Markdown、HTML、PNG、JPEG、GIF 或 WebP 相对路径。', 'Enter a workspace-relative Markdown, HTML, PNG, JPEG, GIF, or WebP path.')
     return
   }
   if (!desktopRuntime) {
     preview.value = null
-    error.value = '浏览器预览不能读取工作区文件；请在打包后的 MilkSU App 中验收真实 Markdown、HTML 或图片产物。'
+    error.value = t('浏览器预览不能读取工作区文件；请在打包后的 MilkSU App 中验收真实 Markdown、HTML 或图片产物。', 'Browser preview cannot read workspace files. Review real Markdown, HTML, or image artifacts in the packaged MilkSU app.')
     return
   }
   loading.value = true
@@ -133,7 +134,7 @@ async function refresh() {
     preview.value = null
     error.value = reason instanceof Error
       ? reason.message
-      : '暂时无法预览这个产物。'
+      : t('暂时无法预览这个产物。', 'This artifact cannot be previewed right now.')
   } finally {
     loading.value = false
   }
@@ -199,13 +200,13 @@ defineExpose({ refresh })
           autocomplete="off"
           :disabled="loading"
           spellcheck="false"
-          placeholder="例如 docs/report.md"
-          aria-label="工作区产物相对路径"
+          :placeholder="t('例如 docs/report.md', 'e.g. docs/report.md')"
+          :aria-label="t('工作区产物相对路径', 'Workspace artifact relative path')"
         />
         <Button type="submit" size="sm" :disabled="loading">
           <LoaderCircle v-if="loading" class="size-3.5 animate-spin" />
           <Search v-else class="size-3.5" />
-          预览
+          {{ t('预览', 'Preview') }}
         </Button>
       </div>
       <div v-if="suggestions.length" class="mt-2 flex flex-wrap gap-1.5">
@@ -228,12 +229,12 @@ defineExpose({ refresh })
         v-if="!desktopRuntime"
         class="mt-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-caption leading-5 text-muted-foreground"
       >
-        当前是浏览器预览，只能验证面板文案和入口；真实读取工作区产物需要 MilkSU 桌面运行时。
+        {{ t('当前是浏览器预览，只能验证面板文案和入口；真实读取工作区产物需要 MilkSU 桌面运行时。', 'This is a browser preview for copy and entry points only. Reading real workspace artifacts needs the MilkSU desktop runtime.') }}
       </p>
-      <div class="mt-3 rounded-lg border border-primary/20 bg-primary/5 px-3 py-3" aria-label="产物预览下一步">
+      <div class="mt-3 rounded-lg border border-primary/20 bg-primary/5 px-3 py-3" :aria-label="t('产物预览下一步', 'Artifact preview next step')">
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
-            <p class="text-caption font-medium text-muted-foreground">下一步</p>
+            <p class="text-caption font-medium text-muted-foreground">{{ t('下一步', 'Next step') }}</p>
             <p class="mt-1 text-body font-medium">{{ artifactNextStep.label }}</p>
             <p v-if="artifactNextStep.detail" class="mt-1 text-caption leading-5 text-muted-foreground">
               {{ artifactNextStep.detail }}
@@ -245,7 +246,7 @@ defineExpose({ refresh })
             size="sm"
             class="shrink-0"
             :disabled="artifactNextStep.disabled"
-            aria-label="执行产物预览下一步"
+            :aria-label="t('执行产物预览下一步', 'Run the next artifact preview step')"
             @click="runArtifactNextStep"
           >
             {{ artifactNextStep.cta }}
@@ -287,7 +288,7 @@ defineExpose({ refresh })
         class="min-h-[32rem] flex-1 bg-white"
         :srcdoc="htmlSource"
         sandbox=""
-        title="Coding HTML 产物预览"
+        :title="t('Coding HTML 产物预览', 'Coding HTML artifact preview')"
       />
 
       <div

@@ -17,8 +17,12 @@ type Challenge struct {
 type Package struct {
 	ID          string      `json:"id"`
 	Name        string      `json:"name"`
+	Category    string      `json:"category,omitempty"`
 	KindLabel   string      `json:"kindLabel"`
 	Detail      string      `json:"detail"`
+	Source      string      `json:"source,omitempty"`
+	Purpose     string      `json:"purpose,omitempty"`
+	Difficulty  string      `json:"difficulty,omitempty"`
 	Brief       string      `json:"brief,omitempty"`
 	Provider    string      `json:"provider"`
 	Surface     string      `json:"surface"`

@@ -5,6 +5,7 @@ import ChatPage from '@/components-vue/ChatPage.vue'
 import type { SessionTurnSnapshot } from '@/lib/sessionTurnStatus'
 import type { CodingMessageQueue } from '@/composables/useConversations'
 import type { CodingAgentSendArgs, CodingAgentSurfaceBind } from '@/lib/codingAgentSurface'
+import { t } from '@/lib/uiLocale'
 import type {
   AppSettings,
   CodingApprovalPolicy,
@@ -315,12 +316,12 @@ function forwardSend(...args: CodingAgentSendArgs) {
     data-testid="conversation-dock"
   >
     <header class="conversation-dock__head" @pointerdown="placement === 'column' ? undefined : startDrag($event)">
-      <strong>对话</strong>
+      <strong>{{ t('对话', 'Chat') }}</strong>
       <span class="min-w-0 flex-1 truncate text-caption text-muted-foreground">{{ conversation?.title }}</span>
       <button
         type="button"
         class="conversation-dock__icon"
-        aria-label="进入 Coding"
+        :aria-label="t('进入 Coding', 'Open in Coding')"
         @pointerdown.stop
         @click="$emit('expand')"
       >
@@ -330,7 +331,7 @@ function forwardSend(...args: CodingAgentSendArgs) {
         v-if="placement !== 'column'"
         type="button"
         class="conversation-dock__icon"
-        :aria-label="collapsed ? '展开对话' : '收起对话'"
+        :aria-label="collapsed ? t('展开对话', 'Expand chat') : t('收起对话', 'Collapse chat')"
         @pointerdown.stop
         @click="toggleCollapsed"
       >
@@ -339,15 +340,15 @@ function forwardSend(...args: CodingAgentSendArgs) {
       </button>
     </header>
     <div v-show="placement === 'column' || !collapsed" class="conversation-dock__main">
-      <nav class="conversation-dock__list" aria-label="对话列表">
+      <nav class="conversation-dock__list" :aria-label="t('对话列表', 'Conversations')">
         <button
           type="button"
           class="conversation-dock__new"
-          aria-label="新对话"
+          :aria-label="t('新对话', 'New conversation')"
           @click="$emit('create')"
         >
           <Plus class="size-3.5" />
-          新对话
+          {{ t('新对话', 'New conversation') }}
         </button>
         <button
           v-for="item in listed"
@@ -414,10 +415,10 @@ function forwardSend(...args: CodingAgentSendArgs) {
       </div>
     </div>
     <template v-if="placement !== 'column' && !collapsed">
-      <span class="conversation-dock__resize conversation-dock__resize--nw" aria-label="左上角缩放" @pointerdown="startResize('nw', $event)" />
-      <span class="conversation-dock__resize conversation-dock__resize--ne" aria-label="右上角缩放" @pointerdown="startResize('ne', $event)" />
-      <span class="conversation-dock__resize conversation-dock__resize--sw" aria-label="左下角缩放" @pointerdown="startResize('sw', $event)" />
-      <span class="conversation-dock__resize conversation-dock__resize--se" aria-label="右下角缩放" @pointerdown="startResize('se', $event)" />
+      <span class="conversation-dock__resize conversation-dock__resize--nw" :aria-label="t('左上角缩放', 'Resize from top left')" @pointerdown="startResize('nw', $event)" />
+      <span class="conversation-dock__resize conversation-dock__resize--ne" :aria-label="t('右上角缩放', 'Resize from top right')" @pointerdown="startResize('ne', $event)" />
+      <span class="conversation-dock__resize conversation-dock__resize--sw" :aria-label="t('左下角缩放', 'Resize from bottom left')" @pointerdown="startResize('sw', $event)" />
+      <span class="conversation-dock__resize conversation-dock__resize--se" :aria-label="t('右下角缩放', 'Resize from bottom right')" @pointerdown="startResize('se', $event)" />
     </template>
   </aside>
 </template>

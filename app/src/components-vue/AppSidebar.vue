@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import ContextSidebar from '@/components-vue/ContextSidebar.vue'
 import WorkspaceRail from '@/components-vue/WorkspaceRail.vue'
+import { t } from '@/lib/uiLocale'
 import type { ThemeMode } from '@/lib/themeMode'
 import type { AppSection, CTFWorkspaceSection, WorkspaceSection } from '@/lib/workspaceNavigation'
 import type { AccountStatus, Conversation } from '@/types'
@@ -66,7 +67,7 @@ const showCodingHistory = computed(() => (
       v-if="showCodingHistory"
       id="coding-context-sidebar"
       class="coding-history-panel app-no-drag flex h-full min-h-0 w-[16.5rem] shrink-0 flex-col"
-      aria-label="Coding 会话"
+      :aria-label="t('Coding 会话', 'Coding conversations')"
       data-testid="coding-context-drawer"
     >
       <ContextSidebar

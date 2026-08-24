@@ -1,5 +1,6 @@
 import DOMPurify from 'dompurify'
 import MarkdownIt from 'markdown-it'
+import { t } from '@/lib/uiLocale'
 
 const markdown = new MarkdownIt({
   breaks: true,
@@ -20,8 +21,8 @@ markdown.renderer.rules.link_open = (tokens, index, options, environment, render
 }
 
 markdown.renderer.rules.image = (tokens, index) => {
-  const description = tokens[index].content.trim() || '图片'
-  return `<span class="markdown-image-placeholder">[图片：${markdown.utils.escapeHtml(description)}]</span>`
+  const description = tokens[index].content.trim() || t('图片', 'Image')
+  return `<span class="markdown-image-placeholder">${t(`[图片：${markdown.utils.escapeHtml(description)}]`, `[Image: ${markdown.utils.escapeHtml(description)}]`)}</span>`
 }
 
 const allowedTags = [

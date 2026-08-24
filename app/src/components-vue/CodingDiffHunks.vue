@@ -7,6 +7,7 @@ import {
   RotateCcw,
 } from 'lucide-vue-next'
 import { parseUnifiedDiffHunks } from '@/lib/unifiedDiff'
+import { t } from '@/lib/uiLocale'
 import type { CodingGitHunkAction } from '@/codingEnvironmentTypes'
 
 const props = defineProps<{
@@ -42,11 +43,11 @@ const hunks = computed(() => parseUnifiedDiffHunks(props.diff))
             variant="ghost"
             size="sm"
             :disabled="busy"
-            :aria-label="`暂存代码块 ${index + 1}`"
+            :aria-label="t(`暂存代码块 ${index + 1}`, `Stage hunk ${index + 1}`)"
             @click="$emit('apply', 'stage-hunk', hunk.patch)"
           >
             <Plus class="size-3.5" />
-            暂存此块
+            {{ t('暂存此块', 'Stage this hunk') }}
           </Button>
           <Button
             v-if="source === 'working-tree'"
@@ -54,11 +55,11 @@ const hunks = computed(() => parseUnifiedDiffHunks(props.diff))
             variant="ghost"
             size="sm"
             :disabled="busy"
-            :aria-label="`撤销代码块 ${index + 1}`"
+            :aria-label="t(`撤销代码块 ${index + 1}`, `Discard hunk ${index + 1}`)"
             @click="$emit('apply', 'discard-hunk', hunk.patch)"
           >
             <RotateCcw class="size-3.5" />
-            撤销
+            {{ t('撤销', 'Discard') }}
           </Button>
           <Button
             v-else
@@ -66,11 +67,11 @@ const hunks = computed(() => parseUnifiedDiffHunks(props.diff))
             variant="ghost"
             size="sm"
             :disabled="busy"
-            :aria-label="`取消暂存代码块 ${index + 1}`"
+            :aria-label="t(`取消暂存代码块 ${index + 1}`, `Unstage hunk ${index + 1}`)"
             @click="$emit('apply', 'unstage-hunk', hunk.patch)"
           >
             <Minus class="size-3.5" />
-            取消暂存
+            {{ t('取消暂存', 'Unstage') }}
           </Button>
         </template>
       </header>

@@ -138,14 +138,13 @@ Readiness ≠ Judge。容器 healthy 只证明靶活着。
 
 ### 5.1 实验室 = 练习包的家
 
-顶栏：`作业 | 练习包`。
+顶栏：`题目包 | 作业`，默认落在题目包。自带靶是次要入口，不是主 CTA。
 
-- 作业表多一列环境圆点：未绑定 / 已停止 / 就绪。不是 Docker 控制台。
-- 题目包：少数钉死的包（Juice Shop、WebGoat、一条 Vulhub、InjuredAndroid），卡片打开后是靶机卡片，不是全量 Vulhub 商店。
+- 题目包：`ActionCard` 入口（Juice Shop、WebGoat、一条 Vulhub、InjuredAndroid）。点开后是靶机 `Card`，不是全量 Vulhub 商店。
+- 作业表是续做列表，多一列环境圆点：未绑定 / 已停止 / 就绪。不是 Docker 控制台。空列表指回题目包。
 
-新作业来源三段：`练习包 | 本机地址 | 远程`。  
-选练习包 → **启动并打开**（建作业 + `env.start` + 进档案）。  
-选本机/远程 → 今天的 URL 作业，环境条写「用户自带靶」，没有启动按钮。
+自带靶：`本地 | 远程` + 要求。环境条写「用户自带靶」，没有经纪启动按钮。  
+题目包里的靶机 → **启动**（建作业 + `env.start` + 进档案）。
 
 ### 5.2 环境条（CVE / 实验室同一组件）
 
@@ -244,7 +243,7 @@ CVE「开始复现」和「启动」分开：
 | --- | --- | --- | --- |
 | **PR-A** | 经纪内核 | `internal/envbroker`：LabPackage / Lease / occupancy / docker-down / 异步 Start | `go test ./internal/envbroker`：Juice Shop start/stop、占用、Docker 未运行 |
 | **PR-B** | 环境条接入 | `EnvironmentStrip` 进实验室作业和 CVE 档案 | 作业详情、CVE 档案都有环境条；无包显示「没有练习包」 |
-| **PR-C** | 练习包目录 | 实验室 `作业 \| 练习包`；新作业 `练习包 \| 本机地址 \| 远程`；钉死 Juice Shop / WebGoat / S2-045 / whoami / android-avd | 练习包表能列出上述包；选练习包会建作业并 `env.start` |
+| **PR-C** | 练习包目录 | 实验室默认 `题目包`，作业是续做；自带靶 `本地 \| 远程`；钉死 Juice Shop / WebGoat / S2-045 / whoami / android-avd | 题目包能列出上述包；选靶机会建作业并 `env.start` |
 | **PR-D** | 浏览器活靶面 | 打开靶 → `TargetLivePane` browser，复用隔离浏览器 viewport | Juice Shop 就绪后右栏地址钉死 `127.0.0.1:3000` |
 | **PR-E** | 终端活靶面 | whoami → shell 面 + `ProbeEnvLease` | 右栏出现 whoami HTTP 正文，不是假浏览器 |
 | **PR-F** | P1 本机 AVD | host `emulator`/`adb`，Apple Silicon ARM 镜像 | `MILKSU_ENVBROKER_LIVE=1 go test ./internal/envbroker -run TestLiveAndroidAVD`：本机模拟器窗口起来，租约 `ready` + `emulator-*` |

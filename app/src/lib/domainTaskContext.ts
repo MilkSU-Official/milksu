@@ -6,6 +6,8 @@
  * agent harness, and never by parsing free-form prompt text.
  */
 
+import { t } from '@/lib/uiLocale'
+
 export type DomainTaskKind = 'ctf' | 'cve' | 'lab'
 
 export interface DomainTaskFact {
@@ -86,14 +88,14 @@ export interface DomainTaskContextPresentation {
 
 export function domainTaskModuleLabel(kind: DomainTaskKind): string {
   if (kind === 'ctf') return 'CTF'
-  if (kind === 'lab') return '实验室'
+  if (kind === 'lab') return t('实验室', 'Lab')
   return 'CVE'
 }
 
 export function ctfRoleLabel(role: CTFDomainTaskContext['role'] | undefined): string {
-  if (role === 'tool-builder') return 'Coding Agent 工具工坊'
-  if (role === 'strategist') return '策略 Agent 复盘'
-  return '解题 Agent'
+  if (role === 'tool-builder') return t('Coding Agent 工具工坊', 'Coding Agent tool workshop')
+  if (role === 'strategist') return t('策略 Agent 复盘', 'Strategy Agent review')
+  return t('解题 Agent', 'Solver Agent')
 }
 
 export type DomainScopeGrant = {
@@ -139,7 +141,7 @@ export function mergeAuthorizedScopes(
 
 export function formatAuthorizedScope(scopes: DomainScopeGrant[] | null | undefined): string {
   const active = (scopes ?? []).filter(scope => !scope.revokedAt)
-  if (!active.length) return '未授权 Scope'
+  if (!active.length) return t('未授权 Scope', 'Unauthorized scope')
   return active.map(scope => {
     const targets = (scope.targets ?? [])
       .map(target => `${target.kind || 'target'}:${target.value || '?'}`)
@@ -159,16 +161,18 @@ export function formatMaterialStatus(
   const count = list.length
   if (count > 0) {
     const names = list.map(item => String(item.name ?? '').trim()).filter(Boolean).slice(0, 3)
-    const suffix = names.length ? `：${names.join('、')}${count > 3 ? '…' : ''}` : ''
-    return { status: `已挂载 ${count} 份材料${suffix}`, count }
+    const suffix = names.length
+      ? t(`：${names.join('、')}${count > 3 ? '…' : ''}`, `: ${names.join(', ')}${count > 3 ? '…' : ''}`)
+      : ''
+    return { status: t(`已挂载 ${count} 份材料${suffix}`, `Mounted ${count} materials${suffix}`), count }
   }
   if (options.attachmentExpected && !options.attachmentReady) {
-    return { status: '题目有附件，但本机会话尚未挂载材料', count: 0 }
+    return { status: t('题目有附件，但本机会话尚未挂载材料', 'This challenge has attachments, but they are not mounted in this local session'), count: 0 }
   }
   if (options.attachmentExpected && options.attachmentReady) {
-    return { status: '附件已就绪', count: 0 }
+    return { status: t('附件已就绪', 'Attachments ready'), count: 0 }
   }
-  return { status: '无已挂载附件 / 无本地材料', count: 0 }
+  return { status: t('无已挂载附件 / 无本地材料', 'No mounted attachments / no local materials'), count: 0 }
 }
 
 export function formatJudgeState(receipts: Array<{
@@ -178,11 +182,11 @@ export function formatJudgeState(receipts: Array<{
   summary?: string
 }> | null | undefined): string {
   const list = receipts ?? []
-  if (!list.length) return '尚无 Judge 回执'
+  if (!list.length) return t('尚无 Judge 回执', 'No Judge receipt yet')
   const latest = list[list.length - 1]
   const platform = String(latest.platform ?? 'Judge').trim() || 'Judge'
   const status = String(latest.status ?? '').trim() || (latest.correct ? 'correct' : 'pending')
-  const mark = latest.correct ? '已验证正确' : '未通过 / 未确认'
+  const mark = latest.correct ? t('已验证正确', 'Verified correct') : t('未通过 / 未确认', 'Failed / unconfirmed')
   return `${platform} · ${status} · ${mark}`
 }
 
@@ -220,10 +224,10 @@ export function buildCTFDomainTaskContext(input: {
     kind: 'ctf',
     jobId: String(input.jobId ?? '').trim(),
     challengeId: String(input.challengeId ?? '').trim() || String(input.jobId ?? '').trim(),
-    challengeTitle: String(input.challengeTitle ?? '').trim() || '未命名题目',
+    challengeTitle: String(input.challengeTitle ?? '').trim() || t('未命名题目', 'Untitled challenge'),
     statement: String(input.statement ?? '').trim(),
     category: String(input.category ?? '').trim(),
-    objective: String(input.objective ?? '').trim() || '分析题目并形成可验证的候选答案',
+    objective: String(input.objective ?? '').trim() || t('分析题目并形成可验证的候选答案', 'Analyze the challenge and form a verifiable candidate answer'),
     originLabel: String(input.originLabel ?? '').trim(),
     materialNames: (input.materials ?? [])
       .map(item => String(item.name ?? '').trim())
@@ -262,25 +266,25 @@ export function buildCVEDomainTaskContext(input: {
     ? sources.slice(0, 3).map(item => {
         const name = String(item.sourceName ?? 'source').trim()
         const state = String(item.cacheState ?? '').trim()
-        return state ? `${name}（${state}）` : name
-      }).join('；') + (sources.length > 3 ? '…' : '')
-    : '尚无用户导入 Feed / 来源证据'
+        return state ? t(`${name}（${state}）`, `${name} (${state})`) : name
+      }).join(t('；', '; ')) + (sources.length > 3 ? '…' : '')
+    : t('尚无用户导入 Feed / 来源证据', 'No user-imported feed / source evidence yet')
   const assetMatchState = assets.length
     ? assets.slice(0, 3).map(item => {
         const name = String(item.name ?? 'asset').trim()
         const status = String(item.status ?? 'unknown').trim()
         const env = String(item.environment ?? '').trim()
         return env ? `${name} · ${status} · ${env}` : `${name} · ${status}`
-      }).join('；') + (assets.length > 3 ? '…' : '')
-    : '尚无用户确认资产匹配'
+      }).join(t('；', '; ')) + (assets.length > 3 ? '…' : '')
+    : t('尚无用户确认资产匹配', 'No user-confirmed asset match yet')
   const researchScope = String(input.researchScope ?? '').trim()
-    || '当前会话与用户所选项目/材料'
+    || t('当前会话与用户所选项目/材料', 'Current session and the project/materials the user selected')
   const safetyBoundary = String(input.safetyBoundary ?? '').trim()
-    || '沿用 Coding Agent 当前权限档与既有外部效果确认'
+    || t('沿用 Coding Agent 当前权限档与既有外部效果确认', 'Follow the current Coding Agent permission profile and existing external-effect confirmation')
   return {
     kind: 'cve',
     cveId,
-    title: String(input.title ?? '').trim() || `${cveId} 研究接力`,
+    title: String(input.title ?? '').trim() || t(`${cveId} 研究接力`, `${cveId} research handoff`),
     summary: String(input.summary ?? '').trim(),
     vendor: String(input.vendor ?? '').trim(),
     product: String(input.product ?? '').trim(),
@@ -290,10 +294,10 @@ export function buildCVEDomainTaskContext(input: {
     assetMatchState,
     assetCount: assets.length,
     researchScope: input.practiceScope
-      ? `${researchScope} · 练习：${input.practiceScope}`
+      ? t(`${researchScope} · 练习：${input.practiceScope}`, `${researchScope} · Practice: ${input.practiceScope}`)
       : researchScope,
     safetyBoundary,
-    roleLabel: 'CVE 研究接力',
+    roleLabel: t('CVE 研究接力', 'CVE research handoff'),
   }
 }
 
@@ -348,27 +352,27 @@ export function presentDomainTaskContext(
   context: DomainTaskContext,
 ): DomainTaskContextPresentation {
   if (context.kind === 'lab') {
-    const title = context.title || context.request || '实验室作业'
-    const scopeLabel = context.scope === 'local' ? '本地' : '远程'
+    const title = context.title || context.request || t('实验室作业', 'Lab job')
+    const scopeLabel = context.scope === 'local' ? t('本地', 'Local') : t('远程', 'Remote')
     return {
       kind: 'lab',
-      moduleLabel: '实验室',
+      moduleLabel: t('实验室', 'Lab'),
       title,
       subtitle: scopeLabel,
       ownership: '',
-      returnLabel: '返回实验室',
-      returnAriaLabel: '返回实验室',
-      collapsedLabel: `实验室 · ${title}`,
-      objectiveLabel: '范围',
+      returnLabel: t('返回实验室', 'Back to Lab'),
+      returnAriaLabel: t('返回实验室', 'Back to Lab'),
+      collapsedLabel: t(`实验室 · ${title}`, `Lab · ${title}`),
+      objectiveLabel: t('范围', 'Scope'),
       objective: scopeLabel,
-      briefLabel: '作业',
+      briefLabel: t('作业', 'Job'),
       brief: context.request || title,
       meta: [scopeLabel],
       materials: [],
-      detailsLabel: '报告',
+      detailsLabel: t('报告', 'Report'),
       facts: [
-        { label: '范围', value: scopeLabel, kind: 'scope' },
-        { label: '要求', value: context.request || title, kind: 'other' },
+        { label: t('范围', 'Scope'), value: scopeLabel, kind: 'scope' },
+        { label: t('要求', 'Request'), value: context.request || title, kind: 'other' },
       ],
     }
   }
@@ -382,19 +386,19 @@ export function presentDomainTaskContext(
       title,
       subtitle: idLabel,
       ownership: '',
-      returnLabel: '返回 CTF',
-      returnAriaLabel: '返回 CTF 工作台',
+      returnLabel: t('返回 CTF', 'Back to CTF'),
+      returnAriaLabel: t('返回 CTF 工作台', 'Back to CTF workspace'),
       collapsedLabel: `CTF · ${title}`,
-      objectiveLabel: '当前目标',
-      objective: context.objective || '分析题目并形成可验证的候选答案',
-      briefLabel: '任务简报',
-      brief: context.statement || '题面暂未带入，可返回 CTF 查看完整内容。',
+      objectiveLabel: t('当前目标', 'Current goal'),
+      objective: context.objective || t('分析题目并形成可验证的候选答案', 'Analyze the challenge and form a verifiable candidate answer'),
+      briefLabel: t('任务简报', 'Task briefing'),
+      brief: context.statement || t('题面暂未带入，可返回 CTF 查看完整内容。', 'Challenge text was not brought in. Return to CTF for the full statement.'),
       meta: [context.category, context.originLabel || idLabel]
         .filter((value): value is string => Boolean(value)),
       materials: context.materialNames ?? [],
-      detailsLabel: '权限与来源',
+      detailsLabel: t('权限与来源', 'Permissions and sources'),
       facts: [
-        { label: '本次权限', value: context.authorizedScope, kind: 'scope' },
+        { label: t('本次权限', 'This session’s permissions'), value: context.authorizedScope, kind: 'scope' },
       ],
     }
   }
@@ -405,21 +409,21 @@ export function presentDomainTaskContext(
     title: context.title,
     subtitle: context.cveId,
     ownership: '',
-    returnLabel: '返回 CVE',
-    returnAriaLabel: '返回 CVE 工作台',
+    returnLabel: t('返回 CVE', 'Back to CVE'),
+    returnAriaLabel: t('返回 CVE 工作台', 'Back to CVE workspace'),
     collapsedLabel: `CVE · ${context.cveId}`,
-    objectiveLabel: '当前目标',
-    objective: '整理影响范围、版本证据与后续安全验证方向',
-    briefLabel: '漏洞摘要',
-    brief: context.summary || '暂无摘要，可返回 CVE 查看公开来源与完整信息。',
+    objectiveLabel: t('当前目标', 'Current goal'),
+    objective: t('整理影响范围、版本证据与后续安全验证方向', 'Organize impact scope, version evidence, and next security verification steps'),
+    briefLabel: t('漏洞摘要', 'Vulnerability summary'),
+    brief: context.summary || t('暂无摘要，可返回 CVE 查看公开来源与完整信息。', 'No summary yet. Return to CVE for public sources and full details.'),
     meta: [context.cveId, [context.vendor, context.product].filter(Boolean).join(' / '), context.affected]
       .filter((value): value is string => Boolean(value)),
     materials: [],
-    detailsLabel: '研究边界与来源',
+    detailsLabel: t('研究边界与来源', 'Research boundary and sources'),
     facts: [
-      { label: '来源', value: context.sourceEvidenceState, kind: 'evidence' },
-      { label: '研究范围', value: context.researchScope, kind: 'scope' },
-      { label: '安全边界', value: context.safetyBoundary, kind: 'boundary' },
+      { label: t('来源', 'Source'), value: context.sourceEvidenceState, kind: 'evidence' },
+      { label: t('研究范围', 'Research scope'), value: context.researchScope, kind: 'scope' },
+      { label: t('安全边界', 'Safety boundary'), value: context.safetyBoundary, kind: 'boundary' },
     ],
   }
 }
@@ -455,10 +459,10 @@ export function normalizeDomainTaskContext(raw: unknown): DomainTaskContext | un
       kind: 'ctf',
       jobId: String(raw.jobId ?? '').trim(),
       challengeId: String(raw.challengeId ?? '').trim() || String(raw.jobId ?? '').trim(),
-      challengeTitle: String(raw.challengeTitle ?? '').trim() || '未命名题目',
+      challengeTitle: String(raw.challengeTitle ?? '').trim() || t('未命名题目', 'Untitled challenge'),
       statement: String(raw.statement ?? '').trim(),
       category: String(raw.category ?? '').trim(),
-      objective: String(raw.objective ?? '').trim() || '分析题目并形成可验证的候选答案',
+      objective: String(raw.objective ?? '').trim() || t('分析题目并形成可验证的候选答案', 'Analyze the challenge and form a verifiable candidate answer'),
       originLabel: String(raw.originLabel ?? '').trim(),
       materialNames: Array.isArray(raw.materialNames)
         ? raw.materialNames.map(item => String(item).trim()).filter(Boolean)
@@ -471,12 +475,12 @@ export function normalizeDomainTaskContext(raw: unknown): DomainTaskContext | un
           ? raw.role as CTFDomainTaskContext['role']
           : 'solver',
       ),
-      materialStatus: String(raw.materialStatus ?? '').trim() || '无已挂载附件 / 无本地材料',
+      materialStatus: String(raw.materialStatus ?? '').trim() || t('无已挂载附件 / 无本地材料', 'No mounted attachments / no local materials'),
       materialCount: Number(raw.materialCount ?? 0) || 0,
-      authorizedScope: String(raw.authorizedScope ?? '').trim() || '未授权 Scope',
+      authorizedScope: String(raw.authorizedScope ?? '').trim() || t('未授权 Scope', 'Unauthorized scope'),
       evidenceCount: Number(raw.evidenceCount ?? 0) || 0,
       artifactCount: Number(raw.artifactCount ?? 0) || 0,
-      judgeState: String(raw.judgeState ?? '').trim() || '尚无 Judge 回执',
+      judgeState: String(raw.judgeState ?? '').trim() || t('尚无 Judge 回执', 'No Judge receipt yet'),
       liveProjection: raw.liveProjection !== false,
     }
   }
@@ -487,7 +491,7 @@ export function normalizeDomainTaskContext(raw: unknown): DomainTaskContext | un
     return {
       kind: 'lab',
       jobId: String(raw.jobId ?? '').trim(),
-      title: String(raw.title ?? '').trim() || '实验室作业',
+      title: String(raw.title ?? '').trim() || t('实验室作业', 'Lab job'),
       scope: raw.scope === 'local' ? 'local' : 'remote',
       request,
     }
@@ -495,19 +499,19 @@ export function normalizeDomainTaskContext(raw: unknown): DomainTaskContext | un
   return {
     kind: 'cve',
     cveId: String(raw.cveId ?? '').trim(),
-    title: String(raw.title ?? '').trim() || 'CVE 研究接力',
+    title: String(raw.title ?? '').trim() || t('CVE 研究接力', 'CVE research handoff'),
     summary: String(raw.summary ?? '').trim(),
     vendor: String(raw.vendor ?? '').trim(),
     product: String(raw.product ?? '').trim(),
     affected: String(raw.affected ?? '').trim(),
-    sourceEvidenceState: String(raw.sourceEvidenceState ?? '').trim() || '尚无用户导入 Feed / 来源证据',
+    sourceEvidenceState: String(raw.sourceEvidenceState ?? '').trim() || t('尚无用户导入 Feed / 来源证据', 'No user-imported feed / source evidence yet'),
     sourceEvidenceCount: Number(raw.sourceEvidenceCount ?? 0) || 0,
-    assetMatchState: String(raw.assetMatchState ?? '').trim() || '尚无用户确认资产匹配',
+    assetMatchState: String(raw.assetMatchState ?? '').trim() || t('尚无用户确认资产匹配', 'No user-confirmed asset match yet'),
     assetCount: Number(raw.assetCount ?? 0) || 0,
     researchScope: String(raw.researchScope ?? '').trim()
-      || '当前会话与用户所选项目/材料',
+      || t('当前会话与用户所选项目/材料', 'Current session and the project/materials the user selected'),
     safetyBoundary: String(raw.safetyBoundary ?? '').trim()
-      || '沿用 Coding Agent 当前权限档与既有外部效果确认',
-    roleLabel: String(raw.roleLabel ?? '').trim() || 'CVE 研究接力',
+      || t('沿用 Coding Agent 当前权限档与既有外部效果确认', 'Follow the current Coding Agent permission profile and existing external-effect confirmation'),
+    roleLabel: String(raw.roleLabel ?? '').trim() || t('CVE 研究接力', 'CVE research handoff'),
   }
 }

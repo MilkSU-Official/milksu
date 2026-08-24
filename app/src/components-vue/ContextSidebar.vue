@@ -37,10 +37,12 @@ import {
 } from '@/lib/codingConversationGroups'
 import {
   CTF_CONTEXT_ITEMS,
+  ctfContextItemLabel,
   showsCodingHistory,
   type CTFWorkspaceSection,
   type WorkspaceSection,
 } from '@/lib/workspaceNavigation'
+import { t } from '@/lib/uiLocale'
 import type { Conversation } from '@/types'
 
 const props = defineProps<{
@@ -201,7 +203,7 @@ watch(
     <nav
       v-if="ctfContext"
       class="app-no-drag flex flex-1 flex-col gap-1 p-3"
-      aria-label="CTF 工作区"
+      :aria-label="t('CTF 工作区', 'CTF workspace')"
     >
       <Button
         v-for="item in CTF_CONTEXT_ITEMS"
@@ -218,14 +220,14 @@ watch(
       >
         <Library v-if="item.id === 'catalog'" class="size-4" />
         <Boxes v-else class="size-4" />
-        {{ item.label }}
+        {{ ctfContextItemLabel(item.id) }}
       </Button>
     </nav>
 
     <nav
       v-else-if="vulnContext"
       class="app-no-drag flex flex-1 flex-col gap-1 p-3"
-      aria-label="CVE 工作区"
+      :aria-label="t('CVE 工作区', 'CVE workspace')"
     >
       <Button
         variant="secondary"
@@ -235,7 +237,7 @@ watch(
         data-ui-selected=""
       >
         <Radar class="size-4" />
-        追踪
+        {{ t('追踪', 'Tracking') }}
       </Button>
     </nav>
 
@@ -249,8 +251,8 @@ watch(
             size="icon-sm"
             class="coding-history-toggle app-no-drag shrink-0"
             data-testid="coding-history-toggle"
-            aria-label="收起会话历史"
-            title="收起会话历史"
+            :aria-label="t('收起会话历史', 'Collapse chat history')"
+            :title="t('收起会话历史', 'Collapse chat history')"
             :aria-expanded="true"
             aria-controls="coding-context-sidebar"
             @click="$emit('collapse')"
@@ -266,7 +268,7 @@ watch(
             @click="$emit('new')"
           >
             <MessageSquarePlus class="size-4" />
-            新会话
+            {{ t('新会话', 'New chat') }}
           </Button>
         </div>
         <label class="relative mt-2 block">
@@ -276,13 +278,13 @@ watch(
             size="sm"
             emphasis="subtle"
             class="coding-sidebar-control h-7 pl-8"
-            placeholder="搜索任务"
+            :placeholder="t('搜索任务', 'Search tasks')"
           />
         </label>
       </div>
 
       <div ref="conversationList" class="coding-conversation-list mt-2 min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-2 pb-3">
-        <p class="px-3 py-1.5 text-label font-medium text-muted-foreground">项目</p>
+        <p class="px-3 py-1.5 text-label font-medium text-muted-foreground">{{ t('项目', 'Projects') }}</p>
         <div v-if="projectGroups.length || temporaryGroup" class="flex flex-col">
           <div v-if="projectGroups.length" class="space-y-1">
             <details
@@ -303,8 +305,8 @@ watch(
                   variant="ghost"
                   size="icon-sm"
                   class="coding-project-new-session shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
-                  :aria-label="`在 ${group.name} 中新建会话`"
-                  :title="`在 ${group.name} 中新建会话`"
+                  :aria-label="t(`在 ${group.name} 中新建会话`, `New chat in ${group.name}`)"
+                  :title="t(`在 ${group.name} 中新建会话`, `New chat in ${group.name}`)"
                   @click.stop="$emit('newProjectSession', group.path)"
                 >
                   <Plus class="size-3.5" />
@@ -325,7 +327,7 @@ watch(
                     v-model="editingTitle"
                     size="sm"
                     class="coding-project-title-input h-7 min-w-0 flex-1 rounded-none"
-                    aria-label="编辑会话标题"
+                    :aria-label="t('编辑会话标题', 'Edit chat title')"
                     maxlength="40"
                     @click.stop
                     @keydown.enter="submitRename($event, conversation)"
@@ -341,11 +343,11 @@ watch(
                     @click.stop="selectConversation(conversation.id)"
                   >
                     <span class="coding-session-status">
-                      <AkLoadingMark v-if="runningConversationIds.has(conversation.id)" label="运行中" />
+                      <AkLoadingMark v-if="runningConversationIds.has(conversation.id)" :label="t('运行中', 'Running')" />
                       <span
                         v-else-if="unreadConversationIds.has(conversation.id)"
                         class="coding-session-complete size-1.5 rounded-full bg-primary"
-                        aria-label="有新消息"
+                        :aria-label="t('有新消息', 'New messages')"
                       />
                     </span>
                     <span class="truncate">{{ conversation.title }}</span>
@@ -362,26 +364,26 @@ watch(
                         variant="ghost"
                         size="icon-sm"
                         class="mr-1 rounded-none opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
-                        aria-label="会话操作"
+                        :aria-label="t('会话操作', 'Chat actions')"
                         @click.stop
                       >
                         <MoreVertical class="size-3.5" />
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" :side-offset="4" class="w-40">
-                      <DropdownMenuItem aria-label="重命名编码任务" @select="startRename(conversation)">
-                        <Pencil class="size-4" />重命名
+                      <DropdownMenuItem :aria-label="t('重命名编码任务', 'Rename coding task')" @select="startRename(conversation)">
+                        <Pencil class="size-4" />{{ t('重命名', 'Rename') }}
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem aria-label="归档编码任务" @select="pendingAction = { conversation, action: 'archive' }">
-                        <Archive class="size-4" />归档
+                      <DropdownMenuItem :aria-label="t('归档编码任务', 'Archive coding task')" @select="pendingAction = { conversation, action: 'archive' }">
+                        <Archive class="size-4" />{{ t('归档', 'Archive') }}
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         class="text-destructive focus:text-destructive"
-                        aria-label="永久删除编码任务"
+                        :aria-label="t('永久删除编码任务', 'Permanently delete coding task')"
                         @select="pendingAction = { conversation, action: 'delete' }"
                       >
-                        <Trash2 class="size-4" />删除
+                        <Trash2 class="size-4" />{{ t('删除', 'Delete') }}
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -399,7 +401,7 @@ watch(
           >
             <summary
               class="coding-project-row flex cursor-pointer list-none items-center gap-2 rounded-md px-3 py-1.5 font-medium text-muted-foreground hover:bg-accent/50"
-              title="未绑定项目的编码任务"
+              :title="t('未绑定项目的编码任务', 'Coding tasks not bound to a project')"
               @click="openSingleConversation($event, temporaryGroup)"
             >
               <span class="min-w-0 flex-1 truncate">{{ temporaryGroup.name }}</span>
@@ -418,7 +420,7 @@ watch(
                   v-model="editingTitle"
                   size="sm"
                   class="coding-project-title-input h-7 min-w-0 flex-1 rounded-none"
-                  aria-label="编辑会话标题"
+                  :aria-label="t('编辑会话标题', 'Edit chat title')"
                   maxlength="40"
                   @click.stop
                   @keydown.enter="submitRename($event, conversation)"
@@ -434,11 +436,11 @@ watch(
                   @click.stop="selectConversation(conversation.id)"
                 >
                   <span class="coding-session-status">
-                    <AkLoadingMark v-if="runningConversationIds.has(conversation.id)" label="运行中" />
+                    <AkLoadingMark v-if="runningConversationIds.has(conversation.id)" :label="t('运行中', 'Running')" />
                     <span
                       v-else-if="unreadConversationIds.has(conversation.id)"
                       class="coding-session-complete size-1.5 rounded-full bg-primary"
-                      aria-label="有新消息"
+                      :aria-label="t('有新消息', 'New messages')"
                     />
                   </span>
                   <span class="truncate">{{ conversation.title }}</span>
@@ -455,26 +457,26 @@ watch(
                       variant="ghost"
                       size="icon-sm"
                       class="mr-1 rounded-none opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
-                      aria-label="会话操作"
+                      :aria-label="t('会话操作', 'Chat actions')"
                       @click.stop
                     >
                       <MoreVertical class="size-3.5" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" :side-offset="4" class="w-40">
-                    <DropdownMenuItem aria-label="重命名编码任务" @select="startRename(conversation)">
-                      <Pencil class="size-4" />重命名
+                    <DropdownMenuItem :aria-label="t('重命名编码任务', 'Rename coding task')" @select="startRename(conversation)">
+                      <Pencil class="size-4" />{{ t('重命名', 'Rename') }}
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem aria-label="归档编码任务" @select="pendingAction = { conversation, action: 'archive' }">
-                      <Archive class="size-4" />归档
+                    <DropdownMenuItem :aria-label="t('归档编码任务', 'Archive coding task')" @select="pendingAction = { conversation, action: 'archive' }">
+                      <Archive class="size-4" />{{ t('归档', 'Archive') }}
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       class="text-destructive focus:text-destructive"
-                      aria-label="永久删除编码任务"
+                      :aria-label="t('永久删除编码任务', 'Permanently delete coding task')"
                       @select="pendingAction = { conversation, action: 'delete' }"
                     >
-                      <Trash2 class="size-4" />删除
+                      <Trash2 class="size-4" />{{ t('删除', 'Delete') }}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -483,7 +485,7 @@ watch(
           </details>
         </div>
         <p v-else-if="query.trim()" class="px-3 py-3 text-body text-muted-foreground">
-          没有匹配的 Coding 任务
+          {{ t('没有匹配的 Coding 任务', 'No matching Coding tasks') }}
         </p>
       </div>
     </div>
@@ -492,28 +494,28 @@ watch(
     <Dialog :open="Boolean(pendingAction)" @update:open="open => { if (!open) closeConversationAction() }">
       <DialogContent class="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{{ pendingAction?.action === 'delete' ? '永久删除聊天？' : '归档聊天？' }}</DialogTitle>
+          <DialogTitle>{{ pendingAction?.action === 'delete' ? t('永久删除聊天？', 'Permanently delete this chat?') : t('归档聊天？', 'Archive this chat?') }}</DialogTitle>
           <DialogDescription>
             <template v-if="pendingAction?.action === 'delete'">
-              “{{ pendingAction.conversation.title }}”的聊天记录将被永久删除，此操作无法撤销。项目文件不会被删除。
+              {{ t(`“${pendingAction.conversation.title}”的聊天记录将被永久删除，此操作无法撤销。项目文件不会被删除。`, `The chat history for “${pendingAction.conversation.title}” will be permanently deleted. This cannot be undone. Project files will not be deleted.`) }}
             </template>
             <template v-else>
-              “{{ pendingAction?.conversation.title }}”将从会话列表移到“设置 → 归档聊天”。之后可以恢复或永久删除。
+              {{ t(`“${pendingAction?.conversation.title}”将从会话列表移到“设置 → 归档聊天”。之后可以恢复或永久删除。`, `“${pendingAction?.conversation.title}” will move from the chat list to Settings → Archived chats. You can restore or permanently delete it later.`) }}
             </template>
             <template v-if="pendingAction && runningConversationIds.has(pendingAction.conversation.id)">
-              该会话正在运行，本次操作会先中断当前回合。
+              {{ t('该会话正在运行，本次操作会先中断当前回合。', 'This chat is running. This action will stop the current turn first.') }}
             </template>
           </DialogDescription>
         </DialogHeader>
         <p v-if="actionError" class="text-body text-destructive">{{ actionError }}</p>
         <DialogFooter>
-          <Button variant="ghost" @click="closeConversationAction">取消</Button>
+          <Button variant="ghost" @click="closeConversationAction">{{ t('取消', 'Cancel') }}</Button>
           <Button
             :variant="pendingAction?.action === 'delete' ? 'destructive' : 'default'"
             :disabled="pendingActionRunning"
             @click="confirmConversationAction"
           >
-            {{ pendingAction?.action === 'delete' ? '确认永久删除' : '确认归档' }}
+            {{ pendingAction?.action === 'delete' ? t('确认永久删除', 'Permanently delete') : t('确认归档', 'Archive') }}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -17,6 +17,7 @@ import {
   type ChatActivityBlock,
   type ChatActivityEntry,
 } from '@/lib/chatActivity'
+import { t } from '@/lib/uiLocale'
 
 const props = defineProps<{
   activity: ChatActivityBlock
@@ -86,21 +87,21 @@ function entryIcon(entry: ChatActivityEntry) {
 function detailLabel(entry: ChatActivityEntry) {
   const name = entry.toolName
   if (name === 'bash') return 'Shell'
-  if (name === 'background' || name === 'bg_task') return '后台进程'
-  if (name === 'background_output' || name === 'bg_status') return '进程状态'
-  if (name === 'read') return '文件内容'
-  if (name === 'write' || name === 'edit') return '文件变更'
-  if (name === 'ls' || name === 'find' || name === 'grep') return '检索结果'
-  if (name === 'milksu_archify') return '架构图'
-  if (name === 'milksu_imagegen') return 'ImageGen 输入、输出、usage 与费用'
-  return entry.request?.toolName ?? entry.result?.toolName ?? '工具详情'
+  if (name === 'background' || name === 'bg_task') return t('后台进程', 'Background process')
+  if (name === 'background_output' || name === 'bg_status') return t('进程状态', 'Process status')
+  if (name === 'read') return t('文件内容', 'File contents')
+  if (name === 'write' || name === 'edit') return t('文件变更', 'File changes')
+  if (name === 'ls' || name === 'find' || name === 'grep') return t('检索结果', 'Search results')
+  if (name === 'milksu_archify') return t('架构图', 'Architecture diagram')
+  if (name === 'milksu_imagegen') return t('ImageGen 输入、输出、usage 与费用', 'ImageGen input, output, usage, and cost')
+  return entry.request?.toolName ?? entry.result?.toolName ?? t('工具详情', 'Tool details')
 }
 
 function durationLabel(durationMs?: number) {
   if (durationMs === undefined) return ''
-  if (durationMs < 1000) return `${durationMs} 毫秒`
-  if (durationMs < 10_000) return `${(durationMs / 1000).toFixed(1)} 秒`
-  return `${Math.round(durationMs / 1000)} 秒`
+  if (durationMs < 1000) return t(`${durationMs} 毫秒`, `${durationMs} ms`)
+  if (durationMs < 10_000) return t(`${(durationMs / 1000).toFixed(1)} 秒`, `${(durationMs / 1000).toFixed(1)} s`)
+  return t(`${Math.round(durationMs / 1000)} 秒`, `${Math.round(durationMs / 1000)} s`)
 }
 </script>
 
@@ -115,7 +116,7 @@ function durationLabel(durationMs?: number) {
       <component :is="summaryIcon" class="size-4 shrink-0 text-muted-foreground" />
       <span class="min-w-0 truncate">{{ summary }}</span>
       <span v-if="activity.running" class="ak-tag ak-tag--compact">RUN</span>
-      <AkLoadingMark v-if="activity.running" label="工具进行中" />
+      <AkLoadingMark v-if="activity.running" :label="t('工具进行中', 'Tool running')" />
       <ChevronDown class="tool-activity__chevron size-4 shrink-0 text-muted-foreground" />
     </summary>
 
@@ -141,7 +142,7 @@ function durationLabel(durationMs?: number) {
           </span>
           <AkLoadingMark
             v-if="entry.running"
-            label="工具进行中"
+            :label="t('工具进行中', 'Tool running')"
           />
           <ChevronDown class="tool-activity-entry__chevron size-3.5 shrink-0 text-muted-foreground" />
         </summary>
@@ -150,13 +151,13 @@ function durationLabel(durationMs?: number) {
             {{ detailLabel(entry) }}
           </p>
           <template v-if="entry.request">
-            <pre>{{ entry.request.content || '工具没有可显示的输入。' }}</pre>
+            <pre>{{ entry.request.content || t('工具没有可显示的输入。', 'This tool had no displayable input.') }}</pre>
           </template>
           <template v-if="entry.result">
             <p v-if="entry.request" class="tool-activity-entry__result-label">
-              结果
+              {{ t('结果', 'Result') }}
             </p>
-            <pre>{{ entry.result.content || '工具没有返回可显示的内容。' }}</pre>
+            <pre>{{ entry.result.content || t('工具没有返回可显示的内容。', 'This tool returned no displayable output.') }}</pre>
           </template>
         </div>
       </details>

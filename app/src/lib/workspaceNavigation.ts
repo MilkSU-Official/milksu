@@ -1,3 +1,5 @@
+import { t } from '@/lib/uiLocale'
+
 export type WorkspaceSection = 'ctf' | 'vuln' | 'lab' | 'chat'
 export type CTFWorkspaceSection = 'catalog'
 export type AppSection = WorkspaceSection | 'profile' | 'settings'
@@ -5,7 +7,7 @@ export type AppSection = WorkspaceSection | 'profile' | 'settings'
 export const WORKSPACE_RAIL_ITEMS = [
   { id: 'ctf', label: 'CTF' },
   { id: 'vuln', label: 'CVE' },
-  { id: 'lab', label: '实验室' },
+  { id: 'lab', label: 'Lab' },
   { id: 'chat', label: 'Coding' },
 ] as const satisfies ReadonlyArray<{
   id: WorkspaceSection
@@ -13,11 +15,15 @@ export const WORKSPACE_RAIL_ITEMS = [
 }>
 
 export const CTF_CONTEXT_ITEMS = [
-  { id: 'catalog', label: '题库' },
+  { id: 'catalog' },
 ] as const satisfies ReadonlyArray<{
   id: CTFWorkspaceSection
-  label: string
 }>
+
+export function ctfContextItemLabel(id: CTFWorkspaceSection) {
+  if (id === 'catalog') return t('题库', 'Catalog')
+  return id
+}
 
 export function showsCodingHistory(section: WorkspaceSection) {
   return section === 'chat'

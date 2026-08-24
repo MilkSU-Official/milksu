@@ -310,6 +310,7 @@ export function withAppSettingsDefaults(value: AppSettings): AppSettings {
       .filter(name => /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/.test(name)))],
     model_thinking: normalizeModelThinkingSettings(value.model_thinking, configuredProviders),
     providers: configuredProviders,
+    locale: value.locale === 'en' ? 'en' : 'zh',
   }
 }
 

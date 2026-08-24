@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "secret": {
+      "flag": "HTB{JSON_NESTED_FLAG}"
+    }
+  }
+}

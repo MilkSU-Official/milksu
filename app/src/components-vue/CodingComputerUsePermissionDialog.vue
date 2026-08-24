@@ -20,6 +20,7 @@ import type {
   CodingComputerUsePermission,
   CodingComputerUseStatus,
 } from '@/codingEnvironmentTypes'
+import { t } from '@/lib/uiLocale'
 
 const props = withDefaults(defineProps<{
   open: boolean
@@ -48,10 +49,10 @@ const grantedCount = computed(() => Number(Boolean(props.status?.permissions.acc
   + Number(Boolean(props.status?.permissions.screenRecording)))
 const componentDescription = computed(() => {
   if (!props.status?.available) {
-    return props.status?.problem || '正在检查本地组件。'
+    return props.status?.problem || t('正在检查本地组件。', 'Checking local components.')
   }
-  if (permissionsReady.value) return '运行正常，系统授权已完整生效。'
-  return '运行正常，等待系统授权。'
+  if (permissionsReady.value) return t('运行正常，系统授权已完整生效。', 'Running. System authorization is fully in effect.')
+  return t('运行正常，等待系统授权。', 'Running. Waiting for system authorization.')
 })
 
 let pollTimer: number | null = null
@@ -108,18 +109,18 @@ onBeforeUnmount(stopPolling)
               Computer Use Setup
             </p>
             <DialogTitle class="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
-              开启 Computer Use
+              {{ t('开启 Computer Use', 'Turn on Computer Use') }}
             </DialogTitle>
             <DialogDescription
               class="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground"
             >
-              完成两项 macOS 系统授权后，MilkSU 会自动继续当前任务。
+              {{ t('完成两项 macOS 系统授权后，MilkSU 会自动继续当前任务。', 'After both macOS system authorizations are granted, MilkSU continues this task automatically.') }}
             </DialogDescription>
           </div>
           <div class="flex items-center gap-2 pt-1 text-xs text-muted-foreground" aria-live="polite">
             <LoaderCircle v-if="!permissionsReady" class="size-4 animate-spin" />
             <CheckCircle2 v-else class="size-4 text-primary" />
-            <span>{{ permissionsReady ? '授权已完成' : '持续检测中' }}</span>
+            <span>{{ permissionsReady ? t('授权已完成', 'Authorization complete') : t('持续检测中', 'Still checking') }}</span>
             <span class="font-mono text-foreground">{{ grantedCount }} / 2</span>
           </div>
         </div>
@@ -128,23 +129,23 @@ onBeforeUnmount(stopPolling)
           <figure class="permission-guide min-w-0 overflow-hidden border border-border bg-muted/20">
             <img
               :src="permissionGuide"
-              alt="在 macOS 系统设置中为 MilkSU 开启权限的示意图"
+              :alt="t('在 macOS 系统设置中为 MilkSU 开启权限的示意图', 'Illustration of turning on MilkSU permissions in macOS System Settings')"
               class="aspect-square w-full object-cover"
             >
             <figcaption class="border-t border-border px-4 py-3 text-center text-xs text-muted-foreground">
-              在系统设置中找到 MilkSU 并开启对应权限
+              {{ t('在系统设置中找到 MilkSU 并开启对应权限', 'Find MilkSU in System Settings and turn on the matching permissions') }}
             </figcaption>
           </figure>
 
-          <section class="permission-list min-w-0 border border-border bg-muted/15" aria-label="Computer Use 系统授权">
+          <section class="permission-list min-w-0 border border-border bg-muted/15" :aria-label="t('Computer Use 系统授权', 'Computer Use system authorization')">
             <div class="permission-row">
               <div class="permission-icon">
                 <Accessibility class="size-5" />
               </div>
               <div class="min-w-0 flex-1">
-                <p class="font-medium">辅助功能</p>
+                <p class="font-medium">{{ t('辅助功能', 'Accessibility') }}</p>
                 <p class="mt-1 text-xs leading-5 text-muted-foreground">
-                  允许 MilkSU 点击、输入和滚动所选 App。
+                  {{ t('允许 MilkSU 点击、输入和滚动所选 App。', 'Allow MilkSU to click, type, and scroll in the selected app.') }}
                 </p>
               </div>
               <div class="flex shrink-0 items-center gap-3">
@@ -154,18 +155,18 @@ onBeforeUnmount(stopPolling)
                 >
                   <CheckCircle2 v-if="status?.permissions.accessibility" class="size-3.5" />
                   <CircleDot v-else class="size-3.5" />
-                  {{ status?.permissions.accessibility ? '已授权' : '待授权' }}
+                  {{ status?.permissions.accessibility ? t('已授权', 'Authorized') : t('待授权', 'Needs authorization') }}
                 </span>
                 <Button
                   variant="outline"
                   size="sm"
                   :disabled="Boolean(status?.permissions.accessibility) || requesting === 'accessibility'"
-                  aria-label="打开辅助功能系统设置"
+                  :aria-label="t('打开辅助功能系统设置', 'Open Accessibility settings')"
                   @click="emit('requestPermissions', 'accessibility')"
                 >
                   <LoaderCircle v-if="requesting === 'accessibility'" class="size-3.5 animate-spin" />
                   <ExternalLink v-else class="size-3.5" />
-                  {{ status?.permissions.accessibility ? '已完成' : '打开设置' }}
+                  {{ status?.permissions.accessibility ? t('已完成', 'Done') : t('打开设置', 'Open Settings') }}
                 </Button>
               </div>
             </div>
@@ -175,9 +176,9 @@ onBeforeUnmount(stopPolling)
                 <CircleDot class="size-5" />
               </div>
               <div class="min-w-0 flex-1">
-                <p class="font-medium">屏幕录制</p>
+                <p class="font-medium">{{ t('屏幕录制', 'Screen Recording') }}</p>
                 <p class="mt-1 text-xs leading-5 text-muted-foreground">
-                  允许 MilkSU 识别所选窗口的可见内容。
+                  {{ t('允许 MilkSU 识别所选窗口的可见内容。', 'Allow MilkSU to see the selected window.') }}
                 </p>
               </div>
               <div class="flex shrink-0 items-center gap-3">
@@ -187,18 +188,18 @@ onBeforeUnmount(stopPolling)
                 >
                   <CheckCircle2 v-if="status?.permissions.screenRecording" class="size-3.5" />
                   <CircleDot v-else class="size-3.5" />
-                  {{ status?.permissions.screenRecording ? '已授权' : '待授权' }}
+                  {{ status?.permissions.screenRecording ? t('已授权', 'Authorized') : t('待授权', 'Needs authorization') }}
                 </span>
                 <Button
                   variant="outline"
                   size="sm"
                   :disabled="Boolean(status?.permissions.screenRecording) || requesting === 'screen-recording'"
-                  aria-label="打开屏幕录制系统设置"
+                  :aria-label="t('打开屏幕录制系统设置', 'Open Screen Recording settings')"
                   @click="emit('requestPermissions', 'screen-recording')"
                 >
                   <LoaderCircle v-if="requesting === 'screen-recording'" class="size-3.5 animate-spin" />
                   <ExternalLink v-else class="size-3.5" />
-                  {{ status?.permissions.screenRecording ? '已完成' : '打开设置' }}
+                  {{ status?.permissions.screenRecording ? t('已完成', 'Done') : t('打开设置', 'Open Settings') }}
                 </Button>
               </div>
             </div>
@@ -208,7 +209,7 @@ onBeforeUnmount(stopPolling)
                 <PackageCheck class="size-5" />
               </div>
               <div class="min-w-0 flex-1">
-                <p class="font-medium">Computer Use 组件</p>
+                <p class="font-medium">{{ t('Computer Use 组件', 'Computer Use component') }}</p>
                 <p class="mt-1 text-xs leading-5 text-muted-foreground">
                   {{ componentDescription }}
                 </p>
@@ -219,7 +220,7 @@ onBeforeUnmount(stopPolling)
               >
                 <CheckCircle2 v-if="status?.available" class="size-4" />
                 <LoaderCircle v-else class="size-4 animate-spin" />
-                {{ status?.available ? '运行正常' : '检测中' }}
+                {{ status?.available ? t('运行正常', 'Running') : t('检测中', 'Checking') }}
               </div>
             </div>
           </section>
@@ -239,11 +240,11 @@ onBeforeUnmount(stopPolling)
           <LoaderCircle v-if="!permissionsReady" class="size-4 shrink-0 animate-spin text-primary" />
           <CheckCircle2 v-else class="size-4 shrink-0 text-primary" />
           <span>
-            {{ permissionsReady ? '授权完成，正在恢复当前任务。' : '正在轮询系统权限；返回 MilkSU 后状态会自动更新。' }}
+            {{ permissionsReady ? t('授权完成，正在恢复当前任务。', 'Authorization complete. Resuming this task.') : t('正在轮询系统权限；返回 MilkSU 后状态会自动更新。', 'Polling system permissions. Status updates automatically when you return to MilkSU.') }}
           </span>
         </div>
         <Button variant="ghost" size="sm" @click="updateOpen(false)">
-          稍后处理
+          {{ t('稍后处理', 'Do this later') }}
         </Button>
       </footer>
     </DialogContent>

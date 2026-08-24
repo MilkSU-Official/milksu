@@ -1,11 +1,13 @@
+import { t } from '@/lib/uiLocale'
+
 export type CTFManualStatus = 'not_started' | 'in_progress' | 'paused' | 'completed'
 
 export function ctfManualStatusLabel(status: CTFManualStatus) {
   return ({
-    not_started: '未开始',
-    in_progress: '进行中',
-    paused: '稍后继续',
-    completed: '已完成',
+    not_started: t('未开始', 'Not started'),
+    in_progress: t('进行中', 'In progress'),
+    paused: t('稍后继续', 'Resume later'),
+    completed: t('已完成', 'Completed'),
   })[status]
 }
 
