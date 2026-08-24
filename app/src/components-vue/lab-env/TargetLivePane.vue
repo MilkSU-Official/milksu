@@ -13,10 +13,6 @@ const props = defineProps<{
   conversationId?: string
 }>()
 
-const emit = defineEmits<{
-  attachComputerUse: []
-}>()
-
 const probe = ref('')
 const probeError = ref('')
 const viewport = ref<HTMLElement | null>(null)
@@ -133,10 +129,7 @@ onBeforeUnmount(() => {
       <div>
         <p class="text-body">本机模拟器窗口已启动</p>
         <p class="mt-2 font-mono text-caption text-muted-foreground">{{ lease.address }}</p>
-        <p class="mt-3 text-caption text-muted-foreground">在模拟器里操作题目。排查用受限 adb（租约串口），不要打宿主机其它 App。</p>
-        <Button class="mt-4" variant="brand" size="sm" data-testid="attach-computer-use" @click="emit('attachComputerUse')">
-          接入 Computer Use
-        </Button>
+        <p class="mt-3 text-caption text-muted-foreground">题目在这个设备上。Agent 用租约串口的 adb，不要打宿主机其它 App。</p>
       </div>
     </div>
 

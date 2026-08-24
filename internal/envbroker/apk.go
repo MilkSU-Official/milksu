@@ -36,7 +36,7 @@ func (httpAPKFetcher) Fetch(ctx context.Context, url, destination string) error 
 	if err := os.MkdirAll(filepath.Dir(destination), 0o700); err != nil {
 		return err
 	}
-	file, err := os.Create(destination)
+	file, err := os.OpenFile(destination, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 	if err != nil {
 		return err
 	}
@@ -55,32 +55,42 @@ func cacheAndroidAPK(ctx context.Context, fetcher apkFetcher, dataDirectory stri
 	if err := os.MkdirAll(directory, 0o700); err != nil {
 		return "", err
 	}
-	path := filepath.Join(directory, item.ApkName)
+	path := filepath.Join(directory, filepath.Base(item.ApkName))
 	if matchAPKHash(path, item.ApkSHA256) {
 		return path, nil
 	}
-	_ = os.Remove(path)
+	tmp := path + ".part"
+	_ = os.Remove(tmp)
 	if fetcher == nil {
 		fetcher = httpAPKFetcher{}
 	}
-	if err := fetcher.Fetch(ctx, item.ApkURL, path); err != nil {
-		_ = os.Remove(path)
+	if err := fetcher.Fetch(ctx, item.ApkURL, tmp); err != nil {
+		_ = os.Remove(tmp)
 		return "", err
 	}
-	if !matchAPKHash(path, item.ApkSHA256) {
-		_ = os.Remove(path)
+	if !matchAPKHash(tmp, item.ApkSHA256) {
+		_ = os.Remove(tmp)
 		return "", fmt.Errorf("APK 校验失败，与钉死的 SHA-256 不一致")
+	}
+	_ = os.Remove(path)
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return "", err
 	}
 	return path, nil
 }
 
 func matchAPKHash(path, want string) bool {
-	data, err := os.ReadFile(path)
+	file, err := os.Open(path)
 	if err != nil {
 		return false
 	}
-	sum := sha256.Sum256(data)
-	return strings.EqualFold(hex.EncodeToString(sum[:]), strings.TrimSpace(want))
+	defer file.Close()
+	sum := sha256.New()
+	if _, err := io.Copy(sum, io.LimitReader(file, 80<<20)); err != nil {
+		return false
+	}
+	return strings.EqualFold(hex.EncodeToString(sum.Sum(nil)), strings.TrimSpace(want))
 }
 
 func installAndroidLab(ctx context.Context, runner androidRunner, serial, apkPath, launcher string) error {
@@ -92,7 +102,7 @@ func installAndroidLab(ctx context.Context, runner androidRunner, serial, apkPat
 		serial = "emulator-5554"
 	}
 	output, installErr := runner.CombinedOutput(ctx, adb, "-s", serial, "install", "-r", "-t", apkPath)
-	if installErr != nil {
+	if installErr != nil || !strings.Contains(strings.ToLower(string(output)), "success") {
 		return fmt.Errorf("安装练习 APK 失败: %s", strings.TrimSpace(string(output)))
 	}
 	if launcher == "" {
@@ -100,4 +110,30 @@ func installAndroidLab(ctx context.Context, runner androidRunner, serial, apkPat
 	}
 	_, _ = runner.CombinedOutput(ctx, adb, "-s", serial, "shell", "am", "start", "-n", launcher)
 	return nil
+}
+
+func androidPackageName(launcher string) string {
+	launcher = strings.TrimSpace(launcher)
+	if launcher == "" {
+		return ""
+	}
+	if i := strings.Index(launcher, "/"); i > 0 {
+		return launcher[:i]
+	}
+	return launcher
+}
+
+func androidPackageInstalled(ctx context.Context, runner androidRunner, serial, pkg string) bool {
+	if pkg == "" {
+		return true
+	}
+	adb, err := runner.LookPath("adb")
+	if err != nil {
+		return false
+	}
+	if serial == "" {
+		serial = "emulator-5554"
+	}
+	output, pathErr := runner.CombinedOutput(ctx, adb, "-s", serial, "shell", "pm", "path", pkg)
+	return pathErr == nil && strings.Contains(string(output), "package:")
 }

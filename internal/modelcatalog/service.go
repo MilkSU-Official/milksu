@@ -638,6 +638,33 @@ func validCredentialSource(value string) bool {
 	}
 }
 
+func CatalogsEquivalent(left, right Snapshot) bool {
+	if left.Provider != right.Provider ||
+		left.CredentialSource != right.CredentialSource ||
+		left.KeyShape != right.KeyShape ||
+		len(left.Models) != len(right.Models) ||
+		len(left.AccountModelIDs) != len(right.AccountModelIDs) {
+		return false
+	}
+	for index := range left.AccountModelIDs {
+		if left.AccountModelIDs[index] != right.AccountModelIDs[index] {
+			return false
+		}
+	}
+	for index := range left.Models {
+		if left.Models[index].ID != right.Models[index].ID ||
+			left.Models[index].Name != right.Models[index].Name ||
+			left.Models[index].ContextWindow != right.Models[index].ContextWindow ||
+			left.Models[index].MaxTokens != right.Models[index].MaxTokens {
+			return false
+		}
+		if strings.Join(left.Models[index].Input, ",") != strings.Join(right.Models[index].Input, ",") {
+			return false
+		}
+	}
+	return true
+}
+
 func cloneSnapshot(value Snapshot) Snapshot {
 	value.Models = cloneModels(value.Models)
 	value.AccountModelIDs = append([]string(nil), value.AccountModelIDs...)

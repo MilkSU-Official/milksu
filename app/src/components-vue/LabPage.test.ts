@@ -142,4 +142,68 @@ describe('LabPage', () => {
     expect(host.textContent).toContain('类型')
     expect(host.textContent).toContain('说明')
   })
+
+  it('starts InjuredAndroid with the challenge list and no Computer Use CTA', async () => {
+    Object.defineProperty(window, 'go', {
+      configurable: true,
+      value: {
+        main: {
+          App: {
+            ListLabPackages: () => [{
+              id: 'android-lab',
+              name: 'InjuredAndroid',
+              kindLabel: '安卓题',
+              detail: '本机 AVD · 12 道 Flag · 受限 adb',
+              provider: 'android-avd',
+              surface: 'emulator',
+              address: 'emulator-5554',
+              challenges: ['Flag 1 登录绕过', 'Flag 2 导出 Activity'],
+              brief: 'InjuredAndroid（Apache-2.0）',
+            }],
+            GetEnvLease: () => ({
+              ownerKind: 'lab',
+              ownerId: 'job-1',
+              provider: 'android-avd',
+              state: 'none',
+              packageName: 'InjuredAndroid',
+            }),
+            StartEnvLease: () => ({
+              ownerKind: 'lab',
+              ownerId: 'job-1',
+              packageId: 'android-lab',
+              packageName: 'InjuredAndroid',
+              provider: 'android-avd',
+              surface: 'emulator',
+              state: 'ready',
+              address: 'emulator-5554',
+            }),
+          },
+        },
+      },
+    })
+    const host = document.createElement('div')
+    document.body.append(host)
+    const app = createApp(LabPage)
+    app.mount(host)
+    mountedApps.push(app)
+    await nextTick()
+    await Promise.resolve()
+    await nextTick()
+
+    const packagesTab = [...host.querySelectorAll('button')].find(button => button.textContent?.trim() === '练习包')
+    packagesTab?.click()
+    await nextTick()
+    expect(host.textContent).toContain('InjuredAndroid')
+    expect(host.textContent).toContain('2 题')
+
+    const start = [...host.querySelectorAll('button')].find(button => button.textContent?.trim() === '启动')
+    start?.click()
+    await nextTick()
+    await Promise.resolve()
+    await nextTick()
+
+    expect(host.querySelector('[data-testid="lab-challenges"]')?.textContent).toContain('Flag 1 登录绕过')
+    expect(host.textContent).not.toContain('Computer Use')
+    expect(host.querySelector('[data-testid="attach-computer-use"]')).toBeNull()
+  })
 })

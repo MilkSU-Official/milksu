@@ -20,7 +20,6 @@ import ConversationDock from '@/components-vue/ConversationDock.vue'
 import ResearchReportPanel from '@/components-vue/ResearchReportPanel.vue'
 import WorkspaceModuleTopBar from '@/components-vue/WorkspaceModuleTopBar.vue'
 import { invokeCommand } from '@/desktop'
-import { requestComputerUseReveal } from '@/lib/computerUseHandoff'
 import { labScopeLabel, useLabJobs, type LabJob, type LabScope } from '@/composables/useLabJobs'
 import { toStripLease, useEnvLease } from '@/composables/useEnvLease'
 import type { EnvPackage } from '@/envbroker'
@@ -168,10 +167,7 @@ const stripLease = computed(() => {
   })
 })
 
-watch(selectedId, (id, prev) => {
-  if (prev && prev !== id) {
-    void invokeCommand('stop_env_lease', { ownerKind: 'lab', ownerId: prev }).catch(() => undefined)
-  }
+watch(selectedId, (id) => {
   if (!id) {
     targetOpen.value = false
     pendingOpen.value = false
@@ -202,13 +198,6 @@ async function startPackage(pkg: EnvPackage) {
 
 function openDocker() {
   void invokeCommand('open_docker_desktop').catch(() => undefined)
-}
-
-function attachComputerUse() {
-  const conversationId = props.conversation?.id || props.ensureConversation?.(selected.value?.title)
-  if (!conversationId) return
-  requestComputerUseReveal({ preferEmulator: envLease.value.surface === 'emulator' })
-  emit('expand')
 }
 
 function openTarget() {
@@ -322,7 +311,7 @@ function abortRename(event: KeyboardEvent) {
           >
             <span class="truncate text-control font-medium">{{ item.name }}</span>
             <span class="text-body">{{ item.kindLabel }}</span>
-            <span class="truncate text-caption text-muted-foreground">{{ item.detail }}</span>
+            <span class="truncate text-caption text-muted-foreground">{{ item.challenges?.length ? `${item.detail} · ${item.challenges.length} 题` : item.detail }}</span>
             <Button size="sm" variant="outline" @click="startPackage(item)">启动</Button>
           </article>
         </div>
@@ -491,7 +480,6 @@ function abortRename(event: KeyboardEvent) {
           v-if="targetOpen && envLease.state === 'ready'"
           :lease="envLease"
           :conversation-id="conversation?.id"
-          @attach-computer-use="attachComputerUse"
         />
       </div>
       <ConversationDock

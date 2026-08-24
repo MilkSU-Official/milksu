@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 )
@@ -23,30 +24,55 @@ func (execAndroidRunner) LookPath(name string) (string, error) {
 	if path, err := exec.LookPath(name); err == nil {
 		return path, nil
 	}
-	home, _ := os.UserHomeDir()
-	sdk := strings.TrimSpace(os.Getenv("ANDROID_HOME"))
-	if sdk == "" {
-		sdk = strings.TrimSpace(os.Getenv("ANDROID_SDK_ROOT"))
-	}
-	if sdk == "" && home != "" {
-		sdk = filepath.Join(home, "Library", "Android", "sdk")
-	}
-	candidates := map[string][]string{
-		"emulator": {
-			filepath.Join(sdk, "emulator", "emulator"),
-			filepath.Join(sdk, "emulator", "emulator.exe"),
-		},
-		"adb": {
-			filepath.Join(sdk, "platform-tools", "adb"),
-			filepath.Join(sdk, "platform-tools", "adb.exe"),
-		},
-	}
-	for _, candidate := range candidates[name] {
-		if info, err := os.Stat(candidate); err == nil && info.Mode().IsRegular() && info.Mode().Perm()&0o111 != 0 {
-			return candidate, nil
+	for _, sdk := range androidSDKRoots() {
+		candidates := map[string][]string{
+			"emulator": {
+				filepath.Join(sdk, "emulator", "emulator"),
+				filepath.Join(sdk, "emulator", "emulator.exe"),
+			},
+			"adb": {
+				filepath.Join(sdk, "platform-tools", "adb"),
+				filepath.Join(sdk, "platform-tools", "adb.exe"),
+			},
+		}
+		for _, candidate := range candidates[name] {
+			if androidToolExists(candidate) {
+				return candidate, nil
+			}
 		}
 	}
 	return "", fmt.Errorf("%s not found", name)
+}
+
+func androidSDKRoots() []string {
+	var roots []string
+	for _, key := range []string{"ANDROID_HOME", "ANDROID_SDK_ROOT"} {
+		if value := strings.TrimSpace(os.Getenv(key)); value != "" {
+			roots = append(roots, value)
+		}
+	}
+	home, err := os.UserHomeDir()
+	if err == nil && home != "" {
+		roots = append(roots,
+			filepath.Join(home, "Library", "Android", "sdk"),
+			filepath.Join(home, "Android", "Sdk"),
+		)
+	}
+	if local := strings.TrimSpace(os.Getenv("LOCALAPPDATA")); local != "" {
+		roots = append(roots, filepath.Join(local, "Android", "Sdk"))
+	}
+	return roots
+}
+
+func androidToolExists(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil || info.IsDir() {
+		return false
+	}
+	if runtime.GOOS == "windows" {
+		return true
+	}
+	return info.Mode().Perm()&0o111 != 0
 }
 
 func (execAndroidRunner) CombinedOutput(ctx context.Context, name string, args ...string) ([]byte, error) {

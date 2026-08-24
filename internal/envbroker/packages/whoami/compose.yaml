@@ -4,3 +4,9 @@ services:
     ports:
       - "127.0.0.1:18080:80"
     restart: "no"
+    networks:
+      - lab
+
+networks:
+  lab:
+    internal: true

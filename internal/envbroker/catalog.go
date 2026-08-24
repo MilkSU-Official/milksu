@@ -6,11 +6,25 @@ import (
 	"github.com/MilkSU-Official/milksu/internal/envbroker/packages"
 )
 
+const juiceShopBrief = `OWASP Juice Shop 是故意有漏洞的网上商店。浏览器打开 127.0.0.1:3000。
+用隔离浏览器打登录、搜索和结账。过程写进 report.md。没有自动 Judge。`
+
+const webGoatBrief = `OWASP WebGoat 是官方教学靶。浏览器打开 127.0.0.1:18081/WebGoat。
+按课程做，不要扫宿主机其它端口。过程写进 report.md。没有自动 Judge。`
+
+const strutsBrief = `Struts2 S2-045（CVE-2017-5638）在 127.0.0.1:18045。按公开 advisory 复现。
+不要扫其它主机。过程写进 report.md。没有自动 Judge。`
+
+const whoamiBrief = `Whoami 是最小 HTTP 服务，127.0.0.1:18080。用 shell 探测这个靶，不是 Web 教学页。
+过程写进 report.md。没有自动 Judge。`
+
+const androidAVDBrief = `本机官方 Android 模拟器，空白设备。受限 adb 只打租约串口。不要打宿主机其它 App。`
+
 const androidLabBrief = `InjuredAndroid（Apache-2.0，B3nac）装在本机 AVD 上。用 adb 打，不要打宿主机其它 App。
 
-设备：adb -s emulator-5554
+设备：adb -s <租约串口>
 包名：b3nac.injuredandroid
-打开：adb shell am start -n b3nac.injuredandroid/.MainActivity
+打开：adb -s <租约串口> shell am start -n b3nac.injuredandroid/.MainActivity
 
 先做这几道（应用里还有后续 Flag）：
 1. Flag 1 登录绕过
@@ -20,7 +34,7 @@ const androidLabBrief = `InjuredAndroid（Apache-2.0，B3nac）装在本机 AVD 
 5. Flag 7 SQLite（run-as 或备份）
 6. Flag 11 Deep Link：adb shell am start -a android.intent.action.VIEW -d flag11://...
 
-过程写进 report.md。没有自动 Judge。`
+过程写进 report.md。没有自动 Judge。QEMU 窗口不是 Computer Use 靶。`
 
 func Catalog() []Package {
 	return []Package{
@@ -29,6 +43,7 @@ func Catalog() []Package {
 			Name:        "OWASP Juice Shop",
 			KindLabel:   "Web",
 			Detail:      "Docker · 约 400MB · :3000",
+			Brief:       juiceShopBrief,
 			Provider:    "docker",
 			Surface:     "browser",
 			Address:     "127.0.0.1:3000",
@@ -40,6 +55,7 @@ func Catalog() []Package {
 			Name:        "OWASP WebGoat",
 			KindLabel:   "Web",
 			Detail:      "Docker · 教学靶 · :18081",
+			Brief:       webGoatBrief,
 			Provider:    "docker",
 			Surface:     "browser",
 			Address:     "127.0.0.1:18081",
@@ -51,6 +67,7 @@ func Catalog() []Package {
 			Name:        "Struts2 S2-045",
 			KindLabel:   "Vulhub",
 			Detail:      "Docker · CVE-2017-5638 · :18045",
+			Brief:       strutsBrief,
 			Provider:    "docker",
 			Surface:     "browser",
 			Address:     "127.0.0.1:18045",
@@ -63,6 +80,7 @@ func Catalog() []Package {
 			Name:        "Whoami HTTP",
 			KindLabel:   "Linux",
 			Detail:      "Docker · 无 Web 教学页 · :18080",
+			Brief:       whoamiBrief,
 			Provider:    "docker",
 			Surface:     "shell",
 			Address:     "127.0.0.1:18080",
@@ -74,6 +92,7 @@ func Catalog() []Package {
 			Name:      "Android 模拟器",
 			KindLabel: "模拟器",
 			Detail:    "本机官方 AVD · 空白设备 · 受限 adb",
+			Brief:     androidAVDBrief,
 			Provider:  "android-avd",
 			Surface:   "emulator",
 			Address:   "emulator-5554",

@@ -31,8 +31,8 @@
 | 阶段 | **内测迭代 / Agent Runtime 与跨平台发行收敛**。当前工作不再按 M3/M4 里程碑组织。 |
 | 历史基线 | M3 product-loop 已在 `108e0e3`（2026-08-05）合并，仅供追溯。 |
 | 正式发行基线 | `v26.823.1 / efeda10af4f1e2cf55c4a8db1761cdbb486055a2`（2026-08-23 今日首发）。这是当前 GitHub Latest Release；提供带版本号的 DMG、EXE、DEB 与 `SHA256SUMS`；R2/Admin current pointer 未发布。 |
-| 开发版本线 | 根目录与 `desktop/package.json` 是 `26.823.1`。正式发行源是 `efeda10`；文档收口提交不移动该 tag。 |
-| 当前开发 | 正式包是 `26.823.1`。CTF / CVE / 实验室共用完整 Coding 循环、始终开启的上下文整理，以及 CVE 列表里的公开源条目，都已打进本包。HEAD 设置「评测」左侧切换三套：Cybench flag、SEC-bench sanitizer、AutoPenBench 阶段分，各有模型、开始、分数和难度曲线；通用页调试收到构建追踪底部。环境经纪（Docker 练习包 + 本机 AVD）在开发 HEAD，未发版。 |
+| 开发版本线 | 根目录与 `desktop/package.json` 是 `26.824.1`。正式发行源仍是 `efeda10` / `v26.823.1`；本号尚未形成 GitHub Release。 |
+| 当前开发 | 正式包是 `26.823.1`。CTF / CVE / 实验室共用完整 Coding 循环、始终开启的上下文整理，以及 CVE 列表里的公开源条目，都已打进本包。HEAD 设置「评测」左侧切换三套：Cybench flag、SEC-bench sanitizer、AutoPenBench 阶段分，各有模型、开始、分数和难度曲线；通用页调试收到构建追踪底部。环境经纪已接到实验室 / CVE 档案：钉死 Docker 练习包（Juice Shop / WebGoat / S2-045 / whoami，回环绑定、禁止出网）和本机 AVD（空白设备 + InjuredAndroid）。安卓验收是受限 adb，不是 Computer Use。未进发行。 |
 | 平台边界 | `26.823.1`：macOS DMG 本机 Developer ID 签名并公证；Windows 安装器完成原生 Runtime 与首次启动但未代码签名，并打入审阅过的 CUA Driver；Linux DEB 完成包结构、Sidecar、Go Runtime 与 Xvfb Electron 启动，仍无 Secret Service、本地 OCR、Computer Use。 |
 | 发行流水 | 下一发行从干净、已推送的 `main` 对 canonical Go/Vue/Sidecar/lint/生产与文档构建只验证一次；macOS / Windows / Linux 都走 GitHub-hosted 云端。macOS 本机打包暂时关闭。必须创建 GitHub Release 页并上传带版本号的 DMG/EXE/DEB 与 SHA256SUMS，不能只留空 tag。GitHub-only 不生成 OTA ZIP/metadata。 |
 
@@ -130,6 +130,7 @@
 - 工具循环接到 Pi 原生 `tool_call`：完全相同命令连续 10 次或 bash `head N` / `grep -v` 族连续 25 次才结束本轮。单次回合满 150 次工具弹出「已经调用了 150 次工具，要继续吗？」；继续则再放行 150 次，停止则结束本轮。
 - 桌面 Go runtime 为每次 spawn 递增 generation。`milksu:invoke` 必须等 `ready`；进程意外退出会自动再拉起（最多 3 次），旧 generation 的结果丢弃，运行中的回合显示「本轮已停止。」。退出应用时 `beginStop` 禁止恢复。用户文案是「正在恢复运行时」/「本地运行时已停止」，不再抛 `MilkSU Go runtime is unavailable`。
 - Agent 上下文工程收敛：主会话逐回合声明经 Go / Sidecar 校验的权威工作目录，协作 writer worktree 只属于独立 effectful subagent 进程，不再能替换主会话 cwd。受管 Sidecar 启用 Pi 原生 `PI_CACHE_RETENTION=long`，沿用稳定会话 ID 与 Provider prompt cache，不增加 MilkSU 缓存状态机；Pi 的一次性压缩仍显式使用 `cacheRetention: none`。模型目录缺少窗口或仍给出旧 `128000` 占位时，Go、Sidecar 与 Vue 共用的型号族预设会补齐 GPT、Claude、Grok：已知精确型号优先，远端非占位目录值继续权威。GPT 与 Claude Opus / Sonnet / Fable 另有内置思考档位，其他模型须在设置页按实际 Provider 能力手动启用；Composer 用离散滑块写入对话级选择，chip 与档位只显示 `off / minimal / low / medium / high / xhigh / max` 标准英文，Go 约束后交给 Pi 原生 `setThinkingLevel`，子 Agent 继承同一档位。当前 Pi 支持到 `max`；`ultra` 属于 Codex 多 Agent 编排语义，不伪装成 Provider effort。自动化覆盖 cwd 身份、缓存环境、三层窗口解析和思考档位透传；真实 Provider 缓存命中率与 effort 请求仍待用户授权的计费链路验收，不写成完成回执。
+- 环境经纪（实验室 / CVE 档案）：`env_status` / `env_start` / `env_reset` / `env_stop`。Docker 练习包钉死镜像标签、只绑 `127.0.0.1`、默认内部网络。本机 AVD 走官方 emulator/adb；InjuredAndroid 1.0.12 按 SHA-256 缓存到用户数据目录后再 `adb install`，题目写在作业 brief 里。QEMU 窗口可以出现在 Computer Use 列表，但安卓靶的验收路径是受限 adb，不是按键模拟。切作业列表不再拆掉还在跑的靶；离开实验室 / CVE 模块仍停止当前租约。NOTICE 记录 InjuredAndroid Apache-2.0。未进发行。
 
 ## 当前产品事实
 
@@ -206,12 +207,12 @@ Windows 签名、Linux 缺失能力、R2/OTA 仍是发行后续，不是产品�
 
 ### 当前切片：CVE 复现档案 + 实验室报告
 
-实验室在界面上就叫**实验室**。完成面是 Agent 可继续改的报告，不是状态标签，也不是人签过字的 Finding 列表。未授权外网不扫、不横向、模型候选不能写成已确认漏洞。CTF 仍只当题。当前实验室只接用户自带 URL，还不能一键起本机靶。环境能力的开工契约是 [靶机、环境经纪与活靶面](/architecture/target-environments)（Designed，未进发行）：P0 本地 Docker Web/Linux，右栏活靶面，交互稿 `app/env-preview.html`。
+实验室在界面上就叫**实验室**。完成面是 Agent 可继续改的报告，不是状态标签，也不是人签过字的 Finding 列表。未授权外网不扫、不横向、模型候选不能写成已确认漏洞。CTF 仍只当题。开发 HEAD 已能从练习包一键起本机 Docker 靶或本机 AVD（InjuredAndroid 走受限 adb）。用户自带 URL 作业仍在。环境契约是 [靶机、环境经纪与活靶面](/architecture/target-environments)（Implementing / 未进发行）。交互稿 `app/env-preview.html` 只用于设计预览，不进产品入口。
 
 | 切片 | 放哪 | 做什么 | 现在能看见 |
 | --- | --- | --- | --- |
 | **CVE：已知洞复现** | 点进 CVE 档案，不在列表卡片上做 | 按公开描述打一轮。Agent 编辑工作区 `report.md`（或 `report.html`）：摘要、环境、进程、网络、步骤。没打上也留报告。 | 列表点进去后能看摘要/来源、开始复现、报告和右下角对话小窗 |
-| **实验室** | 独立一级入口，不塞进 CVE | 用户给出协议和地址，开作业。Agent 对这个靶做探测，把发现写进同一份活报告。工具在设置里准备，在作业里使用。 | 新作业 → 报告 + 对话小窗；作业留在列表 |
+| **实验室** | 独立一级入口，不塞进 CVE | 练习包一键起本机 Docker / AVD，或用户给出本机/远程地址。Agent 对这个靶做探测，把发现写进同一份活报告。工具在设置里准备，在作业里使用。 | 作业 \| 练习包；环境条 + 右栏活靶面；报告 + 对话小窗 |
 
 共用：Pi 会话、详情页 + 右下角对话小窗。CTF 不再把解题嵌进整页 Coding。同一 CVE / 题目 / 实验室作业可以新开对话，列表和 Coding 大窗共用同一会话。HexStrike 只作为以后实验室作业里可审阅的 CLI，不作为默认 MCP、不作为独立页面。
 

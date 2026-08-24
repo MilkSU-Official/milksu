@@ -85,8 +85,8 @@ MilkSU 的桌面壳不是通用 Agent Loop 的另一份实现。Pi 仍负责会�
 | Obelisk / 记忆底座 | **Implemented backend / UI deferred** | MilkSU 自有索引仍只处理本机 Coding/CTF/CVE 会话；当前产品不展示单会话历史面板或图谱。后续学习记录/记忆系统应作为独立页面进入，不移除或混写 Obelisk 与 CTF Memory 底层事实。 |
 | Worktree / 自举 | **Automatic isolation / product loop partial** | 干净 Git 任务首次 effectful 回合自动准备内部 writer；`.worktreeinclude` CoW、精确 submodule、写入边界和释放条件已有。用户不再配置 worktree/writer；Git 摘要可列出文件并跳到“变更”。Stable → Beta 可见验收已通过，完整自然功能任务的自治 Git 交付仍待扩样。 |
 | 本地持久化 | **Implemented** | 用户可见 Coding/CTF/CVE/Lab 产物位于平台文档目录的 `MilkSU`；无项目 Coding 临时工作区位于用户配置目录的 `agent-workspaces` 并统一显示为“无项目任务”，不再制造用户可见的哈希项目目录。选择、粘贴和拖放的普通文件统一导入受管附件区并以哈希描述进入 Pi；普通文件与 Shell 恢复 Pi 内置工具和当前系统用户权限语义，MilkSU 不再持久化另一套 workspace-only 授权根或文件工具。Runtime Artifact、CTF Memory、Catalog、Conversation、Obelisk Session Index、Browser Profile 和 Credential Store 位于用户配置目录。开发分支的会话归档存入 Conversation 目录下的独立归档区，恢复保留 Pi 上下文，永久删除才清理会话正文、Pi 持久化文件和索引副本；正式发行包尚未包含该纵切。凭据不经桌面 RPC 返回 Vue，也不进入模型上下文。 |
-| 实验室 | **Implemented / packaged in 26.822.1** | 主导航「实验室」是未知漏洞探测作业：用户给出协议和地址，Agent 把过程写进 `Documents/MilkSU/Lab` 下的 `report.md`。对话是可拖放小窗，不是整页 Coding。不是 Kali 应用商店，不整包接入 HexStrike MCP。 |
-| CTF Managed Labs | **Not shipped** | Juice Shop / WebGoat / Vulhub 一类可重置训练环境仍未进生产。这与主导航「实验室」（用户自带 URL）不是同一件事。目标对象是共享 Environment Broker（Docker 默认，虚拟机其次，真机适配补齐），不是只服务 CTF 刷题。 |
+| 实验室 | **Implemented / packaged in 26.822.1；环境经纪在开发 HEAD** | 主导航「实验室」是未知漏洞探测作业。用户自带 URL 仍可用；开发 HEAD 另可从练习包起本机 Docker 靶或本机 AVD。Agent 把过程写进 `Documents/MilkSU/Lab` 下的 `report.md`。对话是可拖放小窗，不是整页 Coding。不是 Kali 应用商店，不整包接入 HexStrike MCP。安卓靶用受限 adb，不是 Computer Use。未进 `26.823.1`。 |
+| CTF Managed Labs | **Not shipped** | CTF 本地房还不能引用环境经纪。Juice Shop / WebGoat / Vulhub / AVD 练习包已经挂在实验室和 CVE 档案（开发 HEAD），不是 CTF 题库里的环境包。 |
 
 ## 进程与 IPC
 
@@ -289,7 +289,7 @@ GitHub-only 模式不生成 updater ZIP 或元数据；显式选择 OTA 上传�
 CI 通过 rclone 把 ZIP、DMG 和元数据写到私有 R2 的不可变版本路径，逐个回读校验 SHA-256，再用窄
 publisher token 在 Admin 建草稿；管理员发布后，已登录且访问正常的 Stable 客户端才可经 Worker 获取
 feed 和安装包。R2 没有公共下载地址，账户 Bearer token 只由 Electron 主进程持有。正式 GitHub Latest Release 是
-`v26.823.1 / efeda10af4f1e2cf55c4a8db1761cdbb486055a2`。仓库开发版本号是 `26.823.1`，与该回执一致。
+`v26.823.1 / efeda10af4f1e2cf55c4a8db1761cdbb486055a2`。仓库开发版本号是 `26.824.1`，尚未形成 GitHub Release，不能把本号写成已发版。
 文档收口提交不改变该 tag，不能把后续 HEAD 写成已发版。打包后的
 Go Runtime 以自身所在 `resources` 目录直接定位同级 `milksu-sidecar/node.exe` 与 `chat-bridge.cjs`，
 不再把开发仓库根定位混入安装版资源查找。macOS

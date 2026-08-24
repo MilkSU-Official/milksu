@@ -87,5 +87,13 @@ func (s *Store) persistLocked() error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(s.path, data, 0o600)
+	tmp := s.path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o600); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp, s.path); err == nil {
+		return nil
+	}
+	_ = os.Remove(s.path)
+	return os.Rename(tmp, s.path)
 }

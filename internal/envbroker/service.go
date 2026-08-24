@@ -266,7 +266,18 @@ func (s *Service) Status(ctx context.Context, owner Owner) Lease {
 		if serial != "" {
 			lease.Address = serial
 		}
+		if state == "ready" && androidPackageName(item.Launcher) != "" {
+			if !androidPackageInstalled(ctx, s.android, serial, androidPackageName(item.Launcher)) {
+				lease.State = "stopped"
+				lease.Detail = "模拟器已启动，练习 APK 未安装"
+				_ = s.store.Put(lease)
+				return lease
+			}
+		}
 		lease.State = state
+		if state == "ready" {
+			lease.Error = ""
+		}
 		_ = s.store.Put(lease)
 		return lease
 	}

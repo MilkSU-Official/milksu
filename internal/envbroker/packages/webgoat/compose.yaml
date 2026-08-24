@@ -7,3 +7,9 @@ services:
       WEBGOAT_HOST: 127.0.0.1
       WEBGOAT_PORT: 8080
     restart: "no"
+    networks:
+      - lab
+
+networks:
+  lab:
+    internal: true

@@ -289,3 +289,25 @@ func TestNewRebuildsCatalogWithoutCredentialSource(t *testing.T) {
 		t.Fatalf("invalid cache was not rebuilt: %#v", snapshot)
 	}
 }
+
+func TestCatalogsEquivalentIgnoresRefreshMetadata(t *testing.T) {
+	left := Snapshot{
+		Provider:         ProviderTokenFlux,
+		CredentialSource: CredentialSourceAccount,
+		KeyShape:         KeyShapeSingle,
+		Models:           []Model{{ID: "grok-4.6", Name: "Grok 4.6", ContextWindow: 256000, MaxTokens: 32768, Input: []string{"text"}}},
+		RefreshedAt:      "2026-08-23T00:00:00Z",
+		Source:           "cache",
+	}
+	right := left
+	right.RefreshedAt = "2026-08-24T00:00:00Z"
+	right.Source = "remote"
+	right.Models = append([]Model(nil), left.Models...)
+	if !CatalogsEquivalent(left, right) {
+		t.Fatal("timestamp-only refresh should be equivalent")
+	}
+	right.Models[0].ContextWindow = 128000
+	if CatalogsEquivalent(left, right) {
+		t.Fatal("model window change should not be equivalent")
+	}
+}

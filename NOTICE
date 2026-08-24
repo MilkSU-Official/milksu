@@ -38,6 +38,10 @@ Third-party software includes, without limitation:
 - TypeScript. Apache-2.0.
 - DOMPurify. MPL-2.0 OR Apache-2.0.
 - Inter Variable and Noto Sans SC Variable fonts. SIL Open Font License 1.1.
+- InjuredAndroid 1.0.12. https://github.com/B3nac/InjuredAndroid
+  Copyright B3nac. Apache-2.0.
+  MilkSU downloads the pinned GitHub Release APK into the local envbroker
+  cache after a SHA-256 check. The APK is not vendored in this repository.
 
 Font files remain under the SIL Open Font License and are not relicensed by
 MilkSU's AGPL-3.0-only grant.

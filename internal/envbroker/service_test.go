@@ -2,6 +2,8 @@ package envbroker
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"os"
 	"path/filepath"
 	"strings"
@@ -49,9 +51,10 @@ func (f *fakeCompose) Run(_ context.Context, _ string, args []string, _ string) 
 }
 
 type fakeAndroid struct {
-	avds   []string
-	booted bool
-	calls  []string
+	avds      []string
+	booted    bool
+	installed bool
+	calls     []string
 }
 
 func (f *fakeAndroid) LookPath(name string) (string, error) {
@@ -81,7 +84,14 @@ func (f *fakeAndroid) CombinedOutput(_ context.Context, name string, args ...str
 		return []byte("OK"), nil
 	}
 	if strings.Contains(joined, "install") {
+		f.installed = true
 		return []byte("Success"), nil
+	}
+	if strings.Contains(joined, "pm path") {
+		if f.installed {
+			return []byte("package:/data/app/b3nac.injuredandroid.apk\n"), nil
+		}
+		return []byte(""), os.ErrNotExist
 	}
 	if strings.Contains(joined, "am start") {
 		return []byte("Starting"), nil
@@ -245,32 +255,140 @@ func (f fileAPKFetcher) Fetch(_ context.Context, _, destination string) error {
 	return os.WriteFile(destination, data, 0o600)
 }
 
-func TestAndroidLabInstallsAPK(t *testing.T) {
+func TestAndroidLabInstallsAPKWhenEmulatorAlreadyUp(t *testing.T) {
 	t.Parallel()
-	source := "/tmp/injured/InjuredAndroid.apk"
-	if _, err := os.Stat(source); err != nil {
-		t.Skip("InjuredAndroid apk is not cached locally")
+	source := filepath.Join(t.TempDir(), "InjuredAndroid.apk")
+	payload := []byte("fixture-apk")
+	if err := os.WriteFile(source, payload, 0o600); err != nil {
+		t.Fatal(err)
 	}
-	android := &fakeAndroid{avds: []string{"Pixel_10_Pro"}}
-	service, err := NewForTest(t.TempDir(), &fakeCompose{dockerDown: true}, android)
+	sum := sha256.Sum256(payload)
+	android := &fakeAndroid{avds: []string{"Pixel_10_Pro"}, booted: true}
+	root := t.TempDir()
+	service, err := NewForTest(root, &fakeCompose{dockerDown: true}, android)
 	if err != nil {
 		t.Fatal(err)
 	}
 	service.apks = fileAPKFetcher{source: source}
-	owner := Owner{Kind: "lab", ID: "android-lab"}
-	if _, err := service.Start(context.Background(), owner, "android-lab"); err != nil {
-		t.Fatal(err)
+	item := Package{
+		ID:        "android-lab",
+		Name:      "InjuredAndroid",
+		Provider:  "android-avd",
+		Surface:   "emulator",
+		Address:   "emulator-5554",
+		ApkURL:    "https://example.invalid/InjuredAndroid.apk",
+		ApkSHA256: hex.EncodeToString(sum[:]),
+		ApkName:   "InjuredAndroid.apk",
+		Launcher:  "b3nac.injuredandroid/.MainActivity",
 	}
-	lease := waitLease(t, service, owner, "ready")
-	if lease.Surface != "emulator" || lease.Address != "emulator-5554" {
-		t.Fatalf("%+v", lease)
+	lease := Lease{
+		Schema:      LeaseSchema,
+		OwnerKind:   "lab",
+		OwnerID:     "android-lab",
+		PackageID:   item.ID,
+		PackageName: item.Name,
+		Provider:    item.Provider,
+		Surface:     item.Surface,
+		State:       "pulling",
+		Address:     item.Address,
+	}
+	service.runAndroidStart(context.Background(), item, lease)
+	got := service.Get(Owner{Kind: "lab", ID: "android-lab"})
+	if got.State != "ready" || got.Address != "emulator-5554" {
+		t.Fatalf("%+v", got)
 	}
 	joined := strings.Join(android.calls, "\n")
 	if !strings.Contains(joined, "install") || !strings.Contains(joined, "am start") {
 		t.Fatalf("expected install and launch, calls=%q", joined)
 	}
-	if !strings.Contains(lease.Detail, "InjuredAndroid") {
-		t.Fatalf("detail: %s", lease.Detail)
+	if !strings.Contains(got.Detail, "InjuredAndroid") {
+		t.Fatalf("detail: %s", got.Detail)
+	}
+	if status := service.Status(context.Background(), Owner{Kind: "lab", ID: "android-lab"}); status.State != "ready" {
+		t.Fatalf("status after install: %+v", status)
+	}
+}
+
+func TestAndroidLabAndBlankAVDShareOccupancy(t *testing.T) {
+	t.Parallel()
+	android := &fakeAndroid{avds: []string{"Pixel_10_Pro"}}
+	service, err := NewForTest(t.TempDir(), &fakeCompose{dockerDown: true}, android)
+	if err != nil {
+		t.Fatal(err)
+	}
+	owner := Owner{Kind: "lab", ID: "blank"}
+	if _, err := service.Start(context.Background(), owner, "android-avd"); err != nil {
+		t.Fatal(err)
+	}
+	waitLease(t, service, owner, "ready")
+	lease, err := service.Start(context.Background(), Owner{Kind: "lab", ID: "injured"}, "android-lab")
+	if err != nil || lease.State != "busy" {
+		t.Fatalf("expected busy, got %+v err=%v", lease, err)
+	}
+}
+
+func TestAndroidLabStatusRequiresInstalledAPK(t *testing.T) {
+	t.Parallel()
+	android := &fakeAndroid{avds: []string{"Pixel"}, booted: true}
+	service, err := NewForTest(t.TempDir(), &fakeCompose{dockerDown: true}, android)
+	if err != nil {
+		t.Fatal(err)
+	}
+	owner := Owner{Kind: "lab", ID: "missing-apk"}
+	if err := service.store.Put(Lease{
+		Schema:      LeaseSchema,
+		OwnerKind:   owner.Kind,
+		OwnerID:     owner.ID,
+		PackageID:   "android-lab",
+		PackageName: "InjuredAndroid",
+		Provider:    "android-avd",
+		Surface:     "emulator",
+		State:       "ready",
+		Address:     "emulator-5554",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	got := service.Status(context.Background(), owner)
+	if got.State != "stopped" {
+		t.Fatalf("expected stopped until APK is installed, got %+v", got)
+	}
+}
+
+func TestAndroidLabPinsInjuredAndroid(t *testing.T) {
+	t.Parallel()
+	item, ok := PackageByID("android-lab")
+	if !ok {
+		t.Fatal("android-lab missing")
+	}
+	if item.ApkSHA256 != "b6b8d2dbd7a428b7754e6e537ba5790c35a73253533454e0768dbf1520a7ed15" {
+		t.Fatalf("apk pin: %s", item.ApkSHA256)
+	}
+	if item.Launcher != "b3nac.injuredandroid/.MainActivity" || len(item.Challenges) != 12 || item.Brief == "" {
+		t.Fatalf("%+v", item)
+	}
+}
+
+func TestComposePinsLoopbackAndInternalNetwork(t *testing.T) {
+	t.Parallel()
+	for _, id := range []string{"juice-shop", "webgoat", "struts2-s2-045", "whoami"} {
+		item, ok := PackageByID(id)
+		if !ok {
+			t.Fatalf("missing %s", id)
+		}
+		data, err := composeBytes(item)
+		if err != nil {
+			t.Fatal(err)
+		}
+		text := string(data)
+		if !strings.Contains(text, "127.0.0.1:") {
+			t.Fatalf("%s missing loopback bind", id)
+		}
+		if !strings.Contains(text, "internal: true") {
+			t.Fatalf("%s missing internal network", id)
+		}
+		if item.Brief == "" {
+			t.Fatalf("%s missing brief", id)
+		}
 	}
 }
 
