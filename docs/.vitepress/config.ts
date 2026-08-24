@@ -39,6 +39,8 @@ export default defineConfig({
             { text: '安全 Agent 能力边界', link: '/developer/security-agent-boundary' },
             { text: '可验证安全任务运行时', link: '/developer/architecture' },
             { text: 'Role Packages', link: '/developer/role-packages' },
+            { text: '插件实验性使用说明', link: '/developer/plugin-user-guide' },
+            { text: '插件 v1 技术契约', link: '/developer/plugin-framework' },
           ],
         },
         {

@@ -21,6 +21,7 @@
 - [Electron/Chromium 桌面壳](/developer/adr/2026-08-10-electron-chromium-desktop-shell)
 - [核心架构：可验证安全任务运行时](/developer/architecture)
 - [Security Role Packages](/developer/role-packages)
+- [插件框架实验性使用说明](/developer/plugin-user-guide)
 - [稳定 v1 插件框架、签名包与皮肤表面](/developer/plugin-framework)
 
 这些文档描述稳定边界，不单独安排开发顺序；发生实现状态冲突时回到当前目标、代码和测试事实。
