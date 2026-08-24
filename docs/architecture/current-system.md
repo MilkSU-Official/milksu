@@ -86,7 +86,7 @@ MilkSU 的桌面壳不是通用 Agent Loop 的另一份实现。Pi 仍负责会�
 | Worktree / 自举 | **Automatic isolation / product loop partial** | 干净 Git 任务首次 effectful 回合自动准备内部 writer；`.worktreeinclude` CoW、精确 submodule、写入边界和释放条件已有。用户不再配置 worktree/writer；Git 摘要可列出文件并跳到“变更”。Stable → Beta 可见验收已通过，完整自然功能任务的自治 Git 交付仍待扩样。 |
 | 本地持久化 | **Implemented** | 用户可见 Coding/CTF/CVE/Lab 产物位于平台文档目录的 `MilkSU`；无项目 Coding 临时工作区位于用户配置目录的 `agent-workspaces` 并统一显示为“无项目任务”，不再制造用户可见的哈希项目目录。选择、粘贴和拖放的普通文件统一导入受管附件区并以哈希描述进入 Pi；普通文件与 Shell 恢复 Pi 内置工具和当前系统用户权限语义，MilkSU 不再持久化另一套 workspace-only 授权根或文件工具。Runtime Artifact、CTF Memory、Catalog、Conversation、Obelisk Session Index、Browser Profile 和 Credential Store 位于用户配置目录。开发分支的会话归档存入 Conversation 目录下的独立归档区，恢复保留 Pi 上下文，永久删除才清理会话正文、Pi 持久化文件和索引副本；正式发行包尚未包含该纵切。凭据不经桌面 RPC 返回 Vue，也不进入模型上下文。 |
 | 实验室 | **Implemented / packaged in 26.822.1** | 主导航「实验室」是未知漏洞探测作业：用户给出协议和地址，Agent 把过程写进 `Documents/MilkSU/Lab` 下的 `report.md`。对话是可拖放小窗，不是整页 Coding。不是 Kali 应用商店，不整包接入 HexStrike MCP。 |
-| CTF Managed Labs | **Not shipped** | Juice Shop / WebGoat / Vulhub 一类可重置训练环境仍未进生产。这与主导航「实验室」不是同一件事。 |
+| CTF Managed Labs | **Not shipped** | Juice Shop / WebGoat / Vulhub 一类可重置训练环境仍未进生产。这与主导航「实验室」（用户自带 URL）不是同一件事。目标对象是共享 Environment Broker（Docker 默认，虚拟机其次，真机适配补齐），不是只服务 CTF 刷题。 |
 
 ## 进程与 IPC
 

@@ -390,6 +390,10 @@ export function chatActivityEntrySummary(messageOrEntry: Message | ChatActivityE
   if (name === 'grep') return `搜索${suffix || '内容'}`
   if (name === 'milksu_progress') return '更新任务进度'
   if (name === 'milksu_workspace') return subject || '操作 MilkSU'
+  if (name === 'env_status') return '查看环境'
+  if (name === 'env_start') return '启动环境'
+  if (name === 'env_reset') return '重置环境'
+  if (name === 'env_stop') return '停止环境'
   if (name === 'prepare_computer_use_driver') return subject || '准备 Computer Use Driver'
   if (name === 'milksu_archify') return '处理架构图'
   if (name === 'milksu_imagegen') {

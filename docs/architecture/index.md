@@ -20,9 +20,10 @@
    从目标、代码和测试事实选择有界批次。
 5. [授权安全学习与研究平台](security-learning-and-research-platform.md)：CTF、实验室、CVE、
    Coding 怎样共享证据、授权、环境与学习底座？
-6. [CTF Labs 顶层与详细设计](ctf-labs-design.md)：CTF 可重置训练环境的长期设计；不是主导航「实验室」。
-7. [CVE 研究工作台顶层与详细设计](cve-research-workbench-design.md)：CVE 档案与复现报告的长期背景。
-8. [文档与任务状态登记](/developer/document-status)：跨文档的唯一当前口径与任务状态。
+6. [CTF Labs 顶层与详细设计](ctf-labs-design.md)：CTF 可重置训练环境的长期设计；环境经纪本身见下一篇，不是主导航「实验室」的别名。
+7. [靶机、环境经纪与活靶面](target-environments.md)：**Designed**。真实环境是工作台本体；P0 本地 Docker Web/Linux，P1 本机 AVD；右栏是活靶面（浏览器/终端/模拟器），不是写死浏览器。未进发行。
+8. [CVE 研究工作台顶层与详细设计](cve-research-workbench-design.md)：CVE 档案与复现报告的长期背景。
+9. [文档与任务状态登记](/developer/document-status)：跨文档的唯一当前口径与任务状态。
 
 ## 状态约定
 

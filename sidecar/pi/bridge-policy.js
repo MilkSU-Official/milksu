@@ -50,6 +50,8 @@ import {
   ctfNetworkToolNames,
   ctfScopedNetworkToolNames,
 } from "./bridge-ctf-network.js";
+import { envToolNames } from "./bridge-env.js";
+import { isResearchSessionRole } from "./bridge-workspace.js";
 import {
   codingImageGenToolName,
   createImageGenTool,
@@ -1423,7 +1425,7 @@ export async function createCTFToolDefinitions(
   return definitions;
 }
 
-async function loadCodingSessionPolicy(workspace, codingPolicy = {}) {
+async function loadCodingSessionPolicy(workspace, codingPolicy = {}, sessionRole = "") {
   const root = await resolveReviewedWorkspace(workspace);
   const normalized = normalizeCodingPolicy(
     codingPolicy.executionMode,
@@ -1570,7 +1572,7 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}) {
             }
           : capability
   ));
-  return {
+  const result = {
     ctf: false,
     ...normalized,
     activeTools,
@@ -1593,6 +1595,10 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}) {
     ),
     maxToolEventOutputBytes: 60000,
   };
+  if (isResearchSessionRole(sessionRole)) {
+    result.activeTools = [...new Set([...result.activeTools, ...envToolNames])];
+  }
+  return result;
 }
 
 export async function loadSessionPolicy(
@@ -1605,7 +1611,7 @@ export async function loadSessionPolicy(
     content = await readFile(join(workspace, "challenge.json"), "utf8");
   } catch (error) {
     if (error?.code === "ENOENT") {
-      return loadCodingSessionPolicy(workspace, codingPolicy);
+      return loadCodingSessionPolicy(workspace, codingPolicy, sessionRole);
     }
     throw error;
   }
@@ -1617,7 +1623,7 @@ export async function loadSessionPolicy(
         + "rebuild the workspace in MilkSU before starting the Agent",
       );
     }
-    return loadCodingSessionPolicy(workspace, codingPolicy);
+    return loadCodingSessionPolicy(workspace, codingPolicy, sessionRole);
   }
   const toolBuilder = sessionRole === toolBuilderRole;
   const effectiveManifest = toolBuilder
@@ -1637,7 +1643,7 @@ export async function loadSessionPolicy(
     effectiveManifest,
     sessionRole,
   );
-  const coding = await loadCodingSessionPolicy(workspace, codingPolicy);
+  const coding = await loadCodingSessionPolicy(workspace, codingPolicy, sessionRole);
   const activeTools = [...new Set([...coding.activeTools, ...ctfActiveTools])];
   const customByName = new Map();
   for (const tool of [...coding.customTools, ...definitions]) {

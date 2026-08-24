@@ -229,6 +229,8 @@ describe('VulnPage thin workspace', () => {
     expect(dashboard.selected.value.status).toBe('待复现')
     expect(host.querySelector('[data-testid="related-cves"]')).not.toBeNull()
     expect(host.textContent).toContain('关联 CVE')
+    expect(host.querySelector('[data-testid="environment-strip"]')).not.toBeNull()
+    expect(host.textContent).toContain('没有练习包')
   })
 
   it('keeps list titles selectable instead of opening the dossier from the row', async () => {

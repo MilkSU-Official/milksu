@@ -121,6 +121,15 @@ test("Coding sessions expose Pi native file and shell tools without MilkSU works
   );
   assert.equal(policy.customTools.some(tool => tool.name === "bash"), true);
   assert.equal(policy.activeTools.includes("lsp_fix"), true);
+  assert.equal(policy.activeTools.includes("env_status"), false);
+});
+
+test("lab and CVE sessions expose env tools", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "milksu-env-policy-"));
+  const policy = await loadSessionPolicy(workspace, "lab-job");
+  assert.equal(policy.activeTools.includes("env_status"), true);
+  assert.equal(policy.activeTools.includes("env_start"), true);
+  assert.equal(policy.activeTools.includes("env_stop"), true);
 });
 
 test("ImageGen is exposed only when its isolated Provider credential is configured", async () => {

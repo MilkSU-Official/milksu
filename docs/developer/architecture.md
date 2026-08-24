@@ -232,9 +232,11 @@ M1 用确定性的 Walking Skeleton 验证事实链和恢复语义，取舍见
 `RoleFact` 与 CTF Projection，并用独立 Pi Security Adapter、真实模型、类型化 Capability 和
 Flag Judge 跑通离线单题；实现边界见 [ADR-0003](/developer/adr/0003-ctf-vertical-slice)。
 
-Environment Manager 也不能退化成让模型自由执行 `docker compose`。靶场由
-`LabSourceAdapter + LabPackage + EnvironmentProvider` 确定性管理，Agent 只能通过类型化工具
-请求生命周期动作；Readiness 与 Judge 分开。详细契约见
+Environment Manager 也不能退化成让模型自由执行 `docker compose` 或直接操控模拟器 / 虚拟机。
+靶场由 `LabSourceAdapter + LabPackage + EnvironmentProvider` 确定性管理，Agent 只能通过
+类型化工具请求生命周期动作；Readiness 与 Judge 分开。Docker 是默认 Provider，Android /
+Apple 虚拟机和真机适配（adb / usbmux / serial）是同一经纪的后续 Provider。产品判断见
+[靶机、环境经纪与 CVE 复现](/architecture/target-environments)；CTF 如何消费这些包见
 [CTF Labs 顶层与详细设计](/architecture/ctf-labs-design)。
 
 ### L5：Agent Engine and Tool Executors

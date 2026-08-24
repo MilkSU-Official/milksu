@@ -64,6 +64,8 @@ export function researchReportGuidance(sessionRole = "") {
     "A missed reproduction still needs a report of what was tried and observed.",
     "Status labels are not a report.",
     "Stay on the user-selected target for this job; do not scan unrelated hosts or internet ranges.",
+    "Use env_status, env_start, env_reset, and env_stop for the bound target.",
+    "Do not call docker, compose, nerdctl, undeclared adb, or the emulator console.",
   ];
   if (sessionRole === "cve-research") {
     lines.push(

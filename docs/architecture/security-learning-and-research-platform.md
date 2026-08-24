@@ -65,15 +65,15 @@ flowchart LR
 
 当前主导航是 `CTF / CVE / 实验室 / Coding`。实验室是独立作业面，不塞进 CVE，也不挂在 CTF 题库下面。
 
-Juice Shop、WebGoat、Vulhub 一类可重置环境仍是 CTF 的长期设计，见
-[CTF Labs 设计](ctf-labs-design.md)。不要把那份设计当成当前实验室模块的约束。
+Juice Shop、WebGoat、Vulhub，以及后续 Android / Apple 虚拟环境和真机适配，属于共享 **Environment Broker**，见
+[靶机、环境经纪与 CVE 复现](target-environments.md)。[CTF Labs 设计](ctf-labs-design.md) 只描述 CTF 怎么消费这些包，不是「只有 CTF 才能起环境」。不要把那份设计当成当前实验室模块的约束，也不要把可重置环境从 CVE / 实验室拿掉。
 
 ## 3. 四个垂直模块的责任
 
 | 模块 | 核心问题 | 完成事实 | 不负责 |
 | --- | --- | --- | --- |
 | CTF | 这道题怎样被理解并正确解出？ | Platform/Local Judge 给出明确 Verdict | 管理任意容器、宣布真实漏洞成立 |
-| 实验室 | 对用户给出的靶，怎样做一轮探测并留下报告？ | Agent 编辑的 `report.md` / `report.html` | 未授权扫描、Kali 应用商店、把候选写成已确认漏洞 |
+| 实验室 | 怎样得到一个活的、可授权的靶，并做一轮探测留下报告？ | 租约就绪（可选）+ Agent 编辑的 `report.md` | 未授权扫描、Kali 应用商店、把候选写成已确认漏洞、代替 CVE 情报或 CTF Judge |
 | CVE | 已知洞怎样被读懂并复现成报告？ | 档案里的活报告；状态标签不是完成面 | 无授权扫描、自动扩大范围、把候选当漏洞 |
 | Coding | 怎样完成通用软件工程工作？ | 测试、Diff、Git 和用户验收 | 代替 CTF Judge 或 CVE 报告 |
 
@@ -103,8 +103,7 @@ erDiagram
 共享 Runtime 只保存不可争议的过程事实；垂直 Role 通过类型化事实描述自己的领域：
 
 - CTF：Challenge、Candidate、JudgeReceipt、Debrief；
-- 实验室：LabJob、Target、Report；
-- CTF Labs（长期）：LabPackage、Lease、InstanceState、Readiness、ResetReceipt；
+- 实验室：LabJob、Target、Report、LabPackage、Lease（环境引擎的家；CVE/CTF 引用 Lease，不把档案搬进来）；
 - CVE：Program、Asset、ResearchCase、Hypothesis、Reproduction、RootCause、Disclosure；
 - Coding：Conversation、Workspace、Diff、TestReceipt。
 

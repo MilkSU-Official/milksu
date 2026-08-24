@@ -37,7 +37,8 @@
 ## 长期设计（不是禁令）
 
 - [授权安全学习与研究平台](/architecture/security-learning-and-research-platform)
-- [CTF Labs 设计](/architecture/ctf-labs-design)（CTF 可重置环境，不是主导航实验室）
+- [CTF Labs 设计](/architecture/ctf-labs-design)（CTF 如何消费可重置包；不是主导航实验室）
+- [靶机、环境经纪与活靶面](/architecture/target-environments)（Designed：P0 本地 Docker，右栏活靶面；交互稿 `app/env-preview.html`）
 - [CVE 研究工作台设计](/architecture/cve-research-workbench-design)
 
 主导航「实验室」和 CVE 档案复现已进入 `26.822.1`；`26.823.1` 起 CTF / CVE / 实验室与 Coding 共用完整循环。CTF 可重置环境仍未做。设计存在不表示已经做完。

@@ -16,13 +16,16 @@
 
 CTF 可重置环境还没进发行包和当前完成线。这是现状，不是冻结，也不再挡住主导航实验室。
 
-当前更想先碰的方向不是自建 HTB/TryHackMe 级平台，也不是在 MilkSU 里管理一整套 VM /
-Docker 靶场后端；短中期可以先做：
+产品判断已经改口，见 [靶机、环境经纪与 CVE 复现](target-environments.md)：真实环境是研究工作台本体，不是「短中期不要管 Docker/VM」。Juice Shop / WebGoat / Vulhub 是 Environment Broker 的第一批包，CTF、CVE、实验室、评测共用，不把可重置环境锁死在 CTF 题库里。
+
+外部平台仍然要接，但不能代替本机起靶：
 
 - 辅助用户在 HTB、TryHackMe、pwn.college 等外部靶场学习；
 - 追踪练习进度、笔记、提示依赖、复盘和能力画像；
 - 在明确授权时记录题目/房间/模块状态和用户贡献；
 - 复用 CTF 的 Evidence、Judge/验证、Memory 和 Agent 协作模型。
+
+自建 HTB 级公网平台不做。本机 Docker 包、以及后续 Android / Apple 虚拟机和真机适配，属于经纪，不属于「另做一个靶场网站」。
 
 ## 真边界
 

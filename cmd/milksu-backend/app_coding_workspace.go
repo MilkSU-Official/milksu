@@ -236,6 +236,8 @@ func (a *App) handleCodingWorkspaceAction(conversationID, action, input string) 
 		return encodeWorkspaceResult(map[string]any{"tasks": rows})
 	case "list_records", "get_record", "create_record", "update_record", "archive_records", "restore_records", "focus_record", "search_records":
 		return a.handleWorkspaceRecordAction(conversationID, action, request)
+	case "env_status", "env_start", "env_reset", "env_stop":
+		return a.handleEnvWorkspaceAction(conversationID, action)
 	default:
 		return "", fmt.Errorf("unknown Coding workspace action")
 	}

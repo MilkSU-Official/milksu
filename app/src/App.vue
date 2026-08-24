@@ -433,6 +433,21 @@ function expandDossierToCoding() {
   section.value = 'chat'
 }
 
+watch(section, (next, prev) => {
+  if (prev === 'lab' && next !== 'lab' && next !== 'chat') {
+    const id = labJobs.selectedId.value
+    if (id) {
+      void invokeCommand('stop_env_lease', { ownerKind: 'lab', ownerId: id }).catch(() => undefined)
+    }
+  }
+  if (prev === 'vuln' && next !== 'vuln' && next !== 'chat') {
+    const id = vulnerabilityDashboard.selectedId.value
+    if (id) {
+      void invokeCommand('stop_env_lease', { ownerKind: 'cve', ownerId: id }).catch(() => undefined)
+    }
+  }
+})
+
 async function chooseAgentWorkspace() {
   const workspacePath = await invokeCommand<string>('choose_agent_workspace')
   if (workspacePath) conversations.setWorkspace(workspacePath)

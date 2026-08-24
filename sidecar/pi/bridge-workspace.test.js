@@ -78,6 +78,7 @@ test("research report guidance tells the model to edit report.md", () => {
   assert.match(researchReportGuidance(), /report\.md/);
   assert.match(researchReportGuidance(), /Status labels are not a report/);
   assert.match(researchReportGuidance(), /Stay on the user-selected target/);
+  assert.match(researchReportGuidance(), /env_status/);
   assert.doesNotMatch(researchReportGuidance("lab-job"), /related\.md/);
   assert.match(researchReportGuidance("cve-research"), /related\.md/);
   assert.match(researchReportGuidance("cve-research"), /上游/);

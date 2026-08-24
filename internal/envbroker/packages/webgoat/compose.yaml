@@ -1,0 +1,9 @@
+services:
+  app:
+    image: webgoat/webgoat:v2023.8
+    ports:
+      - "127.0.0.1:18081:8080"
+    environment:
+      WEBGOAT_HOST: 127.0.0.1
+      WEBGOAT_PORT: 8080
+    restart: "no"

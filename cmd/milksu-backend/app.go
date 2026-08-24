@@ -26,6 +26,7 @@ import (
 	"github.com/MilkSU-Official/milksu/internal/ctf"
 	"github.com/MilkSU-Official/milksu/internal/ctfshow"
 	"github.com/MilkSU-Official/milksu/internal/engine"
+	"github.com/MilkSU-Official/milksu/internal/envbroker"
 	"github.com/MilkSU-Official/milksu/internal/lab"
 	"github.com/MilkSU-Official/milksu/internal/modelcatalog"
 	"github.com/MilkSU-Official/milksu/internal/modelusage"
@@ -47,6 +48,7 @@ type App struct {
 	settings          *config.Store
 	conversations     *conversation.Store
 	labJobs           *lab.Store
+	envBroker         *envbroker.Service
 	codingFiles       *codingattachment.Store
 	codingCollab      *codingcollab.Manager
 	ctfMaterials      *localCTFMaterialStore
@@ -107,6 +109,10 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create lab job store: %w", err)
 	}
+	envBroker, err := envbroker.New(dataDirectory)
+	if err != nil {
+		return nil, fmt.Errorf("create environment broker: %w", err)
+	}
 	artifactDirectory, err := userartifact.Directory()
 	if err != nil {
 		return nil, fmt.Errorf("resolve user artifact directory: %w", err)
@@ -138,6 +144,7 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 		settings:          settings,
 		conversations:     conversations,
 		labJobs:           labJobs,
+		envBroker:         envBroker,
 		codingFiles:       codingFiles,
 		codingProjects:    codingProjects,
 		codingCollab:      codingCollab,
@@ -386,6 +393,7 @@ func (a *App) Startup(ctx context.Context) {
 }
 
 func (a *App) Shutdown(_ context.Context) {
+
 	_ = a.vulnJobs.Close()
 	_ = a.ctfMemory.Close()
 	_ = a.ctfJobs.Close()
@@ -434,16 +442,18 @@ func (a *App) SetAccountModelCredential(baseURL, credential string) error {
 	if err != nil {
 		return err
 	}
+	// Re-read TokenFlux /v1/models even when the Key string is unchanged so
+	// Admin/group membership changes show up without a restart.
 	refreshedCatalog := a.modelCatalog.Snapshot()
-	if changed || refreshedCatalog.CredentialSource != modelcatalog.CredentialSourceAccount {
-		refreshContext, cancelRefresh := context.WithTimeout(context.Background(), 15*time.Second)
-		defer cancelRefresh()
-		if nextCatalog, refreshErr := a.modelCatalog.Refresh(refreshContext); refreshErr != nil {
-			a.diagnostics.Record("model-catalog", "warning", "account model catalog refresh failed; retained last-known-good catalog")
-		} else {
-			refreshedCatalog = nextCatalog
-			a.emitDesktopEvent("model-catalog-changed", refreshedCatalog)
-		}
+	refreshContext, cancelRefresh := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancelRefresh()
+	if nextCatalog, refreshErr := a.modelCatalog.Refresh(refreshContext); refreshErr != nil {
+		a.diagnostics.Record("model-catalog", "warning", "account model catalog refresh failed; retained last-known-good catalog")
+	} else if modelcatalog.CatalogsEquivalent(refreshedCatalog, nextCatalog) {
+		refreshedCatalog = nextCatalog
+	} else {
+		refreshedCatalog = nextCatalog
+		a.emitDesktopEvent("model-catalog-changed", refreshedCatalog)
 	}
 	selectionChanged, err := a.alignAccountModelSelection(refreshedCatalog)
 	if err != nil {

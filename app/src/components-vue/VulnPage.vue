@@ -28,6 +28,11 @@ import ConversationDock from '@/components-vue/ConversationDock.vue'
 import RelatedCvePanel from '@/components-vue/RelatedCvePanel.vue'
 import ResearchReportPanel from '@/components-vue/ResearchReportPanel.vue'
 import WorkspaceModuleTopBar from '@/components-vue/WorkspaceModuleTopBar.vue'
+import EnvironmentStrip from '@/components-vue/lab-env/EnvironmentStrip.vue'
+import TargetLivePane from '@/components-vue/lab-env/TargetLivePane.vue'
+import { invokeCommand } from '@/desktop'
+import { toStripLease, useEnvLease } from '@/composables/useEnvLease'
+import type { EnvPackage } from '@/envbroker'
 import { useVulnerabilityDashboard, type VulnerabilityCodingTask, type VulnerabilityDashboard, type VulnerabilitySearchCandidate } from '@/composables/useVulnerabilityDashboard'
 import type { Conversation } from '@/types'
 import type { CodingAgentSendArgs, CodingAgentSurfaceBind } from '@/lib/codingAgentSurface'
@@ -206,6 +211,22 @@ function relatedConversations(cveId: string) {
 const selectedItem = computed(() => (
   dashboard.tracked.value.find(item => item.id === dashboard.selectedId.value) ?? null
 ))
+const targetOpen = ref(false)
+const pendingOpen = ref(false)
+const showStartEnv = ref(false)
+const cveOwnerKind = computed(() => 'cve' as const)
+const cveOwnerId = computed(() => selectedItem.value?.id ?? '')
+const cvePackageId = ref<string | undefined>(undefined)
+const cveBoundPackage = ref<EnvPackage | undefined>(undefined)
+const {
+  lease: envLease,
+  start: startEnv,
+  stop: stopEnv,
+  reset: resetEnv,
+} = useEnvLease(cveOwnerKind, cveOwnerId, cvePackageId)
+const stripLease = computed(() => toStripLease(envLease.value, cveBoundPackage.value
+  ? { name: cveBoundPackage.value.name, provider: cveBoundPackage.value.provider }
+  : undefined))
 
 const dossierConversations = computed(() => relatedDomainConversations(
   props.conversations,
@@ -220,10 +241,25 @@ function selectItem(id: string) {
 
 watch(
   () => selectedItem.value?.id,
-  id => {
+  (id, prev) => {
+    if (prev && prev !== id) {
+      void invokeCommand('stop_env_lease', { ownerKind: 'cve', ownerId: prev }).catch(() => undefined)
+    }
+    targetOpen.value = false
+    pendingOpen.value = false
+    showStartEnv.value = false
     const item = selectedItem.value
     if (!item || !id) return
     emit('enter', item)
+    void invokeCommand<{ found: boolean; package: EnvPackage }>('get_env_package_for_cve', { cveId: id })
+      .then(lookup => {
+        cveBoundPackage.value = lookup.found ? lookup.package : undefined
+        cvePackageId.value = lookup.found ? lookup.package.id : undefined
+      })
+      .catch(() => {
+        cveBoundPackage.value = undefined
+        cvePackageId.value = undefined
+      })
   },
   { immediate: true },
 )
@@ -232,11 +268,56 @@ function clearSelection() {
   dashboard.selectedId.value = ''
 }
 
+function openTarget() {
+  if (envLease.value.state !== 'ready') return
+  targetOpen.value = true
+  const conversationId = props.conversation?.id || props.ensureConversation?.(selectedItem.value?.id)
+  if (conversationId && envLease.value.surface === 'browser' && envLease.value.address) {
+    void invokeCommand('start_coding_browser', {
+      conversationId,
+      initialUrl: `http://${envLease.value.address}`,
+    }).catch(() => undefined)
+  }
+}
+
+function openDocker() {
+  void invokeCommand('open_docker_desktop').catch(() => undefined)
+}
+
 function startReproduction() {
   const item = selectedItem.value
   if (!item) return
+  if (cvePackageId.value && envLease.value.state !== 'ready' && envLease.value.state !== 'pulling') {
+    showStartEnv.value = true
+    return
+  }
+  pendingOpen.value = true
+  if (envLease.value.state === 'ready') openTarget()
   emit('run', item)
 }
+
+function confirmStartEnv() {
+  const item = selectedItem.value
+  showStartEnv.value = false
+  if (!item) return
+  pendingOpen.value = true
+  void startEnv(cvePackageId.value)
+  emit('run', item)
+}
+
+function reportOnly() {
+  const item = selectedItem.value
+  showStartEnv.value = false
+  if (!item) return
+  emit('run', item)
+}
+
+watch(() => envLease.value.state, state => {
+  if (state === 'ready' && pendingOpen.value) {
+    pendingOpen.value = false
+    openTarget()
+  }
+})
 
 function presentVendorProduct(item: VulnerabilityIntel) {
   return presentVulnerabilityVendorProduct({
@@ -600,44 +681,61 @@ function addSearchResult(candidate: VulnerabilitySearchCandidate) {
         <Button variant="brand" size="sm" @click="startReproduction">开始复现</Button>
       </template>
     </WorkspaceModuleTopBar>
-    <div class="min-h-0 flex-1 overflow-auto">
-      <div class="mx-auto max-w-5xl space-y-5 px-6 py-6">
-        <section class="rounded-xl border border-border bg-card p-6">
-          <p class="text-body leading-6 text-muted-foreground">{{ selectedItem.summary }}</p>
-          <div v-if="selectedItem.references.length" class="mt-4 flex flex-wrap gap-2">
-            <Button
-              v-for="reference in keyReferences(selectedItem)"
-              :key="reference.href"
-              as="a"
-              :href="reference.href"
-              target="_blank"
-              rel="noreferrer"
-              variant="outline"
-              size="sm"
-            >
-              {{ referenceLabel(reference.label, reference.href) }}<ExternalLink class="size-3" />
-            </Button>
-          </div>
-        </section>
-        <section class="rounded-xl border border-border bg-card p-6">
-          <h2 class="text-label font-medium">关联 CVE</h2>
-          <RelatedCvePanel
-            class="mt-4"
-            :workspace-path="conversation?.workspacePath ?? workspacePath"
-            :refresh-key="running ? 'run' : conversation?.messages.length"
+    <div class="flex min-h-0 flex-1 overflow-hidden">
+      <div class="min-h-0 min-w-0 flex-1 overflow-auto" :class="targetOpen ? 'max-w-md border-r border-border' : ''">
+        <div class="space-y-5 px-6 py-6" :class="targetOpen ? '' : 'mx-auto max-w-5xl'">
+          <section class="rounded-xl border border-border bg-card p-6">
+            <p class="text-body leading-6 text-muted-foreground">{{ selectedItem.summary }}</p>
+            <div v-if="selectedItem.references.length" class="mt-4 flex flex-wrap gap-2">
+              <Button
+                v-for="reference in keyReferences(selectedItem)"
+                :key="reference.href"
+                as="a"
+                :href="reference.href"
+                target="_blank"
+                rel="noreferrer"
+                variant="outline"
+                size="sm"
+              >
+                {{ referenceLabel(reference.label, reference.href) }}<ExternalLink class="size-3" />
+              </Button>
+            </div>
+          </section>
+          <EnvironmentStrip
+            :lease="stripLease"
+            @start="startEnv(cvePackageId || envLease.packageId)"
+            @stop="stopEnv"
+            @reset="resetEnv"
+            @open-target="openTarget"
+            @retry="startEnv(cvePackageId || envLease.packageId)"
+            @open-docker="openDocker"
           />
-        </section>
-        <section class="rounded-xl border border-border bg-card p-6">
-          <h2 class="text-label font-medium">报告</h2>
-          <ResearchReportPanel
-            class="mt-4"
-            :workspace-path="conversation?.workspacePath ?? ''"
-            :refresh-key="running ? 'run' : conversation?.messages.length"
-          />
-        </section>
+          <section class="rounded-xl border border-border bg-card p-6">
+            <h2 class="text-label font-medium">关联 CVE</h2>
+            <RelatedCvePanel
+              class="mt-4"
+              :workspace-path="conversation?.workspacePath ?? workspacePath"
+              :refresh-key="running ? 'run' : conversation?.messages.length"
+            />
+          </section>
+          <section class="rounded-xl border border-border bg-card p-6">
+            <h2 class="text-label font-medium">报告</h2>
+            <ResearchReportPanel
+              class="mt-4"
+              :workspace-path="conversation?.workspacePath ?? ''"
+              :refresh-key="running ? 'run' : conversation?.messages.length"
+            />
+          </section>
+        </div>
       </div>
+      <TargetLivePane
+        v-if="targetOpen && envLease.state === 'ready'"
+        :lease="envLease"
+        :conversation-id="conversation?.id"
+      />
     </div>
     <ConversationDock
+      v-if="!targetOpen"
       :conversation="conversation ?? null"
       :conversations="dossierConversations"
       :running="running"
@@ -687,6 +785,19 @@ function addSearchResult(candidate: VulnerabilitySearchCandidate) {
       @edit-queued-guidance="$emit('editQueuedGuidance', $event)"
       @open-settings="$emit('openSettings')"
     />
+
+    <Dialog v-model:open="showStartEnv">
+      <DialogContent class="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>这个洞有练习包。先启动？</DialogTitle>
+          <DialogDescription>启动后右侧打开活靶面。也可以只写报告。</DialogDescription>
+        </DialogHeader>
+        <div class="flex justify-end gap-2">
+          <Button type="button" variant="ghost" data-testid="repro-report-only" @click="reportOnly">只写报告</Button>
+          <Button type="button" variant="brand" data-testid="repro-start-env" @click="confirmStartEnv">启动并复现</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   </main>
 </template>
 

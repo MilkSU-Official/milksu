@@ -124,6 +124,7 @@ import {
   formatCodingWorkspaceInput,
   queueWorkspaceCompaction,
 } from "./bridge-workspace.js";
+import { createEnvExtension } from "./bridge-env.js";
 import { createComputerUseDriverExtension } from "./bridge-computer-use-driver.js";
 import { reviewedCodingSkillPaths } from "./bridge-skills.js";
 import { createToolResultBoundExtension } from "./bridge-tool-result-bound.js";
@@ -1131,6 +1132,12 @@ function createMilkSUResourceLoader(
           contextWindow: sessions.get(id)?.model?.contextWindow
             ?? sessionContextUsage.get(id)?.contextWindow,
         }),
+      ),
+      createEnvExtension(
+        conversationId,
+        sessionRole,
+        getPolicy,
+        request => workspaceActionBroker.request(request),
       ),
       createComputerUseDriverExtension(
         conversationId,

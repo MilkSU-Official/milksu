@@ -20,6 +20,7 @@ type Job struct {
 	Title      string `json:"title"`
 	Scope      string `json:"scope"`
 	Request    string `json:"request"`
+	PackageID  string `json:"packageId,omitempty"`
 	CreatedAt  int64  `json:"createdAt"`
 	UpdatedAt  int64  `json:"updatedAt"`
 	ArchivedAt uint64 `json:"archivedAt,omitempty"`
@@ -225,6 +226,7 @@ func normalizeJob(value Job) (Job, error) {
 		Title:      title,
 		Scope:      scope,
 		Request:    request,
+		PackageID:  strings.TrimSpace(value.PackageID),
 		CreatedAt:  createdAt,
 		UpdatedAt:  updatedAt,
 		ArchivedAt: value.ArchivedAt,

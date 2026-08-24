@@ -1,0 +1,6 @@
+services:
+  app:
+    image: traefik/whoami:v1.10.2
+    ports:
+      - "127.0.0.1:18080:80"
+    restart: "no"

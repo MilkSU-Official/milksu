@@ -430,6 +430,14 @@ interface DesktopAppBindings {
   StartVulnerabilityPractice(request: VulnerabilityPracticeRequest): Promise<VulnerabilityPracticeRun>
   GetVulnerabilityPracticeStatus(request: VulnerabilityPracticeRequest): Promise<VulnerabilityPracticeRun>
   StopVulnerabilityPractice(request: VulnerabilityPracticeRequest): Promise<VulnerabilityPracticeRun>
+  ListLabPackages(): Promise<import('@/envbroker').EnvPackage[]>
+  GetEnvLease(request: import('@/envbroker').EnvOwnerRequest): Promise<import('@/envbroker').EnvLease>
+  GetEnvPackageForCVE(cveId: string): Promise<{ found: boolean; package: import('@/envbroker').EnvPackage }>
+  StartEnvLease(request: import('@/envbroker').EnvOwnerRequest): Promise<import('@/envbroker').EnvLease>
+  StopEnvLease(request: import('@/envbroker').EnvOwnerRequest): Promise<import('@/envbroker').EnvLease>
+  ResetEnvLease(request: import('@/envbroker').EnvOwnerRequest): Promise<import('@/envbroker').EnvLease>
+  ProbeEnvLease(request: import('@/envbroker').EnvOwnerRequest): Promise<string>
+  OpenDockerDesktop(): Promise<void>
   RecordVulnLearning(id: string, request: VulnLearningRecordRequest): Promise<VulnProjection>
   RecordVulnAssetVerification(id: string, request: VulnAssetVerificationRequest): Promise<VulnProjection>
   CancelVulnJob(id: string): Promise<void>
@@ -986,6 +994,22 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.GetVulnerabilityPracticeStatus(args?.request as VulnerabilityPracticeRequest) as Promise<T>
       case 'stop_vulnerability_practice':
         return app.StopVulnerabilityPractice(args?.request as VulnerabilityPracticeRequest) as Promise<T>
+      case 'list_lab_packages':
+        return app.ListLabPackages() as Promise<T>
+      case 'get_env_lease':
+        return app.GetEnvLease(args as never) as Promise<T>
+      case 'get_env_package_for_cve':
+        return app.GetEnvPackageForCVE(args?.cveId as string) as Promise<T>
+      case 'start_env_lease':
+        return app.StartEnvLease(args as never) as Promise<T>
+      case 'stop_env_lease':
+        return app.StopEnvLease(args as never) as Promise<T>
+      case 'reset_env_lease':
+        return app.ResetEnvLease(args as never) as Promise<T>
+      case 'probe_env_lease':
+        return app.ProbeEnvLease(args as never) as Promise<T>
+      case 'open_docker_desktop':
+        return app.OpenDockerDesktop() as Promise<T>
       case 'record_vuln_learning':
         return app.RecordVulnLearning(args?.id as string, args?.request as VulnLearningRecordRequest) as Promise<T>
       case 'record_vuln_asset_verification':
