@@ -2096,7 +2096,7 @@ defineExpose({
 
 <template>
   <section
-    class="relative flex min-w-0 flex-1 flex-col bg-surface-editor"
+    class="chat-page relative flex min-w-0 flex-1 flex-col bg-surface-editor"
     :class="dockSurface ? 'chat-surface-dock min-h-0 min-w-0 overflow-hidden' : 'overflow-hidden'"
     data-agent-conversation
     :data-testid="dockSurface ? 'coding-agent-dock-surface' : undefined"

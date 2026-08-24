@@ -33,6 +33,7 @@ export function applyThemeMode(
   const resolved = resolveThemeMode(mode, prefersDark)
   root.dataset.theme = resolved
   root.dataset.themeMode = mode
+  root.classList.toggle('dark', resolved === 'dark')
   root.style.colorScheme = resolved
 }
 

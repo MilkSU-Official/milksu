@@ -3,6 +3,7 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { createApp, nextTick, type App as VueApp } from 'vue'
 import CTFChallengeDesk from './CTFChallengeDesk.vue'
+import ctfChallengeDeskSource from './CTFChallengeDesk.vue?raw'
 import { createItemCollectionStore } from '@/lib/itemCollections'
 import type { NSSCTFChallenge } from '@/nssctfTypes'
 import type { NSSCTFCatalogProblem } from '@/nssctfTrainingTypes'
@@ -101,7 +102,69 @@ function dailyProblem(): NSSCTFCatalogProblem {
   }
 }
 
+function catalogProblem(platformId: number, difficulty: number): NSSCTFCatalogProblem {
+  return {
+    ...dailyProblem(),
+    platformId,
+    title: `难度 ${difficulty}`,
+    difficulty,
+  }
+}
+
 describe('CTFChallengeDesk primary action', () => {
+  it('uses theme-aware tag surfaces and keeps the category and difficulty signals distinct', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    const problems = [
+      catalogProblem(1, 1.5),
+      catalogProblem(2, 2.8),
+      catalogProblem(3, 4),
+    ]
+    const app = createApp(CTFChallengeDesk, {
+      activeBank: 'nssctf',
+      nssctfProblems: problems,
+      ctfshowProblems: [],
+      selectedNssctf: null,
+      selectedCtfshow: null,
+      dailyProblem: problems[0],
+      page: 1,
+      pageCount: 1,
+      total: problems.length,
+      loading: false,
+      actionLoading: false,
+      collaborationMode: 'copilot',
+      selectedBrowserReady: false,
+      ctfshowBridgeReady: false,
+      attachmentError: '',
+      localMaterials: [],
+      catalogError: '',
+      modelVerified: false,
+      catalogReady: true,
+      judgeReady: false,
+      hasActiveTraining: false,
+      collectionStore: createItemCollectionStore('test.ctf.tags.collections'),
+    })
+    app.mount(host)
+    mountedApps.push(app)
+    await nextTick()
+
+    expect(host.querySelector('.ctf-challenge-list')).toBeTruthy()
+    expect(host.querySelector('.ctf-catalog-tag--category')).toBeTruthy()
+    expect(host.querySelector('.ctf-catalog-tag--daily.ak-tag--advanced')).toBeTruthy()
+    const difficultyTags = [...host.querySelectorAll('.ctf-catalog-tag--difficulty')]
+    expect(difficultyTags).toHaveLength(3)
+    expect(difficultyTags[0]?.classList.contains('ak-tag--neutral')).toBe(true)
+    expect(difficultyTags[1]?.classList.contains('ak-tag--advanced')).toBe(true)
+    expect(difficultyTags[2]?.classList.contains('ak-tag--danger')).toBe(true)
+
+    expect(ctfChallengeDeskSource).toContain('--ak-tag-surface: var(--surface-raised)')
+    expect(ctfChallengeDeskSource).toContain('--ak-tag-text: var(--foreground)')
+    expect(ctfChallengeDeskSource).toContain('--ak-tag-signal: var(--brand)')
+    expect(ctfChallengeDeskSource).toContain('--ak-tag-signal: var(--signal-gold)')
+    expect(ctfChallengeDeskSource).toContain('--ak-tag-signal: var(--destructive)')
+    expect(ctfChallengeDeskSource).not.toContain('--ak-tag-surface: rgba(')
+  })
+
   it('explains how to populate an empty CTFshow catalog', async () => {
     const host = document.createElement('div')
     document.body.appendChild(host)

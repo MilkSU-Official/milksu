@@ -66,6 +66,7 @@ import {
   ensureMcpMetadataCache,
   loadCodingMcpConfig,
   mcpSelectionChanged,
+  pluginMcpSessionRequiresReload,
   projectMcpServersFromSelection,
   userMcpSelectionChanged,
 } from "./bridge-mcp.js";
@@ -1382,6 +1383,7 @@ async function loadRuntimeSessionPolicy(cwd, command) {
     browserUse,
     securityTools,
     command.userMcpServers,
+    command.recoveryPurpose !== "background-tasks",
   );
   let policy = await loadSessionPolicy(cwd, command.sessionRole, {
     executionMode: command.executionMode,
@@ -1663,6 +1665,10 @@ async function sendMessage(command) {
       || productActionChanged
       || mcpSelectionChanged(previousPolicy.projectMcpServers, requestedProjectMcpServers)
       || userMcpSelectionChanged(previousPolicy.userMcpServers, command.userMcpServers)
+      || pluginMcpSessionRequiresReload(
+        previousPolicy.mcpServers,
+        command.recoveryPurpose,
+      )
       || String(previousPolicy.mcpConfigDigest ?? "")
         !== String(command.mcpConfigDigest ?? "")
       || codingBrowserSelectionChanged(

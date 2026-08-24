@@ -33,6 +33,7 @@ import (
 	"github.com/MilkSU-Official/milksu/internal/modelcatalog"
 	"github.com/MilkSU-Official/milksu/internal/modelusage"
 	"github.com/MilkSU-Official/milksu/internal/nssctf"
+	pluginruntime "github.com/MilkSU-Official/milksu/internal/plugin"
 	"github.com/MilkSU-Official/milksu/internal/securityruntime"
 	"github.com/MilkSU-Official/milksu/internal/securitytools"
 	"github.com/MilkSU-Official/milksu/internal/sessionindex"
@@ -63,6 +64,7 @@ type App struct {
 	agentResources    *agentresources.Store
 	modelCatalog      *modelcatalog.Service
 	modelUsage        *modelusage.Store
+	pluginRegistry    *pluginruntime.Registry
 	nssctf            *nssctf.Client
 	nssctfCatalog     *nssctf.CatalogService
 	ctfshowCatalog    *ctfshow.CatalogService
@@ -148,6 +150,10 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 		codingProjects:    codingProjects,
 		codingCollab:      codingCollab,
 		ctfMaterials:      newLocalCTFMaterialStore(),
+	}
+	application.pluginRegistry, err = newPluginRegistry(dataDirectory)
+	if err != nil {
+		return nil, fmt.Errorf("create plugin registry: %w", err)
 	}
 	application.diagnostics.Record("app", "info", "application services initialized")
 	application.modelCatalog, err = modelcatalog.New(
@@ -412,7 +418,6 @@ func (a *App) Startup(ctx context.Context) {
 }
 
 func (a *App) Shutdown(_ context.Context) {
-
 	_ = a.vulnJobs.Close()
 	_ = a.ctfMemory.Close()
 	_ = a.ctfJobs.Close()

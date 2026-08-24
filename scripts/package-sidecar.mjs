@@ -68,6 +68,8 @@ const typescriptLanguageServerVersion = '5.3.0'
 const vueLanguageServerVersion = '2.2.12'
 const typescriptVersion = '6.0.3'
 const diffVersion = '8.0.4'
+const gopherLuaVersion = '1.1.2'
+const modelContextProtocolGoSDKVersion = '1.7.0'
 const goplsVersion = '0.23.0'
 const goplsSource = {
   module: 'golang.org/x/tools/gopls',
@@ -153,7 +155,8 @@ function resolveCodesignIdentity() {
 
 function currentPlatform() {
   const arch = process.arch === 'x64' ? 'amd64' : process.arch
-  return `${process.platform}/${arch}`
+  const operatingSystem = process.platform === 'win32' ? 'windows' : process.platform
+  return `${operatingSystem}/${arch}`
 }
 
 async function exists(path) {
@@ -893,6 +896,8 @@ async function buildSidecar(platform) {
   const nodeOutput = join(output, platformBinaryName(platform, 'node'))
   const chatOutput = join(output, 'chat-bridge.cjs')
   const computerUseProxyOutput = join(output, 'computer-use-proxy.cjs')
+  const pluginWorkerOutput = join(output, 'plugin-worker.mjs')
+  const pluginLoaderOutput = join(output, 'deny-loader.mjs')
   const piSubagentLauncherOutput = join(output, 'pi-subagent-launcher.sh')
   const piSubagentRunnerOutput = join(output, 'pi-subagent-runner.cjs')
   const currentProviderRuntimeOutput = join(output, 'current-provider-runtime.cjs')
@@ -1094,6 +1099,19 @@ async function buildSidecar(platform) {
       join(licenseOutput, 'cua-MIT.txt'),
     ),
     copyFile(
+      join(repositoryRoot, 'third_party', 'licenses', 'gopher-lua-MIT.txt'),
+      join(licenseOutput, 'gopher-lua-MIT.txt'),
+    ),
+    copyFile(
+      join(
+        repositoryRoot,
+        'third_party',
+        'licenses',
+        'modelcontextprotocol-go-sdk-LICENSE.txt',
+      ),
+      join(licenseOutput, 'modelcontextprotocol-go-sdk-LICENSE.txt'),
+    ),
+    copyFile(
       join(diffSource, 'LICENSE'),
       join(licenseOutput, 'diff-BSD-3-Clause.txt'),
     ),
@@ -1124,6 +1142,14 @@ async function buildSidecar(platform) {
     copyFile(
       join(repositoryRoot, 'sidecar', 'pi', 'known-context-window.cjs'),
       join(output, 'known-context-window.cjs'),
+    ),
+    copyFile(
+      join(repositoryRoot, 'sidecar', 'plugin-runtime', 'worker.mjs'),
+      pluginWorkerOutput,
+    ),
+    copyFile(
+      join(repositoryRoot, 'sidecar', 'plugin-runtime', 'deny-loader.mjs'),
+      pluginLoaderOutput,
     ),
     copyFile(
       join(
@@ -1209,6 +1235,8 @@ async function buildSidecar(platform) {
     chmod(piSubagentLauncherOutput, 0o755),
     chmod(piSubagentRunnerOutput, 0o644),
     chmod(join(output, 'known-context-window.cjs'), 0o644),
+    chmod(pluginWorkerOutput, 0o644),
+    chmod(pluginLoaderOutput, 0o644),
     chmod(piSubagentCliOutput, 0o644),
   ])
 
@@ -1398,6 +1426,20 @@ async function buildSidecar(platform) {
         licenseFile: 'THIRD_PARTY-LICENSES/diff-BSD-3-Clause.txt',
         scope: 'reviewed-lsp-fix',
       },
+      gopherLua: {
+        package: 'github.com/yuin/gopher-lua',
+        version: gopherLuaVersion,
+        license: 'MIT',
+        licenseFile: 'THIRD_PARTY-LICENSES/gopher-lua-MIT.txt',
+        scope: 'backend-plugin-runtime',
+      },
+      modelContextProtocolGoSDK: {
+        package: 'github.com/modelcontextprotocol/go-sdk',
+        version: modelContextProtocolGoSDKVersion,
+        license: 'Apache-2.0 / MIT / CC-BY-4.0 transition',
+        licenseFile: 'THIRD_PARTY-LICENSES/modelcontextprotocol-go-sdk-LICENSE.txt',
+        scope: 'backend-plugin-mcp',
+      },
     },
     esbuild: { version: '0.28.1' },
     bridges: {
@@ -1405,6 +1447,10 @@ async function buildSidecar(platform) {
       computerUse: {
         file: 'computer-use-proxy.cjs',
         sha256: await sha256(computerUseProxyOutput),
+      },
+      pluginRuntime: {
+        worker: { file: 'plugin-worker.mjs', sha256: await sha256(pluginWorkerOutput) },
+        moduleGuard: { file: 'deny-loader.mjs', sha256: await sha256(pluginLoaderOutput) },
       },
     },
   }
@@ -1428,11 +1474,15 @@ async function smokeSidecar(platform) {
     join(output, 'THIRD_PARTY-LICENSES', 'gopls-BSD-3-Clause.txt'),
     join(output, 'THIRD_PARTY-LICENSES', 'diff-BSD-3-Clause.txt'),
     join(output, 'THIRD_PARTY-LICENSES', 'cua-MIT.txt'),
+    join(output, 'THIRD_PARTY-LICENSES', 'gopher-lua-MIT.txt'),
+    join(output, 'THIRD_PARTY-LICENSES', 'modelcontextprotocol-go-sdk-LICENSE.txt'),
     join(output, 'computer-use-proxy.cjs'),
     join(output, 'pi-subagent-launcher.sh'),
     join(output, 'pi-subagent-runner.cjs'),
     join(output, 'current-provider-runtime.cjs'),
     join(output, 'known-context-window.cjs'),
+    join(output, 'plugin-worker.mjs'),
+    join(output, 'deny-loader.mjs'),
     join(output, 'pi-subagent-cli.cjs'),
     join(output, 'dist', 'modes', 'interactive', 'theme', 'dark.json'),
     join(output, 'dist', 'modes', 'interactive', 'theme', 'light.json'),
@@ -2340,6 +2390,8 @@ async function installSidecar(platform, binaryPath) {
     'pi-subagent-runner.cjs',
     'current-provider-runtime.cjs',
     'known-context-window.cjs',
+    'plugin-worker.mjs',
+    'deny-loader.mjs',
     'pi-subagent-cli.cjs',
     'cua-driver',
     'manifest.json',
@@ -2403,7 +2455,15 @@ async function installSidecar(platform, binaryPath) {
       'THIRD_PARTY-LICENSES',
       'cua-MIT.txt',
     ),
+    join(destination, 'THIRD_PARTY-LICENSES', 'gopher-lua-MIT.txt'),
+    join(
+      destination,
+      'THIRD_PARTY-LICENSES',
+      'modelcontextprotocol-go-sdk-LICENSE.txt',
+    ),
     join(destination, 'computer-use-proxy.cjs'),
+    join(destination, 'plugin-worker.mjs'),
+    join(destination, 'deny-loader.mjs'),
     join(destination, 'cua-driver'),
   ]) {
     if (!await exists(requiredPath)) {

@@ -1496,7 +1496,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <main class="tactical-page flex min-w-0 flex-1 flex-col bg-background">
+  <main class="tactical-page ctf-page flex min-w-0 flex-1 flex-col bg-background">
     <CTFWorkspaceHeader
       v-if="screen === 'workspace'"
       :challenge-title="activeProjection?.challenge.title"
@@ -1833,7 +1833,7 @@ onBeforeUnmount(() => {
 
           <template v-if="activeProjection">
             <div class="page-stack">
-            <SettingsSection :title="t('题目', 'Challenge')">
+            <SettingsSection class="ctf-problem-surface" :title="t('题目', 'Challenge')">
               <div class="px-4 py-3">
                 <div class="flex flex-wrap items-center gap-2">
                   <Badge variant="outline">{{ formatCategory(activeProjection.challenge.category) }}</Badge>

@@ -138,7 +138,7 @@ function difficultyLabel(value: number) {
 }
 
 function difficultyTag(value: number) {
-  if (!value || value <= 2.4) return ''
+  if (!value || value <= 2.4) return 'ak-tag--neutral'
   if (value <= 3.2) return 'ak-tag--advanced'
   return 'ak-tag--danger'
 }
@@ -150,7 +150,7 @@ function select(id: number) {
 </script>
 
 <template>
-  <section class="flex h-full min-h-0 flex-col bg-background" :aria-label="t('CTF 挑战列表', 'CTF challenge list')">
+  <section class="flex h-full min-h-0 flex-col bg-background" :aria-label="t('CTF 挑战列表', 'CTF challenge list')" data-plugin-surface="workspace-list">
     <div class="tactical-desk-head grid h-12 shrink-0 grid-cols-[92px_minmax(0,1fr)_140px_110px_130px_42px_72px] items-center gap-4 border-b border-border px-6 text-caption text-muted-foreground">
       <span>#</span><span>{{ t('题目', 'Challenge') }}</span><span>{{ t('类别', 'Category') }}</span><span>{{ t('难度', 'Difficulty') }}</span><span>{{ t('我的状态', 'My status') }}</span><span class="sr-only">{{ t('收藏', 'Collections') }}</span><span class="sr-only">{{ t('打开', 'Open') }}</span>
     </div>
@@ -170,8 +170,8 @@ function select(id: number) {
               <span class="truncate text-control font-medium">{{ problem.title }}</span>
               <span v-if="dailyProblemID === problem.platformId" class="ak-tag ak-tag--advanced ml-3">{{ t('每日挑战', 'Daily challenge') }}</span>
             </span>
-            <span class="ak-tag ak-tag--compact">{{ problem.category }}</span>
-            <span class="ak-tag ak-tag--compact" :class="difficultyTag(problem.difficulty)">{{ difficultyLabel(problem.difficulty) }}</span>
+            <span class="ctf-catalog-tag ctf-catalog-tag--category ak-tag ak-tag--compact">{{ problem.category }}</span>
+            <span class="ctf-catalog-tag ctf-catalog-tag--difficulty ak-tag ak-tag--compact" :class="difficultyTag(problem.difficulty)">{{ difficultyLabel(problem.difficulty) }}</span>
             <span class="text-caption" :class="statusFor(problem.platformId) === 'in_progress' ? 'text-primary' : 'text-muted-foreground'">{{ statusLabel(statusFor(problem.platformId)) }}</span>
             <CollectionPicker :item-key="collectionKey(problem.platformId)" :store="collectionStore" />
             <Button size="sm" variant="outline" data-testid="open-item" @click="select(problem.platformId)">{{ t('打开', 'Open') }}</Button>
@@ -246,5 +246,31 @@ function select(id: number) {
 </template>
 
 <style scoped>
+.ctf-challenge-list {
+  background-color: var(--card);
+}
+
+.ctf-catalog-tag {
+  --ak-tag-surface: var(--surface-raised);
+  --ak-tag-text: var(--foreground);
+}
+
+.ctf-catalog-tag--category {
+  --ak-tag-signal: var(--brand);
+}
+
+.ctf-catalog-tag--daily,
+.ctf-catalog-tag--difficulty.ak-tag--advanced {
+  --ak-tag-signal: var(--signal-gold);
+}
+
+.ctf-catalog-tag--difficulty.ak-tag--danger {
+  --ak-tag-signal: var(--destructive);
+}
+
+.ctf-catalog-tag--difficulty.ak-tag--neutral {
+  --ak-tag-signal: var(--muted-foreground);
+}
+
 .challenge-row { position: relative; cursor: default; transition: background-color 140ms ease; }
 </style>

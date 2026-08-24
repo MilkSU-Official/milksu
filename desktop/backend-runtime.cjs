@@ -4,6 +4,8 @@ const readline = require('node:readline')
 
 const METHOD_PATTERN = /^[A-Z][A-Za-z0-9]{0,80}$/u
 const MAX_BACKEND_MESSAGE_BYTES = 128 << 20
+const BACKEND_INVOKE_SOURCE_RENDERER = 'renderer'
+const BACKEND_INVOKE_SOURCE_ELECTRON_HOST = 'electron_host'
 
 function isClosedPipeError(error) {
   return error?.code === 'EPIPE' || error?.code === 'ERR_STREAM_DESTROYED'
@@ -211,9 +213,24 @@ class BackendRuntime {
     return this.ensureReady()
   }
 
-  async invoke(method, args) {
+  invoke(method, args) {
+    return this.invokeFromRenderer(method, args)
+  }
+
+  invokeFromRenderer(method, args) {
+    return this.invokeWithSource(BACKEND_INVOKE_SOURCE_RENDERER, method, args)
+  }
+
+  invokeFromElectronHost(method, args) {
+    return this.invokeWithSource(BACKEND_INVOKE_SOURCE_ELECTRON_HOST, method, args)
+  }
+
+  async invokeWithSource(source, method, args) {
     if (!METHOD_PATTERN.test(method) || !Array.isArray(args)) {
       return Promise.reject(new Error('invalid desktop invocation'))
+    }
+    if (source !== BACKEND_INVOKE_SOURCE_RENDERER && source !== BACKEND_INVOKE_SOURCE_ELECTRON_HOST) {
+      return Promise.reject(new Error('invalid desktop invocation source'))
     }
     await this.ensureReady()
     const generation = this.generation
@@ -221,7 +238,7 @@ class BackendRuntime {
     return new Promise((resolve, reject) => {
       this.pending.set(id, { resolve, reject, generation })
       try {
-        this.send({ type: 'invoke', id, method, args, generation }, { generation })
+        this.send({ type: 'invoke', id, source, method, args, generation }, { generation })
       } catch (error) {
         this.pending.delete(id)
         reject(error)
@@ -273,4 +290,6 @@ module.exports = {
   runtimeUserError,
   METHOD_PATTERN,
   MAX_BACKEND_MESSAGE_BYTES,
+  BACKEND_INVOKE_SOURCE_RENDERER,
+  BACKEND_INVOKE_SOURCE_ELECTRON_HOST,
 }

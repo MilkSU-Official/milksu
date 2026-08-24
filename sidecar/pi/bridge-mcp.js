@@ -22,6 +22,11 @@ import {
   codingBrowserExcludedTools,
   codingBrowserMcpServerName,
 } from "./bridge-browser-policy.js";
+import {
+  createFirstPartyPluginMcpServer,
+  pluginMcpSessionRequiresReload,
+  pluginMcpServerName,
+} from "./bridge-plugin-mcp.js";
 
 const maxConfigBytes = 1 << 20;
 const maxSelectedServers = 16;
@@ -29,6 +34,11 @@ const maxReviewedTools = 64;
 export { codingBrowserMcpServerName };
 export { browserUseMcpServerName };
 export const computerUseMcpServerName = "milksu-computer-use";
+export {
+  createFirstPartyPluginMcpServer,
+  pluginMcpSessionRequiresReload,
+  pluginMcpServerName,
+};
 const bridgeDirectory = dirname(fileURLToPath(import.meta.url));
 const sidecarResourceDirectory = existsSync(join(
   bridgeDirectory,
@@ -169,6 +179,10 @@ const windowsSafeChildEnvironmentNames = [
 const safeChildEnvironmentNames = process.platform === "win32"
   ? windowsSafeChildEnvironmentNames
   : unixSafeChildEnvironmentNames;
+// Project MCP configuration may interpolate only public process metadata.
+// Credentials must never be discovered from the model Sidecar environment;
+// dedicated server credentials belong in an explicit reviewed definition.
+const interpolableEnvironmentNames = new Set(safeChildEnvironmentNames);
 const protectedEnvironmentNames = new Set([
   "ANTHROPIC_API_KEY",
   "DEEPSEEK_API_KEY",
@@ -256,12 +270,14 @@ export function projectMcpServersFromSelection(value) {
         codingBrowserMcpServerName,
         browserUseMcpServerName,
         computerUseMcpServerName,
+        pluginMcpServerName,
       ].includes(String(name).trim()))
     : value;
   return normalizeSelectedMcpServers(candidates).filter(name => ![
     codingBrowserMcpServerName,
     browserUseMcpServerName,
     computerUseMcpServerName,
+    pluginMcpServerName,
   ].includes(name));
 }
 
@@ -270,8 +286,8 @@ function interpolateSafeEnvironment(value, label) {
     environmentReferencePattern,
     (match, braced, prefixed, alternate) => {
       const name = braced || prefixed || alternate;
-      if (protectedEnvironmentNames.has(name)) {
-        throw new Error(`${label} cannot reference the model-provider credential ${name}`);
+      if (!interpolableEnvironmentNames.has(name)) {
+		throw new Error(`${label} cannot reference ambient environment variable ${name}`);
       }
       return process.env[name] ?? "";
     },
@@ -944,12 +960,14 @@ export async function loadSelectedMcpConfig(
     selected.includes(codingBrowserMcpServerName)
     || selected.includes(browserUseMcpServerName)
     || selected.includes(computerUseMcpServerName)
+    || selected.includes(pluginMcpServerName)
   ) {
     throw new Error(
       `MCP server name "${selected.find(name => (
         name === codingBrowserMcpServerName
           || name === browserUseMcpServerName
           || name === computerUseMcpServerName
+          || name === pluginMcpServerName
       ))}" is reserved by MilkSU`,
     );
   }
@@ -988,10 +1006,14 @@ export async function loadSelectedMcpConfig(
     throw new Error("MilkSU could not find mcpServers in .mcp.json");
   }
   const mcpServers = {};
-  const runtimeRoot = join(root, ".milksu", "mcp-runtime");
+  const runtimeRoot = await ensurePrivateDirectoryTree(
+    root,
+    [".milksu", "mcp-runtime"],
+    "Project MCP runtime",
+  );
   await Promise.all([
-    mkdir(join(runtimeRoot, "home"), { recursive: true, mode: 0o700 }),
-    mkdir(join(runtimeRoot, "tmp"), { recursive: true, mode: 0o700 }),
+    ensurePrivateDirectoryTree(runtimeRoot, ["home"], "Project MCP home"),
+    ensurePrivateDirectoryTree(runtimeRoot, ["tmp"], "Project MCP temporary"),
   ]);
   for (const name of selected) {
     if (!Object.hasOwn(configured, name)) {
@@ -1041,6 +1063,7 @@ export async function loadCodingMcpConfig(
   browserUse,
   securityTools = [],
   userMcpServers,
+  includeFirstPartyPlugins = true,
 ) {
   const project = await loadSelectedMcpConfig(
     workspace,
@@ -1053,12 +1076,16 @@ export async function loadCodingMcpConfig(
   const builtInBrowserUse = await createFirstPartyBrowserUseMcpServer(workspace, browserUse);
   const builtInIDA = await createManagedIDAMcpServer(workspace, securityTools);
   const userNames = Object.keys(userServers).sort((left, right) => left.localeCompare(right));
+  const builtInPlugins = includeFirstPartyPlugins
+    ? await createFirstPartyPluginMcpServer()
+    : undefined;
   if (
     !builtIn
     && !builtInComputerUse
     && !builtInBrowserUse
     && !builtInIDA
     && userNames.length === 0
+    && !builtInPlugins
   ) {
     return {
       ...project,
@@ -1076,6 +1103,7 @@ export async function loadCodingMcpConfig(
     ...(builtInBrowserUse ? [browserUseMcpServerName] : []),
     ...(builtInComputerUse ? [computerUseMcpServerName] : []),
     ...(builtInIDA ? [builtInIDA.name] : []),
+    ...(builtInPlugins ? [builtInPlugins.name] : []),
   ].sort((left, right) => left.localeCompare(right));
   return {
     projectSelected: project.selected,
@@ -1095,6 +1123,7 @@ export async function loadCodingMcpConfig(
         ? { [computerUseMcpServerName]: builtInComputerUse.server }
         : {}),
       ...(builtInIDA ? { [builtInIDA.name]: builtInIDA.server } : {}),
+      ...(builtInPlugins ? { [builtInPlugins.name]: builtInPlugins.server } : {}),
     }),
   };
 }
