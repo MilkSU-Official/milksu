@@ -15,6 +15,7 @@ type Service struct {
 	store         *Store
 	compose       composeRunner
 	android       androidRunner
+	apks          apkFetcher
 	waitReady     func(context.Context, string)
 	mu            sync.Mutex
 	inflight      map[string]context.CancelFunc
@@ -30,6 +31,7 @@ func New(dataDirectory string) (*Service, error) {
 		store:         store,
 		compose:       execComposeRunner{},
 		android:       execAndroidRunner{},
+		apks:          httpAPKFetcher{},
 		waitReady:     waitHTTPReady,
 		inflight:      map[string]context.CancelFunc{},
 	}, nil
@@ -128,16 +130,9 @@ func (s *Service) Start(ctx context.Context, owner Owner, packageID string) (Lea
 		return lease, nil
 	}
 	if item.Provider == "android-avd" {
-		if serial, state, _ := androidStatus(ctx, s.android); state == "ready" && serial != "" {
-			lease.Address = serial
-			lease.State = "ready"
-			lease.Error = ""
-			_ = s.store.Put(lease)
-			return lease, nil
-		}
 		_ = s.store.Put(lease)
 		s.spawn(owner, func(run context.Context) {
-			s.runAndroidStart(run, lease)
+			s.runAndroidStart(run, item, lease)
 		})
 		return lease, nil
 	}
@@ -165,13 +160,31 @@ func (s *Service) runDockerStart(ctx context.Context, item Package, directory st
 	_ = s.store.Put(lease)
 }
 
-func (s *Service) runAndroidStart(ctx context.Context, lease Lease) {
+func (s *Service) runAndroidStart(ctx context.Context, item Package, lease Lease) {
 	serial, err := startAndroid(ctx, s.android)
 	if err != nil {
 		lease.State = "failed"
 		lease.Error = err.Error()
 		_ = s.store.Put(lease)
 		return
+	}
+	if item.ApkURL != "" {
+		apkPath, cacheErr := cacheAndroidAPK(ctx, s.apks, s.dataDirectory, item)
+		if cacheErr != nil {
+			lease.State = "failed"
+			lease.Error = cacheErr.Error()
+			lease.Address = serial
+			_ = s.store.Put(lease)
+			return
+		}
+		if installErr := installAndroidLab(ctx, s.android, serial, apkPath, item.Launcher); installErr != nil {
+			lease.State = "failed"
+			lease.Error = installErr.Error()
+			lease.Address = serial
+			_ = s.store.Put(lease)
+			return
+		}
+		lease.Detail = "已安装 " + item.Name + " · adb -s " + serial
 	}
 	if ctx.Err() != nil {
 		return

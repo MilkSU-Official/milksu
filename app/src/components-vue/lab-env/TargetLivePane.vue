@@ -133,7 +133,7 @@ onBeforeUnmount(() => {
       <div>
         <p class="text-body">本机模拟器窗口已启动</p>
         <p class="mt-2 font-mono text-caption text-muted-foreground">{{ lease.address }}</p>
-        <p class="mt-3 text-caption text-muted-foreground">点屏幕请用 Computer Use 锁到这个窗口。adb 只走租约串口。</p>
+        <p class="mt-3 text-caption text-muted-foreground">在模拟器里操作题目。排查用受限 adb（租约串口），不要打宿主机其它 App。</p>
         <Button class="mt-4" variant="brand" size="sm" data-testid="attach-computer-use" @click="emit('attachComputerUse')">
           接入 Computer Use
         </Button>

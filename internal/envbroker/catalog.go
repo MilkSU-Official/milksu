@@ -6,6 +6,22 @@ import (
 	"github.com/MilkSU-Official/milksu/internal/envbroker/packages"
 )
 
+const androidLabBrief = `InjuredAndroid（Apache-2.0，B3nac）装在本机 AVD 上。用 adb 打，不要打宿主机其它 App。
+
+设备：adb -s emulator-5554
+包名：b3nac.injuredandroid
+打开：adb shell am start -n b3nac.injuredandroid/.MainActivity
+
+先做这几道（应用里还有后续 Flag）：
+1. Flag 1 登录绕过
+2. Flag 2 导出 Activity（adb am start）
+3. Flag 3 资源 / 硬编码
+4. Flag 5 导出 BroadcastReceiver
+5. Flag 7 SQLite（run-as 或备份）
+6. Flag 11 Deep Link：adb shell am start -a android.intent.action.VIEW -d flag11://...
+
+过程写进 report.md。没有自动 Judge。`
+
 func Catalog() []Package {
 	return []Package{
 		{
@@ -57,10 +73,38 @@ func Catalog() []Package {
 			ID:        "android-avd",
 			Name:      "Android 模拟器",
 			KindLabel: "模拟器",
-			Detail:    "本机官方 AVD · 受限 adb",
+			Detail:    "本机官方 AVD · 空白设备 · 受限 adb",
 			Provider:  "android-avd",
 			Surface:   "emulator",
 			Address:   "emulator-5554",
+		},
+		{
+			ID:        "android-lab",
+			Name:      "InjuredAndroid",
+			KindLabel: "安卓题",
+			Detail:    "本机 AVD · 12 道 Flag · 受限 adb",
+			Brief:     androidLabBrief,
+			Provider:  "android-avd",
+			Surface:   "emulator",
+			Address:   "emulator-5554",
+			Challenges: []string{
+				"Flag 1 登录绕过",
+				"Flag 2 导出 Activity",
+				"Flag 3 资源文件硬编码",
+				"Flag 4 第二处登录",
+				"Flag 5 导出 BroadcastReceiver",
+				"Flag 6 第三处登录",
+				"Flag 7 SQLite",
+				"Flag 8 AWS 凭据",
+				"Flag 9 Firebase",
+				"Flag 10 Unicode",
+				"Flag 11 Deep Link（flag11://）",
+				"Flag 12 受保护组件",
+			},
+			ApkURL:    "https://github.com/B3nac/InjuredAndroid/releases/download/v1.0.12/InjuredAndroid-1.0.12-release.apk",
+			ApkSHA256: "b6b8d2dbd7a428b7754e6e537ba5790c35a73253533454e0768dbf1520a7ed15",
+			ApkName:   "InjuredAndroid-1.0.12-release.apk",
+			Launcher:  "b3nac.injuredandroid/.MainActivity",
 		},
 	}
 }

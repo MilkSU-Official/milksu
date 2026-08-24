@@ -3,6 +3,7 @@ package envbroker
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -78,6 +79,12 @@ func (f *fakeAndroid) CombinedOutput(_ context.Context, name string, args ...str
 	if strings.Contains(joined, "emu kill") {
 		f.booted = false
 		return []byte("OK"), nil
+	}
+	if strings.Contains(joined, "install") {
+		return []byte("Success"), nil
+	}
+	if strings.Contains(joined, "am start") {
+		return []byte("Starting"), nil
 	}
 	return nil, nil
 }
@@ -211,7 +218,7 @@ func TestWhoamiIsShellSurface(t *testing.T) {
 
 func TestCatalogPinsExpectedPackages(t *testing.T) {
 	t.Parallel()
-	want := []string{"juice-shop", "webgoat", "struts2-s2-045", "whoami", "android-avd"}
+	want := []string{"juice-shop", "webgoat", "struts2-s2-045", "whoami", "android-avd", "android-lab"}
 	got := map[string]Package{}
 	for _, item := range Catalog() {
 		got[item.ID] = item
@@ -220,6 +227,50 @@ func TestCatalogPinsExpectedPackages(t *testing.T) {
 		if _, ok := got[id]; !ok {
 			t.Fatalf("missing package %s", id)
 		}
+	}
+}
+
+type fileAPKFetcher struct {
+	source string
+}
+
+func (f fileAPKFetcher) Fetch(_ context.Context, _, destination string) error {
+	data, err := os.ReadFile(f.source)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(destination), 0o700); err != nil {
+		return err
+	}
+	return os.WriteFile(destination, data, 0o600)
+}
+
+func TestAndroidLabInstallsAPK(t *testing.T) {
+	t.Parallel()
+	source := "/tmp/injured/InjuredAndroid.apk"
+	if _, err := os.Stat(source); err != nil {
+		t.Skip("InjuredAndroid apk is not cached locally")
+	}
+	android := &fakeAndroid{avds: []string{"Pixel_10_Pro"}}
+	service, err := NewForTest(t.TempDir(), &fakeCompose{dockerDown: true}, android)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service.apks = fileAPKFetcher{source: source}
+	owner := Owner{Kind: "lab", ID: "android-lab"}
+	if _, err := service.Start(context.Background(), owner, "android-lab"); err != nil {
+		t.Fatal(err)
+	}
+	lease := waitLease(t, service, owner, "ready")
+	if lease.Surface != "emulator" || lease.Address != "emulator-5554" {
+		t.Fatalf("%+v", lease)
+	}
+	joined := strings.Join(android.calls, "\n")
+	if !strings.Contains(joined, "install") || !strings.Contains(joined, "am start") {
+		t.Fatalf("expected install and launch, calls=%q", joined)
+	}
+	if !strings.Contains(lease.Detail, "InjuredAndroid") {
+		t.Fatalf("detail: %s", lease.Detail)
 	}
 }
 

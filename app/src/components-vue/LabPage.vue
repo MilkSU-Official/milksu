@@ -190,7 +190,7 @@ async function startPackage(pkg: EnvPackage) {
   labTab.value = 'jobs'
   const job = createJob({
     scope: 'local',
-    request: pkg.detail,
+    request: pkg.brief || (pkg.challenges?.length ? pkg.challenges.map((item, index) => `${index + 1}. ${item}`).join('\n') : pkg.detail),
     title: pkg.name,
     packageId: pkg.id,
   })
@@ -411,6 +411,9 @@ function abortRename(event: KeyboardEvent) {
               <h2 class="text-label font-medium">作业</h2>
               <p class="mt-3 text-caption text-muted-foreground">{{ labScopeLabel(selected.scope) }}</p>
               <p class="mt-3 whitespace-pre-wrap text-body leading-6">{{ selected.request }}</p>
+              <ul v-if="boundPackage?.challenges?.length" class="mt-4 grid gap-1 text-body" data-testid="lab-challenges">
+                <li v-for="item in boundPackage.challenges" :key="item">{{ item }}</li>
+              </ul>
             </section>
             <EnvironmentStrip
               :lease="stripLease"

@@ -12,12 +12,18 @@ type Package struct {
 	Name        string   `json:"name"`
 	KindLabel   string   `json:"kindLabel"`
 	Detail      string   `json:"detail"`
+	Brief       string   `json:"brief,omitempty"`
 	Provider    string   `json:"provider"`
 	Surface     string   `json:"surface"`
 	Address     string   `json:"address"`
 	Port        int      `json:"port,omitempty"`
 	CVEIDs      []string `json:"cveIds,omitempty"`
+	Challenges  []string `json:"challenges,omitempty"`
 	ComposePath string   `json:"-"`
+	ApkURL      string   `json:"-"`
+	ApkSHA256   string   `json:"-"`
+	ApkName     string   `json:"-"`
+	Launcher    string   `json:"-"`
 }
 
 type Lease struct {

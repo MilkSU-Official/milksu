@@ -5,11 +5,13 @@ export type EnvPackage = {
   name: string
   kindLabel: string
   detail: string
+  brief?: string
   provider: string
   surface: 'browser' | 'shell' | 'emulator' | 'device'
   address: string
   port?: number
   cveIds?: string[]
+  challenges?: string[]
 }
 
 export type EnvLease = {
