@@ -132,12 +132,14 @@ import {
   type CodingProductActionKind,
 } from '@/lib/codingProductActions'
 import { extractLatestComputerUseOperationEvidence } from '@/lib/codingComputerUseEvidence'
+import { requestComputerUseReveal, takeComputerUseReveal } from '@/lib/computerUseHandoff'
 
 import {
   computerUseTargetKey,
   computerUseStartArgs,
   describeActiveComputerUseCapability,
   describePendingComputerUseCapability,
+  isEmulatorComputerUseTarget,
   nextComputerUseTargetKey,
   normalizeCodingApprovalPolicy,
   normalizeCodingExecutionMode,
@@ -246,6 +248,7 @@ const emit = defineEmits<{
   switchCtfAgent: [role: 'solver' | 'tool-builder' | 'strategist']
   consumePendingDraft: []
   toggleConversationDrawer: []
+  expand: []
 }>()
 
 const dockSurface = computed(() => props.surface === 'dock')
@@ -310,6 +313,7 @@ const computerUsePermissionRequesting = ref<CodingComputerUsePermission | null>(
 const computerUsePermissionPolling = ref(false)
 const computerUsePermissionError = ref('')
 const computerUsePermissionCompleting = ref(false)
+const preferEmulatorTarget = ref(false)
 
 const changesFocusPath = ref('')
 const codingEnvironment = ref<CodingEnvironmentSnapshot | null>(null)
@@ -978,7 +982,13 @@ function showBrowserUseScope() {
   environmentOpen.value = true
 }
 
-async function showComputerUseScope() {
+async function showComputerUseScope(preferEmulator = false) {
+  if (preferEmulator) preferEmulatorTarget.value = true
+  if (dockSurface.value) {
+    requestComputerUseReveal({ preferEmulator: preferEmulatorTarget.value })
+    emit('expand')
+    return
+  }
   contextPanel.value = 'computer-use'
   environmentOpen.value = true
   await refreshBrowserPanel()
@@ -1000,6 +1010,7 @@ async function continueComputerUseScope() {
     {
       hostBundleId: computerUseStatus.value?.signing?.bundleId,
     },
+    preferEmulatorTarget.value ? isEmulatorComputerUseTarget : undefined,
   )
   const status = computerUseStatus.value
   const canStartOnlyVisibleTarget = Boolean(
@@ -1306,6 +1317,7 @@ async function refreshBrowserPanel() {
       {
         hostBundleId: computerUseStatus.value?.signing?.bundleId,
       },
+      preferEmulatorTarget.value ? isEmulatorComputerUseTarget : undefined,
     )
   } else {
     computerUseTargets.value = []
@@ -1833,6 +1845,10 @@ onMounted(() => {
   void loadProjectMemory()
   void scrollChatToBottom(true)
   if (props.conversation?.id && !props.running) void refreshBrowserPanel()
+  const pendingReveal = takeComputerUseReveal()
+  if (pendingReveal && !dockSurface.value) {
+    void showComputerUseScope(pendingReveal.preferEmulator)
+  }
   window.addEventListener('focus', refreshComputerUseAfterSettings)
   void listenEvent<CodingBrowserStatus>('coding-browser.ready', event => {
     const status = event.payload

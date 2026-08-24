@@ -981,6 +981,9 @@ func filterValidTargets(targets []Target, hostBundleID string, hostPID int) []Ta
 		target.Name = strings.TrimSpace(target.Name)
 		target.BundleID = strings.TrimSpace(target.BundleID)
 		target.WindowTitle = strings.TrimSpace(target.WindowTitle)
+		if !validBundleID(target.BundleID) {
+			target.BundleID = syntheticBundleID(target.Name)
+		}
 		if target.PID <= 1 ||
 			target.WindowID <= 0 ||
 			target.Name == "" ||
@@ -1034,6 +1037,35 @@ func defaultTarget(pid int, hostBundleID string) Target {
 		name = "MilkSU Beta"
 	}
 	return Target{Name: name, BundleID: hostBundleID, PID: pid}
+}
+
+func syntheticBundleID(name string) string {
+	var b strings.Builder
+	lastDot := false
+	for _, character := range strings.TrimSpace(name) {
+		ok := character >= 'a' && character <= 'z' ||
+			character >= 'A' && character <= 'Z' ||
+			character >= '0' && character <= '9' ||
+			character == '.' ||
+			character == '-'
+		if ok {
+			b.WriteRune(character)
+			lastDot = character == '.'
+			continue
+		}
+		if b.Len() > 0 && !lastDot {
+			b.WriteByte('.')
+			lastDot = true
+		}
+	}
+	out := strings.Trim(b.String(), ".")
+	if out == "" {
+		return "app.unsigned"
+	}
+	if len(out) > 256 {
+		return out[:256]
+	}
+	return out
 }
 
 func validBundleID(value string) bool {

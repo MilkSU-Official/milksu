@@ -13,6 +13,28 @@ package computercap
 static const CGFloat milksu_minimum_target_window_width = 120.0;
 static const CGFloat milksu_minimum_target_window_height = 80.0;
 
+static NSString *milksu_synthetic_bundle_id(NSString *name) {
+	NSMutableString *out = [NSMutableString string];
+	for (NSUInteger i = 0; i < [name length]; i++) {
+		unichar c = [name characterAtIndex:i];
+		if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '.' || c == '-') {
+			[out appendFormat:@"%C", c];
+		} else if ([out length] > 0 && ![[out substringFromIndex:[out length] - 1] isEqualToString:@"."]) {
+			[out appendString:@"."];
+		}
+	}
+	while ([out hasPrefix:@"."]) {
+		[out deleteCharactersInRange:NSMakeRange(0, 1)];
+	}
+	while ([out hasSuffix:@"."]) {
+		[out deleteCharactersInRange:NSMakeRange([out length] - 1, 1)];
+	}
+	if ([out length] == 0) {
+		return @"app.unsigned";
+	}
+	return out;
+}
+
 char* milksu_computer_use_targets_json(void) {
 	@autoreleasepool {
 		CFArrayRef windowList = CGWindowListCopyWindowInfo(
@@ -45,7 +67,7 @@ char* milksu_computer_use_targets_json(void) {
 			NSRunningApplication *app = [NSRunningApplication runningApplicationWithProcessIdentifier:[pid intValue]];
 			NSString *bundleID = app.bundleIdentifier;
 			if (bundleID == nil || [bundleID length] == 0) {
-				continue;
+				bundleID = milksu_synthetic_bundle_id(app.localizedName ?: owner ?: @"app.unsigned");
 			}
 			NSString *title = window[(id)kCGWindowName];
 			NSMutableDictionary *entry = [NSMutableDictionary dictionary];

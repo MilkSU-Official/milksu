@@ -199,6 +199,8 @@ describe('ChatPage routing contract', () => {
     expect(chatPageSource).toContain('const canStartOnlyVisibleTarget = Boolean(')
     expect(chatPageSource).toContain('scopedComputerUseTargets.value.length === 1')
     expect(chatPageSource).toContain('await startComputerUse()')
+    expect(chatPageSource).toContain('requestComputerUseReveal')
+    expect(chatPageSource).toContain("emit('expand')")
   })
 
   it('guides missing Computer Use permissions in one polling dialog and resumes the same scope', () => {

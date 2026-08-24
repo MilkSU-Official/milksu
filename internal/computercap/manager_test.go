@@ -512,6 +512,19 @@ func TestFilterValidTargetsExcludesWindowsHostByElectronPID(t *testing.T) {
 	}
 }
 
+func TestFilterValidTargetsKeepsUnsignedEmulatorWindows(t *testing.T) {
+	filtered := filterValidTargets([]Target{
+		{Name: "qemu-system-aarch64", BundleID: "", PID: 40514, WindowID: 88},
+		{Name: "MilkSU", BundleID: "com.milksu.app", PID: 100, WindowID: 1},
+	}, "com.milksu.app", 100)
+	if len(filtered) != 1 || filtered[0].PID != 40514 {
+		t.Fatalf("unsigned emulator window dropped: %#v", filtered)
+	}
+	if filtered[0].BundleID != "qemu-system-aarch64" {
+		t.Fatalf("synthetic bundle id: %#v", filtered[0])
+	}
+}
+
 func TestFilterValidTargetsKeepsUserBrowsersForComputerUse(t *testing.T) {
 	targets := []Target{
 		{Name: "Google Chrome", BundleID: "com.google.Chrome", PID: 101, WindowID: 1},
@@ -794,6 +807,7 @@ func TestDarwinTargetDiscoveryRejectsTinyOverlayWindows(t *testing.T) {
 		"CGRectMakeWithDictionaryRepresentation",
 		"rect.size.width < milksu_minimum_target_window_width",
 		"rect.size.height < milksu_minimum_target_window_height",
+		"milksu_synthetic_bundle_id",
 	} {
 		if !strings.Contains(text, expected) {
 			t.Fatalf("darwin target discovery no longer filters tiny overlay windows: missing %q", expected)

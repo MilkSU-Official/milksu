@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   computerUseStartArgs,
   computerUseTargetKey,
+  isEmulatorComputerUseTarget,
   describeActiveComputerUseCapability,
   describePendingComputerUseCapability,
   isSelfComputerUseTarget,
@@ -218,6 +219,26 @@ describe('Coding policy presentation', () => {
       windowTitle: '已关闭窗口',
     })).toBe('4242:9001')
     expect(nextComputerUseTargetKey([], '4242:9002', targets[1])).toBe('')
+  })
+
+  it('prefers an emulator window when the caller asks for AVD Computer Use', () => {
+    const targets = [
+      {
+        name: 'TextEdit',
+        bundleId: 'com.apple.TextEdit',
+        pid: 11,
+        windowId: 1,
+      },
+      {
+        name: 'qemu-system-aarch64',
+        bundleId: 'qemu-system-aarch64',
+        pid: 40514,
+        windowId: 88,
+        windowTitle: 'Android Emulator - Pixel_10_Pro',
+      },
+    ]
+    expect(isEmulatorComputerUseTarget(targets[1])).toBe(true)
+    expect(nextComputerUseTargetKey(targets, '', null, undefined, isEmulatorComputerUseTarget)).toBe('40514:88')
   })
 
   it('prefers a non-self window when no visible Computer Use session is active yet', () => {

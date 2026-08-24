@@ -31,6 +31,7 @@ import WorkspaceModuleTopBar from '@/components-vue/WorkspaceModuleTopBar.vue'
 import EnvironmentStrip from '@/components-vue/lab-env/EnvironmentStrip.vue'
 import TargetLivePane from '@/components-vue/lab-env/TargetLivePane.vue'
 import { invokeCommand } from '@/desktop'
+import { requestComputerUseReveal } from '@/lib/computerUseHandoff'
 import { toStripLease, useEnvLease } from '@/composables/useEnvLease'
 import type { EnvPackage } from '@/envbroker'
 import { useVulnerabilityDashboard, type VulnerabilityCodingTask, type VulnerabilityDashboard, type VulnerabilitySearchCandidate } from '@/composables/useVulnerabilityDashboard'
@@ -266,6 +267,13 @@ watch(
 
 function clearSelection() {
   dashboard.selectedId.value = ''
+}
+
+function attachComputerUse() {
+  const conversationId = props.conversation?.id || props.ensureConversation?.(selectedItem.value?.id)
+  if (!conversationId) return
+  requestComputerUseReveal({ preferEmulator: envLease.value.surface === 'emulator' })
+  emit('expand')
 }
 
 function openTarget() {
@@ -682,7 +690,8 @@ function addSearchResult(candidate: VulnerabilitySearchCandidate) {
       </template>
     </WorkspaceModuleTopBar>
     <div class="flex min-h-0 flex-1 overflow-hidden">
-      <div class="min-h-0 min-w-0 flex-1 overflow-auto" :class="targetOpen ? 'max-w-md border-r border-border' : ''">
+      <div class="flex min-h-0 min-w-0 flex-1 flex-col" :class="targetOpen ? 'max-w-md border-r border-border' : ''">
+        <div class="min-h-0 flex-1 overflow-auto">
         <div class="space-y-5 px-6 py-6" :class="targetOpen ? '' : 'mx-auto max-w-5xl'">
           <section class="rounded-xl border border-border bg-card p-6">
             <p class="text-body leading-6 text-muted-foreground">{{ selectedItem.summary }}</p>
@@ -727,11 +736,65 @@ function addSearchResult(candidate: VulnerabilitySearchCandidate) {
             />
           </section>
         </div>
+        </div>
+        <ConversationDock
+          v-if="targetOpen"
+          placement="column"
+          :conversation="conversation ?? null"
+          :conversations="dossierConversations"
+          :running="running"
+          :aborting="aborting"
+          :settings="settings"
+          :workspace-path="workspacePath"
+          :message-queue="messageQueue"
+          :session-ready="sessionReady"
+          :resumed="resumed"
+          :compacting="compacting"
+          :compacted-at="compactedAt"
+          :compaction-error="compactionError"
+          :turn-status="turnStatus"
+          :ctf-session="ctfSession"
+          :vulnerability-session="vulnerabilitySession"
+          :ctf-mode="ctfMode"
+          :ctf-role="ctfRole"
+          :model-mode="modelMode"
+          :model-provider="modelProvider"
+          :model-id="modelId"
+          :model-source-preference="modelSourcePreference"
+          :execution-mode="executionMode"
+          :approval-policy="approvalPolicy"
+          :mcp-servers="mcpServers"
+          :mcp-config-digest="mcpConfigDigest"
+          :ensure-conversation="ensureConversation"
+          :pending-composer-draft="pendingComposerDraft"
+          @send="(...args) => $emit('send', ...args)"
+          @abort="$emit('abort')"
+          @select="$emit('selectConversation', $event)"
+          @create="$emit('createConversation')"
+          @expand="$emit('expand')"
+          @consume-pending-draft="$emit('consumePendingDraft')"
+          @compact-context="$emit('compactContext')"
+          @control-goal="$emit('controlGoal', $event)"
+          @respond-approval="(requestId, approved, scope) => $emit('respondApproval', requestId, approved, scope)"
+          @change-model="(mode, provider, model) => $emit('changeModel', mode, provider, model)"
+          @change-model-source="$emit('changeModelSource', $event)"
+          @change-coding-policy="(mode, policy) => $emit('changeCodingPolicy', mode, policy)"
+          @change-mcp-servers="(servers, digest) => $emit('changeMcpServers', servers, digest)"
+          @choose-workspace="$emit('chooseWorkspace')"
+          @choose-workspace-for-new-task="$emit('chooseWorkspaceForNewTask')"
+          @select-workspace="$emit('selectWorkspace', $event)"
+          @forget-workspace="$emit('forgetWorkspace', $event)"
+          @clear-workspace="$emit('clearWorkspace')"
+          @cancel-queued-guidance="$emit('cancelQueuedGuidance', $event)"
+          @edit-queued-guidance="$emit('editQueuedGuidance', $event)"
+          @open-settings="$emit('openSettings')"
+        />
       </div>
       <TargetLivePane
         v-if="targetOpen && envLease.state === 'ready'"
         :lease="envLease"
         :conversation-id="conversation?.id"
+        @attach-computer-use="attachComputerUse"
       />
     </div>
     <ConversationDock

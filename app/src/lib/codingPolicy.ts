@@ -179,6 +179,13 @@ export function describePendingComputerUseCapability(
   }
 }
 
+export function isEmulatorComputerUseTarget(
+  target: Pick<CodingComputerUseTarget, 'name' | 'bundleId' | 'windowTitle'>,
+): boolean {
+  const blob = `${target.name} ${target.bundleId} ${target.windowTitle ?? ''}`.toLowerCase()
+  return /qemu|emulator|android/.test(blob)
+}
+
 export function computerUseTargetKey(target: Pick<CodingComputerUseTarget, 'pid' | 'windowId'>): string {
   return `${target.pid}:${target.windowId}`
 }
@@ -195,10 +202,15 @@ export function nextComputerUseTargetKey(
   selectedKey: string,
   activeTarget?: CodingComputerUseTarget | null,
   host?: ComputerUseHostIdentity,
+  prefer?: (target: CodingComputerUseTarget) => boolean,
 ): string {
   if (selectedComputerUseTarget(targets, selectedKey)) return selectedKey
   if (activeTarget && selectedComputerUseTarget(targets, computerUseTargetKey(activeTarget))) {
     return computerUseTargetKey(activeTarget)
+  }
+  if (prefer) {
+    const preferred = targets.find(target => prefer(target) && !isSelfComputerUseTarget(target, host))
+    if (preferred) return computerUseTargetKey(preferred)
   }
   const firstExternalTarget = targets.find(target => !isSelfComputerUseTarget(target, host))
   return firstExternalTarget

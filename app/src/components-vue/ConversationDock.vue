@@ -14,6 +14,7 @@ import type {
 } from '@/types'
 
 const props = withDefaults(defineProps<{
+  placement?: 'float' | 'column'
   conversation: Conversation | null
   conversations?: Conversation[]
   running?: boolean
@@ -56,6 +57,7 @@ const props = withDefaults(defineProps<{
   mcpServers: () => [],
   ensureConversation: () => '',
   pendingComposerDraft: null,
+  placement: 'float',
 })
 
 const emit = defineEmits<{
@@ -304,11 +306,15 @@ function forwardSend(...args: CodingAgentSendArgs) {
 <template>
   <aside
     class="conversation-dock"
-    :class="{ 'is-collapsed': collapsed, 'is-dragging': dragging }"
-    :style="dockStyle"
+    :class="{
+      'is-collapsed': collapsed && placement !== 'column',
+      'is-dragging': dragging && placement !== 'column',
+      'is-column': placement === 'column',
+    }"
+    :style="placement === 'column' ? undefined : dockStyle"
     data-testid="conversation-dock"
   >
-    <header class="conversation-dock__head" @pointerdown="startDrag">
+    <header class="conversation-dock__head" @pointerdown="placement === 'column' ? undefined : startDrag($event)">
       <strong>对话</strong>
       <span class="min-w-0 flex-1 truncate text-caption text-muted-foreground">{{ conversation?.title }}</span>
       <button
@@ -321,6 +327,7 @@ function forwardSend(...args: CodingAgentSendArgs) {
         <Maximize2 class="size-3.5" />
       </button>
       <button
+        v-if="placement !== 'column'"
         type="button"
         class="conversation-dock__icon"
         :aria-label="collapsed ? '展开对话' : '收起对话'"
@@ -331,7 +338,7 @@ function forwardSend(...args: CodingAgentSendArgs) {
         <Square v-else class="size-3.5" />
       </button>
     </header>
-    <div v-show="!collapsed" class="conversation-dock__main">
+    <div v-show="placement === 'column' || !collapsed" class="conversation-dock__main">
       <nav class="conversation-dock__list" aria-label="对话列表">
         <button
           type="button"
@@ -357,6 +364,7 @@ function forwardSend(...args: CodingAgentSendArgs) {
       <div class="conversation-dock__thread">
         <ChatPage
           surface="dock"
+          @expand="$emit('expand')"
           :conversation="conversation"
           :settings="settings"
           :workspace-path="workspacePath"
@@ -405,7 +413,7 @@ function forwardSend(...args: CodingAgentSendArgs) {
         />
       </div>
     </div>
-    <template v-if="!collapsed">
+    <template v-if="placement !== 'column' && !collapsed">
       <span class="conversation-dock__resize conversation-dock__resize--nw" aria-label="左上角缩放" @pointerdown="startResize('nw', $event)" />
       <span class="conversation-dock__resize conversation-dock__resize--ne" aria-label="右上角缩放" @pointerdown="startResize('ne', $event)" />
       <span class="conversation-dock__resize conversation-dock__resize--sw" aria-label="左下角缩放" @pointerdown="startResize('sw', $event)" />
@@ -415,6 +423,17 @@ function forwardSend(...args: CodingAgentSendArgs) {
 </template>
 
 <style scoped>
+.conversation-dock.is-column {
+  position: relative;
+  z-index: 1;
+  height: min(22rem, 42vh);
+  min-height: 16rem;
+  width: 100%;
+  box-shadow: inset 4px 0 0 var(--brand);
+}
+.conversation-dock.is-column .conversation-dock__head {
+  cursor: default;
+}
 .conversation-dock {
   position: fixed;
   z-index: 40;
