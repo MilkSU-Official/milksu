@@ -329,7 +329,6 @@ func TestAndroidLabInstallsAPKWhenEmulatorAlreadyUp(t *testing.T) {
 }
 
 func TestAndroidLabAndBlankAVDShareOccupancy(t *testing.T) {
-	t.Parallel()
 	previous := detectLabSystemImage
 	detectLabSystemImage = func() string { return "" }
 	t.Cleanup(func() { detectLabSystemImage = previous })
@@ -385,7 +384,7 @@ func TestAndroidLabPinsInjuredAndroid(t *testing.T) {
 	if item.ApkSHA256 != "b6b8d2dbd7a428b7754e6e537ba5790c35a73253533454e0768dbf1520a7ed15" {
 		t.Fatalf("apk pin: %s", item.ApkSHA256)
 	}
-	if item.Launcher != "b3nac.injuredandroid/.MainActivity" || len(item.Challenges) != 12 || item.Brief == "" {
+	if item.Launcher != "b3nac.injuredandroid/.MainActivity" || len(item.Challenges) != 12 || item.Challenges[0].ID != "flag-1" || item.Challenges[0].Guidance == "" || item.Brief == "" {
 		t.Fatalf("%+v", item)
 	}
 }
@@ -414,11 +413,13 @@ func TestComposePinsLoopbackAndInternalNetwork(t *testing.T) {
 		if item.Brief == "" {
 			t.Fatalf("%s missing brief", id)
 		}
+		if len(item.Challenges) == 0 || item.Challenges[0].ID == "" || item.Challenges[0].Guidance == "" {
+			t.Fatalf("%s missing target cards", id)
+		}
 	}
 }
 
 func TestAndroidRefusesHostPhoneAVD(t *testing.T) {
-	t.Parallel()
 	previous := detectLabSystemImage
 	detectLabSystemImage = func() string { return "" }
 	t.Cleanup(func() { detectLabSystemImage = previous })

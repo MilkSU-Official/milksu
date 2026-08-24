@@ -40,7 +40,7 @@ async function mountPreview() {
 describe('LabEnvironmentPreview', () => {
   it('starts a lab package and shows the shared environment strip', async () => {
     const host = await mountPreview()
-    expect(host.textContent).toContain('练习包')
+    expect(host.textContent).toContain('题目包')
     const juice = [...host.querySelectorAll('[data-testid="package-row"]')]
       .find(row => row.textContent?.includes('Juice Shop'))
     juice?.querySelector<HTMLButtonElement>('[data-testid="start-package"]')?.click()

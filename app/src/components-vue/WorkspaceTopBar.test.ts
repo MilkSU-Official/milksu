@@ -175,7 +175,7 @@ describe('WorkspaceTopBar', () => {
     expect(vulnPageSource).toContain('v-model="cveSearchQuery"')
     expect(vulnPageSource).toContain('aria-label="搜索公开 CVE"')
     expect(vulnPageSource).not.toContain('aria-label="漏洞名称"')
-    expect(vulnPageSource).toContain('学习专题')
+    expect(vulnPageSource).not.toContain('学习专题')
     expect(chatPageSource).toContain('<SelectTrigger\n          size="sm"')
     expect(chatPageSource).toContain('<SelectContent size="sm"')
   })

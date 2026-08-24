@@ -74,13 +74,13 @@ const packages = [
 ] as const
 
 const sourceItems = [
-  { value: 'package' as const, label: '练习包' },
+  { value: 'package' as const, label: '题目包' },
   { value: 'local' as const, label: '本机地址' },
   { value: 'remote' as const, label: '远程' },
 ]
 const labTabItems = [
   { value: 'jobs' as const, label: '作业' },
-  { value: 'packages' as const, label: '练习包' },
+  { value: 'packages' as const, label: '题目包' },
 ]
 const screenItems = [
   { value: 'lab-packages' as const, label: '实验室·包' },
@@ -396,28 +396,25 @@ onMounted(() => {
             </template>
           </WorkspaceModuleTopBar>
 
-          <section v-if="labTab === 'packages'" class="tactical-paper-surface min-h-0 flex-1 overflow-auto bg-card" aria-label="练习包">
-            <div class="min-w-[720px]">
-              <div class="tactical-desk-head tactical-table-head grid h-12 grid-cols-[minmax(220px,1fr)_72px_88px_120px_88px] items-center gap-4 border-b border-border px-6 text-caption text-muted-foreground">
-                <span>练习包</span><span>类型</span><span>端口</span><span>体积</span><span>操作</span>
-              </div>
+          <section v-if="labTab === 'packages'" class="min-h-0 flex-1 overflow-auto bg-background" aria-label="题目包">
+            <div class="grid gap-4 px-6 py-6 sm:grid-cols-2">
               <article
                 v-for="item in packages"
                 :key="item.id"
-                class="tactical-row grid min-h-[72px] w-full grid-cols-[minmax(220px,1fr)_72px_88px_120px_88px] items-center gap-4 px-6"
+                class="rounded-xl border border-border bg-card p-5"
                 data-testid="package-row"
               >
-                <span class="truncate text-control font-medium">{{ item.name }}</span>
-                <span class="text-body">{{ item.kind }}</span>
-                <span class="font-mono text-caption">{{ item.port }}</span>
-                <span class="text-caption text-muted-foreground">{{ item.size }}</span>
+                <span class="ak-tag ak-tag--compact">{{ item.kind }}</span>
+                <h2 class="mt-3 text-control font-medium">{{ item.name }}</h2>
+                <p class="mt-2 text-caption text-muted-foreground">{{ item.port }} · {{ item.size }}</p>
                 <Button
+                  class="mt-4"
                   size="sm"
                   variant="outline"
                   data-testid="start-package"
                   @click="openPackage(item.id)"
                 >
-                  启动
+                  打开
                 </Button>
               </article>
             </div>

@@ -16,14 +16,15 @@ import (
 var validID = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
 
 type Job struct {
-	ID         string `json:"id"`
-	Title      string `json:"title"`
-	Scope      string `json:"scope"`
-	Request    string `json:"request"`
-	PackageID  string `json:"packageId,omitempty"`
-	CreatedAt  int64  `json:"createdAt"`
-	UpdatedAt  int64  `json:"updatedAt"`
-	ArchivedAt uint64 `json:"archivedAt,omitempty"`
+	ID          string `json:"id"`
+	Title       string `json:"title"`
+	Scope       string `json:"scope"`
+	Request     string `json:"request"`
+	PackageID   string `json:"packageId,omitempty"`
+	ChallengeID string `json:"challengeId,omitempty"`
+	CreatedAt   int64  `json:"createdAt"`
+	UpdatedAt   int64  `json:"updatedAt"`
+	ArchivedAt  uint64 `json:"archivedAt,omitempty"`
 }
 
 type Store struct {

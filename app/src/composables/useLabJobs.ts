@@ -11,6 +11,7 @@ export interface LabJob {
   scope: LabScope
   request: string
   packageId?: string
+  challengeId?: string
   createdAt: number
   updatedAt: number
 }
@@ -20,6 +21,7 @@ export interface LabJobDraft {
   request: string
   title?: string
   packageId?: string
+  challengeId?: string
 }
 
 function storage(): Storage | null {
@@ -62,6 +64,7 @@ function normalizeJob(raw: unknown): LabJob | null {
     scope: record.scope === 'local' ? 'local' : 'remote',
     request,
     packageId: String(record.packageId ?? '').trim() || undefined,
+    challengeId: String(record.challengeId ?? '').trim() || undefined,
     createdAt: Number.isFinite(createdAt) ? createdAt : Date.now(),
     updatedAt: Number.isFinite(updatedAt) ? updatedAt : Date.now(),
   }
@@ -156,6 +159,7 @@ export function useLabJobs() {
       scope: draft.scope,
       request,
       packageId: draft.packageId,
+      challengeId: draft.challengeId,
       createdAt: now,
       updatedAt: now,
     }

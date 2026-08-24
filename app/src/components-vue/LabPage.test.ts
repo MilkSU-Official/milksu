@@ -127,7 +127,7 @@ describe('LabPage', () => {
     expect(host.textContent).not.toContain('HTTP')
   })
 
-  it('exposes a practice-package catalog beside jobs', async () => {
+  it('exposes challenge-pack cards beside jobs', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     const app = createApp(LabPage)
@@ -135,15 +135,14 @@ describe('LabPage', () => {
     mountedApps.push(app)
     await nextTick()
     expect(host.textContent).toContain('作业')
-    expect(host.textContent).toContain('练习包')
-    const packagesTab = [...host.querySelectorAll('button')].find(button => button.textContent?.trim() === '练习包')
+    expect(host.textContent).toContain('题目包')
+    const packagesTab = [...host.querySelectorAll('button')].find(button => button.textContent?.trim() === '题目包')
     packagesTab?.click()
     await nextTick()
-    expect(host.textContent).toContain('类型')
-    expect(host.textContent).toContain('说明')
+    expect(host.querySelector('[aria-label="题目包"]')).not.toBeNull()
   })
 
-  it('starts InjuredAndroid with the challenge list and no Computer Use CTA', async () => {
+  it('opens an InjuredAndroid target card with guidance and no Computer Use CTA', async () => {
     Object.defineProperty(window, 'go', {
       configurable: true,
       value: {
@@ -152,12 +151,15 @@ describe('LabPage', () => {
             ListLabPackages: () => [{
               id: 'android-lab',
               name: 'InjuredAndroid',
-              kindLabel: '安卓题',
-              detail: '本机 AVD · 12 道 Flag · 受限 adb',
+              kindLabel: '安卓',
+              detail: '一台设备上的 12 面 Flag',
               provider: 'android-avd',
               surface: 'emulator',
               address: 'emulator-5554',
-              challenges: ['Flag 1 登录绕过', 'Flag 2 导出 Activity'],
+              challenges: [
+                { id: 'flag-1', title: '登录绕过', kind: '认证', guidance: '看登录页怎么判成功。' },
+                { id: 'flag-2', title: '导出 Activity', kind: '导出组件', guidance: '用 am start 打开未露出的 Activity。' },
+              ],
               brief: 'InjuredAndroid（Apache-2.0）',
             }],
             GetEnvLease: () => ({
@@ -177,6 +179,7 @@ describe('LabPage', () => {
               state: 'ready',
               address: 'emulator-5554',
             }),
+            ListEnvLeases: () => [],
           },
         },
       },
@@ -190,11 +193,16 @@ describe('LabPage', () => {
     await Promise.resolve()
     await nextTick()
 
-    const packagesTab = [...host.querySelectorAll('button')].find(button => button.textContent?.trim() === '练习包')
+    const packagesTab = [...host.querySelectorAll('button')].find(button => button.textContent?.trim() === '题目包')
     packagesTab?.click()
     await nextTick()
     expect(host.textContent).toContain('InjuredAndroid')
-    expect(host.textContent).toContain('2 题')
+    expect(host.textContent).toContain('2 台靶机')
+
+    host.querySelector<HTMLButtonElement>('[data-testid="lab-pack-card"]')?.click()
+    await nextTick()
+    expect(host.querySelectorAll('[data-testid="lab-machine-card"]').length).toBe(2)
+    expect(host.textContent).toContain('看登录页怎么判成功。')
 
     const start = [...host.querySelectorAll('button')].find(button => button.textContent?.trim() === '启动')
     start?.click()
@@ -202,7 +210,7 @@ describe('LabPage', () => {
     await Promise.resolve()
     await nextTick()
 
-    expect(host.querySelector('[data-testid="lab-challenges"]')?.textContent).toContain('Flag 1 登录绕过')
+    expect(host.querySelector('[data-testid="lab-challenges"]')?.textContent).toContain('看登录页怎么判成功。')
     expect(host.textContent).not.toContain('Computer Use')
     expect(host.querySelector('[data-testid="attach-computer-use"]')).toBeNull()
   })

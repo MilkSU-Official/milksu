@@ -141,7 +141,7 @@ Readiness ≠ Judge。容器 healthy 只证明靶活着。
 顶栏：`作业 | 练习包`。
 
 - 作业表多一列环境圆点：未绑定 / 已停止 / 就绪。不是 Docker 控制台。
-- 练习包：少数钉死的包（Juice Shop、WebGoat、一条 Vulhub），不是全量 Vulhub 商店。
+- 题目包：少数钉死的包（Juice Shop、WebGoat、一条 Vulhub、InjuredAndroid），卡片打开后是靶机卡片，不是全量 Vulhub 商店。
 
 新作业来源三段：`练习包 | 本机地址 | 远程`。  
 选练习包 → **启动并打开**（建作业 + `env.start` + 进档案）。  

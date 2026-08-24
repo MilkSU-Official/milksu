@@ -14,7 +14,6 @@ import {
 } from '@felinic/ui'
 import {
   ArrowLeft,
-  BookOpen,
   ChevronLeft,
   ChevronRight,
   ExternalLink,
@@ -127,7 +126,6 @@ const emit = defineEmits<{
 
 const dashboard = props.dashboard ?? useVulnerabilityDashboard()
 const showCveSearch = ref(false)
-const showLearningTopics = ref(false)
 const cveSearchQuery = ref('')
 const cveSearchError = ref('')
 const cveSearchLoading = ref(false)
@@ -148,12 +146,6 @@ const statusOptions: Array<{ value: VulnerabilityStatus; label: string }> = [
   { value: '已验证', label: '已验证' },
   { value: '已分流', label: '已归档' },
 ]
-
-const learningTopics = [
-  { title: '命令与参数注入', query: 'command injection' },
-  { title: '反序列化与协议边界', query: 'deserialization' },
-  { title: '供应链与组件信任', query: 'supply chain' },
-] as const
 
 const vendorOptions = computed(() => (
   [...new Set(dashboard.tracked.value.map(item => presentVendorProduct(item).vendor).filter(Boolean))].sort((left, right) => (
@@ -416,22 +408,11 @@ function keyReferences(item: VulnerabilityIntel) {
 }
 
 function openCveSearch() {
-  showLearningTopics.value = false
   showCveSearch.value = true
   cveSearchError.value = ''
   cveSearchResults.value = []
   cveSearchAttempted.value = false
   cveSearchQuery.value = ''
-}
-
-async function openLearningTopic(query: string) {
-  showLearningTopics.value = false
-  showCveSearch.value = true
-  cveSearchQuery.value = query
-  cveSearchError.value = ''
-  cveSearchResults.value = []
-  cveSearchAttempted.value = false
-  await searchCves()
 }
 
 function readableCveSearchError(cause: unknown) {
@@ -493,15 +474,6 @@ function addSearchResult(candidate: VulnerabilitySearchCandidate) {
   <main v-if="!selectedItem" class="tactical-page flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
     <WorkspaceModuleTopBar module="cve" title="漏洞">
       <template #actions>
-        <Button
-          variant="ghost"
-          size="sm"
-          :aria-expanded="showLearningTopics"
-          @click="showLearningTopics = !showLearningTopics"
-        >
-          <BookOpen class="size-4" />
-          学习专题
-        </Button>
         <Button variant="brand" size="sm" @click="openCveSearch">
           <Plus class="size-4" />
           添加 CVE
@@ -557,19 +529,6 @@ function addSearchResult(candidate: VulnerabilitySearchCandidate) {
         </div>
       </template>
     </WorkspaceModuleTopBar>
-
-    <section v-if="showLearningTopics" class="grid shrink-0 gap-3 border-b border-border bg-card/40 px-6 py-4 md:grid-cols-3" aria-label="CVE 学习专题">
-      <button
-        v-for="topic in learningTopics"
-        :key="topic.title"
-        type="button"
-        class="tactical-command-surface flex items-center justify-between gap-4 border border-border px-4 py-3 text-left transition-colors hover:border-primary/50"
-        @click="openLearningTopic(topic.query)"
-      >
-        <span class="text-control font-semibold">{{ topic.title }}</span>
-        <Search class="size-4 shrink-0 text-primary" />
-      </button>
-    </section>
 
     <Dialog v-model:open="showCveSearch">
       <DialogContent class="cve-search-dialog sm:max-w-2xl">

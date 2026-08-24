@@ -81,7 +81,7 @@ describe('VulnPage thin workspace', () => {
     const { host } = await mountList({ trackedIds: ['CVE-2024-3400'] })
 
     expect(host.textContent).toContain('CVE-2024-3400')
-    expect(host.textContent).toContain('学习专题')
+    expect(host.textContent).not.toContain('学习专题')
     expect(host.textContent).toContain('添加 CVE')
     expect(host.textContent).toContain('想研究')
     expect(host.textContent).not.toContain('待复现')
@@ -242,33 +242,7 @@ describe('VulnPage thin workspace', () => {
     expect(host.querySelector('[data-testid="open-item"]')).not.toBeNull()
   })
 
-  it('searches public CVE data when the user opens a learning topic', async () => {
-    const { host, dashboard } = await mountList({ trackedIds: ['CVE-2023-46604'] })
-    const search = vi.spyOn(dashboard, 'searchNvdCves').mockResolvedValueOnce([{
-      id: 'CVE-2017-12149',
-      title: 'JBoss Application Server deserialization RCE',
-      vendor: 'Red Hat',
-      product: 'JBoss',
-      affected: 'Multiple versions',
-      summary: 'Deserialization issue.',
-      cvss: 9.8,
-      severity: 'critical',
-      updated: '2023-10-27',
-      references: [],
-      sourceName: 'NVD',
-      sourceUrl: 'https://services.nvd.nist.gov/rest/json/cves/2.0',
-      retrievedAt: '2026-08-13T00:00:00Z',
-    }])
 
-    buttonWithText(host, '学习专题')?.click()
-    await nextTick()
-    buttonWithText(host, '反序列化与协议边界')?.click()
-    await vi.waitFor(() => expect(search).toHaveBeenCalledWith('deserialization'))
-
-    const dialog = document.body.querySelector('[role="dialog"]')
-    await vi.waitFor(() => expect(dialog?.textContent).toContain('CVE-2017-12149'))
-    expect(dialog?.textContent).toContain('加入研究')
-  })
 
   it('lets one CVE belong to several collection views', async () => {
     const { host } = await mountList({ trackedIds: ['CVE-2024-3400'] })

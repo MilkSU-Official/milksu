@@ -1,5 +1,12 @@
 export type EnvOwnerKind = 'lab' | 'cve'
 
+export type EnvChallenge = {
+  id: string
+  title: string
+  kind: string
+  guidance: string
+}
+
 export type EnvPackage = {
   id: string
   name: string
@@ -11,7 +18,7 @@ export type EnvPackage = {
   address: string
   port?: number
   cveIds?: string[]
-  challenges?: string[]
+  challenges?: EnvChallenge[]
 }
 
 export type EnvLease = {

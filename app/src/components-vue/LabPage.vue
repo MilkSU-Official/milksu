@@ -22,7 +22,7 @@ import WorkspaceModuleTopBar from '@/components-vue/WorkspaceModuleTopBar.vue'
 import { invokeCommand } from '@/desktop'
 import { labScopeLabel, useLabJobs, type LabJob, type LabScope } from '@/composables/useLabJobs'
 import { toStripLease, useEnvLease } from '@/composables/useEnvLease'
-import type { EnvLease, EnvPackage } from '@/envbroker'
+import type { EnvChallenge, EnvLease, EnvPackage } from '@/envbroker'
 import EnvironmentStrip from '@/components-vue/lab-env/EnvironmentStrip.vue'
 import TargetLivePane from '@/components-vue/lab-env/TargetLivePane.vue'
 import { relatedDomainConversations } from '@/lib/workspaceSessionRouting'
@@ -141,10 +141,10 @@ const scopeItems = [
 ]
 const labTabItems = [
   { value: 'jobs' as const, label: '作业' },
-  { value: 'packages' as const, label: '练习包' },
+  { value: 'packages' as const, label: '题目包' },
 ]
 const sourceItems = [
-  { value: 'package' as const, label: '练习包' },
+  { value: 'package' as const, label: '题目包' },
   { value: 'local' as const, label: '本机地址' },
   { value: 'remote' as const, label: '远程' },
 ]
@@ -153,9 +153,18 @@ const dossierConversations = computed(() => relatedDomainConversations(
   props.conversation ?? null,
 ))
 const pendingOpen = ref(false)
+const selectedPackId = ref('')
+const selectedPack = computed(() => (
+  envPackages.value.find(item => item.id === selectedPackId.value) ?? null
+))
 const boundPackage = computed(() => (
   envPackages.value.find(item => item.id === selected.value?.packageId) ?? null
 ))
+const boundChallenge = computed(() => {
+  const id = selected.value?.challengeId
+  if (!id) return null
+  return boundPackage.value?.challenges?.find(item => item.id === id) ?? null
+})
 const stripLease = computed(() => {
   if (selected.value?.packageId) {
     return toStripLease(envLease.value, {
@@ -235,14 +244,26 @@ function openNew() {
   draftRequest.value = ''
 }
 
-async function startPackage(pkg: EnvPackage) {
+function openPack(pkg: EnvPackage) {
+  showNew.value = false
+  labTab.value = 'packages'
+  selectedPackId.value = pkg.id
+}
+
+function closePack() {
+  selectedPackId.value = ''
+}
+
+async function startChallenge(pkg: EnvPackage, challenge: EnvChallenge) {
   showNew.value = false
   labTab.value = 'jobs'
+  selectedPackId.value = ''
   const job = createJob({
     scope: 'local',
-    request: pkg.brief || (pkg.challenges?.length ? pkg.challenges.map((item, index) => `${index + 1}. ${item}`).join('\n') : pkg.detail),
-    title: pkg.name,
+    request: challenge.guidance || pkg.brief || pkg.detail,
+    title: `${pkg.name} · ${challenge.title}`,
     packageId: pkg.id,
+    challengeId: challenge.id,
   })
   emit('enter', job)
   pendingOpen.value = true
@@ -343,31 +364,57 @@ function abortRename(event: KeyboardEvent) {
 <template>
   <main class="tactical-page flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
     <template v-if="!selected">
-      <WorkspaceModuleTopBar module="lab" title="实验室">
+      <WorkspaceModuleTopBar
+        module="lab"
+        :title="selectedPack ? selectedPack.name : '实验室'"
+        :subtitle="selectedPack ? selectedPack.kindLabel : ''"
+      >
+        <template v-if="selectedPack" #leading>
+          <Button variant="ghost" size="icon-sm" aria-label="返回题目包" @click="closePack">
+            <ArrowLeft class="size-4" />
+          </Button>
+        </template>
         <template #actions>
-          <SegmentedControl v-model="labTab" aria-label="实验室分段" :items="labTabItems" />
-          <Button variant="brand" size="sm" @click="openNew">
+          <SegmentedControl v-if="!selectedPack" v-model="labTab" aria-label="实验室分段" :items="labTabItems" />
+          <Button v-if="!selectedPack" variant="brand" size="sm" @click="openNew">
             <Plus class="size-4" />
             新作业
           </Button>
         </template>
       </WorkspaceModuleTopBar>
 
-      <section v-if="labTab === 'packages'" class="tactical-paper-surface min-h-0 flex-1 overflow-auto bg-card" aria-label="练习包">
-        <div class="min-w-[720px]">
-          <div class="tactical-desk-head tactical-table-head grid h-12 grid-cols-[minmax(220px,1fr)_88px_minmax(160px,1fr)_88px] items-center gap-4 border-b border-border px-6 text-caption text-muted-foreground">
-            <span>练习包</span><span>类型</span><span>说明</span><span>操作</span>
-          </div>
+      <section v-if="labTab === 'packages' && selectedPack" class="min-h-0 flex-1 overflow-auto bg-background" aria-label="靶机">
+        <div class="mx-auto grid max-w-5xl gap-4 px-6 py-6 sm:grid-cols-2">
+          <p class="sm:col-span-2 text-body leading-6 text-muted-foreground">{{ selectedPack.detail }}</p>
           <article
+            v-for="challenge in selectedPack.challenges"
+            :key="challenge.id"
+            class="rounded-xl border border-border bg-card p-5"
+            data-testid="lab-machine-card"
+          >
+            <span class="ak-tag ak-tag--compact">{{ challenge.kind }}</span>
+            <h2 class="mt-3 text-control font-medium">{{ challenge.title }}</h2>
+            <p class="mt-2 text-caption leading-6 text-muted-foreground">{{ challenge.guidance }}</p>
+            <Button class="mt-4" size="sm" variant="brand" @click="selectedPack && startChallenge(selectedPack, challenge)">启动</Button>
+          </article>
+        </div>
+      </section>
+
+      <section v-else-if="labTab === 'packages'" class="min-h-0 flex-1 overflow-auto bg-background" aria-label="题目包">
+        <div class="mx-auto grid max-w-5xl gap-4 px-6 py-6 sm:grid-cols-2 xl:grid-cols-3">
+          <button
             v-for="item in envPackages"
             :key="item.id"
-            class="tactical-row grid min-h-[72px] grid-cols-[minmax(220px,1fr)_88px_minmax(160px,1fr)_88px] items-center gap-4 px-6"
+            type="button"
+            class="rounded-xl border border-border bg-card p-5 text-left transition-colors hover:border-primary/50"
+            data-testid="lab-pack-card"
+            @click="openPack(item)"
           >
-            <span class="truncate text-control font-medium">{{ item.name }}</span>
-            <span class="text-body">{{ item.kindLabel }}</span>
-            <span class="truncate text-caption text-muted-foreground">{{ item.challenges?.length ? `${item.detail} · ${item.challenges.length} 题` : item.detail }}</span>
-            <Button size="sm" variant="outline" @click="startPackage(item)">启动</Button>
-          </article>
+            <span class="ak-tag ak-tag--compact">{{ item.kindLabel }}</span>
+            <span class="mt-3 block text-control font-medium">{{ item.name }}</span>
+            <span class="mt-2 block text-caption leading-6 text-muted-foreground">{{ item.detail }}</span>
+            <span class="mt-4 block text-caption text-muted-foreground">{{ item.challenges?.length || 0 }} 台靶机</span>
+          </button>
         </div>
       </section>
 
@@ -431,7 +478,13 @@ function abortRename(event: KeyboardEvent) {
         </div>
       </section>
       <footer class="flex h-14 shrink-0 items-center border-t border-border px-6">
-        <span class="text-caption text-muted-foreground">共 {{ labJobs.length }} 条</span>
+        <span v-if="labTab === 'packages' && selectedPack" class="text-caption text-muted-foreground">
+          {{ selectedPack.challenges?.length || 0 }} 台靶机
+        </span>
+        <span v-else-if="labTab === 'packages'" class="text-caption text-muted-foreground">
+          {{ envPackages.length }} 个题目包
+        </span>
+        <span v-else class="text-caption text-muted-foreground">共 {{ labJobs.length }} 条</span>
       </footer>
     </template>
 
@@ -451,12 +504,14 @@ function abortRename(event: KeyboardEvent) {
           <div class="min-h-0 flex-1 overflow-auto">
           <div class="space-y-5 px-6 py-6" :class="targetOpen ? '' : 'mx-auto max-w-5xl'">
             <section class="rounded-xl border border-border bg-card p-6">
-              <h2 class="text-label font-medium">作业</h2>
-              <p class="mt-3 text-caption text-muted-foreground">{{ labScopeLabel(selected.scope) }}</p>
-              <p class="mt-3 whitespace-pre-wrap text-body leading-6">{{ selected.request }}</p>
-              <ul v-if="boundPackage?.challenges?.length" class="mt-4 grid gap-1 text-body" data-testid="lab-challenges">
-                <li v-for="item in boundPackage.challenges" :key="item">{{ item }}</li>
-              </ul>
+              <h2 class="text-label font-medium">题面</h2>
+              <div class="mt-3 flex flex-wrap items-center gap-2">
+                <span v-if="boundPackage" class="ak-tag ak-tag--compact">{{ boundPackage.kindLabel }}</span>
+                <span v-if="boundChallenge" class="ak-tag ak-tag--compact ak-tag--neutral">{{ boundChallenge.kind }}</span>
+                <span class="text-caption text-muted-foreground">{{ labScopeLabel(selected.scope) }}</span>
+              </div>
+              <p v-if="boundChallenge" class="mt-3 text-control font-medium">{{ boundChallenge.title }}</p>
+              <p class="mt-3 whitespace-pre-wrap text-body leading-6" data-testid="lab-challenges">{{ boundChallenge?.guidance || selected.request }}</p>
             </section>
             <EnvironmentStrip
               :lease="stripLease"
@@ -608,7 +663,7 @@ function abortRename(event: KeyboardEvent) {
               :key="item.id"
               type="button"
               class="rounded-md border border-border px-3 py-3 text-left"
-              @click="startPackage(item)"
+              @click="openPack(item)"
             >
               <span class="text-control font-medium">{{ item.name }}</span>
               <span class="mt-1 block text-caption text-muted-foreground">{{ item.detail }}</span>
