@@ -1,0 +1,15 @@
+{
+  "apiVersion": "milksu.plugin-lock/v1",
+  "plugins": [
+    {
+      "id": "milksu.skin-background",
+      "version": "1.1.1",
+      "sha256": "ac51ad7a7d1462713219c03de225bf22a21870c497b9a278b3c95f2ae27d5146"
+    },
+    {
+      "id": "milksu.tools-text",
+      "version": "1.0.0",
+      "sha256": "435ecb04e32df43e26cf9998b985a778cb240b52696efa2badc3c687f488e9f2"
+    }
+  ]
+}

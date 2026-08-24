@@ -21,6 +21,7 @@ import {
   computerUseMcpServerName,
   computerUseSandboxProfile,
   computerUseSelectionChanged,
+  createFirstPartyPluginMcpServer,
   createFirstPartyPlaywrightMcpServer,
   createFirstPartyBrowserUseMcpServer,
   ensureMcpMetadataCache,
@@ -31,6 +32,7 @@ import {
   normalizeBrowserUseDescriptor,
   normalizeComputerUseDescriptor,
   normalizeSelectedMcpServers,
+  pluginMcpServerName,
   projectMcpServersFromSelection,
   resolveReviewedMcpWorkspace,
 } from "./bridge-mcp.js";
@@ -100,7 +102,7 @@ test("loads only explicitly selected MCP servers and clears stdio inheritance", 
   assert.equal(loaded.config.settings.elicitation, false);
 });
 
-test("rejects symlinked configs and model-provider credential interpolation", async () => {
+test("rejects symlinked configs and every non-public environment interpolation", async () => {
   const workspace = await mkdtemp(join(tmpdir(), "milksu-mcp-"));
   const outside = join(await mkdtemp(join(tmpdir(), "milksu-mcp-outside-")), "config.json");
   await writeFile(outside, JSON.stringify({
@@ -134,8 +136,21 @@ test("rejects symlinked configs and model-provider credential interpolation", as
       ["browser"],
       createHash("sha256").update(unsafeConfig).digest("hex"),
     ),
-    /cannot reference the model-provider credential DEEPSEEK_API_KEY/,
+	/cannot reference ambient environment variable DEEPSEEK_API_KEY/,
   );
+
+	for (const secretName of ["TOKENFLUX_API_KEY", "MILKSU_CUSTOM_PROVIDER_KEY", "UNREVIEWED_TOKEN"]) {
+		const candidate = unsafeConfig.replace("DEEPSEEK_API_KEY", secretName);
+		await writeFile(join(safeWorkspace, ".mcp.json"), candidate);
+		await assert.rejects(
+			loadSelectedMcpConfig(
+				safeWorkspace,
+				["browser"],
+				createHash("sha256").update(candidate).digest("hex"),
+			),
+			new RegExp(`cannot reference ambient environment variable ${secretName}`),
+		);
+	}
 
   const remoteWorkspace = await mkdtemp(join(tmpdir(), "milksu-mcp-"));
   const remoteConfig = JSON.stringify({
@@ -161,6 +176,45 @@ test("rejects symlinked configs and model-provider credential interpolation", as
     ),
     /cannot read bearerTokenEnv/,
   );
+});
+
+test("rejects symlinked Project MCP runtime directories before creating children", async () => {
+	const outsideRoot = await mkdtemp(join(tmpdir(), "milksu-project-mcp-outside-"));
+	const config = JSON.stringify({
+		mcpServers: {
+			fixture: {
+				command: "fixture-mcp",
+				includeTools: ["fixture_read"],
+				milksu: {
+					source: "fixture:local",
+					version: "1.0.0",
+					taskScope: "symlink regression",
+				},
+			},
+		},
+	});
+	for (const linkAtRoot of [true, false]) {
+		const workspace = await mkdtemp(join(tmpdir(), "milksu-project-mcp-link-"));
+		await writeFile(join(workspace, ".mcp.json"), config);
+		if (linkAtRoot) {
+			await symlink(outsideRoot, join(workspace, ".milksu"));
+		} else {
+			await mkdir(join(workspace, ".milksu"));
+			await symlink(outsideRoot, join(workspace, ".milksu", "mcp-runtime"));
+		}
+		await assert.rejects(
+			loadSelectedMcpConfig(
+				workspace,
+				["fixture"],
+				createHash("sha256").update(config).digest("hex"),
+			),
+			/symlinked or invalid Project MCP runtime directory/,
+		);
+	}
+	await assert.rejects(
+		lstat(join(outsideRoot, "home")),
+		error => error?.code === "ENOENT",
+	);
 });
 
 test("normalizes task selections deterministically", () => {
@@ -320,7 +374,11 @@ test("builds Browser Use from the pinned Playwright extension mode", async () =>
 
 test("keeps the Browser Use sentinel out of project MCP selection", () => {
   assert.deepEqual(
-    projectMcpServersFromSelection(["fixture", browserUseMcpServerName]),
+    projectMcpServersFromSelection([
+      "fixture",
+      browserUseMcpServerName,
+      pluginMcpServerName,
+    ]),
     ["fixture"],
   );
   const valid = { sessionId: "browser_user-12345678" };
@@ -334,6 +392,68 @@ test("keeps the Browser Use sentinel out of project MCP selection", () => {
     () => normalizeBrowserUseDescriptor({ sessionId: "browser_short" }),
     /invalid Browser Use session id/,
   );
+});
+
+test("builds Plugin MCP only from the supervised launcher descriptor", async () => {
+  const launcherRoot = await mkdtemp(join(tmpdir(), "milksu-plugin-mcp-"));
+  const command = process.execPath;
+  const appData = join(launcherRoot, "app-data");
+  await mkdir(appData);
+  const previousCommand = process.env.MILKSU_PLUGIN_MCP_COMMAND;
+  const previousAppData = process.env.MILKSU_PLUGIN_MCP_APPDATA;
+  try {
+    process.env.MILKSU_PLUGIN_MCP_COMMAND = command;
+    process.env.MILKSU_PLUGIN_MCP_APPDATA = appData;
+    const builtIn = await createFirstPartyPluginMcpServer();
+    assert.equal(builtIn.name, pluginMcpServerName);
+    assert.equal(builtIn.server.command, await realpath(command));
+    assert.deepEqual(builtIn.server.args, ["plugin-mcp"]);
+    assert.deepEqual(builtIn.server.env, {
+      MILKSU_APPDATA_DIR: await realpath(appData),
+    });
+    assert.equal(builtIn.server.cwd, dirname(await realpath(command)));
+    assert.equal(builtIn.server.lifecycle, "lazy");
+    assert.equal(builtIn.server.directTools, false);
+
+    const loaded = await loadCodingMcpConfig(
+      launcherRoot,
+      [],
+      "",
+      undefined,
+      undefined,
+      undefined,
+      [],
+    );
+    assert.deepEqual(loaded.projectSelected, []);
+    assert.deepEqual(loaded.selected, [pluginMcpServerName]);
+    assert.deepEqual(
+      Object.keys(loaded.config.mcpServers),
+      [pluginMcpServerName],
+    );
+    const recovery = await loadCodingMcpConfig(
+      launcherRoot,
+      [],
+      "",
+      undefined,
+      undefined,
+      undefined,
+      [],
+      false,
+    );
+    assert.equal(recovery.config, undefined);
+    assert.deepEqual(recovery.selected, []);
+  } finally {
+    if (previousCommand === undefined) {
+      delete process.env.MILKSU_PLUGIN_MCP_COMMAND;
+    } else {
+      process.env.MILKSU_PLUGIN_MCP_COMMAND = previousCommand;
+    }
+    if (previousAppData === undefined) {
+      delete process.env.MILKSU_PLUGIN_MCP_APPDATA;
+    } else {
+      process.env.MILKSU_PLUGIN_MCP_APPDATA = previousAppData;
+    }
+  }
 });
 
 test("combines selected project MCP with the reserved Coding Browser server", async () => {
@@ -527,6 +647,7 @@ test("reserves the built-in Playwright server name from project MCP config", asy
     codingBrowserMcpServerName,
     browserUseMcpServerName,
     computerUseMcpServerName,
+    pluginMcpServerName,
   ]) {
     await assert.rejects(
       loadSelectedMcpConfig(

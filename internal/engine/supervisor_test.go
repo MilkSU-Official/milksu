@@ -1992,6 +1992,41 @@ func TestSidecarEnvironmentPublishesCanonicalUserHomeWithoutGrantingIt(t *testin
 	}
 }
 
+func TestSidecarEnvironmentPinsFirstPartyPluginMCPLauncher(t *testing.T) {
+	t.Setenv("MILKSU_APPDATA_DIR", t.TempDir())
+	t.Setenv(pluginMCPCommandEnvironment, filepath.Join(t.TempDir(), "attacker-command"))
+	t.Setenv(pluginMCPAppDataEnvironment, filepath.Join(t.TempDir(), "attacker-data"))
+	environment, err := sidecarEnvironment(config.DefaultSettings())
+	if err != nil {
+		t.Fatal(err)
+	}
+	executable, err := canonicalCurrentExecutable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	runtimeHome, err := sidecarRuntimeHome()
+	if err != nil {
+		t.Fatal(err)
+	}
+	dataDirectory, err := filepath.EvalSymlinks(filepath.Dir(runtimeHome))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, expected := range []string{
+		pluginMCPCommandEnvironment + "=" + executable,
+		pluginMCPAppDataEnvironment + "=" + dataDirectory,
+	} {
+		if !containsEnvironmentEntry(environment, expected) {
+			t.Fatalf("expected launcher-owned %q in %#v", expected, environment)
+		}
+	}
+	for _, entry := range environment {
+		if strings.Contains(entry, "attacker-command") || strings.Contains(entry, "attacker-data") {
+			t.Fatalf("ambient Plugin MCP override survived: %q", entry)
+		}
+	}
+}
+
 func TestDeliverProbeEventRoutesSessionAndProcessFailures(t *testing.T) {
 	supervisor := NewSupervisor(nil)
 	first := make(chan Event, 2)

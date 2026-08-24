@@ -281,7 +281,7 @@ watch(
         </label>
       </div>
 
-      <div ref="conversationList" class="coding-conversation-list mt-2 min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-2 pb-3">
+      <div ref="conversationList" class="coding-conversation-list mt-2 min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-2 pb-3" data-plugin-surface="workspace-list">
         <p class="px-3 py-1.5 text-label font-medium text-muted-foreground">项目</p>
         <div v-if="projectGroups.length || temporaryGroup" class="flex flex-col">
           <div v-if="projectGroups.length" class="space-y-1">

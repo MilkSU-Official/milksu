@@ -46,11 +46,13 @@ test('desktop backend receives the actual Electron host PID', () => {
   }, {
     channel: 'stable',
     appId: 'com.milksu.app',
+    appVersion: '26.822.1',
     hostPid: 4321,
   })
 
   assert.equal(environment.MILKSU_CHANNEL, 'stable')
   assert.equal(environment.MILKSU_DESKTOP_APP_ID, 'com.milksu.app')
+  assert.equal(environment.MILKSU_APP_VERSION, '26.822.1')
   assert.equal(environment.MILKSU_DESKTOP_HOST_PID, '4321')
   assert.equal(environment.PATH, 'preserved-for-the-runtime')
 })

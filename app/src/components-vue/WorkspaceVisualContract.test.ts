@@ -105,9 +105,42 @@ describe('Workspace visual contract', () => {
 
   it('keeps hidden menus above content and gives every floating primitive the tactical theme', () => {
     expect(ctfPageSource).toContain('z-[var(--z-overlay)]')
+    expect(ctfPageSource).toContain('ctf-history-menu tactical-floating-surface')
+    expect(ctfPageSource).toContain(":global(:root[data-theme='light'] .ctf-history-menu)")
+    expect(ctfPageSource).toContain('background-color: var(--tactical-paper) !important')
     expect(appStylesSource).toContain('[data-slot="select-content"]')
     expect(appStylesSource).toContain('[data-slot="sheet-content"]')
     expect(appStylesSource).toContain('[data-slot="hover-card-content"]')
     expect(appStylesSource).toContain('.tactical-floating-surface')
+  })
+
+  it('keeps the content wallpaper scoped and exposes the other five stable skin surfaces independently', () => {
+		expect(appSource).toContain("'plugin-wallpaper-active': surfaceActive('content-wallpaper')")
+    expect(appSource).toContain('class="plugin-skin-canvas')
+    expect(appStylesSource).toContain('.plugin-skin-canvas')
+		expect(appStylesSource).toContain('pointer-events: none')
+    expect(chatPageSource).toContain('class="chat-page relative')
+		expect(chatComposerSource).toContain('data-plugin-surface="chat-composer"')
+    expect(ctfPageSource).toContain('<main class="tactical-page ctf-page')
+    expect(ctfPageSource).toContain('<section class="ctf-problem-surface')
+    expect(appStylesSource).toContain('.plugin-wallpaper-active .chat-page')
+    expect(appStylesSource).toContain('.plugin-wallpaper-active .ctf-problem-surface')
+    expect(appStylesSource).not.toContain('.plugin-skin-active .settings-page')
+    expect(appStylesSource).not.toContain('.plugin-wallpaper-active [data-button]')
+		expect(appStylesSource).not.toContain('.plugin-wallpaper-active .chat-composer')
+		for (const slot of ['workspace-list', 'control-button', 'workspace-topbar', 'overlay-menu', 'chat-composer']) {
+			expect(appStylesSource).toContain(`plugin-surface-${slot}-active`)
+		}
+		expect(appStylesSource).toContain("[data-variant='destructive']")
+		expect(appStylesSource).toContain('background-color: var(--overlay-clear) !important')
+		expect(appStylesSource).toContain('background-color: var(--ui-hover) !important')
+		expect(appStylesSource).toContain('background-color: var(--ui-pressed) !important')
+		expect(ctfChallengeDeskSource).toContain('data-plugin-surface="workspace-list"')
+		expect(settingsPageSource.match(/data-plugin-surface="workspace-list"/gu)?.length).toBe(2)
+		for (const primitive of ['select', 'dropdown-menu', 'context-menu', 'popover', 'hover-card']) {
+			expect(appStylesSource).toContain(`[data-slot='${primitive}-content']`)
+		}
+		expect(appStylesSource).toContain("[data-slot='settings-section']")
+		expect(appStylesSource).toContain("[data-slot='settings-row']")
   })
 })

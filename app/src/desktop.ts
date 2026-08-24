@@ -57,6 +57,16 @@ import type {
 } from './nssctfTrainingTypes'
 import type { CTFTrainingPlatform } from './ctfPlatformTypes'
 import type {
+  ActivePluginTheme,
+  PluginBackgroundChoice,
+  PluginDescriptor,
+  PluginMCPConfig,
+  PluginPublisherTrust,
+  PluginSurfaceSlot,
+  PluginUIRequest,
+  StagedPluginReview,
+} from './pluginTypes'
+import type {
   CodingArtifactPreview,
   CodingBrowserStatus,
   CodingCompactionResult,
@@ -106,7 +116,6 @@ export interface VulnerabilityFeedDownload {
   snapshotSha256?: string
   snapshotSizeBytes?: number
 }
-
 export interface VulnerabilityPracticeRequest {
   cveId: string
   environmentId: string
@@ -167,6 +176,23 @@ interface DesktopAppBindings {
   GetSecurityToolSetup(id: string): Promise<SecurityToolSetupSnapshot>
   CheckSecurityTool(id: string): Promise<SecurityToolSnapshot>
   PrepareSecurityToolCodingHandoff(id: string): Promise<SecurityToolCodingHandoff>
+  ListPlugins(): Promise<PluginDescriptor[]>
+  SetPluginEnabled(id: string, enabled: boolean): Promise<PluginDescriptor[]>
+  GetPluginSettingsScript(id: string): Promise<string>
+  GetActivePluginTheme(): Promise<ActivePluginTheme>
+  CallPluginUI(id: string, request: PluginUIRequest): Promise<unknown>
+  ChoosePluginBackground(id: string): Promise<PluginBackgroundChoice>
+  ChoosePluginSurface(id: string, slot: PluginSurfaceSlot): Promise<PluginBackgroundChoice>
+  GetPluginSurfaceAsset(id: string, slot: PluginSurfaceSlot, assetId: string): Promise<{ mime: string; data: string }>
+  ChoosePluginPackage(): Promise<StagedPluginReview>
+  InstallStagedPlugin(token: string, trustPublisher: boolean, confirmSensitiveChange: boolean, resetStorage: boolean): Promise<PluginDescriptor[]>
+  DiscardStagedPlugin(token: string): Promise<void>
+  RollbackPlugin(id: string): Promise<PluginDescriptor[]>
+  UninstallPlugin(id: string, deleteData: boolean): Promise<PluginDescriptor[]>
+  SetPluginExternalEnabled(id: string, enabled: boolean): Promise<PluginDescriptor[]>
+  ListPluginPublishers(): Promise<PluginPublisherTrust[]>
+  RevokePluginPublisher(keyId: string): Promise<PluginDescriptor[]>
+  GetPluginMCPConfig(): Promise<PluginMCPConfig>
   GetLocalDataStatus(): Promise<LocalDataStatus>
   GetUserArtifactDirectoryStatus(): Promise<UserArtifactDirectoryStatus>
   GetBuildTracking(): Promise<BuildTracking>
@@ -507,6 +533,43 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.GetCodingUsageSnapshot() as Promise<T>
       case 'save_settings_cmd':
         return app.SaveSettingsCmd(args?.newSettings as AppSettings) as Promise<T>
+      case 'list_plugins':
+        return app.ListPlugins() as Promise<T>
+      case 'set_plugin_enabled':
+        return app.SetPluginEnabled(args?.id as string, Boolean(args?.enabled)) as Promise<T>
+      case 'get_plugin_settings_script':
+        return app.GetPluginSettingsScript(args?.id as string) as Promise<T>
+      case 'get_active_plugin_theme':
+        return app.GetActivePluginTheme() as Promise<T>
+      case 'call_plugin_ui':
+        return app.CallPluginUI(args?.id as string, args?.request as PluginUIRequest) as Promise<T>
+      case 'choose_plugin_background':
+        return app.ChoosePluginBackground(args?.id as string) as Promise<T>
+      case 'choose_plugin_surface':
+        return app.ChoosePluginSurface(args?.id as string, args?.slot as PluginSurfaceSlot) as Promise<T>
+      case 'choose_plugin_package':
+        return app.ChoosePluginPackage() as Promise<T>
+      case 'install_staged_plugin':
+        return app.InstallStagedPlugin(
+          args?.token as string,
+          Boolean(args?.trustPublisher),
+          Boolean(args?.confirmSensitiveChange),
+          Boolean(args?.resetStorage),
+        ) as Promise<T>
+      case 'discard_staged_plugin':
+        return app.DiscardStagedPlugin(args?.token as string) as Promise<T>
+      case 'rollback_plugin':
+        return app.RollbackPlugin(args?.id as string) as Promise<T>
+      case 'uninstall_plugin':
+        return app.UninstallPlugin(args?.id as string, Boolean(args?.deleteData)) as Promise<T>
+      case 'set_plugin_external_enabled':
+        return app.SetPluginExternalEnabled(args?.id as string, Boolean(args?.enabled)) as Promise<T>
+      case 'list_plugin_publishers':
+        return app.ListPluginPublishers() as Promise<T>
+      case 'revoke_plugin_publisher':
+        return app.RevokePluginPublisher(args?.keyId as string) as Promise<T>
+      case 'get_plugin_mcp_config':
+        return app.GetPluginMCPConfig() as Promise<T>
       case 'get_local_data_status':
         return app.GetLocalDataStatus() as Promise<T>
       case 'get_user_artifact_directory_status':

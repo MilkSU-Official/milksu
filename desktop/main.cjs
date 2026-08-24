@@ -37,7 +37,7 @@ const {
   desktopProtocolClientRegistration,
   loadAccountConfig,
 } = require('./account-session.cjs')
-const { rendererHeaders } = require('./renderer-protocol.cjs')
+const { pluginFrameScriptHeaders, rendererHeaders } = require('./renderer-protocol.cjs')
 const { UpdateManager } = require('./update-manager.cjs')
 const {
   attachBrowserView,
@@ -88,7 +88,7 @@ protocol.registerSchemesAsPrivileged([{
     standard: true,
     secure: true,
     supportFetchAPI: true,
-    corsEnabled: false,
+    corsEnabled: true,
   },
 }])
 
@@ -193,7 +193,10 @@ async function syncAccountModelAuthorization(status) {
       try {
         const credential = await accountSession.modelCredential()
         if (credential?.apiKey) {
-          await backend.invoke('SetAccountModelCredential', [credential.baseUrl, credential.apiKey])
+          await backend.invokeFromElectronHost(
+            'SetAccountModelCredential',
+            [credential.baseUrl, credential.apiKey],
+          )
           lastAccountModelSync = { action: 'refresh', at: Date.now() }
           startupLog('syncAccountModelAuthorization', `${Date.now() - started}ms action=refresh ok`)
           return true
@@ -215,7 +218,7 @@ async function syncAccountModelAuthorization(status) {
     startupLog('syncAccountModelAuthorization', `${Date.now() - started}ms action=preserve`)
     return false
   }
-  await backend.invoke('ClearAccountModelCredential', [])
+  await backend.invokeFromElectronHost('ClearAccountModelCredential', [])
   lastAccountModelSync = { action: 'clear', at: Date.now() }
   startupLog('syncAccountModelAuthorization', `${Date.now() - started}ms action=clear`)
   return false
@@ -246,6 +249,39 @@ async function installRendererProtocol() {
   protocol.handle('milksu', async request => {
     const url = new URL(request.url)
 	if (url.host !== 'app') return new Response('not found', { status: 404 })
+    const pluginSettingsMatch = url.pathname.match(/^\/__plugin-settings\/([a-z][a-z0-9.-]{0,63})\.mjs$/)
+    if (pluginSettingsMatch) {
+      try {
+        if (!backend) return new Response('not ready', { status: 503 })
+        const script = await backend.invokeFromRenderer('GetPluginSettingsScript', [pluginSettingsMatch[1]])
+        return new Response(script, {
+          headers: pluginFrameScriptHeaders(`${pluginSettingsMatch[1]}.mjs`),
+        })
+      } catch {
+        return new Response('not found', { status: 404 })
+      }
+    }
+    const pluginAssetMatch = url.pathname.match(/^\/__plugin-assets\/([a-z][a-z0-9.-]{0,63})\/(content-wallpaper|workspace-list|control-button|workspace-topbar|overlay-menu|chat-composer)\/([a-z0-9-]+\.(?:png|jpg|webp))$/)
+    if (pluginAssetMatch) {
+      try {
+        if (!backend) return new Response('not ready', { status: 503 })
+        const asset = await backend.invokeFromRenderer('GetPluginSurfaceAsset', [
+          pluginAssetMatch[1],
+          pluginAssetMatch[2],
+          pluginAssetMatch[3],
+        ])
+        return new Response(Buffer.from(asset.data, 'base64'), {
+          headers: {
+            'Content-Type': asset.mime,
+            'Cache-Control': 'private, no-store',
+            'Content-Security-Policy': "default-src 'none'",
+            'X-Content-Type-Options': 'nosniff',
+          },
+        })
+      } catch {
+        return new Response('not found', { status: 404 })
+      }
+    }
     let relative = decodeURIComponent(url.pathname).replace(/^\/+/, '')
     if (!relative) relative = 'index.html'
     let candidate = path.resolve(root, relative)
@@ -257,7 +293,9 @@ async function installRendererProtocol() {
       if (metadata.isDirectory()) candidate = path.join(candidate, 'index.html')
       const body = await fs.readFile(candidate)
       return new Response(body, {
-        headers: rendererHeaders(candidate),
+        headers: relative === 'plugin-frame-bootstrap.js'
+          ? pluginFrameScriptHeaders(candidate)
+          : rendererHeaders(candidate),
       })
     } catch {
       return new Response('not found', { status: 404 })
@@ -588,6 +626,7 @@ class BrowserShell {
 
 function senderIsApp(event) {
   return event.sender === mainWindow?.webContents
+    && event.senderFrame === mainWindow?.webContents.mainFrame
     && event.senderFrame?.url?.startsWith(`${APP_ORIGIN}/`)
 }
 
@@ -833,14 +872,14 @@ ipcMain.handle('milksu:invoke', async (event, request) => {
     return started
   }
   try {
-    return await backend.invoke(method, request?.args)
+    return await backend.invokeFromRenderer(method, request?.args)
   } catch (error) {
     if (
       accountSession
       && accountModelAuthorizationRefreshRequired(method, error)
       && await syncAccountModelAuthorization(await accountSession.status())
     ) {
-      return backend.invoke(method, request?.args)
+      return backend.invokeFromRenderer(method, request?.args)
     }
     throw error
   }
@@ -951,7 +990,8 @@ app.whenReady().then(async () => {
       `state=${accountStatus.state}`,
     )
   }
-  await startupTime('loadURL', () => mainWindow.loadURL(`${APP_ORIGIN}/index.html`))
+  const startupQuery = process.env.MILKSU_OPEN_SETTINGS === 'plugins' ? '?open-settings=plugins' : ''
+  await startupTime('loadURL', () => mainWindow.loadURL(`${APP_ORIGIN}/index.html${startupQuery}`))
   startupLog(
     'main pre-renderer complete',
     `account.state=${accountStatus?.state ?? 'unknown'} provisional=${accountStatus?.provisional === true}`,

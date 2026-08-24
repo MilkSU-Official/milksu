@@ -1669,7 +1669,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <main class="tactical-page flex min-w-0 flex-1 flex-col bg-background">
+  <main class="tactical-page ctf-page flex min-w-0 flex-1 flex-col bg-background">
     <CTFWorkspaceHeader
       v-if="screen === 'workspace'"
       :challenge-title="activeProjection?.challenge.title"
@@ -1713,7 +1713,7 @@ onBeforeUnmount(() => {
           data-state="open"
           data-side="bottom"
           :class="[menuContentClass, menuViewportClass]"
-          class="tactical-floating-surface absolute right-0 top-[calc(100%+4px)] z-[var(--z-overlay)] max-h-[min(480px,calc(100vh-7rem))] w-[min(420px,calc(100vw-2rem))] overflow-y-auto"
+          class="ctf-history-menu tactical-floating-surface absolute right-0 top-[calc(100%+4px)] z-[var(--z-overlay)] max-h-[min(480px,calc(100vh-7rem))] w-[min(420px,calc(100vw-2rem))] overflow-y-auto"
           role="menu"
           aria-label="训练历史"
         >
@@ -2564,7 +2564,7 @@ onBeforeUnmount(() => {
 
           <template v-if="activeProjection">
             <div class="mx-auto max-w-5xl space-y-5">
-            <section class="rounded-xl border border-border bg-card p-6">
+            <section class="ctf-problem-surface rounded-xl border border-border bg-card p-6">
               <div class="flex flex-wrap items-start justify-between gap-5">
                 <div class="min-w-0">
                   <div class="flex flex-wrap items-center gap-2">
@@ -2796,3 +2796,23 @@ onBeforeUnmount(() => {
     />
   </main>
 </template>
+
+<style scoped>
+:global(:root[data-theme='light'] .ctf-history-menu) {
+  color: var(--tactical-paper-ink);
+  background-color: var(--tactical-paper) !important;
+  --foreground: var(--tactical-paper-ink);
+  --popover-foreground: var(--tactical-paper-ink);
+  --muted-foreground: var(--tactical-paper-muted);
+  --secondary: var(--background-chrome);
+  --secondary-foreground: var(--tactical-paper-ink);
+  --muted: var(--background-chrome);
+  --accent: var(--background-chrome);
+  --accent-foreground: var(--tactical-paper-ink);
+  --border: var(--tactical-paper-muted);
+  --border-menu: var(--tactical-paper-muted);
+  --input: var(--tactical-paper-muted);
+  --surface-raised: var(--tactical-paper);
+  --surface-sunken: var(--background-chrome);
+}
+</style>

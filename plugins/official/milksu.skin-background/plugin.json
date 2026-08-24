@@ -1,0 +1,39 @@
+{
+  "id": "milksu.skin-background",
+  "name": "背景皮肤",
+  "version": "1.1.1",
+  "apiVersion": "milksu.plugin/v1",
+  "publisher": {
+    "name": "MilkSU Official"
+  },
+  "host": {
+    "minVersion": "26.823.1",
+    "requiredCapabilities": [
+      "runtime.lua.v1",
+      "ui.settings.v1",
+      "theme.surfaces.v1",
+      "theme.assets.v1"
+    ]
+  },
+  "storageVersion": 1,
+  "runtime": {
+    "kind": "lua",
+    "entry": "main.lua"
+  },
+  "ui": {
+    "settingsEntry": "dist/settings.mjs"
+  },
+  "theme": {
+    "source": "dist/theme.json"
+  },
+  "permissions": [
+    "ui.background",
+    "ui.theme"
+  ],
+  "contributes": {
+    "slots": [
+      "settings.plugin-panel",
+      "app.background"
+    ]
+  }
+}

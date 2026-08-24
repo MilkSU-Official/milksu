@@ -1,5 +1,9 @@
 node_modules/
 dist/
+# Official plugin artifacts are deterministic release inputs and must be
+# reviewable in source control. Other dist directories remain ignored.
+!plugins/official/*/dist/
+!plugins/official/*/dist/**
 *.d.ts
 *.js.map
 *.d.ts.map

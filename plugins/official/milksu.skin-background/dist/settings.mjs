@@ -1,0 +1,58 @@
+var p=window.__MILKSU_PLUGIN_CONTEXT__,g=document.querySelector("#plugin-root"),h=[{slot:"content-wallpaper",title:"\u5185\u5BB9\u58C1\u7EB8",detail:"AI \u804A\u5929\u753B\u5E03\u548C CTF \u9898\u9762"},{slot:"workspace-list",title:"\u5217\u8868",detail:"\u9898\u76EE\u3001\u4F1A\u8BDD\u548C\u8BBE\u7F6E\u5217\u8868"},{slot:"control-button",title:"\u6309\u94AE",detail:"\u5BBF\u4E3B\u6807\u51C6\u6309\u94AE\uFF08\u5371\u9669\u4E0E\u7981\u7528\u72B6\u6001\u9664\u5916\uFF09"},{slot:"workspace-topbar",title:"\u5DE5\u4F5C\u533A\u9876\u90E8\u680F",detail:"Coding / CTF / CVE \u6807\u9898\u3001\u7B5B\u9009\u548C\u64CD\u4F5C\u533A"},{slot:"overlay-menu",title:"\u4E0B\u62C9\u83DC\u5355",detail:"Select\u3001Dropdown\u3001ContextMenu \u548C Popover"},{slot:"chat-composer",title:"Composer",detail:"\u8F93\u5165\u5916\u58F3\u3001\u8F93\u5165\u533A\u548C\u5DE5\u5177\u680F"}],k=[["original","\u7CFB\u7EDF\u539F\u59CB"],["paper","\u7EB8\u767D"],["graphite","\u77F3\u58A8"],["black","\u7EAF\u9ED1"],["cyan","\u9752\u84DD"],["gold","\u4FE1\u53F7\u91D1"],["gray","\u51B7\u7070"],["custom","\u81EA\u5B9A\u4E49"]],H={original:"var(--preview)",paper:"#f4f1e8",graphite:"#252525",black:"#000000",cyan:"#008ccf",gold:"#f5c842",gray:"#6b7280"},T={};g.innerHTML=`
+  <style>
+    :root {
+      color-scheme: dark; font-family: "Noto Sans SC", Inter, "PingFang SC", "Microsoft YaHei", sans-serif;
+      --canvas:#111315; --surface:#17191b; --foreground:#f8f8f5; --muted:rgba(248,248,245,.68);
+      --border:#3a3d40; --accent:#22bbff; --preview:#0d0f11;
+    }
+    :root[data-theme="light"] {
+      color-scheme:light; --canvas:#ebe9e2; --surface:#f4f2eb; --foreground:#101c2b;
+      --muted:#627087; --border:#b7b6af; --accent:#0075a8; --preview:#dedcd5;
+    }
+    * { box-sizing:border-box; }
+    body { margin:0; color:var(--foreground); background:var(--canvas); }
+    .panel { display:grid; gap:14px; padding:16px; }
+    .intro { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+    h2,h3,p { margin:0; }
+    h2 { font-size:16px; } h3 { font-size:14px; }
+    p,.hint { color:var(--muted); font-size:12px; line-height:1.5; }
+    .surface { display:grid; gap:12px; padding:14px; border:1px solid var(--border); background:var(--surface); border-radius:8px; }
+    .surface-head { display:flex; justify-content:space-between; gap:12px; }
+    .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px 12px; }
+    label { display:grid; gap:5px; color:var(--muted); font-size:12px; }
+    select,input[type="color"] { min-height:34px; width:100%; border:1px solid var(--border); border-radius:5px; background:var(--canvas); color:var(--foreground); }
+    input[type="range"] { width:100%; accent-color:var(--accent); }
+    input[type="color"] { padding:3px; }
+    .actions { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+    button { min-height:34px; border:1px solid var(--border); border-radius:5px; background:var(--canvas); color:var(--foreground); padding:7px 11px; cursor:pointer; }
+    button.primary { border-color:var(--accent); color:var(--accent); }
+    button:focus-visible,select:focus-visible,input:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+    .preview { position:relative; min-height:48px; overflow:hidden; border:1px dashed var(--border); border-radius:5px; background:var(--preview); color:var(--preview-foreground,var(--foreground)); }
+    .preview::before { position:absolute; inset:-24px; content:""; pointer-events:none; background-image:var(--preview-image,none); background-position:center; background-size:cover; background-repeat:no-repeat; opacity:var(--preview-image-opacity,0); filter:blur(var(--preview-blur,0)); }
+    .preview::after { position:absolute; inset:0; content:""; pointer-events:none; background:var(--preview-mask,transparent); }
+    .preview span { position:relative; z-index:1; display:grid; min-height:48px; place-items:center; font-size:12px; font-weight:600; text-shadow:0 1px 2px rgb(0 0 0 / .18); }
+    .is-hidden { display:none !important; }
+    output { min-height:20px; color:var(--muted); font-size:12px; }
+    @media (max-width:620px) { .grid { grid-template-columns:1fr; } }
+  </style>
+  <section class="panel">
+    <div class="intro"><div><h2>\u76AE\u80A4\u8868\u9762</h2><p>\u516D\u4E2A\u533A\u57DF\u53EF\u5206\u522B\u4FDD\u6301\u7CFB\u7EDF\u9ED8\u8BA4\u3001\u9009\u62E9\u7EAF\u8272\u6216\u9009\u62E9\u72EC\u7ACB\u56FE\u7247\u3002\u56FE\u7247\u53EA\u4EE5\u5BBF\u4E3B\u7BA1\u7406\u53E5\u67C4\u63D0\u4F9B\u7ED9\u63D2\u4EF6\u3002</p></div><button type="button" id="reset-all">\u6062\u590D\u5168\u90E8\u7CFB\u7EDF\u9ED8\u8BA4</button></div>
+    <div id="surfaces"></div>
+    <output id="status" aria-live="polite"></output>
+  </section>`;var c=g.querySelector("#surfaces"),i=g.querySelector("#status");c.innerHTML=h.map(({slot:e,title:t,detail:o})=>`
+  <article class="surface" data-slot="${e}">
+    <div class="surface-head"><div><h3>${t}</h3><p>${o}</p></div><button type="button" data-action="reset">\u5355\u9879\u91CD\u7F6E</button></div>
+    <div class="grid">
+      <label>\u6A21\u5F0F<select data-field="mode"><option value="inherit">\u8DDF\u968F\u7CFB\u7EDF\u9ED8\u8BA4</option><option value="solid">\u7EAF\u8272</option><option value="image">\u56FE\u7247</option></select></label>
+      <label data-group="solid">\u7EAF\u8272\u9884\u8BBE<select data-field="solid">${k.map(([l,r])=>`<option value="${l}">${r}</option>`).join("")}</select></label>
+      <label data-group="custom">\u81EA\u5B9A\u4E49\u989C\u8272<input data-field="custom" type="color" value="#252525"></label>
+      <label data-group="image">\u56FE\u7247\u53EF\u89C1\u5EA6 <span data-value="opacity">22%</span><input data-field="opacity" type="range" min="0" max="60" value="22"></label>
+      <label data-group="image">\u80CC\u666F\u6A21\u7CCA <span data-value="blur">0px</span><input data-field="blur" type="range" min="0" max="24" value="0"></label>
+      <label data-group="image">\u65E5\u95F4\u906E\u7F69\u989C\u8272<input data-field="light-color" type="color" value="#ffffff"></label>
+      <label data-group="image">\u65E5\u95F4\u906E\u7F69 <span data-value="light-opacity">12%</span><input data-field="light-opacity" type="range" min="0" max="100" value="12"></label>
+      <label data-group="image">\u591C\u95F4\u906E\u7F69\u989C\u8272<input data-field="dark-color" type="color" value="#000000"></label>
+      <label data-group="image">\u591C\u95F4\u906E\u7F69 <span data-value="dark-opacity">22%</span><input data-field="dark-opacity" type="range" min="0" max="100" value="22"></label>
+    </div>
+    <div class="preview" aria-hidden="true"><span>\u56FE\u7247\u4E0E\u6587\u5B57\u5BF9\u6BD4\u9884\u89C8 Aa</span></div>
+    <div class="actions"><button type="button" class="primary" data-action="choose">\u9009\u62E9\u56FE\u7247</button><button type="button" data-action="apply">\u5E94\u7528\u6B64\u9879</button><span class="hint" data-asset>\u5C1A\u672A\u9009\u62E9\u56FE\u7247</span></div>
+  </article>`).join("");function a(e,t){return e.querySelector(`[data-field="${t}"]`)}function E(e){return T[e]??{mode:"inherit"}}function x(){return document.documentElement.dataset.theme==="light"?"light":"dark"}function w(e,t){let o=/^#[0-9a-f]{6}$/iu.test(e)?e:x()==="dark"?"#000000":"#ffffff",l=Math.min(1,Math.max(0,t));return`${o}${Math.round(l*255).toString(16).padStart(2,"0")}`}function v(e){let t=e.dataset.slot,o=a(e,"mode").value,l=a(e,"solid").value;e.querySelectorAll('[data-group="solid"]').forEach(u=>u.classList.toggle("is-hidden",o!=="solid")),e.querySelectorAll('[data-group="custom"]').forEach(u=>u.classList.toggle("is-hidden",o!=="solid"||l!=="custom")),e.querySelectorAll('[data-group="image"]').forEach(u=>u.classList.toggle("is-hidden",o!=="image"));let r=Number(a(e,"opacity").value),m=Number(a(e,"blur").value),n=Number(a(e,"light-opacity").value),f=Number(a(e,"dark-opacity").value);e.querySelector('[data-value="opacity"]').textContent=`${r}%`,e.querySelector('[data-value="blur"]').textContent=`${m}px`,e.querySelector('[data-value="light-opacity"]').textContent=`${n}%`,e.querySelector('[data-value="dark-opacity"]').textContent=`${f}%`;let s=e.querySelector(".preview"),b=E(t),S=a(e,"solid").value;s.style.backgroundColor=o==="solid"?S==="custom"?a(e,"custom").value:H[S]:"var(--preview)";let y=x(),L=a(e,y==="dark"?"dark-color":"light-color").value,M=Number(a(e,y==="dark"?"dark-opacity":"light-opacity").value)/100;s.style.setProperty("--preview-image",o==="image"&&b.asset_url?`url("${b.asset_url}")`:"none"),s.style.setProperty("--preview-image-opacity",o==="image"?String(r/100):"0"),s.style.setProperty("--preview-blur",o==="image"?`${m}px`:"0px"),s.style.setProperty("--preview-mask",o==="image"?w(L,M):"transparent"),s.style.setProperty("--preview-foreground",y==="dark"?"#f8f8f5":"#101c2b"),e.querySelector("[data-asset]").textContent=b.asset_id?"\u5DF2\u9009\u62E9\u5BBF\u4E3B\u7BA1\u7406\u56FE\u7247":"\u5C1A\u672A\u9009\u62E9\u56FE\u7247"}function _(e,t){let o=e.dataset.slot;T[o]={...t},a(e,"mode").value=t.mode??"inherit",a(e,"solid").value=t.solid??"original",a(e,"custom").value=t.custom_color??"#252525",a(e,"opacity").value=String(Math.round((t.image_opacity??.22)*100)),a(e,"blur").value=String(Math.round(t.blur??0)),a(e,"light-color").value=t.light_mask?.color??"#ffffff",a(e,"light-opacity").value=String(Math.round((t.light_mask?.opacity??.12)*100)),a(e,"dark-color").value=t.dark_mask?.color??"#000000",a(e,"dark-opacity").value=String(Math.round((t.dark_mask?.opacity??.22)*100)),v(e)}function I(e){let t=e.dataset.slot,o=E(t);return{mode:a(e,"mode").value,solid:a(e,"solid").value,custom_color:a(e,"custom").value,asset_id:o.asset_id,image_opacity:Number(a(e,"opacity").value)/100,blur:Number(a(e,"blur").value),light_mask:{color:a(e,"light-color").value,opacity:Number(a(e,"light-opacity").value)/100},dark_mask:{color:a(e,"dark-color").value,opacity:Number(a(e,"dark-opacity").value)/100}}}function d(e){for(let{slot:t}of h){let o=c.querySelector(`[data-slot="${t}"]`);_(o,e.surfaces?.[t]??{mode:"inherit"})}}c.addEventListener("input",e=>{let t=e.target.closest(".surface");t&&v(t)});c.addEventListener("change",e=>{let t=e.target.closest(".surface");t&&v(t)});c.addEventListener("click",async e=>{let t=e.target.closest("button[data-action]"),o=t?.closest(".surface");if(!t||!o)return;let l=o.dataset.slot;try{if(t.dataset.action==="choose"){i.value=`\u6B63\u5728\u4E3A\u201C${h.find(f=>f.slot===l)?.title}\u201D\u9009\u62E9\u56FE\u7247\u2026`;let n=await p.request("choose_surface","choose",{slot:l});!n.canceled&&n.theme&&d(n.theme),i.value=n.canceled?"\u5DF2\u53D6\u6D88":"\u56FE\u7247\u5DF2\u590D\u5236\u5230\u63D2\u4EF6\u4E13\u5C5E\u5B58\u50A8";return}if(t.dataset.action==="reset"){let n=await p.request("call_ui","reset",{slot:l});d(n),i.value="\u5DF2\u6062\u590D\u8BE5\u9879\u7CFB\u7EDF\u9ED8\u8BA4";return}let r=I(o);if(r.mode==="image"&&!r.asset_id)throw new Error("\u8BF7\u5148\u70B9\u51FB\u201C\u9009\u62E9\u56FE\u7247\u201D");let m=await p.request("call_ui","update",{slot:l,style:r});d(m),i.value="\u5DF2\u5E94\u7528\u8BE5\u9879"}catch(r){i.value=r instanceof Error?r.message:String(r)}});g.querySelector("#reset-all").addEventListener("click",async()=>{try{let e=await p.request("call_ui","reset_all");d(e),i.value="\u6240\u6709\u8868\u9762\u5DF2\u6062\u590D\u7CFB\u7EDF\u9ED8\u8BA4"}catch(e){i.value=e instanceof Error?e.message:String(e)}});addEventListener("milksu:theme-changed",()=>{c.querySelectorAll(".surface").forEach(v)});p.request("call_ui","get").then(e=>d(e)).catch(e=>{i.value=e instanceof Error?e.message:String(e)});

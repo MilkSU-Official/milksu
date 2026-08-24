@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://milksu.dev/schemas/plugin/signature-v1.schema.json",
+  "title": "MilkSU Signed Plugin Package v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "digest", "publisher", "signatures"],
+  "properties": {
+    "schema": { "const": "milksu.plugin-signature/v1" },
+    "digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "publisher": { "type": "string", "minLength": 1, "maxLength": 96 },
+    "signatures": {
+      "type": "array", "minItems": 1, "maxItems": 2,
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["keyId", "publicKey", "signature"],
+        "properties": {
+          "keyId": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "publicKey": { "type": "string" },
+          "signature": { "type": "string" }
+        }
+      }
+    }
+  }
+}
