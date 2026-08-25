@@ -1213,8 +1213,8 @@ defineExpose({
 </script>
 
 <template>
-  <div class="chat-composer shrink-0 border-t border-border bg-surface-editor px-4 pb-3 pt-2">
-    <div ref="composerFrame" class="chat-composer__frame mx-auto w-full max-w-5xl">
+  <div class="chat-composer shrink-0 bg-transparent px-0 pb-3 pt-2">
+    <div ref="composerFrame" class="chat-composer__frame agent-thread">
       <div
         v-if="slashMenuOpen"
         id="coding-slash-command-menu"
@@ -2061,8 +2061,7 @@ defineExpose({
 
 .chat-composer__island {
   border: 1px solid var(--border);
-  border-left: 4px solid var(--brand);
-  border-radius: 2px;
+  border-radius: 16px;
   background-color: var(--card);
   padding: .65rem .85rem .75rem;
   box-shadow: none;

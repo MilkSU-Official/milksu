@@ -73,16 +73,13 @@ function durationLabel(durationMs?: number) {
             <span v-if="chip(entry).add !== undefined" class="agent-pill__add">+{{ chip(entry).add }}</span>
             <span v-if="chip(entry).del !== undefined" class="agent-pill__del">-{{ chip(entry).del }}</span>
           </span>
-          <span
-            v-if="entry.durationMs !== undefined"
-            class="shrink-0 text-caption tabular-nums text-muted-foreground"
-          >
-            {{ durationLabel(entry.durationMs) }}
+          <span class="agent-chip__meta shrink-0 text-caption tabular-nums text-muted-foreground">
+            <span v-if="entry.durationMs !== undefined">{{ durationLabel(entry.durationMs) }}</span>
+            <AkLoadingMark
+              v-if="entry.running"
+              :label="t('工具进行中', 'Tool running')"
+            />
           </span>
-          <AkLoadingMark
-            v-if="entry.running"
-            :label="t('工具进行中', 'Tool running')"
-          />
         </summary>
         <div class="tool-activity-entry__detail">
           <template v-if="entry.request">

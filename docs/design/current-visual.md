@@ -74,12 +74,12 @@ CTF / CVE / 实验室列表页共用同一套指挥面，不要在某一页另�
 Coding Agent 的对话区（CTF / CVE / 实验室小窗共用同一套 `ChatPage`）按 Agent 循环来画，不按设置页来画。实现落在 `[data-agent-conversation]` 和 `app/src/styles/agent-conversation.css`。
 
 - 材质：冷中性纸面/卡片、实线 hairline、半径 chip 6 / 卡片 10 / Prompt 岛 16。强调色可以是一条蓝（思考点、发送），不再用战术切角气泡或 YOU / MILKSU 字标。
-- 思考：可展开「想了 Ns」。正文只来自 Pi 的 `thinking` 块，不演假步骤。
-- 工具：默认是一行芯片（`Read path`、`Edit path +12 -4`、`bash npm test`）。点开才看输入/结果。
-- 审批：HITL 卡片。按钮仍是拒绝 / 允许这一次 / 本对话始终允许。不要 ASK / HOLD / STOP 字标。
-- 回答：普通卡片 + Markdown。来源芯片只接线消息里真实出现的 `https` 链接。
-- 压缩：进行中用一条状态；成功后可以有横幅，不写内部阈值。
-- Composer：岛状输入，保留 slash、附件、模型、思考档、steer、上下文环。
+- 列宽：思考、工具、回复、用户气泡、Composer 共用中间一列，宽度约为对话主栏的 72%（小窗 88%），随窗口等比缩放。两侧留白，窗口变窄时留白变少。不钉死 `42rem` / `max-w-3xl`。用户气泡贴这一列的右缘；思考和工具贴左缘。工具行的秒数跟在芯片后面，不拉到列的右缘。
+- 思考：Beautiful UI 式可展开「想了 Ns」，单独一行，不包进回复卡片。正文只来自 Pi 的 `thinking` 块。
+- 工具：Beautiful UI 式芯片行（`Read` / `Edit +N -N` / `bash`），点开才看输入/结果。
+- 审批：HITL 卡片铺满同一列。按钮仍是拒绝 / 允许这一次 / 本对话始终允许。
+- 回答：同一列里的正文，不另缩一截。来源芯片只接线真实 `https` 链接。
+- Composer：同一列宽的岛状输入。不使用青色左边条。
 
 壳、列表、设置、档案仍用第 1–4 层。
 

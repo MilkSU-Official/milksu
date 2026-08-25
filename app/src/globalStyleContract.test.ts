@@ -95,9 +95,14 @@ describe('global style contract', () => {
       'utf8',
     )
     expect(agentCss).toContain('[data-agent-conversation]')
+    expect(agentCss).toContain('.agent-thread')
+    expect(agentCss).toContain('width: 72%')
+    expect(agentCss).toContain('margin-inline: auto')
     expect(agentCss).toContain('.agent-chip')
+    expect(agentCss).toContain('width: fit-content')
     expect(agentCss).toContain('.agent-approve')
     expect(agentCss).not.toContain('.page-column')
+    expect(agentCss).not.toContain('max-w-3xl')
   })
 
   it('uses the ak-ui cyan action color instead of acid green or the old SaaS blue', () => {

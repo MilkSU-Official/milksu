@@ -92,6 +92,17 @@ async function openSource(href: string, event: MouseEvent) {
   }
 }
 
+const showBubble = computed(() => (
+  props.message.role !== 'tool'
+  && (
+    props.message.role === 'user'
+    || Boolean(props.message.content)
+    || Boolean(props.message.attachments?.length)
+    || Boolean(props.recoverable)
+    || (props.message.status === 'running' && props.message.thinkingStatus !== 'running')
+  )
+))
+
 const approvalKicker = computed(() => (
   props.message.approvalState === 'pending'
     ? t('等待决定', 'Waiting')
@@ -106,8 +117,7 @@ const approvalKicker = computed(() => (
 <template>
   <article
     v-if="!isBlankAssistantMessage(message) && !(message.toolName === toolBudgetToolName && message.approvalState === 'pending')"
-    class="mb-7 min-w-0"
-    :class="message.role === 'user' ? 'ml-auto max-w-[82%]' : 'max-w-full'"
+    class="agent-turn mb-7 min-w-0 w-full"
   >
     <div
       v-if="timeLabel"
@@ -168,26 +178,26 @@ const approvalKicker = computed(() => (
         {{ visibleApprovalText(message.approvalReason) }}
       </p>
     </div>
+    <details
+      v-else-if="message.role !== 'user' && (message.thinking || message.thinkingStatus === 'running')"
+      class="agent-think"
+      :open="message.thinkingStatus === 'running'"
+    >
+      <summary class="agent-think__summary">
+        <span class="agent-think__dot" />
+        <span>{{ thinkingLabel }}</span>
+        <AkLoadingMark
+          v-if="message.thinkingStatus === 'running'"
+          :label="t('正在思考', 'Thinking')"
+        />
+      </summary>
+      <div v-if="message.thinking" class="agent-think__body">{{ message.thinking }}</div>
+    </details>
     <div
-      v-else
+      v-if="showBubble"
       class="min-w-0 overflow-x-auto break-words text-control leading-7"
       :class="message.role === 'user' ? 'agent-user' : 'agent-answer'"
     >
-      <details
-        v-if="message.thinking || message.thinkingStatus === 'running'"
-        class="agent-think"
-        :open="message.thinkingStatus === 'running'"
-      >
-        <summary class="agent-think__summary">
-          <span class="agent-think__dot" />
-          <span>{{ thinkingLabel }}</span>
-          <AkLoadingMark
-            v-if="message.thinkingStatus === 'running'"
-            :label="t('正在思考', 'Thinking')"
-          />
-        </summary>
-        <div v-if="message.thinking" class="agent-think__body">{{ message.thinking }}</div>
-      </details>
       <div
         v-if="message.attachments?.length"
         class="mb-2 flex flex-wrap gap-2"

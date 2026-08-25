@@ -8,6 +8,18 @@
   --agent-island-radius: 16px;
 }
 
+[data-agent-conversation] .agent-thread {
+  width: 72%;
+  max-width: none;
+  box-sizing: border-box;
+  margin-inline: auto;
+  padding-inline: 0;
+}
+
+[data-agent-conversation].chat-surface-dock .agent-thread {
+  width: 88%;
+}
+
 [data-agent-conversation] > .coding-workspace > .chat-main {
   background: color-mix(in srgb, var(--background) 88%, var(--card));
 }
@@ -22,9 +34,14 @@
   display: none;
 }
 
+[data-agent-conversation] .agent-turn {
+  width: 100%;
+}
+
 [data-agent-conversation] .agent-user {
+  width: fit-content;
+  max-width: 80%;
   margin-left: auto;
-  max-width: 82%;
   border: 1px solid var(--border);
   border-radius: 12px;
   background: color-mix(in srgb, var(--muted) 55%, var(--card));
@@ -32,23 +49,24 @@
 }
 
 [data-agent-conversation] .agent-answer {
-  width: min(42rem, 100%);
-  border: 1px solid var(--border);
-  border-radius: var(--agent-card-radius);
-  background: var(--card);
-  padding: 0.85rem 1rem;
+  width: 100%;
+  padding: 0;
+  background: transparent;
+  border: 0;
 }
 
 [data-agent-conversation] .agent-think {
-  margin: 0 0 0.65rem;
-  border: 1px solid var(--border);
-  border-radius: var(--agent-card-radius);
-  background: var(--card);
-  padding: 0.45rem 0.7rem;
+  width: 100%;
+  margin: 0 0 0.55rem;
+  border: 0;
+  background: transparent;
+  padding: 0;
 }
 
 [data-agent-conversation] .agent-think__summary {
   display: flex;
+  width: fit-content;
+  max-width: 100%;
   align-items: center;
   gap: 0.45rem;
   cursor: pointer;
@@ -62,8 +80,8 @@
 }
 
 [data-agent-conversation] .agent-think__dot {
-  width: 0.42rem;
-  height: 0.42rem;
+  width: 0.4rem;
+  height: 0.4rem;
   border-radius: 99px;
   background: var(--agent-accent);
 }
@@ -92,6 +110,8 @@
 }
 
 [data-agent-conversation] .agent-approve {
+  width: 100%;
+  box-sizing: border-box;
   border: 1px solid var(--border);
   border-radius: var(--agent-card-radius);
   background: var(--card);
@@ -139,6 +159,7 @@
 }
 
 [data-agent-conversation] .tool-activity {
+  width: 100%;
   margin-bottom: 1.1rem;
   color: var(--muted-foreground);
 }
@@ -151,11 +172,16 @@
   display: flex;
   width: fit-content;
   max-width: 100%;
+  box-sizing: border-box;
   align-items: center;
   gap: 0.45rem;
   min-height: 1.7rem;
-  padding: 0.15rem 0.1rem;
+  padding: 0.15rem 0;
   font-size: 0.8rem;
+}
+
+[data-agent-conversation] .agent-chip__meta {
+  margin-left: 0;
 }
 
 [data-agent-conversation] .agent-chip strong {
@@ -167,7 +193,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  max-width: 28rem;
+  max-width: min(70%, 24em);
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: var(--agent-chip-radius);
@@ -226,8 +252,8 @@
 }
 
 [data-agent-conversation] .compact-bar {
-  margin: 0 auto 0.35rem;
-  width: min(44rem, calc(100% - 2rem));
+  margin: 0 0 0.35rem;
+  box-sizing: border-box;
   border: 1px dashed var(--border);
   border-radius: var(--agent-card-radius);
   background: color-mix(in srgb, var(--card) 70%, transparent);

@@ -32,6 +32,12 @@ describe('agent conversation chips', () => {
     expect(agentToolChip(entry('bash', '$ npm test')).pill).toBe('npm test')
   })
 
+  it('labels progress tools as Plan and truncates long pills', () => {
+    const chip = agentToolChip(entry('milksu_progress', '只调查仓库根目录与 README 开头，确认项目定位，不修改任何文件。'))
+    expect(chip.verb).toBe('Plan')
+    expect(chip.pill.length).toBeLessThanOrEqual(64)
+  })
+
   it('only lifts https markdown links into source chips', () => {
     expect(messageSourceChips('see [docs](https://vitest.dev/guide/) and http://insecure.example')).toEqual([
       { href: 'https://vitest.dev/guide/', label: 'vitest.dev' },

@@ -43,7 +43,9 @@ export function agentToolChip(entry: ChatActivityEntry): AgentToolChip {
               ? 'ls'
               : name === 'bash'
                 ? 'bash'
-                : name
+                : name === 'milksu_progress'
+                  ? 'Plan'
+                  : name
   const source = firstLine(entry.request?.content || entry.result?.content || '')
     .replace(/^\$\s+/, '')
   const mutation = source.match(/^(.*?)\s+\+(\d+)\s+[-−](\d+)\s*$/)
@@ -64,12 +66,11 @@ export function agentToolChip(entry: ChatActivityEntry): AgentToolChip {
     }
   }
   const path = source.split(' · ')[0]?.trim() || source
-  return {
-    verb,
-    pill: name === 'read' || name === 'edit' || name === 'write' || name === 'ls'
-      ? basename(path)
-      : path,
-  }
+  const rawPill = name === 'read' || name === 'edit' || name === 'write' || name === 'ls'
+    ? basename(path)
+    : path
+  const pill = rawPill.length > 64 ? `${rawPill.slice(0, 63).trimEnd()}…` : rawPill
+  return { verb, pill }
 }
 
 export function thinkingSummary(durationMs?: number, running?: boolean) {

@@ -2206,7 +2206,7 @@ defineExpose({
         <p v-if="gitBranchError" class="mt-3 text-center text-caption text-destructive">{{ gitBranchError }}</p>
       </div>
 
-      <div v-else class="mx-auto min-w-0 max-w-3xl" :class="dockSurface ? 'px-4 py-4' : 'px-8 py-8'">
+      <div v-else class="agent-thread min-w-0" :class="dockSurface ? 'agent-thread--dock' : ''">
         <template v-for="item in chatTranscript" :key="item.id">
           <ChatActivityGroup
             v-if="item.kind === 'activity'"
@@ -2233,7 +2233,7 @@ defineExpose({
 
     <p
       v-if="compacting"
-      class="compact-bar"
+      class="compact-bar agent-thread"
       data-testid="context-compaction-status"
       role="status"
     >
@@ -2241,7 +2241,7 @@ defineExpose({
     </p>
     <p
       v-else-if="compactionError"
-      class="compact-bar"
+      class="compact-bar agent-thread"
       data-testid="context-compaction-error"
       role="status"
     >
