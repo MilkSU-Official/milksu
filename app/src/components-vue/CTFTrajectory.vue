@@ -114,7 +114,7 @@ function statusLabel(status: string) {
 </script>
 
 <template>
-  <details class="group game-surface px-5 py-4">
+  <details class="group overflow-hidden rounded-menu-shell border border-border bg-card px-5 py-4">
     <summary class="flex cursor-pointer list-none items-start justify-between gap-4 [&::-webkit-details-marker]:hidden">
       <div>
         <h2 class="flex items-center gap-2 text-label font-medium">

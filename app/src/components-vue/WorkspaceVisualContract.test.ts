@@ -12,7 +12,9 @@ import settingsPageSource from './SettingsPage.vue?raw'
 import tacticalPanelShellSource from './TacticalPanelShell.vue?raw'
 import vulnPageSource from './VulnPage.vue?raw'
 import workspaceRailSource from './WorkspaceRail.vue?raw'
+import ctfArtifactsSource from './CTFArtifacts.vue?raw'
 import ctfPageSource from './CTFPage.vue?raw'
+import ctfTrajectorySource from './CTFTrajectory.vue?raw'
 import domainTaskContextSource from './DomainTaskContextPanel.vue?raw'
 import appSource from '../App.vue?raw'
 const appStylesSource = readFileSync(new URL('../index.css', import.meta.url), 'utf8')
@@ -83,6 +85,8 @@ describe('Workspace visual contract', () => {
     expect(settingsPageSource).toContain('settings-nav-surface')
     expect(settingsPageSource).not.toContain('tactical-dark-surface')
     expect(settingsPageSource).toContain('background-color: var(--background)')
+    expect(settingsPageSource).toContain('--settings-field-fill:')
+    expect(settingsPageSource).not.toContain("t('保存设置', 'Save settings')")
     expect(settingsPageSource).not.toContain('bg-[#101418]')
     expect(chatPageSource).toContain("import TacticalPanelShell from '@/components-vue/TacticalPanelShell.vue'")
     expect(chatPageSource).toContain('class="context-sidebar"')
@@ -105,6 +109,11 @@ describe('Workspace visual contract', () => {
   })
 
   it('keeps hidden menus above content and gives every floating primitive the tactical theme', () => {
+    expect(ctfTrajectorySource).toContain('rounded-menu-shell')
+    expect(ctfArtifactsSource).toContain('rounded-menu-shell')
+    expect(ctfTrajectorySource).not.toContain('game-surface')
+    expect(ctfArtifactsSource).not.toContain('game-surface')
+    expect(appStylesSource).not.toContain('.game-surface')
     expect(ctfPageSource).toContain('z-[var(--z-overlay)]')
     expect(appStylesSource).toContain('[data-slot="select-content"]')
     expect(appStylesSource).toContain('[data-slot="sheet-content"]')

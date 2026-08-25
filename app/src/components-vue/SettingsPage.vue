@@ -506,6 +506,7 @@ function setSkillEnabled(name: string, enabled: boolean) {
   if (enabled) disabled.delete(name)
   else disabled.add(name)
   working.value.disabled_skills = [...disabled]
+  void save()
 }
 
 function ensureProviderConfig(id: string): ProviderConfig | undefined {
@@ -1149,7 +1150,7 @@ async function refreshCallableModels() {
   alignDefaultModelToEnabledServices()
 }
 
-async function save(): Promise<boolean> {
+async function save(options?: { quiet?: boolean }): Promise<boolean> {
   if (!working.value) return false
   const incompleteCustomProvider = Object.values(working.value.providers).find(item => (
     item.custom && (!item.name?.trim() || !item.base_url?.trim() || !(item.models ?? []).length)
@@ -1177,11 +1178,11 @@ async function save(): Promise<boolean> {
     emit('settingsChange', refreshed)
     await refreshCallableModels()
     if (category.value !== 'apikeys') {
-      notice.value = {
-        tone: 'ok',
-        text: category.value === 'coding'
-          ? t('Skills 设置已保存。', 'Skills settings saved.')
-          : t('设置已保存。', 'Settings saved.'),
+      if (!options?.quiet) {
+        notice.value = {
+          tone: 'ok',
+          text: t('设置已保存。', 'Settings saved.'),
+        }
       }
       return true
     }
@@ -1357,7 +1358,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                 :model-value="working.locale ?? 'zh'"
                 size="sm"
                 :aria-label="t('界面语言', 'Interface language')"
-                @change="changeLocale(($event.target as HTMLSelectElement).value)"
+                @update:model-value="changeLocale($event)"
               >
                 <NativeSelectOption value="zh">{{ t('简体中文', 'Simplified Chinese') }}</NativeSelectOption>
                 <NativeSelectOption value="en">English</NativeSelectOption>
@@ -1443,7 +1444,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                 <li
                   v-for="database in localData.databases"
                   :key="database.relativePath"
-                  class="min-w-0 rounded-lg border border-border p-3"
+                  class="min-w-0 rounded-lg border border-border bg-muted/30 p-3"
                 >
                   <div class="flex min-w-0 flex-col items-start gap-y-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-2">
                     <span class="min-w-0 text-control font-medium">{{ database.logicalName }}</span>
@@ -1470,10 +1471,6 @@ async function saveProviderEditor(closeAfterSave: boolean) {
               </ul>
             </SettingsRow>
           </SettingsSection>
-
-          <div class="mt-6 flex justify-end">
-            <Button :loading="saving" @click="save">{{ t('保存设置', 'Save settings') }}</Button>
-          </div>
 
           <!-- Bottom of Settings: sealed/package provenance only; never a fake signature. -->
           <SettingsSection :title="t('构建追踪', 'Build tracking')" class="mt-10 border-t border-border pt-6">
@@ -1546,7 +1543,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                   :model-value="normalizePreferredExternalEditor(working.preferred_external_editor)"
                   size="sm"
                   :aria-label="t('打开文件的编辑器', 'Editor for opening files')"
-                  @update:model-value="working.preferred_external_editor = String($event)"
+                  @update:model-value="working.preferred_external_editor = String($event); void save()"
                 >
                   <NativeSelectOption
                     v-for="editor in EXTERNAL_EDITORS"
@@ -1574,10 +1571,6 @@ async function saveProviderEditor(closeAfterSave: boolean) {
               />
             </SettingsRow>
           </SettingsSection>
-
-          <div class="mt-6 flex justify-end">
-            <Button :loading="saving" @click="save">{{ t('保存设置', 'Save settings') }}</Button>
-          </div>
         </template>
 
         <template v-else-if="category === 'chats'">
@@ -1689,7 +1682,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                 class="mt-4 grid gap-3 sm:grid-cols-2"
                 :aria-label="t('Computer Use 权限设置', 'Computer Use permission settings')"
               >
-                <div class="rounded-lg border border-border bg-background/60 p-3">
+                <div class="rounded-lg border border-border bg-muted/30 p-3">
                   <div class="flex items-start justify-between gap-3">
                     <div>
                       <p class="text-body font-medium">{{ t('辅助功能', 'Accessibility') }}</p>
@@ -1717,7 +1710,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                     {{ t('打开辅助功能设置', 'Open Accessibility settings') }}
                   </Button>
                 </div>
-                <div class="rounded-lg border border-border bg-background/60 p-3">
+                <div class="rounded-lg border border-border bg-muted/30 p-3">
                   <div class="flex items-start justify-between gap-3">
                     <div>
                       <p class="text-body font-medium">{{ t('屏幕录制', 'Screen Recording') }}</p>
@@ -1935,7 +1928,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
             :title="t('模型能力', 'Model capabilities')"
             class="mt-8"
           >
-            <div class="rounded-lg border border-border bg-card p-4">
+            <div class="rounded-lg border border-border bg-muted/30 p-4">
               <div class="flex flex-wrap items-start justify-between gap-4">
                 <div class="min-w-0 flex-1">
                   <p class="font-medium">{{ t('思考层级', 'Thinking levels') }}</p>
@@ -2211,6 +2204,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                     session_only: value ? false : working!.nssctf_arena?.session_only,
                   }
                 }"
+                @blur="save"
               />
             </SettingsRow>
           </SettingsSection>
@@ -2224,9 +2218,6 @@ async function saveProviderEditor(closeAfterSave: boolean) {
               </Button>
             </SettingsRow>
           </SettingsSection>
-          <div class="mt-6 flex justify-end">
-            <Button :loading="saving" @click="save">{{ t('保存设置', 'Save settings') }}</Button>
-          </div>
         </template>
 
         <template v-else-if="category === 'security-tools'">
@@ -2236,10 +2227,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
         </template>
 
         <template v-else-if="working && category === 'lab'">
-          <LabSettingsPanel :settings="working" />
-          <div class="mt-6 flex justify-end">
-            <Button :loading="saving" @click="save">{{ t('保存设置', 'Save settings') }}</Button>
-          </div>
+          <LabSettingsPanel :settings="working" @persist="save" />
         </template>
 
         <template v-else-if="category === 'cve'">
@@ -2270,6 +2258,25 @@ async function saveProviderEditor(closeAfterSave: boolean) {
 }
 .settings-page :deep([data-slot="settings-section"]),
 .settings-page :deep(.rounded-menu-shell) { border-radius: .45rem; }
+/*
+ * Felinic fields are transparent by default. On --card that reads as a dead
+ * gray slab matching the page canvas. Paint an opaque, lifted fill so text
+ * fields and choosers look typeable against the settings cards.
+ */
+.settings-page {
+  --settings-field-fill: color-mix(in srgb, var(--foreground) 11%, var(--card));
+  --settings-field-fill-hover: color-mix(in srgb, var(--foreground) 16%, var(--card));
+}
+.settings-page :deep([data-slot="input"]:not(:disabled):not([readonly])),
+.settings-page :deep([data-slot="textarea"]:not(:disabled):not([readonly])),
+.settings-page :deep([data-slot="native-select"]),
+.settings-page :deep([data-slot="select-trigger"]) {
+  background-color: var(--settings-field-fill);
+}
+.settings-page :deep([data-slot="native-select"]:hover:not(:disabled)),
+.settings-page :deep([data-slot="select-trigger"]:hover) {
+  background-color: var(--settings-field-fill-hover);
+}
 .model-service-row { transition: background-color 120ms ease, border-color 120ms ease; }
 .model-service-row:hover { background: var(--overlay-hover-light); }
 .model-service-row-primary { box-shadow: inset 3px 0 0 var(--brand); }

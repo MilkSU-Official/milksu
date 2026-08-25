@@ -244,15 +244,14 @@ const fiveDatabases: LocalDataStatus = {
 }
 
 describe('SettingsPage build tracking', () => {
-  it('renders sealed provenance after the save control with full copyable fields', async () => {
+  it('renders sealed provenance after local data with full copyable fields', async () => {
     await mountSettingsPage(fiveDatabases)
     const panel = document.querySelector('[data-testid="build-tracking"]') as HTMLElement | null
     expect(panel).not.toBeNull()
-    const saveButton = Array.from(document.querySelectorAll('button')).find(button =>
-      (button.textContent ?? '').includes('保存设置'),
-    )
-    expect(saveButton).toBeTruthy()
-    const position = saveButton!.compareDocumentPosition(panel!)
+    expect([...document.querySelectorAll('button')].some(button => (button.textContent ?? '').includes('保存设置'))).toBe(false)
+    const localData = [...document.querySelectorAll('h2')].find(item => item.textContent?.trim() === '本地数据')
+    expect(localData).toBeTruthy()
+    const position = localData!.compareDocumentPosition(panel!)
     expect(position & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 
     const text = panel?.textContent ?? ''
@@ -408,18 +407,14 @@ describe('SettingsPage Coding Agent Skills', () => {
     expect(productDesign?.getAttribute('data-state')).toBe('unchecked')
     expect(securityReview?.getAttribute('data-state')).toBe('checked')
     securityReview?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-    await settle()
-
-    const saveButton = [...document.querySelectorAll('button')]
-      .find(button => button.textContent?.includes('保存设置'))
-    saveButton?.click()
     for (let index = 0; index < 4; index += 1) await settle()
 
     expect((savedSettings as AppSettings | null)?.disabled_skills).toEqual([
       'product-design',
       'review-security',
     ])
-    expect(document.body.textContent).toContain('Skills 设置已保存')
+    expect(document.body.textContent).toContain('设置已保存')
+    expect([...document.querySelectorAll('button')].some(button => (button.textContent ?? '').includes('保存设置'))).toBe(false)
   })
 
   it('defaults the file opener to VS Code and persists Cursor', async () => {
@@ -458,14 +453,10 @@ describe('SettingsPage Coding Agent Skills', () => {
 
     select!.value = 'cursor'
     select!.dispatchEvent(new Event('change', { bubbles: true }))
-    await settle()
-
-    const saveButton = [...document.querySelectorAll('button')]
-      .find(button => button.textContent?.includes('保存设置'))
-    saveButton?.click()
     for (let index = 0; index < 4; index += 1) await settle()
 
     expect((savedSettings as AppSettings | null)?.preferred_external_editor).toBe('cursor')
+    expect([...document.querySelectorAll('button')].some(button => (button.textContent ?? '').includes('保存设置'))).toBe(false)
   })
 })
 
@@ -795,6 +786,7 @@ describe('SettingsPage database compatibility', () => {
     await settle()
     expect(document.body.textContent).toContain('Arena Token')
     expect(document.body.textContent).not.toContain('@milksuofficial · 内测用户')
+    expect([...document.querySelectorAll('button')].some(button => (button.textContent ?? '').includes('保存设置'))).toBe(false)
 
     const evalButton = [...document.querySelectorAll<HTMLButtonElement>('.settings-nav-item')]
       .find(item => item.textContent?.trim() === '评测')
@@ -817,6 +809,7 @@ describe('SettingsPage database compatibility', () => {
     expect(document.body.textContent).toContain('自动创建 MilkSU-Lab')
     expect(document.body.textContent).toContain('打开 Android Studio')
     expect(document.body.textContent).toContain('/Users/test/Library/Android/sdk')
+    expect([...document.querySelectorAll('button')].some(button => (button.textContent ?? '').includes('保存设置'))).toBe(false)
   })
 
   it('applies interface language immediately and persists it without a second save click', async () => {
@@ -838,14 +831,14 @@ describe('SettingsPage database compatibility', () => {
     expect(select).not.toBeNull()
     select!.value = 'en'
     select!.dispatchEvent(new Event('change', { bubbles: true }))
-    await settle()
-    await settle()
+    for (let index = 0; index < 8; index += 1) await settle()
 
     expect(stored.locale).toBe('en')
     expect(document.documentElement.lang).toBe('en')
     expect(document.body.textContent).toContain('General')
     expect(document.body.textContent).toContain('Interface language')
-    expect(document.body.textContent).toContain('Save settings')
+    expect(document.body.textContent).toContain('Settings saved')
+    expect([...document.querySelectorAll('button')].some(button => (button.textContent ?? '').includes('Save settings'))).toBe(false)
   })
 
   it('keeps model settings on one daily model route and includes TokenFlux without Kimi in the normal UI', async () => {

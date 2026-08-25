@@ -11,6 +11,10 @@ const props = defineProps<{
   settings: AppSettings | null
 }>()
 
+const emit = defineEmits<{
+  persist: []
+}>()
+
 const probing = ref(false)
 const choosing = ref<'sdk' | 'java' | ''>('')
 const openingStudio = ref(false)
@@ -97,6 +101,7 @@ async function choose(kind: 'sdk' | 'java') {
     if (!path) return
     if (kind === 'sdk') patchLab({ android_sdk: path })
     else patchLab({ java_home: path })
+    emit('persist')
     await probe()
   } catch (reason) {
     error.value = desktopErrorMessage(reason)
@@ -176,7 +181,7 @@ onMounted(() => {
         <Switch
           :model-value="lab.auto_create_avd !== false"
           :aria-label="t('自动创建 MilkSU-Lab', 'Create MilkSU-Lab automatically')"
-          @update:model-value="patchLab({ auto_create_avd: Boolean($event) })"
+          @update:model-value="patchLab({ auto_create_avd: Boolean($event) }); emit('persist')"
         />
       </SettingsRow>
     </SettingsSection>
@@ -200,6 +205,7 @@ onMounted(() => {
               :placeholder="t('留空则自动找', 'Leave empty to auto-detect')"
               :aria-label="t('Android SDK 目录', 'Android SDK folder')"
               @update:model-value="patchLab({ android_sdk: String($event) })"
+              @blur="emit('persist')"
             />
             <Button variant="outline" size="sm" :loading="choosing === 'sdk'" @click="choose('sdk')">
               <FolderOpen class="size-3.5" />
@@ -215,6 +221,7 @@ onMounted(() => {
               :placeholder="t('留空则用 Android Studio 自带 Java', 'Leave empty to use Java bundled with Android Studio')"
               :aria-label="t('JDK 目录', 'JDK folder')"
               @update:model-value="patchLab({ java_home: String($event) })"
+              @blur="emit('persist')"
             />
             <Button variant="outline" size="sm" :loading="choosing === 'java'" @click="choose('java')">
               <FolderOpen class="size-3.5" />

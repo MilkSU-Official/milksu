@@ -67,7 +67,7 @@ async function selectArtifact(artifact: ArtifactRecord) {
 </script>
 
 <template>
-  <details class="group game-surface px-5 py-4" aria-labelledby="artifacts-title">
+  <details class="group overflow-hidden rounded-menu-shell border border-border bg-card px-5 py-4" aria-labelledby="artifacts-title">
     <summary class="flex cursor-pointer list-none items-start justify-between gap-4 [&::-webkit-details-marker]:hidden">
       <div>
         <h2 id="artifacts-title" class="flex items-center gap-2 text-label font-medium">
