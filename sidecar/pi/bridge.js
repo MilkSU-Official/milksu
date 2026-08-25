@@ -10,17 +10,17 @@ import { readFile, unlink } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { Type } from "typebox";
 import { resolveModelContextWindow } from "./known-context-window.cjs";
-import piGoalExtension from "@narumitw/pi-goal/src/index.ts";
-import piLspExtension from "@narumitw/pi-lsp/src/index.ts";
-import piBackgroundTasksExtension from "pi-better-background-tasks/src/index.ts";
-import { readLog as readPiBackgroundTaskLog } from "pi-better-background-tasks/src/logs.ts";
-import { listMetas as listPiBackgroundTaskMetas } from "pi-better-background-tasks/src/registry.ts";
 import {
-  spawnTask as spawnPiBackgroundTask,
-  stopTask as stopPiBackgroundTask,
-} from "pi-better-background-tasks/src/runtime.ts";
-import { createMcpAdapter } from "pi-mcp-adapter";
-import piSubAgentExtension from "pi-sub-agent/extensions/index.ts";
+  createMcpAdapter,
+  listPiBackgroundTaskMetas,
+  piBackgroundTasksExtension,
+  piGoalExtension,
+  piLspExtension,
+  piSubAgentExtension,
+  readPiBackgroundTaskLog,
+  spawnPiBackgroundTask,
+  stopPiBackgroundTask,
+} from "./reviewed-ts/extensions.js";
 import { dropSendAfterAbort } from "./bridge-abort.js";
 import {
   createToolRepeatGuard,

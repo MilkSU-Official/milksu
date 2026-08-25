@@ -1700,6 +1700,22 @@ func TestResolveAgentWorkspaceRejectsFiles(t *testing.T) {
 	}
 }
 
+func TestDevelopmentSidecarRunsReviewedTypeScriptEntry(t *testing.T) {
+	t.Setenv("MILKSU_SIDECAR_DIR", "")
+	workspace := t.TempDir()
+	command, err := newSidecarCommandAt("chat-bridge.cjs", developmentChatBridgePath, workspace, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(command.Args) < 2 {
+		t.Fatalf("unexpected development Sidecar command: %#v", command.Args)
+	}
+	bridge := command.Args[len(command.Args)-1]
+	if filepath.Base(bridge) != "run-bridge.mjs" {
+		t.Fatalf("development Sidecar must start run-bridge.mjs, got %#v", command.Args)
+	}
+}
+
 func TestPackagedCodingSidecarDoesNotDuplicatePiFilesystemPolicyInNode(t *testing.T) {
 	directory := t.TempDir()
 	node := filepath.Join(directory, "node")

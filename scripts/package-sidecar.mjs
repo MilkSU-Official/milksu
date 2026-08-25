@@ -19,6 +19,7 @@ import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import { build } from 'esbuild'
 import { firstPartyCodingSkillNames } from '../sidecar/pi/bridge-skills.js'
+import { prepareReviewedTypeScript } from '../sidecar/pi/prepare-reviewed-ts.mjs'
 import { buildWindowsCuaDriver } from './build-windows-cua-driver.mjs'
 
 const execFileAsync = promisify(execFile)
@@ -868,6 +869,7 @@ async function verifyReviewedLspCodeActions({
 }
 
 async function buildSidecar(platform) {
+  await prepareReviewedTypeScript()
   const [goos, goarch] = platform.split('/')
   const runtime = await officialNodeRuntime(platform)
   let cuaRuntime = null

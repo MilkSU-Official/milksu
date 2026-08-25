@@ -16,7 +16,7 @@ import (
 
 const (
 	packagedSidecarDirectory      = "milksu-sidecar"
-	developmentChatBridgePath     = "sidecar/pi/bridge.js"
+	developmentChatBridgePath     = "sidecar/pi/run-bridge.mjs"
 	developmentSecurityBridgePath = "sidecar/security/security-bridge.js"
 )
 

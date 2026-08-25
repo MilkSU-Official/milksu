@@ -19,6 +19,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
 import { build } from 'esbuild'
 
+import { prepareReviewedTypeScript } from '../sidecar/pi/prepare-reviewed-ts.mjs'
 import { assertValidCodingDeliveryReport } from './lib/coding-delivery-report.mjs'
 
 const execFileAsync = promisify(execFile)
@@ -409,6 +410,7 @@ async function startFakeProvider(plan) {
 }
 
 async function bundleBridge(output) {
+  await prepareReviewedTypeScript()
   await build({
     entryPoints: [join(repositoryRoot, 'sidecar', 'pi', 'bridge.js')],
     outfile: output,

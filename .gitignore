@@ -33,6 +33,7 @@ app/eval-settings-preview.html
 app/src/eval-settings-preview.ts
 app/src/previews/EvalSettingsPreview.vue
 docs/.vitepress/cache/
+sidecar/pi/reviewed-ts/
 
 # Archify previews are reproducible local artifacts. Keep the compact JSON
 # specifications in Git and generate HTML on demand.
