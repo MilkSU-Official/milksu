@@ -217,9 +217,9 @@ describe('ChatMessageItem', () => {
       content: '列出仓库',
       timestamp: Date.now(),
     })
-    expect(user.host.textContent).toContain('复制')
-    expect(user.host.textContent).toContain('编辑')
-    expect(user.host.textContent).not.toContain('分叉到新对话')
+    expect(user.host.querySelector('[aria-label="复制"]')).not.toBeNull()
+    expect(user.host.querySelector('[aria-label="编辑"]')).not.toBeNull()
+    expect(user.host.querySelector('[aria-label="分叉到新对话"]')).toBeNull()
 
     const assistant = await mountMessage({
       id: 'assistant-actions',
@@ -227,9 +227,9 @@ describe('ChatMessageItem', () => {
       content: '这是一个仓库。',
       timestamp: Date.now(),
     })
-    expect(assistant.host.textContent).toContain('复制')
-    expect(assistant.host.textContent).toContain('分叉到新对话')
-    expect(assistant.host.textContent).not.toContain('编辑')
+    expect(assistant.host.querySelector('[aria-label="复制"]')).not.toBeNull()
+    expect(assistant.host.querySelector('[aria-label="分叉到新对话"]')).not.toBeNull()
+    expect(assistant.host.querySelector('[aria-label="编辑"]')).toBeNull()
   })
 
   it('hides a finished approval unless the user opened it', async () => {

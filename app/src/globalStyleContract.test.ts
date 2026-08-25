@@ -121,8 +121,8 @@ describe('global style contract', () => {
       'utf8',
     )
     const userRule = agentCss.slice(
-      agentCss.indexOf('[data-agent-conversation] .agent-user'),
-      agentCss.indexOf('[data-agent-conversation] .agent-answer'),
+      agentCss.indexOf('[data-agent-conversation] .agent-user {'),
+      agentCss.indexOf('[data-agent-conversation] .agent-user-edit {'),
     )
     const pillRule = agentCss.slice(
       agentCss.indexOf('[data-agent-conversation] .agent-pill {'),
@@ -140,7 +140,9 @@ describe('global style contract', () => {
       agentCss.indexOf('[data-agent-conversation] .compact-bar {'),
       agentCss.indexOf('[data-agent-conversation] .agent-task-rows {'),
     )
-    for (const rule of [userRule, pillRule, approveRule, toolDetailRule, compactRule]) {
+    expect(userRule).toContain('border-radius: 16px')
+    expect(userRule).toContain('border: 1px solid var(--border)')
+    for (const rule of [pillRule, approveRule, toolDetailRule, compactRule]) {
       expect(rule).toContain('border: 0')
       expect(rule).toContain('background: transparent')
       expect(rule).not.toContain('border-radius')

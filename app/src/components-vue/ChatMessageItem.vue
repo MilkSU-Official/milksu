@@ -3,8 +3,13 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { Button } from '@felinic/ui'
 import { invokeCommand } from '@/desktop'
 import {
+  Check,
+  Copy,
   FileText,
+  GitFork,
+  Pencil,
   RotateCcw,
+  X,
 } from 'lucide-vue-next'
 import AgentPixelLoader from '@/components-vue/AgentPixelLoader.vue'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
@@ -361,30 +366,53 @@ const approvalKicker = computed(() => (
         :aria-label="t('编辑消息', 'Edit message')"
       />
       <div class="agent-turn-actions agent-turn-actions--visible">
-        <button type="button" @click="cancelEdit">{{ t('取消', 'Cancel') }}</button>
-        <button type="submit">{{ t('发送', 'Send') }}</button>
+        <button
+          type="button"
+          :aria-label="t('取消', 'Cancel')"
+          :title="t('取消', 'Cancel')"
+          @click="cancelEdit"
+        >
+          <X />
+        </button>
+        <button
+          type="submit"
+          :aria-label="t('发送', 'Send')"
+          :title="t('发送', 'Send')"
+        >
+          <Check />
+        </button>
       </div>
     </form>
     <div
       v-if="showMessageActions"
       class="agent-turn-actions"
     >
-      <button type="button" @click="copyMessage">
-        {{ copied ? t('已复制', 'Copied') : t('复制', 'Copy') }}
+      <button
+        type="button"
+        :aria-label="copied ? t('已复制', 'Copied') : t('复制', 'Copy')"
+        :title="copied ? t('已复制', 'Copied') : t('复制', 'Copy')"
+        @click="copyMessage"
+      >
+        <Check v-if="copied" />
+        <Copy v-else />
       </button>
       <button
         v-if="message.role === 'user'"
         type="button"
+        :aria-label="t('编辑', 'Edit')"
+        :title="t('编辑', 'Edit')"
         @click="startEdit"
       >
-        {{ t('编辑', 'Edit') }}
+        <Pencil />
       </button>
       <button
         v-if="message.role === 'assistant'"
         type="button"
+        :aria-label="t('分叉到新对话', 'Branch to new chat')"
+        :title="t('分叉到新对话', 'Branch to new chat')"
         @click="$emit('branchAssistant', message.id)"
       >
-        {{ t('分叉到新对话', 'Branch to new chat') }}
+        <GitFork />
       </button>
     </div>
   </article>
