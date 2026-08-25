@@ -262,6 +262,7 @@ const catalogBootstrapAttempted = ref(false)
 const attachmentError = ref('')
 const localMaterials = ref<CTFMaterialRequest[]>([])
 const working = ref(false)
+const conversationDock = ref<{ revealAndFocus: () => Promise<void> } | null>(null)
 const manualCreating = ref(false)
 const seriesQuery = ref('')
 const seriesCategory = ref('all')
@@ -1140,6 +1141,7 @@ async function chooseCTFShowProblem(problemId: number) {
   ))
   if (activeJob) {
     await resumeJob(activeJob.id)
+    await openCodingAgent()
     return
   }
   working.value = true
@@ -1156,6 +1158,7 @@ async function chooseCTFShowProblem(problemId: number) {
     if (workspace.challenge.warnings.length) {
       outcomeNotice.value = t(`题目已建立工作区；导入提示：${workspace.challenge.warnings.join('；')}`, `Workspace created for the challenge; import notes: ${workspace.challenge.warnings.join('; ')}`)
     }
+    await openCodingAgent()
   } finally {
     working.value = false
   }
@@ -1321,6 +1324,11 @@ async function openCodingContext() {
   }
 }
 
+async function revealConversationComposer() {
+  await nextTick()
+  await conversationDock.value?.revealAndFocus()
+}
+
 async function openCodingAgent() {
   if (!activeProjection.value) return
   await backend.loadAgentState(activeProjection.value.job.id)
@@ -1328,9 +1336,11 @@ async function openCodingAgent() {
     // Opening Coding context is allowed; only the Agent turn needs the model.
     await openCodingContext()
     outcomeNotice.value = t('已打开本题对话。配置模型后再发送。', 'Opened this challenge conversation. Configure a model before sending.')
+    await revealConversationComposer()
     return
   }
   await openCodingContext()
+  await revealConversationComposer()
 }
 
 async function requestEndpoint(request: CTFEndpointRequestInput) {
@@ -2685,6 +2695,7 @@ onBeforeUnmount(() => {
             </Alert>
             </div>
             <ConversationDock
+              ref="conversationDock"
               :conversation="conversation ?? null"
               :conversations="dossierConversations"
               :running="running"

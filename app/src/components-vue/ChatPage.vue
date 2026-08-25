@@ -259,6 +259,7 @@ const stagedComposerPrompt = ref<{ conversationId: string; prompt: string } | nu
 const composer = ref<{
   appendDraftText: (text: string) => void
   openAddMenu: () => void
+  focusMessageInput: () => Promise<void>
 } | null>(null)
 const scrollArea = ref<HTMLElement | null>(null)
 const chatAutoScrollPinned = ref(true)
@@ -2049,6 +2050,14 @@ watch(
   },
   { immediate: true },
 )
+
+function focusComposer() {
+  return composer.value?.focusMessageInput()
+}
+
+defineExpose({
+  focusComposer,
+})
 </script>
 
 <template>

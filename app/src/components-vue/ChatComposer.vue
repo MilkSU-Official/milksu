@@ -986,10 +986,9 @@ function submit() {
   if (!props.running) emit('consumeGoal')
 }
 
-function focusMessageInput() {
-  void nextTick(() => {
-    messageEditor.value?.focus()
-  })
+async function focusMessageInput() {
+  await nextTick()
+  messageEditor.value?.focus()
 }
 
 function openComposerChooser(ariaLabel: string) {
@@ -1209,6 +1208,7 @@ watch(slashCommands, commands => {
 defineExpose({
   appendDraftText,
   openAddMenu,
+  focusMessageInput,
 })
 </script>
 

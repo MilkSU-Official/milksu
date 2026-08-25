@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import {
   Badge,
   Button,
@@ -226,6 +226,7 @@ const stripLease = computed(() => toStripLease(envLease.value, cveBoundPackage.v
   : undefined))
 const { width: briefWidth, startResize: startBriefResize } = useDossierSplit('milksu.cve-split.v1', 400)
 const liveTargetVisible = computed(() => targetOpen.value && envLease.value.state === 'ready')
+const conversationDock = ref<{ revealAndFocus: () => Promise<void> } | null>(null)
 
 const dossierConversations = computed(() => relatedDomainConversations(
   props.conversations,
@@ -299,6 +300,11 @@ function openDocker() {
   void invokeCommand('open_docker_desktop').catch(() => undefined)
 }
 
+async function revealConversationComposer() {
+  await nextTick()
+  await conversationDock.value?.revealAndFocus()
+}
+
 function startReproduction() {
   const item = selectedItem.value
   if (!item) return
@@ -309,6 +315,7 @@ function startReproduction() {
   pendingOpen.value = true
   if (envLease.value.state === 'ready') openTarget()
   emit('run', item)
+  void revealConversationComposer()
 }
 
 function confirmStartEnv() {
@@ -318,6 +325,7 @@ function confirmStartEnv() {
   pendingOpen.value = true
   void startEnv(cvePackageId.value)
   emit('run', item)
+  void revealConversationComposer()
 }
 
 function reportOnly() {
@@ -325,6 +333,7 @@ function reportOnly() {
   showStartEnv.value = false
   if (!item) return
   emit('run', item)
+  void revealConversationComposer()
 }
 
 watch(() => envLease.value.state, state => {
@@ -741,6 +750,7 @@ function addSearchResult(candidate: VulnerabilitySearchCandidate) {
       </div>
     </div>
     <ConversationDock
+      ref="conversationDock"
       :conversation="conversation ?? null"
       :conversations="dossierConversations"
       :running="running"

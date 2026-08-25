@@ -233,6 +233,24 @@ describe('VulnPage thin workspace', () => {
     expect(host.textContent).toContain('没有练习包')
   })
 
+  it('expands the conversation dock and focuses the composer when starting reproduction', async () => {
+    const { host } = await mountPage({ trackedIds: ['CVE-2024-3400'] })
+    openTrackedRow(host, 'CVE-2024-3400')
+    await nextTick()
+    host.querySelector<HTMLButtonElement>('[aria-label="收起对话"]')?.click()
+    await nextTick()
+    expect(host.querySelector('[data-testid="conversation-dock"]')?.classList.contains('is-collapsed')).toBe(true)
+    const editor = host.querySelector<HTMLElement>('[aria-label="消息"]')
+    expect(editor).not.toBeNull()
+    const focus = vi.spyOn(editor!, 'focus')
+
+    buttonWithText(host, '开始复现')?.click()
+    await vi.waitFor(() => {
+      expect(host.querySelector('[data-testid="conversation-dock"]')?.classList.contains('is-collapsed')).toBe(false)
+      expect(focus).toHaveBeenCalled()
+    })
+  })
+
   it('keeps list titles selectable instead of opening the dossier from the row', async () => {
     const { host, dashboard } = await mountList({ trackedIds: ['CVE-2024-3400'] })
     const title = [...host.querySelectorAll('span')].find(node => node.textContent?.includes('CVE-2024-3400'))

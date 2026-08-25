@@ -104,6 +104,7 @@ function heightForWidth(nextWidth: number) {
 }
 
 const MIN_HEIGHT = heightForWidth(MIN_WIDTH)
+const chatPage = ref<{ focusComposer: () => void | Promise<void> } | null>(null)
 const collapsed = ref(false)
 const width = ref(960)
 const height = ref(heightForWidth(960))
@@ -222,6 +223,17 @@ watch(collapsed, async value => {
 function toggleCollapsed() {
   collapsed.value = !collapsed.value
 }
+
+async function revealAndFocus() {
+  collapsed.value = false
+  await nextTick()
+  clampGeometry()
+  await chatPage.value?.focusComposer()
+}
+
+defineExpose({
+  revealAndFocus,
+})
 
 function startDrag(event: PointerEvent) {
   if (event.button !== 0 || collapsed.value) return
@@ -364,6 +376,7 @@ function forwardSend(...args: CodingAgentSendArgs) {
       </nav>
       <div class="conversation-dock__thread">
         <ChatPage
+          ref="chatPage"
           surface="dock"
           @expand="$emit('expand')"
           :conversation="conversation"

@@ -142,6 +142,26 @@ describe('ConversationDock', () => {
     expect(select).toHaveBeenCalledWith('cve-extra')
   })
 
+  it('expands a collapsed dock and focuses the composer', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    const app = createApp(ConversationDock, {
+      conversation: sampleConversation(),
+    })
+    const vm = app.mount(host) as { revealAndFocus: () => Promise<void> }
+    mountedApps.push(app)
+    await nextTick()
+    host.querySelector<HTMLButtonElement>('[aria-label="收起对话"]')?.click()
+    await nextTick()
+    const dock = host.querySelector<HTMLElement>('[data-testid="conversation-dock"]')!
+    expect(dock.classList.contains('is-collapsed')).toBe(true)
+    const editor = composerEditor(host)
+    const focus = vi.spyOn(editor, 'focus')
+    await vm.revealAndFocus()
+    expect(dock.classList.contains('is-collapsed')).toBe(false)
+    expect(focus).toHaveBeenCalled()
+  })
+
   it('can expand into the full Coding surface', async () => {
     const expand = vi.fn()
     const host = document.createElement('div')

@@ -6,7 +6,7 @@ describe('CTFPage navigation contract', () => {
   it('uses the strong catalog return path from CTF sessions', () => {
     expect(ctfPageSource).toContain('@return-catalog="showProblems"')
     expect(ctfPageSource).toContain('<Button variant="outline" size="sm" @click="showProblems">')
-    expect(ctfPageSource).toContain('<Button v-else @click="showProblems">选择一道题</Button>')
+    expect(ctfPageSource).toContain("<Button v-else @click=\"showProblems\">{{ t('选择一道题', 'Choose a challenge') }}</Button>")
   })
 
   it('clears both NSSCTF and CTFshow problem selection before returning to the catalog list', () => {
@@ -50,7 +50,7 @@ describe('CTFPage navigation contract', () => {
     expect(ctfPageSource).not.toContain('训练准备')
     expect(ctfPageSource).not.toContain('readinessCount')
     expect(ctfPageSource).not.toContain('{{ readinessCount }}/3')
-    expect(ctfPageSource).toContain("const agentActionLabel = computed(() => '开始解题')")
+    expect(ctfPageSource).toContain("const agentActionLabel = computed(() => t('开始解题', 'Start solving'))")
     expect(ctfPageSource).toContain('ConversationDock')
     expect(ctfPageSource).not.toContain('与 Agent 协作')
     expect(ctfPageSource).not.toContain('刷新记录')
@@ -64,6 +64,9 @@ describe('CTFPage navigation contract', () => {
     const openCodingBody = ctfPageSource.slice(openCodingContextStart, openCodingContextEnd)
     expect(openCodingBody).not.toContain('modelReady')
     expect(openCodingBody).toContain("prepare_ctf_agent_workspace")
+    expect(ctfPageSource).toContain('revealConversationComposer')
+    expect(ctfPageSource).toContain('await revealConversationComposer()')
+    expect(ctfPageSource).toContain('await openCodingAgent()')
   })
 
   it('keeps historical or budget-stopped CTF workspaces openable in Coding', () => {
