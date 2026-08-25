@@ -56,3 +56,26 @@ Composer 演化：运行中发送 = 本回合引导。设计语言走现有 Comp
 ## 删除路径
 
 Steer 退回「等 tool batch」。Composer 文案退回「引导已排队」。
+
+## 基线实测（当前架构，未实现本切片）
+
+机器：macOS darwin arm64，Node v26.0.0，Pi 0.84.1。时间：2026-08-25T10:25:13Z。命令：`node --test sidecar/pi/loop-baseline-steer.test.js`（2 通过）。
+
+构造：
+
+1. 读本机 `node_modules/@earendil-works/pi-coding-agent/dist/core/agent-session.js` 里 `steer()` 注释。
+2. 调用 MilkSU `steerSession`，断言只 `session.steer`，不 `prompt()`。
+3. Composer 源码：`running` 时发送文案为「发送引导」/「N 条引导已排队」。
+
+实测合同（Pi 0.84.1 源码原句）：
+
+> Delivered after the current assistant turn finishes executing its tool calls, before the next LLM call.
+
+| 项 | 当前架构 |
+| --- | --- |
+| 是否 abort 当前 assistant 文本流 | 否 |
+| 引导何时进入下一跳模型 | 当前 **工具调用批次结束之后** |
+| MilkSU 是否另写循环 | 否，只转 `session.steer` |
+| Composer | 引导显示为 queued |
+
+**Summary：** 实机合同与 Claude Code 接近（等当前工具结束），与 Codex Enter 默认中途注入不同。没有 stream abort。本切片要对齐 Codex 的缺口，在这台机器上的代码路径里可以直接读到。
