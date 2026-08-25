@@ -34,6 +34,10 @@
 
 证据文档只证明记录中明确写出的范围；不能外推为整个产品完成。
 
+## Target（未实现）
+
+- [Coding 对话：Beautiful UI 原语对照](/developer/coding-chat-beautiful-ui)：沿用 Agent 工具芯片 / 思考 / 审批 / Prompt 岛的交互骨架。动手前必须选定是更新设计语言还是把成绩单当一处特例。
+
 ## 长期设计（不是禁令）
 
 - [授权安全学习与研究平台](/architecture/security-learning-and-research-platform)

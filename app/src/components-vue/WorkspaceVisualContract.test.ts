@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import ctfChallengeDeskSource from './CTFChallengeDesk.vue?raw'
+import chatActivityGroupSource from './ChatActivityGroup.vue?raw'
 import chatComposerSource from './ChatComposer.vue?raw'
 import chatMessageItemSource from './ChatMessageItem.vue?raw'
+import agentExecutionPlanSource from './AgentExecutionPlan.vue?raw'
 import contextSidebarSource from './ContextSidebar.vue?raw'
 import chatPageSource from './ChatPage.vue?raw'
 import conversationDockSource from './ConversationDock.vue?raw'
@@ -25,6 +27,7 @@ import ctfTrajectorySource from './CTFTrajectory.vue?raw'
 import domainTaskContextSource from './DomainTaskContextPanel.vue?raw'
 import appSource from '../App.vue?raw'
 const appStylesSource = readFileSync(new URL('../index.css', import.meta.url), 'utf8')
+const appPackageSource = readFileSync(new URL('../../package.json', import.meta.url), 'utf8')
 
 describe('Workspace visual contract', () => {
   it('opens CTF and CVE into a dossier instead of expanding the list', () => {
@@ -183,5 +186,30 @@ describe('Workspace visual contract', () => {
     expect(settingsPageSource).not.toContain("permissions.accessibility ? t('已授权', 'Granted')")
     expect(settingsPageSource).not.toContain("permissions.screenRecording ? t('已授权', 'Granted')")
     expect(appStylesSource).toContain('[data-connection-live-action]')
+  })
+
+  it('does not drop Beautiful UI React primitives or their token layer into the agent dialog', () => {
+    expect(appPackageSource).not.toContain('@yunyoujun/ak-ui')
+    expect(appPackageSource).not.toContain('"beautiful-ui"')
+    expect(appPackageSource).not.toContain('@central-icons-react')
+    expect(appPackageSource).not.toContain('"glimm"')
+    expect(appPackageSource).not.toContain('"cuelume"')
+    expect(appPackageSource).not.toContain('"dialkit"')
+    expect(appPackageSource).not.toContain('"liveline"')
+    const chatSources = [
+      chatPageSource,
+      chatComposerSource,
+      chatMessageItemSource,
+      chatActivityGroupSource,
+      agentExecutionPlanSource,
+    ]
+    for (const source of chatSources) {
+      expect(source).not.toContain('bg-ink')
+      expect(source).not.toContain('text-ink-3')
+      expect(source).not.toContain('from "react"')
+      expect(source).not.toContain("from 'react'")
+      expect(source).not.toContain('slev12397/beautiful-ui')
+      expect(source).not.toContain('@central-icons-react')
+    }
   })
 })
