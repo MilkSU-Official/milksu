@@ -20,7 +20,6 @@ import {
   ChevronRight,
   ExternalLink,
   LoaderCircle,
-  Plus,
   Search,
 } from 'lucide-vue-next'
 import CollectionPicker from '@/components-vue/CollectionPicker.vue'
@@ -28,6 +27,9 @@ import CollectionViewFilter from '@/components-vue/CollectionViewFilter.vue'
 import ConversationDock from '@/components-vue/ConversationDock.vue'
 import RelatedCvePanel from '@/components-vue/RelatedCvePanel.vue'
 import ResearchReportPanel from '@/components-vue/ResearchReportPanel.vue'
+import WorkspaceCatalogActions from '@/components-vue/WorkspaceCatalogActions.vue'
+import WorkspaceCatalogHistoryItem from '@/components-vue/WorkspaceCatalogHistoryItem.vue'
+import WorkspaceImportDialog from '@/components-vue/WorkspaceImportDialog.vue'
 import WorkspaceModuleTopBar from '@/components-vue/WorkspaceModuleTopBar.vue'
 import EnvironmentStrip from '@/components-vue/lab-env/EnvironmentStrip.vue'
 import TargetLivePane from '@/components-vue/lab-env/TargetLivePane.vue'
@@ -39,7 +41,7 @@ import type { Conversation } from '@/types'
 import type { CodingAgentSendArgs, CodingAgentSurfaceBind } from '@/lib/codingAgentSurface'
 import { vulnerabilityStatusLabel, type VulnerabilityIntel, type VulnerabilitySeverity, type VulnerabilityStatus } from '@/vulnerabilityIntel'
 import { ALL_COLLECTIONS_ID, createItemCollectionStore } from '@/lib/itemCollections'
-import { relatedDomainConversations } from '@/lib/workspaceSessionRouting'
+import { conversationActivityAt, relatedDomainConversations } from '@/lib/workspaceSessionRouting'
 import { presentVulnerabilityVendorProduct } from '@/lib/vulnerabilityFeedImport'
 import { useDossierSplit } from '@/lib/useDossierSplit'
 import { t } from '@/lib/uiLocale'
@@ -130,12 +132,16 @@ const emit = defineEmits<{
 }>()
 
 const dashboard = props.dashboard ?? useVulnerabilityDashboard()
-const showCveSearch = ref(false)
+const showImport = ref(false)
+const catalogActions = ref<{ closeHistoryMenu: () => void } | null>(null)
 const cveSearchQuery = ref('')
 const cveSearchError = ref('')
 const cveSearchLoading = ref(false)
 const cveSearchResults = ref<VulnerabilitySearchCandidate[]>([])
 const cveSearchAttempted = ref(false)
+const importNotice = ref('')
+const importError = ref('')
+const importSyncing = ref(false)
 const cveCollections = createItemCollectionStore('milksu.cve.collections.v1')
 const collectionView = ref(ALL_COLLECTIONS_ID)
 const statusFilter = ref<'all' | VulnerabilityStatus>('all')
@@ -202,8 +208,26 @@ function relatedConversations(cveId: string) {
   return props.conversations.filter(conversation => (
     conversation.domainTaskContext?.kind === 'cve'
     && conversation.domainTaskContext.cveId === cveId
-  )).sort((left, right) => right.createdAt - left.createdAt)
+  )).sort((left, right) => conversationActivityAt(right) - conversationActivityAt(left))
 }
+
+const cveHistory = computed(() => {
+  const seen = new Set<string>()
+  return props.conversations
+    .filter(conversation => conversation.domainTaskContext?.kind === 'cve')
+    .sort((left, right) => conversationActivityAt(right) - conversationActivityAt(left))
+    .flatMap(conversation => {
+      if (conversation.domainTaskContext?.kind !== 'cve') return []
+      const cveId = conversation.domainTaskContext.cveId.trim()
+      if (!cveId || seen.has(cveId)) return []
+      seen.add(cveId)
+      return [{
+        cveId,
+        title: conversation.domainTaskContext.title || conversation.title,
+        at: conversationActivityAt(conversation),
+      }]
+    })
+})
 
 const selectedItem = computed(() => (
   dashboard.tracked.value.find(item => item.id === dashboard.selectedId.value) ?? null
@@ -426,12 +450,46 @@ function keyReferences(item: VulnerabilityIntel) {
   }).slice(0, 4)
 }
 
-function openCveSearch() {
-  showCveSearch.value = true
+function openImport() {
+  catalogActions.value?.closeHistoryMenu()
+  showImport.value = true
   cveSearchError.value = ''
   cveSearchResults.value = []
   cveSearchAttempted.value = false
   cveSearchQuery.value = ''
+  importNotice.value = ''
+  importError.value = ''
+}
+
+function resumeFromHistory(cveId: string) {
+  catalogActions.value?.closeHistoryMenu()
+  selectItem(cveId)
+}
+
+async function syncPublicSources() {
+  importNotice.value = ''
+  importError.value = ''
+  importSyncing.value = true
+  try {
+    const failures: string[] = []
+    try {
+      await dashboard.syncCisaKevFeed()
+    } catch (cause) {
+      failures.push(cause instanceof Error ? cause.message : String(cause))
+    }
+    try {
+      await dashboard.syncVulhubPracticeCatalog()
+    } catch (cause) {
+      failures.push(cause instanceof Error ? cause.message : String(cause))
+    }
+    if (failures.length) {
+      importError.value = failures.join(t('；', '; '))
+      return
+    }
+    importNotice.value = t('已同步公开源。', 'Public sources synced.')
+  } finally {
+    importSyncing.value = false
+  }
 }
 
 function readableCveSearchError(cause: unknown) {
@@ -469,7 +527,7 @@ function addDirectCve() {
       affected: '',
       summary: t('NVD 暂未返回公开记录；已按 CVE 编号加入。', 'NVD has no public record yet. Added by CVE ID.'),
     })
-    showCveSearch.value = false
+    showImport.value = false
   } catch (cause) {
     cveSearchError.value = cause instanceof Error ? cause.message : String(cause)
   }
@@ -481,7 +539,7 @@ function addSearchResult(candidate: VulnerabilitySearchCandidate) {
     dashboard.addNvdSearchResult(candidate)
     dashboard.query.value = ''
     statusFilter.value = 'all'
-    showCveSearch.value = false
+    showImport.value = false
   } catch (cause) {
     cveSearchError.value = readableCveSearchError(cause)
   }
@@ -493,10 +551,27 @@ function addSearchResult(candidate: VulnerabilitySearchCandidate) {
   <main v-if="!selectedItem" class="tactical-page flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
     <WorkspaceModuleTopBar module="cve" :title="t('漏洞', 'CVE')">
       <template #actions>
-        <Button variant="brand" size="sm" @click="openCveSearch">
-          <Plus class="size-4" />
-          {{ t('添加 CVE', 'Add CVE') }}
-        </Button>
+        <WorkspaceCatalogActions
+          ref="catalogActions"
+          :history-count="cveHistory.length"
+          :history-aria-label="t('打开研究历史', 'Open research history')"
+          :history-menu-label="t('研究历史', 'Research history')"
+          :import-aria-label="t('导入 CVE', 'Import CVE')"
+          @import="openImport"
+        >
+          <template #history>
+            <WorkspaceCatalogHistoryItem
+              v-for="entry in cveHistory"
+              :key="entry.cveId"
+              :title="entry.cveId"
+              :subtitle="entry.title"
+              :time="entry.at"
+              title-mono
+              :current="dashboard.selectedId.value === entry.cveId"
+              @select="resumeFromHistory(entry.cveId)"
+            />
+          </template>
+        </WorkspaceCatalogActions>
       </template>
 
       <template #filters>
@@ -549,13 +624,32 @@ function addSearchResult(candidate: VulnerabilitySearchCandidate) {
       </template>
     </WorkspaceModuleTopBar>
 
-    <Dialog v-model:open="showCveSearch">
-      <DialogContent class="cve-search-dialog sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>{{ t('查找公开 CVE', 'Find public CVE') }}</DialogTitle>
-          <DialogDescription>{{ t('输入 CVE 编号、产品名或关键词，从 NVD 公开资料中选择。', 'Enter a CVE ID, product name, or keyword to choose from NVD public records.') }}</DialogDescription>
-        </DialogHeader>
+    <WorkspaceImportDialog
+      v-model:open="showImport"
+      :description="t('同步公开源，或按编号、产品名查找 CVE。', 'Sync public sources, or find a CVE by ID or product name.')"
+    >
+      <SettingsSection :title="t('同步公开源', 'Public sources')">
+        <SettingsRow
+          :label="t('CISA KEV / Vulhub', 'CISA KEV / Vulhub')"
+          :description="dashboard.sourceRefreshSummary.value.label"
+          :divider="false"
+        >
+          <Button
+            variant="outline"
+            size="sm"
+            :loading="importSyncing"
+            :aria-label="t('同步公开源', 'Sync public sources')"
+            @click="syncPublicSources"
+          >
+            {{ t('同步', 'Sync') }}
+          </Button>
+        </SettingsRow>
+        <p v-if="importNotice" class="px-4 pb-3 text-caption text-muted-foreground">{{ importNotice }}</p>
+        <p v-if="importError" class="px-4 pb-3 text-caption text-destructive" role="alert">{{ importError }}</p>
+      </SettingsSection>
 
+      <SettingsSection :title="t('查找公开 CVE', 'Find public CVE')">
+        <div class="grid gap-3 px-4 py-4">
         <form class="flex gap-2" @submit.prevent="searchCves">
           <label class="relative min-w-0 flex-1">
             <Search class="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -600,8 +694,9 @@ function addSearchResult(candidate: VulnerabilitySearchCandidate) {
             </Button>
           </article>
         </div>
-      </DialogContent>
-    </Dialog>
+        </div>
+      </SettingsSection>
+    </WorkspaceImportDialog>
 
     <section class="tactical-paper-surface min-h-0 flex-1 overflow-auto bg-card" :aria-label="t('CVE 列表', 'CVE list')">
       <div class="min-w-[1120px]">

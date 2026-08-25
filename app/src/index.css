@@ -164,6 +164,20 @@
   --settings-field-fill-hover: color-mix(in srgb, var(--foreground) 16%, var(--card));
 }
 
+/* List chrome: Import is an execution action, not module identity. */
+[data-workspace-catalog-actions] .workspace-import-action[data-variant='default'] {
+  color: var(--accent-blue-foreground);
+}
+[data-workspace-catalog-actions] .workspace-import-action[data-variant='default']::before {
+  background-color: var(--accent-blue-fill);
+}
+[data-workspace-catalog-actions] .workspace-import-action[data-variant='default']:hover::before {
+  background-color: var(--accent-blue-fill-hover);
+}
+[data-workspace-catalog-actions] .workspace-import-action[data-variant='default']:active::before {
+  background-color: var(--accent-blue-fill-active);
+}
+
 :root[data-theme='light'] {
   color-scheme: light;
 

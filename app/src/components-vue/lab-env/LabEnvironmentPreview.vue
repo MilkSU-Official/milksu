@@ -5,7 +5,6 @@ import {
   Button,
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
   Input,
@@ -15,7 +14,9 @@ import {
   SettingsRow,
   SettingsSection,
 } from '@felinic/ui'
-import { ArrowLeft, Box, Maximize2, Plus, RotateCcw, Smartphone } from 'lucide-vue-next'
+import { ArrowLeft, Box, Maximize2, RotateCcw, Smartphone } from 'lucide-vue-next'
+import WorkspaceCatalogActions from '@/components-vue/WorkspaceCatalogActions.vue'
+import WorkspaceImportDialog from '@/components-vue/WorkspaceImportDialog.vue'
 import WorkspaceModuleTopBar from '@/components-vue/WorkspaceModuleTopBar.vue'
 import WorkspaceRail from '@/components-vue/WorkspaceRail.vue'
 import EnvironmentStrip from '@/components-vue/lab-env/EnvironmentStrip.vue'
@@ -390,15 +391,13 @@ onMounted(() => {
         <template v-if="section === 'lab' && !labJobId">
           <WorkspaceModuleTopBar module="lab" :title="t('实验室', 'Lab')">
             <template #actions>
-              <Button
-                v-if="labTab === 'jobs'"
-                variant="ghost"
-                size="icon-sm"
-                :aria-label="t('新建自定义任务', 'New custom job')"
-                @click="showNew = true"
-              >
-                <Plus class="size-4" />
-              </Button>
+              <WorkspaceCatalogActions
+                :history-count="0"
+                :history-aria-label="t('打开任务历史', 'Open job history')"
+                :history-menu-label="t('任务历史', 'Job history')"
+                :import-aria-label="t('导入任务', 'Import job')"
+                @import="showNew = true"
+              />
             </template>
             <template #filters>
               <div class="collection-tabs flex min-w-0 items-center gap-2" role="tablist" :aria-label="t('实验室分段', 'Lab sections')">
@@ -522,7 +521,16 @@ onMounted(() => {
         </template>
 
         <template v-else-if="section === 'vuln' && !cveId">
-          <WorkspaceModuleTopBar module="cve" title="CVE" />
+          <WorkspaceModuleTopBar module="cve" title="CVE">
+            <template #actions>
+              <WorkspaceCatalogActions
+                :history-count="0"
+                :history-aria-label="t('打开研究历史', 'Open research history')"
+                :history-menu-label="t('研究历史', 'Research history')"
+                :import-aria-label="t('导入 CVE', 'Import CVE')"
+              />
+            </template>
+          </WorkspaceModuleTopBar>
           <section class="tactical-paper-surface min-h-0 flex-1 overflow-auto bg-card" :aria-label="t('CVE 列表', 'CVE list')">
             <div class="min-w-[720px]">
               <div class="tactical-desk-head tactical-table-head grid h-12 grid-cols-[170px_minmax(240px,1fr)_88px_72px] items-center gap-4 border-b border-border px-6 text-caption text-muted-foreground">
@@ -670,13 +678,9 @@ onMounted(() => {
 
 
 
-    <Dialog v-model:open="showNew">
-      <DialogContent class="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{{ t('自定义任务', 'Custom job') }}</DialogTitle>
-          <DialogDescription class="sr-only">{{ t('范围和要求', 'Scope and request') }}</DialogDescription>
-        </DialogHeader>
-        <form class="grid gap-4" @submit.prevent="submitNew">
+    <WorkspaceImportDialog v-model:open="showNew" :description="t('创建自定义任务。', 'Create a custom job.')">
+      <SettingsSection :title="t('自定义任务', 'Custom job')">
+        <form class="grid gap-4 px-4 py-4" @submit.prevent="submitNew">
           <div>
             <p class="mb-2 text-caption text-muted-foreground">{{ t('范围', 'Scope') }}</p>
             <SegmentedControl v-model="newSource" :aria-label="t('范围', 'Scope')" :items="sourceItems" />
@@ -689,8 +693,8 @@ onMounted(() => {
             <Button type="submit" variant="brand">{{ t('启动并打开', 'Start and open') }}</Button>
           </div>
         </form>
-      </DialogContent>
-    </Dialog>
+      </SettingsSection>
+    </WorkspaceImportDialog>
 
     <Dialog v-model:open="showReproAsk">
       <DialogContent class="sm:max-w-md">

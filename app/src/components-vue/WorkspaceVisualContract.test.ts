@@ -18,6 +18,7 @@ import vulnIntelSettingsSource from './VulnerabilityIntelSettingsPanel.vue?raw'
 import workspaceRailSource from './WorkspaceRail.vue?raw'
 import ctfArtifactsSource from './CTFArtifacts.vue?raw'
 import ctfPageSource from './CTFPage.vue?raw'
+import catalogActionsSource from './WorkspaceCatalogActions.vue?raw'
 import ctfTrajectorySource from './CTFTrajectory.vue?raw'
 import domainTaskContextSource from './DomainTaskContextPanel.vue?raw'
 import appSource from '../App.vue?raw'
@@ -157,7 +158,7 @@ describe('Workspace visual contract', () => {
     expect(ctfTrajectorySource).not.toContain('game-surface')
     expect(ctfArtifactsSource).not.toContain('game-surface')
     expect(appStylesSource).not.toContain('.game-surface')
-    expect(ctfPageSource).toContain('z-[var(--z-overlay)]')
+    expect(catalogActionsSource).toContain('z-[var(--z-overlay)]')
     expect(appStylesSource).toContain('[data-slot="select-content"]')
     expect(appStylesSource).toContain('[data-slot="sheet-content"]')
     expect(appStylesSource).toContain('[data-slot="hover-card-content"]')

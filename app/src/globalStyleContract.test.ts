@@ -77,6 +77,11 @@ describe('global style contract', () => {
     expect(indexCss).toContain('--page-card-radius: 0.45rem')
   })
 
+  it('keeps list-page Import on the shared execution blue fill', () => {
+    expect(indexCss).toContain('[data-workspace-catalog-actions] .workspace-import-action[data-variant=\'default\']')
+    expect(indexCss).toContain('background-color: var(--accent-blue-fill)')
+  })
+
   it('uses the ak-ui cyan action color instead of acid green or the old SaaS blue', () => {
     expect(indexCss).toContain('@import "./styles/ak-ui-flourish.css"')
     expect(indexCss).toContain('--brand: #05a7dc')

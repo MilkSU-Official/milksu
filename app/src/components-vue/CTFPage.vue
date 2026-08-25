@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref, watch } from 'vue'
 import {
-  ActionCard,
   Alert,
   AlertDescription,
   Badge,
@@ -17,40 +16,21 @@ import {
   SelectSeparator,
   SelectTrigger,
   SelectValue,
-  ModelListRow,
-  SegmentedControl,
   SettingsRow,
   SettingsSection,
-  buttonVariants,
-  menuContentClass,
-  menuItemClass,
-  menuLabelClass,
-  menuSeparatorClass,
-  menuViewportClass,
 } from '@felinic/ui'
 import {
-  Archive,
   ArrowLeft,
-  ArrowRight,
-  Bot,
   Cable,
   Check,
-  ChevronLeft,
-  ChevronRight,
   Circle,
   Clock3,
   ExternalLink,
-  FilePlus2,
   FileSearch,
   Flag,
-  KeyRound,
   Library,
   LoaderCircle,
-  Play,
-  RefreshCw,
-  ShieldCheck,
   Target,
-  Zap,
 } from 'lucide-vue-next'
 import CTFArtifacts from '@/components-vue/CTFArtifacts.vue'
 import CTFChallengeDesk from '@/components-vue/CTFChallengeDesk.vue'
@@ -65,6 +45,9 @@ import CTFWorkspaceHeader from '@/components-vue/CTFWorkspaceHeader.vue'
 import CollectionViewFilter from '@/components-vue/CollectionViewFilter.vue'
 import ConversationDock from '@/components-vue/ConversationDock.vue'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
+import WorkspaceCatalogActions from '@/components-vue/WorkspaceCatalogActions.vue'
+import WorkspaceCatalogHistoryItem from '@/components-vue/WorkspaceCatalogHistoryItem.vue'
+import WorkspaceImportDialog from '@/components-vue/WorkspaceImportDialog.vue'
 import WorkspaceModuleTopBar from '@/components-vue/WorkspaceModuleTopBar.vue'
 import { useCTFTrainingPlatforms } from '@/composables/useCTFTrainingPlatforms'
 import { useCTFWorkspace } from '@/composables/useCTFWorkspace'
@@ -106,15 +89,13 @@ import type { NSSCTFChallenge } from '@/nssctfTypes'
 import type {
   NSSCTFCatalogProblem,
   NSSCTFDailyChallengeSelection,
-  NSSCTFRecommendation,
-  NSSCTFTrainingSeries,
 } from '@/nssctfTrainingTypes'
 import type { Conversation } from '@/types'
 import type { CodingAgentSendArgs, CodingAgentSurfaceBind } from '@/lib/codingAgentSurface'
 
-type Screen = 'source' | 'challenge' | 'detail' | 'workspace'
+type Screen = 'challenge' | 'detail' | 'workspace'
 type QuestionBank = Extract<CTFTrainingPlatform['id'], 'nssctf' | 'ctfshow'>
-type TrainingSource = CTFTrainingPlatform['id'] | 'custom'
+type TrainingSource = CTFTrainingPlatform['id']
 defineOptions({ name: 'CTFPage' })
 
 function catalogDifficultyLabel(value: number) {
@@ -237,14 +218,10 @@ const activeBank = ref<TrainingSource>(
     ? storedTrainingSource
     : 'nssctf',
 )
-const lastNonCustomBank = ref<Exclude<TrainingSource, 'custom'>>(
-  activeBank.value as Exclude<TrainingSource, 'custom'>,
-)
 const source = ref<'public' | 'arena'>('public')
 const problemInput = ref('')
 const selectedProblem = ref<NSSCTFChallenge | null>(null)
 const selectedCTFShowProblemID = ref<number | null>(null)
-const selectedSeries = ref<NSSCTFTrainingSeries | null>(null)
 const storedCollaborationMode = window.localStorage.getItem('milksu.ctf.collaboration-mode')
 const collaborationMode = ref<CTFCollaborationMode>(
   storedCollaborationMode === 'coach'
@@ -264,10 +241,6 @@ const localMaterials = ref<CTFMaterialRequest[]>([])
 const working = ref(false)
 const conversationDock = ref<{ revealAndFocus: () => Promise<void> } | null>(null)
 const manualCreating = ref(false)
-const seriesQuery = ref('')
-const seriesCategory = ref('all')
-const seriesStatus = ref<'all' | 'new' | 'attempted' | 'completed'>('all')
-const seriesPage = ref(1)
 const catalogQuery = ref('')
 const catalogCategory = ref('all')
 const catalogPage = ref(1)
@@ -276,10 +249,10 @@ const ctfshowQuery = ref('')
 const ctfshowCategory = ref('all')
 const ctfshowPage = ref(1)
 const ctfshowPageSize = 20
-const historyExpanded = ref(false)
 const recalledMemories = ref<CTFTrainingMemory[]>([])
 const memoryLoading = ref(false)
-const historyMenu = ref<HTMLDetailsElement | null>(null)
+const showImport = ref(false)
+const catalogActions = ref<{ closeHistoryMenu: () => void } | null>(null)
 const ctfCollections = createItemCollectionStore('milksu.ctf.collections.v1')
 const collectionView = ref(ALL_COLLECTIONS_ID)
 const manualStatuses = ref<Record<string, CTFManualStatus>>((() => {
@@ -322,7 +295,6 @@ const manualIntake = ref<InstanceType<typeof CTFManualIntake> | null>(null)
 let catalogSearchTimer: ReturnType<typeof setTimeout> | undefined
 let dailyChallengeLoading = false
 
-const step = computed(() => screen.value === 'source' ? 1 : screen.value === 'challenge' ? 2 : 3)
 const activeProjection = computed(() => backend.projection.value)
 const dossierConversations = computed(() => relatedDomainConversations(
   props.conversations ?? [],
@@ -441,11 +413,6 @@ function updateActiveJobManualStatus(event: Event) {
 // Presentation-only readiness strips removed. Inline blockers only at the
 // action they gate: model gates Agent start, Judge gates submit, neither gates
 // opening Coding context.
-const catalogAction = computed(() => (
-  selectedCatalogReady.value
-    ? null
-    : { label: t('同步题库', 'Sync catalog'), action: 'catalog' as const }
-))
 const activeStartCost = computed(() => (
   activeBrowserPage.value?.nssctf.needsStart
     ? activeBrowserPage.value.nssctf.startCost ?? 0
@@ -518,18 +485,6 @@ const remainingWrongSubmissions = computed(() => (
   ?? activeProjection.value?.challenge.agentPolicy.budget.maxWrongSubmissions
   ?? 0
 ))
-const resumableJob = computed(() => (
-  backend.jobs.value.find(job => !['succeeded', 'failed', 'cancelled'].includes(job.status))
-))
-const solvedJobCount = computed(() => (
-  backend.jobs.value.filter(job => job.status === 'succeeded').length
-))
-const totalExperimentCount = computed(() => (
-  backend.jobs.value.reduce((total, job) => total + job.experimentCount, 0)
-))
-const visibleHistoryJobs = computed(() => (
-  historyExpanded.value ? backend.jobs.value : backend.jobs.value.slice(0, 3)
-))
 const activeQuestionBank = computed<QuestionBank | null>(() => (
   activeBank.value === 'nssctf' || activeBank.value === 'ctfshow'
     ? activeBank.value
@@ -547,9 +502,7 @@ const activeExternalPlatform = computed(() => (
   platformRegistry.platforms.value.find(platform => platform.id === activeBank.value) ?? null
 ))
 const activeSourceName = computed(() => (
-  activeBank.value === 'custom'
-    ? t('自定义题目', 'Custom challenge')
-    : activeExternalPlatform.value?.name ?? t('选择训练平台', 'Choose a training platform')
+  activeExternalPlatform.value?.name ?? t('选择训练平台', 'Choose a training platform')
 ))
 const externalPlatformStatusLabel = computed(() => {
   switch (activeExternalPlatform.value?.status) {
@@ -681,40 +634,6 @@ const deskEmptyTitle = computed(() => {
 })
 const deskEmptyDetail = computed(() => '')
 
-const modeItems = computed(() => [
-  { value: 'coach' as const, label: t('教练', 'Coach') },
-  { value: 'copilot' as const, label: t('搭档', 'Copilot') },
-  { value: 'delegate' as const, label: t('代理', 'Delegate') },
-])
-const dailyMission = computed(() => {
-  if (resumableJob.value) {
-    return {
-      kind: 'resume' as const,
-      eyebrow: t('继续上次训练', 'Continue last session'),
-      title: resumableJob.value.title,
-      meta: `${resumableJob.value.category} · ${jobSummaryLabel(resumableJob.value)}`,
-      action: t('历史恢复', 'Resume from history'),
-    }
-  }
-  const recommendation = training.dashboard.value?.recommendations[0]
-  if (recommendation) {
-    return {
-      kind: 'recommendation' as const,
-      eyebrow: t('推荐训练', 'Recommended training'),
-      title: recommendation.problem.title,
-      meta: t(`${recommendation.problem.category} · 难度 ${recommendation.problem.difficulty.toFixed(1)} · ${recommendation.kind}`, `${recommendation.problem.category} · difficulty ${recommendation.problem.difficulty.toFixed(1)} · ${recommendation.kind}`),
-      action: t('开始训练', 'Start training'),
-    }
-  }
-  return {
-    kind: 'sync' as const,
-    eyebrow: t('本地题库', 'Local catalog'),
-    title: t('同步 NSSCTF 公开题库', 'Sync NSSCTF public catalog'),
-    meta: t('0 题', '0 challenges'),
-    action: t('同步题库', 'Sync catalog'),
-  }
-})
-
 function jobSummaryLabel(job: CTFSummary) {
   return ctfManualStatusLabel(manualStatusForJob(job))
 }
@@ -724,17 +643,14 @@ async function runCatalogAction() {
   else await refreshCTFShow()
 }
 
-function openCustomImport() {
-  if (activeBank.value !== 'custom') {
-    lastNonCustomBank.value = activeBank.value
-  }
-  activeBank.value = 'custom'
-  screen.value = 'challenge'
+function openImport() {
+  catalogActions.value?.closeHistoryMenu()
+  showImport.value = true
 }
 
-function cancelCustomImport() {
-  activeBank.value = lastNonCustomBank.value
-  screen.value = 'challenge'
+function closeImport() {
+  showImport.value = false
+  manualIntake.value?.reset()
 }
 
 async function openSelectedInCoding() {
@@ -747,29 +663,8 @@ async function openSelectedInCoding() {
   }
 }
 
-function difficultyLabel(difficulty: number) {
-  return difficulty > 0 ? difficulty.toFixed(1) : t('待定', 'Pending')
-}
-
-function ctfshowProblemStatus(problemId: number) {
-  if (ctfshow.status.value?.completedProblemIds.includes(problemId)) return 'completed'
-  if (ctfshow.status.value?.attemptedProblemIds.includes(problemId)) return 'attempted'
-  return 'new'
-}
-
-function ctfshowProblemStatusLabel(problemId: number) {
-  switch (ctfshowProblemStatus(problemId)) {
-    case 'completed': return t('已完成', 'Completed')
-    case 'attempted': return t('再挑战', 'Retry')
-    default: return t('未开始', 'Not started')
-  }
-}
-
 watch(activeBank, bank => {
-  if (bank !== 'custom') {
-    lastNonCustomBank.value = bank
-    window.localStorage.setItem('milksu.ctf.question-bank', bank)
-  }
+  window.localStorage.setItem('milksu.ctf.question-bank', bank)
   selectedProblem.value = null
   selectedCTFShowProblemID.value = null
   localMaterials.value = []
@@ -892,7 +787,6 @@ async function resetWorkspaceViewport() {
 
 function showProblems() {
   source.value = 'public'
-  selectedSeries.value = null
   selectedProblem.value = null
   selectedCTFShowProblemID.value = null
   localMaterials.value = []
@@ -908,7 +802,7 @@ async function syncCatalog() {
   const result = await training.sync()
   if (result) {
     catalogNotice.value = t(`已把 ${result.total} 道公开题目更新到本地题库。`, `Updated ${result.total} public challenges into the local catalog.`)
-    if (screen.value === 'challenge' && !selectedSeries.value && !selectedProblem.value) {
+    if (screen.value === 'challenge' && !selectedProblem.value) {
       await loadPublicCatalog(1)
     }
   }
@@ -1015,72 +909,22 @@ async function changeDailyChallenge() {
   await refreshDailyChallenge(true)
 }
 
-async function runDailyMission() {
-  if (dailyMission.value.kind === 'resume' && resumableJob.value) {
-    await resumeJob(resumableJob.value.id)
-    await openCodingAgent()
-    return
-  }
-  if (dailyMission.value.kind === 'recommendation') {
-    const recommendation = training.dashboard.value?.recommendations[0]
-    if (recommendation) await chooseRecommendation(recommendation)
-    return
-  }
-  await syncCatalog()
-}
-
-async function chooseRecommendation(recommendation: NSSCTFRecommendation) {
-  source.value = 'public'
-  problemInput.value = String(recommendation.problem.platformId)
-  localMaterials.value = []
-  attachmentError.value = ''
-  working.value = true
-  try {
-    const challenge = await publicProblems.importChallenge(problemInput.value)
-    if (!challenge) return
-    selectedProblem.value = challenge
-    screen.value = 'challenge'
-  } finally {
-    working.value = false
-  }
-}
-
 async function startManualChallenge(request: CTFChallengeRequest) {
   manualCreating.value = true
   outcomeNotice.value = ''
   try {
     const started = await backend.startChallenge(request)
     if (!started) return
-    manualIntake.value?.resetAndClose()
+    closeImport()
     screen.value = 'workspace'
   } finally {
     manualCreating.value = false
   }
 }
 
-function closeHistoryMenuOnOutsidePointer(event: PointerEvent) {
-  if (!(event.target instanceof Node)) return
-  for (const menu of [historyMenu.value]) {
-    if (menu?.open && !menu.contains(event.target)) menu.open = false
-  }
-}
-
-function closeHistoryMenu() {
-  if (historyMenu.value) historyMenu.value.open = false
-}
-
 async function resumeFromHistory(id: string) {
-  closeHistoryMenu()
+  catalogActions.value?.closeHistoryMenu()
   await resumeJob(id)
-}
-
-function formatHistoryTime(value: string) {
-  return new Intl.DateTimeFormat('zh-CN', {
-    month: 'numeric',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(value))
 }
 
 async function openExternalPlatform() {
@@ -1091,19 +935,6 @@ async function openExternalPlatform() {
       ? 'https://tryhackme.com/hacktivities'
       : activeExternalPlatform.value.sourceUrl
   await invokeCommand('open_ctf_source_url', { url: sourceUrl })
-}
-
-function chooseSeries(series: NSSCTFTrainingSeries) {
-  source.value = 'public'
-  selectedSeries.value = series
-  selectedProblem.value = null
-  seriesQuery.value = ''
-  seriesCategory.value = 'all'
-  seriesStatus.value = 'all'
-  seriesPage.value = 1
-  attachmentError.value = ''
-  localMaterials.value = []
-  screen.value = 'challenge'
 }
 
 async function chooseSeriesProblem(platformId: number) {
@@ -1285,21 +1116,6 @@ async function startPublicWorkspace() {
   } finally {
     working.value = false
   }
-}
-
-async function startArenaWorkspace() {
-  source.value = 'arena'
-  if (!props.arenaReady) {
-    emit('openSettings')
-    return
-  }
-  working.value = true
-  const started = await arena.start()
-  if (started?.ctf) {
-    await backend.adoptProjection(started.ctf)
-    screen.value = 'workspace'
-  }
-  working.value = false
 }
 
 /**
@@ -1640,7 +1456,6 @@ function refreshBridgePresence() {
 }
 
 onMounted(async () => {
-  document.addEventListener('pointerdown', closeHistoryMenuOnOutsidePointer)
   void publicCatalog.ensureLoaded()
   await Promise.all([
     webBridge.refresh(),
@@ -1666,7 +1481,6 @@ onDeactivated(() => {
 })
 
 onBeforeUnmount(() => {
-  document.removeEventListener('pointerdown', closeHistoryMenuOnOutsidePointer)
   if (bridgeStatusTimer !== undefined) window.clearInterval(bridgeStatusTimer)
 })
 </script>
@@ -1692,94 +1506,33 @@ onBeforeUnmount(() => {
           <ArrowLeft class="size-4" />
         </Button>
       </template>
-      <template #actions>
-        <details
-        v-if="ctfSection === 'catalog'"
-        ref="historyMenu"
-        class="app-no-drag relative shrink-0"
-        @keydown.esc.stop.prevent="closeHistoryMenu"
-      >
-        <summary
-          data-button=""
-          data-variant="outline"
-          data-size="sm"
-          :class="buttonVariants({ variant: 'outline', size: 'sm' })"
-          class="list-none [&::-webkit-details-marker]:hidden"
-          :aria-label="t('打开训练历史', 'Open training history')"
+      <template v-if="ctfSection === 'catalog'" #actions>
+        <WorkspaceCatalogActions
+          ref="catalogActions"
+          :history-count="backend.jobs.value.length"
+          :history-aria-label="t('打开训练历史', 'Open training history')"
+          :history-menu-label="t('训练历史', 'Training history')"
+          :import-aria-label="t('导入题目', 'Import challenge')"
+          @import="openImport"
         >
-          <Clock3 class="size-4" />
-          {{ t('历史', 'History') }}
-          <span class="font-mono text-caption text-muted-foreground">
-            {{ backend.jobs.value.length }}
-          </span>
-        </summary>
-        <div
-          data-state="open"
-          data-side="bottom"
-          :class="[menuContentClass, menuViewportClass]"
-          class="tactical-floating-surface absolute right-0 top-[calc(100%+4px)] z-[var(--z-overlay)] max-h-[min(480px,calc(100vh-7rem))] w-[min(420px,calc(100vw-2rem))] overflow-y-auto"
-          role="menu"
-          :aria-label="t('训练历史', 'Training history')"
-        >
-          <div :class="menuLabelClass" class="flex items-center justify-between gap-3 px-2.5 py-2">
-            <span>{{ t('训练历史', 'Training history') }}</span>
-            <span class="font-normal text-muted-foreground">{{ t('仅保存在本机', 'Stored on this machine only') }}</span>
-          </div>
-          <div :class="menuSeparatorClass" />
-          <button
-            v-for="job in backend.jobs.value"
-            :key="job.id"
-            type="button"
-            role="menuitem"
-            :class="menuItemClass"
-            class="items-start gap-3 px-2.5 py-2.5 text-left hover:bg-[color:var(--ui-selected)] focus-visible:bg-[color:var(--ui-selected)]"
-            :aria-current="activeProjection?.job.id === job.id ? 'true' : undefined"
-            @click="resumeFromHistory(job.id)"
-          >
-            <span
-              class="mt-0.5 inline-flex w-16 shrink-0 justify-center rounded-md bg-muted px-1.5 py-1 text-caption font-medium"
+          <template #history>
+            <WorkspaceCatalogHistoryItem
+              v-for="job in backend.jobs.value"
+              :key="job.id"
+              :title="job.title"
+              :subtitle="t(`${formatCategory(job.category)} · ${job.experimentCount} 次实验`, `${formatCategory(job.category)} · ${job.experimentCount} experiments`)"
+              :time="job.updatedAt"
+              :current="activeProjection?.job.id === job.id"
+              @select="resumeFromHistory(job.id)"
             >
-              {{ jobSummaryLabel(job) }}
-            </span>
-            <span class="min-w-0 flex-1">
-              <span class="block truncate text-control font-medium">
-                {{ job.title }}
-              </span>
-              <span class="mt-0.5 block truncate text-caption text-muted-foreground">
-                {{ t(`${formatCategory(job.category)} · ${job.experimentCount} 次实验`, `${formatCategory(job.category)} · ${job.experimentCount} experiments`) }}
-              </span>
-            </span>
-            <span class="mt-1 shrink-0 text-caption text-muted-foreground">
-              {{ formatHistoryTime(job.updatedAt) }}
-            </span>
-            <Check
-              v-if="activeProjection?.job.id === job.id"
-              class="mt-1 size-4 shrink-0 text-brand"
-            />
-          </button>
-        </div>
-        </details>
-        <Button
-          v-if="ctfSection === 'catalog' && activeQuestionBank"
-          variant="outline"
-          size="sm"
-          class="app-no-drag shrink-0"
-          :loading="activeBank === 'nssctf' ? training.syncing.value : ctfshow.loading.value"
-          :aria-label="t('同步导入题库', 'Sync and import catalog')"
-          @click="activeBank === 'nssctf' ? syncCatalog() : refreshCTFShow()"
-        >
-          {{ t('同步导入', 'Sync catalog') }}
-        </Button>
-        <Button
-          v-if="ctfSection === 'catalog'"
-          variant="ghost"
-          size="sm"
-          class="app-no-drag shrink-0"
-          @click="openCustomImport"
-        >
-          <FilePlus2 class="size-4" />
-          {{ t('导入', 'Import') }}
-        </Button>
+              <template #leading>
+                <span class="mt-0.5 inline-flex w-16 shrink-0 justify-center rounded-md bg-muted px-1.5 py-1 text-caption font-medium">
+                  {{ jobSummaryLabel(job) }}
+                </span>
+              </template>
+            </WorkspaceCatalogHistoryItem>
+          </template>
+        </WorkspaceCatalogActions>
       </template>
       <template v-if="ctfSection === 'catalog' && activeQuestionBank" #filters>
       <div class="flex w-full flex-col gap-3">
@@ -1884,475 +1637,8 @@ onBeforeUnmount(() => {
         class="w-full"
         :class="screen === 'challenge' ? 'h-full' : 'page-column'"
       >
-        <ol v-if="ctfSection === 'catalog' && screen === 'source'" class="tactical-paper mx-auto mb-8 grid max-w-3xl grid-cols-3 p-4" :aria-label="t('训练步骤', 'Training steps')">
-          <li
-            v-for="item in [
-              { index: 1, label: t('选择入口', 'Choose a source') },
-              { index: 2, label: t('选择题目', 'Choose a challenge') },
-              { index: 3, label: t('Agent 工作台', 'Agent workspace') },
-            ]"
-            :key="item.index"
-            class="relative flex flex-col items-center gap-2 text-center"
-          >
-            <span
-              v-if="item.index > 1"
-              class="absolute right-1/2 top-3 h-px w-full bg-border"
-              aria-hidden="true"
-            />
-            <span
-              class="relative z-10 grid size-6 place-items-center rounded-full border text-caption font-medium"
-              :class="item.index <= step ? 'border-foreground bg-foreground text-background' : 'border-border bg-background text-muted-foreground'"
-            >
-              <Check v-if="item.index < step" class="size-3.5" />
-              <span v-else>{{ item.index }}</span>
-            </span>
-            <span class="relative text-caption" :class="item.index === step ? 'font-medium text-foreground' : 'text-muted-foreground'">
-              {{ item.label }}
-            </span>
-          </li>
-        </ol>
-
-        <section v-if="ctfSection === 'catalog' && screen === 'source'" aria-labelledby="source-title">
-          <h1 id="source-title" class="sr-only">CTF</h1>
-
-          <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
-            <NativeSelect
-              v-model="activeBank"
-              size="sm"
-              :aria-label="t('选择题库', 'Choose a catalog')"
-            >
-              <NativeSelectOption
-                v-for="platform in visibleTrainingPlatforms"
-                :key="platform.id"
-                :value="platform.id"
-              >
-                {{ platform.name }}
-              </NativeSelectOption>
-              <NativeSelectOption value="custom">{{ t('自定义题目', 'Custom challenge') }}</NativeSelectOption>
-            </NativeSelect>
-            <span class="text-caption text-muted-foreground">
-              {{ activeBank === 'nssctf'
-                ? t(`${training.dashboard.value?.catalogTotal ?? 0} 题`, `${training.dashboard.value?.catalogTotal ?? 0} challenges`)
-                : activeBank === 'ctfshow'
-                  ? t(`${ctfshow.status.value?.catalog.total ?? 0} 题`, `${ctfshow.status.value?.catalog.total ?? 0} challenges`)
-                  : t('统一训练工作区', 'Shared training workspace') }}
-            </span>
-          </div>
-
-          <section
-            v-if="catalogAction"
-            class="mb-6 flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card px-4 py-3"
-            :aria-label="t('当前操作', 'Current action')"
-          >
-            <Button
-              variant="outline"
-              size="sm"
-              @click="runCatalogAction"
-            >
-              {{ catalogAction.label }}
-            </Button>
-          </section>
-
-          <section v-if="activeBank === 'ctfshow'" aria-labelledby="ctfshow-title">
-            <Alert v-if="ctfshow.error.value" variant="destructive" class="mb-5">
-              <Circle class="size-4" />
-              <AlertDescription class="flex flex-wrap items-center justify-between gap-3">
-                <span>{{ ctfshow.error.value }}</span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  :loading="ctfshow.loading.value"
-                  @click="refreshCTFShow"
-                >
-                  <RefreshCw class="size-4" />
-                  {{ t('重试同步', 'Retry sync') }}
-                </Button>
-              </AlertDescription>
-            </Alert>
-
-            <div class="mb-5 flex flex-wrap items-end justify-between gap-4">
-              <div>
-                <h2 id="ctfshow-title" class="text-xl font-semibold tracking-[-0.025em]">{{ t('CTFshow 题库', 'CTFshow catalog') }}</h2>
-                <p class="mt-1 text-caption text-muted-foreground">
-                  {{ ctfshow.status.value?.catalog.lastSyncedAt
-                    ? t(`更新于 ${new Date(ctfshow.status.value.catalog.lastSyncedAt).toLocaleString()}`, `Updated ${new Date(ctfshow.status.value.catalog.lastSyncedAt).toLocaleString()}`)
-                    : t('尚未同步', 'Not synced yet') }}
-                </p>
-              </div>
-              <div class="flex flex-wrap gap-2">
-                <SegmentedControl
-                  v-model="collaborationMode"
-                  :aria-label="t('CTFshow 协作模式', 'CTFshow collaboration mode')"
-                  :items="modeItems"
-                />
-                <Button variant="outline" @click="ctfshow.open()">
-                  <ExternalLink class="size-4" />
-                  {{ t('打开 CTFshow', 'Open CTFshow') }}
-                </Button>
-                <Button :loading="ctfshow.loading.value" @click="refreshCTFShow">
-                  <RefreshCw class="size-4" />
-                  {{ t('刷新', 'Refresh') }}
-                </Button>
-              </div>
-            </div>
-
-            <SettingsSection v-if="!ctfshowProblems.length" title="CTFshow">
-              <SettingsRow stack="always" :label="t('在 CTFshow 页点击 MilkSU 扩展', 'Click the MilkSU extension on a CTFshow page')" :divider="false">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  @click="$emit('openSettings', 'browser')"
-                >
-                  <Cable class="size-4" />
-                  {{ t('前往浏览器设置', 'Open browser settings') }}
-                </Button>
-              </SettingsRow>
-            </SettingsSection>
-
-            <template v-else>
-              <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_180px]">
-                <Input v-model="ctfshowQuery" size="sm" :placeholder="t('搜索题号、题名或标签', 'Search by id, title, or tag')" />
-                <NativeSelect v-model="ctfshowCategory" size="sm" :aria-label="t('题型', 'Category')">
-                  <NativeSelectOption value="all">{{ t('全部题型', 'All categories') }}</NativeSelectOption>
-                  <NativeSelectOption
-                    v-for="category in ctfshowCategories"
-                    :key="category"
-                    :value="category"
-                  >
-                    {{ category }}
-                  </NativeSelectOption>
-                </NativeSelect>
-              </div>
-
-              <div class="mt-4 overflow-hidden rounded-xl border border-border bg-card">
-                <div class="hidden grid-cols-[76px_minmax(0,1fr)_110px_90px_90px_96px_32px] gap-3 border-b border-border bg-muted/30 px-4 py-2.5 text-caption text-muted-foreground md:grid">
-                  <span>ID</span>
-                  <span>{{ t('题目', 'Challenge') }}</span>
-                  <span>{{ t('题型', 'Category') }}</span>
-                  <span>{{ t('分值', 'Points') }}</span>
-                  <span>{{ t('解出', 'Solves') }}</span>
-                  <span>{{ t('进度', 'Progress') }}</span>
-                  <span />
-                </div>
-                <button
-                  v-for="problem in visibleCTFShowProblems"
-                  :key="problem.platformId"
-                  type="button"
-                  :disabled="working || ctfshow.loading.value"
-                  class="group grid w-full grid-cols-[60px_minmax(0,1fr)_24px] items-center gap-3 border-b border-border px-4 py-3 text-left last:border-0 md:grid-cols-[76px_minmax(0,1fr)_110px_90px_90px_96px_32px]"
-                  @click="chooseCTFShowProblem(problem.platformId)"
-                >
-                  <span class="font-mono text-caption text-muted-foreground">#{{ problem.platformId }}</span>
-                  <span class="min-w-0">
-                    <span class="block truncate text-control font-medium group-hover:text-primary">{{ problem.title }}</span>
-                    <span v-if="problem.tags.length" class="mt-0.5 block truncate text-caption text-muted-foreground">
-                      {{ problem.tags.slice(0, 4).join(' · ') }}
-                    </span>
-                  </span>
-                  <span class="hidden text-caption md:block">{{ problem.category }}</span>
-                  <span class="hidden font-mono text-caption md:block">{{ problem.points }}</span>
-                  <span class="hidden font-mono text-caption text-muted-foreground md:block">{{ problem.solvedCount }}</span>
-                  <span class="hidden md:block">
-                    <Badge
-                      :variant="ctfshowProblemStatus(problem.platformId) === 'completed' ? 'secondary' : 'outline'"
-                    >
-                      {{ ctfshowProblemStatusLabel(problem.platformId) }}
-                    </Badge>
-                  </span>
-                  <ChevronRight class="size-4 text-muted-foreground" />
-                </button>
-                <div v-if="!visibleCTFShowProblems.length" class="px-5 py-12 text-center text-control text-muted-foreground">
-                  {{ t('没有匹配题目', 'No matching challenges') }}
-                </div>
-              </div>
-
-              <div class="mt-4 flex items-center justify-between gap-3 text-caption text-muted-foreground">
-                <span>{{ t(`${filteredCTFShowProblems.length} 题`, `${filteredCTFShowProblems.length} challenges`) }}</span>
-                <div class="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    :disabled="ctfshowPage <= 1"
-                    @click="ctfshowPage -= 1"
-                  >
-                    <ChevronLeft class="size-4" />
-                    {{ t('上一页', 'Previous') }}
-                  </Button>
-                  <span class="min-w-14 text-center font-mono">{{ ctfshowPage }} / {{ ctfshowPageCount }}</span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    :disabled="ctfshowPage >= ctfshowPageCount"
-                    @click="ctfshowPage += 1"
-                  >
-                    {{ t('下一页', 'Next') }}
-                    <ChevronRight class="size-4" />
-                  </Button>
-                </div>
-              </div>
-            </template>
-          </section>
-
-          <Alert v-if="activeBank === 'nssctf' && training.error.value" variant="destructive" class="mb-5">
-            <Circle class="size-4" />
-            <AlertDescription class="flex flex-wrap items-center justify-between gap-3">
-              <span>{{ training.error.value }}</span>
-              <Button
-                variant="outline"
-                size="sm"
-                :loading="training.syncing.value"
-                @click="syncCatalog"
-              >
-                <RefreshCw class="size-4" />
-                {{ t('重试同步', 'Retry sync') }}
-              </Button>
-            </AlertDescription>
-          </Alert>
-
-          <Alert v-if="activeBank === 'nssctf' && training.syncing.value" class="mb-5">
-            <RefreshCw class="size-4 animate-spin" />
-            <AlertDescription>
-              {{ t('正在限速同步 NSSCTF 公开题库；遇到平台限流会自动退避重试，完成前仍保留上一次完整快照。', 'Syncing the NSSCTF public catalog at a limited rate. Rate limits trigger automatic backoff; the last complete snapshot is kept until this finishes.') }}
-            </AlertDescription>
-          </Alert>
-
-          <Alert v-if="activeBank === 'nssctf' && catalogNotice" class="mb-5">
-            <Check class="size-4" />
-            <AlertDescription>{{ catalogNotice }}</AlertDescription>
-          </Alert>
-
-          <section v-if="activeBank === 'nssctf'" class="mb-6 overflow-hidden rounded-xl border border-primary/20 bg-card">
-            <div class="grid lg:grid-cols-[minmax(0,1fr)_220px]">
-              <div class="p-6 sm:p-8">
-                <p class="flex items-center gap-2 text-caption font-medium text-primary">
-                  <Target class="size-4" />
-                  {{ dailyMission.eyebrow }}
-                </p>
-                <h2 class="mt-3 max-w-2xl text-2xl font-semibold tracking-[-0.035em]">
-                  {{ dailyMission.title }}
-                </h2>
-                <div class="mt-4 flex flex-wrap items-center gap-3">
-                  <Button
-                    v-if="dailyMission.kind !== 'resume'"
-                    variant="brand"
-                    size="lg"
-                    :loading="working || training.syncing.value"
-                    @click="runDailyMission"
-                  >
-                    <Play class="size-4" />
-                    {{ dailyMission.action }}
-                    <ArrowRight class="size-4" />
-                  </Button>
-                  <span
-                    v-else
-                    class="inline-flex items-center gap-2 rounded-full border border-border bg-muted/40 px-3 py-1.5 text-caption text-muted-foreground"
-                  >
-                    <Clock3 class="size-4" />
-                    {{ t('从右上角历史恢复', 'Resume from History in the top-right') }}
-                  </span>
-                  <span class="text-caption text-muted-foreground">{{ dailyMission.meta }}</span>
-                </div>
-              </div>
-              <div class="grid grid-cols-3 border-t border-border bg-muted/30 lg:grid-cols-1 lg:border-l lg:border-t-0">
-                <div class="px-5 py-4 lg:border-b lg:border-border">
-                  <p class="text-caption text-muted-foreground">{{ t('已完成', 'Completed') }}</p>
-                  <p class="mt-1 font-mono text-xl font-semibold">{{ t(`${solvedJobCount} 题`, `${solvedJobCount} challenges`) }}</p>
-                </div>
-                <div class="border-x border-border px-5 py-4 lg:border-x-0 lg:border-b">
-                  <p class="text-caption text-muted-foreground">{{ t('已实验', 'Experiments') }}</p>
-                  <p class="mt-1 font-mono text-xl font-semibold">{{ t(`${totalExperimentCount} 次`, `${totalExperimentCount} runs`) }}</p>
-                </div>
-                <div class="px-5 py-4">
-                  <p class="text-caption text-muted-foreground">{{ t('本地题库', 'Local catalog') }}</p>
-                  <p class="mt-1 font-mono text-xl font-semibold">{{ t(`${training.dashboard.value?.catalogTotal ?? 0} 题`, `${training.dashboard.value?.catalogTotal ?? 0} challenges`) }}</p>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <SettingsSection
-            v-if="activeBank === 'nssctf' && training.dashboard.value"
-            :title="t('推荐下一道 NSSCTF 题', 'Recommended next NSSCTF challenge')"
-          >
-            <template #actions>
-              <Button
-                variant="ghost"
-                size="sm"
-                :loading="training.syncing.value"
-                @click="syncCatalog"
-              >
-                <RefreshCw class="size-4" />
-                {{ t('更新题库', 'Update catalog') }}
-              </Button>
-            </template>
-            <div
-              v-for="(recommendation, index) in training.dashboard.value.recommendations.slice(0, 4)"
-              :key="recommendation.problem.platformId"
-              class="contents"
-            >
-              <ModelListRow
-                :label="recommendation.problem.title"
-                :meta="`${recommendation.kind} · P${recommendation.problem.platformId} · ${recommendation.problem.difficulty.toFixed(1)}`"
-                :last="index === Math.min(3, training.dashboard.value.recommendations.length - 1)"
-                @click="chooseRecommendation(recommendation)"
-              >
-                <template #trailing>
-                  <ChevronRight class="size-4 text-muted-foreground" />
-                </template>
-              </ModelListRow>
-            </div>
-            <SettingsRow
-              v-if="!training.dashboard.value.recommendations.length"
-              stack="always"
-              :divider="false"
-            >
-              <Button variant="brand" :loading="training.syncing.value" @click="syncCatalog">
-                {{ t('同步题库', 'Sync catalog') }}
-              </Button>
-            </SettingsRow>
-          </SettingsSection>
-
-          <SettingsSection v-if="activeBank === 'nssctf' && training.dashboard.value?.series.length" class="mt-6" :title="t('赛事题单', 'Event playlists')">
-            <template #actions>
-              <Badge variant="outline">{{ t(`${training.dashboard.value.series.length} 个系列`, `${training.dashboard.value.series.length} series`) }}</Badge>
-            </template>
-            <div
-              v-for="(series, index) in training.dashboard.value.series.slice(0, 4)"
-              :key="series.name"
-              class="contents"
-            >
-              <ModelListRow
-                :label="series.name"
-                :meta="series.attemptedCount
-                  ? t(`${series.problemCount} 题 · ${difficultyLabel(series.averageDifficulty)} · 完成 ${series.completedCount}/${series.problemCount}`, `${series.problemCount} challenges · ${difficultyLabel(series.averageDifficulty)} · completed ${series.completedCount}/${series.problemCount}`)
-                  : t(`${series.problemCount} 题 · ${difficultyLabel(series.averageDifficulty)} · 未开始`, `${series.problemCount} challenges · ${difficultyLabel(series.averageDifficulty)} · not started`)"
-                :last="index === Math.min(3, training.dashboard.value.series.length - 1)"
-                @click="chooseSeries(series)"
-              >
-                <template #trailing>
-                  <ChevronRight class="size-4 text-muted-foreground" />
-                </template>
-              </ModelListRow>
-            </div>
-          </SettingsSection>
-
-          <div v-if="activeBank === 'nssctf'" class="mt-6 grid gap-3 md:grid-cols-2">
-            <ActionCard
-              :title="t('NSSCTF 公开题库', 'NSSCTF public catalog')"
-              @click="showProblems"
-            >
-              <template #icon><Library /></template>
-              <template #trailing>
-                <span class="flex items-center gap-2 text-body font-medium">
-                  {{ t(`${training.dashboard.value?.catalogTotal ?? 0} 题`, `${training.dashboard.value?.catalogTotal ?? 0} challenges`) }}
-                  <ChevronRight class="size-4" />
-                </span>
-              </template>
-            </ActionCard>
-
-            <ActionCard
-              title="NSSCTF Agent Arena"
-              @click="startArenaWorkspace"
-            >
-              <template #icon><Zap /></template>
-              <template #trailing>
-                <LoaderCircle v-if="working" class="size-4 animate-spin" />
-                <Badge v-else-if="arenaReady" variant="outline">{{ t('已连接', 'Connected') }}</Badge>
-                <span v-else class="flex items-center gap-2 text-body text-muted-foreground">
-                  <KeyRound class="size-4" />
-                  {{ t('配置 Token', 'Configure Token') }}
-                </span>
-              </template>
-            </ActionCard>
-          </div>
-
-          <section v-if="activeBank === 'nssctf' && backend.jobs.value.length" class="mt-9 border-t border-border pt-6">
-            <div class="mb-3 flex items-center justify-between">
-              <h2 class="text-label font-medium">{{ t('最近训练', 'Recent training') }}</h2>
-              <div class="flex items-center gap-3">
-                <span class="text-caption text-muted-foreground">{{ t(`${backend.jobs.value.length} 个任务`, `${backend.jobs.value.length} tasks`) }}</span>
-                <Button
-                  v-if="backend.jobs.value.length > 3"
-                  variant="link"
-                  size="text"
-                  @click="historyExpanded = !historyExpanded"
-                >
-                  {{ historyExpanded ? t('收起', 'Collapse') : t('查看全部', 'View all') }}
-                </Button>
-              </div>
-            </div>
-            <button
-              v-for="job in visibleHistoryJobs"
-              :key="job.id"
-              type="button"
-              class="flex w-full items-center gap-4 border-b border-border px-1 py-3 text-left last:border-b-0"
-              @click="resumeJob(job.id)"
-            >
-              <Clock3 class="size-4 shrink-0 text-muted-foreground" />
-              <span class="min-w-0 flex-1">
-                <span class="block truncate text-control font-medium">{{ job.title }}</span>
-                <span class="mt-0.5 block text-caption text-muted-foreground">
-                  {{ t(`${formatCategory(job.category)} · ${job.experimentCount} 次实验`, `${formatCategory(job.category)} · ${job.experimentCount} experiments`) }}
-                </span>
-              </span>
-              <Badge variant="outline">{{ jobSummaryLabel(job) }}</Badge>
-              <ChevronRight class="size-4 text-muted-foreground" />
-            </button>
-          </section>
-
-        </section>
-
         <section
-          v-else-if="ctfSection === 'catalog' && screen === 'challenge' && activeBank === 'custom'"
-          class="page-scroll h-full"
-          aria-labelledby="custom-challenge-title"
-        >
-          <div class="page-column">
-            <Button variant="ghost" size="sm" class="mb-4" @click="cancelCustomImport">
-              <ArrowLeft class="size-4" />
-              {{ t('取消导入并返回题库', 'Cancel import and return to catalog') }}
-            </Button>
-            <SettingsSection>
-              <div class="px-5 py-6 sm:px-6 sm:py-7">
-              <span class="grid size-11 place-items-center rounded-lg bg-primary/10 text-primary">
-                <FilePlus2 class="size-5" />
-              </span>
-              <h2 id="custom-challenge-title" class="mt-5 text-2xl font-semibold tracking-[-0.035em]">
-                {{ t('自定义题目', 'Custom challenge') }}
-              </h2>
-              <p class="mt-2 max-w-2xl text-body leading-6 text-muted-foreground">
-                {{ t('线下赛或自备题目，导入后在本机建立工作区。', 'Offline or self-hosted challenges. Import them to create a workspace on this machine.') }}
-              </p>
-
-              <div class="mt-7 grid gap-3 sm:grid-cols-3">
-                <div class="rounded-lg border border-border bg-background px-4 py-4">
-                  <Archive class="size-4 text-muted-foreground" />
-                  <p class="mt-3 text-control font-medium">{{ t('本地保存', 'Saved locally') }}</p>
-                  <p class="mt-1 text-caption leading-5 text-muted-foreground">{{ t('题面、截图和附件进入本题工作区。', 'Statement, screenshots, and attachments go into this challenge workspace.') }}</p>
-                </div>
-                <div class="rounded-lg border border-border bg-background px-4 py-4">
-                  <Bot class="size-4 text-muted-foreground" />
-                  <p class="mt-3 text-control font-medium">{{ t('Agent 可读', 'Readable by Agent') }}</p>
-                  <p class="mt-1 text-caption leading-5 text-muted-foreground">{{ t('沿用同一套 Coding、证据与复盘能力。', 'Uses the same Coding, evidence, and debrief capabilities.') }}</p>
-                </div>
-                <div class="rounded-lg border border-border bg-background px-4 py-4">
-                  <ShieldCheck class="size-4 text-muted-foreground" />
-                  <p class="mt-3 text-control font-medium">{{ t('不代替判题', 'Does not replace judging') }}</p>
-                  <p class="mt-1 text-caption leading-5 text-muted-foreground">{{ t('外部平台结果仍由你确认并记录。', 'You still confirm and record the external platform result.') }}</p>
-                </div>
-              </div>
-
-              <Button class="mt-7" size="lg" @click="manualIntake?.open()">
-                <FilePlus2 class="size-4" />
-                {{ t('新建自定义题目', 'New custom challenge') }}
-              </Button>
-              </div>
-            </SettingsSection>
-          </div>
-        </section>
-
-        <section
-          v-else-if="ctfSection === 'catalog' && screen === 'challenge' && (activeBank === 'hackthebox' || activeBank === 'tryhackme')"
+          v-if="ctfSection === 'catalog' && screen === 'challenge' && (activeBank === 'hackthebox' || activeBank === 'tryhackme')"
           class="page-scroll h-full"
           :aria-labelledby="`${activeBank}-platform-title`"
         >
@@ -2758,12 +2044,41 @@ onBeforeUnmount(() => {
         </section>
       </div>
     </div>
-    <CTFManualIntake
-      ref="manualIntake"
-      :loading="manualCreating"
-      :error="backend.error.value ?? ''"
-      @submit="startManualChallenge"
-    />
+    <WorkspaceImportDialog
+      :open="showImport"
+      :description="t('同步当前题库，或导入自定义题目。', 'Sync the current catalog, or import a custom challenge.')"
+      @update:open="value => { showImport = value; if (!value) manualIntake?.reset() }"
+    >
+      <SettingsSection v-if="activeQuestionBank" :title="t('同步题库', 'Sync catalog')">
+        <SettingsRow
+          :label="activeSourceName"
+          :description="t('把当前平台的公开题目更新到本机。', 'Update this machine with the current platform catalog.')"
+          :divider="false"
+        >
+          <Button
+            variant="outline"
+            size="sm"
+            :loading="activeBank === 'nssctf' ? training.syncing.value : ctfshow.loading.value"
+            :aria-label="t('同步题库', 'Sync catalog')"
+            @click="runCatalogAction"
+          >
+            {{ t('同步', 'Sync') }}
+          </Button>
+        </SettingsRow>
+        <p v-if="catalogNotice" class="px-4 pb-3 text-caption text-muted-foreground">{{ catalogNotice }}</p>
+      </SettingsSection>
+      <SettingsSection :title="t('自定义题目', 'Custom challenge')">
+        <div class="px-4 py-4">
+          <CTFManualIntake
+            ref="manualIntake"
+            :loading="manualCreating"
+            :error="backend.error.value ?? ''"
+            @submit="startManualChallenge"
+            @cancel="closeImport"
+          />
+        </div>
+      </SettingsSection>
+    </WorkspaceImportDialog>
   </main>
 </template>
 

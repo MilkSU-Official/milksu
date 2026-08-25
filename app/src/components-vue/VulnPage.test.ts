@@ -1,10 +1,19 @@
 // @vitest-environment jsdom
 
 import { createApp, nextTick, type App } from 'vue'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import VulnPage from './VulnPage.vue'
 import { useVulnerabilityDashboard as createVulnerabilityDashboard } from '@/composables/useVulnerabilityDashboard'
 import type { Conversation } from '@/types'
+
+beforeAll(() => {
+  class TestResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+  vi.stubGlobal('ResizeObserver', TestResizeObserver)
+})
 
 const mountedApps: App[] = []
 const storage = new Map<string, string>()
@@ -82,7 +91,7 @@ describe('VulnPage thin workspace', () => {
 
     expect(host.textContent).toContain('CVE-2024-3400')
     expect(host.textContent).not.toContain('学习专题')
-    expect(host.textContent).toContain('添加 CVE')
+    expect(host.textContent).toContain('导入')
     expect(host.textContent).toContain('想研究')
     expect(host.textContent).not.toContain('待复现')
     expect(host.textContent).not.toContain('练习环境')
@@ -132,11 +141,12 @@ describe('VulnPage thin workspace', () => {
   it('uses one public search field instead of asking the user to fill CVE metadata', async () => {
     const { host } = await mountPage()
 
-    buttonWithText(host, '添加 CVE')?.click()
+    buttonWithText(host, '导入')?.click()
     await nextTick()
 
     const dialog = document.body.querySelector('[role="dialog"]')
     expect(dialog?.textContent).toContain('查找公开 CVE')
+    expect(dialog?.textContent).toContain('同步公开源')
     expect(dialog?.querySelector('[aria-label="搜索公开 CVE"]')).not.toBeNull()
     expect(dialog?.querySelector('[aria-label="漏洞名称"]')).toBeNull()
     expect(dialog?.querySelector('[aria-label="厂商或项目"]')).toBeNull()
@@ -149,7 +159,7 @@ describe('VulnPage thin workspace', () => {
       new Error("Error invoking remote method 'milksu:invoke': Error: fetch vulnerability feed: unexpected HTTP 503"),
     )
 
-    buttonWithText(host, '添加 CVE')?.click()
+    buttonWithText(host, '导入')?.click()
     await nextTick()
     const dialog = document.body.querySelector<HTMLElement>('[role="dialog"]')!
     const input = dialog.querySelector<HTMLInputElement>('[aria-label="搜索公开 CVE"]')!

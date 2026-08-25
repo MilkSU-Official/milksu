@@ -67,55 +67,24 @@ names CTF, CVE, Lab and Coding stay as those product names in both languages. En
 ## Product UI Design Language
 
 Canonical contract: [docs/design/current-visual.md](docs/design/current-visual.md).
-Shared column and field fill live in `app/src/index.css`. Scene tokens live in `app/src/styles/`.
-Felinic stays for Vue behavior. Do not add `@yunyoujun/ak-ui` to `app/package.json`.
-Enforcement: `app/src/components-vue/WorkspaceVisualContract.test.ts` and
-`app/src/globalStyleContract.test.ts`.
+Review that page by layer. Do not invent a second primitive at the same layer.
 
-This section is the product design language. Review against it, and against `current-visual.md`,
-before treating any of these as done:
+| Layer | Owns | Use |
+| --- | --- | --- |
+| Materials | tokens, color, type | graphite / paper / cyan / gold; blue only for links and execution |
+| Shell | rail, topbar, page column | `WorkspaceModuleTopBar`, `--page-stack-width` 64rem |
+| List chrome | filters, History, Import | `.ak-segmented`, `WorkspaceCatalogActions`, `WorkspaceImportDialog` |
+| Facts | cards, tables, dialogs | Felinic `SettingsSection` / `SettingsRow` / `ActionCard` / `ModelListRow` |
+| Copy | user-visible strings | `t('中文', 'English')`; empty controls stay blank |
 
-- a new UI page, settings category, dossier, dialog, preview, or other product surface;
-- a change to Vue, CSS, layout, typography, color, or user-visible copy;
-- an incoming PR that touches those files.
+Shared CSS lives in `app/src/index.css` and `app/src/styles/`. Felinic stays for Vue
+behavior. Do not add `@yunyoujun/ak-ui` to `app/package.json`. Enforcement:
+`WorkspaceVisualContract.test.ts`, `globalStyleContract.test.ts`,
+`WorkspaceCatalogActions.test.ts`.
 
-A screenshot, a local window, or “it looks fine on this machine” is not a review. Do not
-invent a one-off max-width, radius, padding, card primitive, or color to finish one page.
-
-### Materials and color
-
-- Graphite command surfaces, paper facts, cyan, gold. Acid green does not enter the product.
-- Night mode is neutral graphite with no obvious blue, green or brown cast. Day mode keeps
-  paper neutrals. Day mode must not pin command chrome to night graphite.
-- Cyan is the current module and primary actions. Gold is secondary emphasis and the current
-  focus bar. Success green only means success. Blue is only links and explicit execution or
-  diagnostic states.
-- CTF, CVE, 实验室 and Coding use the same charcoal-and-cyan system. Do not use `--info`,
-  blue borders or blue-filled surfaces to distinguish those modules.
-- Do not restore the old blue-black style, the retired tactical-archive / acid-green contract,
-  paper or carbon textures, Showcase character art, sanity bars or 3D menus.
-  `docs/design/milksu-game-ui-system.md` and `design-qa.md` are deleted and must not be
-  recreated as current rules.
-
-### Layout
-
-- Primary module rail is a `4.75rem` icon column. Coding session list sits on that same nav.
-- List-page view switches (CTF/CVE All/collections, Lab packages/custom jobs) use `.ak-segmented`
-  in the topbar filters row. Do not put a second Felinic SegmentedControl in the title-bar
-  actions for that.
-- Settings, CTF / CVE / Lab dossiers, pack and target cards, and Profile share one card column:
-  `--page-stack-width` (64rem), `.page-scroll` (1.5rem padding), `.page-column`, `.page-stack`
-  (1.25rem gap), `--page-card-radius` (0.45rem). Editable fields on those stacks use
-  `--settings-field-fill`. A live-target split uses `.page-stack--flush` and fills the left pane.
-- Do not add a per-page `max-w-3xl` / `4xl` / `5xl` / `6xl` for those card stacks.
-- Full-bleed tables stay full-bleed: CVE list, CTF challenge desk, Lab custom jobs.
-- Coding conversation reading stays on the narrower message column. Composer chrome may use
-  the 64rem column.
-- Reuse Felinic `SettingsSection`, `SettingsRow`, `ActionCard` and `ModelListRow`. Do not add a
-  second card system for one page.
-- Type: Inter Variable + Noto Sans SC Variable. No Song, Noto Serif, or system `serif`.
-- Changing visual semantics (Judge, authorization, Desktop RPC, Pi tool loop) is out of scope
-  for a restyle.
+Review a new page, settings category, dossier, dialog, preview, Vue/CSS/copy change, or
+incoming PR against those five layers. A screenshot is not a review. Do not invent a
+one-off max-width, radius, padding, card, or color to finish one page.
 
 ### When the user changes the UI
 

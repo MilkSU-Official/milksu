@@ -4,27 +4,68 @@
 >
 > 关联：[#15](https://github.com/MilkSU-Official/milksu/issues/15) · [PR 18](https://github.com/MilkSU-Official/milksu/pull/18)
 >
-> 生产页按这里换视觉。旧「战术档案 / 酸绿」稿、`design-qa.md` 和 `docs/design/game-ui/` 已删除，Git 历史可考古，不得再当实现约束。
+> 产品表面按下面五层审。不要跨层发明第二套东西。旧「战术档案 / 酸绿」稿、`design-qa.md` 和
+> `docs/design/game-ui/` 已删除，Git 历史可考古，不得再当实现约束。
 >
-> 审查：`AGENTS.md` 要求新增 UI 页面、改产品表面、以及碰到 Vue/CSS/文案的 PR 都按本页审一次。
-> 用户手动改了 UI 时，先问是否更新本页和 `AGENTS.md` 里的设计语言，不要默默改约定，也不要默默打回。
+> 审查：碰到新页面、Vue/CSS/文案的改动都按本页审一次。用户手动改了 UI，先问是否更新本页和
+> `AGENTS.md`，不要默默改约定，也不要默默打回。
 
 ## 层级
 
-- **视觉**：ak-ui 0.2.1 的 token 和场景 CSS。材质是石墨指挥面、纸面事实、青、金。酸绿不进产品。
-- **行为**：Felinic Vue 组件留下（按钮、输入、对话框、下拉、HoverCard、设置行）。换视觉，不是换组件运行时。
+| 层 | 管什么 | 实现落点 |
+| --- | --- | --- |
+| 1 材质 | token、颜色语义、字体 | `app/src/index.css`、`app/src/styles/` |
+| 2 壳 | 模块轨、顶栏、页面栏 | `WorkspaceRail`、`WorkspaceTopBar` / `WorkspaceModuleTopBar`、`.page-column` |
+| 3 列表指挥面 | 筛选、历史、导入 | `.ak-segmented`、`WorkspaceCatalogActions`、`WorkspaceImportDialog` |
+| 4 事实面 | 卡片、表、弹窗、浮层 | Felinic `SettingsSection` / `SettingsRow` / `ActionCard` / `ModelListRow`、`DialogPanel` |
+| 5 文案 | 用户看得见的字 | `t('中文', 'English')` |
 
-## 约定
+行为仍走 Felinic。视觉走 ak-ui token。不要把 `@yunyoujun/ak-ui` 写进 `app/package.json`。
+功能、Desktop RPC、Judge、授权、Pi 工具循环不因换皮改语义。
 
-- 青 = 当前模块 / 主操作。金 = 次级强调 / 当前焦点条。成功绿只表示成功。蓝色只表示链接和明确的执行 / 诊断状态。
-- 夜间用中性石墨，不要明显的蓝、绿、棕偏色；日间用纸面中性色。
-- CTF、CVE、实验室、Coding 用同一套石墨 + 青。不要用 `--info`、蓝边或蓝底去区分这些模块。
-- 美学校准用谷歌 Material 的读法，不搬 Material 组件：层级先于装饰；颜色是关系；一屏一个焦点。
+## 1 材质
+
+- 石墨指挥面、纸面事实、青、金。酸绿不进产品。
+- 青 = 当前模块 / 主操作。金 = 次级强调 / 当前焦点条。成功绿只表示成功。
+- 蓝只表示链接和明确的执行 / 诊断状态。不要用 `--info`、蓝边或蓝底去区分 CTF / CVE / 实验室 / Coding。
+- 夜间用中性石墨，不要明显的蓝、绿、棕偏色。日间用纸面中性色；日间不要把指挥面钉成夜间石墨。
+- 命令面（侧栏、会话历史、设置分类、右栏、输入框和菜单）走当前主题 token。事实面（题面、Agent 气泡、通知）走纸面。
+- 字体：Inter Variable + Noto Sans SC Variable。不用宋体、Noto Serif 或系统 `serif`。
+- 不用纸纹、碳纹、Showcase 角色图、理智条、3D 菜单。
+
+## 2 壳
+
 - 一级模块轨 `4.75rem` 图标栏。Coding 会话列表贴在同一条导航上。
-- 列表页的视图切换（CTF/CVE「全部 / 收藏」、实验室「题目包 / 自定义任务」）用顶栏 `#filters` 里的 `.ak-segmented`，不要在标题栏 actions 里再放一套 Felinic SegmentedControl。
-- 设置、CTF / CVE / 实验室详情和个人资料的卡片栏共用 `--page-stack-width`（64rem）与 `.page-column` / `.page-stack`。活靶分栏时详情铺满左栏。不要按页面再写 `max-w-3xl` / `5xl` / `6xl`。Coding 对话阅读栏仍用较窄的消息列。
-- 不用纸纹、碳纹、官方 Showcase 的角色图 / 理智条 / 3D 菜单。
-- 命令面（侧栏、会话历史、设置分类、右栏、输入框和菜单）走当前主题 token；事实面（题面、Agent 气泡、通知）走纸面。日间不要再把指挥面钉成夜间石墨。
-- 字体：标题、侧栏、指挥面和正文共用 Inter Variable + Noto Sans SC Variable（SIL OFL）。不用宋体、Noto Serif 或系统 `serif`。
-- 功能、Desktop RPC、Judge、授权、Pi 工具循环不因换皮改语义。
-- CSS 钉在 `app/src/styles/`，不把 `@yunyoujun/ak-ui` 写进 `app/package.json`。
+- 设置、CTF / CVE / 实验室详情和个人资料共用 `--page-stack-width`（64rem）、`.page-scroll`、`.page-column`、`.page-stack`、`--page-card-radius`（0.45rem）。可编辑字段用 `--settings-field-fill`。活靶分栏时详情铺满左栏（`.page-stack--flush`）。
+- 不要按页面再写 `max-w-3xl` / `4xl` / `5xl` / `6xl`。
+- 全宽表保持全宽：CVE 列表、CTF 题库桌、实验室自定义任务。
+- Coding 对话阅读仍用较窄的消息列。Composer 指挥面可以用 64rem 栏。
+
+## 3 列表指挥面
+
+CTF / CVE / 实验室列表页共用同一套指挥面，不要在某一页另做一套按钮或另开一页：
+
+- 视图切换（全部 / 收藏，题目包 / 自定义任务）在顶栏 `#filters` 的 `.ak-segmented`。不要在标题栏 actions 里再放一套 Felinic SegmentedControl。
+- 右上角是 **历史**（outline）+ **导入**。导入是执行动作，用 `--accent-blue-fill`（写在 `index.css` 的 `[data-workspace-catalog-actions]`）。
+- 点导入打开 `WorkspaceImportDialog`。同步公开源 / 题库和自定义导入都放在这个弹窗里。
+- 历史菜单行用 `WorkspaceCatalogHistoryItem`。不要在三个列表页各写一套 menu item。
+
+## 4 事实面
+
+- 卡片只用 Felinic `SettingsSection`、`SettingsRow`、`ActionCard`、`ModelListRow`。不要为单页再做一个卡片系统。
+- 浮层用 `.tactical-floating-surface` 和 `--z-overlay`。不要发明第二套 z-index。
+- 弹窗用 Felinic `Dialog` / `DialogPanel`。不要再用原生 `<dialog>` 做产品导入。
+
+## 5 文案
+
+- 用户看得见的中文必须 `t('中文', 'English')`。改中文时同一编辑改英文。
+- 空控件只留控件自己的标签。不要写「还没有 / 打开以后会出现」。
+- 产品文案不放 harness 备注、内部阈值或「这不是 X」。
+
+## 已退役
+
+这些不是当前约束，不要为它们写测试或文档禁令：
+
+- 战术档案 / 酸绿 / `game-focus-panel` / `game-surface`
+- CVE「添加 CVE」顶栏按钮、CTF「同步导入」顶栏按钮、自定义题目整页、`screen === 'source'` 训练步骤条
+- 学习专题

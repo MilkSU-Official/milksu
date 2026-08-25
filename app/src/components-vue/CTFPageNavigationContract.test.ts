@@ -15,7 +15,6 @@ describe('CTFPage navigation contract', () => {
     const showProblemsSource = ctfPageSource.slice(showProblemsStart, showProblemsEnd)
 
     expect(showProblemsSource).toContain("source.value = 'public'")
-    expect(showProblemsSource).toContain('selectedSeries.value = null')
     expect(showProblemsSource).toContain('selectedProblem.value = null')
     expect(showProblemsSource).toContain('selectedCTFShowProblemID.value = null')
     expect(showProblemsSource).toContain("screen.value = 'challenge'")
@@ -32,7 +31,6 @@ describe('CTFPage navigation contract', () => {
     expect(ctfChallengeDeskSource).not.toContain('acceptanceStatusText(track.status)')
     expect(ctfChallengeDeskSource).not.toContain('准备 {{ readiness }}/3')
     expect(ctfChallengeDeskSource).not.toContain('交给 Coding')
-    expect(ctfChallengeDeskSource).not.toContain('game-focus-panel')
     expect(ctfPageSource).toContain("screen.value = 'detail'")
     expect(ctfPageSource).toContain('开始解题')
   })
@@ -80,7 +78,7 @@ describe('CTFPage navigation contract', () => {
     expect(ctfPageSource).not.toContain('selectedProblem.value.hasAttachment')
 
     const startStart = ctfPageSource.indexOf('async function startPublicWorkspace()')
-    const startEnd = ctfPageSource.indexOf('async function startArenaWorkspace()', startStart)
+    const startEnd = ctfPageSource.indexOf('async function openCodingContext()', startStart)
     const startBody = ctfPageSource.slice(startStart, startEnd)
     expect(startBody).toContain('附件尚未导入；Coding 将先使用公开题面继续')
     expect(startBody).not.toContain('有附件；请先连接已登录的 Chrome 题目页')
@@ -90,7 +88,7 @@ describe('CTFPage navigation contract', () => {
     expect(ctfPageSource).toContain('const manualCreating = ref(false)')
 
     const manualStart = ctfPageSource.indexOf('async function startManualChallenge')
-    const manualEnd = ctfPageSource.indexOf('function closeHistoryMenuOnOutsidePointer', manualStart)
+    const manualEnd = ctfPageSource.indexOf('async function resumeFromHistory', manualStart)
     const manualBody = ctfPageSource.slice(manualStart, manualEnd)
     expect(manualBody).toContain('manualCreating.value = true')
     expect(manualBody).toContain('manualCreating.value = false')
@@ -103,14 +101,10 @@ describe('CTFPage navigation contract', () => {
     expect(manualComponent).not.toContain(':loading="working"')
   })
 
-  it('keeps custom import transient and provides an explicit cancel route', () => {
-    expect(ctfPageSource).not.toContain("storedTrainingSource === 'custom'")
-    expect(ctfPageSource).toContain("if (bank !== 'custom')")
-    expect(ctfPageSource).toContain('function openCustomImport()')
-    expect(ctfPageSource).toContain('function cancelCustomImport()')
-    expect(ctfPageSource).toContain('@click="openCustomImport"')
-    expect(ctfPageSource).toContain('@click="cancelCustomImport"')
-    expect(ctfPageSource).toContain('取消导入并返回题库')
+  it('opens catalog import through the shared list-chrome dialog', () => {
+    expect(ctfPageSource).toContain('function openImport()')
+    expect(ctfPageSource).toContain('WorkspaceImportDialog')
+    expect(ctfPageSource).toContain('WorkspaceCatalogActions')
   })
 
   it('explains the two different catalog synchronization paths while loading', () => {

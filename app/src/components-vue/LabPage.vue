@@ -3,11 +3,6 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   ActionCard,
   Button,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -25,7 +20,6 @@ import {
   Globe,
   MoreVertical,
   Pencil,
-  Plus,
   Radio,
   ShieldAlert,
   Smartphone,
@@ -34,6 +28,9 @@ import {
 import { isComposingKey } from '@/lib/imeComposition'
 import ConversationDock from '@/components-vue/ConversationDock.vue'
 import ResearchReportPanel from '@/components-vue/ResearchReportPanel.vue'
+import WorkspaceCatalogActions from '@/components-vue/WorkspaceCatalogActions.vue'
+import WorkspaceCatalogHistoryItem from '@/components-vue/WorkspaceCatalogHistoryItem.vue'
+import WorkspaceImportDialog from '@/components-vue/WorkspaceImportDialog.vue'
 import WorkspaceModuleTopBar from '@/components-vue/WorkspaceModuleTopBar.vue'
 import { invokeCommand } from '@/desktop'
 import { labScopeLabel, useLabJobs, type LabJob, type LabScope } from '@/composables/useLabJobs'
@@ -141,6 +138,7 @@ const {
   focusChallenge,
 } = useLabJobs()
 const showNew = ref(false)
+const catalogActions = ref<{ closeHistoryMenu: () => void } | null>(null)
 const draftScope = ref<LabScope>('local')
 const draftRequest = ref('')
 const labTab = ref<'jobs' | 'packages'>('packages')
@@ -170,6 +168,9 @@ const labTabItems = computed(() => [
   { value: 'jobs' as const, label: t('自定义任务', 'Custom jobs') },
 ])
 const customJobs = computed(() => labJobs.value.filter(job => !job.packageId))
+const historyJobs = computed(() => (
+  [...labJobs.value].sort((left, right) => right.updatedAt - left.updatedAt)
+))
 const packageGroups = computed(() => groupLabPackages(envPackages.value))
 const dossierConversations = computed(() => relatedDomainConversations(
   props.conversations ?? [],
@@ -304,9 +305,15 @@ function jobForPackage(packageId: string) {
 }
 
 function openNew() {
+  catalogActions.value?.closeHistoryMenu()
   showNew.value = true
   draftScope.value = 'local'
   draftRequest.value = ''
+}
+
+function resumeFromHistory(job: LabJob) {
+  catalogActions.value?.closeHistoryMenu()
+  openJob(job)
 }
 
 function openPack(pkg: EnvPackage) {
@@ -472,17 +479,27 @@ function abortRename(event: KeyboardEvent) {
             <ArrowLeft class="size-4" />
           </Button>
         </template>
-        <template #actions>
-          <Button
-            v-if="!selectedPack && labTab === 'jobs'"
-            variant="ghost"
-            size="icon-sm"
-            :aria-label="t('新建自定义任务', 'New custom job')"
-            data-testid="lab-new-custom"
-            @click="openNew"
+        <template v-if="!selectedPack" #actions>
+          <WorkspaceCatalogActions
+            ref="catalogActions"
+            :history-count="historyJobs.length"
+            :history-aria-label="t('打开任务历史', 'Open job history')"
+            :history-menu-label="t('任务历史', 'Job history')"
+            :import-aria-label="t('导入任务', 'Import job')"
+            @import="openNew"
           >
-            <Plus class="size-4" />
-          </Button>
+            <template #history>
+              <WorkspaceCatalogHistoryItem
+                v-for="job in historyJobs"
+                :key="job.id"
+                :title="job.title"
+                :subtitle="job.packageId ? t('题目包', 'Package') : labScopeLabel(job.scope)"
+                :time="job.updatedAt"
+                :current="selectedId === job.id"
+                @select="resumeFromHistory(job)"
+              />
+            </template>
+          </WorkspaceCatalogActions>
         </template>
         <template v-if="!selectedPack" #filters>
           <div class="collection-tabs flex min-w-0 items-center gap-2" role="tablist" :aria-label="t('实验室分段', 'Lab sections')">
@@ -792,13 +809,12 @@ function abortRename(event: KeyboardEvent) {
       />
     </template>
 
-    <Dialog v-model:open="showNew">
-      <DialogContent class="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{{ t('自定义任务', 'Custom job') }}</DialogTitle>
-          <DialogDescription class="sr-only">{{ t('范围和要求', 'Scope and request') }}</DialogDescription>
-        </DialogHeader>
-        <form class="grid gap-4" @submit.prevent="submitNew">
+    <WorkspaceImportDialog
+      v-model:open="showNew"
+      :description="t('创建自定义任务，或从历史继续。', 'Create a custom job, or resume from history.')"
+    >
+      <SettingsSection :title="t('自定义任务', 'Custom job')">
+        <form class="grid gap-4 px-4 py-4" @submit.prevent="submitNew">
           <div>
             <p class="mb-2 text-caption text-muted-foreground">{{ t('范围', 'Scope') }}</p>
             <SegmentedControl
@@ -819,8 +835,8 @@ function abortRename(event: KeyboardEvent) {
             <Button type="submit" variant="brand" :disabled="!draftRequest.trim()">{{ t('开始', 'Start') }}</Button>
           </div>
         </form>
-      </DialogContent>
-    </Dialog>
+      </SettingsSection>
+    </WorkspaceImportDialog>
   </main>
 </template>
 
