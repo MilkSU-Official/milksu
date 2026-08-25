@@ -100,6 +100,9 @@ invent a one-off max-width, radius, padding, card primitive, or color to finish 
 ### Layout
 
 - Primary module rail is a `4.75rem` icon column. Coding session list sits on that same nav.
+- List-page view switches (CTF/CVE All/collections, Lab packages/custom jobs) use `.ak-segmented`
+  in the topbar filters row. Do not put a second Felinic SegmentedControl in the title-bar
+  actions for that.
 - Settings, CTF / CVE / Lab dossiers, pack and target cards, and Profile share one card column:
   `--page-stack-width` (64rem), `.page-scroll` (1.5rem padding), `.page-column`, `.page-stack`
   (1.25rem gap), `--page-card-radius` (0.45rem). Editable fields on those stacks use

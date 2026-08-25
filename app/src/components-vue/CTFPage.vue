@@ -1760,6 +1760,17 @@ onBeforeUnmount(() => {
         </div>
         </details>
         <Button
+          v-if="ctfSection === 'catalog' && activeQuestionBank"
+          variant="outline"
+          size="sm"
+          class="app-no-drag shrink-0"
+          :loading="activeBank === 'nssctf' ? training.syncing.value : ctfshow.loading.value"
+          :aria-label="t('同步导入题库', 'Sync and import catalog')"
+          @click="activeBank === 'nssctf' ? syncCatalog() : refreshCTFShow()"
+        >
+          {{ t('同步导入', 'Sync catalog') }}
+        </Button>
+        <Button
           v-if="ctfSection === 'catalog'"
           variant="ghost"
           size="sm"
@@ -1843,29 +1854,21 @@ onBeforeUnmount(() => {
         <Button
           variant="outline"
           size="sm"
-          class="app-no-drag shrink-0"
+          class="ctf-browser-connect app-no-drag shrink-0"
           :aria-label="t('浏览器连接设置', 'Browser connection settings')"
           @click="$emit('openSettings', 'browser')"
         >
-          <Cable class="size-4" />
-          {{ browserBridgeConnected ? t('浏览器已连接', 'Browser connected') : t('连接浏览器', 'Connect browser') }}
+          <span class="ctf-browser-connect__label">
+            <Cable class="size-4" />
+            {{ browserBridgeConnected ? t('浏览器已连接', 'Browser connected') : t('连接浏览器', 'Connect browser') }}
+          </span>
           <span
-            class="ak-status ak-status--compact"
+            class="ak-status ak-status--compact ctf-browser-connect__live"
             :class="browserBridgeConnected ? '' : 'ak-status--offline'"
           >
             <span class="ak-status__signal" />
             <span class="ak-status__label">{{ browserBridgeConnected ? 'LIVE' : 'OFF' }}</span>
           </span>
-        </Button>
-        <Button
-        variant="ghost"
-        size="icon-sm"
-        class="app-no-drag"
-        :loading="activeBank === 'nssctf' ? training.syncing.value : ctfshow.loading.value"
-        :aria-label="t('刷新当前题库', 'Refresh current catalog')"
-        @click="activeBank === 'nssctf' ? syncCatalog() : refreshCTFShow()"
-      >
-          <RefreshCw class="size-4" />
         </Button>
         </div>
       </div>
@@ -2763,3 +2766,27 @@ onBeforeUnmount(() => {
     />
   </main>
 </template>
+
+<style scoped>
+.ctf-browser-connect {
+  overflow: hidden;
+  padding: 0;
+  gap: 0;
+}
+.ctf-browser-connect__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0 0.75rem;
+}
+.ctf-browser-connect__live {
+  align-self: stretch;
+  display: inline-flex;
+  min-height: 100%;
+  height: auto;
+  padding-block: 0;
+  border-radius: 0;
+  justify-content: center;
+}
+</style>
+

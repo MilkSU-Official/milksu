@@ -32,7 +32,7 @@
 | 历史基线 | M3 product-loop 已在 `108e0e3`（2026-08-05）合并，仅供追溯。 |
 | 正式发行基线 | `v26.823.1 / efeda10af4f1e2cf55c4a8db1761cdbb486055a2`（2026-08-23 今日首发）。这是当前 GitHub Latest Release；提供带版本号的 DMG、EXE、DEB 与 `SHA256SUMS`；R2/Admin current pointer 未发布。 |
 | 开发版本线 | 根目录与 `desktop/package.json` 是 `26.823.1`。正式发行源是 `efeda10`；文档收口提交不移动该 tag。 |
-| 当前开发 | 正式包是 `26.823.1`。CTF / CVE / 实验室共用完整 Coding 循环、始终开启的上下文整理，以及 CVE 列表里的公开源条目，都已打进本包。HEAD 设置「评测」左侧切换三套：Cybench flag、SEC-bench sanitizer、AutoPenBench 阶段分，各有模型、开始、分数和难度曲线；通用页调试收到构建追踪底部。环境经纪已接到实验室 / CVE 档案：题目包卡片打开后是靶机卡片（Juice Shop / WebGoat / S2-045 / whoami / InjuredAndroid）。安卓走专用 MilkSU-Lab。CVE 学习专题已删。设置、CTF / CVE / 实验室详情和个人资料共用 64rem 卡片栏；设置不再按分类切换 3xl / 5xl / 6xl。设置页卡片统一 `bg-card`，输入框和下拉用提亮底；语言 / Skills / 编辑器 / Lab / Arena Token 交互即保存，模型页仍「保存并验证」。CTF「解题轨迹」和「证据制品」卡片已改成与题目 / 复盘相同的圆角。CTF「开始解题」和 CVE「开始复现」展开对话小窗并聚焦输入，仍不自动发消息。开发态 Sidecar 会把审阅过的 TypeScript 扩展编出 `node_modules`，避免 Node 拒绝剥类型。未进发行。 |
+| 当前开发 | 正式包是 `26.823.1`。CTF / CVE / 实验室共用完整 Coding 循环、始终开启的上下文整理，以及 CVE 列表里的公开源条目，都已打进本包。HEAD 设置「评测」左侧切换三套：Cybench flag、SEC-bench sanitizer、AutoPenBench 阶段分，各有模型、开始、分数和难度曲线；通用页调试收到构建追踪底部。环境经纪已接到实验室 / CVE 档案：题目包卡片打开后是靶机卡片（Juice Shop / WebGoat / S2-045 / whoami / InjuredAndroid）。安卓走专用 MilkSU-Lab。CVE 学习专题已删。设置、CTF / CVE / 实验室详情和个人资料共用 64rem 卡片栏；设置不再按分类切换 3xl / 5xl / 6xl。设置 CVE 公开源是两行同步，JSON 导入在高级。设置页卡片统一 `bg-card`，输入框和下拉用提亮底；语言 / Skills / 编辑器 / Lab / Arena Token 交互即保存，模型页仍「保存并验证」。CTF「解题轨迹」和「证据制品」卡片已改成与题目 / 复盘相同的圆角。CTF「开始解题」和 CVE「开始复现」展开对话小窗并聚焦输入，仍不自动发消息。开发态 Sidecar 会把审阅过的 TypeScript 扩展编出 `node_modules`，避免 Node 拒绝剥类型。未进发行。 |
 | 平台边界 | `26.823.1`：macOS DMG 本机 Developer ID 签名并公证；Windows 安装器完成原生 Runtime 与首次启动但未代码签名，并打入审阅过的 CUA Driver；Linux DEB 完成包结构、Sidecar、Go Runtime 与 Xvfb Electron 启动，仍无 Secret Service、本地 OCR、Computer Use。 |
 | 发行流水 | 下一发行从干净、已推送的 `main` 对 canonical Go/Vue/Sidecar/lint/生产与文档构建只验证一次；macOS / Windows / Linux 都走 GitHub-hosted 云端。macOS 本机打包暂时关闭。必须创建 GitHub Release 页并上传带版本号的 DMG/EXE/DEB 与 SHA256SUMS，不能只留空 tag。GitHub-only 不生成 OTA ZIP/metadata。 |
 
@@ -135,6 +135,14 @@
 - CTF「开始解题」和 CVE「开始复现」展开对话小窗并聚焦输入框；仍不自动发送。CTFshow 开始解题也会打开本题对话。
 - 设置页卡片不再混用页面底色；可编辑输入框 / 下拉有不透明提亮底。语言、Skills、默认编辑器、Lab 路径和 Arena Token 交互即保存，去掉多余的「保存设置」。模型页仍用「保存并验证」。
 - 设置、CTF / CVE / 实验室详情和个人资料共用同一栏宽（64rem）和卡片间距；设置不再按分类切换 `max-w-3xl` / `5xl` / `6xl`。活靶分栏时详情铺满左栏。
+- 设置「CVE」公开源改成两行（CISA KEV / Vulhub）加「同步公开源」；JSON 导入和快照打开收到「高级」。去掉待接入说明、digest/Finder 文案和自绘卡片。
+- 设置「归档聊天」没有条目时不再画空卡片或加载说明，只留页标题。
+- 设置「浏览器控制」改成 Browser Use / CTF 站点 / Computer Use 三组设置行；去掉徽章堆、内嵌权限卡、Playwright/Bridge 实现名和 `/Applications/MilkSU.app` 文案。
+- 设置「通用」把「工作产物」改成「文件 / 文档」，只显示 Documents/MilkSU 路径，不再在路径下平铺「打开产物目录」。
+- 设置页操作提示条成功用绿色底、失败用红色底，不再跟页面画布同色。
+- CTF 顶栏「浏览器已连接」的 LIVE/OFF 状态贴满按钮右段，右边不再留空。
+- CTF 顶栏去掉刷新图标；平台题库改成「同步导入」，避免被当成刷新列表。自定义「导入」仍在旁边。
+- 实验室「题目包 / 自定义任务」改到顶栏筛选行，和 CTF/CVE「全部 / 收藏」同一套 `.ak-segmented`。
 - 开发态 Sidecar 启动前把 `pi-goal` / `pi-lsp` / MCP Adapter / 后台任务 / 子 Agent 的 TypeScript 编到 `node_modules` 之外。Windows 源码树点设置页「保存并验证」不再被 Node `ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING` 打断；正式打包仍走原来的 esbuild 整包。未进发行。
 
 ## 当前产品事实

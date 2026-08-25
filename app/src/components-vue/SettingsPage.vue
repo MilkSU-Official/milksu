@@ -32,12 +32,10 @@ import {
   ArrowLeft,
   Box,
   Bug,
-  Cable,
   Check,
   Code2,
   Copy,
   Download,
-  ExternalLink,
   FileWarning,
   Flag,
   FlaskConical,
@@ -58,7 +56,6 @@ import { desktopErrorMessage, invokeCommand } from '@/desktop'
 import type {
   CodingComputerUsePermission,
   CodingComputerUseStatus,
-  CodingComputerUseSigning,
 } from '@/codingEnvironmentTypes'
 import type { NSSCTFWebBridgeStatus } from '@/nssctfWebTypes'
 import type {
@@ -278,7 +275,7 @@ async function loadUserArtifactDirectory() {
   try {
     userArtifacts.value = await invokeCommand<UserArtifactDirectoryStatus>('get_user_artifact_directory_status')
   } catch (reason) {
-    notice.value = { tone: 'error', text: t(`无法读取产物目录：${String(reason)}`, `Could not read the artifacts folder: ${String(reason)}`) }
+    notice.value = { tone: 'error', text: t(`无法读取文档目录：${String(reason)}`, `Could not read the documents folder: ${String(reason)}`) }
   }
 }
 
@@ -924,48 +921,6 @@ const computerUsePermissionsReady = computed(() => Boolean(
   computerUseStatus.value?.permissions.accessibility
   && computerUseStatus.value.permissions.screenRecording,
 ))
-const computerUseMissingPermissions = computed(() => {
-  const missing: string[] = []
-  if (!computerUseStatus.value?.permissions.accessibility) missing.push(t('辅助功能', 'Accessibility'))
-  if (!computerUseStatus.value?.permissions.screenRecording) missing.push(t('屏幕录制', 'Screen Recording'))
-  return missing
-})
-const computerUseSigning = computed<CodingComputerUseSigning | null>(() => (
-  computerUseStatus.value?.signing ?? null
-))
-const computerUseSigningLabel = computed(() => {
-  const signing = computerUseSigning.value
-  if (!signing) return t('当前构建身份：未检测', 'Current build identity: not detected')
-  const signature = signing.signature === 'adhoc'
-    ? 'ad-hoc'
-    : signing.signature === 'signed'
-      ? t('已签名', 'signed')
-      : signing.signature || t('未知签名', 'unknown signature')
-  const team = signing.teamIdentifier && signing.teamIdentifier !== 'not set'
-    ? signing.teamIdentifier
-    : t('未设置', 'not set')
-  return t(`当前构建身份：${signature} · Team ${team}`, `Current build identity: ${signature} · Team ${team}`)
-})
-const computerUseSigningUnstable = computed(() => Boolean(
-  computerUseSigning.value && !computerUseSigning.value.stableIdentity,
-))
-const computerUsePermissionSummary = computed(() => {
-  const status = computerUseStatus.value
-  if (!status) return t('尚未检测', 'Not checked yet')
-  if (!status.available) return status.problem || t('当前不可用', 'Currently unavailable')
-  if (computerUsePermissionsReady.value) return t('辅助功能与屏幕录制已授权', 'Accessibility and Screen Recording are granted')
-  const missing = computerUseMissingPermissions.value.join(t('、', ', ')) || t('系统权限', 'system permissions')
-  if (computerUseSigningUnstable.value) {
-    return t(`${missing} 未生效；当前构建身份不稳定，授权后请重新检测`, `${missing} not in effect; this build identity is unstable. Recheck after granting access`)
-  }
-  return t(`${missing} 未授权`, `${missing} not granted`)
-})
-const computerUsePermissionBadge = computed(() => {
-  if (!computerUseStatus.value) return { label: t('未检测', 'Not checked'), variant: 'outline' as const }
-  if (!computerUseStatus.value.available) return { label: t('不可用', 'Unavailable'), variant: 'destructive' as const }
-  if (computerUsePermissionsReady.value) return { label: t('已授权', 'Granted'), variant: 'secondary' as const }
-  return { label: t('需处理', 'Needs attention'), variant: 'outline' as const }
-})
 
 const browserBridgeConnected = computed(() => Boolean(browserBridgeStatus.value?.bridge.connected))
 const browserPairingReady = computed(() => Boolean(browserBridgeStatus.value?.bridge.pairingCode))
@@ -976,12 +931,12 @@ async function refreshBrowserBridgeStatus(options: { silent?: boolean } = {}) {
   try {
     browserBridgeStatus.value = await invokeCommand<NSSCTFWebBridgeStatus>('get_nssctf_web_bridge_status')
     if (!options.silent) {
-      notice.value = { tone: 'ok', text: t('浏览器 Bridge 状态已重新检测。', 'Browser bridge status rechecked.') }
+      notice.value = { tone: 'ok', text: t('连接已重新检测。', 'Connection rechecked.') }
     }
   } catch (reason) {
     browserBridgeStatus.value = null
     if (!options.silent) {
-      notice.value = { tone: 'error', text: t(`无法检测浏览器 Bridge：${String(reason)}`, `Could not check the browser bridge: ${String(reason)}`) }
+      notice.value = { tone: 'error', text: t(`无法检测连接：${String(reason)}`, `Could not check the connection: ${String(reason)}`) }
     }
   } finally {
     browserBridgeLoading.value = false
@@ -995,7 +950,7 @@ async function prepareBrowserExtension() {
     await invokeCommand('reveal_browser_extension')
     notice.value = {
       tone: 'ok',
-      text: t('Chrome 扩展页和 MilkSU 扩展目录已打开；加载后回到这里复制配对码。', 'Chrome extensions and the MilkSU extension folder are open. Load the extension, then come back here to copy the pairing code.'),
+      text: t('已打开扩展安装入口。', 'Opened the extension installer.'),
     }
   } catch (reason) {
     notice.value = { tone: 'error', text: t(`无法打开浏览器扩展安装入口：${String(reason)}`, `Could not open the browser extension installer: ${String(reason)}`) }
@@ -1010,10 +965,10 @@ async function openPlaywrightBrowserExtension() {
     await invokeCommand('open_playwright_browser_extension')
     notice.value = {
       tone: 'ok',
-      text: t('已在浏览器打开 Playwright MCP 官方扩展页面。', 'Opened the official Playwright MCP extension page in the browser.'),
+      text: t('已打开扩展页面。', 'Opened the extension page.'),
     }
   } catch (reason) {
-    notice.value = { tone: 'error', text: t(`无法打开 Playwright MCP 官方扩展：${String(reason)}`, `Could not open the official Playwright MCP extension: ${String(reason)}`) }
+    notice.value = { tone: 'error', text: t(`无法打开扩展页面：${String(reason)}`, `Could not open the extension page: ${String(reason)}`) }
   } finally {
     browserUseOpening.value = false
   }
@@ -1024,7 +979,7 @@ async function copyBrowserPairingCode() {
   if (!pairingCode) return
   try {
     await navigator.clipboard.writeText(pairingCode)
-    notice.value = { tone: 'ok', text: t('本机浏览器配对码已复制。', 'Browser pairing code copied.') }
+    notice.value = { tone: 'ok', text: t('配对码已复制。', 'Pairing code copied.') }
   } catch (reason) {
     notice.value = { tone: 'error', text: t(`无法复制浏览器配对码：${String(reason)}`, `Could not copy the browser pairing code: ${String(reason)}`) }
   }
@@ -1035,7 +990,7 @@ async function refreshComputerUseStatus(options: { silent?: boolean } = {}) {
   try {
     computerUseStatus.value = await invokeCommand<CodingComputerUseStatus>('get_coding_computer_use_status')
     if (!options.silent) {
-      notice.value = { tone: 'ok', text: t('Computer Use 权限状态已重新检测；未操作任何外部 App。', 'Computer Use permission status rechecked. No external app was controlled.') }
+      notice.value = { tone: 'ok', text: t('Computer Use 权限已重新检测。', 'Computer Use permissions rechecked.') }
     }
   } catch (reason) {
     computerUseStatus.value = null
@@ -1057,9 +1012,7 @@ async function requestComputerUsePermission(permission: CodingComputerUsePermiss
     const label = permission === 'accessibility' ? t('辅助功能', 'Accessibility') : t('屏幕录制', 'Screen Recording')
     notice.value = {
       tone: 'ok',
-      text: permission === 'screen-recording'
-        ? t('已打开“屏幕录制”设置；若列表没有 MilkSU，点列表下方“+”并选择 /Applications/MilkSU.app，再开启并按系统提示重新打开。', 'Opened Screen Recording settings. If MilkSU is missing, click + under the list, choose /Applications/MilkSU.app, enable it, then reopen when macOS asks.')
-        : t(`已打开“${label}”设置；开启 MilkSU 后回到应用，状态会在重新检测时更新。`, `Opened ${label} settings. Enable MilkSU, then return here; status updates on the next check.`),
+      text: t(`已打开${label}设置。`, `Opened ${label} settings.`),
     }
   } catch (reason) {
     notice.value = { tone: 'error', text: t(`无法打开 Computer Use 系统权限设置：${String(reason)}`, `Could not open Computer Use system settings: ${String(reason)}`) }
@@ -1083,14 +1036,6 @@ async function revealLocalData() {
     await invokeCommand('reveal_local_data_directory')
   } catch (reason) {
     notice.value = { tone: 'error', text: t(`无法打开本地数据目录：${String(reason)}`, `Could not open the local data folder: ${String(reason)}`) }
-  }
-}
-
-async function revealUserArtifacts() {
-  try {
-    await invokeCommand('reveal_user_artifact_directory')
-  } catch (reason) {
-    notice.value = { tone: 'error', text: t(`无法打开产物目录：${String(reason)}`, `Could not open the artifacts folder: ${String(reason)}`) }
   }
 }
 
@@ -1326,7 +1271,11 @@ async function saveProviderEditor(closeAfterSave: boolean) {
       <div class="page-scroll min-w-0 flex-1">
       <div class="page-column page-stack">
 
-        <Alert v-if="notice" :variant="notice.tone === 'error' ? 'destructive' : 'default'">
+        <Alert
+          v-if="notice"
+          :variant="notice.tone === 'error' ? 'destructive' : 'default'"
+          :class="notice.tone === 'error' ? 'settings-notice settings-notice--error' : 'settings-notice settings-notice--ok'"
+        >
           <AlertCircle v-if="notice.tone === 'error'" class="size-4" />
           <Check v-else class="size-4" />
           <AlertDescription>{{ notice.text }}</AlertDescription>
@@ -1365,24 +1314,13 @@ async function saveProviderEditor(closeAfterSave: boolean) {
               </NativeSelect>
             </SettingsRow>
           </SettingsSection>
-          <SettingsSection :title="t('产物', 'Artifacts')">
+          <SettingsSection :title="t('文件', 'Files')">
             <SettingsRow
-              stack="always"
-              :label="t('工作产物', 'Work artifacts')"
-            >
-              <p
-                v-if="userArtifacts?.directory"
-                class="mb-3 truncate font-mono text-caption text-muted-foreground"
-                :title="userArtifacts.directory"
-                data-testid="user-artifact-directory"
-              >
-                {{ userArtifacts.directory }}
-              </p>
-              <Button variant="outline" size="sm" @click="revealUserArtifacts">
-                <FolderOpen class="size-3.5" />
-                {{ t('打开产物目录', 'Open artifacts folder') }}
-              </Button>
-            </SettingsRow>
+              :label="t('文档', 'Documents')"
+              :description="userArtifacts?.directory || ''"
+              :divider="false"
+              data-testid="user-artifact-directory"
+            />
           </SettingsSection>
           <SettingsSection :title="t('本地数据', 'Local data')">
             <SettingsRow
@@ -1574,193 +1512,127 @@ async function saveProviderEditor(closeAfterSave: boolean) {
         </template>
 
         <template v-else-if="category === 'chats'">
-          <SettingsSection :title="t('归档聊天', 'Archived chats')">
-            <ArchivedConversationsSettings @changed="$emit('conversationsChanged')" />
-          </SettingsSection>
+          <ArchivedConversationsSettings @changed="$emit('conversationsChanged')" />
         </template>
 
         <template v-else-if="working && category === 'browser'">
-          <SettingsSection :title="t('Browser Use（真实用户浏览器）', 'Browser Use (your real browser)')">
+          <SettingsSection title="Browser Use">
             <SettingsRow
-              stack="always"
-              :label="t('Playwright MCP 官方扩展', 'Official Playwright MCP extension')"
+              :label="t('真实浏览器', 'Your browser')"
+              :description="t('操作你选中的 Chrome 或 Edge 标签页。', 'Acts on Chrome or Edge tabs you select.')"
+              :divider="false"
             >
-              <div class="flex flex-wrap gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  :loading="browserUseOpening"
-                  @click="openPlaywrightBrowserExtension"
-                >
-                  <ExternalLink class="size-3.5" />
-                  {{ t('安装官方扩展', 'Install the official extension') }}
-                </Button>
-              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                :loading="browserUseOpening"
+                @click="openPlaywrightBrowserExtension"
+              >
+                {{ t('安装扩展', 'Install extension') }}
+              </Button>
             </SettingsRow>
           </SettingsSection>
 
-          <SettingsSection :title="t('CTF 平台 Bridge', 'CTF platform bridge')">
+          <SettingsSection :title="t('CTF 站点', 'CTF sites')">
             <SettingsRow
-              stack="always"
-              :label="t('MilkSU 本地扩展连接', 'MilkSU local extension connection')"
+              :label="t('连接', 'Connection')"
+              :description="browserBridgeConnected ? t('已连接', 'Connected') : ''"
             >
-              <div class="flex flex-wrap items-center gap-2">
-                <Badge :variant="browserBridgeConnected ? 'secondary' : 'outline'">
-                  {{ browserBridgeConnected ? t('已连接', 'Connected') : t('等待连接', 'Waiting to connect') }}
-                </Badge>
-                <Badge variant="outline">
-                  {{ t('扩展', 'Extension') }} {{ browserExtensionReady ? t('已就绪', 'ready') : t('未就绪', 'not ready') }}
-                </Badge>
-                <Badge variant="outline">
-                  {{ t('配对码', 'Pairing code') }} {{ browserPairingReady ? t('已就绪', 'ready') : t('未就绪', 'not ready') }}
-                </Badge>
-              </div>
-              <p
-                v-if="!browserBridgeConnected"
-                class="mt-3 text-caption leading-5 text-muted-foreground"
+              <Button
+                variant="outline"
+                size="sm"
+                :loading="browserBridgeLoading"
+                @click="refreshBrowserBridgeStatus()"
               >
-                {{ t('在目标页面打开扩展并粘贴配对码（已复制到剪贴板）。', 'Open the extension on the target page and paste the pairing code (already copied).') }}
-              </p>
-              <div class="mt-3 flex flex-wrap gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  :loading="browserSetupBusy"
-                  :disabled="!browserExtensionReady"
-                  @click="prepareBrowserExtension"
-                >
-                  <FolderOpen class="size-3.5" />
-                  {{ t('安装本地扩展', 'Install the local extension') }}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  :disabled="!browserPairingReady"
-                  @click="copyBrowserPairingCode"
-                >
-                  <Copy class="size-3.5" />
-                  {{ t('复制配对码', 'Copy pairing code') }}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  :loading="browserBridgeLoading"
-                  @click="refreshBrowserBridgeStatus()"
-                >
-                  <Cable class="size-3.5" />
-                  {{ t('检测连接', 'Check connection') }}
-                </Button>
-              </div>
+                {{ t('检测', 'Check') }}
+              </Button>
+            </SettingsRow>
+            <SettingsRow :label="t('本地扩展', 'Local extension')">
+              <Button
+                variant="outline"
+                size="sm"
+                :loading="browserSetupBusy"
+                :disabled="!browserExtensionReady"
+                @click="prepareBrowserExtension"
+              >
+                {{ t('安装', 'Install') }}
+              </Button>
+            </SettingsRow>
+            <SettingsRow
+              :label="t('配对码', 'Pairing code')"
+              :description="browserBridgeStatus?.bridge.pairingCode || ''"
+              :divider="false"
+            >
+              <Button
+                variant="outline"
+                size="sm"
+                :disabled="!browserPairingReady"
+                @click="copyBrowserPairingCode"
+              >
+                {{ t('复制', 'Copy') }}
+              </Button>
             </SettingsRow>
           </SettingsSection>
 
           <SettingsSection title="Computer Use">
+            <template #actions>
+              <Button
+                variant="outline"
+                size="sm"
+                :loading="computerUseLoading"
+                @click="refreshComputerUseStatus()"
+              >
+                {{ t('重新检测', 'Recheck') }}
+              </Button>
+              <Button
+                v-if="computerUseStatus && computerUsePermissionsReady"
+                variant="outline"
+                size="sm"
+                :loading="computerUseRestarting"
+                @click="relaunchDesktopApp"
+              >
+                {{ t('重新打开 MilkSU', 'Reopen MilkSU') }}
+              </Button>
+            </template>
             <SettingsRow
-              stack="always"
-              :label="t('外部 App 权限', 'External app permissions')"
-              :description="computerUsePermissionSummary"
-            >
-              <div class="flex flex-wrap items-center gap-2">
-                <Badge :variant="computerUsePermissionBadge.variant">
-                  {{ computerUsePermissionBadge.label }}
-                </Badge>
-                <Badge variant="outline">
-                  {{ t('辅助功能', 'Accessibility') }} {{ computerUseStatus?.permissions.accessibility ? t('已授权', 'granted') : t('未授权', 'not granted') }}
-                </Badge>
-                <Badge variant="outline">
-                  {{ t('屏幕录制', 'Screen Recording') }} {{ computerUseStatus?.permissions.screenRecording ? t('已授权', 'granted') : t('未授权', 'not granted') }}
-                </Badge>
-              </div>
-              <p
-                v-if="!computerUsePermissionsReady && computerUseSigningLabel"
-                class="mt-3 break-all text-caption leading-5 text-muted-foreground"
+              v-if="computerUseStatus && !computerUseStatus.available"
+              :label="t('状态', 'Status')"
+              :description="computerUseStatus.problem || ''"
+              :divider="false"
+            />
+            <template v-else-if="computerUseStatus">
+              <SettingsRow
+                :label="t('辅助功能', 'Accessibility')"
+                :description="computerUseStatus.permissions.accessibility ? t('已授权', 'Granted') : ''"
               >
-                {{ computerUseSigningLabel }}
-              </p>
-              <div
-                v-if="!computerUsePermissionsReady"
-                class="mt-4 grid gap-3 sm:grid-cols-2"
-                :aria-label="t('Computer Use 权限设置', 'Computer Use permission settings')"
-              >
-                <div class="rounded-lg border border-border bg-muted/30 p-3">
-                  <div class="flex items-start justify-between gap-3">
-                    <div>
-                      <p class="text-body font-medium">{{ t('辅助功能', 'Accessibility') }}</p>
-                      <p
-                        v-if="!computerUseStatus?.permissions.accessibility"
-                        class="mt-1 text-caption leading-5 text-muted-foreground"
-                      >
-                        {{ t('在系统设置中开启 MilkSU', 'Enable MilkSU in System Settings') }}
-                      </p>
-                    </div>
-                    <Badge :variant="computerUseStatus?.permissions.accessibility ? 'secondary' : 'outline'">
-                      {{ computerUseStatus?.permissions.accessibility ? t('已授权', 'Granted') : t('待授权', 'Needs access') }}
-                    </Badge>
-                  </div>
-                  <Button
-                    v-if="!computerUseStatus?.permissions.accessibility"
-                    variant="outline"
-                    size="sm"
-                    class="mt-3"
-                    :loading="computerUseRequesting === 'accessibility'"
-                    :disabled="!computerUseStatus?.available || Boolean(computerUseRequesting)"
-                    @click="requestComputerUsePermission('accessibility')"
-                  >
-                    <KeyRound class="size-3.5" />
-                    {{ t('打开辅助功能设置', 'Open Accessibility settings') }}
-                  </Button>
-                </div>
-                <div class="rounded-lg border border-border bg-muted/30 p-3">
-                  <div class="flex items-start justify-between gap-3">
-                    <div>
-                      <p class="text-body font-medium">{{ t('屏幕录制', 'Screen Recording') }}</p>
-                      <p
-                        v-if="!computerUseStatus?.permissions.screenRecording"
-                        class="mt-1 text-caption leading-5 text-muted-foreground"
-                      >
-                        {{ t('列表没有 MilkSU 时，添加 /Applications/MilkSU.app', 'If MilkSU is missing from the list, add /Applications/MilkSU.app') }}
-                      </p>
-                    </div>
-                    <Badge :variant="computerUseStatus?.permissions.screenRecording ? 'secondary' : 'outline'">
-                      {{ computerUseStatus?.permissions.screenRecording ? t('已授权', 'Granted') : t('待授权', 'Needs access') }}
-                    </Badge>
-                  </div>
-                  <Button
-                    v-if="!computerUseStatus?.permissions.screenRecording"
-                    variant="outline"
-                    size="sm"
-                    class="mt-3"
-                    :loading="computerUseRequesting === 'screen-recording'"
-                    :disabled="!computerUseStatus?.available || Boolean(computerUseRequesting)"
-                    @click="requestComputerUsePermission('screen-recording')"
-                  >
-                    <KeyRound class="size-3.5" />
-                    {{ t('打开屏幕录制设置', 'Open Screen Recording settings') }}
-                  </Button>
-                </div>
-              </div>
-              <div class="mt-3 flex flex-wrap gap-2">
                 <Button
+                  v-if="!computerUseStatus.permissions.accessibility"
                   variant="outline"
                   size="sm"
-                  :loading="computerUseLoading"
-                  @click="refreshComputerUseStatus()"
+                  :loading="computerUseRequesting === 'accessibility'"
+                  :disabled="!computerUseStatus.available || Boolean(computerUseRequesting)"
+                  @click="requestComputerUsePermission('accessibility')"
                 >
-                  <RotateCcw class="size-3.5" />
-                  {{ t('重新检测', 'Recheck') }}
+                  {{ t('打开辅助功能设置', 'Open Accessibility settings') }}
                 </Button>
+              </SettingsRow>
+              <SettingsRow
+                :label="t('屏幕录制', 'Screen Recording')"
+                :description="computerUseStatus.permissions.screenRecording ? t('已授权', 'Granted') : ''"
+                :divider="false"
+              >
                 <Button
-                  v-if="computerUseStatus && computerUsePermissionsReady"
+                  v-if="!computerUseStatus.permissions.screenRecording"
                   variant="outline"
                   size="sm"
-                  :loading="computerUseRestarting"
-                  @click="relaunchDesktopApp"
+                  :loading="computerUseRequesting === 'screen-recording'"
+                  :disabled="!computerUseStatus.available || Boolean(computerUseRequesting)"
+                  @click="requestComputerUsePermission('screen-recording')"
                 >
-                  <RotateCcw class="size-3.5" />
-                  {{ t('重新打开 MilkSU', 'Reopen MilkSU') }}
+                  {{ t('打开屏幕录制设置', 'Open Screen Recording settings') }}
                 </Button>
-              </div>
-            </SettingsRow>
+              </SettingsRow>
+            </template>
           </SettingsSection>
         </template>
 
@@ -2244,6 +2116,16 @@ async function saveProviderEditor(closeAfterSave: boolean) {
 
 <style scoped>
 .settings-nav-surface { border-color: var(--border); background-color: var(--background); }
+.settings-page :deep(.settings-notice.settings-notice--ok) {
+  background-color: color-mix(in srgb, var(--success) 22%, var(--card));
+  border-color: var(--success-border);
+  color: var(--success-foreground);
+}
+.settings-page :deep(.settings-notice.settings-notice--error) {
+  background-color: color-mix(in srgb, var(--destructive) 18%, var(--card));
+  border-color: var(--destructive-border);
+  color: var(--destructive);
+}
 .settings-ak-tabs { width: 100%; border: 0; background: transparent; }
 .settings-ak-tabs .ak-tabs__list { display: grid; grid-auto-flow: row; border-bottom: 0; }
 .settings-ak-tabs .ak-tabs__tab + .ak-tabs__tab { border-left: 0; border-top: 1px solid var(--border); }

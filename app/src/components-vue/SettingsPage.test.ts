@@ -347,25 +347,16 @@ describe('SettingsPage build tracking', () => {
 })
 
 describe('SettingsPage user artifacts', () => {
-  it('separates visible work products from internal app data', async () => {
-    let revealed = false
-    await mountSettingsPage(fiveDatabases, {
-      appMethods: {
-        RevealUserArtifactDirectory: async () => { revealed = true },
-      },
-    })
+  it('shows the documents folder as a path, separate from local app data', async () => {
+    await mountSettingsPage(fiveDatabases)
 
     const path = document.querySelector('[data-testid="user-artifact-directory"]')
     expect(path?.textContent).toContain('/Users/test/Documents/MilkSU')
-    expect(document.body.textContent).not.toContain('Coding、CTF 和 CVE 生成的文件')
-    expect(document.body.textContent).toContain('打开产物目录')
+    expect(document.body.textContent).toContain('文件')
+    expect(document.body.textContent).toContain('文档')
+    expect(document.body.textContent).not.toContain('工作产物')
+    expect(document.body.textContent).not.toContain('打开产物目录')
     expect(document.body.textContent).toContain('打开数据目录')
-
-    const button = [...document.querySelectorAll('button')]
-      .find(value => value.textContent?.includes('打开产物目录'))
-    button?.click()
-    await settle()
-    expect(revealed).toBe(true)
   })
 })
 
@@ -594,9 +585,11 @@ describe('SettingsPage database compatibility', () => {
     expect(checks).toBe(1)
     let text = document.body.textContent ?? ''
     expect(text).toContain('Computer Use')
-    expect(text).toContain('辅助功能 未授权')
-    expect(text).toContain('屏幕录制 已授权')
+    expect(text).toContain('辅助功能')
+    expect(text).toContain('屏幕录制')
+    expect(text).toContain('已授权')
     expect(text).toContain('打开辅助功能设置')
+    expect(text).not.toContain('打开屏幕录制设置')
 
     const refresh = [...document.querySelectorAll<HTMLButtonElement>('button')]
       .find(button => button.textContent?.includes('重新检测'))
@@ -607,10 +600,11 @@ describe('SettingsPage database compatibility', () => {
     expect(checks).toBe(2)
     expect(permissionRequests).toBe(0)
     text = document.body.textContent ?? ''
-    expect(text).toContain('Computer Use 权限状态已重新检测')
-    expect(text).toContain('辅助功能 已授权')
-    expect(text).toContain('屏幕录制 已授权')
+    expect(text).toContain('Computer Use 权限已重新检测')
+    expect(text).toContain('辅助功能')
+    expect(text).toContain('屏幕录制')
     expect(text).toContain('已授权')
+    expect(text).not.toContain('打开辅助功能设置')
   })
 
   it('keeps explicit Computer Use permission authorization available on unstable builds', async () => {
@@ -663,12 +657,12 @@ describe('SettingsPage database compatibility', () => {
     })
 
     const text = document.body.textContent ?? ''
-    expect(text).toContain('外部 App 权限')
+    expect(text).toContain('Computer Use')
     expect(text).toContain('打开辅助功能设置')
     expect(text).toContain('打开屏幕录制设置')
-    expect(text).toContain('/Applications/MilkSU.app')
-    expect(text).toContain('当前构建身份：ad-hoc · Team 未设置')
-    expect(text).toContain('构建身份不稳定')
+    expect(text).not.toContain('/Applications/MilkSU.app')
+    expect(text).not.toContain('当前构建身份')
+    expect(text).not.toContain('构建身份不稳定')
     expect(text).not.toContain('先稳定签名再复检')
 
     const accessibility = [...document.querySelectorAll<HTMLButtonElement>('button')]
@@ -682,6 +676,24 @@ describe('SettingsPage database compatibility', () => {
     screenRecording?.click()
     for (let index = 0; index < 2; index += 1) await settle()
     expect(permissionRequests).toEqual(['accessibility', 'screen-recording'])
+  })
+
+  it('shows Browser Use, CTF sites, and Computer Use as setting rows', async () => {
+    await mountSettingsPage({
+      directory: 'MilkSU 用户数据目录',
+      fileCount: 0,
+      bytes: 0,
+    }, { initialCategory: 'browser' })
+    const text = document.body.textContent ?? ''
+    expect(text).toContain('Browser Use')
+    expect(text).toContain('真实浏览器')
+    expect(text).toContain('CTF 站点')
+    expect(text).toContain('Computer Use')
+    expect(text).toContain('安装扩展')
+    expect(text).not.toContain('Playwright MCP')
+    expect(text).not.toContain('CTF 平台 Bridge')
+    expect(text).not.toContain('等待连接')
+    expect(text).not.toContain('外部 App 权限')
   })
 
   it('keeps settings saved and explains an offline model verification failure', async () => {
@@ -1540,5 +1552,29 @@ describe('SettingsPage custom relay catalog isolation', () => {
     expect(dialog?.textContent ?? '').not.toContain('33')
     expect(dialog?.textContent ?? '').toContain('可用模型')
     expect(dialog?.textContent ?? '').not.toContain('测试连接后显示可用模型')
+  })
+})
+
+describe('SettingsPage CVE intel', () => {
+  it('shows two public sources as settings rows', async () => {
+    await mountSettingsPage({
+      directory: 'MilkSU 用户数据目录',
+      fileCount: 0,
+      bytes: 0,
+    }, { initialCategory: 'cve' })
+    const text = document.body.textContent ?? ''
+    expect(text).toContain('公开源')
+    expect(text).toContain('CISA KEV')
+    expect(text).toContain('Vulhub')
+    expect(text).toContain('同步公开源')
+    expect(text).toContain('高级')
+    expect(text).not.toContain('Finder')
+    expect(text).not.toContain('待接入')
+    expect(text).not.toContain('查看情报源说明')
+    expect(text).not.toContain('逐源同步结果')
+    expect(text).not.toContain('Feed 缓存状态')
+    expect([...document.querySelectorAll('button')].some(button => (
+      (button.getAttribute('aria-label') ?? '') === '同步公开源'
+    ))).toBe(true)
   })
 })

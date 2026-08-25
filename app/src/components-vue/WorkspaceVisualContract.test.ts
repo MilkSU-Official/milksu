@@ -14,6 +14,7 @@ import vulnPageSource from './VulnPage.vue?raw'
 import labPageSource from './LabPage.vue?raw'
 import profilePageSource from './ProfilePage.vue?raw'
 import evalSettingsPanelSource from './EvalSettingsPanel.vue?raw'
+import vulnIntelSettingsSource from './VulnerabilityIntelSettingsPanel.vue?raw'
 import workspaceRailSource from './WorkspaceRail.vue?raw'
 import ctfArtifactsSource from './CTFArtifacts.vue?raw'
 import ctfPageSource from './CTFPage.vue?raw'
@@ -88,6 +89,8 @@ describe('Workspace visual contract', () => {
     expect(settingsPageSource).toContain('settings-nav-surface')
     expect(settingsPageSource).not.toContain('tactical-dark-surface')
     expect(settingsPageSource).toContain('background-color: var(--background)')
+    expect(settingsPageSource).toContain('settings-notice--ok')
+    expect(settingsPageSource).toContain('color-mix(in srgb, var(--success) 22%, var(--card))')
     expect(settingsPageSource).not.toContain("t('保存设置', 'Save settings')")
     expect(settingsPageSource).not.toContain('bg-[#101418]')
     expect(chatPageSource).toContain("import TacticalPanelShell from '@/components-vue/TacticalPanelShell.vue'")
@@ -116,6 +119,9 @@ describe('Workspace visual contract', () => {
     expect(appStylesSource).toContain('.page-stack {')
     expect(appStylesSource).toContain('--settings-field-fill:')
     expect(settingsPageSource).toContain('page-column page-stack')
+    expect(settingsPageSource).not.toContain('/Applications/MilkSU.app')
+    expect(settingsPageSource).not.toContain('Playwright MCP 官方扩展')
+    expect(settingsPageSource).not.toContain('CTF 平台 Bridge')
     expect(settingsPageSource).not.toContain('max-w-3xl')
     expect(settingsPageSource).not.toContain('max-w-5xl')
     expect(settingsPageSource).not.toContain('max-w-6xl')
@@ -125,12 +131,24 @@ describe('Workspace visual contract', () => {
     expect(vulnPageSource).not.toContain('max-w-5xl')
     expect(labPageSource).toContain('page-column page-stack')
     expect(labPageSource).not.toContain('max-w-5xl')
+    expect(ctfPageSource).toContain('CollectionViewFilter')
+    expect(vulnPageSource).toContain('CollectionViewFilter')
+    expect(labPageSource).toContain('ak-segmented')
+    expect(labPageSource).toContain('#filters')
+    expect(labPageSource).not.toContain('v-model="labTab"')
     expect(ctfPageSource).toContain("screen === 'challenge' ? 'h-full' : 'page-column'")
     expect(ctfPageSource).toContain('class="page-stack"')
     expect(ctfPageSource).not.toContain('max-w-4xl')
     expect(ctfPageSource).not.toContain('max-w-5xl')
     expect(profilePageSource).toContain('page-column')
     expect(profilePageSource).not.toContain('max-w-[1280px]')
+    expect(vulnIntelSettingsSource).toContain("t('公开源', 'Public sources')")
+    expect(vulnIntelSettingsSource).toContain('SettingsRow')
+    expect(vulnIntelSettingsSource).not.toContain('Finder')
+    expect(vulnIntelSettingsSource).not.toContain('variant="info"')
+    expect(vulnIntelSettingsSource).not.toContain('查看情报源说明')
+    expect(vulnIntelSettingsSource).not.toContain('rounded-xl border border-border bg-card')
+    expect(vulnIntelSettingsSource).not.toContain('待接入')
   })
 
   it('keeps hidden menus above content and gives every floating primitive the tactical theme', () => {

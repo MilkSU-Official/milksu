@@ -390,7 +390,6 @@ onMounted(() => {
         <template v-if="section === 'lab' && !labJobId">
           <WorkspaceModuleTopBar module="lab" :title="t('实验室', 'Lab')">
             <template #actions>
-              <SegmentedControl v-model="labTab" :aria-label="t('实验室分段', 'Lab sections')" :items="labTabItems" />
               <Button
                 v-if="labTab === 'jobs'"
                 variant="ghost"
@@ -400,6 +399,24 @@ onMounted(() => {
               >
                 <Plus class="size-4" />
               </Button>
+            </template>
+            <template #filters>
+              <div class="collection-tabs flex min-w-0 items-center gap-2" role="tablist" :aria-label="t('实验室分段', 'Lab sections')">
+                <div class="ak-segmented">
+                  <button
+                    v-for="item in labTabItems"
+                    :key="item.value"
+                    type="button"
+                    class="ak-segmented__item"
+                    role="tab"
+                    :aria-pressed="labTab === item.value"
+                    :aria-selected="labTab === item.value"
+                    @click="labTab = item.value"
+                  >
+                    {{ item.label }}
+                  </button>
+                </div>
+              </div>
             </template>
           </WorkspaceModuleTopBar>
 

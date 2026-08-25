@@ -75,4 +75,26 @@ describe('ArchivedConversationsSettings', () => {
     expect(document.body.textContent).toContain('永久删除聊天？')
     second.unmount()
   })
+
+  it('renders no empty card when there are no archived chats', async () => {
+    Object.defineProperty(window, 'milksu', {
+      configurable: true,
+      value: {
+        invoke(method: string) {
+          if (method === 'ListArchivedConversations') return Promise.resolve([])
+          throw new Error(`unexpected method ${method}`)
+        },
+        onEvent: () => () => {},
+      },
+    })
+    const host = document.createElement('div')
+    document.body.append(host)
+    const app = createApp(ArchivedConversationsSettings)
+    app.mount(host)
+    await settle()
+    expect(host.querySelector('[data-slot="settings-section"], .rounded-menu-shell')).toBeNull()
+    expect(host.textContent ?? '').not.toContain('还没有')
+    expect(host.textContent ?? '').not.toContain('正在读取')
+    app.unmount()
+  })
 })

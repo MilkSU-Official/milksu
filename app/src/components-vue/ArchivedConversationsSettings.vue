@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
   SettingsRow,
+  SettingsSection,
 } from '@felinic/ui'
 import { ArchiveRestore, Trash2 } from 'lucide-vue-next'
 import { invokeCommand } from '@/desktop'
@@ -17,19 +18,15 @@ import type { Conversation } from '@/types'
 
 const emit = defineEmits<{ changed: [] }>()
 const conversations = ref<Conversation[]>([])
-const loading = ref(false)
 const error = ref('')
 const confirmation = ref<{ action: 'restore' | 'delete'; conversation: Conversation } | null>(null)
 
 async function load() {
-  loading.value = true
   error.value = ''
   try {
     conversations.value = await invokeCommand<Conversation[]>('list_archived_conversations')
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : String(cause)
-  } finally {
-    loading.value = false
   }
 }
 
@@ -53,21 +50,22 @@ async function confirmAction() {
 function archivedTime(value: number | undefined) {
   return value
     ? t(`归档于 ${new Date(value).toLocaleString()}`, `Archived ${new Date(value).toLocaleString()}`)
-    : t('归档时间未知', 'Archive time unknown')
+    : ''
 }
 
 onMounted(load)
 </script>
 
 <template>
-  <div>
-    <p v-if="error" class="px-4 py-3 text-body text-destructive">{{ error }}</p>
-    <p v-if="loading" class="px-4 py-5 text-body text-muted-foreground">{{ t('正在读取归档聊天…', 'Loading archived chats…') }}</p>
+  <div class="contents">
+    <p v-if="error" class="text-body text-destructive">{{ error }}</p>
+    <SettingsSection v-if="conversations.length" :aria-label="t('归档聊天', 'Archived chats')">
     <SettingsRow
-      v-for="conversation in conversations"
+      v-for="(conversation, index) in conversations"
       :key="conversation.id"
       :label="conversation.title"
       :description="archivedTime(conversation.archivedAt)"
+      :divider="index < conversations.length - 1"
     >
       <div class="flex items-center gap-1">
         <Button variant="ghost" size="sm" @click="confirmation = { action: 'restore', conversation }">
@@ -86,6 +84,7 @@ onMounted(load)
         </Button>
       </div>
     </SettingsRow>
+    </SettingsSection>
 
     <Dialog :open="Boolean(confirmation)" @update:open="open => { if (!open) confirmation = null }">
       <DialogContent class="sm:max-w-md">
