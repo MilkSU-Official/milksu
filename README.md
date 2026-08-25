@@ -82,8 +82,8 @@ MilkSU 把 Coding、CTF、CVE 和实验室放进同一个桌面工作台。你�
   </tr>
   <tr>
     <td width="50%">
-      <img src="docs/media/readme-lab.png" alt="MilkSU 实验室作业列表">
-      <p align="center"><sub>实验室作业列表与改名入口</sub></p>
+      <img src="docs/media/readme-lab.png" alt="MilkSU 实验室题目包">
+      <p align="center"><sub>实验室题目包与本机靶机</sub></p>
     </td>
     <td width="50%">
       <img src="docs/media/readme-settings.png" alt="MilkSU 安全工具设置">
