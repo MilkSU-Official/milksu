@@ -53,3 +53,21 @@
 ## 删除路径
 
 `tool_result` hook 退回只做现行 `truncateHead` + overflow。
+
+## 基线实测（当前架构，未实现本切片）
+
+机器：macOS darwin arm64，Node v26.0.0，Pi 0.84.1。时间：2026-08-25T10:25:13Z。命令：`node --test sidecar/pi/loop-baseline-tool-result.test.js`（1 通过）。另：`bridge-tool-result-bound.test.js` 等 Sidecar Loop 相关测试本机 46 通过。
+
+构造：2500 行文本，每行 `line-{i}`，最后一行带 `-END`。经 `boundModelText`（Pi `truncateHead`）。
+
+| 项 | 数值 |
+| --- | ---: |
+| Pi `DEFAULT_MAX_BYTES` | 51200 |
+| Pi `DEFAULT_MAX_LINES` | 2000 |
+| 输入 | 61389 B / 2500 行 |
+| 模型可见 | 48889 B / **2000 行** |
+| 保留头部 `line-0` | 是 |
+| 保留尾部 `line-2499-END` | **否** |
+| 策略 | `truncateHead` |
+
+**Summary：** 过长回流只留头、丢掉尾。错误栈、命令结尾、文件末尾导出不会出现在下一跳。overflow 落盘 + `read` offset 仍在，但默认下一跳看不到尾。没有头+尾，没有行号/哈希摘要。本切片要改的形状在实机上就是 `truncateHead`。
