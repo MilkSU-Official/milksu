@@ -24,7 +24,8 @@ an implementation queue. `docs/developer/development-plan.md` does not exist and
 Read `docs/developer/product-code-admission.md` at these decision points:
 
 - before designing a new product capability, public Desktop RPC API, persisted state, Sidecar resource or
-  feature flag;
+  feature flag, and when checking three-platform productization for that capability;
+- before adding a user-visible page or changing the design language;
 - before implementing Agent Harness behavior, compatibility/migration logic, experimental product
   surfaces or a capability already owned by Pi or another reviewed upstream component;
 - before adding smoke, fixture, benchmark, browser-preview or release-acceptance infrastructure;
@@ -63,19 +64,91 @@ leave a Chinese-only control, notice, empty state, aria-label, placeholder or bu
 names CTF, CVE, Lab and Coding stay as those product names in both languages. Enforcement:
 `app/src/lib/uiLocaleCoverage.test.ts`.
 
-## Product UI Color Boundary
+## Product UI Design Language
 
-- Current visual contract: [docs/design/current-visual.md](docs/design/current-visual.md).
-  ak-ui tokens and scene CSS in `app/src/styles/`. Materials are graphite command surfaces, paper
-  facts, cyan and gold. Acid green does not enter the product. Felinic stays for Vue behavior.
-- Do not restore the old blue-black style, the retired tactical-archive / acid-green contract, paper
-  or carbon textures, Showcase character art, sanity bars or 3D menus. `docs/design/milksu-game-ui-system.md`
-  and `design-qa.md` are deleted and must not be recreated as current rules.
-- Night mode uses graphite without an obvious blue, green or brown cast; day mode keeps paper neutrals.
-  Cyan is current module and primary actions. Gold is secondary emphasis and the current focus bar.
-  Success green only means success. Blue is reserved for links and explicit execution or diagnostic states.
-- CTF, CVE, 实验室 and Coding tabs use the same charcoal-and-cyan system. Do not use `--info`, blue borders
-  or blue-filled surfaces to distinguish those product modules.
+Canonical contract: [docs/design/current-visual.md](docs/design/current-visual.md).
+Shared column and field fill live in `app/src/index.css`. Scene tokens live in `app/src/styles/`.
+Felinic stays for Vue behavior. Do not add `@yunyoujun/ak-ui` to `app/package.json`.
+Enforcement: `app/src/components-vue/WorkspaceVisualContract.test.ts` and
+`app/src/globalStyleContract.test.ts`.
+
+This section is the product design language. Review against it, and against `current-visual.md`,
+before treating any of these as done:
+
+- a new UI page, settings category, dossier, dialog, preview, or other product surface;
+- a change to Vue, CSS, layout, typography, color, or user-visible copy;
+- an incoming PR that touches those files.
+
+A screenshot, a local window, or “it looks fine on this machine” is not a review. Do not
+invent a one-off max-width, radius, padding, card primitive, or color to finish one page.
+
+### Materials and color
+
+- Graphite command surfaces, paper facts, cyan, gold. Acid green does not enter the product.
+- Night mode is neutral graphite with no obvious blue, green or brown cast. Day mode keeps
+  paper neutrals. Day mode must not pin command chrome to night graphite.
+- Cyan is the current module and primary actions. Gold is secondary emphasis and the current
+  focus bar. Success green only means success. Blue is only links and explicit execution or
+  diagnostic states.
+- CTF, CVE, 实验室 and Coding use the same charcoal-and-cyan system. Do not use `--info`,
+  blue borders or blue-filled surfaces to distinguish those modules.
+- Do not restore the old blue-black style, the retired tactical-archive / acid-green contract,
+  paper or carbon textures, Showcase character art, sanity bars or 3D menus.
+  `docs/design/milksu-game-ui-system.md` and `design-qa.md` are deleted and must not be
+  recreated as current rules.
+
+### Layout
+
+- Primary module rail is a `4.75rem` icon column. Coding session list sits on that same nav.
+- Settings, CTF / CVE / Lab dossiers, pack and target cards, and Profile share one card column:
+  `--page-stack-width` (64rem), `.page-scroll` (1.5rem padding), `.page-column`, `.page-stack`
+  (1.25rem gap), `--page-card-radius` (0.45rem). Editable fields on those stacks use
+  `--settings-field-fill`. A live-target split uses `.page-stack--flush` and fills the left pane.
+- Do not add a per-page `max-w-3xl` / `4xl` / `5xl` / `6xl` for those card stacks.
+- Full-bleed tables stay full-bleed: CVE list, CTF challenge desk, Lab custom jobs.
+- Coding conversation reading stays on the narrower message column. Composer chrome may use
+  the 64rem column.
+- Reuse Felinic `SettingsSection`, `SettingsRow`, `ActionCard` and `ModelListRow`. Do not add a
+  second card system for one page.
+- Type: Inter Variable + Noto Sans SC Variable. No Song, Noto Serif, or system `serif`.
+- Changing visual semantics (Judge, authorization, Desktop RPC, Pi tool loop) is out of scope
+  for a restyle.
+
+### When the user changes the UI
+
+If the user — not the agent — changed layout, color, spacing, typography or component choice
+(working tree, pasted screenshot, follow-up instruction, or an edit they made in the app), do
+not silently revert to this language and do not silently rewrite this language to match the
+one-off. Ask in Chinese whether to:
+
+1. update the design language (`current-visual.md`, this section, shared CSS/tokens, and the
+   visual-contract tests) so later pages follow the new rule; or
+2. keep this language and treat the edit as a one-off to align or isolate.
+
+## Productization and three-platform support
+
+MilkSU ships macOS, Windows and Linux. Every new product capability must be designed for those
+three platforms, and for a user who is not this developer.
+
+- Do not hardcode this machine: home directories, `/Users/...`, `C:\Users\...`, Homebrew
+  prefixes, `/usr/bin/open`, a Docker socket that already exists here, or a binary that only
+  lives in this checkout.
+- Resolve paths through Go / Electron platform APIs and the existing app-data / Documents
+  `MilkSU` layout. Opening folders uses a trusted path from Go plus the host shell, not a
+  macOS-only command.
+- First-run must be a product path: detect what is on the machine, show Settings, offer a
+  default, and let the user point to a path or sign in. Other users must be able to turn the
+  feature on without reading the repo, exporting environment variables, or copying a personal
+  config.
+- Hidden env vars, undocumented CLI flags, and “run this script from the checkout” are not a
+  configuration surface. If a tool needs a local install (IDA, Docker, Android SDK), Settings
+  detects it, names the missing piece, and provides the next action.
+- If a platform cannot support the capability yet, say so in the product UI and in
+  `current-objectives.md`. Do not ship the macOS path as if it were the product, and do not
+  leave Windows/Linux as an unhandled crash or a blank control.
+- Credentials, TCC / Accessibility and code signing stay on their existing boundaries. A
+  feature that only works after this developer grants extra OS permissions is not done until
+  the in-product permission path exists.
 
 ## Beta Self-Bootstrap Boundary
 
@@ -202,6 +275,9 @@ deferred to one destructive pre-release consolidation after the product slices a
 - Use the canonical repository scripts instead of inventing parallel runners.
 - Keep smoke, fixtures, benchmarks and acceptance coordinators outside production startup, Desktop RPC
   and Vue entrypoints as required by `docs/developer/product-code-admission.md`.
+- Incoming PRs and selected slices that touch product UI must pass the design-language review in this
+  file. Incoming PRs and selected slices that add a capability must pass the productization /
+  three-platform review.
 - A capability is not complete because a button, package or fixture exists; retain one real-task result.
 - Preserve the user's unrelated working-tree changes.
 - Each selected vertical slice is reviewed, tested, committed and pushed only to MilkSU's authorized remote.

@@ -156,6 +156,12 @@
   --tactical-shadow: 0 24px 58px rgb(0 0 0 / .36);
   --tactical-paper-image: none;
   --tactical-carbon-image: none;
+
+  /* Shared card column for settings, dossiers, and profile. */
+  --page-stack-width: 64rem;
+  --page-card-radius: 0.45rem;
+  --settings-field-fill: color-mix(in srgb, var(--foreground) 11%, var(--card));
+  --settings-field-fill-hover: color-mix(in srgb, var(--foreground) 16%, var(--card));
 }
 
 :root[data-theme='light'] {
@@ -326,6 +332,60 @@ body {
 :root[data-theme='light'] .settings-page,
 :root[data-theme='light'] .profile-page {
   background-color: var(--background);
+}
+
+.page-scroll {
+  min-height: 0;
+  overflow: auto;
+  padding: 1.5rem;
+}
+
+.page-column {
+  width: 100%;
+  min-width: 0;
+  max-width: var(--page-stack-width);
+  margin-inline: auto;
+}
+
+.page-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.page-stack--flush {
+  max-width: none;
+}
+
+.page-column [data-slot="settings-section"],
+.settings-page [data-slot="settings-section"],
+.page-column .rounded-menu-shell,
+.settings-page .rounded-menu-shell {
+  border-radius: var(--page-card-radius);
+}
+
+.page-column [data-slot="input"]:not(:disabled):not([readonly]),
+.page-column [data-slot="textarea"]:not(:disabled):not([readonly]),
+.page-column [data-slot="native-select"],
+.page-column [data-slot="select-trigger"],
+.page-stack [data-slot="input"]:not(:disabled):not([readonly]),
+.page-stack [data-slot="textarea"]:not(:disabled):not([readonly]),
+.page-stack [data-slot="native-select"],
+.page-stack [data-slot="select-trigger"],
+.settings-page [data-slot="input"]:not(:disabled):not([readonly]),
+.settings-page [data-slot="textarea"]:not(:disabled):not([readonly]),
+.settings-page [data-slot="native-select"],
+.settings-page [data-slot="select-trigger"] {
+  background-color: var(--settings-field-fill);
+}
+
+.page-column [data-slot="native-select"]:hover:not(:disabled),
+.page-column [data-slot="select-trigger"]:hover,
+.page-stack [data-slot="native-select"]:hover:not(:disabled),
+.page-stack [data-slot="select-trigger"]:hover,
+.settings-page [data-slot="native-select"]:hover:not(:disabled),
+.settings-page [data-slot="select-trigger"]:hover {
+  background-color: var(--settings-field-fill-hover);
 }
 
 .tactical-paper-surface {

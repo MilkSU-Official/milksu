@@ -5,6 +5,9 @@
 > 关联：[#15](https://github.com/MilkSU-Official/milksu/issues/15) · [PR 18](https://github.com/MilkSU-Official/milksu/pull/18)
 >
 > 生产页按这里换视觉。旧「战术档案 / 酸绿」稿、`design-qa.md` 和 `docs/design/game-ui/` 已删除，Git 历史可考古，不得再当实现约束。
+>
+> 审查：`AGENTS.md` 要求新增 UI 页面、改产品表面、以及碰到 Vue/CSS/文案的 PR 都按本页审一次。
+> 用户手动改了 UI 时，先问是否更新本页和 `AGENTS.md` 里的设计语言，不要默默改约定，也不要默默打回。
 
 ## 层级
 
@@ -18,6 +21,7 @@
 - CTF、CVE、实验室、Coding 用同一套石墨 + 青。不要用 `--info`、蓝边或蓝底去区分这些模块。
 - 美学校准用谷歌 Material 的读法，不搬 Material 组件：层级先于装饰；颜色是关系；一屏一个焦点。
 - 一级模块轨 `4.75rem` 图标栏。Coding 会话列表贴在同一条导航上。
+- 设置、CTF / CVE / 实验室详情和个人资料的卡片栏共用 `--page-stack-width`（64rem）与 `.page-column` / `.page-stack`。活靶分栏时详情铺满左栏。不要按页面再写 `max-w-3xl` / `5xl` / `6xl`。Coding 对话阅读栏仍用较窄的消息列。
 - 不用纸纹、碳纹、官方 Showcase 的角色图 / 理智条 / 3D 菜单。
 - 命令面（侧栏、会话历史、设置分类、右栏、输入框和菜单）走当前主题 token；事实面（题面、Agent 气泡、通知）走纸面。日间不要再把指挥面钉成夜间石墨。
 - 字体：标题、侧栏、指挥面和正文共用 Inter Variable + Noto Sans SC Variable（SIL OFL）。不用宋体、Noto Serif 或系统 `serif`。

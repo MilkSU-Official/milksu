@@ -327,8 +327,8 @@ onBeforeUnmount(() => stopUsageEvents?.())
 </script>
 
 <template>
-  <main class="profile-page tactical-page min-w-0 flex-1 overflow-y-auto bg-background text-foreground" :aria-label="t('个人资料', 'Profile')">
-    <div class="mx-auto w-full max-w-[1280px] px-6 py-7 lg:px-9">
+  <main class="profile-page tactical-page page-scroll min-w-0 flex-1 bg-background text-foreground" :aria-label="t('个人资料', 'Profile')">
+    <div class="page-column">
       <header class="flex items-center justify-between gap-5 pb-5">
         <div class="flex items-center gap-3">
           <UserRound class="size-6 text-primary" />

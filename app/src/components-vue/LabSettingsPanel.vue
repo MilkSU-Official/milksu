@@ -128,7 +128,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div v-if="settings">
+  <div v-if="settings" class="contents">
     <SettingsSection :title="t('开始之前', 'Before you start')">
       <p class="px-4 py-3 text-body leading-6">{{ headline }}</p>
       <div class="flex flex-wrap gap-2 px-4 pb-4">
@@ -142,7 +142,7 @@ onMounted(() => {
       </div>
     </SettingsSection>
 
-    <SettingsSection :title="t('这台电脑', 'This computer')" class="mt-6">
+    <SettingsSection :title="t('这台电脑', 'This computer')">
       <SettingsRow :label="t('Android SDK', 'Android SDK')" :description="status?.sdkRoot || t('还没找到。安装 Android Studio 时会带上。', 'Not found yet. Android Studio installs this.')">
         <span class="text-caption" :class="status?.sdkRoot ? 'text-muted-foreground' : 'text-destructive'">
           <Check v-if="status?.sdkRoot" class="mr-1 inline size-3.5" />
@@ -172,7 +172,7 @@ onMounted(() => {
       <p v-if="error" class="px-4 pb-3 text-caption text-destructive">{{ error }}</p>
     </SettingsSection>
 
-    <SettingsSection :title="t('创建实验室模拟器', 'Create the lab emulator')" class="mt-6">
+    <SettingsSection :title="t('创建实验室模拟器', 'Create the lab emulator')">
       <SettingsRow
         :label="t('自动创建 MilkSU-Lab', 'Create MilkSU-Lab automatically')"
         :description="t('第一次启动 Android 练习包时，用上面的 SDK 建专用模拟器。日常手机模拟器不会被占用。', 'The first Android practice start creates a dedicated emulator from the SDK above. Your daily phone emulator is left alone.')"
@@ -186,7 +186,7 @@ onMounted(() => {
       </SettingsRow>
     </SettingsSection>
 
-    <SettingsSection :title="t('自定义位置', 'Custom locations')" class="mt-6">
+    <SettingsSection :title="t('自定义位置', 'Custom locations')">
       <SettingsRow
         :label="t('不是默认安装路径', 'Not the default install path')"
         :description="t('只有 SDK 或 Java 不在常见位置时才需要填。新用户可以不管。', 'Fill this in only if the SDK or Java is not in a usual place. New users can ignore it.')"

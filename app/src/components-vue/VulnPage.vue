@@ -670,8 +670,8 @@ function addSearchResult(candidate: VulnerabilitySearchCandidate) {
         :class="liveTargetVisible ? '' : 'flex-1'"
         :style="liveTargetVisible ? { width: `${briefWidth}px`, flex: 'none' } : undefined"
       >
-        <div class="min-h-0 flex-1 overflow-auto">
-        <div class="space-y-5 px-6 py-6" :class="liveTargetVisible ? '' : 'mx-auto max-w-5xl'">
+        <div class="page-scroll flex-1">
+        <div class="page-stack" :class="liveTargetVisible ? 'page-stack--flush' : 'page-column'">
           <SettingsSection :title="t('摘要', 'Summary')">
             <p class="px-4 py-3 text-body leading-6">{{ selectedItem.summary }}</p>
             <SettingsRow v-if="selectedItem.references.length" :label="t('原文', 'Source')">

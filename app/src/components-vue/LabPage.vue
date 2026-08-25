@@ -487,8 +487,8 @@ function abortRename(event: KeyboardEvent) {
         </template>
       </WorkspaceModuleTopBar>
 
-      <section v-if="labTab === 'packages' && selectedPack" class="min-h-0 flex-1 overflow-auto bg-background" :aria-label="t('靶机', 'Target')">
-        <div class="mx-auto flex max-w-5xl flex-col gap-6 px-6 py-6">
+      <section v-if="labTab === 'packages' && selectedPack" class="page-scroll flex-1 bg-background" :aria-label="t('靶机', 'Target')">
+        <div class="page-column page-stack">
           <SettingsSection :title="t('简介', 'Overview')" data-testid="lab-pack-intro">
             <SettingsRow v-if="selectedPack.source" :label="t('来源', 'Source')" :description="selectedPack.source" />
             <SettingsRow v-if="selectedPack.purpose" :label="t('用途', 'Purpose')" :description="selectedPack.purpose" />
@@ -526,8 +526,8 @@ function abortRename(event: KeyboardEvent) {
         </div>
       </section>
 
-      <section v-else-if="labTab === 'packages'" class="min-h-0 flex-1 overflow-auto bg-background" :aria-label="t('题目包', 'Packages')">
-        <div class="mx-auto flex max-w-5xl flex-col gap-8 px-6 py-6">
+      <section v-else-if="labTab === 'packages'" class="page-scroll flex-1 bg-background" :aria-label="t('题目包', 'Packages')">
+        <div class="page-column page-stack">
           <section
             v-for="group in packageGroups"
             :key="group.category"
@@ -647,8 +647,8 @@ function abortRename(event: KeyboardEvent) {
           :class="liveTargetVisible ? '' : 'flex-1'"
           :style="liveTargetVisible ? { width: `${briefWidth}px`, flex: 'none' } : undefined"
         >
-          <div class="min-h-0 flex-1 overflow-auto">
-          <div class="space-y-5 px-6 py-6" :class="liveTargetVisible ? '' : 'mx-auto max-w-5xl'">
+          <div class="page-scroll flex-1">
+          <div class="page-stack" :class="liveTargetVisible ? 'page-stack--flush' : 'page-column'">
             <SettingsSection :title="t('题面', 'Brief')">
               <SettingsRow v-if="boundPackage?.source" :label="t('来源', 'Source')" :description="boundPackage.source" />
               <SettingsRow v-if="boundPackage?.purpose" :label="t('用途', 'Purpose')" :description="boundPackage.purpose" />

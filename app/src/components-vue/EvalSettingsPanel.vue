@@ -425,7 +425,7 @@ const activitySuiteName = computed(() => (
 </script>
 
 <template>
-  <div class="mx-auto w-full max-w-6xl">
+  <div class="w-full">
     <p v-if="error && !running" class="mb-3 text-caption text-destructive">{{ error }}</p>
 
     <div class="tool-workbench mt-2 grid min-h-[640px] border-y border-border">

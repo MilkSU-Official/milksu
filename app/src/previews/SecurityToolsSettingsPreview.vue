@@ -219,8 +219,8 @@ onBeforeUnmount(() => {
           <button type="button" class="settings-nav-item active" aria-current="page">安全工具</button>
         </nav>
 
-        <section class="min-h-0 min-w-0 flex-1 overflow-y-auto px-7 py-8" aria-labelledby="security-tools-title">
-          <div class="mx-auto w-full max-w-6xl">
+        <section class="page-scroll min-w-0 flex-1" aria-labelledby="security-tools-title">
+          <div class="page-column">
             <header class="mb-7">
               <p class="tactical-label text-muted-foreground">Settings</p>
               <h1 id="security-tools-title" class="tactical-display mt-1 text-5xl">安全工具</h1>

@@ -68,6 +68,15 @@ describe('global style contract', () => {
     expect(indexCss).not.toContain('\n.tactical-paper .tactical-acid-panel,\n.tactical-paper-surface .tactical-acid-panel')
   })
 
+  it('keeps one page column width for card stacks', () => {
+    expect(indexCss).toContain('--page-stack-width: 64rem')
+    expect(indexCss).toContain('.page-column {')
+    expect(indexCss).toContain('.page-stack {')
+    expect(indexCss).toContain('.page-scroll {')
+    expect(indexCss).toContain('--settings-field-fill:')
+    expect(indexCss).toContain('--page-card-radius: 0.45rem')
+  })
+
   it('uses the ak-ui cyan action color instead of acid green or the old SaaS blue', () => {
     expect(indexCss).toContain('@import "./styles/ak-ui-flourish.css"')
     expect(indexCss).toContain('--brand: #05a7dc')

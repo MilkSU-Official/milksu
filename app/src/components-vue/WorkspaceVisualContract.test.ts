@@ -11,6 +11,9 @@ import missionOperationSource from './MissionOperationPanel.vue?raw'
 import settingsPageSource from './SettingsPage.vue?raw'
 import tacticalPanelShellSource from './TacticalPanelShell.vue?raw'
 import vulnPageSource from './VulnPage.vue?raw'
+import labPageSource from './LabPage.vue?raw'
+import profilePageSource from './ProfilePage.vue?raw'
+import evalSettingsPanelSource from './EvalSettingsPanel.vue?raw'
 import workspaceRailSource from './WorkspaceRail.vue?raw'
 import ctfArtifactsSource from './CTFArtifacts.vue?raw'
 import ctfPageSource from './CTFPage.vue?raw'
@@ -85,7 +88,6 @@ describe('Workspace visual contract', () => {
     expect(settingsPageSource).toContain('settings-nav-surface')
     expect(settingsPageSource).not.toContain('tactical-dark-surface')
     expect(settingsPageSource).toContain('background-color: var(--background)')
-    expect(settingsPageSource).toContain('--settings-field-fill:')
     expect(settingsPageSource).not.toContain("t('保存设置', 'Save settings')")
     expect(settingsPageSource).not.toContain('bg-[#101418]')
     expect(chatPageSource).toContain("import TacticalPanelShell from '@/components-vue/TacticalPanelShell.vue'")
@@ -106,6 +108,29 @@ describe('Workspace visual contract', () => {
     expect(missionOperationSource).toContain('@container chat-main (max-width: 56rem)')
     expect(missionOperationSource).toContain('overflow-wrap: anywhere')
     expect(domainTaskContextSource).toContain('@container domain-dossier (max-width: 25rem)')
+  })
+
+  it('uses one card column for settings, dossiers, and profile', () => {
+    expect(appStylesSource).toContain('--page-stack-width: 64rem')
+    expect(appStylesSource).toContain('.page-column {')
+    expect(appStylesSource).toContain('.page-stack {')
+    expect(appStylesSource).toContain('--settings-field-fill:')
+    expect(settingsPageSource).toContain('page-column page-stack')
+    expect(settingsPageSource).not.toContain('max-w-3xl')
+    expect(settingsPageSource).not.toContain('max-w-5xl')
+    expect(settingsPageSource).not.toContain('max-w-6xl')
+    expect(evalSettingsPanelSource).not.toContain('max-w-6xl')
+    expect(vulnPageSource).toContain('page-column')
+    expect(vulnPageSource).toContain('page-stack')
+    expect(vulnPageSource).not.toContain('max-w-5xl')
+    expect(labPageSource).toContain('page-column page-stack')
+    expect(labPageSource).not.toContain('max-w-5xl')
+    expect(ctfPageSource).toContain("screen === 'challenge' ? 'h-full' : 'page-column'")
+    expect(ctfPageSource).toContain('class="page-stack"')
+    expect(ctfPageSource).not.toContain('max-w-4xl')
+    expect(ctfPageSource).not.toContain('max-w-5xl')
+    expect(profilePageSource).toContain('page-column')
+    expect(profilePageSource).not.toContain('max-w-[1280px]')
   })
 
   it('keeps hidden menus above content and gives every floating primitive the tactical theme', () => {

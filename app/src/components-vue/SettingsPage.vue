@@ -1323,10 +1323,10 @@ async function saveProviderEditor(closeAfterSave: boolean) {
         </div>
       </nav>
 
-      <div class="min-h-0 min-w-0 flex-1 overflow-y-auto px-6 py-8">
-      <div :class="category === 'cve' || category === 'security-tools' || category === 'eval' ? 'mx-auto w-full max-w-6xl' : category === 'apikeys' ? 'mx-auto w-full max-w-5xl' : 'mx-auto max-w-3xl'">
+      <div class="page-scroll min-w-0 flex-1">
+      <div class="page-column page-stack">
 
-        <Alert v-if="notice" :variant="notice.tone === 'error' ? 'destructive' : 'default'" class="mb-5">
+        <Alert v-if="notice" :variant="notice.tone === 'error' ? 'destructive' : 'default'">
           <AlertCircle v-if="notice.tone === 'error'" class="size-4" />
           <Check v-else class="size-4" />
           <AlertDescription>{{ notice.text }}</AlertDescription>
@@ -1352,7 +1352,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
             </SettingsRow>
           </SettingsSection>
 
-          <SettingsSection :title="t('应用', 'App')" class="mt-6">
+          <SettingsSection :title="t('应用', 'App')">
             <SettingsRow :label="t('界面语言', 'Interface language')">
               <NativeSelect
                 :model-value="working.locale ?? 'zh'"
@@ -1365,7 +1365,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
               </NativeSelect>
             </SettingsRow>
           </SettingsSection>
-          <SettingsSection :title="t('产物', 'Artifacts')" class="mt-6">
+          <SettingsSection :title="t('产物', 'Artifacts')">
             <SettingsRow
               stack="always"
               :label="t('工作产物', 'Work artifacts')"
@@ -1384,7 +1384,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
               </Button>
             </SettingsRow>
           </SettingsSection>
-          <SettingsSection :title="t('本地数据', 'Local data')" class="mt-6">
+          <SettingsSection :title="t('本地数据', 'Local data')">
             <SettingsRow
               stack="always"
               :label="t('数据与备份', 'Data and backups')"
@@ -1473,7 +1473,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
           </SettingsSection>
 
           <!-- Bottom of Settings: sealed/package provenance only; never a fake signature. -->
-          <SettingsSection :title="t('构建追踪', 'Build tracking')" class="mt-10 border-t border-border pt-6">
+          <SettingsSection :title="t('构建追踪', 'Build tracking')" class="border-t border-border pt-6">
             <SettingsRow
               stack="always"
               :label="t('可复制构建追踪', 'Copyable build tracking')"
@@ -1557,7 +1557,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
             </SettingsRow>
           </SettingsSection>
 
-          <SettingsSection title="Skills" class="mt-6">
+          <SettingsSection title="Skills">
             <SettingsRow
               v-for="skill in CODING_SKILLS"
               :key="skill.name"
@@ -1599,7 +1599,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
             </SettingsRow>
           </SettingsSection>
 
-          <SettingsSection :title="t('CTF 平台 Bridge', 'CTF platform bridge')" class="mt-6">
+          <SettingsSection :title="t('CTF 平台 Bridge', 'CTF platform bridge')">
             <SettingsRow
               stack="always"
               :label="t('MilkSU 本地扩展连接', 'MilkSU local extension connection')"
@@ -1654,7 +1654,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
             </SettingsRow>
           </SettingsSection>
 
-          <SettingsSection title="Computer Use" class="mt-6">
+          <SettingsSection title="Computer Use">
             <SettingsRow
               stack="always"
               :label="t('外部 App 权限', 'External app permissions')"
@@ -1835,7 +1835,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
             </div>
           </SettingsSection>
 
-          <section class="mt-8">
+          <section>
             <div class="flex items-center justify-between gap-4">
               <h2 class="text-title font-semibold">{{ t('模型服务', 'Model services') }}</h2>
               <Button
@@ -1926,7 +1926,6 @@ async function saveProviderEditor(closeAfterSave: boolean) {
 
           <SettingsSection
             :title="t('模型能力', 'Model capabilities')"
-            class="mt-8"
           >
             <div class="rounded-lg border border-border bg-muted/30 p-4">
               <div class="flex flex-wrap items-start justify-between gap-4">
@@ -2208,7 +2207,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
               />
             </SettingsRow>
           </SettingsSection>
-          <SettingsSection :title="t('题目浏览器扩展', 'Challenge browser extension')" class="mt-6">
+          <SettingsSection :title="t('题目浏览器扩展', 'Challenge browser extension')">
             <SettingsRow
               :label="t('连接', 'Connection')"
               :description="browserBridgeConnected ? t('已连接', 'Connected') : t('未连接', 'Not connected')"
@@ -2255,27 +2254,6 @@ async function saveProviderEditor(closeAfterSave: boolean) {
   color: #111315;
   background: #05a7dc;
   box-shadow: 0 0 1.4rem color-mix(in srgb, #05a7dc 45%, transparent);
-}
-.settings-page :deep([data-slot="settings-section"]),
-.settings-page :deep(.rounded-menu-shell) { border-radius: .45rem; }
-/*
- * Felinic fields are transparent by default. On --card that reads as a dead
- * gray slab matching the page canvas. Paint an opaque, lifted fill so text
- * fields and choosers look typeable against the settings cards.
- */
-.settings-page {
-  --settings-field-fill: color-mix(in srgb, var(--foreground) 11%, var(--card));
-  --settings-field-fill-hover: color-mix(in srgb, var(--foreground) 16%, var(--card));
-}
-.settings-page :deep([data-slot="input"]:not(:disabled):not([readonly])),
-.settings-page :deep([data-slot="textarea"]:not(:disabled):not([readonly])),
-.settings-page :deep([data-slot="native-select"]),
-.settings-page :deep([data-slot="select-trigger"]) {
-  background-color: var(--settings-field-fill);
-}
-.settings-page :deep([data-slot="native-select"]:hover:not(:disabled)),
-.settings-page :deep([data-slot="select-trigger"]:hover) {
-  background-color: var(--settings-field-fill-hover);
 }
 .model-service-row { transition: background-color 120ms ease, border-color 120ms ease; }
 .model-service-row:hover { background: var(--overlay-hover-light); }

@@ -1875,11 +1875,11 @@ onBeforeUnmount(() => {
     <div
       ref="workspaceScrollArea"
       class="min-h-0 flex-1"
-      :class="screen === 'challenge' ? 'overflow-hidden' : 'overflow-y-auto px-6 py-7'"
+      :class="screen === 'challenge' ? 'overflow-hidden' : 'page-scroll'"
     >
       <div
         class="w-full"
-        :class="screen === 'challenge' ? 'h-full' : screen === 'source' ? 'mx-auto max-w-5xl' : 'mx-auto max-w-5xl'"
+        :class="screen === 'challenge' ? 'h-full' : 'page-column'"
       >
         <ol v-if="ctfSection === 'catalog' && screen === 'source'" class="tactical-paper mx-auto mb-8 grid max-w-3xl grid-cols-3 p-4" :aria-label="t('训练步骤', 'Training steps')">
           <li
@@ -2301,10 +2301,10 @@ onBeforeUnmount(() => {
 
         <section
           v-else-if="ctfSection === 'catalog' && screen === 'challenge' && activeBank === 'custom'"
-          class="h-full overflow-y-auto px-6 py-8"
+          class="page-scroll h-full"
           aria-labelledby="custom-challenge-title"
         >
-          <div class="mx-auto max-w-4xl">
+          <div class="page-column">
             <Button variant="ghost" size="sm" class="mb-4" @click="cancelCustomImport">
               <ArrowLeft class="size-4" />
               {{ t('取消导入并返回题库', 'Cancel import and return to catalog') }}
@@ -2350,10 +2350,10 @@ onBeforeUnmount(() => {
 
         <section
           v-else-if="ctfSection === 'catalog' && screen === 'challenge' && (activeBank === 'hackthebox' || activeBank === 'tryhackme')"
-          class="h-full overflow-y-auto px-6 py-8"
+          class="page-scroll h-full"
           :aria-labelledby="`${activeBank}-platform-title`"
         >
-          <div v-if="activeExternalPlatform" class="mx-auto max-w-4xl">
+          <div v-if="activeExternalPlatform" class="page-column">
             <SettingsSection>
               <div class="px-5 py-6 sm:px-6 sm:py-7">
               <div class="flex flex-wrap items-start justify-between gap-4">
@@ -2395,10 +2395,9 @@ onBeforeUnmount(() => {
 
         <section
           v-else-if="ctfSection === 'catalog' && screen === 'detail'"
-          class="flex min-h-0 flex-1 flex-col overflow-auto"
+          class="page-stack"
           :aria-label="t('题目详情', 'Challenge details')"
         >
-          <div class="mx-auto w-full max-w-5xl space-y-5 px-6 py-6">
           <SettingsSection v-if="selectedProblem" :title="t('题目', 'Challenge')">
             <div class="px-4 py-3">
               <div class="flex flex-wrap items-center gap-2">
@@ -2465,7 +2464,6 @@ onBeforeUnmount(() => {
               </Button>
             </template>
           </SettingsSection>
-          </div>
         </section>
 
         <CTFChallengeDesk
@@ -2540,7 +2538,7 @@ onBeforeUnmount(() => {
           </Alert>
 
           <template v-if="activeProjection">
-            <div class="mx-auto max-w-5xl space-y-5">
+            <div class="page-stack">
             <SettingsSection :title="t('题目', 'Challenge')">
               <div class="px-4 py-3">
                 <div class="flex flex-wrap items-center gap-2">

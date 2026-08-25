@@ -403,8 +403,8 @@ onMounted(() => {
             </template>
           </WorkspaceModuleTopBar>
 
-          <section v-if="labTab === 'packages'" class="min-h-0 flex-1 overflow-auto bg-background" :aria-label="t('题目包', 'Packages')">
-            <div class="flex flex-col gap-8 px-6 py-6">
+          <section v-if="labTab === 'packages'" class="page-scroll flex-1 bg-background" :aria-label="t('题目包', 'Packages')">
+            <div class="page-column page-stack">
               <section
                 v-for="group in packageGroups"
                 :key="group.category"
@@ -462,11 +462,11 @@ onMounted(() => {
           </WorkspaceModuleTopBar>
           <div class="flex min-h-0 flex-1 overflow-hidden" data-dossier-split>
             <div
-              class="min-h-0 min-w-0 overflow-auto"
+              class="page-scroll min-w-0"
               :class="targetOpen && labLease.address ? '' : 'flex-1'"
               :style="targetOpen && labLease.address ? { width: `${briefWidth}px`, flex: 'none' } : undefined"
             >
-              <div class="space-y-5 px-6 py-6" :class="targetOpen && labLease.address ? '' : 'mx-auto max-w-5xl'">
+              <div class="page-stack" :class="targetOpen && labLease.address ? 'page-stack--flush' : 'page-column'">
                 <SettingsSection :title="t('题面', 'Brief')">
                   <SettingsRow
                     stack="always"
@@ -549,11 +549,11 @@ onMounted(() => {
           </WorkspaceModuleTopBar>
           <div class="flex min-h-0 flex-1 overflow-hidden" data-dossier-split>
             <div
-              class="min-h-0 min-w-0 overflow-auto"
+              class="page-scroll min-w-0"
               :class="targetOpen && cveLease.address ? '' : 'flex-1'"
               :style="targetOpen && cveLease.address ? { width: `${briefWidth}px`, flex: 'none' } : undefined"
             >
-              <div class="space-y-5 px-6 py-6" :class="targetOpen && cveLease.address ? '' : 'mx-auto max-w-5xl'">
+              <div class="page-stack" :class="targetOpen && cveLease.address ? 'page-stack--flush' : 'page-column'">
                 <SettingsSection :title="t('摘要', 'Summary')">
                   <SettingsRow
                     stack="always"
