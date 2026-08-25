@@ -54,3 +54,27 @@ Oh My Pi 内核、默认工具表扩张、按用户句子选编辑格式、新�
 ## 删除路径
 
 关掉锚点格式后，行为回到当前 Pi `edit`。补丁库从 Sidecar 依赖拿掉即可。
+
+## 基线实测（当前架构，未实现本切片）
+
+机器：macOS darwin arm64，Node v26.0.0，Pi `@earendil-works/pi-coding-agent` 0.84.1。时间：2026-08-25T10:25:13Z。命令：`node --test sidecar/pi/loop-baseline-edit.test.js`（5 通过）。
+
+构造的用例对 Pi 真实 `createEditTool().execute` 写临时 `sample.ts`：
+
+```ts
+export function greet(name: string) {
+  return `hello ${name}`;
+}
+```
+
+| 用例 | 做法 | 结果 |
+| --- | --- | --- |
+| exact-match | `oldText` 含两个空格缩进，与文件一致 | 成功，`Successfully replaced 1 block(s)`，约 1ms |
+| whitespace-mismatch | 去掉行首空格，子串在文件中仍唯一 | **仍成功**。Pi 匹配的是唯一子串，不是整行。 |
+| indent-tab-vs-spaces | `oldText` 用 tab，文件是空格 | 失败：`must match exactly including all whitespace and newlines`，文件未改 |
+| two-edits-against-original | 两处都相对原始文件 | 成功（Pi 文档：多处 edit 都对原始内容匹配，不是增量） |
+| oldText-not-in-file | `"hello world"` 不存在 | 失败，同一句 exact whitespace 错误 |
+| file-changed-after-read | 文件已改成 `bonjour`，补丁仍用 `hello` | 失败，文件保持 `bonjour` |
+| 重复失败 edit | 同一失败签名连续调用 | 第 **10** 次触发 `createToolRepeatGuard` 终止 |
+
+**Summary：** 当前 Loop 的 `edit` 是精确子串替换，不是 Hashline，也不是 Codex `apply_patch`。缩进/空白不对或文件已变就会整次失败、文件不动；同一失败调用会在第 10 次被刹车。本切片要测的「空转」在实机上成立。没有锚点过期恢复，没有按模型降级。
