@@ -4,6 +4,7 @@ import AkLoadingMark from '@/components-vue/AkLoadingMark.vue'
 import {
   buildChatActivityEntries,
   detailsToggleOpen,
+  visibleChatActivityEntries,
   type ChatActivityBlock,
   type ChatActivityEntry,
 } from '@/lib/chatActivity'
@@ -21,7 +22,10 @@ const emit = defineEmits<{
   toggleEntry: [entryId: string, open: boolean]
 }>()
 
-const toolEntries = computed(() => buildChatActivityEntries(props.activity.messages))
+const toolEntries = computed(() => visibleChatActivityEntries(
+  buildChatActivityEntries(props.activity.messages),
+  props.openEntryIds,
+))
 const entryDetails = new Map<string, HTMLDetailsElement>()
 
 function setEntryDetails(entryId: string, element: unknown) {
@@ -56,7 +60,11 @@ function durationLabel(durationMs?: number) {
 </script>
 
 <template>
-  <div class="tool-activity mb-7" :data-activity-open="open ? 'true' : 'false'">
+  <div
+    v-if="toolEntries.length"
+    class="tool-activity mb-7"
+    :data-activity-open="open ? 'true' : 'false'"
+  >
     <div class="tool-activity__entries">
       <details
         v-for="entry in toolEntries"

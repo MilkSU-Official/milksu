@@ -28,6 +28,11 @@ Third-party software includes, without limitation:
 - ak-ui 0.2.1 (token and scene CSS copied into app/src/styles/).
   https://github.com/YunYouJun/ak-ui
   Copyright (c) 2019 云游君. MIT.
+- Beautiful UI (https://www.beautifului.dev/, https://github.com/slev12397/beautiful-ui).
+  Copyright Shane Levine, 2026. MIT.
+  Coding Agent conversation design language. MilkSU ports interaction
+  patterns into Vue; it does not vendor the React gallery, globals.css,
+  or paid @central-icons-react.
 - Pi extensions (pi-goal, pi-lsp, pi-mcp-adapter, pi-sub-agent,
   pi-better-background-tasks). MIT.
 - Cua Computer Use driver. Copyright Cua AI, Inc. MIT.

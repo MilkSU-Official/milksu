@@ -39,8 +39,7 @@ function conversationWithTools(id: string): Conversation {
     createdAt: 1,
     messages: [
       { id: `${id}-user`, role: 'user', content: '做点事', timestamp: 1, status: 'done' },
-      tool(`${id}-t1`, '$ npm test', { toolCallId: `${id}-call-1` }),
-      tool(`${id}-t1-result`, 'ok', { toolCallId: `${id}-call-1` }),
+      tool(`${id}-t1`, '$ npm test', { toolCallId: `${id}-call-1`, status: 'running' }),
     ],
   }
 }

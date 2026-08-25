@@ -207,6 +207,7 @@ MilkSU 的 Agent 循环、记忆分层、视觉和界面行为分别建立在这
 | [Pi](https://github.com/earendil-works/pi) | 通用 Agent 会话、上下文压缩和工具循环。当前固定 `@earendil-works/pi-coding-agent` 0.84.1 | MIT |
 | [Obelisk](https://github.com/tommy0103/obelisk) | 本地会话记忆与学习记录的分层参考。MilkSU 以 AGPL-3.0-only 发布，以便嵌入该组件 | AGPL-3.0 |
 | [ak-ui](https://github.com/YunYouJun/ak-ui) | 生产视觉：石墨指挥面、纸面事实、青与金。当前固定 0.2.1 的 token 与场景 CSS | MIT |
+| [Beautiful UI](https://www.beautifului.dev/) | Coding Agent 对话区的设计语言。MIT copy-paste 原语（思考、工具行、审批、Prompt 岛、代码块等）；不引入其 React 运行时或付费图标 | MIT |
 | [Felinic](https://github.com/memohai/ui) | Vue 组件库与交互行为，以 `packages/ui` 子模块引入 `@felinic/ui` | 上游未附 SPDX |
 
 桌面壳还使用 Electron、Vue、xterm.js、Playwright MCP、Archify、Cua 等，详见 NOTICE。

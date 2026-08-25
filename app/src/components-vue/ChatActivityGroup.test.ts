@@ -92,7 +92,8 @@ describe('ChatActivityGroup', () => {
     await nextTick()
 
     expect(host.textContent).toContain('点击播放')
-    expect(host.querySelectorAll('.tool-activity-entry').length).toBe(2)
+    expect(host.textContent).not.toContain('打开首页')
+    expect(host.querySelectorAll('.tool-activity-entry').length).toBe(1)
   })
 
   it('keeps a manually collapsed entry collapsed while results stream in', async () => {
@@ -119,17 +120,16 @@ describe('ChatActivityGroup', () => {
     activity.running = false
     await nextTick()
 
-    expect(host.querySelector<HTMLDetailsElement>('.tool-activity-entry')?.open).toBe(false)
+    expect(host.querySelector('.tool-activity-entry')).toBeNull()
   })
 
   it('keeps an expanded tool entry open and restores it after remount', async () => {
     const activity = reactive<ChatActivityBlock>({
       kind: 'activity',
       id: 'activity:t1',
-      running: false,
+      running: true,
       messages: [
-        tool('t1', '打开首页', { toolCallId: 'call-1' }),
-        tool('t1-result', 'ok', { toolCallId: 'call-1' }),
+        tool('t1', '打开首页', { toolCallId: 'call-1', status: 'running' }),
       ],
     })
     const { host, expansion } = mountControlledGroup(activity)
@@ -139,6 +139,14 @@ describe('ChatActivityGroup', () => {
     entry?.querySelector('summary')?.click()
     await settleToggle()
     expect(entry?.open).toBe(true)
+
+    activity.messages = [
+      tool('t1', '打开首页', { toolCallId: 'call-1' }),
+      tool('t1-result', 'ok', { toolCallId: 'call-1' }),
+    ]
+    activity.running = false
+    await nextTick()
+    expect(host.querySelector<HTMLDetailsElement>('.tool-activity-entry')?.open).toBe(true)
     expect(host.textContent).toContain('ok')
 
     const savedExpansion = expansion.value
@@ -160,10 +168,9 @@ describe('ChatActivityGroup', () => {
     const activity = reactive<ChatActivityBlock>({
       kind: 'activity',
       id: 'activity:t1',
-      running: false,
+      running: true,
       messages: [
-        tool('t1', '打开首页', { toolCallId: 'call-1' }),
-        tool('t1-result', 'ok', { toolCallId: 'call-1' }),
+        tool('t1', '打开首页', { toolCallId: 'call-1', status: 'running' }),
       ],
     })
     const { host } = mountControlledGroup(activity)

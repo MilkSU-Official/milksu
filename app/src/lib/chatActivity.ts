@@ -324,6 +324,13 @@ export function chatActivitySummary(messages: Message[]) {
   return parts.join('')
 }
 
+export function visibleChatActivityEntries(
+  entries: ChatActivityEntry[],
+  openEntryIds: ReadonlySet<string>,
+): ChatActivityEntry[] {
+  return entries.filter(entry => entry.running || openEntryIds.has(entry.id))
+}
+
 export function buildChatActivityEntries(messages: Message[]): ChatActivityEntry[] {
   const entries: ChatActivityEntry[] = []
   const pendingByCallID = new Map<string, ChatActivityEntry>()

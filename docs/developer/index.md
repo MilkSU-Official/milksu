@@ -36,7 +36,7 @@
 
 ## Target（未实现）
 
-- [Coding 对话：Beautiful UI 原语对照](/developer/coding-chat-beautiful-ui)：对话区已按 Agent 循环重做（思考条、工具行、扁平审批、Prompt 岛；除代码块外不加对话卡片）。设计语言第 6 层只管这一面，设置/列表仍走 ak-ui。
+- [Coding 对话：Beautiful UI 原语对照](/developer/coding-chat-beautiful-ui)：Beautiful UI 是 Coding Agent 对话区的设计语言。第 6 层只管这一面，设置/列表仍走 ak-ui。
 
 ## 长期设计（不是禁令）
 

@@ -239,6 +239,8 @@ const emit = defineEmits<{
   ]
   changeMcpServers: [servers: string[], configDigest: string]
   respondApproval: [requestId: string, approved: boolean, scope?: 'once' | 'conversation']
+  editUser: [messageId: string, content: string]
+  branchAssistant: [messageId: string]
   compactContext: []
   newConversation: []
   controlGoal: [action: 'pause' | 'resume' | 'clear']
@@ -2223,6 +2225,8 @@ defineExpose({
             :recovery-context="ctfSession ? 'ctf' : 'coding'"
             @respond-approval="(requestId, approved, scope) => $emit('respondApproval', requestId, approved, scope)"
             @retry="resumeAfterFailure"
+            @edit-user="(messageId, content) => $emit('editUser', messageId, content)"
+            @branch-assistant="messageId => $emit('branchAssistant', messageId)"
           />
         </template>
         <p v-if="waitingForModel && !compacting" class="chat-model-loading">

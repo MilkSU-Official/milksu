@@ -37,6 +37,37 @@
   width: 100%;
 }
 
+[data-agent-conversation] .agent-turn-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  margin-top: 0.35rem;
+  opacity: 0;
+}
+
+[data-agent-conversation] .agent-turn:hover .agent-turn-actions,
+[data-agent-conversation] .agent-turn:focus-within .agent-turn-actions,
+[data-agent-conversation] .agent-turn-actions--visible {
+  opacity: 1;
+}
+
+[data-agent-conversation] .agent-turn--user .agent-turn-actions {
+  justify-content: flex-end;
+}
+
+[data-agent-conversation] .agent-turn-actions button {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--muted-foreground);
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+[data-agent-conversation] .agent-turn-actions button:hover {
+  color: var(--foreground);
+}
+
 [data-agent-conversation] .agent-user {
   width: fit-content;
   max-width: 80%;
@@ -44,6 +75,27 @@
   border: 0;
   background: transparent;
   padding: 0;
+}
+
+[data-agent-conversation] .agent-user-edit {
+  display: flex;
+  width: 80%;
+  max-width: 80%;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-left: auto;
+}
+
+[data-agent-conversation] .agent-user-edit__input {
+  width: 100%;
+  min-height: 4.5rem;
+  resize: vertical;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  line-height: 1.55;
 }
 
 [data-agent-conversation] .agent-answer {

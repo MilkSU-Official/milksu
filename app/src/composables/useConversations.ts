@@ -208,6 +208,7 @@ interface RuntimeTurnDispatch {
   attachments: CodingAttachment[]
   scopeToken?: ComposerScopeToken
   productAction?: CodingProductActionRequest
+  branchFromUserOccurrence?: number
 }
 
 export interface CodingMessageQueue {
@@ -885,6 +886,7 @@ export function useConversations() {
       mcpConfigDigest: conversation.mcpConfigDigest ?? '',
       attachments: dispatch.attachments,
       productAction: dispatch.productAction,
+      branchFromUserOccurrence: dispatch.branchFromUserOccurrence,
     })
   }
 
@@ -1233,6 +1235,7 @@ export function useConversations() {
     attachments: CodingAttachment[] = [],
     scopeToken?: ComposerScopeToken,
     productAction?: CodingProductActionRequest,
+    branchFromUserOccurrence = -1,
   ) {
     const prompt = text.trim()
     if (!prompt) return false
@@ -1356,6 +1359,9 @@ export function useConversations() {
         attachments,
         scopeToken,
         productAction,
+        branchFromUserOccurrence: branchFromUserOccurrence >= 0
+          ? branchFromUserOccurrence
+          : undefined,
       }
       await invokeRuntimeTurn(conversationId, dispatch)
       void generateConversationTitle(conversationId)
@@ -1456,6 +1462,61 @@ export function useConversations() {
       // Naming is best effort. The primary Coding turn and its recovery state
       // must remain independent from this silent projection.
     }
+  }
+
+  async function editAndResend(messageId: string, content: string) {
+    const conversation = active.value
+    if (!conversation) return false
+    const index = conversation.messages.findIndex(item => (
+      item.id === messageId && item.role === 'user'
+    ))
+    if (index < 0) return false
+    const occurrence = conversation.messages
+      .slice(0, index + 1)
+      .filter(item => item.role === 'user' && item.status !== 'queued')
+      .length - 1
+    if (runningIds.value.has(conversation.id)) finishRun(conversation.id)
+    update(conversation.id, current => ({
+      ...current,
+      messages: current.messages.slice(0, index),
+    }))
+    return send(content, content, [], undefined, undefined, Math.max(0, occurrence))
+  }
+
+  async function branchFromAssistant(messageId: string) {
+    const conversation = active.value
+    if (!conversation) return false
+    const index = conversation.messages.findIndex(item => (
+      item.id === messageId && item.role === 'assistant'
+    ))
+    if (index < 0) return false
+    const occurrence = conversation.messages
+      .slice(0, index + 1)
+      .filter(item => item.role === 'assistant')
+      .length - 1
+    let sessionId = ''
+    try {
+      sessionId = String(await invokeCommand('fork_conversation', {
+        conversationId: conversation.id,
+        role: 'assistant',
+        occurrence: Math.max(0, occurrence),
+      })).trim()
+    } catch {
+      return false
+    }
+    if (!sessionId) return false
+    const firstUser = conversation.messages.find(item => item.role === 'user')
+    const forked: Conversation = {
+      ...conversation,
+      id: sessionId,
+      title: fallbackConversationTitle(firstUser?.content ?? conversation.title),
+      createdAt: Date.now(),
+      messages: conversation.messages.slice(0, index + 1).map(item => ({ ...item })),
+    }
+    conversations.value = [forked, ...conversations.value]
+    activeId.value = sessionId
+    persist(forked)
+    return true
   }
 
   async function abort(id: string) {
@@ -2078,6 +2139,8 @@ export function useConversations() {
     load,
     listen,
     send,
+    editAndResend,
+    branchFromAssistant,
     abort,
     settleRunsForRuntimeRecovery,
     compactContext,

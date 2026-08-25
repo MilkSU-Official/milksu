@@ -1030,6 +1030,7 @@ func (a *App) SendMessage(
 	mcpServers []string,
 	attachments []codingattachment.Attachment,
 	productAction *engine.CodingProductActionDescriptor,
+	branchFromUserOccurrence int,
 ) error {
 	resolvedWorkspace, err := a.resolveConversationWorkspace(conversationID, workspacePath)
 	if err != nil {
@@ -1116,7 +1117,7 @@ func (a *App) SendMessage(
 		return err
 	}
 	a.engines.SetSecurityTools(a.securityTools.RuntimeTools(a.commandContext()))
-	return a.engines.SendMessageWithProductAction(
+	return a.engines.SendMessageWithBranch(
 		conversationID,
 		prompt,
 		workspacePath,
@@ -1130,9 +1131,14 @@ func (a *App) SendMessage(
 		codingCollaboration,
 		attachments,
 		productAction,
+		branchFromUserOccurrence,
 		settings,
 		modelSourcePreference,
 	)
+}
+
+func (a *App) ForkConversation(conversationID, role string, occurrence int) (string, error) {
+	return a.engines.ForkSession(conversationID, role, occurrence)
 }
 
 func (a *App) resolveConversationWorkspace(conversationID, requested string) (string, error) {

@@ -84,6 +84,7 @@ import {
   isComputerUseMcpToolName,
 } from "./bridge-computer-use-routing.js";
 import { disposeAgentSession } from "./bridge-session-lifecycle.js";
+import { forkFromMessage, navigateFromUserMessage } from "./bridge-session-tree.js";
 import { createCTFTruncationContinuationExtension } from "./bridge-ctf-continuation.js";
 import {
   compactSession,
@@ -1622,6 +1623,15 @@ async function sendMessage(command) {
     // the next prompt so Pi never runs a prompt against a session that is
     // mid-compaction. Compaction is bounded, so this wait cannot hang forever.
     await waitForCompaction(compactionRuns, conversationId);
+    if (command.branchFromUserOccurrence !== undefined) {
+      try {
+        await session.abort();
+      } catch {
+        // Restarting from an earlier user message should not fail because the
+        // previous turn was already idle.
+      }
+      await navigateFromUserMessage(session, Number(command.branchFromUserOccurrence));
+    }
     await compactIfContextNearLimit(conversationId, session);
     const attachmentRoot = process.env.MILKSU_CODING_ATTACHMENT_ROOT;
     const supportsImages = Array.isArray(session.model?.input)
@@ -1688,6 +1698,31 @@ async function abortSession(command) {
   // the UI (finishRun is idempotent). If abort raced past agent_settled, this
   // closes the desktop run clock without inventing assistant text.
   emit(conversationId, "turn_settled");
+}
+
+async function forkSessionCommand(command) {
+  const conversationId = String(command.conversationId ?? "").trim();
+  const requestId = String(command.requestId ?? "").trim();
+  try {
+    if (!conversationId) throw new Error("conversationId is required");
+    if (!requestId) throw new Error("requestId is required");
+    const session = sessions.get(conversationId) ?? await createSession(command);
+    const forked = forkFromMessage(
+      session,
+      command.role === "assistant" ? "assistant" : "user",
+      Number(command.occurrence ?? 0),
+    );
+    emit(conversationId, "session_forked", {
+      requestId,
+      forkedSessionId: forked.sessionId,
+      path: forked.path,
+    });
+  } catch (error) {
+    emit(conversationId || null, "session_forked", {
+      requestId,
+      error: describeError(error),
+    });
+  }
 }
 
 async function destroySession(command) {
@@ -2042,6 +2077,9 @@ async function handleCommand(command) {
       break;
     case "destroy_session":
       await destroySession(command);
+      break;
+    case "fork_session":
+      await forkSessionCommand(command);
       break;
     default:
       throw new Error(`Unknown action: ${command.action}`);

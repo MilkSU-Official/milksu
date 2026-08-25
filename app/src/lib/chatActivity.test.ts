@@ -3,6 +3,7 @@ import {
   applyAssistantThinkingEvent,
   applyCodingToolEvent,
   buildChatActivityEntries,
+  visibleChatActivityEntries,
   buildChatTranscript,
   chatActivityEntrySummary,
   chatActivitySummary,
@@ -496,5 +497,18 @@ describe('applyCodingToolEvent', () => {
       target: parent,
       currentTarget: parent,
     } as unknown as Event)).toBe(true)
+  })
+
+  it('hides finished tools unless the user expanded them', () => {
+    const entries = buildChatActivityEntries([
+      message('t1', 'tool', 'README.md', { toolName: 'read', toolCallId: 'c1', status: 'done' }),
+      message('t1r', 'tool', 'ok', { toolName: 'read', toolCallId: 'c1', status: 'done' }),
+      message('t2', 'tool', 'src', { toolName: 'read', toolCallId: 'c2', status: 'running' }),
+    ])
+    const hidden = visibleChatActivityEntries(entries, new Set())
+    expect(hidden).toHaveLength(1)
+    expect(hidden[0]?.running).toBe(true)
+    const kept = visibleChatActivityEntries(entries, new Set([entries[0]!.id]))
+    expect(kept).toHaveLength(2)
   })
 })

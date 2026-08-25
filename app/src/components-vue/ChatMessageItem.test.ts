@@ -209,4 +209,39 @@ describe('ChatMessageItem', () => {
     })
     expect(done.host.querySelector('.ak-loading')).toBeNull()
   })
+
+  it('lets the user copy or edit a prompt and copy or branch an answer', async () => {
+    const user = await mountMessage({
+      id: 'user-actions',
+      role: 'user',
+      content: '列出仓库',
+      timestamp: Date.now(),
+    })
+    expect(user.host.textContent).toContain('复制')
+    expect(user.host.textContent).toContain('编辑')
+    expect(user.host.textContent).not.toContain('分叉到新对话')
+
+    const assistant = await mountMessage({
+      id: 'assistant-actions',
+      role: 'assistant',
+      content: '这是一个仓库。',
+      timestamp: Date.now(),
+    })
+    expect(assistant.host.textContent).toContain('复制')
+    expect(assistant.host.textContent).toContain('分叉到新对话')
+    expect(assistant.host.textContent).not.toContain('编辑')
+  })
+
+  it('hides a finished approval unless the user opened it', async () => {
+    const { host } = await mountMessage({
+      id: 'message-approved',
+      role: 'tool',
+      content: 'bash · echo hi',
+      timestamp: 1,
+      toolName: 'bash',
+      approvalRequestId: 'approval-done',
+      approvalState: 'approved',
+    })
+    expect(host.querySelector('.agent-approve')).toBeNull()
+  })
 })

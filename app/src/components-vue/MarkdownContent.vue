@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { invokeCommand } from '@/desktop'
 import { renderMarkdown } from '@/lib/markdown'
+import { t } from '@/lib/uiLocale'
 
 const props = withDefaults(defineProps<{
   content: string
@@ -11,6 +12,44 @@ const props = withDefaults(defineProps<{
 })
 
 const html = computed(() => renderMarkdown(props.content))
+const host = ref<HTMLElement | null>(null)
+
+function decorateCodeBlocks() {
+  const root = host.value
+  if (!root) return
+  for (const pre of root.querySelectorAll('pre')) {
+    if (pre.parentElement?.classList.contains('agent-code')) continue
+    const wrap = document.createElement('div')
+    wrap.className = 'agent-code'
+    pre.replaceWith(wrap)
+    const copy = document.createElement('button')
+    copy.type = 'button'
+    copy.className = 'agent-code__copy'
+    copy.textContent = t('复制', 'Copy')
+    copy.addEventListener('click', async event => {
+      event.preventDefault()
+      try {
+        await navigator.clipboard.writeText(pre.innerText)
+        copy.textContent = t('已复制', 'Copied')
+        window.setTimeout(() => {
+          copy.textContent = t('复制', 'Copy')
+        }, 1500)
+      } catch {
+        copy.textContent = t('复制', 'Copy')
+      }
+    })
+    wrap.append(copy, pre)
+  }
+}
+
+onMounted(() => {
+  decorateCodeBlocks()
+})
+
+watch(html, async () => {
+  await nextTick()
+  decorateCodeBlocks()
+})
 
 async function openLink(event: MouseEvent) {
   const target = event.target
@@ -37,6 +76,7 @@ async function openLink(event: MouseEvent) {
 
 <template>
   <div
+    ref="host"
     class="markdown-content break-words"
     :class="{ 'markdown-content-compact': compact }"
     @click="openLink"
@@ -132,6 +172,22 @@ async function openLink(event: MouseEvent) {
   padding: 0.08rem 0.32rem;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.88em;
+}
+
+.markdown-content :deep(.agent-code) {
+  position: relative;
+}
+
+.markdown-content :deep(.agent-code__copy) {
+  position: absolute;
+  top: 0.45rem;
+  right: 0.55rem;
+  z-index: 1;
+  border: 0;
+  background: transparent;
+  color: #c5c9d1;
+  font-size: 0.68rem;
+  cursor: pointer;
 }
 
 .markdown-content :deep(pre) {

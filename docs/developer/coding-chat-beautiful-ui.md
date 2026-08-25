@@ -38,27 +38,32 @@ MilkSU 对话面已经有完整产品职责，只是形态偏通用指挥面：
 
 对方 `package.json` 还依赖 `motion`、`glimm`、`cuelume`、`dialkit`、`liveline`，以及 **付费** `@central-icons-react`（`SidebarNav` 在 `npm install` 时做许可证检查）。这些都不能进 MilkSU 产品链。
 
-## 原语对照
+## 原语对照（图库 01–20）
 
-图库首页 12 块，加上仓库里未上首页的原语。判定只针对 **Coding 对话框**，不是整站换皮。
+Beautiful UI 是 **Coding Agent 对话区的设计语言**。编号跟对方 `lib/meta.ts`。判定针对对话区；设置/列表/模块轨仍走 ak-ui。交互骨架要沿用，React 演示、冰淇淋主题、付费 Central Icons 和假置信度不进产品。
 
-| Beautiful UI | MilkSU 当前 | 判定 | 沿用什么 |
-| --- | --- | --- | --- |
-| **Tool Chips** | `ChatActivityGroup` 把工具输入/结果整段倒进 `<pre>` | **优先沿用交互，去掉芯片卡片** | 一行文字（`Read greet.ts`、`Edit +13 −41`），点开再看原文。语义仍绑 Pi 工具事件，不播演示节拍，外层不加圆角卡片。 |
-| **Thinking**（Steps / Reasoning / Search / Coding） | Composer 有思考档位滑块；对话区没有可展开推理轨迹 | **有事件才沿用** | 可展开「想了 Ns」+ 步骤 / 检索 / 编码轨迹。没有 Pi reasoning / step 事件就不要演一段假思考。 |
-| **Approval Card** | `ChatMessageItem` 的 `ak-notice`：拒绝 / 允许这一次 / 本对话始终允许 | **沿用语义，去掉卡片壳** | 同一列标题 + 按钮。选项必须仍是 MilkSU 审批策略（once / conversation、grantable）。不要换成多选题问卷，也不要 HITL 圆角卡片。 |
-| **Prompt Bar** | `ChatComposer` 已经有 `@`/`/`、附件、模型、发送 | **沿用密度，不换职责** | 岛状输入、@ 来源菜单、/ 命令、模型选择。保留上下文环、steer 队列、思考档位、审批策略、Skill / Scope。不要 `glimm` 彩虹扫光，也不要 Figma / Slack / Gmail 连接器。听写要三端权限面，本切片不做。 |
-| **Streaming Text** | `MarkdownContent` 一次渲染整段 Markdown | **部分沿用** | 流式过程中的稳定排版；回答结束后的来源链接，且来源必须来自真实 `web_search` / `web_fetch`。追问可以接 Composer，但空画布不许写「还没有 / 打开以后会出现」式教练文案。不要 blur-to-text 表演。 |
-| **Loading State** | `AkLoadingMark` + Composer 运行时长 | **弱沿用** | 保留「进行中 + 已用时间」。像素格 Drive / Dots / Orbit / Surfer 和 meme 视频不进产品。 |
-| **Task Rows** | `AgentExecutionPlan` | **形态可并** | 进行中 / 失败 / 完成 + 可展开子步骤。不要和第二套工具组抢事件；计划仍来自 `milksu_progress`。 |
-| **Chat**（带标签的整页 harness） | `ChatPage` + 轨上会话列表 + `ConversationDock` | **不替换** | 我们已有会话轨和小窗。不要冰淇淋主题的 Flavors / Suppliers 标签页。 |
-| **CodeBlock** | `MarkdownContent` 的 `<pre>` | **可沿用壳** | 语言标记、复制、行内等宽。高亮走现有 Markdown 管道，不引入对方写死的 token 调色。 |
-| **Context Cards** | `DomainTaskContextPanel`、CTF 题面 / 证据；对话里没有 RAG 卡片 | **领域有块再做** | 检索块 + 来源文件名的形态，可投影 Evidence / Memory / 附件切片。没有检索子系统就不要空卡片。 |
-| **Recommendation Card** | 无；MCP 审阅是设置/环境里的 `SettingsSection` | **默认不做** | 假置信度条会把内部阈值漏到用户文案。Agent 建议继续用审批操作或计划行。 |
-| **Diff Table** | `CodingChangesPanel` 是文件 diff，不是表行编辑 | **不进对话区** | 「点行切换是否应用」可作右栏审阅参考，不把 CRM 表塞进气泡。 |
-| **Records Table** / **FilterTable** | CTF / CVE / 实验室列表已有指挥面 | **对话框外** | 不换列表页。 |
-| **SidebarNav** | `WorkspaceRail` | **禁止** | 壳层已有模块轨。该原语绑付费 Central Icons。 |
-| **FineTuneCard** / **InsightCards** / **GlideMenu** / **Flowchart** / **SearchList** / **SelectionActions** | 无对应对话职责 | **不做** | Fine-tune 不是产品面。流程图已有 `milksu_archify`。 |
+| # | Beautiful UI | 现在用到了吗 | 有没有必要 | 怎么用 |
+| --- | --- | --- | --- | --- |
+| 01 | **Loading State** | 有。`AkLoadingMark` + Composer 时长 | 要 | 保留进行中 + 已用时间。不要像素格 Drive / Dots / Orbit / Surfer。 |
+| 02 | **Thinking** | 有。对话区「想了 Ns」，正文来自 Pi `thinking_*` | 要 | 可展开思考条，不包进回复卡片，不演假步骤。 |
+| 03 | **Streaming Text** | 有。`MarkdownContent` 流式正文 | 要 | 稳定排版；来源只接线真实 `web_search` / `web_fetch`。助手回复可复制、可分叉。 |
+| 04 | **Approval Card** | 有。拒绝 / 允许这一次 / 本对话始终允许 | 要 | 同一列标题 + 按钮，不加卡片壳。跑完默认隐藏，用户展开过的不刷回去。 |
+| 05 | **Tool Chips** | 有。`Read greet.ts` / `Edit +N -N` 一行文字 | 要 | 外层不加芯片卡片。跑完默认隐藏；用户点开过的保持可见。 |
+| 06 | **Task Rows** | 有。`AgentExecutionPlan` / `milksu_progress` | 要 | 进行中 / 失败 / 完成。计划仍来自 Pi 事件，不另造循环。 |
+| 07 | **Chat** | 有。`ChatPage` + 轨上会话列表 + `ConversationDock` | 要 | 保留现有会话轨和小窗。不要冰淇淋 Flavors 标签页。用户消息可编辑/复制；编辑后从该条重新开始。 |
+| 08 | **Prompt Bar** | 有。`ChatComposer` 岛：`@` `/` 附件 模型 发送 | 要 | 沿用密度，保留上下文环、steer、思考档位、审批策略。不要 `glimm` 扫光和外部 SaaS 连接器。 |
+| 09 | **Recommendation Card** | 未进对话区。MCP 审阅在设置 | 以后要用 | Agent 建议、MCP、计划选项可走这一形态。**不要**假置信度条。 |
+| 10 | **Context Cards** | 部分。`DomainTaskContextPanel`、题面/证据在右栏或档案 | 要 | 检索块、附件切片、压缩保留了哪些文件，用这一形态投影。没有检索事实就不要空卡片。 |
+| 11 | **Diff Table** | 有，但不在对话区。`CodingChangesPanel` | 要（右栏） | 继续放右栏 Git diff。不把 CRM 表塞进对话。 |
+| 12 | **Records Table** | 列表页已有指挥面 | 对话区外 | 不换 CTF / CVE / 实验室列表。 |
+| 13 | **Filter Table** | `.ak-segmented` 列表筛选 | 对话区外 | 列表指挥面继续用现有 segmented。 |
+| 14 | **Sidebar Nav** | 有两层：模块轨 `WorkspaceRail`，Coding 历史 `ContextSidebar` | 要 | Coding 会话列表沿用可折叠 + 搜索的交互。**不要**替换一级模块轨，**不要**引入付费 `@central-icons-react`。 |
+| 15 | **Search** | 有。Coding 历史「搜索任务」 | 要 | 会话/任务即时过滤。以后可接到 `@` 项目文件模糊查找（Pi 已有）。 |
+| 16 | **Flowchart** | 有能力。`milksu_archify` 画架构图 | 要 | Agent 画出的流程/架构走这一形态，不要另做一套画布。 |
+| 17 | **Insight Cards** | 部分。上下文环、资料页度量 | 要 | 会话用量、压缩、工具循环洞察可分页投影。不要把内部阈值写进用户文案。 |
+| 18 | **Code Block** | 有。`MarkdownContent` `<pre>` 深色块 | 要 | 语言标记 + 复制。高亮走现有 Markdown，不引入对方写死的 token 调色。 |
+| 19 | **Fine-tune Card** | 无 | 产品面出现再用 | 设计/参数检查器。现在没有微调产品面，不预建。 |
+| 20 | **Selection Actions** | 正在落到消息操作 | 要 | 划词/悬停后复制、编辑、分叉给 Agent。不要做成第二套气泡菜单卡片。 |
 
 ## 设计语言分叉（动手前必须选定）
 
@@ -109,7 +114,7 @@ Pi 助手消息的 content 是分类型的：`text` / `thinking` / `image` / `to
 | **Context Cards** 检索块 | 压缩 `fileOps` / read-files / modified-files；附件切片 | compacting 只有「正在整理上下文」，没有文件清单 | 压缩结束给一条横幅：整理了哪些旧消息、保留哪些文件 |
 | **Prompt Bar** @ / / / 模型 / 队列 | TUI：`@` 文件、`/` 命令、Shift+Tab 思考档、Enter 转向、Alt+Enter 追问、`!command` | Composer 已有 slash、附件、模型、steer 队列、上下文环 | 岛状密度；补 `@` 项目文件模糊查找（Pi 已有，桌面未做） |
 | **CodeBlock** | 助手 Markdown / 工具里的代码 | `MarkdownContent` `<pre>`，无复制条 | 语言 + 复制，高亮仍走现有 Markdown |
-| **Chat / 会话树** | `/tree` `/fork` `/clone` `/resume`；session JSONL 是树 | 会话列表在轨上；没有「从某条用户消息分叉」 | 本切片不做树导航，只记缺口 |
+| **Chat / 会话树** | `/tree` `/fork` `/clone` `/resume`；session JSONL 是树 | 用户消息可编辑后从该条重开（Pi `navigateTree`）；助手回复可分叉新对话（Pi `createBranchedSession`） | 不另做会话树浏览 UI；编辑/分叉走 Pi 原语 |
 | **Loading** 进行中 + 时长 | 回合计时、tool duration | `AkLoadingMark` + Composer 时长 | 保留时长；不要像素格 |
 
 Pi TUI 还有、Beautiful UI 没有单独原语、桌面也几乎没画的：编辑器边框色随思考档位变化、页脚 cost、隐藏思考标签、`!` / `!!` shell、把上一轮助手消息复制出来。这些不从该图库反推，不塞进本切片。
@@ -162,6 +167,7 @@ Pi TUI 还有、Beautiful UI 没有单独原语、桌面也几乎没画的：编
 - [x] 合同测试锁住依赖与 token 边界。
 - [x] 选定设计语言：对话区单独成为第 6 层，设置/列表仍走 ak-ui。
 - [x] 对话区实现思考条、工具行、扁平审批、压缩状态条；Pi `thinking_*` 已投影。除代码块外不加对话卡片。
+- [x] Beautiful UI 01–20 已审：对话区设计语言即该库；模块轨/列表仍走 ak-ui。
 - [ ] 未在桌面点选真实工具回合之前，不把换皮写成已发行完成。
 
 ## 非目标
@@ -178,4 +184,4 @@ Pi TUI 还有、Beautiful UI 没有单独原语、桌面也几乎没画的：编
 
 ## UI
 
-对话区已换成思考条、工具行、扁平审批和岛状 Composer；用户消息与工具不加圆角卡片。文案继续 `t('中文', 'English')`。
+Beautiful UI 是 Coding Agent 对话区的设计语言。对话区是思考条、工具行、扁平审批、岛状 Composer 和代码块；跑完的工具默认隐藏。用户消息可编辑/复制，助手回复可复制/分叉。文案继续 `t('中文', 'English')`。

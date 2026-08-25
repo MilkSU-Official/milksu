@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { Button } from '@felinic/ui'
 import { invokeCommand } from '@/desktop'
 import {
@@ -21,10 +21,69 @@ const props = defineProps<{
   recoveryContext?: 'coding' | 'ctf'
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   respondApproval: [requestId: string, approved: boolean, scope?: 'once' | 'conversation']
   retry: []
+  editUser: [messageId: string, content: string]
+  branchAssistant: [messageId: string]
 }>()
+
+const editing = ref(false)
+const draft = ref('')
+const copied = ref(false)
+const approvalPinned = ref(false)
+let copyReset = 0
+
+const showApproval = computed(() => (
+  props.message.role === 'tool'
+  && Boolean(props.message.approvalRequestId)
+  && (props.message.approvalState === 'pending' || approvalPinned.value)
+))
+
+const showMessageActions = computed(() => (
+  !editing.value
+  && (
+    props.message.role === 'user'
+    || (props.message.role === 'assistant' && Boolean(props.message.content?.trim()))
+  )
+))
+
+function startEdit() {
+  if (props.message.role !== 'user') return
+  draft.value = props.message.content
+  editing.value = true
+}
+
+function cancelEdit() {
+  editing.value = false
+  draft.value = ''
+}
+
+function confirmEdit() {
+  const next = draft.value.trim()
+  if (!next) return
+  editing.value = false
+  emit('editUser', props.message.id, next)
+}
+
+async function copyMessage() {
+  const text = props.message.content.trim()
+  if (!text) return
+  try {
+    await navigator.clipboard.writeText(text)
+    copied.value = true
+    window.clearTimeout(copyReset)
+    copyReset = window.setTimeout(() => {
+      copied.value = false
+    }, 1500)
+  } catch {
+    copied.value = false
+  }
+}
+
+function pinApproval() {
+  approvalPinned.value = true
+}
 
 function formatAttachmentSize(size: number) {
   if (size >= 1024 * 1024) return `${(size / 1024 / 1024).toFixed(1)} MB`
@@ -116,8 +175,9 @@ const approvalKicker = computed(() => (
 
 <template>
   <article
-    v-if="!isBlankAssistantMessage(message) && !(message.toolName === toolBudgetToolName && message.approvalState === 'pending')"
+    v-if="!isBlankAssistantMessage(message) && !(message.toolName === toolBudgetToolName && message.approvalState === 'pending') && (message.role !== 'tool' || !message.approvalRequestId || showApproval)"
     class="agent-turn mb-7 min-w-0 w-full"
+    :class="message.role === 'user' ? 'agent-turn--user' : ''"
   >
     <div
       v-if="timeLabel"
@@ -127,7 +187,7 @@ const approvalKicker = computed(() => (
       <span>{{ timeLabel }}</span>
     </div>
     <div
-      v-if="message.role === 'tool'"
+      v-if="showApproval"
       class="agent-approve"
     >
       <div class="agent-approve__kicker">{{ approvalKicker }}</div>
@@ -138,7 +198,7 @@ const approvalKicker = computed(() => (
           : t('Agent 已暂停；只有允许本次操作后才会继续。', 'The agent is paused and will continue only after you allow this action.') }}
       </p>
       <pre v-if="message.content">{{ visibleApprovalText(message.content) }}</pre>
-      <details v-if="message.approvalInput" class="mt-2">
+      <details v-if="message.approvalInput" class="mt-2" @toggle="pinApproval">
         <summary class="cursor-pointer text-caption text-muted-foreground">
           {{ t('查看完整参数', 'View full arguments') }}
         </summary>
@@ -194,7 +254,7 @@ const approvalKicker = computed(() => (
       <div v-if="message.thinking" class="agent-think__body">{{ message.thinking }}</div>
     </details>
     <div
-      v-if="showBubble"
+      v-if="showBubble && !editing"
       class="min-w-0 overflow-x-auto break-words text-control leading-7"
       :class="message.role === 'user' ? 'agent-user' : 'agent-answer'"
     >
@@ -248,6 +308,44 @@ const approvalKicker = computed(() => (
           {{ recoveryHint() }}
         </span>
       </div>
+    </div>
+    <form
+      v-else-if="editing"
+      class="agent-user agent-user-edit min-w-0"
+      @submit.prevent="confirmEdit"
+    >
+      <textarea
+        v-model="draft"
+        class="agent-user-edit__input"
+        rows="3"
+        :aria-label="t('编辑消息', 'Edit message')"
+      />
+      <div class="agent-turn-actions agent-turn-actions--visible">
+        <button type="button" @click="cancelEdit">{{ t('取消', 'Cancel') }}</button>
+        <button type="submit">{{ t('发送', 'Send') }}</button>
+      </div>
+    </form>
+    <div
+      v-if="showMessageActions"
+      class="agent-turn-actions"
+    >
+      <button type="button" @click="copyMessage">
+        {{ copied ? t('已复制', 'Copied') : t('复制', 'Copy') }}
+      </button>
+      <button
+        v-if="message.role === 'user'"
+        type="button"
+        @click="startEdit"
+      >
+        {{ t('编辑', 'Edit') }}
+      </button>
+      <button
+        v-if="message.role === 'assistant'"
+        type="button"
+        @click="$emit('branchAssistant', message.id)"
+      >
+        {{ t('分叉到新对话', 'Branch to new chat') }}
+      </button>
     </div>
   </article>
 </template>
