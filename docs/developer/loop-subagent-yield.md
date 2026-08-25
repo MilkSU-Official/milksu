@@ -48,3 +48,25 @@ Advisor 窗、OMP Agent Hub 全套 IRC、默认打开更多子 Agent 类型、�
 ## 删除路径
 
 关掉 schema 校验则回散文回传；拿掉名单组件；`subagent` 工具仍可按现状调用。
+
+## 基线实测（当前架构，未实现本切片）
+
+机器：macOS darwin arm64，Node v26.0.0，Pi 0.84.1，`pi-sub-agent` 已打包进 Sidecar。时间：2026-08-25T10:25:13Z。命令：`node --test sidecar/pi/loop-baseline-subagent.test.js`（2 通过）。`pi-subagent-runner.test.cjs` 本机通过。
+
+构造：
+
+1. 读 `node_modules/pi-sub-agent/extensions/index.ts` 的 `SingleResult`。
+2. 调 `projectToolModelUsage`，喂一条假的 `details.results[]`。
+3. 搜 Vue：没有子任务名单组件。
+
+`SingleResult` 实机字段：`agent`、`agentSource`、`task`、`exitCode`、`messages`、`stderr`、`stdout`、`usage`、`model`、`step`。
+
+| 项 | 当前架构 |
+| --- | --- |
+| 父模型看到的 | Markdown 文本（超限从 **尾** 截，50KB/2000 行） |
+| `files[]` | **无** |
+| `findings[]` | **无** |
+| MilkSU 用量投影 | 只读 `exitCode` / `model` / usage |
+| 活状态 UI | **无** |
+
+**Summary：** 父 Loop 不能按字段取「改了哪些文件」。产品里也看不见子任务在跑。隔离与 runner 在本机是绿的，缺的是 schema yield 和名单面。本切片的缺口在实机类型和前端上都成立。
