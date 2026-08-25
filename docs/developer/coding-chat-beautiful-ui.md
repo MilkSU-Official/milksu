@@ -83,6 +83,56 @@ Beautiful UI 的材质是冷蓝中性、实线 hairline、单一蓝色强调、c
 
 许可证：MilkSU 是 AGPL-3.0-only，可以纳入 MIT 片段；若复制 substantial 代码，保留 Shane Levine 版权声明，并在 `NOTICE` / `third_party/licenses/` 记一笔。**不要**纳入 `@central-icons-react`。
 
+## 从 Beautiful UI 反推：Pi 已有、成绩单没投影
+
+ak-ui 是指挥面 / 设置卡片用的。Pi 自己的 TUI 已经按「思考块、工具行、审批、压缩、用量、会话树」在画 Agent 循环。Beautiful UI 的原语和 Pi TUI 同一类，正好用来核对：**Pi 事件到了 Sidecar，桌面成绩单有没有把它画出来。**
+
+审阅对象是钉住的 Pi `0.84.1`（`@earendil-works/pi-ai` / `pi-coding-agent`）。桥在 `sidecar/pi/bridge.js` 的 `message_update` / `message_end`。
+
+### 桥接层已经丢掉的块
+
+Pi 助手消息的 content 是分类型的：`text` / `thinking` / `image` / `toolCall`。流式事件有 `text_delta` 也有 `thinking_start` / `thinking_delta` / `thinking_end`。
+
+当前桥只转发 `text_delta`，`projectAssistantMessageEnd` 的 `textContent()` 只拼接 `type === "text"`。思考正文、思考签名、红acted 思考都不进 Desktop RPC，也不进 `Message.content`。Composer 的思考档位滑块只改请求参数，成绩单上看不到「想了 Ns」。
+
+`edit` / `write` 的 `formatToolInput` 只留下路径，没有 `+N / −N` 芯片；工具结果里的图（Computer Use / 浏览器截图）除了纯文本模型的 OCR 旁路，不会作为成绩单里的图芯片出现。
+
+### 对照：Beautiful UI 原语 → Pi 能力 → 当前桌面
+
+| Beautiful UI 在问什么 | Pi 已经有 | 当前桌面 | 重构后应看见 |
+| --- | --- | --- | --- |
+| **Thinking** 可展开轨迹 | `ThinkingContent`；`thinking_*` 流；TUI 可用 Ctrl+T 折叠；压缩序列化写成 `[Assistant thinking]` | 档位滑块 + 用量环上的 reasoning token。成绩单无思考块 | 「想了 Ns」展开条，正文来自 Pi，不演假步骤 |
+| **Tool Chips** 一行摘要 + 文件芯片 | `tool_execution_start/update/end`；args / result；edit/write/bash | `ChatActivityGroup` 把输入/结果倒进 `<pre>` | 芯片：`Read greet.ts`、`Edit +12 −4`、`bash npm test`；展开才是原文 |
+| **Approval Card** HITL | 审批 broker；once / conversation | `ak-notice` + HOLD / OK / STOP | 同一语义，卡片层级按 HITL 原语 |
+| **Streaming Text** 来源 / 追问 | `text_delta` 已投影；`web_search` / `web_fetch` 结果在工具输出里 | 正文进气泡；来源埋在工具 `<pre>` | 回答下沿用来源芯片，只接线真实工具结果 |
+| **Task Rows** 活任务 | `milksu_progress`；`subagent`（含 usage）；`bg_task` / `bg_status`；Goal | 计划在右栏；子 Agent / 后台是普通工具行或右栏面板 | 计划 + 子 Agent + 后台失败/完成收进同一族行，不另造循环 |
+| **Context Cards** 检索块 | 压缩 `fileOps` / read-files / modified-files；附件切片 | compacting 只有「正在整理上下文」，没有文件清单 | 压缩结束给一条横幅：整理了哪些旧消息、保留哪些文件 |
+| **Prompt Bar** @ / / / 模型 / 队列 | TUI：`@` 文件、`/` 命令、Shift+Tab 思考档、Enter 转向、Alt+Enter 追问、`!command` | Composer 已有 slash、附件、模型、steer 队列、上下文环 | 岛状密度；补 `@` 项目文件模糊查找（Pi 已有，桌面未做） |
+| **CodeBlock** | 助手 Markdown / 工具里的代码 | `MarkdownContent` `<pre>`，无复制条 | 语言 + 复制，高亮仍走现有 Markdown |
+| **Chat / 会话树** | `/tree` `/fork` `/clone` `/resume`；session JSONL 是树 | 会话列表在轨上；没有「从某条用户消息分叉」 | 本切片不做树导航，只记缺口 |
+| **Loading** 进行中 + 时长 | 回合计时、tool duration | `AkLoadingMark` + Composer 时长 | 保留时长；不要像素格 |
+
+Pi TUI 还有、Beautiful UI 没有单独原语、桌面也几乎没画的：编辑器边框色随思考档位变化、页脚 cost、隐藏思考标签、`!` / `!!` shell、把上一轮助手消息复制出来。这些不从该图库反推，不塞进本切片。
+
+### 不是图库发明的产品职责
+
+下面这些是 MilkSU 已经投影、只是形态不对，不是「Pi 没做」：
+
+- 审批策略、Skill / Scope token、隔离浏览器、Computer Use、Goal、LSP、ImageGen 付费确认。
+- 上下文环把 cache-read 和 reasoning 分开：环上有，成绩单没有。
+
+不要为了填满 Beautiful UI 的 Recommendation Card / Records Table 去造假置信度或 CRM 表。
+
+## 重构效果预览
+
+选定设计语言之前，不改生产 Vue。预览稿：
+
+`app/coding-chat-preview.html`
+
+同一轮「改 `greet` + 跑测试」可在 **现在** 和 **重构** 之间切换。重构侧用 Tool Chips / Thinking / Approval Card / Prompt 岛接上面那张表；现在侧模拟当前 YOU/MILKSU 气泡 + `<details>` 工具组 + `ak-notice`。右侧说明当前点中的块接到哪条 Pi 事件、成绩单现在丢掉了什么。
+
+在 `app/` 下 `npm run dev`，打开 `/coding-chat-preview.html`。这不是产品面，不进发行包入口。
+
 ## 建议落地顺序（选定设计语言之后）
 
 1. `ChatActivityGroup` → Tool Chips 骨架（最大阅读收益）。

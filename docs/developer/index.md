@@ -36,7 +36,7 @@
 
 ## Target（未实现）
 
-- [Coding 对话：Beautiful UI 原语对照](/developer/coding-chat-beautiful-ui)：沿用 Agent 工具芯片 / 思考 / 审批 / Prompt 岛的交互骨架。动手前必须选定是更新设计语言还是把成绩单当一处特例。
+- [Coding 对话：Beautiful UI 原语对照](/developer/coding-chat-beautiful-ui)：沿用 Agent 工具芯片 / 思考 / 审批 / Prompt 岛；用同一图库反推 Pi 已有但成绩单未投影的能力。预览 `app/coding-chat-preview.html`。动手前必须选定是更新设计语言还是把成绩单当一处特例。
 
 ## 长期设计（不是禁令）
 
