@@ -254,7 +254,7 @@
     0 8px 24px rgb(20 24 32 / 8%);
 }
 
-[data-agent-conversation] .markdown-content :deep(pre) {
+[data-agent-conversation] .markdown-content pre {
   border-radius: 8px;
   background: #111318;
   color: #e8eaef;
