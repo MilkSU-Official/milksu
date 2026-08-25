@@ -19,7 +19,7 @@
 | 3 列表指挥面 | 筛选、历史、执行按钮 | `.ak-segmented`、`WorkspaceCatalogActions`、`WorkspaceImportDialog` |
 | 4 事实面 | 卡片、表、弹窗、浮层 | Felinic `SettingsSection` / `SettingsRow` / `ActionCard` / `ModelListRow`、`DialogPanel` |
 | 5 文案 | 用户看得见的字 | `t('中文', 'English')` |
-| 6 Agent 对话 | Coding / CTF / CVE / 实验室共用的对话区 | `[data-agent-conversation]`：思考条、工具芯片、审批卡、回答卡、Prompt 岛 |
+| 6 Agent 对话 | Coding / CTF / CVE / 实验室共用的对话区 | `[data-agent-conversation]`：思考条、工具行、审批、Prompt 岛；除代码块外不加对话卡片 |
 
 行为仍走 Felinic。第 1–4 层（壳、列表、设置、档案）仍走 ak-ui token。不要把 `@yunyoujun/ak-ui` 写进 `app/package.json`。
 **对话区是单独一套语言**，不要把设置卡片或列表指挥面套进 Agent 循环，也不要把对话区的芯片/思考条套回设置页。
@@ -31,7 +31,7 @@
 - 青 = 当前模块 / 主操作。金 = 次级强调 / 当前焦点条。成功绿只表示成功。
 - 蓝只表示链接和明确的执行 / 诊断状态。不要用 `--info`、蓝边或蓝底去区分 CTF / CVE / 实验室 / Coding。Agent 对话区（第 6 层）可以用一条蓝做思考点和发送，不用于区分模块。
 - 夜间用中性石墨，不要明显的蓝、绿、棕偏色。日间用纸面中性色；日间不要把指挥面钉成夜间石墨。
-- 命令面（侧栏、会话历史、设置分类、右栏、输入框和菜单）走当前主题 token。事实面（题面、Agent 气泡、通知）走纸面。
+- 命令面（侧栏、会话历史、设置分类、右栏、输入框和菜单）走当前主题 token。事实面（题面、通知）走纸面。Agent 对话区走第 6 层，正文不加卡片。
 - 字体：Inter Variable + Noto Sans SC Variable。不用宋体、Noto Serif 或系统 `serif`。
 - 不用纸纹、碳纹、Showcase 角色图、理智条、3D 菜单。
 
@@ -73,12 +73,12 @@ CTF / CVE / 实验室列表页共用同一套指挥面，不要在某一页另�
 
 Coding Agent 的对话区（CTF / CVE / 实验室小窗共用同一套 `ChatPage`）按 Agent 循环来画，不按设置页来画。实现落在 `[data-agent-conversation]` 和 `app/src/styles/agent-conversation.css`。
 
-- 材质：冷中性纸面/卡片、实线 hairline、半径 chip 6 / 卡片 10 / Prompt 岛 16。强调色可以是一条蓝（思考点、发送），不再用战术切角气泡或 YOU / MILKSU 字标。
-- 列宽：思考、工具、回复、用户气泡、Composer 共用中间一列，宽度约为对话主栏的 72%（小窗 88%），随窗口等比缩放。两侧留白，窗口变窄时留白变少。不钉死 `42rem` / `max-w-3xl`。用户气泡贴这一列的右缘；思考和工具贴左缘。工具行的秒数跟在芯片后面，不拉到列的右缘。
+- 材质：冷中性纸面。对话区几乎不加原生卡片：用户消息、助手正文、工具行、审批、压缩条都是排版，没有描边圆角底。代码块可以是深色圆角块（半径 8）。Prompt 岛仍是输入面（半径 16）。强调色可以是一条蓝（思考点、发送），不再用战术切角气泡或 YOU / MILKSU 字标。
+- 列宽：思考、工具、回复、用户消息、Composer 共用中间一列，宽度约为对话主栏的 72%（小窗 88%），随窗口等比缩放。两侧留白，窗口变窄时留白变少。不钉死 `42rem` / `max-w-3xl`。用户消息贴这一列的右缘；思考和工具贴左缘。工具行的秒数跟在路径后面，不拉到列的右缘。
 - 思考：Beautiful UI 式可展开「想了 Ns」，单独一行，不包进回复卡片。正文只来自 Pi 的 `thinking` 块。
-- 工具：Beautiful UI 式芯片行（`Read` / `Edit +N -N` / `bash`），点开才看输入/结果。
-- 审批：HITL 卡片铺满同一列。按钮仍是拒绝 / 允许这一次 / 本对话始终允许。
-- 回答：同一列里的正文，不另缩一截。来源芯片只接线真实 `https` 链接。
+- 工具：Codex 式一行文字（`Read` / `Edit +N -N` / `bash` + 路径 + 时长），没有芯片卡片。点开才看输入/结果；展开外层不加卡片，原文可以走代码块。
+- 审批：同一列的标题 + 按钮，不加 HITL 卡片壳。按钮仍是拒绝 / 允许这一次 / 本对话始终允许。
+- 回答：同一列里的正文，不另缩一截。来源是下划线链接，只接线真实 `https`。
 - Composer：同一列宽的岛状输入。不使用青色左边条。
 
 壳、列表、设置、档案仍用第 1–4 层。
@@ -92,3 +92,4 @@ Coding Agent 的对话区（CTF / CVE / 实验室小窗共用同一套 `ChatPage
 - 设置浏览器控制只用「已连接 / 已授权」描述、没有 LIVE/OFF
 - 学习专题
 - Agent 对话里的 YOU / MILKSU 字标、切角 `clip-path` 气泡、审批 ASK / HOLD / STOP 字标
+- Agent 对话里的用户圆角气泡、工具芯片卡片、HITL 审批卡片壳

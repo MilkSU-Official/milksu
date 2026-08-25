@@ -206,7 +206,7 @@ const approvalKicker = computed(() => (
         <span
           v-for="attachment in message.attachments"
           :key="`${attachment.id}:${attachment.name}`"
-          class="inline-flex max-w-full items-center gap-2 rounded-lg border border-current/15 bg-background/20 px-2.5 py-1.5 text-caption"
+          class="agent-attachment"
           :title="`${attachment.mediaType} · sha256:${attachment.sha256}`"
         >
           <FileText class="size-3.5 shrink-0" />

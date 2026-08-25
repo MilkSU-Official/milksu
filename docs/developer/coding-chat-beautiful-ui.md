@@ -12,7 +12,7 @@
 
 让 Coding Agent 对话框读起来像为工具循环、思考轨迹、人机审批和流式回答准备的，而不是把通用设置卡片硬套进聊天。
 
-- 沿用 Beautiful UI **已经验证过的交互骨架**（工具芯片、可展开思考、HITL 卡、Prompt 岛、流式正文后的来源/追问），不是把它的 React 演示或冰淇淋主题整包搬进来。
+- 沿用 Beautiful UI **已经验证过的交互骨架**（工具行、可展开思考、审批操作、Prompt 岛、流式正文后的来源/追问），不是把它的 React 演示或冰淇淋主题整包搬进来。对话区视觉跟 Codex：除代码块外几乎不加原生卡片。
 - 视觉仍落在 MilkSU 五层约定上，或在动手前明确改约定。禁止默默引入第二套材质。
 - 行为仍走 Felinic。不把 `@yunyoujun/ak-ui` 写进 `app/package.json`。不引入 React 运行时、`@central-icons-react` 商用图标，也不整份粘贴对方的 `globals.css`。
 
@@ -44,17 +44,17 @@ MilkSU 对话面已经有完整产品职责，只是形态偏通用指挥面：
 
 | Beautiful UI | MilkSU 当前 | 判定 | 沿用什么 |
 | --- | --- | --- | --- |
-| **Tool Chips** | `ChatActivityGroup` 把工具输入/结果整段倒进 `<pre>` | **优先沿用** | 一行摘要 + 文件芯片（`write 204 lines · file.tsx`、`+13 / −41`），悬停再展开。语义仍绑 Pi 工具事件，不播演示节拍。 |
+| **Tool Chips** | `ChatActivityGroup` 把工具输入/结果整段倒进 `<pre>` | **优先沿用交互，去掉芯片卡片** | 一行文字（`Read greet.ts`、`Edit +13 −41`），点开再看原文。语义仍绑 Pi 工具事件，不播演示节拍，外层不加圆角卡片。 |
 | **Thinking**（Steps / Reasoning / Search / Coding） | Composer 有思考档位滑块；对话区没有可展开推理轨迹 | **有事件才沿用** | 可展开「想了 Ns」+ 步骤 / 检索 / 编码轨迹。没有 Pi reasoning / step 事件就不要演一段假思考。 |
-| **Approval Card** | `ChatMessageItem` 的 `ak-notice`：拒绝 / 允许这一次 / 本对话始终允许 | **沿用形态，保留语义** | HITL 卡片、步进感、主/次按钮层级。选项必须仍是 MilkSU 审批策略（once / conversation、grantable）。不要换成多选题问卷。 |
+| **Approval Card** | `ChatMessageItem` 的 `ak-notice`：拒绝 / 允许这一次 / 本对话始终允许 | **沿用语义，去掉卡片壳** | 同一列标题 + 按钮。选项必须仍是 MilkSU 审批策略（once / conversation、grantable）。不要换成多选题问卷，也不要 HITL 圆角卡片。 |
 | **Prompt Bar** | `ChatComposer` 已经有 `@`/`/`、附件、模型、发送 | **沿用密度，不换职责** | 岛状输入、@ 来源菜单、/ 命令、模型选择。保留上下文环、steer 队列、思考档位、审批策略、Skill / Scope。不要 `glimm` 彩虹扫光，也不要 Figma / Slack / Gmail 连接器。听写要三端权限面，本切片不做。 |
-| **Streaming Text** | `MarkdownContent` 一次渲染整段 Markdown | **部分沿用** | 流式过程中的稳定排版；回答结束后的来源芯片，且来源必须来自真实 `web_search` / `web_fetch`。追问芯片可以接 Composer，但空画布不许写「还没有 / 打开以后会出现」式教练文案。不要 blur-to-text 表演。 |
+| **Streaming Text** | `MarkdownContent` 一次渲染整段 Markdown | **部分沿用** | 流式过程中的稳定排版；回答结束后的来源链接，且来源必须来自真实 `web_search` / `web_fetch`。追问可以接 Composer，但空画布不许写「还没有 / 打开以后会出现」式教练文案。不要 blur-to-text 表演。 |
 | **Loading State** | `AkLoadingMark` + Composer 运行时长 | **弱沿用** | 保留「进行中 + 已用时间」。像素格 Drive / Dots / Orbit / Surfer 和 meme 视频不进产品。 |
 | **Task Rows** | `AgentExecutionPlan` | **形态可并** | 进行中 / 失败 / 完成 + 可展开子步骤。不要和第二套工具组抢事件；计划仍来自 `milksu_progress`。 |
 | **Chat**（带标签的整页 harness） | `ChatPage` + 轨上会话列表 + `ConversationDock` | **不替换** | 我们已有会话轨和小窗。不要冰淇淋主题的 Flavors / Suppliers 标签页。 |
 | **CodeBlock** | `MarkdownContent` 的 `<pre>` | **可沿用壳** | 语言标记、复制、行内等宽。高亮走现有 Markdown 管道，不引入对方写死的 token 调色。 |
 | **Context Cards** | `DomainTaskContextPanel`、CTF 题面 / 证据；对话里没有 RAG 卡片 | **领域有块再做** | 检索块 + 来源文件名的形态，可投影 Evidence / Memory / 附件切片。没有检索子系统就不要空卡片。 |
-| **Recommendation Card** | 无；MCP 审阅是设置/环境里的 `SettingsSection` | **默认不做** | 假置信度条会把内部阈值漏到用户文案。Agent 建议继续用审批卡或计划行。 |
+| **Recommendation Card** | 无；MCP 审阅是设置/环境里的 `SettingsSection` | **默认不做** | 假置信度条会把内部阈值漏到用户文案。Agent 建议继续用审批操作或计划行。 |
 | **Diff Table** | `CodingChangesPanel` 是文件 diff，不是表行编辑 | **不进对话区** | 「点行切换是否应用」可作右栏审阅参考，不把 CRM 表塞进气泡。 |
 | **Records Table** / **FilterTable** | CTF / CVE / 实验室列表已有指挥面 | **对话框外** | 不换列表页。 |
 | **SidebarNav** | `WorkspaceRail` | **禁止** | 壳层已有模块轨。该原语绑付费 Central Icons。 |
@@ -66,14 +66,14 @@ Beautiful UI 的材质是冷蓝中性、实线 hairline、单一蓝色强调、c
 
 这不是小修。用户（不是代理）提出沿用该库后，必须在下面两选一，禁止默默改约定，也禁止默默打回：
 
-1. **更新设计语言**：改 [当前视觉约定](../design/current-visual.md)、`AGENTS.md` 本段、共享 CSS / token，以及 `WorkspaceVisualContract` / `globalStyleContract`。第四层为 Agent 对话区增加一族原语（工具芯片、思考轨迹、审批卡、Prompt 岛），设置页卡片不变。后续页面跟新规则。
+1. **更新设计语言**：改 [当前视觉约定](../design/current-visual.md)、`AGENTS.md` 本段、共享 CSS / token，以及 `WorkspaceVisualContract` / `globalStyleContract`。第 6 层为 Agent 对话区增加一族原语（工具行、思考轨迹、扁平审批、Prompt 岛；除代码块外不加对话卡片），设置页卡片不变。后续页面跟新规则。
 2. **保持当前语言，把对话对话区当一处特例**：沿用交互骨架，颜色 / 半径 / 字体仍走现有 token。隔离在 `ChatPage` / `ChatMessageItem` / `ChatActivityGroup` / `ChatComposer` / `AgentExecutionPlan`，并在视觉合同测试里写明「对话特例、不是第二套全站卡片」。
 
 未选定前，本切片不改 Vue。
 
 ## 产品代码准入
 
-1. **用户看见什么**：同一轮里，工具调用可扫、思考可展开、审批像一张 HITL 卡、Composer 仍能完成现有发送职责。
+1. **用户看见什么**：同一轮里，工具调用是一行文字、思考可展开、审批是标题加按钮而不是卡片、Composer 仍能完成现有发送职责。
 2. **最小纵切**：先把 `ChatActivityGroup` 收成 Tool Chips 形态，事件源仍是现有 `chatActivity` 投影。
 3. **上游阶梯**：不能把 React 图库当 npm 依赖丢进 Vue（第一层不够）。Beautiful UI 是 MIT、源码可审阅的 copy-paste 原语（第三层：抽最小片段并改成 Vue）。第二层没有现成的 Vue / Felinic Agent 原语包。Star 数（审阅时约 27）不构成成熟性；用处是图库里的交互证据，不是供应链背书。
 4. **成功怎么判**：固定一轮「多次 `read`/`edit`/`bash` + 一次审批」的真实任务。对话区默认折叠工具细节，展开能看到同一条输入/结果；审批仍是拒绝 / 一次 / 本对话；中英 `t()` 成对。截图不能代替走一遍。
@@ -102,9 +102,9 @@ Pi 助手消息的 content 是分类型的：`text` / `thinking` / `image` / `to
 | Beautiful UI 在问什么 | Pi 已经有 | 当前桌面 | 重构后应看见 |
 | --- | --- | --- | --- |
 | **Thinking** 可展开轨迹 | `ThinkingContent`；`thinking_*` 流；TUI 可用 Ctrl+T 折叠；压缩序列化写成 `[Assistant thinking]` | 档位滑块 + 用量环上的 reasoning token。对话区无思考块 | 「想了 Ns」展开条，正文来自 Pi，不演假步骤 |
-| **Tool Chips** 一行摘要 + 文件芯片 | `tool_execution_start/update/end`；args / result；edit/write/bash | `ChatActivityGroup` 把输入/结果倒进 `<pre>` | 芯片：`Read greet.ts`、`Edit +12 −4`、`bash npm test`；展开才是原文 |
-| **Approval Card** HITL | 审批 broker；once / conversation | `ak-notice` + HOLD / OK / STOP | 同一语义，卡片层级按 HITL 原语 |
-| **Streaming Text** 来源 / 追问 | `text_delta` 已投影；`web_search` / `web_fetch` 结果在工具输出里 | 正文进气泡；来源埋在工具 `<pre>` | 回答下沿用来源芯片，只接线真实工具结果 |
+| **Tool Chips** 一行摘要 + 文件名 | `tool_execution_start/update/end`；args / result；edit/write/bash | `ChatActivityGroup` 把输入/结果倒进 `<pre>` | 一行文字：`Read greet.ts`、`Edit +12 −4`、`bash npm test`；展开才是原文，外层不加卡片 |
+| **Approval Card** HITL | 审批 broker；once / conversation | `ak-notice` + HOLD / OK / STOP | 同一语义，去掉卡片壳 |
+| **Streaming Text** 来源 / 追问 | `text_delta` 已投影；`web_search` / `web_fetch` 结果在工具输出里 | 正文进气泡；来源埋在工具 `<pre>` | 回答下沿用来源链接，只接线真实工具结果 |
 | **Task Rows** 活任务 | `milksu_progress`；`subagent`（含 usage）；`bg_task` / `bg_status`；Goal | 计划在右栏；子 Agent / 后台是普通工具行或右栏面板 | 计划 + 子 Agent + 后台失败/完成收进同一族行，不另造循环 |
 | **Context Cards** 检索块 | 压缩 `fileOps` / read-files / modified-files；附件切片 | compacting 只有「正在整理上下文」，没有文件清单 | 压缩结束给一条横幅：整理了哪些旧消息、保留哪些文件 |
 | **Prompt Bar** @ / / / 模型 / 队列 | TUI：`@` 文件、`/` 命令、Shift+Tab 思考档、Enter 转向、Alt+Enter 追问、`!command` | Composer 已有 slash、附件、模型、steer 队列、上下文环 | 岛状密度；补 `@` 项目文件模糊查找（Pi 已有，桌面未做） |
@@ -136,7 +136,7 @@ Pi TUI 还有、Beautiful UI 没有单独原语、桌面也几乎没画的：编
 ## 建议落地顺序（选定设计语言之后）
 
 1. `ChatActivityGroup` → Tool Chips 骨架（最大阅读收益）。
-2. 审批卡改层级，不改 once / conversation 语义。
+2. 审批改成同一列标题 + 按钮，不改 once / conversation 语义，不加卡片壳。
 3. Composer 岛的间距与 @ / / 菜单密度；不换现有命令表。
 4. 若 Sidecar 已投影 reasoning / step：Thinking 展开条。没有事件就停。
 5. Markdown 代码块壳（复制 / 语言）；来源芯片只接真实引用。
@@ -161,7 +161,7 @@ Pi TUI 还有、Beautiful UI 没有单独原语、桌面也几乎没画的：编
 - [x] 设计语言已选定：对话区为第 6 层，不是全站换皮。
 - [x] 合同测试锁住依赖与 token 边界。
 - [x] 选定设计语言：对话区单独成为第 6 层，设置/列表仍走 ak-ui。
-- [x] 对话区实现思考条、工具芯片、HITL 审批卡、回答卡、压缩状态条；Pi `thinking_*` 已投影。
+- [x] 对话区实现思考条、工具行、扁平审批、压缩状态条；Pi `thinking_*` 已投影。除代码块外不加对话卡片。
 - [ ] 未在桌面点选真实工具回合之前，不把换皮写成已发行完成。
 
 ## 非目标
@@ -178,4 +178,4 @@ Pi TUI 还有、Beautiful UI 没有单独原语、桌面也几乎没画的：编
 
 ## UI
 
-对话区已换成思考条、工具芯片、HITL 审批卡和岛状 Composer。文案继续 `t('中文', 'English')`。
+对话区已换成思考条、工具行、扁平审批和岛状 Composer；用户消息与工具不加圆角卡片。文案继续 `t('中文', 'English')`。

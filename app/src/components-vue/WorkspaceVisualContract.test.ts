@@ -74,6 +74,8 @@ describe('Workspace visual contract', () => {
     expect(chatPageSource).toContain('展开会话历史')
     expect(chatPageSource).toContain('v-if="!conversationDrawerOpen"')
     expect(chatMessageItemSource).toContain('break-words text-control leading-7')
+    expect(chatMessageItemSource).toContain('agent-attachment')
+    expect(chatMessageItemSource).not.toContain('rounded-lg border border-current/15')
     expect(chatMessageItemSource).not.toContain('YOU')
     expect(chatMessageItemSource).not.toContain('MILKSU')
     expect(chatActivityGroupSource).toContain('agent-chip')

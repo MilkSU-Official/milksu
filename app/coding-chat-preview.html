@@ -55,7 +55,7 @@
         background: var(--paper);
       }
       .transcript { overflow: auto; padding: 1.1rem 1.5rem 0.75rem; }
-      .col { max-width: 42rem; margin: 0 auto; }
+      .col { width: 72%; max-width: none; margin: 0 auto; }
       .inspect {
         min-height: 0;
         overflow: auto;
@@ -92,19 +92,18 @@
       .user {
         margin: 0 0 0.7rem auto;
         max-width: 80%;
-        background: #eceff5;
-        border: 1px solid var(--line);
-        border-radius: 12px;
-        padding: 0.65rem 0.8rem;
+        width: fit-content;
+        background: transparent;
+        border: 0;
+        padding: 0;
         font-size: 0.92rem;
         line-height: 1.45;
       }
       .think, .approve, .answer, .compact {
         margin: 0 0 0.55rem;
-        border: 1px solid var(--line);
-        border-radius: 10px;
-        background: var(--card);
-        padding: 0.55rem 0.75rem;
+        border: 0;
+        background: transparent;
+        padding: 0;
       }
       .think summary {
         list-style: none;
@@ -123,8 +122,8 @@
       .chip-row strong { color: var(--ink); font-weight: 600; }
       .pill {
         display: inline-flex; gap: 0.3rem; align-items: center;
-        border: 1px solid var(--line); background: #fff; border-radius: 6px;
-        padding: 0.06rem 0.4rem; font-family: var(--mono); font-size: 0.7rem; color: var(--ink);
+        border: 0; background: transparent; padding: 0;
+        font-family: var(--mono); font-size: 0.7rem; color: var(--ink);
       }
       .add { color: var(--ok); }
       .del { color: #b42318; }
@@ -136,8 +135,9 @@
       .approve pre, .now-pre {
         margin: 0.45rem 0 0;
         padding: 0.45rem 0.55rem;
-        background: #f3f4f7;
-        border-radius: 6px;
+        background: #111318;
+        color: #e8eaef;
+        border-radius: 8px;
         font-family: var(--mono);
         font-size: 0.75rem;
         overflow: auto;
@@ -160,8 +160,8 @@
         overflow: auto;
       }
       .sources { display: flex; flex-wrap: wrap; gap: 0.3rem; }
-      .source { border: 1px solid var(--line); border-radius: 999px; padding: 0.12rem 0.45rem; font-size: 0.72rem; color: var(--muted); }
-      .compact { font-size: 0.78rem; color: var(--muted); border-style: dashed; background: #fafaf8; }
+      .source { border: 0; padding: 0; font-size: 0.72rem; color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
+      .compact { font-size: 0.78rem; color: var(--muted); }
       .composer {
         margin: 0 1rem 0.75rem;
         border: 1px solid var(--line);
@@ -169,8 +169,8 @@
         border-radius: 16px;
         padding: 0.5rem 0.7rem 0.45rem;
         box-shadow: 0 8px 24px rgba(20, 24, 32, 0.06);
-        max-width: 42rem;
-        width: calc(100% - 2rem);
+        width: 72%;
+        max-width: none;
         justify-self: center;
       }
       .composer .input { min-height: 2.3rem; color: var(--muted); font-size: 0.86rem; padding: 0.2rem 0.15rem 0.35rem; }
@@ -180,7 +180,13 @@
       .send { width: 1.55rem; height: 1.55rem; border-radius: 99px; background: var(--accent); }
 
       body.now .dialog { background: #171a1e; color: #ecece8; }
-      body.now .user { background: #2a3138; border-color: #3a424b; color: #f3f1ea; }
+      body.now .user {
+        background: #2a3138;
+        border: 1px solid #3a424b;
+        border-radius: 12px;
+        padding: 0.65rem 0.8rem;
+        color: #f3f1ea;
+      }
       body.now .who { display: block; font-size: 0.62rem; letter-spacing: 0.1em; color: #8b939c; margin-bottom: 0.2rem; }
       body.now .missing { margin: 0 0 0.7rem; font-size: 0.75rem; color: #8b939c; }
       body.now .tool { margin: 0 0 0.7rem; color: #b7bec6; font-size: 0.85rem; }

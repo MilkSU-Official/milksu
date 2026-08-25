@@ -101,8 +101,47 @@ describe('global style contract', () => {
     expect(agentCss).toContain('.agent-chip')
     expect(agentCss).toContain('width: fit-content')
     expect(agentCss).toContain('.agent-approve')
+    expect(agentCss).toContain('--agent-code-radius')
+    expect(agentCss).toContain('--agent-island-radius')
+    expect(agentCss).not.toContain('--agent-card-radius')
+    expect(agentCss).not.toContain('--agent-chip-radius')
     expect(agentCss).not.toContain('.page-column')
     expect(agentCss).not.toContain('max-w-3xl')
+  })
+
+  it('keeps conversation cards on code blocks and the prompt island only', () => {
+    const agentCss = readFileSync(
+      fileURLToPath(new URL('./styles/agent-conversation.css', import.meta.url)),
+      'utf8',
+    )
+    const userRule = agentCss.slice(
+      agentCss.indexOf('[data-agent-conversation] .agent-user'),
+      agentCss.indexOf('[data-agent-conversation] .agent-answer'),
+    )
+    const pillRule = agentCss.slice(
+      agentCss.indexOf('[data-agent-conversation] .agent-pill {'),
+      agentCss.indexOf('[data-agent-conversation] .agent-pill__add'),
+    )
+    const approveRule = agentCss.slice(
+      agentCss.indexOf('[data-agent-conversation] .agent-approve {'),
+      agentCss.indexOf('[data-agent-conversation] .agent-approve__kicker'),
+    )
+    const toolDetailRule = agentCss.slice(
+      agentCss.indexOf('[data-agent-conversation] .tool-activity-entry__detail {'),
+      agentCss.indexOf('[data-agent-conversation] .tool-activity-entry__result-label'),
+    )
+    const compactRule = agentCss.slice(
+      agentCss.indexOf('[data-agent-conversation] .compact-bar {'),
+      agentCss.indexOf('[data-agent-conversation] .chat-composer {'),
+    )
+    for (const rule of [userRule, pillRule, approveRule, toolDetailRule, compactRule]) {
+      expect(rule).toContain('border: 0')
+      expect(rule).toContain('background: transparent')
+      expect(rule).not.toContain('border-radius')
+    }
+    expect(agentCss).toContain('[data-agent-conversation] .agent-turn .markdown-content pre')
+    expect(agentCss).toContain('border-radius: var(--agent-code-radius)')
+    expect(agentCss).toContain('border-radius: var(--agent-island-radius)')
   })
 
   it('uses the ak-ui cyan action color instead of acid green or the old SaaS blue', () => {
