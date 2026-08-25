@@ -2064,6 +2064,7 @@ defineExpose({
   <section
     class="relative flex min-w-0 flex-1 flex-col bg-surface-editor"
     :class="dockSurface ? 'chat-surface-dock min-h-0 min-w-0 overflow-hidden' : 'overflow-hidden'"
+    data-agent-conversation
     :data-testid="dockSurface ? 'coding-agent-dock-surface' : undefined"
   >
   <div class="coding-workspace relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
@@ -2232,7 +2233,7 @@ defineExpose({
 
     <p
       v-if="compacting"
-      class="chat-model-loading mx-auto w-full max-w-5xl px-4 pb-1"
+      class="compact-bar"
       data-testid="context-compaction-status"
       role="status"
     >
@@ -2240,12 +2241,13 @@ defineExpose({
     </p>
     <p
       v-else-if="compactionError"
-      class="mx-auto w-full max-w-5xl px-4 pb-1 text-caption text-foreground"
+      class="compact-bar"
       data-testid="context-compaction-error"
       role="status"
     >
       {{ compactionError }}
     </p>
+
 
     <AgentExecutionPlan
       v-if="dockSurface"

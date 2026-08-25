@@ -765,7 +765,24 @@ function formatToolInput(toolName, args) {
     ].filter(Boolean).join(" ");
     return [path, range].filter(Boolean).join(" · ");
   }
-  if (["edit", "write"].includes(toolName) && path) return path;
+  if (["edit", "write"].includes(toolName) && path) {
+    if (toolName === "write" && typeof args.content === "string") {
+      const lines = args.content.length ? args.content.split("\n").length : 0;
+      return lines ? `${path} +${lines}` : path;
+    }
+    if (toolName === "edit" && Array.isArray(args.edits)) {
+      let add = 0;
+      let del = 0;
+      for (const edit of args.edits) {
+        const oldText = String(edit?.oldText ?? "");
+        const newText = String(edit?.newText ?? "");
+        if (oldText) del += oldText.split("\n").length;
+        if (newText) add += newText.split("\n").length;
+      }
+      if (add || del) return `${path} +${add} -${del}`;
+    }
+    return path;
+  }
   if (toolName === "grep" && typeof args.pattern === "string") {
     return `${args.pattern}${path ? ` · ${path}` : ""}`;
   }
@@ -921,6 +938,8 @@ function subscribeSession(
   usageModule,
 ) {
   let assistantTextStreamed = false;
+  let thinkingStreamed = false;
+  const thinkingStartedAt = new Map();
   const toolStartedAt = new Map();
 
   session.subscribe((event) => {
@@ -982,7 +1001,24 @@ function subscribeSession(
 
     if (event.type === "message_update" && event.assistantMessageEvent) {
       const update = event.assistantMessageEvent;
-      if (update.type === "text_delta") {
+      if (update.type === "thinking_start") {
+        thinkingStreamed = true;
+        if (!thinkingStartedAt.has(conversationId)) {
+          thinkingStartedAt.set(conversationId, Date.now());
+        }
+        emit(conversationId, "thinking_start", {});
+      } else if (update.type === "thinking_delta") {
+        thinkingStreamed = true;
+        emit(conversationId, "thinking_delta", { delta: update.delta ?? "" });
+      } else if (update.type === "thinking_end") {
+        thinkingStreamed = true;
+        const startedAt = thinkingStartedAt.get(conversationId);
+        thinkingStartedAt.delete(conversationId);
+        emit(conversationId, "thinking_done", {
+          content: update.content ?? "",
+          durationMs: startedAt === undefined ? undefined : Math.max(0, Date.now() - startedAt),
+        });
+      } else if (update.type === "text_delta") {
         assistantTextStreamed = true;
         emit(conversationId, "text_delta", { delta: update.delta });
       }
@@ -992,6 +1028,7 @@ function subscribeSession(
     if (event.type === "message_end" && event.message?.role === "assistant") {
       for (const projected of projectAssistantMessageEnd(event.message, {
         textStreamed: assistantTextStreamed,
+        thinkingStreamed,
       })) {
         emit(conversationId, projected.type, projected.data);
       }
@@ -1006,6 +1043,8 @@ function subscribeSession(
         emit(conversationId, "usage_recorded", { usage, module: usageModule });
       }
       assistantTextStreamed = false;
+      thinkingStreamed = false;
+      thinkingStartedAt.delete(conversationId);
       return;
     }
 

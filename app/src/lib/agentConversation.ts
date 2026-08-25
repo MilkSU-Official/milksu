@@ -1,0 +1,100 @@
+import { t } from '@/lib/uiLocale'
+import type { ChatActivityEntry } from '@/lib/chatActivity'
+
+export interface AgentToolChip {
+  verb: string
+  pill: string
+  add?: number
+  del?: number
+}
+
+export interface AgentSourceChip {
+  label: string
+  href: string
+}
+
+function firstLine(value: string) {
+  return value
+    .split(/\r?\n/)
+    .map(part => part.trim())
+    .find(Boolean)
+    ?? ''
+}
+
+function basename(path: string) {
+  const trimmed = path.replace(/[/\\]+$/, '')
+  const parts = trimmed.split(/[/\\]/)
+  return parts.at(-1) || trimmed
+}
+
+export function agentToolChip(entry: ChatActivityEntry): AgentToolChip {
+  const name = entry.toolName
+  const verb = name === 'read'
+    ? 'Read'
+    : name === 'edit'
+      ? 'Edit'
+      : name === 'write'
+        ? 'Write'
+        : name === 'grep'
+          ? 'Grep'
+          : name === 'find'
+            ? 'Find'
+            : name === 'ls'
+              ? 'ls'
+              : name === 'bash'
+                ? 'bash'
+                : name
+  const source = firstLine(entry.request?.content || entry.result?.content || '')
+    .replace(/^\$\s+/, '')
+  const mutation = source.match(/^(.*?)\s+\+(\d+)\s+[-−](\d+)\s*$/)
+  if (mutation) {
+    return {
+      verb,
+      pill: basename(mutation[1]!.trim()),
+      add: Number(mutation[2]),
+      del: Number(mutation[3]),
+    }
+  }
+  const added = source.match(/^(.*?)\s+\+(\d+)\s*$/)
+  if (added) {
+    return {
+      verb,
+      pill: basename(added[1]!.trim()),
+      add: Number(added[2]),
+    }
+  }
+  const path = source.split(' · ')[0]?.trim() || source
+  return {
+    verb,
+    pill: name === 'read' || name === 'edit' || name === 'write' || name === 'ls'
+      ? basename(path)
+      : path,
+  }
+}
+
+export function thinkingSummary(durationMs?: number, running?: boolean) {
+  if (running && (durationMs === undefined || durationMs < 500)) {
+    return t('正在思考', 'Thinking')
+  }
+  if (durationMs === undefined) return t('思考', 'Thought')
+  if (durationMs < 1000) return t('想了不到 1 秒', 'Thought for under 1s')
+  const seconds = Math.max(1, Math.round(durationMs / 1000))
+  return t(`想了 ${seconds} 秒`, `Thought for ${seconds}s`)
+}
+
+export function messageSourceChips(content: string): AgentSourceChip[] {
+  const chips: AgentSourceChip[] = []
+  const seen = new Set<string>()
+  const markdown = /\[[^\]]*]\((https:\/\/[^\s)]+)\)/g
+  for (const match of content.matchAll(markdown)) {
+    const href = match[1]
+    if (!href || seen.has(href)) continue
+    seen.add(href)
+    try {
+      chips.push({ href, label: new URL(href).hostname.replace(/^www\./, '') })
+    } catch {
+      chips.push({ href, label: href })
+    }
+  }
+  return chips.slice(0, 8)
+}

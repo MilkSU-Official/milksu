@@ -88,6 +88,18 @@ describe('global style contract', () => {
     expect(indexCss).toContain('.connection-live-action__label')
   })
 
+  it('scopes the Agent conversation language instead of restyling settings', () => {
+    expect(indexCss).toContain('@import "./styles/agent-conversation.css"')
+    const agentCss = readFileSync(
+      fileURLToPath(new URL('./styles/agent-conversation.css', import.meta.url)),
+      'utf8',
+    )
+    expect(agentCss).toContain('[data-agent-conversation]')
+    expect(agentCss).toContain('.agent-chip')
+    expect(agentCss).toContain('.agent-approve')
+    expect(agentCss).not.toContain('.page-column')
+  })
+
   it('uses the ak-ui cyan action color instead of acid green or the old SaaS blue', () => {
     expect(indexCss).toContain('@import "./styles/ak-ui-flourish.css"')
     expect(indexCss).toContain('--brand: #05a7dc')

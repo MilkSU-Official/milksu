@@ -1943,6 +1943,14 @@ func normalizeBridgeEvent(raw bridgeEvent) Event {
 	case "text_delta":
 		event.Type = "assistant.delta"
 		event.Text = raw.Delta
+	case "thinking_start":
+		event.Type = "assistant.thinking_started"
+	case "thinking_delta":
+		event.Type = "assistant.thinking_delta"
+		event.Text = raw.Delta
+	case "thinking_done":
+		event.Type = "assistant.thinking_completed"
+		event.Text = raw.Content
 	case "message_done":
 		event.Type = "assistant.completed"
 		event.Done = true

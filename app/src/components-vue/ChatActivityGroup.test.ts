@@ -4,11 +4,9 @@ import { createApp, nextTick, reactive, ref, type App } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import ChatActivityGroup from './ChatActivityGroup.vue'
 import {
-  chatActivityGroupOpen,
   chatActivityOpenEntryIds,
   createChatActivityExpansionState,
   setChatActivityEntryOpen,
-  setChatActivityGroupOpen,
   type ChatActivityExpansionState,
 } from '@/lib/chatActivityExpansion'
 import type { ChatActivityBlock } from '@/lib/chatActivity'
@@ -53,20 +51,15 @@ function mountControlledGroup(activity: ChatActivityBlock) {
     setup: () => ({
       activity,
       expansion,
-      isGroupOpen: (activityId: string) => chatActivityGroupOpen(expansion.value, activityId),
       openEntries: (activityId: string) => chatActivityOpenEntryIds(expansion.value, activityId),
-      toggleGroup(activityId: string, open: boolean) {
-        expansion.value = setChatActivityGroupOpen(expansion.value, activityId, open)
-      },
       toggleEntry(activityId: string, entryId: string, open: boolean) {
         expansion.value = setChatActivityEntryOpen(expansion.value, activityId, entryId, open)
       },
     }),
     template: `<ChatActivityGroup
       :activity="activity"
-      :open="isGroupOpen(activity.id)"
+      :open="false"
       :open-entry-ids="openEntries(activity.id)"
-      @toggle-group="open => toggleGroup(activity.id, open)"
       @toggle-entry="(entryId, open) => toggleEntry(activity.id, entryId, open)"
     />`,
   })
@@ -76,7 +69,7 @@ function mountControlledGroup(activity: ChatActivityBlock) {
 }
 
 describe('ChatActivityGroup', () => {
-  it('keeps a user-expanded tool group open when later tools arrive', async () => {
+  it('shows tool chips without expanding and keeps them when later tools arrive', async () => {
     const activity = reactive<ChatActivityBlock>({
       kind: 'activity',
       id: 'activity:t1',
@@ -86,12 +79,9 @@ describe('ChatActivityGroup', () => {
     const { host } = mountControlledGroup(activity)
     await nextTick()
 
-    const group = host.querySelector<HTMLDetailsElement>('.tool-activity')
-    expect(group?.open).toBe(false)
+    expect(host.querySelector('.agent-chip')).not.toBeNull()
+    expect(host.textContent).toContain('打开首页')
     expect(host.querySelector('.ak-loading')).not.toBeNull()
-    group?.querySelector('summary')?.click()
-    await settleToggle()
-    expect(group?.open).toBe(true)
 
     activity.messages = [
       tool('t1', '打开首页', { toolCallId: 'call-1' }),
@@ -101,11 +91,11 @@ describe('ChatActivityGroup', () => {
     activity.running = true
     await nextTick()
 
-    expect(host.querySelector<HTMLDetailsElement>('.tool-activity')?.open).toBe(true)
     expect(host.textContent).toContain('点击播放')
+    expect(host.querySelectorAll('.tool-activity-entry').length).toBe(2)
   })
 
-  it('keeps a manually collapsed group collapsed while results stream in', async () => {
+  it('keeps a manually collapsed entry collapsed while results stream in', async () => {
     const activity = reactive<ChatActivityBlock>({
       kind: 'activity',
       id: 'activity:t1',
@@ -115,12 +105,12 @@ describe('ChatActivityGroup', () => {
     const { host } = mountControlledGroup(activity)
     await nextTick()
 
-    const group = host.querySelector<HTMLDetailsElement>('.tool-activity')
-    group?.querySelector('summary')?.click()
-    await nextTick()
-    group?.querySelector('summary')?.click()
-    await nextTick()
-    expect(group?.open).toBe(false)
+    const entry = host.querySelector<HTMLDetailsElement>('.tool-activity-entry')
+    entry?.querySelector('summary')?.click()
+    await settleToggle()
+    entry?.querySelector('summary')?.click()
+    await settleToggle()
+    expect(entry?.open).toBe(false)
 
     activity.messages = [
       tool('t1', '打开首页', { toolCallId: 'call-1' }),
@@ -129,7 +119,7 @@ describe('ChatActivityGroup', () => {
     activity.running = false
     await nextTick()
 
-    expect(host.querySelector<HTMLDetailsElement>('.tool-activity')?.open).toBe(false)
+    expect(host.querySelector<HTMLDetailsElement>('.tool-activity-entry')?.open).toBe(false)
   })
 
   it('keeps an expanded tool entry open and restores it after remount', async () => {
@@ -145,8 +135,6 @@ describe('ChatActivityGroup', () => {
     const { host, expansion } = mountControlledGroup(activity)
     await nextTick()
 
-    host.querySelector<HTMLDetailsElement>('.tool-activity')?.querySelector('summary')?.click()
-    await settleToggle()
     const entry = host.querySelector<HTMLDetailsElement>('.tool-activity-entry')
     entry?.querySelector('summary')?.click()
     await settleToggle()
@@ -161,14 +149,12 @@ describe('ChatActivityGroup', () => {
     await nextTick()
     await nextTick()
 
-    const rebuiltGroup = rebuilt.host.querySelector<HTMLDetailsElement>('.tool-activity')
     const rebuiltEntry = rebuilt.host.querySelector<HTMLDetailsElement>('.tool-activity-entry')
-    expect(rebuiltGroup?.open).toBe(true)
     expect(rebuiltEntry?.open).toBe(true)
     expect(rebuilt.host.textContent).toContain('ok')
   })
 
-  it('reveals the expanded group and entry with a local scroll into view', async () => {
+  it('reveals the expanded entry with a local scroll into view', async () => {
     const scrollIntoView = vi.fn()
     Element.prototype.scrollIntoView = scrollIntoView
     const activity = reactive<ChatActivityBlock>({
@@ -183,11 +169,6 @@ describe('ChatActivityGroup', () => {
     const { host } = mountControlledGroup(activity)
     await nextTick()
 
-    host.querySelector<HTMLDetailsElement>('.tool-activity')?.querySelector('summary')?.click()
-    await settleToggle()
-    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' })
-
-    scrollIntoView.mockClear()
     host.querySelector<HTMLDetailsElement>('.tool-activity-entry')?.querySelector('summary')?.click()
     await settleToggle()
     expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' })

@@ -2,6 +2,7 @@
 @import "@felinic/ui/style.css";
 @import "./styles/ak-ui.css";
 @import "./styles/ak-ui-flourish.css";
+@import "./styles/agent-conversation.css";
 @source "../node_modules/@felinic/ui/src";
 @source ".";
 

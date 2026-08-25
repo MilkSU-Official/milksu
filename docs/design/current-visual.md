@@ -19,15 +19,17 @@
 | 3 列表指挥面 | 筛选、历史、执行按钮 | `.ak-segmented`、`WorkspaceCatalogActions`、`WorkspaceImportDialog` |
 | 4 事实面 | 卡片、表、弹窗、浮层 | Felinic `SettingsSection` / `SettingsRow` / `ActionCard` / `ModelListRow`、`DialogPanel` |
 | 5 文案 | 用户看得见的字 | `t('中文', 'English')` |
+| 6 Agent 对话 | Coding / CTF / CVE / 实验室共用的对话区 | `[data-agent-conversation]`：思考条、工具芯片、审批卡、回答卡、Prompt 岛 |
 
-行为仍走 Felinic。视觉走 ak-ui token。不要把 `@yunyoujun/ak-ui` 写进 `app/package.json`。
+行为仍走 Felinic。第 1–4 层（壳、列表、设置、档案）仍走 ak-ui token。不要把 `@yunyoujun/ak-ui` 写进 `app/package.json`。
+**对话区是单独一套语言**，不要把设置卡片或列表指挥面套进 Agent 循环，也不要把对话区的芯片/思考条套回设置页。
 功能、Desktop RPC、Judge、授权、Pi 工具循环不因换皮改语义。
 
 ## 1 材质
 
 - 石墨指挥面、纸面事实、青、金。酸绿不进产品。
 - 青 = 当前模块 / 主操作。金 = 次级强调 / 当前焦点条。成功绿只表示成功。
-- 蓝只表示链接和明确的执行 / 诊断状态。不要用 `--info`、蓝边或蓝底去区分 CTF / CVE / 实验室 / Coding。
+- 蓝只表示链接和明确的执行 / 诊断状态。不要用 `--info`、蓝边或蓝底去区分 CTF / CVE / 实验室 / Coding。Agent 对话区（第 6 层）可以用一条蓝做思考点和发送，不用于区分模块。
 - 夜间用中性石墨，不要明显的蓝、绿、棕偏色。日间用纸面中性色；日间不要把指挥面钉成夜间石墨。
 - 命令面（侧栏、会话历史、设置分类、右栏、输入框和菜单）走当前主题 token。事实面（题面、Agent 气泡、通知）走纸面。
 - 字体：Inter Variable + Noto Sans SC Variable。不用宋体、Noto Serif 或系统 `serif`。
@@ -40,6 +42,7 @@
 - 不要按页面再写 `max-w-3xl` / `4xl` / `5xl` / `6xl`。
 - 全宽表保持全宽：CVE 列表、CTF 题库桌、实验室自定义任务。
 - Coding 对话阅读仍用较窄的消息列。Composer 指挥面可以用 64rem 栏。
+- Agent 对话区（消息流 + Composer）走第 6 层，不走第 4 层的 `SettingsSection` / `ak-notice`。
 
 ## 3 列表指挥面
 
@@ -64,6 +67,21 @@ CTF / CVE / 实验室列表页共用同一套指挥面，不要在某一页另�
 - 用户看得见的中文必须 `t('中文', 'English')`。改中文时同一编辑改英文。
 - 空控件只留控件自己的标签。不要写「还没有 / 打开以后会出现」。
 - 产品文案不放 harness 备注、内部阈值或「这不是 X」。
+- Agent 循环的消息流叫 **对话区**，不叫「成绩单」。
+
+## 6 Agent 对话
+
+Coding Agent 的对话区（CTF / CVE / 实验室小窗共用同一套 `ChatPage`）按 Agent 循环来画，不按设置页来画。实现落在 `[data-agent-conversation]` 和 `app/src/styles/agent-conversation.css`。
+
+- 材质：冷中性纸面/卡片、实线 hairline、半径 chip 6 / 卡片 10 / Prompt 岛 16。强调色可以是一条蓝（思考点、发送），不再用战术切角气泡或 YOU / MILKSU 字标。
+- 思考：可展开「想了 Ns」。正文只来自 Pi 的 `thinking` 块，不演假步骤。
+- 工具：默认是一行芯片（`Read path`、`Edit path +12 -4`、`bash npm test`）。点开才看输入/结果。
+- 审批：HITL 卡片。按钮仍是拒绝 / 允许这一次 / 本对话始终允许。不要 ASK / HOLD / STOP 字标。
+- 回答：普通卡片 + Markdown。来源芯片只接线消息里真实出现的 `https` 链接。
+- 压缩：进行中用一条状态；成功后可以有横幅，不写内部阈值。
+- Composer：岛状输入，保留 slash、附件、模型、思考档、steer、上下文环。
+
+壳、列表、设置、档案仍用第 1–4 层。
 
 ## 已退役
 
@@ -73,3 +91,4 @@ CTF / CVE / 实验室列表页共用同一套指挥面，不要在某一页另�
 - CVE「添加 CVE」顶栏按钮、CTF「同步导入」顶栏按钮、自定义题目整页、`screen === 'source'` 训练步骤条
 - 设置浏览器控制只用「已连接 / 已授权」描述、没有 LIVE/OFF
 - 学习专题
+- Agent 对话里的 YOU / MILKSU 字标、切角 `clip-path` 气泡、审批 ASK / HOLD / STOP 字标

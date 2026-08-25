@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { Button } from '@felinic/ui'
+import { invokeCommand } from '@/desktop'
 import {
   FileText,
   RotateCcw,
 } from 'lucide-vue-next'
 import AkLoadingMark from '@/components-vue/AkLoadingMark.vue'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
+import { thinkingSummary, messageSourceChips } from '@/lib/agentConversation'
 import { redactProviderCredentials } from '@/lib/redaction'
 import { isBlankAssistantMessage } from '@/lib/chatActivity'
 import { toolBudgetToolName } from '@/lib/toolBudget'
@@ -25,7 +27,7 @@ defineEmits<{
 }>()
 
 function formatAttachmentSize(size: number) {
-  if (size >= 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`
+  if (size >= 1024 * 1024) return `${(size / 1024 / 1024).toFixed(1)} MB`
   if (size >= 1024) return `${(size / 1024).toFixed(1)} KB`
   return `${size} B`
 }
@@ -64,6 +66,41 @@ function userMessageTime(timestamp: number) {
 const timeLabel = computed(() => (
   props.message.role === 'user' ? userMessageTime(props.message.timestamp) : ''
 ))
+
+const sources = computed(() => (
+  props.message.role === 'assistant' ? messageSourceChips(props.message.content) : []
+))
+
+const thinkingLabel = computed(() => thinkingSummary(
+  props.message.thinkingDurationMs,
+  props.message.thinkingStatus === 'running',
+))
+
+const approvalTitle = computed(() => t(
+  `允许运行 ${props.message.toolName ?? 'tool'}`,
+  `Allow ${props.message.toolName ?? 'tool'}`,
+))
+
+async function openSource(href: string, event: MouseEvent) {
+  event.preventDefault()
+  try {
+    const url = new URL(href)
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return
+    await invokeCommand('open_ctf_source_url', { url: url.toString() })
+  } catch {
+    return
+  }
+}
+
+const approvalKicker = computed(() => (
+  props.message.approvalState === 'pending'
+    ? t('等待决定', 'Waiting')
+    : props.message.approvalState === 'approved'
+      ? t('已允许', 'Allowed')
+      : props.message.approvalState === 'denied'
+        ? t('已拒绝', 'Denied')
+        : t('已失效', 'Expired')
+))
 </script>
 
 <template>
@@ -74,63 +111,32 @@ const timeLabel = computed(() => (
   >
     <div
       v-if="timeLabel"
-      class="ak-divider chat-time-divider"
+      class="agent-time ak-divider chat-time-divider"
       role="separator"
     >
       <span>{{ timeLabel }}</span>
     </div>
     <div
       v-if="message.role === 'tool'"
-      class="ak-notice px-0"
-      :class="message.approvalState === 'pending'
-        ? 'ak-notice--warning'
-        : message.approvalState === 'approved'
-          ? 'ak-notice--success'
-          : 'ak-notice--danger'"
+      class="agent-approve"
     >
-      <span class="ak-notice__code">ASK<br />{{ t('批准', 'Approve') }}</span>
-      <div class="ak-notice__body">
-      <div class="flex items-start justify-between gap-4">
-        <div class="min-w-0">
-          <strong class="ak-notice__title">{{ t(`请求批准 · ${message.toolName ?? 'tool'}`, `Approval required · ${message.toolName ?? 'tool'}`) }}</strong>
-          <p class="ak-notice__message">
-            {{ message.approvalGrantable
-              ? t('Agent 已暂停。允许这一次只执行当前操作；本对话始终允许后，同类操作不再询问。', 'The agent is paused. Allow once to run only this action. Always allow for this conversation to skip the same kind of action later.')
-              : t('Agent 已暂停；只有允许本次操作后才会继续。', 'The agent is paused and will continue only after you allow this action.') }}
-          </p>
-        </div>
-        <span
-          class="ak-status ak-status--compact shrink-0"
-          :class="message.approvalState === 'pending'
-            ? 'ak-status--warning'
-            : message.approvalState === 'approved'
-              ? ''
-              : 'ak-status--offline'"
-        >
-          <span class="ak-status__signal" />
-          <span class="ak-status__label">{{ message.approvalState === 'pending' ? 'HOLD' : message.approvalState === 'approved' ? 'OK' : 'STOP' }}</span>
-          <span class="ak-status__detail">{{ message.approvalState === 'pending'
-            ? t('等待决定', 'Waiting')
-            : message.approvalState === 'approved'
-              ? t('已允许', 'Allowed')
-              : message.approvalState === 'denied'
-                ? t('已拒绝', 'Denied')
-                : t('已失效', 'Expired') }}</span>
-        </span>
-      </div>
-      <pre
-        v-if="message.content"
-        class="mt-3 max-h-40 overflow-auto rounded-md bg-background/70 px-3 py-2 whitespace-pre-wrap break-words font-mono text-caption leading-5"
-      >{{ visibleApprovalText(message.content) }}</pre>
+      <div class="agent-approve__kicker">{{ approvalKicker }}</div>
+      <h4 class="agent-approve__title">{{ approvalTitle }}</h4>
+      <p class="agent-approve__message">
+        {{ message.approvalGrantable
+          ? t('Agent 已暂停。允许这一次只执行当前操作；本对话始终允许后，同类操作不再询问。', 'The agent is paused. Allow once to run only this action. Always allow for this conversation to skip the same kind of action later.')
+          : t('Agent 已暂停；只有允许本次操作后才会继续。', 'The agent is paused and will continue only after you allow this action.') }}
+      </p>
+      <pre v-if="message.content">{{ visibleApprovalText(message.content) }}</pre>
       <details v-if="message.approvalInput" class="mt-2">
         <summary class="cursor-pointer text-caption text-muted-foreground">
           {{ t('查看完整参数', 'View full arguments') }}
         </summary>
-        <pre class="mt-2 max-h-56 overflow-auto whitespace-pre-wrap break-words font-mono text-caption leading-5">{{ visibleApprovalText(message.approvalInput) }}</pre>
+        <pre>{{ visibleApprovalText(message.approvalInput) }}</pre>
       </details>
       <div
         v-if="message.approvalState === 'pending' && message.approvalRequestId"
-        class="mt-3 flex justify-end gap-2"
+        class="agent-approve__actions"
       >
         <Button
           type="button"
@@ -161,14 +167,27 @@ const timeLabel = computed(() => (
       <p v-else-if="message.approvalReason" class="mt-2 text-caption text-muted-foreground">
         {{ visibleApprovalText(message.approvalReason) }}
       </p>
-      </div>
     </div>
     <div
       v-else
       class="min-w-0 overflow-x-auto break-words text-control leading-7"
-      :class="message.role === 'user' ? 'chat-bubble chat-bubble--user px-4 py-3' : 'chat-bubble chat-bubble--agent'"
+      :class="message.role === 'user' ? 'agent-user' : 'agent-answer'"
     >
-      <span class="chat-bubble__who">{{ message.role === 'user' ? 'YOU' : 'MILKSU' }}</span>
+      <details
+        v-if="message.thinking || message.thinkingStatus === 'running'"
+        class="agent-think"
+        :open="message.thinkingStatus === 'running'"
+      >
+        <summary class="agent-think__summary">
+          <span class="agent-think__dot" />
+          <span>{{ thinkingLabel }}</span>
+          <AkLoadingMark
+            v-if="message.thinkingStatus === 'running'"
+            :label="t('正在思考', 'Thinking')"
+          />
+        </summary>
+        <div v-if="message.thinking" class="agent-think__body">{{ message.thinking }}</div>
+      </details>
       <div
         v-if="message.attachments?.length"
         class="mb-2 flex flex-wrap gap-2"
@@ -185,8 +204,21 @@ const timeLabel = computed(() => (
           <span class="shrink-0 opacity-65">{{ formatAttachmentSize(attachment.size) }}</span>
         </span>
       </div>
-      <MarkdownContent :content="message.content" :compact="message.role === 'user'" />
-      <p v-if="message.status === 'running'" class="chat-model-loading">
+      <MarkdownContent
+        v-if="message.content"
+        :content="message.content"
+        :compact="message.role === 'user'"
+      />
+      <div v-if="sources.length" class="agent-sources">
+        <a
+          v-for="source in sources"
+          :key="source.href"
+          class="agent-source"
+          :href="source.href"
+          @click="openSource(source.href, $event)"
+        >{{ source.label }}</a>
+      </div>
+      <p v-if="message.status === 'running' && message.thinkingStatus !== 'running'" class="chat-model-loading">
         <AkLoadingMark :label="t('正在回复', 'Replying')" />
       </p>
       <div
@@ -209,17 +241,3 @@ const timeLabel = computed(() => (
     </div>
   </article>
 </template>
-
-<style scoped>
-.chat-bubble--agent {
-  width: min(42rem, 100%);
-  padding: 0.9rem 1rem;
-  color: var(--foreground);
-  background: var(--card);
-}
-
-.chat-bubble--user {
-  color: var(--chat-user-bubble-fg);
-  background: var(--chat-user-bubble);
-}
-</style>

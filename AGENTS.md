@@ -71,11 +71,12 @@ Review that page by layer. Do not invent a second primitive at the same layer.
 
 | Layer | Owns | Use |
 | --- | --- | --- |
-| Materials | tokens, color, type | graphite / paper / cyan / gold; blue only for links and execution |
+| Materials | tokens, color, type | graphite / paper / cyan / gold on shell, lists and settings; Agent 对话区 is its own cool-neutral language |
 | Shell | rail, topbar, page column | `WorkspaceModuleTopBar`, `--page-stack-width` 64rem |
 | List chrome | filters, History, primary action | `.ak-segmented`, `WorkspaceCatalogActions`; Import for CTF/CVE, Create for Lab |
 | Facts | cards, tables, dialogs, connection status | Felinic `SettingsSection` / `SettingsRow` / `ActionCard` / `ModelListRow`; LIVE/OFF via `ConnectionLiveStatus` |
 | Copy | user-visible strings | `t('中文', 'English')`; empty controls stay blank |
+| Agent conversation | Coding / CTF / CVE / lab chat | `[data-agent-conversation]`: thinking, tool chips, HITL approval, answer card, prompt island |
 
 Shared CSS lives in `app/src/index.css` and `app/src/styles/`. Felinic stays for Vue
 behavior. Do not add `@yunyoujun/ak-ui` to `app/package.json`. Enforcement:

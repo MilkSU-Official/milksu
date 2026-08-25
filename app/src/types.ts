@@ -69,6 +69,10 @@ export interface Message {
   approvalReason?: string
   approvalGrantable?: boolean
   attachments?: CodingAttachment[]
+  /** Pi thinking block projected for this assistant message. Not model output. */
+  thinking?: string
+  thinkingStatus?: 'running' | 'done'
+  thinkingDurationMs?: number
 }
 
 export type CodingExecutionMode = 'plan' | 'go'

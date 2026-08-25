@@ -17,6 +17,7 @@ import {
   normalizeCodingExecutionMode,
 } from '@/lib/codingPolicy'
 import {
+  applyAssistantThinkingEvent,
   applyCodingToolEvent,
   hasIdleRunResidue,
   settleRunningToolMessages,
@@ -402,6 +403,16 @@ export function normalizeConversation(raw: Record<string, unknown>): Conversatio
             ? message.approvalReason
             : undefined,
         attachments: normalizeAttachments(message.attachments),
+        thinking: typeof message.thinking === 'string' && message.thinking.trim()
+          ? message.thinking
+          : undefined,
+        thinkingStatus: message.thinkingStatus === 'running' || message.thinkingStatus === 'done'
+          ? message.thinkingStatus
+          : (typeof message.thinking === 'string' && message.thinking.trim() ? 'done' : undefined),
+        thinkingDurationMs: Number.isFinite(Number(message.thinkingDurationMs))
+          && Number(message.thinkingDurationMs) >= 0
+          ? Math.floor(Number(message.thinkingDurationMs))
+          : undefined,
       }
     })),
   }
@@ -1866,6 +1877,20 @@ export function useConversations() {
                   : t('已拒绝本次操作', 'Denied this action')),
             }
           }
+        } else if (
+          type === 'assistant.thinking_started'
+          || type === 'assistant.thinking_delta'
+          || type === 'assistant.thinking_completed'
+        ) {
+          const nextMessages = applyAssistantThinkingEvent(
+            withoutBlankAssistantMessages(messages),
+            {
+              type,
+              text: text,
+              durationMs,
+            },
+          )
+          messages.splice(0, messages.length, ...nextMessages)
         } else if (type === 'assistant.delta') {
           const delta = String(text ?? '')
           if (last?.role === 'assistant' && last.status === 'running') {

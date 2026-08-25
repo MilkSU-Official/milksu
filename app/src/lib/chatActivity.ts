@@ -49,6 +49,8 @@ export function isBlankAssistantMessage(message: Message) {
   if (message.role === 'assistant' && leftoverDeliveryStatus.test(content)) return true
   return message.role === 'assistant'
     && !content
+    && !String(message.thinking ?? '').trim()
+    && message.thinkingStatus !== 'running'
     && !(message.attachments && message.attachments.length)
 }
 
@@ -195,6 +197,47 @@ export function applyCodingToolEvent(
     toolCallId: toolCallId || (startIndex >= 0 ? next[startIndex]?.toolCallId : undefined),
     durationMs: event.durationMs,
     status: 'done',
+  })
+  return next
+}
+
+export function applyAssistantThinkingEvent(
+  messages: Message[],
+  event: {
+    type: 'assistant.thinking_started' | 'assistant.thinking_delta' | 'assistant.thinking_completed'
+    text?: string
+    durationMs?: number
+  },
+  createId: () => string = () => crypto.randomUUID(),
+): Message[] {
+  const next = messages.slice()
+  const last = next.at(-1)
+  const delta = String(event.text ?? '')
+  const completing = event.type === 'assistant.thinking_completed'
+  const liveAssistant = last?.role === 'assistant'
+    && (last.thinkingStatus === 'running' || last.status === 'running')
+  if (liveAssistant && last) {
+    next[next.length - 1] = {
+      ...last,
+      thinking: completing
+        ? (delta || last.thinking || '')
+        : `${last.thinking ?? ''}${delta}`,
+      thinkingStatus: completing ? 'done' : 'running',
+      thinkingDurationMs: event.durationMs ?? last.thinkingDurationMs,
+      status: last.status === 'done' ? 'done' : 'running',
+    }
+    return next
+  }
+  if (!delta && !completing && event.type !== 'assistant.thinking_started') return next
+  next.push({
+    id: createId(),
+    role: 'assistant',
+    content: '',
+    timestamp: Date.now(),
+    status: 'running',
+    thinking: delta,
+    thinkingStatus: completing ? 'done' : 'running',
+    thinkingDurationMs: event.durationMs,
   })
   return next
 }

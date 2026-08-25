@@ -89,7 +89,7 @@ describe('ChatMessageItem', () => {
       status: 'running',
     })
     expect(host.querySelector('article')).toBeNull()
-    expect(host.textContent ?? '').not.toContain('MILKSU')
+    expect(host.textContent ?? '').not.toContain('正在回复')
   })
 
   it('offers a conversation-wide grant only when the request is grantable', async () => {
@@ -148,6 +148,23 @@ describe('ChatMessageItem', () => {
     })
 
     expect(ctf.host.textContent).toContain('notes、证据、Judge 回执和工具结果')
+  })
+
+  it('renders a thinking block from Pi without a YOU/MILKSU label', async () => {
+    const { host } = await mountMessage({
+      id: 'message-thinking',
+      role: 'assistant',
+      content: '接下来改 greet。',
+      timestamp: Date.now(),
+      thinking: '先读文件再改签名。',
+      thinkingStatus: 'done',
+      thinkingDurationMs: 6000,
+    })
+    expect(host.textContent).toContain('想了 6 秒')
+    expect(host.textContent).toContain('先读文件再改签名。')
+    expect(host.textContent).not.toContain('MILKSU')
+    expect(host.textContent).not.toContain('YOU')
+    expect(host.querySelector('.agent-think')).not.toBeNull()
   })
 
   it('places an ak-divider above user messages only', async () => {

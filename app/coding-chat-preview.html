@@ -200,7 +200,7 @@
     <header class="banner">
       <div>
         <strong>设计预览 · 非产品</strong>
-        <p>同一轮「改 greet + 跑测试」。重构侧沿用 Beautiful UI 原语接到 Pi 已有事件；现在侧模拟当前成绩单。</p>
+        <p>同一轮「改 greet + 跑测试」。重构侧沿用 Beautiful UI 原语接到 Pi 已有事件；现在侧模拟当前对话区。</p>
       </div>
       <div class="toggle" role="group" aria-label="视图">
         <button type="button" id="btn-now" aria-pressed="false">现在</button>
@@ -309,7 +309,7 @@ PASS src/greet.test.ts</pre>
         thinking: {
           title: "Thinking",
           pi: "助手 content 的 type: thinking；流式 thinking_start / thinking_delta / thinking_end。TUI 可 Ctrl+T 折叠。压缩时写成 [Assistant thinking]。",
-          now: "bridge.js 的 message_update 只转发 text_delta。textContent() 丢掉 thinking 块。成绩单上看不见「想了 Ns」。档位滑块只改请求。",
+          now: "bridge.js 的 message_update 只转发 text_delta。textContent() 丢掉 thinking 块。对话区上看不见「想了 Ns」。档位滑块只改请求。",
           next: "可展开「想了 Ns」。正文必须来自 Pi，不演假步骤。",
         },
         tools: {
@@ -356,7 +356,7 @@ PASS src/greet.test.ts</pre>
         inspect.innerHTML =
           "<h2>接到 Pi</h2><h3>" + item.title + "</h3>" +
           "<p><strong>Pi 已有</strong> " + item.pi + "</p>" +
-          "<p><strong>现在成绩单</strong> " + item.now + "</p>" +
+          "<p><strong>现在对话区</strong> " + item.now + "</p>" +
           "<p><strong>重构后</strong> " + item.next + "</p>" +
           "<h3>不要从这张图库发明</h3><ul>" +
           "<li>假置信度 Recommendation Card</li>" +

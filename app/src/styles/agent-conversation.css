@@ -1,0 +1,262 @@
+[data-agent-conversation] {
+  --agent-accent: #2f6fec;
+  --agent-ok: #1f7a4d;
+  --agent-danger: #b42318;
+  --agent-hold: #a35b10;
+  --agent-chip-radius: 6px;
+  --agent-card-radius: 10px;
+  --agent-island-radius: 16px;
+}
+
+[data-agent-conversation] > .coding-workspace > .chat-main {
+  background: color-mix(in srgb, var(--background) 88%, var(--card));
+}
+
+[data-agent-conversation] .chat-bubble--user,
+[data-agent-conversation] .chat-bubble--agent {
+  clip-path: none;
+  box-shadow: none;
+}
+
+[data-agent-conversation] .chat-bubble__who {
+  display: none;
+}
+
+[data-agent-conversation] .agent-user {
+  margin-left: auto;
+  max-width: 82%;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--muted) 55%, var(--card));
+  padding: 0.7rem 0.9rem;
+}
+
+[data-agent-conversation] .agent-answer {
+  width: min(42rem, 100%);
+  border: 1px solid var(--border);
+  border-radius: var(--agent-card-radius);
+  background: var(--card);
+  padding: 0.85rem 1rem;
+}
+
+[data-agent-conversation] .agent-think {
+  margin: 0 0 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: var(--agent-card-radius);
+  background: var(--card);
+  padding: 0.45rem 0.7rem;
+}
+
+[data-agent-conversation] .agent-think__summary {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  cursor: pointer;
+  list-style: none;
+  color: var(--muted-foreground);
+  font-size: 0.8rem;
+}
+
+[data-agent-conversation] .agent-think__summary::-webkit-details-marker {
+  display: none;
+}
+
+[data-agent-conversation] .agent-think__dot {
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 99px;
+  background: var(--agent-accent);
+}
+
+[data-agent-conversation] .agent-think__body {
+  margin: 0.45rem 0 0.1rem;
+  color: var(--muted-foreground);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+[data-agent-conversation] .agent-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.7rem;
+}
+
+[data-agent-conversation] .agent-source {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.12rem 0.5rem;
+  color: var(--muted-foreground);
+  font-size: 0.72rem;
+}
+
+[data-agent-conversation] .agent-approve {
+  border: 1px solid var(--border);
+  border-radius: var(--agent-card-radius);
+  background: var(--card);
+  padding: 0.85rem 0.95rem;
+}
+
+[data-agent-conversation] .agent-approve__kicker {
+  color: var(--agent-hold);
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+[data-agent-conversation] .agent-approve__title {
+  margin: 0.2rem 0 0.4rem;
+  font-size: 0.95rem;
+  font-weight: 650;
+}
+
+[data-agent-conversation] .agent-approve__message {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 0.8rem;
+}
+
+[data-agent-conversation] .agent-approve pre {
+  margin: 0.55rem 0 0;
+  max-height: 10rem;
+  overflow: auto;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--muted) 65%, var(--card));
+  padding: 0.5rem 0.6rem;
+  font-family: var(--font-mono, ui-monospace, Menlo, monospace);
+  font-size: 0.75rem;
+  white-space: pre-wrap;
+}
+
+[data-agent-conversation] .agent-approve__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  margin-top: 0.65rem;
+}
+
+[data-agent-conversation] .tool-activity {
+  margin-bottom: 1.1rem;
+  color: var(--muted-foreground);
+}
+
+[data-agent-conversation] .tool-activity__summary {
+  display: none;
+}
+
+[data-agent-conversation] .agent-chip {
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 1.7rem;
+  padding: 0.15rem 0.1rem;
+  font-size: 0.8rem;
+}
+
+[data-agent-conversation] .agent-chip strong {
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+[data-agent-conversation] .agent-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  max-width: 28rem;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--agent-chip-radius);
+  background: var(--card);
+  padding: 0.06rem 0.4rem;
+  color: var(--foreground);
+  font-family: var(--font-mono, ui-monospace, Menlo, monospace);
+  font-size: 0.7rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-agent-conversation] .agent-pill__add {
+  color: var(--agent-ok);
+}
+
+[data-agent-conversation] .agent-pill__del {
+  color: var(--agent-danger);
+}
+
+[data-agent-conversation] .tool-activity-entry__summary {
+  min-height: 0;
+  padding: 0.1rem 0.15rem;
+  font-size: 0.8rem;
+}
+
+[data-agent-conversation] .tool-activity-entry__summary:hover {
+  background: transparent;
+  color: inherit;
+}
+
+[data-agent-conversation] .tool-activity-entry__detail {
+  margin: 0.15rem 0 0.55rem 1.55rem;
+  max-height: 16rem;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--background) 70%, var(--muted));
+  padding: 0.65rem 0.75rem;
+  color: var(--foreground);
+  font-size: 0.78rem;
+}
+
+[data-agent-conversation] .tool-activity-entry__result-label {
+  margin: 0.65rem 0 0.3rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.5rem;
+  color: var(--muted-foreground);
+}
+
+[data-agent-conversation] .tool-activity-entry__detail pre {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono, ui-monospace, Menlo, monospace);
+}
+
+[data-agent-conversation] .compact-bar {
+  margin: 0 auto 0.35rem;
+  width: min(44rem, calc(100% - 2rem));
+  border: 1px dashed var(--border);
+  border-radius: var(--agent-card-radius);
+  background: color-mix(in srgb, var(--card) 70%, transparent);
+  padding: 0.5rem 0.7rem;
+  color: var(--muted-foreground);
+  font-size: 0.78rem;
+}
+
+[data-agent-conversation] .chat-composer {
+  border-top: 0;
+  background: transparent;
+}
+
+[data-agent-conversation] .chat-composer__island {
+  border: 1px solid var(--border);
+  border-radius: var(--agent-island-radius);
+  background: var(--card);
+  box-shadow: 0 8px 24px rgb(20 24 32 / 6%);
+}
+
+[data-agent-conversation] .chat-composer__island:focus-within {
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--agent-accent) 45%, transparent),
+    0 8px 24px rgb(20 24 32 / 8%);
+}
+
+[data-agent-conversation] .markdown-content :deep(pre) {
+  border-radius: 8px;
+  background: #111318;
+  color: #e8eaef;
+  border-color: #111318;
+}

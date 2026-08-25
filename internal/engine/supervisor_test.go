@@ -30,6 +30,23 @@ func TestNormalizeAssistantDelta(t *testing.T) {
 	}
 }
 
+func TestNormalizeAssistantThinkingEvents(t *testing.T) {
+	started := normalizeBridgeEvent(bridgeEvent{Type: "thinking_start", ID: "session-1"})
+	if started.Type != "assistant.thinking_started" || started.SessionID != "session-1" {
+		t.Fatalf("unexpected thinking start: %#v", started)
+	}
+	delta := normalizeBridgeEvent(bridgeEvent{Type: "thinking_delta", ID: "session-1", Delta: "plan"})
+	if delta.Type != "assistant.thinking_delta" || delta.Text != "plan" {
+		t.Fatalf("unexpected thinking delta: %#v", delta)
+	}
+	done := normalizeBridgeEvent(bridgeEvent{
+		Type: "thinking_done", ID: "session-1", Content: "plan the edit", DurationMS: 4200,
+	})
+	if done.Type != "assistant.thinking_completed" || done.Text != "plan the edit" || done.DurationMS != 4200 {
+		t.Fatalf("unexpected thinking done: %#v", done)
+	}
+}
+
 func TestNormalizeUsageProjectionKeepsOnlyBoundedAccountingFields(t *testing.T) {
 	usage := &ModelUsage{
 		RecordID: "usage-1", Module: "coding",

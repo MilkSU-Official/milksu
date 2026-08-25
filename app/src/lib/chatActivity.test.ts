@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  applyAssistantThinkingEvent,
   applyCodingToolEvent,
   buildChatActivityEntries,
   buildChatTranscript,
@@ -436,6 +437,32 @@ describe('applyCodingToolEvent', () => {
     expect(settled[0]?.status).toBe('done')
     expect(settled[1]?.status).toBe('running')
     expect(settled[1]?.approvalRequestId).toBe('approval-1')
+  })
+
+  it('keeps a thinking-only assistant row visible', () => {
+    const thinking = message('think', 'assistant', '', {
+      thinking: 'read greet first',
+      thinkingStatus: 'running',
+      status: 'running',
+    })
+    expect(isBlankAssistantMessage(thinking)).toBe(false)
+    expect(isBlankAssistantMessage(message('start', 'assistant', '', {
+      thinkingStatus: 'running',
+      status: 'running',
+    }))).toBe(false)
+    const next = applyAssistantThinkingEvent([], {
+      type: 'assistant.thinking_delta',
+      text: 'read greet first',
+    }, () => 'id-1')
+    expect(next[0]?.thinking).toBe('read greet first')
+    expect(next[0]?.thinkingStatus).toBe('running')
+    const done = applyAssistantThinkingEvent(next, {
+      type: 'assistant.thinking_completed',
+      text: 'read greet first',
+      durationMs: 2400,
+    })
+    expect(done[0]?.thinkingStatus).toBe('done')
+    expect(done[0]?.thinkingDurationMs).toBe(2400)
   })
 
   it('hides leftover read-only delivery status as a blank assistant shell', () => {
