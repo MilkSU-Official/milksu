@@ -20,6 +20,7 @@ const emit = defineEmits<{
   openDocker: []
   occupyGo: []
   occupyStop: []
+  openLabSettings: []
 }>()
 
 const statusLabel = computed(() => {
@@ -104,6 +105,15 @@ const statusClass = computed(() => {
       </Button>
       <Button v-if="lease.state === 'docker-down' || lease.state === 'failed'" variant="brand" size="sm" data-testid="environment-retry" @click="emit('retry')">
         {{ t('重试', 'Retry') }}
+      </Button>
+      <Button
+        v-if="lease.provider === 'avd' && (lease.state === 'failed' || lease.state === 'none' || lease.state === 'stopped')"
+        variant="outline"
+        size="sm"
+        data-testid="environment-lab-settings"
+        @click="emit('openLabSettings')"
+      >
+        {{ t('Lab 设置', 'Lab settings') }}
       </Button>
       <Button v-if="lease.state === 'busy'" variant="brand" size="sm" data-testid="environment-occupy-go" @click="emit('occupyGo')">
         {{ t('去那边', 'Go there') }}

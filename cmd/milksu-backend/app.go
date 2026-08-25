@@ -330,6 +330,7 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 		_ = application.nssctfCatalog.Close()
 		return nil, fmt.Errorf("create eval suite: %w", err)
 	}
+	application.applyLabTooling()
 	return application, nil
 }
 
@@ -766,7 +767,22 @@ func (a *App) SaveSettingsCmd(settings config.AppSettings) error {
 	if a.evalSuite != nil {
 		a.evalSuite.SetSettings(a.settings.GetResolved())
 	}
+	a.applyLabTooling()
 	return err
+}
+
+func (a *App) applyLabTooling() {
+	if a.envBroker == nil || a.settings == nil {
+		return
+	}
+	lab := a.settings.Get().Lab
+	tooling := envbroker.AndroidTooling{AutoCreateAVD: true}
+	if lab != nil {
+		tooling.SDKRoot = lab.AndroidSDK
+		tooling.JavaHome = lab.JavaHome
+		tooling.AutoCreateAVD = lab.AutoCreateAVD == nil || *lab.AutoCreateAVD
+	}
+	a.envBroker.SetAndroidTooling(tooling)
 }
 
 func tokenFluxCatalogInputsChanged(previous, next config.AppSettings) bool {

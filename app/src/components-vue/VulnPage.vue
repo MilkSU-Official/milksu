@@ -126,6 +126,7 @@ const emit = defineEmits<{
   cancelQueuedGuidance: [index: number]
   editQueuedGuidance: [index: number]
   openSettings: []
+  openLabSettings: []
 }>()
 
 const dashboard = props.dashboard ?? useVulnerabilityDashboard()
@@ -705,6 +706,7 @@ function addSearchResult(candidate: VulnerabilitySearchCandidate) {
             @open-docker="openDocker"
             @occupy-go="occupyGo"
             @occupy-stop="occupyStop"
+            @open-lab-settings="$emit('openLabSettings')"
           />
           <SettingsSection :title="t('关联 CVE', 'Related CVE')">
             <RelatedCvePanel

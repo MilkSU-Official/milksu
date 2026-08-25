@@ -64,7 +64,7 @@ afterEach(() => {
 })
 
 interface MountSettingsOptions {
-  initialCategory?: 'general' | 'apikeys' | 'ctf' | 'cve' | 'coding' | 'chats' | 'browser' | 'security-tools' | 'eval'
+  initialCategory?: 'general' | 'apikeys' | 'ctf' | 'cve' | 'lab' | 'coding' | 'chats' | 'browser' | 'security-tools' | 'eval'
   settings?: AppSettings
   accountStatus?: AccountStatus
   appMethods?: Record<string, (...args: unknown[]) => Promise<unknown>>
@@ -139,6 +139,29 @@ async function mountSettingsPage(
       models: [],
       all: [],
     }),
+    GetLabEnvironmentStatus: async () => ({
+      ready: true,
+      canStart: true,
+      canCreate: true,
+      platform: 'darwin',
+      studioFound: true,
+      hasLabAvd: false,
+      sdkRoot: '/Users/test/Library/Android/sdk',
+      sdkSource: 'default',
+      javaHome: '/Applications/Android Studio.app/Contents/jbr/Contents/Home',
+      javaSource: 'android-studio',
+      avdmanager: '/Users/test/Library/Android/sdk/cmdline-tools/latest/bin/avdmanager',
+      emulator: '/Users/test/Library/Android/sdk/emulator/emulator',
+      adb: '/Users/test/Library/Android/sdk/platform-tools/adb',
+      systemImage: 'system-images;android-36.1;google_apis_playstore;arm64-v8a',
+      javaOk: true,
+      missing: [],
+      installUrl: 'https://developer.android.com/studio',
+      autoDetectSdk: true,
+      autoDetectJava: true,
+    }),
+    ChooseLabPath: async () => '',
+    OpenAndroidStudioSetup: async () => undefined,
     ...options.appMethods,
   }
   const milksuApi = {
@@ -754,7 +777,7 @@ describe('SettingsPage database compatibility', () => {
 
     const labels = [...document.querySelectorAll<HTMLElement>('.settings-nav-item')]
       .map(item => item.textContent?.trim())
-    expect(labels).toEqual(['通用', '模型', 'CTF', 'CVE', 'Coding', '归档聊天', '浏览器控制', '安全工具', '评测'])
+    expect(labels).toEqual(['通用', '模型', 'CTF', 'CVE', 'Lab', 'Coding', '归档聊天', '浏览器控制', '安全工具', '评测'])
     expect(document.body.textContent).toContain('@milksuofficial · 内测用户')
     const generalTitles = [...document.querySelectorAll('h2')].map(item => item.textContent?.trim())
     expect(generalTitles[0]).toBe('账户')
@@ -782,6 +805,18 @@ describe('SettingsPage database compatibility', () => {
     await settle()
     expect(document.body.textContent).toContain('Cybench')
     expect(document.body.textContent).toContain('开始评测')
+
+    const labButton = [...document.querySelectorAll<HTMLButtonElement>('.settings-nav-item')]
+      .find(item => item.textContent?.trim() === 'Lab')
+    labButton?.click()
+    await settle()
+    await settle()
+    await new Promise(resolve => setTimeout(resolve, 0))
+    await settle()
+    expect(document.body.textContent).toContain('Android SDK')
+    expect(document.body.textContent).toContain('自动创建 MilkSU-Lab')
+    expect(document.body.textContent).toContain('打开 Android Studio')
+    expect(document.body.textContent).toContain('/Users/test/Library/Android/sdk')
   })
 
   it('applies interface language immediately and persists it without a second save click', async () => {

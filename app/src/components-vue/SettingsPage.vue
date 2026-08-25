@@ -40,6 +40,7 @@ import {
   ExternalLink,
   FileWarning,
   Flag,
+  FlaskConical,
   FolderOpen,
   Gauge,
   Github,
@@ -92,6 +93,7 @@ import {
 import VulnerabilityIntelSettingsPanel from '@/components-vue/VulnerabilityIntelSettingsPanel.vue'
 import SecurityToolsSettingsPanel from '@/components-vue/SecurityToolsSettingsPanel.vue'
 import EvalSettingsPanel from '@/components-vue/EvalSettingsPanel.vue'
+import LabSettingsPanel from '@/components-vue/LabSettingsPanel.vue'
 import ModelVendorIcon from '@/components-vue/ModelVendorIcon.vue'
 import ArchivedConversationsSettings from '@/components-vue/ArchivedConversationsSettings.vue'
 import type { SecurityToolCodingHandoff } from '@/securityToolsTypes'
@@ -112,13 +114,14 @@ import {
   resolveModelThinking,
 } from '@/lib/modelThinking'
 
-type SettingsCategory = 'general' | 'apikeys' | 'ctf' | 'cve' | 'coding' | 'chats' | 'browser' | 'security-tools' | 'eval'
+type SettingsCategory = 'general' | 'apikeys' | 'ctf' | 'cve' | 'lab' | 'coding' | 'chats' | 'browser' | 'security-tools' | 'eval'
 
 const settingsCategories = computed(() => [
   { value: 'general' as const, label: t('通用', 'General'), icon: Settings2 },
   { value: 'apikeys' as const, label: t('模型', 'Models'), icon: Box },
   { value: 'ctf' as const, label: 'CTF', icon: Flag },
   { value: 'cve' as const, label: 'CVE', icon: Bug },
+  { value: 'lab' as const, label: 'Lab', icon: FlaskConical },
   { value: 'coding' as const, label: 'Coding', icon: Code2 },
   { value: 'chats' as const, label: t('归档聊天', 'Archived chats'), icon: Archive },
   { value: 'browser' as const, label: t('浏览器控制', 'Browser'), icon: Globe2 },
@@ -2230,6 +2233,13 @@ async function saveProviderEditor(closeAfterSave: boolean) {
           <SecurityToolsSettingsPanel
             @coding-handoff="$emit('securityToolCodingHandoff', $event)"
           />
+        </template>
+
+        <template v-else-if="working && category === 'lab'">
+          <LabSettingsPanel :settings="working" />
+          <div class="mt-6 flex justify-end">
+            <Button :loading="saving" @click="save">{{ t('保存设置', 'Save settings') }}</Button>
+          </div>
         </template>
 
         <template v-else-if="category === 'cve'">

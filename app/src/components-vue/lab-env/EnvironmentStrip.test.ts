@@ -25,6 +25,7 @@ function mountLease(lease: EnvironmentLease) {
     onOpenDocker: () => events.push('docker'),
     onOccupyGo: () => events.push('occupyGo'),
     onOccupyStop: () => events.push('occupyStop'),
+    onOpenLabSettings: () => events.push('openLabSettings'),
   })
   app.mount(host)
   mounted.push(app)
@@ -63,6 +64,18 @@ describe('EnvironmentStrip', () => {
     await nextTick()
     expect(host.textContent).toContain('没有练习包')
     expect(host.querySelector('[data-testid="environment-start"]')).toBeNull()
+  })
+
+  it('sends failed Android leases to Lab settings instead of a raw tool path', async () => {
+    const { host, events } = mountLease({
+      provider: 'avd',
+      state: 'failed',
+      packageName: 'InjuredAndroid',
+      detail: '创建 MilkSU-Lab 失败: 本机没有可用的 Java。请安装 Android Studio，然后在设置 → Lab 点重新检测',
+    })
+    await nextTick()
+    host.querySelector<HTMLButtonElement>('[data-testid="environment-lab-settings"]')?.click()
+    expect(events).toEqual(['openLabSettings'])
   })
 
   it('offers Docker Desktop when the engine is down', async () => {

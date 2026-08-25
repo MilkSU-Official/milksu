@@ -21,31 +21,15 @@ type androidRunner interface {
 	StartDetached(name string, args ...string) error
 }
 
-type execAndroidRunner struct{}
+type execAndroidRunner struct {
+	sdkRoot  string
+	javaHome string
+}
 
-func (execAndroidRunner) LookPath(name string) (string, error) {
-	if path, err := exec.LookPath(name); err == nil {
-		return path, nil
-	}
-	for _, sdk := range androidSDKRoots() {
-		candidates := map[string][]string{
-			"emulator": {
-				filepath.Join(sdk, "emulator", "emulator"),
-				filepath.Join(sdk, "emulator", "emulator.exe"),
-			},
-			"adb": {
-				filepath.Join(sdk, "platform-tools", "adb"),
-				filepath.Join(sdk, "platform-tools", "adb.exe"),
-			},
-			"avdmanager": {
-				filepath.Join(sdk, "cmdline-tools", "latest", "bin", "avdmanager"),
-				filepath.Join(sdk, "cmdline-tools", "latest", "bin", "avdmanager.bat"),
-			},
-		}
-		for _, candidate := range candidates[name] {
-			if androidToolExists(candidate) {
-				return candidate, nil
-			}
+func (r execAndroidRunner) LookPath(name string) (string, error) {
+	for _, candidate := range androidToolCandidatesIn(name, r.sdkRoots()) {
+		if androidToolExists(candidate) {
+			return candidate, nil
 		}
 	}
 	if path, err := exec.LookPath(name); err == nil {
@@ -54,25 +38,73 @@ func (execAndroidRunner) LookPath(name string) (string, error) {
 	return "", fmt.Errorf("%s not found", name)
 }
 
-func androidSDKRoots() []string {
+func (r execAndroidRunner) sdkRoots() []string {
+	return androidSDKRootsWith(r.sdkRoot)
+}
+
+func androidSDKRootsWith(override string) []string {
 	var roots []string
-	for _, key := range []string{"ANDROID_HOME", "ANDROID_SDK_ROOT"} {
-		if value := strings.TrimSpace(os.Getenv(key)); value != "" {
-			roots = append(roots, value)
+	if strings.TrimSpace(override) != "" {
+		roots = append(roots, strings.TrimSpace(override))
+	}
+	roots = append(roots, androidSDKRoots()...)
+	seen := map[string]bool{}
+	var unique []string
+	for _, root := range roots {
+		if root == "" || seen[root] {
+			continue
+		}
+		seen[root] = true
+		unique = append(unique, root)
+	}
+	return unique
+}
+
+func androidToolCandidatesIn(name string, sdkRoots []string) []string {
+	var candidates []string
+	for _, sdk := range sdkRoots {
+		switch name {
+		case "emulator":
+			candidates = append(candidates,
+				filepath.Join(sdk, "emulator", "emulator"),
+				filepath.Join(sdk, "emulator", "emulator.exe"),
+			)
+		case "adb":
+			candidates = append(candidates,
+				filepath.Join(sdk, "platform-tools", "adb"),
+				filepath.Join(sdk, "platform-tools", "adb.exe"),
+			)
+		case "avdmanager":
+			candidates = append(candidates, avdmanagerInRoot(sdk)...)
 		}
 	}
-	home, err := os.UserHomeDir()
-	if err == nil && home != "" {
-		roots = append(roots,
-			filepath.Join(home, "Library", "Android", "sdk"),
-			filepath.Join(home, "Android", "Sdk"),
-		)
+	if name == "avdmanager" {
+		for _, prefix := range []string{"/opt/homebrew", "/usr/local"} {
+			candidates = append(candidates, avdmanagerInRoot(filepath.Join(prefix, "share", "android-commandlinetools"))...)
+		}
 	}
-	if local := strings.TrimSpace(os.Getenv("LOCALAPPDATA")); local != "" {
-		roots = append(roots, filepath.Join(local, "Android", "Sdk"))
-	}
-	return roots
+	return candidates
 }
+
+func avdmanagerInRoot(root string) []string {
+	var candidates []string
+	latest := filepath.Join(root, "cmdline-tools", "latest", "bin", "avdmanager")
+	candidates = append(candidates, latest, latest+".bat")
+	entries, err := os.ReadDir(filepath.Join(root, "cmdline-tools"))
+	if err != nil {
+		return candidates
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() || entry.Name() == "latest" {
+			continue
+		}
+		path := filepath.Join(root, "cmdline-tools", entry.Name(), "bin", "avdmanager")
+		candidates = append(candidates, path, path+".bat")
+	}
+	return candidates
+}
+
+
 
 func androidToolExists(path string) bool {
 	info, err := os.Stat(path)
@@ -87,7 +119,7 @@ func androidToolExists(path string) bool {
 
 func (r execAndroidRunner) CombinedOutput(ctx context.Context, name string, args ...string) ([]byte, error) {
 	command := exec.CommandContext(ctx, name, args...)
-	command.Env = os.Environ()
+	command.Env = r.processEnv()
 	if isAVDManagerCreate(name, args) {
 		command.Stdin = strings.NewReader("no\n")
 	}
@@ -103,24 +135,269 @@ func isAVDManagerCreate(name string, args []string) bool {
 	return strings.Contains(joined, "create avd")
 }
 
-func (execAndroidRunner) StartDetached(name string, args ...string) error {
+func (r execAndroidRunner) StartDetached(name string, args ...string) error {
 	command := exec.Command(name, args...)
 	command.Stdout = nil
 	command.Stderr = nil
-	command.Env = os.Environ()
-	if home := strings.TrimSpace(os.Getenv("ANDROID_HOME")); home == "" {
-		if sdk := strings.TrimSpace(os.Getenv("ANDROID_SDK_ROOT")); sdk != "" {
-			command.Env = append(command.Env, "ANDROID_HOME="+sdk, "ANDROID_SDK_ROOT="+sdk)
-		} else if userHome, err := os.UserHomeDir(); err == nil {
-			sdk = filepath.Join(userHome, "Library", "Android", "sdk")
-			command.Env = append(command.Env, "ANDROID_HOME="+sdk, "ANDROID_SDK_ROOT="+sdk)
-		}
-	}
+	command.Env = r.processEnv()
 	withDetach(command)
 	if err := command.Start(); err != nil {
 		return err
 	}
 	return command.Process.Release()
+}
+
+func firstAndroidSDKRootIn(roots []string) string {
+	for _, root := range roots {
+		if info, err := os.Stat(root); err == nil && info.IsDir() {
+			return root
+		}
+	}
+	if len(roots) > 0 {
+		return roots[0]
+	}
+	return ""
+}
+
+func firstAndroidSDKRoot() string {
+	return firstAndroidSDKRootIn(androidSDKRoots())
+}
+
+func androidJavaHome() string {
+	for _, candidate := range androidStudioJavaCandidates() {
+		if home := validJavaHome(candidate); home != "" {
+			return home
+		}
+	}
+	if home := validJavaHome(os.Getenv("JAVA_HOME")); home != "" {
+		return home
+	}
+	for _, candidate := range osJavaCandidates() {
+		if home := validJavaHome(candidate); home != "" {
+			return home
+		}
+	}
+	if runtime.GOOS == "darwin" {
+		if output, err := exec.Command("/usr/libexec/java_home", "-v", "17").Output(); err == nil {
+			if home := validJavaHome(strings.TrimSpace(string(output))); home != "" {
+				return home
+			}
+		}
+	}
+	return ""
+}
+
+func validJavaHome(home string) string {
+	home = strings.TrimSpace(home)
+	if home == "" {
+		return ""
+	}
+	java := filepath.Join(home, "bin", "java")
+	if runtime.GOOS == "windows" {
+		if androidToolExists(java + ".exe") {
+			return home
+		}
+	}
+	if !androidToolExists(java) || isMacOSJavaStub(java) {
+		return ""
+	}
+	return home
+}
+
+func isMacOSJavaStub(java string) bool {
+	resolved, err := filepath.EvalSymlinks(java)
+	if err != nil {
+		resolved = java
+	}
+	return filepath.Clean(java) == "/usr/bin/java" || filepath.Clean(resolved) == "/usr/bin/java"
+}
+
+func (r execAndroidRunner) resolvedJavaHome() string {
+	if override := strings.TrimSpace(r.javaHome); override != "" {
+		if home := validJavaHome(override); home != "" {
+			return home
+		}
+		return override
+	}
+	return androidJavaHome()
+}
+
+func (r execAndroidRunner) processEnv() []string {
+	env := os.Environ()
+	if sdk := firstAndroidSDKRootIn(r.sdkRoots()); sdk != "" {
+		env = upsertEnv(env, "ANDROID_HOME", sdk)
+		env = upsertEnv(env, "ANDROID_SDK_ROOT", sdk)
+	}
+	if javaHome := r.resolvedJavaHome(); javaHome != "" {
+		env = upsertEnv(env, "JAVA_HOME", javaHome)
+		env = prependPathEnv(env, filepath.Join(javaHome, "bin"))
+	}
+	return env
+}
+
+func androidProcessEnv() []string {
+	return execAndroidRunner{}.processEnv()
+}
+
+func upsertEnv(env []string, key, value string) []string {
+	if value == "" {
+		return env
+	}
+	for i, item := range env {
+		eq := strings.IndexByte(item, '=')
+		if eq <= 0 {
+			continue
+		}
+		if item[:eq] == key || (runtime.GOOS == "windows" && strings.EqualFold(item[:eq], key)) {
+			env[i] = key + "=" + value
+			return env
+		}
+	}
+	return append(env, key+"="+value)
+}
+
+func prependPathEnv(env []string, dir string) []string {
+	if dir == "" {
+		return env
+	}
+	for i, item := range env {
+		eq := strings.IndexByte(item, '=')
+		if eq <= 0 {
+			continue
+		}
+		if item[:eq] == "PATH" || (runtime.GOOS == "windows" && strings.EqualFold(item[:eq], "PATH")) {
+			env[i] = item[:eq] + "=" + dir + string(os.PathListSeparator) + item[eq+1:]
+			return env
+		}
+	}
+	return append(env, "PATH="+dir)
+}
+
+func formatLabAVDCreateError(avd string, output []byte, err error) error {
+	text := strings.TrimSpace(string(output))
+	if isMissingJavaRuntimeOutput(text) {
+		return fmt.Errorf("创建 %s 失败: 本机没有可用的 Java。请安装 Android Studio，然后在设置 → Lab 点重新检测", avd)
+	}
+	compact := compactAndroidToolOutput(text)
+	if compact == "" && err != nil {
+		return fmt.Errorf("创建 %s 失败: %v", avd, err)
+	}
+	if compact == "" {
+		return fmt.Errorf("创建 %s 失败", avd)
+	}
+	return fmt.Errorf("创建 %s 失败: %s", avd, compact)
+}
+
+func isMissingJavaRuntimeOutput(text string) bool {
+	return strings.Contains(text, "Unable to locate a Java Runtime") ||
+		strings.Contains(text, "integer expression expected") ||
+		strings.Contains(text, "JAVA_HOME is not set") ||
+		strings.Contains(text, "JAVA_HOME is set to an invalid directory")
+}
+
+type AndroidTooling struct {
+	SDKRoot       string
+	JavaHome      string
+	AutoCreateAVD bool
+}
+
+type AndroidToolingStatus struct {
+	Ready          bool     `json:"ready"`
+	CanStart       bool     `json:"canStart"`
+	CanCreate      bool     `json:"canCreate"`
+	Platform       string   `json:"platform"`
+	StudioFound    bool     `json:"studioFound"`
+	HasLabAVD      bool     `json:"hasLabAvd"`
+	SDKRoot        string   `json:"sdkRoot"`
+	SDKSource      string   `json:"sdkSource"`
+	JavaHome       string   `json:"javaHome"`
+	JavaSource     string   `json:"javaSource"`
+	AVDManager     string   `json:"avdmanager"`
+	Emulator       string   `json:"emulator"`
+	ADB            string   `json:"adb"`
+	SystemImage    string   `json:"systemImage"`
+	JavaOK         bool     `json:"javaOk"`
+	Missing        []string `json:"missing"`
+	InstallURL     string   `json:"installUrl"`
+	AutoDetectSDK  bool     `json:"autoDetectSdk"`
+	AutoDetectJava bool     `json:"autoDetectJava"`
+}
+
+func ProbeAndroidTooling(tooling AndroidTooling) AndroidToolingStatus {
+	overrideSDK := strings.TrimSpace(tooling.SDKRoot)
+	overrideJava := strings.TrimSpace(tooling.JavaHome)
+	runner := execAndroidRunner{sdkRoot: overrideSDK, javaHome: overrideJava}
+	status := AndroidToolingStatus{
+		Platform:       runtime.GOOS,
+		StudioFound:    androidStudioPresent(),
+		SDKRoot:        firstAndroidSDKRootIn(runner.sdkRoots()),
+		JavaHome:       runner.resolvedJavaHome(),
+		InstallURL:     AndroidStudioInstallURL,
+		AutoDetectSDK:  overrideSDK == "",
+		AutoDetectJava: overrideJava == "",
+	}
+	status.SDKSource = classifySDKSource(status.SDKRoot, overrideSDK)
+	status.JavaSource = classifyJavaSource(status.JavaHome, overrideJava)
+	status.JavaOK = validJavaHome(status.JavaHome) != ""
+	status.SystemImage = findLabSystemImageIn(runner.sdkRoots())
+	if path, err := runner.LookPath("avdmanager"); err == nil {
+		status.AVDManager = path
+	}
+	if path, err := runner.LookPath("emulator"); err == nil {
+		status.Emulator = path
+	}
+	if path, err := runner.LookPath("adb"); err == nil {
+		status.ADB = path
+	}
+	if names, err := listAvds(runner); err == nil {
+		status.HasLabAVD = len(labAVDs(names)) > 0
+	}
+	status.CanStart = status.Emulator != "" && status.ADB != ""
+	status.CanCreate = status.CanStart && status.JavaOK && status.AVDManager != "" && status.SystemImage != ""
+	if status.SDKRoot == "" {
+		status.Missing = append(status.Missing, "sdk")
+	}
+	if status.Emulator == "" {
+		status.Missing = append(status.Missing, "emulator")
+	}
+	if status.ADB == "" {
+		status.Missing = append(status.Missing, "platform-tools")
+	}
+	if status.AVDManager == "" {
+		status.Missing = append(status.Missing, "cmdline-tools")
+	}
+	if !status.JavaOK {
+		status.Missing = append(status.Missing, "jdk")
+	}
+	if status.SystemImage == "" {
+		status.Missing = append(status.Missing, "system-image")
+	}
+	status.Ready = status.CanStart && (status.HasLabAVD || status.CanCreate)
+	return status
+}
+
+func compactAndroidToolOutput(text string) string {
+	var keep []string
+	for _, line := range strings.Split(text, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		if strings.Contains(line, "integer expression expected") {
+			continue
+		}
+		if strings.Contains(line, "Please visit http://www.java.com") {
+			continue
+		}
+		keep = append(keep, line)
+	}
+	if len(keep) == 0 {
+		return strings.TrimSpace(text)
+	}
+	if len(keep) > 3 {
+		keep = keep[len(keep)-3:]
+	}
+	return strings.Join(keep, " ")
 }
 
 func listAvds(runner androidRunner) ([]string, error) {
@@ -174,11 +451,24 @@ func nextLabAVDName(existing []string) string {
 var detectLabSystemImage = findLabSystemImage
 
 func findLabSystemImage() string {
+	return findLabSystemImageIn(androidSDKRoots())
+}
+
+func labSystemImage(runner androidRunner) string {
+	if r, ok := runner.(execAndroidRunner); ok {
+		if image := findLabSystemImageIn(r.sdkRoots()); image != "" {
+			return image
+		}
+	}
+	return detectLabSystemImage()
+}
+
+func findLabSystemImageIn(sdkRoots []string) string {
 	abi := "x86_64"
 	if runtime.GOARCH == "arm64" {
 		abi = "arm64-v8a"
 	}
-	for _, sdk := range androidSDKRoots() {
+	for _, sdk := range sdkRoots {
 		root := filepath.Join(sdk, "system-images")
 		entries, err := os.ReadDir(root)
 		if err != nil {
@@ -200,7 +490,7 @@ func findLabSystemImage() string {
 	return ""
 }
 
-func ensureLabAVD(ctx context.Context, runner androidRunner) (string, error) {
+func ensureLabAVD(ctx context.Context, runner androidRunner, autoCreate bool) (string, error) {
 	names, err := listAvds(runner)
 	if err != nil {
 		return "", err
@@ -208,17 +498,20 @@ func ensureLabAVD(ctx context.Context, runner androidRunner) (string, error) {
 	if labs := labAVDs(names); len(labs) > 0 {
 		return labs[0], nil
 	}
-	image := detectLabSystemImage()
+	if !autoCreate {
+		return "", fmt.Errorf("没有名为 %s 的实验室模拟器。请在设置 → Lab 开启自动创建，或在 Android Studio 里建这个 AVD", labAVDPrefix)
+	}
+	image := labSystemImage(runner)
 	if image == "" {
-		return "", fmt.Errorf("没有 MilkSU 实验室模拟器。请在 Android Studio 创建一个名为 %s 的 AVD，不要用日常手机模拟器", labAVDPrefix)
+		return "", fmt.Errorf("没有实验室模拟器 %s，也没有可用来创建它的系统镜像。请打开 Android Studio → SDK Manager 安装系统镜像，然后在设置 → Lab 重新检测。不要用日常手机模拟器", labAVDPrefix)
 	}
 	manager, err := runner.LookPath("avdmanager")
 	if err != nil {
-		return "", fmt.Errorf("没有 avdmanager，无法创建 %s。请先在 Android Studio 创建该 AVD", labAVDPrefix)
+		return "", fmt.Errorf("没有命令行工具。打开 Android Studio → SDK Manager，勾选 Android SDK Command-line Tools，然后在设置 → Lab 重新检测")
 	}
 	output, createErr := runner.CombinedOutput(ctx, manager, "create", "avd", "--force", "--name", labAVDPrefix, "--package", image, "--device", "pixel")
 	if createErr != nil {
-		return "", fmt.Errorf("创建 %s 失败: %s", labAVDPrefix, strings.TrimSpace(string(output)))
+		return "", formatLabAVDCreateError(labAVDPrefix, output, createErr)
 	}
 	return labAVDPrefix, nil
 }
@@ -282,14 +575,14 @@ func runningLabDevices(ctx context.Context, runner androidRunner, adb string) []
 	return devices
 }
 
-func allocateAndroidDevice(ctx context.Context, runner androidRunner, heldDevices, heldSerials map[string]bool) (androidDevice, error) {
+func allocateAndroidDevice(ctx context.Context, runner androidRunner, heldDevices, heldSerials map[string]bool, autoCreate bool) (androidDevice, error) {
 	if heldDevices == nil {
 		heldDevices = map[string]bool{}
 	}
 	if heldSerials == nil {
 		heldSerials = map[string]bool{}
 	}
-	if _, err := ensureLabAVD(ctx, runner); err != nil {
+	if _, err := ensureLabAVD(ctx, runner, autoCreate); err != nil {
 		return androidDevice{}, err
 	}
 	adb, err := runner.LookPath("adb")
@@ -322,11 +615,14 @@ func allocateAndroidDevice(ctx context.Context, runner androidRunner, heldDevice
 		break
 	}
 	if pick == "" {
+		if !autoCreate {
+			return androidDevice{}, errAndroidBusy
+		}
 		next := nextLabAVDName(labs)
 		if next == "" {
 			return androidDevice{}, errAndroidBusy
 		}
-		image := detectLabSystemImage()
+		image := labSystemImage(runner)
 		if image == "" {
 			return androidDevice{}, errAndroidBusy
 		}
@@ -335,7 +631,7 @@ func allocateAndroidDevice(ctx context.Context, runner androidRunner, heldDevice
 			return androidDevice{}, errAndroidBusy
 		}
 		if output, createErr := runner.CombinedOutput(ctx, manager, "create", "avd", "--force", "--name", next, "--package", image, "--device", "pixel"); createErr != nil {
-			return androidDevice{}, fmt.Errorf("无法再开一台实验室模拟器: %s", strings.TrimSpace(string(output)))
+			return androidDevice{}, formatLabAVDCreateError(next, output, createErr)
 		}
 		pick = next
 	}

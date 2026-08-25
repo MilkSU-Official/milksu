@@ -262,7 +262,14 @@ export interface AppSettings {
   preferred_external_editor?: string
   security_tools?: Record<string, { enabled: boolean }>
   model_thinking?: Record<string, Record<string, ModelThinkingConfig>>
+  lab?: LabConfig
   providers: Record<string, ProviderConfig>
+}
+
+export interface LabConfig {
+  android_sdk?: string
+  java_home?: string
+  auto_create_avd?: boolean
 }
 
 export const PRIMARY_MODEL_SELECTION: ModelSelection = {
@@ -311,6 +318,11 @@ export function withAppSettingsDefaults(value: AppSettings): AppSettings {
     model_thinking: normalizeModelThinkingSettings(value.model_thinking, configuredProviders),
     providers: configuredProviders,
     locale: value.locale === 'en' ? 'en' : 'zh',
+    lab: {
+      android_sdk: String(value.lab?.android_sdk ?? '').trim(),
+      java_home: String(value.lab?.java_home ?? '').trim(),
+      auto_create_avd: value.lab?.auto_create_avd !== false,
+    },
   }
 }
 

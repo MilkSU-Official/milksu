@@ -44,6 +44,28 @@ export type EnvLease = {
   updatedAt?: string
 }
 
+export type LabEnvironmentStatus = {
+  ready: boolean
+  canStart: boolean
+  canCreate: boolean
+  platform: string
+  studioFound: boolean
+  hasLabAvd: boolean
+  sdkRoot: string
+  sdkSource: string
+  javaHome: string
+  javaSource: string
+  avdmanager: string
+  emulator: string
+  adb: string
+  systemImage: string
+  javaOk: boolean
+  missing: string[]
+  installUrl: string
+  autoDetectSdk: boolean
+  autoDetectJava: boolean
+}
+
 export type EnvOwnerRequest = {
   ownerKind: EnvOwnerKind
   ownerId: string

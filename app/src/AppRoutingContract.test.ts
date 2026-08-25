@@ -61,6 +61,7 @@ describe('App workspace routing contract', () => {
     expect(appSource).toContain('async function runLabJob')
     expect(appSource).toContain('@enter="enterLabJob"')
     expect(appSource).toContain('@run="runLabJob"')
+    expect(appSource).toContain("@open-lab-settings=\"openSettings('lab')\"")
     expect(appSource).toContain('v-bind="codingAgentBind"')
     expect(appSource).not.toContain('授权测试')
   })

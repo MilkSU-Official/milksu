@@ -73,6 +73,12 @@ type SecurityToolPreference struct {
 	Enabled bool `json:"enabled"`
 }
 
+type LabConfig struct {
+	AndroidSDK    string `json:"android_sdk,omitempty"`
+	JavaHome      string `json:"java_home,omitempty"`
+	AutoCreateAVD *bool  `json:"auto_create_avd,omitempty"`
+}
+
 type AppSettings struct {
 	ActiveProvider          string                                    `json:"active_provider"`
 	ActiveModel             string                                    `json:"active_model"`
@@ -85,6 +91,7 @@ type AppSettings struct {
 	PreferredExternalEditor string                                    `json:"preferred_external_editor,omitempty"`
 	SecurityTools           map[string]SecurityToolPreference         `json:"security_tools,omitempty"`
 	ModelThinking           map[string]map[string]ModelThinkingConfig `json:"model_thinking,omitempty"`
+	Lab                     *LabConfig                                `json:"lab,omitempty"`
 	Providers               map[string]ProviderConfig                 `json:"providers"`
 	// RuntimeModelCatalogPath is injected only into resolved settings so Pi can
 	// read the same refreshed public model metadata as the desktop UI. It is
@@ -650,7 +657,21 @@ func withDefaults(value AppSettings) AppSettings {
 	value.PreferredExternalEditor = externaleditor.Normalize(value.PreferredExternalEditor)
 	value.SecurityTools = normalizeSecurityToolPreferences(value.SecurityTools)
 	value.ModelThinking = normalizeModelThinkingOverrides(value.ModelThinking, value.Providers)
+	value.Lab = normalizeLabConfig(value.Lab)
 	return value
+}
+
+func normalizeLabConfig(value *LabConfig) *LabConfig {
+	config := LabConfig{AutoCreateAVD: boolPointer(true)}
+	if value != nil {
+		config.AndroidSDK = strings.TrimSpace(value.AndroidSDK)
+		config.JavaHome = strings.TrimSpace(value.JavaHome)
+		if value.AutoCreateAVD != nil {
+			auto := *value.AutoCreateAVD
+			config.AutoCreateAVD = &auto
+		}
+	}
+	return &config
 }
 
 func normalizeSecurityToolPreferences(value map[string]SecurityToolPreference) map[string]SecurityToolPreference {
@@ -777,6 +798,14 @@ func clone(value AppSettings) AppSettings {
 	if value.Locale != nil {
 		locale := *value.Locale
 		copy.Locale = &locale
+	}
+	if value.Lab != nil {
+		lab := *value.Lab
+		if value.Lab.AutoCreateAVD != nil {
+			auto := *value.Lab.AutoCreateAVD
+			lab.AutoCreateAVD = &auto
+		}
+		copy.Lab = &lab
 	}
 	copy.ModelVerified = cloneModelVerification(value.ModelVerified)
 	return copy

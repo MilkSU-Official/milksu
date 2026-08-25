@@ -70,6 +70,9 @@ func TestWithDefaults(t *testing.T) {
 		settings.DisabledSkills[1] != "review-security" {
 		t.Fatalf("unexpected disabled skills: %#v", settings.DisabledSkills)
 	}
+	if settings.Lab == nil || settings.Lab.AutoCreateAVD == nil || !*settings.Lab.AutoCreateAVD {
+		t.Fatalf("lab auto-create should default on: %#v", settings.Lab)
+	}
 }
 
 func TestCloneDoesNotShareMaps(t *testing.T) {

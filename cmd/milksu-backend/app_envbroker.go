@@ -105,6 +105,61 @@ func (a *App) ProbeEnvLease(request envOwnerRequest) (string, error) {
 	return a.envBroker.Probe(a.commandContext(), envbroker.Owner{Kind: request.OwnerKind, ID: request.OwnerID})
 }
 
+type labEnvironmentProbe struct {
+	AndroidSDK     string `json:"androidSdk"`
+	JavaHome       string `json:"javaHome"`
+	AutoCreateAVD  bool   `json:"autoCreateAvd"`
+}
+
+func (a *App) GetLabEnvironmentStatus(probe labEnvironmentProbe) envbroker.AndroidToolingStatus {
+	tooling := envbroker.AndroidTooling{
+		SDKRoot:       probe.AndroidSDK,
+		JavaHome:      probe.JavaHome,
+		AutoCreateAVD: probe.AutoCreateAVD,
+	}
+	if a.settings != nil && strings.TrimSpace(probe.AndroidSDK) == "" && strings.TrimSpace(probe.JavaHome) == "" {
+		if lab := a.settings.Get().Lab; lab != nil {
+			if tooling.SDKRoot == "" {
+				tooling.SDKRoot = lab.AndroidSDK
+			}
+			if tooling.JavaHome == "" {
+				tooling.JavaHome = lab.JavaHome
+			}
+			if lab.AutoCreateAVD != nil {
+				tooling.AutoCreateAVD = *lab.AutoCreateAVD
+			}
+		}
+	}
+	return envbroker.ProbeAndroidTooling(tooling)
+}
+
+func (a *App) OpenAndroidStudioSetup() error {
+	if a.ctx == nil {
+		return fmt.Errorf("desktop runtime is not ready")
+	}
+	if path := envbroker.AndroidStudioLaunchPath(); path != "" {
+		if runtime.GOOS == "darwin" {
+			if err := exec.Command("open", path).Start(); err == nil {
+				return nil
+			}
+		} else if err := exec.Command(path).Start(); err == nil {
+			return nil
+		}
+	}
+	return a.openExternal(envbroker.AndroidStudioInstallURL)
+}
+
+func (a *App) ChooseLabPath(kind string) (string, error) {
+	if a.ctx == nil {
+		return "", fmt.Errorf("desktop runtime is not ready")
+	}
+	title := "选择 Android SDK 目录"
+	if strings.TrimSpace(kind) == "java" {
+		title = "选择 JDK 目录"
+	}
+	return a.openDirectory(desktopDialogOptions{Title: title})
+}
+
 func (a *App) OpenDockerDesktop() error {
 	switch runtime.GOOS {
 	case "darwin":

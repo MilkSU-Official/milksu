@@ -69,7 +69,7 @@ const activeVulnerabilityCodingConversationId = ref<string | null>(null)
 // currently active Coding or CTF conversation workspace implicitly.
 const vulnerabilityCodingWorkspacePath = ref('')
 const settingsReturnTarget = ref<Exclude<Section, 'settings'>>(restoredViewState?.settingsReturnTarget ?? 'ctf')
-type SettingsCategory = 'general' | 'coding' | 'apikeys' | 'browser' | 'cve' | 'chats' | 'security-tools' | 'ctf' | 'eval'
+type SettingsCategory = 'general' | 'coding' | 'apikeys' | 'browser' | 'cve' | 'lab' | 'chats' | 'security-tools' | 'ctf' | 'eval'
 const settingsCategory = ref<SettingsCategory>('general')
 const settings = ref<AppSettings | null>(null)
 const accountStatus = ref<AccountStatus>({ configured: false, authenticated: false, state: 'unconfigured' })
@@ -1056,6 +1056,7 @@ onBeforeUnmount(() => {
           @cancel-queued-guidance="conversations.cancelQueuedGuidance"
           @edit-queued-guidance="conversations.editQueuedGuidance"
           @open-settings="openSettings('apikeys')"
+          @open-lab-settings="openSettings('lab')"
         />
         <LabPage
           v-else-if="section === 'lab'"
@@ -1087,6 +1088,7 @@ onBeforeUnmount(() => {
           @cancel-queued-guidance="conversations.cancelQueuedGuidance"
           @edit-queued-guidance="conversations.editQueuedGuidance"
           @open-settings="openSettings('apikeys')"
+          @open-lab-settings="openSettings('lab')"
         />
       </KeepAlive>
       <ChatPage

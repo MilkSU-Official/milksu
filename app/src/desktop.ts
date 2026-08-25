@@ -440,6 +440,13 @@ interface DesktopAppBindings {
   StartVulnerabilityPractice(request: VulnerabilityPracticeRequest): Promise<VulnerabilityPracticeRun>
   GetVulnerabilityPracticeStatus(request: VulnerabilityPracticeRequest): Promise<VulnerabilityPracticeRun>
   StopVulnerabilityPractice(request: VulnerabilityPracticeRequest): Promise<VulnerabilityPracticeRun>
+  GetLabEnvironmentStatus(probe: {
+    androidSdk?: string
+    javaHome?: string
+    autoCreateAvd?: boolean
+  }): Promise<import('@/envbroker').LabEnvironmentStatus>
+  ChooseLabPath(kind: string): Promise<string>
+  OpenAndroidStudioSetup(): Promise<void>
   ListLabPackages(): Promise<import('@/envbroker').EnvPackage[]>
   ListEnvLeases(): Promise<import('@/envbroker').EnvLease[]>
   GetEnvLease(request: import('@/envbroker').EnvOwnerRequest): Promise<import('@/envbroker').EnvLease>
@@ -1020,6 +1027,12 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.GetVulnerabilityPracticeStatus(args?.request as VulnerabilityPracticeRequest) as Promise<T>
       case 'stop_vulnerability_practice':
         return app.StopVulnerabilityPractice(args?.request as VulnerabilityPracticeRequest) as Promise<T>
+      case 'get_lab_environment_status':
+        return app.GetLabEnvironmentStatus(args as never) as Promise<T>
+      case 'choose_lab_path':
+        return app.ChooseLabPath(args?.kind as string) as Promise<T>
+      case 'open_android_studio_setup':
+        return app.OpenAndroidStudioSetup() as Promise<T>
       case 'list_lab_packages':
         return app.ListLabPackages() as Promise<T>
       case 'list_env_leases':

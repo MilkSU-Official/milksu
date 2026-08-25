@@ -11,14 +11,16 @@ import (
 )
 
 type Service struct {
-	dataDirectory string
-	store         *Store
-	compose       composeRunner
-	android       androidRunner
-	apks          apkFetcher
-	waitReady     func(context.Context, string) error
-	mu            sync.Mutex
-	inflight      map[string]context.CancelFunc
+	dataDirectory  string
+	store          *Store
+	compose        composeRunner
+	android        androidRunner
+	apks           apkFetcher
+	waitReady      func(context.Context, string) error
+	mu             sync.Mutex
+	inflight       map[string]context.CancelFunc
+	autoCreateAVD  bool
+	androidTooling AndroidTooling
 }
 
 func New(dataDirectory string) (*Service, error) {
@@ -34,7 +36,28 @@ func New(dataDirectory string) (*Service, error) {
 		apks:          httpAPKFetcher{},
 		waitReady:     waitHTTPReady,
 		inflight:      map[string]context.CancelFunc{},
+		autoCreateAVD: true,
+		androidTooling: AndroidTooling{AutoCreateAVD: true},
 	}, nil
+}
+
+func (s *Service) SetAndroidTooling(tooling AndroidTooling) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.androidTooling = tooling
+	s.autoCreateAVD = tooling.AutoCreateAVD
+	if _, ok := s.android.(execAndroidRunner); ok {
+		s.android = execAndroidRunner{
+			sdkRoot:  strings.TrimSpace(tooling.SDKRoot),
+			javaHome: strings.TrimSpace(tooling.JavaHome),
+		}
+	}
+}
+
+func (s *Service) androidStartOptions() (androidRunner, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.android, s.autoCreateAVD
 }
 
 func NewForTest(dataDirectory string, compose composeRunner, android androidRunner) (*Service, error) {
@@ -135,14 +158,15 @@ func (s *Service) Start(ctx context.Context, owner Owner, packageID string) (Lea
 		return lease, nil
 	}
 	if item.Provider == "android-avd" {
-		if _, err := ensureLabAVD(ctx, s.android); err != nil {
+		runner, autoCreate := s.androidStartOptions()
+		if _, err := ensureLabAVD(ctx, runner, autoCreate); err != nil {
 			lease.State = "failed"
 			lease.Error = err.Error()
 			_ = s.store.Put(lease)
 			return lease, nil
 		}
 		heldDevices, _, holder := s.store.HeldAndroid(owner)
-		names, listErr := listAvds(s.android)
+		names, listErr := listAvds(runner)
 		if listErr != nil {
 			lease.State = "failed"
 			lease.Error = listErr.Error()
@@ -156,7 +180,7 @@ func (s *Service) Start(ctx context.Context, owner Owner, packageID string) (Lea
 				break
 			}
 		}
-		if !hasFree && detectLabSystemImage() == "" {
+		if !hasFree && labSystemImage(runner) == "" {
 			lease.State = "busy"
 			lease.OccupyOwner = holder.OwnerKind + ":" + holder.OwnerID
 			lease.OccupyTitle = occupyTitle(holder)
@@ -222,7 +246,8 @@ func (s *Service) runDockerStart(ctx context.Context, item Package, directory st
 
 func (s *Service) runAndroidStart(ctx context.Context, item Package, lease Lease) {
 	heldDevices, heldSerials, holder := s.store.HeldAndroid(Owner{Kind: lease.OwnerKind, ID: lease.OwnerID})
-	device, err := allocateAndroidDevice(ctx, s.android, heldDevices, heldSerials)
+	runner, autoCreate := s.androidStartOptions()
+	device, err := allocateAndroidDevice(ctx, runner, heldDevices, heldSerials, autoCreate)
 	if err != nil {
 		if err == errAndroidBusy {
 			lease.State = "busy"

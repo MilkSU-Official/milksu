@@ -129,6 +129,7 @@ const emit = defineEmits<{
   cancelQueuedGuidance: [index: number]
   editQueuedGuidance: [index: number]
   openSettings: []
+  openLabSettings: []
 }>()
 
 const {
@@ -695,6 +696,7 @@ function abortRename(event: KeyboardEvent) {
               @open-docker="openDocker"
               @occupy-go="occupyGo"
               @occupy-stop="occupyStop"
+              @open-lab-settings="$emit('openLabSettings')"
             />
             <SettingsSection :title="t('报告', 'Report')">
               <ResearchReportPanel
