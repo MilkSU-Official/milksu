@@ -49,7 +49,7 @@ Beautiful UI 是 **Coding Agent 对话区的设计语言**。编号跟对方 `li
 | 03 | **Streaming Text** | 有。`MarkdownContent` 流式正文 | 要 | 稳定排版；来源只接线真实 `web_search` / `web_fetch`。助手回复可复制、可分叉。 |
 | 04 | **Approval Card** | 有。拒绝 / 允许这一次 / 本对话始终允许 | 要 | 同一列标题 + 按钮，不加卡片壳。跑完默认隐藏，用户展开过的不刷回去。 |
 | 05 | **Tool Chips** | 有。`Read greet.ts` / `Edit +N -N` 一行文字 | 要 | 外层不加芯片卡片。跑完默认隐藏；用户点开过的保持可见。 |
-| 06 | **Task Rows** | 有。`AgentExecutionPlan` / `milksu_progress` | 要 | 进行中 / 失败 / 完成。计划仍来自 Pi 事件，不另造循环。 |
+| 06 | **Task Rows** | 有。对话 Composer 上方，平时一行、悬停展开 | 要 | Capsules：22→14 半径、24px 圆环、Completed 胶囊、grid-template-rows 过渡。计划不进环境信息。 |
 | 07 | **Chat** | 有。`ChatPage` + 轨上会话列表 + `ConversationDock` | 要 | 保留现有会话轨和小窗。不要冰淇淋 Flavors 标签页。用户消息可编辑/复制；编辑后从该条重新开始。 |
 | 08 | **Prompt Bar** | 有。`ChatComposer` 岛：`@` `/` 附件 模型 发送 | 要 | 沿用密度，保留上下文环、steer、思考档位、审批策略。不要 `glimm` 扫光和外部 SaaS 连接器。 |
 | 09 | **Recommendation Card** | 未进对话区。MCP 审阅在设置 | 以后要用 | Agent 建议、MCP、计划选项可走这一形态。**不要**假置信度条。 |

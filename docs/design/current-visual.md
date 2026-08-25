@@ -82,6 +82,7 @@ Coding Agent 的对话区（CTF / CVE / 实验室小窗共用同一套 `ChatPage
 - 用户消息：可复制、可编辑。编辑后发出即从该条重新开始（Pi `navigateTree`，丢掉后面的回合）。
 - 代码块：深色圆角块，带复制。这是对话区里唯一的原生卡片。
 - Composer：同一列宽的岛状输入。不使用青色左边条。不放本轮运行时长。
+- 计划：Beautiful UI Task Rows，贴在 Composer 岛上方同一列。平时一行胶囊；悬停或焦点展开多条步骤，带收起/展开过渡。不要放进环境信息，不要用设置页卡片或 lucide 转圈充当这一面。
 - 其余 Beautiful UI 原语（Sidebar / Search / Flowchart / Insight / Context / Recommendation 等）按 [对照表](../developer/coding-chat-beautiful-ui.md) 作为对话区词汇表，产品面出现时沿用，不要另造一套。
 
 壳、列表、设置、档案仍用第 1–4 层。

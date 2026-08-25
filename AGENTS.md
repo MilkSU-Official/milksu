@@ -76,7 +76,7 @@ Review that page by layer. Do not invent a second primitive at the same layer.
 | List chrome | filters, History, primary action | `.ak-segmented`, `WorkspaceCatalogActions`; Import for CTF/CVE, Create for Lab |
 | Facts | cards, tables, dialogs, connection status | Felinic `SettingsSection` / `SettingsRow` / `ActionCard` / `ModelListRow`; LIVE/OFF via `ConnectionLiveStatus` |
 | Copy | user-visible strings | `t('中文', 'English')`; empty controls stay blank |
-| Agent conversation | Coding / CTF / CVE / lab chat | Beautiful UI is the design language. `[data-agent-conversation]`: thinking, tool rows, HITL approval, prompt island, code blocks; no transcript cards except code; finished tools hide unless expanded |
+| Agent conversation | Coding / CTF / CVE / lab chat | Beautiful UI is the design language. Port the primitives' layout, type, motion and status chrome — do not keep ak-ui cards in this layer. Plan uses Task Rows above the composer. |
 
 Shared CSS lives in `app/src/index.css` and `app/src/styles/`. Felinic stays for Vue
 behavior. Do not add `@yunyoujun/ak-ui` to `app/package.json`. Enforcement:

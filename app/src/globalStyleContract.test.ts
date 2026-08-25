@@ -104,6 +104,9 @@ describe('global style contract', () => {
     expect(agentCss).toContain('.agent-turn-actions')
     expect(agentCss).toContain('.agent-pixel')
     expect(agentCss).toContain('agent-pixel-on')
+    expect(agentCss).toContain('.agent-task-rows')
+    expect(agentCss).toContain('grid-template-rows')
+    expect(agentCss).toContain('border-radius: 22px')
     expect(agentCss).toContain('--agent-code-radius')
     expect(agentCss).toContain('--agent-island-radius')
     expect(agentCss).not.toContain('--agent-card-radius')
@@ -135,7 +138,7 @@ describe('global style contract', () => {
     )
     const compactRule = agentCss.slice(
       agentCss.indexOf('[data-agent-conversation] .compact-bar {'),
-      agentCss.indexOf('[data-agent-conversation] .chat-composer {'),
+      agentCss.indexOf('[data-agent-conversation] .agent-task-rows {'),
     )
     for (const rule of [userRule, pillRule, approveRule, toolDetailRule, compactRule]) {
       expect(rule).toContain('border: 0')
@@ -145,6 +148,8 @@ describe('global style contract', () => {
     expect(agentCss).toContain('[data-agent-conversation] .agent-turn .markdown-content pre')
     expect(agentCss).toContain('border-radius: var(--agent-code-radius)')
     expect(agentCss).toContain('border-radius: var(--agent-island-radius)')
+    expect(agentCss).toContain('[data-agent-conversation] .agent-task-row')
+    expect(agentCss).toContain('border-radius: 22px')
   })
 
   it('uses the ak-ui cyan action color instead of acid green or the old SaaS blue', () => {

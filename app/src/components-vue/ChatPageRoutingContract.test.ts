@@ -137,6 +137,8 @@ describe('ChatPage routing contract', () => {
   it('projects milksu_progress plans, context meter and run timing on the right rail and composer', () => {
     expect(chatPageSource).toContain("from '@/components-vue/AgentExecutionPlan.vue'")
     expect(chatPageSource).toContain('<AgentExecutionPlan')
+    expect(chatPageSource).toContain('class="agent-thread"')
+    expect(chatPageSource).toContain('<ChatComposer')
     expect(chatPageSource).toContain(':running="running"')
     expect(chatPageSource).toContain("from '@/components-vue/ContextUsageMeter.vue'")
     expect(chatPageSource).toContain('turnStatus?: SessionTurnSnapshot')

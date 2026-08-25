@@ -2261,7 +2261,7 @@ defineExpose({
 
 
     <AgentExecutionPlan
-      v-if="dockSurface"
+      class="agent-thread"
       :messages="conversation?.messages ?? []"
       :running="running"
     />
@@ -2541,11 +2541,6 @@ defineExpose({
             </div>
           </div>
         </section>
-
-        <AgentExecutionPlan
-          :messages="conversation?.messages ?? []"
-          :running="running"
-        />
 
         <section class="border-b border-border px-4 py-4">
         <p class="text-caption font-medium text-muted-foreground">Agent</p>
