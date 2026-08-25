@@ -148,7 +148,7 @@ describe('ConversationDock', () => {
     const app = createApp(ConversationDock, {
       conversation: sampleConversation(),
     })
-    const vm = app.mount(host) as { revealAndFocus: () => Promise<void> }
+    const vm = app.mount(host) as unknown as { revealAndFocus: () => Promise<void> }
     mountedApps.push(app)
     await nextTick()
     host.querySelector<HTMLButtonElement>('[aria-label="收起对话"]')?.click()
