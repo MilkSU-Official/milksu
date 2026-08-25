@@ -160,7 +160,8 @@ describe('ChatMessageItem', () => {
       thinkingStatus: 'done',
       thinkingDurationMs: 6000,
     })
-    expect(host.textContent).toContain('想了 6 秒')
+    expect(host.textContent).toContain('想了')
+    expect(host.textContent).toContain('6.0s')
     expect(host.textContent).toContain('先读文件再改签名。')
     expect(host.textContent).not.toContain('MILKSU')
     expect(host.textContent).not.toContain('YOU')
@@ -188,7 +189,7 @@ describe('ChatMessageItem', () => {
     expect(assistant.host.querySelector('.ak-divider')).toBeNull()
   })
 
-  it('shows an ak-loading mark while the assistant is still running', async () => {
+  it('shows a pixel loader while the assistant is still running', async () => {
     const running = await mountMessage({
       id: 'message-assistant-running',
       role: 'assistant',
@@ -196,8 +197,7 @@ describe('ChatMessageItem', () => {
       timestamp: Date.now(),
       status: 'running',
     })
-    const mark = running.host.querySelector('.ak-loading')
-    expect(mark).not.toBeNull()
+    expect(running.host.querySelector('.agent-pixel')).not.toBeNull()
     expect(running.host.querySelector('[aria-label="正在回复"]')).not.toBeNull()
 
     const done = await mountMessage({
@@ -207,7 +207,7 @@ describe('ChatMessageItem', () => {
       timestamp: Date.now(),
       status: 'done',
     })
-    expect(done.host.querySelector('.ak-loading')).toBeNull()
+    expect(done.host.querySelector('.agent-pixel')).toBeNull()
   })
 
   it('lets the user copy or edit a prompt and copy or branch an answer', async () => {

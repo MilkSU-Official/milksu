@@ -142,8 +142,9 @@ describe('ChatPage routing contract', () => {
     expect(chatPageSource).toContain('turnStatus?: SessionTurnSnapshot')
     expect(chatPageSource).toContain('resolveModelContextWindow')
     expect(chatPageSource).toContain(':context-usage="contextUsagePresentation"')
-    expect(chatPageSource).toContain(':run-elapsed-label=')
+    expect(chatPageSource).not.toContain(':run-elapsed-label=')
     expect(chatPageSource).toContain('data-testid="agent-run-elapsed"')
+    expect(chatPageSource).not.toContain('composer-run-elapsed')
     expect(chatPageSource).not.toContain('等待本轮用量')
     // Decorative Mission phases stay on empty CTF/CVE canvas only. Live plans
     // come from milksu_progress; when the model has not published one, the rail

@@ -51,6 +51,7 @@ import { invokeCommand, listenEvent } from '@/desktop'
 import { nextChatAutoScrollPinned } from '@/lib/chatAutoScroll'
 import { t } from '@/lib/uiLocale'
 import { isGeneratedScratchWorkspace } from '@/lib/codingConversationGroups'
+import AgentPixelLoader from '@/components-vue/AgentPixelLoader.vue'
 import AkLoadingMark from '@/components-vue/AkLoadingMark.vue'
 import ChatActivityGroup from '@/components-vue/ChatActivityGroup.vue'
 import ChatComposer from '@/components-vue/ChatComposer.vue'
@@ -2229,8 +2230,11 @@ defineExpose({
             @branch-assistant="messageId => $emit('branchAssistant', messageId)"
           />
         </template>
-        <p v-if="waitingForModel && !compacting" class="chat-model-loading">
-          <AkLoadingMark :label="t('模型回复中', 'Model is replying')" show-label />
+        <p v-if="waitingForModel && !compacting" class="chat-model-loading agent-thread">
+          <AgentPixelLoader
+            :label="t('模型回复中', 'Model is replying')"
+            running
+          />
         </p>
       </div>
     </div>
@@ -2241,7 +2245,10 @@ defineExpose({
       data-testid="context-compaction-status"
       role="status"
     >
-      <AkLoadingMark :label="t('正在整理上下文', 'Compacting context')" show-label />
+      <AgentPixelLoader
+        :label="t('正在整理上下文', 'Compacting context')"
+        running
+      />
     </p>
     <p
       v-else-if="compactionError"
@@ -2278,7 +2285,6 @@ defineExpose({
       :thinking-level="currentThinkingLevel"
       :compact-disabled="continuity.compactDisabled"
       :context-usage="contextUsagePresentation"
-      :run-elapsed-label="runTimingPresentation?.label"
       :workspace-ready="Boolean(workspacePath)"
       :workspace-locked="workspaceLocked"
       :workspace-name="workspaceName"

@@ -102,6 +102,8 @@ describe('global style contract', () => {
     expect(agentCss).toContain('width: fit-content')
     expect(agentCss).toContain('.agent-approve')
     expect(agentCss).toContain('.agent-turn-actions')
+    expect(agentCss).toContain('.agent-pixel')
+    expect(agentCss).toContain('agent-pixel-on')
     expect(agentCss).toContain('--agent-code-radius')
     expect(agentCss).toContain('--agent-island-radius')
     expect(agentCss).not.toContain('--agent-card-radius')

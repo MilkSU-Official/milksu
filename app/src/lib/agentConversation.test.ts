@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { agentToolChip, messageSourceChips, thinkingSummary } from './agentConversation'
+import { agentToolChip, formatDemoElapsed, messageSourceChips, thinkingSummary } from './agentConversation'
 import type { ChatActivityEntry } from './chatActivity'
 
 function entry(toolName: string, content: string): ChatActivityEntry {
@@ -45,7 +45,13 @@ describe('agent conversation chips', () => {
   })
 
   it('labels thinking duration without leaking thresholds', () => {
-    expect(thinkingSummary(6000)).toContain('6')
+    expect(thinkingSummary(6000)).toContain('6.0s')
     expect(thinkingSummary(undefined, true)).toBe('正在思考')
+  })
+
+  it('formats Beautiful UI elapsed tenths then minutes', () => {
+    expect(formatDemoElapsed(0)).toBe('0.0s')
+    expect(formatDemoElapsed(100)).toBe('0.1s')
+    expect(formatDemoElapsed(61200)).toBe('1m 1.2s')
   })
 })

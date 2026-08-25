@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { Button } from '@felinic/ui'
 import { invokeCommand } from '@/desktop'
 import {
   FileText,
   RotateCcw,
 } from 'lucide-vue-next'
-import AkLoadingMark from '@/components-vue/AkLoadingMark.vue'
+import AgentPixelLoader from '@/components-vue/AgentPixelLoader.vue'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
-import { thinkingSummary, messageSourceChips } from '@/lib/agentConversation'
+import { formatDemoElapsed, messageSourceChips } from '@/lib/agentConversation'
 import { redactProviderCredentials } from '@/lib/redaction'
 import { isBlankAssistantMessage } from '@/lib/chatActivity'
 import { toolBudgetToolName } from '@/lib/toolBudget'
@@ -130,10 +130,48 @@ const sources = computed(() => (
   props.message.role === 'assistant' ? messageSourceChips(props.message.content) : []
 ))
 
-const thinkingLabel = computed(() => thinkingSummary(
-  props.message.thinkingDurationMs,
-  props.message.thinkingStatus === 'running',
+const thinkingNow = ref(Date.now())
+let thinkingClock = 0
+
+watch(
+  () => props.message.thinkingStatus === 'running',
+  running => {
+    window.clearInterval(thinkingClock)
+    thinkingClock = 0
+    if (!running) return
+    thinkingNow.value = Date.now()
+    thinkingClock = window.setInterval(() => {
+      thinkingNow.value = Date.now()
+    }, 100)
+  },
+  { immediate: true },
+)
+
+onBeforeUnmount(() => {
+  window.clearInterval(thinkingClock)
+})
+
+const thinkingElapsedMs = computed(() => {
+  if (props.message.thinkingStatus === 'running') {
+    const started = Number.isFinite(props.message.timestamp) ? props.message.timestamp : thinkingNow.value
+    return Math.max(0, thinkingNow.value - started)
+  }
+  return props.message.thinkingDurationMs
+})
+
+const thinkingLabel = computed(() => (
+  props.message.thinkingStatus === 'running'
+    ? t('正在思考', 'Thinking')
+    : t('想了', 'Thought')
 ))
+
+const thinkingElapsed = computed(() => {
+  if (props.message.thinkingStatus === 'running') {
+    return formatDemoElapsed(thinkingElapsedMs.value)
+  }
+  if (props.message.thinkingDurationMs === undefined) return ''
+  return formatDemoElapsed(props.message.thinkingDurationMs)
+})
 
 const approvalTitle = computed(() => t(
   `允许运行 ${props.message.toolName ?? 'tool'}`,
@@ -244,11 +282,10 @@ const approvalKicker = computed(() => (
       :open="message.thinkingStatus === 'running'"
     >
       <summary class="agent-think__summary">
-        <span class="agent-think__dot" />
-        <span>{{ thinkingLabel }}</span>
-        <AkLoadingMark
-          v-if="message.thinkingStatus === 'running'"
-          :label="t('正在思考', 'Thinking')"
+        <AgentPixelLoader
+          :label="thinkingLabel"
+          :elapsed="thinkingElapsed"
+          :running="message.thinkingStatus === 'running'"
         />
       </summary>
       <div v-if="message.thinking" class="agent-think__body">{{ message.thinking }}</div>
@@ -289,7 +326,10 @@ const approvalKicker = computed(() => (
         >{{ source.label }}</a>
       </div>
       <p v-if="message.status === 'running' && message.thinkingStatus !== 'running'" class="chat-model-loading">
-        <AkLoadingMark :label="t('正在回复', 'Replying')" />
+        <AgentPixelLoader
+          :label="t('正在回复', 'Replying')"
+          running
+        />
       </p>
       <div
         v-if="recoverable"

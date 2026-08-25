@@ -125,8 +125,6 @@ const props = defineProps<{
   compactDisabled?: boolean
   /** Last model usage projection; meter shows ring + hover details when present. */
   contextUsage?: ContextUsagePresentation | null
-  /** Live model-run elapsed label, e.g. "1:05". */
-  runElapsedLabel?: string
   workspaceReady?: boolean
   workspaceLocked?: boolean
   workspaceName?: string
@@ -1351,25 +1349,14 @@ defineExpose({
           @drop="handleComposerDrop"
         />
         <div
-          v-if="contextUsage || runElapsedLabel"
+          v-if="contextUsage"
           class="chat-composer__context-strip flex min-w-0 items-center justify-end gap-3 px-1 pb-0.5"
           data-testid="composer-context-strip"
         >
           <ContextUsageMeter
-            v-if="contextUsage"
             :usage="contextUsage"
             size="sm"
           />
-          <span
-            v-if="runElapsedLabel"
-            class="inline-flex shrink-0 items-center gap-1.5 font-mono text-caption tabular-nums text-muted-foreground"
-            data-testid="composer-run-elapsed"
-            :title="running ? t('本轮模型已运行', 'Model has been running this turn') : t('上次运行时长', 'Last run duration')"
-          >
-            <AkLoadingMark v-if="running" :label="t('本轮模型已运行', 'Model has been running this turn')" />
-            <Clock3 v-else class="size-3" />
-            {{ runElapsedLabel }}
-          </span>
         </div>
         <div class="chat-composer__toolbar flex min-w-0 items-center gap-1.5">
           <CodingComposerControls

@@ -73,14 +73,23 @@ export function agentToolChip(entry: ChatActivityEntry): AgentToolChip {
   return { verb, pill }
 }
 
+/** Beautiful UI Loading State timer: tenths of a second, then minutes. */
+export function formatDemoElapsed(durationMs?: number) {
+  const total = Math.max(0, (Number(durationMs) || 0) / 1000)
+  if (total < 60) return `${total.toFixed(1)}s`
+  const minutes = Math.floor(total / 60)
+  const seconds = total % 60
+  if (minutes < 60) return `${minutes}m ${seconds.toFixed(1)}s`
+  const hours = Math.floor(minutes / 60)
+  return `${hours}h ${minutes % 60}m ${seconds.toFixed(1)}s`
+}
+
 export function thinkingSummary(durationMs?: number, running?: boolean) {
   if (running && (durationMs === undefined || durationMs < 500)) {
     return t('正在思考', 'Thinking')
   }
   if (durationMs === undefined) return t('思考', 'Thought')
-  if (durationMs < 1000) return t('想了不到 1 秒', 'Thought for under 1s')
-  const seconds = Math.max(1, Math.round(durationMs / 1000))
-  return t(`想了 ${seconds} 秒`, `Thought for ${seconds}s`)
+  return t(`想了 ${formatDemoElapsed(durationMs)}`, `Thought ${formatDemoElapsed(durationMs)}`)
 }
 
 export function messageSourceChips(content: string): AgentSourceChip[] {

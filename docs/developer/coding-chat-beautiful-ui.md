@@ -44,8 +44,8 @@ Beautiful UI 是 **Coding Agent 对话区的设计语言**。编号跟对方 `li
 
 | # | Beautiful UI | 现在用到了吗 | 有没有必要 | 怎么用 |
 | --- | --- | --- | --- | --- |
-| 01 | **Loading State** | 有。`AkLoadingMark` + Composer 时长 | 要 | 保留进行中 + 已用时间。不要像素格 Drive / Dots / Orbit / Surfer。 |
-| 02 | **Thinking** | 有。对话区「想了 Ns」，正文来自 Pi `thinking_*` | 要 | 可展开思考条，不包进回复卡片，不演假步骤。 |
+| 01 | **Loading State** | 有。思考条旁的 Drive 像素格 + `0.1s` / `1m 2.3s` 时长 | 要 | Drive 3×3 像素格，时长跟 demo。不要 Surfer 视频。时长在思考条旁边，不进 Composer。 |
+| 02 | **Thinking** | 有。可展开思考条，正文来自 Pi `thinking_*` | 要 | 进行中：像素格 + 「正在思考」+ 实时时长。结束后保留「想了」和同一格式。 |
 | 03 | **Streaming Text** | 有。`MarkdownContent` 流式正文 | 要 | 稳定排版；来源只接线真实 `web_search` / `web_fetch`。助手回复可复制、可分叉。 |
 | 04 | **Approval Card** | 有。拒绝 / 允许这一次 / 本对话始终允许 | 要 | 同一列标题 + 按钮，不加卡片壳。跑完默认隐藏，用户展开过的不刷回去。 |
 | 05 | **Tool Chips** | 有。`Read greet.ts` / `Edit +N -N` 一行文字 | 要 | 外层不加芯片卡片。跑完默认隐藏；用户点开过的保持可见。 |
