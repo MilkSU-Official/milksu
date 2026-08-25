@@ -2,9 +2,9 @@
 
 > 文档状态：Current
 >
-> 审阅日期：2026-08-23
+> 审阅日期：2026-08-25
 >
-> 范围：当前 `main`。正式发行基线是 `v26.823.1 / efeda10`。文档收口提交不移动该 tag。
+> 范围：当前 `main`。正式发行基线是 `v26.825.1 / efddfc2`。文档收口提交不移动该 tag。
 > 实现进度、已发行与未发版分界以
 > [当前开发目标](/developer/current-objectives)、当前代码、测试和真实验收为准。
 
@@ -21,7 +21,7 @@
 5. [授权安全学习与研究平台](security-learning-and-research-platform.md)：CTF、实验室、CVE、
    Coding 怎样共享证据、授权、环境与学习底座？
 6. [CTF Labs 顶层与详细设计](ctf-labs-design.md)：CTF 可重置训练环境的长期设计；环境经纪本身见下一篇，不是主导航「实验室」的别名。
-7. [靶机、环境经纪与活靶面](target-environments.md)：**Implementing / 未进发行**。真实环境是工作台本体；开发 HEAD 已接实验室 / CVE 档案的 Docker 练习包和本机 AVD；右栏是活靶面（浏览器/终端/模拟器）。安卓验收是受限 adb。
+7. [靶机、环境经纪与活靶面](target-environments.md)：**Implemented / packaged in 26.825.1**。真实环境是工作台本体；实验室 / CVE 档案已接 Docker 练习包和本机 AVD；右栏是活靶面（浏览器/终端/模拟器）。安卓验收是受限 adb。CTF 本地房仍未接。
 8. [CVE 研究工作台顶层与详细设计](cve-research-workbench-design.md)：CVE 档案与复现报告的长期背景。
 9. [文档与任务状态登记](/developer/document-status)：跨文档的唯一当前口径与任务状态。
 
@@ -72,7 +72,7 @@ Checkpoint 由 Git 历史与自动化重新生成，不再长期占用文档入�
   复用 Pi 原生 `/skill:name`；未选择 Plan 时默认是 Go，不再维护 `/go` 或常驻 Plan/Go 下拉。
 - IDA Pro/idalib 与 capa 已有设置、准备和健康检查，就绪且启用后进入普通 Coding 可选目录。
   CodeQL、Burp、Shannon 仍只做检测。接到实验室或 CVE 复现由当前切片决定，不需要先开“是否投影”的会。不把 HexStrike 整包 MCP 做成产品页。
-- 主导航「实验室」已进入 `26.822.1`（作业、改名、报告、对话小窗）；`26.823.1` 起与 Coding 共用完整循环。CTF 可重置环境仍未做。
+- 主导航「实验室」已进入 `26.822.1`（作业、改名、报告、对话小窗）；`26.823.1` 起与 Coding 共用完整循环；`26.825.1` 起题目包可开本机 Docker / AVD 靶。CTF 可重置环境仍未做。
 - NYU CTF Bench 的只读元数据、Admission、DeepSeek one-shot Runner、两回合 Pi 只读
   Agent Runtime 和摘要 Judge 是 **Implemented / Verified for the narrow baseline**。
   Agent Runtime 当前只有 5 个手选 static 样本：2 solved、1 unsolved、1 无效 JSON、

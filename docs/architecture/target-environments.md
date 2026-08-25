@@ -1,8 +1,8 @@
 # 靶机、环境经纪与活靶面
 
-> 文档状态：**Implementing / Not shipped**（开发 HEAD 已接到实验室 / CVE 档案；未进 GitHub Release）
+> 文档状态：**Implemented / packaged in 26.825.1**（实验室 / CVE 档案已接到 GitHub Release；CTF 本地房仍未接）
 >
-> 收口：2026-08-24。产品判断仍以本页为准；实现事实以代码和 [当前开发目标](/developer/current-objectives) 为准。
+> 收口：2026-08-25。产品判断仍以本页为准；实现事实以代码和 [当前开发目标](/developer/current-objectives) 为准。
 > 设计预览：`app/env-preview.html`（不进产品入口）。开发时打开 `http://127.0.0.1:1421/env-preview.html`。
 >
 > 冲突时：本页管环境产品判断与交互；实现事实仍以代码和 [当前开发目标](/developer/current-objectives) 为准。
@@ -203,13 +203,13 @@ CVE「开始复现」和「启动」分开：
 | --- | --- |
 | 文件工作区 | 已有。不能冒充服务复现 |
 | 本机进程 | 评测 AutoPen 种子，不是产品定位 |
-| Docker 包 | 经纪已接实验室 / CVE 档案（开发 HEAD）：Juice Shop、WebGoat、S2-045、whoami；回环绑定、内部网络 |
+| Docker 包 | 经纪已接实验室 / CVE 档案（`26.825.1`）：Juice Shop、WebGoat、S2-045、whoami；回环绑定、内部网络 |
 | 用户自带 URL | 实验室已有 |
-| Android AVD | 专用 `MilkSU-Lab` 设备池（开发 HEAD）：空白设备 + InjuredAndroid；多作业调度空闲模拟器，不拿日常 AVD |
+| Android AVD | 专用 `MilkSU-Lab` 设备池（`26.825.1`）：空白设备 + InjuredAndroid；多作业调度空闲模拟器，不拿日常 AVD |
 | Apple VM | 未做；iOS Simulator 不当研究级 iOS |
 | 真机 | 未做 |
 
-当前缺口：CTF 本地房还没有可重置环境。Docker / AVD 练习包已在开发 HEAD 的实验室和 CVE 档案里，未进发行。安卓验收是 adb，不是 Computer Use。
+当前缺口：CTF 本地房还没有可重置环境。Docker / AVD 练习包已在 `26.825.1` 的实验室和 CVE 档案里。安卓验收是 adb，不是 Computer Use。
 
 没有 Provider 时：文件题和读补丁还在，必须显示「真实环境不可用」。
 

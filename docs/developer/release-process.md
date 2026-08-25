@@ -42,7 +42,7 @@ commit 分发给 **macOS / Windows / Linux** 三条 workflow。macOS 本机打�
 
 ```bash
 npm run release:dispatch -- \
-  --release-title "MilkSU 26.823.1" \
+  --release-title "MilkSU 26.825.1" \
   --release-notes "本次发行说明"
 ```
 
@@ -76,7 +76,7 @@ npm run release:dispatch -- --dry-run
 ```bash
 npm run release:collect -- --wait
 npm run release:github -- \
-  --release-title "MilkSU 26.823.1" \
+  --release-title "MilkSU 26.825.1" \
   --release-notes "本次发行说明"
 ```
 

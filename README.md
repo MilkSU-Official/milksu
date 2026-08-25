@@ -9,14 +9,14 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/MilkSU-Official/milksu/releases/tag/v26.823.1"><img src="https://img.shields.io/badge/latest_release-26.823.1-f3f0e8?style=flat-square&labelColor=20211f" alt="Latest GitHub Release 26.823.1"></a>
+  <a href="https://github.com/MilkSU-Official/milksu/releases/tag/v26.825.1"><img src="https://img.shields.io/badge/latest_release-26.825.1-f3f0e8?style=flat-square&labelColor=20211f" alt="Latest GitHub Release 26.825.1"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue?style=flat-square&labelColor=20211f" alt="AGPL-3.0-only"></a>
   <img src="https://img.shields.io/badge/platform-macOS_Windows_Linux-f3f0e8?style=flat-square&labelColor=20211f" alt="macOS, Windows and Linux">
   <img src="https://img.shields.io/badge/desktop-Electron_%2B_Vue_%2B_Go-f3f0e8?style=flat-square&labelColor=20211f" alt="Electron, Vue and Go">
 </p>
 
 <p align="center">
-  <a href="https://github.com/MilkSU-Official/milksu/releases/tag/v26.823.1">下载</a>
+  <a href="https://github.com/MilkSU-Official/milksu/releases/tag/v26.825.1">下载</a>
   ·
   <a href="docs/architecture/current-system.md">了解系统</a>
   ·
@@ -29,7 +29,7 @@ MilkSU 把 Coding、CTF、CVE 和实验室放进同一个桌面工作台。你�
 
 它不是又一个只有输入框的聊天客户端。MilkSU 让 Agent 的工作对象真正出现在你面前：项目文件、内置浏览器、真实浏览器标签页和外部桌面应用都可以成为当前任务的一部分；你可以随时观察、补充要求、接管或停止。
 
-可下载的最新正式 GitHub Release 是 **26.823.1**。下载页以 [v26.823.1](https://github.com/MilkSU-Official/milksu/releases/tag/v26.823.1) 为准，不要把同版本号的后续提交或空 tag 当成已经发出的包。
+可下载的最新正式 GitHub Release 是 **26.825.1**。下载页以 [v26.825.1](https://github.com/MilkSU-Official/milksu/releases/tag/v26.825.1) 为准，不要把同版本号的后续提交或空 tag 当成已经发出的包。
 
 ## 你可以用 MilkSU 做什么
 
@@ -65,6 +65,7 @@ MilkSU 把 Coding、CTF、CVE 和实验室放进同一个桌面工作台。你�
 
 - 独立一级入口，和 CTF / CVE / Coding 同级；
 - 给出本地或远程作业要求，开一次探测；
+- 题目包打开后是靶机卡片，可在本机 Docker 起 Juice Shop / WebGoat / S2-045 / whoami，安卓走专用 MilkSU-Lab；
 - 列表里可以双击标题或用菜单改名；
 - Agent 把过程写进 `report.md`，对话同样走可拖放小窗。
 
@@ -103,9 +104,9 @@ MilkSU 会把当前任务可用的能力告诉模型，再由模型按上下文�
 
 ## 开始使用
 
-当前 Latest 是 `26.823.1`。Windows 安装器尚未代码签名，Linux 仍是试用 DEB。
+当前 Latest 是 `26.825.1`。Windows 安装器尚未代码签名，Linux 仍是试用 DEB。
 
-1. 从 [Releases](https://github.com/MilkSU-Official/milksu/releases/tag/v26.823.1) 下载 `26.823.1`：
+1. 从 [Releases](https://github.com/MilkSU-Official/milksu/releases/tag/v26.825.1) 下载 `26.825.1`：
    - **macOS Apple Silicon**：Developer ID 签名并经 Apple 公证的 DMG，正式支持；
    - **Windows x64**：未签名安装器，可能出现 SmartScreen 提示；打包 Runtime 与 Pi Agent 回合已在真实安装包验证；
    - **Linux x64**：试用 DEB，已验证包结构、Sidecar、Go Runtime 与 Xvfb 启动，不含 Secret Service、本地 OCR 或 Computer Use。
@@ -114,7 +115,7 @@ MilkSU 会把当前任务可用的能力告诉模型，再由模型按上下文�
 4. 由管理员为账户开通模型，或在“设置 → 模型”中添加自己的 Provider / OpenAI-compatible 中转站；
 5. 选择 Coding、CTF、CVE 或实验室，开始第一个任务。
 
-账户未分配模型额度时仍可登录和浏览本地功能，只是暂时不能发起模型任务。macOS 正式版本使用 Developer ID 签名与 Apple 公证；Stable 客户端支持登录后检查受保护的应用更新，但 `26.823.1` 没有发布 OTA。
+账户未分配模型额度时仍可登录和浏览本地功能，只是暂时不能发起模型任务。macOS 正式版本使用 Developer ID 签名与 Apple 公证；Stable 客户端支持登录后检查受保护的应用更新，但 `26.825.1` 没有发布 OTA。
 
 ## 本地优先
 
@@ -125,7 +126,7 @@ MilkSU 会把当前任务可用的能力告诉模型，再由模型按上下文�
 
 ## 当前状态
 
-最近一次带哈希回执的三端正式 GitHub Release 是 **26.823.1**（2026-08-23）：CTF、CVE 和实验室与 Coding 共用完整工作循环，长任务会自动整理上下文，CVE 列表会显示同步进来的公开源条目。
+最近一次带哈希回执的三端正式 GitHub Release 是 **26.825.1**（2026-08-25）：实验室题目包可以起本机 Docker 或 MilkSU-Lab 安卓靶，Composer 可调思考档位，连续重复工具会停下来确认，Go 运行时意外退出会自动再拉起。
 
 MilkSU 面向个人学习、授权研究和本地开发，不是互联网资产扫描器或无人值守的自动红队平台。
 

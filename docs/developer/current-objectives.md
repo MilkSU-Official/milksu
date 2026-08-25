@@ -2,12 +2,12 @@
 
 > 文档状态：Current / Canonical target contract
 >
-> 最后收口：2026-08-23
+> 最后收口：2026-08-25
 >
 > 本页只回答“当前处于什么阶段、下一条完成线是什么”。实现事实以当前代码、测试、Git 历史和原生 App 验收为准；历史设计与旧里程碑不作为任务队列。
 >
-> 发版改动与未发版改动必须分开写。有三端回执的正式 GitHub Release 是今日首发 `26.823.1`。
-> 文档收口提交不移动该 tag。不要把晚于 `efeda10` 的 HEAD 写成已发版。
+> 发版改动与未发版改动必须分开写。有三端回执的正式 GitHub Release 是今日首发 `26.825.1`。
+> 文档收口提交不移动该 tag。不要把晚于 `efddfc2` 的 HEAD 写成已发版。
 
 ## 工作规则
 
@@ -30,15 +30,15 @@
 | --- | --- |
 | 阶段 | **内测迭代 / Agent Runtime 与跨平台发行收敛**。当前工作不再按 M3/M4 里程碑组织。 |
 | 历史基线 | M3 product-loop 已在 `108e0e3`（2026-08-05）合并，仅供追溯。 |
-| 正式发行基线 | `v26.823.1 / efeda10af4f1e2cf55c4a8db1761cdbb486055a2`（2026-08-23 今日首发）。这是当前 GitHub Latest Release；提供带版本号的 DMG、EXE、DEB 与 `SHA256SUMS`；R2/Admin current pointer 未发布。 |
-| 开发版本线 | 根目录与 `desktop/package.json` 是 `26.823.1`。正式发行源是 `efeda10`；文档收口提交不移动该 tag。 |
-| 当前开发 | 正式包是 `26.823.1`。CTF / CVE / 实验室共用完整 Coding 循环、始终开启的上下文整理，以及 CVE 列表里的公开源条目，都已打进本包。HEAD 设置「评测」左侧切换三套：Cybench flag、SEC-bench sanitizer、AutoPenBench 阶段分，各有模型、开始、分数和难度曲线；通用页调试收到构建追踪底部。环境经纪已接到实验室 / CVE 档案：题目包卡片打开后是靶机卡片（Juice Shop / WebGoat / S2-045 / whoami / InjuredAndroid）。安卓走专用 MilkSU-Lab。CVE 学习专题已删。设置、CTF / CVE / 实验室详情和个人资料共用 64rem 卡片栏；设置不再按分类切换 3xl / 5xl / 6xl。设置 CVE 公开源是两行同步，JSON 导入在高级。设置页卡片统一 `bg-card`，输入框和下拉用提亮底；语言 / Skills / 编辑器 / Lab / Arena Token 交互即保存，模型页仍「保存并验证」。CTF「解题轨迹」和「证据制品」卡片已改成与题目 / 复盘相同的圆角。CTF「开始解题」和 CVE「开始复现」展开对话小窗并聚焦输入，仍不自动发消息。CTF / CVE 列表右上角是历史 + 导入，实验室是历史 + 创建。连接类状态用 LIVE / OFF：CTF 顶栏是带芯片的按钮，设置 → 浏览器控制只显示芯片，检测仍是旁边的操作。开发态 Sidecar 会把审阅过的 TypeScript 扩展编出 `node_modules`，避免 Node 拒绝剥类型。未进发行。 |
-| 平台边界 | `26.823.1`：macOS DMG 本机 Developer ID 签名并公证；Windows 安装器完成原生 Runtime 与首次启动但未代码签名，并打入审阅过的 CUA Driver；Linux DEB 完成包结构、Sidecar、Go Runtime 与 Xvfb Electron 启动，仍无 Secret Service、本地 OCR、Computer Use。 |
+| 正式发行基线 | `v26.825.1 / efddfc2733fb4fc740da9281fb614dfe57f814f8`（2026-08-25 今日首发）。这是当前 GitHub Latest Release；提供带版本号的 DMG、EXE、DEB 与 `SHA256SUMS`；R2/Admin current pointer 未发布。 |
+| 开发版本线 | 根目录与 `desktop/package.json` 是 `26.825.1`。正式发行源是 `efddfc2`；文档收口提交不移动该 tag。 |
+| 当前开发 | 正式包是 `26.825.1`。实验室题目包打开后是靶机卡片（Juice Shop / WebGoat / S2-045 / whoami / InjuredAndroid），安卓走专用 MilkSU-Lab。Pi 钉到 `0.84.1`。Composer 可调思考档位，上下文环分出未命中输入和缓存命中。连续重复工具或过长工具循环会停下来确认；Go 运行时意外退出会自动再拉起。设置、CTF / CVE / 实验室列表指挥面统一：历史 + 导入或创建，连接状态用 LIVE / OFF。开始解题 / 开始复现展开对话小窗并聚焦输入。设置「评测」可切换 Cybench / SEC-bench / AutoPenBench。CTF 比赛模式和实验室红队学习面仍未接线。 |
+| 平台边界 | `26.825.1`：macOS DMG 走 GitHub-hosted Developer ID 签名并公证；Windows 安装器完成原生 Runtime 与首次启动但未代码签名，并打入审阅过的 CUA Driver；Linux DEB 完成包结构、Sidecar、Go Runtime 与 Xvfb Electron 启动，仍无 Secret Service、本地 OCR、Computer Use。 |
 | 发行流水 | 下一发行从干净、已推送的 `main` 对 canonical Go/Vue/Sidecar/lint/生产与文档构建只验证一次；macOS / Windows / Linux 都走 GitHub-hosted 云端。macOS 本机打包暂时关闭。必须创建 GitHub Release 页并上传带版本号的 DMG/EXE/DEB 与 SHA256SUMS，不能只留空 tag。GitHub-only 不生成 OTA ZIP/metadata。 |
 
-## 已发行改动：`26.817.1` → `26.823.1`
+## 已发行改动：`26.817.1` → `26.825.1`
 
-`26.817.1`–`26.817.3` 是 8 月 16–17 日发出的内测线。`26.818.1` / `26.818.2` 是 8 月 18 日两版。`26.819.1` 是 8 月 19 日 ak-ui 生产视觉包。`26.822.1` 是 8 月 22 日档案复现与实验室包。可从 Releases 下载的最新正式包能力以 `26.823.1` 为准。
+`26.817.1`–`26.817.3` 是 8 月 16–17 日发出的内测线。`26.818.1` / `26.818.2` 是 8 月 18 日两版。`26.819.1` 是 8 月 19 日 ak-ui 生产视觉包。`26.822.1` 是 8 月 22 日档案复现与实验室包。`26.823.1` 是 8 月 23 日完整循环包。可从 Releases 下载的最新正式包能力以 `26.825.1` 为准。
 
 ### `26.817.1` / `main@783679f`
 
@@ -121,29 +121,23 @@
 - 标题、侧栏和正文共用 Inter Variable + Noto Sans SC Variable。Sidecar 崩溃时不再把 Node 内部栈第一行当成用户可见原因。
 - GitHub Release（Latest）提供 DMG / EXE / DEB 与 `SHA256SUMS-26.823.1.txt`。
 
-## 未发版改动：晚于 `v26.823.1` / `efeda10` 的 `main`
+### `26.825.1` / `efddfc2`（2026-08-25 今日首发）
 
-文档收口提交不移动该 tag。鸣谢与开源组件明细已在 `main`，不算产品改动。
-
-- Pi Runtime 从 `0.83.0` 钉到 `0.84.1`（`pi-coding-agent` / `pi-ai` / `pi-tui` 对齐）。rebase 了子 Agent Darwin 禁网、关闭项目资源发现、剥 Key 三处 patch。卫星扩展（lsp / goal / MCP / 后台任务）未动。Sidecar 单元测试 334 通过。未跟 Dependabot #30 升到 `0.84.2`：那一版主要是 TUI/`defaultTools`，且没有 rebase patch。
+- 实验室 / CVE 档案环境经纪：`env_status` / `env_start` / `env_reset` / `env_stop`。实验室题目包打开后是靶机卡片（Juice Shop / WebGoat / S2-045 / whoami / InjuredAndroid）。Docker 镜像钉 digest、只绑 `127.0.0.1`、默认内部网络；HTTP 端口未响应不算就绪。安卓走专用 MilkSU-Lab。CVE 学习专题已删。NOTICE 记录 Juice Shop / WebGoat / Vulhub / whoami / InjuredAndroid。
+- Pi Runtime 从 `0.83.0` 钉到 `0.84.1`（`pi-coding-agent` / `pi-ai` / `pi-tui` 对齐）。rebase 了子 Agent Darwin 禁网、关闭项目资源发现、剥 Key 三处 patch。卫星扩展未动。未跟 Dependabot #30 升到 `0.84.2`。
 - 上下文环用 Provider 已给出的分项：未命中输入（青）和缓存命中（金）。文件 / 搜索 / 工具调用没有诚实 token 来源，不上色。
 - 工具循环接到 Pi 原生 `tool_call`：完全相同命令连续 10 次或 bash `head N` / `grep -v` 族连续 25 次才结束本轮。单次回合满 150 次工具弹出「已经调用了 150 次工具，要继续吗？」；继续则再放行 150 次，停止则结束本轮。
-- 桌面 Go runtime 为每次 spawn 递增 generation。`milksu:invoke` 必须等 `ready`；进程意外退出会自动再拉起（最多 3 次），旧 generation 的结果丢弃，运行中的回合显示「本轮已停止。」。退出应用时 `beginStop` 禁止恢复。用户文案是「正在恢复运行时」/「本地运行时已停止」，不再抛 `MilkSU Go runtime is unavailable`。
-- Agent 上下文工程收敛：主会话逐回合声明经 Go / Sidecar 校验的权威工作目录，协作 writer worktree 只属于独立 effectful subagent 进程，不再能替换主会话 cwd。受管 Sidecar 启用 Pi 原生 `PI_CACHE_RETENTION=long`，沿用稳定会话 ID 与 Provider prompt cache，不增加 MilkSU 缓存状态机；Pi 的一次性压缩仍显式使用 `cacheRetention: none`。模型目录缺少窗口或仍给出旧 `128000` 占位时，Go、Sidecar 与 Vue 共用的型号族预设会补齐 GPT、Claude、Grok：已知精确型号优先，远端非占位目录值继续权威。GPT 与 Claude Opus / Sonnet / Fable 另有内置思考档位，其他模型须在设置页按实际 Provider 能力手动启用；Composer 用离散滑块写入对话级选择，chip 与档位只显示 `off / minimal / low / medium / high / xhigh / max` 标准英文，Go 约束后交给 Pi 原生 `setThinkingLevel`，子 Agent 继承同一档位。当前 Pi 支持到 `max`；`ultra` 属于 Codex 多 Agent 编排语义，不伪装成 Provider effort。自动化覆盖 cwd 身份、缓存环境、三层窗口解析和思考档位透传；真实 Provider 缓存命中率与 effort 请求仍待用户授权的计费链路验收，不写成完成回执。
-- 环境经纪（实验室 / CVE 档案）：`env_status` / `env_start` / `env_reset` / `env_stop`。实验室「题目包」是钉死的 Challenge 包，点开后是靶机卡片（题面带着同一台主机）。Docker 镜像钉 digest、只绑 `127.0.0.1`、默认内部网络；HTTP 端口未响应不算就绪。安卓只用专用 `MilkSU-Lab` 设备池。CVE 页已去掉学习专题。NOTICE 记录 Juice Shop / WebGoat / Vulhub / whoami / InjuredAndroid。未进发行。
-- CTF 工作区「解题轨迹」和「证据制品」卡片与题目 / 复盘同一套 `rounded-menu-shell` 圆角，不再用直角 `game-surface`。
-- CTF「开始解题」和 CVE「开始复现」展开对话小窗并聚焦输入框；仍不自动发送。CTFshow 开始解题也会打开本题对话。
-- 设置页卡片不再混用页面底色；可编辑输入框 / 下拉有不透明提亮底。语言、Skills、默认编辑器、Lab 路径和 Arena Token 交互即保存，去掉多余的「保存设置」。模型页仍用「保存并验证」。
-- 设置、CTF / CVE / 实验室详情和个人资料共用同一栏宽（64rem）和卡片间距；设置不再按分类切换 `max-w-3xl` / `5xl` / `6xl`。活靶分栏时详情铺满左栏。
-- 设置「CVE」公开源改成两行（CISA KEV / Vulhub）加「同步公开源」；JSON 导入和快照打开收到「高级」。去掉待接入说明、digest/Finder 文案和自绘卡片。
-- 设置「归档聊天」没有条目时不再画空卡片或加载说明，只留页标题。
-- 设置「浏览器控制」改成 Browser Use / CTF 站点 / Computer Use 三组设置行；去掉徽章堆、内嵌权限卡、Playwright/Bridge 实现名和 `/Applications/MilkSU.app` 文案。
-- 设置「通用」把「工作产物」改成「文件 / 文档」，只显示 Documents/MilkSU 路径，不再在路径下平铺「打开产物目录」。
-- 设置页操作提示条成功用绿色底、失败用红色底，不再跟页面画布同色。
-- CTF 顶栏「浏览器已连接」的 LIVE/OFF 状态贴满按钮右段，右边不再留空。
-- 实验室「题目包 / 自定义任务」改到顶栏筛选行，和 CTF/CVE「全部 / 收藏」同一套 `.ak-segmented`。
-- CTF / CVE / 实验室列表指挥面收成五层视觉约定：材质、壳、列表指挥面、事实面、文案。右上角共用历史 + 蓝底执行按钮；CTF/CVE 是导入弹窗，实验室是创建自定义任务（题目包导入还没有）。死掉的 CTF `source` 步骤条和自定义整页已删。未进发行。
-- 开发态 Sidecar 启动前把 `pi-goal` / `pi-lsp` / MCP Adapter / 后台任务 / 子 Agent 的 TypeScript 编到 `node_modules` 之外。Windows 源码树点设置页「保存并验证」不再被 Node `ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING` 打断；正式打包仍走原来的 esbuild 整包。未进发行。
+- 桌面 Go runtime 为每次 spawn 递增 generation。`milksu:invoke` 必须等 `ready`；进程意外退出会自动再拉起（最多 3 次），旧 generation 的结果丢弃，运行中的回合显示「本轮已停止。」。退出应用时 `beginStop` 禁止恢复。用户文案是「正在恢复运行时」/「本地运行时已停止」。
+- Agent 上下文工程：主会话逐回合声明经 Go / Sidecar 校验的权威工作目录；writer worktree 只属于独立 effectful subagent。受管 Sidecar 启用 Pi 原生 `PI_CACHE_RETENTION=long`。型号族预设补齐 GPT、Claude、Grok 窗口；Composer 思考档位只显示 `off / minimal / low / medium / high / xhigh / max`，Go 约束后交给 Pi 原生 `setThinkingLevel`。真实 Provider 缓存命中率与 effort 请求仍待用户授权的计费链路验收。
+- 设置、CTF / CVE / 实验室详情和个人资料共用 64rem 卡片栏。设置卡片统一 `bg-card`，语言 / Skills / 编辑器 / Lab / Arena Token 交互即保存，模型页仍「保存并验证」。CVE 公开源是两行同步，JSON 导入在高级。归档聊天无条目时只留页标题。
+- CTF「开始解题」和 CVE「开始复现」展开对话小窗并聚焦输入，仍不自动发消息。CTF 工作区「解题轨迹」和「证据制品」与题目 / 复盘同一套圆角。
+- CTF / CVE 列表右上角是历史 + 导入，实验室是历史 + 创建（题目包导入还没有）。连接类状态用 LIVE / OFF。设置「评测」可切换 Cybench / SEC-bench / AutoPenBench。
+- 开发态 Sidecar 把审阅过的 TypeScript 扩展编出 `node_modules`；正式打包仍走原来的 esbuild 整包。
+- GitHub Release（Latest）提供 DMG / EXE / DEB 与 `SHA256SUMS-26.825.1.txt`。macOS 走 GitHub-hosted 签名公证，不再走本机打包。
+
+## 未发版改动：晚于 `v26.825.1` / `efddfc2` 的 `main`
+
+文档收口提交不移动该 tag。当前没有尚未进发行的产品改动。
 
 ## 当前产品事实
 
@@ -179,30 +173,30 @@
 
 ## 当前完成线
 
-### 已完成：`26.823.1` 今日首发三端正式 GitHub Release
+### 已完成：`26.825.1` 今日首发三端正式 GitHub Release
 
-三端都从 `efeda10af4f1e2cf55c4a8db1761cdbb486055a2` 构建。GitHub Latest Release 为
-`v26.823.1`，没有上传 OTA ZIP；R2/Admin current pointer 未改变。macOS 走本机
-Developer ID 签名与公证。Windows / Linux 走成功的 Actions run。
+三端都从 `efddfc2733fb4fc740da9281fb614dfe57f814f8` 构建。GitHub Latest Release 为
+`v26.825.1`，没有上传 OTA ZIP；R2/Admin current pointer 未改变。macOS / Windows / Linux
+都走成功的 GitHub-hosted Actions run。
 
 | 平台 | Workflow | 用户安装包 | 大小 | SHA-256 | 结果 |
 | --- | --- | ---: | ---: | --- | --- |
-| macOS ARM64 | 本机 `release:mac:local` | `MilkSU-macOS-arm64-26.823.1.dmg` | 237,784,345 B | `fdce68aef5d3d6d2a55af1d8ef1d2046de6aaacfebb08e45adcf1558ac09e859` | Developer ID 签名、Apple 公证、staple、Gatekeeper |
-| Windows x64 | `32588820764` | `MilkSU-Windows-x64-26.823.1-Setup.exe` | 182,520,020 B | `ff21e869b9f71f4925542cf5b6e54509c08f5bf82c43a0a28bc34daf720d034d` | 原生 Windows 构建、打包 Runtime 与首次启动通过；安装器未代码签名 |
-| Linux x64 | `32588822563` | `MilkSU-Linux-x64-26.823.1.deb` | 178,292,984 B | `01bf16a110101c83fc93b72ff334e5f5476078cca96557e4dda880fd24846bce` | 原生 Ubuntu 包结构、Sidecar、Go Runtime 与 Xvfb Electron 首次启动通过；试用边界 |
+| macOS ARM64 | `32826904720` | `MilkSU-macOS-arm64-26.825.1.dmg` | 240,559,028 B | `eca87c425c8d6140fc94567509b05afbac9c31f2e10e930cba3eda6fedd392d8` | Developer ID 签名、Apple 公证、staple、Gatekeeper |
+| Windows x64 | `32826908115` | `MilkSU-Windows-x64-26.825.1-Setup.exe` | 184,282,889 B | `d8aed502da7ea81aee4d347660d475b9180cded6ddc559868001db66123f0d61` | 原生 Windows 构建、打包 Runtime 与首次启动通过；安装器未代码签名 |
+| Linux x64 | `32826913148` | `MilkSU-Linux-x64-26.825.1.deb` | 178,724,280 B | `66aa2e0ccd4eb1756784e2b70b112d593a71ebec163289e885fb4d95c46f5b18` | 原生 Ubuntu 包结构、Sidecar、Go Runtime 与 Xvfb Electron 首次启动通过；试用边界 |
 
-发行页：<https://github.com/MilkSU-Official/milksu/releases/tag/v26.823.1>
+发行页：<https://github.com/MilkSU-Official/milksu/releases/tag/v26.825.1>
 
-上一版 `v26.822.1 / 3db4615` 仍可下载，标签未移动。
+上一版 `v26.823.1 / efeda10` 仍可下载，标签未移动。
 
 ### 下一完成线
 
-`26.823.1` 已是当前可下载基线。文档收口提交不改变这个 tag。
+`26.825.1` 已是当前可下载基线。文档收口提交不改变这个 tag。
 
 下一条完成线是：
 
-1. 继续用 `26.823.1` 安装包做常用 Agent GUI 与 Pi Runtime 回归，失败项回到下面 P0 队列；
-2. 用户明确要求发下一版时，先升版本号，再从干净已推送的 `main` 跑 `release:verify` 并留下新的三端回执；不要把现有 `v26.823.1` 标签挪到更新的 HEAD 上。
+1. 继续用 `26.825.1` 安装包做常用 Agent GUI、Pi Runtime 与实验室靶机回归，失败项回到下面 P0 队列；
+2. 用户明确要求发下一版时，先升版本号，再从干净已推送的 `main` 跑 `release:verify` 并留下新的三端回执；不要把现有 `v26.825.1` 标签挪到更新的 HEAD 上。
 
 Windows 签名、Linux 缺失能力、R2/OTA 仍是发行后续，不是产品方向禁令。
 
@@ -212,7 +206,7 @@ Windows 签名、Linux 缺失能力、R2/OTA 仍是发行后续，不是产品�
 | --- | --- | --- |
 | P0 | 常用 Agent GUI 回归 | 按 Coding 常用功能表覆盖中文任务、文件/Shell、附件、斜杠菜单、权限档、subagent、浏览器、Browser/Computer Use、终端、取消/恢复与错误展示；自动化通过后再由用户做真实 GUI 验收。C9 / C15 / C16 / C20 已由用户在本地 dirty Stable 包确认；C10 / C11 已修待复验。 |
 | P0 | Pi Runtime 用户验收 | 最新正式包中验证跨目录读写、CTF/CVE 交接、长输出续跑和重启恢复，不出现 MilkSU 自建 workspace 策略或旧 session ID。 |
-| P1 | 下一版三端回执发行 | 需要新的版本号、同一 source commit、三端产物、SHA-256 与平台验收。现有 `v26.823.1` 只覆盖 `efeda10`。 |
+| P1 | 下一版三端回执发行 | 需要新的版本号、同一 source commit、三端产物、SHA-256 与平台验收。现有 `v26.825.1` 只覆盖 `efddfc2`。 |
 | P1 | OTA 与私有 R2 | Admin 草稿/发布/暂停和 Desktop 更新提示已有；仍需一次受账户鉴权的真实旧签名版 → 新签名版升级回执。 |
 | P1 | 安全工具真实任务 | IDA/idalib 与 capa 已有设置、准备和健康检查；用受控本地样本留下真实任务回执。就绪工具接到实验室作业，窄工具也可进 CVE 复现；不需要先开一次“是否投影”的会。不把 HexStrike 整包 MCP 做成产品页或 Kali 应用商店。CodeQL、Burp、Shannon 仍逐项接入。 |
 | P1 | Obelisk 学习记录 | 先定义可归因学习事实，再设计独立页面；不恢复已删除的单会话相关历史/图谱面板。 |
@@ -222,7 +216,7 @@ Windows 签名、Linux 缺失能力、R2/OTA 仍是发行后续，不是产品�
 
 ### 当前切片：CVE 复现档案 + 实验室报告
 
-实验室在界面上就叫**实验室**。完成面是 Agent 可继续改的报告，不是状态标签，也不是人签过字的 Finding 列表。未授权外网不扫、不横向、模型候选不能写成已确认漏洞。CTF 仍只当题。开发 HEAD 已能从题目包打开靶机卡片并起本机 Docker 靶或本机 AVD。用户自带 URL 作业仍在。环境契约是 [靶机、环境经纪与活靶面](/architecture/target-environments)（Implementing / 未进发行）。交互稿 `app/env-preview.html` 只用于设计预览，不进产品入口。
+实验室在界面上就叫**实验室**。完成面是 Agent 可继续改的报告，不是状态标签，也不是人签过字的 Finding 列表。未授权外网不扫、不横向、模型候选不能写成已确认漏洞。CTF 仍只当题。`26.825.1` 已能从题目包打开靶机卡片并起本机 Docker 靶或本机 AVD。用户自带 URL 作业仍在。环境契约是 [靶机、环境经纪与活靶面](/architecture/target-environments)。交互稿 `app/env-preview.html` 只用于设计预览，不进产品入口。
 
 | 切片 | 放哪 | 做什么 | 现在能看见 |
 | --- | --- | --- | --- |
@@ -239,7 +233,7 @@ Windows 签名、Linux 缺失能力、R2/OTA 仍是发行后续，不是产品�
 - Wails/CEF 双壳、workspace-only 文件工具、Node 文件权限状态机、普通回合 watchdog、CVE 只读启动清单和客服式回复模板。
 - 用关键词或正则扫描用户句子来打开浏览器、切页或选工具。
 - MilkSU 自建余额、价格映射、扣费流水和模型代理计费。
-- 把晚于 `v26.823.1` 的 HEAD、同一版本号或本地 dirty 包写成已经发出的三端正式包。
+- 把晚于 `v26.825.1` 的 HEAD、同一版本号或本地 dirty 包写成已经发出的三端正式包。
 - M3/M4 旧百分比台账、历史 Beta 完成度和已删除 live smoke；需要考古时使用 Git history。
 
 ## 领域完成线
