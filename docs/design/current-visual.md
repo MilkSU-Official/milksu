@@ -16,7 +16,7 @@
 | --- | --- | --- |
 | 1 材质 | token、颜色语义、字体 | `app/src/index.css`、`app/src/styles/` |
 | 2 壳 | 模块轨、顶栏、页面栏 | `WorkspaceRail`、`WorkspaceTopBar` / `WorkspaceModuleTopBar`、`.page-column` |
-| 3 列表指挥面 | 筛选、历史、导入 | `.ak-segmented`、`WorkspaceCatalogActions`、`WorkspaceImportDialog` |
+| 3 列表指挥面 | 筛选、历史、执行按钮 | `.ak-segmented`、`WorkspaceCatalogActions`、`WorkspaceImportDialog` |
 | 4 事实面 | 卡片、表、弹窗、浮层 | Felinic `SettingsSection` / `SettingsRow` / `ActionCard` / `ModelListRow`、`DialogPanel` |
 | 5 文案 | 用户看得见的字 | `t('中文', 'English')` |
 
@@ -46,8 +46,9 @@
 CTF / CVE / 实验室列表页共用同一套指挥面，不要在某一页另做一套按钮或另开一页：
 
 - 视图切换（全部 / 收藏，题目包 / 自定义任务）在顶栏 `#filters` 的 `.ak-segmented`。不要在标题栏 actions 里再放一套 Felinic SegmentedControl。
-- 右上角是 **历史**（outline）+ **导入**。导入是执行动作，用 `--accent-blue-fill`（写在 `index.css` 的 `[data-workspace-catalog-actions]`）。
-- 点导入打开 `WorkspaceImportDialog`。同步公开源 / 题库和自定义导入都放在这个弹窗里。
+- 右上角是 **历史**（outline）+ 蓝色执行按钮（`--accent-blue-fill`，写在 `index.css` 的 `[data-workspace-catalog-actions]`）。
+- **导入**只表示带入题目包 / 公开题库 / 公开 CVE。CTF 和 CVE 点开 `WorkspaceImportDialog`，同步和自定义都放在这个弹窗里。
+- 实验室还没有题目包导入。执行按钮是 **创建**，弹窗是自定义任务。不要把创建叫成导入。
 - 历史菜单行用 `WorkspaceCatalogHistoryItem`。不要在三个列表页各写一套 menu item。
 
 ## 4 事实面
@@ -55,6 +56,7 @@ CTF / CVE / 实验室列表页共用同一套指挥面，不要在某一页另�
 - 卡片只用 Felinic `SettingsSection`、`SettingsRow`、`ActionCard`、`ModelListRow`。不要为单页再做一个卡片系统。
 - 浮层用 `.tactical-floating-surface` 和 `--z-overlay`。不要发明第二套 z-index。
 - 弹窗用 Felinic `Dialog` / `DialogPanel`。不要再用原生 `<dialog>` 做产品导入。
+- 连接类微型状态用 `ConnectionLiveStatus`（`.ak-status.ak-status--compact` 的 LIVE / OFF）。列表或会话指挥面可以把芯片包进 outline 按钮（`[data-connection-live-action]`，CTF「浏览器已连接」）。设置页只显示芯片，检测 / 安装 / 授权仍是旁边的操作，不要把状态本身做成按钮，也不要用「已连接 / 未连接 / 已授权」纯文字当唯一状态。没有连接事实就不要硬放芯片；Browser Use「安装扩展」还没有本机连接回执。
 
 ## 5 文案
 
@@ -68,4 +70,5 @@ CTF / CVE / 实验室列表页共用同一套指挥面，不要在某一页另�
 
 - 战术档案 / 酸绿 / `game-focus-panel` / `game-surface`
 - CVE「添加 CVE」顶栏按钮、CTF「同步导入」顶栏按钮、自定义题目整页、`screen === 'source'` 训练步骤条
+- 设置浏览器控制只用「已连接 / 已授权」描述、没有 LIVE/OFF
 - 学习专题

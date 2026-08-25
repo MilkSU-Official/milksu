@@ -556,8 +556,8 @@ function addSearchResult(candidate: VulnerabilitySearchCandidate) {
           :history-count="cveHistory.length"
           :history-aria-label="t('打开研究历史', 'Open research history')"
           :history-menu-label="t('研究历史', 'Research history')"
-          :import-aria-label="t('导入 CVE', 'Import CVE')"
-          @import="openImport"
+          :action-aria-label="t('导入 CVE', 'Import CVE')"
+          @action="openImport"
         >
           <template #history>
             <WorkspaceCatalogHistoryItem

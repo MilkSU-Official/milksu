@@ -78,8 +78,14 @@ describe('global style contract', () => {
   })
 
   it('keeps list-page Import on the shared execution blue fill', () => {
-    expect(indexCss).toContain('[data-workspace-catalog-actions] .workspace-import-action[data-variant=\'default\']')
+    expect(indexCss).toContain('[data-workspace-catalog-actions] .workspace-catalog-action[data-variant=\'default\']')
     expect(indexCss).toContain('background-color: var(--accent-blue-fill)')
+  })
+
+  it('keeps connection LIVE/OFF chrome on one shared button wrap', () => {
+    expect(indexCss).toContain('[data-connection-live-action]')
+    expect(indexCss).toContain('[data-connection-live-action] [data-connection-live]')
+    expect(indexCss).toContain('.connection-live-action__label')
   })
 
   it('uses the ak-ui cyan action color instead of acid green or the old SaaS blue', () => {

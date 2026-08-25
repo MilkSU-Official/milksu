@@ -47,11 +47,28 @@ describe('CTFWorkspaceHeader', () => {
     expect(host.querySelector('[data-module-topbar]')).not.toBeNull()
     expect(host.querySelector('[data-module-topbar]')?.getAttribute('data-workspace-module')).toBe('ctf')
     expect(host.querySelector('[data-workspace-topbar-title]')?.className).toContain('workspace-topbar__title')
+    expect(host.querySelector('[data-connection-live-action]')).not.toBeNull()
+    expect(host.querySelector('[data-connection-live="off"]')).not.toBeNull()
+    expect(host.textContent).toContain('连接浏览器')
+    expect(host.textContent).toContain('OFF')
 
     host.querySelector<HTMLButtonElement>('[aria-label="返回 CTF 题库"]')?.click()
     host.querySelector<HTMLButtonElement>('[aria-label="浏览器未连接，打开设置"]')?.click()
 
     expect(events).toEqual(['returnCatalog', 'openBrowserSettings'])
+  })
+
+  it('shows a visible LIVE chip on the connected browser chrome button', async () => {
+    const { host, events } = await mountHeader({
+      challengeTitle: 'NSSCTF P3879',
+      browserStatus: 'live',
+    })
+    expect(host.querySelector('[data-connection-live-action]')).not.toBeNull()
+    expect(host.querySelector('[data-connection-live="live"]')).not.toBeNull()
+    expect(host.textContent).toContain('浏览器已连接')
+    expect(host.textContent).toContain('LIVE')
+    host.querySelector<HTMLButtonElement>('[aria-label="浏览器已连接"]')?.click()
+    expect(events).toEqual(['refreshBridge'])
   })
 
   it('does not split the workspace into solve and review modes', async () => {

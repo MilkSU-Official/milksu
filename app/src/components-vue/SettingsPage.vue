@@ -93,6 +93,7 @@ import EvalSettingsPanel from '@/components-vue/EvalSettingsPanel.vue'
 import LabSettingsPanel from '@/components-vue/LabSettingsPanel.vue'
 import ModelVendorIcon from '@/components-vue/ModelVendorIcon.vue'
 import ArchivedConversationsSettings from '@/components-vue/ArchivedConversationsSettings.vue'
+import ConnectionLiveStatus from '@/components-vue/ConnectionLiveStatus.vue'
 import type { SecurityToolCodingHandoff } from '@/securityToolsTypes'
 import { useVulnerabilityDashboard, type VulnerabilityDashboard } from '@/composables/useVulnerabilityDashboard'
 import { CODING_SKILLS } from '@/codingSkills'
@@ -1534,18 +1535,18 @@ async function saveProviderEditor(closeAfterSave: boolean) {
           </SettingsSection>
 
           <SettingsSection :title="t('CTF 站点', 'CTF sites')">
-            <SettingsRow
-              :label="t('连接', 'Connection')"
-              :description="browserBridgeConnected ? t('已连接', 'Connected') : ''"
-            >
-              <Button
-                variant="outline"
-                size="sm"
-                :loading="browserBridgeLoading"
-                @click="refreshBrowserBridgeStatus()"
-              >
-                {{ t('检测', 'Check') }}
-              </Button>
+            <SettingsRow :label="t('连接', 'Connection')">
+              <div class="flex items-center gap-2">
+                <ConnectionLiveStatus :live="browserBridgeConnected" />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  :loading="browserBridgeLoading"
+                  @click="refreshBrowserBridgeStatus()"
+                >
+                  {{ t('检测', 'Check') }}
+                </Button>
+              </div>
             </SettingsRow>
             <SettingsRow :label="t('本地扩展', 'Local extension')">
               <Button
@@ -1599,38 +1600,42 @@ async function saveProviderEditor(closeAfterSave: boolean) {
               :label="t('状态', 'Status')"
               :description="computerUseStatus.problem || ''"
               :divider="false"
-            />
+            >
+              <ConnectionLiveStatus :live="false" />
+            </SettingsRow>
             <template v-else-if="computerUseStatus">
-              <SettingsRow
-                :label="t('辅助功能', 'Accessibility')"
-                :description="computerUseStatus.permissions.accessibility ? t('已授权', 'Granted') : ''"
-              >
-                <Button
-                  v-if="!computerUseStatus.permissions.accessibility"
-                  variant="outline"
-                  size="sm"
-                  :loading="computerUseRequesting === 'accessibility'"
-                  :disabled="!computerUseStatus.available || Boolean(computerUseRequesting)"
-                  @click="requestComputerUsePermission('accessibility')"
-                >
-                  {{ t('打开辅助功能设置', 'Open Accessibility settings') }}
-                </Button>
+              <SettingsRow :label="t('辅助功能', 'Accessibility')">
+                <div class="flex items-center gap-2">
+                  <ConnectionLiveStatus :live="Boolean(computerUseStatus.permissions.accessibility)" />
+                  <Button
+                    v-if="!computerUseStatus.permissions.accessibility"
+                    variant="outline"
+                    size="sm"
+                    :loading="computerUseRequesting === 'accessibility'"
+                    :disabled="!computerUseStatus.available || Boolean(computerUseRequesting)"
+                    @click="requestComputerUsePermission('accessibility')"
+                  >
+                    {{ t('打开辅助功能设置', 'Open Accessibility settings') }}
+                  </Button>
+                </div>
               </SettingsRow>
               <SettingsRow
                 :label="t('屏幕录制', 'Screen Recording')"
-                :description="computerUseStatus.permissions.screenRecording ? t('已授权', 'Granted') : ''"
                 :divider="false"
               >
-                <Button
-                  v-if="!computerUseStatus.permissions.screenRecording"
-                  variant="outline"
-                  size="sm"
-                  :loading="computerUseRequesting === 'screen-recording'"
-                  :disabled="!computerUseStatus.available || Boolean(computerUseRequesting)"
-                  @click="requestComputerUsePermission('screen-recording')"
-                >
-                  {{ t('打开屏幕录制设置', 'Open Screen Recording settings') }}
-                </Button>
+                <div class="flex items-center gap-2">
+                  <ConnectionLiveStatus :live="Boolean(computerUseStatus.permissions.screenRecording)" />
+                  <Button
+                    v-if="!computerUseStatus.permissions.screenRecording"
+                    variant="outline"
+                    size="sm"
+                    :loading="computerUseRequesting === 'screen-recording'"
+                    :disabled="!computerUseStatus.available || Boolean(computerUseRequesting)"
+                    @click="requestComputerUsePermission('screen-recording')"
+                  >
+                    {{ t('打开屏幕录制设置', 'Open Screen Recording settings') }}
+                  </Button>
+                </div>
               </SettingsRow>
             </template>
           </SettingsSection>
@@ -2080,13 +2085,13 @@ async function saveProviderEditor(closeAfterSave: boolean) {
             </SettingsRow>
           </SettingsSection>
           <SettingsSection :title="t('题目浏览器扩展', 'Challenge browser extension')">
-            <SettingsRow
-              :label="t('连接', 'Connection')"
-              :description="browserBridgeConnected ? t('已连接', 'Connected') : t('未连接', 'Not connected')"
-            >
-              <Button variant="outline" size="sm" :loading="browserBridgeLoading" @click="refreshBrowserBridgeStatus()">
-                {{ t('检测', 'Check') }}
-              </Button>
+            <SettingsRow :label="t('连接', 'Connection')">
+              <div class="flex items-center gap-2">
+                <ConnectionLiveStatus :live="browserBridgeConnected" />
+                <Button variant="outline" size="sm" :loading="browserBridgeLoading" @click="refreshBrowserBridgeStatus()">
+                  {{ t('检测', 'Check') }}
+                </Button>
+              </div>
             </SettingsRow>
           </SettingsSection>
         </template>

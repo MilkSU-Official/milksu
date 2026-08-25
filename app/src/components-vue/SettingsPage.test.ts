@@ -53,6 +53,12 @@ function modelServiceRowTitles() {
   ))
 }
 
+function connectionLiveStates() {
+  return [...document.querySelectorAll('[data-connection-live]')].map(node => (
+    node.getAttribute('data-connection-live')
+  ))
+}
+
 afterEach(() => {
   for (const app of mountedApps.splice(0)) app.unmount()
   document.body.innerHTML = ''
@@ -587,9 +593,10 @@ describe('SettingsPage database compatibility', () => {
     expect(text).toContain('Computer Use')
     expect(text).toContain('辅助功能')
     expect(text).toContain('屏幕录制')
-    expect(text).toContain('已授权')
     expect(text).toContain('打开辅助功能设置')
     expect(text).not.toContain('打开屏幕录制设置')
+    expect(text).not.toContain('已授权')
+    expect(connectionLiveStates()).toEqual(['off', 'off', 'live'])
 
     const refresh = [...document.querySelectorAll<HTMLButtonElement>('button')]
       .find(button => button.textContent?.includes('重新检测'))
@@ -603,8 +610,9 @@ describe('SettingsPage database compatibility', () => {
     expect(text).toContain('Computer Use 权限已重新检测')
     expect(text).toContain('辅助功能')
     expect(text).toContain('屏幕录制')
-    expect(text).toContain('已授权')
+    expect(text).not.toContain('已授权')
     expect(text).not.toContain('打开辅助功能设置')
+    expect(connectionLiveStates()).toEqual(['off', 'live', 'live'])
   })
 
   it('keeps explicit Computer Use permission authorization available on unstable builds', async () => {
@@ -690,10 +698,13 @@ describe('SettingsPage database compatibility', () => {
     expect(text).toContain('CTF 站点')
     expect(text).toContain('Computer Use')
     expect(text).toContain('安装扩展')
+    expect(text).toContain('检测')
     expect(text).not.toContain('Playwright MCP')
     expect(text).not.toContain('CTF 平台 Bridge')
     expect(text).not.toContain('等待连接')
     expect(text).not.toContain('外部 App 权限')
+    expect(text).not.toContain('已授权')
+    expect(connectionLiveStates()).toEqual(['off', 'live', 'live'])
   })
 
   it('keeps settings saved and explains an offline model verification failure', async () => {

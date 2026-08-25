@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Badge, Button } from '@felinic/ui'
 import { ArrowLeft, Cable } from 'lucide-vue-next'
+import ConnectionLiveStatus from '@/components-vue/ConnectionLiveStatus.vue'
 import WorkspaceModuleTopBar from '@/components-vue/WorkspaceModuleTopBar.vue'
 import { t } from '@/lib/uiLocale'
 
@@ -31,19 +32,19 @@ defineEmits<{
     <template #actions>
       <Button
         v-if="browserStatus"
-        variant="ghost"
-        size="icon-sm"
+        variant="outline"
+        size="sm"
+        class="app-no-drag shrink-0"
+        data-connection-live-action
         :aria-label="browserStatus === 'live' ? t('浏览器已连接', 'Browser connected') : t('浏览器未连接，打开设置', 'Browser disconnected, open settings')"
         :title="browserStatus === 'live' ? t('浏览器已连接', 'Browser connected') : t('浏览器未连接', 'Browser disconnected')"
         @click="browserStatus === 'live' ? $emit('refreshBridge') : $emit('openBrowserSettings')"
       >
-        <Cable class="size-4" :class="browserStatus === 'live' ? 'text-foreground' : 'text-muted-foreground'" />
-        <span
-          class="ak-status ak-status--compact sr-only"
-          :class="browserStatus === 'live' ? '' : 'ak-status--offline'"
-        >
-          {{ browserStatus === 'live' ? 'LIVE' : 'OFF' }}
+        <span class="connection-live-action__label">
+          <Cable class="size-4" />
+          {{ browserStatus === 'live' ? t('浏览器已连接', 'Browser connected') : t('连接浏览器', 'Connect browser') }}
         </span>
+        <ConnectionLiveStatus :live="browserStatus === 'live'" decorative />
       </Button>
     </template>
   </WorkspaceModuleTopBar>

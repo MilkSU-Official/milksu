@@ -105,6 +105,8 @@ describe('CTFPage navigation contract', () => {
     expect(ctfPageSource).toContain('function openImport()')
     expect(ctfPageSource).toContain('WorkspaceImportDialog')
     expect(ctfPageSource).toContain('WorkspaceCatalogActions')
+    expect(ctfPageSource).toContain('label="NSSCTF"')
+    expect(ctfPageSource).toContain('label="CTFshow"')
   })
 
   it('explains the two different catalog synchronization paths while loading', () => {

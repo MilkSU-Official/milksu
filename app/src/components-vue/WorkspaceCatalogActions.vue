@@ -8,27 +8,31 @@ import {
   menuSeparatorClass,
   menuViewportClass,
 } from '@felinic/ui'
-import { Clock3, FilePlus2 } from 'lucide-vue-next'
+import { Clock3, FilePlus2, Plus } from 'lucide-vue-next'
 import { t } from '@/lib/uiLocale'
 
 const props = withDefaults(defineProps<{
   historyCount?: number
   historyAriaLabel?: string
   historyMenuLabel?: string
-  importAriaLabel?: string
+  action?: 'import' | 'create'
+  actionAriaLabel?: string
 }>(), {
   historyCount: 0,
+  action: 'import',
 })
 
 const emit = defineEmits<{
-  import: []
+  action: []
 }>()
 
 const historyMenu = ref<HTMLDetailsElement | null>(null)
 
 const historyAria = () => props.historyAriaLabel?.trim() || t('打开历史', 'Open history')
 const historyMenuAria = () => props.historyMenuLabel?.trim() || t('历史', 'History')
-const importAria = () => props.importAriaLabel?.trim() || t('导入', 'Import')
+const actionLabel = () => props.action === 'create' ? t('创建', 'Create') : t('导入', 'Import')
+const actionAria = () => props.actionAriaLabel?.trim() || actionLabel()
+const actionTestId = () => props.action === 'create' ? 'workspace-create' : 'workspace-import'
 
 function closeHistoryMenuOnOutsidePointer(event: PointerEvent) {
   if (!(event.target instanceof Node)) return
@@ -40,9 +44,9 @@ function closeHistoryMenu() {
   if (historyMenu.value) historyMenu.value.open = false
 }
 
-function openImport() {
+function openAction() {
   closeHistoryMenu()
-  emit('import')
+  emit('action')
 }
 
 onMounted(() => {
@@ -100,13 +104,14 @@ defineExpose({ closeHistoryMenu })
     <Button
       variant="default"
       size="sm"
-      class="app-no-drag workspace-import-action shrink-0"
-      data-testid="workspace-import"
-      :aria-label="importAria()"
-      @click="openImport"
+      class="app-no-drag workspace-catalog-action shrink-0"
+      :data-testid="actionTestId()"
+      :aria-label="actionAria()"
+      @click="openAction"
     >
-      <FilePlus2 class="size-4" />
-      {{ t('导入', 'Import') }}
+      <Plus v-if="action === 'create'" class="size-4" />
+      <FilePlus2 v-else class="size-4" />
+      {{ actionLabel() }}
     </Button>
   </div>
 </template>

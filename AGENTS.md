@@ -73,14 +73,14 @@ Review that page by layer. Do not invent a second primitive at the same layer.
 | --- | --- | --- |
 | Materials | tokens, color, type | graphite / paper / cyan / gold; blue only for links and execution |
 | Shell | rail, topbar, page column | `WorkspaceModuleTopBar`, `--page-stack-width` 64rem |
-| List chrome | filters, History, Import | `.ak-segmented`, `WorkspaceCatalogActions`, `WorkspaceImportDialog` |
-| Facts | cards, tables, dialogs | Felinic `SettingsSection` / `SettingsRow` / `ActionCard` / `ModelListRow` |
+| List chrome | filters, History, primary action | `.ak-segmented`, `WorkspaceCatalogActions`; Import for CTF/CVE, Create for Lab |
+| Facts | cards, tables, dialogs, connection status | Felinic `SettingsSection` / `SettingsRow` / `ActionCard` / `ModelListRow`; LIVE/OFF via `ConnectionLiveStatus` |
 | Copy | user-visible strings | `t('中文', 'English')`; empty controls stay blank |
 
 Shared CSS lives in `app/src/index.css` and `app/src/styles/`. Felinic stays for Vue
 behavior. Do not add `@yunyoujun/ak-ui` to `app/package.json`. Enforcement:
 `WorkspaceVisualContract.test.ts`, `globalStyleContract.test.ts`,
-`WorkspaceCatalogActions.test.ts`.
+`WorkspaceCatalogActions.test.ts`, `ConnectionLiveStatus.test.ts`.
 
 Review a new page, settings category, dossier, dialog, preview, Vue/CSS/copy change, or
 incoming PR against those five layers. A screenshot is not a review. Do not invent a

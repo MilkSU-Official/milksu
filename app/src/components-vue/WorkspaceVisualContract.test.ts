@@ -19,6 +19,8 @@ import workspaceRailSource from './WorkspaceRail.vue?raw'
 import ctfArtifactsSource from './CTFArtifacts.vue?raw'
 import ctfPageSource from './CTFPage.vue?raw'
 import catalogActionsSource from './WorkspaceCatalogActions.vue?raw'
+import connectionLiveSource from './ConnectionLiveStatus.vue?raw'
+import ctfWorkspaceHeaderSource from './CTFWorkspaceHeader.vue?raw'
 import ctfTrajectorySource from './CTFTrajectory.vue?raw'
 import domainTaskContextSource from './DomainTaskContextPanel.vue?raw'
 import appSource from '../App.vue?raw'
@@ -163,5 +165,23 @@ describe('Workspace visual contract', () => {
     expect(appStylesSource).toContain('[data-slot="sheet-content"]')
     expect(appStylesSource).toContain('[data-slot="hover-card-content"]')
     expect(appStylesSource).toContain('.tactical-floating-surface')
+  })
+
+  it('uses one LIVE/OFF chip for connection status', () => {
+    expect(connectionLiveSource).toContain(":data-connection-live=\"live ? 'live' : 'off'\"")
+    expect(connectionLiveSource).toContain('ak-status--compact')
+    expect(connectionLiveSource).toContain("live ? 'LIVE' : 'OFF'")
+    expect(connectionLiveSource).not.toContain('<button')
+    expect(ctfPageSource).toContain('data-connection-live-action')
+    expect(ctfPageSource).toContain('<ConnectionLiveStatus :live="browserBridgeConnected" decorative />')
+    expect(ctfWorkspaceHeaderSource).toContain('data-connection-live-action')
+    expect(ctfWorkspaceHeaderSource).toContain('<ConnectionLiveStatus :live="browserStatus === \'live\'" decorative />')
+    expect(settingsPageSource).toContain('<ConnectionLiveStatus :live="browserBridgeConnected" />')
+    expect(settingsPageSource).toContain('<ConnectionLiveStatus :live="Boolean(computerUseStatus.permissions.accessibility)" />')
+    expect(settingsPageSource).toContain('<ConnectionLiveStatus :live="Boolean(computerUseStatus.permissions.screenRecording)" />')
+    expect(settingsPageSource).not.toContain(":description=\"browserBridgeConnected ? t('已连接', 'Connected')")
+    expect(settingsPageSource).not.toContain("permissions.accessibility ? t('已授权', 'Granted')")
+    expect(settingsPageSource).not.toContain("permissions.screenRecording ? t('已授权', 'Granted')")
+    expect(appStylesSource).toContain('[data-connection-live-action]')
   })
 })

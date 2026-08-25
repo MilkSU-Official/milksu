@@ -485,8 +485,9 @@ function abortRename(event: KeyboardEvent) {
             :history-count="historyJobs.length"
             :history-aria-label="t('打开任务历史', 'Open job history')"
             :history-menu-label="t('任务历史', 'Job history')"
-            :import-aria-label="t('导入任务', 'Import job')"
-            @import="openNew"
+            action="create"
+            :action-aria-label="t('创建自定义任务', 'Create a custom job')"
+            @action="openNew"
           >
             <template #history>
               <WorkspaceCatalogHistoryItem
@@ -811,7 +812,8 @@ function abortRename(event: KeyboardEvent) {
 
     <WorkspaceImportDialog
       v-model:open="showNew"
-      :description="t('创建自定义任务，或从历史继续。', 'Create a custom job, or resume from history.')"
+      :title="t('创建', 'Create')"
+      :description="t('范围和要求', 'Scope and request')"
     >
       <SettingsSection :title="t('自定义任务', 'Custom job')">
         <form class="grid gap-4 px-4 py-4" @submit.prevent="submitNew">

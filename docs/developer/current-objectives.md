@@ -32,7 +32,7 @@
 | 历史基线 | M3 product-loop 已在 `108e0e3`（2026-08-05）合并，仅供追溯。 |
 | 正式发行基线 | `v26.823.1 / efeda10af4f1e2cf55c4a8db1761cdbb486055a2`（2026-08-23 今日首发）。这是当前 GitHub Latest Release；提供带版本号的 DMG、EXE、DEB 与 `SHA256SUMS`；R2/Admin current pointer 未发布。 |
 | 开发版本线 | 根目录与 `desktop/package.json` 是 `26.823.1`。正式发行源是 `efeda10`；文档收口提交不移动该 tag。 |
-| 当前开发 | 正式包是 `26.823.1`。CTF / CVE / 实验室共用完整 Coding 循环、始终开启的上下文整理，以及 CVE 列表里的公开源条目，都已打进本包。HEAD 设置「评测」左侧切换三套：Cybench flag、SEC-bench sanitizer、AutoPenBench 阶段分，各有模型、开始、分数和难度曲线；通用页调试收到构建追踪底部。环境经纪已接到实验室 / CVE 档案：题目包卡片打开后是靶机卡片（Juice Shop / WebGoat / S2-045 / whoami / InjuredAndroid）。安卓走专用 MilkSU-Lab。CVE 学习专题已删。设置、CTF / CVE / 实验室详情和个人资料共用 64rem 卡片栏；设置不再按分类切换 3xl / 5xl / 6xl。设置 CVE 公开源是两行同步，JSON 导入在高级。设置页卡片统一 `bg-card`，输入框和下拉用提亮底；语言 / Skills / 编辑器 / Lab / Arena Token 交互即保存，模型页仍「保存并验证」。CTF「解题轨迹」和「证据制品」卡片已改成与题目 / 复盘相同的圆角。CTF「开始解题」和 CVE「开始复现」展开对话小窗并聚焦输入，仍不自动发消息。CTF / CVE / 实验室列表右上角统一为历史 + 蓝底导入弹窗。开发态 Sidecar 会把审阅过的 TypeScript 扩展编出 `node_modules`，避免 Node 拒绝剥类型。未进发行。 |
+| 当前开发 | 正式包是 `26.823.1`。CTF / CVE / 实验室共用完整 Coding 循环、始终开启的上下文整理，以及 CVE 列表里的公开源条目，都已打进本包。HEAD 设置「评测」左侧切换三套：Cybench flag、SEC-bench sanitizer、AutoPenBench 阶段分，各有模型、开始、分数和难度曲线；通用页调试收到构建追踪底部。环境经纪已接到实验室 / CVE 档案：题目包卡片打开后是靶机卡片（Juice Shop / WebGoat / S2-045 / whoami / InjuredAndroid）。安卓走专用 MilkSU-Lab。CVE 学习专题已删。设置、CTF / CVE / 实验室详情和个人资料共用 64rem 卡片栏；设置不再按分类切换 3xl / 5xl / 6xl。设置 CVE 公开源是两行同步，JSON 导入在高级。设置页卡片统一 `bg-card`，输入框和下拉用提亮底；语言 / Skills / 编辑器 / Lab / Arena Token 交互即保存，模型页仍「保存并验证」。CTF「解题轨迹」和「证据制品」卡片已改成与题目 / 复盘相同的圆角。CTF「开始解题」和 CVE「开始复现」展开对话小窗并聚焦输入，仍不自动发消息。CTF / CVE 列表右上角是历史 + 导入，实验室是历史 + 创建。连接类状态用 LIVE / OFF：CTF 顶栏是带芯片的按钮，设置 → 浏览器控制只显示芯片，检测仍是旁边的操作。开发态 Sidecar 会把审阅过的 TypeScript 扩展编出 `node_modules`，避免 Node 拒绝剥类型。未进发行。 |
 | 平台边界 | `26.823.1`：macOS DMG 本机 Developer ID 签名并公证；Windows 安装器完成原生 Runtime 与首次启动但未代码签名，并打入审阅过的 CUA Driver；Linux DEB 完成包结构、Sidecar、Go Runtime 与 Xvfb Electron 启动，仍无 Secret Service、本地 OCR、Computer Use。 |
 | 发行流水 | 下一发行从干净、已推送的 `main` 对 canonical Go/Vue/Sidecar/lint/生产与文档构建只验证一次；macOS / Windows / Linux 都走 GitHub-hosted 云端。macOS 本机打包暂时关闭。必须创建 GitHub Release 页并上传带版本号的 DMG/EXE/DEB 与 SHA256SUMS，不能只留空 tag。GitHub-only 不生成 OTA ZIP/metadata。 |
 
@@ -142,7 +142,7 @@
 - 设置页操作提示条成功用绿色底、失败用红色底，不再跟页面画布同色。
 - CTF 顶栏「浏览器已连接」的 LIVE/OFF 状态贴满按钮右段，右边不再留空。
 - 实验室「题目包 / 自定义任务」改到顶栏筛选行，和 CTF/CVE「全部 / 收藏」同一套 `.ak-segmented`。
-- CTF / CVE / 实验室列表指挥面收成五层视觉约定：材质、壳、列表指挥面、事实面、文案。右上角共用历史 + 蓝底导入弹窗；死掉的 CTF `source` 步骤条和自定义整页已删。未进发行。
+- CTF / CVE / 实验室列表指挥面收成五层视觉约定：材质、壳、列表指挥面、事实面、文案。右上角共用历史 + 蓝底执行按钮；CTF/CVE 是导入弹窗，实验室是创建自定义任务（题目包导入还没有）。死掉的 CTF `source` 步骤条和自定义整页已删。未进发行。
 - 开发态 Sidecar 启动前把 `pi-goal` / `pi-lsp` / MCP Adapter / 后台任务 / 子 Agent 的 TypeScript 编到 `node_modules` 之外。Windows 源码树点设置页「保存并验证」不再被 Node `ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING` 打断；正式打包仍走原来的 esbuild 整包。未进发行。
 
 ## 当前产品事实

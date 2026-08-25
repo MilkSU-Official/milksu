@@ -26,8 +26,8 @@ describe('list chrome', () => {
       historyCount: 3,
       historyAriaLabel: '打开训练历史',
       historyMenuLabel: '训练历史',
-      importAriaLabel: '导入题目',
-      onImport: () => { imported += 1 },
+      actionAriaLabel: '导入题目',
+      onAction: () => { imported += 1 },
     })
     app.mount(host)
     mountedApps.push(app)
@@ -39,16 +39,32 @@ describe('list chrome', () => {
     expect(host.textContent).toContain('3')
     const importButton = host.querySelector<HTMLButtonElement>('[data-testid="workspace-import"]')
     expect(importButton?.textContent).toContain('导入')
-    expect(importButton?.className).toContain('workspace-import-action')
+    expect(importButton?.className).toContain('workspace-catalog-action')
     importButton?.click()
     await nextTick()
     expect(imported).toBe(1)
   })
 
+  it('labels Lab create instead of import', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    const app = createApp(WorkspaceCatalogActions, {
+      action: 'create',
+      actionAriaLabel: '创建自定义任务',
+    })
+    app.mount(host)
+    mountedApps.push(app)
+    await nextTick()
+    const createButton = host.querySelector<HTMLButtonElement>('[data-testid="workspace-create"]')
+    expect(createButton?.textContent).toContain('创建')
+    expect(host.querySelector('[data-testid="workspace-import"]')).toBeNull()
+  })
+
   it('keeps CTF, CVE, and Lab on the shared list-chrome primitives', () => {
     expect(catalogActionsSource).toContain("t('历史', 'History')")
     expect(catalogActionsSource).toContain("t('导入', 'Import')")
-    expect(catalogActionsSource).toContain('workspace-import-action')
+    expect(catalogActionsSource).toContain("t('创建', 'Create')")
+    expect(catalogActionsSource).toContain('workspace-catalog-action')
     expect(importDialogSource).toContain("t('导入', 'Import')")
     expect(importDialogSource).toContain('DialogPanel')
     expect(catalogHistoryItemSource).toContain('data-workspace-catalog-history-item')
@@ -57,6 +73,12 @@ describe('list chrome', () => {
       expect(source).toContain('WorkspaceImportDialog')
       expect(source).toContain('WorkspaceCatalogHistoryItem')
     }
+    expect(labPageSource).toContain('action="create"')
+    expect(labPageSource).toContain(":title=\"t('创建', 'Create')\"")
+    expect(ctfPageSource).toContain('label="NSSCTF"')
+    expect(ctfPageSource).toContain('label="CTFshow"')
+    expect(ctfPageSource).toContain("@click=\"syncCatalog\"")
+    expect(ctfPageSource).toContain("@click=\"refreshCTFShow\"")
     expect(ctfPageSource).not.toContain("screen === 'source'")
     expect(ctfPageSource).not.toContain("activeBank.value = 'custom'")
   })

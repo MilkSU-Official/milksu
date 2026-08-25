@@ -395,8 +395,9 @@ onMounted(() => {
                 :history-count="0"
                 :history-aria-label="t('打开任务历史', 'Open job history')"
                 :history-menu-label="t('任务历史', 'Job history')"
-                :import-aria-label="t('导入任务', 'Import job')"
-                @import="showNew = true"
+                action="create"
+                :action-aria-label="t('创建自定义任务', 'Create a custom job')"
+                @action="showNew = true"
               />
             </template>
             <template #filters>
@@ -527,7 +528,7 @@ onMounted(() => {
                 :history-count="0"
                 :history-aria-label="t('打开研究历史', 'Open research history')"
                 :history-menu-label="t('研究历史', 'Research history')"
-                :import-aria-label="t('导入 CVE', 'Import CVE')"
+                :action-aria-label="t('导入 CVE', 'Import CVE')"
               />
             </template>
           </WorkspaceModuleTopBar>
@@ -678,7 +679,7 @@ onMounted(() => {
 
 
 
-    <WorkspaceImportDialog v-model:open="showNew" :description="t('创建自定义任务。', 'Create a custom job.')">
+    <WorkspaceImportDialog v-model:open="showNew" :title="t('创建', 'Create')" :description="t('范围和要求', 'Scope and request')">
       <SettingsSection :title="t('自定义任务', 'Custom job')">
         <form class="grid gap-4 px-4 py-4" @submit.prevent="submitNew">
           <div>

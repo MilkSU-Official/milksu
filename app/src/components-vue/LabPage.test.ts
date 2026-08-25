@@ -45,8 +45,10 @@ describe('LabPage', () => {
     expect(host.textContent).toContain('实验室')
     expect(host.textContent).toContain('自定义任务')
     expect(host.querySelector('[aria-label="题目包"]')).not.toBeNull()
-    expect(host.querySelector('[data-testid="workspace-import"]')).not.toBeNull()
+    expect(host.querySelector('[data-testid="workspace-create"]')?.textContent).toContain('创建')
     expect(host.querySelector('[data-testid="workspace-history"]')).not.toBeNull()
+    expect(host.querySelector('[data-testid="workspace-import"]')).toBeNull()
+    expect(host.textContent).not.toContain('导入')
     expect(host.textContent).not.toContain('自带靶')
     expect(host.textContent).not.toContain('授权测试')
     expect(host.textContent).not.toContain('授权靶')
@@ -63,7 +65,7 @@ describe('LabPage', () => {
     mountedApps.push(app)
     await nextTick()
 
-    host.querySelector<HTMLButtonElement>('[data-testid="workspace-import"]')?.click()
+    host.querySelector<HTMLButtonElement>('[data-testid="workspace-create"]')?.click()
     await nextTick()
 
     const dialog = document.body.querySelector<HTMLElement>('[role="dialog"]')
@@ -97,7 +99,7 @@ describe('LabPage', () => {
     mountedApps.push(app)
     await nextTick()
 
-    host.querySelector<HTMLButtonElement>('[data-testid="workspace-import"]')?.click()
+    host.querySelector<HTMLButtonElement>('[data-testid="workspace-create"]')?.click()
     await nextTick()
     const dialog = document.body.querySelector<HTMLElement>('[role="dialog"]')!
     const request = dialog.querySelector<HTMLTextAreaElement>('[aria-label="要求"]')!
@@ -142,7 +144,7 @@ describe('LabPage', () => {
     jobsTab?.click()
     await nextTick()
     expect(host.querySelector('[aria-label="自定义任务"]')).not.toBeNull()
-    expect(host.querySelector('[data-testid="workspace-import"]')).not.toBeNull()
+    expect(host.querySelector('[data-testid="workspace-create"]')).not.toBeNull()
     expect(host.textContent).toContain('还没有自定义任务')
   })
 

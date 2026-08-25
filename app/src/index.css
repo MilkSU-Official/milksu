@@ -164,18 +164,41 @@
   --settings-field-fill-hover: color-mix(in srgb, var(--foreground) 16%, var(--card));
 }
 
-/* List chrome: Import is an execution action, not module identity. */
-[data-workspace-catalog-actions] .workspace-import-action[data-variant='default'] {
+/* List chrome: the primary action is execution, not module identity. */
+[data-workspace-catalog-actions] .workspace-catalog-action[data-variant='default'] {
   color: var(--accent-blue-foreground);
 }
-[data-workspace-catalog-actions] .workspace-import-action[data-variant='default']::before {
+[data-workspace-catalog-actions] .workspace-catalog-action[data-variant='default']::before {
   background-color: var(--accent-blue-fill);
 }
-[data-workspace-catalog-actions] .workspace-import-action[data-variant='default']:hover::before {
+[data-workspace-catalog-actions] .workspace-catalog-action[data-variant='default']:hover::before {
   background-color: var(--accent-blue-fill-hover);
 }
-[data-workspace-catalog-actions] .workspace-import-action[data-variant='default']:active::before {
+[data-workspace-catalog-actions] .workspace-catalog-action[data-variant='default']:active::before {
   background-color: var(--accent-blue-fill-active);
+}
+
+/* Connection mini-status: list/session chrome may wrap LIVE/OFF in a button.
+   Settings rows show the chip only. */
+[data-connection-live-action] {
+  overflow: hidden;
+  padding: 0;
+  gap: 0;
+}
+[data-connection-live-action] .connection-live-action__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0 0.75rem;
+}
+[data-connection-live-action] [data-connection-live] {
+  align-self: stretch;
+  display: inline-flex;
+  min-height: 100%;
+  height: auto;
+  padding-block: 0;
+  border-radius: 0;
+  justify-content: center;
 }
 
 :root[data-theme='light'] {
