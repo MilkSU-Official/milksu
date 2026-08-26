@@ -58,3 +58,65 @@ jobs:
           bash scripts/verify-linux-deb-debian13.sh "$package"
           bash scripts/verify-linux-pacman-arch.sh build/release
           bash scripts/verify-linux-nixos.sh build/electron/linux/stable/linux-unpacked
+
+  package-arm64:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm --prefix app ci
+          npm --prefix desktop ci
+      - name: Build Linux arm64 packages
+        env:
+          MILKSU_ACCOUNT_API_URL: https://accounts.milksu.org
+        run: npm run desktop:release:linux
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MilkSU-Linux-arm64-distros-trial
+          path: |
+            build/release/MilkSU-Linux-arm64-*.deb
+            build/release/MilkSU-Linux-arm64-*.tar.gz
+            build/release/milksu.desktop
+          if-no-files-found: error
+          retention-days: 14
+      - name: Install the arm64 deb on this runner
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./desktop/package.json').version")"
+          package="build/release/MilkSU-Linux-arm64-${version}.deb"
+          test -f "$package"
+          test "$(dpkg-deb -f "$package" Architecture)" = 'arm64'
+          node_runtime='build/sidecar/linux-arm64/node'
+          test "$("$node_runtime" --version)" = 'v24.18.0'
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends xvfb
+          sudo apt-get install -y --no-install-recommends "$package"
+          test -x /opt/MilkSU/milksu
+          app='/opt/MilkSU/milksu'
+          MILKSU_INSTANCE_ID=linux-arm64-smoke xvfb-run -a "$app" --no-sandbox \
+            >"$RUNNER_TEMP/milksu-app.stdout" 2>"$RUNNER_TEMP/milksu-app.stderr" &
+          app_pid=$!
+          trap 'kill $app_pid 2>/dev/null || true; sudo pkill -f milksu-backend 2>/dev/null || true' EXIT
+          sleep 12
+          if ! kill -0 "$app_pid" 2>/dev/null; then
+            cat "$RUNNER_TEMP/milksu-app.stdout" || true
+            cat "$RUNNER_TEMP/milksu-app.stderr" >&2 || true
+            exit 1
+          fi
+          pgrep -f '/resources/milksu-backend' >/dev/null
+          kill "$app_pid"
+          wait "$app_pid" || true

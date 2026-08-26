@@ -113,6 +113,10 @@ const nodeArchives = {
     file: `node-v${nodeVersion}-linux-x64.tar.xz`,
     sha256: '55aa7153f9d88f28d765fcdad5ae6945b5c0f98a36881703817e4c450fa76742',
   },
+  'linux/arm64': {
+    file: `node-v${nodeVersion}-linux-arm64.tar.xz`,
+    sha256: '58c9520501f6ae2b52d5b210444e24b9d0c029a58c5011b797bc1fe7105886f6',
+  },
 }
 
 function platformBinaryName(platform, name) {
