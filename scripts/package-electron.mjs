@@ -120,6 +120,7 @@ async function writeBuilderConfig(trackingPath) {
   if (!files.includes('computer-use-permissions.cjs')) files.push('computer-use-permissions.cjs')
   if (!files.includes('linux-desktop.cjs')) files.push('linux-desktop.cjs')
   if (!files.includes('macos-screen-permission.cjs')) files.push('macos-screen-permission.cjs')
+  if (!files.includes('linux-update-apply.cjs')) files.push('linux-update-apply.cjs')
   const extraResources = [
     ...(desktopPackage.build?.extraResources || []),
     {
@@ -138,7 +139,8 @@ async function writeBuilderConfig(trackingPath) {
     extraResources.push({ from: accountConfigPath, to: 'account-config.json' })
     if (channelConfig.channel === 'stable') {
       const updateConfigPath = join(root, 'build', 'desktop', 'app-update.stable.yml')
-      const updateFeedURL = `${accountConfig.apiUrl}/v1/releases/feed/stable/darwin/arm64`
+      const updateArch = process.arch === 'arm64' ? 'arm64' : 'x64'
+      const updateFeedURL = `${accountConfig.apiUrl}/v1/releases/feed/stable/${process.platform}/${updateArch}`
       await writeFile(updateConfigPath, [
         'provider: generic',
         `url: ${JSON.stringify(updateFeedURL)}`,

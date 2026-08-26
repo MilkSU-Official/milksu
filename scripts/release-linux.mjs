@@ -125,6 +125,7 @@ for (const file of [
   'computer-use-permissions.cjs',
   'linux-desktop.cjs',
   'macos-screen-permission.cjs',
+  'linux-update-apply.cjs',
 ]) {
   if (!files.includes(file)) files.push(file)
 }
@@ -268,6 +269,18 @@ if (electronArch === 'x64') {
     renderLinuxPkgbuild({ version, sha256: tarballSha256, template: pkgbuildTemplate }),
   )
 }
+const { writeReleaseUploadMetadata } = await import('./lib/release-upload-metadata.mjs')
+await writeReleaseUploadMetadata({
+  releaseDirectory,
+  platform: 'linux',
+  arch: artifactArch === 'arm64' ? 'arm64' : 'x64',
+  version,
+  tracking,
+  artifacts: [
+    { kind: 'deb', fileName: packageName },
+    { kind: 'tar.gz', fileName: tarballName },
+  ],
+})
 process.stdout.write(`${JSON.stringify({
   platform,
   version,

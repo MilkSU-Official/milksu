@@ -21,6 +21,7 @@ import {
 } from '@felinic/ui'
 import {
   Archive,
+  ArrowDownToLine,
   Bug,
   ChevronDown,
   Flag,
@@ -78,6 +79,7 @@ const props = defineProps<{
   accountStatus: AccountStatus
   themeMode: ThemeMode
   collapsed?: boolean
+  updateStatus?: UpdateStatus | null
 }>()
 
 const emit = defineEmits<{
@@ -96,6 +98,8 @@ const emit = defineEmits<{
   accountLogin: []
   accountLogout: []
   toggleTheme: []
+  downloadUpdate: []
+  installUpdate: []
 }>()
 
 const unreadConversationIds = ref(new Set<string>())
@@ -115,6 +119,22 @@ const buildTracking = ref<BuildTracking | null>(null)
 const appVersion = ref('')
 const expandedWidth = ref(readSidebarWidth())
 const resizing = ref(false)
+const updateAction = computed(() => {
+  const state = props.updateStatus?.state
+  if (state === 'available' || state === 'error') return 'download'
+  if (state === 'downloading') return 'progress'
+  if (state === 'downloaded') return 'install'
+  return ''
+})
+const updatePercent = computed(() => Math.max(0, Math.min(100, Number(props.updateStatus?.percent) || 0)))
+const updateButtonLabel = computed(() => {
+  if (updateAction.value === 'progress') {
+    return t(`正在下载 ${updatePercent.value.toFixed(0)}%`, `Downloading ${updatePercent.value.toFixed(0)}%`)
+  }
+  if (updateAction.value === 'install') return t('安装并重启', 'Install and restart')
+  if (props.updateStatus?.state === 'error') return t('重试下载', 'Retry download')
+  return t('下载更新', 'Download update')
+})
 
 const workspaceHome = computed<WorkspaceSection>(() => (
   props.activeSection === 'ctf' || props.activeSection === 'vuln' || props.activeSection === 'lab'
@@ -734,6 +754,19 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', closeOnOutside
         </p>
         <span v-else class="agent-sidebar__copy min-w-0 flex-1" />
         <button
+          v-if="updateAction"
+          type="button"
+          class="agent-sidebar__theme agent-sidebar__update app-no-drag"
+          data-testid="sidebar-download-update"
+          :disabled="updateAction === 'progress'"
+          :aria-label="updateButtonLabel"
+          :title="updateButtonLabel"
+          @click="updateAction === 'install' ? $emit('installUpdate') : $emit('downloadUpdate')"
+        >
+          <span v-if="updateAction === 'progress'" class="agent-sidebar__update-progress">{{ updatePercent.toFixed(0) }}</span>
+          <ArrowDownToLine v-else class="size-4" />
+        </button>
+        <button
           type="button"
           class="agent-sidebar__theme app-no-drag"
           :aria-label="themeToggleLabel"
@@ -990,6 +1023,16 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', closeOnOutside
   background: var(--hover-2);
 }
 
+.agent-sidebar__update:disabled {
+  cursor: default;
+  opacity: 0.8;
+}
+
+.agent-sidebar__update-progress {
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
 .agent-sidebar[data-sidebar-collapsed='true'] .agent-sidebar__foot {
   align-self: flex-start;
   width: 52px;
@@ -997,6 +1040,8 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', closeOnOutside
   padding: 0;
   border-top: 0;
   justify-content: center;
+  flex-direction: column;
+  gap: 0.25rem;
 }
 
 .agent-sidebar[data-sidebar-collapsed='true'] .agent-sidebar__foot .agent-sidebar__copy {

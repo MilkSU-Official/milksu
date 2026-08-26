@@ -41,22 +41,20 @@ staple 与 Gatekeeper 验证。签名资产只存在 Personal Vault 和 GitHub S
 3. `npm run release:collect -- --wait` 把三端安装包拉到 `build/release/github/`。
 
 本机 `release:mac:local` 暂时关闭。只有云端公证不可用时才加 `--allow-local`，从 Personal Vault
-读取 `.p12` / `.p8`。云端 GitHub-only 模式仍只生成 DMG artifact，不默认生成 OTA ZIP。自托管
+读取 `.p12` / `.p8`。正式云端打包会同时生成 DMG 与 updater ZIP。自托管
 runner 再加 `--use-self-hosted`。
 
 全仓 Go、Vue、Sidecar、lint 和生产/文档构建已由 commit-bound 本地回执证明，macOS 打包路径不重复
-执行。只有显式 `--upload-release` 时才额外生成 updater ZIP 与 release metadata。
+执行。OTA ZIP 与 release metadata 是正式打包的默认产物。
 
 任何签名、公证、staple 或 Gatekeeper 步骤失败都不得分发产物。普通功能开发验收继续用 ad-hoc
 Stable；不要构建 Beta，除非用户明确要求自举。
 
 ## 上传私有 R2 并建立草稿
 
-需要 OTA 时，不先构建 GitHub-only 候选再重复整轮签名。维护者在同一次已验证 source commit 分发中
-使用 `npm run release:dispatch -- --upload-release ...`。CI 在该轮额外生成 updater ZIP 和元数据，使用
-rclone 的 Cloudflare S3 provider 把 ZIP、DMG 和元数据上传到
-`releases/stable/darwin/arm64/<version>/`，再逐个下载到临时目录复核 SHA-256。只有回读一致时，CI 才调用
-Admin 的窄 internal API 创建或幂等更新草稿。
+正式 `release:dispatch` 同一轮会生成 updater 载荷并上传。CI 使用 rclone 的 Cloudflare S3 provider
+把各端产物和元数据上传到 `releases/stable/{platform}/{arch}/<version>/`，再逐个下载到临时目录复核
+SHA-256。只有回读一致时，CI 才调用 Admin 的窄 internal API 创建或幂等更新草稿。
 
 这一步不会直接向用户发布。维护者必须进入 MilkSU Admin 的 **版本** 页面，核对版本、commit、tracking、
 大小、哈希和发布说明，再点击“发布此版本”。发布只改变 D1 的 current pointer；R2 对象保持不可变。

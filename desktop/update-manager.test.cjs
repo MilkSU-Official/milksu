@@ -1,11 +1,24 @@
 'use strict'
 
 const assert = require('node:assert/strict')
+const { mkdtemp, rm } = require('node:fs/promises')
+const { tmpdir } = require('node:os')
+const path = require('node:path')
 const { EventEmitter } = require('node:events')
+const { Readable } = require('node:stream')
 const test = require('node:test')
-const { UpdateManager } = require('./update-manager.cjs')
+const { UpdateManager, versionNewer } = require('./update-manager.cjs')
 
 class FakeUpdater extends EventEmitter {
+  constructor() {
+    super()
+    this.feed = null
+  }
+
+  setFeedURL(value) {
+    this.feed = value
+  }
+
   async checkForUpdates() {
     this.emit('checking-for-update')
     this.emit('update-available', {
@@ -26,60 +39,152 @@ class FakeUpdater extends EventEmitter {
   }
 }
 
-test('checks and downloads updates with a main-process authorization header', async () => {
-  const updater = new FakeUpdater()
-  const events = []
-  const manager = new UpdateManager({
-    updater,
+function jsonResponse(status, body) {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    async json() { return body },
+  }
+}
+
+function managerOptions(overrides = {}) {
+  return {
+    updater: new FakeUpdater(),
     currentVersion: '0.1.0',
     enabled: true,
+    platform: 'darwin',
+    arch: 'arm64',
+    apiUrl: 'https://accounts.milksu.org',
+    userDataPath: '/var/folders/xx/milksu',
     getAuthorization: async () => 'desktop-session-secret',
-    onChanged: value => events.push(value),
-  })
+    fetchImpl: async () => jsonResponse(200, {
+      release: {
+        version: '0.2.0',
+        title: 'MilkSU 0.2.0',
+        notes: '登录后安全下载更新。',
+        publishedAt: '2026-08-13T12:00:00.000Z',
+        downloads: {
+          zip: { url: 'https://accounts.milksu.org/v1/releases/download/r1/zip', sha256: 'ab', sha512: 'cd', size: 10 },
+        },
+      },
+    }),
+    ...overrides,
+  }
+}
 
+test('compares milkSU calendar versions', () => {
+  assert.equal(versionNewer('26.826.1', '26.825.1'), true)
+  assert.equal(versionNewer('26.825.1', '26.825.1'), false)
+  assert.equal(versionNewer('26.824.1', '26.825.1'), false)
+})
+
+test('checks and downloads updates with a main-process authorization header', async () => {
+  const events = []
+  const options = managerOptions({ onChanged: value => events.push(value) })
+  const manager = new UpdateManager(options)
   const available = await manager.check()
   assert.equal(available.state, 'available')
   assert.equal(available.version, '0.2.0')
-  assert.deepEqual(updater.requestHeaders, { authorization: 'Bearer desktop-session-secret' })
+  assert.deepEqual(options.updater.requestHeaders, { authorization: 'Bearer desktop-session-secret' })
   assert.doesNotMatch(JSON.stringify(events), /desktop-session-secret/u)
 
   const downloaded = await manager.download()
   assert.equal(downloaded.state, 'downloaded')
   assert.equal(events.some(event => event.state === 'downloading' && event.percent === 42), true)
+  assert.equal(options.updater.feed.url, 'https://accounts.milksu.org/v1/releases/feed/stable/darwin/arm64')
   assert.equal(manager.install(), true)
-  assert.deepEqual(updater.installArguments, [false, true])
+  assert.deepEqual(options.updater.installArguments, [false, true])
   manager.clearAuthorization()
-  assert.equal(updater.requestHeaders, undefined)
+  assert.equal(options.updater.requestHeaders, undefined)
   assert.equal(manager.view().state, 'idle')
 })
 
 test('does not contact the feed or expose a prompt without an active account token', async () => {
-  const updater = new FakeUpdater()
-  let checks = 0
-  updater.checkForUpdates = async () => { checks += 1 }
-  const manager = new UpdateManager({
-    updater,
-    currentVersion: '0.1.0',
-    enabled: true,
+  let fetches = 0
+  const manager = new UpdateManager(managerOptions({
     getAuthorization: async () => '',
-  })
+    fetchImpl: async () => {
+      fetches += 1
+      return jsonResponse(200, { release: { version: '0.2.0' } })
+    },
+  }))
   assert.equal((await manager.check()).state, 'idle')
-  assert.equal(checks, 0)
-  assert.equal(updater.requestHeaders, undefined)
+  assert.equal(fetches, 0)
+  assert.equal(manager.updater.requestHeaders, undefined)
 })
 
 test('keeps updater disabled in development and Beta identities', async () => {
-  const updater = new FakeUpdater()
-  const manager = new UpdateManager({
-    updater,
-    currentVersion: '0.1.0',
-    enabled: false,
-    getAuthorization: async () => 'unused',
-  })
+  const manager = new UpdateManager(managerOptions({ enabled: false }))
   assert.deepEqual(await manager.check(), {
     state: 'idle',
     currentVersion: '0.1.0',
     enabled: false,
   })
   assert.equal(manager.install(), false)
+})
+
+test('stays idle when Admin has no matching platform/arch pointer', async () => {
+  const manager = new UpdateManager(managerOptions({
+    platform: 'linux',
+    arch: 'x64',
+    fetchImpl: async () => jsonResponse(404, { release: null }),
+    classifyLinux: () => ({ kind: 'deb', execPath: '/opt/MilkSU/milksu', prefix: '/opt/MilkSU' }),
+  }))
+  assert.equal((await manager.check()).state, 'idle')
+})
+
+test('linux downloads the deb for a dpkg install and applies via the helper', async () => {
+  const body = Buffer.from('deb-bytes')
+  const sha256 = require('node:crypto').createHash('sha256').update(body).digest('hex')
+  const userDataPath = await mkdtemp(path.join(tmpdir(), 'milksu-update-'))
+  const applied = []
+  const manager = new UpdateManager(managerOptions({
+    platform: 'linux',
+    arch: 'x64',
+    userDataPath,
+    updater: new FakeUpdater(),
+    classifyLinux: () => ({ kind: 'deb', execPath: '/opt/MilkSU/milksu', prefix: '/opt/MilkSU' }),
+    buildLinuxPlan: () => ({
+      ok: true,
+      installKind: 'deb',
+      shell: '/bin/sh',
+      relaunch: '/opt/MilkSU/milksu',
+      commands: [['/usr/bin/pkexec', '/usr/bin/dpkg', '--install', 'artifact.deb']],
+    }),
+    applyLinux: plan => { applied.push(plan) },
+    fetchImpl: async (url) => {
+      if (String(url).includes('/latest')) {
+        return jsonResponse(200, {
+          release: {
+            version: '0.2.0',
+            title: 'MilkSU 0.2.0',
+            notes: 'linux',
+            downloads: {
+              deb: {
+                url: 'https://accounts.milksu.org/v1/releases/download/r1/deb',
+                sha256,
+                size: body.length,
+              },
+            },
+          },
+        })
+      }
+      return {
+        ok: true,
+        status: 200,
+        body: Readable.from([body]),
+      }
+    },
+  }))
+  try {
+    const available = await manager.check()
+    assert.equal(available.state, 'available')
+    const downloaded = await manager.download()
+    assert.equal(downloaded.state, 'downloaded')
+    assert.equal(manager.install(), true)
+    assert.equal(applied.length, 1)
+    assert.equal(applied[0].plan.installKind, 'deb')
+  } finally {
+    await rm(userDataPath, { recursive: true, force: true })
+  }
 })

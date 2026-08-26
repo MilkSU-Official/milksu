@@ -87,14 +87,15 @@ npm run release:github -- \
 3. 用同一 source commit 创建或更新 `v<version>` **prerelease** 页面并上传安装包与 `SHA256SUMS-<version>.txt`；
 4. 清理旧的无版本号 macOS 资产名（若仍存在）。
 
-## 5. 可选：私有 R2 / Admin OTA
+## 5. 私有 R2 / Admin OTA（正式打包默认上传）
 
-默认 GitHub Release 只提供 DMG、EXE、DEB。macOS 默认不再额外压缩 updater ZIP，也不生成 OTA
-metadata。
-
-确实要在同一轮上传私有 R2 并建立 Admin 草稿时，使用
-`release:dispatch -- --upload-release ...`。Admin 草稿仍需维护者审核发布，命令本身不改变
+`release:dispatch` 以及 macOS / Windows / Linux 正式打包脚本每次都生成 updater 载荷，上传到私有
+R2，并创建 Admin 草稿。GitHub Release 仍只提供用户安装包（DMG、EXE、DEB、x64 tar.gz 与
+SHA256SUMS），不上 OTA ZIP。Admin 草稿仍需维护者在「版本」页审核发布，命令本身不改变
 current pointer。
+
+本机 `desktop:build` 验收包不上传 R2。Windows / Linux 的 R2 与 `RELEASE_PUBLISH_TOKEN` 使用
+仓库 secrets，不要把 Apple 公证密钥注入这两端 runner。
 
 ## 6. 发行记录
 

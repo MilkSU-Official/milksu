@@ -34,7 +34,7 @@
 | 开发版本线 | 根目录与 `desktop/package.json` 是 `26.825.1`。正式发行源是 `efddfc2`；文档收口提交不移动该 tag。 |
 | 当前开发 | 正式包是 `26.825.1`。实验室题目包打开后是靶机卡片（Juice Shop / WebGoat / S2-045 / whoami / InjuredAndroid），安卓走专用 MilkSU-Lab。Pi 钉到 `0.84.1`。Composer 可调思考档位，上下文环分出未命中输入和缓存命中。连续重复工具或过长工具循环会停下来确认；Go 运行时意外退出会自动再拉起。设置、CTF / CVE / 实验室列表指挥面统一：历史 + 导入或创建，连接状态用 LIVE / OFF。开始解题 / 开始复现展开对话小窗并聚焦输入。设置「评测」可切换 Cybench / SEC-bench / AutoPenBench。CTF 比赛模式和实验室红队学习面仍未接线。产品 UI 设计语言只写在 `AGENTS.md`。本分支未发版改动见下一节。 |
 | 平台边界 | `26.825.1`：macOS DMG 走 GitHub-hosted Developer ID 签名并公证；Windows 安装器完成原生 Runtime 与首次启动但未代码签名，并打入审阅过的 CUA Driver；Linux DEB 完成包结构、Sidecar、Go Runtime 与 Xvfb Electron 启动，仍无 Secret Service、本地 OCR、Computer Use。 |
-| 发行流水 | 下一发行从干净、已推送的 `main` 对 canonical Go/Vue/Sidecar/lint/生产与文档构建只验证一次；macOS / Windows / Linux 都走 GitHub-hosted 云端。macOS 本机打包暂时关闭。必须创建 GitHub Release 页并上传带版本号的 DMG/EXE/DEB 与 SHA256SUMS，不能只留空 tag。GitHub-only 不生成 OTA ZIP/metadata。 |
+| 发行流水 | 下一发行从干净、已推送的 `main` 对 canonical Go/Vue/Sidecar/lint/生产与文档构建只验证一次；macOS / Windows / Linux 都走 GitHub-hosted 云端。macOS 本机打包暂时关闭。必须创建 GitHub Release 页并上传带版本号的 DMG/EXE/DEB、x64 tar.gz 与 SHA256SUMS，不能只留空 tag。正式打包默认上传 OTA 到私有 R2 并建 Admin 草稿；GitHub Release 仍不上 updater ZIP。 |
 
 ## 已发行改动：`26.817.1` → `26.825.1`
 
@@ -150,6 +150,7 @@
 - Linux 桌面图标按 hicolor 常用尺寸（48/256 等）从 `build/appicon.png` 生成；不再只装 1024，避免 GNOME 找不到图标时落到齿轮。
 - Linux Browser Use 查找系统 Chromium/Chrome/Edge（含 PATH、snap、Nix、桌面入口）；设置页显示是否找到。Ubuntu ARM GNOME 虚拟机上用户点允许后：Portal 会话 ready、坐标点击成功、打字进入系统 UI、停止后键鼠会话释放。锁屏会抑制。Debian 13 ARM Hyprland 上应用以 Wayland 启动且窗口可见，Computer Use 保持 unavailable（不走 xinput）。NixOS 26.05 ARM GNOME live：同一 tarball 经 flake FHS 包装后启动并显示登录页。ISSUE #19 的 X11 `xinput` 路径已拒绝合入并关闭。
 - README 已写 macOS / Windows / Linux 功能与安装矩阵。Portal 与 tarball **没有**进入 GitHub Latest `v26.825.1`。
+- 自动更新：已登录 Stable 按平台/架构轮询 Admin；侧栏左下角下载；下载完无运行中会话则安装重启。正式打包默认上传 OTA 草稿，不再有 GitHub-only 跳过开关。Admin current pointer 仍未发布。
 
 ## 当前产品事实
 
@@ -219,7 +220,7 @@ Windows 签名、Linux 缺失能力、R2/OTA 仍是发行后续，不是产品�
 | P0 | 常用 Agent GUI 回归 | 按 Coding 常用功能表覆盖中文任务、文件/Shell、附件、斜杠菜单、权限档、subagent、浏览器、Browser/Computer Use、终端、取消/恢复与错误展示；自动化通过后再由用户做真实 GUI 验收。C9 / C15 / C16 / C20 已由用户在本地 dirty Stable 包确认；C10 / C11 已修待复验。 |
 | P0 | Pi Runtime 用户验收 | 最新正式包中验证跨目录读写、CTF/CVE 交接、长输出续跑和重启恢复，不出现 MilkSU 自建 workspace 策略或旧 session ID。 |
 | P1 | 下一版三端回执发行 | 需要新的版本号、同一 source commit、三端产物、SHA-256 与平台验收。现有 `v26.825.1` 只覆盖 `efddfc2`。 |
-| P1 | OTA 与私有 R2 | Admin 草稿/发布/暂停和 Desktop 更新提示已有；仍需一次受账户鉴权的真实旧签名版 → 新签名版升级回执。 |
+| P1 | OTA 与私有 R2 | 已登录 Stable 每分钟轮询 Admin `/v1/releases/latest`；左下角下载本机 OS+arch 包；无任务自动安装重启，有任务确认。macOS/Windows 走 electron-updater，Linux dpkg 走 pkexec，tarball 解压到安装前缀，Nix 不自动更新。正式打包默认上传 R2 草稿。current pointer 仍未发；`26.826.1` 发版后用 `26.825.1` Mac 做升级回执。 |
 | P1 | 下一发行上传 Linux tarball | 本分支已验收四发行版安装面与 GNOME Portal；GitHub Latest 仍只有试用 DEB。下一版 Release 增加共用 x64 `.tar.gz`（PKGBUILD / flake 是安装方法）。OCR / Secret Service 仍缺。 |
 | P1 | 安全工具真实任务 | IDA/idalib 与 capa 已有设置、准备和健康检查；用受控本地样本留下真实任务回执。就绪工具接到实验室作业，窄工具也可进 CVE 复现；不需要先开一次“是否投影”的会。不把 HexStrike 整包 MCP 做成产品页或 Kali 应用商店。CodeQL、Burp、Shannon 仍逐项接入。 |
 | P1 | Obelisk 学习记录 | 先定义可归因学习事实，再设计独立页面；不恢复已删除的单会话相关历史/图谱面板。 |

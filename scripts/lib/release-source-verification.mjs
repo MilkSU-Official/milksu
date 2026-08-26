@@ -41,7 +41,6 @@ export function validateReleaseVerificationReceipt(receipt, state) {
 export function buildReleaseWorkflowDispatches({
   commit,
   version,
-  uploadRelease = false,
   useSelfHosted = false,
   /** GitHub-hosted macOS is the default packaging path. Set false only to skip macOS. */
   includeMacosCloud = true,
@@ -57,7 +56,6 @@ export function buildReleaseWorkflowDispatches({
       args: [
         'workflow', 'run', 'macos-release.yml', '--ref', 'main',
         '-f', `source_commit=${commit}`,
-        '-f', `upload_release=${uploadRelease}`,
         '-f', `use_self_hosted=${useSelfHosted}`,
         '-f', `release_title=${releaseTitle}`,
         '-f', `release_notes=${releaseNotes}`,
@@ -71,6 +69,9 @@ export function buildReleaseWorkflowDispatches({
       args: [
         'workflow', 'run', 'windows-release.yml', '--ref', 'main',
         '-f', `source_commit=${commit}`,
+        '-f', `release_title=${releaseTitle}`,
+        '-f', `release_notes=${releaseNotes}`,
+        '-f', `minimum_version=${minimumVersion}`,
       ],
     },
     {
@@ -78,6 +79,9 @@ export function buildReleaseWorkflowDispatches({
       args: [
         'workflow', 'run', 'linux-release.yml', '--ref', 'main',
         '-f', `source_commit=${commit}`,
+        '-f', `release_title=${releaseTitle}`,
+        '-f', `release_notes=${releaseNotes}`,
+        '-f', `minimum_version=${minimumVersion}`,
       ],
     },
   )

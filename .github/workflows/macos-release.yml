@@ -7,11 +7,6 @@ on:
         description: Full verified main commit to package
         required: true
         type: string
-      upload_release:
-        description: Upload verified artifacts to private R2 and create an Admin draft
-        required: true
-        type: boolean
-        default: false
       use_self_hosted:
         description: Run the signed release on a registered private macOS runner
         required: true
@@ -136,7 +131,6 @@ jobs:
           MILKSU_RELEASE_TITLE: ${{ inputs.release_title }}
           MILKSU_RELEASE_NOTES: ${{ inputs.release_notes }}
           MILKSU_MINIMUM_UPDATE_VERSION: ${{ inputs.minimum_version }}
-          MILKSU_BUILD_OTA: ${{ inputs.upload_release && '1' || '0' }}
         run: npm run desktop:release:mac
       - uses: actions/upload-artifact@v4
         with:
@@ -145,10 +139,8 @@ jobs:
           if-no-files-found: error
           retention-days: 14
       - name: Install R2 uploader
-        if: ${{ inputs.upload_release }}
         run: brew install rclone
       - name: Upload verified release and create Admin draft
-        if: ${{ inputs.upload_release }}
         env:
           CLOUDFLARE_R2_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_R2_ACCOUNT_ID }}
           CLOUDFLARE_R2_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}

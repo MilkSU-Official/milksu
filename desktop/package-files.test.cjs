@@ -22,4 +22,8 @@ test('Electron package includes every local CommonJS module required by main', (
       `${relativePath} is required by main.cjs but missing from build.files`,
     )
   }
+  assert.ok(
+    packagedFiles.has('linux-update-apply.cjs'),
+    'linux-update-apply.cjs is required by update-manager.cjs',
+  )
 })

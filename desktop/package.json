@@ -35,6 +35,7 @@
       "build-tracking-view.cjs",
       "browser-view-attachment.cjs",
       "update-manager.cjs",
+      "linux-update-apply.cjs",
       "computer-use-permissions.cjs",
       "local-path.cjs",
       "linux-desktop.cjs",
