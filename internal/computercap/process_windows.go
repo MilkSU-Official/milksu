@@ -27,14 +27,6 @@ func platformHostExecutable(pid int) string {
 	return processExecutablePath(uint32(pid))
 }
 
-func runtimeRootForPlatform(string) string {
-	return filepath.Join(os.TempDir(), "milksu-computer-use")
-}
-
-func endpointForSession(_ string, _ string, sessionID string) string {
-	return `\\.\pipe\milksu-computer-use-` + sessionID
-}
-
 func driverExecutableName(string) string { return "cua-driver.exe" }
 
 func waitForEndpoint(ctx context.Context, _ string, path string, exited <-chan error) error {

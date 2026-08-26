@@ -1,8 +1,11 @@
 import { execFile } from "node:child_process";
+import { createConnection } from "node:net";
+import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
+import { computerUseSocket } from "../hostpath.js";
 
 const execFileAsync = promisify(execFile);
 const maxDriverOutputBytes = 32 << 20;
@@ -145,10 +148,9 @@ export function normalizeComputerUseProxyOptions(argv = process.argv.slice(2)) {
   const targetWindowId = Number(argument(argv, "target-window-id"));
   const targetPid = Number(argument(argv, "target-pid"));
   const driverPath = String(argument(argv, "driver") ?? "").trim();
+  const backend = String(argument(argv, "backend") ?? "cua").trim();
   const expectedSocket = sessionId
-    ? process.platform === "win32"
-      ? `\\\\.\\pipe\\milksu-computer-use-${sessionId}`
-      : `/private/tmp/milksu-computer-use/${sessionId}/driver.sock`
+    ? expectedComputerUseSocket(sessionId)
     : "";
   if (
     socketPath !== expectedSocket
@@ -171,8 +173,11 @@ export function normalizeComputerUseProxyOptions(argv = process.argv.slice(2)) {
   if (!Number.isSafeInteger(targetWindowId) || targetWindowId <= 0) {
     throw new Error("MilkSU Computer Use proxy rejected the target window");
   }
-  if (!driverPath || driverPath.includes("\0")) {
+  if (backend !== "portal" && (!driverPath || driverPath.includes("\0"))) {
     throw new Error("MilkSU Computer Use proxy requires the reviewed driver binary");
+  }
+  if (backend !== "cua" && backend !== "portal") {
+    throw new Error("MilkSU Computer Use proxy rejected the backend");
   }
   return {
     socketPath,
@@ -182,7 +187,12 @@ export function normalizeComputerUseProxyOptions(argv = process.argv.slice(2)) {
     targetWindowId,
     targetPid,
     driverPath,
+    backend,
   };
+}
+
+export function expectedComputerUseSocket(sessionId) {
+  return computerUseSocket(sessionId);
 }
 
 function rejectUnexpectedInputFields(input, expectedFields) {
@@ -541,6 +551,43 @@ export function createComputerUseExecutor(options, runTool) {
   };
 }
 
+export function createPortalSocketRunner(socketPath) {
+  return async (tool, args) => {
+    const payload = `${JSON.stringify({ tool, args: args ?? {} })}\n`;
+    return await new Promise((resolve, reject) => {
+      const conn = createConnection({ path: socketPath });
+      let buf = "";
+      const timer = setTimeout(() => {
+        conn.destroy();
+        reject(new Error("Linux portal Computer Use timed out"));
+      }, 20_000);
+      conn.setEncoding("utf8");
+      conn.on("connect", () => conn.write(payload));
+      conn.on("data", chunk => {
+        buf += chunk;
+        const index = buf.indexOf("\n");
+        if (index < 0) return;
+        clearTimeout(timer);
+        conn.end();
+        try {
+          const parsed = JSON.parse(buf.slice(0, index));
+          if (parsed.error) {
+            reject(new Error(String(parsed.error)));
+            return;
+          }
+          resolve(parsed.result ?? {});
+        } catch (error) {
+          reject(error);
+        }
+      });
+      conn.on("error", error => {
+        clearTimeout(timer);
+        reject(error);
+      });
+    });
+  };
+}
+
 export function createCuaCliRunner(options, environment = process.env) {
   return async (tool, args) => {
     const { stdout } = await execFileAsync(
@@ -560,8 +607,8 @@ export function createCuaCliRunner(options, environment = process.env) {
           CUA_DRIVER_RS_TELEMETRY_ENABLED: "false",
           CUA_LOG: "warn",
         } : {
-          HOME: environment.HOME ?? "/private/tmp",
-          TMPDIR: environment.TMPDIR ?? "/private/tmp",
+          HOME: environment.HOME ?? tmpdir(),
+          TMPDIR: environment.TMPDIR ?? tmpdir(),
           PATH: "/usr/bin:/bin:/usr/sbin:/sbin",
           LANG: environment.LANG ?? "en_US.UTF-8",
           CUA_DRIVER_EMBEDDED: "1",
@@ -634,7 +681,9 @@ export async function runComputerUseMcpServer({
 } = {}) {
   const executor = createComputerUseExecutor(
     options,
-    runTool ?? createCuaCliRunner(options),
+    runTool ?? (options.backend === "portal"
+      ? createPortalSocketRunner(options.socketPath)
+      : createCuaCliRunner(options)),
   );
   const lines = createInterface({ input, terminal: false });
   let queue = Promise.resolve();

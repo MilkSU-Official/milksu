@@ -59,6 +59,7 @@ jobs:
           bash scripts/verify-linux-pacman-arch.sh build/release
           bash scripts/verify-linux-nixos.sh build/electron/linux/stable/linux-unpacked
 
+  # Trial only: Apple Silicon VM / ARM runner smoke. Not a GitHub Release artifact.
   package-arm64:
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 120

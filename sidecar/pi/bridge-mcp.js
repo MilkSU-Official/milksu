@@ -9,8 +9,12 @@ import {
   realpath,
 } from "node:fs/promises";
 import { delimiter, dirname, join, relative, resolve, sep } from "node:path";
-import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
+import {
+  computerUseRuntimeRoot,
+  computerUseSocket,
+  playwrightSocketRoot as playwrightSocketRootPath,
+} from "../hostpath.js";
 import { sandboxProfile } from "./bridge-policy.js";
 import {
   browserUseMcpServerName,
@@ -41,9 +45,7 @@ const playwrightMcpCliPath = join(
   "mcp",
   "cli.js",
 );
-const shortRuntimeRoot = process.platform === "darwin" ? "/private/tmp" : tmpdir();
-const playwrightSocketRoot = join(shortRuntimeRoot, "milksu-playwright");
-const computerUseSocketRoot = join(shortRuntimeRoot, "milksu-computer-use");
+const playwrightSocketRoot = playwrightSocketRootPath();
 const packagedComputerUseProxyPath = join(bridgeDirectory, "computer-use-proxy.cjs");
 const computerUseProxyPath = existsSync(packagedComputerUseProxyPath)
   ? packagedComputerUseProxyPath
@@ -609,9 +611,7 @@ export function normalizeComputerUseDescriptor(value) {
     throw new Error("MilkSU rejected an invalid Computer Use session id");
   }
   const socketPath = String(value.socketPath ?? "").trim();
-  const expectedSocket = process.platform === "win32"
-    ? `\\\\.\\pipe\\milksu-computer-use-${sessionId}`
-    : join(computerUseSocketRoot, sessionId, "driver.sock");
+  const expectedSocket = computerUseSocket(sessionId);
   if (socketPath !== expectedSocket) {
     throw new Error("MilkSU rejected a Computer Use socket outside its private session");
   }
@@ -664,7 +664,7 @@ export function computerUseSandboxProfile(socketPath, runtimeRoot) {
     "/Library",
     "/private/var/select",
   ];
-  const metadataOnlyRoots = ["/private", "/private/tmp"];
+  const metadataOnlyRoots = ["/private", "/private/tmp"]; // Darwin system prefixes, not MilkSU runtime roots.
   for (const root of readableRoots) {
     let parent = dirname(root);
     while (parent !== dirname(parent)) {
@@ -692,17 +692,16 @@ export function computerUseSandboxProfile(socketPath, runtimeRoot) {
 export async function createFirstPartyComputerUseMcpServer(descriptor) {
   const computerUse = normalizeComputerUseDescriptor(descriptor);
   if (!computerUse) return undefined;
-  const [proxyMetadata, driverMetadata] = await Promise.all([
-    lstat(computerUseProxyPath),
-    lstat(computerUseDriverPath),
-  ]);
-  if (
-    proxyMetadata.isSymbolicLink()
-    || !proxyMetadata.isFile()
-    || driverMetadata.isSymbolicLink()
-    || !driverMetadata.isFile()
-  ) {
+  const portalMode = process.platform === "linux";
+  const proxyMetadata = await lstat(computerUseProxyPath);
+  if (proxyMetadata.isSymbolicLink() || !proxyMetadata.isFile()) {
     throw new Error("MilkSU packaged Computer Use runtime is unavailable");
+  }
+  if (!portalMode) {
+    const driverMetadata = await lstat(computerUseDriverPath);
+    if (driverMetadata.isSymbolicLink() || !driverMetadata.isFile()) {
+      throw new Error("MilkSU packaged Computer Use runtime is unavailable");
+    }
   }
   if (process.platform !== "win32") {
     const socketMetadata = await lstat(computerUse.socketPath);
@@ -710,9 +709,7 @@ export async function createFirstPartyComputerUseMcpServer(descriptor) {
       throw new Error("MilkSU packaged Computer Use runtime is unavailable");
     }
   }
-  const runtimeRoot = process.platform === "win32"
-    ? join(tmpdir(), "milksu-computer-use", computerUse.sessionId)
-    : dirname(computerUse.socketPath);
+  const runtimeRoot = computerUseRuntimeRoot(computerUse.sessionId);
   const runtimeHome = join(runtimeRoot, "home");
   const runtimeTemporary = join(runtimeRoot, "tmp");
   await Promise.all([
@@ -733,8 +730,9 @@ export async function createFirstPartyComputerUseMcpServer(descriptor) {
     String(computerUse.targetWindowId),
     "--target-pid",
     String(computerUse.targetPid),
-    "--driver",
-    computerUseDriverPath,
+    ...(portalMode
+      ? ["--backend", "portal"]
+      : ["--driver", computerUseDriverPath]),
   ];
   if (process.platform === "win32") {
     const systemRoot = process.env.SystemRoot || "C:\\Windows";

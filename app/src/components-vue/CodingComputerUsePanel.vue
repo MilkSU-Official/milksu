@@ -88,10 +88,14 @@ const signingStatus = computed(() => props.status?.signing ?? null)
 const windowsUserSession = computed(() => (
   signingStatus.value?.signature === 'windows-user-session'
 ))
+const linuxPortalSession = computed(() => (
+  signingStatus.value?.signature === 'linux-portal'
+))
 const signingIdentityLabel = computed(() => {
   const signing = signingStatus.value
   if (!signing) return t('当前构建身份：未检测', 'Current build identity: not detected')
   if (windowsUserSession.value) return t('当前环境：Windows 普通用户会话', 'Current environment: Windows user session')
+  if (linuxPortalSession.value) return t('当前环境：GNOME 桌面共享', 'Current environment: GNOME desktop sharing')
   const signature = signing.signature === 'adhoc'
     ? 'ad-hoc'
     : signing.signature === 'signed'
@@ -107,6 +111,9 @@ const signingDiagnostic = computed(() => {
   if (!signing) return ''
   if (windowsUserSession.value) {
     return t('Windows 使用当前登录用户的 UI Automation、输入与窗口捕获能力；不会申请 macOS 权限或管理员权限。', 'Windows uses the signed-in user’s UI Automation, input, and window capture. It does not request macOS or administrator permissions.')
+  }
+  if (linuxPortalSession.value) {
+    return t('GNOME 会弹出系统桌面共享授权。授权后可截屏、按坐标点击和打字。这是整桌面级输入，不是单个窗口。停止或崩溃后键鼠仍归你。', 'GNOME shows a system desktop-sharing prompt. After you allow it, MilkSU can screenshot, click coordinates, and type. This is display-level input, not a single window. Keyboard and mouse stay yours after stop or crash.')
   }
   if (signing.stableIdentity) {
     return t(`${signingIdentityLabel.value}，权限应绑定到稳定 App 身份。`, `${signingIdentityLabel.value}. Permissions should bind to a stable app identity.`)

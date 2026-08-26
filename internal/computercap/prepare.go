@@ -268,11 +268,30 @@ func (manager *Manager) installPreparedDriver(source string) (string, error) {
 // Prepare places the reviewed MilkSU Cua Driver on the local lookup path.
 // It never runs Cua's public installer and never starts a system-wide daemon.
 func (manager *Manager) Prepare(ctx context.Context, options PrepareOptions) (PrepareResult, error) {
+	if manager.goos == "linux" {
+		if manager.linuxPortal() {
+			return PrepareResult{
+				Ready:    true,
+				Source:   "xdg-desktop-portal",
+				Version:  DriverVersion,
+				NextStep: "启动 Computer Use 时，GNOME 会弹出桌面共享授权。",
+			}, nil
+		}
+		problem := linuxUnavailableProblem(manager.linuxEnv)
+		if problem == "" {
+			problem = linuxComputerUseProblem
+		}
+		return PrepareResult{
+			Version:  DriverVersion,
+			Problem:  problem,
+			NextStep: "在 GNOME Wayland 上使用系统桌面共享；Hyprland 仍不可用。",
+		}, fmt.Errorf("%s", problem)
+	}
 	if manager.goos != "darwin" && manager.goos != "windows" {
 		return PrepareResult{
 			Version:  DriverVersion,
 			Problem:  linuxComputerUseProblem,
-			NextStep: "在 macOS 或 Windows 上使用 Computer Use。Linux 可安装并运行 MilkSU，但不控制宿主桌面。",
+			NextStep: "在 macOS、Windows 或 GNOME Wayland 上使用 Computer Use。",
 		}, fmt.Errorf("%s", linuxComputerUseProblem)
 	}
 	manager.mu.Lock()

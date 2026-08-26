@@ -117,12 +117,19 @@ one-off. Ask in Chinese whether to:
 MilkSU ships macOS, Windows and Linux. Every new product capability must be designed for those
 three platforms, and for a user who is not this developer.
 
-- Do not hardcode this machine: home directories, `/Users/...`, `C:\Users\...`, Homebrew
-  prefixes, `/usr/bin/open`, a Docker socket that already exists here, or a binary that only
-  lives in this checkout.
+- Do not hardcode operating-system or this-machine paths. Forbidden in product Go,
+  Electron, Sidecar, Vue and packaging: `/tmp`, `/private/tmp`, `/var/tmp`,
+  `/run/user/<uid>`, `/Users/...`, `C:\Users\...`, Homebrew prefixes, `/usr/bin/open`,
+  a Docker socket that already exists here, or a binary that only lives in this checkout.
+  Unix-domain sockets that overflow `sockaddr_un` are not an excuse to paste `/tmp` or
+  `/private/tmp`; shorten the filename under the platform ephemeral root instead.
 - Resolve paths through Go / Electron platform APIs and the existing app-data / Documents
-  `MilkSU` layout. Opening folders uses a trusted path from Go plus the host shell, not a
-  macOS-only command.
+  `MilkSU` layout. Ephemeral/runtime directories use `os.TempDir()`, Node `os.tmpdir()`,
+  and Linux `$XDG_RUNTIME_DIR` via `internal/hostpath` and `sidecar/hostpath.js`. Go,
+  Sidecar and tests must call that helper; tests must not paste `/private/tmp/milksu-...`
+  as the expected product path. After reading the platform env, a documented OS default
+  such as `%SystemRoot%\System32` is allowed. Opening folders uses a trusted path from
+  Go plus the host shell, not a macOS-only command.
 - First-run must be a product path: detect what is on the machine, show Settings, offer a
   default, and let the user point to a path or sign in. Other users must be able to turn the
   feature on without reading the repo, exporting environment variables, or copying a personal

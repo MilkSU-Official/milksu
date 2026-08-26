@@ -11,6 +11,11 @@ import { dirname, join, relative, resolve } from 'node:path'
 import { performance } from 'node:perf_hooks'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
+import {
+  computerUseRuntimeRoot,
+  computerUseSocket,
+  ephemeralRoot,
+} from '../sidecar/hostpath.js'
 
 const execFileAsync = promisify(execFile)
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -26,7 +31,6 @@ const resultPath = join(resultsDirectory, 'computer-use-agent-vision-live.json')
 const beforeScreenshotPath = join(resultsDirectory, 'computer-use-agent-vision-live-before.png')
 const afterScreenshotPath = join(resultsDirectory, 'computer-use-agent-vision-live-after.png')
 const liveSmokeEnabled = process.env.MILKSU_COMPUTER_USE_AGENT_VISION_LIVE_SMOKE === '1'
-const runtimeRoot = '/private/tmp/milksu-computer-use'
 const sessionId = `computer_agent-vision-${Date.now().toString(36)}`
 const targetBundleId = 'com.apple.calculator'
 const targetName = 'Calculator'
@@ -471,8 +475,8 @@ function startBridge({
       `--allow-fs-read=${dirname(node)}`,
       `--allow-fs-write=${workspace}`,
       `--allow-fs-write=${agentDirectory}`,
-      '--allow-fs-read=/private/tmp/milksu-computer-use',
-      '--allow-fs-write=/private/tmp/milksu-computer-use',
+      `--allow-fs-read=${ephemeralRoot()}`,
+      `--allow-fs-write=${ephemeralRoot()}`,
       '--allow-fs-read=/bin/bash',
       '--allow-fs-read=/bin/sh',
       '--allow-fs-read=/usr/bin/env',
@@ -657,8 +661,8 @@ async function main() {
   }
 
   const pid = await calculatorPID()
-  const workspace = join(runtimeRoot, sessionId)
-  const socketPath = join(workspace, 'driver.sock')
+  const workspace = computerUseRuntimeRoot(sessionId)
+  const socketPath = computerUseSocket(sessionId)
   const policyPath = join(workspace, 'session-policy.yaml')
   await fs.mkdir(workspace, { recursive: true, mode: 0o700 })
   await fs.writeFile(policyPath, `version: 2

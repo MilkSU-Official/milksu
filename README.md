@@ -109,7 +109,7 @@ MilkSU 会把当前任务可用的能力告诉模型，再由模型按上下文�
 1. 从 [Releases](https://github.com/MilkSU-Official/milksu/releases/tag/v26.825.1) 下载 `26.825.1`：
    - **macOS Apple Silicon**：Developer ID 签名并经 Apple 公证的 DMG，正式支持；
    - **Windows x64**：未签名安装器，可能出现 SmartScreen 提示；打包 Runtime 与 Pi Agent 回合已在真实安装包验证；
-   - **Linux x64**：试用 DEB，已验证包结构、Sidecar、Go Runtime 与 Xvfb 启动，不含 Secret Service、本地 OCR 或 Computer Use。Ubuntu 24.04 / Debian 13 / Omarchy / NixOS 的安装面与 GNOME、Hyprland 适配见开发文档 [Linux 四发行版支持合同](docs/developer/linux-platform-support.md)，要等下一版 GitHub Release 才随包提供。
+   - **Linux x64**：试用 DEB，已验证包结构、Sidecar、Go Runtime 与 Xvfb 启动，不含 Secret Service 或本地 OCR。下一版最多再提供一份通用 tarball（Ubuntu/Debian 仍用同一 DEB；Omarchy/Nix 用 tarball）。不按发行版×架构拆 8 份包。见 [Linux 安装与桌面合同](docs/developer/linux-platform-support.md)。
 2. 安装并打开 MilkSU；
 3. 使用 GitHub 登录；
 4. 由管理员为账户开通模型，或在“设置 → 模型”中添加自己的 Provider / OpenAI-compatible 中转站；

@@ -1,4 +1,4 @@
-# Linux 四发行版支持合同
+# Linux 安装与桌面合同
 
 > 文档状态：Target / Designed
 >
@@ -11,81 +11,87 @@
 
 ## 决策
 
-1. “支持四个发行版”先表示普通用户能从对应安装面装上 MilkSU，并在真实桌面跑通 Coding / CTF / CVE / 实验室的 Pi 工作循环。它不表示四个环境具有同等 Computer Use、Browser Use、本地 OCR 或 Secret Service。
-2. Ubuntu 与 Debian 共用同一份 `.deb`，必须在两边都做过真实安装，不能假定 Ubuntu 专用包名、Chrome 路径或依赖。Omarchy 用原生 PKGBUILD / pacman，包同一份通用 Linux 目录。NixOS 用 flake 包装同一目录，不要求用户拆 DEB。
-3. 不恢复 ISSUE #19 的 X11 `cua-driver --permission-mode bounded` 路径。Linux 产品代码不运行 `xinput detach/disable`，不把 root/uinput 或 `/dev/input` 做成隐式后门。
-4. Host Computer Use 在 Linux 上保持 unavailable，直到某个后端在真实桌面证明：系统或 compositor 授权、停止/崩溃后物理键鼠仍可用、不摘除物理设备。GNOME Wayland 的 XDG Desktop Portal 是隔离研究对象，不是已准入的生产路径。Portal 是否能提供与 macOS/Windows 同等的 App/Window Scope 尚未证明；未证明前不得写成“精确 Scope”。
-5. Hyprland（Omarchy 默认桌面，NixOS 也可选）在上游 RemoteDesktop + ConnectToEIS 成为可依赖的正式能力，并经过真机验收前，只承诺应用能安装运行。产品 UI 显示 Host Computer Use 暂不可用。
-6. 第一轮正式 Linux 包仍是 x86_64。Apple Silicon 上的 ARM64 虚拟机可以做协议/门户可行性，不能给 x86_64 安装包背书。Omarchy 当前官方安装是 x86_64。
-7. NixOS 没有 Ubuntu 式 LTS。不要把某个即将 EOL 的 `yy.mm` 钉成与 Ubuntu 24.04 对等的支持承诺；flake 必须随当时仍受支持的 nixpkgs 通道重验。Omarchy 是滚动发行，安装面随官方包仓走，不做冻结版本号。
-8. 嵌套 Wayland session、Hyprland 私有协议后端、CDP 附着外部 Electron App，都不是四发行版安装合同的一部分。以后若做，各自走设计准入；成功也不能写成四发行版 Computer Use 完成。
+1. “支持四个发行版”表示普通用户能从对应安装面装上 MilkSU，并在真实桌面跑通 Coding / CTF / CVE / 实验室的 Pi 工作循环。它不表示四个环境具有同等 Computer Use、Browser Use、本地 OCR 或 Secret Service，也不表示要发 8 个 arch×distro 安装包。
+2. GitHub Release 的 Linux 安装包最多 4 个，默认只发 2 个能跨发行版使用的包：
+   - 一份 `.deb`：Ubuntu 24.04 与 Debian 13 共用；
+   - 一份 `.tar.gz`：Omarchy / Arch 用仓库里的 PKGBUILD 安装，NixOS 用仓库 flake 包装同一目录。
+   PKGBUILD、`.desktop` 和 flake 是安装方法，不是额外的二进制产品。不要为每个发行版、每种 CPU 再打一份。
+3. 正式发行架构仍是 `linux/amd64`。Apple Silicon 上的 ARM 虚拟机只作开发测试：ARM 上跑通后，同一代码打 x64 包。ARM DEB/tarball 可以留在本机或 CI 试验产物里，不进入 GitHub Latest。
+4. Ubuntu 与 Debian 共用那份 `.deb`，不能假定 Ubuntu-only 包名。Omarchy / NixOS 不要求用户拆 DEB。
+5. 不恢复 ISSUE #19 的 X11 `cua-driver --permission-mode bounded` 路径。Linux 产品代码不运行 `xinput detach/disable`，不把 root/uinput 或 `/dev/input` 做成隐式后门，也不接入 Cua Linux 驱动。
+6. GNOME Wayland 的宿主 Computer Use 走 XDG Desktop Portal 最小路径：系统授权框、截屏、按坐标点击、打字；停止或崩溃后物理键鼠仍归用户。这是整桌面级输入，不能写成 macOS/Windows 那种精确窗口 Scope。Hyprland 在上游 RemoteDesktop 可依赖之前保持 unavailable。
+7. NixOS 没有 Ubuntu 式 LTS。flake 随当时仍受支持的 nixpkgs 通道重验。Omarchy 是滚动发行，安装面随官方包仓走。
+8. 嵌套 Wayland session、Hyprland 私有协议后端、CDP 附着外部 Electron App，都不是本安装合同的一部分。
 
 ## 当前事实
 
 正式发行 `v26.825.1` 的 Linux 产物只有一个在 `ubuntu-24.04` GitHub-hosted runner 上构建的 `linux/amd64` DEB。自动化验证了包结构、Node/Pi Sidecar、Go Runtime 和 Xvfb Electron 启动；没有真实 GNOME/Hyprland 桌面回执。发布脚本明确记录 `localOcr: false` 与 `computerUse: false`。
 
-- `internal/computercap` 只允许 macOS 与 Windows；其余平台 `unavailable`。
 - Sidecar 只有 `linux/amd64` Node runtime；Linux 没有已审阅的 `@napi-rs/system-ocr` 原生包。
-- Browser Use 已按 PATH 查找 Google Chrome、Chromium、`chromium-browser` 和 Edge，但 `MILKSU_CHROME_PATH` 仍只是隐藏开发兜底。
+- Browser Use 查找 Chrome / Chromium / Edge、PATH、snap、Nix 与桌面入口。
 - Provider Credential 仍由本地 `credentials.db` 承载；Linux Secret Service 没有接入。
+
+本机 Apple Silicon QEMU 上的 Ubuntu 24.04 ARM64 GNOME Wayland 已看到：应用窗口、hicolor 图标（不再落到齿轮）、隔离浏览器，以及装上 Chromium 后的 Browser Use 可执行文件探测。换入本切片 Go/Sidecar 后，用户点允许桌面共享：会话 `ready`，坐标点击成功，打字写入系统设置搜索框（`milksu-portal`），停止后 Portal session 与 socket 消失、Mutter 可再 CreateSession。锁屏会抑制 RemoteDesktop。Screenshot 接口在该 virtio-gpu 上返回 code 2，画面改从已授权 ScreenCast 流取出。这是试验回执，不是 GitHub Latest，也不等于 amd64 正式包或 Debian / Omarchy / NixOS 桌面验收。
 
 因此“有一个 DEB”不能写成“四个发行版已支持”。
 
 ## 支持矩阵
 
-第一轮以 x86_64 为基线。能力分三层，分开验收，互不做完成门。
+能力分三层，分开验收，互不做完成门。正式包是 x86_64；ARM 只测不发。
 
-| 环境 | 安装面 | 应用与 Pi 工作循环 | Host Computer Use |
+| 环境 | 用户怎么装 | 应用与 Pi 工作循环 | Host Computer Use |
 | --- | --- | --- | --- |
-| Ubuntu 24.04 · GNOME Wayland | `.deb` | 本切片：DEB + Wayland ozone | unavailable |
-| Debian 13 · GNOME Wayland | 同一 `.deb` | 本切片：`verify-linux-deb-debian13.sh` | unavailable |
-| Omarchy · Hyprland | tarball + PKGBUILD | 本切片：`verify-linux-pacman-arch.sh` | unavailable |
-| NixOS（nixos-unstable）· GNOME 或 Hyprland | flake + `linux-unpacked` | 本切片：`verify-linux-nixos.sh` | unavailable |
+| Ubuntu 24.04 · GNOME Wayland | 共用 `.deb` | 本切片 | Portal 最小路径（桌面级） |
+| Debian 13 · GNOME Wayland | 同一 `.deb` | `verify-linux-deb-debian13.sh` | 同上 |
+| Omarchy · Hyprland | 同一 `.tar.gz` + PKGBUILD | `verify-linux-pacman-arch.sh` | unavailable |
+| NixOS · GNOME 或 Hyprland | 同一 `.tar.gz` + flake | `verify-linux-nixos.sh` | GNOME 同 Portal；Hyprland unavailable |
 
-Ubuntu / Debian 的 Xorg 会话只做负向验收：Computer Use 保持不可用，不运行 `xinput`。Fedora、openSUSE、KDE、Sway、Debian XFCE/MATE 不在首轮承诺里；代码应按能力探测自然降级。
+Ubuntu / Debian 的 Xorg 会话只做负向验收：Computer Use 不走 `xinput`。Fedora、openSUSE、KDE、Sway 不在首轮承诺里；代码应按能力探测自然降级。
 
 ### 1. 安装、启动与通用工作循环
 
-普通用户从安装面进入，不依赖 checkout、隐藏环境变量或手工拆包。共同完成线：安装、首次启动、重启、升级、卸载；GitHub 登录或本机 Provider；Coding 的文件、Shell、Git、附件、终端、内置浏览器与 Pi 工具回合；CTF / CVE / 实验室进入同一通用循环；路径走 XDG / 平台 API。
+普通用户从安装面进入，不依赖 checkout、隐藏环境变量或手工拆包。
 
 ### 2. 凭据、浏览器与 OCR
 
-这些能力独立验收，不能由应用启动回执代替。未做之前保持准确 unavailable，设置页用现有平台门控文案，不预建通用 capability descriptor。
+独立验收。Browser Use 需要本机 Chromium 家族浏览器。未做的能力保持准确 unavailable。
 
 ### 3. Computer Use
 
-按显示协议与 compositor 实现，不按发行版写四份后端。NixOS 可能是 GNOME 或 Hyprland，不能只测一个桌面就声明“NixOS Computer Use”。
+按显示协议与 compositor 实现，不按发行版写四份后端，也不按 CPU 写两套包。
 
-ISSUE [#19](https://github.com/MilkSU-Official/milksu/issues/19) 保持 open，直到真实桌面后端证明：不碰 `xinput`、不摘物理设备、停止/崩溃后键鼠仍可用。关闭说明必须是“X11 后端拒绝合入；替代路径已通过崩溃恢复验收”，不能是“已经写了计划或开了工作项”。
+ISSUE [#19](https://github.com/MilkSU-Official/milksu/issues/19) 保持 open，直到真实桌面后端证明：不碰 `xinput`、不摘物理设备、停止/崩溃后键鼠仍可用。关闭说明必须是“X11 后端拒绝合入；Portal 路径已通过崩溃恢复验收”，不能是“已经写了计划”。
 
-GNOME Portal 若只能给出显示器级输入，就不能冒充现有 App/Window Scope。届时另开产品决策，没有该决策时继续显示不可用。研究 helper 不进入 release 默认启动；失败则保留结论，不把实验依赖留在生产图。不另开 `computercap` 平台后端清理里程碑；只有某个 Linux 后端真正准入时，才在现有 `Manager` 里加适配。
+GNOME Portal 只承诺显示器级输入，产品文案必须写明，不得冒充 App/Window Scope。Hyprland 在上游 RemoteDesktop 可依赖前保持 unavailable。
 
-## 安装结构
+## GitHub Release 上传清单
 
-从一个不可变 source commit 生成与包管理器无关的 Linux staging tree，再分别打 DEB、pacman 包和 flake 所用通用归档。GitHub Release 只发布到授权的 `MilkSU-Official/milksu`。没有单独授权时，不向 AUR、nixpkgs、Omarchy 仓库或其他上游提交包。x86_64 与 arm64 是独立产物与回执。
+同一 source commit、同一 `linux/amd64` staging。最多 4 个 Linux 文件，默认这 2 个安装包：
+
+1. `MilkSU-Linux-x64-<version>.deb` — Ubuntu / Debian
+2. `MilkSU-Linux-x64-<version>.tar.gz` — Omarchy / Arch / NixOS / 通用目录
+
+可选随附、不单独算产品包：`PKGBUILD`、`milksu.desktop`。
+
+不上传：arm64 DEB/tarball、按发行版拆开的第二份 DEB、AUR/nixpkgs 上游提交。
 
 ## 当前切片
 
-同一 `linux/amd64` staging 产出三个安装面：
+- Ubuntu 24.04 / Debian 13：空 recommends 的共用 `.deb`
+- Omarchy / Arch：同一 tarball + `packaging/linux/PKGBUILD.in`
+- NixOS：`packaging/linux` flake 包装同一 unpacked 目录
+- 桌面：Wayland ozone auto；hicolor 16–512 图标；Browser Use 查找 Chromium 家族
+- GNOME Computer Use：XDG Desktop Portal 授权后截屏 / 坐标点击 / 打字，不接 Cua
+- 本机 ARM 虚拟机只验证，不改变正式包架构
 
-- Ubuntu 24.04 / Debian 13：`.deb`（空 recommends，避免 Ubuntu-only `libappindicator3-1`）
-- Omarchy / Arch：`MilkSU-Linux-x64-<version>.tar.gz` + `PKGBUILD` + `milksu.desktop`，`makepkg -si`
-- NixOS：`packaging/linux` flake，`MILKSU_LINUX_UNPACKED` 指向 `linux-unpacked` 后 `nix --impure build`
-
-桌面适配：Electron `ozone-platform-hint=auto`（GNOME Wayland 与 Hyprland）；`.desktop` `StartupWMClass=MilkSU`；Browser Use 查找 Chrome / Chromium / Edge、Nix profile 与 `.desktop` Exec。Computer Use 在 Linux 上保持 unavailable，文案写明可运行但不控制宿主桌面。不恢复 ISSUE #19。
-
-验证脚本：`scripts/verify-linux-deb-debian13.sh`、`scripts/verify-linux-pacman-arch.sh`、`scripts/verify-linux-nixos.sh`，由 `linux-release.yml` 在 GitHub-hosted `ubuntu-24.04` 上跑。容器安装成功不是 GNOME/Hyprland 真机 GUI 回执。
-
-本切片不包含：Secret Service、本地 OCR、GNOME Portal Computer Use、ARM64 发行包。
-
-Xvfb、容器、按钮存在、Portal 在线、模型自述成功或一次截图，都不能替代以后各层自己的真实桌面回执。
+验证脚本：`scripts/verify-linux-deb-debian13.sh`、`scripts/verify-linux-pacman-arch.sh`、`scripts/verify-linux-nixos.sh`。容器安装成功不是 GNOME/Hyprland 真机 GUI 回执。Xvfb、一次截图或 Portal 在线都不能替代真实桌面回执。
 
 ## 尚未建立的事实
 
-- Debian、Omarchy、NixOS 还没有正式 MilkSU 安装包回执；
-- Linux Secret Service、本地 OCR 与 Computer Use 仍未实现；
-- GNOME Portal 尚未证明满足窗口范围、自窗口排除和崩溃恢复；
-- Hyprland RemoteDesktop 尚未成为可依赖的正式上游能力；
-- Linux ARM64 尚未进入发行合同。
+- Debian 13 与 Ubuntu 共用 `.deb`，本切片跳过独立 Debian 桌面验收；
+- Omarchy / NixOS 还没有正式 GitHub Release 回执，Hyprland 真机 GUI 仍待测；
+- Linux Secret Service 与本地 OCR 仍未实现；
+- Hyprland RemoteDesktop 尚未成为可依赖的正式上游能力，Computer Use 保持 unavailable；
+- Linux ARM64 不是发行架构。
 
-在这些事实形成前，README、下载页、`current-system.md` 与 Release Notes 继续只写 `v26.825.1` Linux x64 试用 DEB 的准确边界。
+在这些事实形成前，README、下载页与 Release Notes 继续只把已上传的 x64 包写成可下载产物。

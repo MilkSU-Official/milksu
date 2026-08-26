@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { lstat, realpath } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { Type } from "typebox";
 import { assertWorkspacePath, sandboxProfile } from "./bridge-policy.js";
@@ -157,8 +158,8 @@ function runCapa(workspace, command, args, signal) {
         "/usr/bin/env",
         "-i",
         "PATH=/usr/bin:/bin:/usr/sbin:/sbin",
-        "HOME=/private/tmp",
-        "TMPDIR=/private/tmp",
+        `HOME=${tmpdir()}`,
+        `TMPDIR=${tmpdir()}`,
         "LANG=en_US.UTF-8",
         command,
         ...args,

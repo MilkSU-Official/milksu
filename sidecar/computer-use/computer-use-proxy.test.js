@@ -4,21 +4,21 @@ import test from "node:test";
 import {
   computerUseTool,
   createComputerUseExecutor,
+  expectedComputerUseSocket,
   normalizeComputerUseInput,
   normalizeComputerUseProxyOptions,
   runComputerUseMcpServer,
 } from "./computer-use-proxy.js";
 
 const options = {
-  socketPath: process.platform === "win32"
-    ? "\\\\.\\pipe\\milksu-computer-use-computer_12345678"
-    : "/private/tmp/milksu-computer-use/computer_12345678/driver.sock",
+  socketPath: expectedComputerUseSocket("computer_12345678"),
   sessionId: "computer_12345678",
   targetName: "Codex",
   targetBundleId: "com.openai.codex",
   targetPid: 4242,
   targetWindowId: 42,
   driverPath: "/reviewed/cua-driver",
+  backend: "cua",
 };
 
 test("normalizes only the immutable scoped proxy descriptor", () => {
@@ -44,9 +44,7 @@ test("normalizes only the immutable scoped proxy descriptor", () => {
   for (const argv of [
     [
       "--socket",
-      process.platform === "win32"
-        ? "\\\\.\\pipe\\milksu-computer-use-computer_other"
-        : "/private/tmp/milksu-computer-use/computer_other/driver.sock",
+      expectedComputerUseSocket("computer_other"),
       "--session",
       options.sessionId,
       "--target-name",

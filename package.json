@@ -24,7 +24,7 @@
     "desktop:icon:beta": "node scripts/generate-beta-appicon.mjs",
     "codesign:check": "node scripts/check-macos-signing.mjs --app build/bin/MilkSU.app",
     "codesign:check:stable": "node scripts/check-macos-signing.mjs --app build/bin/MilkSU.app --require-stable",
-    "test:sidecar": "node --test sidecar/pi/*.test.js sidecar/pi/*.test.cjs sidecar/security/*.test.js sidecar/computer-use/*.test.js browserextension/*.test.js desktop/*.test.cjs",
+    "test:sidecar": "node --test sidecar/hostpath.test.js sidecar/pi/*.test.js sidecar/pi/*.test.cjs sidecar/security/*.test.js sidecar/computer-use/*.test.js browserextension/*.test.js desktop/*.test.cjs",
     "release:verify": "node scripts/verify-release-source.mjs",
     "release:dispatch": "node scripts/dispatch-three-platform-release.mjs",
     "release:collect": "node scripts/collect-three-platform-release.mjs",

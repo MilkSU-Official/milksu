@@ -14,13 +14,11 @@ import (
 	"time"
 
 	"github.com/MilkSU-Official/milksu/internal/config"
+	"github.com/MilkSU-Official/milksu/internal/hostpath"
 )
 
 func testComputerUseSocket(sessionID string) string {
-	if runtime.GOOS == "windows" {
-		return `\\.\pipe\milksu-computer-use-` + sessionID
-	}
-	return filepath.Join("/private/tmp/milksu-computer-use", sessionID, "driver.sock")
+	return hostpath.ComputerUseSocket(runtime.GOOS, sessionID)
 }
 
 func TestNormalizeAssistantDelta(t *testing.T) {

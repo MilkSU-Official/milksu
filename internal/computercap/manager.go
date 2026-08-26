@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,13 +15,14 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/MilkSU-Official/milksu/internal/hostpath"
 )
 
 const (
 	DriverVersion           = "0.14.2"
-	linuxComputerUseProblem = "Computer Use 当前在 Linux 上不可用。请用 Browser Use 操作本机 Chromium。宿主桌面控制需要 GNOME 门户授权，不会走 xinput 摘键鼠。"
+	linuxComputerUseProblem = "Computer Use 在当前 Linux 桌面上不可用。GNOME Wayland 可走系统桌面共享授权；Hyprland 仍不可用。不会走 xinput 摘键鼠。"
 	defaultHostBundleID     = "com.milksu.app"
-	runtimeRoot             = "/private/tmp/milksu-computer-use"
 	hostBundleIDEnv         = "MILKSU_DESKTOP_APP_ID"
 	hostBundleIDEnvAlt      = "CUA_DRIVER_HOST_BUNDLE_ID"
 )
@@ -113,6 +115,9 @@ type Options struct {
 	CommandFactory  func(name string, args ...string) *exec.Cmd
 	StartTimeout    time.Duration
 	GrantDirectory  string
+	LinuxPortal     func() bool
+	NewPortal       func() (PortalSession, error)
+	LinuxEnv        func(string) string
 }
 
 type session struct {
@@ -127,6 +132,9 @@ type session struct {
 	problem        string
 	stopping       bool
 	target         Target
+	portal         PortalSession
+	portalCancel   context.CancelFunc
+	listener       net.Listener
 }
 
 type Manager struct {
@@ -143,6 +151,9 @@ type Manager struct {
 	startTimeout    time.Duration
 	grants          *grantStore
 	active          *session
+	linuxPortal     func() bool
+	newPortal       func() (PortalSession, error)
+	linuxEnv        func(string) string
 }
 
 func New(options Options) *Manager {
@@ -182,6 +193,18 @@ func New(options Options) *Manager {
 	if !validBundleID(hostBundleID) {
 		hostBundleID = resolveHostBundleID(signingProbe)
 	}
+	linuxEnv := options.LinuxEnv
+	if linuxEnv == nil {
+		linuxEnv = os.Getenv
+	}
+	linuxPortal := options.LinuxPortal
+	if linuxPortal == nil {
+		linuxPortal = func() bool { return linuxGnomeWayland(linuxEnv) }
+	}
+	newPortal := options.NewPortal
+	if newPortal == nil {
+		newPortal = newXDGPortalSession
+	}
 	return &Manager{
 		binaryPath:      strings.TrimSpace(options.BinaryPath),
 		targetPID:       targetPID,
@@ -194,6 +217,9 @@ func New(options Options) *Manager {
 		commandFactory:  commandFactory,
 		startTimeout:    startTimeout,
 		grants:          newGrantStore(options.GrantDirectory),
+		linuxPortal:     linuxPortal,
+		newPortal:       newPortal,
+		linuxEnv:        linuxEnv,
 	}
 }
 
@@ -307,6 +333,12 @@ func (manager *Manager) RequestPermission(kind PermissionKind) (Status, error) {
 }
 
 func (manager *Manager) Targets() ([]Target, error) {
+	if manager.goos == "linux" {
+		if !manager.linuxPortal() {
+			return nil, fmt.Errorf("%s", linuxUnavailableProblem(manager.linuxEnv))
+		}
+		return []Target{linuxPortalDesktopTarget()}, nil
+	}
 	if manager.goos != "darwin" && manager.goos != "windows" {
 		return nil, fmt.Errorf("Computer Use is unavailable on this platform")
 	}
@@ -349,6 +381,10 @@ func (manager *Manager) Start(
 		return status, fmt.Errorf(
 			"Computer Use is already attached to another visible Coding task",
 		)
+	}
+	if manager.goos == "linux" {
+		manager.mu.Unlock()
+		return manager.startLinuxPortal(ctx, conversationID, selection)
 	}
 	if manager.goos != "darwin" && manager.goos != "windows" {
 		status := manager.statusLocked(manager.permissionProbe(false))
@@ -415,6 +451,7 @@ func (manager *Manager) Start(
 		return Status{}, fmt.Errorf("write Computer Use bounded policy: %w", err)
 	}
 	socketPath := endpointForSession(manager.goos, directory, sessionID)
+	cleanupEndpoint(manager.goos, socketPath)
 	hostBundle := manager.hostBundleID
 	if !validBundleID(hostBundle) {
 		hostBundle = defaultHostBundleID
@@ -523,16 +560,33 @@ func (manager *Manager) stop(conversationID string, revoke bool) (Status, error)
 	active.phase = "stopping"
 	manager.mu.Unlock()
 
-	stopProcess(active.command)
-	select {
-	case <-active.done:
-	case <-time.After(3 * time.Second):
-		killProcess(active.command)
+	if active.portalCancel != nil {
+		active.portalCancel()
+	}
+	if active.listener != nil {
+		_ = active.listener.Close()
+	}
+	if active.portal != nil {
+		_ = active.portal.Close()
+	}
+	if active.command != nil {
+		stopProcess(active.command)
+		select {
+		case <-active.done:
+		case <-time.After(3 * time.Second):
+			killProcess(active.command)
+			select {
+			case <-active.done:
+			case <-time.After(time.Second):
+			}
+		}
+	} else if active.done != nil {
 		select {
 		case <-active.done:
 		case <-time.After(time.Second):
 		}
 	}
+	cleanupEndpoint(manager.goos, active.socketPath)
 	if err := cleanupRuntimeDirectory(runtimeRootForPlatform(manager.goos), active.directory); err != nil {
 		return manager.Status(), err
 	}
@@ -697,7 +751,25 @@ func (manager *Manager) statusLocked(permissions Permissions) Status {
 		Permissions:   permissions,
 		Signing:       signing,
 	}
-	if manager.goos != "darwin" && manager.goos != "windows" {
+	if manager.goos == "linux" {
+		if !manager.linuxPortal() {
+			status.Available = false
+			status.Phase = "unavailable"
+			status.Problem = linuxUnavailableProblem(manager.linuxEnv)
+			if status.Problem == "" {
+				status.Problem = linuxComputerUseProblem
+			}
+			return status
+		}
+		status.Available = true
+		status.Signing = linuxPortalSigning()
+		if !permissions.Accessibility && !permissions.ScreenRecording {
+			status.Permissions = Permissions{Accessibility: true, ScreenRecording: true}
+		}
+		if manager.active == nil {
+			return status
+		}
+	} else if manager.goos != "darwin" && manager.goos != "windows" {
 		status.Available = false
 		status.Phase = "unavailable"
 		status.Problem = linuxComputerUseProblem
@@ -1084,6 +1156,21 @@ func validBundleID(value string) bool {
 		return false
 	}
 	return true
+}
+
+func runtimeRootForPlatform(string) string {
+	return hostpath.ComputerUseRuntimeRoot()
+}
+
+func endpointForSession(_ string, _ string, sessionID string) string {
+	return hostpath.ComputerUseSocket(runtime.GOOS, sessionID)
+}
+
+func cleanupEndpoint(_ string, socketPath string) {
+	if runtime.GOOS == "windows" || strings.TrimSpace(socketPath) == "" {
+		return
+	}
+	_ = os.Remove(socketPath)
 }
 
 func newSessionID() (string, error) {

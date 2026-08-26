@@ -1660,6 +1660,14 @@ async function saveProviderEditor(closeAfterSave: boolean) {
             >
               <ConnectionLiveStatus :live="false" />
             </SettingsRow>
+            <SettingsRow
+              v-else-if="computerUseStatus?.signing?.signature === 'linux-portal'"
+              :label="t('桌面共享', 'Desktop sharing')"
+              :description="t('启动任务时 GNOME 会弹出授权。截屏、按坐标点击和打字是整桌面级，不是单个窗口。', 'GNOME prompts for sharing when you start a task. Screenshot, coordinate clicks and typing are display-level, not a single window.')"
+              :divider="false"
+            >
+              <ConnectionLiveStatus :live="true" />
+            </SettingsRow>
             <template v-else-if="computerUseStatus">
               <SettingsRow :label="t('辅助功能', 'Accessibility')">
                 <div class="flex items-center gap-2">
