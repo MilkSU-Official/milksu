@@ -2,12 +2,12 @@
 
 > 文档状态：Current / Canonical target contract
 >
-> 最后收口：2026-08-26
+> 最后收口：2026-08-27
 >
 > 本页只回答“当前处于什么阶段、下一条完成线是什么”。实现事实以当前代码、测试、Git 历史和原生 App 验收为准；历史设计与旧里程碑不作为任务队列。
 >
-> 发版改动与未发版改动必须分开写。有三端回执的正式 GitHub Release 是今日首发 `26.825.1`。
-> 文档收口提交不移动该 tag。不要把晚于 `efddfc2` 的 HEAD 写成已发版。
+> 发版改动与未发版改动必须分开写。有三端回执的正式 GitHub Release 是今日首发 `26.827.1`。
+> 文档收口提交不移动该 tag。不要把晚于 `37932ce` 的 HEAD 写成已发版。
 
 ## 工作规则
 
@@ -30,15 +30,15 @@
 | --- | --- |
 | 阶段 | **内测迭代 / Agent Runtime 与跨平台发行收敛**。当前工作不再按 M3/M4 里程碑组织。 |
 | 历史基线 | M3 product-loop 已在 `108e0e3`（2026-08-05）合并，仅供追溯。 |
-| 正式发行基线 | `v26.825.1 / efddfc2733fb4fc740da9281fb614dfe57f814f8`（2026-08-25 今日首发）。这是当前 GitHub Latest Release；提供带版本号的 DMG、EXE、DEB 与 `SHA256SUMS`；R2/Admin current pointer 未发布。 |
-| 开发版本线 | 根目录与 `desktop/package.json` 是 `26.825.1`。正式发行源是 `efddfc2`；文档收口提交不移动该 tag。 |
-| 当前开发 | 正式包是 `26.825.1`。实验室题目包打开后是靶机卡片（Juice Shop / WebGoat / S2-045 / whoami / InjuredAndroid），安卓走专用 MilkSU-Lab。Pi 钉到 `0.84.1`。Composer 可调思考档位，上下文环分出未命中输入和缓存命中。连续重复工具或过长工具循环会停下来确认；Go 运行时意外退出会自动再拉起。设置、CTF / CVE / 实验室列表指挥面统一：历史 + 导入或创建，连接状态用 LIVE / OFF。开始解题 / 开始复现展开对话小窗并聚焦输入。设置「评测」可切换 Cybench / SEC-bench / AutoPenBench。CTF 比赛模式和实验室红队学习面仍未接线。产品 UI 设计语言只写在 `AGENTS.md`。本分支未发版改动见下一节。 |
-| 平台边界 | `26.825.1`：macOS DMG 走 GitHub-hosted Developer ID 签名并公证；Windows 安装器完成原生 Runtime 与首次启动但未代码签名，并打入审阅过的 CUA Driver；Linux DEB 完成包结构、Sidecar、Go Runtime 与 Xvfb Electron 启动，仍无 Secret Service、本地 OCR、Computer Use。 |
+| 正式发行基线 | `v26.827.1 / 37932cee562197ec62b31233859868b97e5dac60`（2026-08-27 今日首发）。这是当前 GitHub Latest Release；提供带版本号的 DMG、EXE、DEB、x64 tar.gz 与 `SHA256SUMS`。OTA 草稿已上传私有 R2；Admin current pointer 仍须维护者在「版本」页发布。 |
+| 开发版本线 | 根目录与 `desktop/package.json` 是 `26.827.1`。正式发行源是 `37932ce`；文档收口提交不移动该 tag。 |
+| 当前开发 | 正式包是 `26.827.1`。已登录 Stable 可轮询 Admin 并下载本机 OS+arch 更新。Linux 发出共用 x64 `.deb` 与 `.tar.gz`，GNOME Wayland 走 Portal Computer Use。Beautiful UI 是产品指挥面。实验室题目包仍可起本机 Docker / MilkSU-Lab。Pi 钉到 `0.84.1`。Composer 可调思考档位。Windows 安装器仍未代码签名；Linux 无 Secret Service 与本地 OCR；Hyprland/Xorg Computer Use 不可用。CTF 比赛模式和实验室红队学习面仍未接线。产品 UI 设计语言只写在 `AGENTS.md`。 |
+| 平台边界 | `26.827.1`：macOS DMG 走 GitHub-hosted Developer ID 签名并公证；Windows 安装器完成原生 Runtime 与首次启动但未代码签名，并打入审阅过的 CUA Driver；Linux 发出 Ubuntu/Debian 共用 x64 DEB 与 Omarchy/Arch/Nix 共用 x64 tarball，GNOME Portal Computer Use 已进包，仍无 Secret Service、本地 OCR；Hyprland/Xorg Computer Use 不可用。 |
 | 发行流水 | 下一发行从干净、已推送的 `main` 对 canonical Go/Vue/Sidecar/lint/生产与文档构建只验证一次；macOS / Windows / Linux 都走 GitHub-hosted 云端。macOS 本机打包暂时关闭。必须创建 GitHub Release 页并上传带版本号的 DMG/EXE/DEB、x64 tar.gz 与 SHA256SUMS，不能只留空 tag。正式打包默认上传 OTA 到私有 R2 并建 Admin 草稿；GitHub Release 仍不上 updater ZIP。 |
 
-## 已发行改动：`26.817.1` → `26.825.1`
+## 已发行改动：`26.817.1` → `26.827.1`
 
-`26.817.1`–`26.817.3` 是 8 月 16–17 日发出的内测线。`26.818.1` / `26.818.2` 是 8 月 18 日两版。`26.819.1` 是 8 月 19 日 ak-ui 生产视觉包。`26.822.1` 是 8 月 22 日档案复现与实验室包。`26.823.1` 是 8 月 23 日完整循环包。可从 Releases 下载的最新正式包能力以 `26.825.1` 为准。
+`26.817.1`–`26.817.3` 是 8 月 16–17 日发出的内测线。`26.818.1` / `26.818.2` 是 8 月 18 日两版。`26.819.1` 是 8 月 19 日 ak-ui 生产视觉包。`26.822.1` 是 8 月 22 日档案复现与实验室包。`26.823.1` 是 8 月 23 日完整循环包。`26.825.1` 是 8 月 25 日实验室靶机经纪包。可从 Releases 下载的最新正式包能力以 `26.827.1` 为准。上一版 `v26.825.1` 仍可下载，不再是 Latest。
 
 ### `26.817.1` / `main@783679f`
 
@@ -133,24 +133,19 @@
 - CTF「开始解题」和 CVE「开始复现」展开对话小窗并聚焦输入，仍不自动发消息。CTF 工作区「解题轨迹」和「证据制品」与题目 / 复盘同一套圆角。
 - CTF / CVE 列表右上角是历史 + 导入，实验室是历史 + 创建（题目包导入还没有）。连接类状态用 LIVE / OFF。设置「评测」可切换 Cybench / SEC-bench / AutoPenBench。
 - 开发态 Sidecar 把审阅过的 TypeScript 扩展编出 `node_modules`；正式打包仍走原来的 esbuild 整包。
-- GitHub Release（Latest）提供 DMG / EXE / DEB 与 `SHA256SUMS-26.825.1.txt`。macOS 走 GitHub-hosted 签名公证，不再走本机打包。
+- GitHub Release 提供 DMG / EXE / DEB 与 `SHA256SUMS-26.825.1.txt`。macOS 走 GitHub-hosted 签名公证，不再走本机打包。该版仍可下载，已不是 Latest。
 
-## 未发版改动：晚于 `v26.825.1` / `efddfc2`
+### `26.827.1` / `37932ce`（2026-08-27 今日首发）
 
-文档收口提交不移动该 tag。本分支 `codex/linux-four-distros-plan` 尚未进入正式发行。产品 UI 设计语言只写在 `AGENTS.md`，下面只记产品事实。
+- 自动更新：已登录 Stable 按平台/架构轮询 Admin `/v1/releases/latest`；侧栏左下角下载本机 OS+arch 包；下载完无运行中会话则安装重启，有则确认。macOS/Windows 走 electron-updater，Linux dpkg 走 pkexec，tarball 解压到安装前缀，Nix store 不自动更新。正式打包已把 OTA 草稿上传私有 R2 并建 Admin 草稿；GitHub Release 仍不上 updater ZIP。Admin current pointer 仍须维护者在「版本」页发布 `darwin/arm64`、`win32/x64`、`linux/x64`。
+- Linux 四发行版安装：Ubuntu 24.04 / Debian 13 共用 x64 `.deb`，Omarchy / Arch / NixOS 共用 x64 `.tar.gz`（PKGBUILD 与 flake 是安装方法）。ARM 只作本机/CI 试验，不进 GitHub Latest。桌面图标按 hicolor 常用尺寸从 `build/appicon.png` 生成。
+- Linux GNOME Wayland Computer Use 走 XDG Desktop Portal（整桌面级，不是窗口 Scope），不接 Cua、不走 `xinput`。Hyprland 与 Xorg unavailable。Linux 仍无 Secret Service 与本地 OCR。Linux Browser Use 查找系统 Chromium/Chrome/Edge（PATH、snap、Nix、桌面入口）。
+- Beautiful UI 指挥面：可拖宽侧栏（最小 224、默认 264）、画布目录、8px 设置行。侧栏无项目分组改名为「最近」。`milksu_ask` 把用户选择行接到 Pi 并暂停回合。产品 UI 设计语言只写在 `AGENTS.md`。
+- GitHub Release（Latest）提供 DMG / EXE / DEB / x64 tar.gz 与 `SHA256SUMS-26.827.1.txt`。macOS 走 GitHub-hosted 签名公证。Windows 安装器仍未代码签名。
 
-- Beautiful UI 是产品 chrome 主导语言：可拖宽侧栏（最小 224、默认 264）、画布目录、8px 设置行。青金/淡黄行底已去掉；ak-tag 难度/类别/严重性/每日仍保留。
-- 侧栏无项目分组改名为「最近」，有加号且宽度与其他组一致。底栏是垂直居中的版本号加主题图标。
-- CTF / CVE / Lab 目录页点侧栏会话打开该对话小窗；空会话不再弹死窗，未绑定题目的会话也能打开。
-- 这些工作区的新对话不注入主页上次项目路径；主页新对话也不注入 CTF / CVE / Lab 里选过的项目。
-- 域对话最大化铺满侧栏右侧。对话区时间分割线居中，宽度与正文一致。
-- `milksu_ask` 把用户选择行接到 Pi 并暂停回合。流式正文走真实 token 的模糊尾；文件改动用 chips。
-- README 截图已按当前 UI 重拍。
-- Linux 正式包最多 4 个、默认只发 2 个跨发行版包：Ubuntu/Debian 共用 x64 `.deb`，Omarchy/Arch/Nix 共用 x64 `.tar.gz`（PKGBUILD 与 flake 是安装方法）。ARM 只作本机/CI 试验，不进 GitHub Latest。GNOME 与 Hyprland 使用 Wayland ozone auto。Secret Service / OCR 仍 unavailable。GNOME Computer Use 走 Portal 最小路径，不接 Cua、不碰 xinput。
-- Linux 桌面图标按 hicolor 常用尺寸（48/256 等）从 `build/appicon.png` 生成；不再只装 1024，避免 GNOME 找不到图标时落到齿轮。
-- Linux Browser Use 查找系统 Chromium/Chrome/Edge（含 PATH、snap、Nix、桌面入口）；设置页显示是否找到。Ubuntu ARM GNOME 虚拟机上用户点允许后：Portal 会话 ready、坐标点击成功、打字进入系统 UI、停止后键鼠会话释放。锁屏会抑制。Debian 13 ARM Hyprland 上应用以 Wayland 启动且窗口可见，Computer Use 保持 unavailable（不走 xinput）。NixOS 26.05 ARM GNOME live：同一 tarball 经 flake FHS 包装后启动并显示登录页。ISSUE #19 的 X11 `xinput` 路径已拒绝合入并关闭。
-- README 已写 macOS / Windows / Linux 功能与安装矩阵。Portal 与 tarball **没有**进入 GitHub Latest `v26.825.1`。
-- 自动更新：已登录 Stable 按平台/架构轮询 Admin；侧栏左下角下载；下载完无运行中会话则安装重启。正式打包默认上传 OTA 草稿，不再有 GitHub-only 跳过开关。Admin current pointer 仍未发布。
+## 未发版改动：晚于 `v26.827.1` / `37932ce`
+
+文档收口提交不移动该 tag。Admin current pointer 尚未由维护者发布；Windows 代码签名、Linux Secret Service / 本地 OCR、Hyprland/Xorg Computer Use 仍缺。CTF 比赛模式和实验室红队学习面仍未接线。
 
 ## 当前产品事实
 
@@ -186,32 +181,35 @@
 
 ## 当前完成线
 
-### 已完成：`26.825.1` 今日首发三端正式 GitHub Release
+### 已完成：`26.827.1` 今日首发三端正式 GitHub Release
 
-三端都从 `efddfc2733fb4fc740da9281fb614dfe57f814f8` 构建。GitHub Latest Release 为
-`v26.825.1`，没有上传 OTA ZIP；R2/Admin current pointer 未改变。macOS / Windows / Linux
+三端都从 `37932cee562197ec62b31233859868b97e5dac60` 构建。GitHub Latest Release 为
+`v26.827.1`，用户安装包是 DMG / EXE / DEB / x64 tar.gz，没有上传 OTA ZIP。OTA 草稿应已写入私有 R2
+并建 Admin 草稿；current pointer 仍须维护者在「版本」页发布。macOS / Windows / Linux
 都走成功的 GitHub-hosted Actions run。
 
 | 平台 | Workflow | 用户安装包 | 大小 | SHA-256 | 结果 |
 | --- | --- | ---: | ---: | --- | --- |
-| macOS ARM64 | `32826904720` | `MilkSU-macOS-arm64-26.825.1.dmg` | 240,559,028 B | `eca87c425c8d6140fc94567509b05afbac9c31f2e10e930cba3eda6fedd392d8` | Developer ID 签名、Apple 公证、staple、Gatekeeper |
-| Windows x64 | `32826908115` | `MilkSU-Windows-x64-26.825.1-Setup.exe` | 184,282,889 B | `d8aed502da7ea81aee4d347660d475b9180cded6ddc559868001db66123f0d61` | 原生 Windows 构建、打包 Runtime 与首次启动通过；安装器未代码签名 |
-| Linux x64 | `32826913148` | `MilkSU-Linux-x64-26.825.1.deb` | 178,724,280 B | `66aa2e0ccd4eb1756784e2b70b112d593a71ebec163289e885fb4d95c46f5b18` | 原生 Ubuntu 包结构、Sidecar、Go Runtime 与 Xvfb Electron 首次启动通过；试用边界 |
+| macOS ARM64 | `32989367821` | `MilkSU-macOS-arm64-26.827.1.dmg` | 240,777,609 B | `c968537d5e5dccfff5b12d187103b4913b948336be29068f2386e5f5103bc8de` | Developer ID 签名、Apple 公证、staple、Gatekeeper |
+| Windows x64 | `32989373465` | `MilkSU-Windows-x64-26.827.1-Setup.exe` | 184,429,716 B | `0d62a5409dd4531a7a30e7d04abaed622e737daa4ef1cadc374c2cd84d28f257` | 原生 Windows 构建、打包 Runtime 与首次启动通过；安装器未代码签名 |
+| Linux x64 | `32989379953` | `MilkSU-Linux-x64-26.827.1.deb` | 178,694,416 B | `0488a0d423f01e09a52c88d83a7ebab600574a3cf0db0f5761d756f849b4c09c` | Ubuntu/Debian 共用 DEB；包结构、Sidecar、Go Runtime 与 Xvfb 首次启动通过；GNOME Portal Computer Use 已进包；无 Secret Service / 本地 OCR |
+| Linux x64 tarball | `32989379953` | `MilkSU-Linux-x64-26.827.1.tar.gz` | 214,926,507 B | `f6d0ce4e4c342e2778b401e23c210e1cad520c38bc6243df2475f632d089b1ff` | Omarchy/Arch/Nix 共用 tarball；PKGBUILD / flake 是安装方法 |
 
-发行页：<https://github.com/MilkSU-Official/milksu/releases/tag/v26.825.1>
+发行页：<https://github.com/MilkSU-Official/milksu/releases/tag/v26.827.1>
 
-上一版 `v26.823.1 / efeda10` 仍可下载，标签未移动。
+上一版 `v26.825.1 / efddfc2` 仍可下载，标签未移动，已不是 Latest。
 
 ### 下一完成线
 
-`26.825.1` 已是当前可下载基线。文档收口提交不改变这个 tag。
+`26.827.1` 已是当前可下载基线。文档收口提交不改变这个 tag。
 
 下一条完成线是：
 
-1. 继续用 `26.825.1` 安装包做常用 Agent GUI、Pi Runtime 与实验室靶机回归，失败项回到下面 P0 队列；
-2. 用户明确要求发下一版时，先升版本号，再从干净已推送的 `main` 跑 `release:verify` 并留下新的三端回执；不要把现有 `v26.825.1` 标签挪到更新的 HEAD 上。
+1. 维护者在 MilkSU Admin「版本」页发布 `darwin/arm64`、`win32/x64`、`linux/x64` current pointer，已登录 Stable 才能拉到 OTA；
+2. 继续用 `26.827.1` 安装包做常用 Agent GUI、Pi Runtime、自动更新与实验室靶机回归，失败项回到下面 P0 队列；
+3. 用户明确要求发下一版时，先升版本号，再从干净已推送的 `main` 跑 `release:verify` 并留下新的三端回执；不要把现有 `v26.827.1` 或 `v26.825.1` 标签挪到更新的 HEAD 上。
 
-Windows 签名、Linux 缺失能力、R2/OTA 仍是发行后续，不是产品方向禁令。
+Windows 签名、Linux Secret Service / OCR、Hyprland/Xorg Computer Use 仍是发行后续，不是产品方向禁令。
 
 ### 后续队列
 
@@ -219,9 +217,8 @@ Windows 签名、Linux 缺失能力、R2/OTA 仍是发行后续，不是产品�
 | --- | --- | --- |
 | P0 | 常用 Agent GUI 回归 | 按 Coding 常用功能表覆盖中文任务、文件/Shell、附件、斜杠菜单、权限档、subagent、浏览器、Browser/Computer Use、终端、取消/恢复与错误展示；自动化通过后再由用户做真实 GUI 验收。C9 / C15 / C16 / C20 已由用户在本地 dirty Stable 包确认；C10 / C11 已修待复验。 |
 | P0 | Pi Runtime 用户验收 | 最新正式包中验证跨目录读写、CTF/CVE 交接、长输出续跑和重启恢复，不出现 MilkSU 自建 workspace 策略或旧 session ID。 |
-| P1 | 下一版三端回执发行 | 需要新的版本号、同一 source commit、三端产物、SHA-256 与平台验收。现有 `v26.825.1` 只覆盖 `efddfc2`。 |
-| P1 | OTA 与私有 R2 | 已登录 Stable 每分钟轮询 Admin `/v1/releases/latest`；左下角下载本机 OS+arch 包；无任务自动安装重启，有任务确认。macOS/Windows 走 electron-updater，Linux dpkg 走 pkexec，tarball 解压到安装前缀，Nix 不自动更新。正式打包默认上传 R2 草稿。current pointer 仍未发；`26.826.1` 发版后用 `26.825.1` Mac 做升级回执。 |
-| P1 | 下一发行上传 Linux tarball | 本分支已验收四发行版安装面与 GNOME Portal；GitHub Latest 仍只有试用 DEB。下一版 Release 增加共用 x64 `.tar.gz`（PKGBUILD / flake 是安装方法）。OCR / Secret Service 仍缺。 |
+| P1 | 下一版三端回执发行 | 需要新的版本号、同一 source commit、三端产物、SHA-256 与平台验收。现有 `v26.827.1` 只覆盖 `37932ce`。 |
+| P1 | Admin current pointer | `26.827.1` OTA 草稿应已在私有 R2 / Admin。维护者须在「版本」页发布 `darwin/arm64`、`win32/x64`、`linux/x64` 后，已登录 Stable 才能拉到更新；可用 `26.825.1` Mac 做升级回执。 |
 | P1 | 安全工具真实任务 | IDA/idalib 与 capa 已有设置、准备和健康检查；用受控本地样本留下真实任务回执。就绪工具接到实验室作业，窄工具也可进 CVE 复现；不需要先开一次“是否投影”的会。不把 HexStrike 整包 MCP 做成产品页或 Kali 应用商店。CodeQL、Burp、Shannon 仍逐项接入。 |
 | P1 | Obelisk 学习记录 | 先定义可归因学习事实，再设计独立页面；不恢复已删除的单会话相关历史/图谱面板。 |
 | 未接线 | 继续同一作业还是新开一轮 | 当前按同一 CVE/实验室作业复用同一会话和 `report.md`。新开一轮的产品决策还没定。 |
@@ -247,7 +244,7 @@ Windows 签名、Linux 缺失能力、R2/OTA 仍是发行后续，不是产品�
 - Wails/CEF 双壳、workspace-only 文件工具、Node 文件权限状态机、普通回合 watchdog、CVE 只读启动清单和客服式回复模板。
 - 用关键词或正则扫描用户句子来打开浏览器、切页或选工具。
 - MilkSU 自建余额、价格映射、扣费流水和模型代理计费。
-- 把晚于 `v26.825.1` 的 HEAD、同一版本号或本地 dirty 包写成已经发出的三端正式包。
+- 把晚于 `v26.827.1` 的 HEAD、同一版本号或本地 dirty 包写成已经发出的三端正式包。
 - M3/M4 旧百分比台账、历史 Beta 完成度和已删除 live smoke；需要考古时使用 Git history。
 
 ## 领域完成线
