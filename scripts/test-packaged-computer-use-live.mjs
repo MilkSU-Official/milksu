@@ -8,6 +8,7 @@ import { dirname, join, resolve } from 'node:path'
 import { promises as fs } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
+import { computerUseRuntimeRoot, computerUseSocket } from '../sidecar/hostpath.js'
 
 const execFileAsync = promisify(execFile)
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -22,7 +23,6 @@ const resultsDirectory = join(repositoryRoot, 'build', 'test-results')
 const resultPath = join(resultsDirectory, 'computer-use-live.json')
 const resetScreenshotPath = join(resultsDirectory, 'computer-use-live-reset.png')
 const afterScreenshotPath = join(resultsDirectory, 'computer-use-live-after.png')
-const runtimeRoot = '/private/tmp/milksu-computer-use'
 const sessionId = `computer_live-calculator-${Date.now().toString(36)}`
 const targetBundleId = 'com.apple.calculator'
 const targetName = 'Calculator'
@@ -322,8 +322,8 @@ async function main() {
   }
 
   const pid = await calculatorPID()
-  const workspace = join(runtimeRoot, sessionId)
-  const socketPath = join(workspace, 'driver.sock')
+  const workspace = computerUseRuntimeRoot(sessionId)
+  const socketPath = computerUseSocket(sessionId)
   const policyPath = join(workspace, 'session-policy.yaml')
   await fs.mkdir(workspace, { recursive: true, mode: 0o700 })
   await fs.writeFile(policyPath, `version: 2

@@ -20,6 +20,12 @@ import { promisify } from 'node:util'
 import { build } from 'esbuild'
 import { firstPartyCodingSkillNames } from '../sidecar/pi/bridge-skills.js'
 import { prepareReviewedTypeScript } from '../sidecar/pi/prepare-reviewed-ts.mjs'
+import {
+  computerUseRuntimeRoot,
+  computerUseSocket,
+  ephemeralRoot,
+  playwrightSocketRoot as playwrightSocketRootFor,
+} from '../sidecar/hostpath.js'
 import { buildWindowsCuaDriver } from './build-windows-cua-driver.mjs'
 
 const execFileAsync = promisify(execFile)
@@ -35,7 +41,7 @@ const piSubAgentVersion = '0.1.5'
 const piSubAgentIntegrity = 'sha512-ILgmYfAhP1nzpz7oLLN/lSFrwwigS0hfEKc8NppdkajCX2n2L5RVphG/cQnAWPlfKBXiOovqK8qNwksP1Y4pzw=='
 const playwrightMcpVersion = '0.0.78'
 const playwrightVersion = '1.62.0-alpha-1783623505000'
-const playwrightSocketRoot = '/private/tmp/milksu-playwright'
+const playwrightSocketRoot = playwrightSocketRootFor()
 const cuaDriverVersion = '0.14.2'
 const cuaDriverTag = `cua-driver-rs-v${cuaDriverVersion}`
 const cuaDriverSourceCommit = 'ed9d5efcf5f261f4854bf2de0ba06a2b0b4419c4'
@@ -112,6 +118,10 @@ const nodeArchives = {
   'linux/amd64': {
     file: `node-v${nodeVersion}-linux-x64.tar.xz`,
     sha256: '55aa7153f9d88f28d765fcdad5ae6945b5c0f98a36881703817e4c450fa76742',
+  },
+  'linux/arm64': {
+    file: `node-v${nodeVersion}-linux-arm64.tar.xz`,
+    sha256: '58c9520501f6ae2b52d5b210444e24b9d0c029a58c5011b797bc1fe7105886f6',
   },
 }
 
@@ -621,10 +631,8 @@ async function waitForUnixSocket(socketPath, child, timeoutMs = 10_000) {
 
 async function verifyPackagedCuaRuntime(output) {
   const driver = join(output, 'cua-driver')
-  const runtimeRoot = '/private/tmp/milksu-computer-use'
-  await mkdir(runtimeRoot, { recursive: true, mode: 0o700 })
-  const directory = await mkdtemp(join(runtimeRoot, 'package-smoke-'))
-  const socketPath = join(directory, 'driver.sock')
+  const directory = await mkdtemp(join(ephemeralRoot(), 'mcu-pkg-'))
+  const socketPath = join(directory, 'd.sock')
   const policyPath = join(directory, 'session-policy.yaml')
   await copyFile(cuaSessionPolicyPath, policyPath)
   await chmod(policyPath, 0o600)
@@ -1469,8 +1477,8 @@ async function smokeSidecar(platform) {
     '--allow-addons',
     '--allow-child-process',
     `--allow-fs-write=${playwrightSocketRoot}`,
-    '--allow-fs-read=/private/tmp/milksu-computer-use',
-    '--allow-fs-write=/private/tmp/milksu-computer-use',
+    `--allow-fs-read=${ephemeralRoot()}`,
+    `--allow-fs-write=${ephemeralRoot()}`,
     '--allow-fs-read=/bin/bash',
     '--allow-fs-read=/bin/sh',
     '--allow-fs-read=/usr/bin/env',
@@ -1482,7 +1490,7 @@ async function smokeSidecar(platform) {
       ...chatRuntimeArguments,
       join(output, 'computer-use-proxy.cjs'),
       '--socket',
-      '/private/tmp/milksu-computer-use/computer_packaged-smoke/driver.sock',
+      computerUseSocket('computer_packaged-smoke'),
       '--session',
       'computer_packaged-smoke',
       '--target-name',
@@ -2075,11 +2083,8 @@ async function smokeSidecar(platform) {
     )
   }
   const computerUseSessionId = 'computer_packaged-runtime'
-  const computerUseDirectory = join(
-    '/private/tmp/milksu-computer-use',
-    computerUseSessionId,
-  )
-  const computerUseSocketPath = join(computerUseDirectory, 'driver.sock')
+  const computerUseDirectory = computerUseRuntimeRoot(computerUseSessionId)
+  const computerUseSocketPath = computerUseSocket(computerUseSessionId)
   await rm(computerUseDirectory, { recursive: true, force: true })
   await mkdir(computerUseDirectory, { recursive: true, mode: 0o700 })
   const computerUseSocket = createNetServer()
@@ -2258,7 +2263,7 @@ async function smokeSidecar(platform) {
         computerUse: {
           sessionId: 'computer_must-not-enter-ctf',
           socketPath:
-            '/private/tmp/milksu-computer-use/computer_must-not-enter-ctf/driver.sock',
+            computerUseSocket('computer_must-not-enter-ctf'),
           targetBundleId: computerUsePackagedSmokeTarget.bundleId,
           targetName: computerUsePackagedSmokeTarget.name,
           targetPid: process.pid + computerUsePackagedSmokeTarget.pidOffset,

@@ -36,6 +36,7 @@ Third-party software includes, without limitation:
 - Pi extensions (pi-goal, pi-lsp, pi-mcp-adapter, pi-sub-agent,
   pi-better-background-tasks). MIT.
 - Cua Computer Use driver. Copyright Cua AI, Inc. MIT.
+- godbus/dbus v5. Copyright Georg Reinke, Google. BSD-2-Clause.
 - Archify. MIT.
 - Playwright MCP. Apache-2.0.
 - Electron, Vue, xterm.js, AntV G6, and related desktop/UI libraries. MIT

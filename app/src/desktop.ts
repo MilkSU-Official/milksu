@@ -58,6 +58,7 @@ import type {
 import type { CTFTrainingPlatform } from './ctfPlatformTypes'
 import type {
   CodingArtifactPreview,
+  BrowserUseRuntime,
   CodingBrowserStatus,
   CodingCompactionResult,
   CodingComputerUseDriverPrepareResult,
@@ -378,6 +379,7 @@ interface DesktopAppBindings {
   OpenCTFSourceURL(rawURL: string): Promise<void>
   OpenChromeExtensionManager(): Promise<void>
   OpenPlaywrightBrowserExtension(): Promise<void>
+  GetBrowserUseRuntime(): Promise<BrowserUseRuntime>
   RevealBrowserExtension(): Promise<void>
   GetCTFShowCatalogStatus(): Promise<CTFShowCatalogStatus>
   OpenCTFShowChallenges(rawURL: string): Promise<void>
@@ -897,6 +899,8 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.OpenChromeExtensionManager() as Promise<T>
       case 'open_playwright_browser_extension':
         return app.OpenPlaywrightBrowserExtension() as Promise<T>
+      case 'get_browser_use_runtime':
+        return app.GetBrowserUseRuntime() as Promise<T>
       case 'reveal_browser_extension':
         return app.RevealBrowserExtension() as Promise<T>
       case 'get_ctfshow_catalog_status':

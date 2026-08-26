@@ -733,10 +733,7 @@ async function backgroundTaskMetas(workspace) {
 
 async function main() {
   const reliabilityStartedAt = Date.now()
-  const temporaryBase = process.env.MILKSU_CODING_SIDECAR_NODE
-    && process.platform === 'darwin'
-    ? '/private/tmp'
-    : tmpdir()
+  const temporaryBase = tmpdir()
   const temporaryRoot = await mkdtemp(join(temporaryBase, 'milksu-coding-delivery-'))
   const workspace = join(temporaryRoot, 'workspace')
   const agentDirectory = join(workspace, '.milksu', 'agent')

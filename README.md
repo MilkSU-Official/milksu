@@ -98,24 +98,46 @@ MilkSU 会把当前任务可用的能力告诉模型，再由模型按上下文�
 
 - **项目能力**：文件、Shell、Git、LSP、测试与产物预览；
 - **网页能力**：会话隔离的内置浏览器，以及你明确选择的真实 Chrome / Edge 标签页；
-- **桌面能力**：针对准确 App 和窗口的 Computer Use；
+- **桌面能力**：Computer Use（macOS / Windows 为窗口 Scope；Linux 见下表）；
 - **安全工具**：设置里准备 IDA Pro / idalib、capa 等本机能力，就绪后可进 Coding 或实验室作业；
 - **工作台动作**：列出或切换内置浏览器标签，打开产物 / 环境 / 变更 / 终端，以及改会话名、归档、更新 CVE、创建实验室或 CTF 记录。设置、凭据、审批档和你自己的 Chrome 不在这个工具里。
 
 ## 开始使用
 
-当前 Latest 是 `26.825.1`。Windows 安装器尚未代码签名，Linux 仍是试用 DEB。
+从 [Releases](https://github.com/MilkSU-Official/milksu/releases) 下载当前安装包。Windows 安装器尚未代码签名，可能出现 SmartScreen。macOS 为 Developer ID 签名并公证的 DMG。没有 OTA。
 
-1. 从 [Releases](https://github.com/MilkSU-Official/milksu/releases/tag/v26.825.1) 下载 `26.825.1`：
-   - **macOS Apple Silicon**：Developer ID 签名并经 Apple 公证的 DMG，正式支持；
-   - **Windows x64**：未签名安装器，可能出现 SmartScreen 提示；打包 Runtime 与 Pi Agent 回合已在真实安装包验证；
-   - **Linux x64**：试用 DEB，已验证包结构、Sidecar、Go Runtime 与 Xvfb 启动，不含 Secret Service、本地 OCR 或 Computer Use。
-2. 安装并打开 MilkSU；
-3. 使用 GitHub 登录；
-4. 由管理员为账户开通模型，或在“设置 → 模型”中添加自己的 Provider / OpenAI-compatible 中转站；
-5. 选择 Coding、CTF、CVE 或实验室，开始第一个任务。
+1. 按系统安装（见下一节）；
+2. 打开 MilkSU，使用 GitHub 登录；
+3. 由管理员为账户开通模型，或在“设置 → 模型”中添加自己的 Provider / OpenAI-compatible 中转站；
+4. 选择 Coding、CTF、CVE 或实验室，开始第一个任务。
 
-账户未分配模型额度时仍可登录和浏览本地功能，只是暂时不能发起模型任务。macOS 正式版本使用 Developer ID 签名与 Apple 公证；Stable 客户端支持登录后检查受保护的应用更新，但 `26.825.1` 没有发布 OTA。
+账户未分配模型额度时仍可登录和浏览本地功能，只是暂时不能发起模型任务。
+
+## 系统、桌面与安装
+
+正式包是 macOS ARM64、Windows x64、Linux x64。Linux 只发两份：`.deb`（Ubuntu / Debian）和 `.tar.gz`（Omarchy / Arch / NixOS）。不按发行版×架构再拆包。
+
+| 系统 | 安装包 | Computer Use | Browser Use |
+| --- | --- | :---: | :---: |
+| macOS Apple Silicon | DMG | ✅ | ✅ |
+| Windows x64 | EXE | ✅ | ✅ |
+| Linux x64 | `.deb` / `.tar.gz` | 见下表 | ✅ |
+
+Linux Computer Use 按桌面，不是按发行版。GNOME 是整桌面授权（不是窗口 Scope）。不接 Cua，不用 `xinput` 摘键鼠。
+
+| Linux 桌面 | Computer Use |
+| --- | :---: |
+| GNOME Wayland | ✅ |
+| Hyprland | ❌ |
+| Xorg | ❌ |
+
+| Linux 发行版 | 怎么装 |
+| --- | --- |
+| Ubuntu 24.04 / Debian 13 | `.deb`：`sudo apt install ./MilkSU-Linux-x64-<version>.deb` |
+| Omarchy / Arch | `.tar.gz` + 仓库 `packaging/linux/PKGBUILD.in`，填版本与 sha256 后 `makepkg -si` |
+| NixOS | 解压同一 `.tar.gz`，`MILKSU_LINUX_UNPACKED=/path/to/unpacked nix --impure build ./packaging/linux` |
+
+Linux 暂无 Secret Service、本地 OCR。合同：[Linux 安装与桌面合同](docs/developer/linux-platform-support.md)。
 
 ## 本地优先
 

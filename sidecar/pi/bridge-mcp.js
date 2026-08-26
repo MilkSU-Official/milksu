@@ -8,9 +8,13 @@ import {
   readFile,
   realpath,
 } from "node:fs/promises";
-import { dirname, join, relative, resolve, sep } from "node:path";
-import { tmpdir } from "node:os";
+import { delimiter, dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  computerUseRuntimeRoot,
+  computerUseSocket,
+  playwrightSocketRoot as playwrightSocketRootPath,
+} from "../hostpath.js";
 import { sandboxProfile } from "./bridge-policy.js";
 import {
   browserUseMcpServerName,
@@ -41,9 +45,7 @@ const playwrightMcpCliPath = join(
   "mcp",
   "cli.js",
 );
-const shortRuntimeRoot = process.platform === "darwin" ? "/private/tmp" : tmpdir();
-const playwrightSocketRoot = join(shortRuntimeRoot, "milksu-playwright");
-const computerUseSocketRoot = join(shortRuntimeRoot, "milksu-computer-use");
+const playwrightSocketRoot = playwrightSocketRootPath();
 const packagedComputerUseProxyPath = join(bridgeDirectory, "computer-use-proxy.cjs");
 const computerUseProxyPath = existsSync(packagedComputerUseProxyPath)
   ? packagedComputerUseProxyPath
@@ -52,10 +54,97 @@ const computerUseDriverPath = join(
   bridgeDirectory,
   process.platform === "win32" ? "cua-driver.exe" : "cua-driver",
 );
-const browserUseExecutableCandidates = [
-  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-  "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
-];
+export function browserUseExecutableCandidatesFor(platform, env = process.env) {
+  if (platform === "darwin") {
+    return [
+      "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+      "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+    ];
+  }
+  if (platform === "win32") {
+    const programFiles = String(env.ProgramFiles || "C:\\Program Files");
+    const programFilesX86 = String(env["ProgramFiles(x86)"] || "C:\\Program Files (x86)");
+    const localAppData = String(env.LOCALAPPDATA || "");
+    return [
+      join(programFiles, "Google", "Chrome", "Application", "chrome.exe"),
+      join(programFiles, "Microsoft", "Edge", "Application", "msedge.exe"),
+      join(programFilesX86, "Google", "Chrome", "Application", "chrome.exe"),
+      join(programFilesX86, "Microsoft", "Edge", "Application", "msedge.exe"),
+      ...(localAppData
+        ? [join(localAppData, "Google", "Chrome", "Application", "chrome.exe")]
+        : []),
+    ];
+  }
+  const home = String(env.HOME || "");
+  return [
+    "/usr/bin/google-chrome-stable",
+    "/usr/bin/google-chrome",
+    "/usr/bin/chromium",
+    "/usr/bin/chromium-browser",
+    "/usr/bin/microsoft-edge-stable",
+    "/usr/bin/microsoft-edge",
+    "/usr/bin/brave-browser",
+    "/snap/bin/chromium",
+    "/run/current-system/sw/bin/chromium",
+    "/run/current-system/sw/bin/google-chrome-stable",
+    ...(home
+      ? [
+        join(home, ".nix-profile", "bin", "chromium"),
+        join(home, ".nix-profile", "bin", "google-chrome-stable"),
+      ]
+      : []),
+  ];
+}
+
+function browserUsePathNames(platform) {
+  if (platform === "win32") return ["chrome.exe", "msedge.exe", "brave.exe"];
+  if (platform === "darwin") return [];
+  return [
+    "google-chrome-stable",
+    "google-chrome",
+    "chromium",
+    "chromium-browser",
+    "microsoft-edge-stable",
+    "microsoft-edge",
+    "brave-browser",
+  ];
+}
+
+async function firstExistingRegularFile(candidates) {
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    try {
+      const metadata = await lstat(candidate);
+      if (metadata.isFile()) return candidate;
+      if (metadata.isSymbolicLink()) {
+        const resolved = await realpath(candidate);
+        const resolvedMeta = await lstat(resolved);
+        if (resolvedMeta.isFile()) return candidate;
+      }
+    } catch (error) {
+      if (error?.code !== "ENOENT" && error?.code !== "EINVAL") throw error;
+    }
+  }
+  return "";
+}
+
+async function lookupOnPath(name, env = process.env) {
+  const pathValue = String(env.PATH || env.Path || "");
+  const extensions = process.platform === "win32"
+    ? String(env.PATHEXT || ".EXE;.CMD;.BAT").split(";").filter(Boolean)
+    : [""];
+  const names = extensions.length && !name.includes(".")
+    ? extensions.map(ext => name + ext)
+    : [name];
+  for (const directory of pathValue.split(delimiter)) {
+    if (!directory) continue;
+    for (const fileName of names) {
+      const found = await firstExistingRegularFile([join(directory, fileName)]);
+      if (found) return found;
+    }
+  }
+  return "";
+}
 const unixSafeChildEnvironmentNames = [
   "HOME",
   "PATH",
@@ -522,9 +611,7 @@ export function normalizeComputerUseDescriptor(value) {
     throw new Error("MilkSU rejected an invalid Computer Use session id");
   }
   const socketPath = String(value.socketPath ?? "").trim();
-  const expectedSocket = process.platform === "win32"
-    ? `\\\\.\\pipe\\milksu-computer-use-${sessionId}`
-    : join(computerUseSocketRoot, sessionId, "driver.sock");
+  const expectedSocket = computerUseSocket(sessionId);
   if (socketPath !== expectedSocket) {
     throw new Error("MilkSU rejected a Computer Use socket outside its private session");
   }
@@ -577,7 +664,7 @@ export function computerUseSandboxProfile(socketPath, runtimeRoot) {
     "/Library",
     "/private/var/select",
   ];
-  const metadataOnlyRoots = ["/private", "/private/tmp"];
+  const metadataOnlyRoots = ["/private", "/private/tmp"]; // Darwin system prefixes, not MilkSU runtime roots.
   for (const root of readableRoots) {
     let parent = dirname(root);
     while (parent !== dirname(parent)) {
@@ -605,17 +692,16 @@ export function computerUseSandboxProfile(socketPath, runtimeRoot) {
 export async function createFirstPartyComputerUseMcpServer(descriptor) {
   const computerUse = normalizeComputerUseDescriptor(descriptor);
   if (!computerUse) return undefined;
-  const [proxyMetadata, driverMetadata] = await Promise.all([
-    lstat(computerUseProxyPath),
-    lstat(computerUseDriverPath),
-  ]);
-  if (
-    proxyMetadata.isSymbolicLink()
-    || !proxyMetadata.isFile()
-    || driverMetadata.isSymbolicLink()
-    || !driverMetadata.isFile()
-  ) {
+  const portalMode = process.platform === "linux";
+  const proxyMetadata = await lstat(computerUseProxyPath);
+  if (proxyMetadata.isSymbolicLink() || !proxyMetadata.isFile()) {
     throw new Error("MilkSU packaged Computer Use runtime is unavailable");
+  }
+  if (!portalMode) {
+    const driverMetadata = await lstat(computerUseDriverPath);
+    if (driverMetadata.isSymbolicLink() || !driverMetadata.isFile()) {
+      throw new Error("MilkSU packaged Computer Use runtime is unavailable");
+    }
   }
   if (process.platform !== "win32") {
     const socketMetadata = await lstat(computerUse.socketPath);
@@ -623,9 +709,7 @@ export async function createFirstPartyComputerUseMcpServer(descriptor) {
       throw new Error("MilkSU packaged Computer Use runtime is unavailable");
     }
   }
-  const runtimeRoot = process.platform === "win32"
-    ? join(tmpdir(), "milksu-computer-use", computerUse.sessionId)
-    : dirname(computerUse.socketPath);
+  const runtimeRoot = computerUseRuntimeRoot(computerUse.sessionId);
   const runtimeHome = join(runtimeRoot, "home");
   const runtimeTemporary = join(runtimeRoot, "tmp");
   await Promise.all([
@@ -646,8 +730,9 @@ export async function createFirstPartyComputerUseMcpServer(descriptor) {
     String(computerUse.targetWindowId),
     "--target-pid",
     String(computerUse.targetPid),
-    "--driver",
-    computerUseDriverPath,
+    ...(portalMode
+      ? ["--backend", "portal"]
+      : ["--driver", computerUseDriverPath]),
   ];
   if (process.platform === "win32") {
     const systemRoot = process.env.SystemRoot || "C:\\Windows";
@@ -769,17 +854,17 @@ export async function createFirstPartyPlaywrightMcpServer(workspace, descriptor)
   };
 }
 
-async function resolveBrowserUseExecutable() {
-  for (const candidate of browserUseExecutableCandidates) {
-    try {
-      const metadata = await lstat(candidate);
-      if (!metadata.isSymbolicLink() && metadata.isFile()) return candidate;
-    } catch (error) {
-      if (error?.code !== "ENOENT") throw error;
-    }
+export async function resolveBrowserUseExecutable(platform = process.platform, env = process.env) {
+  const found = await firstExistingRegularFile(
+    browserUseExecutableCandidatesFor(platform, env),
+  );
+  if (found) return found;
+  for (const name of browserUsePathNames(platform)) {
+    const fromPath = await lookupOnPath(name, env);
+    if (fromPath) return fromPath;
   }
   throw new Error(
-    "MilkSU Browser Use requires Google Chrome or Microsoft Edge on macOS",
+    "MilkSU Browser Use 需要本机 Chrome、Chromium 或 Edge。Linux 请从系统软件源安装 Chromium。",
   );
 }
 
@@ -796,8 +881,9 @@ export async function createFirstPartyBrowserUseMcpServer(
     throw new Error("MilkSU packaged Playwright MCP CLI is unavailable");
   }
   const executablePath = options.executablePath || await resolveBrowserUseExecutable();
-  const executableMetadata = await lstat(executablePath);
-  if (executableMetadata.isSymbolicLink() || !executableMetadata.isFile()) {
+  const resolvedExecutable = await realpath(executablePath);
+  const executableMetadata = await lstat(resolvedExecutable);
+  if (!executableMetadata.isFile()) {
     throw new Error("MilkSU rejected an invalid Browser Use executable");
   }
   const runtimeRoot = await ensurePrivateDirectoryTree(
@@ -823,7 +909,7 @@ export async function createFirstPartyBrowserUseMcpServer(
           playwrightMcpCliPath,
           "--extension",
           "--executable-path",
-          executablePath,
+          resolvedExecutable,
           "--output-dir",
           evidenceRoot,
           "--output-max-size",
@@ -838,7 +924,7 @@ export async function createFirstPartyBrowserUseMcpServer(
       browserUseMcpServerName,
       root,
       {
-        extraReadableRoots: [sidecarResourceDirectory, executablePath],
+        extraReadableRoots: [sidecarResourceDirectory, resolvedExecutable],
         extraWritableRoots: [evidenceRoot],
       },
     ),

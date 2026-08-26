@@ -37,6 +37,7 @@
       "update-manager.cjs",
       "computer-use-permissions.cjs",
       "local-path.cjs",
+      "linux-desktop.cjs",
       "macos-screen-permission.cjs",
       "renderer-protocol.cjs",
       "renderer-reload.cjs",

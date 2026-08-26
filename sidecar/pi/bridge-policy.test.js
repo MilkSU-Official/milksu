@@ -12,6 +12,7 @@ import { createServer as createHTTPServer } from "node:http";
 import { createServer as createTCPServer } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { computerUseSocket } from "../hostpath.js";
 import test from "node:test";
 import {
   loadSessionPolicy,
@@ -304,8 +305,7 @@ test("Computer Use requires an explicit app-scoped session under every Go policy
   const workspace = await mkdtemp(join(tmpdir(), "milksu-computer-use-policy-"));
   const computerUse = {
     sessionId: "computer_12345678",
-    socketPath:
-      "/private/tmp/milksu-computer-use/computer_12345678/driver.sock",
+    socketPath: computerUseSocket("computer_12345678"),
     targetBundleId: "com.openai.codex",
     targetName: "Codex",
     targetPid: 4242,
@@ -514,7 +514,7 @@ test("Coding file tools do not require a second MilkSU workspace grant", async (
 
 test("Daily Coding product actions get action-specific tool policies", async () => {
   const workspace = await mkdtemp(join(
-    process.platform === "darwin" ? "/private/tmp" : tmpdir(),
+    tmpdir(),
     "milksu-product-actions-",
   ));
   const readOnlyTools = [

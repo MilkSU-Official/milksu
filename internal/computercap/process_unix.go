@@ -8,18 +8,11 @@ import (
 	"net"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"syscall"
 	"time"
 )
 
 func platformHostExecutable(int) string { return "" }
-
-func runtimeRootForPlatform(string) string { return runtimeRoot }
-
-func endpointForSession(_ string, directory string, _ string) string {
-	return filepath.Join(directory, "driver.sock")
-}
 
 func driverExecutableName(string) string { return "cua-driver" }
 

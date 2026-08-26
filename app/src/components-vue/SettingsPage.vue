@@ -54,6 +54,7 @@ import {
 } from 'lucide-vue-next'
 import { desktopErrorMessage, invokeCommand } from '@/desktop'
 import type {
+  BrowserUseRuntime,
   CodingComputerUsePermission,
   CodingComputerUseStatus,
 } from '@/codingEnvironmentTypes'
@@ -155,6 +156,8 @@ const computerUseRestarting = ref(false)
 const browserBridgeLoading = ref(false)
 const browserSetupBusy = ref(false)
 const browserUseOpening = ref(false)
+const browserUseRuntimeLoading = ref(false)
+const browserUseRuntime = ref<BrowserUseRuntime | null>(null)
 const backupExporting = ref(false)
 const restoreScheduling = ref(false)
 const diagnosticExporting = ref(false)
@@ -247,6 +250,7 @@ onMounted(() => {
   void loadUserArtifactDirectory()
   void loadBuildTracking()
   void refreshComputerUseStatus({ silent: true })
+  void refreshBrowserUseRuntime({ silent: true })
   void refreshBrowserBridgeStatus({ silent: true })
   window.addEventListener('focus', refreshComputerUseAfterSettings)
 })
@@ -923,6 +927,47 @@ const computerUsePermissionsReady = computed(() => Boolean(
   && computerUseStatus.value.permissions.screenRecording,
 ))
 
+const browserUseDescription = computed(() => {
+  if (browserUseRuntime.value?.found) {
+    return t(
+      `已找到 ${browserUseRuntime.value.name || 'Chromium'}。操作你选中的标签页。`,
+      `Found ${browserUseRuntime.value.name || 'Chromium'}. Acts on the tabs you select.`,
+    )
+  }
+  return t(
+    '没有找到 Chrome、Chromium 或 Edge。请安装后再检测。Linux 从软件源安装 Chromium；Omarchy 默认已有。',
+    'Chrome, Chromium or Edge was not found. Install one, then recheck. On Linux install Chromium from the distro; Omarchy already ships it.',
+  )
+})
+
+async function refreshBrowserUseRuntime(options: { silent?: boolean } = {}) {
+  browserUseRuntimeLoading.value = true
+  try {
+    browserUseRuntime.value = await invokeCommand<BrowserUseRuntime>('get_browser_use_runtime')
+    if (!options.silent) {
+      notice.value = {
+        tone: browserUseRuntime.value.found ? 'ok' : 'error',
+        text: browserUseRuntime.value.found
+          ? t('已找到本机浏览器。', 'Found a local browser.')
+          : t(
+            '没有找到 Chrome、Chromium 或 Edge。请安装后再检测。',
+            'Chrome, Chromium or Edge was not found. Install one, then recheck.',
+          ),
+      }
+    }
+  } catch (reason) {
+    browserUseRuntime.value = null
+    if (!options.silent) {
+      notice.value = {
+        tone: 'error',
+        text: t(`无法检测浏览器：${String(reason)}`, `Could not detect a browser: ${String(reason)}`),
+      }
+    }
+  } finally {
+    browserUseRuntimeLoading.value = false
+  }
+}
+
 const browserBridgeConnected = computed(() => Boolean(browserBridgeStatus.value?.bridge.connected))
 const browserPairingReady = computed(() => Boolean(browserBridgeStatus.value?.bridge.pairingCode))
 const browserExtensionReady = computed(() => Boolean(browserBridgeStatus.value?.bridge.extensionPath))
@@ -1520,17 +1565,29 @@ async function saveProviderEditor(closeAfterSave: boolean) {
           <SettingsSection title="Browser Use">
             <SettingsRow
               :label="t('真实浏览器', 'Your browser')"
-              :description="t('操作你选中的 Chrome 或 Edge 标签页。', 'Acts on Chrome or Edge tabs you select.')"
+              :description="browserUseDescription"
               :divider="false"
             >
-              <Button
-                variant="outline"
-                size="sm"
-                :loading="browserUseOpening"
-                @click="openPlaywrightBrowserExtension"
-              >
-                {{ t('安装扩展', 'Install extension') }}
-              </Button>
+              <div class="flex items-center gap-2">
+                <ConnectionLiveStatus :live="Boolean(browserUseRuntime?.found)" />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  :loading="browserUseRuntimeLoading"
+                  @click="refreshBrowserUseRuntime()"
+                >
+                  {{ t('检测', 'Check') }}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  :loading="browserUseOpening"
+                  :disabled="!browserUseRuntime?.found"
+                  @click="openPlaywrightBrowserExtension"
+                >
+                  {{ t('安装扩展', 'Install extension') }}
+                </Button>
+              </div>
             </SettingsRow>
           </SettingsSection>
 
@@ -1602,6 +1659,14 @@ async function saveProviderEditor(closeAfterSave: boolean) {
               :divider="false"
             >
               <ConnectionLiveStatus :live="false" />
+            </SettingsRow>
+            <SettingsRow
+              v-else-if="computerUseStatus?.signing?.signature === 'linux-portal'"
+              :label="t('桌面共享', 'Desktop sharing')"
+              :description="t('启动任务时 GNOME 会弹出授权。截屏、按坐标点击和打字是整桌面级，不是单个窗口。', 'GNOME prompts for sharing when you start a task. Screenshot, coordinate clicks and typing are display-level, not a single window.')"
+              :divider="false"
+            >
+              <ConnectionLiveStatus :live="true" />
             </SettingsRow>
             <template v-else-if="computerUseStatus">
               <SettingsRow :label="t('辅助功能', 'Accessibility')">

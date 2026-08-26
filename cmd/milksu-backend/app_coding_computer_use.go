@@ -3,12 +3,21 @@ package main
 import (
 	"context"
 	"fmt"
+	"runtime"
 	"time"
 
 	"github.com/MilkSU-Official/milksu/internal/computercap"
 )
 
 const codingComputerUseStartTimeout = 16 * time.Second
+const linuxPortalComputerUseStartTimeout = 90 * time.Second
+
+func codingComputerUseStartBound() time.Duration {
+	if runtime.GOOS == "linux" {
+		return linuxPortalComputerUseStartTimeout
+	}
+	return codingComputerUseStartTimeout
+}
 
 func (a *App) GetCodingComputerUseStatus() computercap.Status {
 	if a.computerUse == nil {
@@ -62,7 +71,7 @@ func (a *App) restoreCodingComputerUse(
 	}
 	restoreContext, cancel := context.WithTimeout(
 		a.commandContext(),
-		codingComputerUseStartTimeout,
+		codingComputerUseStartBound(),
 	)
 	defer cancel()
 	return a.computerUse.Restore(restoreContext, conversationID)
@@ -106,7 +115,7 @@ func (a *App) StartCodingComputerUse(
 	}
 	startContext, cancel := context.WithTimeout(
 		a.commandContext(),
-		codingComputerUseStartTimeout,
+		codingComputerUseStartBound(),
 	)
 	defer cancel()
 	status, err := a.computerUse.Start(

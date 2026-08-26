@@ -21,6 +21,7 @@ import (
 
 	"github.com/MilkSU-Official/milksu/internal/codingattachment"
 	"github.com/MilkSU-Official/milksu/internal/config"
+	"github.com/MilkSU-Official/milksu/internal/hostpath"
 	"github.com/MilkSU-Official/milksu/internal/securitytools"
 )
 
@@ -836,14 +837,7 @@ func normalizeComputerUseDescriptor(
 		}
 		return nil, fmt.Errorf("invalid Computer Use session id")
 	}
-	expectedSocket := filepath.Join(
-		"/private/tmp/milksu-computer-use",
-		sessionID,
-		"driver.sock",
-	)
-	if runtime.GOOS == "windows" {
-		expectedSocket = `\\.\pipe\milksu-computer-use-` + sessionID
-	}
+	expectedSocket := hostpath.ComputerUseSocket(runtime.GOOS, sessionID)
 	if strings.TrimSpace(descriptor.SocketPath) != expectedSocket {
 		return nil, fmt.Errorf("invalid Computer Use socket path")
 	}

@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import {
+  chmod,
   lstat,
   mkdir,
   mkdtemp,
@@ -13,6 +14,7 @@ import {
 import { dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
+import { computerUseRuntimeRoot, computerUseSocket, ephemeralRoot } from "../hostpath.js";
 import {
   browserUseMcpServerName,
   browserUseSelectionChanged,
@@ -22,7 +24,9 @@ import {
   computerUseSandboxProfile,
   computerUseSelectionChanged,
   createFirstPartyPlaywrightMcpServer,
+  browserUseExecutableCandidatesFor,
   createFirstPartyBrowserUseMcpServer,
+  resolveBrowserUseExecutable,
   ensureMcpMetadataCache,
   loadCodingMcpConfig,
   loadSelectedMcpConfig,
@@ -36,12 +40,11 @@ import {
 } from "./bridge-mcp.js";
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
-const shortRuntimeRoot = process.platform === "darwin" ? "/private/tmp" : tmpdir();
 const usesSandboxExec = process.platform === "darwin";
 
 function playwrightSocketAssignment(sessionId) {
   return `PWTEST_SOCKETS_DIR=${join(
-    shortRuntimeRoot,
+    ephemeralRoot(),
     "milksu-playwright",
     sessionId.slice(-12),
   )}`;
@@ -318,6 +321,23 @@ test("builds Browser Use from the pinned Playwright extension mode", async () =>
   assert.equal(builtIn.server.lifecycle, "lazy");
 });
 
+test("resolves Linux Chromium for Browser Use instead of macOS-only Chrome", async () => {
+  const linux = browserUseExecutableCandidatesFor("linux", { HOME: "/home/milksu" });
+  assert.ok(linux.includes("/usr/bin/chromium"));
+  assert.ok(linux.includes("/snap/bin/chromium"));
+  assert.ok(linux.includes("/home/milksu/.nix-profile/bin/chromium"));
+  const workspace = await mkdtemp(join(tmpdir(), "milksu-browser-use-linux-"));
+  const nixChrome = join(workspace, ".nix-profile", "bin", "chromium");
+  await mkdir(dirname(nixChrome), { recursive: true });
+  await writeFile(nixChrome, "#!/bin/sh\n");
+  await chmod(nixChrome, 0o755);
+  const found = await resolveBrowserUseExecutable("linux", {
+    HOME: workspace,
+    PATH: "/nonexistent",
+  });
+  assert.equal(found, nixChrome);
+});
+
 test("keeps the Browser Use sentinel out of project MCP selection", () => {
   assert.deepEqual(
     projectMcpServersFromSelection(["fixture", browserUseMcpServerName]),
@@ -542,14 +562,7 @@ test("reserves the built-in Playwright server name from project MCP config", asy
 test("accepts only an exact immutable scoped Computer Use descriptor", () => {
   const valid = {
     sessionId: "computer_12345678",
-    socketPath: process.platform === "win32"
-      ? "\\\\.\\pipe\\milksu-computer-use-computer_12345678"
-      : join(
-        shortRuntimeRoot,
-        "milksu-computer-use",
-        "computer_12345678",
-        "driver.sock",
-      ),
+    socketPath: computerUseSocket("computer_12345678"),
     targetBundleId: "com.openai.codex",
     targetName: "Codex",
     targetPid: 4242,
@@ -577,21 +590,15 @@ test("accepts only an exact immutable scoped Computer Use descriptor", () => {
 });
 
 test("Computer Use sandbox grants only one private Unix socket", () => {
-  const socketPath =
-    "/private/tmp/milksu-computer-use/computer_12345678/driver.sock";
-  const profile = computerUseSandboxProfile(
-    socketPath,
-    "/private/tmp/milksu-computer-use/computer_12345678",
-  );
-  assert.match(
-    profile,
-    /network-outbound \(remote unix-socket \(path-literal "\/private\/tmp\/milksu-computer-use\/computer_12345678\/driver\.sock"\)\)/,
-  );
+  const sessionId = "computer_12345678";
+  const socketPath = computerUseSocket(sessionId);
+  const runtimeRoot = computerUseRuntimeRoot(sessionId);
+  const profile = computerUseSandboxProfile(socketPath, runtimeRoot);
+  assert.ok(profile.includes(`path-literal ${JSON.stringify(socketPath)}`));
   assert.doesNotMatch(profile, /\(allow network\*\)/);
   assert.doesNotMatch(profile, /network-inbound/);
-  assert.doesNotMatch(
-    profile,
-    /\(allow file-write\* \(subpath "\/private\/tmp\/milksu-computer-use\/computer_12345678"\)\)/,
+  assert.ok(
+    !profile.includes(`(allow file-write* (subpath ${JSON.stringify(runtimeRoot)}))`),
   );
 });
 

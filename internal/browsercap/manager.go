@@ -328,8 +328,12 @@ func (m *Manager) Start(ctx context.Context, initialURL string) (Session, error)
 	arguments := []string{
 		"--remote-debugging-address=127.0.0.1", "--remote-debugging-port=0", "--user-data-dir=" + profile,
 		"--no-first-run", "--no-default-browser-check", "--disable-sync", "--disable-component-update",
-		"--metrics-recording-only", "--disable-breakpad", "--new-window", initialURL,
+		"--metrics-recording-only", "--disable-breakpad", "--new-window",
 	}
+	if runtime.GOOS == "linux" {
+		arguments = append(arguments, "--ozone-platform-hint=auto")
+	}
+	arguments = append(arguments, initialURL)
 	command := exec.Command(binary, arguments...)
 	command.Env = browserEnvironment()
 	if err := command.Start(); err != nil {
@@ -2110,34 +2114,6 @@ func loopbackEndpointPort(raw string) (int, error) {
 		return 0, fmt.Errorf("Chromium host returned an invalid private CDP port")
 	}
 	return port, nil
-}
-
-func findChrome() (string, error) {
-	if override := strings.TrimSpace(os.Getenv("MILKSU_CHROME_PATH")); override != "" {
-		if info, err := os.Stat(override); err == nil && info.Mode().IsRegular() {
-			return override, nil
-		}
-		return "", fmt.Errorf("MILKSU_CHROME_PATH is not an executable file")
-	}
-	candidates := []string{}
-	if runtime.GOOS == "darwin" {
-		candidates = []string{
-			"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-			"/Applications/Chromium.app/Contents/MacOS/Chromium",
-			"/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
-		}
-	}
-	for _, candidate := range candidates {
-		if info, err := os.Stat(candidate); err == nil && info.Mode().IsRegular() {
-			return candidate, nil
-		}
-	}
-	for _, name := range []string{"google-chrome", "chromium", "chromium-browser", "microsoft-edge"} {
-		if path, err := exec.LookPath(name); err == nil {
-			return path, nil
-		}
-	}
-	return "", fmt.Errorf("a Chromium-family browser is required for Managed Browser")
 }
 
 func browserEnvironment() []string {

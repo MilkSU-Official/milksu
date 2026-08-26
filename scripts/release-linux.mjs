@@ -21,14 +21,22 @@ import {
 } from './lib/desktop-build-provenance.mjs'
 import { desktopAccountConfigFromEnvironment } from './lib/desktop-account-config.mjs'
 import { desktopChannelConfig } from './lib/desktop-channel.mjs'
+import { readLinuxPkgbuildTemplate, renderLinuxPkgbuild } from './lib/linux-packages.mjs'
+import { writeLinuxIconSet } from './lib/linux-icons.mjs'
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const channelConfig = desktopChannelConfig('stable')
-const platform = 'linux/amd64'
+if (process.platform !== 'linux' || !['x64', 'arm64'].includes(process.arch)) {
+  throw new Error('Linux release packaging must run natively on Linux x64 or arm64')
+}
+const electronArch = process.arch === 'arm64' ? 'arm64' : 'x64'
+const platform = electronArch === 'arm64' ? 'linux/arm64' : 'linux/amd64'
+const artifactArch = electronArch
+const unpackedDirectoryName = electronArch === 'arm64' ? 'linux-arm64-unpacked' : 'linux-unpacked'
 const outputDirectory = join(repositoryRoot, 'build', 'electron', 'linux', 'stable')
 const releaseDirectory = join(repositoryRoot, 'build', 'release')
 const backendPath = join(repositoryRoot, 'build', 'desktop', 'milksu-backend')
-const sidecarPath = join(repositoryRoot, 'build', 'sidecar', 'linux-amd64')
+const sidecarPath = join(repositoryRoot, 'build', 'sidecar', platform.replace('/', '-'))
 
 function run(command, args, options = {}) {
   return new Promise((resolvePromise, rejectPromise) => {
@@ -63,10 +71,6 @@ async function sha256(path) {
     stream.once('error', rejectPromise)
   })
   return hash.digest('hex')
-}
-
-if (process.platform !== 'linux' || process.arch !== 'x64') {
-  throw new Error('Linux release packaging must run natively on a Linux x64 runner')
 }
 
 const desktopPackage = JSON.parse(
@@ -119,10 +123,18 @@ const files = Array.isArray(desktopPackage.build?.files)
 for (const file of [
   'channel-identity.cjs',
   'computer-use-permissions.cjs',
+  'linux-desktop.cjs',
   'macos-screen-permission.cjs',
 ]) {
   if (!files.includes(file)) files.push(file)
 }
+
+const linuxIconDir = join(stagingDirectory, 'linux-icons')
+const linuxIcon256 = join(linuxIconDir, '256x256.png')
+await writeLinuxIconSet({
+  sourcePng: await readFile(join(repositoryRoot, 'build', 'appicon.png')),
+  outputDirectory: linuxIconDir,
+})
 
 const builderConfig = {
   ...desktopPackage.build,
@@ -149,17 +161,30 @@ const builderConfig = {
     { from: sidecarPath, to: 'milksu-sidecar' },
     { from: trackingPath, to: BUILD_TRACKING_RESOURCE },
     { from: accountConfigPath, to: 'account-config.json' },
+    { from: linuxIcon256, to: 'icon.png' },
+  ],
+  extraFiles: [
+    { from: linuxIcon256, to: 'milksu.png' },
   ],
   directories: { output: outputDirectory },
-  artifactName: 'MilkSU-Linux-x64-${version}.${ext}',
+  artifactName: `MilkSU-Linux-${artifactArch}-\${version}.\${ext}`,
   linux: {
-    icon: join(repositoryRoot, 'build', 'appicon.png'),
-    target: [{ target: 'deb', arch: ['x64'] }],
+    icon: linuxIconDir,
+    target: [
+      { target: 'deb', arch: [electronArch] },
+      { target: 'tar.gz', arch: [electronArch] },
+    ],
     category: 'Development',
     executableName: 'milksu',
     maintainer: 'MilkSU',
     synopsis: 'Personal security learning and research workspace',
     description: 'MilkSU desktop workspace for Coding, CTF and CVE learning workflows.',
+  },
+  deb: {
+    // electron-builder default Recommends libappindicator3-1, which is Ubuntu-only.
+    // Debian 13 ships libayatana-appindicator3-1 instead. Keep the shared DEB
+    // installable on both without a missing recommend.
+    recommends: [],
   },
 }
 delete builderConfig.mac
@@ -173,7 +198,8 @@ await run(process.execPath, [
   join(repositoryRoot, 'desktop', 'node_modules', 'electron-builder', 'cli.js'),
   '--linux',
   'deb',
-  '--x64',
+  'tar.gz',
+  `--${electronArch}`,
   `--config=${configPath}`,
   '--project',
   join(repositoryRoot, 'desktop'),
@@ -188,9 +214,9 @@ await run(process.execPath, [
   },
 })
 
-const unpackedResources = join(outputDirectory, 'linux-unpacked', 'resources')
+const unpackedResources = join(outputDirectory, unpackedDirectoryName, 'resources')
 for (const required of [
-  join(outputDirectory, 'linux-unpacked', 'milksu'),
+  join(outputDirectory, unpackedDirectoryName, 'milksu'),
   join(unpackedResources, 'renderer', 'index.html'),
   join(unpackedResources, 'milksu-backend'),
   join(unpackedResources, BUILD_TRACKING_RESOURCE),
@@ -203,7 +229,7 @@ for (const required of [
   }
 }
 
-const packageName = `MilkSU-Linux-x64-${version}.deb`
+const packageName = `MilkSU-Linux-${artifactArch}-${version}.deb`
 const builtPackage = join(outputDirectory, packageName)
 if (!await exists(builtPackage)) {
   const candidates = (await readdir(outputDirectory)).filter(name => name.endsWith('.deb'))
@@ -215,11 +241,41 @@ if (!await exists(builtPackage)) {
 await mkdir(releaseDirectory, { recursive: true })
 const releasePackage = join(releaseDirectory, packageName)
 await copyFile(builtPackage, releasePackage)
+
+const tarballName = `MilkSU-Linux-${artifactArch}-${version}.tar.gz`
+const builtTarball = join(outputDirectory, tarballName)
+if (!await exists(builtTarball)) {
+  const candidates = (await readdir(outputDirectory)).filter(name => name.endsWith('.tar.gz'))
+  throw new Error(
+    `electron-builder did not produce ${tarballName}; candidates=${candidates.join(',')}`,
+  )
+}
+const releaseTarball = join(releaseDirectory, tarballName)
+await copyFile(builtTarball, releaseTarball)
+const tarballSha256 = await sha256(releaseTarball)
+await copyFile(
+  join(repositoryRoot, 'packaging', 'linux', 'milksu.desktop'),
+  join(releaseDirectory, 'milksu.desktop'),
+)
+let pkgbuild = ''
+if (electronArch === 'x64') {
+  const pkgbuildTemplate = await readLinuxPkgbuildTemplate(
+    join(repositoryRoot, 'packaging', 'linux', 'PKGBUILD.in'),
+  )
+  pkgbuild = join(releaseDirectory, 'PKGBUILD')
+  await writeFile(
+    pkgbuild,
+    renderLinuxPkgbuild({ version, sha256: tarballSha256, template: pkgbuildTemplate }),
+  )
+}
 process.stdout.write(`${JSON.stringify({
   platform,
   version,
   package: releasePackage,
+  tarball: releaseTarball,
+  ...(pkgbuild ? { pkgbuild } : {}),
   sha256: await sha256(releasePackage),
+  tarballSha256,
   size: (await stat(releasePackage)).size,
   signed: false,
   localOcr: false,

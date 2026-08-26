@@ -1478,6 +1478,10 @@ func (a *App) OpenPlaywrightBrowserExtension() error {
 	return a.openExternal("https://chromewebstore.google.com/detail/playwright-extension/mmlmfjhmonkocbjadbfplnigmagldckm")
 }
 
+func (a *App) GetBrowserUseRuntime() browsercap.BrowserUseRuntime {
+	return browsercap.BrowserUseRuntimeStatus()
+}
+
 func (a *App) RevealBrowserExtension() error {
 	if a.ctx == nil {
 		return fmt.Errorf("desktop runtime is not ready")
