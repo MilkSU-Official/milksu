@@ -52,6 +52,10 @@ const {
 const { requestMacOSScreenPermission } = require('./macos-screen-permission.cjs')
 const { openLocalPath } = require('./local-path.cjs')
 const {
+  applyLinuxChromiumFlags,
+  linuxUserAgent,
+} = require('./linux-desktop.cjs')
+const {
   desktopBackendEnvironment,
   electronNodeEnvironment,
 } = require('./startup-environment.cjs')
@@ -66,14 +70,7 @@ const EVENT_PATTERN = /^[a-z][a-z0-9._-]{0,100}$/u
 const BROWSER_SESSION_PATTERN = /^browser_[0-9a-f-]{36}$/u
 const BROWSER_TAB_PATTERN = /^tab_[0-9a-f-]{36}$/u
 const MAX_BROWSER_TABS = 8
-const BROWSER_USER_AGENT = [
-  process.platform === 'win32'
-    ? 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
-    : 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
-  'AppleWebKit/537.36 (KHTML, like Gecko)',
-  `Chrome/${process.versions.chrome}`,
-  'Safari/537.36',
-].join(' ')
+const BROWSER_USER_AGENT = linuxUserAgent(process.versions.chrome)
 
 const macOSScreenPermissionPath = app.isPackaged
   ? path.join(process.resourcesPath, 'macos-screen-permission.node')
@@ -133,6 +130,7 @@ function findFreePort() {
 const devToolsPort = findFreePort()
 app.commandLine.appendSwitch('remote-debugging-address', '127.0.0.1')
 app.commandLine.appendSwitch('remote-debugging-port', String(devToolsPort))
+applyLinuxChromiumFlags(app.commandLine)
 
 // Stable keeps Electron natural userData (existing installs / TCC continuity).
 // Beta always pins a distinct Application Support directory by appId so it can

@@ -127,6 +127,7 @@ const files = Array.isArray(desktopPackage.build?.files)
 for (const file of [
   'channel-identity.cjs',
   'computer-use-permissions.cjs',
+  'linux-desktop.cjs',
   'macos-screen-permission.cjs',
 ]) {
   if (!files.includes(file)) files.push(file)

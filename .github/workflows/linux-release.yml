@@ -14,7 +14,7 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
         with:
@@ -124,9 +124,21 @@ jobs:
           version="$(node -p "require('./desktop/package.json').version")"
           package="build/release/MilkSU-Linux-x64-${version}.deb"
           bash scripts/verify-linux-deb-debian13.sh "$package"
+      - name: Install the pacman package on Arch
+        run: |
+          set -euo pipefail
+          bash scripts/verify-linux-pacman-arch.sh build/release
+      - name: Wrap linux-unpacked on NixOS
+        run: |
+          set -euo pipefail
+          bash scripts/verify-linux-nixos.sh build/electron/linux/stable/linux-unpacked
       - uses: actions/upload-artifact@v4
         with:
           name: MilkSU-Linux-x64-deb-trial
-          path: build/release/MilkSU-Linux-x64-*.deb
+          path: |
+            build/release/MilkSU-Linux-x64-*.deb
+            build/release/MilkSU-Linux-x64-*.tar.gz
+            build/release/PKGBUILD
+            build/release/milksu.desktop
           if-no-files-found: error
           retention-days: 14

@@ -271,9 +271,9 @@ func (manager *Manager) Prepare(ctx context.Context, options PrepareOptions) (Pr
 	if manager.goos != "darwin" && manager.goos != "windows" {
 		return PrepareResult{
 			Version:  DriverVersion,
-			Problem:  "Computer Use 当前不支持此平台。",
-			NextStep: "换到 macOS 或 Windows 后再使用 Computer Use。",
-		}, fmt.Errorf("Computer Use 当前不支持此平台")
+			Problem:  linuxComputerUseProblem,
+			NextStep: "在 macOS 或 Windows 上使用 Computer Use。Linux 可安装并运行 MilkSU，但不控制宿主桌面。",
+		}, fmt.Errorf("%s", linuxComputerUseProblem)
 	}
 	manager.mu.Lock()
 	if path, err := manager.resolveBinaryLocked(); err == nil {

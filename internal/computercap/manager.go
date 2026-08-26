@@ -17,11 +17,12 @@ import (
 )
 
 const (
-	DriverVersion       = "0.14.2"
-	defaultHostBundleID = "com.milksu.app"
-	runtimeRoot         = "/private/tmp/milksu-computer-use"
-	hostBundleIDEnv     = "MILKSU_DESKTOP_APP_ID"
-	hostBundleIDEnvAlt  = "CUA_DRIVER_HOST_BUNDLE_ID"
+	DriverVersion           = "0.14.2"
+	linuxComputerUseProblem = "Computer Use 当前在 Linux 上不可用。MilkSU 可在 GNOME 与 Hyprland 运行，但不控制宿主桌面。"
+	defaultHostBundleID     = "com.milksu.app"
+	runtimeRoot             = "/private/tmp/milksu-computer-use"
+	hostBundleIDEnv         = "MILKSU_DESKTOP_APP_ID"
+	hostBundleIDEnvAlt      = "CUA_DRIVER_HOST_BUNDLE_ID"
 )
 
 type Permissions struct {
@@ -699,7 +700,7 @@ func (manager *Manager) statusLocked(permissions Permissions) Status {
 	if manager.goos != "darwin" && manager.goos != "windows" {
 		status.Available = false
 		status.Phase = "unavailable"
-		status.Problem = "Computer Use 当前不支持此平台。"
+		status.Problem = linuxComputerUseProblem
 		return status
 	}
 	if !status.Available {

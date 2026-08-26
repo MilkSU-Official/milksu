@@ -146,6 +146,7 @@
 - 域对话最大化铺满侧栏右侧。对话区时间分割线居中，宽度与正文一致。
 - `milksu_ask` 把用户选择行接到 Pi 并暂停回合。流式正文走真实 token 的模糊尾；文件改动用 chips。
 - README 截图已按当前 UI 重拍。
+- Linux 安装面改为同一 amd64 staging：Ubuntu/Debian `.deb`、Omarchy `tar.gz`+PKGBUILD、NixOS flake。GNOME 与 Hyprland 使用 Wayland ozone auto。Computer Use、OCR、Secret Service 仍 unavailable。
 
 ## 当前产品事实
 
@@ -216,7 +217,7 @@ Windows 签名、Linux 缺失能力、R2/OTA 仍是发行后续，不是产品�
 | P0 | Pi Runtime 用户验收 | 最新正式包中验证跨目录读写、CTF/CVE 交接、长输出续跑和重启恢复，不出现 MilkSU 自建 workspace 策略或旧 session ID。 |
 | P1 | 下一版三端回执发行 | 需要新的版本号、同一 source commit、三端产物、SHA-256 与平台验收。现有 `v26.825.1` 只覆盖 `efddfc2`。 |
 | P1 | OTA 与私有 R2 | Admin 草稿/发布/暂停和 Desktop 更新提示已有；仍需一次受账户鉴权的真实旧签名版 → 新签名版升级回执。 |
-| P1 | Linux Debian 13 安装面 | 同一 amd64 DEB 在 Debian 13 上完成 `apt`/`dpkg` 安装，打包的 Go Runtime 与 Pi Sidecar 能启动。CUA、OCR、Secret Service 仍 unavailable。不恢复 ISSUE #19 的 X11 物理设备摘除。四发行版边界见 [Linux 四发行版支持合同](linux-platform-support.md)，不作为本切片完成门。 |
+| P1 | Linux 四发行版安装面 | Ubuntu 24.04 / Debian 13 共用 `.deb`，Omarchy 用 tarball + PKGBUILD，NixOS 用 flake 包装同一 `linux-unpacked`。GNOME 与 Hyprland 走 Wayland ozone auto。Computer Use / OCR / Secret Service 仍 unavailable，不恢复 ISSUE #19。合同见 [Linux 四发行版支持合同](linux-platform-support.md)。 |
 | P1 | 安全工具真实任务 | IDA/idalib 与 capa 已有设置、准备和健康检查；用受控本地样本留下真实任务回执。就绪工具接到实验室作业，窄工具也可进 CVE 复现；不需要先开一次“是否投影”的会。不把 HexStrike 整包 MCP 做成产品页或 Kali 应用商店。CodeQL、Burp、Shannon 仍逐项接入。 |
 | P1 | Obelisk 学习记录 | 先定义可归因学习事实，再设计独立页面；不恢复已删除的单会话相关历史/图谱面板。 |
 | 未接线 | 继续同一作业还是新开一轮 | 当前按同一 CVE/实验室作业复用同一会话和 `report.md`。新开一轮的产品决策还没定。 |

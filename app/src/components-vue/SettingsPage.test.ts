@@ -695,6 +695,7 @@ describe('SettingsPage database compatibility', () => {
     const text = document.body.textContent ?? ''
     expect(text).toContain('Browser Use')
     expect(text).toContain('真实浏览器')
+    expect(text).toContain('Chromium')
     expect(text).toContain('CTF 站点')
     expect(text).toContain('Computer Use')
     expect(text).toContain('安装扩展')

@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=MilkSU
+Comment=Personal security learning and research workspace
+Exec=env ELECTRON_OZONE_PLATFORM_HINT=auto milksu %U
+Icon=milksu
+Terminal=false
+Categories=Development;
+StartupWMClass=MilkSU
+MimeType=x-scheme-handler/milksu;
+Keywords=CTF;CVE;Coding;

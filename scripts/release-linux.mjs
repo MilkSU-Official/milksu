@@ -21,6 +21,7 @@ import {
 } from './lib/desktop-build-provenance.mjs'
 import { desktopAccountConfigFromEnvironment } from './lib/desktop-account-config.mjs'
 import { desktopChannelConfig } from './lib/desktop-channel.mjs'
+import { readLinuxPkgbuildTemplate, renderLinuxPkgbuild } from './lib/linux-packages.mjs'
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const channelConfig = desktopChannelConfig('stable')
@@ -119,6 +120,7 @@ const files = Array.isArray(desktopPackage.build?.files)
 for (const file of [
   'channel-identity.cjs',
   'computer-use-permissions.cjs',
+  'linux-desktop.cjs',
   'macos-screen-permission.cjs',
 ]) {
   if (!files.includes(file)) files.push(file)
@@ -154,12 +156,23 @@ const builderConfig = {
   artifactName: 'MilkSU-Linux-x64-${version}.${ext}',
   linux: {
     icon: join(repositoryRoot, 'build', 'appicon.png'),
-    target: [{ target: 'deb', arch: ['x64'] }],
+    target: [
+      { target: 'deb', arch: ['x64'] },
+      { target: 'tar.gz', arch: ['x64'] },
+    ],
     category: 'Development',
     executableName: 'milksu',
     maintainer: 'MilkSU',
     synopsis: 'Personal security learning and research workspace',
     description: 'MilkSU desktop workspace for Coding, CTF and CVE learning workflows.',
+    desktop: {
+      entryName: 'milksu',
+      Name: 'MilkSU',
+      Comment: 'Personal security learning and research workspace',
+      Categories: 'Development;',
+      StartupWMClass: 'MilkSU',
+      MimeType: 'x-scheme-handler/milksu;',
+    },
   },
   deb: {
     // electron-builder default Recommends libappindicator3-1, which is Ubuntu-only.
@@ -179,6 +192,7 @@ await run(process.execPath, [
   join(repositoryRoot, 'desktop', 'node_modules', 'electron-builder', 'cli.js'),
   '--linux',
   'deb',
+  'tar.gz',
   '--x64',
   `--config=${configPath}`,
   '--project',
@@ -221,11 +235,37 @@ if (!await exists(builtPackage)) {
 await mkdir(releaseDirectory, { recursive: true })
 const releasePackage = join(releaseDirectory, packageName)
 await copyFile(builtPackage, releasePackage)
+
+const tarballName = `MilkSU-Linux-x64-${version}.tar.gz`
+const builtTarball = join(outputDirectory, tarballName)
+if (!await exists(builtTarball)) {
+  const candidates = (await readdir(outputDirectory)).filter(name => name.endsWith('.tar.gz'))
+  throw new Error(
+    `electron-builder did not produce ${tarballName}; candidates=${candidates.join(',')}`,
+  )
+}
+const releaseTarball = join(releaseDirectory, tarballName)
+await copyFile(builtTarball, releaseTarball)
+const tarballSha256 = await sha256(releaseTarball)
+const pkgbuildTemplate = await readLinuxPkgbuildTemplate(
+  join(repositoryRoot, 'packaging', 'linux', 'PKGBUILD.in'),
+)
+await writeFile(
+  join(releaseDirectory, 'PKGBUILD'),
+  renderLinuxPkgbuild({ version, sha256: tarballSha256, template: pkgbuildTemplate }),
+)
+await copyFile(
+  join(repositoryRoot, 'packaging', 'linux', 'milksu.desktop'),
+  join(releaseDirectory, 'milksu.desktop'),
+)
 process.stdout.write(`${JSON.stringify({
   platform,
   version,
   package: releasePackage,
+  tarball: releaseTarball,
+  pkgbuild: join(releaseDirectory, 'PKGBUILD'),
   sha256: await sha256(releasePackage),
+  tarballSha256,
   size: (await stat(releasePackage)).size,
   signed: false,
   localOcr: false,

@@ -118,6 +118,7 @@ async function writeBuilderConfig(trackingPath) {
     : []
   if (!files.includes('channel-identity.cjs')) files.push('channel-identity.cjs')
   if (!files.includes('computer-use-permissions.cjs')) files.push('computer-use-permissions.cjs')
+  if (!files.includes('linux-desktop.cjs')) files.push('linux-desktop.cjs')
   if (!files.includes('macos-screen-permission.cjs')) files.push('macos-screen-permission.cjs')
   const extraResources = [
     ...(desktopPackage.build?.extraResources || []),

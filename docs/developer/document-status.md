@@ -44,7 +44,7 @@
 | --- | --- | --- | --- |
 | [当前开发目标](current-objectives.md) | Current / Canonical | 当前阶段、正式发行基线、开发版本线、已发行/未发版事实、下一完成线和未接线方向 | 不保存完整聊天、微提交或旧验收过程；不复述 UI 规范 |
 | [当前系统与分层](../architecture/current-system.md) | Current / Canonical | 当前运行结构、依赖方向、桌面表面、能力边界和发行结构 | 不安排任务优先级；不复述 UI 规范 |
-| [Linux 四发行版支持合同](linux-platform-support.md) | Target / Designed | Ubuntu / Debian / Omarchy / NixOS 的安装面分层、ISSUE #19 拒绝摘设备、当前切片是 Debian 13 安装现有 DEB | 不把计划写成已发行能力；不做 L0–L6 实施队列；不复述 UI 规范 |
+| [Linux 四发行版支持合同](linux-platform-support.md) | Target / Designed | Ubuntu/Debian DEB、Omarchy PKGBUILD、NixOS flake、GNOME/Hyprland Wayland；CUA 仍 unavailable | 不把未发版安装面写成 GitHub Latest；不复述 UI 规范 |
 | 仓库根目录 `AGENTS.md` | Current / Canonical | 仓库协作约束与产品 UI 设计语言 | 其他文档只指向它，不复制层级、token 或原语表 |
 | 本文件 | Current / Living | 事实优先级、文档职责、生命周期和维护规则 | 不复制实现细节或测试日志 |
 | Evidence 文档 | Evidence | 可复现命令、截图、哈希、平台回执和失败证据 | 不自动升级为当前完成状态 |

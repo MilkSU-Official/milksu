@@ -1520,7 +1520,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
           <SettingsSection title="Browser Use">
             <SettingsRow
               :label="t('真实浏览器', 'Your browser')"
-              :description="t('操作你选中的 Chrome 或 Edge 标签页。', 'Acts on Chrome or Edge tabs you select.')"
+              :description="t('操作你选中的 Chrome、Chromium 或 Edge 标签页。Linux 会查找系统 PATH、桌面入口和 Nix 路径；Omarchy 默认是 Chromium。', 'Acts on Chrome, Chromium or Edge tabs you select. Linux looks up PATH, desktop entries and Nix paths; Omarchy defaults to Chromium.')"
               :divider="false"
             >
               <Button

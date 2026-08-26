@@ -37,10 +37,10 @@
 
 | 环境 | 安装面 | 应用与 Pi 工作循环 | Host Computer Use |
 | --- | --- | --- | --- |
-| Ubuntu 24.04 · GNOME Wayland | `.deb` | 当前切片的对照面（已有 Ubuntu + Xvfb 烟测） | unavailable；Portal 仅隔离研究 |
-| Debian 13 · GNOME Wayland | 同一 `.deb` | **当前切片**：容器/真机 `dpkg` 安装 + Pi 启动 | unavailable |
-| Omarchy · Hyprland | PKGBUILD / pacman | 以后单独开切片 | unavailable |
-| NixOS（当时仍受支持的 stable）· GNOME 或 Hyprland | flake + 通用 Linux 目录 | 以后单独开切片 | unavailable |
+| Ubuntu 24.04 · GNOME Wayland | `.deb` | 本切片：DEB + Wayland ozone | unavailable |
+| Debian 13 · GNOME Wayland | 同一 `.deb` | 本切片：`verify-linux-deb-debian13.sh` | unavailable |
+| Omarchy · Hyprland | tarball + PKGBUILD | 本切片：`verify-linux-pacman-arch.sh` | unavailable |
+| NixOS（nixos-unstable）· GNOME 或 Hyprland | flake + `linux-unpacked` | 本切片：`verify-linux-nixos.sh` | unavailable |
 
 Ubuntu / Debian 的 Xorg 会话只做负向验收：Computer Use 保持不可用，不运行 `xinput`。Fedora、openSUSE、KDE、Sway、Debian XFCE/MATE 不在首轮承诺里；代码应按能力探测自然降级。
 
@@ -66,11 +66,17 @@ GNOME Portal 若只能给出显示器级输入，就不能冒充现有 App/Windo
 
 ## 当前切片
 
-在 Debian 13 上安装现有 `linux/amd64` DEB：`dpkg`/`apt` 能解析依赖并完成安装；打包的 Go Runtime 与 Pi Sidecar 能启动。这证明 Ubuntu 构建的 DEB 不是 Ubuntu-only。
+同一 `linux/amd64` staging 产出三个安装面：
 
-2026-08-26 本机用 `debian:13` amd64 容器对 `v26.825.1` 包跑通 `scripts/verify-linux-deb-debian13.sh`：`apt-get install --no-install-recommends` 成功，Sidecar `create_session` 返回 `ready`，Go Runtime 报 `ready`。这不是 GNOME 桌面回执。安装脚本已接到 `linux-release.yml`。electron-builder 默认 `Recommends: libappindicator3-1` 是 Ubuntu-only，后续 Linux 包改为空 recommends。
+- Ubuntu 24.04 / Debian 13：`.deb`（空 recommends，避免 Ubuntu-only `libappindicator3-1`）
+- Omarchy / Arch：`MilkSU-Linux-x64-<version>.tar.gz` + `PKGBUILD` + `milksu.desktop`，`makepkg -si`
+- NixOS：`packaging/linux` flake，`MILKSU_LINUX_UNPACKED` 指向 `linux-unpacked` 后 `nix --impure build`
 
-本切片不包含：GNOME 真桌面 GUI、Secret Service、OCR、Computer Use、PKGBUILD、flake、ARM64 发行包。容器里的 `dpkg` 成功不能写成 Debian GNOME 桌面已验收。
+桌面适配：Electron `ozone-platform-hint=auto`（GNOME Wayland 与 Hyprland）；`.desktop` `StartupWMClass=MilkSU`；Browser Use 查找 Chrome / Chromium / Edge、Nix profile 与 `.desktop` Exec。Computer Use 在 Linux 上保持 unavailable，文案写明可运行但不控制宿主桌面。不恢复 ISSUE #19。
+
+验证脚本：`scripts/verify-linux-deb-debian13.sh`、`scripts/verify-linux-pacman-arch.sh`、`scripts/verify-linux-nixos.sh`，由 `linux-release.yml` 在 GitHub-hosted `ubuntu-24.04` 上跑。容器安装成功不是 GNOME/Hyprland 真机 GUI 回执。
+
+本切片不包含：Secret Service、本地 OCR、GNOME Portal Computer Use、ARM64 发行包。
 
 Xvfb、容器、按钮存在、Portal 在线、模型自述成功或一次截图，都不能替代以后各层自己的真实桌面回执。
 

@@ -1,0 +1,36 @@
+# Maintainer: MilkSU <milksu@proton.me>
+pkgname=milksu
+pkgver=@VERSION@
+pkgrel=1
+pkgdesc="Personal security learning and research workspace"
+arch=('x86_64')
+url="https://github.com/MilkSU-Official/milksu"
+license=('AGPL3')
+depends=('gtk3' 'nss' 'libxss' 'libxtst' 'xdg-utils' 'at-spi2-core' 'libsecret')
+source=("MilkSU-Linux-x64-${pkgver}.tar.gz")
+sha256sums=('@SHA256@')
+options=('!strip')
+
+package() {
+  local root="$srcdir"
+  if [[ ! -x "$root/milksu" ]]; then
+    root="$(find "$srcdir" -maxdepth 3 -type f -name milksu -perm -111 -printf '%h\n' | head -n1)"
+  fi
+  if [[ -z "$root" || ! -x "$root/milksu" ]]; then
+    echo "linux-unpacked milksu binary is missing from the tarball" >&2
+    return 1
+  fi
+  install -d "${pkgdir}/opt/MilkSU"
+  cp -a "$root"/. "${pkgdir}/opt/MilkSU/"
+  install -d "${pkgdir}/usr/bin"
+  cat > "${pkgdir}/usr/bin/milksu" <<'EOF'
+#!/bin/sh
+export ELECTRON_OZONE_PLATFORM_HINT="${ELECTRON_OZONE_PLATFORM_HINT:-auto}"
+exec /opt/MilkSU/milksu "$@"
+EOF
+  chmod 755 "${pkgdir}/usr/bin/milksu"
+  install -Dm644 "${startdir}/milksu.desktop" "${pkgdir}/usr/share/applications/milksu.desktop"
+  if [[ -f "${pkgdir}/opt/MilkSU/milksu.png" ]]; then
+    install -Dm644 "${pkgdir}/opt/MilkSU/milksu.png" "${pkgdir}/usr/share/icons/hicolor/256x256/apps/milksu.png"
+  fi
+}
