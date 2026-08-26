@@ -165,14 +165,6 @@ const builderConfig = {
     maintainer: 'MilkSU',
     synopsis: 'Personal security learning and research workspace',
     description: 'MilkSU desktop workspace for Coding, CTF and CVE learning workflows.',
-    desktop: {
-      entryName: 'milksu',
-      Name: 'MilkSU',
-      Comment: 'Personal security learning and research workspace',
-      Categories: 'Development;',
-      StartupWMClass: 'MilkSU',
-      MimeType: 'x-scheme-handler/milksu;',
-    },
   },
   deb: {
     // electron-builder default Recommends libappindicator3-1, which is Ubuntu-only.
