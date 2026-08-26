@@ -37,11 +37,13 @@ test('platform workflows retain native package and first-launch acceptance', () 
     < linuxWorkflow.indexOf('actions/upload-artifact@v4'))
 })
 
-test('GitHub-only macOS packaging skips updater ZIP and metadata', () => {
-  assert.match(macWorkflow, /MILKSU_BUILD_OTA:.*inputs\.upload_release/u)
-  assert.match(macReleaseScript, /const buildOta =/u)
-  assert.match(macReleaseScript, /if \(buildOta\) \{\n\s+await run\('\/usr\/bin\/ditto'/u)
-  assert.match(macReleaseScript, /if \(buildOta\) \{\n\s+const tracking =/u)
+test('official packaging always uploads OTA artifacts and creates an Admin draft', () => {
+  assert.doesNotMatch(macWorkflow, /upload_release/u)
+  assert.doesNotMatch(macReleaseScript, /const buildOta =/u)
+  assert.match(macReleaseScript, /writeReleaseUploadMetadata/u)
+  assert.match(macWorkflow, /node scripts\/publish-release\.mjs/u)
+  assert.match(windowsWorkflow, /node scripts\/publish-release\.mjs/u)
+  assert.match(linuxWorkflow, /node scripts\/publish-release\.mjs/u)
 })
 
 test('macOS DMG artifact name includes the package version like Win/Linux', () => {

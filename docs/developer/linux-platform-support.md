@@ -54,7 +54,7 @@ Ubuntu / Debian 的 Xorg 会话只做负向验收：Computer Use 不走 `xinput`
 
 ### 1. 安装、启动与通用工作循环
 
-普通用户从安装面进入，不依赖 checkout、隐藏环境变量或手工拆包。
+普通用户从安装面进入，不依赖 checkout、隐藏环境变量或手工拆包。已登录 Stable 的自动更新：`.deb` 安装走 `pkexec dpkg --install`，目录/tarball 安装解压到当前前缀（不可写时同样 pkexec），Nix store 不自动更新。官方 OTA 只覆盖 `linux/x64`。
 
 ### 2. 凭据、浏览器与 OCR
 

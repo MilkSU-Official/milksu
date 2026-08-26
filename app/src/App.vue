@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AppSidebar from '@/components-vue/AppSidebar.vue'
-import UpdateNotification from '@/components-vue/UpdateNotification.vue'
+import UpdateInstallDialog from '@/components-vue/UpdateInstallDialog.vue'
 import { useConversations } from '@/composables/useConversations'
 import { invokeCommand, listenEvent } from '@/desktop'
 import type { CTFAgentWorkspaceHandoff } from '@/ctfTypes'
@@ -109,7 +109,8 @@ function writeLocalAccountMode(enabled: boolean) {
 
 const continueWithoutAccount = ref(readLocalAccountMode())
 const updateStatus = ref<UpdateStatus | null>(null)
-const dismissedUpdateVersion = ref('')
+const installUpdatePromptOpen = ref(false)
+const installingUpdate = ref(false)
 const themeMode = ref<ThemeMode>(readThemeMode())
 let unlistenAccount: (() => void) | undefined
 let unlistenModelCatalog: (() => void) | undefined
@@ -842,8 +843,30 @@ async function downloadUpdate() {
 }
 
 async function installUpdate() {
-  await invokeCommand<boolean>('install_update')
+  if (installingUpdate.value) return
+  installingUpdate.value = true
+  installUpdatePromptOpen.value = false
+  try {
+    await invokeCommand<boolean>('install_update')
+  } finally {
+    installingUpdate.value = false
+  }
 }
+
+watch(
+  () => [updateStatus.value?.state, conversations.runningConversationIds.value.length] as const,
+  ([state, runningCount]) => {
+    if (state !== 'downloaded' || installingUpdate.value) {
+      if (state !== 'downloaded') installUpdatePromptOpen.value = false
+      return
+    }
+    if (runningCount > 0) {
+      installUpdatePromptOpen.value = true
+      return
+    }
+    void installUpdate()
+  },
+)
 
 onMounted(async () => {
   const mountedAt = performance.now()
@@ -962,13 +985,6 @@ onBeforeUnmount(() => {
     @continue-local="useLocalAccountMode"
   />
   <div v-else class="game-shell flex h-screen min-w-0 flex-col bg-surface-editor text-foreground">
-    <UpdateNotification
-      :status="updateStatus"
-      :dismissed-version="dismissedUpdateVersion"
-      @dismiss="dismissedUpdateVersion = $event"
-      @download="downloadUpdate"
-      @install="installUpdate"
-    />
     <p
       v-if="runtimeStatus === 'recovering' || runtimeStatus === 'starting'"
       class="shrink-0 border-b border-border bg-card px-4 py-2 text-caption text-foreground"
@@ -992,6 +1008,7 @@ onBeforeUnmount(() => {
         :ctf-section="ctfSection"
         :coding-context-open="codingConversationDrawerOpen"
         :theme-mode="themeMode"
+        :update-status="updateStatus"
         @new="newWorkspaceConversation"
         @navigate="navigateSection"
         @profile="navigateSection('profile')"
@@ -999,6 +1016,8 @@ onBeforeUnmount(() => {
         @account-logout="logoutAccount"
         @settings="openSettings('general')"
         @toggle-theme="toggleThemeMode"
+        @download-update="downloadUpdate"
+        @install-update="installUpdate"
         @open-coding-context="codingConversationDrawerOpen = true"
         @collapse-coding-context="codingConversationDrawerOpen = false"
         @select-conversation="selectSidebarConversation"
@@ -1227,6 +1246,13 @@ onBeforeUnmount(() => {
       @update:open="open => { if (!open) stopToolBudget() }"
       @continue="continueToolBudget"
       @stop="stopToolBudget"
+    />
+    <UpdateInstallDialog
+      :open="installUpdatePromptOpen"
+      :version="updateStatus?.version"
+      @update:open="installUpdatePromptOpen = $event"
+      @confirm="installUpdate"
+      @later="installUpdatePromptOpen = false"
     />
   </div>
 </template>

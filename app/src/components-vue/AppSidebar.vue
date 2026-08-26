@@ -3,7 +3,7 @@ import ContextSidebar from '@/components-vue/ContextSidebar.vue'
 import { t } from '@/lib/uiLocale'
 import type { ThemeMode } from '@/lib/themeMode'
 import type { AppSection, CTFWorkspaceSection, WorkspaceSection } from '@/lib/workspaceNavigation'
-import type { AccountStatus, Conversation } from '@/types'
+import type { AccountStatus, Conversation, UpdateStatus } from '@/types'
 
 defineProps<{
   activeSection: AppSection
@@ -15,6 +15,7 @@ defineProps<{
   ctfSection: CTFWorkspaceSection
   codingContextOpen?: boolean
   themeMode: ThemeMode
+  updateStatus?: UpdateStatus | null
 }>()
 
 defineEmits<{
@@ -33,6 +34,8 @@ defineEmits<{
   navigateCtf: [value: CTFWorkspaceSection]
   openCodingContext: []
   collapseCodingContext: []
+  downloadUpdate: []
+  installUpdate: []
 }>()
 </script>
 
@@ -51,6 +54,7 @@ defineEmits<{
       :ctf-section="ctfSection"
       :account-status="accountStatus"
       :theme-mode="themeMode"
+      :update-status="updateStatus"
       :collapsed="!codingContextOpen"
       @new="$emit('new')"
       @collapse="$emit('collapseCodingContext')"
@@ -67,6 +71,8 @@ defineEmits<{
       @account-login="$emit('accountLogin')"
       @account-logout="$emit('accountLogout')"
       @toggle-theme="$emit('toggleTheme')"
+      @download-update="$emit('downloadUpdate')"
+      @install-update="$emit('installUpdate')"
     />
   </aside>
 </template>

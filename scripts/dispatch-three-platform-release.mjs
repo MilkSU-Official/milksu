@@ -67,7 +67,6 @@ const includeMacosCloud = !process.argv.includes('--skip-macos')
 const dispatches = buildReleaseWorkflowDispatches({
   commit: state.commit,
   version: state.rootVersion,
-  uploadRelease: process.argv.includes('--upload-release'),
   useSelfHosted: process.argv.includes('--use-self-hosted'),
   includeMacosCloud,
   releaseTitle: option('release-title', `MilkSU ${state.rootVersion}`),

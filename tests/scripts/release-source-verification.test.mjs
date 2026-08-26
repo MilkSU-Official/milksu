@@ -52,7 +52,6 @@ test('dispatches macOS, Windows and Linux by default', () => {
   const dispatches = buildReleaseWorkflowDispatches({
     commit: state.commit,
     version: state.rootVersion,
-    uploadRelease: false,
   })
   assert.deepEqual(dispatches.map(dispatch => dispatch.workflow), [
     'macos-release.yml',
@@ -68,7 +67,6 @@ test('skipping cloud macOS still uses the same immutable source commit', () => {
   const dispatches = buildReleaseWorkflowDispatches({
     commit: state.commit,
     version: state.rootVersion,
-    uploadRelease: false,
     includeMacosCloud: false,
   })
   assert.deepEqual(dispatches.map(dispatch => dispatch.workflow), [

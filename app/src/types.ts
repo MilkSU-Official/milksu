@@ -29,6 +29,7 @@ export interface UpdateStatus {
   transferred?: number
   total?: number
   message?: string
+  code?: string
 }
 
 export interface CodingAttachment {

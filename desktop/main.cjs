@@ -844,8 +844,12 @@ ipcMain.handle('milksu:invoke', async (event, request) => {
     if (backend) await backend.stop()
     quitting = true
     const started = updateManager.install()
-    if (!started) quitting = false
-    return started
+    if (!started) {
+      quitting = false
+      return false
+    }
+    if (process.platform === 'linux') app.quit()
+    return true
   }
   try {
     return await backend.invoke(method, request?.args)
@@ -923,17 +927,27 @@ app.whenReady().then(async () => {
     onChanged: value => {
       emitRendererEvent('account.changed', value)
       void syncAccountModelAuthorization(value)
-      if (value?.state === 'active') void updateManager?.check()
-      else updateManager?.clearAuthorization()
+      if (value?.state === 'active') {
+        void updateManager?.check()
+        updateManager?.startPolling()
+      } else {
+        updateManager?.clearAuthorization()
+      }
     },
   })
   updateManager = new UpdateManager({
     updater: autoUpdater,
     currentVersion: app.getVersion(),
-    enabled: process.platform === 'darwin'
-      && app.isPackaged
+    enabled: app.isPackaged
       && desktopChannel === 'stable'
-      && accountConfig.configured,
+      && accountConfig.configured
+      && ['darwin', 'win32', 'linux'].includes(process.platform)
+      && (process.arch === 'arm64' || process.arch === 'x64'),
+    platform: process.platform,
+    arch: process.arch,
+    apiUrl: accountConfig.apiUrl,
+    userDataPath: app.getPath('userData'),
+    execPath: process.execPath,
     getAuthorization: () => accountSession.activeAccessToken(),
     onChanged: value => emitRendererEvent('update.changed', value),
   })

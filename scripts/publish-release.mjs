@@ -7,6 +7,7 @@ import { basename, dirname, join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { spawn } from 'node:child_process'
+import { RELEASE_UPLOAD_SCHEMA } from './lib/release-upload-metadata.mjs'
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const metadataPath = join(repositoryRoot, 'build', 'release', 'release-metadata.json')
@@ -49,12 +50,20 @@ if (releaseAPI.protocol !== 'https:' || releaseAPI.username || releaseAPI.passwo
 }
 
 const metadata = JSON.parse(await readFile(metadataPath, 'utf8'))
-if (metadata.schema !== 'milksu.release-upload/v1') throw new Error('release metadata schema is unsupported')
+if (metadata.schema !== RELEASE_UPLOAD_SCHEMA) throw new Error('release metadata schema is unsupported')
 if (!/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/u.test(String(metadata.version ?? ''))) {
   throw new Error('release metadata version is invalid')
 }
-const expectedPrefix = `releases/stable/darwin/arm64/${metadata.version}/`
-for (const key of [metadata.zipObjectKey, metadata.dmgObjectKey, metadata.manifestObjectKey]) {
+if (!['darwin', 'win32', 'linux'].includes(metadata.platform)) {
+  throw new Error('release metadata platform is invalid')
+}
+if (!['arm64', 'x64'].includes(metadata.arch)) {
+  throw new Error('release metadata arch is invalid')
+}
+const artifacts = Array.isArray(metadata.artifacts) ? metadata.artifacts : []
+if (!artifacts.length) throw new Error('release metadata has no artifacts')
+const expectedPrefix = `releases/stable/${metadata.platform}/${metadata.arch}/${metadata.version}/`
+for (const key of [metadata.manifestObjectKey, ...artifacts.map(artifact => artifact.objectKey)]) {
   if (!String(key ?? '').startsWith(expectedPrefix)
       || !/^[0-9A-Za-z._/-]+$/u.test(key)
       || String(key).slice(expectedPrefix.length).includes('/')) {
@@ -77,8 +86,11 @@ const remoteEnvironment = {
 }
 const remote = key => `r2:${bucket}/${key}`
 const uploads = [
-  { local: releaseFile(metadata.files.zip), key: metadata.zipObjectKey, sha256: metadata.zipSha256 },
-  { local: releaseFile(metadata.files.dmg), key: metadata.dmgObjectKey, sha256: metadata.dmgSha256 },
+  ...artifacts.map(artifact => ({
+    local: releaseFile(artifact.fileName),
+    key: artifact.objectKey,
+    sha256: artifact.sha256,
+  })),
   { local: metadataPath, key: metadata.manifestObjectKey, sha256: await sha256(metadataPath) },
 ]
 
@@ -112,13 +124,13 @@ const draft = {
   trackingId: metadata.trackingId,
   title: metadata.title,
   notes: metadata.notes,
-  zipObjectKey: metadata.zipObjectKey,
-  zipSha512: metadata.zipSha512,
-  zipSha256: metadata.zipSha256,
-  zipSize: metadata.zipSize,
-  dmgObjectKey: metadata.dmgObjectKey,
-  dmgSha256: metadata.dmgSha256,
-  dmgSize: metadata.dmgSize,
+  artifacts: artifacts.map(artifact => ({
+    kind: artifact.kind,
+    objectKey: artifact.objectKey,
+    sha256: artifact.sha256,
+    ...(artifact.sha512 ? { sha512: artifact.sha512 } : {}),
+    size: artifact.size,
+  })),
 }
 const response = await fetch(new URL('/v1/internal/releases', releaseAPI), {
   method: 'POST',
@@ -132,4 +144,4 @@ const payload = await response.json().catch(() => ({}))
 if (!response.ok || !payload.release?.id) {
   throw new Error(`Admin release draft creation failed (${response.status}: ${payload.error || 'unknown_error'})`)
 }
-process.stdout.write(`release draft created: ${payload.release.id} (${payload.release.version})\n`)
+process.stdout.write(`release draft created: ${payload.release.id} (${payload.release.platform}/${payload.release.arch} ${payload.release.version})\n`)

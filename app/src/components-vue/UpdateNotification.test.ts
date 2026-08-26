@@ -2,7 +2,8 @@
 
 import { createApp, nextTick, type App } from 'vue'
 import { afterEach, describe, expect, it } from 'vitest'
-import UpdateNotification from './UpdateNotification.vue'
+import UpdateInstallDialog from './UpdateInstallDialog.vue'
+import ContextSidebar from './ContextSidebar.vue'
 import type { UpdateStatus } from '@/types'
 
 class ResizeObserverStub {
@@ -19,58 +20,56 @@ afterEach(() => {
   document.body.innerHTML = ''
 })
 
-async function mount(status: UpdateStatus, handlers: Record<string, unknown> = {}) {
-  const host = document.createElement('div')
-  document.body.append(host)
-  const app = createApp(UpdateNotification, { status, ...handlers })
-  app.mount(host)
-  mountedApps.push(app)
-  await nextTick()
-  return host
+const sidebarProps = {
+  activeSection: 'chat' as const,
+  activeConversationId: null,
+  conversations: [],
+  accountStatus: { configured: true, authenticated: true, state: 'active' as const },
+  ctfSection: 'catalog' as const,
+  themeMode: 'dark' as const,
+  collapsed: false,
 }
 
-describe('UpdateNotification', () => {
-  it('offers an available authenticated release without overloading the shell', async () => {
-    const host = await mount({
-      state: 'available',
-      currentVersion: '0.1.0',
-      enabled: true,
-      version: '0.2.0',
-      notes: '启动后自动检查新版本。\n其余说明在管理后台。',
-    })
-    expect(host.textContent).toContain('MilkSU 0.2.0 可以更新')
-    expect(host.textContent).toContain('启动后自动检查新版本。')
-    expect(host.textContent).not.toContain('其余说明在管理后台。')
-    expect(host.querySelector('[data-shell-traffic-safe="x"]')).not.toBeNull()
-  })
-
-  it('emits download, dismiss and install actions', async () => {
+describe('sidebar update control', () => {
+  it('shows a download button when a matching release is available', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
     const actions: string[] = []
-    const host = await mount({
-      state: 'available', currentVersion: '0.1.0', enabled: true, version: '0.2.0',
-    }, {
-      onDownload: () => actions.push('download'),
-      onDismiss: (version: string) => actions.push(`dismiss:${version}`),
+    const app = createApp(ContextSidebar, {
+      ...sidebarProps,
+      updateStatus: {
+        state: 'available',
+        currentVersion: '0.1.0',
+        enabled: true,
+        version: '0.2.0',
+      } satisfies UpdateStatus,
+      onDownloadUpdate: () => actions.push('download'),
     })
-    ;[...host.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.trim() === '更新')?.click()
-    host.querySelector<HTMLButtonElement>('button[aria-label="稍后更新"]')?.click()
+    app.mount(host)
+    mountedApps.push(app)
     await nextTick()
-    expect(actions).toEqual(['download', 'dismiss:0.2.0'])
-
-    const installHost = await mount({
-      state: 'downloaded', currentVersion: '0.1.0', enabled: true, version: '0.2.0',
-    }, { onInstall: () => actions.push('install') })
-    ;[...installHost.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.includes('重启更新'))?.click()
-    await nextTick()
-    expect(actions.at(-1)).toBe('install')
+    const button = host.querySelector<HTMLButtonElement>('[data-testid="sidebar-download-update"]')
+    expect(button).not.toBeNull()
+    expect(button?.getAttribute('aria-label')).toContain('下载更新')
+    button?.click()
+    expect(actions).toEqual(['download'])
   })
 
-  it('stays hidden when idle or dismissed for this startup', async () => {
-    const idle = await mount({ state: 'idle', currentVersion: '0.1.0', enabled: true })
-    expect(idle.textContent?.trim()).toBe('')
-    const dismissed = await mount({
-      state: 'available', currentVersion: '0.1.0', enabled: true, version: '0.2.0',
-    }, { dismissedVersion: '0.2.0' })
-    expect(dismissed.textContent?.trim()).toBe('')
+  it('asks before installing when the downloaded update dialog is shown', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    const actions: string[] = []
+    const app = createApp(UpdateInstallDialog, {
+      open: true,
+      version: '0.2.0',
+      onConfirm: () => actions.push('confirm'),
+    })
+    app.mount(host)
+    mountedApps.push(app)
+    await nextTick()
+    expect(document.body.textContent).toContain('安装更新并重启')
+    expect(document.body.textContent).toContain('MilkSU 0.2.0')
+    ;[...document.body.querySelectorAll('button')].find(button => button.textContent?.includes('安装并重启'))?.click()
+    expect(actions).toEqual(['confirm'])
   })
 })

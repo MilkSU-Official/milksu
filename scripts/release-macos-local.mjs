@@ -180,7 +180,6 @@ async function main() {
       MILKSU_RELEASE_TITLE: option('release-title', `MilkSU ${version} 内测版`),
       MILKSU_RELEASE_NOTES: option('release-notes', `MilkSU ${version} 内测版`),
       MILKSU_MINIMUM_UPDATE_VERSION: option('minimum-version', '0.1.0'),
-      MILKSU_BUILD_OTA: process.argv.includes('--upload-release') ? '1' : '0',
     }
 
     await run('npm', ['run', 'desktop:release:mac'], env)

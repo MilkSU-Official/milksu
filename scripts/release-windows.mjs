@@ -129,6 +129,7 @@ for (const file of [
   'computer-use-permissions.cjs',
   'linux-desktop.cjs',
   'macos-screen-permission.cjs',
+  'linux-update-apply.cjs',
 ]) {
   if (!files.includes(file)) files.push(file)
 }
@@ -229,6 +230,15 @@ if (!await exists(builtInstaller)) {
 await mkdir(releaseDirectory, { recursive: true })
 const releaseInstaller = join(releaseDirectory, installerName)
 await copyFile(builtInstaller, releaseInstaller)
+const { writeReleaseUploadMetadata } = await import('./lib/release-upload-metadata.mjs')
+await writeReleaseUploadMetadata({
+  releaseDirectory,
+  platform: 'win32',
+  arch: 'x64',
+  version,
+  tracking,
+  artifacts: [{ kind: 'nsis', fileName: installerName }],
+})
 process.stdout.write(`${JSON.stringify({
   platform,
   version,
