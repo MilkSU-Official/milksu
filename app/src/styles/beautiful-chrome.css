@@ -1,0 +1,185 @@
+/* Beautiful UI 14 page chrome. Dominant product language for settings,
+ * profile, catalogs, and module chrome. ak-ui leftovers that stay as
+ * easter eggs: .ak-segmented structure (filled with this chrome),
+ * ConnectionLiveStatus LIVE/OFF, and the workspace topbar module mark. */
+
+:root {
+  --bui-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --bui-radius: 8px;
+}
+
+.tactical-page,
+.profile-page,
+.settings-page {
+  animation: bui-page-in 280ms var(--bui-ease);
+}
+
+@keyframes bui-page-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tactical-page,
+  .profile-page,
+  .settings-page {
+    animation: none;
+  }
+}
+
+.tactical-paper,
+.tactical-command-surface {
+  background: var(--background);
+  color: var(--foreground);
+  box-shadow: none;
+  background-image: none;
+}
+
+.tactical-desk-head {
+  background: var(--background);
+  color: var(--muted-foreground);
+}
+
+:root[data-theme='light'] .tactical-paper-surface .tactical-desk-head {
+  background: var(--background);
+  color: var(--muted-foreground);
+}
+
+.tactical-row:hover {
+  background: var(--hover-2);
+}
+
+.tactical-row[data-ui-selected],
+.tactical-row.is-selected {
+  border-left: 0;
+  background: var(--hover-2);
+  box-shadow: none;
+}
+
+.challenge-row-selected,
+.vuln-row-selected {
+  background: var(--hover-2);
+  box-shadow: none;
+}
+
+.settings-nav-item {
+  min-height: 2rem;
+  margin: 1px 0.25rem;
+  border-radius: var(--bui-radius);
+  padding: 0 0.5rem;
+  color: var(--foreground);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.settings-nav-item:hover {
+  background: var(--hover-2);
+  color: var(--foreground);
+}
+
+.settings-nav-item.active,
+.settings-ak-tabs .ak-tabs__tab[aria-selected='true'] {
+  color: var(--foreground);
+  background: var(--hover-2);
+  box-shadow: none;
+}
+
+.settings-nav-item.active::before,
+.settings-ak-tabs .ak-tabs__tab[aria-selected='true']::after {
+  display: none;
+}
+
+.settings-ak-tabs .ak-tabs__tab + .ak-tabs__tab {
+  border-top: 0;
+}
+
+.settings-focus-row {
+  background: var(--hover-2);
+  box-shadow: none;
+}
+
+.model-service-row-primary {
+  box-shadow: none;
+  background: var(--hover-2);
+}
+
+[data-button],
+[data-slot="input"],
+[data-slot="textarea"],
+[data-slot="select-trigger"],
+[data-slot="native-select"] {
+  border-radius: var(--bui-radius) !important;
+}
+
+[data-slot="dialog-content"],
+[data-slot="popover-content"],
+[data-slot="dropdown-menu-content"],
+[data-slot="dropdown-menu-sub-content"],
+[data-slot="context-menu-content"],
+[data-slot="context-menu-sub-content"],
+[data-slot="select-content"],
+[data-slot="sheet-content"],
+[data-slot="hover-card-content"],
+.tactical-floating-surface {
+  border-radius: var(--bui-radius) !important;
+}
+
+[data-connection-live-action] {
+  border-radius: var(--bui-radius);
+}
+
+.tactical-action {
+  border-radius: var(--bui-radius) !important;
+}
+
+.ak-segmented {
+  --ak-segmented-signal: var(--background);
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--bui-radius);
+  background: var(--hover-2);
+}
+
+.ak-segmented__item {
+  min-width: 0;
+  min-height: 1.75rem;
+  padding: 0.25rem 0.7rem;
+  border-radius: 6px;
+  color: var(--muted-foreground);
+  font-family: inherit;
+  font-size: var(--text-caption);
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.ak-segmented__item[aria-pressed='true'] {
+  color: var(--foreground);
+  background: var(--background);
+}
+
+.ak-segmented__item:focus-visible {
+  outline: 2px solid var(--foreground);
+  outline-offset: 0;
+}
+
+.collection-tabs .ak-segmented__item {
+  letter-spacing: 0;
+}
+
+.collection-tab-manage {
+  height: 2rem;
+  border-radius: var(--bui-radius);
+}
+
+.tab-count {
+  background: var(--hover-2);
+  color: var(--muted-foreground);
+}

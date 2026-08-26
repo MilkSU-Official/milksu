@@ -2121,6 +2121,9 @@ async function saveProviderEditor(closeAfterSave: boolean) {
 
 <style scoped>
 .settings-nav-surface { border-color: var(--border); background-color: var(--background); }
+.settings-page :deep(.settings-notice) {
+  border-radius: 8px;
+}
 .settings-page :deep(.settings-notice.settings-notice--ok) {
   background-color: color-mix(in srgb, var(--success) 22%, var(--card));
   border-color: var(--success-border);
@@ -2132,19 +2135,19 @@ async function saveProviderEditor(closeAfterSave: boolean) {
   color: var(--destructive);
 }
 .settings-ak-tabs { width: 100%; border: 0; background: transparent; }
-.settings-ak-tabs .ak-tabs__list { display: grid; grid-auto-flow: row; border-bottom: 0; }
-.settings-ak-tabs .ak-tabs__tab + .ak-tabs__tab { border-left: 0; border-top: 1px solid var(--border); }
-.settings-nav-item { position: relative; display: flex; min-height: 3rem; width: 100%; align-items: center; justify-content: flex-start; border: 0; background: transparent; padding: 0 1rem; color: var(--muted-foreground); text-align: left; cursor: pointer; text-transform: none; letter-spacing: 0.02em; }
-.settings-nav-item:hover { color: var(--foreground); background: var(--overlay-hover); }
+.settings-ak-tabs .ak-tabs__list { display: grid; grid-auto-flow: row; gap: 1px; border-bottom: 0; }
+.settings-ak-tabs .ak-tabs__tab + .ak-tabs__tab { border-left: 0; border-top: 0; }
+.settings-nav-item { position: relative; display: flex; min-height: 2rem; width: auto; align-items: center; justify-content: flex-start; border: 0; border-radius: 8px; background: transparent; padding: 0 0.5rem; color: var(--foreground); text-align: left; cursor: pointer; text-transform: none; letter-spacing: 0; font-size: 14px; font-weight: 500; }
+.settings-nav-item:hover { color: var(--foreground); background: var(--hover-2); }
 .settings-nav-item.active,
 .settings-ak-tabs .ak-tabs__tab[aria-selected='true'] {
-  color: #111315;
-  background: #05a7dc;
-  box-shadow: 0 0 1.4rem color-mix(in srgb, #05a7dc 45%, transparent);
+  color: var(--foreground);
+  background: var(--hover-2);
+  box-shadow: none;
 }
 .model-service-row { transition: background-color 120ms ease, border-color 120ms ease; }
 .model-service-row:hover { background: var(--overlay-hover-light); }
-.model-service-row-primary { box-shadow: inset 3px 0 0 var(--brand); }
+.model-service-row-primary { box-shadow: none; background: var(--hover-2); }
 .model-service-icon { box-shadow: inset 0 0 18px color-mix(in srgb, var(--brand) 5%, transparent); }
 .provider-editor-field { display: grid; grid-template-columns: 7rem minmax(0, 1fr); align-items: center; gap: 1rem; font-size: var(--text-body); }
 @media (max-width: 1080px) {

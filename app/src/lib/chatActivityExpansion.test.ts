@@ -79,6 +79,20 @@ describe('chatActivityExpansion', () => {
     expect(chatActivityOpenEntryIds(pruned, 'activity:a').has('tool:gone')).toBe(false)
   })
 
+  it('prunes through folded process groups', () => {
+    let state = createChatActivityExpansionState()
+    state = setChatActivityGroupOpen(state, 'activity:a', true)
+    state = setChatActivityEntryOpen(state, 'activity:a', 'tool:t1', true)
+    const blocks: ChatTranscriptBlock[] = [{
+      kind: 'process',
+      id: 'process:activity:a',
+      blocks: [activityBlock('activity:a', [tool('t1')])],
+    }]
+    const pruned = pruneChatActivityExpansion(state, blocks)
+    expect(chatActivityGroupOpen(pruned, 'activity:a')).toBe(true)
+    expect(chatActivityOpenEntryIds(pruned, 'activity:a').has('tool:t1')).toBe(true)
+  })
+
   it('returns the same state when nothing needs pruning', () => {
     let state = createChatActivityExpansionState()
     state = setChatActivityGroupOpen(state, 'activity:a', true)

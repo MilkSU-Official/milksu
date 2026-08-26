@@ -9,32 +9,29 @@ describe('ChatPage routing contract', () => {
     expect(chatPageSource).toContain("stagedPrompt.conversationId === props.conversation?.id")
   })
 
-  it('shows a CVE handoff badge and return action while preserving a typed topbar module', () => {
+  it('keeps a typed topbar module without return-to-domain chrome in the chat column', () => {
     expect(chatPageSource).toContain('vulnerabilitySession?: boolean')
     expect(chatPageSource).toContain('returnVuln: []')
     expect(chatPageSource).toContain('returnLab: []')
     expect(chatPageSource).toContain('vulnerabilitySession: props.vulnerabilitySession')
     expect(chatPageSource).toContain('const topbarModule = computed')
     expect(chatPageSource).toContain("? 'cve'")
-    expect(chatPageSource).toContain('domainTaskPresentation')
-    expect(chatPageSource).toContain('function returnToDomain()')
-    expect(chatPageSource).toContain("emit('returnLab')")
-    expect(chatPageSource).toContain("attached?.kind === 'lab'")
+    expect(chatPageSource).toContain('ChatProcessFold')
+    expect(chatPageSource).toContain('restorable?: boolean')
+    expect(chatPageSource).toContain("emit('restore')")
+    expect(chatPageSource).toContain("domainTaskContext?.kind === 'lab'")
     expect(chatPageSource).toContain("? 'lab'")
     expect(chatPageSource).toContain(':module="topbarModule"')
+    expect(chatPageSource).not.toContain('返回 CTF')
+    expect(chatPageSource).not.toContain('返回实验室')
+    expect(chatPageSource).not.toContain('MissionOperationPanel')
+    expect(chatPageSource).not.toContain('DomainTaskContextPanel')
   })
 
-  it('keeps one shared Coding/Pi session with collapsible domain task context for CTF and CVE', () => {
-    expect(chatPageSource).toContain("from '@/lib/domainTaskContext'")
-    expect(chatPageSource).toContain('presentDomainTaskContext')
-    expect(chatPageSource).toContain('refreshCTFDomainTaskContext')
-    expect(chatPageSource).toContain('sharedCodingSessionKind')
-    expect(chatPageSource).toContain('DomainTaskContextPanel')
-    expect(chatPageSource).toContain('domainContextCollapsed')
-    expect(chatPageSource).toContain('conversation?.domainTaskContext')
-    expect(chatPageSource).toContain('live.networkScopes')
-    expect(chatPageSource).toContain('live.challenge?.source?.scope')
-    expect(chatPageSource).toContain('<DomainTaskContextPanel')
+  it('keeps one shared Coding/Pi session without domain-task chrome in the chat column', () => {
+    expect(chatPageSource).not.toContain('presentDomainTaskContext')
+    expect(chatPageSource).not.toContain('domainContextCollapsed')
+    expect(chatPageSource).not.toContain('<DomainTaskContextPanel')
     expect(chatPageSource).not.toContain('milksu:coding-smoke-open-panel')
     expect(chatPageSource).not.toContain('handleCodingSmokeOpenPanel')
   })
@@ -75,14 +72,16 @@ describe('ChatPage routing contract', () => {
     expect(chatPageSource).toContain('const codingEmptyHeading = computed')
     expect(chatPageSource).toContain('我们要构建什么')
     expect(chatPageSource).toContain('我们在 ${name} 中构建什么')
+    expect(chatPageSource).toContain('v-if="!conversation?.messages.length"')
+    expect(chatPageSource).not.toContain('v-else-if="!conversation?.messages.length"')
     expect(chatPageSource).toContain('clearWorkspace')
     expect(chatPageSource).toContain('LOCAL_CODING_SHELL_ID')
     expect(chatPageSource).toContain('terminalWorkspacePath')
   })
 
-  it('hides the module topbar while the right rail is open and parks terminal plus close there', () => {
-    expect(chatPageSource).toContain('const contextRailVisible = computed')
-    expect(chatPageSource).toContain('v-if="!dockSurface && !contextRailVisible"')
+  it('keeps the module topbar when the right rail is open and parks terminal plus close there', () => {
+    expect(chatPageSource).toContain('v-if="!dockSurface"')
+    expect(chatPageSource).toContain('<template v-if="!environmentOpen">')
     expect(chatPageSource).toContain('data-testid="coding-rail-terminal"')
     expect(chatPageSource).toContain('data-testid="coding-rail-toggle"')
     expect(chatPageSource).toContain("t('关闭右侧栏'")
@@ -90,17 +89,15 @@ describe('ChatPage routing contract', () => {
     expect(chatPageSource).not.toContain('刷新${contextPanelTitle}')
   })
 
-  it('uses one right rail for domain context with text PiP collapse and draft-only handoff', () => {
+  it('keeps one right rail beside the thread without domain PiP or return-to-catalog chrome', () => {
     expect(chatPageSource).toContain('data-testid="single-right-context-rail"')
-    expect(chatPageSource).toContain('data-testid="collapse-domain-to-pip"')
-    expect(chatPageSource).toContain('收起任务信息')
-    expect(chatPageSource).toContain("value=\"domain\"")
+    expect(chatPageSource).not.toContain('data-testid="collapse-domain-to-pip"')
+    expect(chatPageSource).not.toContain('收起任务信息')
+    expect(chatPageSource).not.toContain('value="domain"')
     expect(chatPageSource).toContain('pendingComposerDraft')
     expect(chatPageSource).toContain('consumePendingDraft')
     expect(chatPageSource).toContain('appendDraftText')
-    // Second expanded domain sidebar removed — only PiP remains when collapsed.
-    const expandedDomainSidebars = (chatPageSource.match(/domainTaskPresentation && !domainContextCollapsed/g) ?? []).length
-    expect(expandedDomainSidebars).toBe(0)
+    expect(chatPageSource).not.toContain('domain-task-context-pip')
   })
 
   it('follows new output only while the user remains near the bottom', () => {
@@ -134,27 +131,39 @@ describe('ChatPage routing contract', () => {
     expect(chatPageSource).not.toContain('相关历史')
   })
 
+  it('keeps the waiting-for-model status on the same thread column as replies', () => {
+    expect(chatPageSource).toContain("t('模型回复中', 'Model is replying')")
+    expect(chatPageSource).toContain(':elapsed="waitingElapsed"')
+    expect(chatPageSource).not.toContain('chat-model-loading agent-thread')
+  })
+
   it('projects milksu_progress plans, context meter and run timing on the right rail and composer', () => {
     expect(chatPageSource).toContain("from '@/components-vue/AgentExecutionPlan.vue'")
+    expect(chatPageSource).toContain("from '@/components-vue/AgentChangeSummary.vue'")
+    expect(chatPageSource).toContain('agent-status-capsule')
     expect(chatPageSource).toContain('<AgentExecutionPlan')
+    expect(chatPageSource).toContain('<AgentChangeSummary')
+    expect(chatPageSource).toContain('agent-composer-aux agent-thread')
+    expect(chatPageSource).not.toContain('<AgentExecutionPlan\n      class="agent-thread"')
+    expect(chatPageSource).toContain('class="agent-thread min-w-0"')
+    expect(chatPageSource).toContain('<ChatComposer')
     expect(chatPageSource).toContain(':running="running"')
     expect(chatPageSource).toContain("from '@/components-vue/ContextUsageMeter.vue'")
     expect(chatPageSource).toContain('turnStatus?: SessionTurnSnapshot')
     expect(chatPageSource).toContain('resolveModelContextWindow')
     expect(chatPageSource).toContain(':context-usage="contextUsagePresentation"')
-    expect(chatPageSource).toContain(':run-elapsed-label=')
+    expect(chatPageSource).not.toContain(':run-elapsed-label=')
     expect(chatPageSource).toContain('data-testid="agent-run-elapsed"')
+    expect(chatPageSource).not.toContain('composer-run-elapsed')
     expect(chatPageSource).not.toContain('等待本轮用量')
-    // Decorative Mission phases stay on empty CTF/CVE canvas only. Live plans
-    // come from milksu_progress; when the model has not published one, the rail
-    // stays empty instead of inventing fake phases or tool-call lists.
-    expect(chatPageSource).toContain('MissionOperationPanel')
+    // Live plans come from milksu_progress. Do not put a mission dashboard in the thread.
+    expect(chatPageSource).not.toContain('MissionOperationPanel')
     expect(chatPageSource).not.toContain('AgentTaskSteps')
   })
 
   it('owns Goal interaction in the composer instead of the environment sidebar', () => {
     expect(chatPageSource).toContain(':goal="activeGoal"')
-    expect(chatPageSource).toContain(':git-summary="composerGitSummary"')
+    expect(chatPageSource).toContain(':summary="composerGitSummary"')
     expect(chatPageSource).toContain('@start-goal="goalMode = true"')
     expect(chatPageSource).toContain('@consume-goal="goalMode = false"')
     expect(chatPageSource).toContain('@control-goal="controlComposerGoal"')

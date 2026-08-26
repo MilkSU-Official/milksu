@@ -12,7 +12,7 @@
 
 ## 当前有效的工程契约
 
-- [当前视觉约定](/design/current-visual)
+- 产品 UI 设计语言：仓库根目录 `AGENTS.md`。不要在本页或其他文档复述。
 - [产品代码准入与薄 Harness 规则](/developer/product-code-admission)
 - [Coding Agent / Pi 扩展边界](/architecture/coding-agent-pi-extension-boundary)
 - [CTF Intake → Agent → Judge → Memory](/architecture/ctf-intake-agent-judge-memory)

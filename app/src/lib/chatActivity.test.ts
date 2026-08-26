@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
+  applyAssistantThinkingEvent,
   applyCodingToolEvent,
   buildChatActivityEntries,
+  visibleChatActivityEntries,
   buildChatTranscript,
   chatActivityEntrySummary,
   chatActivitySummary,
@@ -29,7 +31,7 @@ function message(
 }
 
 describe('buildChatTranscript', () => {
-  it('folds only tool calls while keeping progress and the final answer visible', () => {
+  it('folds thinking, tools and intermediate replies when the final answer starts', () => {
     const transcript = buildChatTranscript([
       message('u1', 'user', '完成任务'),
       message('a1', 'assistant', '先读取仓库。'),
@@ -41,17 +43,26 @@ describe('buildChatTranscript', () => {
 
     expect(transcript.map(block => block.kind)).toEqual([
       'message',
-      'message',
-      'activity',
-      'message',
-      'activity',
+      'process',
       'message',
     ])
-    expect(transcript[1]?.kind === 'message' && transcript[1].message.id).toBe('a1')
-    expect(transcript[2]?.kind === 'activity' && transcript[2].messages.map(item => item.id))
-      .toEqual(['t1'])
-    expect(transcript[3]?.kind === 'message' && transcript[3].message.id).toBe('a2')
-    expect(transcript[5]?.kind === 'message' && transcript[5].message.id).toBe('a3')
+    expect(transcript[1]?.kind === 'process' && transcript[1].blocks.map(item => item.kind))
+      .toEqual(['message', 'activity', 'message', 'activity'])
+    expect(transcript[2]?.kind === 'message' && transcript[2].message.id).toBe('a3')
+  })
+
+  it('keeps the live turn expanded until the final answer has content', () => {
+    const transcript = buildChatTranscript([
+      message('u1', 'user', '完成任务'),
+      message('a1', 'assistant', '', { thinking: '先看仓库。', thinkingStatus: 'running', status: 'running' }),
+      message('t1', 'tool', '/repo', { toolName: 'read', status: 'running' }),
+    ], true)
+
+    expect(transcript.map(block => block.kind)).toEqual([
+      'message',
+      'message',
+      'activity',
+    ])
   })
 
   it('groups consecutive tools beneath one top-level disclosure', () => {
@@ -65,13 +76,14 @@ describe('buildChatTranscript', () => {
 
     expect(transcript.map(block => block.kind)).toEqual([
       'message',
-      'message',
-      'activity',
+      'process',
       'message',
     ])
-    expect(transcript[2]?.kind === 'activity' && transcript[2].messages.map(item => item.id))
-      .toEqual(['t1', 't2'])
-    expect(transcript[2]?.kind === 'activity' && transcript[2].id).toBe('activity:t1')
+    expect(transcript[1]?.kind === 'process' && transcript[1].blocks.map(item => item.kind))
+      .toEqual(['message', 'activity'])
+    expect(transcript[1]?.kind === 'process' && transcript[1].blocks[1]?.kind === 'activity'
+      && transcript[1].blocks[1].messages.map(item => item.id)).toEqual(['t1', 't2'])
+    expect(transcript[2]?.kind === 'message' && transcript[2].message.id).toBe('a2')
   })
 
   it('keeps a live tool group key stable while later tools are appended', () => {
@@ -151,11 +163,8 @@ describe('buildChatTranscript', () => {
       message('a2', 'assistant', '测试完成，正在整理结果。', { status: 'running' }),
     ], true)
 
-    expect(transcript).toHaveLength(4)
-    expect(transcript[1]?.kind).toBe('message')
-    expect(transcript[2]?.kind).toBe('activity')
-    expect(transcript[3]?.kind).toBe('message')
-    expect(transcript[3]?.kind === 'message' && transcript[3].message.id).toBe('a2')
+    expect(transcript.map(block => block.kind)).toEqual(['message', 'process', 'message'])
+    expect(transcript[2]?.kind === 'message' && transcript[2].message.id).toBe('a2')
   })
 
   it('shows an assistant-only live response instead of folding it as thinking', () => {
@@ -180,6 +189,33 @@ describe('buildChatTranscript', () => {
     expect(transcript.map(block => block.kind)).toEqual(['message', 'message'])
     expect(transcript[1]?.kind === 'message' && transcript[1].message.approvalRequestId)
       .toBe('request-1')
+  })
+
+  it('keeps a blocking milksu_ask card in the open thread and hides its tool chip', () => {
+    const transcript = buildChatTranscript([
+      message('u1', 'user', '给我几个选项'),
+      message('ask-start', 'tool', 'How many flavors should we launch?', {
+        toolName: 'milksu_ask',
+        toolCallId: 'call-ask',
+        status: 'running',
+      }),
+      message('ask', 'tool', 'How many flavors should we launch?', {
+        toolName: 'milksu_ask',
+        toolCallId: 'call-ask',
+        approvalRequestId: 'ask-1',
+        approvalState: 'pending',
+        approvalInput: JSON.stringify({
+          options: [
+            { id: 'three', label: 'Three' },
+            { id: 'five', label: 'Five' },
+          ],
+        }),
+      }),
+    ], true)
+
+    expect(transcript.map(block => block.kind)).toEqual(['message', 'message'])
+    expect(transcript[1]?.kind === 'message' && transcript[1].message.approvalRequestId)
+      .toBe('ask-1')
   })
 
   it('does not hide an ordinary assistant-only answer', () => {
@@ -438,6 +474,32 @@ describe('applyCodingToolEvent', () => {
     expect(settled[1]?.approvalRequestId).toBe('approval-1')
   })
 
+  it('keeps a thinking-only assistant row visible', () => {
+    const thinking = message('think', 'assistant', '', {
+      thinking: 'read greet first',
+      thinkingStatus: 'running',
+      status: 'running',
+    })
+    expect(isBlankAssistantMessage(thinking)).toBe(false)
+    expect(isBlankAssistantMessage(message('start', 'assistant', '', {
+      thinkingStatus: 'running',
+      status: 'running',
+    }))).toBe(false)
+    const next = applyAssistantThinkingEvent([], {
+      type: 'assistant.thinking_delta',
+      text: 'read greet first',
+    }, () => 'id-1')
+    expect(next[0]?.thinking).toBe('read greet first')
+    expect(next[0]?.thinkingStatus).toBe('running')
+    const done = applyAssistantThinkingEvent(next, {
+      type: 'assistant.thinking_completed',
+      text: 'read greet first',
+      durationMs: 2400,
+    })
+    expect(done[0]?.thinkingStatus).toBe('done')
+    expect(done[0]?.thinkingDurationMs).toBe(2400)
+  })
+
   it('hides leftover read-only delivery status as a blank assistant shell', () => {
     expect(isBlankAssistantMessage(message(
       'stale',
@@ -469,5 +531,18 @@ describe('applyCodingToolEvent', () => {
       target: parent,
       currentTarget: parent,
     } as unknown as Event)).toBe(true)
+  })
+
+  it('hides finished tools unless the user expanded them', () => {
+    const entries = buildChatActivityEntries([
+      message('t1', 'tool', 'README.md', { toolName: 'read', toolCallId: 'c1', status: 'done' }),
+      message('t1r', 'tool', 'ok', { toolName: 'read', toolCallId: 'c1', status: 'done' }),
+      message('t2', 'tool', 'src', { toolName: 'read', toolCallId: 'c2', status: 'running' }),
+    ])
+    const hidden = visibleChatActivityEntries(entries, new Set())
+    expect(hidden).toHaveLength(1)
+    expect(hidden[0]?.running).toBe(true)
+    const kept = visibleChatActivityEntries(entries, new Set([entries[0]!.id]))
+    expect(kept).toHaveLength(2)
   })
 })

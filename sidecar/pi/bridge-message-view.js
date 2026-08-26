@@ -63,6 +63,15 @@ function textContent(message) {
     .join("");
 }
 
+export function thinkingContent(message) {
+  if (!Array.isArray(message?.content)) return "";
+  return message.content
+    .filter(item => item.type === "thinking" && !item.redacted)
+    .map(item => String(item.thinking ?? ""))
+    .filter(Boolean)
+    .join("\n");
+}
+
 function assistantError(errorMessage) {
   const value = String(errorMessage ?? "").trim();
   return value || fallbackAssistantError;
@@ -100,12 +109,23 @@ export function shouldDeferTerminalAssistantError(errorMessage) {
     || isRetryableProviderError(errorMessage);
 }
 
-export function projectAssistantMessageEnd(message, { textStreamed = false } = {}) {
+export function projectAssistantMessageEnd(message, {
+  textStreamed = false,
+  thinkingStreamed = false,
+} = {}) {
   const content = textContent(message);
+  const thinking = thinkingContent(message);
   const stopReason = message?.stopReason ?? "stop";
   const hasToolCall = Array.isArray(message?.content)
     && message.content.some(item => item.type === "toolCall");
   const events = [];
+
+  if (thinking.trim() && !thinkingStreamed) {
+    events.push({
+      type: "thinking_done",
+      data: { content: thinking },
+    });
+  }
 
   if (content.trim()) {
     events.push({

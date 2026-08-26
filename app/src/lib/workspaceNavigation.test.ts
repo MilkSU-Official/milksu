@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest'
 import {
   CTF_CONTEXT_ITEMS,
   ctfContextItemLabel,
+  isDomainWorkspace,
   settingsReturnSection,
   showsCodingHistory,
   WORKSPACE_RAIL_ITEMS,
+  WORKSPACE_SIDEBAR_ITEMS,
   workspaceContextLabel,
 } from './workspaceNavigation'
 
@@ -16,9 +18,13 @@ describe('workspace navigation', () => {
 
   it('shows coding history only inside the Coding context', () => {
     expect(showsCodingHistory('chat')).toBe(true)
-    expect(showsCodingHistory('ctf')).toBe(false)
-    expect(showsCodingHistory('vuln')).toBe(false)
-    expect(showsCodingHistory('lab')).toBe(false)
+    expect(showsCodingHistory('ctf')).toBe(true)
+    expect(showsCodingHistory('vuln')).toBe(true)
+    expect(showsCodingHistory('lab')).toBe(true)
+    expect(isDomainWorkspace('chat')).toBe(false)
+    expect(isDomainWorkspace('ctf')).toBe(true)
+    expect(WORKSPACE_SIDEBAR_ITEMS.map(item => item.id)).toEqual(['chat', 'ctf', 'vuln', 'lab'])
+    expect(WORKSPACE_SIDEBAR_ITEMS[0].label()).toBe('主页')
   })
 
   it('keeps the laboratory as a peer rail, not a CTF catalog row', () => {

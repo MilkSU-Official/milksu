@@ -866,21 +866,13 @@ describe('ChatComposer', () => {
     expect(existing.startedGoals()).toBe(0)
   })
 
-  it('does not render the goal chip when only Git progress exists without a goal', async () => {
-    const result = mountComposer({
-      gitSummary: {
-        changedFiles: 3,
-        additions: 10,
-        deletions: 2,
-        changes: [],
-      },
-    })
+  it('does not render a Git progress chip in the composer', async () => {
+    const result = mountComposer()
     await nextTick()
 
     expect(result.host.querySelector('[aria-label="持续目标"]')).toBeNull()
-    expect(result.host.querySelector('[aria-label="任务进度摘要"]')).not.toBeNull()
-    expect(result.host.querySelector('[aria-label="任务进度摘要"]')?.textContent)
-      .toContain('代码')
+    expect(result.host.querySelector('[aria-label="任务进度摘要"]')).toBeNull()
+    expect(result.host.querySelector('[aria-label="查看代码变更"]')).toBeNull()
   })
 
   it('closes the goal popover with Escape from keyboard focus and with outside pointer clicks', async () => {
@@ -929,49 +921,17 @@ describe('ChatComposer', () => {
     expect(narrowBlock).toContain('.chat-composer__progress-pill {\n    min-width: 0;')
   })
 
-  it('projects real goal and Git status above the composer with goal controls', async () => {
+  it('projects real goal status above the composer with goal controls', async () => {
     const active = mountComposer({
       goal: activeGoal,
-      gitSummary: {
-        changedFiles: 22,
-        additions: 442,
-        deletions: 226,
-        changes: [{
-          path: 'app/src/components-vue/ChatComposer.vue',
-          indexStatus: ' ',
-          worktreeStatus: 'M',
-          staged: false,
-          modified: true,
-          untracked: false,
-          conflict: false,
-          additions: 18,
-          deletions: 4,
-        }],
-      },
     })
     await nextTick()
 
     const progress = active.host.querySelector('[aria-label="任务进度摘要"]')
     const goalPanel = active.host.querySelector('[aria-label="持续目标"]')
     expect(progress?.textContent).toContain('第 4 轮')
-    expect(progress?.textContent).toContain('代码')
-    expect(progress?.textContent).toContain('+442')
-    expect(progress?.textContent).toContain('-226')
-    const changeTrigger = active.host.querySelector<HTMLButtonElement>('[aria-label="查看代码变更"]')
-    changeTrigger?.dispatchEvent(new MouseEvent('pointerenter', { bubbles: true }))
-    await new Promise(resolve => window.setTimeout(resolve, 160))
-    await nextTick()
-    const fileAction = document.querySelector<HTMLButtonElement>(
-      '[aria-label="在变更中打开 app/src/components-vue/ChatComposer.vue"]',
-    )
-    expect(fileAction?.textContent).toContain('+18')
-    expect(fileAction?.textContent).toContain('-4')
-    fileAction?.click()
-    changeTrigger?.click()
-    expect(active.openedChanges()).toEqual([
-      'app/src/components-vue/ChatComposer.vue',
-      undefined,
-    ])
+    expect(progress?.textContent).not.toContain('代码')
+    expect(active.host.querySelector('[aria-label="查看代码变更"]')).toBeNull()
     expect(goalPanel?.textContent).toContain('进行中')
     expect(goalPanel?.textContent).toContain(activeGoal.text)
     expect(goalPanel?.textContent).toContain('12,500 / 100,000 tokens')

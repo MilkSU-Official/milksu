@@ -5,6 +5,7 @@ describe('App workspace routing contract', () => {
   it('keeps CTF and CVE workspaces alive across top-level navigation without caching Coding chats', () => {
     expect(appSource).toContain('<KeepAlive include="CTFPage,VulnPage,LabPage">')
     expect(appSource).toContain('<CTFPage')
+    expect(appSource).toContain("v-if=\"section === 'ctf' && !dossierChatMaximized\"")
     expect(appSource).toContain('<VulnPage')
 
     const keepAliveBlock = appSource.slice(
@@ -13,21 +14,63 @@ describe('App workspace routing contract', () => {
     )
 
     expect(keepAliveBlock).toContain('<CTFPage')
+    expect(keepAliveBlock).toContain("v-if=\"section === 'ctf' && !dossierChatMaximized\"")
     expect(keepAliveBlock).toContain('<VulnPage')
     expect(keepAliveBlock).toContain('<LabPage')
     expect(keepAliveBlock).not.toContain('<ChatPage')
+    expect(keepAliveBlock).not.toContain('absolute inset-0 z-20')
   })
 
   it('opens the CTF workspace from top-level navigation without trapping users in Agent chat', () => {
-    expect(appSource).toContain("section.value === 'chat' && activeCTFConversation.value ? 'ctf' : section.value")
-    expect(appSource).toContain('restoreCTFWorkspaceResumePoint()')
-    expect(appSource).toContain('ctfResumeJobId.value = next.jobId')
-    expect(appSource).toContain('if (next.conversationId) lastCTFConversationId.value = next.conversationId')
+    expect(appSource).toContain('function selectSidebarConversation')
+    expect(appSource).toContain('function maximizeDossierChat')
+    expect(appSource).toContain('function closeDossierChat')
+    expect(appSource).toContain('const domainChatMaximized')
+    expect(appSource).not.toContain("section.value === 'chat' && activeCTFConversation.value ? 'ctf' : section.value")
+    expect(appSource).toContain('function restoreCTFWorkspaceResumePoint')
+    expect(appSource).toContain('function openDomainCatalog')
+    expect(appSource).toContain("conversations.startNew({ workspaceHome: home })")
+    expect(appSource).toContain('ctfCatalogEpoch.value += 1')
+    expect(appSource).toContain(':catalog-epoch="ctfCatalogEpoch"')
     expect(appSource).toContain(':initial-job-id="ctfResumeJobId"')
     expect(appSource).toContain('@return-ctf="returnToCTFWorkspace"')
     expect(appSource).not.toContain('lastCTFReturnSurface')
     expect(appSource).not.toContain('restoreCTFAgentConversation')
     expect(appSource).not.toContain("section.value = 'chat'\n  // Prefer structured domain snapshot")
+  })
+
+  it('does not open an empty conversation dock when entering a domain catalog', () => {
+    expect(appSource).toContain('const domainChatDockOpen = ref({ ctf: false, vuln: false, lab: false })')
+    const catalogFn = appSource.slice(
+      appSource.indexOf('function openDomainCatalog'),
+      appSource.indexOf('function navigateSection'),
+    )
+    expect(catalogFn).toContain('setDomainChatDockOpen(false, home)')
+    expect(catalogFn).not.toContain('setDomainChatDockOpen(true')
+    expect(catalogFn).toContain('vulnerabilityDashboard.selectedId.value = \'\'')
+    expect(catalogFn).toContain('vulnNavigationEpoch.value += 1')
+  })
+
+  it('opens a domain sidebar conversation in the dock without leaving the catalog', () => {
+    const selectFn = appSource.slice(
+      appSource.indexOf('function selectSidebarConversation'),
+      appSource.indexOf('async function chooseAgentWorkspace'),
+    )
+    expect(selectFn).toContain('setDomainChatDockOpen(true, home)')
+    expect(selectFn).not.toContain('ctfResumeJobId.value = jobId')
+    expect(selectFn).not.toContain('labJobs.selectedId.value = target.domainTaskContext.jobId')
+    expect(selectFn).not.toContain('vulnerabilityDashboard.selectedId')
+  })
+
+  it('opens a pending composer dock from 新对话 without persisting a catalog row', () => {
+    const createFn = appSource.slice(
+      appSource.indexOf('function createDossierConversation'),
+      appSource.indexOf('async function bindDossierConversation'),
+    )
+    expect(createFn).toContain('conversations.startNew({ workspaceHome: home })')
+    expect(createFn).toContain('setDomainChatDockOpen(true, home)')
+    expect(createFn).not.toContain('openDomainCatalog')
+    expect(createFn).not.toContain('ensureConversation')
   })
 
   it('keeps CTF agent turns on the challenge page instead of embedding Coding', () => {
@@ -39,6 +82,12 @@ describe('App workspace routing contract', () => {
       appSource.indexOf('function selectDossierConversation'),
     )
     expect(startFn).not.toContain("section.value = 'chat'")
+    const maximizeFn = appSource.slice(
+      appSource.indexOf('function maximizeDossierChat'),
+      appSource.indexOf('function restoreDossierChat'),
+    )
+    expect(maximizeFn).not.toContain("section.value = 'chat'")
+    expect(maximizeFn).toContain('setDomainChatMaximized(true)')
   })
 
   it('keeps CVE-to-Coding handoffs returnable to the CVE workspace', () => {
@@ -51,7 +100,12 @@ describe('App workspace routing contract', () => {
     expect(appSource).toContain(':vulnerability-session="activeVulnerabilityCodingConversation"')
     expect(appSource).toContain('@return-vuln="returnToVulnerabilityWorkspace"')
     expect(appSource).toContain('@return-lab="returnToLabWorkspace"')
-    expect(appSource).toContain('@expand="expandDossierToCoding"')
+    expect(appSource).toContain('@expand="maximizeDossierChat"')
+    expect(appSource).toContain(':chat-maximized="dossierChatMaximized"')
+    expect(appSource).toContain(':chat-dock-open="domainDockOpen"')
+    expect(appSource).toContain('@close-dock="closeDossierChat"')
+    expect(appSource).toContain(':restorable="dossierChatMaximized"')
+    expect(appSource).toContain('@restore="restoreDossierChat"')
     expect(appSource).toContain("section.value = 'vuln'")
   })
 

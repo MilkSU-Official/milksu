@@ -2,6 +2,63 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createApprovalBroker } from "./bridge-approval.js";
 
+test("choice broker waits for a selected option", async () => {
+  const events = [];
+  const broker = createApprovalBroker(
+    (id, type, data) => events.push({ id, type, ...data }),
+    () => "ask-1",
+  );
+  const decision = broker.requestChoice({
+    conversationId: "conversation-1",
+    question: "How many flavors should we launch?",
+    options: [
+      { id: "three", label: "Three (core line)" },
+      { id: "five", label: "Five (full case)" },
+    ],
+  });
+  assert.equal(events[0].toolName, "milksu_ask");
+  broker.respond({
+    conversationId: "conversation-1",
+    requestId: "ask-1",
+    approved: true,
+    choice: "five",
+  });
+  assert.deepEqual(await decision, { id: "five", label: "Five (full case)" });
+  assert.equal(events[1].choice, "five");
+});
+
+test("choice broker rejects an unknown option and dismisses to null", async () => {
+  const events = [];
+  const broker = createApprovalBroker(
+    (id, type, data) => events.push({ id, type, ...data }),
+    () => "ask-2",
+  );
+  const decision = broker.requestChoice({
+    conversationId: "conversation-1",
+    question: "Pick one",
+    options: [
+      { id: "a", label: "A" },
+      { id: "b", label: "B" },
+    ],
+  });
+  assert.throws(
+    () => broker.respond({
+      conversationId: "conversation-1",
+      requestId: "ask-2",
+      approved: true,
+      choice: "missing",
+    }),
+    /Unknown MilkSU choice/,
+  );
+  broker.respond({
+    conversationId: "conversation-1",
+    requestId: "ask-2",
+    approved: false,
+  });
+  assert.equal(await decision, null);
+  assert.equal(events.at(-1).approved, false);
+});
+
 test("approval broker pauses a tool until the matching desktop response", async () => {
   const events = [];
   const broker = createApprovalBroker(

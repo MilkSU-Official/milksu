@@ -1,4 +1,5 @@
 import type { Message } from '@/types'
+import { codingAskToolName } from '@/lib/agentAsk'
 import { t } from '@/lib/uiLocale'
 
 export interface ChatMessageBlock {
@@ -23,7 +24,15 @@ export interface ChatActivityEntry {
   running: boolean
 }
 
-export type ChatTranscriptBlock = ChatMessageBlock | ChatActivityBlock
+export interface ChatProcessFoldBlock {
+  kind: 'process'
+  id: string
+  blocks: Array<ChatMessageBlock | ChatActivityBlock>
+}
+
+export type ChatTurnBlock = ChatMessageBlock | ChatActivityBlock
+
+export type ChatTranscriptBlock = ChatTurnBlock | ChatProcessFoldBlock
 
 const commandTools = new Set([
   'bash',
@@ -49,6 +58,8 @@ export function isBlankAssistantMessage(message: Message) {
   if (message.role === 'assistant' && leftoverDeliveryStatus.test(content)) return true
   return message.role === 'assistant'
     && !content
+    && !String(message.thinking ?? '').trim()
+    && message.thinkingStatus !== 'running'
     && !(message.attachments && message.attachments.length)
 }
 
@@ -199,6 +210,47 @@ export function applyCodingToolEvent(
   return next
 }
 
+export function applyAssistantThinkingEvent(
+  messages: Message[],
+  event: {
+    type: 'assistant.thinking_started' | 'assistant.thinking_delta' | 'assistant.thinking_completed'
+    text?: string
+    durationMs?: number
+  },
+  createId: () => string = () => crypto.randomUUID(),
+): Message[] {
+  const next = messages.slice()
+  const last = next.at(-1)
+  const delta = String(event.text ?? '')
+  const completing = event.type === 'assistant.thinking_completed'
+  const liveAssistant = last?.role === 'assistant'
+    && (last.thinkingStatus === 'running' || last.status === 'running')
+  if (liveAssistant && last) {
+    next[next.length - 1] = {
+      ...last,
+      thinking: completing
+        ? (delta || last.thinking || '')
+        : `${last.thinking ?? ''}${delta}`,
+      thinkingStatus: completing ? 'done' : 'running',
+      thinkingDurationMs: event.durationMs ?? last.thinkingDurationMs,
+      status: last.status === 'done' ? 'done' : 'running',
+    }
+    return next
+  }
+  if (!delta && !completing && event.type !== 'assistant.thinking_started') return next
+  next.push({
+    id: createId(),
+    role: 'assistant',
+    content: '',
+    timestamp: Date.now(),
+    status: 'running',
+    thinking: delta,
+    thinkingStatus: completing ? 'done' : 'running',
+    thinkingDurationMs: event.durationMs,
+  })
+  return next
+}
+
 export function hasIdleRunResidue(messages: Message[]): boolean {
   return messages.some(message => (
     message.status === 'running'
@@ -238,6 +290,7 @@ export function buildChatTranscript(
     if (isBlankAssistantMessage(message)) continue
 
     if (message.role === 'tool' && !isApproval(message)) {
+      if (String(message.toolName ?? '') === codingAskToolName) continue
       toolSegment.push(message)
       continue
     }
@@ -249,7 +302,57 @@ export function buildChatTranscript(
   }
   flush()
 
-  return blocks
+  return foldChatTranscriptProcess(blocks)
+}
+
+function isConcludingAssistant(block: ChatTurnBlock) {
+  return block.kind === 'message'
+    && block.message.role === 'assistant'
+    && Boolean(block.message.content?.trim())
+}
+
+function foldTurnProcess(turn: ChatTurnBlock[]): ChatTranscriptBlock[] {
+  let last = -1
+  for (let index = 0; index < turn.length; index += 1) {
+    if (isConcludingAssistant(turn[index]!)) last = index
+  }
+  if (last <= 0) return turn
+  const intermediates = turn.slice(0, last)
+  if (!intermediates.length) return turn.slice(last)
+  return [
+    {
+      kind: 'process',
+      id: `process:${intermediates[0]!.id}`,
+      blocks: intermediates,
+    },
+    ...turn.slice(last),
+  ]
+}
+
+export function foldChatTranscriptProcess(blocks: ChatTranscriptBlock[]): ChatTranscriptBlock[] {
+  const next: ChatTranscriptBlock[] = []
+  let index = 0
+  while (index < blocks.length) {
+    const block = blocks[index]!
+    if (block.kind !== 'message' || block.message.role !== 'user') {
+      if (block.kind === 'process') next.push(block)
+      else next.push(...foldTurnProcess([block]))
+      index += 1
+      continue
+    }
+    next.push(block)
+    index += 1
+    const turn: ChatTurnBlock[] = []
+    while (index < blocks.length) {
+      const item = blocks[index]!
+      if (item.kind === 'message' && item.message.role === 'user') break
+      if (item.kind === 'process') turn.push(...item.blocks)
+      else turn.push(item)
+      index += 1
+    }
+    next.push(...foldTurnProcess(turn))
+  }
+  return next
 }
 
 function entryCount(entries: ChatActivityEntry[], tools: Set<string>) {
@@ -279,6 +382,13 @@ export function chatActivitySummary(messages: Message[]) {
   }
 
   return parts.join('')
+}
+
+export function visibleChatActivityEntries(
+  entries: ChatActivityEntry[],
+  openEntryIds: ReadonlySet<string>,
+): ChatActivityEntry[] {
+  return entries.filter(entry => entry.running || openEntryIds.has(entry.id))
 }
 
 export function buildChatActivityEntries(messages: Message[]): ChatActivityEntry[] {

@@ -72,7 +72,7 @@ const moduleKey = computed(() => props.module ?? props.title.trim().toLowerCase(
   --module-topbar-control-size: var(--text-control, 0.875rem);
   --module-topbar-control-line-height: var(--text-control--line-height, 1.25rem);
 
-  min-height: 4.25rem;
+  min-height: 3rem;
   position: relative;
   z-index: var(--z-sticky);
   isolation: isolate;
@@ -110,11 +110,11 @@ const moduleKey = computed(() => props.module ?? props.title.trim().toLowerCase(
 .workspace-topbar[data-workspace-module="ctf"],
 .workspace-topbar[data-workspace-module="cve"],
 .workspace-topbar[data-workspace-module="lab"] {
-  --module-topbar-title-size: 1.5rem;
-  --module-topbar-title-line-height: 1.85rem;
-  min-height: 4.75rem;
-  padding-top: 0.9rem;
-  padding-bottom: 0.85rem;
+  --module-topbar-title-size: 1.25rem;
+  --module-topbar-title-line-height: 1.5rem;
+  min-height: 3.25rem;
+  padding-top: 0.65rem;
+  padding-bottom: 0.65rem;
 }
 
 .workspace-topbar__title,

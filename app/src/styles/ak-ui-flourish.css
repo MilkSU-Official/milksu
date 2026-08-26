@@ -200,29 +200,6 @@
   font-size: var(--text-caption);
 }
 
-.chat-time-divider {
-  margin: 0 0 0.75rem;
-}
-
-.chat-time-divider span {
-  width: auto;
-  padding: 0 0.7rem;
-  font-family: 'SFMono-Regular', 'Cascadia Code', monospace;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-}
-
-:root[data-theme='light'] .chat-time-divider::before,
-:root[data-theme='light'] .chat-time-divider::after {
-  background-color: rgba(17, 19, 21, 0.2);
-}
-
-:root[data-theme='light'] .chat-time-divider span {
-  color: rgba(17, 19, 21, 0.5);
-  filter: none;
-}
-
 .ak-segmented {
   flex: none;
   overflow: hidden;

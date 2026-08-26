@@ -39,8 +39,7 @@ function conversationWithTools(id: string): Conversation {
     createdAt: 1,
     messages: [
       { id: `${id}-user`, role: 'user', content: '做点事', timestamp: 1, status: 'done' },
-      tool(`${id}-t1`, '$ npm test', { toolCallId: `${id}-call-1` }),
-      tool(`${id}-t1-result`, 'ok', { toolCallId: `${id}-call-1` }),
+      tool(`${id}-t1`, '$ npm test', { toolCallId: `${id}-call-1`, status: 'running' }),
     ],
   }
 }
@@ -82,23 +81,24 @@ describe('ChatPage activity expansion', () => {
     await nextTick()
     await nextTick()
 
-    const groupA = host.querySelector<HTMLDetailsElement>('.tool-activity')
-    expect(groupA).not.toBeNull()
-    expect(groupA?.open).toBe(false)
+    const entryA = host.querySelector<HTMLDetailsElement>('.tool-activity-entry')
+    expect(entryA).not.toBeNull()
+    expect(entryA?.open).toBe(false)
+    expect(host.querySelector('.agent-chip')).not.toBeNull()
 
-    groupA?.querySelector('summary')?.click()
+    entryA?.querySelector('summary')?.click()
     await settleToggle()
-    expect(host.querySelector<HTMLDetailsElement>('.tool-activity')?.open).toBe(true)
+    expect(host.querySelector<HTMLDetailsElement>('.tool-activity-entry')?.open).toBe(true)
 
     active.value = conversationWithTools('conversation-b')
     await nextTick()
     await nextTick()
-    expect(host.querySelector<HTMLDetailsElement>('.tool-activity')?.open).toBe(false)
+    expect(host.querySelector<HTMLDetailsElement>('.tool-activity-entry')?.open).toBe(false)
 
     active.value = conversationWithTools('conversation-a')
     await nextTick()
     await nextTick()
-    expect(host.querySelector<HTMLDetailsElement>('.tool-activity')?.open).toBe(true)
+    expect(host.querySelector<HTMLDetailsElement>('.tool-activity-entry')?.open).toBe(true)
   })
 
   it('keeps a group expanded while new tool results arrive in the same conversation', async () => {
@@ -106,9 +106,9 @@ describe('ChatPage activity expansion', () => {
     await nextTick()
     await nextTick()
 
-    host.querySelector<HTMLDetailsElement>('.tool-activity')?.querySelector('summary')?.click()
+    host.querySelector<HTMLDetailsElement>('.tool-activity-entry')?.querySelector('summary')?.click()
     await settleToggle()
-    expect(host.querySelector<HTMLDetailsElement>('.tool-activity')?.open).toBe(true)
+    expect(host.querySelector<HTMLDetailsElement>('.tool-activity-entry')?.open).toBe(true)
 
     active.value = {
       ...active.value,
@@ -123,6 +123,6 @@ describe('ChatPage activity expansion', () => {
     await nextTick()
     await nextTick()
 
-    expect(host.querySelector<HTMLDetailsElement>('.tool-activity')?.open).toBe(true)
+    expect(host.querySelector<HTMLDetailsElement>('.tool-activity-entry')?.open).toBe(true)
   })
 })

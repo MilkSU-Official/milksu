@@ -20,6 +20,7 @@ async function mountMessage(
     requestId: string
     approved: boolean
     scope?: 'once' | 'conversation'
+    choice?: string
   }> = []
   let retried = false
   const host = document.createElement('div')
@@ -31,8 +32,9 @@ async function mountMessage(
       requestId: string,
       approved: boolean,
       scope?: 'once' | 'conversation',
+      choice?: string,
     ) => {
-      responses.push({ requestId, approved, scope })
+      responses.push({ requestId, approved, scope, choice })
     },
     onRetry: () => {
       retried = true
@@ -89,7 +91,7 @@ describe('ChatMessageItem', () => {
       status: 'running',
     })
     expect(host.querySelector('article')).toBeNull()
-    expect(host.textContent ?? '').not.toContain('MILKSU')
+    expect(host.textContent ?? '').not.toContain('正在回复')
   })
 
   it('offers a conversation-wide grant only when the request is grantable', async () => {
@@ -150,7 +152,59 @@ describe('ChatMessageItem', () => {
     expect(ctf.host.textContent).toContain('notes、证据、Judge 回执和工具结果')
   })
 
-  it('places an ak-divider above user messages only', async () => {
+  it('renders a thinking block from Pi without a YOU/MILKSU label', async () => {
+    const { host } = await mountMessage({
+      id: 'message-thinking',
+      role: 'assistant',
+      content: '接下来改 greet。',
+      timestamp: Date.now(),
+      thinking: '先读文件再改签名。',
+      thinkingStatus: 'done',
+      thinkingDurationMs: 6000,
+    })
+    expect(host.textContent).toContain('想了')
+    expect(host.textContent).toContain('6.0s')
+    expect(host.textContent).toContain('先读文件再改签名。')
+    expect(host.textContent).not.toContain('MILKSU')
+    expect(host.textContent).not.toContain('YOU')
+    expect(host.querySelector('.agent-think')).not.toBeNull()
+    expect(host.querySelector('.agent-think__more')?.getAttribute('data-open')).toBe('false')
+    host.querySelector<HTMLButtonElement>('.agent-think__summary')?.click()
+    await nextTick()
+    expect(host.querySelector('.agent-think__more')?.getAttribute('data-open')).toBe('true')
+  })
+
+  it('keeps live thinking open and folds it when the conclusion starts', async () => {
+    const live = await mountMessage({
+      id: 'message-thinking-live',
+      role: 'assistant',
+      content: '',
+      timestamp: Date.now(),
+      thinking: '先看仓库结构。\n再决定改哪个文件。',
+      thinkingStatus: 'running',
+      status: 'running',
+    })
+    expect(live.host.querySelector('.agent-think__more')?.getAttribute('data-open')).toBe('true')
+    expect(live.host.textContent).toContain('正在思考')
+    expect(live.host.textContent).toContain('先看仓库结构。')
+
+    const settled = await mountMessage({
+      id: 'message-thinking-settled',
+      role: 'assistant',
+      content: '结论是改 greet.ts。',
+      timestamp: Date.now(),
+      thinking: '先看仓库结构。\n再决定改哪个文件。',
+      thinkingStatus: 'done',
+      thinkingDurationMs: 4200,
+      status: 'done',
+    })
+    expect(settled.host.querySelector('.agent-think__more')?.getAttribute('data-open')).toBe('false')
+    expect(settled.host.textContent).toContain('想了')
+    expect(settled.host.textContent).toContain('4.2s')
+    expect(settled.host.textContent).toContain('结论是改 greet.ts。')
+  })
+
+  it('places a centered time divider above user messages only', async () => {
     const sentAt = Date.now()
     const user = await mountMessage({
       id: 'message-user-time',
@@ -158,8 +212,9 @@ describe('ChatMessageItem', () => {
       content: 'hi',
       timestamp: sentAt,
     })
-    const divider = user.host.querySelector('.ak-divider')
+    const divider = user.host.querySelector('.agent-time')
     expect(divider).not.toBeNull()
+    expect(divider?.classList.contains('ak-divider')).toBe(false)
     expect(divider?.textContent?.trim()).toMatch(/\d{1,2}:\d{2}:\d{2}/)
 
     const assistant = await mountMessage({
@@ -168,20 +223,20 @@ describe('ChatMessageItem', () => {
       content: 'hello',
       timestamp: sentAt,
     })
-    expect(assistant.host.querySelector('.ak-divider')).toBeNull()
+    expect(assistant.host.querySelector('.agent-time')).toBeNull()
   })
 
-  it('shows an ak-loading mark while the assistant is still running', async () => {
+  it('streams assistant text with a blurred leading edge and a solid caret', async () => {
     const running = await mountMessage({
       id: 'message-assistant-running',
       role: 'assistant',
-      content: '正在写',
+      content: 'Pistachio is growing',
       timestamp: Date.now(),
       status: 'running',
     })
-    const mark = running.host.querySelector('.ak-loading')
-    expect(mark).not.toBeNull()
-    expect(running.host.querySelector('[aria-label="正在回复"]')).not.toBeNull()
+    expect(running.host.querySelector('.agent-stream-tail')?.textContent).toBe('rowing')
+    expect(running.host.querySelector('.agent-stream-caret')?.classList.contains('is-streaming')).toBe(true)
+    expect(running.host.querySelector('.agent-pixel')).toBeNull()
 
     const done = await mountMessage({
       id: 'message-assistant-done',
@@ -190,6 +245,101 @@ describe('ChatMessageItem', () => {
       timestamp: Date.now(),
       status: 'done',
     })
-    expect(done.host.querySelector('.ak-loading')).toBeNull()
+    expect(done.host.querySelector('.agent-pixel')).toBeNull()
+    expect(done.host.querySelector('.agent-stream-caret')).toBeNull()
+    expect(done.host.querySelector('.agent-stream-tail')).toBeNull()
+  })
+
+  it('lets the user copy or edit a prompt and copy or branch an answer', async () => {
+    const user = await mountMessage({
+      id: 'user-actions',
+      role: 'user',
+      content: '列出仓库',
+      timestamp: Date.now(),
+    })
+    expect(user.host.querySelector('[aria-label="复制"]')).not.toBeNull()
+    expect(user.host.querySelector('[aria-label="编辑"]')).not.toBeNull()
+    expect(user.host.querySelector('[aria-label="分叉到新对话"]')).toBeNull()
+
+    const assistant = await mountMessage({
+      id: 'assistant-actions',
+      role: 'assistant',
+      content: '这是一个仓库。',
+      timestamp: Date.now(),
+    })
+    expect(assistant.host.querySelector('[aria-label="复制"]')).not.toBeNull()
+    expect(assistant.host.querySelector('[aria-label="分叉到新对话"]')).not.toBeNull()
+    expect(assistant.host.querySelector('[aria-label="编辑"]')).toBeNull()
+  })
+
+  it('renders a Beautiful UI choice card and emits the selected option', async () => {
+    const { host, responses } = await mountMessage({
+      id: 'message-ask',
+      role: 'tool',
+      content: 'How many flavors should we launch?',
+      timestamp: 1,
+      toolName: 'milksu_ask',
+      approvalRequestId: 'ask-1',
+      approvalState: 'pending',
+      approvalInput: JSON.stringify({
+        options: [
+          { id: 'three', label: 'Three (core line)', detail: 'Keep the line small' },
+          { id: 'five', label: 'Five (full case)' },
+          { id: 'one', label: 'Just one hero' },
+        ],
+      }),
+    })
+    expect(host.querySelector('.agent-choice')).not.toBeNull()
+    expect(host.textContent).toContain('How many flavors should we launch?')
+    expect(host.textContent).toContain('Three (core line)')
+    expect(host.textContent).toContain('Keep the line small')
+    expect(host.querySelector('.agent-approve__actions')).toBeNull()
+    const five = [...host.querySelectorAll<HTMLButtonElement>('.agent-choice__option')]
+      .find(button => button.textContent?.includes('Five (full case)'))
+    five?.click()
+    await nextTick()
+    expect(responses).toEqual([{
+      requestId: 'ask-1',
+      approved: true,
+      scope: 'once',
+      choice: 'five',
+    }])
+    expect(host.querySelector('[role="radiogroup"]')).not.toBeNull()
+  })
+
+  it('keeps a selected choice card as a receipt', async () => {
+    const { host } = await mountMessage({
+      id: 'message-ask-done',
+      role: 'tool',
+      content: 'How many flavors should we launch?',
+      timestamp: 1,
+      toolName: 'milksu_ask',
+      approvalRequestId: 'ask-1',
+      approvalState: 'approved',
+      approvalChoiceId: 'five',
+      approvalInput: JSON.stringify({
+        options: [
+          { id: 'three', label: 'Three (core line)' },
+          { id: 'five', label: 'Five (full case)' },
+        ],
+      }),
+    })
+    expect(host.querySelector('.agent-choice')).not.toBeNull()
+    const selected = host.querySelector('.agent-choice__option.is-selected')
+    expect(selected?.textContent).toContain('Five (full case)')
+    expect(host.querySelectorAll<HTMLButtonElement>('.agent-choice__option')[0]?.disabled).toBe(true)
+  })
+
+  it('hides a finished approval unless the user opened it', async () => {
+    const { host } = await mountMessage({
+      id: 'message-approved',
+      role: 'tool',
+      content: 'bash · echo hi',
+      timestamp: 1,
+      toolName: 'bash',
+      approvalRequestId: 'approval-done',
+      approvalState: 'approved',
+    })
+    expect(host.querySelector('.agent-approve')).toBeNull()
   })
 })

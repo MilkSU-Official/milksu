@@ -2,7 +2,7 @@
 
 > 文档状态：Current / Canonical target contract
 >
-> 最后收口：2026-08-25
+> 最后收口：2026-08-26
 >
 > 本页只回答“当前处于什么阶段、下一条完成线是什么”。实现事实以当前代码、测试、Git 历史和原生 App 验收为准；历史设计与旧里程碑不作为任务队列。
 >
@@ -32,7 +32,7 @@
 | 历史基线 | M3 product-loop 已在 `108e0e3`（2026-08-05）合并，仅供追溯。 |
 | 正式发行基线 | `v26.825.1 / efddfc2733fb4fc740da9281fb614dfe57f814f8`（2026-08-25 今日首发）。这是当前 GitHub Latest Release；提供带版本号的 DMG、EXE、DEB 与 `SHA256SUMS`；R2/Admin current pointer 未发布。 |
 | 开发版本线 | 根目录与 `desktop/package.json` 是 `26.825.1`。正式发行源是 `efddfc2`；文档收口提交不移动该 tag。 |
-| 当前开发 | 正式包是 `26.825.1`。实验室题目包打开后是靶机卡片（Juice Shop / WebGoat / S2-045 / whoami / InjuredAndroid），安卓走专用 MilkSU-Lab。Pi 钉到 `0.84.1`。Composer 可调思考档位，上下文环分出未命中输入和缓存命中。连续重复工具或过长工具循环会停下来确认；Go 运行时意外退出会自动再拉起。设置、CTF / CVE / 实验室列表指挥面统一：历史 + 导入或创建，连接状态用 LIVE / OFF。开始解题 / 开始复现展开对话小窗并聚焦输入。设置「评测」可切换 Cybench / SEC-bench / AutoPenBench。CTF 比赛模式和实验室红队学习面仍未接线。 |
+| 当前开发 | 正式包是 `26.825.1`。实验室题目包打开后是靶机卡片（Juice Shop / WebGoat / S2-045 / whoami / InjuredAndroid），安卓走专用 MilkSU-Lab。Pi 钉到 `0.84.1`。Composer 可调思考档位，上下文环分出未命中输入和缓存命中。连续重复工具或过长工具循环会停下来确认；Go 运行时意外退出会自动再拉起。设置、CTF / CVE / 实验室列表指挥面统一：历史 + 导入或创建，连接状态用 LIVE / OFF。开始解题 / 开始复现展开对话小窗并聚焦输入。设置「评测」可切换 Cybench / SEC-bench / AutoPenBench。CTF 比赛模式和实验室红队学习面仍未接线。产品 UI 设计语言只写在 `AGENTS.md`。本分支未发版改动见下一节。 |
 | 平台边界 | `26.825.1`：macOS DMG 走 GitHub-hosted Developer ID 签名并公证；Windows 安装器完成原生 Runtime 与首次启动但未代码签名，并打入审阅过的 CUA Driver；Linux DEB 完成包结构、Sidecar、Go Runtime 与 Xvfb Electron 启动，仍无 Secret Service、本地 OCR、Computer Use。 |
 | 发行流水 | 下一发行从干净、已推送的 `main` 对 canonical Go/Vue/Sidecar/lint/生产与文档构建只验证一次；macOS / Windows / Linux 都走 GitHub-hosted 云端。macOS 本机打包暂时关闭。必须创建 GitHub Release 页并上传带版本号的 DMG/EXE/DEB 与 SHA256SUMS，不能只留空 tag。GitHub-only 不生成 OTA ZIP/metadata。 |
 
@@ -135,9 +135,17 @@
 - 开发态 Sidecar 把审阅过的 TypeScript 扩展编出 `node_modules`；正式打包仍走原来的 esbuild 整包。
 - GitHub Release（Latest）提供 DMG / EXE / DEB 与 `SHA256SUMS-26.825.1.txt`。macOS 走 GitHub-hosted 签名公证，不再走本机打包。
 
-## 未发版改动：晚于 `v26.825.1` / `efddfc2` 的 `main`
+## 未发版改动：晚于 `v26.825.1` / `efddfc2`
 
-文档收口提交不移动该 tag。当前没有尚未进发行的产品改动。
+文档收口提交不移动该 tag。本分支 `feat/coding-chat-beautiful-ui` 尚未进入正式发行。产品 UI 设计语言只写在 `AGENTS.md`，下面只记产品事实。
+
+- Beautiful UI 是产品 chrome 主导语言：可拖宽侧栏（最小 224、默认 264）、画布目录、8px 设置行。青金/淡黄行底已去掉；ak-tag 难度/类别/严重性/每日仍保留。
+- 侧栏无项目分组改名为「最近」，有加号且宽度与其他组一致。底栏是垂直居中的版本号加主题图标。
+- CTF / CVE / Lab 目录页点侧栏会话打开该对话小窗；空会话不再弹死窗，未绑定题目的会话也能打开。
+- 这些工作区的新对话不注入主页上次项目路径；主页新对话也不注入 CTF / CVE / Lab 里选过的项目。
+- 域对话最大化铺满侧栏右侧。对话区时间分割线居中，宽度与正文一致。
+- `milksu_ask` 把用户选择行接到 Pi 并暂停回合。流式正文走真实 token 的模糊尾；文件改动用 chips。
+- README 截图已按当前 UI 重拍。
 
 ## 当前产品事实
 
@@ -169,7 +177,7 @@
 - Obelisk 会话索引底层继续保留；Coding 右栏与环境页已移除“相关历史”、搜索、过滤和图谱等单会话前端。学习记录/记忆系统如重新进入产品，应单独设计页面。
 - 进入 Coding 从“永远打开空白草稿”改为恢复上次会话：会话历史现在有归档、重命名与恢复入口，空白草稿不再是回到工作区的唯一入口，继续上一段任务比重新起草更常见。CTF/CVE 交接与显式历史点击仍然直接打开具体会话。
 - Agent 会话的直接删除改为可恢复归档：侧栏归档前确认，设置页集中恢复或永久删除且两者均再次确认；永久删除同步清理 Pi 会话与 Obelisk 活动索引。Coding 会话列表同时支持行内改名。该能力已进入 `26.822.1`。
-- 生产视觉是 ak-ui：石墨指挥面、纸面事实、青主操作、金焦点。酸绿不进产品。CTF、CVE、实验室、Coding 用同一套石墨 + 青，不以旧蓝黑色块或酸绿带区分。旧战术档案稿不再是实现约束。
+- 产品 UI 设计语言只写在 `AGENTS.md`。不要在本页复述层级、token 或原语表。
 
 ## 当前完成线
 
@@ -211,7 +219,7 @@ Windows 签名、Linux 缺失能力、R2/OTA 仍是发行后续，不是产品�
 | P1 | 安全工具真实任务 | IDA/idalib 与 capa 已有设置、准备和健康检查；用受控本地样本留下真实任务回执。就绪工具接到实验室作业，窄工具也可进 CVE 复现；不需要先开一次“是否投影”的会。不把 HexStrike 整包 MCP 做成产品页或 Kali 应用商店。CodeQL、Burp、Shannon 仍逐项接入。 |
 | P1 | Obelisk 学习记录 | 先定义可归因学习事实，再设计独立页面；不恢复已删除的单会话相关历史/图谱面板。 |
 | 未接线 | 继续同一作业还是新开一轮 | 当前按同一 CVE/实验室作业复用同一会话和 `report.md`。新开一轮的产品决策还没定。 |
-| 未接线 | CTF 比赛模式 | CTF 题库右上角金色 ak-ui「比赛」入口（`.ak-button--advanced`）。点进去是另一套交互：对着一场比赛的页面用 Agent 去打，列表和操作只服务这一场，不走现在的练习题库（历史 + 导入）。组队、共享题目状态后做。不要和 NSSCTF Agent Arena 单题限时评分混成同一面。尚未设计准入，未实现。 |
+| 未接线 | CTF 比赛模式 | 对着一场比赛的页面用 Agent 去打，列表和操作只服务这一场，不走现在的练习题库（历史 + 导入）。组队、共享题目状态后做。不要和 NSSCTF Agent Arena 单题限时评分混成同一面。尚未设计准入，未实现。 |
 | 未接线 | 实验室红队模式 | 实验室可能另开红队学习面，用来学 Cobalt Strike 一类 C2 / 后渗透作业，而不是把现在的探测报告作业改成对外红队。范围仍是可见靶场或用户明确授权的资产；不扫未授权外网、不做隐匿/凭证喷洒产品功能。不要把 Cobalt Strike 做成仓库核心或默认 MCP。尚未设计准入，未实现。 |
 
 ### 当前切片：CVE 复现档案 + 实验室报告
@@ -249,3 +257,4 @@ Windows 签名、Linux 缺失能力、R2/OTA 仍是发行后续，不是产品�
 - 依赖方向固定为 `Vue → Electron Preload / Desktop RPC → Application Service → Domain / Runtime → Adapter`。
 - 触碰 `CTFPage.vue`、`cmd/milksu-backend/app.go`、`sidecar/pi/bridge-policy.js`、`internal/browsercap/manager.go` 或 Runner/Recovery 时，不再向热点文件增加第二份通用 harness 职责。
 - 文档分 Current、Evidence、Historical/Research 三层。Current 只放当前事实与下一完成线；过程聊天、微提交、历史 smoke 和已撤下设计不堆进入口。
+- 产品 UI 设计语言只写在 `AGENTS.md`。不要在 Current 文档、切片笔记或 README 里复述层级、token 或原语表。

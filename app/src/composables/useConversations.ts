@@ -17,6 +17,7 @@ import {
   normalizeCodingExecutionMode,
 } from '@/lib/codingPolicy'
 import {
+  applyAssistantThinkingEvent,
   applyCodingToolEvent,
   hasIdleRunResidue,
   settleRunningToolMessages,
@@ -26,6 +27,7 @@ import { redactProviderCredentials } from '@/lib/redaction'
 import { t } from '@/lib/uiLocale'
 import { normalizeDomainTaskContext } from '@/lib/domainTaskContext'
 import { shouldRememberCodingProject } from '@/lib/codingProjectMemory'
+import { conversationWorkspaceHome, type WorkspaceHome } from '@/lib/workspaceSessionRouting'
 import { resolveModelContextWindow } from '@/lib/knownContextWindow'
 import { MODEL_THINKING_LEVELS } from '@/lib/modelThinking'
 import {
@@ -177,6 +179,7 @@ interface AgentEvent {
   input?: string
   approved?: boolean
   grantable?: boolean
+  choice?: string
   reason?: string
   goal?: CodingGoalState
   resumed?: boolean
@@ -207,6 +210,7 @@ interface RuntimeTurnDispatch {
   attachments: CodingAttachment[]
   scopeToken?: ComposerScopeToken
   productAction?: CodingProductActionRequest
+  branchFromUserOccurrence?: number
 }
 
 export interface CodingMessageQueue {
@@ -363,6 +367,9 @@ export function normalizeConversation(raw: Record<string, unknown>): Conversatio
     ctfRole: ['solver', 'tool-builder', 'strategist'].includes(String(raw.ctfRole))
       ? raw.ctfRole as Conversation['ctfRole']
       : undefined,
+    workspaceHome: ['chat', 'ctf', 'vuln', 'lab'].includes(String(raw.workspaceHome))
+      ? raw.workspaceHome as Conversation['workspaceHome']
+      : undefined,
     domainTaskContext: normalizeDomainTaskContext(raw.domainTaskContext),
     lastContextUsage: normalizeLastContextUsage(raw.lastContextUsage),
     messages: settleRunningToolMessages(messages.map(message => {
@@ -396,12 +403,25 @@ export function normalizeConversation(raw: Record<string, unknown>): Conversatio
           : undefined,
         approvalState,
         approvalGrantable: message.approvalGrantable === true,
+        approvalChoiceId: typeof message.approvalChoiceId === 'string'
+          ? message.approvalChoiceId
+          : undefined,
         approvalReason: approvalState === 'expired'
           ? t('应用或 Agent 已重启，本次审批已失效', 'The app or Agent restarted, so this approval is no longer valid')
           : typeof message.approvalReason === 'string'
             ? message.approvalReason
             : undefined,
         attachments: normalizeAttachments(message.attachments),
+        thinking: typeof message.thinking === 'string' && message.thinking.trim()
+          ? message.thinking
+          : undefined,
+        thinkingStatus: message.thinkingStatus === 'running' || message.thinkingStatus === 'done'
+          ? message.thinkingStatus
+          : (typeof message.thinking === 'string' && message.thinking.trim() ? 'done' : undefined),
+        thinkingDurationMs: Number.isFinite(Number(message.thinkingDurationMs))
+          && Number(message.thinkingDurationMs) >= 0
+          ? Math.floor(Number(message.thinkingDurationMs))
+          : undefined,
       }
     })),
   }
@@ -617,6 +637,7 @@ export function useConversations() {
   const conversations = ref<Conversation[]>([])
   const activeId = ref<string | null>(null)
   const pendingWorkspacePath = ref('')
+  const pendingWorkspaceHome = ref<WorkspaceHome>('chat')
   const pendingModelMode = ref<'auto' | 'manual' | undefined>()
   const pendingModelProvider = ref<string | undefined>()
   const pendingModelId = ref<string | undefined>()
@@ -787,14 +808,29 @@ export function useConversations() {
       if (snapshot) next.set(conversation.id, snapshot)
     }
     turnStatusById.value = next
-    if (!activeId.value && !pendingWorkspacePath.value) {
-      try {
-        const memory = await invokeCommand<CodingProjectMemory>('get_coding_project_memory')
-        const last = memory.recents?.[0]?.path || memory.lastWorkspacePath || ''
-        pendingWorkspacePath.value = shouldRememberCodingProject(last) ? last : ''
-      } catch {
-        pendingWorkspacePath.value = ''
-      }
+    await applyRememberedHomeProjectIfIdle()
+  }
+
+  function currentWorkspaceHome(): WorkspaceHome {
+    return active.value
+      ? conversationWorkspaceHome(active.value)
+      : pendingWorkspaceHome.value
+  }
+
+  async function applyRememberedHomeProjectIfIdle() {
+    if (activeId.value || pendingWorkspaceHome.value !== 'chat' || pendingWorkspacePath.value) return
+    try {
+      const memory = await invokeCommand<CodingProjectMemory>('get_coding_project_memory')
+      const last = memory.recents?.[0]?.path || memory.lastWorkspacePath || ''
+      if (
+        activeId.value
+        || pendingWorkspaceHome.value !== 'chat'
+        || pendingWorkspacePath.value
+        || !shouldRememberCodingProject(last)
+      ) return
+      pendingWorkspacePath.value = last
+    } catch {
+      if (!pendingWorkspacePath.value) pendingWorkspacePath.value = ''
     }
   }
 
@@ -874,6 +910,7 @@ export function useConversations() {
       mcpConfigDigest: conversation.mcpConfigDigest ?? '',
       attachments: dispatch.attachments,
       productAction: dispatch.productAction,
+      branchFromUserOccurrence: dispatch.branchFromUserOccurrence,
     })
   }
 
@@ -955,12 +992,16 @@ export function useConversations() {
     return draft
   }
 
-  function startNew() {
+  function startNew(options: { workspaceHome?: WorkspaceHome } = {}) {
+    const nextHome = options.workspaceHome ?? 'chat'
+    const previousHome = currentWorkspaceHome()
     const currentWorkspace = active.value?.workspacePath || pendingWorkspacePath.value
+    const inheritHomeProject = nextHome === 'chat'
+      && previousHome === 'chat'
+      && shouldRememberCodingProject(currentWorkspace)
     activeId.value = null
-    pendingWorkspacePath.value = shouldRememberCodingProject(currentWorkspace)
-      ? String(currentWorkspace)
-      : pendingWorkspacePath.value
+    pendingWorkspaceHome.value = nextHome
+    pendingWorkspacePath.value = inheritHomeProject ? String(currentWorkspace) : ''
     pendingModelMode.value = undefined
     pendingModelProvider.value = undefined
     pendingModelId.value = undefined
@@ -971,6 +1012,7 @@ export function useConversations() {
     pendingMCPServers.value = []
     pendingMCPConfigDigest.value = ''
     pendingComposerDraft.value = null
+    if (nextHome === 'chat' && !inheritHomeProject) void applyRememberedHomeProjectIfIdle()
   }
 
   function ensureConversation(
@@ -979,6 +1021,7 @@ export function useConversations() {
       domainTaskContext?: Conversation['domainTaskContext']
       conversationId?: string
       workspacePath?: string
+      workspaceHome?: Conversation['workspaceHome']
       ctfJobId?: Conversation['ctfJobId']
       ctfMode?: Conversation['ctfMode']
       ctfRole?: Conversation['ctfRole']
@@ -1062,7 +1105,7 @@ export function useConversations() {
         mcpConfigDigest: undefined,
       }))
     }
-    if (shouldRememberCodingProject(normalized)) {
+    if (currentWorkspaceHome() === 'chat' && shouldRememberCodingProject(normalized)) {
       void invokeCommand('remember_coding_project', { path: normalized }).catch(() => undefined)
     }
   }
@@ -1222,6 +1265,7 @@ export function useConversations() {
     attachments: CodingAttachment[] = [],
     scopeToken?: ComposerScopeToken,
     productAction?: CodingProductActionRequest,
+    branchFromUserOccurrence = -1,
   ) {
     const prompt = text.trim()
     if (!prompt) return false
@@ -1248,6 +1292,7 @@ export function useConversations() {
         title: fallbackTitle,
         createdAt: Date.now(),
         workspacePath: pendingWorkspacePath.value || undefined,
+        workspaceHome: pendingWorkspaceHome.value === 'chat' ? undefined : pendingWorkspaceHome.value,
         modelMode: pendingModelMode.value,
         modelProvider: pendingModelProvider.value,
         modelId: pendingModelId.value,
@@ -1345,6 +1390,9 @@ export function useConversations() {
         attachments,
         scopeToken,
         productAction,
+        branchFromUserOccurrence: branchFromUserOccurrence >= 0
+          ? branchFromUserOccurrence
+          : undefined,
       }
       await invokeRuntimeTurn(conversationId, dispatch)
       void generateConversationTitle(conversationId)
@@ -1445,6 +1493,61 @@ export function useConversations() {
       // Naming is best effort. The primary Coding turn and its recovery state
       // must remain independent from this silent projection.
     }
+  }
+
+  async function editAndResend(messageId: string, content: string) {
+    const conversation = active.value
+    if (!conversation) return false
+    const index = conversation.messages.findIndex(item => (
+      item.id === messageId && item.role === 'user'
+    ))
+    if (index < 0) return false
+    const occurrence = conversation.messages
+      .slice(0, index + 1)
+      .filter(item => item.role === 'user' && item.status !== 'queued')
+      .length - 1
+    if (runningIds.value.has(conversation.id)) finishRun(conversation.id)
+    update(conversation.id, current => ({
+      ...current,
+      messages: current.messages.slice(0, index),
+    }))
+    return send(content, content, [], undefined, undefined, Math.max(0, occurrence))
+  }
+
+  async function branchFromAssistant(messageId: string) {
+    const conversation = active.value
+    if (!conversation) return false
+    const index = conversation.messages.findIndex(item => (
+      item.id === messageId && item.role === 'assistant'
+    ))
+    if (index < 0) return false
+    const occurrence = conversation.messages
+      .slice(0, index + 1)
+      .filter(item => item.role === 'assistant')
+      .length - 1
+    let sessionId = ''
+    try {
+      sessionId = String(await invokeCommand('fork_conversation', {
+        conversationId: conversation.id,
+        role: 'assistant',
+        occurrence: Math.max(0, occurrence),
+      })).trim()
+    } catch {
+      return false
+    }
+    if (!sessionId) return false
+    const firstUser = conversation.messages.find(item => item.role === 'user')
+    const forked: Conversation = {
+      ...conversation,
+      id: sessionId,
+      title: fallbackConversationTitle(firstUser?.content ?? conversation.title),
+      createdAt: Date.now(),
+      messages: conversation.messages.slice(0, index + 1).map(item => ({ ...item })),
+    }
+    conversations.value = [forked, ...conversations.value]
+    activeId.value = sessionId
+    persist(forked)
+    return true
   }
 
   async function abort(id: string) {
@@ -1585,6 +1688,7 @@ export function useConversations() {
     requestId: string,
     approved: boolean,
     scope: 'once' | 'conversation' = 'once',
+    choice?: string,
   ) {
     const conversation = conversations.value.find(item => (
       item.messages.some(message => (
@@ -1600,6 +1704,7 @@ export function useConversations() {
         requestId,
         approved,
         scope: conversationGrant ? 'conversation' : '',
+        choice: String(choice ?? '').trim(),
       })
       update(conversation.id, current => ({
         ...current,
@@ -1609,11 +1714,14 @@ export function useConversations() {
                 ...message,
                 status: 'done',
                 approvalState: approved ? 'approved' : 'denied',
-                approvalReason: approved
-                  ? conversationGrant
-                    ? t('已允许本对话后续同类操作', 'Allowed similar actions for this conversation')
-                    : t('已允许本次操作', 'Allowed this action')
-                  : t('已拒绝本次操作', 'Denied this action'),
+                approvalChoiceId: String(choice ?? '').trim() || message.approvalChoiceId,
+                approvalReason: String(choice ?? '').trim()
+                  ? ''
+                  : approved
+                    ? conversationGrant
+                      ? t('已允许本对话后续同类操作', 'Allowed similar actions for this conversation')
+                      : t('已允许本次操作', 'Allowed this action')
+                    : t('已拒绝本次操作', 'Denied this action'),
               }
             : message
         )),
@@ -1656,6 +1764,7 @@ export function useConversations() {
         input,
         approved,
         grantable,
+        choice,
         reason,
         goal,
         resumed,
@@ -1857,15 +1966,34 @@ export function useConversations() {
               ...messages[approvalIndex],
               status: 'done',
               approvalState: approved ? 'approved' : 'denied',
-              approvalReason: reason === 'approved for this conversation'
-                ? t('已允许本对话后续同类操作', 'Allowed similar actions for this conversation')
-                : reason || (approved
-                  ? conversationGrant
-                    ? t('已允许本对话后续同类操作', 'Allowed similar actions for this conversation')
-                    : t('已允许本次操作', 'Allowed this action')
-                  : t('已拒绝本次操作', 'Denied this action')),
+              approvalChoiceId: typeof choice === 'string' && choice.trim()
+                ? choice.trim()
+                : messages[approvalIndex].approvalChoiceId,
+              approvalReason: reason === 'choice selected'
+                ? ''
+                : reason === 'approved for this conversation'
+                  ? t('已允许本对话后续同类操作', 'Allowed similar actions for this conversation')
+                  : reason || (approved
+                    ? conversationGrant
+                      ? t('已允许本对话后续同类操作', 'Allowed similar actions for this conversation')
+                      : t('已允许本次操作', 'Allowed this action')
+                    : t('已拒绝本次操作', 'Denied this action')),
             }
           }
+        } else if (
+          type === 'assistant.thinking_started'
+          || type === 'assistant.thinking_delta'
+          || type === 'assistant.thinking_completed'
+        ) {
+          const nextMessages = applyAssistantThinkingEvent(
+            withoutBlankAssistantMessages(messages),
+            {
+              type,
+              text: text,
+              durationMs,
+            },
+          )
+          messages.splice(0, messages.length, ...nextMessages)
         } else if (type === 'assistant.delta') {
           const delta = String(text ?? '')
           if (last?.role === 'assistant' && last.status === 'running') {
@@ -2053,6 +2181,8 @@ export function useConversations() {
     load,
     listen,
     send,
+    editAndResend,
+    branchFromAssistant,
     abort,
     settleRunsForRuntimeRecovery,
     compactContext,

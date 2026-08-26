@@ -68,7 +68,12 @@ export interface Message {
   approvalState?: 'pending' | 'approved' | 'denied' | 'expired'
   approvalReason?: string
   approvalGrantable?: boolean
+  approvalChoiceId?: string
   attachments?: CodingAttachment[]
+  /** Pi thinking block projected for this assistant message. Not model output. */
+  thinking?: string
+  thinkingStatus?: 'running' | 'done'
+  thinkingDurationMs?: number
 }
 
 export type CodingExecutionMode = 'plan' | 'go'
@@ -142,6 +147,8 @@ export interface Conversation {
   ctfJobId?: string
   ctfMode?: 'coach' | 'copilot' | 'delegate'
   ctfRole?: 'solver' | 'tool-builder' | 'strategist'
+  /** When set, the chat lives in this sidebar home even without a bound challenge/CVE/lab job. */
+  workspaceHome?: 'chat' | 'ctf' | 'vuln' | 'lab'
   /** Structured CTF/CVE domain snapshot for the shared Coding/Pi panel. */
   domainTaskContext?: import('@/lib/domainTaskContext').DomainTaskContext
   /** Last occupancy shown on the composer ring; restored when the conversation is opened. */

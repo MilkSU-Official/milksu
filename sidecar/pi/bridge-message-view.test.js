@@ -7,6 +7,46 @@ import {
   shouldDeferTerminalAssistantError,
 } from "./bridge-message-view.js";
 
+test("projects unstreamed thinking before the visible reply", () => {
+  assert.deepEqual(projectAssistantMessageEnd({
+    role: "assistant",
+    content: [
+      { type: "thinking", thinking: "read the file first" },
+      { type: "text", text: "done" },
+    ],
+    stopReason: "stop",
+  }), [
+    { type: "thinking_done", data: { content: "read the file first" } },
+    { type: "message_done", data: { reason: "stop", content: "done" } },
+  ]);
+});
+
+test("does not replay thinking that already streamed", () => {
+  const events = projectAssistantMessageEnd({
+    role: "assistant",
+    content: [
+      { type: "thinking", thinking: "already sent" },
+      { type: "text", text: "done" },
+    ],
+    stopReason: "stop",
+  }, { thinkingStreamed: true });
+  assert.equal(events.some(event => event.type === "thinking_done"), false);
+});
+
+test("drops redacted thinking from the product surface", () => {
+  assert.deepEqual(projectAssistantMessageEnd({
+    role: "assistant",
+    content: [
+      { type: "thinking", thinking: "", redacted: true, thinkingSignature: "opaque" },
+      { type: "text", text: "ok" },
+    ],
+    stopReason: "stop",
+  }), [{
+    type: "message_done",
+    data: { reason: "stop", content: "ok" },
+  }]);
+});
+
 test("projects a completed assistant response", () => {
   assert.deepEqual(projectAssistantMessageEnd({
     role: "assistant",

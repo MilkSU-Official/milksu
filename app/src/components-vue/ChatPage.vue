@@ -28,21 +28,17 @@ import {
   FileDiff,
   FileImage,
   Flag,
-  FlaskConical,
   FolderOpen,
   GitBranch,
   Globe2,
-  KeyRound,
   LoaderCircle,
   MousePointer2,
-  MessageSquarePlus,
-  PanelLeftOpen,
+  Minimize2,
   PanelRightClose,
   PanelRightOpen,
   Plus,
   RefreshCw,
   Route,
-  ShieldCheck,
   SquareTerminal,
   Wrench,
   X,
@@ -51,10 +47,11 @@ import { invokeCommand, listenEvent } from '@/desktop'
 import { nextChatAutoScrollPinned } from '@/lib/chatAutoScroll'
 import { t } from '@/lib/uiLocale'
 import { isGeneratedScratchWorkspace } from '@/lib/codingConversationGroups'
+import AgentPixelLoader from '@/components-vue/AgentPixelLoader.vue'
 import AkLoadingMark from '@/components-vue/AkLoadingMark.vue'
 import ChatActivityGroup from '@/components-vue/ChatActivityGroup.vue'
+import ChatProcessFold from '@/components-vue/ChatProcessFold.vue'
 import ChatComposer from '@/components-vue/ChatComposer.vue'
-import MissionOperationPanel from '@/components-vue/MissionOperationPanel.vue'
 import ChatMessageItem from '@/components-vue/ChatMessageItem.vue'
 import CodingArtifactPreviewPanel from '@/components-vue/CodingArtifactPreviewPanel.vue'
 import CodingChangesPanel from '@/components-vue/CodingChangesPanel.vue'
@@ -62,7 +59,6 @@ import CodingComputerUsePanel from '@/components-vue/CodingComputerUsePanel.vue'
 import CodingComputerUsePermissionDialog from '@/components-vue/CodingComputerUsePermissionDialog.vue'
 import CodingMCPReviewCard from '@/components-vue/CodingMCPReviewCard.vue'
 import MarkdownContent from '@/components-vue/MarkdownContent.vue'
-import DomainTaskContextPanel from '@/components-vue/DomainTaskContextPanel.vue'
 import TacticalPanelShell from '@/components-vue/TacticalPanelShell.vue'
 import WorkspaceModuleTopBar from '@/components-vue/WorkspaceModuleTopBar.vue'
 import type {
@@ -94,7 +90,9 @@ import {
   LOCAL_CODING_SHELL_ID,
   shouldRememberCodingProject,
 } from '@/lib/codingProjectMemory'
-import { buildChatTranscript } from '@/lib/chatActivity'
+import { buildChatActivityEntries, buildChatTranscript } from '@/lib/chatActivity'
+import { agentFileDiffChips, formatDemoElapsed } from '@/lib/agentConversation'
+import { latestCodingPlan } from '@/lib/codingPlan'
 import {
   chatActivityGroupOpen,
   chatActivityOpenEntryIds,
@@ -116,14 +114,9 @@ import {
   presentRunTiming,
   type SessionTurnSnapshot,
 } from '@/lib/sessionTurnStatus'
+import AgentChangeSummary from '@/components-vue/AgentChangeSummary.vue'
 import AgentExecutionPlan from '@/components-vue/AgentExecutionPlan.vue'
 import ContextUsageMeter from '@/components-vue/ContextUsageMeter.vue'
-import {
-  presentDomainTaskContext,
-  refreshCTFDomainTaskContext,
-  sharedCodingSessionKind,
-  type DomainTaskContext,
-} from '@/lib/domainTaskContext'
 import {
   agentRecoveryPrompt,
   recoverableAgentFailureId,
@@ -209,6 +202,8 @@ const props = defineProps<{
   /** Unsent handoff draft staged by CTF/CVE open path; never auto-starts Pi. */
   pendingComposerDraft?: { prompt: string; visibleText: string } | null
   conversationDrawerOpen?: boolean
+  /** Domain workspace overlay: restore the floating dock instead of leaving the page. */
+  restorable?: boolean
   /** Floating dossier dock: keep the agent thread, hide terminal and the right rail. */
   surface?: 'page' | 'dock'
 }>()
@@ -238,7 +233,9 @@ const emit = defineEmits<{
     approvalPolicy: CodingApprovalPolicy,
   ]
   changeMcpServers: [servers: string[], configDigest: string]
-  respondApproval: [requestId: string, approved: boolean, scope?: 'once' | 'conversation']
+  respondApproval: [requestId: string, approved: boolean, scope?: 'once' | 'conversation', choice?: string]
+  editUser: [messageId: string, content: string]
+  branchAssistant: [messageId: string]
   compactContext: []
   newConversation: []
   controlGoal: [action: 'pause' | 'resume' | 'clear']
@@ -251,6 +248,7 @@ const emit = defineEmits<{
   consumePendingDraft: []
   toggleConversationDrawer: []
   expand: []
+  restore: []
 }>()
 
 const dockSurface = computed(() => props.surface === 'dock')
@@ -268,12 +266,6 @@ const workshopState = ref<CTFToolWorkshopState | null>(null)
 // Right context rail starts collapsed so the chat canvas stays wide.
 const environmentOpen = ref(false)
 const contextRailWidth = ref<number | null>(readCodingRailWidth())
-// Domain context is the primary right-rail content for CTF/CVE (one rail only).
-// Collapse to a floating PiP with a text control; reopen via the floating chip.
-const domainContextCollapsed = ref(false)
-const contextRailVisible = computed(() => (
-  environmentOpen.value && !domainContextCollapsed.value
-))
 const terminalOpen = ref(false)
 const terminalHeight = ref(readCodingTerminalHeight())
 const terminalDockStyle = computed(() => ({ height: `${terminalHeight.value}px` }))
@@ -609,12 +601,6 @@ const extensionLabel = (value: string) => (
               ? 'PI Sub Agent'
         : value
 )
-const hasCredential = computed(() => {
-  if (!props.settings) return false
-  if (props.settings.relay?.enabled && props.settings.relay.has_key) return true
-  const provider = props.settings.providers[props.settings.active_provider]
-  return Boolean(provider?.enabled && provider.has_api_key)
-})
 const automaticScratchWorkspace = computed(() => (
   isGeneratedScratchWorkspace(props.workspacePath)
 ))
@@ -686,6 +672,15 @@ const computerUseOperationEvidence = computed(() => (
 const chatTranscript = computed(() => (
   buildChatTranscript(props.conversation?.messages ?? [], props.running)
 ))
+
+const conversationFileDiffs = computed(() => (
+  agentFileDiffChips(buildChatActivityEntries(props.conversation?.messages ?? []))
+))
+const hasExecutionPlan = computed(() => Boolean(latestCodingPlan(props.conversation?.messages ?? [])))
+const hasComposerDock = computed(() => (
+  hasExecutionPlan.value || Boolean(composerGitSummary.value)
+))
+
 const chatActivityExpansion = ref(new Map<string, ChatActivityExpansionState>())
 const emptyActivityExpansion = createChatActivityExpansionState()
 
@@ -731,7 +726,40 @@ const waitingForModel = computed(() => {
   const last = chatTranscript.value.at(-1)
   if (!last) return true
   if (last.kind === 'activity') return !last.running
+  if (last.kind === 'process') {
+    const inner = last.blocks.at(-1)
+    if (!inner) return true
+    if (inner.kind === 'activity') return !inner.running
+    return inner.message.status !== 'running' && inner.message.role !== 'assistant'
+  }
   return last.message.status !== 'running' && last.message.role !== 'assistant'
+})
+const waitingNow = ref(Date.now())
+const waitingStartedAt = ref<number | null>(null)
+let waitingClock = 0
+watch(
+  () => waitingForModel.value && !props.compacting,
+  waiting => {
+    window.clearInterval(waitingClock)
+    waitingClock = 0
+    if (!waiting) {
+      waitingStartedAt.value = null
+      return
+    }
+    waitingStartedAt.value = Date.now()
+    waitingNow.value = Date.now()
+    waitingClock = window.setInterval(() => {
+      waitingNow.value = Date.now()
+    }, 100)
+  },
+  { immediate: true },
+)
+const waitingElapsed = computed(() => {
+  if (waitingStartedAt.value == null) return ''
+  return formatDemoElapsed(Math.max(0, waitingNow.value - waitingStartedAt.value))
+})
+onBeforeUnmount(() => {
+  window.clearInterval(waitingClock)
 })
 const recoverableFailureId = computed(() => (
   recoverableAgentFailureId(
@@ -740,9 +768,6 @@ const recoverableFailureId = computed(() => (
   )
 ))
 const latestJudge = computed(() => ctfProjection.value?.judgeReceipts.at(-1))
-const domainSessionKind = computed(() => (
-  sharedCodingSessionKind(props.ctfSession, Boolean(props.vulnerabilitySession))
-))
 const contextPanelTitle = computed(() => ({
   domain: props.ctfSession ? t('CTF 领域上下文', 'CTF domain context') : props.vulnerabilitySession ? t('CVE 领域上下文', 'CVE domain context') : t('领域上下文', 'Domain context'),
   environment: props.ctfSession ? t('解题环境', 'Challenge environment') : t('环境信息', 'Environment'),
@@ -762,43 +787,7 @@ const ctfRoleLabel = computed(() => {
   if (props.ctfRole === 'strategist') return t('策略 Agent 复盘', 'Strategy Agent debrief')
   return t('CTF 解题会话', 'CTF solving session')
 })
-const activeDomainTaskContext = computed<DomainTaskContext | null>(() => {
-  const attached = props.conversation?.domainTaskContext
-  if (attached?.kind === 'lab') return attached
-  const kind = domainSessionKind.value
-  if (kind === 'coding') return null
-  if (kind === 'ctf') {
-    const base = attached?.kind === 'ctf'
-      ? attached
-      : null
-    if (!base) return null
-    const live = ctfProjection.value
-    return refreshCTFDomainTaskContext(base, live ? {
-      challengeId: live.challenge?.id,
-      challengeTitle: live.challenge?.title,
-      materials: live.challenge?.materials,
-      // Base grant + approved endpoint scopes; both must stay visible mid-turn.
-      sourceScope: live.challenge?.source?.scope ?? null,
-      networkScopes: live.networkScopes ?? [],
-      evidenceCount: live.evidence?.length,
-      artifactCount: live.artifacts?.length,
-      judgeReceipts: live.judgeReceipts,
-    } : null)
-  }
-  if (attached?.kind === 'cve') return attached
-  return null
-})
-const domainTaskPresentation = computed(() => {
-  const context = activeDomainTaskContext.value
-  return context ? presentDomainTaskContext(context) : null
-})
 
-function returnToDomain() {
-  const kind = domainTaskPresentation.value?.kind
-  if (kind === 'ctf') emit('returnCtf')
-  else if (kind === 'lab') emit('returnLab')
-  else emit('returnVuln')
-}
 const workshopSummary = computed(() => {
   const state = workshopState.value
   if (!state) return t('正在读取工具交接状态', 'Reading tool handoff status')
@@ -975,7 +964,7 @@ function toggleManualContextSidebar() {
     environmentOpen.value = false
     return
   }
-  contextPanel.value = domainTaskPresentation.value ? 'domain' : 'environment'
+  contextPanel.value = 'environment'
   environmentOpen.value = true
 }
 
@@ -1931,11 +1920,8 @@ watch(() => props.conversation?.messages.length, () => {
 })
 watch(
   () => [props.ctfSession, props.vulnerabilitySession] as const,
-  ([ctf, vuln]) => {
-    environmentOpen.value = true
-    domainContextCollapsed.value = false
-    if (ctf || vuln) contextPanel.value = 'domain'
-    else if (contextPanel.value === 'domain') contextPanel.value = 'environment'
+  () => {
+    if (contextPanel.value === 'domain') contextPanel.value = 'environment'
   },
 )
 watch(
@@ -2064,139 +2050,60 @@ defineExpose({
   <section
     class="relative flex min-w-0 flex-1 flex-col bg-surface-editor"
     :class="dockSurface ? 'chat-surface-dock min-h-0 min-w-0 overflow-hidden' : 'overflow-hidden'"
+    data-agent-conversation
     :data-testid="dockSurface ? 'coding-agent-dock-surface' : undefined"
   >
   <div class="coding-workspace relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
   <main class="chat-main flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-editor">
     <WorkspaceModuleTopBar
-      v-if="!dockSurface && !contextRailVisible"
+      v-if="!dockSurface"
       :module="topbarModule"
       :title="topbarPresentation.title"
       :subtitle="topbarPresentation.subtitle"
       :hide-identity="codingDraftIdle"
     >
-      <template v-if="!conversationDrawerOpen" #leading>
-        <!--
-          Collapsed history: the same two icons that sat in the sidebar header
-          park on the topbar leading edge so expand/new feel continuous.
-        -->
-        <div class="coding-history-collapsed-controls app-no-drag flex items-center gap-1.5">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            class="app-no-drag"
-            data-testid="coding-history-toggle"
-            :aria-label="t('展开会话历史', 'Expand chat history')"
-            :title="t('展开会话历史', 'Expand chat history')"
-            :aria-expanded="false"
-            aria-controls="coding-context-sidebar"
-            @click="$emit('toggleConversationDrawer')"
-          >
-            <PanelLeftOpen class="size-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            class="app-no-drag"
-            data-testid="coding-new-task-button"
-            :aria-label="t('新建编码任务', 'New coding task')"
-            :title="t('新建编码任务', 'New coding task')"
-            @click="$emit('newConversation')"
-          >
-            <MessageSquarePlus class="size-4" />
-          </Button>
-        </div>
-      </template>
-      <template v-if="ctfSession || vulnerabilitySession || domainTaskPresentation" #badge>
-        <Badge variant="secondary" class="max-w-full truncate">
-          {{ ctfSession ? ctfRoleLabel : (domainTaskPresentation?.moduleLabel || t('CVE 接力', 'CVE handoff')) }}
-        </Badge>
-      </template>
       <template #actions>
-        <Button
-          v-if="domainTaskPresentation"
-          variant="ghost"
-          size="sm"
-          :aria-label="domainTaskPresentation.returnAriaLabel"
-          @click="returnToDomain"
+        <button
+          v-if="restorable"
+          type="button"
+          class="agent-chrome-icon"
+          :aria-label="t('还原小窗', 'Restore window')"
+          :title="t('还原小窗', 'Restore window')"
+          @click="$emit('restore')"
         >
-          <Flag v-if="domainTaskPresentation.kind === 'ctf'" class="size-4" />
-          <FlaskConical v-else-if="domainTaskPresentation.kind === 'lab'" class="size-4" />
-          <ShieldCheck v-else class="size-4" />
-          {{ domainTaskPresentation.returnLabel }}
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          :aria-label="terminalOpen ? t('关闭底部终端', 'Close bottom terminal') : t('打开底部终端', 'Open bottom terminal')"
-          :title="terminalOpen ? t('关闭底部终端', 'Close bottom terminal') : t('打开底部终端', 'Open bottom terminal')"
-          @click="toggleTerminalPanel"
-        >
-          <SquareTerminal class="size-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          data-testid="coding-rail-toggle"
-          :aria-label="t('打开右侧栏', 'Open right rail')"
-          :title="t('打开右侧栏', 'Open right rail')"
-          @click="toggleManualContextSidebar"
-        >
-          <PanelRightOpen class="size-4" />
-        </Button>
+          <Minimize2 class="size-4" />
+        </button>
+        <template v-if="!environmentOpen">
+          <button
+            type="button"
+            class="agent-chrome-icon"
+            :aria-label="terminalOpen ? t('关闭底部终端', 'Close bottom terminal') : t('打开底部终端', 'Open bottom terminal')"
+            :title="terminalOpen ? t('关闭底部终端', 'Close bottom terminal') : t('打开底部终端', 'Open bottom terminal')"
+            @click="toggleTerminalPanel"
+          >
+            <SquareTerminal class="size-4" />
+          </button>
+          <button
+            type="button"
+            class="agent-chrome-icon"
+            data-testid="coding-rail-toggle"
+            :aria-label="t('打开右侧栏', 'Open right rail')"
+            :title="t('打开右侧栏', 'Open right rail')"
+            @click="toggleManualContextSidebar"
+          >
+            <PanelRightOpen class="size-4" />
+          </button>
+        </template>
       </template>
     </WorkspaceModuleTopBar>
-    <div
-      v-else-if="!dockSurface && !conversationDrawerOpen"
-      class="coding-history-collapsed-controls app-drag flex items-center gap-1.5 px-3 py-2"
-    >
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        class="app-no-drag"
-        data-testid="coding-history-toggle"
-        :aria-label="t('展开会话历史', 'Expand chat history')"
-        :title="t('展开会话历史', 'Expand chat history')"
-        :aria-expanded="false"
-        aria-controls="coding-context-sidebar"
-        @click="$emit('toggleConversationDrawer')"
-      >
-        <PanelLeftOpen class="size-4" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        class="app-no-drag"
-        data-testid="coding-new-task-button"
-        :aria-label="t('新建编码任务', 'New coding task')"
-        :title="t('新建编码任务', 'New coding task')"
-        @click="$emit('newConversation')"
-      >
-        <MessageSquarePlus class="size-4" />
-      </Button>
-    </div>
 
     <div
       ref="scrollArea"
       class="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto"
       @scroll.passive="handleChatScroll"
     >
-      <div v-if="!dockSurface && !conversation?.messages.length && domainTaskPresentation" class="mx-auto flex min-h-full w-full max-w-5xl flex-col justify-center px-5 py-5 2xl:px-8">
-        <MissionOperationPanel :presentation="domainTaskPresentation" :running="running" />
-        <div class="mt-4 flex items-center gap-2">
-          <Button v-if="!workspacePath" class="tactical-action" @click="$emit('chooseWorkspace')">
-            <FolderOpen class="size-4" />
-            {{ t('选择项目目录', 'Choose a project folder') }}
-          </Button>
-          <Badge v-else variant="outline" class="max-w-md truncate">{{ t('任务工作区已就绪', 'Task workspace is ready') }}</Badge>
-          <Button v-if="!hasCredential" variant="outline" @click="$emit('openSettings')">
-            <KeyRound class="size-4" />
-            {{ t('配置模型', 'Configure models') }}
-          </Button>
-        </div>
-      </div>
       <div
-        v-else-if="!dockSurface && !conversation?.messages.length"
+        v-if="!conversation?.messages.length"
         class="flex min-h-full flex-col items-center justify-center px-8"
       >
         <h1 class="text-center text-2xl font-medium tracking-tight text-foreground">
@@ -2205,10 +2112,24 @@ defineExpose({
         <p v-if="gitBranchError" class="mt-3 text-center text-caption text-destructive">{{ gitBranchError }}</p>
       </div>
 
-      <div v-else class="mx-auto min-w-0 max-w-3xl" :class="dockSurface ? 'px-4 py-4' : 'px-8 py-8'">
+      <div v-else class="agent-thread min-w-0" :class="dockSurface ? 'agent-thread--dock' : ''">
         <template v-for="item in chatTranscript" :key="item.id">
+          <ChatProcessFold
+            v-if="item.kind === 'process'"
+            :process="item"
+            :recoverable-failure-id="recoverableFailureId"
+            :recovery-context="ctfSession ? 'ctf' : 'coding'"
+            :activity-open="chatActivityGroupIsOpen"
+            :activity-open-entries="chatActivityOpenEntries"
+            @toggle-group="handleActivityGroupToggle"
+            @toggle-entry="handleActivityEntryToggle"
+            @respond-approval="(requestId, approved, scope, choice) => $emit('respondApproval', requestId, approved, scope, choice)"
+            @retry="resumeAfterFailure"
+            @edit-user="(messageId, content) => $emit('editUser', messageId, content)"
+            @branch-assistant="messageId => $emit('branchAssistant', messageId)"
+          />
           <ChatActivityGroup
-            v-if="item.kind === 'activity'"
+            v-else-if="item.kind === 'activity'"
             :activity="item"
             :open="chatActivityGroupIsOpen(item.id)"
             :open-entry-ids="chatActivityOpenEntries(item.id)"
@@ -2220,38 +2141,64 @@ defineExpose({
             :message="item.message"
             :recoverable="item.message.id === recoverableFailureId"
             :recovery-context="ctfSession ? 'ctf' : 'coding'"
-            @respond-approval="(requestId, approved, scope) => $emit('respondApproval', requestId, approved, scope)"
+            @respond-approval="(requestId, approved, scope, choice) => $emit('respondApproval', requestId, approved, scope, choice)"
             @retry="resumeAfterFailure"
+            @edit-user="(messageId, content) => $emit('editUser', messageId, content)"
+            @branch-assistant="messageId => $emit('branchAssistant', messageId)"
           />
         </template>
         <p v-if="waitingForModel && !compacting" class="chat-model-loading">
-          <AkLoadingMark :label="t('模型回复中', 'Model is replying')" show-label />
+          <AgentPixelLoader
+            :label="t('模型回复中', 'Model is replying')"
+            :elapsed="waitingElapsed"
+            running
+          />
         </p>
       </div>
     </div>
 
     <p
       v-if="compacting"
-      class="chat-model-loading mx-auto w-full max-w-5xl px-4 pb-1"
+      class="compact-bar agent-thread"
       data-testid="context-compaction-status"
       role="status"
     >
-      <AkLoadingMark :label="t('正在整理上下文', 'Compacting context')" show-label />
+      <AgentPixelLoader
+        :label="t('正在整理上下文', 'Compacting context')"
+        running
+      />
     </p>
     <p
       v-else-if="compactionError"
-      class="mx-auto w-full max-w-5xl px-4 pb-1 text-caption text-foreground"
+      class="compact-bar agent-thread"
       data-testid="context-compaction-error"
       role="status"
     >
       {{ compactionError }}
     </p>
 
-    <AgentExecutionPlan
-      v-if="dockSurface"
-      :messages="conversation?.messages ?? []"
-      :running="running"
-    />
+
+    <div
+      v-if="hasComposerDock"
+      class="agent-composer-aux agent-thread"
+    >
+      <div class="agent-status-capsule">
+        <AgentExecutionPlan
+          :messages="conversation?.messages ?? []"
+          :running="running"
+        />
+        <span
+          v-if="hasExecutionPlan && composerGitSummary"
+          class="agent-status-sep"
+          aria-hidden="true"
+        >·</span>
+        <AgentChangeSummary
+          :summary="composerGitSummary"
+          :previews="conversationFileDiffs"
+          @open-changes="openChanges"
+        />
+      </div>
+    </div>
     <ChatComposer
       ref="composer"
       :running="running"
@@ -2261,7 +2208,6 @@ defineExpose({
       :ctf-session="ctfSession"
       :goal-mode="goalMode"
       :goal="activeGoal"
-      :git-summary="composerGitSummary"
       :execution-mode="effectiveExecutionMode"
       :approval-policy="effectiveApprovalPolicy"
       :approval-label="approvalMenuLabel"
@@ -2272,7 +2218,6 @@ defineExpose({
       :thinking-level="currentThinkingLevel"
       :compact-disabled="continuity.compactDisabled"
       :context-usage="contextUsagePresentation"
-      :run-elapsed-label="runTimingPresentation?.label"
       :workspace-ready="Boolean(workspacePath)"
       :workspace-locked="workspaceLocked"
       :workspace-name="workspaceName"
@@ -2311,7 +2256,7 @@ defineExpose({
     />
   </main>
   <TacticalPanelShell
-    v-if="!dockSurface && environmentOpen && !domainContextCollapsed"
+    v-if="!dockSurface && environmentOpen"
     as="aside"
     class="context-sidebar"
     size="wide"
@@ -2323,7 +2268,7 @@ defineExpose({
     @update:width="persistContextRailWidth"
   >
     <template #header>
-    <div class="app-drag flex w-full items-center justify-between">
+    <div class="app-drag flex w-full items-center gap-px">
       <Select
         v-if="!transientComputerUsePanel"
         :model-value="contextPanel"
@@ -2331,22 +2276,19 @@ defineExpose({
       >
         <SelectTrigger
           size="sm"
-          class="app-no-drag min-w-44 border-0 bg-transparent px-0 shadow-none"
+          class="agent-chrome-tab app-no-drag h-8 min-w-0 flex-1 justify-start border-0 bg-transparent px-2 text-[14px] font-medium shadow-none"
           :aria-label="t('选择右侧页面', 'Choose the right-rail page')"
         >
-          <Flag v-if="contextPanel === 'domain' && ctfSession" class="size-4 text-primary" />
-          <ShieldCheck v-else-if="contextPanel === 'domain'" class="size-4 text-primary" />
-          <Activity v-else-if="contextPanel === 'environment'" class="size-4 text-primary" />
-          <FileDiff v-else-if="contextPanel === 'changes'" class="size-4 text-primary" />
-          <FileImage v-else-if="contextPanel === 'artifacts'" class="size-4 text-primary" />
-          <Globe2 v-else-if="contextPanel === 'browser'" class="size-4 text-primary" />
-          <Wrench v-else-if="contextPanel === 'collaboration'" class="size-4 text-primary" />
-          <CircleDot v-else class="size-4 text-primary" />
+          <Activity v-if="contextPanel === 'environment'" class="size-4" />
+          <FileDiff v-else-if="contextPanel === 'changes'" class="size-4" />
+          <FileImage v-else-if="contextPanel === 'artifacts'" class="size-4" />
+          <Globe2 v-else-if="contextPanel === 'browser'" class="size-4" />
+          <Wrench v-else-if="contextPanel === 'collaboration'" class="size-4" />
+          <CircleDot v-else class="size-4" />
           <SelectValue />
         </SelectTrigger>
-        <SelectContent size="sm" align="start" class="min-w-56">
-          <SelectItem v-if="domainTaskPresentation" value="domain">{{ t('领域上下文', 'Domain context') }}</SelectItem>
-          <SelectItem value="environment">{{ ctfSession ? t('解题环境', 'Challenge environment') : t('环境信息', 'Environment') }}</SelectItem>
+        <SelectContent size="sm" align="start" class="agent-floating min-w-56">
+          <SelectItem value="environment">{{ t('环境信息', 'Environment') }}</SelectItem>
           <SelectItem value="changes">{{ t('变更', 'Changes') }}</SelectItem>
           <SelectItem value="artifacts">{{ t('产物', 'Artifacts') }}</SelectItem>
           <SelectItem value="browser">{{ t('浏览器', 'Browser') }}</SelectItem>
@@ -2357,43 +2299,32 @@ defineExpose({
           </template>
         </SelectContent>
       </Select>
-      <div v-else class="app-no-drag flex min-w-0 items-center gap-2 text-control font-medium">
-        <Globe2 v-if="contextPanel === 'browser-use'" class="size-4 shrink-0 text-primary" />
-        <MousePointer2 v-else class="size-4 shrink-0 text-primary" />
+      <div v-else class="app-no-drag flex min-w-0 flex-1 items-center gap-2 px-2 text-[14px] font-medium">
+        <Globe2 v-if="contextPanel === 'browser-use'" class="size-4 shrink-0" />
+        <MousePointer2 v-else class="size-4 shrink-0" />
         <span class="truncate">{{ contextPanelTitle }}</span>
       </div>
-      <div class="app-no-drag flex items-center gap-1">
-        <Button
-          v-if="domainTaskPresentation"
-          variant="outline"
-          size="sm"
-          class="min-h-9 px-3"
-          :aria-label="t('收起任务信息', 'Collapse task info')"
-          data-testid="collapse-domain-to-pip"
-          @click="domainContextCollapsed = true"
-        >
-          {{ t('收起', 'Collapse') }}
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-sm"
+      <div class="app-no-drag flex items-center">
+        <button
+          type="button"
+          class="agent-chrome-icon"
           data-testid="coding-rail-terminal"
           :aria-label="terminalOpen ? t('关闭底部终端', 'Close bottom terminal') : t('打开底部终端', 'Open bottom terminal')"
           :title="terminalOpen ? t('关闭底部终端', 'Close bottom terminal') : t('打开底部终端', 'Open bottom terminal')"
           @click="toggleTerminalPanel"
         >
           <SquareTerminal class="size-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-sm"
+        </button>
+        <button
+          type="button"
+          class="agent-chrome-icon"
           data-testid="coding-rail-toggle"
           :aria-label="t('关闭右侧栏', 'Close right rail')"
           :title="t('关闭右侧栏', 'Close right rail')"
           @click="toggleManualContextSidebar"
         >
           <PanelRightClose class="size-4" />
-        </Button>
+        </button>
       </div>
     </div>
     </template>
@@ -2401,16 +2332,7 @@ defineExpose({
     <div
       class="min-h-0 flex-1"
     >
-      <template v-if="contextPanel === 'domain' && domainTaskPresentation">
-        <DomainTaskContextPanel
-          class="domain-task-context-inline"
-          :presentation="domainTaskPresentation"
-          :collapsed="false"
-          @update:collapsed="domainContextCollapsed = $event"
-          @return-domain="returnToDomain"
-        />
-      </template>
-      <template v-else-if="contextPanel === 'environment'">
+      <template v-if="contextPanel === 'environment'">
         <div v-if="environmentError" class="border-b border-border px-4 py-3 text-caption text-destructive">
           {{ environmentError }}
         </div>
@@ -2529,11 +2451,6 @@ defineExpose({
             </div>
           </div>
         </section>
-
-        <AgentExecutionPlan
-          :messages="conversation?.messages ?? []"
-          :running="running"
-        />
 
         <section class="border-b border-border px-4 py-4">
         <p class="text-caption font-medium text-muted-foreground">Agent</p>
@@ -2953,12 +2870,6 @@ defineExpose({
             </Button>
           </div>
         </section>
-        <section class="px-4 py-4">
-          <Button variant="outline" class="w-full justify-start" @click="returnToDomain">
-            <Flag class="size-4" />
-            {{ domainTaskPresentation?.returnLabel || t('返回 CTF', 'Back to CTF') }}
-          </Button>
-        </section>
       </template>
 
       <template v-else>
@@ -2990,33 +2901,13 @@ defineExpose({
           </div>
           <p v-else class="mt-3 text-caption text-muted-foreground">{{ t('尚无外部 Judge 回执。', 'No external Judge receipts yet.') }}</p>
         </section>
-        <section class="px-4 py-4">
-          <Button variant="outline" class="w-full justify-start" @click="returnToDomain">
-            {{ domainTaskPresentation?.returnLabel || t('返回 CTF', 'Back to CTF') }}
-          </Button>
-        </section>
       </template>
     </div>
   </TacticalPanelShell>
   </div>
-  <DomainTaskContextPanel
-    v-if="!dockSurface && domainTaskPresentation && domainContextCollapsed"
-    class="domain-task-context-pip"
-    :presentation="domainTaskPresentation"
-    :collapsed="true"
-    data-testid="domain-task-context-pip"
-    @update:collapsed="value => {
-      domainContextCollapsed = value
-      if (!value) {
-        environmentOpen = true
-        contextPanel = 'domain'
-      }
-    }"
-    @return-domain="returnToDomain"
-  />
   <div
     v-if="!dockSurface && terminalOpen"
-    class="coding-terminal-dock min-w-0 shrink-0 overflow-hidden border-t border-border bg-card"
+    class="coding-terminal-dock min-w-0 shrink-0 overflow-hidden"
     :style="terminalDockStyle"
     :aria-label="t('底部终端面板', 'Bottom terminal panel')"
   >
@@ -3082,13 +2973,6 @@ defineExpose({
   padding: 0.65rem 0.75rem;
 }
 
-.domain-task-context-pip {
-  position: absolute;
-  right: 1rem;
-  bottom: 5.75rem;
-  z-index: 30;
-}
-
 .coding-terminal-dock {
   position: relative;
   display: flex;
@@ -3115,8 +2999,7 @@ defineExpose({
 
 .coding-terminal-dock__resize:hover::after,
 .coding-terminal-dock__resize:focus-visible::after {
-  background: var(--brand);
-  opacity: .55;
+  background: var(--hover-2);
 }
 
 </style>

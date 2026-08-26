@@ -23,7 +23,9 @@ safe output
     expect(html).toContain('<strong>Base64 解码</strong>')
     expect(html).toContain('<ol>')
     expect(html).toContain('<table>')
-    expect(html).toContain('<pre><code class="language-text">safe output')
+    expect(html).toContain('class="agent-code"')
+    expect(html).toContain('safe output')
+    expect(html).toContain('agent-code__n')
   })
 
   it('removes executable HTML and unsafe links', () => {
@@ -54,5 +56,13 @@ safe output
     expect(html).toContain('rel="noopener noreferrer"')
     expect(html).toContain('[图片：remote]')
     expect(html).not.toContain('<img')
+  })
+
+  it('highlights fenced TypeScript and numbers each line', () => {
+    const html = renderMarkdown('```ts\nconst flavor = "pistachio"\n```')
+    expect(html).toContain('hljs-keyword')
+    expect(html).toContain('hljs-string')
+    expect(html).toContain('agent-code__n')
+    expect(html).toContain('>1<')
   })
 })

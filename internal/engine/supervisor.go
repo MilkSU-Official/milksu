@@ -72,6 +72,7 @@ type Event struct {
 	Reason          string                   `json:"reason,omitempty"`
 	Approved        *bool                    `json:"approved,omitempty"`
 	Grantable       bool                     `json:"grantable,omitempty"`
+	Choice          string                   `json:"choice,omitempty"`
 	BackgroundTasks []BackgroundTask         `json:"backgroundTasks,omitempty"`
 	Goal            *CodingGoalState         `json:"goal,omitempty"`
 	Resumed         bool                     `json:"resumed,omitempty"`
@@ -82,6 +83,7 @@ type Event struct {
 	ModelSource     string                   `json:"modelSource,omitempty"`
 	Module          string                   `json:"module,omitempty"`
 	Usage           *ModelUsage              `json:"usage,omitempty"`
+	ForkedSessionID string                   `json:"forkedSessionId,omitempty"`
 }
 
 // ModelUsage is the bounded, credential-free projection emitted by Pi after
@@ -214,39 +216,41 @@ type CodingCollaborationWorktree struct {
 }
 
 type bridgeEvent struct {
-	Type           string                   `json:"type"`
-	ID             string                   `json:"id"`
-	Delta          string                   `json:"delta"`
-	Content        string                   `json:"content"`
-	Error          string                   `json:"error"`
-	ToolName       string                   `json:"toolName"`
-	ToolCallID     string                   `json:"toolCallId"`
-	DurationMS     int64                    `json:"durationMs"`
-	IsError        bool                     `json:"isError"`
-	Tools          []string                 `json:"tools"`
-	Extensions     []string                 `json:"extensions"`
-	Skills         []string                 `json:"skills"`
-	ExecutionMode  string                   `json:"executionMode"`
-	ApprovalPolicy string                   `json:"approvalPolicy"`
-	Capabilities   []CodingCapabilityStatus `json:"capabilities"`
-	RequestID      string                   `json:"requestId"`
-	Action         string                   `json:"action"`
-	Input          string                   `json:"input"`
-	Reason         string                   `json:"reason"`
-	Approved       *bool                    `json:"approved"`
-	Grantable      bool                     `json:"grantable"`
-	Tasks          []BackgroundTask         `json:"tasks"`
-	Goal           *CodingGoalState         `json:"goal"`
-	Resumed        bool                     `json:"resumed"`
-	Aborted        bool                     `json:"aborted"`
-	Compaction     *CompactionResult        `json:"compaction"`
-	Steering       []string                 `json:"steering"`
-	FollowUp       []string                 `json:"followUp"`
-	Source         string                   `json:"source"`
-	From           string                   `json:"from"`
-	To             string                   `json:"to"`
-	Module         string                   `json:"module"`
-	Usage          *ModelUsage              `json:"usage"`
+	Type            string                   `json:"type"`
+	ID              string                   `json:"id"`
+	Delta           string                   `json:"delta"`
+	Content         string                   `json:"content"`
+	Error           string                   `json:"error"`
+	ToolName        string                   `json:"toolName"`
+	ToolCallID      string                   `json:"toolCallId"`
+	DurationMS      int64                    `json:"durationMs"`
+	IsError         bool                     `json:"isError"`
+	Tools           []string                 `json:"tools"`
+	Extensions      []string                 `json:"extensions"`
+	Skills          []string                 `json:"skills"`
+	ExecutionMode   string                   `json:"executionMode"`
+	ApprovalPolicy  string                   `json:"approvalPolicy"`
+	Capabilities    []CodingCapabilityStatus `json:"capabilities"`
+	RequestID       string                   `json:"requestId"`
+	Action          string                   `json:"action"`
+	Input           string                   `json:"input"`
+	Reason          string                   `json:"reason"`
+	Approved        *bool                    `json:"approved"`
+	Grantable       bool                     `json:"grantable"`
+	Choice          string                   `json:"choice"`
+	Tasks           []BackgroundTask         `json:"tasks"`
+	Goal            *CodingGoalState         `json:"goal"`
+	Resumed         bool                     `json:"resumed"`
+	Aborted         bool                     `json:"aborted"`
+	Compaction      *CompactionResult        `json:"compaction"`
+	Steering        []string                 `json:"steering"`
+	FollowUp        []string                 `json:"followUp"`
+	Source          string                   `json:"source"`
+	From            string                   `json:"from"`
+	To              string                   `json:"to"`
+	Module          string                   `json:"module"`
+	Usage           *ModelUsage              `json:"usage"`
+	ForkedSessionID string                   `json:"forkedSessionId"`
 }
 
 type childProcess struct {
@@ -460,6 +464,7 @@ func (s *Supervisor) SendMessage(
 		codingCollaboration,
 		attachments,
 		nil,
+		-1,
 		settings,
 		modelSourcePreference...,
 	)
@@ -482,6 +487,44 @@ func (s *Supervisor) SendMessageWithProductAction(
 	settings config.AppSettings,
 	modelSourcePreference ...string,
 ) error {
+	return s.SendMessageWithBranch(
+		sessionID,
+		prompt,
+		workspacePath,
+		sessionRole,
+		executionMode,
+		approvalPolicy,
+		mcpServers,
+		mcpConfigDigest,
+		codingBrowser,
+		computerUse,
+		codingCollaboration,
+		attachments,
+		productAction,
+		-1,
+		settings,
+		modelSourcePreference...,
+	)
+}
+
+func (s *Supervisor) SendMessageWithBranch(
+	sessionID,
+	prompt,
+	workspacePath string,
+	sessionRole string,
+	executionMode string,
+	approvalPolicy string,
+	mcpServers []string,
+	mcpConfigDigest string,
+	codingBrowser *CodingBrowserDescriptor,
+	computerUse *ComputerUseDescriptor,
+	codingCollaboration *CodingCollaborationDescriptor,
+	attachments []codingattachment.Attachment,
+	productAction *CodingProductActionDescriptor,
+	branchFromUserOccurrence int,
+	settings config.AppSettings,
+	modelSourcePreference ...string,
+) error {
 	return s.sendMessage(
 		sessionID,
 		prompt,
@@ -496,6 +539,7 @@ func (s *Supervisor) SendMessageWithProductAction(
 		codingCollaboration,
 		attachments,
 		productAction,
+		branchFromUserOccurrence,
 		settings,
 		modelSourcePreference...,
 	)
@@ -515,6 +559,7 @@ func (s *Supervisor) sendMessage(
 	codingCollaboration *CodingCollaborationDescriptor,
 	attachments []codingattachment.Attachment,
 	productAction *CodingProductActionDescriptor,
+	branchFromUserOccurrence int,
 	settings config.AppSettings,
 	modelSourcePreference ...string,
 ) error {
@@ -636,6 +681,9 @@ func (s *Supervisor) sendMessage(
 	}
 	if productAction != nil {
 		command["productAction"] = productAction
+	}
+	if branchFromUserOccurrence >= 0 {
+		command["branchFromUserOccurrence"] = branchFromUserOccurrence
 	}
 	if err := writeCommand(s.process.stdin, command); err != nil {
 		return fmt.Errorf("send engine message: %w", err)
@@ -896,6 +944,65 @@ func (s *Supervisor) AbortMessage(sessionID string) error {
 	})
 }
 
+func (s *Supervisor) ForkSession(sessionID, role string, occurrence int) (string, error) {
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return "", fmt.Errorf("session id is required")
+	}
+	if role != "assistant" && role != "user" {
+		role = "assistant"
+	}
+	if occurrence < 0 {
+		occurrence = 0
+	}
+	requestID := fmt.Sprintf("fork_%d", time.Now().UnixNano())
+	events := make(chan Event, 1)
+	s.probeMu.Lock()
+	s.controlWaiters[requestID] = events
+	s.probeMu.Unlock()
+	defer func() {
+		s.probeMu.Lock()
+		delete(s.controlWaiters, requestID)
+		s.probeMu.Unlock()
+	}()
+
+	s.mu.Lock()
+	if s.process == nil {
+		s.mu.Unlock()
+		return "", fmt.Errorf("PI Sidecar is not running")
+	}
+	err := writeCommand(s.process.stdin, map[string]any{
+		"action":         "fork_session",
+		"conversationId": sessionID,
+		"requestId":      requestID,
+		"role":           role,
+		"occurrence":     occurrence,
+	})
+	s.mu.Unlock()
+	if err != nil {
+		return "", fmt.Errorf("fork session: %w", err)
+	}
+
+	timer := time.NewTimer(8 * time.Second)
+	defer timer.Stop()
+	select {
+	case event := <-events:
+		if strings.TrimSpace(event.Error) != "" {
+			return "", fmt.Errorf("%s", probeFailureMessage(event))
+		}
+		id := strings.TrimSpace(event.ForkedSessionID)
+		if id == "" {
+			return "", fmt.Errorf("forked session id is missing")
+		}
+		s.mu.Lock()
+		s.sessions[id] = struct{}{}
+		s.mu.Unlock()
+		return id, nil
+	case <-timer.C:
+		return "", fmt.Errorf("forking the conversation timed out")
+	}
+}
+
 // SteerMessage delegates mid-run guidance to Pi's native steering queue. Pi
 // applies it after the current assistant tool-call batch and before the next
 // model call, so MilkSU does not maintain a second generic message loop.
@@ -1044,6 +1151,7 @@ func (s *Supervisor) RespondToolApproval(
 	requestID string,
 	approved bool,
 	scope string,
+	choice string,
 ) error {
 	if strings.TrimSpace(sessionID) == "" {
 		return fmt.Errorf("session id is required")
@@ -1067,6 +1175,9 @@ func (s *Supervisor) RespondToolApproval(
 	}
 	if strings.TrimSpace(scope) == "conversation" {
 		command["scope"] = "conversation"
+	}
+	if trimmed := strings.TrimSpace(choice); trimmed != "" {
+		command["choice"] = trimmed
 	}
 	return writeCommand(s.process.stdin, command)
 }
@@ -1899,6 +2010,7 @@ func normalizeBridgeEvent(raw bridgeEvent) Event {
 		Reason:          raw.Reason,
 		Approved:        raw.Approved,
 		Grantable:       raw.Grantable,
+		Choice:          raw.Choice,
 		BackgroundTasks: raw.Tasks,
 		Goal:            raw.Goal,
 		Resumed:         raw.Resumed,
@@ -1943,6 +2055,14 @@ func normalizeBridgeEvent(raw bridgeEvent) Event {
 	case "text_delta":
 		event.Type = "assistant.delta"
 		event.Text = raw.Delta
+	case "thinking_start":
+		event.Type = "assistant.thinking_started"
+	case "thinking_delta":
+		event.Type = "assistant.thinking_delta"
+		event.Text = raw.Delta
+	case "thinking_done":
+		event.Type = "assistant.thinking_completed"
+		event.Text = raw.Content
 	case "message_done":
 		event.Type = "assistant.completed"
 		event.Done = true
@@ -1972,6 +2092,11 @@ func normalizeBridgeEvent(raw bridgeEvent) Event {
 		event.Done = true
 	case "session_destroyed":
 		event.Type = "session.destroyed"
+		event.Done = true
+	case "session_forked":
+		event.Type = "session.forked"
+		event.ForkedSessionID = raw.ForkedSessionID
+		event.Error = raw.Error
 		event.Done = true
 	case "background_tasks":
 		event.Type = "runtime.background_tasks"

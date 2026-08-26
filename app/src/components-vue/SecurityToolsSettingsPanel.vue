@@ -178,15 +178,15 @@ onBeforeUnmount(() => unlistenSetup?.())
       </Button>
     </div>
 
-    <div v-if="error" class="mb-4 border border-destructive/45 bg-destructive/10 px-4 py-3 text-caption text-destructive">
+    <div v-if="error" class="mb-4 rounded-[8px] border border-destructive/45 bg-destructive/10 px-4 py-3 text-caption text-destructive">
       {{ error }}
     </div>
 
-    <div v-if="loading && !tools.length" class="grid min-h-[34rem] place-items-center border-y border-border text-control text-muted-foreground">
+    <div v-if="loading && !tools.length" class="grid min-h-[34rem] place-items-center rounded-[8px] border border-border text-control text-muted-foreground">
       {{ t('正在检测本机工具', 'Detecting local tools') }}
     </div>
 
-    <div v-else-if="selectedTool" class="tool-workbench grid min-h-[39rem] grid-cols-[minmax(18rem,0.8fr)_minmax(28rem,1.2fr)] border-y border-border">
+    <div v-else-if="selectedTool" class="tool-workbench grid min-h-[39rem] grid-cols-[minmax(18rem,0.8fr)_minmax(28rem,1.2fr)] overflow-hidden rounded-[8px] border border-border">
       <nav class="border-r border-border" :aria-label="t('安全工具目录', 'Security tools')">
         <button
           v-for="tool in tools"
@@ -273,7 +273,7 @@ onBeforeUnmount(() => unlistenSetup?.())
           <h3 id="security-tool-capabilities" class="text-base font-semibold">{{ t('能力', 'Capabilities') }}</h3>
           <div class="mt-4 grid gap-3.5">
             <div v-for="capability in selectedTool.capabilities" :key="capability" class="flex items-center gap-3 text-control">
-              <span class="grid size-5 place-items-center border border-border text-primary">
+              <span class="grid size-5 place-items-center rounded-[8px] border border-border text-primary">
                 <Check v-if="selectedTool.usableByAgent" class="size-3.5" />
                 <Circle v-else class="size-2 fill-current" />
               </span>
@@ -315,7 +315,7 @@ onBeforeUnmount(() => unlistenSetup?.())
           </Button>
         </div>
 
-        <section v-if="schemaOpen" class="mt-5 border-l-2 border-info px-4 py-3" :aria-label="t('工具 Schema 摘要', 'Tool schema summary')">
+        <section v-if="schemaOpen" class="mt-5 rounded-[8px] border border-border bg-muted/30 px-4 py-3" :aria-label="t('工具 Schema 摘要', 'Tool schema summary')">
           <code class="block whitespace-pre-wrap text-caption leading-6 text-muted-foreground">{{ selectedTool.schema.join('\n') }}</code>
         </section>
       </article>
@@ -324,11 +324,11 @@ onBeforeUnmount(() => unlistenSetup?.())
 </template>
 
 <style scoped>
-.tool-row { position: relative; display: flex; min-height: 5.8rem; width: 100%; align-items: center; gap: 1rem; border: 0; border-bottom: 1px solid hsl(var(--border)); background: transparent; padding: 1rem 1.1rem; color: hsl(var(--foreground)); cursor: pointer; }
-.tool-row:hover { background: var(--overlay-hover-light); }
-.tool-row.is-selected { background: color-mix(in srgb, var(--brand) 7%, transparent); box-shadow: inset 3px 0 0 var(--brand), inset 0 0 0 1px color-mix(in srgb, var(--brand) 48%, transparent); }
-.tool-icon { display: grid; width: 2.8rem; height: 2.8rem; flex: 0 0 auto; place-items: center; border: 1px solid hsl(var(--border)); color: hsl(var(--foreground)); }
-.tool-row.is-selected .tool-icon { border-color: color-mix(in srgb, var(--brand) 55%, transparent); color: var(--brand); }
+.tool-row { position: relative; display: flex; min-height: 5.8rem; width: calc(100% - 1rem); align-items: center; gap: 1rem; margin: 0.15rem 0.5rem; border: 0; border-radius: 8px; background: transparent; padding: 1rem 1.1rem; color: hsl(var(--foreground)); cursor: pointer; }
+.tool-row:hover { background: var(--hover-2); }
+.tool-row.is-selected { background: var(--hover-2); box-shadow: none; }
+.tool-icon { display: grid; width: 2.8rem; height: 2.8rem; flex: 0 0 auto; place-items: center; border: 1px solid hsl(var(--border)); border-radius: 8px; color: hsl(var(--foreground)); }
+.tool-row.is-selected .tool-icon { border-color: var(--border); color: var(--foreground); }
 .tool-status { flex: 0 0 auto; font-size: .77rem; font-weight: 650; }
 .tool-status[data-tone='ready'] { color: var(--brand); }
 .tool-status[data-tone='attention'] { color: hsl(var(--warning)); }

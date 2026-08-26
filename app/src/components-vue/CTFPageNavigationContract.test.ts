@@ -50,6 +50,9 @@ describe('CTFPage navigation contract', () => {
     expect(ctfPageSource).not.toContain('{{ readinessCount }}/3')
     expect(ctfPageSource).toContain("const agentActionLabel = computed(() => t('开始解题', 'Start solving'))")
     expect(ctfPageSource).toContain('ConversationDock')
+    expect(ctfPageSource.indexOf('<ConversationDock')).toBeGreaterThan(
+      ctfPageSource.indexOf("{{ t('选择一道题', 'Choose a challenge') }}"),
+    )
     expect(ctfPageSource).not.toContain('与 Agent 协作')
     expect(ctfPageSource).not.toContain('刷新记录')
     expect(ctfPageSource).not.toContain('查看复盘')

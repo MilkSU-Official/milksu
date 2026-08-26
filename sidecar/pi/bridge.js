@@ -9,6 +9,7 @@ import { basename, dirname, join, resolve } from "node:path";
 import { readFile, unlink } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { Type } from "typebox";
+import { codingAskToolName, formatAskToolInput, normalizeAskOptions } from "./bridge-ask.js";
 import { resolveModelContextWindow } from "./known-context-window.cjs";
 import {
   createMcpAdapter,
@@ -84,6 +85,7 @@ import {
   isComputerUseMcpToolName,
 } from "./bridge-computer-use-routing.js";
 import { disposeAgentSession } from "./bridge-session-lifecycle.js";
+import { forkFromMessage, navigateFromUserMessage } from "./bridge-session-tree.js";
 import { createCTFTruncationContinuationExtension } from "./bridge-ctf-continuation.js";
 import {
   compactSession,
@@ -317,9 +319,45 @@ function truncate(value, limit = 60000) {
   return `${value.slice(0, limit)}\n\n…output truncated by MilkSU`;
 }
 
-function createMilkSUWorkflowExtension(sessionRole, getPolicy, getSession) {
+function createMilkSUWorkflowExtension(sessionRole, getPolicy, getSession, conversationId) {
   return (pi) => {
     let latestPlan = [];
+    pi.registerTool({
+      name: codingAskToolName,
+      label: "MilkSU ask",
+      description: "Show an interactive choice card so the user can tap one of 2-6 options. Required whenever you ask the user a multiple-choice question, including when they ask you to present options. Wait for the selected option. Do not write the options as a numbered or bulleted list.",
+      parameters: Type.Object({
+        question: Type.String({ minLength: 1, maxLength: 200 }),
+        options: Type.Array(Type.Object({
+          id: Type.Optional(Type.String({ minLength: 1, maxLength: 32 })),
+          label: Type.String({ minLength: 1, maxLength: 80 }),
+          detail: Type.Optional(Type.String({ minLength: 1, maxLength: 160 })),
+        }), { minItems: 2, maxItems: 6 }),
+      }),
+      async execute(_toolCallId, params) {
+        const options = normalizeAskOptions(params.options);
+        const question = String(params.question ?? "").trim();
+        if (!question) throw new Error("milksu_ask needs a question");
+        if (options.length < 2) throw new Error("milksu_ask needs at least two options");
+        const picked = await approvalBroker.requestChoice({
+          conversationId,
+          question,
+          options,
+        });
+        if (!picked) {
+          return {
+            content: [{ type: "text", text: "The user dismissed the question." }],
+          };
+        }
+        return {
+          content: [{
+            type: "text",
+            text: `The user selected "${picked.label}" (${picked.id}).`,
+          }],
+          details: { question, selected: picked },
+        };
+      },
+    });
     pi.registerTool({
       name: "milksu_progress",
       label: "MilkSU progress",
@@ -394,6 +432,7 @@ function createMilkSUWorkflowExtension(sessionRole, getPolicy, getSession) {
           + browserGuidance
           + workspaceGuidance
           + "\n\nWhen a task needs more than one concrete step, publish a concise plan with milksu_progress and keep the in-progress step updated. Skip the tool for trivial one-shot replies."
+          + "\n\nIf you are asking the user a multiple-choice question, or the user asks you to present options they can pick, you MUST call milksu_ask immediately with a short question and 2-6 options, then wait. Never write the choices as a numbered or bulleted list in the assistant message. milksu_ask is the interactive choice card; it is not a tool-permission prompt."
           + "\n\nTool results in model context follow Pi truncation (50KB or 2000 lines). Overflow is saved to a file named in the truncation notice; continue with the read tool and offset. Do not pull full command, HTTP, or file dumps into context.",
       };
     });
@@ -741,6 +780,11 @@ function formatToolInput(toolName, args) {
   if (toolName === codingWorkspaceToolName) {
     return formatCodingWorkspaceInput(args);
   }
+  if (toolName === codingAskToolName) {
+    const question = String(args.question ?? "").trim();
+    const options = normalizeAskOptions(args.options);
+    return formatAskToolInput(question, options);
+  }
   if (toolName === "milksu_progress") {
     // Same checklist shape as the tool result so the UI can project a live plan
     // before the call settles.
@@ -765,7 +809,24 @@ function formatToolInput(toolName, args) {
     ].filter(Boolean).join(" ");
     return [path, range].filter(Boolean).join(" · ");
   }
-  if (["edit", "write"].includes(toolName) && path) return path;
+  if (["edit", "write"].includes(toolName) && path) {
+    if (toolName === "write" && typeof args.content === "string") {
+      const lines = args.content.length ? args.content.split("\n").length : 0;
+      return lines ? `${path} +${lines}` : path;
+    }
+    if (toolName === "edit" && Array.isArray(args.edits)) {
+      let add = 0;
+      let del = 0;
+      for (const edit of args.edits) {
+        const oldText = String(edit?.oldText ?? "");
+        const newText = String(edit?.newText ?? "");
+        if (oldText) del += oldText.split("\n").length;
+        if (newText) add += newText.split("\n").length;
+      }
+      if (add || del) return `${path} +${add} -${del}`;
+    }
+    return path;
+  }
   if (toolName === "grep" && typeof args.pattern === "string") {
     return `${args.pattern}${path ? ` · ${path}` : ""}`;
   }
@@ -921,6 +982,8 @@ function subscribeSession(
   usageModule,
 ) {
   let assistantTextStreamed = false;
+  let thinkingStreamed = false;
+  const thinkingStartedAt = new Map();
   const toolStartedAt = new Map();
 
   session.subscribe((event) => {
@@ -982,7 +1045,24 @@ function subscribeSession(
 
     if (event.type === "message_update" && event.assistantMessageEvent) {
       const update = event.assistantMessageEvent;
-      if (update.type === "text_delta") {
+      if (update.type === "thinking_start") {
+        thinkingStreamed = true;
+        if (!thinkingStartedAt.has(conversationId)) {
+          thinkingStartedAt.set(conversationId, Date.now());
+        }
+        emit(conversationId, "thinking_start", {});
+      } else if (update.type === "thinking_delta") {
+        thinkingStreamed = true;
+        emit(conversationId, "thinking_delta", { delta: update.delta ?? "" });
+      } else if (update.type === "thinking_end") {
+        thinkingStreamed = true;
+        const startedAt = thinkingStartedAt.get(conversationId);
+        thinkingStartedAt.delete(conversationId);
+        emit(conversationId, "thinking_done", {
+          content: update.content ?? "",
+          durationMs: startedAt === undefined ? undefined : Math.max(0, Date.now() - startedAt),
+        });
+      } else if (update.type === "text_delta") {
         assistantTextStreamed = true;
         emit(conversationId, "text_delta", { delta: update.delta });
       }
@@ -992,6 +1072,7 @@ function subscribeSession(
     if (event.type === "message_end" && event.message?.role === "assistant") {
       for (const projected of projectAssistantMessageEnd(event.message, {
         textStreamed: assistantTextStreamed,
+        thinkingStreamed,
       })) {
         emit(conversationId, projected.type, projected.data);
       }
@@ -1006,6 +1087,8 @@ function subscribeSession(
         emit(conversationId, "usage_recorded", { usage, module: usageModule });
       }
       assistantTextStreamed = false;
+      thinkingStreamed = false;
+      thinkingStartedAt.delete(conversationId);
       return;
     }
 
@@ -1097,7 +1180,7 @@ function createMilkSUResourceLoader(
   // Skills and extensions may execute instructions supplied by third parties.
   // Keep Pi's ambient discovery disabled and load only MilkSU-reviewed resources.
   const extensionFactories = [
-    createMilkSUWorkflowExtension(sessionRole, getPolicy, getSession),
+    createMilkSUWorkflowExtension(sessionRole, getPolicy, getSession, conversationId),
   ];
   if (sessionRole) {
     extensionFactories.push(createCTFTruncationContinuationExtension(sessionRole));
@@ -1583,6 +1666,15 @@ async function sendMessage(command) {
     // the next prompt so Pi never runs a prompt against a session that is
     // mid-compaction. Compaction is bounded, so this wait cannot hang forever.
     await waitForCompaction(compactionRuns, conversationId);
+    if (command.branchFromUserOccurrence !== undefined) {
+      try {
+        await session.abort();
+      } catch {
+        // Restarting from an earlier user message should not fail because the
+        // previous turn was already idle.
+      }
+      await navigateFromUserMessage(session, Number(command.branchFromUserOccurrence));
+    }
     await compactIfContextNearLimit(conversationId, session);
     const attachmentRoot = process.env.MILKSU_CODING_ATTACHMENT_ROOT;
     const supportsImages = Array.isArray(session.model?.input)
@@ -1649,6 +1741,31 @@ async function abortSession(command) {
   // the UI (finishRun is idempotent). If abort raced past agent_settled, this
   // closes the desktop run clock without inventing assistant text.
   emit(conversationId, "turn_settled");
+}
+
+async function forkSessionCommand(command) {
+  const conversationId = String(command.conversationId ?? "").trim();
+  const requestId = String(command.requestId ?? "").trim();
+  try {
+    if (!conversationId) throw new Error("conversationId is required");
+    if (!requestId) throw new Error("requestId is required");
+    const session = sessions.get(conversationId) ?? await createSession(command);
+    const forked = forkFromMessage(
+      session,
+      command.role === "assistant" ? "assistant" : "user",
+      Number(command.occurrence ?? 0),
+    );
+    emit(conversationId, "session_forked", {
+      requestId,
+      forkedSessionId: forked.sessionId,
+      path: forked.path,
+    });
+  } catch (error) {
+    emit(conversationId || null, "session_forked", {
+      requestId,
+      error: describeError(error),
+    });
+  }
 }
 
 async function destroySession(command) {
@@ -1727,6 +1844,7 @@ function respondToolApproval(command) {
     requestId,
     approved: command.approved === true,
     scope: command.scope,
+    choice: command.choice,
   });
 }
 
@@ -2003,6 +2121,9 @@ async function handleCommand(command) {
       break;
     case "destroy_session":
       await destroySession(command);
+      break;
+    case "fork_session":
+      await forkSessionCommand(command);
       break;
     default:
       throw new Error(`Unknown action: ${command.action}`);

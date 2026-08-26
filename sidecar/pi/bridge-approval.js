@@ -35,6 +35,27 @@ export function createApprovalBroker(emit, createID = randomUUID) {
   }
 
   return {
+    requestChoice({ conversationId, question, options }) {
+      const requestID = createID();
+      return new Promise((resolve) => {
+        pending.set(requestID, {
+          conversationId,
+          toolName: "milksu_ask",
+          kind: "choice",
+          options,
+          resolve(approved, choice) {
+            resolve(approved ? choice : null);
+          },
+        });
+        emit(conversationId, "approval_requested", {
+          requestId: requestID,
+          toolName: "milksu_ask",
+          content: question,
+          input: JSON.stringify({ options }),
+        });
+      });
+    },
+
     request({ conversationId, toolName, content, input, grantKey: requestedGrantKey }) {
       const key = grantKey(requestedGrantKey);
       if (hasConversationGrant(conversationId, key)) {
@@ -58,10 +79,29 @@ export function createApprovalBroker(emit, createID = randomUUID) {
       });
     },
 
-    respond({ conversationId, requestId, approved, scope }) {
+    respond({ conversationId, requestId, approved, scope, choice }) {
       const request = pending.get(requestId);
       if (!request || request.conversationId !== conversationId) {
         throw new Error(`Unknown MilkSU approval request: ${requestId}`);
+      }
+      if (request.kind === "choice") {
+        if (!approved) {
+          settle(requestId, false, "dismissed by user");
+          return;
+        }
+        const selected = String(choice ?? "").trim();
+        const option = request.options.find(item => item.id === selected);
+        if (!option) throw new Error("Unknown MilkSU choice");
+        pending.delete(requestId);
+        emit(request.conversationId, "approval_resolved", {
+          requestId,
+          toolName: request.toolName,
+          approved: true,
+          reason: "choice selected",
+          choice: option.id,
+        });
+        request.resolve(true, option);
+        return;
       }
       const conversationGrant = approved
         && String(scope ?? "").trim() === "conversation"

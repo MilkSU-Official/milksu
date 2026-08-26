@@ -428,7 +428,7 @@ const activitySuiteName = computed(() => (
   <div class="w-full">
     <p v-if="error && !running" class="mb-3 text-caption text-destructive">{{ error }}</p>
 
-    <div class="tool-workbench mt-2 grid min-h-[640px] border-y border-border">
+    <div class="tool-workbench mt-2 grid min-h-[640px] overflow-hidden rounded-[8px] border border-border">
       <nav class="border-r border-border" :aria-label="t('评测套件', 'Eval suites')">
         <button
           v-for="item in cards"
@@ -678,18 +678,18 @@ const activitySuiteName = computed(() => (
 
 <style scoped>
 .tool-workbench { grid-template-columns: minmax(16rem, 0.72fr) minmax(28rem, 1.28fr); }
-.tool-row { position: relative; display: flex; min-height: 5.8rem; width: 100%; align-items: center; gap: 1rem; border: 0; border-bottom: 1px solid hsl(var(--border)); background: transparent; padding: 1rem 1.1rem; color: hsl(var(--foreground)); cursor: pointer; }
-.tool-row:hover { background: var(--overlay-hover-light); }
-.tool-row.is-selected { background: color-mix(in srgb, var(--brand) 7%, transparent); box-shadow: inset 3px 0 0 var(--brand), inset 0 0 0 1px color-mix(in srgb, var(--brand) 48%, transparent); }
-.tool-icon { display: grid; width: 2.8rem; height: 2.8rem; flex: 0 0 auto; place-items: center; border: 1px solid hsl(var(--border)); color: hsl(var(--foreground)); }
-.tool-row.is-selected .tool-icon { border-color: color-mix(in srgb, var(--brand) 55%, transparent); color: var(--brand); }
+.tool-row { position: relative; display: flex; min-height: 5.8rem; width: calc(100% - 1rem); align-items: center; gap: 1rem; margin: 0.15rem 0.5rem; border: 0; border-radius: 8px; background: transparent; padding: 1rem 1.1rem; color: hsl(var(--foreground)); cursor: pointer; }
+.tool-row:hover { background: var(--hover-2); }
+.tool-row.is-selected { background: var(--hover-2); box-shadow: none; }
+.tool-icon { display: grid; width: 2.8rem; height: 2.8rem; flex: 0 0 auto; place-items: center; border: 1px solid hsl(var(--border)); border-radius: 8px; color: hsl(var(--foreground)); }
+.tool-row.is-selected .tool-icon { border-color: var(--border); color: var(--foreground); }
 .tool-status { flex: 0 0 auto; min-width: 2.4rem; text-align: right; font-size: .77rem; font-weight: 650; font-variant-numeric: tabular-nums; }
 .tool-status[data-tone='ready'] { color: var(--brand); }
 .tool-status[data-tone='idle'] { color: hsl(var(--muted-foreground)); }
-.rank-row { display: flex; min-height: 2.75rem; align-items: center; gap: 0.75rem; padding: 0.35rem 0.15rem; cursor: pointer; }
-.rank-row:hover { background: var(--overlay-hover-light); }
-.rank-row.is-selected { box-shadow: inset 3px 0 0 var(--brand); padding-left: 0.5rem; }
-.rank-track { position: relative; height: 0.35rem; width: 7.5rem; overflow: hidden; background: var(--muted); }
+.rank-row { display: flex; min-height: 2.75rem; align-items: center; gap: 0.75rem; border-radius: 8px; padding: 0.35rem 0.5rem; cursor: pointer; }
+.rank-row:hover { background: var(--hover-2); }
+.rank-row.is-selected { background: var(--hover-2); box-shadow: none; }
+.rank-track { position: relative; height: 0.35rem; width: 7.5rem; overflow: hidden; border-radius: 8px; background: var(--muted); }
 .rank-track > i { display: block; height: 100%; background: var(--brand); }
 .rank-track > i.is-lead { background: var(--signal-gold); }
 .activity-chip {
@@ -700,6 +700,7 @@ const activitySuiteName = computed(() => (
   border: 1px solid color-mix(in srgb, var(--brand) 42%, transparent);
   background: color-mix(in srgb, var(--brand) 8%, transparent);
   color: hsl(var(--foreground));
+  border-radius: 8px;
   padding: 0.7rem 0.9rem;
   text-align: left;
   cursor: pointer;

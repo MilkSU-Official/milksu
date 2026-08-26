@@ -232,13 +232,16 @@ interface DesktopAppBindings {
     mcpServers: string[],
     attachments: CodingAttachment[],
     productAction?: CodingProductActionRequest,
+    branchFromUserOccurrence?: number,
   ): Promise<void>
+  ForkConversation(conversationId: string, role: string, occurrence: number): Promise<string>
   AbortMessage(conversationId: string): Promise<void>
   RespondToolApproval(
     conversationId: string,
     requestId: string,
     approved: boolean,
     scope?: string,
+    choice?: string,
   ): Promise<void>
   RefreshCodingBackgroundTasks(
     conversationId: string,
@@ -620,6 +623,15 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
           (args?.mcpServers as string[]) ?? [],
           (args?.attachments as CodingAttachment[]) ?? [],
           args?.productAction as CodingProductActionRequest | undefined,
+          Number.isInteger(args?.branchFromUserOccurrence)
+            ? Number(args?.branchFromUserOccurrence)
+            : -1,
+        ) as Promise<T>
+      case 'fork_conversation':
+        return app.ForkConversation(
+          args?.conversationId as string,
+          (args?.role as string) ?? 'assistant',
+          Number(args?.occurrence ?? 0),
         ) as Promise<T>
       case 'abort_message':
         return app.AbortMessage(args?.conversationId as string) as Promise<T>
@@ -641,6 +653,7 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
           args?.requestId as string,
           args?.approved as boolean,
           typeof args?.scope === 'string' ? args.scope : '',
+          typeof args?.choice === 'string' ? args.choice : '',
         ) as Promise<T>
       case 'refresh_coding_background_tasks':
         return app.RefreshCodingBackgroundTasks(

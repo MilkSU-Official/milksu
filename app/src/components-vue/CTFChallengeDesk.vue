@@ -150,7 +150,7 @@ function select(id: number) {
 </script>
 
 <template>
-  <section class="tactical-paper-surface flex h-full min-h-0 flex-col bg-card" :aria-label="t('CTF 挑战列表', 'CTF challenge list')">
+  <section class="flex h-full min-h-0 flex-col bg-background" :aria-label="t('CTF 挑战列表', 'CTF challenge list')">
     <div class="tactical-desk-head grid h-12 shrink-0 grid-cols-[92px_minmax(0,1fr)_140px_110px_130px_42px_72px] items-center gap-4 border-b border-border px-6 text-caption text-muted-foreground">
       <span>#</span><span>{{ t('题目', 'Challenge') }}</span><span>{{ t('类别', 'Category') }}</span><span>{{ t('难度', 'Difficulty') }}</span><span>{{ t('我的状态', 'My status') }}</span><span class="sr-only">{{ t('收藏', 'Collections') }}</span><span class="sr-only">{{ t('打开', 'Open') }}</span>
     </div>
@@ -159,7 +159,7 @@ function select(id: number) {
       <template v-if="activeBank === 'nssctf'">
         <template v-for="problem in displayedNssctfProblems" :key="problem.platformId">
           <article
-            class="challenge-row tactical-row grid min-h-[62px] w-full grid-cols-[92px_minmax(0,1fr)_140px_110px_130px_42px_72px] items-center gap-4 border-b border-border px-6 text-left hover:bg-muted/30"
+            class="challenge-row tactical-row grid min-h-[62px] w-full grid-cols-[92px_minmax(0,1fr)_140px_110px_130px_42px_72px] items-center gap-4 border-b border-border px-6 text-left"
             data-testid="catalog-row"
           >
             <span class="font-mono text-caption" :class="dailyProblemID === problem.platformId ? 'text-primary' : 'text-muted-foreground'">
@@ -182,7 +182,7 @@ function select(id: number) {
       <template v-else>
         <template v-for="problem in ctfshowProblems" :key="problem.platformId">
           <article
-            class="challenge-row tactical-row grid min-h-[62px] w-full grid-cols-[92px_minmax(0,1fr)_140px_110px_130px_42px_72px] items-center gap-4 border-b border-border px-6 text-left hover:bg-muted/30"
+            class="challenge-row tactical-row grid min-h-[62px] w-full grid-cols-[92px_minmax(0,1fr)_140px_110px_130px_42px_72px] items-center gap-4 border-b border-border px-6 text-left"
             data-testid="catalog-row"
           >
             <span class="font-mono text-caption text-muted-foreground">#{{ problem.platformId }}</span>
