@@ -31,7 +31,9 @@
 - Browser Use 查找 Chrome / Chromium / Edge、PATH、snap、Nix 与桌面入口。
 - Provider Credential 仍由本地 `credentials.db` 承载；Linux Secret Service 没有接入。
 
-本机 Apple Silicon QEMU 上的 Ubuntu 24.04 ARM64 GNOME Wayland 已看到：应用窗口、hicolor 图标（不再落到齿轮）、隔离浏览器，以及装上 Chromium 后的 Browser Use 可执行文件探测。换入本切片 Go/Sidecar 后，用户点允许桌面共享：会话 `ready`，坐标点击成功，打字写入系统设置搜索框（`milksu-portal`），停止后 Portal session 与 socket 消失、Mutter 可再 CreateSession。锁屏会抑制 RemoteDesktop。Screenshot 接口在该 virtio-gpu 上返回 code 2，画面改从已授权 ScreenCast 流取出。这是试验回执，不是 GitHub Latest，也不等于 amd64 正式包或 Debian / Omarchy / NixOS 桌面验收。
+本机 Apple Silicon QEMU 上的 Ubuntu 24.04 ARM64 GNOME Wayland 已看到：应用窗口、hicolor 图标（不再落到齿轮）、隔离浏览器，以及装上 Chromium 后的 Browser Use 可执行文件探测。换入本切片 Go/Sidecar 后，用户点允许桌面共享：会话 `ready`，坐标点击成功，打字写入系统设置搜索框（`milksu-portal`），停止后 Portal session 与 socket 消失、Mutter 可再 CreateSession。锁屏会抑制 RemoteDesktop。Screenshot 接口在该 virtio-gpu 上返回 code 2，画面改从已授权 ScreenCast 流取出。
+
+Debian 13 ARM64 Hyprland 0.55.2（trixie-backports，virtio-gpu）：tarball 应用在 `ozone-platform=wayland` 下启动，Hyprland `hyprctl clients` 可见 class `milksu`。Computer Use 为 unavailable，文案写明 Hyprland 暂不可用、不走 xinput。Hyprland 上 `ready-to-show` 可能不触发，Linux 会在 5 秒后 `show()`。这是试验回执，不是 GitHub Latest。
 
 因此“有一个 DEB”不能写成“四个发行版已支持”。
 
@@ -88,8 +90,9 @@ GNOME Portal 只承诺显示器级输入，产品文案必须写明，不得冒�
 
 ## 尚未建立的事实
 
-- Debian 13 与 Ubuntu 共用 `.deb`，本切片跳过独立 Debian 桌面验收；
-- Omarchy / NixOS 还没有正式 GitHub Release 回执，Hyprland 真机 GUI 仍待测；
+- Debian 13 GNOME 与 Ubuntu 同类，本切片跳过独立 Debian GNOME 验收；
+- Omarchy 官方 ISO 仍是 x86_64；ARM 上用 Debian 13 + Hyprland 0.55 做过 Wayland 试验，不是 Omarchy 发行面回执；
+- NixOS 还没有正式 GitHub Release 回执；
 - Linux Secret Service 与本地 OCR 仍未实现；
 - Hyprland RemoteDesktop 尚未成为可依赖的正式上游能力，Computer Use 保持 unavailable；
 - Linux ARM64 不是发行架构。

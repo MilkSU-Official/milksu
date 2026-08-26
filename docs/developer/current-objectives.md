@@ -148,7 +148,7 @@
 - README 截图已按当前 UI 重拍。
 - Linux 正式包最多 4 个、默认只发 2 个跨发行版包：Ubuntu/Debian 共用 x64 `.deb`，Omarchy/Arch/Nix 共用 x64 `.tar.gz`（PKGBUILD 与 flake 是安装方法）。ARM 只作本机/CI 试验，不进 GitHub Latest。GNOME 与 Hyprland 使用 Wayland ozone auto。Secret Service / OCR 仍 unavailable。GNOME Computer Use 走 Portal 最小路径，不接 Cua、不碰 xinput。
 - Linux 桌面图标按 hicolor 常用尺寸（48/256 等）从 `build/appicon.png` 生成；不再只装 1024，避免 GNOME 找不到图标时落到齿轮。
-- Linux Browser Use 查找系统 Chromium/Chrome/Edge（含 PATH、snap、Nix、桌面入口）；设置页显示是否找到。Ubuntu ARM GNOME 虚拟机上用户点允许后：Portal 会话 ready、坐标点击成功、打字进入系统 UI、停止后键鼠会话释放。锁屏会抑制。Hyprland 仍 unavailable。不走 ISSUE #19 的 xinput。
+- Linux Browser Use 查找系统 Chromium/Chrome/Edge（含 PATH、snap、Nix、桌面入口）；设置页显示是否找到。Ubuntu ARM GNOME 虚拟机上用户点允许后：Portal 会话 ready、坐标点击成功、打字进入系统 UI、停止后键鼠会话释放。锁屏会抑制。Debian 13 ARM Hyprland 上应用以 Wayland 启动且窗口可见，Computer Use 保持 unavailable（不走 xinput）。不走 ISSUE #19 的 xinput。
 - 本切片 GUI 验收后，README 补 macOS / Windows / Linux 功能与安装矩阵（含四发行版怎么装）。未测完前不把 Portal 或 tarball 写成 GitHub Latest 已提供。
 
 ## 当前产品事实

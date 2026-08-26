@@ -785,6 +785,15 @@ function createWindow() {
     startupLog('window.ready-to-show → show()')
     mainWindow.show()
   })
+  // Hyprland (and some virtio-gpu Wayland sessions) never emit ready-to-show.
+  if (process.platform === 'linux') {
+    setTimeout(() => {
+      if (!mainWindow || mainWindow.isDestroyed() || mainWindow.isVisible()) return
+      mainWindow.setTitle(lockedWindowTitle())
+      startupLog('window.show fallback after ready-to-show timeout')
+      mainWindow.show()
+    }, 5_000)
+  }
 }
 
 ipcMain.handle('milksu:invoke', async (event, request) => {
