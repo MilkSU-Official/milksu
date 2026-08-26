@@ -1,10 +1,18 @@
 'use strict'
 
-function applyLinuxChromiumFlags(commandLine, platform = process.platform) {
+function applyLinuxChromiumFlags(
+  commandLine,
+  platform = process.platform,
+  environment = process.env,
+) {
   if (platform !== 'linux' || !commandLine || typeof commandLine.appendSwitch !== 'function') {
     return false
   }
-  commandLine.appendSwitch('ozone-platform-hint', 'auto')
+  if (String(environment.WAYLAND_DISPLAY ?? '').trim()) {
+    commandLine.appendSwitch('ozone-platform', 'wayland')
+  } else {
+    commandLine.appendSwitch('ozone-platform-hint', 'auto')
+  }
   return true
 }
 

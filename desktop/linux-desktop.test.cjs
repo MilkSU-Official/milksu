@@ -14,9 +14,19 @@ test('Linux Chromium uses ozone auto so GNOME and Hyprland pick Wayland', () => 
     appendSwitch(name, value) {
       switches.push([name, value])
     },
-  }, 'linux')
+  }, 'linux', {})
   assert.equal(applied, true)
   assert.deepEqual(switches, [['ozone-platform-hint', 'auto']])
+})
+
+test('Linux Chromium uses Wayland when WAYLAND_DISPLAY is set', () => {
+  const switches = []
+  applyLinuxChromiumFlags({
+    appendSwitch(name, value) {
+      switches.push([name, value])
+    },
+  }, 'linux', { WAYLAND_DISPLAY: 'wayland-0' })
+  assert.deepEqual(switches, [['ozone-platform', 'wayland']])
 })
 
 test('Linux Chromium flags are not applied on macOS or Windows', () => {
