@@ -93,25 +93,16 @@ function startResize(event: PointerEvent) {
   flex: none;
   flex-direction: column;
   isolation: isolate;
-  border-left: 1px solid var(--border);
-  background-color: var(--card);
+  overflow: hidden;
+  border-left: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  background: var(--background);
   color: var(--foreground);
-  box-shadow: -18px 0 38px rgb(0 0 0 / .08);
+  animation: agent-chrome-in-x 280ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.tactical-panel-shell::before {
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 1px;
-  background: color-mix(in srgb, var(--foreground) 12%, transparent);
-  content: '';
-  pointer-events: none;
-}
-
-/* Keep environment / changes / artifacts / browser on one rail width. */
 .tactical-panel-shell[data-panel-size='compact'],
 .tactical-panel-shell[data-panel-size='wide'] {
-  width: clamp(22rem, 30cqi, 28rem);
+  width: clamp(18rem, 26cqi, 24rem);
 }
 .tactical-panel-shell[data-panel-size='drawer'] { width: clamp(16rem, 22vw, 19rem); }
 
@@ -134,17 +125,15 @@ function startResize(event: PointerEvent) {
 
 .tactical-panel-shell__resize:hover::after,
 .tactical-panel-shell__resize:focus-visible::after {
-  background: var(--brand);
-  opacity: .55;
+  background: var(--hover-2);
 }
 
 .tactical-panel-shell__header {
   display: flex;
-  min-height: 3.5rem;
+  min-height: 2.5rem;
   flex: none;
   align-items: center;
-  border-bottom: 1px solid var(--night-border);
-  padding: 0 1rem;
+  padding: 0.25rem 0.5rem;
 }
 
 .tactical-panel-shell__body {
@@ -167,19 +156,22 @@ function startResize(event: PointerEvent) {
 
 .tactical-panel-shell__footer {
   flex: none;
-  border-top: 1px solid var(--night-border);
 }
 
-@container coding-workspace (max-width: 68rem) {
-  .tactical-panel-shell[data-panel-size='compact'],
-  .tactical-panel-shell[data-panel-size='wide'] {
-    position: absolute;
-    z-index: var(--z-panel);
-    inset-block: 0;
-    right: 0;
-    width: min(25rem, calc(100% - 4rem));
-    max-width: 100%;
-    box-shadow: -24px 0 56px rgb(0 0 0 / .38);
+@keyframes agent-chrome-in-x {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tactical-panel-shell {
+    animation: none;
   }
 }
 </style>

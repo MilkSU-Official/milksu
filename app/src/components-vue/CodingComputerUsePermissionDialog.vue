@@ -100,7 +100,7 @@ onBeforeUnmount(stopPolling)
 <template>
   <Dialog :open="open" @update:open="updateOpen">
     <DialogContent
-      class="computer-use-permission-dialog tactical-floating-surface max-h-[calc(100vh-2rem)] overflow-y-auto border-border bg-card p-0 text-foreground shadow-2xl sm:max-w-[min(72rem,calc(100vw-3rem))]"
+      class="agent-floating computer-use-permission-dialog tactical-floating-surface max-h-[calc(100vh-2rem)] overflow-y-auto border-border bg-card p-0 text-foreground shadow-2xl sm:max-w-[min(72rem,calc(100vw-3rem))]"
     >
       <div class="px-6 pb-4 pt-6 sm:px-9 sm:pt-8">
         <div class="flex flex-wrap items-start justify-between gap-5">

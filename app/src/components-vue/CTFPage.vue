@@ -64,7 +64,7 @@ import {
   parseCTFDailyChallengeRecord,
 } from '@/lib/ctfDailyChallenge'
 import { ALL_COLLECTIONS_ID, createItemCollectionStore } from '@/lib/itemCollections'
-import { relatedDomainConversations } from '@/lib/workspaceSessionRouting'
+
 import { debugLog, updateDebugState } from '@/lib/debugMode'
 import {
   ctfManualStatusFromJobStatus,
@@ -124,6 +124,7 @@ const props = withDefaults(defineProps<{
   modelVerified: boolean
   arenaReady: boolean
   initialJobId?: string | null
+  catalogEpoch?: number
   ctfSection: CTFWorkspaceSection
   conversations?: Conversation[]
   conversation?: Conversation | null
@@ -152,6 +153,8 @@ const props = withDefaults(defineProps<{
   mcpConfigDigest?: string
   pendingComposerDraft?: CodingAgentSurfaceBind['pendingComposerDraft']
   ensureConversation?: (title?: string) => string
+  chatMaximized?: boolean
+  chatDockOpen?: boolean
 }>(), {
   conversations: () => [],
   conversation: null,
@@ -167,6 +170,9 @@ const props = withDefaults(defineProps<{
   mcpServers: () => [],
   pendingComposerDraft: null,
   ensureConversation: () => '',
+  chatMaximized: false,
+  chatDockOpen: true,
+  catalogEpoch: 0,
 })
 
 const emit = defineEmits<{
@@ -178,11 +184,12 @@ const emit = defineEmits<{
   selectConversation: [id: string]
   createConversation: []
   expand: []
+  closeDock: []
   consumePendingDraft: []
   ctfAction: [action: import('@/types').CTFChatAction]
   compactContext: []
   controlGoal: [action: 'pause' | 'resume' | 'clear']
-  respondApproval: [requestId: string, approved: boolean, scope?: 'once' | 'conversation']
+  respondApproval: [requestId: string, approved: boolean, scope?: 'once' | 'conversation', choice?: string]
   changeModel: [mode: 'auto' | 'manual', provider?: string, model?: string]
   changeModelSource: [preference: 'auto' | 'account' | 'personal']
   changeCodingPolicy: [
@@ -297,10 +304,7 @@ let catalogSearchTimer: ReturnType<typeof setTimeout> | undefined
 let dailyChallengeLoading = false
 
 const activeProjection = computed(() => backend.projection.value)
-const dossierConversations = computed(() => relatedDomainConversations(
-  props.conversations ?? [],
-  props.conversation ?? null,
-))
+
 const isArenaWorkspace = computed(() => (
   activeProjection.value?.challenge.externalPlatform === 'nssctf-agent-arena'
 ))
@@ -1467,6 +1471,14 @@ onMounted(async () => {
   bridgeStatusTimer = window.setInterval(refreshBridgePresence, 2500)
 })
 
+watch(() => props.initialJobId, (id) => {
+  if (id) void resumeInitialJobIfNeeded(id)
+})
+
+watch(() => props.catalogEpoch, (epoch) => {
+  if (epoch) showProblems()
+})
+
 onActivated(() => {
   if (deactivatedFromWorkspace.value) void resumeInitialJobIfNeeded(props.initialJobId)
   void resetWorkspaceViewport()
@@ -1972,58 +1984,6 @@ onBeforeUnmount(() => {
               <AlertDescription>{{ outcomeNotice }}</AlertDescription>
             </Alert>
             </div>
-            <ConversationDock
-              ref="conversationDock"
-              :conversation="conversation ?? null"
-              :conversations="dossierConversations"
-              :running="running"
-              :aborting="aborting"
-              :settings="settings"
-              :workspace-path="workspacePath"
-              :message-queue="messageQueue"
-              :session-ready="sessionReady"
-              :resumed="resumed"
-              :compacting="compacting"
-              :compacted-at="compactedAt"
-              :compaction-error="compactionError"
-              :turn-status="turnStatus"
-              :ctf-session="ctfSession"
-              :vulnerability-session="vulnerabilitySession"
-              :ctf-mode="ctfMode"
-              :ctf-role="ctfRole"
-              :model-mode="modelMode"
-              :model-provider="modelProvider"
-              :model-id="modelId"
-              :model-source-preference="modelSourcePreference"
-              :execution-mode="executionMode"
-              :approval-policy="approvalPolicy"
-              :mcp-servers="mcpServers"
-              :mcp-config-digest="mcpConfigDigest"
-              :ensure-conversation="ensureConversation"
-              :pending-composer-draft="pendingComposerDraft"
-              @send="(...args) => $emit('send', ...args)"
-              @abort="$emit('abort')"
-              @select="$emit('selectConversation', $event)"
-              @create="$emit('createConversation')"
-              @expand="$emit('expand')"
-              @consume-pending-draft="$emit('consumePendingDraft')"
-              @ctf-action="$emit('ctfAction', $event)"
-              @compact-context="$emit('compactContext')"
-              @control-goal="$emit('controlGoal', $event)"
-              @respond-approval="(requestId, approved, scope) => $emit('respondApproval', requestId, approved, scope)"
-              @change-model="(mode, provider, model) => $emit('changeModel', mode, provider, model)"
-              @change-model-source="$emit('changeModelSource', $event)"
-              @change-coding-policy="(mode, policy) => $emit('changeCodingPolicy', mode, policy)"
-              @change-mcp-servers="(servers, digest) => $emit('changeMcpServers', servers, digest)"
-              @choose-workspace="$emit('chooseWorkspace')"
-              @choose-workspace-for-new-task="$emit('chooseWorkspaceForNewTask')"
-              @select-workspace="$emit('selectWorkspace', $event)"
-              @forget-workspace="$emit('forgetWorkspace', $event)"
-              @clear-workspace="$emit('clearWorkspace')"
-              @cancel-queued-guidance="$emit('cancelQueuedGuidance', $event)"
-              @edit-queued-guidance="$emit('editQueuedGuidance', $event)"
-              @open-settings="$emit('openSettings')"
-            />
           </template>
 
           <SettingsSection v-else :title="t('工作区', 'Workspace')">
@@ -2035,6 +1995,58 @@ onBeforeUnmount(() => {
         </section>
       </div>
     </div>
+    <ConversationDock
+      v-if="!chatMaximized && chatDockOpen"
+      ref="conversationDock"
+      :conversation="conversation ?? null"
+      :running="running"
+      :aborting="aborting"
+      :settings="settings"
+      :workspace-path="workspacePath"
+      :message-queue="messageQueue"
+      :session-ready="sessionReady"
+      :resumed="resumed"
+      :compacting="compacting"
+      :compacted-at="compactedAt"
+      :compaction-error="compactionError"
+      :turn-status="turnStatus"
+      :ctf-session="ctfSession"
+      :vulnerability-session="vulnerabilitySession"
+      :ctf-mode="ctfMode"
+      :ctf-role="ctfRole"
+      :model-mode="modelMode"
+      :model-provider="modelProvider"
+      :model-id="modelId"
+      :model-source-preference="modelSourcePreference"
+      :execution-mode="executionMode"
+      :approval-policy="approvalPolicy"
+      :mcp-servers="mcpServers"
+      :mcp-config-digest="mcpConfigDigest"
+      :ensure-conversation="ensureConversation"
+      :pending-composer-draft="pendingComposerDraft"
+      @send="(...args) => $emit('send', ...args)"
+      @abort="$emit('abort')"
+      @select="$emit('selectConversation', $event)"
+      @close="$emit('closeDock')"
+      @expand="$emit('expand')"
+      @consume-pending-draft="$emit('consumePendingDraft')"
+      @ctf-action="$emit('ctfAction', $event)"
+      @compact-context="$emit('compactContext')"
+      @control-goal="$emit('controlGoal', $event)"
+      @respond-approval="(requestId, approved, scope, choice) => $emit('respondApproval', requestId, approved, scope, choice)"
+      @change-model="(mode, provider, model) => $emit('changeModel', mode, provider, model)"
+      @change-model-source="$emit('changeModelSource', $event)"
+      @change-coding-policy="(mode, policy) => $emit('changeCodingPolicy', mode, policy)"
+      @change-mcp-servers="(servers, digest) => $emit('changeMcpServers', servers, digest)"
+      @choose-workspace="$emit('chooseWorkspace')"
+      @choose-workspace-for-new-task="$emit('chooseWorkspaceForNewTask')"
+      @select-workspace="$emit('selectWorkspace', $event)"
+      @forget-workspace="$emit('forgetWorkspace', $event)"
+      @clear-workspace="$emit('clearWorkspace')"
+      @cancel-queued-guidance="$emit('cancelQueuedGuidance', $event)"
+      @edit-queued-guidance="$emit('editQueuedGuidance', $event)"
+      @open-settings="$emit('openSettings')"
+    />
     <WorkspaceImportDialog
       :open="showImport"
       :description="t('同步 NSSCTF 或 CTFshow 题库，或导入自定义题目。', 'Sync the NSSCTF or CTFshow catalog, or import a custom challenge.')"

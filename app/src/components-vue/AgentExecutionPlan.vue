@@ -18,16 +18,13 @@ const props = withDefaults(defineProps<{
 })
 
 const expanded = ref(false)
+let closeTimer: ReturnType<typeof setTimeout> | undefined
 
 const plan = computed(() => {
   const current = latestCodingPlan(props.messages)
   if (!current) return null
   return props.running ? current : settleIdleCodingPlan(current)
 })
-
-const completedCount = computed(() => (
-  plan.value?.steps.filter(step => step.status === 'completed').length ?? 0
-))
 
 const headlineStatus = computed<CodingPlanStep['status']>(() => {
   if (!plan.value) return 'pending'
@@ -51,15 +48,19 @@ function statusLabel(status: CodingPlanStep['status']) {
 }
 
 function open() {
+  if (closeTimer !== undefined) clearTimeout(closeTimer)
   expanded.value = true
 }
 
-function close(event?: FocusEvent) {
-  const next = event?.relatedTarget
-  if (next instanceof Node && (event?.currentTarget instanceof Node) && event.currentTarget.contains(next)) {
-    return
-  }
-  expanded.value = false
+function close() {
+  closeTimer = setTimeout(() => {
+    expanded.value = false
+  }, 180)
+}
+
+function toggle() {
+  if (closeTimer !== undefined) clearTimeout(closeTimer)
+  expanded.value = !expanded.value
 }
 </script>
 
@@ -79,7 +80,8 @@ function close(event?: FocusEvent) {
         type="button"
         class="agent-task-row__head"
         :aria-expanded="expanded"
-        @click="expanded = !expanded"
+        :title="plan.summary"
+        @click.stop="toggle"
       >
         <span class="agent-task-badge">
           <span
@@ -121,17 +123,10 @@ function close(event?: FocusEvent) {
             <span class="agent-task-ring__index">{{ headlineIndex + 1 }}</span>
           </span>
         </span>
-        <span class="agent-task-row__label">{{ plan.summary }}</span>
-        <span class="agent-task-row__amount">{{ completedCount }}/{{ plan.steps.length }}</span>
         <span
-          v-if="headlineStatus === 'completed'"
-          class="agent-task-pill agent-task-pill--ok"
-        >{{ statusLabel('completed') }}</span>
-        <span class="agent-task-row__chevron" aria-hidden="true">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M6 9l6 6 6-6" />
-          </svg>
-        </span>
+          class="agent-task-row__label"
+          :title="plan.summary"
+        >{{ t(`第 ${headlineIndex + 1} / ${plan.steps.length} 步`, `Step ${headlineIndex + 1} / ${plan.steps.length}`) }}</span>
       </button>
     </div>
 

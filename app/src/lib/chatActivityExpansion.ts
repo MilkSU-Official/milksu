@@ -60,14 +60,19 @@ export function pruneChatActivityExpansion(
 ): ChatActivityExpansionState {
   const liveGroups = new Set<string>()
   const liveEntriesByGroup = new Map<string, Set<string>>()
-  for (const block of blocks) {
-    if (block.kind !== 'activity') continue
+  const visitActivity = (block: ChatTranscriptBlock) => {
+    if (block.kind === 'process') {
+      for (const inner of block.blocks) visitActivity(inner)
+      return
+    }
+    if (block.kind !== 'activity') return
     liveGroups.add(block.id)
     liveEntriesByGroup.set(
       block.id,
       new Set(buildChatActivityEntries(block.messages).map(entry => entry.id)),
     )
   }
+  for (const block of blocks) visitActivity(block)
 
   let changed = false
   const groups = new Set<string>()

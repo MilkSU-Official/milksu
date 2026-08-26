@@ -52,7 +52,7 @@ export type CodingAgentSurfaceEmit = {
   ctfAction: [action: CTFChatAction]
   compactContext: []
   controlGoal: [action: 'pause' | 'resume' | 'clear']
-  respondApproval: [requestId: string, approved: boolean, scope?: 'once' | 'conversation']
+  respondApproval: [requestId: string, approved: boolean, scope?: 'once' | 'conversation', choice?: string]
   changeModel: [mode: 'auto' | 'manual', provider?: string, model?: string]
   changeModelSource: [preference: 'auto' | 'account' | 'personal']
   changeCodingPolicy: [executionMode: CodingExecutionMode, approvalPolicy: CodingApprovalPolicy]

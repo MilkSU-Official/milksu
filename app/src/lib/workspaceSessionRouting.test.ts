@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
+  rememberItemChatAnchor,
   rememberWorkspaceConversation,
+  selectAnchoredDomainConversationId,
   selectCodingConversationId,
+  conversationWorkspaceHome,
+  isHomeConversation,
   selectCTFResumePoint,
 } from './workspaceSessionRouting'
 import type { Conversation } from '@/types'
@@ -38,16 +42,22 @@ describe('workspaceSessionRouting', () => {
     const afterCoding = rememberWorkspaceConversation(codingOlder, {
       codingConversationId: null,
       ctfConversationId: null,
+      vulnConversationId: null,
+      labConversationId: null,
     })
     expect(afterCoding).toEqual({
       codingConversationId: 'coding-older',
       ctfConversationId: null,
+      vulnConversationId: null,
+      labConversationId: null,
     })
 
     const afterCTF = rememberWorkspaceConversation(ctfRecent, afterCoding)
     expect(afterCTF).toEqual({
       codingConversationId: 'coding-older',
       ctfConversationId: 'ctf-recent',
+      vulnConversationId: null,
+      labConversationId: null,
     })
   })
 
@@ -137,5 +147,86 @@ describe('workspaceSessionRouting', () => {
       conversationId: 'ctf-active-older',
       jobId: 'ctf-job-active-older',
     })
+  })
+
+  it('keeps unbound CTF chats in the CTF home without a bound job', () => {
+    const unbound = conversation({
+      id: 'ctf-loose',
+      title: '整理题库',
+      createdAt: 12,
+      workspaceHome: 'ctf',
+    })
+    expect(conversationWorkspaceHome(unbound)).toBe('ctf')
+    expect(isHomeConversation(unbound)).toBe(false)
+  })
+
+  it('does not treat CVE or Lab chats as Home conversations', () => {
+    const cve = conversation({
+      id: 'cve-open',
+      title: 'CVE-2024-3400 复现',
+      createdAt: 80,
+      domainTaskContext: {
+        kind: 'cve',
+        cveId: 'CVE-2024-3400',
+        title: 'PAN-OS',
+        sourceEvidenceState: '',
+        sourceEvidenceCount: 0,
+        assetMatchState: '',
+        assetCount: 0,
+        researchScope: 'local',
+        safetyBoundary: '',
+        roleLabel: 'CVE',
+      },
+    })
+    const lab = conversation({
+      id: 'lab-open',
+      title: 'Juice Shop',
+      createdAt: 90,
+      domainTaskContext: {
+        kind: 'lab',
+        jobId: 'job-1',
+        title: 'Juice Shop',
+        scope: 'local',
+        request: '',
+      },
+    })
+
+    expect(selectCodingConversationId([cve, lab, codingOlder], 'cve-open', null))
+      .toBe('coding-older')
+    expect(selectCodingConversationId([cve, lab], 'lab-open', null)).toBeNull()
+  })
+
+  it('anchors the last selected chat for a domain item', () => {
+    const context = {
+      kind: 'cve' as const,
+      cveId: 'CVE-2024-3400',
+      title: 'PAN-OS',
+      sourceEvidenceState: '',
+      sourceEvidenceCount: 0,
+      assetMatchState: '',
+      assetCount: 0,
+      researchScope: 'local',
+      safetyBoundary: '',
+      roleLabel: 'CVE',
+    }
+    const first = conversation({
+      id: 'cve-canonical',
+      title: 'CVE-2024-3400 复现',
+      createdAt: 10,
+      domainTaskContext: context,
+    })
+    const second = conversation({
+      id: 'cve-followup',
+      title: 'CVE-2024-3400 复现',
+      createdAt: 20,
+      domainTaskContext: context,
+    })
+    const anchors = rememberItemChatAnchor({}, first)
+    const next = rememberItemChatAnchor(anchors, second)
+    expect(next).toEqual({ 'cve:cve-2024-3400': 'cve-followup' })
+    expect(selectAnchoredDomainConversationId([first, second], context, next))
+      .toBe('cve-followup')
+    expect(selectAnchoredDomainConversationId([first, second], context, {}))
+      .toBe('cve-followup')
   })
 })

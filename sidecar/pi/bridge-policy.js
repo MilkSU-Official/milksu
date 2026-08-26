@@ -73,6 +73,7 @@ const codingProductReadOnlyToolNames = [
   "find",
   "ls",
   "milksu_progress",
+  "milksu_ask",
   "milksu_workspace",
   "lsp_diagnostics",
   ...codingWebResearchToolNames,
@@ -85,6 +86,7 @@ const codingProductTestToolNames = [
   "find",
   "ls",
   "milksu_progress",
+  "milksu_ask",
   "milksu_workspace",
   "lsp_diagnostics",
   ...codingWebResearchToolNames,
@@ -99,6 +101,7 @@ const codingProductFixToolNames = [
   "find",
   "ls",
   "milksu_progress",
+  "milksu_ask",
   "milksu_workspace",
   "lsp_diagnostics",
   "lsp_fix",
@@ -108,6 +111,7 @@ const codingProductFixToolNames = [
 const ctfLocalToolNames = [
   ...codingToolNames,
   "milksu_progress",
+  "milksu_ask",
   "ctf_capabilities",
   "ctf_decode",
   "ctf_triage",
@@ -121,6 +125,7 @@ const ctfToolNames = [
 const coachToolNames = [
   ...codingToolNames,
   "milksu_progress",
+  "milksu_ask",
   "ctf_capabilities",
   "ctf_decode",
   "ctf_triage",
@@ -249,6 +254,7 @@ function normalizeActiveTools(manifest) {
     : [...ctfLocalToolNames, ctfEndpointRequestToolName];
   let values = Array.isArray(requested) && requested.length > 0 ? [...requested] : [...fallback];
   if (!values.includes("milksu_progress")) values.push("milksu_progress");
+  if (!values.includes("milksu_ask")) values.push("milksu_ask");
   const roleIsSolver = ![toolBuilderRole].includes(manifest?.policy?.mode);
   if (!values.includes("ctf_capabilities")) values.push("ctf_capabilities");
   if (!values.includes("ctf_decode")) values.push("ctf_decode");

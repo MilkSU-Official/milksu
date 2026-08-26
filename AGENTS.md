@@ -9,6 +9,9 @@ Before changing anything, read:
 3. `docs/architecture/current-system.md`;
 4. the current Git branch, HEAD and working tree.
 
+Product UI language lives only in this file (`Product UI Design Language` below).
+Do not restate layers, tokens or primitives in other docs.
+
 M3 product-loop work was squash merged to `main` on 2026-08-05. Continue from
 `current-objectives.md`, current code, tests and Git history rather than reopening the merged PR, retired
 ledgers or old sprint gaps. Build the next bounded slice, record adjacent non-blocking bugs near the relevant
@@ -66,25 +69,36 @@ names CTF, CVE, Lab and Coding stay as those product names in both languages. En
 
 ## Product UI Design Language
 
-Canonical contract: [docs/design/current-visual.md](docs/design/current-visual.md).
-Review that page by layer. Do not invent a second primitive at the same layer.
+This section is the only product UI language. Other docs point here; they must not
+copy the layer table, token names, radii or Beautiful UI primitive numbers.
+
+Review this section by layer. Do not invent a second primitive at the same layer.
 
 | Layer | Owns | Use |
 | --- | --- | --- |
-| Materials | tokens, color, type | graphite / paper / cyan / gold on shell, lists and settings; Agent 对话区 follows Beautiful UI |
-| Shell | rail, topbar, page column | `WorkspaceModuleTopBar`, `--page-stack-width` 64rem |
-| List chrome | filters, History, primary action | `.ak-segmented`, `WorkspaceCatalogActions`; Import for CTF/CVE, Create for Lab |
-| Facts | cards, tables, dialogs, connection status | Felinic `SettingsSection` / `SettingsRow` / `ActionCard` / `ModelListRow`; LIVE/OFF via `ConnectionLiveStatus` |
+| Materials | tokens, color, type, motion | Beautiful UI is the dominant language: cool white / cool black, 8px rows, `--hover-2`, 280ms `cubic-bezier(0.16, 1, 0.3, 1)` enter. Cyan / gold are execution and focus, not page chrome. Fonts: Inter Variable + Noto Sans SC Variable. |
+| Shell | sidebar, topbar, page column | one Beautiful UI 14 sidebar (`ContextSidebar`). Collapsed 52px; expanded min 224px, default 264px, drag the right edge to resize. Selected chat rows are a full 8px rounded rectangle. Footer: version (vertically centered) plus a theme icon; the icon stays when collapsed. Workspace avatar menu is only as wide as its items. `WorkspaceModuleTopBar`, `--page-stack-width` 64rem. Coding right rail, bottom terminal, settings nav, profile panels and catalogs use the same 14 chrome. |
+| List chrome | filters, History, primary action | `WorkspaceCatalogActions`: History + Import (CTF/CVE) or Create (Lab). Catalog tables use canvas fill, not gold / paper / cyan row backgrounds. Filter inputs, selects and outline buttons use 8px radius. **ak-ui easter eggs:** `.ak-segmented` filters and `ak-tag` chips for category, difficulty, severity, daily challenge. |
+| Facts | cards, tables, dialogs, status | Felinic `SettingsSection` / `SettingsRow` / `ActionCard` / `ModelListRow` with 8px radius and canvas fill. Settings list rows, tool workbench and field controls use the same 8px radius. **ak-ui easter egg:** `ConnectionLiveStatus` LIVE/OFF, and the module topbar mark. |
 | Copy | user-visible strings | `t('中文', 'English')`; empty controls stay blank |
-| Agent conversation | Coding / CTF / CVE / lab chat | Beautiful UI is the design language. Port the primitives' layout, type, motion and status chrome — do not keep ak-ui cards in this layer. Plan uses Task Rows above the composer. |
+| Agent conversation | Coding / CTF / CVE / lab chat | Beautiful UI primitives: 03 stream edge (real Pi tokens, ~6-character blur tail, solid 2px caret), 04 ask rows, 05 chips, 06 plan capsule, 08 prompt island, 18 code blocks. Do not put ak-ui cards in this layer. |
 
-Shared CSS lives in `app/src/index.css` and `app/src/styles/`. Felinic stays for Vue
-behavior. Do not add `@yunyoujun/ak-ui` to `app/package.json`. Enforcement:
+Home chat fills the column right of the sidebar. CTF / CVE / lab default to one
+dismissible dock (close is X unmount). Maximize covers everything right of the
+sidebar; the right rail stays in-flow beside the thread. Do not stack docks, put a
+session list inside a dock, or put `MissionOperationPanel`, domain-task chrome or
+“返回 CTF” in the conversation column.
+
+Shared CSS lives in `app/src/index.css`, `app/src/styles/beautiful-chrome.css` and `app/src/styles/agent-conversation.css`. Felinic stays for Vue
+behavior. Do not add `@yunyoujun/ak-ui` to `app/package.json`. Do not vendor Beautiful UI's
+React runtime, `globals.css` or paid `@central-icons-react`. ak-ui is **not** the product
+language; keep only the easter eggs named above. Retired graphite / paper / tactical /
+acid-green drafts are not current. Enforcement:
 `WorkspaceVisualContract.test.ts`, `globalStyleContract.test.ts`,
 `WorkspaceCatalogActions.test.ts`, `ConnectionLiveStatus.test.ts`.
 
 Review a new page, settings category, dossier, dialog, preview, Vue/CSS/copy change, or
-incoming PR against those five layers. A screenshot is not a review. Do not invent a
+incoming PR against those layers. A screenshot is not a review. Do not invent a
 one-off max-width, radius, padding, card, or color to finish one page.
 
 ### When the user changes the UI
@@ -94,7 +108,7 @@ If the user — not the agent — changed layout, color, spacing, typography or 
 not silently revert to this language and do not silently rewrite this language to match the
 one-off. Ask in Chinese whether to:
 
-1. update the design language (`current-visual.md`, this section, shared CSS/tokens, and the
+1. update the design language (this section, shared CSS/tokens, and the
    visual-contract tests) so later pages follow the new rule; or
 2. keep this language and treat the edit as a one-off to align or isolate.
 
@@ -215,6 +229,11 @@ deferred to one destructive pre-release consolidation after the product slices a
   surfaces. Coding, CTF, CVE and lab share this surface; domain tools and Judge sit on top
   of the Coding loop instead of replacing it. It must not change settings, credentials,
   approval policy, or attach to the user's Chrome.
+- `milksu_ask` is a typed product-UI tool for Beautiful UI 04 choice cards. The model
+  calls it when the user must pick among 2–6 concrete options; the conversation shows
+  a question plus selectable rows and pauses until one is chosen. Do not regex the
+  prompt for “给我几个选项”, and do not treat this as tool-permission HITL
+  (deny / allow once / always allow).
 - Do not strip Coding capabilities from CTF, CVE or lab sessions. Those workspaces keep
   the full Pi tool loop (files, shell, background tasks, browser, LSP, compact, goal,
   subagent) plus domain extras. Bound challenge workspaces, unauthorized-target gates

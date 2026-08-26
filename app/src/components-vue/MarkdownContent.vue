@@ -1,14 +1,17 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { invokeCommand } from '@/desktop'
+import { decorateAgentStream } from '@/lib/agentStreamText'
 import { renderMarkdown } from '@/lib/markdown'
 import { t } from '@/lib/uiLocale'
 
 const props = withDefaults(defineProps<{
   content: string
   compact?: boolean
+  streaming?: boolean
 }>(), {
   compact: false,
+  streaming: false,
 })
 
 const html = computed(() => renderMarkdown(props.content))
@@ -17,11 +20,10 @@ const host = ref<HTMLElement | null>(null)
 function decorateCodeBlocks() {
   const root = host.value
   if (!root) return
-  for (const pre of root.querySelectorAll('pre')) {
-    if (pre.parentElement?.classList.contains('agent-code')) continue
-    const wrap = document.createElement('div')
-    wrap.className = 'agent-code'
-    pre.replaceWith(wrap)
+  for (const block of root.querySelectorAll<HTMLElement>('.agent-code')) {
+    if (block.querySelector('.agent-code__copy')) continue
+    const bar = block.querySelector('.agent-code__bar') ?? block
+    const body = block.querySelector('pre')
     const copy = document.createElement('button')
     copy.type = 'button'
     copy.className = 'agent-code__copy'
@@ -29,7 +31,7 @@ function decorateCodeBlocks() {
     copy.addEventListener('click', async event => {
       event.preventDefault()
       try {
-        await navigator.clipboard.writeText(pre.innerText)
+        await navigator.clipboard.writeText(body?.innerText ?? block.innerText)
         copy.textContent = t('已复制', 'Copied')
         window.setTimeout(() => {
           copy.textContent = t('复制', 'Copy')
@@ -38,18 +40,19 @@ function decorateCodeBlocks() {
         copy.textContent = t('复制', 'Copy')
       }
     })
-    wrap.append(copy, pre)
+    bar.append(copy)
   }
 }
 
-onMounted(() => {
-  decorateCodeBlocks()
-})
-
-watch(html, async () => {
-  await nextTick()
-  decorateCodeBlocks()
-})
+watch(
+  [html, () => props.streaming, host],
+  async () => {
+    await nextTick()
+    decorateCodeBlocks()
+    if (host.value) decorateAgentStream(host.value, props.streaming)
+  },
+  { immediate: true },
+)
 
 async function openLink(event: MouseEvent) {
   const target = event.target
@@ -176,32 +179,57 @@ async function openLink(event: MouseEvent) {
 
 .markdown-content :deep(.agent-code) {
   position: relative;
+  overflow: hidden;
+  margin: 0.7rem 0;
+  border: 1px solid var(--agent-hairline, var(--border));
+  border-radius: var(--agent-code-radius, 8px);
+  background: var(--agent-code-surface, var(--card));
+  box-shadow: var(--agent-float-shadow, none);
+}
+
+.markdown-content :deep(.agent-code__bar) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--agent-hairline, var(--border));
+  padding: 0.4rem 0.7rem;
+}
+
+.markdown-content :deep(.agent-code__lang) {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--foreground);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .markdown-content :deep(.agent-code__copy) {
-  position: absolute;
-  top: 0.45rem;
-  right: 0.55rem;
-  z-index: 1;
   border: 0;
   background: transparent;
-  color: #c5c9d1;
-  font-size: 0.68rem;
+  color: var(--muted-foreground);
+  font-size: 0.72rem;
   cursor: pointer;
 }
 
+.markdown-content :deep(.agent-code__body),
 .markdown-content :deep(pre) {
   max-width: 100%;
   overflow: auto;
-  border: 1px solid var(--border);
-  border-radius: 0.55rem;
-  background: color-mix(in oklab, var(--surface-editor) 88%, var(--foreground));
+  margin: 0;
+  border: 0;
+  background: var(--agent-code-inset, var(--card));
   color: var(--foreground);
-  padding: 0.85rem 1rem;
-  line-height: 1.55;
+  padding: 0.55rem 0;
+  line-height: 1.7;
 }
 
-.markdown-content :deep(pre code) {
+.markdown-content :deep(pre code),
+.markdown-content :deep(.agent-code code) {
+  display: block;
   border: 0;
   border-radius: 0;
   background: transparent;

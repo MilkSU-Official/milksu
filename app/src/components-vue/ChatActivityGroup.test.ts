@@ -81,7 +81,7 @@ describe('ChatActivityGroup', () => {
 
     expect(host.querySelector('.agent-chip')).not.toBeNull()
     expect(host.textContent).toContain('打开首页')
-    expect(host.querySelector('.ak-loading')).not.toBeNull()
+    expect(host.querySelector('.agent-pixel')).not.toBeNull()
 
     activity.messages = [
       tool('t1', '打开首页', { toolCallId: 'call-1' }),

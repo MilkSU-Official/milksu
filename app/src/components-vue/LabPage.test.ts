@@ -306,13 +306,13 @@ describe('LabPage', () => {
     await nextTick()
 
     expect(host.querySelector('[data-testid="lab-challenges"]')?.textContent).toContain('看登录页怎么判成功。')
-    expect([...host.querySelectorAll('button')].some(button => button.textContent?.trim() === '进入 Coding')).toBe(true)
+    expect([...host.querySelectorAll('button')].some(button => button.textContent?.trim() === '最大化对话')).toBe(true)
     expect([...host.querySelectorAll('button')].some(button => button.textContent?.trim() === '开始' && button.closest('[role="dialog"]') == null)).toBe(false)
-    ;[...host.querySelectorAll('button')].find(button => button.textContent?.trim() === '进入 Coding')?.click()
+    ;[...host.querySelectorAll('button')].find(button => button.textContent?.trim() === '最大化对话')?.click()
     await nextTick()
     expect(expanded).toHaveLength(1)
     expect(host.querySelector('[data-testid="conversation-dock"]')?.className).not.toContain('is-column')
-    expect(host.querySelector('[aria-label="进入 Coding"]')).not.toBeNull()
+    expect(host.querySelector('[aria-label="最大化对话"]')).not.toBeNull()
     expect(host.querySelector('[aria-label="左上角缩放"]')).not.toBeNull()
     for (let i = 0; i < 12 && !host.querySelector('[data-testid="target-surface"]'); i++) {
       await Promise.resolve()

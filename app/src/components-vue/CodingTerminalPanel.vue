@@ -7,9 +7,6 @@ import {
   ref,
   watch,
 } from 'vue'
-import {
-  Button,
-} from '@felinic/ui'
 import { Terminal as XTerm } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
@@ -450,21 +447,18 @@ onBeforeUnmount(() => {
 
 <template>
   <section class="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
-    <div class="flex h-12 shrink-0 items-center justify-between border-b border-border px-3">
-      <div class="flex min-w-0 items-center gap-1.5 overflow-x-auto">
+    <div class="flex h-10 shrink-0 items-center justify-between px-2">
+      <div class="flex min-w-0 items-center gap-px overflow-x-auto">
         <template v-if="terminalSessions.length">
           <div
             v-for="session in terminalSessions"
             :key="session.id"
-            class="flex max-w-48 shrink-0 items-center rounded-md transition-colors"
-            :class="session.id === selectedTerminalId
-              ? 'bg-secondary text-foreground'
-              : 'text-muted-foreground hover:bg-muted hover:text-foreground'"
+            class="agent-chrome-tab"
+            :class="{ 'is-current': session.id === selectedTerminalId }"
           >
             <button
               type="button"
               :data-terminal-id="session.id"
-              class="flex min-w-0 items-center gap-2 px-2.5 py-1.5 text-caption"
               :aria-label="terminalLabel(session)"
               :aria-pressed="session.id === selectedTerminalId"
               :title="`${redactProviderCredentials(session.shell)} · PID ${session.pid ?? '—'}`"
@@ -477,7 +471,8 @@ onBeforeUnmount(() => {
             </button>
             <button
               type="button"
-              class="mr-1 flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-background/70 hover:text-foreground"
+              class="agent-chrome-icon"
+              style="width: 1.5rem; height: 1.5rem"
               :disabled="closingTerminals.includes(session.id)"
               :aria-label="t(`关闭 ${terminalLabel(session)}`, `Close ${terminalLabel(session)}`)"
               :title="t(`关闭 ${terminalLabel(session)}`, `Close ${terminalLabel(session)}`)"
@@ -494,16 +489,14 @@ onBeforeUnmount(() => {
         <button
           v-else
           type="button"
-          class="flex max-w-44 shrink-0 items-center gap-2 rounded-md bg-secondary px-2.5 py-1.5 text-caption text-foreground"
+          class="agent-chrome-tab is-current"
         >
           <SquareTerminal class="size-3.5 shrink-0" />
-          <span class="truncate">{{ workspaceName }}</span>
+          <span class="truncate px-2 py-1">{{ workspaceName }}</span>
         </button>
-        <Button
+        <button
           type="button"
-          variant="ghost"
-          size="icon-sm"
-          class="shrink-0"
+          class="agent-chrome-icon"
           :disabled="!desktopRuntime || !workspacePath || shellLoading || runningShells.length >= 4"
           :aria-label="t('新建项目 Shell', 'New project shell')"
           :title="t('新建项目 Shell', 'New project shell')"
@@ -511,33 +504,28 @@ onBeforeUnmount(() => {
         >
           <LoaderCircle v-if="shellLoading" class="size-3.5 animate-spin" />
           <Plus v-else class="size-4" />
-        </Button>
-        <Button
+        </button>
+        <button
           v-if="selectedTerminal && selectedTerminal.status !== 'running'"
           type="button"
-          variant="ghost"
-          size="icon-sm"
-          class="shrink-0"
+          class="agent-chrome-icon"
           :disabled="shellLoading || closingTerminals.includes(selectedTerminal.id)"
           :aria-label="t('重新启动当前 Shell', 'Restart this shell')"
           :title="t('重新启动当前 Shell', 'Restart this shell')"
           @click="restartShell"
         >
           <RefreshCw class="size-3.5" />
-        </Button>
+        </button>
       </div>
-      <div class="flex shrink-0 items-center gap-1">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          :aria-label="t('关闭底部面板', 'Close bottom panel')"
-          :title="t('关闭底部面板', 'Close bottom panel')"
-          @click="emit('close')"
-        >
-          <X class="size-4" />
-        </Button>
-      </div>
+      <button
+        type="button"
+        class="agent-chrome-icon"
+        :aria-label="t('关闭底部面板', 'Close bottom panel')"
+        :title="t('关闭底部面板', 'Close bottom panel')"
+        @click="emit('close')"
+      >
+        <X class="size-4" />
+      </button>
     </div>
 
     <div
@@ -547,7 +535,7 @@ onBeforeUnmount(() => {
       {{ desktopRuntimeNotice }}
     </div>
 
-    <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[var(--night-sunken)]">
+    <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden" style="background: var(--agent-code-inset, var(--background))">
       <div
         ref="shellContainer"
         class="box-border min-h-0 min-w-0 flex-1 overflow-hidden px-2 py-2"

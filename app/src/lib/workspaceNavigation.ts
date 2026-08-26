@@ -26,8 +26,22 @@ export function ctfContextItemLabel(id: CTFWorkspaceSection) {
 }
 
 export function showsCodingHistory(section: WorkspaceSection) {
-  return section === 'chat'
+  return section === 'chat' || section === 'ctf' || section === 'vuln' || section === 'lab'
 }
+
+export function isDomainWorkspace(section: AppSection) {
+  return section === 'ctf' || section === 'vuln' || section === 'lab'
+}
+
+export const WORKSPACE_SIDEBAR_ITEMS = [
+  { id: 'chat', label: () => t('主页', 'Home') },
+  { id: 'ctf', label: () => 'CTF' },
+  { id: 'vuln', label: () => 'CVE' },
+  { id: 'lab', label: () => 'Lab' },
+] as const satisfies ReadonlyArray<{
+  id: WorkspaceSection
+  label: () => string
+}>
 
 export function workspaceContextLabel(section: WorkspaceSection) {
   return WORKSPACE_RAIL_ITEMS.find(item => item.id === section)?.label ?? 'MilkSU'

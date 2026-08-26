@@ -12,7 +12,7 @@
 
 ## 当前有效的工程契约
 
-- [当前视觉约定](/design/current-visual)
+- 产品 UI 设计语言：仓库根目录 `AGENTS.md`。不要在本页或其他文档复述。
 - [产品代码准入与薄 Harness 规则](/developer/product-code-admission)
 - [Coding Agent / Pi 扩展边界](/architecture/coding-agent-pi-extension-boundary)
 - [CTF Intake → Agent → Judge → Memory](/architecture/ctf-intake-agent-judge-memory)
@@ -33,10 +33,6 @@
 - [NYU CTF Bench 安全边界](/developer/nyu-ctf-bench-eval)
 
 证据文档只证明记录中明确写出的范围；不能外推为整个产品完成。
-
-## Target（未实现）
-
-- [Coding 对话：Beautiful UI 原语对照](/developer/coding-chat-beautiful-ui)：Beautiful UI 是 Coding Agent 对话区的设计语言。第 6 层只管这一面，设置/列表仍走 ak-ui。
 
 ## 长期设计（不是禁令）
 

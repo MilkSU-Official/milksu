@@ -9,6 +9,7 @@ import { basename, dirname, join, resolve } from "node:path";
 import { readFile, unlink } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { Type } from "typebox";
+import { codingAskToolName, formatAskToolInput, normalizeAskOptions } from "./bridge-ask.js";
 import { resolveModelContextWindow } from "./known-context-window.cjs";
 import {
   createMcpAdapter,
@@ -318,9 +319,45 @@ function truncate(value, limit = 60000) {
   return `${value.slice(0, limit)}\n\n…output truncated by MilkSU`;
 }
 
-function createMilkSUWorkflowExtension(sessionRole, getPolicy, getSession) {
+function createMilkSUWorkflowExtension(sessionRole, getPolicy, getSession, conversationId) {
   return (pi) => {
     let latestPlan = [];
+    pi.registerTool({
+      name: codingAskToolName,
+      label: "MilkSU ask",
+      description: "Show an interactive choice card so the user can tap one of 2-6 options. Required whenever you ask the user a multiple-choice question, including when they ask you to present options. Wait for the selected option. Do not write the options as a numbered or bulleted list.",
+      parameters: Type.Object({
+        question: Type.String({ minLength: 1, maxLength: 200 }),
+        options: Type.Array(Type.Object({
+          id: Type.Optional(Type.String({ minLength: 1, maxLength: 32 })),
+          label: Type.String({ minLength: 1, maxLength: 80 }),
+          detail: Type.Optional(Type.String({ minLength: 1, maxLength: 160 })),
+        }), { minItems: 2, maxItems: 6 }),
+      }),
+      async execute(_toolCallId, params) {
+        const options = normalizeAskOptions(params.options);
+        const question = String(params.question ?? "").trim();
+        if (!question) throw new Error("milksu_ask needs a question");
+        if (options.length < 2) throw new Error("milksu_ask needs at least two options");
+        const picked = await approvalBroker.requestChoice({
+          conversationId,
+          question,
+          options,
+        });
+        if (!picked) {
+          return {
+            content: [{ type: "text", text: "The user dismissed the question." }],
+          };
+        }
+        return {
+          content: [{
+            type: "text",
+            text: `The user selected "${picked.label}" (${picked.id}).`,
+          }],
+          details: { question, selected: picked },
+        };
+      },
+    });
     pi.registerTool({
       name: "milksu_progress",
       label: "MilkSU progress",
@@ -395,6 +432,7 @@ function createMilkSUWorkflowExtension(sessionRole, getPolicy, getSession) {
           + browserGuidance
           + workspaceGuidance
           + "\n\nWhen a task needs more than one concrete step, publish a concise plan with milksu_progress and keep the in-progress step updated. Skip the tool for trivial one-shot replies."
+          + "\n\nIf you are asking the user a multiple-choice question, or the user asks you to present options they can pick, you MUST call milksu_ask immediately with a short question and 2-6 options, then wait. Never write the choices as a numbered or bulleted list in the assistant message. milksu_ask is the interactive choice card; it is not a tool-permission prompt."
           + "\n\nTool results in model context follow Pi truncation (50KB or 2000 lines). Overflow is saved to a file named in the truncation notice; continue with the read tool and offset. Do not pull full command, HTTP, or file dumps into context.",
       };
     });
@@ -741,6 +779,11 @@ function formatToolInput(toolName, args) {
   }
   if (toolName === codingWorkspaceToolName) {
     return formatCodingWorkspaceInput(args);
+  }
+  if (toolName === codingAskToolName) {
+    const question = String(args.question ?? "").trim();
+    const options = normalizeAskOptions(args.options);
+    return formatAskToolInput(question, options);
   }
   if (toolName === "milksu_progress") {
     // Same checklist shape as the tool result so the UI can project a live plan
@@ -1137,7 +1180,7 @@ function createMilkSUResourceLoader(
   // Skills and extensions may execute instructions supplied by third parties.
   // Keep Pi's ambient discovery disabled and load only MilkSU-reviewed resources.
   const extensionFactories = [
-    createMilkSUWorkflowExtension(sessionRole, getPolicy, getSession),
+    createMilkSUWorkflowExtension(sessionRole, getPolicy, getSession, conversationId),
   ];
   if (sessionRole) {
     extensionFactories.push(createCTFTruncationContinuationExtension(sessionRole));
@@ -1801,6 +1844,7 @@ function respondToolApproval(command) {
     requestId,
     approved: command.approved === true,
     scope: command.scope,
+    choice: command.choice,
   });
 }
 

@@ -62,20 +62,72 @@ async function mountSidebar(
 }
 
 describe('AppSidebar', () => {
-  it('keeps the global rail icon-only and hides CTF/CVE secondary sidebars', async () => {
+  it('renders one Beautiful UI sidebar without stacking the old icon rail', async () => {
     const ctf = await mountSidebar('ctf')
     expect(ctf.querySelector('aside')?.className).toContain('workspace-navigation-shell')
-    expect(ctf.querySelector('[aria-label="全局工作区"]')?.textContent).toContain('CTF')
+    expect(ctf.querySelector('[aria-label="全局工作区"]')).toBeNull()
     expect(ctf.querySelector('[aria-label="CTF 工作区"]')).toBeNull()
-    expect(ctf.querySelector('[aria-label="打开用户菜单"]')).not.toBeNull()
-    expect(ctf.querySelector('[data-testid="coding-context-drawer"]')).toBeNull()
+    expect(ctf.querySelector('.workspace-rail')).toBeNull()
+    expect(ctf.querySelector('[data-testid="coding-context-drawer"]')).not.toBeNull()
+    expect(ctf.querySelector('[data-sidebar-collapsed="true"]')).not.toBeNull()
+    expect(ctf.querySelector('[aria-label="展开侧栏"]')).not.toBeNull()
 
     const vuln = await mountSidebar('vuln')
     expect(vuln.querySelector('[aria-label="CVE 工作区"]')).toBeNull()
-    expect(vuln.querySelector('[data-testid="coding-context-drawer"]')).toBeNull()
+    expect(vuln.querySelector('.workspace-rail')).toBeNull()
   })
 
-  it('mounts Coding history as a fixed panel, not a floating overlay drawer', async () => {
+  it('keeps an icon-only theme control when collapsed and lets the expanded sidebar resize', async () => {
+    const onToggleTheme = vi.fn()
+    const collapsed = await mountSidebar('chat', { onToggleTheme })
+    const collapsedTheme = collapsed.querySelector<HTMLButtonElement>('.agent-sidebar__theme')
+    expect(collapsedTheme).not.toBeNull()
+    expect(collapsedTheme?.textContent?.trim()).toBe('')
+    expect(collapsed.querySelector('.agent-sidebar__resize')).toBeNull()
+    collapsedTheme?.click()
+    expect(onToggleTheme).toHaveBeenCalledOnce()
+
+    const expanded = await mountSidebar('chat', { codingContextOpen: true, themeMode: 'light' })
+    expect(expanded.querySelector('[aria-label="调整侧栏宽度"]')).not.toBeNull()
+    expect(expanded.querySelector('.agent-sidebar__theme')).not.toBeNull()
+    expect(expanded.querySelector('[data-workspace-menu]')).toBeNull()
+    expanded.querySelector<HTMLButtonElement>('[data-workspace-trigger]')?.click()
+    await nextTick()
+    const menu = document.querySelector('[data-workspace-menu]')
+    expect(menu?.className).toContain('w-max')
+    expect(menu?.className).not.toContain('w-64')
+  })
+
+  it('shows Home / CTF / CVE / Lab in the conversation sidebar and lists only the current workspace', async () => {
+    const conversations: Conversation[] = [
+      {
+        id: 'home-1',
+        title: '主页任务',
+        createdAt: Date.now(),
+        workspacePath: '/Users/milksu/code/milksu',
+        messages: [],
+      },
+      {
+        id: 'ctf-1',
+        title: '第五空间',
+        createdAt: Date.now(),
+        messages: [],
+        ctfJobId: 'job-1',
+      },
+    ]
+    const ctf = await mountSidebar('ctf', { conversations, codingContextOpen: true })
+    expect(ctf.querySelector('[data-testid="coding-context-drawer"]')).not.toBeNull()
+    expect(ctf.querySelector('.workspace-rail')).toBeNull()
+    expect(ctf.querySelector('[aria-label="工作区"]')?.textContent).toContain('主页')
+    expect(ctf.querySelector('[aria-label="工作区"]')?.textContent).toContain('CTF')
+    expect(ctf.querySelector('[aria-label="工作区"]')?.textContent).toContain('CVE')
+    expect(ctf.querySelector('[aria-label="工作区"]')?.textContent).toContain('Lab')
+    expect(ctf.querySelector('[aria-label="账户与工作区"]')).not.toBeNull()
+    expect(ctf.textContent).toContain('第五空间')
+    expect(ctf.textContent).not.toContain('主页任务')
+  })
+
+  it('uses one Beautiful UI sidebar for workspace, chats, and the account control', async () => {
     const conversations: Conversation[] = [{
       id: 'conversation-1',
       title: '实现产品闭环',
@@ -84,39 +136,36 @@ describe('AppSidebar', () => {
       messages: [],
     }]
     const closed = await mountSidebar('chat', { conversations })
-    expect(closed.querySelector('[data-testid="coding-context-drawer"]')).toBeNull()
-    // Collapsed: no panel strip; expand + new-task live on the Coding topbar.
-    expect(closed.querySelector('[aria-label="展开会话历史"]')).toBeNull()
-    expect(closed.querySelector('[data-testid="coding-history-expand"]')).toBeNull()
-    expect(closed.textContent).not.toContain('新会话')
+    expect(closed.querySelector('[data-testid="coding-context-drawer"]')).not.toBeNull()
+    expect(closed.querySelector('[data-sidebar-collapsed="true"]')).not.toBeNull()
+    expect(closed.querySelector('[aria-label="展开侧栏"]')).not.toBeNull()
+    expect(closed.querySelector('.workspace-rail')).toBeNull()
 
     const coding = await mountSidebar('chat', { conversations, codingContextOpen: true })
     expect(coding.textContent).toContain('新会话')
     expect(coding.textContent).toContain('实现产品闭环')
     const panel = coding.querySelector('[data-testid="coding-context-drawer"]')
     expect(panel).not.toBeNull()
-    expect(panel?.className).toContain('coding-history-panel')
-    expect(panel?.className).toContain('app-no-drag')
+    expect(panel?.getAttribute('data-sidebar-collapsed')).toBe('false')
     expect(coding.querySelector('[aria-label="关闭 Coding 会话"]')).toBeNull()
-    // Open panel: collapse sits in the first header row; new-task one row below.
-    expect(coding.querySelector('[aria-label="收起会话历史"]')).not.toBeNull()
+    expect(coding.querySelector('[aria-label="收起侧栏"]')).not.toBeNull()
     expect(coding.querySelector('[data-testid="coding-history-toggle"]')).not.toBeNull()
     expect(coding.querySelector('[data-testid="coding-new-task-button"]')).not.toBeNull()
+    expect(coding.querySelector('[aria-label="账户与工作区"]')).not.toBeNull()
+    expect(appSidebarSource).not.toContain('WorkspaceRail')
     expect(appSidebarSource).not.toContain('coding-context-backdrop')
-    expect(appSidebarSource).not.toContain('coding-history-toolbar')
-    expect(appSidebarSource).not.toContain('left: 100%')
-    expect(contextSidebarSource).toContain('coding-context-archive app-no-drag')
     expect(contextSidebarSource).not.toContain('Task archive')
-    expect(contextSidebarSource).toContain('收起会话历史')
-    expect(contextSidebarSource).toContain('coding-history-header')
+    expect(contextSidebarSource).toContain('收起侧栏')
+    expect(contextSidebarSource).toContain('data-workspace-trigger')
   })
 
-  it('keeps collapsed Coding history without a leftover expand strip', async () => {
+  it('collapses the same sidebar in place instead of leaving a second rail', async () => {
     const host = await mountSidebar('chat')
-    expect(host.querySelector('[data-testid="coding-context-drawer"]')).toBeNull()
-    expect(host.querySelector('[data-testid="coding-history-expand"]')).toBeNull()
-    // Expand + new-task park on the Coding topbar, not a rail strip.
-    expect(host.querySelector('[aria-label="展开会话历史"]')).toBeNull()
+    expect(host.querySelector('[data-testid="coding-context-drawer"]')).not.toBeNull()
+    expect(host.querySelector('[data-sidebar-collapsed="true"]')).not.toBeNull()
+    expect(host.querySelector('[data-testid="coding-history-expand"]')).not.toBeNull()
+    expect(host.querySelector('.workspace-rail')).toBeNull()
+    expect(host.querySelector('[aria-label="全局工作区"]')).toBeNull()
   })
 
   it('makes the new-task icon a native no-drag click target', async () => {
@@ -147,7 +196,7 @@ describe('AppSidebar', () => {
     app.mount(host)
     mountedApps.push(app)
     await nextTick()
-    const collapse = host.querySelector<HTMLButtonElement>('[aria-label="收起会话历史"]')
+    const collapse = host.querySelector<HTMLButtonElement>('[aria-label="收起侧栏"]')
     expect(collapse).not.toBeNull()
     collapse?.click()
     await nextTick()
@@ -304,9 +353,10 @@ describe('AppSidebar', () => {
     const host = await mountSidebar('chat', { conversations, codingContextOpen: true })
     const temporary = host.querySelector('[data-testid="coding-temporary-group"]')
     expect(temporary).not.toBeNull()
-    expect(temporary?.textContent).toContain('无项目任务')
+    expect(temporary?.textContent).toContain('最近')
     expect(temporary?.textContent).toContain('草稿任务')
-    // No Folder icon inside the temporary block (projects still use lucide Folder).
+    expect(temporary?.querySelector('svg.lucide-clock')).not.toBeNull()
+    expect(temporary?.querySelector('svg.lucide-plus')).not.toBeNull()
     expect(temporary?.querySelector('svg.lucide-folder')).toBeNull()
     expect(host.querySelector('.coding-project-group svg.lucide-folder')).not.toBeNull()
     // Flat hierarchy chrome: no chevron, no left tree rail under folders.
@@ -317,9 +367,9 @@ describe('AppSidebar', () => {
     const projectNames = [...host.querySelectorAll('.coding-project-group summary')]
       .map(node => node.textContent ?? '')
     expect(projectNames.some(text => text.includes('quiet'))).toBe(true)
-    expect(projectNames.some(text => text.includes('无项目任务'))).toBe(false)
+    expect(projectNames.some(text => text.includes('最近'))).toBe(false)
 
-    const archive = host.querySelector('.coding-context-archive')
+    const archive = host.querySelector('[data-testid="coding-context-drawer"]')
     const html = archive?.innerHTML ?? ''
     const projectIdx = html.indexOf('coding-project-group')
     const temporaryIdx = html.indexOf('coding-temporary-group')
@@ -426,6 +476,12 @@ describe('AppSidebar', () => {
     expect(host.querySelector('[aria-current="true"]')?.textContent).toContain('当前会话')
     expect(host.querySelectorAll('.coding-conversation-list [data-ui-selected]')).toHaveLength(1)
     expect(contextSidebarSource).toContain('color: var(--foreground)')
+    expect(contextSidebarSource).toContain('agent-sidebar-item')
+    expect(contextSidebarSource).toContain('overflow-hidden rounded-[8px]')
+    expect(contextSidebarSource).toContain('agent-sidebar-item__menu')
+    expect(contextSidebarSource).toContain('.agent-sidebar-item__menu:hover')
+    expect(contextSidebarSource).toContain('background: transparent')
+    expect(selected[0]?.querySelector('[data-button]')).toBeNull()
     expect(contextSidebarSource).not.toContain('--overlay-hover-strong: rgb(255 255 255 / 0.13)')
   })
 })

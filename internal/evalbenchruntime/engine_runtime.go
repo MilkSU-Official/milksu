@@ -183,6 +183,7 @@ func waitForTurn(
 					event.RequestID,
 					false,
 					"",
+					"",
 				)
 				return result, errors.New("safe runtime unexpectedly requested approval")
 			case "engine.error", "engine.protocol_error", "engine.stopped":

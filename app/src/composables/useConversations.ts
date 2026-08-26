@@ -27,6 +27,7 @@ import { redactProviderCredentials } from '@/lib/redaction'
 import { t } from '@/lib/uiLocale'
 import { normalizeDomainTaskContext } from '@/lib/domainTaskContext'
 import { shouldRememberCodingProject } from '@/lib/codingProjectMemory'
+import { conversationWorkspaceHome, type WorkspaceHome } from '@/lib/workspaceSessionRouting'
 import { resolveModelContextWindow } from '@/lib/knownContextWindow'
 import { MODEL_THINKING_LEVELS } from '@/lib/modelThinking'
 import {
@@ -178,6 +179,7 @@ interface AgentEvent {
   input?: string
   approved?: boolean
   grantable?: boolean
+  choice?: string
   reason?: string
   goal?: CodingGoalState
   resumed?: boolean
@@ -365,6 +367,9 @@ export function normalizeConversation(raw: Record<string, unknown>): Conversatio
     ctfRole: ['solver', 'tool-builder', 'strategist'].includes(String(raw.ctfRole))
       ? raw.ctfRole as Conversation['ctfRole']
       : undefined,
+    workspaceHome: ['chat', 'ctf', 'vuln', 'lab'].includes(String(raw.workspaceHome))
+      ? raw.workspaceHome as Conversation['workspaceHome']
+      : undefined,
     domainTaskContext: normalizeDomainTaskContext(raw.domainTaskContext),
     lastContextUsage: normalizeLastContextUsage(raw.lastContextUsage),
     messages: settleRunningToolMessages(messages.map(message => {
@@ -398,6 +403,9 @@ export function normalizeConversation(raw: Record<string, unknown>): Conversatio
           : undefined,
         approvalState,
         approvalGrantable: message.approvalGrantable === true,
+        approvalChoiceId: typeof message.approvalChoiceId === 'string'
+          ? message.approvalChoiceId
+          : undefined,
         approvalReason: approvalState === 'expired'
           ? t('应用或 Agent 已重启，本次审批已失效', 'The app or Agent restarted, so this approval is no longer valid')
           : typeof message.approvalReason === 'string'
@@ -629,6 +637,7 @@ export function useConversations() {
   const conversations = ref<Conversation[]>([])
   const activeId = ref<string | null>(null)
   const pendingWorkspacePath = ref('')
+  const pendingWorkspaceHome = ref<WorkspaceHome>('chat')
   const pendingModelMode = ref<'auto' | 'manual' | undefined>()
   const pendingModelProvider = ref<string | undefined>()
   const pendingModelId = ref<string | undefined>()
@@ -799,14 +808,29 @@ export function useConversations() {
       if (snapshot) next.set(conversation.id, snapshot)
     }
     turnStatusById.value = next
-    if (!activeId.value && !pendingWorkspacePath.value) {
-      try {
-        const memory = await invokeCommand<CodingProjectMemory>('get_coding_project_memory')
-        const last = memory.recents?.[0]?.path || memory.lastWorkspacePath || ''
-        pendingWorkspacePath.value = shouldRememberCodingProject(last) ? last : ''
-      } catch {
-        pendingWorkspacePath.value = ''
-      }
+    await applyRememberedHomeProjectIfIdle()
+  }
+
+  function currentWorkspaceHome(): WorkspaceHome {
+    return active.value
+      ? conversationWorkspaceHome(active.value)
+      : pendingWorkspaceHome.value
+  }
+
+  async function applyRememberedHomeProjectIfIdle() {
+    if (activeId.value || pendingWorkspaceHome.value !== 'chat' || pendingWorkspacePath.value) return
+    try {
+      const memory = await invokeCommand<CodingProjectMemory>('get_coding_project_memory')
+      const last = memory.recents?.[0]?.path || memory.lastWorkspacePath || ''
+      if (
+        activeId.value
+        || pendingWorkspaceHome.value !== 'chat'
+        || pendingWorkspacePath.value
+        || !shouldRememberCodingProject(last)
+      ) return
+      pendingWorkspacePath.value = last
+    } catch {
+      if (!pendingWorkspacePath.value) pendingWorkspacePath.value = ''
     }
   }
 
@@ -968,12 +992,16 @@ export function useConversations() {
     return draft
   }
 
-  function startNew() {
+  function startNew(options: { workspaceHome?: WorkspaceHome } = {}) {
+    const nextHome = options.workspaceHome ?? 'chat'
+    const previousHome = currentWorkspaceHome()
     const currentWorkspace = active.value?.workspacePath || pendingWorkspacePath.value
+    const inheritHomeProject = nextHome === 'chat'
+      && previousHome === 'chat'
+      && shouldRememberCodingProject(currentWorkspace)
     activeId.value = null
-    pendingWorkspacePath.value = shouldRememberCodingProject(currentWorkspace)
-      ? String(currentWorkspace)
-      : pendingWorkspacePath.value
+    pendingWorkspaceHome.value = nextHome
+    pendingWorkspacePath.value = inheritHomeProject ? String(currentWorkspace) : ''
     pendingModelMode.value = undefined
     pendingModelProvider.value = undefined
     pendingModelId.value = undefined
@@ -984,6 +1012,7 @@ export function useConversations() {
     pendingMCPServers.value = []
     pendingMCPConfigDigest.value = ''
     pendingComposerDraft.value = null
+    if (nextHome === 'chat' && !inheritHomeProject) void applyRememberedHomeProjectIfIdle()
   }
 
   function ensureConversation(
@@ -992,6 +1021,7 @@ export function useConversations() {
       domainTaskContext?: Conversation['domainTaskContext']
       conversationId?: string
       workspacePath?: string
+      workspaceHome?: Conversation['workspaceHome']
       ctfJobId?: Conversation['ctfJobId']
       ctfMode?: Conversation['ctfMode']
       ctfRole?: Conversation['ctfRole']
@@ -1075,7 +1105,7 @@ export function useConversations() {
         mcpConfigDigest: undefined,
       }))
     }
-    if (shouldRememberCodingProject(normalized)) {
+    if (currentWorkspaceHome() === 'chat' && shouldRememberCodingProject(normalized)) {
       void invokeCommand('remember_coding_project', { path: normalized }).catch(() => undefined)
     }
   }
@@ -1262,6 +1292,7 @@ export function useConversations() {
         title: fallbackTitle,
         createdAt: Date.now(),
         workspacePath: pendingWorkspacePath.value || undefined,
+        workspaceHome: pendingWorkspaceHome.value === 'chat' ? undefined : pendingWorkspaceHome.value,
         modelMode: pendingModelMode.value,
         modelProvider: pendingModelProvider.value,
         modelId: pendingModelId.value,
@@ -1657,6 +1688,7 @@ export function useConversations() {
     requestId: string,
     approved: boolean,
     scope: 'once' | 'conversation' = 'once',
+    choice?: string,
   ) {
     const conversation = conversations.value.find(item => (
       item.messages.some(message => (
@@ -1672,6 +1704,7 @@ export function useConversations() {
         requestId,
         approved,
         scope: conversationGrant ? 'conversation' : '',
+        choice: String(choice ?? '').trim(),
       })
       update(conversation.id, current => ({
         ...current,
@@ -1681,11 +1714,14 @@ export function useConversations() {
                 ...message,
                 status: 'done',
                 approvalState: approved ? 'approved' : 'denied',
-                approvalReason: approved
-                  ? conversationGrant
-                    ? t('已允许本对话后续同类操作', 'Allowed similar actions for this conversation')
-                    : t('已允许本次操作', 'Allowed this action')
-                  : t('已拒绝本次操作', 'Denied this action'),
+                approvalChoiceId: String(choice ?? '').trim() || message.approvalChoiceId,
+                approvalReason: String(choice ?? '').trim()
+                  ? ''
+                  : approved
+                    ? conversationGrant
+                      ? t('已允许本对话后续同类操作', 'Allowed similar actions for this conversation')
+                      : t('已允许本次操作', 'Allowed this action')
+                    : t('已拒绝本次操作', 'Denied this action'),
               }
             : message
         )),
@@ -1728,6 +1764,7 @@ export function useConversations() {
         input,
         approved,
         grantable,
+        choice,
         reason,
         goal,
         resumed,
@@ -1929,13 +1966,18 @@ export function useConversations() {
               ...messages[approvalIndex],
               status: 'done',
               approvalState: approved ? 'approved' : 'denied',
-              approvalReason: reason === 'approved for this conversation'
-                ? t('已允许本对话后续同类操作', 'Allowed similar actions for this conversation')
-                : reason || (approved
-                  ? conversationGrant
-                    ? t('已允许本对话后续同类操作', 'Allowed similar actions for this conversation')
-                    : t('已允许本次操作', 'Allowed this action')
-                  : t('已拒绝本次操作', 'Denied this action')),
+              approvalChoiceId: typeof choice === 'string' && choice.trim()
+                ? choice.trim()
+                : messages[approvalIndex].approvalChoiceId,
+              approvalReason: reason === 'choice selected'
+                ? ''
+                : reason === 'approved for this conversation'
+                  ? t('已允许本对话后续同类操作', 'Allowed similar actions for this conversation')
+                  : reason || (approved
+                    ? conversationGrant
+                      ? t('已允许本对话后续同类操作', 'Allowed similar actions for this conversation')
+                      : t('已允许本次操作', 'Allowed this action')
+                    : t('已拒绝本次操作', 'Denied this action')),
             }
           }
         } else if (

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick } from 'vue'
-import AkLoadingMark from '@/components-vue/AkLoadingMark.vue'
+import AgentPixelLoader from '@/components-vue/AgentPixelLoader.vue'
 import {
   buildChatActivityEntries,
   detailsToggleOpen,
@@ -11,21 +11,24 @@ import {
 import { agentToolChip } from '@/lib/agentConversation'
 import { t } from '@/lib/uiLocale'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   activity: ChatActivityBlock
   open: boolean
   openEntryIds: ReadonlySet<string>
-}>()
+  revealCompleted?: boolean
+}>(), {
+  revealCompleted: false,
+})
 
 const emit = defineEmits<{
   toggleGroup: [open: boolean]
   toggleEntry: [entryId: string, open: boolean]
 }>()
 
-const toolEntries = computed(() => visibleChatActivityEntries(
-  buildChatActivityEntries(props.activity.messages),
-  props.openEntryIds,
-))
+const toolEntries = computed(() => {
+  const entries = buildChatActivityEntries(props.activity.messages)
+  return props.revealCompleted ? entries : visibleChatActivityEntries(entries, props.openEntryIds)
+})
 const entryDetails = new Map<string, HTMLDetailsElement>()
 
 function setEntryDetails(entryId: string, element: unknown) {
@@ -75,6 +78,19 @@ function durationLabel(durationMs?: number) {
         @toggle="toggleEntry(entry.id, $event)"
       >
         <summary class="tool-activity-entry__summary agent-chip">
+          <span class="agent-chip__icon" aria-hidden="true">
+            <svg class="agent-chip__glyph" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path v-if="chip(entry).verb === 'Edit' || chip(entry).verb === 'Write'" d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z" />
+              <path v-else-if="chip(entry).verb === 'bash'" d="M4 17l6-5-6-5M12 19h8" />
+              <g v-else>
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <path d="M14 2v6h6" />
+              </g>
+            </svg>
+            <svg class="agent-chip__chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+          </span>
           <strong>{{ chip(entry).verb }}</strong>
           <span v-if="chip(entry).pill" class="agent-pill">
             <span class="min-w-0 truncate">{{ chip(entry).pill }}</span>
@@ -83,9 +99,10 @@ function durationLabel(durationMs?: number) {
           </span>
           <span class="agent-chip__meta shrink-0 text-caption tabular-nums text-muted-foreground">
             <span v-if="entry.durationMs !== undefined">{{ durationLabel(entry.durationMs) }}</span>
-            <AkLoadingMark
+            <AgentPixelLoader
               v-if="entry.running"
               :label="t('工具进行中', 'Tool running')"
+              running
             />
           </span>
         </summary>

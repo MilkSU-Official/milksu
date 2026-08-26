@@ -2,7 +2,10 @@ import type { Conversation } from '@/types'
 import { t } from '@/lib/uiLocale'
 import {
   conversationActivityAt,
+  conversationDomainIdentity,
+  conversationsForWorkspaceHome,
   projectUniqueDomainConversations,
+  type WorkspaceHome,
 } from '@/lib/workspaceSessionRouting'
 
 export interface CodingConversationGroup {
@@ -67,7 +70,7 @@ export function groupCodingConversations(
     const key = workspaceGroupKey(path)
     const group = groups.get(key) ?? {
       key,
-      name: path ? workspaceName(path) : t('无项目任务', 'No project task'),
+      name: path ? workspaceName(path) : t('最近', 'Recent'),
       path,
       paths: path ? [path] : [],
       temporary: !path,
@@ -106,4 +109,59 @@ export function groupCodingConversations(
       if (left.temporary !== right.temporary) return left.temporary ? 1 : -1
       return right.lastActiveAt - left.lastActiveAt || left.name.localeCompare(right.name)
     })
+}
+
+function domainGroupName(conversation: Conversation) {
+  const context = conversation.domainTaskContext
+  if (context?.kind === 'cve') return context.cveId
+  if (context?.kind === 'lab') return context.title
+  if (context?.kind === 'ctf') return context.challengeTitle
+  return conversation.title
+}
+
+export function groupWorkspaceConversations(
+  conversations: Conversation[],
+  home: WorkspaceHome,
+  query = '',
+): CodingConversationGroup[] {
+  if (home === 'chat') {
+    return groupCodingConversations(
+      conversationsForWorkspaceHome(conversations, 'chat'),
+      query,
+    )
+  }
+  const scoped = conversationsForWorkspaceHome(conversations, home)
+  const normalizedQuery = query.trim().toLocaleLowerCase()
+  const groups = new Map<string, CodingConversationGroup>()
+  for (const conversation of scoped) {
+    const identity = conversationDomainIdentity(conversation) ?? `home:${home}`
+    const name = conversationDomainIdentity(conversation)
+      ? domainGroupName(conversation)
+      : t('会话', 'Chats')
+    const group = groups.get(identity) ?? {
+      key: identity,
+      name,
+      path: null,
+      paths: [],
+      temporary: false,
+      conversations: [],
+      lastActiveAt: conversationActivityAt(conversation),
+    }
+    group.conversations.push(conversation)
+    group.lastActiveAt = Math.max(group.lastActiveAt, conversationActivityAt(conversation))
+    groups.set(identity, group)
+  }
+  return [...groups.values()]
+    .map(group => {
+      group.conversations.sort(newestFirst)
+      if (!normalizedQuery) return group
+      const groupMatches = group.name.toLocaleLowerCase().includes(normalizedQuery)
+      if (groupMatches) return group
+      const matchingConversations = group.conversations.filter(conversation => (
+        conversation.title.toLocaleLowerCase().includes(normalizedQuery)
+      ))
+      return matchingConversations.length ? { ...group, conversations: matchingConversations } : null
+    })
+    .filter((group): group is CodingConversationGroup => Boolean(group))
+    .sort((left, right) => right.lastActiveAt - left.lastActiveAt || left.name.localeCompare(right.name))
 }

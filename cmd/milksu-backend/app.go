@@ -1225,8 +1225,9 @@ func (a *App) RespondToolApproval(
 	requestID string,
 	approved bool,
 	scope string,
+	choice string,
 ) error {
-	return a.engines.RespondToolApproval(conversationID, requestID, approved, scope)
+	return a.engines.RespondToolApproval(conversationID, requestID, approved, scope, choice)
 }
 
 func (a *App) GetCodingArtifactPreview(

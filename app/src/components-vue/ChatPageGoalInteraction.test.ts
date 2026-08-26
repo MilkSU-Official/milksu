@@ -411,10 +411,9 @@ describe('ChatPage Goal interaction', () => {
 })
 
 describe('ChatPage Lab return', () => {
-  it('keeps a return-to-Lab action on the Coding topbar', async () => {
+  it('does not put a return-to-Lab action in the conversation column', async () => {
     const host = document.createElement('div')
     document.body.append(host)
-    const returned: string[] = []
     const app = createApp(ChatPage, {
       conversation: {
         id: 'lab-job-1',
@@ -443,15 +442,11 @@ describe('ChatPage Lab return', () => {
       compacting: false,
       ctfSession: false,
       ensureConversation: () => 'lab-job-1',
-      onReturnLab: () => returned.push('lab'),
     })
     app.mount(host)
     mountedApps.push(app)
     await nextTick()
-    const back = host.querySelector<HTMLButtonElement>('[aria-label="返回实验室"]')
-    expect(back).not.toBeNull()
-    expect(back?.textContent).toContain('返回实验室')
-    back?.click()
-    expect(returned).toEqual(['lab'])
+    expect(host.querySelector('[aria-label="返回实验室"]')).toBeNull()
+    expect(host.textContent).not.toContain('返回实验室')
   })
 })

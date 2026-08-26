@@ -16,6 +16,7 @@ import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 import { formatDemoElapsed, messageSourceChips } from '@/lib/agentConversation'
 import { redactProviderCredentials } from '@/lib/redaction'
 import { isBlankAssistantMessage } from '@/lib/chatActivity'
+import { isAskMessage, parseAskOptions } from '@/lib/agentAsk'
 import { toolBudgetToolName } from '@/lib/toolBudget'
 import { t } from '@/lib/uiLocale'
 import type { Message } from '@/types'
@@ -27,7 +28,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  respondApproval: [requestId: string, approved: boolean, scope?: 'once' | 'conversation']
+  respondApproval: [requestId: string, approved: boolean, scope?: 'once' | 'conversation', choice?: string]
   retry: []
   editUser: [messageId: string, content: string]
   branchAssistant: [messageId: string]
@@ -39,10 +40,16 @@ const copied = ref(false)
 const approvalPinned = ref(false)
 let copyReset = 0
 
+const askOptions = computed(() => parseAskOptions(props.message.approvalInput))
+const isChoiceCard = computed(() => isAskMessage(props.message) && askOptions.value.length >= 2)
 const showApproval = computed(() => (
   props.message.role === 'tool'
   && Boolean(props.message.approvalRequestId)
-  && (props.message.approvalState === 'pending' || approvalPinned.value)
+  && (
+    isChoiceCard.value
+    || props.message.approvalState === 'pending'
+    || approvalPinned.value
+  )
 ))
 
 const showMessageActions = computed(() => (
@@ -152,10 +159,6 @@ watch(
   { immediate: true },
 )
 
-onBeforeUnmount(() => {
-  window.clearInterval(thinkingClock)
-})
-
 const thinkingElapsedMs = computed(() => {
   if (props.message.thinkingStatus === 'running') {
     const started = Number.isFinite(props.message.timestamp) ? props.message.timestamp : thinkingNow.value
@@ -176,6 +179,50 @@ const thinkingElapsed = computed(() => {
   }
   if (props.message.thinkingDurationMs === undefined) return ''
   return formatDemoElapsed(props.message.thinkingDurationMs)
+})
+
+const thinkingRunning = computed(() => props.message.thinkingStatus === 'running')
+const conclusionStarted = computed(() => Boolean(props.message.content?.trim()))
+const thinkingRows = computed(() => (
+  String(props.message.thinking ?? '')
+    .split(/\n+/)
+    .map(line => line.trim())
+    .filter(Boolean)
+))
+const thinkManual = ref<boolean | null>(null)
+watch(thinkingRunning, running => {
+  if (running) thinkManual.value = null
+})
+const thinkOpen = computed(() => (
+  thinkManual.value ?? (thinkingRunning.value && !conclusionStarted.value)
+))
+
+function toggleThink() {
+  thinkManual.value = !thinkOpen.value
+}
+
+const replyNow = ref(Date.now())
+let replyClock = 0
+const replyTicking = computed(() => (
+  props.message.status === 'running' && props.message.thinkingStatus !== 'running'
+))
+watch(replyTicking, ticking => {
+  window.clearInterval(replyClock)
+  replyClock = 0
+  if (!ticking) return
+  replyNow.value = Date.now()
+  replyClock = window.setInterval(() => {
+    replyNow.value = Date.now()
+  }, 100)
+}, { immediate: true })
+const replyElapsed = computed(() => {
+  if (!replyTicking.value) return ''
+  const started = Number.isFinite(props.message.timestamp) ? props.message.timestamp : replyNow.value
+  return formatDemoElapsed(Math.max(0, replyNow.value - started))
+})
+onBeforeUnmount(() => {
+  window.clearInterval(thinkingClock)
+  window.clearInterval(replyClock)
 })
 
 const approvalTitle = computed(() => t(
@@ -224,15 +271,38 @@ const approvalKicker = computed(() => (
   >
     <div
       v-if="timeLabel"
-      class="agent-time ak-divider chat-time-divider"
+      class="agent-time"
       role="separator"
     >
       <span>{{ timeLabel }}</span>
     </div>
     <div
       v-if="showApproval"
-      class="agent-approve"
+      :class="isChoiceCard ? 'agent-choice' : 'agent-approve'"
     >
+      <template v-if="isChoiceCard">
+        <h4 class="agent-choice__title">{{ message.content }}</h4>
+        <div class="agent-choice__options" role="radiogroup">
+          <button
+            v-for="option in askOptions"
+            :key="option.id"
+            type="button"
+            role="radio"
+            class="agent-choice__option"
+            :class="{ 'is-selected': message.approvalChoiceId === option.id }"
+            :aria-checked="message.approvalChoiceId === option.id"
+            :disabled="message.approvalState !== 'pending' || !message.approvalRequestId"
+            @click="message.approvalRequestId && $emit('respondApproval', message.approvalRequestId, true, 'once', option.id)"
+          >
+            <span class="agent-choice__mark" aria-hidden="true" />
+            <span class="agent-choice__copy">
+              <strong>{{ option.label }}</strong>
+              <span v-if="option.detail">{{ option.detail }}</span>
+            </span>
+          </button>
+        </div>
+      </template>
+      <template v-else>
       <div class="agent-approve__kicker">{{ approvalKicker }}</div>
       <h4 class="agent-approve__title">{{ approvalTitle }}</h4>
       <p class="agent-approve__message">
@@ -280,21 +350,49 @@ const approvalKicker = computed(() => (
       <p v-else-if="message.approvalReason" class="mt-2 text-caption text-muted-foreground">
         {{ visibleApprovalText(message.approvalReason) }}
       </p>
+      </template>
     </div>
-    <details
+    <div
       v-else-if="message.role !== 'user' && (message.thinking || message.thinkingStatus === 'running')"
       class="agent-think"
-      :open="message.thinkingStatus === 'running'"
     >
-      <summary class="agent-think__summary">
+      <button
+        type="button"
+        class="agent-think__summary"
+        :aria-expanded="thinkOpen"
+        @click="toggleThink"
+      >
         <AgentPixelLoader
           :label="thinkingLabel"
           :elapsed="thinkingElapsed"
-          :running="message.thinkingStatus === 'running'"
+          :running="thinkingRunning"
         />
-      </summary>
-      <div v-if="message.thinking" class="agent-think__body">{{ message.thinking }}</div>
-    </details>
+        <svg
+          class="agent-think__chevron"
+          :class="{ 'agent-think__chevron--open': thinkOpen }"
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+      <div class="agent-think__more" :data-open="thinkOpen ? 'true' : 'false'">
+        <div class="agent-think__more-inner">
+          <p
+            v-for="(row, index) in thinkingRows"
+            :key="index"
+            class="agent-think__row"
+          >{{ row }}</p>
+        </div>
+      </div>
+    </div>
     <div
       v-if="showBubble && !editing"
       class="min-w-0 overflow-x-auto break-words text-control leading-7"
@@ -320,6 +418,7 @@ const approvalKicker = computed(() => (
         v-if="message.content"
         :content="message.content"
         :compact="message.role === 'user'"
+        :streaming="replyTicking"
       />
       <div v-if="sources.length" class="agent-sources">
         <a
@@ -330,9 +429,10 @@ const approvalKicker = computed(() => (
           @click="openSource(source.href, $event)"
         >{{ source.label }}</a>
       </div>
-      <p v-if="message.status === 'running' && message.thinkingStatus !== 'running'" class="chat-model-loading">
+      <p v-if="replyTicking && !message.content?.trim()" class="chat-model-loading">
         <AgentPixelLoader
           :label="t('正在回复', 'Replying')"
+          :elapsed="replyElapsed"
           running
         />
       </p>

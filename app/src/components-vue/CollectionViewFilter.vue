@@ -142,10 +142,10 @@ function selectCollection(id: string) {
 .tab-count {
   min-width: 1.2rem;
   margin-left: .35rem;
-  background: rgb(17 19 21 / .28);
+  background: var(--hover-2);
   padding: .05rem .35rem;
-  color: inherit;
-  font-family: monospace;
+  color: var(--muted-foreground);
+  font-family: inherit;
   font-size: .68rem;
   text-align: center;
 }

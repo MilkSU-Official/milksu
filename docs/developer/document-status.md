@@ -2,7 +2,7 @@
 
 > 状态：Current / Living
 >
-> 最后事实审计：2026-08-25
+> 最后事实审计：2026-08-26
 >
 > 产品开发目标：内测迭代 / Agent Runtime 与跨平台发行收敛
 
@@ -42,8 +42,9 @@
 
 | 文档 | 状态 | 负责什么 | 不负责什么 |
 | --- | --- | --- | --- |
-| [当前开发目标](current-objectives.md) | Current / Canonical | 当前阶段、正式发行基线、开发版本线、已发行/未发版事实、下一完成线和未接线方向 | 不保存完整聊天、微提交或旧验收过程 |
-| [当前系统与分层](../architecture/current-system.md) | Current / Canonical | 当前运行结构、依赖方向、桌面表面、能力边界和发行结构 | 不安排任务优先级 |
+| [当前开发目标](current-objectives.md) | Current / Canonical | 当前阶段、正式发行基线、开发版本线、已发行/未发版事实、下一完成线和未接线方向 | 不保存完整聊天、微提交或旧验收过程；不复述 UI 规范 |
+| [当前系统与分层](../architecture/current-system.md) | Current / Canonical | 当前运行结构、依赖方向、桌面表面、能力边界和发行结构 | 不安排任务优先级；不复述 UI 规范 |
+| 仓库根目录 `AGENTS.md` | Current / Canonical | 仓库协作约束与产品 UI 设计语言 | 其他文档只指向它，不复制层级、token 或原语表 |
 | 本文件 | Current / Living | 事实优先级、文档职责、生命周期和维护规则 | 不复制实现细节或测试日志 |
 | Evidence 文档 | Evidence | 可复现命令、截图、哈希、平台回执和失败证据 | 不自动升级为当前完成状态 |
 | Historical / Research / Design Snapshot | Historical / Research | 设计来源、旧方案、研究输入与视觉记录 | 不作为实现队列或当前架构 |
@@ -59,7 +60,7 @@
 - Beta 只用于用户明确要求的 MilkSU 自举；普通开发、测试和发行准备不构建 Beta。
 - 下载页与对外状态以 `26.825.1` 回执为准；晚于 `efddfc2` 的 `main` 只描述当前仓库，不能改写该发行页。
 - 仓库已公开。签名 / 公证 / R2 材料只在 `macos-release` environment secrets 与本机 Personal Vault；Secret scanning 与 push protection 已打开。`macos-release` 需要 `MilkSU-Official` 审批，且只能从 `main` 部署。`main` 由 ruleset 保护：禁止强推和删分支，只有维护者可直接推送；协作者走 PR。
-- 生产视觉以 [当前视觉约定](../design/current-visual.md) 为准。旧战术档案 / 酸绿稿和 `design-qa.md` 已删除，不再作为实现约束。
+- 产品 UI 设计语言只写在仓库根目录 `AGENTS.md`。`docs/design/current-visual.md`、切片对照表和旧战术档案 / 酸绿稿已删除，不再作为实现约束。
 
 ## 文档生命周期
 
@@ -76,4 +77,4 @@
 3. 当前代码晚于签名发行时，必须同时写“开发 HEAD / 版本线”和“正式发行基线”，不能把 ad-hoc 包、版本号、空 tag 或同版本号的后续提交写成已发布。
 4. 删除生产 UI 或防御层后，同时删除 Current 文档里的能力宣称；历史验收留 Git history 或 Evidence。
 5. 不恢复 `development-plan.md`，不把旧对话、压缩摘要、smoke 列表或 M3/M4 台账重新放回 Current 入口。
-6. 过期调研快照、日期验收截图和已放弃的设计稿图不留在 `docs/`；考古用 Git history。README 产品截图放在 `docs/media/`，随发行视觉更新。
+6. 过期调研快照、日期验收截图和已放弃的设计稿图不留在 `docs/`；考古用 Git history。README 产品截图放在 `docs/media/`，随产品表面更新。产品 UI 规范只写在 `AGENTS.md`，不要在其他文档复述。

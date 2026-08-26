@@ -46,10 +46,10 @@ describe('AgentExecutionPlan', () => {
     const host = await mountPlan()
     const root = host.querySelector<HTMLElement>('[data-testid="agent-execution-plan"]')
     expect(root).not.toBeNull()
-    expect(root?.textContent).toContain('只调查仓库根目录')
-    expect(root?.textContent).toContain('1/3')
+    expect(root?.textContent).toContain('第 2 / 3 步')
     expect(root?.querySelector('.agent-task-rows__more')?.getAttribute('data-open')).toBe('false')
     expect(root?.querySelector('.agent-task-ring--active')).not.toBeNull()
+    expect(root?.querySelector('.agent-task-row:not(.agent-task-row--child) .agent-task-ring__index')?.textContent?.trim()).toMatch(/^\d{1,2}$/)
 
     root?.dispatchEvent(new Event('mouseenter'))
     await nextTick()
@@ -58,8 +58,12 @@ describe('AgentExecutionPlan', () => {
     expect(root?.textContent).toContain('读取 README.md 前 40 行')
     expect(root?.textContent).toContain('用三句话说明仓库用途')
     expect(root?.querySelector('.agent-task-pill--ok')?.textContent).toContain('已完成')
+    const childIndexes = [...root?.querySelectorAll('.agent-task-row--child .agent-task-ring__index') ?? []]
+      .map(node => node.textContent?.trim())
+    expect(childIndexes.every(value => value && /^\d{1,2}$/.test(value))).toBe(true)
 
     root?.dispatchEvent(new Event('mouseleave'))
+    await new Promise(resolve => setTimeout(resolve, 200))
     await nextTick()
     expect(root?.querySelector('.agent-task-rows__more')?.getAttribute('data-open')).toBe('false')
   })

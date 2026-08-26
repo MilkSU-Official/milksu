@@ -1,4 +1,5 @@
 import type { Message } from '@/types'
+import { codingAskToolName } from '@/lib/agentAsk'
 import { t } from '@/lib/uiLocale'
 
 export interface ChatMessageBlock {
@@ -23,7 +24,15 @@ export interface ChatActivityEntry {
   running: boolean
 }
 
-export type ChatTranscriptBlock = ChatMessageBlock | ChatActivityBlock
+export interface ChatProcessFoldBlock {
+  kind: 'process'
+  id: string
+  blocks: Array<ChatMessageBlock | ChatActivityBlock>
+}
+
+export type ChatTurnBlock = ChatMessageBlock | ChatActivityBlock
+
+export type ChatTranscriptBlock = ChatTurnBlock | ChatProcessFoldBlock
 
 const commandTools = new Set([
   'bash',
@@ -281,6 +290,7 @@ export function buildChatTranscript(
     if (isBlankAssistantMessage(message)) continue
 
     if (message.role === 'tool' && !isApproval(message)) {
+      if (String(message.toolName ?? '') === codingAskToolName) continue
       toolSegment.push(message)
       continue
     }
@@ -292,7 +302,57 @@ export function buildChatTranscript(
   }
   flush()
 
-  return blocks
+  return foldChatTranscriptProcess(blocks)
+}
+
+function isConcludingAssistant(block: ChatTurnBlock) {
+  return block.kind === 'message'
+    && block.message.role === 'assistant'
+    && Boolean(block.message.content?.trim())
+}
+
+function foldTurnProcess(turn: ChatTurnBlock[]): ChatTranscriptBlock[] {
+  let last = -1
+  for (let index = 0; index < turn.length; index += 1) {
+    if (isConcludingAssistant(turn[index]!)) last = index
+  }
+  if (last <= 0) return turn
+  const intermediates = turn.slice(0, last)
+  if (!intermediates.length) return turn.slice(last)
+  return [
+    {
+      kind: 'process',
+      id: `process:${intermediates[0]!.id}`,
+      blocks: intermediates,
+    },
+    ...turn.slice(last),
+  ]
+}
+
+export function foldChatTranscriptProcess(blocks: ChatTranscriptBlock[]): ChatTranscriptBlock[] {
+  const next: ChatTranscriptBlock[] = []
+  let index = 0
+  while (index < blocks.length) {
+    const block = blocks[index]!
+    if (block.kind !== 'message' || block.message.role !== 'user') {
+      if (block.kind === 'process') next.push(block)
+      else next.push(...foldTurnProcess([block]))
+      index += 1
+      continue
+    }
+    next.push(block)
+    index += 1
+    const turn: ChatTurnBlock[] = []
+    while (index < blocks.length) {
+      const item = blocks[index]!
+      if (item.kind === 'message' && item.message.role === 'user') break
+      if (item.kind === 'process') turn.push(...item.blocks)
+      else turn.push(item)
+      index += 1
+    }
+    next.push(...foldTurnProcess(turn))
+  }
+  return next
 }
 
 function entryCount(entries: ChatActivityEntry[], tools: Set<string>) {

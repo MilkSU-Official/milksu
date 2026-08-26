@@ -135,7 +135,7 @@ export function describeLoadedExtensions(resourceLoader) {
   const result = resourceLoader.getExtensions();
   const names = result.extensions.flatMap((extension) => {
     const tools = extension.tools;
-    if (tools.has("milksu_progress")) return ["milksu-workflow"];
+    if (tools.has("milksu_progress") || tools.has("milksu_ask")) return ["milksu-workflow"];
     if (tools.has("lsp_diagnostics") && tools.has("lsp_fix")) return ["pi-lsp"];
     if (tools.has("goal_complete") && tools.has("goal_blocked")) return ["pi-goal"];
     if (tools.has("bg_task") && tools.has("bg_status")) {

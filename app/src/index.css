@@ -3,6 +3,7 @@
 @import "./styles/ak-ui.css";
 @import "./styles/ak-ui-flourish.css";
 @import "./styles/agent-conversation.css";
+@import "./styles/beautiful-chrome.css";
 @source "../node_modules/@felinic/ui/src";
 @source ".";
 
@@ -23,20 +24,22 @@
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
 
-  /* ak-ui terminal night: canvas #111315, not warm graphite or acid green. */
-  --night-chrome: #111315;
-  --night-canvas: #111315;
-  --night-card: #17191b;
-  --night-popover: #1b1d1f;
-  --night-muted: #222222;
-  --night-accent: #2a2c2e;
-  --night-sunken: #0e1012;
-  --night-foreground: #f8f8f5;
-  --night-muted-foreground: rgba(248, 248, 245, 0.68);
-  --night-border: #3a3d40;
-  --night-border-hairline: #4a4e52;
-  --night-border-elevated: #5c6166;
-  --night-input: #5a5f64;
+  /* Beautiful UI cool near-black / near-white. Source: beautifului.dev tokens. */
+  --night-chrome: oklch(0.231 0.004 264.487);
+  --night-canvas: oklch(0.209 0.004 264.477);
+  --night-card: oklch(0.26 0.006 271.191);
+  --night-popover: oklch(0.26 0.006 271.191);
+  --night-muted: oklch(0.289 0.006 271.22);
+  --night-accent: oklch(0.318 0.007 274.747);
+  --night-sunken: oklch(0.182 0.004 264.459);
+  --night-foreground: oklch(0.964 0.002 247.839);
+  --night-muted-foreground: oklch(0.731 0.008 260.731);
+  --night-border: oklch(0.308 0.006 258.354);
+  --night-border-hairline: oklch(0.356 0.007 264.474);
+  --night-border-elevated: oklch(0.356 0.007 264.474);
+  --night-input: oklch(0.356 0.007 264.474);
+  --hover: oklch(0.289 0.006 271.22);
+  --hover-2: oklch(0.318 0.007 274.747);
 
   --background: var(--night-canvas);
   --background-chrome: var(--night-chrome);
@@ -94,11 +97,11 @@
   --surface-raised: var(--night-popover);
   --surface-sunken: var(--night-sunken);
 
-  --overlay-hover-light: rgb(255 255 255 / 0.055);
-  --overlay-hover: rgb(255 255 255 / 0.09);
-  --overlay-hover-strong: rgb(255 255 255 / 0.13);
-  --overlay-active: rgb(255 255 255 / 0.155);
-  --overlay-active-strong: rgb(255 255 255 / 0.19);
+  --overlay-hover-light: var(--hover);
+  --overlay-hover: var(--hover-2);
+  --overlay-hover-strong: oklch(0.356 0.007 264.474);
+  --overlay-active: oklch(0.356 0.007 264.474);
+  --overlay-active-strong: oklch(0.38 0.008 264.474);
   --action-card-hover: rgb(255 255 255 / 0.055);
   --action-card-active: rgb(255 255 255 / 0.085);
   --segment-track: #22231e;
@@ -160,7 +163,7 @@
 
   /* Shared card column for settings, dossiers, and profile. */
   --page-stack-width: 64rem;
-  --page-card-radius: 0.45rem;
+  --page-card-radius: 8px;
   --settings-field-fill: color-mix(in srgb, var(--foreground) 11%, var(--card));
   --settings-field-fill-hover: color-mix(in srgb, var(--foreground) 16%, var(--card));
 }
@@ -205,25 +208,27 @@
 :root[data-theme='light'] {
   color-scheme: light;
 
-  --background: #ebe9e2;
-  --background-chrome: #deddd6;
-  --foreground: #101c2b;
-  --card: #f4f2eb;
-  --card-foreground: #101c2b;
-  --popover: #f4f2eb;
-  --popover-foreground: #101c2b;
-  --secondary: #ddddd7;
-  --secondary-foreground: #101c2b;
-  --muted: #e3e1da;
-  --muted-foreground: #627087;
-  --accent: #d8d8d2;
-  --accent-foreground: #101c2b;
-  --border: #b7b6af;
+  --background: oklch(0.985 0.001 286.376);
+  --background-chrome: oklch(0.961 0.002 247.84);
+  --foreground: oklch(0.247 0.006 258.361);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.247 0.006 258.361);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.247 0.006 258.361);
+  --secondary: oklch(0.961 0.002 247.84);
+  --secondary-foreground: oklch(0.247 0.006 258.361);
+  --muted: oklch(0.97 0.002 247.839);
+  --muted-foreground: oklch(0.506 0.01 264.477);
+  --accent: oklch(0.933 0.003 247.86);
+  --accent-foreground: oklch(0.247 0.006 258.361);
+  --border: oklch(0.912 0.005 258.326);
   --border-soft: color-mix(in oklab, var(--border) 70%, transparent);
-  --border-hairline: #a8a8a2;
-  --border-menu: #a8a8a2;
-  --border-menu-elevated: #91938f;
-  --input: #9da09e;
+  --border-hairline: oklch(0.946 0.003 264.542);
+  --border-menu: oklch(0.912 0.005 258.326);
+  --border-menu-elevated: oklch(0.912 0.005 258.326);
+  --input: oklch(0.912 0.005 258.326);
+  --hover: oklch(0.97 0.002 247.839);
+  --hover-2: oklch(0.933 0.003 247.86);
   --ring: #05a7dc;
   --sidebar: var(--background);
   --sidebar-foreground: var(--foreground);
@@ -258,18 +263,18 @@
   --focus-panel: rgb(241 198 68 / 0.16);
   --focus-panel-strong: rgb(241 198 68 / 0.24);
   --grid-line: rgb(47 111 167 / 0.065);
-  --surface-raised: #f4f2eb;
-  --surface-sunken: #deddd6;
+  --surface-raised: oklch(1 0 0);
+  --surface-sunken: oklch(0.961 0.002 247.84);
 
-  --overlay-hover-light: rgb(23 32 27 / 0.045);
-  --overlay-hover: rgb(23 32 27 / 0.075);
-  --overlay-hover-strong: rgb(23 32 27 / 0.115);
+  --overlay-hover-light: var(--hover);
+  --overlay-hover: var(--hover-2);
+  --overlay-hover-strong: oklch(0.90 0.004 247.86);
   --overlay-active: rgb(5 167 220 / 0.145);
   --overlay-active-strong: rgb(5 167 220 / 0.2);
   --action-card-hover: rgb(23 32 27 / 0.045);
   --action-card-active: rgb(5 167 220 / 0.12);
-  --segment-track: #d2d2cc;
-  --segment-thumb: #f4f2eb;
+  --segment-track: #e3e3df;
+  --segment-thumb: #fafaf7;
 
   --success: #2f8a56;
   --success-foreground: #1f5c38;
@@ -312,8 +317,8 @@
   --tactical-ink: #161713;
   --tactical-ink-2: #1d1e1a;
   --tactical-ink-3: #272823;
-  --tactical-paper: #f3f2ed;
-  --tactical-paper-2: #e4e3dd;
+  --tactical-paper: #f8f8f6;
+  --tactical-paper-2: #efefec;
   --tactical-paper-ink: #101214;
   --tactical-paper-muted: #5d5d59;
   --tactical-blue: #087cf0;
@@ -450,33 +455,33 @@ body {
   color: var(--tactical-paper-ink);
   --foreground: var(--tactical-paper-ink);
   --muted-foreground: var(--tactical-paper-muted);
-  --border: #b7b6af;
-  --border-hairline: #a8a8a2;
-  --card: #f4f2eb;
+  --border: #c5c4bf;
+  --border-hairline: #b8b8b3;
+  --card: #fafaf7;
   --card-foreground: var(--tactical-paper-ink);
-  --popover: #f4f2eb;
+  --popover: #fafaf7;
   --popover-foreground: var(--tactical-paper-ink);
-  --secondary: #ddddd7;
+  --secondary: #ecece9;
   --secondary-foreground: var(--tactical-paper-ink);
-  --muted: #e3e1da;
-  --accent: #d8d8d2;
+  --muted: #f0efeb;
+  --accent: #e8e8e4;
   --accent-foreground: var(--tactical-paper-ink);
-  --input: #9da09e;
-  --surface-raised: #f4f2eb;
-  --surface-sunken: #deddd6;
+  --input: #b0b2b0;
+  --surface-raised: #fafaf7;
+  --surface-sunken: #ecece8;
 }
 
 .tactical-desk-head {
-  background: var(--night-popover);
-  color: var(--night-muted-foreground);
+  background: var(--background);
+  color: var(--muted-foreground);
   font-family: 'SFMono-Regular', monospace;
   letter-spacing: .08em;
   text-transform: uppercase;
 }
 
 :root[data-theme='light'] .tactical-paper-surface .tactical-desk-head {
-  background: #deddd6;
-  color: #555954;
+  background: var(--background);
+  color: var(--muted-foreground);
 }
 
 .game-focus-panel {
@@ -652,6 +657,28 @@ button {
   font-weight: var(--font-weight-medium);
 }
 
+button:not(:disabled),
+[data-button]:not([disabled]):not([aria-disabled='true']),
+a[href],
+summary,
+[role='button']:not([aria-disabled='true']),
+[role='menuitem']:not([aria-disabled='true']),
+[role='tab']:not([aria-disabled='true']),
+[role='radio']:not(:disabled),
+[role='option'],
+[role='switch']:not([aria-disabled='true']),
+[role='checkbox']:not([aria-disabled='true']),
+label[for],
+select:not(:disabled),
+input[type='button']:not(:disabled),
+input[type='submit']:not(:disabled),
+input[type='checkbox']:not(:disabled),
+input[type='radio']:not(:disabled),
+input[type='file']:not(:disabled),
+input[type='range']:not(:disabled) {
+  cursor: pointer;
+}
+
 .app-drag {
   -webkit-app-region: drag;
 }
@@ -794,7 +821,7 @@ pre,
 :root[data-theme='light'] .tactical-paper .tactical-acid-panel,
 :root[data-theme='light'] .tactical-paper-surface .tactical-acid-panel {
   border-color: rgba(17, 19, 21, 0.2);
-  background: #f3f4ef;
+  background: #f8f8f6;
   box-shadow: inset 4px 0 0 var(--signal-gold);
   color: var(--tactical-paper-ink);
 }
@@ -804,11 +831,11 @@ pre,
   transition: background-color 120ms ease, border-color 120ms ease, transform 120ms ease;
 }
 
-.tactical-row:hover { background: color-mix(in srgb, var(--signal-gold) 6%, transparent); }
+.tactical-row:hover { background: var(--hover-2); }
 .tactical-row[data-ui-selected],
 .tactical-row.is-selected {
-  border-left: 4px solid var(--signal-gold);
-  background: color-mix(in srgb, var(--signal-gold) 16%, var(--card));
+  border-left: 0;
+  background: var(--hover-2);
 }
 
 .settings-focus-row {

@@ -90,11 +90,11 @@ describe('ConversationDock', () => {
     await nextTick()
     expect(host.querySelector('[data-testid="conversation-dock"]')).not.toBeNull()
     expect(host.querySelector('[data-testid="coding-agent-dock-surface"]')).not.toBeNull()
-    expect(host.querySelector('[aria-label="关闭对话"]')).toBeNull()
+    expect(host.querySelector('[aria-label="关闭对话"]')).not.toBeNull()
     expect(host.querySelector('[aria-label="打开右侧栏"]')).toBeNull()
     expect(host.querySelector('[aria-label="打开底部终端"]')).toBeNull()
-    expect(host.querySelector('[aria-label="收起对话"]')).not.toBeNull()
-    expect(host.querySelector('[aria-label="进入 Coding"]')).not.toBeNull()
+    expect(host.querySelector('[aria-label="收起对话"]')).toBeNull()
+    expect(host.querySelector('[aria-label="最大化对话"]')).not.toBeNull()
     expect(host.querySelector('[aria-label="左上角缩放"]')).not.toBeNull()
     expect(host.querySelector('[aria-label="选择本任务模型"]')).not.toBeNull()
     const dock = host.querySelector<HTMLElement>('[data-testid="conversation-dock"]')!
@@ -110,9 +110,8 @@ describe('ConversationDock', () => {
     expect(send).toHaveBeenCalledWith('把影响写清楚', '把影响写清楚', [], undefined, undefined)
   })
 
-  it('lists related conversations and can start another one', async () => {
-    const create = vi.fn()
-    const select = vi.fn()
+  it('keeps a single window and closes instead of collapsing to the corner', async () => {
+    const close = vi.fn()
     const host = document.createElement('div')
     document.body.append(host)
     const current = sampleConversation()
@@ -125,24 +124,21 @@ describe('ConversationDock', () => {
     const app = createApp(ConversationDock, {
       conversation: current,
       conversations: [current, extra],
-      onCreate: create,
-      onSelect: select,
+      onClose: close,
     })
     app.mount(host)
     mountedApps.push(app)
     await nextTick()
-    expect(host.textContent).toContain('新对话')
-    expect(host.textContent).toContain('第二轮')
-    host.querySelector<HTMLButtonElement>('[aria-label="新对话"]')?.click()
+    expect(host.querySelector('[aria-label="打开的对话"]')).toBeNull()
+    expect(host.querySelector('[aria-label="新对话"]')).toBeNull()
+    expect(host.textContent).toContain('CVE-2023-46604 复现')
+    expect(host.querySelector('[data-testid="conversation-dock"]')?.classList.contains('is-collapsed')).toBe(false)
+    host.querySelector<HTMLButtonElement>('[aria-label="关闭对话"]')?.click()
     await nextTick()
-    expect(create).toHaveBeenCalledTimes(1)
-    const second = [...host.querySelectorAll('button')].find(button => button.textContent?.includes('第二轮'))
-    second?.click()
-    await nextTick()
-    expect(select).toHaveBeenCalledWith('cve-extra')
+    expect(close).toHaveBeenCalledTimes(1)
   })
 
-  it('expands a collapsed dock and focuses the composer', async () => {
+  it('focuses the composer without a collapsed tray', async () => {
     const host = document.createElement('div')
     document.body.append(host)
     const app = createApp(ConversationDock, {
@@ -151,18 +147,13 @@ describe('ConversationDock', () => {
     const vm = app.mount(host) as unknown as { revealAndFocus: () => Promise<void> }
     mountedApps.push(app)
     await nextTick()
-    host.querySelector<HTMLButtonElement>('[aria-label="收起对话"]')?.click()
-    await nextTick()
-    const dock = host.querySelector<HTMLElement>('[data-testid="conversation-dock"]')!
-    expect(dock.classList.contains('is-collapsed')).toBe(true)
     const editor = composerEditor(host)
     const focus = vi.spyOn(editor, 'focus')
     await vm.revealAndFocus()
-    expect(dock.classList.contains('is-collapsed')).toBe(false)
     expect(focus).toHaveBeenCalled()
   })
 
-  it('can expand into the full Coding surface', async () => {
+  it('can maximize the dock in place', async () => {
     const expand = vi.fn()
     const host = document.createElement('div')
     document.body.append(host)
@@ -173,7 +164,7 @@ describe('ConversationDock', () => {
     app.mount(host)
     mountedApps.push(app)
     await nextTick()
-    host.querySelector<HTMLButtonElement>('[aria-label="进入 Coding"]')?.click()
+    host.querySelector<HTMLButtonElement>('[aria-label="最大化对话"]')?.click()
     await nextTick()
     expect(expand).toHaveBeenCalledTimes(1)
   })
@@ -244,7 +235,35 @@ describe('ConversationDock', () => {
     expect(host.querySelector('.chat-composer')).not.toBeNull()
   })
 
-  it('minimizes to the bottom-right and restores without overflowing', async () => {
+  it('keeps the composer on a pending conversation instead of an empty dead window', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    const app = createApp(ConversationDock, {
+      conversation: null,
+    })
+    app.mount(host)
+    mountedApps.push(app)
+    await nextTick()
+    expect(host.querySelector('[data-testid="conversation-dock"]')).not.toBeNull()
+    expect(host.querySelector('[aria-label="关闭对话"]')).not.toBeNull()
+    expect(host.querySelector('[aria-label="消息"]')).not.toBeNull()
+    expect(host.textContent).toContain('我们要构建什么')
+  })
+
+  it('does not cover the workspace sidebar', async () => {
+    const sidebar = document.createElement('div')
+    sidebar.className = 'agent-sidebar'
+    sidebar.style.width = '224px'
+    Object.defineProperty(sidebar, 'getBoundingClientRect', {
+      value: () => ({ width: 224, height: 800, top: 0, left: 0, right: 224, bottom: 800 }),
+    })
+    document.body.append(sidebar)
+    window.localStorage?.setItem('milksu.conversation-dock.v1', JSON.stringify({
+      left: 76,
+      top: 48,
+      width: 960,
+      height: 720,
+    }))
     const host = document.createElement('div')
     document.body.append(host)
     const app = createApp(ConversationDock, {
@@ -253,14 +272,20 @@ describe('ConversationDock', () => {
     app.mount(host)
     mountedApps.push(app)
     await nextTick()
-    host.querySelector<HTMLButtonElement>('[aria-label="收起对话"]')?.click()
+    const dock = host.querySelector<HTMLElement>('[data-testid="conversation-dock"]')!
+    expect(Number.parseFloat(dock.style.left)).toBeGreaterThanOrEqual(224)
+  })
+
+  it('stays within the viewport without a collapsed tray', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    const app = createApp(ConversationDock, {
+      conversation: sampleConversation(),
+    })
+    app.mount(host)
+    mountedApps.push(app)
     await nextTick()
     const dock = host.querySelector<HTMLElement>('[data-testid="conversation-dock"]')!
-    expect(dock.classList.contains('is-collapsed')).toBe(true)
-    expect(dock.style.left).toBe(`${1280 - 256 - 20}px`)
-    expect(dock.style.top).toBe(`${800 - 36 - 20}px`)
-    host.querySelector<HTMLButtonElement>('[aria-label="展开对话"]')?.click()
-    await nextTick()
     expect(dock.classList.contains('is-collapsed')).toBe(false)
     const left = Number.parseFloat(dock.style.left)
     const top = Number.parseFloat(dock.style.top)

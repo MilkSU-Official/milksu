@@ -4,7 +4,9 @@ import ctfChallengeDeskSource from './CTFChallengeDesk.vue?raw'
 import chatActivityGroupSource from './ChatActivityGroup.vue?raw'
 import chatComposerSource from './ChatComposer.vue?raw'
 import chatMessageItemSource from './ChatMessageItem.vue?raw'
+import agentChangeSummarySource from './AgentChangeSummary.vue?raw'
 import agentExecutionPlanSource from './AgentExecutionPlan.vue?raw'
+import agentFileChipsSource from './AgentFileChips.vue?raw'
 import contextSidebarSource from './ContextSidebar.vue?raw'
 import chatPageSource from './ChatPage.vue?raw'
 import conversationDockSource from './ConversationDock.vue?raw'
@@ -45,6 +47,7 @@ describe('Workspace visual contract', () => {
     expect(chatPageSource).toContain("props.surface === 'dock'")
     expect(chatPageSource).toContain(':context-usage="contextUsagePresentation"')
     expect(conversationDockSource).toContain('surface="dock"')
+    expect(conversationDockSource).toContain('border-radius: 16px')
     expect(conversationDockSource).not.toContain("from '@/components-vue/ContextUsageMeter.vue'")
     expect(chatComposerSource).toContain('data-testid="composer-context-strip"')
     expect(vulnPageSource).toContain('SettingsSection')
@@ -56,30 +59,40 @@ describe('Workspace visual contract', () => {
 
   it('raises Coding reading surfaces and aligns its compact controls', () => {
     expect(contextSidebarSource).toContain('font-size: var(--text-label)')
-    expect(contextSidebarSource).toContain('font-size: var(--text-control)')
-    expect(contextSidebarSource).toContain('line-height: var(--text-control--line-height)')
     expect(contextSidebarSource).toContain('data-testid="coding-new-task-button"')
+    expect(contextSidebarSource).toContain('SquarePen')
     expect(contextSidebarSource).toContain('新会话')
-    // Open panel: collapse is the first header row; new-session is one row below.
-    expect(contextSidebarSource).toContain('收起会话历史')
-    expect(contextSidebarSource).toContain('coding-history-header')
-    expect(contextSidebarSource).toContain(".coding-history-toggle[aria-expanded='true']:not(:hover)::before")
+    expect(contextSidebarSource).toContain('cursor: pointer')
+    expect(contextSidebarSource).toContain('background: var(--hover-2)')
+    expect(contextSidebarSource).toContain('get_update_status')
+    expect(contextSidebarSource).toContain('appVersion')
+    expect(contextSidebarSource).not.toContain("t('设置', 'Settings')\"\n          @click=\"$emit('settings')\"")
+    expect(contextSidebarSource).toContain('收起侧栏')
+    expect(contextSidebarSource).toContain('data-workspace-trigger')
+    expect(contextSidebarSource).toContain('MIN_SIDEBAR_WIDTH')
+    expect(contextSidebarSource).toContain('COLLAPSED_SIDEBAR_WIDTH')
+    expect(contextSidebarSource).toContain('readSidebarWidth')
+    expect(contextSidebarSource).toContain('agent-sidebar__resize')
+    expect(contextSidebarSource).toContain('agent-sidebar__theme')
+    expect(contextSidebarSource).toContain('w-max min-w-[11rem]')
+    expect(contextSidebarSource).not.toContain('w-64 overflow-hidden rounded-[14px]')
     expect(contextSidebarSource).not.toContain('Task archive')
-    expect(contextSidebarSource).toContain('px-3 py-1.5 text-label font-medium text-muted-foreground')
-    expect(contextSidebarSource).toContain('group flex items-center transition-colors hover:bg-accent/50')
+    expect(contextSidebarSource).toContain('agent-sidebar-row')
+    expect(contextSidebarSource).not.toContain('hover:bg-accent/50')
     expect(contextSidebarSource).toContain('color: var(--foreground)')
-    // Collapsed: expand + new-task park on the Coding topbar leading slot.
-    expect(chatPageSource).toContain('data-testid="coding-history-toggle"')
-    expect(chatPageSource).toContain('coding-history-collapsed-controls')
-    expect(chatPageSource).toContain('展开会话历史')
-    expect(chatPageSource).toContain('v-if="!conversationDrawerOpen"')
+    expect(chatPageSource).not.toContain('coding-history-collapsed-controls')
+    expect(chatPageSource).not.toContain('展开会话历史')
     expect(chatMessageItemSource).toContain('break-words text-control leading-7')
     expect(chatMessageItemSource).toContain('agent-attachment')
     expect(chatMessageItemSource).not.toContain('rounded-lg border border-current/15')
     expect(chatMessageItemSource).not.toContain('YOU')
     expect(chatMessageItemSource).not.toContain('MILKSU')
     expect(chatMessageItemSource).toContain('AgentPixelLoader')
+    expect(chatMessageItemSource).toContain(':streaming="replyTicking"')
+    expect(chatMessageItemSource).toContain('replyTicking && !message.content?.trim()')
     expect(chatActivityGroupSource).toContain('agent-chip')
+    expect(chatActivityGroupSource).toContain('AgentPixelLoader')
+    expect(chatActivityGroupSource).not.toContain('AkLoadingMark')
     expect(chatComposerSource).not.toContain('composer-run-elapsed')
     expect(chatComposerSource).toContain('font-size: var(--text-label)')
     expect(chatComposerSource).toContain('line-height: var(--text-label--line-height)')
@@ -108,6 +121,12 @@ describe('Workspace visual contract', () => {
     expect(settingsPageSource).toContain('settings-nav-surface')
     expect(settingsPageSource).not.toContain('tactical-dark-surface')
     expect(settingsPageSource).toContain('background-color: var(--background)')
+    expect(settingsPageSource).toContain('background: var(--hover-2)')
+    expect(settingsPageSource).not.toContain('background: #05a7dc')
+    expect(profilePageSource).toContain('text-2xl font-medium tracking-tight')
+    expect(profilePageSource).not.toContain('tactical-paper')
+    expect(profilePageSource).not.toContain('tactical-command-surface')
+    expect(profilePageSource).not.toContain('tactical-display')
     expect(settingsPageSource).toContain('settings-notice--ok')
     expect(settingsPageSource).toContain('color-mix(in srgb, var(--success) 22%, var(--card))')
     expect(settingsPageSource).not.toContain("t('保存设置', 'Save settings')")
@@ -125,8 +144,13 @@ describe('Workspace visual contract', () => {
     expect(tacticalPanelShellSource).toContain("data-panel-size='wide'")
     expect(tacticalPanelShellSource).toContain('tactical-panel-shell__resize')
     expect(tacticalPanelShellSource).toContain('调整右侧栏宽度')
+    expect(tacticalPanelShellSource).toContain('background: var(--background)')
+    expect(tacticalPanelShellSource).toContain('cubic-bezier(0.16, 1, 0.3, 1)')
+    expect(tacticalPanelShellSource).not.toContain('box-shadow: -18px 0 38px')
     expect(chatPageSource).toContain('persistContextRailWidth')
-    expect(tacticalPanelShellSource).toContain('@container coding-workspace (max-width: 68rem)')
+    expect(chatPageSource).toContain('agent-chrome-icon')
+    expect(tacticalPanelShellSource).not.toContain('@container coding-workspace (max-width: 68rem)')
+    expect(tacticalPanelShellSource).not.toContain('inset-block: 0')
     expect(missionOperationSource).toContain('@container chat-main (max-width: 56rem)')
     expect(missionOperationSource).toContain('overflow-wrap: anywhere')
     expect(domainTaskContextSource).toContain('@container domain-dossier (max-width: 25rem)')
@@ -152,6 +176,12 @@ describe('Workspace visual contract', () => {
     expect(labPageSource).not.toContain('max-w-5xl')
     expect(ctfPageSource).toContain('CollectionViewFilter')
     expect(vulnPageSource).toContain('CollectionViewFilter')
+    expect(ctfChallengeDeskSource).toContain('ak-tag')
+    expect(ctfChallengeDeskSource).toContain('tactical-row')
+    expect(ctfChallengeDeskSource).not.toContain('tactical-paper-surface')
+    expect(vulnPageSource).toContain('ak-tag')
+    expect(vulnPageSource).toContain('tactical-row')
+    expect(vulnPageSource).not.toContain('tactical-paper-surface')
     expect(labPageSource).toContain('ak-segmented')
     expect(labPageSource).toContain('#filters')
     expect(labPageSource).not.toContain('v-model="labTab"')
@@ -215,6 +245,8 @@ describe('Workspace visual contract', () => {
       chatMessageItemSource,
       chatActivityGroupSource,
       agentExecutionPlanSource,
+      agentChangeSummarySource,
+      agentFileChipsSource,
     ]
     for (const source of chatSources) {
       expect(source).not.toContain('bg-ink')

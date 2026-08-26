@@ -13,6 +13,18 @@ export interface AgentSourceChip {
   href: string
 }
 
+export interface AgentFileDiffLine {
+  text: string
+  tone: 'add' | 'del' | 'ctx'
+}
+
+export interface AgentFileDiffChip {
+  path: string
+  add: number
+  del: number
+  lines: AgentFileDiffLine[]
+}
+
 function firstLine(value: string) {
   return value
     .split(/\r?\n/)
@@ -82,6 +94,43 @@ export function formatDemoElapsed(durationMs?: number) {
   if (minutes < 60) return `${minutes}m ${seconds.toFixed(1)}s`
   const hours = Math.floor(minutes / 60)
   return `${hours}h ${minutes % 60}m ${seconds.toFixed(1)}s`
+}
+
+const mutationTools = new Set(['edit', 'write', 'lsp_fix'])
+
+export function parseDiffPreview(content: string): AgentFileDiffLine[] {
+  const lines: AgentFileDiffLine[] = []
+  for (const raw of content.split(/\r?\n/)) {
+    if (
+      raw.startsWith('+++')
+      || raw.startsWith('---')
+      || raw.startsWith('@@')
+      || raw.startsWith('diff ')
+    ) continue
+    if (raw.startsWith('+')) lines.push({ text: raw.slice(1), tone: 'add' })
+    else if (raw.startsWith('-')) lines.push({ text: raw.slice(1), tone: 'del' })
+    else if (raw.startsWith(' ') && lines.length) lines.push({ text: raw.slice(1), tone: 'ctx' })
+  }
+  return lines.slice(0, 8)
+}
+
+export function agentFileDiffChips(entries: ChatActivityEntry[]): AgentFileDiffChip[] {
+  const chips: AgentFileDiffChip[] = []
+  const seen = new Set<string>()
+  for (const entry of entries) {
+    if (!mutationTools.has(entry.toolName) || entry.running) continue
+    const chip = agentToolChip(entry)
+    if (!chip.pill || seen.has(chip.pill)) continue
+    seen.add(chip.pill)
+    const source = `${entry.request?.content ?? ''}\n${entry.result?.content ?? ''}`
+    chips.push({
+      path: chip.pill,
+      add: chip.add ?? 0,
+      del: chip.del ?? 0,
+      lines: parseDiffPreview(source),
+    })
+  }
+  return chips
 }
 
 export function thinkingSummary(durationMs?: number, running?: boolean) {

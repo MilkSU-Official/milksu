@@ -107,6 +107,7 @@ test("Coding sessions expose Pi native file and shell tools without MilkSU works
       "bg_task",
       "bg_status",
       "milksu_progress",
+      "milksu_ask",
       "milksu_workspace",
       "prepare_computer_use_driver",
       "milksu_archify",
@@ -180,6 +181,7 @@ test("Plan and Read-only enforce a read-only tool allowlist", async () => {
         "ls",
         "bg_status",
         "milksu_progress",
+        "milksu_ask",
         "milksu_workspace",
         "lsp_diagnostics",
         "web_search",
@@ -521,6 +523,7 @@ test("Daily Coding product actions get action-specific tool policies", async () 
     "find",
     "ls",
     "milksu_progress",
+    "milksu_ask",
     "milksu_workspace",
     "lsp_diagnostics",
     "web_search",
@@ -535,6 +538,7 @@ test("Daily Coding product actions get action-specific tool policies", async () 
     "find",
     "ls",
     "milksu_progress",
+    "milksu_ask",
     "milksu_workspace",
     "lsp_diagnostics",
     "web_search",
@@ -551,6 +555,7 @@ test("Daily Coding product actions get action-specific tool policies", async () 
     "find",
     "ls",
     "milksu_progress",
+    "milksu_ask",
     "milksu_workspace",
     "lsp_diagnostics",
     "lsp_fix",
@@ -967,6 +972,7 @@ test("coach mode keeps bash and CTF domain tools", async () => {
   assert.equal(policy.ctf, true);
   assert.equal(policy.activeTools.includes("bash"), true);
   assert.equal(policy.activeTools.includes("milksu_progress"), true);
+  assert.equal(policy.activeTools.includes("milksu_ask"), true);
   assert.equal(policy.activeTools.includes("milksu_workspace"), true);
   assert.equal(policy.activeTools.includes("subagent"), true);
   assert.equal(policy.activeTools.includes("bg_task"), true);
@@ -1409,6 +1415,7 @@ test("tool-builder role uses Pi native file and shell tools", async () => {
   assert.equal(policy.ctf, true);
   assert.equal(policy.activeTools.includes("bash"), true);
   assert.equal(policy.activeTools.includes("milksu_progress"), true);
+  assert.equal(policy.activeTools.includes("milksu_ask"), true);
   assert.ok(policy.customTools.some(tool => tool.name === "bash"));
 
   const write = policy.customTools.find(tool => tool.name === "write");

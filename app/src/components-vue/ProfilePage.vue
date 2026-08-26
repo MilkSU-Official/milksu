@@ -332,7 +332,7 @@ onBeforeUnmount(() => stopUsageEvents?.())
       <header class="flex items-center justify-between gap-5 pb-5">
         <div class="flex items-center gap-3">
           <UserRound class="size-6 text-primary" />
-          <h1 class="tactical-display text-4xl">{{ t('个人资料', 'Profile') }}</h1>
+          <h1 class="text-2xl font-medium tracking-tight">{{ t('个人资料', 'Profile') }}</h1>
           <span class="inline-flex items-center gap-1.5 text-caption text-success"><LockKeyhole class="size-3.5" />{{ t('仅自己可见', 'Only visible to you') }}</span>
         </div>
         <div class="flex items-center gap-2">
@@ -341,7 +341,7 @@ onBeforeUnmount(() => stopUsageEvents?.())
         </div>
       </header>
 
-      <section class="profile-identity tactical-paper flex flex-wrap items-center gap-6 px-7 py-6 text-[color:var(--tactical-paper-ink)]">
+      <section class="profile-identity flex flex-wrap items-center gap-6 rounded-[8px] px-4 py-5">
         <div class="relative shrink-0">
           <img :src="shownAvatar" :alt="t('个人头像', 'Profile photo')" class="size-24 rounded-full border-2 border-primary object-cover shadow-sm">
           <input ref="avatarInput" class="sr-only" type="file" accept="image/png,image/jpeg,image/webp" @change="updateAvatar">
@@ -370,8 +370,7 @@ onBeforeUnmount(() => stopUsageEvents?.())
 
       <div class="mt-4 grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <section
-          class="profile-command-panel tactical-command-surface min-w-0"
-          data-palette="graphite-cyan"
+          class="profile-command-panel min-w-0"
           aria-labelledby="profile-panel-heading"
         >
           <div class="profile-tabs" role="tablist" :aria-label="t('成长模块', 'Progress modules')">
@@ -528,7 +527,7 @@ onBeforeUnmount(() => stopUsageEvents?.())
           </div>
         </section>
 
-        <section class="tactical-command-surface growth-panel px-5 py-5" aria-labelledby="growth-heading">
+        <section class="growth-panel rounded-[8px] px-4 py-4" aria-labelledby="growth-heading">
           <div class="border-b border-border pb-4"><p class="game-kicker">{{ t('有结果来源', 'Confirmed sources') }}</p><h2 id="growth-heading" class="mt-1 text-xl font-semibold">{{ t('最近确认的成长', 'Recent confirmed progress') }}</h2></div>
 
           <ol v-if="recentGrowth.length" class="growth-list mt-2">
@@ -552,18 +551,17 @@ onBeforeUnmount(() => stopUsageEvents?.())
 }
 .profile-name-input { width: min(26rem, 100%); border: 0; border-bottom: 1px solid var(--border); background: transparent; padding: .25rem 0; font-size: 1.875rem; font-weight: 600; outline: 0; }
 .profile-bio-input { margin-top: .75rem; width: min(40rem, 100%); border: 0; border-bottom: 1px solid var(--border); background: transparent; padding: .35rem 0; color: var(--muted-foreground); outline: 0; }
-.profile-identity { border-radius: .55rem; }
+.profile-identity { border-radius: 8px; }
 .profile-command-panel {
   overflow: hidden;
-  border-color: var(--profile-graphite-line);
-  border-radius: .55rem;
-  background-color: var(--profile-graphite);
+  border-radius: 8px;
+  background: var(--background);
 }
-.profile-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 11rem)); border-bottom: 1px solid color-mix(in srgb, var(--primary) 30%, var(--profile-graphite-line)); background: var(--profile-graphite); }
-.profile-tab { position: relative; min-height: 3.45rem; border-right: 1px solid var(--profile-graphite-line); background: var(--profile-graphite); color: var(--muted-foreground); font-size: .9rem; transition: color .16s ease, background .16s ease; }
-.profile-tab:hover { background: color-mix(in srgb, var(--primary) 6%, var(--profile-graphite-raised)); color: var(--foreground); }
-.profile-tab.active { background: color-mix(in srgb, var(--primary) 13%, var(--profile-graphite-raised)); color: var(--primary); }
-.profile-tab.active::after { content: ''; position: absolute; inset: auto 0 -1px; height: 3px; background: var(--primary); }
+.profile-tabs { display: flex; gap: 1px; padding: 0.25rem; }
+.profile-tab { position: relative; min-height: 2rem; border: 0; border-radius: 8px; background: transparent; padding: 0 0.75rem; color: var(--muted-foreground); font-size: 14px; font-weight: 500; cursor: pointer; transition: color 150ms ease, background 150ms ease; }
+.profile-tab:hover { background: var(--hover-2); color: var(--foreground); }
+.profile-tab.active { background: var(--hover-2); color: var(--foreground); }
+.profile-tab.active::after { content: none; }
 .profile-panel-body { padding: 1.35rem 1.45rem 1rem; }
 .profile-metrics { display: flex; flex-wrap: wrap; gap: .6rem 1.2rem; color: var(--muted-foreground); font-size: .88rem; }
 .profile-metrics span { display: inline-flex; align-items: center; gap: .38rem; }
@@ -602,7 +600,7 @@ onBeforeUnmount(() => stopUsageEvents?.())
 .panel-empty { border: 1px solid var(--border); background: color-mix(in srgb, var(--muted) 35%, transparent); padding: 1.4rem; }
 .panel-empty strong { font-size: .92rem; }
 .panel-empty p { margin-top: .4rem; max-width: 38rem; color: var(--muted-foreground); font-size: .78rem; line-height: 1.6; }
-.growth-panel { border-radius: .55rem; }
+.growth-panel { border-radius: 8px; background: var(--background); }
 .growth-list { position: relative; }
 .growth-list::before { content: ''; position: absolute; left: .25rem; top: 1.5rem; bottom: 1.5rem; width: 1px; background: var(--border); }
 .growth-dot { position: absolute; left: 0; top: 1.55rem; width: .55rem; height: .55rem; border-radius: 50%; background: var(--primary); box-shadow: 0 0 10px color-mix(in srgb, var(--primary) 45%, transparent); }

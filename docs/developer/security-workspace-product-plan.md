@@ -28,8 +28,7 @@ GitHub 登录、邀请制访问和用户级模型凭据管理；让 MilkSU 客�
 
 - 已实现并测试：个人资料、轻量 CTF/CVE、共享 Coding 上下文、真实 CTF Daily、公共数据驱动的
   CVE 学习专题、独立 Admin、用户级 TokenFlux Key 分配与客户端静默同步。
-- Desktop 生产视觉已改为 ak-ui（石墨 / 纸面 / 青 / 金），Felinic 留下。旧「战术档案 / 酸绿」界面
-  系统已删除，不再作为实现或验收约束；当前约定见 [当前视觉约定](../design/current-visual.md)。
+- 产品 UI 设计语言只写在仓库根目录 `AGENTS.md`。旧战术档案 / 酸绿界面系统已删除，不再作为实现或验收约束。
 - CTF/CVE 交给 Coding 时，输入框只显示一句可读的接力任务；完整结构化提示在发送时才交给 Agent，
   并绑定当前对话，避免内部工作区路径、Scope 编排和长提示直接暴露或跨任务串用。
 - 最终功能提交 `main@cfc9a102408b8e2017f339ddce08f246b6b67c02` 已由 workflow `31676876645`
@@ -47,8 +46,7 @@ GitHub 登录、邀请制访问和用户级模型凭据管理；让 MilkSU 客�
 - CTF Daily 不再把题库第一行伪装成每日挑战：规则先筛候选，Pi 可结合近期题目、关联 Coding 对话、
   已确认训练事实和 CTF Memory 选择并解释，当天固定且允许换题，模型不可用时规则兜底。代码与最终包
   表面已复检；真实模型选择回执仍待有可用题库与模型的内测环境补齐。
-- 全局左栏固定为窄栏，头像使用圆形裁切；Coding 会话历史默认收起，只在用户点击后以浮层展开，
-  不再因 CTF、CVE、Coding、个人资料和设置切换而挤动主页面。
+- 壳侧栏与会话历史的现行交互以 `AGENTS.md` 为准；本页旧「窄栏 + 浮层历史」描述已过期。
 - 用户可见产物固定写入 `~/Documents/MilkSU/{Coding,CTF,CVE}`，设置页可打开；内部 Runtime、凭据、
   Obelisk、浏览器 Profile 和恢复数据继续留在 App Support，不暴露成用户工作区。
 - 独立私有仓库 [MilkSU-Official/milksu-admin](https://github.com/MilkSU-Official/milksu-admin) 已到
@@ -68,8 +66,7 @@ GitHub 登录、邀请和模型来源已经接入；登录用户可以使用 Adm
 
 ## 已确认界面
 
-Desktop 视觉以 [当前视觉约定](../design/current-visual.md) 和当前生产页为准。旧战术档案稿、
-酸绿带和 `design-qa.md` 已删除，不得再作为新设计、实现或验收的参考。
+产品 UI 设计语言只写在 `AGENTS.md`。旧战术档案稿、酸绿带和 `design-qa.md` 已删除，不得再作为新设计、实现或验收的参考。
 
 Admin 视觉对照、凭据分配和 Cloudflare 版本截图保存在独立私有仓库
 `MilkSU-Official/milksu-admin` 的 `docs/evidence/`，不复制进对内测用户开放的桌面仓库。

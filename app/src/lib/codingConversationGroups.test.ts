@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { groupCodingConversations } from './codingConversationGroups'
+import { groupCodingConversations, groupWorkspaceConversations } from './codingConversationGroups'
 import type { Conversation } from '@/types'
 
 function conversation(
@@ -40,7 +40,7 @@ describe('Coding conversation groups', () => {
     expect(groups.map(group => group.name)).toEqual([
       'milksu',
       'milksu-interview',
-      '无项目任务',
+      '最近',
     ])
     expect(groups[0].conversations.map(item => item.id)).toEqual(['milk-new', 'milk-old'])
     expect(groups.flatMap(group => group.conversations).map(item => item.id))
@@ -60,7 +60,7 @@ describe('Coding conversation groups', () => {
 
     expect(group).toMatchObject({
       key: 'temporary',
-      name: '无项目任务',
+      name: '最近',
       path: null,
       paths: [],
     })
@@ -83,7 +83,7 @@ describe('Coding conversation groups', () => {
     expect(groups).toHaveLength(1)
     expect(groups[0]).toMatchObject({
       key: 'temporary',
-      name: '无项目任务',
+      name: '最近',
       path: null,
       paths: [],
       temporary: true,
@@ -172,8 +172,8 @@ describe('Coding conversation groups', () => {
       }),
     ])
 
-    expect(groups.map(group => group.name)).toEqual(['hot', 'quiet', '无项目任务'])
-    expect(groups.at(-1)).toMatchObject({ temporary: true, name: '无项目任务' })
+    expect(groups.map(group => group.name)).toEqual(['hot', 'quiet', '最近'])
+    expect(groups.at(-1)).toMatchObject({ temporary: true, name: '最近' })
   })
 
   it('shows one newest Coding row for one CVE domain task', () => {
@@ -201,5 +201,65 @@ describe('Coding conversation groups', () => {
 
     expect(groups).toHaveLength(1)
     expect(groups[0].conversations.map(item => item.id)).toEqual(['legacy-new'])
+  })
+
+  it('partitions Home / CTF / CVE / Lab chats so each workspace list stays local', () => {
+    const cve = conversation('cve-1', 'CVE-2024-3400 复现', 70, {
+      domainTaskContext: {
+        kind: 'cve',
+        cveId: 'CVE-2024-3400',
+        title: 'PAN-OS',
+        sourceEvidenceState: '',
+        sourceEvidenceCount: 0,
+        assetMatchState: '',
+        assetCount: 0,
+        researchScope: 'local',
+        safetyBoundary: '',
+        roleLabel: 'CVE',
+      },
+    })
+    const lab = conversation('lab-1', 'Juice Shop', 80, {
+      domainTaskContext: {
+        kind: 'lab',
+        jobId: 'job-1',
+        title: 'Juice Shop',
+        scope: 'local',
+        request: '',
+      },
+    })
+    const mixed = [...conversations, cve, lab]
+
+    expect(groupWorkspaceConversations(mixed, 'chat').flatMap(group => group.conversations).map(item => item.id))
+      .toEqual(['milk-new', 'milk-old', 'interview', 'scratch'])
+    expect(groupWorkspaceConversations(mixed, 'ctf').map(group => group.conversations.map(item => item.id)))
+      .toEqual([['ctf-solver']])
+    expect(groupWorkspaceConversations(mixed, 'vuln').map(group => group.name)).toEqual(['CVE-2024-3400'])
+    expect(groupWorkspaceConversations(mixed, 'lab').map(group => group.name)).toEqual(['Juice Shop'])
+  })
+
+  it('keeps unbound CTF chats in a Chats group instead of a bound challenge', () => {
+    const groups = groupWorkspaceConversations([
+      conversation('loose', '整理题库', 90, { workspaceHome: 'ctf' }),
+      conversation('bound', '诸神的三世链', 80, {
+        ctfJobId: 'job-gods',
+        domainTaskContext: {
+          kind: 'ctf',
+          jobId: 'job-gods',
+          challengeId: 'gods',
+          challengeTitle: '诸神的三世链',
+          role: 'solver',
+          roleLabel: '解题 Agent',
+          materialStatus: '',
+          materialCount: 0,
+          authorizedScope: '',
+          evidenceCount: 0,
+          artifactCount: 0,
+          judgeState: '',
+        },
+      }),
+    ], 'ctf')
+    expect(groups.map(group => group.name)).toEqual(['会话', '诸神的三世链'])
+    expect(groups.find(group => group.name === '会话')?.conversations.map(item => item.id))
+      .toEqual(['loose'])
   })
 })

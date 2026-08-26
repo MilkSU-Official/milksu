@@ -8,9 +8,6 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
 } from '@felinic/ui'
 import {
   Activity,
@@ -69,18 +66,10 @@ import type {
   CodingGoalState,
   ModelThinkingLevel,
 } from '@/types'
-import type { CodingGitChange, CodingRecentProject } from '@/codingEnvironmentTypes'
+import type { CodingRecentProject } from '@/codingEnvironmentTypes'
 import type { ContextUsagePresentation } from '@/lib/sessionTurnStatus'
 import { CODING_SKILLS } from '@/codingSkills'
 import { t } from '@/lib/uiLocale'
-
-interface ComposerGitSummary {
-  changedFiles: number
-  additions: number
-  deletions: number
-  changes?: CodingGitChange[]
-  changesTruncated?: boolean
-}
 
 type ComposerScopeToken = 'browser-use' | 'computer-use'
 
@@ -113,7 +102,6 @@ const props = defineProps<{
   ctfSession: boolean
   goalMode: boolean
   goal?: CodingGoalState
-  gitSummary?: ComposerGitSummary
   executionMode: CodingExecutionMode
   approvalPolicy: CodingApprovalPolicy
   approvalLabel: string
@@ -404,11 +392,8 @@ const resumableGoal = computed(() => (
     props.goal?.status ?? '',
   )
 ))
-const showGitSummary = computed(() => Boolean(
-  props.gitSummary && props.gitSummary.changedFiles > 0,
-))
-const showProgressSummary = computed(() => Boolean(
-  (props.goal?.iteration ?? 0) > 0 || showGitSummary.value,
+const showProgressSummary = computed(() => (
+  (props.goal?.iteration ?? 0) > 0
 ))
 const showGoalDock = computed(() => Boolean(
   props.goal || props.goalMode,
@@ -461,14 +446,6 @@ function formatAttachmentSize(size: number) {
   if (size >= 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`
   if (size >= 1024) return `${(size / 1024).toFixed(1)} KB`
   return `${size} B`
-}
-
-function gitChangeStatus(change: CodingGitChange) {
-  if (change.conflict) return t('冲突', 'Conflict')
-  if (change.untracked) return t('新增', 'Added')
-  if (change.staged && change.modified) return t('暂存/修改', 'Staged/modified')
-  if (change.staged) return t('已暂存', 'Staged')
-  return t('修改', 'Modified')
 }
 
 function startCodingAttachmentChooser(event?: Event) {
@@ -1262,7 +1239,7 @@ defineExpose({
         <div
           v-for="(message, index) in queuedGuidance"
           :key="`${index}:${message}`"
-          class="mt-1 flex items-center gap-2 rounded-md border border-border/70 bg-background/55 px-2 py-1.5"
+          class="mt-1 flex items-center gap-2 rounded-xl border border-border/70 bg-background/55 px-2 py-1.5"
         >
           <p class="min-w-0 flex-1 truncate text-caption text-foreground" :title="message">
             {{ message }}
@@ -1306,7 +1283,7 @@ defineExpose({
           >
             <button
               type="button"
-              class="inline-flex min-w-0 items-center gap-2 rounded-sm text-left hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              class="inline-flex min-w-0 items-center gap-2 rounded-lg text-left hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               :aria-label="t(`预览 ${attachment.name}`, `Preview ${attachment.name}`)"
               @click="previewCodingAttachment(attachment)"
             >
@@ -1316,7 +1293,7 @@ defineExpose({
             </button>
             <button
               type="button"
-              class="rounded-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              class="rounded-lg text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               :aria-label="t(`移除 ${attachment.name}`, `Remove ${attachment.name}`)"
               @click="removeCodingAttachment(attachment)"
             >
@@ -1393,7 +1370,7 @@ defineExpose({
                   side="top"
                   :side-offset="8"
                   :collision-padding="16"
-                  class="composer-add-menu app-no-drag w-[31rem] max-w-[calc(100vw-2rem)] max-h-[min(24rem,calc(100vh-8rem))] overflow-y-auto p-1"
+                  class="agent-floating composer-add-menu app-no-drag w-[31rem] max-w-[calc(100vw-2rem)] max-h-[min(24rem,calc(100vh-8rem))] overflow-y-auto p-1"
                 >
                   <DropdownMenuLabel class="px-3 pb-1.5 pt-2 text-caption">
                     {{ t('添加', 'Add') }}
@@ -1642,45 +1619,6 @@ defineExpose({
                   :label="t('目标进行中', 'Goal in progress')"
                 />
                 <span v-if="goal?.iteration">{{ t(`第 ${goal.iteration} 轮`, `Turn ${goal.iteration}`) }}</span>
-                <span v-if="goal?.iteration && showGitSummary" aria-hidden="true">·</span>
-                <HoverCard v-if="showGitSummary" :open-delay="120" :close-delay="80">
-                  <HoverCardTrigger as-child>
-                    <button
-                      type="button"
-                      class="chat-composer__git-trigger"
-                      :aria-label="t('查看代码变更', 'View code changes')"
-                      @click="$emit('openChanges')"
-                    >
-                      <span>{{ t('代码', 'Code') }}</span>
-                      <span class="text-primary">+{{ gitSummary?.additions }}</span>
-                      <span class="text-destructive">-{{ gitSummary?.deletions }}</span>
-                    </button>
-                  </HoverCardTrigger>
-                  <HoverCardContent side="top" align="start" class="w-96 p-0">
-                    <div class="border-b border-border px-3 py-2.5">
-                      <p class="text-label font-medium">{{ t(`${gitSummary?.changedFiles} 个文件已更改`, `${gitSummary?.changedFiles} files changed`) }}</p>
-                    </div>
-                    <div class="max-h-64 overflow-y-auto px-2 py-2">
-                      <button
-                        v-for="change in gitSummary?.changes ?? []"
-                        :key="`${change.indexStatus}${change.worktreeStatus}:${change.path}`"
-                        type="button"
-                        class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-caption hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        :aria-label="t(`在变更中打开 ${change.path}`, `Open ${change.path} in changes`)"
-                        @click="$emit('openChanges', change.path)"
-                      >
-                        <span class="w-14 shrink-0 text-muted-foreground">{{ gitChangeStatus(change) }}</span>
-                        <span class="min-w-0 flex-1 truncate font-mono" :title="change.path">{{ change.path }}</span>
-                        <span class="shrink-0 font-mono text-primary">+{{ change.additions ?? 0 }}</span>
-                        <span class="shrink-0 font-mono text-destructive">-{{ change.deletions ?? 0 }}</span>
-                      </button>
-
-                      <p v-if="gitSummary?.changesTruncated" class="px-2 py-1 text-caption text-muted-foreground">
-                        {{ t(`仅显示前 ${gitSummary?.changes?.length ?? 0} 项。`, `Showing the first ${gitSummary?.changes?.length ?? 0} items.`) }}
-                      </p>
-                    </div>
-                  </HoverCardContent>
-                </HoverCard>
               </div>
             </template>
             <template v-if="showWorkspaceChip" #context>
@@ -1739,7 +1677,7 @@ defineExpose({
                     <ChevronDown class="chat-composer__chip__chevron size-3 shrink-0 opacity-60" />
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" :side-offset="8" class="min-w-48 p-1">
+                <DropdownMenuContent align="start" :side-offset="8" class="agent-floating min-w-48 p-1">
                   <DropdownMenuItem
                     v-for="branch in gitBranches ?? []"
                     :key="branch"
@@ -1839,21 +1777,6 @@ defineExpose({
 
 .chat-composer__frame {
   position: relative;
-}
-
-.chat-composer__git-trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  border-radius: 0.375rem;
-  padding: 0.125rem 0.25rem;
-  transition: background-color 120ms ease;
-}
-
-.chat-composer__git-trigger:hover,
-.chat-composer__git-trigger:focus-visible {
-  background: var(--muted);
-  outline: none;
 }
 
 .chat-composer__queued-guidance {
@@ -1975,7 +1898,7 @@ defineExpose({
   z-index: 30;
   width: min(24rem, calc(100vw - 2rem));
   border: 1px solid var(--border);
-  border-radius: 2px;
+  border-radius: 16px;
   background: var(--card);
   padding: 0.75rem 0.85rem;
   box-shadow:

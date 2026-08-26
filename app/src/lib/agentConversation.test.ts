@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { agentToolChip, formatDemoElapsed, messageSourceChips, thinkingSummary } from './agentConversation'
+import { agentFileDiffChips, agentToolChip, formatDemoElapsed, messageSourceChips, parseDiffPreview, thinkingSummary } from './agentConversation'
 import type { ChatActivityEntry } from './chatActivity'
 
 function entry(toolName: string, content: string): ChatActivityEntry {
@@ -53,5 +53,35 @@ describe('agent conversation chips', () => {
     expect(formatDemoElapsed(0)).toBe('0.0s')
     expect(formatDemoElapsed(100)).toBe('0.1s')
     expect(formatDemoElapsed(61200)).toBe('1m 1.2s')
+  })
+
+  it('lifts edit tools into file-diff chips with a hover preview', () => {
+    expect(parseDiffPreview('--- a\n+++ b\n@@\n-old hero\n+new hero\n keep')).toEqual([
+      { text: 'old hero', tone: 'del' },
+      { text: 'new hero', tone: 'add' },
+      { text: 'keep', tone: 'ctx' },
+    ])
+    const chips = agentFileDiffChips([{
+      id: 'tool:edit',
+      toolName: 'edit',
+      request: {
+        id: '1',
+        role: 'tool',
+        content: 'src/greet.ts +2 -1\n-hello\n+hello world',
+        timestamp: 1,
+        toolName: 'edit',
+        status: 'done',
+      },
+      running: false,
+    }])
+    expect(chips).toEqual([{
+      path: 'greet.ts',
+      add: 2,
+      del: 1,
+      lines: [
+        { text: 'hello', tone: 'del' },
+        { text: 'hello world', tone: 'add' },
+      ],
+    }])
   })
 })

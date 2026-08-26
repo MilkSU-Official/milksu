@@ -106,9 +106,9 @@ func (a *App) ProbeEnvLease(request envOwnerRequest) (string, error) {
 }
 
 type labEnvironmentProbe struct {
-	AndroidSDK     string `json:"androidSdk"`
-	JavaHome       string `json:"javaHome"`
-	AutoCreateAVD  bool   `json:"autoCreateAvd"`
+	AndroidSDK    string `json:"androidSdk"`
+	JavaHome      string `json:"javaHome"`
+	AutoCreateAVD bool   `json:"autoCreateAvd"`
 }
 
 func (a *App) GetLabEnvironmentStatus(probe labEnvironmentProbe) envbroker.AndroidToolingStatus {

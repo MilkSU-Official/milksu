@@ -247,18 +247,23 @@ describe('VulnPage thin workspace', () => {
     const { host } = await mountPage({ trackedIds: ['CVE-2024-3400'] })
     openTrackedRow(host, 'CVE-2024-3400')
     await nextTick()
-    host.querySelector<HTMLButtonElement>('[aria-label="收起对话"]')?.click()
-    await nextTick()
-    expect(host.querySelector('[data-testid="conversation-dock"]')?.classList.contains('is-collapsed')).toBe(true)
     const editor = host.querySelector<HTMLElement>('[aria-label="消息"]')
     expect(editor).not.toBeNull()
     const focus = vi.spyOn(editor!, 'focus')
 
     buttonWithText(host, '开始复现')?.click()
     await vi.waitFor(() => {
-      expect(host.querySelector('[data-testid="conversation-dock"]')?.classList.contains('is-collapsed')).toBe(false)
+      expect(host.querySelector('[data-testid="conversation-dock"]')).not.toBeNull()
       expect(focus).toHaveBeenCalled()
     })
+  })
+
+  it('can open the conversation dock on the CVE catalog', async () => {
+    const { host } = await mountList({ trackedIds: ['CVE-2024-3400'] })
+    expect(host.querySelector('[data-testid="open-item"]')).not.toBeNull()
+    expect(host.querySelector('[data-testid="conversation-dock"]')).not.toBeNull()
+    expect(host.querySelector('[aria-label="关闭对话"]')).not.toBeNull()
+    expect(host.querySelector('[aria-label="消息"]')).not.toBeNull()
   })
 
   it('keeps list titles selectable instead of opening the dossier from the row', async () => {

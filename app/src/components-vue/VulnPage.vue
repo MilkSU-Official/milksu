@@ -41,7 +41,7 @@ import type { Conversation } from '@/types'
 import type { CodingAgentSendArgs, CodingAgentSurfaceBind } from '@/lib/codingAgentSurface'
 import { vulnerabilityStatusLabel, type VulnerabilityIntel, type VulnerabilitySeverity, type VulnerabilityStatus } from '@/vulnerabilityIntel'
 import { ALL_COLLECTIONS_ID, createItemCollectionStore } from '@/lib/itemCollections'
-import { conversationActivityAt, relatedDomainConversations } from '@/lib/workspaceSessionRouting'
+import { conversationActivityAt } from '@/lib/workspaceSessionRouting'
 import { presentVulnerabilityVendorProduct } from '@/lib/vulnerabilityFeedImport'
 import { useDossierSplit } from '@/lib/useDossierSplit'
 import { t } from '@/lib/uiLocale'
@@ -79,6 +79,8 @@ const props = withDefaults(defineProps<{
   mcpConfigDigest?: string
   pendingComposerDraft?: CodingAgentSurfaceBind['pendingComposerDraft']
   ensureConversation?: (title?: string) => string
+  chatMaximized?: boolean
+  chatDockOpen?: boolean
 }>(), {
   codingWorkspacePath: '',
   navigationEpoch: 0,
@@ -96,6 +98,8 @@ const props = withDefaults(defineProps<{
   mcpServers: () => [],
   pendingComposerDraft: null,
   ensureConversation: () => '',
+  chatMaximized: false,
+  chatDockOpen: true,
 })
 
 const emit = defineEmits<{
@@ -109,10 +113,11 @@ const emit = defineEmits<{
   selectConversation: [id: string]
   createConversation: []
   expand: []
+  closeDock: []
   consumePendingDraft: []
   compactContext: []
   controlGoal: [action: 'pause' | 'resume' | 'clear']
-  respondApproval: [requestId: string, approved: boolean, scope?: 'once' | 'conversation']
+  respondApproval: [requestId: string, approved: boolean, scope?: 'once' | 'conversation', choice?: string]
   changeModel: [mode: 'auto' | 'manual', provider?: string, model?: string]
   changeModelSource: [preference: 'auto' | 'account' | 'personal']
   changeCodingPolicy: [
@@ -252,10 +257,7 @@ const { width: briefWidth, startResize: startBriefResize } = useDossierSplit('mi
 const liveTargetVisible = computed(() => targetOpen.value && envLease.value.state === 'ready')
 const conversationDock = ref<{ revealAndFocus: () => Promise<void> } | null>(null)
 
-const dossierConversations = computed(() => relatedDomainConversations(
-  props.conversations,
-  props.conversation ?? relatedConversations(selectedItem.value?.id ?? '')[0] ?? null,
-))
+
 
 function selectItem(id: string) {
   const item = dashboard.tracked.value.find(candidate => candidate.id === id)
@@ -288,6 +290,10 @@ watch(
 function clearSelection() {
   dashboard.selectedId.value = ''
 }
+
+watch(() => props.navigationEpoch, (epoch) => {
+  if (epoch) clearSelection()
+})
 
 function parseOccupyOwner(value?: string) {
   const raw = String(value || '')
@@ -698,7 +704,7 @@ function addSearchResult(candidate: VulnerabilitySearchCandidate) {
       </SettingsSection>
     </WorkspaceImportDialog>
 
-    <section class="tactical-paper-surface min-h-0 flex-1 overflow-auto bg-card" :aria-label="t('CVE 列表', 'CVE list')">
+    <section class="min-h-0 flex-1 overflow-auto bg-background" :aria-label="t('CVE 列表', 'CVE list')">
       <div class="min-w-[1120px]">
         <div class="tactical-desk-head tactical-table-head grid h-12 grid-cols-[170px_minmax(240px,1.2fr)_minmax(160px,.9fr)_88px_132px_42px_minmax(7rem,1fr)_72px] items-center gap-4 border-b border-border px-6 text-caption text-muted-foreground">
           <span class="whitespace-nowrap">CVE</span>
@@ -844,58 +850,6 @@ function addSearchResult(candidate: VulnerabilitySearchCandidate) {
         />
       </div>
     </div>
-    <ConversationDock
-      ref="conversationDock"
-      :conversation="conversation ?? null"
-      :conversations="dossierConversations"
-      :running="running"
-      :aborting="aborting"
-      :settings="settings"
-      :workspace-path="workspacePath"
-      :message-queue="messageQueue"
-      :session-ready="sessionReady"
-      :resumed="resumed"
-      :compacting="compacting"
-      :compacted-at="compactedAt"
-      :compaction-error="compactionError"
-      :turn-status="turnStatus"
-      :ctf-session="ctfSession"
-      :vulnerability-session="vulnerabilitySession"
-      :ctf-mode="ctfMode"
-      :ctf-role="ctfRole"
-      :model-mode="modelMode"
-      :model-provider="modelProvider"
-      :model-id="modelId"
-      :model-source-preference="modelSourcePreference"
-      :execution-mode="executionMode"
-      :approval-policy="approvalPolicy"
-      :mcp-servers="mcpServers"
-      :mcp-config-digest="mcpConfigDigest"
-      :ensure-conversation="ensureConversation"
-      :pending-composer-draft="pendingComposerDraft"
-      @send="(...args) => $emit('send', ...args)"
-      @abort="$emit('abort')"
-      @select="$emit('selectConversation', $event)"
-      @create="$emit('createConversation')"
-      @expand="$emit('expand')"
-      @consume-pending-draft="$emit('consumePendingDraft')"
-      @compact-context="$emit('compactContext')"
-      @control-goal="$emit('controlGoal', $event)"
-      @respond-approval="(requestId, approved, scope) => $emit('respondApproval', requestId, approved, scope)"
-      @change-model="(mode, provider, model) => $emit('changeModel', mode, provider, model)"
-      @change-model-source="$emit('changeModelSource', $event)"
-      @change-coding-policy="(mode, policy) => $emit('changeCodingPolicy', mode, policy)"
-      @change-mcp-servers="(servers, digest) => $emit('changeMcpServers', servers, digest)"
-      @choose-workspace="$emit('chooseWorkspace')"
-      @choose-workspace-for-new-task="$emit('chooseWorkspaceForNewTask')"
-      @select-workspace="$emit('selectWorkspace', $event)"
-      @forget-workspace="$emit('forgetWorkspace', $event)"
-      @clear-workspace="$emit('clearWorkspace')"
-      @cancel-queued-guidance="$emit('cancelQueuedGuidance', $event)"
-      @edit-queued-guidance="$emit('editQueuedGuidance', $event)"
-      @open-settings="$emit('openSettings')"
-    />
-
     <Dialog v-model:open="showStartEnv">
       <DialogContent class="sm:max-w-md">
         <DialogHeader>
@@ -909,11 +863,62 @@ function addSearchResult(candidate: VulnerabilitySearchCandidate) {
       </DialogContent>
     </Dialog>
   </main>
+  <ConversationDock
+    v-if="!chatMaximized && chatDockOpen"
+    ref="conversationDock"
+    :conversation="conversation ?? null"
+    :running="running"
+    :aborting="aborting"
+    :settings="settings"
+    :workspace-path="workspacePath"
+    :message-queue="messageQueue"
+    :session-ready="sessionReady"
+    :resumed="resumed"
+    :compacting="compacting"
+    :compacted-at="compactedAt"
+    :compaction-error="compactionError"
+    :turn-status="turnStatus"
+    :ctf-session="ctfSession"
+    :vulnerability-session="vulnerabilitySession"
+    :ctf-mode="ctfMode"
+    :ctf-role="ctfRole"
+    :model-mode="modelMode"
+    :model-provider="modelProvider"
+    :model-id="modelId"
+    :model-source-preference="modelSourcePreference"
+    :execution-mode="executionMode"
+    :approval-policy="approvalPolicy"
+    :mcp-servers="mcpServers"
+    :mcp-config-digest="mcpConfigDigest"
+    :ensure-conversation="ensureConversation"
+    :pending-composer-draft="pendingComposerDraft"
+    @send="(...args) => $emit('send', ...args)"
+    @abort="$emit('abort')"
+    @select="$emit('selectConversation', $event)"
+    @close="$emit('closeDock')"
+    @expand="$emit('expand')"
+    @consume-pending-draft="$emit('consumePendingDraft')"
+    @compact-context="$emit('compactContext')"
+    @control-goal="$emit('controlGoal', $event)"
+    @respond-approval="(requestId, approved, scope, choice) => $emit('respondApproval', requestId, approved, scope, choice)"
+    @change-model="(mode, provider, model) => $emit('changeModel', mode, provider, model)"
+    @change-model-source="$emit('changeModelSource', $event)"
+    @change-coding-policy="(mode, policy) => $emit('changeCodingPolicy', mode, policy)"
+    @change-mcp-servers="(servers, digest) => $emit('changeMcpServers', servers, digest)"
+    @choose-workspace="$emit('chooseWorkspace')"
+    @choose-workspace-for-new-task="$emit('chooseWorkspaceForNewTask')"
+    @select-workspace="$emit('selectWorkspace', $event)"
+    @forget-workspace="$emit('forgetWorkspace', $event)"
+    @clear-workspace="$emit('clearWorkspace')"
+    @cancel-queued-guidance="$emit('cancelQueuedGuidance', $event)"
+    @edit-queued-guidance="$emit('editQueuedGuidance', $event)"
+    @open-settings="$emit('openSettings')"
+  />
 </template>
 
 <style scoped>
 .vuln-row { position: relative; cursor: default; transition: background-color 140ms ease; }
-.vuln-row-selected { background: var(--focus-panel); box-shadow: inset 4px 0 0 var(--signal-gold); }
+.vuln-row-selected { background: var(--hover-2); }
 .tactical-table-head { font-family: 'SFMono-Regular', monospace; letter-spacing: .08em; text-transform: uppercase; }
 .cve-search-dialog { max-height: min(760px, calc(100vh - 3rem)); overflow: hidden; }
 .cve-search-results { max-height: min(470px, calc(100vh - 17rem)); overflow: auto; }

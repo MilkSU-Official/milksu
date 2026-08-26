@@ -72,6 +72,7 @@ type Event struct {
 	Reason          string                   `json:"reason,omitempty"`
 	Approved        *bool                    `json:"approved,omitempty"`
 	Grantable       bool                     `json:"grantable,omitempty"`
+	Choice          string                   `json:"choice,omitempty"`
 	BackgroundTasks []BackgroundTask         `json:"backgroundTasks,omitempty"`
 	Goal            *CodingGoalState         `json:"goal,omitempty"`
 	Resumed         bool                     `json:"resumed,omitempty"`
@@ -236,6 +237,7 @@ type bridgeEvent struct {
 	Reason          string                   `json:"reason"`
 	Approved        *bool                    `json:"approved"`
 	Grantable       bool                     `json:"grantable"`
+	Choice          string                   `json:"choice"`
 	Tasks           []BackgroundTask         `json:"tasks"`
 	Goal            *CodingGoalState         `json:"goal"`
 	Resumed         bool                     `json:"resumed"`
@@ -1149,6 +1151,7 @@ func (s *Supervisor) RespondToolApproval(
 	requestID string,
 	approved bool,
 	scope string,
+	choice string,
 ) error {
 	if strings.TrimSpace(sessionID) == "" {
 		return fmt.Errorf("session id is required")
@@ -1172,6 +1175,9 @@ func (s *Supervisor) RespondToolApproval(
 	}
 	if strings.TrimSpace(scope) == "conversation" {
 		command["scope"] = "conversation"
+	}
+	if trimmed := strings.TrimSpace(choice); trimmed != "" {
+		command["choice"] = trimmed
 	}
 	return writeCommand(s.process.stdin, command)
 }
@@ -2004,6 +2010,7 @@ func normalizeBridgeEvent(raw bridgeEvent) Event {
 		Reason:          raw.Reason,
 		Approved:        raw.Approved,
 		Grantable:       raw.Grantable,
+		Choice:          raw.Choice,
 		BackgroundTasks: raw.Tasks,
 		Goal:            raw.Goal,
 		Resumed:         raw.Resumed,

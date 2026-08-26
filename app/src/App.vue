@@ -13,7 +13,11 @@ import {
   writeThemeMode,
   type ThemeMode,
 } from '@/lib/themeMode'
-import { settingsReturnSection, type CTFWorkspaceSection } from '@/lib/workspaceNavigation'
+import {
+  isDomainWorkspace,
+  settingsReturnSection,
+  type CTFWorkspaceSection,
+} from '@/lib/workspaceNavigation'
 import {
   applyLabJobRecord,
   hydrateLabJobsFromBackend,
@@ -30,7 +34,11 @@ import { readWorkspaceViewState, writeWorkspaceViewState } from '@/lib/workspace
 import { buildCTFDomainTaskContext, buildCVEDomainTaskContext } from '@/lib/domainTaskContext'
 import { labBriefing } from '@/lib/researchBriefing'
 import {
+  conversationWorkspaceHome,
+  isHomeConversation,
+  rememberItemChatAnchor,
   rememberWorkspaceConversation,
+  selectAnchoredDomainConversationId,
   selectCTFResumePoint,
   selectReusableDomainConversationId,
 } from '@/lib/workspaceSessionRouting'
@@ -60,11 +68,15 @@ const section = ref<Section>(restoredViewState?.section ?? 'ctf')
 const codingConversationDrawerOpen = ref(restoredViewState?.codingHistoryOpen ?? true)
 const ctfSection = ref<CTFWorkspaceSection>(restoredViewState?.ctfSection ?? 'catalog')
 const ctfResumeJobId = ref<string | null>(null)
+const ctfCatalogEpoch = ref(0)
 const vulnNavigationEpoch = ref(0)
 const lastCodingConversationId = ref<string | null>(null)
 const lastCTFConversationId = ref<string | null>(null)
 const lastLabConversationId = ref<string | null>(null)
 const activeVulnerabilityCodingConversationId = ref<string | null>(null)
+const itemChatAnchors = ref<Record<string, string>>({})
+const domainChatMaximized = ref({ ctf: false, vuln: false, lab: false })
+const domainChatDockOpen = ref({ ctf: false, vuln: false, lab: false })
 // CVE authorization is selected on the CVE surface. It must never inherit the
 // currently active Coding or CTF conversation workspace implicitly.
 const vulnerabilityCodingWorkspacePath = ref('')
@@ -192,14 +204,27 @@ const activeCTFConversation = computed(() => (
   Boolean(conversations.active.value?.ctfJobId)
 ))
 const activeVulnerabilityCodingConversation = computed(() => (
+  conversations.active.value?.domainTaskContext?.kind === 'cve'
+))
+const sidebarSection = computed(() => section.value)
+const dossierChatMaximized = computed(() => {
+  if (section.value === 'ctf') return domainChatMaximized.value.ctf
+  if (section.value === 'vuln') return domainChatMaximized.value.vuln
+  if (section.value === 'lab') return domainChatMaximized.value.lab
+  return false
+})
+const workspaceSurfaceVisible = computed(() => (
   section.value === 'chat'
-  && Boolean(conversations.activeId.value)
-  && conversations.activeId.value === activeVulnerabilityCodingConversationId.value
-  && !activeCTFConversation.value
+  || section.value === 'ctf'
+  || section.value === 'vuln'
+  || section.value === 'lab'
 ))
-const sidebarSection = computed(() => (
-  section.value === 'chat' && activeCTFConversation.value ? 'ctf' : section.value
-))
+const domainDockOpen = computed(() => {
+  if (section.value === 'ctf') return domainChatDockOpen.value.ctf
+  if (section.value === 'vuln') return domainChatDockOpen.value.vuln
+  if (section.value === 'lab') return domainChatDockOpen.value.lab
+  return false
+})
 const codingAgentBind = computed<CodingAgentSurfaceBind>(() => ({
   settings: settings.value,
   workspacePath: conversations.workspacePath.value,
@@ -313,7 +338,6 @@ function startSecurityToolCodingSetup(handoff: SecurityToolCodingHandoff) {
   conversations.setCodingPolicy(handoff.executionMode, handoff.approvalPolicy)
   conversations.stageComposerDraft(handoff.prompt, handoff.visibleText)
   lastCodingConversationId.value = null
-  activeVulnerabilityCodingConversationId.value = null
   section.value = 'chat'
 }
 
@@ -321,40 +345,41 @@ function newConversation() {
   rememberActiveConversation()
   conversations.startNew()
   lastCodingConversationId.value = null
-  activeVulnerabilityCodingConversationId.value = null
   section.value = 'chat'
 }
 
-function openHistoryConversation(conversationId: string) {
-  const target = conversations.conversations.value.find(item => item.id === conversationId)
-  if (!target) return
-  rememberActiveConversation()
-  conversations.activeId.value = conversationId
-  if (target.ctfJobId) {
-    lastCTFConversationId.value = conversationId
-  } else {
-    lastCodingConversationId.value = conversationId
+function newWorkspaceConversation() {
+  if (isDomainWorkspace(section.value)) {
+    createDossierConversation()
+    return
   }
-  activeVulnerabilityCodingConversationId.value = null
-  section.value = 'chat'
+  newConversation()
+}
+
+function openHistoryConversation(conversationId: string) {
+  selectSidebarConversation(conversationId)
 }
 
 function rememberActiveConversation() {
   const remembered = rememberWorkspaceConversation(conversations.active.value, {
     codingConversationId: lastCodingConversationId.value,
     ctfConversationId: lastCTFConversationId.value,
+    vulnConversationId: activeVulnerabilityCodingConversationId.value,
+    labConversationId: lastLabConversationId.value,
   })
   lastCodingConversationId.value = remembered.codingConversationId
   lastCTFConversationId.value = remembered.ctfConversationId
+  activeVulnerabilityCodingConversationId.value = remembered.vulnConversationId
+  lastLabConversationId.value = remembered.labConversationId
+  itemChatAnchors.value = rememberItemChatAnchor(itemChatAnchors.value, conversations.active.value)
 }
 
 function restoreCodingWorkspace() {
   const restored = conversations.conversations.value.find(conversation => (
-    conversation.id === lastCodingConversationId.value && !conversation.ctfJobId
+    conversation.id === lastCodingConversationId.value && isHomeConversation(conversation)
   ))
   if (restored) conversations.activeId.value = restored.id
   else conversations.startNew()
-  activeVulnerabilityCodingConversationId.value = null
 }
 
 function restoreCTFWorkspaceResumePoint() {
@@ -375,28 +400,32 @@ function restoreConversation(id: string | null) {
   }
 }
 
+function openDomainCatalog(home: 'ctf' | 'vuln' | 'lab') {
+  rememberActiveConversation()
+  if (home === 'ctf') {
+    ctfResumeJobId.value = null
+    ctfCatalogEpoch.value += 1
+  }
+  if (home === 'lab') labJobs.selectedId.value = ''
+  if (home === 'vuln') {
+    vulnerabilityDashboard.selectedId.value = ''
+    vulnNavigationEpoch.value += 1
+  }
+  conversations.startNew({ workspaceHome: home })
+  setDomainChatMaximized(false)
+  setDomainChatDockOpen(false, home)
+  section.value = home
+}
+
 function navigateSection(value: Section) {
   debugLog('section', value)
-  rememberActiveConversation()
-  if (value === 'ctf') {
-    restoreCTFWorkspaceResumePoint()
-    restoreConversation(lastCTFConversationId.value)
-    section.value = value
+  if (value === 'ctf' || value === 'vuln' || value === 'lab') {
+    openDomainCatalog(value)
     return
   }
+  rememberActiveConversation()
   if (value === 'chat') {
     restoreCodingWorkspace()
-    section.value = value
-    return
-  }
-  if (value === 'vuln') {
-    vulnNavigationEpoch.value += 1
-    restoreConversation(activeVulnerabilityCodingConversationId.value)
-    section.value = value
-    return
-  }
-  if (value === 'lab') {
-    restoreConversation(lastLabConversationId.value)
     section.value = value
     return
   }
@@ -407,32 +436,64 @@ function returnToCTFWorkspace() {
   rememberActiveConversation()
   restoreCTFWorkspaceResumePoint()
   restoreConversation(lastCTFConversationId.value)
+  setDomainChatMaximized(false)
   section.value = 'ctf'
 }
 
 function returnToVulnerabilityWorkspace() {
   rememberActiveConversation()
   restoreConversation(activeVulnerabilityCodingConversationId.value)
+  setDomainChatMaximized(false)
   section.value = 'vuln'
 }
 
 function returnToLabWorkspace() {
   rememberActiveConversation()
   restoreConversation(lastLabConversationId.value)
+  setDomainChatMaximized(false)
   section.value = 'lab'
 }
 
-function expandDossierToCoding() {
+function setDomainChatMaximized(value: boolean) {
+  if (section.value !== 'ctf' && section.value !== 'vuln' && section.value !== 'lab') return
+  domainChatMaximized.value = { ...domainChatMaximized.value, [section.value]: value }
+}
+
+function setDomainChatDockOpen(value: boolean, home: Section = section.value) {
+  if (home !== 'ctf' && home !== 'vuln' && home !== 'lab') return
+  domainChatDockOpen.value = { ...domainChatDockOpen.value, [home]: value }
+}
+
+function maximizeDossierChat() {
   rememberActiveConversation()
-  const active = conversations.active.value
-  if (active?.ctfJobId || active?.domainTaskContext?.kind === 'ctf') {
-    lastCTFConversationId.value = conversations.activeId.value
-  } else if (active?.domainTaskContext?.kind === 'lab') {
-    lastLabConversationId.value = conversations.activeId.value
-  } else {
-    activeVulnerabilityCodingConversationId.value = conversations.activeId.value
+  setDomainChatDockOpen(true)
+  setDomainChatMaximized(true)
+}
+
+function restoreDossierChat() {
+  setDomainChatMaximized(false)
+  setDomainChatDockOpen(true)
+}
+
+function closeDossierChat() {
+  setDomainChatMaximized(false)
+  setDomainChatDockOpen(false)
+}
+
+function selectSidebarConversation(id: string) {
+  const target = conversations.conversations.value.find(item => item.id === id)
+  if (!target) return
+  rememberActiveConversation()
+  conversations.activeId.value = id
+  rememberActiveConversation()
+  const home = conversationWorkspaceHome(target)
+  codingConversationDrawerOpen.value = true
+  if (home === 'chat') {
+    section.value = 'chat'
+    return
   }
-  section.value = 'chat'
+  section.value = home
+  setDomainChatDockOpen(true, home)
 }
 
 async function chooseAgentWorkspace() {
@@ -520,39 +581,23 @@ async function startCTFAgent(handoff: CTFAgentWorkspaceHandoff & {
     autoSend: false,
   })
   lastCTFConversationId.value = conversations.activeId.value
+  setDomainChatDockOpen(true)
 }
 
 function selectDossierConversation(id: string) {
   if (!conversations.conversations.value.some(item => item.id === id)) return
   conversations.activeId.value = id
-  const active = conversations.active.value
-  if (active?.ctfJobId || active?.domainTaskContext?.kind === 'ctf') {
-    lastCTFConversationId.value = id
-  } else if (active?.domainTaskContext?.kind === 'lab') {
-    lastLabConversationId.value = id
-  } else {
-    activeVulnerabilityCodingConversationId.value = id
-  }
+  rememberActiveConversation()
+  setDomainChatDockOpen(true)
 }
 
 function createDossierConversation() {
-  const current = conversations.active.value
-  const context = current?.domainTaskContext
-  if (!current || !context) return
-  const title = context.kind === 'cve'
-    ? t(`${context.cveId} 复现`, `${context.cveId} reproduction`)
-    : context.kind === 'lab'
-      ? context.title
-      : context.challengeTitle
-  const id = conversations.ensureConversation(title, {
-    conversationId: crypto.randomUUID(),
-    domainTaskContext: context,
-    workspacePath: current.workspacePath,
-    ctfJobId: current.ctfJobId,
-    ctfMode: current.ctfMode,
-    ctfRole: current.ctfRole,
-  })
-  selectDossierConversation(id)
+  const home = section.value
+  if (home !== 'ctf' && home !== 'vuln' && home !== 'lab') return
+  rememberActiveConversation()
+  conversations.startNew({ workspaceHome: home })
+  setDomainChatMaximized(false)
+  setDomainChatDockOpen(true, home)
 }
 
 async function bindDossierConversation(
@@ -561,10 +606,17 @@ async function bindDossierConversation(
   domainTaskContext: NonNullable<import('@/lib/domainTaskContext').DomainTaskContext>,
 ) {
   rememberActiveConversation()
+  const reused = selectAnchoredDomainConversationId(
+    conversations.conversations.value,
+    domainTaskContext,
+    itemChatAnchors.value,
+  )
   conversations.ensureConversation(title, {
-    conversationId,
+    conversationId: reused ?? conversationId,
     domainTaskContext,
   })
+  rememberActiveConversation()
+  setDomainChatDockOpen(true)
   try {
     const workspace = await invokeCommand<string>('ensure_coding_artifact_workspace', {
       conversationId: conversations.activeId.value,
@@ -640,8 +692,7 @@ function applyWorkspaceRecord(payload: {
       return
     }
     if (kind === 'conversation' && id) {
-      conversations.activeId.value = id
-      section.value = 'chat'
+      selectSidebarConversation(id)
     }
     return
   }
@@ -721,10 +772,9 @@ async function startVulnerabilityCodingTask(
       context,
     ),
     setLastCodingConversationId: id => {
-      lastCodingConversationId.value = id
       activeVulnerabilityCodingConversationId.value = id
     },
-    setSection: value => { section.value = value },
+    setSection: () => { section.value = 'vuln' },
   })
   // recordHandoff = opened shared Coding; not Agent started / network.
   if (accepted) {
@@ -942,7 +992,7 @@ onBeforeUnmount(() => {
         :ctf-section="ctfSection"
         :coding-context-open="codingConversationDrawerOpen"
         :theme-mode="themeMode"
-        @new="newConversation"
+        @new="newWorkspaceConversation"
         @navigate="navigateSection"
         @profile="navigateSection('profile')"
         @account-login="startAccountLogin"
@@ -951,12 +1001,7 @@ onBeforeUnmount(() => {
         @toggle-theme="toggleThemeMode"
         @open-coding-context="codingConversationDrawerOpen = true"
         @collapse-coding-context="codingConversationDrawerOpen = false"
-        @select-conversation="id => {
-          conversations.activeId.value = id
-          rememberActiveConversation()
-          section = 'chat'
-          codingConversationDrawerOpen = true
-        }"
+        @select-conversation="selectSidebarConversation"
         @delete-conversation="conversations.archive"
         @delete-conversation-permanently="conversations.remove"
         @new-project-session="newCodingProjectSession"
@@ -984,14 +1029,19 @@ onBeforeUnmount(() => {
         :vulnerabilities="vulnerabilityDashboard.tracked.value"
         @account-status-change="accountStatus = $event"
       />
+      <div
+        v-show="workspaceSurfaceVisible"
+        class="relative flex min-h-0 min-w-0 flex-1"
+      >
       <KeepAlive include="CTFPage,VulnPage,LabPage">
         <CTFPage
-          v-if="section === 'ctf'"
+          v-if="section === 'ctf' && !dossierChatMaximized"
           v-bind="codingAgentBind"
           :model-ready="modelReady"
           :model-verified="modelVerified"
           :arena-ready="arenaReady"
           :initial-job-id="ctfResumeJobId"
+          :catalog-epoch="ctfCatalogEpoch"
           :ctf-section="ctfSection"
           :conversations="conversations.conversations.value"
           :conversation="conversations.active.value"
@@ -1003,7 +1053,10 @@ onBeforeUnmount(() => {
           @abort="abortConversation"
           @select-conversation="selectDossierConversation"
           @create-conversation="createDossierConversation"
-          @expand="expandDossierToCoding"
+          :chat-maximized="dossierChatMaximized"
+          :chat-dock-open="domainDockOpen"
+          @expand="maximizeDossierChat"
+          @close-dock="closeDossierChat"
           @consume-pending-draft="conversations.consumeComposerDraft()"
           @ctf-action="runCTFChatAction"
           @compact-context="conversations.compactContext"
@@ -1024,7 +1077,7 @@ onBeforeUnmount(() => {
           @edit-queued-guidance="conversations.editQueuedGuidance"
         />
         <VulnPage
-          v-else-if="section === 'vuln'"
+          v-else-if="section === 'vuln' && !dossierChatMaximized"
           v-bind="codingAgentBind"
           :dashboard="vulnerabilityDashboard"
           :coding-workspace-path="vulnerabilityCodingWorkspacePath"
@@ -1041,7 +1094,10 @@ onBeforeUnmount(() => {
           @abort="abortConversation"
           @select-conversation="selectDossierConversation"
           @create-conversation="createDossierConversation"
-          @expand="expandDossierToCoding"
+          :chat-maximized="dossierChatMaximized"
+          :chat-dock-open="domainDockOpen"
+          @expand="maximizeDossierChat"
+          @close-dock="closeDossierChat"
           @consume-pending-draft="conversations.consumeComposerDraft()"
           @compact-context="conversations.compactContext"
           @control-goal="conversations.controlGoal"
@@ -1063,7 +1119,7 @@ onBeforeUnmount(() => {
           @open-lab-settings="openSettings('lab')"
         />
         <LabPage
-          v-else-if="section === 'lab'"
+          v-else-if="section === 'lab' && !dossierChatMaximized"
           v-bind="codingAgentBind"
           :conversations="conversations.conversations.value"
           :conversation="conversations.active.value"
@@ -1075,7 +1131,10 @@ onBeforeUnmount(() => {
           @abort="abortConversation"
           @select-conversation="selectDossierConversation"
           @create-conversation="createDossierConversation"
-          @expand="expandDossierToCoding"
+          :chat-maximized="dossierChatMaximized"
+          :chat-dock-open="domainDockOpen"
+          @expand="maximizeDossierChat"
+          @close-dock="closeDossierChat"
           @consume-pending-draft="conversations.consumeComposerDraft()"
           @compact-context="conversations.compactContext"
           @control-goal="conversations.controlGoal"
@@ -1098,7 +1157,8 @@ onBeforeUnmount(() => {
         />
       </KeepAlive>
       <ChatPage
-        v-if="section === 'chat'"
+        v-if="section === 'chat' || dossierChatMaximized"
+        class="min-h-0 min-w-0 flex-1 bg-surface-editor"
         :conversation="conversations.active.value"
         :settings="settings"
         :workspace-path="conversations.workspacePath.value"
@@ -1127,12 +1187,13 @@ onBeforeUnmount(() => {
         :ensure-conversation="conversations.ensureConversation"
         :pending-composer-draft="conversations.pendingComposerDraft.value"
         :conversation-drawer-open="codingConversationDrawerOpen"
+        :restorable="dossierChatMaximized"
         @send="conversations.send"
         @consume-pending-draft="conversations.consumeComposerDraft()"
         @ctf-action="runCTFChatAction"
         @abort="abortConversation"
         @compact-context="conversations.compactContext"
-        @new-conversation="newConversation"
+        @new-conversation="newWorkspaceConversation"
         @control-goal="conversations.controlGoal"
         @respond-approval="conversations.respondApproval"
         @edit-user="conversations.editAndResend"
@@ -1154,9 +1215,11 @@ onBeforeUnmount(() => {
         @return-ctf="returnToCTFWorkspace"
         @return-vuln="returnToVulnerabilityWorkspace"
         @return-lab="returnToLabWorkspace"
+        @restore="restoreDossierChat"
         @switch-ctf-agent="switchCTFAgent"
         @toggle-conversation-drawer="toggleCodingConversationDrawer"
       />
+      </div>
     </div>
     <CodingToolBudgetDialog
       :open="Boolean(toolBudgetPrompt)"
