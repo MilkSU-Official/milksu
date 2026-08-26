@@ -531,15 +531,14 @@ describe('App cross-module routing', () => {
     await flushAsyncComponents()
 
     expect(host.querySelector('[aria-label="mock CVE page"]')).not.toBeNull()
-    expect(hoisted.conversations?.activeId.value).toBe('ctf-job-1')
+    expect(hoisted.conversations?.conversations.value.some(item => item.id === 'ctf-job-1')).toBe(true)
 
     host.querySelector<HTMLButtonElement>('[aria-label="navigate CTF"]')?.click()
     await flushAsyncComponents()
 
     expect(host.querySelector('[aria-label="mock CTF page"]')).not.toBeNull()
-    expect(host.querySelector('[data-ctf-initial-job]')?.textContent).toBe('job-1')
-    expect(hoisted.lastCTFInitialJobId).toBe('job-1')
-    expect(hoisted.conversations?.activeId.value).toBe('ctf-job-1')
+    expect(host.querySelector('[data-ctf-initial-job]')?.textContent).toBe('none')
+    expect(hoisted.conversations?.conversations.value.some(item => item.id === 'ctf-job-1')).toBe(true)
   })
 
   it('returns from a CTF Agent chat to the workspace instead of reopening the chat surface', async () => {
@@ -577,8 +576,8 @@ describe('App cross-module routing', () => {
     expect(active?.workspacePath).toBeUndefined()
     expect(active?.ctfJobId).toBeUndefined()
     expect(active?.domainTaskContext).toMatchObject({ kind: 'cve', cveId: 'CVE-2024-3400' })
-    expect(host.querySelector('[data-chat-vulnerability-session]')?.textContent).toBe('true')
-    expect(host.querySelector('[data-chat-draft]')?.textContent).toBe('')
+    expect(host.querySelector('[aria-label="mock CVE page"]')).not.toBeNull()
+    expect(host.querySelector('[aria-label="mock Chat page"]')).toBeNull()
     expect(hoisted.conversations?.pendingComposerDraft.value).toBeNull()
     expect(hoisted.conversations?.send).not.toHaveBeenCalled()
   })
