@@ -104,7 +104,7 @@ jobs:
           test "$("$node_runtime" --version)" = 'v24.18.0'
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends xvfb
-          sudo apt-get install -y --no-install-recommends "$package"
+          sudo apt-get install -y --no-install-recommends "./$package"
           test -x /opt/MilkSU/milksu
           app='/opt/MilkSU/milksu'
           MILKSU_INSTANCE_ID=linux-arm64-smoke xvfb-run -a "$app" --no-sandbox \
