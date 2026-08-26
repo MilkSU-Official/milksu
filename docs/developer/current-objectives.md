@@ -147,6 +147,7 @@
 - `milksu_ask` 把用户选择行接到 Pi 并暂停回合。流式正文走真实 token 的模糊尾；文件改动用 chips。
 - README 截图已按当前 UI 重拍。
 - Linux 安装面改为同一 amd64 staging：Ubuntu/Debian `.deb`、Omarchy `tar.gz`+PKGBUILD、NixOS flake。GNOME 与 Hyprland 使用 Wayland ozone auto。Computer Use、OCR、Secret Service 仍 unavailable。
+- Linux 桌面图标按 hicolor 常用尺寸（48/256 等）从 `build/appicon.png` 生成；不再只装 1024，避免 GNOME 找不到图标时落到齿轮。
 
 ## 当前产品事实
 

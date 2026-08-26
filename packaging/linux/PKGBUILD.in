@@ -32,5 +32,6 @@ EOF
   install -Dm644 "${startdir}/milksu.desktop" "${pkgdir}/usr/share/applications/milksu.desktop"
   if [[ -f "${pkgdir}/opt/MilkSU/milksu.png" ]]; then
     install -Dm644 "${pkgdir}/opt/MilkSU/milksu.png" "${pkgdir}/usr/share/icons/hicolor/256x256/apps/milksu.png"
+    install -Dm644 "${pkgdir}/opt/MilkSU/milksu.png" "${pkgdir}/usr/share/pixmaps/milksu.png"
   fi
 }

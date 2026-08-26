@@ -28,6 +28,8 @@ test -n "$package"
 pacman -U --noconfirm "$package"
 test -x /opt/MilkSU/milksu
 test -x /usr/bin/milksu
+test -f /usr/share/icons/hicolor/256x256/apps/milksu.png
+test -f /usr/share/pixmaps/milksu.png
 node_runtime=/opt/MilkSU/resources/milksu-sidecar/node
 test -x "$node_runtime"
 test "$("$node_runtime" --version)" = "v24.18.0"

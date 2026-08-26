@@ -54,6 +54,7 @@ const { openLocalPath } = require('./local-path.cjs')
 const {
   applyLinuxChromiumFlags,
   linuxUserAgent,
+  linuxWindowIconPath,
 } = require('./linux-desktop.cjs')
 const {
   desktopBackendEnvironment,
@@ -729,6 +730,12 @@ function lockedWindowTitle() {
 }
 
 function createWindow() {
+  const linuxIcon = linuxWindowIconPath({
+    platform: process.platform,
+    isPackaged: app.isPackaged,
+    resourcesPath: process.resourcesPath,
+    repositoryRoot: path.join(__dirname, '..'),
+  })
   mainWindow = new BrowserWindow({
     title: lockedWindowTitle(),
     width: 1440,
@@ -737,6 +744,7 @@ function createWindow() {
     minHeight: 680,
     show: false,
     backgroundColor: '#f7f7f5',
+    ...(linuxIcon ? { icon: linuxIcon } : {}),
     ...(process.platform === 'darwin' ? {
       titleBarStyle: 'hiddenInset',
       // Layout-safe traffic lights: fixed shell inset, not a machine-specific screenshot fudge.

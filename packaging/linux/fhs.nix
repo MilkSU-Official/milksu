@@ -44,6 +44,11 @@ pkgs.buildFHSEnv {
       substitute ${unpacked}/../milksu.desktop $out/share/applications/milksu.desktop \
         --replace-fail "Exec=env ELECTRON_OZONE_PLATFORM_HINT=auto milksu %U" "Exec=$out/bin/milksu %U"
     fi
+    if [ -f ${unpacked}/milksu.png ]; then
+      mkdir -p $out/share/icons/hicolor/256x256/apps $out/share/pixmaps
+      cp ${unpacked}/milksu.png $out/share/icons/hicolor/256x256/apps/milksu.png
+      cp ${unpacked}/milksu.png $out/share/pixmaps/milksu.png
+    fi
   '';
   runScript = "${unpacked}/milksu";
 }

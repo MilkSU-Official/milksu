@@ -22,6 +22,7 @@ import {
 import { desktopAccountConfigFromEnvironment } from './lib/desktop-account-config.mjs'
 import { desktopChannelConfig } from './lib/desktop-channel.mjs'
 import { readLinuxPkgbuildTemplate, renderLinuxPkgbuild } from './lib/linux-packages.mjs'
+import { writeLinuxIconSet } from './lib/linux-icons.mjs'
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const channelConfig = desktopChannelConfig('stable')
@@ -128,6 +129,13 @@ for (const file of [
   if (!files.includes(file)) files.push(file)
 }
 
+const linuxIconDir = join(stagingDirectory, 'linux-icons')
+const linuxIcon256 = join(linuxIconDir, '256x256.png')
+await writeLinuxIconSet({
+  sourcePng: await readFile(join(repositoryRoot, 'build', 'appicon.png')),
+  outputDirectory: linuxIconDir,
+})
+
 const builderConfig = {
   ...desktopPackage.build,
   appId: channelConfig.appId,
@@ -153,11 +161,15 @@ const builderConfig = {
     { from: sidecarPath, to: 'milksu-sidecar' },
     { from: trackingPath, to: BUILD_TRACKING_RESOURCE },
     { from: accountConfigPath, to: 'account-config.json' },
+    { from: linuxIcon256, to: 'icon.png' },
+  ],
+  extraFiles: [
+    { from: linuxIcon256, to: 'milksu.png' },
   ],
   directories: { output: outputDirectory },
   artifactName: `MilkSU-Linux-${artifactArch}-\${version}.\${ext}`,
   linux: {
-    icon: join(repositoryRoot, 'build', 'appicon.png'),
+    icon: linuxIconDir,
     target: [
       { target: 'deb', arch: [electronArch] },
       { target: 'tar.gz', arch: [electronArch] },

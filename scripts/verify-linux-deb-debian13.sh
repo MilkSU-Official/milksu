@@ -23,9 +23,20 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get install -y --no-install-recommends /tmp/milksu.deb
 test -x /opt/MilkSU/milksu
+test -f /usr/share/icons/hicolor/48x48/apps/milksu.png
+test -f /usr/share/icons/hicolor/256x256/apps/milksu.png
 node_runtime=/opt/MilkSU/resources/milksu-sidecar/node
 test -x "$node_runtime"
 test "$("$node_runtime" --version)" = "v24.18.0"
+"$node_runtime" -e '
+const fs = require("fs");
+function pngSize(path) {
+  const buf = fs.readFileSync(path);
+  return buf.readUInt32BE(16) + "x" + buf.readUInt32BE(20);
+}
+if (pngSize("/usr/share/icons/hicolor/48x48/apps/milksu.png") !== "48x48") process.exit(1);
+if (pngSize("/usr/share/icons/hicolor/256x256/apps/milksu.png") !== "256x256") process.exit(1);
+'
 grep -q linux/amd64 /opt/MilkSU/resources/milksu-sidecar/manifest.json
 test "$("$node_runtime" -p 'require("/opt/MilkSU/resources/milksu-sidecar/manifest.json").platform')" = "linux/amd64"
 

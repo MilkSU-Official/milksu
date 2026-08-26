@@ -1,5 +1,7 @@
 'use strict'
 
+const path = require('node:path')
+
 function applyLinuxChromiumFlags(
   commandLine,
   platform = process.platform,
@@ -60,8 +62,21 @@ function linuxDesktopSession(environment = process.env) {
   }
 }
 
+function linuxWindowIconPath({
+  platform = process.platform,
+  isPackaged = false,
+  resourcesPath = '',
+  repositoryRoot = '',
+} = {}) {
+  if (platform !== 'linux') return ''
+  if (isPackaged) return path.join(String(resourcesPath || ''), 'icon.png')
+  if (repositoryRoot) return path.join(repositoryRoot, 'build', 'appicon.png')
+  return ''
+}
+
 module.exports = {
   applyLinuxChromiumFlags,
   linuxUserAgent,
   linuxDesktopSession,
+  linuxWindowIconPath,
 }

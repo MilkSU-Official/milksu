@@ -2,10 +2,12 @@
 
 const assert = require('node:assert/strict')
 const test = require('node:test')
+const path = require('node:path')
 const {
   applyLinuxChromiumFlags,
   linuxDesktopSession,
   linuxUserAgent,
+  linuxWindowIconPath,
 } = require('./linux-desktop.cjs')
 
 test('Linux Chromium uses ozone auto so GNOME and Hyprland pick Wayland', () => {
@@ -59,4 +61,16 @@ test('desktop session detection distinguishes GNOME and Hyprland', () => {
   assert.equal(hyprland.hyprland, true)
   assert.equal(hyprland.gnome, false)
   assert.equal(hyprland.wayland, true)
+})
+
+test('Linux window icon uses packaged icon.png or the brand asset', () => {
+  assert.equal(linuxWindowIconPath({ platform: 'darwin', isPackaged: true, resourcesPath: '/tmp' }), '')
+  assert.equal(
+    linuxWindowIconPath({ platform: 'linux', isPackaged: true, resourcesPath: '/opt/MilkSU/resources' }),
+    path.join('/opt/MilkSU/resources', 'icon.png'),
+  )
+  assert.equal(
+    linuxWindowIconPath({ platform: 'linux', isPackaged: false, repositoryRoot: '/repo' }),
+    path.join('/repo', 'build', 'appicon.png'),
+  )
 })
