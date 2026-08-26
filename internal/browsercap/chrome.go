@@ -13,6 +13,61 @@ func findChrome() (string, error) {
 	return findChromeWith(runtime.GOOS, os.Getenv, exec.LookPath, regularFile)
 }
 
+// FindChrome locates a Chromium-family browser for Browser Use.
+func FindChrome() (string, error) {
+	return findChrome()
+}
+
+type BrowserUseRuntime struct {
+	Found    bool   `json:"found"`
+	Name     string `json:"name,omitempty"`
+	Problem  string `json:"problem,omitempty"`
+	NextStep string `json:"nextStep,omitempty"`
+}
+
+func BrowserUseRuntimeStatus() BrowserUseRuntime {
+	return browserUseRuntimeStatus(runtime.GOOS, findChrome)
+}
+
+func browserUseRuntimeStatus(goos string, locate func() (string, error)) BrowserUseRuntime {
+	path, err := locate()
+	if err != nil {
+		return BrowserUseRuntime{
+			Problem:  "没有找到 Chrome、Chromium 或 Edge。",
+			NextStep: browserUseNextStep(goos),
+		}
+	}
+	return BrowserUseRuntime{
+		Found: true,
+		Name:  browserUseDisplayName(path),
+	}
+}
+
+func browserUseDisplayName(path string) string {
+	base := strings.ToLower(filepath.Base(path))
+	switch {
+	case strings.Contains(base, "msedge") || strings.Contains(base, "microsoft-edge"):
+		return "Microsoft Edge"
+	case strings.Contains(base, "brave"):
+		return "Brave"
+	case strings.Contains(base, "google-chrome") || base == "chrome" || base == "chrome.exe":
+		return "Google Chrome"
+	default:
+		return "Chromium"
+	}
+}
+
+func browserUseNextStep(goos string) string {
+	switch goos {
+	case "darwin":
+		return "安装 Google Chrome 或 Microsoft Edge，然后重新检测。"
+	case "windows":
+		return "安装 Google Chrome 或 Microsoft Edge，然后重新检测。"
+	default:
+		return "从系统软件源安装 Chromium，然后重新检测。Omarchy 默认已有 Chromium。"
+	}
+}
+
 func regularFile(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && info.Mode().IsRegular()
@@ -56,6 +111,9 @@ func findChromeWith(
 }
 
 func chromePathNames() []string {
+	if runtime.GOOS == "windows" {
+		return []string{"chrome.exe", "msedge.exe", "brave.exe"}
+	}
 	return []string{
 		"google-chrome-stable",
 		"google-chrome",
@@ -77,7 +135,25 @@ func chromeFixedCandidates(goos string, getenv func(string) string) []string {
 			"/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
 		}
 	case "windows":
-		return nil
+		programFiles := strings.TrimSpace(getenv("ProgramFiles"))
+		programFilesX86 := strings.TrimSpace(getenv("ProgramFiles(x86)"))
+		localAppData := strings.TrimSpace(getenv("LOCALAPPDATA"))
+		var candidates []string
+		for _, root := range []string{programFiles, programFilesX86} {
+			if root == "" {
+				continue
+			}
+			candidates = append(candidates,
+				filepath.Join(root, "Google", "Chrome", "Application", "chrome.exe"),
+				filepath.Join(root, "Microsoft", "Edge", "Application", "msedge.exe"),
+			)
+		}
+		if localAppData != "" {
+			candidates = append(candidates,
+				filepath.Join(localAppData, "Google", "Chrome", "Application", "chrome.exe"),
+			)
+		}
+		return candidates
 	default:
 		candidates := []string{
 			"/usr/bin/google-chrome-stable",

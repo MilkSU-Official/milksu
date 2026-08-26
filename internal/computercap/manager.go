@@ -18,7 +18,7 @@ import (
 
 const (
 	DriverVersion           = "0.14.2"
-	linuxComputerUseProblem = "Computer Use 当前在 Linux 上不可用。MilkSU 可在 GNOME 与 Hyprland 运行，但不控制宿主桌面。"
+	linuxComputerUseProblem = "Computer Use 当前在 Linux 上不可用。请用 Browser Use 操作本机 Chromium。宿主桌面控制需要 GNOME 门户授权，不会走 xinput 摘键鼠。"
 	defaultHostBundleID     = "com.milksu.app"
 	runtimeRoot             = "/private/tmp/milksu-computer-use"
 	hostBundleIDEnv         = "MILKSU_DESKTOP_APP_ID"

@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -327,8 +328,12 @@ func (m *Manager) Start(ctx context.Context, initialURL string) (Session, error)
 	arguments := []string{
 		"--remote-debugging-address=127.0.0.1", "--remote-debugging-port=0", "--user-data-dir=" + profile,
 		"--no-first-run", "--no-default-browser-check", "--disable-sync", "--disable-component-update",
-		"--metrics-recording-only", "--disable-breakpad", "--new-window", initialURL,
+		"--metrics-recording-only", "--disable-breakpad", "--new-window",
 	}
+	if runtime.GOOS == "linux" {
+		arguments = append(arguments, "--ozone-platform-hint=auto")
+	}
+	arguments = append(arguments, initialURL)
 	command := exec.Command(binary, arguments...)
 	command.Env = browserEnvironment()
 	if err := command.Start(); err != nil {

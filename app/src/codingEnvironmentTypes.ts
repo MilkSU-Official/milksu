@@ -248,6 +248,13 @@ export interface CodingComputerUsePermissions {
   screenRecording: boolean
 }
 
+export interface BrowserUseRuntime {
+  found: boolean
+  name?: string
+  problem?: string
+  nextStep?: string
+}
+
 export type CodingComputerUsePermission = 'accessibility' | 'screen-recording'
 
 export interface CodingComputerUseSigning {

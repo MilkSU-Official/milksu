@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import {
+  chmod,
   lstat,
   mkdir,
   mkdtemp,
@@ -22,7 +23,9 @@ import {
   computerUseSandboxProfile,
   computerUseSelectionChanged,
   createFirstPartyPlaywrightMcpServer,
+  browserUseExecutableCandidatesFor,
   createFirstPartyBrowserUseMcpServer,
+  resolveBrowserUseExecutable,
   ensureMcpMetadataCache,
   loadCodingMcpConfig,
   loadSelectedMcpConfig,
@@ -316,6 +319,23 @@ test("builds Browser Use from the pinned Playwright extension mode", async () =>
   )));
   assert.deepEqual(builtIn.server.excludeTools, ["browser_run_code_unsafe"]);
   assert.equal(builtIn.server.lifecycle, "lazy");
+});
+
+test("resolves Linux Chromium for Browser Use instead of macOS-only Chrome", async () => {
+  const linux = browserUseExecutableCandidatesFor("linux", { HOME: "/home/milksu" });
+  assert.ok(linux.includes("/usr/bin/chromium"));
+  assert.ok(linux.includes("/snap/bin/chromium"));
+  assert.ok(linux.includes("/home/milksu/.nix-profile/bin/chromium"));
+  const workspace = await mkdtemp(join(tmpdir(), "milksu-browser-use-linux-"));
+  const nixChrome = join(workspace, ".nix-profile", "bin", "chromium");
+  await mkdir(dirname(nixChrome), { recursive: true });
+  await writeFile(nixChrome, "#!/bin/sh\n");
+  await chmod(nixChrome, 0o755);
+  const found = await resolveBrowserUseExecutable("linux", {
+    HOME: workspace,
+    PATH: "/nonexistent",
+  });
+  assert.equal(found, nixChrome);
 });
 
 test("keeps the Browser Use sentinel out of project MCP selection", () => {

@@ -127,6 +127,7 @@ async function mountSettingsPage(
       startedAt: '2026-08-03T05:00:00Z',
     }),
     GetCodingComputerUseStatus: async () => defaultComputerUseStatus,
+    GetBrowserUseRuntime: async () => ({ found: true, name: 'Chromium' }),
     GetNSSCTFWebBridgeStatus: async () => ({
       bridge: {
         endpoint: 'ws://127.0.0.1:43123',
@@ -596,7 +597,7 @@ describe('SettingsPage database compatibility', () => {
     expect(text).toContain('打开辅助功能设置')
     expect(text).not.toContain('打开屏幕录制设置')
     expect(text).not.toContain('已授权')
-    expect(connectionLiveStates()).toEqual(['off', 'off', 'live'])
+    expect(connectionLiveStates()).toEqual(['live', 'off', 'off', 'live'])
 
     const refresh = [...document.querySelectorAll<HTMLButtonElement>('button')]
       .find(button => button.textContent?.includes('重新检测'))
@@ -612,7 +613,7 @@ describe('SettingsPage database compatibility', () => {
     expect(text).toContain('屏幕录制')
     expect(text).not.toContain('已授权')
     expect(text).not.toContain('打开辅助功能设置')
-    expect(connectionLiveStates()).toEqual(['off', 'live', 'live'])
+    expect(connectionLiveStates()).toEqual(['live', 'off', 'live', 'live'])
   })
 
   it('keeps explicit Computer Use permission authorization available on unstable builds', async () => {
@@ -700,12 +701,13 @@ describe('SettingsPage database compatibility', () => {
     expect(text).toContain('Computer Use')
     expect(text).toContain('安装扩展')
     expect(text).toContain('检测')
+    expect(text).toContain('已找到 Chromium')
     expect(text).not.toContain('Playwright MCP')
     expect(text).not.toContain('CTF 平台 Bridge')
     expect(text).not.toContain('等待连接')
     expect(text).not.toContain('外部 App 权限')
     expect(text).not.toContain('已授权')
-    expect(connectionLiveStates()).toEqual(['off', 'live', 'live'])
+    expect(connectionLiveStates()).toEqual(['live', 'off', 'live', 'live'])
   })
 
   it('keeps settings saved and explains an offline model verification failure', async () => {

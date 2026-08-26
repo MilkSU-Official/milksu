@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -75,5 +76,23 @@ func TestDesktopExecPathReadsFirstCommand(t *testing.T) {
 	got := desktopExecPath("[Desktop Entry]\nName=Chromium\nExec=/usr/bin/chromium --password-store=basic %U\n")
 	if got != "/usr/bin/chromium" {
 		t.Fatalf("got %q", got)
+	}
+}
+
+func TestBrowserUseRuntimeStatusNamesLinuxChromium(t *testing.T) {
+	got := browserUseRuntimeStatus("linux", func() (string, error) {
+		return "/usr/bin/chromium", nil
+	})
+	if !got.Found || got.Name != "Chromium" {
+		t.Fatalf("%#v", got)
+	}
+}
+
+func TestBrowserUseRuntimeStatusAsksLinuxToInstallChromium(t *testing.T) {
+	got := browserUseRuntimeStatus("linux", func() (string, error) {
+		return "", errors.New("missing")
+	})
+	if got.Found || !strings.Contains(got.NextStep, "Chromium") {
+		t.Fatalf("%#v", got)
 	}
 }

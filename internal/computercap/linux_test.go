@@ -19,7 +19,7 @@ func TestLinuxComputerUseStaysUnavailableWithoutHostControl(t *testing.T) {
 	if status.Available || status.Phase != "unavailable" {
 		t.Fatalf("Linux Computer Use must stay unavailable: %#v", status)
 	}
-	if !strings.Contains(status.Problem, "Linux") || !strings.Contains(status.Problem, "不控制宿主桌面") {
+	if !strings.Contains(status.Problem, "Linux") || !strings.Contains(status.Problem, "Browser Use") {
 		t.Fatalf("Linux unavailable copy = %q", status.Problem)
 	}
 	prepared, err := manager.Prepare(t.Context(), PrepareOptions{})
