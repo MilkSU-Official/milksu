@@ -216,7 +216,7 @@ Windows 签名、Linux 缺失能力、R2/OTA 仍是发行后续，不是产品�
 | P0 | Pi Runtime 用户验收 | 最新正式包中验证跨目录读写、CTF/CVE 交接、长输出续跑和重启恢复，不出现 MilkSU 自建 workspace 策略或旧 session ID。 |
 | P1 | 下一版三端回执发行 | 需要新的版本号、同一 source commit、三端产物、SHA-256 与平台验收。现有 `v26.825.1` 只覆盖 `efddfc2`。 |
 | P1 | OTA 与私有 R2 | Admin 草稿/发布/暂停和 Desktop 更新提示已有；仍需一次受账户鉴权的真实旧签名版 → 新签名版升级回执。 |
-| P1 | Linux 四发行版支持 | 按 [Linux 四发行版支持合同](linux-platform-support.md) 分开交付 Ubuntu 24.04、Debian 13、Omarchy 4、NixOS 26.05 的安装面、桌面集成与能力矩阵。先保持 x86_64；GNOME Wayland Computer Use 必须通过 Portal 精确 Scope 与崩溃恢复门，Hyprland Portal 或独立原生/受管 Surface 后端通过准入前明确降级；不恢复 ISSUE #19 的 X11 物理设备摘除路径。 |
+| P1 | Linux Debian 13 安装面 | 同一 amd64 DEB 在 Debian 13 上完成 `apt`/`dpkg` 安装，打包的 Go Runtime 与 Pi Sidecar 能启动。CUA、OCR、Secret Service 仍 unavailable。不恢复 ISSUE #19 的 X11 物理设备摘除。四发行版边界见 [Linux 四发行版支持合同](linux-platform-support.md)，不作为本切片完成门。 |
 | P1 | 安全工具真实任务 | IDA/idalib 与 capa 已有设置、准备和健康检查；用受控本地样本留下真实任务回执。就绪工具接到实验室作业，窄工具也可进 CVE 复现；不需要先开一次“是否投影”的会。不把 HexStrike 整包 MCP 做成产品页或 Kali 应用商店。CodeQL、Burp、Shannon 仍逐项接入。 |
 | P1 | Obelisk 学习记录 | 先定义可归因学习事实，再设计独立页面；不恢复已删除的单会话相关历史/图谱面板。 |
 | 未接线 | 继续同一作业还是新开一轮 | 当前按同一 CVE/实验室作业复用同一会话和 `report.md`。新开一轮的产品决策还没定。 |

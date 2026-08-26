@@ -161,6 +161,12 @@ const builderConfig = {
     synopsis: 'Personal security learning and research workspace',
     description: 'MilkSU desktop workspace for Coding, CTF and CVE learning workflows.',
   },
+  deb: {
+    // electron-builder default Recommends libappindicator3-1, which is Ubuntu-only.
+    // Debian 13 ships libayatana-appindicator3-1 instead. Keep the shared DEB
+    // installable on both without a missing recommend.
+    recommends: [],
+  },
 }
 delete builderConfig.mac
 delete builderConfig.win

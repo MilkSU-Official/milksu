@@ -118,6 +118,12 @@ jobs:
           wait "$app_pid" || true
           pkill -f milksu-backend || true
           trap - EXIT
+      - name: Install the deb on Debian 13
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./desktop/package.json').version")"
+          package="build/release/MilkSU-Linux-x64-${version}.deb"
+          bash scripts/verify-linux-deb-debian13.sh "$package"
       - uses: actions/upload-artifact@v4
         with:
           name: MilkSU-Linux-x64-deb-trial
