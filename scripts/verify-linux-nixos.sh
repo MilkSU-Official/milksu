@@ -4,12 +4,16 @@ set -euo pipefail
 
 unpacked="${1:?path to linux-unpacked}"
 image="${NIX_IMAGE:-nixos/nix}"
+case "${NIX_PLATFORM:-$(uname -m)}" in
+  aarch64|arm64|linux/arm64) platform=linux/arm64 ;;
+  *) platform=linux/amd64 ;;
+esac
 
 unpacked="$(cd "$unpacked" && pwd)"
 test -x "$unpacked/milksu"
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 
-docker run -i --rm --platform linux/amd64 \
+docker run -i --rm --platform "$platform" \
   -v "$unpacked:/unpacked:ro" \
   -v "$repo_root/packaging/linux:/packaging:ro" \
   -e MILKSU_LINUX_UNPACKED=/unpacked \

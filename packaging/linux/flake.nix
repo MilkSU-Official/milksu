@@ -5,8 +5,7 @@
 
   outputs = { self, nixpkgs }:
     let
-      system = "x86_64-linux";
-      pkgs = nixpkgs.legacyPackages.${system};
+      systems = [ "x86_64-linux" "aarch64-linux" ];
       unpackedEnv = builtins.getEnv "MILKSU_LINUX_UNPACKED";
       unpacked =
         if unpackedEnv != "" then /. + unpackedEnv
@@ -16,9 +15,15 @@
         let raw = builtins.getEnv "MILKSU_VERSION";
         in if raw != "" then raw else "0";
     in {
-      packages.${system}.default = pkgs.callPackage ./fhs.nix {
-        inherit unpacked version;
-      };
-      packages.${system}.milksu = self.packages.${system}.default;
+      packages = nixpkgs.lib.genAttrs systems (system:
+        let pkgs = nixpkgs.legacyPackages.${system};
+        in {
+          default = pkgs.callPackage ./fhs.nix {
+            inherit unpacked version;
+          };
+          milksu = pkgs.callPackage ./fhs.nix {
+            inherit unpacked version;
+          };
+        });
     };
 }

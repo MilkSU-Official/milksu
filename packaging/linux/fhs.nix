@@ -17,7 +17,11 @@ pkgs.buildFHSEnv {
       expat
       glib
       gtk3
+      fontconfig
+      freetype
+      gdk-pixbuf
       libdrm
+      libgbm
       libGL
       libnotify
       libsecret
@@ -27,6 +31,7 @@ pkgs.buildFHSEnv {
       nspr
       pango
       udev
+      wayland
       xorg.libX11
       xorg.libXcomposite
       xorg.libXdamage

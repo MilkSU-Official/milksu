@@ -35,6 +35,8 @@
 
 Debian 13 ARM64 Hyprland 0.55.2（trixie-backports，virtio-gpu）：tarball 应用在 `ozone-platform=wayland` 下启动，Hyprland `hyprctl clients` 可见 class `milksu`。Computer Use 为 unavailable，文案写明 Hyprland 暂不可用、不走 xinput。Hyprland 上 `ready-to-show` 可能不触发，Linux 会在 5 秒后 `show()`。这是试验回执，不是 GitHub Latest。
 
+NixOS 26.05 ARM64 GNOME 图形 live（virtio-gpu）：同一 ARM tarball 经 `packaging/linux` flake/`default.nix` 的 FHS 包装后，在 Wayland 上启动并显示出登录页。FHS 需要 `libgbm`（以及 fontconfig / freetype / gdk-pixbuf / wayland），否则 Electron 会在加载 `libgbm.so.1` 时退出。从 SSH 会话拉起时不要带无授权的 `DISPLAY`；图形会话内用 `ozone-platform=wayland`。这是试验回执，不是 GitHub Latest。Computer Use 未在该 live 上单独点授权，GNOME 仍走同一 Portal 路径。
+
 因此“有一个 DEB”不能写成“四个发行版已支持”。
 
 ## 支持矩阵
