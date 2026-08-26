@@ -2,7 +2,7 @@
 
 > 文档状态：Current
 >
-> 事实审计：2026-08-25；正式发行基线为 `v26.825.1 / efddfc2`。文档收口提交不移动该 tag。
+> 事实审计：2026-08-26；正式发行基线为 `v26.825.1 / efddfc2`。文档收口提交不移动该 tag。
 > 2026-08-20 去掉把「尚未实现」写成禁令的口径；发行回执以 `efddfc2` 为准。
 >
 > 本页描述当前结构，不安排任务。动态进度、已发行与未发版分界以
@@ -57,7 +57,7 @@ MilkSU 的桌面壳不是通用 Agent Loop 的另一份实现。Pi 仍负责会�
 | --- | --- | --- | --- |
 | 浏览器 | MilkSU 管理的会话隔离 `WebContentsView` | 同一页面、地址、导航、当前会话与停止动作 | 不是外部 Chrome，不复用用户日常登录态 |
 | Browser Use | 用户真实 Chrome/Edge 中明确选择的标签页 | Composer 中可删除的标签页 Scope、配对状态与撤销入口 | 不获得整个 Profile，也不替代 CTF 平台 Judge |
-| Computer Use | 明确选择的外部 App / PID / Window，含用户真实浏览器窗口 | 可见窗口 Scope、系统权限状态、运行轨迹与停止动作 | 像素级窗口操作不替代隔离浏览器或 Browser Use 的结构化标签页控制 |
+| Computer Use | macOS / Windows：明确选择的外部 App / PID / Window；Linux GNOME：整桌面 Portal | 可见 Scope、系统权限状态、运行轨迹与停止动作 | 像素级操作不替代隔离浏览器或 Browser Use；Linux 不是窗口 Scope，Hyprland / Xorg unavailable |
 
 三种表面还共享一个生命周期不变量：**面板显隐只改变观察视图，不改变执行 Session**。右栏折叠、
 切换页面或用户回到聊天区时，已授权任务不应因此停止；用户重新展开后应看到同一会话的最新状态。
@@ -78,8 +78,8 @@ MilkSU 的桌面壳不是通用 Agent Loop 的另一份实现。Pi 仍负责会�
 | Pi 通用 Agent | **Verified core / partial extensions** | Pi 继续拥有 Session、Compaction、模型、自然语言理解和通用 Tool Loop；MilkSU 监管 Sidecar、注入当前 Provider、投影事件并实施工作区/审批边界。MilkSU 不从普通 prompt 的关键词或格式推断 Agent 意图：GUI 一键动作和内部无工具投影分别使用 typed product action / typed turn policy。每回合向 Pi 注入无凭据的真实 OS、架构、路径和实际命令解释器事实，并把经 Go / Sidecar 校验的主会话 cwd 声明为权威目录；协作 writer worktree 只属于独立 effectful subagent 进程。Windows 保持 Pi 上游 Bash backend，需要原生 cmdlet 时显式调用 `powershell.exe`。受管 Sidecar 启用 Pi 原生长 prompt-cache retention，沿用稳定 Session ID；一次性压缩继续显式禁用缓存写入，不增加 MilkSU 缓存状态机。模型目录值明确且非旧 `128000` 占位时保持权威；否则 Go、Sidecar 与 Vue 用同序的 GPT / Claude / Grok 型号族预设补齐 context window。GPT 与 Claude Opus / Sonnet / Fable 使用内置思考档位，其他模型只有经设置页手动声明后才进入该能力；Composer 保存对话级选择并只显示标准英文档位，Go 解析允许档位，Sidecar 通过 Pi 原生 `setThinkingLevel` 应用并让子 Agent 继承。当前 Pi 的 Provider effort 词表为 `off / minimal / low / medium / high / xhigh / max`，Codex `ultra` 多 Agent 编排不映射为模型 effort。已审核 Coding Skill 只向 Pi 常驻名称与用途，完整内容按任务或显式选择加载；设置只能停用审核目录。CTF / CVE / 实验室在 Pi Coding loop 之上叠加领域工具与 Judge，不再按角色关掉后台任务、Goal、LSP、Computer Use、终端或 `milksu_workspace`。Coding/CTF/CVE/实验室都强制 Pi 自动压缩，任务 UI `/compact` 不再按角色拒绝；工具结果进模型前截到 Pi 的 50KB/2000 行。CVE/实验室保留 `cve-research` / `lab-job` 角色。题目工作区绑定、未授权目标和独立 Judge 仍有效。图片输入按当前模型能力自动路由：image input 原生透传，否则本地 OCR，不存在用户配置的辅助视觉会话。实时网页查证复用固定 Pi Web Extension 的 `web_search` / `web_fetch`，MilkSU 只把工具注册进当前会话与现有工具档位，不再维护第二套搜索决策；真实联网测试已先搜索再读取 xAI 官方 Grok 4.5 文档。`26.818.2` 起 Coding 另暴露类型化 `milksu_workspace`（标签、产物、环境/变更/终端）和 `compact_context`；上下文用量达到窗口约 85% 且 Session 空闲时自动走 Pi `/compact` 同一路径，用户 `/compact` 与 `compact_context` 立即排队该路径、不受 85% 限制。`替我审批` 自动执行隔离浏览器；可授权工具支持本对话始终允许。TokenFlux `grok-4.5` 多模态和一次真实文档自举已验；本轮真实 Provider 缓存命中率与 effort 请求尚未做计费链路验收，完整功能自举仍未完成。 |
 | 安全工具目录 | **Verified setup chain / real binary task pending** | “设置 → 安全工具”使用真实 Desktop RPC 检测与持久化。IDA Pro/idalib 和 capa 具备可准备的固定版本适配器；就绪且启用后进入普通 Coding 的模型可选目录。“在 Coding 中配置”挂未发送草稿并预置 `Go · 完全访问`，发送后可准备用户级软件；本机 Stable 已安装 uv 与固定 idalib MCP、通过非交互健康检查并回到“可用”。CodeQL、Burp Suite、Shannon 目前仅做本机/前提检测，不会被误报为模型可用。尚未用真实 crackme/二进制完成任务回执。当前也还没接到 CTF/CVE；需要时按切片接入，不必先等 Coding 回执再开会决定。 |
 | 内置浏览器 | **Verified packaged tasks; multi-tab in 26.818.2; Go auto-start removed in 26.819.1** | 产品 UI 只显示“浏览器”。每次 Coding 会话使用独立 `session.fromPath`，默认拒绝页面权限。`26.817.1` 起已有打包任务：Grok 只用浏览器完成顺序点击、表单提交和公开文档调研，右栏折叠后继续并保留同一页面终态。`26.818.2` 起标签栏 `+` 在启动前可见；每个标签是独立 `WebContentsView`，切换换页并更新地址。`26.819.1` 起隔离浏览器只在用户打开右栏或模型调用类型化 `milksu_workspace` 浏览器动作时启动；普通 Go 问候不再 `EnsureCodingBrowser`。`ScopedCDPProxy` 仍只公布当前一个 Target。 |
-| Browser Use | **Implemented UI / live pairing pending** | 真实用户 Chrome/Edge 复用固定 `@playwright/mcp --extension`，由用户选择准确标签页；不复用内置浏览器 profile。 |
-| Computer Use | **Verified self-bootstrap slice; Windows bounded driver packaged in 26.818.2** | 只接受外部可见 App/PID/Window Scope，含用户真实浏览器窗口；Calculator 与 Stable → MilkSU Beta 的 branch/commit/tracking 核验、click/scroll 及 CTF/CVE 任务连续性全程已验。Stable 排除自身；隔离浏览器与 Browser Use 仍是独立表面。任务授权可恢复，明确请求且只有一个合格目标时自动启动，准备期间的提交在就绪后自动续发，多目标仍需准确选择。右栏诊断和操作证据默认折叠。`26.818.2` Windows 包打入有界会话、宿主 PID 排除和审阅过的 `cua-driver 0.14.2`。Driver 先走安装包/Sidecar；缺失时由类型化 `prepare_computer_use_driver` 准备 MilkSU 审阅副本，不走 Cua 官方安装脚本。 |
+| Browser Use | **Implemented UI / live pairing pending** | 真实用户 Chrome/Edge 复用固定 `@playwright/mcp --extension`，由用户选择准确标签页；不复用内置浏览器 profile。Linux / Windows 另查找本机 Chromium 家族（PATH、snap、Nix、桌面入口）；`v26.825.1` 试用 DEB 没有桌面 Browser Use 回执。 |
+| Computer Use | **Verified self-bootstrap slice; Windows bounded driver packaged in 26.818.2; Linux GNOME Portal on development HEAD** | macOS / Windows 只接受外部可见 App/PID/Window Scope，含用户真实浏览器窗口；Calculator 与 Stable → MilkSU Beta 的 branch/commit/tracking 核验、click/scroll 及 CTF/CVE 任务连续性全程已验。Stable 排除自身；隔离浏览器与 Browser Use 仍是独立表面。任务授权可恢复，明确请求且只有一个合格目标时自动启动，准备期间的提交在就绪后自动续发，多目标仍需准确选择。右栏诊断和操作证据默认折叠。`26.818.2` Windows 包打入有界会话、宿主 PID 排除和审阅过的 `cua-driver 0.14.2`。Driver 先走安装包/Sidecar；缺失时由类型化 `prepare_computer_use_driver` 准备 MilkSU 审阅副本，不走 Cua 官方安装脚本。Linux 按桌面会话：GNOME Wayland 走 XDG Desktop Portal（整桌面级，不是窗口 Scope），Ubuntu ARM 已验收授权/截屏/点击/打字/停止释放；Hyprland 与 Xorg unavailable，不走 `xinput`。ISSUE #19 已关闭。该 Linux Portal 路径尚未进入 GitHub Latest `v26.825.1`。 |
 | CTF Runtime | **Implemented / Daily receipt partial** | `internal/ctf` 持有 Challenge、Evidence、Candidate、Judge Receipt、Recovery、Memory 与学习事实；模型候选不能建立成功事实。CTF 通用文件与 Shell 复用 Pi 原生工具及用户系统权限，不再复制 workspace-only 沙箱；MilkSU 只保留题目域工具、精确站点能力、凭据隔离、Judge 和证据投影。模型输出达到长度上限时通过 Pi `agent_end` / `followUp` 扩展点继续。Daily 由规则筛选未完成候选，再复用 Pi 结合近期题目、关联 Coding 对话、已确认事实和 Memory 选择并解释；结果按本地日期固定并允许主动换题，模型不可用时规则兜底。代码与自动化已回归，真实签名包用户视角仍待复验。 |
 | CVE Learning / Tracking | **Verified signed tracking slice; reproduction dossier in 26.822.1; public feeds in 26.823.1** | 用户界面只显示明确加入的公开 CVE、手工状态，默认文案为“想研究”。添加入口通过只读 Desktop RPC 搜索 NVD，用户选中后直接把当前结果和来源元数据写入本地追踪，不做第二次网络请求；参考资料按机构去重，完整集合仍由 NVD 承载。学习专题已从 CVE 页删除，同类搜索改走列表右上角「导入」弹窗。`26.822.1` 点进档案后复现：Agent 编辑 `report.md`，对话留在右下角小窗。`26.823.1` 起「同步公开源」写入的 CISA KEV 条目会进入列表。不以「复现成功 / 没复现上」当完成面。披露草稿还没做，不是禁令。 |
 | Obelisk / 记忆底座 | **Implemented backend / UI deferred** | MilkSU 自有索引仍只处理本机 Coding/CTF/CVE 会话；当前产品不展示单会话历史面板或图谱。后续学习记录/记忆系统应作为独立页面进入，不移除或混写 Obelisk 与 CTF Memory 底层事实。 |
@@ -299,6 +299,7 @@ DEB 已在原生 Ubuntu 完成包结构、Node/Pi Sidecar、Go Runtime 与 Xvfb 
 Release 只提供 DMG、EXE 与 DEB，没有 OTA ZIP。纯文档提交不改变 `v26.825.1` 的 source commit。
 后续正式包应走 `release:verify` → 云端 macOS / Windows / Linux → `release:github` 创建 Release 页。
 
-Linux 包已包含当前 CTF/CVE 与通用 Coding 的 Pi Runtime 收敛，但仍是试用边界：不接 Secret Service、
-Computer Use 或本地 OCR 降级。Windows 未签名和 Linux 缺失能力必须在下载说明中明确，不能把三端构建
+Linux `v26.825.1` 包已包含当前 CTF/CVE 与通用 Coding 的 Pi Runtime 收敛，但仍是试用边界：该发行不接 Secret Service、
+Computer Use 或本地 OCR 降级。开发分支另有共用 tarball / PKGBUILD / Nix flake，以及 GNOME Portal Computer Use；
+未进入 Latest。Windows 未签名和 Linux 缺失能力必须在下载说明中明确，不能把三端构建
 回执外推为三个平台功能等价。OTA 的私有 R2/Admin current pointer 本次没有发布。

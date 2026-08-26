@@ -148,8 +148,8 @@
 - README 截图已按当前 UI 重拍。
 - Linux 正式包最多 4 个、默认只发 2 个跨发行版包：Ubuntu/Debian 共用 x64 `.deb`，Omarchy/Arch/Nix 共用 x64 `.tar.gz`（PKGBUILD 与 flake 是安装方法）。ARM 只作本机/CI 试验，不进 GitHub Latest。GNOME 与 Hyprland 使用 Wayland ozone auto。Secret Service / OCR 仍 unavailable。GNOME Computer Use 走 Portal 最小路径，不接 Cua、不碰 xinput。
 - Linux 桌面图标按 hicolor 常用尺寸（48/256 等）从 `build/appicon.png` 生成；不再只装 1024，避免 GNOME 找不到图标时落到齿轮。
-- Linux Browser Use 查找系统 Chromium/Chrome/Edge（含 PATH、snap、Nix、桌面入口）；设置页显示是否找到。Ubuntu ARM GNOME 虚拟机上用户点允许后：Portal 会话 ready、坐标点击成功、打字进入系统 UI、停止后键鼠会话释放。锁屏会抑制。Debian 13 ARM Hyprland 上应用以 Wayland 启动且窗口可见，Computer Use 保持 unavailable（不走 xinput）。不走 ISSUE #19 的 xinput。
-- 本切片 GUI 验收后，README 补 macOS / Windows / Linux 功能与安装矩阵（含四发行版怎么装）。未测完前不把 Portal 或 tarball 写成 GitHub Latest 已提供。
+- Linux Browser Use 查找系统 Chromium/Chrome/Edge（含 PATH、snap、Nix、桌面入口）；设置页显示是否找到。Ubuntu ARM GNOME 虚拟机上用户点允许后：Portal 会话 ready、坐标点击成功、打字进入系统 UI、停止后键鼠会话释放。锁屏会抑制。Debian 13 ARM Hyprland 上应用以 Wayland 启动且窗口可见，Computer Use 保持 unavailable（不走 xinput）。NixOS 26.05 ARM GNOME live：同一 tarball 经 flake FHS 包装后启动并显示登录页。ISSUE #19 的 X11 `xinput` 路径已拒绝合入并关闭。
+- README 已写 macOS / Windows / Linux 功能与安装矩阵。Portal 与 tarball **没有**进入 GitHub Latest `v26.825.1`。
 
 ## 当前产品事实
 
@@ -220,7 +220,7 @@ Windows 签名、Linux 缺失能力、R2/OTA 仍是发行后续，不是产品�
 | P0 | Pi Runtime 用户验收 | 最新正式包中验证跨目录读写、CTF/CVE 交接、长输出续跑和重启恢复，不出现 MilkSU 自建 workspace 策略或旧 session ID。 |
 | P1 | 下一版三端回执发行 | 需要新的版本号、同一 source commit、三端产物、SHA-256 与平台验收。现有 `v26.825.1` 只覆盖 `efddfc2`。 |
 | P1 | OTA 与私有 R2 | Admin 草稿/发布/暂停和 Desktop 更新提示已有；仍需一次受账户鉴权的真实旧签名版 → 新签名版升级回执。 |
-| P1 | Linux 安装面 | 四个发行版能装能跑，但 GitHub Release 只发共用 x64 `.deb` 和通用 x64 `.tar.gz`（最多再随附 PKGBUILD/desktop）。不按 arch×distro 打 8 份。ARM 只测不发。GNOME Computer Use 走 Portal 截屏/点击/打字。OCR / Secret Service 仍 unavailable，不恢复 ISSUE #19。合同见 [Linux 安装与桌面合同](linux-platform-support.md)。 |
+| P1 | 下一发行上传 Linux tarball | 本分支已验收四发行版安装面与 GNOME Portal；GitHub Latest 仍只有试用 DEB。下一版 Release 增加共用 x64 `.tar.gz`（PKGBUILD / flake 是安装方法）。OCR / Secret Service 仍缺。 |
 | P1 | 安全工具真实任务 | IDA/idalib 与 capa 已有设置、准备和健康检查；用受控本地样本留下真实任务回执。就绪工具接到实验室作业，窄工具也可进 CVE 复现；不需要先开一次“是否投影”的会。不把 HexStrike 整包 MCP 做成产品页或 Kali 应用商店。CodeQL、Burp、Shannon 仍逐项接入。 |
 | P1 | Obelisk 学习记录 | 先定义可归因学习事实，再设计独立页面；不恢复已删除的单会话相关历史/图谱面板。 |
 | 未接线 | 继续同一作业还是新开一轮 | 当前按同一 CVE/实验室作业复用同一会话和 `report.md`。新开一轮的产品决策还没定。 |

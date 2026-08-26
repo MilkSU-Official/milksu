@@ -98,24 +98,67 @@ MilkSU 会把当前任务可用的能力告诉模型，再由模型按上下文�
 
 - **项目能力**：文件、Shell、Git、LSP、测试与产物预览；
 - **网页能力**：会话隔离的内置浏览器，以及你明确选择的真实 Chrome / Edge 标签页；
-- **桌面能力**：针对准确 App 和窗口的 Computer Use；
+- **桌面能力**：macOS / Windows 上针对准确 App 和窗口的 Computer Use；Linux GNOME Wayland 走系统桌面共享（整桌面级，不是窗口 Scope），Hyprland 与 Xorg 暂不可用，不会用 `xinput` 摘键鼠；
 - **安全工具**：设置里准备 IDA Pro / idalib、capa 等本机能力，就绪后可进 Coding 或实验室作业；
 - **工作台动作**：列出或切换内置浏览器标签，打开产物 / 环境 / 变更 / 终端，以及改会话名、归档、更新 CVE、创建实验室或 CTF 记录。设置、凭据、审批档和你自己的 Chrome 不在这个工具里。
 
 ## 开始使用
 
-当前 Latest 是 `26.825.1`。Windows 安装器尚未代码签名，Linux 该发行仍是试用 DEB。
+当前 Latest 是 `26.825.1`。Windows 安装器尚未代码签名，Linux 该发行仍是试用 DEB。系统和桌面支持见下一节。
 
 1. 从 [Releases](https://github.com/MilkSU-Official/milksu/releases/tag/v26.825.1) 下载 `26.825.1`：
    - **macOS Apple Silicon**：Developer ID 签名并经 Apple 公证的 DMG，正式支持；
    - **Windows x64**：未签名安装器，可能出现 SmartScreen 提示；打包 Runtime 与 Pi Agent 回合已在真实安装包验证；
-   - **Linux x64**：试用 DEB，已验证包结构、Sidecar、Go Runtime 与 Xvfb 启动，不含 Secret Service 或本地 OCR。下一版最多再提供一份通用 tarball（Ubuntu/Debian 仍用同一 DEB；Omarchy/Nix 用 tarball）。不按发行版×架构拆 8 份包。见 [Linux 安装与桌面合同](docs/developer/linux-platform-support.md)。
+   - **Linux x64**：试用 DEB，已验证包结构、Sidecar、Go Runtime 与 Xvfb 启动。该发行不含 Secret Service、本地 OCR 或 Computer Use。
 2. 安装并打开 MilkSU；
 3. 使用 GitHub 登录；
 4. 由管理员为账户开通模型，或在“设置 → 模型”中添加自己的 Provider / OpenAI-compatible 中转站；
 5. 选择 Coding、CTF、CVE 或实验室，开始第一个任务。
 
 账户未分配模型额度时仍可登录和浏览本地功能，只是暂时不能发起模型任务。macOS 正式版本使用 Developer ID 签名与 Apple 公证；Stable 客户端支持登录后检查受保护的应用更新，但 `26.825.1` 没有发布 OTA。
+
+## 系统、桌面与安装
+
+正式发行架构是 macOS ARM64、Windows x64、Linux x64。Apple Silicon 上的 Linux ARM 虚拟机只作开发测试，ARM 包不进入 GitHub Latest。不按发行版×架构发 8 份 Linux 包。
+
+### 可下载：`v26.825.1`
+
+| 系统 | 安装包 | Computer Use | Browser Use | 说明 |
+| --- | --- | --- | --- | --- |
+| macOS Apple Silicon | 签名公证 DMG | App / Window Scope | 用户选择的 Chrome / Edge 标签 | 正式支持 |
+| Windows x64 | 未签名 EXE | 有界 CUA Driver | 用户选择的 Chrome / Edge 标签 | 可能出现 SmartScreen |
+| Linux x64 | 试用 DEB | 该发行没有 | 该发行没有桌面回执 | Xvfb 启动验证；无 Secret Service / 本地 OCR |
+
+### 下一发行默认的 Linux 安装面（本分支已验收，尚未上传 Latest）
+
+GitHub Release 最多 4 个 Linux 文件，默认 2 个跨发行版包：Ubuntu / Debian 共用一份 `.deb`；Omarchy / Arch / NixOS 共用一份 `.tar.gz`（PKGBUILD 与 flake 是安装方法，不是第三、第四份二进制）。
+
+| 环境 | 怎么装 | 应用与 Pi 工作循环 | Host Computer Use |
+| --- | --- | --- | --- |
+| Ubuntu 24.04 · GNOME Wayland | 共用 `.deb` | ARM 虚拟机已见窗口、hicolor 图标、隔离浏览器 | Portal：系统授权框、整桌面截屏 / 坐标点击 / 打字；停止后键鼠仍在 |
+| Debian 13 · GNOME Wayland | 同一份 `.deb` | 与 Ubuntu 同类，本切片跳过独立桌面验收 | 同上 |
+| Omarchy · Hyprland | 同一份 `.tar.gz` + 仓库 `PKGBUILD` | ARM 上用 Debian 13 + Hyprland 0.55 做过窗口试验；Omarchy 官方 ISO 仍是 x86_64 | unavailable（上游尚无可靠 RemoteDesktop） |
+| NixOS · GNOME | 同一份 `.tar.gz` + 仓库 flake | ARM live 上 FHS 包装后启动并显示登录页 | GNOME 同 Portal；该 live 未再点授权 |
+| NixOS / 其它 · Hyprland | 同上 flake | 窗口路径与 Omarchy 同类 | unavailable |
+| 任意 Linux · Xorg | 上面两种包之一 | 应用可开 | unavailable；**不会**用 `xinput` 摘物理键鼠 |
+
+Linux Computer Use 按桌面会话实现，不按发行版写四套后端，也不接 Cua。ISSUE [#19](https://github.com/MilkSU-Official/milksu/issues/19) 的 X11 `xinput detach` 路径已拒绝合入。
+
+开发分支里的安装方式：
+
+```bash
+# Ubuntu 24.04 / Debian 13
+sudo apt install ./MilkSU-Linux-x64-<version>.deb
+
+# Arch / Omarchy：用同一 tarball 和仓库 packaging/linux/PKGBUILD.in
+# （填入版本与 sha256 后）
+makepkg -si
+
+# NixOS：解压同一 tarball，再用仓库 packaging/linux 包装
+MILKSU_LINUX_UNPACKED=/path/to/linux-unpacked nix --impure build ./packaging/linux
+```
+
+合同与边界：[Linux 安装与桌面合同](docs/developer/linux-platform-support.md)。
 
 ## 本地优先
 

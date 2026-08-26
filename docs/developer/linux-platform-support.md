@@ -18,7 +18,7 @@
    PKGBUILD、`.desktop` 和 flake 是安装方法，不是额外的二进制产品。不要为每个发行版、每种 CPU 再打一份。
 3. 正式发行架构仍是 `linux/amd64`。Apple Silicon 上的 ARM 虚拟机只作开发测试：ARM 上跑通后，同一代码打 x64 包。ARM DEB/tarball 可以留在本机或 CI 试验产物里，不进入 GitHub Latest。
 4. Ubuntu 与 Debian 共用那份 `.deb`，不能假定 Ubuntu-only 包名。Omarchy / NixOS 不要求用户拆 DEB。
-5. 不恢复 ISSUE #19 的 X11 `cua-driver --permission-mode bounded` 路径。Linux 产品代码不运行 `xinput detach/disable`，不把 root/uinput 或 `/dev/input` 做成隐式后门，也不接入 Cua Linux 驱动。
+5. ISSUE [#19](https://github.com/MilkSU-Official/milksu/issues/19) 已关闭：X11 `cua-driver --permission-mode bounded` 与 `xinput detach/disable` 拒绝合入。Linux 产品代码不运行 `xinput detach/disable`，不把 root/uinput 或 `/dev/input` 做成隐式后门，也不接入 Cua Linux 驱动。Xorg 会话 Computer Use 保持 unavailable。若以后做 X11，另开 XTEST 合成事件的 issue，不复活摘设备路径。
 6. GNOME Wayland 的宿主 Computer Use 走 XDG Desktop Portal 最小路径：系统授权框、截屏、按坐标点击、打字；停止或崩溃后物理键鼠仍归用户。这是整桌面级输入，不能写成 macOS/Windows 那种精确窗口 Scope。Hyprland 在上游 RemoteDesktop 可依赖之前保持 unavailable。
 7. NixOS 没有 Ubuntu 式 LTS。flake 随当时仍受支持的 nixpkgs 通道重验。Omarchy 是滚动发行，安装面随官方包仓走。
 8. 嵌套 Wayland session、Hyprland 私有协议后端、CDP 附着外部 Electron App，都不是本安装合同的一部分。
@@ -64,7 +64,7 @@ Ubuntu / Debian 的 Xorg 会话只做负向验收：Computer Use 不走 `xinput`
 
 按显示协议与 compositor 实现，不按发行版写四份后端，也不按 CPU 写两套包。
 
-ISSUE [#19](https://github.com/MilkSU-Official/milksu/issues/19) 保持 open，直到真实桌面后端证明：不碰 `xinput`、不摘物理设备、停止/崩溃后键鼠仍可用。关闭说明必须是“X11 后端拒绝合入；Portal 路径已通过崩溃恢复验收”，不能是“已经写了计划”。
+ISSUE [#19](https://github.com/MilkSU-Official/milksu/issues/19) 已关闭：X11 后端拒绝合入；GNOME Wayland Portal 路径已通过停止后键鼠仍可用的验收。
 
 GNOME Portal 只承诺显示器级输入，产品文案必须写明，不得冒充 App/Window Scope。Hyprland 在上游 RemoteDesktop 可依赖前保持 unavailable。
 
@@ -94,9 +94,10 @@ GNOME Portal 只承诺显示器级输入，产品文案必须写明，不得冒�
 
 - Debian 13 GNOME 与 Ubuntu 同类，本切片跳过独立 Debian GNOME 验收；
 - Omarchy 官方 ISO 仍是 x86_64；ARM 上用 Debian 13 + Hyprland 0.55 做过 Wayland 试验，不是 Omarchy 发行面回执；
-- NixOS 还没有正式 GitHub Release 回执；
+- NixOS ARM GNOME live 已有 FHS 启动回执，仍没有正式 GitHub Release 回执；
 - Linux Secret Service 与本地 OCR 仍未实现；
 - Hyprland RemoteDesktop 尚未成为可依赖的正式上游能力，Computer Use 保持 unavailable；
-- Linux ARM64 不是发行架构。
+- Linux ARM64 不是发行架构；
+- Portal 与通用 tarball 尚未进入 GitHub Latest `v26.825.1`。
 
 在这些事实形成前，README、下载页与 Release Notes 继续只把已上传的 x64 包写成可下载产物。
