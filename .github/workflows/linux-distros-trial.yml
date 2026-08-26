@@ -38,16 +38,6 @@ jobs:
         env:
           MILKSU_ACCOUNT_API_URL: https://accounts.milksu.org
         run: npm run desktop:release:linux
-      - name: Verify deb, Debian 13, Arch and Nix wrappers
-        run: |
-          set -euo pipefail
-          version="$(node -p "require('./desktop/package.json').version")"
-          package="build/release/MilkSU-Linux-x64-${version}.deb"
-          test -f "$package"
-          test "$(dpkg-deb -f "$package" Architecture)" = 'amd64'
-          bash scripts/verify-linux-deb-debian13.sh "$package"
-          bash scripts/verify-linux-pacman-arch.sh build/release
-          bash scripts/verify-linux-nixos.sh build/electron/linux/stable/linux-unpacked
       - uses: actions/upload-artifact@v4
         with:
           name: MilkSU-Linux-x64-distros-trial
@@ -58,3 +48,13 @@ jobs:
             build/release/milksu.desktop
           if-no-files-found: error
           retention-days: 14
+      - name: Verify deb, Debian 13, Arch and Nix wrappers
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./desktop/package.json').version")"
+          package="build/release/MilkSU-Linux-x64-${version}.deb"
+          test -f "$package"
+          test "$(dpkg-deb -f "$package" Architecture)" = 'amd64'
+          bash scripts/verify-linux-deb-debian13.sh "$package"
+          bash scripts/verify-linux-pacman-arch.sh build/release
+          bash scripts/verify-linux-nixos.sh build/electron/linux/stable/linux-unpacked
