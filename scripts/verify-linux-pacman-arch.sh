@@ -21,7 +21,8 @@ useradd -m builder
 install -d /home/builder/pkg
 cp /work/PKGBUILD /work/milksu.desktop /work/MilkSU-Linux-x64-*.tar.gz /home/builder/pkg/
 chown -R builder:builder /home/builder/pkg
-su - builder -c 'cd /home/builder/pkg && makepkg --skippgpcheck'
+# Prebuilt Electron tree; runtime depends are for the installed system, not makepkg.
+su - builder -c 'cd /home/builder/pkg && makepkg --skippgpcheck --nodeps'
 package="$(find /home/builder/pkg -maxdepth 1 -name 'milksu-*.pkg.tar.*' | head -n1)"
 test -n "$package"
 pacman -U --noconfirm "$package"
