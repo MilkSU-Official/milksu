@@ -5,6 +5,9 @@ name: Linux distros trial package
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - codex/linux-four-distros-plan
 
 permissions:
   contents: read
