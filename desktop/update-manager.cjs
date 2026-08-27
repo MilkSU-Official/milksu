@@ -192,7 +192,7 @@ class UpdateManager {
 
   async fetchLatest(token) {
     const response = await this.fetchImpl(
-      `${this.apiUrl}/v1/releases/latest?channel=stable&platform=${encodeURIComponent(this.platform)}&arch=${encodeURIComponent(this.arch)}`,
+      `${this.apiUrl}/v1/releases/latest?channel=stable&platform=${encodeURIComponent(this.platform)}&arch=${encodeURIComponent(this.arch)}&current=${encodeURIComponent(this.currentVersion)}`,
       {
         headers: {
           authorization: `Bearer ${token}`,
