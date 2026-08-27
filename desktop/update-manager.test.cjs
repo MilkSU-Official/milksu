@@ -99,6 +99,21 @@ test('checks and downloads updates with a main-process authorization header', as
   assert.equal(manager.view().state, 'idle')
 })
 
+test('reports the running version when polling Admin for the latest release', async () => {
+  let polled = ''
+  const manager = new UpdateManager(managerOptions({
+    fetchImpl: async (url) => {
+      polled = String(url)
+      return jsonResponse(404, { release: null })
+    },
+  }))
+  assert.equal((await manager.check()).state, 'idle')
+  assert.match(polled, /\/v1\/releases\/latest\?/)
+  assert.match(polled, /platform=darwin/)
+  assert.match(polled, /arch=arm64/)
+  assert.match(polled, /current=0\.1\.0/)
+})
+
 test('does not contact the feed or expose a prompt without an active account token', async () => {
   let fetches = 0
   const manager = new UpdateManager(managerOptions({
