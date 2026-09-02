@@ -76,14 +76,6 @@ import type {
   CodingRuntimeStatus,
   CodingTerminalSession,
 } from './codingEnvironmentTypes'
-import type {
-  SessionHistoryGraphRequest,
-  SessionHistoryGraphResponse,
-  SessionHistorySearchRequest,
-  SessionHistorySearchResponse,
-  SessionIndexRefreshResult,
-  SessionIndexStatus,
-} from './sessionIndexTypes'
 import type { CodingUsageSnapshot } from './modelUsageTypes'
 import type {
   SecurityToolCodingHandoff,
@@ -187,10 +179,6 @@ interface DesktopAppBindings {
   RevealLocalDataDirectory(): Promise<void>
   RevealUserArtifactDirectory(): Promise<void>
   GetStartupRecoveryStatus(): Promise<StartupRecoveryStatus>
-  GetSessionIndexStatus(): Promise<SessionIndexStatus>
-  RefreshSessionIndex(): Promise<SessionIndexRefreshResult>
-  SearchSessionHistory(request: SessionHistorySearchRequest): Promise<SessionHistorySearchResponse>
-  GetSessionHistoryGraph(request: SessionHistoryGraphRequest): Promise<SessionHistoryGraphResponse>
   ListConversations(): Promise<unknown>
   ListArchivedConversations(): Promise<unknown>
   SaveConversation(conversation: unknown): Promise<void>
@@ -418,7 +406,6 @@ interface DesktopAppBindings {
   GenerateCTFTrainingReport(id: string): Promise<CTFTrainingReportExport>
   CancelCTFJob(id: string): Promise<void>
   RecordCTFLearning(id: string, request: CTFLearningRecordRequest): Promise<CTFProjection>
-  ContinueCTFJob(id: string): Promise<CTFProjection>
   ReviewCTFSubmission(id: string, accepted: boolean, summary: string): Promise<CTFProjection>
   PrepareCTFExternalSubmission(
     id: string,
@@ -548,14 +535,6 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.RevealUserArtifactDirectory() as Promise<T>
       case 'get_startup_recovery_status':
         return app.GetStartupRecoveryStatus() as Promise<T>
-      case 'get_session_index_status':
-        return app.GetSessionIndexStatus() as Promise<T>
-      case 'refresh_session_index':
-        return app.RefreshSessionIndex() as Promise<T>
-      case 'search_session_history':
-        return app.SearchSessionHistory(args?.request as SessionHistorySearchRequest) as Promise<T>
-      case 'get_session_history_graph':
-        return app.GetSessionHistoryGraph(args?.request as SessionHistoryGraphRequest) as Promise<T>
       case 'list_conversations':
         return app.ListConversations() as Promise<T>
       case 'list_archived_conversations':
@@ -998,8 +977,6 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.CancelCTFJob(args?.id as string) as Promise<T>
       case 'record_ctf_learning':
         return app.RecordCTFLearning(args?.id as string, args?.request as CTFLearningRecordRequest) as Promise<T>
-      case 'continue_ctf_job':
-        return app.ContinueCTFJob(args?.id as string) as Promise<T>
       case 'review_ctf_submission':
         return app.ReviewCTFSubmission(args?.id as string, args?.accepted as boolean, args?.summary as string) as Promise<T>
       case 'prepare_ctf_external_submission':

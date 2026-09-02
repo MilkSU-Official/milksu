@@ -237,6 +237,9 @@ func TestExpectedFlagIsNotPersistedAsChallengeInputOrExposedToEngine(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := service.startRunner(started.Job.ID); err != nil {
+		t.Fatal(err)
+	}
 	select {
 	case <-engine.called:
 	case <-time.After(2 * time.Second):
@@ -284,6 +287,9 @@ func TestCancellationLeavesARecoverableFactChainWithCancelledOutcome(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := service.startRunner(started.Job.ID); err != nil {
+		t.Fatal(err)
+	}
 	select {
 	case <-engine.called:
 	case <-time.After(2 * time.Second):
@@ -308,7 +314,7 @@ func TestCancellationLeavesARecoverableFactChainWithCancelledOutcome(t *testing.
 	}
 }
 
-func TestApplicationShutdownClosesTheExperimentAndRecoveryStartsANewAttempt(t *testing.T) {
+func TestApplicationShutdownClosesTheExperimentAndRecoveryDoesNotRestartTheRunner(t *testing.T) {
 	core, err := securityruntime.NewService(t.TempDir(), nil)
 	if err != nil {
 		t.Fatal(err)
@@ -320,6 +326,9 @@ func TestApplicationShutdownClosesTheExperimentAndRecoveryStartsANewAttempt(t *t
 	}
 	started, err := first.StartSampleChallenge(context.Background())
 	if err != nil {
+		t.Fatal(err)
+	}
+	if err := first.startRunner(started.Job.ID); err != nil {
 		t.Fatal(err)
 	}
 	select {
@@ -349,13 +358,15 @@ func TestApplicationShutdownClosesTheExperimentAndRecoveryStartsANewAttempt(t *t
 	if err := second.Recover(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	waitForJob(t, second, started.Job.ID)
 	recovered, err := second.GetJob(context.Background(), started.Job.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if recovered.Job.Status != securityruntime.JobSucceeded || len(recovered.Attempts) != 2 {
-		t.Fatalf("recovery did not finish in a new attempt: status=%s attempts=%+v", recovered.Job.Status, recovered.Attempts)
+	if recovered.Job.Status == securityruntime.JobSucceeded {
+		t.Fatalf("recovery must not restart the typed-action runner: %#v", recovered)
+	}
+	if len(recovered.Attempts) != 1 || recovered.Attempts[0].Status != securityruntime.AttemptInterrupted {
+		t.Fatalf("recovery should leave the interrupted attempt: %#v", recovered.Attempts)
 	}
 }
 
@@ -401,9 +412,6 @@ func TestRecoveryLeavesDeferredWorkspaceQueuedUntilExplicitContinue(t *testing.T
 	}
 	if deferred.Job.Status != securityruntime.JobQueued || len(deferred.Attempts) != 0 || len(deferred.Experiments) != 0 {
 		t.Fatalf("recovery started a deliberately deferred workspace: %#v", deferred)
-	}
-	if _, err := second.ContinueJob(context.Background(), started.Job.ID); err != nil {
-		t.Fatal(err)
 	}
 	waitForJob(t, second, started.Job.ID)
 	completed, err := second.GetJob(context.Background(), started.Job.ID)
@@ -831,6 +839,9 @@ func TestCandidateAssessmentWarnsWithoutBlockingCustomFormats(t *testing.T) {
 
 func waitForJob(t *testing.T, service *Service, jobID string) {
 	t.Helper()
+	if err := service.startRunner(jobID); err != nil {
+		t.Fatal(err)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := service.Wait(ctx, jobID); err != nil {

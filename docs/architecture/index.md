@@ -2,9 +2,9 @@
 
 > 文档状态：Current
 >
-> 审阅日期：2026-08-25
+> 审阅日期：2026-09-02
 >
-> 范围：当前 `main`。正式发行基线是 `v26.825.1 / efddfc2`。文档收口提交不移动该 tag。
+> 范围：当前 `main`。正式发行基线是 `v26.827.1 / 37932ce`。文档收口提交不移动该 tag。
 > 实现进度、已发行与未发版分界以
 > [当前开发目标](/developer/current-objectives)、当前代码、测试和真实验收为准。
 
@@ -15,7 +15,7 @@
    按需重新生成和预览。JSON 是版本化规格快照，不替代当前代码事实。
 1. [当前系统与分层](current-system.md)：MilkSU 现在由哪些进程、容器和模块组成？
 2. [CTF 数据与时序](ctf-intake-agent-judge-memory.md)：一道题怎样从 Intake 进入 Agent、Judge 和训练记忆？
-3. [Coding Agent / Pi 扩展边界](coding-agent-pi-extension-boundary.md)：哪些能力复用 Pi，哪些能力属于 MilkSU；CTF 当前少接了哪些 Coding 面（现有接线，不是禁令）？
+3. [Coding Agent / Pi 扩展边界](coding-agent-pi-extension-boundary.md)：哪些能力复用 Pi，哪些能力属于 MilkSU；CTF / CVE / 实验室从 `26.823.1` 起共用完整 Coding loop。
 4. [当前开发目标](/developer/current-objectives)：唯一目标契约；M3 product-loop 已合并，后续
    从目标、代码和测试事实选择有界批次。
 5. [授权安全学习与研究平台](security-learning-and-research-platform.md)：CTF、实验室、CVE、

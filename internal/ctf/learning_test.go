@@ -170,9 +170,6 @@ func TestCoachModeRecordsOneHintAndWaitsForLearner(t *testing.T) {
 		t.Fatalf("learner observation must be available to the next coaching turn: %+v", roleState.Learning)
 	}
 
-	if _, err := service.ContinueJob(context.Background(), started.Job.ID); err != nil {
-		t.Fatal(err)
-	}
 	waitForJob(t, service, started.Job.ID)
 	projection, err = service.GetJob(context.Background(), started.Job.ID)
 	if err != nil {

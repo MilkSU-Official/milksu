@@ -146,19 +146,6 @@ export function useCTFWorkspace() {
     }
   }
 
-  async function continueJob(id: string) {
-    try {
-      projection.value = await invokeCommand<CTFProjection>('continue_ctf_job', { id })
-      jobs.value = await invokeCommand<CTFSummary[]>('list_ctf_jobs')
-      await loadAgentState(id)
-      error.value = null
-      return true
-    } catch (reason) {
-      error.value = String(reason)
-      return false
-    }
-  }
-
   async function reviewSubmission(id: string, accepted: boolean, summary: string) {
     try {
       projection.value = await invokeCommand<CTFProjection>('review_ctf_submission', { id, accepted, summary })
@@ -256,7 +243,6 @@ export function useCTFWorkspace() {
     selectJob,
     startChallenge,
     recordLearning,
-    continueJob,
     reviewSubmission,
     prepareExternalSubmission,
     recordExternalVerdict,

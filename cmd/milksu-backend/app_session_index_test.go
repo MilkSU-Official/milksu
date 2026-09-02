@@ -49,9 +49,12 @@ func TestAppSessionIndexRefreshesMilkSUOwnedHistory(t *testing.T) {
 		conversations: conversations,
 		sessionIndex:  index,
 	}
-	status, err := application.GetSessionIndexStatus()
+	if _, err := application.refreshSessionIndex(); err != nil {
+		t.Fatalf("refreshSessionIndex() error = %v", err)
+	}
+	status, err := application.sessionIndex.Status(application.commandContext())
 	if err != nil {
-		t.Fatalf("GetSessionIndexStatus() error = %v", err)
+		t.Fatalf("sessionIndex.Status() error = %v", err)
 	}
 	if !status.Available || status.SessionCount != 1 || status.MessageCount != 1 || status.ToolCallCount != 1 {
 		t.Fatalf("unexpected session index status: %#v", status)
@@ -60,15 +63,15 @@ func TestAppSessionIndexRefreshesMilkSUOwnedHistory(t *testing.T) {
 		t.Fatalf("session index escaped MilkSU data directory: %q", status.IndexPath)
 	}
 
-	response, err := application.SearchSessionHistory(sessionindex.SearchRequest{
+	response, err := application.sessionIndex.Search(application.commandContext(), sessionindex.SearchRequest{
 		Query: "CVE-2024-3400",
 		Limit: 3,
 	})
 	if err != nil {
-		t.Fatalf("SearchSessionHistory() error = %v", err)
+		t.Fatalf("sessionIndex.Search() error = %v", err)
 	}
 	if len(response.Results) != 1 {
-		t.Fatalf("SearchSessionHistory() returned %d results, want 1: %#v", len(response.Results), response.Results)
+		t.Fatalf("sessionIndex.Search() returned %d results, want 1: %#v", len(response.Results), response.Results)
 	}
 	result := response.Results[0]
 	if result.Source != "milksu-cve" || result.SessionName != "CVE-2024-3400 Coding 接力" {

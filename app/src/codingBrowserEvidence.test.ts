@@ -8,7 +8,7 @@ afterEach(() => {
 })
 
 describe('Coding Browser evidence desktop binding', () => {
-  it('forwards only the trusted conversation id to Wails', async () => {
+  it('forwards only the trusted conversation id to Desktop RPC', async () => {
     const reveal = vi.fn(async () => undefined)
     ;(window as unknown as { go?: unknown }).go = {
       main: {

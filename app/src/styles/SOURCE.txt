@@ -1,2 +1,2 @@
 Pinned from @yunyoujun/ak-ui@0.2.1 (MIT).
-Copied into production styles for the visual rewrite. Do not add the npm package to app/package.json until a later slice needs JS depth helpers.
+Only the product easter eggs named in AGENTS.md plus in-use loading, notice, progress, tabs and album chrome remain. Do not add the npm package to app/package.json.

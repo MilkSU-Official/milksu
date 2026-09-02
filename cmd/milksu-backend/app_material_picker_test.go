@@ -157,7 +157,7 @@ func TestAppStartCTFChallengeResolvesLocalMaterialToken(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctfService, err := ctf.NewService(runtimeService, ctf.ServiceOptions{Engine: deferredIntegrationEngine{}})
+	ctfService, err := ctf.NewService(runtimeService, ctf.ServiceOptions{})
 	if err != nil {
 		_ = runtimeService.Close()
 		t.Fatal(err)

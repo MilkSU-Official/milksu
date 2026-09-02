@@ -15,9 +15,8 @@ import (
 )
 
 const (
-	packagedSidecarDirectory      = "milksu-sidecar"
-	developmentChatBridgePath     = "sidecar/pi/run-bridge.mjs"
-	developmentSecurityBridgePath = "sidecar/security/security-bridge.js"
+	packagedSidecarDirectory  = "milksu-sidecar"
+	developmentChatBridgePath = "sidecar/pi/run-bridge.mjs"
 )
 
 type sidecarRuntime struct {

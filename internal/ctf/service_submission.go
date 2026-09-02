@@ -10,23 +10,6 @@ import (
 	"github.com/MilkSU-Official/milksu/internal/securityruntime"
 )
 
-func (s *Service) ContinueJob(ctx context.Context, jobID string) (Projection, error) {
-	projection, err := s.runtime.GetJob(ctx, jobID)
-	if err != nil {
-		return Projection{}, err
-	}
-	if projection.Job.Role != PackageID || projection.Terminal() || projection.Outcome != nil {
-		return Projection{}, fmt.Errorf("CTF challenge cannot be continued")
-	}
-	if len(projection.Evaluations) > 0 && projection.Evaluations[len(projection.Evaluations)-1].Verdict == securityruntime.VerdictNeedsReview {
-		return Projection{}, fmt.Errorf("review the pending external submission before continuing")
-	}
-	if err := s.startRunner(jobID); err != nil {
-		return Projection{}, err
-	}
-	return s.GetJob(ctx, jobID)
-}
-
 func (s *Service) PrepareExternalSubmission(
 	ctx context.Context,
 	jobID, candidate, explanation string,
@@ -295,11 +278,6 @@ func (s *Service) reviewSubmission(ctx context.Context, jobID string, accepted b
 		return Projection{}, err
 	}
 	if !accepted {
-		if resume {
-			if err := s.startRunner(jobID); err != nil {
-				return Projection{}, err
-			}
-		}
 		return s.GetJob(ctx, jobID)
 	}
 	outcome := securityruntime.Outcome{Status: securityruntime.OutcomeSucceeded, Summary: summary, EvaluationID: evaluation.ID}

@@ -892,7 +892,6 @@ async function buildSidecar(platform) {
   await mkdir(output, { recursive: true, mode: 0o700 })
   const nodeOutput = join(output, platformBinaryName(platform, 'node'))
   const chatOutput = join(output, 'chat-bridge.cjs')
-  const securityOutput = join(output, 'security-bridge.cjs')
   const computerUseProxyOutput = join(output, 'computer-use-proxy.cjs')
   const piSubagentLauncherOutput = join(output, 'pi-subagent-launcher.sh')
   const piSubagentRunnerOutput = join(output, 'pi-subagent-runner.cjs')
@@ -1195,7 +1194,6 @@ async function buildSidecar(platform) {
       ),
     }, null, 2)}\n`, { mode: 0o600 }),
     bundleBridge('sidecar/pi/bridge.js', chatOutput),
-    bundleBridge('sidecar/security/security-bridge.js', securityOutput),
     bundleBridge('sidecar/computer-use/computer-use-proxy.js', computerUseProxyOutput),
     bundleBridge(
       'node_modules/@earendil-works/pi-coding-agent/dist/cli.js',
@@ -1207,7 +1205,6 @@ async function buildSidecar(platform) {
     ...(cuaDriverOutput ? [chmod(cuaDriverOutput, 0o755)] : []),
     chmod(goplsOutput, 0o755),
     chmod(chatOutput, 0o644),
-    chmod(securityOutput, 0o644),
     chmod(computerUseProxyOutput, 0o644),
     chmod(piSubagentLauncherOutput, 0o755),
     chmod(piSubagentRunnerOutput, 0o644),
@@ -1405,7 +1402,6 @@ async function buildSidecar(platform) {
     esbuild: { version: '0.28.1' },
     bridges: {
       chat: { file: 'chat-bridge.cjs', sha256: await sha256(chatOutput) },
-      security: { file: 'security-bridge.cjs', sha256: await sha256(securityOutput) },
       computerUse: {
         file: 'computer-use-proxy.cjs',
         sha256: await sha256(computerUseProxyOutput),
@@ -1635,16 +1631,6 @@ async function smokeSidecar(platform) {
   )
   if (!ocrLoad.stdout.startsWith('system-ocr-ready:')) {
     throw new Error(`packaged system OCR did not load: ${ocrLoad.stdout}${ocrLoad.stderr}`)
-  }
-  const securityRun = await runWithInput(
-    node,
-    [...runtimeArguments, join(output, 'security-bridge.cjs')],
-    '{"action":"protocol_info","requestId":"packaged-smoke"}\n',
-    { cwd: workspace, env: { ...process.env, HOME: workspace } },
-  )
-  const response = JSON.parse(securityRun.stdout.trim())
-  if (response.protocol !== 'milksu-security-engine/v1alpha1' || response.inheritedTools?.length !== 0) {
-    throw new Error(`unexpected packaged Security Sidecar response: ${securityRun.stdout}`)
   }
   const imageGenSmokeCredential = 'package-smoke-imagegen-credential-never-log'
   const chatRun = await runWithInput(
@@ -2277,27 +2263,17 @@ async function smokeSidecar(platform) {
   )
   const ctfChatResponses = ctfChatRun.stdout.trim().split('\n').map(line => JSON.parse(line))
   const ctfReady = ctfChatResponses.find(value => value.type === 'ready')
-  const coachTools = [
-    'read', 'edit', 'write', 'grep', 'find', 'ls',
+  const ctfSharedTools = [
+    'read', 'edit', 'write', 'grep', 'find', 'ls', 'bash',
+    'lsp_diagnostics', 'milksu_workspace',
     'ctf_inspect', 'ctf_request_endpoint',
   ]
   if (
     !ctfReady
-    || ctfReady.tools?.includes('bash')
-    || ctfReady.tools?.includes('lsp_diagnostics')
-    || ctfReady.tools?.includes('lsp_fix')
-    || ['archify', ...firstPartyCodingSkillNames]
-      .some(name => ctfReady.skills?.includes(name))
-    || ctfReady.extensions?.includes('pi-lsp')
-    || ctfReady.extensions?.includes('pi-goal')
-    || ctfReady.extensions?.includes('pi-mcp-adapter')
-    || ctfReady.tools?.includes('mcp')
-    || ctfReady.tools?.includes('goal_complete')
-    || ctfReady.tools?.includes('goal_blocked')
-    || !coachTools.every(tool => ctfReady.tools?.includes(tool))
+    || !ctfSharedTools.every(tool => ctfReady.tools?.includes(tool))
     || !ctfChatResponses.some(value => value.type === 'session_destroyed')
   ) {
-    throw new Error(`unexpected packaged CTF Coach response: ${ctfChatRun.stdout}`)
+    throw new Error(`unexpected packaged CTF session response: ${ctfChatRun.stdout}`)
   }
   const bashProbe = await runWithInput(
     node,
@@ -2359,7 +2335,6 @@ async function installSidecar(platform, binaryPath) {
   const distributableFiles = [
     'node',
     'chat-bridge.cjs',
-    'security-bridge.cjs',
     'computer-use-proxy.cjs',
     'pi-subagent-launcher.sh',
     'pi-subagent-runner.cjs',

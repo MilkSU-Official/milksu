@@ -104,7 +104,7 @@ flowchart TB
         rpc["Desktop JSONL RPC"]
         app["Application Services"]
         runtime["CTF / CVE / Evidence Runtime"]
-        supervisors["Pi / Security Supervisors"]
+        supervisors["Pi Supervisor"]
         tool_catalog["Security Tool Service<br/>catalog · detect · setup · health"]
     end
 

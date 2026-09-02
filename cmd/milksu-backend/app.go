@@ -39,7 +39,7 @@ import (
 	"github.com/MilkSU-Official/milksu/internal/vuln"
 )
 
-// App is the thin L1 desktop adapter. Domain code must not depend on Wails.
+// App is the thin L1 desktop adapter. Domain code must not depend on the desktop shell.
 type App struct {
 	ctx               context.Context
 	host              desktopHost
@@ -58,7 +58,6 @@ type App struct {
 	codingPRs         *codingenv.PullRequestPublisher
 	computerUse       *computercap.Manager
 	engines           *engine.Supervisor
-	securityEngine    *engine.SecuritySupervisor
 	securityTools     *securitytools.Service
 	modelCatalog      *modelcatalog.Service
 	modelUsage        *modelusage.Store
@@ -76,10 +75,6 @@ type App struct {
 	evalSuite         *evalsuite.Service
 	lifespanStart     appdata.LifespanStart
 	lifespanHandle    appdata.LifespanHandle
-}
-
-func NewApp() (*App, error) {
-	return newAppWithDesktopHost(nil)
 }
 
 func newAppWithDesktopHost(host desktopHost) (*App, error) {
@@ -229,25 +224,16 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 			return replaceErr
 		},
 	)
-	application.securityEngine, err = engine.NewSecuritySupervisor(application.settings.GetResolved)
-	if err != nil {
-		application.browserBridge.Close()
-		application.ctfshowCatalog.Close()
-		application.nssctfCatalog.Close()
-		return nil, fmt.Errorf("create security agent engine: %w", err)
-	}
 	application.jobs, err = securityruntime.NewService(filepath.Join(dataDirectory, "runtime"), application.emitJobEvent)
 	if err != nil {
-		application.securityEngine.Close()
 		application.browserBridge.Close()
 		application.ctfshowCatalog.Close()
 		application.nssctfCatalog.Close()
 		return nil, fmt.Errorf("create security job runtime: %w", err)
 	}
-	application.ctfJobs, err = ctf.NewService(application.jobs, ctf.ServiceOptions{Engine: application.securityEngine})
+	application.ctfJobs, err = ctf.NewService(application.jobs, ctf.ServiceOptions{})
 	if err != nil {
 		_ = application.jobs.Close()
-		application.securityEngine.Close()
 		application.browserBridge.Close()
 		application.ctfshowCatalog.Close()
 		application.nssctfCatalog.Close()
@@ -260,7 +246,6 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 	if err != nil {
 		_ = application.ctfJobs.Close()
 		_ = application.jobs.Close()
-		application.securityEngine.Close()
 		application.browserBridge.Close()
 		application.ctfshowCatalog.Close()
 		application.nssctfCatalog.Close()
@@ -276,7 +261,6 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 		_ = application.ctfMemory.Close()
 		_ = application.ctfJobs.Close()
 		_ = application.jobs.Close()
-		application.securityEngine.Close()
 		application.browserBridge.Close()
 		application.ctfshowCatalog.Close()
 		application.nssctfCatalog.Close()
@@ -293,7 +277,6 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 		_ = application.ctfMemory.Close()
 		_ = application.ctfJobs.Close()
 		_ = application.jobs.Close()
-		application.securityEngine.Close()
 		application.browserBridge.Close()
 		application.ctfshowCatalog.Close()
 		application.nssctfCatalog.Close()
@@ -307,7 +290,6 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 		_ = application.ctfMemory.Close()
 		_ = application.ctfJobs.Close()
 		_ = application.jobs.Close()
-		application.securityEngine.Close()
 		application.browserBridge.Close()
 		_ = application.ctfshowCatalog.Close()
 		_ = application.nssctfCatalog.Close()
@@ -324,7 +306,6 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 		_ = application.ctfMemory.Close()
 		_ = application.ctfJobs.Close()
 		_ = application.jobs.Close()
-		application.securityEngine.Close()
 		application.browserBridge.Close()
 		_ = application.ctfshowCatalog.Close()
 		_ = application.nssctfCatalog.Close()
@@ -417,7 +398,6 @@ func (a *App) Shutdown(_ context.Context) {
 	_ = a.vulnJobs.Close()
 	_ = a.ctfMemory.Close()
 	_ = a.ctfJobs.Close()
-	a.securityEngine.Close()
 	_ = a.jobs.Close()
 	a.engines.Close()
 	if a.modelUsage != nil {
@@ -441,13 +421,6 @@ func (a *App) Shutdown(_ context.Context) {
 			_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedDesktopRuntimeExited)
 		}
 	}
-}
-
-func (a *App) showPrimaryWindow() {
-	if a.ctx == nil {
-		return
-	}
-	_ = a.desktopCall("window.show", struct{}{}, nil)
 }
 
 func (a *App) GetSettings() config.AppSettings {
@@ -483,7 +456,6 @@ func (a *App) SetAccountModelCredential(baseURL, credential string) error {
 		return nil
 	}
 	a.engines.Close()
-	a.securityEngine.Restart()
 	return nil
 }
 
@@ -601,7 +573,6 @@ func (a *App) ClearAccountModelCredential() error {
 		return nil
 	}
 	a.engines.Close()
-	a.securityEngine.Restart()
 	return nil
 }
 
@@ -748,7 +719,6 @@ func (a *App) SaveSettingsCmd(settings config.AppSettings) error {
 	// prevents a running child from retaining credentials removed by the user,
 	// and makes a safe session-only fallback available to the next request.
 	a.engines.Close()
-	a.securityEngine.Restart()
 	// When TokenFlux credentials change, re-read /v1/models so the picker and
 	// dual-source routing use the models that key can actually call.
 	if tokenFluxCatalogInputsChanged(previous, a.settings.Get()) {
@@ -891,7 +861,7 @@ func (a *App) refreshConversationIndex() error {
 	if a.sessionIndex == nil {
 		return nil
 	}
-	_, err := a.RefreshSessionIndex()
+	_, err := a.refreshSessionIndex()
 	return err
 }
 
@@ -1833,10 +1803,6 @@ func (a *App) CancelCTFJob(id string) error {
 
 func (a *App) RecordCTFLearning(id string, request ctf.LearningRecordRequest) (ctf.Projection, error) {
 	return a.ctfJobs.RecordLearning(a.commandContext(), id, request)
-}
-
-func (a *App) ContinueCTFJob(id string) (ctf.Projection, error) {
-	return a.ctfJobs.ContinueJob(a.commandContext(), id)
 }
 
 func (a *App) ReviewCTFSubmission(id string, accepted bool, summary string) (ctf.Projection, error) {

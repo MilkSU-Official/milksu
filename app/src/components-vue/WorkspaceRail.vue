@@ -52,10 +52,6 @@ const menuRoot = ref<HTMLElement | null>(null)
 const buildTracking = ref<BuildTracking | null>(null)
 const avatarSource = computed(() => props.accountStatus.user?.avatarUrl || profileAvatar)
 
-// AbilityRadar.vue is intentionally retained but no longer mounted globally.
-// If the six-axis view returns, it belongs to a future evidence-backed CTF-only page,
-// never the user's cross-product profile.
-
 const isBetaChannel = computed(() => {
   if (buildTracking.value?.development || buildTracking.value?.missing) return false
   return String(buildTracking.value?.channel ?? '').toLowerCase() === 'beta'

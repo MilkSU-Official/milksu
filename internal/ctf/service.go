@@ -58,8 +58,8 @@ type Service struct {
 }
 
 func NewService(runtime *securityruntime.Service, options ServiceOptions) (*Service, error) {
-	if runtime == nil || options.Engine == nil {
-		return nil, fmt.Errorf("CTF runtime and agent engine are required")
+	if runtime == nil {
+		return nil, fmt.Errorf("CTF runtime is required")
 	}
 	if options.Environment == nil {
 		options.Environment = OfflineEnvironment{}
@@ -137,11 +137,6 @@ func (s *Service) StartChallenge(ctx context.Context, request ChallengeRequest) 
 	}
 	if err := s.runtime.CommitRoleFact(ctx, securityruntime.EventScope{JobID: job.ID}, fact); err != nil {
 		return Projection{}, err
-	}
-	if !admitted.deferAgent {
-		if err := s.startRunner(job.ID); err != nil {
-			return Projection{}, err
-		}
 	}
 	return s.GetJob(ctx, job.ID)
 }
@@ -364,9 +359,8 @@ func (s *Service) Recover(ctx context.Context) error {
 		if projection.Terminal() {
 			continue
 		}
-		// A queued Job with no Attempt is intentionally deferred (for example,
-		// the user built a browser workspace before configuring a model). It is
-		// not interrupted work and must wait for an explicit ContinueJob call.
+		// A queued Job with no Attempt is intentionally deferred. Product CTF
+		// work continues in the Pi conversation, not the retired typed-action runner.
 		if projection.Job.Status == securityruntime.JobQueued && len(projection.Attempts) == 0 {
 			continue
 		}
@@ -401,9 +395,6 @@ func (s *Service) Recover(ctx context.Context) error {
 		if err := s.runtime.RecordRecovery(ctx, projection.Job.ID, previousAttemptID); err != nil {
 			return err
 		}
-		if err := s.startRunner(projection.Job.ID); err != nil {
-			return err
-		}
 	}
 	return nil
 }
@@ -424,6 +415,9 @@ func (s *Service) Wait(ctx context.Context, jobID string) error {
 }
 
 func (s *Service) startRunner(jobID string) error {
+	if s.engine == nil {
+		return fmt.Errorf("CTF typed-action runner is not configured")
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {

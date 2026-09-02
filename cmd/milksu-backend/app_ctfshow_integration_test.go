@@ -22,17 +22,6 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-type deferredIntegrationEngine struct{}
-
-func (deferredIntegrationEngine) Name() string  { return "deferred-integration-engine" }
-func (deferredIntegrationEngine) Model() string { return "not-invoked" }
-func (deferredIntegrationEngine) Propose(
-	context.Context,
-	securityruntime.EngineInput,
-) (securityruntime.ActionProposal, error) {
-	return securityruntime.ActionProposal{}, context.Canceled
-}
-
 func TestCTFShowCatalogToWorkspaceAndJudgeEndToEnd(t *testing.T) {
 	dataDirectory := t.TempDir()
 	manager, err := browsercap.New(dataDirectory)
@@ -56,9 +45,7 @@ func TestCTFShowCatalogToWorkspaceAndJudgeEndToEnd(t *testing.T) {
 		_ = catalog.Close()
 		t.Fatal(err)
 	}
-	ctfService, err := ctf.NewService(runtimeService, ctf.ServiceOptions{
-		Engine: deferredIntegrationEngine{},
-	})
+	ctfService, err := ctf.NewService(runtimeService, ctf.ServiceOptions{})
 	if err != nil {
 		manager.Close()
 		_ = catalog.Close()

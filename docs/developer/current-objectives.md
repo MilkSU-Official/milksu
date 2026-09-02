@@ -147,6 +147,8 @@
 
 文档收口提交不移动该 tag。Admin current pointer 尚未由维护者发布；Windows 代码签名、Linux Secret Service / 本地 OCR、Hyprland/Xorg Computer Use 仍缺。CTF 比赛模式和实验室红队学习面仍未接线。
 
+已从产品链删除独立 Security Bridge typed-action 循环、`continue_ctf_job`、图谱 RPC / `@antv/g6`、未挂载战术面板，以及 Sidecar 对 CTF 的负向隔离断言。CTF 解题只走 Pi 对话 + Judge。
+
 ## 当前产品事实
 
 ### Pi Runtime 收敛
@@ -242,6 +244,7 @@ Windows 签名、Linux Secret Service / OCR、Hyprland/Xorg Computer Use 仍是�
 
 - 已撤下的单会话“相关历史”与图谱前端；Obelisk 底层索引不等于该 UI。
 - Wails/CEF 双壳、workspace-only 文件工具、Node 文件权限状态机、普通回合 watchdog、CVE 只读启动清单和客服式回复模板。
+- 独立 Security Bridge / `continue_ctf_job` typed-action 循环。CTF 解题走 Pi 对话 + Judge；不要再拉起第二条 Agent 进程。
 - 用关键词或正则扫描用户句子来打开浏览器、切页或选工具。
 - MilkSU 自建余额、价格映射、扣费流水和模型代理计费。
 - 把晚于 `v26.827.1` 的 HEAD、同一版本号或本地 dirty 包写成已经发出的三端正式包。

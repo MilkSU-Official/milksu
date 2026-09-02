@@ -34,9 +34,7 @@ func TestNSSCTFPageToAcceptedTrainingReportSurvivesRestart(t *testing.T) {
 		manager.Close()
 		t.Fatal(err)
 	}
-	ctfService, err := ctf.NewService(runtimeService, ctf.ServiceOptions{
-		Engine: deferredIntegrationEngine{},
-	})
+	ctfService, err := ctf.NewService(runtimeService, ctf.ServiceOptions{})
 	if err != nil {
 		manager.Close()
 		_ = runtimeService.Close()
@@ -363,9 +361,7 @@ func TestNSSCTFPageToAcceptedTrainingReportSurvivesRestart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	recoveredCTF, err = ctf.NewService(recoveredRuntime, ctf.ServiceOptions{
-		Engine: deferredIntegrationEngine{},
-	})
+	recoveredCTF, err = ctf.NewService(recoveredRuntime, ctf.ServiceOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

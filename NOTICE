@@ -39,7 +39,7 @@ Third-party software includes, without limitation:
 - godbus/dbus v5. Copyright Georg Reinke, Google. BSD-2-Clause.
 - Archify. MIT.
 - Playwright MCP. Apache-2.0.
-- Electron, Vue, xterm.js, AntV G6, and related desktop/UI libraries. MIT
+- Electron, Vue, xterm.js, and related desktop/UI libraries. MIT
   or ISC as declared by each package.
 - TypeScript. Apache-2.0.
 - DOMPurify. MPL-2.0 OR Apache-2.0.

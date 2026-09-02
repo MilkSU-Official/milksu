@@ -25,7 +25,7 @@
 
 ## 当前事实
 
-正式发行 `v26.825.1` 的 Linux 产物只有一个在 `ubuntu-24.04` GitHub-hosted runner 上构建的 `linux/amd64` DEB。自动化验证了包结构、Node/Pi Sidecar、Go Runtime 和 Xvfb Electron 启动；没有真实 GNOME/Hyprland 桌面回执。发布脚本明确记录 `localOcr: false` 与 `computerUse: false`。
+正式发行 `v26.827.1` 的 Linux 产物是 Ubuntu/Debian 共用 x64 `.deb` 与 Omarchy/Arch/Nix 共用 x64 `.tar.gz`。自动化验证了包结构、Node/Pi Sidecar、Go Runtime 和 Xvfb Electron 启动。GNOME Wayland Computer Use 走 XDG Desktop Portal，已进包；Hyprland / Xorg unavailable。发布脚本明确记录 `localOcr: false`；Linux 仍无 Secret Service。
 
 - Sidecar 只有 `linux/amd64` Node runtime；Linux 没有已审阅的 `@napi-rs/system-ocr` 原生包。
 - Browser Use 查找 Chrome / Chromium / Edge、PATH、snap、Nix 与桌面入口。
@@ -37,7 +37,7 @@ Debian 13 ARM64 Hyprland 0.55.2（trixie-backports，virtio-gpu）：tarball 应
 
 NixOS 26.05 ARM64 GNOME 图形 live（virtio-gpu）：同一 ARM tarball 经 `packaging/linux` flake/`default.nix` 的 FHS 包装后，在 Wayland 上启动并显示出登录页。FHS 需要 `libgbm`（以及 fontconfig / freetype / gdk-pixbuf / wayland），否则 Electron 会在加载 `libgbm.so.1` 时退出。从 SSH 会话拉起时不要带无授权的 `DISPLAY`；图形会话内用 `ozone-platform=wayland`。这是试验回执，不是 GitHub Latest。Computer Use 未在该 live 上单独点授权，GNOME 仍走同一 Portal 路径。
 
-因此“有一个 DEB”不能写成“四个发行版已支持”。
+因此“发了 DEB 和 tarball”不能写成四个发行版的 Computer Use / OCR / Secret Service 已经等价。
 
 ## 支持矩阵
 

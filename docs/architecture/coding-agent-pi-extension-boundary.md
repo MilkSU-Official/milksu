@@ -2,7 +2,7 @@
 
 > 文档状态：Current engineering contract
 >
-> 事实审计：2026-08-20
+> 事实审计：2026-09-02
 >
 > Coding 核心交付、附件、统一 Composer 能力入口、PTY、后台任务、Git、Archify、隔离 Browser 和 LSP 已有真实或
 > 专项证据；Artifact Preview、Project MCP、Computer Use 外部 App slice、PR 发布确认、
@@ -69,33 +69,32 @@ flowchart LR
 
 ## 普通 Coding 与 CTF 会话矩阵
 
-下表是 **2026-08-18 的现有接线**，不是产品禁令。当前 `sessionRole` 把浏览器、MCP、安全工具、
-Coding Skill 和 `milksu_workspace` 留在普通 Coding。CTF/CVE 需要这些面时可以直接接，不要先写
-解冻条件或“等 UX 想清楚”。
+下表是 **`26.823.1` 之后的现有接线**。CTF / CVE / 实验室与 Coding 共用完整 Pi Coding loop；
+领域工具、Judge 和题目工作区叠在上面，不是替换。
 
 | 能力 | 普通 Coding | CTF Solver / Tool Builder / Strategist | 归属 |
 | --- | --- | --- | --- |
 | Pi Session / Model / Tool Loop | 是 | 是 | Pi |
-| `read/grep/find/ls` | Pi 内置工具，使用当前系统用户可读路径；所选项目只固定会话 cwd | MilkSU 单题工作区内按角色裁剪 | Pi；CTF 另加 MilkSU Policy |
-| `edit/write` | Pi 内置工具；`Go + 替我审批` 或 `完全访问` 按当前系统用户权限执行，Ask 档位仍逐次批准 | 按 CTF Role 裁剪 | Pi；CTF 另加 `sidecar/pi/bridge-policy.js` |
-| `bash` | Pi 内置 Bash，支持正常开发命令、Shell 组合、Git、网络和用户可访问目录；Provider Key 不传给子进程 | Coach/Strategist 无；Solver 模式按策略；Tool Builder 仅离线工作区 | Pi；CTF 另加 `sidecar/pi/bridge-policy.js` |
+| `read/grep/find/ls` | Pi 内置工具，使用当前系统用户可读路径；所选项目只固定会话 cwd | 同一套 Pi 工具；题目工作区固定会话 cwd | Pi；CTF 另加 MilkSU Policy |
+| `edit/write` | Pi 内置工具；`Go + 替我审批` 或 `完全访问` 按当前系统用户权限执行，Ask 档位仍逐次批准 | 同一套 Pi 工具 | Pi；CTF 另加 `sidecar/pi/bridge-policy.js` |
+| `bash` | Pi 内置 Bash，支持正常开发命令、Shell 组合、Git、网络和用户可访问目录；Provider Key 不传给子进程 | 同一套 Pi Bash | Pi；CTF 另加 `sidecar/pi/bridge-policy.js` |
 | `milksu_progress` | 是 | 是，附角色 Guidance | MilkSU first-party Extension |
-| 已审核 Pi Skills | `frontend-visual-qa` 与 Archify 可从 Composer “+”作为可删除 Skill 状态加入；发送时使用 Pi 原生 `/skill:name` 展开 | 当前未接线 | 固定 Coding Skill；MilkSU 只投影选择状态 |
-| `lsp_diagnostics` / `lsp_fix` | 诊断可用；`lsp_fix` 先只读计算并校验项目内目标、统一 Diff 与文件哈希。请求批准展示完整 Diff；替我审批 / 完全访问在项目内自动应用并写后复核 | 当前未接线 | 固定 Coding Extension + MilkSU 审阅 Adapter |
-| Pi Goal | 是；与桌面目标状态并存 | 当前未接线；CTF 已有自己的进度与 Judge 语义 | 固定 Coding Extension |
-| 项目终端 / 后台任务 | 是；用户直接操作的多会话 PTY 由 Go Host 承担，后台任务复用固定 Pi Extension；两者按 Conversation 隔离，展示生命周期、输出和停止动作 | 当前未接线 | `creack/pty + xterm.js` Host Adapter；固定 Coding Extension + MilkSU 状态投影 |
-| 项目 MCP | 用户从 Composer “+”打开现有项目 MCP 管理面，再从 `.mcp.json` 明确选择；调用遵循当前权限档位，不能由 Agent 安装或扩大工具面 | 当前未接线 | 固定 Coding Extension + MilkSU Sandbox |
-| 浏览器 | 普通 Coding 打开右栏或调用类型化 `milksu_workspace` 浏览器动作时拉起会话隔离的内置 Chromium；每个标签是独立 `WebContentsView`。用户与 Agent 共用当前 Target，工具调用遵循当前权限档位并保留页面、Console、Network 和截图证据。不扫描用户句子决定是否打开浏览器 | 当前未接线 | Electron Browser Host + Scoped CDP Proxy + 固定 Playwright MCP |
-| `milksu_workspace` | 类型化产品 UI 工具：列出/聚焦/关闭内置浏览器标签，列出/预览产物，打开环境、变更、终端和后台任务。不改设置、凭据、审批档，不附着用户 Chrome | 当前未接线；需要时可接到 CTF/CVE | MilkSU first-party Extension + Desktop RPC |
+| 已审核 Pi Skills | `frontend-visual-qa` 与 Archify 可从 Composer “+”作为可删除 Skill 状态加入；发送时使用 Pi 原生 `/skill:name` 展开 | 同一套已审核 Skill | 固定 Coding Skill；MilkSU 只投影选择状态 |
+| `lsp_diagnostics` / `lsp_fix` | 诊断可用；`lsp_fix` 先只读计算并校验项目内目标、统一 Diff 与文件哈希。请求批准展示完整 Diff；替我审批 / 完全访问在项目内自动应用并写后复核 | 同一套 LSP | 固定 Coding Extension + MilkSU 审阅 Adapter |
+| Pi Goal | 是；与桌面目标状态并存 | 同一套 Goal；CTF 另有 Judge 语义 | 固定 Coding Extension |
+| 项目终端 / 后台任务 | 是；用户直接操作的多会话 PTY 由 Go Host 承担，后台任务复用固定 Pi Extension；两者按 Conversation 隔离，展示生命周期、输出和停止动作 | 同一套终端 / 后台任务 | `creack/pty + xterm.js` Host Adapter；固定 Coding Extension + MilkSU 状态投影 |
+| 项目 MCP | 用户从 Composer “+”打开现有项目 MCP 管理面，再从 `.mcp.json` 明确选择；调用遵循当前权限档位，不能由 Agent 安装或扩大工具面 | 同一套项目 MCP | 固定 Coding Extension + MilkSU Sandbox |
+| 浏览器 | 普通 Coding 打开右栏或调用类型化 `milksu_workspace` 浏览器动作时拉起会话隔离的内置 Chromium；每个标签是独立 `WebContentsView`。用户与 Agent 共用当前 Target，工具调用遵循当前权限档位并保留页面、Console、Network 和截图证据。不扫描用户句子决定是否打开浏览器 | 同一套隔离浏览器 | Electron Browser Host + Scoped CDP Proxy + 固定 Playwright MCP |
+| `milksu_workspace` | 类型化产品 UI 工具：列出/聚焦/关闭内置浏览器标签，列出/预览产物，打开环境、变更、终端和后台任务。不改设置、凭据、审批档，不附着用户 Chrome | 同一套产品 UI 工具 | MilkSU first-party Extension + Desktop RPC |
 | 上下文压缩 | Pi 拥有 Compaction。用量达到窗口约 85% 且 Session 空闲时自动走与 `/compact` 相同的路径；用户 `/compact` 与 `compact_context` 立即排队该路径，不受 85% 限制 | 复用同一 Pi 压缩，不另建摘要器 | Pi Session compact；MilkSU 只投影用量并在空闲点调度自动整理 |
-| Browser Use | 用户把可删除 Scope 加入本轮输入后，固定 Playwright extension mode 才能进入真实浏览器标签页配对路径；不复用沙箱 profile | 当前未接线 | 固定 Playwright MCP + 用户标签页授权 |
-| Artifact Preview | 工作区内 Markdown、HTML 和图片；HTML 使用隔离、CSP、禁网和大小限制 | 当前未接线 | Go Preview Policy + Vue right page |
-| ImageGen | 文生图和参考图编辑；用户明确发起付费动作，输出限制在项目资产范围并可预览 | 当前未接线 | 受控 Provider Adapter |
-| Computer Use | 用户选择当前可见的非浏览器 App / PID / Window 并锁定不可变 Scope；调用遵循当前权限档位，`workspace-auto` 不会隐式启用或扩大 Scope | 当前未接线 | Go Host + Computer Use Adapter |
-| PR / worktree | PR 发布前展示仓库、分支、提交和目标；写入 Agent 使用独立 worktree | 当前未接线 | Go Git/Platform Adapter |
+| Browser Use | 用户把可删除 Scope 加入本轮输入后，固定 Playwright extension mode 才能进入真实浏览器标签页配对路径；不复用沙箱 profile | 同一套 Browser Use | 固定 Playwright MCP + 用户标签页授权 |
+| Artifact Preview | 工作区内 Markdown、HTML 和图片；HTML 使用隔离、CSP、禁网和大小限制 | 同一套产物预览 | Go Preview Policy + Vue right page |
+| ImageGen | 文生图和参考图编辑；用户明确发起付费动作，输出限制在项目资产范围并可预览 | 同一套 ImageGen | 受控 Provider Adapter |
+| Computer Use | 用户选择当前可见的非浏览器 App / PID / Window 并锁定不可变 Scope；调用遵循当前权限档位，`workspace-auto` 不会隐式启用或扩大 Scope | 同一套 Computer Use | Go Host + Computer Use Adapter |
+| PR / worktree | PR 发布前展示仓库、分支、提交和目标；写入 Agent 使用独立 worktree | 同一套 Git / worktree | Go Git/Platform Adapter |
 | 相关历史 | 底层 Session Index 仍索引本机会话；单会话相关历史、过滤、搜索和图谱前端已删除，不再作为产品表面 | 当前无此 UI | Go 索引保留 |
 | 文件 / 图片附件 | 是；复制到用户数据目录，纯文本模型可走本地 OCR 或已配置视觉模型 | 使用 CTF Material 管线，不复用 Coding 附件上下文 | MilkSU 附件桥 + 本地 OCR |
-| CTF 类型化工具 | 否 | 按 Role、Scope 和协作模式 | MilkSU CTF Harness |
+| CTF 类型化工具 | 否 | Pi 会话上的 `ctf_inspect` / `ctf_decode` / `ctf_triage` 与 Judge；已删除独立 Security Bridge typed-action 循环 | MilkSU CTF domain + Pi |
 | 平台提交 | 否 | Agent 不能直接提交，只能写候选 | MilkSU Judge Gate |
 
 当前隔离由 `sidecar/pi/bridge.js` 的 `sessionRole` 分支和 `scripts/package-sidecar.mjs` 的正/负 Smoke
@@ -171,16 +170,15 @@ flowchart TB
 | 资源 | 固定版本 | 当前代码证据 | 当前验收 |
 | --- | --- | --- | --- |
 | Pi Coding Agent | `0.84.1` | `package.json`、`scripts/package-sidecar.mjs` | Sidecar 打包 / Smoke 已有 |
-| `frontend-visual-qa` | first-party | `skills/frontend-visual-qa`、`sidecar/pi/bridge-skills.js`、Composer Skill 状态 | **Verified narrow task**：要求测试、真实预览和沙箱 Browser 证据；打包 Sidecar 加载且 CTF 负向隔离 |
+| `frontend-visual-qa` | first-party | `skills/frontend-visual-qa`、`sidecar/pi/bridge-skills.js`、Composer Skill 状态 | **Verified narrow task**：要求测试、真实预览和沙箱 Browser 证据；打包 Sidecar 加载；CTF 从 `26.823.1` 起共用同一套 Skill |
 | Archify | `2.12.0`，commit `7b49d0b…` | `third_party/archify`、`sidecar/pi/bridge.js`、Sidecar manifest、Composer 产品动作 | **Verified**：真实打包 App 一键生成固定 JSON/HTML、9/9、0 error、0 warning，并在右侧预览 |
 | `@narumitw/pi-lsp` | `0.29.0` | `sidecar/pi/bridge-resource-policy.js`、`sidecar/pi/bridge-lsp.js`、`sidecar/pi/bridge.js`、`package-lock.json`、Sidecar `lsp-runtime` | 项目命令覆盖和凭据继承已阻断；TypeScript `5.3.0`、Vue `3.3.9`、SDK `6.0.3` 与官方 `gopls 0.23.0` 固定随包；真实原生 fixture 分别返回 `TS2322 @ 1:14` 与 `compiler.IncompatibleAssign @ 3:21`；TypeScript `source.organizeImports` 已验自动应用、精确 Diff、批准/拒绝和写后复核 |
-| `@narumitw/pi-goal` | `0.43.0` | `sidecar/pi/bridge-resource-policy.js`、`sidecar/pi/bridge.js`、`package-lock.json` | **Verified**：普通 Coding 固定加载，CTF 负向隔离；桌面目标仍以 `milksu_progress` 为事实源 |
-| `pi-better-background-tasks` | `0.1.10` | `sidecar/pi/bridge.js`、Sidecar manifest、会话级控制/运行时事件、右侧终端页 | **Verified**：真实原生会话运行短命令，并启动监听 `127.0.0.1:18876` 的任务；显示 PID/端口/有界日志后从桌面停止并确认端口关闭；不同 Conversation 的任务互相不可见，CTF 保持负向隔离 |
+| `@narumitw/pi-goal` | `0.43.0` | `sidecar/pi/bridge-resource-policy.js`、`sidecar/pi/bridge.js`、`package-lock.json` | **Verified**：Coding / CTF / CVE / 实验室固定加载；桌面目标仍以 `milksu_progress` 为事实源 |
+| `pi-better-background-tasks` | `0.1.10` | `sidecar/pi/bridge.js`、Sidecar manifest、会话级控制/运行时事件、右侧终端页 | **Verified**：真实原生会话运行短命令，并启动监听 `127.0.0.1:18876` 的任务；显示 PID/端口/有界日志后从桌面停止并确认端口关闭；不同 Conversation 的任务互相不可见；CTF 从 `26.823.1` 起共用同一套后台任务 |
 | `@xterm/xterm` / `@xterm/addon-fit` | `6.0.0` / `0.11.0` | `CodingTerminalPanel.vue`、`third_party/licenses/xterm.js-MIT.txt` | **Verified**：真实原生 App 显示项目 Shell、实时输入输出和 resize；前端独立懒加载，不进入基础 ChatPage chunk |
 | `github.com/creack/pty` | `1.1.24` | `internal/codingterminal`、`app_coding_terminal.go`、`third_party/licenses/creack-pty-MIT.txt` | **Verified on macOS arm64**：多会话 PTY、stdin、resize、stop、退出状态、输出尾部、Conversation ownership 和 Provider Key 环境剥离通过 race test 与原生 `pwd` |
-| `pi-mcp-adapter` | `2.17.0` | `sidecar/pi/bridge.js`、项目 MCP 配置摘要与批准桥 | **Verified**：项目显式选择、摘要校验、Sandbox、环境过滤、逐次审批和 CTF 负向隔离 |
-| `@playwright/mcp` | `0.0.78` | `sidecar/pi/bridge-mcp.js`、`internal/browsercap`、Electron Browser Host、右侧浏览器页、Browser Use 面、Sidecar manifest | **内置 Browser narrow task verified**：打包 App 中用户与 Agent 共用会话隔离 `WebContentsView`，Agent 已经限定单一 Target 的 CDP Proxy 读取真实页面且未回退 Shell；点击/表单/公开调研、面板折叠后的连续执行与 extension mode 真实标签页配对仍按各自任务验收，不能由旧外部 Chrome fixture 代替；CTF 会话不加载该服务器 |
-| `@antv/g6` | `5.1.1` | `SessionHistoryGraph.vue`、`third_party/licenses/antv-g6-MIT.txt`、前端 lockfile | **Verified packaged UI slice**：只在完整关系图视图懒加载；打包 macOS App 已验真实本机历史、同条件过滤、拖动/缩放/适配、来源回跳、显式引用和深浅主题；不进入 Sidecar 或 CTF 工具面 |
+| `pi-mcp-adapter` | `2.17.0` | `sidecar/pi/bridge.js`、项目 MCP 配置摘要与批准桥 | **Verified**：项目显式选择、摘要校验、Sandbox、环境过滤、逐次审批；CTF 从 `26.823.1` 起共用同一套项目 MCP |
+| `@playwright/mcp` | `0.0.78` | `sidecar/pi/bridge-mcp.js`、`internal/browsercap`、Electron Browser Host、右侧浏览器页、Browser Use 面、Sidecar manifest | **内置 Browser narrow task verified**：打包 App 中用户与 Agent 共用会话隔离 `WebContentsView`，Agent 已经限定单一 Target 的 CDP Proxy 读取真实页面且未回退 Shell；点击/表单/公开调研、面板折叠后的连续执行与 extension mode 真实标签页配对仍按各自任务验收，不能由旧外部 Chrome fixture 代替；CTF 从 `26.823.1` 起共用同一套隔离浏览器 |
 | `@napi-rs/system-ocr` | `1.1.0` | Coding 附件桥、Sidecar manifest、平台原生包 | **Verified**：图片附件可本地 OCR；配置视觉路由时可改用视觉模型 |
 | MilkSU Workflow | first-party | `createMilkSUWorkflowExtension` | Schema 和可见事件已有 |
 

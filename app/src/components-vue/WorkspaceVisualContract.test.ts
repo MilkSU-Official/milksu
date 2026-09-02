@@ -11,7 +11,6 @@ import contextSidebarSource from './ContextSidebar.vue?raw'
 import chatPageSource from './ChatPage.vue?raw'
 import conversationDockSource from './ConversationDock.vue?raw'
 import loginPageSource from './AccountLoginPage.vue?raw'
-import missionOperationSource from './MissionOperationPanel.vue?raw'
 import settingsPageSource from './SettingsPage.vue?raw'
 import tacticalPanelShellSource from './TacticalPanelShell.vue?raw'
 import vulnPageSource from './VulnPage.vue?raw'
@@ -26,7 +25,6 @@ import catalogActionsSource from './WorkspaceCatalogActions.vue?raw'
 import connectionLiveSource from './ConnectionLiveStatus.vue?raw'
 import ctfWorkspaceHeaderSource from './CTFWorkspaceHeader.vue?raw'
 import ctfTrajectorySource from './CTFTrajectory.vue?raw'
-import domainTaskContextSource from './DomainTaskContextPanel.vue?raw'
 import appSource from '../App.vue?raw'
 const appStylesSource = readFileSync(new URL('../index.css', import.meta.url), 'utf8')
 const appPackageSource = readFileSync(new URL('../../package.json', import.meta.url), 'utf8')
@@ -151,9 +149,6 @@ describe('Workspace visual contract', () => {
     expect(chatPageSource).toContain('agent-chrome-icon')
     expect(tacticalPanelShellSource).not.toContain('@container coding-workspace (max-width: 68rem)')
     expect(tacticalPanelShellSource).not.toContain('inset-block: 0')
-    expect(missionOperationSource).toContain('@container chat-main (max-width: 56rem)')
-    expect(missionOperationSource).toContain('overflow-wrap: anywhere')
-    expect(domainTaskContextSource).toContain('@container domain-dossier (max-width: 25rem)')
   })
 
   it('uses one card column for settings, dossiers, and profile', () => {
