@@ -52,6 +52,7 @@ import {
 } from "./bridge-ctf-network.js";
 import { envToolNames } from "./bridge-env.js";
 import { isResearchSessionRole } from "./bridge-workspace.js";
+import { wrapEditToolDefinition } from "./bridge-edit-anchor.js";
 import {
   codingImageGenToolName,
   createImageGenTool,
@@ -1381,7 +1382,7 @@ async function createCodingToolDefinitions(
         env: fullAccessCommandEnvironment(context.env),
       }),
     }),
-    createEditToolDefinition(root),
+    wrapEditToolDefinition(createEditToolDefinition(root), { root }),
     createWriteToolDefinition(root),
     createGrepToolDefinition(root),
     createFindToolDefinition(root),
@@ -1410,7 +1411,7 @@ export async function createCTFToolDefinitions(
     // CTF sessions use Pi's native filesystem and shell semantics just like
     // Coding sessions. MilkSU keeps only CTF-specific domain tools here.
     createReadToolDefinition(root),
-    createEditToolDefinition(root),
+    wrapEditToolDefinition(createEditToolDefinition(root), { root }),
     createWriteToolDefinition(root),
     createGrepToolDefinition(root),
     createFindToolDefinition(root),

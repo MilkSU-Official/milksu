@@ -4,6 +4,7 @@ import ChatActivityGroup from '@/components-vue/ChatActivityGroup.vue'
 import ChatMessageItem from '@/components-vue/ChatMessageItem.vue'
 import { buildChatActivityEntries, type ChatProcessFoldBlock } from '@/lib/chatActivity'
 import { t } from '@/lib/uiLocale'
+import type { SubagentTask } from '@/types'
 
 const props = defineProps<{
   process: ChatProcessFoldBlock
@@ -11,6 +12,7 @@ const props = defineProps<{
   recoveryContext?: 'ctf' | 'coding'
   activityOpen: (activityId: string) => boolean
   activityOpenEntries: (activityId: string) => ReadonlySet<string>
+  subagentTasks?: readonly SubagentTask[]
 }>()
 
 const emit = defineEmits<{
@@ -45,6 +47,7 @@ const stepCount = computed(() => {
           :activity="item"
           :open="activityOpen(item.id)"
           :open-entry-ids="activityOpenEntries(item.id)"
+          :subagent-tasks="subagentTasks"
           reveal-completed
           @toggle-group="open => $emit('toggleGroup', item.id, open)"
           @toggle-entry="(entryId, open) => $emit('toggleEntry', item.id, entryId, open)"

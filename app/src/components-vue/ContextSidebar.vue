@@ -876,7 +876,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', closeOnOutside
 }
 
 .agent-sidebar__inner {
-  padding-top: 2.1rem;
+  padding-top: var(--shell-title-safe-top);
   padding-bottom: 0.75rem;
 }
 

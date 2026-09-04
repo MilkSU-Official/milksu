@@ -24,22 +24,28 @@ import {
   withoutBlankAssistantMessages,
 } from '@/lib/chatActivity'
 import { redactProviderCredentials } from '@/lib/redaction'
+import { normalizeSubagentTasks } from '@/lib/subagentRoster'
 import { t } from '@/lib/uiLocale'
 import { normalizeDomainTaskContext } from '@/lib/domainTaskContext'
 import { shouldRememberCodingProject } from '@/lib/codingProjectMemory'
 import { conversationWorkspaceHome, type WorkspaceHome } from '@/lib/workspaceSessionRouting'
-import { resolveModelContextWindow } from '@/lib/knownContextWindow'
+import { modelContextWindowOverride, resolveModelContextWindow } from '@/lib/knownContextWindow'
+import { installedModelContextWindows } from '@/modelCatalog'
 import { MODEL_THINKING_LEVELS } from '@/lib/modelThinking'
 import {
   applySessionCompacting,
+  applySessionContextComposition,
   applySessionContextWindow,
   applySessionRunFinished,
   applySessionRunStarted,
   applySessionUsageAfterCompaction,
   applySessionUsageRecorded,
+  compositionFromStoredUsage,
   emptySessionTurnSnapshot,
+  readContextCompositionFromEvent,
   snapshotFromStoredContextUsage,
   storedContextUsageFromSnapshot,
+  type ContextComposition,
   type SessionTurnSnapshot,
   type SessionTurnUsage,
 } from '@/lib/sessionTurnStatus'
@@ -53,6 +59,7 @@ import type {
   Conversation,
   Message,
   ModelThinkingLevel,
+  SubagentTask,
 } from '@/types'
 
 const BROWSER_USE_MCP_SERVER = 'milksu-playwright-user'
@@ -182,6 +189,7 @@ interface AgentEvent {
   choice?: string
   reason?: string
   goal?: CodingGoalState
+  subagentTasks?: SubagentTask[]
   resumed?: boolean
   aborted?: boolean
   steering?: string[]
@@ -198,7 +206,13 @@ interface AgentEvent {
     model?: string
     provider?: string
     recordId?: string
+    contextComposition?: ContextComposition
   }
+  /** Go-projected context.composition; may also ride next to usage. */
+  contextComposition?: ContextComposition
+  estimatedTokens?: number
+  contextWindow?: number
+  categories?: ContextComposition['categories']
   compaction?: {
     tokensBefore?: number
     estimatedTokensAfter?: number
@@ -284,7 +298,8 @@ function normalizeLastContextUsage(raw: unknown): Conversation['lastContextUsage
   const totalTokens = Math.max(0, Math.floor(Number(value.totalTokens) || 0))
     || (inputTokens + outputTokens + cacheReadTokens + cacheWriteTokens)
   const recordedAt = Math.max(0, Math.floor(Number(value.recordedAt) || 0))
-  if (totalTokens <= 0 && inputTokens <= 0) return undefined
+  const composition = compositionFromStoredUsage(value)
+  if (totalTokens <= 0 && inputTokens <= 0 && !composition) return undefined
   const contextWindow = Math.max(0, Math.floor(Number(value.contextWindow) || 0))
   const sessionTurns = Math.max(0, Math.floor(Number(value.sessionTurns) || 0))
   return {
@@ -305,6 +320,7 @@ function normalizeLastContextUsage(raw: unknown): Conversation['lastContextUsage
     sessionReasoningTokens: sessionTurns ? Math.max(0, Math.floor(Number(value.sessionReasoningTokens) || 0)) : undefined,
     sessionTotalTokens: sessionTurns ? Math.max(0, Math.floor(Number(value.sessionTotalTokens) || 0)) : undefined,
     sessionTurns: sessionTurns || undefined,
+    composition,
   }
 }
 
@@ -360,6 +376,7 @@ export function normalizeConversation(raw: Record<string, unknown>): Conversatio
         })
       : undefined,
     agentGoal: normalizeGoal(raw.agentGoal),
+    subagentTasks: normalizeSubagentTasks(raw.subagentTasks),
     ctfJobId: typeof raw.ctfJobId === 'string' ? raw.ctfJobId : undefined,
     ctfMode: ['coach', 'copilot', 'delegate'].includes(String(raw.ctfMode))
       ? raw.ctfMode as Conversation['ctfMode']
@@ -747,9 +764,15 @@ export function useConversations() {
     const stored = storedContextUsageFromSnapshot(snapshot ?? emptySessionTurnSnapshot())
     if (!stored) return undefined
     const conversation = conversations.value.find(item => item.id === sessionId)
+    const modelId = stored.model || conversation?.modelId
     const contextWindow = resolveModelContextWindow(
-      stored.model || conversation?.modelId,
+      modelId,
       stored.contextWindow,
+      modelContextWindowOverride(
+        installedModelContextWindows(),
+        stored.provider || conversation?.modelProvider,
+        modelId,
+      ),
     ) || stored.contextWindow
     return {
       ...stored,
@@ -768,10 +791,16 @@ export function useConversations() {
 
   function hydrateTurnStatus(conversation: Conversation): SessionTurnSnapshot | undefined {
     const snapshot = snapshotFromStoredContextUsage(conversation.lastContextUsage)
-    if (!snapshot.usage) return undefined
+    if (!snapshot.usage && !snapshot.composition) return undefined
+    const modelId = snapshot.usage?.model || conversation.modelId
     const contextWindow = resolveModelContextWindow(
-      snapshot.usage.model || conversation.modelId,
+      modelId,
       snapshot.contextWindow,
+      modelContextWindowOverride(
+        installedModelContextWindows(),
+        snapshot.usage?.provider || conversation.modelProvider,
+        modelId,
+      ),
     ) || snapshot.contextWindow
     return applySessionContextWindow(snapshot, contextWindow)
   }
@@ -1767,6 +1796,7 @@ export function useConversations() {
         choice,
         reason,
         goal,
+        subagentTasks,
         resumed,
         aborted,
         steering,
@@ -1774,6 +1804,7 @@ export function useConversations() {
         modelSource,
         usage,
         compaction,
+        contextComposition,
       } = event.payload
       if (!sessionId && (type === 'engine.stopped' || type === 'engine.protocol_error')) {
         activeTurnPolicies.clear()
@@ -1840,7 +1871,30 @@ export function useConversations() {
           provider: usage.provider,
           recordId: usage.recordId,
         } satisfies Partial<SessionTurnUsage>))
+      }
+      const composition = readContextCompositionFromEvent({
+        type,
+        contextComposition,
+        usage,
+        estimatedTokens: event.payload.estimatedTokens,
+        contextWindow: event.payload.contextWindow,
+        categories: event.payload.categories,
+      })
+      if (composition) {
+        patchTurnStatus(sessionId, state => applySessionContextComposition(state, composition))
+      }
+      if ((type === 'usage.recorded' && usage) || composition) {
         persistSessionContextUsage(sessionId)
+      }
+      if ((type === 'usage.recorded' && usage) || type === 'context.composition') {
+        return
+      }
+      if (type === 'runtime.subagent_tasks') {
+        conversations.value = conversations.value.map(conversation => (
+          conversation.id === sessionId
+            ? { ...conversation, subagentTasks: normalizeSubagentTasks(subagentTasks) }
+            : conversation
+        ))
         return
       }
       if (type === 'session.queue_updated') {

@@ -67,7 +67,10 @@ test("CTF/CVE/lab sessions keep Coding loop surfaces instead of role-gating them
 test("tool results are bound through Pi's tool_result hook after MCP", () => {
   const boundIndex = bridgeSource.indexOf("createToolResultBoundExtension()");
   const mcpIndex = bridgeSource.lastIndexOf("createMcpAdapter(");
+  const yieldIndex = bridgeSource.indexOf("createSubagentYieldExtension(");
   assert.ok(boundIndex > 0);
   assert.ok(mcpIndex > 0);
+  assert.ok(yieldIndex > 0);
   assert.ok(boundIndex > mcpIndex);
+  assert.ok(boundIndex > yieldIndex);
 });

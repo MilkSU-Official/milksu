@@ -329,7 +329,7 @@ onBeforeUnmount(() => stopUsageEvents?.())
 <template>
   <main class="profile-page tactical-page page-scroll min-w-0 flex-1 bg-background text-foreground" :aria-label="t('个人资料', 'Profile')">
     <div class="page-column">
-      <header class="flex items-center justify-between gap-5 pb-5">
+      <header class="shell-window-control-safe-x flex items-center justify-between gap-5 pb-5">
         <div class="flex items-center gap-3">
           <UserRound class="size-6 text-primary" />
           <h1 class="text-2xl font-medium tracking-tight">{{ t('个人资料', 'Profile') }}</h1>

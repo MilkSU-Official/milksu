@@ -11,6 +11,7 @@ const {
   dialog,
   ipcMain,
   Menu,
+  nativeTheme,
   net,
   protocol,
   session,
@@ -56,6 +57,7 @@ const {
   linuxUserAgent,
   linuxWindowIconPath,
 } = require('./linux-desktop.cjs')
+const { applyWindowChrome, browserWindowChrome } = require('./window-chrome.cjs')
 const {
   desktopBackendEnvironment,
   electronNodeEnvironment,
@@ -736,6 +738,7 @@ function createWindow() {
     resourcesPath: process.resourcesPath,
     repositoryRoot: path.join(__dirname, '..'),
   })
+  const initialChromeTheme = nativeTheme.shouldUseDarkColors ? 'dark' : 'light'
   mainWindow = new BrowserWindow({
     title: lockedWindowTitle(),
     width: 1440,
@@ -743,14 +746,11 @@ function createWindow() {
     minWidth: 1080,
     minHeight: 680,
     show: false,
-    backgroundColor: '#f7f7f5',
     ...(linuxIcon ? { icon: linuxIcon } : {}),
-    ...(process.platform === 'darwin' ? {
-      titleBarStyle: 'hiddenInset',
-      // Layout-safe traffic lights: fixed shell inset, not a machine-specific screenshot fudge.
-      // x keeps buttons inside the rail width; y leaves room above the logo slot.
-      trafficLightPosition: { x: 14, y: 16 },
-    } : {}),
+    ...browserWindowChrome({
+      platform: process.platform,
+      theme: initialChromeTheme,
+    }),
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: false,
@@ -801,6 +801,13 @@ ipcMain.handle('milksu:invoke', async (event, request) => {
   const method = String(request?.method ?? '')
   // Packaging provenance is owned by the desktop shell, not Go domain logic.
   if (method === 'GetBuildTracking') return loadBuildTracking()
+  if (method === 'SetTitleBarOverlay') {
+    const payload = Array.isArray(request?.args) ? request.args[0] : request?.args
+    return applyWindowChrome(mainWindow, {
+      platform: process.platform,
+      theme: payload?.theme === 'dark' ? 'dark' : 'light',
+    })
+  }
   if (method === 'GetAccountStatus') {
     if (!accountSession) return { configured: false, state: 'unconfigured', authenticated: false }
     const started = Date.now()

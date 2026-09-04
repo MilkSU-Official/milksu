@@ -11,6 +11,7 @@ import {
   projectCodingRunFinished,
   turnMCPServers,
 } from '@/composables/useConversations'
+import conversationsSource from './useConversations.ts?raw'
 
 describe('Coding approval conversation recovery', () => {
   it('restores only Pi-native thinking levels from persisted conversations', () => {
@@ -70,6 +71,21 @@ describe('Coding approval conversation recovery', () => {
       ],
     })
     expect(conversation.messages.map(item => item.status)).toEqual(['done', 'done'])
+  })
+
+  it('keeps a live subagent roster without empty-state copy', () => {
+    const conversation = normalizeConversation({
+      id: 'conversation-subagent',
+      title: 'Subagent',
+      createdAt: 1,
+      messages: [],
+      subagentTasks: [
+        { id: 'call-1', role: 'scout', status: 'start' },
+      ],
+    })
+    expect(conversation.subagentTasks).toEqual([
+      expect.objectContaining({ id: 'call-1', role: 'scout', status: 'start' }),
+    ])
   })
 
   it('expires an approval that cannot survive an app or Sidecar restart', () => {
@@ -483,6 +499,106 @@ describe('Coding approval conversation recovery', () => {
       model: 'grok-4.6',
       recordedAt: 42,
     })
+    expect(conversation.lastContextUsage?.composition).toBeUndefined()
+  })
+
+  it('restores context composition categories from persisted conversation state', () => {
+    const conversation = normalizeConversation({
+      id: 'conversation-composition',
+      title: 'Composition fixture',
+      createdAt: 1,
+      modelId: 'grok-4.6',
+      lastContextUsage: {
+        inputTokens: 120,
+        outputTokens: 40,
+        cacheReadTokens: 80,
+        cacheWriteTokens: 0,
+        totalTokens: 240,
+        contextWindow: 1_000_000,
+        model: 'grok-4.6',
+        recordedAt: 42,
+        composition: {
+          estimatedTokens: 35_700,
+          contextWindow: 1_000_000,
+          categories: [
+            { id: 'system', tokens: 12_400 },
+            { id: 'tools', tokens: 8_100 },
+            { id: 'conversation', tokens: 15_200 },
+            { id: 'files', tokens: 99 },
+            { id: 'skills', tokens: 0 },
+          ],
+        },
+      },
+      messages: [],
+    })
+    expect(conversation.lastContextUsage?.composition).toEqual({
+      estimatedTokens: 35_700,
+      contextWindow: 1_000_000,
+      categories: [
+        { id: 'system', tokens: 12_400 },
+        { id: 'tools', tokens: 8_100 },
+        { id: 'conversation', tokens: 15_200 },
+      ],
+    })
+  })
+
+  it('keeps a composition-only occupancy row when billed tokens are missing', () => {
+    const conversation = normalizeConversation({
+      id: 'conversation-composition-only',
+      title: 'Composition only',
+      createdAt: 1,
+      lastContextUsage: {
+        inputTokens: 0,
+        outputTokens: 0,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0,
+        totalTokens: 0,
+        recordedAt: 0,
+        composition: {
+          estimatedTokens: 8_000,
+          contextWindow: 200_000,
+          categories: [{ id: 'system', tokens: 8_000 }],
+        },
+      },
+      messages: [],
+    })
+    expect(conversation.lastContextUsage?.composition).toMatchObject({
+      estimatedTokens: 8_000,
+      categories: [{ id: 'system', tokens: 8_000 }],
+    })
+  })
+
+  it('restores composition from Go flat lastContextUsage fields', () => {
+    const conversation = normalizeConversation({
+      id: 'conversation-composition-flat',
+      title: 'Flat composition',
+      createdAt: 1,
+      lastContextUsage: {
+        inputTokens: 40000,
+        outputTokens: 1200,
+        cacheReadTokens: 10000,
+        cacheWriteTokens: 0,
+        totalTokens: 51200,
+        contextWindow: 500000,
+        recordedAt: 42,
+        estimatedTokens: 50000,
+        categories: [
+          { id: 'system', tokens: 8000 },
+          { id: 'tools', tokens: 12000 },
+          { id: 'conversation', tokens: 30000 },
+        ],
+      },
+      messages: [],
+    })
+    expect(conversation.lastContextUsage?.composition).toEqual({
+      estimatedTokens: 50000,
+      contextWindow: 500000,
+      categories: [
+        { id: 'system', tokens: 8000 },
+        { id: 'tools', tokens: 12000 },
+        { id: 'conversation', tokens: 30000 },
+      ],
+    })
   })
 
   it('restores structured CVE domainTaskContext without inventing network grants', () => {
@@ -510,5 +626,12 @@ describe('Coding approval conversation recovery', () => {
       researchScope: '当前会话与用户所选项目/材料',
       safetyBoundary: '沿用 Coding Agent 当前权限档',
     })
+  })
+
+  it('projects context.composition and contextComposition onto turn status', () => {
+    expect(conversationsSource).toContain("type === 'context.composition'")
+    expect(conversationsSource).toContain('contextComposition?: ContextComposition')
+    expect(conversationsSource).toContain('readContextCompositionFromEvent')
+    expect(conversationsSource).toContain('applySessionContextComposition')
   })
 })

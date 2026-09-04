@@ -32,7 +32,7 @@
 | 历史基线 | M3 product-loop 已在 `108e0e3`（2026-08-05）合并，仅供追溯。 |
 | 正式发行基线 | `v26.827.1 / 37932cee562197ec62b31233859868b97e5dac60`（2026-08-27 今日首发）。这是当前 GitHub Latest Release；提供带版本号的 DMG、EXE、DEB、x64 tar.gz 与 `SHA256SUMS`。OTA 草稿已上传私有 R2；Admin current pointer 仍须维护者在「版本」页发布。 |
 | 开发版本线 | 根目录与 `desktop/package.json` 是 `26.827.1`。正式发行源是 `37932ce`；文档收口提交不移动该 tag。 |
-| 当前开发 | 正式包是 `26.827.1`。已登录 Stable 可轮询 Admin 并下载本机 OS+arch 更新。Linux 发出共用 x64 `.deb` 与 `.tar.gz`，GNOME Wayland 走 Portal Computer Use。Beautiful UI 是产品指挥面。实验室题目包仍可起本机 Docker / MilkSU-Lab。Pi 钉到 `0.84.1`。Composer 可调思考档位。Windows 安装器仍未代码签名；Linux 无 Secret Service 与本地 OCR；Hyprland/Xorg Computer Use 不可用。CTF 比赛模式和实验室红队学习面仍未接线。产品 UI 设计语言只写在 `AGENTS.md`。 |
+| 当前开发 | 正式包是 `26.827.1`。已登录 Stable 可轮询 Admin 并下载本机 OS+arch 更新。Linux 发出共用 x64 `.deb` 与 `.tar.gz`，GNOME Wayland 走 Portal Computer Use。Beautiful UI 是产品指挥面。实验室题目包仍可起本机 Docker / MilkSU-Lab。Pi 钉到 `0.84.1`。Composer 可调思考档位。Windows 安装器仍未代码签名；Linux 无 Secret Service 与本地 OCR；Hyprland/Xorg Computer Use 不可用。CTF 比赛模式和实验室红队学习面仍未接线。产品 UI 设计语言只写在 `AGENTS.md`。开发 HEAD 含未发版：上下文用量分类（#21）、模型窗口自动探测/覆盖（#33）、loop #35–#38、三端窗口铬。#39 rewind/handoff 未做。尚未写成已发行。 |
 | 平台边界 | `26.827.1`：macOS DMG 走 GitHub-hosted Developer ID 签名并公证；Windows 安装器完成原生 Runtime 与首次启动但未代码签名，并打入审阅过的 CUA Driver；Linux 发出 Ubuntu/Debian 共用 x64 DEB 与 Omarchy/Arch/Nix 共用 x64 tarball，GNOME Portal Computer Use 已进包，仍无 Secret Service、本地 OCR；Hyprland/Xorg Computer Use 不可用。 |
 | 发行流水 | 下一发行从干净、已推送的 `main` 对 canonical Go/Vue/Sidecar/lint/生产与文档构建只验证一次；macOS / Windows / Linux 都走 GitHub-hosted 云端。macOS 本机打包暂时关闭。必须创建 GitHub Release 页并上传带版本号的 DMG/EXE/DEB、x64 tar.gz 与 SHA256SUMS，不能只留空 tag。正式打包默认上传 OTA 到私有 R2 并建 Admin 草稿；GitHub Release 仍不上 updater ZIP。 |
 

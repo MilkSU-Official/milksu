@@ -106,6 +106,34 @@ describe('model provider catalog', () => {
     expect(settings.disabled_skills).toEqual(['product-design', 'review-security'])
   })
 
+  it('normalizes model context window overrides and drops illegal values', () => {
+    const settings = withAppSettingsDefaults({
+      active_provider: 'tokenflux',
+      active_model: 'grok-4.3',
+      model_routing: { source_order: ['personal', 'account'], auto_fallback: false },
+      providers: {
+        'custom-relay-team': {
+          api_key: '',
+          has_api_key: true,
+          enabled: true,
+          custom: true,
+          name: 'Team Relay',
+          base_url: 'https://relay.example/v1',
+          models: ['vendor/model'],
+        },
+      },
+      model_context_windows: {
+        tokenflux: { 'grok-4.3': 2_000_000, bad: 0 },
+        openai: { 'gpt-5': 200_000 },
+        'custom-relay-team': { 'vendor/model': 50 },
+      },
+    } as AppSettings)
+    expect(settings.model_context_windows).toEqual({
+      tokenflux: { 'grok-4.3': 2_000_000 },
+      'custom-relay-team': { 'vendor/model': 1024 },
+    })
+  })
+
   it('keeps an explicit personal-first order and disabled fallback by default', () => {
     expect(normalizeModelRouting({
       source_order: ['personal', 'personal'],

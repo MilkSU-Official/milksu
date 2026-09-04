@@ -1111,14 +1111,17 @@ describe('ChatComposer', () => {
     })
     await nextTick()
 
-    expect(running.host.querySelector('[aria-label="待应用引导"]')?.textContent)
-      .toContain('当前工具调用结束后应用')
+    const merged = running.host.querySelector('[aria-label="待应用引导"]')
+    expect(merged?.textContent).toContain('1 条引导已排队')
+    expect(merged?.textContent).toContain('已并入本回合')
+    expect(merged?.textContent).not.toContain('当前工具调用结束后应用')
     const editor = composerEditor(running.host)
     setComposerText(editor, '不要改 API，先补回归测试。')
     await nextTick()
 
     expect(running.host.querySelector('[aria-label="停止 Agent"]')).not.toBeNull()
     const guide = running.host.querySelector<HTMLButtonElement>('[aria-label="发送引导"]')
+    expect(guide?.title).toBe('并入本回合')
     expect(guide).not.toBeNull()
     guide?.click()
     await nextTick()
@@ -1129,6 +1132,64 @@ describe('ChatComposer', () => {
       [],
     ]])
     expect(editor.textContent).toBe('')
+  })
+
+  it('shows waiting-for-tool copy when queued guidance cannot interrupt bash', async () => {
+    const running = mountComposer({
+      running: true,
+      queuedGuidance: ['测完再改断言。'],
+      queuedGuidanceAwaitingTool: true,
+    })
+    await nextTick()
+
+    const queued = running.host.querySelector('[aria-label="待应用引导"]')
+    expect(queued?.textContent).toContain('1 条引导已排队')
+    expect(queued?.textContent).toContain('当前工具调用结束后应用')
+    expect(queued?.textContent).not.toContain('已并入本回合')
+    setComposerText(composerEditor(running.host), '再补一条引导')
+    await nextTick()
+    expect(running.host.querySelector<HTMLButtonElement>('[aria-label="发送引导"]')?.title)
+      .toBe('当前工具调用结束后应用')
+  })
+
+  it('rejects attachments on the steering path while a turn is running', async () => {
+    const attachment = {
+      id: 'a'.repeat(64),
+      name: 'notes.txt',
+      mediaType: 'text/plain',
+      size: 5,
+      sha256: 'a'.repeat(64),
+    }
+    const invoke = vi.fn(async (method: string) => {
+      if (method === 'ImportCodingAttachments') return [attachment]
+      return []
+    })
+    Object.defineProperty(window, 'milksu', {
+      configurable: true,
+      value: { invoke },
+    })
+    const running = mountComposer({ running: true })
+    await nextTick()
+    const editor = composerEditor(running.host)
+    const paste = new Event('paste', { bubbles: true, cancelable: true })
+    Object.defineProperty(paste, 'clipboardData', {
+      value: {
+        files: [new File(['notes'], 'notes.txt', { type: 'text/plain' })],
+        getData: () => '',
+      },
+    })
+    editor.dispatchEvent(paste)
+    await vi.waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith('ImportCodingAttachments', [expect.any(Array)])
+    })
+    await nextTick()
+    setComposerText(editor, '带着附件引导')
+    await nextTick()
+    running.host.querySelector<HTMLButtonElement>('[aria-label="发送引导"]')?.click()
+    await nextTick()
+
+    expect(running.sent).toEqual([])
+    expect(running.host.textContent).toContain('运行中引导暂不支持附件')
   })
 
   it('offers separate retract and retract-for-edit actions for each queued message', async () => {

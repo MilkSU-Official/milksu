@@ -85,6 +85,9 @@ func TestCloneDoesNotShareMaps(t *testing.T) {
 	original.SecurityTools = map[string]SecurityToolPreference{
 		"capa": {Enabled: true},
 	}
+	original.ModelContextWindows = map[string]map[string]int{
+		"tokenflux": {"x-ai/grok-4.6": 2_000_000},
+	}
 	copied := clone(original)
 	delete(copied.Providers, "openai")
 	custom := copied.Providers["custom-relay-local"]
@@ -110,6 +113,10 @@ func TestCloneDoesNotShareMaps(t *testing.T) {
 	}
 	if !original.SecurityTools["capa"].Enabled {
 		t.Fatal("clone modified original security tool preference")
+	}
+	copied.ModelContextWindows["tokenflux"]["x-ai/grok-4.6"] = 128_000
+	if original.ModelContextWindows["tokenflux"]["x-ai/grok-4.6"] != 2_000_000 {
+		t.Fatal("clone modified original model context windows")
 	}
 }
 

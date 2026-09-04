@@ -1,5 +1,7 @@
 import { normalizePreferredExternalEditor } from '@/lib/externalEditor'
+import { normalizeModelContextWindows } from '@/lib/knownContextWindow'
 import { normalizeModelThinkingSettings } from '@/lib/modelThinking'
+import type { ContextComposition } from '@/lib/sessionTurnStatus'
 
 export type MessageRole = 'user' | 'assistant' | 'tool'
 
@@ -107,6 +109,32 @@ export type CodingGoalStatus =
   | 'complete'
   | 'queued'
 
+export type SubagentTaskStatus = 'start' | 'running' | 'succeeded' | 'failed'
+
+export interface SubagentFinding {
+  path: string
+  note: string
+}
+
+export interface SubagentYield {
+  status: 'succeeded' | 'failed' | 'aborted'
+  cwd?: string
+  worktreeId?: string
+  files: string[]
+  findings: SubagentFinding[]
+  exitCode: number
+}
+
+export interface SubagentTask {
+  id: string
+  role: string
+  status: SubagentTaskStatus
+  durationMs?: number
+  exitCode?: number
+  yield?: SubagentYield
+  toolCallId?: string
+}
+
 export interface CodingGoalState {
   id: string
   text: string
@@ -145,6 +173,8 @@ export interface Conversation {
   agentSkills?: string[]
   agentCapabilities?: CodingCapability[]
   agentGoal?: CodingGoalState
+  /** Live subagent roster for the current session; not a second chat. */
+  subagentTasks?: SubagentTask[]
   ctfJobId?: string
   ctfMode?: 'coach' | 'copilot' | 'delegate'
   ctfRole?: 'solver' | 'tool-builder' | 'strategist'
@@ -175,6 +205,10 @@ export interface ConversationContextUsage {
   sessionReasoningTokens?: number
   sessionTotalTokens?: number
   sessionTurns?: number
+  composition?: ContextComposition
+  /** Go lastContextUsage flat fields; same data as composition. */
+  estimatedTokens?: number
+  categories?: ContextComposition['categories']
 }
 
 export interface CTFChatAction {
@@ -270,6 +304,7 @@ export interface AppSettings {
   preferred_external_editor?: string
   security_tools?: Record<string, { enabled: boolean }>
   model_thinking?: Record<string, Record<string, ModelThinkingConfig>>
+  model_context_windows?: Record<string, Record<string, number>>
   lab?: LabConfig
   providers: Record<string, ProviderConfig>
 }
@@ -324,6 +359,7 @@ export function withAppSettingsDefaults(value: AppSettings): AppSettings {
       .map(name => String(name).trim())
       .filter(name => /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/.test(name)))],
     model_thinking: normalizeModelThinkingSettings(value.model_thinking, configuredProviders),
+    model_context_windows: normalizeModelContextWindows(value.model_context_windows, configuredProviders),
     providers: configuredProviders,
     locale: value.locale === 'en' ? 'en' : 'zh',
     lab: {

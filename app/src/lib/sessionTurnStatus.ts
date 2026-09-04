@@ -31,12 +31,42 @@ export interface SessionTokenTotals {
   turns: number
 }
 
+export type ContextCompositionCategoryId =
+  | 'system'
+  | 'tools'
+  | 'skills'
+  | 'mcp'
+  | 'subagent'
+  | 'conversation'
+
+export const CONTEXT_COMPOSITION_CATEGORY_IDS = [
+  'system',
+  'tools',
+  'skills',
+  'mcp',
+  'subagent',
+  'conversation',
+] as const satisfies readonly ContextCompositionCategoryId[]
+
+export interface ContextCompositionCategory {
+  id: ContextCompositionCategoryId
+  tokens: number
+}
+
+export interface ContextComposition {
+  estimatedTokens: number
+  contextWindow?: number
+  categories: ContextCompositionCategory[]
+}
+
 export interface SessionTurnSnapshot {
   usage?: SessionTurnUsage
   /** Sum of model calls in this conversation, for cache-hit diagnosis. */
   session?: SessionTokenTotals
   /** Model context window in tokens, from the callable catalog when known. */
   contextWindow?: number
+  /** Sidecar/Go context.composition projection; category tokens are estimates. */
+  composition?: ContextComposition
   compacting: boolean
   /** Unix ms when the current agent turn started; cleared when the turn ends. */
   runStartedAt?: number
@@ -120,6 +150,100 @@ export function applySessionUsageRecorded(
   }
 }
 
+function isCompositionCategoryId(value: string): value is ContextCompositionCategoryId {
+  return (CONTEXT_COMPOSITION_CATEGORY_IDS as readonly string[]).includes(value)
+}
+
+export function contextCompositionCategoryLabel(id: ContextCompositionCategoryId): string {
+  switch (id) {
+    case 'system':
+      return t('系统提示', 'System prompt')
+    case 'tools':
+      return t('工具定义', 'Tool definitions')
+    case 'skills':
+      return t('Skills', 'Skills')
+    case 'mcp':
+      return t('MCP 与动态工具', 'MCP & dynamic tools')
+    case 'subagent':
+      return t('子 Agent 定义', 'Subagent definitions')
+    case 'conversation':
+      return t('对话', 'Conversation')
+  }
+}
+
+/** Go persists estimatedTokens/categories on lastContextUsage; Vue also keeps a nested composition. */
+export function compositionFromStoredUsage(raw: unknown): ContextComposition | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined
+  const value = raw as Record<string, unknown>
+  return normalizeContextComposition(value.composition)
+    ?? normalizeContextComposition({
+      estimatedTokens: value.estimatedTokens,
+      contextWindow: value.contextWindow,
+      categories: value.categories,
+    })
+}
+
+export function normalizeContextComposition(raw: unknown): ContextComposition | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined
+  const value = raw as Record<string, unknown>
+  const merged = new Map<ContextCompositionCategoryId, number>()
+  const rows = Array.isArray(value.categories) ? value.categories : []
+  for (const row of rows) {
+    if (!row || typeof row !== 'object' || Array.isArray(row)) continue
+    const item = row as Record<string, unknown>
+    const id = String(item.id ?? '').trim()
+    if (!isCompositionCategoryId(id)) continue
+    const tokens = nonNegativeInt(item.tokens)
+    if (tokens <= 0) continue
+    merged.set(id, (merged.get(id) ?? 0) + tokens)
+  }
+  const categories = CONTEXT_COMPOSITION_CATEGORY_IDS
+    .flatMap(id => {
+      const tokens = merged.get(id)
+      return tokens ? [{ id, tokens }] : []
+    })
+  const estimatedTokens = nonNegativeInt(value.estimatedTokens)
+    || categories.reduce((sum, item) => sum + item.tokens, 0)
+  if (estimatedTokens <= 0 && categories.length === 0) return undefined
+  const contextWindow = nonNegativeInt(value.contextWindow)
+  return {
+    estimatedTokens,
+    contextWindow: contextWindow || undefined,
+    categories,
+  }
+}
+
+/** Accept context.composition, a nested contextComposition field, or flattened payload. */
+export function readContextCompositionFromEvent(event: {
+  type?: string
+  contextComposition?: unknown
+  usage?: { contextComposition?: unknown } | null
+  estimatedTokens?: unknown
+  contextWindow?: unknown
+  categories?: unknown
+} | null | undefined): ContextComposition | undefined {
+  if (!event) return undefined
+  const nested = normalizeContextComposition(event.contextComposition)
+    ?? normalizeContextComposition(event.usage?.contextComposition)
+  if (nested) return nested
+  if (event.type === 'context.composition') {
+    return normalizeContextComposition(event)
+  }
+  return undefined
+}
+
+export function applySessionContextComposition(
+  state: SessionTurnSnapshot,
+  composition: ContextComposition | Partial<ContextComposition> | null | undefined,
+): SessionTurnSnapshot {
+  const normalized = normalizeContextComposition(composition)
+  if (!normalized) return state
+  const next = { ...state, composition: normalized }
+  return normalized.contextWindow
+    ? applySessionContextWindow(next, normalized.contextWindow)
+    : next
+}
+
 /** After Pi compact, the ring should show the estimated remaining context, not the last prompt. */
 export function applySessionUsageAfterCompaction(
   state: SessionTurnSnapshot,
@@ -130,6 +254,7 @@ export function applySessionUsageAfterCompaction(
   if (!inputTokens) return state
   return {
     ...state,
+    composition: undefined,
     usage: {
       inputTokens,
       outputTokens: 0,
@@ -164,6 +289,9 @@ export function snapshotFromStoredContextUsage(
     sessionReasoningTokens?: number
     sessionTotalTokens?: number
     sessionTurns?: number
+    composition?: ContextComposition | null
+    estimatedTokens?: number
+    categories?: ContextComposition['categories']
   }) | null | undefined,
   now = Date.now(),
 ): SessionTurnSnapshot {
@@ -173,26 +301,27 @@ export function snapshotFromStoredContextUsage(
     usage,
     usage.recordedAt || now,
   )
-  return applySessionContextWindow({
+  return applySessionContextComposition(applySessionContextWindow({
     ...recorded,
     session: storedSessionTotals(usage) ?? recorded.session,
-  }, usage.contextWindow)
+  }, usage.contextWindow), compositionFromStoredUsage(usage))
 }
 
 export function storedContextUsageFromSnapshot(snapshot: SessionTurnSnapshot) {
   const usage = snapshot.usage
-  if (!usage) return undefined
+  const composition = snapshot.composition
+  if (!usage && !composition) return undefined
   return {
-    inputTokens: usage.inputTokens,
-    outputTokens: usage.outputTokens,
-    cacheReadTokens: usage.cacheReadTokens,
-    cacheWriteTokens: usage.cacheWriteTokens,
-    reasoningTokens: usage.reasoningTokens,
-    totalTokens: usage.totalTokens,
+    inputTokens: usage?.inputTokens ?? 0,
+    outputTokens: usage?.outputTokens ?? 0,
+    cacheReadTokens: usage?.cacheReadTokens ?? 0,
+    cacheWriteTokens: usage?.cacheWriteTokens ?? 0,
+    reasoningTokens: usage?.reasoningTokens ?? 0,
+    totalTokens: usage?.totalTokens ?? 0,
     contextWindow: snapshot.contextWindow,
-    model: usage.model,
-    provider: usage.provider,
-    recordedAt: usage.recordedAt,
+    model: usage?.model,
+    provider: usage?.provider,
+    recordedAt: usage?.recordedAt ?? 0,
     sessionInputTokens: snapshot.session?.inputTokens,
     sessionOutputTokens: snapshot.session?.outputTokens,
     sessionCacheReadTokens: snapshot.session?.cacheReadTokens,
@@ -200,6 +329,13 @@ export function storedContextUsageFromSnapshot(snapshot: SessionTurnSnapshot) {
     sessionReasoningTokens: snapshot.session?.reasoningTokens,
     sessionTotalTokens: snapshot.session?.totalTokens,
     sessionTurns: snapshot.session?.turns,
+    ...(composition
+      ? {
+          composition,
+          estimatedTokens: composition.estimatedTokens,
+          categories: composition.categories,
+        }
+      : {}),
   }
 }
 
@@ -242,6 +378,21 @@ export function formatTokenCount(value: number | undefined): string {
   return `${Math.round(n / 1_000_000)}M`
 }
 
+/** Composition estimates: 35.7K / 1M. */
+export function formatCompositionTokenCount(value: number | undefined): string {
+  const n = nonNegativeInt(value)
+  if (n < 1000) return String(n)
+  if (n < 1_000_000) {
+    const thousands = n / 1000
+    const label = thousands >= 100
+      ? String(Math.round(thousands))
+      : thousands.toFixed(1).replace(/\.0$/, '')
+    return `${label}K`
+  }
+  if (n < 10_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`
+  return `${Math.round(n / 1_000_000)}M`
+}
+
 /** Elapsed wall time from runStartedAt to now (or finished). */
 export function formatElapsedMs(elapsedMs: number | undefined): string {
   const ms = Math.max(0, Math.floor(Number(elapsedMs) || 0))
@@ -266,6 +417,14 @@ export interface ContextUsageBreakdown {
   turns?: number
 }
 
+export interface ContextUsageCategoryPresentation {
+  id: ContextCompositionCategoryId
+  label: string
+  tokens: number
+  tokenLabel: string
+  percent: number
+}
+
 export interface ContextUsagePresentation {
   /** Short line for composer strip, e.g. "↑10k ↓1.8k · 12k/128k". */
   strip: string
@@ -287,6 +446,13 @@ export interface ContextUsagePresentation {
   compacting: boolean
   last?: ContextUsageBreakdown
   session?: ContextUsageBreakdown
+  categories?: ContextUsageCategoryPresentation[]
+  /** e.g. "4% 已用" / "4% Full". */
+  usedLabel?: string
+  /** e.g. "~35.7K / 1M" when categories are estimates. */
+  tokenRatioLabel?: string
+  estimatedTokens?: number
+  windowTokens?: number
 }
 
 /** Cache hit rate: cache-read tokens / last prompt (uncached + cache-read). */
@@ -340,46 +506,99 @@ function presentUsageBreakdown(
   }
 }
 
+function presentCompositionCategories(
+  composition: ContextComposition,
+  windowTokens: number | undefined,
+): ContextUsageCategoryPresentation[] {
+  const denominator = (windowTokens && windowTokens > 0)
+    ? windowTokens
+    : composition.estimatedTokens
+  return composition.categories
+    .filter(item => item.tokens > 0)
+    .map(item => ({
+      id: item.id,
+      label: contextCompositionCategoryLabel(item.id),
+      tokens: item.tokens,
+      tokenLabel: formatCompositionTokenCount(item.tokens),
+      percent: denominator > 0
+        ? Math.round((item.tokens / denominator) * 100)
+        : 0,
+    }))
+}
+
 export function presentContextUsage(
   snapshot: SessionTurnSnapshot,
 ): ContextUsagePresentation | null {
   const usage = snapshot.usage
+  const composition = snapshot.composition
   const compacting = Boolean(snapshot.compacting)
-  if (!usage) {
+  if (!usage && !composition) {
     if (!compacting) return null
+    const compactingLabel = t('整理中', 'Compacting')
     return {
-      strip: t('整理中', 'Compacting'),
+      strip: compactingLabel,
       nearLimit: false,
       inputLabel: '—',
       outputLabel: '—',
       windowLabel: '',
       totalLabel: '—',
-      ioLabel: t('整理中', 'Compacting'),
+      ioLabel: compactingLabel,
       compacting: true,
+      usedLabel: compactingLabel,
     }
   }
-  const input = usage.inputTokens + usage.cacheReadTokens
-  const output = usage.outputTokens
-  const window = snapshot.contextWindow
-  const inputLabel = formatTokenCount(input)
-  const outputLabel = formatTokenCount(output)
-  const totalLabel = formatTokenCount(usage.totalTokens || input + output)
-  const windowLabel = window ? formatTokenCount(window) : ''
-  const ioLabel = `↑${inputLabel} ↓${outputLabel}`
-  const occupancy = window && window > 0
+  const input = usage ? usage.inputTokens + usage.cacheReadTokens : 0
+  const output = usage?.outputTokens ?? 0
+  const window = snapshot.contextWindow || composition?.contextWindow
+  const occupied = composition?.estimatedTokens ?? input
+  const inputLabel = usage ? formatTokenCount(input) : formatCompositionTokenCount(occupied)
+  const outputLabel = usage ? formatTokenCount(output) : '—'
+  const totalLabel = usage
+    ? formatTokenCount(usage.totalTokens || input + output)
+    : formatCompositionTokenCount(occupied)
+  const windowLabel = window
+    ? (composition ? formatCompositionTokenCount(window) : formatTokenCount(window))
+    : ''
+  const ioLabel = usage
+    ? `↑${inputLabel} ↓${outputLabel}`
+    : t('整理中', 'Compacting')
+  const occupancy = !composition && usage && window && window > 0
     ? contextOccupancyShares(usage.inputTokens, usage.cacheReadTokens, window)
     : undefined
-  const percent = occupancy?.percent
+  const compositionPercent = composition && window && window > 0
+    ? Math.min(100, Math.round((occupied / window) * 100))
+    : undefined
+  const percent = compositionPercent ?? occupancy?.percent
   const nearLimit = (percent ?? 0) >= 85
   const ratio = windowLabel ? `${inputLabel}/${windowLabel}` : ''
   const compactingMark = compacting ? t(' · 整理中', ' · Compacting') : ''
-  const strip = ratio
-    ? `${ioLabel} · ${ratio}${compactingMark}`
-    : `${ioLabel}${compactingMark}`
-  const last = presentUsageBreakdown(usage)
+  const compactingLabel = t('整理中', 'Compacting')
+  const strip = usage
+    ? (ratio ? `${ioLabel} · ${ratio}${compactingMark}` : `${ioLabel}${compactingMark}`)
+    : (compacting && !composition
+      ? compactingLabel
+      : [percent !== undefined ? `${percent}%` : '', ratio].filter(Boolean).join(' · ')
+        + compactingMark)
+  const last = usage ? presentUsageBreakdown(usage) : undefined
   const session = snapshot.session && snapshot.session.turns > 1
     ? presentUsageBreakdown(snapshot.session, snapshot.session.turns)
     : undefined
+  const categories = composition
+    ? presentCompositionCategories(composition, window)
+    : undefined
+  const usedLabel = compacting && percent === undefined
+    ? compactingLabel
+    : percent !== undefined
+      ? t(`${percent}% 已用`, `${percent}% Full`)
+      : ''
+  const tokenRatioLabel = composition && (occupied > 0 || window)
+    ? [
+        occupied > 0 ? `~${formatCompositionTokenCount(occupied)}` : '',
+        window ? formatCompositionTokenCount(window) : '',
+      ].filter(Boolean).join(' / ')
+    : windowLabel
+      ? `${inputLabel} / ${windowLabel}`
+      : ''
   return {
     strip,
     percent,
@@ -390,10 +609,15 @@ export function presentContextUsage(
     outputLabel,
     windowLabel,
     totalLabel,
-    ioLabel,
+    ioLabel: usage ? ioLabel : (usedLabel || tokenRatioLabel || compactingLabel),
     compacting,
     last,
     session,
+    categories: categories?.length ? categories : undefined,
+    usedLabel,
+    tokenRatioLabel,
+    estimatedTokens: composition?.estimatedTokens,
+    windowTokens: window,
   }
 }
 

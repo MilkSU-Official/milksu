@@ -14,7 +14,7 @@ const moduleKey = computed(() => props.module ?? props.title.trim().toLowerCase(
 
 <template>
   <header
-    class="workspace-topbar app-drag px-6 py-4"
+    class="workspace-topbar shell-window-control-safe-x app-drag pl-6 py-4"
     data-module-topbar
     data-workspace-topbar
     :data-workspace-module="moduleKey"
@@ -67,6 +67,7 @@ const moduleKey = computed(() => props.module ?? props.title.trim().toLowerCase(
 
 <style scoped>
 .workspace-topbar {
+  --shell-window-control-gutter: 1.5rem;
   --module-topbar-title-size: var(--text-control, 0.875rem);
   --module-topbar-title-line-height: var(--text-control--line-height, 1.25rem);
   --module-topbar-control-size: var(--text-control, 0.875rem);

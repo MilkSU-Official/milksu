@@ -103,7 +103,7 @@ import {
   type ChatActivityExpansionState,
 } from '@/lib/chatActivityExpansion'
 import { chatTopbarPresentation } from '@/lib/chatTopbar'
-import { resolveModelContextWindow } from '@/lib/knownContextWindow'
+import { modelContextWindowOverride, resolveModelContextWindow } from '@/lib/knownContextWindow'
 import {
   effectiveModelThinkingLevel,
   resolveModelThinking,
@@ -377,6 +377,12 @@ const activeTools = computed(() => (
   props.conversation?.agentTools ?? []
 ))
 const activeGoal = computed(() => props.conversation?.agentGoal)
+const queuedGuidanceAwaitingTool = computed(() => (
+  (props.conversation?.messages ?? []).some(message => (
+    message.role === 'tool'
+    && message.status === 'running'
+  ))
+))
 const composerGitSummary = computed(() => {
   const git = codingEnvironment.value?.git
   if (!git?.isRepository || !git.dirty || git.changedFiles <= 0) return undefined
@@ -430,8 +436,16 @@ const effectiveTurnStatus = computed<SessionTurnSnapshot>(() => {
   const catalogWindow = catalogWindowFor(model)
     ?? catalogWindowFor(usageModel)
     ?? base.contextWindow
-  const contextWindow = resolveModelContextWindow(usageModel || model, catalogWindow)
-    || base.contextWindow
+  const usageModelId = usageModel || model
+  const provider = base.usage?.provider
+    || (effectiveModelMode.value === 'auto'
+      ? automaticModel.value?.provider
+      : props.modelProvider || props.settings?.active_provider)
+  const contextWindow = resolveModelContextWindow(
+    usageModelId,
+    catalogWindow,
+    modelContextWindowOverride(props.settings?.model_context_windows, provider, usageModelId),
+  ) || base.contextWindow
   return applySessionContextWindow(
     { ...base, compacting: props.compacting || Boolean(base.compacting) },
     contextWindow,
@@ -2121,6 +2135,7 @@ defineExpose({
             :recovery-context="ctfSession ? 'ctf' : 'coding'"
             :activity-open="chatActivityGroupIsOpen"
             :activity-open-entries="chatActivityOpenEntries"
+            :subagent-tasks="conversation?.subagentTasks"
             @toggle-group="handleActivityGroupToggle"
             @toggle-entry="handleActivityEntryToggle"
             @respond-approval="(requestId, approved, scope, choice) => $emit('respondApproval', requestId, approved, scope, choice)"
@@ -2133,6 +2148,7 @@ defineExpose({
             :activity="item"
             :open="chatActivityGroupIsOpen(item.id)"
             :open-entry-ids="chatActivityOpenEntries(item.id)"
+            :subagent-tasks="conversation?.subagentTasks"
             @toggle-group="open => handleActivityGroupToggle(item.id, open)"
             @toggle-entry="(entryId, open) => handleActivityEntryToggle(item.id, entryId, open)"
           />
@@ -2205,6 +2221,7 @@ defineExpose({
       :aborting="aborting"
       :compacting="compacting"
       :queued-guidance="messageQueue?.steering ?? []"
+      :queued-guidance-awaiting-tool="queuedGuidanceAwaitingTool"
       :ctf-session="ctfSession"
       :goal-mode="goalMode"
       :goal="activeGoal"

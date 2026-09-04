@@ -59,7 +59,27 @@ function knownContextWindow(id) {
   return 0;
 }
 
-function resolveModelContextWindow(id, catalogWindow) {
+function clampModelContextWindow(value) {
+  return Math.min(10_000_000, Math.max(1024, value));
+}
+
+function contextWindowOverride(provider, model, environment = process.env) {
+  const raw = String(environment?.MILKSU_MODEL_CONTEXT_WINDOWS ?? "").trim();
+  if (!raw) return 0;
+  try {
+    const parsed = JSON.parse(raw);
+    const value = Number(parsed?.[String(provider ?? "").trim()]?.[String(model ?? "").trim()]);
+    return Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function resolveModelContextWindow(id, catalogWindow, override) {
+  const manual = Number(override);
+  if (Number.isFinite(manual) && manual > 0) {
+    return clampModelContextWindow(Math.floor(manual));
+  }
   const catalog = Number(catalogWindow);
   const known = knownContextWindow(id);
   const catalogValue = Number.isFinite(catalog) && catalog > 0 ? Math.floor(catalog) : 0;
@@ -70,5 +90,6 @@ function resolveModelContextWindow(id, catalogWindow) {
 
 module.exports = {
   knownContextWindow,
+  contextWindowOverride,
   resolveModelContextWindow,
 };

@@ -1,0 +1,64 @@
+{
+  "id": "loop-context-integration/turn-1",
+  "provider": "tokenflux",
+  "model": "grok-4.6",
+  "catalogWindow": 128000,
+  "overrideWindow": 200000,
+  "billedPromptTokens": 12000,
+  "usage": {
+    "inputTokens": 8000,
+    "cacheReadTokens": 4000,
+    "outputTokens": 200,
+    "totalTokens": 12200
+  },
+  "contextComposition": {
+    "estimatedTokens": 12000,
+    "contextWindow": 200000,
+    "categories": [
+      { "id": "system", "tokens": 2000 },
+      { "id": "tools", "tokens": 3000 },
+      { "id": "skills", "tokens": 1000 },
+      { "id": "subagent", "tokens": 500 },
+      { "id": "conversation", "tokens": 5500 }
+    ]
+  },
+  "storedUsage": {
+    "inputTokens": 8000,
+    "cacheReadTokens": 4000,
+    "outputTokens": 200,
+    "totalTokens": 12200,
+    "contextWindow": 200000,
+    "estimatedTokens": 12000,
+    "categories": [
+      { "id": "system", "tokens": 2000 },
+      { "id": "tools", "tokens": 3000 },
+      { "id": "skills", "tokens": 1000 },
+      { "id": "subagent", "tokens": 500 },
+      { "id": "conversation", "tokens": 5500 }
+    ]
+  },
+  "subagentTasks": [
+    {
+      "id": "call-1",
+      "role": "worker",
+      "status": "succeeded",
+      "toolCallId": "call-1",
+      "durationMs": 1200,
+      "exitCode": 0,
+      "yield": {
+        "status": "succeeded",
+        "worktreeId": "writer-1",
+        "files": ["a.ts"],
+        "findings": [{ "path": "a.ts", "note": "renamed" }],
+        "exitCode": 0
+      }
+    }
+  ],
+  "forbidden": [
+    "sk-live-",
+    "TOKENFLUX_API_KEY",
+    "MILKSU_RELAY_KEY",
+    "/Users/",
+    "C:\\\\Users\\\\"
+  ]
+}

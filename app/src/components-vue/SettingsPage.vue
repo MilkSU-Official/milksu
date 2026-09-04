@@ -112,6 +112,7 @@ import {
   normalizeModelThinkingConfig,
   resolveModelThinking,
 } from '@/lib/modelThinking'
+import { resolveModelContextWindow } from '@/lib/knownContextWindow'
 
 type SettingsCategory = 'general' | 'apikeys' | 'ctf' | 'cve' | 'lab' | 'coding' | 'chats' | 'browser' | 'security-tools' | 'eval'
 
@@ -190,6 +191,7 @@ const {
   pickerGroups: availablePickerGroups,
   providerModelLabel: availableProviderModelLabel,
   pickerModelLabel: availablePickerModelLabel,
+  snapshot: modelCatalogSnapshot,
 } = useModelCatalog(pickerSettings)
 const account = computed<AccountStatus>(() => props.accountStatus ?? ({ configured: false, authenticated: false, state: 'unconfigured' }))
 const accountStateLabel = computed(() => ({
@@ -398,6 +400,83 @@ watch([working, availablePickerGroups], () => {
     : ''
 }, { immediate: true })
 
+const windowModelKey = ref('')
+const windowModelSelection = computed(() => (
+  parsePickerSelection(windowModelKey.value)
+))
+const windowModelProvider = computed(() => windowModelSelection.value?.providerId ?? '')
+const windowModelID = computed(() => windowModelSelection.value?.model ?? '')
+const windowModelLabel = computed(() => {
+  const selection = windowModelSelection.value
+  if (!selection) return t('选择模型', 'Select a model')
+  const group = availablePickerGroups.value.find(item => (
+    item.providerId === selection.providerId
+    && item.models.includes(selection.model)
+  ))
+  return group
+    ? availablePickerModelLabel(group, selection.model)
+    : availableProviderModelLabel(selection.providerId, selection.model)
+})
+const windowOverride = computed(() => {
+  const stored = working.value?.model_context_windows?.[windowModelProvider.value]?.[windowModelID.value]
+  const parsed = Number(stored)
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : undefined
+})
+const windowCatalogValue = computed(() => {
+  const id = windowModelID.value
+  if (!id) return 0
+  const catalog = Number(modelCatalogSnapshot.value?.models.find(entry => entry.id === id)?.context_window)
+  return Number.isFinite(catalog) && catalog > 0 ? Math.floor(catalog) : 0
+})
+const effectiveWindow = computed(() => resolveModelContextWindow(
+  windowModelID.value,
+  windowCatalogValue.value,
+  windowOverride.value,
+))
+
+watch([working, availablePickerGroups], () => {
+  const current = windowModelSelection.value
+  const stillAvailable = current && availablePickerGroups.value.some(group => (
+    group.providerId === current.providerId && group.models.includes(current.model)
+  ))
+  if (stillAvailable) return
+  const active = working.value
+    ? matchPickerGroup(working.value.active_provider, working.value.active_model)
+    : undefined
+  const fallback = active ?? availablePickerGroups.value[0]
+  const model = active
+    ? working.value?.active_model
+    : fallback?.models[0]
+  windowModelKey.value = fallback && model
+    ? encodePickerSelection(fallback.providerId, model, fallback.source)
+    : ''
+}, { immediate: true })
+
+function setModelContextWindowOverride(value: unknown) {
+  if (!working.value || !windowModelProvider.value || !windowModelID.value) return
+  const parsed = Math.floor(Number(value))
+  if (!Number.isFinite(parsed) || parsed <= 0) return
+  const provider = windowModelProvider.value
+  working.value.model_context_windows = {
+    ...(working.value.model_context_windows ?? {}),
+    [provider]: {
+      ...(working.value.model_context_windows?.[provider] ?? {}),
+      [windowModelID.value]: parsed,
+    },
+  }
+}
+
+function resetModelContextWindowOverride() {
+  if (!working.value?.model_context_windows?.[windowModelProvider.value]) return
+  const provider = windowModelProvider.value
+  const models = { ...working.value.model_context_windows[provider] }
+  delete models[windowModelID.value]
+  const windows = { ...working.value.model_context_windows }
+  if (Object.keys(models).length) windows[provider] = models
+  else delete windows[provider]
+  working.value.model_context_windows = Object.keys(windows).length ? windows : undefined
+}
+
 function setThinkingOverride(config: ModelThinkingConfig) {
   if (!working.value || !thinkingModelProvider.value || !thinkingModelID.value) return
   const provider = thinkingModelProvider.value
@@ -595,6 +674,7 @@ function removeModelService(id: string) {
   if (config.custom) {
     delete working.value.providers[id]
     if (working.value.model_thinking) delete working.value.model_thinking[id]
+    if (working.value.model_context_windows) delete working.value.model_context_windows[id]
   } else {
     working.value.providers[id] = {
       ...config,
@@ -642,6 +722,9 @@ function removeCustomRelayModel(model: string) {
   target.models = (target.models ?? []).filter(item => item !== model)
   if (editingProviderID.value && working.value.model_thinking?.[editingProviderID.value]) {
     delete working.value.model_thinking[editingProviderID.value][model]
+  }
+  if (editingProviderID.value && working.value.model_context_windows?.[editingProviderID.value]) {
+    delete working.value.model_context_windows[editingProviderID.value][model]
   }
   if (working.value.active_provider === editingProviderID.value && working.value.active_model === model) {
     working.value.active_model = target.models[0] ?? ''
@@ -1284,7 +1367,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
 
 <template>
   <main class="settings-page tactical-page flex min-w-0 flex-1 flex-col bg-background">
-    <header class="app-drag settings-page-header flex h-14 shrink-0 items-center border-b border-border bg-background px-5 text-foreground">
+    <header class="app-drag settings-page-header shell-window-control-safe-x flex h-14 shrink-0 items-center border-b border-border bg-background pl-5 text-foreground">
       <Button variant="ghost" size="icon-sm" class="app-no-drag mr-3" :aria-label="t('返回', 'Back')" @click="$emit('close')">
         <ArrowLeft class="size-4" />
       </Button>
@@ -1985,6 +2068,81 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                 </label>
               </div>
             </div>
+
+            <div class="mt-4 rounded-lg border border-border bg-muted/30 p-4">
+              <div class="min-w-0">
+                <p class="font-medium">{{ t('上下文窗口', 'Context window') }}</p>
+                <p class="mt-1 text-caption text-muted-foreground">
+                  {{ t('目录或型号族会自动填充；中转站或不准的窗口可在这里覆盖', 'Catalog and model-family presets fill this automatically. Override it for relays or a wrong window.') }}
+                </p>
+              </div>
+
+              <div class="mt-4 grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                <Select v-model="windowModelKey">
+                  <SelectTrigger
+                    size="sm"
+                    class="w-full"
+                    :aria-label="t('配置上下文窗口的模型', 'Model for context window')"
+                  >
+                    <SelectValue>
+                      <span class="inline-flex min-w-0 items-center gap-2">
+                        <ModelVendorIcon
+                          :model="windowModelID"
+                          :label="windowModelLabel"
+                        />
+                        <span class="min-w-0 truncate">{{ windowModelLabel }}</span>
+                      </span>
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent size="sm" align="start" class="min-w-96">
+                    <template
+                      v-for="(group, groupIndex) in availablePickerGroups"
+                      :key="`window:${group.key}`"
+                    >
+                      <SelectSeparator v-if="groupIndex > 0" />
+                      <SelectGroup>
+                        <SelectLabel>{{ group.label }}</SelectLabel>
+                        <SelectItem
+                          v-for="model in group.models"
+                          :key="`window:${group.key}:${model}`"
+                          :value="encodePickerSelection(group.providerId, model, group.source)"
+                        >
+                          <span class="inline-flex min-w-0 items-center gap-2">
+                            <ModelVendorIcon
+                              :model="model"
+                              :label="availablePickerModelLabel(group, model)"
+                            />
+                            <span class="min-w-0 truncate">{{ availablePickerModelLabel(group, model) }}</span>
+                          </span>
+                        </SelectItem>
+                      </SelectGroup>
+                    </template>
+                  </SelectContent>
+                </Select>
+
+                <div class="flex items-center justify-end gap-3">
+                  <button
+                    v-if="windowOverride"
+                    type="button"
+                    class="text-caption text-link hover:underline"
+                    @click="resetModelContextWindowOverride"
+                  >
+                    {{ t('恢复自动', 'Restore automatic') }}
+                  </button>
+                  <Input
+                    type="number"
+                    size="sm"
+                    class="w-36"
+                    :model-value="effectiveWindow || ''"
+                    min="1024"
+                    max="10000000"
+                    :disabled="!windowModelID"
+                    :aria-label="t('上下文窗口 token 数', 'Context window tokens')"
+                    @update:model-value="setModelContextWindowOverride($event)"
+                  />
+                </div>
+              </div>
+            </div>
           </SettingsSection>
 
           <div class="mt-6 flex justify-end">
@@ -2185,6 +2343,9 @@ async function saveProviderEditor(closeAfterSave: boolean) {
 </template>
 
 <style scoped>
+.settings-page-header {
+  --shell-window-control-gutter: 1.25rem;
+}
 .settings-nav-surface { border-color: var(--border); background-color: var(--background); }
 .settings-page :deep(.settings-notice) {
   border-radius: 8px;

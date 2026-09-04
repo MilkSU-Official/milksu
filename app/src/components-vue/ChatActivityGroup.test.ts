@@ -42,7 +42,10 @@ async function settleToggle() {
   await nextTick()
 }
 
-function mountControlledGroup(activity: ChatActivityBlock) {
+function mountControlledGroup(
+  activity: ChatActivityBlock,
+  subagentTasks: { id: string; role: string; status: 'start' | 'running' | 'succeeded' | 'failed' }[] = [],
+) {
   const expansion = ref<ChatActivityExpansionState>(createChatActivityExpansionState())
   const host = document.createElement('div')
   document.body.append(host)
@@ -51,6 +54,7 @@ function mountControlledGroup(activity: ChatActivityBlock) {
     setup: () => ({
       activity,
       expansion,
+      subagentTasks,
       openEntries: (activityId: string) => chatActivityOpenEntryIds(expansion.value, activityId),
       toggleEntry(activityId: string, entryId: string, open: boolean) {
         expansion.value = setChatActivityEntryOpen(expansion.value, activityId, entryId, open)
@@ -60,6 +64,7 @@ function mountControlledGroup(activity: ChatActivityBlock) {
       :activity="activity"
       :open="false"
       :open-entry-ids="openEntries(activity.id)"
+      :subagent-tasks="subagentTasks"
       @toggle-entry="(entryId, open) => toggleEntry(activity.id, entryId, open)"
     />`,
   })
@@ -69,6 +74,22 @@ function mountControlledGroup(activity: ChatActivityBlock) {
 }
 
 describe('ChatActivityGroup', () => {
+  it('shows a subagent roster row on start and does not invent empty copy', async () => {
+    const activity = reactive<ChatActivityBlock>({
+      kind: 'activity',
+      id: 'activity:sub',
+      running: true,
+      messages: [tool('s1', 'scout', { status: 'running', toolCallId: 'call-1', toolName: 'subagent' })],
+    })
+    const { host } = mountControlledGroup(activity, [
+      { id: 'call-1', role: 'scout', status: 'start' },
+    ])
+    await nextTick()
+    expect(host.querySelector('[data-testid="subagent-roster"]')).not.toBeNull()
+    expect(host.textContent).toContain('scout')
+    expect(host.textContent).not.toContain('还没有子任务')
+  })
+
   it('shows tool chips without expanding and keeps them when later tools arrive', async () => {
     const activity = reactive<ChatActivityBlock>({
       kind: 'activity',

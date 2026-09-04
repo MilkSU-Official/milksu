@@ -34,6 +34,56 @@ async function restoreQueue(session, queue) {
   }
 }
 
+function sessionFlag(session, name) {
+  const value = session?.[name];
+  if (typeof value === "function") return value.call(session) === true;
+  return value === true;
+}
+
+function sessionHasRunningBash(session) {
+  return sessionFlag(session, "isBashRunning");
+}
+
+function sessionPendingToolCount(session) {
+  const state = session?.state ?? session?.agent?.state;
+  const pending = state?.pendingToolCalls;
+  if (pending && typeof pending.size === "number") return pending.size;
+  if (Array.isArray(pending)) return pending.length;
+  return 0;
+}
+
+function sessionHasRunningTools(session) {
+  return sessionHasRunningBash(session) || sessionPendingToolCount(session) > 0;
+}
+
+function isAssistantStreaming(session) {
+  if (sessionFlag(session, "isIdle")) return false;
+  return sessionFlag(session, "isStreaming");
+}
+
+export function shouldAbortAssistantStream(session) {
+  // Pi's isStreaming is the whole agent run, including tool execution.
+  // Abort only while the assistant is streaming text, not mid-edit/write/bash.
+  return isAssistantStreaming(session) && !sessionHasRunningTools(session);
+}
+
+function abortAssistantStream(session) {
+  // Abort only the in-flight assistant stream. This is not abort_session:
+  // it must not settle the desktop turn or dispose the Pi session.
+  // Prefer agent.abort() so we do not start AgentSession.abort()'s
+  // waitForIdle(), which includes the steered continuation.
+  if (typeof session.agent?.abort === "function") {
+    session.agent.abort();
+    return;
+  }
+  if (typeof session.abort === "function") {
+    const pending = session.abort();
+    if (pending && typeof pending.then === "function") {
+      pending.catch(() => undefined);
+    }
+  }
+}
+
 export async function steerSession(sessions, command) {
   const conversationId = String(command?.conversationId ?? "").trim();
   if (!conversationId) throw new Error("conversationId is required");
@@ -41,13 +91,23 @@ export async function steerSession(sessions, command) {
   if (!session) throw new Error(`PI session not found: ${conversationId}`);
   const message = normalizedSteeringMessage(command?.prompt);
 
-  // Pi owns streaming and queue semantics. Use its dedicated API instead of
-  // prompt(..., { streamingBehavior: "steer" }): during the small window where
-  // AgentSession has not yet projected isStreaming but the underlying agent is
-  // already processing, prompt() falls through and is rejected as a concurrent
-  // prompt. steer() queues directly after the active tool batch and before the
-  // next model call.
+  // Automatic argument-gate on streaming edit/write/bash parameters is
+  // intentionally not implemented (loop-mid-turn-steer.md optional 3a).
+  //
+  // Mid-turn Codex path: queue steer first, then abort the assistant text
+  // stream when no uninterruptible bash is running. Pi's loop exits on abort
+  // without draining; _handlePostAgentRun continues this turn only if the
+  // steer is already queued. abort() does not clear that queue and is not
+  // abort_session. Do not call prompt() (that would open a parallel user
+  // turn). If bash is running, only steer and let the tool finish.
   await session.steer(message);
+  if (shouldAbortAssistantStream(session)) {
+    try {
+      abortAssistantStream(session);
+    } catch {
+      // Stream abort is best-effort; the steer is already on this turn.
+    }
+  }
 }
 
 export async function removeQueuedMessage(sessions, command) {

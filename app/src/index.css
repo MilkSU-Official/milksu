@@ -688,17 +688,49 @@ input[type='range']:not(:disabled) {
 }
 
 /*
- * Shared macOS traffic-light safe inset for any full-width top chrome under
- * hiddenInset (recovery banner, future top strips). Horizontal only so a
- * banner does not invent vertical empty space when the rail already owns the
- * logo safe region. Pairs with BrowserWindow.trafficLightPosition.
+ * Shared window-chrome safe insets. macOS hiddenInset keeps traffic lights over
+ * the sidebar. Windows and Linux hide the native caption and paint a canvas-colored
+ * overlay. Windows keeps system buttons top-right; Linux follows the desktop
+ * layout via titlebar-area env. Do not apply the mac spacer on Windows.
  */
 :root {
+  --shell-title-safe-top: 0.5rem;
+  --shell-traffic-light-safe-left: 0px;
+  --shell-window-control-safe-right: 0px;
+}
+
+:root[data-host-platform='darwin'] {
+  --shell-title-safe-top: 2.1rem;
   --shell-traffic-light-safe-left: 4.75rem;
 }
 
+:root[data-host-platform='win32'] {
+  --shell-title-safe-top: 0.5rem;
+  --shell-window-control-safe-right: max(
+    8.75rem,
+    calc(100vw - env(titlebar-area-x, 100vw) - env(titlebar-area-width, 0px))
+  );
+}
+
+:root[data-host-platform='linux'] {
+  --shell-title-safe-top: max(0.5rem, min(2.1rem, env(titlebar-area-x, 0px)));
+  --shell-traffic-light-safe-left: env(titlebar-area-x, 0px);
+  --shell-window-control-safe-right: max(
+    0px,
+    calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw))
+  );
+}
+
 .shell-traffic-light-safe-x {
-  padding-left: var(--shell-traffic-light-safe-left);
+  padding-left: max(var(--shell-edge-gutter, 1rem), var(--shell-traffic-light-safe-left));
+}
+
+.shell-window-control-safe-x {
+  padding-right: calc(var(--shell-window-control-gutter, 0px) + var(--shell-window-control-safe-right));
+}
+
+.shell-traffic-light-safe-x.shell-window-control-safe-x {
+  --shell-window-control-gutter: 1rem;
 }
 
 code,

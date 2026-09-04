@@ -129,6 +129,8 @@ const props = defineProps<{
   mcpCatalog?: Array<{ name: string; reviewReady: boolean }>
   mcpConfigDigest?: string
   queuedGuidance?: string[]
+  /** True while an uninterruptible tool (running bash) must finish before steer applies. */
+  queuedGuidanceAwaitingTool?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -206,6 +208,17 @@ const selectedMcpDescription = computed(() => {
   const names = servers.slice(0, 2).join(t('、', ', '))
   return t(`${servers.length} 个已接入${names ? `：${names}` : ''}`, `${servers.length} connected${names ? `: ${names}` : ''}`)
 })
+const queuedGuidanceAwaitingTool = computed(() => Boolean(props.queuedGuidanceAwaitingTool))
+const queuedGuidanceStatus = computed(() => (
+  queuedGuidanceAwaitingTool.value
+    ? t('当前工具调用结束后应用', 'Applied after the current tool call finishes')
+    : t('已并入本回合', 'Merged into this turn')
+))
+const sendSteeringTitle = computed(() => (
+  queuedGuidanceAwaitingTool.value
+    ? t('当前工具调用结束后应用', 'Applied after the current tool call finishes')
+    : t('并入本回合', 'Merge into this turn')
+))
 
 const slashCommandCatalog = [
   {
@@ -1234,7 +1247,7 @@ defineExpose({
         <div class="flex items-center gap-2 text-caption font-medium text-primary">
           <Clock3 class="size-3.5" />
           <span>{{ t(`${queuedGuidance.length} 条引导已排队`, `${queuedGuidance.length} steering messages queued`) }}</span>
-          <span class="font-normal text-muted-foreground">{{ t('当前工具调用结束后应用', 'Applied after the current tool call finishes') }}</span>
+          <span class="font-normal text-muted-foreground">{{ queuedGuidanceStatus }}</span>
         </div>
         <div
           v-for="(message, index) in queuedGuidance"
@@ -1713,7 +1726,7 @@ defineExpose({
               class="tactical-action"
               :disabled="attachmentImporting || (!draft.trim() && !pendingAttachments.length)"
               :aria-label="running ? t('发送引导', 'Send steering') : t('发送', 'Send')"
-              :title="running ? t('在当前工具调用结束后应用', 'Applied after the current tool call finishes') : t('发送', 'Send')"
+              :title="running ? sendSteeringTitle : t('发送', 'Send')"
             >
               <ArrowUp class="size-4" />
             </Button>

@@ -91,6 +91,7 @@ type AppSettings struct {
 	PreferredExternalEditor string                                    `json:"preferred_external_editor,omitempty"`
 	SecurityTools           map[string]SecurityToolPreference         `json:"security_tools,omitempty"`
 	ModelThinking           map[string]map[string]ModelThinkingConfig `json:"model_thinking,omitempty"`
+	ModelContextWindows     map[string]map[string]int                 `json:"model_context_windows,omitempty"`
 	Lab                     *LabConfig                                `json:"lab,omitempty"`
 	Providers               map[string]ProviderConfig                 `json:"providers"`
 	// RuntimeModelCatalogPath is injected only into resolved settings so Pi can
@@ -657,6 +658,7 @@ func withDefaults(value AppSettings) AppSettings {
 	value.PreferredExternalEditor = externaleditor.Normalize(value.PreferredExternalEditor)
 	value.SecurityTools = normalizeSecurityToolPreferences(value.SecurityTools)
 	value.ModelThinking = normalizeModelThinkingOverrides(value.ModelThinking, value.Providers)
+	value.ModelContextWindows = normalizeModelContextWindowOverrides(value.ModelContextWindows, value.Providers)
 	value.Lab = normalizeLabConfig(value.Lab)
 	return value
 }
@@ -778,6 +780,7 @@ func clone(value AppSettings) AppSettings {
 			copy.ModelThinking[provider] = copyModels
 		}
 	}
+	copy.ModelContextWindows = cloneModelContextWindows(value.ModelContextWindows)
 	if value.ModelRouting.AutoFallback != nil {
 		autoFallback := *value.ModelRouting.AutoFallback
 		copy.ModelRouting.AutoFallback = &autoFallback

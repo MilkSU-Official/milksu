@@ -1,7 +1,7 @@
 "use strict";
 
 const fs = require("node:fs");
-const { resolveModelContextWindow } = require("./known-context-window.cjs");
+const { contextWindowOverride, resolveModelContextWindow } = require("./known-context-window.cjs");
 
 const providerRuntime = Object.freeze({
   anthropic: {
@@ -92,6 +92,7 @@ function runtimeTokenfluxModelCatalogSnapshot(environment = process.env) {
         contextWindow: resolveModelContextWindow(
           id,
           Number.isInteger(item?.context_window) ? item.context_window : 0,
+          contextWindowOverride("tokenflux", id, environment),
         ),
         maxTokens: Number.isInteger(item?.max_tokens) && item.max_tokens > 0
           ? item.max_tokens
@@ -152,7 +153,11 @@ function tokenfluxModel(model, environment = process.env) {
   return runtimeTokenfluxModelCatalog(environment).find(item => item.id === model) ?? {
     id: model,
     name: model,
-    contextWindow: resolveModelContextWindow(model, 0),
+    contextWindow: resolveModelContextWindow(
+      model,
+      0,
+      contextWindowOverride("tokenflux", model, environment),
+    ),
     maxTokens: 16_384,
     input: verifiedImageInputModels.has(model) ? ["text", "image"] : ["text"],
   };
@@ -196,7 +201,11 @@ function currentProviderDefinition(provider, model, environment = process.env) {
         reasoning: false,
         input: ["text"],
         cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-        contextWindow: resolveModelContextWindow(model, 0),
+        contextWindow: resolveModelContextWindow(
+          model,
+          0,
+          contextWindowOverride(provider, model, environment),
+        ),
         maxTokens: 16_384,
         compat: {
           supportsDeveloperRole: false,

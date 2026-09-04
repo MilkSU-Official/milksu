@@ -19,6 +19,7 @@ import profilePageSource from './ProfilePage.vue?raw'
 import evalSettingsPanelSource from './EvalSettingsPanel.vue?raw'
 import vulnIntelSettingsSource from './VulnerabilityIntelSettingsPanel.vue?raw'
 import workspaceRailSource from './WorkspaceRail.vue?raw'
+import workspaceTopBarSource from './WorkspaceTopBar.vue?raw'
 import ctfArtifactsSource from './CTFArtifacts.vue?raw'
 import ctfPageSource from './CTFPage.vue?raw'
 import catalogActionsSource from './WorkspaceCatalogActions.vue?raw'
@@ -89,6 +90,7 @@ describe('Workspace visual contract', () => {
     expect(chatMessageItemSource).toContain(':streaming="replyTicking"')
     expect(chatMessageItemSource).toContain('replyTicking && !message.content?.trim()')
     expect(chatActivityGroupSource).toContain('agent-chip')
+    expect(chatActivityGroupSource).toContain('ChatSubagentRoster')
     expect(chatActivityGroupSource).toContain('AgentPixelLoader')
     expect(chatActivityGroupSource).not.toContain('AkLoadingMark')
     expect(chatComposerSource).not.toContain('composer-run-elapsed')
@@ -224,6 +226,23 @@ describe('Workspace visual contract', () => {
     expect(settingsPageSource).not.toContain("permissions.accessibility ? t('已授权', 'Granted')")
     expect(settingsPageSource).not.toContain("permissions.screenRecording ? t('已授权', 'Granted')")
     expect(appStylesSource).toContain('[data-connection-live-action]')
+  })
+
+  it('keeps mac traffic-light space off Windows and Linux', () => {
+    expect(appStylesSource).toContain('--shell-title-safe-top: 0.5rem')
+    expect(appStylesSource).toContain('[data-host-platform=\'darwin\']')
+    expect(appStylesSource).toContain('[data-host-platform=\'win32\']')
+    expect(appStylesSource).toContain('[data-host-platform=\'linux\']')
+    expect(appStylesSource).toContain('--shell-title-safe-top: 2.1rem')
+    expect(appStylesSource).toContain('--shell-window-control-safe-right')
+    expect(contextSidebarSource).toContain('padding-top: var(--shell-title-safe-top)')
+    expect(contextSidebarSource).not.toContain('padding-top: 2.1rem')
+    expect(workspaceRailSource).toContain('padding-top: var(--shell-title-safe-top)')
+    expect(workspaceRailSource).not.toContain('padding-top: 2.1rem')
+    expect(workspaceTopBarSource).toContain('shell-window-control-safe-x')
+    expect(settingsPageSource).toContain('shell-window-control-safe-x')
+    expect(tacticalPanelShellSource).toContain('var(--shell-window-control-safe-right)')
+    expect(appSource).toContain('syncWindowChrome')
   })
 
   it('does not drop Beautiful UI React primitives or their token layer into the agent dialog', () => {

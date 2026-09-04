@@ -2,6 +2,7 @@ import '@fontsource-variable/inter'
 import '@fontsource-variable/noto-sans-sc'
 import { createApp } from 'vue'
 import LabEnvironmentPreview from '@/components-vue/lab-env/LabEnvironmentPreview.vue'
+import { applyHostPlatform } from '@/lib/hostPlatform'
 import { applyThemeMode } from '@/lib/themeMode'
 import './index.css'
 
@@ -17,6 +18,7 @@ window.milksu = {
   },
 }
 
+applyHostPlatform()
 document.documentElement.dataset.colorScheme = 'memoh'
 applyThemeMode('dark')
 createApp(LabEnvironmentPreview).mount('#app')

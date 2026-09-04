@@ -73,6 +73,9 @@ func sidecarEnvironment(settings config.AppSettings) ([]string, error) {
 	if catalogPath := strings.TrimSpace(settings.RuntimeModelCatalogPath); catalogPath != "" {
 		environment = append(environment, "MILKSU_MODEL_CATALOG_PATH="+catalogPath)
 	}
+	if encoded := config.EncodeModelContextWindows(settings); encoded != "" {
+		environment = append(environment, "MILKSU_MODEL_CONTEXT_WINDOWS="+encoded)
+	}
 	if socket := strings.TrimSpace(os.Getenv("SSH_AUTH_SOCK")); socket != "" {
 		environment = append(environment, "MILKSU_USER_SSH_AUTH_SOCK="+socket)
 	}

@@ -105,7 +105,7 @@ func New(
 		snapshot:         fallbackSnapshot(),
 	}
 	if cached, err := readSnapshot(service.cachePath); err == nil {
-		applyKnownContextWindows(cached.Models)
+		applyKnownContextWindows(cached.Models, config.AppSettings{})
 		cached.Source = "cache"
 		service.snapshot = cached
 	} else if err := writeSnapshot(service.cachePath, service.snapshot); err != nil {
@@ -122,15 +122,19 @@ func (s *Service) Snapshot() Snapshot {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	next := cloneSnapshot(s.snapshot)
-	applyKnownContextWindows(next.Models)
+	applyKnownContextWindows(next.Models, s.settings())
 	return next
 }
 
-func applyKnownContextWindows(models []Model) {
+func applyKnownContextWindows(models []Model, settings config.AppSettings) {
 	for index := range models {
-		models[index].ContextWindow = resolveModelContextWindow(
-			models[index].ID,
-			models[index].ContextWindow,
+		id := models[index].ID
+		resolved := resolveModelContextWindow(id, models[index].ContextWindow)
+		models[index].ContextWindow = config.ResolveModelContextWindow(
+			settings,
+			ProviderTokenFlux,
+			id,
+			resolved,
 		)
 	}
 }
@@ -209,7 +213,7 @@ func (s *Service) Refresh(ctx context.Context) (Snapshot, error) {
 }
 
 func (s *Service) persist(next Snapshot) error {
-	applyKnownContextWindows(next.Models)
+	applyKnownContextWindows(next.Models, config.AppSettings{})
 	if err := writeSnapshot(s.cachePath, next); err != nil {
 		return fmt.Errorf("cache model catalog: %w", err)
 	}

@@ -386,7 +386,11 @@ function writeRuntimeModelConfig(
                   : selection.thinkingLevel,
               }
             : undefined,
-          contextWindow: require("./known-context-window.cjs").resolveModelContextWindow(selection.model, 0),
+          contextWindow: require("./known-context-window.cjs").resolveModelContextWindow(
+            selection.model,
+            0,
+            require("./known-context-window.cjs").contextWindowOverride(selection.provider, selection.model),
+          ),
           maxTokens: 32768,
           compat: {
             supportsDeveloperRole: false,

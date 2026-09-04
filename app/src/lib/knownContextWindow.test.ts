@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { resolveModelContextWindow } from '@/lib/knownContextWindow'
+import {
+  modelContextWindowOverride,
+  normalizeModelContextWindows,
+  resolveModelContextWindow,
+} from '@/lib/knownContextWindow'
 
 describe('knownContextWindow', () => {
   it('fills known series and keeps explicit catalog values', () => {
@@ -20,5 +24,25 @@ describe('knownContextWindow', () => {
     expect(resolveModelContextWindow('anthropic/claude-opus-4-6', 128_000)).toBe(1_000_000)
     expect(resolveModelContextWindow('custom-128k', 128_000)).toBe(128_000)
     expect(resolveModelContextWindow('custom-unknown', 0)).toBe(0)
+  })
+
+  it('lets a manual override beat catalog and family presets', () => {
+    expect(resolveModelContextWindow('grok-4.6', 256_000, 2_000_000)).toBe(2_000_000)
+    expect(resolveModelContextWindow('custom-unknown', 0, 64_000)).toBe(64_000)
+    expect(resolveModelContextWindow('grok-4.6', 256_000, 0)).toBe(256_000)
+    expect(resolveModelContextWindow('grok-4.6', 128_000, 50)).toBe(1024)
+  })
+
+  it('looks up and normalizes persisted overrides', () => {
+    expect(modelContextWindowOverride({
+      tokenflux: { 'x-ai/grok-4.6': 2_000_000 },
+    }, 'tokenflux', 'x-ai/grok-4.6')).toBe(2_000_000)
+    expect(modelContextWindowOverride({}, 'tokenflux', 'x-ai/grok-4.6')).toBeUndefined()
+    expect(normalizeModelContextWindows({
+      tokenflux: { 'x-ai/grok-4.6': 2_000_000, bad: 0 },
+      openai: { 'gpt-5': 200_000 },
+    }, {})).toEqual({
+      tokenflux: { 'x-ai/grok-4.6': 2_000_000 },
+    })
   })
 })

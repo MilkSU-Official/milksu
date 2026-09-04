@@ -40,6 +40,12 @@ func TestStoreGetReturnsTheSavedConversation(t *testing.T) {
 			ContextWindow:   500000,
 			Model:           "grok-4.6",
 			RecordedAt:      42,
+			EstimatedTokens: 50000,
+			Categories: []StoredContextUsageCategory{
+				{ID: "system", Tokens: 8000},
+				{ID: "tools", Tokens: 12000},
+				{ID: "conversation", Tokens: 30000},
+			},
 		},
 		Messages: []StoredMessage{},
 	}

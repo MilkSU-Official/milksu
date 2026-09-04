@@ -456,6 +456,7 @@ interface DesktopAppBindings {
 declare global {
   interface Window {
     milksu?: {
+      hostPlatform?: 'darwin' | 'win32' | 'linux'
       invoke(method: string, args: unknown[]): Promise<unknown>
       onEvent(event: string, callback: (value: unknown) => void): UnlistenFn
     }

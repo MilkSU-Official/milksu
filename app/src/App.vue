@@ -7,9 +7,13 @@ import { invokeCommand, listenEvent } from '@/desktop'
 import type { CTFAgentWorkspaceHandoff } from '@/ctfTypes'
 import { useVulnerabilityDashboard, type VulnerabilityCodingTask } from '@/composables/useVulnerabilityDashboard'
 import {
+  syncWindowChrome,
+} from '@/lib/hostPlatform'
+import {
   applyThemeMode,
   nextThemeMode,
   readThemeMode,
+  resolveThemeMode,
   writeThemeMode,
   type ThemeMode,
 } from '@/lib/themeMode'
@@ -168,7 +172,12 @@ watch(
   persistWorkspaceViewState,
 )
 
-applyThemeMode(themeMode.value)
+function applyCurrentTheme() {
+  applyThemeMode(themeMode.value)
+  syncWindowChrome(resolveThemeMode(themeMode.value))
+}
+
+applyCurrentTheme()
 
 const defaultTaskModel = computed(() => {
   if (!settings.value) return null
@@ -834,7 +843,7 @@ function changeModel(mode: 'auto' | 'manual', provider?: string, model?: string)
 
 function toggleThemeMode() {
   themeMode.value = nextThemeMode(themeMode.value)
-  applyThemeMode(themeMode.value)
+  applyCurrentTheme()
   writeThemeMode(themeMode.value)
 }
 
@@ -871,11 +880,11 @@ watch(
 onMounted(async () => {
   const mountedAt = performance.now()
   startupLog('renderer.onMounted')
-  applyThemeMode(themeMode.value)
+  applyCurrentTheme()
   if (typeof window.matchMedia === 'function') {
     systemThemeMedia = window.matchMedia('(prefers-color-scheme: dark)')
     systemThemeListener = () => {
-      if (themeMode.value === 'system') applyThemeMode('system')
+      if (themeMode.value === 'system') applyCurrentTheme()
     }
     systemThemeMedia.addEventListener('change', systemThemeListener)
   }
@@ -987,13 +996,13 @@ onBeforeUnmount(() => {
   <div v-else class="game-shell flex h-screen min-w-0 flex-col bg-surface-editor text-foreground">
     <p
       v-if="runtimeStatus === 'recovering' || runtimeStatus === 'starting'"
-      class="shrink-0 border-b border-border bg-card px-4 py-2 text-caption text-foreground"
+      class="shell-traffic-light-safe-x shell-window-control-safe-x shrink-0 border-b border-border bg-card px-4 py-2 text-caption text-foreground"
     >
       {{ t('正在恢复运行时', 'Restoring the runtime') }}
     </p>
     <p
       v-else-if="runtimeStatus === 'exited'"
-      class="shrink-0 border-b border-border bg-card px-4 py-2 text-caption text-foreground"
+      class="shell-traffic-light-safe-x shell-window-control-safe-x shrink-0 border-b border-border bg-card px-4 py-2 text-caption text-foreground"
     >
       {{ t('本地运行时已停止', 'Local runtime stopped') }}
     </p>

@@ -45,6 +45,33 @@ func TestNormalizeAssistantThinkingEvents(t *testing.T) {
 	}
 }
 
+func TestNormalizeContextCompositionProjectionKeepsOnlyCategoryIdsAndTokens(t *testing.T) {
+	composition := &ContextComposition{
+		EstimatedTokens: 1200,
+		ContextWindow:   200000,
+		Categories: []ContextCompositionCategory{
+			{ID: "system", Tokens: 400},
+			{ID: "tools", Tokens: 300},
+			{ID: "conversation", Tokens: 500},
+		},
+	}
+	event := normalizeBridgeEvent(bridgeEvent{
+		Type:               "context_composition",
+		ID:                 "session-1",
+		ContextComposition: composition,
+	})
+	if event.Type != "context.composition" || event.SessionID != "session-1" ||
+		event.ContextComposition == nil ||
+		event.ContextComposition.EstimatedTokens != 1200 ||
+		event.ContextComposition.ContextWindow != 200000 ||
+		len(event.ContextComposition.Categories) != 3 ||
+		event.ContextComposition.Categories[0].ID != "system" ||
+		event.ContextComposition.Categories[0].Tokens != 400 ||
+		event.Usage != nil || event.Text != "" {
+		t.Fatalf("unexpected context composition event: %#v", event)
+	}
+}
+
 func TestNormalizeUsageProjectionKeepsOnlyBoundedAccountingFields(t *testing.T) {
 	usage := &ModelUsage{
 		RecordID: "usage-1", Module: "coding",
@@ -2025,6 +2052,31 @@ func TestSidecarEnvironmentIncludesLocalOCRCacheWithoutVisionRoute(t *testing.T)
 	}
 }
 
+func TestSidecarEnvironmentPublishesContextWindowOverridesWithoutKeys(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	settings := config.DefaultSettings()
+	settings.Providers["tokenflux"] = config.ProviderConfig{APIKey: "secret", Enabled: true}
+	settings.ModelContextWindows = map[string]map[string]int{
+		"tokenflux": {"x-ai/grok-4.6": 2_000_000},
+	}
+	environment, err := sidecarEnvironment(settings)
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded := config.EncodeModelContextWindows(settings)
+	if encoded == "" {
+		t.Fatal("expected encoded window overrides")
+	}
+	if !containsEnvironmentEntry(environment, "MILKSU_MODEL_CONTEXT_WINDOWS="+encoded) {
+		t.Fatalf("window overrides missing from %#v", environment)
+	}
+	for _, entry := range environment {
+		if strings.Contains(entry, "secret") && strings.HasPrefix(entry, "MILKSU_MODEL_CONTEXT_WINDOWS=") {
+			t.Fatalf("credential leaked into window override env: %q", entry)
+		}
+	}
+}
+
 func TestSidecarEnvironmentEnablesLongPromptCacheRetention(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
 	environment, err := sidecarEnvironment(config.DefaultSettings())
@@ -2093,6 +2145,38 @@ func TestEmitEventDoesNotDeadlockWhileProcessLockIsHeld(t *testing.T) {
 	case <-done:
 	case <-time.After(time.Second):
 		t.Fatal("emitting an engine event deadlocked on the process lock")
+	}
+}
+
+func TestNormalizeSubagentTasksKeepsRosterWithoutSecrets(t *testing.T) {
+	exitCode := 0
+	event := normalizeBridgeEvent(bridgeEvent{
+		Type: "subagent_tasks",
+		ID:   "session-1",
+		SubagentTasks: []SubagentTask{{
+			ID:         "call-1",
+			Role:       "worker",
+			Status:     "succeeded",
+			ToolCallID: "call-1",
+			ExitCode:   &exitCode,
+			Yield: &SubagentYield{
+				Status:     "succeeded",
+				WorktreeID: "writer-1",
+				Files:      []string{"a.ts"},
+				Findings:   []SubagentFinding{{Path: "a.ts", Note: "renamed"}},
+				ExitCode:   0,
+			},
+		}},
+	})
+	if event.Type != "runtime.subagent_tasks" ||
+		event.SessionID != "session-1" ||
+		len(event.SubagentTasks) != 1 ||
+		event.SubagentTasks[0].Role != "worker" ||
+		event.SubagentTasks[0].ToolCallID != "call-1" ||
+		event.SubagentTasks[0].Yield == nil ||
+		len(event.SubagentTasks[0].Yield.Files) != 1 ||
+		event.SubagentTasks[0].Yield.Files[0] != "a.ts" {
+		t.Fatalf("unexpected subagent roster event: %#v", event)
 	}
 }
 

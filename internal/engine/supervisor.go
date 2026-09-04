@@ -51,45 +51,48 @@ var (
 )
 
 type Event struct {
-	SchemaVersion   int                      `json:"schemaVersion"`
-	Engine          string                   `json:"engine"`
-	SessionID       string                   `json:"sessionId,omitempty"`
-	Type            string                   `json:"type"`
-	Timestamp       string                   `json:"timestamp"`
-	Text            string                   `json:"text,omitempty"`
-	ToolName        string                   `json:"toolName,omitempty"`
-	ToolCallID      string                   `json:"toolCallId,omitempty"`
-	DurationMS      int64                    `json:"durationMs,omitempty"`
-	Error           string                   `json:"error,omitempty"`
-	Done            bool                     `json:"done,omitempty"`
-	Tools           []string                 `json:"tools,omitempty"`
-	Extensions      []string                 `json:"extensions,omitempty"`
-	Skills          []string                 `json:"skills,omitempty"`
-	ExecutionMode   string                   `json:"executionMode,omitempty"`
-	ApprovalPolicy  string                   `json:"approvalPolicy,omitempty"`
-	Capabilities    []CodingCapabilityStatus `json:"capabilities,omitempty"`
-	RequestID       string                   `json:"requestId,omitempty"`
-	Input           string                   `json:"input,omitempty"`
-	Reason          string                   `json:"reason,omitempty"`
-	Approved        *bool                    `json:"approved,omitempty"`
-	Grantable       bool                     `json:"grantable,omitempty"`
-	Choice          string                   `json:"choice,omitempty"`
-	BackgroundTasks []BackgroundTask         `json:"backgroundTasks,omitempty"`
-	Goal            *CodingGoalState         `json:"goal,omitempty"`
-	Resumed         bool                     `json:"resumed,omitempty"`
-	Aborted         bool                     `json:"aborted,omitempty"`
-	Compaction      *CompactionResult        `json:"compaction,omitempty"`
-	Steering        []string                 `json:"steering,omitempty"`
-	FollowUp        []string                 `json:"followUp,omitempty"`
-	ModelSource     string                   `json:"modelSource,omitempty"`
-	Module          string                   `json:"module,omitempty"`
-	Usage           *ModelUsage              `json:"usage,omitempty"`
-	ForkedSessionID string                   `json:"forkedSessionId,omitempty"`
+	SchemaVersion      int                      `json:"schemaVersion"`
+	Engine             string                   `json:"engine"`
+	SessionID          string                   `json:"sessionId,omitempty"`
+	Type               string                   `json:"type"`
+	Timestamp          string                   `json:"timestamp"`
+	Text               string                   `json:"text,omitempty"`
+	ToolName           string                   `json:"toolName,omitempty"`
+	ToolCallID         string                   `json:"toolCallId,omitempty"`
+	DurationMS         int64                    `json:"durationMs,omitempty"`
+	Error              string                   `json:"error,omitempty"`
+	Done               bool                     `json:"done,omitempty"`
+	Tools              []string                 `json:"tools,omitempty"`
+	Extensions         []string                 `json:"extensions,omitempty"`
+	Skills             []string                 `json:"skills,omitempty"`
+	ExecutionMode      string                   `json:"executionMode,omitempty"`
+	ApprovalPolicy     string                   `json:"approvalPolicy,omitempty"`
+	Capabilities       []CodingCapabilityStatus `json:"capabilities,omitempty"`
+	RequestID          string                   `json:"requestId,omitempty"`
+	Input              string                   `json:"input,omitempty"`
+	Reason             string                   `json:"reason,omitempty"`
+	Approved           *bool                    `json:"approved,omitempty"`
+	Grantable          bool                     `json:"grantable,omitempty"`
+	Choice             string                   `json:"choice,omitempty"`
+	BackgroundTasks    []BackgroundTask         `json:"backgroundTasks,omitempty"`
+	SubagentTasks      []SubagentTask           `json:"subagentTasks,omitempty"`
+	Goal               *CodingGoalState         `json:"goal,omitempty"`
+	Resumed            bool                     `json:"resumed,omitempty"`
+	Aborted            bool                     `json:"aborted,omitempty"`
+	Compaction         *CompactionResult        `json:"compaction,omitempty"`
+	Steering           []string                 `json:"steering,omitempty"`
+	FollowUp           []string                 `json:"followUp,omitempty"`
+	ModelSource        string                   `json:"modelSource,omitempty"`
+	Module             string                   `json:"module,omitempty"`
+	Usage              *ModelUsage              `json:"usage,omitempty"`
+	ContextComposition *ContextComposition      `json:"contextComposition,omitempty"`
+	ForkedSessionID    string                   `json:"forkedSessionId,omitempty"`
 }
 
 // ModelUsage is the bounded, credential-free projection emitted by Pi after
-// one real model call. Prompt, response, tool arguments and Provider headers
-// never cross this structure.
+// one real model call. Prompt text must not cross this structure. Response
+// text, tool arguments, Provider headers and context-composition categories
+// also stay out of it.
 type ModelUsage struct {
 	RecordID     string  `json:"recordId"`
 	Module       string  `json:"module"`
@@ -105,6 +108,22 @@ type ModelUsage struct {
 	TotalTokens  int64   `json:"totalTokens"`
 	CostUSD      float64 `json:"costUsd"`
 	Success      bool    `json:"success"`
+}
+
+// ContextCompositionCategory is one estimated slice of the assembled turn
+// context. Only the category id and token count cross the bridge.
+type ContextCompositionCategory struct {
+	ID     string `json:"id"`
+	Tokens int64  `json:"tokens"`
+}
+
+// ContextComposition is the estimated breakdown of what Pi assembled into
+// this turn's context. Prompt text, keys, paths and tool arguments never
+// cross this structure.
+type ContextComposition struct {
+	EstimatedTokens int64                        `json:"estimatedTokens"`
+	ContextWindow   int64                        `json:"contextWindow,omitempty"`
+	Categories      []ContextCompositionCategory `json:"categories,omitempty"`
 }
 
 type RuntimeStatus struct {
@@ -139,6 +158,30 @@ type BackgroundTask struct {
 	LogTruncated bool   `json:"logTruncated,omitempty"`
 	LastExitCode *int   `json:"lastExitCode,omitempty"`
 	Error        string `json:"error,omitempty"`
+}
+
+type SubagentFinding struct {
+	Path string `json:"path"`
+	Note string `json:"note,omitempty"`
+}
+
+type SubagentYield struct {
+	Status     string            `json:"status"`
+	Cwd        string            `json:"cwd,omitempty"`
+	WorktreeID string            `json:"worktreeId,omitempty"`
+	Files      []string          `json:"files"`
+	Findings   []SubagentFinding `json:"findings"`
+	ExitCode   int               `json:"exitCode"`
+}
+
+type SubagentTask struct {
+	ID         string         `json:"id"`
+	Role       string         `json:"role,omitempty"`
+	Status     string         `json:"status"`
+	ToolCallID string         `json:"toolCallId,omitempty"`
+	DurationMS int64          `json:"durationMs,omitempty"`
+	ExitCode   *int           `json:"exitCode,omitempty"`
+	Yield      *SubagentYield `json:"yield,omitempty"`
 }
 
 type CodingGoalState struct {
@@ -217,41 +260,43 @@ type CodingCollaborationWorktree struct {
 }
 
 type bridgeEvent struct {
-	Type            string                   `json:"type"`
-	ID              string                   `json:"id"`
-	Delta           string                   `json:"delta"`
-	Content         string                   `json:"content"`
-	Error           string                   `json:"error"`
-	ToolName        string                   `json:"toolName"`
-	ToolCallID      string                   `json:"toolCallId"`
-	DurationMS      int64                    `json:"durationMs"`
-	IsError         bool                     `json:"isError"`
-	Tools           []string                 `json:"tools"`
-	Extensions      []string                 `json:"extensions"`
-	Skills          []string                 `json:"skills"`
-	ExecutionMode   string                   `json:"executionMode"`
-	ApprovalPolicy  string                   `json:"approvalPolicy"`
-	Capabilities    []CodingCapabilityStatus `json:"capabilities"`
-	RequestID       string                   `json:"requestId"`
-	Action          string                   `json:"action"`
-	Input           string                   `json:"input"`
-	Reason          string                   `json:"reason"`
-	Approved        *bool                    `json:"approved"`
-	Grantable       bool                     `json:"grantable"`
-	Choice          string                   `json:"choice"`
-	Tasks           []BackgroundTask         `json:"tasks"`
-	Goal            *CodingGoalState         `json:"goal"`
-	Resumed         bool                     `json:"resumed"`
-	Aborted         bool                     `json:"aborted"`
-	Compaction      *CompactionResult        `json:"compaction"`
-	Steering        []string                 `json:"steering"`
-	FollowUp        []string                 `json:"followUp"`
-	Source          string                   `json:"source"`
-	From            string                   `json:"from"`
-	To              string                   `json:"to"`
-	Module          string                   `json:"module"`
-	Usage           *ModelUsage              `json:"usage"`
-	ForkedSessionID string                   `json:"forkedSessionId"`
+	Type               string                   `json:"type"`
+	ID                 string                   `json:"id"`
+	Delta              string                   `json:"delta"`
+	Content            string                   `json:"content"`
+	Error              string                   `json:"error"`
+	ToolName           string                   `json:"toolName"`
+	ToolCallID         string                   `json:"toolCallId"`
+	DurationMS         int64                    `json:"durationMs"`
+	IsError            bool                     `json:"isError"`
+	Tools              []string                 `json:"tools"`
+	Extensions         []string                 `json:"extensions"`
+	Skills             []string                 `json:"skills"`
+	ExecutionMode      string                   `json:"executionMode"`
+	ApprovalPolicy     string                   `json:"approvalPolicy"`
+	Capabilities       []CodingCapabilityStatus `json:"capabilities"`
+	RequestID          string                   `json:"requestId"`
+	Action             string                   `json:"action"`
+	Input              string                   `json:"input"`
+	Reason             string                   `json:"reason"`
+	Approved           *bool                    `json:"approved"`
+	Grantable          bool                     `json:"grantable"`
+	Choice             string                   `json:"choice"`
+	Tasks              []BackgroundTask         `json:"tasks"`
+	SubagentTasks      []SubagentTask           `json:"subagentTasks"`
+	Goal               *CodingGoalState         `json:"goal"`
+	Resumed            bool                     `json:"resumed"`
+	Aborted            bool                     `json:"aborted"`
+	Compaction         *CompactionResult        `json:"compaction"`
+	Steering           []string                 `json:"steering"`
+	FollowUp           []string                 `json:"followUp"`
+	Source             string                   `json:"source"`
+	From               string                   `json:"from"`
+	To                 string                   `json:"to"`
+	Module             string                   `json:"module"`
+	Usage              *ModelUsage              `json:"usage"`
+	ContextComposition *ContextComposition      `json:"contextComposition"`
+	ForkedSessionID    string                   `json:"forkedSessionId"`
 }
 
 type childProcess struct {
@@ -1987,34 +2032,36 @@ func probeFailureMessage(event Event) string {
 
 func normalizeBridgeEvent(raw bridgeEvent) Event {
 	event := Event{
-		Engine:          "pi",
-		SessionID:       raw.ID,
-		Text:            raw.Content,
-		ToolName:        raw.ToolName,
-		ToolCallID:      raw.ToolCallID,
-		DurationMS:      raw.DurationMS,
-		Tools:           raw.Tools,
-		Extensions:      raw.Extensions,
-		Skills:          raw.Skills,
-		ExecutionMode:   raw.ExecutionMode,
-		ApprovalPolicy:  raw.ApprovalPolicy,
-		Capabilities:    raw.Capabilities,
-		RequestID:       raw.RequestID,
-		Input:           raw.Input,
-		Reason:          raw.Reason,
-		Approved:        raw.Approved,
-		Grantable:       raw.Grantable,
-		Choice:          raw.Choice,
-		BackgroundTasks: raw.Tasks,
-		Goal:            raw.Goal,
-		Resumed:         raw.Resumed,
-		Aborted:         raw.Aborted,
-		Compaction:      raw.Compaction,
-		Steering:        raw.Steering,
-		FollowUp:        raw.FollowUp,
-		ModelSource:     raw.Source,
-		Module:          raw.Module,
-		Usage:           raw.Usage,
+		Engine:             "pi",
+		SessionID:          raw.ID,
+		Text:               raw.Content,
+		ToolName:           raw.ToolName,
+		ToolCallID:         raw.ToolCallID,
+		DurationMS:         raw.DurationMS,
+		Tools:              raw.Tools,
+		Extensions:         raw.Extensions,
+		Skills:             raw.Skills,
+		ExecutionMode:      raw.ExecutionMode,
+		ApprovalPolicy:     raw.ApprovalPolicy,
+		Capabilities:       raw.Capabilities,
+		RequestID:          raw.RequestID,
+		Input:              raw.Input,
+		Reason:             raw.Reason,
+		Approved:           raw.Approved,
+		Grantable:          raw.Grantable,
+		Choice:             raw.Choice,
+		BackgroundTasks:    raw.Tasks,
+		SubagentTasks:      raw.SubagentTasks,
+		Goal:               raw.Goal,
+		Resumed:            raw.Resumed,
+		Aborted:            raw.Aborted,
+		Compaction:         raw.Compaction,
+		Steering:           raw.Steering,
+		FollowUp:           raw.FollowUp,
+		ModelSource:        raw.Source,
+		Module:             raw.Module,
+		Usage:              raw.Usage,
+		ContextComposition: raw.ContextComposition,
 	}
 	switch raw.Type {
 	case "ready":
@@ -2079,6 +2126,8 @@ func normalizeBridgeEvent(raw bridgeEvent) Event {
 		}
 	case "usage_recorded":
 		event.Type = "usage.recorded"
+	case "context_composition":
+		event.Type = "context.composition"
 	case "approval_requested":
 		event.Type = "approval.requested"
 	case "approval_resolved":
@@ -2094,6 +2143,8 @@ func normalizeBridgeEvent(raw bridgeEvent) Event {
 		event.Done = true
 	case "background_tasks":
 		event.Type = "runtime.background_tasks"
+	case "subagent_tasks":
+		event.Type = "runtime.subagent_tasks"
 	case "background_task_controlled":
 		event.Type = "runtime.background_task_controlled"
 	case "compaction_start":

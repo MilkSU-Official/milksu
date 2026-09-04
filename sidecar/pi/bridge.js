@@ -10,7 +10,7 @@ import { readFile, unlink } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { Type } from "typebox";
 import { codingAskToolName, formatAskToolInput, normalizeAskOptions } from "./bridge-ask.js";
-import { resolveModelContextWindow } from "./known-context-window.cjs";
+import { contextWindowOverride, resolveModelContextWindow } from "./known-context-window.cjs";
 import {
   createMcpAdapter,
   listPiBackgroundTaskMetas,
@@ -131,6 +131,13 @@ import { createComputerUseDriverExtension } from "./bridge-computer-use-driver.j
 import { reviewedCodingSkillPaths } from "./bridge-skills.js";
 import { createToolResultBoundExtension } from "./bridge-tool-result-bound.js";
 import {
+  createSubagentYieldExtension,
+  formatSubagentToolInput,
+  projectSubagentRosterEnd,
+  projectSubagentRosterStart,
+  projectSubagentToolResult,
+} from "./bridge-subagent-yield.js";
+import {
   projectSteeringQueue,
   removeQueuedMessage,
   steerSession,
@@ -155,6 +162,7 @@ import {
   projectAssistantUsage,
   projectToolModelUsage,
 } from "./bridge-usage-view.js";
+import { projectSessionContextComposition } from "./bridge-context-composition.js";
 import { withTokenFluxModelCompat } from "./tokenflux-model-compat.js";
 
 const {
@@ -183,6 +191,7 @@ const sessionTurnContracts = new Map();
 const sessionModelSources = new Map();
 const sessionConfiguredProviders = new Map();
 const abortedSessions = new Set();
+const sessionSubagentTasks = new Map();
 function ignorePipeError(stream, label) {
   stream?.on("error", error => {
     const message = error instanceof Error ? error.message : String(error);
@@ -206,6 +215,30 @@ const sidecarResourceDirectory = existsSync(join(bridgeDirectory, "skills"))
 const approvalRequiredCodingTools = new Set(["bash", "edit", "write"]);
 function emit(conversationId, type, data = {}) {
   process.stdout.write(`${JSON.stringify({ type, id: conversationId ?? null, ...data })}\n`);
+}
+
+function billedPromptTokensFor(conversationId) {
+  const stored = sessionContextUsage.get(conversationId);
+  return Math.max(0, Number(stored?.inputTokens ?? 0))
+    + Math.max(0, Number(stored?.cacheReadTokens ?? 0));
+}
+
+function emitContextComposition(conversationId) {
+  const id = String(conversationId ?? "").trim();
+  if (!id) return;
+  const session = sessions.get(id);
+  if (!session) return;
+  try {
+    const stored = sessionContextUsage.get(id);
+    const composition = projectSessionContextComposition(session, {
+      billedPromptTokens: billedPromptTokensFor(id),
+      contextWindow: session.model?.contextWindow ?? stored?.contextWindow,
+    });
+    if (!composition) return;
+    emit(id, "context_composition", { contextComposition: composition });
+  } catch (error) {
+    console.error("MilkSU could not project context composition", error);
+  }
 }
 
 function emitBackgroundTasks(conversationId) {
@@ -243,6 +276,23 @@ function createReviewedBackgroundTasksExtension(conversationId) {
     });
     piBackgroundTasksExtension(pi);
   };
+}
+
+function emitSubagentTasks(conversationId, tasks) {
+  const next = Array.isArray(tasks) ? tasks : [];
+  if (next.length) sessionSubagentTasks.set(conversationId, next);
+  else sessionSubagentTasks.delete(conversationId);
+  emit(conversationId, "subagent_tasks", {
+    subagentTasks: next.map(task => ({
+      id: task.id,
+      role: task.role,
+      status: task.status,
+      toolCallId: task.toolCallId,
+      durationMs: task.durationMs,
+      exitCode: task.exitCode,
+      yield: task.yield,
+    })),
+  });
 }
 
 function emitGoalState(conversationId, session) {
@@ -785,6 +835,9 @@ function formatToolInput(toolName, args) {
     const options = normalizeAskOptions(args.options);
     return formatAskToolInput(question, options);
   }
+  if (toolName === codingCollaborationToolName) {
+    return formatSubagentToolInput(args);
+  }
   if (toolName === "milksu_progress") {
     // Same checklist shape as the tool result so the UI can project a live plan
     // before the call settles.
@@ -860,7 +913,11 @@ function registerAccountModel(session, provider, model, thinking) {
       reasoning: source?.reasoning ?? false,
       input: source?.input ?? ["text"],
       cost: source?.cost ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-      contextWindow: resolveModelContextWindow(accountModelID, source?.contextWindow),
+      contextWindow: resolveModelContextWindow(
+        accountModelID,
+        source?.contextWindow,
+        contextWindowOverride("tokenflux", accountModelID),
+      ),
       maxTokens: source?.maxTokens ?? 16384,
     }, thinking)],
   }));
@@ -1011,6 +1068,7 @@ function subscribeSession(
       if (projected) {
         emit(conversationId, projected.type, projected.data);
       }
+      emitContextComposition(conversationId);
       return;
     }
 
@@ -1085,6 +1143,7 @@ function subscribeSession(
       if (usage) {
         recordSessionContextUsage(conversationId, usage, session.model?.contextWindow);
         emit(conversationId, "usage_recorded", { usage, module: usageModule });
+        emitContextComposition(conversationId);
       }
       assistantTextStreamed = false;
       thinkingStreamed = false;
@@ -1094,6 +1153,17 @@ function subscribeSession(
 
     if (event.type === "tool_execution_start") {
       toolStartedAt.set(event.toolCallId, Date.now());
+      if (event.toolName === codingCollaborationToolName) {
+        const policy = sessionPolicies.get(conversationId);
+        emitSubagentTasks(conversationId, [
+          ...(sessionSubagentTasks.get(conversationId) ?? []),
+          ...projectSubagentRosterStart(event.args, {
+            toolCallId: event.toolCallId,
+            workspace: policy?.workspace,
+            worktrees: policy?.codingCollaboration?.worktrees,
+          }),
+        ]);
+      }
       emit(conversationId, "tool_call_start", {
         toolCallId: event.toolCallId,
         toolName: event.toolName,
@@ -1120,6 +1190,33 @@ function subscribeSession(
       if (event.toolName === "bg_task" || event.toolName === "bg_status") {
         emitBackgroundTasks(conversationId);
       }
+      if (event.toolName === codingCollaborationToolName) {
+        const policy = sessionPolicies.get(conversationId);
+        const current = sessionSubagentTasks.get(conversationId) ?? [];
+        const owned = current.filter(task => task.toolCallId === event.toolCallId);
+        const others = current.filter(task => task.toolCallId !== event.toolCallId);
+        const wrapped = projectSubagentToolResult({
+          ...event.result,
+          toolName: event.toolName,
+          input: event.args ?? event.input,
+          details: event.result?.details,
+          content: event.result?.content,
+        }, {
+          workspace: policy?.workspace,
+          collaboration: policy?.codingCollaboration,
+          worktrees: policy?.codingCollaboration?.worktrees,
+        });
+        emitSubagentTasks(conversationId, [
+          ...others,
+          ...projectSubagentRosterEnd(owned, wrapped, {
+            toolCallId: event.toolCallId,
+            durationMs: startedAt === undefined
+              ? undefined
+              : Math.max(0, Date.now() - startedAt),
+            isError: event.isError,
+          }),
+        ]);
+      }
       for (const usage of projectToolModelUsage(event.result, {
         conversationId,
         toolCallId: event.toolCallId,
@@ -1129,6 +1226,7 @@ function subscribeSession(
         source: sessionModelSources.get(conversationId),
       })) {
         emit(conversationId, "usage_recorded", { usage, module: usageModule });
+        emitContextComposition(conversationId);
       }
       emit(conversationId, "tool_call_end", {
         toolCallId: event.toolCallId,
@@ -1228,6 +1326,14 @@ function createMilkSUResourceLoader(
         request => workspaceActionBroker.request(request),
       ),
       piSubAgentExtension,
+      createSubagentYieldExtension(() => {
+        const policy = getPolicy?.();
+        return {
+          workspace: policy?.workspace,
+          collaboration: policy?.codingCollaboration,
+          worktrees: policy?.codingCollaboration?.worktrees,
+        };
+      }),
   );
   if (mcpConfig) {
     extensionFactories.push(createMcpAdapter({ config: mcpConfig }));
@@ -1519,6 +1625,7 @@ async function createSession(command) {
       capabilities: sessionPolicy.capabilities,
       resumed: session.messages.length > 0,
     });
+    emitContextComposition(conversationId);
     emitBackgroundTasks(conversationId);
     emitGoalState(conversationId, session);
     return session;
@@ -1650,6 +1757,7 @@ async function sendMessage(command) {
       approvalPolicy: sessionPolicy.approvalPolicy,
       capabilities: sessionPolicy.capabilities,
     });
+    emitContextComposition(conversationId);
   }
 
   const previous = promptQueues.get(conversationId) ?? Promise.resolve();
@@ -1821,6 +1929,7 @@ async function destroySession(command) {
   sessionPolicyControllers.delete(conversationId);
   sessionModelSources.delete(conversationId);
   sessionConfiguredProviders.delete(conversationId);
+  sessionSubagentTasks.delete(conversationId);
   backgroundTaskControllers.delete(conversationId);
   promptQueues.delete(conversationId);
   abortedSessions.delete(conversationId);
@@ -1898,6 +2007,7 @@ async function compactIfContextNearLimit(conversationId, session) {
       inputTokens: Number(result?.estimatedTokensAfter ?? 0),
       cacheReadTokens: 0,
     }, session.model?.contextWindow || stored?.contextWindow);
+    emitContextComposition(conversationId);
   } catch (error) {
     emit(conversationId, "compaction_end", {
       reason: "auto",
@@ -1931,6 +2041,7 @@ async function compactSessionCommand(command) {
           inputTokens: Number(result?.estimatedTokensAfter ?? 0),
           cacheReadTokens: 0,
         }, session.model?.contextWindow);
+        emitContextComposition(conversationId);
       } catch (error) {
         // AgentSession.compact normally emits Pi's native compaction_end even
         // on failure. Keep a fallback only for wrapper validation/runtime

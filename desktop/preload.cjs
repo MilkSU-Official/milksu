@@ -3,6 +3,7 @@
 const { contextBridge, ipcRenderer } = require('electron')
 
 contextBridge.exposeInMainWorld('milksu', Object.freeze({
+  hostPlatform: process.platform,
   invoke(method, args) {
     return ipcRenderer.invoke('milksu:invoke', { method, args })
   },

@@ -902,6 +902,7 @@ describe('SettingsPage database compatibility', () => {
     expect(text).toContain('模型服务')
     expect(text).toContain('模型能力')
     expect(text).toContain('思考层级')
+    expect(text).toContain('上下文窗口')
     expect(text).toContain('TokenFlux 中转站')
     expect(text).toContain('MilkSU 账户')
     expect(text).not.toContain('DeepSeek 官方')
@@ -985,6 +986,98 @@ describe('SettingsPage database compatibility', () => {
         levels: ['low', 'medium', 'high'],
         default_level: 'medium',
       })
+  })
+
+  it('writes a context-window override and can restore automatic', async () => {
+    let savedSettings: AppSettings | null = null
+    const settings = withAppSettingsDefaults({
+      active_provider: 'tokenflux',
+      active_model: 'grok-4.3',
+      model_routing: { source_order: ['personal', 'account'], auto_fallback: false },
+      relay: {
+        enabled: false,
+        url: 'https://tokenflux.dev/v1',
+        key: '',
+        has_key: false,
+      },
+      providers: {
+        tokenflux: {
+          api_key: '',
+          has_api_key: true,
+          enabled: true,
+        },
+      },
+    } as AppSettings)
+    await mountSettingsPage({ directory: 'MilkSU 用户数据目录', fileCount: 0, bytes: 0 }, {
+      initialCategory: 'apikeys',
+      settings,
+      appMethods: {
+        SaveSettingsCmd: async (value: unknown) => {
+          savedSettings = value as AppSettings
+        },
+        GetSettings: async () => savedSettings ?? settings,
+        TestAgentModel: async () => ({
+          provider: 'tokenflux',
+          model: 'grok-4.3',
+          ready: true,
+          latencyMs: 42,
+        }),
+      },
+    })
+
+    expect(document.body.textContent).toContain('上下文窗口')
+    expect(document.body.textContent).toContain('目录或型号族会自动填充')
+    const windowInput = document.querySelector<HTMLInputElement>(
+      'input[aria-label="上下文窗口 token 数"]',
+    )
+    expect(windowInput).not.toBeNull()
+    expect([...document.querySelectorAll('button')]
+      .some(button => button.textContent?.includes('恢复自动'))).toBe(false)
+
+    windowInput!.value = '200000'
+    windowInput!.dispatchEvent(new Event('input', { bubbles: true }))
+    windowInput!.dispatchEvent(new Event('change', { bubbles: true }))
+    await settle()
+    expect([...document.querySelectorAll('button')]
+      .some(button => button.textContent?.includes('恢复自动'))).toBe(true)
+
+    const saveButton = [...document.querySelectorAll('button')]
+      .find(button => button.textContent?.includes('保存并验证'))
+    saveButton?.click()
+    for (let index = 0; index < 6; index += 1) await settle()
+    expect((savedSettings as AppSettings | null)?.model_context_windows?.tokenflux?.['grok-4.3'])
+      .toBe(200_000)
+
+    const restoreButton = [...document.querySelectorAll('button')]
+      .find(button => button.textContent?.includes('恢复自动'))
+    restoreButton?.click()
+    await settle()
+    saveButton?.click()
+    for (let index = 0; index < 6; index += 1) await settle()
+    expect((savedSettings as AppSettings | null)?.model_context_windows?.tokenflux?.['grok-4.3'])
+      .toBeUndefined()
+  })
+
+  it('shows context-window copy in English', async () => {
+    applyUiLocale('en')
+    await mountSettingsPage({ directory: 'MilkSU 用户数据目录', fileCount: 0, bytes: 0 }, {
+      initialCategory: 'apikeys',
+      settings: withAppSettingsDefaults({
+        active_provider: 'tokenflux',
+        active_model: 'grok-4.3',
+        locale: 'en',
+        model_routing: { source_order: ['personal', 'account'], auto_fallback: false },
+        model_context_windows: { tokenflux: { 'grok-4.3': 200_000 } },
+        providers: {
+          tokenflux: { api_key: '', has_api_key: true, enabled: true },
+        },
+      } as AppSettings),
+    })
+    const text = document.body.textContent ?? ''
+    expect(text).toContain('Context window')
+    expect(text).toContain('Catalog and model-family presets fill this automatically')
+    expect(text).toContain('Restore automatic')
+    expect(text).toContain('Save and verify')
   })
 
   it('uses the same available provider groups as Coding and updates provider with the default model', async () => {

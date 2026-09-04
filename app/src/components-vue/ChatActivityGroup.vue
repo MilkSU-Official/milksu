@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick } from 'vue'
 import AgentPixelLoader from '@/components-vue/AgentPixelLoader.vue'
+import ChatSubagentRoster from '@/components-vue/ChatSubagentRoster.vue'
 import {
   buildChatActivityEntries,
   detailsToggleOpen,
@@ -9,15 +10,19 @@ import {
   type ChatActivityEntry,
 } from '@/lib/chatActivity'
 import { agentToolChip } from '@/lib/agentConversation'
+import { subagentTasksForActivity } from '@/lib/subagentRoster'
 import { t } from '@/lib/uiLocale'
+import type { SubagentTask } from '@/types'
 
 const props = withDefaults(defineProps<{
   activity: ChatActivityBlock
   open: boolean
   openEntryIds: ReadonlySet<string>
   revealCompleted?: boolean
+  subagentTasks?: readonly SubagentTask[]
 }>(), {
   revealCompleted: false,
+  subagentTasks: () => [],
 })
 
 const emit = defineEmits<{
@@ -25,8 +30,18 @@ const emit = defineEmits<{
   toggleEntry: [entryId: string, open: boolean]
 }>()
 
+const rosterTasks = computed(() => (
+  subagentTasksForActivity(props.subagentTasks, props.activity.messages)
+))
+const rosterCallIds = computed(() => new Set(
+  rosterTasks.value.flatMap(task => [task.id, task.toolCallId].filter(Boolean) as string[]),
+))
 const toolEntries = computed(() => {
   const entries = buildChatActivityEntries(props.activity.messages)
+    .filter(entry => (
+      entry.toolName !== 'subagent'
+      || !rosterCallIds.value.has(String(entry.request?.toolCallId ?? ''))
+    ))
   return props.revealCompleted ? entries : visibleChatActivityEntries(entries, props.openEntryIds)
 })
 const entryDetails = new Map<string, HTMLDetailsElement>()
@@ -64,11 +79,12 @@ function durationLabel(durationMs?: number) {
 
 <template>
   <div
-    v-if="toolEntries.length"
+    v-if="toolEntries.length || rosterTasks.length"
     class="tool-activity mb-7"
     :data-activity-open="open ? 'true' : 'false'"
   >
-    <div class="tool-activity__entries">
+    <ChatSubagentRoster :tasks="rosterTasks" />
+    <div v-if="toolEntries.length" class="tool-activity__entries">
       <details
         v-for="entry in toolEntries"
         :key="entry.id"

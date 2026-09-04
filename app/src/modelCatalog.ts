@@ -15,6 +15,7 @@ import {
 const current = shallowRef<ModelCatalogSnapshot | null>(null)
 const configuredCustomProviders = shallowRef<Record<string, ProviderConfig>>({})
 const configuredRelay = shallowRef<RelayConfig | null | undefined>(undefined)
+let configuredContextWindows: AppSettings['model_context_windows']
 
 function providerHasKey(config?: ProviderConfig) {
   return Boolean(config?.has_api_key || String(config?.api_key ?? '').trim())
@@ -420,9 +421,14 @@ export function installCustomProviderSettings(settings?: Record<string, Provider
 }
 
 /** Keep Coding and Settings pickers aligned with saved (or draft) settings. */
-export function installAppModelSettings(settings?: Pick<AppSettings, 'providers' | 'relay'> | null) {
+export function installAppModelSettings(settings?: Pick<AppSettings, 'providers' | 'relay' | 'model_context_windows'> | null) {
   installCustomProviderSettings(settings?.providers)
   configuredRelay.value = settings?.relay
+  configuredContextWindows = settings?.model_context_windows
+}
+
+export function installedModelContextWindows() {
+  return configuredContextWindows
 }
 
 export async function loadModelCatalog() {

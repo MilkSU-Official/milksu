@@ -4,6 +4,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
   knownContextWindow,
+  contextWindowOverride,
   resolveModelContextWindow,
 } = require("./known-context-window.cjs");
 
@@ -26,4 +27,19 @@ test("resolves known series and keeps explicit catalog windows", () => {
   assert.equal(resolveModelContextWindow("anthropic/claude-opus-4-6", 128_000), 1_000_000);
   assert.equal(resolveModelContextWindow("custom-128k", 128_000), 128_000);
   assert.equal(resolveModelContextWindow("custom-unknown", 0), 0);
+  assert.equal(resolveModelContextWindow("grok-4.6", 256_000, 2_000_000), 2_000_000);
+  assert.equal(resolveModelContextWindow("custom-unknown", 0, 64_000), 64_000);
+  assert.equal(resolveModelContextWindow("grok-4.6", 256_000, 0), 256_000);
+});
+
+test("reads public window overrides without touching credentials", () => {
+  const environment = {
+    MILKSU_MODEL_CONTEXT_WINDOWS: JSON.stringify({
+      tokenflux: { "x-ai/grok-4.6": 2_000_000 },
+    }),
+    TOKENFLUX_API_KEY: "secret",
+  };
+  assert.equal(contextWindowOverride("tokenflux", "x-ai/grok-4.6", environment), 2_000_000);
+  assert.equal(contextWindowOverride("tokenflux", "grok-4.3", environment), 0);
+  assert.equal(contextWindowOverride("tokenflux", "x-ai/grok-4.6", {}), 0);
 });

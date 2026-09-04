@@ -1,6 +1,10 @@
 package modelcatalog
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/MilkSU-Official/milksu/internal/config"
+)
 
 func TestKnownContextWindow(t *testing.T) {
 	cases := []struct {
@@ -55,6 +59,56 @@ func TestResolveModelContextWindowPrefersCatalogUnlessPlaceholder(t *testing.T) 
 	}
 	if got := resolveModelContextWindow("custom-unknown", 0); got != 0 {
 		t.Fatalf("unknown omitted window = %d", got)
+	}
+}
+
+func TestApplyKnownContextWindowsUsesSettingsOverride(t *testing.T) {
+	models := []Model{
+		{ID: "x-ai/grok-4.6", Name: "Grok 4.6", ContextWindow: 128_000},
+		{ID: "custom-unknown", Name: "Custom", ContextWindow: 0},
+	}
+	settings := config.AppSettings{
+		ModelContextWindows: map[string]map[string]int{
+			"tokenflux": {
+				"x-ai/grok-4.6":  2_000_000,
+				"custom-unknown": 64_000,
+			},
+		},
+	}
+	applyKnownContextWindows(models, settings)
+	if models[0].ContextWindow != 2_000_000 {
+		t.Fatalf("override did not replace family preset: %d", models[0].ContextWindow)
+	}
+	if models[1].ContextWindow != 64_000 {
+		t.Fatalf("override did not fill unknown model: %d", models[1].ContextWindow)
+	}
+
+	fresh := []Model{{ID: "x-ai/grok-4.6", Name: "Grok 4.6", ContextWindow: 128_000}}
+	applyKnownContextWindows(fresh, config.AppSettings{})
+	if fresh[0].ContextWindow != 500_000 {
+		t.Fatalf("known window without override = %d", fresh[0].ContextWindow)
+	}
+}
+
+func TestSnapshotAppliesCurrentContextWindowOverride(t *testing.T) {
+	settings := config.DefaultSettings()
+	settings.ModelContextWindows = map[string]map[string]int{
+		"tokenflux": {"x-ai/grok-4.6": 2_000_000},
+	}
+	service, err := New(t.TempDir(), func() config.AppSettings { return settings }, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot := service.Snapshot()
+	var window int
+	for _, model := range snapshot.Models {
+		if model.ID == "x-ai/grok-4.6" {
+			window = model.ContextWindow
+			break
+		}
+	}
+	if window != 2_000_000 {
+		t.Fatalf("snapshot window = %d", window)
 	}
 }
 

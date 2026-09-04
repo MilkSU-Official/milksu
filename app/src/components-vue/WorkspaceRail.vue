@@ -199,7 +199,12 @@ function openSettings() {
 </template>
 
 <style scoped>
-.workspace-rail-traffic-safe { box-sizing: border-box; min-height: 5.75rem; padding-top: 2.1rem; padding-bottom: .45rem; }
+.workspace-rail-traffic-safe {
+  box-sizing: border-box;
+  min-height: calc(var(--shell-title-safe-top) + 3.65rem);
+  padding-top: var(--shell-title-safe-top);
+  padding-bottom: .45rem;
+}
 .workspace-rail {
   color: var(--foreground);
   background: var(--background);
