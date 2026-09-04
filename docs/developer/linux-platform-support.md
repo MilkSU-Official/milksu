@@ -25,7 +25,7 @@
 
 ## 当前事实
 
-正式发行 `v26.827.1` 的 Linux 产物是 Ubuntu/Debian 共用 x64 `.deb` 与 Omarchy/Arch/Nix 共用 x64 `.tar.gz`。自动化验证了包结构、Node/Pi Sidecar、Go Runtime 和 Xvfb Electron 启动。GNOME Wayland Computer Use 走 XDG Desktop Portal，已进包；Hyprland / Xorg unavailable。发布脚本明确记录 `localOcr: false`；Linux 仍无 Secret Service。
+正式发行 `v26.904.1` 的 Linux 产物是 Ubuntu/Debian 共用 x64 `.deb` 与 Omarchy/Arch/Nix 共用 x64 `.tar.gz`。自动化验证了包结构、Node/Pi Sidecar、Go Runtime 和 Xvfb Electron 启动。GNOME Wayland Computer Use 走 XDG Desktop Portal，已进包；Hyprland / Xorg unavailable。发布脚本明确记录 `localOcr: false`；Linux 仍无 Secret Service。
 
 - Sidecar 只有 `linux/amd64` Node runtime；Linux 没有已审阅的 `@napi-rs/system-ocr` 原生包。
 - Browser Use 查找 Chrome / Chromium / Edge、PATH、snap、Nix 与桌面入口。

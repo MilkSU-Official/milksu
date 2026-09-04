@@ -9,14 +9,14 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/MilkSU-Official/milksu/releases/tag/v26.827.1"><img src="https://img.shields.io/badge/latest_release-26.827.1-f3f0e8?style=flat-square&labelColor=20211f" alt="Latest GitHub Release 26.827.1"></a>
+  <a href="https://github.com/MilkSU-Official/milksu/releases/tag/v26.904.1"><img src="https://img.shields.io/badge/latest_release-26.904.1-f3f0e8?style=flat-square&labelColor=20211f" alt="Latest GitHub Release 26.904.1"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue?style=flat-square&labelColor=20211f" alt="AGPL-3.0-only"></a>
   <img src="https://img.shields.io/badge/platform-macOS_Windows_Linux-f3f0e8?style=flat-square&labelColor=20211f" alt="macOS, Windows and Linux">
   <img src="https://img.shields.io/badge/desktop-Electron_%2B_Vue_%2B_Go-f3f0e8?style=flat-square&labelColor=20211f" alt="Electron, Vue and Go">
 </p>
 
 <p align="center">
-  <a href="https://github.com/MilkSU-Official/milksu/releases/tag/v26.827.1">下载</a>
+  <a href="https://github.com/MilkSU-Official/milksu/releases/tag/v26.904.1">下载</a>
   ·
   <a href="docs/architecture/current-system.md">了解系统</a>
   ·
@@ -29,7 +29,7 @@ MilkSU 把 Coding、CTF、CVE 和实验室放进同一个桌面工作台。你�
 
 它不是又一个只有输入框的聊天客户端。MilkSU 让 Agent 的工作对象真正出现在你面前：项目文件、内置浏览器、真实浏览器标签页和外部桌面应用都可以成为当前任务的一部分；你可以随时观察、补充要求、接管或停止。
 
-可下载的最新正式 GitHub Release 是 **26.827.1**。下载页以 [v26.827.1](https://github.com/MilkSU-Official/milksu/releases/tag/v26.827.1) 为准，不要把同版本号的后续提交或空 tag 当成已经发出的包。上一版 [v26.825.1](https://github.com/MilkSU-Official/milksu/releases/tag/v26.825.1) 仍可下载。
+可下载的最新正式 GitHub Release 是 **26.904.1**。下载页以 [v26.904.1](https://github.com/MilkSU-Official/milksu/releases/tag/v26.904.1) 为准，不要把同版本号的后续提交或空 tag 当成已经发出的包。上一版 [v26.827.1](https://github.com/MilkSU-Official/milksu/releases/tag/v26.827.1) 仍可下载。
 
 ## 你可以用 MilkSU 做什么
 
@@ -42,7 +42,7 @@ MilkSU 把 Coding、CTF、CVE 和实验室放进同一个桌面工作台。你�
 - 按任务使用隔离浏览器、真实浏览器标签页、Computer Use、MCP、LSP 和已审核 Skill；
 - 在干净 Git 项目中自动隔离修改，不打乱当前工作区。
 
-输入框旁有上下文用量环，悬停能看到本轮和本会话的缓存命中。接近窗口约 85% 且空闲时会自动整理上下文。模型可以用工作台动作操作标签、产物、环境和产品记录，不必让你去点界面。
+输入框旁有上下文用量环，悬停能看到系统提示、工具、Skills、MCP、子 Agent 和对话的分类用量，以及本轮缓存命中。接近窗口约 85% 且空闲时会自动整理上下文。模型可以用工作台动作操作标签、产物、环境和产品记录，不必让你去点界面。
 
 ### CTF
 
@@ -148,7 +148,7 @@ Linux 暂无 Secret Service、本地 OCR。合同：[Linux 安装与桌面合同
 
 ## 当前状态
 
-最近一次带哈希回执的三端正式 GitHub Release 是 **26.827.1**（2026-08-27）：自动更新、Linux 四发行版安装与 GNOME Portal、Beautiful UI 指挥面。Windows 安装器仍未代码签名；Linux 无 Secret Service 与本地 OCR；Hyprland/Xorg Computer Use 不可用。
+最近一次带哈希回执的三端正式 GitHub Release 是 **26.904.1**（2026-09-04）：上下文用量分类、模型窗口覆盖、loop 操作面与三端窗口铬。Windows 安装器仍未代码签名；Linux 无 Secret Service 与本地 OCR；Hyprland/Xorg Computer Use 不可用。
 
 MilkSU 面向个人学习、授权研究和本地开发，不是互联网资产扫描器或无人值守的自动红队平台。
 
