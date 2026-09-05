@@ -13,6 +13,7 @@ class FakeUpdater extends EventEmitter {
   constructor() {
     super()
     this.feed = null
+    this.updateInfoAndProvider = null
   }
 
   setFeedURL(value) {
@@ -21,15 +22,23 @@ class FakeUpdater extends EventEmitter {
 
   async checkForUpdates() {
     this.emit('checking-for-update')
-    this.emit('update-available', {
+    const updateInfo = {
       version: '0.2.0',
       releaseName: 'MilkSU 0.2.0',
       releaseNotes: '登录后安全下载更新。',
       releaseDate: '2026-08-13T12:00:00.000Z',
-    })
+    }
+    this.updateInfoAndProvider = { info: updateInfo }
+    this.emit('update-available', updateInfo)
+    return { isUpdateAvailable: true, updateInfo }
   }
 
   async downloadUpdate() {
+    if (!this.updateInfoAndProvider) {
+      const error = new Error('Please check update first')
+      this.emit('error', error)
+      throw error
+    }
     this.emit('download-progress', { percent: 42, transferred: 42, total: 100 })
     this.emit('update-downloaded', { version: '0.2.0' })
   }
@@ -136,6 +145,35 @@ test('keeps updater disabled in development and Beta identities', async () => {
     enabled: false,
   })
   assert.equal(manager.install(), false)
+})
+
+test('stays idle when Admin latest has no downloadable artifact', async () => {
+  const manager = new UpdateManager(managerOptions({
+    fetchImpl: async () => jsonResponse(200, {
+      release: {
+        version: '0.2.0',
+        title: 'MilkSU 0.2.0',
+        publishedAt: '2026-08-13T12:00:00.000Z',
+        downloads: {},
+      },
+    }),
+  }))
+  assert.equal((await manager.check()).state, 'idle')
+})
+
+test('surfaces a visible error when the updater feed check fails', async () => {
+  const updater = new FakeUpdater()
+  updater.checkForUpdates = async () => {
+    const error = new Error('release feed unavailable')
+    updater.emit('error', error)
+    throw error
+  }
+  const manager = new UpdateManager(managerOptions({ updater }))
+  assert.equal((await manager.check()).state, 'available')
+  const failed = await manager.download()
+  assert.equal(failed.state, 'error')
+  assert.equal(failed.code, 'download_failed')
+  assert.equal(failed.message, '更新下载失败，请稍后重试')
 })
 
 test('stays idle when Admin has no matching platform/arch pointer', async () => {

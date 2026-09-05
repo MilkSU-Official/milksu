@@ -854,7 +854,19 @@ function toggleThemeMode() {
 }
 
 async function downloadUpdate() {
-  updateStatus.value = await invokeCommand<UpdateStatus>('download_update')
+  try {
+    updateStatus.value = await invokeCommand<UpdateStatus>('download_update')
+  } catch (reason) {
+    console.error('Failed to download update', reason)
+    updateStatus.value = {
+      state: 'error',
+      currentVersion: updateStatus.value?.currentVersion || '',
+      enabled: updateStatus.value?.enabled !== false,
+      version: updateStatus.value?.version,
+      code: 'download_failed',
+      message: t('更新下载失败，请稍后重试', 'Update download failed. Try again later.'),
+    }
+  }
 }
 
 async function installUpdate() {

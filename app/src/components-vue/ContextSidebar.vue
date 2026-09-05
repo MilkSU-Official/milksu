@@ -22,6 +22,7 @@ import {
 import {
   Archive,
   ArrowDownToLine,
+  CircleAlert,
   Bug,
   ChevronDown,
   Flag,
@@ -135,6 +136,11 @@ const updateButtonLabel = computed(() => {
   if (props.updateStatus?.state === 'error') return t('重试下载', 'Retry download')
   return t('下载更新', 'Download update')
 })
+const updateButtonTitle = computed(() => (
+  props.updateStatus?.state === 'error' && props.updateStatus.message
+    ? props.updateStatus.message
+    : updateButtonLabel.value
+))
 
 const workspaceHome = computed<WorkspaceSection>(() => (
   props.activeSection === 'ctf' || props.activeSection === 'vuln' || props.activeSection === 'lab'
@@ -760,10 +766,11 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', closeOnOutside
           data-testid="sidebar-download-update"
           :disabled="updateAction === 'progress'"
           :aria-label="updateButtonLabel"
-          :title="updateButtonLabel"
+          :title="updateButtonTitle"
           @click="updateAction === 'install' ? $emit('installUpdate') : $emit('downloadUpdate')"
         >
           <span v-if="updateAction === 'progress'" class="agent-sidebar__update-progress">{{ updatePercent.toFixed(0) }}</span>
+          <CircleAlert v-else-if="props.updateStatus?.state === 'error'" class="size-4" />
           <ArrowDownToLine v-else class="size-4" />
         </button>
         <button

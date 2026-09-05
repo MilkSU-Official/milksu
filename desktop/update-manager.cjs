@@ -224,6 +224,11 @@ class UpdateManager {
           return this.view()
         }
         this.release = release
+        if (!this.selectedDownload()) {
+          this.release = null
+          this.setStatus({ state: 'idle', version: '', title: '', notes: '', message: '', code: '' })
+          return this.view()
+        }
         this.setStatus({
           state: 'available',
           version: boundedText(release.version, 64),
@@ -268,6 +273,13 @@ class UpdateManager {
       } else {
         if (typeof this.updater?.setFeedURL === 'function') {
           this.updater.setFeedURL({ provider: 'generic', url: this.feedURL() })
+        }
+        if (typeof this.updater?.checkForUpdates !== 'function' || typeof this.updater?.downloadUpdate !== 'function') {
+          throw new Error('updater_unavailable')
+        }
+        const checked = await this.updater.checkForUpdates()
+        if (checked && checked.isUpdateAvailable === false) {
+          throw new Error('update_not_available')
         }
         await this.updater.downloadUpdate()
       }

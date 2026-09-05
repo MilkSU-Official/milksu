@@ -30,7 +30,7 @@
 | --- | --- |
 | 阶段 | **内测迭代 / Agent Runtime 与跨平台发行收敛**。当前工作不再按 M3/M4 里程碑组织。 |
 | 历史基线 | M3 product-loop 已在 `108e0e3`（2026-08-05）合并，仅供追溯。 |
-| 正式发行基线 | `v26.905.1 / 1cc877358fe34a5ec3000f325ed558030c495d8c`（2026-09-05 今日首发）。这是当前 GitHub Latest Release；提供带版本号的 DMG、EXE、DEB、x64 tar.gz 与 `SHA256SUMS`。OTA 草稿已上传私有 R2；Admin current pointer 仍须维护者在「版本」页发布。上一版 `v26.904.1 / 6e9371d` 与 `v26.827.1 / 37932ce` 仍可下载，不是 Latest。 |
+| 正式发行基线 | `v26.905.1 / 1cc877358fe34a5ec3000f325ed558030c495d8c`（2026-09-05 今日首发）。这是当前 GitHub Latest Release；提供带版本号的 DMG、EXE、DEB、x64 tar.gz 与 `SHA256SUMS`。OTA 已上传私有 R2。本机安装的 `/Applications/MilkSU.app` 仍是 `26.827.1`，左下角会出下载箭头，但已发出包点下载不会开始。上一版 `v26.904.1 / 6e9371d` 与 `v26.827.1 / 37932ce` 仍可下载，不是 Latest。 |
 | 开发版本线 | 根目录与 `desktop/package.json` 是 `26.905.1`。正式发行源是 `1cc8773`；文档收口提交不移动该 tag。 |
 | 当前开发 | 正式包是 `26.905.1`。Composer 上下文环按 Pi 组装分类；设置页可查看并覆盖模型上下文窗口。edit 锚点、`tool_result` 截断、中途引导、子 Agent 结构化回传、rewind/handoff、用户 MCP/Skills 与克制清透材料层已进包。三端窗口铬：macOS 保持 `hiddenInset`，Windows/Linux 隐藏原生标题栏并用画布色 overlay。已登录 Stable 轮询 Admin 时带上当前版本。实验室题目包仍可起本机 Docker / MilkSU-Lab。Pi 钉到 `0.84.1`。Windows 安装器仍未代码签名；Linux 无 Secret Service 与本地 OCR；Hyprland/Xorg Computer Use 不可用。CTF 比赛模式和实验室红队学习面仍未接线。产品 UI 设计语言只写在 `AGENTS.md`。 |
 | 平台边界 | `26.905.1`：macOS DMG 走 GitHub-hosted Developer ID 签名并公证；Windows 安装器完成原生 Runtime 与首次启动但未代码签名，并打入审阅过的 CUA Driver；Linux 发出 Ubuntu/Debian 共用 x64 DEB 与 Omarchy/Arch/Nix 共用 x64 tarball，GNOME Portal Computer Use 已进包，仍无 Secret Service、本地 OCR；Hyprland/Xorg Computer Use 不可用。Windows/Linux 窗口铬尚未真机验收。 |
@@ -164,7 +164,9 @@
 
 ## 未发版改动：晚于 `v26.905.1` / `1cc8773`
 
-文档收口提交不移动该 tag。Admin current pointer 尚未由维护者发布；Windows 代码签名、Linux Secret Service / 本地 OCR、Hyprland/Xorg Computer Use 仍缺。CTF 比赛模式和实验室红队学习面仍未接线。
+文档收口提交不移动该 tag。Windows 代码签名、Linux Secret Service / 本地 OCR、Hyprland/Xorg Computer Use 仍缺。CTF 比赛模式和实验室红队学习面仍未接线。
+
+- 已登录 Stable 左下角下载箭头：Admin `/latest` 只返回已发布 pointer。本机 `/Applications/MilkSU.app` 仍是 `26.827.1`，所以只要 `26.904.1` 已发布，没发 `26.905.1` 也会出现箭头。`26.905.1` 及更早的正式包在 macOS/Windows 上点下载会直接调用 `electron-updater.downloadUpdate()`，没有先 `checkForUpdates()`，立刻 `Please check update first`；失败态仍是同一个向下箭头，看起来像没反应。开发 HEAD 已先 check 再 download，失败改为可见重试。已发出的 `26.827.1` / `26.904.1` / `26.905.1` 客户端改不了；这一跳请从 GitHub 下 DMG。
 
 ## 当前产品事实
 
@@ -224,9 +226,9 @@
 
 下一条完成线是：
 
-1. 维护者在 MilkSU Admin「版本」页发布 `darwin/arm64`、`win32/x64`、`linux/x64` current pointer，已登录 Stable 才能拉到 OTA；
-2. 继续用 `26.905.1` 安装包做常用 Agent GUI、Pi Runtime、自动更新与实验室靶机回归，失败项回到下面 P0 队列；
-3. 用户明确要求发下一版时，先升版本号，再从干净已推送的 `main` 跑 `release:verify` 并留下新的三端回执；不要把现有 `v26.905.1`、`v26.904.1` 或 `v26.827.1` 标签挪到更新的 HEAD 上。
+1. 从 GitHub 安装 `26.905.1` DMG 完成这一跳；已发出的 `26.827.1` / `26.904.1` / `26.905.1` 点下载修不了；
+2. 继续用新安装包做常用 Agent GUI、Pi Runtime 与实验室靶机回归，失败项回到下面 P0 队列；
+3. 用户明确要求发下一版时，先升版本号，再从干净已推送的 `main` 跑 `release:verify` 并留下新的三端回执；不要把现有 `v26.905.1`、`v26.904.1` 或 `v26.827.1` 标签挪到更新的 HEAD 上。下一版才带上「先 check 再 download」。
 
 Windows 签名、Linux Secret Service / OCR、Hyprland/Xorg Computer Use、Windows/Linux 窗口铬真机验收仍是发行后续，不是产品方向禁令。
 
@@ -237,7 +239,7 @@ Windows 签名、Linux Secret Service / OCR、Hyprland/Xorg Computer Use、Windo
 | P0 | 常用 Agent GUI 回归 | 按 Coding 常用功能表覆盖中文任务、文件/Shell、附件、斜杠菜单、权限档、subagent、浏览器、Browser/Computer Use、终端、取消/恢复与错误展示；自动化通过后再由用户做真实 GUI 验收。C9 / C15 / C16 / C20 已由用户在本地 dirty Stable 包确认；C10 / C11 已修待复验。 |
 | P0 | Pi Runtime 用户验收 | 最新正式包中验证跨目录读写、CTF/CVE 交接、长输出续跑和重启恢复，不出现 MilkSU 自建 workspace 策略或旧 session ID。 |
 | P1 | 下一版三端回执发行 | 需要新的版本号、同一 source commit、三端产物、SHA-256 与平台验收。现有 `v26.905.1` 只覆盖 `1cc8773`。 |
-| P1 | Admin current pointer | `26.905.1` OTA 草稿应已在私有 R2 / Admin。维护者须在「版本」页发布 `darwin/arm64`、`win32/x64`、`linux/x64` 后，已登录 Stable 才能拉到更新；可用 `26.904.1` Mac 做升级回执。 |
+| P1 | Admin current pointer / 客户端下载 | 本机 `26.827.1` 已能看到下载箭头。已发出包点下载不会开始。开发 HEAD 已先 `checkForUpdates` 再 `downloadUpdate`。这一跳请下 GitHub DMG；下一版才能用 OTA 验证。 |
 | P1 | 安全工具真实任务 | IDA/idalib 与 capa 已有设置、准备和健康检查；用受控本地样本留下真实任务回执。就绪工具接到实验室作业，窄工具也可进 CVE 复现；不需要先开一次“是否投影”的会。不把 HexStrike 整包 MCP 做成产品页或 Kali 应用商店。CodeQL、Burp、Shannon 仍逐项接入。 |
 | P1 | Obelisk 学习记录 | 先定义可归因学习事实，再设计独立页面；不恢复已删除的单会话相关历史/图谱面板。 |
 | 未接线 | 继续同一作业还是新开一轮 | 当前按同一 CVE/实验室作业复用同一会话和 `report.md`。新开一轮的产品决策还没定。 |

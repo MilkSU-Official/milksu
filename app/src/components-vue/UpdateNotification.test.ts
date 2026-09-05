@@ -55,6 +55,32 @@ describe('sidebar update control', () => {
     expect(actions).toEqual(['download'])
   })
 
+  it('keeps a retry control visible when download fails', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    const actions: string[] = []
+    const app = createApp(ContextSidebar, {
+      ...sidebarProps,
+      updateStatus: {
+        state: 'error',
+        currentVersion: '0.1.0',
+        enabled: true,
+        version: '0.2.0',
+        code: 'download_failed',
+        message: '更新下载失败，请稍后重试',
+      } satisfies UpdateStatus,
+      onDownloadUpdate: () => actions.push('retry'),
+    })
+    app.mount(host)
+    mountedApps.push(app)
+    await nextTick()
+    const button = host.querySelector<HTMLButtonElement>('[data-testid="sidebar-download-update"]')
+    expect(button?.getAttribute('aria-label')).toContain('重试下载')
+    expect(button?.getAttribute('title')).toContain('更新下载失败')
+    button?.click()
+    expect(actions).toEqual(['retry'])
+  })
+
   it('asks before installing when the downloaded update dialog is shown', async () => {
     const host = document.createElement('div')
     document.body.append(host)
