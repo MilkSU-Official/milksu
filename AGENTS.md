@@ -179,12 +179,22 @@ mechanism or proven design, and only then write the smallest MilkSU-owned implem
 earlier level was insufficient. “Mature” requires an inspectable source, compatible license, bounded
 permissions, maintained releases and evidence for the relevant use case; popularity alone is insufficient.
 Do not grow a second generic Coding Agent harness when an upstream component already owns the capability.
-When Pi Agent Harness already exposes a reviewed session API, lifecycle hook, extension point, tool,
+When the selected Agent Harness already exposes a reviewed session API, lifecycle hook, extension point, tool,
 compaction mechanism, runtime-context mechanism or other matching primitive, integrate through that
-primitive and preserve Pi's semantics instead of recreating the behavior with MilkSU-owned prompt routing,
+primitive and preserve that harness's semantics instead of recreating the behavior with MilkSU-owned prompt routing,
 regular expressions, parallel state machines or a second harness. MilkSU should add only the product UI,
-desktop authorization, persistence and evidence projection that Pi does not own; document the concrete Pi
-gap before admitting a replacement mechanism.
+desktop authorization, persistence and evidence projection that the harness does not own; document the concrete
+harness gap before admitting a replacement mechanism.
+
+Progressive disclosure follows the currently selected Agent Harness core. Today that core is Pi
+(`pi-coding-agent` 0.84.1): Skill catalogs stay at `name` + when-to-use `description`, bodies load with
+`read` or `/skill:name`, slash-only skills use `disable-model-invocation`, and fat optional tools
+`registerTool` first then activate through the harness (Pi Dynamic Tool Loading or a typed product action).
+Do not add a MilkSU-owned injector that keyword-scans user text, pastes Skill bodies or tool-action essays
+into the system prompt, or guesses when to inject context. If the selected core later becomes another
+reviewed harness (for example DeepSeek Harness), use that harness's native skill and tool disclosure and
+drop Pi-specific prompt leftovers; do not keep a MilkSU disclosure adapter that tries to look the same on
+every harness.
 
 ## Non-Negotiable Boundaries
 
@@ -226,6 +236,11 @@ deferred to one destructive pre-release consolidation after the product slices a
 
 ## Agent Intent and Product UI Tools
 
+- Progressive disclosure is owned by the selected Agent Harness, not by MilkSU prompt routing.
+  For the current Pi core: put when-to-use on the Skill or tool `description`; do not repeat it as a
+  system-prompt MUST essay; do not paste Skill bodies into the system prompt. If the core changes
+  (for example to DeepSeek Harness), follow that core's disclosure instead of copying Pi's catalog
+  format or keeping a MilkSU injector.
 - Do not scan user text with keywords or regular expressions to decide which tool, tab, page or
   approval to run. The model understands natural language. GUI one-click actions send a typed
   product action. Isolated browser starts because the user opens the rail or the model
