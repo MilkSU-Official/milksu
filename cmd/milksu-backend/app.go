@@ -192,8 +192,9 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 			servers[server.Name] = server.Definition
 		}
 		return engine.AgentResourceRuntime{
-			MCPServers: servers,
-			SkillPaths: append([]string(nil), runtime.SkillPaths...),
+			MCPServers:        servers,
+			SkillPaths:        append([]string(nil), runtime.SkillPaths...),
+			HideFactorySkills: append([]string(nil), runtime.HideFactorySkills...),
 		}
 	})
 	application.codingPRs = codingenv.NewPullRequestPublisher()
@@ -1103,7 +1104,7 @@ func (a *App) SendMessage(
 	if err != nil {
 		return err
 	}
-	a.engines.SetSecurityTools(a.securityTools.RuntimeTools(a.commandContext()))
+	a.engines.SetSecurityTools(applySecurityToolOverlays(a.agentResources, a.securityTools.RuntimeTools(a.commandContext())))
 	return a.engines.SendMessageWithBranch(
 		conversationID,
 		prompt,

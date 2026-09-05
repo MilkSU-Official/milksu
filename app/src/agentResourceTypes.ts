@@ -26,9 +26,48 @@ export interface AgentResourceSkill {
   slashOnly?: boolean
 }
 
+export interface AgentResourceBuiltinMCP {
+  name: string
+  enabled: boolean
+  customized: boolean
+  command?: string
+  args?: string[]
+}
+
+export interface AgentResourceBuiltinSkill {
+  name: string
+  customized: boolean
+}
+
 export interface AgentResourceCatalog {
   mcpServers: AgentResourceMCPServer[]
   skills: AgentResourceSkill[]
+  builtinMCP?: AgentResourceBuiltinMCP[]
+  builtinSkills?: AgentResourceBuiltinSkill[]
+}
+
+export interface BuiltinSkillDocument {
+  name: string
+  document: string
+  customized: boolean
+}
+
+export interface BuiltinMCPInput {
+  name: string
+  enabled?: boolean
+  command?: string
+  args?: string[]
+}
+
+export interface BuiltinConfigHandoff {
+  kind: 'mcp' | 'skill'
+  name: string
+  title: string
+  prompt: string
+  visibleText: string
+  workspacePath: string
+  executionMode: 'go'
+  approvalPolicy: 'full-auto'
 }
 
 export interface AgentResourceMCPInput {
@@ -48,5 +87,5 @@ export interface AgentResourceMCPInput {
 }
 
 export function emptyAgentResourceCatalog(): AgentResourceCatalog {
-  return { mcpServers: [], skills: [] }
+  return { mcpServers: [], skills: [], builtinMCP: [], builtinSkills: [] }
 }

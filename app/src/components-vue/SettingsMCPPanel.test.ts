@@ -26,10 +26,11 @@ async function mountPanel(catalog: AgentResourceCatalog, methods: Record<string,
       invoke(method: string, args: unknown[]) {
         const fn = {
           ListAgentResourceCatalog: async () => catalog,
+          ListSecurityTools: async () => [],
           ...methods,
         }[method]
         if (!fn) throw new Error(`unexpected method ${method}`)
-        return fn(...(args ?? []))
+        return Reflect.apply(fn, undefined, Array.isArray(args) ? args : [])
       },
       onEvent() {
         return () => {}
@@ -41,7 +42,7 @@ async function mountPanel(catalog: AgentResourceCatalog, methods: Record<string,
   const app = createApp(SettingsMCPPanel)
   app.mount(host)
   mountedApps.push(app)
-  await settle()
+  for (let index = 0; index < 8; index += 1) await settle()
   return host
 }
 
@@ -127,5 +128,47 @@ describe('SettingsMCPPanel', () => {
     for (let index = 0; index < 6; index += 1) await settle()
     expect(imported).toContain('github')
     expect(host.textContent).toContain('github')
+  })
+
+  it('lists built-in MCP rows and can restore this version default', async () => {
+    let restored = ''
+    const host = await mountPanel({
+      mcpServers: [],
+      skills: [],
+      builtinMCP: [{
+        name: 'ida-pro',
+        enabled: true,
+        customized: true,
+        command: 'idalib-mcp',
+      }],
+    }, {
+      ListSecurityTools: async () => [{
+        id: 'ida-pro',
+        name: 'IDA Pro',
+        purpose: '交互式反汇编与二进制分析',
+        status: 'ready',
+        statusLabel: '可用',
+        enabled: true,
+        usableByAgent: true,
+        connection: 'idalib MCP',
+        runtime: '按需启动本地 MCP',
+        capabilities: [],
+        schema: [],
+        setupSupported: true,
+        codingSupported: true,
+      }],
+      RestoreBuiltinMCP: async (name: unknown) => {
+        restored = String(name ?? '')
+        return { mcpServers: [], skills: [], builtinMCP: [{ name: 'ida-pro', enabled: true, customized: false }] }
+      },
+    })
+    expect(host.textContent).toContain('IDA Pro')
+    expect(host.textContent).toContain('内置 MCP')
+    const restore = [...host.querySelectorAll('button')].find(button => (
+      (button.textContent ?? '').includes('恢复默认')
+    ))
+    restore?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await settle()
+    expect(restored).toBe('ida-pro')
   })
 })

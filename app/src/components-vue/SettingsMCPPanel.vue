@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import {
   Button,
   Input,
@@ -11,7 +11,7 @@ import {
   Textarea,
 } from '@felinic/ui'
 import { Braces, Plus, Trash2 } from 'lucide-vue-next'
-import { desktopErrorMessage, invokeCommand } from '@/desktop'
+import { desktopErrorMessage, invokeCommand, listenEvent } from '@/desktop'
 import { t } from '@/lib/uiLocale'
 import {
   emptyAgentResourceCatalog,
@@ -19,14 +19,22 @@ import {
   type AgentResourceMCPInput,
   type AgentResourceMCPServer,
   type AgentResourceMCPTransport,
+  type BuiltinConfigHandoff,
 } from '@/agentResourceTypes'
+import type { SecurityToolSetupSnapshot, SecurityToolSnapshot } from '@/securityToolsTypes'
+
+const emit = defineEmits<{
+  codingHandoff: [handoff: BuiltinConfigHandoff]
+}>()
 
 const catalog = ref<AgentResourceCatalog>(emptyAgentResourceCatalog())
+const tools = ref<SecurityToolSnapshot[]>([])
 const loading = ref(false)
 const saving = ref(false)
 const error = ref('')
 const editorOpen = ref(false)
 const jsonOpen = ref(false)
+const builtinEditorOpen = ref(false)
 const formJSON = ref('')
 const jsonEditor = ref<{ $el?: HTMLTextAreaElement } | null>(null)
 const editingName = ref('')
@@ -40,9 +48,25 @@ const formEnv = ref('')
 const formHeaders = ref('')
 const formBearer = ref('')
 const formEnabled = ref(true)
+const builtinName = ref('')
+const builtinCommand = ref('')
+const builtinArgs = ref('')
+const setup = ref<SecurityToolSetupSnapshot | null>(null)
+let unlistenSetup: (() => void) | undefined
 
 const servers = computed(() => catalog.value.mcpServers)
 const editing = computed(() => Boolean(editingName.value))
+const builtinRows = computed(() => tools.value.map(tool => {
+  const overlay = (catalog.value.builtinMCP ?? []).find(item => item.name === tool.id)
+  return {
+    tool,
+    overlay,
+    enabled: overlay?.enabled ?? tool.enabled,
+    customized: Boolean(overlay?.customized || overlay?.command),
+    command: overlay?.command || '',
+    args: overlay?.args ?? [],
+  }
+}))
 
 function transportLabel(transport: string) {
   switch (transport) {
@@ -78,21 +102,37 @@ function parseArgs(value: string) {
     .filter(Boolean)
 }
 
+function builtinDescription(row: (typeof builtinRows.value)[number]) {
+  return [
+    row.tool.statusLabel,
+    row.tool.purpose,
+    row.customized ? t('已修改', 'Modified') : '',
+  ].filter(Boolean).join(' · ')
+}
+
 async function loadCatalog() {
   loading.value = true
   error.value = ''
+  const errors: string[] = []
   try {
     catalog.value = await invokeCommand<AgentResourceCatalog>('list_agent_resource_catalog')
   } catch (reason) {
-    error.value = desktopErrorMessage(reason)
+    errors.push(desktopErrorMessage(reason))
     catalog.value = emptyAgentResourceCatalog()
-  } finally {
-    loading.value = false
   }
+  try {
+    tools.value = await invokeCommand<SecurityToolSnapshot[]>('list_security_tools')
+  } catch (reason) {
+    errors.push(desktopErrorMessage(reason))
+    tools.value = []
+  }
+  error.value = errors.filter(Boolean).join(' ')
+  loading.value = false
 }
 
 function startJSONImport() {
   closeEditor()
+  closeBuiltinEditor()
   formJSON.value = ''
   jsonOpen.value = true
 }
@@ -104,6 +144,7 @@ function closeJSONImport() {
 
 function startCreate() {
   closeJSONImport()
+  closeBuiltinEditor()
   editingName.value = ''
   formName.value = ''
   formTransport.value = 'command'
@@ -120,6 +161,7 @@ function startCreate() {
 
 function startEdit(server: AgentResourceMCPServer) {
   closeJSONImport()
+  closeBuiltinEditor()
   editingName.value = server.name
   formName.value = server.name
   formTransport.value = server.transport
@@ -137,6 +179,20 @@ function startEdit(server: AgentResourceMCPServer) {
 function closeEditor() {
   editorOpen.value = false
   editingName.value = ''
+}
+
+function startBuiltinEdit(row: (typeof builtinRows.value)[number]) {
+  closeJSONImport()
+  closeEditor()
+  builtinName.value = row.tool.id
+  builtinCommand.value = row.command
+  builtinArgs.value = row.args.join('\n')
+  builtinEditorOpen.value = true
+}
+
+function closeBuiltinEditor() {
+  builtinEditorOpen.value = false
+  builtinName.value = ''
 }
 
 function buildInput(): AgentResourceMCPInput {
@@ -232,12 +288,217 @@ async function removeServer(name: string) {
   }
 }
 
-onMounted(() => {
-  void loadCatalog()
+async function setBuiltinEnabled(name: string, enabled: boolean) {
+  saving.value = true
+  error.value = ''
+  try {
+    catalog.value = await invokeCommand<AgentResourceCatalog>('set_builtin_mcp_enabled', {
+      name,
+      enabled,
+    })
+    tools.value = tools.value.map(item => item.id === name
+      ? { ...item, enabled, usableByAgent: enabled && item.status === 'ready' && item.codingSupported }
+      : item)
+  } catch (reason) {
+    error.value = desktopErrorMessage(reason)
+  } finally {
+    saving.value = false
+  }
+}
+
+async function saveBuiltin() {
+  if (!builtinName.value) return
+  saving.value = true
+  error.value = ''
+  try {
+    catalog.value = await invokeCommand<AgentResourceCatalog>('upsert_builtin_mcp', {
+      input: {
+        name: builtinName.value,
+        command: builtinCommand.value.trim(),
+        args: parseArgs(builtinArgs.value),
+      },
+    })
+    closeBuiltinEditor()
+  } catch (reason) {
+    error.value = desktopErrorMessage(reason)
+  } finally {
+    saving.value = false
+  }
+}
+
+async function restoreBuiltin(name: string) {
+  saving.value = true
+  error.value = ''
+  try {
+    catalog.value = await invokeCommand<AgentResourceCatalog>('restore_builtin_mcp', { name })
+    if (builtinName.value === name) closeBuiltinEditor()
+    tools.value = await invokeCommand<SecurityToolSnapshot[]>('list_security_tools')
+  } catch (reason) {
+    error.value = desktopErrorMessage(reason)
+  } finally {
+    saving.value = false
+  }
+}
+
+async function startSetup(id: string) {
+  saving.value = true
+  error.value = ''
+  try {
+    setup.value = await invokeCommand<SecurityToolSetupSnapshot>('start_security_tool_setup', { id })
+  } catch (reason) {
+    error.value = desktopErrorMessage(reason)
+  } finally {
+    saving.value = false
+  }
+}
+
+async function checkTool(id: string) {
+  saving.value = true
+  error.value = ''
+  try {
+    const checked = await invokeCommand<SecurityToolSnapshot>('check_security_tool', { id })
+    tools.value = tools.value.map(item => item.id === checked.id ? checked : item)
+    if (checked.status === 'ready') setup.value = null
+  } catch (reason) {
+    error.value = desktopErrorMessage(reason)
+  } finally {
+    saving.value = false
+  }
+}
+
+async function openBuiltinConversation(name: string) {
+  saving.value = true
+  error.value = ''
+  try {
+    emit('codingHandoff', await invokeCommand<BuiltinConfigHandoff>('prepare_builtin_config_handoff', {
+      kind: 'mcp',
+      name,
+    }))
+  } catch (reason) {
+    error.value = desktopErrorMessage(reason)
+  } finally {
+    saving.value = false
+  }
+}
+
+onMounted(async () => {
+  unlistenSetup = await listenEvent<SecurityToolSetupSnapshot>('security-tool-setup', event => {
+    setup.value = event.payload
+    if (event.payload.state === 'completed' || event.payload.state === 'failed') {
+      void loadCatalog()
+    }
+  })
+  await loadCatalog()
 })
+
+onBeforeUnmount(() => unlistenSetup?.())
 </script>
 
 <template>
+  <SettingsSection :title="t('内置 MCP', 'Built-in MCP')">
+    <p v-if="error" class="px-4 py-3 text-caption text-destructive">{{ error }}</p>
+    <SettingsRow
+      v-if="setup && setup.state === 'running'"
+      :label="t('正在准备', 'Preparing')"
+      :description="setup.summary"
+    >
+      <span class="font-mono text-caption text-primary">{{ setup.percent }}%</span>
+    </SettingsRow>
+    <SettingsRow
+      v-for="row in builtinRows"
+      :key="row.tool.id"
+      :label="row.tool.name"
+      :description="builtinDescription(row)"
+    >
+      <div class="flex flex-wrap items-center justify-end gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          :disabled="saving"
+          @click="startBuiltinEdit(row)"
+        >
+          {{ t('编辑', 'Edit') }}
+        </Button>
+        <Button
+          v-if="row.customized"
+          type="button"
+          variant="outline"
+          size="sm"
+          :disabled="saving"
+          @click="restoreBuiltin(row.tool.id)"
+        >
+          {{ t('恢复默认', 'Restore default') }}
+        </Button>
+        <Button
+          v-if="row.tool.setupSupported && row.tool.status !== 'ready'"
+          type="button"
+          variant="outline"
+          size="sm"
+          :disabled="saving"
+          @click="startSetup(row.tool.id)"
+        >
+          {{ row.tool.primaryAction || t('准备', 'Set up') }}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          :disabled="saving"
+          @click="checkTool(row.tool.id)"
+        >
+          {{ t('健康检查', 'Health check') }}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          :disabled="saving"
+          @click="openBuiltinConversation(row.tool.id)"
+        >
+          {{ t('用对话配置', 'Configure in chat') }}
+        </Button>
+        <Switch
+          :model-value="row.enabled"
+          :disabled="saving || loading"
+          :aria-label="t(`启用${row.tool.name}`, `Enable ${row.tool.name}`)"
+          @update:model-value="setBuiltinEnabled(row.tool.id, Boolean($event))"
+        />
+      </div>
+    </SettingsRow>
+  </SettingsSection>
+
+  <SettingsSection v-if="builtinEditorOpen" :title="t('编辑内置 MCP', 'Edit built-in MCP')">
+    <SettingsRow :label="t('命令', 'Command')">
+      <Input
+        v-model="builtinCommand"
+        size="sm"
+        class="w-72 max-w-full"
+        :disabled="saving"
+        :aria-label="t('覆盖启动命令', 'Override launch command')"
+      />
+    </SettingsRow>
+    <SettingsRow :label="t('参数', 'Arguments')" :divider="false">
+      <Textarea
+        v-model="builtinArgs"
+        size="sm"
+        class="w-72 max-w-full"
+        :disabled="saving"
+        :aria-label="t('每行一个覆盖参数', 'One override argument per line')"
+      />
+    </SettingsRow>
+    <template #footer>
+      <div class="flex items-center justify-end gap-2">
+        <Button type="button" variant="outline" size="sm" :disabled="saving" @click="closeBuiltinEditor">
+          {{ t('取消', 'Cancel') }}
+        </Button>
+        <Button type="button" size="sm" :loading="saving" @click="saveBuiltin">
+          {{ t('保存', 'Save') }}
+        </Button>
+      </div>
+    </template>
+  </SettingsSection>
+
   <SettingsSection :title="t('用户 MCP', 'User MCP')">
     <template #actions>
       <div class="flex items-center gap-2">
@@ -263,7 +524,6 @@ onMounted(() => {
         </Button>
       </div>
     </template>
-    <p v-if="error" class="px-4 py-3 text-caption text-destructive">{{ error }}</p>
     <SettingsRow
       v-for="server in servers"
       :key="server.name"

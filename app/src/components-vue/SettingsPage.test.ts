@@ -138,7 +138,8 @@ async function mountSettingsPage(
       },
       pages: [],
     }),
-    ListAgentResourceCatalog: async () => ({ mcpServers: [], skills: [] }),
+    ListAgentResourceCatalog: async () => ({ mcpServers: [], skills: [], builtinMCP: [], builtinSkills: [] }),
+    ListSecurityTools: async () => [],
     GetEvalBoard: async () => ({
       suites: [
         { id: 'cybench', name: 'Cybench', purpose: 'CTF 题', runnable: true, taskN: 1 },
@@ -400,6 +401,8 @@ describe('SettingsPage Coding Agent Skills', () => {
     expect(text).toContain('产品设计')
     expect(text).toContain('API 集成')
     expect(text).toContain('MilkSU 发布')
+    expect(text).toContain('编辑')
+    expect(text).toContain('用对话配置')
 
     const productDesign = document.querySelector('[aria-label="启用产品设计"]')
     const securityReview = document.querySelector('[aria-label="启用安全审查"]')
@@ -467,6 +470,45 @@ describe('SettingsPage Coding Agent Skills', () => {
     for (let index = 0; index < 4; index += 1) await settle()
     expect(document.body.textContent).toContain('demo-review')
     expect(document.body.textContent).toContain('Review a local change')
+  })
+
+  it('opens the MCP page for built-in security tools and remaps the old category', async () => {
+    const settings = withAppSettingsDefaults({
+      active_provider: 'tokenflux',
+      active_model: 'grok-4.5',
+      providers: {},
+    } as AppSettings)
+    await mountSettingsPage({
+      directory: 'MilkSU 用户数据目录',
+      fileCount: 0,
+      bytes: 0,
+    }, {
+      initialCategory: 'security-tools',
+      settings,
+      appMethods: {
+        ListSecurityTools: async () => [{
+          id: 'ida-pro',
+          name: 'IDA Pro',
+          purpose: '交互式反汇编与二进制分析',
+          status: 'ready',
+          statusLabel: '可用',
+          enabled: true,
+          usableByAgent: true,
+          connection: 'idalib MCP',
+          runtime: '按需启动本地 MCP',
+          capabilities: [],
+          schema: [],
+          setupSupported: true,
+          codingSupported: true,
+        }],
+      },
+    })
+    for (let index = 0; index < 8; index += 1) await settle()
+    expect(document.body.textContent).toContain('内置 MCP')
+    expect(document.body.textContent).toContain('IDA Pro')
+    expect(document.body.textContent).toContain('用对话配置')
+    expect([...document.querySelectorAll('.settings-nav-item')].map(item => item.textContent?.trim()))
+      .not.toContain('安全工具')
   })
 
   it('defaults the file opener to VS Code and persists Cursor', async () => {
@@ -848,7 +890,7 @@ describe('SettingsPage database compatibility', () => {
 
     const labels = [...document.querySelectorAll<HTMLElement>('.settings-nav-item')]
       .map(item => item.textContent?.trim())
-    expect(labels).toEqual(['通用', '模型', 'CTF', 'CVE', 'Lab', 'Coding', 'MCP', '归档聊天', '浏览器控制', '安全工具', '评测'])
+    expect(labels).toEqual(['通用', '模型', 'CTF', 'CVE', 'Lab', 'Coding', 'MCP', '归档聊天', '浏览器控制', '评测'])
     expect(document.body.textContent).toContain('@milksuofficial · 内测用户')
     const generalTitles = [...document.querySelectorAll('h2')].map(item => item.textContent?.trim())
     expect(generalTitles[0]).toBe('账户')

@@ -51,9 +51,13 @@ export async function normalizeSecurityTools(value) {
     const capabilities = Array.isArray(raw.capabilities)
       ? raw.capabilities.map(value => boundedText(value, `${id} capability`, 120)).slice(0, 12)
       : [];
+    const args = Array.isArray(raw.args)
+      ? raw.args.map(value => boundedText(value, `${id} argument`, 500)).slice(0, 32)
+      : [];
     const normalized = {
       id,
       command,
+      args,
       version: boundedText(raw.version, `${id} version`, 80),
       capabilities,
     };
@@ -85,6 +89,7 @@ export function securityToolSelectionChanged(previous, next) {
   const project = value => (Array.isArray(value) ? value : []).map(tool => ({
     id: String(tool?.id ?? ""),
     command: String(tool?.command ?? ""),
+    args: Array.isArray(tool?.args) ? tool.args.map(value => String(value)) : [],
     version: String(tool?.version ?? ""),
     profilePath: String(tool?.profilePath ?? ""),
   })).sort((left, right) => left.id.localeCompare(right.id));
@@ -117,7 +122,10 @@ export function createSecurityToolsExtension(workspace, tools) {
           if (metadata.isSymbolicLink() || !metadata.isFile()) {
             throw new Error("capa requires a regular file inside the workspace");
           }
-          const args = params.format === "json" ? ["-j", target] : [target];
+          const extra = Array.isArray(capa.args) ? capa.args : [];
+          const args = params.format === "json"
+            ? [...extra, "-j", target]
+            : [...extra, target];
           const result = await runCapa(root, capa.command, args, signal);
           return {
             content: [{ type: "text", text: result.output }],

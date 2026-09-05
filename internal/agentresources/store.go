@@ -46,9 +46,10 @@ type secretKeeper interface {
 }
 
 type catalogDocument struct {
-	Schema     string                    `json:"schema"`
-	MCPServers map[string]userMCPRecord  `json:"mcpServers"`
-	Skills     map[string]userSkillRecord `json:"skills"`
+	Schema     string                      `json:"schema"`
+	MCPServers map[string]userMCPRecord    `json:"mcpServers"`
+	Skills     map[string]userSkillRecord  `json:"skills"`
+	BuiltinMCP map[string]builtinMCPRecord `json:"builtinMCP,omitempty"`
 }
 
 type userMCPRecord struct {
@@ -69,25 +70,27 @@ type userSkillRecord struct {
 }
 
 type CatalogSnapshot struct {
-	MCPServers []MCPServerSnapshot `json:"mcpServers"`
-	Skills     []SkillSnapshot     `json:"skills"`
+	MCPServers    []MCPServerSnapshot    `json:"mcpServers"`
+	Skills        []SkillSnapshot        `json:"skills"`
+	BuiltinMCP    []BuiltinMCPSnapshot   `json:"builtinMCP"`
+	BuiltinSkills []BuiltinSkillSnapshot `json:"builtinSkills"`
 }
 
 type MCPServerSnapshot struct {
-	Name            string   `json:"name"`
-	Enabled         bool     `json:"enabled"`
-	Transport       string   `json:"transport"`
-	Command         string   `json:"command,omitempty"`
-	Args            []string `json:"args,omitempty"`
-	URL             string   `json:"url,omitempty"`
-	Socket          string   `json:"socket,omitempty"`
-	EnvNames        []string `json:"envNames,omitempty"`
-	HeaderNames     []string `json:"headerNames,omitempty"`
-	HasBearer       bool     `json:"hasBearer,omitempty"`
-	FileAccess      string   `json:"fileAccess"`
-	NetworkAccess   string   `json:"networkAccess"`
-	Scope           string   `json:"scope"`
-	ReviewReady     bool     `json:"reviewReady"`
+	Name          string   `json:"name"`
+	Enabled       bool     `json:"enabled"`
+	Transport     string   `json:"transport"`
+	Command       string   `json:"command,omitempty"`
+	Args          []string `json:"args,omitempty"`
+	URL           string   `json:"url,omitempty"`
+	Socket        string   `json:"socket,omitempty"`
+	EnvNames      []string `json:"envNames,omitempty"`
+	HeaderNames   []string `json:"headerNames,omitempty"`
+	HasBearer     bool     `json:"hasBearer,omitempty"`
+	FileAccess    string   `json:"fileAccess"`
+	NetworkAccess string   `json:"networkAccess"`
+	Scope         string   `json:"scope"`
+	ReviewReady   bool     `json:"reviewReady"`
 }
 
 type SkillSnapshot struct {
@@ -121,14 +124,16 @@ type RuntimeMCPServer struct {
 }
 
 type Runtime struct {
-	MCPServers []RuntimeMCPServer
-	SkillPaths []string
+	MCPServers        []RuntimeMCPServer
+	SkillPaths        []string
+	HideFactorySkills []string
 }
 
 type Store struct {
-	mu      sync.Mutex
-	root    string
-	secrets secretKeeper
+	mu            sync.Mutex
+	root          string
+	secrets       secretKeeper
+	factorySkills string
 }
 
 func NewStore(dataDirectory string, secrets secretKeeper) (*Store, error) {
@@ -142,7 +147,7 @@ func NewStore(dataDirectory string, secrets secretKeeper) (*Store, error) {
 	if err := os.Chmod(root, 0o700); err != nil {
 		return nil, fmt.Errorf("protect agent resource directory: %w", err)
 	}
-	store := &Store{root: root, secrets: secrets}
+	store := &Store{root: root, secrets: secrets, factorySkills: resolveFactorySkillsDir()}
 	if _, err := store.loadLocked(); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return nil, err
 	}
@@ -152,7 +157,7 @@ func NewStore(dataDirectory string, secrets secretKeeper) (*Store, error) {
 func (s *Store) Snapshot() (CatalogSnapshot, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	document, err := s.loadLocked()
+	document, err := s.loadAndSyncLocked()
 	if err != nil {
 		return CatalogSnapshot{}, err
 	}
@@ -301,7 +306,7 @@ func (s *Store) DeleteSkill(name string) (CatalogSnapshot, error) {
 func (s *Store) Runtime() Runtime {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	document, err := s.loadLocked()
+	document, err := s.loadAndSyncLocked()
 	if err != nil {
 		return Runtime{}
 	}
@@ -334,6 +339,9 @@ func (s *Store) Runtime() Runtime {
 		}
 		runtime.SkillPaths = append(runtime.SkillPaths, path)
 	}
+	overlays, hideFactory := s.overlaySkillPathsLocked()
+	runtime.SkillPaths = append(runtime.SkillPaths, overlays...)
+	runtime.HideFactorySkills = hideFactory
 	return runtime
 }
 
@@ -352,6 +360,7 @@ func (s *Store) loadLocked() (catalogDocument, error) {
 		Schema:     catalogSchema,
 		MCPServers: map[string]userMCPRecord{},
 		Skills:     map[string]userSkillRecord{},
+		BuiltinMCP: map[string]builtinMCPRecord{},
 	}
 	path := filepath.Join(s.root, catalogFileName)
 	info, err := os.Lstat(path)
@@ -391,6 +400,9 @@ func (s *Store) loadLocked() (catalogDocument, error) {
 	if document.Skills == nil {
 		document.Skills = map[string]userSkillRecord{}
 	}
+	if document.BuiltinMCP == nil {
+		document.BuiltinMCP = map[string]builtinMCPRecord{}
+	}
 	document.Schema = catalogSchema
 	return document, nil
 }
@@ -402,6 +414,9 @@ func (s *Store) saveLocked(document catalogDocument) error {
 	}
 	if document.Skills == nil {
 		document.Skills = map[string]userSkillRecord{}
+	}
+	if document.BuiltinMCP == nil {
+		document.BuiltinMCP = map[string]builtinMCPRecord{}
 	}
 	data, err := json.MarshalIndent(document, "", "  ")
 	if err != nil {
@@ -421,8 +436,10 @@ func (s *Store) saveLocked(document catalogDocument) error {
 
 func (s *Store) snapshotLocked(document catalogDocument) CatalogSnapshot {
 	return CatalogSnapshot{
-		MCPServers: s.mcpSnapshotsLocked(document, false),
-		Skills:     s.skillSnapshotsLocked(document),
+		MCPServers:    s.mcpSnapshotsLocked(document, false),
+		Skills:        s.skillSnapshotsLocked(document),
+		BuiltinMCP:    s.builtinMCPSnapshotsLocked(document),
+		BuiltinSkills: s.builtinSkillSnapshotsLocked(),
 	}
 }
 

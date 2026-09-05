@@ -49,7 +49,6 @@ import {
 import { withAppSettingsDefaults, type AccountStatus, type AppSettings, type CTFChatAction, type UpdateStatus } from '@/types'
 import type { ModelCatalogSnapshot } from '@/types'
 import { installAppModelSettings, installModelCatalog, loadModelCatalog } from '@/modelCatalog'
-import type { SecurityToolCodingHandoff } from '@/securityToolsTypes'
 import CodingToolBudgetDialog from '@/components-vue/CodingToolBudgetDialog.vue'
 import { toolBudgetToolName } from '@/lib/toolBudget'
 
@@ -342,9 +341,16 @@ function openSettings(category: SettingsCategory = 'general') {
   section.value = 'settings'
 }
 
-function startSecurityToolCodingSetup(handoff: SecurityToolCodingHandoff) {
+function startSecurityToolCodingSetup(handoff: {
+  prompt: string
+  visibleText: string
+  executionMode: 'go'
+  approvalPolicy: 'full-auto'
+  workspacePath?: string
+}) {
   rememberActiveConversation()
   conversations.startNew()
+  if (handoff.workspacePath) conversations.setWorkspace(handoff.workspacePath)
   conversations.setCodingPolicy(handoff.executionMode, handoff.approvalPolicy)
   conversations.stageComposerDraft(handoff.prompt, handoff.visibleText)
   lastCodingConversationId.value = null

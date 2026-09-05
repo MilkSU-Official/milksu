@@ -63,6 +63,19 @@ test("normalizes the recomputed local catalog and builds lazy read-only IDA MCP"
     assert.ok(server.args.includes("--profile"));
     assert.ok(server.includeTools.includes("decompile"));
     assert.ok(!server.includeTools.includes("py_eval"));
+    const overlay = await loadCodingMcpConfig(
+      value.workspace,
+      [],
+      "",
+      undefined,
+      undefined,
+      undefined,
+      [{ ...tools[0], args: ["--stdio", "--max-workers", "1"] }],
+    );
+    const overlayArgs = overlay.config.mcpServers["milksu-ida-pro"].args;
+    assert.ok(overlayArgs.includes("--max-workers"));
+    assert.ok(overlayArgs.includes("1"));
+    assert.equal(overlayArgs.includes("--profile"), false);
   } finally {
     if (previousHome === undefined) delete process.env.HOME;
     else process.env.HOME = previousHome;

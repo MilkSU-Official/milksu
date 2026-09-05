@@ -25,6 +25,7 @@ import {
   SettingsRow,
   SettingsSection,
   Switch,
+  Textarea,
 } from '@felinic/ui'
 import {
   AlertCircle,
@@ -49,7 +50,6 @@ import {
   Plus,
   RotateCcw,
   Settings2,
-  ShieldCheck,
   Trash2,
   WalletCards,
 } from 'lucide-vue-next'
@@ -90,20 +90,20 @@ import {
   type PickerServiceGroup,
 } from '@/modelCatalog'
 import VulnerabilityIntelSettingsPanel from '@/components-vue/VulnerabilityIntelSettingsPanel.vue'
-import SecurityToolsSettingsPanel from '@/components-vue/SecurityToolsSettingsPanel.vue'
 import SettingsMCPPanel from '@/components-vue/SettingsMCPPanel.vue'
 import EvalSettingsPanel from '@/components-vue/EvalSettingsPanel.vue'
 import LabSettingsPanel from '@/components-vue/LabSettingsPanel.vue'
 import ModelVendorIcon from '@/components-vue/ModelVendorIcon.vue'
 import ArchivedConversationsSettings from '@/components-vue/ArchivedConversationsSettings.vue'
 import ConnectionLiveStatus from '@/components-vue/ConnectionLiveStatus.vue'
-import type { SecurityToolCodingHandoff } from '@/securityToolsTypes'
 import { useVulnerabilityDashboard, type VulnerabilityDashboard } from '@/composables/useVulnerabilityDashboard'
 import { CODING_SKILLS } from '@/codingSkills'
 import {
   emptyAgentResourceCatalog,
   type AgentResourceCatalog,
   type AgentResourceSkill,
+  type BuiltinConfigHandoff,
+  type BuiltinSkillDocument,
 } from '@/agentResourceTypes'
 import {
   EXTERNAL_EDITORS,
@@ -123,6 +123,10 @@ import { resolveModelContextWindow } from '@/lib/knownContextWindow'
 
 type SettingsCategory = 'general' | 'apikeys' | 'ctf' | 'cve' | 'lab' | 'coding' | 'mcp' | 'chats' | 'browser' | 'security-tools' | 'eval'
 
+function normalizeSettingsCategory(value: SettingsCategory): Exclude<SettingsCategory, 'security-tools'> {
+  return value === 'security-tools' ? 'mcp' : value
+}
+
 const settingsCategories = computed(() => [
   { value: 'general' as const, label: t('通用', 'General'), icon: Settings2 },
   { value: 'apikeys' as const, label: t('模型', 'Models'), icon: Box },
@@ -133,7 +137,6 @@ const settingsCategories = computed(() => [
   { value: 'mcp' as const, label: 'MCP', icon: Plug },
   { value: 'chats' as const, label: t('归档聊天', 'Archived chats'), icon: Archive },
   { value: 'browser' as const, label: t('浏览器控制', 'Browser'), icon: Globe2 },
-  { value: 'security-tools' as const, label: t('安全工具', 'Security tools'), icon: ShieldCheck },
   { value: 'eval' as const, label: t('评测', 'Eval'), icon: Gauge },
 ])
 
@@ -149,11 +152,11 @@ const emit = defineEmits<{
   settingsChange: [value: AppSettings]
   accountLogin: []
   accountLogout: []
-  securityToolCodingHandoff: [handoff: SecurityToolCodingHandoff]
+  securityToolCodingHandoff: [handoff: BuiltinConfigHandoff]
   conversationsChanged: []
 }>()
 
-const category = ref(props.initialCategory)
+const category = ref(normalizeSettingsCategory(props.initialCategory))
 const dashboard = props.vulnerabilityDashboard ?? useVulnerabilityDashboard()
 const working = ref<AppSettings | null>(null)
 const saving = ref(false)
@@ -248,7 +251,7 @@ watch(() => props.settings, value => {
   }
 }, { immediate: true })
 watch(() => props.initialCategory, value => {
-  category.value = value
+  category.value = normalizeSettingsCategory(value)
   notice.value = null
 })
 // Draft edits should drive the shared picker the same way Coding reads saved settings.
@@ -275,7 +278,7 @@ function refreshComputerUseAfterSettings() {
 }
 
 function selectCategory(value: SettingsCategory) {
-  category.value = value
+  category.value = normalizeSettingsCategory(value)
   notice.value = null
 }
 
@@ -602,6 +605,13 @@ const userSkillCatalog = ref<AgentResourceCatalog>(emptyAgentResourceCatalog())
 const userSkillBusy = ref(false)
 const userSkillError = ref('')
 const userSkills = computed(() => userSkillCatalog.value.skills)
+const editingBuiltinSkill = ref('')
+const builtinSkillDocument = ref('')
+const builtinSkillCustomized = ref(false)
+
+function skillOverlay(name: string) {
+  return (userSkillCatalog.value.builtinSkills ?? []).find(item => item.name === name)
+}
 
 async function loadUserSkills() {
   try {
@@ -644,6 +654,73 @@ async function deleteUserSkill(name: string) {
   userSkillBusy.value = true
   try {
     userSkillCatalog.value = await invokeCommand<AgentResourceCatalog>('delete_user_skill', { name })
+    userSkillError.value = ''
+  } catch (reason) {
+    userSkillError.value = desktopErrorMessage(reason)
+  } finally {
+    userSkillBusy.value = false
+  }
+}
+
+async function startEditBuiltinSkill(name: string) {
+  userSkillBusy.value = true
+  try {
+    const document = await invokeCommand<BuiltinSkillDocument>('get_builtin_skill_document', { name })
+    editingBuiltinSkill.value = document.name
+    builtinSkillDocument.value = document.document
+    builtinSkillCustomized.value = document.customized
+    userSkillError.value = ''
+  } catch (reason) {
+    userSkillError.value = desktopErrorMessage(reason)
+  } finally {
+    userSkillBusy.value = false
+  }
+}
+
+function closeBuiltinSkillEditor() {
+  editingBuiltinSkill.value = ''
+  builtinSkillDocument.value = ''
+  builtinSkillCustomized.value = false
+}
+
+async function saveBuiltinSkill() {
+  if (!editingBuiltinSkill.value) return
+  userSkillBusy.value = true
+  try {
+    userSkillCatalog.value = await invokeCommand<AgentResourceCatalog>('set_builtin_skill_document', {
+      name: editingBuiltinSkill.value,
+      document: builtinSkillDocument.value,
+    })
+    builtinSkillCustomized.value = true
+    userSkillError.value = ''
+    closeBuiltinSkillEditor()
+  } catch (reason) {
+    userSkillError.value = desktopErrorMessage(reason)
+  } finally {
+    userSkillBusy.value = false
+  }
+}
+
+async function restoreBuiltinSkill(name: string) {
+  userSkillBusy.value = true
+  try {
+    userSkillCatalog.value = await invokeCommand<AgentResourceCatalog>('restore_builtin_skill', { name })
+    if (editingBuiltinSkill.value === name) closeBuiltinSkillEditor()
+    userSkillError.value = ''
+  } catch (reason) {
+    userSkillError.value = desktopErrorMessage(reason)
+  } finally {
+    userSkillBusy.value = false
+  }
+}
+
+async function openBuiltinSkillConversation(name: string) {
+  userSkillBusy.value = true
+  try {
+    emit('securityToolCodingHandoff', await invokeCommand<BuiltinConfigHandoff>('prepare_builtin_config_handoff', {
+      kind: 'skill',
+      name,
+    }))
     userSkillError.value = ''
   } catch (reason) {
     userSkillError.value = desktopErrorMessage(reason)
@@ -1691,18 +1768,74 @@ async function saveProviderEditor(closeAfterSave: boolean) {
           </SettingsSection>
 
           <SettingsSection :title="t('内置 Skills', 'Built-in Skills')">
+            <p v-if="userSkillError" class="px-4 py-3 text-caption text-destructive">{{ userSkillError }}</p>
             <SettingsRow
               v-for="skill in CODING_SKILLS"
               :key="skill.name"
               :label="skill.label"
-              :description="skill.description"
+              :description="[
+                skill.description,
+                skillOverlay(skill.name)?.customized ? t('已修改', 'Modified') : '',
+              ].filter(Boolean).join(' · ')"
             >
-              <Switch
-                :model-value="skillEnabled(skill.name)"
-                :aria-label="t(`启用${skill.label}`, `Enable ${skill.label}`)"
-                @update:model-value="setSkillEnabled(skill.name, Boolean($event))"
+              <div class="flex flex-wrap items-center justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  :disabled="userSkillBusy"
+                  @click="startEditBuiltinSkill(skill.name)"
+                >
+                  {{ t('编辑', 'Edit') }}
+                </Button>
+                <Button
+                  v-if="skillOverlay(skill.name)?.customized"
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  :disabled="userSkillBusy"
+                  @click="restoreBuiltinSkill(skill.name)"
+                >
+                  {{ t('恢复默认', 'Restore default') }}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  :disabled="userSkillBusy"
+                  @click="openBuiltinSkillConversation(skill.name)"
+                >
+                  {{ t('用对话配置', 'Configure in chat') }}
+                </Button>
+                <Switch
+                  :model-value="skillEnabled(skill.name)"
+                  :aria-label="t(`启用${skill.label}`, `Enable ${skill.label}`)"
+                  @update:model-value="setSkillEnabled(skill.name, Boolean($event))"
+                />
+              </div>
+            </SettingsRow>
+          </SettingsSection>
+
+          <SettingsSection v-if="editingBuiltinSkill" :title="t('编辑内置 Skill', 'Edit built-in Skill')">
+            <SettingsRow :label="t('SKILL.md', 'SKILL.md')" :divider="false">
+              <Textarea
+                v-model="builtinSkillDocument"
+                size="lg"
+                class="w-[28rem] max-w-full min-h-48"
+                :disabled="userSkillBusy"
+                :aria-label="t('Skill 文档', 'Skill document')"
               />
             </SettingsRow>
+            <template #footer>
+              <div class="flex items-center justify-end gap-2">
+                <Button type="button" variant="outline" size="sm" :disabled="userSkillBusy" @click="closeBuiltinSkillEditor">
+                  {{ t('取消', 'Cancel') }}
+                </Button>
+                <Button type="button" size="sm" :loading="userSkillBusy" @click="saveBuiltinSkill">
+                  {{ t('保存', 'Save') }}
+                </Button>
+              </div>
+            </template>
           </SettingsSection>
 
           <SettingsSection :title="t('用户 Skills', 'User Skills')">
@@ -1749,7 +1882,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
         </template>
 
         <template v-else-if="category === 'mcp'">
-          <SettingsMCPPanel />
+          <SettingsMCPPanel @coding-handoff="$emit('securityToolCodingHandoff', $event)" />
         </template>
 
         <template v-else-if="category === 'chats'">
@@ -2429,12 +2562,6 @@ async function saveProviderEditor(closeAfterSave: boolean) {
               </div>
             </SettingsRow>
           </SettingsSection>
-        </template>
-
-        <template v-else-if="category === 'security-tools'">
-          <SecurityToolsSettingsPanel
-            @coding-handoff="$emit('securityToolCodingHandoff', $event)"
-          />
         </template>
 
         <template v-else-if="working && category === 'lab'">

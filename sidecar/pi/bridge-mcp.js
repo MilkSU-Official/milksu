@@ -1128,13 +1128,15 @@ async function createManagedIDAMcpServer(workspace, securityTools) {
     server: sanitizeServerDefinition(
       {
         command: ida.command,
-        args: [
-          "--stdio",
-          "--profile",
-          ida.profilePath,
-          "--max-workers",
-          "2",
-        ],
+        args: Array.isArray(ida.args) && ida.args.length > 0
+          ? ida.args.map(value => String(value))
+          : [
+            "--stdio",
+            "--profile",
+            ida.profilePath,
+            "--max-workers",
+            "2",
+          ],
         env: {
           HOME: dirname(ida.userIdaPath),
           IDAUSR: ida.userIdaPath,
