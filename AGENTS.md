@@ -81,7 +81,7 @@ Review this section by layer. Do not invent a second primitive at the same layer
 | List chrome | filters, History, primary action | `WorkspaceCatalogActions`: History + Import (CTF/CVE) or Create (Lab). Catalog tables use canvas fill, not gold / paper / cyan row backgrounds. Filter inputs, selects and outline buttons use 8px radius. **ak-ui easter eggs:** `.ak-segmented` filters and `ak-tag` chips for category, difficulty, severity, daily challenge. |
 | Facts | cards, tables, dialogs, status | Felinic `SettingsSection` / `SettingsRow` / `ActionCard` / `ModelListRow` with 8px radius and the clear `--card` fill. Settings list rows, tool workbench and field controls use the same 8px radius. **ak-ui easter egg:** `ConnectionLiveStatus` LIVE/OFF, and the module topbar mark. |
 | Copy | user-visible strings | `t('中文', 'English')`; empty controls stay blank |
-| Agent conversation | Coding / CTF / CVE / lab chat | Beautiful UI primitives: 03 stream edge (real Pi tokens, ~6-character blur tail, solid 2px caret), 04 ask rows, 05 chips, 06 plan capsule, 08 prompt island, 18 code blocks. Do not put ak-ui cards in this layer. |
+| Agent conversation | Coding / CTF / CVE / lab chat | Beautiful UI primitives: 03 stream edge (real Pi tokens, solid 2px caret; streamed glyphs stay sharp), 04 ask rows, 05 chips, 06 plan capsule (pull-up min 18rem so step text is readable), 08 prompt island, 18 code blocks. Do not put ak-ui cards in this layer. |
 
 Home chat fills the column right of the sidebar. CTF / CVE / lab default to one
 dismissible dock (close is X unmount). Maximize covers everything right of the
