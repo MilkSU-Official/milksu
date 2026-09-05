@@ -84,14 +84,13 @@ test("research report guidance tells the model to edit report.md", () => {
   assert.match(researchReportGuidance("cve-research"), /上游/);
 });
 
-test("workspace guidance tells the model to use typed UI actions", () => {
-  assert.match(codingWorkspaceGuidance(), /milksu_workspace/);
-  assert.match(codingWorkspaceGuidance(), /tabId/);
-  assert.match(codingWorkspaceGuidance(), /Do not scan the user message/);
-  assert.match(codingWorkspaceGuidance(), /85%/);
-  assert.match(codingWorkspaceGuidance(), /list_status/);
-  assert.match(codingWorkspaceGuidance(), /list_records/);
-  assert.match(codingWorkspaceGuidance(), /kind conversation/);
+test("workspace guidance is a short when-to-use routing rule", () => {
+  const text = codingWorkspaceGuidance();
+  assert.match(text, /milksu_workspace/);
+  assert.match(text, /do not scan the user message/);
+  assert.doesNotMatch(text, /list_records/);
+  assert.doesNotMatch(text, /85%/);
+  assert.ok(text.length < 280);
   assert.equal(
     formatCodingWorkspaceInput({
       action: "focus_browser_tab",
@@ -160,6 +159,7 @@ test("workspace extension registers one reviewed desktop tool", async () => {
     },
   });
   assert.equal(tools[0]?.name, "milksu_workspace");
+  assert.equal(tools[0]?.description, codingWorkspaceGuidance());
   const result = await tools[0].execute("call-1", { action: "list_browser_tabs" });
   assert.equal(requested[0].action, "list_browser_tabs");
   assert.match(result.content[0].text, /tabs/);

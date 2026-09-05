@@ -1,6 +1,6 @@
 ---
 name: review-security
-description: Review a repository, change set, authentication flow, integration, or product boundary for concrete security risks involving credentials, authorization, untrusted input, filesystem or network scope, external effects, and vulnerable data flows. Use for security reviews, pre-release checks, auth and quota changes, and suspicious code. Do not use to conduct attacks against external targets.
+description: Review credentials, authorization, input boundaries, filesystem or network scope, and external side effects. Use for security reviews, auth or quota changes, and suspicious code. Do not use to attack external targets.
 ---
 
 # Review Security

@@ -157,6 +157,8 @@
 
 文档收口提交不移动该 tag。Admin current pointer 尚未由维护者发布；Windows 代码签名、Linux Secret Service / 本地 OCR、Hyprland/Xorg Computer Use 仍缺。#39 rewind/handoff、CTF 比赛模式和实验室红队学习面仍未接线。
 
+- Coding / CTF / CVE / 实验室会话不再把 `milksu_ask` / `milksu_progress` / workspace 动作表和 Pi `tool_result` 截断说明重复写进 system prompt。when-to-use 只留在工具 description 与 Pi Skill 名录。`release-milksu` 设 `disable-model-invocation: true`，`/skill:release-milksu` 仍可用。不改 MCP 加载、`activeTools` 或 Settings 的 Skills 配置面。依据见 [research-progressive-disclosure.md](research-progressive-disclosure.md)。
+
 ## 当前产品事实
 
 ### Pi Runtime 收敛

@@ -2,7 +2,7 @@
 
 > 状态：Current / Living
 >
-> 最后事实审计：2026-09-04
+> 最后事实审计：2026-09-05
 >
 > 产品开发目标：内测迭代 / Agent Runtime 与跨平台发行收敛
 
@@ -29,7 +29,7 @@
 | 许可证 | 主项目为 `AGPL-3.0-only`（`LICENSE` / `NOTICE`）。第三方仍保留原许可。Obelisk 作为计划嵌入的 AGPL 记忆组件与此兼容；尚未 vendored。 |
 | 三端正式发行 | GitHub Latest Release `v26.904.1` 已提供签名并公证的 macOS ARM64 DMG、未签名 Windows x64 EXE、Linux x64 DEB 与 x64 tar.gz，以及 `SHA256SUMS-26.904.1.txt`。OTA 草稿应已上传私有 R2；Admin current pointer 仍须维护者在「版本」页发布。 |
 | Linux | `26.904.1` 发出 Ubuntu/Debian 共用 x64 DEB 与 Omarchy/Arch/Nix 共用 x64 tarball；GNOME Wayland Computer Use 走 Portal。仍无 Secret Service、本地 OCR；Hyprland / Xorg Computer Use unavailable。ISSUE #19 已关闭（拒绝 X11 xinput）。合同见 [Linux 安装与桌面合同](linux-platform-support.md)。 |
-| Agent Harness | Pi 拥有 Session、Compaction、自然语言理解、通用文件/Shell 与 Tool Loop。MilkSU 已删除 workspace-only 文件工具、Node 文件权限状态机、普通回合 watchdog、CTF sandbox-exec、CVE 只读启动限制与客服式回复模板。不扫描用户句子做关键词/正则意图路由。`26.823.1` 起 Coding/CTF/CVE/实验室共用完整 Coding loop（含压缩、终端、Git、浏览器、LSP、Goal），领域工具叠在上面而不是替换；工具结果进模型前截断到 Pi 的 50KB/2000 行。 |
+| Agent Harness | Pi 拥有 Session、Compaction、自然语言理解、通用文件/Shell 与 Tool Loop。MilkSU 已删除 workspace-only 文件工具、Node 文件权限状态机、普通回合 watchdog、CTF sandbox-exec、CVE 只读启动限制与客服式回复模板。不扫描用户句子做关键词/正则意图路由。`26.823.1` 起 Coding/CTF/CVE/实验室共用完整 Coding loop（含压缩、终端、Git、浏览器、LSP、Goal），领域工具叠在上面而不是替换；工具结果进模型前截断到 Pi 的 50KB/2000 行。未发版：产品工具 when-to-use 不再在 system prompt 复述一遍；`release-milksu` 对模型名录隐藏。 |
 | 上下文工程 | `26.825.1` 把经监督器校验的主会话 cwd 明确注入 Pi；writer worktree 仅属于独立 effectful subagent。Sidecar 通过 Pi 原生长缓存保留复用稳定会话前缀，压缩仍禁用一次性缓存写入。`26.904.1` 起窗口优先级为手动覆盖 > catalog（忽略 `128000` 占位）> 型号族预设 > 保守默认；Composer 环按 Pi 组装分类，并落地 edit 锚点、`tool_result` bound、中途引导与子 Agent 结构化回传。GPT 与 Claude Opus / Sonnet / Fable 使用思考档位预设，其他模型在设置中手动声明；Composer 的对话级离散滑块只显示标准英文档位，经 Go 约束后调用 Pi 原生档位，最高为 `max`，子 Agent 同步继承。自动化已通过，真实 Provider 缓存命中率与 effort 请求仍待用户授权的计费链路验收。 |
 | MilkSU 宿主边界 | 只保留会话目录记录、Provider 凭据隔离、桌面授权、领域事实/Judge，以及危险大目录删除二次确认。Coding 另有类型化 `milksu_workspace` 与对话级批准，不替代 Pi 工具循环。 |
 | 模型与附件 | 账户 TokenFlux 与本机 Provider 共用可调用模型目录；图片由当前模型原生 image input 或本地 OCR 自动路由，附件通过统一可预览/移除队列进入 Pi。 |

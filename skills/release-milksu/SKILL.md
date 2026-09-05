@@ -1,6 +1,7 @@
 ---
 name: release-milksu
-description: Build, verify, publish, or audit a traced MilkSU Stable desktop release for macOS ARM64 and Windows x64. Use only inside the MilkSU repository when the user asks to package, release, publish, promote, or inspect a MilkSU desktop version. Build MilkSU Beta only for an explicitly requested Stable-to-Beta self-bootstrap exercise.
+description: Build, verify, or publish a MilkSU desktop release. Use only when the user asks to package, release, or inspect a MilkSU version.
+disable-model-invocation: true
 ---
 
 # Release MilkSU

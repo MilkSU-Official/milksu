@@ -1,6 +1,6 @@
 ---
 name: create-technical-deliverables
-description: Create or update a human-readable technical deliverable such as a README, runbook, implementation note, CTF write-up, CVE research report, reproduction guide, script package, or evidence summary. Use when the user needs a durable document or reproducible handoff rather than only a chat answer. Do not use for internal progress logs with no reader.
+description: Write a readable, reproducible report, runbook, write-up, or script note. Use when the user needs a durable document rather than only a chat answer.
 ---
 
 # Create Technical Deliverables
