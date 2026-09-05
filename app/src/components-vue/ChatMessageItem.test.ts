@@ -23,6 +23,7 @@ async function mountMessage(
     choice?: string
   }> = []
   let retried = false
+  let rewound = false
   const host = document.createElement('div')
   document.body.append(host)
   const app = createApp(ChatMessageItem, {
@@ -39,11 +40,14 @@ async function mountMessage(
     onRetry: () => {
       retried = true
     },
+    onRewindContext: () => {
+      rewound = true
+    },
   })
   app.mount(host)
   mountedApps.push(app)
   await nextTick()
-  return { host, responses, retried: () => retried }
+  return { host, responses, retried: () => retried, rewound: () => rewound }
 }
 
 describe('ChatMessageItem', () => {
@@ -258,7 +262,8 @@ describe('ChatMessageItem', () => {
       timestamp: Date.now(),
     })
     expect(user.host.querySelector('[aria-label="复制"]')).not.toBeNull()
-    expect(user.host.querySelector('[aria-label="编辑"]')).not.toBeNull()
+    expect(user.host.querySelector('[aria-label="编辑并从这里重发"]')).not.toBeNull()
+    expect(user.host.querySelector('[data-testid="message-rewind"]')).toBeNull()
     expect(user.host.querySelector('[aria-label="分叉到新对话"]')).toBeNull()
 
     const assistant = await mountMessage({
@@ -269,7 +274,51 @@ describe('ChatMessageItem', () => {
     })
     expect(assistant.host.querySelector('[aria-label="复制"]')).not.toBeNull()
     expect(assistant.host.querySelector('[aria-label="分叉到新对话"]')).not.toBeNull()
-    expect(assistant.host.querySelector('[aria-label="编辑"]')).toBeNull()
+    expect(assistant.host.querySelector('[aria-label="编辑并从这里重发"]')).toBeNull()
+  })
+
+  it('keeps rewind on the last droppable user turn and leaves earlier prompts alone', async () => {
+    const lastTurn = await mountMessage({
+      id: 'user-rewind',
+      role: 'user',
+      content: '改成另一条路',
+      timestamp: Date.now(),
+    }, {
+      canRewind: true,
+    })
+    const rewind = lastTurn.host.querySelector<HTMLButtonElement>('[data-testid="message-rewind"]')
+    expect(rewind).not.toBeNull()
+    expect(rewind?.getAttribute('aria-label')).toBe('丢掉这段')
+    expect(lastTurn.host.querySelector('.agent-turn-actions')?.classList.contains('agent-turn-actions--visible')).toBe(true)
+    rewind?.click()
+    await nextTick()
+    expect(lastTurn.rewound()).toBe(true)
+
+    const earlier = await mountMessage({
+      id: 'user-earlier',
+      role: 'user',
+      content: '先读入口',
+      timestamp: Date.now(),
+    })
+    expect(earlier.host.querySelector('[data-testid="message-rewind"]')).toBeNull()
+    expect(earlier.host.querySelector('.agent-turn-actions')?.classList.contains('agent-turn-actions--visible')).toBe(false)
+  })
+
+  it('does not emit rewind while compaction has disabled the control', async () => {
+    const result = await mountMessage({
+      id: 'user-rewind-disabled',
+      role: 'user',
+      content: '改成另一条路',
+      timestamp: Date.now(),
+    }, {
+      canRewind: true,
+      rewindDisabled: true,
+    })
+    const rewind = result.host.querySelector<HTMLButtonElement>('[data-testid="message-rewind"]')
+    expect(rewind?.disabled).toBe(true)
+    rewind?.click()
+    await nextTick()
+    expect(result.rewound()).toBe(false)
   })
 
   it('renders a Beautiful UI choice card and emits the selected option', async () => {

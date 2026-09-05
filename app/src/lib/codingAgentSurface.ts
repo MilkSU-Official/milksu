@@ -51,6 +51,8 @@ export type CodingAgentSurfaceEmit = {
   consumePendingDraft: []
   ctfAction: [action: CTFChatAction]
   compactContext: []
+  rewindContext: []
+  handoffContext: []
   controlGoal: [action: 'pause' | 'resume' | 'clear']
   respondApproval: [requestId: string, approved: boolean, scope?: 'once' | 'conversation', choice?: string]
   changeModel: [mode: 'auto' | 'manual', provider?: string, model?: string]

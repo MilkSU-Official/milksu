@@ -9,6 +9,8 @@ import {
   projectCodingAbortRequest,
   projectCodingMessageQueue,
   projectCodingRunFinished,
+  lastRewindableUserMessageId,
+  rewindVisibleMessages,
   turnMCPServers,
 } from '@/composables/useConversations'
 import conversationsSource from './useConversations.ts?raw'
@@ -633,5 +635,18 @@ describe('Coding approval conversation recovery', () => {
     expect(conversationsSource).toContain('contextComposition?: ContextComposition')
     expect(conversationsSource).toContain('readContextCompositionFromEvent')
     expect(conversationsSource).toContain('applySessionContextComposition')
+  })
+
+  it('rewinds visible messages to the last assistant before the latest user turn', () => {
+    const messages = [
+      { id: 'u1', role: 'user' as const, content: 'first', timestamp: 1, status: 'done' as const },
+      { id: 'a1', role: 'assistant' as const, content: 'ok', timestamp: 2, status: 'done' as const },
+      { id: 'u2', role: 'user' as const, content: 'wrong path', timestamp: 3, status: 'done' as const },
+      { id: 'a2', role: 'assistant' as const, content: 'dead end', timestamp: 4, status: 'done' as const },
+    ]
+    expect(rewindVisibleMessages(messages)?.map(message => message.id)).toEqual(['u1', 'a1'])
+    expect(rewindVisibleMessages(messages.slice(0, 2))).toBeNull()
+    expect(lastRewindableUserMessageId(messages)).toBe('u2')
+    expect(lastRewindableUserMessageId(messages.slice(0, 2))).toBeUndefined()
   })
 })

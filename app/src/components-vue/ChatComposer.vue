@@ -11,6 +11,7 @@ import {
 } from '@felinic/ui'
 import {
   Activity,
+  ArrowRightLeft,
   ArrowUp,
   Bot,
   Cable,
@@ -43,6 +44,7 @@ import {
   Square,
   Target,
   Terminal,
+  Undo2,
   Trash2,
   Wrench,
   X,
@@ -285,6 +287,20 @@ const slashCommandCatalog = [
     icon: markRaw(Shrink),
   },
   {
+    id: 'rewind',
+    label: t('丢掉探索', 'Rewind'),
+    description: t('丢掉最近一段探索，留在同一会话', 'Drop the latest exploration and stay in this chat'),
+    keywords: ['undo', '回退', 'rewind'],
+    icon: markRaw(Undo2),
+  },
+  {
+    id: 'handoff',
+    label: t('接到新会话', 'Handoff'),
+    description: t('整理后开新会话继续同一任务', 'Compact, then continue the same task in a new chat'),
+    keywords: ['fork', '接力', 'handoff'],
+    icon: markRaw(ArrowRightLeft),
+  },
+  {
     id: 'model',
     label: t('模型', 'Model'),
     description: t('打开当前任务的模型选择', 'Open the model picker for this task'),
@@ -347,7 +363,8 @@ function slashCommandDisabled(id: typeof slashCommandCatalog[number]['id']) {
   // Compact is invoked even before Pi session.ready and while a turn is
   // running. Native disabled buttons drop pointer events, which lets IME
   // cancel `/compact` on click. Only skip when compaction is already live.
-  if (id === 'compact') return Boolean(props.compacting)
+  if (id === 'compact' || id === 'rewind') return Boolean(props.compacting)
+  if (id === 'handoff') return props.running || Boolean(props.compacting)
   if (id === 'new' || id === 'plan' || id === 'model' || id === 'permissions') {
     return props.running
   }
@@ -1346,6 +1363,10 @@ defineExpose({
           <ContextUsageMeter
             :usage="contextUsage"
             size="sm"
+            :running="running"
+            :compacting="Boolean(compacting)"
+            @compact-context="emit('runSlashCommand', 'compact')"
+            @handoff-context="emit('runSlashCommand', 'handoff')"
           />
         </div>
         <div class="chat-composer__toolbar flex min-w-0 items-center gap-1.5">

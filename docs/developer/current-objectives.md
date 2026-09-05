@@ -32,7 +32,7 @@
 | 历史基线 | M3 product-loop 已在 `108e0e3`（2026-08-05）合并，仅供追溯。 |
 | 正式发行基线 | `v26.904.1 / 6e9371d86d0301ab22c5a30b9a72cd1d5233fee3`（2026-09-04 今日首发）。这是当前 GitHub Latest Release；提供带版本号的 DMG、EXE、DEB、x64 tar.gz 与 `SHA256SUMS`。OTA 草稿已上传私有 R2；Admin current pointer 仍须维护者在「版本」页发布。上一版 `v26.827.1 / 37932ce` 仍可下载，不是 Latest。 |
 | 开发版本线 | 根目录与 `desktop/package.json` 是 `26.904.1`。正式发行源是 `6e9371d`；文档收口提交不移动该 tag。 |
-| 当前开发 | 正式包是 `26.904.1`。Composer 上下文环按 Pi 组装分类；设置页可查看并覆盖模型上下文窗口。edit 锚点、`tool_result` 截断、中途引导与子 Agent 结构化回传已进包。三端窗口铬：macOS 保持 `hiddenInset`，Windows/Linux 隐藏原生标题栏并用画布色 overlay。已登录 Stable 轮询 Admin 时带上当前版本。实验室题目包仍可起本机 Docker / MilkSU-Lab。Pi 钉到 `0.84.1`。Windows 安装器仍未代码签名；Linux 无 Secret Service 与本地 OCR；Hyprland/Xorg Computer Use 不可用。CTF 比赛模式和实验室红队学习面仍未接线。#39 rewind/handoff 未做。产品 UI 设计语言只写在 `AGENTS.md`。 |
+| 当前开发 | 正式包是 `26.904.1`。Composer 上下文环按 Pi 组装分类；设置页可查看并覆盖模型上下文窗口。edit 锚点、`tool_result` 截断、中途引导与子 Agent 结构化回传已进包。三端窗口铬：macOS 保持 `hiddenInset`，Windows/Linux 隐藏原生标题栏并用画布色 overlay。已登录 Stable 轮询 Admin 时带上当前版本。实验室题目包仍可起本机 Docker / MilkSU-Lab。Pi 钉到 `0.84.1`。Windows 安装器仍未代码签名；Linux 无 Secret Service 与本地 OCR；Hyprland/Xorg Computer Use 不可用。CTF 比赛模式和实验室红队学习面仍未接线。#39 rewind/handoff 已接线（`/rewind` 与最后一条用户消息的「丢掉这段」走 Pi `navigateTree`，`/handoff` 与用量环「接到新会话」走 Pi 分叉 + 现行 compact），尚未发版。产品 UI 设计语言只写在 `AGENTS.md`。 |
 | 平台边界 | `26.904.1`：macOS DMG 走 GitHub-hosted Developer ID 签名并公证；Windows 安装器完成原生 Runtime 与首次启动但未代码签名，并打入审阅过的 CUA Driver；Linux 发出 Ubuntu/Debian 共用 x64 DEB 与 Omarchy/Arch/Nix 共用 x64 tarball，GNOME Portal Computer Use 已进包，仍无 Secret Service、本地 OCR；Hyprland/Xorg Computer Use 不可用。Windows/Linux 窗口铬尚未真机验收。 |
 | 发行流水 | 下一发行从干净、已推送的 `main` 对 canonical Go/Vue/Sidecar/lint/生产与文档构建只验证一次；macOS / Windows / Linux 都走 GitHub-hosted 云端。macOS 本机打包暂时关闭。必须创建 GitHub Release 页并上传带版本号的 DMG/EXE/DEB、x64 tar.gz 与 SHA256SUMS，不能只留空 tag。正式打包默认上传 OTA 到私有 R2 并建 Admin 草稿；GitHub Release 仍不上 updater ZIP。 |
 
@@ -147,7 +147,7 @@
 
 - Composer 上下文环按 Pi 组装分类：系统提示 / 工具 / Skills / MCP / 子 Agent / 对话。百分比仍是 billed `input+cacheRead` / window；有 billed 时分类缩放到 billed 之和，估计值带 `~`（#21）。
 - 上下文窗口优先级：手动覆盖 > catalog（忽略 `128000` 占位）> 型号族预设 > 保守默认。设置 → 模型可查看并改写（#33）。
-- 落地 Pi loop 合同：edit 锚点、`tool_result` bound（约 50KB / 2000 行）、中途引导、子 Agent 结构化回传与名单（#35–#38）。#39 rewind/handoff 未做。
+- 落地 Pi loop 合同：edit 锚点、`tool_result` bound（约 50KB / 2000 行）、中途引导、子 Agent 结构化回传与名单（#35–#38）。#39 rewind/handoff 已接线，尚未打进发行包。
 - 三端窗口铬：macOS 保持 `hiddenInset` 与侧栏红绿灯；Windows/Linux 隐藏原生 caption 与 in-window 菜单，画布色 `titleBarOverlay`，系统按钮在右上。Windows/Linux 铬尚未真机验收。
 - 已登录 Stable 轮询 Admin `/v1/releases/latest` 时带上当前版本（#44）。
 - 删除未接线的 CTF Security Bridge typed-action 循环、`continue_ctf_job`、图谱 RPC / `@antv/g6`、未挂载战术面板，以及 Sidecar 对 CTF 的负向隔离断言。CTF 解题只走 Pi 对话 + Judge。
@@ -155,7 +155,7 @@
 
 ## 未发版改动：晚于 `v26.904.1` / `6e9371d`
 
-文档收口提交不移动该 tag。Admin current pointer 尚未由维护者发布；Windows 代码签名、Linux Secret Service / 本地 OCR、Hyprland/Xorg Computer Use 仍缺。#39 rewind/handoff、CTF 比赛模式和实验室红队学习面仍未接线。
+文档收口提交不移动该 tag。Admin current pointer 尚未由维护者发布；Windows 代码签名、Linux Secret Service / 本地 OCR、Hyprland/Xorg Computer Use 仍缺。#39 rewind/handoff 已接线（斜杠、最后一条用户消息、用量环），未发版。CTF 比赛模式和实验室红队学习面仍未接线。
 
 ## 当前产品事实
 

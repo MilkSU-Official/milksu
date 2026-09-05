@@ -9,6 +9,7 @@ import {
   GitFork,
   Pencil,
   RotateCcw,
+  Undo2,
   X,
 } from 'lucide-vue-next'
 import AgentPixelLoader from '@/components-vue/AgentPixelLoader.vue'
@@ -25,12 +26,15 @@ const props = defineProps<{
   message: Message
   recoverable?: boolean
   recoveryContext?: 'coding' | 'ctf'
+  canRewind?: boolean
+  rewindDisabled?: boolean
 }>()
 
 const emit = defineEmits<{
   respondApproval: [requestId: string, approved: boolean, scope?: 'once' | 'conversation', choice?: string]
   retry: []
   editUser: [messageId: string, content: string]
+  rewindContext: []
   branchAssistant: [messageId: string]
 }>()
 
@@ -486,6 +490,7 @@ const approvalKicker = computed(() => (
     <div
       v-if="showMessageActions"
       class="agent-turn-actions"
+      :class="{ 'agent-turn-actions--visible': canRewind }"
     >
       <button
         type="button"
@@ -499,11 +504,22 @@ const approvalKicker = computed(() => (
       <button
         v-if="message.role === 'user'"
         type="button"
-        :aria-label="t('编辑', 'Edit')"
-        :title="t('编辑', 'Edit')"
+        :aria-label="t('编辑并从这里重发', 'Edit and restart from here')"
+        :title="t('编辑并从这里重发', 'Edit and restart from here')"
         @click="startEdit"
       >
         <Pencil />
+      </button>
+      <button
+        v-if="canRewind"
+        type="button"
+        data-testid="message-rewind"
+        :aria-label="t('丢掉这段', 'Drop this turn')"
+        :title="t('丢掉这段', 'Drop this turn')"
+        :disabled="rewindDisabled"
+        @click="$emit('rewindContext')"
+      >
+        <Undo2 />
       </button>
       <button
         v-if="message.role === 'assistant'"

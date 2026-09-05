@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import {
+  Button,
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -13,11 +14,19 @@ const props = withDefaults(defineProps<{
   usage: ContextUsagePresentation
   /** Visual size of the ring / chip. */
   size?: 'sm' | 'md'
+  running?: boolean
+  compacting?: boolean
+  defaultOpen?: boolean
 }>(), {
   size: 'sm',
 })
 
-const panelOpen = ref(false)
+const emit = defineEmits<{
+  compactContext: []
+  handoffContext: []
+}>()
+
+const panelOpen = ref(Boolean(props.defaultOpen))
 const radius = computed(() => (props.size === 'md' ? 9 : 7))
 const stroke = computed(() => (props.size === 'md' ? 2.5 : 2))
 const viewBox = computed(() => {
@@ -81,8 +90,27 @@ const showOccupancyBar = computed(() => (
 ))
 const showBilled = computed(() => Boolean(props.usage.last))
 
+const compactDisabled = computed(() => (
+  Boolean(props.compacting || props.usage.compacting)
+))
+const handoffDisabled = computed(() => (
+  Boolean(props.running || compactDisabled.value)
+))
+
 function closePanel() {
   panelOpen.value = false
+}
+
+function runCompact() {
+  if (compactDisabled.value) return
+  closePanel()
+  emit('compactContext')
+}
+
+function runHandoff() {
+  if (handoffDisabled.value) return
+  closePanel()
+  emit('handoffContext')
 }
 </script>
 
@@ -254,6 +282,28 @@ function closePanel() {
           {{ t('缓存命中', 'Cache hits') }}
           <span class="font-mono tabular-nums">{{ usage.last.cacheReadLabel }}</span>
         </span>
+      </div>
+      <div class="mt-3 flex flex-wrap gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          data-testid="context-usage-compact"
+          :disabled="compactDisabled"
+          @click="runCompact"
+        >
+          {{ t('整理上下文', 'Compact context') }}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          data-testid="context-usage-handoff"
+          :disabled="handoffDisabled"
+          @click="runHandoff"
+        >
+          {{ t('接到新会话', 'Handoff') }}
+        </Button>
       </div>
     </PopoverContent>
   </Popover>

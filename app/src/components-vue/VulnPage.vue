@@ -116,6 +116,8 @@ const emit = defineEmits<{
   closeDock: []
   consumePendingDraft: []
   compactContext: []
+  rewindContext: []
+  handoffContext: []
   controlGoal: [action: 'pause' | 'resume' | 'clear']
   respondApproval: [requestId: string, approved: boolean, scope?: 'once' | 'conversation', choice?: string]
   changeModel: [mode: 'auto' | 'manual', provider?: string, model?: string]
@@ -899,6 +901,8 @@ function addSearchResult(candidate: VulnerabilitySearchCandidate) {
     @expand="$emit('expand')"
     @consume-pending-draft="$emit('consumePendingDraft')"
     @compact-context="$emit('compactContext')"
+    @rewind-context="$emit('rewindContext')"
+    @handoff-context="$emit('handoffContext')"
     @control-goal="$emit('controlGoal', $event)"
     @respond-approval="(requestId, approved, scope, choice) => $emit('respondApproval', requestId, approved, scope, choice)"
     @change-model="(mode, provider, model) => $emit('changeModel', mode, provider, model)"
