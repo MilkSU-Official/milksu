@@ -19,7 +19,8 @@ test("workflow prompt keeps host facts and omits product-tool essays", () => {
   assert.match(prompt, /Runtime context/);
   assert.match(prompt, /Workspace identity/);
   assert.match(prompt, /falsifiable CTF hypothesis/);
-  assert.match(prompt, /When the user asks to open a subagent/);
+  assert.match(prompt, /at most four subagent tasks/);
+  assert.doesNotMatch(prompt, /When the user asks to open a subagent/);
   assert.match(prompt, /built-in isolated browser/);
   assert.doesNotMatch(prompt, /milksu_progress/);
   assert.doesNotMatch(prompt, /milksu_ask/);

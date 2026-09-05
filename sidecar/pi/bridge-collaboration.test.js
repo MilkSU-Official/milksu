@@ -177,6 +177,35 @@ test("read-only subagents work without collaboration worktrees", async () => {
   assert.match(summary, /scout → 主工作树（只读角色）/);
   assert.match(codingSubagentGuidance(), /subapi/);
   assert.match(codingSubagentGuidance(), /IDA Pro/);
+  assert.match(codingSubagentGuidance(), /at most four/);
+  assert.doesNotMatch(codingSubagentGuidance(), /When the user asks to open a subagent/);
+});
+
+test("read-only parallel lanes accept four scouts and reject a fifth", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "milksu-subagent-lanes-"));
+  const accepted = validateSubagentInput({
+    tasks: [
+      { agent: "scout", task: "HTTP surface" },
+      { agent: "scout", task: "DNS and certificates" },
+      { agent: "security-auditor", task: "bound lease extras" },
+      { agent: "reviewer", task: "summarize inventory gaps" },
+    ],
+  }, undefined, workspace);
+  assert.equal(accepted.mode, "parallel");
+  assert.equal(accepted.tasks.length, 4);
+  assert.equal(accepted.tasks.every(task => task.access === "read-only"), true);
+  assert.throws(
+    () => validateSubagentInput({
+      tasks: [
+        { agent: "scout", task: "one" },
+        { agent: "scout", task: "two" },
+        { agent: "scout", task: "three" },
+        { agent: "scout", task: "four" },
+        { agent: "scout", task: "five" },
+      ],
+    }, undefined, workspace),
+    /at most 4 subagent tasks/,
+  );
 });
 
 test("approval summary exposes role, mode, branch, and task", async () => {

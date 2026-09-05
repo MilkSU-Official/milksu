@@ -9,6 +9,10 @@ import {
   familyRepeatReason,
   inspectToolRepeat,
   promptToolLimit,
+  statusPollBudgetLimit,
+  statusPollFamily,
+  statusPollLimit,
+  statusPollReason,
   toolBudgetPrompt,
   toolCallFamily,
   toolCallSignature,
@@ -86,4 +90,66 @@ test("resets between user prompts", () => {
   for (let index = 0; index < 4; index += 1) guard.inspect("bash", call);
   guard.reset();
   assert.equal(guard.inspect("bash", call), undefined);
+});
+
+test("treats bg_status status and log on the same id as one exact family", () => {
+  assert.equal(
+    toolCallSignature("bg_status", { action: "status", id: "bg_one" }),
+    toolCallSignature("bg_status", { action: "log", id: "bg_one" }),
+  );
+  assert.notEqual(
+    toolCallSignature("bg_status", { action: "status", id: "bg_one" }),
+    toolCallSignature("bg_status", { action: "status", id: "bg_two" }),
+  );
+  assert.equal(toolCallFamily("bg_status", { action: "status", id: "bg_one" }), statusPollFamily);
+  assert.equal(toolCallFamily("bg_status", { action: "log", id: "bg_two" }), statusPollFamily);
+});
+
+test("stops a trailing bg_status poller before the generic family limit", () => {
+  const guard = createToolRepeatGuard();
+  for (let index = 0; index < statusPollLimit - 1; index += 1) {
+    assert.equal(guard.inspect("bg_status", { action: "status", id: `bg_${index}` }), undefined);
+  }
+  assert.deepEqual(
+    guard.inspect("bg_status", { action: "log", id: "bg_final" }),
+    { block: true, terminate: true, reason: statusPollReason },
+  );
+});
+
+test("a bg_task spawn resets the bg_status poller streak", () => {
+  const guard = createToolRepeatGuard();
+  for (let index = 0; index < statusPollLimit - 1; index += 1) {
+    assert.equal(guard.inspect("bg_status", { action: "status", id: `bg_${index}` }), undefined);
+  }
+  assert.equal(guard.inspect("bg_task", { action: "spawn", command: "echo ready" }), undefined);
+  assert.equal(guard.inspect("bg_status", { action: "status", id: "bg_after_spawn" }), undefined);
+});
+
+test("stops the same background task id after many status or log calls", () => {
+  const guard = createToolRepeatGuard();
+  for (let index = 0; index < exactRepeatLimit - 1; index += 1) {
+    const action = index % 2 === 0 ? "status" : "log";
+    assert.equal(guard.inspect("bg_status", { action, id: "bg_same" }), undefined);
+  }
+  assert.deepEqual(
+    guard.inspect("bg_status", { action: "status", id: "bg_same" }),
+    { block: true, terminate: true, reason: exactRepeatReason },
+  );
+});
+
+test("tool budget terminates a status poller instead of asking to continue", () => {
+  const history = Array.from({ length: promptToolLimit - statusPollBudgetLimit }, (_, index) => ({
+    signature: `bash\0echo ${index}`,
+    family: `bash\0echo ${index}`,
+  }));
+  for (let index = 0; index < statusPollBudgetLimit - 1; index += 1) {
+    history.push({
+      signature: `bg_status\0bg_${index}`,
+      family: statusPollFamily,
+    });
+  }
+  assert.deepEqual(
+    inspectToolRepeat(history, "bg_status", { action: "status", id: "bg_budget" }),
+    { block: true, terminate: true, reason: statusPollReason },
+  );
 });

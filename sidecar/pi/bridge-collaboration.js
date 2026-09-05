@@ -18,7 +18,8 @@ const worktreeAgents = new Set([
   "worker",
 ]);
 const allAgents = new Set([...readOnlyAgents, ...worktreeAgents]);
-const maxTasksPerCall = 2;
+const maxWriterWorktrees = 2;
+const maxTasksPerCall = 4;
 const maxTaskCharacters = 16000;
 
 function exactObject(value) {
@@ -68,7 +69,7 @@ export function normalizeCodingCollaboration(
     "Coding collaboration root",
   );
   const worktrees = Array.isArray(value.worktrees) ? value.worktrees : [];
-  if (worktrees.length < 1 || worktrees.length > maxTasksPerCall) {
+  if (worktrees.length < 1 || worktrees.length > maxWriterWorktrees) {
     throw new Error("Coding collaboration requires one or two writer worktrees");
   }
   const key = taskKey(normalizedConversation);
@@ -157,8 +158,8 @@ export function isReadOnlySubagent(agent) {
 
 export function codingSubagentGuidance() {
   return [
-    "When the user asks to open a subagent or delegate a lookup, call the subagent tool.",
-    "Read-only roles: scout, planner, reviewer, security-auditor.",
+    "Read-only roles: scout, planner, reviewer, security-auditor. Those work without a writer worktree.",
+    "MilkSU allows at most four subagent tasks per approved call. Effectful roles still need prepared writer worktrees.",
     "Do not treat the words subagent, sub-agent, or subapi as IDA Pro, idalib, or a security MCP.",
     "IDA is only for a local binary the user named.",
   ].join(" ");
