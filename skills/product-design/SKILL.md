@@ -1,6 +1,6 @@
 ---
 name: product-design
-description: Design, redesign, or materially change a product interface or user flow before implementation, then verify the rendered result. Use for new pages, major components, navigation or workflow changes, screenshot-based implementation, visual modernization, and UX audits. Do not use for tiny copy, spacing, color, or obvious defect fixes that preserve the existing design.
+description: Set the visual goal for a major UI or flow change, then implement and verify the rendered result. Use for new pages, navigation, or redesigns. Do not use for tiny copy, spacing, or color fixes.
 ---
 
 # Product Design
