@@ -158,7 +158,10 @@ import type {
   CTFChatAction,
   ModelThinkingLevel,
 } from '@/types'
-import type { CodingMessageQueue } from '@/composables/useConversations'
+import {
+  lastRewindableUserMessageId,
+  type CodingMessageQueue,
+} from '@/composables/useConversations'
 import {
   encodeComposerModelKey,
   parseComposerModelKey,
@@ -237,6 +240,8 @@ const emit = defineEmits<{
   editUser: [messageId: string, content: string]
   branchAssistant: [messageId: string]
   compactContext: []
+  rewindContext: []
+  handoffContext: []
   newConversation: []
   controlGoal: [action: 'pause' | 'resume' | 'clear']
   openSettings: []
@@ -781,6 +786,9 @@ const recoverableFailureId = computed(() => (
     props.running,
   )
 ))
+const rewindableUserMessageId = computed(() => (
+  lastRewindableUserMessageId(props.conversation?.messages ?? [])
+))
 const latestJudge = computed(() => ctfProjection.value?.judgeReceipts.at(-1))
 const contextPanelTitle = computed(() => ({
   domain: props.ctfSession ? t('CTF 领域上下文', 'CTF domain context') : props.vulnerabilitySession ? t('CVE 领域上下文', 'CVE domain context') : t('领域上下文', 'Domain context'),
@@ -1055,6 +1063,14 @@ function runSlashCommand(command: string) {
   }
   if (command === 'compact') {
     emit('compactContext')
+    return
+  }
+  if (command === 'rewind') {
+    emit('rewindContext')
+    return
+  }
+  if (command === 'handoff') {
+    emit('handoffContext')
     return
   }
   if (command === 'mcp' && dockSurface.value) {
@@ -2133,6 +2149,8 @@ defineExpose({
             :process="item"
             :recoverable-failure-id="recoverableFailureId"
             :recovery-context="ctfSession ? 'ctf' : 'coding'"
+            :rewindable-user-message-id="rewindableUserMessageId"
+            :rewind-disabled="compacting"
             :activity-open="chatActivityGroupIsOpen"
             :activity-open-entries="chatActivityOpenEntries"
             :subagent-tasks="conversation?.subagentTasks"
@@ -2141,6 +2159,7 @@ defineExpose({
             @respond-approval="(requestId, approved, scope, choice) => $emit('respondApproval', requestId, approved, scope, choice)"
             @retry="resumeAfterFailure"
             @edit-user="(messageId, content) => $emit('editUser', messageId, content)"
+            @rewind-context="$emit('rewindContext')"
             @branch-assistant="messageId => $emit('branchAssistant', messageId)"
           />
           <ChatActivityGroup
@@ -2157,9 +2176,12 @@ defineExpose({
             :message="item.message"
             :recoverable="item.message.id === recoverableFailureId"
             :recovery-context="ctfSession ? 'ctf' : 'coding'"
+            :can-rewind="item.message.id === rewindableUserMessageId"
+            :rewind-disabled="compacting"
             @respond-approval="(requestId, approved, scope, choice) => $emit('respondApproval', requestId, approved, scope, choice)"
             @retry="resumeAfterFailure"
             @edit-user="(messageId, content) => $emit('editUser', messageId, content)"
+            @rewind-context="$emit('rewindContext')"
             @branch-assistant="messageId => $emit('branchAssistant', messageId)"
           />
         </template>
@@ -2510,6 +2532,10 @@ defineExpose({
             <ContextUsageMeter
               :usage="contextUsagePresentation"
               size="md"
+              :running="running"
+              :compacting="compacting"
+              @compact-context="$emit('compactContext')"
+              @handoff-context="$emit('handoffContext')"
             />
           </div>
           <div class="flex items-start justify-between gap-3">

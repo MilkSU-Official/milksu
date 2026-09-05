@@ -85,6 +85,14 @@ func (a *App) CompactCodingSession(
 	return a.engines.CompactSession(conversationID)
 }
 
+func (a *App) RewindCodingSession(conversationID string) error {
+	return a.engines.RewindSession(conversationID)
+}
+
+func (a *App) HandoffCodingSession(conversationID string) (string, error) {
+	return a.engines.HandoffSession(conversationID)
+}
+
 func (a *App) enrichRuntimeStatus(status engine.RuntimeStatus) engine.RuntimeStatus {
 	for index := range status.BackgroundTasks {
 		task := &status.BackgroundTasks[index]

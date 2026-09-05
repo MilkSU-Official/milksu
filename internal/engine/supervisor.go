@@ -1042,6 +1042,112 @@ func (s *Supervisor) ForkSession(sessionID, role string, occurrence int) (string
 	}
 }
 
+func (s *Supervisor) RewindSession(sessionID string) error {
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return fmt.Errorf("session id is required")
+	}
+	requestID := fmt.Sprintf("rewind_%d", time.Now().UnixNano())
+	events := make(chan Event, 1)
+	s.probeMu.Lock()
+	s.controlWaiters[requestID] = events
+	s.probeMu.Unlock()
+	defer func() {
+		s.probeMu.Lock()
+		delete(s.controlWaiters, requestID)
+		s.probeMu.Unlock()
+	}()
+
+	s.mu.Lock()
+	if s.process == nil {
+		s.mu.Unlock()
+		return fmt.Errorf("PI Sidecar is not running")
+	}
+	if _, exists := s.sessions[sessionID]; !exists {
+		s.mu.Unlock()
+		return fmt.Errorf("PI session not found: %s", sessionID)
+	}
+	err := writeCommand(s.process.stdin, map[string]any{
+		"action":         "rewind_session",
+		"conversationId": sessionID,
+		"requestId":      requestID,
+	})
+	s.mu.Unlock()
+	if err != nil {
+		return fmt.Errorf("rewind session: %w", err)
+	}
+
+	timer := time.NewTimer(8 * time.Second)
+	defer timer.Stop()
+	select {
+	case event := <-events:
+		if strings.TrimSpace(event.Error) != "" {
+			return fmt.Errorf("%s", probeFailureMessage(event))
+		}
+		if event.Type != "session.rewound" {
+			return fmt.Errorf("rewind ended without a result")
+		}
+		return nil
+	case <-timer.C:
+		return fmt.Errorf("rewinding the conversation timed out")
+	}
+}
+
+func (s *Supervisor) HandoffSession(sessionID string) (string, error) {
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return "", fmt.Errorf("session id is required")
+	}
+	requestID := fmt.Sprintf("handoff_%d", time.Now().UnixNano())
+	events := make(chan Event, 1)
+	s.probeMu.Lock()
+	s.controlWaiters[requestID] = events
+	s.probeMu.Unlock()
+	defer func() {
+		s.probeMu.Lock()
+		delete(s.controlWaiters, requestID)
+		s.probeMu.Unlock()
+	}()
+
+	s.mu.Lock()
+	if s.process == nil {
+		s.mu.Unlock()
+		return "", fmt.Errorf("PI Sidecar is not running")
+	}
+	if _, exists := s.sessions[sessionID]; !exists {
+		s.mu.Unlock()
+		return "", fmt.Errorf("PI session not found: %s", sessionID)
+	}
+	err := writeCommand(s.process.stdin, map[string]any{
+		"action":         "handoff_session",
+		"conversationId": sessionID,
+		"requestId":      requestID,
+	})
+	s.mu.Unlock()
+	if err != nil {
+		return "", fmt.Errorf("handoff session: %w", err)
+	}
+
+	timer := time.NewTimer(defaultCompactionTimeout)
+	defer timer.Stop()
+	select {
+	case event := <-events:
+		if strings.TrimSpace(event.Error) != "" {
+			return "", fmt.Errorf("%s", probeFailureMessage(event))
+		}
+		id := strings.TrimSpace(event.ForkedSessionID)
+		if event.Type != "session.handoff" || id == "" {
+			return "", fmt.Errorf("handoff ended without a forked session")
+		}
+		s.mu.Lock()
+		s.sessions[id] = struct{}{}
+		s.mu.Unlock()
+		return id, nil
+	case <-timer.C:
+		return "", fmt.Errorf("handing off the conversation timed out")
+	}
+}
+
 // SteerMessage delegates mid-run guidance to Pi's native steering queue. Pi
 // applies it after the current assistant tool-call batch and before the next
 // model call, so MilkSU does not maintain a second generic message loop.
@@ -2139,6 +2245,16 @@ func normalizeBridgeEvent(raw bridgeEvent) Event {
 	case "session_forked":
 		event.Type = "session.forked"
 		event.ForkedSessionID = raw.ForkedSessionID
+		event.Error = raw.Error
+		event.Done = true
+	case "session_rewound":
+		event.Type = "session.rewound"
+		event.Error = raw.Error
+		event.Done = true
+	case "session_handoff":
+		event.Type = "session.handoff"
+		event.ForkedSessionID = raw.ForkedSessionID
+		event.Compaction = raw.Compaction
 		event.Error = raw.Error
 		event.Done = true
 	case "background_tasks":

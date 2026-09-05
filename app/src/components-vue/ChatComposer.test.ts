@@ -6,6 +6,12 @@ import ChatComposer from './ChatComposer.vue'
 import composerControlsSource from './CodingComposerControls.vue?raw'
 import composerSource from './ChatComposer.vue?raw'
 import type { CodingGoalState } from '@/types'
+import {
+  applySessionContextWindow,
+  applySessionUsageRecorded,
+  emptySessionTurnSnapshot,
+  presentContextUsage,
+} from '@/lib/sessionTurnStatus'
 
 const mountedApps: App[] = []
 
@@ -276,6 +282,8 @@ describe('ChatComposer', () => {
       'fix',
       'summary',
       'compact',
+      'rewind',
+      'handoff',
       'model',
       'permissions',
       'status',
@@ -553,6 +561,56 @@ describe('ChatComposer', () => {
     activateSlashOption(result.host, 'compact')
     await nextTick()
     expect(result.slashCommandActions).toEqual(['compact'])
+  })
+
+  it('runs rewind while a turn is marked running instead of swallowing the click', async () => {
+    const result = mountComposer({
+      workspaceReady: true,
+      running: true,
+    })
+    await nextTick()
+    const editor = composerEditor(result.host)
+    setComposerText(editor, '/rewind')
+    await nextTick()
+    activateSlashOption(result.host, 'rewind')
+    await nextTick()
+    expect(result.slashCommandActions).toEqual(['rewind'])
+  })
+
+  it('runs compact and handoff from the context usage panel', async () => {
+    let state = applySessionContextWindow(emptySessionTurnSnapshot(), 128_000)
+    state = applySessionUsageRecorded(state, {
+      inputTokens: 10_200,
+      outputTokens: 1800,
+      cacheReadTokens: 0,
+      totalTokens: 12_000,
+    })
+    const usage = presentContextUsage(state)
+    if (!usage) throw new Error('missing billed presentation')
+    const result = mountComposer({
+      workspaceReady: true,
+      contextUsage: usage,
+    })
+    await nextTick()
+    result.host.querySelector<HTMLButtonElement>('[data-testid="context-usage-meter"]')?.click()
+    await nextTick()
+    document.body.querySelector<HTMLButtonElement>('[data-testid="context-usage-handoff"]')?.click()
+    await nextTick()
+    expect(result.slashCommandActions).toEqual(['handoff'])
+  })
+
+  it('does not run handoff while a turn is running', async () => {
+    const result = mountComposer({
+      workspaceReady: true,
+      running: true,
+    })
+    await nextTick()
+    const editor = composerEditor(result.host)
+    setComposerText(editor, '/handoff')
+    await nextTick()
+    activateSlashOption(result.host, 'handoff')
+    await nextTick()
+    expect(result.slashCommandActions).toEqual([])
   })
 
   it('does not queue a second compact while compaction is already live', async () => {

@@ -17,12 +17,12 @@ test("baseline: auto-compact is 85 percent and keeps failed-experiment details",
   assert.match(compactionInstructions, /不要丢弃任何会改变后续行为的细节/);
 });
 
-test("baseline: composer has /compact but no /rewind or /handoff", async () => {
+test("baseline: composer has /compact, /rewind and /handoff", async () => {
   const source = await readFile(
     join(root, "app/src/components-vue/ChatComposer.vue"),
     "utf8",
   );
   assert.match(source, /id: 'compact'/);
-  assert.doesNotMatch(source, /id: 'rewind'/);
-  assert.doesNotMatch(source, /id: 'handoff'/);
+  assert.match(source, /id: 'rewind'/);
+  assert.match(source, /id: 'handoff'/);
 });

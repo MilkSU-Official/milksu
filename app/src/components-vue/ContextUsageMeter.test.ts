@@ -57,14 +57,24 @@ function categoryUsage(): ContextUsagePresentation {
   return presented
 }
 
-async function mountMeter(usage: ContextUsagePresentation) {
+async function mountMeter(
+  usage: ContextUsagePresentation,
+  props: Record<string, unknown> = {},
+) {
   const host = document.createElement('div')
   document.body.append(host)
-  const app = createApp(ContextUsageMeter, { usage })
+  const compact: string[] = []
+  const handoff: string[] = []
+  const app = createApp(ContextUsageMeter, {
+    usage,
+    ...props,
+    onCompactContext: () => compact.push('compact'),
+    onHandoffContext: () => handoff.push('handoff'),
+  })
   app.mount(host)
   mountedApps.push(app)
   await nextTick()
-  return host
+  return { host, compact, handoff }
 }
 
 async function openPanel(host: HTMLElement) {
@@ -75,7 +85,7 @@ async function openPanel(host: HTMLElement) {
 
 describe('ContextUsageMeter', () => {
   it('renders category rows from composition mock data', async () => {
-    const host = await mountMeter(categoryUsage())
+    const { host } = await mountMeter(categoryUsage())
     expect(host.querySelector('[data-testid="context-usage-meter"]')?.textContent).toContain('4%')
     const panel = await openPanel(host)
     expect(panel).not.toBeNull()
@@ -99,7 +109,7 @@ describe('ContextUsageMeter', () => {
   })
 
   it('keeps a billed-only session usable without categories', async () => {
-    const host = await mountMeter(billedUsage())
+    const { host } = await mountMeter(billedUsage())
     const panel = await openPanel(host)
     expect(panel).not.toBeNull()
     expect(panel?.textContent).toContain('8% 已用')
@@ -119,13 +129,42 @@ describe('ContextUsageMeter', () => {
       ['本轮计费', 'Billed this turn'],
       ['未命中输入', 'Uncached input'],
       ['缓存命中', 'Cache hits'],
+      ['整理上下文', 'Compact context'],
+      ['接到新会话', 'Handoff'],
     ])
     applyUiLocale('en')
-    const host = await mountMeter(categoryUsage())
+    const { host } = await mountMeter(categoryUsage())
     const panel = await openPanel(host)
     expect(panel?.textContent).toContain('Context Usage')
     expect(panel?.textContent).toContain('4% Full')
     expect(panel?.textContent).toContain('System prompt')
     expect(panel?.textContent).toContain('Billed this turn')
+    expect(panel?.textContent).toContain('Compact context')
+    expect(panel?.textContent).toContain('Handoff')
+  })
+
+  it('runs compact and handoff from the usage panel', async () => {
+    const result = await mountMeter(categoryUsage())
+    const panel = await openPanel(result.host)
+    panel?.querySelector<HTMLButtonElement>('[data-testid="context-usage-compact"]')?.click()
+    await nextTick()
+    expect(result.compact).toEqual(['compact'])
+
+    const again = await mountMeter(categoryUsage())
+    const nextPanel = await openPanel(again.host)
+    nextPanel?.querySelector<HTMLButtonElement>('[data-testid="context-usage-handoff"]')?.click()
+    await nextTick()
+    expect(again.handoff).toEqual(['handoff'])
+  })
+
+  it('keeps handoff off while a turn is running', async () => {
+    const result = await mountMeter(categoryUsage(), { running: true })
+    const panel = await openPanel(result.host)
+    const handoff = panel?.querySelector<HTMLButtonElement>('[data-testid="context-usage-handoff"]')
+    expect(handoff?.disabled).toBe(true)
+    handoff?.click()
+    await nextTick()
+    expect(result.handoff).toEqual([])
+    expect(panel?.querySelector<HTMLButtonElement>('[data-testid="context-usage-compact"]')?.disabled).toBe(false)
   })
 })

@@ -2,8 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   findBranchMessage,
+  lastExplorationTarget,
+  lastForkPoint,
   messagesOnActiveBranch,
   navigateFromUserMessage,
+  rewindLastExploration,
 } from "./bridge-session-tree.js";
 
 function sessionWithBranch(entries) {
@@ -43,4 +46,36 @@ test("navigateFromUserMessage moves the leaf to that user entry", async () => {
   };
   await navigateFromUserMessage(session, 0);
   assert.deepEqual(seen, ["u1"]);
+});
+
+test("rewind keeps the last assistant before the latest user turn", async () => {
+  const seen = [];
+  const session = {
+    ...sessionWithBranch([
+      { type: "message", id: "u1", message: { role: "user", content: "first" } },
+      { type: "message", id: "a1", message: { role: "assistant", content: "ok" } },
+      { type: "message", id: "u2", message: { role: "user", content: "wrong path" } },
+      { type: "message", id: "a2", message: { role: "assistant", content: "dead end" } },
+    ]),
+    async abort() {
+      seen.push("abort");
+    },
+    async navigateTree(id) {
+      seen.push(id);
+    },
+  };
+  assert.equal(lastExplorationTarget(session).id, "a1");
+  assert.deepEqual(lastForkPoint(session), { role: "assistant", occurrence: 1 });
+  const result = await rewindLastExploration(session);
+  assert.deepEqual(result, { keptEntryId: "a1" });
+  assert.deepEqual(seen, ["abort", "a1"]);
+});
+
+test("rewind refuses a single user turn", async () => {
+  await assert.rejects(
+    () => rewindLastExploration(sessionWithBranch([
+      { type: "message", id: "u1", message: { role: "user", content: "only" } },
+    ])),
+    /Nothing to rewind/,
+  );
 });

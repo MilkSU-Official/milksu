@@ -201,6 +201,8 @@ describe('ConversationDock', () => {
     const menu = host.querySelector('[aria-label="斜杠命令"]')
     expect(menu).not.toBeNull()
     expect(menu?.textContent).toContain('/compact')
+    expect(menu?.textContent).toContain('/rewind')
+    expect(menu?.textContent).toContain('/handoff')
     expect(menu?.textContent).toContain('/mcp')
     expect(menu?.textContent).toContain('/browser')
     host.querySelector<HTMLButtonElement>('[aria-label="添加内容与工具"]')?.click()

@@ -85,7 +85,12 @@ import {
   isComputerUseMcpToolName,
 } from "./bridge-computer-use-routing.js";
 import { disposeAgentSession } from "./bridge-session-lifecycle.js";
-import { forkFromMessage, navigateFromUserMessage } from "./bridge-session-tree.js";
+import {
+  forkFromMessage,
+  lastForkPoint,
+  navigateFromUserMessage,
+  rewindLastExploration,
+} from "./bridge-session-tree.js";
 import { createCTFTruncationContinuationExtension } from "./bridge-ctf-continuation.js";
 import {
   compactSession,
@@ -192,6 +197,7 @@ const sessionModelSources = new Map();
 const sessionConfiguredProviders = new Map();
 const abortedSessions = new Set();
 const sessionSubagentTasks = new Map();
+const sessionCreateCommands = new Map();
 function ignorePipeError(stream, label) {
   stream?.on("error", error => {
     const message = error instanceof Error ? error.message : String(error);
@@ -1515,6 +1521,7 @@ async function createSession(command) {
     if (typeof existing.setAutoCompactionEnabled === "function") {
       existing.setAutoCompactionEnabled(true);
     }
+    sessionCreateCommands.set(conversationId, command);
     return existing;
   }
 
@@ -1612,6 +1619,7 @@ async function createSession(command) {
     );
 
     sessions.set(conversationId, session);
+    sessionCreateCommands.set(conversationId, command);
     promptQueues.set(conversationId, Promise.resolve());
     const loadedExtensions = describeLoadedExtensions(resourceLoader);
     emit(conversationId, "ready", {
@@ -1933,6 +1941,7 @@ async function destroySession(command) {
   backgroundTaskControllers.delete(conversationId);
   promptQueues.delete(conversationId);
   abortedSessions.delete(conversationId);
+  sessionCreateCommands.delete(conversationId);
   if (command.deletePersisted && sessionFile) {
     try {
       await unlink(sessionFile);
@@ -2012,6 +2021,73 @@ async function compactIfContextNearLimit(conversationId, session) {
     emit(conversationId, "compaction_end", {
       reason: "auto",
       aborted: /cancelled|timed out|aborted/i.test(describeError(error)),
+      error: describeError(error),
+    });
+  }
+}
+
+async function rewindSessionCommand(command) {
+  const conversationId = String(command.conversationId ?? "").trim();
+  const requestId = String(command.requestId ?? "").trim();
+  try {
+    if (!conversationId) throw new Error("conversationId is required");
+    if (!requestId) throw new Error("requestId is required");
+    const session = sessions.get(conversationId);
+    if (!session) {
+      throw new Error(`Coding session not found: ${conversationId}`);
+    }
+    const result = await rewindLastExploration(session);
+    emit(conversationId, "session_rewound", {
+      requestId,
+      keptEntryId: result.keptEntryId,
+    });
+  } catch (error) {
+    emit(conversationId || null, "session_rewound", {
+      requestId,
+      error: describeError(error),
+    });
+  }
+}
+
+async function handoffSessionCommand(command) {
+  const conversationId = String(command.conversationId ?? "").trim();
+  const requestId = String(command.requestId ?? "").trim();
+  try {
+    if (!conversationId) throw new Error("conversationId is required");
+    if (!requestId) throw new Error("requestId is required");
+    const session = sessions.get(conversationId);
+    if (!session) {
+      throw new Error(`Coding session not found: ${conversationId}`);
+    }
+    const parentCommand = sessionCreateCommands.get(conversationId);
+    if (!parentCommand) {
+      throw new Error("Wait for the first assistant response before handing off");
+    }
+    const point = lastForkPoint(session);
+    if (!point) {
+      throw new Error("Nothing to hand off");
+    }
+    if (typeof session.abort === "function") {
+      await session.abort();
+    }
+    const forked = forkFromMessage(session, point.role, point.occurrence);
+    const forkedSession = await createSession({
+      ...parentCommand,
+      conversationId: forked.sessionId,
+      requestId,
+    });
+    const compaction = await compactSession(forkedSession);
+    emit(conversationId, "session_handoff", {
+      requestId,
+      forkedSessionId: forked.sessionId,
+      compaction: {
+        tokensBefore: compaction?.tokensBefore,
+        estimatedTokensAfter: compaction?.estimatedTokensAfter,
+      },
+    });
+  } catch (error) {
+    emit(conversationId || null, "session_handoff", {
+      requestId,
       error: describeError(error),
     });
   }
@@ -2236,6 +2312,12 @@ async function handleCommand(command) {
     case "fork_session":
       await forkSessionCommand(command);
       break;
+    case "rewind_session":
+      await rewindSessionCommand(command);
+      break;
+    case "handoff_session":
+      await handoffSessionCommand(command);
+      break;
     default:
       throw new Error(`Unknown action: ${command.action}`);
   }
@@ -2303,6 +2385,14 @@ input.on("line", (line) => {
     void compactSessionCommand(command);
     return;
   }
+  if (command.action === "rewind_session") {
+    void rewindSessionCommand(command);
+    return;
+  }
+  if (command.action === "handoff_session") {
+    void handoffSessionCommand(command);
+    return;
+  }
   commandQueue = commandQueue
     .then(() => handleCommand(command))
     .catch((error) => {
@@ -2321,6 +2411,7 @@ async function disposeAllSessions() {
     [...sessions.values()].map(session => disposeAgentSession(session)),
   );
   sessions.clear();
+  sessionCreateCommands.clear();
   backgroundTaskControllers.clear();
   promptQueues.clear();
   abortedSessions.clear();

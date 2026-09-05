@@ -66,6 +66,32 @@ const BROWSER_USE_MCP_SERVER = 'milksu-playwright-user'
 const DEFAULT_CODING_CONVERSATION_TITLE = t('新编码任务', 'New coding task')
 type ComposerScopeToken = 'browser-use' | 'computer-use'
 
+export function rewindVisibleMessages(messages: Message[]): Message[] | null {
+  const users = messages.filter(message => (
+    message.role === 'user' && message.status !== 'queued'
+  ))
+  if (users.length < 2) return null
+  const lastUser = users[users.length - 1]
+  const previousUser = users[users.length - 2]
+  const lastUserIndex = messages.lastIndexOf(lastUser)
+  const previousUserIndex = messages.lastIndexOf(previousUser)
+  const lastAssistant = [...messages.slice(previousUserIndex, lastUserIndex)]
+    .reverse()
+    .find(message => message.role === 'assistant')
+  const keepUntil = lastAssistant
+    ? messages.lastIndexOf(lastAssistant)
+    : previousUserIndex
+  return messages.slice(0, keepUntil + 1)
+}
+
+export function lastRewindableUserMessageId(messages: Message[]): string | undefined {
+  if (!rewindVisibleMessages(messages)) return undefined
+  const users = messages.filter(message => (
+    message.role === 'user' && message.status !== 'queued'
+  ))
+  return users.at(-1)?.id
+}
+
 export function fallbackConversationTitle(value: string) {
   const normalized = String(value ?? '').replace(/\s+/g, ' ').trim()
   if (!normalized) return DEFAULT_CODING_CONVERSATION_TITLE
@@ -1637,6 +1663,97 @@ export function useConversations() {
     }
   }
 
+  async function rewindContext() {
+    const conversation = active.value
+    if (!conversation || continuity.value.compacting.has(conversation.id)) return
+    const kept = rewindVisibleMessages(conversation.messages)
+    if (!kept) {
+      update(conversation.id, current => ({
+        ...current,
+        messages: [...current.messages, {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: t('没有可丢掉的探索。', 'There is no exploration to drop.'),
+          timestamp: Date.now(),
+          status: 'done',
+        }],
+      }))
+      return
+    }
+    if (runningIds.value.has(conversation.id)) finishRun(conversation.id)
+    try {
+      await invokeCommand('rewind_coding_session', {
+        conversationId: conversation.id,
+      })
+      update(conversation.id, current => ({
+        ...current,
+        messages: [
+          ...rewindVisibleMessages(current.messages) ?? kept,
+          {
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: t('已丢掉最近一段探索。', 'Dropped the latest exploration.'),
+            timestamp: Date.now(),
+            status: 'done',
+          },
+        ],
+      }))
+    } catch (reason) {
+      update(conversation.id, current => ({
+        ...current,
+        messages: [...current.messages, {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: t(`回退失败：${agentErrorMessage(reason)}`, `Rewind failed: ${agentErrorMessage(reason)}`),
+          timestamp: Date.now(),
+          status: 'done',
+        }],
+      }))
+    }
+  }
+
+  async function handoffContext() {
+    const conversation = active.value
+    if (
+      !conversation
+      || runningIds.value.has(conversation.id)
+      || continuity.value.compacting.has(conversation.id)
+    ) return
+    try {
+      const sessionId = String(await invokeCommand('handoff_coding_session', {
+        conversationId: conversation.id,
+      })).trim()
+      if (!sessionId) return
+      const handed: Conversation = {
+        ...conversation,
+        id: sessionId,
+        title: `${t('接力', 'Handoff')} · ${conversation.title}`.slice(0, 40),
+        createdAt: Date.now(),
+        messages: [{
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: t('已整理上一会话并接到新任务。', 'Compacted the previous conversation and continued in a new task.'),
+          timestamp: Date.now(),
+          status: 'done',
+        }],
+      }
+      conversations.value = [handed, ...conversations.value]
+      activeId.value = sessionId
+      persist(handed)
+    } catch (reason) {
+      update(conversation.id, current => ({
+        ...current,
+        messages: [...current.messages, {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: t(`接力失败：${agentErrorMessage(reason)}`, `Handoff failed: ${agentErrorMessage(reason)}`),
+          timestamp: Date.now(),
+          status: 'done',
+        }],
+      }))
+    }
+  }
+
   async function compactContext() {
     const conversationId = activeId.value
     if (!conversationId || continuity.value.compacting.has(conversationId)) return
@@ -2240,6 +2357,8 @@ export function useConversations() {
     abort,
     settleRunsForRuntimeRecovery,
     compactContext,
+    rewindContext,
+    handoffContext,
     controlGoal,
     respondApproval,
     archive,

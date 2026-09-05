@@ -10,6 +10,8 @@ const props = defineProps<{
   process: ChatProcessFoldBlock
   recoverableFailureId?: string | null
   recoveryContext?: 'ctf' | 'coding'
+  rewindableUserMessageId?: string
+  rewindDisabled?: boolean
   activityOpen: (activityId: string) => boolean
   activityOpenEntries: (activityId: string) => ReadonlySet<string>
   subagentTasks?: readonly SubagentTask[]
@@ -21,6 +23,7 @@ const emit = defineEmits<{
   respondApproval: [requestId: string, approved: boolean, scope?: 'once' | 'conversation', choice?: string]
   retry: []
   editUser: [messageId: string, content: string]
+  rewindContext: []
   branchAssistant: [messageId: string]
 }>()
 
@@ -57,9 +60,12 @@ const stepCount = computed(() => {
           :message="item.message"
           :recoverable="item.message.id === recoverableFailureId"
           :recovery-context="recoveryContext"
+          :can-rewind="item.message.id === rewindableUserMessageId"
+          :rewind-disabled="rewindDisabled"
           @respond-approval="(requestId, approved, scope, choice) => $emit('respondApproval', requestId, approved, scope, choice)"
           @retry="$emit('retry')"
           @edit-user="(messageId, content) => $emit('editUser', messageId, content)"
+          @rewind-context="$emit('rewindContext')"
           @branch-assistant="messageId => $emit('branchAssistant', messageId)"
         />
       </template>
