@@ -999,7 +999,7 @@ onBeforeUnmount(() => {
     @login="startAccountLogin"
     @continue-local="useLocalAccountMode"
   />
-  <div v-else class="game-shell flex h-screen min-w-0 flex-col bg-surface-editor text-foreground">
+  <div v-else class="game-shell flex h-screen min-w-0 flex-col text-foreground">
     <p
       v-if="runtimeStatus === 'recovering' || runtimeStatus === 'starting'"
       class="shell-traffic-light-safe-x shell-window-control-safe-x shrink-0 border-b border-border bg-card px-4 py-2 text-caption text-foreground"

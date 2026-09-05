@@ -41,7 +41,7 @@
 }
 
 [data-agent-conversation] > .coding-workspace > .chat-main {
-  background: color-mix(in srgb, var(--background) 88%, var(--card));
+  background: var(--surface-read);
 }
 
 [data-agent-conversation] .chat-bubble--user,
@@ -1260,13 +1260,16 @@
 [data-agent-conversation] .chat-composer__island {
   border: 1px solid var(--agent-hairline);
   border-radius: var(--agent-island-radius);
-  background: var(--card);
-  box-shadow: var(--agent-float-shadow);
+  background: var(--surface-clear);
+  backdrop-filter: var(--surface-blur);
+  -webkit-backdrop-filter: var(--surface-blur);
+  box-shadow: var(--agent-float-shadow), var(--surface-specular);
 }
 
 [data-agent-conversation] .chat-composer__island:focus-within {
   box-shadow:
     var(--agent-float-shadow),
+    var(--surface-specular),
     0 0 0 1px color-mix(in srgb, var(--agent-accent) 45%, transparent);
 }
 

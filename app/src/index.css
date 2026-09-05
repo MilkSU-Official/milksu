@@ -41,12 +41,27 @@
   --hover: oklch(0.289 0.006 271.22);
   --hover-2: oklch(0.318 0.007 274.747);
 
-  --background: var(--night-canvas);
-  --background-chrome: var(--night-chrome);
+  /*
+   * Clear material: an opaque wash plus high-opacity fills. This is the
+   * Cursor / Codex “frosted but not see-through” recipe — not a hole to
+   * the desktop. Overlay chrome adds blur; reading surfaces stay denser.
+   */
+  --night-wash: oklch(0.168 0.004 264.45);
+  --surface-wash: var(--night-wash);
+  --surface-wash-spot: oklch(0.275 0.008 264.5);
+  --surface-read: color-mix(in oklab, var(--night-canvas) 96%, transparent);
+  --surface-clear: color-mix(in oklab, var(--night-card) 70%, transparent);
+  --surface-clear-strong: color-mix(in oklab, var(--night-card) 84%, transparent);
+  --surface-blur: blur(22px) saturate(1.18);
+  --surface-specular: inset 0 1px 0 rgb(255 255 255 / 0.08);
+  --surface-glass-shadow: 0 1px 2px rgb(0 0 0 / 5%), 0 18px 48px rgb(0 0 0 / 18%);
+
+  --background: color-mix(in oklab, var(--night-canvas) 88%, transparent);
+  --background-chrome: color-mix(in oklab, var(--night-chrome) 80%, transparent);
   --foreground: var(--night-foreground);
-  --card: var(--night-card);
+  --card: color-mix(in oklab, var(--night-card) 84%, transparent);
   --card-foreground: var(--night-foreground);
-  --popover: var(--night-popover);
+  --popover: color-mix(in oklab, var(--night-popover) 74%, transparent);
   --popover-foreground: var(--night-foreground);
   --secondary: var(--night-muted);
   --secondary-foreground: var(--night-foreground);
@@ -61,7 +76,7 @@
   --border-menu-elevated: var(--night-border-elevated);
   --input: var(--night-input);
   --ring: #168dff;
-  --sidebar: var(--night-chrome);
+  --sidebar: color-mix(in oklab, var(--night-chrome) 76%, transparent);
   --sidebar-foreground: var(--night-foreground);
   --sidebar-border: var(--night-border);
   --sidebar-accent: var(--overlay-hover);
@@ -94,7 +109,7 @@
   --focus-panel: rgb(241 198 68 / 0.14);
   --focus-panel-strong: rgb(241 198 68 / 0.22);
   --grid-line: rgb(164 169 159 / 0.065);
-  --surface-raised: var(--night-popover);
+  --surface-raised: color-mix(in oklab, var(--night-popover) 84%, transparent);
   --surface-sunken: var(--night-sunken);
 
   --overlay-hover-light: var(--hover);
@@ -141,7 +156,7 @@
 
   --surface-editor: var(--background);
   --surface-chrome: var(--background-chrome);
-  --surface-composer: var(--card);
+  --surface-composer: var(--surface-clear);
   --chat-user-bubble: rgb(5 167 220 / 0.88);
   --chat-user-bubble-fg: #f8f8f5;
 
@@ -208,12 +223,24 @@
 :root[data-theme='light'] {
   color-scheme: light;
 
-  --background: oklch(0.985 0.001 286.376);
-  --background-chrome: oklch(0.961 0.002 247.84);
+  --day-canvas: oklch(0.985 0.001 286.376);
+  --day-chrome: oklch(0.961 0.002 247.84);
+  --day-card: oklch(1 0 0);
+  --day-wash: oklch(0.948 0.002 250);
+  --surface-wash: var(--day-wash);
+  --surface-wash-spot: oklch(0.99 0.001 286);
+  --surface-read: color-mix(in oklab, var(--day-canvas) 94%, transparent);
+  --surface-clear: color-mix(in oklab, var(--day-card) 68%, transparent);
+  --surface-clear-strong: color-mix(in oklab, var(--day-card) 82%, transparent);
+  --surface-specular: inset 0 1px 0 rgb(255 255 255 / 0.62);
+  --surface-glass-shadow: 0 1px 2px rgb(16 18 22 / 4%), 0 16px 40px rgb(16 18 22 / 8%);
+
+  --background: color-mix(in oklab, var(--day-canvas) 86%, transparent);
+  --background-chrome: color-mix(in oklab, var(--day-chrome) 78%, transparent);
   --foreground: oklch(0.247 0.006 258.361);
-  --card: oklch(1 0 0);
+  --card: color-mix(in oklab, var(--day-card) 80%, transparent);
   --card-foreground: oklch(0.247 0.006 258.361);
-  --popover: oklch(1 0 0);
+  --popover: color-mix(in oklab, var(--day-card) 72%, transparent);
   --popover-foreground: oklch(0.247 0.006 258.361);
   --secondary: oklch(0.961 0.002 247.84);
   --secondary-foreground: oklch(0.247 0.006 258.361);
@@ -230,7 +257,7 @@
   --hover: oklch(0.97 0.002 247.839);
   --hover-2: oklch(0.933 0.003 247.86);
   --ring: #05a7dc;
-  --sidebar: var(--background);
+  --sidebar: color-mix(in oklab, var(--day-canvas) 74%, transparent);
   --sidebar-foreground: var(--foreground);
   --sidebar-border: var(--border);
   --sidebar-accent: var(--overlay-hover);
@@ -263,7 +290,7 @@
   --focus-panel: rgb(241 198 68 / 0.16);
   --focus-panel-strong: rgb(241 198 68 / 0.24);
   --grid-line: rgb(47 111 167 / 0.065);
-  --surface-raised: oklch(1 0 0);
+  --surface-raised: color-mix(in oklab, var(--day-card) 80%, transparent);
   --surface-sunken: oklch(0.961 0.002 247.84);
 
   --overlay-hover-light: var(--hover);
@@ -310,7 +337,7 @@
 
   --surface-editor: var(--background);
   --surface-chrome: var(--background-chrome);
-  --surface-composer: #ffffff;
+  --surface-composer: var(--surface-clear);
   --chat-user-bubble: rgb(5 167 220 / 0.16);
   --chat-user-bubble-fg: #075fae;
 
@@ -345,9 +372,16 @@ body,
   margin: 0;
 }
 
+html,
+body {
+  background-color: var(--surface-wash);
+}
+
 body {
   overflow: hidden;
-  background: var(--surface-editor);
+  background-image:
+    radial-gradient(130% 90% at 8% -16%, color-mix(in oklab, var(--surface-wash-spot) 70%, transparent), transparent 58%),
+    radial-gradient(90% 70% at 100% 110%, color-mix(in oklab, var(--surface-wash-spot) 38%, transparent), transparent 54%);
   color: var(--foreground);
   font-family: var(--font-sans);
   font-weight: var(--font-weight-normal);
@@ -357,10 +391,62 @@ body {
 
 #app {
   isolation: isolate;
+  background: transparent;
+}
+
+#app::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-color: var(--surface-wash);
+  background-image:
+    radial-gradient(130% 90% at 8% -16%, color-mix(in oklab, var(--surface-wash-spot) 70%, transparent), transparent 58%),
+    radial-gradient(90% 70% at 100% 110%, color-mix(in oklab, var(--surface-wash-spot) 38%, transparent), transparent 54%);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --background: var(--night-canvas);
+    --background-chrome: var(--night-chrome);
+    --card: var(--night-card);
+    --popover: var(--night-popover);
+    --sidebar: var(--night-chrome);
+    --surface-read: var(--night-canvas);
+    --surface-clear: var(--night-card);
+    --surface-clear-strong: var(--night-card);
+    --surface-raised: var(--night-popover);
+    --surface-blur: none;
+    --surface-specular: none;
+    --surface-composer: var(--night-card);
+    --surface-editor: var(--night-canvas);
+    --surface-chrome: var(--night-chrome);
+  }
+
+  :root[data-theme='light'] {
+    --background: var(--day-canvas);
+    --background-chrome: var(--day-chrome);
+    --card: var(--day-card);
+    --popover: var(--day-card);
+    --sidebar: var(--day-canvas);
+    --surface-read: var(--day-canvas);
+    --surface-clear: var(--day-card);
+    --surface-clear-strong: var(--day-card);
+    --surface-raised: var(--day-card);
+    --surface-composer: var(--day-card);
+    --surface-editor: var(--day-canvas);
+    --surface-chrome: var(--day-chrome);
+  }
+
+  html,
+  body {
+    background-image: none;
+  }
 }
 
 .game-shell {
-  background-color: var(--background);
+  background-color: transparent;
 }
 
 .tactical-page,
@@ -405,6 +491,7 @@ body {
 .page-column .rounded-menu-shell,
 .settings-page .rounded-menu-shell {
   border-radius: var(--page-card-radius);
+  box-shadow: var(--surface-specular);
 }
 
 .page-column [data-slot="input"]:not(:disabled):not([readonly]),
@@ -590,8 +677,10 @@ body {
 [data-slot="hover-card-content"],
 .tactical-floating-surface {
   color: var(--popover-foreground);
-  background-color: var(--popover) !important;
-  box-shadow: 0 22px 70px rgb(0 0 0 / .18), inset 0 1px 0 rgb(255 255 255 / .04);
+  background-color: var(--surface-clear) !important;
+  backdrop-filter: var(--surface-blur);
+  -webkit-backdrop-filter: var(--surface-blur);
+  box-shadow: var(--surface-glass-shadow), var(--surface-specular);
 }
 
 @media (prefers-reduced-motion: no-preference) {

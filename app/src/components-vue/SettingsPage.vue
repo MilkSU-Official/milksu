@@ -2585,7 +2585,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
 .settings-page-header {
   --shell-window-control-gutter: 1.25rem;
 }
-.settings-nav-surface { border-color: var(--border); background-color: var(--background); }
+.settings-nav-surface { border-color: var(--border); background-color: var(--sidebar); }
 .settings-page :deep(.settings-notice) {
   border-radius: 8px;
 }

@@ -95,7 +95,7 @@ function startResize(event: PointerEvent) {
   isolation: isolate;
   overflow: hidden;
   border-left: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-  background: var(--background);
+  background: var(--background-chrome);
   color: var(--foreground);
   animation: agent-chrome-in-x 280ms cubic-bezier(0.16, 1, 0.3, 1);
 }

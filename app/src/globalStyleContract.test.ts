@@ -44,18 +44,21 @@ describe('global style contract', () => {
   it('keeps day mode on Beautiful UI cool white including chrome', () => {
     const lightTheme = indexCss.match(/:root\[data-theme='light'\]\s*\{([\s\S]*?)\n\}/)?.[1]
 
-    expect(lightTheme).toContain('--background: oklch(0.985 0.001 286.376)')
-    expect(lightTheme).toContain('--card: oklch(1 0 0)')
+    expect(lightTheme).toContain('--day-canvas: oklch(0.985 0.001 286.376)')
+    expect(lightTheme).toContain('--day-card: oklch(1 0 0)')
+    expect(lightTheme).toContain('--background: color-mix(in oklab, var(--day-canvas) 86%, transparent)')
+    expect(lightTheme).toContain('--card: color-mix(in oklab, var(--day-card) 80%, transparent)')
     expect(lightTheme).toContain('--foreground: oklch(0.247 0.006 258.361)')
     expect(lightTheme).toContain('--hover-2: oklch(0.933 0.003 247.86)')
-    expect(lightTheme).toContain('--sidebar: var(--background)')
+    expect(lightTheme).toContain('--sidebar: color-mix(in oklab, var(--day-canvas) 74%, transparent)')
     expect(lightTheme).toContain('--sidebar-foreground: var(--foreground)')
   })
 
   it('lets menus follow the document theme and keeps tactical-dark-surface as an optional night island', () => {
     expect(indexCss).toContain('.tactical-dark-surface {')
     expect(indexCss).toContain('.tactical-command-surface {')
-    expect(indexCss).toContain('background-color: var(--popover) !important')
+    expect(indexCss).toContain('background-color: var(--surface-clear) !important')
+    expect(indexCss).toContain('backdrop-filter: var(--surface-blur)')
     expect(indexCss).toContain('.tactical-floating-surface {')
     expect(indexCss).toContain('--overlay-hover-strong: rgb(255 255 255 / 0.13)')
     expect(indexCss).toContain('--selected-bg: var(--overlay-hover-strong)')
@@ -213,7 +216,25 @@ describe('global style contract', () => {
     expect(indexCss).toContain('--night-card: oklch(0.26 0.006 271.191)')
     expect(indexCss).toContain('--night-foreground: oklch(0.964 0.002 247.839)')
     expect(indexCss).toContain('--hover-2: oklch(0.318 0.007 274.747)')
+    expect(indexCss).toContain('--background: color-mix(in oklab, var(--night-canvas) 88%, transparent)')
     expect(indexCss).not.toMatch(/#(?:0d1115|090c0f|111519|14191d|171c21|1b2026|20262c|11120f|171815)/i)
+  })
+
+  it('uses a clear material: opaque wash, translucent chrome, blur only on overlays', () => {
+    expect(indexCss).toContain('--surface-wash: var(--night-wash)')
+    expect(indexCss).toContain('--surface-clear:')
+    expect(indexCss).toContain('--surface-blur: blur(22px) saturate(1.18)')
+    expect(indexCss).toContain('.game-shell {\n  background-color: transparent;\n}')
+    expect(indexCss).toContain('--surface-specular: inset 0 1px 0 rgb(255 255 255 / 0.08)')
+    expect(indexCss).toContain('background-color: var(--surface-wash)')
+    expect(indexCss).toContain('prefers-reduced-transparency')
+    expect(indexCss).toContain('--surface-blur: none')
+    const chromeCss = readFileSync(
+      fileURLToPath(new URL('./styles/beautiful-chrome.css', import.meta.url)),
+      'utf8',
+    )
+    expect(indexCss).toContain('--surface-read:')
+    expect(chromeCss).toContain('--bui-radius: 8px')
   })
 
   it('uses a pointer cursor on clickable controls', () => {

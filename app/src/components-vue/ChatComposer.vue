@@ -2023,9 +2023,11 @@ defineExpose({
 .chat-composer__island {
   border: 1px solid var(--border);
   border-radius: 16px;
-  background-color: var(--card);
+  background-color: var(--surface-clear);
+  backdrop-filter: var(--surface-blur);
+  -webkit-backdrop-filter: var(--surface-blur);
   padding: .65rem .85rem .75rem;
-  box-shadow: none;
+  box-shadow: var(--surface-specular);
   color: var(--foreground);
 }
 

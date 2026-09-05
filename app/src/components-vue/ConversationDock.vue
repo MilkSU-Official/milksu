@@ -402,8 +402,10 @@ function forwardSend(...args: CodingAgentSendArgs) {
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 16px;
-  background: var(--card);
-  box-shadow: 0 18px 48px rgb(0 0 0 / .22);
+  background: var(--surface-clear);
+  backdrop-filter: var(--surface-blur);
+  -webkit-backdrop-filter: var(--surface-blur);
+  box-shadow: var(--surface-glass-shadow), var(--surface-specular);
   color: var(--foreground);
 }
 .conversation-dock.is-dragging {

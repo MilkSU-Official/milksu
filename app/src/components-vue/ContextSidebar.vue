@@ -851,7 +851,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', closeOnOutside
 
 <style scoped>
 .agent-sidebar {
-  background: var(--background);
+  background: var(--sidebar);
   color: var(--foreground);
   transition: width 280ms cubic-bezier(0.16, 1, 0.3, 1);
 }

@@ -80,6 +80,6 @@ defineEmits<{
 <style scoped>
 .workspace-navigation-shell {
   border-right: 1px solid var(--border);
-  background: var(--background);
+  background: var(--sidebar);
 }
 </style>
