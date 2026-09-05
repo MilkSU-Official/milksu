@@ -160,6 +160,7 @@
 - Coding / CTF / CVE / 实验室会话不再把 `milksu_ask` / `milksu_progress` / workspace 动作表和 Pi `tool_result` 截断说明重复写进 system prompt。when-to-use 只留在工具 description 与 Pi Skill 名录。`release-milksu` 设 `disable-model-invocation: true`，`/skill:release-milksu` 仍可用。依据见 [research-progressive-disclosure.md](research-progressive-disclosure.md)。
 - 设置页可添加或导入用户级 MCP（stdio / HTTP / Socket，兼容 Pi / Cursor `mcp.json`）并导入 SKILL.md；启用后只交给现有 Pi `additionalSkillPaths` 与 `pi-mcp-adapter`，不打开 `~/.pi` 环境发现，也不把 Skill 正文或工具 MUST 再贴进 system prompt。凭据进 Credential Store，不回传 Vue。
 - 设置「安全工具」并入 MCP 页，作为内置 MCP 行（IDA 仍是 first-party `milksu-ida-pro`；capa 仍是 `capa_analyze`，不是假 MCP）。内置 MCP / Skills 可编辑覆盖，不改签名包内出厂文件；Coding 对话可打开专用工作区用自然语言改 `mcp/<id>.json` 与 `skills/<name>/SKILL.md`；「恢复默认」重载当前版本出厂配置。
+- 材料层改为克制清透填充：一层不透明 wash，侧栏/卡片单层 74–92% 半透明，Composer / 菜单 / 对话小窗才加 `backdrop-filter`。窗口仍不透明，三端同一套 CSS，不走 macOS vibrancy / Windows Mica 当产品观感。用户已看过本地 dirty Stable 包：还不够透，但先收这档；后续只调 wash/填充，不另造一层玻璃。
 
 ## 当前产品事实
 

@@ -207,7 +207,7 @@ function openSettings() {
 }
 .workspace-rail {
   color: var(--foreground);
-  background: var(--background);
+  background: var(--sidebar);
 }
 .workspace-rail-profile {
   display: grid;

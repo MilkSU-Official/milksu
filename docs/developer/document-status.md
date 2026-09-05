@@ -25,7 +25,7 @@
 | --- | --- |
 | 正式发行基线 | `v26.904.1 / 6e9371d86d0301ab22c5a30b9a72cd1d5233fee3`（2026-09-04 今日首发）。这是当前 GitHub Latest Release；标签固定在该 source commit，后续 workflow/文档提交不移动标签。上一版 `v26.827.1 / 37932ce` 仍可下载，不是 Latest。 |
 | 已发行线 | `26.817.1` 建立账户 TokenFlux / 双来源路由与 Pi 网页查证；`26.817.2` 补齐 Linux 试用 DEB 与 Windows 启动；`26.817.3` 修 Windows 账户授权恢复与打包 Sidecar 路径；`26.818.1` 发出账户可调用目录与当日首发包；`26.818.2` 发出 Coding 多标签浏览器、`milksu_workspace`、85% 自动压缩、CTF 本地目录、Windows Computer Use 与应用级调试模式；`26.819.1` 发出 ak-ui 生产视觉、目录不默认展开，以及普通 Go 不再自动启动隔离浏览器；`26.822.1` 发出 CVE 档案复现、实验室、对话小窗和原子 `milksu_workspace` 记录操作；`26.823.1` 发出 CTF/CVE/实验室完整 Coding 循环、始终开启的上下文整理，以及 CVE 列表里的公开源条目；`26.825.1` 发出实验室 / CVE 靶机经纪、Pi `0.84.1`、思考档位、运行时恢复和列表指挥面；`26.827.1` 发出自动更新、Linux 四发行版安装与 GNOME Portal、Beautiful UI 指挥面；`26.904.1` 发出上下文用量分类、模型窗口覆盖、loop #35–#38 与三端窗口铬。 |
-| 开发版本线 | 仓库版本为 `26.904.1`。正式发行源是 `6e9371d`；文档收口提交不移动该 tag。开发 HEAD 另含 Pi 渐进披露收束（#49）、设置页用户级 MCP / Skills，以及内置 MCP/Skills 覆盖与对话工作区配置（未发版）。 |
+| 开发版本线 | 仓库版本为 `26.904.1`。正式发行源是 `6e9371d`；文档收口提交不移动该 tag。开发 HEAD 另含 Pi 渐进披露收束（#49）、设置页用户级 MCP / Skills、内置 MCP/Skills 覆盖与对话工作区配置，以及克制清透材料层（未发版）。 |
 | 许可证 | 主项目为 `AGPL-3.0-only`（`LICENSE` / `NOTICE`）。第三方仍保留原许可。Obelisk 作为计划嵌入的 AGPL 记忆组件与此兼容；尚未 vendored。 |
 | 三端正式发行 | GitHub Latest Release `v26.904.1` 已提供签名并公证的 macOS ARM64 DMG、未签名 Windows x64 EXE、Linux x64 DEB 与 x64 tar.gz，以及 `SHA256SUMS-26.904.1.txt`。OTA 草稿应已上传私有 R2；Admin current pointer 仍须维护者在「版本」页发布。 |
 | Linux | `26.904.1` 发出 Ubuntu/Debian 共用 x64 DEB 与 Omarchy/Arch/Nix 共用 x64 tarball；GNOME Wayland Computer Use 走 Portal。仍无 Secret Service、本地 OCR；Hyprland / Xorg Computer Use unavailable。ISSUE #19 已关闭（拒绝 X11 xinput）。合同见 [Linux 安装与桌面合同](linux-platform-support.md)。 |
