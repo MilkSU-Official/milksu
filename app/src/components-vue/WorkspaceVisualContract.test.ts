@@ -47,6 +47,8 @@ describe('Workspace visual contract', () => {
     expect(chatPageSource).toContain(':context-usage="contextUsagePresentation"')
     expect(conversationDockSource).toContain('surface="dock"')
     expect(conversationDockSource).toContain('border-radius: 16px')
+    expect(conversationDockSource).toContain('background: var(--surface-overlay)')
+    expect(conversationDockSource).not.toContain('backdrop-filter: var(--surface-blur)')
     expect(conversationDockSource).not.toContain("from '@/components-vue/ContextUsageMeter.vue'")
     expect(chatComposerSource).toContain('data-testid="composer-context-strip"')
     expect(vulnPageSource).toContain('SettingsSection')
