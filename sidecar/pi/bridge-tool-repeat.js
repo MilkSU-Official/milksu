@@ -4,14 +4,22 @@
 // return `{ block: true, terminate: true }` from `tool_call`, or wait on the
 // existing approval broker before allowing the call through. This module only
 // inspects the current user prompt's tool sequence; it does not replace Pi's loop.
+//
+// pi-better-background-tasks already returns immediately from spawn/watch and
+// queues a terminal callback. Parent-loop bg_status polling is the no-progress
+// case; do not add a second wait/poll primitive on top of that callback.
 
 export const exactRepeatLimit = 10;
 export const familyRepeatLimit = 25;
+export const statusPollLimit = 12;
+export const statusPollBudgetLimit = 8;
 export const promptToolLimit = 150;
 export const toolBudgetToolName = "milksu_tool_budget";
+export const statusPollFamily = "bg_status\0poll";
 
 export const exactRepeatReason = "同一命令连续重复，已停止本轮。";
 export const familyRepeatReason = "相近命令没有新进展，已停止本轮。";
+export const statusPollReason = "后台任务状态没有新进展，已停止本轮。";
 export const promptToolLimitReason = "本轮已停止。";
 
 function stableValue(value) {
@@ -43,15 +51,28 @@ export function bashFamilyCommand(command) {
   return text.replace(/\s+/g, " ").trim();
 }
 
+function backgroundStatusId(input) {
+  return String(input?.id ?? "").trim();
+}
+
+function backgroundStatusAction(input) {
+  return String(input?.action ?? "status").trim().toLowerCase();
+}
+
 export function toolCallSignature(toolName, input) {
   const name = String(toolName ?? "").trim().toLowerCase();
   if (name === "bash") return `bash\0${bashCommand(input)}`;
+  if (name === "bg_status") {
+    const id = backgroundStatusId(input);
+    return id ? `bg_status\0${id}` : `bg_status\0${backgroundStatusAction(input)}`;
+  }
   return `${name}\0${stableValue(input)}`;
 }
 
 export function toolCallFamily(toolName, input) {
   const name = String(toolName ?? "").trim().toLowerCase();
   if (name === "bash") return `bash\0${bashFamilyCommand(bashCommand(input))}`;
+  if (name === "bg_status") return statusPollFamily;
   return toolCallSignature(name, input);
 }
 
@@ -78,10 +99,16 @@ export function inspectToolRepeat(history, toolName, input) {
   if (exactCount >= exactRepeatLimit) {
     return { block: true, terminate: true, reason: exactRepeatReason };
   }
+  if (family === statusPollFamily && familyCount >= statusPollLimit) {
+    return { block: true, terminate: true, reason: statusPollReason };
+  }
   if (familyCount >= familyRepeatLimit) {
     return { block: true, terminate: true, reason: familyRepeatReason };
   }
   if (promptCount > 0 && promptCount % promptToolLimit === 0) {
+    if (family === statusPollFamily && familyCount >= statusPollBudgetLimit) {
+      return { block: true, terminate: true, reason: statusPollReason };
+    }
     return { ask: true, count: promptCount };
   }
   return undefined;

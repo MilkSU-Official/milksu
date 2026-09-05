@@ -32,7 +32,7 @@
 | 历史基线 | M3 product-loop 已在 `108e0e3`（2026-08-05）合并，仅供追溯。 |
 | 正式发行基线 | `v26.905.2 / b18b8607e2645c3977125e79d0257256951ae6b5`（2026-09-05 今日第二版）。这是当前 GitHub Latest Release；提供带版本号的 DMG、EXE、DEB、x64 tar.gz 与 `SHA256SUMS`。OTA 已上传私有 R2。侧栏下载先 `checkForUpdates` 再 `downloadUpdate`。已发出的 `26.827.1` / `26.904.1` / `26.905.1` 客户端改不了，这一跳请从 GitHub 下安装包。上一版 `v26.905.1 / 1cc8773`、`v26.904.1 / 6e9371d` 与 `v26.827.1 / 37932ce` 仍可下载，不是 Latest。 |
 | 开发版本线 | 根目录与 `desktop/package.json` 是 `26.905.2`。正式发行源是 `b18b860`；文档收口提交不移动该 tag。 |
-| 当前开发 | 正式包是 `26.905.2`。Composer 上下文环按 Pi 组装分类；设置页可查看并覆盖模型上下文窗口。edit 锚点、`tool_result` 截断、中途引导、子 Agent 结构化回传、rewind/handoff、用户 MCP/Skills 与克制清透材料层已进包。侧栏下载先 check 再 download，失败可见重试。三端窗口铬：macOS 保持 `hiddenInset`，Windows/Linux 隐藏原生标题栏并用画布色 overlay。已登录 Stable 轮询 Admin 时带上当前版本。实验室题目包仍可起本机 Docker / MilkSU-Lab。Pi 钉到 `0.84.1`。Windows 安装器仍未代码签名；Linux 无 Secret Service 与本地 OCR；Hyprland/Xorg Computer Use 不可用。CTF 比赛模式和实验室红队学习面仍未接线。产品 UI 设计语言只写在 `AGENTS.md`。 |
+| 当前开发 | 正式包是 `26.905.2`。Composer 上下文环按 Pi 组装分类；设置页可查看并覆盖模型上下文窗口。edit 锚点、`tool_result` 截断、中途引导、子 Agent 结构化回传、rewind/handoff、用户 MCP/Skills 与克制清透材料层已进包。侧栏下载先 check 再 download，失败可见重试。三端窗口铬：macOS 保持 `hiddenInset`，Windows/Linux 隐藏原生标题栏并用画布色 overlay。已登录 Stable 轮询 Admin 时带上当前版本。实验室题目包仍可起本机 Docker / MilkSU-Lab。Pi 钉到 `0.84.1`。Windows 安装器仍未代码签名；Linux 无 Secret Service 与本地 OCR；Hyprland/Xorg Computer Use 不可用。CTF 比赛模式和实验室红队学习面仍未接线。产品 UI 设计语言只写在 `AGENTS.md`。未发版：`fix/wide-job-parent-loop` 给 parent loop 加上 `bg_status` poller 熔断，并把 `subagent` 从「用户开口才调用」改回最多 4 条 read-only lane；#53 的 typed sweep 工具尚未做。 |
 | 平台边界 | `26.905.2`：macOS DMG 走 GitHub-hosted Developer ID 签名并公证；Windows 安装器完成原生 Runtime 与首次启动但未代码签名，并打入审阅过的 CUA Driver；Linux 发出 Ubuntu/Debian 共用 x64 DEB 与 Omarchy/Arch/Nix 共用 x64 tarball，GNOME Portal Computer Use 已进包，仍无 Secret Service、本地 OCR；Hyprland/Xorg Computer Use 不可用。Windows/Linux 窗口铬尚未真机验收。 |
 | 发行流水 | 下一发行从干净、已推送的 `main` 对 canonical Go/Vue/Sidecar/lint/生产与文档构建只验证一次；macOS / Windows / Linux 都走 GitHub-hosted 云端。macOS 本机打包暂时关闭。必须创建 GitHub Release 页并上传带版本号的 DMG/EXE/DEB、x64 tar.gz 与 SHA256SUMS，不能只留空 tag。正式打包默认上传 OTA 到私有 R2 并建 Admin 草稿；GitHub Release 仍不上 updater ZIP。 |
 
@@ -245,6 +245,7 @@ Windows 签名、Linux Secret Service / OCR、Hyprland/Xorg Computer Use、Windo
 | P0 | Pi Runtime 用户验收 | 最新正式包中验证跨目录读写、CTF/CVE 交接、长输出续跑和重启恢复，不出现 MilkSU 自建 workspace 策略或旧 session ID。 |
 | P1 | 下一版三端回执发行 | 需要新的版本号、同一 source commit、三端产物、SHA-256 与平台验收。现有 `v26.905.2` 只覆盖 `b18b860`。 |
 | P1 | Admin current pointer / 客户端下载 | `26.905.2` 已先 `checkForUpdates` 再 `downloadUpdate`。从更早正式包到本版请下 GitHub 安装包。Admin current pointer 仍须维护者发布后，后续 hop 才能走 OTA。 |
+| P1 | Wide lab parent loop（#53） | `bg_status` poller 熔断与最多 4 条 read-only `subagent` lane 在 `fix/wide-job-parent-loop`。未发版、未经验收。typed sweep / inventory 工具只在真实 wide job 仍用 bash 复刻库存后再做。 |
 | P1 | 安全工具真实任务 | IDA/idalib 与 capa 已有设置、准备和健康检查；用受控本地样本留下真实任务回执。就绪工具接到实验室作业，窄工具也可进 CVE 复现；不需要先开一次“是否投影”的会。不把 HexStrike 整包 MCP 做成产品页或 Kali 应用商店。CodeQL、Burp、Shannon 仍逐项接入。 |
 | P1 | Obelisk 学习记录 | 先定义可归因学习事实，再设计独立页面；不恢复已删除的单会话相关历史/图谱面板。 |
 | 未接线 | 继续同一作业还是新开一轮 | 当前按同一 CVE/实验室作业复用同一会话和 `report.md`。新开一轮的产品决策还没定。 |
