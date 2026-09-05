@@ -46,3 +46,37 @@ export function reviewedCodingSkillPaths(
     .filter(Boolean)
     .filter(path => pathExists(join(path, "SKILL.md")));
 }
+
+// extraCodingSkillPaths only forwards directories that already contain SKILL.md
+// to Pi's ResourceLoader. It does not paste skill bodies into the system prompt.
+export function extraCodingSkillPaths(values, pathExists = existsSync) {
+  if (!Array.isArray(values)) return [];
+  const result = [];
+  const seen = new Set();
+  for (const raw of values) {
+    const path = String(raw ?? "").trim();
+    if (!path || seen.has(path) || path.includes("..")) continue;
+    if (!pathExists(join(path, "SKILL.md"))) continue;
+    seen.add(path);
+    result.push(path);
+  }
+  return result;
+}
+
+export function resolveCodingSkillPaths(
+  bridgeDirectory,
+  sessionRole = "",
+  disabledSkills = [],
+  extraPaths = [],
+  pathExists = existsSync,
+) {
+  return [
+    ...reviewedCodingSkillPaths(
+      bridgeDirectory,
+      sessionRole,
+      disabledSkills,
+      pathExists,
+    ),
+    ...extraCodingSkillPaths(extraPaths, pathExists),
+  ];
+}

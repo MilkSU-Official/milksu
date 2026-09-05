@@ -67,6 +67,7 @@ import {
   loadCodingMcpConfig,
   mcpSelectionChanged,
   projectMcpServersFromSelection,
+  userMcpSelectionChanged,
 } from "./bridge-mcp.js";
 import {
   createSecurityToolsExtension,
@@ -130,7 +131,7 @@ import {
 import { composeMilkSUWorkflowSystemPrompt } from "./bridge-workflow-prompt.js";
 import { createEnvExtension } from "./bridge-env.js";
 import { createComputerUseDriverExtension } from "./bridge-computer-use-driver.js";
-import { reviewedCodingSkillPaths } from "./bridge-skills.js";
+import { resolveCodingSkillPaths, reviewedCodingSkillPaths } from "./bridge-skills.js";
 import { createToolResultBoundExtension } from "./bridge-tool-result-bound.js";
 import {
   createSubagentYieldExtension,
@@ -1325,14 +1326,19 @@ function createMilkSUResourceLoader(
   });
 }
 
-function reviewedCodingResourceRoots(sessionRole = "", disabledSkills = []) {
+function reviewedCodingResourceRoots(
+  sessionRole = "",
+  disabledSkills = [],
+  extraSkillPaths = [],
+) {
   void sessionRole;
   const attachmentRoot = process.env.MILKSU_CODING_ATTACHMENT_ROOT;
   return [
-    ...reviewedCodingSkillPaths(
+    ...resolveCodingSkillPaths(
       sidecarResourceDirectory,
       sessionRole,
       disabledSkills,
+      extraSkillPaths,
     ),
     attachmentRoot,
   ].filter((path) => path && existsSync(path));
@@ -1364,6 +1370,9 @@ async function loadRuntimeSessionPolicy(cwd, command) {
   );
   const browserUse = requestedBrowserUseDescriptor(command);
   const securityTools = await normalizeSecurityTools(command.securityTools);
+  const extraSkillPaths = Array.isArray(command.userSkillPaths)
+    ? command.userSkillPaths
+    : [];
   const selectedMcp = await loadCodingMcpConfig(
     cwd,
     command.mcpServers,
@@ -1372,6 +1381,7 @@ async function loadRuntimeSessionPolicy(cwd, command) {
     command.computerUse,
     browserUse,
     securityTools,
+    command.userMcpServers,
   );
   let policy = await loadSessionPolicy(cwd, command.sessionRole, {
     executionMode: command.executionMode,
@@ -1393,14 +1403,16 @@ async function loadRuntimeSessionPolicy(cwd, command) {
   const disabledSkills = Array.isArray(command.disabledSkills)
     ? command.disabledSkills
     : [];
-  const codingSkillPaths = reviewedCodingSkillPaths(
+  const codingSkillPaths = resolveCodingSkillPaths(
     sidecarResourceDirectory,
     effectiveSessionRole,
     disabledSkills,
+    extraSkillPaths,
   );
   const codingResourceRoots = reviewedCodingResourceRoots(
     effectiveSessionRole,
     disabledSkills,
+    extraSkillPaths,
   );
   if (codingResourceRoots.length) {
     policy = await loadSessionPolicy(cwd, command.sessionRole, {
@@ -1419,6 +1431,9 @@ async function loadRuntimeSessionPolicy(cwd, command) {
     });
   }
   policy.skillNames = codingSkillPaths.map(path => basename(path));
+  policy.userMcpServers = command.userMcpServers && typeof command.userMcpServers === "object"
+    ? command.userMcpServers
+    : {};
   policy.securityTools = securityTools;
   if (securityTools.some(tool => tool.id === "capa")) {
     if (!policy.activeTools.includes("capa_analyze")) {
@@ -1647,6 +1662,7 @@ async function sendMessage(command) {
       (previousPolicy.approvalPolicy === "full-auto") !== requestedFullAccess
       || productActionChanged
       || mcpSelectionChanged(previousPolicy.projectMcpServers, requestedProjectMcpServers)
+      || userMcpSelectionChanged(previousPolicy.userMcpServers, command.userMcpServers)
       || String(previousPolicy.mcpConfigDigest ?? "")
         !== String(command.mcpConfigDigest ?? "")
       || codingBrowserSelectionChanged(
@@ -1671,10 +1687,11 @@ async function sendMessage(command) {
       )
       || JSON.stringify(previousPolicy.skillNames ?? [])
         !== JSON.stringify(
-          reviewedCodingSkillPaths(
+          resolveCodingSkillPaths(
             sidecarResourceDirectory,
             "",
             command.disabledSkills,
+            command.userSkillPaths,
           ).map(path => basename(path)),
         )
     )

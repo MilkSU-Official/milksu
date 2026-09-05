@@ -402,9 +402,15 @@ type Supervisor struct {
 	recoveryFailures map[string]string
 	backgroundTasks  map[string][]BackgroundTask
 	securityTools    []securitytools.RuntimeTool
+	agentResources   func() AgentResourceRuntime
 	workspaceAction  WorkspaceActionHandler
 	emit             func(Event)
 	sidecarDirectory string
+}
+
+type AgentResourceRuntime struct {
+	MCPServers map[string]any
+	SkillPaths []string
 }
 
 type WorkspaceActionHandler func(sessionID, action, input string) (string, error)
@@ -450,6 +456,12 @@ func (s *Supervisor) SetSecurityTools(tools []securitytools.RuntimeTool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.securityTools = append([]securitytools.RuntimeTool(nil), tools...)
+}
+
+func (s *Supervisor) SetAgentResourceResolver(resolve func() AgentResourceRuntime) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.agentResources = resolve
 }
 
 func normalizeCodingPolicy(
@@ -715,6 +727,15 @@ func (s *Supervisor) sendMessage(
 	}
 	if len(s.securityTools) > 0 {
 		command["securityTools"] = append([]securitytools.RuntimeTool(nil), s.securityTools...)
+	}
+	if s.agentResources != nil {
+		runtime := s.agentResources()
+		if len(runtime.MCPServers) > 0 {
+			command["userMcpServers"] = runtime.MCPServers
+		}
+		if len(runtime.SkillPaths) > 0 {
+			command["userSkillPaths"] = append([]string(nil), runtime.SkillPaths...)
+		}
 	}
 	if codingBrowser != nil {
 		command["codingBrowser"] = codingBrowser

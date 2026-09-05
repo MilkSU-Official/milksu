@@ -85,7 +85,7 @@ const domainChatDockOpen = ref({ ctf: false, vuln: false, lab: false })
 // currently active Coding or CTF conversation workspace implicitly.
 const vulnerabilityCodingWorkspacePath = ref('')
 const settingsReturnTarget = ref<Exclude<Section, 'settings'>>(restoredViewState?.settingsReturnTarget ?? 'ctf')
-type SettingsCategory = 'general' | 'coding' | 'apikeys' | 'browser' | 'cve' | 'lab' | 'chats' | 'security-tools' | 'ctf' | 'eval'
+type SettingsCategory = 'general' | 'coding' | 'mcp' | 'apikeys' | 'browser' | 'cve' | 'lab' | 'chats' | 'security-tools' | 'ctf' | 'eval'
 const settingsCategory = ref<SettingsCategory>('general')
 const settings = ref<AppSettings | null>(null)
 const accountStatus = ref<AccountStatus>({ configured: false, authenticated: false, state: 'unconfigured' })

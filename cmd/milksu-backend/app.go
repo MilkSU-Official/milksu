@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MilkSU-Official/milksu/internal/agentresources"
 	"github.com/MilkSU-Official/milksu/internal/appdata"
 	"github.com/MilkSU-Official/milksu/internal/browsercap"
 	"github.com/MilkSU-Official/milksu/internal/codingattachment"
@@ -59,6 +60,7 @@ type App struct {
 	computerUse       *computercap.Manager
 	engines           *engine.Supervisor
 	securityTools     *securitytools.Service
+	agentResources    *agentresources.Store
 	modelCatalog      *modelcatalog.Service
 	modelUsage        *modelusage.Store
 	nssctf            *nssctf.Client
@@ -162,6 +164,10 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 		settings,
 		application.emitSecurityToolSetup,
 	)
+	application.agentResources, err = agentresources.NewStore(dataDirectory, settings)
+	if err != nil {
+		return nil, fmt.Errorf("create agent resource catalog: %w", err)
+	}
 	if restoreResult.Applied {
 		application.diagnostics.Record("appdata", "info", "pending local data restore applied")
 		_ = appdata.AppendEventLog(dataDirectory, appdata.PersistedRestoreApplied)
@@ -179,6 +185,17 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 	}
 	application.engines = engine.NewSupervisor(application.emitEngineEvent)
 	application.engines.SetWorkspaceActionHandler(application.handleCodingWorkspaceAction)
+	application.engines.SetAgentResourceResolver(func() engine.AgentResourceRuntime {
+		runtime := application.agentResources.Runtime()
+		servers := make(map[string]any, len(runtime.MCPServers))
+		for _, server := range runtime.MCPServers {
+			servers[server.Name] = server.Definition
+		}
+		return engine.AgentResourceRuntime{
+			MCPServers: servers,
+			SkillPaths: append([]string(nil), runtime.SkillPaths...),
+		}
+	})
 	application.codingPRs = codingenv.NewPullRequestPublisher()
 	// Packaged Electron owns the TCC principal for embedded Computer Use.
 	// When a desktop host is attached, permission probes/open must go through

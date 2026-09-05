@@ -32,6 +32,7 @@ type MCPServerSummary struct {
 	CredentialAccess string   `json:"credentialAccess"`
 	ReviewReady      bool     `json:"reviewReady"`
 	ReviewProblem    string   `json:"reviewProblem,omitempty"`
+	Scope            string   `json:"scope,omitempty"`
 }
 
 type MCPConfigSnapshot struct {
@@ -181,6 +182,7 @@ func InspectMCPConfig(workspace string) (MCPConfigSnapshot, error) {
 			CredentialAccess: credentialAccess,
 			ReviewReady:      reviewProblem == "",
 			ReviewProblem:    reviewProblem,
+			Scope:            "project",
 		})
 	}
 	sort.Slice(snapshot.Servers, func(i, j int) bool {

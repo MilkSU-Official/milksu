@@ -45,6 +45,7 @@ import {
   Globe2,
   KeyRound,
   LogOut,
+  Plug,
   Plus,
   RotateCcw,
   Settings2,
@@ -90,6 +91,7 @@ import {
 } from '@/modelCatalog'
 import VulnerabilityIntelSettingsPanel from '@/components-vue/VulnerabilityIntelSettingsPanel.vue'
 import SecurityToolsSettingsPanel from '@/components-vue/SecurityToolsSettingsPanel.vue'
+import SettingsMCPPanel from '@/components-vue/SettingsMCPPanel.vue'
 import EvalSettingsPanel from '@/components-vue/EvalSettingsPanel.vue'
 import LabSettingsPanel from '@/components-vue/LabSettingsPanel.vue'
 import ModelVendorIcon from '@/components-vue/ModelVendorIcon.vue'
@@ -98,6 +100,11 @@ import ConnectionLiveStatus from '@/components-vue/ConnectionLiveStatus.vue'
 import type { SecurityToolCodingHandoff } from '@/securityToolsTypes'
 import { useVulnerabilityDashboard, type VulnerabilityDashboard } from '@/composables/useVulnerabilityDashboard'
 import { CODING_SKILLS } from '@/codingSkills'
+import {
+  emptyAgentResourceCatalog,
+  type AgentResourceCatalog,
+  type AgentResourceSkill,
+} from '@/agentResourceTypes'
 import {
   EXTERNAL_EDITORS,
   normalizePreferredExternalEditor,
@@ -114,7 +121,7 @@ import {
 } from '@/lib/modelThinking'
 import { resolveModelContextWindow } from '@/lib/knownContextWindow'
 
-type SettingsCategory = 'general' | 'apikeys' | 'ctf' | 'cve' | 'lab' | 'coding' | 'chats' | 'browser' | 'security-tools' | 'eval'
+type SettingsCategory = 'general' | 'apikeys' | 'ctf' | 'cve' | 'lab' | 'coding' | 'mcp' | 'chats' | 'browser' | 'security-tools' | 'eval'
 
 const settingsCategories = computed(() => [
   { value: 'general' as const, label: t('通用', 'General'), icon: Settings2 },
@@ -123,6 +130,7 @@ const settingsCategories = computed(() => [
   { value: 'cve' as const, label: 'CVE', icon: Bug },
   { value: 'lab' as const, label: 'Lab', icon: FlaskConical },
   { value: 'coding' as const, label: 'Coding', icon: Code2 },
+  { value: 'mcp' as const, label: 'MCP', icon: Plug },
   { value: 'chats' as const, label: t('归档聊天', 'Archived chats'), icon: Archive },
   { value: 'browser' as const, label: t('浏览器控制', 'Browser'), icon: Globe2 },
   { value: 'security-tools' as const, label: t('安全工具', 'Security tools'), icon: ShieldCheck },
@@ -589,6 +597,64 @@ function setSkillEnabled(name: string, enabled: boolean) {
   working.value.disabled_skills = [...disabled]
   void save()
 }
+
+const userSkillCatalog = ref<AgentResourceCatalog>(emptyAgentResourceCatalog())
+const userSkillBusy = ref(false)
+const userSkillError = ref('')
+const userSkills = computed(() => userSkillCatalog.value.skills)
+
+async function loadUserSkills() {
+  try {
+    userSkillCatalog.value = await invokeCommand<AgentResourceCatalog>('list_agent_resource_catalog')
+    userSkillError.value = ''
+  } catch (reason) {
+    userSkillError.value = desktopErrorMessage(reason)
+    userSkillCatalog.value = emptyAgentResourceCatalog()
+  }
+}
+
+async function importUserSkill() {
+  userSkillBusy.value = true
+  try {
+    userSkillCatalog.value = await invokeCommand<AgentResourceCatalog>('import_user_skill')
+    userSkillError.value = ''
+  } catch (reason) {
+    userSkillError.value = desktopErrorMessage(reason)
+  } finally {
+    userSkillBusy.value = false
+  }
+}
+
+async function setUserSkillEnabled(skill: AgentResourceSkill, enabled: boolean) {
+  userSkillBusy.value = true
+  try {
+    userSkillCatalog.value = await invokeCommand<AgentResourceCatalog>('set_user_skill_enabled', {
+      name: skill.name,
+      enabled,
+    })
+    userSkillError.value = ''
+  } catch (reason) {
+    userSkillError.value = desktopErrorMessage(reason)
+  } finally {
+    userSkillBusy.value = false
+  }
+}
+
+async function deleteUserSkill(name: string) {
+  userSkillBusy.value = true
+  try {
+    userSkillCatalog.value = await invokeCommand<AgentResourceCatalog>('delete_user_skill', { name })
+    userSkillError.value = ''
+  } catch (reason) {
+    userSkillError.value = desktopErrorMessage(reason)
+  } finally {
+    userSkillBusy.value = false
+  }
+}
+
+watch(category, value => {
+  if (value === 'coding') void loadUserSkills()
+}, { immediate: true })
 
 function ensureProviderConfig(id: string): ProviderConfig | undefined {
   if (!working.value) return undefined
@@ -1624,7 +1690,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
             </SettingsRow>
           </SettingsSection>
 
-          <SettingsSection title="Skills">
+          <SettingsSection :title="t('内置 Skills', 'Built-in Skills')">
             <SettingsRow
               v-for="skill in CODING_SKILLS"
               :key="skill.name"
@@ -1638,6 +1704,52 @@ async function saveProviderEditor(closeAfterSave: boolean) {
               />
             </SettingsRow>
           </SettingsSection>
+
+          <SettingsSection :title="t('用户 Skills', 'User Skills')">
+            <template #actions>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                :loading="userSkillBusy"
+                @click="importUserSkill"
+              >
+                {{ t('导入', 'Import') }}
+              </Button>
+            </template>
+            <p v-if="userSkillError" class="px-4 py-3 text-caption text-destructive">{{ userSkillError }}</p>
+            <SettingsRow
+              v-for="skill in userSkills"
+              :key="skill.name"
+              :label="skill.label"
+              :description="skill.slashOnly
+                ? [skill.description, t('仅斜杠调用', 'Slash only')].filter(Boolean).join(' · ')
+                : skill.description"
+            >
+              <div class="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon-sm"
+                  :disabled="userSkillBusy"
+                  :aria-label="t(`删除 ${skill.label}`, `Delete ${skill.label}`)"
+                  @click="deleteUserSkill(skill.name)"
+                >
+                  <Trash2 class="size-4" />
+                </Button>
+                <Switch
+                  :model-value="skill.enabled"
+                  :disabled="userSkillBusy"
+                  :aria-label="t(`启用${skill.label}`, `Enable ${skill.label}`)"
+                  @update:model-value="setUserSkillEnabled(skill, Boolean($event))"
+                />
+              </div>
+            </SettingsRow>
+          </SettingsSection>
+        </template>
+
+        <template v-else-if="category === 'mcp'">
+          <SettingsMCPPanel />
         </template>
 
         <template v-else-if="category === 'chats'">

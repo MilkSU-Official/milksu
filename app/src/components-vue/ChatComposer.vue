@@ -127,8 +127,9 @@ const props = defineProps<{
   browserUseReady?: boolean
   computerUseReady?: boolean
   availableSkills?: string[]
+  importedSkills?: Array<{ name: string; label: string; description: string }>
   selectedMcpServers?: string[]
-  mcpCatalog?: Array<{ name: string; reviewReady: boolean }>
+  mcpCatalog?: Array<{ name: string; reviewReady: boolean; scope?: string }>
   mcpConfigDigest?: string
   queuedGuidance?: string[]
   /** True while an uninterruptible tool (running bash) must finish before steer applies. */
@@ -193,6 +194,15 @@ const availableSkillOptions = computed(() => {
   const known = new Map(reviewedComposerSkills
     .filter(skill => available.has(skill.name))
     .map(skill => [skill.name, skill]))
+  for (const skill of props.importedSkills ?? []) {
+    if (!skill.name || !available.has(skill.name)) continue
+    known.set(skill.name, {
+      name: skill.name,
+      label: skill.label || skill.name,
+      description: skill.description,
+      icon: markRaw(Plug),
+    })
+  }
   for (const name of props.availableSkills ?? []) {
     if (!name || known.has(name)) continue
     known.set(name, {
@@ -1059,7 +1069,8 @@ function openAddMenu() {
   openComposerChooser(t('添加内容与工具', 'Add content and tools'))
 }
 
-function toggleCatalogMcpServer(server: { name: string; reviewReady: boolean }) {
+function toggleCatalogMcpServer(server: { name: string; reviewReady: boolean; scope?: string }) {
+  if (server.scope === 'user') return
   if (props.running || !server.reviewReady || !props.mcpConfigDigest) return
   const selection = new Set(props.selectedMcpServers ?? [])
   if (selection.has(server.name)) selection.delete(server.name)
@@ -1510,17 +1521,23 @@ defineExpose({
                     v-for="server in mcpCatalog ?? []"
                     :key="server.name"
                     class="composer-add-option"
-                    :disabled="running || !server.reviewReady || !mcpConfigDigest"
+                    :disabled="running || (server.scope !== 'user' && (!server.reviewReady || !mcpConfigDigest))"
                     @select="toggleCatalogMcpServer(server)"
                   >
                     <Plug class="size-4 shrink-0" />
                     <span class="min-w-0 flex-1">
                       <span class="block text-label font-medium">{{ server.name }}</span>
                       <span class="block text-caption text-muted-foreground">
-                        {{ server.reviewReady ? t('为本任务接入', 'Attach to this task') : t('审阅信息不完整', 'Review details incomplete') }}
+                        {{
+                          server.scope === 'user'
+                            ? t('已在设置中启用', 'Enabled in Settings')
+                            : server.reviewReady
+                              ? t('为本任务接入', 'Attach to this task')
+                              : t('审阅信息不完整', 'Review details incomplete')
+                        }}
                       </span>
                     </span>
-                    <Check v-if="selectedMcpServers?.includes(server.name)" class="size-4 shrink-0 text-primary" />
+                    <Check v-if="server.scope === 'user' || selectedMcpServers?.includes(server.name)" class="size-4 shrink-0 text-primary" />
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     class="composer-add-option"

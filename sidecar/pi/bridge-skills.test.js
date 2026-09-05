@@ -5,7 +5,9 @@ import { dirname, join, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import {
+  extraCodingSkillPaths,
   firstPartyCodingSkillNames,
+  resolveCodingSkillPaths,
   reviewedCodingSkillNames,
   reviewedCodingSkillPaths,
 } from "./bridge-skills.js";
@@ -59,6 +61,27 @@ test("CTF roles can load the same reviewed Coding skills", () => {
     reviewedCodingSkillPaths(repositoryRoot, "solver", []),
     reviewedCodingSkillPaths(repositoryRoot, "", []),
   );
+});
+
+test("user skill paths are appended when SKILL.md exists", () => {
+  const extra = join(repositoryRoot, "skills", "product-design");
+  const resolved = resolveCodingSkillPaths(
+    repositoryRoot,
+    "",
+    ["product-design"],
+    [extra, join(repositoryRoot, "missing-skill"), extra + "/../untrusted"],
+  );
+  assert.deepEqual(
+    resolved,
+    [
+      ...firstPartyCodingSkillNames
+        .filter(name => name !== "product-design")
+        .map(name => join(repositoryRoot, "skills", name)),
+      join(repositoryRoot, "third_party", "archify", "archify"),
+      extra,
+    ],
+  );
+  assert.deepEqual(extraCodingSkillPaths(["../escape", extra]), [extra]);
 });
 
 function skillFrontmatter(name) {

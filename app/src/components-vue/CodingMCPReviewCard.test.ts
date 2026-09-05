@@ -80,4 +80,31 @@ describe('CodingMCPReviewCard', () => {
     await nextTick()
     expect(onToggle).not.toHaveBeenCalled()
   })
+
+  it('hides project review fields for user MCP', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    const app = createApp(CodingMCPReviewCard, {
+      server: {
+        ...reviewedServer,
+        scope: 'user',
+        source: '设置',
+        version: '',
+        taskScope: '用户级 MCP',
+        tools: [],
+      },
+      selected: true,
+      running: false,
+      alwaysOn: true,
+    })
+    app.mount(host)
+    mountedApps.push(app)
+    await nextTick()
+    expect(host.textContent).toContain('用户')
+    expect(host.textContent).toContain('设置')
+    expect(host.textContent).toContain('已在设置中启用')
+    expect(host.textContent).not.toContain('固定版本')
+    expect(host.textContent).not.toContain('未声明白名单')
+    expect(host.querySelector('button')).toBeNull()
+  })
 })

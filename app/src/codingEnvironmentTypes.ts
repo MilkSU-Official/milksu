@@ -312,6 +312,7 @@ export interface CodingMCPServerSummary {
   credentialAccess: string
   reviewReady: boolean
   reviewProblem?: string
+  scope?: 'user' | 'project'
 }
 
 export interface CodingMCPConfigSnapshot {
