@@ -418,6 +418,14 @@ describe('AppSidebar', () => {
     expect(host.querySelector('[aria-label="运行中"]')).not.toBeNull()
     expect(host.querySelector('[aria-label="运行中"]')?.parentElement?.classList)
       .toContain('coding-session-status')
+    expect(host.querySelector('.coding-session-status .agent-pixel-loader__label')).toBeNull()
+    expect(host.querySelector('.coding-session-status .agent-pixel-loader--compact')).not.toBeNull()
+    expect(host.querySelector('.coding-session-status .agent-pixel')).not.toBeNull()
+    const runningRow = [...host.querySelectorAll<HTMLButtonElement>('.coding-project-child')]
+      .find(button => button.textContent?.includes('后台会话'))
+    expect(runningRow?.textContent).toContain('后台会话')
+    expect(runningRow?.textContent).not.toContain('运行中')
+    expect(runningRow?.textContent).not.toContain('行')
     expect(host.querySelector('[aria-label="有新消息"]')).toBeNull()
 
     runningIds.value = []

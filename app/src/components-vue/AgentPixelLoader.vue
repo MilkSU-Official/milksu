@@ -5,14 +5,17 @@ withDefaults(defineProps<{
   label?: string
   elapsed?: string
   running?: boolean
+  compact?: boolean
 }>(), {
   running: false,
+  compact: false,
 })
 </script>
 
 <template>
   <span
     class="agent-pixel-loader"
+    :class="{ 'agent-pixel-loader--compact': compact }"
     role="status"
     :aria-label="[label, elapsed].filter(Boolean).join(' ')"
   >
@@ -29,7 +32,7 @@ withDefaults(defineProps<{
       />
     </span>
     <span
-      v-if="label"
+      v-if="label && !compact"
       class="agent-pixel-loader__label"
       :class="{ 'agent-pixel-loader__label--run': running }"
     >{{ label }}</span>

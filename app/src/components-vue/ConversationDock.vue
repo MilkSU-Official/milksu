@@ -402,9 +402,7 @@ function forwardSend(...args: CodingAgentSendArgs) {
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 16px;
-  background: var(--surface-clear);
-  backdrop-filter: var(--surface-blur);
-  -webkit-backdrop-filter: var(--surface-blur);
+  background: var(--surface-overlay);
   box-shadow: var(--surface-glass-shadow), var(--surface-specular);
   color: var(--foreground);
 }

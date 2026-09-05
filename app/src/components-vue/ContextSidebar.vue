@@ -592,7 +592,12 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', closeOnOutside
                       @click.stop="selectConversation(conversation.id)"
                     >
                       <span class="coding-session-status">
-                        <AgentPixelLoader v-if="runningConversationIds.has(conversation.id)" :label="t('运行中', 'Running')" running />
+                        <AgentPixelLoader
+                          v-if="runningConversationIds.has(conversation.id)"
+                          :label="t('运行中', 'Running')"
+                          running
+                          compact
+                        />
                         <span
                           v-else-if="unreadConversationIds.has(conversation.id)"
                           class="coding-session-complete size-1.5 rounded-full bg-primary"
@@ -697,7 +702,12 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', closeOnOutside
                     @click.stop="selectConversation(conversation.id)"
                   >
                     <span class="coding-session-status">
-                      <AgentPixelLoader v-if="runningConversationIds.has(conversation.id)" :label="t('运行中', 'Running')" running />
+                      <AgentPixelLoader
+                        v-if="runningConversationIds.has(conversation.id)"
+                        :label="t('运行中', 'Running')"
+                        running
+                        compact
+                      />
                       <span
                         v-else-if="unreadConversationIds.has(conversation.id)"
                         class="coding-session-complete size-1.5 rounded-full bg-primary"

@@ -230,7 +230,7 @@ describe('ChatMessageItem', () => {
     expect(assistant.host.querySelector('.agent-time')).toBeNull()
   })
 
-  it('streams assistant text with a blurred leading edge and a solid caret', async () => {
+  it('streams assistant text with a solid caret and no blurred tail', async () => {
     const running = await mountMessage({
       id: 'message-assistant-running',
       role: 'assistant',
@@ -238,7 +238,8 @@ describe('ChatMessageItem', () => {
       timestamp: Date.now(),
       status: 'running',
     })
-    expect(running.host.querySelector('.agent-stream-tail')?.textContent).toBe('rowing')
+    expect(running.host.querySelector('.agent-stream-tail')).toBeNull()
+    expect(running.host.textContent).toContain('Pistachio is growing')
     expect(running.host.querySelector('.agent-stream-caret')?.classList.contains('is-streaming')).toBe(true)
     expect(running.host.querySelector('.agent-pixel')).toBeNull()
 

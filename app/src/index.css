@@ -52,6 +52,7 @@
   --surface-read: color-mix(in oklab, var(--night-canvas) 96%, transparent);
   --surface-clear: color-mix(in oklab, var(--night-card) 70%, transparent);
   --surface-clear-strong: color-mix(in oklab, var(--night-card) 84%, transparent);
+  --surface-overlay: var(--night-popover);
   --surface-blur: blur(22px) saturate(1.18);
   --surface-specular: inset 0 1px 0 rgb(255 255 255 / 0.08);
   --surface-glass-shadow: 0 1px 2px rgb(0 0 0 / 5%), 0 18px 48px rgb(0 0 0 / 18%);
@@ -61,7 +62,7 @@
   --foreground: var(--night-foreground);
   --card: color-mix(in oklab, var(--night-card) 84%, transparent);
   --card-foreground: var(--night-foreground);
-  --popover: color-mix(in oklab, var(--night-popover) 74%, transparent);
+  --popover: var(--night-popover);
   --popover-foreground: var(--night-foreground);
   --secondary: var(--night-muted);
   --secondary-foreground: var(--night-foreground);
@@ -232,6 +233,7 @@
   --surface-read: color-mix(in oklab, var(--day-canvas) 94%, transparent);
   --surface-clear: color-mix(in oklab, var(--day-card) 68%, transparent);
   --surface-clear-strong: color-mix(in oklab, var(--day-card) 82%, transparent);
+  --surface-overlay: var(--day-card);
   --surface-specular: inset 0 1px 0 rgb(255 255 255 / 0.62);
   --surface-glass-shadow: 0 1px 2px rgb(16 18 22 / 4%), 0 16px 40px rgb(16 18 22 / 8%);
 
@@ -240,7 +242,7 @@
   --foreground: oklch(0.247 0.006 258.361);
   --card: color-mix(in oklab, var(--day-card) 80%, transparent);
   --card-foreground: oklch(0.247 0.006 258.361);
-  --popover: color-mix(in oklab, var(--day-card) 72%, transparent);
+  --popover: var(--day-card);
   --popover-foreground: oklch(0.247 0.006 258.361);
   --secondary: oklch(0.961 0.002 247.84);
   --secondary-foreground: oklch(0.247 0.006 258.361);
@@ -416,6 +418,7 @@ body {
     --surface-read: var(--night-canvas);
     --surface-clear: var(--night-card);
     --surface-clear-strong: var(--night-card);
+    --surface-overlay: var(--night-popover);
     --surface-raised: var(--night-popover);
     --surface-blur: none;
     --surface-specular: none;
@@ -433,6 +436,7 @@ body {
     --surface-read: var(--day-canvas);
     --surface-clear: var(--day-card);
     --surface-clear-strong: var(--day-card);
+    --surface-overlay: var(--day-card);
     --surface-raised: var(--day-card);
     --surface-composer: var(--day-card);
     --surface-editor: var(--day-canvas);
@@ -677,9 +681,9 @@ body {
 [data-slot="hover-card-content"],
 .tactical-floating-surface {
   color: var(--popover-foreground);
-  background-color: var(--surface-clear) !important;
-  backdrop-filter: var(--surface-blur);
-  -webkit-backdrop-filter: var(--surface-blur);
+  background-color: var(--surface-overlay) !important;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   box-shadow: var(--surface-glass-shadow), var(--surface-specular);
 }
 
