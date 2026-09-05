@@ -402,9 +402,16 @@ type Supervisor struct {
 	recoveryFailures map[string]string
 	backgroundTasks  map[string][]BackgroundTask
 	securityTools    []securitytools.RuntimeTool
+	agentResources   func() AgentResourceRuntime
 	workspaceAction  WorkspaceActionHandler
 	emit             func(Event)
 	sidecarDirectory string
+}
+
+type AgentResourceRuntime struct {
+	MCPServers        map[string]any
+	SkillPaths        []string
+	HideFactorySkills []string
 }
 
 type WorkspaceActionHandler func(sessionID, action, input string) (string, error)
@@ -450,6 +457,51 @@ func (s *Supervisor) SetSecurityTools(tools []securitytools.RuntimeTool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.securityTools = append([]securitytools.RuntimeTool(nil), tools...)
+}
+
+func (s *Supervisor) SetAgentResourceResolver(resolve func() AgentResourceRuntime) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.agentResources = resolve
+}
+
+func mergeDisabledSkills(user, hideFactory []string) []string {
+	seen := map[string]struct{}{}
+	result := make([]string, 0, len(user)+len(hideFactory))
+	for _, name := range append(append([]string{}, user...), hideFactory...) {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			continue
+		}
+		if _, exists := seen[name]; exists {
+			continue
+		}
+		seen[name] = struct{}{}
+		result = append(result, name)
+	}
+	return result
+}
+
+func filterSkillPaths(paths, disabled []string) []string {
+	if len(paths) == 0 {
+		return nil
+	}
+	blocked := map[string]struct{}{}
+	for _, name := range disabled {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			continue
+		}
+		blocked[name] = struct{}{}
+	}
+	result := make([]string, 0, len(paths))
+	for _, path := range paths {
+		if _, exists := blocked[filepath.Base(path)]; exists {
+			continue
+		}
+		result = append(result, path)
+	}
+	return result
 }
 
 func normalizeCodingPolicy(
@@ -686,6 +738,10 @@ func (s *Supervisor) sendMessage(
 		preference = modelSourcePreference[0]
 	}
 
+	var resourceRuntime AgentResourceRuntime
+	if s.agentResources != nil {
+		resourceRuntime = s.agentResources()
+	}
 	command := map[string]any{
 		"action":          "send_message",
 		"conversationId":  sessionID,
@@ -699,7 +755,7 @@ func (s *Supervisor) sendMessage(
 		"approvalPolicy":  codingPolicy.ApprovalPolicy,
 		"mcpServers":      mcpServers,
 		"mcpConfigDigest": strings.TrimSpace(mcpConfigDigest),
-		"disabledSkills":  settings.DisabledSkills,
+		"disabledSkills":  mergeDisabledSkills(settings.DisabledSkills, resourceRuntime.HideFactorySkills),
 		"attachments":     attachments,
 		"modelSourceOrder": preferredModelSourceOrder(
 			settings,
@@ -715,6 +771,12 @@ func (s *Supervisor) sendMessage(
 	}
 	if len(s.securityTools) > 0 {
 		command["securityTools"] = append([]securitytools.RuntimeTool(nil), s.securityTools...)
+	}
+	if len(resourceRuntime.MCPServers) > 0 {
+		command["userMcpServers"] = resourceRuntime.MCPServers
+	}
+	if paths := filterSkillPaths(resourceRuntime.SkillPaths, settings.DisabledSkills); len(paths) > 0 {
+		command["userSkillPaths"] = paths
 	}
 	if codingBrowser != nil {
 		command["codingBrowser"] = codingBrowser

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/MilkSU-Official/milksu/internal/appdata"
 	"github.com/MilkSU-Official/milksu/internal/externaleditor"
@@ -412,6 +413,57 @@ func (s *Store) SetSecurityToolEnabled(id string, enabled bool) error {
 	}
 	s.settings = next
 	return nil
+}
+
+const managedSecretPrefix = "mcp.user."
+
+func (s *Store) PutManagedSecret(account, secret string) error {
+	account = strings.TrimSpace(account)
+	secret = strings.TrimSpace(secret)
+	if !validManagedSecretAccount(account) || secret == "" {
+		return fmt.Errorf("managed secret is incomplete")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.secretStore.Set(account, secret)
+}
+
+func (s *Store) DeleteManagedSecret(account string) error {
+	account = strings.TrimSpace(account)
+	if !validManagedSecretAccount(account) {
+		return fmt.Errorf("managed secret account is not allowed")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return deleteSecretIfPresent(s.secretStore, account)
+}
+
+func (s *Store) LookupManagedSecret(account string) (string, error) {
+	account = strings.TrimSpace(account)
+	if !validManagedSecretAccount(account) {
+		return "", fmt.Errorf("managed secret account is not allowed")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	value, err := s.secretStore.Get(account)
+	if errors.Is(err, errSecretNotFound) {
+		return "", nil
+	}
+	return value, err
+}
+
+func validManagedSecretAccount(account string) bool {
+	if !strings.HasPrefix(account, managedSecretPrefix) ||
+		strings.Contains(account, "..") ||
+		len(account) > 180 {
+		return false
+	}
+	for _, character := range account {
+		if unicode.IsControl(character) {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *Store) RecordModelVerification(provider, model string, verifiedAt time.Time) error {

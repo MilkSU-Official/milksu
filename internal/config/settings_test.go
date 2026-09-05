@@ -120,6 +120,28 @@ func TestCloneDoesNotShareMaps(t *testing.T) {
 	}
 }
 
+func TestManagedSecretsStayOnTheMCPPrefix(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	secrets := fakeSecretStore{}
+	store, err := newStore(path, secrets)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.PutManagedSecret("provider:tokenflux", "nope"); err == nil {
+		t.Fatal("expected foreign secret account to be rejected")
+	}
+	if err := store.PutManagedSecret("mcp.user.github.env.GITHUB_TOKEN", "ghp_test"); err != nil {
+		t.Fatal(err)
+	}
+	value, err := store.LookupManagedSecret("mcp.user.github.env.GITHUB_TOKEN")
+	if err != nil || value != "ghp_test" {
+		t.Fatalf("lookup managed secret: %q %v", value, err)
+	}
+	if _, err := store.LookupManagedSecret("provider:tokenflux"); err == nil {
+		t.Fatal("expected foreign lookup to be rejected")
+	}
+}
+
 func TestManagedAccountRelayPersistsOnlyInCredentialStore(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "settings.json")
 	secrets := fakeSecretStore{}

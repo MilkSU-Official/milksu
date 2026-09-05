@@ -1637,6 +1637,133 @@ func TestSendMessageCarriesConversationModelSourcePreference(t *testing.T) {
 	}
 }
 
+func TestSendMessageIncludesUserMCPAndSkillPaths(t *testing.T) {
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	defer writer.Close()
+
+	workspace, err := resolveAgentWorkspace(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	supervisor := NewSupervisor(nil)
+	supervisor.process = &childProcess{stdin: writer, workspace: workspace}
+	supervisor.SetAgentResourceResolver(func() AgentResourceRuntime {
+		return AgentResourceRuntime{
+			MCPServers: map[string]any{
+				"docs": map[string]any{"url": "https://example.test/mcp"},
+			},
+			SkillPaths: []string{"imported-skill/demo-review"},
+		}
+	})
+	defer func() {
+		supervisor.mu.Lock()
+		supervisor.process = nil
+		supervisor.sessions = make(map[string]struct{})
+		supervisor.mu.Unlock()
+	}()
+
+	if err := supervisor.SendMessage(
+		"coding-user-resources",
+		"use the imported skill",
+		workspace,
+		"",
+		"go",
+		"workspace-auto",
+		nil,
+		"",
+		nil,
+		nil,
+		nil,
+		nil,
+		modelSelectionSettings(),
+	); err != nil {
+		t.Fatal(err)
+	}
+	line, err := bufio.NewReader(reader).ReadBytes('\n')
+	if err != nil {
+		t.Fatal(err)
+	}
+	var command map[string]any
+	if err := json.Unmarshal(line, &command); err != nil {
+		t.Fatal(err)
+	}
+	servers, ok := command["userMcpServers"].(map[string]any)
+	if !ok || servers["docs"] == nil {
+		t.Fatalf("expected user MCP servers: %#v", command["userMcpServers"])
+	}
+	paths, ok := command["userSkillPaths"].([]any)
+	if !ok || len(paths) != 1 || paths[0] != "imported-skill/demo-review" {
+		t.Fatalf("expected user skill paths: %#v", command["userSkillPaths"])
+	}
+}
+
+func TestSendMessageHidesFactorySkillWhenOverlayExists(t *testing.T) {
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	defer writer.Close()
+
+	workspace, err := resolveAgentWorkspace(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	supervisor := NewSupervisor(nil)
+	supervisor.process = &childProcess{stdin: writer, workspace: workspace}
+	supervisor.SetAgentResourceResolver(func() AgentResourceRuntime {
+		return AgentResourceRuntime{
+			SkillPaths:        []string{"overlays/skills/product-design", "imported-skill/demo-review"},
+			HideFactorySkills: []string{"product-design"},
+		}
+	})
+	defer func() {
+		supervisor.mu.Lock()
+		supervisor.process = nil
+		supervisor.sessions = make(map[string]struct{})
+		supervisor.mu.Unlock()
+	}()
+	settings := modelSelectionSettings()
+	settings.DisabledSkills = []string{"product-design"}
+	if err := supervisor.SendMessage(
+		"coding-overlay-skill",
+		"use the overlay",
+		workspace,
+		"",
+		"go",
+		"workspace-auto",
+		nil,
+		"",
+		nil,
+		nil,
+		nil,
+		nil,
+		settings,
+	); err != nil {
+		t.Fatal(err)
+	}
+	line, err := bufio.NewReader(reader).ReadBytes('\n')
+	if err != nil {
+		t.Fatal(err)
+	}
+	var command map[string]any
+	if err := json.Unmarshal(line, &command); err != nil {
+		t.Fatal(err)
+	}
+	disabled, ok := command["disabledSkills"].([]any)
+	if !ok || len(disabled) != 1 || disabled[0] != "product-design" {
+		t.Fatalf("expected factory hide: %#v", command["disabledSkills"])
+	}
+	overlayPaths, ok := command["userSkillPaths"].([]any)
+	if !ok || len(overlayPaths) != 1 || overlayPaths[0] != "imported-skill/demo-review" {
+		t.Fatalf("disabled overlay should not load: %#v", command["userSkillPaths"])
+	}
+}
+
 func TestNormalizeCodingPolicyPreservesLegacyGoAndValidatesExplicitModes(t *testing.T) {
 	legacy, err := normalizeCodingPolicy("", "", "")
 	if err != nil {

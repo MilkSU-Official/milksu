@@ -1009,6 +1009,29 @@ export async function loadSelectedMcpConfig(
   };
 }
 
+export function sanitizeUserMcpServers(userMcpServers, workspace) {
+  if (userMcpServers == null) return {};
+  if (typeof userMcpServers !== "object" || Array.isArray(userMcpServers)) {
+    throw new Error("MilkSU user MCP catalog must be an object");
+  }
+  const mcpServers = {};
+  for (const [name, definition] of Object.entries(userMcpServers)) {
+    if (!name || name.length > 80 || /[\u0000-\u001f\u007f]/u.test(name)) {
+      throw new Error("MilkSU rejected an invalid user MCP server name");
+    }
+    if (
+      name === codingBrowserMcpServerName
+      || name === browserUseMcpServerName
+      || name === computerUseMcpServerName
+      || name.startsWith("milksu-")
+    ) {
+      throw new Error(`MCP server name "${name}" is reserved by MilkSU`);
+    }
+    mcpServers[name] = sanitizeServerDefinition(definition, name, workspace);
+  }
+  return mcpServers;
+}
+
 export async function loadCodingMcpConfig(
   workspace,
   requestedServers,
@@ -1017,17 +1040,26 @@ export async function loadCodingMcpConfig(
   computerUse,
   browserUse,
   securityTools = [],
+  userMcpServers,
 ) {
   const project = await loadSelectedMcpConfig(
     workspace,
     projectMcpServersFromSelection(requestedServers),
     expectedDigest,
   );
+  const userServers = sanitizeUserMcpServers(userMcpServers, workspace);
   const builtIn = await createFirstPartyPlaywrightMcpServer(workspace, codingBrowser);
   const builtInComputerUse = await createFirstPartyComputerUseMcpServer(computerUse);
   const builtInBrowserUse = await createFirstPartyBrowserUseMcpServer(workspace, browserUse);
   const builtInIDA = await createManagedIDAMcpServer(workspace, securityTools);
-  if (!builtIn && !builtInComputerUse && !builtInBrowserUse && !builtInIDA) {
+  const userNames = Object.keys(userServers).sort((left, right) => left.localeCompare(right));
+  if (
+    !builtIn
+    && !builtInComputerUse
+    && !builtInBrowserUse
+    && !builtInIDA
+    && userNames.length === 0
+  ) {
     return {
       ...project,
       projectSelected: project.selected,
@@ -1039,6 +1071,7 @@ export async function loadCodingMcpConfig(
   }
   const selected = [
     ...project.selected,
+    ...userNames,
     ...(builtIn ? [codingBrowserMcpServerName] : []),
     ...(builtInBrowserUse ? [browserUseMcpServerName] : []),
     ...(builtInComputerUse ? [computerUseMcpServerName] : []),
@@ -1053,6 +1086,7 @@ export async function loadCodingMcpConfig(
     securityTools,
     config: adapterConfig({
       ...(project.config?.mcpServers ?? {}),
+      ...userServers,
       ...(builtIn ? { [codingBrowserMcpServerName]: builtIn.server } : {}),
       ...(builtInBrowserUse
         ? { [browserUseMcpServerName]: builtInBrowserUse.server }
@@ -1094,13 +1128,15 @@ async function createManagedIDAMcpServer(workspace, securityTools) {
     server: sanitizeServerDefinition(
       {
         command: ida.command,
-        args: [
-          "--stdio",
-          "--profile",
-          ida.profilePath,
-          "--max-workers",
-          "2",
-        ],
+        args: Array.isArray(ida.args) && ida.args.length > 0
+          ? ida.args.map(value => String(value))
+          : [
+            "--stdio",
+            "--profile",
+            ida.profilePath,
+            "--max-workers",
+            "2",
+          ],
         env: {
           HOME: dirname(ida.userIdaPath),
           IDAUSR: ida.userIdaPath,
@@ -1143,4 +1179,30 @@ export async function ensureMcpMetadataCache(agentDir) {
 export function mcpSelectionChanged(previous, next) {
   return JSON.stringify(normalizeSelectedMcpServers(previous))
     !== JSON.stringify(normalizeSelectedMcpServers(next));
+}
+
+export function userMcpSelectionChanged(previous, next) {
+  return JSON.stringify(userMcpFingerprint(previous))
+    !== JSON.stringify(userMcpFingerprint(next));
+}
+
+function userMcpFingerprint(value) {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) return [];
+  return Object.keys(value).sort().map((name) => {
+    const definition = value[name] && typeof value[name] === "object" ? value[name] : {};
+    const env = definition.env && typeof definition.env === "object" ? definition.env : {};
+    const headers = definition.headers && typeof definition.headers === "object"
+      ? definition.headers
+      : {};
+    return {
+      name,
+      command: String(definition.command ?? ""),
+      args: Array.isArray(definition.args) ? definition.args.map(String) : [],
+      url: String(definition.url ?? ""),
+      socket: String(definition.socket ?? ""),
+      env,
+      headers,
+      bearerToken: String(definition.bearerToken ?? ""),
+    };
+  });
 }

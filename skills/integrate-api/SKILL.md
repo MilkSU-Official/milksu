@@ -1,6 +1,6 @@
 ---
 name: integrate-api
-description: Integrate an external API, SDK, OAuth provider, webhook, hosted model, or service using current official documentation and a verified end-to-end request. Use for third-party authentication, cloud services, model providers, billing or quota APIs, data synchronization, and webhook flows. Do not use for purely local code with no external contract.
+description: Connect an external API, SDK, OAuth, webhook, or hosted model using current official docs and a verified request. Use for third-party auth, cloud, billing, or sync. Do not use for purely local code.
 ---
 
 # Integrate API

@@ -30,7 +30,9 @@ import {
   ensureMcpMetadataCache,
   loadCodingMcpConfig,
   loadSelectedMcpConfig,
+  sanitizeUserMcpServers,
   mcpSelectionChanged,
+  userMcpSelectionChanged,
   normalizeCodingBrowserDescriptor,
   normalizeBrowserUseDescriptor,
   normalizeComputerUseDescriptor,
@@ -613,4 +615,50 @@ test("pre-creates a valid adapter cache without overwriting existing state", asy
   await writeFile(cachePath, '{"version":1,"servers":{"fixture":{"tools":[]}}}\n');
   await ensureMcpMetadataCache(agentDir);
   assert.match(await readFile(cachePath, "utf8"), /fixture/);
+});
+
+test("loads user MCP servers without milksu review metadata", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "milksu-user-mcp-"));
+  const loaded = await loadCodingMcpConfig(
+    workspace,
+    [],
+    "",
+    undefined,
+    undefined,
+    undefined,
+    [],
+    {
+      docs: {
+        url: "https://example.test/mcp",
+      },
+    },
+  );
+  assert.deepEqual(loaded.projectSelected, []);
+  assert.ok(loaded.selected.includes("docs"));
+  assert.equal(loaded.config.mcpServers.docs.url, "https://example.test/mcp");
+  assert.equal(loaded.config.mcpServers.docs.lifecycle, "lazy");
+});
+
+test("rejects reserved user MCP names", () => {
+  assert.throws(
+    () => sanitizeUserMcpServers({ "milksu-playwright": { command: "npx" } }, "/tmp"),
+    /reserved/,
+  );
+});
+
+test("reloads when user MCP selection changes", () => {
+  assert.equal(
+    userMcpSelectionChanged(
+      { docs: { url: "https://example.test/mcp" } },
+      { docs: { url: "https://example.test/mcp" } },
+    ),
+    false,
+  );
+  assert.equal(
+    userMcpSelectionChanged(
+      { docs: { url: "https://example.test/mcp" } },
+      { docs: { url: "https://example.test/mcp" }, github: { command: "npx" } },
+    ),
+    true,
+  );
 });

@@ -1,6 +1,6 @@
 ---
 name: frontend-visual-qa
-description: Implement, debug, redesign, or review Web frontend changes with evidence from the project test runner, a real preview server, and MilkSU's isolated Coding Browser. Use for HTML, CSS, Vue, React, responsive layout, accessibility, interaction, Console or Network failures, screenshot comparison, and visual regression tasks. Do not use for native-app-only validation that requires Computer Use instead of a browser.
+description: Review or fix web UI with a live preview and MilkSU's isolated Coding Browser. Use for HTML, CSS, Vue/React layout, accessibility, console/network failures, or visual regression. Do not use for native-app Computer Use.
 ---
 
 # Frontend Visual QA

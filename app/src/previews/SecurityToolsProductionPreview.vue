@@ -60,6 +60,9 @@ Object.defineProperty(window, 'milksu', {
   configurable: true,
   value: {
     async invoke(method: string, args: unknown[]) {
+      if (method === 'ListAgentResourceCatalog') {
+        return { mcpServers: [], skills: [], builtinMCP: [], builtinSkills: [] }
+      }
       if (method === 'ListSecurityTools') return catalog
       if (method === 'GetSecurityToolSetup') return { toolId: args[0], state: 'idle', percent: 0, summary: '' }
       if (method === 'SetSecurityToolEnabled') return undefined
@@ -109,7 +112,7 @@ Object.defineProperty(window, 'milksu', {
     />
     <SettingsPage
       :settings="settings"
-      initial-category="security-tools"
+      initial-category="mcp"
       @settings-change="settings = $event"
     />
   </div>

@@ -283,6 +283,9 @@ function createDesktopBackend(executable, hostHandler, eventHandler) {
         userDataPath: app.getPath('userData'),
       })
       if (runtimeAppDataDir) env.MILKSU_APPDATA_DIR = runtimeAppDataDir
+      if (!app.isPackaged && !env.MILKSU_FACTORY_SKILLS_DIR) {
+        env.MILKSU_FACTORY_SKILLS_DIR = path.resolve(__dirname, '..', 'skills')
+      }
       const child = spawn(executable, [], {
         stdio: ['pipe', 'pipe', 'pipe'],
         env,

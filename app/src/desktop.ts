@@ -285,6 +285,21 @@ interface DesktopAppBindings {
   ): Promise<void>
   GetCodingEnvironment(workspacePath: string): Promise<CodingEnvironmentSnapshot>
   GetCodingMCPConfig(workspacePath: string): Promise<CodingMCPConfigSnapshot>
+  ListAgentResourceCatalog(): Promise<import('@/agentResourceTypes').AgentResourceCatalog>
+  UpsertUserMCPServer(input: import('@/agentResourceTypes').AgentResourceMCPInput): Promise<import('@/agentResourceTypes').AgentResourceCatalog>
+  SetUserMCPServerEnabled(name: string, enabled: boolean): Promise<import('@/agentResourceTypes').AgentResourceCatalog>
+  DeleteUserMCPServer(name: string): Promise<import('@/agentResourceTypes').AgentResourceCatalog>
+  ImportUserMCPJSON(document: string): Promise<import('@/agentResourceTypes').AgentResourceCatalog>
+  ImportUserSkill(): Promise<import('@/agentResourceTypes').AgentResourceCatalog>
+  SetUserSkillEnabled(name: string, enabled: boolean): Promise<import('@/agentResourceTypes').AgentResourceCatalog>
+  DeleteUserSkill(name: string): Promise<import('@/agentResourceTypes').AgentResourceCatalog>
+  UpsertBuiltinMCP(input: import('@/agentResourceTypes').BuiltinMCPInput): Promise<import('@/agentResourceTypes').AgentResourceCatalog>
+  SetBuiltinMCPEnabled(name: string, enabled: boolean): Promise<import('@/agentResourceTypes').AgentResourceCatalog>
+  RestoreBuiltinMCP(name: string): Promise<import('@/agentResourceTypes').AgentResourceCatalog>
+  GetBuiltinSkillDocument(name: string): Promise<import('@/agentResourceTypes').BuiltinSkillDocument>
+  SetBuiltinSkillDocument(name: string, document: string): Promise<import('@/agentResourceTypes').AgentResourceCatalog>
+  RestoreBuiltinSkill(name: string): Promise<import('@/agentResourceTypes').AgentResourceCatalog>
+  PrepareBuiltinConfigHandoff(kind: 'mcp' | 'skill', name: string): Promise<import('@/agentResourceTypes').BuiltinConfigHandoff>
   GetCodingDiff(workspacePath: string, relativePath: string): Promise<CodingDiffSnapshot>
   OpenCodingFileInEditor(workspacePath: string, relativePath: string): Promise<void>
   ApplyCodingGitAction(
@@ -710,6 +725,51 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.GetCodingEnvironment(args?.workspacePath as string) as Promise<T>
       case 'get_coding_mcp_config':
         return app.GetCodingMCPConfig(args?.workspacePath as string) as Promise<T>
+      case 'list_agent_resource_catalog':
+        return app.ListAgentResourceCatalog() as Promise<T>
+      case 'upsert_user_mcp_server':
+        return app.UpsertUserMCPServer(args?.input as import('@/agentResourceTypes').AgentResourceMCPInput) as Promise<T>
+      case 'set_user_mcp_server_enabled':
+        return app.SetUserMCPServerEnabled(
+          args?.name as string,
+          Boolean(args?.enabled),
+        ) as Promise<T>
+      case 'delete_user_mcp_server':
+        return app.DeleteUserMCPServer(args?.name as string) as Promise<T>
+      case 'import_user_mcp_json':
+        return app.ImportUserMCPJSON(args?.document as string) as Promise<T>
+      case 'import_user_skill':
+        return app.ImportUserSkill() as Promise<T>
+      case 'set_user_skill_enabled':
+        return app.SetUserSkillEnabled(
+          args?.name as string,
+          Boolean(args?.enabled),
+        ) as Promise<T>
+      case 'delete_user_skill':
+        return app.DeleteUserSkill(args?.name as string) as Promise<T>
+      case 'upsert_builtin_mcp':
+        return app.UpsertBuiltinMCP(args?.input as import('@/agentResourceTypes').BuiltinMCPInput) as Promise<T>
+      case 'set_builtin_mcp_enabled':
+        return app.SetBuiltinMCPEnabled(
+          args?.name as string,
+          Boolean(args?.enabled),
+        ) as Promise<T>
+      case 'restore_builtin_mcp':
+        return app.RestoreBuiltinMCP(args?.name as string) as Promise<T>
+      case 'get_builtin_skill_document':
+        return app.GetBuiltinSkillDocument(args?.name as string) as Promise<T>
+      case 'set_builtin_skill_document':
+        return app.SetBuiltinSkillDocument(
+          args?.name as string,
+          args?.document as string,
+        ) as Promise<T>
+      case 'restore_builtin_skill':
+        return app.RestoreBuiltinSkill(args?.name as string) as Promise<T>
+      case 'prepare_builtin_config_handoff':
+        return app.PrepareBuiltinConfigHandoff(
+          args?.kind as 'mcp' | 'skill',
+          args?.name as string,
+        ) as Promise<T>
       case 'get_coding_diff':
         return app.GetCodingDiff(
           args?.workspacePath as string,

@@ -4,7 +4,13 @@
 > 为准；“已加载”不等于专项能力已经 Verified。
 
 MilkSU disables PI ambient discovery for Extensions, Skills, prompts, themes, and context files.
-Only resources reviewed here may enter a packaged Agent session.
+Packaged sessions still load only the reviewed resources below, plus user MCP servers and
+imported Skills that the user explicitly added in Settings. Those user resources live in the
+MilkSU app-data catalog; they are not discovered from `~/.pi`, `~/.agents`, or host MCP files.
+Imported Skills keep their `SKILL.md` on disk and enter the session through Pi
+`additionalSkillPaths`. The current harness owns the catalog (Pi: `name` + when-to-use
+`description`, body via `read` / `/skill:name`, `disable-model-invocation` for slash-only).
+MilkSU must not paste skill bodies or tool MUST essays into the system prompt.
 
 ## Build-vs-buy rule
 

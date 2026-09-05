@@ -80,18 +80,8 @@ export function researchReportGuidance(sessionRole = "") {
 
 export function codingWorkspaceGuidance() {
   return [
-    "Use milksu_workspace to operate MilkSU the way the user would.",
-    "Product records are atomic: list_records, get_record, create_record, update_record, archive_records, restore_records, focus_record, and search_records, with kind conversation | lab | cve | ctf.",
-    "Compose those atoms instead of asking for a dedicated feature: rename with update_record, batch archive with archive_records ids, import a CVE with search_records then create_record, or open a page with open_browser_tab and later create_record for a custom CTF.",
-    "List browser tabs, then focus one by tabId (or a unique title/url query) before milksu-playwright clicks.",
-    "Close one tab or close_all_browser_tabs when the user wants the right-hand pages gone.",
-    "List or preview workspace artifacts and show_panel to open 产物 / 浏览器 / 变更 / 环境.",
-    "Use list_status for Git, model, permission, and context facts the environment panel shows.",
-    "Context compaction is automatic at about 85% of the model window, using the same Pi compact path as /compact.",
-    "compact_context always queues that Pi compact path, even below 85%; 85% is only the automatic idle trigger.",
-    "Use show_terminal / list_terminals / list_background_tasks for the bottom terminal and Agent background jobs.",
-    "Do not scan the user message for keywords; choose these typed actions from the request.",
-    "Do not change Settings, credentials, approval policy, Computer Use scope, or the user's real Chrome.",
+    "Use milksu_workspace when the user wants MilkSU records, isolated browser tabs, artifacts, environment status, or the bottom terminal.",
+    "Pick a typed action from the tool schema; do not scan the user message.",
   ].join(" ");
 }
 
@@ -223,7 +213,7 @@ export function createCodingWorkspaceExtension(
     pi.registerTool({
       name: codingWorkspaceToolName,
       label: "MilkSU workspace",
-      description: "Operate MilkSU product data and the desktop: conversations, lab jobs, CVE and CTF records, isolated browser tabs, artifacts, environment/status, changes, context compaction, and the bottom terminal. Use atomic typed actions (list/get/create/update/archive/focus/search with a kind) instead of asking the user to click the UI, then use milksu-playwright on the focused tab.",
+      description: codingWorkspaceGuidance(),
       parameters: Type.Object({
         action: Type.Union([
           Type.Literal("list_browser_tabs"),

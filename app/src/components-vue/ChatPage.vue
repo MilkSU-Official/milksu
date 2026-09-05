@@ -169,6 +169,7 @@ import {
   useModelCatalog,
 } from '@/modelCatalog'
 import { enabledCodingSkillNames } from '@/codingSkills'
+import type { AgentResourceCatalog, AgentResourceSkill } from '@/agentResourceTypes'
 
 const CodingTerminalPanel = defineAsyncComponent(
   () => import('@/components-vue/CodingTerminalPanel.vue'),
@@ -375,9 +376,28 @@ const activeExtensions = computed(() => (
   props.conversation?.agentExtensions ?? []
 ))
 const selectedMCPServers = computed(() => props.mcpServers ?? [])
-const activeSkills = computed(() => (
-  enabledCodingSkillNames(props.settings?.disabled_skills)
+const userSkills = ref<AgentResourceSkill[]>([])
+const enabledUserSkills = computed(() => userSkills.value.filter(skill => skill.enabled))
+const userSkillNames = computed(() => enabledUserSkills.value.map(skill => skill.name))
+const activeSkills = computed(() => [
+  ...enabledCodingSkillNames(props.settings?.disabled_skills),
+  ...userSkillNames.value,
+])
+const userMCPServers = computed(() => (
+  (mcpConfig.value?.servers ?? []).filter(server => server.scope === 'user')
 ))
+const projectMCPServers = computed(() => (
+  (mcpConfig.value?.servers ?? []).filter(server => server.scope !== 'user')
+))
+
+async function refreshUserSkills() {
+  try {
+    const catalog = await invokeCommand<AgentResourceCatalog>('list_agent_resource_catalog')
+    userSkills.value = catalog.skills ?? []
+  } catch {
+    userSkills.value = []
+  }
+}
 const activeTools = computed(() => (
   props.conversation?.agentTools ?? []
 ))
@@ -899,15 +919,11 @@ function changeApprovalPolicy(value: string) {
 }
 
 async function refreshMCPConfig() {
-  if (!props.workspacePath) {
-    mcpConfig.value = null
-    return
-  }
   mcpConfigLoading.value = true
   try {
     const snapshot = await invokeCommand<CodingMCPConfigSnapshot>(
       'get_coding_mcp_config',
-      { workspacePath: props.workspacePath },
+      { workspacePath: props.workspacePath ?? '' },
     )
     mcpConfig.value = snapshot
     if (!selectedMCPServers.value.length) return
@@ -932,6 +948,7 @@ async function refreshMCPConfig() {
 }
 
 function toggleMCPServer(server: CodingMCPConfigSnapshot['servers'][number]) {
+  if (server.scope === 'user') return
   if (props.running || !mcpConfig.value?.digest || !server.reviewReady) return
   const name = server.name
   const selection = new Set(selectedMCPServers.value)
@@ -1867,6 +1884,7 @@ async function scrollChatToBottom(force = false) {
 }
 
 onMounted(() => {
+  void refreshUserSkills()
   void loadProjectMemory()
   void scrollChatToBottom(true)
   if (props.conversation?.id && !props.running) void refreshBrowserPanel()
@@ -2269,6 +2287,7 @@ defineExpose({
       :browser-use-ready="browserUseReadyForCurrentTask"
       :computer-use-ready="externalAppUseReadyForCurrentTask"
       :available-skills="activeSkills"
+      :imported-skills="enabledUserSkills"
       :selected-mcp-servers="selectedMCPServers"
       :mcp-catalog="mcpConfig?.servers ?? []"
       :mcp-config-digest="mcpConfig?.digest ?? ''"
@@ -2598,7 +2617,25 @@ defineExpose({
             </div>
           </div>
           <div class="mt-4 border-t border-border/70 pt-4">
-            <p class="text-caption font-medium text-muted-foreground">{{ t('项目 MCP', 'Project MCP') }}</p>
+            <p v-if="userMCPServers.length" class="text-caption font-medium text-muted-foreground">
+              {{ t('用户 MCP', 'User MCP') }}
+            </p>
+            <div v-if="userMCPServers.length" class="mt-2 space-y-2">
+              <CodingMCPReviewCard
+                v-for="server in userMCPServers"
+                :key="`user-${server.name}`"
+                :server="server"
+                :selected="true"
+                :running="running"
+                always-on
+              />
+            </div>
+            <p
+              class="text-caption font-medium text-muted-foreground"
+              :class="userMCPServers.length ? 'mt-4' : undefined"
+            >
+              {{ t('项目 MCP', 'Project MCP') }}
+            </p>
             <p v-if="mcpConfigLoading" class="mt-2 text-caption text-muted-foreground">
               {{ t('正在读取', 'Reading') }}
             </p>
@@ -2611,7 +2648,7 @@ defineExpose({
 
             <div v-else-if="mcpConfig" class="mt-2 space-y-2">
               <CodingMCPReviewCard
-                v-for="server in mcpConfig.servers"
+                v-for="server in projectMCPServers"
                 :key="server.name"
                 :server="server"
                 :selected="selectedMCPServers.includes(server.name)"

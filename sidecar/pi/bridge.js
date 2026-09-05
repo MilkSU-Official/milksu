@@ -67,6 +67,7 @@ import {
   loadCodingMcpConfig,
   mcpSelectionChanged,
   projectMcpServersFromSelection,
+  userMcpSelectionChanged,
 } from "./bridge-mcp.js";
 import {
   createSecurityToolsExtension,
@@ -114,16 +115,12 @@ import {
   formatSubagentApproval,
   normalizeCodingCollaboration,
   validateSubagentInput,
-  codingSubagentGuidance,
-  codingWorkspaceIdentityGuidance,
 } from "./bridge-collaboration.js";
 import {
   authorizeImageGenToolCall,
   codingImageGenToolName,
 } from "./bridge-imagegen.js";
 import {
-  codingWorkspaceGuidance,
-  researchReportGuidance,
   resolveWorkflowSessionRole,
   codingWorkspaceToolName,
   createCodingWorkspaceExtension,
@@ -131,9 +128,10 @@ import {
   formatCodingWorkspaceInput,
   queueWorkspaceCompaction,
 } from "./bridge-workspace.js";
+import { composeMilkSUWorkflowSystemPrompt } from "./bridge-workflow-prompt.js";
 import { createEnvExtension } from "./bridge-env.js";
 import { createComputerUseDriverExtension } from "./bridge-computer-use-driver.js";
-import { reviewedCodingSkillPaths } from "./bridge-skills.js";
+import { resolveCodingSkillPaths, reviewedCodingSkillPaths } from "./bridge-skills.js";
 import { createToolResultBoundExtension } from "./bridge-tool-result-bound.js";
 import {
   createSubagentYieldExtension,
@@ -147,7 +145,6 @@ import {
   removeQueuedMessage,
   steerSession,
 } from "./bridge-steering.js";
-import { runtimeEnvironmentGuidance } from "./bridge-runtime-environment.js";
 import {
   destructiveDeleteDecision,
 } from "./bridge-destructive-delete.js";
@@ -381,7 +378,7 @@ function createMilkSUWorkflowExtension(sessionRole, getPolicy, getSession, conve
     pi.registerTool({
       name: codingAskToolName,
       label: "MilkSU ask",
-      description: "Show an interactive choice card so the user can tap one of 2-6 options. Required whenever you ask the user a multiple-choice question, including when they ask you to present options. Wait for the selected option. Do not write the options as a numbered or bulleted list.",
+      description: "Show a tappable choice card with 2-6 options. Use when asking a multiple-choice question or when the user asks you to present options. Wait for the selected option; do not write the choices as a numbered or bulleted list.",
       parameters: Type.Object({
         question: Type.String({ minLength: 1, maxLength: 200 }),
         options: Type.Array(Type.Object({
@@ -417,7 +414,7 @@ function createMilkSUWorkflowExtension(sessionRole, getPolicy, getSession, conve
     pi.registerTool({
       name: "milksu_progress",
       label: "MilkSU progress",
-      description: "Publish or update a short execution plan (summary + up to 8 steps) so the desktop can show Codex-style progress. Call this when the task has multiple steps, and update statuses as you advance.",
+      description: "Publish or update a short execution plan (summary + up to 8 steps) when the task has more than one concrete step. Skip one-shot replies. Keep the in-progress step updated.",
       parameters: Type.Object({
         summary: Type.String({ minLength: 1, maxLength: 240 }),
         steps: Type.Array(Type.Object({
@@ -451,45 +448,13 @@ function createMilkSUWorkflowExtension(sessionRole, getPolicy, getSession, conve
     });
 
     pi.on("before_agent_start", async (event) => {
-      const roleGuidance = sessionRole === "strategist"
-        ? "Act as an independent reviewer: challenge the current route and return an evidence-backed recommendation."
-        : sessionRole === "tool-builder"
-          ? "Treat the requested helper as a software deliverable and verify it."
-          : sessionRole === "solver"
-            ? "Advance one falsifiable CTF hypothesis at a time and preserve evidence for the learner."
-            : sessionRole === "cve-research" || sessionRole === "lab-job"
-              ? researchReportGuidance(sessionRole)
-              : "";
       const policy = getPolicy?.();
-      const workspaceIdentityGuidance = codingWorkspaceIdentityGuidance(
-        policy?.workspace,
-        policy?.codingCollaboration,
-      );
-      const subagentGuidance = policy?.activeTools?.includes("subagent")
-        ? `\n\n${codingSubagentGuidance()}`
-        : "";
-      const browserGuidance = policy?.codingBrowser
-        ? `\n\n${codingBrowserGuidance()}`
-        : "";
-      const workspaceGuidance = policy?.activeTools?.includes(codingWorkspaceToolName)
-        ? `\n\n${codingWorkspaceGuidance()}`
-        : "";
       return {
-        systemPrompt: `${event.systemPrompt}`
-          + (roleGuidance ? `\n\n${roleGuidance}` : "")
-          + `\n\nRuntime context:\n${runtimeEnvironmentGuidance({
-            uiLocale: policy?.uiLocale,
-            modelInput: getSession?.()?.model?.input,
-          })}`
-          + (workspaceIdentityGuidance
-            ? `\n\nWorkspace identity:\n${workspaceIdentityGuidance}`
-            : "")
-          + subagentGuidance
-          + browserGuidance
-          + workspaceGuidance
-          + "\n\nWhen a task needs more than one concrete step, publish a concise plan with milksu_progress and keep the in-progress step updated. Skip the tool for trivial one-shot replies."
-          + "\n\nIf you are asking the user a multiple-choice question, or the user asks you to present options they can pick, you MUST call milksu_ask immediately with a short question and 2-6 options, then wait. Never write the choices as a numbered or bulleted list in the assistant message. milksu_ask is the interactive choice card; it is not a tool-permission prompt."
-          + "\n\nTool results in model context follow Pi truncation (50KB or 2000 lines). Overflow is saved to a file named in the truncation notice; continue with the read tool and offset. Do not pull full command, HTTP, or file dumps into context.",
+        systemPrompt: composeMilkSUWorkflowSystemPrompt(event.systemPrompt, {
+          sessionRole,
+          policy,
+          modelInput: getSession?.()?.model?.input,
+        }),
       };
     });
   };
@@ -1361,14 +1326,19 @@ function createMilkSUResourceLoader(
   });
 }
 
-function reviewedCodingResourceRoots(sessionRole = "", disabledSkills = []) {
+function reviewedCodingResourceRoots(
+  sessionRole = "",
+  disabledSkills = [],
+  extraSkillPaths = [],
+) {
   void sessionRole;
   const attachmentRoot = process.env.MILKSU_CODING_ATTACHMENT_ROOT;
   return [
-    ...reviewedCodingSkillPaths(
+    ...resolveCodingSkillPaths(
       sidecarResourceDirectory,
       sessionRole,
       disabledSkills,
+      extraSkillPaths,
     ),
     attachmentRoot,
   ].filter((path) => path && existsSync(path));
@@ -1400,6 +1370,9 @@ async function loadRuntimeSessionPolicy(cwd, command) {
   );
   const browserUse = requestedBrowserUseDescriptor(command);
   const securityTools = await normalizeSecurityTools(command.securityTools);
+  const extraSkillPaths = Array.isArray(command.userSkillPaths)
+    ? command.userSkillPaths
+    : [];
   const selectedMcp = await loadCodingMcpConfig(
     cwd,
     command.mcpServers,
@@ -1408,6 +1381,7 @@ async function loadRuntimeSessionPolicy(cwd, command) {
     command.computerUse,
     browserUse,
     securityTools,
+    command.userMcpServers,
   );
   let policy = await loadSessionPolicy(cwd, command.sessionRole, {
     executionMode: command.executionMode,
@@ -1429,14 +1403,16 @@ async function loadRuntimeSessionPolicy(cwd, command) {
   const disabledSkills = Array.isArray(command.disabledSkills)
     ? command.disabledSkills
     : [];
-  const codingSkillPaths = reviewedCodingSkillPaths(
+  const codingSkillPaths = resolveCodingSkillPaths(
     sidecarResourceDirectory,
     effectiveSessionRole,
     disabledSkills,
+    extraSkillPaths,
   );
   const codingResourceRoots = reviewedCodingResourceRoots(
     effectiveSessionRole,
     disabledSkills,
+    extraSkillPaths,
   );
   if (codingResourceRoots.length) {
     policy = await loadSessionPolicy(cwd, command.sessionRole, {
@@ -1455,6 +1431,9 @@ async function loadRuntimeSessionPolicy(cwd, command) {
     });
   }
   policy.skillNames = codingSkillPaths.map(path => basename(path));
+  policy.userMcpServers = command.userMcpServers && typeof command.userMcpServers === "object"
+    ? command.userMcpServers
+    : {};
   policy.securityTools = securityTools;
   if (securityTools.some(tool => tool.id === "capa")) {
     if (!policy.activeTools.includes("capa_analyze")) {
@@ -1683,6 +1662,7 @@ async function sendMessage(command) {
       (previousPolicy.approvalPolicy === "full-auto") !== requestedFullAccess
       || productActionChanged
       || mcpSelectionChanged(previousPolicy.projectMcpServers, requestedProjectMcpServers)
+      || userMcpSelectionChanged(previousPolicy.userMcpServers, command.userMcpServers)
       || String(previousPolicy.mcpConfigDigest ?? "")
         !== String(command.mcpConfigDigest ?? "")
       || codingBrowserSelectionChanged(
@@ -1707,10 +1687,11 @@ async function sendMessage(command) {
       )
       || JSON.stringify(previousPolicy.skillNames ?? [])
         !== JSON.stringify(
-          reviewedCodingSkillPaths(
+          resolveCodingSkillPaths(
             sidecarResourceDirectory,
             "",
             command.disabledSkills,
+            command.userSkillPaths,
           ).map(path => basename(path)),
         )
     )

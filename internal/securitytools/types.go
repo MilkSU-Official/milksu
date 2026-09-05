@@ -64,6 +64,7 @@ type CodingHandoff struct {
 	Title          string `json:"title"`
 	Prompt         string `json:"prompt"`
 	VisibleText    string `json:"visibleText"`
+	WorkspacePath  string `json:"workspacePath,omitempty"`
 	ExecutionMode  string `json:"executionMode"`
 	ApprovalPolicy string `json:"approvalPolicy"`
 }
@@ -73,6 +74,7 @@ type CodingHandoff struct {
 type RuntimeTool struct {
 	ID           string   `json:"id"`
 	Command      string   `json:"command"`
+	Args         []string `json:"args,omitempty"`
 	Version      string   `json:"version"`
 	ProfilePath  string   `json:"profilePath,omitempty"`
 	IDAPath      string   `json:"idaPath,omitempty"`
