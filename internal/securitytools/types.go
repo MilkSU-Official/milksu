@@ -8,18 +8,27 @@ const (
 	ToolCodeQL      = "codeql"
 	ToolBurp        = "burp-suite"
 	ToolShannon     = "shannon"
-	ToolGhidraIDARE = "ghidra-ida-re"
 	ToolGhidraRPC   = "ghidra-rpc"
 	ToolJADXAndroid = "jadx-android-malware"
 )
 
+const (
+	GhidraRPCSource   = "https://github.com/cellebrite-labs/ghidra-rpc"
+	GhidraRPCRevision = "1743305487b1de754fb750486dd468ea4d3c4141"
+	JADXSkillSource   = "https://github.com/mukul975/Anthropic-Cybersecurity-Skills"
+	JADXSkillSubtree  = "skills/reverse-engineering-android-malware-with-jadx"
+	JADXSkillTag      = "v1.3.0"
+	JADXSkillRevision = "101ca0bd887a295e39cc20a100efa571937ca969"
+	InjuredAndroidAPK = "InjuredAndroid-1.0.12-release.apk"
+)
+
 // GatedOverlayIDs are factory RE overlays that stay off the model catalog
 // until a local tool is ready and the user enables the row.
-var GatedOverlayIDs = []string{ToolGhidraIDARE, ToolGhidraRPC, ToolJADXAndroid}
+var GatedOverlayIDs = []string{ToolGhidraRPC, ToolJADXAndroid}
 
 func DefaultEnabled(id string) bool {
 	switch id {
-	case ToolGhidraIDARE, ToolGhidraRPC, ToolJADXAndroid:
+	case ToolGhidraRPC, ToolJADXAndroid:
 		return false
 	default:
 		return true

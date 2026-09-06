@@ -1,17 +1,20 @@
 ---
 name: ghidra-rpc
 description: >
-  Use when a ready, user-enabled Ghidra RPC overlay should drive local Ghidra
-  analysis on an authorized binary. Catalog name stays here; the body loads with
-  read or /skill:ghidra-rpc.
+  Use when a ready, user-enabled Ghidra RPC overlay should analyze one
+  authorized binary already inside the current workspace. Requires local
+  Ghidra 11+ and Java 17+ with GHIDRA_INSTALL_DIR set. Keep samples and
+  Ghidra projects inside the workspace. Catalog name stays here; the body
+  loads with read or /skill:ghidra-rpc.
 ---
 
 # Ghidra RPC
 
-This is a MilkSU factory stub. `cellebrite-labs/ghidra-rpc` is recorded as the
-candidate source and is not vendored or started until Security, Coding and Lab
-countersign it.
+Pinned candidate: `cellebrite-labs/ghidra-rpc` main
+`1743305487b1de754fb750486dd468ea4d3c4141`. MilkSU does not vendor that
+repository. Upstream publishes MIT in README and has no LICENSE file.
 
-When this overlay is ready and enabled, keep the body on disk and let Pi load
-it through progressive disclosure. Do not paste the body into the system prompt.
-Do not invent a second harness or keyword router.
+Keep sample binaries and `.gpr` projects inside the current Coding / Lab
+workspace or `Documents/MilkSU`. Do not place them under the platform temp
+directory. Do not paste this body into the system prompt. Do not invent a
+second harness or keyword router.

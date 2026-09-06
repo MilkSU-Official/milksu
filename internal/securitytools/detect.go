@@ -59,10 +59,8 @@ func (s *Service) detect(ctx context.Context, id string) detection {
 		return s.detectBurp(ctx)
 	case ToolShannon:
 		return s.detectShannon(ctx)
-	case ToolGhidraIDARE:
-		return s.detectGhidraOrIDA(ctx)
 	case ToolGhidraRPC:
-		return s.detectGhidra(ctx)
+		return s.detectGhidraRPC(ctx)
 	case ToolJADXAndroid:
 		return s.detectJADX(ctx)
 	default:
@@ -168,41 +166,49 @@ func (s *Service) detectShannon(ctx context.Context) detection {
 	}
 }
 
-func (s *Service) detectGhidraOrIDA(ctx context.Context) detection {
-	ghidra := s.detectGhidra(ctx)
-	ida := s.detectIDAPresence()
-	if ghidra.status == StatusDetected || ida {
-		version := ghidra.version
-		if version == "" && ida {
-			version = "已检测 IDA"
-		}
+func (s *Service) detectGhidraRPC(ctx context.Context) detection {
+	install := strings.TrimSpace(os.Getenv("GHIDRA_INSTALL_DIR"))
+	if install == "" {
 		return detection{
-			status: StatusDetected, statusLabel: "已检测本机工具", version: version,
-			problem: "已检测到 IDA 或 Ghidra；该 Skill 覆盖尚未经 Security / Coding / Lab 会签，不会进入模型名录。",
+			status: StatusNeedsSetup, statusLabel: "需要 GHIDRA_INSTALL_DIR",
+			action:  "设置 GHIDRA_INSTALL_DIR",
+			problem: "Ghidra RPC 需要本机设置 GHIDRA_INSTALL_DIR，并安装 Ghidra 11 与 Java 17。",
+		}
+	}
+	command, ghidraVersion, err := readGhidraInstall(install)
+	if err != nil {
+		return detection{
+			status: StatusMissingApp, statusLabel: "未检测到 Ghidra",
+			action:  "安装 Ghidra 11+",
+			problem: err.Error(),
+		}
+	}
+	if !versionAtLeast(ghidraVersion, 11) {
+		return detection{
+			status: StatusNeedsSetup, statusLabel: "Ghidra 版本过低", version: ghidraVersion,
+			action:  "升级 Ghidra 11+",
+			problem: fmt.Sprintf("当前 Ghidra 为 %s；Ghidra RPC 需要 11 或更新。", ghidraVersion),
+		}
+	}
+	javaVersion, javaErr := s.detectJavaVersion(ctx)
+	if javaErr != nil {
+		return detection{
+			status: StatusNeedsSetup, statusLabel: "需要 Java 17", version: ghidraVersion,
+			action:  "安装 Java 17+",
+			problem: javaErr.Error(),
+		}
+	}
+	if !versionAtLeast(javaVersion, 17) {
+		return detection{
+			status: StatusNeedsSetup, statusLabel: "Java 版本过低", version: ghidraVersion,
+			action:  "安装 Java 17+",
+			problem: fmt.Sprintf("当前 Java 为 %s；Ghidra RPC 需要 17 或更新。", javaVersion),
 		}
 	}
 	return detection{
-		status: StatusNeedsSetup, statusLabel: "未检测到工具",
-		action:  "安装 IDA 或 Ghidra",
-		problem: "未在 PATH、GHIDRA_INSTALL_DIR 或系统应用目录中检测到 IDA / Ghidra。",
-	}
-}
-
-func (s *Service) detectGhidra(ctx context.Context) detection {
-	if command, version := s.lookupGhidra(); command != "" {
-		if out, err := s.probe.Output(ctx, command, "--help"); err == nil && firstLine(out) != "" && len(firstLine(out)) <= 80 {
-			version = firstLine(out)
-		}
-		return detection{
-			status: StatusDetected, statusLabel: "已检测 Ghidra", version: version,
-			command: command,
-			problem: "Ghidra 已安装；ghidra-rpc 适配器尚未经 Security / Coding / Lab 会签，不会进入模型名录。",
-		}
-	}
-	return detection{
-		status: StatusNeedsSetup, statusLabel: "未检测到 Ghidra",
-		action:  "安装 Ghidra",
-		problem: "未在 PATH、GHIDRA_INSTALL_DIR 或系统应用目录中检测到 Ghidra。",
+		status: StatusReady, statusLabel: "可用",
+		version: "Ghidra " + ghidraVersion + " / Java " + javaVersion,
+		command: command,
 	}
 }
 
@@ -217,9 +223,8 @@ func (s *Service) detectJADX(ctx context.Context) detection {
 			version = "本机 JADX"
 		}
 		return detection{
-			status: StatusDetected, statusLabel: "已检测 JADX", version: firstLine(version),
+			status: StatusReady, statusLabel: "可用", version: firstLine(version),
 			command: command,
-			problem: "JADX 已安装；该 Skill 覆盖尚未经 Security / Coding / Lab 会签，不会进入模型名录。",
 		}
 	}
 	return detection{
@@ -229,53 +234,111 @@ func (s *Service) detectJADX(ctx context.Context) detection {
 	}
 }
 
-func (s *Service) detectIDAPresence() bool {
-	if findIDAApplication() != "" {
-		return true
+func (s *Service) detectJavaVersion(ctx context.Context) (string, error) {
+	command, err := s.probe.LookPath("java")
+	if err != nil {
+		return "", fmt.Errorf("未在 PATH 中检测到 Java 17。")
 	}
-	for _, name := range []string{"idat", "idat64", "ida64", "ida"} {
-		if _, err := s.probe.LookPath(name); err == nil {
-			return true
-		}
+	output, outputErr := s.probe.Output(ctx, command, "-version")
+	if outputErr != nil && output == "" {
+		return "", fmt.Errorf("无法读取 Java 版本。")
 	}
-	return false
+	version := parseQuotedVersion(output)
+	if version == "" {
+		version = firstSemver(output)
+	}
+	if version == "" {
+		return "", fmt.Errorf("无法解析 Java 版本。")
+	}
+	return version, nil
 }
 
-func (s *Service) lookupGhidra() (command, version string) {
-	for _, name := range []string{"analyzeHeadless", "ghidraRun", "ghidra"} {
-		if path, err := s.probe.LookPath(name); err == nil {
-			return path, "本机 Ghidra"
+func readGhidraInstall(install string) (command, version string, err error) {
+	install = filepath.Clean(install)
+	for _, rel := range []string{
+		filepath.Join("support", "analyzeHeadless"),
+		filepath.Join("support", "analyzeHeadless.bat"),
+		"ghidraRun",
+		"ghidraRun.bat",
+	} {
+		candidate := filepath.Join(install, rel)
+		if regularFile(candidate) || regularExecutable(candidate) {
+			command = candidate
+			break
 		}
 	}
-	if install := strings.TrimSpace(os.Getenv("GHIDRA_INSTALL_DIR")); install != "" {
-		for _, rel := range []string{
-			filepath.Join("support", "analyzeHeadless"),
-			filepath.Join("support", "analyzeHeadless.bat"),
-			"ghidraRun",
-			"ghidraRun.bat",
-		} {
-			candidate := filepath.Join(install, rel)
-			if regularFile(candidate) || regularExecutable(candidate) {
-				return candidate, "GHIDRA_INSTALL_DIR"
+	if command == "" {
+		return "", "", fmt.Errorf("GHIDRA_INSTALL_DIR 下没有 analyzeHeadless 或 ghidraRun。")
+	}
+	for _, rel := range []string{
+		filepath.Join("Ghidra", "application.properties"),
+		"application.properties",
+	} {
+		data, readErr := os.ReadFile(filepath.Join(install, rel))
+		if readErr != nil {
+			continue
+		}
+		for _, line := range strings.Split(string(data), "\n") {
+			key, value, ok := strings.Cut(line, "=")
+			if ok && strings.TrimSpace(key) == "application.version" {
+				version = strings.TrimSpace(value)
+				break
 			}
 		}
-	}
-	if runtime.GOOS == "darwin" {
-		matches, _ := filepath.Glob("/Applications/ghidra*")
-		sort.Strings(matches)
-		for _, candidate := range matches {
-			for _, rel := range []string{
-				filepath.Join("Contents", "MacOS", "ghidraRun"),
-				filepath.Join("support", "analyzeHeadless"),
-			} {
-				path := filepath.Join(candidate, rel)
-				if regularFile(path) || regularExecutable(path) {
-					return path, "已安装"
-				}
-			}
+		if version != "" {
+			break
 		}
 	}
-	return "", ""
+	if version == "" {
+		version = firstSemver(filepath.Base(install))
+	}
+	if version == "" {
+		return "", "", fmt.Errorf("无法读取 Ghidra 版本。")
+	}
+	return command, version, nil
+}
+
+func parseQuotedVersion(value string) string {
+	_, rest, ok := strings.Cut(value, `"`)
+	if !ok {
+		return ""
+	}
+	quoted, _, ok := strings.Cut(rest, `"`)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(quoted)
+}
+
+func firstSemver(value string) string {
+	var b strings.Builder
+	started := false
+	dots := 0
+	for _, r := range value {
+		if r >= '0' && r <= '9' {
+			started = true
+			b.WriteRune(r)
+			continue
+		}
+		if started && r == '.' && dots < 2 {
+			dots++
+			b.WriteByte('.')
+			continue
+		}
+		if started {
+			break
+		}
+	}
+	return strings.Trim(b.String(), ".")
+}
+
+func versionAtLeast(version string, major int) bool {
+	head, _, _ := strings.Cut(strings.TrimSpace(version), ".")
+	var parsed int
+	if _, err := fmt.Sscanf(head, "%d", &parsed); err != nil {
+		return false
+	}
+	return parsed >= major
 }
 
 func findIDAApplication() string {

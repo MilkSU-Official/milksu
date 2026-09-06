@@ -127,19 +127,21 @@ func TestGatedREOverlaysDefaultOff(t *testing.T) {
 	found := 0
 	for _, item := range snapshot.BuiltinMCP {
 		switch item.Name {
-		case "ghidra-ida-re", "ghidra-rpc", "jadx-android-malware":
+		case "ghidra-rpc", "jadx-android-malware":
 			found++
 			if item.Enabled {
 				t.Fatalf("gated overlay %s defaulted on: %#v", item.Name, item)
 			}
+		case "ghidra-ida-re":
+			t.Fatalf("babysitter ghidra-ida-re must not be a factory builtin: %#v", item)
 		case "ida-pro", "capa":
 			if !item.Enabled {
 				t.Fatalf("reviewed adapter %s defaulted off: %#v", item.Name, item)
 			}
 		}
 	}
-	if found != 3 {
-		t.Fatalf("expected three gated overlays, found %d in %#v", found, snapshot.BuiltinMCP)
+	if found != 2 {
+		t.Fatalf("expected two gated overlays, found %d in %#v", found, snapshot.BuiltinMCP)
 	}
 	_, _, on, _ := store.LookupBuiltinMCP("ghidra-rpc")
 	if on {

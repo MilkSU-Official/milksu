@@ -14,13 +14,11 @@ var builtinMCPNames = []string{
 	"codeql",
 	"burp-suite",
 	"shannon",
-	"ghidra-ida-re",
 	"ghidra-rpc",
 	"jadx-android-malware",
 }
 
 var defaultOffBuiltinMCP = map[string]struct{}{
-	"ghidra-ida-re":        {},
 	"ghidra-rpc":           {},
 	"jadx-android-malware": {},
 }
@@ -564,8 +562,9 @@ func configWorkspaceGuidance() string {
 Edit the files in this directory to change this machine's built-in MCP and Skill overlays.
 MilkSU reloads these files when Settings opens the catalog or a Coding turn starts.
 
-- mcp/<id>.json: built-in MCP overlay. IDs: ida-pro, capa, codeql, burp-suite, shannon, ghidra-ida-re, ghidra-rpc, jadx-android-malware.
-  ghidra-ida-re, ghidra-rpc and jadx-android-malware default off and stay out of the model catalog until the local tool is ready and the row is enabled.
+- mcp/<id>.json: built-in MCP overlay. IDs: ida-pro, capa, codeql, burp-suite, shannon, ghidra-rpc, jadx-android-malware.
+  ghidra-rpc and jadx-android-malware default off and stay out of the model catalog until the local tool is ready and the row is enabled.
+  IDA stays first-party ida-pro / milksu-ida-pro. There is no factory ghidra-ida-re overlay.
   Set command/args to override this version's detected adapter. Clear command and args to use detection again.
   Do not put API keys or tokens in these files.
 - skills/<name>/SKILL.md: overlay of a shipped first-party Skill. Keep Pi catalog rules:

@@ -169,13 +169,14 @@ func (s *Service) CodingHandoff(ctx context.Context, id string) (CodingHandoff, 
 }
 
 // AdmittedOverlaySkillPaths returns on-disk Skill directories for gated RE
-// overlays that are both ready and enabled. Stubs never enter this list while
-// detection stays at detected / needs_setup.
+// overlays that are both ready and enabled. Default-off rows stay out until
+// the user enables them. ghidra-rpc ships a short when-to-use overlay;
+// jadx also materializes the vendored skill subtree beside that wrapper.
 func (s *Service) AdmittedOverlaySkillPaths(ctx context.Context) []string {
 	preferences := s.settings.Get().SecurityTools
 	var paths []string
 	for _, item := range catalog {
-		if item.overlayKind != "skill" {
+		if item.overlayKind == "" {
 			continue
 		}
 		enabled := item.defaultEnabled
