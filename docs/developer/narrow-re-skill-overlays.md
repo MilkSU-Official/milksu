@@ -17,7 +17,7 @@ Milk SU + Security Harness Lead（weight=3）锁定：
 
 来源帖：[七言 2026-09-03](https://x.com/0xQiYan/status/2095523029954806074)。该帖列出 7 项；本切片只取 Scout 排序中的获准项。
 
-## Scout 终稿钉点（2026-09-06；Security 仍作决定）
+## Scout 终稿钉点（2026-09-06；Security 已选首选 HEAD）
 
 禁止范围不因 Scout 扩表。实现钉点以 Security 终裁为准；本表是 Scout 推荐，供清单对照。
 
@@ -27,16 +27,16 @@ Milk SU + Security Harness Lead（weight=3）锁定：
 | 2 | `ghidra-rpc-main`（短名即 main zip） | **首选** HEAD `1743305487b1de754fb750486dd468ea4d3c4141`（v0.2.0 之后的 headless 写入修复 + `--with-instructions` breaking）。备选稳定 tag `v0.2.0` → `ad507753469d01c7a0faee8b2b2b54ba9367b46e`。非首选 fork：`assaflevy/ghidra-rpc-win` | 内置 overlay，默认关 / 检测就绪。MIT 只写在 README，**无 LICENSE 文件** | **做。** 代码钉首选 HEAD；tag 只作备选常量 |
 | 3 | JADX Android malware skill | **钉** `v1.3.0` → `101ca0bd887a295e39cc20a100efa571937ca969`。main tip `54a79883` 只改 description，**不跟 tip**。`scripts/agent.py` 包 apktool/jadx subprocess；androguard **不一定**被脚本调用。权威源 `mukul975`；镜像 `plurigrid/asi` 不 vendor | 内置，**必须默认关** | **做。** 只 vendor 该子树 |
 
-## 会签（保持打开）
+## 会签（已齐，待人工合并审阅）
 
 | 项 | Security | Coding | Lab |
 | --- | --- | --- | --- |
-| Scout 排序写入文档 + 只搭 1+2 脚手架 | 待勾 | 待勾 | 待勾 |
-| babysitter `ghidra-ida-re` 不出厂 | 待勾 | 待勾 | 待勾 |
-| `ghidra-rpc` 默关 / 检测就绪 / 双 pin 入档 / 无 LICENSE 备注 | 待勾 | 待勾 | 待勾 |
-| JADX 默关 / 只 vendor 子树 / 隔离+清洗 / lab 路径 | 待勾 | 待勾 | 待勾 |
+| Scout 排序写入文档 + 只搭 ghidra-rpc 与 JADX 脚手架 | 已勾 | 已勾 | 已勾 |
+| babysitter `ghidra-ida-re` 不出厂 | 已勾 | 已勾 | 已勾 |
+| `ghidra-rpc` 默关 / 薄 when-to-use / NOTICE 无 LICENSE / 不进 RuntimeTools | 已勾 | 已勾 | 已勾 |
+| JADX 默关 / 只 vendor 子树 / 隔离+清洗 / 仅 lab 样本路径 | 已勾 | 已勾 | 已勾 |
 
-会签记录写回本文件和 PR #55，不要另开跟踪单。不要合并。
+会签记录写回本文件和 PR #55。**不要自动合并**；留给 Milk SU 人工审阅后再合。
 
 ## 本切片已落地的代码合同
 

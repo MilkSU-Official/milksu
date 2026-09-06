@@ -49,9 +49,9 @@ Third-party software includes, without limitation:
   HEAD 1743305487b1de754fb750486dd468ea4d3c4141 (2026-08-06), after the
   v0.2.0 headless write fix and --with-instructions breaking change.
   Alternate stable tag v0.2.0 / ad507753469d01c7a0faee8b2b2b54ba9367b46e.
-  Non-preferred fork: assaflevy/ghidra-rpc-win. Security still decides;
-  this tree follows the preferred HEAD. MIT is mentioned in the README
-  only; there is no LICENSE file. MilkSU does not vendor the repository.
+  Non-preferred fork: assaflevy/ghidra-rpc-win. Security chose the
+  preferred HEAD. MIT is mentioned in the README only; there is no
+  LICENSE file. MilkSU does not vendor the repository.
 - reverse-engineering-android-malware-with-jadx from
   mukul975/Anthropic-Cybersecurity-Skills (authoritative).
   https://github.com/mukul975/Anthropic-Cybersecurity-Skills
