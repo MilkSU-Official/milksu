@@ -17,17 +17,15 @@ Milk SU + Security Harness Lead（weight=3）锁定：
 
 来源帖：[七言 2026-09-03](https://x.com/0xQiYan/status/2095523029954806074)。该帖列出 7 项；本切片只取 Scout 排序中的获准项。
 
-## Scout 钉仓（来源发现，2026-09-06）
+## Scout 终稿钉点（2026-09-06；Security 仍作决定）
 
-排序与脚手架决策如下。禁止范围不因 Scout 扩表。
+禁止范围不因 Scout 扩表。实现钉点以 Security 终裁为准；本表是 Scout 推荐，供清单对照。
 
-| 序 | 候选 | Scout 建议 | 钉点（两处都写，Security 选） | 许可 / 风险 | 本 PR 脚手架 |
-| --- | --- | --- | --- | --- | --- |
-| 1 | `ghidra-rpc`（`cellebrite-labs/ghidra-rpc`） | 推荐内置 overlay；默认关 / 检测就绪。依赖 Ghidra 11+、Java 17+ | **main HEAD** `1743305487b1de754fb750486dd468ea4d3c4141`（2026-08-06）；备选 tag `v0.2.0` / `ad507753469d01c7a0faee8b2b2b54ba9367b46e`。不采用 assaflevy/ghidra-rpc-win | README 称 MIT，**无 LICENSE 文件**。主风险=宿主 Bash 调 CLI + 样本/路径回流；subprocess 主要用于拉 daemon，不是到处 `shell=True` | **做。** 短 when-to-use，不 vendor 上游仓 |
-| 2 | JADX Android malware skill | 有条件内置，**必须默认关**；样本隔离 + 输出清洗 | 权威源 `mukul975/Anthropic-Cybersecurity-Skills` `skills/reverse-engineering-android-malware-with-jadx` @ `v1.3.0` / `101ca0bd887a295e39cc20a100efa571937ca969`。镜像 `plurigrid/asi` `plugins/asi/skills/reverse-engineering-android-malware-with-jadx`（不跟 tip、不从镜像 vendor） | Apache-2.0。子树含 `scripts/agent.py`（apktool/jadx/androguard subprocess）与 `references/` | **做。** 只 vendor 该子树 |
-| 3 | `ghidra_ida` / babysitter（`ghidra_idareverseengineeringskill`） | **不要**作出厂内置 overlay | HEAD `feb68abe…` 或 `v0.0.188→b10d119` | 巨型仓耦合；`allowed-tools` 裸 Bash/Write/Edit/Glob/Grep，无 RPC 边界 | **不做。** 用户可自行导入（默认关） |
-
-Security 已选 `ghidra-rpc` **main**（含 v0.2.0 之后的 headless 修复与 `--with-instructions` breaking）。代码钉 `GhidraRPCRevision`；`GhidraRPCTag` / `GhidraRPCTagRevision` 只作备选记录。
+| 序 | 短名 / 路径 | Scout 终稿钉点 | 出厂计划 | 本 PR |
+| --- | --- | --- | --- | --- |
+| 1 | `ghidra_idareverseengineeringskill` → babysitter `…/ghidra-ida-re/` | 正文自 `da7723a` 起实质未变。若必须整仓钉：HEAD `feb68abe` 或 release `v0.0.188` → `b10d119` | **仍不出厂内置** | **不做** factory overlay。IDA 继续 `milksu-ida-pro` |
+| 2 | `ghidra-rpc-main`（短名即 main zip） | **首选** HEAD `1743305487b1de754fb750486dd468ea4d3c4141`（v0.2.0 之后的 headless 写入修复 + `--with-instructions` breaking）。备选稳定 tag `v0.2.0` → `ad507753469d01c7a0faee8b2b2b54ba9367b46e`。非首选 fork：`assaflevy/ghidra-rpc-win` | 内置 overlay，默认关 / 检测就绪。MIT 只写在 README，**无 LICENSE 文件** | **做。** 代码钉首选 HEAD；tag 只作备选常量 |
+| 3 | JADX Android malware skill | **钉** `v1.3.0` → `101ca0bd887a295e39cc20a100efa571937ca969`。main tip `54a79883` 只改 description，**不跟 tip**。`scripts/agent.py` 包 apktool/jadx subprocess；androguard **不一定**被脚本调用。权威源 `mukul975`；镜像 `plurigrid/asi` 不 vendor | 内置，**必须默认关** | **做。** 只 vendor 该子树 |
 
 ## 会签（保持打开）
 

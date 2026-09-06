@@ -271,6 +271,9 @@ func TestOverlayDocumentsMatchSecurityTriage(t *testing.T) {
 	if !strings.Contains(ghidra, GhidraRPCTag) || !strings.Contains(ghidra, GhidraRPCTagRevision) {
 		t.Fatal("ghidra-rpc overlay must document Scout's v0.2.0 alternate pin")
 	}
+	if !strings.Contains(ghidra, "--with-instructions") || !strings.Contains(ghidra, GhidraRPCWinFork) {
+		t.Fatal("ghidra-rpc overlay must record the post-v0.2.0 breaking note and reject the win fork")
+	}
 	if !strings.Contains(ghidra, "no LICENSE file") {
 		t.Fatal("ghidra-rpc overlay must note the missing upstream LICENSE file")
 	}
@@ -293,6 +296,9 @@ func TestOverlayDocumentsMatchSecurityTriage(t *testing.T) {
 	}
 	if !strings.Contains(jadx, "scripts/agent.py") || !strings.Contains(jadx, "references/") {
 		t.Fatal("jadx overlay must record the vendored agent.py and references subtree")
+	}
+	if !strings.Contains(jadx, JADXSkillMainTip) || !strings.Contains(jadx, "androguard may not be invoked") {
+		t.Fatal("jadx overlay must skip main tip 54a79883 and not assume androguard runs")
 	}
 	if !strings.Contains(jadx, "InjuredAndroid") || !strings.Contains(strings.ToLower(jadx), "computer use") {
 		t.Fatal("jadx overlay must keep the lab / InjuredAndroid and no-CU bound")

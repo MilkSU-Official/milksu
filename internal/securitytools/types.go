@@ -18,12 +18,14 @@ const (
 	GhidraRPCHeadDate      = "2026-08-06"
 	GhidraRPCTag           = "v0.2.0"
 	GhidraRPCTagRevision   = "ad507753469d01c7a0faee8b2b2b54ba9367b46e"
+	GhidraRPCWinFork       = "assaflevy/ghidra-rpc-win"
 	JADXSkillSource        = "https://github.com/mukul975/Anthropic-Cybersecurity-Skills"
 	JADXSkillMirror        = "https://github.com/plurigrid/asi"
 	JADXSkillMirrorSubtree = "plugins/asi/skills/reverse-engineering-android-malware-with-jadx"
 	JADXSkillSubtree       = "skills/reverse-engineering-android-malware-with-jadx"
 	JADXSkillTag           = "v1.3.0"
 	JADXSkillRevision      = "101ca0bd887a295e39cc20a100efa571937ca969"
+	JADXSkillMainTip       = "54a79883"
 	InjuredAndroidAPK      = "InjuredAndroid-1.0.12-release.apk"
 )
 

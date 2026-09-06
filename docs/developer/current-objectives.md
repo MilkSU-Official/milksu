@@ -176,7 +176,7 @@
 - 侧栏运行中会话只显示像素点，`运行中` 留在 `aria-label`。原先可见文案在 16px 状态槽里居中裁切，会露出中间的「行」。
 - 计划 / 变更上拉框不再跟收缩后的胶囊同宽；展开后最小 18rem，步骤文案不再只剩两个字。
 - 下拉框、菜单、Dialog、Sheet 和对话小窗改用实底 `--surface-overlay` / `--popover`，不再套 68–74% 透明加 `backdrop-filter`。Windows 上 blur 经常不生效，字会看穿。Composer 岛仍可保留轻模糊。
-- 窄逆向出厂覆盖（PR #55，未合并）：Scout 排序已写入文档——只搭 `ghidra-rpc` 与 JADX 脚手架，babysitter `ghidra-ida-re` 不出厂。`ghidra-rpc` 默认关，检测 Ghidra≥11 / Java≥17 / `GHIDRA_INSTALL_DIR`；钉点同时记录 main `1743305487b1…`（2026-08-06）与 tag `v0.2.0` / `ad507753…`，实现跟 Security 所选 main；NOTICE 写明无 LICENSE 文件。JADX 权威源 `mukul975` 子树（含 `scripts/agent.py` 与 `references/`），镜像 `plurigrid/asi` 不 vendor；默认关，样本隔离 + 输出清洗，仅 lab / InjuredAndroid。Security / Coding / Lab 会签框保持打开。跟踪见 [窄逆向 Skill / MCP 出厂覆盖](narrow-re-skill-overlays.md)。不是 Kali 商店，也不扩七言全表。
+- 窄逆向出厂覆盖（PR #55，未合并）：Scout 终稿钉点已写入清单——`ghidra_idareverseengineeringskill` → babysitter `…/ghidra-ida-re/`（正文自 `da7723a` 起未实质变；整仓可钉 `feb68abe` 或 `v0.0.188`→`b10d119`）仍不出厂。`ghidra-rpc-main` 短名即 main zip，首选 HEAD `1743305487b1…`（v0.2.0 后 headless 写入修复 + `--with-instructions` breaking），备选 `v0.2.0`→`ad507753…`，不用 `assaflevy/ghidra-rpc-win`；MIT 仅 README、无 LICENSE。JADX 钉 `v1.3.0`→`101ca0bd…`，不跟 tip `54a79883`；`agent.py` 包 apktool/jadx，androguard 不一定被调用。默认关。Security 仍作决定；会签框保持打开。跟踪见 [窄逆向 Skill / MCP 出厂覆盖](narrow-re-skill-overlays.md)。不是 Kali 商店，也不扩七言全表。
 
 ## 当前产品事实
 
