@@ -436,4 +436,39 @@ describe('CodingComputerUsePanel', () => {
     await nextTick()
     expect(onRefresh).toHaveBeenCalledOnce()
   })
+
+  it('describes GNOME Portal as display-level desktop sharing', async () => {
+    const { host } = await mountPanel({
+      status: status({
+        signing: {
+          bundleId: 'com.milksu.app',
+          signature: 'linux-portal',
+          stableIdentity: true,
+        },
+      }),
+    })
+    const text = host.textContent ?? ''
+    expect(text).toContain('当前环境：GNOME 桌面共享')
+    expect(text).toContain('整桌面级输入')
+    expect(text).toContain('不是单个窗口')
+    expect(text).not.toContain('Hyprland 合成器输入')
+  })
+
+  it('describes Hyprland as compositor-native and not Portal', async () => {
+    const { host } = await mountPanel({
+      status: status({
+        signing: {
+          bundleId: 'com.milksu.app',
+          signature: 'linux-hyprland',
+          stableIdentity: true,
+        },
+      }),
+    })
+    const text = host.textContent ?? ''
+    expect(text).toContain('当前环境：Hyprland 合成器输入')
+    expect(text).toContain('合成器原生输入')
+    expect(text).toContain('不是 GNOME Portal')
+    expect(text).toContain('不是单个窗口')
+    expect(text).not.toContain('GNOME 会弹出系统桌面共享授权')
+  })
 })

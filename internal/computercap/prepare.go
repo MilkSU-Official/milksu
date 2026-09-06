@@ -277,6 +277,21 @@ func (manager *Manager) Prepare(ctx context.Context, options PrepareOptions) (Pr
 				NextStep: "启动 Computer Use 时，GNOME 会弹出桌面共享授权。",
 			}, nil
 		}
+		if manager.linuxHyprland() {
+			if err := manager.linuxHyprlandTools(); err != nil {
+				return PrepareResult{
+					Version:  DriverVersion,
+					Problem:  err.Error(),
+					NextStep: linuxHyprlandToolsNextStep,
+				}, err
+			}
+			return PrepareResult{
+				Ready:    true,
+				Source:   "hyprland-compositor",
+				Version:  DriverVersion,
+				NextStep: linuxHyprlandPrepareNextStep,
+			}, nil
+		}
 		problem := linuxUnavailableProblem(manager.linuxEnv)
 		if problem == "" {
 			problem = linuxComputerUseProblem
@@ -284,14 +299,14 @@ func (manager *Manager) Prepare(ctx context.Context, options PrepareOptions) (Pr
 		return PrepareResult{
 			Version:  DriverVersion,
 			Problem:  problem,
-			NextStep: "在 GNOME Wayland 上使用系统桌面共享；Hyprland 仍不可用。",
+			NextStep: "在 GNOME Wayland 或 Hyprland 上使用 Computer Use。Xorg 与其他桌面仍不可用。",
 		}, fmt.Errorf("%s", problem)
 	}
 	if manager.goos != "darwin" && manager.goos != "windows" {
 		return PrepareResult{
 			Version:  DriverVersion,
 			Problem:  linuxComputerUseProblem,
-			NextStep: "在 macOS、Windows 或 GNOME Wayland 上使用 Computer Use。",
+			NextStep: "在 macOS、Windows、GNOME Wayland 或 Hyprland 上使用 Computer Use。",
 		}, fmt.Errorf("%s", linuxComputerUseProblem)
 	}
 	manager.mu.Lock()

@@ -1996,6 +1996,14 @@ async function saveProviderEditor(closeAfterSave: boolean) {
             >
               <ConnectionLiveStatus :live="true" />
             </SettingsRow>
+            <SettingsRow
+              v-else-if="computerUseStatus?.signing?.signature === 'linux-hyprland'"
+              :label="t('Hyprland 合成器', 'Hyprland compositor')"
+              :description="t('启动任务时 Hyprland 会显示桌面通知。截屏、按坐标点击和打字走合成器原生输入，不是 GNOME Portal，也不是单个窗口。', 'Hyprland shows a desktop notice when you start a task. Screenshot, coordinate clicks and typing use compositor-native input, not the GNOME Portal, and not a single window.')"
+              :divider="false"
+            >
+              <ConnectionLiveStatus :live="computerUseStatus.available" />
+            </SettingsRow>
             <template v-else-if="computerUseStatus">
               <SettingsRow :label="t('辅助功能', 'Accessibility')">
                 <div class="flex items-center gap-2">

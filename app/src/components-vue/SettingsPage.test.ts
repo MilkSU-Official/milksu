@@ -783,6 +783,70 @@ describe('SettingsPage database compatibility', () => {
     expect(permissionRequests).toEqual(['accessibility', 'screen-recording'])
   })
 
+  it('describes Hyprland Computer Use as compositor-native and not Portal', async () => {
+    await mountSettingsPage({
+      directory: 'MilkSU 用户数据目录',
+      fileCount: 0,
+      bytes: 0,
+    }, {
+      initialCategory: 'browser',
+      appMethods: {
+        GetCodingComputerUseStatus: async () => ({
+          available: true,
+          enabled: false,
+          phase: 'disabled',
+          permissions: {
+            accessibility: true,
+            screenRecording: true,
+          },
+          signing: {
+            bundleId: 'com.milksu.app',
+            signature: 'linux-hyprland',
+            stableIdentity: true,
+          },
+        } satisfies CodingComputerUseStatus),
+      },
+    })
+    const text = document.body.textContent ?? ''
+    expect(text).toContain('Hyprland 合成器')
+    expect(text).toContain('合成器原生输入')
+    expect(text).toContain('不是 GNOME Portal')
+    expect(text).toContain('不是单个窗口')
+    expect(text).not.toContain('启动任务时 GNOME 会弹出授权')
+    expect(text).not.toContain('打开辅助功能设置')
+  })
+
+  it('keeps GNOME Portal Computer Use as desktop sharing', async () => {
+    await mountSettingsPage({
+      directory: 'MilkSU 用户数据目录',
+      fileCount: 0,
+      bytes: 0,
+    }, {
+      initialCategory: 'browser',
+      appMethods: {
+        GetCodingComputerUseStatus: async () => ({
+          available: true,
+          enabled: false,
+          phase: 'disabled',
+          permissions: {
+            accessibility: true,
+            screenRecording: true,
+          },
+          signing: {
+            bundleId: 'com.milksu.app',
+            signature: 'linux-portal',
+            stableIdentity: true,
+          },
+        } satisfies CodingComputerUseStatus),
+      },
+    })
+    const text = document.body.textContent ?? ''
+    expect(text).toContain('桌面共享')
+    expect(text).toContain('GNOME 会弹出授权')
+    expect(text).toContain('不是单个窗口')
+    expect(text).not.toContain('Hyprland 合成器')
+  })
+
   it('shows Browser Use, CTF sites, and Computer Use as setting rows', async () => {
     await mountSettingsPage({
       directory: 'MilkSU 用户数据目录',

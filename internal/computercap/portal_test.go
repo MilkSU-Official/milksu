@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"net"
 	"os"
-	"strings"
 	"testing"
 	"time"
 )
@@ -53,17 +52,24 @@ func (portal *fakePortal) Scroll(direction string, amount int) error {
 }
 func (portal *fakePortal) Close() error { portal.closed = true; return nil }
 
-func TestLinuxPortalUnavailableOffGNOME(t *testing.T) {
+func TestLinuxPortalDoesNotClaimHyprland(t *testing.T) {
 	manager := New(Options{
 		GOOS:           "linux",
 		GrantDirectory: t.TempDir(),
 		LinuxPortal:    func() bool { return false },
+		LinuxHyprland:  func() bool { return true },
+		LinuxHyprlandTools: func() error {
+			return nil
+		},
 		LinuxEnv: func(key string) string {
 			if key == "XDG_CURRENT_DESKTOP" {
 				return "Hyprland"
 			}
 			if key == "XDG_SESSION_TYPE" {
 				return "wayland"
+			}
+			if key == "HYPRLAND_INSTANCE_SIGNATURE" {
+				return "abc"
 			}
 			return ""
 		},
@@ -73,11 +79,14 @@ func TestLinuxPortalUnavailableOffGNOME(t *testing.T) {
 	})
 	defer manager.Close()
 	status := manager.Status()
-	if status.Available {
-		t.Fatalf("Hyprland must stay unavailable: %#v", status)
+	if !status.Available {
+		t.Fatalf("Hyprland must use its own backend, not stay unavailable: %#v", status)
 	}
-	if !strings.Contains(status.Problem, "Hyprland") {
-		t.Fatalf("problem = %q", status.Problem)
+	if status.Signing.Signature == linuxPortalSignature {
+		t.Fatalf("Hyprland must not reuse the GNOME portal signature: %#v", status)
+	}
+	if status.Signing.Signature != linuxHyprlandSignature {
+		t.Fatalf("signing = %#v", status.Signing)
 	}
 }
 

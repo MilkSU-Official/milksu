@@ -21,7 +21,7 @@ import (
 
 const (
 	DriverVersion           = "0.14.2"
-	linuxComputerUseProblem = "Computer Use 在当前 Linux 桌面上不可用。GNOME Wayland 可走系统桌面共享授权；Hyprland 仍不可用。不会走 xinput 摘键鼠。"
+	linuxComputerUseProblem = "Computer Use 在当前 Linux 桌面上不可用。GNOME Wayland 可走系统桌面共享授权；Hyprland 可走合成器原生输入。Xorg 与其他桌面不可用。不会走 xinput 摘键鼠。"
 	defaultHostBundleID     = "com.milksu.app"
 	hostBundleIDEnv         = "MILKSU_DESKTOP_APP_ID"
 	hostBundleIDEnvAlt      = "CUA_DRIVER_HOST_BUNDLE_ID"
@@ -106,18 +106,21 @@ type Options struct {
 	TargetPID  int
 	// HostBundleID is the running host app's bundle identifier (stable or beta).
 	// When empty, Manager resolves it from SigningProbe / env / default.
-	HostBundleID    string
-	GOOS            string
-	PermissionProbe func(prompt bool) Permissions
-	PermissionOpen  func(PermissionKind)
-	SigningProbe    func() SigningStatus
-	TargetProvider  func() ([]Target, error)
-	CommandFactory  func(name string, args ...string) *exec.Cmd
-	StartTimeout    time.Duration
-	GrantDirectory  string
-	LinuxPortal     func() bool
-	NewPortal       func() (PortalSession, error)
-	LinuxEnv        func(string) string
+	HostBundleID       string
+	GOOS               string
+	PermissionProbe    func(prompt bool) Permissions
+	PermissionOpen     func(PermissionKind)
+	SigningProbe       func() SigningStatus
+	TargetProvider     func() ([]Target, error)
+	CommandFactory     func(name string, args ...string) *exec.Cmd
+	StartTimeout       time.Duration
+	GrantDirectory     string
+	LinuxPortal        func() bool
+	NewPortal          func() (PortalSession, error)
+	LinuxHyprland      func() bool
+	NewHyprland        func() (PortalSession, error)
+	LinuxHyprlandTools func() error
+	LinuxEnv           func(string) string
 }
 
 type session struct {
@@ -138,22 +141,25 @@ type session struct {
 }
 
 type Manager struct {
-	mu              sync.Mutex
-	binaryPath      string
-	targetPID       int
-	hostBundleID    string
-	goos            string
-	permissionProbe func(prompt bool) Permissions
-	permissionOpen  func(PermissionKind)
-	signingProbe    func() SigningStatus
-	targetProvider  func() ([]Target, error)
-	commandFactory  func(name string, args ...string) *exec.Cmd
-	startTimeout    time.Duration
-	grants          *grantStore
-	active          *session
-	linuxPortal     func() bool
-	newPortal       func() (PortalSession, error)
-	linuxEnv        func(string) string
+	mu                 sync.Mutex
+	binaryPath         string
+	targetPID          int
+	hostBundleID       string
+	goos               string
+	permissionProbe    func(prompt bool) Permissions
+	permissionOpen     func(PermissionKind)
+	signingProbe       func() SigningStatus
+	targetProvider     func() ([]Target, error)
+	commandFactory     func(name string, args ...string) *exec.Cmd
+	startTimeout       time.Duration
+	grants             *grantStore
+	active             *session
+	linuxPortal        func() bool
+	newPortal          func() (PortalSession, error)
+	linuxHyprland      func() bool
+	newHyprland        func() (PortalSession, error)
+	linuxHyprlandTools func() error
+	linuxEnv           func(string) string
 }
 
 func New(options Options) *Manager {
@@ -205,21 +211,36 @@ func New(options Options) *Manager {
 	if newPortal == nil {
 		newPortal = newXDGPortalSession
 	}
+	linuxHyprlandFn := options.LinuxHyprland
+	if linuxHyprlandFn == nil {
+		linuxHyprlandFn = func() bool { return linuxHyprland(linuxEnv) }
+	}
+	newHyprland := options.NewHyprland
+	if newHyprland == nil {
+		newHyprland = newHyprlandSession
+	}
+	hyprlandTools := options.LinuxHyprlandTools
+	if hyprlandTools == nil {
+		hyprlandTools = defaultHyprlandTools
+	}
 	return &Manager{
-		binaryPath:      strings.TrimSpace(options.BinaryPath),
-		targetPID:       targetPID,
-		hostBundleID:    hostBundleID,
-		goos:            goos,
-		permissionProbe: permissionProbe,
-		permissionOpen:  permissionOpen,
-		signingProbe:    signingProbe,
-		targetProvider:  targetProvider,
-		commandFactory:  commandFactory,
-		startTimeout:    startTimeout,
-		grants:          newGrantStore(options.GrantDirectory),
-		linuxPortal:     linuxPortal,
-		newPortal:       newPortal,
-		linuxEnv:        linuxEnv,
+		binaryPath:         strings.TrimSpace(options.BinaryPath),
+		targetPID:          targetPID,
+		hostBundleID:       hostBundleID,
+		goos:               goos,
+		permissionProbe:    permissionProbe,
+		permissionOpen:     permissionOpen,
+		signingProbe:       signingProbe,
+		targetProvider:     targetProvider,
+		commandFactory:     commandFactory,
+		startTimeout:       startTimeout,
+		grants:             newGrantStore(options.GrantDirectory),
+		linuxPortal:        linuxPortal,
+		newPortal:          newPortal,
+		linuxHyprland:      linuxHyprlandFn,
+		newHyprland:        newHyprland,
+		linuxHyprlandTools: hyprlandTools,
+		linuxEnv:           linuxEnv,
 	}
 }
 
@@ -334,10 +355,13 @@ func (manager *Manager) RequestPermission(kind PermissionKind) (Status, error) {
 
 func (manager *Manager) Targets() ([]Target, error) {
 	if manager.goos == "linux" {
-		if !manager.linuxPortal() {
-			return nil, fmt.Errorf("%s", linuxUnavailableProblem(manager.linuxEnv))
+		if manager.linuxPortal() {
+			return []Target{linuxPortalDesktopTarget()}, nil
 		}
-		return []Target{linuxPortalDesktopTarget()}, nil
+		if manager.linuxHyprland() {
+			return []Target{linuxHyprlandDesktopTarget()}, nil
+		}
+		return nil, fmt.Errorf("%s", linuxUnavailableProblem(manager.linuxEnv))
 	}
 	if manager.goos != "darwin" && manager.goos != "windows" {
 		return nil, fmt.Errorf("Computer Use is unavailable on this platform")
@@ -384,7 +408,14 @@ func (manager *Manager) Start(
 	}
 	if manager.goos == "linux" {
 		manager.mu.Unlock()
-		return manager.startLinuxPortal(ctx, conversationID, selection)
+		if manager.linuxPortal() {
+			return manager.startLinuxPortal(ctx, conversationID, selection)
+		}
+		if manager.linuxHyprland() {
+			return manager.startLinuxHyprland(ctx, conversationID, selection)
+		}
+		status := manager.Status()
+		return status, fmt.Errorf("%s", status.Problem)
 	}
 	if manager.goos != "darwin" && manager.goos != "windows" {
 		status := manager.statusLocked(manager.permissionProbe(false))
@@ -752,21 +783,37 @@ func (manager *Manager) statusLocked(permissions Permissions) Status {
 		Signing:       signing,
 	}
 	if manager.goos == "linux" {
-		if !manager.linuxPortal() {
+		if manager.linuxPortal() {
+			status.Available = true
+			status.Signing = linuxPortalSigning()
+			if !permissions.Accessibility && !permissions.ScreenRecording {
+				status.Permissions = Permissions{Accessibility: true, ScreenRecording: true}
+			}
+			if manager.active == nil {
+				return status
+			}
+		} else if manager.linuxHyprland() {
+			status.Signing = linuxHyprlandSigning()
+			if err := manager.linuxHyprlandTools(); err != nil {
+				status.Available = false
+				status.Phase = "unavailable"
+				status.Problem = err.Error()
+				return status
+			}
+			status.Available = true
+			if !permissions.Accessibility && !permissions.ScreenRecording {
+				status.Permissions = Permissions{Accessibility: true, ScreenRecording: true}
+			}
+			if manager.active == nil {
+				return status
+			}
+		} else {
 			status.Available = false
 			status.Phase = "unavailable"
 			status.Problem = linuxUnavailableProblem(manager.linuxEnv)
 			if status.Problem == "" {
 				status.Problem = linuxComputerUseProblem
 			}
-			return status
-		}
-		status.Available = true
-		status.Signing = linuxPortalSigning()
-		if !permissions.Accessibility && !permissions.ScreenRecording {
-			status.Permissions = Permissions{Accessibility: true, ScreenRecording: true}
-		}
-		if manager.active == nil {
 			return status
 		}
 	} else if manager.goos != "darwin" && manager.goos != "windows" {

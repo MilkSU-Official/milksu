@@ -32,8 +32,8 @@
 | 历史基线 | M3 product-loop 已在 `108e0e3`（2026-08-05）合并，仅供追溯。 |
 | 正式发行基线 | `v26.905.2 / b18b8607e2645c3977125e79d0257256951ae6b5`（2026-09-05 今日第二版）。这是当前 GitHub Latest Release；提供带版本号的 DMG、EXE、DEB、x64 tar.gz 与 `SHA256SUMS`。OTA 已上传私有 R2。侧栏下载先 `checkForUpdates` 再 `downloadUpdate`。已发出的 `26.827.1` / `26.904.1` / `26.905.1` 客户端改不了，这一跳请从 GitHub 下安装包。上一版 `v26.905.1 / 1cc8773`、`v26.904.1 / 6e9371d` 与 `v26.827.1 / 37932ce` 仍可下载，不是 Latest。 |
 | 开发版本线 | 根目录与 `desktop/package.json` 是 `26.905.2`。正式发行源是 `b18b860`；文档收口提交不移动该 tag。 |
-| 当前开发 | 正式包是 `26.905.2`。Composer 上下文环按 Pi 组装分类；设置页可查看并覆盖模型上下文窗口。edit 锚点、`tool_result` 截断、中途引导、子 Agent 结构化回传、rewind/handoff、用户 MCP/Skills 与克制清透材料层已进包。侧栏下载先 check 再 download，失败可见重试。三端窗口铬：macOS 保持 `hiddenInset`，Windows/Linux 隐藏原生标题栏并用画布色 overlay。已登录 Stable 轮询 Admin 时带上当前版本。实验室题目包仍可起本机 Docker / MilkSU-Lab。Pi 钉到 `0.84.1`。Windows 安装器仍未代码签名；Linux 无 Secret Service 与本地 OCR；Hyprland/Xorg Computer Use 不可用。CTF 比赛模式和实验室红队学习面仍未接线。产品 UI 设计语言只写在 `AGENTS.md`。未发版：`fix/wide-job-parent-loop` 给 parent loop 加上 `bg_status` poller 熔断，并把 `subagent` 从「用户开口才调用」改回最多 4 条 read-only lane；#53 的 typed sweep 工具尚未做。 |
-| 平台边界 | `26.905.2`：macOS DMG 走 GitHub-hosted Developer ID 签名并公证；Windows 安装器完成原生 Runtime 与首次启动但未代码签名，并打入审阅过的 CUA Driver；Linux 发出 Ubuntu/Debian 共用 x64 DEB 与 Omarchy/Arch/Nix 共用 x64 tarball，GNOME Portal Computer Use 已进包，仍无 Secret Service、本地 OCR；Hyprland/Xorg Computer Use 不可用。Windows/Linux 窗口铬尚未真机验收。 |
+| 当前开发 | 正式包是 `26.905.2`。Composer 上下文环按 Pi 组装分类；设置页可查看并覆盖模型上下文窗口。edit 锚点、`tool_result` 截断、中途引导、子 Agent 结构化回传、rewind/handoff、用户 MCP/Skills 与克制清透材料层已进包。侧栏下载先 check 再 download，失败可见重试。三端窗口铬：macOS 保持 `hiddenInset`，Windows/Linux 隐藏原生标题栏并用画布色 overlay。已登录 Stable 轮询 Admin 时带上当前版本。实验室题目包仍可起本机 Docker / MilkSU-Lab。Pi 钉到 `0.84.1`。Windows 安装器仍未代码签名；Linux 无 Secret Service 与本地 OCR；Xorg Computer Use 不可用。开发 HEAD 已为 Hyprland 增加独立合成器 Computer Use 后端，真机验收未做，未进 `26.905.2`。CTF 比赛模式和实验室红队学习面仍未接线。产品 UI 设计语言只写在 `AGENTS.md`。未发版：`fix/wide-job-parent-loop` 给 parent loop 加上 `bg_status` poller 熔断，并把 `subagent` 从「用户开口才调用」改回最多 4 条 read-only lane；#53 的 typed sweep 工具尚未做。 |
+| 平台边界 | `26.905.2`：macOS DMG 走 GitHub-hosted Developer ID 签名并公证；Windows 安装器完成原生 Runtime 与首次启动但未代码签名，并打入审阅过的 CUA Driver；Linux 发出 Ubuntu/Debian 共用 x64 DEB 与 Omarchy/Arch/Nix 共用 x64 tarball，GNOME Portal Computer Use 已进包，仍无 Secret Service、本地 OCR；该正式包里 Hyprland/Xorg Computer Use 仍不可用。开发 HEAD 的 Hyprland 后端与 GNOME Portal 不是同一合同，也不能写成三桌面等价。Windows/Linux 窗口铬尚未真机验收。 |
 | 发行流水 | 下一发行从干净、已推送的 `main` 对 canonical Go/Vue/Sidecar/lint/生产与文档构建只验证一次；macOS / Windows / Linux 都走 GitHub-hosted 云端。macOS 本机打包暂时关闭。必须创建 GitHub Release 页并上传带版本号的 DMG/EXE/DEB、x64 tar.gz 与 SHA256SUMS，不能只留空 tag。正式打包默认上传 OTA 到私有 R2 并建 Admin 草稿；GitHub Release 仍不上 updater ZIP。 |
 
 ## 已发行改动：`26.817.1` → `26.905.2`
@@ -170,12 +170,13 @@
 
 ## 未发版改动：晚于 `v26.905.2` / `b18b860`
 
-文档收口提交不移动该 tag。Windows 代码签名、Linux Secret Service / 本地 OCR、Hyprland/Xorg Computer Use 仍缺。CTF 比赛模式和实验室红队学习面仍未接线。
+文档收口提交不移动该 tag。Windows 代码签名、Linux Secret Service / 本地 OCR、Xorg Computer Use 仍缺。Hyprland Computer Use 已在开发线接线（合成器原生，不是 Portal），Omarchy/Hyprland 真机验收未做。CTF 比赛模式和实验室红队学习面仍未接线。
 
 - 流式回复只保留实心 caret，不再把最后约 6 个字做成模糊尾；CJK 在 Windows 上不再发虚。
 - 侧栏运行中会话只显示像素点，`运行中` 留在 `aria-label`。原先可见文案在 16px 状态槽里居中裁切，会露出中间的「行」。
 - 计划 / 变更上拉框不再跟收缩后的胶囊同宽；展开后最小 18rem，步骤文案不再只剩两个字。
 - 下拉框、菜单、Dialog、Sheet 和对话小窗改用实底 `--surface-overlay` / `--popover`，不再套 68–74% 透明加 `backdrop-filter`。Windows 上 blur 经常不生效，字会看穿。Composer 岛仍可保留轻模糊。
+- Hyprland Computer Use 改为独立合成器后端：检测 `HYPRLAND_INSTANCE_SIGNATURE` / 桌面会话后走 Hyprland IPC、`grim` 截屏、`zwlr_virtual_pointer` 点击和 `wtype` 打字；GNOME 仍只走 Portal。不接 Cua Linux 驱动，不走 `xinput`。单元测试覆盖路由；真实 Omarchy/Hyprland 机器验收仍缺，不能写成已发行。
 
 ## 当前产品事实
 
@@ -240,7 +241,7 @@
 3. 继续用新安装包做常用 Agent GUI、Pi Runtime 与实验室靶机回归，失败项回到下面 P0 队列；
 4. 用户明确要求发下一版时，先升版本号，再从干净已推送的 `main` 跑 `release:verify` 并留下新的三端回执；不要把现有 `v26.905.2`、`v26.905.1`、`v26.904.1` 或 `v26.827.1` 标签挪到更新的 HEAD 上。
 
-Windows 签名、Linux Secret Service / OCR、Hyprland/Xorg Computer Use、Windows/Linux 窗口铬真机验收仍是发行后续，不是产品方向禁令。
+Windows 签名、Linux Secret Service / OCR、Xorg Computer Use、Hyprland 真机验收、Windows/Linux 窗口铬真机验收仍是发行后续，不是产品方向禁令。
 
 ### 后续队列
 

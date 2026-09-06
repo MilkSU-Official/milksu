@@ -14,6 +14,8 @@ func TestLinuxComputerUseStaysUnavailableWithoutPortal(t *testing.T) {
 		GOOS:            "linux",
 		GrantDirectory:  t.TempDir(),
 		LinuxPortal:     func() bool { return false },
+		LinuxHyprland:   func() bool { return false },
+		LinuxEnv:        func(string) string { return "" },
 		PermissionProbe: func(bool) Permissions { return Permissions{} },
 		PermissionOpen:  func(PermissionKind) {},
 		SigningProbe:    func() SigningStatus { return SigningStatus{} },

@@ -91,11 +91,15 @@ const windowsUserSession = computed(() => (
 const linuxPortalSession = computed(() => (
   signingStatus.value?.signature === 'linux-portal'
 ))
+const linuxHyprlandSession = computed(() => (
+  signingStatus.value?.signature === 'linux-hyprland'
+))
 const signingIdentityLabel = computed(() => {
   const signing = signingStatus.value
   if (!signing) return t('当前构建身份：未检测', 'Current build identity: not detected')
   if (windowsUserSession.value) return t('当前环境：Windows 普通用户会话', 'Current environment: Windows user session')
   if (linuxPortalSession.value) return t('当前环境：GNOME 桌面共享', 'Current environment: GNOME desktop sharing')
+  if (linuxHyprlandSession.value) return t('当前环境：Hyprland 合成器输入', 'Current environment: Hyprland compositor input')
   const signature = signing.signature === 'adhoc'
     ? 'ad-hoc'
     : signing.signature === 'signed'
@@ -114,6 +118,9 @@ const signingDiagnostic = computed(() => {
   }
   if (linuxPortalSession.value) {
     return t('GNOME 会弹出系统桌面共享授权。授权后可截屏、按坐标点击和打字。这是整桌面级输入，不是单个窗口。停止或崩溃后键鼠仍归你。', 'GNOME shows a system desktop-sharing prompt. After you allow it, MilkSU can screenshot, click coordinates, and type. This is display-level input, not a single window. Keyboard and mouse stay yours after stop or crash.')
+  }
+  if (linuxHyprlandSession.value) {
+    return t('Hyprland 走合成器原生输入：桌面通知、截屏、按坐标点击和打字。这是整块桌面，不是单个窗口，也不是 GNOME Portal。停止或崩溃后键鼠仍归你。', 'Hyprland uses compositor-native input: a desktop notice, screenshot, coordinate clicks, and typing. This is the whole desktop, not a single window, and not the GNOME Portal. Keyboard and mouse stay yours after stop or crash.')
   }
   if (signing.stableIdentity) {
     return t(`${signingIdentityLabel.value}，权限应绑定到稳定 App 身份。`, `${signingIdentityLabel.value}. Permissions should bind to a stable app identity.`)

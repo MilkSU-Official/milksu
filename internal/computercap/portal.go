@@ -32,6 +32,9 @@ func linuxGnomeWayland(getenv func(string) string) bool {
 	if getenv == nil {
 		getenv = os.Getenv
 	}
+	if linuxHyprland(getenv) {
+		return false
+	}
 	session := strings.ToLower(strings.TrimSpace(getenv("XDG_SESSION_TYPE")))
 	wayland := session == "wayland" || strings.TrimSpace(getenv("WAYLAND_DISPLAY")) != ""
 	if !wayland {
@@ -72,7 +75,7 @@ func linuxPortalSigning() SigningStatus {
 
 func linuxUnavailableProblem(getenv func(string) string) string {
 	if linuxHyprland(getenv) {
-		return "Computer Use 在 Hyprland 上暂不可用。GNOME 可用系统桌面共享授权；不会走 xinput 摘键鼠。"
+		return linuxHyprlandToolsProblem(nil)
 	}
 	if linuxGnomeWayland(getenv) {
 		return ""

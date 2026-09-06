@@ -123,12 +123,12 @@ MilkSU 会把当前任务可用的能力告诉模型，再由模型按上下文�
 | Windows x64 | EXE | ✅ | ✅ |
 | Linux x64 | `.deb` / `.tar.gz` | 见下表 | ✅ |
 
-Linux Computer Use 按桌面，不是按发行版。GNOME 是整桌面授权（不是窗口 Scope）。不接 Cua，不用 `xinput` 摘键鼠。
+Linux Computer Use 按桌面，不是按发行版。GNOME 是整桌面 Portal 授权（不是窗口 Scope）。Hyprland 是另一条整桌面合成器合同，不是 Portal。不接 Cua，不用 `xinput` 摘键鼠。三个 Linux 桌面并不功能等价。
 
 | Linux 桌面 | Computer Use |
-| --- | :---: |
-| GNOME Wayland | ✅ |
-| Hyprland | ❌ |
+| --- | --- |
+| GNOME Wayland | ✅ 整桌面 Portal（已进 `26.905.2`） |
+| Hyprland | 开发线：合成器原生输入；真机验收未做，正式包仍不可用 |
 | Xorg | ❌ |
 
 | Linux 发行版 | 怎么装 |
@@ -148,7 +148,7 @@ Linux 暂无 Secret Service、本地 OCR。合同：[Linux 安装与桌面合同
 
 ## 当前状态
 
-最近一次带哈希回执的三端正式 GitHub Release 是 **26.905.2**（2026-09-05）：侧栏下载先 check 再 download。Windows 安装器仍未代码签名；Linux 无 Secret Service 与本地 OCR；Hyprland/Xorg Computer Use 不可用。
+最近一次带哈希回执的三端正式 GitHub Release 是 **26.905.2**（2026-09-05）：侧栏下载先 check 再 download。Windows 安装器仍未代码签名；Linux 无 Secret Service 与本地 OCR；该正式包里 Hyprland/Xorg Computer Use 不可用。开发 HEAD 已接线 Hyprland 合成器后端，Omarchy 真机验收未做。
 
 MilkSU 面向个人学习、授权研究和本地开发，不是互联网资产扫描器或无人值守的自动红队平台。
 

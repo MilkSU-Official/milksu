@@ -28,7 +28,7 @@
 | 开发版本线 | 仓库版本为 `26.905.2`。正式发行源是 `b18b860`；文档收口提交不移动该 tag。 |
 | 许可证 | 主项目为 `AGPL-3.0-only`（`LICENSE` / `NOTICE`）。第三方仍保留原许可。Obelisk 作为计划嵌入的 AGPL 记忆组件与此兼容；尚未 vendored。 |
 | 三端正式发行 | GitHub Latest Release `v26.905.2` 已提供签名并公证的 macOS ARM64 DMG、未签名 Windows x64 EXE、Linux x64 DEB 与 x64 tar.gz，以及 `SHA256SUMS-26.905.2.txt`。OTA 已上传私有 R2。`26.905.2` 侧栏下载先 `checkForUpdates` 再 `downloadUpdate`。从更早正式包到本版请下 GitHub 安装包。 |
-| Linux | `26.905.2` 发出 Ubuntu/Debian 共用 x64 DEB 与 Omarchy/Arch/Nix 共用 x64 tarball；GNOME Wayland Computer Use 走 Portal。仍无 Secret Service、本地 OCR；Hyprland / Xorg Computer Use unavailable。ISSUE #19 已关闭（拒绝 X11 xinput）。合同见 [Linux 安装与桌面合同](linux-platform-support.md)。 |
+| Linux | `26.905.2` 发出 Ubuntu/Debian 共用 x64 DEB 与 Omarchy/Arch/Nix 共用 x64 tarball；GNOME Wayland Computer Use 走 Portal。仍无 Secret Service、本地 OCR；该正式包里 Hyprland / Xorg Computer Use unavailable。开发 HEAD 为 Hyprland 增加独立合成器后端（单元测试已覆盖；真机验收未做）。ISSUE #19 已关闭（拒绝 X11 xinput）。合同见 [Linux 安装与桌面合同](linux-platform-support.md)。 |
 | Agent Harness | Pi 拥有 Session、Compaction、自然语言理解、通用文件/Shell 与 Tool Loop。MilkSU 已删除 workspace-only 文件工具、Node 文件权限状态机、普通回合 watchdog、CTF sandbox-exec、CVE 只读启动限制与客服式回复模板。不扫描用户句子做关键词/正则意图路由。`26.823.1` 起 Coding/CTF/CVE/实验室共用完整 Coding loop（含压缩、终端、Git、浏览器、LSP、Goal），领域工具叠在上面而不是替换；工具结果进模型前截断到 Pi 的 50KB/2000 行。`26.905.1` 起产品工具 when-to-use 不再在 system prompt 复述一遍；`release-milksu` 对模型名录隐藏。渐进披露跟当前选中的 Agent Harness 走，不跟 MilkSU 自造注入器走。 |
 | 上下文工程 | `26.825.1` 把经监督器校验的主会话 cwd 明确注入 Pi；writer worktree 仅属于独立 effectful subagent。Sidecar 通过 Pi 原生长缓存保留复用稳定会话前缀，压缩仍禁用一次性缓存写入。`26.904.1` 起窗口优先级为手动覆盖 > catalog（忽略 `128000` 占位）> 型号族预设 > 保守默认；Composer 环按 Pi 组装分类，并落地 edit 锚点、`tool_result` bound、中途引导与子 Agent 结构化回传。`26.905.1` 接线 `/rewind` 与最后一条用户消息的「丢掉这段」（Pi `navigateTree`）、`/handoff` 与用量环「接到新会话」（Pi 分叉 + 现行 compact）。GPT 与 Claude Opus / Sonnet / Fable 使用思考档位预设，其他模型在设置中手动声明；Composer 的对话级离散滑块只显示标准英文档位，经 Go 约束后调用 Pi 原生档位，最高为 `max`，子 Agent 同步继承。自动化已通过，真实 Provider 缓存命中率与 effort 请求仍待用户授权的计费链路验收。 |
 | MilkSU 宿主边界 | 只保留会话目录记录、Provider 凭据隔离、桌面授权、领域事实/Judge，以及危险大目录删除二次确认。Coding 另有类型化 `milksu_workspace` 与对话级批准，不替代 Pi 工具循环。 |
@@ -44,7 +44,7 @@
 | --- | --- | --- | --- |
 | [当前开发目标](current-objectives.md) | Current / Canonical | 当前阶段、正式发行基线、开发版本线、已发行/未发版事实、下一完成线和未接线方向 | 不保存完整聊天、微提交或旧验收过程；不复述 UI 规范 |
 | [当前系统与分层](../architecture/current-system.md) | Current / Canonical | 当前运行结构、依赖方向、桌面表面、能力边界和发行结构 | 不安排任务优先级；不复述 UI 规范 |
-| [Linux 安装与桌面合同](linux-platform-support.md) | Target / Designed | 共用 x64 DEB + 通用 tarball；ARM 只测不发；GNOME Portal Computer Use；ISSUE #19 已关闭 | 不把未发版安装面写成 GitHub Latest；不按 arch×distro 发 8 份包 |
+| [Linux 安装与桌面合同](linux-platform-support.md) | Target / Designed | 共用 x64 DEB + 通用 tarball；ARM 只测不发；GNOME Portal 与 Hyprland 合成器是两条 Computer Use 合同；ISSUE #19 已关闭 | 不把未发版安装面写成 GitHub Latest；不按 arch×distro 发 8 份包；不把三桌面写成功能等价 |
 | 仓库根目录 `AGENTS.md` | Current / Canonical | 仓库协作约束与产品 UI 设计语言 | 其他文档只指向它，不复制层级、token 或原语表 |
 | 本文件 | Current / Living | 事实优先级、文档职责、生命周期和维护规则 | 不复制实现细节或测试日志 |
 | Evidence 文档 | Evidence | 可复现命令、截图、哈希、平台回执和失败证据 | 不自动升级为当前完成状态 |

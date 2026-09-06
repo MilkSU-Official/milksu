@@ -57,7 +57,7 @@ MilkSU 的桌面壳不是通用 Agent Loop 的另一份实现。Pi 仍负责会�
 | --- | --- | --- | --- |
 | 浏览器 | MilkSU 管理的会话隔离 `WebContentsView` | 同一页面、地址、导航、当前会话与停止动作 | 不是外部 Chrome，不复用用户日常登录态 |
 | Browser Use | 用户真实 Chrome/Edge 中明确选择的标签页 | Composer 中可删除的标签页 Scope、配对状态与撤销入口 | 不获得整个 Profile，也不替代 CTF 平台 Judge |
-| Computer Use | macOS / Windows：明确选择的外部 App / PID / Window；Linux GNOME：整桌面 Portal | 可见 Scope、系统权限状态、运行轨迹与停止动作 | 像素级操作不替代隔离浏览器或 Browser Use；Linux 不是窗口 Scope，Hyprland / Xorg unavailable |
+| Computer Use | macOS / Windows：明确选择的外部 App / PID / Window；Linux GNOME：整桌面 Portal；Linux Hyprland：整桌面合成器原生输入 | 可见 Scope、系统权限状态、运行轨迹与停止动作 | 像素级操作不替代隔离浏览器或 Browser Use；Linux 不是窗口 Scope；GNOME 与 Hyprland 是两条合同，Xorg unavailable |
 
 三种表面还共享一个生命周期不变量：**面板显隐只改变观察视图，不改变执行 Session**。右栏折叠、
 切换页面或用户回到聊天区时，已授权任务不应因此停止；用户重新展开后应看到同一会话的最新状态。
@@ -79,7 +79,7 @@ MilkSU 的桌面壳不是通用 Agent Loop 的另一份实现。Pi 仍负责会�
 | 安全工具目录 | **Verified setup chain / real binary task pending** | “设置 → MCP”内置行使用真实 Desktop RPC 检测与持久化。IDA Pro/idalib 和 capa 具备可准备的固定版本适配器；就绪且启用后进入普通 Coding 的模型可选目录。用户可覆盖 command/args 或打开专用 Coding 工作区用自然语言改配置，并可恢复当前版本出厂默认。capa 仍是 `capa_analyze`，不是假 MCP。CodeQL、Burp Suite、Shannon 目前仅做本机/前提检测，不会被误报为模型可用。尚未用真实 crackme/二进制完成任务回执。当前也还没接到 CTF/CVE；需要时按切片接入，不必先等 Coding 回执再开会决定。 |
 | 内置浏览器 | **Verified packaged tasks; multi-tab in 26.818.2; Go auto-start removed in 26.819.1** | 产品 UI 只显示“浏览器”。每次 Coding 会话使用独立 `session.fromPath`，默认拒绝页面权限。`26.817.1` 起已有打包任务：Grok 只用浏览器完成顺序点击、表单提交和公开文档调研，右栏折叠后继续并保留同一页面终态。`26.818.2` 起标签栏 `+` 在启动前可见；每个标签是独立 `WebContentsView`，切换换页并更新地址。`26.819.1` 起隔离浏览器只在用户打开右栏或模型调用类型化 `milksu_workspace` 浏览器动作时启动；普通 Go 问候不再 `EnsureCodingBrowser`。`ScopedCDPProxy` 仍只公布当前一个 Target。 |
 | Browser Use | **Implemented UI / live pairing pending** | 真实用户 Chrome/Edge 复用固定 `@playwright/mcp --extension`，由用户选择准确标签页；不复用内置浏览器 profile。Linux / Windows 另查找本机 Chromium 家族（PATH、snap、Nix、桌面入口）；`v26.827.1` 已打入该查找路径，桌面配对回执仍待用户机。 |
-| Computer Use | **Verified self-bootstrap slice; Windows bounded driver packaged in 26.818.2; Linux GNOME Portal packaged in 26.827.1** | macOS / Windows 只接受外部可见 App/PID/Window Scope，含用户真实浏览器窗口；Calculator 与 Stable → MilkSU Beta 的 branch/commit/tracking 核验、click/scroll 及 CTF/CVE 任务连续性全程已验。Stable 排除自身；隔离浏览器与 Browser Use 仍是独立表面。任务授权可恢复，明确请求且只有一个合格目标时自动启动，准备期间的提交在就绪后自动续发，多目标仍需准确选择。右栏诊断和操作证据默认折叠。`26.818.2` Windows 包打入有界会话、宿主 PID 排除和审阅过的 `cua-driver 0.14.2`。Driver 先走安装包/Sidecar；缺失时由类型化 `prepare_computer_use_driver` 准备 MilkSU 审阅副本，不走 Cua 官方安装脚本。Linux 按桌面会话：GNOME Wayland 走 XDG Desktop Portal（整桌面级，不是窗口 Scope），已进入 `v26.827.1`；Hyprland 与 Xorg unavailable，不走 `xinput`。ISSUE #19 已关闭。 |
+| Computer Use | **Verified self-bootstrap slice; Windows bounded driver packaged in 26.818.2; Linux GNOME Portal packaged in 26.827.1; Hyprland compositor backend implemented on development HEAD** | macOS / Windows 只接受外部可见 App/PID/Window Scope，含用户真实浏览器窗口；Calculator 与 Stable → MilkSU Beta 的 branch/commit/tracking 核验、click/scroll 及 CTF/CVE 任务连续性全程已验。Stable 排除自身；隔离浏览器与 Browser Use 仍是独立表面。任务授权可恢复，明确请求且只有一个合格目标时自动启动，准备期间的提交在就绪后自动续发，多目标仍需准确选择。右栏诊断和操作证据默认折叠。`26.818.2` Windows 包打入有界会话、宿主 PID 排除和审阅过的 `cua-driver 0.14.2`。Driver 先走安装包/Sidecar；缺失时由类型化 `prepare_computer_use_driver` 准备 MilkSU 审阅副本，不走 Cua 官方安装脚本。Linux 按桌面会话：GNOME Wayland 走 XDG Desktop Portal（整桌面级，不是窗口 Scope），已进入 `v26.827.1`；开发 HEAD 上 Hyprland 走独立合成器后端（IPC + grim + wtype + zwlr_virtual_pointer），不是 Portal，也不是窗口 Scope，真机验收未做，未进 `v26.905.2`；Xorg unavailable，不走 `xinput`。ISSUE #19 已关闭。 |
 | CTF Runtime | **Implemented / Daily receipt partial** | `internal/ctf` 持有 Challenge、Evidence、Candidate、Judge Receipt、Recovery、Memory 与学习事实；模型候选不能建立成功事实。CTF 通用文件与 Shell 复用 Pi 原生工具及用户系统权限，不再复制 workspace-only 沙箱；MilkSU 只保留题目域工具、精确站点能力、凭据隔离、Judge 和证据投影。模型输出达到长度上限时通过 Pi `agent_end` / `followUp` 扩展点继续。Daily 由规则筛选未完成候选，再复用 Pi 结合近期题目、关联 Coding 对话、已确认事实和 Memory 选择并解释；结果按本地日期固定并允许主动换题，模型不可用时规则兜底。代码与自动化已回归，真实签名包用户视角仍待复验。 |
 | CVE Learning / Tracking | **Verified signed tracking slice; reproduction dossier in 26.822.1; public feeds in 26.823.1** | 用户界面只显示明确加入的公开 CVE、手工状态，默认文案为“想研究”。添加入口通过只读 Desktop RPC 搜索 NVD，用户选中后直接把当前结果和来源元数据写入本地追踪，不做第二次网络请求；参考资料按机构去重，完整集合仍由 NVD 承载。学习专题已从 CVE 页删除，同类搜索改走列表右上角「导入」弹窗。`26.822.1` 点进档案后复现：Agent 编辑 `report.md`，对话留在右下角小窗。`26.823.1` 起「同步公开源」写入的 CISA KEV 条目会进入列表。不以「复现成功 / 没复现上」当完成面。披露草稿还没做，不是禁令。 |
 | Obelisk / 记忆底座 | **Implemented backend / UI deferred** | MilkSU 自有索引仍只处理本机 Coding/CTF/CVE 会话；当前产品不展示单会话历史面板或图谱。后续学习记录/记忆系统应作为独立页面进入，不移除或混写 Obelisk 与 CTF Memory 底层事实。 |
@@ -301,6 +301,6 @@ DEB 与 tar.gz 已在原生 Ubuntu 完成包结构、Node/Pi Sidecar、Go Runtim
 后续正式包应走 `release:verify` → 云端 macOS / Windows / Linux → `release:github` 创建 Release 页。
 
 Linux `v26.905.2` 包已包含当前 CTF/CVE 与通用 Coding 的 Pi Runtime 收敛、共用 tarball / PKGBUILD / Nix flake，
-以及 GNOME Portal Computer Use；仍不接 Secret Service 与本地 OCR，Hyprland / Xorg Computer Use unavailable。
+以及 GNOME Portal Computer Use；仍不接 Secret Service 与本地 OCR。开发 HEAD 另有 Hyprland 合成器 Computer Use，未进该正式包，也不能写成与 GNOME Portal 等价；Xorg Computer Use unavailable。
 Windows 未签名和 Linux 缺失能力必须在下载说明中明确，不能把三端构建
 回执外推为三个平台功能等价。OTA 草稿应已上传私有 R2；Admin current pointer 仍须维护者在「版本」页发布。

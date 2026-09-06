@@ -4,7 +4,7 @@
 >
 > 目标范围：Ubuntu 24.04、Debian 13、Omarchy、当前仍受支持的 NixOS stable
 >
-> 最后审阅：2026-08-26
+> 最后审阅：2026-09-06
 >
 > 本文记录 Linux 安装面与 Computer Use 的产品边界。它不是实施队列，也不把计划写成已验证能力。
 > 当前发行事实仍以 [当前开发目标](current-objectives.md)、[文档状态](document-status.md)、当前代码和真实平台回执为准。
@@ -19,13 +19,13 @@
 3. 正式发行架构仍是 `linux/amd64`。Apple Silicon 上的 ARM 虚拟机只作开发测试：ARM 上跑通后，同一代码打 x64 包。ARM DEB/tarball 可以留在本机或 CI 试验产物里，不进入 GitHub Latest。
 4. Ubuntu 与 Debian 共用那份 `.deb`，不能假定 Ubuntu-only 包名。Omarchy / NixOS 不要求用户拆 DEB。
 5. ISSUE [#19](https://github.com/MilkSU-Official/milksu/issues/19) 已关闭：X11 `cua-driver --permission-mode bounded` 与 `xinput detach/disable` 拒绝合入。Linux 产品代码不运行 `xinput detach/disable`，不把 root/uinput 或 `/dev/input` 做成隐式后门，也不接入 Cua Linux 驱动。Xorg 会话 Computer Use 保持 unavailable。若以后做 X11，另开 XTEST 合成事件的 issue，不复活摘设备路径。
-6. GNOME Wayland 的宿主 Computer Use 走 XDG Desktop Portal 最小路径：系统授权框、截屏、按坐标点击、打字；停止或崩溃后物理键鼠仍归用户。这是整桌面级输入，不能写成 macOS/Windows 那种精确窗口 Scope。Hyprland 在上游 RemoteDesktop 可依赖之前保持 unavailable。
+6. GNOME Wayland 的宿主 Computer Use 走 XDG Desktop Portal 最小路径：系统授权框、截屏、按坐标点击、打字；停止或崩溃后物理键鼠仍归用户。这是整桌面级输入，不能写成 macOS/Windows 那种精确窗口 Scope。Hyprland 走独立的合成器原生后端（Hyprland IPC + `grim` / `wtype` + `zwlr_virtual_pointer`），不复用 GNOME Portal，也不等待 `xdg-desktop-portal-hyprland` 的 RemoteDesktop。产品文案必须写明这两条合同不同。
 7. NixOS 没有 Ubuntu 式 LTS。flake 随当时仍受支持的 nixpkgs 通道重验。Omarchy 是滚动发行，安装面随官方包仓走。
-8. 嵌套 Wayland session、Hyprland 私有协议后端、CDP 附着外部 Electron App，都不是本安装合同的一部分。
+8. 嵌套 Wayland session、CDP 附着外部 Electron App，都不是本安装合同的一部分。Hyprland Computer Use 只使用合成器已公开的 IPC、截屏工具和 Wayland 虚拟指针协议，不接 Cua Linux 驱动，不走 `xinput`。
 
 ## 当前事实
 
-正式发行 `v26.904.1` 的 Linux 产物是 Ubuntu/Debian 共用 x64 `.deb` 与 Omarchy/Arch/Nix 共用 x64 `.tar.gz`。自动化验证了包结构、Node/Pi Sidecar、Go Runtime 和 Xvfb Electron 启动。GNOME Wayland Computer Use 走 XDG Desktop Portal，已进包；Hyprland / Xorg unavailable。发布脚本明确记录 `localOcr: false`；Linux 仍无 Secret Service。
+正式发行 `v26.905.2` 的 Linux 产物是 Ubuntu/Debian 共用 x64 `.deb` 与 Omarchy/Arch/Nix 共用 x64 `.tar.gz`。自动化验证了包结构、Node/Pi Sidecar、Go Runtime 和 Xvfb Electron 启动。GNOME Wayland Computer Use 走 XDG Desktop Portal，已进该正式包。开发 HEAD 另有独立的 Hyprland 合成器后端（单元测试已覆盖路由）；Omarchy / 真机 Hyprland 验收尚未留下回执，不能写成已发行或与 GNOME Portal 功能等价。Xorg unavailable。发布脚本明确记录 `localOcr: false`；Linux 仍无 Secret Service。
 
 - Sidecar 只有 `linux/amd64` Node runtime；Linux 没有已审阅的 `@napi-rs/system-ocr` 原生包。
 - Browser Use 查找 Chrome / Chromium / Edge、PATH、snap、Nix 与桌面入口。
@@ -33,7 +33,7 @@
 
 本机 Apple Silicon QEMU 上的 Ubuntu 24.04 ARM64 GNOME Wayland 已看到：应用窗口、hicolor 图标（不再落到齿轮）、隔离浏览器，以及装上 Chromium 后的 Browser Use 可执行文件探测。换入本切片 Go/Sidecar 后，用户点允许桌面共享：会话 `ready`，坐标点击成功，打字写入系统设置搜索框（`milksu-portal`），停止后 Portal session 与 socket 消失、Mutter 可再 CreateSession。锁屏会抑制 RemoteDesktop。Screenshot 接口在该 virtio-gpu 上返回 code 2，画面改从已授权 ScreenCast 流取出。
 
-Debian 13 ARM64 Hyprland 0.55.2（trixie-backports，virtio-gpu）：tarball 应用在 `ozone-platform=wayland` 下启动，Hyprland `hyprctl clients` 可见 class `milksu`。Computer Use 为 unavailable，文案写明 Hyprland 暂不可用、不走 xinput。Hyprland 上 `ready-to-show` 可能不触发，Linux 会在 5 秒后 `show()`。这是试验回执，不是 GitHub Latest。
+Debian 13 ARM64 Hyprland 0.55.2（trixie-backports，virtio-gpu）：tarball 应用在 `ozone-platform=wayland` 下启动，Hyprland `hyprctl clients` 可见 class `milksu`。当时 Computer Use 为 unavailable。开发 HEAD 已改走独立 Hyprland 后端，但该 virtio 试验不是 Omarchy 真机回执，也不能改写 `v26.905.2`。Hyprland 上 `ready-to-show` 可能不触发，Linux 会在 5 秒后 `show()`。
 
 NixOS 26.05 ARM64 GNOME 图形 live（virtio-gpu）：同一 ARM tarball 经 `packaging/linux` flake/`default.nix` 的 FHS 包装后，在 Wayland 上启动并显示出登录页。FHS 需要 `libgbm`（以及 fontconfig / freetype / gdk-pixbuf / wayland），否则 Electron 会在加载 `libgbm.so.1` 时退出。从 SSH 会话拉起时不要带无授权的 `DISPLAY`；图形会话内用 `ozone-platform=wayland`。这是试验回执，不是 GitHub Latest。Computer Use 未在该 live 上单独点授权，GNOME 仍走同一 Portal 路径。
 
@@ -47,8 +47,8 @@ NixOS 26.05 ARM64 GNOME 图形 live（virtio-gpu）：同一 ARM tarball 经 `pa
 | --- | --- | --- | --- |
 | Ubuntu 24.04 · GNOME Wayland | 共用 `.deb` | 本切片 | Portal 最小路径（桌面级） |
 | Debian 13 · GNOME Wayland | 同一 `.deb` | `verify-linux-deb-debian13.sh` | 同上 |
-| Omarchy · Hyprland | 同一 `.tar.gz` + PKGBUILD | `verify-linux-pacman-arch.sh` | unavailable |
-| NixOS · GNOME 或 Hyprland | 同一 `.tar.gz` + flake | `verify-linux-nixos.sh` | GNOME 同 Portal；Hyprland unavailable |
+| Omarchy · Hyprland | 同一 `.tar.gz` + PKGBUILD | `verify-linux-pacman-arch.sh` | 开发线：合成器原生（整桌面，非 Portal）；真机验收未做 |
+| NixOS · GNOME 或 Hyprland | 同一 `.tar.gz` + flake | `verify-linux-nixos.sh` | GNOME 同 Portal；Hyprland 同左列开发线，真机验收未做 |
 
 Ubuntu / Debian 的 Xorg 会话只做负向验收：Computer Use 不走 `xinput`。Fedora、openSUSE、KDE、Sway 不在首轮承诺里；代码应按能力探测自然降级。
 
@@ -66,7 +66,7 @@ Ubuntu / Debian 的 Xorg 会话只做负向验收：Computer Use 不走 `xinput`
 
 ISSUE [#19](https://github.com/MilkSU-Official/milksu/issues/19) 已关闭：X11 后端拒绝合入；GNOME Wayland Portal 路径已通过停止后键鼠仍可用的验收。
 
-GNOME Portal 只承诺显示器级输入，产品文案必须写明，不得冒充 App/Window Scope。Hyprland 在上游 RemoteDesktop 可依赖前保持 unavailable。
+GNOME Portal 只承诺显示器级输入，产品文案必须写明，不得冒充 App/Window Scope。Hyprland 是另一条整桌面合同：合成器通知 + `grim` 截屏 + 虚拟指针点击 + `wtype` 打字；停止或崩溃后键鼠仍归用户。两条后端不得混写，也不能把三个 Linux 桌面写成功能等价。
 
 ## GitHub Release 上传清单
 
@@ -86,6 +86,7 @@ GNOME Portal 只承诺显示器级输入，产品文案必须写明，不得冒�
 - NixOS：`packaging/linux` flake 包装同一 unpacked 目录
 - 桌面：Wayland ozone auto；hicolor 16–512 图标；Browser Use 查找 Chromium 家族
 - GNOME Computer Use：XDG Desktop Portal 授权后截屏 / 坐标点击 / 打字，不接 Cua
+- Hyprland Computer Use：独立合成器后端；缺 grim/wtype 时产品指出要装的包；真机验收仍缺
 - 本机 ARM 虚拟机只验证，不改变正式包架构
 
 验证脚本：`scripts/verify-linux-deb-debian13.sh`、`scripts/verify-linux-pacman-arch.sh`、`scripts/verify-linux-nixos.sh`。容器安装成功不是 GNOME/Hyprland 真机 GUI 回执。Xvfb、一次截图或 Portal 在线都不能替代真实桌面回执。
@@ -96,7 +97,8 @@ GNOME Portal 只承诺显示器级输入，产品文案必须写明，不得冒�
 - Omarchy 官方 ISO 仍是 x86_64；ARM 上用 Debian 13 + Hyprland 0.55 做过 Wayland 试验，不是 Omarchy 发行面回执；
 - NixOS ARM GNOME live 已有 FHS 启动回执，仍没有正式 GitHub Release 回执；
 - Linux Secret Service 与本地 OCR 仍未实现；
-- Hyprland RemoteDesktop 尚未成为可依赖的正式上游能力，Computer Use 保持 unavailable；
+- Hyprland Computer Use 已在开发线实现并有单元测试；尚未在真实 Omarchy / Hyprland 机器留下截屏、点击、打字与停止后键鼠仍可用的回执；
+- `xdg-desktop-portal-hyprland` RemoteDesktop 仍不可依赖，因此 Hyprland 不走 Portal；
 - Linux ARM64 不是发行架构；
 - Portal 与通用 tarball 尚未进入 GitHub Latest `v26.825.1`。
 
