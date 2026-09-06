@@ -323,8 +323,8 @@ func TestLinuxHyprlandSessionScreenshotUsesHostpath(t *testing.T) {
 	if grimPath == "" {
 		t.Fatal("grim was not invoked")
 	}
-	if !strings.HasPrefix(grimPath, hostpath.EphemeralRoot()) {
-		t.Fatalf("grim path %q is not under hostpath ephemeral root %q", grimPath, hostpath.EphemeralRoot())
+	if !strings.HasPrefix(grimPath, hostpath.ComputerUseRuntimeRoot()) {
+		t.Fatalf("grim path %q is not under ComputerUseRuntimeRoot %q", grimPath, hostpath.ComputerUseRuntimeRoot())
 	}
 	if strings.HasPrefix(grimPath, "/tmp/milksu-") || strings.Contains(grimPath, "/private/tmp/") {
 		t.Fatalf("grim path hardcodes tmp: %q", grimPath)

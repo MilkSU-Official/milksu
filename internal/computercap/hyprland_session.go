@@ -267,7 +267,7 @@ func parseHyprlandMonitorExtent(raw []byte) (int, int, bool) {
 }
 
 func hyprlandShotPath() (string, error) {
-	root := filepath.Join(hostpath.EphemeralRoot(), "milksu-computer-use")
+	root := hostpath.ComputerUseRuntimeRoot()
 	if err := os.MkdirAll(root, 0o700); err != nil {
 		return "", err
 	}
