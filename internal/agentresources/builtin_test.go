@@ -115,6 +115,41 @@ func TestArchifyFactorySkillIsResolved(t *testing.T) {
 	}
 }
 
+func TestGatedREOverlaysDefaultOff(t *testing.T) {
+	store, err := NewStore(t.TempDir(), fakeSecrets{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := store.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := 0
+	for _, item := range snapshot.BuiltinMCP {
+		switch item.Name {
+		case "ghidra-ida-re", "ghidra-rpc", "jadx-android-malware":
+			found++
+			if item.Enabled {
+				t.Fatalf("gated overlay %s defaulted on: %#v", item.Name, item)
+			}
+		case "ida-pro", "capa":
+			if !item.Enabled {
+				t.Fatalf("reviewed adapter %s defaulted off: %#v", item.Name, item)
+			}
+		}
+	}
+	if found != 3 {
+		t.Fatalf("expected three gated overlays, found %d in %#v", found, snapshot.BuiltinMCP)
+	}
+	_, _, on, _ := store.LookupBuiltinMCP("ghidra-rpc")
+	if on {
+		t.Fatal("LookupBuiltinMCP should default ghidra-rpc off")
+	}
+	if BuiltinMCPDefaultEnabled("ghidra-rpc") || !BuiltinMCPDefaultEnabled("ida-pro") {
+		t.Fatal("BuiltinMCPDefaultEnabled mismatch")
+	}
+}
+
 func TestReservedUserMCPStillRejected(t *testing.T) {
 	store, err := NewStore(t.TempDir(), fakeSecrets{})
 	if err != nil {

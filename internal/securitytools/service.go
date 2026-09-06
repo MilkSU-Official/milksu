@@ -40,7 +40,7 @@ func (s *Service) List(ctx context.Context) []ToolSnapshot {
 	result := make([]ToolSnapshot, 0, len(catalog))
 	for _, item := range catalog {
 		detected := s.detect(ctx, item.id)
-		enabled := true
+		enabled := item.defaultEnabled
 		if preference, ok := preferences[item.id]; ok {
 			enabled = preference.Enabled
 		}
@@ -120,6 +120,8 @@ func (s *Service) Check(ctx context.Context, id string) (ToolSnapshot, error) {
 func (s *Service) RuntimeTools(ctx context.Context) []RuntimeTool {
 	preferences := s.settings.Get().SecurityTools
 	result := make([]RuntimeTool, 0, 2)
+	// Only reviewed native adapters enter the Sidecar security-tool catalog.
+	// Gated RE overlays stay out until Security / Coding / Lab countersign.
 	for _, item := range []definition{catalog[0], catalog[1]} {
 		if preference, ok := preferences[item.id]; ok && !preference.Enabled {
 			continue
@@ -164,6 +166,36 @@ func (s *Service) CodingHandoff(ctx context.Context, id string) (CodingHandoff, 
 		ExecutionMode:  "go",
 		ApprovalPolicy: "full-auto",
 	}, nil
+}
+
+// AdmittedOverlaySkillPaths returns on-disk Skill directories for gated RE
+// overlays that are both ready and enabled. Stubs never enter this list while
+// detection stays at detected / needs_setup.
+func (s *Service) AdmittedOverlaySkillPaths(ctx context.Context) []string {
+	preferences := s.settings.Get().SecurityTools
+	var paths []string
+	for _, item := range catalog {
+		if item.overlayKind != "skill" {
+			continue
+		}
+		enabled := item.defaultEnabled
+		if preference, ok := preferences[item.id]; ok {
+			enabled = preference.Enabled
+		}
+		if !admitOverlay(enabled, s.detect(ctx, item.id).status) {
+			continue
+		}
+		path, err := s.materializeOverlayStub(item.id)
+		if err != nil {
+			continue
+		}
+		paths = append(paths, path)
+	}
+	return paths
+}
+
+func admitOverlay(enabled bool, status Status) bool {
+	return enabled && status == StatusReady
 }
 
 func knownTool(id string) bool {

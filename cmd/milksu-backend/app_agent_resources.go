@@ -102,7 +102,7 @@ func (a *App) RestoreBuiltinMCP(name string) (agentresources.CatalogSnapshot, er
 		return agentresources.CatalogSnapshot{}, errAgentResourcesUnavailable
 	}
 	if a.securityTools != nil {
-		_ = a.securityTools.SetEnabled(name, true)
+		_ = a.securityTools.SetEnabled(name, agentresources.BuiltinMCPDefaultEnabled(name))
 	}
 	return a.agentResources.RestoreBuiltinMCP(name)
 }

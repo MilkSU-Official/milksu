@@ -3,12 +3,28 @@ package securitytools
 import "time"
 
 const (
-	ToolIDA     = "ida-pro"
-	ToolCapa    = "capa"
-	ToolCodeQL  = "codeql"
-	ToolBurp    = "burp-suite"
-	ToolShannon = "shannon"
+	ToolIDA         = "ida-pro"
+	ToolCapa        = "capa"
+	ToolCodeQL      = "codeql"
+	ToolBurp        = "burp-suite"
+	ToolShannon     = "shannon"
+	ToolGhidraIDARE = "ghidra-ida-re"
+	ToolGhidraRPC   = "ghidra-rpc"
+	ToolJADXAndroid = "jadx-android-malware"
 )
+
+// GatedOverlayIDs are factory RE overlays that stay off the model catalog
+// until a local tool is ready and the user enables the row.
+var GatedOverlayIDs = []string{ToolGhidraIDARE, ToolGhidraRPC, ToolJADXAndroid}
+
+func DefaultEnabled(id string) bool {
+	switch id {
+	case ToolGhidraIDARE, ToolGhidraRPC, ToolJADXAndroid:
+		return false
+	default:
+		return true
+	}
+}
 
 type Status string
 

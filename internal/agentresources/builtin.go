@@ -14,6 +14,20 @@ var builtinMCPNames = []string{
 	"codeql",
 	"burp-suite",
 	"shannon",
+	"ghidra-ida-re",
+	"ghidra-rpc",
+	"jadx-android-malware",
+}
+
+var defaultOffBuiltinMCP = map[string]struct{}{
+	"ghidra-ida-re":        {},
+	"ghidra-rpc":           {},
+	"jadx-android-malware": {},
+}
+
+func BuiltinMCPDefaultEnabled(name string) bool {
+	_, off := defaultOffBuiltinMCP[name]
+	return !off
 }
 
 var builtinSkillNames = []string{
@@ -278,7 +292,7 @@ func (s *Store) EnsureConfigWorkspace() (string, error) {
 func (s *Store) LookupBuiltinMCP(name string) (command string, args []string, enabled bool, customized bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	enabled = true
+	enabled = BuiltinMCPDefaultEnabled(name)
 	document, err := s.loadAndSyncLocked()
 	if err != nil {
 		return "", nil, enabled, false
@@ -412,7 +426,7 @@ func (s *Store) writeWorkspaceLocked(document catalogDocument) error {
 	}
 	for _, name := range builtinMCPNames {
 		record := document.BuiltinMCP[name]
-		enabled := true
+		enabled := BuiltinMCPDefaultEnabled(name)
 		if record.Enabled != nil {
 			enabled = *record.Enabled
 		}
@@ -485,7 +499,7 @@ func (s *Store) builtinMCPSnapshotsLocked(document catalogDocument) []BuiltinMCP
 	result := make([]BuiltinMCPSnapshot, 0, len(builtinMCPNames))
 	for _, name := range builtinMCPNames {
 		record := document.BuiltinMCP[name]
-		enabled := true
+		enabled := BuiltinMCPDefaultEnabled(name)
 		if record.Enabled != nil {
 			enabled = *record.Enabled
 		}
@@ -550,7 +564,8 @@ func configWorkspaceGuidance() string {
 Edit the files in this directory to change this machine's built-in MCP and Skill overlays.
 MilkSU reloads these files when Settings opens the catalog or a Coding turn starts.
 
-- mcp/<id>.json: built-in MCP overlay. IDs: ida-pro, capa, codeql, burp-suite, shannon.
+- mcp/<id>.json: built-in MCP overlay. IDs: ida-pro, capa, codeql, burp-suite, shannon, ghidra-ida-re, ghidra-rpc, jadx-android-malware.
+  ghidra-ida-re, ghidra-rpc and jadx-android-malware default off and stay out of the model catalog until the local tool is ready and the row is enabled.
   Set command/args to override this version's detected adapter. Clear command and args to use detection again.
   Do not put API keys or tokens in these files.
 - skills/<name>/SKILL.md: overlay of a shipped first-party Skill. Keep Pi catalog rules:

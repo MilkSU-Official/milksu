@@ -59,6 +59,12 @@ func (s *Service) detect(ctx context.Context, id string) detection {
 		return s.detectBurp(ctx)
 	case ToolShannon:
 		return s.detectShannon(ctx)
+	case ToolGhidraIDARE:
+		return s.detectGhidraOrIDA(ctx)
+	case ToolGhidraRPC:
+		return s.detectGhidra(ctx)
+	case ToolJADXAndroid:
+		return s.detectJADX(ctx)
 	default:
 		return detection{status: StatusUnavailable, statusLabel: "不可用", problem: "未知工具"}
 	}
@@ -160,6 +166,116 @@ func (s *Service) detectShannon(ctx context.Context) detection {
 		status: StatusDetected, statusLabel: "前提已就绪", version: "Docker " + firstLine(version),
 		problem: "Docker 可用；Shannon Worker 与任务回执 Adapter 尚未进入本批生产链。",
 	}
+}
+
+func (s *Service) detectGhidraOrIDA(ctx context.Context) detection {
+	ghidra := s.detectGhidra(ctx)
+	ida := s.detectIDAPresence()
+	if ghidra.status == StatusDetected || ida {
+		version := ghidra.version
+		if version == "" && ida {
+			version = "已检测 IDA"
+		}
+		return detection{
+			status: StatusDetected, statusLabel: "已检测本机工具", version: version,
+			problem: "已检测到 IDA 或 Ghidra；该 Skill 覆盖尚未经 Security / Coding / Lab 会签，不会进入模型名录。",
+		}
+	}
+	return detection{
+		status: StatusNeedsSetup, statusLabel: "未检测到工具",
+		action:  "安装 IDA 或 Ghidra",
+		problem: "未在 PATH、GHIDRA_INSTALL_DIR 或系统应用目录中检测到 IDA / Ghidra。",
+	}
+}
+
+func (s *Service) detectGhidra(ctx context.Context) detection {
+	if command, version := s.lookupGhidra(); command != "" {
+		if out, err := s.probe.Output(ctx, command, "--help"); err == nil && firstLine(out) != "" && len(firstLine(out)) <= 80 {
+			version = firstLine(out)
+		}
+		return detection{
+			status: StatusDetected, statusLabel: "已检测 Ghidra", version: version,
+			command: command,
+			problem: "Ghidra 已安装；ghidra-rpc 适配器尚未经 Security / Coding / Lab 会签，不会进入模型名录。",
+		}
+	}
+	return detection{
+		status: StatusNeedsSetup, statusLabel: "未检测到 Ghidra",
+		action:  "安装 Ghidra",
+		problem: "未在 PATH、GHIDRA_INSTALL_DIR 或系统应用目录中检测到 Ghidra。",
+	}
+}
+
+func (s *Service) detectJADX(ctx context.Context) detection {
+	for _, name := range []string{"jadx", "jadx-gui"} {
+		command, err := s.probe.LookPath(name)
+		if err != nil {
+			continue
+		}
+		version, versionErr := s.probe.Output(ctx, command, "--version")
+		if versionErr != nil || version == "" {
+			version = "本机 JADX"
+		}
+		return detection{
+			status: StatusDetected, statusLabel: "已检测 JADX", version: firstLine(version),
+			command: command,
+			problem: "JADX 已安装；该 Skill 覆盖尚未经 Security / Coding / Lab 会签，不会进入模型名录。",
+		}
+	}
+	return detection{
+		status: StatusNeedsSetup, statusLabel: "未检测到 JADX",
+		action:  "安装 JADX",
+		problem: "未在 PATH 中检测到 jadx 或 jadx-gui。",
+	}
+}
+
+func (s *Service) detectIDAPresence() bool {
+	if findIDAApplication() != "" {
+		return true
+	}
+	for _, name := range []string{"idat", "idat64", "ida64", "ida"} {
+		if _, err := s.probe.LookPath(name); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *Service) lookupGhidra() (command, version string) {
+	for _, name := range []string{"analyzeHeadless", "ghidraRun", "ghidra"} {
+		if path, err := s.probe.LookPath(name); err == nil {
+			return path, "本机 Ghidra"
+		}
+	}
+	if install := strings.TrimSpace(os.Getenv("GHIDRA_INSTALL_DIR")); install != "" {
+		for _, rel := range []string{
+			filepath.Join("support", "analyzeHeadless"),
+			filepath.Join("support", "analyzeHeadless.bat"),
+			"ghidraRun",
+			"ghidraRun.bat",
+		} {
+			candidate := filepath.Join(install, rel)
+			if regularFile(candidate) || regularExecutable(candidate) {
+				return candidate, "GHIDRA_INSTALL_DIR"
+			}
+		}
+	}
+	if runtime.GOOS == "darwin" {
+		matches, _ := filepath.Glob("/Applications/ghidra*")
+		sort.Strings(matches)
+		for _, candidate := range matches {
+			for _, rel := range []string{
+				filepath.Join("Contents", "MacOS", "ghidraRun"),
+				filepath.Join("support", "analyzeHeadless"),
+			} {
+				path := filepath.Join(candidate, rel)
+				if regularFile(path) || regularExecutable(path) {
+					return path, "已安装"
+				}
+			}
+		}
+	}
+	return "", ""
 }
 
 func findIDAApplication() string {

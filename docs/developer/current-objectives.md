@@ -176,6 +176,7 @@
 - 侧栏运行中会话只显示像素点，`运行中` 留在 `aria-label`。原先可见文案在 16px 状态槽里居中裁切，会露出中间的「行」。
 - 计划 / 变更上拉框不再跟收缩后的胶囊同宽；展开后最小 18rem，步骤文案不再只剩两个字。
 - 下拉框、菜单、Dialog、Sheet 和对话小窗改用实底 `--surface-overlay` / `--popover`，不再套 68–74% 透明加 `backdrop-filter`。Windows 上 blur 经常不生效，字会看穿。Composer 岛仍可保留轻模糊。
+- 窄逆向出厂覆盖脚手架（IDA/Ghidra 工作流、Ghidra RPC、JADX）：设置 MCP 内置行默认关，本机工具只报「已检测」，不进模型名录；上游 Skill 正文未会签、未 vendor。跟踪见 [窄逆向 Skill / MCP 出厂覆盖](narrow-re-skill-overlays.md)。不是 Kali 商店，也不扩七言全表。
 
 ## 当前产品事实
 
@@ -251,7 +252,7 @@ Windows 签名、Linux Secret Service / OCR、Hyprland/Xorg Computer Use、Windo
 | P1 | 下一版三端回执发行 | 需要新的版本号、同一 source commit、三端产物、SHA-256 与平台验收。现有 `v26.905.2` 只覆盖 `b18b860`。 |
 | P1 | Admin current pointer / 客户端下载 | `26.905.2` 已先 `checkForUpdates` 再 `downloadUpdate`。从更早正式包到本版请下 GitHub 安装包。Admin current pointer 仍须维护者发布后，后续 hop 才能走 OTA。 |
 | P1 | Wide lab parent loop（#53） | `bg_status` poller 熔断与最多 4 条 read-only `subagent` lane 在 `fix/wide-job-parent-loop`。未发版、未经验收。typed sweep / inventory 工具只在真实 wide job 仍用 bash 复刻库存后再做。 |
-| P1 | 安全工具真实任务 | IDA/idalib 与 capa 已有设置、准备和健康检查；用受控本地样本留下真实任务回执。就绪工具接到实验室作业，窄工具也可进 CVE 复现；不需要先开一次“是否投影”的会。不把 HexStrike 整包 MCP 做成产品页或 Kali 应用商店。CodeQL、Burp、Shannon 仍逐项接入。 |
+| P1 | 安全工具真实任务 | IDA/idalib 与 capa 已有设置、准备和健康检查；用受控本地样本留下真实任务回执。就绪工具接到实验室作业，窄工具也可进 CVE 复现；不需要先开一次“是否投影”的会。不把 HexStrike 整包 MCP 做成产品页或 Kali 应用商店。CodeQL、Burp、Shannon 仍逐项接入。窄逆向三项（IDA/Ghidra Skill、ghidra-rpc、JADX）已有默认关闭的出厂覆盖脚手架，待 Security/Coding/Lab 会签后再升 `ready` 或接入正文；见 [窄逆向 Skill / MCP 出厂覆盖](narrow-re-skill-overlays.md)。 |
 | P1 | Obelisk 学习记录 | 先定义可归因学习事实，再设计独立页面；不恢复已删除的单会话相关历史/图谱面板。 |
 | 未接线 | 继续同一作业还是新开一轮 | 当前按同一 CVE/实验室作业复用同一会话和 `report.md`。新开一轮的产品决策还没定。 |
 | 未接线 | CTF 比赛模式 | 对着一场比赛的页面用 Agent 去打，列表和操作只服务这一场，不走现在的练习题库（历史 + 导入）。组队、共享题目状态后做。不要和 NSSCTF Agent Arena 单题限时评分混成同一面。尚未设计准入，未实现。 |

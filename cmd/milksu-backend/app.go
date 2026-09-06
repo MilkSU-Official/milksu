@@ -191,9 +191,13 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 		for _, server := range runtime.MCPServers {
 			servers[server.Name] = server.Definition
 		}
+		skillPaths := append([]string(nil), runtime.SkillPaths...)
+		if application.securityTools != nil {
+			skillPaths = append(skillPaths, application.securityTools.AdmittedOverlaySkillPaths(application.commandContext())...)
+		}
 		return engine.AgentResourceRuntime{
 			MCPServers:        servers,
-			SkillPaths:        append([]string(nil), runtime.SkillPaths...),
+			SkillPaths:        skillPaths,
 			HideFactorySkills: append([]string(nil), runtime.HideFactorySkills...),
 		}
 	})

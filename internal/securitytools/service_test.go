@@ -89,3 +89,95 @@ func TestCodingHandoffStagesActionableTaskWithoutStartingSetup(t *testing.T) {
 		t.Fatalf("handoff unexpectedly started setup: %#v", status)
 	}
 }
+
+type mapProbe struct {
+	paths  map[string]string
+	output string
+}
+
+func (p mapProbe) LookPath(name string) (string, error) {
+	if path, ok := p.paths[name]; ok && path != "" {
+		return path, nil
+	}
+	return "", os.ErrNotExist
+}
+
+func (p mapProbe) Output(context.Context, string, ...string) (string, error) {
+	if p.output == "" {
+		return "", os.ErrNotExist
+	}
+	return p.output, nil
+}
+
+func TestGatedREOverlaysDefaultOffAndStayOutOfCatalog(t *testing.T) {
+	service := NewService(t.TempDir(), &testSettings{value: config.DefaultSettings()}, nil)
+	service.probe = mapProbe{
+		paths:  map[string]string{"analyzeHeadless": "/usr/bin/analyzeHeadless", "jadx": "/usr/bin/jadx"},
+		output: "1.5.0",
+	}
+
+	found := map[string]ToolSnapshot{}
+	for _, snapshot := range service.List(context.Background()) {
+		found[snapshot.ID] = snapshot
+	}
+	for _, id := range GatedOverlayIDs {
+		item, ok := found[id]
+		if !ok {
+			t.Fatalf("missing gated overlay %s", id)
+		}
+		if item.Enabled || item.UsableByAgent || item.Status == StatusReady {
+			t.Fatalf("gated overlay entered the catalog: %#v", item)
+		}
+	}
+	if found[ToolGhidraRPC].Status != StatusDetected || found[ToolJADXAndroid].Status != StatusDetected {
+		t.Fatalf("local tools should be detected without becoming ready: %#v %#v", found[ToolGhidraRPC], found[ToolJADXAndroid])
+	}
+	if paths := service.AdmittedOverlaySkillPaths(context.Background()); len(paths) != 0 {
+		t.Fatalf("detected overlays must not admit skill paths: %#v", paths)
+	}
+	if runtimeTools := service.RuntimeTools(context.Background()); len(runtimeTools) != 0 {
+		t.Fatalf("gated overlays must not enter runtime tools: %#v", runtimeTools)
+	}
+}
+
+func TestEnabledButUnreadyOverlayDoesNotAdmitSkillPath(t *testing.T) {
+	settings := &testSettings{value: config.DefaultSettings()}
+	service := NewService(t.TempDir(), settings, nil)
+	service.probe = mapProbe{paths: map[string]string{"jadx": "/usr/bin/jadx"}, output: "1.5.0"}
+	if err := service.SetEnabled(ToolJADXAndroid, true); err != nil {
+		t.Fatal(err)
+	}
+	if paths := service.AdmittedOverlaySkillPaths(context.Background()); len(paths) != 0 {
+		t.Fatalf("enabled but unready overlay admitted a skill path: %#v", paths)
+	}
+}
+
+func TestAdmitOverlayRequiresReadyAndEnabled(t *testing.T) {
+	if admitOverlay(false, StatusReady) || admitOverlay(true, StatusDetected) || !admitOverlay(true, StatusReady) {
+		t.Fatal("admitOverlay gate is wrong")
+	}
+}
+
+func TestOverlayStubsStayOnDiskAndDoNotVendorUpstreamBodies(t *testing.T) {
+	for _, id := range []string{ToolGhidraIDARE, ToolGhidraRPC, ToolJADXAndroid} {
+		body, err := OverlayStubDocument(id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(body, "name: "+id) {
+			t.Fatalf("stub %s missing catalog name", id)
+		}
+		if !strings.Contains(body, "description:") {
+			t.Fatalf("stub %s missing when-to-use description", id)
+		}
+		if strings.Contains(body, "uv run ghidra-rpc") ||
+			strings.Contains(body, "androguard") ||
+			strings.Contains(body, "Anubis") ||
+			strings.Contains(body, "analyzeHeadless \"$PROJECT_DIR\"") {
+			t.Fatalf("stub %s vendored an unreviewed upstream body", id)
+		}
+		if !strings.Contains(body, "Do not paste the body into the system prompt") {
+			t.Fatalf("stub %s lost the progressive-disclosure rule", id)
+		}
+	}
+}
