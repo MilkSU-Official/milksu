@@ -55,7 +55,7 @@ var catalog = []definition{
 		purpose:    "Ghidra 本机 RPC 覆盖（短名 ghidra-rpc-main）",
 		connection: "内置 MCP 覆盖", runtime: "Ghidra 11+ · Java 17+ · GHIDRA_INSTALL_DIR",
 		capabilities:    []string{"检测 Ghidra 与 Java", "样本和工程限制在工作区", "就绪且启用后才进入模型目录"},
-		schema:          []string{"cellebrite-labs/ghidra-rpc@" + GhidraRPCRevision + "；只出 when-to-use，不 vendor 上游仓库"},
+		schema:          []string{"cellebrite-labs/ghidra-rpc main " + GhidraRPCRevision + "（备选 " + GhidraRPCTag + " " + GhidraRPCTagRevision + "）；只出 when-to-use，不 vendor 上游仓库"},
 		codingSupported: true, defaultEnabled: false, overlayKind: "mcp",
 	},
 	{

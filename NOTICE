@@ -45,17 +45,21 @@ Third-party software includes, without limitation:
 - DOMPurify. MPL-2.0 OR Apache-2.0.
 - Inter Variable and Noto Sans SC Variable fonts. SIL Open Font License 1.1.
 - cellebrite-labs/ghidra-rpc. https://github.com/cellebrite-labs/ghidra-rpc
-  Pinned to main commit 1743305487b1de754fb750486dd468ea4d3c4141.
-  The upstream README claims MIT. That commit has no LICENSE file.
-  MilkSU does not vendor the repository; it ships a short when-to-use
-  overlay only.
+  Scout recorded two pins: tag v0.2.0 / ad507753469d01c7a0faee8b2b2b54ba9367b46e
+  and main HEAD 1743305487b1de754fb750486dd468ea4d3c4141 (2026-08-06).
+  Security chose main. The upstream README claims MIT. Those commits have
+  no LICENSE file. MilkSU does not vendor the repository; it ships a short
+  when-to-use overlay only.
 - reverse-engineering-android-malware-with-jadx from
-  mukul975/Anthropic-Cybersecurity-Skills.
+  mukul975/Anthropic-Cybersecurity-Skills (authoritative).
   https://github.com/mukul975/Anthropic-Cybersecurity-Skills
   Vendored subtree only: skills/reverse-engineering-android-malware-with-jadx
-  at v1.3.0 / 101ca0bd887a295e39cc20a100efa571937ca969. Apache-2.0.
+  (SKILL.md, LICENSE, scripts/agent.py, references/) at v1.3.0 /
+  101ca0bd887a295e39cc20a100efa571937ca969. Apache-2.0.
   Copy: third_party/licenses/jadx-android-malware-Apache-2.0.txt
-  The rest of that repository is not vendored.
+  Mirror: https://github.com/plurigrid/asi
+  (plugins/asi/skills/reverse-engineering-android-malware-with-jadx); not vendored.
+  The rest of the Anthropic repository is not vendored.
 - InjuredAndroid 1.0.12. https://github.com/B3nac/InjuredAndroid
   Copyright B3nac. Apache-2.0.
   MilkSU downloads the pinned GitHub Release APK into the local envbroker

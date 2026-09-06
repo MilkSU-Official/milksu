@@ -13,13 +13,18 @@ const (
 )
 
 const (
-	GhidraRPCSource   = "https://github.com/cellebrite-labs/ghidra-rpc"
-	GhidraRPCRevision = "1743305487b1de754fb750486dd468ea4d3c4141"
-	JADXSkillSource   = "https://github.com/mukul975/Anthropic-Cybersecurity-Skills"
-	JADXSkillSubtree  = "skills/reverse-engineering-android-malware-with-jadx"
-	JADXSkillTag      = "v1.3.0"
-	JADXSkillRevision = "101ca0bd887a295e39cc20a100efa571937ca969"
-	InjuredAndroidAPK = "InjuredAndroid-1.0.12-release.apk"
+	GhidraRPCSource        = "https://github.com/cellebrite-labs/ghidra-rpc"
+	GhidraRPCRevision      = "1743305487b1de754fb750486dd468ea4d3c4141"
+	GhidraRPCHeadDate      = "2026-08-06"
+	GhidraRPCTag           = "v0.2.0"
+	GhidraRPCTagRevision   = "ad507753469d01c7a0faee8b2b2b54ba9367b46e"
+	JADXSkillSource        = "https://github.com/mukul975/Anthropic-Cybersecurity-Skills"
+	JADXSkillMirror        = "https://github.com/plurigrid/asi"
+	JADXSkillMirrorSubtree = "plugins/asi/skills/reverse-engineering-android-malware-with-jadx"
+	JADXSkillSubtree       = "skills/reverse-engineering-android-malware-with-jadx"
+	JADXSkillTag           = "v1.3.0"
+	JADXSkillRevision      = "101ca0bd887a295e39cc20a100efa571937ca969"
+	InjuredAndroidAPK      = "InjuredAndroid-1.0.12-release.apk"
 )
 
 // GatedOverlayIDs are factory RE overlays that stay off the model catalog
