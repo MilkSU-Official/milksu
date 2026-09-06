@@ -91,6 +91,8 @@ GNOME Portal 只承诺显示器级输入，产品文案必须写明，不得冒�
 
 验证脚本：`scripts/verify-linux-deb-debian13.sh`、`scripts/verify-linux-pacman-arch.sh`、`scripts/verify-linux-nixos.sh`。容器安装成功不是 GNOME/Hyprland 真机 GUI 回执。Xvfb、一次截图或 Portal 在线都不能替代真实桌面回执。
 
+开发线 Hyprland 本机试跑步骤见 [TRY-hyprland-computer-use.md](TRY-hyprland-computer-use.md)。不要用 `v26.905.2` 正式包试。
+
 ## 尚未建立的事实
 
 - Debian 13 GNOME 与 Ubuntu 同类，本切片跳过独立 Debian GNOME 验收；

@@ -270,11 +270,13 @@ const primarySetupAction = computed<{
   if (readyForCurrentTask.value) {
     return {
       label: t('停止可见会话', 'Stop visible session'),
-      detail: effectiveTarget.value
-        ? matchingOperationEvidence.value
-          ? t(`最近真实操作：${matchingOperationEvidence.value.summary}`, `Latest real action: ${matchingOperationEvidence.value.summary}`)
-          : t(`已锁定 ${effectiveTarget.value.name} · PID ${effectiveTarget.value.pid} · Window ${effectiveTarget.value.windowId}；下一步需要 Agent 对该窗口执行一次可见操作并保留工具结果。`, `Locked to ${effectiveTarget.value.name} · PID ${effectiveTarget.value.pid} · Window ${effectiveTarget.value.windowId}. Next, the agent needs to perform one visible action on this window and keep the tool result.`)
-        : t('已锁定当前 Coding 任务。', 'Locked to the current Coding task.'),
+      detail: linuxHyprlandSession.value
+        ? t('停止后会销毁 Hyprland 虚拟指针并交还键鼠。不是 Portal，也不会留下合成输入。', 'Stop destroys the Hyprland virtual pointer and returns the keyboard and mouse. This is not Portal, and no synthetic input stays behind.')
+        : effectiveTarget.value
+          ? matchingOperationEvidence.value
+            ? t(`最近真实操作：${matchingOperationEvidence.value.summary}`, `Latest real action: ${matchingOperationEvidence.value.summary}`)
+            : t(`已锁定 ${effectiveTarget.value.name} · PID ${effectiveTarget.value.pid} · Window ${effectiveTarget.value.windowId}；下一步需要 Agent 对该窗口执行一次可见操作并保留工具结果。`, `Locked to ${effectiveTarget.value.name} · PID ${effectiveTarget.value.pid} · Window ${effectiveTarget.value.windowId}. Next, the agent needs to perform one visible action on this window and keep the tool result.`)
+          : t('已锁定当前 Coding 任务。', 'Locked to the current Coding task.'),
       action: 'stop',
       variant: 'outline',
       disabled: props.loading || props.running,
@@ -318,7 +320,11 @@ const primarySetupAction = computed<{
   }
   return {
     label: t('启动可见会话', 'Start visible session'),
-    detail: t(`${effectiveTarget.value.name} 将被锁定为当前任务 Scope；${approvalGuidance.value}`, `${effectiveTarget.value.name} will be locked as this task’s scope. ${approvalGuidance.value}`),
+    detail: linuxHyprlandSession.value
+      ? t('将控制整块 Hyprland 桌面：截屏、坐标点击和打字。不是单个窗口，也不是 GNOME Portal。桌面会显示通知。没有这步点击不会创建虚拟指针。', 'This controls the whole Hyprland desktop: screenshot, coordinate clicks, and typing. Not a single window, and not the GNOME Portal. The desktop shows a notice. No click here means no virtual pointer.')
+      : linuxPortalSession.value
+        ? t('GNOME 会弹出系统桌面共享。授权后是整桌面截屏、点击和打字，不是单个窗口。', 'GNOME shows a system desktop-sharing prompt. After you allow it, screenshot, click, and type are display-level, not a single window.')
+        : t(`${effectiveTarget.value.name} 将被锁定为当前任务 Scope；${approvalGuidance.value}`, `${effectiveTarget.value.name} will be locked as this task’s scope. ${approvalGuidance.value}`),
     action: 'start',
     variant: 'brand',
     disabled: !canStart.value,

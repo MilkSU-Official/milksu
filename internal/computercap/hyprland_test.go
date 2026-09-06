@@ -387,6 +387,33 @@ func TestLinuxHyprlandStartServesClickAndType(t *testing.T) {
 	}
 }
 
+func TestLinuxHyprlandSessionCloseDestroysPointer(t *testing.T) {
+	pointer := &fakeHyprlandPointer{}
+	session := &hyprlandSession{
+		lookPath: func(name string) (string, error) { return "/bin/" + name, nil },
+		run: func(_ context.Context, name string, args ...string) ([]byte, error) {
+			return nil, nil
+		},
+		connectPointer: func() (hyprlandPointer, error) { return pointer, nil },
+		getenv:         func(string) string { return "" },
+	}
+	if err := session.Start(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if session.pointer == nil {
+		t.Fatal("start did not attach a pointer")
+	}
+	if err := session.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if !pointer.closed {
+		t.Fatal("stop left the virtual pointer alive")
+	}
+	if session.pointer != nil || session.started {
+		t.Fatalf("session still holds injection state: %#v", session)
+	}
+}
+
 func TestLinuxHyprlandRejectsWindowScopeSelection(t *testing.T) {
 	manager := New(Options{
 		GOOS:               "linux",

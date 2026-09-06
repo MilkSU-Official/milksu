@@ -185,9 +185,12 @@ func (pointer *waylandVirtualPointer) Close() error {
 	pointer.closed = true
 	if pointer.pointer != 0 {
 		_ = pointer.write(encodePointerDestroy(pointer.pointer))
+		pointer.pointer = 0
 	}
 	if pointer.conn != nil {
-		return pointer.conn.Close()
+		err := pointer.conn.Close()
+		pointer.conn = nil
+		return err
 	}
 	return nil
 }

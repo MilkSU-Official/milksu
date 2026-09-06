@@ -469,6 +469,27 @@ describe('CodingComputerUsePanel', () => {
     expect(text).toContain('合成器原生输入')
     expect(text).toContain('不是 GNOME Portal')
     expect(text).toContain('不是单个窗口')
+    expect(text).toContain('没有这步点击不会创建虚拟指针')
     expect(text).not.toContain('GNOME 会弹出系统桌面共享授权')
+  })
+
+  it('says Hyprland stop returns the seat without leftover injection', async () => {
+    const { host } = await mountPanel({
+      status: status({
+        conversationId: 'current-conversation',
+        enabled: true,
+        signing: {
+          bundleId: 'com.milksu.app',
+          signature: 'linux-hyprland',
+          stableIdentity: true,
+        },
+      }),
+      ownedByCurrentTask: true,
+    })
+    const text = host.textContent ?? ''
+    expect(text).toContain('停止可见会话')
+    expect(text).toContain('销毁 Hyprland 虚拟指针')
+    expect(text).toContain('交还键鼠')
+    expect(text).not.toContain('下一步需要 Agent 对该窗口执行一次可见操作')
   })
 })
