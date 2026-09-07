@@ -171,9 +171,8 @@ Judge Receipt 是否仍独立于模型 Candidate、练习包默认内核是否�
 ```bash
 # 现行练习包绑定与 env_*（今天就能跑）
 go test ./cmd/milksu-backend -count=1 -run 'EnvWorkspaceActionUsesBoundLabPackage'
-go test ./sidecar/pi -count=1   # 若本地用 npm：npm run test:sidecar
-# 角色仍含 lab-job，压缩/续跑不按角色跳过：
-# sidecar/pi/bridge-ctf-continuation.test.js
+npm run test:sidecar
+# lab-job 角色压缩/续跑不按角色跳过：sidecar/pi/bridge-ctf-continuation.test.js
 
 # 已同意的 DSH 练习包作业 — 实现切片再补隔离 fixture：
 # 有界 env_status → env_start → 探测里程碑写入 report.md → 停
