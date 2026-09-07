@@ -1,0 +1,84 @@
+name: Plugin ecosystem v1 gate
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/plugin-gate.yml'
+      - 'app/public/plugin-frame-bootstrap.js'
+      - 'app/src/**'
+      - 'cmd/milksu-backend/**'
+      - 'cmd/milksu-pluginctl/**'
+      - 'desktop/**'
+      - 'docs/developer/plugin-**'
+      - 'go.mod'
+      - 'go.sum'
+      - 'internal/plugin/**'
+      - 'package-lock.json'
+      - 'package.json'
+      - 'packages/ui'
+      - 'plugins/**'
+      - 'scripts/build-plugins.mjs'
+      - 'scripts/plugin-tools.mjs'
+      - 'scripts/test-plugin-author-flow.mjs'
+      - 'sidecar/plugin-runtime/**'
+      - 'sidecar/pi/bridge-plugin-mcp*'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/plugin-gate.yml'
+      - 'app/public/plugin-frame-bootstrap.js'
+      - 'app/src/**'
+      - 'cmd/milksu-backend/**'
+      - 'cmd/milksu-pluginctl/**'
+      - 'desktop/**'
+      - 'internal/plugin/**'
+      - 'package-lock.json'
+      - 'package.json'
+      - 'plugins/**'
+      - 'scripts/build-plugins.mjs'
+      - 'scripts/plugin-tools.mjs'
+      - 'scripts/test-plugin-author-flow.mjs'
+      - 'sidecar/plugin-runtime/**'
+      - 'sidecar/pi/bridge-plugin-mcp*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  plugin-v1:
+    name: ${{ matrix.os }} plugin v1
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2025, macos-15, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Install plugin gate dependencies
+        run: |
+          npm ci
+          npm --prefix app ci
+      - name: Validate generated official plugins
+        run: npm run plugins:check
+      - name: Exercise package, trust, storage, runtime and MCP contracts
+        run: |
+          go test ./internal/plugin ./plugins
+          go test ./cmd/milksu-backend -run 'Plugin|MCP' -count=1
+          npm run test:plugin-author
+          node --test sidecar/plugin-runtime/*.test.mjs sidecar/pi/bridge-plugin-mcp.test.js desktop/backend-runtime.test.cjs desktop/desktop-rpc-source.test.cjs desktop/renderer-protocol.test.cjs desktop/startup-environment.test.cjs
+      - name: Validate renderer plugin and surface contracts
+        run: |
+          npm --prefix app test -- --run src/lib/pluginFrame.test.ts src/lib/pluginThemeBridgeContract.test.ts src/components-vue/WorkspaceVisualContract.test.ts
+          npm --prefix app run build

@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://milksu.dev/schemas/plugin/surface-style-v1.schema.json",
+  "title": "MilkSU SurfaceStyle v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["mode"],
+  "properties": {
+    "mode": { "enum": ["inherit", "solid", "image"] },
+    "solid": { "enum": ["original", "paper", "graphite", "black", "cyan", "gold", "gray", "custom"] },
+    "custom_color": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+    "foreground": { "enum": ["#000000", "#ffffff"] },
+    "asset_id": { "type": "string", "pattern": "^[a-z0-9-]+\\.(?:png|jpg|webp)$" },
+    "asset_url": { "type": "string", "pattern": "^milksu://app/__plugin-assets/" },
+    "image_opacity": { "type": "number", "minimum": 0, "maximum": 0.6 },
+    "blur": { "type": "number", "minimum": 0, "maximum": 24 },
+    "light_mask": { "$ref": "#/$defs/mask" },
+    "dark_mask": { "$ref": "#/$defs/mask" }
+  },
+  "$defs": {
+    "mask": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "color": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+        "opacity": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://milksu.dev/schemas/plugin/runtime-result-v1.schema.json",
+  "title": "MilkSU Runtime Result v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["value"],
+  "properties": {
+    "value": {},
+    "storageWrites": { "type": "object", "maxProperties": 64, "propertyNames": { "pattern": "^[a-z][a-z0-9_.-]{0,63}$" } }
+  }
+}

@@ -1229,7 +1229,7 @@ defineExpose({
 </script>
 
 <template>
-  <div class="chat-composer shrink-0 bg-transparent px-0 pb-3 pt-2">
+  <div class="chat-composer shrink-0 bg-transparent px-0 pb-3 pt-2" data-plugin-surface="chat-composer">
     <div ref="composerFrame" class="chat-composer__frame agent-thread">
       <div
         v-if="slashMenuOpen"

@@ -48,6 +48,7 @@ import {
   LogOut,
   Plug,
   Plus,
+  Puzzle,
   RotateCcw,
   Settings2,
   Trash2,
@@ -93,6 +94,7 @@ import VulnerabilityIntelSettingsPanel from '@/components-vue/VulnerabilityIntel
 import SettingsMCPPanel from '@/components-vue/SettingsMCPPanel.vue'
 import EvalSettingsPanel from '@/components-vue/EvalSettingsPanel.vue'
 import LabSettingsPanel from '@/components-vue/LabSettingsPanel.vue'
+import PluginSettingsPanel from '@/components-vue/PluginSettingsPanel.vue'
 import ModelVendorIcon from '@/components-vue/ModelVendorIcon.vue'
 import ArchivedConversationsSettings from '@/components-vue/ArchivedConversationsSettings.vue'
 import ConnectionLiveStatus from '@/components-vue/ConnectionLiveStatus.vue'
@@ -120,8 +122,9 @@ import {
   resolveModelThinking,
 } from '@/lib/modelThinking'
 import { resolveModelContextWindow } from '@/lib/knownContextWindow'
+import type { ResolvedThemeMode } from '@/lib/themeMode'
 
-type SettingsCategory = 'general' | 'apikeys' | 'ctf' | 'cve' | 'lab' | 'coding' | 'mcp' | 'chats' | 'browser' | 'security-tools' | 'eval'
+type SettingsCategory = 'general' | 'apikeys' | 'ctf' | 'cve' | 'lab' | 'coding' | 'mcp' | 'chats' | 'browser' | 'security-tools' | 'eval' | 'plugins'
 
 function normalizeSettingsCategory(value: SettingsCategory): Exclude<SettingsCategory, 'security-tools'> {
   return value === 'security-tools' ? 'mcp' : value
@@ -138,6 +141,7 @@ const settingsCategories = computed(() => [
   { value: 'chats' as const, label: t('归档聊天', 'Archived chats'), icon: Archive },
   { value: 'browser' as const, label: t('浏览器控制', 'Browser'), icon: Globe2 },
   { value: 'eval' as const, label: t('评测', 'Eval'), icon: Gauge },
+  { value: 'plugins' as const, label: t('插件', 'Plugins'), icon: Puzzle },
 ])
 
 const props = defineProps<{
@@ -145,6 +149,7 @@ const props = defineProps<{
   initialCategory: SettingsCategory
   accountStatus?: AccountStatus
   vulnerabilityDashboard?: VulnerabilityDashboard
+  resolvedTheme: ResolvedThemeMode
 }>()
 
 const emit = defineEmits<{
@@ -1520,7 +1525,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
     </header>
 
     <div class="settings-layout flex min-h-0 flex-1">
-      <nav class="settings-nav settings-nav-surface app-no-drag w-56 shrink-0 border-r px-3 py-5" :aria-label="t('设置分类', 'Settings categories')">
+      <nav class="settings-nav settings-nav-surface app-no-drag w-56 shrink-0 border-r px-3 py-5" :aria-label="t('设置分类', 'Settings categories')" data-plugin-surface="workspace-list">
         <div class="ak-tabs settings-ak-tabs">
           <div class="ak-tabs__list">
             <button
@@ -1541,7 +1546,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
       </nav>
 
       <div class="page-scroll min-w-0 flex-1">
-      <div class="page-column page-stack">
+      <div class="page-column page-stack" data-plugin-surface="workspace-list">
 
         <Alert
           v-if="notice"
@@ -2566,6 +2571,10 @@ async function saveProviderEditor(closeAfterSave: boolean) {
 
         <template v-else-if="working && category === 'lab'">
           <LabSettingsPanel :settings="working" @persist="save" />
+        </template>
+
+        <template v-else-if="category === 'plugins'">
+          <PluginSettingsPanel :theme="resolvedTheme" />
         </template>
 
         <template v-else-if="category === 'cve'">

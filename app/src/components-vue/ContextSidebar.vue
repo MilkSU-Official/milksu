@@ -532,7 +532,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', closeOnOutside
           </div>
         </div>
 
-        <div ref="conversationList" class="coding-conversation-list pb-3">
+        <div ref="conversationList" class="coding-conversation-list pb-3" data-plugin-surface="workspace-list">
           <div v-if="projectGroups.length || temporaryGroup" class="flex flex-col">
             <div v-if="projectGroups.length" class="space-y-0.5">
               <details
@@ -645,8 +645,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', closeOnOutside
                 </div>
               </details>
             </div>
-
-            <details
+            <details>
               v-if="temporaryGroup"
               open
               class="coding-temporary-group mt-2"

@@ -17,6 +17,7 @@ const moduleKey = computed(() => props.module ?? props.title.trim().toLowerCase(
     class="workspace-topbar shell-window-control-safe-x app-drag pl-6 py-4"
     data-module-topbar
     data-workspace-topbar
+    data-plugin-surface="workspace-topbar"
     :data-workspace-module="moduleKey"
     :data-workspace-topbar-idle="hideIdentity ? '' : undefined"
   >

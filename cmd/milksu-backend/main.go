@@ -16,6 +16,12 @@ const instanceIDEnv = "MILKSU_INSTANCE_ID"
 // behavior. This executable is the local, typed Go runtime it supervises.
 func main() {
 	log.SetOutput(os.Stderr)
+	if len(os.Args) > 1 && os.Args[1] == "plugin-mcp" {
+		if err := runPluginMCP(context.Background()); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 	bootStarted := time.Now()
 	host := newDesktopRPC(os.Stdin, os.Stdout)
 	appConstructStarted := time.Now()
