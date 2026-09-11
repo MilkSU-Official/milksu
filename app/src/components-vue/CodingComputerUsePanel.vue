@@ -535,7 +535,7 @@ function runPrimarySetupAction() {
         </div>
 
         <p class="text-[11px] leading-4 text-muted-foreground">
-          {{ t(`${approvalGuidance} Driver ${status?.driverVersion || '0.14.2'} · prerelease。`, `${approvalGuidance} Driver ${status?.driverVersion || '0.14.2'} · prerelease.`) }}
+          {{ t(`${approvalGuidance} Driver ${status?.driverVersion || '0.27.0'} · prerelease。`, `${approvalGuidance} Driver ${status?.driverVersion || '0.27.0'} · prerelease.`) }}
         </p>
       </div>
     </details>

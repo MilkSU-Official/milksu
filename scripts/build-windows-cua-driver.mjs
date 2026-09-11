@@ -15,21 +15,15 @@ import { promisify } from 'node:util'
 
 const execFileAsync = promisify(execFile)
 const defaultRepositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const cuaDriverVersion = '0.14.2'
+const cuaDriverVersion = '0.27.0'
 const cuaDriverTag = `cua-driver-rs-v${cuaDriverVersion}`
 const sourceRepository = 'https://github.com/trycua/cua.git'
-const sourceCommit = 'ed9d5efcf5f261f4854bf2de0ba06a2b0b4419c4'
+const sourceCommit = '082de4344b731ae4738ddc6a6f13f21bb3c49a85'
 const rustVersion = '1.97.1'
 const rustTarget = 'x86_64-pc-windows-msvc'
-const patchRelativePath = join(
-  'third_party',
-  'cua-driver',
-  'patches',
-  'cua-driver-rs-v0.14.2-windows-canonical-process-path.patch',
-)
 const cargoWorkspaceRelativePath = join('libs', 'cua-driver', 'rust')
 const cargoLockRelativePath = join(cargoWorkspaceRelativePath, 'Cargo.lock')
-const patchedSourceRelativePath = join(
+const windowsPlatformSourceRelativePath = join(
   cargoWorkspaceRelativePath,
   'crates',
   'platform-windows',
@@ -37,10 +31,9 @@ const patchedSourceRelativePath = join(
   'browser_platform.rs',
 )
 const licenseRelativePath = 'LICENSE.md'
-const expectedPatchSha256 = '25811f122f48ebdf346139c13724ee6f7cfa4ab8e29afad5a49d5bcfe62a96d4'
-const expectedCargoLockSha256 = '08325c0e9779b1604bdc707f60c4f85836f2e7e668375112448b3d04a46db3b2'
-const expectedPatchedSourceSha256 = '190779e4f349ad7b359e9a51f3c057089e388d716612bbf66f8ebb9a6e15bc8f'
-const buildRecipe = 'cua-driver-windows-pinned-source-v1'
+const expectedCargoLockSha256 = '1200667c238ea4b425e7ab0b1e3bfa1c49b93158ae90bd52a15d5e78c2871678'
+const expectedWindowsPlatformSourceSha256 = '509e8467489b4201c947779dced4af267bdd68bd1a588a6d249404ef948fc53f'
+const buildRecipe = 'cua-driver-windows-pinned-source-v2'
 
 async function exists(path) {
   try {
@@ -209,17 +202,7 @@ async function run(command, args, options = {}) {
   })
 }
 
-async function verifyPatchAsset(repositoryRoot) {
-  const path = join(repositoryRoot, patchRelativePath)
-  if (!await exists(path)) throw new Error(`missing pinned Cua patch: ${path}`)
-  const digest = await normalizedTextSha256(path)
-  if (digest !== expectedPatchSha256) {
-    throw new Error(`Cua patch checksum mismatch: expected ${expectedPatchSha256}, got ${digest}`)
-  }
-  return path
-}
-
-async function verifySource(sourceRoot, patchPath, gitEnvironment) {
+async function verifySource(sourceRoot, gitEnvironment) {
   if (!await exists(join(sourceRoot, '.git'))) return false
   try {
     const { stdout: head } = await run('git', ['-C', sourceRoot, 'rev-parse', 'HEAD'], {
@@ -236,8 +219,8 @@ async function verifySource(sourceRoot, patchPath, gitEnvironment) {
       return false
     }
     if (
-      await normalizedTextSha256(join(sourceRoot, patchedSourceRelativePath))
-      !== expectedPatchedSourceSha256
+      await normalizedTextSha256(join(sourceRoot, windowsPlatformSourceRelativePath))
+      !== expectedWindowsPlatformSourceSha256
     ) {
       return false
     }
@@ -246,31 +229,17 @@ async function verifySource(sourceRoot, patchPath, gitEnvironment) {
       ['-C', sourceRoot, 'diff', '--name-only', '--'],
       { env: gitEnvironment },
     )
-    const expectedChangedFile = patchedSourceRelativePath.replaceAll('\\', '/')
-    if (changedFiles.trim().replaceAll('\\', '/') !== expectedChangedFile) return false
-    await run('git', ['-C', sourceRoot, 'diff', '--check'], { env: gitEnvironment })
-    const { stdout: sourceDiff } = await run(
-      'git',
-      ['-C', sourceRoot, 'diff', '--binary', '--no-ext-diff', '--'],
-      { env: gitEnvironment },
-    )
-    const normalizedDiff = sourceDiff.replaceAll('\r\n', '\n')
-    if (sha256Text(normalizedDiff) !== expectedPatchSha256) return false
+    if (changedFiles.trim() !== '') return false
     if (!await exists(join(sourceRoot, licenseRelativePath))) return false
-    const { stdout: reverseCheck } = await run(
-      'git',
-      ['-C', sourceRoot, 'apply', '--check', '--reverse', patchPath],
-      { env: gitEnvironment },
-    )
-    return reverseCheck.trim() === ''
+    return true
   } catch {
     return false
   }
 }
 
-async function prepareSource(paths, patchPath) {
+async function prepareSource(paths) {
   const gitEnvironment = privateGitEnvironment(paths)
-  if (await verifySource(paths.source, patchPath, gitEnvironment)) return
+  if (await verifySource(paths.source, gitEnvironment)) return
 
   await rm(paths.source, { recursive: true, force: true })
   await mkdir(paths.source, { recursive: true, mode: 0o700 })
@@ -299,14 +268,16 @@ async function prepareSource(paths, patchPath) {
     env: gitEnvironment,
   })
   if (await sha256(join(paths.source, cargoLockRelativePath)) !== expectedCargoLockSha256) {
-    throw new Error('pinned Cua Cargo.lock checksum mismatch before patching')
+    throw new Error('pinned Cua Cargo.lock checksum mismatch')
   }
-  await run('git', ['-C', paths.source, 'apply', '--check', patchPath], {
-    env: gitEnvironment,
-  })
-  await run('git', ['-C', paths.source, 'apply', patchPath], { env: gitEnvironment })
-  if (!await verifySource(paths.source, patchPath, gitEnvironment)) {
-    throw new Error('pinned Cua source failed post-patch provenance verification')
+  if (
+    await normalizedTextSha256(join(paths.source, windowsPlatformSourceRelativePath))
+    !== expectedWindowsPlatformSourceSha256
+  ) {
+    throw new Error('pinned Cua Windows platform source checksum mismatch')
+  }
+  if (!await verifySource(paths.source, gitEnvironment)) {
+    throw new Error('pinned Cua source failed provenance verification')
   }
 }
 
@@ -427,7 +398,7 @@ export async function buildWindowsCuaDriver({
   runTests = false,
 } = {}) {
   if (process.platform !== 'win32') {
-    throw new Error('the patched Cua Driver source build is Windows-only')
+    throw new Error('the Cua Driver source build is Windows-only')
   }
   repositoryRoot = resolve(repositoryRoot)
   const paths = buildPaths(repositoryRoot)
@@ -441,8 +412,7 @@ export async function buildWindowsCuaDriver({
     mkdir(paths.temp, { recursive: true, mode: 0o700 }),
   ])
 
-  const patchPath = await verifyPatchAsset(repositoryRoot)
-  await prepareSource(paths, patchPath)
+  await prepareSource(paths)
   const {
     environment,
     rustupToolchain,
@@ -480,33 +450,15 @@ export async function buildWindowsCuaDriver({
       )
     }
   }
-  if (runTests) {
-    await run('cargo', [
-      'test',
-      '--offline',
-      '--locked',
-      '--target',
-      rustTarget,
-      '-p',
-      'platform-windows',
-      'process_identity_uses_manifest_canonical_executable_path',
-    ], {
-      cwd: paths.cargoWorkspace,
-      env: buildEnvironment,
-    })
-  }
-
   const expectedReceipt = {
     buildRecipe,
     version: cuaDriverVersion,
     tag: cuaDriverTag,
     sourceRepository,
     sourceCommit,
-    patch: patchRelativePath.replaceAll('\\', '/'),
-    patchSha256: expectedPatchSha256,
     cargoLockSha256: expectedCargoLockSha256,
-    patchedSource: patchedSourceRelativePath.replaceAll('\\', '/'),
-    patchedSourceSha256: expectedPatchedSourceSha256,
+    windowsPlatformSource: windowsPlatformSourceRelativePath.replaceAll('\\', '/'),
+    windowsPlatformSourceSha256: expectedWindowsPlatformSourceSha256,
     rustupToolchain,
     rustcVersion,
     cargoVersion,
@@ -554,10 +506,6 @@ export async function buildWindowsCuaDriver({
     tag: cuaDriverTag,
     sourceCommit,
     binarySha256: receipt.binarySha256,
-    patch: {
-      file: patchRelativePath.replaceAll('\\', '/'),
-      sha256: expectedPatchSha256,
-    },
     build: {
       recipe: buildRecipe,
       rustupToolchain,
@@ -565,7 +513,7 @@ export async function buildWindowsCuaDriver({
       cargoVersion,
       target: rustTarget,
       cargoLockSha256: expectedCargoLockSha256,
-      patchedSourceSha256: expectedPatchedSourceSha256,
+      windowsPlatformSourceSha256: expectedWindowsPlatformSourceSha256,
       receipt: relative(repositoryRoot, paths.receipt).replaceAll('\\', '/'),
     },
   }

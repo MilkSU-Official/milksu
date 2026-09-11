@@ -43,8 +43,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.97.1
       - uses: actions/cache@v4
         with:
-          path: build/sidecar-cache/cua-windows-0.14.2/h
-          key: windows-cua-0.14.2-${{ hashFiles('scripts/build-windows-cua-driver.mjs', 'third_party/cua-driver/**') }}
+          path: build/sidecar-cache/cua-windows-0.27.0/h
+          key: windows-cua-0.27.0-${{ hashFiles('scripts/build-windows-cua-driver.mjs', 'third_party/cua-driver/**') }}
       - name: Check backend formatting
         shell: pwsh
         run: |
@@ -76,6 +76,6 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $env:MILKSU_TEST_CUA_DRIVER = (Resolve-Path 'build/sidecar-cache/cua-windows-0.14.2/r/cua-driver.exe').Path
+          $env:MILKSU_TEST_CUA_DRIVER = (Resolve-Path 'build/sidecar-cache/cua-windows-0.27.0/r/cua-driver.exe').Path
           go test ./internal/computercap -count=1
           node --test sidecar/computer-use/computer-use-proxy.test.js
