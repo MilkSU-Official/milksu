@@ -7,6 +7,7 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  readlink,
   rm,
   stat,
   readdir,
@@ -14,7 +15,7 @@ import {
 } from 'node:fs/promises'
 import { createServer as createHttpServer } from 'node:http'
 import { createConnection, createServer as createNetServer } from 'node:net'
-import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import { build } from 'esbuild'
@@ -556,6 +557,78 @@ async function officialGoplsRuntime(platform) {
   }
 }
 
+async function sanitizePackagedNodeModules(root) {
+  async function walk(directory) {
+    let entries = []
+    try {
+      entries = await readdir(directory, { withFileTypes: true })
+    } catch {
+      return
+    }
+    for (const entry of entries) {
+      const path = join(directory, entry.name)
+      if (entry.isDirectory() && !entry.isSymbolicLink()) {
+        if (entry.name === '.bin' && directory.endsWith(`${sep}node_modules`)) {
+          await rm(path, { recursive: true, force: true })
+          continue
+        }
+        await walk(path)
+        continue
+      }
+      if (!entry.isSymbolicLink()) continue
+      let target = ''
+      try {
+        target = await readlink(path)
+      } catch {
+        await rm(path, { force: true })
+        continue
+      }
+      const resolved = resolve(directory, target)
+      const relativeToRoot = relative(root, resolved)
+      if (
+        !target
+        || isAbsolute(target)
+        || relativeToRoot.startsWith('..')
+        || isAbsolute(relativeToRoot)
+        || !await exists(resolved)
+      ) {
+        await rm(path, { force: true })
+      }
+    }
+  }
+  await walk(root)
+}
+
+async function assertPackagedSymlinksSafe(root) {
+  async function walk(directory) {
+    const entries = await readdir(directory, { withFileTypes: true })
+    for (const entry of entries) {
+      const path = join(directory, entry.name)
+      if (entry.isDirectory() && !entry.isSymbolicLink()) {
+        if (entry.name === '.bin' && directory.endsWith(`${sep}node_modules`)) {
+          throw new Error(`packaged Sidecar still contains npm bin shims: ${path}`)
+        }
+        await walk(path)
+        continue
+      }
+      if (!entry.isSymbolicLink()) continue
+      const target = await readlink(path)
+      const resolved = resolve(directory, target)
+      const relativeToRoot = relative(root, resolved)
+      if (
+        !target
+        || isAbsolute(target)
+        || relativeToRoot.startsWith('..')
+        || isAbsolute(relativeToRoot)
+        || !await exists(resolved)
+      ) {
+        throw new Error(`packaged Sidecar has an unsafe symlink: ${path} -> ${target}`)
+      }
+    }
+  }
+  await walk(root)
+}
+
 async function copyDshRuntime(output) {
   const dshPackage = JSON.parse(
     await readFile(join(repositoryRoot, 'node_modules', '@deepseek-ai', 'dsh', 'package.json'), 'utf8'),
@@ -566,19 +639,14 @@ async function copyDshRuntime(output) {
   if (!await exists(join(repositoryRoot, 'node_modules', '@deepseek-ai', 'dsh', 'LICENSE'))) {
     throw new Error('DeepSeek Harness LICENSE is missing')
   }
-  const scopeSource = join(repositoryRoot, 'node_modules', '@deepseek-ai')
-  const scopeDestination = join(output, 'node_modules', '@deepseek-ai')
-  await mkdir(join(output, 'node_modules'), { recursive: true, mode: 0o700 })
-  await cp(scopeSource, scopeDestination, { recursive: true })
-  const extras = minimalPackageCopySet(
-    await collectInstalledPackageClosure([
-      'commander',
-      'js-yaml',
-      'node-addon-require-builtin',
-    ]),
+  const packages = minimalPackageCopySet(
+    await collectInstalledPackageClosure(['@deepseek-ai/dsh']),
   )
-  for (const pkg of extras) {
-    if (pkg.name.startsWith('@deepseek-ai/')) continue
+  if (!packages.some(pkg => pkg.name === '@deepseek-ai/dsh' && pkg.version === dshVersion)) {
+    throw new Error('DeepSeek Harness runtime closure is missing @deepseek-ai/dsh')
+  }
+  await mkdir(join(output, 'node_modules'), { recursive: true, mode: 0o700 })
+  for (const pkg of packages) {
     const destination = join(output, 'node_modules', pkg.relativePath)
     await mkdir(dirname(destination), { recursive: true, mode: 0o700 })
     await cp(pkg.source, destination, { recursive: true })
@@ -587,6 +655,7 @@ async function copyDshRuntime(output) {
     join(repositoryRoot, 'node_modules', '@deepseek-ai', 'dsh', 'LICENSE'),
     join(output, 'THIRD_PARTY-LICENSES', 'deepseek-harness-MIT.txt'),
   )
+  await sanitizePackagedNodeModules(join(output, 'node_modules'))
 }
 
 async function bundleBridge(entry, outfile) {
@@ -1317,6 +1386,7 @@ async function buildSidecar(platform) {
     ),
   ])
   await copyDshRuntime(output)
+  await sanitizePackagedNodeModules(join(output, 'node_modules'))
   await Promise.all([
     chmod(nodeOutput, 0o755),
     ...(cuaDriverOutput ? [chmod(cuaDriverOutput, 0o755)] : []),
@@ -1592,6 +1662,9 @@ async function smokeSidecar(platform) {
     join(output, 'product-mcp.cjs'),
     join(output, 'host-plugin.js'),
     join(output, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js'),
+    join(output, 'node_modules', 'commander', 'package.json'),
+    join(output, 'node_modules', 'js-yaml', 'package.json'),
+    join(output, 'node_modules', 'node-addon-require-builtin', 'package.json'),
     join(output, 'computer-use-proxy.cjs'),
     join(output, 'pi-subagent-launcher.sh'),
     join(output, 'pi-subagent-runner.cjs'),
@@ -1618,6 +1691,7 @@ async function smokeSidecar(platform) {
       throw new Error(`packaged Sidecar is missing license file: ${licensePath}`)
     }
   }
+  await assertPackagedSymlinksSafe(join(output, 'node_modules'))
   const cuaRuntime = await verifyPackagedCuaRuntime(output)
   const node = join(output, 'node')
   const workspace = join(repositoryRoot, 'build', 'sidecar-smoke', platform.replace('/', '-'))
@@ -2558,6 +2632,7 @@ async function installSidecar(platform, binaryPath) {
   )
   await cp(join(source, 'lsp-runtime'), join(destination, 'lsp-runtime'), { recursive: true })
   await cp(join(source, 'node_modules'), join(destination, 'node_modules'), { recursive: true })
+  await sanitizePackagedNodeModules(join(destination, 'node_modules'))
   const installedOcrPackage = join(
     destination,
     'node_modules',
