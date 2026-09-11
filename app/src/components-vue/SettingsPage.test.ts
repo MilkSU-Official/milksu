@@ -205,6 +205,7 @@ async function mountSettingsPage(
     settings,
     initialCategory: options.initialCategory ?? 'general',
     accountStatus: options.accountStatus,
+    resolvedTheme: 'dark',
   })
   app.mount(host)
   mountedApps.push(app)
@@ -890,7 +891,7 @@ describe('SettingsPage database compatibility', () => {
 
     const labels = [...document.querySelectorAll<HTMLElement>('.settings-nav-item')]
       .map(item => item.textContent?.trim())
-    expect(labels).toEqual(['通用', '模型', 'CTF', 'CVE', 'Lab', 'Coding', 'MCP', '归档聊天', '浏览器控制', '评测'])
+    expect(labels).toEqual(['通用', '模型', 'CTF', 'CVE', 'Lab', 'Coding', 'MCP', '归档聊天', '浏览器控制', '评测', '插件'])
     expect(document.body.textContent).toContain('@milksuofficial · 内测用户')
     const generalTitles = [...document.querySelectorAll('h2')].map(item => item.textContent?.trim())
     expect(generalTitles[0]).toBe('账户')

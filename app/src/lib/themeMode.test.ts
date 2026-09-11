@@ -15,6 +15,7 @@ describe('themeMode', () => {
     document.documentElement.removeAttribute('data-theme')
     document.documentElement.removeAttribute('data-theme-mode')
     document.documentElement.removeAttribute('style')
+    document.documentElement.classList.remove('dark')
   })
 
   it('defaults to the system theme while preserving explicit choices', () => {
@@ -36,11 +37,16 @@ describe('themeMode', () => {
 
     expect(document.documentElement.dataset.theme).toBe('dark')
     expect(document.documentElement.dataset.themeMode).toBe('system')
+    expect(document.documentElement.classList.contains('dark')).toBe(true)
     expect(document.documentElement.style.colorScheme).toBe('dark')
     expect(storage.getItem(THEME_MODE_STORAGE_KEY)).toBe('system')
     expect(nextThemeMode('system')).toBe('light')
     expect(nextThemeMode('light')).toBe('dark')
     expect(nextThemeMode('dark')).toBe('system')
+
+    applyThemeMode('light', document.documentElement, true)
+    expect(document.documentElement.dataset.theme).toBe('light')
+    expect(document.documentElement.classList.contains('dark')).toBe(false)
   })
 })
 

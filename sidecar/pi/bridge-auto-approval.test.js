@@ -34,6 +34,21 @@ test("Project Auto approves only reviewed local capability servers", () => {
     ),
     true,
   );
+  assert.equal(
+    codingMcpOperationRequiresApproval(
+      { server: "milksu-plugins", tool: "milksu_plugins_list", args: {} },
+      "workspace-auto",
+      "milksu-plugins",
+    ),
+    true,
+  );
+  assert.equal(
+    mcpConversationGrantKey(
+      { server: "milksu-plugins", tool: "milksu_plugins_list" },
+      "milksu-plugins",
+    ),
+    "",
+  );
 });
 
 test("tool-name wording never changes the approval result", () => {

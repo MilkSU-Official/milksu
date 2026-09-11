@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://milksu.dev/schemas/plugin/manifest-v1.schema.json",
+  "title": "MilkSU Plugin Manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "name", "version", "apiVersion", "publisher", "host", "storageVersion", "runtime", "permissions"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$", "maxLength": 64 },
+    "name": { "type": "string", "minLength": 1, "maxLength": 96 },
+    "version": { "$ref": "#/$defs/semver" },
+    "apiVersion": { "const": "milksu.plugin/v1" },
+    "publisher": {
+      "type": "object", "additionalProperties": false, "required": ["name", "keyId"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 96 },
+        "keyId": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "host": {
+      "type": "object", "additionalProperties": false, "required": ["minVersion"],
+      "properties": {
+        "minVersion": { "$ref": "#/$defs/semver" },
+        "requiredCapabilities": {
+          "type": "array", "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z][a-z0-9.-]{2,95}$" }
+        }
+      }
+    },
+    "storageVersion": { "type": "integer", "minimum": 1 },
+    "storageMigrations": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["from", "to"],
+        "properties": { "from": { "type": "integer", "minimum": 1 }, "to": { "type": "integer", "minimum": 2 } }
+      }
+    },
+    "runtime": {
+      "type": "object", "additionalProperties": false, "required": ["kind", "entry"],
+      "properties": {
+        "kind": { "enum": ["lua", "typescript"] },
+        "entry": { "type": "string", "pattern": "^[^\\/](?:[^\\]*[^\\/])?$", "maxLength": 256 }
+      }
+    },
+    "ui": {
+      "type": "object", "additionalProperties": false,
+      "properties": { "settingsEntry": { "type": "string", "maxLength": 256 } }
+    },
+    "theme": {
+      "type": "object", "additionalProperties": false, "required": ["source"],
+      "properties": { "source": { "type": "string", "maxLength": 256 } }
+    },
+    "permissions": {
+      "type": "array", "uniqueItems": true,
+      "items": { "enum": ["plugin.storage", "ui.background", "ui.theme", "agent.tools", "mcp.external.read"] }
+    },
+    "contributes": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "slots": {
+          "type": "array", "uniqueItems": true,
+          "items": { "enum": ["settings.plugin-panel", "app.background"] }
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["name", "description", "inputSchema", "outputSchema", "effect", "external"],
+            "properties": {
+              "name": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$" },
+              "description": { "type": "string", "minLength": 1, "maxLength": 512 },
+              "inputSchema": { "$ref": "#/$defs/objectSchema" },
+              "outputSchema": { "$ref": "#/$defs/objectSchema" },
+              "effect": { "const": "read" },
+              "external": { "enum": ["none", "read"] }
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "semver": { "type": "string", "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$" },
+    "digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "objectSchema": {
+      "type": "object",
+      "required": ["type"],
+      "properties": { "type": { "const": "object" } }
+    }
+  }
+}
