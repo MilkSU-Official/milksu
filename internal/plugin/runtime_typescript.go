@@ -46,12 +46,9 @@ func (e typeScriptExecutor) Invoke(ctx context.Context, record *packageRecord, r
 		"--max-old-space-size=64",
 		"--disable-proto=throw",
 		"--experimental-loader=" + loaderURL,
-		"--allow-fs-read=" + loader,
-		"--allow-fs-read=" + worker,
-		"--allow-fs-read=" + entry,
-		worker,
-		entry,
 	}
+	arguments = append(arguments, allowFSRead(loader, worker, entry, record.directory)...)
+	arguments = append(arguments, worker, entry)
 	command := exec.CommandContext(ctx, node, arguments...)
 	command.Dir = record.directory
 	command.Env = []string{
@@ -91,6 +88,34 @@ func (e typeScriptExecutor) Invoke(ctx context.Context, record *packageRecord, r
 		return runtimeResult{}, err
 	}
 	return result, nil
+}
+
+func allowFSRead(paths ...string) []string {
+	seen := map[string]struct{}{}
+	var arguments []string
+	add := func(path string) {
+		path = strings.TrimSpace(path)
+		if path == "" {
+			return
+		}
+		if _, ok := seen[path]; ok {
+			return
+		}
+		seen[path] = struct{}{}
+		arguments = append(arguments, "--allow-fs-read="+path)
+	}
+	for _, path := range paths {
+		add(path)
+		add(filepath.Dir(path))
+		if resolved, err := filepath.EvalSymlinks(path); err == nil {
+			add(resolved)
+			add(filepath.Dir(resolved))
+		}
+		if resolved, err := filepath.EvalSymlinks(filepath.Dir(path)); err == nil {
+			add(resolved)
+		}
+	}
+	return arguments
 }
 
 func filePathURL(path string) string {

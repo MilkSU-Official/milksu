@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
+import { realpathSync } from 'node:fs'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -10,6 +11,26 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 const runtimeDirectory = dirname(fileURLToPath(import.meta.url))
 const worker = join(runtimeDirectory, 'worker.mjs')
 const loader = join(runtimeDirectory, 'deny-loader.mjs')
+
+function allowFsRead(...paths) {
+  const allowed = new Set()
+  for (const path of paths) {
+    if (!path) continue
+    allowed.add(path)
+    allowed.add(dirname(path))
+    try {
+      allowed.add(realpathSync(path))
+    } catch {
+      // Path may not exist yet; keep the literal spelling.
+    }
+    try {
+      allowed.add(realpathSync(dirname(path)))
+    } catch {
+      // Same as above for the parent directory.
+    }
+  }
+  return [...allowed].map(path => `--allow-fs-read=${path}`)
+}
 
 async function runPlugin(source, request) {
   const directory = await mkdtemp(join(tmpdir(), 'milksu-plugin-runtime-'))
@@ -23,9 +44,7 @@ async function runPlugin(source, request) {
     '--max-old-space-size=64',
     '--disable-proto=throw',
     `--experimental-loader=${pathToFileURL(loader).href}`,
-    `--allow-fs-read=${loader}`,
-    `--allow-fs-read=${worker}`,
-    `--allow-fs-read=${entry}`,
+    ...allowFsRead(loader, worker, entry, directory),
     worker,
     entry,
   ]
