@@ -1,5 +1,8 @@
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
+import { formatProcessFailure } from "./redact.js";
+
+const stderrLimit = 8 << 10;
 
 export function createAcpClient(options = {}) {
   const command = String(options.command ?? "").trim();
@@ -16,8 +19,25 @@ export function createAcpClient(options = {}) {
     stdio: ["pipe", "pipe", "pipe"],
   });
   let nextId = 1;
+  let failed = false;
+  let closing = false;
+  let lastFailure = "";
+  let stderrText = "";
   const pending = new Map();
   const listeners = new Set();
+
+  function failAll(reason) {
+    if (failed) return;
+    failed = true;
+    lastFailure = formatProcessFailure(reason, stderrText);
+    for (const { reject } of pending.values()) {
+      reject(new Error(lastFailure));
+    }
+    pending.clear();
+    if (typeof options.onFailure === "function") {
+      options.onFailure(lastFailure);
+    }
+  }
 
   const input = createInterface({ input: child.stdout });
   input.on("line", line => {
@@ -40,19 +60,37 @@ export function createAcpClient(options = {}) {
     }
     for (const listener of listeners) listener(message);
   });
-  child.stderr?.on("data", () => {});
-  child.on("exit", () => {
-    for (const { reject } of pending.values()) {
-      reject(new Error("DeepSeek Harness sidecar stopped"));
+  child.stderr?.on("data", chunk => {
+    stderrText += chunk.toString("utf8");
+    if (stderrText.length > stderrLimit) {
+      stderrText = stderrText.slice(-stderrLimit);
     }
-    pending.clear();
+  });
+  child.on("error", error => {
+    failAll(error?.message || error);
+  });
+  child.on("exit", (code, signal) => {
+    if (closing && pending.size === 0) return;
+    if (code === 0 && pending.size === 0) return;
+    const reason = signal
+      ? `DeepSeek Harness sidecar signal ${signal}`
+      : `DeepSeek Harness sidecar exit ${code ?? "unknown"}`;
+    failAll(reason);
   });
 
   function request(method, params) {
+    if (failed) {
+      return Promise.reject(new Error(lastFailure || "DeepSeek Harness sidecar stopped"));
+    }
     const id = nextId++;
     const payload = { jsonrpc: "2.0", id, method, params };
     return new Promise((resolve, reject) => {
       pending.set(id, { resolve, reject });
+      if (!child.stdin) {
+        pending.delete(id);
+        reject(new Error(lastFailure || "DeepSeek Harness sidecar is not running"));
+        return;
+      }
       child.stdin.write(`${JSON.stringify(payload)}\n`, error => {
         if (error) {
           pending.delete(id);
@@ -63,6 +101,7 @@ export function createAcpClient(options = {}) {
   }
 
   function respond(id, result) {
+    if (!child.stdin || failed) return;
     child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id, result })}\n`);
   }
 
@@ -72,6 +111,7 @@ export function createAcpClient(options = {}) {
   }
 
   async function close() {
+    closing = true;
     input.close();
     try {
       await request("shutdown", {});

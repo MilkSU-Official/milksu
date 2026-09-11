@@ -158,6 +158,7 @@ describe('ChatPage routing contract', () => {
     expect(chatPageSource).toContain(':context-usage="contextUsagePresentation"')
     expect(chatPageSource).toContain('lastRewindableUserMessageId')
     expect(chatPageSource).toContain(':can-rewind="item.message.id === rewindableUserMessageId"')
+    expect(chatPageSource).toContain(':rewind-disabled="rewindUnavailable"')
     expect(chatPageSource).toContain('@rewind-context="$emit(\'rewindContext\')"')
     expect(chatPageSource).toContain('@compact-context="$emit(\'compactContext\')"')
     expect(chatPageSource).toContain('@handoff-context="$emit(\'handoffContext\')"')

@@ -566,10 +566,19 @@ async function copyDshRuntime(output) {
   if (!await exists(join(repositoryRoot, 'node_modules', '@deepseek-ai', 'dsh', 'LICENSE'))) {
     throw new Error('DeepSeek Harness LICENSE is missing')
   }
-  const packages = minimalPackageCopySet(
-    await collectInstalledPackageClosure(['@deepseek-ai/dsh']),
+  const scopeSource = join(repositoryRoot, 'node_modules', '@deepseek-ai')
+  const scopeDestination = join(output, 'node_modules', '@deepseek-ai')
+  await mkdir(join(output, 'node_modules'), { recursive: true, mode: 0o700 })
+  await cp(scopeSource, scopeDestination, { recursive: true })
+  const extras = minimalPackageCopySet(
+    await collectInstalledPackageClosure([
+      'commander',
+      'js-yaml',
+      'node-addon-require-builtin',
+    ]),
   )
-  for (const pkg of packages) {
+  for (const pkg of extras) {
+    if (pkg.name.startsWith('@deepseek-ai/')) continue
     const destination = join(output, 'node_modules', pkg.relativePath)
     await mkdir(dirname(destination), { recursive: true, mode: 0o700 })
     await cp(pkg.source, destination, { recursive: true })
@@ -578,7 +587,6 @@ async function copyDshRuntime(output) {
     join(repositoryRoot, 'node_modules', '@deepseek-ai', 'dsh', 'LICENSE'),
     join(output, 'THIRD_PARTY-LICENSES', 'deepseek-harness-MIT.txt'),
   )
-  return packages
 }
 
 async function bundleBridge(entry, outfile) {
@@ -595,6 +603,53 @@ async function bundleBridge(entry, outfile) {
     legalComments: 'eof',
     logLevel: 'info',
   })
+}
+
+async function smokePackagedDshBridge(node, output, workspace, dshHome) {
+  const child = spawn(node, [
+    join(output, 'dsh-bridge.cjs'),
+  ], {
+    cwd: workspace,
+    env: {
+      HOME: workspace,
+      DSH_HOME: dshHome,
+      TMPDIR: workspace,
+      PATH: process.env.PATH ?? '/usr/bin:/bin',
+      NODE_PATH: join(output, 'node_modules'),
+    },
+    stdio: ['pipe', 'pipe', 'pipe'],
+  })
+  let stdout = ''
+  let stderr = ''
+  child.stdout.setEncoding('utf8')
+  child.stderr.setEncoding('utf8')
+  child.stdout.on('data', chunk => { stdout += chunk })
+  child.stderr.on('data', chunk => { stderr += chunk })
+  child.stdin.write(`${JSON.stringify({
+    action: 'create_session',
+    conversationId: 'packaged-dsh',
+    cwd: workspace,
+  })}\n`)
+  const deadline = Date.now() + 45_000
+  try {
+    while (Date.now() < deadline) {
+      const text = `${stdout}${stderr}`
+      if (text.includes('not packaged next to the Sidecar')) {
+        throw new Error(`packaged dsh-bridge could not resolve dsh CLI: ${text}`)
+      }
+      if (text.includes('"type":"ready"')) return
+      if (text.includes('"type":"error"')) {
+        if (/ENOENT|not packaged/i.test(text)) {
+          throw new Error(`packaged dsh-bridge failed to spawn dsh: ${text}`)
+        }
+        return
+      }
+      await new Promise(resolve => setTimeout(resolve, 50))
+    }
+    throw new Error(`timed out waiting for packaged dsh-bridge: ${stdout}${stderr}`)
+  } finally {
+    child.kill('SIGKILL')
+  }
 }
 
 async function runWithInput(executable, argumentsList, input, options) {
@@ -1554,7 +1609,7 @@ async function smokeSidecar(platform) {
     join(output, 'lsp-runtime', 'node_modules', '@vue', 'language-server', 'LICENSE'),
     join(output, 'lsp-runtime', 'node_modules', 'typescript', 'LICENSE.txt'),
     join(output, 'skills', 'archify', 'LICENSE'),
-    ...packagedSkillNames.flatMap(name => [
+    ...[...firstPartyCodingSkillNames, ...optionalCodingSkillNames].flatMap(name => [
       join(output, 'skills', name, 'SKILL.md'),
       join(output, 'skills', name, 'agents', 'openai.yaml'),
     ]),
@@ -1570,7 +1625,7 @@ async function smokeSidecar(platform) {
   await mkdir(join(workspace, '.git'), { recursive: true, mode: 0o700 })
   const ocrFixture = join(workspace, 'ocr-fixture.png')
   await copyFile(
-    join(repositoryRoot, 'docs', 'design', 'milksu-coding-composer-layout-reference.png'),
+    join(repositoryRoot, 'app', 'src', 'assets', 'milksu-app-icon.png'),
     ocrFixture,
   )
   const runtimeArguments = [
@@ -1591,6 +1646,34 @@ async function smokeSidecar(platform) {
     '--allow-fs-read=/usr/bin/env',
     '--allow-fs-read=/usr/bin/sandbox-exec',
   ]
+  const dshHome = join(workspace, 'dsh-home')
+  await mkdir(dshHome, { recursive: true, mode: 0o700 })
+  const dshHelp = await runWithInput(
+    node,
+    [
+      join(output, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js'),
+      '--profile',
+      'acp',
+      '--help',
+    ],
+    '',
+    {
+      cwd: workspace,
+      env: {
+        HOME: workspace,
+        DSH_HOME: dshHome,
+        TMPDIR: workspace,
+        NODE_PATH: join(output, 'node_modules'),
+      },
+    },
+  )
+  if (!`${dshHelp.stdout}${dshHelp.stderr}`.includes('ACP')) {
+    throw new Error(
+      `packaged DeepSeek Harness ACP CLI did not load: `
+      + `${dshHelp.stdout}${dshHelp.stderr}`,
+    )
+  }
+  await smokePackagedDshBridge(node, output, workspace, dshHome)
   const computerUseProxyRun = await runWithInput(
     node,
     [
@@ -1698,35 +1781,6 @@ async function smokeSidecar(platform) {
         + `${versionRun.stdout}${versionRun.stderr}`,
       )
     }
-  }
-  const dshHome = join(workspace, 'dsh-home')
-  await mkdir(dshHome, { recursive: true, mode: 0o700 })
-  const dshHelp = await runWithInput(
-    node,
-    [
-      ...runtimeArguments,
-      `--allow-fs-write=${dshHome}`,
-      join(output, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js'),
-      '--profile',
-      'acp',
-      '--help',
-    ],
-    '',
-    {
-      cwd: workspace,
-      env: {
-        ...process.env,
-        HOME: workspace,
-        DSH_HOME: dshHome,
-        TMPDIR: workspace,
-      },
-    },
-  )
-  if (!`${dshHelp.stdout}${dshHelp.stderr}`.includes('ACP')) {
-    throw new Error(
-      `packaged DeepSeek Harness ACP CLI did not load: `
-      + `${dshHelp.stdout}${dshHelp.stderr}`,
-    )
   }
   const goplsVersionRun = await runWithInput(
     join(output, 'lsp-runtime', 'gopls'),
@@ -2213,10 +2267,10 @@ async function smokeSidecar(platform) {
   const computerUseSocketPath = computerUseSocket(computerUseSessionId)
   await rm(computerUseDirectory, { recursive: true, force: true })
   await mkdir(computerUseDirectory, { recursive: true, mode: 0o700 })
-  const computerUseSocket = createNetServer()
+  const computerUseServer = createNetServer()
   await new Promise((resolvePromise, rejectPromise) => {
-    computerUseSocket.once('error', rejectPromise)
-    computerUseSocket.listen(computerUseSocketPath, resolvePromise)
+    computerUseServer.once('error', rejectPromise)
+    computerUseServer.listen(computerUseSocketPath, resolvePromise)
   })
   try {
     const computerUseRun = await runWithInput(
@@ -2268,7 +2322,7 @@ async function smokeSidecar(platform) {
       )
     }
   } finally {
-    await new Promise(resolvePromise => computerUseSocket.close(resolvePromise))
+    await new Promise(resolvePromise => computerUseServer.close(resolvePromise))
     await rm(computerUseDirectory, { recursive: true, force: true })
   }
   const planRun = await runWithInput(

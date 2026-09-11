@@ -1,9 +1,10 @@
 import { existsSync, unlinkSync, mkdirSync, writeFileSync } from "node:fs";
 import { createConnection } from "node:net";
-import { dirname, join } from "node:path";
+import { delimiter, dirname, join } from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import { createAcpClient } from "./acp-client.js";
+import { resolveDshLaunch } from "./launch.js";
 import { createProductIpc } from "./product-ipc.js";
 import { dshProductIpc } from "../hostpath.js";
 import { codingAskToolName } from "../pi/bridge-ask.js";
@@ -28,37 +29,6 @@ function emit(conversationId, type, extra = {}) {
 
 function describeError(error) {
   return error instanceof Error ? error.message : String(error ?? "unknown error");
-}
-
-function parseArgList(value, fallback) {
-  const raw = String(value ?? "").trim();
-  if (!raw) return fallback;
-  return raw.split(/\s+/).filter(Boolean);
-}
-
-function resolveDshScript() {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const candidates = [
-    join(here, "node_modules", "@deepseek-ai", "dsh", "lib", "bin.js"),
-    join(here, "..", "..", "node_modules", "@deepseek-ai", "dsh", "lib", "bin.js"),
-  ];
-  for (const candidate of candidates) {
-    if (existsSync(candidate)) return candidate;
-  }
-  return "";
-}
-
-function resolveDshLaunch() {
-  const configured = String(process.env.MILKSU_DSH_COMMAND ?? "").trim();
-  const extra = parseArgList(process.env.MILKSU_DSH_ACP_ARGS, ["--profile", "acp"]);
-  if (configured) {
-    return { command: configured, args: extra };
-  }
-  const script = resolveDshScript();
-  if (!script) {
-    throw new Error("DeepSeek Harness CLI is not packaged next to the Sidecar");
-  }
-  return { command: process.execPath, args: [script, ...extra] };
 }
 
 async function ensureProductIpc() {
@@ -185,12 +155,21 @@ async function ensureAcp(cwd) {
   } catch {
     // First listen.
   }
-  const launch = resolveDshLaunch();
+  const launch = resolveDshLaunch({
+    here: dirname(fileURLToPath(import.meta.url)),
+    execPath: process.execPath,
+    env: process.env,
+  });
   const args = [...launch.args];
   const patchPath = writeHostPatch();
   if (patchPath && !args.includes("--patch")) {
     args.push("--patch", patchPath);
   }
+  const here = dirname(fileURLToPath(import.meta.url));
+  const nodePaths = [
+    join(here, "node_modules"),
+    join(here, "..", "..", "node_modules"),
+  ].filter(existsSync);
   acp = createAcpClient({
     command: launch.command,
     args,
@@ -198,6 +177,10 @@ async function ensureAcp(cwd) {
     env: {
       ...process.env,
       MILKSU_DSH_HOST_IPC: hostIpcPath,
+      NODE_PATH: [...nodePaths, process.env.NODE_PATH].filter(Boolean).join(delimiter),
+    },
+    onFailure(message) {
+      emit(null, "error", { error: message });
     },
   });
   acp.onMessage(message => {

@@ -568,6 +568,23 @@ describe('ChatComposer', () => {
     expect(result.slashCommandActions).toEqual(['compact'])
   })
 
+  it('disables rewind for DeepSeek Harness conversations', async () => {
+    const result = mountComposer({
+      workspaceReady: true,
+      kernel: 'dsh',
+    })
+    await nextTick()
+    const editor = composerEditor(result.host)
+    setComposerText(editor, '/rewind')
+    await nextTick()
+    const option = result.host.querySelector<HTMLButtonElement>('#coding-slash-command-rewind')
+    expect(option?.getAttribute('aria-disabled')).toBe('true')
+    expect(option?.textContent ?? '').toContain('DeepSeek Harness 不能丢掉探索')
+    activateSlashOption(result.host, 'rewind')
+    await nextTick()
+    expect(result.slashCommandActions).toEqual([])
+  })
+
   it('runs rewind while a turn is marked running instead of swallowing the click', async () => {
     const result = mountComposer({
       workspaceReady: true,

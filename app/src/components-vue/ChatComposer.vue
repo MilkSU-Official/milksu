@@ -396,7 +396,8 @@ function slashCommandDisabled(id: typeof slashCommandCatalog[number]['id']) {
   // Compact is invoked even before Pi session.ready and while a turn is
   // running. Native disabled buttons drop pointer events, which lets IME
   // cancel `/compact` on click. Only skip when compaction is already live.
-  if (id === 'compact' || id === 'rewind') return Boolean(props.compacting)
+  if (id === 'compact') return Boolean(props.compacting)
+  if (id === 'rewind') return Boolean(props.compacting) || props.kernel === 'dsh'
   if (id === 'handoff') return props.running || Boolean(props.compacting)
   if (id === 'new' || id === 'plan' || id === 'model' || id === 'permissions') {
     return props.running
@@ -415,7 +416,9 @@ const slashCommands = computed(() => {
     ...command,
     description: command.id === 'goal' && hasUnfinishedGoal.value
       ? t('当前已有持续目标', 'A goal is already in progress')
-      : command.description,
+      : command.id === 'rewind' && props.kernel === 'dsh'
+        ? t('DeepSeek Harness 不能丢掉探索', 'DeepSeek Harness cannot rewind exploration')
+        : command.description,
     disabled: slashCommandDisabled(command.id),
   })).filter(command => (
     !query

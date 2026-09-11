@@ -694,6 +694,9 @@ const codingBrowserTabTitle = computed(() => (
   || t('新标签页', 'New tab')
 ))
 const workspaceLocked = computed(() => Boolean(props.conversation?.messages.length))
+const rewindUnavailable = computed(() => (
+  Boolean(props.compacting) || (props.kernel ?? 'pi') === 'dsh'
+))
 const activeModelLabel = computed(() => {
   if (effectiveModelMode.value === 'auto') return automaticModelLabel.value.replace(/^Default · /, '')
   const provider = props.modelProvider || props.settings?.active_provider
@@ -1086,6 +1089,7 @@ function runSlashCommand(command: string) {
     return
   }
   if (command === 'rewind') {
+    if (rewindUnavailable.value) return
     emit('rewindContext')
     return
   }
@@ -2171,7 +2175,7 @@ defineExpose({
             :recoverable-failure-id="recoverableFailureId"
             :recovery-context="ctfSession ? 'ctf' : 'coding'"
             :rewindable-user-message-id="rewindableUserMessageId"
-            :rewind-disabled="compacting"
+            :rewind-disabled="rewindUnavailable"
             :activity-open="chatActivityGroupIsOpen"
             :activity-open-entries="chatActivityOpenEntries"
             :subagent-tasks="conversation?.subagentTasks"
@@ -2198,7 +2202,7 @@ defineExpose({
             :recoverable="item.message.id === recoverableFailureId"
             :recovery-context="ctfSession ? 'ctf' : 'coding'"
             :can-rewind="item.message.id === rewindableUserMessageId"
-            :rewind-disabled="compacting"
+            :rewind-disabled="rewindUnavailable"
             @respond-approval="(requestId, approved, scope, choice) => $emit('respondApproval', requestId, approved, scope, choice)"
             @retry="resumeAfterFailure"
             @edit-user="(messageId, content) => $emit('editUser', messageId, content)"

@@ -42,6 +42,48 @@ function runBridge() {
   return { child, events, send, waitFor };
 }
 
+test("DSH bridge reports a spawn failure as a JSONL error", async () => {
+  const child = spawn(process.execPath, [join(here, "run-bridge.mjs")], {
+    cwd: here,
+    env: {
+      ...process.env,
+      MILKSU_DSH_COMMAND: join(here, "no-such-dsh-binary"),
+      MILKSU_DSH_ACP_ARGS: "--profile acp",
+    },
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+  const events = [];
+  let buffer = "";
+  child.stdout.on("data", chunk => {
+    buffer += chunk.toString("utf8");
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      events.push(JSON.parse(line));
+    }
+  });
+  try {
+    child.stdin.write(`${JSON.stringify({
+      action: "create_session",
+      conversationId: "conv-missing",
+      cwd: here,
+    })}\n`);
+    const started = Date.now();
+    while (Date.now() - started < 2000) {
+      const error = events.find(event => event.type === "error" && event.error);
+      if (error) {
+        assert.match(String(error.error), /ENOENT|not found|spawn/i);
+        return;
+      }
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+    throw new Error(`missing spawn error: ${JSON.stringify(events)}`);
+  } finally {
+    child.kill();
+  }
+});
+
 test("DSH bridge streams a prompt through ACP", async () => {
   const bridge = runBridge();
   try {
