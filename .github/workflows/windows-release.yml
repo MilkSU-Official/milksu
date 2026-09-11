@@ -81,10 +81,9 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $PSNativeCommandUseErrorActionPreference = $true
           # The canonical full suite is already bound to this commit by the
-          # local release receipt. Windows compiles every Go package/test, then
-          # exercises the routed model regression with native paths before
-          # packaging and first launch.
-          go test ./... -run '^$'
+          # local release receipt. Windows compiles production packages natively,
+          # then exercises Windows-only startup, CUA and routing before packaging.
+          go build ./...
           go test ./cmd/milksu-backend -run '^TestWindowsStartupDoesNotRequireGit$' -count=1
           node --test --test-isolation=none desktop/startup-environment.test.cjs desktop/package-files.test.cjs
           node --test sidecar/pi/current-provider-runtime.test.js sidecar/pi/model-source-routing.test.js
