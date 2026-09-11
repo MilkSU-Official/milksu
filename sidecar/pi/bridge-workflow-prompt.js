@@ -28,7 +28,6 @@ export function roleGuidanceForSession(sessionRole) {
 export function composeMilkSUWorkflowSystemPrompt(systemPrompt, {
   sessionRole = "",
   policy = {},
-  modelInput,
 } = {}) {
   const roleGuidance = roleGuidanceForSession(sessionRole);
   const workspaceIdentityGuidance = codingWorkspaceIdentityGuidance(
@@ -45,7 +44,6 @@ export function composeMilkSUWorkflowSystemPrompt(systemPrompt, {
     + (roleGuidance ? `\n\n${roleGuidance}` : "")
     + `\n\nRuntime context:\n${runtimeEnvironmentGuidance({
       uiLocale: policy?.uiLocale,
-      modelInput,
     })}`
     + (workspaceIdentityGuidance
       ? `\n\nWorkspace identity:\n${workspaceIdentityGuidance}`

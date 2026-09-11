@@ -44,7 +44,7 @@ describe('runtime model catalog', () => {
     const { providers } = useModelCatalog()
     const tokenflux = providers.value.find(provider => provider.id === 'tokenflux')
     expect(tokenflux?.models).toEqual(['grok-4.5', 'x-ai/grok-4.6', 'openai/gpt-5.6-sol'])
-    expect(tokenflux?.visionModels).toEqual(['grok-4.5', 'x-ai/grok-4.6'])
+    expect(tokenflux?.visionModels).toEqual(['grok-4.5', 'x-ai/grok-4.6', 'openai/gpt-5.6-sol'])
     expect(providerModelLabel('tokenflux', 'x-ai/grok-4.6')).toBe('TokenFlux · Grok 4.6')
   })
 

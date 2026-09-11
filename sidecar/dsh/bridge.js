@@ -9,6 +9,7 @@ import { createProductIpc } from "./product-ipc.js";
 import { dshProductIpc } from "../hostpath.js";
 import { codingAskToolName } from "../pi/bridge-ask.js";
 import { createWorkspaceActionBroker } from "../pi/bridge-workspace.js";
+import { buildDshPromptBlocks } from "./prompt-blocks.js";
 
 const sessions = new Map();
 const pendingAsks = new Map();
@@ -231,19 +232,43 @@ async function handleAcpNotification(message) {
   }
 }
 
+function finishThinking(conversationId) {
+  const record = sessions.get(conversationId);
+  if (!record?.thinkingOpen) return;
+  const started = Number(record.thinkingStartedAt ?? Date.now());
+  record.thinkingOpen = false;
+  emit(conversationId, "thinking_done", {
+    content: String(record.thinkingText ?? ""),
+    durationMs: Math.max(0, Date.now() - started),
+  });
+}
+
 function projectSessionUpdate(conversationId, update) {
   const kind = String(update?.sessionUpdate ?? update?.session_update ?? "");
   if (kind === "agent_message_chunk" || kind === "agent_message_delta") {
     const text = update?.content?.text ?? update?.text ?? "";
-    if (text) emit(conversationId, "text_delta", { delta: text });
+    if (text) {
+      finishThinking(conversationId);
+      emit(conversationId, "text_delta", { delta: text });
+    }
     return;
   }
   if (kind === "agent_thought_chunk") {
     const text = update?.content?.text ?? update?.text ?? "";
-    if (text) emit(conversationId, "thinking_delta", { delta: text });
+    if (!text) return;
+    const record = sessions.get(conversationId);
+    if (record && !record.thinkingOpen) {
+      record.thinkingOpen = true;
+      record.thinkingStartedAt = Date.now();
+      record.thinkingText = "";
+      emit(conversationId, "thinking_start");
+    }
+    if (record) record.thinkingText = `${record.thinkingText ?? ""}${text}`;
+    emit(conversationId, "thinking_delta", { delta: text });
     return;
   }
   if (kind === "tool_call") {
+    finishThinking(conversationId);
     emit(conversationId, "tool_call_start", {
       toolName: String(update?.title || update?.kind || "tool"),
       toolCallId: String(update?.toolCallId || update?.tool_call_id || ""),
@@ -289,6 +314,9 @@ async function createSession(command) {
     acpSessionId,
     cwd,
     createCommand: command,
+    thinkingOpen: false,
+    thinkingText: "",
+    thinkingStartedAt: 0,
   });
   emit(conversationId, "ready", { resumed: false });
 }
@@ -302,11 +330,12 @@ async function sendMessage(command) {
   const record = sessionRecord(conversationId);
   const client = await ensureAcp(record.cwd);
   emit(conversationId, "turn_started");
-  const prompt = String(command.prompt ?? "");
+  const prompt = await buildDshPromptBlocks(command);
   await client.request("session/prompt", {
     sessionId: record.acpSessionId,
-    prompt: [{ type: "text", text: prompt }],
+    prompt,
   });
+  finishThinking(conversationId);
   emit(conversationId, "message_done");
   emit(conversationId, "turn_settled");
 }

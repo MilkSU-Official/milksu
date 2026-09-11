@@ -204,11 +204,11 @@ func TestRefreshFailureKeepsBundledCatalog(t *testing.T) {
 		len(after.Models) != len(before.Models) {
 		t.Fatalf("failure did not preserve bundled catalog: %#v", after)
 	}
-	if strings.Join(before.Models[0].Input, ",") != "text" {
-		t.Fatalf("Grok 4.6 must not inherit unverified image input: %#v", before.Models[0])
+	if strings.Join(before.Models[0].Input, ",") != "text,image" {
+		t.Fatalf("bundled Grok 4.6 should not be marked text-only: %#v", before.Models[0])
 	}
 	if strings.Join(before.Models[1].Input, ",") != "text,image" {
-		t.Fatalf("verified Grok 4.5 image input is missing: %#v", before.Models[1])
+		t.Fatalf("bundled Grok 4.5 should not be marked text-only: %#v", before.Models[1])
 	}
 }
 
@@ -238,12 +238,12 @@ func TestNewReplacesUnversionedCapabilityCache(t *testing.T) {
 	if snapshot.Schema != catalogSchema || snapshot.Source != "bundled" {
 		t.Fatalf("legacy cache was not replaced: %#v", snapshot)
 	}
-	if len(snapshot.Models) == 0 || strings.Join(snapshot.Models[0].Input, ",") != "text" {
-		t.Fatalf("legacy unverified Grok 4.6 image input survived: %#v", snapshot.Models)
+	if len(snapshot.Models) == 0 || strings.Join(snapshot.Models[0].Input, ",") != "text,image" {
+		t.Fatalf("bundled catalog should not mark models text-only: %#v", snapshot.Models)
 	}
 }
 
-func TestNormalizeModelsKeepsOnlyVerifiedOrDeclaredImageInput(t *testing.T) {
+func TestNormalizeModelsDoesNotMarkModelsTextOnly(t *testing.T) {
 	var payload tokenFluxResponse
 	if err := json.Unmarshal([]byte(`{
 		"data": [
@@ -260,13 +260,13 @@ func TestNormalizeModelsKeepsOnlyVerifiedOrDeclaredImageInput(t *testing.T) {
 		inputs[model.ID] = strings.Join(model.Input, ",")
 	}
 	if inputs["grok-4.5"] != "text,image" {
-		t.Fatalf("verified Grok 4.5 capability = %q, want text,image", inputs["grok-4.5"])
+		t.Fatalf("Grok 4.5 capability = %q, want text,image", inputs["grok-4.5"])
 	}
-	if inputs["grok-4.6"] != "text" {
-		t.Fatalf("undeclared Grok 4.6 capability = %q, want text", inputs["grok-4.6"])
+	if inputs["grok-4.6"] != "text,image" {
+		t.Fatalf("Grok 4.6 capability = %q, want text,image", inputs["grok-4.6"])
 	}
 	if inputs["x-ai/grok-4.6"] != "text,image" {
-		t.Fatalf("declared Grok 4.6 capability = %q, want text,image", inputs["x-ai/grok-4.6"])
+		t.Fatalf("x-ai/grok-4.6 capability = %q, want text,image", inputs["x-ai/grok-4.6"])
 	}
 }
 

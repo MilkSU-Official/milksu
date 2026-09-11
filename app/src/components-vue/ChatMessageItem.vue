@@ -224,7 +224,12 @@ function toggleThink() {
 const replyNow = ref(Date.now())
 let replyClock = 0
 const replyTicking = computed(() => (
-  props.message.status === 'running' && props.message.thinkingStatus !== 'running'
+  props.message.status === 'running'
+  && props.message.thinkingStatus !== 'running'
+  && (
+    Boolean(props.message.content?.trim())
+    || props.message.thinkingStatus !== 'done'
+  )
 ))
 watch(replyTicking, ticking => {
   window.clearInterval(replyClock)
@@ -268,7 +273,11 @@ const showBubble = computed(() => (
     || Boolean(props.message.content)
     || Boolean(props.message.attachments?.length)
     || Boolean(props.recoverable)
-    || (props.message.status === 'running' && props.message.thinkingStatus !== 'running')
+    || (
+      props.message.status === 'running'
+      && props.message.thinkingStatus !== 'running'
+      && props.message.thinkingStatus !== 'done'
+    )
   )
 ))
 

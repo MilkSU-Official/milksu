@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   applyAssistantThinkingEvent,
   applyCodingToolEvent,
+  settleLiveThinking,
   buildChatActivityEntries,
   visibleChatActivityEntries,
   buildChatTranscript,
@@ -498,6 +499,34 @@ describe('applyCodingToolEvent', () => {
     })
     expect(done[0]?.thinkingStatus).toBe('done')
     expect(done[0]?.thinkingDurationMs).toBe(2400)
+  })
+
+  it('closes live thinking when a tool starts', () => {
+    const thinking = message('think', 'assistant', '', {
+      thinking: '先看图片。',
+      thinkingStatus: 'running',
+      status: 'running',
+      timestamp: 1_000,
+    })
+    const next = applyCodingToolEvent([thinking], {
+      type: 'tool.started',
+      text: 'read image',
+      toolName: 'read',
+      toolCallId: 'call-read',
+    }, () => 'tool-1')
+    expect(next[0]?.thinkingStatus).toBe('done')
+    expect(next[0]?.thinkingDurationMs).toBeGreaterThanOrEqual(0)
+    expect(next[1]?.role).toBe('tool')
+  })
+
+  it('does not rewrite settled thinking', () => {
+    const settled = message('think', 'assistant', '', {
+      thinking: 'done',
+      thinkingStatus: 'done',
+      thinkingDurationMs: 800,
+      status: 'running',
+    })
+    expect(settleLiveThinking([settled])[0]).toBe(settled)
   })
 
   it('hides leftover read-only delivery status as a blank assistant shell', () => {

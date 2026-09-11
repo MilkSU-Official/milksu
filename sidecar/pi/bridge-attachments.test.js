@@ -21,7 +21,7 @@ async function fixture(name, content, mediaType = "text/plain") {
 
 test("prepares verified read-only attachment context without embedding file data", async () => {
   const { root, attachment } = await fixture("notes.md", "# MilkSU");
-  const result = await preparePromptAttachments([attachment], root, false);
+  const result = await preparePromptAttachments([attachment], root);
   assert.equal(result.images.length, 0);
   assert.equal(result.attachments.length, 1);
   assert.match(result.context, /notes\.md/);
@@ -29,24 +29,22 @@ test("prepares verified read-only attachment context without embedding file data
   assert.doesNotMatch(result.context, /# MilkSU/);
 });
 
-test("passes supported images only to a vision-capable model", async () => {
+test("passes supported images through without a MilkSU vision allowlist", async () => {
   const { root, attachment } = await fixture(
     "pixel.png",
     Buffer.from([0x89, 0x50, 0x4e, 0x47]),
     "image/png",
   );
-  const vision = await preparePromptAttachments([attachment], root, true);
+  const vision = await preparePromptAttachments([attachment], root);
   assert.equal(vision.images.length, 1);
   assert.equal(vision.images[0].mimeType, "image/png");
-  const textOnly = await preparePromptAttachments([attachment], root, false);
-  assert.equal(textOnly.images.length, 0);
-  assert.match(textOnly.context, /user-provided evidence/);
+  assert.match(vision.context, /user-provided evidence/);
 });
 
 test("rejects tampered metadata and symlinked stored content", async () => {
   const value = await fixture("notes.txt", "evidence");
   await assert.rejects(
-    preparePromptAttachments([{ ...value.attachment, size: 1 }], value.root, false),
+    preparePromptAttachments([{ ...value.attachment, size: 1 }], value.root),
     /invalid size/,
   );
 
@@ -59,7 +57,7 @@ test("rejects tampered metadata and symlinked stored content", async () => {
   await mkdir(join(linkedRoot, linked.attachment.id), { recursive: true });
   await symlink(outside, join(linkedRoot, linked.attachment.id, linked.attachment.name));
   await assert.rejects(
-    preparePromptAttachments([linked.attachment], linkedRoot, false),
+    preparePromptAttachments([linked.attachment], linkedRoot),
     /not a regular file/,
   );
 });

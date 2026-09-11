@@ -191,6 +191,9 @@
 文档收口提交不移动该 tag。Windows 代码签名、Linux Secret Service / 本地 OCR、Hyprland/Xorg Computer Use 仍缺。CTF 比赛模式和实验室红队学习面仍未接线。
 
 - #53 的 typed sweep / inventory 工具尚未做。只在真实 wide job 仍用 bash 复刻库存后再做。
+- 新对话可选 Pi 或 DeepSeek Harness。DeepSeek 会话不能 rewind / 分叉；`milksu_ask` / `milksu_workspace` 已接到 ACP。
+- 思考结束后，同一条空助手消息不再额外挂「正在回复」；工具开始或正文开始时会收起「正在思考」。
+- 不再用目录/白名单把模型标成纯文本。TokenFlux 即使回报 `input: ["text"]` 也不再改走 OCR；附件和 Computer Use 截图按图片交给当前模型，由模型或接口自己处理。
 
 ## 当前产品事实
 
@@ -209,7 +212,7 @@
 
 - Admin 可为登录用户分配独立 TokenFlux Key；Electron 获取后只交给 Go Credential Store。运行时只展示该 Key 或用户本机已配置 Provider 实际可用的模型。
 - 账户模型目录按账户凭据优先刷新并记录不含密钥的 `credential_source`；权威账户目录缺少所选模型时，请求前跳过账户来源，目录未知时仍保留运行时尝试。TokenFlux 在首个内容输出前返回 `model_not_found` / `not supported by any configured account` 时，可安全回退到已配置的个人来源；设置页默认模型与 Coding 共用同一可调用目录。
-- 图片按当前模型能力路由：模型声明 image input 时原图进入同一 Pi 回合，否则使用本地 OCR；不配置第二个视觉模型。选择、粘贴和拖放的普通文件进入统一附件栏，可排序、预览、移除并以 Pi 附件描述发送。
+- 图片不再由 MilkSU 按目录白名单分成「视觉 / 纯文本」。附件原图进入当前回合；模型或接口自己决定能否看图。不配置第二个视觉模型。选择、粘贴和拖放的普通文件进入统一附件栏，可排序、预览、移除并以附件描述发送。
 - Coding 网页查证复用固定 revision 的 Pi `web_search` / `web_fetch` Extension，不另建 MilkSU 搜索决策状态机；真实联网查询已完成搜索并读取 xAI 官方文档。
 - 设置页支持账户模型、原厂 Provider 和最多 8 个简单 OpenAI-compatible 中转站；Key 统一进入 Credential Store，未配置来源不进入模型列表。
 - 设置页可按模型启用思考能力、限制支持档位并设置默认值；Coding Composer 只对已启用模型显示对话级快捷滑块。档位沿用 Pi 的 `off / minimal / low / medium / high / xhigh / max`，不维护第二套推理循环。

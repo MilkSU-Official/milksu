@@ -12,7 +12,6 @@ export function runtimeEnvironmentGuidance({
   arch = process.arch,
   environment = process.env,
   uiLocale = "zh",
-  modelInput = [],
 } = {}) {
   const shell = String(environment.SHELL || "").trim();
   const pathSeparator = platform === "win32" ? "\\" : sep;
@@ -40,10 +39,8 @@ export function runtimeEnvironmentGuidance({
     "Use the MilkSU user-interface language for every user-visible progress update, answer, label, diagram, and generated artifact unless the user explicitly asks for another language. English tool schemas, commands, paths, or tool results must not switch the visible language.",
     "When the user asks to search, verify, or report current information, use live evidence from an accessible authoritative source. An empty response, timeout, authentication error, blocked page, or failed command is not evidence. Retry through an available reviewed browser or network tool when appropriate; if live verification still fails, say that verification failed and do not present model memory as current or verified fact.",
   );
-  if (Array.isArray(modelInput) && modelInput.includes("image")) {
-    facts.push(
-      "The selected runtime model accepts direct image input. Attached images are sent to the model as images; inspect them directly and never claim that this runtime is text-only or that OCR was used unless explicit local OCR evidence is present in the current turn.",
-    );
-  }
+  facts.push(
+    "Attached images are sent to the current model as images. Inspect them directly. Do not claim the runtime is text-only or that OCR was used unless explicit local OCR evidence is present in the current turn.",
+  );
   return facts.join("\n");
 }

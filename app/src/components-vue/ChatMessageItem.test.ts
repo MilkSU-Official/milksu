@@ -212,6 +212,24 @@ describe('ChatMessageItem', () => {
     expect(settled.host.textContent).toContain('结论是改 greet.ts。')
   })
 
+  it('does not keep a live reply loader after thinking has finished', async () => {
+    const { host } = await mountMessage({
+      id: 'message-thinking-then-tools',
+      role: 'assistant',
+      content: '',
+      timestamp: Date.now() - 8000,
+      thinking: '先看附件再决定要不要读文件。',
+      thinkingStatus: 'done',
+      thinkingDurationMs: 950,
+      status: 'running',
+    })
+    expect(host.textContent).toContain('想了')
+    expect(host.textContent).toContain('0.9s')
+    expect(host.textContent ?? '').not.toContain('正在回复')
+    expect(host.textContent ?? '').not.toContain('正在思考')
+    expect(host.querySelector('.agent-answer')).toBeNull()
+  })
+
   it('places a centered time divider above user messages only', async () => {
     const sentAt = Date.now()
     const user = await mountMessage({

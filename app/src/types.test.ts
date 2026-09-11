@@ -17,7 +17,7 @@ describe('model provider catalog', () => {
     expect(tokenflux?.defaultBaseUrl).toBe('https://tokenflux.dev/v1')
     expect(tokenflux?.envKey).toBe('TOKENFLUX_API_KEY')
     expect(tokenflux?.models).toEqual([])
-    expect(tokenflux?.visionModels).toEqual(['grok-4.5', 'x-ai/grok-4.5'])
+    expect(tokenflux?.visionModels).toEqual([])
     expect(providerModelLabel('tokenflux', 'grok-4.3'))
       .toBe('TokenFlux · Grok 4.3')
     expect(providerModelLabel('tokenflux', 'x-ai/grok-4.6'))

@@ -129,6 +129,22 @@ function uniqueFallbackToolStartIndex(
   return matches.length === 1 ? matches[0]! : -1
 }
 
+export function settleLiveThinking(
+  messages: Message[],
+  now = Date.now(),
+): Message[] {
+  const last = messages.at(-1)
+  if (last?.role !== 'assistant' || last.thinkingStatus !== 'running') return messages
+  const started = Number.isFinite(last.timestamp) ? last.timestamp : now
+  const next = messages.slice()
+  next[next.length - 1] = {
+    ...last,
+    thinkingStatus: 'done',
+    thinkingDurationMs: last.thinkingDurationMs ?? Math.max(0, now - started),
+  }
+  return next
+}
+
 export function applyCodingToolEvent(
   messages: Message[],
   event: {
@@ -144,7 +160,7 @@ export function applyCodingToolEvent(
   const completing = event.type === 'tool.completed' || event.done === true
   const toolName = event.toolName
   const toolCallId = event.toolCallId
-  const next = messages.slice()
+  const next = settleLiveThinking(messages.slice())
 
   if (!completing) {
     const existing = toolCallId
@@ -232,7 +248,11 @@ export function applyAssistantThinkingEvent(
         ? (delta || last.thinking || '')
         : `${last.thinking ?? ''}${delta}`,
       thinkingStatus: completing ? 'done' : 'running',
-      thinkingDurationMs: event.durationMs ?? last.thinkingDurationMs,
+      thinkingDurationMs: event.durationMs
+        ?? last.thinkingDurationMs
+        ?? (completing && Number.isFinite(last.timestamp)
+          ? Math.max(0, Date.now() - last.timestamp)
+          : last.thinkingDurationMs),
       status: last.status === 'done' ? 'done' : 'running',
     }
     return next

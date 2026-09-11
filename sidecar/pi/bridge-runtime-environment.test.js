@@ -38,13 +38,11 @@ test("describes the selected POSIX shell without copying ambient environment", (
   assert.doesNotMatch(guidance, /must-not-leak|SECRET_VALUE/);
 });
 
-test("states direct image capability only when the active runtime model supports it", () => {
-  const vision = runtimeEnvironmentGuidance({ modelInput: ["text", "image"] });
-  const text = runtimeEnvironmentGuidance({ modelInput: ["text"] });
+test("does not tell the model the runtime is text-only", () => {
+  const guidance = runtimeEnvironmentGuidance({});
 
-  assert.match(vision, /accepts direct image input/);
-  assert.match(vision, /never claim that this runtime is text-only/);
-  assert.doesNotMatch(text, /accepts direct image input/);
+  assert.match(guidance, /Attached images are sent to the current model as images/);
+  assert.match(guidance, /Do not claim the runtime is text-only/);
 });
 
 test("does not let failed live research fall back to unverified model memory", () => {

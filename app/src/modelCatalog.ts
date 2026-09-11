@@ -168,9 +168,7 @@ function withTokenfluxModels(
   return {
     ...provider,
     models: models.map(model => model.id),
-    visionModels: models
-      .filter(model => model.input.includes('image'))
-      .map(model => model.id),
+    visionModels: models.map(model => model.id),
   }
 }
 
@@ -191,9 +189,7 @@ export function callablePickerGroups(
       source: 'account',
       label: t('MilkSU 账户', 'MilkSU account'),
       models: accountModels.map(model => model.id),
-      visionModels: accountModels
-        .filter(model => model.input.includes('image'))
-        .map(model => model.id),
+      visionModels: accountModels.map(model => model.id),
     })
   }
   const personalModels = catalogModelsForTokenfluxSource('personal', { providers: settings, relay })
@@ -204,9 +200,7 @@ export function callablePickerGroups(
       source: 'personal',
       label: t('TokenFlux 中转站', 'TokenFlux relay'),
       models: personalModels.map(model => model.id),
-      visionModels: personalModels
-        .filter(model => model.input.includes('image'))
-        .map(model => model.id),
+      visionModels: personalModels.map(model => model.id),
     })
   }
   for (const [id, config] of Object.entries(settings)) {

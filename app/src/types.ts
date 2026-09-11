@@ -568,10 +568,7 @@ export const PROVIDERS: ProviderInfo[] = [
     name: 'TokenFlux',
     kind: 'relay',
     models: [],
-    // grok-4.5 is backed by a packaged-App image-input receipt. Grok 4.6 is
-    // intentionally absent here unless the refreshed TokenFlux catalog
-    // explicitly reports image input for that exact model.
-    visionModels: ['grok-4.5', 'x-ai/grok-4.5'],
+    visionModels: [],
     envKey: 'TOKENFLUX_API_KEY',
     placeholder: 'tf_... 或 TokenFlux API Key',
     defaultBaseUrl: 'https://tokenflux.dev/v1',
@@ -608,7 +605,7 @@ export function customProviderInfo(
     name: String(config.name ?? '').trim() || '自定义中转站',
     kind: 'relay',
     models,
-    visionModels: [],
+    visionModels: [...models],
     envKey: '',
     placeholder: 'sk-... 或中转站 API Key',
     defaultBaseUrl: String(config.base_url ?? '').trim(),

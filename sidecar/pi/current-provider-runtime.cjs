@@ -44,10 +44,15 @@ const providerRuntime = Object.freeze({
 });
 
 const tokenfluxModelCatalog = Object.freeze([]);
-const verifiedImageInputModels = new Set([
-  "grok-4.5",
-  "x-ai/grok-4.5",
-]);
+
+function modelInput(values) {
+  const next = Array.isArray(values)
+    ? [...new Set(values.filter(value => value === "text" || value === "image"))]
+    : [];
+  if (!next.includes("text")) next.unshift("text");
+  if (!next.includes("image")) next.push("image");
+  return next;
+}
 const groqModelCatalog = Object.freeze([
   {
     id: "qwen/qwen3.6-27b",
@@ -83,9 +88,6 @@ function runtimeTokenfluxModelCatalogSnapshot(environment = process.env) {
     const dynamic = snapshot.models.flatMap(item => {
       const id = String(item?.id ?? "").trim();
       if (!id) return [];
-      const input = Array.isArray(item?.input)
-        ? [...new Set(item.input.filter(value => value === "text" || value === "image"))]
-        : ["text"];
       return [{
         id,
         name: String(item?.name ?? id).trim() || id,
@@ -97,7 +99,7 @@ function runtimeTokenfluxModelCatalogSnapshot(environment = process.env) {
         maxTokens: Number.isInteger(item?.max_tokens) && item.max_tokens > 0
           ? item.max_tokens
           : 16_384,
-        input: input.includes("text") ? input : ["text", ...input],
+        input: modelInput(item?.input),
       }];
     });
     const accountModelIDs = Array.isArray(snapshot.account_model_ids)
@@ -159,7 +161,7 @@ function tokenfluxModel(model, environment = process.env) {
       contextWindowOverride("tokenflux", model, environment),
     ),
     maxTokens: 16_384,
-    input: verifiedImageInputModels.has(model) ? ["text", "image"] : ["text"],
+    input: modelInput(),
   };
 }
 
@@ -199,7 +201,7 @@ function currentProviderDefinition(provider, model, environment = process.env) {
         id: model,
         name: model,
         reasoning: false,
-        input: ["text"],
+        input: modelInput(),
         cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
         contextWindow: resolveModelContextWindow(
           model,

@@ -331,14 +331,6 @@ func normalizeModels(values []catalogModelRaw) []Model {
 			continue
 		}
 		input := normalizeInput(value.Architecture.InputModalities)
-		// TokenFlux currently exposes model availability and, when present,
-		// architecture metadata. grok-4.5 also has a retained packaged-App
-		// image-input receipt, so keep that verified capability even when an
-		// otherwise valid catalog response omits architecture. Do not infer the
-		// same capability for adjacent Grok versions.
-		if verifiedImageInputModel(id) && !contains(input, "image") {
-			input = append(input, "image")
-		}
 		if !contains(input, "text") {
 			continue
 		}
@@ -376,8 +368,11 @@ func normalizeInput(values []string) []string {
 			result = append(result, value)
 		}
 	}
-	if len(result) == 0 {
-		return []string{"text"}
+	if !contains(result, "text") {
+		result = append([]string{"text"}, result...)
+	}
+	if !contains(result, "image") {
+		result = append(result, "image")
 	}
 	return result
 }
@@ -406,19 +401,6 @@ func contains(values []string, expected string) bool {
 		}
 	}
 	return false
-}
-
-func verifiedImageInputModel(id string) bool {
-	switch strings.TrimSpace(id) {
-	case "grok-4.5", "x-ai/grok-4.5":
-		return true
-	default:
-		// Composite keys may use a custom prefix; bare suffix still counts.
-		if slash := strings.IndexByte(id, '/'); slash > 0 {
-			return verifiedImageInputModel(id[slash+1:])
-		}
-		return false
-	}
 }
 
 // detectKeyShape classifies a TokenFlux /models response.
@@ -614,15 +596,15 @@ func writeSnapshot(path string, value Snapshot) error {
 
 func fallbackSnapshot() Snapshot {
 	models := []Model{
-		{ID: "x-ai/grok-4.6", Name: "Grok 4.6", ContextWindow: 500_000, MaxTokens: defaultMaxTokens, Input: []string{"text"}},
+		{ID: "x-ai/grok-4.6", Name: "Grok 4.6", ContextWindow: 500_000, MaxTokens: defaultMaxTokens, Input: []string{"text", "image"}},
 		{ID: "x-ai/grok-4.5", Name: "Grok 4.5", ContextWindow: 500_000, MaxTokens: defaultMaxTokens, Input: []string{"text", "image"}},
-		{ID: "grok-4.3", Name: "Grok 4.3", ContextWindow: 1_000_000, MaxTokens: defaultMaxTokens, Input: []string{"text"}},
-		{ID: "openai/gpt-5.6-sol", Name: "GPT-5.6 Sol", ContextWindow: 1_050_000, MaxTokens: defaultMaxTokens, Input: []string{"text"}},
-		{ID: "openai/gpt-5.2-codex", Name: "GPT-5.2 Codex", ContextWindow: 400_000, MaxTokens: defaultMaxTokens, Input: []string{"text"}},
-		{ID: "anthropic/claude-sonnet-4.6", Name: "Claude Sonnet 4.6", ContextWindow: 1_000_000, MaxTokens: defaultMaxTokens, Input: []string{"text"}},
-		{ID: "deepseek/deepseek-v4-flash", Name: "DeepSeek V4 Flash", ContextWindow: 1_048_576, MaxTokens: defaultMaxTokens, Input: []string{"text"}},
-		{ID: "google/gemini-3.1-pro-preview", Name: "Gemini 3.1 Pro Preview", ContextWindow: 1_048_576, MaxTokens: defaultMaxTokens, Input: []string{"text"}},
-		{ID: "qwen/qwen3-coder-plus", Name: "Qwen3 Coder Plus", ContextWindow: 1_000_000, MaxTokens: defaultMaxTokens, Input: []string{"text"}},
+		{ID: "grok-4.3", Name: "Grok 4.3", ContextWindow: 1_000_000, MaxTokens: defaultMaxTokens, Input: []string{"text", "image"}},
+		{ID: "openai/gpt-5.6-sol", Name: "GPT-5.6 Sol", ContextWindow: 1_050_000, MaxTokens: defaultMaxTokens, Input: []string{"text", "image"}},
+		{ID: "openai/gpt-5.2-codex", Name: "GPT-5.2 Codex", ContextWindow: 400_000, MaxTokens: defaultMaxTokens, Input: []string{"text", "image"}},
+		{ID: "anthropic/claude-sonnet-4.6", Name: "Claude Sonnet 4.6", ContextWindow: 1_000_000, MaxTokens: defaultMaxTokens, Input: []string{"text", "image"}},
+		{ID: "deepseek/deepseek-v4-flash", Name: "DeepSeek V4 Flash", ContextWindow: 1_048_576, MaxTokens: defaultMaxTokens, Input: []string{"text", "image"}},
+		{ID: "google/gemini-3.1-pro-preview", Name: "Gemini 3.1 Pro Preview", ContextWindow: 1_048_576, MaxTokens: defaultMaxTokens, Input: []string{"text", "image"}},
+		{ID: "qwen/qwen3-coder-plus", Name: "Qwen3 Coder Plus", ContextWindow: 1_000_000, MaxTokens: defaultMaxTokens, Input: []string{"text", "image"}},
 	}
 	return Snapshot{
 		Schema: catalogSchema, Provider: ProviderTokenFlux,

@@ -23,10 +23,37 @@ test("TokenFlux registers a selected model even before a refreshed cache is avai
   assert.deepEqual(model.input, ["text", "image"]);
 });
 
-test("keeps unknown TokenFlux models text-only without catalog evidence", () => {
+test("does not mark unknown TokenFlux models as text-only", () => {
   const definition = currentProviderDefinition("tokenflux", "vendor/unknown", {});
   const model = definition.models.find((item) => item.id === "vendor/unknown");
-  assert.deepEqual(model.input, ["text"]);
+  assert.deepEqual(model.input, ["text", "image"]);
+});
+
+test("catalog rows without image still register image input", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "milksu-model-catalog-"));
+  const catalogPath = path.join(directory, "tokenflux.json");
+  fs.writeFileSync(catalogPath, JSON.stringify({
+    provider: "tokenflux",
+    source: "remote",
+    credential_source: "personal",
+    models: [{
+      id: "deepseek/deepseek-v4-flash",
+      name: "DeepSeek V4 Flash",
+      context_window: 128000,
+      max_tokens: 8192,
+      input: ["text"],
+    }],
+  }));
+  try {
+    const definition = currentProviderDefinition("tokenflux", "deepseek/deepseek-v4-flash", {
+      TOKENFLUX_API_KEY: "test-key",
+      MILKSU_MODEL_CATALOG_PATH: catalogPath,
+    });
+    const model = definition.models.find(item => item.id === "deepseek/deepseek-v4-flash");
+    assert.deepEqual(model.input, ["text", "image"]);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
 });
 
 test("loads refreshed canonical models from the desktop catalog cache", () => {
@@ -169,6 +196,7 @@ test("registers the active custom OpenAI-compatible relay only from runtime envi
   assert.equal(definition.baseUrl, "https://relay.invalid/v1");
   assert.equal(definition.apiKey, "secret-key");
   assert.equal(definition.models[0].id, "vendor/model:preview");
+  assert.deepEqual(definition.models[0].input, ["text", "image"]);
   assert.equal(
     currentProviderDefinition("custom-relay-other", "model", {
       MILKSU_CUSTOM_PROVIDER_ID: "custom-relay-team",

@@ -47,10 +47,6 @@ import {
 } from "./bridge-resource-policy.js";
 import { preparePromptAttachments } from "./bridge-attachments.js";
 import {
-  analyzeTextOnlyImages,
-  analyzeTextOnlyToolImages,
-} from "./bridge-vision.js";
-import {
   backgroundTaskMetasForSession,
   projectBackgroundTaskMetas,
 } from "./bridge-background-view.js";
@@ -373,23 +369,11 @@ function isComputerUseMcpResult(event) {
 
 async function summarizeComputerUseToolImages(event, session) {
   if (!isComputerUseMcpResult(event)) return undefined;
-  if (Array.isArray(session.model?.input) && session.model.input.includes("image")) {
-    return undefined;
-  }
-  const images = Array.isArray(event.content)
-    ? event.content.filter(block => block?.type === "image")
-    : [];
-  if (!images.length) return undefined;
-  const analyzed = await analyzeTextOnlyToolImages(images, {
-    label: "Computer Use tool result",
-  });
-  if (!analyzed.context) return undefined;
-  return {
-    content: [
-      ...event.content,
-      { type: "text", text: analyzed.context },
-    ],
-  };
+  // Screenshots stay image blocks. The current model or provider decides
+  // whether it can read them; MilkSU does not OCR because a catalog said
+  // the model is text-only.
+  void session;
+  return undefined;
 }
 
 function truncate(value, limit = 60000) {
@@ -478,7 +462,6 @@ function createMilkSUWorkflowExtension(sessionRole, getPolicy, getSession, conve
         systemPrompt: composeMilkSUWorkflowSystemPrompt(event.systemPrompt, {
           sessionRole,
           policy,
-          modelInput: getSession?.()?.model?.input,
         }),
       };
     });
@@ -1806,18 +1789,12 @@ async function sendMessage(command) {
     }
     await compactIfContextNearLimit(conversationId, session);
     const attachmentRoot = process.env.MILKSU_CODING_ATTACHMENT_ROOT;
-    const supportsImages = Array.isArray(session.model?.input)
-      && session.model.input.includes("image");
     const prepared = await preparePromptAttachments(
       command.attachments,
       attachmentRoot,
-      supportsImages,
     );
     const contract = normalizeCodingTurnContract(command.turnPolicy);
-    const analyzed = supportsImages
-      ? { context: "" }
-      : await analyzeTextOnlyImages(prepared.attachments);
-    const prompt = `${command.prompt ?? ""}${prepared.context}${analyzed.context}`;
+    const prompt = `${command.prompt ?? ""}${prepared.context}`;
     const controller = sessionPolicyControllers.get(conversationId);
     if (contract && !controller) {
       throw new Error("MilkSU Coding permission controller is unavailable");

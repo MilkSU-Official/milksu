@@ -20,6 +20,7 @@ import {
   applyAssistantThinkingEvent,
   applyCodingToolEvent,
   hasIdleRunResidue,
+  settleLiveThinking,
   settleRunningToolMessages,
   withoutBlankAssistantMessages,
 } from '@/lib/chatActivity'
@@ -2187,7 +2188,10 @@ export function useConversations() {
           const delta = String(text ?? '')
           if (last?.role === 'assistant' && last.status === 'running') {
             if (delta) {
-              messages[messages.length - 1] = { ...last, content: last.content + delta }
+              const settled = settleLiveThinking(messages)
+              const current = settled.at(-1) ?? last
+              messages.splice(0, messages.length, ...settled)
+              messages[messages.length - 1] = { ...current, content: current.content + delta }
             }
           } else if (delta.trim()) {
             messages.push({

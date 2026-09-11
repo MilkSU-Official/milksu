@@ -37,7 +37,6 @@ function describeBytes(size) {
 export async function preparePromptAttachments(
   rawAttachments,
   attachmentRoot,
-  supportsImages,
 ) {
   if (!Array.isArray(rawAttachments) || rawAttachments.length === 0) {
     return { context: "", images: [], attachments: [] };
@@ -101,13 +100,11 @@ export async function preparePromptAttachments(
     };
     values.push(value);
     if (supportedImageTypes.has(mediaType)) {
-      if (supportsImages) {
-        images.push({
-          type: "image",
-          data: data.toString("base64"),
-          mimeType: mediaType,
-        });
-      }
+      images.push({
+        type: "image",
+        data: data.toString("base64"),
+        mimeType: mediaType,
+      });
     }
   }
 
