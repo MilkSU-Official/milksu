@@ -33,6 +33,8 @@ build/tmp-*
 build/eval-ui-final/
 build/eval-ui-mockups/
 spikes/eval-wip/
+spikes/harness-ablation/
+build/acceptance-shots/
 app/eval-settings-preview.html
 app/src/eval-settings-preview.ts
 app/src/previews/EvalSettingsPreview.vue

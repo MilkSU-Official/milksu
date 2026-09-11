@@ -417,7 +417,7 @@ const slashCommands = computed(() => {
     description: command.id === 'goal' && hasUnfinishedGoal.value
       ? t('当前已有持续目标', 'A goal is already in progress')
       : command.id === 'rewind' && props.kernel === 'dsh'
-        ? t('DeepSeek Harness 不能丢掉探索', 'DeepSeek Harness cannot rewind exploration')
+        ? t('此运行时暂不支持回退', 'This runtime cannot rewind')
         : command.description,
     disabled: slashCommandDisabled(command.id),
   })).filter(command => (

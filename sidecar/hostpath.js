@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 
 // Usable sockaddr_un.sun_path length on Darwin (104 including NUL). Keep in
@@ -47,13 +47,48 @@ export function dshProductIpc(
     const suffix = id.slice(-24);
     return `\\\\.\\pipe\\milksu-dsh-${suffix}`;
   }
-  const root = join(ephemeralRoot(env, platform), "milksu-dsh");
-  const candidate = join(root, `dsh-${id}.sock`);
-  if (Buffer.byteLength(candidate) <= unixSocketMaxBytes) {
-    return candidate;
+  return unixDshProductIpc(ephemeralRoot(env, platform), id, env, platform);
+}
+
+export function unixDshProductIpc(
+  root,
+  id,
+  env = process.env,
+  platform = process.platform,
+) {
+  const key = String(id ?? "").trim() || "session";
+  for (const candidateRoot of [
+    root,
+    ephemeralRoot(env, platform),
+    unixSocketOverflowRoot(env, platform),
+  ]) {
+    const path = fitUnixSocket(candidateRoot, "dsh", key);
+    if (path) return path;
   }
+  const digest = createHash("sha256").update(key).digest("hex").slice(0, 16);
+  return `${digest}.sock`;
+}
+
+function fitUnixSocket(root, prefix, id) {
+  if (!String(root ?? "").trim()) return "";
   const digest = createHash("sha256").update(id).digest("hex").slice(0, 16);
-  return join(root, `dsh-${digest}.sock`);
+  for (const name of [
+    `${prefix}-${id}.sock`,
+    `${prefix}-${digest}.sock`,
+    `${digest}.sock`,
+  ]) {
+    const candidate = join(root, name);
+    if (Buffer.byteLength(candidate) <= unixSocketMaxBytes) return candidate;
+  }
+  return "";
+}
+
+function unixSocketOverflowRoot(env = process.env, platform = process.platform) {
+  if (platform === "linux") {
+    const cache = String(env.XDG_CACHE_HOME ?? "").trim();
+    if (cache) return join(cache, "milksu-ipc");
+  }
+  return join(homedir(), ".cache", "milksu-ipc");
 }
 
 export function unixComputerUseSocket(root, sessionId) {

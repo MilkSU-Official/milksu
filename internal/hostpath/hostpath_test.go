@@ -59,3 +59,50 @@ func TestComputerUseSocketHashesWhenRootIsLong(t *testing.T) {
 		t.Fatal("expected a hashed socket name when the root is long")
 	}
 }
+
+func TestDSHProductIpcStaysUnderUnixLimit(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		endpoint := DSHProductIpc("windows", "bridge-123456789")
+		if endpoint != `\\.\pipe\milksu-dsh-bridge-123456789` {
+			t.Fatalf("windows socket = %q", endpoint)
+		}
+		return
+	}
+	path := DSHProductIpc(runtime.GOOS, "bridge-123456")
+	if len(path) > unixSocketMaxBytes {
+		t.Fatalf("unix socket path too long (%d): %q", len(path), path)
+	}
+	root := filepath.Clean(EphemeralRoot())
+	if !strings.HasPrefix(path, root+string(os.PathSeparator)) && !strings.HasPrefix(path, unixSocketOverflowRoot()+string(os.PathSeparator)) {
+		t.Fatalf("socket %q is not under ephemeral or overflow root", path)
+	}
+}
+
+func TestDSHProductIpcFitsWhenRootIsProductWorkspaceTmp(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("named pipes have no sockaddr length cap")
+	}
+	root := filepath.Join(string(os.PathSeparator), strings.Repeat("d", 107))
+	path := unixDSHProductIpc(root, "bridge-123456")
+	if len(path) > unixSocketMaxBytes {
+		t.Fatalf("bounded socket still too long (%d): %q", len(path), path)
+	}
+	if strings.HasPrefix(path, root+string(os.PathSeparator)) {
+		t.Fatalf("socket kept overflowing root %q: %q", root, path)
+	}
+}
+
+func TestDSHProductIpcStaysBoundedWhenTMPDIRIsProductWorkspaceTmp(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("named pipes have no sockaddr length cap")
+	}
+	long := filepath.Join(string(os.PathSeparator), strings.Repeat("d", 107))
+	t.Setenv("TMPDIR", long)
+	path := DSHProductIpc(runtime.GOOS, "bridge-123456")
+	if len(path) > unixSocketMaxBytes {
+		t.Fatalf("unix socket path too long under product TMPDIR (%d): %q", len(path), path)
+	}
+	if strings.HasPrefix(path, long+string(os.PathSeparator)) {
+		t.Fatalf("socket followed product TMPDIR %q: %q", long, path)
+	}
+}

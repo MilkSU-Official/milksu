@@ -8,11 +8,13 @@ import (
 	"os/exec"
 	"path/filepath"
 	goruntime "runtime"
+	"strconv"
 	"strings"
 
 	"github.com/MilkSU-Official/milksu/internal/appdata"
 	"github.com/MilkSU-Official/milksu/internal/codingtools"
 	"github.com/MilkSU-Official/milksu/internal/config"
+	"github.com/MilkSU-Official/milksu/internal/hostpath"
 )
 
 const (
@@ -23,6 +25,8 @@ const (
 	pluginMCPAppDataEnvironment = "MILKSU_PLUGIN_MCP_APPDATA"
 	dshHomeEnvironment          = "DSH_HOME"
 	dshProfileEnvironment       = "MILKSU_DSH_PROFILE"
+	dshProductIpcEnvironment    = "MILKSU_DSH_IPC"
+	dshHostIpcEnvironment       = "MILKSU_DSH_HOST_IPC"
 )
 
 type sidecarRuntime struct {
@@ -105,18 +109,20 @@ func sidecarEnvironment(settings config.AppSettings) ([]string, error) {
 }
 
 func withDSHSidecarEnvironment(environment []string) []string {
-	runtimeHome, err := sidecarRuntimeHome()
-	if err != nil {
-		return environment
-	}
-	dshHome := filepath.Join(runtimeHome, "dsh")
-	if err := os.MkdirAll(dshHome, 0o700); err != nil {
-		return environment
-	}
-	return mergeSidecarEnvironment(environment, []string{
-		dshHomeEnvironment + "=" + dshHome,
+	suffix := strconv.Itoa(os.Getpid())
+	extra := []string{
 		dshProfileEnvironment + "=acp",
-	})
+		dshProductIpcEnvironment + "=" + hostpath.DSHProductIpc(goruntime.GOOS, "p"+suffix),
+		dshHostIpcEnvironment + "=" + hostpath.DSHProductIpc(goruntime.GOOS, "h"+suffix),
+	}
+	runtimeHome, err := sidecarRuntimeHome()
+	if err == nil {
+		dshHome := filepath.Join(runtimeHome, "dsh")
+		if err := os.MkdirAll(dshHome, 0o700); err == nil {
+			extra = append(extra, dshHomeEnvironment+"="+dshHome)
+		}
+	}
+	return mergeSidecarEnvironment(environment, extra)
 }
 
 func canonicalCurrentExecutable() (string, error) {

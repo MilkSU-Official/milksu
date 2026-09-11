@@ -7,6 +7,7 @@ import { createAcpClient } from "./acp-client.js";
 import { resolveDshLaunch } from "./launch.js";
 import { createProductIpc } from "./product-ipc.js";
 import { dshProductIpc } from "../hostpath.js";
+import { dshPermissionResult } from "./permission.js";
 import { codingAskToolName } from "../pi/bridge-ask.js";
 import { createWorkspaceActionBroker } from "../pi/bridge-workspace.js";
 import { buildDshPromptBlocks } from "./prompt-blocks.js";
@@ -32,9 +33,15 @@ function describeError(error) {
   return error instanceof Error ? error.message : String(error ?? "unknown error");
 }
 
+function configuredIpcPath(envKey, fallbackId) {
+  const configured = String(process.env[envKey] ?? "").trim();
+  if (configured) return configured;
+  return dshProductIpc(fallbackId);
+}
+
 async function ensureProductIpc() {
   if (productIpc) return productIpc;
-  const path = dshProductIpc(`bridge-${process.pid}`);
+  const path = configuredIpcPath("MILKSU_DSH_IPC", `bridge-${process.pid}`);
   try {
     unlinkSync(path);
   } catch {
@@ -150,7 +157,7 @@ function callHost(method, params) {
 async function ensureAcp(cwd) {
   if (acp) return acp;
   await ensureProductIpc();
-  hostIpcPath = dshProductIpc(`host-${process.pid}`);
+  hostIpcPath = configuredIpcPath("MILKSU_DSH_HOST_IPC", `host-${process.pid}`);
   try {
     unlinkSync(hostIpcPath);
   } catch {
@@ -226,7 +233,6 @@ async function handleAcpNotification(message) {
         requestId,
         toolName: String(message.params?.toolCall?.title || message.params?.toolCall?.kind || "tool"),
         input: JSON.stringify(message.params?.toolCall ?? {}),
-        grantable: true,
       });
     }
   }
@@ -414,15 +420,10 @@ async function respondApproval(command) {
   }
   const record = sessionRecord(conversationId);
   if (!record?.pendingPermission || !acp) return;
-  const optionId = command.approved
-    ? (String(command.scope ?? "").trim() === "conversation" ? "allow-always" : "allow-once")
-    : "reject";
-  acp.respond(record.pendingPermission.jsonrpcId, {
-    outcome: {
-      outcome: command.approved ? "selected" : "cancelled",
-      optionId,
-    },
-  });
+  acp.respond(
+    record.pendingPermission.jsonrpcId,
+    dshPermissionResult(Boolean(command.approved)),
+  );
   emit(conversationId, "approval_resolved", {
     requestId: record.pendingPermission.requestId,
     approved: Boolean(command.approved),

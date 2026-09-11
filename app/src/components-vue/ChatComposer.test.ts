@@ -579,7 +579,7 @@ describe('ChatComposer', () => {
     await nextTick()
     const option = result.host.querySelector<HTMLButtonElement>('#coding-slash-command-rewind')
     expect(option?.getAttribute('aria-disabled')).toBe('true')
-    expect(option?.textContent ?? '').toContain('DeepSeek Harness 不能丢掉探索')
+    expect(option?.textContent ?? '').toContain('此运行时暂不支持回退')
     activateSlashOption(result.host, 'rewind')
     await nextTick()
     expect(result.slashCommandActions).toEqual([])

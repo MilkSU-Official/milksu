@@ -2141,6 +2141,16 @@ func containsEnvironmentEntry(environment []string, expected string) bool {
 	return false
 }
 
+func environmentValue(environment []string, name string) string {
+	prefix := name + "="
+	for _, entry := range environment {
+		if strings.HasPrefix(entry, prefix) {
+			return strings.TrimPrefix(entry, prefix)
+		}
+	}
+	return ""
+}
+
 func TestValidateModelAccessAcceptsEnabledProviderKey(t *testing.T) {
 	settings := config.DefaultSettings()
 	settings.ActiveProvider = "deepseek"
@@ -2317,6 +2327,27 @@ func TestSidecarEnvironmentPublishesCanonicalUserHomeWithoutGrantingIt(t *testin
 	}
 	if !containsEnvironmentEntry(environment, "MILKSU_USER_HOME="+canonicalUserHome) {
 		t.Fatalf("canonical user home missing from %#v", environment)
+	}
+}
+
+func TestWithDSHSidecarEnvironmentPublishesBoundedUnixIpc(t *testing.T) {
+	t.Setenv("MILKSU_APPDATA_DIR", t.TempDir())
+	environment := withDSHSidecarEnvironment([]string{"PATH=/usr/bin"})
+	product := environmentValue(environment, "MILKSU_DSH_IPC")
+	host := environmentValue(environment, "MILKSU_DSH_HOST_IPC")
+	if product == "" || host == "" {
+		t.Fatalf("DSH ipc env missing from %#v", environment)
+	}
+	if product == host {
+		t.Fatal("product and host DSH ipc paths must differ")
+	}
+	if runtime.GOOS != "windows" {
+		if len(product) > 103 || len(host) > 103 {
+			t.Fatalf("DSH ipc exceeds sockaddr_un product=%d host=%d", len(product), len(host))
+		}
+	}
+	if !containsEnvironmentEntry(environment, "MILKSU_DSH_PROFILE=acp") {
+		t.Fatalf("DSH profile missing from %#v", environment)
 	}
 }
 

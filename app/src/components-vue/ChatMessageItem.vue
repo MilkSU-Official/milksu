@@ -51,13 +51,13 @@ const rewindControlDisabled = computed(() => (
 ))
 const rewindControlLabel = computed(() => (
   sessionTreeUnavailable.value
-    ? t('DeepSeek Harness 不能丢掉探索', 'DeepSeek Harness cannot rewind exploration')
+    ? t('此运行时暂不支持回退', 'This runtime cannot rewind')
     : t('丢掉这段', 'Drop this turn')
 ))
 const branchControlDisabled = computed(() => sessionTreeUnavailable.value)
 const branchControlLabel = computed(() => (
   sessionTreeUnavailable.value
-    ? t('DeepSeek Harness 不能从这里分叉', 'DeepSeek Harness cannot branch from this turn')
+    ? t('此运行时暂不支持分叉', 'This runtime cannot branch')
     : t('分叉到新对话', 'Branch to new chat')
 ))
 const askOptions = computed(() => parseAskOptions(props.message.approvalInput))

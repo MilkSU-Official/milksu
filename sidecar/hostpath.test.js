@@ -7,6 +7,7 @@ import {
   dshProductIpc,
   ephemeralRoot,
   unixComputerUseSocket,
+  unixDshProductIpc,
 } from "./hostpath.js";
 
 test("ephemeral root uses XDG_RUNTIME_DIR on Linux and os.tmpdir otherwise", () => {
@@ -24,8 +25,19 @@ test("DSH product IPC stays under the ephemeral root and short enough for sockad
     return;
   }
   const path = dshProductIpc("conversation-1");
-  assert.ok(path.startsWith(join(ephemeralRoot(), "milksu-dsh")));
   assert.ok(Buffer.byteLength(path) <= 103);
+  const root = ephemeralRoot();
+  if (Buffer.byteLength(join(root, "dsh-conversation-1.sock")) <= 103) {
+    assert.ok(path.startsWith(root));
+  }
+});
+
+test("DSH product IPC relocates when the root is a product workspace tmp", () => {
+  if (process.platform === "win32") return;
+  const root = join("/", "d".repeat(107));
+  const path = unixDshProductIpc(root, "bridge-123456");
+  assert.ok(Buffer.byteLength(path) <= 103);
+  assert.equal(path.startsWith(root), false);
 });
 
 test("Computer Use unix sockets stay short and under the ephemeral root", () => {
