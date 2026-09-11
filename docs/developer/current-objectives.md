@@ -176,6 +176,7 @@
 - 侧栏运行中会话只显示像素点，`运行中` 留在 `aria-label`。原先可见文案在 16px 状态槽里居中裁切，会露出中间的「行」。
 - 计划 / 变更上拉框不再跟收缩后的胶囊同宽；展开后最小 18rem，步骤文案不再只剩两个字。
 - 下拉框、菜单、Dialog、Sheet 和对话小窗改用实底 `--surface-overlay` / `--popover`，不再套 68–74% 透明加 `backdrop-filter`。Windows 上 blur 经常不生效，字会看穿。Composer 岛仍可保留轻模糊。
+- Computer Use 驱动从 `cua-driver 0.14.2` 升到上游 `0.27.0`。macOS 继续用官方 universal 包；Windows 仍从同一 commit 源码编，并去掉 MilkSU 路径补丁（上游已有 `canonical_process_executable`）。Linux / Hyprland 仍不接 CUA。关 #56。
 
 ## 当前产品事实
 

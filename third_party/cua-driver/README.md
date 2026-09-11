@@ -1,23 +1,35 @@
-# Cua driver Windows compatibility source
+# Cua driver Windows source pin
 
-MilkSU keeps the macOS `cua-driver` path on the audited upstream release artifact. Windows builds the same upstream release from source with one narrow compatibility patch because the Windows process image path can differ from the canonical path used in the approved target manifest.
+MilkSU keeps the macOS `cua-driver` path on the audited upstream release
+artifact. Windows still builds the same upstream release from source because
+the official Windows zip is not the Sidecar install path, and
+`prepare_computer_use_driver` can rebuild the reviewed copy in a checkout.
+
+Upstream `0.27.0` already canonicalizes the Windows process image path before
+target-manifest comparison (`canonical_process_executable`). The older MilkSU
+`0.14.2` canonicalize patch is gone.
 
 ## Pinned provenance
 
 - Upstream: `https://github.com/trycua/cua.git`
-- Release: `cua-driver-rs-v0.14.2`
-- Commit: `ed9d5efcf5f261f4854bf2de0ba06a2b0b4419c4`
+- Release: `cua-driver-rs-v0.27.0`
+- Commit: `082de4344b731ae4738ddc6a6f13f21bb3c49a85`
 - License: upstream root `LICENSE.md` (MIT)
 - Rust: `1.97.1`
 - Target: `x86_64-pc-windows-msvc`
-- Patch SHA-256: `25811f122f48ebdf346139c13724ee6f7cfa4ab8e29afad5a49d5bcfe62a96d4`
-- Upstream `Cargo.lock` SHA-256: `08325c0e9779b1604bdc707f60c4f85836f2e7e668375112448b3d04a46db3b2`
-- Patched source SHA-256 after LF normalization: `190779e4f349ad7b359e9a51f3c057089e388d716612bbf66f8ebb9a6e15bc8f`
+- Upstream `Cargo.lock` SHA-256: `1200667c238ea4b425e7ab0b1e3bfa1c49b93158ae90bd52a15d5e78c2871678`
+- `libs/cua-driver/rust/crates/platform-windows/src/browser_platform.rs` SHA-256 after LF normalization: `509e8467489b4201c947779dced4af267bdd68bd1a588a6d249404ef948fc53f`
 
 ## Compatibility boundary
 
-The patch canonicalizes the executable path returned for the already-open process handle before target-manifest comparison. Failure to canonicalize rejects the route. It does not authorize by PID alone, enable UIAccess, relax the target manifest, or change the Cua protocol.
+The Windows source build does not add a MilkSU patch. It does not authorize by
+PID alone, enable UIAccess, relax the target manifest, or change the Cua
+protocol.
 
-`scripts/build-windows-cua-driver.mjs` owns checkout, provenance verification, the locked build, the targeted regression test, and the build receipt. Generated source, Cargo caches, binaries, and licenses stay under `build/sidecar-cache/` and are not source assets.
+`scripts/build-windows-cua-driver.mjs` owns checkout, provenance verification,
+the locked build, and the build receipt. Generated source, Cargo caches,
+binaries, and licenses stay under `build/sidecar-cache/` and are not source
+assets.
 
-When a later audited upstream Cua release contains an equivalent fix, remove this patch and the Windows source-build exception after the same packaged ordinary-user probes pass.
+Linux Computer Use still does not ship this driver. GNOME Wayland stays on the
+XDG Desktop Portal; Hyprland and Xorg stay unavailable.

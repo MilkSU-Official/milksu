@@ -244,7 +244,7 @@ async function main() {
       PATH: join(process.env.SystemRoot || 'C:\\Windows', 'System32'),
     },
   })
-  assert(version.trim() === 'cua-driver 0.14.2', `unexpected driver version: ${version.trim()}`)
+  assert(version.trim() === 'cua-driver 0.27.0', `unexpected driver version: ${version.trim()}`)
 
   const workspace = join(tmpdir(), 'milksu-computer-use', sessionId)
   const marker = `milksu-cua-${Date.now().toString(36)}`

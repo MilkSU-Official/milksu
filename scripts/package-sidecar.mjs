@@ -42,14 +42,14 @@ const piSubAgentIntegrity = 'sha512-ILgmYfAhP1nzpz7oLLN/lSFrwwigS0hfEKc8NppdkajC
 const playwrightMcpVersion = '0.0.78'
 const playwrightVersion = '1.62.0-alpha-1783623505000'
 const playwrightSocketRoot = playwrightSocketRootFor()
-const cuaDriverVersion = '0.14.2'
+const cuaDriverVersion = '0.27.0'
 const cuaDriverTag = `cua-driver-rs-v${cuaDriverVersion}`
-const cuaDriverSourceCommit = 'ed9d5efcf5f261f4854bf2de0ba06a2b0b4419c4'
+const cuaDriverSourceCommit = '082de4344b731ae4738ddc6a6f13f21bb3c49a85'
 const cuaDriverArchive = {
   file: `cua-driver-rs-${cuaDriverVersion}-darwin-universal-binary.tar.gz`,
-  sha256: '31209b5f460aa7af69208b11718d45c5e8dc2c02fbdb2c95f34b46f5ec73a3a9',
+  sha256: 'd4cffcd7ba4670e2d44eda87ff6d6fd7644ad7c23019094233a2cec66b8d1f1d',
 }
-const cuaDriverBinarySha256 = 'd691969c11ea5228604ff6e56d876045305bb9c25ea7efb4c2fb358c18c23ed2'
+const cuaDriverBinarySha256 = '9828cca4520e7049e239911dc1d30173d66c3a6d3c35bb247fe629751f8dd016'
 const cuaSessionPolicyPath = join(
   repositoryRoot,
   'internal',
