@@ -110,7 +110,7 @@ describe('model provider catalog', () => {
           models: ['deepseek-flash', 'deepseek-v4-pro'],
         },
       },
-    } as AppSettings)
+    } as unknown as AppSettings)
     expect(settings.active_provider).toBe('custom-relay-deepseek')
     expect(settings.active_model).toBe('deepseek-flash')
   })

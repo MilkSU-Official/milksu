@@ -1701,7 +1701,7 @@ describe('SettingsPage database compatibility', () => {
     save?.click()
     for (let index = 0; index < 8; index += 1) await settle()
 
-    const persisted = savedSettings as AppSettings
+    const persisted = savedSettings as unknown as AppSettings
     expect(persisted.active_provider).toBe('custom-relay-deepseek')
     expect(persisted.active_model).toBe('deepseek-flash')
     expect(persisted.providers['custom-relay-deepseek']).toMatchObject({
@@ -1712,8 +1712,9 @@ describe('SettingsPage database compatibility', () => {
       api_key: 'sk-deepseek-test-not-real',
       models: ['deepseek-flash', 'deepseek-v4-pro'],
     })
-    expect(probed?.active_provider).toBe('custom-relay-deepseek')
-    expect(probed?.providers['custom-relay-deepseek']).toMatchObject({
+    const probedSettings = probed as unknown as AppSettings
+    expect(probedSettings.active_provider).toBe('custom-relay-deepseek')
+    expect(probedSettings.providers['custom-relay-deepseek']).toMatchObject({
       enabled: true,
       api_key: 'sk-deepseek-test-not-real',
     })
