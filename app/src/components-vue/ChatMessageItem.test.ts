@@ -24,6 +24,7 @@ async function mountMessage(
   }> = []
   let retried = false
   let rewound = false
+  let branched = ''
   const host = document.createElement('div')
   document.body.append(host)
   const app = createApp(ChatMessageItem, {
@@ -43,11 +44,14 @@ async function mountMessage(
     onRewindContext: () => {
       rewound = true
     },
+    onBranchAssistant: (messageId: string) => {
+      branched = messageId
+    },
   })
   app.mount(host)
   mountedApps.push(app)
   await nextTick()
-  return { host, responses, retried: () => retried, rewound: () => rewound }
+  return { host, responses, retried: () => retried, rewound: () => rewound, branched: () => branched }
 }
 
 describe('ChatMessageItem', () => {
@@ -275,7 +279,11 @@ describe('ChatMessageItem', () => {
     })
     expect(assistant.host.querySelector('[aria-label="复制"]')).not.toBeNull()
     expect(assistant.host.querySelector('[aria-label="分叉到新对话"]')).not.toBeNull()
+    expect(assistant.host.querySelector('[data-testid="message-branch"]')).not.toBeNull()
     expect(assistant.host.querySelector('[aria-label="编辑并从这里重发"]')).toBeNull()
+    assistant.host.querySelector<HTMLButtonElement>('[data-testid="message-branch"]')?.click()
+    await nextTick()
+    expect(assistant.branched()).toBe('assistant-actions')
   })
 
   it('keeps rewind on the last droppable user turn and leaves earlier prompts alone', async () => {
@@ -320,6 +328,39 @@ describe('ChatMessageItem', () => {
     rewind?.click()
     await nextTick()
     expect(result.rewound()).toBe(false)
+  })
+
+  it('disables rewind and branch on DeepSeek Harness turns before the click', async () => {
+    const lastTurn = await mountMessage({
+      id: 'user-rewind-dsh',
+      role: 'user',
+      content: '改成另一条路',
+      timestamp: Date.now(),
+    }, {
+      canRewind: true,
+      kernel: 'dsh',
+    })
+    const rewind = lastTurn.host.querySelector<HTMLButtonElement>('[data-testid="message-rewind"]')
+    expect(rewind?.disabled).toBe(true)
+    expect(rewind?.getAttribute('title')).toBe('DeepSeek Harness 不能丢掉探索')
+    rewind?.click()
+    await nextTick()
+    expect(lastTurn.rewound()).toBe(false)
+
+    const assistant = await mountMessage({
+      id: 'assistant-branch-dsh',
+      role: 'assistant',
+      content: '这是一个仓库。',
+      timestamp: Date.now(),
+    }, {
+      kernel: 'dsh',
+    })
+    const branch = assistant.host.querySelector<HTMLButtonElement>('[data-testid="message-branch"]')
+    expect(branch?.disabled).toBe(true)
+    expect(branch?.getAttribute('title')).toBe('DeepSeek Harness 不能从这里分叉')
+    branch?.click()
+    await nextTick()
+    expect(assistant.branched()).toBe('')
   })
 
   it('renders a Beautiful UI choice card and emits the selected option', async () => {

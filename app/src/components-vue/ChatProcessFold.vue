@@ -12,6 +12,7 @@ const props = defineProps<{
   recoveryContext?: 'ctf' | 'coding'
   rewindableUserMessageId?: string
   rewindDisabled?: boolean
+  kernel?: 'pi' | 'dsh'
   activityOpen: (activityId: string) => boolean
   activityOpenEntries: (activityId: string) => ReadonlySet<string>
   subagentTasks?: readonly SubagentTask[]
@@ -62,6 +63,7 @@ const stepCount = computed(() => {
           :recovery-context="recoveryContext"
           :can-rewind="item.message.id === rewindableUserMessageId"
           :rewind-disabled="rewindDisabled"
+          :kernel="kernel"
           @respond-approval="(requestId, approved, scope, choice) => $emit('respondApproval', requestId, approved, scope, choice)"
           @retry="$emit('retry')"
           @edit-user="(messageId, content) => $emit('editUser', messageId, content)"

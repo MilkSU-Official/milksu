@@ -28,6 +28,7 @@ const props = defineProps<{
   recoveryContext?: 'coding' | 'ctf'
   canRewind?: boolean
   rewindDisabled?: boolean
+  kernel?: 'pi' | 'dsh'
 }>()
 
 const emit = defineEmits<{
@@ -44,6 +45,21 @@ const copied = ref(false)
 const approvalPinned = ref(false)
 let copyReset = 0
 
+const sessionTreeUnavailable = computed(() => props.kernel === 'dsh')
+const rewindControlDisabled = computed(() => (
+  Boolean(props.rewindDisabled) || sessionTreeUnavailable.value
+))
+const rewindControlLabel = computed(() => (
+  sessionTreeUnavailable.value
+    ? t('DeepSeek Harness 不能丢掉探索', 'DeepSeek Harness cannot rewind exploration')
+    : t('丢掉这段', 'Drop this turn')
+))
+const branchControlDisabled = computed(() => sessionTreeUnavailable.value)
+const branchControlLabel = computed(() => (
+  sessionTreeUnavailable.value
+    ? t('DeepSeek Harness 不能从这里分叉', 'DeepSeek Harness cannot branch from this turn')
+    : t('分叉到新对话', 'Branch to new chat')
+))
 const askOptions = computed(() => parseAskOptions(props.message.approvalInput))
 const isChoiceCard = computed(() => isAskMessage(props.message) && askOptions.value.length >= 2)
 const showApproval = computed(() => (
@@ -514,9 +530,9 @@ const approvalKicker = computed(() => (
         v-if="canRewind"
         type="button"
         data-testid="message-rewind"
-        :aria-label="t('丢掉这段', 'Drop this turn')"
-        :title="t('丢掉这段', 'Drop this turn')"
-        :disabled="rewindDisabled"
+        :aria-label="rewindControlLabel"
+        :title="rewindControlLabel"
+        :disabled="rewindControlDisabled"
         @click="$emit('rewindContext')"
       >
         <Undo2 />
@@ -524,8 +540,10 @@ const approvalKicker = computed(() => (
       <button
         v-if="message.role === 'assistant'"
         type="button"
-        :aria-label="t('分叉到新对话', 'Branch to new chat')"
-        :title="t('分叉到新对话', 'Branch to new chat')"
+        data-testid="message-branch"
+        :aria-label="branchControlLabel"
+        :title="branchControlLabel"
+        :disabled="branchControlDisabled"
         @click="$emit('branchAssistant', message.id)"
       >
         <GitFork />

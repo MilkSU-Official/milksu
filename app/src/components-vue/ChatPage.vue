@@ -694,8 +694,13 @@ const codingBrowserTabTitle = computed(() => (
   || t('新标签页', 'New tab')
 ))
 const workspaceLocked = computed(() => Boolean(props.conversation?.messages.length))
+const agentKernel = computed<'pi' | 'dsh'>(() => (
+  props.kernel
+  ?? (props.conversation?.kernel === 'dsh' ? 'dsh' : 'pi')
+))
+const sessionTreeUnavailable = computed(() => agentKernel.value === 'dsh')
 const rewindUnavailable = computed(() => (
-  Boolean(props.compacting) || (props.kernel ?? 'pi') === 'dsh'
+  Boolean(props.compacting) || sessionTreeUnavailable.value
 ))
 const activeModelLabel = computed(() => {
   if (effectiveModelMode.value === 'auto') return automaticModelLabel.value.replace(/^Default · /, '')
@@ -1077,6 +1082,11 @@ async function openPlaywrightBrowserExtension() {
       ? reason.message
       : t('无法打开 Playwright MCP 官方扩展页面。', 'Could not open the official Playwright MCP extension page.')
   }
+}
+
+function branchFromAssistantMessage(messageId: string) {
+  if (sessionTreeUnavailable.value) return
+  emit('branchAssistant', messageId)
 }
 
 function runSlashCommand(command: string) {
@@ -2176,6 +2186,7 @@ defineExpose({
             :recovery-context="ctfSession ? 'ctf' : 'coding'"
             :rewindable-user-message-id="rewindableUserMessageId"
             :rewind-disabled="rewindUnavailable"
+            :kernel="agentKernel"
             :activity-open="chatActivityGroupIsOpen"
             :activity-open-entries="chatActivityOpenEntries"
             :subagent-tasks="conversation?.subagentTasks"
@@ -2185,7 +2196,7 @@ defineExpose({
             @retry="resumeAfterFailure"
             @edit-user="(messageId, content) => $emit('editUser', messageId, content)"
             @rewind-context="$emit('rewindContext')"
-            @branch-assistant="messageId => $emit('branchAssistant', messageId)"
+            @branch-assistant="branchFromAssistantMessage"
           />
           <ChatActivityGroup
             v-else-if="item.kind === 'activity'"
@@ -2203,11 +2214,12 @@ defineExpose({
             :recovery-context="ctfSession ? 'ctf' : 'coding'"
             :can-rewind="item.message.id === rewindableUserMessageId"
             :rewind-disabled="rewindUnavailable"
+            :kernel="agentKernel"
             @respond-approval="(requestId, approved, scope, choice) => $emit('respondApproval', requestId, approved, scope, choice)"
             @retry="resumeAfterFailure"
             @edit-user="(messageId, content) => $emit('editUser', messageId, content)"
             @rewind-context="$emit('rewindContext')"
-            @branch-assistant="messageId => $emit('branchAssistant', messageId)"
+            @branch-assistant="branchFromAssistantMessage"
           />
         </template>
         <p v-if="waitingForModel && !compacting" class="chat-model-loading">
@@ -2280,7 +2292,7 @@ defineExpose({
       :compact-model-label="compactModelLabel"
       :thinking-levels="currentThinkingProfile.levels"
       :thinking-level="currentThinkingLevel"
-      :kernel="kernel ?? (conversation?.kernel === 'dsh' ? 'dsh' : 'pi')"
+      :kernel="agentKernel"
       :kernel-locked="Boolean(conversation?.messages.some(message => message.role === 'user' && message.status !== 'queued'))"
       :compact-disabled="continuity.compactDisabled"
       :context-usage="contextUsagePresentation"
