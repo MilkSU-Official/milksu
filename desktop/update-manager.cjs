@@ -52,6 +52,18 @@ function updaterArch(arch) {
   return ''
 }
 
+function desktopInstallBlocker({ platform, execPath }) {
+  if (platform !== 'darwin') return null
+  const path = String(execPath || '')
+  if (/\/Volumes\//u.test(path) || !/\.app\/Contents\/MacOS\//u.test(path)) {
+    return {
+      code: 'not_installed_app',
+      message: '请先把 MilkSU 安装到应用程序文件夹，再安装这次更新',
+    }
+  }
+  return null
+}
+
 class UpdateManager {
   constructor({
     updater,
@@ -345,7 +357,36 @@ class UpdateManager {
   install() {
     if (!this.enabled || this.status.state !== 'downloaded') return false
     if (this.platform === 'linux') return this.installLinux()
-    this.updater.quitAndInstall(false, true)
+    const blocker = desktopInstallBlocker({
+      platform: this.platform,
+      execPath: this.execPath,
+    })
+    if (blocker) {
+      this.setStatus({
+        state: 'error',
+        code: blocker.code,
+        message: blocker.message,
+      })
+      return false
+    }
+    if (typeof this.updater?.quitAndInstall !== 'function') {
+      this.setStatus({
+        state: 'error',
+        code: 'install_failed',
+        message: '更新安装失败，请稍后重试',
+      })
+      return false
+    }
+    try {
+      this.updater.quitAndInstall(false, true)
+    } catch {
+      this.setStatus({
+        state: 'error',
+        code: 'install_failed',
+        message: '更新安装失败，请稍后重试',
+      })
+      return false
+    }
     return true
   }
 
@@ -377,4 +418,5 @@ module.exports = {
   boundedText,
   normalizeReleaseNotes,
   versionNewer,
+  desktopInstallBlocker,
 }

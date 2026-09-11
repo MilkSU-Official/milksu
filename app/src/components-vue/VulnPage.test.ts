@@ -111,7 +111,7 @@ describe('VulnPage thin workspace', () => {
     expect(host.textContent).not.toContain('CVE-2024-3400')
   })
 
-  it('shows CVEs imported from a public feed in the list', async () => {
+  it('keeps public feed sync out of the tracking list until the user adds a CVE', async () => {
     const { host, dashboard } = await mountList()
     dashboard.importFeedSnapshotJSON(JSON.stringify({
       title: 'CISA Known Exploited Vulnerabilities Catalog',
@@ -126,6 +126,28 @@ describe('VulnPage thin workspace', () => {
         dueDate: '2026-08-24',
       }],
     }), {
+      sourceName: 'CISA KEV',
+      sourceUrl: 'https://www.cisa.gov/known-exploited-vulnerabilities-catalog',
+      retrievedAt: '2026-08-04T01:02:03Z',
+    })
+    dashboard.selectedId.value = ''
+    await nextTick()
+
+    expect(host.textContent).not.toContain('CVE-2026-42424')
+    expect(host.textContent).not.toContain('Example Gateway unsafe parser')
+    expect(dashboard.watched.value).not.toContain('CVE-2026-42424')
+
+    dashboard.addNvdSearchResult({
+      id: 'CVE-2026-42424',
+      title: 'Example Gateway unsafe parser',
+      vendor: 'Example Project',
+      product: 'example-gateway',
+      affected: '',
+      summary: 'Example KEV-shaped item used to verify feed sync.',
+      cvss: 0,
+      severity: 'medium',
+      updated: '2026-08-03',
+      references: [],
       sourceName: 'CISA KEV',
       sourceUrl: 'https://www.cisa.gov/known-exploited-vulnerabilities-catalog',
       retrievedAt: '2026-08-04T01:02:03Z',

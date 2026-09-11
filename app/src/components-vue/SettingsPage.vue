@@ -1501,16 +1501,6 @@ async function refreshCallableModels() {
   alignDefaultModelToEnabledServices()
 }
 
-function enableCustomRelaysWithSubmittedKeys(settings: AppSettings): AppSettings {
-  const next = cloneSettings(settings)
-  for (const [id, provider] of Object.entries(next.providers)) {
-    if (provider.custom && String(provider.api_key ?? '').trim()) {
-      next.providers[id] = { ...provider, enabled: true }
-    }
-  }
-  return next
-}
-
 function submittedServiceReady(settings: AppSettings): boolean {
   const active = settings.providers[settings.active_provider]
   const hasProviderKey = Boolean(active?.has_api_key || String(active?.api_key ?? '').trim())
@@ -1519,6 +1509,11 @@ function submittedServiceReady(settings: AppSettings): boolean {
       (settings.relay?.enabled && (settings.relay.has_key || String(settings.relay.key ?? '').trim()))
       || (active?.enabled && hasProviderKey),
     )
+  }
+  if (active?.custom) {
+    return hasProviderKey
+      && Boolean(String(active.base_url ?? '').trim())
+      && Boolean((active.models ?? []).length)
   }
   return Boolean(active?.enabled && hasProviderKey)
 }
@@ -1544,8 +1539,7 @@ async function save(options?: { quiet?: boolean }): Promise<boolean> {
   }
   saving.value = true
   notice.value = null
-  const submitted = enableCustomRelaysWithSubmittedKeys(cloneSettings(working.value))
-  working.value = submitted
+  const submitted = cloneSettings(working.value)
   try {
     await invokeCommand('save_settings_cmd', { newSettings: submitted })
     if (category.value !== 'apikeys') {
@@ -1640,13 +1634,10 @@ async function saveProviderEditor(closeAfterSave: boolean) {
     if (editing.custom && editing.models?.[0]) {
       working.value.active_model = editing.models[0]
     }
-    const hasKey = Boolean(String(editing.api_key ?? '').trim() || editing.has_api_key)
     if (editingID === 'tokenflux') {
       // Prefer personal TokenFlux while testing/saving this editor.
       working.value.model_routing.source_order = ['personal', 'account']
       working.value.model_routing.auto_fallback = false
-      editing.enabled = true
-    } else if (editing.custom && hasKey) {
       editing.enabled = true
     }
   }

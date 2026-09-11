@@ -27,7 +27,7 @@
 | 已发行线 | `26.817.1` 建立账户 TokenFlux / 双来源路由与 Pi 网页查证；`26.817.2` 补齐 Linux 试用 DEB 与 Windows 启动；`26.817.3` 修 Windows 账户授权恢复与打包 Sidecar 路径；`26.818.1` 发出账户可调用目录与当日首发包；`26.818.2` 发出 Coding 多标签浏览器、`milksu_workspace`、85% 自动压缩、CTF 本地目录、Windows Computer Use 与应用级调试模式；`26.819.1` 发出 ak-ui 生产视觉、目录不默认展开，以及普通 Go 不再自动启动隔离浏览器；`26.822.1` 发出 CVE 档案复现、实验室、对话小窗和原子 `milksu_workspace` 记录操作；`26.823.1` 发出 CTF/CVE/实验室完整 Coding 循环、始终开启的上下文整理，以及 CVE 列表里的公开源条目；`26.825.1` 发出实验室 / CVE 靶机经纪、Pi `0.84.1`、思考档位、运行时恢复和列表指挥面；`26.827.1` 发出自动更新、Linux 四发行版安装与 GNOME Portal、Beautiful UI 指挥面；`26.904.1` 发出上下文用量分类、模型窗口覆盖、loop #35–#38 与三端窗口铬；`26.905.1` 发出 rewind/handoff、设置页用户 MCP/Skills、Pi 渐进披露与克制清透材料层；`26.905.2` 发出侧栏下载先 check 再 download；`26.911.1` 发出宽作业父循环熔断、插件框架、CUA 0.27.0、设置 subagent / Ghidra / JADX / DeepSeek 中转，以及保存并验证走刚提交配置。 |
 | 开发版本线 | 仓库版本为 `26.911.1`。正式发行源是 `d341a35`；文档收口提交不移动该 tag。 |
 | 许可证 | 主项目为 `AGPL-3.0-only`（`LICENSE` / `NOTICE`）。第三方仍保留原许可。Obelisk 作为计划嵌入的 AGPL 记忆组件与此兼容；尚未 vendored。 |
-| 三端正式发行 | GitHub Latest Release `v26.911.1` 已提供签名并公证的 macOS ARM64 DMG、未签名 Windows x64 EXE、Linux x64 DEB 与 x64 tar.gz，以及 `SHA256SUMS-26.911.1.txt`。OTA 已上传私有 R2。侧栏下载先 `checkForUpdates` 再 `downloadUpdate`。Admin current pointer 仍须维护者发布。 |
+| 三端正式发行 | GitHub Latest Release `v26.911.1` 已提供签名并公证的 macOS ARM64 DMG、未签名 Windows x64 EXE、Linux x64 DEB 与 x64 tar.gz，以及 `SHA256SUMS-26.911.1.txt`。OTA 已上传私有 R2。侧栏下载先 `checkForUpdates` 再 `downloadUpdate`。未发版：正式打包上传 OTA 后会自动发布该平台 current pointer。 |
 | Linux | `26.911.1` 发出 Ubuntu/Debian 共用 x64 DEB 与 Omarchy/Arch/Nix 共用 x64 tarball；GNOME Wayland Computer Use 走 Portal。仍无 Secret Service、本地 OCR；Hyprland / Xorg Computer Use unavailable。ISSUE #19 已关闭（拒绝 X11 xinput）。合同见 [Linux 安装与桌面合同](linux-platform-support.md)。 |
 | Agent Harness | Pi 拥有 Session、Compaction、自然语言理解、通用文件/Shell 与 Tool Loop。MilkSU 已删除 workspace-only 文件工具、Node 文件权限状态机、普通回合 watchdog、CTF sandbox-exec、CVE 只读启动限制与客服式回复模板。不扫描用户句子做关键词/正则意图路由。`26.823.1` 起 Coding/CTF/CVE/实验室共用完整 Coding loop（含压缩、终端、Git、浏览器、LSP、Goal），领域工具叠在上面而不是替换；工具结果进模型前截断到 Pi 的 50KB/2000 行。`26.905.1` 起产品工具 when-to-use 不再在 system prompt 复述一遍；`release-milksu` 对模型名录隐藏。渐进披露跟当前选中的 Agent Harness 走，不跟 MilkSU 自造注入器走。 |
 | 上下文工程 | `26.825.1` 把经监督器校验的主会话 cwd 明确注入 Pi；writer worktree 仅属于独立 effectful subagent。Sidecar 通过 Pi 原生长缓存保留复用稳定会话前缀，压缩仍禁用一次性缓存写入。`26.904.1` 起窗口优先级为手动覆盖 > catalog（忽略 `128000` 占位）> 型号族预设 > 保守默认；Composer 环按 Pi 组装分类，并落地 edit 锚点、`tool_result` bound、中途引导与子 Agent 结构化回传。`26.905.1` 接线 `/rewind` 与最后一条用户消息的「丢掉这段」（Pi `navigateTree`）、`/handoff` 与用量环「接到新会话」（Pi 分叉 + 现行 compact）。GPT 与 Claude Opus / Sonnet / Fable 使用思考档位预设，其他模型在设置中手动声明；Composer 的对话级离散滑块只显示标准英文档位，经 Go 约束后调用 Pi 原生档位，最高为 `max`，子 Agent 同步继承。自动化已通过，真实 Provider 缓存命中率与 effort 请求仍待用户授权的计费链路验收。 |
@@ -36,7 +36,7 @@
 | 网页查证 | Coding 复用固定 revision 的 Pi `web_search` / `web_fetch` Extension，已保留真实搜索和官方页面读取回执。 |
 | Obelisk | 会话索引底层保留；Coding 右栏和环境页的单会话“相关历史”、过滤、搜索与图谱前端已经移除。 |
 | 最近发行回执 | macOS `34594550053`、Windows `34594553466`、Linux `34594556784` 均成功。文件名、大小和 SHA-256 记录在当前开发目标。 |
-| 下一发行流水 | canonical 全仓验证只在干净且已推送的 source commit 上运行一次并写本地回执；macOS / Windows / Linux 都走 GitHub-hosted 云端；macOS 本机打包暂时关闭；必须创建 GitHub Release 页。正式打包默认上传 OTA 并建 Admin 草稿；GitHub Release 仍不上 updater ZIP。 |
+| 下一发行流水 | canonical 全仓验证只在干净且已推送的 source commit 上运行一次并写本地回执；macOS / Windows / Linux 都走 GitHub-hosted 云端；macOS 本机打包暂时关闭；必须创建 GitHub Release 页。正式打包默认上传 OTA 并发布该平台 current pointer；GitHub Release 仍不上 updater ZIP。 |
 
 ## Canonical 文档职责
 

@@ -104,7 +104,7 @@ MilkSU 会把当前任务可用的能力告诉模型，再由模型按上下文�
 
 ## 开始使用
 
-从 [Releases](https://github.com/MilkSU-Official/milksu/releases) 下载当前安装包。Windows 安装器尚未代码签名，可能出现 SmartScreen。macOS 为 Developer ID 签名并公证的 DMG。已登录 Stable 可从侧栏下载本机更新；Admin current pointer 仍须维护者发布后才会推送。
+从 [Releases](https://github.com/MilkSU-Official/milksu/releases) 下载当前安装包。Windows 安装器尚未代码签名，可能出现 SmartScreen。macOS 为 Developer ID 签名并公证的 DMG。已登录 Stable 可从侧栏下载本机更新；正式打包上传 OTA 后会发布该平台 current pointer。
 
 1. 按系统安装（见下一节）；
 2. 打开 MilkSU，使用 GitHub 登录；

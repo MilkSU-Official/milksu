@@ -759,6 +759,12 @@ body {
   box-shadow: var(--surface-glass-shadow), var(--surface-specular);
 }
 
+[data-slot="native-select"] option,
+[data-slot="native-select-option"] {
+  color: var(--popover-foreground);
+  background-color: var(--surface-overlay);
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .game-focus-panel,
   [data-ui-selected] {

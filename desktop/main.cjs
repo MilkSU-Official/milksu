@@ -890,14 +890,13 @@ ipcMain.handle('milksu:invoke', async (event, request) => {
   if (method === 'InstallUpdate') {
     if (!updateManager || updateManager.view().state !== 'downloaded') return false
     if (browserShell) await browserShell.closeAll()
-    if (backend) await backend.stop()
     quitting = true
     const started = updateManager.install()
     if (!started) {
       quitting = false
       return false
     }
-    if (process.platform === 'linux') app.quit()
+    app.quit()
     return true
   }
   try {

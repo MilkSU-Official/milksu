@@ -691,7 +691,11 @@ func (s *Supervisor) sendMessage(
 		codingPolicy.ApprovalPolicy == "read-only" {
 		computerUse = nil
 	}
-	if err := validateModelAccess(settings); err != nil {
+	purposeProbe := false
+	s.probeMu.Lock()
+	_, purposeProbe = s.probeWaiters[sessionID]
+	s.probeMu.Unlock()
+	if err := validateModelAccessFor(settings, purposeProbe); err != nil {
 		return err
 	}
 	thinking := config.ResolveModelThinking(
@@ -1688,7 +1692,7 @@ func (s *Supervisor) sendBackgroundTaskControl(
 }
 
 func (s *Supervisor) ProbeModel(settings config.AppSettings) (ModelProbeResult, error) {
-	if err := validateModelAccess(settings); err != nil {
+	if err := validateModelAccessFor(settings, true); err != nil {
 		return ModelProbeResult{}, err
 	}
 
@@ -2411,6 +2415,10 @@ func providerAPIKeyEnvironment(provider string) (string, bool) {
 }
 
 func validateModelAccess(settings config.AppSettings) error {
+	return validateModelAccessFor(settings, false)
+}
+
+func validateModelAccessFor(settings config.AppSettings, probe bool) error {
 	provider := strings.TrimSpace(settings.ActiveProvider)
 	model := strings.TrimSpace(settings.ActiveModel)
 	if provider == "" || model == "" {
@@ -2427,7 +2435,10 @@ func validateModelAccess(settings config.AppSettings) error {
 		if !modelConfigured {
 			return fmt.Errorf("custom relay %s does not contain model %q", provider, model)
 		}
-		if !configured.Enabled || strings.TrimSpace(configured.APIKey) == "" {
+		if strings.TrimSpace(configured.APIKey) == "" {
+			return fmt.Errorf("%s/%s cannot start; enable the custom relay and add its API key in Settings", provider, model)
+		}
+		if !probe && !configured.Enabled {
 			return fmt.Errorf("%s/%s cannot start; enable the custom relay and add its API key in Settings", provider, model)
 		}
 		if configured.BaseURL == nil || strings.TrimSpace(*configured.BaseURL) == "" {
@@ -2475,7 +2486,7 @@ func engineEnvironment(settings config.AppSettings) []string {
 			environment = append(environment, strings.ToUpper(name)+"_BASE_URL="+strings.TrimSpace(*provider.BaseURL))
 		}
 	}
-	if activeCustomProvider && activeProvider.Enabled && activeProvider.APIKey != "" && activeProvider.BaseURL != nil {
+	if activeCustomProvider && activeProvider.APIKey != "" && activeProvider.BaseURL != nil {
 		environment = append(
 			environment,
 			"MILKSU_CUSTOM_PROVIDER_ID="+settings.ActiveProvider,

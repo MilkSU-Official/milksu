@@ -7,7 +7,7 @@ const path = require('node:path')
 const { EventEmitter } = require('node:events')
 const { Readable } = require('node:stream')
 const test = require('node:test')
-const { UpdateManager, versionNewer } = require('./update-manager.cjs')
+const { UpdateManager, versionNewer, desktopInstallBlocker } = require('./update-manager.cjs')
 
 class FakeUpdater extends EventEmitter {
   constructor() {
@@ -65,6 +65,7 @@ function managerOptions(overrides = {}) {
     arch: 'arm64',
     apiUrl: 'https://accounts.milksu.org',
     userDataPath: '/var/folders/xx/milksu',
+    execPath: '/Applications/MilkSU.app/Contents/MacOS/MilkSU',
     getAuthorization: async () => 'desktop-session-secret',
     fetchImpl: async () => jsonResponse(200, {
       release: {
@@ -80,6 +81,25 @@ function managerOptions(overrides = {}) {
     ...overrides,
   }
 }
+
+test('blocks macOS install from a disk image or unpackaged binary', () => {
+  assert.equal(desktopInstallBlocker({
+    platform: 'darwin',
+    execPath: '/Volumes/MilkSU/MilkSU.app/Contents/MacOS/MilkSU',
+  })?.code, 'not_installed_app')
+  assert.equal(desktopInstallBlocker({
+    platform: 'darwin',
+    execPath: '/usr/local/bin/milksu',
+  })?.code, 'not_installed_app')
+  assert.equal(desktopInstallBlocker({
+    platform: 'darwin',
+    execPath: '/Applications/MilkSU.app/Contents/MacOS/MilkSU',
+  }), null)
+  assert.equal(desktopInstallBlocker({
+    platform: 'win32',
+    execPath: 'C:\\Program Files\\MilkSU\\MilkSU.exe',
+  }), null)
+})
 
 test('compares milkSU calendar versions', () => {
   assert.equal(versionNewer('26.826.1', '26.825.1'), true)
@@ -106,6 +126,17 @@ test('checks and downloads updates with a main-process authorization header', as
   manager.clearAuthorization()
   assert.equal(options.updater.requestHeaders, undefined)
   assert.equal(manager.view().state, 'idle')
+})
+
+test('surfaces a visible error when macOS is not running an installed app bundle', async () => {
+  const manager = new UpdateManager(managerOptions({
+    execPath: '/Volumes/MilkSU/MilkSU.app/Contents/MacOS/MilkSU',
+  }))
+  assert.equal((await manager.check()).state, 'available')
+  assert.equal((await manager.download()).state, 'downloaded')
+  assert.equal(manager.install(), false)
+  assert.equal(manager.view().state, 'error')
+  assert.equal(manager.view().code, 'not_installed_app')
 })
 
 test('reports the running version when polling Admin for the latest release', async () => {

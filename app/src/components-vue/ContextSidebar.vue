@@ -66,6 +66,7 @@ import {
   writeSidebarWidth,
 } from '@/lib/sidebarWidth'
 import { t } from '@/lib/uiLocale'
+import { updateStatusMessage } from '@/lib/updateStatus'
 import type { AccountStatus, BuildTracking, Conversation, UpdateStatus } from '@/types'
 
 const COLLAPSED_WIDTH = COLLAPSED_SIDEBAR_WIDTH
@@ -136,11 +137,12 @@ const updateButtonLabel = computed(() => {
   if (props.updateStatus?.state === 'error') return t('重试下载', 'Retry download')
   return t('下载更新', 'Download update')
 })
-const updateButtonTitle = computed(() => (
-  props.updateStatus?.state === 'error' && props.updateStatus.message
-    ? props.updateStatus.message
-    : updateButtonLabel.value
-))
+const updateButtonTitle = computed(() => {
+  if (props.updateStatus?.state === 'error') {
+    return updateStatusMessage(props.updateStatus) || updateButtonLabel.value
+  }
+  return updateButtonLabel.value
+})
 
 const workspaceHome = computed<WorkspaceSection>(() => (
   props.activeSection === 'ctf' || props.activeSection === 'vuln' || props.activeSection === 'lab'

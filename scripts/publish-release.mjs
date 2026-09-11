@@ -142,6 +142,6 @@ const response = await fetch(new URL('/v1/internal/releases', releaseAPI), {
 })
 const payload = await response.json().catch(() => ({}))
 if (!response.ok || !payload.release?.id) {
-  throw new Error(`Admin release draft creation failed (${response.status}: ${payload.error || 'unknown_error'})`)
+  throw new Error(`Admin release publish failed (${response.status}: ${payload.error || 'unknown_error'})`)
 }
-process.stdout.write(`release draft created: ${payload.release.id} (${payload.release.platform}/${payload.release.arch} ${payload.release.version})\n`)
+process.stdout.write(`release published: ${payload.release.id} (${payload.release.platform}/${payload.release.arch} ${payload.release.version})\n`)

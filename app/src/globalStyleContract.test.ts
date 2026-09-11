@@ -61,6 +61,8 @@ describe('global style contract', () => {
     expect(indexCss).toContain('.tactical-command-surface {')
     expect(indexCss).toContain('background-color: var(--surface-overlay) !important')
     expect(indexCss).toContain('backdrop-filter: none')
+    expect(indexCss).toContain('[data-slot="native-select"] option')
+    expect(indexCss).toContain('[data-slot="native-select-option"]')
     expect(indexCss).toContain('.tactical-floating-surface {')
     expect(indexCss).toContain('--overlay-hover-strong: rgb(255 255 255 / 0.13)')
     expect(indexCss).toContain('--selected-bg: var(--overlay-hover-strong)')

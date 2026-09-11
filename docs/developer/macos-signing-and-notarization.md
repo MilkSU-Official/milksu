@@ -13,7 +13,7 @@ staple 与 Gatekeeper 验证。签名资产只存在 Personal Vault 和 GitHub S
 1. 打开仓库的 **Settings → Environments → New environment**，创建 `macos-release`。
 2. 仓库已公开：该 environment 必须启用 Required reviewers（当前审阅人 `MilkSU-Official`），
    只允许维护者批准后才注入签名 / 公证 / R2 secrets；并把 deployment branch 限制为 `main`。
-   管理员不能绕过审批。`workflow_dispatch` 仍手工触发，不能自动发布到 R2 current pointer。
+   管理员不能绕过审批。`workflow_dispatch` 仍手工触发；正式打包上传 OTA 后会把该平台 current pointer 设为刚上传的版本。
 3. 在 `macos-release` 的 Environment secrets 中创建：
 
 | Secret | 内容 |
@@ -28,7 +28,7 @@ staple 与 Gatekeeper 验证。签名资产只存在 Personal Vault 和 GitHub S
 | `CLOUDFLARE_R2_ACCOUNT_ID` | 持有私有 `milksu-releases` bucket 的账户 ID |
 | `CLOUDFLARE_R2_ACCESS_KEY_ID` | 只允许写入该 release bucket 的 R2 S3 access key ID |
 | `CLOUDFLARE_R2_SECRET_ACCESS_KEY` | 对应的 R2 S3 secret access key |
-| `MILKSU_RELEASE_PUBLISH_TOKEN` | 只允许在 Admin 创建 release draft 的随机 token |
+| `MILKSU_RELEASE_PUBLISH_TOKEN` | 只允许 CI 在 Admin 发布该平台 current pointer 的随机 token |
 
 本机的字段名和资产位置记录在 Personal Vault；不要复制到 issue、commit、PR、终端输出或聊天。
 
@@ -50,14 +50,13 @@ runner 再加 `--use-self-hosted`。
 任何签名、公证、staple 或 Gatekeeper 步骤失败都不得分发产物。普通功能开发验收继续用 ad-hoc
 Stable；不要构建 Beta，除非用户明确要求自举。
 
-## 上传私有 R2 并建立草稿
+## 上传私有 R2 并发布 OTA
 
 正式 `release:dispatch` 同一轮会生成 updater 载荷并上传。CI 使用 rclone 的 Cloudflare S3 provider
 把各端产物和元数据上传到 `releases/stable/{platform}/{arch}/<version>/`，再逐个下载到临时目录复核
-SHA-256。只有回读一致时，CI 才调用 Admin 的窄 internal API 创建或幂等更新草稿。
-
-这一步不会直接向用户发布。维护者必须进入 MilkSU Admin 的 **版本** 页面，核对版本、commit、tracking、
-大小、哈希和发布说明，再点击“发布此版本”。发布只改变 D1 的 current pointer；R2 对象保持不可变。
+SHA-256。只有回读一致时，CI 才调用 Admin 的窄 internal API 创建或幂等更新该平台记录，并把它设为
+current pointer。发布只改变 D1 的 current pointer；R2 对象保持不可变。维护者仍可在 Admin **版本**
+页暂停分发。
 
 `milksu-releases` 必须保持私有，不配置公开 bucket domain。Desktop feed、ZIP 和 DMG 都经
 `accounts.milksu.org` Worker 返回，并要求受邀且访问状态正常的登录账户 Bearer session。会话只保存在
@@ -69,7 +68,7 @@ Electron 主进程；不得进入 Vue、日志、诊断或模型上下文。暂�
 代码测试、Admin fixture、候选 DMG 或只看到更新提示都不代表 OTA 已完成。正式收口需要：
 
 1. 应用远端 D1 migration，并部署带私有 R2 binding 与 release secret 的 Admin Worker；
-2. 用新干净 HEAD 运行正式签名流水、上传 R2、在 Admin 人工发布；
+2. 用新干净 HEAD 运行正式签名流水、上传 R2；CI 会直接发布该平台 current pointer；
 3. 在安装着旧正式签名 Stable 的近新用户 Mac 上登录有效账户，收到提示并完成下载、重启安装；
 4. 核对新版本、完整 commit、tracking ID、严格签名、Gatekeeper 和核心启动路径；
 5. 用退出登录或暂停账户复核 feed/download 不再可用。

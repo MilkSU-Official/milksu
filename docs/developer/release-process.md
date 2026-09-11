@@ -90,9 +90,8 @@ npm run release:github -- \
 ## 5. 私有 R2 / Admin OTA（正式打包默认上传）
 
 `release:dispatch` 以及 macOS / Windows / Linux 正式打包脚本每次都生成 updater 载荷，上传到私有
-R2，并创建 Admin 草稿。GitHub Release 仍只提供用户安装包（DMG、EXE、DEB、x64 tar.gz 与
-SHA256SUMS），不上 OTA ZIP。Admin 草稿仍需维护者在「版本」页审核发布，命令本身不改变
-current pointer。
+R2，并发布该平台 Admin current pointer。GitHub Release 仍只提供用户安装包（DMG、EXE、DEB、x64 tar.gz 与
+SHA256SUMS），不上 OTA ZIP。维护者仍可在 Admin「版本」页暂停分发。
 
 本机 `desktop:build` 验收包不上传 R2。Windows / Linux 的 R2 与 `RELEASE_PUBLISH_TOKEN` 使用
 仓库 secrets，不要把 Apple 公证密钥注入这两端 runner。

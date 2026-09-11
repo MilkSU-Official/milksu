@@ -2535,6 +2535,44 @@ func TestValidateModelAccessRejectsDisabledDeepSeekRelay(t *testing.T) {
 	}
 }
 
+func TestEngineEnvironmentIncludesDisabledCustomRelayForProbe(t *testing.T) {
+	baseURL := "https://api.deepseek.com"
+	settings := config.DefaultSettings()
+	settings.ActiveProvider = "custom-relay-deepseek"
+	settings.ActiveModel = "deepseek-flash"
+	settings.Providers["custom-relay-deepseek"] = config.ProviderConfig{
+		Custom: true, Name: "DeepSeek", Enabled: false,
+		APIKey: "deepseek-test-secret", BaseURL: &baseURL,
+		Models: []string{"deepseek-flash", "deepseek-v4-pro"},
+	}
+	environment := engineEnvironment(settings)
+	for _, expected := range []string{
+		"MILKSU_CUSTOM_PROVIDER_ID=custom-relay-deepseek",
+		"MILKSU_CUSTOM_PROVIDER_NAME=DeepSeek",
+		"MILKSU_CUSTOM_PROVIDER_KEY=deepseek-test-secret",
+		"MILKSU_CUSTOM_PROVIDER_URL=https://api.deepseek.com",
+	} {
+		if !containsEnvironmentEntry(environment, expected) {
+			t.Fatalf("probe of a saved but disabled DeepSeek relay should still receive %q in %#v", expected, environment)
+		}
+	}
+}
+
+func TestValidateModelAccessProbeAllowsDisabledDeepSeekRelay(t *testing.T) {
+	baseURL := "https://api.deepseek.com"
+	settings := config.DefaultSettings()
+	settings.ActiveProvider = "custom-relay-deepseek"
+	settings.ActiveModel = "deepseek-flash"
+	settings.Providers["custom-relay-deepseek"] = config.ProviderConfig{
+		Custom: true, Name: "DeepSeek", Enabled: false,
+		APIKey: "deepseek-test-secret", BaseURL: &baseURL,
+		Models: []string{"deepseek-flash", "deepseek-v4-pro"},
+	}
+	if err := validateModelAccessFor(settings, true); err != nil {
+		t.Fatalf("probe should accept a disabled DeepSeek relay that already has a key: %v", err)
+	}
+}
+
 func TestValidateModelAccessUsesPersonalKeyWhenAccountSourceHasNoKey(t *testing.T) {
 	settings := config.DefaultSettings()
 	settings.ActiveProvider = "deepseek"

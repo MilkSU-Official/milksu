@@ -47,6 +47,7 @@ import {
   selectCTFResumePoint,
   selectReusableDomainConversationId,
 } from '@/lib/workspaceSessionRouting'
+import { updateStatusMessage } from '@/lib/updateStatus'
 import { withAppSettingsDefaults, type AccountStatus, type AppSettings, type CTFChatAction, type UpdateStatus } from '@/types'
 import type { ModelCatalogSnapshot } from '@/types'
 import { installAppModelSettings, installModelCatalog, loadModelCatalog } from '@/modelCatalog'
@@ -1023,7 +1024,13 @@ async function downloadUpdate() {
       enabled: updateStatus.value?.enabled !== false,
       version: updateStatus.value?.version,
       code: 'download_failed',
-      message: t('更新下载失败，请稍后重试', 'Update download failed. Try again later.'),
+      message: updateStatusMessage({
+        state: 'error',
+        currentVersion: updateStatus.value?.currentVersion || '',
+        enabled: updateStatus.value?.enabled !== false,
+        version: updateStatus.value?.version,
+        code: 'download_failed',
+      }),
     }
   }
 }
@@ -1033,9 +1040,49 @@ async function installUpdate() {
   installingUpdate.value = true
   installUpdatePromptOpen.value = false
   try {
-    await invokeCommand<boolean>('install_update')
+    const started = await invokeCommand<boolean>('install_update')
+    if (started) return
+    const current = updateStatus.value
+    const refreshed = await invokeCommand<UpdateStatus>('get_update_status').catch(() => current)
+    if (refreshed?.state === 'error') {
+      updateStatus.value = {
+        ...refreshed,
+        message: updateStatusMessage(refreshed) || refreshed.message,
+      }
+      return
+    }
+    updateStatus.value = {
+      state: 'error',
+      currentVersion: current?.currentVersion || '',
+      enabled: current?.enabled !== false,
+      version: current?.version,
+      code: 'install_failed',
+      message: updateStatusMessage({
+        state: 'error',
+        currentVersion: current?.currentVersion || '',
+        enabled: current?.enabled !== false,
+        version: current?.version,
+        code: 'install_failed',
+      }),
+    }
+  } catch (reason) {
+    console.error('Failed to install update', reason)
+    updateStatus.value = {
+      state: 'error',
+      currentVersion: updateStatus.value?.currentVersion || '',
+      enabled: updateStatus.value?.enabled !== false,
+      version: updateStatus.value?.version,
+      code: 'install_failed',
+      message: updateStatusMessage({
+        state: 'error',
+        currentVersion: updateStatus.value?.currentVersion || '',
+        enabled: updateStatus.value?.enabled !== false,
+        version: updateStatus.value?.version,
+        code: 'install_failed',
+      }),
+    }
   } finally {
-    installingUpdate.value = false
+    if (updateStatus.value?.state !== 'downloaded') installingUpdate.value = false
   }
 }
 

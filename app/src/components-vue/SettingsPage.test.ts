@@ -1666,8 +1666,7 @@ describe('SettingsPage database compatibility', () => {
           if (
             probed?.active_provider !== 'custom-relay-deepseek'
             || probed.active_model !== 'deepseek-flash'
-            || !deepseek?.enabled
-            || !String(deepseek.api_key ?? '').trim()
+            || !String(deepseek?.api_key ?? '').trim()
           ) {
             throw new Error(
               'custom-relay-deepseek/deepseek-flash cannot start; enable the custom relay and add its API key in Settings',
@@ -1708,14 +1707,14 @@ describe('SettingsPage database compatibility', () => {
       custom: true,
       name: 'DeepSeek',
       base_url: 'https://api.deepseek.com',
-      enabled: true,
+      enabled: false,
       api_key: 'sk-deepseek-test-not-real',
       models: ['deepseek-flash', 'deepseek-v4-pro'],
     })
     const probedSettings = probed as unknown as AppSettings
     expect(probedSettings.active_provider).toBe('custom-relay-deepseek')
     expect(probedSettings.providers['custom-relay-deepseek']).toMatchObject({
-      enabled: true,
+      enabled: false,
       api_key: 'sk-deepseek-test-not-real',
     })
     expect(document.body.textContent).toContain('已保存并验证 custom-relay-deepseek/deepseek-flash')
