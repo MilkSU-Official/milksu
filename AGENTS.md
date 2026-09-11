@@ -278,7 +278,7 @@ deferred to one destructive pre-release consolidation after the product slices a
 
 - The last receipted three-platform GitHub Release is `v26.912.2` at `f7782c1`. Write both that
   baseline and the current development version line when HEAD is later. Keep `v26.911.2`, `v26.911.1`, `v26.905.2`, `v26.905.1`, `v26.904.1` and
-  `v26.827.1` as previous downloadable releases, not Latest.
+  `v26.827.1` as previous downloadable releases, not Latest. `v26.912.1` was never a receipted Latest.
 - After every GitHub Release, immediately update and push `docs/developer/current-objectives.md`,
   `docs/developer/document-status.md`, `docs/architecture/current-system.md`, `README.md` and this
   section. Do not leave the previous receipt as "latest".
