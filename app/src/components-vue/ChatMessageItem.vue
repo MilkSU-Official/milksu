@@ -20,7 +20,7 @@ import { isBlankAssistantMessage } from '@/lib/chatActivity'
 import { isAskMessage, parseAskOptions } from '@/lib/agentAsk'
 import { toolBudgetToolName } from '@/lib/toolBudget'
 import { t } from '@/lib/uiLocale'
-import type { Message } from '@/types'
+import type { CodingAttachment, CodingAttachmentPreview, Message } from '@/types'
 
 const props = defineProps<{
   message: Message
@@ -43,7 +43,108 @@ const editing = ref(false)
 const draft = ref('')
 const copied = ref(false)
 const approvalPinned = ref(false)
+const imagePreviewUrls = ref<Record<string, string>>({})
+const attachmentLightbox = ref<HTMLDialogElement | null>(null)
+const lightboxPreview = ref<CodingAttachmentPreview | null>(null)
 let copyReset = 0
+let previewLoad = 0
+
+function isImageAttachment(attachment: CodingAttachment) {
+  return attachment.mediaType.startsWith('image/')
+}
+
+function attachmentKey(attachment: CodingAttachment) {
+  return attachment.sha256 || attachment.id
+}
+
+const imageAttachments = computed(() => (
+  (props.message.attachments ?? []).filter(isImageAttachment)
+))
+const fileAttachments = computed(() => (
+  (props.message.attachments ?? []).filter(attachment => !isImageAttachment(attachment))
+))
+
+function imagePreviewUrl(attachment: CodingAttachment) {
+  return imagePreviewUrls.value[attachmentKey(attachment)] ?? ''
+}
+
+async function loadImagePreviews() {
+  const images = imageAttachments.value
+  if (!images.length) return
+  const load = ++previewLoad
+  const next = { ...imagePreviewUrls.value }
+  await Promise.all(images.map(async attachment => {
+    const key = attachmentKey(attachment)
+    if (next[key]) return
+    try {
+      const preview = await invokeCommand<CodingAttachmentPreview>(
+        'preview_coding_attachment',
+        { attachment },
+      )
+      if (load !== previewLoad) return
+      if (preview.kind === 'image' && preview.dataUrl) next[key] = preview.dataUrl
+    } catch {
+      // Keep the filename chip when the stored image cannot be read.
+    }
+  }))
+  if (load === previewLoad) imagePreviewUrls.value = next
+}
+
+watch(imageAttachments, () => {
+  void loadImagePreviews()
+}, { immediate: true })
+
+function openAttachmentLightbox() {
+  const dialog = attachmentLightbox.value
+  if (!dialog) return
+  if (typeof dialog.showModal === 'function') dialog.showModal()
+  else dialog.setAttribute('open', '')
+}
+
+function closeAttachmentPreview() {
+  lightboxPreview.value = null
+  const dialog = attachmentLightbox.value
+  if (!dialog) return
+  if (typeof dialog.close === 'function') dialog.close()
+  else dialog.removeAttribute('open')
+}
+
+async function openAttachmentPreview(attachment: CodingAttachment) {
+  const cached = imagePreviewUrl(attachment)
+  if (cached) {
+    lightboxPreview.value = {
+      name: attachment.name,
+      mediaType: attachment.mediaType,
+      size: attachment.size,
+      kind: 'image',
+      dataUrl: cached,
+    }
+    openAttachmentLightbox()
+    return
+  }
+  try {
+    const preview = await invokeCommand<CodingAttachmentPreview>(
+      'preview_coding_attachment',
+      { attachment },
+    )
+    lightboxPreview.value = preview
+    if (preview.kind === 'image' && preview.dataUrl) {
+      imagePreviewUrls.value = {
+        ...imagePreviewUrls.value,
+        [attachmentKey(attachment)]: preview.dataUrl,
+      }
+    }
+    openAttachmentLightbox()
+  } catch {
+    lightboxPreview.value = {
+      name: attachment.name,
+      mediaType: attachment.mediaType,
+      size: attachment.size,
+      kind: 'metadata',
+    }
+    openAttachmentLightbox()
+  }
+}
 
 const sessionTreeUnavailable = computed(() => props.kernel === 'dsh')
 const rewindControlDisabled = computed(() => (
@@ -246,6 +347,8 @@ const replyElapsed = computed(() => {
   return formatDemoElapsed(Math.max(0, replyNow.value - started))
 })
 onBeforeUnmount(() => {
+  previewLoad += 1
+  window.clearTimeout(copyReset)
   window.clearInterval(thinkingClock)
   window.clearInterval(replyClock)
 })
@@ -432,8 +535,29 @@ const approvalKicker = computed(() => (
         class="mb-2 flex flex-wrap gap-2"
         :aria-label="t('消息附件', 'Message attachments')"
       >
+        <button
+          v-for="attachment in imageAttachments"
+          :key="`${attachment.id}:${attachment.name}`"
+          type="button"
+          class="agent-attachment-thumb"
+          data-testid="message-attachment-image"
+          :aria-label="t(`查看 ${attachment.name}`, `View ${attachment.name}`)"
+          :title="attachment.name"
+          @click="openAttachmentPreview(attachment)"
+        >
+          <img
+            v-if="imagePreviewUrl(attachment)"
+            :src="imagePreviewUrl(attachment)"
+            :alt="attachment.name"
+          >
+          <span v-else class="agent-attachment">
+            <FileText class="size-3.5 shrink-0" />
+            <span class="truncate">{{ attachment.name }}</span>
+            <span class="shrink-0 opacity-65">{{ formatAttachmentSize(attachment.size) }}</span>
+          </span>
+        </button>
         <span
-          v-for="attachment in message.attachments"
+          v-for="attachment in fileAttachments"
           :key="`${attachment.id}:${attachment.name}`"
           class="agent-attachment"
           :title="`${attachment.mediaType} · sha256:${attachment.sha256}`"
@@ -558,5 +682,32 @@ const approvalKicker = computed(() => (
         <GitFork />
       </button>
     </div>
+    <dialog
+      ref="attachmentLightbox"
+      class="agent-attachment-lightbox"
+      :aria-label="t('图片预览', 'Image preview')"
+      @click.self="closeAttachmentPreview"
+      @cancel.prevent="closeAttachmentPreview"
+    >
+      <header class="agent-attachment-lightbox__bar">
+        <p class="truncate">{{ lightboxPreview?.name || t('图片预览', 'Image preview') }}</p>
+        <button
+          type="button"
+          data-testid="message-attachment-close"
+          :aria-label="t('关闭', 'Close')"
+          @click="closeAttachmentPreview"
+        >
+          <X class="size-4" />
+        </button>
+      </header>
+      <img
+        v-if="lightboxPreview?.kind === 'image' && lightboxPreview.dataUrl"
+        :src="lightboxPreview.dataUrl"
+        :alt="lightboxPreview.name"
+      >
+      <p v-else class="agent-attachment-lightbox__empty">
+        {{ t('这张图片暂时无法预览。', 'This image cannot be previewed right now.') }}
+      </p>
+    </dialog>
   </article>
 </template>

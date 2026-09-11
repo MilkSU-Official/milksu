@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { createApp, nextTick, type App } from 'vue'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import ChatMessageItem from './ChatMessageItem.vue'
 import type { Message } from '@/types'
 
@@ -10,6 +10,7 @@ const mountedApps: App[] = []
 afterEach(() => {
   for (const app of mountedApps.splice(0)) app.unmount()
   document.body.innerHTML = ''
+  Reflect.deleteProperty(window, 'milksu')
 })
 
 async function mountMessage(
@@ -379,6 +380,69 @@ describe('ChatMessageItem', () => {
     branch?.click()
     await nextTick()
     expect(assistant.branched()).toBe('')
+  })
+
+  it('shows a sent image thumbnail and opens a closable preview', async () => {
+    const attachment = {
+      id: 'a'.repeat(64),
+      name: 'image.png',
+      mediaType: 'image/png',
+      size: 37888,
+      sha256: 'b'.repeat(64),
+    }
+    const dataUrl = 'data:image/png;base64,aW1hZ2U='
+    const invoke = vi.fn(async (method: string) => {
+      if (method === 'PreviewCodingAttachment') {
+        return {
+          name: attachment.name,
+          mediaType: attachment.mediaType,
+          size: attachment.size,
+          kind: 'image',
+          dataUrl,
+        }
+      }
+      throw new Error(method)
+    })
+    Object.defineProperty(window, 'milksu', {
+      configurable: true,
+      value: { invoke },
+    })
+    const dialogProto = HTMLDialogElement.prototype as HTMLDialogElement & {
+      showModal?: () => void
+      close?: () => void
+    }
+    const previousShow = dialogProto.showModal
+    const previousClose = dialogProto.close
+    dialogProto.showModal = function showModal() {
+      this.setAttribute('open', '')
+    }
+    dialogProto.close = function close() {
+      this.removeAttribute('open')
+    }
+    try {
+      const { host } = await mountMessage({
+        id: 'user-image',
+        role: 'user',
+        content: '看这张图',
+        timestamp: Date.now(),
+        attachments: [attachment],
+      })
+      await vi.waitFor(() => {
+        expect(host.querySelector('img[alt="image.png"]')?.getAttribute('src')).toBe(dataUrl)
+      })
+      expect(host.textContent ?? '').not.toContain('37.0 KB')
+      host.querySelector<HTMLButtonElement>('[data-testid="message-attachment-image"]')?.click()
+      await nextTick()
+      const dialog = host.querySelector<HTMLDialogElement>('.agent-attachment-lightbox')
+      expect(dialog?.hasAttribute('open')).toBe(true)
+      expect(dialog?.querySelector('img')?.getAttribute('src')).toBe(dataUrl)
+      host.querySelector<HTMLButtonElement>('[data-testid="message-attachment-close"]')?.click()
+      await nextTick()
+      expect(dialog?.hasAttribute('open')).toBe(false)
+    } finally {
+      dialogProto.showModal = previousShow
+      dialogProto.close = previousClose
+    }
   })
 
   it('renders a Beautiful UI choice card and emits the selected option', async () => {
