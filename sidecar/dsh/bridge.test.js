@@ -59,6 +59,28 @@ test("DSH bridge streams a prompt through ACP", async () => {
   }
 });
 
+test("DSH compact reports a real error when ACP has no compact method", async () => {
+  const bridge = runBridge();
+  try {
+    bridge.send({
+      action: "create_session",
+      conversationId: "conv-3",
+      cwd: here,
+    });
+    await bridge.waitFor("ready");
+    bridge.send({
+      action: "compact_session",
+      conversationId: "conv-3",
+      requestId: "compact-1",
+    });
+    const ended = await bridge.waitFor("compaction_end");
+    assert.equal(ended.requestId, "compact-1");
+    assert.match(String(ended.error ?? ""), /Unknown method|session\/compact/i);
+  } finally {
+    bridge.child.kill();
+  }
+});
+
 test("DSH bridge abort does not throw", async () => {
   const bridge = runBridge();
   try {

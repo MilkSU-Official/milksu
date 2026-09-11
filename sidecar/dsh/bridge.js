@@ -1,12 +1,19 @@
-import { existsSync } from "node:fs";
+import { existsSync, unlinkSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import { createAcpClient } from "./acp-client.js";
+import { createProductIpc } from "./product-ipc.js";
+import { dshProductIpc } from "../hostpath.js";
+import { codingAskToolName } from "../pi/bridge-ask.js";
+import { createWorkspaceActionBroker } from "../pi/bridge-workspace.js";
 
 const sessions = new Map();
+const pendingAsks = new Map();
 let commandQueue = Promise.resolve();
 let acp;
+let productIpc;
+const workspaceBroker = createWorkspaceActionBroker(emit);
 
 function emit(conversationId, type, extra = {}) {
   process.stdout.write(`${JSON.stringify({
@@ -35,8 +42,67 @@ function resolveDshCommand() {
   return "dsh";
 }
 
+async function ensureProductIpc() {
+  if (productIpc) return productIpc;
+  const path = dshProductIpc(`bridge-${process.pid}`);
+  try {
+    unlinkSync(path);
+  } catch {
+    // First listen.
+  }
+  productIpc = createProductIpc(path, async message => {
+    const method = String(message.method ?? "");
+    const params = message.params ?? {};
+    if (method === "ask") {
+      return requestAsk(params);
+    }
+    if (method === "workspace") {
+      return workspaceBroker.request({
+        conversationId: params.conversationId,
+        action: params.action,
+        input: params.input,
+      });
+    }
+    throw new Error(`Unknown MilkSU product method: ${method}`);
+  });
+  await productIpc.listen();
+  return productIpc;
+}
+
+function requestAsk({ conversationId, question, options }) {
+  const requestId = `dsh_ask_${crypto.randomUUID()}`;
+  return new Promise(resolve => {
+    pendingAsks.set(requestId, { conversationId, options, resolve });
+    emit(conversationId, "approval_requested", {
+      requestId,
+      toolName: codingAskToolName,
+      content: question,
+      input: JSON.stringify({ options }),
+    });
+  });
+}
+
+function milksuMcpServer(conversationId) {
+  const ipc = productIpc?.path;
+  if (!ipc) return null;
+  const here = dirname(fileURLToPath(import.meta.url));
+  const packaged = join(here, "product-mcp.cjs");
+  const source = join(here, "product-mcp.js");
+  const script = existsSync(packaged) ? packaged : source;
+  return {
+    name: "milksu",
+    command: process.execPath,
+    args: [script],
+    env: {
+      MILKSU_DSH_IPC: ipc,
+      MILKSU_CONVERSATION_ID: conversationId,
+    },
+  };
+}
+
 async function ensureAcp(cwd) {
   if (acp) return acp;
+  await ensureProductIpc();
   acp = createAcpClient({
     command: resolveDshCommand(),
     args: String(process.env.MILKSU_DSH_ACP_ARGS ?? "--profile acp").split(/\s+/).filter(Boolean),
@@ -139,9 +205,10 @@ async function createSession(command) {
   if (!conversationId) throw new Error("conversationId is required");
   const cwd = String(command.cwd || command.workspacePath || process.cwd());
   const client = await ensureAcp(cwd);
+  const mcp = milksuMcpServer(conversationId);
   const created = await client.request("session/new", {
     cwd,
-    mcpServers: [],
+    mcpServers: mcp ? [mcp] : [],
   });
   const acpSessionId = String(created?.sessionId || created?.session_id || conversationId);
   sessions.set(conversationId, {
@@ -187,16 +254,16 @@ async function compactSession(command) {
   emit(conversationId, "compaction_start", { requestId });
   const record = sessionRecord(conversationId);
   try {
-    if (acp && record) {
-      try {
-        await acp.request("session/compact", { sessionId: record.acpSessionId });
-      } catch {
-        // ACP v1 has no compact method; auto-compact stays inside DSH.
-      }
+    if (!acp || !record) {
+      throw new Error("DeepSeek Harness session is not running");
     }
+    const result = await acp.request("session/compact", { sessionId: record.acpSessionId });
     emit(conversationId, "compaction_end", {
       requestId,
-      compaction: { tokensBefore: 0, estimatedTokensAfter: 0 },
+      compaction: {
+        tokensBefore: Number(result?.tokensBefore ?? 0),
+        estimatedTokensAfter: Number(result?.estimatedTokensAfter ?? result?.tokensAfter ?? 0),
+      },
     });
   } catch (error) {
     emit(conversationId, "compaction_end", {
@@ -222,9 +289,26 @@ async function destroySession(command) {
 
 async function respondApproval(command) {
   const conversationId = String(command.conversationId ?? "").trim();
+  const requestId = String(command.requestId ?? "").trim();
+  const ask = pendingAsks.get(requestId);
+  if (ask) {
+    pendingAsks.delete(requestId);
+    const selected = String(command.choice ?? "").trim();
+    const option = ask.options?.find(item => item.id === selected);
+    emit(conversationId, "approval_resolved", {
+      requestId,
+      toolName: codingAskToolName,
+      approved: Boolean(command.approved) && Boolean(option),
+      choice: option?.id,
+    });
+    ask.resolve(command.approved ? option ?? null : null);
+    return;
+  }
   const record = sessionRecord(conversationId);
   if (!record?.pendingPermission || !acp) return;
-  const optionId = command.approved ? "allow-once" : "reject";
+  const optionId = command.approved
+    ? (String(command.scope ?? "").trim() === "conversation" ? "allow-always" : "allow-once")
+    : "reject";
   acp.respond(record.pendingPermission.jsonrpcId, {
     outcome: {
       outcome: command.approved ? "selected" : "cancelled",
@@ -236,6 +320,15 @@ async function respondApproval(command) {
     approved: Boolean(command.approved),
   });
   record.pendingPermission = null;
+}
+
+function respondWorkspaceAction(command) {
+  workspaceBroker.respond({
+    requestId: command.requestId,
+    ok: command.ok !== false && !command.error,
+    result: command.result,
+    error: command.error,
+  });
 }
 
 async function handoffSession(command) {
@@ -285,10 +378,12 @@ async function handleCommand(command) {
         error: "DeepSeek Harness does not support this session tree action",
       });
       break;
+    case "workspace_action_response":
+      respondWorkspaceAction(command);
+      break;
     case "steer_message":
     case "remove_queued_message":
     case "background_task_control":
-    case "workspace_action_response":
       break;
     default:
       throw new Error(`Unknown action: ${command.action}`);
@@ -313,6 +408,14 @@ input.on("line", line => {
   }
   if (command.action === "approval_response") {
     void respondApproval(command);
+    return;
+  }
+  if (command.action === "workspace_action_response") {
+    try {
+      respondWorkspaceAction(command);
+    } catch (error) {
+      emit(command.conversationId ?? null, "error", { error: describeError(error) });
+    }
     return;
   }
   commandQueue = commandQueue

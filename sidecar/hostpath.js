@@ -37,6 +37,25 @@ export function computerUseSocket(
   return unixComputerUseSocket(ephemeralRoot(env, platform), sessionId);
 }
 
+export function dshProductIpc(
+  conversationId,
+  env = process.env,
+  platform = process.platform,
+) {
+  const id = String(conversationId ?? "").trim() || "session";
+  if (platform === "win32") {
+    const suffix = id.slice(-24);
+    return `\\\\.\\pipe\\milksu-dsh-${suffix}`;
+  }
+  const root = join(ephemeralRoot(env, platform), "milksu-dsh");
+  const candidate = join(root, `dsh-${id}.sock`);
+  if (Buffer.byteLength(candidate) <= unixSocketMaxBytes) {
+    return candidate;
+  }
+  const digest = createHash("sha256").update(id).digest("hex").slice(0, 16);
+  return join(root, `dsh-${digest}.sock`);
+}
+
 export function unixComputerUseSocket(root, sessionId) {
   const suffix = sessionId.startsWith("computer_")
     ? sessionId.slice("computer_".length)

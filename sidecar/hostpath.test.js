@@ -4,6 +4,7 @@ import { join } from "node:path";
 import test from "node:test";
 import {
   computerUseSocket,
+  dshProductIpc,
   ephemeralRoot,
   unixComputerUseSocket,
 } from "./hostpath.js";
@@ -15,6 +16,16 @@ test("ephemeral root uses XDG_RUNTIME_DIR on Linux and os.tmpdir otherwise", () 
   );
   assert.equal(ephemeralRoot({}, "linux"), tmpdir());
   assert.equal(ephemeralRoot({ XDG_RUNTIME_DIR: "/run/user/1000" }, "darwin"), tmpdir());
+});
+
+test("DSH product IPC stays under the ephemeral root and short enough for sockaddr_un", () => {
+  if (process.platform === "win32") {
+    assert.match(dshProductIpc("conversation-1"), /^\\\\\.\\pipe\\milksu-dsh-/);
+    return;
+  }
+  const path = dshProductIpc("conversation-1");
+  assert.ok(path.startsWith(join(ephemeralRoot(), "milksu-dsh")));
+  assert.ok(Buffer.byteLength(path) <= 103);
 });
 
 test("Computer Use unix sockets stay short and under the ephemeral root", () => {

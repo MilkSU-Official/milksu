@@ -51,7 +51,7 @@ input.on("line", line => {
     });
     return;
   }
-  if (method === "session/cancel" || method === "session/close" || method === "session/compact" || method === "shutdown") {
+  if (method === "session/cancel" || method === "session/close" || method === "shutdown") {
     write({ jsonrpc: "2.0", id, result: {} });
     return;
   }
