@@ -71,6 +71,30 @@ describe('model provider catalog', () => {
     expect(settings.active_model).toBe('vendor/model:preview')
   })
 
+  it('adds a default DeepSeek official service that can be removed', () => {
+    const settings = withAppSettingsDefaults({
+      active_provider: 'tokenflux',
+      active_model: 'x-ai/grok-4.6',
+      providers: {},
+    } as AppSettings)
+    const deepseek = settings.providers['custom-relay-deepseek']
+    expect(deepseek).toMatchObject({
+      custom: true,
+      name: 'DeepSeek',
+      base_url: 'https://api.deepseek.com',
+      enabled: false,
+      models: ['deepseek-flash', 'deepseek-v4-pro'],
+    })
+
+    const removed = withAppSettingsDefaults({
+      ...settings,
+      providers: {},
+      removed_preset_services: ['custom-relay-deepseek', 'custom-relay-other'],
+    })
+    expect(removed.providers['custom-relay-deepseek']).toBeUndefined()
+    expect(removed.removed_preset_services).toEqual(['custom-relay-deepseek'])
+  })
+
   it('keeps normal model pickers focused on account TokenFlux plus custom relays', () => {
     const visibleProviders = PROVIDER_GROUPS.flatMap(group => group.providers.map(provider => provider.id))
     expect(visibleProviders).toEqual(['tokenflux'])
@@ -104,6 +128,23 @@ describe('model provider catalog', () => {
     })
 
     expect(settings.disabled_skills).toEqual(['product-design', 'review-security'])
+  })
+
+  it('keeps optional reverse-engineering skills off unless explicitly enabled', () => {
+    const settings = withAppSettingsDefaults({
+      active_provider: 'tokenflux',
+      active_model: 'grok-4.5',
+      model_routing: { source_order: ['account', 'personal'], auto_fallback: false },
+      providers: {},
+      enabled_optional_skills: [' jadx ', 'product-design', 'ghidra-rpc'],
+      worker_provider: 'tokenflux',
+      worker_model: 'grok-4.5',
+      worker_source: 'account',
+    })
+    expect(settings.enabled_optional_skills).toEqual(['jadx', 'ghidra-rpc'])
+    expect(settings.worker_provider).toBe('tokenflux')
+    expect(settings.worker_model).toBe('grok-4.5')
+    expect(settings.worker_source).toBe('account')
   })
 
   it('normalizes model context window overrides and drops illegal values', () => {

@@ -18,6 +18,7 @@ const test = require("node:test");
 const {
   prepareRunnerPolicy,
   reviewedPromptFiles,
+  applyWorkerModelArguments,
   rewriteRoutedModelArguments,
   sandboxProfile,
   validateCLIArguments,
@@ -204,6 +205,29 @@ test("runner admits only the exact bundled role prompt from its temporary root",
       environment,
     ),
     /unreviewed system prompt/,
+  );
+});
+
+test("runner replaces the parent model with the saved worker model and its default thinking", () => {
+  assert.deepEqual(
+    applyWorkerModelArguments(
+      ["--model", "milksu-route/claude/claude-opus-4-6:max", "--no-extensions"],
+      {
+        MILKSU_WORKER_MODEL: "tokenflux/grok-4.6",
+        MILKSU_WORKER_THINKING: "",
+      },
+    ),
+    ["--model", "tokenflux/grok-4.6", "--no-extensions"],
+  );
+  assert.deepEqual(
+    rewriteRoutedModelArguments(
+      ["--model", "tokenflux/grok-4.6:high", "--no-extensions"],
+      {
+        MILKSU_WORKER_MODEL: "milksu-route/claude/claude-opus-4-6",
+        MILKSU_WORKER_THINKING: "high",
+      },
+    ),
+    ["--model", "milksu-relay/claude/claude-opus-4-6:high", "--no-extensions"],
   );
 });
 

@@ -44,6 +44,38 @@ export const CODING_SKILLS: readonly CodingSkillDefinition[] = [
   },
 ]
 
+export const OPTIONAL_CODING_SKILLS: readonly CodingSkillDefinition[] = [
+  {
+    name: 'ghidra-rpc',
+    label: 'Ghidra',
+    description: t('用本机 Ghidra 反编译二进制', 'Decompile binaries with local Ghidra'),
+  },
+  {
+    name: 'jadx',
+    label: 'JADX',
+    description: t('把 APK 反编译到当前工作区', 'Decompile an APK into the current workspace'),
+  },
+]
+
+export const OPTIONAL_CODING_SKILL_NAMES = OPTIONAL_CODING_SKILLS.map(skill => skill.name)
+
+export function allCodingSkills(): CodingSkillDefinition[] {
+  return [...CODING_SKILLS, ...OPTIONAL_CODING_SKILLS]
+}
+
+export function isOptionalCodingSkill(name: string): boolean {
+  return OPTIONAL_CODING_SKILL_NAMES.includes(name)
+}
+
+export function skillIsEnabled(
+  name: string,
+  disabled: readonly string[] = [],
+  enabledOptional: readonly string[] = [],
+): boolean {
+  if (isOptionalCodingSkill(name)) return enabledOptional.includes(name)
+  return !disabled.includes(name)
+}
+
 export function enabledCodingSkillNames(disabled: readonly string[] = []): string[] {
   const disabledSet = new Set(disabled)
   return CODING_SKILLS

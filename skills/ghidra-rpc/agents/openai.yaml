@@ -1,0 +1,4 @@
+interface:
+  display_name: "Ghidra"
+  short_description: "Reverse a binary with the local ghidra-rpc CLI"
+  default_prompt: "Use $ghidra-rpc to load this binary and decompile the interesting functions."

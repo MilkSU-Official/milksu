@@ -170,6 +170,24 @@ interface DesktopAppBindings {
   GetSecurityToolSetup(id: string): Promise<SecurityToolSetupSnapshot>
   CheckSecurityTool(id: string): Promise<SecurityToolSnapshot>
   PrepareSecurityToolCodingHandoff(id: string): Promise<SecurityToolCodingHandoff>
+  ListCodingToolSkills(): Promise<Array<{
+    name: string
+    status: string
+    version?: string
+    problem?: string
+    canPrepare: boolean
+    preparing: boolean
+  }>>
+  CheckCodingToolSkill(name: string): Promise<{
+    name: string
+    status: string
+    version?: string
+    problem?: string
+    canPrepare: boolean
+    preparing: boolean
+  }>
+  StartCodingToolSkillSetup(name: string): Promise<SecurityToolSetupSnapshot>
+  GetCodingToolSkillSetup(name: string): Promise<SecurityToolSetupSnapshot>
   GetEvalBoard(request: { models?: EvalModelRef[]; selected?: string }): Promise<EvalBoardSnapshot>
   StartEvalRun(request: {
     suite: string
@@ -974,6 +992,14 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.CheckSecurityTool(args?.id as string) as Promise<T>
       case 'prepare_security_tool_coding_handoff':
         return app.PrepareSecurityToolCodingHandoff(args?.id as string) as Promise<T>
+      case 'list_coding_tool_skills':
+        return app.ListCodingToolSkills() as Promise<T>
+      case 'check_coding_tool_skill':
+        return app.CheckCodingToolSkill(args?.name as string) as Promise<T>
+      case 'start_coding_tool_skill_setup':
+        return app.StartCodingToolSkillSetup(args?.name as string) as Promise<T>
+      case 'get_coding_tool_skill_setup':
+        return app.GetCodingToolSkillSetup(args?.name as string) as Promise<T>
       case 'get_eval_board':
         return app.GetEvalBoard({
           models: args?.models as EvalModelRef[] | undefined,
