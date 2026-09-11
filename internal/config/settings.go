@@ -171,18 +171,36 @@ func (s *Store) Get() AppSettings {
 func (s *Store) GetResolved() AppSettings {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	value := withDefaults(clone(s.settings))
+	return s.hydrateSecrets(withDefaults(clone(s.settings)), true)
+}
+
+// ResolveSubmitted builds a private probe snapshot from the payload the user
+// just submitted. Submitted keys and enablement win; empty keys fall back to
+// the credential store. Official `deepseek` remapping must not replace a
+// custom-relay-deepseek row.
+func (s *Store) ResolveSubmitted(submitted AppSettings) AppSettings {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if strings.TrimSpace(submitted.ActiveProvider) == "" && len(submitted.Providers) == 0 {
+		return s.hydrateSecrets(withDefaults(clone(s.settings)), true)
+	}
+	return s.hydrateSecrets(withDefaults(clone(submitted)), false)
+}
+
+func (s *Store) hydrateSecrets(value AppSettings, replaceKeys bool) AppSettings {
 	for name, provider := range value.Providers {
-		provider.APIKey = s.secretValues[providerSecretAccount(name)]
+		if replaceKeys || strings.TrimSpace(provider.APIKey) == "" {
+			provider.APIKey = s.secretValues[providerSecretAccount(name)]
+		}
 		value.Providers[name] = provider
 	}
-	if s.runtimeRelay != nil {
+	if s.runtimeRelay != nil && (replaceKeys || value.Relay == nil || strings.TrimSpace(value.Relay.Key) == "") {
 		relay := *s.runtimeRelay
 		value.Relay = &relay
-	} else if value.Relay != nil {
+	} else if value.Relay != nil && (replaceKeys || strings.TrimSpace(value.Relay.Key) == "") {
 		value.Relay.Key = s.secretValues[relaySecretAccount]
 	}
-	if value.NSSCTFArena != nil {
+	if value.NSSCTFArena != nil && (replaceKeys || strings.TrimSpace(value.NSSCTFArena.Token) == "") {
 		value.NSSCTFArena.Token = s.secretValues[nssctfArenaSecretAccount]
 	}
 	value.RuntimeModelCatalogPath = s.runtimeModelCatalogPath

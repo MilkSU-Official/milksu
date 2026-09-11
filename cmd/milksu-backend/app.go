@@ -1291,8 +1291,8 @@ func (a *App) GetCodingArtifactPreview(
 	return codingenv.InspectArtifactPreview(workspacePath, relativePath)
 }
 
-func (a *App) TestAgentModel() (engine.ModelProbeResult, error) {
-	result, err := a.engines.ProbeModel(a.settings.GetResolved())
+func (a *App) TestAgentModel(submitted config.AppSettings) (engine.ModelProbeResult, error) {
+	result, err := a.engines.ProbeModel(a.settings.ResolveSubmitted(submitted))
 	if err != nil {
 		return engine.ModelProbeResult{}, err
 	}

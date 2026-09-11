@@ -118,6 +118,7 @@ import {
 } from '@/lib/externalEditor'
 import ExternalEditorIcon from '@/components-vue/ExternalEditorIcon.vue'
 import { buildDiagnosticText, isDebugMode, setDebugMode } from '@/lib/debugMode'
+import { explainModelVerificationFailure } from '@/lib/tokenFluxError'
 import { applyUiLocale, normalizeUiLocale, t } from '@/lib/uiLocale'
 import {
   builtInModelThinking,
@@ -1134,24 +1135,6 @@ function serviceStatus(row: ModelServiceRow): string {
   return t('已启用', 'Enabled')
 }
 
-function serviceStatusClass(row: ModelServiceRow): string {
-  const status = serviceStatus(row)
-  if (status === t('已启用', 'Enabled')) return 'text-primary'
-  if (status === t('未配置', 'Not configured') || status === t('未连接', 'Not connected')) return 'text-warning'
-  return 'text-muted-foreground'
-}
-
-function serviceIsActiveDefault(row: ModelServiceRow): boolean {
-  if (!working.value) return false
-  // Highlight rows that currently contribute models to the default picker.
-  if (row.source === 'account') {
-    return Boolean(accountRoute.value?.enabled && accountModelSourceReady.value)
-  }
-  return Boolean(providerConfig(row.provider.id)?.enabled
-    && (providerConfig(row.provider.id)?.has_api_key || String(providerConfig(row.provider.id)?.api_key ?? '').trim()
-      || row.provider.id !== 'tokenflux'))
-}
-
 function openProviderEditor(id: string) {
   ensureProviderConfig(id)
   editingProviderID.value = id
@@ -1518,6 +1501,28 @@ async function refreshCallableModels() {
   alignDefaultModelToEnabledServices()
 }
 
+function enableCustomRelaysWithSubmittedKeys(settings: AppSettings): AppSettings {
+  const next = cloneSettings(settings)
+  for (const [id, provider] of Object.entries(next.providers)) {
+    if (provider.custom && String(provider.api_key ?? '').trim()) {
+      next.providers[id] = { ...provider, enabled: true }
+    }
+  }
+  return next
+}
+
+function submittedServiceReady(settings: AppSettings): boolean {
+  const active = settings.providers[settings.active_provider]
+  const hasProviderKey = Boolean(active?.has_api_key || String(active?.api_key ?? '').trim())
+  if (settings.active_provider === 'tokenflux') {
+    return Boolean(
+      (settings.relay?.enabled && (settings.relay.has_key || String(settings.relay.key ?? '').trim()))
+      || (active?.enabled && hasProviderKey),
+    )
+  }
+  return Boolean(active?.enabled && hasProviderKey)
+}
+
 async function save(options?: { quiet?: boolean }): Promise<boolean> {
   if (!working.value) return false
   const incompleteCustomProvider = Object.values(working.value.providers).find(item => (
@@ -1539,13 +1544,15 @@ async function save(options?: { quiet?: boolean }): Promise<boolean> {
   }
   saving.value = true
   notice.value = null
+  const submitted = enableCustomRelaysWithSubmittedKeys(cloneSettings(working.value))
+  working.value = submitted
   try {
-    await invokeCommand('save_settings_cmd', { newSettings: working.value })
-    const refreshed = await invokeCommand<AppSettings>('get_settings')
-    working.value = cloneSettings(refreshed)
-    emit('settingsChange', refreshed)
-    await refreshCallableModels()
+    await invokeCommand('save_settings_cmd', { newSettings: submitted })
     if (category.value !== 'apikeys') {
+      const refreshed = await invokeCommand<AppSettings>('get_settings')
+      working.value = cloneSettings(refreshed)
+      emit('settingsChange', refreshed)
+      await refreshCallableModels()
       if (!options?.quiet) {
         notice.value = {
           tone: 'ok',
@@ -1554,15 +1561,13 @@ async function save(options?: { quiet?: boolean }): Promise<boolean> {
       }
       return true
     }
-    // Only probe when the active service can actually start (enabled + key).
-    const active = working.value.providers[working.value.active_provider]
-    const activeReady = working.value.active_provider === 'tokenflux'
-      ? (
-        (working.value.relay?.enabled && working.value.relay.has_key)
-        || (active?.enabled && (active.has_api_key || String(active.api_key ?? '').trim()))
-      )
-      : Boolean(active?.enabled && (active.has_api_key || String(active.api_key ?? '').trim()))
-    if (!activeReady) {
+    // Verify the payload just submitted. Do not gate on the pre-save snapshot
+    // or a refreshed public view that has stripped keys / remapped defaults.
+    if (!submittedServiceReady(submitted)) {
+      const refreshed = await invokeCommand<AppSettings>('get_settings')
+      working.value = cloneSettings(refreshed)
+      emit('settingsChange', refreshed)
+      await refreshCallableModels()
       notice.value = {
         tone: 'ok',
         text: t('设置已保存。当前没有已启用且可用的模型服务，请启用账户或填写 TokenFlux / 自定义中转站后再验证。', 'Settings saved. No enabled model service is ready yet. Enable the account or add a TokenFlux / custom relay, then verify.'),
@@ -1571,7 +1576,7 @@ async function save(options?: { quiet?: boolean }): Promise<boolean> {
     }
     verifying.value = true
     try {
-      const result = await invokeCommand<ModelProbeResult>('test_agent_model')
+      const result = await invokeCommand<ModelProbeResult>('test_agent_model', { settings: submitted })
       const verifiedSettings = await invokeCommand<AppSettings>('get_settings')
       working.value = cloneSettings(verifiedSettings)
       emit('settingsChange', verifiedSettings)
@@ -1582,12 +1587,17 @@ async function save(options?: { quiet?: boolean }): Promise<boolean> {
       }
       return true
     } catch (reason) {
+      const refreshed = await invokeCommand<AppSettings>('get_settings').catch(() => submitted)
+      if (refreshed) {
+        working.value = cloneSettings(refreshed)
+        emit('settingsChange', refreshed)
+      }
       await refreshCallableModels()
       const raw = desktopErrorMessage(reason)
-      const friendly = /both model sources are unavailable|enable the personal API key/i.test(raw)
-        ? t('凭据已保存，但当前没有可用的账户或个人模型来源。请启用 MilkSU 账户或 TokenFlux 个人 Key 后重试。', 'Credentials saved, but no account or personal model source is available. Enable the MilkSU account or a personal TokenFlux key, then try again.')
-        : t(`凭据已保存，但 PI 模型验证失败：${raw}`, `Credentials saved, but Pi model verification failed: ${raw}`)
-      notice.value = { tone: 'error', text: friendly }
+      notice.value = {
+        tone: 'error',
+        text: t(`凭据已保存。${explainModelVerificationFailure(raw)}`, `Credentials saved. ${explainModelVerificationFailure(raw)}`),
+      }
       return true
     } finally {
       verifying.value = false
@@ -1630,15 +1640,14 @@ async function saveProviderEditor(closeAfterSave: boolean) {
     if (editing.custom && editing.models?.[0]) {
       working.value.active_model = editing.models[0]
     }
+    const hasKey = Boolean(String(editing.api_key ?? '').trim() || editing.has_api_key)
     if (editingID === 'tokenflux') {
       // Prefer personal TokenFlux while testing/saving this editor.
       working.value.model_routing.source_order = ['personal', 'account']
       working.value.model_routing.auto_fallback = false
       editing.enabled = true
-      if (String(editing.api_key ?? '').trim() || editing.has_api_key) {
-        // Keep personal route ready so /v1/models refresh can populate the picker.
-        editing.enabled = true
-      }
+    } else if (editing.custom && hasKey) {
+      editing.enabled = true
     }
   }
   const persisted = await save()
@@ -2198,13 +2207,12 @@ async function saveProviderEditor(closeAfterSave: boolean) {
 
         <template v-else-if="working && category === 'apikeys'">
           <SettingsSection :title="t('调用', 'Invocation')">
-            <div class="settings-focus-row">
-              <SettingsRow
-                :label="t('默认模型', 'Default model')"
-                :description="!defaultModelAvailable && availableModelCount > 0
-                  ? t('当前默认模型不可用', 'The current default model is unavailable')
-                  : ''"
-              >
+            <SettingsRow
+              :label="t('默认模型', 'Default model')"
+              :description="!defaultModelAvailable && availableModelCount > 0
+                ? t('当前默认模型不可用', 'The current default model is unavailable')
+                : ''"
+            >
               <Select
                 id="default-model"
                 v-model="defaultModelKey"
@@ -2263,8 +2271,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                   </template>
                 </SelectContent>
               </Select>
-              </SettingsRow>
-            </div>
+            </SettingsRow>
             <SettingsRow
               :label="t('subagent', 'subagent')"
               :divider="false"
@@ -2336,11 +2343,9 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                 v-for="row in modelServiceRows"
                 :key="row.key"
                 class="model-service-row grid min-h-20 grid-cols-[48px_minmax(170px,1fr)_minmax(180px,1.1fr)_90px_auto_auto] items-center gap-4 border-b border-border px-4 py-3 last:border-b-0"
-                :class="serviceIsActiveDefault(row) ? 'model-service-row-primary' : ''"
               >
                 <span
-                  class="model-service-icon grid size-11 place-items-center rounded-lg border border-border bg-muted/40"
-                  :class="serviceIsActiveDefault(row) ? 'text-primary' : 'text-foreground'"
+                  class="model-service-icon grid size-11 place-items-center rounded-lg border border-border bg-muted/40 text-foreground"
                 >
                   <WalletCards v-if="row.source === 'account'" class="size-5" />
                   <Box v-else-if="row.provider.kind === 'relay'" class="size-5" />
@@ -2372,7 +2377,7 @@ async function saveProviderEditor(closeAfterSave: boolean) {
                   {{ row.source === 'account' ? accountModelsText() : providerModelsText(row.provider) }}
                 </p>
 
-                <span class="text-caption font-medium" :class="serviceStatusClass(row)">
+                <span class="text-caption font-medium text-muted-foreground">
                   {{ serviceStatus(row) }}
                 </span>
 
@@ -2828,7 +2833,6 @@ async function saveProviderEditor(closeAfterSave: boolean) {
 }
 .model-service-row { transition: background-color 120ms ease, border-color 120ms ease; }
 .model-service-row:hover { background: var(--overlay-hover-light); }
-.model-service-row-primary { box-shadow: none; background: var(--hover-2); }
 .model-service-icon { box-shadow: inset 0 0 18px color-mix(in srgb, var(--brand) 5%, transparent); }
 .provider-editor-field { display: grid; grid-template-columns: 7rem minmax(0, 1fr); align-items: center; gap: 1rem; font-size: var(--text-body); }
 @media (max-width: 1080px) {

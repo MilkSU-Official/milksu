@@ -32,7 +32,7 @@
 | 历史基线 | M3 product-loop 已在 `108e0e3`（2026-08-05）合并，仅供追溯。 |
 | 正式发行基线 | `v26.905.2 / b18b8607e2645c3977125e79d0257256951ae6b5`（2026-09-05 今日第二版）。这是当前 GitHub Latest Release；提供带版本号的 DMG、EXE、DEB、x64 tar.gz 与 `SHA256SUMS`。OTA 已上传私有 R2。侧栏下载先 `checkForUpdates` 再 `downloadUpdate`。已发出的 `26.827.1` / `26.904.1` / `26.905.1` 客户端改不了，这一跳请从 GitHub 下安装包。上一版 `v26.905.1 / 1cc8773`、`v26.904.1 / 6e9371d` 与 `v26.827.1 / 37932ce` 仍可下载，不是 Latest。 |
 | 开发版本线 | 根目录与 `desktop/package.json` 是 `26.905.2`。正式发行源是 `b18b860`；文档收口提交不移动该 tag。 |
-| 当前开发 | 正式包是 `26.905.2`。Composer 上下文环按 Pi 组装分类；设置页可查看并覆盖模型上下文窗口。edit 锚点、`tool_result` 截断、中途引导、子 Agent 结构化回传、rewind/handoff、用户 MCP/Skills 与克制清透材料层已进包。侧栏下载先 check 再 download，失败可见重试。三端窗口铬：macOS 保持 `hiddenInset`，Windows/Linux 隐藏原生标题栏并用画布色 overlay。已登录 Stable 轮询 Admin 时带上当前版本。实验室题目包仍可起本机 Docker / MilkSU-Lab。Pi 钉到 `0.84.1`。Windows 安装器仍未代码签名；Linux 无 Secret Service 与本地 OCR；Hyprland/Xorg Computer Use 不可用。CTF 比赛模式和实验室红队学习面仍未接线。产品 UI 设计语言只写在 `AGENTS.md`。未发版：parent loop `bg_status` 熔断与最多 4 条 read-only subagent lane；实验性插件框架与 CUA 0.27.0；设置 → 模型的 subagent 覆盖、设置 → Skills 的 ghidra-rpc / jadx、模型服务预置 DeepSeek。#53 的 typed sweep 工具尚未做。 |
+| 当前开发 | 正式包是 `26.905.2`。Composer 上下文环按 Pi 组装分类；设置页可查看并覆盖模型上下文窗口。edit 锚点、`tool_result` 截断、中途引导、子 Agent 结构化回传、rewind/handoff、用户 MCP/Skills 与克制清透材料层已进包。侧栏下载先 check 再 download，失败可见重试。三端窗口铬：macOS 保持 `hiddenInset`，Windows/Linux 隐藏原生标题栏并用画布色 overlay。已登录 Stable 轮询 Admin 时带上当前版本。实验室题目包仍可起本机 Docker / MilkSU-Lab。Pi 钉到 `0.84.1`。Windows 安装器仍未代码签名；Linux 无 Secret Service 与本地 OCR；Hyprland/Xorg Computer Use 不可用。CTF 比赛模式和实验室红队学习面仍未接线。产品 UI 设计语言只写在 `AGENTS.md`。未发版：parent loop `bg_status` 熔断与最多 4 条 read-only subagent lane；实验性插件框架与 CUA 0.27.0；设置 → 模型的 subagent 覆盖、设置 → Skills 的 ghidra-rpc / jadx、模型服务预置 DeepSeek；设置验证失败按 TokenFlux 文档映射，不再甩裸状态码。#53 的 typed sweep 工具尚未做。 |
 | 平台边界 | `26.905.2`：macOS DMG 走 GitHub-hosted Developer ID 签名并公证；Windows 安装器完成原生 Runtime 与首次启动但未代码签名，并打入审阅过的 CUA Driver；Linux 发出 Ubuntu/Debian 共用 x64 DEB 与 Omarchy/Arch/Nix 共用 x64 tarball，GNOME Portal Computer Use 已进包，仍无 Secret Service、本地 OCR；Hyprland/Xorg Computer Use 不可用。Windows/Linux 窗口铬尚未真机验收。 |
 | 发行流水 | 下一发行从干净、已推送的 `main` 对 canonical Go/Vue/Sidecar/lint/生产与文档构建只验证一次；macOS / Windows / Linux 都走 GitHub-hosted 云端。macOS 本机打包暂时关闭。必须创建 GitHub Release 页并上传带版本号的 DMG/EXE/DEB、x64 tar.gz 与 SHA256SUMS，不能只留空 tag。正式打包默认上传 OTA 到私有 R2 并建 Admin 草稿；GitHub Release 仍不上 updater ZIP。 |
 
@@ -180,7 +180,8 @@
 - Computer Use 驱动从 `cua-driver 0.14.2` 升到上游 `0.27.0`。macOS 继续用官方 universal 包；Windows 仍从同一 commit 源码编，并去掉 MilkSU 路径补丁（上游已有 `canonical_process_executable`）。Linux / Hyprland 仍不接 CUA。关 #56。Windows 源码钉的 `Cargo.lock` 按 LF 归一化校验，避免上游 `* text=auto` 在 CI 上把锁文件改成 CRLF 后对不上。
 - 设置 → 模型在默认模型下增加 `subagent`：四个工作区派出的子 Agent 用这条覆盖，空则跟随当前对话正在用的主模型。覆盖不在可调用目录时清空。思考档位用该模型自己的默认档，只在子进程 `--model` 上改，不另造 harness。
 - 设置 → Skills 增加默认关闭的 `ghidra-rpc` / `jadx`。不选手动安装目录；行上只显示本机有没有找到。Ghidra 可用「准备」把固定版 CLI 装进配置目录。JADX 不包装，模型直接调本机 `jadx`。
-- 模型服务预置可编辑、可删除的 DeepSeek（`https://api.deepseek.com`，`deepseek-flash` / `deepseek-v4-pro`）。删掉并保存后不再自动出现。
+- 模型服务预置可编辑、可删除的 DeepSeek（`https://api.deepseek.com`，`deepseek-flash` / `deepseek-v4-pro`）。删掉并保存后不再自动出现。保存并验证走刚提交的配置：填写 Key 会启用该中转，不再用保存前的停用/无 Key 快照拦验证。官方 `deepseek` 仍回映射到 TokenFlux，不占用 `custom-relay-deepseek`。
+- 设置保存并验证失败时按 TokenFlux 文档用 HTTP 状态 + `message` / `reason=` 说明原因，不再甩 `403 status code (no body)` 这类生状态码。空 403 指向余额、订阅或分组，额度到 TokenFlux 查看。
 
 ## 当前产品事实
 

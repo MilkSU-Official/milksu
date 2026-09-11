@@ -95,6 +95,26 @@ describe('model provider catalog', () => {
     expect(removed.removed_preset_services).toEqual(['custom-relay-deepseek'])
   })
 
+  it('does not remap custom-relay-deepseek to TokenFlux', () => {
+    const settings = withAppSettingsDefaults({
+      active_provider: 'custom-relay-deepseek',
+      active_model: 'deepseek-flash',
+      providers: {
+        'custom-relay-deepseek': {
+          api_key: 'sk-deepseek-test-not-real',
+          has_api_key: true,
+          enabled: true,
+          custom: true,
+          name: 'DeepSeek',
+          base_url: 'https://api.deepseek.com',
+          models: ['deepseek-flash', 'deepseek-v4-pro'],
+        },
+      },
+    } as AppSettings)
+    expect(settings.active_provider).toBe('custom-relay-deepseek')
+    expect(settings.active_model).toBe('deepseek-flash')
+  })
+
   it('keeps normal model pickers focused on account TokenFlux plus custom relays', () => {
     const visibleProviders = PROVIDER_GROUPS.flatMap(group => group.providers.map(provider => provider.id))
     expect(visibleProviders).toEqual(['tokenflux'])

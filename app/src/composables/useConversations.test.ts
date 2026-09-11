@@ -348,13 +348,23 @@ describe('Coding approval conversation recovery', () => {
     expect(message).not.toContain('487')
   })
 
-  it('surfaces provider HTTP bodies after credential redaction', () => {
+  it('maps TokenFlux rate limits instead of dumping the HTTP body', () => {
     const message = agentRuntimeErrorMessage(
       '403: {"message":"model group rate limited for this key","type":"permission_error"}',
     )
-    expect(message).toContain('403')
-    expect(message).toContain('model group rate limited for this key')
+    expect(message).toContain('请求过于频繁')
+    expect(message).not.toContain('403')
+    expect(message).not.toContain('model group rate limited')
     expect(message).not.toContain('本地 Agent 运行异常')
+  })
+
+  it('maps an empty TokenFlux 403 to quota guidance', () => {
+    const message = agentRuntimeErrorMessage('PI model verification failed: 403 status code (no body)')
+    expect(message).toContain('TokenFlux')
+    expect(message).toContain('额度')
+    expect(message).not.toContain('403')
+    expect(message).not.toContain('no body')
+    expect(message).not.toContain('status code')
   })
 
   it.each([

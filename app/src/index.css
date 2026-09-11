@@ -1035,11 +1035,6 @@ pre,
   background: var(--hover-2);
 }
 
-.settings-focus-row {
-  background: color-mix(in srgb, var(--signal-gold) 14%, transparent);
-  box-shadow: inset 4px 0 0 var(--signal-gold);
-}
-
 .tactical-section-heading {
   display: flex;
   align-items: center;

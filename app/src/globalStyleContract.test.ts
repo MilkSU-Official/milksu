@@ -205,6 +205,8 @@ describe('global style contract', () => {
 
   it('uses the ak-ui cyan action color instead of acid green or the old SaaS blue', () => {
     expect(indexCss).toContain('@import "./styles/ak-ui-flourish.css"')
+    expect(indexCss).not.toContain('.settings-focus-row')
+    expect(flourishCss).not.toContain('.settings-focus-row')
     expect(indexCss).toContain('--brand: #05a7dc')
     expect(indexCss).toContain('--tactical-acid: #22bbff')
     expect(indexCss).toContain('--signal-gold: #f1c644')
