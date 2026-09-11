@@ -17,6 +17,7 @@ type Service struct {
 	android        androidRunner
 	apks           apkFetcher
 	waitReady      func(context.Context, string) error
+	addressReady   func(context.Context, string) bool
 	mu             sync.Mutex
 	inflight       map[string]context.CancelFunc
 	autoCreateAVD  bool
@@ -35,6 +36,7 @@ func New(dataDirectory string) (*Service, error) {
 		android:       execAndroidRunner{},
 		apks:          httpAPKFetcher{},
 		waitReady:     waitHTTPReady,
+		addressReady:  httpReady,
 		inflight:      map[string]context.CancelFunc{},
 		autoCreateAVD: true,
 		androidTooling: AndroidTooling{AutoCreateAVD: true},
@@ -66,6 +68,7 @@ func NewForTest(dataDirectory string, compose composeRunner, android androidRunn
 		return nil, err
 	}
 	service.waitReady = nil
+	service.addressReady = func(context.Context, string) bool { return true }
 	if compose != nil {
 		service.compose = compose
 	}
@@ -345,7 +348,11 @@ func (s *Service) Status(ctx context.Context, owner Owner) Lease {
 			lease.Detail = err.Error()
 		}
 		if state == "ready" {
-			if item.Address != "" && !httpReady(ctx, item.Address) {
+			probe := s.addressReady
+			if probe == nil {
+				probe = httpReady
+			}
+			if item.Address != "" && !probe(ctx, item.Address) {
 				lease.State = "failed"
 				lease.Error = item.Address + " 未响应"
 			} else {
