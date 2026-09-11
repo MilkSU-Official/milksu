@@ -12,6 +12,7 @@ import {
   emptySessionTurnSnapshot,
   presentContextUsage,
 } from '@/lib/sessionTurnStatus'
+import { installAppModelSettings, installModelCatalog } from '@/modelCatalog'
 
 const mountedApps: App[] = []
 
@@ -131,6 +132,8 @@ afterEach(() => {
   for (const app of mountedApps.splice(0)) app.unmount()
   document.body.innerHTML = ''
   Reflect.deleteProperty(window, 'milksu')
+  installModelCatalog(null)
+  installAppModelSettings(null)
 })
 
 describe('ChatComposer', () => {
@@ -186,6 +189,8 @@ describe('ChatComposer', () => {
     expect(composerControlsSource).not.toContain('aria-label="Coding 执行模式"')
     expect(composerControlsSource).not.toMatch(/\.composer-mode\s*\{/)
     expect(composerControlsSource).not.toMatch(/(?:^|\n)\.composer-permission \{[\s\S]*?\n\s*width: 7\.5rem;/)
+    expect(composerControlsSource).toContain('dshAcpSupportsModel')
+    expect(composerControlsSource).toContain(':disabled="modelUnavailableOnDsh(model)"')
   })
 
   it('shows a discrete thinking shortcut only when the selected model enables it', async () => {

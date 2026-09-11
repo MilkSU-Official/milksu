@@ -125,6 +125,50 @@ func withDSHSidecarEnvironment(environment []string) []string {
 	return mergeSidecarEnvironment(environment, extra)
 }
 
+func withDSHProviderEnvironment(environment []string, settings config.AppSettings) []string {
+	key, baseURL, ok := dshDeepSeekConnection(settings)
+	if !ok {
+		return environment
+	}
+	extra := []string{"DEEPSEEK_API_KEY=" + key}
+	if baseURL != "" {
+		extra = append(extra, "DEEPSEEK_BASE_URL="+baseURL)
+	}
+	return mergeSidecarEnvironment(environment, extra)
+}
+
+func dshDeepSeekConnection(settings config.AppSettings) (key, baseURL string, ok bool) {
+	providerID := strings.TrimSpace(settings.ActiveProvider)
+	provider, exists := settings.Providers[providerID]
+	if !exists {
+		return "", "", false
+	}
+	key = strings.TrimSpace(provider.APIKey)
+	if key == "" {
+		return "", "", false
+	}
+	if provider.BaseURL != nil {
+		baseURL = strings.TrimSpace(*provider.BaseURL)
+	}
+	if provider.Custom {
+		return key, baseURL, true
+	}
+	switch providerID {
+	case "deepseek":
+		if baseURL == "" {
+			baseURL = "https://api.deepseek.com"
+		}
+		return key, baseURL, true
+	case "tokenflux":
+		if baseURL == "" {
+			baseURL = "https://tokenflux.dev/v1"
+		}
+		return key, baseURL, true
+	default:
+		return "", "", false
+	}
+}
+
 func canonicalCurrentExecutable() (string, error) {
 	executable, err := os.Executable()
 	if err != nil {

@@ -2071,6 +2071,7 @@ func (s *Supervisor) ensureKernelProcessLocked(
 	}
 	if kernel == KernelDSH {
 		command.Env = withDSHSidecarEnvironment(command.Env)
+		command.Env = withDSHProviderEnvironment(command.Env, settings)
 	}
 	stderr := newSidecarStderrBuffer()
 	command.Stderr = io.MultiWriter(os.Stderr, stderr)

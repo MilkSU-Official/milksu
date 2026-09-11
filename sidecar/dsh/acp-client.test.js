@@ -1,7 +1,17 @@
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import test from "node:test";
-import { createAcpClient } from "./acp-client.js";
+import { createAcpClient, formatAcpError } from "./acp-client.js";
+
+test("ACP Internal error keeps the protocol detail", () => {
+  assert.equal(
+    formatAcpError({
+      message: "Internal error",
+      data: { details: "Failed to load the ES module: host-plugin.js" },
+    }),
+    "Internal error: Failed to load the ES module: host-plugin.js",
+  );
+});
 
 test("spawn failure is reported through onFailure instead of an unhandled error", async () => {
   const failures = [];

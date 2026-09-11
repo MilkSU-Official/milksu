@@ -191,7 +191,7 @@
 文档收口提交不移动该 tag。Windows 代码签名、Linux Secret Service / 本地 OCR、Hyprland/Xorg Computer Use 仍缺。CTF 比赛模式和实验室红队学习面仍未接线。
 
 - #53 的 typed sweep / inventory 工具尚未做。只在真实 wide job 仍用 bash 复刻库存后再做。
-- 新对话可选 Pi 或 DeepSeek Harness。DeepSeek 会话不能 rewind / 分叉；`milksu_ask` / `milksu_workspace` 已接到 ACP。
+- 新对话可选 Pi 或 DeepSeek Harness。DeepSeek 会话不能 rewind / 分叉；`milksu_ask` / `milksu_workspace` 已接到 ACP。安装包里的 host plugin 用 `.mjs` 加载；当前选中的模型凭据会映射成 DSH 认识的 DeepSeek 连接。DSH ACP 还没有应用设置/对话所选型号，会话仍用 harness 默认 `deepseek-v4-flash`。选中 DeepSeek Harness 后，左侧模型下拉把 DSH 目录外的型号标成不可选；目录是 `deepseek-flash`、`deepseek-v4-flash`、`deepseek-v4-pro`、`deepseek-v4-flash-vision-exp`。
 - 思考结束后，同一条空助手消息不再额外挂「正在回复」；工具开始或正文开始时会收起「正在思考」。
 - 不再用目录/白名单把模型标成纯文本。TokenFlux 即使回报 `input: ["text"]` 也不再改走 OCR；附件和 Computer Use 截图按图片交给当前模型，由模型或接口自己处理。
 

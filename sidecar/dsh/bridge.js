@@ -99,7 +99,7 @@ function milksuMcpServer(conversationId) {
 
 function writeHostPatch() {
   const here = dirname(fileURLToPath(import.meta.url));
-  const plugin = join(here, "host-plugin.js");
+  const plugin = join(here, "host-plugin.mjs");
   const home = String(process.env.DSH_HOME ?? "").trim();
   if (!home || !existsSync(plugin)) return "";
   mkdirSync(home, { recursive: true, mode: 0o700 });

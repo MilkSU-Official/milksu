@@ -32,6 +32,7 @@ import {
   parseComposerModelKey,
   useModelCatalog,
 } from '@/modelCatalog'
+import { dshAcpSupportsModel } from '@/lib/dshModels'
 import ModelVendorIcon from '@/components-vue/ModelVendorIcon.vue'
 import { t } from '@/lib/uiLocale'
 
@@ -75,6 +76,19 @@ const thinkingLabel = computed(() => (
 function changeThinkingIndex(value: string) {
   const level = thinkingLevels.value[Number(value)]
   if (level) emit('changeThinkingLevel', level)
+}
+
+function modelUnavailableOnDsh(model: string) {
+  return props.kernel === 'dsh' && !dshAcpSupportsModel(model)
+}
+
+function changeModel(value: string) {
+  const next = String(value ?? '')
+  const parsed = parseComposerModelKey(next)
+  if (parsed.mode === 'manual' && parsed.model && modelUnavailableOnDsh(parsed.model)) {
+    return
+  }
+  emit('changeModel', next)
 }
 
 /** Text fed to keyword matching for the closed trigger. */
@@ -240,7 +254,7 @@ function triggerModelText() {
       <Select
         :model-value="modelKey"
         :disabled="running"
-        @update:model-value="value => $emit('changeModel', String(value ?? ''))"
+        @update:model-value="value => changeModel(String(value ?? ''))"
       >
         <SelectTrigger
           size="sm"
@@ -279,6 +293,10 @@ function triggerModelText() {
                 v-for="model in group.models"
                 :key="`${group.key}:${model}`"
                 :value="encodeComposerModelKey(group.providerId, model, group.source)"
+                :disabled="modelUnavailableOnDsh(model)"
+                :title="modelUnavailableOnDsh(model)
+                  ? t('DeepSeek Harness 不支持这个模型', 'DeepSeek Harness does not support this model')
+                  : undefined"
               >
                 <span class="inline-flex min-w-0 items-center gap-2">
                   <ModelVendorIcon

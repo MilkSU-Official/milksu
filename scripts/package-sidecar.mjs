@@ -708,10 +708,7 @@ async function smokePackagedDshBridge(node, output, workspace, dshHome) {
       }
       if (text.includes('"type":"ready"')) return
       if (text.includes('"type":"error"')) {
-        if (/ENOENT|not packaged/i.test(text)) {
-          throw new Error(`packaged dsh-bridge failed to spawn dsh: ${text}`)
-        }
-        return
+        throw new Error(`packaged dsh-bridge failed to create a session: ${text}`)
       }
       await new Promise(resolve => setTimeout(resolve, 50))
     }
@@ -1376,8 +1373,8 @@ async function buildSidecar(platform) {
     bundleBridge('sidecar/dsh/bridge.js', dshOutput),
     bundleBridge('sidecar/dsh/product-mcp.js', dshProductMcpOutput),
     copyFile(
-      join(repositoryRoot, 'sidecar', 'dsh', 'host-plugin.js'),
-      join(output, 'host-plugin.js'),
+      join(repositoryRoot, 'sidecar', 'dsh', 'host-plugin.mjs'),
+      join(output, 'host-plugin.mjs'),
     ),
     bundleBridge('sidecar/computer-use/computer-use-proxy.js', computerUseProxyOutput),
     bundleBridge(
@@ -1394,7 +1391,7 @@ async function buildSidecar(platform) {
     chmod(chatOutput, 0o644),
     chmod(dshOutput, 0o644),
     chmod(dshProductMcpOutput, 0o644),
-    chmod(join(output, 'host-plugin.js'), 0o644),
+    chmod(join(output, 'host-plugin.mjs'), 0o644),
     chmod(computerUseProxyOutput, 0o644),
     chmod(piSubagentLauncherOutput, 0o755),
     chmod(piSubagentRunnerOutput, 0o644),
@@ -1425,7 +1422,7 @@ async function buildSidecar(platform) {
       license: 'MIT',
       licenseFile: 'THIRD_PARTY-LICENSES/deepseek-harness-MIT.txt',
       bin: 'node_modules/@deepseek-ai/dsh/lib/bin.js',
-      hostPlugin: 'host-plugin.js',
+      hostPlugin: 'host-plugin.mjs',
     },
     skills: {
       firstParty: {
@@ -1660,7 +1657,7 @@ async function smokeSidecar(platform) {
     join(output, 'THIRD_PARTY-LICENSES', 'deepseek-harness-MIT.txt'),
     join(output, 'dsh-bridge.cjs'),
     join(output, 'product-mcp.cjs'),
-    join(output, 'host-plugin.js'),
+    join(output, 'host-plugin.mjs'),
     join(output, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js'),
     join(output, 'node_modules', 'commander', 'package.json'),
     join(output, 'node_modules', 'js-yaml', 'package.json'),
@@ -2605,7 +2602,7 @@ async function installSidecar(platform, binaryPath) {
     'chat-bridge.cjs',
     'dsh-bridge.cjs',
     'product-mcp.cjs',
-    'host-plugin.js',
+    'host-plugin.mjs',
     'computer-use-proxy.cjs',
     'pi-subagent-launcher.sh',
     'pi-subagent-runner.cjs',

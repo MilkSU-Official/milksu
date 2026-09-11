@@ -1,6 +1,22 @@
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
-import { formatProcessFailure } from "./redact.js";
+import { formatProcessFailure, redactProcessText } from "./redact.js";
+
+export function formatAcpError(error) {
+  const message = String(error?.message || "ACP error").trim() || "ACP error";
+  const data = error?.data;
+  let detail = "";
+  if (typeof data === "string") {
+    detail = data.trim();
+  } else if (data && typeof data === "object") {
+    const candidate = data.details ?? data.detail ?? data.message ?? data.error;
+    if (typeof candidate === "string") {
+      detail = candidate.trim();
+    }
+  }
+  const combined = detail && detail !== message ? `${message}: ${detail}` : message;
+  return redactProcessText(combined);
+}
 
 const stderrLimit = 8 << 10;
 
@@ -52,7 +68,7 @@ export function createAcpClient(options = {}) {
       const { resolve, reject } = pending.get(message.id);
       pending.delete(message.id);
       if (message.error) {
-        reject(new Error(message.error.message || "ACP error"));
+        reject(new Error(formatAcpError(message.error)));
         return;
       }
       resolve(message.result);

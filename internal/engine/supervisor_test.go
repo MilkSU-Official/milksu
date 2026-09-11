@@ -2330,6 +2330,77 @@ func TestSidecarEnvironmentPublishesCanonicalUserHomeWithoutGrantingIt(t *testin
 	}
 }
 
+func TestWithDSHProviderEnvironmentMapsActiveCustomRelay(t *testing.T) {
+	baseURL := "https://api.deepseek.com"
+	settings := config.DefaultSettings()
+	settings.ActiveProvider = "custom-relay-deepseek"
+	settings.ActiveModel = "deepseek-flash"
+	settings.Providers["deepseek"] = config.ProviderConfig{
+		APIKey:  "official-disabled-secret",
+		Enabled: false,
+	}
+	settings.Providers["custom-relay-deepseek"] = config.ProviderConfig{
+		Custom:  true,
+		Name:    "DeepSeek",
+		Models:  []string{"deepseek-flash"},
+		APIKey:  "custom-relay-secret",
+		BaseURL: &baseURL,
+		Enabled: true,
+	}
+
+	environment := withDSHProviderEnvironment(engineEnvironment(settings), settings)
+	for _, expected := range []string{
+		"DEEPSEEK_API_KEY=custom-relay-secret",
+		"DEEPSEEK_BASE_URL=https://api.deepseek.com",
+	} {
+		if !containsEnvironmentEntry(environment, expected) {
+			t.Fatalf("expected %q in %#v", expected, environment)
+		}
+	}
+	for _, entry := range environment {
+		if strings.Contains(entry, "official-disabled-secret") {
+			t.Fatalf("disabled official DeepSeek credential leaked into DSH env: %q", entry)
+		}
+	}
+}
+
+func TestWithDSHProviderEnvironmentMapsActiveTokenFlux(t *testing.T) {
+	baseURL := "https://tokenflux.dev/v1"
+	settings := config.DefaultSettings()
+	settings.ActiveProvider = "tokenflux"
+	settings.ActiveModel = "deepseek-v4-flash"
+	settings.Providers["tokenflux"] = config.ProviderConfig{
+		APIKey:  "tokenflux-provider-secret",
+		BaseURL: &baseURL,
+		Enabled: true,
+	}
+
+	environment := withDSHProviderEnvironment(engineEnvironment(settings), settings)
+	for _, expected := range []string{
+		"DEEPSEEK_API_KEY=tokenflux-provider-secret",
+		"DEEPSEEK_BASE_URL=https://tokenflux.dev/v1",
+	} {
+		if !containsEnvironmentEntry(environment, expected) {
+			t.Fatalf("expected %q in %#v", expected, environment)
+		}
+	}
+}
+
+func TestWithDSHProviderEnvironmentDoesNotMapUnrelatedOfficialProvider(t *testing.T) {
+	settings := config.DefaultSettings()
+	settings.ActiveProvider = "anthropic"
+	settings.ActiveModel = "claude-sonnet"
+	settings.Providers["anthropic"] = config.ProviderConfig{
+		APIKey:  "anthropic-secret",
+		Enabled: true,
+	}
+
+	environment := withDSHProviderEnvironment(engineEnvironment(settings), settings)
+	if value := environmentValue(environment, "DEEPSEEK_API_KEY"); value != "" {
+		t.Fatalf("unrelated provider leaked into DEEPSEEK_API_KEY: %q", value)
+	}
+}
+
 func TestWithDSHSidecarEnvironmentPublishesBoundedUnixIpc(t *testing.T) {
 	t.Setenv("MILKSU_APPDATA_DIR", t.TempDir())
 	environment := withDSHSidecarEnvironment([]string{"PATH=/usr/bin"})
