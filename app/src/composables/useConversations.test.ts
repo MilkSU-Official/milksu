@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  agentEngineErrorBubble,
   agentErrorMessage,
   agentRuntimeErrorMessage,
   agentToolResultMessage,
@@ -437,6 +438,36 @@ describe('Coding approval conversation recovery', () => {
     const message = agentRuntimeErrorMessage(raw)
     expect(message).toContain(expected)
     expect(message).not.toContain(hidden)
+  })
+
+  it('maps incomplete subagent yield validation into a bounded turn-stop message', () => {
+    const message = agentRuntimeErrorMessage('Subagent yield requires cwd or worktreeId')
+    expect(message).toBe('子任务结果不完整，本轮已停止。')
+    expect(message).not.toMatch(/cwd|worktreeId|Subagent yield/i)
+
+    const missing = agentRuntimeErrorMessage('Subagent yield is missing status')
+    expect(missing).toBe('子任务结果不完整，本轮已停止。')
+  })
+
+  it('projects engine.error stop without a failure prefix', () => {
+    const stopped = agentEngineErrorBubble('AbortError: This operation was aborted')
+    expect(stopped.stopped).toBe(true)
+    expect(stopped.content).toBe('本轮已停止。')
+    expect(stopped.content).not.toContain('运行失败')
+    expect(stopped.approvalReason).toBe('本轮已停止，本次审批已失效')
+    expect(stopped.approvalReason).not.toContain('运行失败')
+
+    const failed = agentEngineErrorBubble('Error: internal module exploded at bridge.js:42')
+    expect(failed.stopped).toBe(false)
+    expect(failed.content).toContain('Agent 运行失败')
+    expect(failed.content).not.toContain('本轮已停止')
+    expect(failed.approvalReason).toContain('Agent 运行失败，本次审批已失效')
+
+    const yieldValidate = agentEngineErrorBubble('Subagent yield requires cwd or worktreeId')
+    expect(yieldValidate.stopped).toBe(false)
+    expect(yieldValidate.content).toContain('Agent 运行失败')
+    expect(yieldValidate.content).toContain('子任务结果不完整')
+    expect(yieldValidate.content).not.toMatch(/cwd|worktreeId|Subagent yield/i)
   })
 
   it('does not expose unknown engine internals just because diagnostics need redaction', () => {

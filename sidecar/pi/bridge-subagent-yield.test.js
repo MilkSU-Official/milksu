@@ -204,6 +204,27 @@ test("roster start appears and end becomes succeeded or failed", () => {
   assert.equal(failed[0].exitCode, 2);
 });
 
+test("normalize falls back to session workspace then dot when Pi omits location", () => {
+  const withWorkspace = normalizeSubagentYield({
+    content: [{ type: "text", text: "scouted the module" }],
+    details: {
+      results: [{
+        agent: "scout",
+        text: "mapped the tree",
+      }],
+    },
+  }, { workspace: "/work" });
+  assert.equal(withWorkspace.cwd, ".");
+  assert.deepEqual(withWorkspace.files, []);
+  assert.deepEqual(withWorkspace.findings, []);
+  assert.ok(Number.isSafeInteger(withWorkspace.exitCode));
+
+  const emptyContext = normalizeSubagentYield({
+    content: [{ type: "text", text: "scouted the module" }],
+  }, {});
+  assert.equal(emptyContext.cwd, ".");
+});
+
 test("tool_result hook only wraps subagent results", async () => {
   const listeners = new Map();
   const extension = createSubagentYieldExtension({
@@ -231,6 +252,39 @@ test("tool_result hook only wraps subagent results", async () => {
     input: { agent: "worker" },
   });
   assert.equal(readSubagentYieldField(wrapped, "files[0]"), "a.ts");
+
+  const unstructured = await handler({
+    toolName: "subagent",
+    content: [{ type: "text", text: "scouted the module" }],
+    details: {
+      results: [{
+        agent: "scout",
+        text: "looked at src/",
+      }],
+    },
+  });
+  assert.ok(unstructured);
+  assert.equal(unstructured.details.schema, "milksu-subagent-yield/v1");
+  assert.equal(unstructured.details.yield.cwd, ".");
+  assert.deepEqual(unstructured.details.yield.files, []);
+  assert.equal(String(unstructured.content[0].text).includes("requires cwd"), false);
+  assert.equal(String(unstructured.content[0].text).includes("worktreeId"), false);
+
+  const emptyContextListeners = new Map();
+  createSubagentYieldExtension({})({
+    on(type, handler) {
+      emptyContextListeners.set(type, handler);
+    },
+  });
+  const emptyHandler = emptyContextListeners.get("tool_result");
+  const emptyWrapped = await emptyHandler({
+    toolName: "subagent",
+    content: [{ type: "text", text: "scouted" }],
+    details: { results: [{ text: "no location" }] },
+  });
+  assert.ok(emptyWrapped);
+  assert.equal(emptyWrapped.details.yield.cwd, ".");
+  assert.equal(emptyWrapped.details.yield.status, "failed");
 });
 
 test("formatSubagentToolInput stays compact", () => {

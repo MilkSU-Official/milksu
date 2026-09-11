@@ -615,6 +615,9 @@ export function agentRuntimeErrorMessage(value: unknown) {
     }
     return t('上下文过长，正在自动整理…', 'Context is too long. Compacting automatically…')
   }
+  if (/Subagent yield requires cwd or worktreeId|Subagent yield must be an object|Subagent yield is missing |Read-only subagent yield/i.test(raw)) {
+    return t('子任务结果不完整，本轮已停止。', 'The subtask result was incomplete, so this turn stopped.')
+  }
   if (new RegExp(`abort(?:ed)?|cancel(?:led|ed)|interrupted|context canceled|${t('用户已中断', 'Interrupted by the user')}|${t('用户取消', 'Cancelled by the user')}`, 'i').test(raw)) {
     return t('本轮已停止。', 'This turn was stopped.')
   }
@@ -632,6 +635,23 @@ export function agentRuntimeErrorMessage(value: unknown) {
   }
   // Internal stack / empty detail only: keep a short recovery hint.
   return t('本地 Agent 运行异常，请重试。', 'The local Agent hit a runtime error. Try again.')
+}
+
+export function agentEngineErrorBubble(error: unknown) {
+  const detail = agentRuntimeErrorMessage(error)
+  const stopped = t('本轮已停止。', 'This turn was stopped.')
+  if (detail === stopped) {
+    return {
+      content: stopped,
+      approvalReason: t('本轮已停止，本次审批已失效', 'This turn was stopped, so this approval is no longer valid'),
+      stopped: true,
+    }
+  }
+  return {
+    content: t(`Agent 运行失败：${detail}`, `Agent failed: ${detail}`),
+    approvalReason: t('Agent 运行失败，本次审批已失效', 'Agent failed, so this approval is no longer valid'),
+    stopped: false,
+  }
 }
 
 export function agentToolResultMessage(text: string, error?: string) {
@@ -2276,23 +2296,26 @@ export function useConversations() {
           if (cleaned !== messages) {
             messages.splice(0, messages.length, ...cleaned)
           }
+          const bubble = agentEngineErrorBubble(error)
           for (let index = 0; index < messages.length; index++) {
             if (messages[index].approvalState === 'pending') {
               messages[index] = {
                 ...messages[index],
                 status: 'done',
                 approvalState: 'expired',
-                approvalReason: t('Agent 运行失败，本次审批已失效', 'Agent failed, so this approval is no longer valid'),
+                approvalReason: bubble.approvalReason,
               }
             }
           }
-          messages.push({
-            id: crypto.randomUUID(),
-            role: 'assistant',
-            content: t(`Agent 运行失败：${agentRuntimeErrorMessage(error)}`, `Agent failed: ${agentRuntimeErrorMessage(error)}`),
-            timestamp: Date.now(),
-            status: 'done',
-          })
+          if (!bubble.stopped || messages[messages.length - 1]?.content !== bubble.content) {
+            messages.push({
+              id: crypto.randomUUID(),
+              role: 'assistant',
+              content: bubble.content,
+              timestamp: Date.now(),
+              status: 'done',
+            })
+          }
         }
         if (type === 'runtime.compaction_started' || type === 'runtime.compaction_completed') {
           const compactError = error ? codingCompactionErrorMessage(error) : ''

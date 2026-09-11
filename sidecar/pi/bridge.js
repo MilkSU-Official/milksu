@@ -1322,7 +1322,7 @@ function createMilkSUResourceLoader(
       createSubagentYieldExtension(() => {
         const policy = getPolicy?.();
         return {
-          workspace: policy?.workspace,
+          workspace: policy?.workspace || cwd,
           collaboration: policy?.codingCollaboration,
           worktrees: policy?.codingCollaboration?.worktrees,
         };

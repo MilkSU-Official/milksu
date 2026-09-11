@@ -142,8 +142,9 @@ function resolveLocation(raw, options) {
     entry?.id === worktreeId
     || (requestedCwd && entry?.path === requestedCwd)
   ));
+  const workspace = String(options.workspace ?? "").trim();
   return {
-    cwd: requestedCwd || matched?.path || String(options.workspace ?? "").trim(),
+    cwd: requestedCwd || matched?.path || workspace || ".",
     worktreeId: matched?.id || worktreeId,
     worktreePath: matched?.path || "",
   };
@@ -274,13 +275,17 @@ export function normalizeSubagentYield(raw, options = {}) {
     );
     return finding ? [finding] : [];
   });
-  const cwd = location.cwd
+  let cwd = location.cwd
     ? relativizePath(location.cwd, roots, homeDirectory)
     : "";
+  const worktreeId = location.worktreeId || undefined;
+  if (!cwd && !worktreeId) {
+    cwd = ".";
+  }
   const normalized = {
     status,
     cwd: cwd || undefined,
-    worktreeId: location.worktreeId || undefined,
+    worktreeId,
     files,
     findings,
     exitCode: exitCode ?? (status === "succeeded" ? 0 : 1),
@@ -472,12 +477,37 @@ export function projectSubagentToolResult(event, context = {}) {
   };
 }
 
+function failedSubagentYield(workspace) {
+  return {
+    status: "failed",
+    cwd: workspace,
+    files: [],
+    findings: [],
+    exitCode: 1,
+  };
+}
+
 export function createSubagentYieldExtension(getContext) {
   return (pi) => {
     pi.on("tool_result", async (event) => {
       if (String(event?.toolName ?? "").trim() !== "subagent") return undefined;
       const context = typeof getContext === "function" ? getContext() : getContext;
-      return projectSubagentToolResult(event, context);
+      try {
+        return projectSubagentToolResult(event, context);
+      } catch {
+        const workspace = String(context?.workspace ?? "").trim() || ".";
+        return projectSubagentToolResult({
+          toolName: "subagent",
+          content: event?.content,
+          input: event?.input ?? event?.args,
+          details: {
+            yield: failedSubagentYield(workspace),
+          },
+        }, {
+          ...context,
+          workspace,
+        });
+      }
     });
   };
 }

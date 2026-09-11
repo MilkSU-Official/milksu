@@ -195,6 +195,8 @@
 - 思考结束后，同一条空助手消息不再额外挂「正在回复」；工具开始或正文开始时会收起「正在思考」。
 - 不再用目录/白名单把模型标成纯文本。TokenFlux 即使回报 `input: ["text"]` 也不再改走 OCR；附件和 Computer Use 截图按图片交给当前模型，由模型或接口自己处理。
 - macOS / Windows 无感更新先把 Admin 安装包整包下载并校验 SHA-256，再经本机回环喂给 electron-updater；关掉差分/多段 Range，安装只走 `quitAndInstall`，不再额外 `app.quit()`。从磁盘镜像或 App Translocation 启动仍会挡住安装。已发出的 `26.911.2` 客户端还是旧下载路径。
+- 子 Agent 回传缺 cwd/worktreeId 时回退到会话工作区，不再把整轮打死，也不再把英文校验句写进「Agent 运行失败」。
+- 用户停止只显示「本轮已停止。」，不再写成「Agent 运行失败：本轮已停止。」
 
 ## 当前产品事实
 
