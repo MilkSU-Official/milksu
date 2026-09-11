@@ -31,6 +31,8 @@ const windowsPlatformSourceRelativePath = join(
   'browser_platform.rs',
 )
 const licenseRelativePath = 'LICENSE.md'
+// Upstream * text=auto checks out CRLF on Windows. Hash after LF normalization
+// so the pin matches the git blob, not the working-tree line endings.
 const expectedCargoLockSha256 = '1200667c238ea4b425e7ab0b1e3bfa1c49b93158ae90bd52a15d5e78c2871678'
 const expectedWindowsPlatformSourceSha256 = '509e8467489b4201c947779dced4af267bdd68bd1a588a6d249404ef948fc53f'
 const buildRecipe = 'cua-driver-windows-pinned-source-v2'
@@ -215,7 +217,10 @@ async function verifySource(sourceRoot, gitEnvironment) {
       { env: gitEnvironment },
     )
     if (origin.trim() !== sourceRepository) return false
-    if (await sha256(join(sourceRoot, cargoLockRelativePath)) !== expectedCargoLockSha256) {
+    if (
+      await normalizedTextSha256(join(sourceRoot, cargoLockRelativePath))
+      !== expectedCargoLockSha256
+    ) {
       return false
     }
     if (
@@ -247,6 +252,9 @@ async function prepareSource(paths) {
   await run('git', ['-C', paths.source, 'config', 'core.autocrlf', 'false'], {
     env: gitEnvironment,
   })
+  await run('git', ['-C', paths.source, 'config', 'core.eol', 'lf'], {
+    env: gitEnvironment,
+  })
   await run('git', ['-C', paths.source, 'config', 'core.safecrlf', 'true'], {
     env: gitEnvironment,
   })
@@ -267,14 +275,19 @@ async function prepareSource(paths) {
   await run('git', ['-C', paths.source, 'checkout', '--quiet', '--detach', 'FETCH_HEAD'], {
     env: gitEnvironment,
   })
-  if (await sha256(join(paths.source, cargoLockRelativePath)) !== expectedCargoLockSha256) {
-    throw new Error('pinned Cua Cargo.lock checksum mismatch')
+  const cargoLockSha256 = await normalizedTextSha256(join(paths.source, cargoLockRelativePath))
+  if (cargoLockSha256 !== expectedCargoLockSha256) {
+    throw new Error(
+      `pinned Cua Cargo.lock checksum mismatch: expected ${expectedCargoLockSha256}, got ${cargoLockSha256}`,
+    )
   }
-  if (
-    await normalizedTextSha256(join(paths.source, windowsPlatformSourceRelativePath))
-    !== expectedWindowsPlatformSourceSha256
-  ) {
-    throw new Error('pinned Cua Windows platform source checksum mismatch')
+  const windowsPlatformSourceSha256 = await normalizedTextSha256(
+    join(paths.source, windowsPlatformSourceRelativePath),
+  )
+  if (windowsPlatformSourceSha256 !== expectedWindowsPlatformSourceSha256) {
+    throw new Error(
+      `pinned Cua Windows platform source checksum mismatch: expected ${expectedWindowsPlatformSourceSha256}, got ${windowsPlatformSourceSha256}`,
+    )
   }
   if (!await verifySource(paths.source, gitEnvironment)) {
     throw new Error('pinned Cua source failed provenance verification')
