@@ -284,6 +284,76 @@ func TestManagerSafelyFinishesWorktreeContainingSubmodule(t *testing.T) {
 	}
 }
 
+func TestManagerDoesNotCopyNestedNodeModulesMatchedByUnanchoredInclude(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	repository := newRepository(t)
+	rootModules := filepath.Join(repository, "node_modules", "vitepress")
+	if err := os.MkdirAll(rootModules, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(rootModules, "package.json"), []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	nested := filepath.Join(repository, "build", "sidecar-smoke", "dsh-home", "profiles", "node_modules", "@agentclientprotocol")
+	if err := os.MkdirAll(nested, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(
+		filepath.Join(string(filepath.Separator), "outside-acp-sdk"),
+		filepath.Join(nested, "sdk"),
+	); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(repository, ".gitignore"), []byte("node_modules/\nbuild/\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(repository, ".worktreeinclude"), []byte("node_modules/\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	git(t, repository, "add", ".gitignore", ".worktreeinclude")
+	git(t, repository, "commit", "-m", "configure nested ignored modules")
+
+	manager, err := New(filepath.Join(t.TempDir(), "collaboration"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	status, err := manager.Prepare(ctx, "nested-modules", repository, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writerRoot := filepath.Join(status.Worktrees[0].Path, "node_modules", "vitepress", "package.json")
+	if _, err := os.Lstat(writerRoot); err != nil {
+		t.Fatalf("root node_modules was not copied: %v", err)
+	}
+	escaped := filepath.Join(
+		status.Worktrees[0].Path,
+		"build",
+		"sidecar-smoke",
+		"dsh-home",
+		"profiles",
+		"node_modules",
+		"@agentclientprotocol",
+		"sdk",
+	)
+	if _, err := os.Lstat(escaped); !os.IsNotExist(err) {
+		t.Fatalf("nested smoke node_modules leaked into the writer: %v", err)
+	}
+}
+
+func TestNormalizeWorktreeIncludePatternRootsUnanchoredNames(t *testing.T) {
+	t.Parallel()
+	if got := normalizeWorktreeIncludePattern("node_modules/"); got != "/node_modules/" {
+		t.Fatalf("unanchored directory = %q", got)
+	}
+	if got := normalizeWorktreeIncludePattern("app/node_modules/"); got != "app/node_modules/" {
+		t.Fatalf("path pattern = %q", got)
+	}
+	if got := normalizeWorktreeIncludePattern("/node_modules/"); got != "/node_modules/" {
+		t.Fatalf("already rooted = %q", got)
+	}
+}
+
 func TestManagerRejectsWorktreeIncludeSymlinkEscapingRepository(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
