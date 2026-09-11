@@ -18,7 +18,7 @@ import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import { build } from 'esbuild'
-import { firstPartyCodingSkillNames } from '../sidecar/pi/bridge-skills.js'
+import { firstPartyCodingSkillNames, optionalCodingSkillNames } from '../sidecar/pi/bridge-skills.js'
 import { prepareReviewedTypeScript } from '../sidecar/pi/prepare-reviewed-ts.mjs'
 import {
   computerUseRuntimeRoot,
@@ -916,7 +916,8 @@ async function buildSidecar(platform) {
     : ''
   const archifySource = join(repositoryRoot, 'third_party', 'archify', 'archify')
   const archifyOutput = join(output, 'skills', 'archify')
-  const firstPartySkills = firstPartyCodingSkillNames.map(name => ({
+  const packagedSkillNames = [...firstPartyCodingSkillNames, ...optionalCodingSkillNames]
+  const firstPartySkills = packagedSkillNames.map(name => ({
     name,
     source: join(repositoryRoot, 'skills', name),
     output: join(output, 'skills', name),
@@ -1263,6 +1264,13 @@ async function buildSidecar(platform) {
         paths: firstPartyCodingSkillNames.map(name => `skills/${name}`),
         scope: 'coding-only',
       },
+      optional: {
+        package: '@milksu/coding-skills',
+        version: '1',
+        origin: 'first-party-optional',
+        paths: optionalCodingSkillNames.map(name => `skills/${name}`),
+        scope: 'coding-opt-in',
+      },
       archify: {
         package: 'tt-a1i/archify',
         version: archifyPackage.version,
@@ -1493,7 +1501,7 @@ async function smokeSidecar(platform) {
     join(output, 'lsp-runtime', 'node_modules', '@vue', 'language-server', 'LICENSE'),
     join(output, 'lsp-runtime', 'node_modules', 'typescript', 'LICENSE.txt'),
     join(output, 'skills', 'archify', 'LICENSE'),
-    ...firstPartyCodingSkillNames.flatMap(name => [
+    ...packagedSkillNames.flatMap(name => [
       join(output, 'skills', name, 'SKILL.md'),
       join(output, 'skills', name, 'agents', 'openai.yaml'),
     ]),

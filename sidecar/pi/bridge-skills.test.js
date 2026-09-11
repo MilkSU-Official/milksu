@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import {
   extraCodingSkillPaths,
   firstPartyCodingSkillNames,
+  optionalCodingSkillNames,
   resolveCodingSkillPaths,
   reviewedCodingSkillNames,
   reviewedCodingSkillPaths,
@@ -118,4 +119,18 @@ test("first-party skill descriptions are Pi routing rules", () => {
   const prompt = formatSkillsForPrompt(catalog);
   assert.match(prompt, /frontend-visual-qa/);
   assert.doesNotMatch(prompt, /release-milksu/);
+});
+
+test("optional reverse-engineering skills stay out of the default catalog", () => {
+  const reviewed = reviewedCodingSkillPaths(repositoryRoot);
+  for (const name of optionalCodingSkillNames) {
+    assert.ok(!reviewed.some(path => path.endsWith(`skills/${name}`)));
+    const fields = skillFrontmatter(name);
+    assert.equal(fields.name, name);
+    assert.match(fields.description, /Use /);
+  }
+  assert.deepEqual(
+    extraCodingSkillPaths(optionalCodingSkillNames.map(name => join(repositoryRoot, "skills", name))),
+    optionalCodingSkillNames.map(name => join(repositoryRoot, "skills", name)),
+  );
 });

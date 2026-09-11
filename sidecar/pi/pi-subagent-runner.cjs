@@ -291,15 +291,33 @@ function reviewedPromptFiles(
   return promptFiles;
 }
 
-function rewriteRoutedModelArguments(argumentsList) {
-  const index = argumentsList.indexOf("--model");
-  if (index < 0 || typeof argumentsList[index + 1] !== "string") return argumentsList;
-  const selected = argumentsList[index + 1].trim();
-  if (!selected.startsWith("milksu-route/")) return argumentsList;
+function applyWorkerModelArguments(argumentsList, environment = process.env) {
+  const override = String(environment.MILKSU_WORKER_MODEL ?? "").trim();
+  if (!override) return argumentsList;
+  const thinking = String(environment.MILKSU_WORKER_THINKING ?? "").trim();
+  const value = /^(off|minimal|low|medium|high|xhigh|max)$/.test(thinking)
+    ? `${override}:${thinking}`
+    : override;
+  if (!selectedModel(["--model", value])) return argumentsList;
+  const next = [...argumentsList];
+  const index = next.indexOf("--model");
+  if (index >= 0 && typeof next[index + 1] === "string") {
+    next[index + 1] = value;
+    return next;
+  }
+  return [...next, "--model", value];
+}
+
+function rewriteRoutedModelArguments(argumentsList, environment = process.env) {
+  const resolved = applyWorkerModelArguments(argumentsList, environment);
+  const index = resolved.indexOf("--model");
+  if (index < 0 || typeof resolved[index + 1] !== "string") return resolved;
+  const selected = resolved[index + 1].trim();
+  if (!selected.startsWith("milksu-route/")) return resolved;
   // The parent session uses a virtual milksu-route provider. The isolated
   // child CLI does not register that provider, so map it to the account
   // TokenFlux transport the parent already configured as milksu-relay.
-  const next = [...argumentsList];
+  const next = [...resolved];
   next[index + 1] = `milksu-relay/${selected.slice("milksu-route/".length)}`;
   return next;
 }
@@ -488,6 +506,7 @@ module.exports = {
   reviewedPromptFiles,
   sandboxProfile,
   validateCLIArguments,
+  applyWorkerModelArguments,
   rewriteRoutedModelArguments,
   writeRuntimeModelConfig,
 };

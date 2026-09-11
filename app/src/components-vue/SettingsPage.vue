@@ -33,8 +33,8 @@ import {
   ArrowLeft,
   Box,
   Bug,
+  BookMarked,
   Check,
-  Code2,
   Copy,
   Download,
   FileWarning,
@@ -54,7 +54,7 @@ import {
   Trash2,
   WalletCards,
 } from 'lucide-vue-next'
-import { desktopErrorMessage, invokeCommand } from '@/desktop'
+import { desktopErrorMessage, invokeCommand, listenEvent } from '@/desktop'
 import type {
   BrowserUseRuntime,
   CodingComputerUsePermission,
@@ -80,6 +80,7 @@ import type {
 } from '@/types'
 import {
   customProviderInfo,
+  PRESET_DEEPSEEK_SERVICE_ID,
   withAppSettingsDefaults,
 } from '@/types'
 import {
@@ -99,7 +100,11 @@ import ModelVendorIcon from '@/components-vue/ModelVendorIcon.vue'
 import ArchivedConversationsSettings from '@/components-vue/ArchivedConversationsSettings.vue'
 import ConnectionLiveStatus from '@/components-vue/ConnectionLiveStatus.vue'
 import { useVulnerabilityDashboard, type VulnerabilityDashboard } from '@/composables/useVulnerabilityDashboard'
-import { CODING_SKILLS } from '@/codingSkills'
+import {
+  allCodingSkills,
+  isOptionalCodingSkill,
+  skillIsEnabled,
+} from '@/codingSkills'
 import {
   emptyAgentResourceCatalog,
   type AgentResourceCatalog,
@@ -124,10 +129,13 @@ import {
 import { resolveModelContextWindow } from '@/lib/knownContextWindow'
 import type { ResolvedThemeMode } from '@/lib/themeMode'
 
-type SettingsCategory = 'general' | 'apikeys' | 'ctf' | 'cve' | 'lab' | 'coding' | 'mcp' | 'chats' | 'browser' | 'security-tools' | 'eval' | 'plugins'
+type SettingsCategory = 'general' | 'apikeys' | 'ctf' | 'cve' | 'lab' | 'coding' | 'skills' | 'mcp' | 'chats' | 'browser' | 'security-tools' | 'eval' | 'plugins'
+type NormalizedSettingsCategory = Exclude<SettingsCategory, 'security-tools' | 'coding'>
 
-function normalizeSettingsCategory(value: SettingsCategory): Exclude<SettingsCategory, 'security-tools'> {
-  return value === 'security-tools' ? 'mcp' : value
+function normalizeSettingsCategory(value: SettingsCategory): NormalizedSettingsCategory {
+  if (value === 'security-tools') return 'mcp'
+  if (value === 'coding') return 'skills'
+  return value
 }
 
 const settingsCategories = computed(() => [
@@ -136,7 +144,7 @@ const settingsCategories = computed(() => [
   { value: 'ctf' as const, label: 'CTF', icon: Flag },
   { value: 'cve' as const, label: 'CVE', icon: Bug },
   { value: 'lab' as const, label: 'Lab', icon: FlaskConical },
-  { value: 'coding' as const, label: 'Coding', icon: Code2 },
+  { value: 'skills' as const, label: 'Skills', icon: BookMarked },
   { value: 'mcp' as const, label: 'MCP', icon: Plug },
   { value: 'chats' as const, label: t('归档聊天', 'Archived chats'), icon: Archive },
   { value: 'browser' as const, label: t('浏览器控制', 'Browser'), icon: Globe2 },
@@ -263,6 +271,7 @@ watch(() => props.initialCategory, value => {
 watch(working, value => {
   if (value) installAppModelSettings(value)
 }, { deep: true })
+let unlistenCodingToolSetup: (() => void) | undefined
 onMounted(() => {
   void loadLocalData()
   void loadUserArtifactDirectory()
@@ -271,10 +280,16 @@ onMounted(() => {
   void refreshBrowserUseRuntime({ silent: true })
   void refreshBrowserBridgeStatus({ silent: true })
   window.addEventListener('focus', refreshComputerUseAfterSettings)
+  void listenEvent<{ toolId: string; state: string }>('coding-tool-setup', () => {
+    void loadCodingToolSkills()
+  }).then(unlisten => {
+    unlistenCodingToolSetup = unlisten
+  })
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('focus', refreshComputerUseAfterSettings)
+  unlistenCodingToolSetup?.()
 })
 
 function refreshComputerUseAfterSettings() {
@@ -594,16 +609,137 @@ function alignDefaultModelToEnabledServices() {
 }
 
 function skillEnabled(name: string): boolean {
-  return !working.value?.disabled_skills?.includes(name)
+  return skillIsEnabled(
+    name,
+    working.value?.disabled_skills ?? [],
+    working.value?.enabled_optional_skills ?? [],
+  )
 }
 
 function setSkillEnabled(name: string, enabled: boolean) {
   if (!working.value) return
-  const disabled = new Set(working.value.disabled_skills ?? [])
-  if (enabled) disabled.delete(name)
-  else disabled.add(name)
-  working.value.disabled_skills = [...disabled]
+  if (isOptionalCodingSkill(name)) {
+    const selected = new Set(working.value.enabled_optional_skills ?? [])
+    if (enabled) selected.add(name)
+    else selected.delete(name)
+    working.value.enabled_optional_skills = [...selected]
+  } else {
+    const disabled = new Set(working.value.disabled_skills ?? [])
+    if (enabled) disabled.delete(name)
+    else disabled.add(name)
+    working.value.disabled_skills = [...disabled]
+  }
   void save()
+}
+
+const WORKER_MODEL_INHERIT = 'inherit'
+const workerModelKey = computed({
+  get: () => {
+    if (!working.value?.worker_provider || !working.value.worker_model) {
+      return WORKER_MODEL_INHERIT
+    }
+    const match = matchPickerGroup(working.value.worker_provider, working.value.worker_model)
+    return encodePickerSelection(
+      working.value.worker_provider,
+      working.value.worker_model,
+      working.value.worker_source || match?.source || 'service',
+    )
+  },
+  set: value => {
+    if (!working.value) return
+    const key = String(value ?? '')
+    if (!key || key === WORKER_MODEL_INHERIT) {
+      working.value.worker_provider = ''
+      working.value.worker_model = ''
+      working.value.worker_source = ''
+      void save()
+      return
+    }
+    const selection = parsePickerSelection(key)
+    if (!selection) return
+    working.value.worker_provider = selection.providerId
+    working.value.worker_model = selection.model
+    working.value.worker_source = selection.source
+    void save()
+  },
+})
+
+const workerModelAvailable = computed(() => {
+  if (!working.value?.worker_provider || !working.value.worker_model) return true
+  return availablePickerGroups.value.some(group => (
+    group.providerId === working.value?.worker_provider
+    && group.models.includes(working.value.worker_model ?? '')
+  ))
+})
+
+const workerModelLabel = computed(() => {
+  if (!working.value?.worker_provider || !working.value.worker_model) {
+    return t('跟随当前对话', 'Follow current conversation')
+  }
+  const match = matchPickerGroup(working.value.worker_provider, working.value.worker_model)
+  if (match) return availablePickerModelLabel(match, working.value.worker_model)
+  return availableProviderModelLabel(
+    working.value.worker_provider,
+    working.value.worker_model,
+  )
+})
+
+watch([working, availablePickerGroups], () => {
+  if (!working.value?.worker_provider || !working.value.worker_model) return
+  if (!availablePickerGroups.value.length) return
+  if (workerModelAvailable.value) return
+  working.value.worker_provider = ''
+  working.value.worker_model = ''
+  working.value.worker_source = ''
+  void save()
+})
+
+type CodingToolSkillSnapshot = {
+  name: string
+  status: 'found' | 'missing' | 'needs_setup' | 'configuring' | 'failed'
+  version?: string
+  problem?: string
+  canPrepare: boolean
+  preparing: boolean
+}
+
+const codingToolSkills = ref<CodingToolSkillSnapshot[]>([])
+const codingToolSetupBusy = ref('')
+
+function codingToolSkill(name: string): CodingToolSkillSnapshot | undefined {
+  return codingToolSkills.value.find(item => item.name === name)
+}
+
+function codingToolStatusLabel(skill: CodingToolSkillSnapshot): string {
+  if (skill.status === 'found') {
+    return skill.version
+      ? t(`已找到 ${skill.version}`, `Found ${skill.version}`)
+      : t('已找到', 'Found')
+  }
+  if (skill.status === 'needs_setup') return t('可准备', 'Can prepare')
+  if (skill.status === 'configuring') return t('正在准备', 'Preparing')
+  if (skill.status === 'failed') return t('准备失败', 'Prepare failed')
+  return t('未找到', 'Not found')
+}
+
+async function loadCodingToolSkills() {
+  try {
+    codingToolSkills.value = await invokeCommand<CodingToolSkillSnapshot[]>('list_coding_tool_skills')
+  } catch {
+    codingToolSkills.value = []
+  }
+}
+
+async function prepareCodingToolSkill(name: string) {
+  codingToolSetupBusy.value = name
+  try {
+    await invokeCommand('start_coding_tool_skill_setup', { name })
+    await loadCodingToolSkills()
+  } catch (reason) {
+    userSkillError.value = desktopErrorMessage(reason)
+  } finally {
+    codingToolSetupBusy.value = ''
+  }
 }
 
 const userSkillCatalog = ref<AgentResourceCatalog>(emptyAgentResourceCatalog())
@@ -735,8 +871,12 @@ async function openBuiltinSkillConversation(name: string) {
 }
 
 watch(category, value => {
-  if (value === 'coding') void loadUserSkills()
+  if (value === 'skills') {
+    void loadUserSkills()
+    void loadCodingToolSkills()
+  }
 }, { immediate: true })
+
 
 function ensureProviderConfig(id: string): ProviderConfig | undefined {
   if (!working.value) return undefined
@@ -823,6 +963,12 @@ function removeModelService(id: string) {
     delete working.value.providers[id]
     if (working.value.model_thinking) delete working.value.model_thinking[id]
     if (working.value.model_context_windows) delete working.value.model_context_windows[id]
+    if (id === PRESET_DEEPSEEK_SERVICE_ID) {
+      working.value.removed_preset_services = [...new Set([
+        ...(working.value.removed_preset_services ?? []),
+        PRESET_DEEPSEEK_SERVICE_ID,
+      ])]
+    }
   } else {
     working.value.providers[id] = {
       ...config,
@@ -1591,6 +1737,27 @@ async function saveProviderEditor(closeAfterSave: boolean) {
               </NativeSelect>
             </SettingsRow>
           </SettingsSection>
+          <SettingsSection :title="t('编辑器', 'Editor')">
+            <SettingsRow :label="t('打开文件', 'Open files')" :divider="false">
+              <div class="flex items-center gap-2">
+                <ExternalEditorIcon :editor="working.preferred_external_editor" />
+                <NativeSelect
+                  :model-value="normalizePreferredExternalEditor(working.preferred_external_editor)"
+                  size="sm"
+                  :aria-label="t('打开文件的编辑器', 'Editor for opening files')"
+                  @update:model-value="working.preferred_external_editor = String($event); void save()"
+                >
+                  <NativeSelectOption
+                    v-for="editor in EXTERNAL_EDITORS"
+                    :key="editor.id"
+                    :value="editor.id"
+                  >
+                    {{ editor.label }}
+                  </NativeSelectOption>
+                </NativeSelect>
+              </div>
+            </SettingsRow>
+          </SettingsSection>
           <SettingsSection :title="t('文件', 'Files')">
             <SettingsRow
               :label="t('文档', 'Documents')"
@@ -1749,41 +1916,31 @@ async function saveProviderEditor(closeAfterSave: boolean) {
           </SettingsSection>
         </template>
 
-        <template v-else-if="working && category === 'coding'">
-          <SettingsSection :title="t('编辑器', 'Editor')">
-            <SettingsRow :label="t('打开文件', 'Open files')">
-              <div class="flex items-center gap-2">
-                <ExternalEditorIcon :editor="working.preferred_external_editor" />
-                <NativeSelect
-                  :model-value="normalizePreferredExternalEditor(working.preferred_external_editor)"
-                  size="sm"
-                  :aria-label="t('打开文件的编辑器', 'Editor for opening files')"
-                  @update:model-value="working.preferred_external_editor = String($event); void save()"
-                >
-                  <NativeSelectOption
-                    v-for="editor in EXTERNAL_EDITORS"
-                    :key="editor.id"
-                    :value="editor.id"
-                  >
-                    {{ editor.label }}
-                  </NativeSelectOption>
-                </NativeSelect>
-              </div>
-            </SettingsRow>
-          </SettingsSection>
-
+        <template v-else-if="working && category === 'skills'">
           <SettingsSection :title="t('内置 Skills', 'Built-in Skills')">
             <p v-if="userSkillError" class="px-4 py-3 text-caption text-destructive">{{ userSkillError }}</p>
             <SettingsRow
-              v-for="skill in CODING_SKILLS"
+              v-for="skill in allCodingSkills()"
               :key="skill.name"
               :label="skill.label"
               :description="[
                 skill.description,
+                codingToolSkill(skill.name) ? codingToolStatusLabel(codingToolSkill(skill.name)!) : '',
                 skillOverlay(skill.name)?.customized ? t('已修改', 'Modified') : '',
               ].filter(Boolean).join(' · ')"
             >
               <div class="flex flex-wrap items-center justify-end gap-2">
+                <Button
+                  v-if="codingToolSkill(skill.name)?.canPrepare"
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  :disabled="codingToolSetupBusy === skill.name"
+                  :loading="codingToolSetupBusy === skill.name"
+                  @click="prepareCodingToolSkill(skill.name)"
+                >
+                  {{ t('准备', 'Prepare') }}
+                </Button>
                 <Button
                   type="button"
                   variant="outline"
@@ -2108,6 +2265,56 @@ async function saveProviderEditor(closeAfterSave: boolean) {
               </Select>
               </SettingsRow>
             </div>
+            <SettingsRow
+              :label="t('subagent', 'subagent')"
+              :divider="false"
+            >
+              <Select
+                id="worker-model"
+                v-model="workerModelKey"
+              >
+                <SelectTrigger
+                  id="worker-model"
+                  size="sm"
+                  class="w-72 max-w-full"
+                  :aria-label="t('subagent', 'subagent')"
+                >
+                  <SelectValue>
+                    <span class="min-w-0 truncate">{{ workerModelLabel }}</span>
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent size="sm" align="start" class="min-w-96">
+                  <SelectGroup>
+                    <SelectItem :value="WORKER_MODEL_INHERIT">
+                      {{ t('跟随当前对话', 'Follow current conversation') }}
+                    </SelectItem>
+                  </SelectGroup>
+                  <SelectSeparator v-if="availablePickerGroups.length" />
+                  <template
+                    v-for="(group, groupIndex) in availablePickerGroups"
+                    :key="group.key"
+                  >
+                    <SelectSeparator v-if="groupIndex > 0" />
+                    <SelectGroup>
+                      <SelectLabel>{{ group.label }}</SelectLabel>
+                      <SelectItem
+                        v-for="model in group.models"
+                        :key="`${group.key}:${model}`"
+                        :value="encodePickerSelection(group.providerId, model, group.source)"
+                      >
+                        <span class="inline-flex min-w-0 items-center gap-2">
+                          <ModelVendorIcon
+                            :model="model"
+                            :label="availablePickerModelLabel(group, model)"
+                          />
+                          <span class="min-w-0 truncate">{{ availablePickerModelLabel(group, model) }}</span>
+                        </span>
+                      </SelectItem>
+                    </SelectGroup>
+                  </template>
+                </SelectContent>
+              </Select>
+            </SettingsRow>
           </SettingsSection>
 
           <section>

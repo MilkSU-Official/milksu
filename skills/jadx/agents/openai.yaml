@@ -1,0 +1,4 @@
+interface:
+  display_name: "JADX"
+  short_description: "Decompile an APK into the current workspace"
+  default_prompt: "Use $jadx to decompile this APK into the current workspace and inspect the recovered Java."

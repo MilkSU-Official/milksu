@@ -409,9 +409,10 @@ type Supervisor struct {
 }
 
 type AgentResourceRuntime struct {
-	MCPServers        map[string]any
-	SkillPaths        []string
-	HideFactorySkills []string
+	MCPServers         map[string]any
+	SkillPaths         []string
+	OptionalSkillPaths []string
+	HideFactorySkills  []string
 }
 
 type WorkspaceActionHandler func(sessionID, action, input string) (string, error)
@@ -775,8 +776,18 @@ func (s *Supervisor) sendMessage(
 	if len(resourceRuntime.MCPServers) > 0 {
 		command["userMcpServers"] = resourceRuntime.MCPServers
 	}
-	if paths := filterSkillPaths(resourceRuntime.SkillPaths, settings.DisabledSkills); len(paths) > 0 {
-		command["userSkillPaths"] = paths
+	skillPaths := filterSkillPaths(resourceRuntime.SkillPaths, settings.DisabledSkills)
+	skillPaths = append(skillPaths, resourceRuntime.OptionalSkillPaths...)
+	if len(skillPaths) > 0 {
+		command["userSkillPaths"] = skillPaths
+	}
+	if worker, ok := config.ResolveWorkerModel(settings); ok {
+		command["workerModel"] = map[string]any{
+			"provider": worker.Provider,
+			"model":    worker.Model,
+			"source":   worker.Source,
+			"thinking": config.ResolveModelThinking(settings, worker.Provider, worker.Model, ""),
+		}
 	}
 	if codingBrowser != nil {
 		command["codingBrowser"] = codingBrowser

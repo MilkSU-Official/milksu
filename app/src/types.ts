@@ -301,12 +301,17 @@ export interface AppSettings {
   nssctf_arena?: NSSCTFArenaConfig
   locale?: 'en' | 'zh'
   disabled_skills?: string[]
+  enabled_optional_skills?: string[]
+  worker_provider?: string
+  worker_model?: string
+  worker_source?: 'account' | 'personal' | 'service' | ''
   preferred_external_editor?: string
   security_tools?: Record<string, { enabled: boolean }>
   model_thinking?: Record<string, Record<string, ModelThinkingConfig>>
   model_context_windows?: Record<string, Record<string, number>>
   lab?: LabConfig
   providers: Record<string, ProviderConfig>
+  removed_preset_services?: string[]
 }
 
 export interface LabConfig {
@@ -321,11 +326,19 @@ export const PRIMARY_MODEL_SELECTION: ModelSelection = {
 }
 export const TOKENFLUX_DEFAULT_MODEL = 'x-ai/grok-4.6'
 
+export const PRESET_DEEPSEEK_SERVICE_ID = 'custom-relay-deepseek'
+export const PRESET_DEEPSEEK_BASE_URL = 'https://api.deepseek.com'
+export const PRESET_DEEPSEEK_MODELS = ['deepseek-flash', 'deepseek-v4-pro'] as const
+
 export function withAppSettingsDefaults(value: AppSettings): AppSettings {
   const legacy = value as AppSettings & {
     providers?: Record<string, ProviderConfig>
   }
-  const configuredProviders = legacy.providers ?? {}
+  const removedPresetServices = normalizeRemovedPresetServices(value.removed_preset_services)
+  const configuredProviders = ensurePresetProviders(
+    { ...(legacy.providers ?? {}) },
+    removedPresetServices,
+  )
   const configuredProvider = customProviderInfo(
     value.active_provider,
     configuredProviders[value.active_provider],
@@ -358,9 +371,14 @@ export function withAppSettingsDefaults(value: AppSettings): AppSettings {
     disabled_skills: [...new Set((value.disabled_skills ?? [])
       .map(name => String(name).trim())
       .filter(name => /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/.test(name)))],
+    enabled_optional_skills: [...new Set((value.enabled_optional_skills ?? [])
+      .map(name => String(name).trim())
+      .filter(name => name === 'ghidra-rpc' || name === 'jadx'))],
+    ...normalizeWorkerSelection(value),
     model_thinking: normalizeModelThinkingSettings(value.model_thinking, configuredProviders),
     model_context_windows: normalizeModelContextWindows(value.model_context_windows, configuredProviders),
     providers: configuredProviders,
+    removed_preset_services: removedPresetServices,
     locale: value.locale === 'en' ? 'en' : 'zh',
     lab: {
       android_sdk: String(value.lab?.android_sdk ?? '').trim(),
@@ -368,6 +386,23 @@ export function withAppSettingsDefaults(value: AppSettings): AppSettings {
       auto_create_avd: value.lab?.auto_create_avd !== false,
     },
   }
+}
+
+function normalizeWorkerSelection(value: AppSettings): Pick<
+  AppSettings,
+  'worker_provider' | 'worker_model' | 'worker_source'
+> {
+  const provider = String(value.worker_provider ?? '').trim()
+  const model = String(value.worker_model ?? '').trim()
+  if (!provider || !model) {
+    return { worker_provider: '', worker_model: '', worker_source: '' }
+  }
+  const source = value.worker_source === 'account'
+    || value.worker_source === 'personal'
+    || value.worker_source === 'service'
+    ? value.worker_source
+    : provider === 'tokenflux' ? 'personal' : 'service'
+  return { worker_provider: provider, worker_model: model, worker_source: source }
 }
 
 export function normalizeModelRouting(value?: Partial<ModelRoutingConfig>): ModelRoutingConfig {
@@ -588,10 +623,45 @@ function selectableProvider(id: string) {
   return Boolean(provider)
 }
 
+function normalizeRemovedPresetServices(value?: readonly string[]): string[] {
+  return [...new Set((value ?? [])
+    .map(name => String(name).trim())
+    .filter(name => name === PRESET_DEEPSEEK_SERVICE_ID))]
+}
+
+function customRelayCount(providers: Record<string, ProviderConfig>): number {
+  return Object.values(providers).filter(item => item.custom).length
+}
+
+export function ensurePresetProviders(
+  providers: Record<string, ProviderConfig>,
+  removed: readonly string[] = [],
+): Record<string, ProviderConfig> {
+  if (
+    removed.includes(PRESET_DEEPSEEK_SERVICE_ID)
+    || providers[PRESET_DEEPSEEK_SERVICE_ID]
+    || customRelayCount(providers) >= 8
+  ) {
+    return providers
+  }
+  providers[PRESET_DEEPSEEK_SERVICE_ID] = {
+    api_key: '',
+    has_api_key: false,
+    enabled: false,
+    custom: true,
+    name: 'DeepSeek',
+    base_url: PRESET_DEEPSEEK_BASE_URL,
+    models: [...PRESET_DEEPSEEK_MODELS],
+  }
+  return providers
+}
+
 export function providerModelLabel(provider: string, model: string) {
   const info = PROVIDERS.find(item => item.id === provider)
   const displayModel = ({
+    'deepseek-flash': 'DeepSeek Flash',
     'deepseek-v4-flash': 'DeepSeek V4 Flash',
+    'deepseek-v4-pro': 'DeepSeek V4 Pro',
     'x-ai/grok-4.6': 'Grok 4.6',
     'x-ai/grok-4.5': 'Grok 4.5',
     'grok-4.3': 'Grok 4.3',

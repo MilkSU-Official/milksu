@@ -10,6 +10,11 @@ export const firstPartyCodingSkillNames = Object.freeze([
   "release-milksu",
 ]);
 
+export const optionalCodingSkillNames = Object.freeze([
+  "ghidra-rpc",
+  "jadx",
+]);
+
 export const reviewedCodingSkillNames = Object.freeze([
   ...firstPartyCodingSkillNames,
   "archify",

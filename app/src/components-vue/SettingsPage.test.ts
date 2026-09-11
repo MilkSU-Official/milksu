@@ -70,7 +70,7 @@ afterEach(() => {
 })
 
 interface MountSettingsOptions {
-  initialCategory?: 'general' | 'apikeys' | 'ctf' | 'cve' | 'lab' | 'coding' | 'mcp' | 'chats' | 'browser' | 'security-tools' | 'eval'
+  initialCategory?: 'general' | 'apikeys' | 'ctf' | 'cve' | 'lab' | 'coding' | 'skills' | 'mcp' | 'chats' | 'browser' | 'security-tools' | 'eval' | 'plugins'
   settings?: AppSettings
   accountStatus?: AccountStatus
   appMethods?: Record<string, (...args: unknown[]) => Promise<unknown>>
@@ -140,6 +140,10 @@ async function mountSettingsPage(
     }),
     ListAgentResourceCatalog: async () => ({ mcpServers: [], skills: [], builtinMCP: [], builtinSkills: [] }),
     ListSecurityTools: async () => [],
+    ListCodingToolSkills: async () => [
+      { name: 'ghidra-rpc', status: 'missing', canPrepare: false, preparing: false },
+      { name: 'jadx', status: 'missing', canPrepare: false, preparing: false },
+    ],
     GetEvalBoard: async () => ({
       suites: [
         { id: 'cybench', name: 'Cybench', purpose: 'CTF 题', runnable: true, taskN: 1 },
@@ -388,7 +392,7 @@ describe('SettingsPage Coding Agent Skills', () => {
       fileCount: 0,
       bytes: 0,
     }, {
-      initialCategory: 'coding',
+      initialCategory: 'skills',
       settings,
       appMethods: {
         SaveSettingsCmd: async (value: unknown) => {
@@ -433,7 +437,7 @@ describe('SettingsPage Coding Agent Skills', () => {
       fileCount: 0,
       bytes: 0,
     }, {
-      initialCategory: 'coding',
+      initialCategory: 'skills',
       settings,
       appMethods: {
         ListAgentResourceCatalog: async () => imported
@@ -528,7 +532,7 @@ describe('SettingsPage Coding Agent Skills', () => {
       fileCount: 0,
       bytes: 0,
     }, {
-      initialCategory: 'coding',
+      initialCategory: 'general',
       settings,
       appMethods: {
         SaveSettingsCmd: async (value: unknown) => {
@@ -552,6 +556,63 @@ describe('SettingsPage Coding Agent Skills', () => {
 
     expect((savedSettings as AppSettings | null)?.preferred_external_editor).toBe('cursor')
     expect([...document.querySelectorAll('button')].some(button => (button.textContent ?? '').includes('保存设置'))).toBe(false)
+  })
+
+  it('shows the worker model picker under the default model', async () => {
+    const settings = withAppSettingsDefaults({
+      active_provider: 'tokenflux',
+      active_model: 'x-ai/grok-4.6',
+      model_routing: {
+        source_order: ['account', 'personal'],
+        auto_fallback: false,
+      },
+      providers: {},
+    })
+    await mountSettingsPage({
+      directory: 'MilkSU 用户数据目录',
+      fileCount: 0,
+      bytes: 0,
+    }, {
+      initialCategory: 'apikeys',
+      settings,
+    })
+
+    expect(document.body.textContent).toContain('默认模型')
+    expect(document.body.textContent).toContain('subagent')
+    expect(document.body.textContent).toContain('跟随当前对话')
+    expect(document.body.textContent).not.toContain('四个工作区派出')
+    expect(document.body.textContent).not.toContain('Ghidra')
+  })
+
+  it('shows optional reverse-engineering skills off by default', async () => {
+    const settings = withAppSettingsDefaults({
+      active_provider: 'tokenflux',
+      active_model: 'x-ai/grok-4.6',
+      model_routing: {
+        source_order: ['account', 'personal'],
+        auto_fallback: false,
+      },
+      providers: {},
+    })
+    await mountSettingsPage({
+      directory: 'MilkSU 用户数据目录',
+      fileCount: 0,
+      bytes: 0,
+    }, {
+      initialCategory: 'coding',
+      settings,
+    })
+
+    expect(document.body.textContent).toContain('Ghidra')
+    expect(document.body.textContent).toContain('JADX')
+    expect(document.body.textContent).toContain('未找到')
+    expect(document.body.textContent).not.toContain('subagent')
+    const switches = [...document.querySelectorAll('button[role="switch"]')]
+    const ghidra = switches.find(button => button.getAttribute('aria-label') === '启用Ghidra')
+    const jadx = switches.find(button => button.getAttribute('aria-label') === '启用JADX')
+    expect(ghidra?.getAttribute('aria-checked')).toBe('false')
+    expect(jadx?.getAttribute('aria-checked')).toBe('false')
+    expect([...document.querySelectorAll('.settings-nav-item')].some(item => item.classList.contains('active') && item.textContent?.trim() === 'Skills')).toBe(true)
   })
 })
 
@@ -891,7 +952,7 @@ describe('SettingsPage database compatibility', () => {
 
     const labels = [...document.querySelectorAll<HTMLElement>('.settings-nav-item')]
       .map(item => item.textContent?.trim())
-    expect(labels).toEqual(['通用', '模型', 'CTF', 'CVE', 'Lab', 'Coding', 'MCP', '归档聊天', '浏览器控制', '评测', '插件'])
+    expect(labels).toEqual(['通用', '模型', 'CTF', 'CVE', 'Lab', 'Skills', 'MCP', '归档聊天', '浏览器控制', '评测', '插件'])
     expect(document.body.textContent).toContain('@milksuofficial · 内测用户')
     const generalTitles = [...document.querySelectorAll('h2')].map(item => item.textContent?.trim())
     expect(generalTitles[0]).toBe('账户')
@@ -1342,7 +1403,7 @@ describe('SettingsPage database compatibility', () => {
     expect(document.querySelector('.provider-editor-dialog')).not.toBeNull()
     expect(modelServiceRowTitles()).toContain('MilkSU 账户')
     expect(modelServiceRowTitles()).not.toContain('我的中转站')
-    expect(Object.keys(settings.providers).some(id => id.startsWith('custom-relay-'))).toBe(false)
+    expect(Object.keys(settings.providers).filter(id => id.startsWith('custom-relay-') && id !== 'custom-relay-deepseek')).toEqual([])
   })
 
   it('discards an unsaved custom relay when the editor is closed', async () => {
@@ -1393,7 +1454,7 @@ describe('SettingsPage database compatibility', () => {
     for (let index = 0; index < 6; index += 1) await settle()
 
     expect(savedSettings).not.toBeNull()
-    expect(Object.keys(savedSettings!.providers).some(id => id.startsWith('custom-relay-'))).toBe(false)
+    expect(Object.keys(savedSettings!.providers).filter(id => id.startsWith('custom-relay-') && id !== 'custom-relay-deepseek')).toEqual([])
     expect(savedSettings!.active_provider).toBe('tokenflux')
   })
 
@@ -1444,6 +1505,67 @@ describe('SettingsPage database compatibility', () => {
     const accountRow = [...document.querySelectorAll<HTMLElement>('.model-service-row')]
       .find(row => row.textContent?.includes('MilkSU 账户'))
     expect(accountRow?.querySelector('[role="switch"]')).not.toBeNull()
+  })
+
+  it('shows a default DeepSeek official service that can be edited and deleted', async () => {
+    let savedSettings: AppSettings | null = null
+    const settings = withAppSettingsDefaults({
+      active_provider: 'tokenflux',
+      active_model: 'x-ai/grok-4.6',
+      providers: {},
+    } as AppSettings)
+    await mountSettingsPage({
+      directory: 'MilkSU 用户数据目录',
+      fileCount: 0,
+      bytes: 0,
+    }, {
+      initialCategory: 'apikeys',
+      settings,
+      appMethods: {
+        SaveSettingsCmd: async (value: unknown) => {
+          savedSettings = value as AppSettings
+        },
+        GetSettings: async () => savedSettings ?? settings,
+        TestAgentModel: async () => ({
+          provider: 'tokenflux',
+          model: 'x-ai/grok-4.6',
+          ready: true,
+          latencyMs: 20,
+        }),
+      },
+    })
+
+    expect(modelServiceRowTitles()).toContain('DeepSeek')
+    const deepseekRow = [...document.querySelectorAll<HTMLElement>('.model-service-row')]
+      .find(row => (row.querySelector('p.font-medium')?.textContent ?? '').trim() === 'DeepSeek')
+    expect(deepseekRow?.textContent).toContain('编辑')
+    expect(deepseekRow?.textContent).toContain('删除')
+    expect(deepseekRow?.textContent).toContain('未配置')
+
+    const edit = [...deepseekRow!.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.trim() === '编辑')
+    edit?.click()
+    await settle()
+    const dialog = document.querySelector<HTMLElement>('.provider-editor-dialog')
+    const endpoint = dialog?.querySelector<HTMLInputElement>('input[aria-label="API 端点"]')
+    expect(endpoint?.value).toBe('https://api.deepseek.com')
+    expect(dialog?.textContent).toContain('deepseek-flash')
+    document.querySelector<HTMLButtonElement>('button[aria-label="Close"]')?.click()
+    await settle()
+
+    const remove = [...deepseekRow!.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.trim() === '删除')
+    remove?.click()
+    await settle()
+    expect(modelServiceRowTitles()).not.toContain('DeepSeek')
+
+    const saveButton = [...document.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.includes('保存并验证'))
+    saveButton?.click()
+    for (let index = 0; index < 6; index += 1) await settle()
+    const persisted = savedSettings as unknown as AppSettings
+    expect(persisted.providers['custom-relay-deepseek']).toBeUndefined()
+    expect(persisted.removed_preset_services).toEqual(['custom-relay-deepseek'])
   })
 
   it('edits TokenFlux personal without silently replacing the default model service', async () => {
@@ -1687,6 +1809,7 @@ describe('SettingsPage custom relay catalog isolation', () => {
       active_provider: 'custom-relay-0',
       active_model: 'grok-4.5',
       providers,
+      removed_preset_services: ['custom-relay-deepseek'],
     } as AppSettings)
     await mountSettingsPage({ directory: 'MilkSU 用户数据目录', fileCount: 0, bytes: 0 }, {
       initialCategory: 'apikeys',

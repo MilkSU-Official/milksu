@@ -21,6 +21,8 @@ const (
 	nssctfArenaSecretAccount = "nssctf-agent-arena"
 	providerAccountPrefix    = "provider:"
 	tokenFluxAccountURL      = "https://tokenflux.dev/v1"
+	presetDeepSeekServiceID  = "custom-relay-deepseek"
+	presetDeepSeekBaseURL    = "https://api.deepseek.com"
 )
 
 type RelayConfig struct {
@@ -89,12 +91,17 @@ type AppSettings struct {
 	NSSCTFArena             *NSSCTFArenaConfig                        `json:"nssctf_arena,omitempty"`
 	Locale                  *string                                   `json:"locale,omitempty"`
 	DisabledSkills          []string                                  `json:"disabled_skills"`
+	EnabledOptionalSkills   []string                                  `json:"enabled_optional_skills,omitempty"`
+	WorkerProvider          string                                    `json:"worker_provider,omitempty"`
+	WorkerModel             string                                    `json:"worker_model,omitempty"`
+	WorkerSource            string                                    `json:"worker_source,omitempty"`
 	PreferredExternalEditor string                                    `json:"preferred_external_editor,omitempty"`
 	SecurityTools           map[string]SecurityToolPreference         `json:"security_tools,omitempty"`
 	ModelThinking           map[string]map[string]ModelThinkingConfig `json:"model_thinking,omitempty"`
 	ModelContextWindows     map[string]map[string]int                 `json:"model_context_windows,omitempty"`
 	Lab                     *LabConfig                                `json:"lab,omitempty"`
 	Providers               map[string]ProviderConfig                 `json:"providers"`
+	RemovedPresetServices   []string                                  `json:"removed_preset_services,omitempty"`
 	// RuntimeModelCatalogPath is injected only into resolved settings so Pi can
 	// read the same refreshed public model metadata as the desktop UI. It is
 	// never persisted or returned across Desktop RPC.
@@ -707,6 +714,10 @@ func withDefaults(value AppSettings) AppSettings {
 		value.ModelRouting.AutoFallback = boolPointer(false)
 	}
 	value.DisabledSkills = normalizeDisabledSkills(value.DisabledSkills)
+	value.EnabledOptionalSkills = normalizeEnabledOptionalSkills(value.EnabledOptionalSkills)
+	value.RemovedPresetServices = normalizeRemovedPresetServices(value.RemovedPresetServices)
+	value = ensurePresetServices(value)
+	value = normalizeWorkerModel(value)
 	value.PreferredExternalEditor = externaleditor.Normalize(value.PreferredExternalEditor)
 	value.SecurityTools = normalizeSecurityToolPreferences(value.SecurityTools)
 	value.ModelThinking = normalizeModelThinkingOverrides(value.ModelThinking, value.Providers)
@@ -811,10 +822,116 @@ func normalizeDisabledSkills(value []string) []string {
 	return result
 }
 
+var optionalCodingSkills = map[string]bool{
+	"ghidra-rpc": true,
+	"jadx":       true,
+}
+
+func normalizeEnabledOptionalSkills(value []string) []string {
+	result := make([]string, 0, len(value))
+	for _, name := range normalizeDisabledSkills(value) {
+		if optionalCodingSkills[name] {
+			result = append(result, name)
+		}
+	}
+	return result
+}
+
+func normalizeRemovedPresetServices(value []string) []string {
+	result := make([]string, 0, len(value))
+	seen := make(map[string]bool, len(value))
+	for _, name := range value {
+		name = strings.TrimSpace(name)
+		if name != presetDeepSeekServiceID || seen[name] {
+			continue
+		}
+		seen[name] = true
+		result = append(result, name)
+	}
+	return result
+}
+
+func ensurePresetServices(value AppSettings) AppSettings {
+	if value.Providers == nil {
+		value.Providers = make(map[string]ProviderConfig)
+	}
+	for _, name := range value.RemovedPresetServices {
+		if name == presetDeepSeekServiceID {
+			return value
+		}
+	}
+	if _, exists := value.Providers[presetDeepSeekServiceID]; exists {
+		return value
+	}
+	customCount := 0
+	for _, provider := range value.Providers {
+		if provider.Custom {
+			customCount++
+		}
+	}
+	if customCount >= 8 {
+		return value
+	}
+	baseURL := presetDeepSeekBaseURL
+	value.Providers[presetDeepSeekServiceID] = ProviderConfig{
+		Enabled: false,
+		Custom:  true,
+		Name:    "DeepSeek",
+		BaseURL: &baseURL,
+		Models:  []string{"deepseek-flash", "deepseek-v4-pro"},
+	}
+	return value
+}
+
+func normalizeWorkerModel(value AppSettings) AppSettings {
+	provider := strings.TrimSpace(value.WorkerProvider)
+	model := strings.TrimSpace(value.WorkerModel)
+	source := strings.TrimSpace(value.WorkerSource)
+	if provider == "" || model == "" {
+		value.WorkerProvider = ""
+		value.WorkerModel = ""
+		value.WorkerSource = ""
+		return value
+	}
+	if source != ModelSourceAccount && source != ModelSourcePersonal && source != "service" {
+		if provider == "tokenflux" {
+			source = ModelSourcePersonal
+		} else {
+			source = "service"
+		}
+	}
+	value.WorkerProvider = provider
+	value.WorkerModel = model
+	value.WorkerSource = source
+	return value
+}
+
+// WorkerModelSelection is the saved Coding worker-model override. Empty means
+// inherit the current conversation model.
+type WorkerModelSelection struct {
+	Provider string
+	Model    string
+	Source   string
+}
+
+func ResolveWorkerModel(settings AppSettings) (WorkerModelSelection, bool) {
+	settings = normalizeWorkerModel(settings)
+	if settings.WorkerProvider == "" || settings.WorkerModel == "" {
+		return WorkerModelSelection{}, false
+	}
+	return WorkerModelSelection{
+		Provider: settings.WorkerProvider,
+		Model:    settings.WorkerModel,
+		Source:   settings.WorkerSource,
+	}, true
+}
+
 func clone(value AppSettings) AppSettings {
 	copy := value
 	copy.ModelRouting.SourceOrder = append([]string(nil), value.ModelRouting.SourceOrder...)
 	copy.DisabledSkills = append([]string(nil), value.DisabledSkills...)
+	copy.EnabledOptionalSkills = append([]string(nil), value.EnabledOptionalSkills...)
+	copy.RemovedPresetServices = append([]string(nil), value.RemovedPresetServices...)
 	if value.SecurityTools != nil {
 		copy.SecurityTools = make(map[string]SecurityToolPreference, len(value.SecurityTools))
 		for id, preference := range value.SecurityTools {

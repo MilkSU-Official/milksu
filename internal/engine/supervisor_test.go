@@ -1701,6 +1701,71 @@ func TestSendMessageIncludesUserMCPAndSkillPaths(t *testing.T) {
 	}
 }
 
+func TestSendMessageIncludesWorkerModelAndOptionalSkills(t *testing.T) {
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	defer writer.Close()
+
+	workspace, err := resolveAgentWorkspace(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	supervisor := NewSupervisor(nil)
+	supervisor.process = &childProcess{stdin: writer, workspace: workspace}
+	supervisor.SetAgentResourceResolver(func() AgentResourceRuntime {
+		return AgentResourceRuntime{
+			OptionalSkillPaths: []string{"skills/ghidra-rpc", "skills/jadx"},
+		}
+	})
+	defer func() {
+		supervisor.mu.Lock()
+		supervisor.process = nil
+		supervisor.sessions = make(map[string]struct{})
+		supervisor.mu.Unlock()
+	}()
+
+	settings := modelSelectionSettings()
+	settings.WorkerProvider = "tokenflux"
+	settings.WorkerModel = "grok-4.5"
+	settings.WorkerSource = "account"
+	if err := supervisor.SendMessage(
+		"coding-worker",
+		"delegate a read-only scan",
+		workspace,
+		"",
+		"go",
+		"workspace-auto",
+		nil,
+		"",
+		nil,
+		nil,
+		nil,
+		nil,
+		settings,
+	); err != nil {
+		t.Fatal(err)
+	}
+	line, err := bufio.NewReader(reader).ReadBytes('\n')
+	if err != nil {
+		t.Fatal(err)
+	}
+	var command map[string]any
+	if err := json.Unmarshal(line, &command); err != nil {
+		t.Fatal(err)
+	}
+	worker, ok := command["workerModel"].(map[string]any)
+	if !ok || worker["provider"] != "tokenflux" || worker["model"] != "grok-4.5" || worker["source"] != "account" {
+		t.Fatalf("expected worker model: %#v", command["workerModel"])
+	}
+	optionalPaths, ok := command["userSkillPaths"].([]any)
+	if !ok || len(optionalPaths) != 2 || optionalPaths[0] != "skills/ghidra-rpc" || optionalPaths[1] != "skills/jadx" {
+		t.Fatalf("expected optional skill paths: %#v", command["userSkillPaths"])
+	}
+}
+
 func TestSendMessageHidesFactorySkillWhenOverlayExists(t *testing.T) {
 	reader, writer, err := os.Pipe()
 	if err != nil {

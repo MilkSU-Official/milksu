@@ -20,6 +20,7 @@ import (
 	"github.com/MilkSU-Official/milksu/internal/codingcollab"
 	"github.com/MilkSU-Official/milksu/internal/codingenv"
 	"github.com/MilkSU-Official/milksu/internal/codingterminal"
+	"github.com/MilkSU-Official/milksu/internal/codingtools"
 	"github.com/MilkSU-Official/milksu/internal/codingworkspace"
 	"github.com/MilkSU-Official/milksu/internal/computercap"
 	"github.com/MilkSU-Official/milksu/internal/config"
@@ -61,6 +62,7 @@ type App struct {
 	computerUse       *computercap.Manager
 	engines           *engine.Supervisor
 	securityTools     *securitytools.Service
+	codingTools       *codingtools.Service
 	agentResources    *agentresources.Store
 	modelCatalog      *modelcatalog.Service
 	modelUsage        *modelusage.Store
@@ -170,6 +172,10 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 		settings,
 		application.emitSecurityToolSetup,
 	)
+	application.codingTools = codingtools.NewService(
+		dataDirectory,
+		application.emitCodingToolSetup,
+	)
 	application.agentResources, err = agentresources.NewStore(dataDirectory, settings)
 	if err != nil {
 		return nil, fmt.Errorf("create agent resource catalog: %w", err)
@@ -197,10 +203,12 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 		for _, server := range runtime.MCPServers {
 			servers[server.Name] = server.Definition
 		}
+		enabledOptional := application.settings.Get().EnabledOptionalSkills
 		return engine.AgentResourceRuntime{
-			MCPServers:        servers,
-			SkillPaths:        append([]string(nil), runtime.SkillPaths...),
-			HideFactorySkills: append([]string(nil), runtime.HideFactorySkills...),
+			MCPServers:         servers,
+			SkillPaths:         agentresources.StripOptionalSkillPaths(runtime.SkillPaths),
+			OptionalSkillPaths: application.agentResources.OptionalSkillPaths(enabledOptional),
+			HideFactorySkills:  append([]string(nil), runtime.HideFactorySkills...),
 		}
 	})
 	application.codingPRs = codingenv.NewPullRequestPublisher()
@@ -485,17 +493,70 @@ func (a *App) SetAccountModelCredential(baseURL, credential string) error {
 func (a *App) alignAccountModelSelection(catalog modelcatalog.Snapshot) (bool, error) {
 	settings := a.settings.Get()
 	if settings.ActiveProvider != modelcatalog.ProviderTokenFlux {
-		return false, nil
+		clearedWorker := alignWorkerModel(settings, catalog)
+		if !workerModelChanged(settings, clearedWorker) {
+			return false, nil
+		}
+		if err := a.settings.Save(clearedWorker); err != nil {
+			return false, fmt.Errorf("align worker model selection: %w", err)
+		}
+		return true, nil
 	}
 	model := accountCatalogModel(settings.ActiveModel, catalog.Models)
 	if model == "" || model == settings.ActiveModel {
-		return false, nil
+		clearedWorker := alignWorkerModel(settings, catalog)
+		if !workerModelChanged(settings, clearedWorker) {
+			return false, nil
+		}
+		if err := a.settings.Save(clearedWorker); err != nil {
+			return false, fmt.Errorf("align worker model selection: %w", err)
+		}
+		return true, nil
 	}
 	settings.ActiveModel = model
+	settings = alignWorkerModel(settings, catalog)
 	if err := a.settings.Save(settings); err != nil {
 		return false, fmt.Errorf("align account model selection: %w", err)
 	}
 	return true, nil
+}
+
+func alignWorkerModel(settings config.AppSettings, catalog modelcatalog.Snapshot) config.AppSettings {
+	selection, ok := config.ResolveWorkerModel(settings)
+	if !ok {
+		return settings
+	}
+	if selection.Provider == modelcatalog.ProviderTokenFlux {
+		if len(catalog.Models) == 0 {
+			return settings
+		}
+		model := accountCatalogModel(selection.Model, catalog.Models)
+		if model == "" {
+			settings.WorkerProvider = ""
+			settings.WorkerModel = ""
+			settings.WorkerSource = ""
+			return settings
+		}
+		settings.WorkerModel = model
+		return settings
+	}
+	if configured, exists := settings.Providers[selection.Provider]; exists && configured.Custom {
+		for _, candidate := range configured.Models {
+			if strings.TrimSpace(candidate) == selection.Model {
+				return settings
+			}
+		}
+	}
+	settings.WorkerProvider = ""
+	settings.WorkerModel = ""
+	settings.WorkerSource = ""
+	return settings
+}
+
+func workerModelChanged(previous, next config.AppSettings) bool {
+	return previous.WorkerProvider != next.WorkerProvider ||
+		previous.WorkerModel != next.WorkerModel ||
+		previous.WorkerSource != next.WorkerSource
 }
 
 func accountCatalogModel(active string, models []modelcatalog.Model) string {

@@ -93,8 +93,14 @@ const domainChatDockOpen = ref({ ctf: false, vuln: false, lab: false })
 // currently active Coding or CTF conversation workspace implicitly.
 const vulnerabilityCodingWorkspacePath = ref('')
 const settingsReturnTarget = ref<Exclude<Section, 'settings'>>(restoredViewState?.settingsReturnTarget ?? 'ctf')
-type SettingsCategory = 'general' | 'coding' | 'mcp' | 'apikeys' | 'browser' | 'cve' | 'lab' | 'chats' | 'security-tools' | 'ctf' | 'eval' | 'plugins'
+type SettingsCategory = 'general' | 'coding' | 'skills' | 'mcp' | 'apikeys' | 'browser' | 'cve' | 'lab' | 'chats' | 'security-tools' | 'ctf' | 'eval' | 'plugins'
 const settingsCategory = ref<SettingsCategory>(openPluginSettingsOnStartup ? 'plugins' : 'general')
+
+function normalizeSettingsCategory(value: SettingsCategory): SettingsCategory {
+  if (value === 'security-tools') return 'mcp'
+  if (value === 'coding') return 'skills'
+  return value
+}
 const settings = ref<AppSettings | null>(null)
 const accountStatus = ref<AccountStatus>({ configured: false, authenticated: false, state: 'unconfigured' })
 const accountLoaded = ref(false)
@@ -490,7 +496,7 @@ function useLocalAccountMode() {
 
 function openSettings(category: SettingsCategory = 'general') {
   settingsReturnTarget.value = settingsReturnSection(section.value, settingsReturnTarget.value)
-  settingsCategory.value = category
+  settingsCategory.value = normalizeSettingsCategory(category)
   section.value = 'settings'
 }
 

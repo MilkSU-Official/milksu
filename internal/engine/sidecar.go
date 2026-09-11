@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/MilkSU-Official/milksu/internal/appdata"
+	"github.com/MilkSU-Official/milksu/internal/codingtools"
 	"github.com/MilkSU-Official/milksu/internal/config"
 )
 
@@ -94,6 +95,9 @@ func sidecarEnvironment(settings config.AppSettings) ([]string, error) {
 	if socket := strings.TrimSpace(os.Getenv("SSH_AUTH_SOCK")); socket != "" {
 		environment = append(environment, "MILKSU_USER_SSH_AUTH_SOCK="+socket)
 	}
+	if dataDirectory, err := appdata.Directory(); err == nil {
+		environment = mergeSidecarEnvironment(environment, codingtools.SidecarEnvironment(dataDirectory))
+	}
 	return environment, nil
 }
 
@@ -118,6 +122,28 @@ func canonicalCurrentExecutable() (string, error) {
 		return "", fmt.Errorf("current executable is not a regular file")
 	}
 	return filepath.Clean(executable), nil
+}
+
+func mergeSidecarEnvironment(environment, extra []string) []string {
+	if len(extra) == 0 {
+		return environment
+	}
+	replaced := make(map[string]bool, len(extra))
+	for _, entry := range extra {
+		name, _, found := strings.Cut(entry, "=")
+		if found {
+			replaced[name] = true
+		}
+	}
+	result := make([]string, 0, len(environment)+len(extra))
+	for _, entry := range environment {
+		name, _, found := strings.Cut(entry, "=")
+		if found && replaced[name] {
+			continue
+		}
+		result = append(result, entry)
+	}
+	return append(result, extra...)
 }
 
 func newSidecarCommand(packagedBridge, sourceBridge string) (*exec.Cmd, error) {

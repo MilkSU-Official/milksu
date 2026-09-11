@@ -24,6 +24,8 @@ var builtinSkillNames = []string{
 	"create-technical-deliverables",
 	"release-milksu",
 	"archify",
+	"ghidra-rpc",
+	"jadx",
 }
 
 type builtinMCPRecord struct {

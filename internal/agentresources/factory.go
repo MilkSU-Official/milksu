@@ -6,6 +6,48 @@ import (
 	"strings"
 )
 
+func optionalCodingSkill(name string) bool {
+	switch strings.TrimSpace(name) {
+	case "ghidra-rpc", "jadx":
+		return true
+	default:
+		return false
+	}
+}
+
+func StripOptionalSkillPaths(paths []string) []string {
+	result := make([]string, 0, len(paths))
+	for _, path := range paths {
+		if optionalCodingSkill(filepath.Base(path)) {
+			continue
+		}
+		result = append(result, path)
+	}
+	return result
+}
+
+func (s *Store) OptionalSkillPaths(enabled []string) []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	result := make([]string, 0, len(enabled))
+	seen := map[string]bool{}
+	for _, name := range enabled {
+		name = strings.TrimSpace(name)
+		if !optionalCodingSkill(name) || seen[name] {
+			continue
+		}
+		seen[name] = true
+		if overlay := s.overlaySkillDir(name); skillDirOK(overlay) {
+			result = append(result, overlay)
+			continue
+		}
+		if factory := s.factorySkillDir(name); skillDirOK(factory) {
+			result = append(result, factory)
+		}
+	}
+	return result
+}
+
 func (s *Store) SetFactorySkillsDir(dir string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

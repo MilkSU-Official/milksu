@@ -73,6 +73,46 @@ func TestWithDefaults(t *testing.T) {
 	if settings.Lab == nil || settings.Lab.AutoCreateAVD == nil || !*settings.Lab.AutoCreateAVD {
 		t.Fatalf("lab auto-create should default on: %#v", settings.Lab)
 	}
+	preset, ok := settings.Providers[presetDeepSeekServiceID]
+	if !ok || !preset.Custom || preset.Name != "DeepSeek" || preset.Enabled ||
+		preset.BaseURL == nil || *preset.BaseURL != presetDeepSeekBaseURL ||
+		len(preset.Models) != 2 || preset.Models[0] != "deepseek-flash" {
+		t.Fatalf("expected default DeepSeek service: %#v", preset)
+	}
+}
+
+func TestRemovedDeepSeekPresetIsNotReseeded(t *testing.T) {
+	settings := withDefaults(AppSettings{
+		RemovedPresetServices: []string{presetDeepSeekServiceID, "custom-relay-other"},
+	})
+	if _, exists := settings.Providers[presetDeepSeekServiceID]; exists {
+		t.Fatal("removed DeepSeek preset was put back")
+	}
+	if len(settings.RemovedPresetServices) != 1 || settings.RemovedPresetServices[0] != presetDeepSeekServiceID {
+		t.Fatalf("unexpected removed presets: %#v", settings.RemovedPresetServices)
+	}
+}
+
+func TestNormalizeOptionalSkillsAndWorkerModel(t *testing.T) {
+	settings := withDefaults(AppSettings{
+		EnabledOptionalSkills: []string{" jadx ", "product-design", "ghidra-rpc", "../../x"},
+		WorkerProvider:        "tokenflux",
+		WorkerModel:           "grok-4.5",
+		WorkerSource:          "account",
+	})
+	if len(settings.EnabledOptionalSkills) != 2 ||
+		settings.EnabledOptionalSkills[0] != "jadx" ||
+		settings.EnabledOptionalSkills[1] != "ghidra-rpc" {
+		t.Fatalf("unexpected optional skills: %#v", settings.EnabledOptionalSkills)
+	}
+	selection, ok := ResolveWorkerModel(settings)
+	if !ok || selection.Provider != "tokenflux" || selection.Model != "grok-4.5" || selection.Source != "account" {
+		t.Fatalf("unexpected worker model: %#v", selection)
+	}
+	cleared := withDefaults(AppSettings{WorkerProvider: "tokenflux"})
+	if _, ok := ResolveWorkerModel(cleared); ok {
+		t.Fatal("empty worker model should inherit")
+	}
 }
 
 func TestCloneDoesNotShareMaps(t *testing.T) {
@@ -82,6 +122,10 @@ func TestCloneDoesNotShareMaps(t *testing.T) {
 		Custom: true, Name: "Local relay", Models: []string{"model-a"}, Enabled: true,
 	}
 	original.DisabledSkills = []string{"product-design"}
+	original.EnabledOptionalSkills = []string{"jadx"}
+	original.WorkerProvider = "tokenflux"
+	original.WorkerModel = "grok-4.5"
+	original.WorkerSource = "account"
 	original.SecurityTools = map[string]SecurityToolPreference{
 		"capa": {Enabled: true},
 	}
@@ -96,6 +140,8 @@ func TestCloneDoesNotShareMaps(t *testing.T) {
 	copied.ModelRouting.SourceOrder[0] = ModelSourcePersonal
 	*copied.ModelRouting.AutoFallback = true
 	copied.DisabledSkills[0] = "review-security"
+	copied.EnabledOptionalSkills[0] = "ghidra-rpc"
+	copied.WorkerModel = "other"
 	copied.SecurityTools["capa"] = SecurityToolPreference{Enabled: false}
 	if _, exists := original.Providers["openai"]; !exists {
 		t.Fatal("clone modified original provider map")
@@ -110,6 +156,12 @@ func TestCloneDoesNotShareMaps(t *testing.T) {
 	}
 	if original.DisabledSkills[0] != "product-design" {
 		t.Fatal("clone modified original disabled skills")
+	}
+	if original.EnabledOptionalSkills[0] != "jadx" {
+		t.Fatal("clone modified original optional skills")
+	}
+	if original.WorkerModel != "grok-4.5" {
+		t.Fatal("clone modified original worker model")
 	}
 	if !original.SecurityTools["capa"].Enabled {
 		t.Fatal("clone modified original security tool preference")

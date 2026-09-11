@@ -63,6 +63,28 @@ func TestBuiltinSkillOverlayAndRestore(t *testing.T) {
 	}
 }
 
+func TestOptionalSkillPathsStayOffUntilEnabled(t *testing.T) {
+	data := t.TempDir()
+	factory := t.TempDir()
+	writeFactorySkill(t, factory, "ghidra-rpc", "---\nname: ghidra-rpc\ndescription: Use for binaries.\n---\n")
+	writeFactorySkill(t, factory, "jadx", "---\nname: jadx\ndescription: Use for APKs.\n---\n")
+	store, err := NewStore(data, fakeSecrets{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	store.SetFactorySkillsDir(factory)
+	if paths := store.OptionalSkillPaths(nil); len(paths) != 0 {
+		t.Fatalf("optional skills must stay off: %#v", paths)
+	}
+	paths := store.OptionalSkillPaths([]string{"jadx", "ghidra-rpc", "product-design"})
+	if len(paths) != 2 || !strings.Contains(paths[0], "jadx") || !strings.Contains(paths[1], "ghidra-rpc") {
+		t.Fatalf("expected enabled optional paths: %#v", paths)
+	}
+	if leftover := StripOptionalSkillPaths(append(paths, "imported/demo")); len(leftover) != 1 || leftover[0] != "imported/demo" {
+		t.Fatalf("expected optional paths stripped: %#v", leftover)
+	}
+}
+
 func TestBuiltinMCPOverlayWorkspaceRoundTrip(t *testing.T) {
 	store, err := NewStore(t.TempDir(), fakeSecrets{})
 	if err != nil {

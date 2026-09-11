@@ -221,6 +221,30 @@ function emit(conversationId, type, data = {}) {
   process.stdout.write(`${JSON.stringify({ type, id: conversationId ?? null, ...data })}\n`);
 }
 
+function applyWorkerModelOverride(worker) {
+  const provider = String(worker?.provider ?? "").trim();
+  const model = String(worker?.model ?? "").trim();
+  if (!provider || !model) {
+    delete process.env.MILKSU_WORKER_MODEL;
+    delete process.env.MILKSU_WORKER_THINKING;
+    return;
+  }
+  const source = String(worker?.source ?? "").trim();
+  const spec = source === "account" ? `milksu-route/${model}` : `${provider}/${model}`;
+  const thinking = worker?.thinking && typeof worker.thinking === "object"
+    ? worker.thinking
+    : {};
+  const level = thinking.enabled && String(thinking.level ?? "").trim()
+    ? String(thinking.level).trim()
+    : "";
+  process.env.MILKSU_WORKER_MODEL = spec;
+  if (/^(off|minimal|low|medium|high|xhigh|max)$/.test(level)) {
+    process.env.MILKSU_WORKER_THINKING = level;
+  } else {
+    delete process.env.MILKSU_WORKER_THINKING;
+  }
+}
+
 function billedPromptTokensFor(conversationId) {
   const stored = sessionContextUsage.get(conversationId);
   return Math.max(0, Number(stored?.inputTokens ?? 0))
@@ -1494,6 +1518,7 @@ function configureSubagentRuntime(cwd, collaboration) {
 async function createSession(command) {
   const conversationId = command.conversationId;
   if (!conversationId) throw new Error("conversationId is required");
+  applyWorkerModelOverride(command.workerModel);
 
   const existing = sessions.get(conversationId);
   if (existing) {
@@ -1631,6 +1656,7 @@ async function createSession(command) {
 async function sendMessage(command) {
   const conversationId = command.conversationId;
   if (!conversationId) throw new Error("conversationId is required");
+  applyWorkerModelOverride(command.workerModel);
   // abort_session is handled immediately, while send_message is queued.
   // A stop click right after Send can therefore arrive before createSession.
   if (dropSendAfterAbort(abortedSessions, sessions, conversationId)) {
