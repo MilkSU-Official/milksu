@@ -1,5 +1,5 @@
 import { AssistantMessageEventStream } from "@earendil-works/pi-ai";
-import { contextWindowOverride, resolveModelContextWindow } from "./known-context-window.cjs";
+import { contextWindowOverride, registeredContextWindow } from "./known-context-window.cjs";
 
 export const accountSource = "account";
 export const personalSource = "personal";
@@ -193,7 +193,7 @@ export function createModelSourceRouteProvider({
       thinkingLevelMap: source?.thinkingLevelMap,
       input: source?.input ?? ["text"],
       cost: source?.cost ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-      contextWindow: resolveModelContextWindow(
+      contextWindow: registeredContextWindow(
         model,
         source?.contextWindow,
         contextWindowOverride("tokenflux", model),

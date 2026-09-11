@@ -404,7 +404,7 @@ function writeRuntimeModelConfig(
                   : selection.thinkingLevel,
               }
             : undefined,
-          contextWindow: require("./known-context-window.cjs").resolveModelContextWindow(
+          contextWindow: require("./known-context-window.cjs").registeredContextWindow(
             selection.model,
             0,
             require("./known-context-window.cjs").contextWindowOverride(selection.provider, selection.model),

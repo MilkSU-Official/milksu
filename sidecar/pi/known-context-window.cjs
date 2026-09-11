@@ -37,6 +37,7 @@ const knownContextWindows = [
   ["claude-", 200_000],
   ["deepseek-v4-flash", 1_048_576],
   ["deepseek-v4", 1_048_576],
+  ["deepseek-flash", 1_048_576],
   ["gemini-3.1", 1_048_576],
   ["gemini-3", 1_048_576],
   ["qwen3-coder-plus", 1_000_000],
@@ -88,8 +89,26 @@ function resolveModelContextWindow(id, catalogWindow, override) {
   return catalogValue;
 }
 
+// Pi's own default for a model definition that omits the window, taken from
+// provider-composer.js modelFromJson (`definition.contextWindow ?? 128000`).
+const PI_DEFAULT_CONTEXT_WINDOW = 128_000;
+
+// Window to register with Pi. Pi applies the default above only on its JSON
+// config path; models handed to registerProvider go through applyExtension,
+// which spreads the definition verbatim and neither validates nor defaults.
+// AgentSession then reads `model.contextWindow ?? 0`, so both zero and an
+// omitted field arrive as zero — and zero is worse than an imprecise window:
+// shouldCompact compares against `contextWindow - reserveTokens`, so it is
+// true on every turn, while MilkSU's own 85% gate and usage ring go silent.
+function registeredContextWindow(id, catalogWindow, override) {
+  const resolved = resolveModelContextWindow(id, catalogWindow, override);
+  return resolved > 0 ? resolved : PI_DEFAULT_CONTEXT_WINDOW;
+}
+
 module.exports = {
   knownContextWindow,
   contextWindowOverride,
   resolveModelContextWindow,
+  registeredContextWindow,
+  PI_DEFAULT_CONTEXT_WINDOW,
 };

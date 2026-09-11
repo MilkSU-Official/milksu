@@ -40,6 +40,7 @@ const knownContextWindows: Array<[string, number]> = [
   ['claude-', 200_000],
   ['deepseek-v4-flash', 1_048_576],
   ['deepseek-v4', 1_048_576],
+  ['deepseek-flash', 1_048_576],
   ['gemini-3.1', 1_048_576],
   ['gemini-3', 1_048_576],
   ['qwen3-coder-plus', 1_000_000],

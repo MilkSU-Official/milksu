@@ -32,6 +32,8 @@ func TestKnownContextWindow(t *testing.T) {
 		{"anthropic/claude-haiku-4-5", 200_000},
 		{"x-ai/grok-4-fast-reasoning", 1_000_000},
 		{"x-ai/grok-build-0.1", 256_000},
+		{"deepseek-flash", 1_048_576},
+		{"deepseek/deepseek-v4-pro", 1_048_576},
 		{"unknown-model", 0},
 	}
 	for _, test := range cases {

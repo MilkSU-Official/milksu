@@ -75,6 +75,44 @@ export async function waitForCompaction(runs, conversationId) {
 }
 
 /**
+ * Bound a Pi-initiated auto-compaction. Only the manual path above carries a
+ * deadline: Pi's threshold and overflow compaction stops solely on its own
+ * AbortController, and because Pi awaits that check inside session.prompt(), a
+ * summarization that never returns leaves the conversation reporting compacting
+ * forever and blocks the next prompt behind it. Cancellation goes through Pi's
+ * own abortCompaction() so Pi emits its native aborted compaction_end.
+ * @param {Map<string, ReturnType<typeof setTimeout>>} deadlines
+ * @param {string} conversationId
+ * @param {() => void} cancel
+ * @param {number} [timeoutMs]
+ */
+export function armAutoCompactionDeadline(
+  deadlines,
+  conversationId,
+  cancel,
+  timeoutMs = DEFAULT_COMPACTION_TIMEOUT_MS,
+) {
+  clearAutoCompactionDeadline(deadlines, conversationId);
+  const timer = setTimeout(() => {
+    deadlines.delete(conversationId);
+    cancel();
+  }, timeoutMs);
+  timer.unref?.();
+  deadlines.set(conversationId, timer);
+}
+
+/**
+ * @param {Map<string, ReturnType<typeof setTimeout>>} deadlines
+ * @param {string} conversationId
+ */
+export function clearAutoCompactionDeadline(deadlines, conversationId) {
+  const timer = deadlines.get(conversationId);
+  if (timer === undefined) return;
+  clearTimeout(timer);
+  deadlines.delete(conversationId);
+}
+
+/**
  * Project Pi's native compaction lifecycle event onto MilkSU's bounded wire
  * schema. The summary body deliberately never crosses the bridge.
  * @param {object} event

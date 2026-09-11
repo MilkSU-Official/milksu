@@ -75,6 +75,7 @@ var knownContextWindows = []knownWindow{
 	{key: "claude-", window: 200_000},
 	{key: "deepseek-v4-flash", window: 1_048_576},
 	{key: "deepseek-v4", window: 1_048_576},
+	{key: "deepseek-flash", window: 1_048_576},
 	{key: "gemini-3.1", window: 1_048_576},
 	{key: "gemini-3", window: 1_048_576},
 	{key: "qwen3-coder-plus", window: 1_000_000},

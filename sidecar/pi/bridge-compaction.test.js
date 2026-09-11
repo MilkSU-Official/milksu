@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  armAutoCompactionDeadline,
+  clearAutoCompactionDeadline,
   compactSession,
   compactionInstructions,
   CONTEXT_COMPACTION_RATIO,
@@ -251,4 +253,49 @@ test("tracked compaction survives failure and still self-cleans", async () => {
   const tracked = trackCompaction(runs, "conversation-3", run);
   await assert.rejects(tracked, /Nothing to compact/);
   assert.equal(runs.has("conversation-3"), false);
+});
+
+test("cancels a Pi auto-compaction that misses its deadline", async () => {
+  const deadlines = new Map();
+  let cancelled = 0;
+  armAutoCompactionDeadline(deadlines, "conversation-4", () => {
+    cancelled += 1;
+  }, 5);
+  assert.equal(deadlines.has("conversation-4"), true);
+  await new Promise(resolve => setTimeout(resolve, 25));
+  assert.equal(cancelled, 1, "an unbounded auto-compaction must be cancelled");
+  assert.equal(deadlines.has("conversation-4"), false, "deadline must self-clean");
+});
+
+test("a settled auto-compaction is never cancelled", async () => {
+  const deadlines = new Map();
+  let cancelled = 0;
+  armAutoCompactionDeadline(deadlines, "conversation-5", () => {
+    cancelled += 1;
+  }, 5);
+  clearAutoCompactionDeadline(deadlines, "conversation-5");
+  assert.equal(deadlines.has("conversation-5"), false);
+  await new Promise(resolve => setTimeout(resolve, 25));
+  assert.equal(cancelled, 0);
+  clearAutoCompactionDeadline(deadlines, "conversation-5");
+});
+
+test("re-arming replaces the previous deadline instead of stacking one", async () => {
+  const deadlines = new Map();
+  let cancelled = 0;
+  const cancel = () => {
+    cancelled += 1;
+  };
+  armAutoCompactionDeadline(deadlines, "conversation-6", cancel, 5);
+  armAutoCompactionDeadline(deadlines, "conversation-6", cancel, 5);
+  await new Promise(resolve => setTimeout(resolve, 30));
+  assert.equal(cancelled, 1);
+});
+
+test("the auto-compaction deadline defaults to the manual bound", () => {
+  const deadlines = new Map();
+  armAutoCompactionDeadline(deadlines, "conversation-7", () => {});
+  assert.equal(deadlines.has("conversation-7"), true);
+  clearAutoCompactionDeadline(deadlines, "conversation-7");
+  assert.ok(DEFAULT_COMPACTION_TIMEOUT_MS > 0);
 });

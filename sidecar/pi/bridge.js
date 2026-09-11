@@ -10,7 +10,7 @@ import { readFile, unlink } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { Type } from "typebox";
 import { codingAskToolName, formatAskToolInput, normalizeAskOptions } from "./bridge-ask.js";
-import { contextWindowOverride, resolveModelContextWindow } from "./known-context-window.cjs";
+import { contextWindowOverride, registeredContextWindow } from "./known-context-window.cjs";
 import {
   createMcpAdapter,
   listPiBackgroundTaskMetas,
@@ -91,6 +91,8 @@ import {
 } from "./bridge-session-tree.js";
 import { createCTFTruncationContinuationExtension } from "./bridge-ctf-continuation.js";
 import {
+  armAutoCompactionDeadline,
+  clearAutoCompactionDeadline,
   compactSession,
   contextUsageSnapshot,
   projectCompactionEvent,
@@ -185,6 +187,7 @@ const backgroundTaskControllers = new Map();
 const promptQueues = new Map();
 const compactionRuns = new Map();
 const compactionRequestIds = new Map();
+const autoCompactionDeadlines = new Map();
 const suppressedQueueUpdates = new Set();
 const sessionTurnContracts = new Map();
 const sessionModelSources = new Map();
@@ -892,7 +895,7 @@ function registerAccountModel(session, provider, model, thinking) {
       reasoning: source?.reasoning ?? false,
       input: source?.input ?? ["text"],
       cost: source?.cost ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-      contextWindow: resolveModelContextWindow(
+      contextWindow: registeredContextWindow(
         accountModelID,
         source?.contextWindow,
         contextWindowOverride("tokenflux", accountModelID),
@@ -1030,6 +1033,17 @@ function subscribeSession(
       const requestId = event.reason === "manual"
         ? compactionRequestIds.get(conversationId)
         : undefined;
+      if (event.type === "compaction_start" && event.reason !== "manual") {
+        armAutoCompactionDeadline(autoCompactionDeadlines, conversationId, () => {
+          try {
+            session.abortCompaction?.();
+          } catch {
+            // Pi may have settled between the deadline and this cancellation.
+          }
+        });
+      } else {
+        clearAutoCompactionDeadline(autoCompactionDeadlines, conversationId);
+      }
       const projected = projectCompactionEvent(event, requestId);
       if (event.type === "compaction_end" && requestId) {
         compactionRequestIds.delete(conversationId);
@@ -1841,6 +1855,15 @@ async function abortSession(command) {
     emit(conversationId, "turn_settled");
     return;
   }
+  // session.abort() only interrupts the agent loop. A compaction is a separate
+  // Pi controller, so without this the stop button cannot end a compaction the
+  // user is waiting on. Pi emits its own aborted compaction_end in response.
+  clearAutoCompactionDeadline(autoCompactionDeadlines, conversationId);
+  try {
+    session.abortCompaction?.();
+  } catch {
+    // Nothing was compacting, or Pi already settled it.
+  }
   await session.abort();
   // Do not synthesize empty message_done (it became a blank assistant bubble).
   // If Pi already emitted agent_settled, a second turn_settled is harmless in
@@ -1896,11 +1919,13 @@ async function destroySession(command) {
       aborted: true,
       error: "Coding session was destroyed during context compaction",
     });
-    try {
-      session?.abortCompaction?.();
-    } catch {
-      // Disposal below still terminates the session.
-    }
+  }
+  // Cancel manual and Pi-initiated compaction alike; either one holds an open
+  // summarization request that disposal would otherwise wait on.
+  try {
+    session?.abortCompaction?.();
+  } catch {
+    // Disposal below still terminates the session.
   }
   const backgroundController = backgroundTaskControllers.get(conversationId) ?? {
     sendUserMessage: async () => undefined,
@@ -1920,6 +1945,7 @@ async function destroySession(command) {
   sessionContextUsage.delete(conversationId);
   compactionRuns.delete(conversationId);
   compactionRequestIds.delete(conversationId);
+  clearAutoCompactionDeadline(autoCompactionDeadlines, conversationId);
   sessionTurnContracts.delete(conversationId);
   await disposeAgentSession(session);
   sessions.delete(conversationId);

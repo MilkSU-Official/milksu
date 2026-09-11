@@ -1,7 +1,7 @@
 "use strict";
 
 const fs = require("node:fs");
-const { contextWindowOverride, resolveModelContextWindow } = require("./known-context-window.cjs");
+const { contextWindowOverride, registeredContextWindow } = require("./known-context-window.cjs");
 
 const providerRuntime = Object.freeze({
   anthropic: {
@@ -91,7 +91,7 @@ function runtimeTokenfluxModelCatalogSnapshot(environment = process.env) {
       return [{
         id,
         name: String(item?.name ?? id).trim() || id,
-        contextWindow: resolveModelContextWindow(
+        contextWindow: registeredContextWindow(
           id,
           Number.isInteger(item?.context_window) ? item.context_window : 0,
           contextWindowOverride("tokenflux", id, environment),
@@ -155,7 +155,7 @@ function tokenfluxModel(model, environment = process.env) {
   return runtimeTokenfluxModelCatalog(environment).find(item => item.id === model) ?? {
     id: model,
     name: model,
-    contextWindow: resolveModelContextWindow(
+    contextWindow: registeredContextWindow(
       model,
       0,
       contextWindowOverride("tokenflux", model, environment),
@@ -203,7 +203,7 @@ function currentProviderDefinition(provider, model, environment = process.env) {
         reasoning: false,
         input: modelInput(),
         cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-        contextWindow: resolveModelContextWindow(
+        contextWindow: registeredContextWindow(
           model,
           0,
           contextWindowOverride(provider, model, environment),
