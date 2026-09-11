@@ -33,8 +33,10 @@ function resolveDshCommand() {
   if (configured) return configured;
   const here = dirname(fileURLToPath(import.meta.url));
   const candidates = [
-    join(here, "..", "..", "node_modules", ".bin", "dsh"),
+    join(here, "dsh"),
     join(here, "node_modules", ".bin", "dsh"),
+    join(here, "..", "..", "node_modules", ".bin", "dsh"),
+    join(here, "node_modules", "@deepseek-ai", "dsh", "lib", "bin.js"),
   ];
   for (const candidate of candidates) {
     if (existsSync(candidate)) return candidate;
