@@ -21,6 +21,27 @@ func testComputerUseSocket(sessionID string) string {
 	return hostpath.ComputerUseSocket(runtime.GOOS, sessionID)
 }
 
+func TestBindSessionKernelPinsFirstValue(t *testing.T) {
+	supervisor := NewSupervisor(nil)
+	supervisor.BindSessionKernel("session-1", "dsh")
+	supervisor.BindSessionKernel("session-1", "pi")
+	supervisor.mu.Lock()
+	defer supervisor.mu.Unlock()
+	if got := supervisor.kernelForLocked("session-1"); got != KernelDSH {
+		t.Fatalf("kernel pin: got %q", got)
+	}
+	if got := supervisor.kernelForLocked("missing"); got != KernelPi {
+		t.Fatalf("missing session: got %q", got)
+	}
+}
+
+func TestNormalizeBridgeEventUsesKernel(t *testing.T) {
+	event := normalizeBridgeEvent(bridgeEvent{Type: "text_delta", ID: "session-1", Delta: "hello"}, KernelDSH)
+	if event.Engine != KernelDSH {
+		t.Fatalf("engine: got %q", event.Engine)
+	}
+}
+
 func TestNormalizeAssistantDelta(t *testing.T) {
 	event := normalizeBridgeEvent(bridgeEvent{Type: "text_delta", ID: "session-1", Delta: "hello"})
 	if event.Type != "assistant.delta" || event.Text != "hello" || event.SessionID != "session-1" {

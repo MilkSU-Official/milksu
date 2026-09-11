@@ -155,6 +155,8 @@ export interface Conversation {
   createdAt: number
   archivedAt?: number
   workspacePath?: string
+  /** Agent runtime pinned for this conversation. Missing records are Pi. */
+  kernel?: import('@/lib/agentKernel').AgentKernel
   modelMode?: 'auto' | 'manual'
   modelProvider?: string
   modelId?: string

@@ -892,6 +892,10 @@ func (a *App) ListConversations() ([]conversation.StoredConversation, error) {
 }
 
 func (a *App) SaveConversation(value conversation.StoredConversation) error {
+	value.Kernel = conversation.NormalizeKernel(value.Kernel)
+	if existing, err := a.conversations.Get(value.ID); err == nil && conversation.HasStarted(existing) {
+		value.Kernel = conversation.NormalizeKernel(existing.Kernel)
+	}
 	return a.conversations.Save(value)
 }
 
@@ -1171,6 +1175,11 @@ func (a *App) SendMessage(
 		return err
 	}
 	a.engines.SetSecurityTools(applySecurityToolOverlays(a.agentResources, a.securityTools.RuntimeTools(a.commandContext())))
+	kernel := engine.KernelPi
+	if stored, err := a.conversations.Get(conversationID); err == nil {
+		kernel = engine.NormalizeKernel(stored.Kernel)
+	}
+	a.engines.BindSessionKernel(conversationID, kernel)
 	return a.engines.SendMessageWithBranch(
 		conversationID,
 		prompt,

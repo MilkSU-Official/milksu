@@ -26,6 +26,7 @@ export interface CodingAgentSurfaceBind {
   vulnerabilitySession: boolean
   ctfMode?: Conversation['ctfMode']
   ctfRole?: Conversation['ctfRole']
+  kernel?: Conversation['kernel']
   modelMode?: Conversation['modelMode']
   modelProvider?: string
   modelId?: string
@@ -56,6 +57,8 @@ export type CodingAgentSurfaceEmit = {
   controlGoal: [action: 'pause' | 'resume' | 'clear']
   respondApproval: [requestId: string, approved: boolean, scope?: 'once' | 'conversation', choice?: string]
   changeModel: [mode: 'auto' | 'manual', provider?: string, model?: string]
+  changeKernel: [kernel: 'pi' | 'dsh']
+  migrateKernel: [kernel: 'pi' | 'dsh']
   changeModelSource: [preference: 'auto' | 'account' | 'personal']
   changeCodingPolicy: [executionMode: CodingExecutionMode, approvalPolicy: CodingApprovalPolicy]
   changeMcpServers: [servers: string[], configDigest: string]

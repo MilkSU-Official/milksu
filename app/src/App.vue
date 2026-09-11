@@ -410,6 +410,7 @@ const codingAgentBind = computed<CodingAgentSurfaceBind>(() => ({
   vulnerabilitySession: conversations.active.value?.domainTaskContext?.kind === 'cve',
   ctfMode: conversations.active.value?.ctfMode,
   ctfRole: conversations.active.value?.ctfRole,
+  kernel: conversations.selectedKernel.value,
   modelMode: conversations.selectedModelMode.value,
   modelProvider: conversations.selectedModelProvider.value,
   modelId: conversations.selectedModelId.value,
@@ -1007,6 +1008,14 @@ function changeModel(mode: 'auto' | 'manual', provider?: string, model?: string)
   conversations.setModelSelection(mode, provider, model)
 }
 
+function changeKernel(kernel: 'pi' | 'dsh') {
+  conversations.setKernel(kernel)
+}
+
+function migrateKernel(kernel: 'pi' | 'dsh') {
+  void conversations.handoffContext(kernel)
+}
+
 function toggleThemeMode() {
   themeMode.value = nextThemeMode(themeMode.value)
   applyCurrentTheme()
@@ -1353,6 +1362,8 @@ onBeforeUnmount(() => {
           @compact-context="conversations.compactContext"
           @rewind-context="conversations.rewindContext"
           @handoff-context="conversations.handoffContext"
+          @change-kernel="changeKernel"
+          @migrate-kernel="migrateKernel"
           @control-goal="conversations.controlGoal"
           @respond-approval="conversations.respondApproval"
           @edit-user="conversations.editAndResend"
@@ -1395,6 +1406,8 @@ onBeforeUnmount(() => {
           @compact-context="conversations.compactContext"
           @rewind-context="conversations.rewindContext"
           @handoff-context="conversations.handoffContext"
+          @change-kernel="changeKernel"
+          @migrate-kernel="migrateKernel"
           @control-goal="conversations.controlGoal"
           @respond-approval="conversations.respondApproval"
           @edit-user="conversations.editAndResend"
@@ -1434,6 +1447,8 @@ onBeforeUnmount(() => {
           @compact-context="conversations.compactContext"
           @rewind-context="conversations.rewindContext"
           @handoff-context="conversations.handoffContext"
+          @change-kernel="changeKernel"
+          @migrate-kernel="migrateKernel"
           @control-goal="conversations.controlGoal"
           @respond-approval="conversations.respondApproval"
           @edit-user="conversations.editAndResend"
@@ -1472,6 +1487,7 @@ onBeforeUnmount(() => {
         :vulnerability-session="activeVulnerabilityCodingConversation"
         :ctf-mode="conversations.active.value?.ctfMode"
         :ctf-role="conversations.active.value?.ctfRole"
+        :kernel="conversations.selectedKernel.value"
         :model-mode="conversations.selectedModelMode.value"
         :model-provider="conversations.selectedModelProvider.value"
         :model-id="conversations.selectedModelId.value"
@@ -1505,6 +1521,8 @@ onBeforeUnmount(() => {
         @cancel-queued-guidance="conversations.cancelQueuedGuidance"
         @edit-queued-guidance="conversations.editQueuedGuidance"
         @change-model="changeModel"
+        @change-kernel="changeKernel"
+        @migrate-kernel="migrateKernel"
         @change-thinking-level="conversations.setThinkingLevel"
         @change-model-source="conversations.setModelSourcePreference"
         @change-coding-policy="conversations.setCodingPolicy"

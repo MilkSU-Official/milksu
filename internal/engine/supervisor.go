@@ -394,6 +394,8 @@ type Supervisor struct {
 	mu               sync.Mutex
 	probeMu          sync.Mutex
 	process          *childProcess
+	dshProcess       *childProcess
+	sessionKernels   map[string]string
 	sessions         map[string]struct{}
 	probeWaiters     map[string]chan Event
 	silentSessions   map[string]struct{}
@@ -423,8 +425,101 @@ func (s *Supervisor) SetWorkspaceActionHandler(handler WorkspaceActionHandler) {
 	s.workspaceAction = handler
 }
 
+// BindSessionKernel pins a conversation to Pi or DeepSeek Harness. The first
+// bind wins so a later send cannot hot-swap the runtime.
+func (s *Supervisor) BindSessionKernel(sessionID, kernel string) {
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.sessionKernels == nil {
+		s.sessionKernels = make(map[string]string)
+	}
+	if existing := strings.TrimSpace(s.sessionKernels[sessionID]); existing != "" {
+		return
+	}
+	s.sessionKernels[sessionID] = NormalizeKernel(kernel)
+}
+
+func (s *Supervisor) kernelForLocked(sessionID string) string {
+	if s.sessionKernels == nil {
+		return KernelPi
+	}
+	return NormalizeKernel(s.sessionKernels[sessionID])
+}
+
+func (s *Supervisor) processForKernelLocked(kernel string) *childProcess {
+	if NormalizeKernel(kernel) == KernelDSH {
+		return s.dshProcess
+	}
+	return s.process
+}
+
+func (s *Supervisor) processForSessionLocked(sessionID string) *childProcess {
+	return s.processForKernelLocked(s.kernelForLocked(sessionID))
+}
+
+func (s *Supervisor) sidecarMissingError(sessionID string) error {
+	if s.kernelForLocked(sessionID) == KernelDSH {
+		return fmt.Errorf("DeepSeek Harness sidecar is not running")
+	}
+	return fmt.Errorf("PI Sidecar is not running")
+}
+
+func (s *Supervisor) sessionMissingError(sessionID string) error {
+	if s.kernelForLocked(sessionID) == KernelDSH {
+		return fmt.Errorf("DeepSeek Harness session not found: %s", sessionID)
+	}
+	return fmt.Errorf("PI session not found: %s", sessionID)
+}
+
+func (s *Supervisor) writeToSessionLocked(sessionID string, value any) error {
+	proc := s.processForSessionLocked(sessionID)
+	if proc == nil {
+		return s.sidecarMissingError(sessionID)
+	}
+	return writeCommand(proc.stdin, value)
+}
+
+func (s *Supervisor) rememberForkedSessionLocked(parentID, forkedID string) {
+	if strings.TrimSpace(forkedID) == "" {
+		return
+	}
+	s.sessions[forkedID] = struct{}{}
+	if s.sessionKernels == nil {
+		s.sessionKernels = make(map[string]string)
+	}
+	s.sessionKernels[forkedID] = s.kernelForLocked(parentID)
+}
+
+func (s *Supervisor) dropKernelSessionsLocked(kernel string) {
+	kernel = NormalizeKernel(kernel)
+	for id := range s.sessions {
+		if s.kernelForLocked(id) != kernel {
+			continue
+		}
+		delete(s.sessions, id)
+		delete(s.sessionKernels, id)
+		delete(s.recoveryFailures, id)
+		delete(s.backgroundTasks, id)
+	}
+}
+
+func stopChildProcess(process *childProcess) {
+	if process == nil {
+		return
+	}
+	_ = process.stdin.Close()
+	if process.command.Process != nil {
+		_ = process.command.Process.Kill()
+	}
+}
+
 func NewSupervisor(emit func(Event)) *Supervisor {
 	return &Supervisor{
+		sessionKernels:   make(map[string]string),
 		sessions:         make(map[string]struct{}),
 		probeWaiters:     make(map[string]chan Event),
 		silentSessions:   make(map[string]struct{}),
@@ -735,7 +830,7 @@ func (s *Supervisor) sendMessage(
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := s.ensureProcessLocked(settings, workspace); err != nil {
+	if err := s.ensureKernelProcessLocked(s.kernelForLocked(sessionID), settings, workspace); err != nil {
 		return err
 	}
 	preference := ""
@@ -808,7 +903,11 @@ func (s *Supervisor) sendMessage(
 	if branchFromUserOccurrence >= 0 {
 		command["branchFromUserOccurrence"] = branchFromUserOccurrence
 	}
-	if err := writeCommand(s.process.stdin, command); err != nil {
+	proc := s.processForSessionLocked(sessionID)
+	if proc == nil {
+		return fmt.Errorf("sidecar is not running")
+	}
+	if err := writeCommand(proc.stdin, command); err != nil {
 		return fmt.Errorf("send engine message: %w", err)
 	}
 	s.sessions[sessionID] = struct{}{}
@@ -1051,10 +1150,11 @@ func (s *Supervisor) AbortMessage(sessionID string) error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.process == nil {
+	proc := s.processForSessionLocked(sessionID)
+	if proc == nil {
 		return nil
 	}
-	return writeCommand(s.process.stdin, map[string]any{
+	return writeCommand(proc.stdin, map[string]any{
 		"action":         "abort_session",
 		"conversationId": sessionID,
 	})
@@ -1083,11 +1183,7 @@ func (s *Supervisor) ForkSession(sessionID, role string, occurrence int) (string
 	}()
 
 	s.mu.Lock()
-	if s.process == nil {
-		s.mu.Unlock()
-		return "", fmt.Errorf("PI Sidecar is not running")
-	}
-	err := writeCommand(s.process.stdin, map[string]any{
+	err := s.writeToSessionLocked(sessionID, map[string]any{
 		"action":         "fork_session",
 		"conversationId": sessionID,
 		"requestId":      requestID,
@@ -1111,7 +1207,7 @@ func (s *Supervisor) ForkSession(sessionID, role string, occurrence int) (string
 			return "", fmt.Errorf("forked session id is missing")
 		}
 		s.mu.Lock()
-		s.sessions[id] = struct{}{}
+		s.rememberForkedSessionLocked(sessionID, id)
 		s.mu.Unlock()
 		return id, nil
 	case <-timer.C:
@@ -1136,15 +1232,12 @@ func (s *Supervisor) RewindSession(sessionID string) error {
 	}()
 
 	s.mu.Lock()
-	if s.process == nil {
-		s.mu.Unlock()
-		return fmt.Errorf("PI Sidecar is not running")
-	}
 	if _, exists := s.sessions[sessionID]; !exists {
+		err := s.sessionMissingError(sessionID)
 		s.mu.Unlock()
-		return fmt.Errorf("PI session not found: %s", sessionID)
+		return err
 	}
-	err := writeCommand(s.process.stdin, map[string]any{
+	err := s.writeToSessionLocked(sessionID, map[string]any{
 		"action":         "rewind_session",
 		"conversationId": sessionID,
 		"requestId":      requestID,
@@ -1187,15 +1280,12 @@ func (s *Supervisor) HandoffSession(sessionID string) (string, error) {
 	}()
 
 	s.mu.Lock()
-	if s.process == nil {
-		s.mu.Unlock()
-		return "", fmt.Errorf("PI Sidecar is not running")
-	}
 	if _, exists := s.sessions[sessionID]; !exists {
+		err := s.sessionMissingError(sessionID)
 		s.mu.Unlock()
-		return "", fmt.Errorf("PI session not found: %s", sessionID)
+		return "", err
 	}
-	err := writeCommand(s.process.stdin, map[string]any{
+	err := s.writeToSessionLocked(sessionID, map[string]any{
 		"action":         "handoff_session",
 		"conversationId": sessionID,
 		"requestId":      requestID,
@@ -1217,7 +1307,7 @@ func (s *Supervisor) HandoffSession(sessionID string) (string, error) {
 			return "", fmt.Errorf("handoff ended without a forked session")
 		}
 		s.mu.Lock()
-		s.sessions[id] = struct{}{}
+		s.rememberForkedSessionLocked(sessionID, id)
 		s.mu.Unlock()
 		return id, nil
 	case <-timer.C:
@@ -1242,13 +1332,10 @@ func (s *Supervisor) SteerMessage(sessionID, prompt string) error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.process == nil {
-		return fmt.Errorf("PI Sidecar is not running")
-	}
 	if _, exists := s.sessions[sessionID]; !exists {
-		return fmt.Errorf("PI session not found: %s", sessionID)
+		return s.sessionMissingError(sessionID)
 	}
-	if err := writeCommand(s.process.stdin, map[string]any{
+	if err := s.writeToSessionLocked(sessionID, map[string]any{
 		"action":         "steer_message",
 		"conversationId": sessionID,
 		"prompt":         prompt,
@@ -1318,15 +1405,12 @@ func (s *Supervisor) RemoveQueuedMessageWithTimeout(
 	}()
 
 	s.mu.Lock()
-	if s.process == nil {
-		s.mu.Unlock()
-		return fmt.Errorf("PI Sidecar is not running")
-	}
 	if _, exists := s.sessions[sessionID]; !exists {
+		err := s.sessionMissingError(sessionID)
 		s.mu.Unlock()
-		return fmt.Errorf("PI session not found: %s", sessionID)
+		return err
 	}
-	err := writeCommand(s.process.stdin, map[string]any{
+	err := s.writeToSessionLocked(sessionID, map[string]any{
 		"action":         "remove_queued_message",
 		"conversationId": sessionID,
 		"requestId":      requestID,
@@ -1383,11 +1467,8 @@ func (s *Supervisor) RespondToolApproval(
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.process == nil {
-		return fmt.Errorf("PI Sidecar is not running")
-	}
 	if _, exists := s.sessions[sessionID]; !exists {
-		return fmt.Errorf("PI session not found: %s", sessionID)
+		return s.sessionMissingError(sessionID)
 	}
 	command := map[string]any{
 		"action":         "approval_response",
@@ -1401,7 +1482,7 @@ func (s *Supervisor) RespondToolApproval(
 	if trimmed := strings.TrimSpace(choice); trimmed != "" {
 		command["choice"] = trimmed
 	}
-	return writeCommand(s.process.stdin, command)
+	return s.writeToSessionLocked(sessionID, command)
 }
 
 func (s *Supervisor) StartBackgroundTask(
@@ -1440,7 +1521,7 @@ func (s *Supervisor) StartBackgroundTask(
 		return RuntimeStatus{}, err
 	}
 	s.mu.Lock()
-	err = s.ensureProcessLocked(settings, workspace)
+	err = s.ensureKernelProcessLocked(s.kernelForLocked(sessionID), settings, workspace)
 	s.mu.Unlock()
 	if err != nil {
 		return RuntimeStatus{}, err
@@ -1500,7 +1581,7 @@ func (s *Supervisor) RefreshBackgroundTasks(
 		return RuntimeStatus{}, err
 	}
 	s.mu.Lock()
-	err = s.ensureProcessLocked(settings, workspace)
+	err = s.ensureKernelProcessLocked(s.kernelForLocked(sessionID), settings, workspace)
 	s.mu.Unlock()
 	if err != nil {
 		return RuntimeStatus{}, err
@@ -1579,15 +1660,12 @@ func (s *Supervisor) CompactSessionWithTimeout(
 	}()
 
 	s.mu.Lock()
-	if s.process == nil {
-		s.mu.Unlock()
-		return CompactionResult{}, fmt.Errorf("PI Sidecar is not running")
-	}
 	if _, exists := s.sessions[sessionID]; !exists {
+		err := s.sessionMissingError(sessionID)
 		s.mu.Unlock()
-		return CompactionResult{}, fmt.Errorf("PI session not found: %s", sessionID)
+		return CompactionResult{}, err
 	}
-	err := writeCommand(s.process.stdin, map[string]any{
+	err := s.writeToSessionLocked(sessionID, map[string]any{
 		"action":         "compact_session",
 		"conversationId": sessionID,
 		"requestId":      requestID,
@@ -1656,10 +1734,6 @@ func (s *Supervisor) sendBackgroundTaskControl(
 	}()
 
 	s.mu.Lock()
-	if s.process == nil {
-		s.mu.Unlock()
-		return RuntimeStatus{}, fmt.Errorf("PI Sidecar is not running")
-	}
 	wireCommand := map[string]any{
 		"action":         "background_task_control",
 		"conversationId": sessionID,
@@ -1668,7 +1742,7 @@ func (s *Supervisor) sendBackgroundTaskControl(
 	for key, value := range payload {
 		wireCommand[key] = value
 	}
-	err := writeCommand(s.process.stdin, wireCommand)
+	err := s.writeToSessionLocked(sessionID, wireCommand)
 	s.mu.Unlock()
 	if err != nil {
 		return RuntimeStatus{}, fmt.Errorf("%s: %w", label, err)
@@ -1868,14 +1942,15 @@ func (s *Supervisor) DetachSession(sessionID string) {
 func (s *Supervisor) disposeSession(sessionID string, deletePersisted bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.process != nil {
-		_ = writeCommand(s.process.stdin, map[string]any{
+	if proc := s.processForSessionLocked(sessionID); proc != nil {
+		_ = writeCommand(proc.stdin, map[string]any{
 			"action":          "destroy_session",
 			"conversationId":  sessionID,
 			"deletePersisted": deletePersisted,
 		})
 	}
 	delete(s.sessions, sessionID)
+	delete(s.sessionKernels, sessionID)
 	delete(s.recoveryFailures, sessionID)
 	delete(s.backgroundTasks, sessionID)
 }
@@ -1895,7 +1970,7 @@ func (s *Supervisor) StatusForSession(sessionID string) RuntimeStatus {
 func (s *Supervisor) statusLocked(sessionID string) RuntimeStatus {
 	status := RuntimeStatus{
 		DefaultEngine: "pi",
-		Running:       s.process != nil,
+		Running:       s.process != nil || s.dshProcess != nil,
 		SessionCount:  len(s.sessions),
 		Protocol:      "jsonl-stdio/v1alpha1",
 	}
@@ -1924,20 +1999,17 @@ func (s *Supervisor) statusLocked(sessionID string) RuntimeStatus {
 
 func (s *Supervisor) Close() {
 	s.mu.Lock()
-	process := s.process
+	pi := s.process
+	dsh := s.dshProcess
 	s.process = nil
+	s.dshProcess = nil
 	s.sessions = make(map[string]struct{})
+	s.sessionKernels = make(map[string]string)
 	s.recoveryFailures = make(map[string]string)
 	s.backgroundTasks = make(map[string][]BackgroundTask)
 	s.mu.Unlock()
-
-	if process == nil {
-		return
-	}
-	_ = process.stdin.Close()
-	if process.command.Process != nil {
-		_ = process.command.Process.Kill()
-	}
+	stopChildProcess(pi)
+	stopChildProcess(dsh)
 }
 
 func (s *Supervisor) currentWorkspace() string {
@@ -1950,23 +2022,37 @@ func (s *Supervisor) currentWorkspace() string {
 }
 
 func (s *Supervisor) ensureProcessLocked(settings config.AppSettings, workspace string) error {
-	if s.process != nil && s.process.workspace == workspace {
+	return s.ensureKernelProcessLocked(KernelPi, settings, workspace)
+}
+
+func (s *Supervisor) ensureKernelProcessLocked(
+	kernel string,
+	settings config.AppSettings,
+	workspace string,
+) error {
+	kernel = NormalizeKernel(kernel)
+	current := s.processForKernelLocked(kernel)
+	if current != nil && current.workspace == workspace {
 		return nil
 	}
-	if s.process != nil {
-		previous := s.process
-		s.process = nil
-		s.sessions = make(map[string]struct{})
-		s.recoveryFailures = make(map[string]string)
-		s.backgroundTasks = make(map[string][]BackgroundTask)
-		_ = previous.stdin.Close()
-		if previous.command.Process != nil {
-			_ = previous.command.Process.Kill()
+	if current != nil {
+		if kernel == KernelDSH {
+			s.dshProcess = nil
+		} else {
+			s.process = nil
 		}
+		s.dropKernelSessionsLocked(kernel)
+		stopChildProcess(current)
+	}
+	packaged := "chat-bridge.cjs"
+	source := developmentChatBridgePath
+	if kernel == KernelDSH {
+		packaged = "dsh-bridge.cjs"
+		source = developmentDSHBridgePath
 	}
 	command, err := newSidecarCommandAtWithDirectory(
-		"chat-bridge.cjs",
-		developmentChatBridgePath,
+		packaged,
+		source,
 		workspace,
 		true,
 		s.sidecarDirectory,
@@ -1983,6 +2069,9 @@ func (s *Supervisor) ensureProcessLocked(settings config.AppSettings, workspace 
 	if err != nil {
 		return err
 	}
+	if kernel == KernelDSH {
+		command.Env = withDSHSidecarEnvironment(command.Env)
+	}
 	stderr := newSidecarStderrBuffer()
 	command.Stderr = io.MultiWriter(os.Stderr, stderr)
 
@@ -1995,9 +2084,13 @@ func (s *Supervisor) ensureProcessLocked(settings config.AppSettings, workspace 
 		stdin.Close()
 		return fmt.Errorf("open engine stdout: %w", err)
 	}
+	label := "Pi sidecar"
+	if kernel == KernelDSH {
+		label = "DeepSeek Harness sidecar"
+	}
 	if err := command.Start(); err != nil {
 		stdin.Close()
-		return fmt.Errorf("start Pi sidecar: %w", err)
+		return fmt.Errorf("start %s: %w", label, err)
 	}
 
 	process := &childProcess{
@@ -2006,27 +2099,32 @@ func (s *Supervisor) ensureProcessLocked(settings config.AppSettings, workspace 
 		workspace: workspace,
 		stderr:    stderr,
 	}
-	s.process = process
-	go s.readEvents(process, stdout)
-	s.emitEvent(Event{Engine: "pi", Type: "engine.started"})
+	if kernel == KernelDSH {
+		s.dshProcess = process
+	} else {
+		s.process = process
+	}
+	go s.readEvents(kernel, process, stdout)
+	s.emitEvent(Event{Engine: kernel, Type: "engine.started"})
 	return nil
 }
 
-func (s *Supervisor) readEvents(process *childProcess, stdout io.Reader) {
+func (s *Supervisor) readEvents(kernel string, process *childProcess, stdout io.Reader) {
+	kernel = NormalizeKernel(kernel)
 	scanner := bufio.NewScanner(stdout)
 	buffer := make([]byte, 64*1024)
 	scanner.Buffer(buffer, 4*1024*1024)
 	for scanner.Scan() {
 		var raw bridgeEvent
 		if err := json.Unmarshal(scanner.Bytes(), &raw); err != nil {
-			s.emitEvent(Event{Engine: "pi", Type: "engine.protocol_error", Error: err.Error()})
+			s.emitEvent(Event{Engine: kernel, Type: "engine.protocol_error", Error: err.Error()})
 			continue
 		}
 		if raw.Type == "workspace_action" {
 			s.handleWorkspaceAction(raw)
 			continue
 		}
-		event := normalizeBridgeEvent(raw)
+		event := normalizeBridgeEvent(raw, kernel)
 		s.observeRuntimeEvent(event)
 		if raw.ID != "" && (raw.Type == "error" || raw.Type == "session_destroyed") {
 			s.mu.Lock()
@@ -2038,12 +2136,19 @@ func (s *Supervisor) readEvents(process *childProcess, stdout io.Reader) {
 
 	waitError := process.command.Wait()
 	s.mu.Lock()
-	current := s.process == process
-	if s.process == process {
-		s.process = nil
-		s.sessions = make(map[string]struct{})
-		s.recoveryFailures = make(map[string]string)
-		s.backgroundTasks = make(map[string][]BackgroundTask)
+	current := false
+	if kernel == KernelDSH {
+		current = s.dshProcess == process
+		if current {
+			s.dshProcess = nil
+			s.dropKernelSessionsLocked(KernelDSH)
+		}
+	} else {
+		current = s.process == process
+		if current {
+			s.process = nil
+			s.dropKernelSessionsLocked(KernelPi)
+		}
 	}
 	s.mu.Unlock()
 	if !current {
@@ -2064,7 +2169,7 @@ func (s *Supervisor) readEvents(process *childProcess, stdout io.Reader) {
 			errorText = errorText + ": " + tail
 		}
 	}
-	s.emitEvent(Event{Engine: "pi", Type: "engine.stopped", Error: errorText, Done: true})
+	s.emitEvent(Event{Engine: kernel, Type: "engine.stopped", Error: errorText, Done: true})
 }
 
 func (s *Supervisor) observeRuntimeEvent(event Event) {
@@ -2213,9 +2318,13 @@ func probeFailureMessage(event Event) string {
 	return message
 }
 
-func normalizeBridgeEvent(raw bridgeEvent) Event {
+func normalizeBridgeEvent(raw bridgeEvent, kernels ...string) Event {
+	kernel := KernelPi
+	if len(kernels) > 0 {
+		kernel = NormalizeKernel(kernels[0])
+	}
 	event := Event{
-		Engine:             "pi",
+		Engine:             kernel,
 		SessionID:          raw.ID,
 		Text:               raw.Content,
 		ToolName:           raw.ToolName,
@@ -2359,7 +2468,7 @@ func normalizeBridgeEvent(raw bridgeEvent) Event {
 func (s *Supervisor) handleWorkspaceAction(raw bridgeEvent) {
 	s.mu.Lock()
 	handler := s.workspaceAction
-	process := s.process
+	process := s.processForSessionLocked(raw.ID)
 	s.mu.Unlock()
 	var result string
 	var err error
@@ -2384,7 +2493,7 @@ func (s *Supervisor) handleWorkspaceAction(raw bridgeEvent) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.process != process || process.stdin == nil {
+	if (s.process != process && s.dshProcess != process) || process.stdin == nil {
 		return
 	}
 	_ = writeCommand(process.stdin, response)

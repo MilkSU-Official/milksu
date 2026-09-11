@@ -33,6 +33,7 @@ const props = withDefaults(defineProps<{
   vulnerabilitySession?: boolean
   ctfMode?: 'coach' | 'copilot' | 'delegate'
   ctfRole?: 'solver' | 'tool-builder' | 'strategist'
+  kernel?: 'pi' | 'dsh'
   modelMode?: 'auto' | 'manual'
   modelProvider?: string
   modelId?: string
@@ -75,6 +76,8 @@ const emit = defineEmits<{
   controlGoal: [action: 'pause' | 'resume' | 'clear']
   respondApproval: [requestId: string, approved: boolean, scope?: 'once' | 'conversation', choice?: string]
   changeModel: [mode: 'auto' | 'manual', provider?: string, model?: string]
+  changeKernel: [kernel: 'pi' | 'dsh']
+  migrateKernel: [kernel: 'pi' | 'dsh']
   changeModelSource: [preference: 'auto' | 'account' | 'personal']
   changeCodingPolicy: [
     executionMode: CodingExecutionMode,
@@ -339,6 +342,7 @@ function forwardSend(...args: CodingAgentSendArgs) {
           :vulnerability-session="dockVulnerabilitySession"
           :ctf-mode="ctfMode"
           :ctf-role="ctfRole"
+          :kernel="kernel"
           :model-mode="modelMode"
           :model-provider="modelProvider"
           :model-id="modelId"
@@ -359,6 +363,8 @@ function forwardSend(...args: CodingAgentSendArgs) {
           @control-goal="$emit('controlGoal', $event)"
           @respond-approval="(requestId, approved, scope, choice) => $emit('respondApproval', requestId, approved, scope, choice)"
           @change-model="(mode, provider, model) => $emit('changeModel', mode, provider, model)"
+          @change-kernel="$emit('changeKernel', $event)"
+          @migrate-kernel="$emit('migrateKernel', $event)"
           @change-model-source="$emit('changeModelSource', $event)"
           @change-coding-policy="(mode, policy) => $emit('changeCodingPolicy', mode, policy)"
           @change-mcp-servers="(servers, digest) => $emit('changeMcpServers', servers, digest)"

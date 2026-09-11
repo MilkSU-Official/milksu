@@ -2,6 +2,10 @@
 import { computed, markRaw, nextTick, onBeforeUnmount, onMounted, ref, watch, type Component } from 'vue'
 import {
   Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -112,6 +116,8 @@ const props = defineProps<{
   compactModelLabel: string
   thinkingLevels?: ModelThinkingLevel[]
   thinkingLevel?: ModelThinkingLevel
+  kernel?: 'pi' | 'dsh'
+  kernelLocked?: boolean
   compactDisabled?: boolean
   /** Last model usage projection; meter shows ring + hover details when present. */
   contextUsage?: ContextUsagePresentation | null
@@ -149,6 +155,8 @@ const emit = defineEmits<{
   changeApprovalPolicy: [value: string]
   changeModel: [value: string]
   changeThinkingLevel: [level: ModelThinkingLevel]
+  changeKernel: [value: 'pi' | 'dsh']
+  migrateKernel: [value: 'pi' | 'dsh']
   showPermissions: []
   consumeGoal: []
   startGoal: []
@@ -183,6 +191,21 @@ const slashMenuDismissed = ref(false)
 const activeSlashCommandIndex = ref(0)
 const slashQuery = ref<string | null>(null)
 const slashQueryRange = ref<Range | null>(null)
+const pendingMigrateKernel = ref<'pi' | 'dsh' | null>(null)
+
+function requestKernelChange(value: 'pi' | 'dsh') {
+  if (props.kernelLocked && value !== (props.kernel ?? 'pi')) {
+    pendingMigrateKernel.value = value
+    return
+  }
+  emit('changeKernel', value)
+}
+
+function confirmKernelMigrate() {
+  const next = pendingMigrateKernel.value
+  pendingMigrateKernel.value = null
+  if (next) emit('migrateKernel', next)
+}
 const scopeToken = ref<ComposerScopeToken | null>(null)
 const pendingScopeSubmit = ref<ComposerScopeToken | null>(null)
 const skillToken = ref<string | null>(null)
@@ -1391,9 +1414,11 @@ defineExpose({
             :compact-model-label="compactModelLabel"
             :thinking-levels="thinkingLevels"
             :thinking-level="thinkingLevel"
+            :kernel="kernel ?? 'pi'"
             @change-approval-policy="$emit('changeApprovalPolicy', $event)"
             @change-model="$emit('changeModel', $event)"
             @change-thinking-level="$emit('changeThinkingLevel', $event)"
+            @change-kernel="requestKernelChange"
             @show-permissions="$emit('showPermissions')"
           >
             <template #leading>
@@ -1817,6 +1842,28 @@ defineExpose({
         </div>
       </section>
     </dialog>
+    <Dialog
+      :open="Boolean(pendingMigrateKernel)"
+      @update:open="value => { if (!value) pendingMigrateKernel = null }"
+    >
+      <DialogContent class="sm:max-w-md">
+        <DialogTitle>{{ t('迁移到新对话？', 'Move to a new conversation?') }}</DialogTitle>
+        <DialogDescription>
+          {{ t(
+            '这个对话已经开始，不能中途更换 Agent 运行时。整理当前对话并在新对话中继续？',
+            'This conversation has already started, so the agent runtime cannot change here. Compact it and continue in a new conversation?',
+          ) }}
+        </DialogDescription>
+        <div class="mt-4 flex justify-end gap-2">
+          <Button type="button" variant="outline" @click="pendingMigrateKernel = null">
+            {{ t('取消', 'Cancel') }}
+          </Button>
+          <Button type="button" variant="brand" @click="confirmKernelMigrate">
+            {{ t('整理并迁移', 'Compact and move') }}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   </div>
 </template>
 

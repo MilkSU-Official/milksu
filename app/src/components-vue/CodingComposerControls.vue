@@ -47,12 +47,14 @@ const props = defineProps<{
   compactModelLabel: string
   thinkingLevels?: ModelThinkingLevel[]
   thinkingLevel?: ModelThinkingLevel
+  kernel?: 'pi' | 'dsh'
 }>()
 
 const emit = defineEmits<{
   changeApprovalPolicy: [value: string]
   changeModel: [value: string]
   changeThinkingLevel: [level: ModelThinkingLevel]
+  changeKernel: [value: 'pi' | 'dsh']
   showPermissions: []
 }>()
 
@@ -234,6 +236,7 @@ function triggerModelText() {
           </div>
         </DropdownMenuContent>
       </DropdownMenu>
+      <div class="composer-runtime-pickers flex min-w-0 items-center gap-1.5">
       <Select
         :model-value="modelKey"
         :disabled="running"
@@ -289,6 +292,31 @@ function triggerModelText() {
           </template>
         </SelectContent>
       </Select>
+      <Select
+        :model-value="kernel ?? 'pi'"
+        :disabled="running"
+        @update:model-value="value => $emit('changeKernel', value === 'dsh' ? 'dsh' : 'pi')"
+      >
+        <SelectTrigger
+          size="sm"
+          class="composer-control composer-harness min-w-0 rounded-full border-0 bg-transparent shadow-none"
+          :aria-label="t('选择 Agent 运行时', 'Choose agent runtime')"
+          :title="t('当前对话使用的 Agent 运行时', 'Agent runtime for this conversation')"
+        >
+          <SelectValue>
+            <span class="min-w-0 truncate">{{
+              kernel === 'dsh'
+                ? t('DeepSeek Harness', 'DeepSeek Harness')
+                : t('Pi', 'Pi')
+            }}</span>
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent size="sm" align="end" class="min-w-56">
+          <SelectItem value="pi">{{ t('Pi', 'Pi') }}</SelectItem>
+          <SelectItem value="dsh">{{ t('DeepSeek Harness', 'DeepSeek Harness') }}</SelectItem>
+        </SelectContent>
+      </Select>
+      </div>
     </div>
   </div>
 </template>
@@ -405,13 +433,24 @@ function triggerModelText() {
   color: var(--warning);
 }
 
+.composer-runtime-pickers {
+  margin-left: auto;
+}
+
 .composer-model {
   width: fit-content;
   min-width: 0;
   max-width: min(18rem, 100%);
   flex: 0 1 auto;
   justify-self: end;
-  margin-left: auto;
+  padding-inline: 0.65rem;
+}
+
+.composer-harness {
+  width: fit-content;
+  min-width: 0;
+  max-width: min(12rem, 100%);
+  flex: 0 1 auto;
   padding-inline: 0.65rem;
 }
 

@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"fmt"
 	"time"
 
 	"github.com/MilkSU-Official/milksu/internal/appdata"
@@ -89,8 +91,29 @@ func (a *App) RewindCodingSession(conversationID string) error {
 	return a.engines.RewindSession(conversationID)
 }
 
-func (a *App) HandoffCodingSession(conversationID string) (string, error) {
-	return a.engines.HandoffSession(conversationID)
+func (a *App) HandoffCodingSession(conversationID, kernel string) (string, error) {
+	current := engine.KernelPi
+	if stored, err := a.conversations.Get(conversationID); err == nil {
+		current = engine.NormalizeKernel(stored.Kernel)
+	}
+	target := engine.NormalizeKernel(kernel)
+	if target == current {
+		return a.engines.HandoffSession(conversationID)
+	}
+	if _, err := a.engines.CompactSession(conversationID); err != nil {
+		return "", err
+	}
+	return newHandoffConversationID(), nil
+}
+
+func newHandoffConversationID() string {
+	buf := make([]byte, 16)
+	if _, err := rand.Read(buf); err != nil {
+		return fmt.Sprintf("handoff_%d", time.Now().UnixNano())
+	}
+	buf[6] = (buf[6] & 0x0f) | 0x40
+	buf[8] = (buf[8] & 0x3f) | 0x80
+	return fmt.Sprintf("%x-%x-%x-%x-%x", buf[0:4], buf[4:6], buf[6:8], buf[8:10], buf[10:])
 }
 
 func (a *App) enrichRuntimeStatus(status engine.RuntimeStatus) engine.RuntimeStatus {

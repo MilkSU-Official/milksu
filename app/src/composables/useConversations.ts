@@ -27,6 +27,11 @@ import { redactProviderCredentials } from '@/lib/redaction'
 import { normalizeSubagentTasks } from '@/lib/subagentRoster'
 import { explainTokenFluxError } from '@/lib/tokenFluxError'
 import { t } from '@/lib/uiLocale'
+import {
+  conversationKernelLocked,
+  normalizeAgentKernel,
+  type AgentKernel,
+} from '@/lib/agentKernel'
 import { normalizeDomainTaskContext } from '@/lib/domainTaskContext'
 import { shouldRememberCodingProject } from '@/lib/codingProjectMemory'
 import { conversationWorkspaceHome, type WorkspaceHome } from '@/lib/workspaceSessionRouting'
@@ -358,6 +363,7 @@ export function normalizeConversation(raw: Record<string, unknown>): Conversatio
     title: String(raw.title ?? t('未命名对话', 'Untitled conversation')),
     createdAt: Number(raw.createdAt ?? 0),
     workspacePath: typeof raw.workspacePath === 'string' ? raw.workspacePath : undefined,
+    kernel: normalizeAgentKernel(raw.kernel),
     modelMode: ['auto', 'manual'].includes(String(raw.modelMode))
       ? raw.modelMode as Conversation['modelMode']
       : undefined,
@@ -671,6 +677,7 @@ export function useConversations() {
   const activeId = ref<string | null>(null)
   const pendingWorkspacePath = ref('')
   const pendingWorkspaceHome = ref<WorkspaceHome>('chat')
+  const pendingKernel = ref<AgentKernel>('pi')
   const pendingModelMode = ref<'auto' | 'manual' | undefined>()
   const pendingModelProvider = ref<string | undefined>()
   const pendingModelId = ref<string | undefined>()
@@ -745,6 +752,9 @@ export function useConversations() {
   function clearTurnRunClock(sessionId: string) {
     patchTurnStatus(sessionId, applySessionRunFinished)
   }
+  const selectedKernel = computed(() => (
+    active.value ? normalizeAgentKernel(active.value.kernel) : pendingKernel.value
+  ))
   const selectedModelMode = computed(() => active.value?.modelMode ?? pendingModelMode.value)
   const selectedModelProvider = computed(() => active.value?.modelProvider ?? pendingModelProvider.value)
   const selectedModelId = computed(() => active.value?.modelId ?? pendingModelId.value)
@@ -1047,6 +1057,7 @@ export function useConversations() {
     activeId.value = null
     pendingWorkspaceHome.value = nextHome
     pendingWorkspacePath.value = inheritHomeProject ? String(currentWorkspace) : ''
+    pendingKernel.value = 'pi'
     pendingModelMode.value = undefined
     pendingModelProvider.value = undefined
     pendingModelId.value = undefined
@@ -1110,6 +1121,7 @@ export function useConversations() {
       workspacePath: hasWorkspaceOverride
         ? workspaceOverride
         : pendingWorkspacePath.value || undefined,
+      kernel: pendingKernel.value,
       modelMode: pendingModelMode.value,
       modelProvider: pendingModelProvider.value,
       modelId: pendingModelId.value,
@@ -1168,6 +1180,17 @@ export function useConversations() {
       mcpServers: undefined,
       mcpConfigDigest: undefined,
     }))
+  }
+
+  function setKernel(kernel: AgentKernel) {
+    const next = normalizeAgentKernel(kernel)
+    if (!activeId.value) {
+      pendingKernel.value = next
+      return
+    }
+    const current = conversations.value.find(item => item.id === activeId.value)
+    if (current && conversationKernelLocked(current.messages)) return
+    update(activeId.value, conversation => ({ ...conversation, kernel: next }))
   }
 
   function setModelSelection(
@@ -1289,6 +1312,7 @@ export function useConversations() {
       title: task.title,
       createdAt: Date.now(),
       workspacePath: task.workspacePath,
+      kernel: pendingKernel.value,
       ctfJobId: task.jobId,
       ctfMode: task.policy.mode,
       ctfRole: task.role,
@@ -1338,6 +1362,7 @@ export function useConversations() {
         createdAt: Date.now(),
         workspacePath: pendingWorkspacePath.value || undefined,
         workspaceHome: pendingWorkspaceHome.value === 'chat' ? undefined : pendingWorkspaceHome.value,
+        kernel: pendingKernel.value,
         modelMode: pendingModelMode.value,
         modelProvider: pendingModelProvider.value,
         modelId: pendingModelId.value,
@@ -1702,21 +1727,24 @@ export function useConversations() {
     }
   }
 
-  async function handoffContext() {
+  async function handoffContext(kernel?: AgentKernel) {
     const conversation = active.value
     if (
       !conversation
       || runningIds.value.has(conversation.id)
       || continuity.value.compacting.has(conversation.id)
     ) return
+    const targetKernel = normalizeAgentKernel(kernel ?? conversation.kernel)
     try {
       const sessionId = String(await invokeCommand('handoff_coding_session', {
         conversationId: conversation.id,
+        kernel: targetKernel,
       })).trim()
       if (!sessionId) return
       const handed: Conversation = {
         ...conversation,
         id: sessionId,
+        kernel: targetKernel,
         title: `${t('接力', 'Handoff')} · ${conversation.title}`.slice(0, 40),
         createdAt: Date.now(),
         messages: [{
@@ -2330,6 +2358,7 @@ export function useConversations() {
     runningConversationIds,
     activeAborting,
     activeMessageQueue,
+    selectedKernel,
     selectedModelMode,
     selectedModelProvider,
     selectedModelId,
@@ -2361,6 +2390,7 @@ export function useConversations() {
     ensureConversation,
     setWorkspace,
     clearWorkspace,
+    setKernel,
     setModelSelection,
     setThinkingLevel,
     setModelSourcePreference,

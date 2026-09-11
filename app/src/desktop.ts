@@ -269,7 +269,7 @@ interface DesktopAppBindings {
   ): Promise<void>
   ForkConversation(conversationId: string, role: string, occurrence: number): Promise<string>
   RewindCodingSession(conversationId: string): Promise<void>
-  HandoffCodingSession(conversationId: string): Promise<string>
+  HandoffCodingSession(conversationId: string, kernel?: string): Promise<string>
   AbortMessage(conversationId: string): Promise<void>
   RespondToolApproval(
     conversationId: string,
@@ -720,6 +720,7 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
       case 'handoff_coding_session':
         return app.HandoffCodingSession(
           args?.conversationId as string,
+          (args?.kernel as string) ?? '',
         ) as Promise<T>
       case 'abort_message':
         return app.AbortMessage(args?.conversationId as string) as Promise<T>

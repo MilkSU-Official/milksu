@@ -895,6 +895,7 @@ async function buildSidecar(platform) {
   await mkdir(output, { recursive: true, mode: 0o700 })
   const nodeOutput = join(output, platformBinaryName(platform, 'node'))
   const chatOutput = join(output, 'chat-bridge.cjs')
+  const dshOutput = join(output, 'dsh-bridge.cjs')
   const computerUseProxyOutput = join(output, 'computer-use-proxy.cjs')
   const pluginWorkerOutput = join(output, 'plugin-worker.mjs')
   const pluginLoaderOutput = join(output, 'deny-loader.mjs')
@@ -1221,6 +1222,7 @@ async function buildSidecar(platform) {
       ),
     }, null, 2)}\n`, { mode: 0o600 }),
     bundleBridge('sidecar/pi/bridge.js', chatOutput),
+    bundleBridge('sidecar/dsh/bridge.js', dshOutput),
     bundleBridge('sidecar/computer-use/computer-use-proxy.js', computerUseProxyOutput),
     bundleBridge(
       'node_modules/@earendil-works/pi-coding-agent/dist/cli.js',
@@ -1452,6 +1454,7 @@ async function buildSidecar(platform) {
     esbuild: { version: '0.28.1' },
     bridges: {
       chat: { file: 'chat-bridge.cjs', sha256: await sha256(chatOutput) },
+      dsh: { file: 'dsh-bridge.cjs', sha256: await sha256(dshOutput) },
       computerUse: {
         file: 'computer-use-proxy.cjs',
         sha256: await sha256(computerUseProxyOutput),
@@ -2393,6 +2396,7 @@ async function installSidecar(platform, binaryPath) {
   const distributableFiles = [
     'node',
     'chat-bridge.cjs',
+    'dsh-bridge.cjs',
     'computer-use-proxy.cjs',
     'pi-subagent-launcher.sh',
     'pi-subagent-runner.cjs',

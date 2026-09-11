@@ -193,6 +193,7 @@ const props = defineProps<{
   vulnerabilitySession?: boolean
   ctfMode?: 'coach' | 'copilot' | 'delegate'
   ctfRole?: 'solver' | 'tool-builder' | 'strategist'
+  kernel?: 'pi' | 'dsh'
   modelMode?: 'auto' | 'manual'
   modelProvider?: string
   modelId?: string
@@ -231,6 +232,8 @@ const emit = defineEmits<{
   editQueuedGuidance: [index: number]
   changeModel: [mode: 'auto' | 'manual', provider?: string, model?: string]
   changeThinkingLevel: [level: ModelThinkingLevel]
+  changeKernel: [kernel: 'pi' | 'dsh']
+  migrateKernel: [kernel: 'pi' | 'dsh']
   changeModelSource: [preference: 'auto' | 'account' | 'personal']
   changeCodingPolicy: [
     executionMode: CodingExecutionMode,
@@ -2273,6 +2276,8 @@ defineExpose({
       :compact-model-label="compactModelLabel"
       :thinking-levels="currentThinkingProfile.levels"
       :thinking-level="currentThinkingLevel"
+      :kernel="kernel ?? (conversation?.kernel === 'dsh' ? 'dsh' : 'pi')"
+      :kernel-locked="Boolean(conversation?.messages.some(message => message.role === 'user' && message.status !== 'queued'))"
       :compact-disabled="continuity.compactDisabled"
       :context-usage="contextUsagePresentation"
       :workspace-ready="Boolean(workspacePath)"
@@ -2298,6 +2303,8 @@ defineExpose({
       @change-approval-policy="changeApprovalPolicy"
       @change-model="changeModel"
       @change-thinking-level="$emit('changeThinkingLevel', $event)"
+      @change-kernel="$emit('changeKernel', $event)"
+      @migrate-kernel="$emit('migrateKernel', $event)"
       @show-permissions="showCodingPermissions"
       @choose-workspace="chooseWorkspaceFromCurrentTask"
       @select-workspace="selectRecentProject"

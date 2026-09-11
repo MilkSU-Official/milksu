@@ -22,6 +22,51 @@ func TestConversationIDAcceptsUUID(t *testing.T) {
 	}
 }
 
+func TestNormalizeKernelDefaultsToPi(t *testing.T) {
+	if got := NormalizeKernel(""); got != KernelPi {
+		t.Fatalf("empty kernel: got %q", got)
+	}
+	if got := NormalizeKernel("unknown"); got != KernelPi {
+		t.Fatalf("unknown kernel: got %q", got)
+	}
+	if got := NormalizeKernel("DeepSeek-Harness"); got != KernelDSH {
+		t.Fatalf("deepseek alias: got %q", got)
+	}
+}
+
+func TestHasStartedIgnoresQueuedUserText(t *testing.T) {
+	queued := "queued"
+	blank := StoredConversation{Messages: nil}
+	if HasStarted(blank) {
+		t.Fatal("empty conversation should not be started")
+	}
+	if HasStarted(StoredConversation{Messages: []StoredMessage{{
+		Role: "user", Status: &queued, Content: "steer",
+	}}}) {
+		t.Fatal("queued steer should not lock the kernel")
+	}
+	if !HasStarted(StoredConversation{Messages: []StoredMessage{{
+		Role: "user", Content: "hello",
+	}}}) {
+		t.Fatal("user message should start the conversation")
+	}
+}
+
+func TestStoreGetNormalizesMissingKernelToPi(t *testing.T) {
+	store := &Store{directory: t.TempDir()}
+	path := filepath.Join(store.directory, "legacy.json")
+	if err := os.WriteFile(path, []byte(`{"id":"legacy","title":"old","createdAt":1,"messages":[]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := store.Get("legacy")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if got.Kernel != KernelPi {
+		t.Fatalf("legacy kernel: got %q", got.Kernel)
+	}
+}
+
 func TestStoreGetReturnsTheSavedConversation(t *testing.T) {
 	store := &Store{directory: t.TempDir()}
 	if _, err := store.Get("conversation-1"); err == nil {
@@ -56,6 +101,7 @@ func TestStoreGetReturnsTheSavedConversation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get conversation: %v", err)
 	}
+	want.Kernel = KernelPi
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("conversation did not round-trip: %#v", got)
 	}
@@ -172,6 +218,7 @@ func TestStorePreservesCTFLearningContext(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list CTF conversations: %v", err)
 	}
+	want.Kernel = KernelPi
 	if len(got) != 1 || !reflect.DeepEqual(got[0], want) {
 		t.Fatalf("CTF learning context did not round-trip: %#v", got)
 	}

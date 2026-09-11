@@ -1,0 +1,77 @@
+import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+import test from "node:test";
+
+const here = dirname(fileURLToPath(import.meta.url));
+
+function runBridge() {
+  const child = spawn(process.execPath, [join(here, "run-bridge.mjs")], {
+    cwd: here,
+    env: {
+      ...process.env,
+      MILKSU_DSH_COMMAND: process.execPath,
+      MILKSU_DSH_ACP_ARGS: join(here, "fake-acp.mjs"),
+    },
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+  const events = [];
+  let buffer = "";
+  child.stdout.on("data", chunk => {
+    buffer += chunk.toString("utf8");
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      events.push(JSON.parse(line));
+    }
+  });
+  function send(command) {
+    child.stdin.write(`${JSON.stringify(command)}\n`);
+  }
+  async function waitFor(type, timeout = 3000) {
+    const started = Date.now();
+    while (Date.now() - started < timeout) {
+      const match = events.find(event => event.type === type);
+      if (match) return match;
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+    throw new Error(`timed out waiting for ${type}: ${JSON.stringify(events)}`);
+  }
+  return { child, events, send, waitFor };
+}
+
+test("DSH bridge streams a prompt through ACP", async () => {
+  const bridge = runBridge();
+  try {
+    bridge.send({
+      action: "send_message",
+      conversationId: "conv-1",
+      prompt: "hello",
+      cwd: here,
+    });
+    const delta = await bridge.waitFor("text_delta");
+    assert.equal(delta.delta, "ok");
+    await bridge.waitFor("turn_settled");
+  } finally {
+    bridge.child.kill();
+  }
+});
+
+test("DSH bridge abort does not throw", async () => {
+  const bridge = runBridge();
+  try {
+    bridge.send({
+      action: "create_session",
+      conversationId: "conv-2",
+      cwd: here,
+    });
+    await bridge.waitFor("ready");
+    bridge.send({ action: "abort_session", conversationId: "conv-2" });
+    const settled = await bridge.waitFor("turn_settled");
+    assert.equal(settled.aborted, true);
+  } finally {
+    bridge.child.kill();
+  }
+});

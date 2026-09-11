@@ -64,6 +64,7 @@ type StoredConversation struct {
 	Title             string              `json:"title"`
 	CreatedAt         uint64              `json:"createdAt"`
 	WorkspacePath     string              `json:"workspacePath,omitempty"`
+	Kernel            string              `json:"kernel,omitempty"`
 	ModelMode         string              `json:"modelMode,omitempty"`
 	ModelProvider     string              `json:"modelProvider,omitempty"`
 	ModelID           string              `json:"modelId,omitempty"`
@@ -164,6 +165,7 @@ func (s *Store) listDirectory(directory string) ([]StoredConversation, error) {
 		}
 		var value StoredConversation
 		if json.Unmarshal(data, &value) == nil {
+			value.Kernel = NormalizeKernel(value.Kernel)
 			values = append(values, value)
 		}
 	}
@@ -192,6 +194,7 @@ func (s *Store) Get(id string) (StoredConversation, error) {
 	if value.ID != id {
 		return StoredConversation{}, fmt.Errorf("conversation id does not match stored record")
 	}
+	value.Kernel = NormalizeKernel(value.Kernel)
 	return value, nil
 }
 
@@ -199,6 +202,7 @@ func (s *Store) Save(value StoredConversation) error {
 	if !validID.MatchString(value.ID) {
 		return fmt.Errorf("invalid conversation id")
 	}
+	value.Kernel = NormalizeKernel(value.Kernel)
 	data, err := json.MarshalIndent(value, "", "  ")
 	if err != nil {
 		return fmt.Errorf("encode conversation: %w", err)
@@ -274,6 +278,7 @@ func (s *Store) getFromDirectory(directory, id string) (StoredConversation, erro
 	if value.ID != id {
 		return StoredConversation{}, fmt.Errorf("conversation id does not match stored record")
 	}
+	value.Kernel = NormalizeKernel(value.Kernel)
 	return value, nil
 }
 
@@ -284,6 +289,7 @@ func (s *Store) writeToDirectory(directory string, value StoredConversation) err
 	if err := os.MkdirAll(directory, 0o700); err != nil {
 		return fmt.Errorf("create conversation directory: %w", err)
 	}
+	value.Kernel = NormalizeKernel(value.Kernel)
 	data, err := json.MarshalIndent(value, "", "  ")
 	if err != nil {
 		return fmt.Errorf("encode conversation: %w", err)

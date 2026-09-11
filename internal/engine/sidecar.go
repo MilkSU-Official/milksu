@@ -18,8 +18,11 @@ import (
 const (
 	packagedSidecarDirectory    = "milksu-sidecar"
 	developmentChatBridgePath   = "sidecar/pi/run-bridge.mjs"
+	developmentDSHBridgePath    = "sidecar/dsh/run-bridge.mjs"
 	pluginMCPCommandEnvironment = "MILKSU_PLUGIN_MCP_COMMAND"
 	pluginMCPAppDataEnvironment = "MILKSU_PLUGIN_MCP_APPDATA"
+	dshHomeEnvironment          = "DSH_HOME"
+	dshProfileEnvironment       = "MILKSU_DSH_PROFILE"
 )
 
 type sidecarRuntime struct {
@@ -99,6 +102,21 @@ func sidecarEnvironment(settings config.AppSettings) ([]string, error) {
 		environment = mergeSidecarEnvironment(environment, codingtools.SidecarEnvironment(dataDirectory))
 	}
 	return environment, nil
+}
+
+func withDSHSidecarEnvironment(environment []string) []string {
+	runtimeHome, err := sidecarRuntimeHome()
+	if err != nil {
+		return environment
+	}
+	dshHome := filepath.Join(runtimeHome, "dsh")
+	if err := os.MkdirAll(dshHome, 0o700); err != nil {
+		return environment
+	}
+	return mergeSidecarEnvironment(environment, []string{
+		dshHomeEnvironment + "=" + dshHome,
+		dshProfileEnvironment + "=acp",
+	})
 }
 
 func canonicalCurrentExecutable() (string, error) {

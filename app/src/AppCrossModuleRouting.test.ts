@@ -168,6 +168,8 @@ function createMockConversations() {
     }),
     cancelQueuedGuidance: vi.fn(),
     editQueuedGuidance: vi.fn(),
+    selectedKernel: ref<'pi' | 'dsh'>('pi'),
+    setKernel: vi.fn(),
     setModelSelection: vi.fn(),
     setThinkingLevel: vi.fn(),
     setModelSourcePreference: vi.fn(),
