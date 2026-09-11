@@ -2,8 +2,8 @@
 
 > 文档状态：Current
 >
-> 事实审计：2026-09-12；正式发行基线为 `v26.912.2 / f7782c1`。文档收口提交不移动该 tag。
-> 2026-08-20 去掉把「尚未实现」写成禁令的口径；发行回执以 `f7782c1` 为准。上一版 `v26.911.2 / 6120055`、`v26.911.1 / d341a35`、`v26.905.2 / b18b860`、`v26.905.1 / 1cc8773`、`v26.904.1 / 6e9371d` 与 `v26.827.1 / 37932ce` 仍可下载，不是 Latest。`v26.912.1` 从未作为 GitHub Latest 发出。
+> 事实审计：2026-09-12；正式发行基线为 `v26.912.3 / 91b9302`。文档收口提交不移动该 tag。
+> 2026-08-20 去掉把「尚未实现」写成禁令的口径；发行回执以 `91b9302` 为准。上一版 `v26.912.2 / f7782c1`、`v26.911.2 / 6120055`、`v26.911.1 / d341a35`、`v26.905.2 / b18b860`、`v26.905.1 / 1cc8773`、`v26.904.1 / 6e9371d` 与 `v26.827.1 / 37932ce` 仍可下载，不是 Latest。`v26.912.1` 从未作为 GitHub Latest 发出。
 >
 > 本页描述当前结构，不安排任务。动态进度、已发行与未发版分界以
 > [当前开发目标](/developer/current-objectives)、代码、测试和真实验收为准。
@@ -73,7 +73,7 @@ MilkSU 的桌面壳不是通用 Agent Loop 的另一份实现。Pi 仍负责会�
 | 个人资料 | **Implemented / packaged** | 左上角用户头像打开个人菜单；个人页按本机任务活动展示活跃格、CTF/CVE/Coding 模糊阶段和最近活动。工具调用不单独计数，全局六维雷达不再挂载。当前阶段不是独立能力评分；Obelisk 只提供历史线索，尚未成为可归因成长事实源。 |
 | 内测账户与模型来源 | **Deployed / desktop verified** | 系统浏览器 GitHub PKCE、稳定/测试版独立回调和 `0600` 本地不透明会话已实现；打包客户端指向 `accounts.milksu.org`。Admin 为每个用户保存一份加密的 TokenFlux 凭据，Electron 用账户会话取得后只交给 Go，Go 写入现有 `credentials.db`；Key 不返回 renderer，不进入日志、模型上下文或普通配置文件。模型请求直接发往 `https://tokenflux.dev/v1`，MilkSU 不再承载余额、价格映射、扣费流水、超限或代理计费。Go Model Catalog 获取与当前 Key 分组一致的模型并以 `0600` last-known-good 同时驱动设置、Composer 与 Pi；运行时隐藏未配置的原厂 Provider，并把旧 `x-ai/grok-4.6` 选择对齐为目录中的 `grok-4.6`。2026-08-15 本地 Stable 包经 Computer Use 使用账户分配模型完成真实 Coding 回合；非分组模型请求得到 `404 model_not_found`。用户仍可在设置中配置各原厂 Provider 或简单 OpenAI-compatible 中转站，元数据进入 `providers`，各 Key 进入同一 Credential Store；未配置的来源不进入任务模型列表。Admin 对应提交 `89b2037`，客户端链路已进入 `v26.817.1 / main@783679f` 正式内测发行。 |
 | 双来源模型路由 | **Implemented / packaged in 26.817.1, catalog rules in 26.818.1** | `milksu-route` 只负责账户与个人来源的选择和安全回退；外层占位认证不得进入具体 Provider。2026-08-16 修复转发时覆盖真实来源凭据的 `401`：路由在调用来源前移除外层 `apiKey` 与 `Authorization`，让 Pi 按所选来源重新解析凭据。两个来源的只读目录请求均为 `200`，真实 `grok-4.5` 双来源调用选择 `account` 并返回 `MILKSU_ROUTE_OK`；该修复已进入 `26.817.1 / main@783679f`。账户模型权限边界随后合入 `main`（东云，PR #3）：账户凭据优先产生带 `credential_source` 的权威目录，缺失模型在请求前跳过；目录未知时仍尝试来源，并在首个内容输出前把 TokenFlux `model_not_found` / `not supported by any configured account` 分类为安全回退。设置页与 Coding 共用同一可调用目录。这些目录规则已进入 `26.818.1` 正式内测包。 |
-| OTA 更新 | **Implemented / packaged in 26.911.2; still the 26.912.2 installer path** | 已登录 Stable 主进程每分钟带 Bearer 询问 `/v1/releases/latest?platform&arch`。有新版本时侧栏左下角出现下载按钮；下载完无运行中会话则安装重启，有则对话框确认。macOS/Windows 用 electron-updater（ZIP / NSIS）；Linux dpkg 安装走 pkexec，tarball 解压到当前前缀，Nix store 不自动更新。Admin 按 `(channel, platform, arch)` 各有 current pointer；Worker 不返回 R2 key。`v26.912.2` 正式打包已上传私有 R2 并自动发布该平台 current pointer。侧栏下载先 `checkForUpdates` 再 `downloadUpdate`；安装失败可见。从磁盘镜像或不在 `.app` 里运行时说明先装进应用程序文件夹。未发版 `ef6bdc8`：先整包校验再经本机回环交给 updater，不在 `26.912.2` 安装包内。GitHub Latest 提供 DMG/EXE/DEB/x64 tar.gz，不上 OTA ZIP。Beta 不启用 updater。 |
+| OTA 更新 | **Implemented / packaged in 26.912.3** | 已登录 Stable 主进程每分钟带 Bearer 询问 `/v1/releases/latest?platform&arch`。有新版本时侧栏左下角出现下载按钮；下载完无运行中会话则安装重启，有则对话框确认。macOS/Windows 用 electron-updater（ZIP / NSIS）；Linux dpkg 安装走 pkexec，tarball 解压到当前前缀，Nix store 不自动更新。Admin 按 `(channel, platform, arch)` 各有 current pointer；Worker 不返回 R2 key。`v26.912.3` 正式打包已上传私有 R2 并自动发布该平台 current pointer。侧栏下载先 `checkForUpdates` 再 `downloadUpdate`；本包无感更新先整包校验 SHA-256，再经本机回环交给 updater。安装失败可见。从磁盘镜像或不在 `.app` 里运行时说明先装进应用程序文件夹。已发出的 `26.912.2` 客户端仍走旧下载路径。GitHub Latest 提供 DMG/EXE/DEB/x64 tar.gz，不上 OTA ZIP。Beta 不启用 updater。 |
 | Go Runtime | **Implemented / concentrated** | `cmd/milksu-backend/main.go` 启动应用组合根和 JSONL RPC；同目录的 `desktop_rpc.go` 分派现有 App 方法并传递事件，`desktop_host.go` 把文件对话框、外链和浏览器宿主能力反向委托给 Electron。`app.go` 仍较集中，触碰时按纵切拆分。 |
 | 插件框架 | **Implemented / packaged in 26.911.1** | `internal/plugin` 是 `milksu.plugin/v1` 的可信控制面：验证确定性 Ed25519 包、发布者信任、宿主能力、安装/升级/回滚/卸载、事务存储和六个主题表面；Lua 与预编译 TypeScript 每次隔离调用，第三方工具只读。设置 iframe 通过 nonce 与类型化 broker 请求能力；外部 MCP 默认关闭、逐插件开启，并在元数据变化后刷新工具目录。官方皮肤和文本工具贯通该链路。`26.911.1` 避开 Node 26 解析器的 `realpathSync`，Windows 正式打包先核对干净源码再生成插件 dist。 |
 | Pi 通用 Agent | **Verified core / partial extensions** | Pi 继续拥有 Session、Compaction、模型、自然语言理解和通用 Tool Loop；MilkSU 监管 Sidecar、注入当前 Provider、投影事件并实施工作区/审批边界。MilkSU 不从普通 prompt 的关键词或格式推断 Agent 意图：GUI 一键动作和内部无工具投影分别使用 typed product action / typed turn policy。每回合向 Pi 注入无凭据的真实 OS、架构、路径和实际命令解释器事实，并把经 Go / Sidecar 校验的主会话 cwd 声明为权威目录；协作 writer worktree 只属于独立 effectful subagent 进程。Windows 保持 Pi 上游 Bash backend，需要原生 cmdlet 时显式调用 `powershell.exe`。受管 Sidecar 启用 Pi 原生长 prompt-cache retention，沿用稳定 Session ID；一次性压缩继续显式禁用缓存写入，不增加 MilkSU 缓存状态机。上下文窗口优先级为手动覆盖 > catalog（忽略旧 `128000` 占位）> GPT / Claude / Grok 型号族预设 > 保守默认；Composer 环按 Pi 组装分类。edit 锚点、`tool_result` bound、中途引导与子 Agent 结构化回传已进入 `26.904.1`。`26.905.1` 另把 `/rewind` / 最后一条用户消息「丢掉这段」（Pi `navigateTree`）与 `/handoff` / 用量环「接到新会话」（Pi 分叉 + 现行 compact）打进包；产品工具 when-to-use 只留在 description 与 Skill 名录，设置页可添加用户级 MCP/Skills 并覆盖内置项。GPT 与 Claude Opus / Sonnet / Fable 使用内置思考档位，其他模型只有经设置页手动声明后才进入该能力；Composer 保存对话级选择并只显示标准英文档位，Go 解析允许档位，Sidecar 通过 Pi 原生 `setThinkingLevel` 应用并让子 Agent 继承。当前 Pi 的 Provider effort 词表为 `off / minimal / low / medium / high / xhigh / max`，Codex `ultra` 多 Agent 编排不映射为模型 effort。已审核 Coding Skill 只向 Pi 常驻名称与用途，完整内容按任务或显式选择加载；设置只能停用审核目录。CTF / CVE / 实验室在 Pi Coding loop 之上叠加领域工具与 Judge，不再按角色关掉后台任务、Goal、LSP、Computer Use、终端或 `milksu_workspace`。Coding/CTF/CVE/实验室都强制 Pi 自动压缩，任务 UI `/compact` 不再按角色拒绝；工具结果进模型前截到 Pi 的 50KB/2000 行。CVE/实验室保留 `cve-research` / `lab-job` 角色。题目工作区绑定、未授权目标和独立 Judge 仍有效。`26.912.2` 起不再按目录白名单把模型标成纯文本或改走 OCR；附件原图进入当前回合，由模型或接口自己处理。不存在用户配置的辅助视觉会话。Linux 仍无本地 OCR。实时网页查证复用固定 Pi Web Extension 的 `web_search` / `web_fetch`，MilkSU 只把工具注册进当前会话与现有工具档位，不再维护第二套搜索决策；真实联网测试已先搜索再读取 xAI 官方 Grok 4.5 文档。`26.818.2` 起 Coding 另暴露类型化 `milksu_workspace`（标签、产物、环境/变更/终端）和 `compact_context`；上下文用量达到窗口约 85% 且 Session 空闲时自动走 Pi `/compact` 同一路径，用户 `/compact` 与 `compact_context` 立即排队该路径、不受 85% 限制。`替我审批` 自动执行隔离浏览器；可授权工具支持本对话始终允许。TokenFlux `grok-4.5` 多模态和一次真实文档自举已验；本轮真实 Provider 缓存命中率与 effort 请求尚未做计费链路验收，完整功能自举仍未完成。 |
@@ -297,18 +297,18 @@ hardened runtime / Developer ID 签名、App/DMG 公证、staple、Gatekeeper �
 CI 通过 rclone 把 ZIP、DMG 和元数据写到私有 R2 的不可变版本路径，逐个回读校验 SHA-256，再用窄
 publisher token 发布该平台 current pointer。已登录且访问正常的 Stable 客户端才可经 Worker 获取
 feed 和安装包。维护者仍可在 Admin 暂停分发。R2 没有公共下载地址，账户 Bearer token 只由 Electron 主进程持有。正式 GitHub Latest Release 是
-`v26.912.2 / f7782c181decf1cb99ddbad8d1939d45fd09a667`。仓库开发版本号是 `26.912.2`；晚于 `f7782c1` 的代码含 `ef6bdc8` 与 `b4fd4a2`，不是已发版。
-文档收口提交不改变该 tag。上一版 `v26.911.2 / 6120055`、`v26.911.1 / d341a35`、`v26.905.2 / b18b860`、`v26.905.1 / 1cc8773`、`v26.904.1 / 6e9371d` 与 `v26.827.1 / 37932ce` 仍可下载。打包后的
+`v26.912.3 / 91b9302b26d4e6f8a49155513b65c156a2bb55a0`。仓库开发版本号是 `26.912.3`；晚于 `91b9302` 的 HEAD 不是已发版。
+文档收口提交不改变该 tag。上一版 `v26.912.2 / f7782c1`、`v26.911.2 / 6120055`、`v26.911.1 / d341a35`、`v26.905.2 / b18b860`、`v26.905.1 / 1cc8773`、`v26.904.1 / 6e9371d` 与 `v26.827.1 / 37932ce` 仍可下载。打包后的
 Go Runtime 以自身所在 `resources` 目录直接定位同级 `milksu-sidecar/node.exe` 与 `chat-bridge.cjs`，
 不再把开发仓库根定位混入安装版资源查找。macOS
 ARM64 DMG 已完成 Developer ID 签名、Apple 公证、stapler、Gatekeeper 与云端构建复验；Windows x64
 安装程序已在原生 Windows 完成打包 Runtime 与首次启动检查，但当前没有 Windows 代码签名；Linux x64
 DEB 与 tar.gz 已在原生 Ubuntu 完成包结构、Node/Pi Sidecar、Go Runtime 与 Xvfb Electron 启动检查，
 并带 GNOME Portal Computer Use。GitHub Release 提供 DMG / EXE / DEB / x64 tar.gz，没有 OTA ZIP。
-纯文档提交不改变 `v26.912.2` 的 source commit。
+纯文档提交不改变 `v26.912.3` 的 source commit。
 后续正式包应走 `release:verify` → 云端 macOS / Windows / Linux → `release:github` 创建 Release 页。
 
-Linux `v26.912.2` 包已包含当前 CTF/CVE 与通用 Coding 的 Pi Runtime 收敛、可选 DeepSeek Harness、共用 tarball / PKGBUILD / Nix flake，
+Linux `v26.912.3` 包已包含当前 CTF/CVE 与通用 Coding 的 Pi Runtime 收敛、可选 DeepSeek Harness、共用 tarball / PKGBUILD / Nix flake，
 以及 GNOME Portal Computer Use；仍不接 Secret Service 与本地 OCR，Hyprland / Xorg Computer Use unavailable。
 Windows 未签名和 Linux 缺失能力必须在下载说明中明确，不能把三端构建
 回执外推为三个平台功能等价。OTA 已上传私有 R2 并自动发布该平台 current pointer。
