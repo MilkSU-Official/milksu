@@ -177,7 +177,7 @@
 - 计划 / 变更上拉框不再跟收缩后的胶囊同宽；展开后最小 18rem，步骤文案不再只剩两个字。
 - 下拉框、菜单、Dialog、Sheet 和对话小窗改用实底 `--surface-overlay` / `--popover`，不再套 68–74% 透明加 `backdrop-filter`。Windows 上 blur 经常不生效，字会看穿。Composer 岛仍可保留轻模糊。
 - 稳定 `milksu.plugin/v1` 插件候选已进入未发版 HEAD：Go 控制面管理确定性 Ed25519 签名包、发布者信任、升级/回滚/卸载与事务存储；公共 Runtime 为受限 Lua 和预编译 TypeScript，第三方工具只读，外部 MCP 逐插件开启。官方皮肤提供内容壁纸、列表、按钮、工作区顶部栏、下拉表面和 Composer 六个独立图片/纯色槽位，默认 `inherit` 保持核心原色并同步日夜遮罩。该能力尚未进入正式发行包。
-- Computer Use 驱动从 `cua-driver 0.14.2` 升到上游 `0.27.0`。macOS 继续用官方 universal 包；Windows 仍从同一 commit 源码编，并去掉 MilkSU 路径补丁（上游已有 `canonical_process_executable`）。Linux / Hyprland 仍不接 CUA。关 #56。
+- Computer Use 驱动从 `cua-driver 0.14.2` 升到上游 `0.27.0`。macOS 继续用官方 universal 包；Windows 仍从同一 commit 源码编，并去掉 MilkSU 路径补丁（上游已有 `canonical_process_executable`）。Linux / Hyprland 仍不接 CUA。关 #56。Windows 源码钉的 `Cargo.lock` 按 LF 归一化校验，避免上游 `* text=auto` 在 CI 上把锁文件改成 CRLF 后对不上。
 - 设置 → 模型在默认模型下增加 `subagent`：四个工作区派出的子 Agent 用这条覆盖，空则跟随当前对话正在用的主模型。覆盖不在可调用目录时清空。思考档位用该模型自己的默认档，只在子进程 `--model` 上改，不另造 harness。
 - 设置 → Skills 增加默认关闭的 `ghidra-rpc` / `jadx`。不选手动安装目录；行上只显示本机有没有找到。Ghidra 可用「准备」把固定版 CLI 装进配置目录。JADX 不包装，模型直接调本机 `jadx`。
 - 模型服务预置可编辑、可删除的 DeepSeek（`https://api.deepseek.com`，`deepseek-flash` / `deepseek-v4-pro`）。删掉并保存后不再自动出现。
