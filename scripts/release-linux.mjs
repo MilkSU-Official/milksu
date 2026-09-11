@@ -89,6 +89,7 @@ const tracking = await collectBuildTracking(repositoryRoot, {
 if (tracking.dirty) {
   throw new Error('refusing to package a Linux Stable trial from a dirty worktree')
 }
+await run(process.execPath, [join(repositoryRoot, 'scripts', 'build-plugins.mjs')])
 
 const stagingDirectory = join(repositoryRoot, 'build', 'desktop')
 const trackingPath = join(stagingDirectory, 'build-tracking.stable.linux.json')

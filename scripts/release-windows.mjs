@@ -93,6 +93,7 @@ const tracking = await collectBuildTracking(repositoryRoot, {
 if (tracking.dirty) {
   throw new Error('refusing to package a Windows Stable release from a dirty worktree')
 }
+await run(process.execPath, [join(repositoryRoot, 'scripts', 'build-plugins.mjs')])
 
 const stagingDirectory = join(repositoryRoot, 'build', 'desktop')
 const trackingPath = join(stagingDirectory, 'build-tracking.stable.windows.json')
