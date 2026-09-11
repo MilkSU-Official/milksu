@@ -440,6 +440,94 @@
   font-size: 0.8rem;
 }
 
+[data-agent-conversation] .agent-attachment-thumb {
+  display: block;
+  max-width: 12rem;
+  overflow: hidden;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  color: inherit;
+  cursor: zoom-in;
+}
+
+[data-agent-conversation] .agent-attachment-thumb img {
+  display: block;
+  max-width: 12rem;
+  max-height: 8rem;
+  object-fit: cover;
+}
+
+[data-agent-conversation] .agent-attachment-thumb .agent-attachment {
+  padding: 0.45rem 0.6rem;
+}
+
+[data-agent-conversation] .agent-attachment-lightbox {
+  inset: 0;
+  max-width: min(48rem, calc(100vw - 2rem));
+  max-height: calc(100vh - 3rem);
+  margin: auto;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-overlay);
+  color: var(--popover-foreground);
+}
+
+[data-agent-conversation] .agent-attachment-lightbox::backdrop {
+  background: color-mix(in oklab, var(--foreground) 32%, transparent);
+}
+
+[data-agent-conversation] .agent-attachment-lightbox__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.7rem 0.85rem;
+  border-bottom: 1px solid var(--border);
+}
+
+[data-agent-conversation] .agent-attachment-lightbox__bar p {
+  min-width: 0;
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+[data-agent-conversation] .agent-attachment-lightbox__bar button {
+  display: grid;
+  flex: none;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+}
+
+[data-agent-conversation] .agent-attachment-lightbox__bar button:hover {
+  background: var(--hover-2);
+}
+
+[data-agent-conversation] .agent-attachment-lightbox img {
+  display: block;
+  max-width: 100%;
+  max-height: calc(100vh - 8rem);
+  margin: 0 auto;
+  padding: 0.85rem;
+  object-fit: contain;
+}
+
+[data-agent-conversation] .agent-attachment-lightbox__empty {
+  margin: 0;
+  padding: 1.25rem 0.85rem 1.5rem;
+  color: var(--muted-foreground);
+  font-size: 0.85rem;
+}
+
 [data-agent-conversation] .agent-choice {
   width: 100%;
 }
