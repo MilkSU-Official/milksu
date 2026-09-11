@@ -30,6 +30,9 @@ jobs:
   release:
     runs-on: ubuntu-24.04
     timeout-minutes: 120
+    env:
+      ELECTRON_CACHE: ${{ github.workspace }}/build/caches/electron
+      ELECTRON_BUILDER_CACHE: ${{ github.workspace }}/build/caches/electron-builder
     steps:
       - uses: actions/checkout@v4
         with:
@@ -60,6 +63,22 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - name: Cache Sidecar downloads
+        uses: actions/cache@v4
+        with:
+          path: build/sidecar-cache
+          key: sidecar-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/package-sidecar.mjs', 'scripts/build-windows-cua-driver.mjs', 'package-lock.json', 'go.mod', 'go.sum') }}
+          restore-keys: |
+            sidecar-${{ runner.os }}-${{ runner.arch }}-
+      - name: Cache Electron downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            build/caches/electron
+            build/caches/electron-builder
+          key: electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('desktop/package-lock.json') }}
+          restore-keys: |
+            electron-${{ runner.os }}-${{ runner.arch }}-
       - name: Install dependencies
         run: |
           npm ci
