@@ -8,7 +8,12 @@ import { resolveDshLaunch } from "./launch.js";
 import { createProductIpc } from "./product-ipc.js";
 import { dshProductIpc } from "../hostpath.js";
 import { dshPermissionResult } from "./permission.js";
-import { codingAskToolName } from "../pi/bridge-ask.js";
+import {
+  askOtherChoiceId,
+  codingAskToolName,
+  encodeAskOtherChoice,
+  resolveAskChoice,
+} from "../pi/bridge-ask.js";
 import { createWorkspaceActionBroker } from "../pi/bridge-workspace.js";
 import { buildDshPromptBlocks } from "./prompt-blocks.js";
 
@@ -407,15 +412,17 @@ async function respondApproval(command) {
   const ask = pendingAsks.get(requestId);
   if (ask) {
     pendingAsks.delete(requestId);
-    const selected = String(command.choice ?? "").trim();
-    const option = ask.options?.find(item => item.id === selected);
+    const option = resolveAskChoice(ask.options, command.choice, command.approved);
     emit(conversationId, "approval_resolved", {
       requestId,
       toolName: codingAskToolName,
-      approved: Boolean(command.approved) && Boolean(option),
-      choice: option?.id,
+      approved: Boolean(option),
+      reason: option ? "choice selected" : "dismissed by user",
+      choice: option?.id === askOtherChoiceId
+        ? encodeAskOtherChoice(option.label)
+        : option?.id,
     });
-    ask.resolve(command.approved ? option ?? null : null);
+    ask.resolve(option);
     return;
   }
   const record = sessionRecord(conversationId);

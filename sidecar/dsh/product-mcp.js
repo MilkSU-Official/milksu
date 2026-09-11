@@ -2,6 +2,7 @@ import { createConnection } from "node:net";
 import { createInterface } from "node:readline";
 import {
   codingAskToolName,
+  formatAskSelection,
   formatAskToolInput,
   normalizeAskOptions,
 } from "../pi/bridge-ask.js";
@@ -112,8 +113,7 @@ async function callTool(name, args) {
     if (!question) throw new Error("milksu_ask needs a question");
     if (options.length < 2) throw new Error("milksu_ask needs at least two options");
     const picked = await callIpc("ask", { conversationId, question, options });
-    if (!picked) return "The user dismissed the question.";
-    return `The user selected "${picked.label}" (${picked.id}).`;
+    return formatAskSelection(picked);
   }
   if (name === codingWorkspaceToolName) {
     const action = normalizeCodingWorkspaceAction(args?.action);

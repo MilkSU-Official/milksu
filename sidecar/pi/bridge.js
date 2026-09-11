@@ -9,7 +9,12 @@ import { basename, dirname, join, resolve } from "node:path";
 import { readFile, unlink } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { Type } from "typebox";
-import { codingAskToolName, formatAskToolInput, normalizeAskOptions } from "./bridge-ask.js";
+import {
+  codingAskToolName,
+  formatAskSelection,
+  formatAskToolInput,
+  normalizeAskOptions,
+} from "./bridge-ask.js";
 import { contextWindowOverride, registeredContextWindow } from "./known-context-window.cjs";
 import {
   createMcpAdapter,
@@ -411,13 +416,13 @@ function createMilkSUWorkflowExtension(sessionRole, getPolicy, getSession, conve
         });
         if (!picked) {
           return {
-            content: [{ type: "text", text: "The user dismissed the question." }],
+            content: [{ type: "text", text: formatAskSelection(null) }],
           };
         }
         return {
           content: [{
             type: "text",
-            text: `The user selected "${picked.label}" (${picked.id}).`,
+            text: formatAskSelection(picked),
           }],
           details: { question, selected: picked },
         };

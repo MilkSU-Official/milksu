@@ -27,6 +27,30 @@ test("choice broker waits for a selected option", async () => {
   assert.equal(events[1].choice, "five");
 });
 
+test("choice broker accepts a freeform other answer", async () => {
+  const events = [];
+  const broker = createApprovalBroker(
+    (id, type, data) => events.push({ id, type, ...data }),
+    () => "ask-other",
+  );
+  const decision = broker.requestChoice({
+    conversationId: "conversation-1",
+    question: "Pick one",
+    options: [
+      { id: "a", label: "A" },
+      { id: "b", label: "B" },
+    ],
+  });
+  broker.respond({
+    conversationId: "conversation-1",
+    requestId: "ask-other",
+    approved: true,
+    choice: "other:都不合适，按任务交接",
+  });
+  assert.deepEqual(await decision, { id: "other", label: "都不合适，按任务交接" });
+  assert.equal(events[1].choice, "other:都不合适，按任务交接");
+});
+
 test("choice broker rejects an unknown option and dismisses to null", async () => {
   const events = [];
   const broker = createApprovalBroker(

@@ -614,6 +614,25 @@
   line-height: 1.4;
 }
 
+[data-agent-conversation] .agent-choice__other {
+  align-items: center;
+}
+
+[data-agent-conversation] .agent-choice__other-input {
+  width: 100%;
+  margin-top: 0.15rem;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  outline: none;
+}
+
+[data-agent-conversation] .agent-choice__other-input:disabled {
+  opacity: 1;
+}
+
 [data-agent-conversation] .agent-approve {
   width: 100%;
   box-sizing: border-box;

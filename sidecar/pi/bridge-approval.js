@@ -1,4 +1,9 @@
 import { randomUUID } from "node:crypto";
+import {
+  askOtherChoiceId,
+  encodeAskOtherChoice,
+  resolveAskChoice,
+} from "./bridge-ask.js";
 
 export function createApprovalBroker(emit, createID = randomUUID) {
   const pending = new Map();
@@ -89,8 +94,7 @@ export function createApprovalBroker(emit, createID = randomUUID) {
           settle(requestId, false, "dismissed by user");
           return;
         }
-        const selected = String(choice ?? "").trim();
-        const option = request.options.find(item => item.id === selected);
+        const option = resolveAskChoice(request.options, choice, true);
         if (!option) throw new Error("Unknown MilkSU choice");
         pending.delete(requestId);
         emit(request.conversationId, "approval_resolved", {
@@ -98,7 +102,9 @@ export function createApprovalBroker(emit, createID = randomUUID) {
           toolName: request.toolName,
           approved: true,
           reason: "choice selected",
-          choice: option.id,
+          choice: option.id === askOtherChoiceId
+            ? encodeAskOtherChoice(option.label)
+            : option.id,
         });
         request.resolve(true, option);
         return;

@@ -33,6 +33,11 @@ import {
   normalizeAgentKernel,
   type AgentKernel,
 } from '@/lib/agentKernel'
+import {
+  askApprovalChoice,
+  encodeAskOtherChoice,
+  pendingAskMessage,
+} from '@/lib/agentAsk'
 import { normalizeDomainTaskContext } from '@/lib/domainTaskContext'
 import { shouldRememberCodingProject } from '@/lib/codingProjectMemory'
 import { conversationWorkspaceHome, type WorkspaceHome } from '@/lib/workspaceSessionRouting'
@@ -1361,10 +1366,15 @@ export function useConversations() {
     if (!prompt) return false
     const visiblePrompt = visibleText.trim() || prompt
     const runningConversationId = activeId.value
+    const activeConversation = conversations.value.find(item => item.id === runningConversationId)
+    const pendingAsk = pendingAskMessage(activeConversation?.messages)
+    const answeringAsk = Boolean(pendingAsk?.approvalRequestId)
     const steering = Boolean(
-      runningConversationId && runningIds.value.has(runningConversationId),
+      runningConversationId
+      && runningIds.value.has(runningConversationId)
+      && !answeringAsk,
     )
-    if (steering && attachments.length) return false
+    if ((steering || answeringAsk) && attachments.length) return false
     const message: Message = {
       id: crypto.randomUUID(),
       role: 'user',
@@ -1410,6 +1420,16 @@ export function useConversations() {
           : conversation.title,
         messages: [...conversation.messages, message],
       }))
+    }
+
+    if (answeringAsk && pendingAsk?.approvalRequestId) {
+      await respondApproval(
+        pendingAsk.approvalRequestId,
+        true,
+        'once',
+        encodeAskOtherChoice(prompt),
+      )
+      return true
     }
 
     if (steering) {
@@ -1891,6 +1911,7 @@ export function useConversations() {
         scope: conversationGrant ? 'conversation' : '',
         choice: String(choice ?? '').trim(),
       })
+      const selected = askApprovalChoice(choice)
       update(conversation.id, current => ({
         ...current,
         messages: current.messages.map(message => (
@@ -1899,14 +1920,15 @@ export function useConversations() {
                 ...message,
                 status: 'done',
                 approvalState: approved ? 'approved' : 'denied',
-                approvalChoiceId: String(choice ?? '').trim() || message.approvalChoiceId,
-                approvalReason: String(choice ?? '').trim()
-                  ? ''
-                  : approved
-                    ? conversationGrant
-                      ? t('已允许本对话后续同类操作', 'Allowed similar actions for this conversation')
-                      : t('已允许本次操作', 'Allowed this action')
-                    : t('已拒绝本次操作', 'Denied this action'),
+                approvalChoiceId: selected.id || message.approvalChoiceId,
+                approvalReason: selected.otherText
+                  || (selected.id
+                    ? ''
+                    : approved
+                      ? conversationGrant
+                        ? t('已允许本对话后续同类操作', 'Allowed similar actions for this conversation')
+                        : t('已允许本次操作', 'Allowed this action')
+                      : t('已拒绝本次操作', 'Denied this action')),
               }
             : message
         )),
@@ -2176,18 +2198,23 @@ export function useConversations() {
               ...messages[approvalIndex],
               status: 'done',
               approvalState: approved ? 'approved' : 'denied',
-              approvalChoiceId: typeof choice === 'string' && choice.trim()
-                ? choice.trim()
-                : messages[approvalIndex].approvalChoiceId,
-              approvalReason: reason === 'choice selected'
-                ? ''
-                : reason === 'approved for this conversation'
-                  ? t('已允许本对话后续同类操作', 'Allowed similar actions for this conversation')
-                  : reason || (approved
-                    ? conversationGrant
-                      ? t('已允许本对话后续同类操作', 'Allowed similar actions for this conversation')
-                      : t('已允许本次操作', 'Allowed this action')
-                    : t('已拒绝本次操作', 'Denied this action')),
+              approvalChoiceId: (() => {
+                const selected = askApprovalChoice(typeof choice === 'string' ? choice : '')
+                return selected.id || messages[approvalIndex].approvalChoiceId
+              })(),
+              approvalReason: (() => {
+                const selected = askApprovalChoice(typeof choice === 'string' ? choice : '')
+                if (selected.otherText) return selected.otherText
+                return reason === 'choice selected'
+                  ? ''
+                  : reason === 'approved for this conversation'
+                    ? t('已允许本对话后续同类操作', 'Allowed similar actions for this conversation')
+                    : reason || (approved
+                      ? conversationGrant
+                        ? t('已允许本对话后续同类操作', 'Allowed similar actions for this conversation')
+                        : t('已允许本次操作', 'Allowed this action')
+                      : t('已拒绝本次操作', 'Denied this action'))
+              })(),
             }
           }
         } else if (

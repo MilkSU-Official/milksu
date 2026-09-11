@@ -17,7 +17,12 @@ import MarkdownContent from '@/components-vue/MarkdownContent.vue'
 import { formatDemoElapsed, messageSourceChips } from '@/lib/agentConversation'
 import { redactProviderCredentials } from '@/lib/redaction'
 import { isBlankAssistantMessage } from '@/lib/chatActivity'
-import { isAskMessage, parseAskOptions } from '@/lib/agentAsk'
+import {
+  askOtherChoiceId,
+  encodeAskOtherChoice,
+  isAskMessage,
+  parseAskOptions,
+} from '@/lib/agentAsk'
 import { toolBudgetToolName } from '@/lib/toolBudget'
 import { t } from '@/lib/uiLocale'
 import type { CodingAttachment, CodingAttachmentPreview, Message } from '@/types'
@@ -163,6 +168,34 @@ const branchControlLabel = computed(() => (
 ))
 const askOptions = computed(() => parseAskOptions(props.message.approvalInput))
 const isChoiceCard = computed(() => isAskMessage(props.message) && askOptions.value.length >= 2)
+const otherDraft = ref(
+  props.message.approvalChoiceId === askOtherChoiceId
+    ? String(props.message.approvalReason ?? '')
+    : '',
+)
+
+watch(
+  () => [
+    props.message.approvalChoiceId,
+    props.message.approvalReason,
+    props.message.approvalState,
+  ],
+  () => {
+    if (props.message.approvalChoiceId === askOtherChoiceId) {
+      otherDraft.value = String(props.message.approvalReason ?? '')
+    }
+  },
+)
+
+function submitAskOther() {
+  const text = otherDraft.value.trim()
+  if (
+    !text
+    || props.message.approvalState !== 'pending'
+    || !props.message.approvalRequestId
+  ) return
+  emit('respondApproval', props.message.approvalRequestId, true, 'once', encodeAskOtherChoice(text))
+}
 const showApproval = computed(() => (
   props.message.role === 'tool'
   && Boolean(props.message.approvalRequestId)
@@ -432,6 +465,34 @@ const approvalKicker = computed(() => (
               <span v-if="option.detail">{{ option.detail }}</span>
             </span>
           </button>
+        </div>
+        <div
+          class="agent-choice__option agent-choice__other"
+          :class="{ 'is-selected': message.approvalChoiceId === askOtherChoiceId }"
+        >
+          <span class="agent-choice__mark" aria-hidden="true" />
+          <span class="agent-choice__copy">
+            <strong>{{ t('其他', 'Other') }}</strong>
+            <input
+              v-model="otherDraft"
+              type="text"
+              class="agent-choice__other-input"
+              :disabled="message.approvalState !== 'pending' || !message.approvalRequestId"
+              :aria-label="t('其他', 'Other')"
+              @keydown.enter.prevent="submitAskOther"
+            >
+          </span>
+          <Button
+            v-if="message.approvalState === 'pending' && message.approvalRequestId"
+            type="button"
+            variant="ghost"
+            size="sm"
+            class="shrink-0"
+            :disabled="!otherDraft.trim()"
+            @click="submitAskOther"
+          >
+            {{ t('发送', 'Send') }}
+          </Button>
         </div>
       </template>
       <template v-else>

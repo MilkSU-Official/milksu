@@ -151,6 +151,8 @@ describe('ChatPage routing contract', () => {
     expect(chatPageSource).toContain(':queued-guidance="messageQueue?.steering ?? []"')
     expect(chatPageSource).toContain(':queued-guidance-awaiting-tool="queuedGuidanceAwaitingTool"')
     expect(chatPageSource).toContain("message.status === 'running'")
+    expect(chatPageSource).toContain('codingAskToolName')
+    expect(chatPageSource).toContain('pendingAskMessage')
     expect(chatPageSource).not.toContain("=== 'bash'")
     expect(chatPageSource).toContain("from '@/components-vue/ContextUsageMeter.vue'")
     expect(chatPageSource).toContain('turnStatus?: SessionTurnSnapshot')

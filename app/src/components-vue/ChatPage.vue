@@ -142,6 +142,7 @@ import {
   selectedComputerUseTarget as resolveSelectedComputerUseTarget,
 } from '@/lib/codingPolicy'
 import { codingContinuityPresentation } from '@/lib/codingContinuityPresentation'
+import { codingAskToolName, pendingAskMessage } from '@/lib/agentAsk'
 import type {
   CTFAgentBudgetStatus,
   CTFAgentRunCheckpoint,
@@ -409,6 +410,7 @@ const queuedGuidanceAwaitingTool = computed(() => (
   (props.conversation?.messages ?? []).some(message => (
     message.role === 'tool'
     && message.status === 'running'
+    && message.toolName !== codingAskToolName
   ))
 ))
 const composerGitSummary = computed(() => {
@@ -773,6 +775,7 @@ watch(chatTranscript, blocks => {
 })
 const waitingForModel = computed(() => {
   if (!props.running) return false
+  if (pendingAskMessage(props.conversation?.messages)) return false
   const last = chatTranscript.value.at(-1)
   if (!last) return true
   if (last.kind === 'activity') return !last.running

@@ -478,6 +478,22 @@ describe('ChatMessageItem', () => {
       choice: 'five',
     }])
     expect(host.querySelector('[role="radiogroup"]')).not.toBeNull()
+    const otherInput = host.querySelector<HTMLInputElement>('.agent-choice__other-input')
+    expect(otherInput).not.toBeNull()
+    expect(host.textContent).toContain('其他')
+    otherInput!.value = '都不合适，按任务交接'
+    otherInput!.dispatchEvent(new Event('input', { bubbles: true }))
+    await nextTick()
+    const sendOther = [...host.querySelectorAll('button')]
+      .find(button => button.textContent?.trim() === '发送')
+    sendOther?.click()
+    await nextTick()
+    expect(responses.at(-1)).toEqual({
+      requestId: 'ask-1',
+      approved: true,
+      scope: 'once',
+      choice: 'other:都不合适，按任务交接',
+    })
   })
 
   it('keeps a selected choice card as a receipt', async () => {

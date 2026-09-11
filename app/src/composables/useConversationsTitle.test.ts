@@ -162,6 +162,62 @@ describe('Coding conversation title generation', () => {
       .toBeLessThanOrEqual(24)
   })
 
+  it('answers a pending ask instead of queueing steering', async () => {
+    desktop.invokeCommand.mockResolvedValue(undefined)
+    const conversations = mountConversations()
+
+    await expect(conversations.send('先检查当前失败测试')).resolves.toBe(true)
+    const conversationId = conversations.activeId.value
+    conversations.conversations.value = conversations.conversations.value.map(item => (
+      item.id === conversationId
+        ? {
+            ...item,
+            messages: [
+              ...item.messages,
+              {
+                id: 'ask-1',
+                role: 'tool',
+                content: '选一个方案',
+                timestamp: Date.now(),
+                toolName: 'milksu_ask',
+                status: 'running',
+                approvalRequestId: 'ask-1',
+                approvalState: 'pending',
+                approvalInput: JSON.stringify({
+                  options: [
+                    { id: 'a', label: 'A' },
+                    { id: 'b', label: 'B' },
+                  ],
+                }),
+              },
+            ],
+          }
+        : item
+    ))
+
+    await expect(conversations.send('都不合适，按任务交接来')).resolves.toBe(true)
+
+    expect(desktop.invokeCommand).toHaveBeenCalledWith('respond_tool_approval', {
+      conversationId,
+      requestId: 'ask-1',
+      approved: true,
+      scope: '',
+      choice: 'other:都不合适，按任务交接来',
+    })
+    expect(desktop.invokeCommand.mock.calls.filter(
+      ([command]) => command === 'steer_message',
+    )).toHaveLength(0)
+    expect(desktop.invokeCommand.mock.calls.filter(
+      ([command]) => command === 'send_message',
+    )).toHaveLength(1)
+    expect(conversations.activeMessageQueue.value.steering).toEqual([])
+    expect(conversations.active.value?.messages.some(message => (
+      message.role === 'user'
+      && message.content === '都不合适，按任务交接来'
+      && message.status === 'queued'
+    ))).toBe(false)
+  })
+
   it('uses Pi steering instead of starting a parallel turn while running', async () => {
     desktop.invokeCommand.mockResolvedValue(undefined)
     const conversations = mountConversations()
