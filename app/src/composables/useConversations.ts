@@ -25,6 +25,7 @@ import {
 } from '@/lib/chatActivity'
 import { redactProviderCredentials } from '@/lib/redaction'
 import { normalizeSubagentTasks } from '@/lib/subagentRoster'
+import { explainTokenFluxError } from '@/lib/tokenFluxError'
 import { t } from '@/lib/uiLocale'
 import { normalizeDomainTaskContext } from '@/lib/domainTaskContext'
 import { shouldRememberCodingProject } from '@/lib/codingProjectMemory'
@@ -576,19 +577,8 @@ export function agentRuntimeErrorMessage(value: unknown) {
   if (/model provider .* is not supported|provider .* is not supported by the local Agent runtime/i.test(raw)) {
     return t('当前默认模型不可用，请在设置中改选 TokenFlux 或中转站。', 'The current default model is unavailable. Choose TokenFlux or a relay in Settings.')
   }
-  if (
-    /COMPOSITE_KEY_MODEL_PREFIX_REQUIRED|composite api key model must use prefix\/model_id/i
-      .test(raw)
-  ) {
-    return t('当前 Key 需要带厂商前缀的模型 ID（例如 x-ai/grok-4.5）。', 'This key requires a vendor-prefixed model ID (for example x-ai/grok-4.5).')
-  }
-  // TokenFlux Claude Code-only groups reject OpenAI-compatible clients used by MilkSU/Pi.
-  if (
-    /restricted to Claude Code clients|\/v1\/messages only|Claude Code clients/i
-      .test(raw)
-  ) {
-    return t('该模型仅支持 Claude Code 客户端，请改选 OpenAI 兼容模型。', 'This model only supports Claude Code clients. Choose an OpenAI-compatible model.')
-  }
+  const tokenFlux = explainTokenFluxError(value)
+  if (tokenFlux) return tokenFlux
   if (new RegExp(t('运行时正在启动', 'Runtime is starting'), 'i').test(raw)) {
     return t('运行时正在启动，请稍候。', 'Runtime is starting. Please wait.')
   }

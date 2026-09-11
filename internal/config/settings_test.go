@@ -81,6 +81,60 @@ func TestWithDefaults(t *testing.T) {
 	}
 }
 
+func TestResolveSubmittedUsesJustWrittenDeepSeekKey(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	store, err := newStore(path, fakeSecretStore{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	stored := store.Get()
+	preset := stored.Providers[presetDeepSeekServiceID]
+	if preset.Enabled || preset.HasAPIKey || preset.APIKey != "" {
+		t.Fatalf("store DeepSeek should start disabled and unkeyed: %#v", preset)
+	}
+
+	baseURL := presetDeepSeekBaseURL
+	submitted := stored
+	submitted.ActiveProvider = presetDeepSeekServiceID
+	submitted.ActiveModel = "deepseek-flash"
+	submitted.Providers[presetDeepSeekServiceID] = ProviderConfig{
+		Custom:  true,
+		Name:    "DeepSeek",
+		Enabled: true,
+		APIKey:  "deepseek-test-secret",
+		BaseURL: &baseURL,
+		Models:  []string{"deepseek-flash", "deepseek-v4-pro"},
+	}
+	resolved := store.ResolveSubmitted(submitted)
+	if resolved.ActiveProvider != presetDeepSeekServiceID || resolved.ActiveModel != "deepseek-flash" {
+		t.Fatalf("submitted DeepSeek was remapped: %s/%s", resolved.ActiveProvider, resolved.ActiveModel)
+	}
+	got := resolved.Providers[presetDeepSeekServiceID]
+	if !got.Enabled || !got.Custom || got.APIKey != "deepseek-test-secret" {
+		t.Fatalf("probe snapshot ignored the submitted DeepSeek key: %#v", got)
+	}
+}
+
+func TestWithDefaultsDoesNotRemapCustomRelayDeepSeek(t *testing.T) {
+	baseURL := presetDeepSeekBaseURL
+	settings := withDefaults(AppSettings{
+		ActiveProvider: presetDeepSeekServiceID,
+		ActiveModel:    "deepseek-flash",
+		Providers: map[string]ProviderConfig{
+			presetDeepSeekServiceID: {
+				Custom:  true,
+				Name:    "DeepSeek",
+				Enabled: true,
+				BaseURL: &baseURL,
+				Models:  []string{"deepseek-flash", "deepseek-v4-pro"},
+			},
+		},
+	})
+	if settings.ActiveProvider != presetDeepSeekServiceID || settings.ActiveModel != "deepseek-flash" {
+		t.Fatalf("custom-relay-deepseek was remapped to %s/%s", settings.ActiveProvider, settings.ActiveModel)
+	}
+}
+
 func TestRemovedDeepSeekPresetIsNotReseeded(t *testing.T) {
 	settings := withDefaults(AppSettings{
 		RemovedPresetServices: []string{presetDeepSeekServiceID, "custom-relay-other"},

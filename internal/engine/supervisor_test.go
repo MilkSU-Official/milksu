@@ -2504,6 +2504,37 @@ func TestSidecarStderrBufferTailUsesCrashDetail(t *testing.T) {
 	}
 }
 
+func TestValidateModelAccessAcceptsSubmittedDeepSeekRelay(t *testing.T) {
+	baseURL := "https://api.deepseek.com"
+	settings := config.DefaultSettings()
+	settings.ActiveProvider = "custom-relay-deepseek"
+	settings.ActiveModel = "deepseek-flash"
+	settings.Providers["custom-relay-deepseek"] = config.ProviderConfig{
+		Custom: true, Name: "DeepSeek", Enabled: true,
+		APIKey: "deepseek-test-secret", BaseURL: &baseURL,
+		Models: []string{"deepseek-flash", "deepseek-v4-pro"},
+	}
+	if err := validateModelAccess(settings); err != nil {
+		t.Fatalf("submitted DeepSeek relay should verify: %v", err)
+	}
+}
+
+func TestValidateModelAccessRejectsDisabledDeepSeekRelay(t *testing.T) {
+	baseURL := "https://api.deepseek.com"
+	settings := config.DefaultSettings()
+	settings.ActiveProvider = "custom-relay-deepseek"
+	settings.ActiveModel = "deepseek-flash"
+	settings.Providers["custom-relay-deepseek"] = config.ProviderConfig{
+		Custom: true, Name: "DeepSeek", Enabled: false,
+		APIKey: "deepseek-test-secret", BaseURL: &baseURL,
+		Models: []string{"deepseek-flash", "deepseek-v4-pro"},
+	}
+	err := validateModelAccess(settings)
+	if err == nil || !strings.Contains(err.Error(), "enable the custom relay and add its API key") {
+		t.Fatalf("disabled DeepSeek relay should fail verification, got %v", err)
+	}
+}
+
 func TestValidateModelAccessUsesPersonalKeyWhenAccountSourceHasNoKey(t *testing.T) {
 	settings := config.DefaultSettings()
 	settings.ActiveProvider = "deepseek"

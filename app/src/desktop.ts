@@ -413,7 +413,7 @@ interface DesktopAppBindings {
     index: number,
     expected: string,
   ): Promise<void>
-  TestAgentModel(): Promise<ModelProbeResult>
+  TestAgentModel(settings: AppSettings): Promise<ModelProbeResult>
   GetCodingUsageSnapshot(): Promise<CodingUsageSnapshot>
   ImportNSSCTFChallenge(rawURL: string): Promise<NSSCTFChallenge>
   SyncNSSCTFCatalog(rawURL: string): Promise<NSSCTFCatalogSyncResult>
@@ -976,7 +976,7 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
           args?.conversationId as string,
         ) as Promise<T>
       case 'test_agent_model':
-        return app.TestAgentModel() as Promise<T>
+        return app.TestAgentModel(args?.settings as AppSettings) as Promise<T>
       case 'list_security_tools':
         return app.ListSecurityTools() as Promise<T>
       case 'set_security_tool_enabled':

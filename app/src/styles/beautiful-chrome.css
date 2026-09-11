@@ -100,15 +100,6 @@
   border-top: 0;
 }
 
-.settings-focus-row {
-  background: var(--hover-2);
-  box-shadow: none;
-}
-
-.model-service-row-primary {
-  box-shadow: none;
-  background: var(--hover-2);
-}
 
 [data-button],
 [data-slot="input"],

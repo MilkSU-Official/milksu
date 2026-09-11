@@ -919,12 +919,66 @@ describe('SettingsPage database compatibility', () => {
     const text = document.body.textContent ?? ''
     expect(saved).toBe(true)
     expect(probed).toBe(true)
-    expect(text).toContain('凭据已保存，但 PI 模型验证失败')
-    expect(text).toContain('127.0.0.1:65533')
-    expect(text).toContain('connection refused')
-    expect(text).toContain('[REDACTED]')
+    expect(text).toContain('凭据已保存')
+    expect(text).toContain('无法连上模型服务')
+    expect(text).not.toContain('PI 模型验证失败')
+    expect(text).not.toContain('127.0.0.1')
+    expect(text).not.toContain('connection refused')
     expect(text).not.toContain('milksu:invoke')
     expect(text).not.toContain('synthetic-secret-value')
+  })
+
+  it('maps a TokenFlux 403 probe to quota guidance instead of a raw status', async () => {
+    const settings = withAppSettingsDefaults({
+      active_provider: 'tokenflux',
+      active_model: 'grok-4.5',
+      providers: {
+        tokenflux: {
+          api_key: '',
+          has_api_key: true,
+          enabled: true,
+          base_url: 'https://tokenflux.dev/v1',
+        },
+      },
+      relay: {
+        enabled: false,
+        url: 'https://tokenflux.dev/v1',
+        key: '',
+        has_key: false,
+      },
+    } as unknown as AppSettings)
+    await mountSettingsPage({
+      directory: 'MilkSU 用户数据目录',
+      fileCount: 0,
+      bytes: 0,
+    }, {
+      initialCategory: 'apikeys',
+      settings,
+      appMethods: {
+        SaveSettingsCmd: async () => undefined,
+        GetSettings: async () => settings,
+        TestAgentModel: async () => {
+          throw new Error(
+            "Error invoking remote method 'milksu:invoke': Error: PI model verification failed: 403 status code (no body)",
+          )
+        },
+      },
+    })
+
+    const saveButton = [...document.querySelectorAll('button')]
+      .find(button => button.textContent?.includes('保存并验证'))
+    saveButton?.click()
+    for (let index = 0; index < 6; index += 1) await settle()
+
+    const text = document.body.textContent ?? ''
+    expect(text).toContain('凭据已保存')
+    expect(text).toContain('TokenFlux')
+    expect(text).toContain('额度')
+    expect(text).not.toContain('PI 模型验证失败')
+    expect(text).not.toContain('403')
+    expect(text).not.toContain('no body')
+    expect(text).not.toContain('status code')
+    expect(text).not.toContain('milksu:invoke')
   })
 
   it('uses the approved settings order and keeps account and CTF credentials in their own categories', async () => {
@@ -1568,6 +1622,106 @@ describe('SettingsPage database compatibility', () => {
     expect(persisted.removed_preset_services).toEqual(['custom-relay-deepseek'])
   })
 
+  it('verifies a newly saved DeepSeek key against the submitted payload, not the disabled preset', async () => {
+    let savedSettings: AppSettings | null = null
+    let probed: AppSettings | null = null
+    const settings = withAppSettingsDefaults({
+      active_provider: 'tokenflux',
+      active_model: 'x-ai/grok-4.6',
+      providers: {},
+    } as AppSettings)
+    expect(settings.providers['custom-relay-deepseek']?.enabled).toBe(false)
+    expect(settings.providers['custom-relay-deepseek']?.has_api_key).toBe(false)
+
+    await mountSettingsPage({
+      directory: 'MilkSU 用户数据目录',
+      fileCount: 0,
+      bytes: 0,
+    }, {
+      initialCategory: 'apikeys',
+      settings,
+      appMethods: {
+        SaveSettingsCmd: async (value: unknown) => {
+          savedSettings = value as AppSettings
+        },
+        GetSettings: async () => {
+          const current = savedSettings ?? settings
+          const deepseek = current.providers['custom-relay-deepseek']
+          if (!deepseek?.api_key) return current
+          return {
+            ...current,
+            providers: {
+              ...current.providers,
+              'custom-relay-deepseek': {
+                ...deepseek,
+                api_key: '',
+                has_api_key: true,
+              },
+            },
+          }
+        },
+        TestAgentModel: async (value: unknown) => {
+          probed = value as AppSettings
+          const deepseek = probed?.providers['custom-relay-deepseek']
+          if (
+            probed?.active_provider !== 'custom-relay-deepseek'
+            || probed.active_model !== 'deepseek-flash'
+            || !deepseek?.enabled
+            || !String(deepseek.api_key ?? '').trim()
+          ) {
+            throw new Error(
+              'custom-relay-deepseek/deepseek-flash cannot start; enable the custom relay and add its API key in Settings',
+            )
+          }
+          return {
+            provider: 'custom-relay-deepseek',
+            model: 'deepseek-flash',
+            ready: true,
+            latencyMs: 41,
+          }
+        },
+      },
+    })
+
+    const deepseekRow = [...document.querySelectorAll<HTMLElement>('.model-service-row')]
+      .find(row => (row.querySelector('p.font-medium')?.textContent ?? '').trim() === 'DeepSeek')
+    const edit = [...deepseekRow!.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.trim() === '编辑')
+    edit?.click()
+    await settle()
+
+    const dialog = document.querySelector<HTMLElement>('.provider-editor-dialog')
+    const keyInput = dialog?.querySelector<HTMLInputElement>('input[aria-label="API Key"]')
+    expect(keyInput).not.toBeNull()
+    keyInput!.value = 'sk-deepseek-test-not-real'
+    keyInput!.dispatchEvent(new Event('input', { bubbles: true }))
+
+    const save = [...dialog!.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.trim() === '保存')
+    save?.click()
+    for (let index = 0; index < 8; index += 1) await settle()
+
+    const persisted = savedSettings as AppSettings
+    expect(persisted.active_provider).toBe('custom-relay-deepseek')
+    expect(persisted.active_model).toBe('deepseek-flash')
+    expect(persisted.providers['custom-relay-deepseek']).toMatchObject({
+      custom: true,
+      name: 'DeepSeek',
+      base_url: 'https://api.deepseek.com',
+      enabled: true,
+      api_key: 'sk-deepseek-test-not-real',
+      models: ['deepseek-flash', 'deepseek-v4-pro'],
+    })
+    expect(probed?.active_provider).toBe('custom-relay-deepseek')
+    expect(probed?.providers['custom-relay-deepseek']).toMatchObject({
+      enabled: true,
+      api_key: 'sk-deepseek-test-not-real',
+    })
+    expect(document.body.textContent).toContain('已保存并验证 custom-relay-deepseek/deepseek-flash')
+    expect(document.body.textContent).not.toContain('PI 模型验证失败')
+    expect(document.body.textContent).not.toContain('enable the custom relay')
+  })
+
   it('edits TokenFlux personal without silently replacing the default model service', async () => {
     let savedSettings: AppSettings | null = null
     const settings = withAppSettingsDefaults({
@@ -1608,6 +1762,8 @@ describe('SettingsPage database compatibility', () => {
     const tokenfluxRow = [...document.querySelectorAll<HTMLElement>('.model-service-row')]
       .find(row => row.textContent?.includes('TokenFlux 中转站'))
     expect(tokenfluxRow).toBeDefined()
+    expect(tokenfluxRow?.classList.contains('model-service-row-primary')).toBe(false)
+    expect(document.querySelector('.settings-focus-row')).toBeNull()
     const edit = [...tokenfluxRow!.querySelectorAll<HTMLButtonElement>('button')]
       .find(button => button.textContent?.trim() === '编辑')
     edit?.click()
