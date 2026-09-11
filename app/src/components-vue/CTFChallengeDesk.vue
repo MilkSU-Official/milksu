@@ -155,7 +155,7 @@ function select(id: number) {
       <span>#</span><span>{{ t('题目', 'Challenge') }}</span><span>{{ t('类别', 'Category') }}</span><span>{{ t('难度', 'Difficulty') }}</span><span>{{ t('我的状态', 'My status') }}</span><span class="sr-only">{{ t('收藏', 'Collections') }}</span><span class="sr-only">{{ t('打开', 'Open') }}</span>
     </div>
 
-    <div class="min-h-0 flex-1 overflow-y-auto">
+    <div class="ctf-challenge-list min-h-0 flex-1 overflow-y-auto">
       <template v-if="activeBank === 'nssctf'">
         <template v-for="problem in displayedNssctfProblems" :key="problem.platformId">
           <article
@@ -168,7 +168,7 @@ function select(id: number) {
             </span>
             <span class="min-w-0 select-text">
               <span class="truncate text-control font-medium">{{ problem.title }}</span>
-              <span v-if="dailyProblemID === problem.platformId" class="ak-tag ak-tag--advanced ml-3">{{ t('每日挑战', 'Daily challenge') }}</span>
+              <span v-if="dailyProblemID === problem.platformId" class="ctf-catalog-tag ctf-catalog-tag--daily ak-tag ak-tag--advanced ml-3">{{ t('每日挑战', 'Daily challenge') }}</span>
             </span>
             <span class="ctf-catalog-tag ctf-catalog-tag--category ak-tag ak-tag--compact">{{ problem.category }}</span>
             <span class="ctf-catalog-tag ctf-catalog-tag--difficulty ak-tag ak-tag--compact" :class="difficultyTag(problem.difficulty)">{{ difficultyLabel(problem.difficulty) }}</span>

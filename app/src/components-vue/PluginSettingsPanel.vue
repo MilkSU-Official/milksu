@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Badge, Button, Switch } from '@felinic/ui'
 import { Copy, PackagePlus, Puzzle, RotateCcw, ShieldX, Trash2, Undo2 } from 'lucide-vue-next'
 import { desktopErrorMessage, invokeCommand } from '@/desktop'
+import { t } from '@/lib/uiLocale'
 import {
   buildPluginFrameDocument,
   buildPluginFrameThemeMessage,
@@ -211,7 +212,7 @@ async function onPluginMessage(event: MessageEvent) {
     } else if (message.method === 'choose_background' && message.action === 'choose') {
       value = await invokeCommand<PluginBackgroundChoice>('choose_plugin_background', { id: message.pluginId })
     } else {
-      throw new Error('插件请求了未授权的设置能力')
+      throw new Error(t('插件请求了未授权的设置能力', 'The plugin requested an unauthorized settings capability'))
     }
     frameWindow.postMessage({ ...response, value }, '*')
   } catch (reason) {
@@ -239,20 +240,20 @@ onBeforeUnmount(() => {
   <section class="plugin-settings-grid">
     <header class="flex flex-wrap items-start justify-between gap-3 border-b border-border pb-4">
       <div>
-        <h2 class="text-lg font-semibold">插件框架</h2>
+        <h2 class="text-lg font-semibold">{{ t('插件框架', 'Plugin framework') }}</h2>
         <p class="mt-1 max-w-2xl text-caption leading-5 text-muted-foreground">
-          支持本地签名的 milksu.plugin/v1 包；首次安装核对发布者指纹、权限、表面与工具后再加入本机信任库。
+          {{ t('支持本地签名的 milksu.plugin/v1 包；首次安装核对发布者指纹、权限、表面与工具后再加入本机信任库。', 'Supports locally signed milksu.plugin/v1 packages. First install checks the publisher fingerprint, permissions, surfaces, and tools before adding them to this machine\'s trust store.') }}
         </p>
       </div>
       <div class="flex gap-2">
         <Button variant="outline" size="sm" @click="choosePackage">
-          <PackagePlus class="size-3.5" />安装插件
+          <PackagePlus class="size-3.5" />{{ t('安装插件', 'Install plugin') }}
         </Button>
         <Button variant="outline" size="sm" :disabled="!mcpConfig?.available" @click="copyMCPConfig">
-          <Copy class="size-3.5" />复制 MCP 配置
+          <Copy class="size-3.5" />{{ t('复制 MCP 配置', 'Copy MCP config') }}
         </Button>
         <Button variant="outline" size="sm" :loading="loading" @click="loadPlugins">
-          <RotateCcw class="size-3.5" />刷新
+          <RotateCcw class="size-3.5" />{{ t('刷新', 'Refresh') }}
         </Button>
       </div>
     </header>
@@ -261,21 +262,21 @@ onBeforeUnmount(() => {
 
     <section v-if="staged" class="rounded-lg border border-primary/40 bg-card p-4 text-caption" data-plugin-surface="workspace-list">
       <div class="flex flex-wrap items-start justify-between gap-3">
-        <div><h3 class="text-control font-semibold">{{ staged.upgrade ? '升级确认' : '首次安装确认' }} · {{ staged.name }} {{ staged.version }}</h3><p class="mt-1 text-muted-foreground">{{ staged.publisher.name }} · <span class="font-mono">{{ staged.fingerprint }}</span></p></div>
-        <Badge :variant="staged.trusted ? 'secondary' : 'outline'">{{ staged.key_rotation ? '共同签名密钥轮换' : staged.trusted ? '发布者已信任' : '新发布者' }}</Badge>
+        <div><h3 class="text-control font-semibold">{{ staged.upgrade ? t('升级确认', 'Upgrade confirmation') : t('首次安装确认', 'First-install confirmation') }} · {{ staged.name }} {{ staged.version }}</h3><p class="mt-1 text-muted-foreground">{{ staged.publisher.name }} · <span class="font-mono">{{ staged.fingerprint }}</span></p></div>
+        <Badge :variant="staged.trusted ? 'secondary' : 'outline'">{{ staged.key_rotation ? t('共同签名密钥轮换', 'Cosign key rotation') : staged.trusted ? t('发布者已信任', 'Publisher trusted') : t('新发布者', 'New publisher') }}</Badge>
       </div>
       <dl class="mt-3 grid grid-cols-[7rem_1fr] gap-2">
-        <dt class="text-muted-foreground">兼容范围</dt><dd>MilkSU ≥ {{ staged.host_min_version }}</dd>
-        <dt class="text-muted-foreground">权限</dt><dd>{{ staged.permissions.join(' · ') || '无' }}</dd>
-        <dt class="text-muted-foreground">表面</dt><dd>{{ staged.surfaces.join(' · ') || '无' }}</dd>
-        <dt class="text-muted-foreground">只读工具</dt><dd>{{ staged.tools.map(tool => tool.name).join(' · ') || '无' }}</dd>
-        <dt class="text-muted-foreground">摘要</dt><dd class="truncate font-mono" :title="staged.digest">{{ staged.digest }}</dd>
+        <dt class="text-muted-foreground">{{ t('兼容范围', 'Compatibility') }}</dt><dd>MilkSU ≥ {{ staged.host_min_version }}</dd>
+        <dt class="text-muted-foreground">{{ t('权限', 'Permissions') }}</dt><dd>{{ staged.permissions.join(' · ') || t('无', 'None') }}</dd>
+        <dt class="text-muted-foreground">{{ t('表面', 'Surfaces') }}</dt><dd>{{ staged.surfaces.join(' · ') || t('无', 'None') }}</dd>
+        <dt class="text-muted-foreground">{{ t('只读工具', 'Read-only tools') }}</dt><dd>{{ staged.tools.map(tool => tool.name).join(' · ') || t('无', 'None') }}</dd>
+        <dt class="text-muted-foreground">{{ t('摘要', 'Digest') }}</dt><dd class="truncate font-mono" :title="staged.digest">{{ staged.digest }}</dd>
       </dl>
-      <label v-if="!staged.trusted" class="mt-3 flex items-center gap-2"><input v-model="trustApproved" type="checkbox">我已核对指纹，并信任此发布者</label>
-      <label v-if="staged.permission_expansion || staged.major_version_change" class="mt-2 flex items-center gap-2"><input v-model="sensitiveApproved" type="checkbox">我确认权限扩大或主版本变化</label>
-      <p v-if="staged.storage_migration" class="mt-2 text-muted-foreground">此升级包含可回滚的存储迁移。</p>
-      <label v-if="staged.storage_reset_required" class="mt-2 flex items-center gap-2 text-destructive"><input v-model="resetStorageApproved" type="checkbox">新版本缺少迁移：删除此插件现有存储后继续</label>
-      <div class="mt-4 flex gap-2"><Button size="sm" :disabled="(!staged.trusted && !trustApproved) || ((staged.permission_expansion || staged.major_version_change) && !sensitiveApproved) || (staged.storage_reset_required && !resetStorageApproved)" @click="installStaged">确认{{ staged.upgrade ? '升级' : '安装' }}</Button><Button variant="ghost" size="sm" @click="discardStaged">取消</Button></div>
+      <label v-if="!staged.trusted" class="mt-3 flex items-center gap-2"><input v-model="trustApproved" type="checkbox">{{ t('我已核对指纹，并信任此发布者', 'I have checked the fingerprint and trust this publisher') }}</label>
+      <label v-if="staged.permission_expansion || staged.major_version_change" class="mt-2 flex items-center gap-2"><input v-model="sensitiveApproved" type="checkbox">{{ t('我确认权限扩大或主版本变化', 'I confirm the permission expansion or major-version change') }}</label>
+      <p v-if="staged.storage_migration" class="mt-2 text-muted-foreground">{{ t('此升级包含可回滚的存储迁移。', 'This upgrade includes a reversible storage migration.') }}</p>
+      <label v-if="staged.storage_reset_required" class="mt-2 flex items-center gap-2 text-destructive"><input v-model="resetStorageApproved" type="checkbox">{{ t('新版本缺少迁移：删除此插件现有存储后继续', 'The new version has no migration. Delete this plugin\'s existing storage to continue') }}</label>
+      <div class="mt-4 flex gap-2"><Button size="sm" :disabled="(!staged.trusted && !trustApproved) || ((staged.permission_expansion || staged.major_version_change) && !sensitiveApproved) || (staged.storage_reset_required && !resetStorageApproved)" @click="installStaged">{{ staged.upgrade ? t('确认升级', 'Confirm upgrade') : t('确认安装', 'Confirm install') }}</Button><Button variant="ghost" size="sm" @click="discardStaged">{{ t('取消', 'Cancel') }}</Button></div>
     </section>
 
     <div class="plugin-settings-shell grid min-h-[34rem] grid-cols-[minmax(15rem,0.8fr)_minmax(20rem,1.4fr)] overflow-hidden rounded-lg border border-border">
@@ -297,47 +298,47 @@ onBeforeUnmount(() => {
           <Switch
             :model-value="plugin.enabled"
             :disabled="plugin.status === 'error' || Boolean(toggling)"
-            :aria-label="`${plugin.enabled ? '停用' : '启用'}${plugin.name}`"
+            :aria-label="plugin.enabled ? t(`停用${plugin.name}`, `Disable ${plugin.name}`) : t(`启用${plugin.name}`, `Enable ${plugin.name}`)"
             @click.stop
             @update:model-value="setEnabled(plugin, Boolean($event))"
           />
         </button>
-        <p v-if="!plugins.length && !loading" class="p-5 text-caption text-muted-foreground">没有可用插件。</p>
+        <p v-if="!plugins.length && !loading" class="p-5 text-caption text-muted-foreground">{{ t('没有可用插件。', 'No plugins available.') }}</p>
       </div>
 
       <div class="plugin-settings-detail min-w-0 p-5">
         <template v-if="selected">
           <div class="flex flex-wrap items-center gap-2">
             <h3 class="text-lg font-semibold">{{ selected.name }}</h3>
-            <Badge :variant="selected.source === 'official' ? 'secondary' : 'outline'">{{ selected.source === 'official' ? '官方锁定' : selected.source === 'installed' ? '本地签名包' : '开发目录' }}</Badge>
+            <Badge :variant="selected.source === 'official' ? 'secondary' : 'outline'">{{ selected.source === 'official' ? t('官方锁定', 'Official locked') : selected.source === 'installed' ? t('本地签名包', 'Local signed package') : t('开发目录', 'Development directory') }}</Badge>
             <Badge :variant="selected.status === 'error' ? 'destructive' : 'outline'">{{ selected.status }}</Badge>
           </div>
           <dl class="mt-4 grid grid-cols-[7rem_1fr] gap-x-3 gap-y-2 text-caption">
             <dt class="text-muted-foreground">API</dt><dd class="font-mono">{{ selected.api_version }}</dd>
-            <dt class="text-muted-foreground">SHA-256</dt><dd class="truncate font-mono" :title="selected.digest">{{ selected.digest || '不可用' }}</dd>
-            <dt class="text-muted-foreground">权限</dt><dd class="flex flex-wrap gap-1"><Badge v-for="permission in selected.permissions" :key="permission" variant="outline">{{ permission }}</Badge><span v-if="!selected.permissions.length">无</span></dd>
-            <dt v-if="selected.publisher?.name" class="text-muted-foreground">发布者</dt><dd v-if="selected.publisher?.name">{{ selected.publisher.name }}<span v-if="selected.publisher.keyId" class="ml-2 font-mono">{{ selected.publisher.keyId.slice(0, 16) }}…</span></dd>
-            <dt class="text-muted-foreground">插槽</dt><dd>{{ selected.contributions.slots?.join(' · ') || '无' }}</dd>
-            <dt class="text-muted-foreground">工具</dt><dd>{{ selected.contributions.tools?.map(tool => `${tool.name} (${tool.effect})`).join(' · ') || '无' }}</dd>
+            <dt class="text-muted-foreground">SHA-256</dt><dd class="truncate font-mono" :title="selected.digest">{{ selected.digest || t('不可用', 'Unavailable') }}</dd>
+            <dt class="text-muted-foreground">{{ t('权限', 'Permissions') }}</dt><dd class="flex flex-wrap gap-1"><Badge v-for="permission in selected.permissions" :key="permission" variant="outline">{{ permission }}</Badge><span v-if="!selected.permissions.length">{{ t('无', 'None') }}</span></dd>
+            <dt v-if="selected.publisher?.name" class="text-muted-foreground">{{ t('发布者', 'Publisher') }}</dt><dd v-if="selected.publisher?.name">{{ selected.publisher.name }}<span v-if="selected.publisher.keyId" class="ml-2 font-mono">{{ selected.publisher.keyId.slice(0, 16) }}…</span></dd>
+            <dt class="text-muted-foreground">{{ t('插槽', 'Slots') }}</dt><dd>{{ selected.contributions.slots?.join(' · ') || t('无', 'None') }}</dd>
+            <dt class="text-muted-foreground">{{ t('工具', 'Tools') }}</dt><dd>{{ selected.contributions.tools?.map(tool => `${tool.name} (${tool.effect})`).join(' · ') || t('无', 'None') }}</dd>
           </dl>
-          <div v-if="selected.permissions.includes('mcp.external.read')" class="mt-4 flex items-center justify-between rounded-md border border-border p-3 text-caption"><div><strong>外部 MCP</strong><p class="mt-1 text-muted-foreground">默认关闭；修改后不支持工具通知的客户端需要重新连接。</p></div><Switch :model-value="Boolean(selected.external_enabled)" :disabled="!selected.enabled" @update:model-value="setExternal(selected, Boolean($event))" /></div>
+          <div v-if="selected.permissions.includes('mcp.external.read')" class="mt-4 flex items-center justify-between rounded-md border border-border p-3 text-caption"><div><strong>{{ t('外部 MCP', 'External MCP') }}</strong><p class="mt-1 text-muted-foreground">{{ t('默认关闭；修改后不支持工具通知的客户端需要重新连接。', 'Off by default. Clients that do not support tool notifications must reconnect after a change.') }}</p></div><Switch :model-value="Boolean(selected.external_enabled)" :disabled="!selected.enabled" @update:model-value="setExternal(selected, Boolean($event))" /></div>
           <div v-if="selected.source === 'installed'" class="mt-4 flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" :disabled="!selected.can_rollback" @click="rollbackSelected"><Undo2 class="size-3.5" />回滚上一版本</Button>
-            <Button variant="outline" size="sm" @click="uninstallSelected(false)"><Trash2 class="size-3.5" />卸载并保留数据</Button>
-            <Button variant="destructive" size="sm" @click="uninstallSelected(true)"><Trash2 class="size-3.5" />卸载并删除数据</Button>
+            <Button variant="outline" size="sm" :disabled="!selected.can_rollback" @click="rollbackSelected"><Undo2 class="size-3.5" />{{ t('回滚上一版本', 'Roll back previous version') }}</Button>
+            <Button variant="outline" size="sm" @click="uninstallSelected(false)"><Trash2 class="size-3.5" />{{ t('卸载并保留数据', 'Uninstall and keep data') }}</Button>
+            <Button variant="destructive" size="sm" @click="uninstallSelected(true)"><Trash2 class="size-3.5" />{{ t('卸载并删除数据', 'Uninstall and delete data') }}</Button>
           </div>
           <div v-if="selected.enabled && frameDocument" class="plugin-settings-frame mt-5 overflow-hidden rounded-lg border border-border">
-            <iframe ref="iframe" :title="`${selected.name} 设置`" :srcdoc="frameDocument" sandbox="allow-scripts" referrerpolicy="no-referrer" class="h-96 w-full border-0" @load="syncFrameTheme" />
+            <iframe ref="iframe" :title="t(`${selected.name} 设置`, `${selected.name} settings`)" :srcdoc="frameDocument" sandbox="allow-scripts" referrerpolicy="no-referrer" class="h-96 w-full border-0" @load="syncFrameTheme" />
           </div>
-          <p v-else-if="!selected.enabled" class="mt-5 rounded-md border border-border bg-muted/20 p-4 text-caption text-muted-foreground">启用插件后才会创建隔离的设置面板。</p>
-          <p v-else-if="!selected.has_settings" class="mt-5 text-caption text-muted-foreground">此插件没有设置面板。</p>
+          <p v-else-if="!selected.enabled" class="mt-5 rounded-md border border-border bg-muted/20 p-4 text-caption text-muted-foreground">{{ t('启用插件后才会创建隔离的设置面板。', 'The isolated settings panel is created only after the plugin is enabled.') }}</p>
+          <p v-else-if="!selected.has_settings" class="mt-5 text-caption text-muted-foreground">{{ t('此插件没有设置面板。', 'This plugin has no settings panel.') }}</p>
         </template>
       </div>
     </div>
 
     <section v-if="publishers.length" class="rounded-lg border border-border bg-card p-4" data-plugin-surface="workspace-list">
-      <h3 class="text-control font-semibold">已信任发布者</h3>
-      <div v-for="publisher in publishers" :key="publisher.key_id" class="mt-3 flex items-center justify-between gap-3 border-t border-border pt-3 text-caption"><div class="min-w-0"><strong>{{ publisher.name }}</strong><p class="truncate font-mono text-muted-foreground" :title="publisher.key_id">{{ publisher.key_id }}</p></div><Button variant="outline" size="sm" @click="revokePublisher(publisher.key_id)"><ShieldX class="size-3.5" />撤销信任</Button></div>
+      <h3 class="text-control font-semibold">{{ t('已信任发布者', 'Trusted publishers') }}</h3>
+      <div v-for="publisher in publishers" :key="publisher.key_id" class="mt-3 flex items-center justify-between gap-3 border-t border-border pt-3 text-caption"><div class="min-w-0"><strong>{{ publisher.name }}</strong><p class="truncate font-mono text-muted-foreground" :title="publisher.key_id">{{ publisher.key_id }}</p></div><Button variant="outline" size="sm" @click="revokePublisher(publisher.key_id)"><ShieldX class="size-3.5" />{{ t('撤销信任', 'Revoke trust') }}</Button></div>
     </section>
   </section>
 </template>

@@ -645,7 +645,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', closeOnOutside
                 </div>
               </details>
             </div>
-            <details>
+            <details
               v-if="temporaryGroup"
               open
               class="coding-temporary-group mt-2"
