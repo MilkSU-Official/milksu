@@ -81,7 +81,7 @@ Review this section by layer. Do not invent a second primitive at the same layer
 | List chrome | filters, History, primary action | `WorkspaceCatalogActions`: History + Import (CTF/CVE) or Create (Lab). Catalog tables use canvas fill, not gold / paper / cyan row backgrounds. Filter inputs, selects and outline buttons use 8px radius. **ak-ui easter eggs:** `.ak-segmented` filters and `ak-tag` chips for category, difficulty, severity, daily challenge. |
 | Facts | cards, tables, dialogs, status | Felinic `SettingsSection` / `SettingsRow` / `ActionCard` / `ModelListRow` with 8px radius and the clear `--card` fill. Settings list rows, tool workbench and field controls use the same 8px radius. **ak-ui easter egg:** `ConnectionLiveStatus` LIVE/OFF, and the module topbar mark. |
 | Copy | user-visible strings | `t('中文', 'English')`; empty controls stay blank |
-| Agent conversation | Coding / CTF / CVE / lab chat | Beautiful UI primitives: 03 stream edge (real Pi tokens, solid 2px caret; streamed glyphs stay sharp), 04 ask rows, 05 chips, 06 plan capsule (pull-up min 18rem so step text is readable), 08 prompt island, 18 code blocks. Do not put ak-ui cards in this layer. |
+| Agent conversation | Coding / CTF / CVE / lab chat | Beautiful UI primitives: 03 stream edge (real Pi tokens, solid 2px caret; streamed glyphs stay sharp), 04 ask rows (last row is 其他 / Other input), 05 chips, 06 plan capsule (pull-up min 18rem so step text is readable), 08 prompt island, 18 code blocks. Do not put ak-ui cards in this layer. |
 
 Home chat fills the column right of the sidebar. CTF / CVE / lab default to one
 dismissible dock (close is X unmount). Maximize covers everything right of the
@@ -253,8 +253,10 @@ deferred to one destructive pre-release consolidation after the product slices a
   approval policy, or attach to the user's Chrome.
 - `milksu_ask` is a typed product-UI tool for Beautiful UI 04 choice cards. The model
   calls it when the user must pick among 2–6 concrete options; the conversation shows
-  a question plus selectable rows and pauses until one is chosen. Do not regex the
-  prompt for “给我几个选项”, and do not treat this as tool-permission HITL
+  a question plus selectable rows and a final 其他 / Other input, then pauses. Choosing
+  a row or submitting Other (including a new composer message) answers the card and
+  continues the same turn; do not queue that text as steering behind the ask. Do not
+  regex the prompt for “给我几个选项”, and do not treat this as tool-permission HITL
   (deny / allow once / always allow).
 - Do not strip Coding capabilities from CTF, CVE or lab sessions. Those workspaces keep
   the full Pi tool loop (files, shell, background tasks, browser, LSP, compact, goal,
@@ -274,14 +276,14 @@ deferred to one destructive pre-release consolidation after the product slices a
 
 ## Release Claims
 
-- The last receipted three-platform GitHub Release is `v26.911.2` at `6120055`. Write both that
-  baseline and the current development version line when HEAD is later. Keep `v26.911.1`, `v26.905.2`, `v26.905.1`, `v26.904.1` and
+- The last receipted three-platform GitHub Release is `v26.912.2` at `f7782c1`. Write both that
+  baseline and the current development version line when HEAD is later. Keep `v26.911.2`, `v26.911.1`, `v26.905.2`, `v26.905.1`, `v26.904.1` and
   `v26.827.1` as previous downloadable releases, not Latest.
 - After every GitHub Release, immediately update and push `docs/developer/current-objectives.md`,
   `docs/developer/document-status.md`, `docs/architecture/current-system.md`, `README.md` and this
   section. Do not leave the previous receipt as "latest".
 - A version bump, empty tag, local dirty package or later `main` commits on the same version number
-  are still not a new ship. `26.911.2` is a receipted GitHub Release; commits after `6120055` are not.
+  are still not a new ship. `26.912.2` is a receipted GitHub Release; commits after `f7782c1` are not.
 - GitHub writes stay on the authorized MilkSU remote (`MilkSU-Official/milksu`) and still require
   the product's meaningful publish confirmation.
 

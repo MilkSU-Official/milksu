@@ -2,12 +2,12 @@
 
 > 文档状态：Current / Canonical target contract
 >
-> 最后收口：2026-09-11
+> 最后收口：2026-09-12
 >
 > 本页只回答“当前处于什么阶段、下一条完成线是什么”。实现事实以当前代码、测试、Git 历史和原生 App 验收为准；历史设计与旧里程碑不作为任务队列。
 >
-> 发版改动与未发版改动必须分开写。有三端回执的正式 GitHub Release 是今日 `26.911.2`。
-> 文档收口提交不移动该 tag。不要把晚于 `6120055` 的 HEAD 写成已发版。
+> 发版改动与未发版改动必须分开写。有三端回执的正式 GitHub Release 是今日 `26.912.2`。
+> 文档收口提交不移动该 tag。不要把晚于 `f7782c1` 的 HEAD 写成已发版。`v26.912.1` 从未作为 GitHub Latest 发出。
 
 ## 工作规则
 
@@ -30,15 +30,15 @@
 | --- | --- |
 | 阶段 | **内测迭代 / Agent Runtime 与跨平台发行收敛**。当前工作不再按 M3/M4 里程碑组织。 |
 | 历史基线 | M3 product-loop 已在 `108e0e3`（2026-08-05）合并，仅供追溯。 |
-| 正式发行基线 | `v26.911.2 / 6120055f22a13b1ad404e80098ff3e1f6fd1b6cd`（2026-09-11）。这是当前 GitHub Latest Release；提供带版本号的 DMG、EXE、DEB、x64 tar.gz 与 `SHA256SUMS`。OTA 已上传私有 R2 并自动发布该平台 current pointer。侧栏下载先 `checkForUpdates` 再 `downloadUpdate`；安装失败可见。上一版 `v26.911.1 / d341a35`、`v26.905.2 / b18b860`、`v26.905.1 / 1cc8773`、`v26.904.1 / 6e9371d` 与 `v26.827.1 / 37932ce` 仍可下载，不是 Latest。 |
-| 开发版本线 | 根目录与 `desktop/package.json` 是 `26.911.2`。正式发行源是 `6120055`；文档收口提交不移动该 tag。 |
-| 当前开发 | 正式包是 `26.911.2`。在 `26.911.1` 之上：公开源同步不再写入跟踪列表；DeepSeek 可先存 Key 再启用；原生下拉也用实底 overlay；macOS 安装并重启失败可见且不再先停 Runtime；CI 上传 OTA 后自动发布 current pointer。宽作业父循环 `bg_status` 熔断与最多 4 条只读子 Agent；实验性插件框架；Computer Use 驱动 `0.27.0`；设置 → 模型的 subagent 覆盖、设置 → Skills 的 ghidra-rpc / jadx、模型服务预置 DeepSeek；保存并验证走刚提交的配置。Pi 钉到 `0.84.1`。Windows 安装器仍未代码签名；Linux 无 Secret Service 与本地 OCR；Hyprland/Xorg Computer Use 不可用。CTF 比赛模式和实验室红队学习面仍未接线。产品 UI 设计语言只写在 `AGENTS.md`。未发版：#53 的 typed sweep 工具尚未做。 |
-| 平台边界 | `26.911.2`：macOS DMG 走 GitHub-hosted Developer ID 签名并公证；Windows 安装器完成原生 Runtime 与首次启动但未代码签名，并打入审阅过的 CUA Driver `0.27.0`；Linux 发出 Ubuntu/Debian 共用 x64 DEB 与 Omarchy/Arch/Nix 共用 x64 tarball，GNOME Portal Computer Use 已进包，仍无 Secret Service、本地 OCR；Hyprland/Xorg Computer Use 不可用。Windows/Linux 窗口铬尚未真机验收。 |
+| 正式发行基线 | `v26.912.2 / f7782c181decf1cb99ddbad8d1939d45fd09a667`（2026-09-12）。这是当前 GitHub Latest Release；提供带版本号的 DMG、EXE、DEB、x64 tar.gz 与 `SHA256SUMS`。OTA 已上传私有 R2 并自动发布该平台 current pointer。侧栏下载先 `checkForUpdates` 再 `downloadUpdate`；安装失败可见。上一版 `v26.911.2 / 6120055`、`v26.911.1 / d341a35`、`v26.905.2 / b18b860`、`v26.905.1 / 1cc8773`、`v26.904.1 / 6e9371d` 与 `v26.827.1 / 37932ce` 仍可下载，不是 Latest。`v26.912.1` 从未作为 GitHub Latest 发出。 |
+| 开发版本线 | 根目录与 `desktop/package.json` 是 `26.912.2`。正式发行源是 `f7782c1`；当前 HEAD 是 `b4fd4a2`（含 `ef6bdc8`）。文档收口提交不移动该 tag。 |
+| 当前开发 | 正式包是 `26.912.2`。新对话可选 Pi 或 DeepSeek Harness；安装包里的 DeepSeek 会话可以启动，选中后目录外的型号会灰掉。附件原图交给当前模型；已发送图片显示缩略图。思考结束后不再空挂「正在回复」；上下文窗口为 0 时不再注册给 Pi；自动整理可超时取消。DeepSeek 会话不能 rewind / 分叉，当前仍用 harness 默认型号。Windows 安装器仍未代码签名；Linux 无 Secret Service 与本地 OCR；Hyprland/Xorg Computer Use 不可用。CTF 比赛模式和实验室红队学习面仍未接线。产品 UI 设计语言只写在 `AGENTS.md`。未发版：`ef6bdc8` 无感更新先校验再经本机回环交给 updater，不在本安装包内；DSH ACP 仍不应用所选型号；`b4fd4a2` 子任务缺工作区与停止文案；#53 typed sweep 尚未做。 |
+| 平台边界 | `26.912.2`：macOS DMG 走 GitHub-hosted Developer ID 签名并公证；Windows 安装器完成原生 Runtime 与首次启动但未代码签名，并打入审阅过的 CUA Driver `0.27.0`；Linux 发出 Ubuntu/Debian 共用 x64 DEB 与 Omarchy/Arch/Nix 共用 x64 tarball，GNOME Portal Computer Use 已进包，仍无 Secret Service、本地 OCR；Hyprland/Xorg Computer Use 不可用。Windows/Linux 窗口铬尚未真机验收。 |
 | 发行流水 | 下一发行从干净、已推送的 `main` 对 canonical Go/Vue/Sidecar/lint/生产与文档构建只验证一次；macOS / Windows / Linux 都走 GitHub-hosted 云端。macOS 本机打包暂时关闭。必须创建 GitHub Release 页并上传带版本号的 DMG/EXE/DEB、x64 tar.gz 与 SHA256SUMS，不能只留空 tag。正式打包默认上传 OTA 到私有 R2 并发布该平台 current pointer；GitHub Release 仍不上 updater ZIP。 |
 
-## 已发行改动：`26.817.1` → `26.911.2`
+## 已发行改动：`26.817.1` → `26.912.2`
 
-`26.817.1`–`26.817.3` 是 8 月 16–17 日发出的内测线。`26.818.1` / `26.818.2` 是 8 月 18 日两版。`26.819.1` 是 8 月 19 日 ak-ui 生产视觉包。`26.822.1` 是 8 月 22 日档案复现与实验室包。`26.823.1` 是 8 月 23 日完整循环包。`26.825.1` 是 8 月 25 日实验室靶机经纪包。`26.827.1` 是 8 月 27 日自动更新与 Linux 安装面。`26.904.1` 是 9 月 4 日上下文环与 loop 包。可从 Releases 下载的最新正式包能力以 `26.911.2` 为准。上一版 `v26.911.1`、`v26.905.2`、`v26.905.1`、`v26.904.1` 与 `v26.827.1` 仍可下载，不再是 Latest。
+`26.817.1`–`26.817.3` 是 8 月 16–17 日发出的内测线。`26.818.1` / `26.818.2` 是 8 月 18 日两版。`26.819.1` 是 8 月 19 日 ak-ui 生产视觉包。`26.822.1` 是 8 月 22 日档案复现与实验室包。`26.823.1` 是 8 月 23 日完整循环包。`26.825.1` 是 8 月 25 日实验室靶机经纪包。`26.827.1` 是 8 月 27 日自动更新与 Linux 安装面。`26.904.1` 是 9 月 4 日上下文环与 loop 包。可从 Releases 下载的最新正式包能力以 `26.912.2` 为准。上一版 `v26.911.2`、`v26.911.1`、`v26.905.2`、`v26.905.1`、`v26.904.1` 与 `v26.827.1` 仍可下载，不再是 Latest。`v26.912.1` 从未作为 GitHub Latest 发出。
 
 ### `26.817.1` / `main@783679f`
 
@@ -184,19 +184,26 @@
 - #69：DeepSeek 等自定义中转可以先保存 Key，不必先点「启用」；保存并验证仍会探测刚提交的 Key。真正开会话仍要启用。
 - #70：macOS「安装并重启」不再先停 Go Runtime；安装失败会留下可见错误。从磁盘镜像或不在 `.app` 里运行时直接说明要先装进应用程序文件夹，而不是重启后仍停在旧版。
 - Admin：正式打包上传 OTA 后直接发布该平台 current pointer，不必再去「版本」页点发布。暂停分发仍可在后台操作。
-- GitHub Release（Latest）提供 DMG / EXE / DEB / x64 tar.gz 与 `SHA256SUMS-26.911.2.txt`。macOS 走 GitHub-hosted 签名公证。Windows 安装器仍未代码签名。
+- GitHub Release 提供 DMG / EXE / DEB / x64 tar.gz 与 `SHA256SUMS-26.911.2.txt`。macOS 走 GitHub-hosted 签名公证。Windows 安装器仍未代码签名。已不是 Latest。
 
-## 未发版改动：晚于 `v26.911.2` / `6120055`
+### `26.912.2` / `f7782c1`（2026-09-12 今日首发）
 
-文档收口提交不移动该 tag。Windows 代码签名、Linux Secret Service / 本地 OCR、Hyprland/Xorg Computer Use 仍缺。CTF 比赛模式和实验室红队学习面仍未接线。
+- 新对话可选 Pi 或 DeepSeek Harness。DeepSeek 会话不能 rewind / 分叉；`milksu_ask` / `milksu_workspace` 已接到 ACP。安装包里的 host plugin 用 `.mjs` 加载；当前选中的模型凭据会映射成 DSH 认识的 DeepSeek 连接。
+- DSH ACP 还没有应用设置/对话所选型号，会话仍用 harness 默认 `deepseek-v4-flash`。选中 DeepSeek Harness 后，左侧模型下拉把 DSH 目录外的型号标成不可选；目录是 `deepseek-flash`、`deepseek-v4-flash`、`deepseek-v4-pro`、`deepseek-v4-flash-vision-exp`。
+- 不再用目录/白名单把模型标成纯文本。附件和 Computer Use 截图按图片交给当前模型。已发送图片显示缩略图，点击可放大后关闭。
+- 思考结束后，同一条空助手消息不再额外挂「正在回复」；工具开始或正文开始时会收起「正在思考」。
+- 上下文窗口为 0 时不再注册给 Pi；自动整理可超时取消。
+- GitHub Release（Latest）提供 DMG / EXE / DEB / x64 tar.gz 与 `SHA256SUMS-26.912.2.txt`。macOS 走 GitHub-hosted 签名公证。Windows 安装器仍未代码签名。
+
+## 未发版改动：晚于 `v26.912.2` / `f7782c1`
+
+文档收口提交不移动该 tag。Windows 代码签名、Linux Secret Service / 本地 OCR、Hyprland/Xorg Computer Use 仍缺。CTF 比赛模式和实验室红队学习面仍未接线。`v26.912.1` 从未作为 GitHub Latest 发出。
 
 - #53 的 typed sweep / inventory 工具尚未做。只在真实 wide job 仍用 bash 复刻库存后再做。
-- 新对话可选 Pi 或 DeepSeek Harness。DeepSeek 会话不能 rewind / 分叉；`milksu_ask` / `milksu_workspace` 已接到 ACP。安装包里的 host plugin 用 `.mjs` 加载；当前选中的模型凭据会映射成 DSH 认识的 DeepSeek 连接。DSH ACP 还没有应用设置/对话所选型号，会话仍用 harness 默认 `deepseek-v4-flash`。选中 DeepSeek Harness 后，左侧模型下拉把 DSH 目录外的型号标成不可选；目录是 `deepseek-flash`、`deepseek-v4-flash`、`deepseek-v4-pro`、`deepseek-v4-flash-vision-exp`。
-- 思考结束后，同一条空助手消息不再额外挂「正在回复」；工具开始或正文开始时会收起「正在思考」。
-- 不再用目录/白名单把模型标成纯文本。TokenFlux 即使回报 `input: ["text"]` 也不再改走 OCR；附件和 Computer Use 截图按图片交给当前模型，由模型或接口自己处理。
-- macOS / Windows 无感更新先把 Admin 安装包整包下载并校验 SHA-256，再经本机回环喂给 electron-updater；关掉差分/多段 Range，安装只走 `quitAndInstall`，不再额外 `app.quit()`。从磁盘镜像或 App Translocation 启动仍会挡住安装。已发出的 `26.911.2` 客户端还是旧下载路径。
-- 子 Agent 回传缺 cwd/worktreeId 时回退到会话工作区，不再把整轮打死，也不再把英文校验句写进「Agent 运行失败」。
-- 用户停止只显示「本轮已停止。」，不再写成「Agent 运行失败：本轮已停止。」
+- DSH ACP 仍不应用设置/对话所选型号，DeepSeek 会话继续用 harness 默认型号。
+- `ef6bdc8`：macOS / Windows 无感更新先把 Admin 安装包整包下载并校验 SHA-256，再经本机回环喂给 electron-updater；关掉差分/多段 Range，安装只走 `quitAndInstall`，不再额外 `app.quit()`。从磁盘镜像或 App Translocation 启动仍会挡住安装。该修复不在 `26.912.2` 安装包内；已发出的 `26.912.2` 客户端还是旧下载路径。
+- `b4fd4a2`：子 Agent 回传缺 cwd/worktreeId 时回退到会话工作区，不再把整轮打死，也不再把英文校验句写进「Agent 运行失败」。用户停止只显示「本轮已停止。」，不再写成「Agent 运行失败：本轮已停止。」
+- 选择卡片最后一行是「其他」输入。待选择时新指令直接回答该卡片并继续本回合，不再排进引导队列；等待选择时不再显示「模型回复中」。
 
 ## 当前产品事实
 
@@ -232,33 +239,32 @@
 
 ## 当前完成线
 
-### 已完成：`26.911.2` 三端正式 GitHub Release
+### 已完成：`26.912.2` 三端正式 GitHub Release
 
-三端都从 `6120055f22a13b1ad404e80098ff3e1f6fd1b6cd` 构建。GitHub Latest Release 为
-`v26.911.2`，用户安装包是 DMG / EXE / DEB / x64 tar.gz，没有上传 OTA ZIP。OTA 已写入私有 R2
+三端都从 `f7782c181decf1cb99ddbad8d1939d45fd09a667` 构建。GitHub Latest Release 为
+`v26.912.2`，用户安装包是 DMG / EXE / DEB / x64 tar.gz，没有上传 OTA ZIP。OTA 已写入私有 R2
 并自动发布该平台 current pointer。macOS / Windows / Linux 都走成功的 GitHub-hosted Actions run。
-本机核验 macOS DMG：Developer ID `Sida Zhao (48Y78X426T)`、公证 ticket 已 staple、Gatekeeper accepted。
 
 | 平台 | Workflow | 用户安装包 | 大小 | SHA-256 | 结果 |
 | --- | --- | ---: | ---: | --- | --- |
-| macOS ARM64 | `34616741792` | `MilkSU-macOS-arm64-26.911.2.dmg` | 241,859,505 B | `6ca18620670d239bb63fe54f1e5edfc3a4dfd47012abf3f3e15d34bd9d917f1b` | Developer ID 签名、Apple 公证、staple、Gatekeeper |
-| Windows x64 | `34616746356` | `MilkSU-Windows-x64-26.911.2-Setup.exe` | 183,622,773 B | `4f5e499b1f534d1667e65f6ed7387a66a272322d42e8717e9e0d057277c03e42` | 原生 Windows 构建、打包 Runtime 与首次启动通过；安装器未代码签名；窗口铬尚未真机验收 |
-| Linux x64 | `34616750315` | `MilkSU-Linux-x64-26.911.2.deb` | 176,921,836 B | `2f360089c200c87d55a841def76540dd4b1c2a596df54612b1e3254ec9beee31` | Ubuntu/Debian 共用 DEB；包结构、Sidecar、Go Runtime 与 Xvfb 首次启动通过；GNOME Portal Computer Use 已进包；无 Secret Service / 本地 OCR；窗口铬尚未真机验收 |
-| Linux x64 tarball | `34616750315` | `MilkSU-Linux-x64-26.911.2.tar.gz` | 212,899,642 B | `7d52811bd2685d447bde7ef69ac4df96fe19d5fe96bf93d5805b03298b564724` | Omarchy/Arch/Nix 共用 tarball；PKGBUILD / flake 是安装方法 |
+| macOS ARM64 | `34631399583` | `MilkSU-macOS-arm64-26.912.2.dmg` | 299,943,262 B | `f008edf9f04362d7d44f9e5f3a7784702fae2deb2678aeec3439c6d6337b0794` | Developer ID 签名、Apple 公证、staple、Gatekeeper |
+| Windows x64 | `34631403377` | `MilkSU-Windows-x64-26.912.2-Setup.exe` | 183,645,999 B | `dbf48597ac66a58998fa76c8d03f5124e106f715a3a1632a0523037735f103b8` | 原生 Windows 构建、打包 Runtime 与首次启动通过；安装器未代码签名；窗口铬尚未真机验收 |
+| Linux x64 | `34631407080` | `MilkSU-Linux-x64-26.912.2.deb` | 176,939,912 B | `9e377eb6f2ac213940dc0df609e37eff15fc2cc86e6682293f051894c9db0210` | Ubuntu/Debian 共用 DEB；包结构、Sidecar、Go Runtime 与 Xvfb 首次启动通过；GNOME Portal Computer Use 已进包；无 Secret Service / 本地 OCR；窗口铬尚未真机验收 |
+| Linux x64 tarball | `34631407080` | `MilkSU-Linux-x64-26.912.2.tar.gz` | 212,923,623 B | `6ec8a67caa464a558a0c68a434902f54abe1f2237408ff3c06412192a6918a94` | Omarchy/Arch/Nix 共用 tarball；PKGBUILD / flake 是安装方法 |
 
-发行页：<https://github.com/MilkSU-Official/milksu/releases/tag/v26.911.2>
+发行页：<https://github.com/MilkSU-Official/milksu/releases/tag/v26.912.2>
 
-上一版 `v26.911.1 / d341a35`、`v26.905.2 / b18b860`、`v26.905.1 / 1cc8773`、`v26.904.1 / 6e9371d` 与 `v26.827.1 / 37932ce` 仍可下载，标签未移动，已不是 Latest。
+上一版 `v26.911.2 / 6120055`、`v26.911.1 / d341a35`、`v26.905.2 / b18b860`、`v26.905.1 / 1cc8773`、`v26.904.1 / 6e9371d` 与 `v26.827.1 / 37932ce` 仍可下载，标签未移动，已不是 Latest。`v26.912.1` 从未作为 GitHub Latest 发出。
 
 ### 下一完成线
 
-`26.911.2` 已是当前可下载基线。文档收口提交不改变这个 tag。
+`26.912.2` 已是当前可下载基线。文档收口提交不改变这个 tag。当前 HEAD `b4fd4a2`（含 `ef6bdc8`）晚于包装源，不能写成已发版。
 
 下一条完成线是：
 
-1. 用新安装包做常用 Agent GUI、Pi Runtime 与实验室靶机回归，失败项回到下面 P0 队列；已发出的 `26.905.2` 客户端若安装重启失败，请先从 GitHub 下 `26.911.2` 安装包，不要从 DMG 里直接跑再点更新；
+1. 用新安装包做常用 Agent GUI、Pi Runtime、DeepSeek Harness 与实验室靶机回归，失败项回到下面 P0 队列；`26.912.2` 客户端的无感更新仍是旧下载路径，`ef6bdc8` 的校验与本机回环不在本包内；
 2. #53 typed sweep 只在真实 wide job 仍用 bash 复刻库存后再做；
-3. 用户明确要求发下一版时，先升版本号，再从干净已推送的 `main` 跑 `release:verify` 并留下新的三端回执；不要把现有 `v26.911.2`、`v26.911.1`、`v26.905.2`、`v26.905.1`、`v26.904.1` 或 `v26.827.1` 标签挪到更新的 HEAD 上。
+3. 用户明确要求发下一版时，先升版本号，再从干净已推送的 `main` 跑 `release:verify` 并留下新的三端回执；不要把现有 `v26.912.2`、`v26.911.2`、`v26.911.1`、`v26.905.2`、`v26.905.1`、`v26.904.1` 或 `v26.827.1` 标签挪到更新的 HEAD 上。不要补发 `v26.912.1`。
 
 Windows 签名、Linux Secret Service / OCR、Hyprland/Xorg Computer Use、Windows/Linux 窗口铬真机验收仍是发行后续，不是产品方向禁令。
 
@@ -268,8 +274,8 @@ Windows 签名、Linux Secret Service / OCR、Hyprland/Xorg Computer Use、Windo
 | --- | --- | --- |
 | P0 | 常用 Agent GUI 回归 | 按 Coding 常用功能表覆盖中文任务、文件/Shell、附件、斜杠菜单、权限档、subagent、浏览器、Browser/Computer Use、终端、取消/恢复与错误展示；自动化通过后再由用户做真实 GUI 验收。C9 / C15 / C16 / C20 已由用户在本地 dirty Stable 包确认；C10 / C11 已修待复验。 |
 | P0 | Pi Runtime 用户验收 | 最新正式包中验证跨目录读写、CTF/CVE 交接、长输出续跑和重启恢复，不出现 MilkSU 自建 workspace 策略或旧 session ID。 |
-| P1 | 下一版三端回执发行 | 需要新的版本号、同一 source commit、三端产物、SHA-256 与平台验收。现有 `v26.911.2` 只覆盖 `6120055`。 |
-| P1 | Admin current pointer / 客户端下载 | `26.911.2` 已先 `checkForUpdates` 再 `downloadUpdate`，安装失败可见，CI 上传 OTA 后自动发布 current pointer。 |
+| P1 | 下一版三端回执发行 | 需要新的版本号、同一 source commit、三端产物、SHA-256 与平台验收。现有 `v26.912.2` 只覆盖 `f7782c1`。 |
+| P1 | Admin current pointer / 客户端下载 | `26.912.2` 已先 `checkForUpdates` 再 `downloadUpdate`，安装失败可见，CI 上传 OTA 后自动发布 current pointer。`ef6bdc8` 的整包校验与本机回环不在本安装包内。 |
 | P1 | Wide lab typed sweep（#53） | `bg_status` 熔断与最多 4 条 read-only `subagent` lane 已进 `26.911.1`。typed sweep / inventory 工具只在真实 wide job 仍用 bash 复刻库存后再做。 |
 | P1 | 安全工具真实任务 | IDA/idalib 与 capa 已有设置、准备和健康检查；用受控本地样本留下真实任务回执。就绪工具接到实验室作业，窄工具也可进 CVE 复现；不需要先开一次“是否投影”的会。不把 HexStrike 整包 MCP 做成产品页或 Kali 应用商店。CodeQL、Burp、Shannon 仍逐项接入。 |
 | P1 | Obelisk 学习记录 | 先定义可归因学习事实，再设计独立页面；不恢复已删除的单会话相关历史/图谱面板。 |
@@ -297,7 +303,7 @@ Windows 签名、Linux Secret Service / OCR、Hyprland/Xorg Computer Use、Windo
 - 独立 Security Bridge / `continue_ctf_job` typed-action 循环。CTF 解题走 Pi 对话 + Judge；不要再拉起第二条 Agent 进程。
 - 用关键词或正则扫描用户句子来打开浏览器、切页或选工具。
 - MilkSU 自建余额、价格映射、扣费流水和模型代理计费。
-- 把晚于 `v26.911.2` 的 HEAD、同一版本号或本地 dirty 包写成已经发出的三端正式包。
+- 把晚于 `v26.912.2` 的 HEAD、同一版本号或本地 dirty 包写成已经发出的三端正式包。不要把 `v26.912.1` 写成已发出的 Latest。
 - M3/M4 旧百分比台账、历史 Beta 完成度和已删除 live smoke；需要考古时使用 Git history。
 
 ## 领域完成线

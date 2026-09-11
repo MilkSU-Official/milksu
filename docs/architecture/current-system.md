@@ -2,8 +2,8 @@
 
 > 文档状态：Current
 >
-> 事实审计：2026-09-11；正式发行基线为 `v26.911.2 / 6120055`。文档收口提交不移动该 tag。
-> 2026-08-20 去掉把「尚未实现」写成禁令的口径；发行回执以 `6120055` 为准。上一版 `v26.911.1 / d341a35`、`v26.905.2 / b18b860`、`v26.905.1 / 1cc8773`、`v26.904.1 / 6e9371d` 与 `v26.827.1 / 37932ce` 仍可下载，不是 Latest。
+> 事实审计：2026-09-12；正式发行基线为 `v26.912.2 / f7782c1`。文档收口提交不移动该 tag。
+> 2026-08-20 去掉把「尚未实现」写成禁令的口径；发行回执以 `f7782c1` 为准。上一版 `v26.911.2 / 6120055`、`v26.911.1 / d341a35`、`v26.905.2 / b18b860`、`v26.905.1 / 1cc8773`、`v26.904.1 / 6e9371d` 与 `v26.827.1 / 37932ce` 仍可下载，不是 Latest。
 >
 > 本页描述当前结构，不安排任务。动态进度、已发行与未发版分界以
 > [当前开发目标](/developer/current-objectives)、代码、测试和真实验收为准。
@@ -297,18 +297,18 @@ hardened runtime / Developer ID 签名、App/DMG 公证、staple、Gatekeeper �
 CI 通过 rclone 把 ZIP、DMG 和元数据写到私有 R2 的不可变版本路径，逐个回读校验 SHA-256，再用窄
 publisher token 发布该平台 current pointer。已登录且访问正常的 Stable 客户端才可经 Worker 获取
 feed 和安装包。维护者仍可在 Admin 暂停分发。R2 没有公共下载地址，账户 Bearer token 只由 Electron 主进程持有。正式 GitHub Latest Release 是
-`v26.911.2 / 6120055f22a13b1ad404e80098ff3e1f6fd1b6cd`。仓库开发版本号是 `26.911.2`，与该回执一致。
-文档收口提交不改变该 tag，不能把后续 HEAD 写成已发版。上一版 `v26.911.1 / d341a35`、`v26.905.2 / b18b860`、`v26.905.1 / 1cc8773`、`v26.904.1 / 6e9371d` 与 `v26.827.1 / 37932ce` 仍可下载。打包后的
+`v26.912.2 / f7782c181decf1cb99ddbad8d1939d45fd09a667`。仓库开发版本号是 `26.912.2`；晚于 `f7782c1` 的 HEAD 不是已发版。
+文档收口提交不改变该 tag。上一版 `v26.911.2 / 6120055`、`v26.911.1 / d341a35`、`v26.905.2 / b18b860`、`v26.905.1 / 1cc8773`、`v26.904.1 / 6e9371d` 与 `v26.827.1 / 37932ce` 仍可下载。打包后的
 Go Runtime 以自身所在 `resources` 目录直接定位同级 `milksu-sidecar/node.exe` 与 `chat-bridge.cjs`，
 不再把开发仓库根定位混入安装版资源查找。macOS
 ARM64 DMG 已完成 Developer ID 签名、Apple 公证、stapler、Gatekeeper 与云端构建复验；Windows x64
 安装程序已在原生 Windows 完成打包 Runtime 与首次启动检查，但当前没有 Windows 代码签名；Linux x64
 DEB 与 tar.gz 已在原生 Ubuntu 完成包结构、Node/Pi Sidecar、Go Runtime 与 Xvfb Electron 启动检查，
 并带 GNOME Portal Computer Use。GitHub Release 提供 DMG / EXE / DEB / x64 tar.gz，没有 OTA ZIP。
-纯文档提交不改变 `v26.911.2` 的 source commit。
+纯文档提交不改变 `v26.912.2` 的 source commit。
 后续正式包应走 `release:verify` → 云端 macOS / Windows / Linux → `release:github` 创建 Release 页。
 
-Linux `v26.911.2` 包已包含当前 CTF/CVE 与通用 Coding 的 Pi Runtime 收敛、共用 tarball / PKGBUILD / Nix flake，
+Linux `v26.912.2` 包已包含当前 CTF/CVE 与通用 Coding 的 Pi Runtime 收敛、可选 DeepSeek Harness、共用 tarball / PKGBUILD / Nix flake，
 以及 GNOME Portal Computer Use；仍不接 Secret Service 与本地 OCR，Hyprland / Xorg Computer Use unavailable。
 Windows 未签名和 Linux 缺失能力必须在下载说明中明确，不能把三端构建
 回执外推为三个平台功能等价。OTA 已上传私有 R2 并自动发布该平台 current pointer。
