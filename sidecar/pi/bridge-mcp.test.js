@@ -460,6 +460,7 @@ test("builds Plugin MCP only from the supervised launcher descriptor", async () 
       undefined,
       undefined,
       [],
+      undefined,
       false,
     );
     assert.equal(recovery.config, undefined);
