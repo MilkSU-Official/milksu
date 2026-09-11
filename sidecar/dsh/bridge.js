@@ -1,4 +1,5 @@
-import { existsSync, unlinkSync } from "node:fs";
+import { existsSync, unlinkSync, mkdirSync, writeFileSync } from "node:fs";
+import { createConnection } from "node:net";
 import { dirname, join } from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
@@ -13,6 +14,7 @@ const pendingAsks = new Map();
 let commandQueue = Promise.resolve();
 let acp;
 let productIpc;
+let hostIpcPath = "";
 const workspaceBroker = createWorkspaceActionBroker(emit);
 
 function emit(conversationId, type, extra = {}) {
@@ -28,20 +30,35 @@ function describeError(error) {
   return error instanceof Error ? error.message : String(error ?? "unknown error");
 }
 
-function resolveDshCommand() {
-  const configured = String(process.env.MILKSU_DSH_COMMAND ?? "").trim();
-  if (configured) return configured;
+function parseArgList(value, fallback) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return fallback;
+  return raw.split(/\s+/).filter(Boolean);
+}
+
+function resolveDshScript() {
   const here = dirname(fileURLToPath(import.meta.url));
   const candidates = [
-    join(here, "dsh"),
-    join(here, "node_modules", ".bin", "dsh"),
-    join(here, "..", "..", "node_modules", ".bin", "dsh"),
     join(here, "node_modules", "@deepseek-ai", "dsh", "lib", "bin.js"),
+    join(here, "..", "..", "node_modules", "@deepseek-ai", "dsh", "lib", "bin.js"),
   ];
   for (const candidate of candidates) {
     if (existsSync(candidate)) return candidate;
   }
-  return "dsh";
+  return "";
+}
+
+function resolveDshLaunch() {
+  const configured = String(process.env.MILKSU_DSH_COMMAND ?? "").trim();
+  const extra = parseArgList(process.env.MILKSU_DSH_ACP_ARGS, ["--profile", "acp"]);
+  if (configured) {
+    return { command: configured, args: extra };
+  }
+  const script = resolveDshScript();
+  if (!script) {
+    throw new Error("DeepSeek Harness CLI is not packaged next to the Sidecar");
+  }
+  return { command: process.execPath, args: [script, ...extra] };
 }
 
 async function ensureProductIpc() {
@@ -102,14 +119,86 @@ function milksuMcpServer(conversationId) {
   };
 }
 
+function writeHostPatch() {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const plugin = join(here, "host-plugin.js");
+  const home = String(process.env.DSH_HOME ?? "").trim();
+  if (!home || !existsSync(plugin)) return "";
+  mkdirSync(home, { recursive: true, mode: 0o700 });
+  const patchPath = join(home, "milksu-host.cordis.yml");
+  writeFileSync(
+    patchPath,
+    `- insert:\n  - id: milksu-dsh-host\n    name: ${JSON.stringify(plugin)}\n`,
+    { encoding: "utf8", mode: 0o600 },
+  );
+  return patchPath;
+}
+
+function callHost(method, params) {
+  if (!hostIpcPath) {
+    return Promise.reject(new Error("DeepSeek Harness host IPC is not configured"));
+  }
+  return new Promise((resolve, reject) => {
+    const socket = createConnection(hostIpcPath);
+    const id = Date.now();
+    const timer = setTimeout(() => {
+      socket.destroy();
+      reject(new Error("DeepSeek Harness host IPC timed out"));
+    }, 130_000);
+    let buffer = "";
+    socket.on("data", chunk => {
+      buffer += chunk.toString("utf8");
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        let message;
+        try {
+          message = JSON.parse(line);
+        } catch {
+          continue;
+        }
+        if (message.id !== id) continue;
+        clearTimeout(timer);
+        socket.end();
+        if (message.error) {
+          reject(new Error(message.error.message || "DeepSeek Harness host failed"));
+          return;
+        }
+        resolve(message.result);
+      }
+    });
+    socket.on("error", error => {
+      clearTimeout(timer);
+      reject(error);
+    });
+    socket.write(`${JSON.stringify({ id, method, params })}\n`);
+  });
+}
+
 async function ensureAcp(cwd) {
   if (acp) return acp;
   await ensureProductIpc();
+  hostIpcPath = dshProductIpc(`host-${process.pid}`);
+  try {
+    unlinkSync(hostIpcPath);
+  } catch {
+    // First listen.
+  }
+  const launch = resolveDshLaunch();
+  const args = [...launch.args];
+  const patchPath = writeHostPatch();
+  if (patchPath && !args.includes("--patch")) {
+    args.push("--patch", patchPath);
+  }
   acp = createAcpClient({
-    command: resolveDshCommand(),
-    args: String(process.env.MILKSU_DSH_ACP_ARGS ?? "--profile acp").split(/\s+/).filter(Boolean),
+    command: launch.command,
+    args,
     cwd,
-    env: process.env,
+    env: {
+      ...process.env,
+      MILKSU_DSH_HOST_IPC: hostIpcPath,
+    },
   });
   acp.onMessage(message => {
     void handleAcpNotification(message);
@@ -259,7 +348,12 @@ async function compactSession(command) {
     if (!acp || !record) {
       throw new Error("DeepSeek Harness session is not running");
     }
-    const result = await acp.request("session/compact", { sessionId: record.acpSessionId });
+    let result;
+    try {
+      result = await callHost("compact", { sessionId: record.acpSessionId });
+    } catch {
+      result = await acp.request("session/compact", { sessionId: record.acpSessionId });
+    }
     emit(conversationId, "compaction_end", {
       requestId,
       compaction: {

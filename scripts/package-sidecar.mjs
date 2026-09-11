@@ -33,6 +33,7 @@ const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const nodeVersion = '24.18.0'
 const archifyCommit = '7b49d0b715fd4ba48116bcdecd1ba3789a279613'
 const piVersion = '0.84.1'
+const dshVersion = '0.1.5-rc.1'
 const piLspVersion = '0.29.0'
 const piGoalVersion = '0.43.0'
 const piBackgroundTasksVersion = '0.1.10'
@@ -553,6 +554,31 @@ async function officialGoplsRuntime(platform) {
     license: runtimeLicense,
     ...metadata,
   }
+}
+
+async function copyDshRuntime(output) {
+  const dshPackage = JSON.parse(
+    await readFile(join(repositoryRoot, 'node_modules', '@deepseek-ai', 'dsh', 'package.json'), 'utf8'),
+  )
+  if (dshPackage.name !== '@deepseek-ai/dsh' || dshPackage.version !== dshVersion) {
+    throw new Error(`DeepSeek Harness package mismatch: expected @deepseek-ai/dsh@${dshVersion}`)
+  }
+  if (!await exists(join(repositoryRoot, 'node_modules', '@deepseek-ai', 'dsh', 'LICENSE'))) {
+    throw new Error('DeepSeek Harness LICENSE is missing')
+  }
+  const packages = minimalPackageCopySet(
+    await collectInstalledPackageClosure(['@deepseek-ai/dsh']),
+  )
+  for (const pkg of packages) {
+    const destination = join(output, 'node_modules', pkg.relativePath)
+    await mkdir(dirname(destination), { recursive: true, mode: 0o700 })
+    await cp(pkg.source, destination, { recursive: true })
+  }
+  await copyFile(
+    join(repositoryRoot, 'node_modules', '@deepseek-ai', 'dsh', 'LICENSE'),
+    join(output, 'THIRD_PARTY-LICENSES', 'deepseek-harness-MIT.txt'),
+  )
+  return packages
 }
 
 async function bundleBridge(entry, outfile) {
@@ -1225,17 +1251,25 @@ async function buildSidecar(platform) {
     bundleBridge('sidecar/pi/bridge.js', chatOutput),
     bundleBridge('sidecar/dsh/bridge.js', dshOutput),
     bundleBridge('sidecar/dsh/product-mcp.js', dshProductMcpOutput),
+    copyFile(
+      join(repositoryRoot, 'sidecar', 'dsh', 'host-plugin.js'),
+      join(output, 'host-plugin.js'),
+    ),
     bundleBridge('sidecar/computer-use/computer-use-proxy.js', computerUseProxyOutput),
     bundleBridge(
       'node_modules/@earendil-works/pi-coding-agent/dist/cli.js',
       piSubagentCliOutput,
     ),
   ])
+  await copyDshRuntime(output)
   await Promise.all([
     chmod(nodeOutput, 0o755),
     ...(cuaDriverOutput ? [chmod(cuaDriverOutput, 0o755)] : []),
     chmod(goplsOutput, 0o755),
     chmod(chatOutput, 0o644),
+    chmod(dshOutput, 0o644),
+    chmod(dshProductMcpOutput, 0o644),
+    chmod(join(output, 'host-plugin.js'), 0o644),
     chmod(computerUseProxyOutput, 0o644),
     chmod(piSubagentLauncherOutput, 0o755),
     chmod(piSubagentRunnerOutput, 0o644),
@@ -1259,6 +1293,14 @@ async function buildSidecar(platform) {
       version: piVersion,
       license: 'MIT',
       licenseFile: 'THIRD_PARTY-LICENSES/pi-MIT.txt',
+    },
+    dsh: {
+      package: '@deepseek-ai/dsh',
+      version: dshVersion,
+      license: 'MIT',
+      licenseFile: 'THIRD_PARTY-LICENSES/deepseek-harness-MIT.txt',
+      bin: 'node_modules/@deepseek-ai/dsh/lib/bin.js',
+      hostPlugin: 'host-plugin.js',
     },
     skills: {
       firstParty: {
@@ -1490,6 +1532,11 @@ async function smokeSidecar(platform) {
     join(output, 'THIRD_PARTY-LICENSES', 'cua-MIT.txt'),
     join(output, 'THIRD_PARTY-LICENSES', 'gopher-lua-MIT.txt'),
     join(output, 'THIRD_PARTY-LICENSES', 'modelcontextprotocol-go-sdk-LICENSE.txt'),
+    join(output, 'THIRD_PARTY-LICENSES', 'deepseek-harness-MIT.txt'),
+    join(output, 'dsh-bridge.cjs'),
+    join(output, 'product-mcp.cjs'),
+    join(output, 'host-plugin.js'),
+    join(output, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js'),
     join(output, 'computer-use-proxy.cjs'),
     join(output, 'pi-subagent-launcher.sh'),
     join(output, 'pi-subagent-runner.cjs'),
@@ -1651,6 +1698,35 @@ async function smokeSidecar(platform) {
         + `${versionRun.stdout}${versionRun.stderr}`,
       )
     }
+  }
+  const dshHome = join(workspace, 'dsh-home')
+  await mkdir(dshHome, { recursive: true, mode: 0o700 })
+  const dshHelp = await runWithInput(
+    node,
+    [
+      ...runtimeArguments,
+      `--allow-fs-write=${dshHome}`,
+      join(output, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js'),
+      '--profile',
+      'acp',
+      '--help',
+    ],
+    '',
+    {
+      cwd: workspace,
+      env: {
+        ...process.env,
+        HOME: workspace,
+        DSH_HOME: dshHome,
+        TMPDIR: workspace,
+      },
+    },
+  )
+  if (!`${dshHelp.stdout}${dshHelp.stderr}`.includes('ACP')) {
+    throw new Error(
+      `packaged DeepSeek Harness ACP CLI did not load: `
+      + `${dshHelp.stdout}${dshHelp.stderr}`,
+    )
   }
   const goplsVersionRun = await runWithInput(
     join(output, 'lsp-runtime', 'gopls'),
@@ -2401,6 +2477,7 @@ async function installSidecar(platform, binaryPath) {
     'chat-bridge.cjs',
     'dsh-bridge.cjs',
     'product-mcp.cjs',
+    'host-plugin.js',
     'computer-use-proxy.cjs',
     'pi-subagent-launcher.sh',
     'pi-subagent-runner.cjs',

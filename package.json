@@ -50,7 +50,8 @@
     "spike:pi:protocol": "node spikes/engine-comparison/pi-spike.mjs --protocol-only",
     "spike:pi": "node spikes/engine-comparison/pi-spike.mjs",
     "spike:codex:protocol": "node spikes/engine-comparison/codex-spike.mjs --protocol-only",
-    "spike:codex": "node spikes/engine-comparison/codex-spike.mjs"
+    "spike:codex": "node spikes/engine-comparison/codex-spike.mjs",
+    "spike:dsh:live": "node sidecar/dsh/live-loop.mjs"
   },
   "devDependencies": {
     "esbuild": "0.28.1",
