@@ -820,6 +820,23 @@ func (m *Manager) discoverWorktreeIncludes(
 	); err != nil {
 		return nil, errors.New(".worktreeinclude must be tracked by Git")
 	}
+	content, err := os.ReadFile(includeFile)
+	if err != nil {
+		return nil, fmt.Errorf("read .worktreeinclude: %w", err)
+	}
+	excludeFile, err := os.CreateTemp("", "milksu-worktreeinclude-*.txt")
+	if err != nil {
+		return nil, fmt.Errorf("create .worktreeinclude exclude file: %w", err)
+	}
+	excludePath := excludeFile.Name()
+	defer os.Remove(excludePath)
+	if _, err := excludeFile.WriteString(rewriteWorktreeIncludePatterns(string(content))); err != nil {
+		excludeFile.Close()
+		return nil, fmt.Errorf("write .worktreeinclude exclude file: %w", err)
+	}
+	if err := excludeFile.Close(); err != nil {
+		return nil, fmt.Errorf("close .worktreeinclude exclude file: %w", err)
+	}
 	output, err := m.git(
 		ctx,
 		repository,
@@ -827,7 +844,7 @@ func (m *Manager) discoverWorktreeIncludes(
 		"--others",
 		"--ignored",
 		"--directory",
-		"--exclude-from=.worktreeinclude",
+		"--exclude-from="+excludePath,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("resolve .worktreeinclude paths: %w", err)
@@ -983,6 +1000,37 @@ func (m *Manager) gitPathIgnored(
 		path,
 	)
 	return command.Run() == nil
+}
+
+func rewriteWorktreeIncludePatterns(content string) string {
+	lines := strings.Split(strings.ReplaceAll(content, "\r\n", "\n"), "\n")
+	for index, line := range lines {
+		lines[index] = normalizeWorktreeIncludePattern(line)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func normalizeWorktreeIncludePattern(pattern string) string {
+	pattern = strings.TrimSpace(pattern)
+	if pattern == "" || strings.HasPrefix(pattern, "#") {
+		return pattern
+	}
+	negated := false
+	if strings.HasPrefix(pattern, "!") {
+		negated = true
+		pattern = strings.TrimSpace(strings.TrimPrefix(pattern, "!"))
+	}
+	pattern = filepath.ToSlash(pattern)
+	if !strings.HasPrefix(pattern, "/") {
+		trimmed := strings.TrimSuffix(pattern, "/")
+		if !strings.Contains(trimmed, "/") {
+			pattern = "/" + pattern
+		}
+	}
+	if negated {
+		return "!" + pattern
+	}
+	return pattern
 }
 
 func validWorktreeIncludePath(value string) bool {
