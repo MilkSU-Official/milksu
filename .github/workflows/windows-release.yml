@@ -30,6 +30,9 @@ jobs:
   release:
     runs-on: windows-2025
     timeout-minutes: 90
+    env:
+      ELECTRON_CACHE: ${{ github.workspace }}/build/caches/electron
+      ELECTRON_BUILDER_CACHE: ${{ github.workspace }}/build/caches/electron-builder
     steps:
       - uses: actions/checkout@v4
         with:
@@ -65,10 +68,22 @@ jobs:
           go-version-file: go.mod
           cache: true
       - uses: dtolnay/rust-toolchain@1.97.1
-      - uses: actions/cache@v4
+      - name: Cache Sidecar downloads
+        uses: actions/cache@v4
         with:
-          path: build/sidecar-cache/cua-windows-0.27.0/h
-          key: windows-cua-0.27.0-${{ hashFiles('scripts/build-windows-cua-driver.mjs', 'third_party/cua-driver/**') }}
+          path: build/sidecar-cache
+          key: sidecar-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/package-sidecar.mjs', 'scripts/build-windows-cua-driver.mjs', 'package-lock.json', 'go.mod', 'go.sum') }}
+          restore-keys: |
+            sidecar-${{ runner.os }}-${{ runner.arch }}-
+      - name: Cache Electron downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            build/caches/electron
+            build/caches/electron-builder
+          key: electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('desktop/package-lock.json') }}
+          restore-keys: |
+            electron-${{ runner.os }}-${{ runner.arch }}-
       - name: Install dependencies
         shell: pwsh
         run: |
