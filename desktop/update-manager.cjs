@@ -2,7 +2,7 @@
 
 const { createHash } = require('node:crypto')
 const { createWriteStream } = require('node:fs')
-const { mkdir, unlink } = require('node:fs/promises')
+const { mkdir, mkdtemp, readFile, unlink, writeFile } = require('node:fs/promises')
 const path = require('node:path')
 const { Readable } = require('node:stream')
 const {
@@ -11,6 +11,12 @@ const {
   linuxArtifactKind,
   spawnLinuxApply,
 } = require('./linux-update-apply.cjs')
+const {
+  createPreparedUpdateFeed,
+  downloadUpdateArtifact,
+  removeUpdateDirectory,
+  verifyArtifact,
+} = require('./update-artifacts.cjs')
 
 const UPDATE_STATES = new Set(['idle', 'checking', 'available', 'downloading', 'downloaded', 'error'])
 const POLL_MS = 60_000
@@ -55,7 +61,11 @@ function updaterArch(arch) {
 function desktopInstallBlocker({ platform, execPath }) {
   if (platform !== 'darwin') return null
   const path = String(execPath || '')
-  if (/\/Volumes\//u.test(path) || !/\.app\/Contents\/MacOS\//u.test(path)) {
+  if (
+    /\/Volumes\//u.test(path)
+    || path.includes('/AppTranslocation/')
+    || !/\.app\/Contents\/MacOS\//u.test(path)
+  ) {
     return {
       code: 'not_installed_app',
       message: '请先把 MilkSU 安装到应用程序文件夹，再安装这次更新',
@@ -79,6 +89,9 @@ class UpdateManager {
     classifyLinux = classifyLinuxInstall,
     buildLinuxPlan = buildLinuxInstallPlan,
     applyLinux = spawnLinuxApply,
+    downloadArtifact = downloadUpdateArtifact,
+    verifyDownloaded = verifyArtifact,
+    createFeed = createPreparedUpdateFeed,
     now = () => Date.now(),
     onChanged = () => {},
     pollIntervalMs = POLL_MS,
@@ -95,6 +108,9 @@ class UpdateManager {
     this.classifyLinux = classifyLinux
     this.buildLinuxPlan = buildLinuxPlan
     this.applyLinux = applyLinux
+    this.downloadArtifact = downloadArtifact
+    this.verifyDownloaded = verifyDownloaded
+    this.createFeed = createFeed
     this.now = now
     this.onChanged = onChanged
     this.pollIntervalMs = Number(pollIntervalMs) > 0 ? Number(pollIntervalMs) : POLL_MS
@@ -112,11 +128,17 @@ class UpdateManager {
     this.downloadRequested = false
     this.pollTimer = null
     this.downloadedPath = ''
+    this.verified = null
+    this.feed = null
+    this.updateDirectory = ''
     if (!this.enabled) return
 
     if (this.updater && this.platform !== 'linux') {
       this.updater.autoDownload = false
-      this.updater.autoInstallOnAppQuit = true
+      this.updater.autoInstallOnAppQuit = false
+      this.updater.autoRunAppAfterInstall = true
+      this.updater.allowDowngrade = false
+      this.updater.disableDifferentialDownload = true
       this.updater.logger = null
       this.updater.on('download-progress', progress => {
         this.setStatus({
@@ -161,17 +183,9 @@ class UpdateManager {
     if (notify) this.onChanged(this.view())
   }
 
-  feedURL() {
-    return `${this.apiUrl}/v1/releases/feed/stable/${this.platform}/${this.arch}`
-  }
-
   async authorize() {
     const token = boundedText(await this.getAuthorization(), 4096)
-    if (!token) {
-      if (this.updater) this.updater.requestHeaders = undefined
-      return ''
-    }
-    if (this.updater) this.updater.requestHeaders = { authorization: `Bearer ${token}` }
+    if (!token) return ''
     return token
   }
 
@@ -189,12 +203,24 @@ class UpdateManager {
     this.pollTimer = null
   }
 
+  async discardPreparedUpdate() {
+    this.downloadedPath = ''
+    this.verified = null
+    if (this.feed) {
+      await this.feed.close().catch(() => {})
+      this.feed = null
+    }
+    if (this.updateDirectory) {
+      await removeUpdateDirectory(this.updateDirectory).catch(() => {})
+      this.updateDirectory = ''
+    }
+  }
+
   clearAuthorization() {
     this.stopPolling()
-    if (this.updater) this.updater.requestHeaders = undefined
     this.downloadRequested = false
     this.release = null
-    this.downloadedPath = ''
+    void this.discardPreparedUpdate()
     this.setStatus({ state: 'idle', message: '', code: '', version: '', title: '', notes: '' })
   }
 
@@ -266,6 +292,16 @@ class UpdateManager {
     return downloads.zip ? { kind: 'zip', ...downloads.zip } : null
   }
 
+  artifactFileName() {
+    const version = boundedText(this.release?.version, 64)
+    if (this.platform === 'win32') return `MilkSU-Windows-x64-${version}-Setup.exe`
+    if (this.platform === 'linux') {
+      const selected = this.selectedDownload()
+      return `MilkSU-${version}.${selected?.kind === 'tar.gz' ? 'tar.gz' : 'deb'}`
+    }
+    return `MilkSU-macOS-arm64-${version}.zip`
+  }
+
   async download() {
     if (!this.enabled || !['available', 'error'].includes(this.status.state)) return this.view()
     const token = await this.authorize()
@@ -283,19 +319,10 @@ class UpdateManager {
       if (this.platform === 'linux') {
         await this.downloadLinux(token)
       } else {
-        if (typeof this.updater?.setFeedURL === 'function') {
-          this.updater.setFeedURL({ provider: 'generic', url: this.feedURL() })
-        }
-        if (typeof this.updater?.checkForUpdates !== 'function' || typeof this.updater?.downloadUpdate !== 'function') {
-          throw new Error('updater_unavailable')
-        }
-        const checked = await this.updater.checkForUpdates()
-        if (checked && checked.isUpdateAvailable === false) {
-          throw new Error('update_not_available')
-        }
-        await this.updater.downloadUpdate()
+        await this.downloadDesktop(token)
       }
     } catch {
+      await this.discardPreparedUpdate()
       this.setStatus({
         state: 'error',
         code: 'download_failed',
@@ -305,13 +332,86 @@ class UpdateManager {
     return this.view()
   }
 
+  async downloadDesktop(token) {
+    const selected = this.selectedDownload()
+    if (!selected?.url || !selected.sha256) throw new Error('artifact_missing')
+    const size = Number(selected.size) || 0
+    const root = path.join(this.userDataPath, 'updates')
+    await mkdir(root, { recursive: true, mode: 0o700 })
+    await this.discardPreparedUpdate()
+    this.updateDirectory = await mkdtemp(path.join(root, 'update-'))
+    const destination = path.join(this.updateDirectory, this.artifactFileName())
+    const headers = { authorization: `Bearer ${token}` }
+    let lastError
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        await this.downloadArtifact(selected.url, destination, size, selected.sha256, {
+          headers,
+          fetchImpl: this.fetchImpl,
+          onProgress: received => {
+            const percent = size > 0 ? Math.max(0, Math.min(100, (received / size) * 100)) : 0
+            this.setStatus({
+              state: 'downloading',
+              percent,
+              transferred: received,
+              total: size,
+            })
+          },
+        })
+        lastError = null
+        break
+      } catch (error) {
+        lastError = error
+        if (attempt >= 1 || /校验|完整性|大小|SHA-256/u.test(String(error?.message || error))) {
+          throw error
+        }
+      }
+    }
+    if (lastError) throw lastError
+    await this.verifyDownloaded(destination, size, selected.sha256)
+    if (typeof this.updater?.setFeedURL !== 'function'
+      || typeof this.updater?.checkForUpdates !== 'function'
+      || typeof this.updater?.downloadUpdate !== 'function') {
+      throw new Error('updater_unavailable')
+    }
+    this.feed = await this.createFeed(destination, this.release.version)
+    const configPath = path.join(this.updateDirectory, 'app-update.yml')
+    let configContents = 'updaterCacheDirName: milksu-updater\n'
+    if (process.resourcesPath) {
+      try {
+        configContents = await readFile(path.join(process.resourcesPath, 'app-update.yml'), 'utf8')
+      } catch (error) {
+        if (error?.code !== 'ENOENT') throw error
+      }
+    }
+    await writeFile(configPath, configContents, { mode: 0o600 })
+    this.updater.updateConfigPath = configPath
+    this.updater.disableDifferentialDownload = true
+    this.updater.setFeedURL({
+      provider: 'generic',
+      url: this.feed.url,
+      useMultipleRangeRequest: false,
+    })
+    const checked = await this.updater.checkForUpdates()
+    if (checked && checked.isUpdateAvailable === false) {
+      throw new Error('update_not_available')
+    }
+    await this.updater.downloadUpdate()
+    this.downloadedPath = destination
+    this.verified = { file: destination, size, sha256: String(selected.sha256).toLowerCase() }
+    this.setStatus({
+      state: 'downloaded',
+      version: boundedText(this.release.version, 64),
+      percent: 100,
+    })
+  }
+
   async downloadLinux(token) {
     const selected = this.selectedDownload()
     if (!selected?.url || !selected.sha256) throw new Error('linux_artifact_missing')
     const directory = path.join(this.userDataPath, 'updates')
     await mkdir(directory, { recursive: true })
-    const filename = `MilkSU-${this.release.version}.${selected.kind === 'tar.gz' ? 'tar.gz' : 'deb'}`
-    const destination = path.join(directory, filename)
+    const destination = path.join(directory, this.artifactFileName())
     const response = await this.fetchImpl(selected.url, {
       headers: { authorization: `Bearer ${token}` },
     })
@@ -347,6 +447,7 @@ class UpdateManager {
       throw new Error('linux_checksum_mismatch')
     }
     this.downloadedPath = destination
+    this.verified = { file: destination, size: total, sha256: selected.sha256 }
     this.setStatus({
       state: 'downloaded',
       version: boundedText(this.release.version, 64),
@@ -354,7 +455,7 @@ class UpdateManager {
     })
   }
 
-  install() {
+  async install() {
     if (!this.enabled || this.status.state !== 'downloaded') return false
     if (this.platform === 'linux') return this.installLinux()
     const blocker = desktopInstallBlocker({
@@ -378,7 +479,11 @@ class UpdateManager {
       return false
     }
     try {
-      this.updater.quitAndInstall(false, true)
+      if (this.verified) {
+        await this.verifyDownloaded(this.verified.file, this.verified.size, this.verified.sha256)
+      }
+      this.updater.autoInstallOnAppQuit = false
+      this.updater.quitAndInstall(true, true)
     } catch {
       this.setStatus({
         state: 'error',

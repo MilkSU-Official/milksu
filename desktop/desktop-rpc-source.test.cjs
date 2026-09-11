@@ -73,6 +73,14 @@ test('Electron-owned renderer methods remain handled before Go dispatch', () => 
   }
 })
 
+test('InstallUpdate lets quitAndInstall own the quit and does not call app.quit', () => {
+  const start = mainSource.indexOf("if (method === 'InstallUpdate')")
+  const end = mainSource.indexOf("try {", start)
+  const installSource = mainSource.slice(start, end)
+  assert.match(installSource, /await updateManager\.install\(\)/u)
+  assert.doesNotMatch(installSource, /app\.quit\(/u)
+})
+
 test('account credential synchronization uses only the Electron host source', () => {
   const syncSource = sourceBetween(
     'async function syncAccountModelAuthorization',

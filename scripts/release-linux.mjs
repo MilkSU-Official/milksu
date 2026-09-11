@@ -127,6 +127,7 @@ for (const file of [
   'linux-desktop.cjs',
   'macos-screen-permission.cjs',
   'linux-update-apply.cjs',
+  'update-artifacts.cjs',
 ]) {
   if (!files.includes(file)) files.push(file)
 }

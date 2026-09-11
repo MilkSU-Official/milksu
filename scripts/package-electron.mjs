@@ -122,6 +122,7 @@ async function writeBuilderConfig(trackingPath) {
   if (!files.includes('linux-desktop.cjs')) files.push('linux-desktop.cjs')
   if (!files.includes('macos-screen-permission.cjs')) files.push('macos-screen-permission.cjs')
   if (!files.includes('linux-update-apply.cjs')) files.push('linux-update-apply.cjs')
+  if (!files.includes('update-artifacts.cjs')) files.push('update-artifacts.cjs')
   const extraResources = [
     ...(desktopPackage.build?.extraResources || []),
     {

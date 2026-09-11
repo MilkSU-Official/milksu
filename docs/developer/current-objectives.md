@@ -194,6 +194,7 @@
 - 新对话可选 Pi 或 DeepSeek Harness。DeepSeek 会话不能 rewind / 分叉；`milksu_ask` / `milksu_workspace` 已接到 ACP。安装包里的 host plugin 用 `.mjs` 加载；当前选中的模型凭据会映射成 DSH 认识的 DeepSeek 连接。DSH ACP 还没有应用设置/对话所选型号，会话仍用 harness 默认 `deepseek-v4-flash`。选中 DeepSeek Harness 后，左侧模型下拉把 DSH 目录外的型号标成不可选；目录是 `deepseek-flash`、`deepseek-v4-flash`、`deepseek-v4-pro`、`deepseek-v4-flash-vision-exp`。
 - 思考结束后，同一条空助手消息不再额外挂「正在回复」；工具开始或正文开始时会收起「正在思考」。
 - 不再用目录/白名单把模型标成纯文本。TokenFlux 即使回报 `input: ["text"]` 也不再改走 OCR；附件和 Computer Use 截图按图片交给当前模型，由模型或接口自己处理。
+- macOS / Windows 无感更新先把 Admin 安装包整包下载并校验 SHA-256，再经本机回环喂给 electron-updater；关掉差分/多段 Range，安装只走 `quitAndInstall`，不再额外 `app.quit()`。从磁盘镜像或 App Translocation 启动仍会挡住安装。已发出的 `26.911.2` 客户端还是旧下载路径。
 
 ## 当前产品事实
 

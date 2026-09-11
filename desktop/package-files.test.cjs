@@ -26,4 +26,8 @@ test('Electron package includes every local CommonJS module required by main', (
     packagedFiles.has('linux-update-apply.cjs'),
     'linux-update-apply.cjs is required by update-manager.cjs',
   )
+  assert.ok(
+    packagedFiles.has('update-artifacts.cjs'),
+    'update-artifacts.cjs is required by update-manager.cjs',
+  )
 })

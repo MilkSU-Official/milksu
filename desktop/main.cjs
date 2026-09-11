@@ -891,12 +891,11 @@ ipcMain.handle('milksu:invoke', async (event, request) => {
     if (!updateManager || updateManager.view().state !== 'downloaded') return false
     if (browserShell) await browserShell.closeAll()
     quitting = true
-    const started = updateManager.install()
+    const started = await updateManager.install()
     if (!started) {
       quitting = false
       return false
     }
-    app.quit()
     return true
   }
   try {
