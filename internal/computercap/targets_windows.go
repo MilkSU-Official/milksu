@@ -34,13 +34,16 @@ func platformTargets() ([]Target, error) {
 			return 1
 		}
 		length, _, _ := getWindowTextLength.Call(window)
-		if length == 0 || length > 4096 {
+		if length > 4096 {
 			return 1
 		}
-		titleBuffer := make([]uint16, length+1)
-		copied, _, _ := getWindowText.Call(window, uintptr(unsafe.Pointer(&titleBuffer[0])), length+1)
-		if copied == 0 {
-			return 1
+		title := ""
+		if length > 0 {
+			titleBuffer := make([]uint16, length+1)
+			copied, _, _ := getWindowText.Call(window, uintptr(unsafe.Pointer(&titleBuffer[0])), length+1)
+			if copied != 0 {
+				title = syscall.UTF16ToString(titleBuffer[:copied])
+			}
 		}
 		var pid uint32
 		getWindowThreadProcessID.Call(window, uintptr(unsafe.Pointer(&pid)))
@@ -56,12 +59,18 @@ func platformTargets() ([]Target, error) {
 		if !validBundleID(identifier) {
 			return 1
 		}
+		if strings.TrimSpace(title) == "" {
+			title = name
+		}
+		if title == "" {
+			return 1
+		}
 		targets = append(targets, Target{
 			Name:           name,
 			BundleID:       identifier,
 			PID:            int(pid),
 			WindowID:       int64(window),
-			WindowTitle:    syscall.UTF16ToString(titleBuffer[:copied]),
+			WindowTitle:    title,
 			executablePath: executable,
 		})
 		return 1
