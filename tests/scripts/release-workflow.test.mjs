@@ -37,6 +37,13 @@ test('platform workflows retain native package and first-launch acceptance', () 
     < linuxWorkflow.indexOf('actions/upload-artifact@v4'))
 })
 
+test('electron-builder cache stays outside the ESM repository root', () => {
+  for (const workflow of [macWorkflow, windowsWorkflow, linuxWorkflow]) {
+    assert.match(workflow, /ELECTRON_BUILDER_CACHE: \$\{\{ runner\.temp \}\}\/milksu-electron-builder-cache/u)
+    assert.doesNotMatch(workflow, /ELECTRON_BUILDER_CACHE: \$\{\{ github\.workspace \}\}/u)
+  }
+})
+
 test('official packaging always uploads OTA artifacts and creates an Admin draft', () => {
   assert.doesNotMatch(macWorkflow, /upload_release/u)
   assert.doesNotMatch(macReleaseScript, /const buildOta =/u)

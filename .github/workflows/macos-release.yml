@@ -37,8 +37,8 @@ jobs:
     timeout-minutes: 180
     environment: macos-release
     env:
-      ELECTRON_CACHE: ${{ github.workspace }}/build/caches/electron
-      ELECTRON_BUILDER_CACHE: ${{ github.workspace }}/build/caches/electron-builder
+      ELECTRON_CACHE: ${{ runner.temp }}/milksu-electron-cache
+      ELECTRON_BUILDER_CACHE: ${{ runner.temp }}/milksu-electron-builder-cache
     steps:
       - uses: actions/checkout@v4
         with:
@@ -96,8 +96,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            build/caches/electron
-            build/caches/electron-builder
+            ${{ runner.temp }}/milksu-electron-cache
+            ${{ runner.temp }}/milksu-electron-builder-cache
           key: electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('desktop/package-lock.json') }}
           restore-keys: |
             electron-${{ runner.os }}-${{ runner.arch }}-
