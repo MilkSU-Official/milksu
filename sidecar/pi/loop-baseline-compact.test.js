@@ -11,9 +11,9 @@ import {
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
-test("baseline: auto-compact is 85 percent and keeps failed-experiment details", () => {
-  assert.equal(CONTEXT_COMPACTION_RATIO, 0.85);
-  assert.equal(contextUsageSnapshot({ inputTokens: 85_000 }, 100_000).shouldCompact, true);
+test("baseline: auto-compact is 80 percent and keeps failed-experiment details", () => {
+  assert.equal(CONTEXT_COMPACTION_RATIO, 0.80);
+  assert.equal(contextUsageSnapshot({ inputTokens: 80_000 }, 100_000).shouldCompact, true);
   assert.match(compactionInstructions, /不要丢弃任何会改变后续行为的细节/);
 });
 

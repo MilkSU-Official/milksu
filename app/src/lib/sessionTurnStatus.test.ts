@@ -56,6 +56,25 @@ describe('sessionTurnStatus', () => {
     expect(presentContextUsage(state)?.percent).toBe(90)
   })
 
+  it('treats 80 percent occupancy as near-limit', () => {
+    let state = emptySessionTurnSnapshot()
+    state = applySessionContextWindow(state, 100_000)
+    state = applySessionUsageRecorded(state, {
+      inputTokens: 80_000,
+      outputTokens: 10,
+      totalTokens: 80_010,
+    })
+    expect(presentContextUsage(state)?.percent).toBe(80)
+    expect(presentContextUsage(state)?.nearLimit).toBe(true)
+    state = applySessionUsageRecorded(state, {
+      inputTokens: 79_000,
+      outputTokens: 10,
+      totalTokens: 79_010,
+    })
+    expect(presentContextUsage(state)?.percent).toBe(79)
+    expect(presentContextUsage(state)?.nearLimit).toBe(false)
+  })
+
   it('appends compacting to the strip', () => {
     let state = applySessionUsageRecorded(emptySessionTurnSnapshot(), {
       inputTokens: 1000,

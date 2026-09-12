@@ -99,7 +99,7 @@ const PI_DEFAULT_CONTEXT_WINDOW = 128_000;
 // AgentSession then reads `model.contextWindow ?? 0`, so both zero and an
 // omitted field arrive as zero — and zero is worse than an imprecise window:
 // shouldCompact compares against `contextWindow - reserveTokens`, so it is
-// true on every turn, while MilkSU's own 85% gate and usage ring go silent.
+// true on every turn, while MilkSU's own 80% gate and usage ring go silent.
 function registeredContextWindow(id, catalogWindow, override) {
   const resolved = resolveModelContextWindow(id, catalogWindow, override);
   return resolved > 0 ? resolved : PI_DEFAULT_CONTEXT_WINDOW;

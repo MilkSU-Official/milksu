@@ -50,7 +50,7 @@ test("reads public window overrides without touching credentials", () => {
 
 test("never registers a zero context window with Pi", () => {
   // Zero would make Pi's shouldCompact true on every turn and silence MilkSU's
-  // own 85% gate and usage ring, so an unknown model falls back to Pi's default.
+  // own 80% gate and usage ring, so an unknown model falls back to Pi's default.
   assert.equal(registeredContextWindow("custom-unknown", 0), PI_DEFAULT_CONTEXT_WINDOW);
   assert.equal(registeredContextWindow("", 0), PI_DEFAULT_CONTEXT_WINDOW);
   assert.ok(PI_DEFAULT_CONTEXT_WINDOW > 0);

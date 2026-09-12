@@ -569,7 +569,7 @@ export function presentContextUsage(
     ? Math.min(100, Math.round((occupied / window) * 100))
     : undefined
   const percent = compositionPercent ?? occupancy?.percent
-  const nearLimit = (percent ?? 0) >= 85
+  const nearLimit = (percent ?? 0) >= 80
   const ratio = windowLabel ? `${inputLabel}/${windowLabel}` : ''
   const compactingMark = compacting ? t(' · 整理中', ' · Compacting') : ''
   const compactingLabel = t('整理中', 'Compacting')

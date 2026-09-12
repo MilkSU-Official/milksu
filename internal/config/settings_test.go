@@ -50,7 +50,7 @@ func TestWithDefaults(t *testing.T) {
 		"release-milksu-",
 		"review-security",
 	}})
-	if settings.ActiveProvider != "tokenflux" || settings.ActiveModel != "x-ai/grok-4.6" {
+	if settings.ActiveProvider != presetDeepSeekServiceID || settings.ActiveModel != "deepseek-flash" {
 		t.Fatalf("unexpected defaults: %#v", settings)
 	}
 	if settings.PreferredExternalEditor != "vscode" {
@@ -142,8 +142,31 @@ func TestRemovedDeepSeekPresetIsNotReseeded(t *testing.T) {
 	if _, exists := settings.Providers[presetDeepSeekServiceID]; exists {
 		t.Fatal("removed DeepSeek preset was put back")
 	}
+	if settings.ActiveProvider != "tokenflux" || settings.ActiveModel != "x-ai/grok-4.6" {
+		t.Fatalf("removed DeepSeek should fall back to TokenFlux, got %s/%s", settings.ActiveProvider, settings.ActiveModel)
+	}
 	if len(settings.RemovedPresetServices) != 1 || settings.RemovedPresetServices[0] != presetDeepSeekServiceID {
 		t.Fatalf("unexpected removed presets: %#v", settings.RemovedPresetServices)
+	}
+}
+
+func TestWithDefaultsRemapsStaleOfficialProviderToDeepSeek(t *testing.T) {
+	settings := withDefaults(AppSettings{
+		ActiveProvider: "deepseek",
+		ActiveModel:    "unknown-model",
+	})
+	if settings.ActiveProvider != presetDeepSeekServiceID || settings.ActiveModel != "deepseek-flash" {
+		t.Fatalf("stale official DeepSeek remapped to %s/%s", settings.ActiveProvider, settings.ActiveModel)
+	}
+}
+
+func TestWithDefaultsKeepsExplicitTokenFlux(t *testing.T) {
+	settings := withDefaults(AppSettings{
+		ActiveProvider: "tokenflux",
+		ActiveModel:    "x-ai/grok-4.6",
+	})
+	if settings.ActiveProvider != "tokenflux" || settings.ActiveModel != "x-ai/grok-4.6" {
+		t.Fatalf("explicit TokenFlux was remapped: %s/%s", settings.ActiveProvider, settings.ActiveModel)
 	}
 }
 

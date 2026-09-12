@@ -263,8 +263,8 @@ deferred to one destructive pre-release consolidation after the product slices a
   subagent) plus domain extras. Bound challenge workspaces, unauthorized-target gates
   and independent Judge stay.
 - Pi owns compaction. Auto-compact stays enabled for Coding, CTF, CVE and lab sessions.
-  Do not skip `/compact`, `compact_session`, or the 85% idle path by role. Auto-compact uses
-  the same path as `/compact` when input plus cache-read tokens reach about 85% of
+  Do not skip `/compact`, `compact_session`, or the 80% idle path by role. Auto-compact uses
+  the same path as `/compact` when input plus cache-read tokens reach about 80% of
   `contextWindow` and the session is idle. Do not wait until the whole turn finishes, and
   do not add a second MilkSU summarizer.
 - Tool results enter model context through Pi's `tool_result` bound (about 50KB or 2000

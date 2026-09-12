@@ -2,6 +2,7 @@ import { computed, shallowRef, unref, type MaybeRef } from 'vue'
 import { invokeCommand } from '@/desktop'
 import { t } from '@/lib/uiLocale'
 import {
+  PRESET_DEEPSEEK_SERVICE_ID,
   PROVIDERS,
   customProviderInfo,
   providerModelLabel as fallbackModelLabel,
@@ -322,6 +323,86 @@ export function encodeComposerModelKey(
   source: PickerServiceSource = 'service',
 ): string {
   return `manual:${providerId}:${source}:${model}`
+}
+
+export type ModelServiceSourceInput = {
+  provider?: string | null
+  model?: string | null
+  modelSource?: 'account' | 'personal' | string | null
+  pickerGroups?: readonly PickerServiceGroup[]
+  providers?: Record<string, ProviderConfig> | null
+}
+
+function matchPickerGroupForSourceLabel(
+  groups: readonly PickerServiceGroup[],
+  provider: string,
+  model: string,
+  modelSource?: 'account' | 'personal',
+): PickerServiceGroup | undefined {
+  if (provider === 'tokenflux' && modelSource) {
+    const preferred = groups.find(group => (
+      group.providerId === 'tokenflux'
+      && group.source === modelSource
+      && (!model || group.models.includes(model))
+    ))
+    if (preferred) return preferred
+    const bySource = groups.find(group => (
+      group.providerId === 'tokenflux' && group.source === modelSource
+    ))
+    if (bySource) return bySource
+  }
+  if (provider && model) {
+    const byProviderAndModel = groups.find(group => (
+      group.providerId === provider && group.models.includes(model)
+    ))
+    if (byProviderAndModel) return byProviderAndModel
+  }
+  if (provider) {
+    const byProvider = groups.filter(group => group.providerId === provider)
+    if (byProvider.length === 1) return byProvider[0]
+  }
+  return undefined
+}
+
+function fallbackModelServiceSourceLabel(
+  provider: string,
+  modelSource: 'account' | 'personal' | undefined,
+  providers?: Record<string, ProviderConfig> | null,
+): string {
+  if (provider === 'tokenflux') {
+    if (modelSource === 'account') return t('MilkSU 账户', 'MilkSU account')
+    return t('TokenFlux 中转站', 'TokenFlux relay')
+  }
+  if (provider.startsWith('custom-relay-')) {
+    const config = providers?.[provider]
+    const info = customProviderInfo(provider, config)
+    const name = String(info?.name ?? config?.name ?? '').trim()
+    if (name) return name
+    if (provider === PRESET_DEEPSEEK_SERVICE_ID) return 'DeepSeek'
+    return ''
+  }
+  return ''
+}
+
+/**
+ * Environment / composer “来源” label for the currently selected service.
+ * `modelSource` is only the TokenFlux credential bucket; official DeepSeek and
+ * other custom relays stay on their picker / settings name.
+ */
+export function modelServiceSourceLabel(input: ModelServiceSourceInput): string {
+  const provider = String(input.provider ?? '').trim()
+  const model = String(input.model ?? '').trim()
+  const modelSource = input.modelSource === 'account' || input.modelSource === 'personal'
+    ? input.modelSource
+    : undefined
+  const matched = matchPickerGroupForSourceLabel(
+    input.pickerGroups ?? [],
+    provider,
+    model,
+    modelSource,
+  )
+  if (matched?.label) return matched.label
+  return fallbackModelServiceSourceLabel(provider, modelSource, input.providers)
 }
 
 export function parseComposerModelKey(value: string): {

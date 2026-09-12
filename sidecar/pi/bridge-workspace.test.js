@@ -165,7 +165,7 @@ test("workspace extension registers one reviewed desktop tool", async () => {
   assert.match(result.content[0].text, /tabs/);
 });
 
-test("compact_context queues Pi compaction below the 85 percent auto threshold", async () => {
+test("compact_context queues Pi compaction below the 80 percent auto threshold", async () => {
   const lowReport = describeWorkspaceCompaction({
     inputTokens: 40_000,
   }, 100_000);
@@ -204,7 +204,7 @@ test("compact_context queues Pi compaction below the 85 percent auto threshold",
   );
   high({ registerTool(tool) { highTools.push(tool); } });
   const result = await highTools[0].execute("call-compact-high", { action: "compact_context" });
-  assert.match(result.content[0].text, /85/);
+  assert.match(result.content[0].text, /"threshold":80/);
   assert.equal(highPending.has("conversation-1"), true);
   assert.equal(await runQueuedWorkspaceCompaction(highPending, "conversation-1", async () => "ok"), "ok");
 });

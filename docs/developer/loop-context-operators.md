@@ -24,7 +24,7 @@ Pi 没有独立的 `/rewind` / `/handoff` 会话 API。产品接到已有能力�
 
 1. rewind 后：已放弃路径不再出现在随后工具里；短报告可被下一跳读到。
 2. handoff：新会话带 Pi compact 摘要、无完整死胡同轨迹；旧会话仍可打开。
-3. `/compact` 回归：85% 自动路径与任务 UI `/compact` 仍是同一 Pi API。
+3. `/compact` 回归：80% 自动路径与任务 UI `/compact` 仍是同一 Pi API。
 4. Vue：斜杠两项中英 `t()` 成对；最后一条可丢掉的用户消息显示「丢掉这段」；用量环面板提供「整理上下文」和「接到新会话」。`running` 时 rewind 可点（先 abort），handoff 与 `/新任务` 一样禁用；compaction 进行中两项都禁用。任意更早的用户消息仍走「编辑并从这里重发」。
 
 ## 验收标准

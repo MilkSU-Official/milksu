@@ -322,15 +322,26 @@ export interface LabConfig {
   auto_create_avd?: boolean
 }
 
-export const PRIMARY_MODEL_SELECTION: ModelSelection = {
-  provider: 'tokenflux',
-  model: 'x-ai/grok-4.6',
-}
-export const TOKENFLUX_DEFAULT_MODEL = 'x-ai/grok-4.6'
-
 export const PRESET_DEEPSEEK_SERVICE_ID = 'custom-relay-deepseek'
 export const PRESET_DEEPSEEK_BASE_URL = 'https://api.deepseek.com'
 export const PRESET_DEEPSEEK_MODELS = ['deepseek-flash', 'deepseek-v4-pro'] as const
+
+export const PRIMARY_MODEL_SELECTION: ModelSelection = {
+  provider: PRESET_DEEPSEEK_SERVICE_ID,
+  model: 'deepseek-flash',
+}
+export const TOKENFLUX_DEFAULT_MODEL = 'x-ai/grok-4.6'
+export const TOKENFLUX_FALLBACK_SELECTION: ModelSelection = {
+  provider: 'tokenflux',
+  model: TOKENFLUX_DEFAULT_MODEL,
+}
+
+function primarySelectionForProviders(
+  providers: Record<string, ProviderConfig>,
+): ModelSelection {
+  if (providers[PRESET_DEEPSEEK_SERVICE_ID]) return PRIMARY_MODEL_SELECTION
+  return TOKENFLUX_FALLBACK_SELECTION
+}
 
 export function withAppSettingsDefaults(value: AppSettings): AppSettings {
   const legacy = value as AppSettings & {
@@ -346,24 +357,25 @@ export function withAppSettingsDefaults(value: AppSettings): AppSettings {
     configuredProviders[value.active_provider],
   )
   const rawActive = String(value.active_provider ?? '').trim()
-  // Stale pre-release official providers (deepseek, openai, …) are not product
-  // surfaces; remap them to TokenFlux so Agent turns use an enabled path.
+  const fallbackSelection = primarySelectionForProviders(configuredProviders)
+  // Stale official providers (deepseek, openai, …) are not product surfaces.
+  // Remap them to official DeepSeek Flash, or TokenFlux if that preset was removed.
   const providerIsSelectable = selectableProvider(rawActive)
     || Boolean(configuredProvider)
   const activeProvider = providerIsSelectable
     ? rawActive
-    : PRIMARY_MODEL_SELECTION.provider
+    : fallbackSelection.provider
   const activeInfo = providerByID(activeProvider) ?? (
     activeProvider === rawActive ? configuredProvider : null
   )
   const requestedModel = String(value.active_model ?? '').trim()
   const activeModel = !providerIsSelectable
-    ? PRIMARY_MODEL_SELECTION.model
+    ? fallbackSelection.model
     : activeProvider === 'tokenflux'
       ? requestedModel || TOKENFLUX_DEFAULT_MODEL
       : activeInfo?.models.includes(requestedModel)
         ? requestedModel
-        : activeInfo?.models[0] ?? PRIMARY_MODEL_SELECTION.model
+        : activeInfo?.models[0] ?? fallbackSelection.model
   return {
     ...value,
     active_provider: activeProvider,

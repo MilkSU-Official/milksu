@@ -4,6 +4,7 @@ import {
   installAppModelSettings,
   installCustomProviderSettings,
   installModelCatalog,
+  modelServiceSourceLabel,
   providerModelLabel,
   useModelCatalog,
 } from './modelCatalog'
@@ -271,5 +272,172 @@ describe('runtime model catalog', () => {
     // Rows omit the service prefix; SelectLabel already shows the group.
     expect(pickerModelLabel(account, 'grok-4.5')).toBe('Grok 4.5')
     expect(pickerModelLabel(personal, 'x-ai/grok-4.6')).toBe('Grok 4.6')
+  })
+
+  it('labels official DeepSeek as DeepSeek even when conversation.modelSource is personal', () => {
+    installModelCatalog({
+      provider: 'tokenflux',
+      source: 'remote',
+      credential_source: 'personal',
+      models: [
+        { id: 'deepseek/deepseek-v4-flash', name: 'DeepSeek V4 Flash', context_window: 128000, max_tokens: 8192, input: ['text'] },
+      ],
+    })
+    const providers: Record<string, ProviderConfig> = {
+      tokenflux: {
+        api_key: '',
+        has_api_key: true,
+        enabled: true,
+        base_url: 'https://tokenflux.dev/v1',
+      },
+      'custom-relay-deepseek': {
+        api_key: '',
+        has_api_key: true,
+        enabled: true,
+        custom: true,
+        name: 'DeepSeek',
+        base_url: 'https://api.deepseek.com',
+        models: ['deepseek-flash', 'deepseek-v4-pro'],
+      },
+    }
+    installAppModelSettings({
+      providers,
+      relay: {
+        enabled: false,
+        url: 'https://tokenflux.dev/v1',
+        key: '',
+        has_key: false,
+      },
+    })
+    const { pickerGroups } = useModelCatalog()
+    expect(pickerGroups.value.some(group => group.label === 'DeepSeek')).toBe(true)
+    expect(modelServiceSourceLabel({
+      provider: 'custom-relay-deepseek',
+      model: 'deepseek-flash',
+      modelSource: 'personal',
+      pickerGroups: pickerGroups.value,
+      providers,
+    })).toBe('DeepSeek')
+    expect(modelServiceSourceLabel({
+      provider: 'custom-relay-deepseek',
+      model: 'deepseek-flash',
+      modelSource: 'personal',
+      pickerGroups: pickerGroups.value,
+      providers,
+    })).not.toContain('TokenFlux')
+  })
+
+  it('labels TokenFlux personal and account from the matching picker group', () => {
+    installModelCatalog({
+      provider: 'tokenflux',
+      source: 'remote',
+      credential_source: 'merged',
+      account_model_ids: ['grok-4.5'],
+      models: [
+        { id: 'grok-4.5', name: 'Grok 4.5', context_window: 128000, max_tokens: 32768, input: ['text'] },
+        { id: 'x-ai/grok-4.6', name: 'Grok 4.6', context_window: 128000, max_tokens: 32768, input: ['text'] },
+      ],
+    })
+    const providers: Record<string, ProviderConfig> = {
+      tokenflux: {
+        api_key: '',
+        has_api_key: true,
+        enabled: true,
+        base_url: 'https://tokenflux.dev/v1',
+      },
+    }
+    installAppModelSettings({
+      providers,
+      relay: {
+        enabled: true,
+        url: 'https://tokenflux.dev/v1',
+        key: '',
+        has_key: true,
+      },
+    })
+    const { pickerGroups } = useModelCatalog()
+    expect(modelServiceSourceLabel({
+      provider: 'tokenflux',
+      model: 'x-ai/grok-4.6',
+      modelSource: 'personal',
+      pickerGroups: pickerGroups.value,
+      providers,
+    })).toBe('TokenFlux 中转站')
+    expect(modelServiceSourceLabel({
+      provider: 'tokenflux',
+      model: 'grok-4.5',
+      modelSource: 'account',
+      pickerGroups: pickerGroups.value,
+      providers,
+    })).toBe('MilkSU 账户')
+  })
+
+  it('uses another custom relay name and does not map bare personal to TokenFlux', () => {
+    const providers: Record<string, ProviderConfig> = {
+      'custom-relay-team': {
+        api_key: '',
+        has_api_key: true,
+        enabled: true,
+        custom: true,
+        name: 'Team Relay',
+        base_url: 'https://relay.example/v1',
+        models: ['vendor/model:preview'],
+      },
+    }
+    installAppModelSettings({
+      providers,
+      relay: {
+        enabled: false,
+        url: 'https://tokenflux.dev/v1',
+        key: '',
+        has_key: false,
+      },
+    })
+    const { pickerGroups } = useModelCatalog()
+    expect(modelServiceSourceLabel({
+      provider: 'custom-relay-team',
+      model: 'vendor/model:preview',
+      modelSource: 'personal',
+      pickerGroups: pickerGroups.value,
+      providers,
+    })).toBe('Team Relay')
+    expect(modelServiceSourceLabel({
+      provider: 'custom-relay-deepseek',
+      model: 'deepseek-flash',
+      providers,
+    })).toBe('DeepSeek')
+    expect(modelServiceSourceLabel({
+      modelSource: 'personal',
+    })).toBe('')
+  })
+
+  it('shows the current service on a new conversation before modelSource is set', () => {
+    const providers: Record<string, ProviderConfig> = {
+      'custom-relay-deepseek': {
+        api_key: '',
+        has_api_key: true,
+        enabled: true,
+        custom: true,
+        name: 'DeepSeek',
+        base_url: 'https://api.deepseek.com',
+        models: ['deepseek-flash', 'deepseek-v4-pro'],
+      },
+    }
+    installAppModelSettings({
+      providers,
+      relay: {
+        enabled: false,
+        url: 'https://tokenflux.dev/v1',
+        key: '',
+        has_key: false,
+      },
+    })
+    const { pickerGroups } = useModelCatalog()
+    expect(modelServiceSourceLabel({
+      provider: 'custom-relay-deepseek',
+      model: 'deepseek-flash',
+      pickerGroups: pickerGroups.value,
+      providers,
+    })).toBe('DeepSeek')
   })
 })

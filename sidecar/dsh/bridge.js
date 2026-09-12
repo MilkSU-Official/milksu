@@ -5,7 +5,21 @@ import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import { createAcpClient } from "./acp-client.js";
 import { resolveDshLaunch } from "./launch.js";
-import { milksuProductMcpServer, resolveProductMcpScript } from "./mcp-servers.js";
+import {
+  dshSessionMcpServers,
+  milksuPlaywrightMcpServer,
+  milksuProductMcpServer,
+  resolvePlaywrightLazyMcpScript,
+  resolvePlaywrightMcpCli,
+  resolveProductMcpScript,
+} from "./mcp-servers.js";
+import {
+  dshAcpHostPatchYaml,
+  dshAcpModelOptionValue,
+  dshModelDeclaresImageInput,
+  dshReasoningOptionValue,
+  dshRouteModel,
+} from "./session-config.js";
 import { syncDshSkillCatalog } from "./skill-catalog.js";
 import { createProductIpc } from "./product-ipc.js";
 import { dshProductIpc } from "../hostpath.js";
@@ -87,12 +101,47 @@ function requestAsk({ conversationId, question, options }) {
   });
 }
 
-function milksuMcpServer(conversationId) {
-  return milksuProductMcpServer({
-    conversationId,
-    ipcPath: productIpc?.path,
-    scriptPath: resolveProductMcpScript(dirname(fileURLToPath(import.meta.url))),
-  });
+function sessionMcpServers(conversationId) {
+  const here = dirname(fileURLToPath(import.meta.url));
+  return dshSessionMcpServers([
+    milksuProductMcpServer({
+      conversationId,
+      ipcPath: productIpc?.path,
+      scriptPath: resolveProductMcpScript(here),
+    }),
+    milksuPlaywrightMcpServer({
+      conversationId,
+      scriptPath: resolvePlaywrightLazyMcpScript(here),
+      cliPath: resolvePlaywrightMcpCli(here),
+    }),
+  ]);
+}
+
+async function applySessionOptions(record, command, configOptions) {
+  if (!acp || !record) return configOptions;
+  let options = Array.isArray(configOptions) ? configOptions : [];
+  const modelValue = dshAcpModelOptionValue(options, command?.model);
+  if (modelValue) {
+    const updated = await acp.request("session/set_config_option", {
+      sessionId: record.acpSessionId,
+      configId: "model",
+      value: modelValue,
+    });
+    options = Array.isArray(updated?.configOptions) ? updated.configOptions : options;
+  }
+  const effort = dshReasoningOptionValue(options, command?.thinking);
+  if (effort) {
+    const updated = await acp.request("session/set_config_option", {
+      sessionId: record.acpSessionId,
+      configId: "reasoning_effort",
+      value: effort,
+    });
+    options = Array.isArray(updated?.configOptions) ? updated.configOptions : options;
+  }
+  record.model = dshRouteModel(command?.model);
+  record.imageCapable = dshModelDeclaresImageInput(record.model);
+  record.configOptions = options;
+  return options;
 }
 
 function writeHostPatch() {
@@ -104,7 +153,7 @@ function writeHostPatch() {
   const patchPath = join(home, "milksu-host.cordis.yml");
   writeFileSync(
     patchPath,
-    `- insert:\n  - id: milksu-dsh-host\n    name: ${JSON.stringify(plugin)}\n`,
+    dshAcpHostPatchYaml(plugin),
     { encoding: "utf8", mode: 0o600 },
   );
   return patchPath;
@@ -317,13 +366,12 @@ async function createSession(command) {
     extraSkillPaths: command.userSkillPaths,
   });
   const client = await ensureAcp(cwd);
-  const mcp = milksuMcpServer(conversationId);
   const created = await client.request("session/new", {
     cwd,
-    mcpServers: mcp ? [mcp] : [],
+    mcpServers: sessionMcpServers(conversationId),
   });
   const acpSessionId = String(created?.sessionId || created?.session_id || conversationId);
-  sessions.set(conversationId, {
+  const record = {
     acpSessionId,
     cwd,
     createCommand: command,
@@ -331,7 +379,15 @@ async function createSession(command) {
     thinkingOpen: false,
     thinkingText: "",
     thinkingStartedAt: 0,
-  });
+    model: "",
+    imageCapable: false,
+  };
+  sessions.set(conversationId, record);
+  try {
+    await applySessionOptions(record, command, created?.configOptions);
+  } catch (error) {
+    emit(conversationId, "error", { error: describeError(error) });
+  }
   emit(conversationId, "ready", { resumed: false });
 }
 
@@ -343,8 +399,17 @@ async function sendMessage(command) {
   }
   const record = sessionRecord(conversationId);
   const client = await ensureAcp(record.cwd);
+  if (command.model && dshRouteModel(command.model) !== record.model) {
+    try {
+      await applySessionOptions(record, command, record.configOptions);
+    } catch {
+      // Catalog discovery lives on the session; a missing option keeps the current route.
+    }
+  }
   emit(conversationId, "turn_started");
-  const prompt = await buildDshPromptBlocks(command, { imagePrompts: acpImagePrompts });
+  const prompt = await buildDshPromptBlocks(command, {
+    imagePrompts: acpImagePrompts && record.imageCapable,
+  });
   try {
     await client.request("session/prompt", {
       sessionId: record.acpSessionId,
@@ -390,12 +455,7 @@ async function compactSession(command) {
     if (!acp || !record) {
       throw new Error("DeepSeek Harness session is not running");
     }
-    let result;
-    try {
-      result = await callHost("compact", { sessionId: record.acpSessionId });
-    } catch {
-      result = await acp.request("session/compact", { sessionId: record.acpSessionId });
-    }
+    const result = await callHost("compact", { sessionId: record.acpSessionId });
     emit(conversationId, "compaction_end", {
       requestId,
       compaction: {

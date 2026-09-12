@@ -1707,14 +1707,14 @@ describe('SettingsPage database compatibility', () => {
       custom: true,
       name: 'DeepSeek',
       base_url: 'https://api.deepseek.com',
-      enabled: false,
+      enabled: true,
       api_key: 'sk-deepseek-test-not-real',
       models: ['deepseek-flash', 'deepseek-v4-pro'],
     })
     const probedSettings = probed as unknown as AppSettings
     expect(probedSettings.active_provider).toBe('custom-relay-deepseek')
     expect(probedSettings.providers['custom-relay-deepseek']).toMatchObject({
-      enabled: false,
+      enabled: true,
       api_key: 'sk-deepseek-test-not-real',
     })
     expect(document.body.textContent).toContain('已保存并验证 custom-relay-deepseek/deepseek-flash')

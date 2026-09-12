@@ -109,15 +109,28 @@ type AppSettings struct {
 	RuntimeThinkingLevel    string `json:"-"`
 }
 
+func defaultDeepSeekProvider() ProviderConfig {
+	baseURL := presetDeepSeekBaseURL
+	return ProviderConfig{
+		Enabled: false,
+		Custom:  true,
+		Name:    "DeepSeek",
+		BaseURL: &baseURL,
+		Models:  []string{"deepseek-flash", "deepseek-v4-pro"},
+	}
+}
+
 func DefaultSettings() AppSettings {
 	return AppSettings{
-		ActiveProvider: "tokenflux",
-		ActiveModel:    "x-ai/grok-4.6",
+		ActiveProvider: presetDeepSeekServiceID,
+		ActiveModel:    "deepseek-flash",
 		ModelRouting: ModelRoutingConfig{
 			SourceOrder:  []string{ModelSourceAccount, ModelSourcePersonal},
 			AutoFallback: boolPointer(false),
 		},
-		Providers: make(map[string]ProviderConfig),
+		Providers: map[string]ProviderConfig{
+			presetDeepSeekServiceID: defaultDeepSeekProvider(),
+		},
 	}
 }
 
@@ -163,6 +176,7 @@ func (s *Store) Get() AppSettings {
 	defer s.mu.RUnlock()
 	// Apply defaults on read so stale official providers (deepseek, …) never
 	// reach Desktop RPC or the Agent start path after a product surface change.
+	// The current factory default is official DeepSeek Flash.
 	return withDefaults(clone(s.settings))
 }
 
@@ -705,25 +719,25 @@ func withDefaults(value AppSettings) AppSettings {
 		provider.Models = normalizeCustomModels(provider.Models)
 		value.Providers[id] = provider
 	}
-	// Product surface is TokenFlux + custom relays only. Stale official
-	// providers (deepseek/openai/…) are remapped so Agent turns do not start
-	// against a retired vendor default.
+	value.RemovedPresetServices = normalizeRemovedPresetServices(value.RemovedPresetServices)
+	value = ensurePresetServices(value)
+	// Product surface is official DeepSeek + TokenFlux + custom relays.
+	// Stale official providers (deepseek/openai/…) remap to the factory
+	// default, or TokenFlux if the DeepSeek preset was removed.
 	active := strings.TrimSpace(value.ActiveProvider)
-	if active != "tokenflux" {
-		provider, exists := value.Providers[active]
-		if !exists || !provider.Custom {
-			value.ActiveProvider = defaults.ActiveProvider
-			model := strings.TrimSpace(value.ActiveModel)
-			if model == "" ||
-				strings.EqualFold(active, "deepseek") ||
-				strings.HasPrefix(strings.ToLower(model), "deepseek") ||
-				strings.EqualFold(active, "openai") ||
-				strings.EqualFold(active, "anthropic") ||
-				strings.EqualFold(active, "google") ||
-				strings.EqualFold(active, "groq") ||
-				strings.EqualFold(active, "mistral") {
-				value.ActiveModel = defaults.ActiveModel
-			}
+	if !productProviderSelectable(value, active) {
+		fallbackProvider, fallbackModel := fallbackProductSelection(value)
+		value.ActiveProvider = fallbackProvider
+		model := strings.TrimSpace(value.ActiveModel)
+		if model == "" ||
+			strings.EqualFold(active, "deepseek") ||
+			strings.HasPrefix(strings.ToLower(model), "deepseek") ||
+			strings.EqualFold(active, "openai") ||
+			strings.EqualFold(active, "anthropic") ||
+			strings.EqualFold(active, "google") ||
+			strings.EqualFold(active, "groq") ||
+			strings.EqualFold(active, "mistral") {
+			value.ActiveModel = fallbackModel
 		}
 	}
 	value.ModelRouting.SourceOrder = normalizeModelSourceOrder(value.ModelRouting.SourceOrder)
@@ -733,8 +747,6 @@ func withDefaults(value AppSettings) AppSettings {
 	}
 	value.DisabledSkills = normalizeDisabledSkills(value.DisabledSkills)
 	value.EnabledOptionalSkills = normalizeEnabledOptionalSkills(value.EnabledOptionalSkills)
-	value.RemovedPresetServices = normalizeRemovedPresetServices(value.RemovedPresetServices)
-	value = ensurePresetServices(value)
 	value = normalizeWorkerModel(value)
 	value.PreferredExternalEditor = externaleditor.Normalize(value.PreferredExternalEditor)
 	value.SecurityTools = normalizeSecurityToolPreferences(value.SecurityTools)
@@ -869,6 +881,21 @@ func normalizeRemovedPresetServices(value []string) []string {
 	return result
 }
 
+func productProviderSelectable(value AppSettings, id string) bool {
+	if id == "tokenflux" {
+		return true
+	}
+	provider, exists := value.Providers[id]
+	return exists && provider.Custom
+}
+
+func fallbackProductSelection(value AppSettings) (provider, model string) {
+	if _, exists := value.Providers[presetDeepSeekServiceID]; exists {
+		return presetDeepSeekServiceID, "deepseek-flash"
+	}
+	return "tokenflux", "x-ai/grok-4.6"
+}
+
 func ensurePresetServices(value AppSettings) AppSettings {
 	if value.Providers == nil {
 		value.Providers = make(map[string]ProviderConfig)
@@ -890,14 +917,7 @@ func ensurePresetServices(value AppSettings) AppSettings {
 	if customCount >= 8 {
 		return value
 	}
-	baseURL := presetDeepSeekBaseURL
-	value.Providers[presetDeepSeekServiceID] = ProviderConfig{
-		Enabled: false,
-		Custom:  true,
-		Name:    "DeepSeek",
-		BaseURL: &baseURL,
-		Models:  []string{"deepseek-flash", "deepseek-v4-pro"},
-	}
+	value.Providers[presetDeepSeekServiceID] = defaultDeepSeekProvider()
 	return value
 }
 

@@ -13,7 +13,7 @@
 // instead of being reported as success.
 
 export const DEFAULT_COMPACTION_TIMEOUT_MS = 120_000;
-export const CONTEXT_COMPACTION_RATIO = 0.85;
+export const CONTEXT_COMPACTION_RATIO = 0.80;
 
 export function contextUsageSnapshot(usage, contextWindow) {
   const input = Math.max(0, Number(usage?.inputTokens ?? 0))

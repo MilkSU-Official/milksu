@@ -25,19 +25,19 @@ function idleSession({ compact } = {}) {
   };
 }
 
-test("compacts when prompt tokens reach 85 percent of the window", () => {
-  assert.equal(CONTEXT_COMPACTION_RATIO, 0.85);
+test("compacts when prompt tokens reach 80 percent of the window", () => {
+  assert.equal(CONTEXT_COMPACTION_RATIO, 0.80);
   assert.equal(contextUsageSnapshot({
-    inputTokens: 84_999,
+    inputTokens: 79_999,
     cacheReadTokens: 0,
   }, 100_000).shouldCompact, false);
   assert.equal(contextUsageSnapshot({
     inputTokens: 70_000,
-    cacheReadTokens: 15_000,
+    cacheReadTokens: 10_000,
   }, 100_000).shouldCompact, true);
   assert.equal(contextUsageSnapshot({
-    inputTokens: 85_000,
-  }, 100_000).percent, 85);
+    inputTokens: 80_000,
+  }, 100_000).percent, 80);
   assert.equal(contextUsageSnapshot({ inputTokens: 9_000 }, 0).shouldCompact, false);
 });
 

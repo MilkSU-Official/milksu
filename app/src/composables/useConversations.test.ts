@@ -359,10 +359,11 @@ describe('Coding approval conversation recovery', () => {
     expect(message).not.toContain('本地 Agent 运行异常')
   })
 
-  it('maps an empty TokenFlux 403 to quota guidance', () => {
+  it('maps an empty model 403 without calling it TokenFlux', () => {
     const message = agentRuntimeErrorMessage('PI model verification failed: 403 status code (no body)')
-    expect(message).toContain('TokenFlux')
+    expect(message).toContain('模型服务拒绝了这次请求')
     expect(message).toContain('额度')
+    expect(message).not.toContain('TokenFlux')
     expect(message).not.toContain('403')
     expect(message).not.toContain('no body')
     expect(message).not.toContain('status code')

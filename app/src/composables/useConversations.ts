@@ -26,7 +26,7 @@ import {
 } from '@/lib/chatActivity'
 import { redactProviderCredentials } from '@/lib/redaction'
 import { normalizeSubagentTasks } from '@/lib/subagentRoster'
-import { explainTokenFluxError } from '@/lib/tokenFluxError'
+import { explainModelServiceError } from '@/lib/tokenFluxError'
 import { t } from '@/lib/uiLocale'
 import {
   conversationKernelLocked,
@@ -587,10 +587,10 @@ export function agentRuntimeErrorMessage(value: unknown) {
     return t('当前模型没有可用凭据。', 'No credentials are available for the current model.')
   }
   if (/model provider .* is not supported|provider .* is not supported by the local Agent runtime/i.test(raw)) {
-    return t('当前默认模型不可用，请在设置中改选 TokenFlux 或中转站。', 'The current default model is unavailable. Choose TokenFlux or a relay in Settings.')
+    return t('当前默认模型不可用，请在设置中选择可用模型。', 'The current default model is unavailable. Choose an available model in Settings.')
   }
-  const tokenFlux = explainTokenFluxError(value)
-  if (tokenFlux) return tokenFlux
+  const modelService = explainModelServiceError(value)
+  if (modelService) return modelService
   if (new RegExp(t('运行时正在启动', 'Runtime is starting'), 'i').test(raw)) {
     return t('运行时正在启动，请稍候。', 'Runtime is starting. Please wait.')
   }
@@ -1816,7 +1816,7 @@ export function useConversations() {
   async function compactContext() {
     const conversationId = activeId.value
     if (!conversationId || continuity.value.compacting.has(conversationId)) return
-    // Manual /compact is not gated at 85%. Running turns are aborted by Pi
+    // Manual /compact is not gated at 80%. Running turns are aborted by Pi
     // compact itself; leftover GUI running flags must not swallow the click.
     continuity.value = applyCodingContinuityEvent(
       continuity.value,

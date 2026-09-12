@@ -26,7 +26,7 @@ func TestResolveTaskModelAutoUsesSingleDefaultForAllRoles(t *testing.T) {
 		if err != nil {
 			t.Fatalf("resolve %s: %v", role, err)
 		}
-		if resolved.ActiveProvider != "tokenflux" || resolved.ActiveModel != "x-ai/grok-4.6" {
+		if resolved.ActiveProvider != "custom-relay-deepseek" || resolved.ActiveModel != "deepseek-flash" {
 			t.Fatalf("role %s should use single default route, got %#v", role, resolved)
 		}
 	}

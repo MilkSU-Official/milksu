@@ -1,7 +1,10 @@
 import { existsSync } from "node:fs";
-import { isAbsolute, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, resolve } from "node:path";
+import { codingBrowserDescriptorFile } from "../hostpath.js";
+import { codingBrowserMcpServerName } from "../pi/bridge-browser-policy.js";
 
 export const milksuAcpMcpServerName = "milksu";
+export { codingBrowserMcpServerName as milksuPlaywrightMcpServerName };
 
 export function acpEnvEntries(env) {
   if (Array.isArray(env)) {
@@ -57,13 +60,31 @@ export function acpStdioMcpServer({ name, command, args = [], env = {} } = {}) {
   return isAcpStdioMcpServer(server) ? server : null;
 }
 
-export function resolveProductMcpScript(here) {
+export function resolveSidecarScript(here, packagedName, sourceName) {
   const root = String(here ?? "").trim();
   if (!root) return "";
-  const packaged = join(root, "product-mcp.cjs");
-  const source = join(root, "product-mcp.js");
+  const packaged = join(root, packagedName);
+  const source = join(root, sourceName);
   if (existsSync(packaged)) return resolve(packaged);
   if (existsSync(source)) return resolve(source);
+  return "";
+}
+
+export function resolveProductMcpScript(here) {
+  return resolveSidecarScript(here, "product-mcp.cjs", "product-mcp.js");
+}
+
+export function resolvePlaywrightLazyMcpScript(here) {
+  return resolveSidecarScript(here, "playwright-lazy-mcp.cjs", "playwright-lazy-mcp.js");
+}
+
+export function resolvePlaywrightMcpCli(here) {
+  const root = String(here ?? "").trim();
+  if (!root) return "";
+  const packaged = join(root, "node_modules", "@playwright", "mcp", "cli.js");
+  const checkout = join(root, "..", "..", "node_modules", "@playwright", "mcp", "cli.js");
+  if (existsSync(packaged)) return resolve(packaged);
+  if (existsSync(checkout)) return resolve(checkout);
   return "";
 }
 
@@ -87,4 +108,34 @@ export function milksuProductMcpServer({
       MILKSU_CONVERSATION_ID: id,
     },
   });
+}
+
+export function milksuPlaywrightMcpServer({
+  conversationId,
+  scriptPath,
+  cliPath,
+  execPath = process.execPath,
+  descriptorFile,
+} = {}) {
+  const id = String(conversationId ?? "").trim();
+  const scriptRaw = String(scriptPath ?? "").trim();
+  const script = scriptRaw && (isAbsolute(scriptRaw) ? scriptRaw : resolve(scriptRaw));
+  const cli = String(cliPath ?? "").trim();
+  const descriptor = String(descriptorFile ?? codingBrowserDescriptorFile(id)).trim();
+  if (!id || !script || !cli || !descriptor) return null;
+  return acpStdioMcpServer({
+    name: codingBrowserMcpServerName,
+    command: execPath,
+    args: [script],
+    env: {
+      MILKSU_CONVERSATION_ID: id,
+      MILKSU_PLAYWRIGHT_MCP_CLI: cli,
+      MILKSU_CODING_BROWSER_DESCRIPTOR_FILE: descriptor,
+      MILKSU_PLAYWRIGHT_EVIDENCE_DIR: join(dirname(descriptor), "evidence"),
+    },
+  });
+}
+
+export function dshSessionMcpServers(servers) {
+  return (Array.isArray(servers) ? servers : []).filter(isAcpStdioMcpServer);
 }

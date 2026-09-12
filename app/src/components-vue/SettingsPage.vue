@@ -1142,6 +1142,30 @@ function openProviderEditor(id: string) {
   notice.value = null
 }
 
+function providerHasConfiguredKey(config?: ProviderConfig): boolean {
+  return Boolean(config?.has_api_key || String(config?.api_key ?? '').trim())
+}
+
+/** Turn on a service the user just saved or verified, so they do not have to flip Enable by hand. */
+function activateConfiguredModelService(config: ProviderConfig | undefined, id: string): boolean {
+  if (!config) return false
+  if (id === 'tokenflux') {
+    if (!providerHasConfiguredKey(config) && !accountModelSourceReady.value) return false
+    config.enabled = true
+    return true
+  }
+  if (
+    config.custom
+    && providerHasConfiguredKey(config)
+    && String(config.base_url ?? '').trim()
+    && (config.models ?? []).length > 0
+  ) {
+    config.enabled = true
+    return true
+  }
+  return false
+}
+
 function setEditingProviderModel(value: string) {
   if (!working.value || !editingProviderID.value || !value) return
   // Selecting a model in the service editor also makes that service the default.
@@ -1540,6 +1564,12 @@ async function save(options?: { quiet?: boolean }): Promise<boolean> {
   saving.value = true
   notice.value = null
   const submitted = cloneSettings(working.value)
+  if (submitted.active_provider !== 'tokenflux') {
+    activateConfiguredModelService(
+      submitted.providers[submitted.active_provider],
+      submitted.active_provider,
+    )
+  }
   try {
     await invokeCommand('save_settings_cmd', { newSettings: submitted })
     if (category.value !== 'apikeys') {
@@ -1564,7 +1594,7 @@ async function save(options?: { quiet?: boolean }): Promise<boolean> {
       await refreshCallableModels()
       notice.value = {
         tone: 'ok',
-        text: t('设置已保存。当前没有已启用且可用的模型服务，请启用账户或填写 TokenFlux / 自定义中转站后再验证。', 'Settings saved. No enabled model service is ready yet. Enable the account or add a TokenFlux / custom relay, then verify.'),
+        text: t('设置已保存。当前没有已启用且可用的模型服务，请启用账户或填写已配置的模型服务后再验证。', 'Settings saved. No enabled model service is ready yet. Enable the account or add a configured model service, then verify.'),
       }
       return true
     }
@@ -1590,7 +1620,7 @@ async function save(options?: { quiet?: boolean }): Promise<boolean> {
       const raw = desktopErrorMessage(reason)
       notice.value = {
         tone: 'error',
-        text: t(`凭据已保存。${explainModelVerificationFailure(raw)}`, `Credentials saved. ${explainModelVerificationFailure(raw)}`),
+        text: t(`凭据已保存。${explainModelVerificationFailure(raw, submitted.active_provider)}`, `Credentials saved. ${explainModelVerificationFailure(raw, submitted.active_provider)}`),
       }
       return true
     } finally {
@@ -1638,7 +1668,9 @@ async function saveProviderEditor(closeAfterSave: boolean) {
       // Prefer personal TokenFlux while testing/saving this editor.
       working.value.model_routing.source_order = ['personal', 'account']
       working.value.model_routing.auto_fallback = false
-      editing.enabled = true
+    }
+    if (activateConfiguredModelService(editing, editingID)) {
+      alignDefaultModelToEnabledServices()
     }
   }
   const persisted = await save()

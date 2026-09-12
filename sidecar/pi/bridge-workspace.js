@@ -1,5 +1,5 @@
 import { Type } from "typebox";
-import { contextUsageSnapshot } from "./bridge-compaction.js";
+import { CONTEXT_COMPACTION_RATIO, contextUsageSnapshot } from "./bridge-compaction.js";
 
 export const codingWorkspaceToolName = "milksu_workspace";
 
@@ -131,7 +131,7 @@ export function describeWorkspaceCompaction(usage, contextWindow) {
     compacted: false,
     scheduled: true,
     percent: snapshot.percent,
-    threshold: 85,
+    threshold: Math.round(CONTEXT_COMPACTION_RATIO * 100),
     autoCompact: snapshot.shouldCompact,
     detail: `已排队整理上下文。当前占用约 ${snapshot.percent}%。`,
   };

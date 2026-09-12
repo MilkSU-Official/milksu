@@ -7,7 +7,11 @@ import {
   acpStdioMcpServer,
   isAcpStdioMcpServer,
   milksuAcpMcpServerName,
+  milksuPlaywrightMcpServer,
+  milksuPlaywrightMcpServerName,
   milksuProductMcpServer,
+  resolvePlaywrightLazyMcpScript,
+  resolvePlaywrightMcpCli,
   resolveProductMcpScript,
 } from "./mcp-servers.js";
 
@@ -64,4 +68,33 @@ test("product MCP descriptor stays off the session when IPC or script is missing
     scriptPath: join(here, "product-mcp.js"),
   }), null);
   assert.equal(acpStdioMcpServer({ name: "", command: process.execPath }), null);
+});
+
+test("Playwright lazy MCP declaration starts without waiting for CDP", () => {
+  const script = resolvePlaywrightLazyMcpScript(here);
+  const cli = resolvePlaywrightMcpCli(here);
+  assert.ok(script.endsWith("playwright-lazy-mcp.js") || script.endsWith("playwright-lazy-mcp.cjs"));
+  assert.ok(cli.endsWith(join("mcp", "cli.js")));
+  const server = milksuPlaywrightMcpServer({
+    conversationId: "conv-browser",
+    scriptPath: script,
+    cliPath: cli,
+    execPath: process.execPath,
+    descriptorFile: join(here, "cdp.json"),
+  });
+  assert.equal(server.name, milksuPlaywrightMcpServerName);
+  assert.equal("type" in server, false);
+  assert.ok(isAbsolute(server.command));
+  const env = Object.fromEntries(server.env.map(entry => [entry.name, entry.value]));
+  assert.equal(env.MILKSU_CONVERSATION_ID, "conv-browser");
+  assert.ok(env.MILKSU_PLAYWRIGHT_MCP_CLI);
+  assert.ok(env.MILKSU_CODING_BROWSER_DESCRIPTOR_FILE);
+});
+
+test("Playwright lazy MCP stays off the session without a CLI or conversation", () => {
+  assert.equal(milksuPlaywrightMcpServer({
+    conversationId: "",
+    scriptPath: join(here, "playwright-lazy-mcp.js"),
+    cliPath: resolvePlaywrightMcpCli(here),
+  }), null);
 });

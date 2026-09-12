@@ -1,24 +1,20 @@
 import { describe, expect, it } from 'vitest'
 import { applyUiLocale } from './uiLocale'
-import { explainModelVerificationFailure, explainTokenFluxError } from './tokenFluxError'
+import {
+  explainModelServiceError,
+  explainModelVerificationFailure,
+  explainTokenFluxError,
+} from './tokenFluxError'
 
 describe('explainTokenFluxError', () => {
+  it('does not treat a bare HTTP status as TokenFlux', () => {
+    applyUiLocale('zh')
+    expect(explainTokenFluxError('PI model verification failed: 403 status code (no body)')).toBeNull()
+    expect(explainTokenFluxError('403 status code (no body)')).toBeNull()
+    expect(explainTokenFluxError('401 status code (no body)')).toBeNull()
+  })
+
   it.each([
-    [
-      'PI model verification failed: 403 status code (no body)',
-      '请到 TokenFlux 查看额度',
-      '403',
-    ],
-    [
-      '403 status code (no body)',
-      '余额不足',
-      'status code',
-    ],
-    [
-      '401 status code (no body)',
-      '模型凭据无效或无权访问',
-      '401',
-    ],
     [
       '403: {"code":"INSUFFICIENT_BALANCE","message":"Insufficient account balance"}',
       '账户余额不足',
@@ -82,8 +78,10 @@ describe('explainTokenFluxError', () => {
 
   it('keeps English copy when the UI locale is English', () => {
     applyUiLocale('en')
-    const message = explainTokenFluxError('PI model verification failed: 403 status code (no body)')
-    expect(message).toContain('Check quota and key status on TokenFlux')
+    const message = explainTokenFluxError(
+      '403: {"code":"INSUFFICIENT_BALANCE","message":"Insufficient account balance"}',
+    )
+    expect(message).toContain('Top up on TokenFlux')
     expect(message).not.toContain('403')
     applyUiLocale('zh')
   })
@@ -95,17 +93,44 @@ describe('explainTokenFluxError', () => {
   })
 })
 
+describe('explainModelServiceError', () => {
+  it('uses TokenFlux copy only for TokenFlux provider or TokenFlux fingerprints', () => {
+    applyUiLocale('zh')
+    const bare = 'PI model verification failed: 403 status code (no body)'
+    expect(explainModelServiceError(bare)).toContain('模型服务拒绝了这次请求')
+    expect(explainModelServiceError(bare)).not.toContain('TokenFlux')
+    expect(explainModelServiceError(bare, { provider: 'custom-relay-deepseek' })).toContain('模型服务拒绝了这次请求')
+    expect(explainModelServiceError(bare, { provider: 'custom-relay-deepseek' })).not.toContain('TokenFlux')
+    expect(explainModelServiceError(bare, { provider: 'tokenflux' })).toContain('TokenFlux')
+    expect(explainModelServiceError(
+      '403: {"code":"INSUFFICIENT_BALANCE","message":"Insufficient account balance"}',
+    )).toContain('TokenFlux')
+  })
+})
+
 describe('explainModelVerificationFailure', () => {
   it('keeps save-and-verify copy free of raw Pi status text', () => {
     applyUiLocale('zh')
     const message = explainModelVerificationFailure(
       "Error invoking remote method 'milksu:invoke': Error: PI model verification failed: 403 status code (no body)",
+      'custom-relay-deepseek',
     )
-    expect(message).toContain('TokenFlux')
+    expect(message).toContain('模型服务拒绝了这次请求')
     expect(message).toContain('额度')
+    expect(message).not.toContain('TokenFlux')
     expect(message).not.toContain('PI')
     expect(message).not.toContain('403')
     expect(message).not.toContain('milksu:invoke')
+  })
+
+  it('still names TokenFlux when verifying a TokenFlux key', () => {
+    applyUiLocale('zh')
+    const message = explainModelVerificationFailure(
+      'PI model verification failed: 403 status code (no body)',
+      'tokenflux',
+    )
+    expect(message).toContain('TokenFlux')
+    expect(message).toContain('额度')
   })
 
   it('explains an offline probe without dumping the dial target', () => {

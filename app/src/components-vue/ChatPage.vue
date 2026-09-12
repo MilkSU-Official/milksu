@@ -165,6 +165,7 @@ import {
 } from '@/composables/useConversations'
 import {
   encodeComposerModelKey,
+  modelServiceSourceLabel,
   parseComposerModelKey,
   providerModelLabel,
   useModelCatalog,
@@ -710,13 +711,13 @@ const activeModelLabel = computed(() => {
   const model = props.modelId || props.settings?.active_model
   return provider && model ? providerModelLabel(provider, model) : t('等待选择', 'Waiting for a choice')
 })
-const activeModelSourceLabel = computed(() => (
-  props.conversation?.modelSource === 'account'
-    ? t('MilkSU 账户', 'MilkSU account')
-    : props.conversation?.modelSource === 'personal'
-      ? t('TokenFlux 中转站', 'TokenFlux relay')
-      : ''
-))
+const activeModelSourceLabel = computed(() => modelServiceSourceLabel({
+  provider: currentModelSelection.value.provider,
+  model: currentModelSelection.value.model,
+  modelSource: props.conversation?.modelSource,
+  pickerGroups: pickerGroups.value,
+  providers: props.settings?.providers,
+}))
 
 const computerUseOperationEvidence = computed(() => (
   extractLatestComputerUseOperationEvidence(props.conversation?.messages ?? [])

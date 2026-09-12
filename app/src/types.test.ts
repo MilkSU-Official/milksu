@@ -39,10 +39,26 @@ describe('model provider catalog', () => {
     expect(settings.preferred_external_editor).toBe('vscode')
   })
 
-  it('falls unknown official providers back to the TokenFlux daily model', () => {
+  it('defaults empty settings to official DeepSeek Flash', () => {
+    const settings = withAppSettingsDefaults({} as AppSettings)
+    expect(settings.active_provider).toBe('custom-relay-deepseek')
+    expect(settings.active_model).toBe('deepseek-flash')
+  })
+
+  it('falls unknown official providers back to official DeepSeek Flash', () => {
     const settings = withAppSettingsDefaults({
       active_provider: 'deepseek',
       active_model: 'unknown-model',
+      providers: {},
+    } as AppSettings)
+    expect(settings.active_provider).toBe('custom-relay-deepseek')
+    expect(settings.active_model).toBe('deepseek-flash')
+  })
+
+  it('keeps an explicit TokenFlux selection', () => {
+    const settings = withAppSettingsDefaults({
+      active_provider: 'tokenflux',
+      active_model: 'x-ai/grok-4.6',
       providers: {},
     } as AppSettings)
     expect(settings.active_provider).toBe('tokenflux')
@@ -95,6 +111,17 @@ describe('model provider catalog', () => {
     expect(removed.removed_preset_services).toEqual(['custom-relay-deepseek'])
   })
 
+  it('falls back to TokenFlux when the DeepSeek preset was removed', () => {
+    const settings = withAppSettingsDefaults({
+      active_provider: 'deepseek',
+      active_model: 'unknown-model',
+      providers: {},
+      removed_preset_services: ['custom-relay-deepseek'],
+    } as AppSettings)
+    expect(settings.active_provider).toBe('tokenflux')
+    expect(settings.active_model).toBe('x-ai/grok-4.6')
+  })
+
   it('does not remap custom-relay-deepseek to TokenFlux', () => {
     const settings = withAppSettingsDefaults({
       active_provider: 'custom-relay-deepseek',
@@ -122,15 +149,15 @@ describe('model provider catalog', () => {
     expect(visibleProviders).not.toContain('kourichat')
   })
 
-  it('normalizes unknown pre-release providers back to the current daily model', () => {
+  it('normalizes unknown pre-release providers back to official DeepSeek Flash', () => {
     const settings = withAppSettingsDefaults({
       active_provider: 'legacy-relay',
       active_model: 'legacy-model',
       providers: {},
     } as AppSettings)
 
-    expect(settings.active_provider).toBe('tokenflux')
-    expect(settings.active_model).toBe('x-ai/grok-4.6')
+    expect(settings.active_provider).toBe('custom-relay-deepseek')
+    expect(settings.active_model).toBe('deepseek-flash')
     expect(settings.model_routing).toEqual({
       source_order: ['account', 'personal'],
       auto_fallback: false,

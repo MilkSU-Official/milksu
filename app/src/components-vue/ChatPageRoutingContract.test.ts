@@ -238,6 +238,12 @@ describe('ChatPage routing contract', () => {
     expect(chatPageSource).toContain('await continueComputerUseScope()')
   })
 
+  it('labels environment source from the selected service, not personal TokenFlux', () => {
+    expect(chatPageSource).toContain('modelServiceSourceLabel')
+    expect(chatPageSource).not.toContain("props.conversation?.modelSource === 'personal'")
+    expect(chatPageSource).not.toContain("t('TokenFlux 中转站', 'TokenFlux relay')")
+  })
+
   it('preserves colons inside custom relay model ids', () => {
     // Manual model keys are parsed by parseComposerModelKey so source + model
     // segments (including colons in custom relay ids) stay intact.

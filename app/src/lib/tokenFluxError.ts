@@ -77,16 +77,18 @@ function has(parsed: ParsedTokenFluxFailure, pattern: RegExp): boolean {
   return pattern.test(parsed.haystack) || pattern.test(parsed.code) || pattern.test(parsed.reason)
 }
 
-function looksLikeTokenFluxHttp(parsed: ParsedTokenFluxFailure): boolean {
-  if (parsed.status != null) return true
-  return /tokenflux|API_KEY_|INSUFFICIENT_BALANCE|GROUP_|TEAM_|SUBSCRIPTION_|QUOTA_EXHAUSTED|DAILY_LIMIT_EXCEEDED|status code \(no body\)/i
-    .test(parsed.haystack)
+const TOKENFLUX_FINGERPRINT = /tokenflux|API_KEY_|INSUFFICIENT_BALANCE|GROUP_|TEAM_|SUBSCRIPTION_|QUOTA_EXHAUSTED|DAILY_LIMIT_EXCEEDED|WEEKLY_LIMIT_EXCEEDED|MONTHLY_LIMIT_EXCEEDED|COMPOSITE_KEY_MODEL_PREFIX|Claude Code|composite api key model|not supported by any configured account|No available accounts|All available accounts exhausted|Billing service temporarily unavailable|内容审计命中风险规则|restricted to Claude Code|only allows Claude Code|\/v1\/messages only|does not allow (?:Anthropic|OpenAI|Gemini)|not assigned to any group|rate limited|Concurrency limit|Too many pending requests|Upstream rate limit|model group rate/i
+
+function looksLikeTokenFluxFingerprint(parsed: ParsedTokenFluxFailure): boolean {
+  return TOKENFLUX_FINGERPRINT.test(parsed.haystack)
+    || TOKENFLUX_FINGERPRINT.test(parsed.code)
+    || TOKENFLUX_FINGERPRINT.test(parsed.reason)
 }
 
 /** Maps TokenFlux HTTP status + message / reason= per https://docs.tokenflux.dev/en/docs/errors.html */
 export function explainTokenFluxError(value: unknown): string | null {
   const parsed = parseTokenFluxFailure(value)
-  if (!looksLikeTokenFluxHttp(parsed) && !parsed.message && !parsed.code && !parsed.reason) {
+  if (!looksLikeTokenFluxFingerprint(parsed)) {
     return null
   }
 
@@ -210,15 +212,84 @@ export function explainTokenFluxError(value: unknown): string | null {
   return null
 }
 
-export function explainModelVerificationFailure(value: unknown): string {
+function explainTokenFluxStatusFallback(parsed: ParsedTokenFluxFailure): string | null {
+  if (parsed.status === 401 || has(parsed, /\b401\b|unauthori[sz]ed|authentication failed/i)) {
+    return t('模型凭据无效或无权访问。', 'Model credentials are invalid or unauthorized.')
+  }
+  if (parsed.status === 502 || parsed.status === 503 || parsed.status === 500) {
+    return t('TokenFlux 上游暂时不可用，请稍后重试或换一个模型。', 'TokenFlux upstream is temporarily unavailable. Retry later or switch models.')
+  }
+  if (parsed.status === 404) {
+    return t('当前 TokenFlux 分组找不到这个模型，请换模型或换分组。', 'This model is not available in the current TokenFlux group. Switch model or group.')
+  }
+  if (parsed.status === 429) {
+    return t('TokenFlux 请求过于频繁，请稍后再试。', 'TokenFlux is rate-limiting this key. Try again in a moment.')
+  }
+  if (parsed.status === 403 || has(parsed, /status code \(no body\)/i)) {
+    return t('TokenFlux 拒绝了这次请求。常见原因是余额不足、订阅过期或分组不可用，请到 TokenFlux 查看额度与 Key 状态。', 'TokenFlux rejected this request. Typical causes are insufficient balance, an expired subscription, or an unavailable group. Check quota and key status on TokenFlux.')
+  }
+  if (parsed.status === 400) {
+    return t('TokenFlux 认为这次请求无效，请检查模型 ID 后重试。', 'TokenFlux rejected this request as invalid. Check the model ID, then try again.')
+  }
+  return null
+}
+
+function explainNeutralModelHttp(parsed: ParsedTokenFluxFailure): string | null {
+  if (parsed.status === 401 || has(parsed, /\b401\b|unauthori[sz]ed|authentication failed/i)) {
+    return t('模型凭据无效或无权访问。', 'Model credentials are invalid or unauthorized.')
+  }
+  if (parsed.status === 404 || has(parsed, /Model not found/i)) {
+    return t('当前服务找不到这个模型。', 'This model is not available on the current service.')
+  }
+  if (parsed.status === 429) {
+    return t('请求过于频繁，请稍后再试。', 'The model service is rate-limiting this key. Try again in a moment.')
+  }
+  if (parsed.status === 502 || parsed.status === 503 || parsed.status === 500 || has(parsed, /Upstream service|temporarily unavailable|overloaded/i)) {
+    return t('模型服务暂时不可用，请稍后重试或换一个模型。', 'The model service is temporarily unavailable. Retry later or switch models.')
+  }
+  if (parsed.status === 403 || has(parsed, /status code \(no body\)/i)) {
+    return t('模型服务拒绝了这次请求。请检查 Key、额度与模型 ID。', 'The model service rejected this request. Check the key, quota, and model ID.')
+  }
+  if (parsed.status === 400) {
+    return t('这次请求无效，请检查模型 ID 后重试。', 'The model service rejected this request as invalid. Check the model ID, then try again.')
+  }
+  return null
+}
+
+export type ModelServiceErrorContext = {
+  provider?: string | null
+}
+
+export function explainModelServiceError(
+  value: unknown,
+  context?: ModelServiceErrorContext,
+): string | null {
+  const parsed = parseTokenFluxFailure(value)
+  const provider = String(context?.provider ?? '').trim()
+  if (provider === 'tokenflux') {
+    return explainTokenFluxError(value) ?? explainTokenFluxStatusFallback(parsed)
+  }
+  if (looksLikeTokenFluxFingerprint(parsed)) {
+    return explainTokenFluxError(value)
+  }
+  return explainNeutralModelHttp(parsed)
+}
+
+export function explainModelVerificationFailure(
+  value: unknown,
+  provider?: string | null,
+): string {
   const raw = compactErrorText(value)
   if (
     /both model sources are unavailable|enable the personal API key|add a personal API key|connect the beta account quota/i
       .test(raw)
   ) {
-    return t('当前没有可用的账户或个人模型来源。请启用 MilkSU 账户或 TokenFlux 个人 Key 后重试。', 'No account or personal model source is available. Enable the MilkSU account or a personal TokenFlux key, then try again.')
+    return t(
+      '当前没有可用的账户或个人模型来源。请启用 MilkSU 账户、TokenFlux 个人 Key 或已配置的中转站后重试。',
+      'No account or personal model source is available. Enable the MilkSU account, a personal TokenFlux key, or a configured relay, then try again.',
+    )
   }
-  const mapped = explainTokenFluxError(value)
+  const mapped = explainModelServiceError(value, { provider })
   if (mapped) return mapped
   if (
     /ECONNREFUSED|ECONNRESET|ENOTFOUND|ETIMEDOUT|network is unreachable|connection refused|\bconnection error\b|fetch failed|dial tcp/i
@@ -226,5 +297,8 @@ export function explainModelVerificationFailure(value: unknown): string {
   ) {
     return t('无法连上模型服务，请检查网络后重试。', 'Could not reach the model service. Check the network, then try again.')
   }
+  if (String(provider ?? '').trim() === 'tokenflux') {
     return t('模型验证失败。请到 TokenFlux 查看该 Key 的状态与额度。', 'Model verification failed. Check this key\'s status and quota on TokenFlux.')
+  }
+  return t('模型验证失败。请检查该服务的 Key 状态与额度。', 'Model verification failed. Check this service\'s key status and quota.')
 }
