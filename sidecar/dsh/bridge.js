@@ -1,10 +1,12 @@
 import { existsSync, unlinkSync, mkdirSync, writeFileSync } from "node:fs";
 import { createConnection } from "node:net";
-import { delimiter, dirname, join } from "node:path";
+import { delimiter, dirname, isAbsolute, join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import { createAcpClient } from "./acp-client.js";
 import { resolveDshLaunch } from "./launch.js";
+import { milksuProductMcpServer, resolveProductMcpScript } from "./mcp-servers.js";
+import { syncDshSkillCatalog } from "./skill-catalog.js";
 import { createProductIpc } from "./product-ipc.js";
 import { dshProductIpc } from "../hostpath.js";
 import { dshPermissionResult } from "./permission.js";
@@ -15,12 +17,13 @@ import {
   resolveAskChoice,
 } from "../pi/bridge-ask.js";
 import { createWorkspaceActionBroker } from "../pi/bridge-workspace.js";
-import { buildDshPromptBlocks } from "./prompt-blocks.js";
+import { acpImagePromptsEnabled, buildDshPromptBlocks } from "./prompt-blocks.js";
 
 const sessions = new Map();
 const pendingAsks = new Map();
 let commandQueue = Promise.resolve();
 let acp;
+let acpImagePrompts = false;
 let productIpc;
 let hostIpcPath = "";
 const workspaceBroker = createWorkspaceActionBroker(emit);
@@ -85,21 +88,11 @@ function requestAsk({ conversationId, question, options }) {
 }
 
 function milksuMcpServer(conversationId) {
-  const ipc = productIpc?.path;
-  if (!ipc) return null;
-  const here = dirname(fileURLToPath(import.meta.url));
-  const packaged = join(here, "product-mcp.cjs");
-  const source = join(here, "product-mcp.js");
-  const script = existsSync(packaged) ? packaged : source;
-  return {
-    name: "milksu",
-    command: process.execPath,
-    args: [script],
-    env: {
-      MILKSU_DSH_IPC: ipc,
-      MILKSU_CONVERSATION_ID: conversationId,
-    },
-  };
+  return milksuProductMcpServer({
+    conversationId,
+    ipcPath: productIpc?.path,
+    scriptPath: resolveProductMcpScript(dirname(fileURLToPath(import.meta.url))),
+  });
 }
 
 function writeHostPatch() {
@@ -183,6 +176,8 @@ async function ensureAcp(cwd) {
     join(here, "node_modules"),
     join(here, "..", "..", "node_modules"),
   ].filter(existsSync);
+  const dshHome = String(process.env.DSH_HOME ?? "").trim();
+  const bundledSkills = dshHome ? join(dshHome, "skills") : "";
   acp = createAcpClient({
     command: launch.command,
     args,
@@ -190,6 +185,7 @@ async function ensureAcp(cwd) {
     env: {
       ...process.env,
       MILKSU_DSH_HOST_IPC: hostIpcPath,
+      ...(bundledSkills ? { DSH_BUNDLED_SKILL_DIR: bundledSkills } : {}),
       NODE_PATH: [...nodePaths, process.env.NODE_PATH].filter(Boolean).join(delimiter),
     },
     onFailure(message) {
@@ -199,7 +195,7 @@ async function ensureAcp(cwd) {
   acp.onMessage(message => {
     void handleAcpNotification(message);
   });
-  await acp.request("initialize", {
+  const initialized = await acp.request("initialize", {
     protocolVersion: 1,
     clientInfo: {
       name: "milksu",
@@ -210,6 +206,7 @@ async function ensureAcp(cwd) {
       fs: { readTextFile: false, writeTextFile: false },
     },
   });
+  acpImagePrompts = acpImagePromptsEnabled(initialized);
   return acp;
 }
 
@@ -313,7 +310,12 @@ function projectSessionUpdate(conversationId, update) {
 async function createSession(command) {
   const conversationId = String(command.conversationId ?? "").trim();
   if (!conversationId) throw new Error("conversationId is required");
-  const cwd = String(command.cwd || command.workspacePath || process.cwd());
+  const cwdRaw = String(command.cwd || command.workspacePath || process.cwd());
+  const cwd = isAbsolute(cwdRaw) ? cwdRaw : resolve(cwdRaw);
+  syncDshSkillCatalog({
+    disabledSkills: command.disabledSkills,
+    extraSkillPaths: command.userSkillPaths,
+  });
   const client = await ensureAcp(cwd);
   const mcp = milksuMcpServer(conversationId);
   const created = await client.request("session/new", {
@@ -325,6 +327,7 @@ async function createSession(command) {
     acpSessionId,
     cwd,
     createCommand: command,
+    aborted: false,
     thinkingOpen: false,
     thinkingText: "",
     thinkingStartedAt: 0,
@@ -341,11 +344,23 @@ async function sendMessage(command) {
   const record = sessionRecord(conversationId);
   const client = await ensureAcp(record.cwd);
   emit(conversationId, "turn_started");
-  const prompt = await buildDshPromptBlocks(command);
-  await client.request("session/prompt", {
-    sessionId: record.acpSessionId,
-    prompt,
-  });
+  const prompt = await buildDshPromptBlocks(command, { imagePrompts: acpImagePrompts });
+  try {
+    await client.request("session/prompt", {
+      sessionId: record.acpSessionId,
+      prompt,
+    });
+  } catch (error) {
+    if (record.aborted) {
+      finishThinking(conversationId);
+      return;
+    }
+    throw error;
+  }
+  if (record.aborted) {
+    finishThinking(conversationId);
+    return;
+  }
   finishThinking(conversationId);
   emit(conversationId, "message_done");
   emit(conversationId, "turn_settled");
@@ -354,12 +369,16 @@ async function sendMessage(command) {
 async function abortSession(command) {
   const conversationId = String(command.conversationId ?? "").trim();
   const record = sessionRecord(conversationId);
-  if (!record || !acp) {
-    emit(conversationId || null, "turn_settled", { aborted: true });
-    return;
+  if (record) record.aborted = true;
+  finishThinking(conversationId);
+  if (record && acp) {
+    try {
+      acp.notify("session/cancel", { sessionId: record.acpSessionId });
+    } catch {
+      // DSH ACP registers session/cancel as a notification, not a request.
+    }
   }
-  await acp.request("session/cancel", { sessionId: record.acpSessionId });
-  emit(conversationId, "turn_settled", { aborted: true });
+  emit(conversationId || null, "turn_settled", { aborted: true });
 }
 
 async function compactSession(command) {

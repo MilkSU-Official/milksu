@@ -1,7 +1,10 @@
+import { writeFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 
 const sessions = new Map();
 let nextId = 1;
+const dumpPath = String(process.env.MILKSU_DSH_FAKE_ACP_DUMP ?? "").trim();
+const received = [];
 
 function write(message) {
   process.stdout.write(`${JSON.stringify(message)}\n`);
@@ -21,6 +24,7 @@ input.on("line", line => {
     return;
   }
   const { id, method, params } = message;
+  received.push({ method, hasId: Object.hasOwn(message, "id") });
   if (method === "initialize") {
     write({
       jsonrpc: "2.0",
@@ -36,6 +40,13 @@ input.on("line", line => {
   if (method === "session/new") {
     const sessionId = `acp_${nextId++}`;
     sessions.set(sessionId, { cwd: params?.cwd });
+    if (dumpPath) {
+      writeFileSync(dumpPath, JSON.stringify({
+        cwd: params?.cwd,
+        mcpServers: params?.mcpServers ?? [],
+        received,
+      }), { encoding: "utf8", mode: 0o600 });
+    }
     write({ jsonrpc: "2.0", id, result: { sessionId } });
     return;
   }
@@ -51,9 +62,15 @@ input.on("line", line => {
     });
     return;
   }
-  if (method === "session/cancel" || method === "session/close" || method === "shutdown") {
+  if (method === "session/cancel") {
+    if (id == null) return;
+    write({ jsonrpc: "2.0", id, error: { code: -32601, message: "Method not found" } });
+    return;
+  }
+  if (method === "session/close" || method === "shutdown") {
     write({ jsonrpc: "2.0", id, result: {} });
     return;
   }
+  if (id == null) return;
   write({ jsonrpc: "2.0", id, error: { code: -32601, message: `Unknown method ${method}` } });
 });

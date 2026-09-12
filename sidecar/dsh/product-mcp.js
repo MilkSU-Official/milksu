@@ -151,6 +151,10 @@ input.on("line", line => {
     return;
   }
   if (method === "notifications/initialized" || method === "initialized") return;
+  if (method === "ping") {
+    write({ jsonrpc: "2.0", id, result: {} });
+    return;
+  }
   if (method === "tools/list") {
     write({ jsonrpc: "2.0", id, result: { tools } });
     return;

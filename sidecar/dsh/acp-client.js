@@ -121,6 +121,11 @@ export function createAcpClient(options = {}) {
     child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id, result })}\n`);
   }
 
+  function notify(method, params) {
+    if (!child.stdin || failed) return;
+    child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", method, params })}\n`);
+  }
+
   function onMessage(listener) {
     listeners.add(listener);
     return () => listeners.delete(listener);
@@ -128,14 +133,22 @@ export function createAcpClient(options = {}) {
 
   async function close() {
     closing = true;
-    input.close();
+    let timer;
     try {
-      await request("shutdown", {});
+      await Promise.race([
+        request("shutdown", {}),
+        new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new Error("ACP shutdown timed out")), 750);
+        }),
+      ]);
     } catch {
-      // Process may already be gone.
+      // Process may already be gone, or shutdown has no reply.
+    } finally {
+      clearTimeout(timer);
     }
+    input.close();
     if (!child.killed) child.kill();
   }
 
-  return { request, respond, onMessage, close, child };
+  return { request, notify, respond, onMessage, close, child };
 }

@@ -1,18 +1,21 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
+import { readFileSync, unlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join } from "node:path";
 import test from "node:test";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
-function runBridge() {
+function runBridge(extraEnv = {}) {
   const child = spawn(process.execPath, [join(here, "run-bridge.mjs")], {
     cwd: here,
     env: {
       ...process.env,
       MILKSU_DSH_COMMAND: process.execPath,
       MILKSU_DSH_ACP_ARGS: join(here, "fake-acp.mjs"),
+      ...extraEnv,
     },
     stdio: ["pipe", "pipe", "pipe"],
   });
@@ -135,7 +138,49 @@ test("DSH bridge abort does not throw", async () => {
     bridge.send({ action: "abort_session", conversationId: "conv-2" });
     const settled = await bridge.waitFor("turn_settled");
     assert.equal(settled.aborted, true);
+    assert.equal(
+      bridge.events.some(event => (
+        event.type === "error" && /Method not found|session\/cancel/i.test(String(event.error ?? ""))
+      )),
+      false,
+    );
   } finally {
     bridge.child.kill();
+  }
+});
+
+test("DSH session/new sends ACP stdio product MCP with env entries", async () => {
+  const dump = join(tmpdir(), `milksu-dsh-acp-${process.pid}.json`);
+  try {
+    unlinkSync(dump);
+  } catch {
+    // First write.
+  }
+  const bridge = runBridge({ MILKSU_DSH_FAKE_ACP_DUMP: dump });
+  try {
+    bridge.send({
+      action: "create_session",
+      conversationId: "conv-mcp",
+      cwd: here,
+    });
+    await bridge.waitFor("ready");
+    const created = JSON.parse(readFileSync(dump, "utf8"));
+    assert.equal(created.mcpServers.length, 1);
+    const server = created.mcpServers[0];
+    assert.equal(server.name, "milksu");
+    assert.equal(server.type, undefined);
+    assert.equal(isAbsolute(server.command), true);
+    assert.ok(Array.isArray(server.env));
+    assert.ok(server.env.some(entry => entry.name === "MILKSU_DSH_IPC" && entry.value));
+    assert.ok(server.env.some(entry => (
+      entry.name === "MILKSU_CONVERSATION_ID" && entry.value === "conv-mcp"
+    )));
+  } finally {
+    bridge.child.kill();
+    try {
+      unlinkSync(dump);
+    } catch {
+      // Already gone.
+    }
   }
 });
