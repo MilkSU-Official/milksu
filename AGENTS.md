@@ -276,14 +276,14 @@ deferred to one destructive pre-release consolidation after the product slices a
 
 ## Release Claims
 
-- The last receipted three-platform GitHub Release is `v26.912.3` at `91b9302`. Write both that
-  baseline and the current development version line when HEAD is later. Keep `v26.912.2`, `v26.911.2`, `v26.911.1`, `v26.905.2`, `v26.905.1`, `v26.904.1` and
+- The last receipted three-platform GitHub Release is `v26.912.4` at `54ff0b6`. Write both that
+  baseline and the current development version line when HEAD is later. Keep `v26.912.3`, `v26.912.2`, `v26.911.2`, `v26.911.1`, `v26.905.2`, `v26.905.1`, `v26.904.1` and
   `v26.827.1` as previous downloadable releases, not Latest. `v26.912.1` was never a receipted Latest.
 - After every GitHub Release, immediately update and push `docs/developer/current-objectives.md`,
   `docs/developer/document-status.md`, `docs/architecture/current-system.md`, `README.md` and this
   section. Do not leave the previous receipt as "latest".
 - A version bump, empty tag, local dirty package or later `main` commits on the same version number
-  are still not a new ship. `26.912.3` is a receipted GitHub Release; commits after `91b9302` are not.
+  are still not a new ship. `26.912.4` is a receipted GitHub Release; commits after `54ff0b6` are not.
 - GitHub writes stay on the authorized MilkSU remote (`MilkSU-Official/milksu`) and still require
   the product's meaningful publish confirmation.
 
