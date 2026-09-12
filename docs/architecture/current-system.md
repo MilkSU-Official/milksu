@@ -308,7 +308,7 @@ DEB 与 tar.gz 已在原生 Ubuntu 完成包结构、Node/Pi Sidecar、Go Runtim
 纯文档提交不改变 `v26.912.3` 的 source commit。
 后续正式包应走 `release:verify` → 云端 macOS / Windows / Linux → `release:github` 创建 Release 页。
 
-Linux `v26.912.3` 包已包含当前 CTF/CVE 与通用 Coding 的 Pi Runtime 收敛、可选 DeepSeek Harness、共用 tarball / PKGBUILD / Nix flake，
+Linux `v26.912.3` 包已包含当前 CTF/CVE 与通用 Coding 的 Pi Runtime 收敛、可选 DeepSeek Harness（该发行包 DSH CLI 缺 `@deepseek-ai/cordis-plugin-group`，发消息会立刻退出）、共用 tarball / PKGBUILD / Nix flake，
 以及 GNOME Portal Computer Use；仍不接 Secret Service 与本地 OCR，Hyprland / Xorg Computer Use unavailable。
 Windows 未签名和 Linux 缺失能力必须在下载说明中明确，不能把三端构建
 回执外推为三个平台功能等价。OTA 已上传私有 R2 并自动发布该平台 current pointer。

@@ -185,7 +185,34 @@ async function resolveInstalledPackage(packageName, fromDirectory, optional = fa
   throw new Error(`installed package is missing: ${packageName}`)
 }
 
-async function collectInstalledPackageClosure(rootPackages) {
+function optionalPeerDependencyNames(document) {
+  return new Set(
+    Object.entries(document.peerDependenciesMeta ?? {})
+      .filter(([, meta]) => Boolean(meta?.optional))
+      .map(([name]) => name),
+  )
+}
+
+function enqueueInstalledPackageRequests(queue, document, fromDirectory, includePeerDependencies) {
+  for (const name of Object.keys(document.dependencies ?? {})) {
+    queue.push({ name, fromDirectory, optional: false })
+  }
+  for (const name of Object.keys(document.optionalDependencies ?? {})) {
+    queue.push({ name, fromDirectory, optional: true })
+  }
+  if (!includePeerDependencies) return
+  const optionalPeers = optionalPeerDependencyNames(document)
+  for (const name of Object.keys(document.peerDependencies ?? {})) {
+    queue.push({
+      name,
+      fromDirectory,
+      optional: optionalPeers.has(name),
+    })
+  }
+}
+
+async function collectInstalledPackageClosure(rootPackages, options = {}) {
+  const includePeerDependencies = options.includePeerDependencies === true
   const rootNodeModules = join(repositoryRoot, 'node_modules')
   const queue = rootPackages.map(name => ({
     name,
@@ -215,12 +242,12 @@ async function collectInstalledPackageClosure(rootPackages) {
       source,
       relativePath,
     })
-    for (const name of Object.keys(document.dependencies ?? {})) {
-      queue.push({ name, fromDirectory: source, optional: false })
-    }
-    for (const name of Object.keys(document.optionalDependencies ?? {})) {
-      queue.push({ name, fromDirectory: source, optional: true })
-    }
+    enqueueInstalledPackageRequests(
+      queue,
+      document,
+      source,
+      includePeerDependencies,
+    )
   }
   return packages
 }
@@ -640,12 +667,20 @@ async function copyDshRuntime(output) {
     throw new Error('DeepSeek Harness LICENSE is missing')
   }
   const packages = minimalPackageCopySet(
-    await collectInstalledPackageClosure(['@deepseek-ai/dsh']),
+    await collectInstalledPackageClosure(['@deepseek-ai/dsh'], {
+      includePeerDependencies: true,
+    }),
   )
   if (!packages.some(pkg => pkg.name === '@deepseek-ai/dsh' && pkg.version === dshVersion)) {
     throw new Error('DeepSeek Harness runtime closure is missing @deepseek-ai/dsh')
   }
+  if (!packages.some(pkg => pkg.name === '@deepseek-ai/cordis-plugin-group')) {
+    throw new Error(
+      'DeepSeek Harness runtime closure is missing required peer @deepseek-ai/cordis-plugin-group',
+    )
+  }
   await mkdir(join(output, 'node_modules'), { recursive: true, mode: 0o700 })
+  await mkdir(join(output, 'THIRD_PARTY-LICENSES'), { recursive: true, mode: 0o700 })
   for (const pkg of packages) {
     const destination = join(output, 'node_modules', pkg.relativePath)
     await mkdir(dirname(destination), { recursive: true, mode: 0o700 })
@@ -674,18 +709,65 @@ async function bundleBridge(entry, outfile) {
   })
 }
 
+function packagedDshCliEnv(output, workspace, dshHome) {
+  return {
+    HOME: workspace,
+    DSH_HOME: dshHome,
+    TMPDIR: workspace,
+    PATH: process.env.PATH ?? '/usr/bin:/bin',
+    NODE_PATH: join(output, 'node_modules'),
+  }
+}
+
+async function smokePackagedDshCli(node, output, workspace, dshHome) {
+  const env = packagedDshCliEnv(output, workspace, dshHome)
+  await runWithInput(
+    node,
+    ['--input-type=module', '-e', "import '@deepseek-ai/dsh-app-boot'"],
+    '',
+    { cwd: workspace, env },
+  )
+  const child = spawn(node, [
+    join(output, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js'),
+    '--profile',
+    'acp',
+  ], {
+    cwd: workspace,
+    env,
+    stdio: ['pipe', 'pipe', 'pipe'],
+  })
+  let stderr = ''
+  child.stderr.setEncoding('utf8')
+  child.stderr.on('data', chunk => { stderr += chunk })
+  const outcome = await new Promise(resolvePromise => {
+    const timeout = setTimeout(() => resolvePromise({ kind: 'alive' }), 3_000)
+    child.on('error', error => {
+      clearTimeout(timeout)
+      resolvePromise({ kind: 'error', error })
+    })
+    child.on('exit', (code, signal) => {
+      clearTimeout(timeout)
+      resolvePromise({ kind: 'exit', code, signal })
+    })
+  })
+  child.kill('SIGKILL')
+  if (outcome.kind === 'error') {
+    throw new Error(`packaged DeepSeek Harness CLI failed to spawn: ${outcome.error}`)
+  }
+  if (/ERR_MODULE_NOT_FOUND|Cannot find package|Cannot find module/i.test(stderr)) {
+    throw new Error(`packaged DeepSeek Harness CLI is missing a runtime module: ${stderr}`)
+  }
+  if (outcome.kind === 'exit' && outcome.code && outcome.code !== 0) {
+    throw new Error(`packaged DeepSeek Harness CLI exited ${outcome.code}: ${stderr}`)
+  }
+}
+
 async function smokePackagedDshBridge(node, output, workspace, dshHome) {
   const child = spawn(node, [
     join(output, 'dsh-bridge.cjs'),
   ], {
     cwd: workspace,
-    env: {
-      HOME: workspace,
-      DSH_HOME: dshHome,
-      TMPDIR: workspace,
-      PATH: process.env.PATH ?? '/usr/bin:/bin',
-      NODE_PATH: join(output, 'node_modules'),
-    },
+    env: packagedDshCliEnv(output, workspace, dshHome),
     stdio: ['pipe', 'pipe', 'pipe'],
   })
   let stdout = ''
@@ -1725,31 +1807,7 @@ async function smokeSidecar(platform) {
   ]
   const dshHome = join(workspace, 'dsh-home')
   await mkdir(dshHome, { recursive: true, mode: 0o700 })
-  const dshHelp = await runWithInput(
-    node,
-    [
-      join(output, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js'),
-      '--profile',
-      'acp',
-      '--help',
-    ],
-    '',
-    {
-      cwd: workspace,
-      env: {
-        HOME: workspace,
-        DSH_HOME: dshHome,
-        TMPDIR: workspace,
-        NODE_PATH: join(output, 'node_modules'),
-      },
-    },
-  )
-  if (!`${dshHelp.stdout}${dshHelp.stderr}`.includes('ACP')) {
-    throw new Error(
-      `packaged DeepSeek Harness ACP CLI did not load: `
-      + `${dshHelp.stdout}${dshHelp.stderr}`,
-    )
-  }
+  await smokePackagedDshCli(node, output, workspace, dshHome)
   await smokePackagedDshBridge(node, output, workspace, dshHome)
   const computerUseProxyRun = await runWithInput(
     node,
@@ -2744,14 +2802,27 @@ async function installSidecar(platform, binaryPath) {
   process.stdout.write(`Installed MilkSU Sidecar into ${destination}\n`)
 }
 
-const command = process.argv[2] ?? 'build'
-const platform = argument('platform', currentPlatform())
-if (command === 'build') {
-  process.stdout.write(`${await buildSidecar(platform)}\n`)
-} else if (command === 'smoke') {
-  await smokeSidecar(platform)
-} else if (command === 'install') {
-  await installSidecar(platform, argument('bin'))
-} else {
-  throw new Error(`unknown Sidecar packaging command: ${command}`)
+function invokedAsPackagingScript() {
+  const entry = process.argv[1]
+  if (!entry) return false
+  return fileURLToPath(import.meta.url) === resolve(entry)
+}
+
+export {
+  collectInstalledPackageClosure,
+  copyDshRuntime,
+}
+
+if (invokedAsPackagingScript()) {
+  const command = process.argv[2] ?? 'build'
+  const platform = argument('platform', currentPlatform())
+  if (command === 'build') {
+    process.stdout.write(`${await buildSidecar(platform)}\n`)
+  } else if (command === 'smoke') {
+    await smokeSidecar(platform)
+  } else if (command === 'install') {
+    await installSidecar(platform, argument('bin'))
+  } else {
+    throw new Error(`unknown Sidecar packaging command: ${command}`)
+  }
 }
