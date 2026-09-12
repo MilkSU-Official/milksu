@@ -39,8 +39,9 @@ test('platform workflows retain native package and first-launch acceptance', () 
 
 test('electron-builder cache stays outside the ESM repository root', () => {
   for (const workflow of [macWorkflow, windowsWorkflow, linuxWorkflow]) {
-    assert.match(workflow, /ELECTRON_BUILDER_CACHE: \$\{\{ runner\.temp \}\}\/milksu-electron-builder-cache/u)
+    assert.match(workflow, /milksu-electron-builder-cache/u)
     assert.doesNotMatch(workflow, /ELECTRON_BUILDER_CACHE: \$\{\{ github\.workspace \}\}/u)
+    assert.doesNotMatch(workflow, /ELECTRON_BUILDER_CACHE: \$\{\{ runner\.temp \}\}/u)
   }
 })
 

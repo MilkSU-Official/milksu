@@ -30,9 +30,6 @@ jobs:
   release:
     runs-on: windows-2025
     timeout-minutes: 90
-    env:
-      ELECTRON_CACHE: ${{ runner.temp }}/milksu-electron-cache
-      ELECTRON_BUILDER_CACHE: ${{ runner.temp }}/milksu-electron-builder-cache
     steps:
       - uses: actions/checkout@v4
         with:
@@ -84,6 +81,11 @@ jobs:
           key: electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('desktop/package-lock.json') }}
           restore-keys: |
             electron-${{ runner.os }}-${{ runner.arch }}-
+      - name: Point Electron caches at the runner temp directory
+        shell: pwsh
+        run: |
+          Add-Content -Path $env:GITHUB_ENV -Value "ELECTRON_CACHE=$env:RUNNER_TEMP/milksu-electron-cache"
+          Add-Content -Path $env:GITHUB_ENV -Value "ELECTRON_BUILDER_CACHE=$env:RUNNER_TEMP/milksu-electron-builder-cache"
       - name: Install dependencies
         shell: pwsh
         run: |

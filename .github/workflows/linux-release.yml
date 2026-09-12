@@ -30,9 +30,6 @@ jobs:
   release:
     runs-on: ubuntu-24.04
     timeout-minutes: 120
-    env:
-      ELECTRON_CACHE: ${{ runner.temp }}/milksu-electron-cache
-      ELECTRON_BUILDER_CACHE: ${{ runner.temp }}/milksu-electron-builder-cache
     steps:
       - uses: actions/checkout@v4
         with:
@@ -79,6 +76,10 @@ jobs:
           key: electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('desktop/package-lock.json') }}
           restore-keys: |
             electron-${{ runner.os }}-${{ runner.arch }}-
+      - name: Point Electron caches at the runner temp directory
+        run: |
+          echo "ELECTRON_CACHE=${RUNNER_TEMP}/milksu-electron-cache" >> "$GITHUB_ENV"
+          echo "ELECTRON_BUILDER_CACHE=${RUNNER_TEMP}/milksu-electron-builder-cache" >> "$GITHUB_ENV"
       - name: Install dependencies
         run: |
           npm ci
