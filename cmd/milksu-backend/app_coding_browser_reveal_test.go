@@ -5,6 +5,13 @@ import (
 	"testing"
 )
 
+func TestLookupCodingBrowserDescriptorRequiresBridge(t *testing.T) {
+	application := &App{}
+	if descriptor, ok := application.lookupCodingBrowserDescriptor("conversation-1"); ok || descriptor != nil {
+		t.Fatalf("lookup without bridge = (%#v, %v)", descriptor, ok)
+	}
+}
+
 func TestCodingBrowserEvidenceWorkspaceUsesOnlyTrustedAppState(t *testing.T) {
 	explicit, err := codingBrowserEvidenceWorkspace(
 		"/tmp/project",

@@ -259,7 +259,7 @@ func registerPluginListTool(server *mcp.Server, registry *pluginruntime.Registry
 		Title:        "List MilkSU plugins",
 		Description:  "List enabled MilkSU plugins whose reviewed read-only tools are currently exposed to external MCP clients.",
 		InputSchema:  json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`),
-		OutputSchema: json.RawMessage(`{"type":"array","items":{"type":"object","required":["id","name","version","digest","enabled","status","external_read_tools"],"properties":{"id":{"type":"string"},"name":{"type":"string"},"version":{"type":"string"},"digest":{"type":"string"},"enabled":{"type":"boolean"},"status":{"type":"string"},"external_read_tools":{"type":"array","items":{"type":"string"}}},"additionalProperties":false}}`),
+		OutputSchema: json.RawMessage(`{"type":"object","required":["plugins"],"properties":{"plugins":{"type":"array","items":{"type":"object","required":["id","name","version","digest","enabled","status","external_read_tools"],"properties":{"id":{"type":"string"},"name":{"type":"string"},"version":{"type":"string"},"digest":{"type":"string"},"enabled":{"type":"boolean"},"status":{"type":"string"},"external_read_tools":{"type":"array","items":{"type":"string"}}},"additionalProperties":false}}},"additionalProperties":false}`),
 		Annotations: &mcp.ToolAnnotations{
 			ReadOnlyHint:    true,
 			IdempotentHint:  true,
@@ -290,7 +290,7 @@ func registerPluginListTool(server *mcp.Server, registry *pluginruntime.Registry
 				})
 			}
 		}
-		return pluginMCPSuccess(plugins)
+		return pluginMCPSuccess(map[string]any{"plugins": plugins})
 	})
 }
 

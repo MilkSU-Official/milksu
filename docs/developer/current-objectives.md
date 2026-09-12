@@ -32,7 +32,7 @@
 | 历史基线 | M3 product-loop 已在 `108e0e3`（2026-08-05）合并，仅供追溯。 |
 | 正式发行基线 | `v26.912.3 / 91b9302b26d4e6f8a49155513b65c156a2bb55a0`（2026-09-12）。这是当前 GitHub Latest Release；提供带版本号的 DMG、EXE、DEB、x64 tar.gz 与 `SHA256SUMS`。OTA 已上传私有 R2 并自动发布该平台 current pointer。侧栏下载先 `checkForUpdates` 再 `downloadUpdate`；本包无感更新先整包校验再经本机回环交给 updater。上一版 `v26.912.2 / f7782c1`、`v26.911.2 / 6120055`、`v26.911.1 / d341a35`、`v26.905.2 / b18b860`、`v26.905.1 / 1cc8773`、`v26.904.1 / 6e9371d` 与 `v26.827.1 / 37932ce` 仍可下载，不是 Latest。`v26.912.1` 从未作为 GitHub Latest 发出。 |
 | 开发版本线 | 根目录与 `desktop/package.json` 是 `26.912.3`。正式发行源是 `91b9302`；晚于该 tag 的 CI 缓存提交与文档收口不移动该 tag。 |
-| 当前开发 | 正式包是 `26.912.3`。新对话可选 Pi 或 DeepSeek Harness；安装包里的 DeepSeek 会话可以启动，选中后目录外的型号会灰掉。选择卡片最后一行可填其他；待选择时新指令直接回答该卡片。停止只显示本轮已停止。子 Agent 回传缺工作区不再打死整轮。无感更新先整包校验再经本机回环交给 updater。DeepSeek 会话不能 rewind / 分叉，当前仍用 harness 默认型号。Windows 安装器仍未代码签名；Linux 无 Secret Service 与本地 OCR；Hyprland/Xorg Computer Use 不可用。CTF 比赛模式和实验室红队学习面仍未接线。产品 UI 设计语言只写在 `AGENTS.md`。未发版：DSH ACP 仍不应用所选型号；#53 typed sweep 尚未做。 |
+| 当前开发 | 正式包是 `26.912.3`。新对话可选 Pi 或 DeepSeek Harness；安装包里的 DeepSeek 会话可以启动，选中后目录外的型号会灰掉。选择卡片最后一行可填其他；待选择时新指令直接回答该卡片。停止只显示本轮已停止。子 Agent 回传缺工作区不再打死整轮。无感更新先整包校验再经本机回环交给 updater。DeepSeek 会话不能 rewind / 分叉，当前仍用 harness 默认型号。Windows 安装器仍未代码签名；Linux 无 Secret Service 与本地 OCR；Hyprland/Xorg Computer Use 不可用。CTF 比赛模式和实验室红队学习面仍未接线。产品 UI 设计语言只写在 `AGENTS.md`。未发版：DSH ACP 仍不应用所选型号；#53 typed sweep 尚未做；Windows 接入 Computer Use 后整段对话崩溃尚未真机验收。 |
 | 平台边界 | `26.912.3`：macOS DMG 走 GitHub-hosted Developer ID 签名并公证；Windows 安装器完成原生 Runtime 与首次启动但未代码签名，并打入审阅过的 CUA Driver `0.27.0`；Linux 发出 Ubuntu/Debian 共用 x64 DEB 与 Omarchy/Arch/Nix 共用 x64 tarball，GNOME Portal Computer Use 已进包，仍无 Secret Service、本地 OCR；Hyprland/Xorg Computer Use 不可用。Windows/Linux 窗口铬尚未真机验收。 |
 | 发行流水 | 下一发行从干净、已推送的 `main` 对 canonical Go/Vue/Sidecar/lint/生产与文档构建只验证一次；macOS / Windows / Linux 都走 GitHub-hosted 云端。macOS 本机打包暂时关闭。必须创建 GitHub Release 页并上传带版本号的 DMG/EXE/DEB、x64 tar.gz 与 SHA256SUMS，不能只留空 tag。正式打包默认上传 OTA 到私有 R2 并发布该平台 current pointer；GitHub Release 仍不上 updater ZIP。 |
 
@@ -210,6 +210,8 @@
 
 - #53 的 typed sweep / inventory 工具尚未做。只在真实 wide job 仍用 bash 复刻库存后再做。
 - DSH ACP 仍不应用设置/对话所选型号，DeepSeek 会话继续用 harness 默认型号。
+- #77：Go 会话预挂 `milksu-playwright` 启动器；`open_browser_tab` / `show_panel`（browser）等 workspace 动作在同一回合把 CDP 写给启动器，不必等下一轮 `send_message` 才出现服务器。`milksu-plugins` 的 list 工具 `outputSchema` 改为 object。尚未做 Windows 真机验收。
+- Windows 接入 Computer Use 后，授权恢复失败或 MCP 描述符校验失败不再打死 `send_message` / 拆掉会话。隐式恢复失败会抑制后续自动重试，显式 Start / Activate 仍可再试。尚未做 Windows 真机验收。
 
 ## 当前产品事实
 

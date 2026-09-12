@@ -77,6 +77,23 @@ func (a *App) restoreCodingComputerUse(
 	return a.computerUse.Restore(restoreContext, conversationID)
 }
 
+func (a *App) restoreCodingComputerUseImplicit(
+	conversationID string,
+) (computercap.Status, bool, error) {
+	if a.computerUse == nil {
+		return computercap.Status{
+			Phase:   "unavailable",
+			Problem: "Computer Use service is unavailable.",
+		}, false, nil
+	}
+	restoreContext, cancel := context.WithTimeout(
+		a.commandContext(),
+		codingComputerUseStartBound(),
+	)
+	defer cancel()
+	return a.computerUse.RestoreImplicit(restoreContext, conversationID)
+}
+
 // RequestCodingComputerUsePermissions is called only from the explicit
 // desktop button. Agent turns and Workspace Auto never reach this method.
 func (a *App) RequestCodingComputerUsePermissions(permission string) (computercap.Status, error) {

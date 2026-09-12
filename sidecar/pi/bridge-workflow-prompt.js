@@ -1,4 +1,7 @@
-import { codingBrowserGuidance } from "./bridge-browser-policy.js";
+import {
+  codingBrowserGuidance,
+  codingBrowserMcpServerName,
+} from "./bridge-browser-policy.js";
 import {
   codingSubagentGuidance,
   codingWorkspaceIdentityGuidance,
@@ -38,6 +41,7 @@ export function composeMilkSUWorkflowSystemPrompt(systemPrompt, {
     ? `\n\n${codingSubagentGuidance()}`
     : "";
   const browserGuidance = policy?.codingBrowser
+    || (Array.isArray(policy?.mcpServers) && policy.mcpServers.includes(codingBrowserMcpServerName))
     ? `\n\n${codingBrowserGuidance()}`
     : "";
   return `${systemPrompt ?? ""}`

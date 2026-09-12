@@ -62,10 +62,12 @@ import {
 import {
   browserUseMcpServerName,
   browserUseSelectionChanged,
+  codingBrowserMcpServerName,
   codingBrowserSelectionChanged,
   computerUseSelectionChanged,
   ensureMcpMetadataCache,
   loadCodingMcpConfig,
+  writeCodingBrowserDescriptor,
   mcpSelectionChanged,
   pluginMcpSessionRequiresReload,
   projectMcpServersFromSelection,
@@ -1410,6 +1412,12 @@ async function loadRuntimeSessionPolicy(cwd, command) {
     securityTools,
     command.userMcpServers,
     command.recoveryPurpose !== "background-tasks",
+    {
+      conversationId: command.conversationId,
+      reserveCodingBrowser: command.executionMode === "go"
+        && command.approvalPolicy !== "read-only"
+        && command.recoveryPurpose !== "background-tasks",
+    },
   );
   let policy = await loadSessionPolicy(cwd, command.sessionRole, {
     executionMode: command.executionMode,
@@ -1987,6 +1995,23 @@ function respondToolApproval(command) {
   });
 }
 
+async function attachCodingBrowserDescriptor(command) {
+  const conversationId = String(command.conversationId ?? "").trim();
+  if (!conversationId || command.codingBrowser == null) return;
+  const attached = await writeCodingBrowserDescriptor(
+    conversationId,
+    command.codingBrowser,
+  );
+  if (!attached) return;
+  const policy = sessionPolicies.get(conversationId);
+  if (!policy) return;
+  policy.codingBrowser = attached.browser;
+  if (!Array.isArray(policy.mcpServers)) policy.mcpServers = [];
+  if (!policy.mcpServers.includes(codingBrowserMcpServerName)) {
+    policy.mcpServers.push(codingBrowserMcpServerName);
+  }
+}
+
 function respondWorkspaceAction(command) {
   const requestId = String(command.requestId ?? "").trim();
   if (!requestId) throw new Error("requestId is required");
@@ -2389,11 +2414,17 @@ input.on("line", (line) => {
     return;
   }
   if (command.action === "workspace_action_response") {
-    try {
-      respondWorkspaceAction(command);
-    } catch (error) {
-      emit(command.conversationId ?? null, "error", { error: describeError(error) });
-    }
+    void attachCodingBrowserDescriptor(command)
+      .catch((error) => {
+        console.error("MilkSU could not attach Coding Browser MCP", error);
+      })
+      .finally(() => {
+        try {
+          respondWorkspaceAction(command);
+        } catch (error) {
+          emit(command.conversationId ?? null, "error", { error: describeError(error) });
+        }
+      });
     return;
   }
   if (command.action === "background_task_control") {

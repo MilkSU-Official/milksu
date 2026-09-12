@@ -14,15 +14,21 @@ import {
 import { dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
-import { computerUseRuntimeRoot, computerUseSocket, ephemeralRoot } from "../hostpath.js";
+import {
+  codingBrowserDescriptorFile,
+  computerUseRuntimeRoot,
+  computerUseSocket,
+} from "../hostpath.js";
 import {
   browserUseMcpServerName,
   browserUseSelectionChanged,
   codingBrowserMcpServerName,
   codingBrowserSelectionChanged,
+  writeCodingBrowserDescriptor,
   computerUseMcpServerName,
   computerUseSandboxProfile,
   computerUseSelectionChanged,
+  createFirstPartyComputerUseMcpServer,
   createFirstPartyPluginMcpServer,
   createFirstPartyPlaywrightMcpServer,
   browserUseExecutableCandidatesFor,
@@ -46,12 +52,8 @@ import {
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const usesSandboxExec = process.platform === "darwin";
 
-function playwrightSocketAssignment(sessionId) {
-  return `PWTEST_SOCKETS_DIR=${join(
-    ephemeralRoot(),
-    "milksu-playwright",
-    sessionId.slice(-12),
-  )}`;
+function playwrightDescriptorAssignment(conversationId) {
+  return codingBrowserDescriptorFile(conversationId);
 }
 
 test("loads only explicitly selected MCP servers and clears stdio inheritance", async () => {
@@ -298,18 +300,12 @@ test("builds the first-party Playwright server from a strict loopback descriptor
     assert.equal(builtIn.server.command, process.execPath);
   }
   assert.ok(
-    builtIn.server.args.some(value => value.endsWith(join(
-      "node_modules",
-      "@playwright",
-      "mcp",
-      "cli.js",
-    ))),
+    builtIn.server.args.some(value => value.endsWith("playwright-session-bridge.cjs")),
   );
+  assert.equal(builtIn.server.args.includes("--cdp-endpoint"), false);
   assert.deepEqual(
-    builtIn.server.args.slice(-10),
+    builtIn.server.args.slice(-8),
     [
-      "--cdp-endpoint",
-      "http://127.0.0.1:43127",
       "--output-dir",
       join(
         await realpath(workspace),
@@ -326,15 +322,24 @@ test("builds the first-party Playwright server from a strict loopback descriptor
     ],
   );
   assert.equal(builtIn.server.args.includes("npx"), false);
-  const socketAssignment = playwrightSocketAssignment(descriptor.sessionId);
+  const descriptorFile = playwrightDescriptorAssignment(descriptor.sessionId);
   if (usesSandboxExec) {
-    assert.ok(builtIn.server.args.includes(socketAssignment));
+    assert.ok(builtIn.server.args.some(value => String(value).includes(descriptorFile)));
     assert.deepEqual(builtIn.server.env, {});
   } else {
-    assert.equal(
-      builtIn.server.env.PWTEST_SOCKETS_DIR,
-      socketAssignment.slice("PWTEST_SOCKETS_DIR=".length),
-    );
+    assert.equal(builtIn.server.env.MILKSU_CODING_BROWSER_DESCRIPTOR_FILE, descriptorFile);
+    assert.equal(builtIn.server.env.MILKSU_CODING_BROWSER_CDP, "http://127.0.0.1:43127");
+    assert.ok(builtIn.server.env.MILKSU_PLAYWRIGHT_MCP_CLI.endsWith(join(
+      "node_modules",
+      "@playwright",
+      "mcp",
+      "cli.js",
+    )));
+    if (process.platform === "win32") {
+      assert.equal(builtIn.server.env.PWTEST_SOCKETS_DIR, undefined);
+    } else {
+      assert.equal(builtIn.server.env.PWTEST_SOCKETS_DIR, dirname(descriptorFile));
+    }
     assert.equal(builtIn.server.env.DEEPSEEK_API_KEY, undefined);
   }
   assert.equal(builtIn.server.lifecycle, "lazy");
@@ -343,6 +348,40 @@ test("builds the first-party Playwright server from a strict loopback descriptor
     builtIn.server.excludeTools,
     ["browser_run_code_unsafe"],
   );
+});
+
+test("reserves milksu-playwright for Go sessions before the isolated browser starts", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "milksu-browser-reserve-"));
+  const loaded = await loadCodingMcpConfig(
+    workspace,
+    [],
+    "",
+    undefined,
+    undefined,
+    undefined,
+    [],
+    undefined,
+    false,
+    { conversationId: "conversation-reserve-1", reserveCodingBrowser: true },
+  );
+  assert.deepEqual(loaded.selected, [codingBrowserMcpServerName]);
+  assert.equal(loaded.codingBrowser, undefined);
+  const server = loaded.config.mcpServers[codingBrowserMcpServerName];
+  assert.ok(server);
+  assert.ok(
+    (server.args ?? []).some(value => String(value).endsWith("playwright-session-bridge.cjs"))
+    || (usesSandboxExec && server.args.some(value => String(value).includes("playwright-session-bridge.cjs"))),
+  );
+  const attached = await writeCodingBrowserDescriptor(
+    "conversation-reserve-1",
+    {
+      sessionId: "browser_12345678-abcd-4567-8901-123456789abc",
+      cdpEndpoint: "http://127.0.0.1:43127",
+    },
+  );
+  assert.equal(attached.file, codingBrowserDescriptorFile("conversation-reserve-1"));
+  const saved = JSON.parse(await readFile(attached.file, "utf8"));
+  assert.equal(saved.cdpEndpoint, "http://127.0.0.1:43127");
 });
 
 test("builds Browser Use from the pinned Playwright extension mode", async () => {
@@ -711,6 +750,37 @@ test("accepts only an exact immutable scoped Computer Use descriptor", () => {
       /Computer Use|descriptor/,
     );
   }
+  assert.doesNotThrow(() => computerUseSelectionChanged(valid, { command: "/bin/sh" }));
+  assert.equal(
+    computerUseSelectionChanged(valid, { ...valid, socketPath: "/tmp/cua.sock" }),
+    true,
+  );
+});
+
+test("invalid Computer Use descriptors do not crash MCP session setup", async () => {
+  const created = await createFirstPartyComputerUseMcpServer({
+    sessionId: "computer_12345678",
+    socketPath: "/tmp/cua.sock",
+    targetBundleId: "com.openai.codex",
+    targetName: "Codex",
+    targetPid: 4242,
+    targetWindowId: 9001,
+  });
+  assert.equal(created, undefined);
+  const workspace = await mkdtemp(join(tmpdir(), "milksu-cu-failsoft-"));
+  const loaded = await loadCodingMcpConfig(
+    workspace,
+    [],
+    "",
+    undefined,
+    { sessionId: "not-a-computer-session" },
+    undefined,
+    [],
+    undefined,
+    false,
+  );
+  assert.equal(loaded.computerUse, undefined);
+  assert.ok(!(loaded.selected ?? []).includes(computerUseMcpServerName));
 });
 
 test("Computer Use sandbox grants only one private Unix socket", () => {

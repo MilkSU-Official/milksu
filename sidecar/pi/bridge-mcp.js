@@ -11,9 +11,9 @@ import {
 import { delimiter, dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  codingBrowserDescriptorFile,
   computerUseRuntimeRoot,
   computerUseSocket,
-  playwrightSocketRoot as playwrightSocketRootPath,
 } from "../hostpath.js";
 import { sandboxProfile } from "./bridge-policy.js";
 import {
@@ -55,15 +55,14 @@ const playwrightMcpCliPath = join(
   "mcp",
   "cli.js",
 );
-const playwrightSocketRoot = playwrightSocketRootPath();
 const packagedComputerUseProxyPath = join(bridgeDirectory, "computer-use-proxy.cjs");
 const computerUseProxyPath = existsSync(packagedComputerUseProxyPath)
   ? packagedComputerUseProxyPath
   : resolve(bridgeDirectory, "..", "computer-use", "computer-use-proxy.js");
-const computerUseDriverPath = join(
-  bridgeDirectory,
-  process.platform === "win32" ? "cua-driver.exe" : "cua-driver",
-);
+const playwrightSessionBridgePath = join(bridgeDirectory, "playwright-session-bridge.cjs");
+const packagedComputerUseDriverName = process.platform === "win32"
+  ? "cua-driver.exe"
+  : "cua-driver";
 export function browserUseExecutableCandidatesFor(platform, env = process.env) {
   if (platform === "darwin") {
     return [
@@ -245,9 +244,23 @@ async function ensurePrivateDirectoryTree(root, segments, label) {
     if (metadata.isSymbolicLink() || !metadata.isDirectory()) {
       throw new Error(`MilkSU rejected a symlinked or invalid ${label} directory`);
     }
-    await chmod(current, 0o700);
+    await restrictPrivateMode(current);
   }
   return current;
+}
+
+async function restrictPrivateMode(path, mode = 0o700) {
+  try {
+    await chmod(path, mode);
+  } catch (error) {
+    if (
+      process.platform === "win32"
+      && (error?.code === "EPERM" || error?.code === "ENOTSUP" || error?.code === "EACCES")
+    ) {
+      return;
+    }
+    throw error;
+  }
 }
 
 export function normalizeSelectedMcpServers(value) {
@@ -661,9 +674,17 @@ export function normalizeComputerUseDescriptor(value) {
   };
 }
 
+function safeNormalizeComputerUseDescriptor(value) {
+  try {
+    return normalizeComputerUseDescriptor(value);
+  } catch {
+    return undefined;
+  }
+}
+
 export function computerUseSelectionChanged(previous, next) {
-  return JSON.stringify(normalizeComputerUseDescriptor(previous))
-    !== JSON.stringify(normalizeComputerUseDescriptor(next));
+  return JSON.stringify(safeNormalizeComputerUseDescriptor(previous))
+    !== JSON.stringify(safeNormalizeComputerUseDescriptor(next));
 }
 
 export function computerUseSandboxProfile(socketPath, runtimeRoot) {
@@ -705,147 +726,228 @@ export function computerUseSandboxProfile(socketPath, runtimeRoot) {
   ].join("\n");
 }
 
-export async function createFirstPartyComputerUseMcpServer(descriptor) {
-  const computerUse = normalizeComputerUseDescriptor(descriptor);
-  if (!computerUse) return undefined;
-  const portalMode = process.platform === "linux";
-  const proxyMetadata = await lstat(computerUseProxyPath);
-  if (proxyMetadata.isSymbolicLink() || !proxyMetadata.isFile()) {
-    throw new Error("MilkSU packaged Computer Use runtime is unavailable");
-  }
-  if (!portalMode) {
-    const driverMetadata = await lstat(computerUseDriverPath);
-    if (driverMetadata.isSymbolicLink() || !driverMetadata.isFile()) {
-      throw new Error("MilkSU packaged Computer Use runtime is unavailable");
-    }
-  }
-  if (process.platform !== "win32") {
-    const socketMetadata = await lstat(computerUse.socketPath);
-    if (socketMetadata.isSymbolicLink() || !socketMetadata.isSocket()) {
-      throw new Error("MilkSU packaged Computer Use runtime is unavailable");
-    }
-  }
-  const runtimeRoot = computerUseRuntimeRoot(computerUse.sessionId);
-  const runtimeHome = join(runtimeRoot, "home");
-  const runtimeTemporary = join(runtimeRoot, "tmp");
-  await Promise.all([
-    mkdir(runtimeHome, { recursive: true, mode: 0o700 }),
-    mkdir(runtimeTemporary, { recursive: true, mode: 0o700 }),
-  ]);
-  const proxyArguments = [
-    computerUseProxyPath,
-    "--socket",
-    computerUse.socketPath,
-    "--session",
-    computerUse.sessionId,
-    "--target-name",
-    computerUse.targetName,
-    "--target-bundle-id",
-    computerUse.targetBundleId,
-    "--target-window-id",
-    String(computerUse.targetWindowId),
-    "--target-pid",
-    String(computerUse.targetPid),
-    ...(portalMode
-      ? ["--backend", "portal"]
-      : ["--driver", computerUseDriverPath]),
+async function resolvePackagedComputerUseDriver() {
+  const sidecarDir = String(process.env.MILKSU_SIDECAR_DIR ?? "").trim();
+  const candidates = [
+    join(bridgeDirectory, packagedComputerUseDriverName),
+    join(dirname(process.execPath), packagedComputerUseDriverName),
   ];
-  if (process.platform === "win32") {
-    const systemRoot = process.env.SystemRoot || "C:\\Windows";
+  if (sidecarDir) {
+    candidates.push(join(sidecarDir, packagedComputerUseDriverName));
+  }
+  const seen = new Set();
+  for (const candidate of candidates) {
+    const resolved = resolve(candidate);
+    if (seen.has(resolved)) continue;
+    seen.add(resolved);
+    try {
+      const metadata = await lstat(resolved);
+      if (!metadata.isSymbolicLink() && metadata.isFile()) {
+        return resolved;
+      }
+    } catch {
+      // try the next packaged location
+    }
+  }
+  throw new Error("MilkSU packaged Computer Use runtime is unavailable");
+}
+
+export async function createFirstPartyComputerUseMcpServer(descriptor) {
+  try {
+    const computerUse = normalizeComputerUseDescriptor(descriptor);
+    if (!computerUse) return undefined;
+    const portalMode = process.platform === "linux";
+    const proxyMetadata = await lstat(computerUseProxyPath);
+    if (proxyMetadata.isSymbolicLink() || !proxyMetadata.isFile()) {
+      throw new Error("MilkSU packaged Computer Use runtime is unavailable");
+    }
+    const driverPath = portalMode ? "" : await resolvePackagedComputerUseDriver();
+    if (process.platform !== "win32") {
+      const socketMetadata = await lstat(computerUse.socketPath);
+      if (socketMetadata.isSymbolicLink() || !socketMetadata.isSocket()) {
+        throw new Error("MilkSU packaged Computer Use runtime is unavailable");
+      }
+    }
+    const runtimeRoot = computerUseRuntimeRoot(computerUse.sessionId);
+    const runtimeHome = join(runtimeRoot, "home");
+    const runtimeTemporary = join(runtimeRoot, "tmp");
+    await Promise.all([
+      mkdir(runtimeHome, { recursive: true, mode: 0o700 }),
+      mkdir(runtimeTemporary, { recursive: true, mode: 0o700 }),
+    ]);
+    const proxyArguments = [
+      computerUseProxyPath,
+      "--socket",
+      computerUse.socketPath,
+      "--session",
+      computerUse.sessionId,
+      "--target-name",
+      computerUse.targetName,
+      "--target-bundle-id",
+      computerUse.targetBundleId,
+      "--target-window-id",
+      String(computerUse.targetWindowId),
+      "--target-pid",
+      String(computerUse.targetPid),
+      ...(portalMode
+        ? ["--backend", "portal"]
+        : ["--driver", driverPath]),
+    ];
+    if (process.platform === "win32") {
+      const systemRoot = process.env.SystemRoot || "C:\\Windows";
+      return {
+        computerUse,
+        server: {
+          command: process.execPath,
+          args: proxyArguments,
+          env: {
+            SystemRoot: systemRoot,
+            WINDIR: systemRoot,
+            USERPROFILE: runtimeHome,
+            APPDATA: join(runtimeHome, "AppData", "Roaming"),
+            LOCALAPPDATA: join(runtimeHome, "AppData", "Local"),
+            TEMP: runtimeTemporary,
+            TMP: runtimeTemporary,
+            PATH: [dirname(driverPath), join(systemRoot, "System32")].join(delimiter),
+            CUA_DRIVER_EMBEDDED: "1",
+            CUA_DRIVER_RS_TELEMETRY_ENABLED: "false",
+            CUA_LOG: "warn",
+          },
+          cwd: runtimeRoot,
+          lifecycle: "lazy",
+          directTools: false,
+        },
+      };
+    }
     return {
       computerUse,
       server: {
-        command: process.execPath,
-        args: proxyArguments,
-        env: {
-          SystemRoot: systemRoot,
-          WINDIR: systemRoot,
-          USERPROFILE: runtimeHome,
-          APPDATA: join(runtimeHome, "AppData", "Roaming"),
-          LOCALAPPDATA: join(runtimeHome, "AppData", "Local"),
-          TEMP: runtimeTemporary,
-          TMP: runtimeTemporary,
-          PATH: join(systemRoot, "System32"),
-          CUA_DRIVER_EMBEDDED: "1",
-          CUA_DRIVER_RS_TELEMETRY_ENABLED: "false",
-          CUA_LOG: "warn",
-        },
+        command: "/usr/bin/sandbox-exec",
+        args: [
+          "-p",
+          computerUseSandboxProfile(computerUse.socketPath, runtimeRoot),
+          "/usr/bin/env",
+          "-i",
+          `HOME=${runtimeHome}`,
+          `TMPDIR=${runtimeTemporary}`,
+          "PATH=/usr/bin:/bin:/usr/sbin:/sbin",
+          "LANG=en_US.UTF-8",
+          "CUA_DRIVER_EMBEDDED=1",
+          "CUA_DRIVER_RS_TELEMETRY_ENABLED=false",
+          process.execPath,
+          ...proxyArguments,
+        ],
+        env: {},
         cwd: runtimeRoot,
         lifecycle: "lazy",
         directTools: false,
       },
     };
+  } catch (error) {
+    console.error(
+      "MilkSU Computer Use MCP unavailable:",
+      error instanceof Error ? error.message : error,
+    );
+    return undefined;
   }
-  return {
-    computerUse,
-    server: {
-      command: "/usr/bin/sandbox-exec",
-      args: [
-        "-p",
-        computerUseSandboxProfile(computerUse.socketPath, runtimeRoot),
-        "/usr/bin/env",
-        "-i",
-        `HOME=${runtimeHome}`,
-        `TMPDIR=${runtimeTemporary}`,
-        "PATH=/usr/bin:/bin:/usr/sbin:/sbin",
-        "LANG=en_US.UTF-8",
-        "CUA_DRIVER_EMBEDDED=1",
-        "CUA_DRIVER_RS_TELEMETRY_ENABLED=false",
-        process.execPath,
-        ...proxyArguments,
-      ],
-      env: {},
-      cwd: runtimeRoot,
-      lifecycle: "lazy",
-      directTools: false,
-    },
-  };
 }
 
-export async function createFirstPartyPlaywrightMcpServer(workspace, descriptor) {
+export async function writeCodingBrowserDescriptor(
+  conversationId,
+  descriptor,
+  fallbackId = "",
+) {
   const browser = normalizeCodingBrowserDescriptor(descriptor);
   if (!browser) return undefined;
+  const keySource = String(conversationId ?? "").trim() || String(fallbackId ?? "").trim()
+    || browser.sessionId;
+  const file = codingBrowserDescriptorFile(keySource);
+  if (!file) {
+    throw new Error("MilkSU rejected a Coding Browser descriptor without a conversation id");
+  }
+  await mkdir(dirname(file), { recursive: true, mode: 0o700 });
+  await restrictPrivateMode(dirname(file));
+  const handle = await open(file, "w", 0o600);
+  try {
+    await handle.writeFile(`${JSON.stringify({
+      sessionId: browser.sessionId,
+      cdpEndpoint: browser.cdpEndpoint,
+    })}\n`, "utf8");
+    await restrictPrivateMode(file, 0o600);
+  } finally {
+    await handle.close();
+  }
+  return { browser, file };
+}
+
+export async function createFirstPartyPlaywrightMcpServer(
+  workspace,
+  descriptor,
+  options = {},
+) {
+  const browser = normalizeCodingBrowserDescriptor(descriptor);
+  const conversationId = String(options.conversationId ?? "").trim();
+  const reserve = options.reserve === true || Boolean(browser);
+  if (!reserve) return undefined;
+  const keySource = conversationId || browser?.sessionId;
+  if (!keySource) return undefined;
   const root = await resolveReviewedMcpWorkspace(workspace);
   const cliMetadata = await lstat(playwrightMcpCliPath);
   if (cliMetadata.isSymbolicLink() || !cliMetadata.isFile()) {
     throw new Error("MilkSU packaged Playwright MCP CLI is unavailable");
+  }
+  const bridgeMetadata = await lstat(playwrightSessionBridgePath);
+  if (bridgeMetadata.isSymbolicLink() || !bridgeMetadata.isFile()) {
+    throw new Error("MilkSU packaged Playwright MCP bridge is unavailable");
   }
   const runtimeRoot = await ensurePrivateDirectoryTree(
     root,
     [".milksu", "mcp-runtime"],
     "Coding Browser runtime",
   );
-  const evidenceRelativePath = codingBrowserEvidenceRelativePath(browser.sessionId);
-  if (!evidenceRelativePath) {
-    throw new Error("MilkSU rejected an invalid Coding Browser evidence path");
-  }
-  const evidenceRoot = await ensurePrivateDirectoryTree(
+  const evidenceParent = await ensurePrivateDirectoryTree(
     root,
-    evidenceRelativePath.split("/"),
+    [".milksu", "browser-evidence"],
     "Coding Browser evidence",
   );
+  let evidenceRoot = evidenceParent;
+  if (browser) {
+    const evidenceRelativePath = codingBrowserEvidenceRelativePath(browser.sessionId);
+    if (!evidenceRelativePath) {
+      throw new Error("MilkSU rejected an invalid Coding Browser evidence path");
+    }
+    evidenceRoot = await ensurePrivateDirectoryTree(
+      root,
+      evidenceRelativePath.split("/"),
+      "Coding Browser evidence",
+    );
+    await writeCodingBrowserDescriptor(conversationId, browser, browser.sessionId);
+  }
   await Promise.all([
     mkdir(join(runtimeRoot, "home"), { recursive: true, mode: 0o700 }),
     mkdir(join(runtimeRoot, "tmp"), { recursive: true, mode: 0o700 }),
   ]);
-  // Playwright creates a Unix domain socket while attaching over CDP. macOS
-  // limits socket paths to roughly 104 bytes, so the user-data directory is too
-  // deep even though it is otherwise writable. Keep only this ephemeral socket
-  // under a short, session-derived directory.
-  const socketRoot = join(
-    playwrightSocketRoot,
-    browser.sessionId.slice(-12),
-  );
+  // Playwright may create a Unix domain socket while attaching over CDP. macOS
+  // limits socket paths to roughly 104 bytes, so keep only this ephemeral
+  // directory under a short, conversation-derived name. Windows uses named
+  // pipes and does not need PWTEST_SOCKETS_DIR.
+  const descriptorFile = codingBrowserDescriptorFile(keySource);
+  const socketRoot = dirname(descriptorFile);
   await mkdir(socketRoot, { recursive: true, mode: 0o700 });
+  await restrictPrivateMode(socketRoot);
+  const env = {
+    MILKSU_PLAYWRIGHT_MCP_CLI: playwrightMcpCliPath,
+    MILKSU_CODING_BROWSER_DESCRIPTOR_FILE: descriptorFile,
+  };
+  if (browser) env.MILKSU_CODING_BROWSER_CDP = browser.cdpEndpoint;
+  if (process.platform !== "win32") env.PWTEST_SOCKETS_DIR = socketRoot;
   return {
     browser,
     server: sanitizeServerDefinition(
       {
         command: process.execPath,
         args: [
-          playwrightMcpCliPath,
-          "--cdp-endpoint",
-          browser.cdpEndpoint,
+          playwrightSessionBridgePath,
           "--output-dir",
           evidenceRoot,
           "--output-max-size",
@@ -855,16 +957,19 @@ export async function createFirstPartyPlaywrightMcpServer(workspace, descriptor)
           "--codegen=none",
           "--output-mode=stdout",
         ],
-        env: {
-          PWTEST_SOCKETS_DIR: socketRoot,
-        },
+        env,
         excludeTools: codingBrowserExcludedTools,
       },
       codingBrowserMcpServerName,
       root,
       {
-        extraReadableRoots: [sidecarResourceDirectory],
-        extraWritableRoots: [socketRoot, evidenceRoot],
+        extraReadableRoots: [
+          sidecarResourceDirectory,
+          playwrightSessionBridgePath,
+          playwrightMcpCliPath,
+          socketRoot,
+        ],
+        extraWritableRoots: [socketRoot, evidenceRoot, evidenceParent],
       },
     ),
   };
@@ -1064,6 +1169,7 @@ export async function loadCodingMcpConfig(
   securityTools = [],
   userMcpServers,
   includeFirstPartyPlugins = true,
+  options = {},
 ) {
   const project = await loadSelectedMcpConfig(
     workspace,
@@ -1071,8 +1177,11 @@ export async function loadCodingMcpConfig(
     expectedDigest,
   );
   const userServers = sanitizeUserMcpServers(userMcpServers, workspace);
-  const builtIn = await createFirstPartyPlaywrightMcpServer(workspace, codingBrowser);
-  const builtInComputerUse = await createFirstPartyComputerUseMcpServer(computerUse);
+  const builtIn = await createFirstPartyPlaywrightMcpServer(workspace, codingBrowser, {
+    conversationId: options.conversationId,
+    reserve: options.reserveCodingBrowser === true,
+  });
+  const builtInComputerUse = await createFirstPartyComputerUseMcpServer(computerUse).catch(() => undefined);
   const builtInBrowserUse = await createFirstPartyBrowserUseMcpServer(workspace, browserUse);
   const builtInIDA = await createManagedIDAMcpServer(workspace, securityTools);
   const userNames = Object.keys(userServers).sort((left, right) => left.localeCompare(right));

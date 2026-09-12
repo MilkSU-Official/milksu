@@ -114,6 +114,75 @@ test('buffers the first browser command until the upstream socket is open', { ti
   }
 })
 
+test('accepts Playwright browser websocket paths that include a target id', async () => {
+  const upstreamSockets = new WebSocketServer({ noServer: true })
+  let upstreamPort = 0
+  const upstream = http.createServer((request, response) => {
+    if (request.url === '/json/version') {
+      response.setHeader('content-type', 'application/json')
+      response.end(JSON.stringify({
+        Browser: 'Chrome/1',
+        webSocketDebuggerUrl: `ws://127.0.0.1:${upstreamPort}/devtools/browser/upstream`,
+      }))
+      return
+    }
+    if (request.url === '/json/list') {
+      response.setHeader('content-type', 'application/json')
+      response.end(JSON.stringify([{
+        id: 'approved-target',
+        type: 'page',
+        webSocketDebuggerUrl: `ws://127.0.0.1:${upstreamPort}/devtools/page/approved-target`,
+      }]))
+      return
+    }
+    response.writeHead(404).end()
+  })
+  upstream.on('upgrade', (request, socket, head) => {
+    upstreamSockets.handleUpgrade(request, socket, head, client => {
+      upstreamSockets.emit('connection', client, request)
+    })
+  })
+  upstreamSockets.on('connection', client => {
+    client.on('message', data => {
+      const message = JSON.parse(data.toString())
+      client.send(JSON.stringify({
+        id: message.id,
+        result: { product: 'Chrome/1' },
+      }))
+    })
+  })
+  await listen(upstream)
+  upstreamPort = upstream.address().port
+  const proxy = new ScopedCDPProxy({
+    upstreamEndpoint: `http://127.0.0.1:${upstreamPort}`,
+    targetId: 'approved-target',
+  })
+  let client
+
+  try {
+    const endpoint = await proxy.start()
+    const port = new URL(endpoint).port
+    client = new WebSocket(`ws://127.0.0.1:${port}/devtools/browser/playwright-id`)
+    const response = await new Promise((resolve, reject) => {
+      client.once('error', reject)
+      client.once('close', (code, reason) => {
+        reject(new Error(`closed ${code} ${reason}`))
+      })
+      client.once('open', () => {
+        client.send(JSON.stringify({ id: 2, method: 'Browser.getVersion' }))
+      })
+      client.once('message', data => resolve(JSON.parse(data.toString())))
+    })
+    assert.deepEqual(response, { id: 2, result: { product: 'Chrome/1' } })
+  } finally {
+    client?.terminate()
+    await proxy.close()
+    for (const socket of upstreamSockets.clients) socket.terminate()
+    upstreamSockets.close()
+    await close(upstream)
+  }
+})
+
 test('rejects scope-changing commands on a direct page connection', () => {
   const proxy = new ScopedCDPProxy({
     upstreamEndpoint: 'http://127.0.0.1:1',

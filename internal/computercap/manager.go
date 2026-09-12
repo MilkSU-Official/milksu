@@ -138,22 +138,23 @@ type session struct {
 }
 
 type Manager struct {
-	mu              sync.Mutex
-	binaryPath      string
-	targetPID       int
-	hostBundleID    string
-	goos            string
-	permissionProbe func(prompt bool) Permissions
-	permissionOpen  func(PermissionKind)
-	signingProbe    func() SigningStatus
-	targetProvider  func() ([]Target, error)
-	commandFactory  func(name string, args ...string) *exec.Cmd
-	startTimeout    time.Duration
-	grants          *grantStore
-	active          *session
-	linuxPortal     func() bool
-	newPortal       func() (PortalSession, error)
-	linuxEnv        func(string) string
+	mu                    sync.Mutex
+	binaryPath            string
+	targetPID             int
+	hostBundleID          string
+	goos                  string
+	permissionProbe       func(prompt bool) Permissions
+	permissionOpen        func(PermissionKind)
+	signingProbe          func() SigningStatus
+	targetProvider        func() ([]Target, error)
+	commandFactory        func(name string, args ...string) *exec.Cmd
+	startTimeout          time.Duration
+	grants                *grantStore
+	active                *session
+	implicitRestoreFailed map[string]struct{}
+	linuxPortal           func() bool
+	newPortal             func() (PortalSession, error)
+	linuxEnv              func(string) string
 }
 
 func New(options Options) *Manager {
@@ -206,20 +207,21 @@ func New(options Options) *Manager {
 		newPortal = newXDGPortalSession
 	}
 	return &Manager{
-		binaryPath:      strings.TrimSpace(options.BinaryPath),
-		targetPID:       targetPID,
-		hostBundleID:    hostBundleID,
-		goos:            goos,
-		permissionProbe: permissionProbe,
-		permissionOpen:  permissionOpen,
-		signingProbe:    signingProbe,
-		targetProvider:  targetProvider,
-		commandFactory:  commandFactory,
-		startTimeout:    startTimeout,
-		grants:          newGrantStore(options.GrantDirectory),
-		linuxPortal:     linuxPortal,
-		newPortal:       newPortal,
-		linuxEnv:        linuxEnv,
+		binaryPath:            strings.TrimSpace(options.BinaryPath),
+		targetPID:             targetPID,
+		hostBundleID:          hostBundleID,
+		goos:                  goos,
+		permissionProbe:       permissionProbe,
+		permissionOpen:        permissionOpen,
+		signingProbe:          signingProbe,
+		targetProvider:        targetProvider,
+		commandFactory:        commandFactory,
+		startTimeout:          startTimeout,
+		grants:                newGrantStore(options.GrantDirectory),
+		implicitRestoreFailed: map[string]struct{}{},
+		linuxPortal:           linuxPortal,
+		newPortal:             newPortal,
+		linuxEnv:              linuxEnv,
 	}
 }
 
@@ -273,12 +275,37 @@ func (manager *Manager) Restore(
 	ctx context.Context,
 	conversationID string,
 ) (Status, bool, error) {
+	return manager.restore(ctx, conversationID, false)
+}
+
+// RestoreImplicit is the send-message path. A failed automatic restore must
+// not retry on every later turn; the user can still start or activate again.
+func (manager *Manager) RestoreImplicit(
+	ctx context.Context,
+	conversationID string,
+) (Status, bool, error) {
+	return manager.restore(ctx, conversationID, true)
+}
+
+func (manager *Manager) restore(
+	ctx context.Context,
+	conversationID string,
+	implicit bool,
+) (Status, bool, error) {
 	conversationID = strings.TrimSpace(conversationID)
 	if !validConversationID(conversationID) {
 		return Status{}, false, fmt.Errorf("invalid Coding conversation id")
 	}
 	if _, enabled := manager.Descriptor(conversationID); enabled {
 		return manager.StatusForConversation(conversationID), true, nil
+	}
+	if implicit {
+		manager.mu.Lock()
+		_, skipped := manager.implicitRestoreFailed[conversationID]
+		manager.mu.Unlock()
+		if skipped {
+			return manager.StatusForConversation(conversationID), true, nil
+		}
 	}
 	grant, exists, err := manager.grants.Load(conversationID)
 	if err != nil || !exists {
@@ -313,6 +340,14 @@ func (manager *Manager) Restore(
 		PID:      target.PID,
 		WindowID: target.WindowID,
 	})
+	if err != nil && implicit {
+		manager.mu.Lock()
+		if manager.implicitRestoreFailed == nil {
+			manager.implicitRestoreFailed = map[string]struct{}{}
+		}
+		manager.implicitRestoreFailed[conversationID] = struct{}{}
+		manager.mu.Unlock()
+	}
 	return manager.StatusForConversation(conversationID), true, err
 }
 
@@ -359,6 +394,7 @@ func (manager *Manager) Start(
 		return Status{}, fmt.Errorf("invalid Coding conversation id")
 	}
 	manager.mu.Lock()
+	delete(manager.implicitRestoreFailed, conversationID)
 	if manager.active != nil {
 		status := manager.statusLocked(manager.permissionProbe(false))
 		sameConversation := manager.active.conversationID == conversationID
@@ -552,6 +588,9 @@ func (manager *Manager) stop(conversationID string, revoke bool) (Status, error)
 			return manager.StatusForConversation(conversationID), err
 		}
 	}
+	manager.mu.Lock()
+	delete(manager.implicitRestoreFailed, conversationID)
+	manager.mu.Unlock()
 	if active == nil {
 		return manager.StatusForConversation(conversationID), nil
 	}
@@ -1216,15 +1255,22 @@ func createRuntimeDirectory(root string, directory string) error {
 		!runtimeRootOwnerMatches(rootInfo) {
 		return fmt.Errorf("Computer Use runtime root is not a private app-owned directory")
 	}
-	if err := os.Chmod(root, 0o700); err != nil {
+	if err := protectPrivatePath(root, 0o700); err != nil {
 		return fmt.Errorf("protect Computer Use runtime root: %w", err)
 	}
 	if err := os.Mkdir(clean, 0o700); err != nil {
 		return fmt.Errorf("create Computer Use runtime directory: %w", err)
 	}
-	if err := os.Chmod(clean, 0o700); err != nil {
+	if err := protectPrivatePath(clean, 0o700); err != nil {
 		_ = cleanupRuntimeDirectory(root, clean)
 		return fmt.Errorf("protect Computer Use runtime directory: %w", err)
+	}
+	return nil
+}
+
+func protectPrivatePath(path string, mode os.FileMode) error {
+	if err := os.Chmod(path, mode); err != nil && runtime.GOOS != "windows" {
+		return err
 	}
 	return nil
 }

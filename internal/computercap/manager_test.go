@@ -323,6 +323,92 @@ func TestFailedAutomaticRestoreKeepsTaskAuthorizationForRetry(t *testing.T) {
 	}
 }
 
+func TestImplicitRestoreDoesNotRetryStartAfterFailure(t *testing.T) {
+	grantDirectory := t.TempDir()
+	target := Target{
+		Name:        "MilkSU Beta",
+		BundleID:    "com.milksu.app.beta",
+		PID:         4242,
+		WindowID:    9001,
+		WindowTitle: "MilkSU Beta",
+	}
+	store := newGrantStore(grantDirectory)
+	if err := store.Save("conversation-implicit-restore", target); err != nil {
+		t.Fatal(err)
+	}
+	starts := 0
+	manager := New(Options{
+		BinaryPath:      os.Args[0],
+		TargetPID:       1111,
+		GOOS:            "darwin",
+		PermissionProbe: func(bool) Permissions { return Permissions{true, true} },
+		TargetProvider:  func() ([]Target, error) { return []Target{target}, nil },
+		CommandFactory: func(name string, arguments ...string) *exec.Cmd {
+			if len(arguments) == 1 && arguments[0] == "--version" {
+				return helperCommand(name, arguments...)
+			}
+			starts++
+			return failingServeCommand(name, arguments...)
+		},
+		StartTimeout:   200 * time.Millisecond,
+		GrantDirectory: grantDirectory,
+	})
+	defer manager.Close()
+
+	status, authorized, err := manager.RestoreImplicit(
+		context.Background(),
+		"conversation-implicit-restore",
+	)
+	if err == nil {
+		t.Fatal("expected first implicit restore to report the failed driver start")
+	}
+	if !authorized || !status.Authorized {
+		t.Fatalf("failed implicit restore revoked authorization: %#v", status)
+	}
+	if starts != 1 {
+		t.Fatalf("first implicit restore starts=%d", starts)
+	}
+
+	status, authorized, err = manager.RestoreImplicit(
+		context.Background(),
+		"conversation-implicit-restore",
+	)
+	if err != nil {
+		t.Fatalf("suppressed implicit restore should not block later turns: %v", err)
+	}
+	if !authorized || !status.Authorized {
+		t.Fatalf("suppressed restore dropped authorization: %#v", status)
+	}
+	if starts != 1 {
+		t.Fatalf("implicit restore retried start: starts=%d", starts)
+	}
+
+	if _, startErr := manager.Start(
+		context.Background(),
+		"conversation-implicit-restore",
+		TargetSelection{PID: target.PID, WindowID: target.WindowID},
+	); startErr == nil {
+		t.Fatal("expected explicit start to fail")
+	}
+	if starts != 2 {
+		t.Fatalf("explicit start starts=%d", starts)
+	}
+
+	_, authorized, err = manager.RestoreImplicit(
+		context.Background(),
+		"conversation-implicit-restore",
+	)
+	if err == nil {
+		t.Fatal("expected implicit restore to retry after an explicit start")
+	}
+	if !authorized {
+		t.Fatal("retry after explicit start revoked authorization")
+	}
+	if starts != 3 {
+		t.Fatalf("explicit start should clear suppress: starts=%d", starts)
+	}
+}
+
 func TestCorruptTaskAuthorizationFailsClosed(t *testing.T) {
 	store := newGrantStore(t.TempDir())
 	target := Target{
