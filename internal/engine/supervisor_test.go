@@ -1090,6 +1090,7 @@ func TestSendMessageDoesNotSendAParallelWorkspaceScopeToPi(t *testing.T) {
 	}()
 
 	settings := modelSelectionSettings()
+	settings.ActiveProvider = "tokenflux"
 	settings.ActiveModel = "openai/gpt-5.6"
 	settings.RuntimeThinkingLevel = "xhigh"
 	if err := supervisor.SendMessage(

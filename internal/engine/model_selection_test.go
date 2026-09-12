@@ -8,6 +8,10 @@ import (
 
 func modelSelectionSettings() config.AppSettings {
 	settings := config.DefaultSettings()
+	preset := settings.Providers["custom-relay-deepseek"]
+	preset.APIKey = "deepseek-official-secret"
+	preset.Enabled = true
+	settings.Providers["custom-relay-deepseek"] = preset
 	settings.Providers["deepseek"] = config.ProviderConfig{
 		APIKey:  "deepseek-secret",
 		Enabled: true,
