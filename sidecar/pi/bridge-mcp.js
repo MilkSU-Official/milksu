@@ -40,14 +40,20 @@ export {
   pluginMcpServerName,
 };
 const bridgeDirectory = dirname(fileURLToPath(import.meta.url));
-const sidecarResourceDirectory = existsSync(join(
-  bridgeDirectory,
-  "node_modules",
-  "@playwright",
-  "mcp",
-))
-  ? bridgeDirectory
-  : resolve(bridgeDirectory, "..", "..");
+export function resolvePlaywrightMcpResourceDirectory(here) {
+  const packagedCli = join(here, "node_modules", "@playwright", "mcp", "cli.js");
+  if (existsSync(packagedCli)) return here;
+  const developmentRoot = resolve(here, "..", "..");
+  const developmentCli = join(
+    developmentRoot,
+    "node_modules",
+    "@playwright",
+    "mcp",
+    "cli.js",
+  );
+  return existsSync(developmentCli) ? developmentRoot : here;
+}
+const sidecarResourceDirectory = resolvePlaywrightMcpResourceDirectory(bridgeDirectory);
 const playwrightMcpCliPath = join(
   sidecarResourceDirectory,
   "node_modules",

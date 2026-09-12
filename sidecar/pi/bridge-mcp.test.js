@@ -31,6 +31,7 @@ import {
   createFirstPartyComputerUseMcpServer,
   createFirstPartyPluginMcpServer,
   createFirstPartyPlaywrightMcpServer,
+  resolvePlaywrightMcpResourceDirectory,
   browserUseExecutableCandidatesFor,
   createFirstPartyBrowserUseMcpServer,
   resolveBrowserUseExecutable,
@@ -274,6 +275,17 @@ test("canonicalizes any MCP workspace not fixed by the Sidecar environment", asy
       process.env.MILKSU_AGENT_WORKSPACE = previous;
     }
   }
+});
+
+test("resolves Playwright MCP from the sidecar before walking to the app root", () => {
+  assert.equal(
+    resolvePlaywrightMcpResourceDirectory(repositoryRoot),
+    repositoryRoot,
+  );
+  assert.equal(
+    resolvePlaywrightMcpResourceDirectory(join(tmpdir(), "milksu-no-playwright")),
+    join(tmpdir(), "milksu-no-playwright"),
+  );
 });
 
 test("builds the first-party Playwright server from a strict loopback descriptor", async () => {

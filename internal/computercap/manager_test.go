@@ -288,13 +288,13 @@ func TestManagerRestartsAnAuthorizedTaskAfterDriverFailure(t *testing.T) {
 
 func TestFailedAutomaticRestoreKeepsTaskAuthorizationForRetry(t *testing.T) {
 	grantDirectory := t.TempDir()
-	target := Target{
+	target := lifecycleTarget(Target{
 		Name:        "MilkSU Beta",
 		BundleID:    "com.milksu.app.beta",
 		PID:         4242,
 		WindowID:    9001,
 		WindowTitle: "MilkSU Beta",
-	}
+	})
 	store := newGrantStore(grantDirectory)
 	if err := store.Save("conversation-retry-restore", target); err != nil {
 		t.Fatal(err)
@@ -302,7 +302,7 @@ func TestFailedAutomaticRestoreKeepsTaskAuthorizationForRetry(t *testing.T) {
 	manager := New(Options{
 		BinaryPath:      os.Args[0],
 		TargetPID:       1111,
-		GOOS:            "darwin",
+		GOOS:            lifecycleGOOS(),
 		PermissionProbe: func(bool) Permissions { return Permissions{true, true} },
 		TargetProvider:  func() ([]Target, error) { return []Target{target}, nil },
 		CommandFactory:  failingServeCommand,
@@ -325,13 +325,13 @@ func TestFailedAutomaticRestoreKeepsTaskAuthorizationForRetry(t *testing.T) {
 
 func TestImplicitRestoreDoesNotRetryStartAfterFailure(t *testing.T) {
 	grantDirectory := t.TempDir()
-	target := Target{
+	target := lifecycleTarget(Target{
 		Name:        "MilkSU Beta",
 		BundleID:    "com.milksu.app.beta",
 		PID:         4242,
 		WindowID:    9001,
 		WindowTitle: "MilkSU Beta",
-	}
+	})
 	store := newGrantStore(grantDirectory)
 	if err := store.Save("conversation-implicit-restore", target); err != nil {
 		t.Fatal(err)
@@ -340,7 +340,7 @@ func TestImplicitRestoreDoesNotRetryStartAfterFailure(t *testing.T) {
 	manager := New(Options{
 		BinaryPath:      os.Args[0],
 		TargetPID:       1111,
-		GOOS:            "darwin",
+		GOOS:            lifecycleGOOS(),
 		PermissionProbe: func(bool) Permissions { return Permissions{true, true} },
 		TargetProvider:  func() ([]Target, error) { return []Target{target}, nil },
 		CommandFactory: func(name string, arguments ...string) *exec.Cmd {

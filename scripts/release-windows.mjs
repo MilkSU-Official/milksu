@@ -154,6 +154,8 @@ const builderConfig = {
     { from: join(repositoryRoot, 'app', 'dist'), to: 'renderer' },
     { from: backendPath, to: 'milksu-backend.exe' },
     { from: sidecarPath, to: 'milksu-sidecar' },
+    // electron-builder createFilter skips a source-root node_modules directory.
+    { from: join(sidecarPath, 'node_modules'), to: 'milksu-sidecar/node_modules' },
     { from: trackingPath, to: BUILD_TRACKING_RESOURCE },
     { from: accountConfigPath, to: 'account-config.json' },
   ],
@@ -214,6 +216,8 @@ for (const required of [
   join(unpackedResources, 'milksu-sidecar', 'cua-driver.exe'),
   join(unpackedResources, 'milksu-sidecar', 'THIRD_PARTY-LICENSES', 'cua-MIT.txt'),
   join(unpackedResources, 'milksu-sidecar', 'manifest.json'),
+  join(unpackedResources, 'milksu-sidecar', 'node_modules', '@playwright', 'mcp', 'cli.js'),
+  join(unpackedResources, 'milksu-sidecar', 'node_modules', '@deepseek-ai', 'cordis-plugin-group'),
 ]) {
   if (!await exists(required)) {
     throw new Error(`Windows package is missing required runtime artifact: ${required}`)

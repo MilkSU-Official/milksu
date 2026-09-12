@@ -4,11 +4,20 @@ import test from 'node:test'
 
 const readText = async (url) => (await readFile(url, 'utf8')).replaceAll('\r\n', '\n')
 
-const [macWorkflow, windowsWorkflow, linuxWorkflow, macReleaseScript] = await Promise.all([
+const [
+  macWorkflow,
+  windowsWorkflow,
+  linuxWorkflow,
+  macReleaseScript,
+  windowsReleaseScript,
+  linuxReleaseScript,
+] = await Promise.all([
   readText(new URL('../../.github/workflows/macos-release.yml', import.meta.url)),
   readText(new URL('../../.github/workflows/windows-release.yml', import.meta.url)),
   readText(new URL('../../.github/workflows/linux-release.yml', import.meta.url)),
   readText(new URL('../../scripts/release-macos.mjs', import.meta.url)),
+  readText(new URL('../../scripts/release-windows.mjs', import.meta.url)),
+  readText(new URL('../../scripts/release-linux.mjs', import.meta.url)),
 ])
 
 test('release workflows require one immutable verified source commit', () => {
@@ -52,6 +61,20 @@ test('official packaging always uploads OTA artifacts and creates an Admin draft
   assert.match(macWorkflow, /node scripts\/publish-release\.mjs/u)
   assert.match(windowsWorkflow, /node scripts\/publish-release\.mjs/u)
   assert.match(linuxWorkflow, /node scripts\/publish-release\.mjs/u)
+})
+
+test('Windows and Linux extraResources copy Sidecar node_modules separately', () => {
+  for (const script of [windowsReleaseScript, linuxReleaseScript]) {
+    assert.match(script, /to: 'milksu-sidecar\/node_modules'/u)
+    assert.match(
+      script,
+      /node_modules', '@playwright', 'mcp', 'cli\.js'/u,
+    )
+    assert.match(
+      script,
+      /node_modules', '@deepseek-ai', 'cordis-plugin-group'/u,
+    )
+  }
 })
 
 test('macOS DMG artifact name includes the package version like Win/Linux', () => {
