@@ -124,6 +124,23 @@ func TestPluginMCPServerListsAndCallsOnlyOfficialExternalReadTools(t *testing.T)
 	if public.OutputSchema == nil {
 		t.Fatal("public MCP tool did not publish its reviewed output schema")
 	}
+	listTool := tools["milksu_plugins_list"]
+	if listTool == nil || listTool.OutputSchema == nil {
+		t.Fatal("plugin catalog tool did not publish an object output schema")
+	}
+	rawSchema, err := json.Marshal(listTool.OutputSchema)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var listSchema struct {
+		Type string `json:"type"`
+	}
+	if err := json.Unmarshal(rawSchema, &listSchema); err != nil {
+		t.Fatal(err)
+	}
+	if listSchema.Type != "object" {
+		t.Fatalf("plugin catalog outputSchema.type = %q, want object", listSchema.Type)
+	}
 	if public.Annotations == nil || !public.Annotations.ReadOnlyHint || !public.Annotations.IdempotentHint ||
 		public.Annotations.DestructiveHint == nil || *public.Annotations.DestructiveHint ||
 		public.Annotations.OpenWorldHint == nil || *public.Annotations.OpenWorldHint {
@@ -178,15 +195,18 @@ func TestPluginMCPServerListsAndCallsOnlyOfficialExternalReadTools(t *testing.T)
 	if !ok {
 		t.Fatalf("plugin list content = %#v", pluginsResult.Content)
 	}
-	var publicPlugins []struct {
-		ID    string   `json:"id"`
-		Tools []string `json:"external_read_tools"`
+	var listedPlugins struct {
+		Plugins []struct {
+			ID    string   `json:"id"`
+			Tools []string `json:"external_read_tools"`
+		} `json:"plugins"`
 	}
-	if err := json.Unmarshal([]byte(listText.Text), &publicPlugins); err != nil {
+	if err := json.Unmarshal([]byte(listText.Text), &listedPlugins); err != nil {
 		t.Fatal(err)
 	}
+	publicPlugins := listedPlugins.Plugins
 	if len(publicPlugins) != 1 || publicPlugins[0].ID != official.ID || len(publicPlugins[0].Tools) != 1 || publicPlugins[0].Tools[0] != publicName {
-		t.Fatalf("public plugin list = %#v", publicPlugins)
+		t.Fatalf("public plugin list = %#v", listedPlugins)
 	}
 
 	if err := registry.SetEnabled(official.ID, false); err != nil {

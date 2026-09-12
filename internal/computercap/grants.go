@@ -60,7 +60,7 @@ func (store *grantStore) Save(conversationID string, target Target) error {
 	if err := os.MkdirAll(store.directory, 0o700); err != nil {
 		return fmt.Errorf("create Computer Use authorization directory: %w", err)
 	}
-	if err := os.Chmod(store.directory, 0o700); err != nil {
+	if err := protectPrivatePath(store.directory, 0o700); err != nil {
 		return fmt.Errorf("protect Computer Use authorization directory: %w", err)
 	}
 	data, err := json.MarshalIndent(Grant{
@@ -77,7 +77,7 @@ func (store *grantStore) Save(conversationID string, target Target) error {
 	}
 	temporaryPath := temporary.Name()
 	defer os.Remove(temporaryPath)
-	if err := temporary.Chmod(0o600); err != nil {
+	if err := protectPrivatePath(temporaryPath, 0o600); err != nil {
 		_ = temporary.Close()
 		return fmt.Errorf("protect Computer Use authorization update: %w", err)
 	}
@@ -95,7 +95,7 @@ func (store *grantStore) Save(conversationID string, target Target) error {
 	if err := os.Rename(temporaryPath, store.path(conversationID)); err != nil {
 		return fmt.Errorf("commit Computer Use task authorization: %w", err)
 	}
-	return os.Chmod(store.path(conversationID), 0o600)
+	return protectPrivatePath(store.path(conversationID), 0o600)
 }
 
 func (store *grantStore) Delete(conversationID string) error {

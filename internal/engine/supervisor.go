@@ -391,23 +391,24 @@ func boundSidecarCrashLine(line string) string {
 }
 
 type Supervisor struct {
-	mu               sync.Mutex
-	probeMu          sync.Mutex
-	process          *childProcess
-	dshProcess       *childProcess
-	sessionKernels   map[string]string
-	sessions         map[string]struct{}
-	probeWaiters     map[string]chan Event
-	silentSessions   map[string]struct{}
-	controlWaiters   map[string]chan Event
-	recoveryWaiters  map[string]map[chan Event]struct{}
-	recoveryFailures map[string]string
-	backgroundTasks  map[string][]BackgroundTask
-	securityTools    []securitytools.RuntimeTool
-	agentResources   func() AgentResourceRuntime
-	workspaceAction  WorkspaceActionHandler
-	emit             func(Event)
-	sidecarDirectory string
+	mu                  sync.Mutex
+	probeMu             sync.Mutex
+	process             *childProcess
+	dshProcess          *childProcess
+	sessionKernels      map[string]string
+	sessions            map[string]struct{}
+	probeWaiters        map[string]chan Event
+	silentSessions      map[string]struct{}
+	controlWaiters      map[string]chan Event
+	recoveryWaiters     map[string]map[chan Event]struct{}
+	recoveryFailures    map[string]string
+	backgroundTasks     map[string][]BackgroundTask
+	securityTools       []securitytools.RuntimeTool
+	agentResources      func() AgentResourceRuntime
+	workspaceAction     WorkspaceActionHandler
+	codingBrowserLookup CodingBrowserLookup
+	emit                func(Event)
+	sidecarDirectory    string
 }
 
 type AgentResourceRuntime struct {
@@ -419,10 +420,18 @@ type AgentResourceRuntime struct {
 
 type WorkspaceActionHandler func(sessionID, action, input string) (string, error)
 
+type CodingBrowserLookup func(sessionID string) (*CodingBrowserDescriptor, bool)
+
 func (s *Supervisor) SetWorkspaceActionHandler(handler WorkspaceActionHandler) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.workspaceAction = handler
+}
+
+func (s *Supervisor) SetCodingBrowserLookup(lookup CodingBrowserLookup) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.codingBrowserLookup = lookup
 }
 
 // BindSessionKernel pins a conversation to Pi or DeepSeek Harness. The first
@@ -780,7 +789,7 @@ func (s *Supervisor) sendMessage(
 	}
 	computerUse, err = normalizeComputerUseDescriptor(computerUse)
 	if err != nil {
-		return err
+		computerUse = nil
 	}
 	if codingPolicy.ExecutionMode != "go" ||
 		codingPolicy.ApprovalPolicy == "read-only" {
@@ -2469,6 +2478,7 @@ func normalizeBridgeEvent(raw bridgeEvent, kernels ...string) Event {
 func (s *Supervisor) handleWorkspaceAction(raw bridgeEvent) {
 	s.mu.Lock()
 	handler := s.workspaceAction
+	lookup := s.codingBrowserLookup
 	process := s.processForSessionLocked(raw.ID)
 	s.mu.Unlock()
 	var result string
@@ -2491,6 +2501,11 @@ func (s *Supervisor) handleWorkspaceAction(raw bridgeEvent) {
 	if err != nil {
 		response["error"] = err.Error()
 		response["ok"] = false
+	}
+	if lookup != nil {
+		if descriptor, ok := lookup(raw.ID); ok && descriptor != nil {
+			response["codingBrowser"] = descriptor
+		}
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()

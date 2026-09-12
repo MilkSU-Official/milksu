@@ -23,6 +23,11 @@ function targetID(value) {
   return String(value?.targetId ?? value?.targetID ?? '')
 }
 
+function isBrowserDevToolsPath(value) {
+  const path = String(value ?? '').split('?')[0]
+  return path === '/devtools/browser' || path.startsWith('/devtools/browser/')
+}
+
 const SCOPE_CHANGING_METHODS = new Set([
   'Target.createTarget',
   'Target.createBrowserContext',
@@ -118,9 +123,9 @@ class ScopedCDPProxy {
       const pagePath = `/devtools/page/${this.allowedTargetId}`
       let upstreamURL
       let browserConnection = false
-      if (request.url === pagePath) {
+      if (request.url === pagePath || request.url.startsWith(`${pagePath}?`)) {
         upstreamURL = target.webSocketDebuggerUrl
-      } else if (request.url === '/devtools/browser') {
+      } else if (isBrowserDevToolsPath(request.url)) {
         const version = await fetchJSON(`${this.upstreamEndpoint}/json/version`)
         upstreamURL = version.webSocketDebuggerUrl
         browserConnection = true

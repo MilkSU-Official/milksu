@@ -9,6 +9,7 @@ import (
 
 	"github.com/MilkSU-Official/milksu/internal/browsercap"
 	"github.com/MilkSU-Official/milksu/internal/codingevidence"
+	"github.com/MilkSU-Official/milksu/internal/engine"
 )
 
 const (
@@ -42,6 +43,22 @@ func (a *App) StartCodingBrowser(
 	a.diagnostics.Record("coding-browser", "info", "isolated Coding browser started")
 	a.emitDesktopEvent("coding-browser.ready", status)
 	return status, nil
+}
+
+func (a *App) lookupCodingBrowserDescriptor(
+	conversationID string,
+) (*engine.CodingBrowserDescriptor, bool) {
+	if a.browserBridge == nil {
+		return nil, false
+	}
+	descriptor, enabled := a.browserBridge.CodingDescriptor(conversationID)
+	if !enabled {
+		return nil, false
+	}
+	return &engine.CodingBrowserDescriptor{
+		SessionID:   descriptor.SessionID,
+		CDPEndpoint: descriptor.CDPEndpoint,
+	}, true
 }
 
 func (a *App) EnsureCodingBrowser(

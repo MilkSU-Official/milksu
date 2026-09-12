@@ -197,6 +197,7 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 	}
 	application.engines = engine.NewSupervisor(application.emitEngineEvent)
 	application.engines.SetWorkspaceActionHandler(application.handleCodingWorkspaceAction)
+	application.engines.SetCodingBrowserLookup(application.lookupCodingBrowserDescriptor)
 	application.engines.SetAgentResourceResolver(func() engine.AgentResourceRuntime {
 		runtime := application.agentResources.Runtime()
 		servers := make(map[string]any, len(runtime.MCPServers))
@@ -1147,11 +1148,8 @@ func (a *App) SendMessage(
 	if strings.TrimSpace(executionMode) != "plan" &&
 		strings.TrimSpace(approvalPolicy) != "read-only" &&
 		a.computerUse != nil {
-		if _, authorized, restoreErr := a.restoreCodingComputerUse(conversationID); restoreErr != nil {
+		if _, _, restoreErr := a.restoreCodingComputerUseImplicit(conversationID); restoreErr != nil {
 			a.diagnostics.Record("computer-use", "warning", "authorized task scope could not be restored")
-			if authorized {
-				return fmt.Errorf("Computer Use 自动恢复失败：%w", restoreErr)
-			}
 		}
 		if descriptor, enabled := a.computerUse.Descriptor(conversationID); enabled {
 			computerUse = &engine.ComputerUseDescriptor{

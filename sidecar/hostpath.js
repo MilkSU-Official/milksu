@@ -26,6 +26,22 @@ export function playwrightSocketRoot(env = process.env, platform = process.platf
   return join(ephemeralRoot(env, platform), "milksu-playwright");
 }
 
+export function codingBrowserDescriptorKey(conversationId) {
+  const id = String(conversationId ?? "").trim();
+  if (!id) return "";
+  return createHash("sha256").update(id).digest("hex").slice(0, 16);
+}
+
+export function codingBrowserDescriptorFile(
+  conversationId,
+  env = process.env,
+  platform = process.platform,
+) {
+  const key = codingBrowserDescriptorKey(conversationId);
+  if (!key) return "";
+  return join(playwrightSocketRoot(env, platform), key, "cdp.json");
+}
+
 export function computerUseSocket(
   sessionId,
   env = process.env,

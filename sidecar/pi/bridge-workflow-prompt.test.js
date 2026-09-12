@@ -30,6 +30,14 @@ test("workflow prompt keeps host facts and omits product-tool essays", () => {
   assert.doesNotMatch(prompt, /Do not scan the user message/);
 });
 
+test("workflow prompt names the isolated browser when Playwright is reserved", () => {
+  const prompt = composeMilkSUWorkflowSystemPrompt("base", {
+    policy: { mcpServers: ["milksu-playwright"], activeTools: [] },
+  });
+  assert.match(prompt, /built-in isolated browser/);
+  assert.match(prompt, /milksu-playwright/);
+});
+
 test("workflow prompt skips optional surfaces that are off", () => {
   const prompt = composeMilkSUWorkflowSystemPrompt("base", {
     sessionRole: "",

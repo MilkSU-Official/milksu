@@ -1,3 +1,7 @@
 *.go text eol=lf
 patches/*.patch text eol=lf
 third_party/cua-driver/patches/*.patch text eol=lf
+# Official plugins are hashed and embedded as bytes. Without an explicit LF
+# rule, a Windows checkout turns them into CRLF, so the generated artifacts
+# look stale and the package digests stop matching the other two platforms.
+plugins/official/** text eol=lf

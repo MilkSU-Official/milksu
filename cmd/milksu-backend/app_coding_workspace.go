@@ -194,6 +194,11 @@ func (a *App) handleCodingWorkspaceAction(conversationID, action, input string) 
 		if panel == "changes" {
 			changePath = strings.TrimSpace(request.Path)
 		}
+		if panel == "browser" {
+			if _, err := a.ensureWorkspaceBrowser(conversationID); err != nil {
+				return "", err
+			}
+		}
 		a.revealCodingWorkspace(conversationID, panel, "", changePath, "")
 		return encodeWorkspaceResult(map[string]any{"panel": panel, "path": changePath})
 	case "list_status":

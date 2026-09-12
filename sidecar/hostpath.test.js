@@ -3,9 +3,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import {
+  codingBrowserDescriptorFile,
+  codingBrowserDescriptorKey,
   computerUseSocket,
   dshProductIpc,
   ephemeralRoot,
+  playwrightSocketRoot,
   unixComputerUseSocket,
   unixDshProductIpc,
 } from "./hostpath.js";
@@ -53,6 +56,16 @@ test("Computer Use unix sockets stay short and under the ephemeral root", () => 
   assert.ok(path.startsWith(ephemeralRoot()));
   assert.ok(Buffer.byteLength(path) <= 103);
   assert.equal(path.includes(`${join("milksu-computer-use", sessionId)}`), false);
+});
+
+test("Coding Browser descriptor file stays under the playwright ephemeral root", () => {
+  const conversationId = "conversation-coding-browser-1";
+  const env = { TMPDIR: "/runtime" };
+  const file = codingBrowserDescriptorFile(conversationId, env, "darwin");
+  const key = codingBrowserDescriptorKey(conversationId);
+  assert.equal(key.length, 16);
+  assert.equal(file, join(playwrightSocketRoot(env, "darwin"), key, "cdp.json"));
+  assert.equal(codingBrowserDescriptorFile(" "), "");
 });
 
 test("Computer Use unix sockets hash the session id when the root is long", () => {

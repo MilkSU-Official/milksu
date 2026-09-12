@@ -5,6 +5,7 @@ import {
   computerUseTool,
   createComputerUseExecutor,
   expectedComputerUseSocket,
+  isComputerUseProxyEntrypoint,
   normalizeComputerUseInput,
   normalizeComputerUseProxyOptions,
   runComputerUseMcpServer,
@@ -77,6 +78,23 @@ test("normalizes only the immutable scoped proxy descriptor", () => {
   ]) {
     assert.throws(() => normalizeComputerUseProxyOptions(argv), /Computer Use/);
   }
+});
+
+test("starts the MCP server from --socket even when argv path casing differs", () => {
+  assert.equal(
+    isComputerUseProxyEntrypoint(
+      ["node", "C:\\Program Files\\MilkSU\\computer-use-proxy.cjs", "--socket", "\\\\.\\pipe\\milksu"],
+      "file:///c:/other/computer-use-proxy.js",
+    ),
+    true,
+  );
+  assert.equal(
+    isComputerUseProxyEntrypoint(
+      ["node", "C:\\Program Files\\MilkSU\\computer-use-proxy.cjs"],
+      "file:///c:/other/computer-use-proxy.js",
+    ),
+    false,
+  );
 });
 
 test("describes a user-selected external app scope instead of MilkSU self-only scope", () => {

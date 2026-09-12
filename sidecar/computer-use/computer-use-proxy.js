@@ -761,8 +761,19 @@ export async function runComputerUseMcpServer({
   await executor.end();
 }
 
-const invokedPath = process.argv[1] ? resolve(process.argv[1]) : "";
-if (invokedPath === fileURLToPath(import.meta.url)) {
+export function isComputerUseProxyEntrypoint(
+  argv = process.argv,
+  moduleUrl = import.meta.url,
+) {
+  if (argv.slice(2).includes("--socket")) {
+    return true;
+  }
+  const invokedPath = argv[1] ? resolve(argv[1]) : "";
+  if (!invokedPath) return false;
+  return invokedPath.toLowerCase() === fileURLToPath(moduleUrl).toLowerCase();
+}
+
+if (isComputerUseProxyEntrypoint()) {
   runComputerUseMcpServer().catch(error => {
     process.stderr.write(
       `MilkSU Computer Use proxy failed: ${error instanceof Error ? error.message : String(error)}\n`,
