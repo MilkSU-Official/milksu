@@ -16,7 +16,7 @@ import { redactProviderCredentials } from '@/lib/redaction'
 import {
   artifactKindLabel,
   buildArtifactHTMLDocument,
-  isPreviewableArtifactPath,
+  isArtifactPathSafe,
   suggestedArtifactPaths,
 } from '@/lib/codingArtifact'
 import { t } from '@/lib/uiLocale'
@@ -109,14 +109,14 @@ async function refresh() {
     error.value = t('请输入工作区内的相对路径。', 'Enter a relative path inside the workspace.')
     return
   }
-  if (!isPreviewableArtifactPath(path)) {
+  if (!isArtifactPathSafe(path)) {
     preview.value = null
-    error.value = t('请输入工作区内支持的 Markdown、HTML、PNG、JPEG、GIF 或 WebP 相对路径。', 'Enter a workspace-relative Markdown, HTML, PNG, JPEG, GIF, or WebP path.')
+    error.value = t('请输入工作区内的相对路径。', 'Enter a relative path inside the workspace.')
     return
   }
   if (!desktopRuntime) {
     preview.value = null
-    error.value = t('浏览器预览不能读取工作区文件；请在打包后的 MilkSU App 中验收真实 Markdown、HTML 或图片产物。', 'Browser preview cannot read workspace files. Review real Markdown, HTML, or image artifacts in the packaged MilkSU app.')
+    error.value = t('浏览器预览不能读取工作区文件；请在打包后的 MilkSU App 中验收真实产物。', 'Browser preview cannot read workspace files. Review real artifacts in the packaged MilkSU app.')
     return
   }
   loading.value = true
@@ -290,6 +290,13 @@ defineExpose({ refresh })
         sandbox=""
         :title="t('Coding HTML 产物预览', 'Coding HTML artifact preview')"
       />
+
+      <div
+        v-else-if="preview.kind === 'text'"
+        class="min-h-0 flex-1 overflow-auto px-4 py-3"
+      >
+        <pre class="whitespace-pre-wrap break-words font-mono text-caption leading-5">{{ redactPreviewText(preview.content ?? '') }}</pre>
+      </div>
 
       <div
         v-else

@@ -148,6 +148,42 @@ func TestGitActionsRefuseUnsafeDiscardAndInvalidInputs(t *testing.T) {
 	}
 }
 
+// A file can carry a staged change and a further unstaged change at once.
+// Discarding restores the working tree from the index, so the staged half must
+// survive. The old refusal told the user to unstage first, which would have
+// destroyed exactly that staged work.
+func TestGitActionsDiscardKeepsTheStagedHalfOfAPartlyStagedFile(t *testing.T) {
+	requireGit(t)
+	workspace := initializedGitFixture(t)
+	tracked := filepath.Join(workspace, "tracked.txt")
+	ctx := context.Background()
+
+	if err := os.WriteFile(tracked, []byte("staged\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ApplyGitAction(ctx, workspace, GitActionStage, "tracked.txt", ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(tracked, []byte("staged\nunstaged\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	discarded, err := ApplyGitAction(ctx, workspace, GitActionDiscardWork, "tracked.txt", "")
+	if err != nil {
+		t.Fatalf("partly staged discard was refused: %v", err)
+	}
+	content, err := os.ReadFile(tracked)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(content) != "staged\n" {
+		t.Fatalf("discard did not restore the index content: %q", content)
+	}
+	if discarded.Snapshot.Git.Staged != 1 {
+		t.Fatalf("discard dropped the staged change: %#v", discarded.Snapshot.Git)
+	}
+}
+
 func TestGitHunkActionsStageUnstageAndDiscardExactCurrentHunks(t *testing.T) {
 	requireGit(t)
 	workspace := initializedMultiHunkGitFixture(t)

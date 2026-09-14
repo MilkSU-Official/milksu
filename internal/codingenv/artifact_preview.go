@@ -54,9 +54,14 @@ func InspectArtifactPreview(workspace, relativePath string) (ArtifactPreview, er
 		preview.Kind = "image"
 		limit = maxArtifactImagePreviewBytes
 	default:
-		return ArtifactPreview{}, errors.New(
-			"artifact preview supports Markdown, HTML, PNG, JPEG, GIF, and WebP files",
-		)
+		// Markdown, HTML and images need their own rendering, so they are named
+		// above. Everything else is read on the same plain-text path, which
+		// already rejects anything that is not valid UTF-8. An agent's ordinary
+		// output is report.txt, results.json, bench.csv or out.log, and an
+		// extension allowlist here only hid those behind an error.
+		preview.Kind = "text"
+		preview.MediaType = "text/plain"
+		limit = maxArtifactTextPreviewBytes
 	}
 
 	file, err := os.Open(absolute)

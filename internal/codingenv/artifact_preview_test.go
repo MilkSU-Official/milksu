@@ -38,6 +38,38 @@ func TestInspectArtifactPreviewReadsMarkdownAndHTML(t *testing.T) {
 	}
 }
 
+// An agent's ordinary deliverable is a text file that is not Markdown. Those
+// read on the same plain-text path instead of being refused for their
+// extension.
+func TestInspectArtifactPreviewReadsOrdinaryTextOutput(t *testing.T) {
+	workspace := t.TempDir()
+	for _, relative := range []string{
+		"results.json",
+		"out.log",
+		"bench.csv",
+		"changes.diff",
+		"notes.txt",
+		"diagram.svg",
+		"src/main.go",
+	} {
+		absolute := filepath.Join(workspace, filepath.FromSlash(relative))
+		if err := os.MkdirAll(filepath.Dir(absolute), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(absolute, []byte("payload\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		preview, err := InspectArtifactPreview(workspace, relative)
+		if err != nil {
+			t.Fatalf("preview %s: %v", relative, err)
+		}
+		if preview.Kind != "text" || preview.MediaType != "text/plain" ||
+			preview.Content != "payload\n" || preview.DataURL != "" {
+			t.Fatalf("unexpected text preview for %s: %#v", relative, preview)
+		}
+	}
+}
+
 func TestInspectArtifactPreviewReturnsSignatureCheckedImageData(t *testing.T) {
 	workspace := t.TempDir()
 	relative := "output/screenshot.png"
@@ -68,13 +100,13 @@ func TestInspectArtifactPreviewRejectsEscapesUnsupportedAndSpoofedFiles(t *testi
 		}
 	}
 
-	unsupported := filepath.Join(workspace, "output.svg")
-	if err := os.WriteFile(unsupported, []byte("<svg/>"), 0o600); err != nil {
+	binary := filepath.Join(workspace, "out.bin")
+	if err := os.WriteFile(binary, []byte{'M', 'Z', 0x00, 0x01}, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := InspectArtifactPreview(workspace, "output.svg"); err == nil ||
-		!strings.Contains(err.Error(), "supports Markdown") {
-		t.Fatalf("expected unsupported extension rejection, got %v", err)
+	if _, err := InspectArtifactPreview(workspace, "out.bin"); err == nil ||
+		!strings.Contains(err.Error(), "valid UTF-8") {
+		t.Fatalf("expected unreadable binary rejection, got %v", err)
 	}
 
 	spoofed := filepath.Join(workspace, "spoofed.png")

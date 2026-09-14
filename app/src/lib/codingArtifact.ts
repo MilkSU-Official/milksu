@@ -5,16 +5,29 @@ import type {
   CodingEnvironmentSnapshot,
 } from '@/codingEnvironmentTypes'
 
-const previewableExtensions = new Set([
+// Preview accepts any UTF-8 file. This narrower set only decides which changed
+// paths become candidate chips, so it stays on the formats an agent writes as a
+// deliverable rather than every touched source file. Keep it in step with
+// suggestedArtifactExtensions in internal/codingenv/artifact_list.go.
+const suggestedExtensions = new Set([
+  '.csv',
+  '.diff',
   '.gif',
   '.htm',
   '.html',
   '.jpeg',
   '.jpg',
+  '.json',
+  '.log',
   '.markdown',
   '.md',
+  '.patch',
   '.png',
+  '.txt',
   '.webp',
+  '.xml',
+  '.yaml',
+  '.yml',
 ])
 
 const safeEmbeddedImage = /^data:image\/(?:png|jpeg|gif|webp);base64,/i
@@ -31,7 +44,10 @@ const resourceAttributes = [
   'xlink:href',
 ]
 
-export function isPreviewableArtifactPath(path: string): boolean {
+// The preview gate is path safety only. Which formats render is the desktop
+// runtime's answer, and it reports an unreadable file as an error rather than
+// leaving the control refusing paths the backend would have accepted.
+export function isArtifactPathSafe(path: string): boolean {
   const trimmed = path.trim()
   if (
     !trimmed
@@ -41,11 +57,14 @@ export function isPreviewableArtifactPath(path: string): boolean {
   ) {
     return false
   }
-  const segments = trimmed.split(/[\\/]+/)
-  if (segments.some(segment => segment === '..')) return false
-  const normalized = trimmed.toLowerCase()
+  return !trimmed.split(/[\\/]+/).some(segment => segment === '..')
+}
+
+export function isSuggestedArtifactPath(path: string): boolean {
+  if (!isArtifactPathSafe(path)) return false
+  const normalized = path.trim().toLowerCase()
   const separator = normalized.lastIndexOf('.')
-  return separator >= 0 && previewableExtensions.has(normalized.slice(separator))
+  return separator >= 0 && suggestedExtensions.has(normalized.slice(separator))
 }
 
 export function suggestedArtifactPaths(
@@ -55,7 +74,7 @@ export function suggestedArtifactPaths(
   return (environment?.git.changes ?? [])
     .map(change => change.path)
     .filter(path => {
-      if (!path || seen.has(path) || !isPreviewableArtifactPath(path)) return false
+      if (!path || seen.has(path) || !isSuggestedArtifactPath(path)) return false
       seen.add(path)
       return true
     })
@@ -65,6 +84,7 @@ export function suggestedArtifactPaths(
 export function artifactKindLabel(kind: CodingArtifactPreview['kind']): string {
   if (kind === 'markdown') return 'Markdown'
   if (kind === 'html') return 'HTML'
+  if (kind === 'text') return t('文本', 'Text')
   return t('图片', 'Image')
 }
 

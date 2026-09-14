@@ -3,13 +3,14 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildArtifactHTMLDocument,
-  isPreviewableArtifactPath,
+  isArtifactPathSafe,
+  isSuggestedArtifactPath,
   suggestedArtifactPaths,
 } from '@/lib/codingArtifact'
 import type { CodingEnvironmentSnapshot } from '@/codingEnvironmentTypes'
 
 describe('Coding artifact previews', () => {
-  it('only suggests supported changed artifacts', () => {
+  it('only suggests deliverable changed artifacts', () => {
     const environment = {
       workspace: '/tmp/project',
       workspaceName: 'project',
@@ -40,7 +41,13 @@ describe('Coding artifact previews', () => {
       'site/index.HTML',
       'capture.png',
     ])
-    expect(isPreviewableArtifactPath('diagram.svg')).toBe(false)
+    // A touched source file is not offered as a chip, but the preview gate is
+    // path safety only: the desktop runtime decides what it can render.
+    expect(isSuggestedArtifactPath('src/main.go')).toBe(false)
+    expect(isSuggestedArtifactPath('diagram.svg')).toBe(false)
+    expect(isSuggestedArtifactPath('results.json')).toBe(true)
+    expect(isArtifactPathSafe('src/main.go')).toBe(true)
+    expect(isArtifactPathSafe('diagram.svg')).toBe(true)
   })
 
   it('does not suggest unsafe artifact paths even when the extension is supported', () => {
@@ -72,9 +79,10 @@ describe('Coding artifact previews', () => {
     } satisfies CodingEnvironmentSnapshot
 
     expect(suggestedArtifactPaths(environment)).toEqual(['safe/result.webp'])
-    expect(isPreviewableArtifactPath('../outside.md')).toBe(false)
-    expect(isPreviewableArtifactPath('/tmp/outside.html')).toBe(false)
-    expect(isPreviewableArtifactPath('nested\\..\\outside.jpg')).toBe(false)
+    expect(isArtifactPathSafe('../outside.md')).toBe(false)
+    expect(isArtifactPathSafe('/tmp/outside.html')).toBe(false)
+    expect(isArtifactPathSafe('nested\\..\\outside.jpg')).toBe(false)
+    expect(isArtifactPathSafe('nested/../../outside.png')).toBe(false)
   })
 
   it('removes active content and all external resource attributes from HTML', () => {

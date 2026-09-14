@@ -208,7 +208,7 @@ export interface CodingPullRequestPublishResult {
 
 export interface CodingArtifactPreview {
   relativePath: string
-  kind: 'markdown' | 'html' | 'image'
+  kind: 'markdown' | 'html' | 'image' | 'text'
   mediaType: string
   content?: string
   dataUrl?: string

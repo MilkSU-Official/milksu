@@ -2,18 +2,31 @@ package codingenv
 
 import "testing"
 
-func TestSuggestedArtifactPathsKeepsPreviewableGitChanges(t *testing.T) {
+func TestSuggestedArtifactPathsKeepsDeliverableGitChanges(t *testing.T) {
 	paths := SuggestedArtifactPaths(Snapshot{
 		Git: GitStatus{
 			Changes: []GitChange{
 				{Path: "README.md"},
 				{Path: "src/app.ts"},
 				{Path: "docs/preview.html"},
+				{Path: "results.json"},
+				{Path: "out.log"},
 				{Path: "README.md"},
 			},
 		},
 	})
-	if len(paths) != 2 || paths[0] != "README.md" || paths[1] != "docs/preview.html" {
+	expected := []string{
+		"README.md",
+		"docs/preview.html",
+		"results.json",
+		"out.log",
+	}
+	if len(paths) != len(expected) {
 		t.Fatalf("paths = %#v", paths)
+	}
+	for index, path := range expected {
+		if paths[index] != path {
+			t.Fatalf("paths = %#v", paths)
+		}
 	}
 }

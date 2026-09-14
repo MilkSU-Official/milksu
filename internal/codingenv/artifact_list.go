@@ -5,16 +5,28 @@ import (
 	"strings"
 )
 
-var previewableArtifactExtensions = map[string]struct{}{
+// Preview itself accepts any UTF-8 file. This narrower set only decides which
+// changed paths are offered as candidate chips, so it stays on the formats an
+// agent writes as a deliverable rather than every touched source file.
+var suggestedArtifactExtensions = map[string]struct{}{
+	".csv":      {},
+	".diff":     {},
 	".gif":      {},
 	".htm":      {},
 	".html":     {},
 	".jpeg":     {},
 	".jpg":      {},
+	".json":     {},
+	".log":      {},
 	".markdown": {},
 	".md":       {},
+	".patch":    {},
 	".png":      {},
+	".txt":      {},
 	".webp":     {},
+	".xml":      {},
+	".yaml":     {},
+	".yml":      {},
 }
 
 func SuggestedArtifactPaths(snapshot Snapshot) []string {
@@ -28,7 +40,7 @@ func SuggestedArtifactPaths(snapshot Snapshot) []string {
 		if _, exists := seen[path]; exists {
 			continue
 		}
-		if _, ok := previewableArtifactExtensions[strings.ToLower(filepath.Ext(path))]; !ok {
+		if _, ok := suggestedArtifactExtensions[strings.ToLower(filepath.Ext(path))]; !ok {
 			continue
 		}
 		seen[path] = struct{}{}

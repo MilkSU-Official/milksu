@@ -315,9 +315,11 @@ func discardWorkingTreeChange(
 	if selected.Untracked {
 		return errors.New("untracked files are not deleted by this action")
 	}
-	if selected.Staged {
-		return errors.New("unstage this file before discarding its working-tree change")
-	}
+	// A file can hold both a staged and an unstaged change. restore --worktree
+	// rewrites the working tree from the index, so it drops only the unstaged
+	// half and leaves the staged half intact. Refusing here used to send the
+	// user to unstage first, which moves the index back to HEAD and makes the
+	// following discard destroy the staged work this check claimed to protect.
 	if !selected.Modified {
 		return errors.New("selected file has no unstaged working-tree change")
 	}
