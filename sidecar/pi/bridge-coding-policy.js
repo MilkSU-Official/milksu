@@ -162,7 +162,7 @@ export function normalizeCodingPolicy(
         id: "collaboration",
         label: "多 Agent 协作",
         status: "unavailable",
-        detail: "Agent 会在干净 Git 任务首次执行时自动准备隔离环境；委托跟随当前 Coding 权限档位。",
+        detail: "模型委托写入角色时才从当前提交准备隔离工作树，不要求主工作区干净且未提交改动不进入；委托跟随当前 Coding 权限档位。",
       },
     ],
   };

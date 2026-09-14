@@ -1574,7 +1574,8 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}, sessionRole
                         ? "当前权限档会自动执行通过边界校验的委托。"
                         : "当前请求批准档会逐次展示角色和任务。")
                   : "可用只读子 Agent（scout / planner / reviewer / security-auditor）。"
-                    + "委托写入角色时会为干净 Git 任务准备隔离工作树。"
+                    + "委托写入角色时会从当前提交准备隔离工作树；"
+                    + "不要求主工作区干净，未提交改动也不进入工作树。"
                 : "当前 Plan、只读或一键产品动作不会加载多 Agent；切换到普通 Go 后可用。",
             }
           : capability
