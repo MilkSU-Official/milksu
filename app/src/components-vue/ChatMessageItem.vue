@@ -357,9 +357,10 @@ const thinkingRows = computed(() => (
     .map(line => line.trim())
     .filter(Boolean)
 ))
-// Long thinking collapses by default so the streaming body never enters the
-// DOM; short thinking keeps the old inline behaviour. The length check short
-// circuits first, so the row scan never runs on a long streaming body.
+// Long thinking collapses by default; short thinking stays open while it is
+// still streaming and no conclusion has started. The panel stays mounted so
+// the 300ms grid / opacity expand can run. The length check short-circuits
+// first, so the row scan never runs on a long streaming body.
 const thinkingCollapsible = computed(() => {
   const text = String(props.message.thinking ?? '')
   if (text.length >= THINKING_COLLAPSE_CHARS) return true
@@ -600,7 +601,11 @@ const approvalKicker = computed(() => (
           <path d="M6 9l6 6 6-6" />
         </svg>
       </button>
-      <div v-if="thinkOpen" class="agent-think__more" data-open="true">
+      <div
+        class="agent-think__more"
+        :data-open="thinkOpen ? 'true' : 'false'"
+        :aria-hidden="!thinkOpen"
+      >
         <div class="agent-think__more-inner">
           <p
             v-for="(row, index) in thinkingRows"
