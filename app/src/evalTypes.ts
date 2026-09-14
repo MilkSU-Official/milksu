@@ -2,6 +2,7 @@ export interface EvalModelRef {
   provider: string
   model: string
   source?: string
+  kernel?: string
 }
 
 export interface EvalActivityStep {
@@ -20,6 +21,15 @@ export interface EvalScoreRecord {
   score: number
   curve?: number[]
   runs?: number[]
+  medianTimeMs?: number
+  totalTimeMs?: number
+  inputTokens?: number
+  outputTokens?: number
+  cacheReadTokens?: number
+  cacheWriteTokens?: number
+  totalTokens?: number
+  costUsd?: number
+  cacheHitPct?: number
   updatedAt: number
 }
 
@@ -46,8 +56,10 @@ export interface EvalSuiteView {
   id: string
   name: string
   purpose: string
+  group?: string
   runnable: boolean
   taskN: number
+  missing?: string
 }
 
 export interface EvalBoardModel {
@@ -58,6 +70,10 @@ export interface EvalBoardModel {
   total: number
   curve?: number[]
   runs?: number[]
+  medianTimeMs?: number
+  totalTokens?: number
+  costUsd?: number
+  cacheHitPct?: number
 }
 
 export interface EvalSuiteBoard {

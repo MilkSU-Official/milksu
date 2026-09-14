@@ -96,6 +96,67 @@ func TestSnapshotSkipsEmptyCatalogModels(t *testing.T) {
 	}
 }
 
+func TestFrontierSmokePicksOneTerminalAndOneDeepSWE(t *testing.T) {
+	t.Parallel()
+	tasks := TasksForRun(SuiteFrontier, true)
+	if len(tasks) != 2 {
+		t.Fatalf("smoke: %+v", tasks)
+	}
+	if tasks[0].Source != "terminal-bench" || tasks[1].Source != "deepswe" {
+		t.Fatalf("smoke sources: %+v %+v", tasks[0], tasks[1])
+	}
+}
+
+func TestRankAheadPrefersPassThenCostThenTime(t *testing.T) {
+	t.Parallel()
+	high := ScoreRecord{Score: 80, CostUSD: 4, MedianTimeMS: 1000}
+	cheap := ScoreRecord{Score: 80, CostUSD: 1, MedianTimeMS: 5000}
+	fast := ScoreRecord{Score: 60, MedianTimeMS: 100}
+	if !rankAhead(cheap, high) {
+		t.Fatal("same pass rate should rank lower cost first")
+	}
+	if rankAhead(fast, cheap) {
+		t.Fatal("lower pass rate should not outrank")
+	}
+}
+
+func TestSnapshotKeepsHarnessRowsOnTheBoard(t *testing.T) {
+	t.Parallel()
+	store, err := NewStoreAt(filepath.Join(t.TempDir(), "board.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewServiceAt(store, t.TempDir(), nil, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pi := ModelRef{Provider: "tokenflux", Model: "grok-4.6", Kernel: KernelPi}
+	dsh := ModelRef{Provider: "tokenflux", Model: "grok-4.6", Kernel: KernelDSH}
+	if err := store.PutScore(SuiteFrontier, ScoreRecord{
+		Model: pi, Solved: 18, Total: 30, Score: 60, MedianTimeMS: 400000, CostUSD: 2.4, CacheHitPct: 79,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.PutScore(SuiteFrontier, ScoreRecord{
+		Model: dsh, Solved: 19, Total: 30, Score: 63.3, MedianTimeMS: 404000, CostUSD: 3.28, CacheHitPct: 84,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	board, err := service.Snapshot(SuiteFrontier, []ModelRef{pi, dsh})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(board.Models) != 2 {
+		t.Fatalf("models: %+v", board.Models)
+	}
+	if board.Models[0].Model.Kernel != KernelDSH || board.Models[0].Rank == nil || *board.Models[0].Rank != 1 {
+		t.Fatalf("lead: %+v", board.Models[0])
+	}
+	if board.Models[0].CostUSD != 3.28 || board.Models[1].CacheHitPct != 79 {
+		t.Fatalf("metrics: %+v", board.Models)
+	}
+}
+
 func TestSnapshotReturnsEverySuiteBoard(t *testing.T) {
 	t.Parallel()
 	store, err := NewStoreAt(filepath.Join(t.TempDir(), "board.json"))
@@ -122,7 +183,7 @@ func TestSnapshotReturnsEverySuiteBoard(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(board.All) != 3 {
+	if len(board.All) != 5 {
 		t.Fatalf("all suites: %+v", board.All)
 	}
 	byID := map[string]SuiteBoard{}

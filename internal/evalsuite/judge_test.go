@@ -35,16 +35,30 @@ func TestTaskBankHasFullLocalSets(t *testing.T) {
 func TestSuitesAreRunnable(t *testing.T) {
 	t.Parallel()
 	suites := Suites()
-	if len(suites) != 3 {
+	if len(suites) != 5 {
 		t.Fatalf("suites: %d", len(suites))
 	}
+	byID := map[string]SuiteView{}
 	for _, suite := range suites {
-		if !suite.Runnable || suite.TaskN < 1 {
-			t.Fatalf("%s not runnable: %+v", suite.ID, suite)
-		}
+		byID[suite.ID] = suite
 		if len(TasksFor(suite.ID)) != suite.TaskN {
 			t.Fatalf("%s task count", suite.ID)
 		}
+	}
+	for _, id := range []string{SuiteCybench, SuiteSECBench, SuiteAutoPen} {
+		suite := byID[id]
+		if !suite.Runnable || suite.TaskN < 1 {
+			t.Fatalf("%s not runnable: %+v", id, suite)
+		}
+	}
+	if byID[SuiteFrontier].TaskN != 30 {
+		t.Fatalf("frontier: %+v", byID[SuiteFrontier])
+	}
+	if byID[SuiteCyberGym].TaskN != 10 {
+		t.Fatalf("cybergym: %+v", byID[SuiteCyberGym])
+	}
+	if byID[SuiteFrontier].Group != GroupHarness || byID[SuiteCyberGym].Group != GroupSecurity {
+		t.Fatalf("groups: %+v", byID)
 	}
 }
 

@@ -1,0 +1,10 @@
+FrontierHarness local task pack
+
+Task prompts follow the frozen FrontierHarness Eval v1 30-task set.
+Terminal-Bench 2.1 tasks and hidden tests: Apache-2.0,
+https://github.com/harbor-framework/terminal-bench-2-1
+DeepSWE v1.1 tasks and hidden verifier tests: Apache-2.0,
+https://github.com/datacurve-ai/deep-swe
+
+Hidden tests stay in the verifier path. They are not copied into the
+agent workspace.

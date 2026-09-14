@@ -56,6 +56,15 @@ Third-party software includes, without limitation:
 - Vulhub Struts2 S2-045 (vulhub/struts2). Image used as a digest-pinned
   local reproduction target; upstream project licensing remains with Vulhub.
 - traefik/whoami. MIT. Digest-pinned Docker image used as a Linux lab target.
+- Terminal-Bench 2.1. Apache-2.0. https://github.com/harbor-framework/terminal-bench-2-1
+  Frozen FrontierHarness prompts and hidden verifier tests for the 21
+  terminal-bench tasks. Tests stay on the verifier path.
+- DeepSWE v1.1. Apache-2.0. https://github.com/datacurve-ai/deep-swe
+  Frozen FrontierHarness prompts and hidden verifier tests for the 9
+  DeepSWE tasks. Tests stay on the verifier path.
+- CyberGym. Apache-2.0. https://github.com/sunblaze-ucb/cybergym
+  Official 10-task subset IDs for local evaluation. Benchmark data is
+  downloaded on demand and is not vendored.
 
 Font files remain under the SIL Open Font License and are not relicensed by
 MilkSU's AGPL-3.0-only grant.

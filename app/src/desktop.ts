@@ -194,6 +194,8 @@ interface DesktopAppBindings {
     provider: string
     model: string
     source?: string
+    kernel?: string
+    smoke?: boolean
     models?: EvalModelRef[]
   }): Promise<EvalBoardSnapshot>
   StopEvalRun(): Promise<EvalBoardSnapshot>
@@ -1012,6 +1014,8 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
           provider: args?.provider as string,
           model: args?.model as string,
           source: args?.source as string | undefined,
+          kernel: args?.kernel as string | undefined,
+          smoke: args?.smoke as boolean | undefined,
           models: args?.models as EvalModelRef[] | undefined,
         }) as Promise<T>
       case 'stop_eval_run':

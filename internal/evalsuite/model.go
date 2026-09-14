@@ -9,6 +9,14 @@ const (
 	SuiteCybench  = "cybench"
 	SuiteSECBench = "sec-bench"
 	SuiteAutoPen  = "autopen"
+	SuiteFrontier = "frontier-harness"
+	SuiteCyberGym = "cybergym"
+
+	GroupSecurity = "security"
+	GroupHarness  = "harness"
+
+	KernelPi  = "pi"
+	KernelDSH = "dsh"
 
 	StateIdle     = "idle"
 	StateRunning  = "running"
@@ -24,14 +32,24 @@ type ModelRef struct {
 	Provider string `json:"provider"`
 	Model    string `json:"model"`
 	Source   string `json:"source,omitempty"`
+	Kernel   string `json:"kernel,omitempty"`
 }
 
 func (m ModelRef) Key() string {
-	return m.Provider + "::" + m.Model
+	return NormalizeKernel(m.Kernel) + "::" + m.Provider + "::" + m.Model
 }
 
 func (m ModelRef) usable() bool {
 	return strings.TrimSpace(m.Provider) != "" && strings.TrimSpace(m.Model) != ""
+}
+
+func NormalizeKernel(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case KernelDSH, "deepseek", "deepseek-harness":
+		return KernelDSH
+	default:
+		return KernelPi
+	}
 }
 
 type ActivityStep struct {
@@ -44,13 +62,22 @@ type ActivityStep struct {
 }
 
 type ScoreRecord struct {
-	Model     ModelRef  `json:"model"`
-	Solved    int       `json:"solved"`
-	Total     int       `json:"total"`
-	Score     float64   `json:"score"`
-	Curve     []float64 `json:"curve,omitempty"`
-	Runs      []float64 `json:"runs,omitempty"`
-	UpdatedAt int64     `json:"updatedAt"`
+	Model        ModelRef  `json:"model"`
+	Solved       int       `json:"solved"`
+	Total        int       `json:"total"`
+	Score        float64   `json:"score"`
+	Curve        []float64 `json:"curve,omitempty"`
+	Runs         []float64 `json:"runs,omitempty"`
+	MedianTimeMS int64     `json:"medianTimeMs,omitempty"`
+	TotalTimeMS  int64     `json:"totalTimeMs,omitempty"`
+	InputTokens  int64     `json:"inputTokens,omitempty"`
+	OutputTokens int64     `json:"outputTokens,omitempty"`
+	CacheRead    int64     `json:"cacheReadTokens,omitempty"`
+	CacheWrite   int64     `json:"cacheWriteTokens,omitempty"`
+	TotalTokens  int64     `json:"totalTokens,omitempty"`
+	CostUSD      float64   `json:"costUsd,omitempty"`
+	CacheHitPct  float64   `json:"cacheHitPct,omitempty"`
+	UpdatedAt    int64     `json:"updatedAt"`
 }
 
 type Progress struct {
@@ -76,18 +103,24 @@ type SuiteView struct {
 	ID       string `json:"id"`
 	Name     string `json:"name"`
 	Purpose  string `json:"purpose"`
+	Group    string `json:"group,omitempty"`
 	Runnable bool   `json:"runnable"`
 	TaskN    int    `json:"taskN"`
+	Missing  string `json:"missing,omitempty"`
 }
 
 type BoardModel struct {
-	Model  ModelRef  `json:"model"`
-	Score  *float64  `json:"score"`
-	Rank   *int      `json:"rank"`
-	Solved *int      `json:"solved"`
-	Total  int       `json:"total"`
-	Curve  []float64 `json:"curve,omitempty"`
-	Runs   []float64 `json:"runs,omitempty"`
+	Model        ModelRef  `json:"model"`
+	Score        *float64  `json:"score"`
+	Rank         *int      `json:"rank"`
+	Solved       *int      `json:"solved"`
+	Total        int       `json:"total"`
+	Curve        []float64 `json:"curve,omitempty"`
+	Runs         []float64 `json:"runs,omitempty"`
+	MedianTimeMS int64     `json:"medianTimeMs,omitempty"`
+	TotalTokens  int64     `json:"totalTokens,omitempty"`
+	CostUSD      float64   `json:"costUsd,omitempty"`
+	CacheHitPct  float64   `json:"cacheHitPct,omitempty"`
 }
 
 type SuiteBoard struct {
@@ -109,6 +142,8 @@ type StartRequest struct {
 	Provider string     `json:"provider"`
 	Model    string     `json:"model"`
 	Source   string     `json:"source"`
+	Kernel   string     `json:"kernel,omitempty"`
+	Smoke    bool       `json:"smoke,omitempty"`
 	Models   []ModelRef `json:"models,omitempty"`
 }
 

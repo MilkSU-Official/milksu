@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/MilkSU-Official/milksu/internal/evalsuite/tasks"
 )
@@ -16,6 +17,7 @@ const (
 	KindFlag       = "flag"
 	KindSanitizer  = "sanitizer"
 	KindMilestones = "milestones"
+	KindDocker     = "docker"
 )
 
 type Milestone struct {
@@ -26,40 +28,89 @@ type Milestone struct {
 }
 
 type Task struct {
-	ID           string
-	Suite        string
-	Name         string
-	Kind         string
-	Difficulty   float64
-	Prompt       string
-	FlagSHA256   string
-	Files        map[string][]byte
-	Patch        []byte
-	PoCFile      string
-	VulnSource   string
-	Milestones   []Milestone
-	StartHarness bool
+	ID              string
+	Suite           string
+	Name            string
+	Kind            string
+	Source          string
+	Slug            string
+	Difficulty      float64
+	Prompt          string
+	FlagSHA256      string
+	Files           map[string][]byte
+	Patch           []byte
+	PoCFile         string
+	VulnSource      string
+	Milestones      []Milestone
+	StartHarness    bool
+	DockerImage     string
+	CPUs            float64
+	MemoryMB        int
+	StorageMB       int
+	Timeout         time.Duration
+	VerifierTimeout time.Duration
+	TestsDir        string
+	CollectCommand  string
 }
 
 func Suites() []SuiteView {
+	dockerErr := dockerAvailable()
+	frontier := frontierTasks()
+	cybergym := cybergymTasks()
+	frontierMissing := ""
+	frontierOK := len(frontier) > 0 && dockerErr == nil
+	if dockerErr != nil {
+		frontierMissing = dockerErr.Error()
+	}
+	gymMissing := ""
+	gymOK := false
+	if dockerErr != nil {
+		gymMissing = dockerErr.Error()
+	} else if !cybergymDataReady() {
+		gymMissing = "需要先准备官方 10 题子集"
+	} else {
+		gymOK = len(cybergym) > 0
+	}
 	return []SuiteView{
-		{ID: SuiteCybench, Name: "Cybench", Purpose: "CTF 题", Runnable: len(cybenchTasks()) > 0, TaskN: len(cybenchTasks())},
-		{ID: SuiteSECBench, Name: "SEC-bench", Purpose: "已知洞复现", Runnable: len(secbenchTasks()) > 0, TaskN: len(secbenchTasks())},
-		{ID: SuiteAutoPen, Name: "AutoPenBench", Purpose: "授权渗透", Runnable: len(autopenTasks()) > 0, TaskN: len(autopenTasks())},
+		{ID: SuiteCybench, Name: "Cybench", Purpose: "CTF 题", Group: GroupSecurity, Runnable: len(cybenchTasks()) > 0, TaskN: len(cybenchTasks())},
+		{ID: SuiteSECBench, Name: "SEC-bench", Purpose: "已知洞复现", Group: GroupSecurity, Runnable: len(secbenchTasks()) > 0, TaskN: len(secbenchTasks())},
+		{ID: SuiteAutoPen, Name: "AutoPenBench", Purpose: "授权渗透", Group: GroupSecurity, Runnable: len(autopenTasks()) > 0, TaskN: len(autopenTasks())},
+		{ID: SuiteCyberGym, Name: "CyberGym", Purpose: "真实漏洞 PoC", Group: GroupSecurity, Runnable: gymOK, TaskN: len(cybergym), Missing: gymMissing},
+		{ID: SuiteFrontier, Name: "FrontierHarness", Purpose: "Harness 工程任务", Group: GroupHarness, Runnable: frontierOK, TaskN: len(frontier), Missing: frontierMissing},
 	}
 }
 
 func TasksFor(suite string) []Task {
+	return tasksFor(suite, false)
+}
+
+func TasksForRun(suite string, smoke bool) []Task {
+	return tasksFor(suite, smoke)
+}
+
+func tasksFor(suite string, smoke bool) []Task {
+	var loaded []Task
 	switch suite {
 	case SuiteCybench:
-		return cybenchTasks()
+		loaded = cybenchTasks()
 	case SuiteSECBench:
-		return secbenchTasks()
+		loaded = secbenchTasks()
 	case SuiteAutoPen:
-		return autopenTasks()
+		loaded = autopenTasks()
+	case SuiteFrontier:
+		loaded = frontierTasks()
+	case SuiteCyberGym:
+		loaded = cybergymTasks()
 	default:
 		return nil
 	}
+	if !smoke || len(loaded) <= 2 {
+		return loaded
+	}
+	if suite == SuiteFrontier {
+		return frontierSmoke(loaded)
+	}
+	return loaded[:2]
 }
 
 type taskFile struct {
