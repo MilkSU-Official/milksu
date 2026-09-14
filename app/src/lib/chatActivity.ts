@@ -325,28 +325,92 @@ export function buildChatTranscript(
   return foldChatTranscriptProcess(blocks)
 }
 
-function isConcludingAssistant(block: ChatTurnBlock) {
-  return block.kind === 'message'
-    && block.message.role === 'assistant'
-    && Boolean(block.message.content?.trim())
+export function isThinkingOnlyAssistant(message: Message) {
+  if (message.role !== 'assistant') return false
+  if (String(message.content ?? '').trim()) return false
+  return Boolean(String(message.thinking ?? '').trim()) || message.thinkingStatus === 'running'
 }
 
-function foldTurnProcess(turn: ChatTurnBlock[]): ChatTranscriptBlock[] {
-  let last = -1
-  for (let index = 0; index < turn.length; index += 1) {
-    if (isConcludingAssistant(turn[index]!)) last = index
+function isLiveThinking(message: Message) {
+  return isThinkingOnlyAssistant(message) && message.thinkingStatus === 'running'
+}
+
+function isFoldableTurnBlock(block: ChatTurnBlock) {
+  if (block.kind === 'activity') return !block.running
+  if (isApproval(block.message)) return false
+  if (block.message.role === 'assistant' && String(block.message.content ?? '').trim()) return false
+  if (isLiveThinking(block.message)) return false
+  return isThinkingOnlyAssistant(block.message)
+}
+
+export function mergeProcessThinking(blocks: readonly ChatTurnBlock[]): Message | null {
+  const thoughts = blocks.flatMap(block => (
+    block.kind === 'message' && isThinkingOnlyAssistant(block.message)
+      ? [block.message]
+      : []
+  ))
+  if (!thoughts.length) return null
+  const text = thoughts
+    .map(item => String(item.thinking ?? '').trim())
+    .filter(Boolean)
+    .join('\n\n')
+  const durationMs = thoughts.reduce((sum, item) => sum + Math.max(0, item.thinkingDurationMs ?? 0), 0)
+  return {
+    id: `process-thinking:${thoughts[0]!.id}`,
+    role: 'assistant',
+    content: '',
+    timestamp: thoughts[0]!.timestamp,
+    status: 'done',
+    thinking: text,
+    thinkingStatus: 'done',
+    thinkingDurationMs: durationMs,
   }
-  if (last <= 0) return turn
-  const intermediates = turn.slice(0, last)
-  if (!intermediates.length) return turn.slice(last)
-  return [
-    {
+}
+
+export function processFoldStepCount(blocks: readonly ChatTurnBlock[]): number {
+  let count = 0
+  for (const block of blocks) {
+    if (block.kind !== 'activity') continue
+    count += Math.max(1, buildChatActivityEntries(block.messages).length)
+  }
+  return count
+}
+
+function flushFoldableTurn(
+  output: ChatTranscriptBlock[],
+  foldables: ChatTurnBlock[],
+) {
+  if (!foldables.length) return
+  const hasActivity = foldables.some(block => block.kind === 'activity')
+  if (hasActivity) {
+    output.push({
       kind: 'process',
-      id: `process:${intermediates[0]!.id}`,
-      blocks: intermediates,
-    },
-    ...turn.slice(last),
-  ]
+      id: `process:${foldables[0]!.id}`,
+      blocks: foldables.slice(),
+    })
+    return
+  }
+  const merged = mergeProcessThinking(foldables)
+  if (merged) output.push(messageBlock(merged))
+}
+
+// Completed thinking and finished tool groups go into 过程. Assistant text
+// with content stays in the open thread (staged results). Only the live
+// thinking row or a still-running tool group remains visible as work-in-progress.
+function foldTurnProcess(turn: ChatTurnBlock[]): ChatTranscriptBlock[] {
+  const output: ChatTranscriptBlock[] = []
+  let foldables: ChatTurnBlock[] = []
+  for (const block of turn) {
+    if (isFoldableTurnBlock(block)) {
+      foldables.push(block)
+      continue
+    }
+    flushFoldableTurn(output, foldables)
+    foldables = []
+    output.push(block)
+  }
+  flushFoldableTurn(output, foldables)
+  return output
 }
 
 export function foldChatTranscriptProcess(blocks: ChatTranscriptBlock[]): ChatTranscriptBlock[] {

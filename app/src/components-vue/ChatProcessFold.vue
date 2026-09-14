@@ -2,7 +2,13 @@
 import { computed } from 'vue'
 import ChatActivityGroup from '@/components-vue/ChatActivityGroup.vue'
 import ChatMessageItem from '@/components-vue/ChatMessageItem.vue'
-import { buildChatActivityEntries, type ChatProcessFoldBlock } from '@/lib/chatActivity'
+import {
+  isThinkingOnlyAssistant,
+  mergeProcessThinking,
+  processFoldStepCount,
+  type ChatProcessFoldBlock,
+  type ChatTurnBlock,
+} from '@/lib/chatActivity'
 import { t } from '@/lib/uiLocale'
 import type { SubagentTask } from '@/types'
 
@@ -28,24 +34,32 @@ const emit = defineEmits<{
   branchAssistant: [messageId: string]
 }>()
 
-const stepCount = computed(() => {
-  let count = 0
-  for (const block of props.process.blocks) {
-    if (block.kind === 'activity') count += Math.max(1, buildChatActivityEntries(block.messages).length)
-    else count += 1
-  }
-  return count
-})
+const stepCount = computed(() => processFoldStepCount(props.process.blocks))
+const foldedThinking = computed(() => mergeProcessThinking(props.process.blocks))
+const visibleBlocks = computed(() => (
+  props.process.blocks.filter((block): block is ChatTurnBlock => (
+    block.kind === 'activity'
+    || (block.kind === 'message' && !isThinkingOnlyAssistant(block.message))
+  ))
+))
 </script>
 
 <template>
   <details class="agent-process mb-7">
     <summary class="agent-process__summary">
       <span>{{ t('过程', 'Process') }}</span>
-      <span class="agent-process__count">{{ t(`${stepCount} 步`, `${stepCount} steps`) }}</span>
+      <span
+        v-if="stepCount > 0"
+        class="agent-process__count"
+      >{{ t(`${stepCount} 步`, `${stepCount} steps`) }}</span>
     </summary>
     <div class="agent-process__body">
-      <template v-for="item in process.blocks" :key="item.id">
+      <ChatMessageItem
+        v-if="foldedThinking"
+        :message="foldedThinking"
+        thinking-total
+      />
+      <template v-for="item in visibleBlocks" :key="item.id">
         <ChatActivityGroup
           v-if="item.kind === 'activity'"
           :activity="item"

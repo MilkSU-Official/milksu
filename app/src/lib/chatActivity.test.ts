@@ -10,6 +10,8 @@ import {
   chatActivitySummary,
   detailsToggleOpen,
   isBlankAssistantMessage,
+  mergeProcessThinking,
+  processFoldStepCount,
   settleRunningToolMessages,
   withoutBlankAssistantMessages,
 } from '@/lib/chatActivity'
@@ -32,7 +34,7 @@ function message(
 }
 
 describe('buildChatTranscript', () => {
-  it('folds thinking, tools and intermediate replies when the final answer starts', () => {
+  it('keeps staged assistant text in the open thread and folds finished tools', () => {
     const transcript = buildChatTranscript([
       message('u1', 'user', '完成任务'),
       message('a1', 'assistant', '先读取仓库。'),
@@ -44,15 +46,20 @@ describe('buildChatTranscript', () => {
 
     expect(transcript.map(block => block.kind)).toEqual([
       'message',
+      'message',
+      'process',
+      'message',
       'process',
       'message',
     ])
-    expect(transcript[1]?.kind === 'process' && transcript[1].blocks.map(item => item.kind))
-      .toEqual(['message', 'activity', 'message', 'activity'])
-    expect(transcript[2]?.kind === 'message' && transcript[2].message.id).toBe('a3')
+    expect(transcript[1]?.kind === 'message' && transcript[1].message.id).toBe('a1')
+    expect(transcript[2]?.kind === 'process' && transcript[2].blocks.map(item => item.kind))
+      .toEqual(['activity'])
+    expect(transcript[3]?.kind === 'message' && transcript[3].message.id).toBe('a2')
+    expect(transcript[5]?.kind === 'message' && transcript[5].message.id).toBe('a3')
   })
 
-  it('keeps the live turn expanded until the final answer has content', () => {
+  it('keeps only live thinking and a running tool group in the open thread', () => {
     const transcript = buildChatTranscript([
       message('u1', 'user', '完成任务'),
       message('a1', 'assistant', '', { thinking: '先看仓库。', thinkingStatus: 'running', status: 'running' }),
@@ -66,7 +73,67 @@ describe('buildChatTranscript', () => {
     ])
   })
 
-  it('groups consecutive tools beneath one top-level disclosure', () => {
+  it('folds finished thinking into process once a tool group exists', () => {
+    const transcript = buildChatTranscript([
+      message('u1', 'user', '完成任务'),
+      message('a1', 'assistant', '', {
+        thinking: '先看仓库。',
+        thinkingStatus: 'done',
+        thinkingDurationMs: 800,
+      }),
+      message('a2', 'assistant', '', {
+        thinking: '再跑测试。',
+        thinkingStatus: 'done',
+        thinkingDurationMs: 500,
+      }),
+      message('t1', 'tool', '/repo', { toolName: 'read' }),
+      message('t2', 'tool', 'npm test', { toolName: 'bash' }),
+      message('a3', 'assistant', '', {
+        thinking: '还在想。',
+        thinkingStatus: 'running',
+        status: 'running',
+      }),
+    ], true)
+
+    expect(transcript.map(block => block.kind)).toEqual([
+      'message',
+      'process',
+      'message',
+    ])
+    expect(transcript[1]?.kind === 'process' && transcript[1].blocks.map(item => item.kind))
+      .toEqual(['message', 'message', 'activity'])
+    expect(transcript[2]?.kind === 'message' && transcript[2].message.id).toBe('a3')
+    expect(transcript[1]?.kind === 'process' && processFoldStepCount(transcript[1].blocks)).toBe(2)
+    expect(transcript[1]?.kind === 'process' && mergeProcessThinking(transcript[1].blocks)).toMatchObject({
+      thinking: '先看仓库。\n\n再跑测试。',
+      thinkingDurationMs: 1300,
+    })
+  })
+
+  it('merges leftover finished thinking into one row when no tools have started', () => {
+    const transcript = buildChatTranscript([
+      message('u1', 'user', '完成任务'),
+      message('a1', 'assistant', '', {
+        thinking: '先看仓库。',
+        thinkingStatus: 'done',
+        thinkingDurationMs: 800,
+      }),
+      message('a2', 'assistant', '', {
+        thinking: '再看测试。',
+        thinkingStatus: 'done',
+        thinkingDurationMs: 400,
+      }),
+    ], true)
+
+    expect(transcript.map(block => block.kind)).toEqual(['message', 'message'])
+    expect(transcript[1]?.kind === 'message' && transcript[1].message).toMatchObject({
+      id: 'process-thinking:a1',
+      thinking: '先看仓库。\n\n再看测试。',
+      thinkingDurationMs: 1200,
+    })
+  })
+
+  it('groups consecutive tools beneath one process disclosure', () => {
     const transcript = buildChatTranscript([
       message('u1', 'user', '验证项目'),
       message('a1', 'assistant', '现在执行验证。'),
@@ -77,14 +144,16 @@ describe('buildChatTranscript', () => {
 
     expect(transcript.map(block => block.kind)).toEqual([
       'message',
+      'message',
       'process',
       'message',
     ])
-    expect(transcript[1]?.kind === 'process' && transcript[1].blocks.map(item => item.kind))
-      .toEqual(['message', 'activity'])
-    expect(transcript[1]?.kind === 'process' && transcript[1].blocks[1]?.kind === 'activity'
-      && transcript[1].blocks[1].messages.map(item => item.id)).toEqual(['t1', 't2'])
-    expect(transcript[2]?.kind === 'message' && transcript[2].message.id).toBe('a2')
+    expect(transcript[2]?.kind === 'process' && transcript[2].blocks.map(item => item.kind))
+      .toEqual(['activity'])
+    expect(transcript[2]?.kind === 'process' && transcript[2].blocks[0]?.kind === 'activity'
+      && transcript[2].blocks[0].messages.map(item => item.id)).toEqual(['t1', 't2'])
+    expect(transcript[1]?.kind === 'message' && transcript[1].message.id).toBe('a1')
+    expect(transcript[3]?.kind === 'message' && transcript[3].message.id).toBe('a2')
   })
 
   it('keeps a live tool group key stable while later tools are appended', () => {
@@ -131,7 +200,8 @@ describe('buildChatTranscript', () => {
         toolCallId: 'call-1',
       }),
     ], true)
-    expect(transcript[0]?.kind === 'activity' && transcript[0].running).toBe(false)
+    expect(transcript[0]?.kind === 'process' && transcript[0].blocks[0]?.kind === 'activity'
+      && transcript[0].blocks[0].running).toBe(false)
   })
 
   it('drops blank assistant shells from the message list', () => {
@@ -152,8 +222,8 @@ describe('buildChatTranscript', () => {
     ], false)
 
     expect(transcript).toHaveLength(1)
-    expect(transcript[0]?.kind === 'activity' && transcript[0].messages.map(item => item.id))
-      .toEqual(['t1', 't2'])
+    expect(transcript[0]?.kind === 'process' && transcript[0].blocks[0]?.kind === 'activity'
+      && transcript[0].blocks[0].messages.map(item => item.id)).toEqual(['t1', 't2'])
   })
 
   it('keeps a live assistant response visible after collapsed activity', () => {
@@ -164,8 +234,9 @@ describe('buildChatTranscript', () => {
       message('a2', 'assistant', '测试完成，正在整理结果。', { status: 'running' }),
     ], true)
 
-    expect(transcript.map(block => block.kind)).toEqual(['message', 'process', 'message'])
-    expect(transcript[2]?.kind === 'message' && transcript[2].message.id).toBe('a2')
+    expect(transcript.map(block => block.kind)).toEqual(['message', 'message', 'process', 'message'])
+    expect(transcript[1]?.kind === 'message' && transcript[1].message.id).toBe('a1')
+    expect(transcript[3]?.kind === 'message' && transcript[3].message.id).toBe('a2')
   })
 
   it('shows an assistant-only live response instead of folding it as thinking', () => {

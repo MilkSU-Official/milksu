@@ -34,6 +34,7 @@ const props = defineProps<{
   canRewind?: boolean
   rewindDisabled?: boolean
   kernel?: 'pi' | 'dsh'
+  thinkingTotal?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -324,7 +325,9 @@ const thinkingElapsedMs = computed(() => {
 const thinkingLabel = computed(() => (
   props.message.thinkingStatus === 'running'
     ? t('正在思考', 'Thinking')
-    : t('想了', 'Thought')
+    : props.thinkingTotal || String(props.message.id).startsWith('process-thinking:')
+      ? t('想了共', 'Thought')
+      : t('想了', 'Thought')
 ))
 
 const thinkingElapsed = computed(() => {
