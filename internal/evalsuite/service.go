@@ -20,6 +20,7 @@ const (
 	sessionPrefix    = "milksu_eval_"
 	maxActivitySteps = 40
 	maxDetailRunes   = 800
+	maxReplyRunes    = 8000
 	defaultTimeout   = 8 * time.Minute
 	maxScoreHistory  = 8
 )
@@ -31,16 +32,17 @@ type Sender func(sessionID, prompt, workspace string, settings config.AppSetting
 type Aborter func(sessionID string) error
 
 type Service struct {
-	mu        sync.Mutex
-	store     *Store
-	root      string
-	send      Sender
-	abort     Aborter
-	emit      func(BoardSnapshot)
-	run       *activeRun
-	lastErr   *Progress
-	lastSuite string
-	settings  config.AppSettings
+	mu           sync.Mutex
+	store        *Store
+	root         string
+	send         Sender
+	abort        Aborter
+	emit         func(BoardSnapshot)
+	run          *activeRun
+	lastErr      *Progress
+	lastProgress *Progress
+	lastSuite    string
+	settings     config.AppSettings
 }
 
 type activeRun struct {
@@ -57,6 +59,7 @@ type activeRun struct {
 	taskStart  time.Time
 	progress   Progress
 	assistant  strings.Builder
+	turns      []ReplyTurn
 	steps      []ActivityStep
 	stepIndex  map[string]int
 	settled    bool
@@ -138,6 +141,7 @@ func (s *Service) Start(req StartRequest, catalog []ModelRef) error {
 		return fmt.Errorf("选择一个模型")
 	}
 	s.lastErr = nil
+	s.lastProgress = nil
 	s.lastSuite = req.Suite
 	ctx, cancel := context.WithTimeout(context.Background(), runBudget(tasks, len(models)))
 	run := &activeRun{
@@ -231,6 +235,7 @@ func (s *Service) Observe(event engine.Event) {
 		}
 	case "assistant.delta":
 		run.assistant.WriteString(event.Text)
+		run.progress.Reply = clip(run.assistant.String(), maxReplyRunes)
 		if strings.TrimSpace(run.progress.Summary) == "" || run.progress.Summary == "正在开始" {
 			run.progress.Summary = "正在推理"
 		}
@@ -239,6 +244,7 @@ func (s *Service) Observe(event engine.Event) {
 			run.assistant.Reset()
 			run.assistant.WriteString(event.Text)
 		}
+		run.progress.Reply = clip(run.assistant.String(), maxReplyRunes)
 		run.progress.Summary = "正在判定"
 	case "assistant.settled":
 		run.settled = true
@@ -262,6 +268,7 @@ func (s *Service) Observe(event engine.Event) {
 		}
 	}
 	run.progress.Steps = append([]ActivityStep(nil), run.steps...)
+	run.progress.Turns = append([]ReplyTurn(nil), run.turns...)
 	run.progress.ElapsedMS = time.Since(run.startedAt).Milliseconds()
 	s.refreshRemainLocked()
 	s.publishLocked(nil)
@@ -272,9 +279,13 @@ func (s *Service) drive(ctx context.Context, catalog []ModelRef) {
 		s.mu.Lock()
 		if s.run != nil {
 			s.run.cancel()
+			copied := s.run.progress
+			copied.State = StateIdle
+			copied.Reply = clip(s.run.assistant.String(), maxReplyRunes)
+			copied.Turns = append([]ReplyTurn(nil), s.run.turns...)
+			copied.Steps = append([]ActivityStep(nil), s.run.steps...)
+			s.lastProgress = &copied
 			if s.run.progress.ErrorKind != "" && s.run.progress.ErrorKind != ErrorKindStopped {
-				copied := s.run.progress
-				copied.State = StateIdle
 				s.lastErr = &copied
 			} else if s.run.progress.ErrorKind == ErrorKindStopped {
 				s.lastErr = nil
@@ -329,6 +340,7 @@ func (s *Service) drive(ctx context.Context, catalog []ModelRef) {
 				s.mu.Unlock()
 				return
 			}
+			s.recordTurnLocked(task, result)
 			run.progress.ErrorKind = ""
 			run.progress.Error = ""
 			solved += result.Hits
@@ -409,6 +421,8 @@ func (s *Service) runOneTask(
 	run.progress.TaskTotal = taskTotal
 	run.progress.ModelIndex = modelIndex + 1
 	run.progress.Summary = task.Name
+	run.progress.Reply = ""
+	run.progress.Turns = append([]ReplyTurn(nil), run.turns...)
 	run.progress.Percent = percent(modelIndex, len(run.models), taskIndex, taskTotal)
 	s.refreshRemainLocked()
 	s.publishLocked(catalog)
@@ -457,6 +471,21 @@ func (s *Service) runOneTask(
 		return Grade{Total: 1}, nil
 	}
 	return result, nil
+}
+
+func (s *Service) recordTurnLocked(task Task, result Grade) {
+	if s.run == nil {
+		return
+	}
+	reply := clip(s.run.assistant.String(), maxReplyRunes)
+	s.run.turns = append(s.run.turns, ReplyTurn{
+		TaskName: task.Name,
+		Reply:    reply,
+		Passed:   result.Hits > 0 && result.Hits >= result.Total,
+	})
+	s.run.assistant.Reset()
+	s.run.progress.Reply = ""
+	s.run.progress.Turns = append([]ReplyTurn(nil), s.run.turns...)
 }
 
 func (s *Service) note(run *activeRun, catalog []ModelRef, model ModelRef, task Task, modelIndex, taskIndex, taskTotal int, summary string) {
@@ -618,11 +647,20 @@ func (s *Service) snapshotLocked(selected string, catalog []ModelRef) (BoardSnap
 		p := s.run.progress
 		p.ElapsedMS = time.Since(s.run.startedAt).Milliseconds()
 		p.Steps = append([]ActivityStep(nil), s.run.steps...)
+		p.Turns = append([]ReplyTurn(nil), s.run.turns...)
+		if p.Reply == "" {
+			p.Reply = clip(s.run.assistant.String(), maxReplyRunes)
+		}
 		progress = &p
 		evalModel = s.run.progress.Model
+	} else if s.lastProgress != nil {
+		copied := *s.lastProgress
+		progress = &copied
+		evalModel = copied.Model
 	} else if s.lastErr != nil {
 		copied := *s.lastErr
 		progress = &copied
+		evalModel = copied.Model
 	}
 	if record, ok := seen[evalModel.Key()]; ok {
 		value := record

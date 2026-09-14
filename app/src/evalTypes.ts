@@ -14,6 +14,12 @@ export interface EvalActivityStep {
   durationMs?: number
 }
 
+export interface EvalReplyTurn {
+  taskName: string
+  reply?: string
+  passed?: boolean
+}
+
 export interface EvalScoreRecord {
   model: EvalModelRef
   solved: number
@@ -47,6 +53,8 @@ export interface EvalProgress {
   modelIndex?: number
   modelTotal?: number
   summary?: string
+  reply?: string
+  turns?: EvalReplyTurn[]
   steps?: EvalActivityStep[]
   errorKind?: string
   error?: string

@@ -137,6 +137,17 @@ const running = computed(() => (
   board.value?.progress?.state === 'running' || board.value?.progress?.state === 'stopping'
 ))
 const progress = computed(() => board.value?.progress ?? null)
+const hasTranscript = computed(() => {
+  const currentProgress = progress.value
+  if (!currentProgress) return false
+  if (String(currentProgress.reply ?? '').trim()) return true
+  return (currentProgress.turns?.length ?? 0) > 0
+})
+const showActivityChip = computed(() => (
+  Boolean(progress.value)
+  && progress.value?.suite === current.value.suite.id
+  && (current.value.busy || hasTranscript.value)
+))
 
 watch(pickerGroups, groups => {
   const active = props.settings?.active_model
@@ -566,6 +577,16 @@ function loadSuiteModels(): Record<string, string> {
 const activitySuiteName = computed(() => (
   cards.value.find(item => item.suite.id === progress.value?.suite)?.suite.name ?? ''
 ))
+
+function turnPreview(reply?: string) {
+  const text = String(reply ?? '').replace(/\s+/g, ' ').trim()
+  if (!text) return ''
+  return text.length > 72 ? `${text.slice(0, 72)}…` : text
+}
+
+function turnResult(passed?: boolean) {
+  return passed ? t('通过', 'Passed') : t('未通过', 'Failed')
+}
 </script>
 
 <template>
@@ -704,15 +725,20 @@ const activitySuiteName = computed(() => (
             </div>
           </template>
           <button
-            v-if="current.busy && progress"
+            v-if="showActivityChip && progress"
             type="button"
             class="activity-chip mt-4"
             @click="activityOpen = true"
           >
-            <AkLoadingMark :label="t('评测进行中', 'Eval running')" />
-            <span class="min-w-0 truncate">{{ progress.summary || progress.taskName }}</span>
-            <span class="tabular-nums">{{ clock(progress.elapsedMs) }}</span>
-            <span v-if="remainLabel(progress.remainMs)" class="text-muted-foreground">
+            <AkLoadingMark v-if="current.busy" :label="t('评测进行中', 'Eval running')" />
+            <span class="min-w-0 truncate">
+              {{ current.busy ? (progress.summary || progress.taskName) : t('本轮回复', 'This run') }}
+            </span>
+            <span v-if="current.busy" class="tabular-nums">{{ clock(progress.elapsedMs) }}</span>
+            <span v-else-if="progress.turns?.length" class="tabular-nums text-muted-foreground">
+              {{ progress.turns.length }}
+            </span>
+            <span v-if="current.busy && remainLabel(progress.remainMs)" class="text-muted-foreground">
               {{ remainLabel(progress.remainMs) }}
             </span>
           </button>
@@ -878,7 +904,7 @@ const activitySuiteName = computed(() => (
     </div>
 
     <Dialog :open="activityOpen" @update:open="activityOpen = $event">
-      <DialogContent class="max-h-[80vh] overflow-y-auto sm:max-w-lg">
+      <DialogContent class="max-h-[80vh] overflow-y-auto sm:max-w-2xl">
         <DialogTitle>{{ activitySuiteName }}</DialogTitle>
         <p v-if="progress" class="mt-1 text-caption text-muted-foreground">
           {{ clock(progress.elapsedMs) }}
@@ -886,22 +912,58 @@ const activitySuiteName = computed(() => (
           <template v-if="progress.taskName"> · {{ progress.taskName }}</template>
           <template v-if="progress.taskTotal"> · {{ progress.taskIndex }} / {{ progress.taskTotal }}</template>
         </p>
-        <ol class="mt-4 space-y-2">
-          <li
-            v-for="step in progress?.steps ?? []"
-            :key="step.id || step.summary"
-            class="rounded-md border border-border px-3 py-2"
-          >
-            <div class="flex items-center gap-2 text-body">
-              <AkLoadingMark v-if="step.running" :label="t('进行中', 'Running')" />
-              <span class="min-w-0 flex-1 truncate">{{ step.summary }}</span>
-              <span v-if="step.durationMs" class="text-caption tabular-nums text-muted-foreground">
-                {{ t(`${Math.round(step.durationMs / 1000)} 秒`, `${Math.round(step.durationMs / 1000)} s`) }}
-              </span>
-            </div>
-            <pre v-if="step.detail" class="mt-2 max-h-32 overflow-auto whitespace-pre-wrap text-caption text-muted-foreground">{{ step.detail }}</pre>
-          </li>
-        </ol>
+        <section class="mt-4 rounded-[8px] border border-border bg-card p-3">
+          <h3 class="text-caption text-muted-foreground">{{ t('回复', 'Reply') }}</h3>
+          <pre
+            v-if="progress?.reply"
+            class="mt-2 max-h-64 overflow-auto whitespace-pre-wrap text-body"
+          >{{ progress.reply }}</pre>
+        </section>
+        <section v-if="(progress?.steps?.length ?? 0) > 0" class="mt-4">
+          <h3 class="text-caption text-muted-foreground">{{ t('工具步骤', 'Tool steps') }}</h3>
+          <ol class="mt-2 space-y-2">
+            <li
+              v-for="step in progress?.steps ?? []"
+              :key="step.id || step.summary"
+              class="rounded-[8px] border border-border px-3 py-2"
+            >
+              <div class="flex items-center gap-2 text-body">
+                <AkLoadingMark v-if="step.running" :label="t('进行中', 'Running')" />
+                <span class="min-w-0 flex-1 truncate">{{ step.summary }}</span>
+                <span v-if="step.durationMs" class="text-caption tabular-nums text-muted-foreground">
+                  {{ t(`${Math.round(step.durationMs / 1000)} 秒`, `${Math.round(step.durationMs / 1000)} s`) }}
+                </span>
+              </div>
+              <pre v-if="step.detail" class="mt-2 max-h-32 overflow-auto whitespace-pre-wrap text-caption text-muted-foreground">{{ step.detail }}</pre>
+            </li>
+          </ol>
+        </section>
+        <section v-if="(progress?.turns?.length ?? 0) > 0" class="mt-4">
+          <h3 class="text-caption text-muted-foreground">{{ t('本轮', 'This run') }}</h3>
+          <ol class="mt-2 space-y-2">
+            <li
+              v-for="(turn, index) in progress?.turns ?? []"
+              :key="`${turn.taskName}-${index}`"
+              class="rounded-[8px] border border-border px-3 py-2"
+            >
+              <details>
+                <summary class="cursor-pointer list-none">
+                  <div class="flex items-center gap-2 text-body">
+                    <span class="min-w-0 flex-1 truncate">{{ turn.taskName }}</span>
+                    <span class="text-caption text-muted-foreground">{{ turnResult(turn.passed) }}</span>
+                  </div>
+                  <p v-if="turnPreview(turn.reply)" class="mt-1 truncate text-caption text-muted-foreground">
+                    {{ turnPreview(turn.reply) }}
+                  </p>
+                </summary>
+                <pre
+                  v-if="turn.reply"
+                  class="mt-2 max-h-64 overflow-auto whitespace-pre-wrap text-caption"
+                >{{ turn.reply }}</pre>
+              </details>
+            </li>
+          </ol>
+        </section>
       </DialogContent>
     </Dialog>
   </div>
@@ -937,6 +999,8 @@ const activitySuiteName = computed(() => (
   cursor: pointer;
 }
 .activity-chip:hover { background: color-mix(in srgb, var(--brand) 12%, transparent); }
+details > summary { list-style: none; }
+details > summary::-webkit-details-marker { display: none; }
 @media (max-width: 1050px) { .tool-workbench { grid-template-columns: minmax(15rem, .72fr) minmax(24rem, 1.28fr); } }
 @media (max-width: 860px) { .tool-workbench { grid-template-columns: 1fr; } .tool-workbench > nav { border-right: 0; border-bottom: 1px solid hsl(var(--border)); } }
 </style>

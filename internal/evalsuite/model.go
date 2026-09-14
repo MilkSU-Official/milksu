@@ -61,6 +61,12 @@ type ActivityStep struct {
 	DurationMS int64  `json:"durationMs,omitempty"`
 }
 
+type ReplyTurn struct {
+	TaskName string `json:"taskName"`
+	Reply    string `json:"reply,omitempty"`
+	Passed   bool   `json:"passed,omitempty"`
+}
+
 type ScoreRecord struct {
 	Model        ModelRef  `json:"model"`
 	Solved       int       `json:"solved"`
@@ -94,6 +100,8 @@ type Progress struct {
 	ModelIndex int            `json:"modelIndex,omitempty"`
 	ModelTotal int            `json:"modelTotal,omitempty"`
 	Summary    string         `json:"summary,omitempty"`
+	Reply      string         `json:"reply,omitempty"`
+	Turns      []ReplyTurn    `json:"turns,omitempty"`
 	Steps      []ActivityStep `json:"steps,omitempty"`
 	ErrorKind  string         `json:"errorKind,omitempty"`
 	Error      string         `json:"error,omitempty"`
