@@ -29,13 +29,25 @@ import (
 const eventSchemaVersion = 1
 
 const (
-	// maxParkedSidecars bounds how many inactive workspace sidecars stay alive. The
-	// active sidecar is not counted. Reaching the limit stops the least recently
-	// parked sidecar (its in-flight turn is expected to be finished by then).
+	// maxParkedSidecars bounds how many inactive workspace sidecars stay alive per
+	// kernel. The active sidecar is not counted. Over the limit the least recently
+	// parked sidecar that has no turn in flight is stopped. A sidecar that is still
+	// running a turn is kept even when that leaves the set over the limit: stopping
+	// it is exactly the loss parking exists to prevent.
 	maxParkedSidecars = 3
-	// sidecarIdleTimeout stops a parked sidecar the user has not come back to.
+	// maxParkedSidecarsHardLimit bounds the set even when every parked sidecar still
+	// looks busy, so a turn that never reports completion cannot leak processes.
+	maxParkedSidecarsHardLimit = 2 * maxParkedSidecars
+	// sidecarIdleTimeout stops a parked sidecar the user has not come back to and
+	// that has no turn in flight.
 	sidecarIdleTimeout = 15 * time.Minute
 )
+
+// engineSidecarStoppedEvent records that one Sidecar process ended. It is a process
+// lifecycle receipt for the persisted log, not a session outcome: unlike
+// engine.stopped it must never fail the control waiters or end the running
+// conversations that belong to a different workspace.
+const engineSidecarStoppedEvent = "engine.sidecar_stopped"
 
 // defaultCompactionTimeout bounds a manual context compaction end to end. It
 // deliberately exceeds the Sidecar-side cancellation bound so the Sidecar
@@ -314,10 +326,10 @@ type childProcess struct {
 	stdin     io.WriteCloser
 	workspace string
 	stderr    *sidecarStderrBuffer
-	// retired marks a process the supervisor stopped on purpose (workspace switch,
-	// shutdown, idle reaping) rather than one that exited on its own. readEvents
-	// still reports engine.stopped for retired processes so the persisted
-	// sidecar.stopped event is written instead of disappearing silently.
+	// retired marks a process the supervisor stopped on purpose (shutdown, idle
+	// reaping, eviction) rather than one that exited on its own. readEvents reports
+	// engine.sidecar_stopped for it so the persisted sidecar.stopped event is written
+	// instead of disappearing silently, without claiming the whole engine stopped.
 	retired atomic.Bool
 }
 
@@ -412,10 +424,14 @@ type Supervisor struct {
 	dshProcess *childProcess
 	// parked keeps the sidecars of other workspaces alive so switching conversations
 	// no longer kills the turn that is still running there. Keyed by kernel+workspace.
-	parked              map[string]*childProcess
-	parkedAt            map[string]time.Time
-	sessionKernels      map[string]string
-	sessionWorkspaces   map[string]string
+	parked            map[string]*childProcess
+	parkedAt          map[string]time.Time
+	sessionKernels    map[string]string
+	sessionWorkspaces map[string]string
+	// busySessions holds the sessions whose turn has been sent but not settled. A
+	// sidecar serving one of them is never reaped or evicted: a long foreground tool
+	// call produces no events, so elapsed time alone cannot tell "idle" from "working".
+	busySessions        map[string]struct{}
 	sessions            map[string]struct{}
 	probeWaiters        map[string]chan Event
 	silentSessions      map[string]struct{}
@@ -534,19 +550,9 @@ func (s *Supervisor) rememberForkedSessionLocked(parentID, forkedID string) {
 		s.sessionKernels = make(map[string]string)
 	}
 	s.sessionKernels[forkedID] = s.kernelForLocked(parentID)
-}
-
-func (s *Supervisor) dropKernelSessionsLocked(kernel string) {
-	kernel = NormalizeKernel(kernel)
-	for id := range s.sessions {
-		if s.kernelForLocked(id) != kernel {
-			continue
-		}
-		delete(s.sessions, id)
-		delete(s.sessionKernels, id)
-		delete(s.recoveryFailures, id)
-		delete(s.backgroundTasks, id)
-	}
+	// A fork lives in the same workspace as its parent, so it must reach the same
+	// Sidecar even while that workspace is parked.
+	s.bindSessionWorkspaceLocked(forkedID, s.sessionWorkspaces[parentID])
 }
 
 func stopChildProcess(process *childProcess) {
@@ -603,43 +609,66 @@ func (s *Supervisor) parkCurrentLocked(kernel string, process *childProcess) {
 	s.evictParkedOverLimitLocked(kernel)
 }
 
-// evictParkedOverLimitLocked stops the least recently parked sidecar once the parked
-// set grows past maxParkedSidecars.
-func (s *Supervisor) evictParkedOverLimitLocked(kernel string) {
+// parkedCountLocked counts the parked sidecars of one kernel. The limit is per kernel,
+// so opening a Pi workspace must not evict a DeepSeek Harness sidecar or the reverse.
+func (s *Supervisor) parkedCountLocked(kernel string) int {
 	prefix := NormalizeKernel(kernel) + "\x00"
-	for len(s.parked) > maxParkedSidecars {
-		oldestKey := ""
-		var oldestAt time.Time
-		for key, at := range s.parkedAt {
-			if !strings.HasPrefix(key, prefix) {
-				continue
-			}
-			if oldestKey == "" || at.Before(oldestAt) {
-				oldestKey, oldestAt = key, at
-			}
+	count := 0
+	for key := range s.parked {
+		if strings.HasPrefix(key, prefix) {
+			count++
 		}
-		if oldestKey == "" {
-			return
-		}
-		if process := s.parked[oldestKey]; process != nil {
-			s.stopParkedLocked(kernel, oldestKey, process)
-			continue
-		}
-		delete(s.parked, oldestKey)
-		delete(s.parkedAt, oldestKey)
 	}
+	return count
 }
 
-// reapParkedLocked stops parked sidecars of one kernel that stayed unused too long.
-func (s *Supervisor) reapParkedLocked(kernel string) {
-	if len(s.parked) == 0 {
-		return
-	}
-	prefix := NormalizeKernel(kernel) + "\x00"
-	now := time.Now()
-	for key, at := range s.parkedAt {
-		if !strings.HasPrefix(key, prefix) || now.Sub(at) < sidecarIdleTimeout {
+// workspaceHasRunningTurnLocked reports whether any session bound to this workspace has
+// a turn that was sent and has not settled yet.
+func (s *Supervisor) workspaceHasRunningTurnLocked(kernel, workspace string) bool {
+	kernel = NormalizeKernel(kernel)
+	for id := range s.busySessions {
+		if s.kernelForLocked(id) != kernel {
 			continue
+		}
+		if s.sessionWorkspaces[id] == workspace {
+			return true
+		}
+	}
+	return false
+}
+
+// oldestParkedCandidateLocked returns the least recently parked sidecar of one kernel.
+// When requireIdle is set, sidecars still running a turn are skipped.
+func (s *Supervisor) oldestParkedCandidateLocked(kernel string, requireIdle bool) string {
+	prefix := NormalizeKernel(kernel) + "\x00"
+	oldestKey := ""
+	var oldestAt time.Time
+	for key, at := range s.parkedAt {
+		if !strings.HasPrefix(key, prefix) {
+			continue
+		}
+		process := s.parked[key]
+		if requireIdle && process != nil &&
+			s.workspaceHasRunningTurnLocked(kernel, process.workspace) {
+			continue
+		}
+		if oldestKey == "" || at.Before(oldestAt) {
+			oldestKey, oldestAt = key, at
+		}
+	}
+	return oldestKey
+}
+
+// evictParkedOverLimitLocked trims the parked set of one kernel back to
+// maxParkedSidecars, preferring sidecars with no turn in flight. If every candidate is
+// still working, the set is allowed to stay over the limit until the hard limit, where
+// the least recently parked one goes regardless so a stuck turn cannot leak processes.
+func (s *Supervisor) evictParkedOverLimitLocked(kernel string) {
+	for s.parkedCountLocked(kernel) > maxParkedSidecars {
+		overHardLimit := s.parkedCountLocked(kernel) > maxParkedSidecarsHardLimit
+		key := s.oldestParkedCandidateLocked(kernel, !overHardLimit)
+		if key == "" {
+			return
 		}
 		if process := s.parked[key]; process != nil {
 			s.stopParkedLocked(kernel, key, process)
@@ -650,20 +679,70 @@ func (s *Supervisor) reapParkedLocked(kernel string) {
 	}
 }
 
-// stopParkedLocked retires one parked sidecar and forgets the sessions it served.
+// reapParkedLocked stops parked sidecars of one kernel that stayed unused too long. A
+// sidecar whose turn is still running is never reaped, however long it has been parked:
+// a foreground tool call can run for minutes without emitting a single event, so parked
+// time on its own cannot distinguish an abandoned workspace from a working one.
+func (s *Supervisor) reapParkedLocked(kernel string) {
+	if len(s.parked) == 0 {
+		return
+	}
+	prefix := NormalizeKernel(kernel) + "\x00"
+	now := time.Now()
+	for key, at := range s.parkedAt {
+		if !strings.HasPrefix(key, prefix) || now.Sub(at) < sidecarIdleTimeout {
+			continue
+		}
+		process := s.parked[key]
+		if process == nil {
+			delete(s.parked, key)
+			delete(s.parkedAt, key)
+			continue
+		}
+		if s.workspaceHasRunningTurnLocked(kernel, process.workspace) {
+			continue
+		}
+		s.stopParkedLocked(kernel, key, process)
+	}
+}
+
+// stopParkedLocked retires one parked sidecar and forgets the sessions it served. Any
+// session that still had a turn in flight is told individually, so the conversations of
+// every other workspace keep running.
 func (s *Supervisor) stopParkedLocked(kernel, key string, process *childProcess) {
 	delete(s.parked, key)
 	delete(s.parkedAt, key)
-	s.dropWorkspaceSessionsLocked(kernel, process.workspace)
+	interrupted := s.dropWorkspaceSessionsLocked(kernel, process.workspace)
 	process.retired.Store(true)
 	stopChildProcess(process)
+	s.reportInterruptedSessions(kernel, interrupted)
 }
 
-// dropWorkspaceSessionsLocked forgets the sessions bound to one workspace of a kernel.
-// Sessions whose workspace was never recorded are left alone; they are re-ensured on
-// their next message.
-func (s *Supervisor) dropWorkspaceSessionsLocked(kernel, workspace string) {
+// dropWorkspaceSessionsLocked forgets the sessions bound to one workspace of a kernel and
+// returns the ones whose turn was still running. Sessions that were never bound to a
+// workspace belong to no parked process and are left alone; they are re-ensured on their
+// next message.
+func (s *Supervisor) dropWorkspaceSessionsLocked(kernel, workspace string) []string {
 	kernel = NormalizeKernel(kernel)
+	var interrupted []string
+	for id := range s.sessions {
+		if s.kernelForLocked(id) != kernel || s.sessionWorkspaces[id] != workspace {
+			continue
+		}
+		if _, running := s.busySessions[id]; running {
+			interrupted = append(interrupted, id)
+		}
+		s.forgetSessionLocked(id)
+	}
+	return interrupted
+}
+
+// dropActiveSessionsLocked forgets the sessions served by the active sidecar of a kernel:
+// the ones bound to its workspace plus the ones never bound to any. Sessions bound to a
+// parked workspace still have their own live process and are left alone.
+func (s *Supervisor) dropActiveSessionsLocked(kernel, workspace string) []string {
+	kernel = NormalizeKernel(kernel)
+	var interrupted []string
 	for id := range s.sessions {
 		if s.kernelForLocked(id) != kernel {
 			continue
@@ -671,12 +750,47 @@ func (s *Supervisor) dropWorkspaceSessionsLocked(kernel, workspace string) {
 		if bound := s.sessionWorkspaces[id]; bound != "" && bound != workspace {
 			continue
 		}
-		delete(s.sessions, id)
-		delete(s.sessionKernels, id)
-		delete(s.sessionWorkspaces, id)
-		delete(s.recoveryFailures, id)
-		delete(s.backgroundTasks, id)
+		if _, running := s.busySessions[id]; running {
+			interrupted = append(interrupted, id)
+		}
+		s.forgetSessionLocked(id)
 	}
+	return interrupted
+}
+
+// forgetSessionLocked removes every Supervisor record of one session.
+func (s *Supervisor) forgetSessionLocked(id string) {
+	delete(s.sessions, id)
+	delete(s.sessionKernels, id)
+	delete(s.sessionWorkspaces, id)
+	delete(s.busySessions, id)
+	delete(s.recoveryFailures, id)
+	delete(s.backgroundTasks, id)
+}
+
+// sidecarGoneError is the stable marker the renderer maps to a per-conversation notice.
+// It says one workspace lost its Sidecar, not that the whole runtime stopped.
+const sidecarGoneError = "the Sidecar for this workspace stopped"
+
+// reportInterruptedSessions tells each affected session that its Sidecar went away.
+// It emits from a goroutine because callers hold the Supervisor lock while the emit
+// callback reaches application code.
+func (s *Supervisor) reportInterruptedSessions(kernel string, sessions []string) {
+	if len(sessions) == 0 {
+		return
+	}
+	ids := append([]string(nil), sessions...)
+	go func() {
+		for _, id := range ids {
+			s.emitEvent(Event{
+				Engine:    kernel,
+				SessionID: id,
+				Type:      "engine.error",
+				Error:     sidecarGoneError,
+				Done:      true,
+			})
+		}
+	}()
 }
 
 func NewSupervisor(emit func(Event)) *Supervisor {
@@ -684,6 +798,7 @@ func NewSupervisor(emit func(Event)) *Supervisor {
 		sessionKernels:    make(map[string]string),
 		sessionWorkspaces: make(map[string]string),
 		sessions:          make(map[string]struct{}),
+		busySessions:      make(map[string]struct{}),
 		parked:            make(map[string]*childProcess),
 		parkedAt:          make(map[string]time.Time),
 		probeWaiters:      make(map[string]chan Event),
@@ -1077,6 +1192,12 @@ func (s *Supervisor) sendMessage(
 		return fmt.Errorf("send engine message: %w", err)
 	}
 	s.sessions[sessionID] = struct{}{}
+	// The turn is now in flight. Until it settles, this session's Sidecar must survive
+	// idle reaping even if the user works in another workspace the whole time.
+	if s.busySessions == nil {
+		s.busySessions = make(map[string]struct{})
+	}
+	s.busySessions[sessionID] = struct{}{}
 	return nil
 }
 
@@ -2115,10 +2236,7 @@ func (s *Supervisor) disposeSession(sessionID string, deletePersisted bool) {
 			"deletePersisted": deletePersisted,
 		})
 	}
-	delete(s.sessions, sessionID)
-	delete(s.sessionKernels, sessionID)
-	delete(s.recoveryFailures, sessionID)
-	delete(s.backgroundTasks, sessionID)
+	s.forgetSessionLocked(sessionID)
 }
 
 func (s *Supervisor) Status() RuntimeStatus {
@@ -2175,6 +2293,7 @@ func (s *Supervisor) Close() {
 	s.sessions = make(map[string]struct{})
 	s.sessionKernels = make(map[string]string)
 	s.sessionWorkspaces = make(map[string]string)
+	s.busySessions = make(map[string]struct{})
 	s.recoveryFailures = make(map[string]string)
 	s.backgroundTasks = make(map[string][]BackgroundTask)
 	s.mu.Unlock()
@@ -2313,23 +2432,20 @@ func (s *Supervisor) readEvents(kernel string, process *childProcess, stdout io.
 		}
 		event := normalizeBridgeEvent(raw, kernel)
 		s.observeRuntimeEvent(event)
-		if raw.ID != "" && (raw.Type == "error" || raw.Type == "session_destroyed") {
-			s.mu.Lock()
-			delete(s.sessions, raw.ID)
-			s.mu.Unlock()
-		}
+		s.observeTurnLifecycle(raw, event)
 		s.emitEvent(event)
 	}
 
 	waitError := process.command.Wait()
 	s.mu.Lock()
 	removedFromParked := false
+	var interrupted []string
 	if s.parked != nil {
 		if key := sidecarWorkspaceKey(kernel, process.workspace); s.parked[key] == process {
 			delete(s.parked, key)
 			delete(s.parkedAt, key)
 			removedFromParked = true
-			s.dropWorkspaceSessionsLocked(kernel, process.workspace)
+			interrupted = s.dropWorkspaceSessionsLocked(kernel, process.workspace)
 		}
 	}
 	current := false
@@ -2337,13 +2453,13 @@ func (s *Supervisor) readEvents(kernel string, process *childProcess, stdout io.
 		current = s.dshProcess == process
 		if current {
 			s.dshProcess = nil
-			s.dropKernelSessionsLocked(KernelDSH)
+			s.dropActiveSessionsLocked(KernelDSH, process.workspace)
 		}
 	} else {
 		current = s.process == process
 		if current {
 			s.process = nil
-			s.dropKernelSessionsLocked(KernelPi)
+			s.dropActiveSessionsLocked(KernelPi, process.workspace)
 		}
 	}
 	s.mu.Unlock()
@@ -2365,7 +2481,43 @@ func (s *Supervisor) readEvents(kernel string, process *childProcess, stdout io.
 			errorText = errorText + ": " + tail
 		}
 	}
+	// Every ended Sidecar produces the lifecycle receipt, so the persisted
+	// sidecar.stopped event stops disappearing for processes the Supervisor retired.
+	s.emitEvent(Event{Engine: kernel, Type: engineSidecarStoppedEvent, Error: errorText})
+	if !current {
+		// A parked or retired Sidecar is one workspace, not the engine. engine.stopped
+		// ends every waiter and every running conversation, so it must stay reserved for
+		// the active process dying unexpectedly. Sessions that lost their turn with this
+		// process were already told individually.
+		s.reportInterruptedSessions(kernel, interrupted)
+		return
+	}
 	s.emitEvent(Event{Engine: kernel, Type: "engine.stopped", Error: errorText, Done: true})
+}
+
+// observeTurnLifecycle keeps busySessions in step with the turn boundaries Pi reports, so
+// parking decisions can tell a session that is waiting on a long tool call from one that
+// is genuinely idle.
+func (s *Supervisor) observeTurnLifecycle(raw bridgeEvent, event Event) {
+	sessionID := event.SessionID
+	if sessionID == "" {
+		sessionID = raw.ID
+	}
+	if sessionID == "" {
+		return
+	}
+	// A session-scoped error or a destroyed session ends both the turn and the session;
+	// turn_settled ends only the turn.
+	gone := raw.Type == "error" || raw.Type == "session_destroyed"
+	if !gone && event.Type != "assistant.settled" {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.busySessions, sessionID)
+	if gone {
+		delete(s.sessions, sessionID)
+	}
 }
 
 func (s *Supervisor) observeRuntimeEvent(event Event) {

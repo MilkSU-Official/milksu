@@ -2067,13 +2067,18 @@ func (a *App) emitEngineEvent(event engine.Event) {
 			"error",
 			fmt.Sprintf("%s: %s", event.Type, event.Error),
 		)
-	} else if event.Type == "engine.started" || event.Type == "engine.stopped" {
+	} else if event.Type == "engine.started" ||
+		event.Type == "engine.stopped" ||
+		event.Type == "engine.sidecar_stopped" {
 		a.diagnostics.Record("coding-engine", "info", event.Type)
 	}
 	switch event.Type {
 	case "engine.started":
 		_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedSidecarStarted)
-	case "engine.stopped":
+	case "engine.sidecar_stopped":
+		// One Sidecar process ended. Every ended process reports this, including the
+		// ones the Supervisor stopped on purpose; engine.stopped is the session-facing
+		// broadcast and would double count here.
 		_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedSidecarStopped)
 	case "engine.protocol_error":
 		_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedSidecarProtocolError)

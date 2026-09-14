@@ -600,6 +600,9 @@ export function agentRuntimeErrorMessage(value: unknown) {
   if (new RegExp(`Go runtime is unavailable|${t('本地运行时已停止', 'The local runtime has stopped')}|${t('本地运行时不可用', 'The local runtime is unavailable')}`, 'i').test(raw)) {
     return t('本地运行时已停止，请重新打开应用。', 'The local runtime has stopped. Reopen the app.')
   }
+  if (/Sidecar for this workspace stopped/i.test(raw)) {
+    return t('这个项目的 Agent 进程已停止，本轮已中断。', 'The Agent process for this project stopped, so this turn was interrupted.')
+  }
   if (/\b401\b|unauthori[sz]ed|invalid api key|authentication failed/i.test(raw)) {
     return t('模型凭据无效或无权访问。', 'Model credentials are invalid or unauthorized.')
   }

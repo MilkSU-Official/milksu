@@ -342,6 +342,13 @@ describe('Coding approval conversation recovery', () => {
     expect(message).not.toContain('bridge.js')
   })
 
+  it('scopes a lost workspace Agent process to that conversation', () => {
+    const message = agentRuntimeErrorMessage('the Sidecar for this workspace stopped')
+    expect(message).toContain('这个项目的 Agent 进程已停止')
+    expect(message).not.toContain('重新打开应用')
+    expect(message).not.toContain('Sidecar')
+  })
+
   it('hides truncated Node unhandled-error dumps from chat', () => {
     const message = agentRuntimeErrorMessage('exit status 1: node:events:487')
     expect(message).toContain('本地 Agent 运行异常')
