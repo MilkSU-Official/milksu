@@ -96,11 +96,6 @@ func (a *App) prepareAgentManagedCodingCollaboration(
 	if !snapshot.Git.Available || !snapshot.Git.IsRepository {
 		return nil, fmt.Errorf("this project is not a Git repository")
 	}
-	if snapshot.Git.Dirty {
-		return nil, fmt.Errorf(
-			"this project has uncommitted changes; commit or stash them before delegating writing work",
-		)
-	}
 
 	a.emitCodingWorktreeProgress(engine.Event{
 		SessionID:  conversationID,

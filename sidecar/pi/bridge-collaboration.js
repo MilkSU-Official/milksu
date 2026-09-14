@@ -205,12 +205,13 @@ export function assignWriterWorktrees(input, collaboration) {
   return input;
 }
 
+// The subagent tool's own schema already names the roles and describes when to
+// delegate. This adds only the host facts Pi cannot know: MilkSU's per-call cap
+// and who owns an effectful role's working directory.
 export function codingSubagentGuidance() {
   return [
-    "Read-only roles: scout, planner, reviewer, security-auditor. Those read the main workspace.",
-    "MilkSU allows at most four subagent tasks per approved call. Delegating an effectful role prepares its isolated writer worktree and assigns that working directory; do not choose the path yourself.",
-    "Do not treat the words subagent, sub-agent, or subapi as IDA Pro, idalib, or a security MCP.",
-    "IDA is only for a local binary the user named.",
+    "MilkSU runs at most four subagent tasks per approved call.",
+    "Delegating an effectful role prepares an isolated writer worktree from the current commit and assigns its working directory; do not choose that path yourself, and do not expect uncommitted main-workspace changes to be present there.",
   ].join(" ");
 }
 

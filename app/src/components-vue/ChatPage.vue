@@ -1439,6 +1439,12 @@ function applyWorkspaceReveal(payload?: {
   if (dockSurface.value) return
   if (payload?.conversationId && payload.conversationId !== props.conversation?.id) return
   const panel = payload?.panel
+  // Opening the scope picker only brings the surface forward. Choosing a window
+  // and starting the session stays with the user.
+  if (panel === 'computer-use') {
+    void showComputerUseScope()
+    return
+  }
   if (panel === 'browser' || panel === 'artifacts' || panel === 'changes' || panel === 'environment') {
     contextPanel.value = panel
     environmentOpen.value = true

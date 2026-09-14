@@ -37,7 +37,15 @@ const workspaceActions = new Set([
   ...codingWorkspaceMutatingActions,
 ]);
 
-const workspacePanels = new Set(["browser", "artifacts", "changes", "environment"]);
+const workspacePanels = new Set([
+  "browser",
+  "artifacts",
+  "changes",
+  "environment",
+  // Opening the scope picker is a product-surface action, not authorization.
+  // The user still chooses the window and starts the session.
+  "computer-use",
+]);
 const workspaceRecordKinds = new Set(["conversation", "lab", "cve", "ctf"]);
 
 export const researchSessionRoles = Object.freeze(["cve-research", "lab-job"]);
@@ -56,22 +64,18 @@ export function resolveWorkflowSessionRole(sessionRole = "", isCtf = false) {
   return "";
 }
 
+// MilkSU seeds report.md (and related.md for CVE) with their section headings,
+// and the env tools describe their own lease. So this carries only what the
+// workspace cannot show by itself: which file the user is watching, the
+// authorized-target boundary, and the evidence rule for CVE identifiers.
 export function researchReportGuidance(sessionRole = "") {
   const lines = [
-    "The user is viewing report.md in this workspace as the lasting report.",
-    "Create and edit that Markdown file (or report.html) with Pi file tools.",
-    "Write process trees, network or HTTP activity, copy-paste steps, and impact when those facts exist.",
-    "A missed reproduction still needs a report of what was tried and observed.",
-    "Status labels are not a report.",
+    "The user is watching report.md in this workspace; it is the lasting result of this job, including when reproduction fails.",
     "Stay on the user-selected target for this job; do not scan unrelated hosts or internet ranges.",
-    "Use env_status, env_start, env_reset, and env_stop for the bound target.",
-    "Work on the lease address. Android lab devices are MilkSU-Lab emulators; use adb -s <lease serial>.",
   ];
   if (sessionRole === "cve-research") {
     lines.push(
-      "The dossier also shows related.md as the related-CVE hook.",
-      "When you start this CVE job, and whenever the user asks about related, upstream, downstream, parent, child, or similar CVEs, create or update related.md with Pi file tools.",
-      "Keep headings 上游, 下游, and 同类.",
+      "The dossier also shows related.md.",
       "Only record CVE IDs found in public sources; do not invent them.",
     );
   }
@@ -254,7 +258,10 @@ export function createCodingWorkspaceExtension(
           Type.Literal("artifacts"),
           Type.Literal("changes"),
           Type.Literal("environment"),
-        ])),
+          Type.Literal("computer-use"),
+        ], {
+          description: "Which product surface to bring forward. Use computer-use when the task needs a visible desktop app the isolated browser cannot reach: it opens the scope picker so the user can grant one window. It does not select or start a target.",
+        })),
         kind: Type.Optional(Type.Union([
           Type.Literal("conversation"),
           Type.Literal("lab"),

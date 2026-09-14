@@ -21,15 +21,15 @@ export function envActionBlocked(action, policy = {}) {
   return "";
 }
 
-export function envToolGuidance() {
-  return [
-    "The bound target is owned by the environment broker.",
-    "Use env_status, env_start, env_reset, and env_stop to manage the lease.",
-    "Work on the lease address (127.0.0.1 port or emulator serial).",
-    "Android lab devices are MilkSU-Lab emulators; use adb -s <lease serial>.",
-    "env_start only works when this job already has a bound package; the user starts unbound packages from the environment strip.",
-  ].join(" ");
-}
+// Each env tool states its own bound and what it returns. The lease address and
+// emulator serial reach the model through env_status output rather than a
+// per-turn system prompt restating the same catalog.
+const envToolDescriptions = Object.freeze({
+  env_status: "Read the bound lab/CVE environment lease owned by the MilkSU environment broker: state, address, surface. Work on the address it returns, a 127.0.0.1 port or an emulator serial; MilkSU-Lab Android devices are reached with adb -s <lease serial>.",
+  env_start: "Start the package already bound to this job. Cannot pick an arbitrary image or compose file, and cannot start an unbound package; the user binds those from the environment strip.",
+  env_reset: "Stop and start the bound environment, returning its new lease address.",
+  env_stop: "Stop the bound environment and drop its address from scope.",
+});
 
 export function createEnvExtension(conversationId, sessionRole, getPolicy, requestAction) {
   return (pi) => {
@@ -38,13 +38,7 @@ export function createEnvExtension(conversationId, sessionRole, getPolicy, reque
       pi.registerTool({
         name,
         label: name.replace("env_", "env."),
-        description: name === "env_status"
-          ? "Read the bound lab/CVE environment lease: state, address, surface."
-          : name === "env_start"
-            ? "Start the package already bound to this job. Cannot pick an arbitrary image or compose file."
-            : name === "env_reset"
-              ? "Stop and start the bound environment."
-              : "Stop the bound environment and drop its address from scope.",
+        description: envToolDescriptions[name],
         parameters: Type.Object({}),
         async execute() {
           const blocked = envActionBlocked(name, getPolicy?.());

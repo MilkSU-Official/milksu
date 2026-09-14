@@ -455,7 +455,7 @@ func TestManagerRejectsDirtyInitializedSubmoduleBeforeForcedRemoval(t *testing.T
 	}
 }
 
-func TestManagerRejectsDirtyBaseAndDirtyWriter(t *testing.T) {
+func TestManagerIsolatesDirtyBaseAndRejectsDirtyWriter(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	repository := newRepository(t)
@@ -464,12 +464,18 @@ func TestManagerRejectsDirtyBaseAndDirtyWriter(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// Work in progress in the main worktree is the case isolation exists for.
+	// The writer comes from baseHead, so it neither blocks preparation nor
+	// carries the uncommitted file.
 	if err := os.WriteFile(filepath.Join(repository, "dirty.txt"), []byte("dirty\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := manager.Prepare(ctx, "dirty-base", repository, 1); err == nil ||
-		!strings.Contains(err.Error(), "main worktree changes") {
-		t.Fatalf("expected dirty base rejection, got %v", err)
+	dirtyBase, err := manager.Prepare(ctx, "dirty-base", repository, 1)
+	if err != nil {
+		t.Fatalf("dirty base was denied a writer: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dirtyBase.Worktrees[0].Path, "dirty.txt")); !os.IsNotExist(err) {
+		t.Fatalf("uncommitted base change leaked into the writer: %v", err)
 	}
 	if err := os.Remove(filepath.Join(repository, "dirty.txt")); err != nil {
 		t.Fatal(err)

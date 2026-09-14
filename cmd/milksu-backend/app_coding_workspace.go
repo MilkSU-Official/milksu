@@ -202,7 +202,8 @@ func (a *App) handleCodingWorkspaceAction(conversationID, action, input string) 
 		if panel == "" {
 			panel = "browser"
 		}
-		if panel != "browser" && panel != "artifacts" && panel != "changes" && panel != "environment" {
+		if panel != "browser" && panel != "artifacts" && panel != "changes" &&
+			panel != "environment" && panel != "computer-use" {
 			return "", fmt.Errorf("unknown Coding panel")
 		}
 		changePath := ""

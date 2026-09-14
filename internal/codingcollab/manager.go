@@ -144,7 +144,7 @@ func (m *Manager) Prepare(
 			MaxWriters,
 		)
 	}
-	repository, baseBranch, baseHead, err := m.inspectCleanRepository(ctx, workspace)
+	repository, baseBranch, baseHead, err := m.inspectRepositoryBase(ctx, workspace)
 	if err != nil {
 		return Status{}, err
 	}
@@ -647,7 +647,7 @@ func (m *Manager) refreshLocked(ctx context.Context, current manifest) (Status, 
 	return status, nil
 }
 
-func (m *Manager) inspectCleanRepository(
+func (m *Manager) inspectRepositoryBase(
 	ctx context.Context,
 	workspace string,
 ) (string, string, string, error) {
@@ -677,21 +677,11 @@ func (m *Manager) inspectCleanRepository(
 			"Coding collaboration requires a committed base",
 		)
 	}
-	status, err := m.git(
-		ctx,
-		root,
-		"status",
-		"--porcelain=v1",
-		"--untracked-files=normal",
-	)
-	if err != nil {
-		return "", "", "", fmt.Errorf("inspect Coding repository status: %w", err)
-	}
-	if status != "" {
-		return "", "", "", errors.New(
-			"commit, stash, or discard main worktree changes before preparing Coding collaboration",
-		)
-	}
+	// A writer worktree is checked out from baseHead, so uncommitted work in
+	// the main worktree neither blocks nor enters it. Requiring a pristine main
+	// worktree here would deny isolation to exactly the repositories that need
+	// it most; Finish still refuses while the writer itself is dirty or
+	// unintegrated.
 	return root, branch, head, nil
 }
 

@@ -77,12 +77,33 @@ test("CVE and lab keep research session roles so the Coding Pi loop still applie
 
 test("research report guidance tells the model to edit report.md", () => {
   assert.match(researchReportGuidance(), /report\.md/);
-  assert.match(researchReportGuidance(), /Status labels are not a report/);
   assert.match(researchReportGuidance(), /Stay on the user-selected target/);
-  assert.match(researchReportGuidance(), /env_status/);
+  // Section headings come from the seeded report.md, and the lease facts come
+  // from the env tool descriptions, so neither is restated here.
+  assert.doesNotMatch(researchReportGuidance(), /env_status/);
+  assert.doesNotMatch(researchReportGuidance("cve-research"), /上游/);
   assert.doesNotMatch(researchReportGuidance("lab-job"), /related\.md/);
   assert.match(researchReportGuidance("cve-research"), /related\.md/);
-  assert.match(researchReportGuidance("cve-research"), /上游/);
+  assert.match(researchReportGuidance("cve-research"), /do not invent them/);
+});
+
+test("the model can open the Computer Use scope picker without selecting a target", () => {
+  // show_panel only brings a product surface forward, so it stays a read
+  // action: the user still picks the window and starts the session.
+  assert.equal(
+    codingWorkspaceActionBlocked("show_panel", {
+      executionMode: "plan",
+      approvalPolicy: "read-only",
+    }),
+    "",
+  );
+  assert.match(
+    formatCodingWorkspaceInput({ action: "show_panel", panel: "computer-use" }),
+    /computer-use/,
+  );
+  // Selecting or starting a target is not reachable from this tool.
+  assert.equal(normalizeCodingWorkspaceAction("start_computer_use"), "");
+  assert.equal(normalizeCodingWorkspaceAction("list_computer_use_targets"), "");
 });
 
 test("workspace guidance is a short when-to-use routing rule", () => {

@@ -37,9 +37,12 @@ export const codingWorkspaceAutoToolNames = [
   ...codingGoalToolNames,
 ];
 
-// A Coding session must construct the full reviewed tool catalog up front.
-// Pi's setActiveTools() can narrow or restore tools that already exist, but it
-// cannot add definitions that were omitted when createAgentSession() ran.
+// This is the reviewed tool catalog a Coding session may ever call. Pi itself
+// accepts registerTool() after startup, but MilkSU passes this list as
+// createAgentSession({ tools }), which becomes Pi's allowlist and filters the
+// registry. That bound is deliberate: it keeps a session's callable surface
+// reviewed up front rather than growable at runtime. setActiveTools() then
+// narrows or restores names from this list; adding one needs a new session.
 export const codingSessionToolNames = [
   ...new Set(codingWorkspaceAutoToolNames),
 ];

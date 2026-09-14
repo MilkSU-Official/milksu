@@ -85,10 +85,7 @@ import {
   codingBrowserToolBlockReason,
   formatCodingBrowserApprovalInput,
 } from "./bridge-browser-policy.js";
-import {
-  computerUseRoutingGuidance,
-  isComputerUseMcpToolName,
-} from "./bridge-computer-use-routing.js";
+import { isComputerUseMcpToolName } from "./bridge-computer-use-routing.js";
 import { disposeAgentSession } from "./bridge-session-lifecycle.js";
 import {
   forkFromMessage,

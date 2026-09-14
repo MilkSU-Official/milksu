@@ -107,7 +107,7 @@ test("validates IDAUSR against the supervised user home instead of the isolated 
   }
 });
 
-test("registers capa as a model-selectable tool and publishes a lightweight index", async () => {
+test("discloses capa through its own description instead of the system prompt", async () => {
   const registered = [];
   const listeners = new Map();
   createSecurityToolsExtension("/tmp/workspace", [{
@@ -120,9 +120,8 @@ test("registers capa as a model-selectable tool and publishes a lightweight inde
     on(name, listener) { listeners.set(name, listener); },
   });
   assert.deepEqual(registered.map(tool => tool.name), ["capa_analyze"]);
-  const result = await listeners.get("before_agent_start")({ systemPrompt: "base" });
-  assert.match(result.systemPrompt, /local security capability index/);
-  assert.match(result.systemPrompt, /capa \(v9\.4\.0\)/);
+  assert.match(registered[0].description, /capa v9\.4\.0/);
+  assert.equal(listeners.has("before_agent_start"), false);
 });
 
 test("detects runtime catalog changes that require session recreation", () => {

@@ -103,7 +103,7 @@ export function createSecurityToolsExtension(workspace, tools) {
       pi.registerTool({
         name: "capa_analyze",
         label: "Analyze binary with capa",
-        description: "Analyze one binary inside the selected Coding workspace with the locally configured Mandiant capa release. Use this when static capability identification can answer the task faster than manual inspection.",
+        description: `Analyze one binary inside the selected Coding workspace with the locally configured Mandiant capa ${capa.version}. Use this when static capability identification can answer the task faster than manual inspection. Accepts only a workspace-relative path to a regular file.`,
         parameters: Type.Object({
           relativePath: Type.String({
             minLength: 1,
@@ -141,18 +141,11 @@ export function createSecurityToolsExtension(workspace, tools) {
       });
     }
 
-    pi.on("before_agent_start", async (event) => {
-      if (!tools.length) return undefined;
-      const index = tools.map(tool => (
-        `- ${tool.id} (${tool.version}): ${tool.capabilities.join("；")}`
-      )).join("\n");
-      return {
-        systemPrompt: `${event.systemPrompt}\n\nMilkSU local security capability index:\n${index}\n`
-          + "Choose these tools yourself only when they materially help the user's task. "
-          + "The IDA MCP exposes its reviewed schema lazily through the mcp tool; "
-          + "capa_analyze accepts only a workspace-relative binary path.\n",
-      };
-    });
+    // Reviewed security tools disclose themselves through their own surface:
+    // capa_analyze carries its version and bound in the tool description, and
+    // the IDA MCP exposes its reviewed schema lazily through the mcp tool.
+    // Restating that catalog in every system prompt would be a second
+    // disclosure channel the harness does not own.
   };
 }
 

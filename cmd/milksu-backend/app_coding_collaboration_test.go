@@ -147,7 +147,10 @@ func TestParallelWritingRolesReceiveTwoWriters(t *testing.T) {
 	}
 }
 
-func TestDelegatedWritingWorkDoesNotHideDirtyWorkspace(t *testing.T) {
+// A repository with work in progress is the case that needs isolation most, so
+// delegation still gets a writer. The writer is checked out from baseHead, so
+// the uncommitted file stays in the main worktree and never enters it.
+func TestDelegatedWritingWorkIsolatesADirtyWorkspace(t *testing.T) {
 	repository := newAgentManagedTestRepository(t)
 	if err := os.WriteFile(
 		filepath.Join(repository, "dirty.txt"),
@@ -167,11 +170,17 @@ func TestDelegatedWritingWorkDoesNotHideDirtyWorkspace(t *testing.T) {
 		repository,
 		1,
 	)
-	if descriptor != nil {
-		t.Fatalf("dirty workspace received an isolated writer: %#v", descriptor)
+	if err != nil {
+		t.Fatalf("dirty workspace was denied an isolated writer: %v", err)
 	}
-	if err == nil {
-		t.Fatal("dirty workspace did not explain why isolation was unavailable")
+	if descriptor == nil || len(descriptor.Worktrees) != 1 {
+		t.Fatalf("dirty workspace did not receive one writer: %#v", descriptor)
+	}
+	if _, err := os.Stat(filepath.Join(descriptor.Worktrees[0].Path, "dirty.txt")); !os.IsNotExist(err) {
+		t.Fatalf("uncommitted main worktree change leaked into the writer: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(repository, "dirty.txt")); err != nil {
+		t.Fatalf("preparation disturbed the user's uncommitted change: %v", err)
 	}
 }
 

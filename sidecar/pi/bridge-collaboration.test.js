@@ -177,10 +177,11 @@ test("read-only subagents work without collaboration worktrees", async () => {
     task: "Look up the public subapi documentation.",
   }, undefined, workspace);
   assert.match(summary, /scout → 主工作树（只读角色）/);
-  assert.match(codingSubagentGuidance(), /subapi/);
-  assert.match(codingSubagentGuidance(), /IDA Pro/);
   assert.match(codingSubagentGuidance(), /at most four/);
-  assert.doesNotMatch(codingSubagentGuidance(), /When the user asks to open a subagent/);
+  // Role names and when-to-use belong to the subagent tool schema, not to a
+  // per-turn system prompt essay.
+  assert.doesNotMatch(codingSubagentGuidance(), /scout, planner, reviewer/);
+  assert.doesNotMatch(codingSubagentGuidance(), /IDA Pro/);
 });
 
 test("read-only parallel lanes accept four scouts and reject a fifth", async () => {
