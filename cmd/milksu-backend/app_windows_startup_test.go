@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/MilkSU-Official/milksu/internal/appdata"
+	"github.com/MilkSU-Official/milksu/internal/codingcollab"
 	"github.com/MilkSU-Official/milksu/internal/userartifact"
 )
 
@@ -29,10 +30,19 @@ func TestWindowsStartupDoesNotRequireGit(t *testing.T) {
 	})
 
 	if application.codingCollab != nil {
-		t.Fatal("Windows must not initialize the macOS-only Coding collaboration manager")
+		t.Fatal("a machine without Git received a Coding collaboration manager")
 	}
 	collaborationDirectory := filepath.Join(root, "appdata", "agent-home", "coding-collaboration")
 	if _, err := os.Stat(collaborationDirectory); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("Windows must not create the macOS-only Coding collaboration runtime: %v", err)
+		t.Fatalf("a refused manager created collaboration state: %v", err)
+	}
+
+	_, err = application.prepareAgentManagedCodingCollaboration(
+		"conversation-no-git",
+		root,
+		1,
+	)
+	if !errors.Is(err, codingcollab.ErrGitUnavailable) {
+		t.Fatalf("prepare without Git = %v", err)
 	}
 }

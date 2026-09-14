@@ -69,7 +69,7 @@ jobs:
         shell: pwsh
         run: >-
           go test ./cmd/milksu-backend
-          -run '^(TestCodingCollaborationManager(IsDisabledOutsideDarwin|PreservesDarwinGitRequirement)|TestWindowsStartupDoesNotRequireGit)$'
+          -run '^(TestCodingCollaborationManager(RequiresGitRatherThanAPlatform|NamesMissingGit)|TestAppStartsWhenGitIsMissingAndNamesTheGap|TestPrepareWriterWorktreeNamesMissingGit|TestWindowsStartupDoesNotRequireGit)$'
           -count=1
       - name: Build and verify the pinned Windows Cua Driver
         shell: pwsh

@@ -31,6 +31,11 @@ const (
 	phaseCompleted = "completed"
 )
 
+// ErrGitUnavailable is the named gap when this machine cannot host writer
+// worktrees. The manager is refused; the app still starts and the product UI
+// reports that Git is missing.
+var ErrGitUnavailable = errors.New("Git is not installed or unavailable")
+
 type Worktree struct {
 	ID          string `json:"id"`
 	Path        string `json:"path"`
@@ -109,7 +114,7 @@ func New(root string) (*Manager, error) {
 	// creating state for a manager that is about to be refused.
 	gitPath, err := exec.LookPath("git")
 	if err != nil {
-		return nil, errors.New("Git is not installed or unavailable")
+		return nil, ErrGitUnavailable
 	}
 	if err := os.MkdirAll(resolvedRoot, 0o700); err != nil {
 		return nil, fmt.Errorf("create Coding collaboration directory: %w", err)

@@ -133,8 +133,10 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create Coding project memory: %w", err)
 	}
+	// Missing Git refuses writer worktrees; it must not block the rest of the
+	// desktop from starting. Preparation names that gap when the model asks.
 	codingCollab, err := newCodingCollaborationManager(dataDirectory)
-	if err != nil {
+	if err != nil && !errors.Is(err, codingcollab.ErrGitUnavailable) {
 		return nil, fmt.Errorf("create Coding collaboration manager: %w", err)
 	}
 

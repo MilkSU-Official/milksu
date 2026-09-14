@@ -61,7 +61,7 @@ func (a *App) prepareAgentManagedCodingCollaboration(
 	writers int,
 ) (*engine.CodingCollaborationDescriptor, error) {
 	if a.codingCollab == nil {
-		return nil, fmt.Errorf("Agent-managed writer worktrees are unavailable")
+		return nil, codingcollab.ErrGitUnavailable
 	}
 	if strings.TrimSpace(workspacePath) == "" {
 		return nil, fmt.Errorf("this task has no Git project to isolate")

@@ -1,13 +1,16 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
 
+	"github.com/MilkSU-Official/milksu/internal/appdata"
 	"github.com/MilkSU-Official/milksu/internal/codingcollab"
+	"github.com/MilkSU-Official/milksu/internal/userartifact"
 )
 
 // Git decides whether a machine can host writer worktrees, not the operating
@@ -30,7 +33,7 @@ func TestCodingCollaborationManagerNamesMissingGit(t *testing.T) {
 	if manager != nil {
 		t.Fatal("a machine without Git received a Coding collaboration manager")
 	}
-	if err == nil || err.Error() != "Git is not installed or unavailable" {
+	if !errors.Is(err, codingcollab.ErrGitUnavailable) {
 		t.Fatalf("missing Git error = %v", err)
 	}
 	collaborationDirectory := filepath.Join(
@@ -40,6 +43,58 @@ func TestCodingCollaborationManagerNamesMissingGit(t *testing.T) {
 	)
 	if _, err := os.Stat(collaborationDirectory); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("a refused manager created collaboration state: %v", err)
+	}
+}
+
+// Startup must not treat a missing Git as a fatal app error. The old
+// non-darwin gate hid this path; after worktree preparation follows Git
+// rather than GOOS, a Windows (or any) machine without Git still has to
+// reach the product UI and name the gap.
+func TestAppStartsWhenGitIsMissingAndNamesTheGap(t *testing.T) {
+	t.Setenv("PATH", "")
+	root := t.TempDir()
+	t.Setenv(appdata.DirectoryOverrideEnv, filepath.Join(root, "appdata"))
+	t.Setenv(userartifact.DirectoryOverrideEnv, filepath.Join(root, "artifacts"))
+
+	application, err := newAppWithDesktopHost(nil)
+	if err != nil {
+		t.Fatalf("initialize MilkSU without Git: %v", err)
+	}
+	t.Cleanup(func() {
+		application.Shutdown(context.Background())
+	})
+	if application.codingCollab != nil {
+		t.Fatal("a machine without Git received a Coding collaboration manager")
+	}
+	collaborationDirectory := filepath.Join(
+		root,
+		"appdata",
+		"agent-home",
+		"coding-collaboration",
+	)
+	if _, err := os.Stat(collaborationDirectory); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("a refused manager created collaboration state: %v", err)
+	}
+
+	_, err = application.prepareAgentManagedCodingCollaboration(
+		"conversation-no-git",
+		root,
+		1,
+	)
+	if !errors.Is(err, codingcollab.ErrGitUnavailable) {
+		t.Fatalf("prepare without Git = %v", err)
+	}
+}
+
+func TestPrepareWriterWorktreeNamesMissingGit(t *testing.T) {
+	application := &App{}
+	_, err := application.prepareAgentManagedCodingCollaboration(
+		"conversation-no-git",
+		t.TempDir(),
+		1,
+	)
+	if !errors.Is(err, codingcollab.ErrGitUnavailable) {
+		t.Fatalf("prepare without a manager = %v", err)
 	}
 }
 

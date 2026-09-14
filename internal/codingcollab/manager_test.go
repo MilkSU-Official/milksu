@@ -2,12 +2,31 @@ package codingcollab
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+// Writer worktrees are a Git feature, not a macOS feature. A machine without
+// Git must be told what is missing, and New must not leave an empty
+// collaboration directory behind for a manager that was refused.
+func TestNewNamesMissingGitAndCreatesNoState(t *testing.T) {
+	t.Setenv("PATH", "")
+	root := filepath.Join(t.TempDir(), "collaboration")
+	manager, err := New(root)
+	if manager != nil {
+		t.Fatal("a machine without Git received a Coding collaboration manager")
+	}
+	if !errors.Is(err, ErrGitUnavailable) {
+		t.Fatalf("missing Git error = %v", err)
+	}
+	if _, err := os.Stat(root); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("a refused manager created collaboration state: %v", err)
+	}
+}
 
 func TestManagerCreatesRecoversAndSafelyFinishesIndependentWorktrees(t *testing.T) {
 	t.Parallel()
