@@ -38,6 +38,7 @@ export interface CodingEnvironmentSnapshot {
   workspaceName: string
   capturedAt: string
   git: CodingGitStatus
+  artifacts?: string[]
 }
 
 export interface CodingRecentProject {

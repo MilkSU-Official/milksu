@@ -83,7 +83,7 @@ func TestParseNumstatByPathPreservesPerFileCounters(t *testing.T) {
 }
 
 func TestParsePorcelainChangesPreservesStatusAndRename(t *testing.T) {
-	changes, truncated := parsePorcelainChanges(
+	changes, truncated, _ := parsePorcelainChanges(
 		"M  staged.go\x00 M modified.go\x00?? new.go\x00R  renamed.go\x00old.go\x00",
 	)
 	if truncated || len(changes) != 4 {
@@ -97,11 +97,26 @@ func TestParsePorcelainChangesPreservesStatusAndRename(t *testing.T) {
 }
 
 func TestParsePorcelainChangesIgnoresMilkSURuntimeFiles(t *testing.T) {
-	changes, truncated := parsePorcelainChanges(
+	changes, truncated, _ := parsePorcelainChanges(
 		" M src/app.go\x00?? .milksu/home/npm.log\x00",
 	)
 	if truncated || len(changes) != 1 || changes[0].Path != "src/app.go" {
 		t.Fatalf("MilkSU runtime files leaked into change list: %#v", changes)
+	}
+}
+
+// An ignored path is not something the task can commit, so it stays out of the
+// change list the diff and commit surfaces read. It is reported separately
+// because it names the output directories artifact discovery has to look in.
+func TestParsePorcelainChangesSeparatesIgnoredOutputDirectories(t *testing.T) {
+	changes, _, ignored := parsePorcelainChanges(
+		" M src/app.go\x00!! out/\x00!! dist/\x00!! .milksu/\x00",
+	)
+	if len(changes) != 1 || changes[0].Path != "src/app.go" {
+		t.Fatalf("ignored paths leaked into the change list: %#v", changes)
+	}
+	if len(ignored) != 2 || ignored[0] != "out" || ignored[1] != "dist" {
+		t.Fatalf("unexpected ignored roots: %#v", ignored)
 	}
 }
 

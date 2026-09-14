@@ -173,7 +173,7 @@ func (a *App) handleCodingWorkspaceAction(conversationID, action, input string) 
 		a.revealCodingWorkspace(conversationID, "artifacts", "", "", "")
 		return encodeWorkspaceResult(map[string]any{
 			"workspace": snapshot.WorkspaceName,
-			"artifacts": codingenv.SuggestedArtifactPaths(snapshot),
+			"artifacts": snapshot.Artifacts,
 		})
 	case "preview_artifact":
 		workspace, err := a.workspaceForConversation(conversationID)
