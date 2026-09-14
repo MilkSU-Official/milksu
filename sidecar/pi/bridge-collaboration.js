@@ -207,8 +207,8 @@ export function assignWriterWorktrees(input, collaboration) {
 
 export function codingSubagentGuidance() {
   return [
-    "Read-only roles: scout, planner, reviewer, security-auditor. Those work without a writer worktree.",
-    "MilkSU allows at most four subagent tasks per approved call. Effectful roles still need prepared writer worktrees.",
+    "Read-only roles: scout, planner, reviewer, security-auditor. Those read the main workspace.",
+    "MilkSU allows at most four subagent tasks per approved call. Delegating an effectful role prepares its isolated writer worktree and assigns that working directory; do not choose the path yourself.",
     "Do not treat the words subagent, sub-agent, or subapi as IDA Pro, idalib, or a security MCP.",
     "IDA is only for a local binary the user named.",
   ].join(" ");
