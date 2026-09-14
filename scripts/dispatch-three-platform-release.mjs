@@ -91,6 +91,6 @@ for (const dispatch of dispatches) {
 process.stdout.write(
   `cloud release workflows dispatched for ${state.commit}`
   + (includeMacosCloud
-    ? '. Approve the macos-release environment, then run: npm run release:collect -- --wait\n'
+    ? '. macOS starts immediately on main; then run: npm run release:collect -- --wait\n'
     : ' (macOS skipped)\n'),
 )

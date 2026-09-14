@@ -55,7 +55,7 @@
 - CTF 成功必须来自独立 Judge 或用户明确确认。CVE 发行面仍是学习/追踪；开发线已有点进档案后的复现报告。「实验室」是独立一级入口，不是 CTF 可重置环境。对用户未授权的外部目标，仍需要可见、准确的授权。模型候选不能写成已确认漏洞。
 - Beta 只用于用户明确要求的 MilkSU 自举；普通开发、测试和发行准备不构建 Beta。
 - 可下载的最新版只写在 README。晚于该安装包的 `main` 只描述当前仓库。
-- 仓库已公开。签名 / 公证 / R2 材料只在 `macos-release` environment secrets 与本机 Personal Vault；Secret scanning 与 push protection 已打开。`macos-release` 需要 `MilkSU-Official` 审批，且只能从 `main` 部署。`main` 由 ruleset 保护：禁止强推和删分支，只有维护者可直接推送；协作者走 PR。
+- 仓库已公开。签名 / 公证 / R2 材料只在 `macos-release` environment secrets 与本机 Personal Vault；Secret scanning 与 push protection 已打开。`macos-release` 只能从 `main` 部署，没有 required reviewer；dispatch 后立即注入 secrets。`main` 由 ruleset 保护：禁止强推和删分支，只有维护者可直接推送；协作者走 PR。
 - 产品 UI 设计语言只写在仓库根目录 `AGENTS.md`。`docs/design/current-visual.md`、切片对照表和旧战术档案 / 酸绿稿已删除，不再作为实现约束。
 
 ## 文档生命周期

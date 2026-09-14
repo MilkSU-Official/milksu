@@ -46,8 +46,9 @@ npm run release:dispatch -- \
   --release-notes "本次发行说明"
 ```
 
-macOS 签名 job 使用 `macos-release` environment，必须由 `MilkSU-Official` 在 GitHub 上批准后
-才会注入 Developer ID / Notary secrets。批准后等待并拉取三端产物：
+macOS 签名 job 使用 `macos-release` environment 作为 Developer ID / Notary / R2 密钥库：只允许
+`main` 部署，没有 required reviewer，`release:dispatch` 后立即注入 secrets 并开跑。不要删除该
+environment，也不要把这些材料改放到仓库级 secrets。等待并拉取三端产物：
 
 ```bash
 npm run release:collect -- --wait

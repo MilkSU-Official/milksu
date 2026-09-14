@@ -80,7 +80,7 @@ async function main() {
       'Local macOS packaging is paused. From any machine with gh auth, run:\n'
       + '  npm run release:verify\n'
       + '  npm run release:dispatch -- --release-title "MilkSU …" --release-notes "…"\n'
-      + 'Approve the macos-release environment, then:\n'
+      + 'Then:\n'
       + '  npm run release:collect -- --wait\n'
       + '  npm run release:github -- --release-title "MilkSU …" --release-notes "…"\n'
       + 'Pass --allow-local only if GitHub-hosted macOS cannot notarize.',

@@ -18,7 +18,7 @@ Use one clean source commit and the repository workflows. Keep signing, notariza
 
 ## Build Stable
 
-Push the clean release commit to `main`, then dispatch **macOS, Windows and Linux** cloud workflows against that exact commit (`npm run release:dispatch`). Approve the `macos-release` environment, then `npm run release:collect -- --wait`. Do not use `release:mac:local` unless GitHub-hosted macOS cannot notarize (`--allow-local`).
+Push the clean release commit to `main`, then dispatch **macOS, Windows and Linux** cloud workflows against that exact commit (`npm run release:dispatch`). The `macos-release` environment injects signing secrets on `main` immediately; do not wait for an Approve click. Then `npm run release:collect -- --wait`. Do not use `release:mac:local` unless GitHub-hosted macOS cannot notarize (`--allow-local`).
 
 ### macOS ARM64
 

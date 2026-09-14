@@ -11,9 +11,9 @@ staple 与 Gatekeeper 验证。签名资产只存在 Personal Vault 和 GitHub S
 ## 一次性配置
 
 1. 打开仓库的 **Settings → Environments → New environment**，创建 `macos-release`。
-2. 仓库已公开：该 environment 必须启用 Required reviewers（当前审阅人 `MilkSU-Official`），
-   只允许维护者批准后才注入签名 / 公证 / R2 secrets；并把 deployment branch 限制为 `main`。
-   管理员不能绕过审批。`workflow_dispatch` 仍手工触发；正式打包上传 OTA 后会把该平台 current pointer 设为刚上传的版本。
+2. 仓库已公开：该 environment 是密钥库，不是审批门。deployment branch 限制为 `main`，不要启用
+   Required reviewers，也不要设 wait timer。`workflow_dispatch` 仍手工触发；job 在 `main` 上
+   立即注入签名 / 公证 / R2 secrets。正式打包上传 OTA 后会把该平台 current pointer 设为刚上传的版本。
 3. 在 `macos-release` 的 Environment secrets 中创建：
 
 | Secret | 内容 |
@@ -37,7 +37,7 @@ staple 与 Gatekeeper 验证。签名资产只存在 Personal Vault 和 GitHub S
 1. 按[三端打包与发版流程](release-process.md)把准确版本提交并推送到 `main`，运行一次
    `npm run release:verify` 生成绑定完整 commit 的本地回执。任意有 `gh` 的机器都可以。
 2. `npm run release:dispatch ...` 同时分发 macOS / Windows / Linux。macOS 走 GitHub-hosted
-   标准 runner，必须批准 `macos-release` environment 后才会注入证书与公证密钥。
+   标准 runner；`macos-release` environment 在 `main` 上立即注入证书与公证密钥，无需 Approve。
 3. `npm run release:collect -- --wait` 把三端安装包拉到 `build/release/github/`。
 
 本机 `release:mac:local` 暂时关闭。只有云端公证不可用时才加 `--allow-local`，从 Personal Vault
@@ -86,7 +86,7 @@ spctl --assess --type execute --verbose=4 /Applications/MilkSU.app
 xcrun stapler validate /path/to/MilkSU-macOS-arm64-<version>.dmg
 ```
 
-普通本地 Stable/Beta 构建保持显式 ad-hoc，不枚举 Developer ID。正式发行只走上述审批后的 CI。
+普通本地 Stable/Beta 构建保持显式 ad-hoc，不枚举 Developer ID。正式发行只走上述 CI。
 
 官方参考：[Developer ID 证书](https://developer.apple.com/help/account/certificates/create-developer-id-certificates)、
 [macOS 公证](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution)、
