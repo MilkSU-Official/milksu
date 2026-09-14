@@ -5,12 +5,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import {
+  assignWriterWorktrees,
   codingCollaborationChanged,
   codingSubagentGuidance,
   codingWorkspaceIdentityGuidance,
   formatSubagentApproval,
   normalizeCodingCollaboration,
   validateSubagentInput,
+  writerWorktreesRequired,
 } from "./bridge-collaboration.js";
 
 async function fixture(writers = 2) {
@@ -206,6 +208,90 @@ test("read-only parallel lanes accept four scouts and reject a fifth", async () 
     }, undefined, workspace),
     /at most 4 subagent tasks/,
   );
+});
+
+test("writer demand is counted before anything is prepared", async () => {
+  assert.equal(writerWorktreesRequired({ agent: "scout", task: "look" }), 0);
+  assert.equal(writerWorktreesRequired({ agent: "worker", task: "edit" }), 1);
+  assert.equal(writerWorktreesRequired({
+    tasks: [
+      { agent: "worker", task: "one" },
+      { agent: "verifier", task: "two" },
+    ],
+  }), 2);
+  // More writing roles than registered writers still asks for the bound, and a
+  // malformed delegation asks for nothing so validation owns the rejection.
+  assert.equal(writerWorktreesRequired({
+    tasks: [
+      { agent: "worker", task: "one" },
+      { agent: "verifier", task: "two" },
+      { agent: "refactorer", task: "three" },
+    ],
+  }), 2);
+  assert.equal(writerWorktreesRequired({ agent: "worker", tasks: [] }), 0);
+  assert.equal(writerWorktreesRequired(undefined), 0);
+});
+
+test("the product assigns writer worktrees the model was never told about", async () => {
+  const { descriptor, workspace, worktrees } = await fixture();
+
+  const single = { agent: "worker", task: "implement the slice" };
+  assignWriterWorktrees(single, descriptor);
+  assert.equal(single.cwd, worktrees[0].path);
+  assert.equal(
+    validateSubagentInput(single, descriptor, workspace).tasks[0].access,
+    "worktree",
+  );
+
+  const parallel = {
+    tasks: [
+      { agent: "worker", task: "implement" },
+      { agent: "verifier", task: "verify" },
+    ],
+  };
+  assignWriterWorktrees(parallel, descriptor);
+  assert.deepEqual(
+    parallel.tasks.map(task => task.cwd),
+    worktrees.map(value => value.path),
+  );
+  assert.equal(validateSubagentInput(parallel, descriptor, workspace).mode, "parallel");
+});
+
+test("assignment keeps a registered writer the model already chose", async () => {
+  const { descriptor, workspace, worktrees } = await fixture();
+  const parallel = {
+    tasks: [
+      { agent: "worker", task: "implement", cwd: worktrees[1].path },
+      { agent: "verifier", task: "verify" },
+    ],
+  };
+  assignWriterWorktrees(parallel, descriptor);
+  assert.deepEqual(
+    parallel.tasks.map(task => task.cwd),
+    [worktrees[1].path, worktrees[0].path],
+  );
+  assert.equal(validateSubagentInput(parallel, descriptor, workspace).mode, "parallel");
+});
+
+test("assignment leaves read-only roles in the main workspace", async () => {
+  const { descriptor, workspace } = await fixture();
+  const mixed = {
+    tasks: [
+      { agent: "scout", task: "survey" },
+      { agent: "worker", task: "implement" },
+    ],
+  };
+  assignWriterWorktrees(mixed, descriptor);
+  assert.equal(mixed.tasks[0].cwd, undefined);
+  const accepted = validateSubagentInput(mixed, descriptor, workspace);
+  assert.equal(accepted.tasks[0].cwd, workspace);
+  assert.equal(accepted.tasks[0].access, "read-only");
+});
+
+test("assignment without a prepared collaboration changes nothing", async () => {
+  const single = { agent: "worker", task: "implement" };
+  assignWriterWorktrees(single, undefined);
+  assert.equal(single.cwd, undefined);
 });
 
 test("approval summary exposes role, mode, branch, and task", async () => {

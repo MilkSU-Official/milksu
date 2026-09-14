@@ -26,14 +26,13 @@ func newCodingCollaborationManager(
 	)
 }
 
-// ensureAgentManagedCodingCollaboration keeps worktree allocation behind the
-// Coding task boundary. A clean Git task receives one bounded writer slot on
-// its first effectful turn; non-Git and already-dirty projects continue without
-// collaboration instead of asking the user to choose a worktree or writer.
-func (a *App) ensureAgentManagedCodingCollaboration(
+// resolveAgentManagedCodingCollaboration reports the writer worktrees this
+// Coding task already owns. Sending a message never provisions one. A writer
+// worktree is a resource for effectful subagents, so it is prepared when the
+// model delegates writing work, not on the path to the first token.
+func (a *App) resolveAgentManagedCodingCollaboration(
 	conversationID,
 	workspacePath string,
-	allowPrepare bool,
 ) (*engine.CodingCollaborationDescriptor, error) {
 	if runtime.GOOS != "darwin" || a.codingCollab == nil {
 		return nil, nil
@@ -45,12 +44,6 @@ func (a *App) ensureAgentManagedCodingCollaboration(
 	if strings.TrimSpace(workspacePath) == "" {
 		return nil, nil
 	}
-	// CTF challenge directories already isolate the task. Do not auto-wrap them.
-	// A user-selected Git project or an existing collaboration still goes through.
-	if ctf.IsAgentWorkspace(workspacePath) {
-		allowPrepare = false
-	}
-
 	descriptorContext, cancel := context.WithTimeout(a.commandContext(), 8*time.Second)
 	descriptor, err := a.codingCollab.Descriptor(
 		descriptorContext,
@@ -61,47 +54,112 @@ func (a *App) ensureAgentManagedCodingCollaboration(
 	if err != nil {
 		return nil, err
 	}
-	if descriptor == nil && allowPrepare {
-		inspectContext, inspectCancel := context.WithTimeout(a.commandContext(), 4*time.Second)
-		snapshot, inspectErr := codingenv.Inspect(inspectContext, workspacePath)
-		inspectCancel()
-		if inspectErr != nil {
-			return nil, inspectErr
-		}
-		if snapshot.Git.Available && snapshot.Git.IsRepository && !snapshot.Git.Dirty {
-			prepareContext, prepareCancel := context.WithTimeout(
-				a.commandContext(),
-				3*time.Minute,
-			)
-			_, prepareErr := a.codingCollab.Prepare(
-				prepareContext,
-				conversationID,
-				workspacePath,
-				codingcollab.MinWriters,
-			)
-			prepareCancel()
-			if prepareErr != nil {
-				return nil, fmt.Errorf(
-					"prepare Agent-managed Coding worktree: %w",
-					prepareErr,
-				)
-			}
-			descriptorContext, descriptorCancel := context.WithTimeout(
-				a.commandContext(),
-				8*time.Second,
-			)
-			descriptor, err = a.codingCollab.Descriptor(
-				descriptorContext,
-				conversationID,
-				workspacePath,
-			)
-			descriptorCancel()
-			if err != nil {
-				return nil, err
-			}
-		}
-	}
 	return projectCodingCollaborationDescriptor(descriptor), nil
+}
+
+// prepareAgentManagedCodingCollaboration provisions the writer worktree an
+// effectful subagent needs. Preparation checks out a linked worktree and copies
+// the repository's ignored .worktreeinclude paths, so it runs only when the
+// model has actually delegated writing work, and it reports progress in the
+// conversation while it runs.
+func (a *App) prepareAgentManagedCodingCollaboration(
+	conversationID,
+	workspacePath string,
+	writers int,
+) (*engine.CodingCollaborationDescriptor, error) {
+	if runtime.GOOS != "darwin" || a.codingCollab == nil {
+		return nil, fmt.Errorf(
+			"Agent-managed writer worktrees are currently available only on macOS",
+		)
+	}
+	if strings.TrimSpace(workspacePath) == "" {
+		return nil, fmt.Errorf("this task has no Git project to isolate")
+	}
+	// CTF challenge directories already isolate the task, so they never receive
+	// a second worktree around an already bounded workspace.
+	if ctf.IsAgentWorkspace(workspacePath) {
+		return nil, fmt.Errorf("the CTF challenge workspace is already isolated")
+	}
+	existing, err := a.resolveAgentManagedCodingCollaboration(conversationID, workspacePath)
+	if err != nil {
+		return nil, err
+	}
+	if existing != nil {
+		return existing, nil
+	}
+	inspectContext, inspectCancel := context.WithTimeout(a.commandContext(), 4*time.Second)
+	snapshot, inspectErr := codingenv.Inspect(inspectContext, workspacePath)
+	inspectCancel()
+	if inspectErr != nil {
+		return nil, inspectErr
+	}
+	if !snapshot.Git.Available || !snapshot.Git.IsRepository {
+		return nil, fmt.Errorf("this project is not a Git repository")
+	}
+	if snapshot.Git.Dirty {
+		return nil, fmt.Errorf(
+			"this project has uncommitted changes; commit or stash them before delegating writing work",
+		)
+	}
+
+	a.emitCodingWorktreeProgress(engine.Event{
+		SessionID:  conversationID,
+		Type:       "tool.started",
+		ToolName:   codingWorktreeToolName,
+		ToolCallID: codingWorktreeToolCallID(conversationID),
+	})
+	prepareContext, prepareCancel := context.WithTimeout(a.commandContext(), 3*time.Minute)
+	started := time.Now()
+	_, prepareErr := a.codingCollab.Prepare(
+		prepareContext,
+		conversationID,
+		workspacePath,
+		boundedWriterCount(writers),
+	)
+	prepareCancel()
+	completed := engine.Event{
+		SessionID:  conversationID,
+		Type:       "tool.completed",
+		ToolName:   codingWorktreeToolName,
+		ToolCallID: codingWorktreeToolCallID(conversationID),
+		DurationMS: time.Since(started).Milliseconds(),
+		Done:       true,
+	}
+	if prepareErr != nil {
+		completed.Error = prepareErr.Error()
+		a.emitCodingWorktreeProgress(completed)
+		return nil, fmt.Errorf("prepare Agent-managed Coding worktree: %w", prepareErr)
+	}
+	a.emitCodingWorktreeProgress(completed)
+	return a.resolveAgentManagedCodingCollaboration(conversationID, workspacePath)
+}
+
+// codingWorktreeToolName labels the preparation row the conversation shows
+// where model tool activity appears. The renderer owns its bilingual copy.
+const codingWorktreeToolName = "milksu_worktree"
+
+func (a *App) emitCodingWorktreeProgress(event engine.Event) {
+	if a.engines == nil {
+		return
+	}
+	a.engines.EmitProductEvent(event)
+}
+
+// boundedWriterCount keeps a requested writer count inside the collaboration
+// contract. One delegated writing role needs one worktree; the request comes
+// from the Sidecar, so it is clamped rather than trusted.
+func boundedWriterCount(writers int) int {
+	if writers < codingcollab.MinWriters {
+		return codingcollab.MinWriters
+	}
+	if writers > codingcollab.MaxWriters {
+		return codingcollab.MaxWriters
+	}
+	return writers
+}
+
+func codingWorktreeToolCallID(conversationID string) string {
+	return "milksu-worktree-" + strings.TrimSpace(conversationID)
 }
 
 func projectCodingCollaborationDescriptor(

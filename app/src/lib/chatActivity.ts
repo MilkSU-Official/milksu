@@ -457,6 +457,8 @@ export function chatActivitySummary(messages: Message[]) {
 
   const architectureCount = entries.filter(entry => entry.toolName === 'milksu_archify').length
   if (architectureCount) return t('处理架构图', 'Working on architecture diagram')
+  const worktreeCount = entries.filter(entry => entry.toolName === 'milksu_worktree').length
+  if (worktreeCount) return t('准备了隔离工作树', 'Prepared the isolated worktree')
   const imageGenCount = entryCount(entries, imageGenTools)
   if (imageGenCount) return imageGenCount > 1 ? t('处理了多张图片', 'Processed multiple images') : t('生成或编辑了图片', 'Generated or edited an image')
 
@@ -594,6 +596,7 @@ export function chatActivityEntrySummary(messageOrEntry: Message | ChatActivityE
   if (name === 'ls') return t(`查看${suffix || '目录'}`, `List${suffix || ' directory'}`)
   if (name === 'find') return t(`查找${suffix || '文件'}`, `Find${suffix || ' file'}`)
   if (name === 'grep') return t(`搜索${suffix || '内容'}`, `Search${suffix || ' content'}`)
+  if (name === 'milksu_worktree') return t('创建隔离工作树并复制项目文件', 'Creating the isolated worktree and copying project files')
   if (name === 'milksu_progress') return t('更新任务进度', 'Update task progress')
   if (name === 'milksu_workspace') return subject || t('操作 MilkSU', 'Operate MilkSU')
   if (name === 'env_status') return t('查看环境', 'Check environment')

@@ -116,11 +116,13 @@ import {
   withCodingTurnContract,
 } from "./bridge-turn-contract.js";
 import {
+  assignWriterWorktrees,
   codingCollaborationChanged,
   codingCollaborationToolName,
   formatSubagentApproval,
   normalizeCodingCollaboration,
   validateSubagentInput,
+  writerWorktreesRequired,
 } from "./bridge-collaboration.js";
 import {
   authorizeImageGenToolCall,
@@ -341,6 +343,9 @@ function emitGoalState(conversationId, session) {
 const approvalBroker = createApprovalBroker(emit);
 const workspaceActionBroker = createWorkspaceActionBroker(emit);
 const pendingWorkspaceCompaction = new Set();
+// Checking out a linked worktree and materializing .worktreeinclude paths can
+// run far past an ordinary workspace action, so give the host its own bound.
+const writerWorktreePrepareTimeoutMs = 5 * 60_000;
 const sessionContextUsage = new Map();
 const backgroundEffectfulActions = new Set(["spawn", "watch", "stop", "clear"]);
 
@@ -577,6 +582,20 @@ function createCodingPermissionExtension(
       });
       if (imageGenDecision) return imageGenDecision;
       if (event.toolName === codingCollaborationToolName) {
+        const writers = writerWorktreesRequired(event.input);
+        if (writers > 0 && !policy.codingCollaboration) {
+          try {
+            await prepareWriterWorktrees(conversationId, policy, writers);
+          } catch (error) {
+            return {
+              block: true,
+              reason: `MilkSU could not prepare a writer worktree: ${
+                error instanceof Error ? error.message : String(error)
+              }`,
+            };
+          }
+        }
+        assignWriterWorktrees(event.input, policy.codingCollaboration);
         try {
           validateSubagentInput(
             event.input,
@@ -1490,6 +1509,31 @@ async function loadRuntimeSessionPolicy(cwd, command) {
   };
 }
 
+// prepareWriterWorktrees asks the desktop runtime for the isolation an
+// effectful subagent needs, at the moment the model delegates writing work.
+// The custom file tools of this already-running session were built without
+// those paths, so the policy is marked stale and the next turn rebuilds the
+// session with the writer worktrees in scope.
+async function prepareWriterWorktrees(conversationId, policy, writers) {
+  const result = await workspaceActionBroker.request({
+    conversationId,
+    action: "prepare_coding_worktree",
+    input: { writers },
+    timeoutMs: writerWorktreePrepareTimeoutMs,
+  });
+  const descriptor = normalizeCodingCollaboration(
+    JSON.parse(result),
+    conversationId,
+    policy.workspace,
+  );
+  if (!descriptor) {
+    throw new Error("the desktop runtime returned no writer worktree");
+  }
+  policy.codingCollaboration = descriptor;
+  policy.codingCollaborationToolScopeStale = true;
+  return descriptor;
+}
+
 function configureSubagentRuntime(cwd, collaboration) {
   const launcher = join(bridgeDirectory, "pi-subagent-launcher.sh");
   const runner = join(bridgeDirectory, "pi-subagent-runner.cjs");
@@ -1723,6 +1767,7 @@ async function sendMessage(command) {
         previousPolicy.browserUse,
         requestedBrowserUse,
       )
+      || previousPolicy.codingCollaborationToolScopeStale === true
       || codingCollaborationChanged(
         previousPolicy.codingCollaboration,
         requestedCodingCollaboration,

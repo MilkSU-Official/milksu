@@ -150,18 +150,23 @@ export async function runQueuedWorkspaceCompaction(pending, conversationId, comp
   return compact();
 }
 
+export const defaultWorkspaceActionTimeoutMs = 25_000;
+
 export function createWorkspaceActionBroker(emit, createID = () => crypto.randomUUID()) {
   const pending = new Map();
 
   return {
-    request({ conversationId, action, input }) {
+    request({ conversationId, action, input, timeoutMs }) {
       const requestID = createID();
+      const deadline = Number.isFinite(timeoutMs) && timeoutMs > 0
+        ? timeoutMs
+        : defaultWorkspaceActionTimeoutMs;
       return new Promise((resolve, reject) => {
         const timer = setTimeout(() => {
           if (!pending.has(requestID)) return;
           pending.delete(requestID);
           reject(new Error("Coding workspace action timed out"));
-        }, 25_000);
+        }, deadline);
         pending.set(requestID, {
           resolve: value => {
             clearTimeout(timer);

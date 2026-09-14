@@ -10,6 +10,7 @@ import {
   codingWorkspaceToolName,
   createCodingWorkspaceExtension,
   createWorkspaceActionBroker,
+  defaultWorkspaceActionTimeoutMs,
   formatCodingWorkspaceInput,
   normalizeCodingWorkspaceAction,
   describeWorkspaceCompaction,
@@ -140,6 +141,32 @@ test("workspace broker returns the desktop result and rejects host failures", as
     error: "browser tab is unavailable",
   });
   await assert.rejects(failed, /unavailable/);
+});
+
+// Preparing a writer worktree checks out a linked tree and copies ignored
+// includes, so it needs a longer bound than an ordinary desktop action.
+test("workspace broker honours a caller-supplied deadline", async () => {
+  const broker = createWorkspaceActionBroker(() => {}, () => "workspace-slow");
+  const pending = broker.request({
+    conversationId: "conversation-1",
+    action: "prepare_coding_worktree",
+    input: { writers: 1 },
+    timeoutMs: 20,
+  });
+  await assert.rejects(pending, /timed out/);
+
+  const bounded = broker.request({
+    conversationId: "conversation-1",
+    action: "prepare_coding_worktree",
+    input: { writers: 1 },
+    timeoutMs: defaultWorkspaceActionTimeoutMs,
+  });
+  broker.respond({
+    requestId: "workspace-slow",
+    ok: true,
+    result: JSON.stringify({ schemaVersion: 2 }),
+  });
+  assert.match(await bounded, /schemaVersion/);
 });
 
 test("workspace extension registers one reviewed desktop tool", async () => {

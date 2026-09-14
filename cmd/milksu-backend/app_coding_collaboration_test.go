@@ -46,7 +46,10 @@ func TestCodingCollaborationManagerPreservesDarwinGitRequirement(t *testing.T) {
 	}
 }
 
-func TestAgentManagedCodingCollaborationPreparesAndReleasesCleanWriter(t *testing.T) {
+// Sending a message must not provision anything. A writer worktree belongs to
+// an effectful subagent, so a clean Git task still reports no collaboration
+// until the model actually delegates writing work.
+func TestSendingAMessageDoesNotProvisionAWriterWorktree(t *testing.T) {
 	if runtime.GOOS != "darwin" {
 		t.Skip("Agent-managed Coding collaboration is currently macOS-only")
 	}
@@ -57,20 +60,57 @@ func TestAgentManagedCodingCollaborationPreparesAndReleasesCleanWriter(t *testin
 	}
 	application := &App{codingCollab: manager}
 
-	descriptor, err := application.ensureAgentManagedCodingCollaboration(
+	descriptor, err := application.resolveAgentManagedCodingCollaboration(
+		"conversation-lazy-writer",
+		repository,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if descriptor != nil {
+		t.Fatalf("sending a message provisioned a worktree: %#v", descriptor)
+	}
+}
+
+func TestDelegatedWritingWorkPreparesAndReleasesCleanWriter(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("Agent-managed Coding collaboration is currently macOS-only")
+	}
+	repository := newAgentManagedTestRepository(t)
+	manager, err := codingcollab.New(filepath.Join(t.TempDir(), "collaboration"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	application := &App{codingCollab: manager}
+
+	descriptor, err := application.prepareAgentManagedCodingCollaboration(
 		"conversation-auto-writer",
 		repository,
-		true,
+		1,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if descriptor == nil || len(descriptor.Worktrees) != 1 {
-		t.Fatalf("unexpected automatic worktree descriptor: %#v", descriptor)
+		t.Fatalf("unexpected delegated worktree descriptor: %#v", descriptor)
 	}
 	writerPath := descriptor.Worktrees[0].Path
 	if info, statErr := os.Stat(writerPath); statErr != nil || !info.IsDir() {
-		t.Fatalf("automatic writer was not prepared: path=%s err=%v", writerPath, statErr)
+		t.Fatalf("delegated writer was not prepared: path=%s err=%v", writerPath, statErr)
+	}
+
+	// A second delegation in the same task reuses the prepared writer instead of
+	// preparing a second one.
+	again, err := application.prepareAgentManagedCodingCollaboration(
+		"conversation-auto-writer",
+		repository,
+		1,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again == nil || len(again.Worktrees) != 1 || again.Worktrees[0].Path != writerPath {
+		t.Fatalf("second delegation did not reuse the writer: %#v", again)
 	}
 
 	if err := application.releaseAgentManagedCodingCollaboration(
@@ -83,7 +123,31 @@ func TestAgentManagedCodingCollaborationPreparesAndReleasesCleanWriter(t *testin
 	}
 }
 
-func TestAgentManagedCodingCollaborationDoesNotHideDirtyWorkspace(t *testing.T) {
+func TestParallelWritingRolesReceiveTwoWriters(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("Agent-managed Coding collaboration is currently macOS-only")
+	}
+	repository := newAgentManagedTestRepository(t)
+	manager, err := codingcollab.New(filepath.Join(t.TempDir(), "collaboration"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	application := &App{codingCollab: manager}
+
+	descriptor, err := application.prepareAgentManagedCodingCollaboration(
+		"conversation-two-writers",
+		repository,
+		2,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if descriptor == nil || len(descriptor.Worktrees) != 2 {
+		t.Fatalf("parallel delegation did not receive two writers: %#v", descriptor)
+	}
+}
+
+func TestDelegatedWritingWorkDoesNotHideDirtyWorkspace(t *testing.T) {
 	repository := newAgentManagedTestRepository(t)
 	if err := os.WriteFile(
 		filepath.Join(repository, "dirty.txt"),
@@ -98,36 +162,55 @@ func TestAgentManagedCodingCollaborationDoesNotHideDirtyWorkspace(t *testing.T) 
 	}
 	application := &App{codingCollab: manager}
 
-	descriptor, err := application.ensureAgentManagedCodingCollaboration(
+	descriptor, err := application.prepareAgentManagedCodingCollaboration(
 		"conversation-dirty-workspace",
 		repository,
-		true,
+		1,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
 	if descriptor != nil {
-		t.Fatalf("dirty workspace unexpectedly received an isolated writer: %#v", descriptor)
+		t.Fatalf("dirty workspace received an isolated writer: %#v", descriptor)
+	}
+	if err == nil {
+		t.Fatal("dirty workspace did not explain why isolation was unavailable")
 	}
 }
 
-func TestAgentManagedCodingCollaborationLeavesTemporaryWorkspaceToEngine(t *testing.T) {
+func TestDelegatedWritingWorkLeavesTemporaryWorkspaceToEngine(t *testing.T) {
 	manager, err := codingcollab.New(filepath.Join(t.TempDir(), "collaboration"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	application := &App{codingCollab: manager}
 
-	descriptor, err := application.ensureAgentManagedCodingCollaboration(
+	descriptor, err := application.prepareAgentManagedCodingCollaboration(
 		"cve-research-cve-2024-3400",
 		"",
-		true,
+		1,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
 	if descriptor != nil {
-		t.Fatalf("temporary workspace unexpectedly received a worktree: %#v", descriptor)
+		t.Fatalf("temporary workspace received a worktree: %#v", descriptor)
+	}
+	if err == nil {
+		t.Fatal("a task without a Git project did not explain the refusal")
+	}
+}
+
+func TestWriterCountStaysInsideTheCollaborationContract(t *testing.T) {
+	for _, testCase := range []struct{ requested, want int }{
+		{requested: -3, want: codingcollab.MinWriters},
+		{requested: 0, want: codingcollab.MinWriters},
+		{requested: 1, want: 1},
+		{requested: 2, want: 2},
+		{requested: 9, want: codingcollab.MaxWriters},
+	} {
+		if got := boundedWriterCount(testCase.requested); got != testCase.want {
+			t.Fatalf(
+				"boundedWriterCount(%d) = %d, want %d",
+				testCase.requested,
+				got,
+				testCase.want,
+			)
+		}
 	}
 }
 

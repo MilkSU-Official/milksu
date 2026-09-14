@@ -2427,7 +2427,10 @@ func (s *Supervisor) readEvents(kernel string, process *childProcess, stdout io.
 			continue
 		}
 		if raw.Type == "workspace_action" {
-			s.handleWorkspaceAction(raw)
+			// A workspace action can take as long as preparing a writer
+			// worktree. Answer it off the reader so one slow host action does
+			// not stall every other session sharing this Sidecar.
+			go s.handleWorkspaceAction(raw)
 			continue
 		}
 		event := normalizeBridgeEvent(raw, kernel)
@@ -2536,6 +2539,13 @@ func (s *Supervisor) observeRuntimeEvent(event Event) {
 		)
 	}
 	s.mu.Unlock()
+}
+
+// EmitProductEvent publishes an event the desktop product produced itself,
+// such as the progress of a long host-side preparation the model is waiting on.
+// It carries the same schema and timestamp contract as Sidecar-sourced events.
+func (s *Supervisor) EmitProductEvent(event Event) {
+	s.emitEvent(event)
 }
 
 func (s *Supervisor) emitEvent(event Event) {

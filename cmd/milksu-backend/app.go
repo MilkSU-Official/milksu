@@ -1162,12 +1162,9 @@ func (a *App) SendMessage(
 			}
 		}
 	}
-	allowPrepare := strings.TrimSpace(executionMode) != "plan" &&
-		strings.TrimSpace(approvalPolicy) != "read-only"
-	codingCollaboration, err := a.ensureAgentManagedCodingCollaboration(
+	codingCollaboration, err := a.resolveAgentManagedCodingCollaboration(
 		conversationID,
 		workspacePath,
-		allowPrepare,
 	)
 	if err != nil {
 		return err
