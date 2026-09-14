@@ -111,6 +111,52 @@ func TestGitActionsCommitAndPushWithoutForce(t *testing.T) {
 	}
 }
 
+// A subject plus a real explanatory body runs well past the 500 characters the
+// old rule allowed, and Git itself has no such limit. The body must reach the
+// commit intact, including a line that starts with #.
+func TestGitActionsCommitKeepsALongMultiParagraphMessage(t *testing.T) {
+	requireGit(t)
+	workspace := initializedGitFixture(t)
+	if err := os.WriteFile(
+		filepath.Join(workspace, "hello.txt"),
+		[]byte("body\n"),
+		0o600,
+	); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	if _, err := ApplyGitAction(ctx, workspace, GitActionStageAll, "", ""); err != nil {
+		t.Fatal(err)
+	}
+
+	paragraph := strings.Repeat("Explain the change in detail. ", 24)
+	message := "fix(scope): subject line\n\n" + paragraph + "\n\n#123 keeps its leading hash.\n"
+	if len(message) <= 500 {
+		t.Fatalf("fixture message is not long enough to exercise the old limit: %d", len(message))
+	}
+	if _, err := ApplyGitAction(ctx, workspace, GitActionCommit, "", message); err != nil {
+		t.Fatalf("long commit message was refused: %v", err)
+	}
+
+	recorded := runGitFixtureOutput(t, workspace, "log", "-1", "--format=%B")
+	if !strings.Contains(recorded, "fix(scope): subject line") ||
+		!strings.Contains(recorded, strings.TrimSpace(paragraph)) ||
+		!strings.Contains(recorded, "#123 keeps its leading hash.") {
+		t.Fatalf("commit did not keep the message body: %q", recorded)
+	}
+
+	oversized := strings.Repeat("x", maxCommitMessageBytes+1)
+	if _, err := ApplyGitAction(
+		ctx,
+		workspace,
+		GitActionCommit,
+		"",
+		oversized,
+	); err == nil || !strings.Contains(err.Error(), "at most") {
+		t.Fatalf("expected the memory rail to reject an oversized message, got %v", err)
+	}
+}
+
 func TestGitActionsRefuseUnsafeDiscardAndInvalidInputs(t *testing.T) {
 	requireGit(t)
 	workspace := initializedGitFixture(t)

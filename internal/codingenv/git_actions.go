@@ -24,6 +24,8 @@ const (
 	GitActionDiscardHunk = "discard-hunk"
 )
 
+const maxCommitMessageBytes = 64 * 1024
+
 var gitURLUserInfoPattern = regexp.MustCompile(`([A-Za-z][A-Za-z0-9+.-]*://)[^/@\s]+@`)
 
 type GitActionResult struct {
@@ -100,7 +102,18 @@ func ApplyGitAction(
 		if before.Git.Staged == 0 {
 			return GitActionResult{}, errors.New("stage at least one change before committing")
 		}
-		if err := runGitMutation(ctx, gitPath, resolved, "commit changes", "commit", "-m", commitMessage); err != nil {
+		// -F - hands the message to Git on stdin, so a real multi-paragraph
+		// message is not bounded by the platform argument limit that -m would
+		// impose. Cleanup semantics are unchanged: Git applies the same mode to
+		// -F as it did to -m, so a line starting with # survives here too.
+		if err := runGitMutationWithInput(
+			ctx,
+			gitPath,
+			resolved,
+			"commit changes",
+			commitMessage,
+			"commit", "-F", "-",
+		); err != nil {
 			return GitActionResult{}, err
 		}
 	case GitActionPush:
@@ -370,8 +383,19 @@ func validateCommitMessage(value string) (string, error) {
 	if strings.ContainsRune(message, '\x00') {
 		return "", errors.New("commit message contains an invalid null byte")
 	}
-	if utf8.RuneCountInString(message) > 500 {
-		return "", errors.New("commit message must be at most 500 characters")
+	if !utf8.ValidString(message) {
+		return "", errors.New("commit message must be valid UTF-8")
+	}
+	// Git imposes no commit-message length limit, and a subject-plus-body
+	// message routinely runs past a few hundred characters. The former
+	// 500-character rule would have rejected a normal commit body, including
+	// several in this repository's own history. What remains is a memory rail
+	// on a string that arrives over RPC, not a rule about how to write a commit.
+	if len(message) > maxCommitMessageBytes {
+		return "", fmt.Errorf(
+			"commit message must be at most %d bytes",
+			maxCommitMessageBytes,
+		)
 	}
 	return message, nil
 }
