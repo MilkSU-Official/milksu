@@ -2757,7 +2757,21 @@ func (s *Supervisor) observeRuntimeEvent(event Event) {
 // EmitProductEvent publishes an event the desktop product produced itself,
 // such as the progress of a long host-side preparation the model is waiting on.
 // It carries the same schema and timestamp contract as Sidecar-sourced events.
+//
+// The event belongs to the turn that is waiting on the preparation, so it is
+// dropped once that turn has settled. A host action outlives the turn whenever
+// the user stops it or the Sidecar's wait times out, and an in-turn event for a
+// session the engine already finished would put the conversation back into a
+// running state that nothing left alive will end.
 func (s *Supervisor) EmitProductEvent(event Event) {
+	if sessionID := strings.TrimSpace(event.SessionID); sessionID != "" {
+		s.mu.Lock()
+		_, running := s.busySessions[sessionID]
+		s.mu.Unlock()
+		if !running {
+			return
+		}
+	}
 	s.emitEvent(event)
 }
 
@@ -3070,10 +3084,40 @@ func (s *Supervisor) handleWorkspaceAction(raw bridgeEvent) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if (s.process != process && s.dshProcess != process) || process.stdin == nil {
+	// A host action can take as long as preparing a writer worktree, and the Sidecar
+	// that asked for it stays blocked on this answer. It can stop being the live
+	// process for its kernel while it waits: switching workspaces parks it, and a
+	// credential change retires it while it finishes the turn it started. Both keep
+	// it running, so answer any process the Supervisor still tracks and drop the
+	// write only once the process is gone.
+	if process.stdin == nil || !s.tracksProcessLocked(process) {
 		return
 	}
 	_ = writeCommand(process.stdin, response)
+}
+
+// tracksProcessLocked reports whether the Supervisor can still reach this process:
+// it is the live Sidecar for a kernel, a parked one, or one retiring after a
+// credential change. readEvents removes an exited process from all three, so a
+// process missing everywhere has already stopped.
+func (s *Supervisor) tracksProcessLocked(process *childProcess) bool {
+	if process == nil {
+		return false
+	}
+	if s.process == process || s.dshProcess == process {
+		return true
+	}
+	for _, parked := range s.parked {
+		if parked == process {
+			return true
+		}
+	}
+	for _, retiring := range s.retiring {
+		if retiring == process {
+			return true
+		}
+	}
+	return false
 }
 
 func writeCommand(writer io.Writer, value any) error {
