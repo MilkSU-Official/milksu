@@ -5,31 +5,6 @@ import type {
   CodingEnvironmentSnapshot,
 } from '@/codingEnvironmentTypes'
 
-// Preview accepts any UTF-8 file. This narrower set only decides which changed
-// paths become candidate chips, so it stays on the formats an agent writes as a
-// deliverable rather than every touched source file. Keep it in step with
-// suggestedArtifactExtensions in internal/codingenv/artifact_list.go.
-const suggestedExtensions = new Set([
-  '.csv',
-  '.diff',
-  '.gif',
-  '.htm',
-  '.html',
-  '.jpeg',
-  '.jpg',
-  '.json',
-  '.log',
-  '.markdown',
-  '.md',
-  '.patch',
-  '.png',
-  '.txt',
-  '.webp',
-  '.xml',
-  '.yaml',
-  '.yml',
-])
-
 const safeEmbeddedImage = /^data:image\/(?:png|jpeg|gif|webp);base64,/i
 const resourceAttributes = [
   'action',
@@ -60,25 +35,18 @@ export function isArtifactPathSafe(path: string): boolean {
   return !trimmed.split(/[\\/]+/).some(segment => segment === '..')
 }
 
-export function isSuggestedArtifactPath(path: string): boolean {
-  if (!isArtifactPathSafe(path)) return false
-  const normalized = path.trim().toLowerCase()
-  const separator = normalized.lastIndexOf('.')
-  return separator >= 0 && suggestedExtensions.has(normalized.slice(separator))
-}
-
+// Which paths are worth offering is the desktop runtime's answer: only it can
+// see the ignored output directories and the workspaces outside Git where an
+// agent also writes. This keeps the path-safety gate and nothing else.
 export function suggestedArtifactPaths(
   environment: CodingEnvironmentSnapshot | null,
 ): string[] {
   const seen = new Set<string>()
-  return (environment?.git.changes ?? [])
-    .map(change => change.path)
-    .filter(path => {
-      if (!path || seen.has(path) || !isSuggestedArtifactPath(path)) return false
-      seen.add(path)
-      return true
-    })
-    .slice(0, 12)
+  return (environment?.artifacts ?? []).filter(path => {
+    if (!path || seen.has(path) || !isArtifactPathSafe(path)) return false
+    seen.add(path)
+    return true
+  })
 }
 
 export function artifactKindLabel(kind: CodingArtifactPreview['kind']): string {

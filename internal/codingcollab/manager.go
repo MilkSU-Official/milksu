@@ -86,6 +86,7 @@ type manifest struct {
 	SchemaVersion  int        `json:"schemaVersion"`
 	ConversationID string     `json:"conversationId"`
 	Workspace      string     `json:"workspace"`
+	ProjectPath    string     `json:"projectPath,omitempty"`
 	BaseBranch     string     `json:"baseBranch"`
 	BaseHead       string     `json:"baseHead"`
 	Phase          string     `json:"phase"`
@@ -153,11 +154,13 @@ func (m *Manager) Prepare(
 			MaxWriters,
 		)
 	}
-	repository, baseBranch, baseHead, err := m.inspectRepositoryBase(ctx, workspace)
+	base, err := m.inspectRepositoryBase(ctx, workspace)
 	if err != nil {
 		return Status{}, err
 	}
-	worktreeIncludes, err := m.discoverWorktreeIncludes(ctx, repository)
+	repository := base.workspace
+	baseHead := base.head
+	worktreeIncludes, err := m.discoverWorktreeIncludes(ctx, base.root)
 	if err != nil {
 		return Status{}, err
 	}
@@ -199,7 +202,8 @@ func (m *Manager) Prepare(
 		SchemaVersion:  SchemaVersion,
 		ConversationID: conversationID,
 		Workspace:      repository,
-		BaseBranch:     baseBranch,
+		ProjectPath:    base.projectPath,
+		BaseBranch:     base.branch,
 		BaseHead:       baseHead,
 		Phase:          phasePreparing,
 		CreatedAt:      now,
@@ -366,9 +370,16 @@ func (m *Manager) Descriptor(
 		if !worktree.Available || worktree.Problem != "" {
 			return nil, fmt.Errorf("%s collaboration worktree is unavailable", worktree.ID)
 		}
+		// The worktree checks out the whole repository. A writer starts in the
+		// directory that matches the selected project so it sees the same tree
+		// the user does.
+		path := worktree.Path
+		if current.ProjectPath != "" {
+			path = filepath.Join(path, filepath.FromSlash(current.ProjectPath))
+		}
 		descriptor.Worktrees = append(descriptor.Worktrees, WorktreeDescriptor{
 			ID:     worktree.ID,
-			Path:   worktree.Path,
+			Path:   path,
 			Branch: worktree.Branch,
 		})
 	}
@@ -656,42 +667,86 @@ func (m *Manager) refreshLocked(ctx context.Context, current manifest) (Status, 
 	return status, nil
 }
 
+// repositoryBase describes the Git base a writer worktree is checked out from,
+// and where inside that worktree the selected project lives.
+type repositoryBase struct {
+	// workspace is the directory the user selected, which may be below root.
+	workspace string
+	// root is the repository top level.
+	root string
+	// projectPath is workspace relative to root, slash-separated, empty when
+	// the selection is the repository root itself.
+	projectPath string
+	// branch is empty on a detached HEAD. It is metadata only.
+	branch string
+	head   string
+}
+
 func (m *Manager) inspectRepositoryBase(
 	ctx context.Context,
 	workspace string,
-) (string, string, string, error) {
+) (repositoryBase, error) {
 	resolved, err := resolveDirectory(workspace)
 	if err != nil {
-		return "", "", "", err
+		return repositoryBase{}, err
 	}
 	root, err := m.git(ctx, resolved, "rev-parse", "--show-toplevel")
 	if err != nil {
-		return "", "", "", errors.New("Coding workspace is not a Git repository")
+		return repositoryBase{}, errors.New("Coding workspace is not a Git repository")
 	}
 	root = canonicalExistingPath(root)
+	// A project inside a monorepo is a repository that especially wants writer
+	// isolation. The worktree is a checkout of the whole repository either way;
+	// only the directory the writer starts in has to follow the selection.
+	projectPath := ""
 	if root != resolved {
-		return "", "", "", errors.New(
-			"select the Git repository root before preparing Coding collaboration",
-		)
+		relative, relErr := filepath.Rel(root, resolved)
+		if relErr != nil || !pathWithin(root, resolved) {
+			return repositoryBase{}, errors.New(
+				"Coding workspace is outside its Git repository",
+			)
+		}
+		projectPath = filepath.ToSlash(relative)
 	}
-	branch, err := m.git(ctx, root, "branch", "--show-current")
-	if err != nil || branch == "" {
-		return "", "", "", errors.New(
-			"Coding collaboration requires a named base branch",
-		)
-	}
-	head, err := m.git(ctx, root, "rev-parse", "HEAD")
+	head, err := m.git(ctx, resolved, "rev-parse", "HEAD")
 	if err != nil || !validObjectID(head) {
-		return "", "", "", errors.New(
+		return repositoryBase{}, errors.New(
 			"Coding collaboration requires a committed base",
 		)
+	}
+	if projectPath != "" {
+		if _, treeErr := m.git(
+			ctx,
+			resolved,
+			"rev-parse",
+			"--verify",
+			"--quiet",
+			head+":"+projectPath,
+		); treeErr != nil {
+			return repositoryBase{}, fmt.Errorf(
+				"this project directory is not committed, so a writer worktree cannot contain it: %s",
+				projectPath,
+			)
+		}
+	}
+	// A detached HEAD names a commit rather than a branch, and a commit is all a
+	// writer worktree is checked out from. The branch is recorded for display.
+	branch, branchErr := m.git(ctx, resolved, "branch", "--show-current")
+	if branchErr != nil {
+		branch = ""
 	}
 	// A writer worktree is checked out from baseHead, so uncommitted work in
 	// the main worktree neither blocks nor enters it. Requiring a pristine main
 	// worktree here would deny isolation to exactly the repositories that need
 	// it most; Finish still refuses while the writer itself is dirty or
 	// unintegrated.
-	return root, branch, head, nil
+	return repositoryBase{
+		workspace:   resolved,
+		root:        root,
+		projectPath: projectPath,
+		branch:      branch,
+		head:        head,
+	}, nil
 }
 
 func (m *Manager) load(conversationID string) (manifest, bool, error) {

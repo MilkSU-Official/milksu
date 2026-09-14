@@ -67,6 +67,7 @@ type Snapshot struct {
 	WorkspaceName string    `json:"workspaceName"`
 	CapturedAt    string    `json:"capturedAt"`
 	Git           GitStatus `json:"git"`
+	Artifacts     []string  `json:"artifacts"`
 }
 
 func Inspect(ctx context.Context, workspace string) (Snapshot, error) {
@@ -82,6 +83,7 @@ func Inspect(ctx context.Context, workspace string) (Snapshot, error) {
 	gitPath, err := exec.LookPath("git")
 	if err != nil {
 		snapshot.Git.Problem = "Git is not installed or unavailable."
+		snapshot.Artifacts = DiscoverArtifacts(resolved, nil, []string{"."})
 		return snapshot, nil
 	}
 	snapshot.Git.Available = true
@@ -97,6 +99,9 @@ func Inspect(ctx context.Context, workspace string) (Snapshot, error) {
 	)
 	if statusErr != nil {
 		if isNotRepository(statusOutput) {
+			// A workspace outside Git still holds the task's deliverables, so
+			// discovery scans it rather than reporting nothing at all.
+			snapshot.Artifacts = DiscoverArtifacts(resolved, nil, []string{"."})
 			return snapshot, nil
 		}
 		snapshot.Git.Problem = boundedProblem(statusErr)
@@ -105,6 +110,11 @@ func Inspect(ctx context.Context, workspace string) (Snapshot, error) {
 	snapshot.Git = parsePorcelainStatus(statusOutput)
 	snapshot.Git.Available = true
 	snapshot.Git.IsRepository = true
+	// --ignored=matching collapses an entirely ignored directory into one entry
+	// instead of walking it, so it names the output directories artifact
+	// discovery needs without paying for a dependency tree. Those entries stay
+	// out of Changes: an ignored file is not something the task can commit.
+	var ignoredRoots []string
 	if fileOutput, fileErr := runGit(
 		ctx,
 		gitPath,
@@ -113,9 +123,11 @@ func Inspect(ctx context.Context, workspace string) (Snapshot, error) {
 		"--porcelain=v1",
 		"-z",
 		"--untracked-files=normal",
+		"--ignored=matching",
 	); fileErr == nil {
-		snapshot.Git.Changes, snapshot.Git.ChangesTruncated = parsePorcelainChanges(fileOutput)
+		snapshot.Git.Changes, snapshot.Git.ChangesTruncated, ignoredRoots = parsePorcelainChanges(fileOutput)
 	}
+	snapshot.Artifacts = DiscoverArtifacts(resolved, snapshot.Git.Changes, ignoredRoots)
 
 	if head, headErr := runGit(ctx, gitPath, resolved, "rev-parse", "--short=12", "HEAD"); headErr == nil {
 		snapshot.Git.Head = strings.TrimSpace(head)
@@ -333,9 +345,10 @@ func parsePorcelainStatus(output string) GitStatus {
 	return status
 }
 
-func parsePorcelainChanges(output string) ([]GitChange, bool) {
+func parsePorcelainChanges(output string) ([]GitChange, bool, []string) {
 	entries := strings.Split(output, "\x00")
 	changes := make([]GitChange, 0, min(len(entries), maxGitChanges))
+	var ignored []string
 	truncated := false
 	for index := 0; index < len(entries); index++ {
 		entry := entries[index]
@@ -343,6 +356,12 @@ func parsePorcelainChanges(output string) ([]GitChange, bool) {
 			continue
 		}
 		code := entry[:2]
+		if code == "!!" {
+			if path := strings.TrimSuffix(entry[3:], "/"); path != "" && !isMilkSUInternalPath(path) {
+				ignored = append(ignored, path)
+			}
+			continue
+		}
 		change := GitChange{
 			Path:           entry[3:],
 			IndexStatus:    string(code[0]),
@@ -367,7 +386,7 @@ func parsePorcelainChanges(output string) ([]GitChange, bool) {
 		}
 		changes = append(changes, change)
 	}
-	return changes, truncated
+	return changes, truncated, ignored
 }
 
 func resolveGitPathspec(workspace, value string) (string, error) {

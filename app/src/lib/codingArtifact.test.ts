@@ -4,85 +4,70 @@ import { describe, expect, it } from 'vitest'
 import {
   buildArtifactHTMLDocument,
   isArtifactPathSafe,
-  isSuggestedArtifactPath,
   suggestedArtifactPaths,
 } from '@/lib/codingArtifact'
 import type { CodingEnvironmentSnapshot } from '@/codingEnvironmentTypes'
 
+function snapshotWithArtifacts(artifacts: string[]): CodingEnvironmentSnapshot {
+  return {
+    workspace: '/tmp/project',
+    workspaceName: 'project',
+    capturedAt: '2026-08-02T00:00:00Z',
+    git: {
+      available: true,
+      isRepository: true,
+      ahead: 0,
+      behind: 0,
+      changedFiles: 0,
+      staged: 0,
+      modified: 0,
+      untracked: 0,
+      conflicts: 0,
+      additions: 0,
+      deletions: 0,
+      dirty: false,
+      changes: [],
+    },
+    artifacts,
+  }
+}
+
 describe('Coding artifact previews', () => {
-  it('only suggests deliverable changed artifacts', () => {
-    const environment = {
-      workspace: '/tmp/project',
-      workspaceName: 'project',
-      capturedAt: '2026-08-02T00:00:00Z',
-      git: {
-        available: true,
-        isRepository: true,
-        ahead: 0,
-        behind: 0,
-        changedFiles: 4,
-        staged: 0,
-        modified: 4,
-        untracked: 0,
-        conflicts: 0,
-        additions: 0,
-        deletions: 0,
-        dirty: true,
-        changes: [
-          { path: 'report.md', indexStatus: ' ', worktreeStatus: 'M', staged: false, modified: true, untracked: false, conflict: false },
-          { path: 'site/index.HTML', indexStatus: ' ', worktreeStatus: 'M', staged: false, modified: true, untracked: false, conflict: false },
-          { path: 'src/main.go', indexStatus: ' ', worktreeStatus: 'M', staged: false, modified: true, untracked: false, conflict: false },
-          { path: 'capture.png', originalPath: 'old.png', indexStatus: 'R', worktreeStatus: ' ', staged: true, modified: false, untracked: false, conflict: false },
-        ],
-      },
-    } satisfies CodingEnvironmentSnapshot
+  // Which paths are worth offering is the desktop runtime's answer, because only
+  // it can see ignored output directories and workspaces outside Git.
+  it('offers the deliverables the desktop runtime discovered', () => {
+    const environment = snapshotWithArtifacts([
+      'report.md',
+      'out/site/index.HTML',
+      'capture.png',
+      'report.md',
+    ])
     expect(suggestedArtifactPaths(environment)).toEqual([
       'report.md',
-      'site/index.HTML',
+      'out/site/index.HTML',
       'capture.png',
     ])
-    // A touched source file is not offered as a chip, but the preview gate is
-    // path safety only: the desktop runtime decides what it can render.
-    expect(isSuggestedArtifactPath('src/main.go')).toBe(false)
-    expect(isSuggestedArtifactPath('diagram.svg')).toBe(false)
-    expect(isSuggestedArtifactPath('results.json')).toBe(true)
-    expect(isArtifactPathSafe('src/main.go')).toBe(true)
-    expect(isArtifactPathSafe('diagram.svg')).toBe(true)
+    expect(suggestedArtifactPaths(null)).toEqual([])
   })
 
-  it('does not suggest unsafe artifact paths even when the extension is supported', () => {
-    const environment = {
-      workspace: '/tmp/project',
-      workspaceName: 'project',
-      capturedAt: '2026-08-02T00:00:00Z',
-      git: {
-        available: true,
-        isRepository: true,
-        ahead: 0,
-        behind: 0,
-        changedFiles: 5,
-        staged: 0,
-        modified: 5,
-        untracked: 0,
-        conflicts: 0,
-        additions: 0,
-        deletions: 0,
-        dirty: true,
-        changes: [
-          { path: '../outside.md', indexStatus: ' ', worktreeStatus: 'M', staged: false, modified: true, untracked: false, conflict: false },
-          { path: '/tmp/outside.html', indexStatus: ' ', worktreeStatus: 'M', staged: false, modified: true, untracked: false, conflict: false },
-          { path: 'nested/../../outside.png', indexStatus: ' ', worktreeStatus: 'M', staged: false, modified: true, untracked: false, conflict: false },
-          { path: 'nested\\..\\outside.jpg', indexStatus: ' ', worktreeStatus: 'M', staged: false, modified: true, untracked: false, conflict: false },
-          { path: 'safe/result.webp', indexStatus: ' ', worktreeStatus: 'M', staged: false, modified: true, untracked: false, conflict: false },
-        ],
-      },
-    } satisfies CodingEnvironmentSnapshot
+  it('does not suggest unsafe artifact paths even when the runtime listed them', () => {
+    const environment = snapshotWithArtifacts([
+      '../outside.md',
+      '/tmp/outside.html',
+      'nested/../../outside.png',
+      'nested\\..\\outside.jpg',
+      'safe/result.webp',
+    ])
 
     expect(suggestedArtifactPaths(environment)).toEqual(['safe/result.webp'])
     expect(isArtifactPathSafe('../outside.md')).toBe(false)
     expect(isArtifactPathSafe('/tmp/outside.html')).toBe(false)
     expect(isArtifactPathSafe('nested\\..\\outside.jpg')).toBe(false)
     expect(isArtifactPathSafe('nested/../../outside.png')).toBe(false)
+    // The preview gate is path safety only: the desktop runtime decides what it
+    // can render, so a source file is previewable even if it is never a chip.
+    expect(isArtifactPathSafe('src/main.go')).toBe(true)
+    expect(isArtifactPathSafe('diagram.svg')).toBe(true)
   })
 
   it('removes active content and all external resource attributes from HTML', () => {
