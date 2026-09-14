@@ -8,6 +8,7 @@ import (
 
 	"github.com/MilkSU-Official/milksu/internal/appdata"
 	"github.com/MilkSU-Official/milksu/internal/conversation"
+	"github.com/MilkSU-Official/milksu/internal/engine"
 	"github.com/MilkSU-Official/milksu/internal/userartifact"
 )
 
@@ -107,6 +108,111 @@ func TestResolveConversationWorkspaceSeparatesCodingAndCVEArtifacts(t *testing.T
 				t.Fatal("non-CVE workspace unexpectedly seeded related.md")
 			}
 		})
+	}
+}
+
+func TestResolveConversationWorkspaceKeepsASelectedGitProject(t *testing.T) {
+	dataDirectory := filepath.Join(t.TempDir(), "appdata")
+	t.Setenv(appdata.DirectoryOverrideEnv, dataDirectory)
+	conversations, err := conversation.NewStore()
+	if err != nil {
+		t.Fatal(err)
+	}
+	repository := filepath.Join(t.TempDir(), "selected-repo")
+	if err := conversations.Save(conversation.StoredConversation{
+		ID:            "coding-git",
+		Title:         "选过项目",
+		WorkspacePath: repository,
+		Messages:      []conversation.StoredMessage{},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	app := &App{
+		dataDirectory:     dataDirectory,
+		artifactDirectory: filepath.Join(t.TempDir(), "Documents", "MilkSU"),
+		conversations:     conversations,
+	}
+	workspace, err := app.resolveConversationWorkspace("coding-git", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if workspace != repository {
+		t.Fatalf("selected Git project was rewritten to %q", workspace)
+	}
+	stored, err := conversations.Get("coding-git")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.WorkspacePath != repository {
+		t.Fatalf("stored workspace = %q, want the selected Git project", stored.WorkspacePath)
+	}
+}
+
+func TestResolveConversationWorkspaceRemembersTheRequestedProject(t *testing.T) {
+	dataDirectory := filepath.Join(t.TempDir(), "appdata")
+	t.Setenv(appdata.DirectoryOverrideEnv, dataDirectory)
+	conversations, err := conversation.NewStore()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := conversations.Save(conversation.StoredConversation{
+		ID:       "coding-send",
+		Title:    "发消息时才带路径",
+		Messages: []conversation.StoredMessage{},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	repository := filepath.Join(t.TempDir(), "sent-repo")
+	app := &App{
+		dataDirectory:     dataDirectory,
+		artifactDirectory: filepath.Join(t.TempDir(), "Documents", "MilkSU"),
+		conversations:     conversations,
+	}
+	workspace, err := app.resolveConversationWorkspace("coding-send", repository)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if workspace != repository {
+		t.Fatalf("requested workspace = %q, want %q", workspace, repository)
+	}
+	again, err := app.resolveConversationWorkspace("coding-send", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again != repository {
+		t.Fatalf("empty resolve after SendMessage invented %q", again)
+	}
+}
+
+func TestResolveConversationWorkspacePrefersTheBoundSessionDirectory(t *testing.T) {
+	dataDirectory := filepath.Join(t.TempDir(), "appdata")
+	t.Setenv(appdata.DirectoryOverrideEnv, dataDirectory)
+	conversations, err := conversation.NewStore()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := conversations.Save(conversation.StoredConversation{
+		ID:       "coding-bound",
+		Title:    "回合已绑定项目",
+		Messages: []conversation.StoredMessage{},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	repository := filepath.Join(t.TempDir(), "bound-repo")
+	supervisor := engine.NewSupervisor(nil)
+	supervisor.BindSessionWorkspace("coding-bound", repository)
+	app := &App{
+		dataDirectory:     dataDirectory,
+		artifactDirectory: filepath.Join(t.TempDir(), "Documents", "MilkSU"),
+		conversations:     conversations,
+		engines:           supervisor,
+	}
+	workspace, err := app.resolveConversationWorkspace("coding-bound", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if workspace != repository {
+		t.Fatalf("bound session workspace was ignored: got %q", workspace)
 	}
 }
 

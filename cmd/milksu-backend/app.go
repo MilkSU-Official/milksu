@@ -1246,12 +1246,27 @@ func (a *App) ForkConversation(conversationID, role string, occurrence int) (str
 }
 
 func (a *App) resolveConversationWorkspace(conversationID, requested string) (string, error) {
-	if strings.TrimSpace(requested) != "" || strings.HasPrefix(conversationID, "ctf_") {
+	requested = strings.TrimSpace(requested)
+	if requested != "" || strings.HasPrefix(conversationID, "ctf_") {
+		if requested != "" {
+			if err := a.rememberConversationWorkspace(conversationID, requested); err != nil {
+				return "", err
+			}
+		}
 		return requested, nil
+	}
+	if bound := a.boundConversationWorkspace(conversationID); bound != "" {
+		if err := a.rememberConversationWorkspace(conversationID, bound); err != nil {
+			return "", err
+		}
+		return bound, nil
 	}
 	stored, err := a.conversations.Get(conversationID)
 	if err != nil {
 		return "", fmt.Errorf("read Coding conversation for artifact workspace: %w", err)
+	}
+	if storedPath := strings.TrimSpace(stored.WorkspacePath); storedPath != "" {
+		return storedPath, nil
 	}
 	kind := userartifact.KindCoding
 	label := "无项目任务"
@@ -1298,6 +1313,36 @@ func (a *App) resolveConversationWorkspace(conversationID, requested string) (st
 		return "", fmt.Errorf("save Coding artifact workspace: %w", err)
 	}
 	return workspace, nil
+}
+
+func (a *App) boundConversationWorkspace(conversationID string) string {
+	if a == nil || a.engines == nil {
+		return ""
+	}
+	return strings.TrimSpace(a.engines.WorkspaceForSession(conversationID))
+}
+
+func (a *App) rememberConversationWorkspace(conversationID, workspace string) error {
+	if a == nil || a.conversations == nil {
+		return nil
+	}
+	conversationID = strings.TrimSpace(conversationID)
+	workspace = strings.TrimSpace(workspace)
+	if conversationID == "" || workspace == "" || strings.HasPrefix(conversationID, "ctf_") {
+		return nil
+	}
+	stored, err := a.conversations.Get(conversationID)
+	if err != nil {
+		return nil
+	}
+	if strings.TrimSpace(stored.WorkspacePath) == workspace {
+		return nil
+	}
+	stored.WorkspacePath = workspace
+	if err := a.conversations.Save(stored); err != nil {
+		return fmt.Errorf("save Coding conversation workspace: %w", err)
+	}
+	return nil
 }
 
 func (a *App) ctfWorkspaceRoot() string {

@@ -531,11 +531,42 @@ func (s *Supervisor) BindSessionKernel(sessionID, kernel string) {
 	s.sessionKernels[sessionID] = NormalizeKernel(kernel)
 }
 
+// BindSessionWorkspace records the cwd a live turn is already using. Host
+// actions that arrive without a path (writer prepare, artifact list) must
+// reuse this instead of inventing a scratch directory.
+func (s *Supervisor) BindSessionWorkspace(sessionID, workspace string) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.bindSessionWorkspaceLocked(sessionID, workspace)
+}
+
 func (s *Supervisor) kernelForLocked(sessionID string) string {
 	if s.sessionKernels == nil {
 		return KernelPi
 	}
 	return NormalizeKernel(s.sessionKernels[sessionID])
+}
+
+// WorkspaceForSession returns the cwd the live turn already bound. Writer
+// prepare and other empty-path host actions must use this instead of inventing
+// a scratch "no project" directory.
+func (s *Supervisor) WorkspaceForSession(sessionID string) string {
+	if s == nil {
+		return ""
+	}
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return ""
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.sessionWorkspaces == nil {
+		return ""
+	}
+	return strings.TrimSpace(s.sessionWorkspaces[sessionID])
 }
 
 func (s *Supervisor) processForKernelLocked(kernel string) *childProcess {

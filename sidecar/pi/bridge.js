@@ -1508,14 +1508,16 @@ async function loadRuntimeSessionPolicy(cwd, command) {
 
 // prepareWriterWorktrees asks the desktop runtime for the isolation an
 // effectful subagent needs, at the moment the model delegates writing work.
-// The custom file tools of this already-running session were built without
-// those paths, so the policy is marked stale and the next turn rebuilds the
-// session with the writer worktrees in scope.
+// The request carries this turn's cwd so Go prepares that Git project instead
+// of inventing a scratch "no project" directory. The custom file tools of this
+// already-running session were built without those paths, so the policy is
+// marked stale and the next turn rebuilds the session with the writer
+// worktrees in scope.
 async function prepareWriterWorktrees(conversationId, policy, writers) {
   const result = await workspaceActionBroker.request({
     conversationId,
     action: "prepare_coding_worktree",
-    input: { writers },
+    input: { writers, path: policy.workspace },
     timeoutMs: writerWorktreePrepareTimeoutMs,
   });
   const descriptor = normalizeCodingCollaboration(

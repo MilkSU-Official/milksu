@@ -55,7 +55,7 @@ func (a *App) handleCodingWorkspaceAction(conversationID, action, input string) 
 	}
 	switch strings.TrimSpace(action) {
 	case "prepare_coding_worktree":
-		workspacePath, err := a.resolveConversationWorkspace(conversationID, "")
+		workspacePath, err := a.resolveConversationWorkspace(conversationID, request.Path)
 		if err != nil {
 			return "", err
 		}

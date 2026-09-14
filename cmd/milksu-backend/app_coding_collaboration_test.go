@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"os/exec"
@@ -10,6 +11,8 @@ import (
 
 	"github.com/MilkSU-Official/milksu/internal/appdata"
 	"github.com/MilkSU-Official/milksu/internal/codingcollab"
+	"github.com/MilkSU-Official/milksu/internal/conversation"
+	"github.com/MilkSU-Official/milksu/internal/engine"
 	"github.com/MilkSU-Official/milksu/internal/userartifact"
 )
 
@@ -224,6 +227,57 @@ func TestDelegatedWritingWorkIsolatesADirtyWorkspace(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(repository, "dirty.txt")); err != nil {
 		t.Fatalf("preparation disturbed the user's uncommitted change: %v", err)
+	}
+}
+
+// Sidecar prepare_coding_worktree used to resolve an empty path into a
+// scratch "no project" directory, even when the conversation already had a
+// selected Git project. That is the live delegation path.
+func TestPrepareCodingWorktreeUsesTheSelectedGitProject(t *testing.T) {
+	repository := newAgentManagedTestRepository(t)
+	dataDirectory := filepath.Join(t.TempDir(), "appdata")
+	t.Setenv(appdata.DirectoryOverrideEnv, dataDirectory)
+	conversations, err := conversation.NewStore()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := conversations.Save(conversation.StoredConversation{
+		ID:            "conversation-selected-git",
+		Title:         "已选项目",
+		WorkspacePath: repository,
+		Messages:      []conversation.StoredMessage{},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	manager, err := codingcollab.New(filepath.Join(t.TempDir(), "collaboration"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	application := &App{
+		conversations: conversations,
+		codingCollab:  manager,
+	}
+
+	result, err := application.handleCodingWorkspaceAction(
+		"conversation-selected-git",
+		"prepare_coding_worktree",
+		`{"writers":1}`,
+	)
+	if err != nil {
+		t.Fatalf("prepare ignored the selected Git project: %v", err)
+	}
+	var descriptor engine.CodingCollaborationDescriptor
+	if unmarshalErr := json.Unmarshal([]byte(result), &descriptor); unmarshalErr != nil {
+		t.Fatalf("prepare result is not a collaboration descriptor: %v\n%s", unmarshalErr, result)
+	}
+	if len(descriptor.Worktrees) != 1 {
+		t.Fatalf("prepare did not return one writer: %#v", descriptor)
+	}
+	if _, err := os.Stat(descriptor.Worktrees[0].Path); err != nil {
+		t.Fatalf("writer was not prepared: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(repository, "README.md")); err != nil {
+		t.Fatalf("preparation disturbed the selected project: %v", err)
 	}
 }
 

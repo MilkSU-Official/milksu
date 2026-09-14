@@ -26,7 +26,7 @@
 | 许可证 | 主项目为 `AGPL-3.0-only`（`LICENSE` / `NOTICE`）。第三方仍保留原许可。Obelisk 作为计划嵌入的 AGPL 记忆组件与此兼容；尚未 vendored。 |
 | Linux | Ubuntu/Debian 共用 x64 DEB，Omarchy/Arch/Nix 共用 x64 tarball。GNOME Wayland Computer Use 走 Portal。无 Secret Service、本地 OCR；Hyprland / Xorg Computer Use unavailable。ISSUE #19 已关闭。合同见 [Linux 安装与桌面合同](linux-platform-support.md)。 |
 | Agent Harness | Pi 拥有 Session、Compaction、自然语言理解、通用文件/Shell 与 Tool Loop。Coding/CTF/CVE/实验室共用完整 Coding loop；工具结果进模型前截到 Pi 的 50KB/2000 行。产品工具 when-to-use 只留在 description 与 Skill 名录。新对话可选 Pi 或 DeepSeek Harness。DSH 接到产品 MCP / Skills / 停止 / 所选型号 / 懒挂 Playwright / host compact；DeepSeek 会话不能 rewind / 分叉。不扫描用户句子做关键词/正则意图路由。 |
-| 上下文工程 | 主会话 cwd 经监督器校验后注入 Pi；writer worktree 只在模型委托 effectful 角色时从当前提交准备，不要求主工作区干净，未提交改动不进入。窗口优先级：手动覆盖 > catalog（忽略旧占位）> 型号族预设 > 保守默认。型号族窗口、输出上限和思考档位以 [models.dev](https://models.dev/) 为公开基准。`/rewind` 走 Pi `navigateTree`，`/handoff` 走分叉 + compact。空闲约 80% 自动走同一 compact 路径。 |
+| 上下文工程 | 主会话 cwd 经监督器校验后注入 Pi；writer worktree 只在模型委托 effectful 角色时从当前提交准备，用本回合 cwd / 会话绑定 / 已存项目路径，不把空请求收成「无项目任务」。不要求主工作区干净，未提交改动不进入。窗口优先级：手动覆盖 > catalog（忽略旧占位）> 型号族预设 > 保守默认。型号族窗口、输出上限和思考档位以 [models.dev](https://models.dev/) 为公开基准。`/rewind` 走 Pi `navigateTree`，`/handoff` 走分叉 + compact。空闲约 80% 自动走同一 compact 路径。 |
 | MilkSU 宿主边界 | 只保留会话目录记录、Provider 凭据隔离、桌面授权、领域事实/Judge，以及危险大目录删除二次确认。凭据经子进程环境在 spawn 时注入：轮换惰性抵达下一回合，撤回或关掉正在用的 Key 立即停掉旧进程。Coding 另有类型化 `milksu_workspace` 与对话级批准，不替代 Pi 工具循环。 |
 | 模型与附件 | 账户 TokenFlux 与本机 Provider 共用可调用模型目录；附件原图进入当前回合，不再由 MilkSU 按目录白名单标成纯文本再改走 OCR。 |
 | 网页查证 | Coding 复用固定 revision 的 Pi `web_search` / `web_fetch` Extension，已保留真实搜索和官方页面读取回执。 |

@@ -21,6 +21,17 @@ func testComputerUseSocket(sessionID string) string {
 	return hostpath.ComputerUseSocket(runtime.GOOS, sessionID)
 }
 
+func TestWorkspaceForSessionReturnsTheBoundTurnDirectory(t *testing.T) {
+	supervisor := NewSupervisor(nil)
+	if got := supervisor.WorkspaceForSession("missing"); got != "" {
+		t.Fatalf("unbound session workspace = %q", got)
+	}
+	supervisor.BindSessionWorkspace("conversation-git", "/repo")
+	if got := supervisor.WorkspaceForSession("conversation-git"); got != "/repo" {
+		t.Fatalf("bound session workspace = %q", got)
+	}
+}
+
 func TestBindSessionKernelPinsFirstValue(t *testing.T) {
 	supervisor := NewSupervisor(nil)
 	supervisor.BindSessionKernel("session-1", "dsh")
