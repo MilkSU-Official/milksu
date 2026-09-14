@@ -88,10 +88,10 @@ flowchart LR
 | `milksu_workspace` | 类型化产品 UI 工具：列出/聚焦/关闭内置浏览器标签，列出/预览产物，打开环境、变更、终端和后台任务。不改设置、凭据、审批档，不附着用户 Chrome | 同一套产品 UI 工具 | MilkSU first-party Extension + Desktop RPC |
 | 上下文压缩 | Pi 拥有 Compaction。用量达到窗口约 80% 且 Session 空闲时自动走与 `/compact` 相同的路径；用户 `/compact` 与 `compact_context` 立即排队该路径，不受 80% 限制 | 复用同一 Pi 压缩，不另建摘要器 | Pi Session compact；MilkSU 只投影用量并在空闲点调度自动整理 |
 | Browser Use | 用户把可删除 Scope 加入本轮输入后，固定 Playwright extension mode 才能进入真实浏览器标签页配对路径；不复用沙箱 profile | 同一套 Browser Use | 固定 Playwright MCP + 用户标签页授权 |
-| Artifact Preview | 工作区内 UTF-8 文本、Markdown、HTML 和图片；HTML 使用隔离、CSP、禁网和大小限制。发现仍只读 `git status`，被忽略目录与非 Git 工作区暂空 | 同一套产物预览 | Go Preview Policy + Vue right page |
+| Artifact Preview | 工作区内 UTF-8 文本、Markdown、HTML 和图片；HTML 使用隔离、CSP、禁网和大小限制。发现在 `git status` 之上扫描被忽略目录与非 Git 工作区，只收近期写过的文件 | 同一套产物预览 | Go Preview Policy + Vue right page |
 | ImageGen | 文生图和参考图编辑；用户明确发起付费动作，输出限制在项目资产范围并可预览 | 同一套 ImageGen | 受控 Provider Adapter |
 | Computer Use | 用户选择当前可见的非浏览器 App / PID / Window 并锁定不可变 Scope；调用遵循当前权限档位，`workspace-auto` 不会隐式启用或扩大 Scope | 同一套 Computer Use | Go Host + Computer Use Adapter |
-| PR / worktree | PR 发布前展示仓库、分支、提交和目标；写入 Agent 的独立 worktree 在委托 effectful 角色时从当前提交准备，不要求主工作区干净 | 同一套 Git / worktree | Go Git/Platform Adapter |
+| PR / worktree | PR 发布前展示仓库、分支、提交和目标；写入 Agent 的独立 worktree 在委托 effectful 角色时从当前提交准备，不要求主工作区干净，允许 detached HEAD 与子目录项目 | 同一套 Git / worktree | Go Git/Platform Adapter |
 | 相关历史 | 底层 Session Index 仍索引本机会话；单会话相关历史、过滤、搜索和图谱前端已删除，不再作为产品表面 | 当前无此 UI | Go 索引保留 |
 | 文件 / 图片附件 | 是；复制到用户数据目录，纯文本模型可走本地 OCR 或已配置视觉模型 | 使用 CTF Material 管线，不复用 Coding 附件上下文 | MilkSU 附件桥 + 本地 OCR |
 | CTF 类型化工具 | 否 | Pi 会话上的 `ctf_inspect` / `ctf_decode` / `ctf_triage` 与 Judge；已删除独立 Security Bridge typed-action 循环 | MilkSU CTF domain + Pi |
