@@ -140,7 +140,6 @@ import { createComputerUseDriverExtension } from "./bridge-computer-use-driver.j
 import { resolveCodingSkillPaths, reviewedCodingSkillPaths } from "./bridge-skills.js";
 import { createToolResultBoundExtension } from "./bridge-tool-result-bound.js";
 import { createHangGuardExtension } from "./bridge-hang-guard.js";
-import { createEvalDockerExtension } from "./bridge-eval-docker.js";
 import {
   createSubagentYieldExtension,
   formatSubagentToolInput,
@@ -1343,7 +1342,6 @@ function createMilkSUResourceLoader(
   // Bash safety: Pi treats the bash timeout as optional, so one call can hold a turn
   // open indefinitely. Give every call a default bound and explain the ones that hit it.
   extensionFactories.push(createHangGuardExtension());
-  extensionFactories.push(createEvalDockerExtension());
   // Last: Pi tool_result middleware. Every tool, including MCP, is clipped to
   // Pi's 50KB/2000-line contract before the result enters model context.
   extensionFactories.push(createToolResultBoundExtension());
