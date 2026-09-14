@@ -376,6 +376,14 @@ export function processFoldStepCount(blocks: readonly ChatTurnBlock[]): number {
   return count
 }
 
+export function processFoldSummary(blocks: readonly ChatTurnBlock[]): string {
+  const messages = blocks.flatMap(block => (
+    block.kind === 'activity' ? block.messages : []
+  ))
+  if (!messages.length) return ''
+  return chatActivitySummary(messages)
+}
+
 function flushFoldableTurn(
   output: ChatTranscriptBlock[],
   foldables: ChatTurnBlock[],

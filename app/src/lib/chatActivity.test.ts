@@ -12,6 +12,7 @@ import {
   isBlankAssistantMessage,
   mergeProcessThinking,
   processFoldStepCount,
+  processFoldSummary,
   settleRunningToolMessages,
   withoutBlankAssistantMessages,
 } from '@/lib/chatActivity'
@@ -104,6 +105,8 @@ describe('buildChatTranscript', () => {
       .toEqual(['message', 'message', 'activity'])
     expect(transcript[2]?.kind === 'message' && transcript[2].message.id).toBe('a3')
     expect(transcript[1]?.kind === 'process' && processFoldStepCount(transcript[1].blocks)).toBe(2)
+    expect(transcript[1]?.kind === 'process' && processFoldSummary(transcript[1].blocks))
+      .toBe('运行了命令')
     expect(transcript[1]?.kind === 'process' && mergeProcessThinking(transcript[1].blocks)).toMatchObject({
       thinking: '先看仓库。\n\n再跑测试。',
       thinkingDurationMs: 1300,
@@ -307,6 +310,18 @@ describe('activity labels', () => {
       message('bash-1', 'tool', 'npm test', { toolName: 'bash' }),
       message('bash-2', 'tool', 'npm run build', { toolName: 'bash' }),
     ])).toBe('编辑了文件运行了多个命令')
+  })
+
+  it('summarizes a process fold from its tool group, not step count', () => {
+    const transcript = buildChatTranscript([
+      message('u1', 'user', '完成任务'),
+      message('t1', 'tool', '/repo', { toolName: 'read' }),
+      message('t2', 'tool', 'src/app.ts', { toolName: 'grep' }),
+      message('a1', 'assistant', '看完了。'),
+    ], false)
+    const process = transcript.find(block => block.kind === 'process')
+    expect(process?.kind === 'process' && processFoldSummary(process.blocks))
+      .toBe('读取并检索了项目')
   })
 
   it('summarizes individual rows without exposing their full output', () => {

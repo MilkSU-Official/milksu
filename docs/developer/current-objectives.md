@@ -32,7 +32,7 @@
 | 历史基线 | M3 product-loop 已在 `108e0e3`（2026-08-05）合并，仅供追溯。 |
 | 正式发行基线 | `v26.912.4 / 54ff0b6ac9063305795e0d1b59ec68df29b3f6cf`（2026-09-12）。这是当前 GitHub Latest Release；提供带版本号的 DMG、EXE、DEB、x64 tar.gz 与 `SHA256SUMS`。OTA 已上传私有 R2 并自动发布该平台 current pointer。侧栏下载先 `checkForUpdates` 再 `downloadUpdate`；本包无感更新先整包校验再经本机回环交给 updater。上一版 `v26.912.3 / 91b9302`、`v26.912.2 / f7782c1`、`v26.911.2 / 6120055`、`v26.911.1 / d341a35`、`v26.905.2 / b18b860`、`v26.905.1 / 1cc8773`、`v26.904.1 / 6e9371d` 与 `v26.827.1 / 37932ce` 仍可下载，不是 Latest。`v26.912.1` 从未作为 GitHub Latest 发出。 |
 | 开发版本线 | 根目录与 `desktop/package.json` 是 `26.912.4`。正式发行源是 `54ff0b6`；晚于该 tag 的文档收口不移动该 tag。 |
-| 当前开发 | 正式包是 `26.912.4`。新对话可选 Pi 或 DeepSeek Harness；选中后目录外的型号会灰掉。出厂默认官方 DeepSeek Flash；保存或验证成功后自动启用该服务。环境来源和错误文案按当前服务说话。DeepSeek Harness 打进必选 peer，产品 MCP / Skills / 停止 / 所选型号 / 懒挂 Playwright / host compact 已接到 ACP。选择卡片最后一行可填其他；待选择时新指令直接回答该卡片。停止只显示本轮已停止。子 Agent 回传缺工作区不再打死整轮。无感更新先整包校验再经本机回环交给 updater。自动压缩空闲阈值是 80%。DeepSeek 会话不能 rewind / 分叉。对话主线程只留当前思考或仍在跑的工具组；已结束的思考和工具收进 `过程`，有正文的助手消息留在主线程。Windows 安装器仍未代码签名；Linux 无 Secret Service 与本地 OCR；Hyprland/Xorg Computer Use 不可用。CTF 比赛模式和实验室红队学习面仍未接线。产品 UI 设计语言只写在 `AGENTS.md`。未发版：#53 typed sweep 尚未做；新对话继承项目 `milksu` 尚未做；Windows 接入 Computer Use 后整段对话崩溃尚未真机验收。 |
+| 当前开发 | 正式包是 `26.912.4`。新对话可选 Pi 或 DeepSeek Harness；选中后目录外的型号会灰掉。出厂默认官方 DeepSeek Flash；保存或验证成功后自动启用该服务。环境来源和错误文案按当前服务说话。DeepSeek Harness 打进必选 peer，产品 MCP / Skills / 停止 / 所选型号 / 懒挂 Playwright / host compact 已接到 ACP。选择卡片最后一行可填其他；待选择时新指令直接回答该卡片。停止只显示本轮已停止。子 Agent 回传缺工作区不再打死整轮。无感更新先整包校验再经本机回环交给 updater。自动压缩空闲阈值是 80%。DeepSeek 会话不能 rewind / 分叉。对话主线程只留当前思考或仍在跑的工具组；已结束的思考和工具收进 `过程`，标题用工具组摘要，有正文的助手消息留在主线程。Windows 安装器仍未代码签名；Linux 无 Secret Service 与本地 OCR；Hyprland/Xorg Computer Use 不可用。CTF 比赛模式和实验室红队学习面仍未接线。产品 UI 设计语言只写在 `AGENTS.md`。未发版：#53 typed sweep 尚未做；新对话继承项目 `milksu` 尚未做；Windows 接入 Computer Use 后整段对话崩溃尚未真机验收。 |
 | 平台边界 | `26.912.4`：macOS DMG 走 GitHub-hosted Developer ID 签名并公证；Windows 安装器完成原生 Runtime 与首次启动但未代码签名，并打入审阅过的 CUA Driver `0.27.0`；Linux 发出 Ubuntu/Debian 共用 x64 DEB 与 Omarchy/Arch/Nix 共用 x64 tarball，GNOME Portal Computer Use 已进包，仍无 Secret Service、本地 OCR；Hyprland/Xorg Computer Use 不可用。Windows/Linux 窗口铬尚未真机验收。 |
 | 发行流水 | 下一发行从干净、已推送的 `main` 对 canonical Go/Vue/Sidecar/lint/生产与文档构建只验证一次；macOS / Windows / Linux 都走 GitHub-hosted 云端。macOS 本机打包暂时关闭。必须创建 GitHub Release 页并上传带版本号的 DMG/EXE/DEB、x64 tar.gz 与 SHA256SUMS，不能只留空 tag。正式打包默认上传 OTA 到私有 R2 并发布该平台 current pointer；GitHub Release 仍不上 updater ZIP。 |
 
@@ -226,7 +226,7 @@
 - 切换工作区不再停掉其他工作区的 Sidecar：非活跃 Sidecar 停靠保活，每个 kernel 各留 3 个（硬上限 6），空闲 15 分钟回收。仍在跑回合的会话永不被回收或淘汰，因为一条前台命令可以跑很久而不产生任何事件，单看停靠时长分不出“已放弃”和“正在干活”。主动回收只写 `sidecar.stopped` 生命周期回执；`engine.stopped` 会结束所有等待者和全部对话的运行态，只保留给活跃进程意外退出。
 - 残留边界：`engine.stopped` 在渲染层仍是全局的，会清掉所有对话的运行态。活跃 Sidecar 意外退出时，停靠工作区里真正还在跑的回合会被一起标成已停止，而它的进程和事件流其实还在。这比每次切换工作区都中断轻，且失败方向是“显示已停止”而不是永久转圈。要彻底收敛需要让该事件带上受影响的会话集合，再改渲染层按会话收口。
 - 型号族窗口、输出上限和思考档位按 [models.dev](https://models.dev/) 官方条目对齐；不再用 `128000` / `32768` / `16384` 占位。DeepSeek / Grok / Gemini / Qwen 3.8 / GPT-6 也有出厂思考档位。核对表写在 `AGENTS.md`。
-- 对话主线程不再铺开每一段「想了 Xs」。进行中只留当前思考或仍在跑的工具组；已结束的思考和工具收进 `过程`，步数只数工具。有正文的助手消息留在主线程当阶段性成果，不从 thinking 合成假进度。展开过程后多段思考合成一条「想了共」。
+- 对话主线程不再铺开每一段「想了 Xs」。进行中只留当前思考或仍在跑的工具组；已结束的思考和工具收进 `过程`，标题用工具组摘要（编辑了文件 / 运行了多个命令 / 读取并检索了项目），不再写步数。有正文的助手消息留在主线程当阶段性成果，不从 thinking 合成假进度。展开过程后多段思考合成一条「想了共」。
 - #81 误把评测用的 `bridge-eval-docker` 推进产品 Sidecar；main 上没有该文件，Pi 一启动就 `ERR_MODULE_NOT_FOUND`，界面收成「本地 Agent 运行异常」。已删掉该 import，评测扩展只留在 eval 分支。
 
 ## 当前产品事实

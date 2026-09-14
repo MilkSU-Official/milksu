@@ -5,7 +5,7 @@ import ChatMessageItem from '@/components-vue/ChatMessageItem.vue'
 import {
   isThinkingOnlyAssistant,
   mergeProcessThinking,
-  processFoldStepCount,
+  processFoldSummary,
   type ChatProcessFoldBlock,
   type ChatTurnBlock,
 } from '@/lib/chatActivity'
@@ -34,7 +34,7 @@ const emit = defineEmits<{
   branchAssistant: [messageId: string]
 }>()
 
-const stepCount = computed(() => processFoldStepCount(props.process.blocks))
+const foldSummary = computed(() => processFoldSummary(props.process.blocks))
 const foldedThinking = computed(() => mergeProcessThinking(props.process.blocks))
 const visibleBlocks = computed(() => (
   props.process.blocks.filter((block): block is ChatTurnBlock => (
@@ -49,9 +49,9 @@ const visibleBlocks = computed(() => (
     <summary class="agent-process__summary">
       <span>{{ t('过程', 'Process') }}</span>
       <span
-        v-if="stepCount > 0"
+        v-if="foldSummary"
         class="agent-process__count"
-      >{{ t(`${stepCount} 步`, `${stepCount} steps`) }}</span>
+      >{{ foldSummary }}</span>
     </summary>
     <div class="agent-process__body">
       <ChatMessageItem
