@@ -5,44 +5,41 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"testing"
 
 	"github.com/MilkSU-Official/milksu/internal/codingcollab"
 )
 
-func TestCodingCollaborationManagerIsDisabledOutsideDarwin(t *testing.T) {
-	t.Setenv("PATH", "")
-	for _, goos := range []string{"windows", "linux"} {
-		t.Run(goos, func(t *testing.T) {
-			dataDirectory := t.TempDir()
-			manager, err := newCodingCollaborationManager(dataDirectory, goos)
-			if err != nil {
-				t.Fatalf("newCodingCollaborationManager(%q) error = %v", goos, err)
-			}
-			if manager != nil {
-				t.Fatalf("newCodingCollaborationManager(%q) returned a manager", goos)
-			}
-			collaborationDirectory := filepath.Join(
-				dataDirectory,
-				"agent-home",
-				"coding-collaboration",
-			)
-			if _, err := os.Stat(collaborationDirectory); !errors.Is(err, os.ErrNotExist) {
-				t.Fatalf("unsupported platform created collaboration state: %v", err)
-			}
-		})
+// Git decides whether a machine can host writer worktrees, not the operating
+// system. git worktree add is the same command everywhere, so a platform that
+// has Git gets the manager and one without Git is told what is missing.
+func TestCodingCollaborationManagerRequiresGitRatherThanAPlatform(t *testing.T) {
+	manager, err := newCodingCollaborationManager(t.TempDir())
+	if err != nil {
+		t.Fatalf("newCodingCollaborationManager() error = %v", err)
+	}
+	if manager == nil {
+		t.Fatal("a machine with Git did not receive a Coding collaboration manager")
 	}
 }
 
-func TestCodingCollaborationManagerPreservesDarwinGitRequirement(t *testing.T) {
+func TestCodingCollaborationManagerNamesMissingGit(t *testing.T) {
 	t.Setenv("PATH", "")
-	manager, err := newCodingCollaborationManager(t.TempDir(), "darwin")
+	dataDirectory := t.TempDir()
+	manager, err := newCodingCollaborationManager(dataDirectory)
 	if manager != nil {
-		t.Fatal("Darwin returned a Coding collaboration manager without Git")
+		t.Fatal("a machine without Git received a Coding collaboration manager")
 	}
 	if err == nil || err.Error() != "Git is not installed or unavailable" {
-		t.Fatalf("Darwin Git requirement error = %v", err)
+		t.Fatalf("missing Git error = %v", err)
+	}
+	collaborationDirectory := filepath.Join(
+		dataDirectory,
+		"agent-home",
+		"coding-collaboration",
+	)
+	if _, err := os.Stat(collaborationDirectory); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("a refused manager created collaboration state: %v", err)
 	}
 }
 
@@ -50,9 +47,6 @@ func TestCodingCollaborationManagerPreservesDarwinGitRequirement(t *testing.T) {
 // an effectful subagent, so a clean Git task still reports no collaboration
 // until the model actually delegates writing work.
 func TestSendingAMessageDoesNotProvisionAWriterWorktree(t *testing.T) {
-	if runtime.GOOS != "darwin" {
-		t.Skip("Agent-managed Coding collaboration is currently macOS-only")
-	}
 	repository := newAgentManagedTestRepository(t)
 	manager, err := codingcollab.New(filepath.Join(t.TempDir(), "collaboration"))
 	if err != nil {
@@ -73,9 +67,6 @@ func TestSendingAMessageDoesNotProvisionAWriterWorktree(t *testing.T) {
 }
 
 func TestDelegatedWritingWorkPreparesAndReleasesCleanWriter(t *testing.T) {
-	if runtime.GOOS != "darwin" {
-		t.Skip("Agent-managed Coding collaboration is currently macOS-only")
-	}
 	repository := newAgentManagedTestRepository(t)
 	manager, err := codingcollab.New(filepath.Join(t.TempDir(), "collaboration"))
 	if err != nil {
@@ -124,9 +115,6 @@ func TestDelegatedWritingWorkPreparesAndReleasesCleanWriter(t *testing.T) {
 }
 
 func TestParallelWritingRolesReceiveTwoWriters(t *testing.T) {
-	if runtime.GOOS != "darwin" {
-		t.Skip("Agent-managed Coding collaboration is currently macOS-only")
-	}
 	repository := newAgentManagedTestRepository(t)
 	manager, err := codingcollab.New(filepath.Join(t.TempDir(), "collaboration"))
 	if err != nil {

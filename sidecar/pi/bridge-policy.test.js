@@ -11,7 +11,7 @@ import {
 import { createServer as createHTTPServer } from "node:http";
 import { createServer as createTCPServer } from "node:net";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { delimiter, dirname, join } from "node:path";
 import { computerUseSocket } from "../hostpath.js";
 import test from "node:test";
 import {
@@ -981,7 +981,10 @@ test("coach mode keeps bash and CTF domain tools", async () => {
   assert.equal(policy.activeTools.includes("ctf_capabilities"), true);
 });
 
-test("CTF capabilities report the fixed Pi-session command catalog", async () => {
+// The model is told to trust this answer, so it has to describe the PATH the
+// session's own bash resolves against. A fixed list of macOS directories would
+// tell a Linux or Windows model that tools it can run do not exist.
+test("CTF capabilities report the PATH the session shell actually uses", async () => {
   const workspace = await workspaceWithManifest(
     manifest("coach", ["read"]),
   );
@@ -997,10 +1000,16 @@ test("CTF capabilities report the fixed Pi-session command catalog", async () =>
   );
   const result = JSON.parse(response.content[0].text);
   assert.equal(result.category, "core");
-  assert.ok(result.available.python3 || result.missing.includes("python3"));
-  assert.ok(Object.keys(result.available).every(name => (
-    ["python3", "node", "bash", "file", "strings", "curl", "openssl"].includes(name)
-  )));
+  assert.equal(result.path, process.env.PATH);
+  for (const [name, location] of Object.entries(result.available)) {
+    assert.ok(
+      ["python3", "node", "bash", "file", "strings", "curl", "openssl"].includes(name),
+    );
+    assert.ok(
+      result.path.split(delimiter).includes(dirname(location)),
+      `${name} was reported outside the PATH the shell uses: ${location}`,
+    );
+  }
 });
 
 test("CTF decode applies one strict transform and reports reproducible output facts", async () => {

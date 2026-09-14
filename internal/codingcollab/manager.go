@@ -7,9 +7,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -103,6 +105,12 @@ func New(root string) (*Manager, error) {
 	if strings.TrimSpace(root) == "" {
 		return nil, errors.New("Coding collaboration directory is required")
 	}
+	// Git decides whether this machine can host worktrees at all, so ask before
+	// creating state for a manager that is about to be refused.
+	gitPath, err := exec.LookPath("git")
+	if err != nil {
+		return nil, errors.New("Git is not installed or unavailable")
+	}
 	if err := os.MkdirAll(resolvedRoot, 0o700); err != nil {
 		return nil, fmt.Errorf("create Coding collaboration directory: %w", err)
 	}
@@ -112,10 +120,6 @@ func New(root string) (*Manager, error) {
 	resolvedRoot, err = filepath.EvalSymlinks(resolvedRoot)
 	if err != nil {
 		return nil, fmt.Errorf("resolve Coding collaboration directory links: %w", err)
-	}
-	gitPath, err := exec.LookPath("git")
-	if err != nil {
-		return nil, errors.New("Git is not installed or unavailable")
 	}
 	return &Manager{
 		root:    resolvedRoot,
@@ -1071,28 +1075,72 @@ func validateIncludedSymlinks(
 	})
 }
 
+// copyPath reproduces one .worktreeinclude path inside a writer worktree.
+//
+// macOS clones the tree copy-on-write in one pass, which for a dependency
+// directory is an order of magnitude faster than a byte copy and costs almost no
+// extra disk. That flag is specific to the macOS copy utility, so every other
+// platform, and macOS itself whenever the clone is refused, falls back to the
+// portable copy below.
 func copyPath(ctx context.Context, source, destination string) error {
-	cpPath, err := exec.LookPath("cp")
-	if err != nil {
-		return errors.New("the platform copy utility is unavailable")
-	}
-	arguments := []string{"-R", "-p", source, destination}
-	if clone := exec.CommandContext(ctx, cpPath, "-c", "-R", "-p", source, destination); clone.Run() == nil {
-		return nil
-	}
-	if err := os.RemoveAll(destination); err != nil {
-		return fmt.Errorf("clear incomplete cloned copy: %w", err)
-	}
-	command := exec.CommandContext(ctx, cpPath, arguments...)
-	output, err := command.CombinedOutput()
-	if err != nil {
-		message := strings.TrimSpace(string(output))
-		if message == "" {
-			message = err.Error()
+	if runtime.GOOS == "darwin" {
+		if cpPath, lookErr := exec.LookPath("cp"); lookErr == nil {
+			clone := exec.CommandContext(ctx, cpPath, "-c", "-R", "-p", source, destination)
+			if clone.Run() == nil {
+				return nil
+			}
+			if err := os.RemoveAll(destination); err != nil {
+				return fmt.Errorf("clear incomplete cloned copy: %w", err)
+			}
 		}
-		return errors.New(message)
 	}
-	return nil
+	return copyTree(ctx, source, destination)
+}
+
+// copyTree copies a directory tree with the standard library, so a writer worktree
+// can be populated on macOS, Linux and Windows without a platform copy utility.
+// os.CopyFS reproduces symbolic links as links and carries execute bits, which is
+// what a dependency directory needs.
+func copyTree(ctx context.Context, source, destination string) error {
+	return os.CopyFS(destination, cancelableFS{base: os.DirFS(source), ctx: ctx})
+}
+
+// cancelableFS makes a tree copy observe a context. os.CopyFS has no cancellation
+// of its own and stops at the first error, so refusing the next read once the
+// context is done is what keeps a copy inside the caller's preparation deadline.
+// It forwards the symlink and directory interfaces because os.CopyFS needs them to
+// reproduce links rather than follow them.
+type cancelableFS struct {
+	base fs.FS
+	ctx  context.Context
+}
+
+func (f cancelableFS) Open(name string) (fs.File, error) {
+	if err := f.ctx.Err(); err != nil {
+		return nil, err
+	}
+	return f.base.Open(name)
+}
+
+func (f cancelableFS) ReadDir(name string) ([]fs.DirEntry, error) {
+	if err := f.ctx.Err(); err != nil {
+		return nil, err
+	}
+	return fs.ReadDir(f.base, name)
+}
+
+func (f cancelableFS) ReadLink(name string) (string, error) {
+	if err := f.ctx.Err(); err != nil {
+		return "", err
+	}
+	return fs.ReadLink(f.base, name)
+}
+
+func (f cancelableFS) Lstat(name string) (fs.FileInfo, error) {
+	if err := f.ctx.Err(); err != nil {
+		return nil, err
+	}
+	return fs.Lstat(f.base, name)
 }
 
 func pathWithin(root, target string) bool {

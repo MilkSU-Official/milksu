@@ -3,9 +3,7 @@ package vuln
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 )
 
@@ -121,19 +119,13 @@ func verifyFeedSnapshotFileChain(base string, snapshotPath string) error {
 	return nil
 }
 
-// RevealFeedSnapshotInFinder reveals a validated CVE Feed snapshot file in
-// Finder. Tests can inject an opener; production uses MacOSFinderReveal.
-func RevealFeedSnapshotInFinder(snapshotPath string, open func(string) error) error {
-	if runtime.GOOS != "darwin" {
-		return fmt.Errorf("在 Finder 中显示 CVE Feed 快照当前仅支持 macOS 桌面运行时")
-	}
-	if err := open(snapshotPath); err != nil {
+// RevealFeedSnapshot shows a validated CVE Feed snapshot in the platform file
+// manager with the snapshot selected. The caller supplies the opener, which in
+// production is the desktop runtime's own cross-platform one; tests inject a
+// recorder.
+func RevealFeedSnapshot(snapshotPath string, reveal func(string) error) error {
+	if err := reveal(snapshotPath); err != nil {
 		return fmt.Errorf("打开 CVE Feed 快照: %w", err)
 	}
 	return nil
-}
-
-// MacOSFinderReveal reveals a file in the macOS Finder.
-func MacOSFinderReveal(snapshotPath string) error {
-	return exec.Command("/usr/bin/open", "-R", snapshotPath).Run()
 }

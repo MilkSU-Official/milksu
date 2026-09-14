@@ -3,7 +3,6 @@ package vuln
 import (
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 )
@@ -80,21 +79,19 @@ func TestResolveFeedSnapshotPathRejectsRelativeNonJSONAndDirectory(t *testing.T)
 	}
 }
 
-func TestRevealFeedSnapshotInFinderUsesInjectedOpener(t *testing.T) {
-	if runtime.GOOS != "darwin" {
-		t.Skip("Finder integration is macOS-only")
-	}
+func TestRevealFeedSnapshotUsesInjectedOpener(t *testing.T) {
+	snapshot := filepath.Join(t.TempDir(), "snapshot.json")
 	var revealed []string
-	if err := RevealFeedSnapshotInFinder("/tmp/snapshot.json", func(path string) error {
+	if err := RevealFeedSnapshot(snapshot, func(path string) error {
 		revealed = append(revealed, path)
 		return nil
 	}); err != nil {
-		t.Fatalf("RevealFeedSnapshotInFinder() error = %v", err)
+		t.Fatalf("RevealFeedSnapshot() error = %v", err)
 	}
-	if len(revealed) != 1 || revealed[0] != "/tmp/snapshot.json" {
+	if len(revealed) != 1 || revealed[0] != snapshot {
 		t.Fatalf("unexpected revealed paths: %#v", revealed)
 	}
-	if err := RevealFeedSnapshotInFinder("/tmp/snapshot.json", func(string) error {
+	if err := RevealFeedSnapshot(snapshot, func(string) error {
 		return os.ErrPermission
 	}); err == nil || !strings.Contains(err.Error(), "打开 CVE Feed 快照") {
 		t.Fatalf("expected opener error, got %v", err)

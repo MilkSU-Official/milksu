@@ -207,7 +207,8 @@ func (a *App) StopCodingBrowser(
 // RevealCodingBrowserEvidence derives the exact evidence directory for the
 // current Coding conversation from trusted backend state only (the live
 // isolated Coding Browser session plus either the conversation's persisted
-// workspace or MilkSU's fixed temporary workspace) and reveals it in Finder.
+// workspace or MilkSU's fixed temporary workspace) and reveals it in the
+// platform file manager.
 // The frontend/model never supplies an evidence path, workspace or session id;
 // every inconsistency is rejected before any directory is opened.
 func (a *App) RevealCodingBrowserEvidence(conversationID string) error {
@@ -240,16 +241,13 @@ func (a *App) RevealCodingBrowserEvidence(conversationID string) error {
 	if err != nil {
 		return err
 	}
-	if err := codingevidence.RevealInFinder(
-		directory,
-		codingevidence.MacOSFinderOpen,
-	); err != nil {
+	if err := codingevidence.RevealDirectory(directory, a.openPath); err != nil {
 		return err
 	}
 	a.diagnostics.Record(
 		"coding-browser",
 		"info",
-		"browser evidence directory revealed in Finder",
+		"browser evidence directory revealed in the file manager",
 	)
 	return nil
 }

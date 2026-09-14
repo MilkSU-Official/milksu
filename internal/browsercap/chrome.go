@@ -57,6 +57,16 @@ func browserUseDisplayName(path string) string {
 	}
 }
 
+// ExtensionsPage returns the internal extensions page of a resolved
+// Chromium-family browser. Edge serves that page under its own scheme and
+// refuses the chrome one, so the page follows the browser that was found.
+func ExtensionsPage(executable string) string {
+	if browserUseDisplayName(executable) == "Microsoft Edge" {
+		return "edge://extensions/"
+	}
+	return "chrome://extensions/"
+}
+
 func browserUseNextStep(goos string) string {
 	switch goos {
 	case "darwin":

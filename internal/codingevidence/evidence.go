@@ -3,17 +3,15 @@
 // (.milksu/browser-evidence/<sessionId>).
 //
 // The package is a small, Wails-free adapter on purpose: the security-critical
-// path derivation and the macOS Finder open behavior must stay unit-testable
-// without a desktop runtime, and cmd/milksu-backend/app.go must not grow new responsibilities.
+// path derivation must stay unit-testable without a desktop runtime, and
+// cmd/milksu-backend/app.go must not grow new responsibilities.
 package codingevidence
 
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strings"
 )
 
@@ -144,20 +142,12 @@ func verifyDirectoryChain(resolvedWorkspace, evidencePath string) error {
 	return nil
 }
 
-// RevealInFinder opens directory in the macOS Finder. The production opener
-// is MacOSFinderOpen; tests inject a recorder. Non-macOS platforms return a
-// clear error because no supported Finder integration exists there.
-func RevealInFinder(directory string, open func(string) error) error {
-	if runtime.GOOS != "darwin" {
-		return fmt.Errorf("在 Finder 中显示当前仅支持 macOS 桌面运行时")
-	}
+// RevealDirectory shows directory in the platform file manager. The caller
+// supplies the opener, which in production is the desktop runtime's own
+// cross-platform one; tests inject a recorder.
+func RevealDirectory(directory string, open func(string) error) error {
 	if err := open(directory); err != nil {
 		return fmt.Errorf("打开浏览器证据目录: %w", err)
 	}
 	return nil
-}
-
-// MacOSFinderOpen reveals directory in the macOS Finder.
-func MacOSFinderOpen(directory string) error {
-	return exec.Command("/usr/bin/open", directory).Run()
 }

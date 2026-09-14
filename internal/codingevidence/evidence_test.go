@@ -3,7 +3,6 @@ package codingevidence
 import (
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 )
@@ -225,22 +224,20 @@ func TestDeriveReturnsExactDirectory(t *testing.T) {
 	}
 }
 
-func TestRevealInFinderUsesTheInjectedOpener(t *testing.T) {
-	if runtime.GOOS != "darwin" {
-		t.Skip("Finder integration is macOS-only")
-	}
+func TestRevealDirectoryUsesTheInjectedOpener(t *testing.T) {
+	directory := filepath.Join(t.TempDir(), "evidence")
 	var revealed []string
-	open := func(directory string) error {
-		revealed = append(revealed, directory)
+	open := func(target string) error {
+		revealed = append(revealed, target)
 		return nil
 	}
-	if err := RevealInFinder("/tmp/evidence", open); err != nil {
+	if err := RevealDirectory(directory, open); err != nil {
 		t.Fatalf("reveal evidence directory: %v", err)
 	}
-	if len(revealed) != 1 || revealed[0] != "/tmp/evidence" {
+	if len(revealed) != 1 || revealed[0] != directory {
 		t.Fatalf("expected the opener to receive the exact directory, got %#v", revealed)
 	}
-	if err := RevealInFinder("/tmp/evidence", func(string) error {
+	if err := RevealDirectory(directory, func(string) error {
 		return os.ErrPermission
 	}); err == nil || !strings.Contains(err.Error(), "打开浏览器证据目录") {
 		t.Fatalf("expected opener errors to surface, got %v", err)

@@ -51,7 +51,7 @@ const {
   shouldRelaunchAfterScreenRecordingGrant,
 } = require('./computer-use-permissions.cjs')
 const { requestMacOSScreenPermission } = require('./macos-screen-permission.cjs')
-const { openLocalPath } = require('./local-path.cjs')
+const { openLocalPath, revealLocalPath } = require('./local-path.cjs')
 const {
   applyLinuxChromiumFlags,
   linuxUserAgent,
@@ -687,6 +687,12 @@ async function handleHostRequest(method, payload = {}) {
       await openLocalPath(payload.path, {
         stat: target => fs.stat(target),
         openPath: target => shell.openPath(target),
+      })
+      return null
+    case 'shell.showItemInFolder':
+      await revealLocalPath(payload.path, {
+        stat: target => fs.stat(target),
+        showItemInFolder: target => shell.showItemInFolder(target),
       })
       return null
     case 'window.show':

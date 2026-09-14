@@ -4,7 +4,7 @@ const assert = require('node:assert/strict')
 const path = require('node:path')
 const test = require('node:test')
 
-const { openLocalPath } = require('./local-path.cjs')
+const { openLocalPath, revealLocalPath } = require('./local-path.cjs')
 
 test('openLocalPath opens an existing absolute directory without rewriting it', async () => {
   const target = path.resolve('产物 directory')
@@ -46,6 +46,46 @@ test('openLocalPath rejects relative and unavailable paths before opening', asyn
     /local path is unavailable: missing/u,
   )
   assert.equal(opened, false)
+})
+
+// Revealing a CVE snapshot or an evidence file has to select it in the file
+// manager. Opening it would launch the file in whatever application claims the
+// extension, which is a different and unwanted action.
+test('revealLocalPath selects the entry instead of opening it', async () => {
+  const target = path.resolve('snapshot.json')
+  const revealed = []
+
+  await revealLocalPath(target, {
+    stat: async () => ({ isDirectory: () => false, isFile: () => true }),
+    showItemInFolder: async value => {
+      revealed.push(value)
+    },
+  })
+
+  assert.deepEqual(revealed, [target])
+})
+
+test('revealLocalPath applies the same path validation as opening', async () => {
+  let revealed = false
+  const showItemInFolder = async () => {
+    revealed = true
+  }
+
+  await assert.rejects(
+    revealLocalPath('relative/path', {
+      stat: async () => ({ isDirectory: () => false, isFile: () => true }),
+      showItemInFolder,
+    }),
+    /must be absolute/u,
+  )
+  await assert.rejects(
+    revealLocalPath(path.resolve('missing'), {
+      stat: async () => { throw new Error('missing') },
+      showItemInFolder,
+    }),
+    /local path is unavailable: missing/u,
+  )
+  assert.equal(revealed, false)
 })
 
 test('openLocalPath rejects special files and surfaces shell failures', async () => {

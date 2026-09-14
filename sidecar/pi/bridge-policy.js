@@ -27,6 +27,7 @@ import { homedir, tmpdir } from "node:os";
 import {
   basename,
   dirname,
+  delimiter,
   isAbsolute,
   join,
   relative,
@@ -136,15 +137,43 @@ const coachToolNames = [
 const defaultExecution = {
   maxToolEventOutputBytes: 60000,
 };
-const commandPath = [
-  "/Library/Developer/CommandLineTools/usr/bin",
-  "/usr/bin",
-  "/bin",
-  "/usr/sbin",
-  "/sbin",
-  "/opt/homebrew/bin",
-  "/usr/local/bin",
-].join(":");
+// The command PATH a sandboxed project command receives. It is a fixed,
+// policy-visible list rather than the user's PATH, and it therefore has to name
+// the places each platform actually keeps its tools.
+function defaultCommandPath() {
+  if (process.platform === "win32") {
+    const systemRoot = process.env.SystemRoot || process.env.WINDIR || "C:\\Windows";
+    return [
+      join(systemRoot, "System32"),
+      systemRoot,
+      join(systemRoot, "System32", "Wbem"),
+      join(systemRoot, "System32", "WindowsPowerShell", "v1.0"),
+    ].join(delimiter);
+  }
+  if (process.platform === "darwin") {
+    return [
+      "/Library/Developer/CommandLineTools/usr/bin",
+      "/usr/bin",
+      "/bin",
+      "/usr/sbin",
+      "/sbin",
+      "/opt/homebrew/bin",
+      "/usr/local/bin",
+    ].join(delimiter);
+  }
+  return [
+    "/usr/local/sbin",
+    "/usr/local/bin",
+    "/usr/sbin",
+    "/usr/bin",
+    "/sbin",
+    "/bin",
+    "/snap/bin",
+    "/var/lib/flatpak/exports/bin",
+    "/run/current-system/sw/bin",
+  ].join(delimiter);
+}
+const commandPath = defaultCommandPath();
 const protectedWorkspaceEntries = [
   "challenge.json",
   "AGENTS.md",
@@ -366,7 +395,7 @@ function commandEnvironment(workspace, source = {}, runtimeDirectory = commandRu
   const temporary = join(runtimeDirectory, "tmp");
   const runtimeBin = join(runtimeDirectory, "runtime-bin");
   const environment = {
-    PATH: `${runtimeBin}:${commandPath}`,
+    PATH: `${runtimeBin}${delimiter}${commandPath}`,
     HOME: home,
     TMPDIR: temporary,
     LANG: source.LANG || "en_US.UTF-8",
@@ -898,14 +927,32 @@ const ctfCommandCatalog = {
   misc: ["python3", "node", "perl", "ruby", "zbarimg", "qrencode"],
 };
 
-async function findCommand(command) {
-  for (const directory of commandPath.split(":")) {
-    const candidate = join(directory, command);
-    try {
-      await access(candidate, constants.X_OK);
-      return candidate;
-    } catch {
-      // Continue through the fixed, policy-visible command path.
+// A CTF session's bash spawns with fullAccessCommandEnvironment, so that is the
+// PATH its commands resolve against. Probing a second fixed list would report
+// tools the model cannot run and hide tools it can, and the model is told to
+// trust this answer.
+function sessionCommandPath() {
+  return fullAccessCommandEnvironment(process.env).PATH || commandPath;
+}
+
+function executableExtensions() {
+  if (process.platform !== "win32") return [""];
+  const configured = String(process.env.PATHEXT || ".COM;.EXE;.BAT;.CMD");
+  return configured.split(";").map(value => value.trim()).filter(Boolean);
+}
+
+async function findCommand(command, searchPath) {
+  const extensions = executableExtensions();
+  for (const directory of String(searchPath).split(delimiter)) {
+    if (!directory) continue;
+    for (const extension of extensions) {
+      const candidate = join(directory, command + extension);
+      try {
+        await access(candidate, constants.X_OK);
+        return candidate;
+      } catch {
+        // Continue through the session command path.
+      }
     }
   }
   return "";
@@ -936,16 +983,17 @@ function createCTFCapabilitiesTool() {
         ? Object.keys(ctfCommandCatalog)
         : [category];
       const names = [...new Set(categories.flatMap(name => ctfCommandCatalog[name] || []))];
+      const searchPath = sessionCommandPath();
       const available = {};
       const missing = [];
       for (const name of names) {
-        const path = await findCommand(name);
+        const path = await findCommand(name, searchPath);
         if (path) available[name] = path;
         else missing.push(name);
       }
       const result = {
         category,
-        path: commandPath,
+        path: searchPath,
         available,
         missing,
         guidance: missing.length > 0

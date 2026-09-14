@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 
@@ -14,13 +13,7 @@ import (
 	"github.com/MilkSU-Official/milksu/internal/engine"
 )
 
-func newCodingCollaborationManager(
-	dataDirectory,
-	goos string,
-) (*codingcollab.Manager, error) {
-	if goos != "darwin" {
-		return nil, nil
-	}
+func newCodingCollaborationManager(dataDirectory string) (*codingcollab.Manager, error) {
 	return codingcollab.New(
 		filepath.Join(dataDirectory, "agent-home", "coding-collaboration"),
 	)
@@ -34,7 +27,7 @@ func (a *App) resolveAgentManagedCodingCollaboration(
 	conversationID,
 	workspacePath string,
 ) (*engine.CodingCollaborationDescriptor, error) {
-	if runtime.GOOS != "darwin" || a.codingCollab == nil {
+	if a.codingCollab == nil {
 		return nil, nil
 	}
 	// A domain handoff without a user-selected project runs in the fixed
@@ -67,10 +60,8 @@ func (a *App) prepareAgentManagedCodingCollaboration(
 	workspacePath string,
 	writers int,
 ) (*engine.CodingCollaborationDescriptor, error) {
-	if runtime.GOOS != "darwin" || a.codingCollab == nil {
-		return nil, fmt.Errorf(
-			"Agent-managed writer worktrees are currently available only on macOS",
-		)
+	if a.codingCollab == nil {
+		return nil, fmt.Errorf("Agent-managed writer worktrees are unavailable")
 	}
 	if strings.TrimSpace(workspacePath) == "" {
 		return nil, fmt.Errorf("this task has no Git project to isolate")

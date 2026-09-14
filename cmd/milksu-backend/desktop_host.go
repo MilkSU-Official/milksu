@@ -94,6 +94,13 @@ func (a *App) openPath(target string) error {
 	return a.desktopCall("shell.openPath", map[string]string{"path": target}, nil)
 }
 
+// revealPath shows target in the platform file manager with target itself
+// selected, which is what revealing a single file means. openPath would launch
+// that file in its default application instead.
+func (a *App) revealPath(target string) error {
+	return a.desktopCall("shell.showItemInFolder", map[string]string{"path": target}, nil)
+}
+
 type electronCodingHost struct {
 	host desktopHost
 }
