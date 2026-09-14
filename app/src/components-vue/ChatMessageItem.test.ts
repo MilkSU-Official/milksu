@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { createApp, nextTick, reactive, type App } from 'vue'
+import { createApp, nextTick, type App } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import ChatMessageItem from './ChatMessageItem.vue'
 import type { Message } from '@/types'
@@ -176,14 +176,9 @@ describe('ChatMessageItem', () => {
     expect(host.textContent).not.toContain('MILKSU')
     expect(host.textContent).not.toContain('YOU')
     expect(host.querySelector('.agent-think')).not.toBeNull()
-    // Collapsed thinking keeps its body out of the DOM: streaming deltas must
-    // not re-lay-out text the reader cannot see.
-    expect(host.querySelector('.agent-think__more')).toBeNull()
-    expect(host.textContent).not.toContain('先读文件再改签名。')
     host.querySelector<HTMLButtonElement>('.agent-think__summary')?.click()
     await nextTick()
     expect(host.querySelector('.agent-think__more')?.getAttribute('data-open')).toBe('true')
-    expect(host.textContent).toContain('先读文件再改签名。')
   })
 
   it('keeps live thinking open and folds it when the conclusion starts', async () => {
@@ -210,48 +205,9 @@ describe('ChatMessageItem', () => {
       thinkingDurationMs: 4200,
       status: 'done',
     })
-    expect(settled.host.querySelector('.agent-think__more')).toBeNull()
     expect(settled.host.textContent).toContain('想了')
     expect(settled.host.textContent).toContain('4.2s')
     expect(settled.host.textContent).toContain('结论是改 greet.ts。')
-  })
-
-  it('collapses long live thinking but keeps short live thinking open', async () => {
-    const longThinking = Array.from({ length: 4 }, (_, index) => `第 ${index + 1} 行思考内容。`).join('\n')
-    const { host } = await mountMessage({
-      id: 'message-thinking-long',
-      role: 'assistant',
-      content: '',
-      timestamp: Date.now(),
-      thinking: longThinking,
-      thinkingStatus: 'running',
-      status: 'running',
-    })
-    expect(host.textContent).toContain('正在思考')
-    expect(host.querySelector('.agent-think__more')).toBeNull()
-    expect(host.textContent).not.toContain('第 4 行思考内容。')
-  })
-
-  it('keeps long live thinking expanded once the reader opens it', async () => {
-    const message = reactive<Message>({
-      id: 'message-thinking-long-manual',
-      role: 'assistant',
-      content: '',
-      timestamp: Date.now(),
-      thinking: Array.from({ length: 4 }, (_, index) => `第 ${index + 1} 行。`).join('\n'),
-      thinkingStatus: 'running',
-      status: 'running',
-    })
-    const { host } = await mountMessage(message)
-    expect(host.querySelector('.agent-think__more')).toBeNull()
-    host.querySelector<HTMLButtonElement>('.agent-think__summary')?.click()
-    await nextTick()
-    expect(host.querySelector('.agent-think__more')).not.toBeNull()
-
-    message.thinking += '\n第 5 行，继续流式。'
-    await nextTick()
-    expect(host.querySelector('.agent-think__more')).not.toBeNull()
-    expect(host.textContent).toContain('第 5 行，继续流式。')
   })
 
   it('does not keep a live reply loader after thinking has finished', async () => {

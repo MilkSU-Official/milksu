@@ -64,12 +64,13 @@ func TestStaleSidecarIsNotReused(t *testing.T) {
 // A stale sidecar leaves the active slot but keeps running until its turn is over.
 //
 // Silence on stdout is not evidence that the turn ended: a foreground bash can run for
-// minutes without writing a line, so the reap asks whether the workspace still has a
-// turn in flight, exactly as the parked pool does.
+// minutes without writing a line, so the reap asks whether the turns this process was
+// retired with have settled, the same question the parked pool asks about its workspace.
 func TestRetiredStaleSidecarIsReapedOnceItsTurnEnds(t *testing.T) {
 	supervisor := NewSupervisor(nil)
 	process := testSidecarProcess("/workspace/a")
 	supervisor.process = process
+	registerTestSession(supervisor, "session-a", KernelPi, "/workspace/a", true)
 	supervisor.InvalidateCredentials("settings saved")
 
 	supervisor.retireStaleProcessLocked(KernelPi, process)
@@ -81,7 +82,6 @@ func TestRetiredStaleSidecarIsReapedOnceItsTurnEnds(t *testing.T) {
 		t.Fatal("a retired sidecar must be tracked for reaping")
 	}
 
-	registerTestSession(supervisor, "session-a", KernelPi, "/workspace/a", true)
 	supervisor.reapStaleProcessesLocked()
 	if len(supervisor.retiring) != 1 {
 		t.Fatal("a retired sidecar whose turn is still running must be kept, even while silent")

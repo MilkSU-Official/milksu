@@ -843,8 +843,12 @@ func (a *App) SaveSettingsCmd(settings config.AppSettings) error {
 	// would otherwise keep using credentials the user just replaced. Mark the live
 	// sidecars stale instead of stopping them: the next turn starts on a fresh process,
 	// while a turn (or a model probe) that is already streaming finishes on the process
-	// it started on.
+	// it started on. A credential the user withdrew is not a replacement and gets no
+	// such grace, or a running child would keep it usable after it was taken away.
 	a.rotateEngineCredentials("settings saved")
+	if credentialWithdrawn(previous, a.settings.Get()) {
+		a.stopSidecarsHoldingWithdrawnCredential("settings saved")
+	}
 	// When TokenFlux credentials change, re-read /v1/models so the picker and
 	// dual-source routing use the models that key can actually call.
 	if tokenFluxCatalogInputsChanged(previous, a.settings.Get()) {
