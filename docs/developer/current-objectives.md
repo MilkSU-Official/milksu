@@ -2,7 +2,7 @@
 
 > 文档状态：Current / Canonical target contract
 >
-> 最后收口：2026-09-14
+> 最后收口：2026-09-15
 >
 > 本页只回答“当前处于什么阶段、下一条完成线是什么”。实现事实以当前代码、测试、Git 历史和原生 App 验收为准；历史设计与旧里程碑不作为任务队列。
 >
@@ -26,7 +26,7 @@
 | --- | --- |
 | 阶段 | **内测迭代 / Agent Runtime 与跨平台发行收敛**。当前工作不再按 M3/M4 里程碑组织。 |
 | 历史基线 | M3 product-loop 已在 `108e0e3`（2026-08-05）合并，仅供追溯。 |
-| 当前开发 | 新对话可选 Pi 或 DeepSeek Harness；目录外型号灰掉。出厂默认官方 DeepSeek Flash，保存或验证成功后自动启用该服务；环境来源和错误按当前服务说话。DSH 接到产品 MCP / Skills / 停止 / 所选型号 / 懒挂 Playwright / host compact；DeepSeek 会话不能 rewind / 分叉。选择卡片最后一行可填其他；待选择时新指令直接回答该卡片。停止只显示本轮已停止。子 Agent 缺工作区回退到会话目录。自动压缩空闲阈值 80%。型号族窗口、输出上限和思考档位按 models.dev。对话主线程只留当前思考或仍在跑的工具组；已结束的收进「过程」，有正文的助手消息留在主线程。侧栏 footer：版本号、日夜调节、设置。非活跃 Sidecar 停靠保活。Pi `bash` 缺省 600 秒前台上界。Windows 安装器未代码签名；Linux 无 Secret Service / 本地 OCR；Hyprland/Xorg Computer Use 不可用。CTF 比赛模式和实验室红队学习面未接线。产品 UI 设计语言只写在 `AGENTS.md`。未做：#53 typed sweep；新对话继承项目 `milksu`；Windows 接入 Computer Use 后整段对话崩溃尚未真机验收。 |
+| 当前开发 | 新对话可选 Pi 或 DeepSeek Harness；目录外型号灰掉。出厂默认官方 DeepSeek Flash，保存或验证成功后自动启用该服务；环境来源和错误按当前服务说话。DSH 接到产品 MCP / Skills / 停止 / 所选型号 / 懒挂 Playwright / host compact；DeepSeek 会话不能 rewind / 分叉。选择卡片最后一行可填其他；待选择时新指令直接回答该卡片。停止只显示本轮已停止。子 Agent 缺工作区回退到会话目录。自动压缩空闲阈值 80%。型号族窗口、输出上限和思考档位按 models.dev。对话主线程只留当前思考或仍在跑的工具组；已结束的收进「过程」，有正文的助手消息留在主线程。长思考默认折叠，展开有 300ms 过渡；运行中标签只呼吸透明度。侧栏 footer：版本号、日夜调节、设置。非活跃 Sidecar 停靠保活；凭据轮换惰性替换、撤回立即停。writer worktree 只在模型委托写入角色时从当前提交准备，发消息不再准备，脏主工作区不挡。Pi `bash` 缺省 600 秒前台上界。Windows 安装器未代码签名；Linux 无 Secret Service / 本地 OCR；Hyprland/Xorg Computer Use 不可用。CTF 比赛模式和实验室红队学习面未接线。产品 UI 设计语言只写在 `AGENTS.md`。未做：#53 typed sweep；新对话继承项目 `milksu`；产物发现仍看不见被忽略目录与非 Git 工作区（#91）；Windows 接入 Computer Use 后整段对话崩溃尚未真机验收。 |
 | 平台边界 | macOS DMG 走 GitHub-hosted Developer ID 签名并公证；Windows 安装器完成原生 Runtime 与首次启动但未代码签名，并打入审阅过的 CUA Driver `0.27.0`；Linux 发出 Ubuntu/Debian 共用 x64 DEB 与 Omarchy/Arch/Nix 共用 x64 tarball，GNOME Portal Computer Use 已进包，仍无 Secret Service、本地 OCR；Hyprland/Xorg Computer Use 不可用。Windows/Linux 窗口铬尚未真机验收。可下载安装包见 README。 |
 | 发行流水 | 下一发行从干净、已推送的 `main` 对 canonical Go/Vue/Sidecar/lint/生产与文档构建只验证一次；macOS / Windows / Linux 都走 GitHub-hosted 云端。macOS 本机打包暂时关闭。必须创建 GitHub Release 页并上传带版本号的 DMG/EXE/DEB、x64 tar.gz 与 SHA256SUMS，不能只留空 tag。正式打包默认上传 OTA 到私有 R2 并发布该平台 current pointer；GitHub Release 仍不上 updater ZIP。 |
 
@@ -228,8 +228,13 @@
 - Computer Use 仍要先选窗口。
 - Pi `bash` 的 `timeout` 是可选参数，缺省时一次调用可以无限期占住整个回合。现在 Sidecar 扩展给缺省调用注入 600 秒前台上界，把过大的显式值收敛到 3600 秒，并在超时结果里说明边界；命令目录落在 iCloud 同步根下时补一句仅存云端的文件数。执行前不按命令模式预检或拦截：判断“哪条命令危险”需要解析 shell，猜错会拦掉用户的合法命令，而超时已经把无界等待变成有界失败。
 - DeepSeek Harness 走 ACP，工具在 harness 进程内执行，MilkSU 只是 ACP 客户端，只能允许或拒绝一次调用，改不了它的工具参数。因此 DSH 会话的 `bash` 仍没有 MilkSU 侧超时上界。要补齐需要 harness 自身的配置项或 ACP 扩展点，不要在客户端复刻第二套工具循环。
-- 切换工作区不再停掉其他工作区的 Sidecar：非活跃 Sidecar 停靠保活，每个 kernel 各留 3 个（硬上限 6），空闲 15 分钟回收。仍在跑回合的会话永不被回收或淘汰，因为一条前台命令可以跑很久而不产生任何事件，单看停靠时长分不出“已放弃”和“正在干活”。主动回收只写 `sidecar.stopped` 生命周期回执；`engine.stopped` 会结束所有等待者和全部对话的运行态，只保留给活跃进程意外退出。
-- 残留边界：`engine.stopped` 在渲染层仍是全局的，会清掉所有对话的运行态。活跃 Sidecar 意外退出时，停靠工作区里真正还在跑的回合会被一起标成已停止，而它的进程和事件流其实还在。这比每次切换工作区都中断轻，且失败方向是“显示已停止”而不是永久转圈。要彻底收敛需要让该事件带上受影响的会话集合，再改渲染层按会话收口。
+- 切换工作区不再停掉其他工作区的 Sidecar：非活跃 Sidecar 停靠保活，每个 kernel 各留 3 个（硬上限 6），空闲 15 分钟回收。仍在跑回合的会话永不被回收或淘汰，因为一条前台命令可以跑很久而不产生任何事件，单看停靠时长分不出“已放弃”和“正在干活”。主动回收只写 `sidecar.stopped` 生命周期回执；`engine.stopped` 只保留给该 kernel 当前进程意外退出，并按 kernel 圈定受影响的会话，不再清掉另一个引擎上的运行态。
+- 保存设置或轮换凭据不再 `Close()` 全部 Sidecar：进程标 stale，下一回合换新进程，旧进程留着跑完手上的回合。设置里删除或关闭正在用的 Provider Key、以及撤销账户凭据，立即停掉还握着它的 Sidecar 并上报中断。退役进程仍接自己回合的停止、steering 和审批；超期回收也置 retired 并通知会话，避免 `busySessions` 永久残留。
+- writer worktree 从发消息触发改成委托触发。`SendMessage` 只解析已存在的工作树；模型委托 effectful 角色时 Sidecar 才请求准备，准备期间在模型动作位置显示进度。主工作区脏不挡准备，writer 从 `baseHead` 检出，未提交改动不进入。复制：macOS 走 copy-on-write，其余平台走 `os.CopyFS`。没装 Git 时应用仍能启动，准备时点名缺 Git。本仓库已删除 `.worktreeinclude`，不再把 `node_modules` 拷进工作树。子 Agent 的 Darwin `sandbox-exec` 启动链仍只有 macOS。
+- 工作区动作（含准备 worktree）不堵 Sidecar 的 stdout 读取循环。发起动作的进程被 park 或 retire 之后仍能收到回答；回合已经结束时，迟到的产品 `tool.completed` 不再把会话标回运行中。
+- 产物预览接受任意有效 UTF-8 文本（Markdown / HTML / 四种图片仍走专用 kind）。丢弃工作区改动不再要求先取消暂存：`git restore --worktree` 按索引重写工作区，已暂存内容保留。产物**发现**仍只读 `git status`，被忽略目录（`out/`、`dist/`）和非 Git 工作区的面板仍空；放开这条的改动在未合并的 #91。
+- `ctf_capabilities` 按会话 shell 真正会拿到的 PATH 探测，不再扫七个写死的 macOS 目录。在文件管理器中显示走 Electron `shell.openPath` / `showItemInFolder`，Chrome 扩展页走 `browsercap.FindChrome`，产品路径不再写死 `/usr/bin/open`。
+- 长思考（约 3 行或 300 字）默认折叠；点开有 300ms 拉开。运行中标签用前景色呼吸透明度，不再留旧扫光渐变。停止按钮若 10 秒内收不到终态可再点；回合结束前未消费的 steering 留在队列里可见。
 - 型号族窗口、输出上限和思考档位按 [models.dev](https://models.dev/) 官方条目对齐；不再用 `128000` / `32768` / `16384` 占位。DeepSeek / Grok / Gemini / Qwen 3.8 / GPT-6 也有出厂思考档位。核对表写在 `AGENTS.md`。
 - 对话主线程不再铺开每一段「想了 Xs」。进行中只留当前思考或仍在跑的工具组；已结束的思考和工具收进 `过程`，标题用工具组摘要（编辑了文件 / 运行了多个命令 / 读取并检索了项目），不再写步数。有正文的助手消息留在主线程当阶段性成果，不从 thinking 合成假进度。展开过程后多段思考合成一条「想了共」。
 - #81 误把评测用的 `bridge-eval-docker` 推进产品 Sidecar；main 上没有该文件，Pi 一启动就 `ERR_MODULE_NOT_FOUND`，界面收成「本地 Agent 运行异常」。已删掉该 import，评测扩展只留在 eval 分支。

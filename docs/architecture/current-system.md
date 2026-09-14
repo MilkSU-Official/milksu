@@ -2,7 +2,7 @@
 
 > 文档状态：Current
 >
-> 事实审计：2026-09-14。本页描述当前代码结构，不安排任务。
+> 事实审计：2026-09-15。本页描述当前代码结构，不安排任务。
 > 发行回执与已发行/未打进安装包的分界见 [当前开发目标](/developer/current-objectives)。
 
 ## 系统上下文
@@ -71,7 +71,7 @@ MilkSU 的桌面壳不是通用 Agent Loop 的另一份实现。Pi 仍负责会�
 | 内测账户与模型来源 | **Deployed / desktop verified** | 系统浏览器 GitHub PKCE、稳定/测试版独立回调和 `0600` 本地不透明会话已实现；打包客户端指向 `accounts.milksu.org`。Admin 为每个用户保存一份加密的 TokenFlux 凭据，Electron 用账户会话取得后只交给 Go，Go 写入现有 `credentials.db`；Key 不返回 renderer，不进入日志、模型上下文或普通配置文件。模型请求直接发往 `https://tokenflux.dev/v1`，MilkSU 不再承载余额、价格映射、扣费流水、超限或代理计费。Go Model Catalog 获取与当前 Key 分组一致的模型并以 `0600` last-known-good 同时驱动设置、Composer 与 Pi；运行时隐藏未配置的原厂 Provider，并把旧 `x-ai/grok-4.6` 选择对齐为目录中的 `grok-4.6`。2026-08-15 本地 Stable 包经 Computer Use 使用账户分配模型完成真实 Coding 回合；非分组模型请求得到 `404 model_not_found`。用户仍可在设置中配置各原厂 Provider 或简单 OpenAI-compatible 中转站，元数据进入 `providers`，各 Key 进入同一 Credential Store；未配置的来源不进入任务模型列表。Admin 对应提交 `89b2037`，客户端链路已进入 `v26.817.1 / main@783679f` 正式内测发行。 |
 | 双来源模型路由 | **Implemented / packaged in 26.817.1, catalog rules in 26.818.1** | `milksu-route` 只负责账户与个人来源的选择和安全回退；外层占位认证不得进入具体 Provider。2026-08-16 修复转发时覆盖真实来源凭据的 `401`：路由在调用来源前移除外层 `apiKey` 与 `Authorization`，让 Pi 按所选来源重新解析凭据。两个来源的只读目录请求均为 `200`，真实 `grok-4.5` 双来源调用选择 `account` 并返回 `MILKSU_ROUTE_OK`；该修复已进入 `26.817.1 / main@783679f`。账户模型权限边界随后合入 `main`（东云，PR #3）：账户凭据优先产生带 `credential_source` 的权威目录，缺失模型在请求前跳过；目录未知时仍尝试来源，并在首个内容输出前把 TokenFlux `model_not_found` / `not supported by any configured account` 分类为安全回退。设置页与 Coding 共用同一可调用目录。这些目录规则已进入 `26.818.1` 正式内测包。 |
 | OTA 更新 | **Implemented** | 已登录 Stable 主进程每分钟带 Bearer 询问 `/v1/releases/latest?platform&arch`。有新版本时侧栏左下角出现下载按钮；下载完无运行中会话则安装重启，有则对话框确认。macOS/Windows 用 electron-updater（ZIP / NSIS）；Linux dpkg 安装走 pkexec，tarball 解压到当前前缀，Nix store 不自动更新。Admin 按 `(channel, platform, arch)` 各有 current pointer；Worker 不返回 R2 key。侧栏下载先 `checkForUpdates` 再 `downloadUpdate`；无感更新先整包校验 SHA-256，再经本机回环交给 updater。安装失败可见。从磁盘镜像或不在 `.app` 里运行时说明先装进应用程序文件夹。GitHub Release 提供 DMG/EXE/DEB/x64 tar.gz，不上 OTA ZIP。Beta 不启用 updater。 |
-| Go Runtime | **Implemented / concentrated** | `cmd/milksu-backend/main.go` 启动应用组合根和 JSONL RPC；同目录的 `desktop_rpc.go` 分派现有 App 方法并传递事件，`desktop_host.go` 把文件对话框、外链和浏览器宿主能力反向委托给 Electron。`app.go` 仍较集中，触碰时按纵切拆分。非活跃 Sidecar 停靠保活：每个 kernel 各留 3 个、硬上限 6、空闲 15 分钟，主动回收只写 `sidecar.stopped`。Pi `bash` 缺省 600 秒前台上界。 |
+| Go Runtime | **Implemented / concentrated** | `cmd/milksu-backend/main.go` 启动应用组合根和 JSONL RPC；同目录的 `desktop_rpc.go` 分派现有 App 方法并传递事件，`desktop_host.go` 把文件对话框、外链和浏览器宿主能力反向委托给 Electron。`app.go` 仍较集中，触碰时按纵切拆分。非活跃 Sidecar 停靠保活：每个 kernel 各留 3 个、硬上限 6、空闲 15 分钟，主动回收只写 `sidecar.stopped`。凭据轮换把进程标 stale，下一回合换新进程；撤回或关掉正在用的 Key 立即停并上报中断。退役进程仍接自己回合的控制通道。工作区动作不堵 stdout 读取循环。Pi `bash` 缺省 600 秒前台上界。没装 Git 时应用仍能启动。 |
 | 插件框架 | **Implemented / packaged in 26.911.1** | `internal/plugin` 是 `milksu.plugin/v1` 的可信控制面：验证确定性 Ed25519 包、发布者信任、宿主能力、安装/升级/回滚/卸载、事务存储和六个主题表面；Lua 与预编译 TypeScript 每次隔离调用，第三方工具只读。设置 iframe 通过 nonce 与类型化 broker 请求能力；外部 MCP 默认关闭、逐插件开启，并在元数据变化后刷新工具目录。官方皮肤和文本工具贯通该链路。`26.911.1` 避开 Node 26 解析器的 `realpathSync`，Windows 正式打包先核对干净源码再生成插件 dist。 |
 | Pi 通用 Agent | **Verified core / partial extensions** | Pi 继续拥有 Session、Compaction、模型、自然语言理解和通用 Tool Loop；MilkSU 监管 Sidecar、注入当前 Provider、投影事件并实施工作区/审批边界。MilkSU 不从普通 prompt 的关键词或格式推断 Agent 意图：GUI 一键动作和内部无工具投影分别使用 typed product action / typed turn policy。每回合向 Pi 注入无凭据的真实 OS、架构、路径和实际命令解释器事实，并把经 Go / Sidecar 校验的主会话 cwd 声明为权威目录；协作 writer worktree 只属于独立 effectful subagent 进程。Windows 保持 Pi 上游 Bash backend，需要原生 cmdlet 时显式调用 `powershell.exe`。受管 Sidecar 启用 Pi 原生长 prompt-cache retention，沿用稳定 Session ID；一次性压缩继续显式禁用缓存写入，不增加 MilkSU 缓存状态机。上下文窗口优先级为手动覆盖 > catalog（忽略旧 `128000` 占位）> 按 [models.dev](https://models.dev/) 对齐的型号族预设 > 保守默认；输出上限同样不用 `32768` / `16384` 占位。Composer 环按 Pi 组装分类。edit 锚点、`tool_result` bound、中途引导与子 Agent 结构化回传已进入 `26.904.1`。`26.905.1` 另把 `/rewind` / 最后一条用户消息「丢掉这段」（Pi `navigateTree`）与 `/handoff` / 用量环「接到新会话」（Pi 分叉 + 现行 compact）打进包；产品工具 when-to-use 只留在 description 与 Skill 名录，设置页可添加用户级 MCP/Skills 并覆盖内置项。GPT / Claude / DeepSeek / Grok / Gemini / Qwen 3.8 使用内置思考档位，其他模型只有经设置页手动声明后才进入该能力；Composer 保存对话级选择并只显示标准英文档位，Go 解析允许档位，Sidecar 通过 Pi 原生 `setThinkingLevel` 应用并让子 Agent 继承。核对表写在 `AGENTS.md`。当前 Pi 的 Provider effort 词表为 `off / minimal / low / medium / high / xhigh / max`，Codex `ultra` 多 Agent 编排不映射为模型 effort。已审核 Coding Skill 只向 Pi 常驻名称与用途，完整内容按任务或显式选择加载；设置只能停用审核目录。CTF / CVE / 实验室在 Pi Coding loop 之上叠加领域工具与 Judge，不再按角色关掉后台任务、Goal、LSP、Computer Use、终端或 `milksu_workspace`。Coding/CTF/CVE/实验室都强制 Pi 自动压缩，任务 UI `/compact` 不再按角色拒绝；工具结果进模型前截到 Pi 的 50KB/2000 行。CVE/实验室保留 `cve-research` / `lab-job` 角色。题目工作区绑定、未授权目标和独立 Judge 仍有效。`26.912.2` 起不再按目录白名单把模型标成纯文本或改走 OCR；附件原图进入当前回合，由模型或接口自己处理。不存在用户配置的辅助视觉会话。Linux 仍无本地 OCR。实时网页查证复用固定 Pi Web Extension 的 `web_search` / `web_fetch`，MilkSU 只把工具注册进当前会话与现有工具档位，不再维护第二套搜索决策；真实联网测试已先搜索再读取 xAI 官方 Grok 4.5 文档。`26.818.2` 起 Coding 另暴露类型化 `milksu_workspace`（标签、产物、环境/变更/终端）和 `compact_context`；上下文用量达到窗口约 80% 且 Session 空闲时自动走 Pi `/compact` 同一路径，用户 `/compact` 与 `compact_context` 立即排队该路径、不受 80% 限制。`替我审批` 自动执行隔离浏览器；可授权工具支持本对话始终允许。TokenFlux `grok-4.5` 多模态和一次真实文档自举已验；本轮真实 Provider 缓存命中率与 effort 请求尚未做计费链路验收，完整功能自举仍未完成。 |
 | 安全工具目录 | **Verified setup chain / real binary task pending** | “设置 → MCP”内置行使用真实 Desktop RPC 检测与持久化。IDA Pro/idalib 和 capa 具备可准备的固定版本适配器；就绪且启用后进入普通 Coding 的模型可选目录。用户可覆盖 command/args 或打开专用 Coding 工作区用自然语言改配置，并可恢复当前版本出厂默认。capa 仍是 `capa_analyze`，不是假 MCP。CodeQL、Burp Suite、Shannon 目前仅做本机/前提检测，不会被误报为模型可用。尚未用真实 crackme/二进制完成任务回执。当前也还没接到 CTF/CVE；需要时按切片接入，不必先等 Coding 回执再开会决定。 |
@@ -81,7 +81,7 @@ MilkSU 的桌面壳不是通用 Agent Loop 的另一份实现。Pi 仍负责会�
 | CTF Runtime | **Implemented / Daily receipt partial** | `internal/ctf` 持有 Challenge、Evidence、Candidate、Judge Receipt、Recovery、Memory 与学习事实；模型候选不能建立成功事实。CTF 通用文件与 Shell 复用 Pi 原生工具及用户系统权限，不再复制 workspace-only 沙箱；MilkSU 只保留题目域工具、精确站点能力、凭据隔离、Judge 和证据投影。模型输出达到长度上限时通过 Pi `agent_end` / `followUp` 扩展点继续。Daily 由规则筛选未完成候选，再复用 Pi 结合近期题目、关联 Coding 对话、已确认事实和 Memory 选择并解释；结果按本地日期固定并允许主动换题，模型不可用时规则兜底。代码与自动化已回归，真实签名包用户视角仍待复验。 |
 | CVE Learning / Tracking | **Verified signed tracking slice; reproduction dossier in 26.822.1; public feeds in 26.823.1** | 用户界面只显示明确加入的公开 CVE、手工状态，默认文案为“想研究”。添加入口通过只读 Desktop RPC 搜索 NVD，用户选中后直接把当前结果和来源元数据写入本地追踪，不做第二次网络请求；参考资料按机构去重，完整集合仍由 NVD 承载。学习专题已从 CVE 页删除，同类搜索改走列表右上角「导入」弹窗。`26.822.1` 点进档案后复现：Agent 编辑 `report.md`，对话留在右下角小窗。`26.823.1` 起「同步公开源」写入本地缓存。`26.911.2` 起公开源同步不再自动进入「我的跟踪」；只有搜索「加入研究」、按编号加入或导入跟踪 JSON 才进列表。不以「复现成功 / 没复现上」当完成面。披露草稿还没做，不是禁令。 |
 | Obelisk / 记忆底座 | **Implemented backend / UI deferred** | MilkSU 自有索引仍只处理本机 Coding/CTF/CVE 会话；当前产品不展示单会话历史面板或图谱。后续学习记录/记忆系统应作为独立页面进入，不移除或混写 Obelisk 与 CTF Memory 底层事实。 |
-| Worktree / 自举 | **Delegation-triggered isolation / macOS only / product loop partial** | writer worktree 在模型委托 effectful subagent（worker / verifier / debugger / docs-writer / refactorer）时准备，发消息本身不再准备；按本次委托的写入角色数要 1 或 2 个 writer，准备期间对话在模型动作位置显示一行进度。工作树由产品经 Pi 可变 `tool_call` input 分配给每个写入角色，模型只选角色，没有面向模型的 worktree 工具。`.worktreeinclude` CoW、精确 submodule、写入边界和释放条件已有；本仓库自身不再用它搬 `node_modules` 与构建缓存。整条协作链仍只有 macOS，依赖 `sandbox-exec`。用户不再配置 worktree/writer；Git 摘要可列出文件并跳到“变更”。Stable → Beta 可见验收已通过，完整自然功能任务的自治 Git 交付仍待扩样。 |
+| Worktree / 自举 | **Delegation-triggered isolation / Git-gated / product loop partial** | writer worktree 在模型委托 effectful subagent（worker / verifier / debugger / docs-writer / refactorer）时准备，发消息本身不再准备；按本次委托的写入角色数要 writer，准备期间对话在模型动作位置显示一行进度。工作树由产品经 Pi 可变 `tool_call` input 分配给每个写入角色，模型只选角色，没有面向模型的 worktree 工具。主工作区脏不挡准备，writer 从 `baseHead` 检出，未提交改动不进入。复制：macOS 走 copy-on-write，其余平台走 `os.CopyFS`。没装 Git 时应用仍启动，准备时点名缺 Git。本仓库已删除 `.worktreeinclude`，不再搬 `node_modules`。子 Agent 的 Darwin `sandbox-exec` 启动链仍只有 macOS。detached HEAD 与子目录项目仍被拒，放开这两条的改动在未合并的 #91。用户不再配置 worktree/writer；Git 摘要可列出文件并跳到“变更”。Stable → Beta 可见验收已通过，完整自然功能任务的自治 Git 交付仍待扩样。 |
 | 本地持久化 | **Implemented** | 用户可见 Coding/CTF/CVE/Lab 产物位于平台文档目录的 `MilkSU`；无项目 Coding 临时工作区位于用户配置目录的 `agent-workspaces` 并统一显示为“无项目任务”，不再制造用户可见的哈希项目目录。选择、粘贴和拖放的普通文件统一导入受管附件区并以哈希描述进入 Pi；普通文件与 Shell 恢复 Pi 内置工具和当前系统用户权限语义，MilkSU 不再持久化另一套 workspace-only 授权根或文件工具。Runtime Artifact、CTF Memory、Catalog、Conversation、Obelisk Session Index、Browser Profile 和 Credential Store 位于用户配置目录。会话归档存入 Conversation 目录下的独立归档区，恢复保留 Pi 上下文，永久删除才清理会话正文、Pi 持久化文件和索引副本。凭据不经桌面 RPC 返回 Vue，也不进入模型上下文。 |
 | 实验室 | **Implemented / packaged in 26.822.1；环境经纪 in 26.825.1** | 主导航「实验室」是未知漏洞探测作业。用户自带 URL 仍可用；`26.825.1` 另可从练习包起本机 Docker 靶或本机 AVD。Agent 把过程写进 `Documents/MilkSU/Lab` 下的 `report.md`。对话是可拖放小窗，不是整页 Coding。不是 Kali 应用商店，不整包接入 HexStrike MCP。安卓靶用受限 adb，不是 Computer Use。 |
 | CTF Managed Labs | **Not shipped** | CTF 本地房还不能引用环境经纪。Juice Shop / WebGoat / Vulhub / AVD 练习包已经挂在实验室和 CVE 档案（`26.825.1`），不是 CTF 题库里的环境包。 |
@@ -170,13 +170,11 @@ flowchart LR
     local["本机与托管资源<br/>IDA · uv · capa · Docker"]
     descriptor["有界运行描述符<br/>仅 ready + enabled"]
     pi["现有 Pi Session<br/>模型工具循环"]
-    index["轻量能力摘要"]
     adapter["按需适配器<br/>IDA MCP / capa"]
 
     settings --> rpc --> service
     service <--> local
     service --> descriptor --> pi
-    pi --> index --> pi
     pi --> adapter --> local
 ```
 
@@ -184,7 +182,8 @@ flowchart LR
 只生成草稿并预置该本机安装任务所需的 `Go · 完全访问`，用户发送后仍复用当前 Coding/Pi 来执行检测、
 安装和非交互健康检查。Go 在发送普通 Coding 回合前重新计算 `ready + enabled` 描述符；Pi 只看到短名称、
 用途和调用提示，由当前模型自行选择。IDA
-以保留名称的 lazy MCP Server 加载只读 Schema，capa 以一个工作区相对路径的原生工具进入现有工具集。
+以保留名称的 lazy MCP Server 加载只读 Schema，capa 以一个工作区相对路径的原生工具进入现有工具集，
+版本写在它自己的 description 里，不再每回合注入能力索引。
 目录发生变化时才重建 Pi Session，因此用户无需在每个任务里手动选择工具，也不会把未配置工具写进
 模型上下文。CodeQL、Burp Suite 和 Shannon 当前只有检测事实，不进入描述符。
 
