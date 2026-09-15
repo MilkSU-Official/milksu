@@ -10,6 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import {
+  destructiveDeleteApproval,
   destructiveDeleteDecision,
   destructiveJustification,
   expandDeleteTarget,
@@ -508,4 +509,88 @@ test("guard-script-cycle: mutual references converge", async (t) => {
   await writeFile(a, `#!/bin/sh\nbash ${b}\n`);
   await writeFile(b, `#!/bin/sh\nbash ${a}\n`);
   assert.deepEqual(recursiveDeleteTargets(`bash ${a}`), []);
+});
+
+// `./wipe.sh` is read, but a script run by an absolute path (`/tmp/wipe.sh`) was still skipped:
+// it is the same delete, so the file has to be read either way.
+test("guard-script-path: a script run by an absolute path is read", async (t) => {
+  const workspace = await mkdtemp("/tmp/milksu-script-path-");
+  t.after(async () => {
+    await rm(workspace, { recursive: true, force: true });
+  });
+  const target = join(workspace, "big");
+  await mkdir(target, { recursive: true });
+  await writeFile(join(target, "f1"), "");
+  const script = join(workspace, "wipe.sh");
+  await writeFile(script, `#!/bin/sh\nrm -rf "${target}"\n`);
+
+  assert.equal(shellScriptArgument([script]), script);
+  assert.deepEqual(recursiveDeleteTargets(`${script}`), [target]);
+  assert.deepEqual(recursiveDeleteTargets(`cd / && ${script}`), [target]);
+
+  // A bare binary path is not a script and is not read as text.
+  assert.equal(shellScriptArgument(["/usr/bin/rm"]), undefined);
+});
+
+// A script the command writes itself does not exist when the decision is made, so its contents
+// cannot be read. Reporting "no targets" would let the delete run unseen.
+test("guard-script-written: a script the command writes is refused", async (t) => {
+  const workspace = await mkdtemp("/tmp/milksu-script-written-");
+  t.after(async () => {
+    await rm(workspace, { recursive: true, force: true });
+  });
+  const script = join(workspace, "wipe.sh");
+
+  const written = await destructiveDeleteDecision({
+    toolName: "bash",
+    input: { command: `printf 'rm -rf /tmp/big' > ${script} && bash ${script}` },
+    policy: { workspace },
+  });
+  assert.equal(written?.action, "block");
+
+  // A heredoc counts as writing it too.
+  const heredoc = await destructiveDeleteDecision({
+    toolName: "bash",
+    input: { command: `cat > ${script} <<'EOF'\nrm -rf /tmp/big\nEOF\nbash ${script}` },
+    policy: { workspace },
+  });
+  assert.equal(heredoc?.action, "block");
+
+  // A script that is merely missing is not a refusal: the command naming it cannot run anyway.
+  const missing = await destructiveDeleteDecision({
+    toolName: "bash",
+    input: { command: `bash ${join(workspace, "nope.sh")}` },
+    policy: { workspace },
+  });
+  assert.notEqual(missing?.action, "block");
+});
+
+// The guard has to see `~` as the real home directory rather than as a literal name.
+test("guard-home: `~` is expanded before the target is judged", async () => {
+  const decision = await destructiveDeleteDecision({
+    toolName: "bash",
+    input: { command: "rm -rf ~" },
+    policy: { workspace: "/tmp/not-the-home" },
+    homeDirectory: "/Users/probe",
+  });
+  assert.equal(decision?.action, "approval");
+  assert.match(decision.content, /\/Users\/probe/);
+});
+
+// The card can only judge a delete if the approval carries the delete: a bare path arrives as
+// plain text, which is not recognisable as a deletion.
+test("guard-approval-input: request_destructive_delete always sends a structured delete", () => {
+  const approval = destructiveDeleteApproval({ target: "/tmp/gate-probe", decision: null });
+  const parsed = JSON.parse(approval.input);
+  assert.equal(parsed.command, 'rm -rf "/tmp/gate-probe"');
+  assert.deepEqual(parsed.normalizedTargets.map(entry => entry.path), ["/tmp/gate-probe"]);
+  assert.ok(recursiveDeleteTargets(parsed.command).length > 0);
+
+  // When the guard already produced structured input, that one is used unchanged.
+  const withDecision = destructiveDeleteApproval({
+    target: "/tmp/gate-probe",
+    decision: { content: "ready", input: '{"command":"rm -rf \\"/x\\""}' },
+  });
+  assert.equal(withDecision.content, "ready");
+  assert.equal(withDecision.input, '{"command":"rm -rf \\"/x\\""}');
 });
