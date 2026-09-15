@@ -120,6 +120,8 @@ names CTF, CVE, Lab and Coding stay as those product names in both languages. En
 This section is the only product UI language. Other docs point here; they must not
 copy the layer table, token names, radii or Beautiful UI primitive numbers.
 
+现在开始 设计UI 要深度参考 https://github.com/deepseek-ai/deepseek-harness 的web gui 的交互设计等等
+
 Review this section by layer. Do not invent a second primitive at the same layer.
 
 | Layer | Owns | Use |
