@@ -55,7 +55,7 @@ Advisor、关键词切模式、新斜杠、子 Agent Hub（那是另一切片）
 
 ## UI
 
-Composer 演化：运行中发送 = 本回合引导。设计语言走现有 Composer / 队列条，不新开卡片层。视觉合同：若改文案或队列条，补 `ChatComposer` 测试；不改全局 token。
+Composer 演化：运行中发送 = 本回合引导。产品 UI 见 `AGENTS.md`；不新开卡片层。不写 Vue 视觉合同测试。
 
 ## 删除路径
 
