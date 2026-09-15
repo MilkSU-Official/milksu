@@ -30,11 +30,11 @@ describe('item collections', () => {
 
     expect(store.collectionIdsFor('nssctf:3347')).toEqual([QUICK_COLLECTION_ID, reverse])
     expect(store.itemKeysFor(ALL_COLLECTIONS_ID)).toEqual(['nssctf:3347', 'nssctf:1024'])
-    expect(store.uniqueItemCount.value).toBe(2)
+    expect(store.uniqueItemCount).toBe(2)
 
     const reloaded = createItemCollectionStore('test.collections')
     expect(reloaded.has('nssctf:3347', reverse)).toBe(true)
-    expect(reloaded.collections.value.map(item => item.name)).toEqual(['收藏', '逆向练习', 'Web 专项'])
+    expect(reloaded.collections.map(item => item.name)).toEqual(['收藏', '逆向练习', 'Web 专项'])
   })
 
   it('removes custom folders without removing the built-in quick collection', () => {
@@ -44,8 +44,8 @@ describe('item collections', () => {
     store.remove(custom)
     store.remove(QUICK_COLLECTION_ID)
 
-    expect(store.collections.value).toHaveLength(1)
-    expect(store.collections.value[0].id).toBe(QUICK_COLLECTION_ID)
+    expect(store.collections).toHaveLength(1)
+    expect(store.collections[0].id).toBe(QUICK_COLLECTION_ID)
   })
 
   it('rejects empty and duplicate names', () => {

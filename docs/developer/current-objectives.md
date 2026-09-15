@@ -91,9 +91,9 @@ CVE：点进档案复现，Agent 改 `report.md`。实验室：独立入口，�
 - 已访问的 CTF / CVE / Lab 会留在树上用 `display:none` 藏起来（相当于旧 KeepAlive）。对话右栏是 `ContextRail`。`CodingComposerControls` 不再补 `[data-button]::before`。
 - Vite / 浏览器 demo 没有 `window.milksu`。设置页不再把 `desktop runtime is unavailable` 当成产品错误；完整设置和插件列表要 Electron。
 
-风格（C：shadcn zinc，彩蛋后加）：
+风格（C：shadcn 结构 + Cursor Light / Cursor Dark，彩蛋后加）：
 
-- `index.css` 已是不透明 zinc + 墨色 `--primary`。`ak-ui.css` / `beautiful-chrome.css` 已从树上删掉，不要当现行语言加回来。
+- `index.css` 夜间是页面 `#181818` / 侧栏 `#141414`，浅色是页面 `#fcfcfc` / 侧栏 `#f3f3f3`，页底和侧栏用 70–90% 透明度透出一丝桌面。macOS `under-window` vibrancy，Windows acrylic，Linux 仍不透明。菜单/对话框保持不透明。不要再用 zinc-950 `#09090b` 或纯白 `#ffffff` 当页底。`ak-ui.css` / `beautiful-chrome.css` 已从树上删掉，不要当现行语言加回来。
 - 登录、目录筛选、难度/严重性、连接状态、设置导航已改 Button / Badge / Alert。LIVE/AUTH 彩蛋未加回。
 - 产品入口是 `main.tsx`；`@felinic/ui` / Vue 已从 `app/` 生产依赖拿掉。Felinic submodule `packages/ui` 已卸载，不进 renderer。
 

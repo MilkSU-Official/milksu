@@ -16,7 +16,7 @@ describe('useDossierSplit', () => {
       },
     })
     const split = useDossierSplit('milksu.lab-split.test', 400)
-    expect(split.width.value).toBe(400)
+    expect(split.width).toBe(400)
     const handle = document.createElement('div')
     const parent = document.createElement('div')
     parent.setAttribute('data-dossier-split', '')
@@ -36,7 +36,7 @@ describe('useDossierSplit', () => {
     } as unknown as PointerEvent)
     handle.dispatchEvent(new PointerEvent('pointermove', { clientX: 180 }))
     handle.dispatchEvent(new PointerEvent('pointerup', { clientX: 180 }))
-    expect(split.width.value).toBe(480)
+    expect(split.width).toBe(480)
     expect(storage.get('milksu.lab-split.test')).toBe('480')
     handle.remove()
   })

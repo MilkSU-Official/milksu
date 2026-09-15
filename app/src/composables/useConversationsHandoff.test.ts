@@ -60,7 +60,7 @@ describe('useConversations domain handoff attach', () => {
       authorizedScope: expect.stringContaining('source-1'),
     })
     expect(active?.messages ?? []).toEqual([])
-    expect(conversations.activeRunning.value).toBe(false)
+    expect(conversations.activeRunning).toBe(false)
     expect(conversations.pendingComposerDraft).toBeNull()
     expect(invokeCommand.mock.calls.some(call => call[0] === 'send_message')).toBe(false)
     expect(invokeCommand.mock.calls.some(call => call[0] === 'save_conversation')).toBe(true)
@@ -96,7 +96,7 @@ describe('useConversations domain handoff attach', () => {
       cveId: 'CVE-2023-46604',
     })
     expect(conversations.pendingComposerDraft?.visibleText).toBe('接手 CVE-2023-46604')
-    expect(conversations.activeRunning.value).toBe(false)
+    expect(conversations.activeRunning).toBe(false)
     expect(invokeCommand.mock.calls.some(call => call[0] === 'send_message')).toBe(false)
   })
 

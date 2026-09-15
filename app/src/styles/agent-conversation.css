@@ -19,8 +19,8 @@
 }
 
 :root[data-theme='light'] [data-agent-conversation] {
-  --agent-code-surface: #ffffff;
-  --agent-code-inset: #f6f6f4;
+  --agent-code-surface: #fcfcfc;
+  --agent-code-inset: #f3f3f3;
   --agent-code-kw: #2f6fec;
   --agent-code-str: #1f7a4d;
   --agent-code-num: #a35b10;

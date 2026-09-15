@@ -756,10 +756,11 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
       : conversation?.domainTaskContext?.kind === 'lab'
         ? 'lab'
         : 'coding'
+  const emptyCanvas = !(conversation?.messages.length)
   const codingDraftIdle = (
     !ctfSession
     && !vulnerabilitySession
-    && !(conversation?.messages.length)
+    && emptyCanvas
   )
   const approvalMenuLabel = useMemo(() => (
     effectiveApprovalPolicy === 'full-auto'
@@ -2466,6 +2467,13 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
           ) : null}
 
           <div
+            className={cn(
+              'flex min-h-0 min-w-0 flex-1 flex-col',
+              emptyCanvas ? 'chat-empty-canvas justify-center overflow-x-hidden overflow-y-auto' : 'overflow-hidden',
+            )}
+          >
+          {!emptyCanvas ? (
+          <div
             ref={scrollArea}
             className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto"
             onScroll={handleChatScroll}
@@ -2512,16 +2520,6 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
                 ) : null}
               </div>
             ) : null}
-            {!conversation?.messages.length ? (
-              <div className="flex min-h-full flex-col items-center justify-center px-8">
-                <h1 className="text-center text-2xl font-medium tracking-tight text-foreground">
-                  {codingEmptyHeading}
-                </h1>
-                {gitBranchError ? (
-                  <p className="mt-3 text-center text-caption text-destructive">{gitBranchError}</p>
-                ) : null}
-              </div>
-            ) : (
               <div className={cn('agent-thread min-w-0', dockSurface ? 'agent-thread--dock' : '')}>
                 {visibleTranscript.map(item => (
                   item.kind === 'process' ? (
@@ -2582,8 +2580,30 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
                   </p>
                 ) : null}
               </div>
-            )}
           </div>
+          ) : (
+            <div className="flex w-full flex-col items-center px-8">
+              {engineNotice ? (
+                <div
+                  className="mb-4 w-[min(36rem,100%)] rounded-xl border border-border/70 bg-muted/50 px-3 py-1.5 text-caption text-muted-foreground"
+                  data-testid="engine-notice"
+                >
+                  {engineNotice}
+                  {(engineNoticeRepeat ?? 0) > 1 ? (
+                    <span data-testid="engine-notice-repeat">
+                      {t(`（重复 ${engineNoticeRepeat} 次）`, ` (x${engineNoticeRepeat})`)}
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
+              <h1 className="mb-6 text-center text-2xl font-medium tracking-tight text-foreground">
+                {codingEmptyHeading}
+              </h1>
+              {gitBranchError ? (
+                <p className="mb-4 text-center text-caption text-destructive">{gitBranchError}</p>
+              ) : null}
+            </div>
+          )}
 
           {compacting ? (
             <p
@@ -2689,6 +2709,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
             onControlGoal={controlComposerGoal}
             onChangeMcpServers={(servers, digest) => onChangeMcpServers?.(servers, digest)}
           />
+          </div>
         </main>
 
         {!dockSurface && environmentOpen ? (
@@ -3460,6 +3481,14 @@ const chatPageCss = `
 .chat-main {
   container-name: chat-main;
   container-type: inline-size;
+}
+
+.chat-empty-canvas {
+  padding-bottom: 8vh;
+}
+
+.chat-empty-canvas .chat-composer {
+  width: 100%;
 }
 
 .chat-surface-dock,
