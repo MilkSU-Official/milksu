@@ -195,18 +195,22 @@ function sandboxProfile({
 }
 
 function prepareRunnerPolicy(environment = process.env, cwd = process.cwd()) {
-  if (process.platform !== "darwin") {
-    throw new Error("MilkSU subagent containment is currently available only on macOS");
-  }
   const agent = String(environment.MILKSU_PI_SUBAGENT_AGENT ?? "").trim();
   if (!readOnlyAgents.has(agent) && !worktreeAgents.has(agent)) {
     throw new Error("MilkSU runner rejected an unsupported subagent role");
   }
   const canonicalCwd = canonical(cwd, "Subagent working directory");
-  const collaborationRoot = canonical(
-    environment.MILKSU_CODING_COLLABORATION_ROOT,
-    "MilkSU collaboration root",
-  );
+  let collaborationRoot;
+  const rawCollaborationRoot = String(
+    environment.MILKSU_CODING_COLLABORATION_ROOT ?? "",
+  ).trim();
+  if (rawCollaborationRoot) {
+    try {
+      collaborationRoot = canonical(rawCollaborationRoot, "MilkSU collaboration root");
+    } catch {
+      collaborationRoot = undefined;
+    }
+  }
   const runtimeCli = canonical(
     environment.MILKSU_PI_SUBAGENT_CLI,
     "MilkSU subagent Pi runtime",
@@ -214,13 +218,13 @@ function prepareRunnerPolicy(environment = process.env, cwd = process.cwd()) {
   const effectful = worktreeAgents.has(agent);
   let worktree;
   let mainWorkspace = canonicalCwd;
-  if (pathWithin(collaborationRoot, canonicalCwd) && canonicalCwd !== collaborationRoot) {
+  if (
+    collaborationRoot
+    && pathWithin(collaborationRoot, canonicalCwd)
+    && canonicalCwd !== collaborationRoot
+  ) {
     worktree = readActiveManifest(collaborationRoot, canonicalCwd);
     mainWorkspace = worktree.workspace;
-  } else {
-    if (effectful) {
-      throw new Error(`${agent} must run in a managed writer worktree`);
-    }
   }
   return {
     agent,
@@ -457,28 +461,30 @@ function run(argumentsList = process.argv.slice(2), environment = process.env) {
   };
   delete childEnvironment.NODE_OPTIONS;
   delete childEnvironment.MILKSU_PI_AGENT_DIR;
-  const child = spawn(
-    "/usr/bin/sandbox-exec",
-    [
-      "-p",
-      sandboxProfile({
-        cwd: policy.cwd,
-        mainWorkspace: policy.mainWorkspace,
-        readableFiles,
-        runtimeDirectory: policy.runtimeDirectory,
-        temporaryDirectory,
-        writable: policy.effectful,
-      }),
-      process.execPath,
-      policy.runtimeCli,
-      ...resolvedArguments,
-    ],
-    {
-      cwd: policy.cwd,
-      env: childEnvironment,
-      stdio: "inherit",
-    },
-  );
+  const childCommand = process.platform === "darwin"
+    ? "/usr/bin/sandbox-exec"
+    : process.execPath;
+  const childArguments = process.platform === "darwin"
+    ? [
+        "-p",
+        sandboxProfile({
+          cwd: policy.cwd,
+          mainWorkspace: policy.mainWorkspace,
+          readableFiles,
+          runtimeDirectory: policy.runtimeDirectory,
+          temporaryDirectory,
+          writable: policy.effectful,
+        }),
+        process.execPath,
+        policy.runtimeCli,
+        ...resolvedArguments,
+      ]
+    : [policy.runtimeCli, ...resolvedArguments];
+  const child = spawn(childCommand, childArguments, {
+    cwd: policy.cwd,
+    env: childEnvironment,
+    stdio: "inherit",
+  });
   const forward = signal => {
     if (!child.killed) child.kill(signal);
   };

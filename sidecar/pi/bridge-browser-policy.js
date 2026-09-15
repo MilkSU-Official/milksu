@@ -5,7 +5,8 @@ export function codingBrowserGuidance() {
     "MilkSU's built-in isolated browser is already part of this app.",
     "Use milksu_workspace to list, focus, or close those tabs, then milksu-playwright to operate the focused page.",
     "Never ask the user to enable Coding Browser, open Settings, or pick a capability first.",
-    "Browser Use (the user's real Chrome/Edge tab) and Computer Use still require an explicit user-selected scope.",
+    "Browser Use still requires an explicit user-selected Chrome/Edge tab.",
+    "Computer Use lists visible windows; lock one after you match it, or ask with milksu_ask.",
   ].join(" ");
 }
 

@@ -92,6 +92,22 @@ test("Playwright lazy MCP declaration starts without waiting for CDP", () => {
   assert.equal(env.MILKSU_CONVERSATION_ID, "conv-browser");
   assert.ok(env.MILKSU_PLAYWRIGHT_MCP_CLI);
   assert.ok(env.MILKSU_CODING_BROWSER_DESCRIPTOR_FILE);
+  assert.ok(env.PWTEST_SOCKETS_DIR);
+  assert.ok(env.TMPDIR);
+  assert.notEqual(env.PWTEST_SOCKETS_DIR, env.TMPDIR);
+});
+
+test("Playwright lazy MCP declaration forwards the live CDP endpoint", () => {
+  const server = milksuPlaywrightMcpServer({
+    conversationId: "conv-browser-cdp",
+    scriptPath: resolvePlaywrightLazyMcpScript(here),
+    cliPath: resolvePlaywrightMcpCli(here),
+    execPath: process.execPath,
+    descriptorFile: join(here, "cdp.json"),
+    cdpEndpoint: "http://127.0.0.1:43117",
+  });
+  const env = Object.fromEntries(server.env.map(entry => [entry.name, entry.value]));
+  assert.equal(env.MILKSU_CODING_BROWSER_CDP, "http://127.0.0.1:43117");
 });
 
 test("Playwright lazy MCP stays off the session without a CLI or conversation", () => {

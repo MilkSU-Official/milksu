@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
-import { codingBrowserDescriptorFile } from "../hostpath.js";
+import { codingBrowserDescriptorFile, playwrightProcessSocketRoot, playwrightProcessTempRoot } from "../hostpath.js";
 import { codingBrowserMcpServerName } from "../pi/bridge-browser-policy.js";
 
 export const milksuAcpMcpServerName = "milksu";
@@ -118,13 +118,17 @@ export function milksuPlaywrightMcpServer({
   cliPath,
   execPath = process.execPath,
   descriptorFile,
+  cdpEndpoint = "",
 } = {}) {
   const id = String(conversationId ?? "").trim();
   const scriptRaw = String(scriptPath ?? "").trim();
   const script = scriptRaw && (isAbsolute(scriptRaw) ? scriptRaw : resolve(scriptRaw));
   const cli = String(cliPath ?? "").trim();
   const descriptor = String(descriptorFile ?? codingBrowserDescriptorFile(id)).trim();
+  const cdp = String(cdpEndpoint ?? "").trim();
   if (!id || !script || !cli || !descriptor) return null;
+  const socketRoot = playwrightProcessSocketRoot();
+  const tempRoot = playwrightProcessTempRoot();
   return acpStdioMcpServer({
     name: dshPlaywrightMcpServerName,
     command: execPath,
@@ -134,6 +138,9 @@ export function milksuPlaywrightMcpServer({
       MILKSU_PLAYWRIGHT_MCP_CLI: cli,
       MILKSU_CODING_BROWSER_DESCRIPTOR_FILE: descriptor,
       MILKSU_PLAYWRIGHT_EVIDENCE_DIR: join(dirname(descriptor), "evidence"),
+      ...(cdp ? { MILKSU_CODING_BROWSER_CDP: cdp } : {}),
+      ...(socketRoot ? { PWTEST_SOCKETS_DIR: socketRoot } : {}),
+      ...(tempRoot ? { TMPDIR: tempRoot, TEMP: tempRoot, TMP: tempRoot } : {}),
     },
   });
 }

@@ -28,6 +28,12 @@ index 84f2953..2a579c1 100644
 +		&& fs.existsSync(milkSULauncher)
 +		&& fs.existsSync(milkSURunner)
 +	) {
++		if (process.platform === "win32") {
++			return {
++				command: process.execPath,
++				args: [milkSURunner, ...args],
++			};
++		}
 +		return {
 +			command: "/bin/sh",
 +			args: [milkSULauncher, process.execPath, milkSURunner, ...args],

@@ -4,7 +4,8 @@ import { mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { createInterface } from "node:readline";
 import { setTimeout as delay } from "node:timers/promises";
-import { codingBrowserDescriptorFile, playwrightProcessSocketRoot } from "../hostpath.js";
+import { codingBrowserDescriptorFile } from "../hostpath.js";
+import { advertisedPlaywrightTools, playwrightMcpChildEnv } from "./playwright-lazy-tools.js";
 
 const conversationId = String(process.env.MILKSU_CONVERSATION_ID ?? "").trim();
 const cli = String(process.env.MILKSU_PLAYWRIGHT_MCP_CLI ?? "").trim();
@@ -20,27 +21,7 @@ const cdpPattern = /^http:\/\/127\.0\.0\.1:[1-9][0-9]{0,4}$/;
 const waitMs = 30_000;
 const pollMs = 50;
 
-const advertisedTools = [
-  "browser_navigate",
-  "browser_navigate_back",
-  "browser_snapshot",
-  "browser_click",
-  "browser_type",
-  "browser_fill_form",
-  "browser_press_key",
-  "browser_take_screenshot",
-  "browser_tabs",
-  "browser_wait_for",
-  "browser_select_option",
-  "browser_hover",
-  "browser_console_messages",
-  "browser_network_requests",
-  "browser_close",
-].map(name => ({
-  name,
-  description: "Operate the focused MilkSU isolated browser tab.",
-  inputSchema: { type: "object", additionalProperties: true },
-}));
+const advertisedTools = advertisedPlaywrightTools;
 
 let child;
 let nextChildId = 1;
@@ -110,14 +91,12 @@ async function ensureChild() {
   if (evidenceRoot) {
     await mkdir(evidenceRoot, { recursive: true, mode: 0o700 });
   }
-  const socketRoot = playwrightProcessSocketRoot();
+  const { childEnv, socketRoot, tempRoot } = playwrightMcpChildEnv();
   if (socketRoot) {
     await mkdir(socketRoot, { recursive: true, mode: 0o700 });
   }
-  const childEnv = { ...process.env };
-  if (socketRoot) {
-    childEnv.PWTEST_SOCKETS_DIR = socketRoot;
-    childEnv.TMPDIR = socketRoot;
+  if (tempRoot) {
+    await mkdir(tempRoot, { recursive: true, mode: 0o700 });
   }
   child = spawn(process.execPath, [
     cli,
@@ -163,6 +142,19 @@ async function ensureChild() {
     jsonrpc: "2.0",
     method: "initialize",
     params: { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "milksu-dsh" } },
+  });
+  if (!child?.stdin) {
+    throw new Error("isolated browser is not attached");
+  }
+  child.stdin.write(`${JSON.stringify({
+    jsonrpc: "2.0",
+    method: "notifications/initialized",
+    params: {},
+  })}\n`);
+  await sendChild({
+    jsonrpc: "2.0",
+    method: "tools/list",
+    params: {},
   });
 }
 

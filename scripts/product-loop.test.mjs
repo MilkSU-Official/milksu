@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { EventEmitter } from 'node:events'
-import { isMilkSUPage, killProcessGroup } from './lib/desktop-gui-driver.mjs'
+import { GuiDriver, isMilkSUPage, killProcessGroup } from './lib/desktop-gui-driver.mjs'
 import {
   pickComputerUseTarget,
   usedComputerUseTools,
@@ -73,6 +73,20 @@ test('pickComputerUseTarget only accepts a calculator, then degrades', () => {
 test('isMilkSUPage rejects Cursor and accepts the product window', () => {
   assert.equal(isMilkSUPage({ title: 'Cursor', url: 'https://cursor.com' }), false)
   assert.equal(isMilkSUPage({ title: 'MilkSU', url: 'milksu://app' }), true)
+})
+
+test('GuiDriver.abortMessage is a no-op without a conversation id', async () => {
+  const driver = new GuiDriver()
+  driver.invoke = async () => {
+    throw new Error('should not invoke AbortMessage without an id')
+  }
+  await driver.abortMessage('')
+  let called = ''
+  driver.invoke = async (method, args) => {
+    called = `${method}:${args.join(',')}`
+  }
+  await driver.abortMessage('conversation-1')
+  assert.equal(called, 'AbortMessage:conversation-1')
 })
 
 test('killProcessGroup is a no-op for an already-exited child', () => {

@@ -1,11 +1,4 @@
-import {
-  codingBrowserGuidance,
-  codingBrowserMcpServerName,
-} from "./bridge-browser-policy.js";
-import {
-  codingSubagentGuidance,
-  codingWorkspaceIdentityGuidance,
-} from "./bridge-collaboration.js";
+import { codingWorkspaceIdentityGuidance } from "./bridge-collaboration.js";
 import { runtimeEnvironmentGuidance } from "./bridge-runtime-environment.js";
 import { researchReportGuidance } from "./bridge-workspace.js";
 
@@ -37,13 +30,6 @@ export function composeMilkSUWorkflowSystemPrompt(systemPrompt, {
     policy?.workspace,
     policy?.codingCollaboration,
   );
-  const subagentGuidance = policy?.activeTools?.includes("subagent")
-    ? `\n\n${codingSubagentGuidance()}`
-    : "";
-  const browserGuidance = policy?.codingBrowser
-    || (Array.isArray(policy?.mcpServers) && policy.mcpServers.includes(codingBrowserMcpServerName))
-    ? `\n\n${codingBrowserGuidance()}`
-    : "";
   return `${systemPrompt ?? ""}`
     + (roleGuidance ? `\n\n${roleGuidance}` : "")
     + `\n\nRuntime context:\n${runtimeEnvironmentGuidance({
@@ -51,7 +37,5 @@ export function composeMilkSUWorkflowSystemPrompt(systemPrompt, {
     })}`
     + (workspaceIdentityGuidance
       ? `\n\nWorkspace identity:\n${workspaceIdentityGuidance}`
-      : "")
-    + subagentGuidance
-    + browserGuidance;
+      : "");
 }

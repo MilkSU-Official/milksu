@@ -124,6 +124,9 @@ function sessionMcpServers(conversationId, command = {}) {
       conversationId,
       scriptPath: resolvePlaywrightLazyMcpScript(here),
       cliPath: resolvePlaywrightMcpCli(here),
+      cdpEndpoint: command.codingBrowser?.cdpEndpoint
+        || command.codingBrowser?.CDPEndpoint
+        || "",
     }),
     milksuComputerUseMcpServer({
       conversationId,

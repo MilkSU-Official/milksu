@@ -1540,7 +1540,8 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}, sessionRole
   const projectMcpAvailable = interactiveMcpAllowed && mcpServers.length > 0;
   const browserAvailable = interactiveMcpAllowed
     && (Boolean(codingBrowser) || Boolean(browserUse) || projectMcpServers.length > 0);
-  const computerUseAvailable = interactiveMcpAllowed && Boolean(computerUse);
+  const computerUseAvailable = interactiveMcpAllowed;
+  const computerUseSessionReady = computerUseAvailable && Boolean(computerUse);
   const subagentAvailable = !productAction
     && normalized.executionMode === "go"
     && normalized.approvalPolicy !== "read-only";
@@ -1554,7 +1555,7 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}, sessionRole
     && imageGenConfigured;
   const activeTools = [...new Set([
     ...actionTools,
-    ...(projectMcpAvailable || browserAvailable || computerUseAvailable ? ["mcp"] : []),
+    ...(projectMcpAvailable || browserAvailable || computerUseSessionReady ? ["mcp"] : []),
     ...(subagentAvailable ? [codingCollaborationToolName] : []),
   ])];
   const capabilities = normalized.capabilities.map(capability => (
@@ -1600,14 +1601,17 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}, sessionRole
               ? automaticCapabilityApproval ? "allowed" : "approval-required"
               : "unavailable",
             detail: computerUseAvailable
-              ? `可见会话已锁定 ${computerUse.targetName} `
-                + `(${computerUse.targetBundleId})；模型不能改 PID、窗口或桌面范围，`
-                + (automaticCapabilityApproval
-                    ? "当前权限档会自动执行观察和操作。"
-                    : "当前请求批准档会逐次确认观察和操作。")
+              ? computerUse
+                ? `可见会话已锁定 ${computerUse.targetName} `
+                  + `(${computerUse.targetBundleId})；操作只针对这一窗，`
+                  + (automaticCapabilityApproval
+                      ? "当前权限档会自动执行观察和操作。"
+                      : "当前请求批准档会逐次确认观察和操作。")
+                : "先列出可见窗口，认准后再锁定；拿不准时用 milksu_ask，不要先让用户挑窗。"
+                  + "不能用 Shell、截图目录、SQLite、IPC 或私有协议绕过可见会话。"
               : computerUse
                 ? "当前 Plan、只读或产品动作不会加载 Computer Use；切换到普通 Go 后可用。"
-                : "仅在用户显式选择可见 App / 窗口并启动会话后可用；需要操作 GUI 时必须先停下引导启用，不能用 Shell、截图目录、SQLite、IPC 或私有协议绕过可见会话 Scope。",
+                : "当前 Plan、只读或产品动作不会加载 Computer Use。",
           }
         : capability.id === "collaboration"
           ? {
@@ -1616,14 +1620,10 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}, sessionRole
                 ? automaticCapabilityApproval ? "allowed" : "approval-required"
                 : "unavailable",
               detail: subagentAvailable
-                ? codingCollaboration
-                  ? "Agent 已准备隔离执行环境；"
-                    + (automaticCapabilityApproval
-                        ? "当前权限档会自动执行通过边界校验的委托。"
-                        : "当前请求批准档会逐次展示角色和任务。")
-                  : "可用只读子 Agent（scout / planner / reviewer / security-auditor）。"
-                    + "委托写入角色时会从当前提交准备隔离工作树；"
-                    + "不要求主工作区干净，未提交改动也不进入工作树。"
+                ? "子 Agent 默认在主工作区运行，也可使用已准备的 writer worktree；"
+                  + (automaticCapabilityApproval
+                      ? "当前权限档会自动执行通过边界校验的委托。"
+                      : "当前请求批准档会逐次展示角色和任务。")
                 : "当前 Plan、只读或一键产品动作不会加载多 Agent；切换到普通 Go 后可用。",
             }
           : capability

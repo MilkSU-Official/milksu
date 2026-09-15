@@ -342,8 +342,22 @@ export class GuiDriver {
     return 'none'
   }
 
+  async abortMessage(conversationId) {
+    const id = String(conversationId ?? '').trim()
+    if (!id) return
+    try {
+      await this.invoke('AbortMessage', [id])
+    } catch {
+      // Already settled or the Sidecar already left the session.
+    }
+  }
+
   async ensureCodingBrowser(conversationId) {
     return this.invoke('EnsureCodingBrowser', [conversationId])
+  }
+
+  async navigateCodingBrowser(conversationId, url) {
+    return this.invoke('NavigateCodingBrowser', [conversationId, url])
   }
 
   async listComputerUseTargets() {

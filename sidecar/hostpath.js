@@ -33,6 +33,11 @@ export function playwrightProcessSocketRoot(env = process.env, platform = proces
   return join(unixSocketOverflowRoot(env, platform), "pw");
 }
 
+export function playwrightProcessTempRoot(env = process.env, platform = process.platform) {
+  if (platform === "win32") return "";
+  return join(unixSocketOverflowRoot(env, platform), "pt");
+}
+
 export function codingBrowserDescriptorKey(conversationId) {
   const id = String(conversationId ?? "").trim();
   if (!id) return "";

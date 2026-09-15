@@ -54,6 +54,10 @@ test("product MCP lists milksu_ask and milksu_workspace", async () => {
     const listed = await mcp.waitFor(2);
     const names = listed.result.tools.map(tool => tool.name);
     assert.deepEqual(names, [codingAskToolName, codingWorkspaceToolName]);
+    const workspace = listed.result.tools.find(tool => tool.name === codingWorkspaceToolName);
+    assert.equal(workspace.inputSchema.additionalProperties, true);
+    assert.equal(workspace.inputSchema.properties.targetPid.type, "integer");
+    assert.equal(workspace.inputSchema.properties.writers.type, "integer");
   } finally {
     mcp.child.kill();
   }

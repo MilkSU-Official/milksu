@@ -27,7 +27,7 @@
 | --- | --- |
 | 许可证 | `AGPL-3.0-only`。Obelisk 兼容、尚未 vendored。 |
 | Linux | 共用 x64 DEB + tarball。GNOME Portal Computer Use。无 Secret Service / 本地 OCR。见 [Linux 合同](linux-platform-support.md)。 |
-| Agent | Pi 拥有 Session / Compaction / Tool Loop。新对话可选 DSH（工作树钉 `0.1.6-alpha.1`）。产品回归 `npm run test:product-loop`。不扫描用户句子做意图路由。 |
+| Agent | Pi 拥有 Session / Compaction / Tool Loop。新对话可选 DSH（工作树钉 `0.1.6-alpha.1`）。子 Agent 默认主工作区。产品回归 `npm run test:product-loop`。不扫描用户句子做意图路由。 |
 | 宿主 | 会话目录、凭据隔离、桌面授权、Judge、危险删除确认。 |
 | 模型与附件 | 账户与本机目录共用；附件原图进当前回合。 |
 | 发行 | 干净 `main` 验证一次；三端云端打包。OTA 走私有 R2；GitHub Release 只上安装包。 |

@@ -49,7 +49,7 @@ Pi 拥有会话、压缩和工具循环。桌面 GUI 把外部动作变成可见
 | --- | --- | --- |
 | 浏览器 | 会话隔离 `WebContentsView` | 不是用户 Chrome |
 | Browser Use | 用户明确选择的 Chrome/Edge 标签 | 不拿整个 Profile，不替代 Judge |
-| Computer Use | macOS/Windows：可见 App/PID/Window；Linux GNOME：整桌面 Portal | 不替代另外两面；Hyprland/Xorg unavailable |
+| Computer Use | macOS/Windows：可见 App/PID/Window；Linux GNOME：整桌面 Portal | 模型列窗 / 认窗 / 锁定；选窗器可选。不替代另外两面；Hyprland/Xorg unavailable |
 
 面板显隐只改观察，不改执行 Session。停止、撤 Scope、任务结束或进程退出才终止。
 
@@ -65,9 +65,9 @@ Pi 拥有会话、压缩和工具循环。桌面 GUI 把外部动作变成可见
 | 插件 | packaged | `milksu.plugin/v1`：签名包、发布者信任、六个主题表面。 |
 | Pi | verified core | Session / Compaction / Tool Loop。Coding/CTF/CVE/实验室共用完整循环与 80% 自动压缩。`milksu_workspace`、`milksu_ask` 是产品工具。新对话可选 DSH（ACP，工作树钉 `0.1.6-alpha.1`）。 |
 | 安全工具 | setup 已通 | 设置 → MCP：IDA / capa 可准备。CodeQL / Burp / Shannon 仅检测。 |
-| 浏览器三面 | packaged / pairing pending | 隔离浏览器按会话；Browser Use 待桌面配对回执；Computer Use：macOS/Windows 窗口 Scope + CUA `0.27.0`，Linux GNOME Portal。 |
+| 浏览器三面 | packaged / pairing pending | 隔离浏览器按会话；Browser Use 待桌面配对回执；Computer Use：模型列窗锁定，macOS/Windows 窗口 Scope + CUA `0.27.0`，Linux GNOME Portal。 |
 | CTF / CVE / 实验室 | implemented | CTF 持题目、Evidence、Judge。CVE 点进档案复现。实验室起本机 Docker / AVD 或用户地址。CTF 本地房还不能引用环境经纪。 |
-| Worktree | delegation-triggered | 只在模型委托写入角色时准备；脏主区不进 writer。 |
+| Worktree | opt-in | 子 Agent 默认主工作区；writer 只在模型调用 `prepare_coding_worktree` 时准备。脏主区不进 writer。 |
 | 持久化 | implemented | 产物在文档目录 `MilkSU`；Runtime、凭据、Obelisk、浏览器 Profile 在用户配置目录。 |
 | 产品回归 | partial / 未进安装包 | `npm run test:product-loop`，见 [产品回归循环](/developer/product-regression-loop)。`desktop-surface` 优先 Computer Use，不可用降级隔离浏览器。Settings「评测」是另一条。 |
 

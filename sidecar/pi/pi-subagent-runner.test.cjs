@@ -65,14 +65,12 @@ function fixture(agent) {
   };
 }
 
-test("effectful roles require an active managed writer worktree", {
-  skip: process.platform !== "darwin",
-}, () => {
+test("effectful roles default to the main workspace and may use a writer", () => {
   const value = fixture("worker");
-  assert.throws(
-    () => prepareRunnerPolicy(value.environment, value.workspace),
-    /must run in a managed writer worktree/,
-  );
+  const main = prepareRunnerPolicy(value.environment, value.workspace);
+  assert.equal(main.effectful, true);
+  assert.equal(main.cwd, realpathSync(value.workspace));
+  assert.equal(main.worktree, undefined);
   const policy = prepareRunnerPolicy(value.environment, value.worktree);
   assert.equal(policy.effectful, true);
   assert.equal(policy.worktree.id, "writer-1");
@@ -80,9 +78,7 @@ test("effectful roles require an active managed writer worktree", {
   assert.equal(policy.sharedDependencyRoots, undefined);
 });
 
-test("read-only roles may use main and receive no workspace write grant", {
-  skip: process.platform !== "darwin",
-}, () => {
+test("read-only roles may use main and receive no workspace write grant", () => {
   const value = fixture("reviewer");
   const policy = prepareRunnerPolicy(value.environment, value.workspace);
   assert.equal(policy.effectful, false);
@@ -99,9 +95,7 @@ test("read-only roles may use main and receive no workspace write grant", {
   );
 });
 
-test("writer profile allows source but denies Git metadata writes", {
-  skip: process.platform !== "darwin",
-}, () => {
+test("writer profile allows source but denies Git metadata writes", () => {
   const value = fixture("worker");
   const policy = prepareRunnerPolicy(value.environment, value.worktree);
   const profile = sandboxProfile({

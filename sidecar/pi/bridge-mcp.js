@@ -732,7 +732,7 @@ export function computerUseSandboxProfile(socketPath, runtimeRoot) {
   ].join("\n");
 }
 
-async function resolvePackagedComputerUseDriver() {
+export async function resolvePackagedComputerUseDriver() {
   const sidecarDir = String(process.env.MILKSU_SIDECAR_DIR ?? "").trim();
   const candidates = [
     join(bridgeDirectory, packagedComputerUseDriverName),

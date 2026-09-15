@@ -29,6 +29,7 @@ export const codingWorkspaceAutoToolNames = [
   "milksu_ask",
   "milksu_workspace",
   "prepare_computer_use_driver",
+  "computer_use",
   "milksu_imagegen",
   "milksu_archify",
   "lsp_diagnostics",
@@ -37,12 +38,9 @@ export const codingWorkspaceAutoToolNames = [
   ...codingGoalToolNames,
 ];
 
-// This is the reviewed tool catalog a Coding session may ever call. Pi itself
-// accepts registerTool() after startup, but MilkSU passes this list as
-// createAgentSession({ tools }), which becomes Pi's allowlist and filters the
-// registry. That bound is deliberate: it keeps a session's callable surface
-// reviewed up front rather than growable at runtime. setActiveTools() then
-// narrows or restores names from this list; adding one needs a new session.
+// Seed for Plan vs Go activation via setActiveTools. Harness-native tools stay
+// disclosed by the selected harness; this list is not a second create-time
+// catalog of every tool that may exist.
 export const codingSessionToolNames = [
   ...new Set(codingWorkspaceAutoToolNames),
 ];
@@ -156,13 +154,13 @@ export function normalizeCodingPolicy(
         id: "computer-use",
         label: "Computer Use",
         status: "unavailable",
-        detail: "只有用户显式启动应用范围会话后可用；调用跟随当前 Coding 权限档位。",
+        detail: "Go 模式下可列出可见窗口，由模型认窗后锁定；调用跟随当前 Coding 权限档位。",
       },
       {
         id: "collaboration",
         label: "多 Agent 协作",
         status: "unavailable",
-        detail: "模型委托写入角色时才从当前提交准备隔离工作树，不要求主工作区干净且未提交改动不进入；委托跟随当前 Coding 权限档位。",
+        detail: "子 Agent 默认在主工作区运行；模型需要隔离时再准备 writer worktree。委托跟随当前 Coding 权限档位。",
       },
     ],
   };

@@ -87,9 +87,7 @@ test("research report guidance tells the model to edit report.md", () => {
   assert.match(researchReportGuidance("cve-research"), /do not invent them/);
 });
 
-test("the model can open the Computer Use scope picker without selecting a target", () => {
-  // show_panel only brings a product surface forward, so it stays a read
-  // action: the user still picks the window and starts the session.
+test("the model lists and locks Computer Use windows without a forced picker", () => {
   assert.equal(
     codingWorkspaceActionBlocked("show_panel", {
       executionMode: "plan",
@@ -97,22 +95,47 @@ test("the model can open the Computer Use scope picker without selecting a targe
     }),
     "",
   );
-  assert.match(
-    formatCodingWorkspaceInput({ action: "show_panel", panel: "computer-use" }),
-    /computer-use/,
+  assert.equal(
+    codingWorkspaceActionBlocked("list_computer_use_windows", {
+      executionMode: "plan",
+      approvalPolicy: "read-only",
+    }),
+    "",
   );
-  // Selecting or starting a target is not reachable from this tool.
-  assert.equal(normalizeCodingWorkspaceAction("start_computer_use"), "");
-  assert.equal(normalizeCodingWorkspaceAction("list_computer_use_targets"), "");
+  assert.match(
+    codingWorkspaceActionBlocked("lock_computer_use_window", {
+      executionMode: "plan",
+      approvalPolicy: "workspace-auto",
+    }),
+    /只读|Plan/,
+  );
+  assert.equal(
+    codingWorkspaceActionBlocked("lock_computer_use_window", {
+      executionMode: "go",
+      approvalPolicy: "workspace-auto",
+    }),
+    "",
+  );
+  assert.equal(normalizeCodingWorkspaceAction("list_computer_use_windows"), "list_computer_use_windows");
+  assert.equal(normalizeCodingWorkspaceAction("lock_computer_use_window"), "lock_computer_use_window");
+  assert.equal(normalizeCodingWorkspaceAction("prepare_coding_worktree"), "prepare_coding_worktree");
+  assert.match(
+    formatCodingWorkspaceInput({
+      action: "lock_computer_use_window",
+      targetPid: 4242,
+      targetWindowId: 9001,
+    }),
+    /PID 4242/,
+  );
 });
 
 test("workspace guidance is a short when-to-use routing rule", () => {
   const text = codingWorkspaceGuidance();
   assert.match(text, /milksu_workspace/);
-  assert.match(text, /do not scan the user message/);
+  assert.match(text, /lock_computer_use_window/);
   assert.doesNotMatch(text, /list_records/);
   assert.doesNotMatch(text, /85%/);
-  assert.ok(text.length < 280);
+  assert.ok(text.length < 420);
   assert.equal(
     formatCodingWorkspaceInput({
       action: "focus_browser_tab",

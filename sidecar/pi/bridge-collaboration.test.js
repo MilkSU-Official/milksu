@@ -72,23 +72,22 @@ test("main workspace identity cannot be replaced by writer worktree metadata", a
   }
 });
 
-test("writing agents require distinct registered worktrees", async () => {
+test("writing agents default to the main workspace and may share it", async () => {
   const { descriptor, workspace, worktrees } = await fixture();
-  assert.throws(
-    () => validateSubagentInput({
-      agent: "worker",
-      task: "change code",
-      cwd: workspace,
-    }, descriptor),
-    /requires its own writer worktree/,
-  );
+  const onMain = validateSubagentInput({
+    agent: "worker",
+    task: "change code",
+    cwd: workspace,
+  }, descriptor, workspace);
+  assert.equal(onMain.tasks[0].cwd, workspace);
+  assert.equal(onMain.tasks[0].access, "workspace");
   assert.throws(
     () => validateSubagentInput({
       tasks: [
         { agent: "worker", task: "first", cwd: worktrees[0].path },
         { agent: "verifier", task: "second", cwd: worktrees[0].path },
       ],
-    }, descriptor),
+    }, descriptor, workspace),
     /distinct writer worktrees/,
   );
 
@@ -97,7 +96,7 @@ test("writing agents require distinct registered worktrees", async () => {
       { agent: "worker", task: "first", cwd: worktrees[0].path },
       { agent: "verifier", task: "second", cwd: worktrees[1].path },
     ],
-  }, descriptor);
+  }, descriptor, workspace);
   assert.equal(accepted.mode, "parallel");
   assert.deepEqual(
     accepted.tasks.map(value => value.cwd),
@@ -165,18 +164,17 @@ test("read-only subagents work without collaboration worktrees", async () => {
   assert.equal(accepted.tasks[0].agent, "scout");
   assert.equal(accepted.tasks[0].access, "read-only");
   assert.equal(accepted.tasks[0].cwd, await realpath(workspace));
-  assert.throws(
-    () => validateSubagentInput({
-      agent: "worker",
-      task: "edit the repo",
-    }, undefined, workspace),
-    /prepared Git collaboration/,
-  );
+  const writer = validateSubagentInput({
+    agent: "worker",
+    task: "edit the repo",
+  }, undefined, workspace);
+  assert.equal(writer.tasks[0].access, "workspace");
+  assert.equal(writer.tasks[0].cwd, await realpath(workspace));
   const summary = formatSubagentApproval({
     agent: "scout",
     task: "Look up the public subapi documentation.",
   }, undefined, workspace);
-  assert.match(summary, /scout → 主工作树（只读角色）/);
+  assert.match(summary, /scout → 主工作区/);
   assert.match(codingSubagentGuidance(), /at most four/);
   // Role names and when-to-use belong to the subagent tool schema, not to a
   // per-turn system prompt essay.
@@ -233,15 +231,15 @@ test("writer demand is counted before anything is prepared", async () => {
   assert.equal(writerWorktreesRequired(undefined), 0);
 });
 
-test("the product assigns writer worktrees the model was never told about", async () => {
+test("the product does not relocate effectful roles onto writer worktrees", async () => {
   const { descriptor, workspace, worktrees } = await fixture();
 
   const single = { agent: "worker", task: "implement the slice" };
   assignWriterWorktrees(single, descriptor);
-  assert.equal(single.cwd, worktrees[0].path);
+  assert.equal(single.cwd, undefined);
   assert.equal(
     validateSubagentInput(single, descriptor, workspace).tasks[0].access,
-    "worktree",
+    "workspace",
   );
 
   const parallel = {
@@ -251,11 +249,11 @@ test("the product assigns writer worktrees the model was never told about", asyn
     ],
   };
   assignWriterWorktrees(parallel, descriptor);
-  assert.deepEqual(
-    parallel.tasks.map(task => task.cwd),
-    worktrees.map(value => value.path),
-  );
-  assert.equal(validateSubagentInput(parallel, descriptor, workspace).mode, "parallel");
+  assert.deepEqual(parallel.tasks.map(task => task.cwd), [undefined, undefined]);
+  const accepted = validateSubagentInput(parallel, descriptor, workspace);
+  assert.equal(accepted.mode, "parallel");
+  assert.deepEqual(accepted.tasks.map(task => task.cwd), [workspace, workspace]);
+  assert.equal(worktrees.length, 2);
 });
 
 test("assignment keeps a registered writer the model already chose", async () => {
@@ -269,9 +267,12 @@ test("assignment keeps a registered writer the model already chose", async () =>
   assignWriterWorktrees(parallel, descriptor);
   assert.deepEqual(
     parallel.tasks.map(task => task.cwd),
-    [worktrees[1].path, worktrees[0].path],
+    [worktrees[1].path, undefined],
   );
-  assert.equal(validateSubagentInput(parallel, descriptor, workspace).mode, "parallel");
+  const accepted = validateSubagentInput(parallel, descriptor, workspace);
+  assert.equal(accepted.mode, "parallel");
+  assert.equal(accepted.tasks[0].cwd, worktrees[1].path);
+  assert.equal(accepted.tasks[1].cwd, workspace);
 });
 
 test("assignment leaves read-only roles in the main workspace", async () => {
@@ -284,9 +285,12 @@ test("assignment leaves read-only roles in the main workspace", async () => {
   };
   assignWriterWorktrees(mixed, descriptor);
   assert.equal(mixed.tasks[0].cwd, undefined);
+  assert.equal(mixed.tasks[1].cwd, undefined);
   const accepted = validateSubagentInput(mixed, descriptor, workspace);
   assert.equal(accepted.tasks[0].cwd, workspace);
   assert.equal(accepted.tasks[0].access, "read-only");
+  assert.equal(accepted.tasks[1].cwd, workspace);
+  assert.equal(accepted.tasks[1].access, "workspace");
 });
 
 test("assignment without a prepared collaboration changes nothing", async () => {

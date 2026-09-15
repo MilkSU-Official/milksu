@@ -10,29 +10,31 @@ import (
 )
 
 type codingWorkspaceRequest struct {
-	Action     string   `json:"action"`
-	TabID      string   `json:"tabId"`
-	Query      string   `json:"query"`
-	URL        string   `json:"url"`
-	Path       string   `json:"path"`
-	Panel      string   `json:"panel"`
-	Kind       string   `json:"kind"`
-	ID         string   `json:"id"`
-	IDs        []string `json:"ids"`
-	Title      string   `json:"title"`
-	Archived   bool     `json:"archived"`
-	Limit      int      `json:"limit"`
-	Writers    int      `json:"writers"`
-	Scope      string   `json:"scope"`
-	Request    string   `json:"request"`
-	Statement  string   `json:"statement"`
-	Category   string   `json:"category"`
-	Summary    string   `json:"summary"`
-	CVEID      string   `json:"cveId"`
-	Vendor     string   `json:"vendor"`
-	Product    string   `json:"product"`
-	Affected   string   `json:"affected"`
-	SourceKind string   `json:"sourceKind"`
+	Action         string   `json:"action"`
+	TabID          string   `json:"tabId"`
+	Query          string   `json:"query"`
+	URL            string   `json:"url"`
+	Path           string   `json:"path"`
+	Panel          string   `json:"panel"`
+	Kind           string   `json:"kind"`
+	ID             string   `json:"id"`
+	IDs            []string `json:"ids"`
+	Title          string   `json:"title"`
+	Archived       bool     `json:"archived"`
+	Limit          int      `json:"limit"`
+	Writers        int      `json:"writers"`
+	Scope          string   `json:"scope"`
+	Request        string   `json:"request"`
+	Statement      string   `json:"statement"`
+	Category       string   `json:"category"`
+	Summary        string   `json:"summary"`
+	CVEID          string   `json:"cveId"`
+	Vendor         string   `json:"vendor"`
+	Product        string   `json:"product"`
+	Affected       string   `json:"affected"`
+	SourceKind     string   `json:"sourceKind"`
+	TargetPID      int      `json:"targetPid"`
+	TargetWindowID int64    `json:"targetWindowId"`
 }
 
 type codingWorkspaceReveal struct {
@@ -68,6 +70,41 @@ func (a *App) handleCodingWorkspaceAction(conversationID, action, input string) 
 			return "", err
 		}
 		return encodeWorkspaceResult(descriptor)
+	case "list_computer_use_windows":
+		targets, err := a.ListCodingComputerUseTargets()
+		if err != nil {
+			return "", err
+		}
+		windows := make([]map[string]any, 0, len(targets))
+		for _, target := range targets {
+			windows = append(windows, map[string]any{
+				"name":        target.Name,
+				"bundleId":    target.BundleID,
+				"pid":         target.PID,
+				"windowId":    target.WindowID,
+				"windowTitle": target.WindowTitle,
+			})
+		}
+		return encodeWorkspaceResult(map[string]any{"windows": windows})
+	case "lock_computer_use_window":
+		status, err := a.StartCodingComputerUse(
+			conversationID,
+			request.TargetPID,
+			request.TargetWindowID,
+		)
+		if err != nil {
+			return "", err
+		}
+		result := map[string]any{
+			"locked": status.Phase == "ready",
+			"status": status,
+		}
+		if a.computerUse != nil {
+			if descriptor, enabled := a.computerUse.Descriptor(conversationID); enabled {
+				result["descriptor"] = descriptor
+			}
+		}
+		return encodeWorkspaceResult(result)
 	case "computer_use_driver_status":
 		result, err := a.PrepareCodingComputerUseDriver(false)
 		if err != nil && !result.Ready {

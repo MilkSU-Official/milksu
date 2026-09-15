@@ -97,10 +97,10 @@ test("starts the MCP server from --socket even when argv path casing differs", (
   );
 });
 
-test("describes a user-selected external app scope instead of MilkSU self-only scope", () => {
-  assert.match(computerUseTool.description, /visible App window selected by the user/);
+test("describes a locked external app scope instead of MilkSU self-only scope", () => {
+  assert.match(computerUseTool.description, /visible App window locked for this task/);
   assert.doesNotMatch(computerUseTool.description, /MilkSU application window/);
-  assert.match(computerUseTool.description, /PID, window, bundle id/);
+  assert.match(computerUseTool.description, /list_computer_use_windows/);
 });
 
 test("rejects hidden scope fields and unrelated action parameters", () => {

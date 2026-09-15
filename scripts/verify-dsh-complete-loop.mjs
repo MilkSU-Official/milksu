@@ -780,6 +780,7 @@ async function runGuiTasks(options) {
         return
       }
       const turn = await driver.waitForTurn(conversationId, options.taskTimeoutMs)
+      await driver.abortMessage(conversationId)
       const toolNames = collectToolNames(turn.events)
       const verdict = await evaluate({
         events: turn.events,
@@ -830,6 +831,7 @@ async function runGuiTasks(options) {
       TASK_B_PROMPT_TEMPLATE.replace('{url}', fixture.url),
       async conversationId => {
         await driver.ensureCodingBrowser(conversationId)
+        await driver.navigateCodingBrowser(conversationId, fixture.url)
       },
       async ({ toolNames, events, timeout }) => {
         const notesHasMarker = await fileContains(join(workspace.root, 'NOTES.md'), fixture.marker)

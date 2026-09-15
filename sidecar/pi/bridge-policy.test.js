@@ -111,6 +111,7 @@ test("Coding sessions expose Pi native file and shell tools without MilkSU works
       "milksu_ask",
       "milksu_workspace",
       "prepare_computer_use_driver",
+      "computer_use",
       "milksu_archify",
       "lsp_diagnostics",
       "lsp_fix",
@@ -301,7 +302,7 @@ test("MCP is exposed only for an explicitly selected Coding task", async () => {
   }
 });
 
-test("Computer Use requires an explicit app-scoped session under every Go policy", async () => {
+test("Computer Use lists windows under Go and locks only after the model chooses", async () => {
   const workspace = await mkdtemp(join(tmpdir(), "milksu-computer-use-policy-"));
   const computerUse = {
     sessionId: "computer_12345678",
@@ -319,7 +320,13 @@ test("Computer Use requires an explicit app-scoped session under every Go policy
     automaticWithoutSession.capabilities.find(
       value => value.id === "computer-use",
     ).status,
-    "unavailable",
+    "allowed",
+  );
+  assert.match(
+    automaticWithoutSession.capabilities.find(
+      value => value.id === "computer-use",
+    ).detail,
+    /列出可见窗口/,
   );
   assert.match(
     automaticWithoutSession.capabilities.find(
@@ -328,6 +335,7 @@ test("Computer Use requires an explicit app-scoped session under every Go policy
     /不能用 Shell、截图目录、SQLite、IPC 或私有协议绕过/,
   );
   assert.equal(automaticWithoutSession.activeTools.includes("mcp"), false);
+  assert.equal(automaticWithoutSession.activeTools.includes("computer_use"), true);
 
   for (const approvalPolicy of ["ask", "workspace-auto", "full-auto"]) {
     const enabled = await loadSessionPolicy(workspace, "", {
@@ -346,7 +354,7 @@ test("Computer Use requires an explicit app-scoped session under every Go policy
     );
     assert.match(
       enabled.capabilities.find(value => value.id === "computer-use").detail,
-      /模型不能改 PID、窗口或桌面范围/,
+      /操作只针对这一窗/,
     );
     assert.match(
       enabled.capabilities.find(value => value.id === "computer-use").detail,
@@ -730,8 +738,8 @@ test("Coding exposes read-only subagent without collaboration worktrees", async 
   assert.equal(policy.activeTools.includes("subagent"), true);
   const collaboration = policy.capabilities.find(value => value.id === "collaboration");
   assert.equal(collaboration.status, "allowed");
-  assert.match(collaboration.detail, /scout/);
-  assert.match(collaboration.detail, /隔离工作树/);
+  assert.match(collaboration.detail, /主工作区/);
+  assert.match(collaboration.detail, /writer worktree/);
 
   const gated = await loadSessionPolicy(workspace, "", {
     executionMode: "plan",

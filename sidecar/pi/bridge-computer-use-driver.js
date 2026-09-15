@@ -4,7 +4,7 @@ export const computerUseDriverToolName = "prepare_computer_use_driver";
 
 export function computerUseDriverGuidance() {
   return [
-    "If the packaged Cua Driver is missing, call prepare_computer_use_driver before asking the user to pick a window.",
+    "If the packaged Cua Driver is missing, call prepare_computer_use_driver before listing windows.",
     "That tool copies or builds the MilkSU-reviewed driver into the local sidecar path.",
     "Do not run Cua's public installer, install.ps1, install.sh, or start a system-wide Cua daemon.",
     "Do not scan the user message for keywords; use this typed tool when Computer Use cannot start because the driver is unavailable.",

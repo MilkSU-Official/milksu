@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
+import { advertisedPlaywrightTools, playwrightMcpChildEnv } from "./playwright-lazy-tools.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -50,9 +51,26 @@ test("lazy Playwright MCP lists tools before an isolated browser exists", async 
     const names = listed.result.tools.map(tool => tool.name);
     assert.ok(names.includes("browser_navigate"));
     assert.ok(names.includes("browser_snapshot"));
+    const navigate = listed.result.tools.find(tool => tool.name === "browser_navigate");
+    assert.deepEqual(navigate.inputSchema.required, ["url"]);
+    assert.equal(navigate.inputSchema.additionalProperties, true);
+    assert.equal(navigate.inputSchema.properties.url.type, "string");
   } finally {
     mcp.child.kill();
   }
+});
+
+test("Playwright child env keeps sockets and temp roots short and separate", () => {
+  const { childEnv, socketRoot, tempRoot } = playwrightMcpChildEnv({
+    TMPDIR: "/var/folders/wf/long-product-tmp/T",
+    HOME: "/Users/tester",
+  }, "darwin");
+  assert.ok(socketRoot);
+  assert.ok(tempRoot);
+  assert.notEqual(socketRoot, tempRoot);
+  assert.equal(childEnv.PWTEST_SOCKETS_DIR, socketRoot);
+  assert.equal(childEnv.TMPDIR, tempRoot);
+  assert.ok(advertisedPlaywrightTools.some(tool => tool.name === "browser_navigate"));
 });
 
 test("lazy Playwright tool call fails closed when the isolated browser is absent", async () => {

@@ -19,23 +19,15 @@ test("workflow prompt keeps host facts and omits product-tool essays", () => {
   assert.match(prompt, /Runtime context/);
   assert.match(prompt, /Workspace identity/);
   assert.match(prompt, /falsifiable CTF hypothesis/);
-  assert.match(prompt, /at most four subagent tasks/);
+  assert.doesNotMatch(prompt, /at most four subagent tasks/);
   assert.doesNotMatch(prompt, /When the user asks to open a subagent/);
-  assert.match(prompt, /built-in isolated browser/);
+  assert.doesNotMatch(prompt, /built-in isolated browser/);
   assert.doesNotMatch(prompt, /milksu_progress/);
   assert.doesNotMatch(prompt, /milksu_ask/);
   assert.doesNotMatch(prompt, /MUST call/);
   assert.doesNotMatch(prompt, /50KB or 2000 lines/);
   assert.doesNotMatch(prompt, /list_records/);
   assert.doesNotMatch(prompt, /Do not scan the user message/);
-});
-
-test("workflow prompt names the isolated browser when Playwright is reserved", () => {
-  const prompt = composeMilkSUWorkflowSystemPrompt("base", {
-    policy: { mcpServers: ["milksu-playwright"], activeTools: [] },
-  });
-  assert.match(prompt, /built-in isolated browser/);
-  assert.match(prompt, /milksu-playwright/);
 });
 
 test("workflow prompt skips optional surfaces that are off", () => {

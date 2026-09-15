@@ -1,5 +1,6 @@
 import { Type } from "typebox";
 import { CONTEXT_COMPACTION_RATIO, contextUsageSnapshot } from "./bridge-compaction.js";
+import { normalizeCodingCollaboration } from "./bridge-collaboration.js";
 
 export const codingWorkspaceToolName = "milksu_workspace";
 
@@ -17,6 +18,7 @@ export const codingWorkspaceReadActions = Object.freeze([
   "get_record",
   "search_records",
   "focus_record",
+  "list_computer_use_windows",
 ]);
 
 export const codingWorkspaceMutatingActions = Object.freeze([
@@ -30,7 +32,12 @@ export const codingWorkspaceMutatingActions = Object.freeze([
   "update_record",
   "archive_records",
   "restore_records",
+  "prepare_coding_worktree",
+  "lock_computer_use_window",
 ]);
+
+const writerWorktreePrepareTimeoutMs = 5 * 60_000;
+const computerUseLockTimeoutMs = 90_000;
 
 const workspaceActions = new Set([
   ...codingWorkspaceReadActions,
@@ -42,8 +49,8 @@ const workspacePanels = new Set([
   "artifacts",
   "changes",
   "environment",
-  // Opening the scope picker is a product-surface action, not authorization.
-  // The user still chooses the window and starts the session.
+  // Optional product surface. The model lists and locks windows itself;
+  // this panel does not have to run first.
   "computer-use",
 ]);
 const workspaceRecordKinds = new Set(["conversation", "lab", "cve", "ctf"]);
@@ -84,8 +91,10 @@ export function researchReportGuidance(sessionRole = "") {
 
 export function codingWorkspaceGuidance() {
   return [
-    "Use milksu_workspace when the user wants MilkSU records, isolated browser tabs, artifacts, environment status, or the bottom terminal.",
-    "Pick a typed action from the tool schema; do not scan the user message.",
+    "Use milksu_workspace for isolated browser tabs, MilkSU records, artifacts, environment, the bottom terminal, optional writer worktrees, or Computer Use windows.",
+    "Open or focus a tab, then operate the page with Playwright.",
+    "List Computer Use windows, call milksu_ask if several match, then lock_computer_use_window.",
+    "Pick a typed action from the tool schema.",
   ].join(" ");
 }
 
@@ -126,6 +135,11 @@ export function formatCodingWorkspaceInput(input) {
     input?.url ? `地址 ${String(input.url).trim()}` : "",
     input?.path ? `路径 ${String(input.path).trim()}` : "",
     input?.panel && workspacePanels.has(input.panel) ? `面板 ${input.panel}` : "",
+    Number.isFinite(Number(input?.targetPid)) ? `PID ${Number(input.targetPid)}` : "",
+    Number.isFinite(Number(input?.targetWindowId))
+      ? `窗口 ${Number(input.targetWindowId)}`
+      : "",
+    Number.isFinite(Number(input?.writers)) ? `writers ${Number(input.writers)}` : "",
   ].filter(Boolean).join(" · ");
 }
 
@@ -248,6 +262,9 @@ export function createCodingWorkspaceExtension(
           Type.Literal("restore_records"),
           Type.Literal("focus_record"),
           Type.Literal("search_records"),
+          Type.Literal("list_computer_use_windows"),
+          Type.Literal("lock_computer_use_window"),
+          Type.Literal("prepare_coding_worktree"),
         ]),
         tabId: Type.Optional(Type.String({ maxLength: 80 })),
         query: Type.Optional(Type.String({ maxLength: 200 })),
@@ -260,8 +277,11 @@ export function createCodingWorkspaceExtension(
           Type.Literal("environment"),
           Type.Literal("computer-use"),
         ], {
-          description: "Which product surface to bring forward. Use computer-use when the task needs a visible desktop app the isolated browser cannot reach: it opens the scope picker so the user can grant one window. It does not select or start a target.",
+          description: "Which product surface to bring forward. computer-use is optional chrome; list and lock windows with the typed Computer Use actions instead of asking the user to pick first.",
         })),
+        writers: Type.Optional(Type.Integer({ minimum: 1, maximum: 2 })),
+        targetPid: Type.Optional(Type.Integer({ minimum: 1 })),
+        targetWindowId: Type.Optional(Type.Integer({ minimum: 1 })),
         kind: Type.Optional(Type.Union([
           Type.Literal("conversation"),
           Type.Literal("lab"),
@@ -306,11 +326,43 @@ export function createCodingWorkspaceExtension(
             content: [{ type: "text", text: JSON.stringify(report) }],
           };
         }
+        const timeoutMs = action === "prepare_coding_worktree"
+          ? writerWorktreePrepareTimeoutMs
+          : action === "lock_computer_use_window"
+            ? computerUseLockTimeoutMs
+            : undefined;
         const result = await requestAction({
           conversationId,
           action,
           input: params,
+          timeoutMs,
         });
+        const policy = getPolicy?.();
+        if (policy && action === "prepare_coding_worktree") {
+          try {
+            const descriptor = normalizeCodingCollaboration(
+              JSON.parse(result),
+              conversationId,
+              policy.workspace,
+            );
+            if (descriptor) {
+              policy.codingCollaboration = descriptor;
+              policy.codingCollaborationToolScopeStale = true;
+            }
+          } catch {
+            // The tool result still reaches the model; validation owns a bad payload.
+          }
+        }
+        if (policy && action === "lock_computer_use_window") {
+          try {
+            const parsed = JSON.parse(result);
+            if (parsed?.descriptor?.sessionId) {
+              policy.computerUse = parsed.descriptor;
+            }
+          } catch {
+            // The tool result still reaches the model.
+          }
+        }
         return {
           content: [{ type: "text", text: result || `${action} completed` }],
         };

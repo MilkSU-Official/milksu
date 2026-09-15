@@ -156,10 +156,8 @@ export function isReadOnlySubagent(agent) {
   return readOnlyAgents.has(String(agent ?? "").trim());
 }
 
-// writerWorktreesRequired counts the writer worktrees this delegation needs,
-// without rejecting anything. The bridge asks before validating so isolation
-// can be prepared first; a malformed input still fails later in
-// validateSubagentInput with its own message.
+// writerWorktreesRequired counts how many isolated writers the model asked
+// to prepare. Isolation is opt-in: the default cwd is the main workspace.
 export function writerWorktreesRequired(input) {
   try {
     const effectful = taskEntries(input).values.filter(entry => (
@@ -171,47 +169,19 @@ export function writerWorktreesRequired(input) {
   }
 }
 
-// assignWriterWorktrees binds each effectful role to a registered writer
-// worktree. Pi documents tool_call input as mutable, so MilkSU patches the
-// delegation through that primitive: the model chooses the role, the product
-// chooses which prepared writer it runs in. Without this the model would have
-// to name an absolute path it was never told.
-export function assignWriterWorktrees(input, collaboration) {
-  const available = (collaboration?.worktrees ?? []).map(worktree => worktree.path);
-  if (!available.length) return input;
-  let entries;
-  try {
-    entries = taskEntries(input).values;
-  } catch {
-    return input;
-  }
-  const claimed = new Set();
-  const unassigned = [];
-  for (const entry of entries) {
-    if (!worktreeAgents.has(String(entry?.agent ?? "").trim())) continue;
-    const requested = String(entry?.cwd ?? input?.cwd ?? "").trim();
-    if (available.includes(requested)) {
-      claimed.add(requested);
-      continue;
-    }
-    unassigned.push(entry);
-  }
-  const free = available.filter(path => !claimed.has(path));
-  for (const entry of unassigned) {
-    const path = free.shift();
-    if (!path) break;
-    entry.cwd = path;
-  }
+// assignWriterWorktrees no longer relocates effectful roles. Isolation is
+// opt-in: the model keeps the main workspace unless it named a writer cwd.
+export function assignWriterWorktrees(input, _collaboration) {
   return input;
 }
 
-// The subagent tool's own schema already names the roles and describes when to
-// delegate. This adds only the host facts Pi cannot know: MilkSU's per-call cap
-// and who owns an effectful role's working directory.
+// The subagent tool schema names the roles. This is the host cap Pi cannot
+// know: four tasks per call, and the default working directory.
 export function codingSubagentGuidance() {
   return [
     "MilkSU runs at most four subagent tasks per approved call.",
-    "Delegating an effectful role prepares an isolated writer worktree from the current commit and assigns its working directory; do not choose that path yourself, and do not expect uncommitted main-workspace changes to be present there.",
+    "Subagents default to the main workspace.",
+    "Call milksu_workspace prepare_coding_worktree only when you want an isolated writer, then pass that cwd.",
   ].join(" ");
 }
 
@@ -224,7 +194,7 @@ export function codingWorkspaceIdentityGuidance(workspace, collaboration) {
     `The authoritative working directory for this main session is ${mainWorkspace}.`,
     "Resolve relative paths and describe the current repository from that directory.",
     collaboration?.worktrees?.length > 0
-      ? "Managed writer worktrees are separate working directories used only by effectful subagent processes; their paths never replace the main session working directory."
+      ? "Managed writer worktrees are optional isolated directories; they never replace the main session working directory."
       : "A path mentioned in conversation or collaboration metadata does not replace the main session working directory.",
     "If a path-sensitive result matters, verify the current directory with the command tool before reporting it.",
   ].join(" ");
@@ -266,26 +236,12 @@ export function validateSubagentInput(input, collaboration, workspace) {
       entry.cwd ?? input.cwd,
       root,
     );
-    if (!collaboration) {
-      if (worktreeAgents.has(agent)) {
-        throw new Error(
-          "Effectful subagents require a prepared Git collaboration worktree",
-        );
-      }
-      if (cwd !== root) {
-        throw new Error(
-          `Subagent ${agent} must use the main workspace when collaboration is not prepared`,
-        );
-      }
-    } else if (!allowedPaths.has(cwd)) {
+    if (!allowedPaths.has(cwd)) {
       throw new Error(
         `Subagent ${agent} must use the main workspace or a registered writer worktree`,
       );
     }
-    if (collaboration && worktreeAgents.has(agent) && !worktreePaths.has(cwd)) {
-      throw new Error(`Subagent ${agent} requires its own writer worktree`);
-    }
-    if (worktreeAgents.has(agent)) {
+    if (worktreePaths.has(cwd) && worktreeAgents.has(agent)) {
       if (effectfulPaths.has(cwd)) {
         throw new Error(
           "Effectful subagents must use distinct writer worktrees",
@@ -297,7 +253,9 @@ export function validateSubagentInput(input, collaboration, workspace) {
       agent,
       task,
       cwd,
-      access: worktreeAgents.has(agent) ? "worktree" : "read-only",
+      access: worktreePaths.has(cwd) ? "worktree" : (
+        worktreeAgents.has(agent) ? "workspace" : "read-only"
+      ),
     });
   });
   return Object.freeze({ mode, tasks: Object.freeze(tasks) });
@@ -309,7 +267,7 @@ export function formatSubagentApproval(input, collaboration, workspace) {
     const worktree = collaboration?.worktrees.find(value => value.path === task.cwd);
     const location = worktree
       ? `${worktree.id} · ${worktree.branch}`
-      : "主工作树（只读角色）";
+      : "主工作区";
     const preview = task.task.length > 240
       ? `${task.task.slice(0, 240)}…`
       : task.task;

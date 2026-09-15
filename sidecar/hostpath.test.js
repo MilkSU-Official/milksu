@@ -12,6 +12,7 @@ import {
   unixComputerUseSocket,
   unixDshProductIpc,
   playwrightProcessSocketRoot,
+  playwrightProcessTempRoot,
 } from "./hostpath.js";
 
 test("ephemeral root uses XDG_RUNTIME_DIR on Linux and os.tmpdir otherwise", () => {
@@ -31,6 +32,11 @@ test("Playwright process sockets stay short enough for sockaddr_un", () => {
   const root = playwrightProcessSocketRoot();
   assert.ok(root);
   assert.ok(Buffer.byteLength(join(root, "playwright-xxxx.sock")) <= 103);
+  assert.ok(Buffer.byteLength(join(root, "s-12345-abcdef.sock")) <= 103);
+  const tempRoot = playwrightProcessTempRoot();
+  assert.ok(tempRoot);
+  assert.notEqual(tempRoot, root);
+  assert.ok(Buffer.byteLength(join(tempRoot, "playwright-xxxx.sock")) <= 103);
   assert.doesNotMatch(root, /^\/tmp(?:\/|$)/);
   assert.doesNotMatch(root, /^\/private\/tmp(?:\/|$)/);
 });

@@ -89,6 +89,7 @@ const tools = [
     description: codingWorkspaceGuidance(),
     inputSchema: {
       type: "object",
+      additionalProperties: true,
       properties: {
         action: { type: "string" },
         tabId: { type: "string" },
@@ -100,6 +101,9 @@ const tools = [
         id: { type: "string" },
         ids: { type: "array", items: { type: "string" } },
         title: { type: "string" },
+        writers: { type: "integer" },
+        targetPid: { type: "integer" },
+        targetWindowId: { type: "integer" },
       },
       required: ["action"],
     },
