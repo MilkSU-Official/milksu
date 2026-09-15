@@ -48,7 +48,7 @@ describe('useConversations abort confirmation', () => {
     stored = [storedConversation('conversation-1')]
     await conversations.load()
     await conversations.listen()
-    conversations.activeId.value = 'conversation-1'
+    conversations.activeId = 'conversation-1'
 
     emit('conversation-1', { type: 'assistant.started' })
     expect(conversations.activeRunning.value).toBe(true)
@@ -73,7 +73,7 @@ describe('useConversations abort confirmation', () => {
     stored = [storedConversation('conversation-1')]
     await conversations.load()
     await conversations.listen()
-    conversations.activeId.value = 'conversation-1'
+    conversations.activeId = 'conversation-1'
 
     emit('conversation-1', { type: 'assistant.started' })
     await conversations.abort('conversation-1')
@@ -100,17 +100,17 @@ describe('useConversations steering delivery', () => {
     stored = [storedConversation('conversation-1')]
     await conversations.load()
     await conversations.listen()
-    conversations.activeId.value = 'conversation-1'
+    conversations.activeId = 'conversation-1'
 
     emit('conversation-1', { type: 'assistant.started' })
     await conversations.send('先保留修改')
 
-    expect(conversations.activeMessageQueue.value.steering).toEqual(['先保留修改'])
-    expect(conversations.activeMessageQueue.value.stalled).toBeUndefined()
+    expect(conversations.activeMessageQueue.steering).toEqual(['先保留修改'])
+    expect(conversations.activeMessageQueue.stalled).toBeUndefined()
 
     emit('conversation-1', { type: 'assistant.settled' })
-    expect(conversations.activeMessageQueue.value.steering).toEqual(['先保留修改'])
-    expect(conversations.activeMessageQueue.value.stalled).toBe(true)
+    expect(conversations.activeMessageQueue.steering).toEqual(['先保留修改'])
+    expect(conversations.activeMessageQueue.stalled).toBe(true)
   })
 
   it('drops the undelivered marker once Pi reports an empty queue', async () => {
@@ -119,16 +119,16 @@ describe('useConversations steering delivery', () => {
     stored = [storedConversation('conversation-1')]
     await conversations.load()
     await conversations.listen()
-    conversations.activeId.value = 'conversation-1'
+    conversations.activeId = 'conversation-1'
 
     emit('conversation-1', { type: 'assistant.started' })
     await conversations.send('先保留修改')
     emit('conversation-1', { type: 'assistant.settled' })
-    expect(conversations.activeMessageQueue.value.stalled).toBe(true)
+    expect(conversations.activeMessageQueue.stalled).toBe(true)
 
     emit('conversation-1', { type: 'session.queue_updated', steering: [], followUp: [] })
-    expect(conversations.activeMessageQueue.value.steering).toEqual([])
-    expect(conversations.activeMessageQueue.value.stalled).toBeFalsy()
+    expect(conversations.activeMessageQueue.steering).toEqual([])
+    expect(conversations.activeMessageQueue.stalled).toBeFalsy()
   })
 })
 
@@ -156,8 +156,8 @@ describe('useConversations engine stop scoping', () => {
 
     emit('', { type: 'engine.stopped', engine: 'pi', sessions: ['conversation-pi'], error: 'sidecar exited' })
     expect(conversations.runningConversationIds.value).toEqual(['conversation-dsh'])
-    const stopped = conversations.conversations.value.find(item => item.id === 'conversation-pi')
-    const survivor = conversations.conversations.value.find(item => item.id === 'conversation-dsh')
+    const stopped = conversations.conversations.find(item => item.id === 'conversation-pi')
+    const survivor = conversations.conversations.find(item => item.id === 'conversation-dsh')
     expect(String(stopped?.messages.at(-1)?.content)).toContain('Agent 已停止')
     expect(survivor?.messages.some(message => String(message.content).includes('Agent 已停止'))).toBe(false)
   })
@@ -192,7 +192,7 @@ describe('useConversations engine stop scoping', () => {
     stored = [storedConversation('conversation-1'), storedConversation('conversation-2')]
     await conversations.load()
     await conversations.listen()
-    conversations.activeId.value = 'conversation-1'
+    conversations.activeId = 'conversation-1'
 
     emit('conversation-1', { type: 'assistant.started' })
     emit('conversation-2', { type: 'assistant.started' })
@@ -202,7 +202,7 @@ describe('useConversations engine stop scoping', () => {
 
     expect([...conversations.runningConversationIds.value].sort())
       .toEqual(['conversation-1', 'conversation-2'])
-    const messages = conversations.conversations.value.flatMap(item => item.messages)
+    const messages = conversations.conversations.flatMap(item => item.messages)
     expect(messages.some(message => String(message.content).includes('Agent 已停止'))).toBe(false)
   })
 })
@@ -221,7 +221,7 @@ describe('useConversations run-state recovery', () => {
     stored = [storedConversation('conversation-1')]
     await conversations.load()
     await conversations.listen()
-    conversations.activeId.value = 'conversation-1'
+    conversations.activeId = 'conversation-1'
 
     emit('conversation-1', { type: 'assistant.started' })
     expect(conversations.runningConversationIds.value).toEqual(['conversation-1'])
@@ -239,7 +239,7 @@ describe('useConversations run-state recovery', () => {
     stored = [storedConversation('conversation-1')]
     await conversations.load()
     await conversations.listen()
-    conversations.activeId.value = 'conversation-1'
+    conversations.activeId = 'conversation-1'
 
     emit('conversation-1', { type: 'tool.started', text: 'bash', toolName: 'bash', toolCallId: 'c1' })
     expect(conversations.runningConversationIds.value).toEqual(['conversation-1'])

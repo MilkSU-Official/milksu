@@ -1,4 +1,4 @@
-import { computed, getCurrentInstance, nextTick, onBeforeUnmount, ref, watch } from '@/lib/reactiveStore'
+import { createStore, nextTick } from '@/lib/reactStore'
 import { invokeCommand, listenEvent } from '@/desktop'
 import type { CodingCompactionResult, CodingProjectMemory } from '@/codingEnvironmentTypes'
 import {
@@ -829,45 +829,136 @@ export function projectCodingRunFinished(
   return { running: nextRunning, aborting: nextAborting }
 }
 
-export function useConversations() {
-  const conversations = ref<Conversation[]>([])
-  const activeId = ref<string | null>(null)
-  const pendingWorkspacePath = ref('')
-  const pendingWorkspaceHome = ref<WorkspaceHome>('chat')
-  const pendingKernel = ref<AgentKernel>('pi')
-  const pendingModelMode = ref<'auto' | 'manual' | undefined>()
-  const pendingModelProvider = ref<string | undefined>()
-  const pendingModelId = ref<string | undefined>()
-  const pendingThinkingLevel = ref<ModelThinkingLevel | undefined>()
-  const pendingModelSourcePreference = ref<'auto' | 'account' | 'personal'>('auto')
-  const pendingExecutionMode = ref<CodingExecutionMode>(DEFAULT_CODING_EXECUTION_MODE)
-  const pendingApprovalPolicy = ref<CodingApprovalPolicy>(DEFAULT_CODING_APPROVAL_POLICY)
-  const pendingMCPServers = ref<string[]>([])
-  const pendingMCPConfigDigest = ref('')
-  const runningIds = ref(new Set<string>())
-  const abortingIds = ref(new Set<string>())
-  const messageQueues = ref(new Map<string, CodingMessageQueue>())
+
+type ConversationsState = {
+  conversations: Conversation[]
+  activeId: string | null
+  pendingWorkspacePath: string
+  pendingWorkspaceHome: WorkspaceHome
+  pendingKernel: AgentKernel
+  pendingModelMode: 'auto' | 'manual' | undefined
+  pendingModelProvider: string | undefined
+  pendingModelId: string | undefined
+  pendingThinkingLevel: ModelThinkingLevel | undefined
+  pendingModelSourcePreference: 'auto' | 'account' | 'personal'
+  pendingExecutionMode: CodingExecutionMode
+  pendingApprovalPolicy: CodingApprovalPolicy
+  pendingMCPServers: string[]
+  pendingMCPConfigDigest: string
+  runningIds: Set<string>
+  abortingIds: Set<string>
+  messageQueues: Map<string, CodingMessageQueue>
+  engineNotice: string
+  engineNoticeRepeat: number
+  engineNoticeAt: number
+  abortStalledIds: Set<string>
+  stalledQueueIds: Set<string>
+  continuity: CodingContinuityState
+  turnStatusById: Map<string, SessionTurnSnapshot>
+  conversationActionError: string
+  pendingComposerDraft: PendingComposerDraft | null
+}
+
+export function createConversationsRuntime(options?: { live?: boolean }) {
+  const store = createStore<ConversationsState>({
+    conversations: [],
+    activeId: null,
+    pendingWorkspacePath: '',
+    pendingWorkspaceHome: 'chat',
+    pendingKernel: 'pi',
+    pendingModelMode: undefined,
+    pendingModelProvider: undefined,
+    pendingModelId: undefined,
+    pendingThinkingLevel: undefined,
+    pendingModelSourcePreference: 'auto',
+    pendingExecutionMode: DEFAULT_CODING_EXECUTION_MODE,
+    pendingApprovalPolicy: DEFAULT_CODING_APPROVAL_POLICY,
+    pendingMCPServers: [],
+    pendingMCPConfigDigest: '',
+    runningIds: new Set<string>(),
+    abortingIds: new Set<string>(),
+    messageQueues: new Map<string, CodingMessageQueue>(),
+    engineNotice: '',
+    engineNoticeRepeat: 0,
+    engineNoticeAt: 0,
+    abortStalledIds: new Set<string>(),
+    stalledQueueIds: new Set<string>(),
+    continuity: createCodingContinuityState(),
+    turnStatusById: new Map<string, SessionTurnSnapshot>(),
+    conversationActionError: '',
+    pendingComposerDraft: null,
+  })
+  const s = {
+    get conversations() { return store.getState().conversations },
+    set conversations(value) { store.setState({ conversations: value }) },
+    get activeId() { return store.getState().activeId },
+    set activeId(value) { store.setState({ activeId: value }) },
+    get pendingWorkspacePath() { return store.getState().pendingWorkspacePath },
+    set pendingWorkspacePath(value) { store.setState({ pendingWorkspacePath: value }) },
+    get pendingWorkspaceHome() { return store.getState().pendingWorkspaceHome },
+    set pendingWorkspaceHome(value) { store.setState({ pendingWorkspaceHome: value }) },
+    get pendingKernel() { return store.getState().pendingKernel },
+    set pendingKernel(value) { store.setState({ pendingKernel: value }) },
+    get pendingModelMode() { return store.getState().pendingModelMode },
+    set pendingModelMode(value) { store.setState({ pendingModelMode: value }) },
+    get pendingModelProvider() { return store.getState().pendingModelProvider },
+    set pendingModelProvider(value) { store.setState({ pendingModelProvider: value }) },
+    get pendingModelId() { return store.getState().pendingModelId },
+    set pendingModelId(value) { store.setState({ pendingModelId: value }) },
+    get pendingThinkingLevel() { return store.getState().pendingThinkingLevel },
+    set pendingThinkingLevel(value) { store.setState({ pendingThinkingLevel: value }) },
+    get pendingModelSourcePreference() { return store.getState().pendingModelSourcePreference },
+    set pendingModelSourcePreference(value) { store.setState({ pendingModelSourcePreference: value }) },
+    get pendingExecutionMode() { return store.getState().pendingExecutionMode },
+    set pendingExecutionMode(value) { store.setState({ pendingExecutionMode: value }) },
+    get pendingApprovalPolicy() { return store.getState().pendingApprovalPolicy },
+    set pendingApprovalPolicy(value) { store.setState({ pendingApprovalPolicy: value }) },
+    get pendingMCPServers() { return store.getState().pendingMCPServers },
+    set pendingMCPServers(value) { store.setState({ pendingMCPServers: value }) },
+    get pendingMCPConfigDigest() { return store.getState().pendingMCPConfigDigest },
+    set pendingMCPConfigDigest(value) { store.setState({ pendingMCPConfigDigest: value }) },
+    get runningIds() { return store.getState().runningIds },
+    set runningIds(value) { store.setState({ runningIds: value }) },
+    get abortingIds() { return store.getState().abortingIds },
+    set abortingIds(value) { store.setState({ abortingIds: value }) },
+    get messageQueues() { return store.getState().messageQueues },
+    set messageQueues(value) { store.setState({ messageQueues: value }) },
+    get engineNotice() { return store.getState().engineNotice },
+    set engineNotice(value) { store.setState({ engineNotice: value }) },
+    get engineNoticeRepeat() { return store.getState().engineNoticeRepeat },
+    set engineNoticeRepeat(value) { store.setState({ engineNoticeRepeat: value }) },
+    get engineNoticeAt() { return store.getState().engineNoticeAt },
+    set engineNoticeAt(value) { store.setState({ engineNoticeAt: value }) },
+    get abortStalledIds() { return store.getState().abortStalledIds },
+    set abortStalledIds(value) { store.setState({ abortStalledIds: value }) },
+    get stalledQueueIds() { return store.getState().stalledQueueIds },
+    set stalledQueueIds(value) { store.setState({ stalledQueueIds: value }) },
+    get continuity() { return store.getState().continuity },
+    set continuity(value) { store.setState({ continuity: value }) },
+    get turnStatusById() { return store.getState().turnStatusById },
+    set turnStatusById(value) { store.setState({ turnStatusById: value }) },
+    get conversationActionError() { return store.getState().conversationActionError },
+    set conversationActionError(value) { store.setState({ conversationActionError: value }) },
+    get pendingComposerDraft() { return store.getState().pendingComposerDraft },
+    set pendingComposerDraft(value) { store.setState({ pendingComposerDraft: value }) },
+  }
+
   // A short-lived engine status line (idle reclaim, blocked deletions and friends). It is
   // deliberately not part of any conversation's messages.
-  const engineNotice = ref('')
   // How many times the current notice was repeated, so a burst is one line with a count
   // instead of a screenful of identical lines.
-  const engineNoticeRepeat = ref(0)
-  const engineNoticeAt = ref(0)
   function pushEngineNotice(text: string) {
     const notice = String(text ?? '').trim()
     if (!notice) return
     const now = Date.now()
-    if (engineNotice.value === notice && now - engineNoticeAt.value < 30_000) {
-      engineNoticeRepeat.value += 1
+    if (s.engineNotice === notice && now - s.engineNoticeAt < 30_000) {
+      s.engineNoticeRepeat += 1
     } else {
-      engineNotice.value = notice
-      engineNoticeRepeat.value = 1
+      s.engineNotice = notice
+      s.engineNoticeRepeat = 1
     }
-    engineNoticeAt.value = now
+    s.engineNoticeAt = now
   }
-  const abortStalledIds = ref(new Set<string>())
-  const stalledQueueIds = ref(new Set<string>())
   const abortWatchdogs = new Map<string, number>()
   const ABORT_CONFIRM_TIMEOUT_MS = 10_000
 
@@ -880,10 +971,10 @@ export function useConversations() {
 
   function clearAbortStalled(id: string) {
     clearAbortWatchdog(id)
-    if (!abortStalledIds.value.has(id)) return
-    const next = new Set(abortStalledIds.value)
+    if (!s.abortStalledIds.has(id)) return
+    const next = new Set(s.abortStalledIds)
     next.delete(id)
-    abortStalledIds.value = next
+    s.abortStalledIds = next
   }
 
   // AbortMessage only submits the interrupt to the Sidecar. If the engine never
@@ -893,117 +984,116 @@ export function useConversations() {
     clearAbortWatchdog(id)
     const timer = window.setTimeout(() => {
       abortWatchdogs.delete(id)
-      if (!runningIds.value.has(id)) return
-      const stalled = new Set(abortStalledIds.value)
+      if (!s.runningIds.has(id)) return
+      const stalled = new Set(s.abortStalledIds)
       stalled.add(id)
-      abortStalledIds.value = stalled
-      if (!abortingIds.value.has(id)) return
-      const aborting = new Set(abortingIds.value)
+      s.abortStalledIds = stalled
+      if (!s.abortingIds.has(id)) return
+      const aborting = new Set(s.abortingIds)
       aborting.delete(id)
-      abortingIds.value = aborting
+      s.abortingIds = aborting
     }, ABORT_CONFIRM_TIMEOUT_MS)
     abortWatchdogs.set(id, timer)
   }
 
   function markQueueStalled(id: string, stalled: boolean) {
-    if (stalledQueueIds.value.has(id) === stalled) return
-    const next = new Set(stalledQueueIds.value)
+    if (s.stalledQueueIds.has(id) === stalled) return
+    const next = new Set(s.stalledQueueIds)
     if (stalled) next.add(id)
     else next.delete(id)
-    stalledQueueIds.value = next
+    s.stalledQueueIds = next
   }
-  const continuity = ref<CodingContinuityState>(createCodingContinuityState())
   const compactionErrorTimers = new Map<string, ReturnType<typeof setTimeout>>()
 
   function dismissCompactionErrorLater(sessionId: string) {
     armCompactionErrorDismiss(compactionErrorTimers, sessionId, id => {
-      continuity.value = clearCodingContinuityError(continuity.value, id)
+      s.continuity = clearCodingContinuityError(s.continuity, id)
     })
   }
 
   /** Per-session last usage + run clock; not persisted (session-scoped projection). */
-  const turnStatusById = ref(new Map<string, SessionTurnSnapshot>())
-  const active = computed(() => conversations.value.find(item => item.id === activeId.value) ?? null)
-  const workspacePath = computed(() => active.value?.workspacePath ?? pendingWorkspacePath.value)
-  const activeRunning = computed(() => (
-    activeId.value ? runningIds.value.has(activeId.value) : false
+  const active = (() => s.conversations.find(item => item.id === s.activeId) ?? null)
+  const workspacePath = (() => active()?.workspacePath ?? s.pendingWorkspacePath)
+  const activeRunning = (() => (
+    s.activeId ? s.runningIds.has(s.activeId) : false
   ))
-  const runningConversationIds = computed(() => [...runningIds.value])
-  const activeAborting = computed(() => (
-    activeId.value ? abortingIds.value.has(activeId.value) : false
+  const runningConversationIds = (() => [...s.runningIds])
+  const activeAborting = (() => (
+    s.activeId ? s.abortingIds.has(s.activeId) : false
   ))
-  const activeAbortStalled = computed(() => (
-    activeId.value ? abortStalledIds.value.has(activeId.value) : false
+  const activeAbortStalled = (() => (
+    s.activeId ? s.abortStalledIds.has(s.activeId) : false
   ))
-  const activeMessageQueue = computed<CodingMessageQueue>(() => {
+  const activeMessageQueue = (() => {
     const empty: CodingMessageQueue = { steering: [], followUp: [] }
-    if (!activeId.value) return empty
-    const queue = messageQueues.value.get(activeId.value) ?? empty
-    return stalledQueueIds.value.has(activeId.value) ? { ...queue, stalled: true } : queue
+    if (!s.activeId) return empty
+    const queue = s.messageQueues.get(s.activeId) ?? empty
+    return s.stalledQueueIds.has(s.activeId) ? { ...queue, stalled: true } : queue
   })
-  const activeQueuedGuidanceStalled = computed(() => (
-    activeId.value ? stalledQueueIds.value.has(activeId.value) : false
+  const activeQueuedGuidanceStalled = (() => (
+    s.activeId ? s.stalledQueueIds.has(s.activeId) : false
   ))
-  const activeResumed = computed(() => (
-    activeId.value ? continuity.value.resumed.has(activeId.value) : false
+  const activeResumed = (() => (
+    s.activeId ? s.continuity.resumed.has(s.activeId) : false
   ))
-  const activeSessionReady = computed(() => (
-    activeId.value ? continuity.value.ready.has(activeId.value) : false
+  const activeSessionReady = (() => (
+    s.activeId ? s.continuity.ready.has(s.activeId) : false
   ))
-  const activeCompacting = computed(() => (
-    activeId.value ? continuity.value.compacting.has(activeId.value) : false
+  const activeCompacting = (() => (
+    s.activeId ? s.continuity.compacting.has(s.activeId) : false
   ))
-  const activeCompactedAt = computed(() => (
-    activeId.value ? continuity.value.compactedAt.get(activeId.value) : undefined
+  const activeCompactedAt = (() => (
+    s.activeId ? s.continuity.compactedAt.get(s.activeId) : undefined
   ))
-  const activeCompactionError = computed(() => (
-    activeId.value ? continuity.value.errors.get(activeId.value) : undefined
+  const activeCompactionError = (() => (
+    s.activeId ? s.continuity.errors.get(s.activeId) : undefined
   ))
-  const activeTurnStatus = computed<SessionTurnSnapshot>(() => {
-    if (!activeId.value) return emptySessionTurnSnapshot()
-    const base = turnStatusById.value.get(activeId.value) ?? emptySessionTurnSnapshot()
+  const activeTurnStatus = (() => {
+    if (!s.activeId) return emptySessionTurnSnapshot()
+    const base = s.turnStatusById.get(s.activeId) ?? emptySessionTurnSnapshot()
     // Keep compacting flag aligned with continuity without double-storing it.
-    return applySessionCompacting(base, activeCompacting.value)
+    return applySessionCompacting(base, activeCompacting())
   })
 
   function patchTurnStatus(
     sessionId: string,
     updater: (state: SessionTurnSnapshot) => SessionTurnSnapshot,
   ) {
-    const previous = turnStatusById.value.get(sessionId) ?? emptySessionTurnSnapshot()
+    const previous = s.turnStatusById.get(sessionId) ?? emptySessionTurnSnapshot()
     const next = updater(previous)
     if (next === previous) return
-    const map = new Map(turnStatusById.value)
+    const map = new Map(s.turnStatusById)
     map.set(sessionId, next)
-    turnStatusById.value = map
+    s.turnStatusById = map
   }
 
   function clearTurnRunClock(sessionId: string) {
     patchTurnStatus(sessionId, applySessionRunFinished)
   }
-  const selectedKernel = computed(() => (
-    active.value ? normalizeAgentKernel(active.value.kernel) : pendingKernel.value
+  const selectedKernel = (() => {
+    const current = active()
+    return current ? normalizeAgentKernel(current.kernel) : s.pendingKernel
+  })
+  const selectedModelMode = (() => active()?.modelMode ?? s.pendingModelMode)
+  const selectedModelProvider = (() => active()?.modelProvider ?? s.pendingModelProvider)
+  const selectedModelId = (() => active()?.modelId ?? s.pendingModelId)
+  const selectedThinkingLevel = (() => (
+    active()?.thinkingLevel ?? s.pendingThinkingLevel
   ))
-  const selectedModelMode = computed(() => active.value?.modelMode ?? pendingModelMode.value)
-  const selectedModelProvider = computed(() => active.value?.modelProvider ?? pendingModelProvider.value)
-  const selectedModelId = computed(() => active.value?.modelId ?? pendingModelId.value)
-  const selectedThinkingLevel = computed(() => (
-    active.value?.thinkingLevel ?? pendingThinkingLevel.value
+  const selectedModelSourcePreference = (() => (
+    active()?.modelSourcePreference ?? s.pendingModelSourcePreference
   ))
-  const selectedModelSourcePreference = computed(() => (
-    active.value?.modelSourcePreference ?? pendingModelSourcePreference.value
+  const selectedExecutionMode = (() => (
+    active()?.executionMode ?? s.pendingExecutionMode
   ))
-  const selectedExecutionMode = computed(() => (
-    active.value?.executionMode ?? pendingExecutionMode.value
+  const selectedApprovalPolicy = (() => (
+    active()?.approvalPolicy ?? s.pendingApprovalPolicy
   ))
-  const selectedApprovalPolicy = computed(() => (
-    active.value?.approvalPolicy ?? pendingApprovalPolicy.value
+  const selectedMCPServers = (() => (
+    active()?.mcpServers ?? s.pendingMCPServers
   ))
-  const selectedMCPServers = computed(() => (
-    active.value?.mcpServers ?? pendingMCPServers.value
-  ))
-  const selectedMCPConfigDigest = computed(() => (
-    active.value?.mcpConfigDigest ?? pendingMCPConfigDigest.value
+  const selectedMCPConfigDigest = (() => (
+    active()?.mcpConfigDigest ?? s.pendingMCPConfigDigest
   ))
   const saveTimers = new Map<string, number>()
   const activeTurnPolicies = new Set<string>()
@@ -1015,10 +1105,10 @@ export function useConversations() {
   }
 
   function sessionContextUsageRecord(sessionId: string): Conversation['lastContextUsage'] {
-    const snapshot = turnStatusById.value.get(sessionId)
+    const snapshot = s.turnStatusById.get(sessionId)
     const stored = storedContextUsageFromSnapshot(snapshot ?? emptySessionTurnSnapshot())
     if (!stored) return undefined
-    const conversation = conversations.value.find(item => item.id === sessionId)
+    const conversation = s.conversations.find(item => item.id === sessionId)
     const modelId = stored.model || conversation?.modelId
     const contextWindow = resolveModelContextWindow(
       modelId,
@@ -1038,7 +1128,7 @@ export function useConversations() {
   function persistSessionContextUsage(sessionId: string) {
     const lastContextUsage = sessionContextUsageRecord(sessionId)
     if (!lastContextUsage) return
-    conversations.value = conversations.value.map(item => (
+    s.conversations = s.conversations.map(item => (
       item.id === sessionId ? { ...item, lastContextUsage } : item
     ))
     scheduleSave(sessionId)
@@ -1065,7 +1155,7 @@ export function useConversations() {
     if (existingTimer) window.clearTimeout(existingTimer)
     const timer = window.setTimeout(() => {
       saveTimers.delete(conversationId)
-      const conversation = conversations.value.find(item => item.id === conversationId)
+      const conversation = s.conversations.find(item => item.id === conversationId)
       if (conversation) persist(conversation)
     }, 400)
     saveTimers.set(conversationId, timer)
@@ -1076,14 +1166,14 @@ export function useConversations() {
     // The stored snapshot lags behind: message deltas persist on a 400ms debounce.
     // A reload triggered while another conversation streams must not roll it back,
     // so the disk decides which conversations exist and memory keeps their content.
-    const loaded = new Map(conversations.value.map(conversation => [conversation.id, conversation]))
-    conversations.value = stored.map(value => {
+    const loaded = new Map(s.conversations.map(conversation => [conversation.id, conversation]))
+    s.conversations = stored.map(value => {
       const next = normalizeConversation(value)
       return loaded.get(next.id) ?? next
     })
     const next = new Map<string, SessionTurnSnapshot>()
-    for (const conversation of conversations.value) {
-      const live = turnStatusById.value.get(conversation.id)
+    for (const conversation of s.conversations) {
+      const live = s.turnStatusById.get(conversation.id)
       if (loaded.has(conversation.id) && live) {
         next.set(conversation.id, live)
         continue
@@ -1091,38 +1181,38 @@ export function useConversations() {
       const snapshot = hydrateTurnStatus(conversation)
       if (snapshot) next.set(conversation.id, snapshot)
     }
-    turnStatusById.value = next
+    s.turnStatusById = next
     await applyRememberedHomeProjectIfIdle()
   }
 
   function currentWorkspaceHome(): WorkspaceHome {
-    return active.value
-      ? conversationWorkspaceHome(active.value)
-      : pendingWorkspaceHome.value
+    return active()
+      ? conversationWorkspaceHome(active())
+      : s.pendingWorkspaceHome
   }
 
   async function applyRememberedHomeProjectIfIdle() {
-    if (activeId.value || pendingWorkspaceHome.value !== 'chat' || pendingWorkspacePath.value) return
+    if (s.activeId || s.pendingWorkspaceHome !== 'chat' || s.pendingWorkspacePath) return
     try {
       const memory = await invokeCommand<CodingProjectMemory>('get_coding_project_memory')
       const last = memory.recents?.[0]?.path || memory.lastWorkspacePath || ''
       if (
-        activeId.value
-        || pendingWorkspaceHome.value !== 'chat'
-        || pendingWorkspacePath.value
+        s.activeId
+        || s.pendingWorkspaceHome !== 'chat'
+        || s.pendingWorkspacePath
         || !shouldRememberCodingProject(last)
       ) return
-      pendingWorkspacePath.value = last
+      s.pendingWorkspacePath = last
     } catch {
-      if (!pendingWorkspacePath.value) pendingWorkspacePath.value = ''
+      if (!s.pendingWorkspacePath) s.pendingWorkspacePath = ''
     }
   }
 
   function update(id: string, updater: (conversation: Conversation) => Conversation) {
-    conversations.value = conversations.value.map(conversation => (
+    s.conversations = s.conversations.map(conversation => (
       conversation.id === id ? updater(conversation) : conversation
     ))
-    const updated = conversations.value.find(conversation => conversation.id === id)
+    const updated = s.conversations.find(conversation => conversation.id === id)
     if (updated) persist(updated)
   }
 
@@ -1130,19 +1220,19 @@ export function useConversations() {
     clearTurnRunClock(id)
     clearAbortStalled(id)
     const next = projectCodingRunFinished(
-      runningIds.value,
-      abortingIds.value,
+      s.runningIds,
+      s.abortingIds,
       id,
     )
-    runningIds.value = next.running
-    abortingIds.value = next.aborting
+    s.runningIds = next.running
+    s.abortingIds = next.aborting
   }
 
   const IDLE_RECONCILE_MS = 12_000
 
   function reconcileIdleConversation(conversationId: string) {
-    if (!conversationId || runningIds.value.has(conversationId)) return
-    const conversation = conversations.value.find(item => item.id === conversationId)
+    if (!conversationId || s.runningIds.has(conversationId)) return
+    const conversation = s.conversations.find(item => item.id === conversationId)
     if (!conversation || !hasIdleRunResidue(conversation.messages)) return
     update(conversationId, current => ({
       ...current,
@@ -1151,21 +1241,25 @@ export function useConversations() {
   }
 
   function reconcileIdleConversations() {
-    for (const conversation of conversations.value) {
+    for (const conversation of s.conversations) {
       reconcileIdleConversation(conversation.id)
     }
   }
 
-  watch(activeId, id => {
+  let lastActiveId = s.activeId
+  const stopWatchActiveId = store.subscribe(() => {
+    const id = s.activeId
+    if (id === lastActiveId) return
+    lastActiveId = id
     if (id) reconcileIdleConversation(id)
   })
 
   function onVisibilityChange() {
     if (document.visibilityState !== 'visible') return
-    if (activeId.value) reconcileIdleConversation(activeId.value)
+    if (s.activeId) reconcileIdleConversation(s.activeId)
   }
 
-  const ownsIdleReconcile = Boolean(getCurrentInstance())
+  const ownsIdleReconcile = options?.live === true
   if (ownsIdleReconcile && typeof document !== 'undefined') {
     document.addEventListener('visibilitychange', onVisibilityChange)
   }
@@ -1177,7 +1271,7 @@ export function useConversations() {
     conversationId: string,
     dispatch: RuntimeTurnDispatch,
   ) {
-    const conversation = conversations.value.find(item => item.id === conversationId)
+    const conversation = s.conversations.find(item => item.id === conversationId)
     if (!conversation) throw new Error('Coding conversation is unavailable')
     await invokeCommand('save_conversation', { conversation })
     await invokeCommand('send_message', {
@@ -1200,15 +1294,14 @@ export function useConversations() {
   }
 
   function setMessageQueue(id: string, queue: CodingMessageQueue) {
-    const next = new Map(messageQueues.value)
+    const next = new Map(s.messageQueues)
     if (queue.steering.length || queue.followUp.length) next.set(id, queue)
     else next.delete(id)
-    messageQueues.value = next
+    s.messageQueues = next
   }
 
   // The sidebar confirmation dialog renders this and stays open on failure, the
   // same way the archived-chat settings panel reports its own errors.
-  const conversationActionError = ref('')
 
   async function archive(id: string) {
     await runConversationAction(t('归档', 'Archive'), 'archive_conversation', id)
@@ -1219,30 +1312,30 @@ export function useConversations() {
   }
 
   async function runConversationAction(action: string, command: string, id: string) {
-    conversationActionError.value = ''
+    s.conversationActionError = ''
     try {
       await invokeCommand(command, { id })
     } catch (cause) {
       const causeText = cause instanceof Error ? cause.message : String(cause)
-      conversationActionError.value = t(`${action}失败：${causeText}`, `${action} failed: ${causeText}`)
+      s.conversationActionError = t(`${action}失败：${causeText}`, `${action} failed: ${causeText}`)
       return
     }
     discard(id)
   }
 
   function discard(id: string) {
-    conversations.value = conversations.value.filter(conversation => conversation.id !== id)
+    s.conversations = s.conversations.filter(conversation => conversation.id !== id)
     titleGenerationAttemptedIds.delete(id)
-    continuity.value = removeCodingContinuitySession(continuity.value, id)
+    s.continuity = removeCodingContinuitySession(s.continuity, id)
     activeTurnPolicies.delete(id)
     setMessageQueue(id, { steering: [], followUp: [] })
     finishRun(id)
-    if (turnStatusById.value.has(id)) {
-      const next = new Map(turnStatusById.value)
+    if (s.turnStatusById.has(id)) {
+      const next = new Map(s.turnStatusById)
       next.delete(id)
-      turnStatusById.value = next
+      s.turnStatusById = next
     }
-    if (activeId.value === id) activeId.value = null
+    if (s.activeId === id) s.activeId = null
   }
 
   function comparePinnedConversations(left: Conversation, right: Conversation) {
@@ -1254,18 +1347,18 @@ export function useConversations() {
 
   function applyPinnedOrder(ordered: Conversation[]) {
     const nextOrder = new Map(ordered.map((conversation, index) => [conversation.id, index]))
-    conversations.value = conversations.value.map(conversation => {
+    s.conversations = s.conversations.map(conversation => {
       const order = nextOrder.get(conversation.id)
       return order === undefined ? conversation : { ...conversation, pinned: true, pinnedOrder: order }
     })
     for (const conversation of ordered) {
-      const updated = conversations.value.find(item => item.id === conversation.id)
+      const updated = s.conversations.find(item => item.id === conversation.id)
       if (updated) persist(updated)
     }
   }
 
   function setConversationPinned(id: string, pinned: boolean) {
-    const existing = conversations.value.filter(conversation => (
+    const existing = s.conversations.filter(conversation => (
       conversation.pinned && conversation.id !== id
     )).sort(comparePinnedConversations)
     update(id, conversation => pinned
@@ -1274,7 +1367,7 @@ export function useConversations() {
   }
 
   function movePinnedConversation(id: string, direction: -1 | 1) {
-    const pinned = conversations.value
+    const pinned = s.conversations
       .filter(conversation => conversation.pinned)
       .sort(comparePinnedConversations)
     const index = pinned.findIndex(conversation => conversation.id === id)
@@ -1289,7 +1382,7 @@ export function useConversations() {
 
   function reorderPinnedConversation(id: string, beforeId: string) {
     if (id === beforeId) return
-    const pinned = conversations.value
+    const pinned = s.conversations
       .filter(conversation => conversation.pinned)
       .sort(comparePinnedConversations)
     const source = pinned.find(conversation => conversation.id === id)
@@ -1313,47 +1406,46 @@ export function useConversations() {
     }))
   }
 
-  const pendingComposerDraft = ref<PendingComposerDraft | null>(null)
 
   function stageComposerDraft(prompt: string, visibleText = prompt) {
     const nextPrompt = String(prompt ?? '').trim()
     if (!nextPrompt) {
-      pendingComposerDraft.value = null
+      s.pendingComposerDraft = null
       return
     }
-    pendingComposerDraft.value = {
+    s.pendingComposerDraft = {
       prompt: nextPrompt,
       visibleText: String(visibleText ?? '').trim() || nextPrompt,
     }
   }
 
   function consumeComposerDraft() {
-    const draft = pendingComposerDraft.value
-    pendingComposerDraft.value = null
+    const draft = s.pendingComposerDraft
+    s.pendingComposerDraft = null
     return draft
   }
 
   function startNew(options: { workspaceHome?: WorkspaceHome } = {}) {
     const nextHome = options.workspaceHome ?? 'chat'
     const previousHome = currentWorkspaceHome()
-    const currentWorkspace = active.value?.workspacePath || pendingWorkspacePath.value
+    const currentWorkspace = active()?.workspacePath || s.pendingWorkspacePath
     const inheritHomeProject = nextHome === 'chat'
       && previousHome === 'chat'
       && shouldRememberCodingProject(currentWorkspace)
-    activeId.value = null
-    pendingWorkspaceHome.value = nextHome
-    pendingWorkspacePath.value = inheritHomeProject ? String(currentWorkspace) : ''
-    pendingKernel.value = 'pi'
-    pendingModelMode.value = undefined
-    pendingModelProvider.value = undefined
-    pendingModelId.value = undefined
-    pendingThinkingLevel.value = undefined
-    pendingModelSourcePreference.value = 'auto'
-    pendingExecutionMode.value = DEFAULT_CODING_EXECUTION_MODE
-    pendingApprovalPolicy.value = DEFAULT_CODING_APPROVAL_POLICY
-    pendingMCPServers.value = []
-    pendingMCPConfigDigest.value = ''
-    pendingComposerDraft.value = null
+    s.activeId = null
+    s.pendingWorkspaceHome = nextHome
+    s.pendingWorkspacePath = inheritHomeProject ? String(currentWorkspace) : ''
+    s.pendingKernel = 'pi'
+    s.pendingModelMode = undefined
+    s.pendingModelProvider = undefined
+    s.pendingModelId = undefined
+    s.pendingThinkingLevel = undefined
+    s.pendingModelSourcePreference = 'auto'
+    s.pendingExecutionMode = DEFAULT_CODING_EXECUTION_MODE
+    s.pendingApprovalPolicy = DEFAULT_CODING_APPROVAL_POLICY
+    s.pendingMCPServers = []
+    s.pendingMCPConfigDigest = ''
+    s.pendingComposerDraft = null
     if (nextHome === 'chat' && !inheritHomeProject) void applyRememberedHomeProjectIfIdle()
   }
 
@@ -1375,9 +1467,9 @@ export function useConversations() {
     const clearsCTFContext = options.domainTaskContext?.kind === 'cve'
       || options.domainTaskContext?.kind === 'lab'
     if (requestedId) {
-      const existing = conversations.value.find(item => item.id === requestedId)
+      const existing = s.conversations.find(item => item.id === requestedId)
       if (existing) {
-        activeId.value = existing.id
+        s.activeId = existing.id
         update(existing.id, conversation => ({
           ...conversation,
           title: title.trim().slice(0, 40) || conversation.title,
@@ -1390,14 +1482,14 @@ export function useConversations() {
         return existing.id
       }
     }
-    if (activeId.value && !requestedId) {
+    if (s.activeId && !requestedId) {
       if (options.domainTaskContext) {
-        update(activeId.value, conversation => ({
+        update(s.activeId, conversation => ({
           ...conversation,
           domainTaskContext: options.domainTaskContext,
         }))
       }
-      return activeId.value
+      return s.activeId
     }
     const conversationId = requestedId || crypto.randomUUID()
     const conversation: Conversation = {
@@ -1406,20 +1498,20 @@ export function useConversations() {
       createdAt: Date.now(),
       workspacePath: hasWorkspaceOverride
         ? workspaceOverride
-        : pendingWorkspacePath.value || undefined,
-      kernel: pendingKernel.value,
-      modelMode: pendingModelMode.value,
-      modelProvider: pendingModelProvider.value,
-      modelId: pendingModelId.value,
-      thinkingLevel: pendingThinkingLevel.value,
-      modelSourcePreference: pendingModelSourcePreference.value === 'auto'
+        : s.pendingWorkspacePath || undefined,
+      kernel: s.pendingKernel,
+      modelMode: s.pendingModelMode,
+      modelProvider: s.pendingModelProvider,
+      modelId: s.pendingModelId,
+      thinkingLevel: s.pendingThinkingLevel,
+      modelSourcePreference: s.pendingModelSourcePreference === 'auto'
         ? undefined
-        : pendingModelSourcePreference.value,
-      executionMode: pendingExecutionMode.value,
-      approvalPolicy: pendingApprovalPolicy.value,
-      mcpServers: pendingMCPServers.value.length ? pendingMCPServers.value : undefined,
-      mcpConfigDigest: pendingMCPServers.value.length
-        ? pendingMCPConfigDigest.value
+        : s.pendingModelSourcePreference,
+      executionMode: s.pendingExecutionMode,
+      approvalPolicy: s.pendingApprovalPolicy,
+      mcpServers: s.pendingMCPServers.length ? s.pendingMCPServers : undefined,
+      mcpConfigDigest: s.pendingMCPServers.length
+        ? s.pendingMCPConfigDigest
         : undefined,
       domainTaskContext: options.domainTaskContext,
       ctfJobId: clearsCTFContext ? undefined : options.ctfJobId,
@@ -1427,8 +1519,8 @@ export function useConversations() {
       ctfRole: clearsCTFContext ? undefined : options.ctfRole,
       messages: [],
     }
-    conversations.value = [conversation, ...conversations.value]
-    activeId.value = conversationId
+    s.conversations = [conversation, ...s.conversations]
+    s.activeId = conversationId
     persist(conversation)
     return conversationId
   }
@@ -1436,12 +1528,12 @@ export function useConversations() {
   function setWorkspace(path: string) {
     const normalized = path.trim()
     if (!normalized) return
-    if (!activeId.value) {
-      pendingWorkspacePath.value = normalized
-      pendingMCPServers.value = []
-      pendingMCPConfigDigest.value = ''
+    if (!s.activeId) {
+      s.pendingWorkspacePath = normalized
+      s.pendingMCPServers = []
+      s.pendingMCPConfigDigest = ''
     } else {
-      update(activeId.value, conversation => ({
+      update(s.activeId, conversation => ({
         ...conversation,
         workspacePath: normalized,
         mcpServers: undefined,
@@ -1454,13 +1546,13 @@ export function useConversations() {
   }
 
   function clearWorkspace() {
-    if (!activeId.value) {
-      pendingWorkspacePath.value = ''
-      pendingMCPServers.value = []
-      pendingMCPConfigDigest.value = ''
+    if (!s.activeId) {
+      s.pendingWorkspacePath = ''
+      s.pendingMCPServers = []
+      s.pendingMCPConfigDigest = ''
       return
     }
-    update(activeId.value, conversation => ({
+    update(s.activeId, conversation => ({
       ...conversation,
       workspacePath: undefined,
       mcpServers: undefined,
@@ -1470,13 +1562,13 @@ export function useConversations() {
 
   function setKernel(kernel: AgentKernel) {
     const next = normalizeAgentKernel(kernel)
-    if (!activeId.value) {
-      pendingKernel.value = next
+    if (!s.activeId) {
+      s.pendingKernel = next
       return
     }
-    const current = conversations.value.find(item => item.id === activeId.value)
+    const current = s.conversations.find(item => item.id === s.activeId)
     if (current && conversationKernelLocked(current.messages)) return
-    update(activeId.value, conversation => ({ ...conversation, kernel: next }))
+    update(s.activeId, conversation => ({ ...conversation, kernel: next }))
   }
 
   function setModelSelection(
@@ -1486,17 +1578,17 @@ export function useConversations() {
   ) {
     const normalizedProvider = provider?.trim() || undefined
     const normalizedModel = model?.trim() || undefined
-    if (!activeId.value) {
-      const changed = pendingModelMode.value !== mode
-        || pendingModelProvider.value !== normalizedProvider
-        || pendingModelId.value !== normalizedModel
-      pendingModelMode.value = mode
-      pendingModelProvider.value = mode === 'manual' ? normalizedProvider : undefined
-      pendingModelId.value = mode === 'manual' ? normalizedModel : undefined
-      if (changed) pendingThinkingLevel.value = undefined
+    if (!s.activeId) {
+      const changed = s.pendingModelMode !== mode
+        || s.pendingModelProvider !== normalizedProvider
+        || s.pendingModelId !== normalizedModel
+      s.pendingModelMode = mode
+      s.pendingModelProvider = mode === 'manual' ? normalizedProvider : undefined
+      s.pendingModelId = mode === 'manual' ? normalizedModel : undefined
+      if (changed) s.pendingThinkingLevel = undefined
       return
     }
-    update(activeId.value, conversation => ({
+    update(s.activeId, conversation => ({
       ...conversation,
       modelMode: mode,
       modelProvider: mode === 'manual' ? normalizedProvider : undefined,
@@ -1511,20 +1603,20 @@ export function useConversations() {
 
   function setThinkingLevel(level: ModelThinkingLevel) {
     if (!MODEL_THINKING_LEVELS.includes(level)) return
-    if (!activeId.value) {
-      pendingThinkingLevel.value = level
+    if (!s.activeId) {
+      s.pendingThinkingLevel = level
       return
     }
-    update(activeId.value, conversation => ({ ...conversation, thinkingLevel: level }))
+    update(s.activeId, conversation => ({ ...conversation, thinkingLevel: level }))
   }
 
   function setModelSourcePreference(preference: 'auto' | 'account' | 'personal') {
-    if (!activeId.value) {
-      pendingModelSourcePreference.value = preference
+    if (!s.activeId) {
+      s.pendingModelSourcePreference = preference
       return
     }
-    if (!activeId.value) return
-    update(activeId.value, conversation => ({
+    if (!s.activeId) return
+    update(s.activeId, conversation => ({
       ...conversation,
       modelSourcePreference: preference === 'auto' ? undefined : preference,
     }))
@@ -1534,12 +1626,12 @@ export function useConversations() {
     executionMode: CodingExecutionMode,
     approvalPolicy: CodingApprovalPolicy,
   ) {
-    if (!activeId.value) {
-      pendingExecutionMode.value = executionMode
-      pendingApprovalPolicy.value = approvalPolicy
+    if (!s.activeId) {
+      s.pendingExecutionMode = executionMode
+      s.pendingApprovalPolicy = approvalPolicy
       return
     }
-    update(activeId.value, conversation => ({
+    update(s.activeId, conversation => ({
       ...conversation,
       executionMode,
       approvalPolicy,
@@ -1552,12 +1644,12 @@ export function useConversations() {
       ? configDigest.toLowerCase()
       : ''
     if (normalizedServers.length && !normalizedDigest) return
-    if (!activeId.value) {
-      pendingMCPServers.value = normalizedServers
-      pendingMCPConfigDigest.value = normalizedServers.length ? normalizedDigest : ''
+    if (!s.activeId) {
+      s.pendingMCPServers = normalizedServers
+      s.pendingMCPConfigDigest = normalizedServers.length ? normalizedDigest : ''
       return
     }
-    update(activeId.value, conversation => ({
+    update(s.activeId, conversation => ({
       ...conversation,
       mcpServers: normalizedServers.length ? normalizedServers : undefined,
       mcpConfigDigest: normalizedServers.length ? normalizedDigest : undefined,
@@ -1566,9 +1658,9 @@ export function useConversations() {
 
   async function startWorkspaceTask(task: WorkspaceTask) {
     const autoSend = task.autoSend === true
-    const existing = conversations.value.find(item => item.id === task.conversationId)
+    const existing = s.conversations.find(item => item.id === task.conversationId)
     if (existing) {
-      activeId.value = existing.id
+      s.activeId = existing.id
       if (
         existing.workspacePath !== task.workspacePath
         || existing.title !== task.title
@@ -1587,7 +1679,7 @@ export function useConversations() {
           domainTaskContext: task.domainTaskContext ?? conversation.domainTaskContext,
         }))
       }
-      if (autoSend && !runningIds.value.has(existing.id)) {
+      if (autoSend && !s.runningIds.has(existing.id)) {
         await send(task.prompt)
       }
       return
@@ -1598,16 +1690,16 @@ export function useConversations() {
       title: task.title,
       createdAt: Date.now(),
       workspacePath: task.workspacePath,
-      kernel: pendingKernel.value,
+      kernel: s.pendingKernel,
       ctfJobId: task.jobId,
       ctfMode: task.policy.mode,
       ctfRole: task.role,
       domainTaskContext: task.domainTaskContext,
       messages: [],
     }
-    conversations.value = [conversation, ...conversations.value]
-    activeId.value = conversation.id
-    pendingWorkspacePath.value = ''
+    s.conversations = [conversation, ...s.conversations]
+    s.activeId = conversation.id
+    s.pendingWorkspacePath = ''
     persist(conversation)
     if (autoSend) {
       await send(task.prompt)
@@ -1625,13 +1717,13 @@ export function useConversations() {
     const prompt = text.trim()
     if (!prompt) return false
     const visiblePrompt = visibleText.trim() || prompt
-    const runningConversationId = activeId.value
-    const activeConversation = conversations.value.find(item => item.id === runningConversationId)
+    const runningConversationId = s.activeId
+    const activeConversation = s.conversations.find(item => item.id === runningConversationId)
     const pendingAsk = pendingAskMessage(activeConversation?.messages)
     const answeringAsk = Boolean(pendingAsk?.approvalRequestId)
     const steering = Boolean(
       runningConversationId
-      && runningIds.value.has(runningConversationId)
+      && s.runningIds.has(runningConversationId)
       && !answeringAsk,
     )
     if ((steering || answeringAsk) && attachments.length) return false
@@ -1644,33 +1736,33 @@ export function useConversations() {
       attachments: attachments.length ? attachments : undefined,
     }
     const fallbackTitle = fallbackConversationTitle(visiblePrompt)
-    let conversationId = activeId.value
+    let conversationId = s.activeId
     if (!conversationId) {
       conversationId = crypto.randomUUID()
       const conversation: Conversation = {
         id: conversationId,
         title: fallbackTitle,
         createdAt: Date.now(),
-        workspacePath: pendingWorkspacePath.value || undefined,
-        workspaceHome: pendingWorkspaceHome.value === 'chat' ? undefined : pendingWorkspaceHome.value,
-        kernel: pendingKernel.value,
-        modelMode: pendingModelMode.value,
-        modelProvider: pendingModelProvider.value,
-        modelId: pendingModelId.value,
-        thinkingLevel: pendingThinkingLevel.value,
-        modelSourcePreference: pendingModelSourcePreference.value === 'auto'
+        workspacePath: s.pendingWorkspacePath || undefined,
+        workspaceHome: s.pendingWorkspaceHome === 'chat' ? undefined : s.pendingWorkspaceHome,
+        kernel: s.pendingKernel,
+        modelMode: s.pendingModelMode,
+        modelProvider: s.pendingModelProvider,
+        modelId: s.pendingModelId,
+        thinkingLevel: s.pendingThinkingLevel,
+        modelSourcePreference: s.pendingModelSourcePreference === 'auto'
           ? undefined
-          : pendingModelSourcePreference.value,
-        executionMode: pendingExecutionMode.value,
-        approvalPolicy: pendingApprovalPolicy.value,
-        mcpServers: pendingMCPServers.value.length ? pendingMCPServers.value : undefined,
-        mcpConfigDigest: pendingMCPServers.value.length
-          ? pendingMCPConfigDigest.value
+          : s.pendingModelSourcePreference,
+        executionMode: s.pendingExecutionMode,
+        approvalPolicy: s.pendingApprovalPolicy,
+        mcpServers: s.pendingMCPServers.length ? s.pendingMCPServers : undefined,
+        mcpConfigDigest: s.pendingMCPServers.length
+          ? s.pendingMCPConfigDigest
           : undefined,
         messages: [message],
       }
-      conversations.value = [conversation, ...conversations.value]
-      activeId.value = conversationId
+      s.conversations = [conversation, ...s.conversations]
+      s.activeId = conversationId
       persist(conversation)
     } else {
       update(conversationId, conversation => ({
@@ -1698,7 +1790,7 @@ export function useConversations() {
           conversationId,
           prompt,
         })
-        const currentQueue = messageQueues.value.get(conversationId)
+        const currentQueue = s.messageQueues.get(conversationId)
           ?? { steering: [], followUp: [] }
         setMessageQueue(conversationId, projectCodingMessageQueue(
           [...currentQueue.steering, visiblePrompt],
@@ -1735,10 +1827,10 @@ export function useConversations() {
       }
     }
 
-    runningIds.value = new Set(runningIds.value).add(conversationId)
+    s.runningIds = new Set(s.runningIds).add(conversationId)
     patchTurnStatus(conversationId, state => applySessionRunStarted(state))
     try {
-      let conversation = conversations.value.find(item => item.id === conversationId)
+      let conversation = s.conversations.find(item => item.id === conversationId)
       if (conversation && !conversation.workspacePath) {
         // Save the structured CTF/CVE context before the backend chooses the
         // visible Coding or CVE artifact directory for this conversation.
@@ -1752,7 +1844,7 @@ export function useConversations() {
             ...current,
             workspacePath: automaticWorkspace,
           }))
-          conversation = conversations.value.find(item => item.id === conversationId)
+          conversation = s.conversations.find(item => item.id === conversationId)
         }
       }
       if (conversation) await invokeCommand('save_conversation', { conversation })
@@ -1785,9 +1877,9 @@ export function useConversations() {
   }
 
   async function removeQueuedGuidance(index: number, edit: boolean) {
-    const conversationId = activeId.value
+    const conversationId = s.activeId
     if (!conversationId || !Number.isInteger(index) || index < 0) return false
-    const currentQueue = messageQueues.value.get(conversationId)
+    const currentQueue = s.messageQueues.get(conversationId)
       ?? { steering: [], followUp: [] }
     const message = currentQueue.steering[index]
     if (!message) return false
@@ -1826,7 +1918,7 @@ export function useConversations() {
 
   async function generateConversationTitle(conversationId: string) {
     if (titleGenerationAttemptedIds.has(conversationId)) return
-    const conversation = conversations.value.find(item => item.id === conversationId)
+    const conversation = s.conversations.find(item => item.id === conversationId)
     if (
       !conversation
       || conversation.ctfJobId
@@ -1847,7 +1939,7 @@ export function useConversations() {
         modelProvider: conversation.modelProvider ?? '',
         modelId: conversation.modelId ?? '',
       })
-      const current = conversations.value.find(item => item.id === conversationId)
+      const current = s.conversations.find(item => item.id === conversationId)
       if (
         !current
         || (
@@ -1867,7 +1959,7 @@ export function useConversations() {
   }
 
   async function editAndResend(messageId: string, content: string) {
-    const conversation = active.value
+    const conversation = active()
     if (!conversation) return false
     const index = conversation.messages.findIndex(item => (
       item.id === messageId && item.role === 'user'
@@ -1877,7 +1969,7 @@ export function useConversations() {
       .slice(0, index + 1)
       .filter(item => item.role === 'user' && item.status !== 'queued')
       .length - 1
-    if (runningIds.value.has(conversation.id)) finishRun(conversation.id)
+    if (s.runningIds.has(conversation.id)) finishRun(conversation.id)
     update(conversation.id, current => ({
       ...current,
       messages: current.messages.slice(0, index),
@@ -1886,7 +1978,7 @@ export function useConversations() {
   }
 
   async function branchFromAssistant(messageId: string) {
-    const conversation = active.value
+    const conversation = active()
     if (!conversation) return false
     const index = conversation.messages.findIndex(item => (
       item.id === messageId && item.role === 'assistant'
@@ -1915,23 +2007,23 @@ export function useConversations() {
       createdAt: Date.now(),
       messages: conversation.messages.slice(0, index + 1).map(item => ({ ...item })),
     }
-    conversations.value = [forked, ...conversations.value]
-    activeId.value = sessionId
+    s.conversations = [forked, ...s.conversations]
+    s.activeId = sessionId
     persist(forked)
     return true
   }
 
   async function abort(id: string) {
-    const compacting = continuity.value.compacting.has(id)
+    const compacting = s.continuity.compacting.has(id)
     const requested = projectCodingAbortRequest(
-      runningIds.value,
-      abortingIds.value,
+      s.runningIds,
+      s.abortingIds,
       id,
     )
     if (!requested.accepted && !compacting) return
     if (requested.accepted) {
-      runningIds.value = requested.running
-      abortingIds.value = requested.aborting
+      s.runningIds = requested.running
+      s.abortingIds = requested.aborting
       clearAbortStalled(id)
     }
     try {
@@ -1942,9 +2034,9 @@ export function useConversations() {
     } catch (reason) {
       clearAbortWatchdog(id)
       clearAbortStalled(id)
-      const nextAborting = new Set(abortingIds.value)
+      const nextAborting = new Set(s.abortingIds)
       nextAborting.delete(id)
-      abortingIds.value = nextAborting
+      s.abortingIds = nextAborting
       update(id, conversation => ({
         ...conversation,
         messages: [...conversation.messages, {
@@ -1959,7 +2051,7 @@ export function useConversations() {
   }
 
   function settleRunsForRuntimeRecovery() {
-    const running = [...runningIds.value]
+    const running = [...s.runningIds]
     if (!running.length) return
     for (const id of running) {
       setMessageQueue(id, { steering: [], followUp: [] })
@@ -1984,8 +2076,8 @@ export function useConversations() {
   }
 
   async function rewindContext() {
-    const conversation = active.value
-    if (!conversation || continuity.value.compacting.has(conversation.id)) return
+    const conversation = active()
+    if (!conversation || s.continuity.compacting.has(conversation.id)) return
     const kept = rewindVisibleMessages(conversation.messages)
     if (!kept) {
       update(conversation.id, current => ({
@@ -2000,7 +2092,7 @@ export function useConversations() {
       }))
       return
     }
-    if (runningIds.value.has(conversation.id)) finishRun(conversation.id)
+    if (s.runningIds.has(conversation.id)) finishRun(conversation.id)
     try {
       await invokeCommand('rewind_coding_session', {
         conversationId: conversation.id,
@@ -2033,11 +2125,11 @@ export function useConversations() {
   }
 
   async function handoffContext(kernel?: AgentKernel) {
-    const conversation = active.value
+    const conversation = active()
     if (
       !conversation
-      || runningIds.value.has(conversation.id)
-      || continuity.value.compacting.has(conversation.id)
+      || s.runningIds.has(conversation.id)
+      || s.continuity.compacting.has(conversation.id)
     ) return
     const targetKernel = normalizeAgentKernel(kernel ?? conversation.kernel)
     try {
@@ -2060,8 +2152,8 @@ export function useConversations() {
           status: 'done',
         }],
       }
-      conversations.value = [handed, ...conversations.value]
-      activeId.value = sessionId
+      s.conversations = [handed, ...s.conversations]
+      s.activeId = sessionId
       persist(handed)
     } catch (reason) {
       update(conversation.id, current => ({
@@ -2078,12 +2170,12 @@ export function useConversations() {
   }
 
   async function compactContext() {
-    const conversationId = activeId.value
-    if (!conversationId || continuity.value.compacting.has(conversationId)) return
+    const conversationId = s.activeId
+    if (!conversationId || s.continuity.compacting.has(conversationId)) return
     // Manual /compact is not gated at 80%. Running turns are aborted by Pi
     // compact itself; leftover GUI running flags must not swallow the click.
-    continuity.value = applyCodingContinuityEvent(
-      continuity.value,
+    s.continuity = applyCodingContinuityEvent(
+      s.continuity,
       conversationId,
       { type: 'runtime.compaction_started' },
     )
@@ -2096,14 +2188,14 @@ export function useConversations() {
         applySessionUsageAfterCompaction(state, compacted?.estimatedTokensAfter)
       ))
       persistSessionContextUsage(conversationId)
-      continuity.value = applyCodingContinuityEvent(
-        continuity.value,
+      s.continuity = applyCodingContinuityEvent(
+        s.continuity,
         conversationId,
         { type: 'runtime.compaction_completed' },
       )
     } catch (reason) {
-      continuity.value = applyCodingContinuityEvent(
-        continuity.value,
+      s.continuity = applyCodingContinuityEvent(
+        s.continuity,
         conversationId,
         {
           type: 'runtime.compaction_completed',
@@ -2115,12 +2207,12 @@ export function useConversations() {
   }
 
   async function controlGoal(action: 'pause' | 'resume' | 'clear') {
-    const conversationId = activeId.value
-    if (!conversationId || runningIds.value.has(conversationId)) return
-    const conversation = conversations.value.find(item => item.id === conversationId)
+    const conversationId = s.activeId
+    if (!conversationId || s.runningIds.has(conversationId)) return
+    const conversation = s.conversations.find(item => item.id === conversationId)
     if (!conversation) return
     if (action === 'resume') {
-      runningIds.value = new Set(runningIds.value).add(conversationId)
+      s.runningIds = new Set(s.runningIds).add(conversationId)
     }
     try {
       await invokeCommand('send_message', {
@@ -2159,7 +2251,7 @@ export function useConversations() {
     scope: 'once' | 'conversation' = 'once',
     choice?: string,
   ) {
-    const conversation = conversations.value.find(item => (
+    const conversation = s.conversations.find(item => (
       item.messages.some(message => (
         message.approvalRequestId === requestId
         && message.approvalState === 'pending'
@@ -2257,15 +2349,15 @@ export function useConversations() {
         const affected = Array.isArray(sessions)
           ? sessions
               .map(value => String(value ?? '').trim())
-              .filter(value => value && conversations.value.some(item => item.id === value))
+              .filter(value => value && s.conversations.some(item => item.id === value))
           : []
         if (!affected.length) return
         const affectedSet = new Set(affected)
         for (const id of affectedSet) activeTurnPolicies.delete(id)
-        for (const compactingId of [...continuity.value.compacting]) {
+        for (const compactingId of [...s.continuity.compacting]) {
           if (!affectedSet.has(compactingId)) continue
-          continuity.value = applyCodingContinuityEvent(
-            continuity.value,
+          s.continuity = applyCodingContinuityEvent(
+            s.continuity,
             compactingId,
             {
               type: 'runtime.compaction_completed',
@@ -2279,7 +2371,7 @@ export function useConversations() {
           : error
             ? t(`Agent 已停止：${agentRuntimeErrorMessage(error)}`, `Agent stopped: ${agentRuntimeErrorMessage(error)}`)
             : t('Agent 已停止。', 'Agent stopped.')
-        conversations.value = conversations.value.map(conversation => (
+        s.conversations = s.conversations.map(conversation => (
           affected.includes(conversation.id)
             ? {
                 ...conversation,
@@ -2305,22 +2397,22 @@ export function useConversations() {
               }
             : conversation
         ))
-        const nextRunning = new Set(runningIds.value)
-        const nextAborting = new Set(abortingIds.value)
+        const nextRunning = new Set(s.runningIds)
+        const nextAborting = new Set(s.abortingIds)
         for (const id of affectedSet) {
           clearTurnRunClock(id)
           clearAbortStalled(id)
           nextRunning.delete(id)
           nextAborting.delete(id)
         }
-        runningIds.value = nextRunning
-        abortingIds.value = nextAborting
+        s.runningIds = nextRunning
+        s.abortingIds = nextAborting
         // Only the conversations the stopped engine served are affected. A queue that
         // belongs to another engine keeps its steering and its follow-up untouched: a Pi
         // sidecar going away must not turn a DSH turn's queued guidance into "the turn
         // ended, nothing was delivered".
-        const keptQueues = new Map<string, CodingMessageQueue>(messageQueues.value)
-        const stalledQueues = new Set<string>(stalledQueueIds.value)
+        const keptQueues = new Map<string, CodingMessageQueue>(s.messageQueues)
+        const stalledQueues = new Set<string>(s.stalledQueueIds)
         for (const id of affectedSet) {
           const queue = keptQueues.get(id)
           if (!queue || !queue.steering.length) {
@@ -2331,8 +2423,8 @@ export function useConversations() {
           keptQueues.set(id, { steering: queue.steering, followUp: [] })
           stalledQueues.add(id)
         }
-        messageQueues.value = keptQueues
-        stalledQueueIds.value = stalledQueues
+        s.messageQueues = keptQueues
+        s.stalledQueueIds = stalledQueues
         for (const id of affected) scheduleSave(id)
         return
       }
@@ -2340,8 +2432,8 @@ export function useConversations() {
       if (isTurnActivityEvent(type)) {
         // The engine owns the truth: an in-turn event proves this session is still
         // running even if another engine's stop cleared the marker earlier.
-        if (!runningIds.value.has(sessionId)) {
-          runningIds.value = new Set(runningIds.value).add(sessionId)
+        if (!s.runningIds.has(sessionId)) {
+          s.runningIds = new Set(s.runningIds).add(sessionId)
         }
         patchTurnStatus(sessionId, state => (
           state.runStartedAt === undefined ? applySessionRunStarted(state) : state
@@ -2378,7 +2470,7 @@ export function useConversations() {
         return
       }
       if (type === 'runtime.subagent_tasks') {
-        conversations.value = conversations.value.map(conversation => (
+        s.conversations = s.conversations.map(conversation => (
           conversation.id === sessionId
             ? { ...conversation, subagentTasks: normalizeSubagentTasks(subagentTasks) }
             : conversation
@@ -2402,7 +2494,7 @@ export function useConversations() {
         return
       }
       if (type === 'session.queue_updated') {
-        const previousQueue = messageQueues.value.get(sessionId)
+        const previousQueue = s.messageQueues.get(sessionId)
           ?? { steering: [], followUp: [] }
         const nextQueue = projectCodingMessageQueue(steering, followUp)
         const appliedSteeringCount = Math.max(
@@ -2416,7 +2508,7 @@ export function useConversations() {
         if (!nextQueue.steering.length) markQueueStalled(sessionId, false)
         if (appliedSteeringCount > 0) {
           let remaining = appliedSteeringCount
-          conversations.value = conversations.value.map(conversation => (
+          s.conversations = s.conversations.map(conversation => (
             conversation.id === sessionId
               ? {
                   ...conversation,
@@ -2432,7 +2524,7 @@ export function useConversations() {
           ))
         }
       }
-      conversations.value = conversations.value.map(conversation => {
+      s.conversations = s.conversations.map(conversation => {
         if (conversation.id !== sessionId) return conversation
         const messages = [...conversation.messages]
         const last = messages.at(-1)
@@ -2443,8 +2535,8 @@ export function useConversations() {
           || type === 'session.turn_policy'
           || type === 'session.turn_policy_cleared'
         ) {
-          continuity.value = applyCodingContinuityEvent(
-            continuity.value,
+          s.continuity = applyCodingContinuityEvent(
+            s.continuity,
             sessionId,
             { type, resumed },
           )
@@ -2493,7 +2585,7 @@ export function useConversations() {
             status: 'done',
           })
         } else if (type === 'assistant.started') {
-          runningIds.value = new Set(runningIds.value).add(sessionId)
+          s.runningIds = new Set(s.runningIds).add(sessionId)
           patchTurnStatus(sessionId, state => (
             state.runStartedAt === undefined
               ? applySessionRunStarted(state)
@@ -2627,7 +2719,7 @@ export function useConversations() {
           if (cleaned !== messages) {
             messages.splice(0, messages.length, ...cleaned)
           }
-          const settledQueue = messageQueues.value.get(sessionId)
+          const settledQueue = s.messageQueues.get(sessionId)
           if (settledQueue?.steering.length) {
             // The turn ended before Pi consumed these steering messages. Keep
             // them visible so the reader can withdraw and resend instead of
@@ -2656,7 +2748,7 @@ export function useConversations() {
           )
           messages.splice(0, messages.length, ...nextMessages)
         } else if (type === 'engine.error') {
-          const erroredQueue = messageQueues.value.get(sessionId)
+          const erroredQueue = s.messageQueues.get(sessionId)
           if (erroredQueue?.steering.length) {
             setMessageQueue(sessionId, { steering: erroredQueue.steering, followUp: [] })
             markQueueStalled(sessionId, true)
@@ -2693,8 +2785,8 @@ export function useConversations() {
         }
         if (type === 'runtime.compaction_started' || type === 'runtime.compaction_completed') {
           const compactError = error ? codingCompactionErrorMessage(error) : ''
-          continuity.value = applyCodingContinuityEvent(
-            continuity.value,
+          s.continuity = applyCodingContinuityEvent(
+            s.continuity,
             sessionId,
             { type, aborted, error: compactError },
           )
@@ -2737,8 +2829,10 @@ export function useConversations() {
     })
   }
 
-  onBeforeUnmount(() => {
+  function dispose() {
+    stopWatchActiveId()
     disposeEvents?.()
+    disposeEvents = undefined
     activeTurnPolicies.clear()
     for (const timer of saveTimers.values()) window.clearTimeout(timer)
     saveTimers.clear()
@@ -2748,31 +2842,43 @@ export function useConversations() {
       document.removeEventListener('visibilitychange', onVisibilityChange)
     }
     if (idleReconcileTimer) window.clearInterval(idleReconcileTimer)
-  })
+  }
 
   return {
-    conversations,
-    activeId,
-    active,
-    workspacePath,
-    activeRunning,
-    runningConversationIds,
-    activeAborting,
-    activeAbortStalled,
-    activeMessageQueue,
-    activeQueuedGuidanceStalled,
-  engineNotice,
-  engineNoticeRepeat,
-    selectedKernel,
-    selectedModelMode,
-    selectedModelProvider,
-    selectedModelId,
-    selectedThinkingLevel,
-    selectedModelSourcePreference,
-    selectedExecutionMode,
-    selectedApprovalPolicy,
-    selectedMCPServers,
-    selectedMCPConfigDigest,
+    store,
+    dispose,
+    get conversations() { return s.conversations },
+    set conversations(value) { s.conversations = value },
+    get activeId() { return s.activeId },
+    set activeId(value) { s.activeId = value },
+    get active() { return active() },
+    get workspacePath() { return workspacePath() },
+    get activeRunning() { return activeRunning() },
+    get runningConversationIds() { return runningConversationIds() },
+    get activeAborting() { return activeAborting() },
+    get activeAbortStalled() { return activeAbortStalled() },
+    get activeMessageQueue() { return activeMessageQueue() },
+    get activeQueuedGuidanceStalled() { return activeQueuedGuidanceStalled() },
+    get engineNotice() { return s.engineNotice },
+    get engineNoticeRepeat() { return s.engineNoticeRepeat },
+    get selectedKernel() { return selectedKernel() },
+    get selectedModelMode() { return selectedModelMode() },
+    get selectedModelProvider() { return selectedModelProvider() },
+    get selectedModelId() { return selectedModelId() },
+    get selectedThinkingLevel() { return selectedThinkingLevel() },
+    get selectedModelSourcePreference() { return selectedModelSourcePreference() },
+    get selectedExecutionMode() { return selectedExecutionMode() },
+    get selectedApprovalPolicy() { return selectedApprovalPolicy() },
+    get selectedMCPServers() { return selectedMCPServers() },
+    get selectedMCPConfigDigest() { return selectedMCPConfigDigest() },
+    get conversationActionError() { return s.conversationActionError },
+    get pendingComposerDraft() { return s.pendingComposerDraft },
+    get activeSessionReady() { return activeSessionReady() },
+    get activeResumed() { return activeResumed() },
+    get activeCompacting() { return activeCompacting() },
+    get activeCompactedAt() { return activeCompactedAt() },
+    get activeCompactionError() { return activeCompactionError() },
+    get activeTurnStatus() { return activeTurnStatus() },
     load,
     listen,
     send,
@@ -2791,7 +2897,6 @@ export function useConversations() {
     setConversationPinned,
     movePinnedConversation,
     reorderPinnedConversation,
-    conversationActionError,
     cancelQueuedGuidance,
     editQueuedGuidance,
     startNew,
@@ -2805,14 +2910,14 @@ export function useConversations() {
     setCodingPolicy,
     setMCPSelection,
     startWorkspaceTask,
-    pendingComposerDraft,
     stageComposerDraft,
     consumeComposerDraft,
-    activeSessionReady,
-    activeResumed,
-    activeCompacting,
-    activeCompactedAt,
-    activeCompactionError,
-    activeTurnStatus,
   }
 }
+
+
+export function useConversations() {
+  return createConversationsRuntime()
+}
+
+export type ConversationsRuntime = ReturnType<typeof createConversationsRuntime>

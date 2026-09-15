@@ -1,3 +1,4 @@
+import { useStoreRuntime } from '@/lib/reactStore'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Alert,
@@ -71,7 +72,6 @@ import {
 } from '@/lib/ctfManualStatus'
 import { deriveCTFWorkspacePresentation } from '@/lib/ctfWorkspacePresentation'
 import { useT } from '@/hooks/useUiLocale'
-import { useVue, useVueStore } from '@/hooks/useVueStore'
 import type {
   CTFAgentWorkspaceHandoff,
   CTFChallengeRequest,
@@ -222,38 +222,38 @@ export default function CTFPage({
   onEditQueuedGuidance?: (index: number) => void
 }) {
   const t = useT()
-  const backend = useVueStore(() => useCTFWorkspace())
-  const platformRegistry = useVueStore(() => useCTFTrainingPlatforms())
-  const publicProblems = useVueStore(() => useNSSCTFChallenges())
-  const arena = useVueStore(() => useNSSCTFArena())
-  const webBridge = useVueStore(() => useNSSCTFWebBridge())
-  const training = useVueStore(() => useNSSCTFTraining())
-  const publicCatalog = useVueStore(() => useNSSCTFCatalog())
-  const ctfshow = useVueStore(() => useCTFShowCatalog())
-  const ctfCollections = useVueStore(() => createItemCollectionStore('milksu.ctf.collections.v1'))
+  const backend = useStoreRuntime(() => useCTFWorkspace())
+  const platformRegistry = useStoreRuntime(() => useCTFTrainingPlatforms())
+  const publicProblems = useStoreRuntime(() => useNSSCTFChallenges())
+  const arena = useStoreRuntime(() => useNSSCTFArena())
+  const webBridge = useStoreRuntime(() => useNSSCTFWebBridge())
+  const training = useStoreRuntime(() => useNSSCTFTraining())
+  const publicCatalog = useStoreRuntime(() => useNSSCTFCatalog())
+  const ctfshow = useStoreRuntime(() => useCTFShowCatalog())
+  const ctfCollections = useStoreRuntime(() => createItemCollectionStore('milksu.ctf.collections.v1'))
 
-  const jobs = useVue(() => backend.jobs.value)
-  const projection = useVue(() => backend.projection.value)
-  const agentBudget = useVue(() => backend.agentBudget.value)
-  const agentRun = useVue(() => backend.agentRun.value)
-  const backendLoading = useVue(() => backend.loading.value)
-  const backendError = useVue(() => backend.error.value)
-  const platforms = useVue(() => platformRegistry.platforms.value)
-  const publicProblemsError = useVue(() => publicProblems.error.value)
-  const arenaError = useVue(() => arena.error.value)
-  const arenaWorkspace = useVue(() => arena.workspace.value)
-  const webBridgeStatus = useVue(() => webBridge.status.value)
-  const webBridgeError = useVue(() => webBridge.error.value)
-  const trainingDashboard = useVue(() => training.dashboard.value)
-  const trainingError = useVue(() => training.error.value)
-  const trainingSyncing = useVue(() => training.syncing.value)
-  const catalogResult = useVue(() => publicCatalog.result.value)
-  const catalogLoading = useVue(() => publicCatalog.loading.value)
-  const catalogError = useVue(() => publicCatalog.error.value)
-  const ctfshowStatus = useVue(() => ctfshow.status.value)
-  const ctfshowLoading = useVue(() => ctfshow.loading.value)
-  const ctfshowError = useVue(() => ctfshow.error.value)
-  const collectionRevision = useVue(() => ctfCollections.revision.value)
+  const jobs = backend.jobs
+  const projection = backend.projection
+  const agentBudget = backend.agentBudget
+  const agentRun = backend.agentRun
+  const backendLoading = backend.loading
+  const backendError = backend.error
+  const platforms = platformRegistry.platforms
+  const publicProblemsError = publicProblems.error
+  const arenaError = arena.error
+  const arenaWorkspace = arena.workspace
+  const webBridgeStatus = webBridge.status
+  const webBridgeError = webBridge.error
+  const trainingDashboard = training.dashboard
+  const trainingError = training.error
+  const trainingSyncing = training.syncing
+  const catalogResult = publicCatalog.result
+  const catalogLoading = publicCatalog.loading
+  const catalogError = publicCatalog.error
+  const ctfshowStatus = ctfshow.status
+  const ctfshowLoading = ctfshow.loading
+  const ctfshowError = ctfshow.error
+  const collectionRevision = ctfCollections.revision
 
   const storedTrainingSource = window.localStorage.getItem('milksu.ctf.question-bank')
   const storedCollaborationMode = window.localStorage.getItem('milksu.ctf.collaboration-mode')
@@ -636,7 +636,7 @@ export default function CTFPage({
       const handoff = await invokeCommand<CTFAgentWorkspaceHandoff>('prepare_ctf_agent_workspace', {
         id: activeProjection.job.id,
       })
-      backend.agentRun.value = handoff.run
+      backend.agentRun = handoff.run
       onStartCodingAgent?.(handoff)
     } catch (reason) {
       setOutcomeNotice(t(`无法打开 Coding 上下文：${String(reason)}`, `Could not open the Coding context: ${String(reason)}`))
@@ -712,7 +712,7 @@ export default function CTFPage({
         materials,
       })
       if (!started) {
-        setAttachmentError(backend.error.value ?? t('无法建立 CTF 工作台。', 'Could not create the CTF workspace.'))
+        setAttachmentError(backend.error ?? t('无法建立 CTF 工作台。', 'Could not create the CTF workspace.'))
         return
       }
       if (materialWarning) {
@@ -984,7 +984,7 @@ export default function CTFPage({
         await refreshTrainingProgress()
         setOutcomeNotice(result.receipt.correct ? `CTFshow #${result.receipt.problemId} Accepted。` : `CTFshow #${result.receipt.problemId} Rejected。`)
       } else {
-        setOutcomeNotice(ctfshow.error.value ?? t('CTFshow Judge 没有返回可确认结果。', 'CTFshow Judge did not return a confirmable result.'))
+        setOutcomeNotice(ctfshow.error ?? t('CTFshow Judge 没有返回可确认结果。', 'CTFshow Judge did not return a confirmable result.'))
         await backend.loadJobs()
       }
       setWorking(false)
@@ -999,7 +999,7 @@ export default function CTFPage({
         setOutcomeNotice(result.receipt.correct ? `NSSCTF P${result.receipt.problemId} Accepted。` : `NSSCTF P${result.receipt.problemId} Rejected。`)
       } else {
         await backend.loadJobs()
-        setPlatformReview(backend.projection.value?.evaluations.at(-1)?.verdict === 'inconclusive')
+        setPlatformReview(backend.projection?.evaluations.at(-1)?.verdict === 'inconclusive')
       }
       setWorking(false)
       return
@@ -1026,7 +1026,7 @@ export default function CTFPage({
         ? t(`候选已复制并打开${externalJudgeLabel}；提交后回来记录结果。`, `Candidate copied and ${externalJudgeLabel} opened; come back to record the result after submitting.`)
         : t(`候选已复制；在${externalJudgeLabel}提交后回来记录结果。`, `Candidate copied; submit on ${externalJudgeLabel}, then come back to record the result.`)))
     } else {
-      setOutcomeNotice(backend.error.value ?? t('候选没有进入外部 Judge 闸门。', 'The candidate did not enter the external Judge gate.'))
+      setOutcomeNotice(backend.error ?? t('候选没有进入外部 Judge 闸门。', 'The candidate did not enter the external Judge gate.'))
     }
     setWorking(false)
   }

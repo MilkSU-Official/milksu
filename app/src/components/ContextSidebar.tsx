@@ -372,28 +372,33 @@ export default function ContextSidebar({
     if (actionError) setPendingActionRunning(false)
   }, [actionError])
 
+  const runningIdsKey = (runningIdsProp ?? []).join('\0')
   useEffect(() => {
     const next = new Set(runningIdsProp ?? [])
     if (observedRunningIds.current) {
       setUnreadConversationIds(current => {
+        let changed = false
         const unread = new Set(current)
         for (const id of observedRunningIds.current!) {
-          if (!next.has(id) && id !== activeConversationId) unread.add(id)
+          if (!next.has(id) && id !== activeConversationId && !unread.has(id)) {
+            unread.add(id)
+            changed = true
+          }
         }
-        return unread
+        return changed ? unread : current
       })
     }
     observedRunningIds.current = next
-  }, [runningIdsProp, activeConversationId])
+  }, [runningIdsKey, activeConversationId])
 
   useEffect(() => {
-    if (activeConversationId) {
-      setUnreadConversationIds(current => {
-        const next = new Set(current)
-        next.delete(activeConversationId)
-        return next
-      })
-    }
+    if (!activeConversationId) return
+    setUnreadConversationIds(current => {
+      if (!current.has(activeConversationId)) return current
+      const next = new Set(current)
+      next.delete(activeConversationId)
+      return next
+    })
   }, [activeConversationId])
 
   useEffect(() => {

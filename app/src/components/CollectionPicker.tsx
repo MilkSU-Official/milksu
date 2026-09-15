@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { Bookmark, Plus } from 'lucide-react'
 import { Button, Checkbox, Input, Popover, PopoverContent, PopoverTrigger } from '@/components/ui'
 import type { ItemCollectionStore } from '@/lib/itemCollections'
-import { useVue } from '@/hooks/useVueStore'
 import { useT } from '@/hooks/useUiLocale'
 
 export default function CollectionPicker({
@@ -13,8 +12,8 @@ export default function CollectionPicker({
   store: ItemCollectionStore
 }) {
   const t = useT()
-  const collections = useVue(() => store.collections.value)
-  const saved = useVue(() => store.has(itemKey))
+  const collections = store.collections
+  const saved = store.has(itemKey)
   const [newName, setNewName] = useState('')
   const [error, setError] = useState('')
 

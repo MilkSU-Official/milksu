@@ -2,7 +2,8 @@ import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, 
 import AppSidebar from '@/components/AppSidebar'
 import UpdateInstallDialog from '@/components/UpdateInstallDialog'
 import CodingToolBudgetDialog from '@/components/CodingToolBudgetDialog'
-import { useConversations } from '@/composables/useConversations'
+import { useConversations } from '@/stores/conversationsStore'
+import { useLabJobs } from '@/stores/labJobsStore'
 import { invokeCommand, listenEvent } from '@/desktop'
 import type { CTFAgentWorkspaceHandoff } from '@/ctfTypes'
 import { useVulnerabilityDashboard, type VulnerabilityCodingTask } from '@/composables/useVulnerabilityDashboard'
@@ -25,7 +26,6 @@ import {
   applyLabJobRecord,
   hydrateLabJobsFromBackend,
   removeLabJobIds,
-  useLabJobs,
   type LabJob,
 } from '@/composables/useLabJobs'
 import type { CodingAgentSurfaceBind } from '@/lib/codingAgentSurface'
@@ -34,7 +34,7 @@ import { executeVulnerabilityCodingHandoff } from '@/lib/vulnerabilityCodingHand
 import { debugLog } from '@/lib/debugMode'
 import { applyUiLocale } from '@/lib/uiLocale'
 import { useT } from '@/hooks/useUiLocale'
-import { useVue, useVueStore } from '@/hooks/useVueStore'
+import { useStore, useStoreRuntime } from '@/lib/reactStore'
 import { cn } from '@/lib/cn'
 import { readWorkspaceViewState, writeWorkspaceViewState } from '@/lib/workspaceViewState'
 import { buildCTFDomainTaskContext, buildCVEDomainTaskContext, type DomainTaskContext } from '@/lib/domainTaskContext'
@@ -177,9 +177,10 @@ export default function App() {
     typeof location !== 'undefined'
     && new URLSearchParams(location.search).get('open-settings') === 'plugins',
   ).current
-  const conversations = useVueStore(() => useConversations())
-  const vulnerabilityDashboard = useVueStore(() => useVulnerabilityDashboard())
-  const labJobs = useVueStore(() => useLabJobs())
+  const conversations = useConversations()
+  const vulnerabilityDashboard = useStoreRuntime(() => useVulnerabilityDashboard())
+  const labJobs = useLabJobs()
+  useStore(labJobs.store)
 
   const [section, setSection] = useState<Section>(openPluginSettingsOnStartup ? 'settings' : restoredViewState?.section ?? 'ctf')
   const [keptWorkspacePages, setKeptWorkspacePages] = useState<Set<DomainHome>>(() => {
@@ -231,40 +232,40 @@ export default function App() {
   codingConversationDrawerOpenRef.current = codingConversationDrawerOpen
   ctfSectionRef.current = ctfSection
 
-  const conv = useVue(() => ({
-    rows: conversations.conversations.value,
-    activeId: conversations.activeId.value,
-    active: conversations.active.value,
-    workspacePath: conversations.workspacePath.value,
-    running: conversations.activeRunning.value,
-    aborting: conversations.activeAborting.value,
-    abortStalled: conversations.activeAbortStalled.value,
-    messageQueue: conversations.activeMessageQueue.value,
-    sessionReady: conversations.activeSessionReady.value,
-    resumed: conversations.activeResumed.value,
-    compacting: conversations.activeCompacting.value,
-    compactedAt: conversations.activeCompactedAt.value,
-    compactionError: conversations.activeCompactionError.value,
-    turnStatus: conversations.activeTurnStatus.value,
-    runningIds: conversations.runningConversationIds.value,
-    actionError: conversations.conversationActionError.value,
-    kernel: conversations.selectedKernel.value,
-    modelMode: conversations.selectedModelMode.value,
-    modelProvider: conversations.selectedModelProvider.value,
-    modelId: conversations.selectedModelId.value,
-    thinkingLevel: conversations.selectedThinkingLevel.value,
-    modelSourcePreference: conversations.selectedModelSourcePreference.value,
-    executionMode: conversations.selectedExecutionMode.value,
-    approvalPolicy: conversations.selectedApprovalPolicy.value,
-    mcpServers: conversations.selectedMCPServers.value,
-    mcpConfigDigest: conversations.selectedMCPConfigDigest.value,
-    pendingComposerDraft: conversations.pendingComposerDraft.value,
-    engineNotice: conversations.engineNotice.value,
-    engineNoticeRepeat: conversations.engineNoticeRepeat.value,
-  }))
-  const trackedVulnerabilities = useVue(() => vulnerabilityDashboard.tracked.value)
-  const toolBudgetPrompt = useVue(() => {
-    for (const conversation of conversations.conversations.value) {
+  const conv = {
+    rows: conversations.conversations,
+    activeId: conversations.activeId,
+    active: conversations.active,
+    workspacePath: conversations.workspacePath,
+    running: conversations.activeRunning,
+    aborting: conversations.activeAborting,
+    abortStalled: conversations.activeAbortStalled,
+    messageQueue: conversations.activeMessageQueue,
+    sessionReady: conversations.activeSessionReady,
+    resumed: conversations.activeResumed,
+    compacting: conversations.activeCompacting,
+    compactedAt: conversations.activeCompactedAt,
+    compactionError: conversations.activeCompactionError,
+    turnStatus: conversations.activeTurnStatus,
+    runningIds: conversations.runningConversationIds,
+    actionError: conversations.conversationActionError,
+    kernel: conversations.selectedKernel,
+    modelMode: conversations.selectedModelMode,
+    modelProvider: conversations.selectedModelProvider,
+    modelId: conversations.selectedModelId,
+    thinkingLevel: conversations.selectedThinkingLevel,
+    modelSourcePreference: conversations.selectedModelSourcePreference,
+    executionMode: conversations.selectedExecutionMode,
+    approvalPolicy: conversations.selectedApprovalPolicy,
+    mcpServers: conversations.selectedMCPServers,
+    mcpConfigDigest: conversations.selectedMCPConfigDigest,
+    pendingComposerDraft: conversations.pendingComposerDraft,
+    engineNotice: conversations.engineNotice,
+    engineNoticeRepeat: conversations.engineNoticeRepeat,
+  }
+  const trackedVulnerabilities = vulnerabilityDashboard.tracked
+  const toolBudgetPrompt = useMemo(() => {
+    for (const conversation of conversations.conversations) {
       const pending = [...conversation.messages].reverse().find(message => (
         message.toolName === toolBudgetToolName
         && message.approvalState === 'pending'
@@ -278,7 +279,7 @@ export default function App() {
       }
     }
     return null
-  })
+  }, [conversations.conversations])
 
   const resolvedTheme = useMemo<ResolvedThemeMode>(
     () => resolveThemeMode(themeMode, systemDark),
@@ -434,7 +435,7 @@ export default function App() {
     writeWorkspaceViewState({
       version: 1,
       section: sectionRef.current,
-      activeConversationId: conversations.activeId.value,
+      activeConversationId: conversations.activeId,
       codingHistoryOpen: codingConversationDrawerOpenRef.current,
       ctfSection: ctfSectionRef.current,
       settingsReturnTarget: settingsReturnTargetRef.current,
@@ -549,7 +550,7 @@ export default function App() {
   }
 
   function rememberActiveConversation() {
-    const remembered = rememberWorkspaceConversation(conversations.active.value, {
+    const remembered = rememberWorkspaceConversation(conversations.active, {
       codingConversationId: lastCodingConversationId.current,
       ctfConversationId: lastCTFConversationId.current,
       vulnConversationId: activeVulnerabilityCodingConversationId.current,
@@ -559,21 +560,21 @@ export default function App() {
     lastCTFConversationId.current = remembered.ctfConversationId
     activeVulnerabilityCodingConversationId.current = remembered.vulnConversationId
     lastLabConversationId.current = remembered.labConversationId
-    itemChatAnchors.current = rememberItemChatAnchor(itemChatAnchors.current, conversations.active.value)
+    itemChatAnchors.current = rememberItemChatAnchor(itemChatAnchors.current, conversations.active)
   }
 
   function restoreCodingWorkspace() {
-    const restored = conversations.conversations.value.find(conversation => (
+    const restored = conversations.conversations.find(conversation => (
       conversation.id === lastCodingConversationId.current && isHomeConversation(conversation)
     ))
-    if (restored) conversations.activeId.value = restored.id
+    if (restored) conversations.activeId = restored.id
     else conversations.startNew()
   }
 
   function restoreCTFWorkspaceResumePoint() {
     const next = selectCTFResumePoint(
-      conversations.conversations.value,
-      conversations.activeId.value,
+      conversations.conversations,
+      conversations.activeId,
       lastCTFConversationId.current,
     )
     setCtfResumeJobId(next.jobId)
@@ -583,8 +584,8 @@ export default function App() {
   function restoreConversation(id: string | null) {
     const conversationId = String(id ?? '').trim()
     if (!conversationId) return
-    if (conversations.conversations.value.some(item => item.id === conversationId)) {
-      conversations.activeId.value = conversationId
+    if (conversations.conversations.some(item => item.id === conversationId)) {
+      conversations.activeId = conversationId
     }
   }
 
@@ -594,9 +595,9 @@ export default function App() {
       setCtfResumeJobId(null)
       setCtfCatalogEpoch(value => value + 1)
     }
-    if (home === 'lab') labJobs.selectedId.value = ''
+    if (home === 'lab') labJobs.selectedId = ''
     if (home === 'vuln') {
-      vulnerabilityDashboard.selectedId.value = ''
+      vulnerabilityDashboard.selectedId = ''
       setVulnNavigationEpoch(value => value + 1)
     }
     conversations.startNew({ workspaceHome: home })
@@ -670,10 +671,10 @@ export default function App() {
   }
 
   function selectSidebarConversation(id: string) {
-    const target = conversations.conversations.value.find(item => item.id === id)
+    const target = conversations.conversations.find(item => item.id === id)
     if (!target) return
     rememberActiveConversation()
-    conversations.activeId.value = id
+    conversations.activeId = id
     rememberActiveConversation()
     const home = conversationWorkspaceHome(target)
     setCodingConversationDrawerOpen(true)
@@ -700,12 +701,12 @@ export default function App() {
   function selectCodingWorkspace(path: string) {
     const next = path.trim()
     if (!next) return
-    if (conversations.active.value?.messages.length) newConversation()
+    if (conversations.active?.messages.length) newConversation()
     conversations.setWorkspace(next)
   }
 
   function clearCodingWorkspace() {
-    if (conversations.active.value?.messages.length) newConversation()
+    if (conversations.active?.messages.length) newConversation()
     conversations.clearWorkspace()
   }
 
@@ -714,7 +715,7 @@ export default function App() {
     if (!next) return
     try {
       await invokeCommand('forget_coding_project', { path: next })
-      if (conversations.workspacePath.value === next) conversations.clearWorkspace()
+      if (conversations.workspacePath === next) conversations.clearWorkspace()
     } catch (reason) {
       console.error(reason)
     }
@@ -734,7 +735,7 @@ export default function App() {
   }
 
   async function abortConversation() {
-    const conversationId = conversations.activeId.value
+    const conversationId = conversations.activeId
     if (conversationId) await conversations.abort(conversationId)
   }
 
@@ -769,13 +770,13 @@ export default function App() {
       domainTaskContext: handoff.domainTaskContext ?? domainContextFromCTFHandoff(handoff),
       autoSend: false,
     })
-    lastCTFConversationId.current = conversations.activeId.value
+    lastCTFConversationId.current = conversations.activeId
     setDomainChatDockOpen(true)
   }
 
   function selectDossierConversation(id: string) {
-    if (!conversations.conversations.value.some(item => item.id === id)) return
-    conversations.activeId.value = id
+    if (!conversations.conversations.some(item => item.id === id)) return
+    conversations.activeId = id
     rememberActiveConversation()
     setDomainChatDockOpen(true)
   }
@@ -796,7 +797,7 @@ export default function App() {
   ) {
     rememberActiveConversation()
     const reused = selectAnchoredDomainConversationId(
-      conversations.conversations.value,
+      conversations.conversations,
       domainTaskContext,
       itemChatAnchors.current,
     )
@@ -808,7 +809,7 @@ export default function App() {
     setDomainChatDockOpen(true)
     try {
       const workspace = await invokeCommand<string>('ensure_coding_artifact_workspace', {
-        conversationId: conversations.activeId.value,
+        conversationId: conversations.activeId,
       })
       if (workspace) conversations.setWorkspace(workspace)
     } catch {
@@ -830,7 +831,7 @@ export default function App() {
         affected: item.affected,
       }),
     )
-    activeVulnerabilityCodingConversationId.current = conversations.activeId.value
+    activeVulnerabilityCodingConversationId.current = conversations.activeId
   }
 
   async function runVulnerabilityReproduction(item: VulnerabilityIntel) {
@@ -839,7 +840,7 @@ export default function App() {
 
   async function runLabJob(job: LabJob) {
     await enterLabJob(job)
-    const conversation = conversations.active.value
+    const conversation = conversations.active
     if (conversation && conversation.messages.length === 0) {
       const briefing = labBriefing({ scope: job.scope, request: job.request })
       await conversations.send(briefing.prompt, briefing.visible)
@@ -863,7 +864,7 @@ export default function App() {
         request: job.request,
       },
     )
-    lastLabConversationId.current = conversations.activeId.value
+    lastLabConversationId.current = conversations.activeId
   }
 
   function applyWorkspaceRecord(payload: {
@@ -879,14 +880,14 @@ export default function App() {
     const id = String(payload.id || record.id || '').trim()
     if (action === 'focus') {
       if (kind === 'lab' && id) {
-        labJobs.selectedId.value = id
-        const job = labJobs.jobs.value.find(item => item.id === id)
+        labJobs.selectedId = id
+        const job = labJobs.jobs.find(item => item.id === id)
         setSection('lab')
         if (job) void enterLabJob(job)
         return
       }
       if (kind === 'cve' && id) {
-        vulnerabilityDashboard.selectedId.value = id.toUpperCase()
+        vulnerabilityDashboard.selectedId = id.toUpperCase()
         setSection('vuln')
         return
       }
@@ -955,9 +956,9 @@ export default function App() {
       rememberActiveConversation,
       startNewConversation: conversations.startNew,
       ensureConversation: conversations.ensureConversation,
-      activeConversationId: () => conversations.activeId.value,
+      activeConversationId: () => conversations.activeId,
       reusableConversationId: context => selectReusableDomainConversationId(
-        conversations.conversations.value,
+        conversations.conversations,
         context,
       ),
       setLastCodingConversationId: id => {
@@ -966,12 +967,12 @@ export default function App() {
       setSection: () => { setSection('vuln') },
     })
     if (accepted) {
-      recordHandoff?.(conversations.workspacePath.value)
+      recordHandoff?.(conversations.workspacePath)
     }
   }
 
   async function switchCTFAgent(role: 'solver' | 'tool-builder' | 'strategist') {
-    const conversation = conversations.active.value
+    const conversation = conversations.active
     if (!conversation?.ctfJobId) return
     if (conversation.ctfRole === role) return
     const command = role === 'tool-builder'
@@ -988,14 +989,14 @@ export default function App() {
         domainTaskContext: domainContextFromCTFHandoff(handoff),
         autoSend: false,
       })
-      lastCTFConversationId.current = conversations.activeId.value
+      lastCTFConversationId.current = conversations.activeId
     } catch (reason) {
       console.error('Failed to switch CTF Agent role', reason)
     }
   }
 
   async function runCTFChatAction(action: CTFChatAction) {
-    const conversation = conversations.active.value
+    const conversation = conversations.active
     if (!conversation || !conversation.ctfJobId) return
     if (action.kind === 'hint' && action.level && conversation.ctfJobId) {
       try {
@@ -1267,10 +1268,10 @@ export default function App() {
         `wall=${parallelWallMs}ms catalog=${catalogMs}ms settings=${settingsMs}ms account=${accountMs}ms conversations=${conversationsMs}ms pluginTheme=${pluginThemeMs}ms slowest=${slowest}ms accountLoaded=${true} provisional=${accountStatusRef.current.provisional === true}`,
       )
       if (restoredViewState) {
-        const restoredConversation = conversations.conversations.value.find(
+        const restoredConversation = conversations.conversations.find(
           conversation => conversation.id === restoredViewState.activeConversationId,
         )
-        conversations.activeId.value = restoredConversation?.id ?? null
+        conversations.activeId = restoredConversation?.id ?? null
         if (restoredConversation?.ctfJobId) lastCTFConversationId.current = restoredConversation.id
         else if (restoredConversation) lastCodingConversationId.current = restoredConversation.id
       }
@@ -1397,7 +1398,7 @@ export default function App() {
           {t('本地运行时已停止', 'Local runtime stopped')}
         </p>
       ) : null}
-      <div className="relative z-10 flex min-h-0 flex-1">
+      <div className="relative z-10 flex min-h-0 flex-1 app-no-drag">
         <AppSidebar
           activeSection={section}
           activeConversationId={conv.activeId}

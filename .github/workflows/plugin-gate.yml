@@ -15,7 +15,6 @@ on:
       - 'internal/plugin/**'
       - 'package-lock.json'
       - 'package.json'
-      - 'packages/ui'
       - 'plugins/**'
       - 'scripts/build-plugins.mjs'
       - 'scripts/plugin-tools.mjs'

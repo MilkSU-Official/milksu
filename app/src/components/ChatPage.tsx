@@ -175,12 +175,11 @@ import {
   modelServiceSourceLabel,
   parseComposerModelKey,
   providerModelLabel,
-  useModelCatalog,
+  useLiveModelCatalog,
 } from '@/modelCatalog'
 import { enabledCodingSkillNames } from '@/codingSkills'
 import type { AgentResourceCatalog, AgentResourceSkill } from '@/agentResourceTypes'
 import { useT } from '@/hooks/useUiLocale'
-import { useVue, useVueStore } from '@/hooks/useVueStore'
 import { cn } from '@/lib/cn'
 
 const CodingTerminalPanel = lazy(() => import('@/components/CodingTerminalPanel'))
@@ -356,9 +355,9 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
 }: ChatPageProps, ref) {
   const t = useT()
   const dockSurface = surface === 'dock'
-  const catalog = useVueStore(() => useModelCatalog())
-  const pickerGroups = useVue(() => catalog.pickerGroups.value)
-  const modelCatalogSnapshot = useVue(() => catalog.snapshot.value)
+  const catalog = useLiveModelCatalog()
+  const pickerGroups = catalog.pickerGroups
+  const modelCatalogSnapshot = catalog.snapshot
 
   const [goalMode, setGoalMode] = useState(false)
   const [stagedComposerPrompt, setStagedComposerPrompt] = useState<{

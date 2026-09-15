@@ -1,5 +1,5 @@
-import { computed, nextTick, ref, watch } from '@/lib/reactiveStore'
-import { useEffect } from 'react'
+import { createStore, nextTick, useStoreRuntime } from '@/lib/reactStore'
+import { useEffect, useRef } from 'react'
 import { LockKeyhole, Pencil, RotateCw, UserRound } from 'lucide-react'
 import { Button } from '@/components/ui'
 import profileAvatar from '@/assets/ctf-learner-avatar.png'
@@ -9,7 +9,6 @@ import type { CTFSummary } from '@/ctfTypes'
 import { providerModelLabel } from '@/modelCatalog'
 import {
   EMPTY_CODING_USAGE,
-  type CodingUsageDay,
   type CodingUsageSnapshot,
 } from '@/modelUsageTypes'
 import type { AccountStatus, Conversation } from '@/types'
@@ -26,10 +25,28 @@ import {
   vulnActivities,
   type PersonalActivityModule,
 } from '@/lib/personalProfile'
-import { useVue, useVueStore } from '@/hooks/useVueStore'
 import { useT } from '@/hooks/useUiLocale'
 
+type Translate = (zh: string, en: string) => string
 type ProfileTab = 'ctf' | 'vuln' | 'coding'
+type SelectedDays = Record<ProfileTab, string>
+
+type ProfileState = {
+  accountStatus: AccountStatus
+  conversations: Conversation[]
+  vulnerabilities: VulnerabilityIntel[]
+  ctfJobs: CTFSummary[]
+  codingUsage: CodingUsageSnapshot
+  activeTab: ProfileTab
+  selectedDay: SelectedDays
+  loading: boolean
+  error: string
+  editing: boolean
+  displayName: string
+  bio: string
+  customAvatar: string
+  avatarError: string
+}
 
 const tabs: Array<{ id: ProfileTab, label: string }> = [
   { id: 'ctf', label: 'CTF' },
@@ -44,6 +61,140 @@ const moduleClass: Record<PersonalActivityModule, string> = {
 }
 
 const USAGE_RETRY_DELAYS = [2_000, 5_000, 10_000]
+function trimDecimal(value: number) {
+  return value.toFixed(value >= 100 ? 0 : value >= 10 ? 1 : 2).replace(/\.0+$/u, '')
+}
+
+function compactNumber(value: number, t: Translate) {
+  if (value >= 100_000_000) return t(`${trimDecimal(value / 100_000_000)}亿`, `${trimDecimal(value / 1_000_000)}M`)
+  if (value >= 10_000) return t(`${trimDecimal(value / 10_000)}万`, `${trimDecimal(value / 1_000)}K`)
+  return t(new Intl.NumberFormat('zh-CN').format(value), new Intl.NumberFormat('en').format(value))
+}
+
+function modelLabel(provider: string, model: string) {
+  const value = providerModelLabel(provider, model)
+  return value.includes(' · ') ? value.split(' · ').at(-1) || model : value
+}
+
+function sourceLabel(source: string, t: Translate) {
+  if (source === 'account') return t('账户分配模型', 'Account-assigned model')
+  if (source === 'personal') return t('个人 API', 'Personal API')
+  return t('未标注来源', 'Unlabeled source')
+}
+
+function formatDuration(durationMs: number, t: Translate) {
+  if (durationMs < 1000) return `${Math.round(durationMs)} ms`
+  return t(`${trimDecimal(durationMs / 1000)} 秒`, `${trimDecimal(durationMs / 1000)}s`)
+}
+
+function formatDate(timestamp: number, t: Translate) {
+  const date = new Date(timestamp)
+  return t(
+    new Intl.DateTimeFormat('zh-CN', { month: 'numeric', day: 'numeric' }).format(date),
+    new Intl.DateTimeFormat('en', { month: 'numeric', day: 'numeric' }).format(date),
+  )
+}
+
+function selectedDateLabel(day: string, t: Translate) {
+  if (!day) return t('尚无记录日期', 'No recorded date yet')
+  const date = new Date(`${day}T12:00:00`)
+  return t(
+    new Intl.DateTimeFormat('zh-CN', { month: 'long', day: 'numeric' }).format(date),
+    new Intl.DateTimeFormat('en', { month: 'long', day: 'numeric' }).format(date),
+  )
+}
+
+function calendarCellTitle(day: string, value: number, activeTab: ProfileTab, t: Translate) {
+  if (!value) return t(`${day} · 无记录`, `${day} · no activity`)
+  if (activeTab === 'coding') return t(`${day} · ${compactNumber(value, t)} Token`, `${day} · ${compactNumber(value, t)} tokens`)
+  return t(`${day} · ${value} 条真实记录`, `${day} · ${value} confirmed records`)
+}
+
+function ctfState(job: CTFSummary, t: Translate) {
+  if (job.verdict === 'pass') return t('Judge 已验证', 'Judge verified')
+  if (job.verdict === 'fail') return t('Judge 未通过', 'Judge failed')
+  if (job.pendingJudge) return t('等待 Judge', 'Waiting for Judge')
+  if (job.pendingSubmission) return t('等待提交', 'Waiting to submit')
+  if (job.status === 'running') return t('练习中', 'In practice')
+  if (job.status === 'failed') return t('任务已结束', 'Task ended')
+  return t('继续练习', 'Continue practice')
+}
+
+function aggregateLabels(values: string[], t: Translate) {
+  const counts = new Map<string, number>()
+  for (const raw of values) {
+    const label = raw.trim() || t('未标注', 'Unlabeled')
+    counts.set(label, (counts.get(label) ?? 0) + 1)
+  }
+  return [...counts.entries()]
+    .map(([label, count]) => ({ label, count }))
+    .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label, 'zh-CN'))
+}
+
+function referenceSource(reference: { label: string, href: string }, t: Translate) {
+  const label = reference.label.trim()
+  if (label) return label
+  try {
+    return new URL(reference.href).hostname.replace(/^www\./u, '')
+  } catch {
+    return t('其他来源', 'Other source')
+  }
+}
+
+function rawDayCountsFrom(state: ProfileState) {
+  if (state.activeTab === 'coding') {
+    return Object.fromEntries(state.codingUsage.days.map(day => [day.date, day.totalTokens]))
+  }
+  const records = state.activeTab === 'ctf'
+    ? ctfActivities(state.ctfJobs)
+    : vulnActivities(state.vulnerabilities, state.conversations)
+  const counts: Record<string, number> = {}
+  for (const activity of records) {
+    const day = localDayKey(activity.timestamp)
+    counts[day] = (counts[day] ?? 0) + 1
+  }
+  return counts
+}
+
+function calendarLevelsFrom(rawDayCounts: Record<string, number>) {
+  const values = Object.values(rawDayCounts).filter(value => value > 0).sort((left, right) => left - right)
+  const counts: Record<string, number> = {}
+  if (!values.length) return counts
+  const max = values.at(-1) ?? 1
+  for (const [day, value] of Object.entries(rawDayCounts)) {
+    counts[day] = value <= 0 ? 0 : Math.max(1, Math.min(4, Math.ceil(value / max * 4)))
+  }
+  return counts
+}
+
+function monthLabelsFrom(calendar: ReturnType<typeof activityCalendar>, t: Translate) {
+  const labels: Array<{ key: string, label: string, column: number }> = []
+  let previous = -1
+  calendar.forEach((cell, index) => {
+    const month = cell.date.getMonth()
+    if (month !== previous) {
+      labels.push({
+        key: `${cell.key}:${month}`,
+        label: t(`${month + 1}月`, new Intl.DateTimeFormat('en', { month: 'short' }).format(cell.date)),
+        column: Math.floor(index / 7) + 2,
+      })
+      previous = month
+    }
+  })
+  return labels
+}
+
+function availableDaysFrom(state: ProfileState) {
+  return {
+    coding: state.codingUsage.days.map(day => day.date).sort(),
+    ctf: [...new Set(ctfActivities(state.ctfJobs).map(item => localDayKey(item.timestamp)))].sort(),
+    vuln: [...new Set(vulnActivities(state.vulnerabilities, state.conversations).map(item => localDayKey(item.timestamp)))].sort(),
+  }
+}
+
+function resolveSelectedDay(selected: string, days: string[]) {
+  return selected && days.includes(selected) ? selected : (days.at(-1) ?? '')
+}
 
 export default function ProfilePage({
   accountStatus,
@@ -57,104 +208,31 @@ export default function ProfilePage({
   onAccountStatusChange?: (status: AccountStatus) => void
 }) {
   const t = useT()
-  const store = useVueStore(() => {
-    const accountStatusRef = ref(accountStatus)
-    const conversationsRef = ref(conversations)
-    const vulnerabilitiesRef = ref(vulnerabilities)
-    const ctfJobs = ref<CTFSummary[]>([])
-    const codingUsage = ref<CodingUsageSnapshot>({ ...EMPTY_CODING_USAGE })
-    const activeTab = ref<ProfileTab>('coding')
-    const selectedDay = ref<Record<ProfileTab, string>>({ ctf: '', vuln: '', coding: '' })
-    const loading = ref(false)
-    const error = ref('')
-    const editing = ref(false)
-    const displayName = ref(window.localStorage.getItem('milksu.profile.name') || '')
-    const bio = ref(window.localStorage.getItem('milksu.profile.bio') || t('记录真实练习，也保留自己的节奏。', 'Keep a record of real practice, at your own pace.'))
-    const customAvatar = ref(window.localStorage.getItem('milksu.profile.avatar') || '')
-    const avatarError = ref('')
+  const accountStatusChange = useRef(onAccountStatusChange)
+  accountStatusChange.current = onAccountStatusChange
+  const avatarInput = useRef<HTMLInputElement>(null)
+
+  const runtime = useStoreRuntime(() => {
+    const store = createStore<ProfileState>({
+      accountStatus,
+      conversations,
+      vulnerabilities,
+      ctfJobs: [],
+      codingUsage: { ...EMPTY_CODING_USAGE },
+      activeTab: 'coding',
+      selectedDay: { ctf: '', vuln: '', coding: '' },
+      loading: false,
+      error: '',
+      editing: false,
+      displayName: window.localStorage.getItem('milksu.profile.name') || '',
+      bio: window.localStorage.getItem('milksu.profile.bio') || t('记录真实练习，也保留自己的节奏。', 'Keep a record of real practice, at your own pace.'),
+      customAvatar: window.localStorage.getItem('milksu.profile.avatar') || '',
+      avatarError: '',
+    })
+
     let stopUsageEvents: (() => void) | undefined
     let usageRetryTimer: number | undefined
     let usageRetryAttempt = 0
-
-    const snapshot = computed(() => buildPersonalProfileSnapshot(
-      conversationsRef.value,
-      ctfJobs.value,
-      vulnerabilitiesRef.value,
-    ))
-    const ctfRecords = computed(() => ctfActivities(ctfJobs.value))
-    const vulnRecords = computed(() => vulnActivities(vulnerabilitiesRef.value, conversationsRef.value))
-    const recentGrowth = computed(() => snapshot.value.activities.filter(activity => activity.confirmed).slice(0, 6))
-    const shownAvatar = computed(() => customAvatar.value || accountStatusRef.value.user?.avatarUrl || profileAvatar)
-    const shownName = computed(() => displayName.value || accountStatusRef.value.user?.displayName || 'MilkSU')
-    const shownIdentity = computed(() => accountStatusRef.value.user?.githubLogin ? `@${accountStatusRef.value.user.githubLogin}` : t('本机资料', 'Local profile'))
-
-    const rawDayCounts = computed<Record<string, number>>(() => {
-      if (activeTab.value === 'coding') {
-        return Object.fromEntries(codingUsage.value.days.map(day => [day.date, day.totalTokens]))
-      }
-      const records = activeTab.value === 'ctf' ? ctfRecords.value : vulnRecords.value
-      const counts: Record<string, number> = {}
-      for (const activity of records) {
-        const day = localDayKey(activity.timestamp)
-        counts[day] = (counts[day] ?? 0) + 1
-      }
-      return counts
-    })
-
-    const calendarLevels = computed(() => {
-      const values = Object.values(rawDayCounts.value).filter(value => value > 0).sort((left, right) => left - right)
-      const counts: Record<string, number> = {}
-      if (!values.length) return counts
-      const max = values.at(-1) ?? 1
-      for (const [day, value] of Object.entries(rawDayCounts.value)) {
-        counts[day] = value <= 0 ? 0 : Math.max(1, Math.min(4, Math.ceil(value / max * 4)))
-      }
-      return counts
-    })
-    const calendar = computed(() => activityCalendar(calendarLevels.value))
-    const monthLabels = computed(() => {
-      const labels: Array<{ key: string, label: string, column: number }> = []
-      let previous = -1
-      calendar.value.forEach((cell, index) => {
-        const month = cell.date.getMonth()
-        if (month !== previous) {
-          labels.push({ key: `${cell.key}:${month}`, label: t(`${month + 1}月`, new Intl.DateTimeFormat('en', { month: 'short' }).format(cell.date)), column: Math.floor(index / 7) + 2 })
-          previous = month
-        }
-      })
-      return labels
-    })
-
-    const availableDays = computed<Record<ProfileTab, string[]>>(() => ({
-      coding: codingUsage.value.days.map(day => day.date).sort(),
-      ctf: [...new Set(ctfRecords.value.map(item => localDayKey(item.timestamp)))].sort(),
-      vuln: [...new Set(vulnRecords.value.map(item => localDayKey(item.timestamp)))].sort(),
-    }))
-
-    const currentDayKey = computed(() => selectedDay.value[activeTab.value])
-    const selectedCodingDay = computed<CodingUsageDay | undefined>(() => (
-      codingUsage.value.days.find(day => day.date === selectedDay.value.coding)
-    ))
-    const selectedCTFJobs = computed(() => ctfJobs.value
-      .filter(job => localDayKey(Date.parse(job.updatedAt)) === selectedDay.value.ctf)
-      .sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt)))
-    const selectedVulnRecords = computed(() => vulnRecords.value
-      .filter(item => localDayKey(item.timestamp) === selectedDay.value.vuln))
-
-    const ctfCategoryCounts = computed(() => aggregateLabels(ctfJobs.value.map(job => job.category || t('未分类', 'Uncategorized'))))
-    const ctfSourceCounts = computed(() => aggregateLabels(ctfJobs.value.map(job => job.externalPlatform || t('本地练习', 'Local practice'))))
-    const ctfVerifiedCount = computed(() => ctfJobs.value.filter(job => job.verdict === 'pass').length)
-    const vulnStatusCounts = computed(() => aggregateLabels(vulnerabilitiesRef.value.map(item => vulnerabilityStatusLabel(item.status))))
-    const vulnReferenceCounts = computed(() => aggregateLabels(vulnerabilitiesRef.value.flatMap(item => item.references.map(referenceSource))))
-
-    watch(availableDays, days => {
-      for (const tab of tabs) {
-        const current = selectedDay.value[tab.id]
-        if (!current || !days[tab.id].includes(current)) {
-          selectedDay.value[tab.id] = days[tab.id].at(-1) ?? ''
-        }
-      }
-    }, { immediate: true, deep: true })
 
     function scheduleUsageRetry() {
       if (usageRetryTimer !== undefined || usageRetryAttempt >= USAGE_RETRY_DELAYS.length) return
@@ -168,128 +246,58 @@ export default function ProfilePage({
 
     async function refreshUsage() {
       try {
-        codingUsage.value = await invokeCommand<CodingUsageSnapshot>('get_coding_usage_snapshot')
-        error.value = ''
+        const codingUsage = await invokeCommand<CodingUsageSnapshot>('get_coding_usage_snapshot')
         usageRetryAttempt = 0
+        store.setState({ codingUsage, error: '' })
       } catch {
-        error.value = t('模型用量暂时无法加载，正在自动重试。', 'Model usage could not be loaded yet. Retrying automatically.')
+        store.setState({
+          error: t('模型用量暂时无法加载，正在自动重试。', 'Model usage could not be loaded yet. Retrying automatically.'),
+        })
         scheduleUsageRetry()
       }
     }
 
     async function load(options: { account?: boolean } = {}) {
-      loading.value = true
-      error.value = ''
+      store.setState({ loading: true, error: '' })
       const [ctfResult, usageResult, accountResult] = await Promise.allSettled([
         invokeCommand<CTFSummary[]>('list_ctf_jobs'),
         invokeCommand<CodingUsageSnapshot>('get_coding_usage_snapshot'),
         options.account ? invokeCommand<AccountStatus>('get_account_status') : Promise.resolve(undefined),
       ])
       const failures: string[] = []
+      const patch: Partial<ProfileState> = { loading: false }
       if (ctfResult.status === 'fulfilled') {
-        ctfJobs.value = ctfResult.value
+        patch.ctfJobs = ctfResult.value
       } else {
         failures.push(t('成长记录', 'progress'))
       }
       if (usageResult.status === 'fulfilled') {
-        codingUsage.value = usageResult.value
+        patch.codingUsage = usageResult.value
         usageRetryAttempt = 0
       } else {
         failures.push(t('模型用量', 'model usage'))
       }
       if (accountResult.status === 'fulfilled' && accountResult.value) {
-        onAccountStatusChange?.(accountResult.value)
+        accountStatusChange.current?.(accountResult.value)
       } else if (options.account && accountResult.status === 'rejected') {
         failures.push(t('账户状态', 'account status'))
       }
       if (failures.length) {
-        error.value = options.account
+        patch.error = options.account
           ? t(`暂时无法刷新${failures.join('、')}，正在自动重试。`, `Could not refresh ${failures.join(', ')}. Retrying automatically.`)
           : t(`暂时无法读取${failures.join('、')}，正在自动重试。`, `Could not load ${failures.join(', ')}. Retrying automatically.`)
         scheduleUsageRetry()
       }
-      loading.value = false
-    }
-
-    function aggregateLabels(values: string[]) {
-      const counts = new Map<string, number>()
-      for (const raw of values) {
-        const label = raw.trim() || t('未标注', 'Unlabeled')
-        counts.set(label, (counts.get(label) ?? 0) + 1)
-      }
-      return [...counts.entries()]
-        .map(([label, count]) => ({ label, count }))
-        .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label, 'zh-CN'))
-    }
-
-    function referenceSource(reference: { label: string, href: string }) {
-      const label = reference.label.trim()
-      if (label) return label
-      try {
-        return new URL(reference.href).hostname.replace(/^www\./u, '')
-      } catch {
-        return t('其他来源', 'Other source')
-      }
-    }
-
-    function compactNumber(value: number) {
-      if (value >= 100_000_000) return t(`${trimDecimal(value / 100_000_000)}亿`, `${trimDecimal(value / 1_000_000)}M`)
-      if (value >= 10_000) return t(`${trimDecimal(value / 10_000)}万`, `${trimDecimal(value / 1_000)}K`)
-      return t(new Intl.NumberFormat('zh-CN').format(value), new Intl.NumberFormat('en').format(value))
-    }
-
-    function trimDecimal(value: number) {
-      return value.toFixed(value >= 100 ? 0 : value >= 10 ? 1 : 2).replace(/\.0+$/u, '')
-    }
-
-    function modelLabel(provider: string, model: string) {
-      const value = providerModelLabel(provider, model)
-      return value.includes(' · ') ? value.split(' · ').at(-1) || model : value
-    }
-
-    function sourceLabel(source: string) {
-      if (source === 'account') return t('账户分配模型', 'Account-assigned model')
-      if (source === 'personal') return t('个人 API', 'Personal API')
-      return t('未标注来源', 'Unlabeled source')
-    }
-
-    function formatDuration(durationMs: number) {
-      if (durationMs < 1000) return `${Math.round(durationMs)} ms`
-      return t(`${trimDecimal(durationMs / 1000)} 秒`, `${trimDecimal(durationMs / 1000)}s`)
-    }
-
-    function selectedDateLabel(day = currentDayKey.value) {
-      if (!day) return t('尚无记录日期', 'No recorded date yet')
-      const date = new Date(`${day}T12:00:00`)
-      return t(
-        new Intl.DateTimeFormat('zh-CN', { month: 'long', day: 'numeric' }).format(date),
-        new Intl.DateTimeFormat('en', { month: 'long', day: 'numeric' }).format(date),
-      )
-    }
-
-    function calendarCellTitle(day: string) {
-      const value = rawDayCounts.value[day] ?? 0
-      if (!value) return t(`${day} · 无记录`, `${day} · no activity`)
-      if (activeTab.value === 'coding') return t(`${day} · ${compactNumber(value)} Token`, `${day} · ${compactNumber(value)} tokens`)
-      return t(`${day} · ${value} 条真实记录`, `${day} · ${value} confirmed records`)
-    }
-
-    function ctfState(job: CTFSummary) {
-      if (job.verdict === 'pass') return t('Judge 已验证', 'Judge verified')
-      if (job.verdict === 'fail') return t('Judge 未通过', 'Judge failed')
-      if (job.pendingJudge) return t('等待 Judge', 'Waiting for Judge')
-      if (job.pendingSubmission) return t('等待提交', 'Waiting to submit')
-      if (job.status === 'running') return t('练习中', 'In practice')
-      if (job.status === 'failed') return t('任务已结束', 'Task ended')
-      return t('继续练习', 'Continue practice')
+      store.setState(patch)
     }
 
     function saveProfile() {
-      displayName.value = displayName.value.trim().slice(0, 40)
-      bio.value = bio.value.trim().slice(0, 100) || t('记录真实练习，也保留自己的节奏。', 'Keep a record of real practice, at your own pace.')
-      window.localStorage.setItem('milksu.profile.name', displayName.value)
-      window.localStorage.setItem('milksu.profile.bio', bio.value)
-      editing.value = false
+      const state = store.getState()
+      const displayName = state.displayName.trim().slice(0, 40)
+      const bio = state.bio.trim().slice(0, 100) || t('记录真实练习，也保留自己的节奏。', 'Keep a record of real practice, at your own pace.')
+      window.localStorage.setItem('milksu.profile.name', displayName)
+      window.localStorage.setItem('milksu.profile.bio', bio)
+      store.setState({ displayName, bio, editing: false })
     }
 
     function submitProfile(event: React.KeyboardEvent) {
@@ -299,16 +307,12 @@ export default function ProfilePage({
     }
 
     function startEditingProfile() {
-      if (!displayName.value.trim()) displayName.value = shownName.value
-      editing.value = true
-    }
-
-    function formatDate(timestamp: number) {
-      const date = new Date(timestamp)
-      return t(
-        new Intl.DateTimeFormat('zh-CN', { month: 'numeric', day: 'numeric' }).format(date),
-        new Intl.DateTimeFormat('en', { month: 'numeric', day: 'numeric' }).format(date),
-      )
+      const state = store.getState()
+      const shownName = state.displayName || state.accountStatus.user?.displayName || 'MilkSU'
+      store.setState({
+        displayName: state.displayName.trim() ? state.displayName : shownName,
+        editing: true,
+      })
     }
 
     function start() {
@@ -324,97 +328,55 @@ export default function ProfilePage({
     }
 
     return {
-      accountStatusRef,
-      conversationsRef,
-      vulnerabilitiesRef,
-      ctfJobs,
-      codingUsage,
-      activeTab,
-      selectedDay,
-      loading,
-      error,
-      editing,
-      displayName,
-      bio,
-      customAvatar,
-      avatarError,
-      snapshot,
-      recentGrowth,
-      shownAvatar,
-      shownName,
-      shownIdentity,
-      rawDayCounts,
-      calendar,
-      monthLabels,
-      availableDays,
-      currentDayKey,
-      selectedCodingDay,
-      selectedCTFJobs,
-      selectedVulnRecords,
-      ctfCategoryCounts,
-      ctfSourceCounts,
-      ctfVerifiedCount,
-      vulnStatusCounts,
-      vulnReferenceCounts,
+      store,
+      start,
+      stop,
       load,
-      compactNumber,
-      modelLabel,
-      sourceLabel,
-      formatDuration,
-      selectedDateLabel,
-      calendarCellTitle,
-      ctfState,
       saveProfile,
       submitProfile,
       startEditingProfile,
-      formatDate,
-      start,
-      stop,
     }
   })
 
-  store.accountStatusRef.value = accountStatus
-  store.conversationsRef.value = conversations
-  store.vulnerabilitiesRef.value = vulnerabilities
-
   useEffect(() => {
-    store.start()
-    return () => store.stop()
-  }, [store])
+    runtime.store.setState({ accountStatus, conversations, vulnerabilities })
+  }, [runtime, accountStatus, conversations, vulnerabilities])
 
-  const loading = useVue(() => store.loading.value)
-  const error = useVue(() => store.error.value)
-  const editing = useVue(() => store.editing.value)
-  const displayName = useVue(() => store.displayName.value)
-  const bio = useVue(() => store.bio.value)
-  const avatarError = useVue(() => store.avatarError.value)
-  const snapshot = useVue(() => store.snapshot.value)
-  const recentGrowth = useVue(() => store.recentGrowth.value)
-  const shownAvatar = useVue(() => store.shownAvatar.value)
-  const shownName = useVue(() => store.shownName.value)
-  const shownIdentity = useVue(() => store.shownIdentity.value)
-  const rawDayCounts = useVue(() => store.rawDayCounts.value)
-  const calendar = useVue(() => store.calendar.value)
-  const monthLabels = useVue(() => store.monthLabels.value)
-  const availableDays = useVue(() => store.availableDays.value)
-  const currentDayKey = useVue(() => store.currentDayKey.value)
-  const selectedCodingDay = useVue(() => store.selectedCodingDay.value)
-  const selectedCTFJobs = useVue(() => store.selectedCTFJobs.value)
-  const selectedVulnRecords = useVue(() => store.selectedVulnRecords.value)
-  const ctfJobs = useVue(() => store.ctfJobs.value)
-  const codingUsage = useVue(() => store.codingUsage.value)
-  const ctfCategoryCounts = useVue(() => store.ctfCategoryCounts.value)
-  const ctfSourceCounts = useVue(() => store.ctfSourceCounts.value)
-  const ctfVerifiedCount = useVue(() => store.ctfVerifiedCount.value)
-  const vulnStatusCounts = useVue(() => store.vulnStatusCounts.value)
-  const vulnReferenceCounts = useVue(() => store.vulnReferenceCounts.value)
-  const activeTab = useVue(() => store.activeTab.value)
-  const selectedDay = useVue(() => store.selectedDay.value)
-
-  const avatarInput = { current: null as HTMLInputElement | null }
+  const state = runtime.store.getState()
+  const snapshot = buildPersonalProfileSnapshot(state.conversations, state.ctfJobs, state.vulnerabilities)
+  const recentGrowth = snapshot.activities.filter(activity => activity.confirmed).slice(0, 6)
+  const shownAvatar = state.customAvatar || state.accountStatus.user?.avatarUrl || profileAvatar
+  const shownName = state.displayName || state.accountStatus.user?.displayName || 'MilkSU'
+  const shownIdentity = state.accountStatus.user?.githubLogin
+    ? `@${state.accountStatus.user.githubLogin}`
+    : t('本机资料', 'Local profile')
+  const rawDayCounts = rawDayCountsFrom(state)
+  const calendar = activityCalendar(calendarLevelsFrom(rawDayCounts))
+  const monthLabels = monthLabelsFrom(calendar, t)
+  const availableDays = availableDaysFrom(state)
+  const selectedDays: SelectedDays = {
+    coding: resolveSelectedDay(state.selectedDay.coding, availableDays.coding),
+    ctf: resolveSelectedDay(state.selectedDay.ctf, availableDays.ctf),
+    vuln: resolveSelectedDay(state.selectedDay.vuln, availableDays.vuln),
+  }
+  const currentDayKey = selectedDays[state.activeTab]
+  const selectedCodingDay = state.codingUsage.days.find(day => day.date === selectedDays.coding)
+  const selectedCTFJobs = state.ctfJobs
+    .filter(job => localDayKey(Date.parse(job.updatedAt)) === selectedDays.ctf)
+    .sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt))
+  const selectedVulnRecords = vulnActivities(state.vulnerabilities, state.conversations)
+    .filter(item => localDayKey(item.timestamp) === selectedDays.vuln)
+  const ctfCategoryCounts = aggregateLabels(state.ctfJobs.map(job => job.category || t('未分类', 'Uncategorized')), t)
+  const ctfSourceCounts = aggregateLabels(state.ctfJobs.map(job => job.externalPlatform || t('本地练习', 'Local practice')), t)
+  const ctfVerifiedCount = state.ctfJobs.filter(job => job.verdict === 'pass').length
+  const vulnStatusCounts = aggregateLabels(state.vulnerabilities.map(item => vulnerabilityStatusLabel(item.status)), t)
+  const vulnReferenceCounts = aggregateLabels(
+    state.vulnerabilities.flatMap(item => item.references.map(reference => referenceSource(reference, t))),
+    t,
+  )
 
   function chooseAvatar() {
-    store.avatarError.value = ''
+    runtime.store.setState({ avatarError: '' })
     avatarInput.current?.click()
   }
 
@@ -424,24 +386,26 @@ export default function ProfilePage({
     if (!file) return
     const problem = profileAvatarFileProblem(file)
     if (problem) {
-      store.avatarError.value = problem
+      runtime.store.setState({ avatarError: problem })
       input.value = ''
       return
     }
     const reader = new FileReader()
-    reader.onerror = () => { store.avatarError.value = t('头像读取失败，请重新选择。', 'Could not read the avatar. Please choose another file.') }
+    reader.onerror = () => {
+      runtime.store.setState({ avatarError: t('头像读取失败，请重新选择。', 'Could not read the avatar. Please choose another file.') })
+    }
     reader.onload = () => {
       const value = typeof reader.result === 'string' ? reader.result : ''
       if (!value.startsWith(`data:${file.type};base64,`)) {
-        store.avatarError.value = t('头像读取失败，请重新选择。', 'Could not read the avatar. Please choose another file.')
+        runtime.store.setState({ avatarError: t('头像读取失败，请重新选择。', 'Could not read the avatar. Please choose another file.') })
         return
       }
-      store.customAvatar.value = value
+      runtime.store.setState({ customAvatar: value })
       try {
         window.localStorage.setItem('milksu.profile.avatar', value)
-        store.avatarError.value = ''
+        runtime.store.setState({ avatarError: '' })
       } catch {
-        store.avatarError.value = t('头像已用于当前页面，但没有保存到本机。', 'The avatar is used on this page, but it was not saved locally.')
+        runtime.store.setState({ avatarError: t('头像已用于当前页面，但没有保存到本机。', 'The avatar is used on this page, but it was not saved locally.') })
       }
       input.value = ''
     }
@@ -450,7 +414,10 @@ export default function ProfilePage({
 
   function selectCalendarDay(day: string, future: boolean) {
     if (future || !rawDayCounts[day]) return
-    store.selectedDay.value[activeTab] = day
+    runtime.store.setState(current => ({
+      ...current,
+      selectedDay: { ...current.selectedDay, [current.activeTab]: day },
+    }))
   }
 
   return (
@@ -463,47 +430,47 @@ export default function ProfilePage({
             <span className="inline-flex items-center gap-1.5 text-caption text-success"><LockKeyhole className="size-3.5" />{t('仅自己可见', 'Only visible to you')}</span>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" disabled={loading} onClick={() => void store.load({ account: true })}><RotateCw className="size-4" />{t('刷新', 'Refresh')}</Button>
-            <Button variant="outline" size="sm" onClick={() => store.startEditingProfile()}><Pencil className="size-4" />{t('编辑资料', 'Edit profile')}</Button>
+            <Button variant="ghost" size="sm" disabled={state.loading} onClick={() => void runtime.load({ account: true })}><RotateCw className="size-4" />{t('刷新', 'Refresh')}</Button>
+            <Button variant="outline" size="sm" onClick={() => runtime.startEditingProfile()}><Pencil className="size-4" />{t('编辑资料', 'Edit profile')}</Button>
           </div>
         </header>
 
         <section className="profile-identity flex flex-wrap items-center gap-6 rounded-[8px] px-4 py-5">
           <div className="relative shrink-0">
             <img src={shownAvatar} alt={t('个人头像', 'Profile photo')} className="size-24 rounded-full border-2 border-primary object-cover shadow-sm" />
-            <input ref={element => { avatarInput.current = element }} className="sr-only" type="file" accept="image/png,image/jpeg,image/webp" onChange={updateAvatar} />
+            <input ref={avatarInput} className="sr-only" type="file" accept="image/png,image/jpeg,image/webp" onChange={updateAvatar} />
             <Button variant="outline" size="icon-sm" className="absolute -bottom-1 -right-1 rounded-full" aria-label={t('更换头像', 'Change photo')} onClick={chooseAvatar}>
               <Pencil className="size-3.5" />
             </Button>
           </div>
           <div className="min-w-[15rem] flex-1">
-            {editing ? (
+            {state.editing ? (
               <>
                 <input
-                  value={displayName}
-                  onChange={event => { store.displayName.value = event.target.value }}
+                  value={state.displayName}
+                  onChange={event => { runtime.store.setState({ displayName: event.target.value }) }}
                   className="profile-name-input"
                   aria-label={t('显示名称', 'Display name')}
                   maxLength={40}
                 />
                 <input
-                  value={bio}
-                  onChange={event => { store.bio.value = event.target.value }}
+                  value={state.bio}
+                  onChange={event => { runtime.store.setState({ bio: event.target.value }) }}
                   className="profile-bio-input"
                   aria-label={t('个人介绍', 'Bio')}
                   maxLength={100}
-                  onKeyDown={event => { if (event.key === 'Enter') store.submitProfile(event) }}
+                  onKeyDown={event => { if (event.key === 'Enter') runtime.submitProfile(event) }}
                 />
                 <div className="mt-3 flex gap-2">
-                  <Button size="sm" onClick={() => store.saveProfile()}>{t('保存', 'Save')}</Button>
-                  <Button variant="ghost" size="sm" onClick={() => { store.editing.value = false }}>{t('取消', 'Cancel')}</Button>
+                  <Button size="sm" onClick={() => runtime.saveProfile()}>{t('保存', 'Save')}</Button>
+                  <Button variant="ghost" size="sm" onClick={() => { runtime.store.setState({ editing: false }) }}>{t('取消', 'Cancel')}</Button>
                 </div>
               </>
             ) : (
               <>
                 <h2 className="text-3xl font-semibold tracking-[-0.04em]">{shownName}</h2>
                 <p className="mt-1 text-body text-muted-foreground">{shownIdentity}</p>
-                <p className="mt-3 max-w-2xl text-body text-muted-foreground">{bio}</p>
+                <p className="mt-3 max-w-2xl text-body text-muted-foreground">{state.bio}</p>
               </>
             )}
           </div>
@@ -520,7 +487,7 @@ export default function ProfilePage({
             ))}
           </div>
         </section>
-        {avatarError ? <p className="mt-3 text-caption text-destructive">{avatarError}</p> : null}
+        {state.avatarError ? <p className="mt-3 text-caption text-destructive">{state.avatarError}</p> : null}
 
         <div className="mt-4 grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
           <section className="profile-command-panel min-w-0" aria-labelledby="profile-panel-heading">
@@ -529,11 +496,11 @@ export default function ProfilePage({
                 <button
                   id={`profile-tab-${tab.id}`}
                   key={tab.id}
-                  className={`profile-tab${activeTab === tab.id ? ' active' : ''}`}
+                  className={`profile-tab${state.activeTab === tab.id ? ' active' : ''}`}
                   role="tab"
-                  aria-selected={activeTab === tab.id}
+                  aria-selected={state.activeTab === tab.id}
                   aria-controls={`profile-panel-${tab.id}`}
-                  onClick={() => { store.activeTab.value = tab.id }}
+                  onClick={() => { runtime.store.setState({ activeTab: tab.id }) }}
                 >
                   {tab.label}
                 </button>
@@ -541,36 +508,36 @@ export default function ProfilePage({
             </div>
 
             <div
-              id={`profile-panel-${activeTab}`}
+              id={`profile-panel-${state.activeTab}`}
               className="profile-panel-body"
               role="tabpanel"
-              aria-labelledby={`profile-tab-${activeTab}`}
+              aria-labelledby={`profile-tab-${state.activeTab}`}
             >
               <div className="flex flex-wrap items-end justify-between gap-4">
                 <div>
                   <p className="text-caption text-muted-foreground">{t('过去一年', 'Past year')}</p>
                   <h2 id="profile-panel-heading" className="mt-1 text-2xl font-semibold">
-                    {activeTab === 'coding' ? t('Coding 活动与用量', 'Coding activity and usage') : activeTab === 'ctf' ? t('CTF 练习与验证', 'CTF practice and verification') : t('CVE 研究与来源', 'CVE research and sources')}
+                    {state.activeTab === 'coding' ? t('Coding 活动与用量', 'Coding activity and usage') : state.activeTab === 'ctf' ? t('CTF 练习与验证', 'CTF practice and verification') : t('CVE 研究与来源', 'CVE research and sources')}
                   </h2>
                 </div>
               </div>
 
               <div className="profile-metrics mt-4">
-                {activeTab === 'coding' ? (
+                {state.activeTab === 'coding' ? (
                   <>
-                    <span><b>{store.compactNumber(codingUsage.totalTokens)}</b> Token</span>
-                    <span><b>{codingUsage.activeDays}</b> {t('个用量日', 'usage days')}</span>
-                    <span><b>{t(new Intl.NumberFormat('zh-CN').format(codingUsage.toolCalls), new Intl.NumberFormat('en').format(codingUsage.toolCalls))}</b> {t('次工具调用', 'tool calls')}</span>
+                    <span><b>{compactNumber(state.codingUsage.totalTokens, t)}</b> Token</span>
+                    <span><b>{state.codingUsage.activeDays}</b> {t('个用量日', 'usage days')}</span>
+                    <span><b>{t(new Intl.NumberFormat('zh-CN').format(state.codingUsage.toolCalls), new Intl.NumberFormat('en').format(state.codingUsage.toolCalls))}</b> {t('次工具调用', 'tool calls')}</span>
                   </>
-                ) : activeTab === 'ctf' ? (
+                ) : state.activeTab === 'ctf' ? (
                   <>
-                    <span><b>{ctfJobs.length}</b> {t('个练习任务', 'practice tasks')}</span>
+                    <span><b>{state.ctfJobs.length}</b> {t('个练习任务', 'practice tasks')}</span>
                     <span><b>{availableDays.ctf.length}</b> {t('个活跃日', 'active days')}</span>
                     <span><b>{ctfVerifiedCount}</b> {t('个 Judge 通过', 'Judge passes')}</span>
                   </>
                 ) : (
                   <>
-                    <span><b>{vulnerabilities.length}</b> {t('个跟踪项', 'tracked items')}</span>
+                    <span><b>{state.vulnerabilities.length}</b> {t('个跟踪项', 'tracked items')}</span>
                     <span><b>{availableDays.vuln.length}</b> {t('个研究日', 'research days')}</span>
                     <span><b>{vulnReferenceCounts.length}</b> {t('类资料来源', 'source types')}</span>
                   </>
@@ -578,11 +545,11 @@ export default function ProfilePage({
               </div>
 
               <div className="calendar-heading mt-5 flex items-center justify-between gap-4">
-                <span>{activeTab === 'coding' ? t('每日 Token', 'Daily tokens') : activeTab === 'ctf' ? t('每日练习更新', 'Daily practice updates') : t('每日研究记录', 'Daily research records')}</span>
+                <span>{state.activeTab === 'coding' ? t('每日 Token', 'Daily tokens') : state.activeTab === 'ctf' ? t('每日练习更新', 'Daily practice updates') : t('每日研究记录', 'Daily research records')}</span>
                 <span>{t('53 周', '53 weeks')}</span>
               </div>
               <div className="activity-scroll mt-3 overflow-x-auto pb-2">
-                <div className="activity-calendar" aria-label={t(`${activeTab} 过去一年活动图`, `${activeTab} activity in the past year`)}>
+                <div className="activity-calendar" aria-label={t(`${state.activeTab} 过去一年活动图`, `${state.activeTab} activity in the past year`)}>
                   {monthLabels.map(month => (
                     <span key={month.key} className="month-label" style={{ gridColumn: month.column }}>{month.label}</span>
                   ))}
@@ -595,8 +562,8 @@ export default function ProfilePage({
                       key={cell.key}
                       className={`activity-cell level-${cell.count}${cell.future ? ' future' : ''}${currentDayKey === cell.key ? ' selected' : ''}`}
                       style={{ gridColumn: Math.floor(cellIndex / 7) + 2, gridRow: cell.date.getDay() + 2 }}
-                      title={store.calendarCellTitle(cell.key)}
-                      aria-label={store.calendarCellTitle(cell.key)}
+                      title={calendarCellTitle(cell.key, rawDayCounts[cell.key] ?? 0, state.activeTab, t)}
+                      aria-label={calendarCellTitle(cell.key, rawDayCounts[cell.key] ?? 0, state.activeTab, t)}
                       disabled={cell.future || !rawDayCounts[cell.key]}
                       onClick={() => selectCalendarDay(cell.key, cell.future)}
                     />
@@ -609,28 +576,28 @@ export default function ProfilePage({
                   {[1, 2, 3, 4].map(level => <i key={level} className={`legend-cell level-${level}`} />)}
                   {t('高', 'High')}
                 </span>
-                <span>{store.selectedDateLabel()}</span>
+                <span>{selectedDateLabel(currentDayKey, t)}</span>
               </div>
 
-              {error ? <p className="mt-5 border border-destructive/30 bg-destructive/10 px-4 py-3 text-body text-destructive">{error}</p> : null}
+              {state.error ? <p className="mt-5 border border-destructive/30 bg-destructive/10 px-4 py-3 text-body text-destructive">{state.error}</p> : null}
 
-              {activeTab === 'coding' && selectedCodingDay ? (
+              {state.activeTab === 'coding' && selectedCodingDay ? (
                 <div className="detail-grid mt-5">
                   <section className="detail-column" aria-labelledby="coding-models-heading">
-                    <h3 id="coding-models-heading">{store.selectedDateLabel(selectedCodingDay.date)} · {store.compactNumber(selectedCodingDay.totalTokens)} Token</h3>
+                    <h3 id="coding-models-heading">{selectedDateLabel(selectedCodingDay.date, t)} · {compactNumber(selectedCodingDay.totalTokens, t)} Token</h3>
                     <ul className="detail-list">
                       {selectedCodingDay.models.map(model => (
                         <li key={`${model.provider}:${model.model}:${model.source}`}>
                           <span>
-                            <b>{store.modelLabel(model.provider, model.model)}</b>
-                            <small>{store.sourceLabel(model.source)} · {t(`${model.calls} 次响应`, `${model.calls} responses`)}</small>
+                            <b>{modelLabel(model.provider, model.model)}</b>
+                            <small>{sourceLabel(model.source, t)} · {t(`${model.calls} 次响应`, `${model.calls} responses`)}</small>
                           </span>
-                          <strong>{store.compactNumber(model.totalTokens)}</strong>
+                          <strong>{compactNumber(model.totalTokens, t)}</strong>
                         </li>
                       ))}
                     </ul>
                     <p className="detail-foot">
-                      {t(`输入 ${store.compactNumber(selectedCodingDay.inputTokens)} · 输出 ${store.compactNumber(selectedCodingDay.outputTokens)} · 缓存读取 ${store.compactNumber(selectedCodingDay.cacheReadTokens)}`, `Input ${store.compactNumber(selectedCodingDay.inputTokens)} · output ${store.compactNumber(selectedCodingDay.outputTokens)} · cache read ${store.compactNumber(selectedCodingDay.cacheReadTokens)}`)}
+                      {t(`输入 ${compactNumber(selectedCodingDay.inputTokens, t)} · 输出 ${compactNumber(selectedCodingDay.outputTokens, t)} · 缓存读取 ${compactNumber(selectedCodingDay.cacheReadTokens, t)}`, `Input ${compactNumber(selectedCodingDay.inputTokens, t)} · output ${compactNumber(selectedCodingDay.outputTokens, t)} · cache read ${compactNumber(selectedCodingDay.cacheReadTokens, t)}`)}
                     </p>
                   </section>
                   <section className="detail-column" aria-labelledby="coding-tools-heading">
@@ -641,7 +608,7 @@ export default function ProfilePage({
                           <li key={tool.name}>
                             <span>
                               <b className="font-mono">{tool.name}</b>
-                              <small>{store.formatDuration(tool.durationMs)} · {tool.failures ? t(`${tool.failures} 次失败`, `${tool.failures} failed`) : t('无失败', 'No failures')}</small>
+                              <small>{formatDuration(tool.durationMs, t)} · {tool.failures ? t(`${tool.failures} 次失败`, `${tool.failures} failed`) : t('无失败', 'No failures')}</small>
                             </span>
                             <strong>{t(`${tool.calls} 次`, `${tool.calls} calls`)}</strong>
                           </li>
@@ -652,17 +619,17 @@ export default function ProfilePage({
                 </div>
               ) : null}
 
-              {activeTab === 'ctf' && ctfJobs.length ? (
+              {state.activeTab === 'ctf' && state.ctfJobs.length ? (
                 <div className="detail-grid mt-5">
                   <section className="detail-column" aria-labelledby="ctf-records-heading">
-                    <h3 id="ctf-records-heading">{t(`${store.selectedDateLabel(selectedDay.ctf)} · 练习记录`, `${store.selectedDateLabel(selectedDay.ctf)} · practice records`)}</h3>
+                    <h3 id="ctf-records-heading">{t(`${selectedDateLabel(selectedDays.ctf, t)} · 练习记录`, `${selectedDateLabel(selectedDays.ctf, t)} · practice records`)}</h3>
                     {selectedCTFJobs.length ? (
                       <ul className="detail-list">
                         {selectedCTFJobs.map(job => (
                           <li key={job.id}>
                             <span>
                               <b>{job.title}</b>
-                              <small>{job.category || t('未分类', 'Uncategorized')} · {store.ctfState(job)}</small>
+                              <small>{job.category || t('未分类', 'Uncategorized')} · {ctfState(job, t)}</small>
                             </span>
                             <strong>{t(`${job.experimentCount} 次实验`, `${job.experimentCount} experiments`)}</strong>
                           </li>
@@ -690,10 +657,10 @@ export default function ProfilePage({
                 </div>
               ) : null}
 
-              {activeTab === 'vuln' && vulnerabilities.length ? (
+              {state.activeTab === 'vuln' && state.vulnerabilities.length ? (
                 <div className="detail-grid mt-5">
                   <section className="detail-column" aria-labelledby="vuln-records-heading">
-                    <h3 id="vuln-records-heading">{t(`${store.selectedDateLabel(selectedDay.vuln)} · 研究记录`, `${store.selectedDateLabel(selectedDay.vuln)} · research records`)}</h3>
+                    <h3 id="vuln-records-heading">{t(`${selectedDateLabel(selectedDays.vuln, t)} · 研究记录`, `${selectedDateLabel(selectedDays.vuln, t)} · research records`)}</h3>
                     {selectedVulnRecords.length ? (
                       <ul className="detail-list">
                         {selectedVulnRecords.map(activity => (
@@ -741,7 +708,7 @@ export default function ProfilePage({
                     <i className="growth-dot" aria-hidden="true" />
                     <div className="flex items-center justify-between gap-3">
                       <span className={`growth-module ${moduleClass[activity.module]}`}>{activity.module === 'vuln' ? 'CVE' : activity.module === 'coding' ? 'Coding' : 'CTF'}</span>
-                      <time className="text-caption text-muted-foreground">{store.formatDate(activity.timestamp)}</time>
+                      <time className="text-caption text-muted-foreground">{formatDate(activity.timestamp, t)}</time>
                     </div>
                     <h3 className="mt-3 text-body font-medium">{activity.title}</h3>
                     <p className="mt-1 text-caption leading-5 text-muted-foreground">{activity.detail}</p>

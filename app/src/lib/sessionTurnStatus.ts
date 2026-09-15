@@ -171,7 +171,7 @@ export function contextCompositionCategoryLabel(id: ContextCompositionCategoryId
   }
 }
 
-/** Go persists estimatedTokens/categories on lastContextUsage; Vue also keeps a nested composition. */
+/** Go persists estimatedTokens/categories on lastContextUsage; the renderer also keeps a nested composition. */
 export function compositionFromStoredUsage(raw: unknown): ContextComposition | undefined {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined
   const value = raw as Record<string, unknown>

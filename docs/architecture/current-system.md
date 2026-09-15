@@ -39,7 +39,7 @@ flowchart LR
     chromium <--> account_cloud
 ```
 
-桌面壳是 Electron/Chromium：主 `BrowserWindow` 跑产品 renderer，右栏浏览器是同壳 `WebContentsView`。Go 是受管 Runtime，不拥有 GUI。当前安装包仍挂 Vue；新 UI 语言见 `AGENTS.md`（React + shadcn）。
+桌面壳是 Electron/Chromium：主 `BrowserWindow` 跑产品 renderer，右栏浏览器是同壳 `WebContentsView`。Go 是受管 Runtime，不拥有 GUI。工作树 renderer 是 React + shadcn，见 `AGENTS.md`。最近一次正式安装包 `v26.915.1` 仍挂 Vue。
 
 ## 桌面执行表面
 
@@ -58,7 +58,7 @@ Pi 拥有会话、压缩和工具循环。桌面 GUI 把外部动作变成可见
 | 边界 | 状态 | 事实 |
 | --- | --- | --- |
 | 桌面壳 | packaged | `desktop/main.cjs` + Preload allowlist。macOS `hiddenInset`；Windows/Linux 画布色 overlay，系统按钮右上。 |
-| Renderer | partial | 当前安装包装 Vue：CTF / CVE / 实验室 / Coding / 设置 / Composer / 右栏 / Bottom Dock。新页走 React + shadcn，见 `AGENTS.md`。 |
+| Renderer | implemented | 工作树是 React + shadcn：CTF / CVE / 实验室 / Coding / 设置 / Composer / 右栏 / Bottom Dock。入口 `main.tsx`。最近一次正式安装包仍是 Vue。 |
 | 账户与模型 | packaged | GitHub PKCE；TokenFlux Key 只进 Go Credential Store，请求 `https://tokenflux.dev/v1`。账户目录优先，可安全回退个人来源。 |
 | OTA | implemented | 已登录 Stable 轮询 Admin latest；macOS/Windows 走 electron-updater，Linux dpkg/tarball。GitHub Release 不上 OTA ZIP。 |
 | Go Runtime | implemented | JSONL RPC。Sidecar 停靠保活；凭据轮换惰性、撤回立即停。Pi `bash` 缺省 600 秒。 |
@@ -137,7 +137,7 @@ React → Electron Preload / Host → Desktop JSONL RPC → Go Application Servi
 | L5 Evidence | 事件、Artifact、Projection、Recovery 已实现 |
 | L6 完整性 | 工作区、审批、凭据边界在；宿主不是容器 |
 
-触碰 `app.go`、`CTFPage.vue`、`bridge-policy.js`、`browsercap/manager.go` 或 Runner/Recovery 时，随纵切抽出职责，不另开纯架构清理。
+触碰 `app.go`、`CTFPage.tsx`、`bridge-policy.js`、`browsercap/manager.go` 或 Runner/Recovery 时，随纵切抽出职责，不另开纯架构清理。
 
 ## 发行
 

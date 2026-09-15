@@ -11,7 +11,6 @@ import {
   Input,
 } from '@/components/ui'
 import { ALL_COLLECTIONS_ID, QUICK_COLLECTION_ID, type ItemCollectionStore } from '@/lib/itemCollections'
-import { useVue } from '@/hooks/useVueStore'
 import { useT } from '@/hooks/useUiLocale'
 
 export default function CollectionViewFilter({
@@ -24,7 +23,7 @@ export default function CollectionViewFilter({
   onModelValueChange?: (value: string) => void
 }) {
   const t = useT()
-  const collections = useVue(() => store.collections.value)
+  const collections = store.collections
   const [managerOpen, setManagerOpen] = useState(false)
   const [newName, setNewName] = useState('')
   const [error, setError] = useState('')

@@ -51,8 +51,8 @@ describe('useConversations domain handoff attach', () => {
       // autoSend omitted / false
     })
 
-    expect(conversations.activeId.value).toBe('ctf-conversation-42')
-    const active = conversations.active.value
+    expect(conversations.activeId).toBe('ctf-conversation-42')
+    const active = conversations.active
     expect(active?.ctfJobId).toBe('job-42')
     expect(active?.domainTaskContext).toMatchObject({
       kind: 'ctf',
@@ -61,7 +61,7 @@ describe('useConversations domain handoff attach', () => {
     })
     expect(active?.messages ?? []).toEqual([])
     expect(conversations.activeRunning.value).toBe(false)
-    expect(conversations.pendingComposerDraft.value).toBeNull()
+    expect(conversations.pendingComposerDraft).toBeNull()
     expect(invokeCommand.mock.calls.some(call => call[0] === 'send_message')).toBe(false)
     expect(invokeCommand.mock.calls.some(call => call[0] === 'save_conversation')).toBe(true)
   })
@@ -91,11 +91,11 @@ describe('useConversations domain handoff attach', () => {
     )
     expect(id).toBeTruthy()
     expect(id).toBe('cve-research-cve-2023-46604')
-    expect(conversations.active.value?.domainTaskContext).toMatchObject({
+    expect(conversations.active?.domainTaskContext).toMatchObject({
       kind: 'cve',
       cveId: 'CVE-2023-46604',
     })
-    expect(conversations.pendingComposerDraft.value?.visibleText).toBe('接手 CVE-2023-46604')
+    expect(conversations.pendingComposerDraft?.visibleText).toBe('接手 CVE-2023-46604')
     expect(conversations.activeRunning.value).toBe(false)
     expect(invokeCommand.mock.calls.some(call => call[0] === 'send_message')).toBe(false)
   })
@@ -125,13 +125,13 @@ describe('useConversations domain handoff attach', () => {
       conversations.stageComposerDraft('research prompt', '接手 CVE-2024-3400')
     }
 
-    expect(conversations.conversations.value).toHaveLength(1)
-    expect(conversations.activeId.value).toBe('cve-research-cve-2024-3400')
-    expect(conversations.active.value?.domainTaskContext).toMatchObject({
+    expect(conversations.conversations).toHaveLength(1)
+    expect(conversations.activeId).toBe('cve-research-cve-2024-3400')
+    expect(conversations.active?.domainTaskContext).toMatchObject({
       kind: 'cve',
       cveId: 'CVE-2024-3400',
     })
-    expect(conversations.pendingComposerDraft.value?.visibleText).toBe('接手 CVE-2024-3400')
+    expect(conversations.pendingComposerDraft?.visibleText).toBe('接手 CVE-2024-3400')
     expect(invokeCommand.mock.calls.some(call => call[0] === 'send_message')).toBe(false)
   })
 
@@ -167,15 +167,15 @@ describe('useConversations domain handoff attach', () => {
     })
     conversations.stageComposerDraft('CVE prompt', '接手 CVE-2024-3400')
 
-    expect(conversations.active.value).toMatchObject({
+    expect(conversations.active).toMatchObject({
       id: 'cve-research-cve-2024-3400',
       title: 'CVE-2024-3400 研究接力',
       domainTaskContext: { kind: 'cve', cveId: 'CVE-2024-3400' },
     })
-    expect(conversations.active.value?.workspacePath).toBeUndefined()
-    expect(conversations.active.value?.ctfJobId).toBeUndefined()
-    expect(conversations.active.value?.ctfMode).toBeUndefined()
-    expect(conversations.active.value?.ctfRole).toBeUndefined()
-    expect(conversations.pendingComposerDraft.value?.visibleText).toBe('接手 CVE-2024-3400')
+    expect(conversations.active?.workspacePath).toBeUndefined()
+    expect(conversations.active?.ctfJobId).toBeUndefined()
+    expect(conversations.active?.ctfMode).toBeUndefined()
+    expect(conversations.active?.ctfRole).toBeUndefined()
+    expect(conversations.pendingComposerDraft?.visibleText).toBe('接手 CVE-2024-3400')
   })
 })

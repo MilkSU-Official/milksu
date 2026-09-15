@@ -1,4 +1,4 @@
-import { ref } from '@/lib/reactiveStore'
+import { createStore } from '@/lib/reactStore'
 import { invokeCommand } from '@/desktop'
 import {
   debugLog,
@@ -23,16 +23,32 @@ const FULL_CATALOG_QUERY: NSSCTFCatalogQuery = {
   unpaged: true,
 }
 
-const dashboard = ref<NSSCTFTrainingDashboard | null>(null)
-const dashboardLoading = ref(false)
-const dashboardSyncing = ref(false)
-const dashboardError = ref<string | null>(null)
+const trainingStore = createStore({
+  dashboard: null as NSSCTFTrainingDashboard | null,
+  dashboardLoading: false,
+  dashboardSyncing: false,
+  dashboardError: null as string | null,
+  fullCatalog: null as NSSCTFCatalogSearchResult | null,
+  trainingProgress: null as {
+    attemptedProblemIds: number[]
+    completedProblemIds: number[]
+  } | null,
+})
+const ts = {
+  get dashboard() { return trainingStore.getState().dashboard },
+  set dashboard(value) { trainingStore.setState({ dashboard: value }) },
+  get dashboardLoading() { return trainingStore.getState().dashboardLoading },
+  set dashboardLoading(value) { trainingStore.setState({ dashboardLoading: value }) },
+  get dashboardSyncing() { return trainingStore.getState().dashboardSyncing },
+  set dashboardSyncing(value) { trainingStore.setState({ dashboardSyncing: value }) },
+  get dashboardError() { return trainingStore.getState().dashboardError },
+  set dashboardError(value) { trainingStore.setState({ dashboardError: value }) },
+  get fullCatalog() { return trainingStore.getState().fullCatalog },
+  set fullCatalog(value) { trainingStore.setState({ fullCatalog: value }) },
+  get trainingProgress() { return trainingStore.getState().trainingProgress },
+  set trainingProgress(value) { trainingStore.setState({ trainingProgress: value }) },
+}
 const catalogSearchCache = new Map<string, NSSCTFCatalogSearchResult>()
-const fullCatalog = ref<NSSCTFCatalogSearchResult | null>(null)
-const trainingProgress = ref<{
-  attemptedProblemIds: number[]
-  completedProblemIds: number[]
-} | null>(null)
 
 let fullCatalogGeneration = 0
 let fullCatalogLoad: Promise<NSSCTFCatalogSearchResult | null> | null = null
@@ -53,16 +69,16 @@ function isLocalCatalogQuery(query: NSSCTFCatalogQuery) {
 }
 
 function withCurrentProgress(result: NSSCTFCatalogSearchResult): NSSCTFCatalogSearchResult {
-  if (!trainingProgress.value) return result
+  if (!ts.trainingProgress) return result
   return {
     ...result,
-    attemptedProblemIds: trainingProgress.value.attemptedProblemIds,
-    completedProblemIds: trainingProgress.value.completedProblemIds,
+    attemptedProblemIds: ts.trainingProgress.attemptedProblemIds,
+    completedProblemIds: ts.trainingProgress.completedProblemIds,
   }
 }
 
 function rememberProgress(result: NSSCTFCatalogSearchResult) {
-  trainingProgress.value = {
+  ts.trainingProgress = {
     attemptedProblemIds: result.attemptedProblemIds,
     completedProblemIds: result.completedProblemIds,
   }
@@ -70,12 +86,12 @@ function rememberProgress(result: NSSCTFCatalogSearchResult) {
 
 function invalidateFullCatalog() {
   fullCatalogGeneration += 1
-  fullCatalog.value = null
+  ts.fullCatalog = null
   fullCatalogLoad = null
 }
 
 async function loadFullCatalog() {
-  if (fullCatalog.value) return fullCatalog.value
+  if (ts.fullCatalog) return ts.fullCatalog
   if (fullCatalogLoad) return fullCatalogLoad
 
   const generation = fullCatalogGeneration
@@ -86,9 +102,9 @@ async function loadFullCatalog() {
         query: FULL_CATALOG_QUERY,
       })
       if (generation !== fullCatalogGeneration) {
-        return fullCatalogLoad ?? fullCatalog.value
+        return fullCatalogLoad ?? ts.fullCatalog
       }
-      fullCatalog.value = result
+      ts.fullCatalog = result
       rememberProgress(result)
       clearCatalogSearchCache()
       updateDebugState({
@@ -99,7 +115,7 @@ async function loadFullCatalog() {
       return result
     } catch {
       if (generation !== fullCatalogGeneration) {
-        return fullCatalogLoad ?? fullCatalog.value
+        return fullCatalogLoad ?? ts.fullCatalog
       }
       return null
     }
@@ -120,23 +136,23 @@ async function refreshTrainingProgressSnapshot() {
     const result = await invokeCommand<NSSCTFCatalogSearchResult>('list_nssctf_catalog', {
       query: FULL_CATALOG_QUERY,
     })
-    if (generation !== fullCatalogGeneration) return trainingProgress.value
+    if (generation !== fullCatalogGeneration) return ts.trainingProgress
     rememberProgress(result)
-    if (fullCatalog.value) {
-      fullCatalog.value = {
-        ...fullCatalog.value,
+    if (ts.fullCatalog) {
+      ts.fullCatalog = {
+        ...ts.fullCatalog,
         attemptedProblemIds: result.attemptedProblemIds,
         completedProblemIds: result.completedProblemIds,
       }
     }
     updateDebugState({
-      fullCatalogReady: Boolean(fullCatalog.value),
-      fullCatalogProblems: fullCatalog.value?.problems.length ?? result.problems.length,
+      fullCatalogReady: Boolean(ts.fullCatalog),
+      fullCatalogProblems: ts.fullCatalog?.problems.length ?? result.problems.length,
     })
     debugLog('training-progress-refreshed', `${result.completedProblemIds.length} completed`, Date.now() - started)
-    return trainingProgress.value
+    return ts.trainingProgress
   } catch {
-    return trainingProgress.value
+    return ts.trainingProgress
   }
 }
 
@@ -166,21 +182,21 @@ function clearCatalogSearchCache() {
 
 export function useNSSCTFTraining() {
   async function load() {
-    dashboardLoading.value = true
+    ts.dashboardLoading = true
     try {
-      dashboard.value = await invokeCommand<NSSCTFTrainingDashboard>('get_nssctf_training_dashboard')
-      dashboardError.value = null
-      return dashboard.value
+      ts.dashboard = await invokeCommand<NSSCTFTrainingDashboard>('get_nssctf_training_dashboard')
+      ts.dashboardError = null
+      return ts.dashboard
     } catch (reason) {
-      dashboardError.value = reason instanceof Error ? reason.message : String(reason)
+      ts.dashboardError = reason instanceof Error ? reason.message : String(reason)
       return null
     } finally {
-      dashboardLoading.value = false
+      ts.dashboardLoading = false
     }
   }
 
   async function sync() {
-    dashboardSyncing.value = true
+    ts.dashboardSyncing = true
     try {
       const result = await invokeCommand<NSSCTFCatalogSyncResult>('sync_nssctf_catalog', {
         url: CATALOG_URL,
@@ -189,41 +205,53 @@ export function useNSSCTFTraining() {
       invalidateFullCatalog()
       void loadFullCatalog()
       await load()
-      dashboardError.value = null
+      ts.dashboardError = null
       return result
     } catch (reason) {
-      dashboardError.value = reason instanceof Error ? reason.message : String(reason)
+      ts.dashboardError = reason instanceof Error ? reason.message : String(reason)
       return null
     } finally {
-      dashboardSyncing.value = false
+      ts.dashboardSyncing = false
     }
   }
 
   return {
-    dashboard,
-    loading: dashboardLoading,
-    syncing: dashboardSyncing,
-    error: dashboardError,
+    store: trainingStore,
+    get dashboard() { return ts.dashboard },
+    get loading() { return ts.dashboardLoading },
+    get syncing() { return ts.dashboardSyncing },
+    get error() { return ts.dashboardError },
     load,
     sync,
   }
 }
 
 export function useNSSCTFCatalog() {
-  const result = ref<NSSCTFCatalogSearchResult | null>(null)
-  const loading = ref(false)
-  const error = ref<string | null>(null)
+  const store = createStore({
+    result: null as NSSCTFCatalogSearchResult | null,
+    loading: false,
+    error: null as string | null,
+  })
+  const s = {
+    get result() { return store.getState().result },
+    set result(value) { store.setState({ result: value }) },
+    get loading() { return store.getState().loading },
+    set loading(value) { store.setState({ loading: value }) },
+    get error() { return store.getState().error },
+    set error(value) { store.setState({ error: value }) }
+  }
+
   let requestGeneration = 0
 
   async function search(query: NSSCTFCatalogQuery) {
     const generation = ++requestGeneration
     const locallyServiceable = isLocalCatalogQuery(query)
-    const full = locallyServiceable ? fullCatalog.value : null
+    const full = locallyServiceable ? ts.fullCatalog : null
     if (full) {
       const next = applyLocalCatalogSearch(query, full)
-      result.value = next
-      error.value = null
-      loading.value = false
+      s.result = next
+      s.error = null
+      s.loading = false
       recordLocalHit()
       updateDebugState({
         fullCatalogReady: true,
@@ -236,39 +264,43 @@ export function useNSSCTFCatalog() {
     const key = catalogSearchKey(query)
     const cached = catalogSearchCache.get(key)
     if (cached) {
-      result.value = withCurrentProgress(cached)
-      error.value = null
-      loading.value = false
+      s.result = withCurrentProgress(cached)
+      s.error = null
+      s.loading = false
       recordCacheHit()
       debugLog('catalog-search', 'cache hit')
-      return result.value
+      return s.result
     }
 
-    loading.value = true
+    s.loading = true
     if (locallyServiceable) void loadFullCatalog()
     try {
       const next = await invokeCommand<NSSCTFCatalogSearchResult>('list_nssctf_catalog', {
         query,
       })
-      if (generation !== requestGeneration) return result.value
+      if (generation !== requestGeneration) return s.result
       catalogSearchCache.set(key, next)
-      result.value = withCurrentProgress(next)
-      error.value = null
-      return result.value
+      s.result = withCurrentProgress(next)
+      s.error = null
+      return s.result
     } catch (reason) {
       if (generation === requestGeneration) {
-        error.value = reason instanceof Error ? reason.message : String(reason)
+        s.error = reason instanceof Error ? reason.message : String(reason)
       }
       return null
     } finally {
-      if (generation === requestGeneration) loading.value = false
+      if (generation === requestGeneration) s.loading = false
     }
   }
 
   return {
-    result,
-    loading,
-    error,
+    store,
+    get result() { return s.result },
+    set result(value) { s.result = value },
+    get loading() { return s.loading },
+    set loading(value) { s.loading = value },
+    get error() { return s.error },
+    set error(value) { s.error = value },
     search,
     ensureLoaded: loadFullCatalog,
     refreshProgress: refreshTrainingProgressSnapshot,

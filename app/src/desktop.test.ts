@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 
-import { reactive } from '@/lib/reactiveStore'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { desktopErrorMessage, invokeCommand } from './desktop'
 import {
@@ -77,7 +76,7 @@ describe('desktop command adapter', () => {
     expect(invoke).toHaveBeenNthCalledWith(2, 'PreviewCodingAttachment', [attachment])
   })
 
-  it('serializes Vue reactive values before crossing Electron IPC', async () => {
+  it('serializes nested conversation payloads before crossing Electron IPC', async () => {
     const invoke = vi.fn(async (_method: string, args: unknown[]) => {
       structuredClone(args)
     })
@@ -85,12 +84,12 @@ describe('desktop command adapter', () => {
       configurable: true,
       value: { invoke },
     })
-    const conversation = reactive({
+    const conversation = {
       id: 'coding-1',
       title: '配置 IDA Pro',
       createdAt: 1,
       messages: [{ id: 'message-1', role: 'user', content: '运行健康检查', timestamp: 2 }],
-    })
+    }
 
     await expect(invokeCommand('save_conversation', { conversation })).resolves.toBeUndefined()
     expect(invoke).toHaveBeenCalledWith('SaveConversation', [{

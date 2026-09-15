@@ -29,12 +29,11 @@ import { MODEL_THINKING_LEVEL_LABELS } from '@/lib/modelThinking'
 import {
   encodeComposerModelKey,
   parseComposerModelKey,
-  useModelCatalog,
+  useLiveModelCatalog,
 } from '@/modelCatalog'
 import { dshAcpSupportsModel } from '@/lib/dshModels'
 import ModelVendorIcon from '@/components/ModelVendorIcon'
 import { useT } from '@/hooks/useUiLocale'
-import { useVue, useVueStore } from '@/hooks/useVueStore'
 
 const CONTROL_STYLES = `
 .composer-controls { flex: 1 1 auto; }
@@ -195,8 +194,8 @@ export default function CodingComposerControls({
   onShowPermissions?: () => void
 }) {
   const t = useT()
-  const catalog = useVueStore(() => useModelCatalog())
-  const pickerGroups = useVue(() => catalog.pickerGroups.value)
+  const catalog = useLiveModelCatalog()
+  const pickerGroups = catalog.pickerGroups
   const thinkingLevels = thinkingLevelsProp ?? []
   const thinkingIndex = Math.max(0, thinkingLevels.indexOf(thinkingLevel ?? thinkingLevels[0]))
   const thinkingProgress = thinkingLevels.length <= 1

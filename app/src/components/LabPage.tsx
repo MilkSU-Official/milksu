@@ -1,5 +1,5 @@
+import { useStoreRuntime } from '@/lib/reactStore'
 import { useEffect, useMemo, useRef, useState, type ComponentType } from 'react'
-import { computed } from '@/lib/reactiveStore'
 import {
   Button,
   DropdownMenu,
@@ -30,7 +30,8 @@ import WorkspaceCatalogHistoryItem from '@/components/WorkspaceCatalogHistoryIte
 import WorkspaceImportDialog from '@/components/WorkspaceImportDialog'
 import WorkspaceModuleTopBar from '@/components/WorkspaceModuleTopBar'
 import { invokeCommand } from '@/desktop'
-import { labScopeLabel, useLabJobs, type LabJob, type LabScope } from '@/composables/useLabJobs'
+import { labScopeLabel, type LabJob, type LabScope } from '@/composables/useLabJobs'
+import { useLabJobs } from '@/stores/labJobsStore'
 import { toStripLease, useEnvLease } from '@/composables/useEnvLease'
 import type { EnvChallenge, EnvLease, EnvPackage } from '@/envbroker'
 import EnvironmentStrip from '@/components/lab-env/EnvironmentStrip'
@@ -39,7 +40,6 @@ import { useDossierSplit } from '@/lib/useDossierSplit'
 import { groupLabPackages, type LabPackageCategory } from '@/lib/labPackageCategory'
 import type { CodingAgentSendArgs, CodingAgentSurfaceBind } from '@/lib/codingAgentSurface'
 import { useT } from '@/hooks/useUiLocale'
-import { useVue, useVueStore } from '@/hooks/useVueStore'
 import type { Conversation } from '@/types'
 
 function ActionCard({
@@ -201,21 +201,29 @@ export default function LabPage({
   onOpenLabSettings?: () => void
 }) {
   const t = useT()
-  const lab = useVueStore(() => {
-    const jobsStore = useLabJobs()
-    const ownerKind = computed(() => 'lab' as const)
-    const ownerId = computed(() => jobsStore.selected.value?.id ?? '')
-    const packageId = computed(() => jobsStore.selected.value?.packageId)
-    const env = useEnvLease(ownerKind, ownerId, packageId)
+  const jobsStore = useLabJobs()
+  const labJobs = jobsStore.jobs
+  const selectedId = jobsStore.selectedId
+  const selected = jobsStore.selected
+  const lab = useStoreRuntime(() => {
+    const env = useEnvLease(
+      () => 'lab',
+      () => jobsStore.selected?.id ?? '',
+      () => jobsStore.selected?.packageId,
+    )
     const split = useDossierSplit('milksu.lab-split.v1', 400)
-    return { jobsStore, env, split }
+    return {
+      store: env.store,
+      jobsStore,
+      env,
+      split,
+      mount: env.mount,
+      unmount: env.unmount,
+    }
   })
-  const labJobs = useVue(() => lab.jobsStore.jobs.value)
-  const selectedId = useVue(() => lab.jobsStore.selectedId.value)
-  const selected = useVue(() => lab.jobsStore.selected.value)
-  const envLease = useVue(() => lab.env.lease.value)
-  const envPackages = useVue(() => lab.env.packages.value)
-  const briefWidth = useVue(() => lab.split.width.value)
+  const envLease = lab.env.lease
+  const envPackages = lab.env.packages
+  const briefWidth = lab.split.width
 
   const [showNew, setShowNew] = useState(false)
   const catalogActions = useRef<WorkspaceCatalogActionsHandle | null>(null)
@@ -388,7 +396,7 @@ export default function LabPage({
     if (existing) {
       if (focused) lab.jobsStore.focusChallenge(existing.id, focused.id, focused.guidance)
       setSelectedPackId('')
-      lab.jobsStore.selectedId.value = existing.id
+      lab.jobsStore.selectedId = existing.id
       onEnter?.(existing)
       setPendingOpen(true)
       await lab.env.start(pkg.id)
@@ -448,13 +456,13 @@ export default function LabPage({
   }
 
   function openJob(job: LabJob) {
-    lab.jobsStore.selectedId.value = job.id
+    lab.jobsStore.selectedId = job.id
     onEnter?.(job)
   }
 
   function back() {
     const packId = selected?.packageId
-    lab.jobsStore.selectedId.value = ''
+    lab.jobsStore.selectedId = ''
     if (packId) {
       setLabTab('packages')
       setSelectedPackId(packId)

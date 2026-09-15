@@ -1,4 +1,4 @@
-import { computed, ref, type Ref } from '@/lib/reactiveStore'
+import { createStore } from '@/lib/reactStore'
 import { t } from '@/lib/uiLocale'
 
 export const QUICK_COLLECTION_ID = 'favorites'
@@ -17,9 +17,10 @@ interface PersistedItemCollections {
 }
 
 export interface ItemCollectionStore {
-  collections: Readonly<Ref<ItemCollection[]>>
-  revision: Readonly<Ref<number>>
-  uniqueItemCount: Readonly<Ref<number>>
+  store: import('@/lib/reactStore').Store<{ collections: ItemCollection[]; revision: number }>
+  collections: ItemCollection[]
+  revision: number
+  uniqueItemCount: number
   itemKeysFor: (collectionId?: string) => string[]
   collectionIdsFor: (itemKey: string) => string[]
   has: (itemKey: string, collectionId?: string) => boolean
@@ -73,30 +74,39 @@ function createCollectionId() {
 }
 
 export function createItemCollectionStore(storageKey: string): ItemCollectionStore {
-  const collections = ref(readCollections(storageKey))
-  const revision = ref(0)
+  const store = createStore({
+    collections: readCollections(storageKey),
+    revision: 0,
+  })
+  const s = {
+    get collections() { return store.getState().collections },
+    set collections(value) { store.setState({ collections: value }) },
+    get revision() { return store.getState().revision },
+    set revision(value) { store.setState({ revision: value }) }
+  }
+
 
   function persist() {
     try {
       window.localStorage.setItem(storageKey, JSON.stringify({
         schema: 1,
-        collections: collections.value,
+        collections: s.collections,
       } satisfies PersistedItemCollections))
     } catch {
       // A disabled storage backend should not make the list unusable for this session.
     }
-    revision.value += 1
+    s.revision += 1
   }
 
   function itemKeysFor(collectionId = ALL_COLLECTIONS_ID) {
     if (collectionId === ALL_COLLECTIONS_ID) {
-      return [...new Set(collections.value.flatMap(collection => collection.itemKeys))]
+      return [...new Set(s.collections.flatMap(collection => collection.itemKeys))]
     }
-    return [...(collections.value.find(collection => collection.id === collectionId)?.itemKeys ?? [])]
+    return [...(s.collections.find(collection => collection.id === collectionId)?.itemKeys ?? [])]
   }
 
   function collectionIdsFor(itemKey: string) {
-    return collections.value
+    return s.collections
       .filter(collection => collection.itemKeys.includes(itemKey))
       .map(collection => collection.id)
   }
@@ -107,7 +117,7 @@ export function createItemCollectionStore(storageKey: string): ItemCollectionSto
 
   function toggle(itemKey: string, collectionId = QUICK_COLLECTION_ID) {
     const key = itemKey.trim()
-    const collection = collections.value.find(item => item.id === collectionId)
+    const collection = s.collections.find(item => item.id === collectionId)
     if (!key || !collection) return
     collection.itemKeys = collection.itemKeys.includes(key)
       ? collection.itemKeys.filter(item => item !== key)
@@ -118,11 +128,11 @@ export function createItemCollectionStore(storageKey: string): ItemCollectionSto
   function create(name: string, itemKey?: string) {
     const normalized = name.trim().replace(/\s+/g, ' ').slice(0, 30)
     if (!normalized) throw new Error(t('请输入收藏夹名称', 'Enter a collection name'))
-    if (collections.value.some(collection => collection.name.toLocaleLowerCase() === normalized.toLocaleLowerCase())) {
+    if (s.collections.some(collection => collection.name.toLocaleLowerCase() === normalized.toLocaleLowerCase())) {
       throw new Error(t('已经有同名收藏夹', 'A collection with this name already exists'))
     }
     const id = createCollectionId()
-    collections.value.push({
+    s.collections.push({
       id,
       name: normalized,
       itemKeys: itemKey?.trim() ? [itemKey.trim()] : [],
@@ -134,16 +144,17 @@ export function createItemCollectionStore(storageKey: string): ItemCollectionSto
 
   function remove(collectionId: string) {
     if (collectionId === QUICK_COLLECTION_ID) return
-    const next = collections.value.filter(collection => collection.id !== collectionId)
-    if (next.length === collections.value.length) return
-    collections.value = next
+    const next = s.collections.filter(collection => collection.id !== collectionId)
+    if (next.length === s.collections.length) return
+    s.collections = next
     persist()
   }
 
   return {
-    collections: computed(() => collections.value),
-    revision: computed(() => revision.value),
-    uniqueItemCount: computed(() => itemKeysFor().length),
+    store,
+    get collections() { return s.collections },
+    get revision() { return s.revision },
+    get uniqueItemCount() { return itemKeysFor().length },
     itemKeysFor,
     collectionIdsFor,
     has,

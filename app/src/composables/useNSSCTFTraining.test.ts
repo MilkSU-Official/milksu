@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { nextTick } from '@/lib/reactiveStore'
+import { nextTick } from '@/lib/reactStore'
 import type { NSSCTFCatalogQuery, NSSCTFCatalogSearchResult, NSSCTFTrainingDashboard } from '@/nssctfTrainingTypes'
 
 const { invokeCommand } = vi.hoisted(() => ({
@@ -114,7 +114,7 @@ describe('useNSSCTFCatalog', () => {
     await catalog.search(makeQuery('收藏'))
 
     expect(invokeCommand).toHaveBeenCalledOnce()
-    expect(catalog.result.value?.problems[0]?.platformId).toBe(101)
+    expect(catalog.result?.problems[0]?.platformId).toBe(101)
   })
 
   it('keeps the visible result while a new search query is pending', async () => {
@@ -129,12 +129,12 @@ describe('useNSSCTFCatalog', () => {
     const pending = catalog.search(makeQuery('sql'))
     await nextTick()
 
-    expect(catalog.result.value?.problems[0]?.platformId).toBe(101)
-    expect(catalog.loading.value).toBe(true)
+    expect(catalog.result?.problems[0]?.platformId).toBe(101)
+    expect(catalog.loading).toBe(true)
 
     resolveNext(result(202))
     await pending
-    expect(catalog.result.value?.problems[0]?.platformId).toBe(202)
+    expect(catalog.result?.problems[0]?.platformId).toBe(202)
   })
 
   it('does not let an older response replace the latest filter result', async () => {
@@ -152,7 +152,7 @@ describe('useNSSCTFCatalog', () => {
     resolveOld(result(404))
     await oldRequest
 
-    expect(catalog.result.value?.problems[0]?.platformId).toBe(303)
+    expect(catalog.result?.problems[0]?.platformId).toBe(303)
   })
 
   it('does not resolve a superseded search to the discarded payload', async () => {
@@ -172,7 +172,7 @@ describe('useNSSCTFCatalog', () => {
 
     expect(stale?.page).toBe(1)
     expect(stale?.problems[0]?.platformId).toBe(303)
-    expect(catalog.result.value?.page).toBe(1)
+    expect(catalog.result?.page).toBe(1)
   })
 
   it('serves collection filter switches from the local full catalog without RPC', async () => {
@@ -189,7 +189,7 @@ describe('useNSSCTFCatalog', () => {
     const result = await catalog.search({ query: '', category: 'all', page: 1, pageSize: 20, problemIds: [303, 101] })
     expect(result?.problems.map(item => item.platformId).sort()).toEqual([101, 303])
     expect(invokeCommand).not.toHaveBeenCalled()
-    expect(catalog.loading.value).toBe(false)
+    expect(catalog.loading).toBe(false)
   })
 
   it('pages locally when a collection has more problems than one page', async () => {
@@ -300,7 +300,7 @@ describe('useNSSCTFCatalog', () => {
     await catalog.refreshProgress()
     const after = await catalog.search({ query: '', category: 'all', page: 1, pageSize: 20 })
     expect(after?.completedProblemIds).toEqual([101])
-    expect(catalog.result.value?.completedProblemIds).toEqual([101])
+    expect(catalog.result?.completedProblemIds).toEqual([101])
   })
 
   it('swallows a failed warmup instead of rejecting ensureLoaded', async () => {

@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { nextTick, runWithLifecycle } from '@/lib/reactiveStore'
+import { nextTick } from '@/lib/reactStore'
 import {
   fallbackConversationTitle,
-  useConversations,
+  createConversationsRuntime,
 } from '@/composables/useConversations'
 
 const desktop = vi.hoisted(() => ({
@@ -30,13 +30,12 @@ vi.mock('@/desktop', () => ({
   ),
 }))
 
-const mountedStores: Array<{ unmount: () => void }> = []
+const mountedRuntimes: Array<{ dispose: () => void }> = []
 
 function mountConversations() {
-  const host = runWithLifecycle(() => useConversations())
-  host.mount()
-  mountedStores.push(host)
-  return host.value
+  const runtime = createConversationsRuntime()
+  mountedRuntimes.push(runtime)
+  return runtime
 }
 
 async function settle() {
@@ -53,7 +52,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  for (const store of mountedStores.splice(0)) store.unmount()
+  for (const runtime of mountedRuntimes.splice(0)) runtime.dispose()
   document.body.innerHTML = ''
 })
 
@@ -72,7 +71,7 @@ describe('Coding conversation title generation', () => {
     const fallbackTitle = fallbackConversationTitle(firstMessage)
 
     await expect(conversations.send(firstMessage)).resolves.toBe(true)
-    expect(conversations.active.value?.title).toBe(fallbackTitle)
+    expect(conversations.active?.title).toBe(fallbackTitle)
     expect(desktop.invokeCommand).toHaveBeenCalledWith('generate_conversation_title', {
       firstMessage,
       modelMode: '',
@@ -87,7 +86,7 @@ describe('Coding conversation title generation', () => {
     resolveTitle('修复登录回调状态恢复')
     await settle()
 
-    expect(conversations.active.value?.title).toBe('修复登录回调状态恢复')
+    expect(conversations.active?.title).toBe('修复登录回调状态恢复')
     expect(desktop.invokeCommand).toHaveBeenCalledWith('save_conversation', {
       conversation: expect.objectContaining({ title: '修复登录回调状态恢复' }),
     })
@@ -101,7 +100,7 @@ describe('Coding conversation title generation', () => {
     await expect(conversations.send('检查这个页面的登录流程')).resolves.toBe(true)
     await settle()
 
-    expect(conversations.active.value?.title).toBe('MilkSU · 浏览器')
+    expect(conversations.active?.title).toBe('MilkSU · 浏览器')
     expect(desktop.invokeCommand).not.toHaveBeenCalledWith(
       'generate_conversation_title',
       expect.anything(),
@@ -141,7 +140,7 @@ describe('Coding conversation title generation', () => {
     await expect(conversations.send('补上恢复测试')).resolves.toBe(true)
     await settle()
 
-    expect(conversations.active.value?.title).toBe('修复登录回调')
+    expect(conversations.active?.title).toBe('修复登录回调')
     expect(desktop.invokeCommand.mock.calls.filter(
       ([command]) => command === 'generate_conversation_title',
     )).toHaveLength(1)
@@ -158,8 +157,8 @@ describe('Coding conversation title generation', () => {
     const conversations = mountConversations()
 
     await expect(conversations.send('先检查当前失败测试')).resolves.toBe(true)
-    const conversationId = conversations.activeId.value
-    conversations.conversations.value = conversations.conversations.value.map(item => (
+    const conversationId = conversations.activeId
+    conversations.conversations = conversations.conversations.map(item => (
       item.id === conversationId
         ? {
             ...item,
@@ -201,8 +200,8 @@ describe('Coding conversation title generation', () => {
     expect(desktop.invokeCommand.mock.calls.filter(
       ([command]) => command === 'send_message',
     )).toHaveLength(1)
-    expect(conversations.activeMessageQueue.value.steering).toEqual([])
-    expect(conversations.active.value?.messages.some(message => (
+    expect(conversations.activeMessageQueue.steering).toEqual([])
+    expect(conversations.active?.messages.some(message => (
       message.role === 'user'
       && message.content === '都不合适，按任务交接来'
       && message.status === 'queued'
@@ -217,13 +216,13 @@ describe('Coding conversation title generation', () => {
     await expect(conversations.send('不要改 API，先补回归测试')).resolves.toBe(true)
 
     expect(desktop.invokeCommand).toHaveBeenCalledWith('steer_message', {
-      conversationId: conversations.activeId.value,
+      conversationId: conversations.activeId,
       prompt: '不要改 API，先补回归测试',
     })
     expect(desktop.invokeCommand.mock.calls.filter(
       ([command]) => command === 'send_message',
     )).toHaveLength(1)
-    expect(conversations.activeMessageQueue.value.steering).toEqual([
+    expect(conversations.activeMessageQueue.steering).toEqual([
       '不要改 API，先补回归测试',
     ])
   })
@@ -243,7 +242,7 @@ describe('Coding conversation title generation', () => {
     expect(desktop.invokeCommand.mock.calls.filter(
       ([command]) => command === 'send_message',
     )).toHaveLength(2)
-    expect(conversations.active.value?.messages.some(message => (
+    expect(conversations.active?.messages.some(message => (
       message.role === 'assistant' && message.content.includes('PI session not found')
     ))).toBe(false)
   })
@@ -257,13 +256,13 @@ describe('Coding conversation title generation', () => {
     await expect(conversations.cancelQueuedGuidance(0)).resolves.toBe(true)
 
     expect(desktop.invokeCommand).toHaveBeenCalledWith('remove_queued_message', {
-      conversationId: conversations.activeId.value,
+      conversationId: conversations.activeId,
       queue: 'steering',
       index: 0,
       expected: '不要改 API，先补回归测试',
     })
-    expect(conversations.activeMessageQueue.value.steering).toEqual([])
-    expect(conversations.active.value?.messages.map(message => message.content))
+    expect(conversations.activeMessageQueue.steering).toEqual([])
+    expect(conversations.active?.messages.map(message => message.content))
       .not.toContain('不要改 API，先补回归测试')
   })
 
@@ -275,11 +274,11 @@ describe('Coding conversation title generation', () => {
     await conversations.send('把 API 全部改掉')
     await expect(conversations.editQueuedGuidance(0)).resolves.toBe(true)
 
-    expect(conversations.pendingComposerDraft.value).toEqual({
+    expect(conversations.pendingComposerDraft).toEqual({
       prompt: '把 API 全部改掉',
       visibleText: '把 API 全部改掉',
     })
-    expect(conversations.activeMessageQueue.value.steering).toEqual([])
+    expect(conversations.activeMessageQueue.steering).toEqual([])
   })
 
   it('keeps the queued message when the runtime rejects a stale removal', async () => {
@@ -295,8 +294,8 @@ describe('Coding conversation title generation', () => {
     await conversations.send('继续补回归测试')
     await expect(conversations.cancelQueuedGuidance(0)).rejects.toThrow('changed before')
 
-    expect(conversations.activeMessageQueue.value.steering).toEqual(['继续补回归测试'])
-    expect(conversations.active.value?.messages).toEqual(expect.arrayContaining([
+    expect(conversations.activeMessageQueue.steering).toEqual(['继续补回归测试'])
+    expect(conversations.active?.messages).toEqual(expect.arrayContaining([
       expect.objectContaining({
         role: 'user',
         content: '继续补回归测试',

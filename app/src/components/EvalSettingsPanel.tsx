@@ -1,5 +1,4 @@
-import { computed, ref, watch } from '@/lib/reactiveStore'
-import { useEffect } from 'react'
+import { createStore, useStore, useStoreRuntime } from '@/lib/reactStore'
 import { Bug, Flag, FlaskConical, Square } from 'lucide-react'
 import {
   Button,
@@ -20,10 +19,10 @@ import { hasDesktopRuntime, invokeCommand, isMissingDesktopRuntime, listenEvent 
 import type { EvalBoardModel, EvalBoardSnapshot, EvalModelRef, EvalSuiteBoard } from '@/evalTypes'
 import {
   encodePickerSelection,
+  modelCatalogStore,
   parsePickerSelection,
   useModelCatalog,
 } from '@/modelCatalog'
-import { useVue, useVueStore } from '@/hooks/useVueStore'
 import { useT } from '@/hooks/useUiLocale'
 import type { AppSettings } from '@/types'
 
@@ -62,25 +61,79 @@ export default function EvalSettingsPanel({
   settings: AppSettings | null
 }) {
   const t = useT()
-  const store = useVueStore(() => {
-    const settingsRef = ref(settings)
-    const { pickerGroups, pickerModelLabel } = useModelCatalog(computed(() => ({
-      providers: settingsRef.value?.providers ?? {},
-      relay: settingsRef.value?.relay ?? null,
-    })))
-    const suiteModel = ref<Record<string, string>>(loadSuiteModels())
-    const selectedSuite = ref(loadSelectedSuite())
-    const board = ref<EvalBoardSnapshot | null>(null)
-    const activityOpen = ref(false)
-    const error = ref('')
+  const store = useStoreRuntime(() => {
+    const store = createStore({
+      settingsRef: null as AppSettings | null,
+      suiteModel: loadSuiteModels(),
+      selectedSuite: loadSelectedSuite(),
+      board: null as EvalBoardSnapshot | null,
+      activityOpen: false,
+      error: '',
+    })
+    let started = false
+    const persistSuiteModels = (value: Record<string, string>) => {
+      try {
+        localStorage.setItem(SUITE_MODELS_KEY, JSON.stringify(value))
+      } catch {
+        // ignore quota / private-mode failures
+      }
+    }
+    const persistSelectedSuite = (value: string) => {
+      try {
+        localStorage.setItem(SELECTED_SUITE_KEY, value)
+      } catch {
+        // ignore quota / private-mode failures
+      }
+    }
+    const s = {
+      get settingsRef() { return store.getState().settingsRef },
+      set settingsRef(value: AppSettings | null) {
+        if (Object.is(store.getState().settingsRef, value)) return
+        store.setState({ settingsRef: value })
+        applyPickerFallback()
+        if (started) syncCatalogSignature()
+      },
+      get suiteModel() { return store.getState().suiteModel },
+      set suiteModel(value: Record<string, string>) {
+        if (Object.is(store.getState().suiteModel, value)) return
+        store.setState({ suiteModel: value })
+        persistSuiteModels(value)
+      },
+      get selectedSuite() { return store.getState().selectedSuite },
+      set selectedSuite(value: string) {
+        if (store.getState().selectedSuite === value) return
+        store.setState({ selectedSuite: value })
+        persistSelectedSuite(value)
+      },
+      get board() { return store.getState().board },
+      set board(value: EvalBoardSnapshot | null) { store.setState({ board: value }) },
+      get activityOpen() { return store.getState().activityOpen },
+      set activityOpen(value: boolean) {
+        if (store.getState().activityOpen === value) return
+        store.setState({ activityOpen: value })
+      },
+      get error() { return store.getState().error },
+      set error(value: string) {
+        if (store.getState().error === value) return
+        store.setState({ error: value })
+      },
+    }
+    const catalog = useModelCatalog(() => ({
+      providers: s.settingsRef?.providers ?? {},
+      relay: s.settingsRef?.relay ?? null,
+    }))
+    const pickerGroups = () => catalog.pickerGroups
+    const pickerModelLabel = catalog.pickerModelLabel
     let unlisten: (() => void) | undefined
+    let stopCatalog: (() => void) | undefined
     let elapsedTimer: ReturnType<typeof setInterval> | undefined
     let boardRequest = 0
+    let lastCatalogSignature = ''
 
-    const catalogRefs = computed<EvalModelRef[]>(() => {
+    const catalogRefs = () => {
       const seen = new Set<string>()
       const refs: EvalModelRef[] = []
-      for (const group of pickerGroups.value) {
+      for (const group of pickerGroups()) {
         for (const model of group.models) {
           const id = String(model ?? '').trim()
           if (!id) continue
@@ -95,27 +148,27 @@ export default function EvalSettingsPanel({
         }
       }
       return refs
-    })
+    }
 
-    const catalogSignature = computed(() => (
-      catalogRefs.value.map(item => `${item.provider}:${item.source ?? ''}:${item.model}`).join('|')
-    ))
+    const catalogSignature = () => (
+      catalogRefs().map(item => `${item.provider}:${item.source ?? ''}:${item.model}`).join('|')
+    )
 
-    const cards = computed<EvalSuiteBoard[]>(() => {
-      if (board.value?.all && board.value.all.length > 0) return board.value.all
-      return (board.value?.suites ?? []).map(suite => ({
+    const cards = (): EvalSuiteBoard[] => {
+      if (s.board?.all && s.board.all.length > 0) return s.board.all
+      return (s.board?.suites ?? []).map(suite => ({
         suite,
-        models: suite.id === board.value?.selected ? (board.value.models ?? []) : [],
+        models: suite.id === s.board?.selected ? (s.board.models ?? []) : [],
       }))
-    })
+    }
 
-    const running = computed(() => (
-      board.value?.progress?.state === 'running' || board.value?.progress?.state === 'stopping'
-    ))
-    const progress = computed(() => board.value?.progress ?? null)
+    const running = () => (
+      s.board?.progress?.state === 'running' || s.board?.progress?.state === 'stopping'
+    )
+    const progress = () => s.board?.progress ?? null
 
     function focusedRow(models: EvalBoardModel[], suiteId: string) {
-      const key = parsePickerSelection(suiteModel.value[suiteId] ?? '')
+      const key = parsePickerSelection(s.suiteModel[suiteId] ?? '')
       if (!key) return null
       return models.find(row => (
         row.model.provider === key.providerId
@@ -126,12 +179,13 @@ export default function EvalSettingsPanel({
     }
 
     function suiteBusy(suiteId: string) {
-      return running.value && progress.value?.suite === suiteId
+      return running() && progress()?.suite === suiteId
     }
 
     function suiteError(suiteId: string) {
-      if (progress.value?.suite === suiteId && progress.value.error && !suiteBusy(suiteId)) {
-        return progress.value.error
+      const current = progress()
+      if (current?.suite === suiteId && current.error && !suiteBusy(suiteId)) {
+        return current.error
       }
       return ''
     }
@@ -163,7 +217,7 @@ export default function EvalSettingsPanel({
         count <= 1 ? pad.l : pad.l + (index / (count - 1)) * innerW
       )
       const y = (value: number) => pad.t + innerH * (1 - value / 100)
-      const selection = parsePickerSelection(suiteModel.value[suiteId] ?? '')
+      const selection = parsePickerSelection(s.suiteModel[suiteId] ?? '')
       const drawn = models.filter(row => (row.curve?.length ?? 0) > 0 || row.score != null)
       const series = drawn.map(row => {
         const curve = (row.curve && row.curve.length > 0) ? row.curve : (row.score != null ? [row.score] : [])
@@ -196,18 +250,18 @@ export default function EvalSettingsPanel({
       }
     }
 
-    const current = computed(() => {
-      const card = cards.value.find(item => item.suite.id === selectedSuite.value) ?? cards.value[0]
+    const current = () => {
+      const card = cards().find(item => item.suite.id === s.selectedSuite) ?? cards()[0]
       if (!card) {
         return {
-          suite: { id: selectedSuite.value, name: selectedSuite.value, purpose: '', runnable: false, taskN: 0 },
+          suite: { id: s.selectedSuite, name: s.selectedSuite, purpose: '', runnable: false, taskN: 0 },
           models: [] as EvalBoardModel[],
           focused: null as ReturnType<typeof focusedRow>,
           spark: null as ReturnType<typeof sparkPoints>,
-          chart: chartFor([], selectedSuite.value),
-          modelKey: suiteModel.value[selectedSuite.value] ?? '',
-          modelId: parsePickerSelection(suiteModel.value[selectedSuite.value] ?? '')?.model ?? '',
-          selection: parsePickerSelection(suiteModel.value[selectedSuite.value] ?? ''),
+          chart: chartFor([], s.selectedSuite),
+          modelKey: s.suiteModel[s.selectedSuite] ?? '',
+          modelId: parsePickerSelection(s.suiteModel[s.selectedSuite] ?? '')?.model ?? '',
+          selection: parsePickerSelection(s.suiteModel[s.selectedSuite] ?? ''),
           busy: false,
           error: '',
         }
@@ -218,16 +272,17 @@ export default function EvalSettingsPanel({
         focused,
         spark: sparkPoints(focused?.runs),
         chart: chartFor(card.models, card.suite.id),
-        modelKey: suiteModel.value[card.suite.id] ?? '',
-        modelId: parsePickerSelection(suiteModel.value[card.suite.id] ?? '')?.model ?? '',
-        selection: parsePickerSelection(suiteModel.value[card.suite.id] ?? ''),
+        modelKey: s.suiteModel[card.suite.id] ?? '',
+        modelId: parsePickerSelection(s.suiteModel[card.suite.id] ?? '')?.model ?? '',
+        selection: parsePickerSelection(s.suiteModel[card.suite.id] ?? ''),
         busy: suiteBusy(card.suite.id),
         error: suiteError(card.suite.id),
       }
-    })
+    }
 
-    watch(pickerGroups, groups => {
-      const active = settingsRef.value?.active_model
+    function applyPickerFallback() {
+      const groups = pickerGroups()
+      const active = s.settingsRef?.active_model
       const match = groups.find(group => group.models.includes(active ?? ''))
       const first = groups[0]
       const fallback = match && active
@@ -236,83 +291,73 @@ export default function EvalSettingsPanel({
           ? encodePickerSelection(first.providerId, first.models[0], first.source)
           : ''
       if (!fallback) return
-      const next = { ...suiteModel.value }
-      const ids = cards.value.length > 0
-        ? cards.value.map(item => item.suite.id)
+      const next = { ...s.suiteModel }
+      const ids = cards().length > 0
+        ? cards().map(item => item.suite.id)
         : ['cybench', 'sec-bench', 'autopen']
+      let changed = false
       for (const id of ids) {
-        if (!next[id]) next[id] = fallback
+        if (!next[id]) {
+          next[id] = fallback
+          changed = true
+        }
       }
-      suiteModel.value = next
-    }, { immediate: true })
+      if (changed) s.suiteModel = next
+    }
 
-    watch(suiteModel, value => {
-      try {
-        localStorage.setItem(SUITE_MODELS_KEY, JSON.stringify(value))
-      } catch {
-        // ignore quota / private-mode failures
-      }
-    }, { deep: true })
-
-    watch(selectedSuite, value => {
-      try {
-        localStorage.setItem(SELECTED_SUITE_KEY, value)
-      } catch {
-        // ignore quota / private-mode failures
-      }
-    })
-
-    watch(catalogSignature, (next, previous) => {
-      if (next === previous) return
+    function syncCatalogSignature() {
+      const next = catalogSignature()
+      if (next === lastCatalogSignature) return
+      lastCatalogSignature = next
       void refreshBoard()
-    })
+    }
 
     async function refreshBoard() {
       if (!hasDesktopRuntime()) {
-        error.value = ''
+        s.error = ''
         return
       }
       const request = ++boardRequest
       try {
         const next = await invokeCommand<EvalBoardSnapshot>('get_eval_board', {
-          models: catalogRefs.value,
+          models: catalogRefs(),
         })
         if (request !== boardRequest) return
-        board.value = next
-        error.value = next.progress?.error ?? ''
+        s.board = next
+        s.error = next.progress?.error ?? ''
       } catch (reason) {
         if (request !== boardRequest) return
         if (!isMissingDesktopRuntime(reason)) {
-          error.value = String(reason instanceof Error ? reason.message : reason)
+          s.error = String(reason instanceof Error ? reason.message : reason)
         }
       }
     }
 
     async function startCurrent(suiteId: string) {
-      const selection = parsePickerSelection(suiteModel.value[suiteId] ?? '')
-      const card = cards.value.find(item => item.suite.id === suiteId)
+      const selection = parsePickerSelection(s.suiteModel[suiteId] ?? '')
+      const card = cards().find(item => item.suite.id === suiteId)
       if (!selection || !card?.suite.runnable) return
-      error.value = ''
+      s.error = ''
       try {
-        board.value = await invokeCommand<EvalBoardSnapshot>('start_eval_run', {
+        s.board = await invokeCommand<EvalBoardSnapshot>('start_eval_run', {
           suite: suiteId,
           provider: selection.providerId,
           model: selection.model,
           source: selection.source,
         })
       } catch (reason) {
-        error.value = String(reason instanceof Error ? reason.message : reason)
+        s.error = String(reason instanceof Error ? reason.message : reason)
       }
     }
 
     async function startAll(suiteId: string) {
-      const models = catalogRefs.value
+      const models = catalogRefs()
       const first = models[0]
-      const card = cards.value.find(item => item.suite.id === suiteId)
+      const card = cards().find(item => item.suite.id === suiteId)
       if (!first || !card?.suite.runnable) return
-      error.value = ''
+      s.error = ''
       try {
-        board.value = await invokeCommand<EvalBoardSnapshot>('start_eval_run', {
+        s.board = await invokeCommand<EvalBoardSnapshot>('start_eval_run', {
           suite: suiteId,
           provider: first.provider,
           model: first.model,
@@ -320,24 +365,24 @@ export default function EvalSettingsPanel({
           models,
         })
       } catch (reason) {
-        error.value = String(reason instanceof Error ? reason.message : reason)
+        s.error = String(reason instanceof Error ? reason.message : reason)
       }
     }
 
     async function stopRun() {
       try {
-        board.value = await invokeCommand<EvalBoardSnapshot>('stop_eval_run')
+        s.board = await invokeCommand<EvalBoardSnapshot>('stop_eval_run')
       } catch (reason) {
-        error.value = String(reason instanceof Error ? reason.message : reason)
+        s.error = String(reason instanceof Error ? reason.message : reason)
       }
     }
 
     function setSuiteModel(suiteId: string, value: string) {
-      suiteModel.value = { ...suiteModel.value, [suiteId]: value }
+      s.suiteModel = { ...s.suiteModel, [suiteId]: value }
     }
 
     function modelGroup(ref: EvalModelRef) {
-      return pickerGroups.value.find(item => (
+      return pickerGroups().find(item => (
         item.providerId === ref.provider
         && item.models.includes(ref.model)
         && (ref.source ? item.source === ref.source : true)
@@ -355,7 +400,7 @@ export default function EvalSettingsPanel({
     }
 
     function selectRow(suiteId: string, row: EvalBoardModel) {
-      const group = pickerGroups.value.find(item => (
+      const group = pickerGroups().find(item => (
         item.providerId === row.model.provider
         && item.models.includes(row.model.model)
         && (!row.model.source || item.source === row.model.source)
@@ -365,51 +410,56 @@ export default function EvalSettingsPanel({
     }
 
     function suiteScore(id: string) {
-      const key = parsePickerSelection(suiteModel.value[id] ?? '')
-      const card = cards.value.find(item => item.suite.id === id)
+      const key = parsePickerSelection(s.suiteModel[id] ?? '')
+      const card = cards().find(item => item.suite.id === id)
       if (!key || !card) return undefined
       return card.models.find(row => (
         row.model.provider === key.providerId && row.model.model === key.model
       ))?.score ?? undefined
     }
 
-    const activitySuiteName = computed(() => (
-      cards.value.find(item => item.suite.id === progress.value?.suite)?.suite.name ?? ''
-    ))
+    const activitySuiteName = () => (
+      cards().find(item => item.suite.id === progress()?.suite)?.suite.name ?? ''
+    )
 
     function start() {
+      started = true
+      applyPickerFallback()
+      lastCatalogSignature = catalogSignature()
       void refreshBoard()
+      stopCatalog = modelCatalogStore.subscribe(() => {
+        applyPickerFallback()
+        syncCatalogSignature()
+      })
       void listenEvent<EvalBoardSnapshot>('eval-progress', event => {
         const payload = event.payload
-        error.value = payload.progress?.error ?? ''
-        board.value = payload
+        s.error = payload.progress?.error ?? ''
+        s.board = payload
       }).then(stop => { unlisten = stop })
       elapsedTimer = setInterval(() => {
-        if (!board.value?.progress || board.value.progress.state === 'idle') return
-        board.value = {
-          ...board.value,
+        if (!s.board?.progress || s.board.progress.state === 'idle') return
+        s.board = {
+          ...s.board,
           progress: {
-            ...board.value.progress,
-            elapsedMs: board.value.progress.elapsedMs + 1000,
+            ...s.board.progress,
+            elapsedMs: s.board.progress.elapsedMs + 1000,
           },
         }
       }, 1000)
     }
 
     function stop() {
+      started = false
       unlisten?.()
+      stopCatalog?.()
       if (elapsedTimer) clearInterval(elapsedTimer)
     }
 
     return {
-      settingsRef,
+      store,
+      s,
       pickerGroups,
       pickerModelLabel,
-      suiteModel,
-      selectedSuite,
-      board,
-      activityOpen,
-      error,
       cards,
       current,
       running,
@@ -430,22 +480,19 @@ export default function EvalSettingsPanel({
     }
   })
 
-  store.settingsRef.value = settings
-  useEffect(() => {
-    store.start()
-    return () => store.stop()
-  }, [store])
+  useStore(modelCatalogStore)
+  store.s.settingsRef = settings
 
-  const pickerGroups = useVue(() => store.pickerGroups.value)
-  const selectedSuite = useVue(() => store.selectedSuite.value)
-  const cards = useVue(() => store.cards.value)
-  const current = useVue(() => store.current.value)
-  const running = useVue(() => store.running.value)
-  const progress = useVue(() => store.progress.value)
-  const catalogRefs = useVue(() => store.catalogRefs.value)
-  const activityOpen = useVue(() => store.activityOpen.value)
-  const error = useVue(() => store.error.value)
-  const activitySuiteName = useVue(() => store.activitySuiteName.value)
+  const pickerGroups = store.pickerGroups()
+  const selectedSuite = store.s.selectedSuite
+  const cards = store.cards()
+  const current = store.current()
+  const running = store.running()
+  const progress = store.progress()
+  const catalogRefs = store.catalogRefs()
+  const activityOpen = store.s.activityOpen
+  const error = store.s.error
+  const activitySuiteName = store.activitySuiteName()
 
   function iconFor(id: string) {
     if (id === 'cybench') return Flag
@@ -481,7 +528,7 @@ export default function EvalSettingsPanel({
                 key={item.suite.id}
                 type="button"
                 className={`tool-row${item.suite.id === selectedSuite ? ' is-selected' : ''}`}
-                onClick={() => { store.selectedSuite.value = item.suite.id }}
+                onClick={() => { store.s.selectedSuite = item.suite.id }}
               >
                 <span className="tool-icon"><Icon className="size-5" /></span>
                 <span className="min-w-0 flex-1 text-left">
@@ -582,7 +629,7 @@ export default function EvalSettingsPanel({
               <button
                 type="button"
                 className="activity-chip mt-4"
-                onClick={() => { store.activityOpen.value = true }}
+                onClick={() => { store.s.activityOpen = true }}
               >
                 <AkLoadingMark label={t('评测进行中', 'Eval running')} />
                 <span className="min-w-0 truncate">{progress.summary || progress.taskName}</span>
@@ -703,7 +750,7 @@ export default function EvalSettingsPanel({
         </article>
       </div>
 
-      <Dialog open={activityOpen} onOpenChange={open => { store.activityOpen.value = open }}>
+      <Dialog open={activityOpen} onOpenChange={open => { store.s.activityOpen = open }}>
         <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-lg">
           <DialogTitle>{activitySuiteName}</DialogTitle>
           {progress ? (

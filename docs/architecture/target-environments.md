@@ -248,7 +248,7 @@ CVE「开始复现」和「启动」分开：
 | **PR-E** | 终端活靶面 | whoami → shell 面 + `ProbeEnvLease` | 右栏出现 whoami HTTP 正文，不是假浏览器 |
 | **PR-F** | P1 本机 AVD | host `emulator`/`adb`，Apple Silicon ARM 镜像 | `MILKSU_ENVBROKER_LIVE=1 go test ./internal/envbroker -run TestLiveAndroidAVD`：本机模拟器窗口起来，租约 `ready` + `emulator-*` |
 
-草稿预览仍在：`EnvironmentStrip.vue`、`TargetSurfacePreview.vue`、`LabEnvironmentPreview.vue`。产品面进实验室 / CVE 档案，不再只活在预览页。
+草稿预览仍在：`EnvironmentStrip.tsx`、`TargetSurfacePreview.tsx`、`LabEnvironmentPreview.tsx`。产品面进实验室 / CVE 档案，不再只活在预览页。
 
 ---
 

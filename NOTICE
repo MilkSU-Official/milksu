@@ -21,10 +21,11 @@ Third-party software includes, without limitation:
   Copyright (C) 2026 tommy0103 and contributors. AGPL-3.0-only.
   Planned memory component. MilkSU currently ships a first-party session
   index inspired by its evidence / confirmed-memory layering.
-- Felinic UI (@felinic/ui, git submodule packages/ui).
+- Felinic UI (@felinic/ui).
   https://github.com/memohai/ui
-  Vue component library and interaction runtime. The upstream repository
-  does not currently publish an SPDX license file.
+  Present in Vue installers through v26.915.1. The working tree no longer
+  vendors the packages/ui submodule. The upstream repository does not
+  currently publish an SPDX license file.
 - ak-ui 0.2.1 (token and scene CSS copied into app/src/styles/).
   https://github.com/YunYouJun/ak-ui
   Copyright (c) 2019 云游君. MIT.

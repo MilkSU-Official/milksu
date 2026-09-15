@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { computed } from '@/lib/reactiveStore'
 import {
   installAppModelSettings,
   installCustomProviderSettings,
@@ -43,7 +42,7 @@ describe('runtime model catalog', () => {
     })
 
     const { providers } = useModelCatalog()
-    const tokenflux = providers.value.find(provider => provider.id === 'tokenflux')
+    const tokenflux = providers.find(provider => provider.id === 'tokenflux')
     expect(tokenflux?.models).toEqual(['grok-4.5', 'x-ai/grok-4.6', 'openai/gpt-5.6-sol'])
     expect(tokenflux?.visionModels).toEqual(['grok-4.5', 'x-ai/grok-4.6', 'openai/gpt-5.6-sol'])
     expect(providerModelLabel('tokenflux', 'x-ai/grok-4.6')).toBe('TokenFlux · Grok 4.6')
@@ -65,8 +64,8 @@ describe('runtime model catalog', () => {
     expect(providerModelLabel('custom-relay-team', 'vendor/model:preview'))
       .toBe('Team Relay · vendor/model:preview')
 
-    const { providerGroups, providerModelLabel: scopedLabel } = useModelCatalog(computed(() => custom))
-    const relays = providerGroups.value.find(group => group.kind === 'relay')?.providers
+    const { providerGroups, providerModelLabel: scopedLabel } = useModelCatalog(() => custom)
+    const relays = providerGroups.find(group => group.kind === 'relay')?.providers
     expect(relays?.some(provider => provider.id === 'custom-relay-team')).toBe(true)
     expect(scopedLabel('custom-relay-team', 'vendor/model:preview'))
       .toBe('Team Relay · vendor/model:preview')
@@ -94,11 +93,11 @@ describe('runtime model catalog', () => {
         has_key: true,
       },
     })
-    expect(useModelCatalog().providers.value.find(provider => provider.id === 'tokenflux')?.models)
+    expect(useModelCatalog().providers.find(provider => provider.id === 'tokenflux')?.models)
       .toEqual(['grok-4.5'])
 
     installModelCatalog(null)
-    expect(useModelCatalog().providers.value.some(provider => provider.id === 'tokenflux'))
+    expect(useModelCatalog().providers.some(provider => provider.id === 'tokenflux'))
       .toBe(false)
   })
 
@@ -137,14 +136,14 @@ describe('runtime model catalog', () => {
     })
 
     const runtime = useModelCatalog()
-    expect(runtime.providerGroups.value.map(group => group.label)).toEqual(['模型服务'])
-    expect(runtime.providers.value.map(provider => provider.id)).toEqual(['tokenflux'])
+    expect(runtime.providerGroups.map(group => group.label)).toEqual(['模型服务'])
+    expect(runtime.providers.map(provider => provider.id)).toEqual(['tokenflux'])
 
-    const configurable = useModelCatalog(computed(() => ({
+    const configurable = useModelCatalog(() => ({
       providers: settings,
       includeUnconfigured: true,
-    })))
-    expect(configurable.providers.value.some(provider => provider.id === 'custom-relay-team')).toBe(true)
+    }))
+    expect(configurable.providers.some(provider => provider.id === 'custom-relay-team')).toBe(true)
   })
 
   it('does not expose bundled or public metadata as callable models', () => {
@@ -166,19 +165,19 @@ describe('runtime model catalog', () => {
       provider: 'tokenflux', source: 'bundled', credential_source: 'bundled',
       refreshed_at: '2026-08-15T00:00:00Z', models: [model],
     })
-    expect(useModelCatalog().providers.value).toEqual([])
+    expect(useModelCatalog().providers).toEqual([])
 
     installModelCatalog({
       provider: 'tokenflux', source: 'remote', credential_source: 'public',
       refreshed_at: '2026-08-15T00:01:00Z', models: [model],
     })
-    expect(useModelCatalog().providers.value).toEqual([])
+    expect(useModelCatalog().providers).toEqual([])
 
     installModelCatalog({
       provider: 'tokenflux', source: 'cache', credential_source: 'account',
       refreshed_at: '2026-08-15T00:02:00Z', models: [model],
     })
-    expect(useModelCatalog().providers.value.map(provider => provider.id)).toEqual(['tokenflux'])
+    expect(useModelCatalog().providers.map(provider => provider.id)).toEqual(['tokenflux'])
   })
 
   it('lists only enabled services for the shared Coding and Settings picker', () => {
@@ -219,19 +218,19 @@ describe('runtime model catalog', () => {
     })
 
     const { providers, pickerGroups } = useModelCatalog()
-    expect(providers.value.map(provider => provider.id).sort()).toEqual([
+    expect(providers.map(provider => provider.id).sort()).toEqual([
       'custom-relay-team',
       'tokenflux',
     ])
-    expect(providers.value.find(provider => provider.id === 'tokenflux')?.models).toEqual(['grok-4.5'])
-    expect(providers.value.find(provider => provider.id === 'custom-relay-team')?.models)
+    expect(providers.find(provider => provider.id === 'tokenflux')?.models).toEqual(['grok-4.5'])
+    expect(providers.find(provider => provider.id === 'custom-relay-team')?.models)
       .toEqual(['vendor/model:preview'])
     // Flat picker: account TokenFlux + custom relay (personal TokenFlux off).
-    expect(pickerGroups.value.map(group => group.label)).toEqual([
+    expect(pickerGroups.map(group => group.label)).toEqual([
       'MilkSU 账户',
       'Team Relay',
     ])
-    expect(pickerGroups.value.find(group => group.key === 'tokenflux:account')?.models)
+    expect(pickerGroups.find(group => group.key === 'tokenflux:account')?.models)
       .toEqual(['grok-4.5'])
   })
 
@@ -263,12 +262,12 @@ describe('runtime model catalog', () => {
       },
     })
     const { pickerGroups, pickerModelLabel } = useModelCatalog()
-    expect(pickerGroups.value.map(group => group.key)).toEqual([
+    expect(pickerGroups.map(group => group.key)).toEqual([
       'tokenflux:account',
       'tokenflux:personal',
     ])
-    const account = pickerGroups.value[0]
-    const personal = pickerGroups.value[1]
+    const account = pickerGroups[0]
+    const personal = pickerGroups[1]
     // Rows omit the service prefix; SelectLabel already shows the group.
     expect(pickerModelLabel(account, 'grok-4.5')).toBe('Grok 4.5')
     expect(pickerModelLabel(personal, 'x-ai/grok-4.6')).toBe('Grok 4.6')
@@ -310,19 +309,19 @@ describe('runtime model catalog', () => {
       },
     })
     const { pickerGroups } = useModelCatalog()
-    expect(pickerGroups.value.some(group => group.label === 'DeepSeek')).toBe(true)
+    expect(pickerGroups.some(group => group.label === 'DeepSeek')).toBe(true)
     expect(modelServiceSourceLabel({
       provider: 'custom-relay-deepseek',
       model: 'deepseek-flash',
       modelSource: 'personal',
-      pickerGroups: pickerGroups.value,
+      pickerGroups: pickerGroups,
       providers,
     })).toBe('DeepSeek')
     expect(modelServiceSourceLabel({
       provider: 'custom-relay-deepseek',
       model: 'deepseek-flash',
       modelSource: 'personal',
-      pickerGroups: pickerGroups.value,
+      pickerGroups: pickerGroups,
       providers,
     })).not.toContain('TokenFlux')
   })
@@ -360,14 +359,14 @@ describe('runtime model catalog', () => {
       provider: 'tokenflux',
       model: 'x-ai/grok-4.6',
       modelSource: 'personal',
-      pickerGroups: pickerGroups.value,
+      pickerGroups: pickerGroups,
       providers,
     })).toBe('TokenFlux 中转站')
     expect(modelServiceSourceLabel({
       provider: 'tokenflux',
       model: 'grok-4.5',
       modelSource: 'account',
-      pickerGroups: pickerGroups.value,
+      pickerGroups: pickerGroups,
       providers,
     })).toBe('MilkSU 账户')
   })
@@ -398,7 +397,7 @@ describe('runtime model catalog', () => {
       provider: 'custom-relay-team',
       model: 'vendor/model:preview',
       modelSource: 'personal',
-      pickerGroups: pickerGroups.value,
+      pickerGroups: pickerGroups,
       providers,
     })).toBe('Team Relay')
     expect(modelServiceSourceLabel({
@@ -436,7 +435,7 @@ describe('runtime model catalog', () => {
     expect(modelServiceSourceLabel({
       provider: 'custom-relay-deepseek',
       model: 'deepseek-flash',
-      pickerGroups: pickerGroups.value,
+      pickerGroups: pickerGroups,
       providers,
     })).toBe('DeepSeek')
   })

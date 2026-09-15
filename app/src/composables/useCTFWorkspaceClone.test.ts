@@ -1,13 +1,12 @@
 // @vitest-environment jsdom
 
 import { describe, expect, it } from 'vitest'
-import { reactive } from '@/lib/reactiveStore'
 import type { CTFChallengeRequest } from '@/ctfTypes'
 import { toDesktopCTFChallengeRequest } from './useCTFWorkspace'
 
 describe('toDesktopCTFChallengeRequest', () => {
-  it('removes Vue proxies before crossing Electron IPC', () => {
-    const request = reactive<CTFChallengeRequest>({
+  it('clones nested arrays before crossing Electron IPC', () => {
+    const request: CTFChallengeRequest = {
       title: 'P3347',
       statement: '公开题面',
       category: 'web',
@@ -33,7 +32,7 @@ describe('toDesktopCTFChallengeRequest', () => {
         size: 100316742,
         sha256: '1016e313358650b39a5253c0fdba1760a0db58e40bc2a58d7e31735e4fdd7470',
       }],
-    })
+    }
 
     const normalized = toDesktopCTFChallengeRequest(request)
 

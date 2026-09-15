@@ -295,7 +295,7 @@ React -> Electron Preload / Desktop RPC -> Application Service -> Domain / Runti
 ```
 
 Do not start a standalone architecture-cleanup milestone. When a selected product slice touches
-`CTFPage.vue`, `cmd/milksu-backend/app.go`, `sidecar/pi/bridge-policy.js`,
+`CTFPage.tsx`, `cmd/milksu-backend/app.go`, `sidecar/pi/bridge-policy.js`,
 `internal/browsercap/manager.go` or CTF Runner/Recovery,
 avoid adding a new responsibility and extract the touched concern when practical.
 

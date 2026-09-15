@@ -1,4 +1,4 @@
-import { ref, watch } from '@/lib/reactiveStore'
+import { createStore } from '@/lib/reactStore'
 import { invokeCommand } from '@/desktop'
 import type { NSSCTFArenaSubmission, NSSCTFArenaWorkspace } from '@/nssctfArenaTypes'
 import type { NSSCTFChallenge } from '@/nssctfTypes'
@@ -19,95 +19,128 @@ function readChallenges(): NSSCTFChallenge[] {
 }
 
 export function useNSSCTFChallenges() {
-  const challenges = ref(readChallenges())
-  const importing = ref(false)
-  const error = ref<string | null>(null)
+  const store = createStore({
+    challenges: readChallenges(),
+    importing: false,
+    error: null as string | null,
+  })
+  const s = {
+    get challenges() { return store.getState().challenges },
+    set challenges(value) { store.setState({ challenges: value }) },
+    get importing() { return store.getState().importing },
+    set importing(value) { store.setState({ importing: value }) },
+    get error() { return store.getState().error },
+    set error(value) { store.setState({ error: value }) }
+  }
 
-  watch(challenges, value => {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ schema: 1, challenges: value }))
-  }, { deep: true })
+
+  store.subscribe(() => {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ schema: 1, challenges: store.getState().challenges }))
+  })
 
   async function importChallenge(urlOrId: string) {
-    importing.value = true
+    s.importing = true
     try {
       const challenge = await invokeCommand<NSSCTFChallenge>('import_nssctf_challenge', { url: urlOrId })
-      challenges.value = [
+      s.challenges = [
         challenge,
-        ...challenges.value.filter(item => item.platformId !== challenge.platformId),
+        ...s.challenges.filter(item => item.platformId !== challenge.platformId),
       ]
-      error.value = null
+      s.error = null
       return challenge
     } catch (reason) {
-      error.value = reason instanceof Error ? reason.message : String(reason)
+      s.error = reason instanceof Error ? reason.message : String(reason)
       return null
     } finally {
-      importing.value = false
+      s.importing = false
     }
   }
 
   function removeChallenge(platformId: number) {
-    challenges.value = challenges.value.filter(challenge => challenge.platformId !== platformId)
+    s.challenges = s.challenges.filter(challenge => challenge.platformId !== platformId)
   }
 
-  return { challenges, importing, error, importChallenge, removeChallenge }
+  return {
+    store,
+    get challenges() { return s.challenges },
+    get importing() { return s.importing },
+    get error() { return s.error },
+    importChallenge,
+    removeChallenge,
+  }
 }
 
 export function useNSSCTFArena() {
-  const workspace = ref<NSSCTFArenaWorkspace | null>(null)
-  const loading = ref(false)
-  const error = ref<string | null>(null)
+  const store = createStore({
+    workspace: null as NSSCTFArenaWorkspace | null,
+    loading: false,
+    error: null as string | null,
+  })
+  const s = {
+    get workspace() { return store.getState().workspace },
+    set workspace(value) { store.setState({ workspace: value }) },
+    get loading() { return store.getState().loading },
+    set loading(value) { store.setState({ loading: value }) },
+    get error() { return store.getState().error },
+    set error(value) { store.setState({ error: value }) }
+  }
+
 
   async function run(command: 'get_nssctf_arena_current' | 'start_nssctf_arena') {
-    loading.value = true
+    s.loading = true
     try {
-      workspace.value = await invokeCommand<NSSCTFArenaWorkspace>(command)
-      error.value = null
-      return workspace.value
+      s.workspace = await invokeCommand<NSSCTFArenaWorkspace>(command)
+      s.error = null
+      return s.workspace
     } catch (reason) {
-      error.value = String(reason)
+      s.error = String(reason)
       return null
     } finally {
-      loading.value = false
+      s.loading = false
     }
   }
 
   async function submit(jobId: string, attemptId: number, candidate: string) {
-    loading.value = true
+    s.loading = true
     try {
       const result = await invokeCommand<NSSCTFArenaSubmission>('submit_nssctf_arena_flag', {
         jobId,
         attemptId,
         candidate,
       })
-      workspace.value = { arena: result.arena, ctf: result.ctf }
-      error.value = null
+      s.workspace = { arena: result.arena, ctf: result.ctf }
+      s.error = null
       return result
     } catch (reason) {
-      error.value = String(reason)
+      s.error = String(reason)
       return null
     } finally {
-      loading.value = false
+      s.loading = false
     }
   }
 
   async function abandon(jobId: string, attemptId: number) {
-    loading.value = true
+    s.loading = true
     try {
-      workspace.value = await invokeCommand<NSSCTFArenaWorkspace>('abandon_nssctf_arena', { jobId, attemptId })
-      error.value = null
-      return workspace.value
+      s.workspace = await invokeCommand<NSSCTFArenaWorkspace>('abandon_nssctf_arena', { jobId, attemptId })
+      s.error = null
+      return s.workspace
     } catch (reason) {
-      error.value = String(reason)
+      s.error = String(reason)
       return null
     } finally {
-      loading.value = false
+      s.loading = false
     }
   }
 
   return {
-    workspace,
-    loading,
-    error,
+    store,
+    get workspace() { return s.workspace },
+    set workspace(value) { s.workspace = value },
+    get loading() { return s.loading },
+    set loading(value) { s.loading = value },
+    get error() { return s.error },
+    set error(value) { s.error = value },
     refresh: () => run('get_nssctf_arena_current'),
     start: () => run('start_nssctf_arena'),
     submit,
@@ -117,41 +150,59 @@ export function useNSSCTFArena() {
 }
 
 export function useNSSCTFWebBridge() {
-  const status = ref<NSSCTFWebBridgeStatus | null>(null)
-  const loading = ref(false)
-  const error = ref<string | null>(null)
+  const store = createStore({
+    status: null as NSSCTFWebBridgeStatus | null,
+    loading: false,
+    error: null as string | null,
+  })
+  const s = {
+    get status() { return store.getState().status },
+    set status(value) { store.setState({ status: value }) },
+    get loading() { return store.getState().loading },
+    set loading(value) { store.setState({ loading: value }) },
+    get error() { return store.getState().error },
+    set error(value) { store.setState({ error: value }) }
+  }
+
 
   async function refresh() {
-    loading.value = true
+    s.loading = true
     try {
-      status.value = await invokeCommand<NSSCTFWebBridgeStatus>('get_nssctf_web_bridge_status')
-      error.value = null
-      return status.value
+      s.status = await invokeCommand<NSSCTFWebBridgeStatus>('get_nssctf_web_bridge_status')
+      s.error = null
+      return s.status
     } catch (reason) {
-      error.value = reason instanceof Error ? reason.message : String(reason)
+      s.error = reason instanceof Error ? reason.message : String(reason)
       return null
     } finally {
-      loading.value = false
+      s.loading = false
     }
   }
 
   async function submit(jobId: string, candidate: string) {
-    loading.value = true
+    s.loading = true
     try {
       const result = await invokeCommand<NSSCTFWebSubmission>('submit_nssctf_web_flag', {
         jobId,
         candidate,
       })
-      error.value = null
+      s.error = null
       await refresh()
       return result
     } catch (reason) {
-      error.value = reason instanceof Error ? reason.message : String(reason)
+      s.error = reason instanceof Error ? reason.message : String(reason)
       return null
     } finally {
-      loading.value = false
+      s.loading = false
     }
   }
 
-  return { status, loading, error, refresh, submit }
+  return {
+    store,
+    get status() { return s.status },
+    get loading() { return s.loading },
+    get error() { return s.error },
+    refresh,
+    submit,
+  }
 }

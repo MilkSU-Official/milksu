@@ -43,8 +43,8 @@ describe('useConversations reload', () => {
     ]
     await conversations.load()
 
-    const ids = conversations.conversations.value.map(conversation => conversation.id)
+    const ids = conversations.conversations.map(conversation => conversation.id)
     expect(ids).toEqual(['streaming', 'restored'])
-    expect(conversations.conversations.value[0]?.messages).toHaveLength(1)
+    expect(conversations.conversations[0]?.messages).toHaveLength(1)
   })
 })

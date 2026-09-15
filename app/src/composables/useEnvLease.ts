@@ -1,4 +1,4 @@
-import { onBeforeUnmount, onMounted, ref, watch, type Ref } from '@/lib/reactiveStore'
+import { createStore } from '@/lib/reactStore'
 import { invokeCommand } from '@/desktop'
 import type { EnvLease, EnvOwnerKind, EnvPackage } from '@/envbroker'
 import type { EnvironmentLease, EnvironmentProvider } from '@/lib/environmentTypes'
@@ -24,16 +24,31 @@ export function toStripLease(lease: EnvLease, bound?: { name?: string; provider?
   }
 }
 
-export function useEnvLease(ownerKind: Ref<EnvOwnerKind>, ownerId: Ref<string>, packageId?: Ref<string | undefined>) {
-  const lease = ref<EnvLease>({
-    ownerKind: ownerKind.value,
-    ownerId: ownerId.value,
-    provider: 'none',
-    state: 'none',
+export function useEnvLease(
+  ownerKind: () => EnvOwnerKind,
+  ownerId: () => string,
+  packageId?: () => string | undefined,
+) {
+  const store = createStore({
+    lease: {
+      ownerKind: ownerKind(),
+      ownerId: ownerId(),
+      provider: 'none',
+      state: 'none',
+    } as EnvLease,
+    packages: [] as EnvPackage[],
+    busy: false,
   })
-  const packages = ref<EnvPackage[]>([])
-  const busy = ref(false)
+  const s = {
+    get lease() { return store.getState().lease },
+    set lease(value) { store.setState({ lease: value }) },
+    get packages() { return store.getState().packages },
+    set packages(value) { store.setState({ packages: value }) },
+    get busy() { return store.getState().busy },
+    set busy(value) { store.setState({ busy: value }) },
+  }
   let pollTimer: ReturnType<typeof setInterval> | null = null
+  let lastOwner = `${ownerKind()}:${ownerId()}`
 
   function stopPoll() {
     if (!pollTimer) return
@@ -49,96 +64,92 @@ export function useEnvLease(ownerKind: Ref<EnvOwnerKind>, ownerId: Ref<string>, 
   }
 
   async function refresh() {
-    if (!ownerId.value) {
-      lease.value = { ownerKind: ownerKind.value, ownerId: '', provider: 'none', state: 'none' }
+    if (!ownerId()) {
+      s.lease = { ownerKind: ownerKind(), ownerId: '', provider: 'none', state: 'none' }
       return
     }
     try {
-      lease.value = await invokeCommand<EnvLease>('get_env_lease', {
-        ownerKind: ownerKind.value,
-        ownerId: ownerId.value,
+      s.lease = await invokeCommand<EnvLease>('get_env_lease', {
+        ownerKind: ownerKind(),
+        ownerId: ownerId(),
       })
     } catch {
-      lease.value = { ownerKind: ownerKind.value, ownerId: ownerId.value, provider: 'none', state: 'none' }
+      s.lease = { ownerKind: ownerKind(), ownerId: ownerId(), provider: 'none', state: 'none' }
     }
+    if (s.lease.state === 'pulling') startPoll()
+    else stopPoll()
   }
 
   async function loadPackages() {
     try {
-      packages.value = await invokeCommand<EnvPackage[]>('list_lab_packages')
+      s.packages = await invokeCommand<EnvPackage[]>('list_lab_packages')
     } catch {
-      packages.value = []
+      s.packages = []
     }
   }
 
   async function start(id?: string) {
-    const packageToStart = id || packageId?.value || lease.value.packageId
-    if (!ownerId.value || !packageToStart) return
-    busy.value = true
+    const packageToStart = id || packageId?.() || s.lease.packageId
+    if (!ownerId() || !packageToStart) return
+    s.busy = true
     try {
-      lease.value = await invokeCommand<EnvLease>('start_env_lease', {
-        ownerKind: ownerKind.value,
-        ownerId: ownerId.value,
+      s.lease = await invokeCommand<EnvLease>('start_env_lease', {
+        ownerKind: ownerKind(),
+        ownerId: ownerId(),
         packageId: packageToStart,
       })
     } catch (reason) {
-      lease.value = {
-        ...lease.value,
+      s.lease = {
+        ...s.lease,
         state: 'failed',
         error: reason instanceof Error ? reason.message : String(reason),
       }
     } finally {
-      busy.value = false
+      s.busy = false
     }
+    if (s.lease.state === 'pulling') startPoll()
+    else stopPoll()
   }
 
   async function stop() {
-    if (!ownerId.value) return
-    busy.value = true
+    if (!ownerId()) return
+    s.busy = true
     try {
-      lease.value = await invokeCommand<EnvLease>('stop_env_lease', {
-        ownerKind: ownerKind.value,
-        ownerId: ownerId.value,
+      s.lease = await invokeCommand<EnvLease>('stop_env_lease', {
+        ownerKind: ownerKind(),
+        ownerId: ownerId(),
       })
     } catch (reason) {
-      lease.value = {
-        ...lease.value,
+      s.lease = {
+        ...s.lease,
         state: 'failed',
         error: reason instanceof Error ? reason.message : String(reason),
       }
     } finally {
-      busy.value = false
+      s.busy = false
     }
+    stopPoll()
   }
 
   async function reset() {
-    if (!ownerId.value) return
-    busy.value = true
+    if (!ownerId()) return
+    s.busy = true
     try {
-      lease.value = await invokeCommand<EnvLease>('reset_env_lease', {
-        ownerKind: ownerKind.value,
-        ownerId: ownerId.value,
+      s.lease = await invokeCommand<EnvLease>('reset_env_lease', {
+        ownerKind: ownerKind(),
+        ownerId: ownerId(),
       })
     } catch (reason) {
-      lease.value = {
-        ...lease.value,
+      s.lease = {
+        ...s.lease,
         state: 'failed',
         error: reason instanceof Error ? reason.message : String(reason),
       }
     } finally {
-      busy.value = false
+      s.busy = false
     }
-  }
-
-  watch([ownerKind, ownerId], () => {
     stopPoll()
-    void refresh()
-  })
-
-  watch(() => lease.value.state, state => {
-    if (state === 'pulling') startPoll()
-    else stopPoll()
-  })
+  }
 
   async function listLeases() {
     try {
@@ -148,14 +159,36 @@ export function useEnvLease(ownerKind: Ref<EnvOwnerKind>, ownerId: Ref<string>, 
     }
   }
 
-  onMounted(() => {
+  function syncOwner() {
+    const next = `${ownerKind()}:${ownerId()}`
+    if (next === lastOwner) return
+    lastOwner = next
+    stopPoll()
+    void refresh()
+  }
+
+  function mount() {
     void loadPackages()
     void refresh()
-  })
+  }
 
-  onBeforeUnmount(() => {
+  function unmount() {
     stopPoll()
-  })
+  }
 
-  return { lease, packages, busy, refresh, loadPackages, listLeases, start, stop, reset }
+  return {
+    store,
+    get lease() { syncOwner(); return s.lease },
+    set lease(value) { s.lease = value },
+    get packages() { return s.packages },
+    get busy() { return s.busy },
+    refresh,
+    loadPackages,
+    listLeases,
+    start,
+    stop,
+    reset,
+    mount,
+    unmount,
+  }
 }

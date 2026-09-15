@@ -1,4 +1,4 @@
-import { ref } from '@/lib/reactiveStore'
+import { createStore } from '@/lib/reactStore'
 
 const MIN_WIDTH = 280
 const MAX_RATIO = 0.62
@@ -19,7 +19,14 @@ function splitContainer(handle: HTMLElement) {
 }
 
 export function useDossierSplit(storageKey: string, defaultWidth = 400) {
-  const width = ref(readWidth(storageKey, defaultWidth))
+  const store = createStore({
+    width: readWidth(storageKey, defaultWidth),
+  })
+  const s = {
+    get width() { return store.getState().width },
+    set width(value) { store.setState({ width: value }) }
+  }
+
 
   function startResize(event: PointerEvent) {
     if (event.button !== 0) return
@@ -27,10 +34,10 @@ export function useDossierSplit(storageKey: string, defaultWidth = 400) {
     const handle = event.currentTarget as HTMLElement
     const parent = splitContainer(handle)
     const originX = event.clientX
-    const originWidth = width.value
+    const originWidth = s.width
     const move = (next: PointerEvent) => {
       const max = parent ? Math.max(MIN_WIDTH, Math.round(parent.clientWidth * MAX_RATIO)) : 720
-      width.value = Math.min(max, Math.max(MIN_WIDTH, originWidth + (next.clientX - originX)))
+      s.width = Math.min(max, Math.max(MIN_WIDTH, originWidth + (next.clientX - originX)))
     }
     const up = () => {
       handle.releasePointerCapture(event.pointerId)
@@ -38,7 +45,7 @@ export function useDossierSplit(storageKey: string, defaultWidth = 400) {
       handle.removeEventListener('pointerup', up)
       handle.removeEventListener('pointercancel', up)
       try {
-        localStorage.setItem(storageKey, String(width.value))
+        localStorage.setItem(storageKey, String(s.width))
       } catch {
         // private mode
       }
@@ -49,5 +56,10 @@ export function useDossierSplit(storageKey: string, defaultWidth = 400) {
     handle.addEventListener('pointercancel', up)
   }
 
-  return { width, startResize }
+  return {
+    store,
+    get width() { return s.width },
+    set width(value: number) { s.width = value },
+    startResize,
+  }
 }

@@ -1,4 +1,4 @@
-import { computed, ref, watch } from '@/lib/reactiveStore'
+import { createStore, useStore, useStoreRuntime } from '@/lib/reactStore'
 import { useEffect, useRef } from 'react'
 import {
   AlertCircle,
@@ -87,7 +87,8 @@ import {
   installAppModelSettings,
   loadModelCatalog,
   parsePickerSelection,
-  useModelCatalog,
+  useModelCatalog as readModelCatalog,
+  modelCatalogStore,
   type PickerServiceGroup,
 } from '@/modelCatalog'
 import { GitHubIcon } from '@/components/GitHubIcon'
@@ -99,7 +100,7 @@ import PluginSettingsPanel from '@/components/PluginSettingsPanel'
 import ModelVendorIcon from '@/components/ModelVendorIcon'
 import ArchivedConversationsSettings from '@/components/ArchivedConversationsSettings'
 import ConnectionLiveStatus from '@/components/ConnectionLiveStatus'
-import { useVulnerabilityDashboard, type VulnerabilityDashboard } from '@/composables/useVulnerabilityDashboard'
+import type { VulnerabilityDashboard } from '@/composables/useVulnerabilityDashboard'
 import {
   allCodingSkills,
   isOptionalCodingSkill,
@@ -129,11 +130,53 @@ import {
 } from '@/lib/modelThinking'
 import { resolveModelContextWindow } from '@/lib/knownContextWindow'
 import type { ResolvedThemeMode } from '@/lib/themeMode'
-import { useVue, useVueStore } from '@/hooks/useVueStore'
 import { useT } from '@/hooks/useUiLocale'
 
 type SettingsCategory = 'general' | 'apikeys' | 'ctf' | 'cve' | 'lab' | 'coding' | 'skills' | 'mcp' | 'chats' | 'browser' | 'security-tools' | 'eval' | 'plugins'
 type NormalizedSettingsCategory = Exclude<SettingsCategory, 'security-tools' | 'coding'>
+type SettingsNotice = { tone: 'ok' | 'error'; text: string }
+type PendingCustomRelay = { id: string; config: ProviderConfig }
+
+type SettingsState = {
+  category: NormalizedSettingsCategory
+  working: AppSettings | null
+  saving: boolean
+  verifying: boolean
+  localDataLoading: boolean
+  computerUseLoading: boolean
+  computerUseRequesting: CodingComputerUsePermission | null
+  computerUseRestarting: boolean
+  browserBridgeLoading: boolean
+  browserSetupBusy: boolean
+  browserUseOpening: boolean
+  browserUseRuntimeLoading: boolean
+  browserUseRuntime: BrowserUseRuntime | null
+  backupExporting: boolean
+  restoreScheduling: boolean
+  diagnosticExporting: boolean
+  localData: LocalDataStatus | null
+  userArtifacts: UserArtifactDirectoryStatus | null
+  computerUseStatus: CodingComputerUseStatus | null
+  browserBridgeStatus: NSSCTFWebBridgeStatus | null
+  buildTracking: BuildTracking | null
+  buildTrackingCopying: boolean
+  notice: SettingsNotice | null
+  editingProviderID: string | null
+  customModelInput: string
+  pendingCustomRelay: PendingCustomRelay | null
+  accountStatusProp: AccountStatus | undefined
+  thinkingModelKey: string
+  windowModelKey: string
+  codingToolSkills: CodingToolSkillSnapshot[]
+  codingToolSetupBusy: string
+  userSkillCatalog: AgentResourceCatalog
+  userSkillBusy: boolean
+  userSkillError: string
+  editingBuiltinSkill: string
+  builtinSkillDocument: string
+  builtinSkillCustomized: boolean
+  debugModeOn: boolean
+}
 
 function normalizeSettingsCategory(value: SettingsCategory): NormalizedSettingsCategory {
   if (value === 'security-tools') return 'mcp'
@@ -205,7 +248,9 @@ export default function SettingsPage({
     onConversationsChanged,
   }
 
-  const store = useVueStore(() => createSettingsStore(callbacks, vulnerabilityDashboard))
+  const store = useStoreRuntime(() => createSettingsStore(callbacks))
+  useStore(modelCatalogStore)
+  const state = store.store.getState()
 
   useEffect(() => {
     store.applySettings(settings)
@@ -216,77 +261,80 @@ export default function SettingsPage({
   }, [initialCategory, store])
 
   useEffect(() => {
-    store.start()
-    return () => store.stop()
-  }, [store])
+    store.setAccountStatusProp(accountStatus)
+  }, [store, accountStatus])
 
-  const category = useVue(() => store.category.value)
-  const working = useVue(() => store.working.value)
-  const saving = useVue(() => store.saving.value)
-  const verifying = useVue(() => store.verifying.value)
-  const localDataLoading = useVue(() => store.localDataLoading.value)
-  const computerUseLoading = useVue(() => store.computerUseLoading.value)
-  const computerUseRequesting = useVue(() => store.computerUseRequesting.value)
-  const computerUseRestarting = useVue(() => store.computerUseRestarting.value)
-  const browserBridgeLoading = useVue(() => store.browserBridgeLoading.value)
-  const browserSetupBusy = useVue(() => store.browserSetupBusy.value)
-  const browserUseOpening = useVue(() => store.browserUseOpening.value)
-  const browserUseRuntimeLoading = useVue(() => store.browserUseRuntimeLoading.value)
-  const browserUseRuntime = useVue(() => store.browserUseRuntime.value)
-  const backupExporting = useVue(() => store.backupExporting.value)
-  const restoreScheduling = useVue(() => store.restoreScheduling.value)
-  const diagnosticExporting = useVue(() => store.diagnosticExporting.value)
-  const localData = useVue(() => store.localData.value)
-  const userArtifacts = useVue(() => store.userArtifacts.value)
-  const computerUseStatus = useVue(() => store.computerUseStatus.value)
-  const browserBridgeStatus = useVue(() => store.browserBridgeStatus.value)
-  const buildTracking = useVue(() => store.buildTracking.value)
-  const buildTrackingCopying = useVue(() => store.buildTrackingCopying.value)
-  const notice = useVue(() => store.notice.value)
-  const customModelInput = useVue(() => store.customModelInput.value)
-  const availablePickerGroups = useVue(() => store.availablePickerGroups.value)
-  const account = useVue(() => store.account.value)
-  const accountStateLabel = useVue(() => store.accountStateLabel.value)
-  const databaseStateLabels = useVue(() => store.databaseStateLabels.value)
-  const defaultModelKey = useVue(() => store.defaultModelKey.value)
-  const defaultModelAvailable = useVue(() => store.defaultModelAvailable.value)
-  const availableModelCount = useVue(() => store.availableModelCount.value)
-  const defaultModelLabel = useVue(() => store.defaultModelLabel.value)
-  const thinkingModelKey = useVue(() => store.thinkingModelKey.value)
-  const thinkingModelID = useVue(() => store.thinkingModelID.value)
-  const thinkingModelLabel = useVue(() => store.thinkingModelLabel.value)
-  const thinkingOverride = useVue(() => store.thinkingOverride.value)
-  const thinkingProfile = useVue(() => store.thinkingProfile.value)
-  const windowModelKey = useVue(() => store.windowModelKey.value)
-  const windowModelID = useVue(() => store.windowModelID.value)
-  const windowModelLabel = useVue(() => store.windowModelLabel.value)
-  const windowOverride = useVue(() => store.windowOverride.value)
-  const effectiveWindow = useVue(() => store.effectiveWindow.value)
-  const workerModelKey = useVue(() => store.workerModelKey.value)
-  const workerModelLabel = useVue(() => store.workerModelLabel.value)
-  const codingToolSetupBusy = useVue(() => store.codingToolSetupBusy.value)
-  const userSkillBusy = useVue(() => store.userSkillBusy.value)
-  const userSkillError = useVue(() => store.userSkillError.value)
-  const userSkills = useVue(() => store.userSkills.value)
-  const editingBuiltinSkill = useVue(() => store.editingBuiltinSkill.value)
-  const builtinSkillDocument = useVue(() => store.builtinSkillDocument.value)
-  const accountRoute = useVue(() => store.accountRoute.value)
-  const modelServiceRows = useVue(() => store.modelServiceRows.value)
-  const editingProviderInfo = useVue(() => store.editingProviderInfo.value)
-  const editingProvider = useVue(() => store.editingProvider.value)
-  const editingProviderModel = useVue(() => store.editingProviderModel.value)
-  const editingProviderModels = useVue(() => store.editingProviderModels.value)
-  const providerEditorOpen = useVue(() => store.providerEditorOpen.value)
-  const debugModeOn = useVue(() => store.debugModeOn.value)
-  const computerUsePermissionsReady = useVue(() => store.computerUsePermissionsReady.value)
-  const browserUseDescription = useVue(() => store.browserUseDescription.value)
-  const browserBridgeConnected = useVue(() => store.browserBridgeConnected.value)
-  const browserPairingReady = useVue(() => store.browserPairingReady.value)
-  const browserExtensionReady = useVue(() => store.browserExtensionReady.value)
-  const settingsCategories = useVue(() => store.settingsCategories.value)
-  const dashboard = store.dashboard
-
-  store.accountStatusProp.value = accountStatus
+  const category = state.category
+  const working = state.working
+  const saving = state.saving
+  const verifying = state.verifying
+  const localDataLoading = state.localDataLoading
+  const computerUseLoading = state.computerUseLoading
+  const computerUseRequesting = state.computerUseRequesting
+  const computerUseRestarting = state.computerUseRestarting
+  const browserBridgeLoading = state.browserBridgeLoading
+  const browserSetupBusy = state.browserSetupBusy
+  const browserUseOpening = state.browserUseOpening
+  const browserUseRuntimeLoading = state.browserUseRuntimeLoading
+  const browserUseRuntime = state.browserUseRuntime
+  const backupExporting = state.backupExporting
+  const restoreScheduling = state.restoreScheduling
+  const diagnosticExporting = state.diagnosticExporting
+  const localData = state.localData
+  const userArtifacts = state.userArtifacts
+  const computerUseStatus = state.computerUseStatus
+  const browserBridgeStatus = state.browserBridgeStatus
+  const buildTracking = state.buildTracking
+  const buildTrackingCopying = state.buildTrackingCopying
+  const notice = state.notice
+  const customModelInput = state.customModelInput
+  const thinkingModelKey = state.thinkingModelKey
+  const windowModelKey = state.windowModelKey
+  const codingToolSetupBusy = state.codingToolSetupBusy
+  const userSkillBusy = state.userSkillBusy
+  const userSkillError = state.userSkillError
+  const editingBuiltinSkill = state.editingBuiltinSkill
+  const builtinSkillDocument = state.builtinSkillDocument
+  const debugModeOn = state.debugModeOn
+  const availablePickerGroups = store.availablePickerGroups()
+  const account = store.account()
+  const accountStateLabel = store.accountStateLabel()
+  const databaseStateLabels: Record<DatabaseCompatibilityState, string> = {
+    compatible: t('兼容', 'Compatible'),
+    missing: t('尚未创建', 'Not created yet'),
+    newer: t('数据库较新', 'Database is newer'),
+    corrupt: t('损坏或不可读', 'Corrupt or unreadable'),
+    remaining: t('尚未纳入迁移', 'Not yet migrated'),
+  }
+  const defaultModelKey = store.defaultModelKey()
+  const defaultModelAvailable = store.defaultModelAvailable()
+  const availableModelCount = store.availableModelCount()
+  const defaultModelLabel = store.defaultModelLabel()
+  const thinkingModelID = store.thinkingModelID()
+  const thinkingModelLabel = store.thinkingModelLabel()
+  const thinkingOverride = store.thinkingOverride()
+  const thinkingProfile = store.thinkingProfile()
+  const windowModelID = store.windowModelID()
+  const windowModelLabel = store.windowModelLabel()
+  const windowOverride = store.windowOverride()
+  const effectiveWindow = store.effectiveWindow()
+  const workerModelKey = store.workerModelKey()
+  const workerModelLabel = store.workerModelLabel()
+  const userSkills = store.userSkills()
+  const accountRoute = store.accountRoute()
+  const modelServiceRows = store.modelServiceRows()
+  const editingProviderInfo = store.editingProviderInfo()
+  const editingProviderModel = store.editingProviderModel()
+  const editingProviderModels = store.editingProviderModels()
+  const editingProvider = store.editingProvider()
+  const providerEditorOpen = store.providerEditorOpen()
+  const computerUsePermissionsReady = store.computerUsePermissionsReady()
+  const browserUseDescription = store.browserUseDescription()
+  const browserBridgeConnected = store.browserBridgeConnected()
+  const browserPairingReady = store.browserPairingReady()
+  const browserExtensionReady = store.browserExtensionReady()
+  const settingsCategories = store.settingsCategories()
+  const dashboard = vulnerabilityDashboard
 
   const categoryIcons = {
     general: Settings2,
@@ -398,7 +446,7 @@ export default function SettingsPage({
                           value={normalizePreferredExternalEditor(working.preferred_external_editor)}
                           aria-label={t('打开文件的编辑器', 'Editor for opening files')}
                           onChange={event => {
-                            store.working.value!.preferred_external_editor = String(event.target.value)
+                            store.patchWorking(value => { value.preferred_external_editor = String(event.target.value) })
                             void store.save()
                           }}
                         >
@@ -520,7 +568,7 @@ export default function SettingsPage({
                           checked={debugModeOn}
                           aria-label={t('开启调试模式', 'Turn on debug mode')}
                           onCheckedChange={value => {
-                            store.debugModeOn.value = Boolean(value)
+                            store.setDebugModeOn(Boolean(value))
                             setDebugMode(Boolean(value))
                           }}
                         />
@@ -597,7 +645,7 @@ export default function SettingsPage({
                       trailing={(
                         <Textarea
                           value={builtinSkillDocument}
-                          onChange={event => { store.builtinSkillDocument.value = event.target.value }}
+                          onChange={event => { store.setBuiltinSkillDocument(event.target.value) }}
                           className="w-[28rem] max-w-full min-h-48"
                           disabled={userSkillBusy}
                           aria-label={t('Skill 文档', 'Skill document')}
@@ -785,7 +833,7 @@ export default function SettingsPage({
                       ? t('当前默认模型不可用', 'The current default model is unavailable')
                       : ''}
                     trailing={(
-                      <Select value={defaultModelKey} onValueChange={value => { store.defaultModelKey.value = value }}>
+                      <Select value={defaultModelKey} onValueChange={value => { store.setDefaultModelKey(value) }}>
                         <SelectTrigger id="default-model" className="w-72 max-w-full" aria-label={t('默认模型', 'Default model')}>
                           <SelectValue>
                             <span className="inline-flex min-w-0 items-center gap-2">
@@ -829,7 +877,7 @@ export default function SettingsPage({
                     label={t('subagent', 'subagent')}
                     divider={false}
                     trailing={(
-                      <Select value={workerModelKey} onValueChange={value => { store.workerModelKey.value = value }}>
+                      <Select value={workerModelKey} onValueChange={value => { store.setWorkerModelKey(value) }}>
                         <SelectTrigger id="worker-model" className="w-72 max-w-full" aria-label={t('subagent', 'subagent')}>
                           <SelectValue>
                             <span className="min-w-0 truncate">{workerModelLabel}</span>
@@ -946,7 +994,7 @@ export default function SettingsPage({
                     </div>
 
                     <div className="mt-4 grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-                      <Select value={thinkingModelKey} onValueChange={value => { store.thinkingModelKey.value = value }}>
+                      <Select value={thinkingModelKey} onValueChange={value => { store.setThinkingModelKey(value) }}>
                         <SelectTrigger className="w-full" aria-label={t('配置思考层级的模型', 'Model for thinking levels')}>
                           <SelectValue>
                             <span className="inline-flex min-w-0 items-center gap-2">
@@ -1031,7 +1079,7 @@ export default function SettingsPage({
                       </p>
                     </div>
                     <div className="mt-4 grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-                      <Select value={windowModelKey} onValueChange={value => { store.windowModelKey.value = value }}>
+                      <Select value={windowModelKey} onValueChange={value => { store.setWindowModelKey(value) }}>
                         <SelectTrigger className="w-full" aria-label={t('配置上下文窗口的模型', 'Model for context window')}>
                           <SelectValue>
                             <span className="inline-flex min-w-0 items-center gap-2">
@@ -1084,7 +1132,7 @@ export default function SettingsPage({
                   </Button>
                 </div>
 
-                <Dialog open={providerEditorOpen} onOpenChange={open => { store.providerEditorOpen.value = open }}>
+                <Dialog open={providerEditorOpen} onOpenChange={open => { store.setProviderEditorOpen(open) }}>
                   <DialogContent className="provider-editor-dialog sm:max-w-xl">
                     <DialogHeader>
                       <DialogTitle>{t(`编辑 ${editingProviderInfo ? store.providerServiceName(editingProviderInfo) : t('模型服务', 'model service')}`, `Edit ${editingProviderInfo ? store.providerServiceName(editingProviderInfo) : t('模型服务', 'model service')}`)}</DialogTitle>
@@ -1100,7 +1148,7 @@ export default function SettingsPage({
                             autoComplete="url"
                             placeholder={editingProviderInfo.defaultBaseUrl || 'https://example.com/v1'}
                             aria-label={t('API 端点', 'API endpoint')}
-                              onChange={event => { store.editingProvider.value!.base_url = event.target.value.trim() }}
+                              onChange={event => { store.patchEditingProvider(config => { config.base_url = event.target.value.trim() }) }}
                           />
                         </label>
                         {editingProvider.custom ? (
@@ -1111,7 +1159,7 @@ export default function SettingsPage({
                               autoComplete="off"
                               placeholder={t('例如：我的中转站', 'e.g. My relay')}
                               aria-label={t('中转站名称', 'Relay name')}
-                              onChange={event => { store.editingProvider.value!.name = event.target.value }}
+                              onChange={event => { store.patchEditingProvider(config => { config.name = event.target.value }) }}
                             />
                           </label>
                         ) : (
@@ -1130,7 +1178,7 @@ export default function SettingsPage({
                                   autoComplete="off"
                                   placeholder={t('例如：grok-4.5 或 openai/gpt-5', 'e.g. grok-4.5 or openai/gpt-5')}
                                   aria-label={t('模型 ID 或关键词前缀', 'Model ID or keyword prefix')}
-                                  onChange={event => { store.customModelInput.value = event.target.value }}
+                                  onChange={event => { store.setCustomModelInput(event.target.value) }}
                                   onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); store.addCustomRelayModel() } }}
                                 />
                                 <Button variant="outline" onClick={() => store.addCustomRelayModel()}>{t('添加', 'Add')}</Button>
@@ -1159,8 +1207,10 @@ export default function SettingsPage({
                             placeholder={editingProviderInfo.placeholder}
                             aria-label="API Key"
                               onChange={event => {
-                              store.editingProvider.value!.api_key = event.target.value
-                              if (event.target.value) store.editingProvider.value!.session_only = false
+                              store.patchEditingProvider(config => {
+                                config.api_key = event.target.value
+                                if (event.target.value) config.session_only = false
+                              })
                             }}
                           />
                         </label>
@@ -1223,11 +1273,13 @@ export default function SettingsPage({
                       autoComplete="off"
                       placeholder="NSSCTF Agent Token"
                       onChange={event => {
-                        store.working.value!.nssctf_arena = {
-                          token: event.target.value,
-                          has_token: store.working.value!.nssctf_arena?.has_token ?? false,
-                          session_only: event.target.value ? false : store.working.value!.nssctf_arena?.session_only,
-                        }
+                        store.patchWorking(value => {
+                          value.nssctf_arena = {
+                            token: event.target.value,
+                            has_token: value.nssctf_arena?.has_token ?? false,
+                            session_only: event.target.value ? false : value.nssctf_arena?.session_only,
+                          }
+                        })
                       }}
                       onBlur={() => void store.save()}
                     />
@@ -1251,7 +1303,7 @@ export default function SettingsPage({
               <LabSettingsPanel settings={working} onPersist={() => void store.save()} />
             ) : category === 'plugins' ? (
               <PluginSettingsPanel theme={resolvedTheme} />
-            ) : category === 'cve' ? (
+            ) : category === 'cve' && dashboard ? (
               <VulnerabilityIntelSettingsPanel dashboard={dashboard} />
             ) : category === 'eval' ? (
               <EvalSettingsPanel settings={working} />
@@ -1269,50 +1321,141 @@ function createSettingsStore(
     onSettingsChange?: (value: AppSettings) => void
     onSecurityToolCodingHandoff?: (handoff: BuiltinConfigHandoff) => void
   } },
-  vulnerabilityDashboard?: VulnerabilityDashboard,
 ) {
-  const category = ref<NormalizedSettingsCategory>('general')
-  const dashboard = vulnerabilityDashboard ?? useVulnerabilityDashboard()
-  const working = ref<AppSettings | null>(null)
-  const saving = ref(false)
-  const verifying = ref(false)
-  const localDataLoading = ref(false)
-  const computerUseLoading = ref(false)
-  const computerUseRequesting = ref<CodingComputerUsePermission | null>(null)
-  const computerUseRestarting = ref(false)
-  const browserBridgeLoading = ref(false)
-  const browserSetupBusy = ref(false)
-  const browserUseOpening = ref(false)
-  const browserUseRuntimeLoading = ref(false)
-  const browserUseRuntime = ref<BrowserUseRuntime | null>(null)
-  const backupExporting = ref(false)
-  const restoreScheduling = ref(false)
-  const diagnosticExporting = ref(false)
-  const localData = ref<LocalDataStatus | null>(null)
-  const userArtifacts = ref<UserArtifactDirectoryStatus | null>(null)
-  const computerUseStatus = ref<CodingComputerUseStatus | null>(null)
-  const browserBridgeStatus = ref<NSSCTFWebBridgeStatus | null>(null)
-  const buildTracking = ref<BuildTracking | null>(null)
-  const buildTrackingCopying = ref(false)
-  const notice = ref<{ tone: 'ok' | 'error'; text: string } | null>(null)
-  const editingProviderID = ref<string | null>(null)
-  const customModelInput = ref('')
-  const pendingCustomRelay = ref<{ id: string; config: ProviderConfig } | null>(null)
-  const accountStatusProp = ref<AccountStatus | undefined>(undefined)
-  const thinkingModelKey = ref('')
-  const windowModelKey = ref('')
-  const codingToolSkills = ref<CodingToolSkillSnapshot[]>([])
-  const codingToolSetupBusy = ref('')
-  const userSkillCatalog = ref<AgentResourceCatalog>(emptyAgentResourceCatalog())
-  const userSkillBusy = ref(false)
-  const userSkillError = ref('')
-  const editingBuiltinSkill = ref('')
-  const builtinSkillDocument = ref('')
-  const builtinSkillCustomized = ref(false)
-  const debugModeOn = ref(isDebugMode())
+  const store = createStore<SettingsState>({
+    category: 'general',
+    working: null,
+    saving: false,
+    verifying: false,
+    localDataLoading: false,
+    computerUseLoading: false,
+    computerUseRequesting: null,
+    computerUseRestarting: false,
+    browserBridgeLoading: false,
+    browserSetupBusy: false,
+    browserUseOpening: false,
+    browserUseRuntimeLoading: false,
+    browserUseRuntime: null,
+    backupExporting: false,
+    restoreScheduling: false,
+    diagnosticExporting: false,
+    localData: null,
+    userArtifacts: null,
+    computerUseStatus: null,
+    browserBridgeStatus: null,
+    buildTracking: null,
+    buildTrackingCopying: false,
+    notice: null,
+    editingProviderID: null,
+    customModelInput: '',
+    pendingCustomRelay: null,
+    accountStatusProp: undefined,
+    thinkingModelKey: '',
+    windowModelKey: '',
+    codingToolSkills: [],
+    codingToolSetupBusy: '',
+    userSkillCatalog: emptyAgentResourceCatalog(),
+    userSkillBusy: false,
+    userSkillError: '',
+    editingBuiltinSkill: '',
+    builtinSkillDocument: '',
+    builtinSkillCustomized: false,
+    debugModeOn: isDebugMode(),
+  })
+  const s = {
+    get category() { return store.getState().category },
+    set category(value) { store.setState({ category: value }); syncSkillsCategorySafe(); },
+    get working() { return store.getState().working },
+    set working(value) { store.setState({ working: value }); syncInstalledSettingsSafe(); },
+    get saving() { return store.getState().saving },
+    set saving(value) { store.setState({ saving: value }); },
+    get verifying() { return store.getState().verifying },
+    set verifying(value) { store.setState({ verifying: value }); },
+    get localDataLoading() { return store.getState().localDataLoading },
+    set localDataLoading(value) { store.setState({ localDataLoading: value }); },
+    get computerUseLoading() { return store.getState().computerUseLoading },
+    set computerUseLoading(value) { store.setState({ computerUseLoading: value }); },
+    get computerUseRequesting() { return store.getState().computerUseRequesting },
+    set computerUseRequesting(value) { store.setState({ computerUseRequesting: value }); },
+    get computerUseRestarting() { return store.getState().computerUseRestarting },
+    set computerUseRestarting(value) { store.setState({ computerUseRestarting: value }); },
+    get browserBridgeLoading() { return store.getState().browserBridgeLoading },
+    set browserBridgeLoading(value) { store.setState({ browserBridgeLoading: value }); },
+    get browserSetupBusy() { return store.getState().browserSetupBusy },
+    set browserSetupBusy(value) { store.setState({ browserSetupBusy: value }); },
+    get browserUseOpening() { return store.getState().browserUseOpening },
+    set browserUseOpening(value) { store.setState({ browserUseOpening: value }); },
+    get browserUseRuntimeLoading() { return store.getState().browserUseRuntimeLoading },
+    set browserUseRuntimeLoading(value) { store.setState({ browserUseRuntimeLoading: value }); },
+    get browserUseRuntime() { return store.getState().browserUseRuntime },
+    set browserUseRuntime(value) { store.setState({ browserUseRuntime: value }); },
+    get backupExporting() { return store.getState().backupExporting },
+    set backupExporting(value) { store.setState({ backupExporting: value }); },
+    get restoreScheduling() { return store.getState().restoreScheduling },
+    set restoreScheduling(value) { store.setState({ restoreScheduling: value }); },
+    get diagnosticExporting() { return store.getState().diagnosticExporting },
+    set diagnosticExporting(value) { store.setState({ diagnosticExporting: value }); },
+    get localData() { return store.getState().localData },
+    set localData(value) { store.setState({ localData: value }); },
+    get userArtifacts() { return store.getState().userArtifacts },
+    set userArtifacts(value) { store.setState({ userArtifacts: value }); },
+    get computerUseStatus() { return store.getState().computerUseStatus },
+    set computerUseStatus(value) { store.setState({ computerUseStatus: value }); },
+    get browserBridgeStatus() { return store.getState().browserBridgeStatus },
+    set browserBridgeStatus(value) { store.setState({ browserBridgeStatus: value }); },
+    get buildTracking() { return store.getState().buildTracking },
+    set buildTracking(value) { store.setState({ buildTracking: value }); },
+    get buildTrackingCopying() { return store.getState().buildTrackingCopying },
+    set buildTrackingCopying(value) { store.setState({ buildTrackingCopying: value }); },
+    get notice() { return store.getState().notice },
+    set notice(value) { store.setState({ notice: value }); },
+    get editingProviderID() { return store.getState().editingProviderID },
+    set editingProviderID(value) { store.setState({ editingProviderID: value }); },
+    get customModelInput() { return store.getState().customModelInput },
+    set customModelInput(value) { store.setState({ customModelInput: value }); },
+    get pendingCustomRelay() { return store.getState().pendingCustomRelay },
+    set pendingCustomRelay(value) { store.setState({ pendingCustomRelay: value }); },
+    get accountStatusProp() { return store.getState().accountStatusProp },
+    set accountStatusProp(value) { store.setState({ accountStatusProp: value }); },
+    get thinkingModelKey() { return store.getState().thinkingModelKey },
+    set thinkingModelKey(value) { store.setState({ thinkingModelKey: value }); },
+    get windowModelKey() { return store.getState().windowModelKey },
+    set windowModelKey(value) { store.setState({ windowModelKey: value }); },
+    get codingToolSkills() { return store.getState().codingToolSkills },
+    set codingToolSkills(value) { store.setState({ codingToolSkills: value }); },
+    get codingToolSetupBusy() { return store.getState().codingToolSetupBusy },
+    set codingToolSetupBusy(value) { store.setState({ codingToolSetupBusy: value }); },
+    get userSkillCatalog() { return store.getState().userSkillCatalog },
+    set userSkillCatalog(value) { store.setState({ userSkillCatalog: value }); },
+    get userSkillBusy() { return store.getState().userSkillBusy },
+    set userSkillBusy(value) { store.setState({ userSkillBusy: value }); },
+    get userSkillError() { return store.getState().userSkillError },
+    set userSkillError(value) { store.setState({ userSkillError: value }); },
+    get editingBuiltinSkill() { return store.getState().editingBuiltinSkill },
+    set editingBuiltinSkill(value) { store.setState({ editingBuiltinSkill: value }); },
+    get builtinSkillDocument() { return store.getState().builtinSkillDocument },
+    set builtinSkillDocument(value) { store.setState({ builtinSkillDocument: value }); },
+    get builtinSkillCustomized() { return store.getState().builtinSkillCustomized },
+    set builtinSkillCustomized(value) { store.setState({ builtinSkillCustomized: value }); },
+    get debugModeOn() { return store.getState().debugModeOn },
+    set debugModeOn(value) { store.setState({ debugModeOn: value }); }
+  }
+  function touchWorking() {
+    const current = store.getState().working
+    if (current) store.setState({ working: { ...current } })
+  }
+  function patchWorking(mutator: (value: AppSettings) => void) {
+    if (!s.working) return
+    mutator(s.working)
+    touchWorking()
+  }
+  function syncInstalledSettingsSafe() { try { syncInstalledSettings() } catch { /* later */ } }
+  function syncSkillsCategorySafe() { try { syncSkillsCategory() } catch { /* later */ } }
+
+
   let unlistenCodingToolSetup: (() => void) | undefined
 
-  const settingsCategories = computed(() => [
+  const settingsCategories = () => [
     { value: 'general' as const, label: t('通用', 'General') },
     { value: 'apikeys' as const, label: t('模型', 'Models') },
     { value: 'ctf' as const, label: 'CTF' },
@@ -1324,30 +1467,26 @@ function createSettingsStore(
     { value: 'browser' as const, label: t('浏览器控制', 'Browser') },
     { value: 'eval' as const, label: t('评测', 'Eval') },
     { value: 'plugins' as const, label: t('插件', 'Plugins') },
-  ])
+  ]
 
-  const pickerSettings = computed(() => ({
-    providers: working.value?.providers ?? {},
-    relay: working.value?.relay,
-  }))
-  const serviceSettings = computed(() => ({
-    providers: working.value?.providers ?? {},
-    relay: working.value?.relay,
+  const serviceCatalog = readModelCatalog(() => ({
+    providers: s.working?.providers ?? {},
+    relay: s.working?.relay,
     includeUnconfigured: true,
   }))
-  const {
-    providers: modelProviders,
-    providerModelLabel,
-  } = useModelCatalog(serviceSettings)
-  const {
-    pickerGroups: availablePickerGroups,
-    providerModelLabel: availableProviderModelLabel,
-    pickerModelLabel: availablePickerModelLabel,
-    snapshot: modelCatalogSnapshot,
-  } = useModelCatalog(pickerSettings)
+  const pickerCatalog = readModelCatalog(() => ({
+    providers: s.working?.providers ?? {},
+    relay: s.working?.relay,
+  }))
+  const modelProviders = () => serviceCatalog.providers
+  const availablePickerGroups = () => pickerCatalog.pickerGroups
+  const modelCatalogSnapshot = () => pickerCatalog.snapshot
+  const providerModelLabel = serviceCatalog.providerModelLabel
+  const availableProviderModelLabel = pickerCatalog.providerModelLabel
+  const availablePickerModelLabel = pickerCatalog.pickerModelLabel
 
-  const account = computed<AccountStatus>(() => accountStatusProp.value ?? ({ configured: false, authenticated: false, state: 'unconfigured' }))
-  const accountStateLabel = computed(() => ({
+  const account = () => s.accountStatusProp ?? ({ configured: false, authenticated: false, state: 'unconfigured' })
+  const accountStateLabel = () => ({
     unconfigured: t('未配置', 'Not configured'),
     signed_out: t('未登录', 'Signed out'),
     authorizing: t('等待授权', 'Waiting for authorization'),
@@ -1355,15 +1494,15 @@ function createSettingsStore(
     suspended: t('访问已暂停', 'Access paused'),
     invitation_required: t('等待邀请', 'Invitation required'),
     unavailable: t('暂时不可用', 'Temporarily unavailable'),
-  }[account.value.state]))
+  }[account().state])
 
-  const databaseStateLabels = computed<Record<DatabaseCompatibilityState, string>>(() => ({
+  const databaseStateLabels = (): Record<DatabaseCompatibilityState, string> => ({
     compatible: t('兼容', 'Compatible'),
     missing: t('尚未创建', 'Not created yet'),
     newer: t('数据库较新', 'Database is newer'),
     corrupt: t('损坏或不可读', 'Corrupt or unreadable'),
     remaining: t('尚未纳入迁移', 'Not yet migrated'),
-  }))
+  })
 
   function databaseVersionText(database: DatabaseCompatibilityStatus): string {
     const parts: string[] = []
@@ -1377,30 +1516,30 @@ function createSettingsStore(
   }
 
   function applySettings(value: AppSettings | null) {
-    working.value = value ? cloneSettings(withAppSettingsDefaults(value)) : null
-    if (working.value) {
+    s.working = value ? cloneSettings(withAppSettingsDefaults(value)) : null
+    if (s.working) {
       ensureAccountRoute()
       alignDefaultModelToEnabledServices()
-      applyUiLocale(working.value.locale)
+      applyUiLocale(s.working.locale)
     }
   }
 
   function applyInitialCategory(value: SettingsCategory) {
-    category.value = normalizeSettingsCategory(value)
-    notice.value = null
+    s.category = normalizeSettingsCategory(value)
+    s.notice = null
   }
 
-  watch(working, value => {
-    if (value) installAppModelSettings(value)
-  }, { deep: true })
+  function syncInstalledSettings() {
+    if (s.working) installAppModelSettings(s.working)
+  }
 
-  const provider = computed(() => (
-    working.value ? working.value.providers[working.value.active_provider] : undefined
-  ))
-  const accountRoute = computed(() => working.value?.relay)
+  const provider = () => (
+    s.working ? s.working.providers[s.working.active_provider] : undefined
+  )
+  const accountRoute = () => s.working?.relay
 
   function matchPickerGroup(providerId: string, model: string): PickerServiceGroup | undefined {
-    return availablePickerGroups.value.find(group => (
+    return availablePickerGroups().find(group => (
       group.providerId === providerId && group.models.includes(model)
     ))
   }
@@ -1415,181 +1554,193 @@ function createSettingsStore(
     return [selection.providerId, selection.model]
   }
 
-  const defaultModelKey = computed({
-    get: () => {
-      if (!working.value) return ''
-      const match = matchPickerGroup(working.value.active_provider, working.value.active_model)
-      return encodePickerSelection(
-        working.value.active_provider,
-        working.value.active_model,
-        match?.source ?? 'service',
-      )
-    },
-    set: value => {
-      if (!working.value) return
+  function defaultModelKey() {
+    if (!s.working) return ''
+    const match = matchPickerGroup(s.working.active_provider, s.working.active_model)
+    return encodePickerSelection(
+      s.working.active_provider,
+      s.working.active_model,
+      match?.source ?? 'service',
+    )
+  }
+
+  function setDefaultModelKey(value: string) {
+    patchWorking(working => {
       const selection = parsePickerSelection(String(value ?? ''))
       if (!selection) return
-      working.value.active_provider = selection.providerId
-      working.value.active_model = selection.model
+      working.active_provider = selection.providerId
+      working.active_model = selection.model
       if (selection.source === 'account') {
-        working.value.model_routing.source_order = ['account', 'personal']
+        working.model_routing = { ...working.model_routing, source_order: ['account', 'personal'] }
       } else if (selection.source === 'personal') {
-        working.value.model_routing.source_order = ['personal', 'account']
+        working.model_routing = { ...working.model_routing, source_order: ['personal', 'account'] }
       }
-    },
-  })
+    })
+  }
 
-  const defaultModelAvailable = computed(() => {
-    if (!working.value) return false
-    return availablePickerGroups.value.some(group => (
-      group.providerId === working.value?.active_provider
-      && group.models.includes(working.value.active_model)
+  const defaultModelAvailable = () => {
+    if (!s.working) return false
+    return availablePickerGroups().some(group => (
+      group.providerId === s.working?.active_provider
+      && group.models.includes(s.working.active_model)
     ))
-  })
+  }
 
-  const availableModelCount = computed(() => availablePickerGroups.value.reduce(
+  const availableModelCount = () => availablePickerGroups().reduce(
     (total, group) => total + group.models.length,
     0,
-  ))
+  )
 
-  const defaultModelLabel = computed(() => {
-    if (!working.value) return ''
-    const match = matchPickerGroup(working.value.active_provider, working.value.active_model)
-    if (match) return availablePickerModelLabel(match, working.value.active_model)
+  const defaultModelLabel = () => {
+    if (!s.working) return ''
+    const match = matchPickerGroup(s.working.active_provider, s.working.active_model)
+    if (match) return availablePickerModelLabel(match, s.working.active_model)
     return availableProviderModelLabel(
-      working.value.active_provider,
-      working.value.active_model,
+      s.working.active_provider,
+      s.working.active_model,
     )
-  })
+  }
 
-  const thinkingModelSelection = computed(() => parsePickerSelection(thinkingModelKey.value))
-  const thinkingModelProvider = computed(() => thinkingModelSelection.value?.providerId ?? '')
-  const thinkingModelID = computed(() => thinkingModelSelection.value?.model ?? '')
-  const thinkingModelLabel = computed(() => {
-    const selection = thinkingModelSelection.value
+  const thinkingModelSelection = () => parsePickerSelection(s.thinkingModelKey)
+  const thinkingModelProvider = () => thinkingModelSelection()?.providerId ?? ''
+  const thinkingModelID = () => thinkingModelSelection()?.model ?? ''
+  const thinkingModelLabel = () => {
+    const selection = thinkingModelSelection()
     if (!selection) return t('选择模型', 'Select a model')
-    const group = availablePickerGroups.value.find(item => (
+    const group = availablePickerGroups().find(item => (
       item.providerId === selection.providerId && item.models.includes(selection.model)
     ))
     return group
       ? availablePickerModelLabel(group, selection.model)
       : availableProviderModelLabel(selection.providerId, selection.model)
-  })
-  const thinkingOverride = computed(() => (
-    working.value?.model_thinking?.[thinkingModelProvider.value]?.[thinkingModelID.value]
-  ))
-  const thinkingProfile = computed(() => resolveModelThinking(
-    working.value,
-    thinkingModelProvider.value,
-    thinkingModelID.value,
-  ))
+  }
+  const thinkingOverride = () => (
+    s.working?.model_thinking?.[thinkingModelProvider()]?.[thinkingModelID()]
+  )
+  const thinkingProfile = () => resolveModelThinking(
+    s.working,
+    thinkingModelProvider(),
+    thinkingModelID(),
+  )
 
-  watch([working, availablePickerGroups], () => {
-    const current = thinkingModelSelection.value
-    const stillAvailable = current && availablePickerGroups.value.some(group => (
+  function syncPickerDerived1() {
+    const current = thinkingModelSelection()
+    const stillAvailable = current && availablePickerGroups().some(group => (
       group.providerId === current.providerId && group.models.includes(current.model)
     ))
     if (stillAvailable) return
-    const active = working.value
-      ? matchPickerGroup(working.value.active_provider, working.value.active_model)
+    const active = s.working
+      ? matchPickerGroup(s.working.active_provider, s.working.active_model)
       : undefined
-    const fallback = active ?? availablePickerGroups.value[0]
+    const fallback = active ?? availablePickerGroups()[0]
     const model = active
-      ? working.value?.active_model
+      ? s.working?.active_model
       : fallback?.models[0]
-    thinkingModelKey.value = fallback && model
+    s.thinkingModelKey = fallback && model
       ? encodePickerSelection(fallback.providerId, model, fallback.source)
       : ''
-  }, { immediate: true })
+  }
 
-  const windowModelSelection = computed(() => parsePickerSelection(windowModelKey.value))
-  const windowModelProvider = computed(() => windowModelSelection.value?.providerId ?? '')
-  const windowModelID = computed(() => windowModelSelection.value?.model ?? '')
-  const windowModelLabel = computed(() => {
-    const selection = windowModelSelection.value
+
+  const windowModelSelection = () => parsePickerSelection(s.windowModelKey)
+  const windowModelProvider = () => windowModelSelection()?.providerId ?? ''
+  const windowModelID = () => windowModelSelection()?.model ?? ''
+  const windowModelLabel = () => {
+    const selection = windowModelSelection()
     if (!selection) return t('选择模型', 'Select a model')
-    const group = availablePickerGroups.value.find(item => (
+    const group = availablePickerGroups().find(item => (
       item.providerId === selection.providerId && item.models.includes(selection.model)
     ))
     return group
       ? availablePickerModelLabel(group, selection.model)
       : availableProviderModelLabel(selection.providerId, selection.model)
-  })
-  const windowOverride = computed(() => {
-    const stored = working.value?.model_context_windows?.[windowModelProvider.value]?.[windowModelID.value]
+  }
+  const windowOverride = () => {
+    const stored = s.working?.model_context_windows?.[windowModelProvider()]?.[windowModelID()]
     const parsed = Number(stored)
     return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : undefined
-  })
-  const windowCatalogValue = computed(() => {
-    const id = windowModelID.value
+  }
+  const windowCatalogValue = () => {
+    const id = windowModelID()
     if (!id) return 0
-    const catalog = Number(modelCatalogSnapshot.value?.models.find(entry => entry.id === id)?.context_window)
+    const catalog = Number(modelCatalogSnapshot()?.models.find(entry => entry.id === id)?.context_window)
     return Number.isFinite(catalog) && catalog > 0 ? Math.floor(catalog) : 0
-  })
-  const effectiveWindow = computed(() => resolveModelContextWindow(
-    windowModelID.value,
-    windowCatalogValue.value,
-    windowOverride.value,
-  ))
+  }
+  const effectiveWindow = () => resolveModelContextWindow(
+    windowModelID(),
+    windowCatalogValue(),
+    windowOverride(),
+  )
 
-  watch([working, availablePickerGroups], () => {
-    const current = windowModelSelection.value
-    const stillAvailable = current && availablePickerGroups.value.some(group => (
+  function syncPickerDerived2() {
+    const current = windowModelSelection()
+    const stillAvailable = current && availablePickerGroups().some(group => (
       group.providerId === current.providerId && group.models.includes(current.model)
     ))
     if (stillAvailable) return
-    const active = working.value
-      ? matchPickerGroup(working.value.active_provider, working.value.active_model)
+    const active = s.working
+      ? matchPickerGroup(s.working.active_provider, s.working.active_model)
       : undefined
-    const fallback = active ?? availablePickerGroups.value[0]
+    const fallback = active ?? availablePickerGroups()[0]
     const model = active
-      ? working.value?.active_model
+      ? s.working?.active_model
       : fallback?.models[0]
-    windowModelKey.value = fallback && model
+    s.windowModelKey = fallback && model
       ? encodePickerSelection(fallback.providerId, model, fallback.source)
       : ''
-  }, { immediate: true })
+  }
+
 
   function setModelContextWindowOverride(value: unknown) {
-    if (!working.value || !windowModelProvider.value || !windowModelID.value) return
+    if (!windowModelProvider() || !windowModelID()) return
     const parsed = Math.floor(Number(value))
     if (!Number.isFinite(parsed) || parsed <= 0) return
-    const providerId = windowModelProvider.value
-    working.value.model_context_windows = {
-      ...(working.value.model_context_windows ?? {}),
-      [providerId]: {
-        ...(working.value.model_context_windows?.[providerId] ?? {}),
-        [windowModelID.value]: parsed,
-      },
-    }
+    const providerId = windowModelProvider()
+    const modelId = windowModelID()
+    patchWorking(working => {
+      working.model_context_windows = {
+        ...(working.model_context_windows ?? {}),
+        [providerId]: {
+          ...(working.model_context_windows?.[providerId] ?? {}),
+          [modelId]: parsed,
+        },
+      }
+    })
   }
 
   function resetModelContextWindowOverride() {
-    if (!working.value?.model_context_windows?.[windowModelProvider.value]) return
-    const providerId = windowModelProvider.value
-    const models = { ...working.value.model_context_windows[providerId] }
-    delete models[windowModelID.value]
-    const windows = { ...working.value.model_context_windows }
-    if (Object.keys(models).length) windows[providerId] = models
-    else delete windows[providerId]
-    working.value.model_context_windows = Object.keys(windows).length ? windows : undefined
+    if (!s.working?.model_context_windows?.[windowModelProvider()]) return
+    const providerId = windowModelProvider()
+    const modelId = windowModelID()
+    patchWorking(working => {
+      if (!working.model_context_windows?.[providerId]) return
+      const models = { ...working.model_context_windows[providerId] }
+      delete models[modelId]
+      const windows = { ...working.model_context_windows }
+      if (Object.keys(models).length) windows[providerId] = models
+      else delete windows[providerId]
+      working.model_context_windows = Object.keys(windows).length ? windows : undefined
+    })
   }
 
   function setThinkingOverride(config: ModelThinkingConfig) {
-    if (!working.value || !thinkingModelProvider.value || !thinkingModelID.value) return
-    const providerId = thinkingModelProvider.value
-    working.value.model_thinking = {
-      ...(working.value.model_thinking ?? {}),
-      [providerId]: {
-        ...(working.value.model_thinking?.[providerId] ?? {}),
-        [thinkingModelID.value]: normalizeModelThinkingConfig(config),
-      },
-    }
+    if (!thinkingModelProvider() || !thinkingModelID()) return
+    const providerId = thinkingModelProvider()
+    const modelId = thinkingModelID()
+    patchWorking(working => {
+      working.model_thinking = {
+        ...(working.model_thinking ?? {}),
+        [providerId]: {
+          ...(working.model_thinking?.[providerId] ?? {}),
+          [modelId]: normalizeModelThinkingConfig(config),
+        },
+      }
+    })
   }
 
   function thinkingConfigForEdit(): ModelThinkingConfig {
-    if (thinkingOverride.value) return normalizeModelThinkingConfig(thinkingOverride.value)
-    const preset = builtInModelThinking(thinkingModelID.value)
+    if (thinkingOverride()) return normalizeModelThinkingConfig(thinkingOverride())
+    const preset = builtInModelThinking(thinkingModelID())
     return normalizeModelThinkingConfig(preset ?? {
       enabled: true,
       levels: ['low', 'medium', 'high'],
@@ -1629,137 +1780,145 @@ function createSettingsStore(
   }
 
   function resetModelThinkingOverride() {
-    if (!working.value?.model_thinking?.[thinkingModelProvider.value]) return
-    const providerId = thinkingModelProvider.value
-    const models = { ...working.value.model_thinking[providerId] }
-    delete models[thinkingModelID.value]
-    const modelThinking = { ...working.value.model_thinking }
-    if (Object.keys(models).length) modelThinking[providerId] = models
-    else delete modelThinking[providerId]
-    working.value.model_thinking = Object.keys(modelThinking).length ? modelThinking : undefined
+    if (!s.working?.model_thinking?.[thinkingModelProvider()]) return
+    const providerId = thinkingModelProvider()
+    const modelId = thinkingModelID()
+    patchWorking(working => {
+      if (!working.model_thinking?.[providerId]) return
+      const models = { ...working.model_thinking[providerId] }
+      delete models[modelId]
+      const modelThinking = { ...working.model_thinking }
+      if (Object.keys(models).length) modelThinking[providerId] = models
+      else delete modelThinking[providerId]
+      working.model_thinking = Object.keys(modelThinking).length ? modelThinking : undefined
+    })
   }
 
   function alignDefaultModelToEnabledServices() {
-    if (!working.value) return
-    if (
-      working.value.active_provider !== 'tokenflux'
-      && !working.value.providers[working.value.active_provider]?.custom
-    ) {
-      working.value.active_provider = 'tokenflux'
-    }
-    const groups = availablePickerGroups.value
-    if (groups.length === 0) {
-      if (working.value.active_provider !== 'tokenflux') {
-        working.value.active_provider = 'tokenflux'
+    patchWorking(working => {
+      if (
+        working.active_provider !== 'tokenflux'
+        && !working.providers[working.active_provider]?.custom
+      ) {
+        working.active_provider = 'tokenflux'
       }
-      return
-    }
-    const current = groups.find(group => (
-      group.providerId === working.value?.active_provider
-      && group.models.includes(working.value.active_model)
-    ))
-    if (current) return
-    const sameProvider = groups.find(group => group.providerId === working.value?.active_provider)
-    if (sameProvider?.models[0]) {
-      working.value.active_model = sameProvider.models[0]
-      return
-    }
-    working.value.active_provider = groups[0].providerId
-    working.value.active_model = groups[0].models[0] ?? ''
-    if (groups[0].source === 'account') {
-      working.value.model_routing.source_order = ['account', 'personal']
-    } else if (groups[0].source === 'personal') {
-      working.value.model_routing.source_order = ['personal', 'account']
-    }
+      const groups = availablePickerGroups()
+      if (groups.length === 0) {
+        if (working.active_provider !== 'tokenflux') {
+          working.active_provider = 'tokenflux'
+        }
+        return
+      }
+      const current = groups.find(group => (
+        group.providerId === working.active_provider
+        && group.models.includes(working.active_model)
+      ))
+      if (current) return
+      const sameProvider = groups.find(group => group.providerId === working.active_provider)
+      if (sameProvider?.models[0]) {
+        working.active_model = sameProvider.models[0]
+        return
+      }
+      working.active_provider = groups[0].providerId
+      working.active_model = groups[0].models[0] ?? ''
+      if (groups[0].source === 'account') {
+        working.model_routing = { ...working.model_routing, source_order: ['account', 'personal'] }
+      } else if (groups[0].source === 'personal') {
+        working.model_routing = { ...working.model_routing, source_order: ['personal', 'account'] }
+      }
+    })
   }
 
   function skillEnabled(name: string): boolean {
     return skillIsEnabled(
       name,
-      working.value?.disabled_skills ?? [],
-      working.value?.enabled_optional_skills ?? [],
+      s.working?.disabled_skills ?? [],
+      s.working?.enabled_optional_skills ?? [],
     )
   }
 
   function setSkillEnabled(name: string, enabled: boolean) {
-    if (!working.value) return
-    if (isOptionalCodingSkill(name)) {
-      const selected = new Set(working.value.enabled_optional_skills ?? [])
-      if (enabled) selected.add(name)
-      else selected.delete(name)
-      working.value.enabled_optional_skills = [...selected]
-    } else {
-      const disabled = new Set(working.value.disabled_skills ?? [])
-      if (enabled) disabled.delete(name)
-      else disabled.add(name)
-      working.value.disabled_skills = [...disabled]
-    }
+    patchWorking(working => {
+      if (isOptionalCodingSkill(name)) {
+        const selected = new Set(working.enabled_optional_skills ?? [])
+        if (enabled) selected.add(name)
+        else selected.delete(name)
+        working.enabled_optional_skills = [...selected]
+      } else {
+        const disabled = new Set(working.disabled_skills ?? [])
+        if (enabled) disabled.delete(name)
+        else disabled.add(name)
+        working.disabled_skills = [...disabled]
+      }
+    })
     void save()
   }
 
-  const workerModelKey = computed({
-    get: () => {
-      if (!working.value?.worker_provider || !working.value.worker_model) {
-        return WORKER_MODEL_INHERIT
-      }
-      const match = matchPickerGroup(working.value.worker_provider, working.value.worker_model)
-      return encodePickerSelection(
-        working.value.worker_provider,
-        working.value.worker_model,
-        working.value.worker_source || match?.source || 'service',
-      )
-    },
-    set: value => {
-      if (!working.value) return
-      const key = String(value ?? '')
+  function workerModelKey() {
+    if (!s.working?.worker_provider || !s.working.worker_model) {
+      return WORKER_MODEL_INHERIT
+    }
+    const match = matchPickerGroup(s.working.worker_provider, s.working.worker_model)
+    return encodePickerSelection(
+      s.working.worker_provider,
+      s.working.worker_model,
+      s.working.worker_source || match?.source || 'service',
+    )
+  }
+
+  function setWorkerModelKey(value: string) {
+    const key = String(value ?? '')
+    patchWorking(working => {
       if (!key || key === WORKER_MODEL_INHERIT) {
-        working.value.worker_provider = ''
-        working.value.worker_model = ''
-        working.value.worker_source = ''
-        void save()
+        working.worker_provider = ''
+        working.worker_model = ''
+        working.worker_source = ''
         return
       }
       const selection = parsePickerSelection(key)
       if (!selection) return
-      working.value.worker_provider = selection.providerId
-      working.value.worker_model = selection.model
-      working.value.worker_source = selection.source
-      void save()
-    },
-  })
+      working.worker_provider = selection.providerId
+      working.worker_model = selection.model
+      working.worker_source = selection.source
+    })
+    void save()
+  }
 
-  const workerModelAvailable = computed(() => {
-    if (!working.value?.worker_provider || !working.value.worker_model) return true
-    return availablePickerGroups.value.some(group => (
-      group.providerId === working.value?.worker_provider
-      && group.models.includes(working.value.worker_model ?? '')
+  const workerModelAvailable = () => {
+    if (!s.working?.worker_provider || !s.working.worker_model) return true
+    return availablePickerGroups().some(group => (
+      group.providerId === s.working?.worker_provider
+      && group.models.includes(s.working.worker_model ?? '')
     ))
-  })
+  }
 
-  const workerModelLabel = computed(() => {
-    if (!working.value?.worker_provider || !working.value.worker_model) {
+  const workerModelLabel = () => {
+    if (!s.working?.worker_provider || !s.working.worker_model) {
       return t('跟随当前对话', 'Follow current conversation')
     }
-    const match = matchPickerGroup(working.value.worker_provider, working.value.worker_model)
-    if (match) return availablePickerModelLabel(match, working.value.worker_model)
+    const match = matchPickerGroup(s.working.worker_provider, s.working.worker_model)
+    if (match) return availablePickerModelLabel(match, s.working.worker_model)
     return availableProviderModelLabel(
-      working.value.worker_provider,
-      working.value.worker_model,
+      s.working.worker_provider,
+      s.working.worker_model,
     )
-  })
+  }
 
-  watch([working, availablePickerGroups], () => {
-    if (!working.value?.worker_provider || !working.value.worker_model) return
-    if (!availablePickerGroups.value.length) return
-    if (workerModelAvailable.value) return
-    working.value.worker_provider = ''
-    working.value.worker_model = ''
-    working.value.worker_source = ''
+  function syncPickerDerived3() {
+    if (!s.working?.worker_provider || !s.working.worker_model) return
+    if (!availablePickerGroups().length) return
+    if (workerModelAvailable()) return
+    patchWorking(working => {
+      working.worker_provider = ''
+      working.worker_model = ''
+      working.worker_source = ''
+    })
     void save()
-  })
+  }
+
 
   function codingToolSkill(name: string): CodingToolSkillSnapshot | undefined {
-    return codingToolSkills.value.find(item => item.name === name)
+    return s.codingToolSkills.find(item => item.name === name)
   }
 
   function codingToolStatusLabel(skill: CodingToolSkillSnapshot): string {
@@ -1776,182 +1935,182 @@ function createSettingsStore(
 
   async function loadCodingToolSkills() {
     try {
-      codingToolSkills.value = await invokeCommand<CodingToolSkillSnapshot[]>('list_coding_tool_skills')
+      s.codingToolSkills = await invokeCommand<CodingToolSkillSnapshot[]>('list_coding_tool_skills')
     } catch {
-      codingToolSkills.value = []
+      s.codingToolSkills = []
     }
   }
 
   async function prepareCodingToolSkill(name: string) {
-    codingToolSetupBusy.value = name
+    s.codingToolSetupBusy = name
     try {
       await invokeCommand('start_coding_tool_skill_setup', { name })
       await loadCodingToolSkills()
     } catch (reason) {
-      userSkillError.value = desktopErrorMessage(reason)
+      s.userSkillError = desktopErrorMessage(reason)
     } finally {
-      codingToolSetupBusy.value = ''
+      s.codingToolSetupBusy = ''
     }
   }
 
-  const userSkills = computed(() => userSkillCatalog.value.skills)
+  const userSkills = () => s.userSkillCatalog.skills
 
   function skillOverlay(name: string) {
-    return (userSkillCatalog.value.builtinSkills ?? []).find(item => item.name === name)
+    return (s.userSkillCatalog.builtinSkills ?? []).find(item => item.name === name)
   }
 
   async function loadUserSkills() {
     if (!hasDesktopRuntime()) {
-      userSkillError.value = ''
-      userSkillCatalog.value = emptyAgentResourceCatalog()
+      s.userSkillError = ''
+      s.userSkillCatalog = emptyAgentResourceCatalog()
       return
     }
     try {
-      userSkillCatalog.value = await invokeCommand<AgentResourceCatalog>('list_agent_resource_catalog')
-      userSkillError.value = ''
+      s.userSkillCatalog = await invokeCommand<AgentResourceCatalog>('list_agent_resource_catalog')
+      s.userSkillError = ''
     } catch (reason) {
-      if (!isMissingDesktopRuntime(reason)) userSkillError.value = desktopErrorMessage(reason)
-      userSkillCatalog.value = emptyAgentResourceCatalog()
+      if (!isMissingDesktopRuntime(reason)) s.userSkillError = desktopErrorMessage(reason)
+      s.userSkillCatalog = emptyAgentResourceCatalog()
     }
   }
 
   async function importUserSkill() {
-    userSkillBusy.value = true
+    s.userSkillBusy = true
     try {
-      userSkillCatalog.value = await invokeCommand<AgentResourceCatalog>('import_user_skill')
-      userSkillError.value = ''
+      s.userSkillCatalog = await invokeCommand<AgentResourceCatalog>('import_user_skill')
+      s.userSkillError = ''
     } catch (reason) {
-      userSkillError.value = desktopErrorMessage(reason)
+      s.userSkillError = desktopErrorMessage(reason)
     } finally {
-      userSkillBusy.value = false
+      s.userSkillBusy = false
     }
   }
 
   async function setUserSkillEnabled(skill: AgentResourceSkill, enabled: boolean) {
-    userSkillBusy.value = true
+    s.userSkillBusy = true
     try {
-      userSkillCatalog.value = await invokeCommand<AgentResourceCatalog>('set_user_skill_enabled', {
+      s.userSkillCatalog = await invokeCommand<AgentResourceCatalog>('set_user_skill_enabled', {
         name: skill.name,
         enabled,
       })
-      userSkillError.value = ''
+      s.userSkillError = ''
     } catch (reason) {
-      userSkillError.value = desktopErrorMessage(reason)
+      s.userSkillError = desktopErrorMessage(reason)
     } finally {
-      userSkillBusy.value = false
+      s.userSkillBusy = false
     }
   }
 
   async function deleteUserSkill(name: string) {
-    userSkillBusy.value = true
+    s.userSkillBusy = true
     try {
-      userSkillCatalog.value = await invokeCommand<AgentResourceCatalog>('delete_user_skill', { name })
-      userSkillError.value = ''
+      s.userSkillCatalog = await invokeCommand<AgentResourceCatalog>('delete_user_skill', { name })
+      s.userSkillError = ''
     } catch (reason) {
-      userSkillError.value = desktopErrorMessage(reason)
+      s.userSkillError = desktopErrorMessage(reason)
     } finally {
-      userSkillBusy.value = false
+      s.userSkillBusy = false
     }
   }
 
   async function startEditBuiltinSkill(name: string) {
-    userSkillBusy.value = true
+    s.userSkillBusy = true
     try {
       const document = await invokeCommand<BuiltinSkillDocument>('get_builtin_skill_document', { name })
-      editingBuiltinSkill.value = document.name
-      builtinSkillDocument.value = document.document
-      builtinSkillCustomized.value = document.customized
-      userSkillError.value = ''
+      s.editingBuiltinSkill = document.name
+      s.builtinSkillDocument = document.document
+      s.builtinSkillCustomized = document.customized
+      s.userSkillError = ''
     } catch (reason) {
-      userSkillError.value = desktopErrorMessage(reason)
+      s.userSkillError = desktopErrorMessage(reason)
     } finally {
-      userSkillBusy.value = false
+      s.userSkillBusy = false
     }
   }
 
   function closeBuiltinSkillEditor() {
-    editingBuiltinSkill.value = ''
-    builtinSkillDocument.value = ''
-    builtinSkillCustomized.value = false
+    s.editingBuiltinSkill = ''
+    s.builtinSkillDocument = ''
+    s.builtinSkillCustomized = false
   }
 
   async function saveBuiltinSkill() {
-    if (!editingBuiltinSkill.value) return
-    userSkillBusy.value = true
+    if (!s.editingBuiltinSkill) return
+    s.userSkillBusy = true
     try {
-      userSkillCatalog.value = await invokeCommand<AgentResourceCatalog>('set_builtin_skill_document', {
-        name: editingBuiltinSkill.value,
-        document: builtinSkillDocument.value,
+      s.userSkillCatalog = await invokeCommand<AgentResourceCatalog>('set_builtin_skill_document', {
+        name: s.editingBuiltinSkill,
+        document: s.builtinSkillDocument,
       })
-      builtinSkillCustomized.value = true
-      userSkillError.value = ''
+      s.builtinSkillCustomized = true
+      s.userSkillError = ''
       closeBuiltinSkillEditor()
     } catch (reason) {
-      userSkillError.value = desktopErrorMessage(reason)
+      s.userSkillError = desktopErrorMessage(reason)
     } finally {
-      userSkillBusy.value = false
+      s.userSkillBusy = false
     }
   }
 
   async function restoreBuiltinSkill(name: string) {
-    userSkillBusy.value = true
+    s.userSkillBusy = true
     try {
-      userSkillCatalog.value = await invokeCommand<AgentResourceCatalog>('restore_builtin_skill', { name })
-      if (editingBuiltinSkill.value === name) closeBuiltinSkillEditor()
-      userSkillError.value = ''
+      s.userSkillCatalog = await invokeCommand<AgentResourceCatalog>('restore_builtin_skill', { name })
+      if (s.editingBuiltinSkill === name) closeBuiltinSkillEditor()
+      s.userSkillError = ''
     } catch (reason) {
-      userSkillError.value = desktopErrorMessage(reason)
+      s.userSkillError = desktopErrorMessage(reason)
     } finally {
-      userSkillBusy.value = false
+      s.userSkillBusy = false
     }
   }
 
   async function openBuiltinSkillConversation(name: string) {
-    userSkillBusy.value = true
+    s.userSkillBusy = true
     try {
       callbacks.current.onSecurityToolCodingHandoff?.(await invokeCommand<BuiltinConfigHandoff>('prepare_builtin_config_handoff', {
         kind: 'skill',
         name,
       }))
-      userSkillError.value = ''
+      s.userSkillError = ''
     } catch (reason) {
-      userSkillError.value = desktopErrorMessage(reason)
+      s.userSkillError = desktopErrorMessage(reason)
     } finally {
-      userSkillBusy.value = false
+      s.userSkillBusy = false
     }
   }
 
-  watch(category, value => {
-    if (value === 'skills') {
+  function syncSkillsCategory() {
+    if (s.category === 'skills') {
       void loadUserSkills()
       void loadCodingToolSkills()
     }
-  }, { immediate: true })
+  }
 
   function ensureProviderConfig(id: string): ProviderConfig | undefined {
-    if (!working.value) return undefined
-    const info = modelProviders.value.find(item => item.id === id)
-    if (!working.value.providers[id]) {
-      working.value.providers[id] = {
+    if (!s.working) return undefined
+    const info = modelProviders().find(item => item.id === id)
+    if (!s.working.providers[id]) {
+      s.working.providers[id] = {
         api_key: '',
         has_api_key: false,
         base_url: info?.defaultBaseUrl,
         enabled: true,
       }
-    } else if (!working.value.providers[id].base_url && info?.defaultBaseUrl) {
-      working.value.providers[id].base_url = info.defaultBaseUrl
+    } else if (!s.working.providers[id].base_url && info?.defaultBaseUrl) {
+      s.working.providers[id].base_url = info.defaultBaseUrl
     }
-    return working.value.providers[id]
+    return s.working.providers[id]
   }
 
   function ensureProvider(id: string) {
-    if (!working.value) return
-    const providerChanged = working.value.active_provider !== id
-    const info = modelProviders.value.find(item => item.id === id)
+    if (!s.working) return
+    const providerChanged = s.working.active_provider !== id
+    const info = modelProviders().find(item => item.id === id)
     ensureProviderConfig(id)
-    working.value.active_provider = id
-    if (info && (providerChanged || !working.value.active_model) && info.models[0]) {
-      working.value.active_model = info.models[0]
+    s.working.active_provider = id
+    if (info && (providerChanged || !s.working.active_model) && info.models[0]) {
+      s.working.active_model = info.models[0]
     }
   }
 
@@ -1962,14 +2121,14 @@ function createSettingsStore(
   }
 
   function addModelService() {
-    if (!working.value) return
-    const count = Object.values(working.value.providers).filter(item => item.custom).length
+    if (!s.working) return
+    const count = Object.values(s.working.providers).filter(item => item.custom).length
     if (count >= 8) {
-      notice.value = { tone: 'error', text: t('最多可以添加 8 个自定义中转站。', 'You can add up to 8 custom relays.') }
+      s.notice = { tone: 'error', text: t('最多可以添加 8 个自定义中转站。', 'You can add up to 8 custom relays.') }
       return
     }
     const id = customRelayID()
-    pendingCustomRelay.value = {
+    s.pendingCustomRelay = {
       id,
       config: {
         api_key: '',
@@ -1981,45 +2140,47 @@ function createSettingsStore(
         models: [],
       },
     }
-    editingProviderID.value = id
-    customModelInput.value = ''
-    notice.value = null
+    s.editingProviderID = id
+    s.customModelInput = ''
+    s.notice = null
   }
 
   function tokenfluxCatalogModels(): string[] {
-    return modelProviders.value.find(item => item.id === 'tokenflux')?.models ?? []
+    return modelProviders().find(item => item.id === 'tokenflux')?.models ?? []
   }
 
   function rehomeDefaultAfterCustomServiceChange(serviceId: string, serviceModels: string[]) {
-    if (!working.value) return
+    if (!s.working) return
     alignDefaultModelToEnabledServices()
     const leaked = new Set(serviceModels.map(model => String(model ?? '').trim()).filter(Boolean))
-    const stillOnService = working.value.active_provider === serviceId
-    const parkedOnTokenflux = working.value.active_provider === 'tokenflux'
-      && leaked.has(working.value.active_model)
+    const stillOnService = s.working.active_provider === serviceId
+    const parkedOnTokenflux = s.working.active_provider === 'tokenflux'
+      && leaked.has(s.working.active_model)
     if (!stillOnService && !parkedOnTokenflux) return
-    working.value.active_provider = 'tokenflux'
-    working.value.active_model = tokenfluxCatalogModels()[0] ?? ''
+    patchWorking(working => {
+      working.active_provider = 'tokenflux'
+      working.active_model = tokenfluxCatalogModels()[0] ?? ''
+    })
   }
 
   function removeModelService(id: string) {
-    if (!working.value) return
-    const config = working.value.providers[id] ?? ensureProviderConfig(id)
+    if (!s.working) return
+    const config = s.working.providers[id] ?? ensureProviderConfig(id)
     if (!config) return
     const removedModels = [...(config.models ?? [])]
     const custom = Boolean(config.custom)
     if (config.custom) {
-      delete working.value.providers[id]
-      if (working.value.model_thinking) delete working.value.model_thinking[id]
-      if (working.value.model_context_windows) delete working.value.model_context_windows[id]
+      delete s.working.providers[id]
+      if (s.working.model_thinking) delete s.working.model_thinking[id]
+      if (s.working.model_context_windows) delete s.working.model_context_windows[id]
       if (id === PRESET_DEEPSEEK_SERVICE_ID) {
-        working.value.removed_preset_services = [...new Set([
-          ...(working.value.removed_preset_services ?? []),
+        s.working.removed_preset_services = [...new Set([
+          ...(s.working.removed_preset_services ?? []),
           PRESET_DEEPSEEK_SERVICE_ID,
         ])]
       }
     } else {
-      working.value.providers[id] = {
+      s.working.providers[id] = {
         ...config,
         api_key: '',
         has_api_key: false,
@@ -2030,118 +2191,184 @@ function createSettingsStore(
     }
     if (custom) {
       rehomeDefaultAfterCustomServiceChange(id, removedModels)
-    } else if (working.value.active_provider === id) {
+    } else if (s.working.active_provider === id) {
       ensureProvider('tokenflux')
       alignDefaultModelToEnabledServices()
     }
-    editingProviderID.value = null
-    customModelInput.value = ''
+    s.editingProviderID = null
+    s.customModelInput = ''
+    touchWorking()
   }
 
   function addCustomRelayModel() {
-    const target = editingProvider.value?.custom ? editingProvider.value : provider.value
-    if (!working.value || !target?.custom) return
-    const model = customModelInput.value.trim()
+    const { editingProviderID, pendingCustomRelay, customModelInput, working } = store.getState()
+    const model = customModelInput.trim()
     if (!model) return
+    const target = pendingCustomRelay?.id === editingProviderID
+      ? pendingCustomRelay.config
+      : working && editingProviderID
+        ? working.providers[editingProviderID]
+        : provider()
+    if (!target?.custom) return
     const models = target.models ?? []
     if (models.includes(model)) {
-      customModelInput.value = ''
+      store.setState({ customModelInput: '' })
       return
     }
     if (models.length >= 32) {
-      notice.value = { tone: 'error', text: t('每个中转站最多可以添加 32 个模型。', 'Each relay can have up to 32 models.') }
+      store.setState({ notice: { tone: 'error', text: t('每个中转站最多可以添加 32 个模型。', 'Each relay can have up to 32 models.') } })
       return
     }
-    target.models = [...models, model]
-    if (working.value.active_provider === editingProviderID.value && !working.value.active_model) {
-      working.value.active_model = model
+    if (pendingCustomRelay?.id === editingProviderID) {
+      store.setState({
+        pendingCustomRelay: {
+          ...pendingCustomRelay,
+          config: { ...pendingCustomRelay.config, models: [...models, model] },
+        },
+        customModelInput: '',
+      })
+      return
     }
-    customModelInput.value = ''
+    patchWorking(value => {
+      if (!editingProviderID || !value.providers[editingProviderID]) return
+      value.providers = {
+        ...value.providers,
+        [editingProviderID]: { ...value.providers[editingProviderID], models: [...models, model] },
+      }
+      if (value.active_provider === editingProviderID && !value.active_model) {
+        value.active_model = model
+      }
+    })
+    store.setState({ customModelInput: '' })
   }
 
   function removeCustomRelayModel(model: string) {
-    const target = editingProvider.value?.custom ? editingProvider.value : provider.value
-    if (!working.value || !target?.custom) return
-    target.models = (target.models ?? []).filter(item => item !== model)
-    if (editingProviderID.value && working.value.model_thinking?.[editingProviderID.value]) {
-      delete working.value.model_thinking[editingProviderID.value][model]
+    const { editingProviderID, pendingCustomRelay } = store.getState()
+    if (pendingCustomRelay?.id === editingProviderID && pendingCustomRelay.config.custom) {
+      store.setState({
+        pendingCustomRelay: {
+          ...pendingCustomRelay,
+          config: {
+            ...pendingCustomRelay.config,
+            models: (pendingCustomRelay.config.models ?? []).filter(item => item !== model),
+          },
+        },
+      })
+      return
     }
-    if (editingProviderID.value && working.value.model_context_windows?.[editingProviderID.value]) {
-      delete working.value.model_context_windows[editingProviderID.value][model]
-    }
-    if (working.value.active_provider === editingProviderID.value && working.value.active_model === model) {
-      working.value.active_model = target.models[0] ?? ''
-    }
+    patchWorking(working => {
+      if (!editingProviderID) return
+      const current = working.providers[editingProviderID]
+      if (!current?.custom) return
+      const models = (current.models ?? []).filter(item => item !== model)
+      working.providers = { ...working.providers, [editingProviderID]: { ...current, models } }
+      if (working.model_thinking?.[editingProviderID]) {
+        const nextThinking = { ...working.model_thinking[editingProviderID] }
+        delete nextThinking[model]
+        working.model_thinking = { ...working.model_thinking, [editingProviderID]: nextThinking }
+      }
+      if (working.model_context_windows?.[editingProviderID]) {
+        const nextWindows = { ...working.model_context_windows[editingProviderID] }
+        delete nextWindows[model]
+        working.model_context_windows = { ...working.model_context_windows, [editingProviderID]: nextWindows }
+      }
+      if (working.active_provider === editingProviderID && working.active_model === model) {
+        working.active_model = models[0] ?? ''
+      }
+    })
   }
 
   function ensureAccountRoute() {
-    if (!working.value) return
-    if (!working.value.relay) {
-      working.value.relay = {
-        enabled: account.value.state === 'active' && account.value.tokenFluxLinked === true,
+    if (!s.working) return
+    if (!s.working.relay) {
+      s.working.relay = {
+        enabled: account().state === 'active' && account().tokenFluxLinked === true,
         url: 'https://tokenflux.dev/v1',
         key: '',
         has_key: false,
       }
     }
-    if (!working.value.relay.url) working.value.relay.url = 'https://tokenflux.dev/v1'
+    if (!s.working.relay.url) s.working.relay.url = 'https://tokenflux.dev/v1'
   }
 
-  const accountModelSourceReady = computed(() => Boolean(
-    account.value.state === 'active'
-    && account.value.tokenFluxLinked === true,
-  ))
+  const accountModelSourceReady = () => Boolean(
+    account().state === 'active'
+    && account().tokenFluxLinked === true,
+  )
 
-  const modelServiceRows = computed<ModelServiceRow[]>(() => {
-    if (!working.value) return []
+  const modelServiceRows = () => {
+    if (!s.working) return []
     const rows: ModelServiceRow[] = [
       { key: 'account', source: 'account' },
     ]
-    for (const item of modelProviders.value) {
+    for (const item of modelProviders()) {
       rows.push({ key: `provider:${item.id}`, source: 'personal', provider: item })
     }
     return rows
-  })
+  }
 
-  const accountProviderInfo = computed(() => modelProviders.value.find(item => item.id === 'tokenflux'))
-  const editingProviderInfo = computed(() => {
-    if (pendingCustomRelay.value?.id === editingProviderID.value) {
-      return customProviderInfo(pendingCustomRelay.value.id, pendingCustomRelay.value.config) ?? undefined
+  const accountProviderInfo = () => modelProviders().find(item => item.id === 'tokenflux')
+  const editingProviderInfo = () => {
+    if (s.pendingCustomRelay?.id === s.editingProviderID) {
+      return customProviderInfo(s.pendingCustomRelay.id, s.pendingCustomRelay.config) ?? undefined
     }
-    return modelProviders.value.find(item => item.id === editingProviderID.value)
-  })
-  const editingProvider = computed(() => {
-    if (!editingProviderID.value) return undefined
-    if (pendingCustomRelay.value?.id === editingProviderID.value) {
-      return pendingCustomRelay.value.config
+    return modelProviders().find(item => item.id === s.editingProviderID)
+  }
+  const editingProvider = () => {
+    if (!s.editingProviderID) return undefined
+    if (s.pendingCustomRelay?.id === s.editingProviderID) {
+      return s.pendingCustomRelay.config
     }
-    return working.value?.providers[editingProviderID.value]
-  })
-  const editingProviderModel = computed(() => {
-    if (!editingProviderInfo.value || !working.value) return ''
-    const models = editingProviderInfo.value.models
+    return s.working?.providers[s.editingProviderID]
+  }
+  const editingProviderModel = () => {
+    const info = editingProviderInfo()
+    if (!info || !s.working) return ''
+    const models = info.models ?? []
     if (
-      editingProviderID.value === working.value.active_provider
-      && models.includes(working.value.active_model)
+      s.editingProviderID === s.working.active_provider
+      && models.includes(s.working.active_model)
     ) {
-      return working.value.active_model
+      return s.working.active_model
     }
     return models[0] ?? ''
-  })
-  const editingProviderModels = computed(() => editingProviderInfo.value?.models ?? [])
-  const providerEditorOpen = computed({
-    get: () => Boolean(editingProviderID.value),
-    set: value => {
-      if (!value) {
-        pendingCustomRelay.value = null
-        editingProviderID.value = null
-        customModelInput.value = ''
-      }
-    },
-  })
+  }
+  const editingProviderModels = () => editingProviderInfo()?.models ?? []
+  function providerEditorOpen() {
+    return Boolean(s.editingProviderID)
+  }
+
+  function setProviderEditorOpen(value: boolean) {
+    if (!value) {
+      store.setState({
+        pendingCustomRelay: null,
+        editingProviderID: null,
+        customModelInput: '',
+      })
+    }
+  }
+
+  function patchEditingProvider(mutator: (config: ProviderConfig) => void) {
+    const { editingProviderID, pendingCustomRelay, working } = store.getState()
+    if (!editingProviderID) return
+    if (pendingCustomRelay?.id === editingProviderID) {
+      const config = { ...pendingCustomRelay.config }
+      mutator(config)
+      store.setState({ pendingCustomRelay: { ...pendingCustomRelay, config } })
+      return
+    }
+    if (!working?.providers[editingProviderID]) return
+    patchWorking(value => {
+      const current = value.providers[editingProviderID]
+      if (!current) return
+      const next = { ...current }
+      mutator(next)
+      value.providers = { ...value.providers, [editingProviderID]: next }
+    })
+  }
 
   function providerConfig(id: string): ProviderConfig | undefined {
-    return working.value?.providers[id]
+    return s.working?.providers[id]
   }
 
   function providerModelsText(info: ProviderInfo): string {
@@ -2159,7 +2386,7 @@ function createSettingsStore(
   }
 
   function accountModelsText(): string {
-    const info = accountProviderInfo.value
+    const info = accountProviderInfo()
     return info?.models.length ? providerModelsText(info) : t('管理员分配的模型', 'Models assigned by an admin')
   }
 
@@ -2171,8 +2398,8 @@ function createSettingsStore(
 
   function serviceStatus(row: ModelServiceRow): string {
     if (row.source === 'account') {
-      if (!accountModelSourceReady.value) return t('未连接', 'Not connected')
-      return accountRoute.value?.enabled ? t('已启用', 'Enabled') : t('已停用', 'Disabled')
+      if (!accountModelSourceReady()) return t('未连接', 'Not connected')
+      return accountRoute()?.enabled ? t('已启用', 'Enabled') : t('已停用', 'Disabled')
     }
     const config = providerConfig(row.provider.id)
     if (!config || !(config.has_api_key || config.api_key)) return t('未配置', 'Not configured')
@@ -2182,9 +2409,9 @@ function createSettingsStore(
 
   function openProviderEditor(id: string) {
     ensureProviderConfig(id)
-    editingProviderID.value = id
-    customModelInput.value = ''
-    notice.value = null
+    s.editingProviderID = id
+    s.customModelInput = ''
+    s.notice = null
   }
 
   function providerHasConfiguredKey(config?: ProviderConfig): boolean {
@@ -2194,7 +2421,7 @@ function createSettingsStore(
   function activateConfiguredModelService(config: ProviderConfig | undefined, id: string): boolean {
     if (!config) return false
     if (id === 'tokenflux') {
-      if (!providerHasConfiguredKey(config) && !accountModelSourceReady.value) return false
+      if (!providerHasConfiguredKey(config) && !accountModelSourceReady()) return false
       config.enabled = true
       return true
     }
@@ -2211,38 +2438,46 @@ function createSettingsStore(
   }
 
   function setEditingProviderModel(value: string) {
-    if (!working.value || !editingProviderID.value || !value) return
-    working.value.active_provider = editingProviderID.value
-    working.value.active_model = value
+    const editingID = s.editingProviderID
+    if (!editingID || !value) return
+    patchWorking(working => {
+      working.active_provider = editingID
+      working.active_model = value
+    })
   }
 
   function setModelServiceEnabled(row: ModelServiceRow, enabled: boolean) {
-    if (!working.value) return
+    if (!s.working) return
     if (row.source === 'account') {
       ensureAccountRoute()
-      if (enabled && !accountModelSourceReady.value) {
-        working.value.relay!.enabled = false
-        return
-      }
-      working.value.relay!.enabled = enabled
-      if (enabled && working.value.active_provider !== 'tokenflux') {
-        working.value.active_provider = 'tokenflux'
-      }
+      patchWorking(working => {
+        if (!working.relay) return
+        if (enabled && !accountModelSourceReady()) {
+          working.relay = { ...working.relay, enabled: false }
+          return
+        }
+        working.relay = { ...working.relay, enabled }
+        if (enabled && working.active_provider !== 'tokenflux') {
+          working.active_provider = 'tokenflux'
+        }
+      })
       alignDefaultModelToEnabledServices()
       return
     }
     const config = ensureProviderConfig(row.provider.id)
     if (!config) return
-    config.enabled = enabled
-    if (enabled) {
-      working.value.active_provider = row.provider.id
-      if (row.provider.models[0] && !row.provider.models.includes(working.value.active_model)) {
-        working.value.active_model = row.provider.models[0]
+    patchWorking(working => {
+      const current = working.providers[row.provider.id]
+      if (!current) return
+      working.providers = { ...working.providers, [row.provider.id]: { ...current, enabled } }
+      if (enabled) {
+        working.active_provider = row.provider.id
+        if (row.provider.models[0] && !row.provider.models.includes(working.active_model)) {
+          working.active_model = row.provider.models[0]
+        }
       }
-      alignDefaultModelToEnabledServices()
-      return
-    }
-    if (row.provider.id !== 'tokenflux') {
+    })
+    if (!enabled && row.provider.id !== 'tokenflux') {
       rehomeDefaultAfterCustomServiceChange(row.provider.id, row.provider.models ?? config.models ?? [])
       return
     }
@@ -2263,26 +2498,26 @@ function createSettingsStore(
 
   async function loadLocalData() {
     if (!hasDesktopRuntime()) {
-      localDataLoading.value = false
+      s.localDataLoading = false
       return
     }
-    localDataLoading.value = true
+    s.localDataLoading = true
     try {
-      localData.value = await invokeCommand<LocalDataStatus>('get_local_data_status')
+      s.localData = await invokeCommand<LocalDataStatus>('get_local_data_status')
     } catch (reason) {
       if (!isMissingDesktopRuntime(reason)) {
-        notice.value = { tone: 'error', text: t(`无法读取本地数据状态：${String(reason)}`, `Could not read local data status: ${String(reason)}`) }
+        s.notice = { tone: 'error', text: t(`无法读取本地数据状态：${String(reason)}`, `Could not read local data status: ${String(reason)}`) }
       }
     } finally {
-      localDataLoading.value = false
+      s.localDataLoading = false
     }
   }
 
   async function loadBuildTracking() {
     try {
-      buildTracking.value = await invokeCommand<BuildTracking>('get_build_tracking')
+      s.buildTracking = await invokeCommand<BuildTracking>('get_build_tracking')
     } catch {
-      buildTracking.value = null
+      s.buildTracking = null
     }
   }
 
@@ -2326,14 +2561,14 @@ function createSettingsStore(
       document.execCommand('copy')
       area.remove()
     }
-    notice.value = { tone: 'ok', text: t('调试诊断已复制到剪贴板。', 'Debug diagnostics copied to the clipboard.') }
+    s.notice = { tone: 'ok', text: t('调试诊断已复制到剪贴板。', 'Debug diagnostics copied to the clipboard.') }
   }
 
   async function copyBuildTracking() {
-    if (!buildTracking.value) return
-    buildTrackingCopying.value = true
+    if (!s.buildTracking) return
+    s.buildTrackingCopying = true
     try {
-      const text = formatBuildTrackingText(buildTracking.value)
+      const text = formatBuildTrackingText(s.buildTracking)
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(text)
       } else {
@@ -2344,40 +2579,40 @@ function createSettingsStore(
         document.execCommand('copy')
         area.remove()
       }
-      notice.value = { tone: 'ok', text: t('已复制构建追踪信息', 'Build tracking copied') }
+      s.notice = { tone: 'ok', text: t('已复制构建追踪信息', 'Build tracking copied') }
     } catch (reason) {
-      notice.value = { tone: 'error', text: t(`无法复制构建追踪：${String(reason)}`, `Could not copy build tracking: ${String(reason)}`) }
+      s.notice = { tone: 'error', text: t(`无法复制构建追踪：${String(reason)}`, `Could not copy build tracking: ${String(reason)}`) }
     } finally {
-      buildTrackingCopying.value = false
+      s.buildTrackingCopying = false
     }
   }
 
-  const computerUsePermissionsReady = computed(() => Boolean(
-    computerUseStatus.value?.permissions.accessibility
-    && computerUseStatus.value.permissions.screenRecording,
-  ))
+  const computerUsePermissionsReady = () => Boolean(
+    s.computerUseStatus?.permissions.accessibility
+    && s.computerUseStatus.permissions.screenRecording,
+  )
 
-  const browserUseDescription = computed(() => {
-    if (browserUseRuntime.value?.found) {
+  const browserUseDescription = () => {
+    if (s.browserUseRuntime?.found) {
       return t(
-        `已找到 ${browserUseRuntime.value.name || 'Chromium'}。操作你选中的标签页。`,
-        `Found ${browserUseRuntime.value.name || 'Chromium'}. Acts on the tabs you select.`,
+        `已找到 ${s.browserUseRuntime.name || 'Chromium'}。操作你选中的标签页。`,
+        `Found ${s.browserUseRuntime.name || 'Chromium'}. Acts on the tabs you select.`,
       )
     }
     return t(
       '没有找到 Chrome、Chromium 或 Edge。请安装后再检测。Linux 从软件源安装 Chromium；Omarchy 默认已有。',
       'Chrome, Chromium or Edge was not found. Install one, then recheck. On Linux install Chromium from the distro; Omarchy already ships it.',
     )
-  })
+  }
 
   async function refreshBrowserUseRuntime(options: { silent?: boolean } = {}) {
-    browserUseRuntimeLoading.value = true
+    s.browserUseRuntimeLoading = true
     try {
-      browserUseRuntime.value = await invokeCommand<BrowserUseRuntime>('get_browser_use_runtime')
+      s.browserUseRuntime = await invokeCommand<BrowserUseRuntime>('get_browser_use_runtime')
       if (!options.silent) {
-        notice.value = {
-          tone: browserUseRuntime.value.found ? 'ok' : 'error',
-          text: browserUseRuntime.value.found
+        s.notice = {
+          tone: s.browserUseRuntime.found ? 'ok' : 'error',
+          text: s.browserUseRuntime.found
             ? t('已找到本机浏览器。', 'Found a local browser.')
             : t(
               '没有找到 Chrome、Chromium 或 Edge。请安装后再检测。',
@@ -2386,124 +2621,124 @@ function createSettingsStore(
         }
       }
     } catch (reason) {
-      browserUseRuntime.value = null
+      s.browserUseRuntime = null
       if (!options.silent) {
-        notice.value = {
+        s.notice = {
           tone: 'error',
           text: t(`无法检测浏览器：${String(reason)}`, `Could not detect a browser: ${String(reason)}`),
         }
       }
     } finally {
-      browserUseRuntimeLoading.value = false
+      s.browserUseRuntimeLoading = false
     }
   }
 
-  const browserBridgeConnected = computed(() => Boolean(browserBridgeStatus.value?.bridge.connected))
-  const browserPairingReady = computed(() => Boolean(browserBridgeStatus.value?.bridge.pairingCode))
-  const browserExtensionReady = computed(() => Boolean(browserBridgeStatus.value?.bridge.extensionPath))
+  const browserBridgeConnected = () => Boolean(s.browserBridgeStatus?.bridge.connected)
+  const browserPairingReady = () => Boolean(s.browserBridgeStatus?.bridge.pairingCode)
+  const browserExtensionReady = () => Boolean(s.browserBridgeStatus?.bridge.extensionPath)
 
   async function refreshBrowserBridgeStatus(options: { silent?: boolean } = {}) {
-    browserBridgeLoading.value = true
+    s.browserBridgeLoading = true
     try {
-      browserBridgeStatus.value = await invokeCommand<NSSCTFWebBridgeStatus>('get_nssctf_web_bridge_status')
+      s.browserBridgeStatus = await invokeCommand<NSSCTFWebBridgeStatus>('get_nssctf_web_bridge_status')
       if (!options.silent) {
-        notice.value = { tone: 'ok', text: t('连接已重新检测。', 'Connection rechecked.') }
+        s.notice = { tone: 'ok', text: t('连接已重新检测。', 'Connection rechecked.') }
       }
     } catch (reason) {
-      browserBridgeStatus.value = null
+      s.browserBridgeStatus = null
       if (!options.silent) {
-        notice.value = { tone: 'error', text: t(`无法检测连接：${String(reason)}`, `Could not check the connection: ${String(reason)}`) }
+        s.notice = { tone: 'error', text: t(`无法检测连接：${String(reason)}`, `Could not check the connection: ${String(reason)}`) }
       }
     } finally {
-      browserBridgeLoading.value = false
+      s.browserBridgeLoading = false
     }
   }
 
   async function prepareBrowserExtension() {
-    browserSetupBusy.value = true
+    s.browserSetupBusy = true
     try {
       await invokeCommand('open_chrome_extension_manager')
       await invokeCommand('reveal_browser_extension')
-      notice.value = {
+      s.notice = {
         tone: 'ok',
         text: t('已打开扩展安装入口。', 'Opened the extension installer.'),
       }
     } catch (reason) {
-      notice.value = { tone: 'error', text: t(`无法打开浏览器扩展安装入口：${String(reason)}`, `Could not open the browser extension installer: ${String(reason)}`) }
+      s.notice = { tone: 'error', text: t(`无法打开浏览器扩展安装入口：${String(reason)}`, `Could not open the browser extension installer: ${String(reason)}`) }
     } finally {
-      browserSetupBusy.value = false
+      s.browserSetupBusy = false
     }
   }
 
   async function openPlaywrightBrowserExtension() {
-    browserUseOpening.value = true
+    s.browserUseOpening = true
     try {
       await invokeCommand('open_playwright_browser_extension')
-      notice.value = {
+      s.notice = {
         tone: 'ok',
         text: t('已打开扩展页面。', 'Opened the extension page.'),
       }
     } catch (reason) {
-      notice.value = { tone: 'error', text: t(`无法打开扩展页面：${String(reason)}`, `Could not open the extension page: ${String(reason)}`) }
+      s.notice = { tone: 'error', text: t(`无法打开扩展页面：${String(reason)}`, `Could not open the extension page: ${String(reason)}`) }
     } finally {
-      browserUseOpening.value = false
+      s.browserUseOpening = false
     }
   }
 
   async function copyBrowserPairingCode() {
-    const pairingCode = browserBridgeStatus.value?.bridge.pairingCode
+    const pairingCode = s.browserBridgeStatus?.bridge.pairingCode
     if (!pairingCode) return
     try {
       await navigator.clipboard.writeText(pairingCode)
-      notice.value = { tone: 'ok', text: t('配对码已复制。', 'Pairing code copied.') }
+      s.notice = { tone: 'ok', text: t('配对码已复制。', 'Pairing code copied.') }
     } catch (reason) {
-      notice.value = { tone: 'error', text: t(`无法复制浏览器配对码：${String(reason)}`, `Could not copy the browser pairing code: ${String(reason)}`) }
+      s.notice = { tone: 'error', text: t(`无法复制浏览器配对码：${String(reason)}`, `Could not copy the browser pairing code: ${String(reason)}`) }
     }
   }
 
   async function refreshComputerUseStatus(options: { silent?: boolean } = {}) {
-    computerUseLoading.value = true
+    s.computerUseLoading = true
     try {
-      computerUseStatus.value = await invokeCommand<CodingComputerUseStatus>('get_coding_computer_use_status')
+      s.computerUseStatus = await invokeCommand<CodingComputerUseStatus>('get_coding_computer_use_status')
       if (!options.silent) {
-        notice.value = { tone: 'ok', text: t('Computer Use 权限已重新检测。', 'Computer Use permissions rechecked.') }
+        s.notice = { tone: 'ok', text: t('Computer Use 权限已重新检测。', 'Computer Use permissions rechecked.') }
       }
     } catch (reason) {
-      computerUseStatus.value = null
+      s.computerUseStatus = null
       if (!options.silent) {
-        notice.value = { tone: 'error', text: t(`无法重新检测 Computer Use：${String(reason)}`, `Could not recheck Computer Use: ${String(reason)}`) }
+        s.notice = { tone: 'error', text: t(`无法重新检测 Computer Use：${String(reason)}`, `Could not recheck Computer Use: ${String(reason)}`) }
       }
     } finally {
-      computerUseLoading.value = false
+      s.computerUseLoading = false
     }
   }
 
   async function requestComputerUsePermission(permission: CodingComputerUsePermission) {
-    computerUseRequesting.value = permission
+    s.computerUseRequesting = permission
     try {
-      computerUseStatus.value = await invokeCommand<CodingComputerUseStatus>(
+      s.computerUseStatus = await invokeCommand<CodingComputerUseStatus>(
         'request_coding_computer_use_permissions',
         { permission },
       )
       const label = permission === 'accessibility' ? t('辅助功能', 'Accessibility') : t('屏幕录制', 'Screen Recording')
-      notice.value = {
+      s.notice = {
         tone: 'ok',
         text: t(`已打开${label}设置。`, `Opened ${label} settings.`),
       }
     } catch (reason) {
-      notice.value = { tone: 'error', text: t(`无法打开 Computer Use 系统权限设置：${String(reason)}`, `Could not open Computer Use system settings: ${String(reason)}`) }
+      s.notice = { tone: 'error', text: t(`无法打开 Computer Use 系统权限设置：${String(reason)}`, `Could not open Computer Use system settings: ${String(reason)}`) }
     } finally {
-      computerUseRequesting.value = null
+      s.computerUseRequesting = null
     }
   }
 
   async function relaunchDesktopApp() {
-    computerUseRestarting.value = true
+    s.computerUseRestarting = true
     try {
       await invokeCommand<boolean>('relaunch_desktop_app')
     } catch (reason) {
-      computerUseRestarting.value = false
-      notice.value = { tone: 'error', text: t(`无法重新打开 MilkSU：${String(reason)}`, `Could not reopen MilkSU: ${String(reason)}`) }
+      s.computerUseRestarting = false
+      s.notice = { tone: 'error', text: t(`无法重新打开 MilkSU：${String(reason)}`, `Could not reopen MilkSU: ${String(reason)}`) }
     }
   }
 
@@ -2511,58 +2746,58 @@ function createSettingsStore(
     try {
       await invokeCommand('reveal_local_data_directory')
     } catch (reason) {
-      notice.value = { tone: 'error', text: t(`无法打开本地数据目录：${String(reason)}`, `Could not open the local data folder: ${String(reason)}`) }
+      s.notice = { tone: 'error', text: t(`无法打开本地数据目录：${String(reason)}`, `Could not open the local data folder: ${String(reason)}`) }
     }
   }
 
   async function exportLocalDataBackup() {
-    backupExporting.value = true
-    notice.value = null
+    s.backupExporting = true
+    s.notice = null
     try {
       const exported = await invokeCommand<LocalDataBackupExport>('export_local_data_backup')
       if (exported.cancelled) return
-      notice.value = {
+      s.notice = {
         tone: 'ok',
         text: t(`已导出 ${exported.fileCount} 个文件（${formatBytes(exported.bytes)}）；凭据库、浏览器配对令牌和 PI 认证文件未写入备份。`, `Exported ${exported.fileCount} files (${formatBytes(exported.bytes)}). Credentials, browser pairing tokens, and Pi auth files are not in the backup.`),
       }
     } catch (reason) {
-      notice.value = { tone: 'error', text: t(`备份导出失败：${String(reason)}`, `Backup export failed: ${String(reason)}`) }
+      s.notice = { tone: 'error', text: t(`备份导出失败：${String(reason)}`, `Backup export failed: ${String(reason)}`) }
     } finally {
-      backupExporting.value = false
+      s.backupExporting = false
     }
   }
 
   async function scheduleLocalDataRestore() {
-    restoreScheduling.value = true
-    notice.value = null
+    s.restoreScheduling = true
+    s.notice = null
     try {
       const restore = await invokeCommand<LocalDataBackupRestore>('schedule_local_data_restore')
       if (restore.cancelled) return
-      notice.value = {
+      s.notice = {
         tone: 'ok',
         text: t(`已验证并暂存 ${restore.fileCount} 个文件（${formatBytes(restore.bytes)}）。重新打开 MilkSU 后应用。`, `Verified and staged ${restore.fileCount} files (${formatBytes(restore.bytes)}). They apply the next time you reopen MilkSU.`),
       }
     } catch (reason) {
-      notice.value = { tone: 'error', text: t(`备份恢复失败：${String(reason)}`, `Backup restore failed: ${String(reason)}`) }
+      s.notice = { tone: 'error', text: t(`备份恢复失败：${String(reason)}`, `Backup restore failed: ${String(reason)}`) }
     } finally {
-      restoreScheduling.value = false
+      s.restoreScheduling = false
     }
   }
 
   async function exportLocalDiagnostics() {
-    diagnosticExporting.value = true
-    notice.value = null
+    s.diagnosticExporting = true
+    s.notice = null
     try {
       const exported = await invokeCommand<LocalDiagnosticExport>('export_local_diagnostics')
       if (exported.cancelled) return
-      notice.value = {
+      s.notice = {
         tone: 'ok',
         text: t(`诊断包已导出（${formatBytes(exported.bytes)}，${exported.eventCount} 条脱敏运行事件）；不包含会话正文、附件或凭据。`, `Diagnostics exported (${formatBytes(exported.bytes)}, ${exported.eventCount} redacted runtime events). Session text, attachments, and credentials are not included.`),
       }
     } catch (reason) {
-      notice.value = { tone: 'error', text: t(`诊断包导出失败：${String(reason)}`, `Diagnostics export failed: ${String(reason)}`) }
+      s.notice = { tone: 'error', text: t(`诊断包导出失败：${String(reason)}`, `Diagnostics export failed: ${String(reason)}`) }
     } finally {
-      diagnosticExporting.value = false
+      s.diagnosticExporting = false
     }
   }
 
@@ -2589,27 +2824,27 @@ function createSettingsStore(
   }
 
   async function save(options?: { quiet?: boolean }): Promise<boolean> {
-    if (!working.value) return false
-    const incompleteCustomProvider = Object.values(working.value.providers).find(item => (
+    if (!s.working) return false
+    const incompleteCustomProvider = Object.values(s.working.providers).find(item => (
       item.custom && (!item.name?.trim() || !item.base_url?.trim() || !(item.models ?? []).length)
     ))
     if (incompleteCustomProvider) {
       if (!incompleteCustomProvider.name?.trim()) {
-        notice.value = { tone: 'error', text: t('请填写中转站名称。', 'Enter a relay name.') }
+        s.notice = { tone: 'error', text: t('请填写中转站名称。', 'Enter a relay name.') }
         return false
       }
       if (!incompleteCustomProvider.base_url?.trim()) {
-        notice.value = { tone: 'error', text: t('请填写 API 端点（Base URL）。', 'Enter an API endpoint (base URL).') }
+        s.notice = { tone: 'error', text: t('请填写 API 端点（Base URL）。', 'Enter an API endpoint (base URL).') }
         return false
       }
       if (!(incompleteCustomProvider.models ?? []).length) {
-        notice.value = { tone: 'error', text: t('请至少添加一个模型 ID 或关键词前缀。', 'Add at least one model ID or keyword prefix.') }
+        s.notice = { tone: 'error', text: t('请至少添加一个模型 ID 或关键词前缀。', 'Add at least one model ID or keyword prefix.') }
         return false
       }
     }
-    saving.value = true
-    notice.value = null
-    const submitted = cloneSettings(working.value)
+    s.saving = true
+    s.notice = null
+    const submitted = cloneSettings(s.working)
     if (submitted.active_provider !== 'tokenflux') {
       activateConfiguredModelService(
         submitted.providers[submitted.active_provider],
@@ -2618,13 +2853,13 @@ function createSettingsStore(
     }
     try {
       await invokeCommand('save_settings_cmd', { newSettings: submitted })
-      if (category.value !== 'apikeys') {
+      if (s.category !== 'apikeys') {
         const refreshed = await invokeCommand<AppSettings>('get_settings')
-        working.value = cloneSettings(refreshed)
+        s.working = cloneSettings(refreshed)
         callbacks.current.onSettingsChange?.(refreshed)
         await refreshCallableModels()
         if (!options?.quiet) {
-          notice.value = {
+          s.notice = {
             tone: 'ok',
             text: t('设置已保存。', 'Settings saved.'),
           }
@@ -2633,23 +2868,23 @@ function createSettingsStore(
       }
       if (!submittedServiceReady(submitted)) {
         const refreshed = await invokeCommand<AppSettings>('get_settings')
-        working.value = cloneSettings(refreshed)
+        s.working = cloneSettings(refreshed)
         callbacks.current.onSettingsChange?.(refreshed)
         await refreshCallableModels()
-        notice.value = {
+        s.notice = {
           tone: 'ok',
           text: t('设置已保存。当前没有已启用且可用的模型服务，请启用账户或填写已配置的模型服务后再验证。', 'Settings saved. No enabled model service is ready yet. Enable the account or add a configured model service, then verify.'),
         }
         return true
       }
-      verifying.value = true
+      s.verifying = true
       try {
         const result = await invokeCommand<ModelProbeResult>('test_agent_model', { settings: submitted })
         const verifiedSettings = await invokeCommand<AppSettings>('get_settings')
-        working.value = cloneSettings(verifiedSettings)
+        s.working = cloneSettings(verifiedSettings)
         callbacks.current.onSettingsChange?.(verifiedSettings)
         await refreshCallableModels()
-        notice.value = {
+        s.notice = {
           tone: 'ok',
           text: t(`已保存并验证 ${result.provider}/${result.model}，PI 响应 ${result.latencyMs} ms。`, `Saved and verified ${result.provider}/${result.model}. Pi responded in ${result.latencyMs} ms.`),
         }
@@ -2657,23 +2892,23 @@ function createSettingsStore(
       } catch (reason) {
         const refreshed = await invokeCommand<AppSettings>('get_settings').catch(() => submitted)
         if (refreshed) {
-          working.value = cloneSettings(refreshed)
+          s.working = cloneSettings(refreshed)
           callbacks.current.onSettingsChange?.(refreshed)
         }
         await refreshCallableModels()
         const raw = desktopErrorMessage(reason)
-        notice.value = {
+        s.notice = {
           tone: 'error',
           text: t(`凭据已保存。${explainModelVerificationFailure(raw, submitted.active_provider)}`, `Credentials saved. ${explainModelVerificationFailure(raw, submitted.active_provider)}`),
         }
         return true
       } finally {
-        verifying.value = false
+        s.verifying = false
       }
     } catch (reason) {
-      const refreshed = await invokeCommand<AppSettings>('get_settings').catch(() => working.value)
+      const refreshed = await invokeCommand<AppSettings>('get_settings').catch(() => s.working)
       if (refreshed) {
-        working.value = cloneSettings(refreshed)
+        s.working = cloneSettings(refreshed)
         callbacks.current.onSettingsChange?.(refreshed)
       }
       await refreshCallableModels().catch(() => undefined)
@@ -2682,34 +2917,34 @@ function createSettingsStore(
         || refreshed.relay?.session_only
         || refreshed.nssctf_arena?.session_only
       )
-      notice.value = { tone: 'error', text: sessionOnly
+      s.notice = { tone: 'error', text: sessionOnly
         ? t(`${desktopErrorMessage(reason)} 当前密钥仅保留在本次运行内，退出应用后需要重新输入。`, `${desktopErrorMessage(reason)} The current key stays in this session only and must be entered again after you quit.`)
         : t(`设置未保存：${desktopErrorMessage(reason)}`, `Settings were not saved: ${desktopErrorMessage(reason)}`) }
       return false
     } finally {
-      saving.value = false
+      s.saving = false
     }
   }
 
   async function saveProviderEditor(closeAfterSave: boolean) {
-    if (!working.value || !editingProviderID.value) {
+    if (!s.working || !s.editingProviderID) {
       await save()
       return
     }
-    const editingID = editingProviderID.value
-    const pending = pendingCustomRelay.value?.id === editingID ? pendingCustomRelay.value : null
+    const editingID = s.editingProviderID
+    const pending = s.pendingCustomRelay?.id === editingID ? s.pendingCustomRelay : null
     if (pending) {
-      working.value.providers[pending.id] = pending.config
+      s.working.providers[pending.id] = pending.config
     }
-    const editing = working.value.providers[editingID]
+    const editing = s.working.providers[editingID]
     if (editing && (editing.has_api_key || String(editing.api_key ?? '').trim() || editingID === 'tokenflux')) {
-      working.value.active_provider = editingID
+      s.working.active_provider = editingID
       if (editing.custom && editing.models?.[0]) {
-        working.value.active_model = editing.models[0]
+        s.working.active_model = editing.models[0]
       }
       if (editingID === 'tokenflux') {
-        working.value.model_routing.source_order = ['personal', 'account']
-        working.value.model_routing.auto_fallback = false
+        s.working.model_routing.source_order = ['personal', 'account']
+        s.working.model_routing.auto_fallback = false
       }
       if (activateConfiguredModelService(editing, editingID)) {
         alignDefaultModelToEnabledServices()
@@ -2718,47 +2953,52 @@ function createSettingsStore(
     const persisted = await save()
     alignDefaultModelToEnabledServices()
     if (persisted) {
-      pendingCustomRelay.value = null
-      if (closeAfterSave && notice.value?.tone === 'ok') {
-        providerEditorOpen.value = false
+      s.pendingCustomRelay = null
+      if (closeAfterSave && s.notice?.tone === 'ok') {
+        setProviderEditorOpen(false)
       }
       return
     }
     if (pending) {
-      delete working.value.providers[pending.id]
-      pendingCustomRelay.value = pending
+      delete s.working.providers[pending.id]
+      s.pendingCustomRelay = pending
     }
   }
 
   function refreshComputerUseAfterSettings() {
-    if (category.value !== 'browser' || computerUsePermissionsReady.value) return
+    if (s.category !== 'browser' || computerUsePermissionsReady()) return
     void refreshComputerUseStatus({ silent: true })
   }
 
   function selectCategory(value: SettingsCategory) {
-    category.value = normalizeSettingsCategory(value)
-    notice.value = null
+    s.category = normalizeSettingsCategory(value)
+    s.notice = null
   }
 
   async function changeLocale(value: unknown) {
-    if (!working.value) return
-    working.value.locale = normalizeUiLocale(value)
-    applyUiLocale(working.value.locale)
+    const locale = normalizeUiLocale(value)
+    patchWorking(working => { working.locale = locale })
+    applyUiLocale(locale)
     await save()
   }
 
   async function loadUserArtifactDirectory() {
     if (!hasDesktopRuntime()) return
     try {
-      userArtifacts.value = await invokeCommand<UserArtifactDirectoryStatus>('get_user_artifact_directory_status')
+      s.userArtifacts = await invokeCommand<UserArtifactDirectoryStatus>('get_user_artifact_directory_status')
     } catch (reason) {
       if (!isMissingDesktopRuntime(reason)) {
-        notice.value = { tone: 'error', text: t(`无法读取文档目录：${String(reason)}`, `Could not read the documents folder: ${String(reason)}`) }
+        s.notice = { tone: 'error', text: t(`无法读取文档目录：${String(reason)}`, `Could not read the documents folder: ${String(reason)}`) }
       }
     }
   }
 
   function start() {
+    syncInstalledSettings()
+    syncSkillsCategory()
+    syncPickerDerived1()
+    syncPickerDerived2()
+    syncPickerDerived3()
     void loadLocalData()
     void loadUserArtifactDirectory()
     void loadBuildTracking()
@@ -2778,77 +3018,39 @@ function createSettingsStore(
     unlistenCodingToolSetup?.()
   }
 
-  return {
-    accountStatusProp,
-    category,
-    dashboard,
-    working,
-    saving,
-    verifying,
-    localDataLoading,
-    computerUseLoading,
-    computerUseRequesting,
-    computerUseRestarting,
-    browserBridgeLoading,
-    browserSetupBusy,
-    browserUseOpening,
-    browserUseRuntimeLoading,
-    browserUseRuntime,
-    backupExporting,
-    restoreScheduling,
-    diagnosticExporting,
-    localData,
-    userArtifacts,
-    computerUseStatus,
-    browserBridgeStatus,
-    buildTracking,
-    buildTrackingCopying,
-    notice,
-    customModelInput,
-    availablePickerGroups,
-    account,
-    accountStateLabel,
-    databaseStateLabels,
-    defaultModelKey,
-    defaultModelAvailable,
-    availableModelCount,
-    defaultModelLabel,
-    thinkingModelKey,
-    thinkingModelID,
-    thinkingModelLabel,
-    thinkingOverride,
-    thinkingProfile,
-    windowModelKey,
-    windowModelID,
-    windowModelLabel,
-    windowOverride,
-    effectiveWindow,
-    workerModelKey,
-    workerModelLabel,
-    codingToolSetupBusy,
-    userSkillBusy,
-    userSkillError,
-    userSkills,
-    editingBuiltinSkill,
-    builtinSkillDocument,
-    accountRoute,
-    modelServiceRows,
-    editingProviderInfo,
-    editingProvider,
-    editingProviderModel,
-    editingProviderModels,
-    providerEditorOpen,
-    debugModeOn,
-    computerUsePermissionsReady,
-    browserUseDescription,
-    browserBridgeConnected,
-    browserPairingReady,
-    browserExtensionReady,
-    settingsCategories,
+  function setAccountStatusProp(value: AccountStatus | undefined) {
+    store.setState({ accountStatusProp: value })
+  }
+  function setDebugModeOn(value: boolean) {
+    store.setState({ debugModeOn: value })
+  }
+  function setBuiltinSkillDocument(value: string) {
+    store.setState({ builtinSkillDocument: value })
+  }
+  function setThinkingModelKey(value: string) {
+    store.setState({ thinkingModelKey: value })
+  }
+  function setWindowModelKey(value: string) {
+    store.setState({ windowModelKey: value })
+  }
+  function setCustomModelInput(value: string) {
+    store.setState({ customModelInput: value })
+  }
+
+  const actions = {
     applySettings,
     applyInitialCategory,
-    start,
-    stop,
+    setAccountStatusProp,
+    patchWorking,
+    patchEditingProvider,
+    setDefaultModelKey,
+    setWorkerModelKey,
+    setProviderEditorOpen,
+    setDebugModeOn,
+    setBuiltinSkillDocument,
+    setThinkingModelKey,
+    setWindowModelKey,
+    setCustomModelInput,
     selectCategory,
     changeLocale,
     formatBytes,
@@ -2906,6 +3108,46 @@ function createSettingsStore(
     setEditingProviderModel,
     modelDisplayLabel,
     saveProviderEditor,
+    availablePickerGroups,
+    account,
+    accountStateLabel,
+    databaseStateLabels,
+    defaultModelKey,
+    defaultModelAvailable,
+    availableModelCount,
+    defaultModelLabel,
+    thinkingModelID,
+    thinkingModelLabel,
+    thinkingOverride,
+    thinkingProfile,
+    windowModelID,
+    windowModelLabel,
+    windowOverride,
+    effectiveWindow,
+    workerModelKey,
+    workerModelLabel,
+    userSkills,
+    accountRoute,
+    modelServiceRows,
+    editingProviderInfo,
+    editingProvider,
+    editingProviderModel,
+    editingProviderModels,
+    providerEditorOpen,
+    computerUsePermissionsReady,
+    browserUseDescription,
+    browserBridgeConnected,
+    browserPairingReady,
+    browserExtensionReady,
+    settingsCategories,
+  }
+
+  return {
+    store,
+    start,
+    stop,
+    actions,
+    ...actions,
   }
 }
 

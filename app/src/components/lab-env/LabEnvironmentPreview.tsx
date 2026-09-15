@@ -1,3 +1,4 @@
+import { useStoreRuntime } from '@/lib/reactStore'
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, Box, Maximize2, RotateCcw, Smartphone } from 'lucide-react'
 import {
@@ -26,7 +27,6 @@ import { groupLabPackages } from '@/lib/labPackageCategory'
 import { useDossierSplit } from '@/lib/useDossierSplit'
 import type { AppSection, WorkspaceSection } from '@/lib/workspaceNavigation'
 import { useT } from '@/hooks/useUiLocale'
-import { useVue, useVueStore } from '@/hooks/useVueStore'
 
 type LabTab = 'jobs' | 'packages'
 type SourceKind = 'local' | 'remote'
@@ -83,8 +83,8 @@ function juiceReadyLease(t: (zh: string, en: string) => string): EnvironmentLeas
 
 export default function LabEnvironmentPreview() {
   const t = useT()
-  const split = useVueStore(() => useDossierSplit('milksu.preview-split.v1', 400))
-  const briefWidth = useVue(() => split.width.value)
+  const split = useStoreRuntime(() => useDossierSplit('milksu.preview-split.v1', 400))
+  const briefWidth = split.width
 
   const [themeMode, setThemeMode] = useState<ThemeMode>('dark')
   const [section, setSection] = useState<AppSection>('lab')
@@ -370,7 +370,7 @@ export default function LabEnvironmentPreview() {
   useEffect(() => {
     const hash = window.location.hash.replace(/^#/, '') as PreviewScreen
     if (screenItems.some(item => item.value === hash)) applyScreen(hash)
-    // Hash bootstrap once, matching Vue onMounted.
+    // Hash bootstrap once on mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

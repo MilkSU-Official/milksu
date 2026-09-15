@@ -1,4 +1,4 @@
-import { computed, ref, watch } from '@/lib/reactiveStore'
+import { createStore } from '@/lib/reactStore'
 import { invokeCommand } from '@/desktop'
 import { t } from '@/lib/uiLocale'
 
@@ -87,16 +87,23 @@ function readJobs(): LabJob[] {
   }
 }
 
-const jobs = ref<LabJob[]>(readJobs())
-const selectedId = ref('')
+type LabJobsState = {
+  jobs: LabJob[]
+  selectedId: string
+}
 
-watch(jobs, value => {
+export const labJobsStore = createStore<LabJobsState>({
+  jobs: readJobs(),
+  selectedId: '',
+})
+
+labJobsStore.subscribe(() => {
   try {
-    storage()?.setItem(STORAGE_KEY, JSON.stringify({ jobs: value }))
+    storage()?.setItem(STORAGE_KEY, JSON.stringify({ jobs: labJobsStore.getState().jobs }))
   } catch {
     // Ignore quota failures.
   }
-}, { deep: true })
+})
 
 async function persistJob(job: LabJob) {
   try {
@@ -116,10 +123,10 @@ export async function hydrateLabJobsFromBackend() {
         })
       : []
     if (next.length) {
-      jobs.value = next
+      labJobsStore.setState({ jobs: next })
       return
     }
-    await Promise.all(jobs.value.map(job => persistJob(job)))
+    await Promise.all(labJobsStore.getState().jobs.map(job => persistJob(job)))
   } catch {
     // Keep the local cache when Desktop RPC is unavailable.
   }
@@ -128,29 +135,31 @@ export async function hydrateLabJobsFromBackend() {
 export function applyLabJobRecord(record: Partial<LabJob> & { id?: string }) {
   const job = normalizeJob(record)
   if (!job) return null
-  const existing = jobs.value.find(item => item.id === job.id)
-  jobs.value = existing
-    ? jobs.value.map(item => item.id === job.id ? { ...item, ...job, updatedAt: Date.now() } : item)
-    : [job, ...jobs.value]
-  void persistJob(jobs.value.find(item => item.id === job.id) ?? job)
+  const { jobs } = labJobsStore.getState()
+  const existing = jobs.find(item => item.id === job.id)
+  const next = existing
+    ? jobs.map(item => item.id === job.id ? { ...item, ...job, updatedAt: Date.now() } : item)
+    : [job, ...jobs]
+  labJobsStore.setState({ jobs: next })
+  void persistJob(next.find(item => item.id === job.id) ?? job)
   return job
 }
 
 export function removeLabJobIds(ids: string[]) {
   const targets = new Set(ids.map(id => id.trim()).filter(Boolean))
   if (!targets.size) return
-  jobs.value = jobs.value.filter(job => !targets.has(job.id))
-  if (targets.has(selectedId.value)) selectedId.value = ''
+  const { jobs, selectedId } = labJobsStore.getState()
+  labJobsStore.setState({
+    jobs: jobs.filter(job => !targets.has(job.id)),
+    selectedId: targets.has(selectedId) ? '' : selectedId,
+  })
 }
 
 export function resetLabJobsForTests() {
-  jobs.value = readJobs()
-  selectedId.value = ''
+  labJobsStore.setState({ jobs: readJobs(), selectedId: '' })
 }
 
-export function useLabJobs() {
-  const selected = computed(() => jobs.value.find(job => job.id === selectedId.value) ?? null)
-
+export function createLabJobsRuntime() {
   function createJob(draft: LabJobDraft) {
     const now = Date.now()
     const request = draft.request.trim()
@@ -164,8 +173,10 @@ export function useLabJobs() {
       createdAt: now,
       updatedAt: now,
     }
-    jobs.value = [job, ...jobs.value]
-    selectedId.value = job.id
+    labJobsStore.setState({
+      jobs: [job, ...labJobsStore.getState().jobs],
+      selectedId: job.id,
+    })
     void persistJob(job)
     return job
   }
@@ -173,16 +184,17 @@ export function useLabJobs() {
   function rename(id: string, title: string) {
     const normalized = clipLabTitle(title)
     if (!normalized) return
-    jobs.value = jobs.value.map(job => (
+    const jobs = labJobsStore.getState().jobs.map(job => (
       job.id === id ? { ...job, title: normalized, updatedAt: Date.now() } : job
     ))
-    const updated = jobs.value.find(job => job.id === id)
+    labJobsStore.setState({ jobs })
+    const updated = jobs.find(job => job.id === id)
     if (updated) void persistJob(updated)
   }
 
   function focusChallenge(id: string, challengeId: string, request?: string) {
     const nextRequest = String(request ?? '').trim()
-    jobs.value = jobs.value.map(job => (
+    const jobs = labJobsStore.getState().jobs.map(job => (
       job.id === id
         ? {
             ...job,
@@ -192,23 +204,38 @@ export function useLabJobs() {
           }
         : job
     ))
-    const updated = jobs.value.find(job => job.id === id)
+    labJobsStore.setState({ jobs })
+    const updated = jobs.find(job => job.id === id)
     if (updated) void persistJob(updated)
   }
 
   function touch(id: string) {
-    jobs.value = jobs.value.map(job => (
-      job.id === id ? { ...job, updatedAt: Date.now() } : job
-    ))
+    labJobsStore.setState({
+      jobs: labJobsStore.getState().jobs.map(job => (
+        job.id === id ? { ...job, updatedAt: Date.now() } : job
+      )),
+    })
   }
 
   return {
-    jobs,
-    selectedId,
-    selected,
+    store: labJobsStore,
+    get jobs() { return labJobsStore.getState().jobs },
+    set jobs(value: LabJob[]) { labJobsStore.setState({ jobs: value }) },
+    get selectedId() { return labJobsStore.getState().selectedId },
+    set selectedId(value: string) { labJobsStore.setState({ selectedId: value }) },
+    get selected() {
+      const { jobs, selectedId } = labJobsStore.getState()
+      return jobs.find(job => job.id === selectedId) ?? null
+    },
     createJob,
     rename,
     focusChallenge,
     touch,
   }
 }
+
+export function useLabJobs() {
+  return createLabJobsRuntime()
+}
+
+export type LabJobsRuntime = ReturnType<typeof createLabJobsRuntime>

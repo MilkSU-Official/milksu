@@ -1,13 +1,15 @@
 // @vitest-environment jsdom
 
-import { computed, ref } from '@/lib/reactiveStore'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createStore } from '@/lib/reactStore'
 import type { AccountStatus, Conversation } from '@/types'
 
 const hoisted = vi.hoisted(() => ({
   conversations: null as ReturnType<typeof createMockConversations> | null,
+  labJobs: null as ReturnType<typeof createMockLabJobs> | null,
+  vulnDashboard: null as ReturnType<typeof createMockVulnDashboard> | null,
   lastCTFInitialJobId: '',
   accountStatus: {
     configured: false,
@@ -27,60 +29,79 @@ function baseConversation(overrides: Partial<Conversation>): Conversation {
 }
 
 function createMockConversations() {
-  const conversationRows = ref<Conversation[]>([
-    baseConversation({
-      id: 'coding-existing',
-      title: 'MilkSU Coding',
-      createdAt: 1,
-      messages: [{
-        id: 'coding-message',
-        role: 'assistant',
-        content: 'existing coding work',
-        timestamp: 2,
-      }],
-    }),
-  ])
-  const activeId = ref<string | null>('coding-existing')
-  const workspacePath = ref('/Users/milksu/code/milksu')
-
-  const active = computed(() => (
-    conversationRows.value.find(conversation => conversation.id === activeId.value) ?? null
-  ))
-
-  const pendingComposerDraft = ref<{ prompt: string; visibleText: string } | null>(null)
+  const store = createStore({
+    conversations: [
+      baseConversation({
+        id: 'coding-existing',
+        title: 'MilkSU Coding',
+        createdAt: 1,
+        messages: [{
+          id: 'coding-message',
+          role: 'assistant',
+          content: 'existing coding work',
+          timestamp: 2,
+        }],
+      }),
+    ] as Conversation[],
+    activeId: 'coding-existing' as string | null,
+    workspacePath: '/Users/milksu/code/milksu',
+    pendingComposerDraft: null as { prompt: string; visibleText: string } | null,
+    engineNotice: '',
+    engineNoticeRepeat: 0,
+    conversationActionError: '',
+    selectedModelMode: 'manual' as const,
+    selectedModelProvider: 'openai',
+    selectedModelId: 'gpt-test',
+    selectedThinkingLevel: 'high',
+    selectedModelSourcePreference: 'auto' as const,
+    selectedExecutionMode: 'go' as const,
+    selectedApprovalPolicy: 'workspace-auto' as const,
+    selectedMCPServers: [] as string[],
+    selectedMCPConfigDigest: '',
+    selectedKernel: 'pi' as const,
+  })
 
   return {
-    conversations: conversationRows,
-    activeId,
-    active,
-    workspacePath,
-    engineNotice: ref(''),
-    engineNoticeRepeat: ref(0),
-    runningConversationIds: computed<string[]>(() => []),
-    conversationActionError: ref(''),
-    activeRunning: computed(() => false),
-    activeAborting: computed(() => false),
-    activeAbortStalled: computed(() => false),
-    activeMessageQueue: computed(() => ({ steering: [], followUp: [] })),
-    activeSessionReady: computed(() => true),
-    activeResumed: computed(() => false),
-    activeCompacting: computed(() => false),
-    activeCompactedAt: computed(() => undefined),
-    activeCompactionError: computed(() => ''),
-    activeTurnStatus: computed(() => ({ compacting: false })),
-    selectedModelMode: ref<'auto' | 'manual'>('manual'),
-    selectedModelProvider: ref('openai'),
-    selectedModelId: ref('gpt-test'),
-    selectedThinkingLevel: ref('high'),
-    selectedModelSourcePreference: ref<'auto' | 'account' | 'personal'>('auto'),
-    selectedExecutionMode: ref<'plan' | 'go'>('go'),
-    selectedApprovalPolicy: ref<'read-only' | 'ask' | 'workspace-auto' | 'full-auto'>('workspace-auto'),
-    selectedMCPServers: ref<string[]>([]),
-    selectedMCPConfigDigest: ref(''),
+    store,
+    get conversations() { return store.getState().conversations },
+    set conversations(value: Conversation[]) { store.setState({ conversations: value }) },
+    get activeId() { return store.getState().activeId },
+    set activeId(value: string | null) { store.setState({ activeId: value }) },
+    get active() {
+      const state = store.getState()
+      return state.conversations.find(conversation => conversation.id === state.activeId) ?? null
+    },
+    get workspacePath() { return store.getState().workspacePath },
+    set workspacePath(value: string) { store.setState({ workspacePath: value }) },
+    get engineNotice() { return store.getState().engineNotice },
+    get engineNoticeRepeat() { return store.getState().engineNoticeRepeat },
+    get runningConversationIds() { return [] as string[] },
+    get conversationActionError() { return store.getState().conversationActionError },
+    get activeRunning() { return false },
+    get activeAborting() { return false },
+    get activeAbortStalled() { return false },
+    get activeMessageQueue() { return { steering: [] as string[], followUp: [] as string[] } },
+    get activeSessionReady() { return true },
+    get activeResumed() { return false },
+    get activeCompacting() { return false },
+    get activeCompactedAt() { return undefined as number | undefined },
+    get activeCompactionError() { return '' },
+    get activeTurnStatus() { return { compacting: false } },
+    get selectedModelMode() { return store.getState().selectedModelMode },
+    get selectedModelProvider() { return store.getState().selectedModelProvider },
+    get selectedModelId() { return store.getState().selectedModelId },
+    get selectedThinkingLevel() { return store.getState().selectedThinkingLevel },
+    get selectedModelSourcePreference() { return store.getState().selectedModelSourcePreference },
+    get selectedExecutionMode() { return store.getState().selectedExecutionMode },
+    get selectedApprovalPolicy() { return store.getState().selectedApprovalPolicy },
+    get selectedMCPServers() { return store.getState().selectedMCPServers },
+    get selectedMCPConfigDigest() { return store.getState().selectedMCPConfigDigest },
+    get pendingComposerDraft() { return store.getState().pendingComposerDraft },
+    get selectedKernel() { return store.getState().selectedKernel },
     load: vi.fn(async () => undefined),
     listen: vi.fn(async () => undefined),
     startNew: vi.fn(() => {
-      activeId.value = null
+      store.setState({ activeId: null })
       return null
     }),
     ensureConversation: vi.fn((title: string, options: {
@@ -88,8 +109,9 @@ function createMockConversations() {
       workspacePath?: string
       domainTaskContext?: Conversation['domainTaskContext']
     } = {}) => {
-      const id = options.conversationId || `ensured-${conversationRows.value.length + 1}`
-      const existing = conversationRows.value.find(item => item.id === id)
+      const rows = store.getState().conversations
+      const id = options.conversationId || `ensured-${rows.length + 1}`
+      const existing = rows.find(item => item.id === id)
       if (existing) {
         existing.title = title
         existing.workspacePath = options.workspacePath?.trim() || undefined
@@ -99,19 +121,24 @@ function createMockConversations() {
           existing.ctfMode = undefined
           existing.ctfRole = undefined
         }
-        activeId.value = id
-        workspacePath.value = existing.workspacePath ?? ''
+        store.setState({
+          activeId: id,
+          workspacePath: existing.workspacePath ?? '',
+        })
         return id
       }
-      conversationRows.value.push(baseConversation({
+      const created = baseConversation({
         id,
         title,
         createdAt: Date.now(),
         workspacePath: options.workspacePath?.trim() || undefined,
         domainTaskContext: options.domainTaskContext,
-      }))
-      activeId.value = id
-      workspacePath.value = options.workspacePath?.trim() || ''
+      })
+      store.setState({
+        conversations: [...rows, created],
+        activeId: id,
+        workspacePath: options.workspacePath?.trim() || '',
+      })
       return id
     }),
     startWorkspaceTask: vi.fn(async (task: {
@@ -126,19 +153,22 @@ function createMockConversations() {
       visibleText?: string
     }) => {
       expect(task.autoSend === true).toBe(false)
+      const rows = store.getState().conversations
       const id = task.conversationId
-        || (task.jobId ? `ctf-${task.jobId}` : `coding-${conversationRows.value.length + 1}`)
-      const existing = conversationRows.value.find(conversation => conversation.id === id)
+        || (task.jobId ? `ctf-${task.jobId}` : `coding-${rows.length + 1}`)
+      const existing = rows.find(conversation => conversation.id === id)
       if (existing) {
         existing.workspacePath = task.workspacePath?.trim() || undefined
         existing.domainTaskContext = task.domainTaskContext ?? existing.domainTaskContext
         existing.ctfJobId = task.jobId ?? existing.ctfJobId
         existing.ctfRole = task.role ?? existing.ctfRole
-        activeId.value = existing.id
-        workspacePath.value = existing.workspacePath ?? ''
+        store.setState({
+          activeId: existing.id,
+          workspacePath: existing.workspacePath ?? '',
+        })
         return
       }
-      conversationRows.value.push(baseConversation({
+      const created = baseConversation({
         id,
         title: task.title,
         createdAt: Date.now(),
@@ -147,19 +177,21 @@ function createMockConversations() {
         ctfRole: task.role ?? (task.jobId ? 'solver' : undefined),
         domainTaskContext: task.domainTaskContext,
         messages: [],
-      }))
-      activeId.value = id
-      workspacePath.value = task.workspacePath?.trim() || ''
+      })
+      store.setState({
+        conversations: [...rows, created],
+        activeId: id,
+        workspacePath: task.workspacePath?.trim() || '',
+      })
     }),
     stageComposerDraft: vi.fn((prompt: string, visibleText = prompt) => {
-      pendingComposerDraft.value = { prompt, visibleText }
+      store.setState({ pendingComposerDraft: { prompt, visibleText } })
     }),
     consumeComposerDraft: vi.fn(() => {
-      const draft = pendingComposerDraft.value
-      pendingComposerDraft.value = null
+      const draft = store.getState().pendingComposerDraft
+      store.setState({ pendingComposerDraft: null })
       return draft
     }),
-    pendingComposerDraft,
     send: vi.fn(async () => {
       throw new Error('send must not run on open-Coding handoff')
     }),
@@ -171,14 +203,13 @@ function createMockConversations() {
     movePinnedConversation: vi.fn(),
     reorderPinnedConversation: vi.fn(),
     setWorkspace: vi.fn((path: string) => {
-      workspacePath.value = path
+      store.setState({ workspacePath: path })
     }),
     clearWorkspace: vi.fn(),
     cancelQueuedGuidance: vi.fn(),
     editQueuedGuidance: vi.fn(),
     editAndResend: vi.fn(),
     branchFromAssistant: vi.fn(),
-    selectedKernel: ref<'pi' | 'dsh'>('pi'),
     setKernel: vi.fn(),
     setModelSelection: vi.fn(),
     setThinkingLevel: vi.fn(),
@@ -191,6 +222,39 @@ function createMockConversations() {
     controlGoal: vi.fn(),
     respondApproval: vi.fn(),
     settleRunsForRuntimeRecovery: vi.fn(),
+  }
+}
+
+function createMockLabJobs() {
+  const store = createStore({
+    jobs: [] as Array<{ id: string; title: string }>,
+    selectedId: '',
+  })
+  return {
+    store,
+    get jobs() { return store.getState().jobs },
+    set jobs(value: Array<{ id: string; title: string }>) { store.setState({ jobs: value }) },
+    get selectedId() { return store.getState().selectedId },
+    set selectedId(value: string) { store.setState({ selectedId: value }) },
+    rename: vi.fn(),
+    createJob: vi.fn(),
+    focusChallenge: vi.fn(),
+    touch: vi.fn(),
+  }
+}
+
+function createMockVulnDashboard() {
+  const store = createStore({
+    tracked: [] as unknown[],
+    selectedId: '',
+  })
+  return {
+    store,
+    get tracked() { return store.getState().tracked },
+    get selectedId() { return store.getState().selectedId },
+    set selectedId(value: string) { store.setState({ selectedId: value }) },
+    patchTrackingItem: vi.fn(),
+    addTrackingItem: vi.fn(),
   }
 }
 
@@ -239,14 +303,18 @@ vi.mock('@/desktop', () => ({
   listenEvent: vi.fn(async () => () => undefined),
 }))
 
-vi.mock('@/composables/useConversations', () => ({
+vi.mock('@/stores/conversationsStore', () => ({
   useConversations: () => hoisted.conversations,
+  ConversationsProvider: ({ children }: { children: unknown }) => children,
 }))
 
-vi.mock('@/composables/useNSSCTFTraining', () => ({
-  useNSSCTFTraining: () => ({
-    dashboard: ref(null),
-  }),
+vi.mock('@/stores/labJobsStore', () => ({
+  useLabJobs: () => hoisted.labJobs,
+  LabJobsProvider: ({ children }: { children: unknown }) => children,
+}))
+
+vi.mock('@/composables/useVulnerabilityDashboard', () => ({
+  useVulnerabilityDashboard: () => hoisted.vulnDashboard,
 }))
 
 vi.mock('@/components/AppSidebar', () => ({
@@ -473,6 +541,8 @@ async function mountApp() {
 beforeEach(() => {
   installLocalStorage()
   hoisted.conversations = createMockConversations()
+  hoisted.labJobs = createMockLabJobs()
+  hoisted.vulnDashboard = createMockVulnDashboard()
   hoisted.lastCTFInitialJobId = ''
   hoisted.accountStatus = {
     configured: false,
@@ -531,30 +601,30 @@ describe('App cross-module routing', () => {
 
     expect(host.querySelector('[aria-label="mock CTF page"]')).not.toBeNull()
     expect(host.querySelector('[aria-label="mock Chat page"]')).toBeNull()
-    expect(hoisted.conversations?.activeId.value).toBe('ctf-job-1')
-    const opened = hoisted.conversations?.conversations.value.find(item => item.id === 'ctf-job-1')
+    expect(hoisted.conversations?.activeId).toBe('ctf-job-1')
+    const opened = hoisted.conversations?.conversations.find(item => item.id === 'ctf-job-1')
     expect(opened?.domainTaskContext).toMatchObject({
       kind: 'ctf',
       challengeId: 'ch-1',
       authorizedScope: expect.stringContaining('source-1'),
     })
     expect(opened?.messages ?? []).toEqual([])
-    expect(hoisted.conversations?.pendingComposerDraft.value).toBeNull()
+    expect(hoisted.conversations?.pendingComposerDraft).toBeNull()
     expect(hoisted.conversations?.send).not.toHaveBeenCalled()
-    expect(hoisted.conversations?.activeRunning.value).toBe(false)
+    expect(hoisted.conversations?.activeRunning).toBe(false)
 
     host.querySelector<HTMLButtonElement>('[aria-label="navigate CVE"]')?.click()
     await flushAsyncComponents()
 
     expect(host.querySelector('[aria-label="mock CVE page"]')).not.toBeNull()
-    expect(hoisted.conversations?.conversations.value.some(item => item.id === 'ctf-job-1')).toBe(true)
+    expect(hoisted.conversations?.conversations.some(item => item.id === 'ctf-job-1')).toBe(true)
 
     host.querySelector<HTMLButtonElement>('[aria-label="navigate CTF"]')?.click()
     await flushAsyncComponents()
 
     expect(host.querySelector('[aria-label="mock CTF page"]')).not.toBeNull()
     expect(host.querySelector('[data-ctf-initial-job]')?.textContent).toBe('none')
-    expect(hoisted.conversations?.conversations.value.some(item => item.id === 'ctf-job-1')).toBe(true)
+    expect(hoisted.conversations?.conversations.some(item => item.id === 'ctf-job-1')).toBe(true)
   })
 
   it('returns from a CTF Agent chat to the workspace instead of reopening the chat surface', async () => {
@@ -571,7 +641,7 @@ describe('App cross-module routing', () => {
     expect(host.querySelector('[aria-label="mock CTF page"]')).not.toBeNull()
     expect(host.querySelector('[aria-label="mock Chat page"]')).toBeNull()
     expect(host.querySelector('[data-ctf-initial-job]')?.textContent).toBe('job-1')
-    expect(hoisted.conversations?.activeId.value).toBe('ctf-job-1')
+    expect(hoisted.conversations?.activeId).toBe('ctf-job-1')
   })
 
   it('does not inherit a CTF workspace when CVE opens Coding', async () => {
@@ -579,7 +649,7 @@ describe('App cross-module routing', () => {
 
     host.querySelector<HTMLButtonElement>('[aria-label="open CTF in coding"]')?.click()
     await flushAsyncComponents()
-    expect(hoisted.conversations?.workspacePath.value).toContain('/ctf/job-1')
+    expect(hoisted.conversations?.workspacePath).toContain('/ctf/job-1')
 
     host.querySelector<HTMLButtonElement>('[aria-label="navigate CVE"]')?.click()
     await flushAsyncComponents()
@@ -587,14 +657,14 @@ describe('App cross-module routing', () => {
     host.querySelector<HTMLButtonElement>('[aria-label="open CVE in coding"]')?.click()
     await flushAsyncComponents()
 
-    const active = hoisted.conversations?.active.value
+    const active = hoisted.conversations?.active
     expect(active?.id).toBe('cve-research-cve-2024-3400')
     expect(active?.workspacePath).toBeUndefined()
     expect(active?.ctfJobId).toBeUndefined()
     expect(active?.domainTaskContext).toMatchObject({ kind: 'cve', cveId: 'CVE-2024-3400' })
     expect(host.querySelector('[aria-label="mock CVE page"]')).not.toBeNull()
     expect(host.querySelector('[aria-label="mock Chat page"]')).toBeNull()
-    expect(hoisted.conversations?.pendingComposerDraft.value).toBeNull()
+    expect(hoisted.conversations?.pendingComposerDraft).toBeNull()
     expect(hoisted.conversations?.send).not.toHaveBeenCalled()
   })
 
@@ -603,14 +673,14 @@ describe('App cross-module routing', () => {
 
     host.querySelector<HTMLButtonElement>('[aria-label="open CTF in coding"]')?.click()
     await flushAsyncComponents()
-    expect(hoisted.conversations?.activeId.value).toBe('ctf-job-1')
+    expect(hoisted.conversations?.activeId).toBe('ctf-job-1')
 
     host.querySelector<HTMLButtonElement>('[aria-label="navigate Coding"]')?.click()
     await flushAsyncComponents()
 
     expect(host.querySelector('[aria-label="mock Chat page"]')).not.toBeNull()
     expect(hoisted.conversations?.startNew).not.toHaveBeenCalled()
-    expect(hoisted.conversations?.activeId.value).toBe('coding-existing')
+    expect(hoisted.conversations?.activeId).toBe('coding-existing')
     expect(host.querySelector('[data-chat-ctf-session]')?.textContent).toBe('false')
   })
 
@@ -623,6 +693,6 @@ describe('App cross-module routing', () => {
     await flushAsyncComponents()
 
     expect(host.querySelector('[data-chat-conversation]')?.textContent).toBe('coding-existing')
-    expect(hoisted.conversations?.activeId.value).toBe('coding-existing')
+    expect(hoisted.conversations?.activeId).toBe('coding-existing')
   })
 })

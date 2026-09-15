@@ -47,7 +47,7 @@
 
 ## 当前边界
 
-- Electron/Chromium + 受管 Go + Pi Sidecar。产品 UI 语言是 React + shadcn；当前安装包仍挂 Vue + Felinic。不再维护 Wails/CEF。
+- Electron/Chromium + 受管 Go + Pi Sidecar。工作树产品 UI 是 React + shadcn。最近一次正式安装包 `v26.915.1` 仍挂 Vue + Felinic。不再维护 Wails/CEF。
 - Coding / CTF / CVE / 实验室共用 Pi 通用能力。浏览器、Browser Use、Computer Use 是三个 Scope；折叠面板不停止 Session。
 - Provider Key 不进 renderer、模型上下文、日志或文档。
 - 产物在文档目录 `MilkSU`；Runtime、凭据、Obelisk、浏览器 Profile 在用户配置目录。

@@ -28,14 +28,14 @@ describe('useConversations workspace home isolation', () => {
     const { useConversations } = await import('@/composables/useConversations')
     const conversations = useConversations()
     conversations.setWorkspace('/Users/me/code/home-app')
-    expect(conversations.workspacePath.value).toBe('/Users/me/code/home-app')
+    expect(conversations.workspacePath).toBe('/Users/me/code/home-app')
 
     conversations.startNew({ workspaceHome: 'ctf' })
-    expect(conversations.workspacePath.value).toBe('')
+    expect(conversations.workspacePath).toBe('')
     conversations.startNew({ workspaceHome: 'vuln' })
-    expect(conversations.workspacePath.value).toBe('')
+    expect(conversations.workspacePath).toBe('')
     conversations.startNew({ workspaceHome: 'lab' })
-    expect(conversations.workspacePath.value).toBe('')
+    expect(conversations.workspacePath).toBe('')
   })
 
   it('does not remember or reuse a project chosen in a domain chat on Home', async () => {
@@ -44,13 +44,13 @@ describe('useConversations workspace home isolation', () => {
     conversations.startNew({ workspaceHome: 'ctf' })
     conversations.setWorkspace('/Users/me/code/ctf-picked')
     expect(invokeCommand.mock.calls.some(call => call[0] === 'remember_coding_project')).toBe(false)
-    expect(conversations.workspacePath.value).toBe('/Users/me/code/ctf-picked')
+    expect(conversations.workspacePath).toBe('/Users/me/code/ctf-picked')
 
     conversations.startNew()
     await Promise.resolve()
     await Promise.resolve()
-    expect(conversations.workspacePath.value).toBe('/Users/me/code/home-app')
-    expect(conversations.workspacePath.value).not.toBe('/Users/me/code/ctf-picked')
+    expect(conversations.workspacePath).toBe('/Users/me/code/home-app')
+    expect(conversations.workspacePath).not.toBe('/Users/me/code/ctf-picked')
   })
 
   it('keeps the last Home project on a Home new chat', async () => {
@@ -58,7 +58,7 @@ describe('useConversations workspace home isolation', () => {
     const conversations = useConversations()
     conversations.setWorkspace('/Users/me/code/home-app')
     conversations.startNew()
-    expect(conversations.workspacePath.value).toBe('/Users/me/code/home-app')
+    expect(conversations.workspacePath).toBe('/Users/me/code/home-app')
     expect(invokeCommand.mock.calls.some(call => (
       call[0] === 'remember_coding_project'
       && (call[1] as { path?: string })?.path === '/Users/me/code/home-app'
@@ -70,6 +70,6 @@ describe('useConversations workspace home isolation', () => {
     const conversations = useConversations()
     conversations.startNew({ workspaceHome: 'vuln' })
     await conversations.load()
-    expect(conversations.workspacePath.value).toBe('')
+    expect(conversations.workspacePath).toBe('')
   })
 })

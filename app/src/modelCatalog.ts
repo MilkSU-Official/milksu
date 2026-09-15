@@ -1,4 +1,4 @@
-import { computed, shallowRef, unref, type MaybeRef } from '@/lib/reactiveStore'
+import { createStore, useStore } from '@/lib/reactStore'
 import { invokeCommand } from '@/desktop'
 import { t } from '@/lib/uiLocale'
 import {
@@ -13,10 +13,16 @@ import {
   type RelayConfig,
 } from '@/types'
 
-const current = shallowRef<ModelCatalogSnapshot | null>(null)
-const configuredCustomProviders = shallowRef<Record<string, ProviderConfig>>({})
-const configuredRelay = shallowRef<RelayConfig | null | undefined>(undefined)
+export const modelCatalogStore = createStore({
+  current: null as ModelCatalogSnapshot | null,
+  configuredCustomProviders: {} as Record<string, ProviderConfig>,
+  configuredRelay: undefined as RelayConfig | null | undefined,
+})
 let configuredContextWindows: AppSettings['model_context_windows']
+
+function catalogState() {
+  return modelCatalogStore.getState()
+}
 
 function providerHasKey(config?: ProviderConfig) {
   return Boolean(config?.has_api_key || String(config?.api_key ?? '').trim())
@@ -32,7 +38,7 @@ function accountRouteReady(relay?: RelayConfig | null) {
 }
 
 function credentialedCatalog(provider: string): ModelCatalogSnapshot | null {
-  const catalog = current.value
+  const catalog = catalogState().current
   return catalog
     && provider === catalog.provider
     && catalog.models.length > 0
@@ -102,7 +108,7 @@ export type PickerServiceSource = 'account' | 'personal' | 'service'
 
 /** One enabled service slice for Settings / Coding model pickers. */
 export interface PickerServiceGroup {
-  /** Stable key for Vue lists and selection encoding. */
+  /** Stable key for picker lists and selection encoding. */
   key: string
   /** Underlying provider id used by Desktop RPC / Agent (tokenflux, custom-relay-…). */
   providerId: string
@@ -447,10 +453,12 @@ export function pickerModelLabel(
   return catalogName || model
 }
 
-const providers = computed(() => callableProviders(
-  configuredCustomProviders.value,
-  configuredRelay.value,
-))
+function providers() {
+  return callableProviders(
+    catalogState().configuredCustomProviders,
+    catalogState().configuredRelay,
+  )
+}
 
 function isScopedSettings(value: ModelCatalogScope): value is {
   providers: Record<string, ProviderConfig>
@@ -470,7 +478,7 @@ function isScopedSettings(value: ModelCatalogScope): value is {
 
 export function installModelCatalog(snapshot?: ModelCatalogSnapshot | null) {
   if (snapshot === null) {
-    current.value = null
+    modelCatalogStore.setState({ current: null })
     return
   }
   if (!snapshot || snapshot.provider !== 'tokenflux' || !Array.isArray(snapshot.models)) return
@@ -482,23 +490,27 @@ export function installModelCatalog(snapshot?: ModelCatalogSnapshot | null) {
     return true
   })
   if (!models.length) return
-  current.value = {
-    ...snapshot,
-    models,
-    account_model_ids: Array.isArray(snapshot.account_model_ids)
-      ? snapshot.account_model_ids.map(id => String(id ?? '').trim()).filter(Boolean)
-      : undefined,
-  }
+  modelCatalogStore.setState({
+    current: {
+      ...snapshot,
+      models,
+      account_model_ids: Array.isArray(snapshot.account_model_ids)
+        ? snapshot.account_model_ids.map(id => String(id ?? '').trim()).filter(Boolean)
+        : undefined,
+    },
+  })
 }
 
 export function installCustomProviderSettings(settings?: Record<string, ProviderConfig>) {
-  configuredCustomProviders.value = settings ?? {}
+  modelCatalogStore.setState({ configuredCustomProviders: settings ?? {} })
 }
 
 /** Keep Coding and Settings pickers aligned with saved (or draft) settings. */
 export function installAppModelSettings(settings?: Pick<AppSettings, 'providers' | 'relay' | 'model_context_windows'> | null) {
-  installCustomProviderSettings(settings?.providers)
-  configuredRelay.value = settings?.relay
+  modelCatalogStore.setState({
+    configuredCustomProviders: settings?.providers ?? {},
+    configuredRelay: settings?.relay,
+  })
   configuredContextWindows = settings?.model_context_windows
 }
 
@@ -515,7 +527,7 @@ export async function loadModelCatalog() {
 }
 
 export function providerModelLabel(provider: string, model: string) {
-  return modelLabelFromProviders(providers.value, provider, model)
+  return modelLabelFromProviders(providers(), provider, model)
 }
 
 function modelLabelFromProviders(values: ProviderInfo[], provider: string, model: string) {
@@ -543,54 +555,69 @@ export type ModelCatalogScope =
  * - no args / callable settings: Coding composer + Settings default model
  * - includeUnconfigured: Settings model-service rows
  */
-export function useModelCatalog(scope?: MaybeRef<ModelCatalogScope | undefined>) {
-  const resolved = computed(() => {
-    const raw = scope ? unref(scope) : undefined
+export type ModelCatalogScopeInput = ModelCatalogScope | (() => ModelCatalogScope | undefined)
+
+function readScope(scope?: ModelCatalogScopeInput): ModelCatalogScope | undefined {
+  return typeof scope === 'function' ? scope() : scope
+}
+
+export function useModelCatalog(scope?: ModelCatalogScopeInput) {
+  function resolved() {
+    const raw = readScope(scope)
     if (!raw) {
       return {
-        providers: configuredCustomProviders.value,
-        relay: configuredRelay.value,
+        providers: catalogState().configuredCustomProviders,
+        relay: catalogState().configuredRelay,
         includeUnconfigured: false,
       }
     }
     if (isScopedSettings(raw)) {
       return {
         providers: raw.providers,
-        relay: raw.relay ?? configuredRelay.value,
+        relay: raw.relay ?? catalogState().configuredRelay,
         includeUnconfigured: Boolean(raw.includeUnconfigured),
       }
     }
-    // Legacy: plain provider map means the Settings service editor.
     return {
       providers: raw as Record<string, ProviderConfig>,
-      relay: configuredRelay.value,
+      relay: catalogState().configuredRelay,
       includeUnconfigured: true,
     }
-  })
+  }
 
-  const scopedProviders = computed(() => (
-    resolved.value.includeUnconfigured
-      ? configurableProviders(resolved.value.providers, resolved.value.relay)
-      : callableProviders(resolved.value.providers, resolved.value.relay)
-  ))
-  const scopedProviderGroups = computed(() => groupProviders(scopedProviders.value))
-  /** Flat enabled-service groups for Settings + Coding pickers (account / personal / custom). */
-  const scopedPickerGroups = computed(() => (
-    resolved.value.includeUnconfigured
+  function scopedProviders() {
+    const current = resolved()
+    return current.includeUnconfigured
+      ? configurableProviders(current.providers, current.relay)
+      : callableProviders(current.providers, current.relay)
+  }
+
+  function scopedProviderGroups() {
+    return groupProviders(scopedProviders())
+  }
+
+  function scopedPickerGroups() {
+    const current = resolved()
+    return current.includeUnconfigured
       ? []
-      : callablePickerGroups(resolved.value.providers, resolved.value.relay)
-  ))
+      : callablePickerGroups(current.providers, current.relay)
+  }
 
   return {
-    snapshot: current,
-    providers: scopedProviders,
-    providerGroups: scopedProviderGroups,
-    pickerGroups: scopedPickerGroups,
+    get snapshot() { return catalogState().current },
+    get providers() { return scopedProviders() },
+    get providerGroups() { return scopedProviderGroups() },
+    get pickerGroups() { return scopedPickerGroups() },
     providerModelLabel: (provider: string, model: string) => (
-      modelLabelFromProviders(scopedProviders.value, provider, model)
+      modelLabelFromProviders(scopedProviders(), provider, model)
     ),
     pickerModelLabel: (group: PickerServiceGroup, model: string) => (
-      pickerModelLabel(group, model, current.value)
+      pickerModelLabel(group, model, catalogState().current)
     ),
   }
+}
+
+export function useLiveModelCatalog(scope?: ModelCatalogScopeInput) {
+  useStore(modelCatalogStore)
+  return useModelCatalog(scope)
 }

@@ -1,6 +1,6 @@
 # MilkSU Desktop UI
 
-This directory contains the Vue 3 + TypeScript product surface hosted by the Electron desktop shell.
+This directory contains the React + TypeScript product surface hosted by the Electron desktop shell.
 
 Current user workspaces are:
 
@@ -10,7 +10,7 @@ Current user workspaces are:
 - **实验室**: independent jobs with live targets and reports;
 - **Settings**: provider configuration, local recovery, diagnostics and application controls.
 
-The Vue UI is not a domain fact source. CTF success, Evidence, recovery and learning facts come from Go projections. Provider credentials remain in the Go-owned credential store and are never returned through Desktop RPC.
+The renderer is not a domain fact source. CTF success, Evidence, recovery and learning facts come from Go projections. Provider credentials remain in the Go-owned credential store and are never returned through Desktop RPC.
 
 ## Runtime Connections
 
@@ -23,9 +23,8 @@ Coding Browser, a user-paired platform browser and Computer Use are separate per
 
 ## Stack
 
-- Vue 3, TypeScript and Vite;
-- Tailwind CSS;
-- pinned Felinic UI sources mounted at `../packages/ui`;
+- React 19, TypeScript and Vite;
+- Tailwind CSS and shadcn/ui;
 - Electron with a supervised Go Runtime;
 - supervised, packaged Node/Pi Sidecars.
 

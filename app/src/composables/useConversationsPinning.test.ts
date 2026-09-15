@@ -45,7 +45,7 @@ describe('useConversations pinning', () => {
     conversations.setConversationPinned('b', true)
     conversations.setConversationPinned('a', true)
 
-    expect(pinnedSnapshot(conversations.conversations.value)).toEqual(['b', 'a'])
+    expect(pinnedSnapshot(conversations.conversations)).toEqual(['b', 'a'])
   })
 
   it('unpinning clears both fields', async () => {
@@ -56,7 +56,7 @@ describe('useConversations pinning', () => {
     conversations.setConversationPinned('a', true)
     conversations.setConversationPinned('a', false)
 
-    const target = conversations.conversations.value.find(item => item.id === 'a')
+    const target = conversations.conversations.find(item => item.id === 'a')
     expect(target?.pinned).toBeUndefined()
     expect(target?.pinnedOrder).toBeUndefined()
   })
@@ -71,9 +71,9 @@ describe('useConversations pinning', () => {
     conversations.setConversationPinned('c', true)
 
     conversations.movePinnedConversation('c', -1)
-    expect(pinnedSnapshot(conversations.conversations.value)).toEqual(['a', 'c', 'b'])
+    expect(pinnedSnapshot(conversations.conversations)).toEqual(['a', 'c', 'b'])
     conversations.movePinnedConversation('c', 1)
-    expect(pinnedSnapshot(conversations.conversations.value)).toEqual(['a', 'b', 'c'])
+    expect(pinnedSnapshot(conversations.conversations)).toEqual(['a', 'b', 'c'])
   })
 
   it('reorders a dragged conversation to the drop target position', async () => {
@@ -86,7 +86,7 @@ describe('useConversations pinning', () => {
     conversations.setConversationPinned('c', true)
 
     conversations.reorderPinnedConversation('c', 'a')
-    expect(pinnedSnapshot(conversations.conversations.value)).toEqual(['c', 'a', 'b'])
+    expect(pinnedSnapshot(conversations.conversations)).toEqual(['c', 'a', 'b'])
   })
 
   it('persists the pinned order to the backend', async () => {

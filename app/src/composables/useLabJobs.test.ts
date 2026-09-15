@@ -16,11 +16,11 @@ afterEach(() => {
 
 describe('useLabJobs', () => {
   it('renames a job and accepts an agent record patch', () => {
-    const { createJob, rename, jobs } = useLabJobs()
-    const job = createJob({ scope: 'local', request: '测试' })
+    const lab = useLabJobs()
+    const job = lab.createJob({ scope: 'local', request: '测试' })
     expect(job.title).toBe('测试')
-    rename(job.id, '本地进程反病毒测试')
-    expect(jobs.value[0]?.title).toBe('本地进程反病毒测试')
+    lab.rename(job.id, '本地进程反病毒测试')
+    expect(lab.jobs[0]?.title).toBe('本地进程反病毒测试')
     applyLabJobRecord({
       id: job.id,
       title: '二次改名',
@@ -29,6 +29,6 @@ describe('useLabJobs', () => {
       createdAt: job.createdAt,
       updatedAt: Date.now(),
     })
-    expect(jobs.value[0]?.title).toBe('二次改名')
+    expect(lab.jobs[0]?.title).toBe('二次改名')
   })
 })

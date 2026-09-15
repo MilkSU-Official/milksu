@@ -174,7 +174,7 @@ MilkSU 的 Agent 循环、记忆分层、视觉和界面行为分别建立在这
 | [Obelisk](https://github.com/tommy0103/obelisk) | 本地会话记忆与学习记录的分层参考。MilkSU 以 AGPL-3.0-only 发布，以便嵌入该组件 | AGPL-3.0 |
 | [ak-ui](https://github.com/YunYouJun/ak-ui) | 少量界面彩蛋（列表筛选、连接状态、顶栏模块字标）。不把 `@yunyoujun/ak-ui` 写进 app 依赖 | MIT |
 | [Beautiful UI](https://www.beautifului.dev/) | 已发安装包仍有其材料残留。新 UI / 重构以仓库根目录 `AGENTS.md` 为准（React + shadcn）。不引入其 React 运行时或付费图标 | MIT |
-| [Felinic](https://github.com/memohai/ui) | 已发 Vue 表面仍用 `@felinic/ui`。新页不再加 Felinic | 上游未附 SPDX |
+| [Felinic](https://github.com/memohai/ui) | `v26.915.1` 及更早的 Vue 安装包用过 `@felinic/ui`。工作树已卸 `packages/ui` submodule，不再加 Felinic | 上游未附 SPDX |
 | [shadcn/ui](https://ui.shadcn.com/) | 新 UI / 重构的组件与 token 来源。尚未打进安装包 | MIT |
 
 桌面壳还使用 Electron、xterm.js、Playwright MCP、Archify、Cua 等，详见 NOTICE。当前安装包仍挂 Vue。

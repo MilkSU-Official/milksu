@@ -1,5 +1,5 @@
+import { useStoreRuntime } from '@/lib/reactStore'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { computed, ref } from '@/lib/reactiveStore'
 import {
   Badge,
   Button,
@@ -45,7 +45,6 @@ import { conversationActivityAt } from '@/lib/workspaceSessionRouting'
 import { presentVulnerabilityVendorProduct } from '@/lib/vulnerabilityFeedImport'
 import { useDossierSplit } from '@/lib/useDossierSplit'
 import { useT } from '@/hooks/useUiLocale'
-import { useVue, useVueStore } from '@/hooks/useVueStore'
 
 export default function VulnPage({
   dashboard: dashboardProp,
@@ -155,26 +154,35 @@ export default function VulnPage({
   onOpenLabSettings?: () => void
 }) {
   const t = useT()
-  const localDashboard = useVueStore(() => useVulnerabilityDashboard())
+  const localDashboard = useStoreRuntime(() => useVulnerabilityDashboard())
   const dashboard = dashboardProp ?? localDashboard
-  const tracked = useVue(() => dashboard.tracked.value)
-  const query = useVue(() => dashboard.query.value)
-  const severity = useVue(() => dashboard.severity.value)
-  const selectedId = useVue(() => dashboard.selectedId.value)
-  const watched = useVue(() => dashboard.watched.value)
-  const sourceRefreshSummary = useVue(() => dashboard.sourceRefreshSummary.value)
-  const env = useVueStore(() => {
-    const ownerKind = computed(() => 'cve' as const)
-    const ownerId = ref('')
-    const packageId = ref<string | undefined>(undefined)
-    const lease = useEnvLease(ownerKind, ownerId, packageId)
+  const tracked = dashboard.tracked
+  const query = dashboard.query
+  const severity = dashboard.severity
+  const selectedId = dashboard.selectedId
+  const watched = dashboard.watched
+  const sourceRefreshSummary = dashboard.sourceRefreshSummary
+  const env = useStoreRuntime(() => {
+    let ownerId = ''
+    let packageId: string | undefined
+    const lease = useEnvLease(() => 'cve', () => ownerId, () => packageId)
     const split = useDossierSplit('milksu.cve-split.v1', 400)
-    return { ownerId, packageId, lease, split }
+    return {
+      store: lease.store,
+      get ownerId() { return ownerId },
+      set ownerId(value: string) { ownerId = value },
+      get packageId() { return packageId },
+      set packageId(value: string | undefined) { packageId = value },
+      lease,
+      split,
+      mount: lease.mount,
+      unmount: lease.unmount,
+    }
   })
-  const envLease = useVue(() => env.lease.lease.value)
-  const briefWidth = useVue(() => env.split.width.value)
-  const cveCollections = useVueStore(() => createItemCollectionStore('milksu.cve.collections.v1'))
-  useVue(() => cveCollections.revision.value)
+  const envLease = env.lease.lease
+  const briefWidth = env.split.width
+  const cveCollections = useStoreRuntime(() => createItemCollectionStore('milksu.cve.collections.v1'))
+  void cveCollections.revision
 
   const [showImport, setShowImport] = useState(false)
   const catalogActions = useRef<WorkspaceCatalogActionsHandle | null>(null)
@@ -251,7 +259,7 @@ export default function VulnPage({
   useEffect(() => {
     if (!selectedId) return
     if (!filteredItems.some(item => item.id === selectedId)) {
-      dashboard.selectedId.value = ''
+      dashboard.selectedId = ''
     }
   }, [filteredItems, selectedId, dashboard])
 
@@ -285,16 +293,16 @@ export default function VulnPage({
     ? { name: cveBoundPackage.name, provider: cveBoundPackage.provider }
     : undefined)
   const liveTargetVisible = targetOpen && envLease.state === 'ready'
-  const cvePackageId = env.packageId.value
+  const cvePackageId = env.packageId
 
   function selectItem(id: string) {
     const item = tracked.find(candidate => candidate.id === id)
     if (!item) return
-    dashboard.selectedId.value = id
+    dashboard.selectedId = id
   }
 
   useEffect(() => {
-    env.ownerId.value = selectedItem?.id ?? ''
+    env.ownerId = selectedItem?.id ?? ''
     setTargetOpen(false)
     setPendingOpen(false)
     setShowStartEnv(false)
@@ -303,16 +311,16 @@ export default function VulnPage({
     void invokeCommand<{ found: boolean; package: EnvPackage }>('get_env_package_for_cve', { cveId: selectedItem.id })
       .then(lookup => {
         setCveBoundPackage(lookup.found ? lookup.package : undefined)
-        env.packageId.value = lookup.found ? lookup.package.id : undefined
+        env.packageId = lookup.found ? lookup.package.id : undefined
       })
       .catch(() => {
         setCveBoundPackage(undefined)
-        env.packageId.value = undefined
+        env.packageId = undefined
       })
   }, [selectedItem?.id])
 
   function clearSelection() {
-    dashboard.selectedId.value = ''
+    dashboard.selectedId = ''
   }
 
   useEffect(() => {
@@ -554,7 +562,7 @@ export default function VulnPage({
     setCveSearchError('')
     try {
       dashboard.addNvdSearchResult(candidate)
-      dashboard.query.value = ''
+      dashboard.query = ''
       setStatusFilter('all')
       setShowImport(false)
     } catch (cause) {
@@ -654,7 +662,7 @@ export default function VulnPage({
                     <Search className="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
                       value={query}
-                      onChange={event => { dashboard.query.value = event.target.value }}
+                      onChange={event => { dashboard.query = event.target.value }}
                       className="pl-9"
                       placeholder={t('搜索我添加的 CVE…', 'Search CVEs I added…')}
                       aria-label={t('搜索 CVE', 'Search CVE')}
@@ -668,7 +676,7 @@ export default function VulnPage({
                   </NativeSelect>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
-                  <NativeSelect value={severity} className="w-40" aria-label={t('严重性', 'Severity')} onChange={event => { dashboard.severity.value = event.target.value as typeof severity }}>
+                  <NativeSelect value={severity} className="w-40" aria-label={t('严重性', 'Severity')} onChange={event => { dashboard.severity = event.target.value as typeof severity }}>
                     <NativeSelectOption value="all">{t('严重性：全部', 'Severity: all')}</NativeSelectOption>
                     <NativeSelectOption value="critical">{t('严重', 'Critical')}</NativeSelectOption>
                     <NativeSelectOption value="high">{t('高', 'High')}</NativeSelectOption>
