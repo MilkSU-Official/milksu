@@ -341,6 +341,14 @@ deferred to one destructive pre-release consolidation after the product slices a
 ## Validation and Delivery
 
 - Use the canonical repository scripts instead of inventing parallel runners.
+- After conversation, engine, DSH or isolated-browser changes, run the product
+  regression suites in `docs/developer/product-regression-loop.md`
+  (`npm run test:product-loop`). That is not Settings → 评测, NYU safe-static,
+  or `test:dsh-complete-loop` as the main entry.
+- After conversation, engine, DSH or isolated-browser changes, run the product
+  regression suites in `docs/developer/product-regression-loop.md`
+  (`npm run test:product-loop`). That is not Settings → 评测, NYU safe-static,
+  or `test:dsh-complete-loop` as the main entry.
 - Keep smoke, fixtures, benchmarks and acceptance coordinators outside production startup, Desktop RPC
   and Vue entrypoints as required by `docs/developer/product-code-admission.md`.
 - Do not write Vue/UI unit tests. Mounting a component to assert class names, tokens, copy, slots,

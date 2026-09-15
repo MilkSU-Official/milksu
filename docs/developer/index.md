@@ -33,6 +33,7 @@
 - [Coding Agent 交付验收](/developer/coding-agent-delivery-acceptance)
 - [浏览器执行表面验收](/developer/coding-browser-acceptance)
 - [本地交付基线](/developer/local-delivery-baseline)
+- [产品回归循环](/developer/product-regression-loop)（改功能后选套件跑；不是 Settings「评测」）
 - [NYU CTF Bench 安全边界](/developer/nyu-ctf-bench-eval)
 
 证据文档只证明记录中明确写出的范围；不能外推为整个产品完成。

@@ -251,8 +251,7 @@
 - Windows 接入 Computer Use 后整段对话崩溃尚未真机验收。
 - Computer Use 仍要先选窗口。
 - DeepSeek Harness 走 ACP，工具在 harness 进程内执行，MilkSU 只是 ACP 客户端，只能允许或拒绝一次调用，改不了它的工具参数。因此 DSH 会话的 `bash` 仍没有 MilkSU 侧超时上界。要补齐需要 harness 自身的配置项或 ACP 扩展点，不要在客户端复刻第二套工具循环。
-- 工作树已钉 `@deepseek-ai/dsh@0.1.6-alpha.1` 及官方 Browser / Computer Use / Auto review 实验包。选中 DSH 时首回合 Ensure 隔离浏览器；会话 MCP 名是 `playwright-mcp`。官方 DeepSeek 不写 `DEEPSEEK_BASE_URL`（Messages 默认 `https://api.deepseek.com/anthropic`）；TokenFlux / 自定义 OpenAI 兼容端点才切 `chat-completions`。`workspace-auto` / `full-auto` 映射 DSH `workspace-write`，不切官方 Auto review。本机 `npm run test:dsh-complete-loop -- --gui` 已过文件循环、隔离浏览器标记和审批边界；Computer Use 仍只记 warning。未打进安装包。
-- 产品回归协调器在 `scripts/verify-product-loop.mjs`（`npm run test:product-loop`），按套件选跑 stop-scope / chat-pin / pi-files / dsh。不进 App 启动，也不进 Settings「评测」。#97 合入后新增的计划卡 / 长对话分片 Vue mount 单测已删。未打进安装包。
+- 工作树已钉 `@deepseek-ai/dsh@0.1.6-alpha.1` 及官方 Browser / Computer Use / Auto review 实验包。选中 DSH 时首回合 Ensure 隔离浏览器；会话 MCP 名是 `playwright-mcp`。官方 DeepSeek 不写 `DEEPSEEK_BASE_URL`（Messages 默认 `https://api.deepseek.com/anthropic`）；TokenFlux / 自定义 OpenAI 兼容端点才切 `chat-completions`。`workspace-auto` / `full-auto` 映射 DSH `workspace-write`，不切官方 Auto review。Computer Use 仍只记 warning。产品回归入口是 `npm run test:product-loop`（用法见 [产品回归循环](product-regression-loop.md)），不要再把 `test:dsh-complete-loop` 当主入口。未打进安装包。
 - 准备 writer 过程中按停止时，界面有时同时出现「本轮已停止。」和「Agent 运行失败：本地 Agent 运行异常」。合同只该留前者。
 - macOS 侧栏「安装并重启」会走 Squirrel ShipIt。本机对刚失败的 `MilkSU-macOS-arm64-26.915.1.zip` 解包：29062 个文件里只有 `milksu-sidecar/THIRD_PARTY-LICENSES/gopls-BSD-3-Clause.txt` 为 0444，ShipIt 卸隔离失败后仍拉起旧包。对同一份 ZIP 做 `ensureOwnerWritable` 再 ditto 打回，以及用同一份公证 DMG 走 `prepareMacUpdate`（对照 `/Applications/MilkSU.app` 签名团队），再解包后都能对那份许可证执行 `xattr` 写入并清除。正式 `release-macos` 在打 OTA ZIP 前后都会跑同一道门；未打进下一版安装包前，已装的 26.912.3 仍要用 GitHub DMG 拖进应用程序。
 
@@ -292,7 +291,7 @@
 
 ### 下一完成线
 
-1. 用当前安装包做常用 Agent GUI、Pi Runtime、DeepSeek Harness 与实验室靶机回归，失败项回到下面 P0 队列；
+1. 功能改动后按 [产品回归循环](product-regression-loop.md) 选套件跑 `npm run test:product-loop`；失败项回到下面 P0。安装包上的 Pi / 实验室靶机仍由用户真机看；
 2. #53 typed sweep 只在真实 wide job 仍用 bash 复刻库存后再做；
 3. 用户明确要求发下一版时，先升版本号，再从干净已推送的 `main` 跑 `release:verify` 并留下新的三端回执。不把已发出的 tag 挪到更新的 HEAD。
 
@@ -302,7 +301,7 @@ Windows 签名、Linux Secret Service / OCR、Hyprland/Xorg Computer Use、Windo
 
 | 优先级 | 事项 | 完成标准 |
 | --- | --- | --- |
-| P0 | 常用 Agent GUI 回归 | 按 Coding 常用功能表覆盖中文任务、文件/Shell、附件、斜杠菜单、权限档、subagent、浏览器、Browser/Computer Use、终端、取消/恢复与错误展示；自动化通过后再由用户做真实 GUI 验收。C9 / C15 / C16 / C20 已由用户在本地 dirty Stable 包确认；C10 / C11 已修待复验。 |
+| P0 | 产品回归 | 改对话 / 引擎 / DSH / 隔离浏览器后跑 `npm run test:product-loop -- --gui --suite all`（或只选相关套件）。用法见 [产品回归循环](product-regression-loop.md)。Settings「评测」不替代这条。附件、斜杠菜单、Browser Use、终端等仍无套件的，在运行中的 Stable 窗口里看。C9 / C15 / C16 / C20 已由用户在本地 dirty Stable 包确认；C10 / C11 已修待复验。 |
 | P0 | Pi Runtime 用户验收 | 最新正式包中验证跨目录读写、CTF/CVE 交接、长输出续跑和重启恢复，不出现 MilkSU 自建 workspace 策略或旧 session ID。 |
 | P1 | 下一版三端回执发行 | 需要新的版本号、同一 source commit、三端产物、SHA-256 与平台验收。可下载安装包见 README。 |
 | P1 | Admin current pointer / 客户端下载 | 侧栏先 `checkForUpdates` 再 `downloadUpdate`，安装失败可见，CI 上传 OTA 后自动发布 current pointer。无感更新先整包校验再经本机回环。 |

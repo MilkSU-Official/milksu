@@ -96,6 +96,7 @@ ${DEFAULT_SUITES.map(id => `  ${id.padEnd(12)} ${SUITES[id].title}  (${SUITES[id
 缺 Key 的套件 SKIP 且不把整次运行打成失败。
 回执 ${resultPath}
 这不是 Settings 评测，也不写模型 Pass@1。
+用法：docs/developer/product-regression-loop.md
 `)
 }
 
