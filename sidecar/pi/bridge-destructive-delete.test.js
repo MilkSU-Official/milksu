@@ -223,6 +223,7 @@ test("the parser ignores quoted text, grep patterns and heredoc bodies", () => {
   assert.deepEqual(recursiveDeleteTargets("rm -rf /tmp/x"), ["/tmp/x"]);
   assert.deepEqual(recursiveDeleteTargets('rm -rf "/tmp/a b"'), ["/tmp/a b"]);
   assert.deepEqual(recursiveDeleteTargets('bash -c "rm -rf /tmp/y"'), ["/tmp/y"]);
+  assert.deepEqual(recursiveDeleteTargets('bash -lc "rm -rf /tmp/y"'), ["/tmp/y"]);
   assert.deepEqual(recursiveDeleteTargets("sh -c 'rm -rf /tmp/z'"), ["/tmp/z"]);
   assert.deepEqual(recursiveDeleteTargets("find /tmp/x -delete"), ["/tmp/x"]);
   // A pipe into xargs has no visible target, so the working directory is assumed.
@@ -380,6 +381,7 @@ test("guard-script-ref: the named script is recognised", () => {
   assert.equal(shellScriptArgument(["source", "/tmp/x.sh"]), "/tmp/x.sh")
   assert.equal(shellScriptArgument([".", "/tmp/x.sh"]), "/tmp/x.sh")
   assert.equal(shellScriptArgument(["python3", "/tmp/x.py"]), "/tmp/x.py")
+  assert.equal(shellScriptArgument(["./wipe.sh"]), "./wipe.sh")
 
   // Ordinary commands are not script references.
   assert.equal(shellScriptArgument(["rm", "-rf", "/tmp/x"]), undefined)

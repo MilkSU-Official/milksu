@@ -121,6 +121,21 @@ describe('destructive assessment', () => {
     expect(assessment.verdict).toContain('42 个文件')
     expect(assessment.verdict).toContain('仅采样')
   })
+
+  it('refuses a tilde path when HOME cannot be read', () => {
+    const home = process.env.HOME
+    const profile = process.env.USERPROFILE
+    delete process.env.HOME
+    delete process.env.USERPROFILE
+    try {
+      const assessment = assessDestructiveRequest('rm -rf ~/Documents/secret')
+      expect(assessment.undetermined).toBe(true)
+      expect(assessment.canAllow).toBe(false)
+    } finally {
+      if (home !== undefined) process.env.HOME = home
+      if (profile !== undefined) process.env.USERPROFILE = profile
+    }
+  })
 })
 
 

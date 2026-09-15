@@ -141,11 +141,17 @@ export function watch(
       callback(next, old)
       return
     }
-    if (Object.is(next, previous)) return
+    if (sameWatchValue(next, previous)) return
     const old = previous
     previous = next
     callback(next, old)
   })
+}
+
+function sameWatchValue(next: unknown, previous: unknown): boolean {
+  if (Object.is(next, previous)) return true
+  if (!Array.isArray(next) || !Array.isArray(previous) || next.length !== previous.length) return false
+  return next.every((item, index) => Object.is(item, previous[index]))
 }
 
 function safeSnap(value: unknown) {

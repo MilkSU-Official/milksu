@@ -325,6 +325,7 @@ export function shellScriptArgument(words) {
   const list = Array.isArray(words) ? words.map(value => String(value)) : [];
   const head = (list[0] ?? "").split(/[\\/]/).at(-1).toLowerCase();
   if (head === "source" || head === ".") return list[1];
+  if (list[0] && (/^\.\//.test(list[0]) || (!list[0].includes('/') && head.endsWith('.sh')))) return list[0];
   const interpreters = new Set([
     "sh", "bash", "zsh", "dash", "ksh", "python", "python3", "perl", "ruby", "node",
   ]);
@@ -381,7 +382,7 @@ export function recursiveDeleteTargets(command, options = {}) {
     if (readOnlyShellCommands.has(head)) continue;
     // A delete hidden in a shell string (`bash -c "rm -rf x"`) is still a delete.
     if (["sh", "bash", "zsh", "dash", "ksh"].includes(head)) {
-      const commandFlag = words.slice(1).findIndex(value => value === "-c");
+      const commandFlag = words.slice(1).findIndex(value => value === "-c" || /^-[A-Za-z]*c$/.test(value));
       if (commandFlag >= 0 && words[commandFlag + 2]) {
         targets.push(...recursiveDeleteTargets(words.slice(commandFlag + 2).join(" ")));
       }

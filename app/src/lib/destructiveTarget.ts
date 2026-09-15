@@ -127,6 +127,9 @@ function classify(raw: string, cwd: string): DestructiveTarget {
   if (raw.includes('*') || raw.includes('?')) {
     return { raw, kind: 'glob', recursive: true, reason: '通配表达式，作用范围由实际匹配决定' }
   }
+  if ((raw === '~' || raw.startsWith('~/')) && !homeDirectory()) {
+    return { raw, kind: 'unknown', recursive: true, reason: '无法展开家目录' }
+  }
   const path = absolute(raw, cwd)
   return { raw, path, kind: 'directory-tree', recursive: true, reason: '目录及其内容' }
 }
