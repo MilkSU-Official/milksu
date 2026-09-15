@@ -25,7 +25,7 @@
 | --- | --- |
 | 阶段 | 内测迭代 / Agent Runtime 与跨平台发行收敛。不再按 M3/M4 组织。 |
 | 历史基线 | M3 product-loop 已在 `108e0e3`（2026-08-05）合并，仅供追溯。 |
-| 当前开发 | 新对话可选 Pi 或 DeepSeek Harness。出厂默认官方 DeepSeek Flash。工作树 DSH 钉 `0.1.6-alpha.1`：MCP / Skills / 停止 / 所选型号 / 官方 `playwright-mcp` 懒挂 / host compact；DeepSeek 会话不能 rewind / 分叉。Pi 子 Agent 默认主工作区，Windows/Linux 不再因缺少 sandbox-exec 拒绝；隔离只在模型调用 `prepare_coding_worktree` 时准备。Computer Use 由模型列窗 / 认窗 / 锁定，拿不准用 `milksu_ask`，不强制先开选窗器。产品回归入口 `npm run test:product-loop`（见 [产品回归循环](product-regression-loop.md)）。自动压缩空闲阈值 80%。产品 UI 见 `AGENTS.md`。未做：新对话继承项目 `milksu`；Windows Computer Use 整段崩溃尚未真机验收。宽作业用 `recon-authorized-target` Skill，不造 typed sweep。 |
+| 当前开发 | 新对话可选 Pi 或 DeepSeek Harness。出厂默认官方 DeepSeek Flash。工作树 DSH 钉 `0.1.6-alpha.1`（内核，不是 UI 参考）。Pi 子 Agent 默认主工作区；Computer Use 由模型列窗 / 认窗 / 锁定。产品回归入口 `npm run test:product-loop`。产品 UI 语言是 React + shadcn，见 `AGENTS.md`；当前安装包仍是 Vue + Felinic。未做：新对话继承项目 `milksu`；Windows Computer Use 整段崩溃尚未真机验收。宽作业用 `recon-authorized-target` Skill，不造 typed sweep。 |
 | 平台边界 | macOS DMG 签名公证；Windows 安装器未代码签名，打入 CUA Driver `0.27.0`；Linux 发共用 DEB 与 tarball，GNOME Portal 已进包，无 Secret Service / 本地 OCR；Hyprland/Xorg Computer Use 不可用。Windows/Linux 窗口铬尚未真机验收。安装包见 README。 |
 | 发行流水 | 干净已推送的 `main` 上跑一次 canonical 验证；三端走 GitHub-hosted。`macos-release` 仅限 `main`，dispatch 后立即签名。正式包装 OTA 到私有 R2 并发布 current pointer；GitHub Release 不上 updater ZIP。 |
 
@@ -58,7 +58,7 @@
 - Coding / CTF / CVE / 实验室共用 Pi 文件、Shell、自动压缩（80% 空闲与 `/compact` 同一路径）和完整工作循环。工具结果进模型前走 Pi `tool_result` 截断。不扫描用户句子做意图路由。
 - MilkSU 只持会话目录、凭据隔离、桌面授权、领域事实/Judge，以及危险大目录删除二次确认。
 - 账户 TokenFlux 与本机 Provider 共用可调用目录；附件原图进当前回合。网页查证复用 Pi `web_search` / `web_fetch`。
-- 桌面壳是 Electron/Chromium + Vue。隔离浏览器、Browser Use、Computer Use 是三个表面；面板折叠不停止 Session。产物在各 OS 文档目录 `MilkSU/{Coding,CTF,CVE,Lab}`。
+- 桌面壳是 Electron/Chromium。产品 UI 语言是 React + shadcn；当前安装包仍挂 Vue + Felinic。隔离浏览器、Browser Use、Computer Use 是三个表面；面板折叠不停止 Session。产物在各 OS 文档目录 `MilkSU/{Coding,CTF,CVE,Lab}`。
 - 产品 UI 只写在 `AGENTS.md`。
 
 ## 当前完成线
@@ -69,6 +69,7 @@
 | 优先级 | 事项 | 完成标准 |
 | --- | --- | --- |
 | P0 | 产品回归 | 改对话 / 引擎 / DSH / 隔离浏览器后跑 `npm run test:product-loop`。见 [产品回归循环](product-regression-loop.md)。Settings「评测」不替代这条。C9 / C15 / C16 / C20 已确认；DSH A/B/C 已复验。 |
+| P0 | React + shadcn | 新页和重构只走 React + shadcn。不再跟 DSH web GUI，不再加 Felinic / Vue SFC。Desktop RPC 与 Go 不动。先立 Vite/React 入口和 shadcn 基础件，再按壳 → 对话 → 设置 → 领域页替换。 |
 | P0 | Pi Runtime 用户验收 | 跨目录读写、CTF/CVE 交接、长输出续跑、重启恢复；无 MilkSU 自建 workspace 策略或旧 session ID。 |
 | P1 | 下一版三端回执 | 新版本号、同一 source commit、三端产物、SHA-256 与平台验收。安装包见 README。 |
 | P1 | OTA / current pointer | 侧栏先检查再下载；安装失败可见；CI 上传后发布 current pointer。 |
@@ -91,5 +92,5 @@ CVE：点进档案复现，Agent 改 `report.md`。实验室：独立入口，�
 - CVE：完成面是复现报告，不是「复现成功」。
 - 实验室：未知洞探测，不是对外红队，也不是 CTF 环境包。
 - Memory：用户能力事实必须能链到 Judge、正式 Evidence 或用户确认。
-- 依赖方向：`Vue → Preload / RPC → Application Service → Domain / Runtime → Adapter`。
+- 依赖方向：`React → Preload / RPC → Application Service → Domain / Runtime → Adapter`。当前安装包仍是 Vue 入口。
 - 触碰 `CTFPage.vue`、`app.go`、`bridge-policy.js`、`browsercap/manager.go` 或 Runner/Recovery 时，不往热点文件再加一份通用 harness。

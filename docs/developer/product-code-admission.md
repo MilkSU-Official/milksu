@@ -18,7 +18,7 @@
 这里的“产品链”包括：
 
 - release 构建及其生产依赖图；
-- Desktop RPC 对外方法、Preload 能力和 Vue 生产入口；
+- Desktop RPC 对外方法、Preload 能力和 renderer 生产入口；
 - Sidecar 包、默认 Agent 资源和启动路径；
 - 持久化 schema、迁移与兼容逻辑；
 - 用户可见设置、状态、入口和产品声明。用户可见 UI 文案必须中英成对（`t('中文', 'English')`）；改中文必须同时改英文。
@@ -75,7 +75,7 @@ writer worktree 只在模型显式准备隔离时才创建，不在发消息或�
 4. 用什么真实任务、回执或独立 Judge 判断成功？
 5. 没有收益时怎么删？
 6. macOS、Windows、Linux 上，不是本机开发者的用户如何简单配置并使用？隐藏环境变量、本机路径或仓库脚本不算配置面。平台暂时做不到的，要在产品 UI 和当前目标里写明，不能把某一端路径当成产品。
-7. 产品 UI 是否符合 `AGENTS.md` 的设计语言？新页面、重构和碰到 Vue/CSS 的 PR 必须按该节审一次（新 UI / 重构以 DeepSeek Harness web GUI 为最高优先参考）。用户按该节跟 DSH 改 UI，不要再问是否保留 Beautiful UI。用户朝别的方向改了 UI，要先问是否更新 `AGENTS.md`。不要在本文件或其他文档复述层级或 token。
+7. 产品 UI 是否符合 `AGENTS.md` 的设计语言？新页面、重构和碰到 CSS 的 PR 必须按该节审一次（新 UI / 重构用 React + shadcn，不再跟 DSH web GUI，也不再加 Felinic）。用户按该节改 UI，不要再问是否保留 Vue / Felinic / Beautiful UI。用户朝别的方向改了 UI，要先问是否更新 `AGENTS.md`。不要在本文件或其他文档复述层级或 token。
 
 没有失败轨迹不能当成拒绝新产品面的理由。用户选定的方向、缺失的安全工作区能力，以及修缺陷、
 Key/Scope/Judge/不可逆外部效果，都可以直接开切片。
