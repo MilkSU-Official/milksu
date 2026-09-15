@@ -48,6 +48,8 @@
     "test:computer-use-agent-vision-live": "node scripts/test-packaged-computer-use-agent-vision-live.mjs",
     "test:github-pr-status-live": "node scripts/test-github-pr-status-live.mjs",
     "test:dsh-complete-loop": "node scripts/verify-dsh-complete-loop.mjs",
+    "test:product-loop": "node scripts/verify-product-loop.mjs",
+    "test:product-loop-catalog": "node --test scripts/product-loop.test.mjs",
     "spike:pi:protocol": "node spikes/engine-comparison/pi-spike.mjs --protocol-only",
     "spike:pi": "node spikes/engine-comparison/pi-spike.mjs",
     "spike:codex:protocol": "node spikes/engine-comparison/codex-spike.mjs --protocol-only",
