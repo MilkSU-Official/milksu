@@ -118,20 +118,35 @@ names CTF, CVE, Lab and Coding stay as those product names in both languages. En
 ## Product UI Design Language
 
 This section is the only product UI language. Other docs point here; they must not
-copy the layer table, token names, radii or Beautiful UI primitive numbers.
+copy the layer table, token names or primitive numbers.
 
 现在开始 设计UI 要深度参考 https://github.com/deepseek-ai/deepseek-harness 的web gui 的交互设计等等
 
-Review this section by layer. Do not invent a second primitive at the same layer.
+That sentence is the **highest-priority reference** for every new UI surface and
+for any refactor of an existing one. Read the current DeepSeek Harness web GUI
+(`apps/web`, `packages/client/*`: layout, conversation, composer, sidebar, right
+rail, tools, approvals, settings). When this section, a shipped Beautiful UI /
+ak-ui detail, or an older primitive number conflicts with that interaction,
+follow the DeepSeek Harness web GUI. Do not invent a second interaction
+primitive to keep the old look.
 
-| Layer | Owns | Use |
+MilkSU still owns what the DSH web GUI does not: bilingual `t('中文', 'English')`,
+empty controls stay blank, the three-platform window frame, Vue + the shared CSS
+in this repo, CTF / CVE / lab domain chrome, and desktop authorization. Do not
+vendor the DSH or Beautiful UI React runtimes, `globals.css`, or paid
+`@central-icons-react`. Do not add `@yunyoujun/ak-ui`. Do not use the
+DeepSeek Harness trademark as the MilkSU product name.
+
+The table below is **current shipped chrome**, not the target for new work.
+
+| Layer | Owns | Current shipped chrome |
 | --- | --- | --- |
-| Materials | tokens, color, type, motion | Beautiful UI is the dominant language: cool white / cool black with a restrained clear material. One opaque wash, then a single 74–92% chrome/card fill for page surfaces — do not stack two page fills or they go solid. Hairline + top specular. Overlay surfaces (select, dropdown, dialog, menu, sheet, conversation dock) use opaque `--surface-overlay` / `--popover`; do not put `backdrop-filter` on them. Windows Chromium often skips the frost and a 70% fill just punches a hole through the text. Composer island may keep light blur. The window stays opaque on all three platforms; do not punch through to the desktop, and do not ship macOS vibrancy or Windows Mica as the product look. Later tuning changes wash contrast or fill %, not a second glass primitive. 8px rows, `--hover-2`, 280ms `cubic-bezier(0.16, 1, 0.3, 1)` enter. Cyan / gold are execution and focus, not page chrome. Fonts: Inter Variable + Noto Sans SC Variable. |
-| Shell | sidebar, topbar, page column | one Beautiful UI 14 sidebar (`ContextSidebar`). Collapsed 52px; expanded min 224px, default 264px, drag the right edge to resize. Selected chat rows are a full 8px rounded rectangle. Footer: version (vertically centered) plus a theme icon and a settings icon to its right; both icons stay when collapsed. Workspace avatar menu is only as wide as its items. `WorkspaceModuleTopBar`, `--page-stack-width` 64rem. Coding right rail, bottom terminal, settings nav, profile panels and catalogs use the same 14 chrome. Window frame is one shell on three platforms: macOS `hiddenInset` with traffic lights over the sidebar; Windows and Linux hide the native caption and in-window menu, paint a canvas-colored overlay, and keep system buttons top-right. Do not leave a mac traffic-light hole on Windows or Linux, and do not add a second white title bar. |
-| List chrome | filters, History, primary action | `WorkspaceCatalogActions`: History + Import (CTF/CVE) or Create (Lab). Catalog tables use canvas fill, not gold / paper / cyan row backgrounds. Filter inputs, selects and outline buttons use 8px radius. **ak-ui easter eggs:** `.ak-segmented` filters and `ak-tag` chips for category, difficulty, severity, daily challenge. |
-| Facts | cards, tables, dialogs, status | Felinic `SettingsSection` / `SettingsRow` / `ActionCard` / `ModelListRow` with 8px radius and the clear `--card` fill. Settings list rows, tool workbench and field controls use the same 8px radius. **ak-ui easter egg:** `ConnectionLiveStatus` LIVE/OFF, and the module topbar mark. |
+| Materials | tokens, color, type, motion | Cool white / cool black with a restrained clear material. One opaque wash, then a single 74–92% chrome/card fill for page surfaces — do not stack two page fills or they go solid. Hairline + top specular. Overlay surfaces (select, dropdown, dialog, menu, sheet, conversation dock) use opaque `--surface-overlay` / `--popover`; do not put `backdrop-filter` on them. Windows Chromium often skips the frost and a 70% fill just punches a hole through the text. Composer island may keep light blur. The window stays opaque on all three platforms; do not punch through to the desktop, and do not ship macOS vibrancy or Windows Mica as the product look. 8px rows, `--hover-2`, 280ms `cubic-bezier(0.16, 1, 0.3, 1)` enter. Cyan / gold are execution and focus, not page chrome. Fonts: Inter Variable + Noto Sans SC Variable. New or refactored surfaces follow DSH web GUI materials and elevation when they conflict with this glass/fill recipe. |
+| Shell | sidebar, topbar, page column | One sidebar (`ContextSidebar`). Collapsed 52px; expanded min 224px, default 264px, drag the right edge to resize. Selected chat rows are a full 8px rounded rectangle. Footer: version (vertically centered) plus a theme icon and a settings icon to its right; both icons stay when collapsed. Workspace avatar menu is only as wide as its items. `WorkspaceModuleTopBar`, `--page-stack-width` 64rem. Coding right rail, bottom terminal, settings nav, profile panels and catalogs use the same chrome. Window frame is one shell on three platforms: macOS `hiddenInset` with traffic lights over the sidebar; Windows and Linux hide the native caption and in-window menu, paint a canvas-colored overlay, and keep system buttons top-right. Do not leave a mac traffic-light hole on Windows or Linux, and do not add a second white title bar. New or refactored shell follows the DSH three-column AppFrame (sidebar + conversation + right track; right concedes before center). |
+| List chrome | filters, History, primary action | `WorkspaceCatalogActions`: History + Import (CTF/CVE) or Create (Lab). Catalog tables use canvas fill, not gold / paper / cyan row backgrounds. Filter inputs, selects and outline buttons use 8px radius. Shipped easter eggs only: `.ak-segmented` filters and `ak-tag` chips for category, difficulty, severity, daily challenge. Do not extend ak-ui. |
+| Facts | cards, tables, dialogs, status | Felinic `SettingsSection` / `SettingsRow` / `ActionCard` / `ModelListRow` with 8px radius and the clear `--card` fill. Settings list rows, tool workbench and field controls use the same 8px radius. Shipped easter egg only: `ConnectionLiveStatus` LIVE/OFF, and the module topbar mark. New settings / dialogs follow DSH settings and overlay interaction. |
 | Copy | user-visible strings | `t('中文', 'English')`; empty controls stay blank |
-| Agent conversation | Coding / CTF / CVE / lab chat | Beautiful UI primitives: 03 stream edge (real Pi tokens, solid 2px caret; streamed glyphs stay sharp), 04 ask rows (last row is 其他 / Other input), 05 chips, 06 plan capsule (pull-up min 18rem so step text is readable), 08 prompt island, 18 code blocks. Do not put ak-ui cards in this layer. |
+| Agent conversation | Coding / CTF / CVE / lab chat | New or refactored conversation follows the DSH web GUI: resident composer, busy Queue / Steer, process and tool disclosure, ask / choice rows (last row is 其他 / Other), plan, code blocks. Shipped thread still uses a solid 2px caret and real harness tokens. Do not put ak-ui cards in this layer. Do not lock new work to Beautiful UI primitive numbers 03 / 04 / 05 / 06 / 08 / 18. |
 
 Home chat fills the column right of the sidebar. CTF / CVE / lab default to one
 dismissible dock (close is X unmount). Maximize covers everything right of the
@@ -140,23 +155,25 @@ session list inside a dock, or put `MissionOperationPanel`, domain-task chrome o
 “返回 CTF” in the conversation column.
 
 Shared CSS lives in `app/src/index.css`, `app/src/styles/beautiful-chrome.css` and `app/src/styles/agent-conversation.css`. Felinic stays for Vue
-behavior. Do not add `@yunyoujun/ak-ui` to `app/package.json`. Do not vendor Beautiful UI's
-React runtime, `globals.css` or paid `@central-icons-react`. ak-ui is **not** the product
-language; keep only the easter eggs named above. Retired graphite / paper / tactical /
-acid-green drafts are not current.
+behavior. Retired graphite / paper / tactical / acid-green drafts are not current.
 
-Review a new page, settings category, dossier, dialog, preview, Vue/CSS/copy change, or
-incoming PR against those layers. A screenshot is not a review. Do not invent a
+Review a new page, settings category, dossier, dialog, preview, Vue/CSS/copy
+change, incoming PR, or refactor against the DeepSeek Harness web GUI first,
+then the MilkSU boundaries above. A screenshot is not a review. Do not invent a
 one-off max-width, radius, padding, card, or color to finish one page.
 Do not add or extend Vue/UI unit tests to “enforce” this language — they do not catch
 layout or product bugs. Review the running app against this section.
 
 ### When the user changes the UI
 
-If the user — not the agent — changed layout, color, spacing, typography or component choice
-(working tree, pasted screenshot, follow-up instruction, or an edit they made in the app), do
-not silently revert to this language and do not silently rewrite this language to match the
-one-off. Ask in Chinese whether to:
+Following the DeepSeek Harness web GUI on a selected new or refactored surface
+is this language, not a one-off. Do not ask whether to keep Beautiful UI instead.
+
+If the user — not the agent — changed layout, color, spacing, typography or component
+choice in some other direction (working tree, pasted screenshot, follow-up
+instruction, or an edit they made in the app), do not silently revert to this
+section and do not silently rewrite this section to match that one-off. Ask in
+Chinese whether to:
 
 1. update the design language (this section and the shared CSS/tokens) so later
    pages follow the new rule; or
@@ -304,7 +321,7 @@ deferred to one destructive pre-release consolidation after the product slices a
   surfaces. Coding, CTF, CVE and lab share this surface; domain tools and Judge sit on top
   of the Coding loop instead of replacing it. It must not change settings, credentials,
   approval policy, or attach to the user's Chrome.
-- `milksu_ask` is a typed product-UI tool for Beautiful UI 04 choice cards. The model
+- `milksu_ask` is a typed product-UI tool for conversation choice cards. The model
   calls it when the user must pick among 2–6 concrete options; the conversation shows
   a question plus selectable rows and a final 其他 / Other input, then pauses. Choosing
   a row or submitting Other (including a new composer message) answers the card and
