@@ -27,6 +27,9 @@ const (
 	dshProfileEnvironment       = "MILKSU_DSH_PROFILE"
 	dshProductIpcEnvironment    = "MILKSU_DSH_IPC"
 	dshHostIpcEnvironment       = "MILKSU_DSH_HOST_IPC"
+	dshLLMProtocolEnvironment   = "MILKSU_DSH_LLM_PROTOCOL"
+	officialDeepSeekAPIRoot     = "https://api.deepseek.com"
+	tokenfluxChatCompletionsURL = "https://tokenflux.dev/v1"
 )
 
 type sidecarRuntime struct {
@@ -126,47 +129,82 @@ func withDSHSidecarEnvironment(environment []string) []string {
 }
 
 func withDSHProviderEnvironment(environment []string, settings config.AppSettings) []string {
-	key, baseURL, ok := dshDeepSeekConnection(settings)
+	connection, ok := dshDeepSeekConnection(settings)
 	if !ok {
 		return environment
 	}
-	extra := []string{"DEEPSEEK_API_KEY=" + key}
-	if baseURL != "" {
-		extra = append(extra, "DEEPSEEK_BASE_URL="+baseURL)
+	extra := []string{"DEEPSEEK_API_KEY=" + connection.Key}
+	if connection.BaseURL != "" {
+		extra = append(extra, "DEEPSEEK_BASE_URL="+connection.BaseURL)
+	}
+	if connection.Protocol != "" {
+		extra = append(extra, dshLLMProtocolEnvironment+"="+connection.Protocol)
 	}
 	return mergeSidecarEnvironment(environment, extra)
 }
 
-func dshDeepSeekConnection(settings config.AppSettings) (key, baseURL string, ok bool) {
+type dshProviderConnection struct {
+	Key      string
+	BaseURL  string
+	Protocol string
+}
+
+func dshOfficialDeepSeekAPI(baseURL string) bool {
+	trimmed := strings.TrimRight(strings.ToLower(strings.TrimSpace(baseURL)), "/")
+	switch trimmed {
+	case officialDeepSeekAPIRoot,
+		officialDeepSeekAPIRoot + "/v1",
+		officialDeepSeekAPIRoot + "/anthropic":
+		return true
+	default:
+		return false
+	}
+}
+
+func dshDeepSeekConnection(settings config.AppSettings) (dshProviderConnection, bool) {
 	providerID := strings.TrimSpace(settings.ActiveProvider)
 	provider, exists := settings.Providers[providerID]
-	if !exists {
-		return "", "", false
+	key := ""
+	if exists {
+		key = strings.TrimSpace(provider.APIKey)
 	}
-	key = strings.TrimSpace(provider.APIKey)
 	if key == "" {
-		return "", "", false
+		for _, fallbackID := range []string{"deepseek", "custom-relay-deepseek"} {
+			fallback, found := settings.Providers[fallbackID]
+			fallbackKey := strings.TrimSpace(fallback.APIKey)
+			if !found || fallbackKey == "" {
+				continue
+			}
+			providerID = fallbackID
+			provider = fallback
+			key = fallbackKey
+			exists = true
+			break
+		}
 	}
+	if !exists || key == "" {
+		return dshProviderConnection{}, false
+	}
+	baseURL := ""
 	if provider.BaseURL != nil {
 		baseURL = strings.TrimSpace(*provider.BaseURL)
 	}
-	if provider.Custom {
-		return key, baseURL, true
+	if providerID == "tokenflux" && baseURL == "" {
+		baseURL = tokenfluxChatCompletionsURL
 	}
-	switch providerID {
-	case "deepseek":
-		if baseURL == "" {
-			baseURL = "https://api.deepseek.com"
-		}
-		return key, baseURL, true
-	case "tokenflux":
-		if baseURL == "" {
-			baseURL = "https://tokenflux.dev/v1"
-		}
-		return key, baseURL, true
-	default:
-		return "", "", false
+	if providerID == "deepseek" || providerID == "custom-relay-deepseek" || dshOfficialDeepSeekAPI(baseURL) {
+		// DSH 0.1.6 Messages default is https://api.deepseek.com/anthropic.
+		// Copying the Chat Completions root makes /v1/messages 404.
+		return dshProviderConnection{Key: key, Protocol: "messages"}, true
 	}
+	if providerID == "tokenflux" || provider.Custom {
+		return dshProviderConnection{
+			Key:      key,
+			BaseURL:  baseURL,
+			Protocol: "chat-completions",
+		}, true
+	}
+	return dshProviderConnection{}, false
 }
 
 func canonicalCurrentExecutable() (string, error) {

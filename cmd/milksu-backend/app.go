@@ -1176,19 +1176,24 @@ func (a *App) SendMessage(
 		return err
 	}
 	settings.RuntimeThinkingLevel = strings.TrimSpace(thinkingLevel)
-	var codingBrowser *engine.CodingBrowserDescriptor
-	if strings.TrimSpace(executionMode) != "plan" &&
-		strings.TrimSpace(approvalPolicy) != "read-only" &&
-		a.browserBridge != nil {
-		// Do not start Chromium on an ordinary Go send. The isolated browser
-		// starts when the user opens the rail or the model calls a typed
-		// milksu_workspace browser action. Reuse an already-running session.
-		if descriptor, enabled := a.browserBridge.CodingDescriptor(conversationID); enabled {
-			codingBrowser = &engine.CodingBrowserDescriptor{
-				SessionID:   descriptor.SessionID,
-				CDPEndpoint: descriptor.CDPEndpoint,
-			}
-		}
+	kernel := engine.KernelPi
+	if stored, err := a.conversations.Get(conversationID); err == nil {
+		kernel = engine.NormalizeKernel(stored.Kernel)
+	}
+	codingBrowser, err := resolveInteractiveCodingBrowser(
+		kernel,
+		executionMode,
+		approvalPolicy,
+		func() error {
+			_, ensureErr := a.EnsureCodingBrowser(conversationID)
+			return ensureErr
+		},
+		func() (*engine.CodingBrowserDescriptor, bool) {
+			return a.lookupCodingBrowserDescriptor(conversationID)
+		},
+	)
+	if err != nil {
+		return err
 	}
 	var computerUse *engine.ComputerUseDescriptor
 	if strings.TrimSpace(executionMode) != "plan" &&
@@ -1216,10 +1221,6 @@ func (a *App) SendMessage(
 		return err
 	}
 	a.engines.SetSecurityTools(applySecurityToolOverlays(a.agentResources, a.securityTools.RuntimeTools(a.commandContext())))
-	kernel := engine.KernelPi
-	if stored, err := a.conversations.Get(conversationID); err == nil {
-		kernel = engine.NormalizeKernel(stored.Kernel)
-	}
 	a.engines.BindSessionKernel(conversationID, kernel)
 	return a.engines.SendMessageWithBranch(
 		conversationID,

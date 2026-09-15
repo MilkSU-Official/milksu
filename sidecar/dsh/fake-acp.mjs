@@ -74,6 +74,22 @@ input.on("line", line => {
     });
     return;
   }
+  if (method === "session/resume") {
+    const sessionId = String(params?.sessionId ?? "").trim();
+    if (!sessionId || !sessions.has(sessionId)) {
+      write({ jsonrpc: "2.0", id, error: { code: -32602, message: "unknown session" } });
+      return;
+    }
+    lastCreated = {
+      cwd: params?.cwd,
+      mcpServers: params?.mcpServers ?? [],
+      sessionId,
+      resumed: true,
+    };
+    dump();
+    write({ jsonrpc: "2.0", id, result: { configOptions: catalog } });
+    return;
+  }
   if (method === "session/new") {
     const sessionId = `acp_${nextId++}`;
     sessions.set(sessionId, { cwd: params?.cwd, configOptions: structuredClone(catalog) });

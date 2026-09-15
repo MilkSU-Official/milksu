@@ -5,11 +5,13 @@ import test from "node:test";
 import {
   acpEnvEntries,
   acpStdioMcpServer,
+  dshPlaywrightMcpServerName,
   isAcpStdioMcpServer,
   milksuAcpMcpServerName,
+  milksuComputerUseMcpServer,
   milksuPlaywrightMcpServer,
-  milksuPlaywrightMcpServerName,
   milksuProductMcpServer,
+  resolveComputerUseProxyScript,
   resolvePlaywrightLazyMcpScript,
   resolvePlaywrightMcpCli,
   resolveProductMcpScript,
@@ -82,7 +84,8 @@ test("Playwright lazy MCP declaration starts without waiting for CDP", () => {
     execPath: process.execPath,
     descriptorFile: join(here, "cdp.json"),
   });
-  assert.equal(server.name, milksuPlaywrightMcpServerName);
+  assert.equal(server.name, dshPlaywrightMcpServerName);
+  assert.equal(dshPlaywrightMcpServerName, "playwright-mcp");
   assert.equal("type" in server, false);
   assert.ok(isAbsolute(server.command));
   const env = Object.fromEntries(server.env.map(entry => [entry.name, entry.value]));
@@ -97,4 +100,23 @@ test("Playwright lazy MCP stays off the session without a CLI or conversation", 
     scriptPath: join(here, "playwright-lazy-mcp.js"),
     cliPath: resolvePlaywrightMcpCli(here),
   }), null);
+});
+
+test("Computer Use MCP stays off until a socket is supplied", () => {
+  const script = resolveComputerUseProxyScript(here);
+  assert.ok(script.endsWith("computer-use-proxy.js") || script.endsWith("computer-use-proxy.cjs"));
+  assert.equal(milksuComputerUseMcpServer({
+    conversationId: "conv-cu",
+    scriptPath: script,
+  }), null);
+  const server = milksuComputerUseMcpServer({
+    conversationId: "conv-cu",
+    scriptPath: script,
+    socketPath: "/tmp/milksu-computer-use-test.sock",
+    sessionId: "computer_1",
+    targetName: "Calculator",
+  });
+  assert.equal(server.name, "milksu-computer-use");
+  assert.equal("type" in server, false);
+  assert.ok(server.args.includes("--socket"));
 });

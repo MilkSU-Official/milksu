@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, isAbsolute, join } from "node:path";
 import test from "node:test";
 import { dshProductIpc } from "../hostpath.js";
-import { milksuPlaywrightMcpServerName } from "./mcp-servers.js";
+import { dshPlaywrightMcpServerName } from "./mcp-servers.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -230,7 +230,7 @@ test("DSH session/new sends ACP stdio product MCP with env entries", async () =>
     const created = JSON.parse(readFileSync(dump, "utf8"));
     assert.ok(created.mcpServers.length >= 1);
     const server = created.mcpServers.find(item => item.name === "milksu");
-    const playwright = created.mcpServers.find(item => item.name === milksuPlaywrightMcpServerName);
+    const playwright = created.mcpServers.find(item => item.name === dshPlaywrightMcpServerName);
     assert.ok(server);
     assert.ok(playwright);
     assert.equal(playwright.type, undefined);
@@ -300,6 +300,51 @@ test("DSH session applies the selected ACP catalog model", async () => {
     const applied = JSON.parse(readFileSync(dump, "utf8"));
     assert.equal(applied.configId, "model");
     assert.match(String(applied.value), /deepseek-v4-flash-vision-exp/);
+  } finally {
+    bridge.child.kill();
+    try {
+      unlinkSync(dump);
+    } catch {
+      // Already gone.
+    }
+  }
+});
+
+test("DSH resumeSessionId uses session/resume when the ACP session is still live", async () => {
+  const dump = join(tmpdir(), `milksu-dsh-resume-${process.pid}.json`);
+  try {
+    unlinkSync(dump);
+  } catch {
+    // First write.
+  }
+  const bridge = runBridge({ MILKSU_DSH_FAKE_ACP_DUMP: dump });
+  try {
+    bridge.send({
+      action: "create_session",
+      conversationId: "conv-resume-src",
+      cwd: here,
+    });
+    await bridge.waitFor("ready");
+    const created = JSON.parse(readFileSync(dump, "utf8"));
+    bridge.send({
+      action: "create_session",
+      conversationId: "conv-resume-dst",
+      cwd: here,
+      resumeSessionId: created.sessionId,
+    });
+    const started = Date.now();
+    let ready;
+    while (Date.now() - started < 3000) {
+      ready = [...bridge.events].reverse().find(event => (
+        event.type === "ready" && event.id === "conv-resume-dst"
+      ));
+      if (ready) break;
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+    assert.equal(ready?.resumed, true);
+    const dumped = JSON.parse(readFileSync(dump, "utf8"));
+    assert.equal(dumped.resumed, true);
+    assert.ok(dumped.received.some(item => item.method === "session/resume"));
   } finally {
     bridge.child.kill();
     try {

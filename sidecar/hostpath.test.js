@@ -11,6 +11,7 @@ import {
   playwrightSocketRoot,
   unixComputerUseSocket,
   unixDshProductIpc,
+  playwrightProcessSocketRoot,
 } from "./hostpath.js";
 
 test("ephemeral root uses XDG_RUNTIME_DIR on Linux and os.tmpdir otherwise", () => {
@@ -20,6 +21,18 @@ test("ephemeral root uses XDG_RUNTIME_DIR on Linux and os.tmpdir otherwise", () 
   );
   assert.equal(ephemeralRoot({}, "linux"), tmpdir());
   assert.equal(ephemeralRoot({ XDG_RUNTIME_DIR: "/run/user/1000" }, "darwin"), tmpdir());
+});
+
+test("Playwright process sockets stay short enough for sockaddr_un", () => {
+  if (process.platform === "win32") {
+    assert.equal(playwrightProcessSocketRoot({}, "win32"), "");
+    return;
+  }
+  const root = playwrightProcessSocketRoot();
+  assert.ok(root);
+  assert.ok(Buffer.byteLength(join(root, "playwright-xxxx.sock")) <= 103);
+  assert.doesNotMatch(root, /^\/tmp(?:\/|$)/);
+  assert.doesNotMatch(root, /^\/private\/tmp(?:\/|$)/);
 });
 
 test("DSH product IPC stays under the ephemeral root and short enough for sockaddr_un", () => {

@@ -47,6 +47,7 @@
     "test:windows-computer-use-live": "node scripts/test-windows-computer-use-live.mjs",
     "test:computer-use-agent-vision-live": "node scripts/test-packaged-computer-use-agent-vision-live.mjs",
     "test:github-pr-status-live": "node scripts/test-github-pr-status-live.mjs",
+    "test:dsh-complete-loop": "node scripts/verify-dsh-complete-loop.mjs",
     "spike:pi:protocol": "node spikes/engine-comparison/pi-spike.mjs --protocol-only",
     "spike:pi": "node spikes/engine-comparison/pi-spike.mjs",
     "spike:codex:protocol": "node spikes/engine-comparison/codex-spike.mjs --protocol-only",
@@ -60,7 +61,13 @@
     "vitepress": "^1.6.4"
   },
   "dependencies": {
-    "@deepseek-ai/dsh": "0.1.5-rc.1",
+    "@deepseek-ai/dsh": "0.1.6-alpha.1",
+    "@deepseek-ai/dsh-browser-use": "0.1.6-alpha.1",
+    "@deepseek-ai/dsh-computer-use": "0.1.6-alpha.1",
+    "@deepseek-ai/dsh-experimental-auto-review": "0.1.6-alpha.1",
+    "@deepseek-ai/dsh-experimental-browser-use-playwright-mcp": "0.1.6-alpha.1",
+    "@deepseek-ai/dsh-experimental-browser-use-runtime": "0.1.6-alpha.1",
+    "@deepseek-ai/dsh-experimental-computer-use-cua-driver-mcp": "0.1.6-alpha.1",
     "@earendil-works/pi-ai": "0.84.1",
     "@earendil-works/pi-coding-agent": "0.84.1",
     "@earendil-works/pi-tui": "0.84.1",

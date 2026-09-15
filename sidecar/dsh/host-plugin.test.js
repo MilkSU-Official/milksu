@@ -10,5 +10,6 @@ test("host plugin loads as an ES module from a .mjs path", async () => {
   const loaded = await import(pathToFileURL(join(here, "host-plugin.mjs")).href);
   assert.equal(loaded.name, "milksu-dsh-host");
   assert.deepEqual(loaded.inject, ["compaction", "agents"]);
+  assert.ok(loaded.optionalInject.includes("permissionPresets"));
   assert.equal(typeof loaded.apply, "function");
 });

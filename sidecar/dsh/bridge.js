@@ -7,14 +7,17 @@ import { createAcpClient } from "./acp-client.js";
 import { resolveDshLaunch } from "./launch.js";
 import {
   dshSessionMcpServers,
+  milksuComputerUseMcpServer,
   milksuPlaywrightMcpServer,
   milksuProductMcpServer,
+  resolveComputerUseProxyScript,
   resolvePlaywrightLazyMcpScript,
   resolvePlaywrightMcpCli,
   resolveProductMcpScript,
 } from "./mcp-servers.js";
 import {
   dshAcpHostPatchYaml,
+  resolveDshPackageDir,
   dshAcpModelOptionValue,
   dshModelDeclaresImageInput,
   dshReasoningOptionValue,
@@ -23,7 +26,12 @@ import {
 import { syncDshSkillCatalog } from "./skill-catalog.js";
 import { createProductIpc } from "./product-ipc.js";
 import { dshProductIpc } from "../hostpath.js";
-import { dshPermissionResult } from "./permission.js";
+import {
+  dshNormalizeApprovalPolicy,
+  dshPermissionResult,
+  dshShouldAutoAllowPermission,
+} from "./permission.js";
+import { writeCodingBrowserDescriptor } from "../pi/bridge-mcp.js";
 import {
   askOtherChoiceId,
   codingAskToolName,
@@ -101,8 +109,11 @@ function requestAsk({ conversationId, question, options }) {
   });
 }
 
-function sessionMcpServers(conversationId) {
+function sessionMcpServers(conversationId, command = {}) {
   const here = dirname(fileURLToPath(import.meta.url));
+  const computerUse = command.computerUse && typeof command.computerUse === "object"
+    ? command.computerUse
+    : {};
   return dshSessionMcpServers([
     milksuProductMcpServer({
       conversationId,
@@ -113,6 +124,16 @@ function sessionMcpServers(conversationId) {
       conversationId,
       scriptPath: resolvePlaywrightLazyMcpScript(here),
       cliPath: resolvePlaywrightMcpCli(here),
+    }),
+    milksuComputerUseMcpServer({
+      conversationId,
+      scriptPath: resolveComputerUseProxyScript(here),
+      socketPath: computerUse.socketPath,
+      sessionId: computerUse.sessionId,
+      targetName: computerUse.targetName,
+      targetBundleId: computerUse.targetBundleId,
+      targetWindowId: computerUse.targetWindowId,
+      targetPid: computerUse.targetPid,
     }),
   ]);
 }
@@ -153,7 +174,11 @@ function writeHostPatch() {
   const patchPath = join(home, "milksu-host.cordis.yml");
   writeFileSync(
     patchPath,
-    dshAcpHostPatchYaml(plugin),
+    dshAcpHostPatchYaml(plugin, {
+      computerUse: resolveDshPackageDir(here, "@deepseek-ai/dsh-computer-use"),
+      autoReview: resolveDshPackageDir(here, "@deepseek-ai/dsh-experimental-auto-review"),
+      protocol: String(process.env.MILKSU_DSH_LLM_PROTOCOL ?? "").trim(),
+    }),
     { encoding: "utf8", mode: 0o600 },
   );
   return patchPath;
@@ -279,11 +304,21 @@ async function handleAcpNotification(message) {
     const requestId = `dsh_perm_${message.id}`;
     if (conversationId) {
       const record = sessions.get(conversationId);
+      const toolCall = message.params?.toolCall ?? {};
+      if (dshShouldAutoAllowPermission(record.approvalPolicy, toolCall)) {
+        acp.respond(message.id, dshPermissionResult(true));
+        emit(conversationId, "approval_resolved", {
+          requestId,
+          approved: true,
+          reason: "auto-allow",
+        });
+        return;
+      }
       record.pendingPermission = { jsonrpcId: message.id, requestId };
       emit(conversationId, "approval_requested", {
         requestId,
-        toolName: String(message.params?.toolCall?.title || message.params?.toolCall?.kind || "tool"),
-        input: JSON.stringify(message.params?.toolCall ?? {}),
+        toolName: String(toolCall.title || toolCall.kind || "tool"),
+        input: JSON.stringify(toolCall),
       });
     }
   }
@@ -365,16 +400,40 @@ async function createSession(command) {
     disabledSkills: command.disabledSkills,
     extraSkillPaths: command.userSkillPaths,
   });
+  if (command.codingBrowser) {
+    await writeCodingBrowserDescriptor(conversationId, command.codingBrowser);
+  }
   const client = await ensureAcp(cwd);
-  const created = await client.request("session/new", {
-    cwd,
-    mcpServers: sessionMcpServers(conversationId),
-  });
-  const acpSessionId = String(created?.sessionId || created?.session_id || conversationId);
+  const mcpServers = sessionMcpServers(conversationId, command);
+  const resumeId = String(command.resumeSessionId || command.acpSessionId || "").trim();
+  let created;
+  let resumed = false;
+  if (resumeId) {
+    try {
+      created = await client.request("session/resume", {
+        sessionId: resumeId,
+        cwd,
+        mcpServers,
+      });
+      resumed = true;
+    } catch {
+      created = null;
+    }
+  }
+  if (!resumed) {
+    created = await client.request("session/new", {
+      cwd,
+      mcpServers,
+    });
+  }
+  const acpSessionId = String(
+    resumed ? resumeId : (created?.sessionId || created?.session_id || conversationId),
+  );
   const record = {
     acpSessionId,
     cwd,
     createCommand: command,
+    approvalPolicy: dshNormalizeApprovalPolicy(command.approvalPolicy),
     aborted: false,
     thinkingOpen: false,
     thinkingText: "",
@@ -388,7 +447,16 @@ async function createSession(command) {
   } catch (error) {
     emit(conversationId, "error", { error: describeError(error) });
   }
-  emit(conversationId, "ready", { resumed: false });
+  try {
+    await callHost("set_approval", {
+      sessionId: acpSessionId,
+      policy: record.approvalPolicy,
+    });
+  } catch {
+    // ACP profile may not expose permissionPresets; workspace-auto still
+    // answers session/request_permission in the MilkSU client.
+  }
+  emit(conversationId, "ready", { resumed });
 }
 
 async function sendMessage(command) {
@@ -398,6 +466,9 @@ async function sendMessage(command) {
     await createSession(command);
   }
   const record = sessionRecord(conversationId);
+  if (command.approvalPolicy) {
+    record.approvalPolicy = dshNormalizeApprovalPolicy(command.approvalPolicy);
+  }
   const client = await ensureAcp(record.cwd);
   if (command.model && dshRouteModel(command.model) !== record.model) {
     try {

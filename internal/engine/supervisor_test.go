@@ -2361,18 +2361,37 @@ func TestWithDSHProviderEnvironmentMapsActiveCustomRelay(t *testing.T) {
 	}
 
 	environment := withDSHProviderEnvironment(engineEnvironment(settings), settings)
-	for _, expected := range []string{
-		"DEEPSEEK_API_KEY=custom-relay-secret",
-		"DEEPSEEK_BASE_URL=https://api.deepseek.com",
-	} {
-		if !containsEnvironmentEntry(environment, expected) {
-			t.Fatalf("expected %q in %#v", expected, environment)
-		}
+	if !containsEnvironmentEntry(environment, "DEEPSEEK_API_KEY=custom-relay-secret") {
+		t.Fatalf("expected official DeepSeek key in %#v", environment)
+	}
+	if !containsEnvironmentEntry(environment, "MILKSU_DSH_LLM_PROTOCOL=messages") {
+		t.Fatalf("expected Messages protocol in %#v", environment)
+	}
+	if value := environmentValue(environment, "DEEPSEEK_BASE_URL"); value != "" {
+		t.Fatalf("official DeepSeek must not override DSH Messages root, got %q", value)
 	}
 	for _, entry := range environment {
 		if strings.Contains(entry, "official-disabled-secret") {
 			t.Fatalf("disabled official DeepSeek credential leaked into DSH env: %q", entry)
 		}
+	}
+}
+
+func TestWithDSHProviderEnvironmentOfficialDeepSeekOmitsChatCompletionsRoot(t *testing.T) {
+	settings := config.DefaultSettings()
+	settings.ActiveProvider = "deepseek"
+	settings.ActiveModel = "deepseek-flash"
+	settings.Providers["deepseek"] = config.ProviderConfig{
+		APIKey:  "official-deepseek-secret",
+		Enabled: true,
+	}
+
+	environment := withDSHProviderEnvironment(engineEnvironment(settings), settings)
+	if !containsEnvironmentEntry(environment, "DEEPSEEK_API_KEY=official-deepseek-secret") {
+		t.Fatalf("expected official DeepSeek key in %#v", environment)
+	}
+	if value := environmentValue(environment, "DEEPSEEK_BASE_URL"); value != "" {
+		t.Fatalf("official DeepSeek must not set DEEPSEEK_BASE_URL, got %q", value)
 	}
 }
 
@@ -2391,6 +2410,7 @@ func TestWithDSHProviderEnvironmentMapsActiveTokenFlux(t *testing.T) {
 	for _, expected := range []string{
 		"DEEPSEEK_API_KEY=tokenflux-provider-secret",
 		"DEEPSEEK_BASE_URL=https://tokenflux.dev/v1",
+		"MILKSU_DSH_LLM_PROTOCOL=chat-completions",
 	} {
 		if !containsEnvironmentEntry(environment, expected) {
 			t.Fatalf("expected %q in %#v", expected, environment)

@@ -1,9 +1,11 @@
 import { createServer } from "node:net";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
+import { dshPresetForApprovalPolicy } from "./permission.js";
 
 export const name = "milksu-dsh-host";
 export const inject = ["compaction", "agents"];
+export const optionalInject = ["permissionPresets"];
 
 export function apply(ctx) {
   const path = String(process.env.MILKSU_DSH_HOST_IPC ?? "").trim();
@@ -55,13 +57,22 @@ async function handleLine(ctx, socket, line) {
 }
 
 async function dispatch(ctx, message) {
-  if (message.method !== "compact") {
-    throw new Error(`Unknown MilkSU host method: ${message.method}`);
-  }
   const sessionId = String(message.params?.sessionId ?? "").trim();
   if (!sessionId) throw new Error("sessionId is required");
   const agent = ctx.agents.get(sessionId);
   if (!agent) throw new Error(`DeepSeek Harness session not found: ${sessionId}`);
+  if (message.method === "set_approval") {
+    const policy = String(message.params?.policy ?? "").trim();
+    const presets = ctx.permissionPresets;
+    const preset = dshPresetForApprovalPolicy(policy);
+    if (presets && typeof presets.set === "function") {
+      await presets.set(agent, preset);
+    }
+    return { preset };
+  }
+  if (message.method !== "compact") {
+    throw new Error(`Unknown MilkSU host method: ${message.method}`);
+  }
   const result = await ctx.compaction.compactNow(agent, AbortSignal.timeout(120_000));
   if (result == null) {
     return { compacted: false, tokensBefore: 0, estimatedTokensAfter: 0 };

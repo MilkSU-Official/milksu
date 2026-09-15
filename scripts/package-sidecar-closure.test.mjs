@@ -4,7 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { collectInstalledPackageClosure, copyDshRuntime } from './package-sidecar.mjs'
+import { collectInstalledPackageClosure, copyDshRuntime, dshRuntimeRootPackages } from './package-sidecar.mjs'
 
 test('DSH packaged closure includes required app-boot peers', async () => {
   const dependenciesOnly = await collectInstalledPackageClosure(['@deepseek-ai/dsh'])
@@ -14,13 +14,15 @@ test('DSH packaged closure includes required app-boot peers', async () => {
     'dependency-only closure must not hide the missing peer that shipped in 26.912.3',
   )
 
-  const packages = await collectInstalledPackageClosure(['@deepseek-ai/dsh'], {
+  const packages = await collectInstalledPackageClosure(dshRuntimeRootPackages, {
     includePeerDependencies: true,
   })
-  assert.ok(
-    packages.some(pkg => pkg.name === '@deepseek-ai/dsh'),
-    'DSH CLI package must stay in the runtime closure',
-  )
+  for (const name of dshRuntimeRootPackages) {
+    assert.ok(
+      packages.some(pkg => pkg.name === name),
+      `${name} must stay in the runtime closure`,
+    )
+  }
   assert.ok(
     packages.some(pkg => pkg.name === '@deepseek-ai/cordis-plugin-group'),
     'required peer @deepseek-ai/cordis-plugin-group must be copied into the Sidecar',

@@ -1,3 +1,7 @@
+import { existsSync } from "node:fs";
+import { createRequire } from "node:module";
+import { join } from "node:path";
+
 export const dshAcpProviderId = "deepseek-official";
 
 // Product default Flash is DeepSeek V4.1 (`deepseek-flash`), which declares
@@ -40,10 +44,53 @@ export function dshModelDeclaresImageInput(modelId) {
   return dshImageCapableModelIds.includes(dshRouteModel(modelId));
 }
 
-export function dshAcpHostPatchYaml(pluginPath) {
+export function resolveDshPackageDir(here, packageName) {
+  const name = String(packageName ?? "").trim();
+  const root = String(here ?? "").trim();
+  if (!name || !root) return "";
+  // ACP --patch insert `name` is imported as an ES module from
+  // $DSH_HOME/profiles/acp. Directory paths throw ERR_UNSUPPORTED_DIR_IMPORT;
+  // resolve to the package entry file.
+  const fromFiles = [
+    join(root, "session-config.js"),
+    join(root, "package.json"),
+    join(root, "..", "..", "package.json"),
+  ];
+  for (const from of fromFiles) {
+    try {
+      const resolved = createRequire(from).resolve(name);
+      if (resolved && existsSync(resolved)) return resolved;
+    } catch {
+      // Try the next resolution root.
+    }
+  }
+  const parts = name.split("/").filter(Boolean);
+  const fallbacks = [
+    join(root, "node_modules", ...parts, "lib", "index.js"),
+    join(root, "..", "..", "node_modules", ...parts, "lib", "index.js"),
+  ];
+  return fallbacks.find(candidate => existsSync(candidate)) || "";
+}
+
+export function dshAcpHostPatchYaml(pluginPath, packages = {}) {
   const plugin = String(pluginPath ?? "").trim();
   if (!plugin) return "";
-  return [
+  // Browser Use attach is process-wide and one CDP. MilkSU sessions each have
+  // their own isolated browser, so Playwright is declared per session/new as
+  // ACP stdio MCP named playwright-mcp. Official Cua Driver MCP talks to the
+  // raw desktop; DSH sessions reuse the bounded computer-use-proxy instead.
+  // Experimental packages must be absolute paths: ACP resolves inserts from
+  // $DSH_HOME/profiles/acp, not the Sidecar node_modules.
+  const protocol = String(packages.protocol ?? "").trim();
+  const rows = [];
+  if (protocol === "chat-completions") {
+    rows.push(
+      "- id: llm-deepseek",
+      "  config:",
+      "    protocol: chat-completions",
+    );
+  }
+  rows.push(
     "- id: acp",
     "  config:",
     `    provider: ${dshAcpProviderId}`,
@@ -51,8 +98,23 @@ export function dshAcpHostPatchYaml(pluginPath) {
     "- insert:",
     "  - id: milksu-dsh-host",
     `    name: ${JSON.stringify(plugin)}`,
-    "",
-  ].join("\n");
+  );
+  const computerUse = String(packages.computerUse ?? "").trim();
+  if (computerUse) {
+    rows.push(
+      "  - id: computer-use",
+      `    name: ${JSON.stringify(computerUse)}`,
+    );
+  }
+  const autoReview = String(packages.autoReview ?? "").trim();
+  if (autoReview) {
+    rows.push(
+      "  - id: auto-review",
+      `    name: ${JSON.stringify(autoReview)}`,
+    );
+  }
+  rows.push("");
+  return rows.join("\n");
 }
 
 export function dshAcpModelOptionValue(configOptions, modelId) {

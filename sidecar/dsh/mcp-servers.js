@@ -4,6 +4,8 @@ import { codingBrowserDescriptorFile } from "../hostpath.js";
 import { codingBrowserMcpServerName } from "../pi/bridge-browser-policy.js";
 
 export const milksuAcpMcpServerName = "milksu";
+export const dshPlaywrightMcpServerName = "playwright-mcp";
+export const dshComputerUseMcpServerName = "milksu-computer-use";
 export { codingBrowserMcpServerName as milksuPlaywrightMcpServerName };
 
 export function acpEnvEntries(env) {
@@ -124,7 +126,7 @@ export function milksuPlaywrightMcpServer({
   const descriptor = String(descriptorFile ?? codingBrowserDescriptorFile(id)).trim();
   if (!id || !script || !cli || !descriptor) return null;
   return acpStdioMcpServer({
-    name: codingBrowserMcpServerName,
+    name: dshPlaywrightMcpServerName,
     command: execPath,
     args: [script],
     env: {
@@ -133,6 +135,54 @@ export function milksuPlaywrightMcpServer({
       MILKSU_CODING_BROWSER_DESCRIPTOR_FILE: descriptor,
       MILKSU_PLAYWRIGHT_EVIDENCE_DIR: join(dirname(descriptor), "evidence"),
     },
+  });
+}
+
+export function resolveComputerUseProxyScript(here) {
+  const root = String(here ?? "").trim();
+  if (!root) return "";
+  const packaged = join(root, "computer-use-proxy.cjs");
+  const source = join(root, "..", "computer-use", "computer-use-proxy.js");
+  if (existsSync(packaged)) return resolve(packaged);
+  if (existsSync(source)) return resolve(source);
+  return "";
+}
+
+export function milksuComputerUseMcpServer({
+  conversationId,
+  scriptPath,
+  execPath = process.execPath,
+  socketPath,
+  sessionId,
+  targetName = "",
+  targetBundleId = "",
+  targetWindowId = "",
+  targetPid = "",
+} = {}) {
+  const id = String(conversationId ?? "").trim();
+  const scriptRaw = String(scriptPath ?? "").trim();
+  const script = scriptRaw && (isAbsolute(scriptRaw) ? scriptRaw : resolve(scriptRaw));
+  const socket = String(socketPath ?? "").trim();
+  const session = String(sessionId ?? id).trim();
+  if (!id || !script || !socket || !session) return null;
+  return acpStdioMcpServer({
+    name: dshComputerUseMcpServerName,
+    command: execPath,
+    args: [
+      script,
+      "--socket",
+      socket,
+      "--session",
+      session,
+      "--target-name",
+      String(targetName ?? ""),
+      "--target-bundle-id",
+      String(targetBundleId ?? ""),
+      "--target-window-id",
+      String(targetWindowId ?? ""),
+      "--target-pid",
+      String(targetPid ?? ""),
+    ],
   });
 }
 

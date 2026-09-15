@@ -251,6 +251,7 @@
 - Windows 接入 Computer Use 后整段对话崩溃尚未真机验收。
 - Computer Use 仍要先选窗口。
 - DeepSeek Harness 走 ACP，工具在 harness 进程内执行，MilkSU 只是 ACP 客户端，只能允许或拒绝一次调用，改不了它的工具参数。因此 DSH 会话的 `bash` 仍没有 MilkSU 侧超时上界。要补齐需要 harness 自身的配置项或 ACP 扩展点，不要在客户端复刻第二套工具循环。
+- 工作树已钉 `@deepseek-ai/dsh@0.1.6-alpha.1` 及官方 Browser / Computer Use / Auto review 实验包。选中 DSH 时首回合 Ensure 隔离浏览器；会话 MCP 名是 `playwright-mcp`。官方 DeepSeek 不写 `DEEPSEEK_BASE_URL`（Messages 默认 `https://api.deepseek.com/anthropic`）；TokenFlux / 自定义 OpenAI 兼容端点才切 `chat-completions`。`workspace-auto` / `full-auto` 映射 DSH `workspace-write`，不切官方 Auto review。本机 `npm run test:dsh-complete-loop -- --gui` 已过文件循环、隔离浏览器标记和审批边界；Computer Use 仍只记 warning。未打进安装包。
 - 准备 writer 过程中按停止时，界面有时同时出现「本轮已停止。」和「Agent 运行失败：本地 Agent 运行异常」。合同只该留前者。
 - macOS 侧栏「安装并重启」会走 Squirrel ShipIt。本机对刚失败的 `MilkSU-macOS-arm64-26.915.1.zip` 解包：29062 个文件里只有 `milksu-sidecar/THIRD_PARTY-LICENSES/gopls-BSD-3-Clause.txt` 为 0444，ShipIt 卸隔离失败后仍拉起旧包。对同一份 ZIP 做 `ensureOwnerWritable` 再 ditto 打回，以及用同一份公证 DMG 走 `prepareMacUpdate`（对照 `/Applications/MilkSU.app` 签名团队），再解包后都能对那份许可证执行 `xattr` 写入并清除。正式 `release-macos` 在打 OTA ZIP 前后都会跑同一道门；未打进下一版安装包前，已装的 26.912.3 仍要用 GitHub DMG 拖进应用程序。
 

@@ -26,6 +26,13 @@ export function playwrightSocketRoot(env = process.env, platform = process.platf
   return join(ephemeralRoot(env, platform), "milksu-playwright");
 }
 
+export function playwrightProcessSocketRoot(env = process.env, platform = process.platform) {
+  if (platform === "win32") return "";
+  // Playwright CDP attach creates a Unix socket under this dir. The descriptor
+  // tree under os.tmpdir() is already too long on Darwin (104-byte sun_path).
+  return join(unixSocketOverflowRoot(env, platform), "pw");
+}
+
 export function codingBrowserDescriptorKey(conversationId) {
   const id = String(conversationId ?? "").trim();
   if (!id) return "";

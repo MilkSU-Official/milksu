@@ -4,7 +4,7 @@ import { mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { createInterface } from "node:readline";
 import { setTimeout as delay } from "node:timers/promises";
-import { codingBrowserDescriptorFile } from "../hostpath.js";
+import { codingBrowserDescriptorFile, playwrightProcessSocketRoot } from "../hostpath.js";
 
 const conversationId = String(process.env.MILKSU_CONVERSATION_ID ?? "").trim();
 const cli = String(process.env.MILKSU_PLAYWRIGHT_MCP_CLI ?? "").trim();
@@ -110,6 +110,15 @@ async function ensureChild() {
   if (evidenceRoot) {
     await mkdir(evidenceRoot, { recursive: true, mode: 0o700 });
   }
+  const socketRoot = playwrightProcessSocketRoot();
+  if (socketRoot) {
+    await mkdir(socketRoot, { recursive: true, mode: 0o700 });
+  }
+  const childEnv = { ...process.env };
+  if (socketRoot) {
+    childEnv.PWTEST_SOCKETS_DIR = socketRoot;
+    childEnv.TMPDIR = socketRoot;
+  }
   child = spawn(process.execPath, [
     cli,
     "--cdp-endpoint",
@@ -123,7 +132,7 @@ async function ensureChild() {
   ], {
     stdio: ["pipe", "pipe", "pipe"],
     windowsHide: true,
-    env: process.env,
+    env: childEnv,
   });
   const input = createInterface({ input: child.stdout });
   input.on("line", line => {

@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
+import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 import {
   dshAcpHostPatchYaml,
+  resolveDshPackageDir,
   dshAcpModelOptionValue,
   dshAcpSupportsModel,
   dshDefaultAcpModel,
@@ -53,10 +56,28 @@ test("TokenFlux default Flash is DSH deepseek-flash (V4.1), not text-only v4-fla
   assert.equal(dshRouteModel("deepseek-flash"), "deepseek-flash");
   assert.equal(dshAcpModelOptionValue(configOptions, "deepseek/deepseek-v4-flash"), v41);
   assert.equal(dshModelDeclaresImageInput("deepseek/deepseek-v4-flash"), true);
-  const patch = dshAcpHostPatchYaml("/abs/host-plugin.mjs");
+  const here = dirname(fileURLToPath(import.meta.url));
+  const computerUse = resolveDshPackageDir(here, "@deepseek-ai/dsh-computer-use");
+  const autoReview = resolveDshPackageDir(here, "@deepseek-ai/dsh-experimental-auto-review");
+  const patch = dshAcpHostPatchYaml("/abs/host-plugin.mjs", { computerUse, autoReview });
   assert.match(patch, /id: acp/);
   assert.match(patch, /model: deepseek-flash/);
   assert.doesNotMatch(patch, /model: deepseek-v4-flash/);
+  assert.match(patch, /computer-use/);
+  assert.match(patch, /auto-review/);
+  assert.ok(computerUse.endsWith("/lib/index.js"));
+  assert.ok(autoReview.endsWith("/lib/index.js"));
+  assert.match(patch, new RegExp(computerUse.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.doesNotMatch(patch, /browser-use-playwright-mcp/);
+  assert.doesNotMatch(patch, /cua-driver-mcp/);
+  assert.doesNotMatch(patch, /protocol: chat-completions/);
+  const tokenfluxPatch = dshAcpHostPatchYaml("/abs/host-plugin.mjs", {
+    computerUse,
+    autoReview,
+    protocol: "chat-completions",
+  });
+  assert.match(tokenfluxPatch, /id: llm-deepseek/);
+  assert.match(tokenfluxPatch, /protocol: chat-completions/);
 });
 
 test("only DeepSeek catalog vision routes declare image input", () => {

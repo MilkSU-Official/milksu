@@ -61,6 +61,47 @@ func (a *App) lookupCodingBrowserDescriptor(
 	}, true
 }
 
+// resolveInteractiveCodingBrowser decides whether this send may attach the
+// isolated browser. Pi still only reuses a session the user or a typed
+// milksu_workspace action already started. DSH create_session needs the CDP
+// endpoint before ACP session/new, so that kernel Ensures on a typed send.
+func resolveInteractiveCodingBrowser(
+	kernel,
+	executionMode,
+	approvalPolicy string,
+	ensure func() error,
+	lookup func() (*engine.CodingBrowserDescriptor, bool),
+) (*engine.CodingBrowserDescriptor, error) {
+	if strings.TrimSpace(executionMode) == "plan" ||
+		strings.TrimSpace(approvalPolicy) == "read-only" {
+		return nil, nil
+	}
+	if engine.NormalizeKernel(kernel) == engine.KernelDSH {
+		if ensure == nil {
+			return nil, fmt.Errorf("浏览器服务不可用")
+		}
+		if err := ensure(); err != nil {
+			return nil, err
+		}
+		if lookup == nil {
+			return nil, fmt.Errorf("隔离浏览器尚未就绪")
+		}
+		descriptor, ok := lookup()
+		if !ok || descriptor == nil || strings.TrimSpace(descriptor.CDPEndpoint) == "" {
+			return nil, fmt.Errorf("隔离浏览器尚未就绪")
+		}
+		return descriptor, nil
+	}
+	if lookup == nil {
+		return nil, nil
+	}
+	descriptor, ok := lookup()
+	if !ok {
+		return nil, nil
+	}
+	return descriptor, nil
+}
+
 func (a *App) EnsureCodingBrowser(
 	conversationID string,
 ) (browsercap.CodingBrowserStatus, error) {

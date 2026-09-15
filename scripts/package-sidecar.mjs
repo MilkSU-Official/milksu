@@ -35,7 +35,16 @@ const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const nodeVersion = '24.18.0'
 const archifyCommit = '7b49d0b715fd4ba48116bcdecd1ba3789a279613'
 const piVersion = '0.84.1'
-const dshVersion = '0.1.5-rc.1'
+const dshVersion = '0.1.6-alpha.1'
+const dshRuntimeRootPackages = [
+  '@deepseek-ai/dsh',
+  '@deepseek-ai/dsh-browser-use',
+  '@deepseek-ai/dsh-computer-use',
+  '@deepseek-ai/dsh-experimental-auto-review',
+  '@deepseek-ai/dsh-experimental-browser-use-playwright-mcp',
+  '@deepseek-ai/dsh-experimental-browser-use-runtime',
+  '@deepseek-ai/dsh-experimental-computer-use-cua-driver-mcp',
+]
 const piLspVersion = '0.29.0'
 const piGoalVersion = '0.43.0'
 const piBackgroundTasksVersion = '0.1.10'
@@ -668,12 +677,14 @@ async function copyDshRuntime(output) {
     throw new Error('DeepSeek Harness LICENSE is missing')
   }
   const packages = minimalPackageCopySet(
-    await collectInstalledPackageClosure(['@deepseek-ai/dsh'], {
+    await collectInstalledPackageClosure(dshRuntimeRootPackages, {
       includePeerDependencies: true,
     }),
   )
-  if (!packages.some(pkg => pkg.name === '@deepseek-ai/dsh' && pkg.version === dshVersion)) {
-    throw new Error('DeepSeek Harness runtime closure is missing @deepseek-ai/dsh')
+  for (const name of dshRuntimeRootPackages) {
+    if (!packages.some(pkg => pkg.name === name && pkg.version === dshVersion)) {
+      throw new Error(`DeepSeek Harness runtime closure is missing ${name}@${dshVersion}`)
+    }
   }
   if (!packages.some(pkg => pkg.name === '@deepseek-ai/cordis-plugin-group')) {
     throw new Error(
@@ -2818,6 +2829,7 @@ function invokedAsPackagingScript() {
 export {
   collectInstalledPackageClosure,
   copyDshRuntime,
+  dshRuntimeRootPackages,
 }
 
 if (invokedAsPackagingScript()) {
