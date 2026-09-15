@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { reactive } from 'vue'
+import { reactive } from '@/lib/reactiveStore'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { desktopErrorMessage, invokeCommand } from './desktop'
 import {

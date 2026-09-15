@@ -1,4 +1,4 @@
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from '@/lib/reactiveStore'
 import { invokeCommand, listenEvent } from '@/desktop'
 import type {
   CTFAgentBudgetStatus,

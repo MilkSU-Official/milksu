@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { computed } from 'vue'
+import { computed } from '@/lib/reactiveStore'
 import {
   installAppModelSettings,
   installCustomProviderSettings,

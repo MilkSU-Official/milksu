@@ -103,7 +103,7 @@ Key/Scope/Judge/不可逆外部效果，都可以直接开切片。
 测试应观察产品，不应成为产品的一部分：
 
 - Go fixture 放在 `_test.go`、`testdata/` 或独立测试包；
-- 前端 mock 和 story 不从 `App.vue` 或其他生产入口导入；
+- 前端 mock 和 story 不从 `App.tsx` 或其他生产入口导入；
 - 正式 Desktop RPC / Preload 不暴露仅供测试使用的 `Smoke`、`Fixture` 或 `Sample` 方法；
 - 启动路径和 Vue lifecycle 不运行测试协调器，即使它通常因环境变量而空操作；
 - Browser preview 可以展示静态组件状态，但不能伪造完整领域后端或持久化状态机；

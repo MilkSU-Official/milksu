@@ -120,27 +120,28 @@ names CTF, CVE, Lab and Coding stay as those product names in both languages. En
 This section is the only product UI language. Other docs point here; they must not
 copy the layer table, token names or primitive numbers.
 
-New UI and every refactor use **React + [shadcn/ui](https://ui.shadcn.com/)**.
-Do not start new Vue pages. Do not add Felinic components. Do not follow the
-DeepSeek Harness web GUI as a visual or interaction reference.
+New UI and every refactor use **React + [shadcn/ui](https://ui.shadcn.com/)
+(New York, zinc)**. Do not start new Vue pages. Do not add Felinic. Do not follow
+the DeepSeek Harness web GUI. Do not compose Beautiful UI night glass, tactical /
+game-kicker chrome, and ak-ui on the same surface.
 
 MilkSU still owns bilingual `t('中文', 'English')`, empty controls stay blank,
 the three-platform window frame, CTF / CVE / lab domain chrome, and desktop
 authorization. Do not vendor Beautiful UI's React runtime, `globals.css`, or paid
-`@central-icons-react`. Do not add `@yunyoujun/ak-ui`. Do not use the DeepSeek
-Harness trademark as the MilkSU product name.
+`@central-icons-react`. Do not add `@yunyoujun/ak-ui`. Easter eggs (ak-ui chips,
+LIVE flourishes) are deferred — do not reintroduce them while rewriting a page.
+Do not use the DeepSeek Harness trademark as the MilkSU product name.
 
-The table below is the **target**. Current installers still mount Vue + Felinic;
-that leftover chrome is not the language for new work.
+The table below is current. Installers still on Vue + Felinic are not the language.
 
 | Layer | Owns | Use |
 | --- | --- | --- |
-| Materials | tokens, color, type, motion | shadcn theme tokens (`background`, `foreground`, `card`, `muted`, `border`, `primary`, `destructive`, `sidebar`) on the existing Tailwind v4 pipeline. Light / dark through the product theme bridge. Overlay surfaces use shadcn Dialog / Popover / Sheet / DropdownMenu — opaque `--popover` / overlay fills; do not put `backdrop-filter` on them (Windows Chromium often skips the frost). The window stays opaque on all three platforms; do not punch through to the desktop, and do not ship macOS vibrancy or Windows Mica as the product look. Fonts: Inter Variable + Noto Sans SC Variable until a later token pass. |
-| Shell | sidebar, topbar, page column | shadcn Sidebar + one page column. Collapsed icon rail; expanded default about 16rem, drag the right edge to resize. Footer: version plus theme and settings icons; both icons stay when collapsed. Window frame is one shell on three platforms: macOS `hiddenInset` with traffic lights over the sidebar; Windows and Linux hide the native caption and in-window menu, paint a canvas-colored overlay, and keep system buttons top-right. Do not leave a mac traffic-light hole on Windows or Linux, and do not add a second white title bar. |
-| List chrome | filters, History, primary action | shadcn Button / Input / Select / Badge / Table. Catalog tables use canvas or card fill. Do not extend ak-ui; existing `.ak-segmented` / `ak-tag` easter eggs stay only until that page is rewritten. |
-| Facts | cards, tables, dialogs, status | shadcn Card / Table / Dialog / Alert / Switch. Do not add Felinic `SettingsSection` / `SettingsRow` / `ActionCard` / `ModelListRow`. |
+| Materials | tokens, color, type, motion | shadcn zinc: opaque `--background` / `--card` / `--popover` (dark `#09090b` / `#18181b`, light `#ffffff`). No wash stack, no carbon texture, no page-level cyan. `--primary` is high-contrast ink (near-white on dark, near-black on light); cyan is not page chrome. Radius 8px (`rounded-md`). Overlay Dialog / Popover / Sheet / DropdownMenu stay opaque — no `backdrop-filter` (Windows Chromium often skips frost). Window stays opaque on all three platforms; no macOS vibrancy or Windows Mica as the product look. Fonts: Inter Variable + Noto Sans SC Variable. Motion about 200ms. |
+| Shell | sidebar, topbar, page column | One sidebar + one page column. Collapsed 52px; expanded min 224px, default 264px, drag the right edge. Selected rows are an 8px rounded rectangle. Footer: version plus theme and settings icons; both icons stay when collapsed. Workspace avatar menu is only as wide as its items. `--page-stack-width` 64rem. Window frame is one shell: macOS `hiddenInset` with traffic lights over the sidebar; Windows and Linux hide the native caption and in-window menu, paint a canvas-colored overlay, system buttons top-right. No mac traffic-light hole on Windows or Linux, and no second white title bar. |
+| List chrome | filters, History, primary action | shadcn Button / Input / Select / Badge. Filters are a row of `Button` (`outline` / selected `default`, `rounded-md` or `rounded-full`). Catalog tables use canvas or card fill and ordinary caption headers — not monospace uppercase desk heads. Category / difficulty / severity use `Badge`. |
+| Facts | cards, tables, dialogs, status | shadcn Card / Table / Dialog / Alert / Switch. Settings list rows use the React `SettingsSection` / `SettingsRow` in `app/src/components/ui` (8px). Errors use `Alert`, not game `AUTH` stripes. |
 | Copy | user-visible strings | `t('中文', 'English')`; empty controls stay blank |
-| Agent conversation | Coding / CTF / CVE / lab chat | React + shadcn for chrome. Product contracts stay: resident composer, busy Queue / Steer, process and tool disclosure, `milksu_ask` rows (last row is 其他 / Other), plan, code blocks, real harness tokens. Do not put ak-ui cards in this layer. Do not lock new work to Beautiful UI primitive numbers. |
+| Agent conversation | Coding / CTF / CVE / lab chat | shadcn for chrome. Product contracts stay: resident composer, busy Queue / Steer, process and tool disclosure, `milksu_ask` rows (last row is 其他 / Other), plan, code blocks, real harness tokens. Right rail and bottom terminal are a plain `aside` / Card (`ContextRail` for the resizable right column). |
 
 Home chat fills the column right of the sidebar. CTF / CVE / lab default to one
 dismissible dock (close is X unmount). Maximize covers everything right of the
@@ -148,8 +149,9 @@ sidebar; the right rail stays in-flow beside the thread. Do not stack docks, put
 session list inside a dock, or put `MissionOperationPanel`, domain-task chrome or
 “返回 CTF” in the conversation column.
 
-New shared styles live with shadcn (`app/src/index.css` and generated components).
-Do not grow `beautiful-chrome.css`, Felinic, or Vue SFC for a new surface.
+Shared styles live in `app/src/index.css`, `app/src/styles/agent-conversation.css`
+and `app/src/components/ui`. Do not add Felinic, Vue SFC, or a second chrome
+stylesheet for a new surface.
 Retired graphite / paper / tactical / acid-green / Beautiful UI / DSH-web-GUI
 drafts are not current.
 

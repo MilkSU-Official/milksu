@@ -1,4 +1,4 @@
-import { computed, shallowRef, unref, type MaybeRef } from 'vue'
+import { computed, shallowRef, unref, type MaybeRef } from '@/lib/reactiveStore'
 import { invokeCommand } from '@/desktop'
 import { t } from '@/lib/uiLocale'
 import {

@@ -1,4 +1,4 @@
-import { ref, watch } from 'vue'
+import { ref, watch } from '@/lib/reactiveStore'
 import { invokeCommand } from '@/desktop'
 import type { NSSCTFArenaSubmission, NSSCTFArenaWorkspace } from '@/nssctfArenaTypes'
 import type { NSSCTFChallenge } from '@/nssctfTypes'

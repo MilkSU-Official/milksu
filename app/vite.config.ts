@@ -1,20 +1,19 @@
 import path from 'path'
 import { defineConfig } from 'vitest/config'
-import vue from '@vitejs/plugin-vue'
+import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
-  plugins: [vue(), tailwindcss()],
+  plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
-      '#': path.resolve(__dirname, './node_modules/@felinic/ui/src'),
     },
   },
   clearScreen: false,
-	test: {
-		setupFiles: ['./src/test/setupDesktopMock.ts'],
-	},
+  test: {
+    setupFiles: ['./src/test/setupDesktopMock.ts'],
+  },
   server: {
     port: 1420,
     strictPort: true,

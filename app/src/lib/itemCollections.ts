@@ -1,4 +1,4 @@
-import { computed, ref, type Ref } from 'vue'
+import { computed, ref, type Ref } from '@/lib/reactiveStore'
 import { t } from '@/lib/uiLocale'
 
 export const QUICK_COLLECTION_ID = 'favorites'

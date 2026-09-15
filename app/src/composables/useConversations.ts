@@ -1,4 +1,4 @@
-import { computed, getCurrentInstance, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, getCurrentInstance, nextTick, onBeforeUnmount, ref, watch } from '@/lib/reactiveStore'
 import { invokeCommand, listenEvent } from '@/desktop'
 import type { CodingCompactionResult, CodingProjectMemory } from '@/codingEnvironmentTypes'
 import {

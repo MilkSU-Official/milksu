@@ -1,7 +1,7 @@
-import { onBeforeUnmount, onMounted, ref, watch, type Ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch, type Ref } from '@/lib/reactiveStore'
 import { invokeCommand } from '@/desktop'
 import type { EnvLease, EnvOwnerKind, EnvPackage } from '@/envbroker'
-import type { EnvironmentLease, EnvironmentProvider } from '@/components-vue/lab-env/environmentTypes'
+import type { EnvironmentLease, EnvironmentProvider } from '@/lib/environmentTypes'
 
 function mapProvider(value: string | undefined): EnvironmentProvider {
   if (value === 'docker') return 'docker'

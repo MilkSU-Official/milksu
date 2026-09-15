@@ -4,12 +4,12 @@ import { describe, expect, it } from 'vitest'
 
 const sourceRoot = join(import.meta.dirname, '..')
 const chinese = /[\u4e00-\u9fff]/
-const skipName = /\.test\.ts$|\.d\.ts$/
+const skipName = /\.test\.tsx?$|\.d\.ts$/
 const scanRoots = [
-  join(sourceRoot, 'components-vue'),
+  join(sourceRoot, 'components'),
   join(sourceRoot, 'composables'),
   join(sourceRoot, 'lib'),
-  join(sourceRoot, 'App.vue'),
+  join(sourceRoot, 'App.tsx'),
   join(sourceRoot, 'codingSkills.ts'),
   join(sourceRoot, 'codingContinuity.ts'),
   join(sourceRoot, 'modelCatalog.ts'),
@@ -24,7 +24,7 @@ function walk(target: string): string[] {
     const path = join(target, entry)
     const next = statSync(path)
     if (next.isDirectory()) files.push(...walk(path))
-    else if (/\.(vue|ts)$/.test(entry) && !skipName.test(entry)) files.push(path)
+    else if (/\.(tsx|ts)$/.test(entry) && !skipName.test(entry)) files.push(path)
   }
   return files
 }
@@ -82,7 +82,7 @@ function isStoredOrAgentChinese(line: string): boolean {
   if (/\bprompt\s*:/.test(text)) return true
   if (/用户当前请求：|本轮通过 Playwright|本轮使用已锁定/.test(text)) return true
   if (/===\s*['`]/.test(text) || /!==\s*['`]/.test(text)) return true
-  if (/\bvalue:\s*['`]/.test(text) || /model-value=/.test(text)) return true
+  if (/\bvalue:\s*['`]/.test(text) || /model-value=/.test(text) || /defaultValue=/.test(text)) return true
   if (/\bstatus:\s*['`]/.test(text)) return true
   if (/\bcacheState:\s*['`]/.test(text)) return true
   if (/\.statuses\[/.test(text)) return true

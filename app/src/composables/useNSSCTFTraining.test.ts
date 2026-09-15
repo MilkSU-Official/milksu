@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { nextTick } from 'vue'
+import { nextTick } from '@/lib/reactiveStore'
 import type { NSSCTFCatalogQuery, NSSCTFCatalogSearchResult, NSSCTFTrainingDashboard } from '@/nssctfTrainingTypes'
 
 const { invokeCommand } = vi.hoisted(() => ({

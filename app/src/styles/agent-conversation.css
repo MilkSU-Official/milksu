@@ -3,7 +3,7 @@
   --agent-ok: #1f7a4d;
   --agent-danger: #b42318;
   --agent-hold: #a35b10;
-  --agent-island-radius: 16px;
+  --agent-island-radius: 22px;
   --agent-code-radius: 10px;
   --agent-chip-radius: 8px;
   --agent-control-radius: 10px;
@@ -1298,14 +1298,14 @@
   cursor: pointer;
 }
 
-[data-agent-conversation] .context-sidebar .tactical-panel-shell__body :deep(section) {
+[data-agent-conversation] .context-sidebar .context-rail__body section {
   margin: 0 0.5rem 0.15rem;
   border: 0;
   border-radius: 8px;
   padding: 0.7rem 0.5rem;
 }
 
-[data-agent-conversation] .context-sidebar .tactical-panel-shell__body :deep(.border-b) {
+[data-agent-conversation] .context-sidebar .context-rail__body .border-b {
   border-bottom: 0;
 }
 
@@ -1352,19 +1352,11 @@
 }
 
 [data-agent-conversation] .chat-composer__island {
-  border: 1px solid var(--agent-hairline);
+  border: 0;
   border-radius: var(--agent-island-radius);
-  background: var(--surface-clear);
-  backdrop-filter: var(--surface-blur);
-  -webkit-backdrop-filter: var(--surface-blur);
-  box-shadow: var(--agent-float-shadow), var(--surface-specular);
-}
-
-[data-agent-conversation] .chat-composer__island:focus-within {
-  box-shadow:
-    var(--agent-float-shadow),
-    var(--surface-specular),
-    0 0 0 1px color-mix(in srgb, var(--agent-accent) 45%, transparent);
+  background: var(--surface-raised);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 [data-agent-conversation] .agent-turn .markdown-content .agent-code {
@@ -1391,8 +1383,8 @@
   user-select: none;
 }
 
-[data-agent-conversation] [data-button],
-[data-agent-conversation] button:not(.agent-chip):not(.agent-think__summary),
+[data-agent-conversation] [data-button]:not(.chat-composer__add):not(.chat-composer__send):not(.chat-composer__stop),
+[data-agent-conversation] button:not(.agent-chip):not(.agent-think__summary):not(.chat-composer__add):not(.chat-composer__send):not(.chat-composer__stop),
 [data-agent-conversation] .tactical-action {
   border-radius: var(--agent-control-radius);
 }

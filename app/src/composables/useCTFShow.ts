@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { ref } from '@/lib/reactiveStore'
 import { invokeCommand } from '@/desktop'
 import type {
   CTFShowCatalogStatus,

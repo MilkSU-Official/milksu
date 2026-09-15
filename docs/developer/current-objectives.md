@@ -69,7 +69,7 @@
 | 优先级 | 事项 | 完成标准 |
 | --- | --- | --- |
 | P0 | 产品回归 | 改对话 / 引擎 / DSH / 隔离浏览器后跑 `npm run test:product-loop`。见 [产品回归循环](product-regression-loop.md)。Settings「评测」不替代这条。C9 / C15 / C16 / C20 已确认；DSH A/B/C 已复验。 |
-| P0 | React + shadcn | 新页和重构只走 React + shadcn。不再跟 DSH web GUI，不再加 Felinic / Vue SFC。Desktop RPC 与 Go 不动。先立 Vite/React 入口和 shadcn 基础件，再按壳 → 对话 → 设置 → 领域页替换。 |
+| P0 | React + shadcn | 新页和重构只走 React + shadcn。不再跟 DSH web GUI，不再加 Felinic / Vue SFC。Desktop RPC 与 Go 不动。先立 Vite/React 入口和 shadcn 基础件，再按壳 → 对话 → 设置 → 领域页替换。细节优化前先清下面「迁移残留」。 |
 | P0 | Pi Runtime 用户验收 | 跨目录读写、CTF/CVE 交接、长输出续跑、重启恢复；无 MilkSU 自建 workspace 策略或旧 session ID。 |
 | P1 | 下一版三端回执 | 新版本号、同一 source commit、三端产物、SHA-256 与平台验收。安装包见 README。 |
 | P1 | OTA / current pointer | 侧栏先检查再下载；安装失败可见；CI 上传后发布 current pointer。 |
@@ -82,6 +82,21 @@
 
 CVE：点进档案复现，Agent 改 `report.md`。实验室：独立入口，练习包起本机 Docker / AVD 或用户给地址，活报告 + 对话小窗。环境契约见 [靶机、环境经纪与活靶面](/architecture/target-environments)。
 
+### React 迁移残留（行为 / 风格，留给细节优化）
+
+行为可能和旧 Vue + Felinic 不一致：
+
+- Settings / Profile / Eval / Vuln / Lab 本地状态走 `reactiveStore` + `useVueStore`（已无 Vue runtime）。卸载时机和旧的 `onBeforeUnmount` 可能差一拍。
+- Dialog / Select / Dropdown / Switch 从 Felinic `v-model` 换成 Radix `open` + `onOpenChange`。点遮罩关闭、Esc、焦点陷阱、Select 受控值可能和旧的不一样。
+- 已访问的 CTF / CVE / Lab 会留在树上用 `display:none` 藏起来（相当于旧 KeepAlive）。对话右栏是 `ContextRail`。`CodingComposerControls` 不再补 `[data-button]::before`。
+- Vite / 浏览器 demo 没有 `window.milksu`。设置页不再把 `desktop runtime is unavailable` 当成产品错误；完整设置和插件列表要 Electron。
+
+风格（C：shadcn zinc，彩蛋后加）：
+
+- `index.css` 已是不透明 zinc + 墨色 `--primary`。`ak-ui.css` / `beautiful-chrome.css` 已从树上删掉，不要当现行语言加回来。
+- 登录、目录筛选、难度/严重性、连接状态、设置导航已改 Button / Badge / Alert。LIVE/AUTH 彩蛋未加回。
+- 产品入口是 `main.tsx`；`@felinic/ui` / Vue 已从 `app/` 生产依赖拿掉。`packages/ui` 仍是独立 Felinic 包，不进 renderer。
+
 ## 不要重复打开
 
 只在新复现、自动化失败或用户明确要求时重开：已撤单会话图谱；Wails/CEF；workspace-only 文件工具；Security Bridge / `continue_ctf_job`；关键词意图路由；自建计费；把 dirty HEAD 写成已发版；M3/M4 台账。
@@ -93,4 +108,4 @@ CVE：点进档案复现，Agent 改 `report.md`。实验室：独立入口，�
 - 实验室：未知洞探测，不是对外红队，也不是 CTF 环境包。
 - Memory：用户能力事实必须能链到 Judge、正式 Evidence 或用户确认。
 - 依赖方向：`React → Preload / RPC → Application Service → Domain / Runtime → Adapter`。当前安装包仍是 Vue 入口。
-- 触碰 `CTFPage.vue`、`app.go`、`bridge-policy.js`、`browsercap/manager.go` 或 Runner/Recovery 时，不往热点文件再加一份通用 harness。
+- 触碰 `CTFPage.tsx`、`app.go`、`bridge-policy.js`、`browsercap/manager.go` 或 Runner/Recovery 时，不往热点文件再加一份通用 harness。

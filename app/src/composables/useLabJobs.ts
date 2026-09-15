@@ -1,4 +1,4 @@
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch } from '@/lib/reactiveStore'
 import { invokeCommand } from '@/desktop'
 import { t } from '@/lib/uiLocale'
 

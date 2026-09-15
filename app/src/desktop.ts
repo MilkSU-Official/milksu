@@ -559,6 +559,10 @@ export function hasDesktopRuntime(): boolean {
   return Boolean(window.milksu)
 }
 
+export function isMissingDesktopRuntime(reason: unknown): boolean {
+  return /desktop runtime is unavailable/.test(desktopErrorMessage(reason))
+}
+
 /** Strip Electron IPC wrapping so product UI can show the Go/Pi error. */
 export function desktopErrorMessage(reason: unknown) {
   let message = String(reason ?? '').trim()

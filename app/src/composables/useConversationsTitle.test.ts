@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
-import { createApp, defineComponent, h, nextTick, type App } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { nextTick, runWithLifecycle } from '@/lib/reactiveStore'
 import {
   fallbackConversationTitle,
   useConversations,
@@ -30,22 +30,13 @@ vi.mock('@/desktop', () => ({
   ),
 }))
 
-const mountedApps: App[] = []
+const mountedStores: Array<{ unmount: () => void }> = []
 
 function mountConversations() {
-  let conversations!: ReturnType<typeof useConversations>
-  const root = defineComponent({
-    setup: function ConversationsTitleFixture() {
-      conversations = useConversations()
-      return () => h('div')
-    },
-  })
-  const host = document.createElement('div')
-  document.body.append(host)
-  const app = createApp(root)
-  app.mount(host)
-  mountedApps.push(app)
-  return conversations
+  const host = runWithLifecycle(() => useConversations())
+  host.mount()
+  mountedStores.push(host)
+  return host.value
 }
 
 async function settle() {
@@ -62,7 +53,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  for (const app of mountedApps.splice(0)) app.unmount()
+  for (const store of mountedStores.splice(0)) store.unmount()
   document.body.innerHTML = ''
 })
 

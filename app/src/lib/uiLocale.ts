@@ -1,25 +1,39 @@
-import { reactive } from 'vue'
-
 export type UiLocale = 'zh' | 'en'
 
-const localeState = reactive<{ locale: UiLocale }>({ locale: 'zh' })
+type Listener = () => void
+
+let locale: UiLocale = 'zh'
+const listeners = new Set<Listener>()
+
+function notify() {
+  for (const listener of listeners) listener()
+}
 
 export function normalizeUiLocale(value: unknown): UiLocale {
   return String(value ?? '').trim().toLowerCase() === 'en' ? 'en' : 'zh'
 }
 
 export function uiLocale(): UiLocale {
-  return localeState.locale
+  return locale
 }
 
 export function applyUiLocale(value: unknown) {
-  const locale = normalizeUiLocale(value)
-  localeState.locale = locale
+  const next = normalizeUiLocale(value)
+  if (next === locale) return
+  locale = next
   const root = typeof document === 'undefined' ? null : document.documentElement
   if (root) root.lang = locale === 'zh' ? 'zh-CN' : 'en'
+  notify()
 }
 
-/** Chinese-first copy. Reading localeState makes every render reactive. */
+export function subscribeUiLocale(onChange: () => void) {
+  listeners.add(onChange)
+  return () => {
+    listeners.delete(onChange)
+  }
+}
+
+/** Chinese-first copy. subscribeUiLocale / useT make the chrome re-render. */
 export function t(zh: string, en: string): string {
-  return localeState.locale === 'en' ? en : zh
+  return locale === 'en' ? en : zh
 }

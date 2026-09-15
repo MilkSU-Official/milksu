@@ -7,6 +7,6 @@
  * `keyCode === 229` covers platforms and input methods that do not set
  * `isComposing` on the keydown.
  */
-export function isComposingKey(event: KeyboardEvent): boolean {
-  return event.isComposing || event.keyCode === 229
+export function isComposingKey(event: { isComposing?: boolean; keyCode?: number }): boolean {
+  return Boolean(event.isComposing) || event.keyCode === 229
 }

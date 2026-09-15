@@ -19,7 +19,7 @@ test("baseline: auto-compact is 80 percent and keeps failed-experiment details",
 
 test("baseline: composer has /compact, /rewind and /handoff", async () => {
   const source = await readFile(
-    join(root, "app/src/components-vue/ChatComposer.vue"),
+    join(root, "app/src/components/ChatComposer.tsx"),
     "utf8",
   );
   assert.match(source, /id: 'compact'/);

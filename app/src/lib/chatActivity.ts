@@ -288,7 +288,7 @@ export function settleRunningToolMessages(messages: Message[]): Message[] {
   ))
 }
 
-export function detailsToggleOpen(event: Event): boolean | undefined {
+export function detailsToggleOpen(event: { target: EventTarget | null; currentTarget: EventTarget | null }): boolean | undefined {
   if (event.target !== event.currentTarget) return undefined
   const details = event.currentTarget as { open?: unknown } | null
   return typeof details?.open === 'boolean' ? details.open : undefined

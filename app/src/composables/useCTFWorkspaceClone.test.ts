@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { describe, expect, it } from 'vitest'
-import { reactive } from 'vue'
+import { reactive } from '@/lib/reactiveStore'
 import type { CTFChallengeRequest } from '@/ctfTypes'
 import { toDesktopCTFChallengeRequest } from './useCTFWorkspace'
 

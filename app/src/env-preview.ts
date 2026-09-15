@@ -1,7 +1,8 @@
 import '@fontsource-variable/inter'
 import '@fontsource-variable/noto-sans-sc'
-import { createApp } from 'vue'
-import LabEnvironmentPreview from '@/components-vue/lab-env/LabEnvironmentPreview.vue'
+import { createElement, StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
+import LabEnvironmentPreview from '@/components/lab-env/LabEnvironmentPreview'
 import { applyHostPlatform } from '@/lib/hostPlatform'
 import { applyThemeMode } from '@/lib/themeMode'
 import './index.css'
@@ -21,4 +22,7 @@ window.milksu = {
 applyHostPlatform()
 document.documentElement.dataset.colorScheme = 'memoh'
 applyThemeMode('dark')
-createApp(LabEnvironmentPreview).mount('#app')
+
+const root = document.getElementById('app')
+if (!root) throw new Error('MilkSU renderer root #app is missing')
+createRoot(root).render(createElement(StrictMode, null, createElement(LabEnvironmentPreview)))

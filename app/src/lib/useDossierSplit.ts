@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { ref } from '@/lib/reactiveStore'
 
 const MIN_WIDTH = 280
 const MAX_RATIO = 0.62
