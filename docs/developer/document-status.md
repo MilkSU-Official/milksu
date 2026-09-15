@@ -21,17 +21,16 @@
 
 ## 当前事实摘要
 
+实现细节以 [当前开发目标](current-objectives.md) 和 [当前系统](../architecture/current-system.md) 为准，本表只作索引。
+
 | 事实 | 当前状态 |
 | --- | --- |
-| 许可证 | 主项目为 `AGPL-3.0-only`（`LICENSE` / `NOTICE`）。第三方仍保留原许可。Obelisk 作为计划嵌入的 AGPL 记忆组件与此兼容；尚未 vendored。 |
-| Linux | Ubuntu/Debian 共用 x64 DEB，Omarchy/Arch/Nix 共用 x64 tarball。GNOME Wayland Computer Use 走 Portal。无 Secret Service、本地 OCR；Hyprland / Xorg Computer Use unavailable。ISSUE #19 已关闭。合同见 [Linux 安装与桌面合同](linux-platform-support.md)。 |
-| Agent Harness | Pi 拥有 Session、Compaction、自然语言理解、通用文件/Shell 与 Tool Loop。Coding/CTF/CVE/实验室共用完整 Coding loop；工具结果进模型前截到 Pi 的 50KB/2000 行。产品工具 when-to-use 只留在 description 与 Skill 名录。新对话可选 Pi 或 DeepSeek Harness。工作树 DSH 已钉 0.1.6-alpha.1：产品 MCP / Skills / 停止 / 所选型号 / 官方 `playwright-mcp` 懒挂 / host compact / `session/resume`；DeepSeek 会话不能 rewind / 分叉。产品回归入口是 `npm run test:product-loop`，见 [产品回归循环](product-regression-loop.md)；`desktop-surface` 优先 Computer Use 观察计算器，不可用降级隔离浏览器 CDP。与 Settings「评测」分开。不扫描用户句子做关键词/正则意图路由。未打进安装包。 |
-| 上下文工程 | 主会话 cwd 经监督器校验后注入 Pi；writer worktree 只在模型委托 effectful 角色时从当前提交准备，用本回合 cwd / 会话绑定 / 已存项目路径，不把空请求收成「无项目任务」。不要求主工作区干净，未提交改动不进入。窗口优先级：手动覆盖 > catalog（忽略旧占位）> 型号族预设 > 保守默认。型号族窗口、输出上限和思考档位以 [models.dev](https://models.dev/) 为公开基准。`/rewind` 走 Pi `navigateTree`，`/handoff` 走分叉 + compact。空闲约 80% 自动走同一 compact 路径。 |
-| MilkSU 宿主边界 | 只保留会话目录记录、Provider 凭据隔离、桌面授权、领域事实/Judge，以及危险大目录删除二次确认。凭据经子进程环境在 spawn 时注入：轮换惰性抵达下一回合，撤回或关掉正在用的 Key 立即停掉旧进程。Coding 另有类型化 `milksu_workspace` 与对话级批准，不替代 Pi 工具循环。 |
-| 模型与附件 | 账户 TokenFlux 与本机 Provider 共用可调用模型目录；附件原图进入当前回合，不再由 MilkSU 按目录白名单标成纯文本再改走 OCR。 |
-| 网页查证 | Coding 复用固定 revision 的 Pi `web_search` / `web_fetch` Extension，已保留真实搜索和官方页面读取回执。 |
-| Obelisk | 会话索引底层保留；Coding 右栏和环境页的单会话“相关历史”、过滤、搜索与图谱前端已经移除。 |
-| 下一发行流水 | 干净已推送的 `main` 上跑一次 canonical 验证；三端走 GitHub-hosted 云端。正式打包上传 OTA 并发布 current pointer；GitHub Release 只上用户安装包。 |
+| 许可证 | `AGPL-3.0-only`。Obelisk 兼容、尚未 vendored。 |
+| Linux | 共用 x64 DEB + tarball。GNOME Portal Computer Use。无 Secret Service / 本地 OCR。见 [Linux 合同](linux-platform-support.md)。 |
+| Agent | Pi 拥有 Session / Compaction / Tool Loop。新对话可选 DSH（工作树钉 `0.1.6-alpha.1`）。产品回归 `npm run test:product-loop`。不扫描用户句子做意图路由。 |
+| 宿主 | 会话目录、凭据隔离、桌面授权、Judge、危险删除确认。 |
+| 模型与附件 | 账户与本机目录共用；附件原图进当前回合。 |
+| 发行 | 干净 `main` 验证一次；三端云端打包。OTA 走私有 R2；GitHub Release 只上安装包。 |
 
 ## Canonical 文档职责
 
@@ -48,16 +47,13 @@
 
 ## 当前边界
 
-- MilkSU 是 Electron/Chromium + Vue 桌面壳、受管 Go Runtime 和 Pi Sidecar；不再维护 Wails/CEF 双壳。
-- Coding、CTF、CVE、实验室共用 Pi 通用能力；CTF 增加题目事实与 Judge，CVE/实验室增加档案或作业与活报告。
-- 浏览器、Browser Use、Computer Use 是三个不同 Scope；面板折叠只改变可见性，不应停止 Session。
-- Provider Key 不进入 renderer、模型上下文、Shell、后台任务、日志、诊断或文档。
-- 用户可见产物位于各操作系统用户文档目录的 `MilkSU` 子目录；Runtime、凭据、Obelisk、浏览器 Profile 和恢复数据位于平台用户配置目录。
-- CTF 成功必须来自独立 Judge 或用户明确确认。CVE 发行面仍是学习/追踪；开发线已有点进档案后的复现报告。「实验室」是独立一级入口，不是 CTF 可重置环境。对用户未授权的外部目标，仍需要可见、准确的授权。模型候选不能写成已确认漏洞。
-- Beta 只用于用户明确要求的 MilkSU 自举；普通开发、测试和发行准备不构建 Beta。
-- 可下载的最新版只写在 README。晚于该安装包的 `main` 只描述当前仓库。
-- 仓库已公开。签名 / 公证 / R2 材料只在 `macos-release` environment secrets 与本机 Personal Vault；Secret scanning 与 push protection 已打开。`macos-release` 只能从 `main` 部署，没有 required reviewer；dispatch 后立即注入 secrets。`main` 由 ruleset 保护：禁止强推和删分支，只有维护者可直接推送；协作者走 PR。
-- 产品 UI 设计语言只写在仓库根目录 `AGENTS.md`。`docs/design/current-visual.md`、切片对照表和旧战术档案 / 酸绿稿已删除，不再作为实现约束。
+- Electron/Chromium + Vue + 受管 Go + Pi Sidecar。不再维护 Wails/CEF。
+- Coding / CTF / CVE / 实验室共用 Pi 通用能力。浏览器、Browser Use、Computer Use 是三个 Scope；折叠面板不停止 Session。
+- Provider Key 不进 renderer、模型上下文、日志或文档。
+- 产物在文档目录 `MilkSU`；Runtime、凭据、Obelisk、浏览器 Profile 在用户配置目录。
+- CTF 成功只来自 Judge 或用户确认。未授权外部目标要可见授权。模型候选不能写成已确认漏洞。
+- Beta 只用于明确要求的自举。可下载最新版只写在 README。
+- 签名 / 公证 / R2 只在 `macos-release` 与本机 Vault。产品 UI 只写在 `AGENTS.md`。
 
 ## 文档生命周期
 

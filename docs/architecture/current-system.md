@@ -3,27 +3,27 @@
 > 文档状态：Current
 >
 > 事实审计：2026-09-15。本页描述当前代码结构，不安排任务。
-> 发行回执与已发行/未打进安装包的分界见 [当前开发目标](/developer/current-objectives)。
+> 发行回执见 [当前开发目标](/developer/current-objectives)。产品 UI 只写在 `AGENTS.md`。
 
 ## 系统上下文
 
 ```mermaid
 flowchart LR
-    learner["学习者<br/>指导 Agent、审批效果、审阅证据"]
-    provider["模型 Provider<br/>账户 TokenFlux / 已配置个人 Provider"]
-    local_tools["本机安全工具<br/>IDA Pro / capa / 后续适配器"]
-    user_browser["用户真实浏览器<br/>Playwright MCP Extension"]
-    native_apps["外部原生 App<br/>Computer Use Scope"]
-    ctf_platforms["CTF 平台<br/>NSSCTF / CTFshow"]
-    account_cloud["Cloudflare 账户、用户模型凭据与发行服务<br/>Worker + D1 + private R2"]
+    learner["学习者"]
+    provider["模型 Provider"]
+    local_tools["本机安全工具"]
+    user_browser["用户真实浏览器"]
+    native_apps["外部原生 App"]
+    ctf_platforms["CTF 平台"]
+    account_cloud["账户与发行服务"]
 
-    subgraph milksu["MilkSU 本地桌面系统"]
-        chromium["Electron / Chromium 桌面壳<br/>Vue UI + 内置浏览器"]
-        go["Go Runtime<br/>应用服务 + 安全边界"]
-        pi["Pi Sidecar<br/>Session + Compaction + Tool Loop"]
-        security["Security Runtime<br/>CTF / CVE 事实与 Judge"]
-        local["内部运行状态<br/>SQLite + Runtime Artifact"]
-        deliverables["用户可见产物<br/>Documents/MilkSU"]
+    subgraph milksu["MilkSU 本地桌面"]
+        chromium["Electron / Vue"]
+        go["Go Runtime"]
+        pi["Pi Sidecar"]
+        security["CTF / CVE / Judge"]
+        local["SQLite + Artifact"]
+        deliverables["Documents/MilkSU"]
     end
 
     learner --> chromium
@@ -39,99 +39,65 @@ flowchart LR
     chromium <--> account_cloud
 ```
 
-MilkSU 当前不是“Wails 中嵌一个浏览器”。整个桌面壳已经建立在 Electron/Chromium 上：Vue
-产品表面运行在主 `BrowserWindow`，右栏浏览器是同一壳中的 `WebContentsView`；Go 作为受管本地
-Runtime 进程运行，不拥有 GUI。
+桌面壳是 Electron/Chromium：Vue 在主 `BrowserWindow`，右栏浏览器是同壳 `WebContentsView`。Go 是受管 Runtime，不拥有 GUI。
 
-## 桌面 GUI 的执行表面
+## 桌面执行表面
 
-MilkSU 的桌面壳不是通用 Agent Loop 的另一份实现。Pi 仍负责会话、上下文和工具循环；桌面 GUI
-负责把模型的外部动作变成用户可见、可限定、可接管的执行表面。相比只在终端里输出工具日志，
-这里的产品差异是：人和 Agent 可以观察并操作同一对象，授权绑定到准确对象，而不是绑定到一句
-模糊的“允许控制电脑”。
+Pi 拥有会话、压缩和工具循环。桌面 GUI 把外部动作变成可见、可限定、可接管的表面。
 
-| 表面 | Agent 操作的对象 | 用户可见与可控状态 | 不应混淆的边界 |
-| --- | --- | --- | --- |
-| 浏览器 | MilkSU 管理的会话隔离 `WebContentsView` | 同一页面、地址、导航、当前会话与停止动作 | 不是外部 Chrome，不复用用户日常登录态 |
-| Browser Use | 用户真实 Chrome/Edge 中明确选择的标签页 | Composer 中可删除的标签页 Scope、配对状态与撤销入口 | 不获得整个 Profile，也不替代 CTF 平台 Judge |
-| Computer Use | macOS / Windows：明确选择的外部 App / PID / Window；Linux GNOME：整桌面 Portal | 可见 Scope、系统权限状态、运行轨迹与停止动作 | 像素级操作不替代隔离浏览器或 Browser Use；Linux 不是窗口 Scope，Hyprland / Xorg unavailable |
-
-三种表面还共享一个生命周期不变量：**面板显隐只改变观察视图，不改变执行 Session**。右栏折叠、
-切换页面或用户回到聊天区时，已授权任务不应因此停止；用户重新展开后应看到同一会话的最新状态。
-显式停止、撤销 Scope、任务结束、进程退出或策略拒绝才终止能力。这个不变量必须用打包 App 的
-真实任务验收，不能由按钮存在、模型自述或单张截图代替。
-
-## 当前能力事实
-
-| 边界 | 状态 | 当前证据与限制 |
+| 表面 | 对象 | 边界 |
 | --- | --- | --- |
-| Electron/Chromium 桌面壳 | **Implemented / packaged** | `desktop/main.cjs` 创建主窗口、注册 `milksu://app`、监管 Go Runtime 并承载右栏 `WebContentsView`；`desktop/preload.cjs` 只暴露调用与事件订阅。`26.904.1` 起窗口铬按平台：macOS `hiddenInset` 与侧栏红绿灯；Windows/Linux 隐藏原生 caption，画布色 `titleBarOverlay`，系统按钮在右上。旧 Wails 配置、绑定和 CEF 原型已从生产链删除。 |
-| Vue 产品表面 | **Implemented / partial** | CTF、CVE、实验室、Coding、设置、Composer、右栏与 Bottom Dock 均复用现有 Vue。CVE 点进档案后复现，实验室是独立一级入口；两者共用可拖放对话小窗和 `report.md`。`26.905.1` 起材料层是克制清透填充：一层不透明 wash，侧栏/卡片单层半透明。`26.911.1` 起菜单 / Dialog / 对话小窗用实底 `--surface-overlay`，不再靠 `backdrop-filter` 保证可读；Composer 岛仍可轻模糊。窗口仍不透明。产品 UI 设计语言只写在仓库根目录 `AGENTS.md`；行为走 Felinic。单会话“相关历史”、搜索、过滤和图谱前端已移除；生产前端只接受 Preload API，Vitest mock 隔离在测试入口。侧栏 footer 是版本号、日夜调节和设置按钮；收起时两个图标都保留。 |
-| 个人资料 | **Implemented / packaged** | 左上角用户头像打开个人菜单；个人页按本机任务活动展示活跃格、CTF/CVE/Coding 模糊阶段和最近活动。工具调用不单独计数，全局六维雷达不再挂载。当前阶段不是独立能力评分；Obelisk 只提供历史线索，尚未成为可归因成长事实源。 |
-| 内测账户与模型来源 | **Deployed / desktop verified** | 系统浏览器 GitHub PKCE、稳定/测试版独立回调和 `0600` 本地不透明会话已实现；打包客户端指向 `accounts.milksu.org`。Admin 为每个用户保存一份加密的 TokenFlux 凭据，Electron 用账户会话取得后只交给 Go，Go 写入现有 `credentials.db`；Key 不返回 renderer，不进入日志、模型上下文或普通配置文件。模型请求直接发往 `https://tokenflux.dev/v1`，MilkSU 不再承载余额、价格映射、扣费流水、超限或代理计费。Go Model Catalog 获取与当前 Key 分组一致的模型并以 `0600` last-known-good 同时驱动设置、Composer 与 Pi；运行时隐藏未配置的原厂 Provider，并把旧 `x-ai/grok-4.6` 选择对齐为目录中的 `grok-4.6`。2026-08-15 本地 Stable 包经 Computer Use 使用账户分配模型完成真实 Coding 回合；非分组模型请求得到 `404 model_not_found`。用户仍可在设置中配置各原厂 Provider 或简单 OpenAI-compatible 中转站，元数据进入 `providers`，各 Key 进入同一 Credential Store；未配置的来源不进入任务模型列表。Admin 对应提交 `89b2037`，客户端链路已进入 `v26.817.1 / main@783679f` 正式内测发行。 |
-| 双来源模型路由 | **Implemented / packaged in 26.817.1, catalog rules in 26.818.1** | `milksu-route` 只负责账户与个人来源的选择和安全回退；外层占位认证不得进入具体 Provider。2026-08-16 修复转发时覆盖真实来源凭据的 `401`：路由在调用来源前移除外层 `apiKey` 与 `Authorization`，让 Pi 按所选来源重新解析凭据。两个来源的只读目录请求均为 `200`，真实 `grok-4.5` 双来源调用选择 `account` 并返回 `MILKSU_ROUTE_OK`；该修复已进入 `26.817.1 / main@783679f`。账户模型权限边界随后合入 `main`（东云，PR #3）：账户凭据优先产生带 `credential_source` 的权威目录，缺失模型在请求前跳过；目录未知时仍尝试来源，并在首个内容输出前把 TokenFlux `model_not_found` / `not supported by any configured account` 分类为安全回退。设置页与 Coding 共用同一可调用目录。这些目录规则已进入 `26.818.1` 正式内测包。 |
-| OTA 更新 | **Implemented** | 已登录 Stable 主进程每分钟带 Bearer 询问 `/v1/releases/latest?platform&arch`。有新版本时侧栏左下角出现下载按钮；下载完无运行中会话则安装重启，有则对话框确认。macOS 优先下载公证 DMG，校验 bundle / 版本 / 签名团队后 ditto 成 ZIP，再经本机回环交给 electron-updater；Windows 用 NSIS。打包时把 sidecar 许可证改成属主可写，避免 Squirrel ShipIt 卸隔离属性失败后仍拉起旧包。Linux dpkg 安装走 pkexec，tarball 解压到当前前缀，Nix store 不自动更新。Admin 按 `(channel, platform, arch)` 各有 current pointer；Worker 不返回 R2 key。无感更新先整包校验 SHA-256。安装失败可见。从磁盘镜像或不在 `.app` 里运行时说明先装进应用程序文件夹。GitHub Release 提供 DMG/EXE/DEB/x64 tar.gz，不上 OTA ZIP。Beta 不启用 updater。 |
-| Go Runtime | **Implemented / concentrated** | `cmd/milksu-backend/main.go` 启动应用组合根和 JSONL RPC；同目录的 `desktop_rpc.go` 分派现有 App 方法并传递事件，`desktop_host.go` 把文件对话框、外链和浏览器宿主能力反向委托给 Electron。`app.go` 仍较集中，触碰时按纵切拆分。非活跃 Sidecar 停靠保活：每个 kernel 各留 3 个、硬上限 6、空闲 15 分钟，主动回收只写 `sidecar.stopped`。凭据轮换把进程标 stale，下一回合换新进程；撤回或关掉正在用的 Key 立即停并上报中断。退役进程仍接自己回合的控制通道。工作区动作不堵 stdout 读取循环。Pi `bash` 缺省 600 秒前台上界。没装 Git 时应用仍能启动。 |
-| 插件框架 | **Implemented / packaged in 26.911.1** | `internal/plugin` 是 `milksu.plugin/v1` 的可信控制面：验证确定性 Ed25519 包、发布者信任、宿主能力、安装/升级/回滚/卸载、事务存储和六个主题表面；Lua 与预编译 TypeScript 每次隔离调用，第三方工具只读。设置 iframe 通过 nonce 与类型化 broker 请求能力；外部 MCP 默认关闭、逐插件开启，并在元数据变化后刷新工具目录。官方皮肤和文本工具贯通该链路。`26.911.1` 避开 Node 26 解析器的 `realpathSync`，Windows 正式打包先核对干净源码再生成插件 dist。 |
-| Pi 通用 Agent | **Verified core / partial extensions** | Pi 继续拥有 Session、Compaction、模型、自然语言理解和通用 Tool Loop；MilkSU 监管 Sidecar、注入当前 Provider、投影事件并实施工作区/审批边界。MilkSU 不从普通 prompt 的关键词或格式推断 Agent 意图：GUI 一键动作和内部无工具投影分别使用 typed product action / typed turn policy。每回合向 Pi 注入无凭据的真实 OS、架构、路径和实际命令解释器事实，并把经 Go / Sidecar 校验的主会话 cwd 声明为权威目录；协作 writer worktree 只属于独立 effectful subagent 进程。Windows 保持 Pi 上游 Bash backend，需要原生 cmdlet 时显式调用 `powershell.exe`。受管 Sidecar 启用 Pi 原生长 prompt-cache retention，沿用稳定 Session ID；一次性压缩继续显式禁用缓存写入，不增加 MilkSU 缓存状态机。上下文窗口优先级为手动覆盖 > catalog（忽略旧 `128000` 占位）> 按 [models.dev](https://models.dev/) 对齐的型号族预设 > 保守默认；输出上限同样不用 `32768` / `16384` 占位。Composer 环按 Pi 组装分类。edit 锚点、`tool_result` bound、中途引导与子 Agent 结构化回传已进入 `26.904.1`。`26.905.1` 另把 `/rewind` / 最后一条用户消息「丢掉这段」（Pi `navigateTree`）与 `/handoff` / 用量环「接到新会话」（Pi 分叉 + 现行 compact）打进包；产品工具 when-to-use 只留在 description 与 Skill 名录，设置页可添加用户级 MCP/Skills 并覆盖内置项。GPT / Claude / DeepSeek / Grok / Gemini / Qwen 3.8 使用内置思考档位，其他模型只有经设置页手动声明后才进入该能力；Composer 保存对话级选择并只显示标准英文档位，Go 解析允许档位，Sidecar 通过 Pi 原生 `setThinkingLevel` 应用并让子 Agent 继承。核对表写在 `AGENTS.md`。当前 Pi 的 Provider effort 词表为 `off / minimal / low / medium / high / xhigh / max`，Codex `ultra` 多 Agent 编排不映射为模型 effort。已审核 Coding Skill 只向 Pi 常驻名称与用途，完整内容按任务或显式选择加载；设置只能停用审核目录。CTF / CVE / 实验室在 Pi Coding loop 之上叠加领域工具与 Judge，不再按角色关掉后台任务、Goal、LSP、Computer Use、终端或 `milksu_workspace`。Coding/CTF/CVE/实验室都强制 Pi 自动压缩，任务 UI `/compact` 不再按角色拒绝；工具结果进模型前截到 Pi 的 50KB/2000 行。CVE/实验室保留 `cve-research` / `lab-job` 角色。题目工作区绑定、未授权目标和独立 Judge 仍有效。`26.912.2` 起不再按目录白名单把模型标成纯文本或改走 OCR；附件原图进入当前回合，由模型或接口自己处理。不存在用户配置的辅助视觉会话。Linux 仍无本地 OCR。实时网页查证复用固定 Pi Web Extension 的 `web_search` / `web_fetch`，MilkSU 只把工具注册进当前会话与现有工具档位，不再维护第二套搜索决策；真实联网测试已先搜索再读取 xAI 官方 Grok 4.5 文档。`26.818.2` 起 Coding 另暴露类型化 `milksu_workspace`（标签、产物、环境/变更/终端）和 `compact_context`；上下文用量达到窗口约 80% 且 Session 空闲时自动走 Pi `/compact` 同一路径，用户 `/compact` 与 `compact_context` 立即排队该路径、不受 80% 限制。`替我审批` 自动执行隔离浏览器；可授权工具支持本对话始终允许。TokenFlux `grok-4.5` 多模态和一次真实文档自举已验；本轮真实 Provider 缓存命中率与 effort 请求尚未做计费链路验收，完整功能自举仍未完成。 |
-| 安全工具目录 | **Verified setup chain / real binary task pending** | “设置 → MCP”内置行使用真实 Desktop RPC 检测与持久化。IDA Pro/idalib 和 capa 具备可准备的固定版本适配器；就绪且启用后进入普通 Coding 的模型可选目录。用户可覆盖 command/args 或打开专用 Coding 工作区用自然语言改配置，并可恢复当前版本出厂默认。capa 仍是 `capa_analyze`，不是假 MCP。CodeQL、Burp Suite、Shannon 目前仅做本机/前提检测，不会被误报为模型可用。尚未用真实 crackme/二进制完成任务回执。当前也还没接到 CTF/CVE；需要时按切片接入，不必先等 Coding 回执再开会决定。 |
-| 内置浏览器 | **Verified packaged tasks; multi-tab in 26.818.2; Go auto-start removed in 26.819.1** | 产品 UI 只显示“浏览器”。每次 Coding 会话使用独立 `session.fromPath`，默认拒绝页面权限。`26.817.1` 起已有打包任务：Grok 只用浏览器完成顺序点击、表单提交和公开文档调研，右栏折叠后继续并保留同一页面终态。`26.818.2` 起标签栏 `+` 在启动前可见；每个标签是独立 `WebContentsView`，切换换页并更新地址。`26.819.1` 起隔离浏览器只在用户打开右栏或模型调用类型化 `milksu_workspace` 浏览器动作时启动；普通 Go 问候不再 `EnsureCodingBrowser`。`ScopedCDPProxy` 仍只公布当前一个 Target。 |
-| Browser Use | **Implemented UI / live pairing pending** | 真实用户 Chrome/Edge 复用固定 `@playwright/mcp --extension`，由用户选择准确标签页；不复用内置浏览器 profile。Linux / Windows 另查找本机 Chromium 家族（PATH、snap、Nix、桌面入口）；`v26.827.1` 已打入该查找路径，桌面配对回执仍待用户机。 |
-| Computer Use | **Verified self-bootstrap slice; Windows bounded driver packaged in 26.818.2; Linux GNOME Portal packaged in 26.827.1** | macOS / Windows 只接受外部可见 App/PID/Window Scope，含用户真实浏览器窗口；Calculator 与 Stable → MilkSU Beta 的 branch/commit/tracking 核验、click/scroll 及 CTF/CVE 任务连续性全程已验。Stable 排除自身；隔离浏览器与 Browser Use 仍是独立表面。任务授权可恢复，明确请求且只有一个合格目标时自动启动，准备期间的提交在就绪后自动续发，多目标仍需准确选择。右栏诊断和操作证据默认折叠。Windows Driver 钉在审阅过的 `cua-driver 0.27.0`，并列出无标题可见窗口。Driver 先走安装包/Sidecar；缺失时由类型化 `prepare_computer_use_driver` 准备 MilkSU 审阅副本，不走 Cua 官方安装脚本。Linux 按桌面会话：GNOME Wayland 走 XDG Desktop Portal（整桌面级，不是窗口 Scope）；Hyprland 与 Xorg unavailable，不走 `xinput`。ISSUE #19 已关闭。 |
-| CTF Runtime | **Implemented / Daily receipt partial** | `internal/ctf` 持有 Challenge、Evidence、Candidate、Judge Receipt、Recovery、Memory 与学习事实；模型候选不能建立成功事实。CTF 通用文件与 Shell 复用 Pi 原生工具及用户系统权限，不再复制 workspace-only 沙箱；MilkSU 只保留题目域工具、精确站点能力、凭据隔离、Judge 和证据投影。模型输出达到长度上限时通过 Pi `agent_end` / `followUp` 扩展点继续。Daily 由规则筛选未完成候选，再复用 Pi 结合近期题目、关联 Coding 对话、已确认事实和 Memory 选择并解释；结果按本地日期固定并允许主动换题，模型不可用时规则兜底。代码与自动化已回归，真实签名包用户视角仍待复验。 |
-| CVE Learning / Tracking | **Verified signed tracking slice; reproduction dossier in 26.822.1; public feeds in 26.823.1** | 用户界面只显示明确加入的公开 CVE、手工状态，默认文案为“想研究”。添加入口通过只读 Desktop RPC 搜索 NVD，用户选中后直接把当前结果和来源元数据写入本地追踪，不做第二次网络请求；参考资料按机构去重，完整集合仍由 NVD 承载。学习专题已从 CVE 页删除，同类搜索改走列表右上角「导入」弹窗。`26.822.1` 点进档案后复现：Agent 编辑 `report.md`，对话留在右下角小窗。`26.823.1` 起「同步公开源」写入本地缓存。`26.911.2` 起公开源同步不再自动进入「我的跟踪」；只有搜索「加入研究」、按编号加入或导入跟踪 JSON 才进列表。不以「复现成功 / 没复现上」当完成面。披露草稿还没做，不是禁令。 |
-| Obelisk / 记忆底座 | **Implemented backend / UI deferred** | MilkSU 自有索引仍只处理本机 Coding/CTF/CVE 会话；当前产品不展示单会话历史面板或图谱。后续学习记录/记忆系统应作为独立页面进入，不移除或混写 Obelisk 与 CTF Memory 底层事实。 |
-| Worktree / 自举 | **Delegation-triggered isolation / Git-gated / product loop partial** | writer worktree 在模型委托 effectful subagent（worker / verifier / debugger / docs-writer / refactorer）时准备，发消息本身不再准备；按本次委托的写入角色数要 writer，准备期间对话在模型动作位置显示一行进度。工作树由产品经 Pi 可变 `tool_call` input 分配给每个写入角色，模型只选角色，没有面向模型的 worktree 工具。准备用本回合 cwd / 会话绑定 / 已存项目路径，空请求不得收成「无项目任务」。主工作区脏不挡准备，writer 从 `baseHead` 检出，未提交改动不进入。复制：macOS 走 copy-on-write，其余平台走 `os.CopyFS`。没装 Git 时应用仍启动，准备时点名缺 Git。本仓库已删除 `.worktreeinclude`，不再搬 `node_modules`。子 Agent 的 Darwin `sandbox-exec` 启动链仍只有 macOS。detached HEAD 可以准备（`BaseBranch` 只是展示元数据）；子目录项目把相对路径接到工作树路径后面；从未提交过的项目目录点名拒绝。用户不再配置 worktree/writer；Git 摘要可列出文件并跳到“变更”。Stable → Beta 可见验收已通过，完整自然功能任务的自治 Git 交付仍待扩样。 |
-| 本地持久化 | **Implemented** | 用户可见 Coding/CTF/CVE/Lab 产物位于平台文档目录的 `MilkSU`；无项目 Coding 临时工作区位于用户配置目录的 `agent-workspaces` 并统一显示为“无项目任务”，不再制造用户可见的哈希项目目录。选择、粘贴和拖放的普通文件统一导入受管附件区并以哈希描述进入 Pi；普通文件与 Shell 恢复 Pi 内置工具和当前系统用户权限语义，MilkSU 不再持久化另一套 workspace-only 授权根或文件工具。Runtime Artifact、CTF Memory、Catalog、Conversation、Obelisk Session Index、Browser Profile 和 Credential Store 位于用户配置目录。会话归档存入 Conversation 目录下的独立归档区，恢复保留 Pi 上下文，永久删除才清理会话正文、Pi 持久化文件和索引副本。凭据不经桌面 RPC 返回 Vue，也不进入模型上下文。 |
-| 实验室 | **Implemented / packaged in 26.822.1；环境经纪 in 26.825.1** | 主导航「实验室」是未知漏洞探测作业。用户自带 URL 仍可用；`26.825.1` 另可从练习包起本机 Docker 靶或本机 AVD。Agent 把过程写进 `Documents/MilkSU/Lab` 下的 `report.md`。对话是可拖放小窗，不是整页 Coding。不是 Kali 应用商店，不整包接入 HexStrike MCP。安卓靶用受限 adb，不是 Computer Use。 |
-| CTF Managed Labs | **Not shipped** | CTF 本地房还不能引用环境经纪。Juice Shop / WebGoat / Vulhub / AVD 练习包已经挂在实验室和 CVE 档案（`26.825.1`），不是 CTF 题库里的环境包。 |
-| 产品回归 / 模型评测 | **Partial / not in install** | 产品契约走 `npm run test:product-loop`，用法见 [产品回归循环](/developer/product-regression-loop)。`desktop-surface` 优先 Computer Use 观察计算器，不可用降级隔离浏览器 CDP。Settings「评测」是 Cybench / SEC-bench / AutoPen 模型能力（`internal/evalsuite`）。NYU safe-static 仍是窄域开发者 bench。协调器不进 App 启动。 |
+| 浏览器 | 会话隔离 `WebContentsView` | 不是用户 Chrome |
+| Browser Use | 用户明确选择的 Chrome/Edge 标签 | 不拿整个 Profile，不替代 Judge |
+| Computer Use | macOS/Windows：可见 App/PID/Window；Linux GNOME：整桌面 Portal | 不替代另外两面；Hyprland/Xorg unavailable |
+
+面板显隐只改观察，不改执行 Session。停止、撤 Scope、任务结束或进程退出才终止。
+
+## 当前能力
+
+| 边界 | 状态 | 事实 |
+| --- | --- | --- |
+| 桌面壳 | packaged | `desktop/main.cjs` + Preload allowlist。macOS `hiddenInset`；Windows/Linux 画布色 overlay，系统按钮右上。 |
+| Vue 表面 | partial | CTF / CVE / 实验室 / Coding / 设置 / Composer / 右栏 / Bottom Dock。CVE、实验室用对话小窗 + `report.md`。设计语言见 `AGENTS.md`。 |
+| 账户与模型 | packaged | GitHub PKCE；TokenFlux Key 只进 Go Credential Store，请求 `https://tokenflux.dev/v1`。账户目录优先，可安全回退个人来源。 |
+| OTA | implemented | 已登录 Stable 轮询 Admin latest；macOS/Windows 走 electron-updater，Linux dpkg/tarball。GitHub Release 不上 OTA ZIP。 |
+| Go Runtime | implemented | JSONL RPC。Sidecar 停靠保活；凭据轮换惰性、撤回立即停。Pi `bash` 缺省 600 秒。 |
+| 插件 | packaged | `milksu.plugin/v1`：签名包、发布者信任、六个主题表面。 |
+| Pi | verified core | Session / Compaction / Tool Loop。Coding/CTF/CVE/实验室共用完整循环与 80% 自动压缩。`milksu_workspace`、`milksu_ask` 是产品工具。新对话可选 DSH（ACP，工作树钉 `0.1.6-alpha.1`）。 |
+| 安全工具 | setup 已通 | 设置 → MCP：IDA / capa 可准备。CodeQL / Burp / Shannon 仅检测。 |
+| 浏览器三面 | packaged / pairing pending | 隔离浏览器按会话；Browser Use 待桌面配对回执；Computer Use：macOS/Windows 窗口 Scope + CUA `0.27.0`，Linux GNOME Portal。 |
+| CTF / CVE / 实验室 | implemented | CTF 持题目、Evidence、Judge。CVE 点进档案复现。实验室起本机 Docker / AVD 或用户地址。CTF 本地房还不能引用环境经纪。 |
+| Worktree | delegation-triggered | 只在模型委托写入角色时准备；脏主区不进 writer。 |
+| 持久化 | implemented | 产物在文档目录 `MilkSU`；Runtime、凭据、Obelisk、浏览器 Profile 在用户配置目录。 |
+| 产品回归 | partial / 未进安装包 | `npm run test:product-loop`，见 [产品回归循环](/developer/product-regression-loop)。`desktop-surface` 优先 Computer Use，不可用降级隔离浏览器。Settings「评测」是另一条。 |
 
 ## 进程与 IPC
 
 ```mermaid
 flowchart TB
-    subgraph electron["MilkSU.app · Electron 主进程"]
-        window["BrowserWindow<br/>Vue 产品表面"]
-        preload["Preload Allowlist<br/>invoke + event"]
-        host["Electron Host<br/>dialog · shell · browser"]
-        browser["WebContentsView<br/>会话隔离浏览器"]
-        proxy["Scoped CDP Proxy<br/>loopback · single target"]
+    subgraph electron["Electron 主进程"]
+        window["BrowserWindow"]
+        preload["Preload"]
+        host["Host"]
+        browser["WebContentsView"]
+        proxy["Scoped CDP"]
     end
 
-    subgraph go_process["milksu-backend · Go Runtime"]
-        rpc["Desktop JSONL RPC"]
+    subgraph go_process["Go Runtime"]
+        rpc["JSONL RPC"]
         app["Application Services"]
-        runtime["CTF / CVE / Evidence Runtime"]
-        plugins["Plugin Control Plane<br/>package · trust · storage · theme · MCP"]
+        runtime["CTF / CVE Runtime"]
+        plugins["Plugin"]
         supervisors["Pi Supervisor"]
-        tool_catalog["Security Tool Service<br/>catalog · detect · setup · health"]
+        tool_catalog["Security Tool Service"]
     end
 
-    subgraph sidecar["受管 Node Sidecar"]
-        pi["Pi Session + Tool Loop"]
-        policy["Tool / Approval Policy"]
-        resources["固定 Skills · MCP · LSP · Goal"]
-        security_adapters["安全工具适配器<br/>lazy IDA MCP · capa native tool"]
-        plugin_worker["Plugin TS Worker<br/>isolated invocation"]
-        playwright["固定 Playwright MCP"]
-    end
-
-    subgraph data["用户配置目录 · com.milksu.app"]
-        events[("runtime/events.sqlite3")]
-        artifacts[("runtime/artifacts")]
-        workspaces[("workspaces / worktrees")]
-        memories[("CTF Memory / obelisk.sqlite")]
-        credentials[("credentials.db · 0600")]
-        profiles[("browser profiles")]
-        plugin_data[("plugins<br/>trust · index · state · assets")]
-    end
-
-    subgraph documents["用户文稿 · MilkSU"]
-        coding_files[("Coding")]
-        ctf_files[("CTF")]
-        cve_files[("CVE")]
-        lab_files[("Lab")]
+    subgraph sidecar["Sidecar"]
+        pi["Pi Session"]
+        policy["Approval"]
+        resources["Skills / MCP / LSP"]
+        adapters["IDA / capa"]
+        playwright["Playwright MCP"]
     end
 
     window --> preload --> host
@@ -142,162 +108,37 @@ flowchart TB
     app --> tool_catalog --> supervisors
     pi --> policy
     pi --> resources
-    pi --> security_adapters
-    plugins <--> plugin_worker
-    plugins --> pi
+    pi --> adapters
     pi <--> playwright
-    host --> browser --> profiles
+    host --> browser
     browser <--> proxy <--> playwright
-    runtime --> events
-    runtime --> artifacts
-    app --> workspaces
-    app --> memories
-    app --> credentials
-    plugins --> plugin_data
-    app --> coding_files
-    app --> ctf_files
-    app --> cve_files
-    app --> lab_files
-    security_adapters --> coding_files
 ```
 
-### 安全工具能力目录
+Vue 只经 `window.milksu.invoke`。Electron 不拥有 CTF/CVE 事实，Go 不拥有通用模型循环，Pi 不拥有桌面授权。
 
-```mermaid
-flowchart LR
-    settings["设置页<br/>检测 · 准备 · 健康检查"]
-    rpc["Desktop RPC"]
-    service["Security Tool Service<br/>目录 · 偏好 · 进度"]
-    local["本机与托管资源<br/>IDA · uv · capa · Docker"]
-    descriptor["有界运行描述符<br/>仅 ready + enabled"]
-    pi["现有 Pi Session<br/>模型工具循环"]
-    adapter["按需适配器<br/>IDA MCP / capa"]
+隔离浏览器的 Agent 控制走 `ScopedCDPProxy`：只公布当前一个 Target，拒绝创建 Target / Context 或关 Browser。
 
-    settings --> rpc --> service
-    service <--> local
-    service --> descriptor --> pi
-    pi --> adapter --> local
-```
+安全工具：设置页准备到 `ready + enabled` 后进入 Pi 目录。IDA 是 lazy MCP，capa 是原生工具。CodeQL / Burp / Shannon 不进描述符。
 
-这里不增加第二套 Planner 或 Agent Harness。设置页负责把本机能力准备到可用状态；“在 Coding 中配置”
-只生成草稿并预置该本机安装任务所需的 `Go · 完全访问`，用户发送后仍复用当前 Coding/Pi 来执行检测、
-安装和非交互健康检查。Go 在发送普通 Coding 回合前重新计算 `ready + enabled` 描述符；Pi 只看到短名称、
-用途和调用提示，由当前模型自行选择。IDA
-以保留名称的 lazy MCP Server 加载只读 Schema，capa 以一个工作区相对路径的原生工具进入现有工具集，
-版本写在它自己的 description 里，不再每回合注入能力索引。
-目录发生变化时才重建 Pi Session，因此用户无需在每个任务里手动选择工具，也不会把未配置工具写进
-模型上下文。CodeQL、Burp Suite 和 Shannon 当前只有检测事实，不进入描述符。
+Beta 是独立 Bundle ID 与 userData，只用于明确要求的自举。Stable Computer Use 排除自身。
 
-### 桌面边界
-
-- Vue 只能通过 `window.milksu.invoke` 和事件订阅进入桌面边界。Preload 使用
-  `contextIsolation`，页面没有 Node Integration；生产环境不存在 Wails 全局或假桌面后端。
-- Electron 主进程只接受受限方法名和来自主 renderer 的 IPC；文件对话框、外链和浏览器宿主请求
-  由 Go 通过反向 `host_request` 发起。
-- Go Runtime 和 Electron Host 之间使用有大小上限的 JSONL 消息；Sidecar 仍使用独立、版本化的
-  JSONL 协议。桌面壳迁移没有把 Pi 类型泄漏进领域层。
-- Beta 使用独立产品名 `MilkSU Beta`、Bundle ID `com.milksu.app.beta`、图标标记、Electron
-  `userData` 和 Runtime 数据根；设置页固定显示 branch、40 位 commit、clean/dirty、build time 与
-  tracking ID。Stable Computer Use 排除自身，只能选择 Beta 等外部 App。Accessibility 与 Screen
-  Recording 绑定操作者 Stable 的 TCC 身份，Beta 作为被控目标不接收这两项授权；本机 ad-hoc Stable
-  只用于开发预览，不能进入 Computer Use 权限或自举验收。权限设置使用两个准确的 macOS 隐私面板，
-  返回 App 后自动复检，屏幕录制授权触发的退出由 Electron 安排重新启动。私有 GitHub Actions 已实现
-  临时 Keychain、Developer ID、hardened runtime、公证、staple 与 Gatekeeper
-  验证；`main@cfc9a102408b8e2017f339ddce08f246b6b67c02` 的 workflow `31676876645` 已取得真实
-  正式包与隔离首次启动回执。
-
-### 浏览器三面
-
-```mermaid
-flowchart LR
-    input["用户输入与可删除 Scope"]
-    built_in["浏览器<br/>MilkSU 内置 Chromium"]
-    browser_use["Browser Use<br/>用户真实 Chrome/Edge 标签页"]
-    computer["Computer Use<br/>外部原生 App 窗口"]
-
-    input --> built_in
-    input --> browser_use
-    input --> computer
-```
-
-- **浏览器**：产品面只用这个名称。内部是会话隔离的 Chromium profile。`26.817.x` 打包任务里
-  打开、后退、前进、刷新、地址输入和关闭作用于右栏当前页面。开发版本线上每个标签是独立
-  `WebContentsView`，切换会换页并更新地址；普通 Coding Go 或打开右栏会自动就绪，不要求设置
-  或批准。它既是用户可交互页面，也是 Agent 经限定 Target 控制的执行表面；隐藏右栏不会销毁
-  Target 或 Profile。裸域名按 HTTPS 导航，非 URL 文本按搜索处理。模型要找标签或切到产物/终端
-  时走 `milksu_workspace`，不扫描用户句子，也不能用 Playwright 枚举任意内置产品页。
-- **Browser Use**：加载固定 Playwright MCP extension mode，复用用户明确选择的真实标签页和登录态。
-- **Computer Use**：视觉控制用户授权的可见 App/Window，包括用户真实浏览器窗口；不拿它操作
-  MilkSU 内置隔离浏览器，也不因右栏显隐扩大或缩小已授权 Window Scope。结构化标签页控制仍走
-  隔离浏览器或 Browser Use。
-- **CTF Browser Bridge**：继续承担 NSSCTF/CTFshow 的题面、附件和独立 Judge 领域语义，不被通用
-  Browser Use 取代。
-
-内置浏览器的 Agent 控制不是把 Electron 全局 DevTools 端口交给模型。`ScopedCDPProxy` 只公布当前
-会话的一个 Target，过滤其他 Target/Session，并拒绝创建 Target、创建/销毁 BrowserContext 和
-关闭 Browser。CDP 描述符是瞬态 loopback 数据，不写前端状态、SQLite 或项目配置。
-
-## 六层映射
-
-```mermaid
-flowchart TB
-    L1["L1 · Product Surface<br/>Vue + Electron WebContents"]
-    L2["L2 · Desktop/Application Boundary<br/>Preload + JSONL RPC + App Services"]
-    L3["L3 · Agent and Platform Adapters<br/>Pi · Playwright · CTF Platform · Computer Use"]
-    L4["L4 · Domain Contracts<br/>Challenge · Candidate · Judge · Learning"]
-    L5["L5 · Evidence Runtime<br/>Events · Artifact · Projection · Recovery"]
-    L6["L6 · Integrity Controls<br/>Scope · Credential · Approval · Budget"]
-
-    L1 --> L2 --> L3 --> L4 --> L5
-    L6 -. "横切约束" .-> L1
-    L6 -. "横切约束" .-> L2
-    L6 -. "横切约束" .-> L3
-    L6 -. "横切约束" .-> L4
-    L6 -. "横切约束" .-> L5
-```
-
-| 层 | 当前判断 |
-| --- | --- |
-| L1 Product Surface | 主产品面可用；多平台、系统权限失败和发行 UI 矩阵仍需扩样。 |
-| L2 Desktop / Application | Preload 与 JSONL RPC 已替代 Wails Binding；`cmd/milksu-backend/app.go` 仍是主要集中点。 |
-| L3 Agent / Platform | Pi、Playwright、Platform Bridge、ImageGen、Computer Use、Session Index 已接入；IDA lazy MCP 与 capa 原生工具进入普通 Coding 的首条安全工具纵切，其余候选仍在准入队列。 |
-| L4 Domain | CTF/CVE 当前领域契约成立；模型不能越过 Judge/正式事实源。 |
-| L5 Evidence | 追加式事件、Artifact 哈希、Projection 和 Recovery 已实现。 |
-| L6 Integrity | 工作区、审批、精确 Browser Target 与 Credential 边界存在；宿主执行仍非容器，跨平台负向矩阵未完成。 |
-
-## 依赖方向
-
-当前目标依赖方向是：
+## 六层与依赖
 
 ```text
-Vue Renderer
-  -> Electron Preload / Host
-  -> Desktop JSONL RPC
-  -> Go Application Service
-  -> Domain / Runtime
-  -> Infrastructure Adapter
+Vue → Electron Preload / Host → Desktop JSONL RPC → Go Application Service → Domain / Runtime → Adapter
 ```
 
-Electron 不拥有 CTF/CVE 事实，Go 不拥有通用模型循环，Pi 不拥有桌面授权。后续触碰
-`cmd/milksu-backend/app.go`、`CTFPage.vue`、`sidecar/pi/bridge-policy.js`、
-`internal/browsercap/manager.go` 或 Runner/Recovery 时，应随真实纵切
-抽出所触及职责，不另开无产品结果的纯架构清理里程碑。
+| 层 | 判断 |
+| --- | --- |
+| L1 产品面 | 主面可用；三端权限与发行 UI 仍需扩样 |
+| L2 桌面边界 | Preload + JSONL；`app.go` 仍集中 |
+| L3 Agent / 平台 | Pi、Playwright、Computer Use 已接；其余安全工具在准入队列 |
+| L4 领域 | 模型不能越过 Judge / 正式事实 |
+| L5 Evidence | 事件、Artifact、Projection、Recovery 已实现 |
+| L6 完整性 | 工作区、审批、凭据边界在；宿主不是容器 |
 
-## 发行边界
+触碰 `app.go`、`CTFPage.vue`、`bridge-policy.js`、`browsercap/manager.go` 或 Runner/Recovery 时，随纵切抽出职责，不另开纯架构清理。
 
-当前 macOS ARM64 `.app` 由 `npm run desktop:build` 构建，Electron Builder 生成壳，随后固定 Sidecar
-安装器写入 Node/Pi/Playwright 资源并重新签名。普通本机构建显式使用 ad-hoc，不枚举 Developer ID。
-正式发行先在干净、已推送的 `main` 上运行一次 canonical 全仓验证并生成绑定完整 commit/版本的本地回执，
-再由三个 `workflow_dispatch` 并行完成各平台构建与原生安装包验收。macOS job 用仅限 `main` 的
-`macos-release` environment 注入签名 / 公证 / R2 secrets，没有 required reviewer，dispatch 后立即开始。
-macOS job 不重复全仓测试，只完成
-hardened runtime / Developer ID 签名、App/DMG 公证、staple、Gatekeeper 和 DMG 布局验证。
-正式打包默认生成 updater 载荷并上传私有 R2，再发布该平台 Admin current pointer；GitHub Release 仍只提供用户安装包。macOS 同一轮生成 ZIP 与 DMG，
-CI 通过 rclone 把 ZIP、DMG 和元数据写到私有 R2 的不可变版本路径，逐个回读校验 SHA-256，再用窄
-publisher token 发布该平台 current pointer。已登录且访问正常的 Stable 客户端才可经 Worker 获取
-feed 和安装包。维护者仍可在 Admin 暂停分发。R2 没有公共下载地址，账户 Bearer token 只由 Electron 主进程持有。
-打包后的 Go Runtime 以自身所在 `resources` 目录直接定位同级 `milksu-sidecar/node.exe` 与 `chat-bridge.cjs`，
-不再把开发仓库根定位混入安装版资源查找。
-macOS DMG 走 Developer ID 签名并公证；Windows 安装器完成原生 Runtime 与首次启动，但没有代码签名；Linux 发共用 x64 DEB 与 tarball，带 GNOME Portal Computer Use，无 Secret Service / 本地 OCR，Hyprland / Xorg Computer Use unavailable。
-GitHub Release 提供用户安装包，不上 OTA ZIP。OTA 走私有 R2 的 current pointer。
-三端构建回执不等于三个平台功能等价。发行回执见 [当前开发目标](/developer/current-objectives)。后续正式包走 `release:verify` → 云端三端 → `release:github`。
+## 发行
+
+干净已推送的 `main` 上跑一次 canonical 验证，再三端 `workflow_dispatch`。macOS 用 `macos-release` 签名公证。正式包装 OTA 到私有 R2 并发布 current pointer。GitHub Release 只上用户安装包。三端回执不等于功能等价。

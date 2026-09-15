@@ -4,348 +4,92 @@
 >
 > 最后收口：2026-09-15
 >
-> 本页只回答“当前处于什么阶段、下一条完成线是什么”。实现事实以当前代码、测试、Git 历史和原生 App 验收为准；历史设计与旧里程碑不作为任务队列。
->
-> 发版改动与未发版改动必须分开写。可下载的最新版只写在 README，本页不宣称 Latest 版本号或 hash。
+> 本页只回答“当前处于什么阶段、下一条完成线是什么”。实现以当前代码、测试、Git 历史和原生 App 为准。
+> 可下载安装包只写在 README，本页不写「当前最新版是」版本号或 hash。
 
 ## 工作规则
 
-1. 先读当前代码、Git 状态、本文件、[文档状态](document-status.md)和[当前系统](../architecture/current-system.md)，不要按旧对话重做已闭环事项。
-2. MilkSU 仍是 pre-release：新能力实现当前干净模型，不为已放弃的旧设计写迁移、双写或兼容层。
-3. 上游优先：平台/Pi → 固定可审阅 Skill、MCP、插件或 CLI → 最小自有实现。Pi 已拥有的通用 Coding 能力，不在 MilkSU 再造一套 harness。
-4. Provider Key 不进入模型上下文、工具输出、日志、诊断、文档或普通文件；Git 只推到授权的 MilkSU 远端。
-5. 自动审批不绕过付费、外部账户、Scope 扩大、不可逆外部效果与危险大目录删除确认。
-6. CTF、CVE、实验室、Coding 是同级工作区；通用会话、文件、Shell、浏览器、恢复与工具循环优先共享 Pi，领域事实、Evidence、Judge 与学习记录由 MilkSU 持有。
-7. UI/Runtime 修复必须回写本页；未打包或未由用户验收的能力不得写成已发行或已完成。
-8. 发版后立刻更新 README 的下载徽章、链接和当前状态。其它 Current 文档写能力事实和该 tag 的回执，禁止写「当前最新版是」后面跟版本号或 hash。版本号、空 tag 或本地 dirty 包仍然不等于已发版。流程见 [三端打包与发版流程](release-process.md)。
-9. **尚未实现不是禁止实现。** 不要在能力出现前写解冻清单、冻结门或“不准做 PoC / 不准扩工作台 / 不准进 CTF/CVE”。真边界只覆盖 Key、未授权外部目标、Judge 与把 smoke 写成完成。选中的产品切片可以直接做。
+1. 先读当前代码、Git、本文件、[文档状态](document-status.md)和[当前系统](../architecture/current-system.md)。
+2. 新能力写当前干净模型，不为已放弃设计写迁移或兼容层。
+3. 上游优先：平台/Pi → 固定 Skill、MCP、插件或 CLI → 最小自有实现。不另造通用 harness。
+4. Provider Key 不进模型上下文、工具输出、日志、诊断、文档或普通文件。Git 只推授权远端。
+5. 自动审批不绕过付费、外部账户、Scope 扩大、不可逆外部效果和危险大目录删除确认。
+6. CTF、CVE、实验室、Coding 同级。通用循环优先共享 Pi；领域事实、Judge、Memory 由 MilkSU 持有。
+7. UI/Runtime 修复回写本页。未打包或未经用户验收的不得写成已发行。产品 UI 只写在 `AGENTS.md`。
+8. 发版后更新 README 下载徽章和当前状态。流程见 [三端打包与发版流程](release-process.md)。
+9. 尚未实现不是禁止。真边界只覆盖 Key、未授权外部目标、Judge，以及把 smoke 写成完成。
 
 ## 当前阶段与基线
 
 | 项目 | 当前事实 |
 | --- | --- |
-| 阶段 | **内测迭代 / Agent Runtime 与跨平台发行收敛**。当前工作不再按 M3/M4 里程碑组织。 |
+| 阶段 | 内测迭代 / Agent Runtime 与跨平台发行收敛。不再按 M3/M4 组织。 |
 | 历史基线 | M3 product-loop 已在 `108e0e3`（2026-08-05）合并，仅供追溯。 |
-| 当前开发 | 新对话可选 Pi 或 DeepSeek Harness；目录外型号灰掉。出厂默认官方 DeepSeek Flash，保存或验证成功后自动启用该服务；环境来源和错误按当前服务说话。DSH 接到产品 MCP / Skills / 停止 / 所选型号 / 懒挂 Playwright / host compact；DeepSeek 会话不能 rewind / 分叉。选择卡片最后一行可填其他；待选择时新指令直接回答该卡片。停止只显示本轮已停止。子 Agent 缺工作区回退到会话目录。自动压缩空闲阈值 80%。型号族窗口、输出上限和思考档位按 models.dev。对话主线程只留当前思考或仍在跑的工具组；已结束的收进「过程」，有正文的助手消息留在主线程。长思考默认折叠，展开有 300ms 过渡；运行中标签只呼吸透明度。侧栏 footer：版本号、日夜调节、设置。非活跃 Sidecar 停靠保活；凭据轮换惰性替换、撤回立即停。writer worktree 只在模型委托写入角色时从当前提交准备，发消息不再准备，脏主工作区不挡。Pi `bash` 缺省 600 秒前台上界。Windows 安装器未代码签名；Linux 无 Secret Service / 本地 OCR；Hyprland/Xorg Computer Use 不可用。CTF 比赛模式和实验室红队学习面未接线。产品 UI 设计语言只写在 `AGENTS.md`。未做：#53 typed sweep；新对话继承项目 `milksu`；Windows 接入 Computer Use 后整段对话崩溃尚未真机验收。 |
-| 平台边界 | macOS DMG 走 GitHub-hosted Developer ID 签名并公证；Windows 安装器完成原生 Runtime 与首次启动但未代码签名，并打入审阅过的 CUA Driver `0.27.0`；Linux 发出 Ubuntu/Debian 共用 x64 DEB 与 Omarchy/Arch/Nix 共用 x64 tarball，GNOME Portal Computer Use 已进包，仍无 Secret Service、本地 OCR；Hyprland/Xorg Computer Use 不可用。Windows/Linux 窗口铬尚未真机验收。可下载安装包见 README。 |
-| 发行流水 | 下一发行从干净、已推送的 `main` 对 canonical Go/Vue/Sidecar/lint/生产与文档构建只验证一次；macOS / Windows / Linux 都走 GitHub-hosted 云端。macOS 本机打包暂时关闭。macOS 签名 job 用仅限 `main` 的 `macos-release` environment 作密钥库，`release:dispatch` 后立即开始，无需 GitHub Environment Approve。必须创建 GitHub Release 页并上传带版本号的 DMG/EXE/DEB、x64 tar.gz 与 SHA256SUMS，不能只留空 tag。正式打包默认上传 OTA 到私有 R2 并发布该平台 current pointer；GitHub Release 仍不上 updater ZIP。 |
+| 当前开发 | 新对话可选 Pi 或 DeepSeek Harness。出厂默认官方 DeepSeek Flash。工作树 DSH 钉 `0.1.6-alpha.1`：MCP / Skills / 停止 / 所选型号 / 官方 `playwright-mcp` 懒挂 / host compact；DeepSeek 会话不能 rewind / 分叉。产品回归入口 `npm run test:product-loop`（见 [产品回归循环](product-regression-loop.md)）。自动压缩空闲阈值 80%。产品 UI 见 `AGENTS.md`。未做：#53 typed sweep；新对话继承项目 `milksu`；Windows Computer Use 整段崩溃尚未真机验收。 |
+| 平台边界 | macOS DMG 签名公证；Windows 安装器未代码签名，打入 CUA Driver `0.27.0`；Linux 发共用 DEB 与 tarball，GNOME Portal 已进包，无 Secret Service / 本地 OCR；Hyprland/Xorg Computer Use 不可用。Windows/Linux 窗口铬尚未真机验收。安装包见 README。 |
+| 发行流水 | 干净已推送的 `main` 上跑一次 canonical 验证；三端走 GitHub-hosted。`macos-release` 仅限 `main`，dispatch 后立即签名。正式包装 OTA 到私有 R2 并发布 current pointer；GitHub Release 不上 updater ZIP。 |
 
-## 已发行改动：`26.817.1` → `26.915.1`
+## 已发行
 
-从 8 月内测线到 9 月正式包的能力记录。可下载安装包见 README。
+更早的 tag 见 [GitHub Releases](https://github.com/MilkSU-Official/milksu/releases)，本页不复述。
 
-### `26.817.1` / `main@783679f`
-
-- 账户 GitHub PKCE、Admin 分配的 TokenFlux 凭据与本机 Provider 共用模型目录；请求直达 `https://tokenflux.dev/v1`。
-- 修掉 `milksu-route` 转发时覆盖真实来源凭据的 `401`；外层占位认证不得进入具体 Provider。
-- Coding 复用固定 Pi `web_search` / `web_fetch`，并完成真实搜索与官方页面读取。
-- 图片按当前模型 image input 或本地 OCR 自动路由；普通文件进入统一附件队列。
-- 普通 Coding / CTF / CVE 回到 Pi 原生文件、Shell 与工具循环；删除 workspace-only 文件工具、客服式回复模板和关键词/正则意图路由。
-- 提供签名公证的 macOS ARM64 DMG 与未签名 Windows x64 安装器。OTA / R2 current pointer 未发布。
-
-### `26.817.2` / `main@09718ce`
-
-- 增加 Linux x64 试用 DEB，并打通原生 Ubuntu 包结构、Sidecar、Go Runtime 与 Xvfb Electron 启动。
-- 修 Windows 桌面壳与 Go Runtime 启动。
-- CTF / CVE 恢复 Pi 原生工具语义，不再注入只读启动清单或自建 sandbox-exec。
-- 同一 source commit 第一次形成 macOS / Windows / Linux 三端 GitHub prerelease。
-
-### `26.817.3` / `main@1176075`
-
-- Windows 账户服务瞬时失败时不再清空本地账户模型授权；首次发送被双来源拒绝时可安全刷新一次。
-- 打包 Go Runtime 在安装目录旁定位 Pi Sidecar，不再重复拼接 `resources`。
-- 真实打包 Windows App 完成账户模型验证，并跑通 Pi Agent 文件与 Shell 工具回合。
-- 三端 workflow 回执与 SHA-256 已记录在当时的发行页；标签固定在 `1176075`，后续文档/workflow 提交不移动该 tag。
-
-### `26.818.1` / `b92fcde`（2026-08-18 今日首发）
-
-- 账户凭据优先产生带 `credential_source` 的权威目录；缺失模型在请求前跳过，TokenFlux `model_not_found` 可安全回退到个人来源。设置页默认模型与 Coding 共用同一可调用目录（东云，PR #3）。
-- 接受 TokenFlux 单模型与复合 Key 模型 ID；已启用服务的模型选择器与目录对齐。
-- 自定义中转站只在保存成功后进入列表；MilkSU 账户行不因当前默认是中转而消失（薄荷布丁 / SkyAerope，PR #7）。
-- Agent 出错时展示具体 Provider 限制（含 TokenFlux Claude Code 客户端限制），不再一律报“本地运行时异常”。
-- Windows 设置页“打开产物目录 / 数据目录”改为 Go 确定受信任路径、Electron `shell.openPath` 打开，不再写死 `/usr/bin/open`（荒景肆，PR #6）。
-- 冷启动加快；macOS `⌘Q` 立即退出。
-- 无项目任务钉在项目树下方；厂商图标、Coding 历史栏与启动噪音收敛。
-- Composer 旁的上下文用量改成可悬停的环状计量；`milksu_progress` 计划与 token 用量转发给 Coding。
-- Pi：上下文溢出与可重试错误不再提前结束回合；abort 不再合成空白气泡。
-- 安装包文件名带版本号。GitHub prerelease 提供 DMG / EXE / DEB 与 `SHA256SUMS-26.818.1.txt`。
-
-### `26.818.2` / `ea7d2ff`（2026-08-18 今日第二版）
-
-- 日间模式会话高亮保持可见。
-- `+ → 本机文件或图片` 在 `pointerdown` 打开系统选择框；输入框自管 `⌘Z` / `⌘⇧Z`；右侧栏可拖宽并记住宽度。用户已在本地 dirty Stable 包确认 C9 / C15 / C20。
-- 普通 Coding Go 或打开右栏会自动拉起隔离浏览器，不再要求设置或批准。每个标签是独立 `WebContentsView`，切换换页并更新地址。用户已确认 C16。
-- 子 Agent 把父会话的虚拟 `milksu-route/模型` 改写成账户 `milksu-relay/`，避免独立 Pi CLI 报 Model not found。
-- `替我审批` 自动执行隔离浏览器；请求批准卡对可授权操作提供“本对话始终允许”。ImageGen、外部账户授权和破坏性删除仍每次确认。
-- 工具行按 `toolCallId` 结束，不再只改最后一条同名调用；用户展开的工具组在后续流式输出中保持展开。
-- 新增类型化 `milksu_workspace`：列出/聚焦/关闭内置浏览器标签，列出/预览产物，打开环境、变更、终端和后台任务。设置、凭据、审批档和用户 Chrome 不在这个工具里。
-- 上下文用量达到窗口约 85% 且 Session 空闲时，走与 `/compact` 相同的 Pi 压缩；`compact_context` 只在达到阈值时调度。不在整回合结束后才第一次压缩，也不另建 MilkSU 摘要器。
-- 目标、计划和会话目录收进 Composer 控制栏 chips；窄栏收成图标，权限按钮按内容宽度。
-- NSSCTF「全部 / 收藏」在完整本地目录预热后于前端筛选分页；同步丢弃飞行中的旧全量快照；训练进度从目录快照拆开，Judge/确认后重叠加（AsabaLazy / Luo，PR #8）。
-- 未打包 Windows 上补全 GitHub 登录回调；无 Git 也能启动。
-- Windows Computer Use 沿用 macOS 的有界 Cua 会话：按绝对可执行文件绑定目标、用 Electron 主进程 PID 排除宿主窗口。可见浏览器窗口也是合法 Computer Use 目标；隔离“浏览器”和 Browser Use 仍是另外两条表面。Driver 先走安装包/Sidecar 自带副本；缺失时可由类型化 `prepare_computer_use_driver` 把 MilkSU 审阅过的 Driver 拷到本机配置目录或按仓库脚本构建，不运行 Cua 官方安装脚本。macOS Computer Use 路径未改。
-- 设置页增加默认关闭的应用级本地调试模式：内存环形日志、Desktop RPC 命令名计数和一键复制诊断，不采集凭据、路径或 RPC 参数。
-- 安装包文件名带版本号。GitHub prerelease 提供 DMG / EXE / DEB 与 `SHA256SUMS-26.818.2.txt`。
-
-### `26.819.1` / `eed1dac`（2026-08-19 今日首发）
-
-- 生产全页换 ak-ui 视觉（石墨指挥面、纸面事实、青主操作、金焦点），Felinic 留下；旧战术档案 / 酸绿契约已删除（#15 / #18）。
-- CTF 每日挑战和 CVE 列表不再默认选中展开；普通 Go 发送不再自动启动隔离浏览器。
-- 用户消息有秒级时间分割线；模型 / 工具等待用 compact ak-loading 菱形脉冲。
-- 空 TokenFlux 目录时，删除或停用自定义中转站不会再把它的模型 ID 接到 TokenFlux 默认选择或「可用模型」里（#13 / #11）。
-- README 截图换成当前 CTF / CVE / Coding 页。GitHub prerelease 提供 DMG / EXE / DEB 与 `SHA256SUMS-26.819.1.txt`。
-
-### `26.822.1` / `3db4615`（2026-08-22 今日首发）
-
-- CVE 点进档案再复现；实验室是独立一级入口；两者共用可拖放对话小窗，工作区留下 Agent 可改的 `report.md`。
-- 实验室列表可双击标题或用行内菜单改名；作业记录写入 Go。
-- `milksu_workspace` 增加原子记录动作：`list_records` / `get_record` / `create_record` / `update_record` / `archive_records` / `restore_records` / `focus_record` / `search_records`（kind 为 conversation / lab / cve / ctf）。
-- 档案对话小窗默认 4:3；上下文用量与大窗 Composer 同一条；带斜杠菜单、Skills 和项目 MCP。
-- 日间模式侧栏、会话历史、设置跟随纸面主题；左上角头像为 Admin `ak-media--album` 相框。
-- 会话可归档与行内改名；上下文压缩、停止按钮、工具活动组展开状态和产品文案去掉 harness 备注一并打进本包。
-- GitHub prerelease 提供 DMG / EXE / DEB 与 `SHA256SUMS-26.822.1.txt`。
-
-### `26.823.1` / `efeda10`（2026-08-23 今日首发）
-
-- CTF、CVE 和实验室使用与 Coding 相同的完整工作循环：终端、Git、变更、产物、执行权限、隔离浏览器和工作台动作都在。领域工具、Judge、证据栏和绑定的题目工作区仍保留。
-- 长任务会自动整理上下文，CTF 任务里的 `/compact` 与 Coding 走同一条。过长的工具输出会被截断，需要时再读。
-- 设置页「同步公开源」写入的 CISA KEV 条目会进入 CVE 列表；内置样例目录仍不默认铺开。
-- 夜间模式 Agent 气泡里的代码块跟气泡前景色；产品窗口拦截 Ctrl+R / Cmd+R / F5，不再回到启动加载页。
-- Windows 后台任务与前台 bash 用同一套解析，缺 bash 时作为工具失败返回。非 macOS 上项目 MCP 不再包一层 sandbox-exec。
-- 标题、侧栏和正文共用 Inter Variable + Noto Sans SC Variable。Sidecar 崩溃时不再把 Node 内部栈第一行当成用户可见原因。
-- GitHub Release 提供 DMG / EXE / DEB 与 `SHA256SUMS-26.823.1.txt`。
-
-### `26.825.1` / `efddfc2`（2026-08-25 今日首发）
-
-- 实验室 / CVE 档案环境经纪：`env_status` / `env_start` / `env_reset` / `env_stop`。实验室题目包打开后是靶机卡片（Juice Shop / WebGoat / S2-045 / whoami / InjuredAndroid）。Docker 镜像钉 digest、只绑 `127.0.0.1`、默认内部网络；HTTP 端口未响应不算就绪。安卓走专用 MilkSU-Lab。CVE 学习专题已删。NOTICE 记录 Juice Shop / WebGoat / Vulhub / whoami / InjuredAndroid。
-- Pi Runtime 从 `0.83.0` 钉到 `0.84.1`（`pi-coding-agent` / `pi-ai` / `pi-tui` 对齐）。rebase 了子 Agent Darwin 禁网、关闭项目资源发现、剥 Key 三处 patch。卫星扩展未动。未跟 Dependabot #30 升到 `0.84.2`。
-- 上下文环用 Provider 已给出的分项：未命中输入（青）和缓存命中（金）。文件 / 搜索 / 工具调用没有诚实 token 来源，不上色。
-- 工具循环接到 Pi 原生 `tool_call`：完全相同命令连续 10 次或 bash `head N` / `grep -v` 族连续 25 次才结束本轮。单次回合满 150 次工具弹出「已经调用了 150 次工具，要继续吗？」；继续则再放行 150 次，停止则结束本轮。
-- 桌面 Go runtime 为每次 spawn 递增 generation。`milksu:invoke` 必须等 `ready`；进程意外退出会自动再拉起（最多 3 次），旧 generation 的结果丢弃，运行中的回合显示「本轮已停止。」。退出应用时 `beginStop` 禁止恢复。用户文案是「正在恢复运行时」/「本地运行时已停止」。
-- Agent 上下文工程：主会话逐回合声明经 Go / Sidecar 校验的权威工作目录；writer worktree 只属于独立 effectful subagent。受管 Sidecar 启用 Pi 原生 `PI_CACHE_RETENTION=long`。型号族预设补齐 GPT、Claude、Grok 窗口；Composer 思考档位只显示 `off / minimal / low / medium / high / xhigh / max`，Go 约束后交给 Pi 原生 `setThinkingLevel`。真实 Provider 缓存命中率与 effort 请求仍待用户授权的计费链路验收。
-- 设置、CTF / CVE / 实验室详情和个人资料共用 64rem 卡片栏。设置卡片统一 `bg-card`，语言 / Skills / 编辑器 / Lab / Arena Token 交互即保存，模型页仍「保存并验证」。CVE 公开源是两行同步，JSON 导入在高级。归档聊天无条目时只留页标题。
-- CTF「开始解题」和 CVE「开始复现」展开对话小窗并聚焦输入，仍不自动发消息。CTF 工作区「解题轨迹」和「证据制品」与题目 / 复盘同一套圆角。
-- CTF / CVE 列表右上角是历史 + 导入，实验室是历史 + 创建（题目包导入还没有）。连接类状态用 LIVE / OFF。设置「评测」可切换 Cybench / SEC-bench / AutoPenBench。
-- 开发态 Sidecar 把审阅过的 TypeScript 扩展编出 `node_modules`；正式打包仍走原来的 esbuild 整包。
-- GitHub Release 提供 DMG / EXE / DEB 与 `SHA256SUMS-26.825.1.txt`。macOS 走 GitHub-hosted 签名公证，不再走本机打包。
-
-### `26.827.1` / `37932ce`（2026-08-27 今日首发）
-
-- 自动更新：已登录 Stable 按平台/架构轮询 Admin `/v1/releases/latest`；侧栏左下角下载本机 OS+arch 包；下载完无运行中会话则安装重启，有则确认。macOS/Windows 走 electron-updater，Linux dpkg 走 pkexec，tarball 解压到安装前缀，Nix store 不自动更新。正式打包已把 OTA 草稿上传私有 R2 并建 Admin 草稿；GitHub Release 仍不上 updater ZIP。Admin current pointer 仍须维护者在「版本」页发布 `darwin/arm64`、`win32/x64`、`linux/x64`。
-- Linux 四发行版安装：Ubuntu 24.04 / Debian 13 共用 x64 `.deb`，Omarchy / Arch / NixOS 共用 x64 `.tar.gz`（PKGBUILD 与 flake 是安装方法）。ARM 只作本机/CI 试验，不进 GitHub 可下载安装包。桌面图标按 hicolor 常用尺寸从 `build/appicon.png` 生成。
-- Linux GNOME Wayland Computer Use 走 XDG Desktop Portal（整桌面级，不是窗口 Scope），不接 Cua、不走 `xinput`。Hyprland 与 Xorg unavailable。Linux 仍无 Secret Service 与本地 OCR。Linux Browser Use 查找系统 Chromium/Chrome/Edge（PATH、snap、Nix、桌面入口）。
-- Beautiful UI 指挥面：可拖宽侧栏（最小 224、默认 264）、画布目录、8px 设置行。侧栏无项目分组改名为「最近」。`milksu_ask` 把用户选择行接到 Pi 并暂停回合。产品 UI 设计语言只写在 `AGENTS.md`。
-- GitHub Release 提供 DMG / EXE / DEB / x64 tar.gz 与 `SHA256SUMS-26.827.1.txt`。macOS 走 GitHub-hosted 签名公证。Windows 安装器仍未代码签名。
-
-### `26.904.1` / `6e9371d`（2026-09-04）
-
-- Composer 上下文环按 Pi 组装分类：系统提示 / 工具 / Skills / MCP / 子 Agent / 对话。百分比仍是 billed `input+cacheRead` / window；有 billed 时分类缩放到 billed 之和，估计值带 `~`（#21）。
-- 上下文窗口优先级：手动覆盖 > catalog（忽略 `128000` 占位）> 型号族预设 > 保守默认。设置 → 模型可查看并改写（#33）。
-- 落地 Pi loop 合同：edit 锚点、`tool_result` bound（约 50KB / 2000 行）、中途引导、子 Agent 结构化回传与名单（#35–#38）。#39 rewind/handoff 当时已接线，未打进该发行包。
-- 三端窗口铬：macOS 保持 `hiddenInset` 与侧栏红绿灯；Windows/Linux 隐藏原生 caption 与 in-window 菜单，画布色 `titleBarOverlay`，系统按钮在右上。Windows/Linux 铬尚未真机验收。
-- 已登录 Stable 轮询 Admin `/v1/releases/latest` 时带上当前版本（#44）。
-- 删除未接线的 CTF Security Bridge typed-action 循环、`continue_ctf_job`、图谱 RPC / `@antv/g6`、未挂载战术面板，以及 Sidecar 对 CTF 的负向隔离断言。CTF 解题只走 Pi 对话 + Judge。
-- GitHub Release 提供 DMG / EXE / DEB / x64 tar.gz 与 `SHA256SUMS-26.904.1.txt`。macOS 走 GitHub-hosted 签名公证。Windows 安装器仍未代码签名。
-
-### `26.905.1` / `1cc8773`（2026-09-05 今日首发）
-
-- 接线 #39 rewind/handoff：`/rewind` 与最后一条用户消息的「丢掉这段」走 Pi `navigateTree`；`/handoff` 与用量环「接到新会话」走 Pi 分叉 + 现行 compact。
-- Coding / CTF / CVE / 实验室会话不再把 `milksu_ask` / `milksu_progress` / workspace 动作表和 Pi `tool_result` 截断说明重复写进 system prompt。when-to-use 只留在工具 description 与 Pi Skill 名录。`release-milksu` 设 `disable-model-invocation: true`，`/skill:release-milksu` 仍可用。
-- 设置页可添加或导入用户级 MCP（stdio / HTTP / Socket，兼容 Pi / Cursor `mcp.json`）并导入 SKILL.md；启用后只交给现有 Pi `additionalSkillPaths` 与 `pi-mcp-adapter`，不打开 `~/.pi` 环境发现，也不把 Skill 正文或工具 MUST 再贴进 system prompt。凭据进 Credential Store，不回传 Vue。
-- 设置「安全工具」并入 MCP 页，作为内置 MCP 行（IDA 仍是 first-party `milksu-ida-pro`；capa 仍是 `capa_analyze`，不是假 MCP）。内置 MCP / Skills 可编辑覆盖，不改签名包内出厂文件；Coding 对话可打开专用工作区用自然语言改 `mcp/<id>.json` 与 `skills/<name>/SKILL.md`；「恢复默认」重载当前版本出厂配置。
-- 材料层改为克制清透填充：一层不透明 wash，侧栏/卡片单层 74–92% 半透明，Composer / 菜单 / 对话小窗才加 `backdrop-filter`。窗口仍不透明，三端同一套 CSS，不走 macOS vibrancy / Windows Mica 当产品观感。
-- GitHub Release 提供 DMG / EXE / DEB / x64 tar.gz 与 `SHA256SUMS-26.905.1.txt`。macOS 走 GitHub-hosted 签名公证。Windows 安装器仍未代码签名。
-
-### `26.905.2` / `b18b860`（2026-09-05 今日第二版）
-
-- 侧栏下载先 `checkForUpdates` 再 `downloadUpdate`；失败改为可见重试，不再看起来像没反应。
-- 已发出的 `26.827.1` / `26.904.1` / `26.905.1` 客户端改不了；从那些包到本版这一跳请从 GitHub 下安装包。从本版起 OTA 升级链路可通。Admin current pointer 仍须维护者在「版本」页发布。
-- GitHub Release 提供 DMG / EXE / DEB / x64 tar.gz 与 `SHA256SUMS-26.905.2.txt`。macOS 走 GitHub-hosted 签名公证。Windows 安装器仍未代码签名。
-
-### `26.911.1` / `d341a35`（2026-09-11）
-
-- 宽作业父循环对 `bg_status` 熔断，最多 4 条只读 subagent lane。
-- 实验性 `milksu.plugin/v1` 插件框架：确定性 Ed25519 签名包、发布者信任、受限 Lua / 预编译 TypeScript；官方皮肤六个槽位。Node 26 解析器不再因 `realpathSync` 卡死插件门；Windows 正式打包先核对干净源码再生成插件 dist。
-- Computer Use 驱动升到上游 `0.27.0`。macOS 继续用官方 universal 包；Windows 从同一 commit 源码编。Windows 列出无标题可见窗口，避免 Server 2025 记事本进不了目标列表。Linux / Hyprland 仍不接 CUA。
-- 设置 → 模型增加 subagent 覆盖；设置 → Skills 增加默认关闭的 `ghidra-rpc` / `jadx`；模型服务预置可删的 DeepSeek 中转。保存并验证走刚提交的配置；TokenFlux 失败按文档用 HTTP 状态 + `message` / `reason=` 说明，不再甩裸状态码。
-- 流式回复只留实心 caret；侧栏运行中只显示像素点；计划上拉最小 18rem；下拉 / 菜单 / Dialog / 对话小窗用实底 overlay。
-- GitHub Release 提供 DMG / EXE / DEB / x64 tar.gz 与 `SHA256SUMS-26.911.1.txt`。macOS 走 GitHub-hosted 签名公证。Windows 安装器仍未代码签名。当时 Admin current pointer 仍须维护者发布。
-
-### `26.911.2` / `6120055`（2026-09-11 今日第二版）
-
-- #67：同步 CISA KEV 等公开源只写入本地缓存，不再自动变成「我的跟踪 / 想研究」列表；用户通过搜索「加入研究」或按编号加入。已同步过的大型目录缓存会在下次打开时从跟踪列表清掉未研究条目。
-- #68：原生下拉选项也用实底 overlay，避免展开时和底层文字叠在一起。
-- #69：DeepSeek 等自定义中转可以先保存 Key，不必先点「启用」；保存并验证仍会探测刚提交的 Key。真正开会话仍要启用。
-- #70：macOS「安装并重启」不再先停 Go Runtime；安装失败会留下可见错误。从磁盘镜像或不在 `.app` 里运行时直接说明要先装进应用程序文件夹，而不是重启后仍停在旧版。
-- Admin：正式打包上传 OTA 后直接发布该平台 current pointer，不必再去「版本」页点发布。暂停分发仍可在后台操作。
-- GitHub Release 提供 DMG / EXE / DEB / x64 tar.gz 与 `SHA256SUMS-26.911.2.txt`。macOS 走 GitHub-hosted 签名公证。Windows 安装器仍未代码签名。
-
-### `26.912.2` / `f7782c1`（2026-09-12）
-
-- 新对话可选 Pi 或 DeepSeek Harness。DeepSeek 会话不能 rewind / 分叉；`milksu_ask` / `milksu_workspace` 已接到 ACP。安装包里的 host plugin 用 `.mjs` 加载；当前选中的模型凭据会映射成 DSH 认识的 DeepSeek 连接。
-- DSH ACP 还没有应用设置/对话所选型号，会话仍用 harness 默认 `deepseek-v4-flash`。选中 DeepSeek Harness 后，左侧模型下拉把 DSH 目录外的型号标成不可选；目录是 `deepseek-flash`、`deepseek-v4-flash`、`deepseek-v4-pro`、`deepseek-v4-flash-vision-exp`。
-- 不再用目录/白名单把模型标成纯文本。附件和 Computer Use 截图按图片交给当前模型。已发送图片显示缩略图，点击可放大后关闭。
-- 思考结束后，同一条空助手消息不再额外挂「正在回复」；工具开始或正文开始时会收起「正在思考」。
-- 上下文窗口为 0 时不再注册给 Pi；自动整理可超时取消。
-- GitHub Release 提供 DMG / EXE / DEB / x64 tar.gz 与 `SHA256SUMS-26.912.2.txt`。macOS 走 GitHub-hosted 签名公证。Windows 安装器仍未代码签名。
-
-### `26.912.3` / `91b9302`（2026-09-12 今日第二版）
-
-- 选择卡片最后一行可填「其他」；待选择时新指令直接回答该卡片并继续本回合，不再排进引导队列；等待选择时不再显示「模型回复中」。
-- 用户停止只显示「本轮已停止。」，不再写成「Agent 运行失败：本轮已停止。」
-- 子 Agent 回传缺 cwd/worktreeId 时回退到会话工作区，不再把整轮打死，也不再把英文校验句写进「Agent 运行失败」。
-- macOS / Windows 无感更新先把 Admin 安装包整包下载并校验 SHA-256，再经本机回环喂给 electron-updater；关掉差分/多段 Range，安装只走 `quitAndInstall`。从磁盘镜像或 App Translocation 启动仍会挡住安装。已发出的 `26.912.2` 客户端仍走旧下载路径。
-- DeepSeek 会话不能 rewind / 分叉，当前仍用 harness 默认型号。该发行包的 DSH CLI 缺 `@deepseek-ai/cordis-plugin-group`，Coding 发消息会立刻失败；这不是已修事实。
-- GitHub Release 提供 DMG / EXE / DEB / x64 tar.gz 与 `SHA256SUMS-26.912.3.txt`。macOS 走 GitHub-hosted 签名公证。Windows 安装器仍未代码签名。
-
-### `26.912.4` / `54ff0b6`（2026-09-12 今日第三版）
-
-- 出厂默认官方 DeepSeek Flash（`custom-relay-deepseek` / `deepseek-flash`）。已保存的 TokenFlux 选择不动；删掉 DeepSeek 预置行时才回退 TokenFlux。
-- 设置里编辑模型服务并保存或验证成功后，自动启用该服务。未填 Key 的预置行仍保持关闭。主页关掉 TokenFlux 再保存仍尊重该开关。
-- 环境信息「来源」和 HTTP 错误按当前服务说话：官方 DeepSeek / 自定义中转不再误标 TokenFlux。
-- 自动压缩空闲阈值改为 80%。DeepSeek Harness 打进必选 peer `@deepseek-ai/cordis-plugin-group`，并把产品 MCP、Skills、`session/cancel`、所选型号、懒挂 Playwright 和 host compact 接到 ACP。DeepSeek 会话仍不能 rewind / 分叉。
-- Windows 同一回合挂上隔离浏览器；Computer Use 授权恢复失败或 MCP 描述符校验失败不再拆掉对话。Windows / Linux 安装包带上 Sidecar `node_modules`（Playwright MCP 与 DSH peer）。
-- GitHub Release 提供 DMG / EXE / DEB / x64 tar.gz 与 `SHA256SUMS-26.912.4.txt`。macOS 走 GitHub-hosted 签名公证。Windows 安装器仍未代码签名。
-
-三端都从 `54ff0b6ac9063305795e0d1b59ec68df29b3f6cf` 构建。OTA 已写入私有 R2 并自动发布该平台 current pointer。Admin darwin current pointer 由先前成功的 `34683715539` / `8205e27` 发布（同版本不可变，GitHub DMG 仍来自本包装源）。
-
-| 平台 | Workflow | 用户安装包 | 大小 | SHA-256 | 结果 |
-| --- | --- | ---: | ---: | --- | --- |
-| macOS ARM64 | `34684721997` | `MilkSU-macOS-arm64-26.912.4.dmg` | 300,636,459 B | `02ab0d2a226b272352879e8bea30865930701d8d130aa62eb641e742ae385ab8` | Developer ID 签名、Apple 公证、staple、Gatekeeper |
-| Windows x64 | `34684723912` | `MilkSU-Windows-x64-26.912.4-Setup.exe` | 238,785,014 B | `e1a6ffb3ded39209a7d0f75ae5062f348c87bcaec0d6e9bd5c561e8fb4651f13` | 原生 Windows 构建、打包 Runtime 与首次启动通过；安装器未代码签名；窗口铬尚未真机验收 |
-| Linux x64 | `34684726380` | `MilkSU-Linux-x64-26.912.4.deb` | 213,750,092 B | `ad9a0343f4540fc02e3ef9e596dfe6ff4941d27fb82e5c8e72dac85ce936c2cb` | Ubuntu/Debian 共用 DEB；包结构、Sidecar、Go Runtime 与 Xvfb 首次启动通过；GNOME Portal Computer Use 已进包；无 Secret Service / 本地 OCR；窗口铬尚未真机验收 |
-| Linux x64 tarball | `34684726380` | `MilkSU-Linux-x64-26.912.4.tar.gz` | 264,733,759 B | `5666d4e90da82453c4b4187268781af6750ae524af23a446a689e3e11b586077` | Omarchy/Arch/Nix 共用 tarball；PKGBUILD / flake 是安装方法 |
-
-发行页：<https://github.com/MilkSU-Official/milksu/releases/tag/v26.912.4>
-
-### `26.915.1` / `d37b957`（2026-09-15）
-
-- Pi `bash` 缺省 600 秒前台上界，过大显式值收到 3600 秒；切换工作区不再杀掉其他会话，非活跃 Sidecar 停靠保活（#80 / #81）。
-- 凭据轮换惰性替换：正在流的回合不被打断，撤回或关掉正在用的 Key 立即停。退役 Sidecar 仍接自己的停止、steering 和审批（#83 / #88）。
-- writer worktree 只在模型委托写入时准备，发消息不再复制仓库；准备用已选 / 已绑定的 Git 项目，不得收成「无项目任务」。脏主区未提交文件不进 writer（#85 / #95）。
-- 长工作区动作被 park / retire 后仍能收到回答；回合结束后迟到的 `tool.completed` 不再把会话标回运行中（#86）。
-- 产物发现覆盖被忽略目录与非 Git 工作区；worktree 放开 detached HEAD 与子目录项目（#91）。
-- 思考收进「过程」，长思考默认折叠、点开 300ms 拉开；运行中标签只呼吸透明度（#84 / #90）。
-- 型号窗口、输出上限和思考档位按 [models.dev](https://models.dev/)。侧栏 footer 增加设置按钮。
-- 产品路径不再写死 macOS：`ctf_capabilities` 用真实 PATH，访达/资源管理器走 `shell.openPath`（#87）。
-- macOS 签名打包不再等 Environment Approve；`macos-release` 仍作密钥库（#94）。
-- GitHub Release 提供 DMG / EXE / DEB / x64 tar.gz 与 `SHA256SUMS-26.915.1.txt`。macOS 走 GitHub-hosted 签名公证。Windows 安装器仍未代码签名。
-
-三端都从 `d37b9575fd410a216461bce7fef7f98bfa1c4b95` 构建。OTA 已写入私有 R2 并自动发布该平台 current pointer。
-
-| 平台 | Workflow | 用户安装包 | 大小 | SHA-256 | 结果 |
-| --- | --- | ---: | ---: | --- | --- |
-| macOS ARM64 | `34873453613` | `MilkSU-macOS-arm64-26.915.1.dmg` | 300,728,583 B | `f5f39a9349e6bc892237aab9ddfce938a9bf9a7f30c159213449e9303c52ffda` | Developer ID 签名、Apple 公证、staple、Gatekeeper |
-| Windows x64 | `34873457848` | `MilkSU-Windows-x64-26.915.1-Setup.exe` | 238,824,009 B | `15aaf941a66a774f0cf38f81dccc4985ef4e9fdaff43fcf56b8659d507e9127f` | 原生 Windows 构建、打包 Runtime 与首次启动通过；安装器未代码签名；窗口铬尚未真机验收 |
-| Linux x64 | `34873461697` | `MilkSU-Linux-x64-26.915.1.deb` | 213,799,724 B | `cfaddcb225b1fd1a24f4755339475418088f67d84d812b8716f77494ae61f890` | Ubuntu/Debian 共用 DEB；包结构、Sidecar、Go Runtime 与 Xvfb 首次启动通过；GNOME Portal Computer Use 已进包；无 Secret Service / 本地 OCR；窗口铬尚未真机验收 |
-| Linux x64 tarball | `34873461697` | `MilkSU-Linux-x64-26.915.1.tar.gz` | 264,788,231 B | `17bd5593e460373e00e556d4ae3caacab405d3df083250ecfbe73414075b48df` | Omarchy/Arch/Nix 共用 tarball；PKGBUILD / flake 是安装方法 |
+最近一次正式包装源 `d37b957`（`26.915.1`）：Pi `bash` 缺省 600 秒；非活跃 Sidecar 停靠保活；凭据轮换惰性、撤回立即停；writer 只在模型委托写入时准备；思考收进「过程」。Windows 安装器仍未代码签名。
 
 发行页：<https://github.com/MilkSU-Official/milksu/releases/tag/v26.915.1>
 
-## 未打进 GitHub 安装包的当前代码
+| 平台 | Workflow | 安装包 | 大小 | SHA-256 |
+| --- | --- | --- | ---: | --- |
+| macOS ARM64 | `34873453613` | `MilkSU-macOS-arm64-26.915.1.dmg` | 300,728,583 B | `f5f39a9349e6bc892237aab9ddfce938a9bf9a7f30c159213449e9303c52ffda` |
+| Windows x64 | `34873457848` | `MilkSU-Windows-x64-26.915.1-Setup.exe` | 238,824,009 B | `15aaf941a66a774f0cf38f81dccc4985ef4e9fdaff43fcf56b8659d507e9127f` |
+| Linux x64 DEB | `34873461697` | `MilkSU-Linux-x64-26.915.1.deb` | 213,799,724 B | `cfaddcb225b1fd1a24f4755339475418088f67d84d812b8716f77494ae61f890` |
+| Linux x64 tarball | `34873461697` | `MilkSU-Linux-x64-26.915.1.tar.gz` | 264,788,231 B | `17bd5593e460373e00e556d4ae3caacab405d3df083250ecfbe73414075b48df` |
 
-下列仍未进安装包或尚未真机验收。Windows 代码签名、Linux Secret Service / 本地 OCR、Hyprland/Xorg Computer Use、CTF 比赛模式和实验室红队学习面仍缺。
+## 未打进 GitHub 安装包
 
-- #53 的 typed sweep / inventory 工具尚未做。只在真实 wide job 仍用 bash 复刻库存后再做。
-- 新对话继承项目 `milksu` 仍未做。
-- Windows 接入 Computer Use 后整段对话崩溃尚未真机验收。
-- Computer Use 仍要先选窗口。
-- DeepSeek Harness 走 ACP，工具在 harness 进程内执行，MilkSU 只是 ACP 客户端，只能允许或拒绝一次调用，改不了它的工具参数。因此 DSH 会话的 `bash` 仍没有 MilkSU 侧超时上界。要补齐需要 harness 自身的配置项或 ACP 扩展点，不要在客户端复刻第二套工具循环。
-- 工作树已钉 `@deepseek-ai/dsh@0.1.6-alpha.1` 及官方 Browser / Computer Use / Auto review 实验包。选中 DSH 时首回合 Ensure 隔离浏览器；会话 MCP 名是 `playwright-mcp`。官方 DeepSeek 不写 `DEEPSEEK_BASE_URL`（Messages 默认 `https://api.deepseek.com/anthropic`）；TokenFlux / 自定义 OpenAI 兼容端点才切 `chat-completions`。`workspace-auto` / `full-auto` 映射 DSH `workspace-write`，不切官方 Auto review。产品回归入口是 `npm run test:product-loop`（用法见 [产品回归循环](product-regression-loop.md)）。`desktop-surface` 优先 Computer Use 观察计算器，不可用降级隔离浏览器 CDP。不要再把 `test:dsh-complete-loop` 当主入口。未打进安装包。
-- 准备 writer 过程中按停止时，界面有时同时出现「本轮已停止。」和「Agent 运行失败：本地 Agent 运行异常」。合同只该留前者。
-- macOS 侧栏「安装并重启」会走 Squirrel ShipIt。本机对刚失败的 `MilkSU-macOS-arm64-26.915.1.zip` 解包：29062 个文件里只有 `milksu-sidecar/THIRD_PARTY-LICENSES/gopls-BSD-3-Clause.txt` 为 0444，ShipIt 卸隔离失败后仍拉起旧包。对同一份 ZIP 做 `ensureOwnerWritable` 再 ditto 打回，以及用同一份公证 DMG 走 `prepareMacUpdate`（对照 `/Applications/MilkSU.app` 签名团队），再解包后都能对那份许可证执行 `xattr` 写入并清除。正式 `release-macos` 在打 OTA ZIP 前后都会跑同一道门；未打进下一版安装包前，已装的 26.912.3 仍要用 GitHub DMG 拖进应用程序。
+- #53 typed sweep；新对话继承项目 `milksu`；Windows Computer Use 整段崩溃尚未真机验收。
+- Computer Use 仍要先选窗口。DSH `bash` 没有 MilkSU 侧超时上界（工具在 harness 进程内，不要在客户端复刻第二套循环）。
+- DSH `0.1.6-alpha.1`、产品回归 `npm run test:product-loop`、`desktop-surface`（Computer Use 优先，不可用降级隔离浏览器）均未进安装包。不要把 `test:dsh-complete-loop` 当主入口。
+- 准备 writer 时按停止，有时同时出现「本轮已停止。」和「Agent 运行失败」。合同只留前者。
+- macOS OTA ZIP 须先把 sidecar 许可证改成属主可写，否则 ShipIt 可能装完仍是旧版。已装的 26.912.3 在下一包装进包前仍用 GitHub DMG。
 
 ## 当前产品事实
 
-### Pi Runtime 收敛
-
-- 普通 Coding、CTF 与 CVE 的文件、Shell、会话生命周期和输出续跑已经回到 Pi 原生语义。MilkSU 不再复制 workspace-only 文件工具、`sandbox-exec`、持久化授权根、Node `--allow-fs-*` 权限状态机或后台授权令牌。
-- Coding、CTF、CVE 与实验室共用 Pi 自动压缩：会话创建/复用时 `setAutoCompactionEnabled(true)`，80% 空闲路径与任务 UI `/compact` 都不按角色跳过。工具结果进模型前走 Pi `tool_result` 截断。
-- CTF 删除了阻断通用任务的自建 sandbox-exec；仍保留 Challenge、Evidence、Candidate、Judge Receipt、Recovery、Memory、精确站点能力和凭据隔离。达到模型输出长度上限时走 Pi `agent_end` / `followUp`，不把半句当完成。
-- CVE → Coding 不再注入“只读检查”“只输出启动清单”等限制，使用普通 Pi 工具和当前权限档。普通产品回合不再被 MilkSU 的 90 秒无事件 watchdog 静默终止；用户主动停止和独立评测 deadline 仍保留。
-- 普通用户文字和回复风格交给 Pi/模型理解。GUI 一键动作只传 typed product action、界面语言和无凭据系统环境，不额外注入客服话术、固定长尾问题或关键词/正则意图路由。
-- 重启后失效的旧 Pi session ID 会清理并按普通消息重建，不能让 GUI 保持“运行中”而 Sidecar 已停止的分裂状态。
-- `26.817.3` 已在真实打包 Windows App 验证账户模型与 Pi 工具回合；`26.818.1` 继续收紧账户目录、错误文案和 Windows Reveal；`26.818.2` 把有界 Computer Use Driver、隔离浏览器多标签和调试模式打进正式包。
-- MilkSU 仍保留三项宿主必要边界：会话目录记录、Provider 凭据隔离、递归删除用户 Home/文件系统根/当前 cwd/大型目录时的二次确认。
-
-### 模型、附件与网页查证
-
-- Admin 可为登录用户分配独立 TokenFlux Key；Electron 获取后只交给 Go Credential Store。运行时只展示该 Key 或用户本机已配置 Provider 实际可用的模型。
-- 账户模型目录按账户凭据优先刷新并记录不含密钥的 `credential_source`；权威账户目录缺少所选模型时，请求前跳过账户来源，目录未知时仍保留运行时尝试。TokenFlux 在首个内容输出前返回 `model_not_found` / `not supported by any configured account` 时，可安全回退到已配置的个人来源；设置页默认模型与 Coding 共用同一可调用目录。
-- 图片不再由 MilkSU 按目录白名单分成「视觉 / 纯文本」。附件原图进入当前回合；模型或接口自己决定能否看图。不配置第二个视觉模型。选择、粘贴和拖放的普通文件进入统一附件栏，可排序、预览、移除并以附件描述发送。
-- Coding 网页查证复用固定 revision 的 Pi `web_search` / `web_fetch` Extension，不另建 MilkSU 搜索决策状态机；真实联网查询已完成搜索并读取 xAI 官方文档。
-- 设置页支持账户模型、原厂 Provider 和最多 8 个简单 OpenAI-compatible 中转站；Key 统一进入 Credential Store，未配置来源不进入模型列表。
-- 设置页可按模型启用思考能力、限制支持档位并设置默认值；Coding Composer 只对已启用模型显示对话级快捷滑块。档位沿用 Pi 的 `off / minimal / low / medium / high / xhigh / max`，不维护第二套推理循环。
-
-### 桌面产品表面
-
-- 桌面壳是 Electron/Chromium + Vue；Go 是受管 Runtime，Pi Sidecar 拥有通用模型会话、Compaction 与 Tool Loop。
-- 右栏“浏览器”、真实 Chrome/Edge 的 Browser Use、可见窗口的 Computer Use 是三个独立执行表面。Computer Use 可以锁定用户真实浏览器窗口做像素级操作；结构化标签页控制仍走隔离浏览器或 Browser Use。折叠面板只改变观察视图，不应停止 Session。
-- 用户可见产物写入各操作系统的用户文档目录下 `MilkSU/{Coding,CTF,CVE,Lab}`；无项目 Coding 临时工作区、Runtime、事件、Obelisk、浏览器 Profile 与凭据留在平台用户配置目录，不把 macOS 路径写死为产品契约。
-- Obelisk 会话索引底层继续保留；Coding 右栏与环境页已移除“相关历史”、搜索、过滤和图谱等单会话前端。学习记录/记忆系统如重新进入产品，应单独设计页面。
-- 进入 Coding 从“永远打开空白草稿”改为恢复上次会话：会话历史现在有归档、重命名与恢复入口，空白草稿不再是回到工作区的唯一入口，继续上一段任务比重新起草更常见。CTF/CVE 交接与显式历史点击仍然直接打开具体会话。
-- Agent 会话的直接删除改为可恢复归档：侧栏归档前确认，设置页集中恢复或永久删除且两者均再次确认；永久删除同步清理 Pi 会话与 Obelisk 活动索引。Coding 会话列表同时支持行内改名。该能力已进入 `26.822.1`。
-- 产品 UI 设计语言只写在 `AGENTS.md`。不要在本页复述层级、token 或原语表。
+- Coding / CTF / CVE / 实验室共用 Pi 文件、Shell、自动压缩（80% 空闲与 `/compact` 同一路径）和完整工作循环。工具结果进模型前走 Pi `tool_result` 截断。不扫描用户句子做意图路由。
+- MilkSU 只持会话目录、凭据隔离、桌面授权、领域事实/Judge，以及危险大目录删除二次确认。
+- 账户 TokenFlux 与本机 Provider 共用可调用目录；附件原图进当前回合。网页查证复用 Pi `web_search` / `web_fetch`。
+- 桌面壳是 Electron/Chromium + Vue。隔离浏览器、Browser Use、Computer Use 是三个表面；面板折叠不停止 Session。产物在各 OS 文档目录 `MilkSU/{Coding,CTF,CVE,Lab}`。
+- 产品 UI 只写在 `AGENTS.md`。
 
 ## 当前完成线
 
-### 下一完成线
-
-1. 功能改动后按 [产品回归循环](product-regression-loop.md) 选套件跑 `npm run test:product-loop`；失败项回到下面 P0。安装包上的 Pi / 实验室靶机仍由用户真机看；
-2. #53 typed sweep 只在真实 wide job 仍用 bash 复刻库存后再做；
-3. 用户明确要求发下一版时，先升版本号，再从干净已推送的 `main` 跑 `release:verify` 并留下新的三端回执。不把已发出的 tag 挪到更新的 HEAD。
-
-Windows 签名、Linux Secret Service / OCR、Hyprland/Xorg Computer Use、Windows/Linux 窗口铬真机验收仍是发行后续，不是产品方向禁令。
-
-### 后续队列
+1. 功能改动后按 [产品回归循环](product-regression-loop.md) 跑 `npm run test:product-loop`；失败回 P0。安装包上的 Pi / 实验室靶机仍由用户真机看。
+2. #53 typed sweep 只在真实 wide job 仍用 bash 复刻库存后再做。
+3. 用户要求发下一版时：升版本号 → 干净已推送的 `main` 跑 `release:verify` → 新的三端回执。不挪已发出的 tag。
 
 | 优先级 | 事项 | 完成标准 |
 | --- | --- | --- |
-| P0 | 产品回归 | 改对话 / 引擎 / DSH / 隔离浏览器后跑 `npm run test:product-loop -- --gui --suite all`（或只选相关套件）。用法见 [产品回归循环](product-regression-loop.md)。Settings「评测」不替代这条。附件、斜杠菜单、Browser Use、终端等仍无套件的，在运行中的 Stable 窗口里看。C9 / C15 / C16 / C20 已由用户在本地 dirty Stable 包确认；C10 / C11 已修待复验。 |
-| P0 | Pi Runtime 用户验收 | 最新正式包中验证跨目录读写、CTF/CVE 交接、长输出续跑和重启恢复，不出现 MilkSU 自建 workspace 策略或旧 session ID。 |
-| P1 | 下一版三端回执发行 | 需要新的版本号、同一 source commit、三端产物、SHA-256 与平台验收。可下载安装包见 README。 |
-| P1 | Admin current pointer / 客户端下载 | 侧栏先 `checkForUpdates` 再 `downloadUpdate`，安装失败可见，CI 上传 OTA 后自动发布 current pointer。无感更新先整包校验再经本机回环。 |
-| P1 | Wide lab typed sweep（#53） | `bg_status` 熔断与最多 4 条 read-only `subagent` lane 已进 `26.911.1`。typed sweep / inventory 工具只在真实 wide job 仍用 bash 复刻库存后再做。 |
-| P1 | 安全工具真实任务 | IDA/idalib 与 capa 已有设置、准备和健康检查；用受控本地样本留下真实任务回执。就绪工具接到实验室作业，窄工具也可进 CVE 复现；不需要先开一次“是否投影”的会。不把 HexStrike 整包 MCP 做成产品页或 Kali 应用商店。CodeQL、Burp、Shannon 仍逐项接入。 |
-| P1 | Obelisk 学习记录 | 先定义可归因学习事实，再设计独立页面；不恢复已删除的单会话相关历史/图谱面板。 |
-| 未接线 | 继续同一作业还是新开一轮 | 当前按同一 CVE/实验室作业复用同一会话和 `report.md`。新开一轮的产品决策还没定。 |
-| 未接线 | CTF 比赛模式 | 对着一场比赛的页面用 Agent 去打，列表和操作只服务这一场，不走现在的练习题库（历史 + 导入）。组队、共享题目状态后做。不要和 NSSCTF Agent Arena 单题限时评分混成同一面。尚未设计准入，未实现。 |
-| 未接线 | 实验室红队模式 | 实验室可能另开红队学习面，用来学 Cobalt Strike 一类 C2 / 后渗透作业，而不是把现在的探测报告作业改成对外红队。范围仍是可见靶场或用户明确授权的资产；不扫未授权外网、不做隐匿/凭证喷洒产品功能。不要把 Cobalt Strike 做成仓库核心或默认 MCP。尚未设计准入，未实现。 |
+| P0 | 产品回归 | 改对话 / 引擎 / DSH / 隔离浏览器后跑 `npm run test:product-loop`。见 [产品回归循环](product-regression-loop.md)。Settings「评测」不替代这条。C9 / C15 / C16 / C20 已确认；C10 / C11 已修待复验。 |
+| P0 | Pi Runtime 用户验收 | 跨目录读写、CTF/CVE 交接、长输出续跑、重启恢复；无 MilkSU 自建 workspace 策略或旧 session ID。 |
+| P1 | 下一版三端回执 | 新版本号、同一 source commit、三端产物、SHA-256 与平台验收。安装包见 README。 |
+| P1 | OTA / current pointer | 侧栏先检查再下载；安装失败可见；CI 上传后发布 current pointer。 |
+| P1 | #53 typed sweep | `bg_status` 熔断与最多 4 条只读 subagent 已进包。inventory 工具待真实 wide job 仍用 bash 时再做。 |
+| P1 | 安全工具真实任务 | IDA / capa 已有设置与健康检查；用受控样本留回执。不把 HexStrike 做成默认 MCP。 |
+| P1 | Obelisk 学习记录 | 先定义可归因事实，再独立页面；不恢复已删的单会话图谱。 |
+| 未接线 | 同一作业 vs 新业务 | 当前 CVE/实验室复用同一会话和 `report.md`。 |
+| 未接线 | CTF 比赛模式 | 对着一场比赛打，不走练习题库。尚未设计准入。 |
+| 未接线 | 实验室红队模式 | 另开学习面，不是对外红队。尚未设计准入。 |
 
-### 当前切片：CVE 复现档案 + 实验室报告
-
-实验室在界面上就叫**实验室**。完成面是 Agent 可继续改的报告，不是状态标签，也不是人签过字的 Finding 列表。未授权外网不扫、不横向、模型候选不能写成已确认漏洞。CTF 仍只当题。`26.825.1` 已能从题目包打开靶机卡片并起本机 Docker 靶或本机 AVD。用户自带 URL 作业仍在。环境契约是 [靶机、环境经纪与活靶面](/architecture/target-environments)。交互稿 `app/env-preview.html` 只用于设计预览，不进产品入口。
-
-| 切片 | 放哪 | 做什么 | 现在能看见 |
-| --- | --- | --- | --- |
-| **CVE：已知洞复现** | 点进 CVE 档案，不在列表卡片上做 | 按公开描述打一轮。Agent 编辑工作区 `report.md`（或 `report.html`）：摘要、环境、进程、网络、步骤。没打上也留报告。 | 列表点进去后能看摘要/来源、开始复现、报告和右下角对话小窗 |
-| **实验室** | 独立一级入口，不塞进 CVE | 练习包一键起本机 Docker / AVD，或用户给出本机/远程地址。Agent 对这个靶做探测，把发现写进同一份活报告。工具在设置里准备，在作业里使用。 | 作业 \| 练习包；环境条 + 右栏活靶面；报告 + 对话小窗 |
-
-共用：Pi 会话、详情页 + 右下角对话小窗。CTF 不再把解题嵌进整页 Coding。同一 CVE / 题目 / 实验室作业可以新开对话，列表和 Coding 大窗共用同一会话。HexStrike 只作为以后实验室作业里可审阅的 CLI，不作为默认 MCP、不作为独立页面。
+CVE：点进档案复现，Agent 改 `report.md`。实验室：独立入口，练习包起本机 Docker / AVD 或用户给地址，活报告 + 对话小窗。环境契约见 [靶机、环境经纪与活靶面](/architecture/target-environments)。
 
 ## 不要重复打开
 
-以下只在出现新复现、自动化失败或用户明确要求时重开：
+只在新复现、自动化失败或用户明确要求时重开：已撤单会话图谱；Wails/CEF；workspace-only 文件工具；Security Bridge / `continue_ctf_job`；关键词意图路由；自建计费；把 dirty HEAD 写成已发版；M3/M4 台账。
 
-- 已撤下的单会话“相关历史”与图谱前端；Obelisk 底层索引不等于该 UI。
-- Wails/CEF 双壳、workspace-only 文件工具、Node 文件权限状态机、普通回合 watchdog、CVE 只读启动清单和客服式回复模板。
-- 独立 Security Bridge / `continue_ctf_job` typed-action 循环。CTF 解题走 Pi 对话 + Judge；不要再拉起第二条 Agent 进程。
-- 用关键词或正则扫描用户句子来打开浏览器、切页或选工具。
-- MilkSU 自建余额、价格映射、扣费流水和模型代理计费。
-- 把晚于发行源的 HEAD、版本号或本地 dirty 包写成已经发出的三端正式包。
-- M3/M4 旧百分比台账、历史 Beta 完成度和已删除 live smoke；需要考古时使用 Git history。
+## 领域与文档
 
-## 领域完成线
-
-- **CTF**：模型只提出 Candidate；Judge 或用户明确授权结果才能建立成功事实。通用能力走 Pi，MilkSU 保留题目、Evidence、Judge、Recovery 与 Memory。`26.823.1` 起 CTF / CVE / 实验室与 Coding 共用完整循环（终端、Git、浏览器、工作台动作）；领域工具叠在上面，不是禁令也不是替换。
-- **CVE**：发行面包含公共数据搜索、用户主动追踪、手工状态，以及点进档案后的复现报告。不以「复现成功 / 没复现上」当完成面。披露草稿仍可后做。对用户未授权的外部资产，仍需要可见、准确的授权。
-- **实验室**：`26.822.1` 已接线列表、改名、作业、报告和对话小窗。它是未知漏洞探测作业面，不是对外红队，也不是 CTF 题库里的环境包。
-- **Memory**：Agent 代做不等于用户掌握。用户能力事实必须能链到 Judge、测试/提交、正式 Evidence 或用户确认。
-- **发行**：按钮、构建文件、版本号或空 tag 不等于可分发版本；必须保留对应平台真实产物和验收回执。
-
-## 架构与文档规则
-
-- 依赖方向固定为 `Vue → Electron Preload / Desktop RPC → Application Service → Domain / Runtime → Adapter`。
-- 触碰 `CTFPage.vue`、`cmd/milksu-backend/app.go`、`sidecar/pi/bridge-policy.js`、`internal/browsercap/manager.go` 或 Runner/Recovery 时，不再向热点文件增加第二份通用 harness 职责。
-- 文档分 Current、Evidence、Historical/Research 三层。Current 只放当前事实与下一完成线；过程聊天、微提交、历史 smoke 和已撤下设计不堆进入口。
-- 产品 UI 设计语言只写在 `AGENTS.md`。不要在 Current 文档、切片笔记或 README 里复述层级、token 或原语表。
+- CTF：模型只提 Candidate；成功只来自 Judge 或用户确认。
+- CVE：完成面是复现报告，不是「复现成功」。
+- 实验室：未知洞探测，不是对外红队，也不是 CTF 环境包。
+- Memory：用户能力事实必须能链到 Judge、正式 Evidence 或用户确认。
+- 依赖方向：`Vue → Preload / RPC → Application Service → Domain / Runtime → Adapter`。
+- 触碰 `CTFPage.vue`、`app.go`、`bridge-policy.js`、`browsercap/manager.go` 或 Runner/Recovery 时，不往热点文件再加一份通用 harness。
