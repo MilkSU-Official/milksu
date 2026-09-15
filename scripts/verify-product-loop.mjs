@@ -11,11 +11,17 @@
  */
 
 import { spawn } from 'node:child_process'
+import { createServer } from 'node:http'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { redactProcessText } from '../sidecar/dsh/redact.js'
 import { GuiDriver, repositoryRoot } from './lib/desktop-gui-driver.mjs'
+import {
+  pickComputerUseTarget,
+  usedComputerUseTools,
+  usedIsolatedBrowserTools,
+} from './lib/product-loop-desktop-surface.mjs'
 import {
   DEFAULT_SUITES,
   PRODUCT_LOOP_SCHEMA,
@@ -27,6 +33,24 @@ import {
 
 const resultPath = join(repositoryRoot, 'build', 'test-results', 'product-loop.json')
 const FILE_TOOL_PATTERN = /(read|write|edit|apply_patch|glob|grep|ls|list_dir|read_file|write_file|str_replace|bash|shell)/i
+const PLAYWRIGHT_OFFICIAL_PREFIX = 'mcp__playwright-mcp__'
+
+const TASK_COMPUTER_PROMPT = [
+  '当前权限档是 workspace-auto。请用 Computer Use 观察本机已经打开的「计算器」窗口。',
+  '不要改系统设置，不要点辅助功能 / 屏幕录制权限对话框，不要安装驱动，不要点用户自己的 Chrome / Edge。',
+  '把你实际看到的窗口标题或计算器显示内容写进工作区 SURFACE.md，并说明用了 Computer Use。',
+  '如果看不到窗口或没有权限，直接说明原因并结束，不要重试绕过 TCC。',
+].join('\n')
+
+function browserSurfacePrompt(url) {
+  return [
+    '请使用本产品的隔离浏览器访问这个本机页面（只走 127.0.0.1，不要打开用户自己的 Chrome / Edge）：',
+    url,
+    '页面上有一段标记字符串。请读取该标记，把它原样写进工作区 SURFACE.md，并在回复里引用该标记。',
+    `优先使用官方 Playwright MCP 工具（名称通常带 ${PLAYWRIGHT_OFFICIAL_PREFIX} 前缀），或产品内置的隔离浏览器 / milksu_workspace 浏览器动作。`,
+    '不要启动第二只用户日常浏览器，不要做 Browser Use 配对。',
+  ].join('\n')
+}
 
 const TASK_A_PROMPT = [
   '你在当前工作区里做一次真实的文件循环，不要只聊天回复。',
@@ -240,6 +264,121 @@ async function runPiFiles(driver, options) {
   }
 }
 
+async function startMarkerServer() {
+  const marker = `MILKSU_SURFACE_${Date.now().toString(36)}`
+  const html = `<!doctype html>
+<html lang="zh-CN">
+  <head><meta charset="utf-8"><title>MilkSU product-loop fixture</title></head>
+  <body>
+    <h1>隔离浏览器降级页</h1>
+    <p id="marker">${marker}</p>
+  </body>
+</html>
+`
+  const server = createServer((request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+    response.end(html)
+  })
+  await new Promise((resolveListen, rejectListen) => {
+    server.once('error', rejectListen)
+    server.listen(0, '127.0.0.1', () => resolveListen())
+  })
+  const address = server.address()
+  return {
+    url: `http://127.0.0.1:${address.port}/`,
+    marker,
+    close() {
+      return new Promise(resolveClose => server.close(() => resolveClose()))
+    },
+  }
+}
+
+async function fileContains(path, needle) {
+  try {
+    const text = await readFile(path, 'utf8')
+    return text.includes(needle)
+  } catch {
+    return false
+  }
+}
+
+async function runDesktopSurface(driver, options) {
+  const workspace = await mkdtemp(join(repositoryRoot, 'build', 'test-results', 'product-loop-surface-'))
+  await runCommand('git', ['init'], { cwd: workspace })
+  await writeFile(join(workspace, 'README.md'), 'product-loop desktop-surface workspace\n')
+  const fixture = await startMarkerServer()
+  const surfacePath = join(workspace, 'SURFACE.md')
+  try {
+    const targets = await driver.listComputerUseTargets()
+    const picked = pickComputerUseTarget(targets)
+    if (picked.available) {
+      const conversation = await driver.createConversation({
+        title: 'product-loop computer-use',
+        workspacePath: workspace,
+        kernel: 'pi',
+        approvalPolicy: 'workspace-auto',
+      })
+      await driver.sendMessage(conversation.id, TASK_COMPUTER_PROMPT, workspace)
+      const turn = await driver.waitForTurn(conversation.id, options.taskTimeoutMs)
+      const toolNames = collectToolNames(turn.events)
+      let hasSurface = false
+      try {
+        const text = await readFile(surfacePath, 'utf8')
+        hasSurface = text.trim().length > 0
+      } catch {
+        hasSurface = false
+      }
+      if (!turn.timeout && usedComputerUseTools(toolNames) && hasSurface) {
+        return {
+          result: 'PASS',
+          detail: `Computer Use 观察了计算器并写下 SURFACE.md`,
+          surface: 'computer-use',
+          degraded: false,
+          toolNames,
+        }
+      }
+      return {
+        result: 'FAIL',
+        detail: `Computer Use 可用但未完成观察 timeout=${Boolean(turn.timeout)} tools=${usedComputerUseTools(toolNames)} surface=${hasSurface}`,
+        surface: 'computer-use',
+        degraded: false,
+        toolNames,
+      }
+    }
+
+    const conversation = await driver.createConversation({
+      title: 'product-loop isolated-browser',
+      workspacePath: workspace,
+      kernel: 'pi',
+      approvalPolicy: 'workspace-auto',
+    })
+    await driver.ensureCodingBrowser(conversation.id)
+    await driver.sendMessage(conversation.id, browserSurfacePrompt(fixture.url), workspace)
+    const turn = await driver.waitForTurn(conversation.id, options.taskTimeoutMs)
+    const toolNames = collectToolNames(turn.events)
+    const hasMarker = await fileContains(surfacePath, fixture.marker)
+    if (!turn.timeout && usedIsolatedBrowserTools(toolNames) && hasMarker) {
+      return {
+        result: 'PASS',
+        detail: `Computer Use 不可用（${picked.reason}），已降级隔离浏览器 CDP 并读到标记`,
+        surface: 'isolated-browser',
+        degraded: true,
+        toolNames,
+      }
+    }
+    return {
+      result: 'FAIL',
+      detail: `降级隔离浏览器失败 timeout=${Boolean(turn.timeout)} browser=${usedIsolatedBrowserTools(toolNames)} marker=${hasMarker}`,
+      surface: 'isolated-browser',
+      degraded: true,
+      toolNames,
+    }
+  } finally {
+    await fixture.close()
+    await rm(workspace, { recursive: true, force: true }).catch(() => {})
+  }
+}
+
 async function runDshDelegate(mode) {
   const result = await runCommand(
     process.execPath,
@@ -283,6 +422,7 @@ function baseReceipt(options) {
       '协调器在 scripts/，不进 App 启动、不暴露测试专用 Desktop RPC。',
       'Settings → 评测仍是模型能力 bench（evalsuite / #82），不要和本回执混读。',
       '草稿按对话隔离没有 Desktop RPC，chat-pin 只覆盖钉选落盘。',
+      'desktop-surface 优先 Computer Use 观察计算器；不可用才降级隔离浏览器 CDP。不点用户 Chrome。',
       '禁止 desktop:start:beta / MilkSU Beta。',
     ],
     suites: [],
@@ -358,6 +498,18 @@ async function main() {
             outcome = await runPiFiles(driver, options)
           }
         }
+      } else if (id === 'desktop-surface') {
+        await ensureDriver()
+        if (!driver?.cdp) {
+          outcome = { result: 'SKIP', detail: '需要 --gui 且已附着产品窗口' }
+        } else {
+          const creds = await driver.credentialPresent()
+          if (creds === 'none') {
+            outcome = { result: 'SKIP', detail: '没有账户会话或 Provider Key，跳过桌面执行面' }
+          } else {
+            outcome = await runDesktopSurface(driver, options)
+          }
+        }
       } else if (id === 'dsh') {
         if (driver) {
           await driver.close()
@@ -376,6 +528,8 @@ async function main() {
         result: outcome.result,
         detail: redactProcessText(outcome.detail || '', 500),
         toolNames: outcome.toolNames,
+        surface: outcome.surface,
+        degraded: outcome.degraded,
       }
       receipt.suites.push(record)
       process.stdout.write(`SUITE ${id} ${record.result} ${record.detail}\n`)

@@ -4,6 +4,11 @@ import test from 'node:test'
 import { EventEmitter } from 'node:events'
 import { isMilkSUPage, killProcessGroup } from './lib/desktop-gui-driver.mjs'
 import {
+  pickComputerUseTarget,
+  usedComputerUseTools,
+  usedIsolatedBrowserTools,
+} from './lib/product-loop-desktop-surface.mjs'
+import {
   DEFAULT_SUITES,
   SUITE_RUN_ORDER,
   orderSuites,
@@ -18,7 +23,7 @@ import {
 test('catalog keeps product regression away from evalsuite', () => {
   assert.equal(PRODUCT_LOOP_SCHEMA, 'milksu-product-loop/v1')
   assert.equal(TOKENFLUX_BASE_URL, 'https://tokenflux.dev/v1')
-  assert.deepEqual(DEFAULT_SUITES, ['stop-scope', 'dsh', 'chat-pin', 'pi-files'])
+  assert.deepEqual(DEFAULT_SUITES, ['stop-scope', 'dsh', 'chat-pin', 'pi-files', 'desktop-surface'])
   assert.deepEqual(orderSuites(['pi-files', 'stop-scope', 'dsh']), ['stop-scope', 'dsh', 'pi-files'])
   assert.deepEqual(SUITE_RUN_ORDER[1], 'dsh')
   for (const id of DEFAULT_SUITES) {
@@ -45,10 +50,24 @@ test('parseProductLoopArgs selects mode and suite list', () => {
   )
 })
 
-test('pi-files is GUI-only; stop-scope runs in both modes', () => {
+test('pi-files and desktop-surface are GUI-only; stop-scope runs in both modes', () => {
   assert.equal(suiteRunnable(SUITES['pi-files'], 'bridge').ok, false)
+  assert.equal(suiteRunnable(SUITES['desktop-surface'], 'bridge').ok, false)
   assert.equal(suiteRunnable(SUITES['stop-scope'], 'bridge').ok, true)
   assert.equal(suiteRunnable(SUITES.dsh, 'bridge').ok, true)
+})
+
+test('pickComputerUseTarget only accepts a calculator, then degrades', () => {
+  assert.equal(pickComputerUseTarget({ error: 'Computer Use service is unavailable' }).available, false)
+  assert.equal(pickComputerUseTarget([]).available, false)
+  assert.equal(pickComputerUseTarget([{ name: 'MilkSU', bundleId: 'com.milksu.app' }]).available, false)
+  assert.equal(pickComputerUseTarget([{ name: 'Google Chrome', bundleId: 'com.google.Chrome' }]).available, false)
+  const picked = pickComputerUseTarget([{ name: '计算器', bundleId: 'com.apple.calculator' }])
+  assert.equal(picked.available, true)
+  assert.equal(picked.reason, 'calculator')
+  assert.equal(usedComputerUseTools(['screenshot', 'bash']), true)
+  assert.equal(usedIsolatedBrowserTools(['mcp__playwright-mcp__browser_navigate']), true)
+  assert.equal(usedComputerUseTools(['bash']), false)
 })
 
 test('isMilkSUPage rejects Cursor and accepts the product window', () => {

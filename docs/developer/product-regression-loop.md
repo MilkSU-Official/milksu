@@ -18,7 +18,7 @@
 | NYU safe-static | 窄域开发者静态题 | `docs/developer/nyu-ctf-bench-eval.md` |
 | `test:dsh-complete-loop` | 只跑 DSH A/B/C | 仍可用；等价于下面的 `--suite dsh`。新回归请走本页入口。 |
 
-不要把 Pass@1、模糊指令或模型排名写进本回执。Computer Use 没有计算器窗口或 TCC 时只记 warning，不硬失败。
+不要把 Pass@1、模糊指令或模型排名写进本回执。`desktop-surface` 优先 Computer Use 观察计算器；TCC / 平台不可用 / 没打开计算器时降级隔离浏览器 CDP，降级成功仍算 PASS，回执写明 `degraded`。计算器已在、CU 回合失败则 FAIL，不静默降级。不把用户 Chrome 当 CU 目标。
 
 ## 怎么调用
 
@@ -37,6 +37,9 @@ npm run test:product-loop -- --gui --suite dsh
 # 改默认 Pi 文件循环
 npm run test:product-loop -- --gui --suite pi-files
 
+# 改 Computer Use / 隔离浏览器执行面（CU 不可用会降级）
+npm run test:product-loop -- --gui --suite desktop-surface
+
 # 功能改动后的整次产品回归（默认套件，会自己排好顺序）
 npm run test:product-loop -- --gui --suite all
 ```
@@ -51,7 +54,7 @@ npm run test:product-loop-catalog
 
 ## 选哪一套
 
-协调器会按 `stop-scope → dsh → chat-pin → pi-files` 排序。DSH 必须先于其它 GUI 套件，单独启停 Stable 窗口；叠在 Pi 会话上会把官方 Playwright MCP 弄坏。
+协调器会按 `stop-scope → dsh → chat-pin → pi-files → desktop-surface` 排序。DSH 必须先于其它 GUI 套件，单独启停 Stable 窗口；叠在 Pi 会话上会把官方 Playwright MCP 弄坏。
 
 | 套件 | 改了什么时跑 | 断言 | 要桌面 | 要 Key / 账户 |
 | --- | --- | --- | --- | --- |
@@ -59,6 +62,7 @@ npm run test:product-loop-catalog
 | `dsh` | DSH 内核、Messages 根、隔离浏览器、审批 | 文件循环、本机标记、工作区写入自动过、区外删除被拦 | DSH 自己拉 Stable | 是 |
 | `chat-pin` | 侧栏钉选、会话 store | 钉选顺序落盘；`--gui` 再走 `SaveConversation` / `ListConversations` | 仅 GUI 落盘 | 否 |
 | `pi-files` | 默认 Pi 工具循环 | 写出 `NOTES.md` 且出现文件工具 | 是 | 是 |
+| `desktop-surface` | Computer Use 或隔离浏览器 | 有计算器则 CU 观察并写 `SURFACE.md`；否则 Ensure 隔离浏览器读本机标记 | 是 | 是 |
 
 草稿按对话隔离没有 Desktop RPC，本套件不假装测过。计划卡回合结束隐藏、长对话分片挂载在运行中的窗口里看，不要用 Vue mount 单测锁。
 

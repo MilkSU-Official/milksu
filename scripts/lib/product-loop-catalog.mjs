@@ -44,9 +44,18 @@ export const SUITES = {
     needsCredential: true,
     detail: '委托 scripts/verify-dsh-complete-loop.mjs 自己启停 Stable，不复用前面套件的窗口。',
   },
+  'desktop-surface': {
+    id: 'desktop-surface',
+    title: '桌面执行面',
+    from: '#96',
+    modes: ['gui'],
+    needsDesktop: true,
+    needsCredential: true,
+    detail: '优先 Computer Use 观察计算器。TCC / 平台 / 没窗口时降级隔离浏览器 CDP，读本机标记。不点用户 Chrome。',
+  },
 }
 
-export const SUITE_RUN_ORDER = ['stop-scope', 'dsh', 'chat-pin', 'pi-files']
+export const SUITE_RUN_ORDER = ['stop-scope', 'dsh', 'chat-pin', 'pi-files', 'desktop-surface']
 export const DEFAULT_SUITES = [...SUITE_RUN_ORDER]
 
 export function orderSuites(ids) {

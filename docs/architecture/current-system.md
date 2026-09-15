@@ -85,7 +85,7 @@ MilkSU 的桌面壳不是通用 Agent Loop 的另一份实现。Pi 仍负责会�
 | 本地持久化 | **Implemented** | 用户可见 Coding/CTF/CVE/Lab 产物位于平台文档目录的 `MilkSU`；无项目 Coding 临时工作区位于用户配置目录的 `agent-workspaces` 并统一显示为“无项目任务”，不再制造用户可见的哈希项目目录。选择、粘贴和拖放的普通文件统一导入受管附件区并以哈希描述进入 Pi；普通文件与 Shell 恢复 Pi 内置工具和当前系统用户权限语义，MilkSU 不再持久化另一套 workspace-only 授权根或文件工具。Runtime Artifact、CTF Memory、Catalog、Conversation、Obelisk Session Index、Browser Profile 和 Credential Store 位于用户配置目录。会话归档存入 Conversation 目录下的独立归档区，恢复保留 Pi 上下文，永久删除才清理会话正文、Pi 持久化文件和索引副本。凭据不经桌面 RPC 返回 Vue，也不进入模型上下文。 |
 | 实验室 | **Implemented / packaged in 26.822.1；环境经纪 in 26.825.1** | 主导航「实验室」是未知漏洞探测作业。用户自带 URL 仍可用；`26.825.1` 另可从练习包起本机 Docker 靶或本机 AVD。Agent 把过程写进 `Documents/MilkSU/Lab` 下的 `report.md`。对话是可拖放小窗，不是整页 Coding。不是 Kali 应用商店，不整包接入 HexStrike MCP。安卓靶用受限 adb，不是 Computer Use。 |
 | CTF Managed Labs | **Not shipped** | CTF 本地房还不能引用环境经纪。Juice Shop / WebGoat / Vulhub / AVD 练习包已经挂在实验室和 CVE 档案（`26.825.1`），不是 CTF 题库里的环境包。 |
-| 产品回归 / 模型评测 | **Partial / not in install** | 产品契约走 `npm run test:product-loop`，用法见 [产品回归循环](/developer/product-regression-loop)。Settings「评测」是 Cybench / SEC-bench / AutoPen 模型能力（`internal/evalsuite`）。NYU safe-static 仍是窄域开发者 bench。协调器不进 App 启动。 |
+| 产品回归 / 模型评测 | **Partial / not in install** | 产品契约走 `npm run test:product-loop`，用法见 [产品回归循环](/developer/product-regression-loop)。`desktop-surface` 优先 Computer Use 观察计算器，不可用降级隔离浏览器 CDP。Settings「评测」是 Cybench / SEC-bench / AutoPen 模型能力（`internal/evalsuite`）。NYU safe-static 仍是窄域开发者 bench。协调器不进 App 启动。 |
 
 ## 进程与 IPC
 
