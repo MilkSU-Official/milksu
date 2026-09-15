@@ -44,6 +44,7 @@ afterEach(() => {
   try {
     localStorage?.removeItem('milksu.eval.selected-suite')
     localStorage?.removeItem('milksu.eval.suite-models')
+    localStorage?.removeItem('milksu.eval.suite-kernel')
   } catch {
     // jsdom may not expose localStorage
   }
@@ -149,6 +150,49 @@ describe('EvalSettingsPanel', () => {
     expect(document.body.textContent).toContain('1:24')
     expect(document.body.textContent).not.toContain('打开作业')
     expect(document.body.textContent).not.toContain('本地目录')
+  })
+
+  it('draws a local ranking scatter when models have scores', async () => {
+    const scored = {
+      model: { provider: 'tokenflux', model: 'grok-4.5', kernel: 'pi' },
+      score: 60,
+      rank: 1,
+      solved: 18,
+      total: 30,
+      costUsd: 2.43,
+      medianTimeMs: 453000,
+      cacheHitPct: 79,
+    }
+    const dsh = {
+      model: { provider: 'tokenflux', model: 'grok-4.5', kernel: 'dsh' },
+      score: 63,
+      rank: 1,
+      solved: 19,
+      total: 30,
+      costUsd: 3.28,
+      medianTimeMs: 404000,
+      cacheHitPct: 84,
+    }
+    const frontier = { id: 'frontier-harness', name: 'FrontierHarness', purpose: 'Harness 工程任务', group: 'harness', runnable: true, taskN: 30 }
+    await mountPanel({
+      suites: [...suites, frontier],
+      selected: 'frontier-harness',
+      models: [dsh, scored],
+      all: [
+        { suite: suites[0], models: emptyModels },
+        { suite: suites[1], models: emptyModels },
+        { suite: suites[2], models: emptyModels },
+        { suite: frontier, models: [dsh, scored] },
+      ],
+    })
+    const switcher = [...document.body.querySelectorAll('button')].find(button => (
+      button.textContent?.includes('FrontierHarness')
+    ))
+    switcher?.click()
+    await nextTick()
+    expect(document.body.textContent).toContain('本机排名')
+    expect(document.body.textContent).toContain('DeepSeek Harness')
+    expect(document.querySelectorAll('figure[aria-label="FrontierHarness 本机排名"] circle').length).toBe(2)
   })
 
   it('starts the suite selected in the switcher', async () => {

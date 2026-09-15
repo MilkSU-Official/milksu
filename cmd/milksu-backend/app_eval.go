@@ -42,10 +42,11 @@ func (a *App) StopEvalRun() (evalsuite.BoardSnapshot, error) {
 	return a.evalSuite.Snapshot("", nil)
 }
 
-func (a *App) sendEvalTurn(sessionID, prompt, workspace string, settings config.AppSettings, source string) error {
+func (a *App) sendEvalTurn(sessionID, prompt, workspace string, settings config.AppSettings, source, kernel string) error {
 	if a.engines == nil {
 		return errors.New("评测运行时不可用")
 	}
+	a.engines.BindSessionKernel(sessionID, kernel)
 	return a.engines.SendMessage(
 		sessionID,
 		prompt,

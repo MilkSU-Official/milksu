@@ -15,6 +15,7 @@ import {
 } from '@felinic/ui'
 import {
   Bug,
+  Cpu,
   Flag,
   FlaskConical,
   Square,
@@ -33,6 +34,7 @@ import type { AppSettings } from '@/types'
 
 const SUITE_MODELS_KEY = 'milksu.eval.suite-models'
 const SELECTED_SUITE_KEY = 'milksu.eval.selected-suite'
+const SUITE_KERNEL_KEY = 'milksu.eval.suite-kernel'
 
 const props = defineProps<{
   settings: AppSettings | null
@@ -44,6 +46,7 @@ const { pickerGroups, pickerModelLabel } = useModelCatalog(computed(() => ({
 })))
 
 const suiteModel = ref<Record<string, string>>(loadSuiteModels())
+const suiteKernel = ref<Record<string, string>>(loadSuiteKernels())
 const selectedSuite = ref(loadSelectedSuite())
 const board = ref<EvalBoardSnapshot | null>(null)
 const activityOpen = ref(false)
@@ -83,6 +86,16 @@ const cards = computed<EvalSuiteBoard[]>(() => {
   }))
 })
 
+const groupedCards = computed(() => {
+  const security = cards.value.filter(item => item.suite.group !== 'harness')
+  const harness = cards.value.filter(item => item.suite.group === 'harness')
+  const groups = [
+    { id: 'security', label: t('安全', 'Security'), items: security },
+    { id: 'harness', label: t('Harness', 'Harness'), items: harness },
+  ]
+  return groups.filter(group => group.items.length > 0)
+})
+
 const current = computed(() => {
   const card = cards.value.find(item => item.suite.id === selectedSuite.value) ?? cards.value[0]
   if (!card) {
@@ -96,8 +109,11 @@ const current = computed(() => {
       modelKey: suiteModel.value[selectedSuite.value] ?? '',
       modelId: parsePickerSelection(suiteModel.value[selectedSuite.value] ?? '')?.model ?? '',
       selection: parsePickerSelection(suiteModel.value[selectedSuite.value] ?? ''),
+      kernel: suiteKernel.value[selectedSuite.value] ?? 'pi',
       busy: false,
       error: '',
+      ranking: rankingChart([]),
+      purpose: suitePurpose(selectedSuite.value),
     }
   }
   const focused = focusedRow(card.models, card.suite.id)
@@ -106,9 +122,12 @@ const current = computed(() => {
     focused,
     spark: sparkPoints(focused?.runs),
     chart: chartFor(card.models, card.suite.id),
+    ranking: rankingChart(card.models),
+    purpose: suitePurpose(card.suite.id) || card.suite.purpose,
     modelKey: suiteModel.value[card.suite.id] ?? '',
     modelId: parsePickerSelection(suiteModel.value[card.suite.id] ?? '')?.model ?? '',
     selection: parsePickerSelection(suiteModel.value[card.suite.id] ?? ''),
+    kernel: suiteKernel.value[card.suite.id] ?? 'pi',
     busy: suiteBusy(card.suite.id),
     error: suiteError(card.suite.id),
   }
@@ -118,6 +137,17 @@ const running = computed(() => (
   board.value?.progress?.state === 'running' || board.value?.progress?.state === 'stopping'
 ))
 const progress = computed(() => board.value?.progress ?? null)
+const hasTranscript = computed(() => {
+  const currentProgress = progress.value
+  if (!currentProgress) return false
+  if (String(currentProgress.reply ?? '').trim()) return true
+  return (currentProgress.turns?.length ?? 0) > 0
+})
+const showActivityChip = computed(() => (
+  Boolean(progress.value)
+  && progress.value?.suite === current.value.suite.id
+  && (current.value.busy || hasTranscript.value)
+))
 
 watch(pickerGroups, groups => {
   const active = props.settings?.active_model
@@ -132,7 +162,7 @@ watch(pickerGroups, groups => {
   const next = { ...suiteModel.value }
   const ids = cards.value.length > 0
     ? cards.value.map(item => item.suite.id)
-    : ['cybench', 'sec-bench', 'autopen']
+    : ['cybench', 'sec-bench', 'autopen', 'cybergym', 'frontier-harness']
   for (const id of ids) {
     if (!next[id]) next[id] = fallback
   }
@@ -142,6 +172,14 @@ watch(pickerGroups, groups => {
 watch(suiteModel, value => {
   try {
     localStorage.setItem(SUITE_MODELS_KEY, JSON.stringify(value))
+  } catch {
+    // ignore quota / private-mode failures
+  }
+}, { deep: true })
+
+watch(suiteKernel, value => {
+  try {
+    localStorage.setItem(SUITE_KERNEL_KEY, JSON.stringify(value))
   } catch {
     // ignore quota / private-mode failures
   }
@@ -201,7 +239,7 @@ async function refreshBoard() {
   }
 }
 
-async function startCurrent(suiteId: string) {
+async function startCurrent(suiteId: string, smoke = false) {
   const selection = parsePickerSelection(suiteModel.value[suiteId] ?? '')
   const card = cards.value.find(item => item.suite.id === suiteId)
   if (!selection || !card?.suite.runnable) return
@@ -212,6 +250,8 @@ async function startCurrent(suiteId: string) {
       provider: selection.providerId,
       model: selection.model,
       source: selection.source,
+      kernel: suiteKernel.value[suiteId] ?? 'pi',
+      smoke,
     })
   } catch (reason) {
     error.value = String(reason instanceof Error ? reason.message : reason)
@@ -230,6 +270,7 @@ async function startAll(suiteId: string) {
       provider: first.provider,
       model: first.model,
       source: first.source,
+      kernel: suiteKernel.value[suiteId] ?? 'pi',
       models,
     })
   } catch (reason) {
@@ -247,6 +288,10 @@ async function stopRun() {
 
 function setSuiteModel(suiteId: string, value: string) {
   suiteModel.value = { ...suiteModel.value, [suiteId]: value }
+}
+
+function setSuiteKernel(suiteId: string, value: string) {
+  suiteKernel.value = { ...suiteKernel.value, [suiteId]: value === 'dsh' ? 'dsh' : 'pi' }
 }
 
 function modelGroup(ref: EvalModelRef) {
@@ -301,8 +346,22 @@ function selectRow(suiteId: string, row: EvalBoardModel) {
 
 function iconFor(id: string) {
   if (id === 'cybench') return Flag
-  if (id === 'sec-bench') return Bug
+  if (id === 'sec-bench' || id === 'cybergym') return Bug
+  if (id === 'frontier-harness') return Cpu
   return FlaskConical
+}
+
+function suitePurpose(id: string) {
+  if (id === 'cybench') return t('CTF 题', 'CTF tasks')
+  if (id === 'sec-bench') return t('已知洞复现', 'Known-vuln reproduction')
+  if (id === 'autopen') return t('授权渗透', 'Authorized pentest')
+  if (id === 'cybergym') return t('真实漏洞 PoC', 'Real-world vuln PoCs')
+  if (id === 'frontier-harness') return t('Harness 工程任务', 'Harness engineering tasks')
+  return ''
+}
+
+function kernelLabel(value?: string) {
+  return value === 'dsh' ? t('DeepSeek Harness', 'DeepSeek Harness') : 'Pi'
 }
 
 function chartFor(models: EvalBoardModel[], suiteId: string) {
@@ -353,6 +412,23 @@ function clock(ms: number) {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
 }
 
+function formatTokens(value?: number) {
+  if (!value) return ''
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`
+  if (value >= 1000) return `${Math.round(value / 1000)}k`
+  return String(value)
+}
+
+function formatCost(row: EvalBoardModel) {
+  if ((row.costUsd ?? 0) > 0) return `$${row.costUsd?.toFixed(2)}`
+  return formatTokens(row.totalTokens)
+}
+
+function formatCache(row: EvalBoardModel) {
+  if (row.cacheHitPct == null || row.cacheHitPct <= 0) return ''
+  return `${Math.round(row.cacheHitPct)}%`
+}
+
 function remainLabel(ms?: number) {
   if (!ms || ms < 8000) return ''
   if (ms >= 60_000) {
@@ -393,14 +469,93 @@ function suiteScore(id: string) {
   ))?.score ?? undefined
 }
 
+function rankingChart(models: EvalBoardModel[]) {
+  const scored = models.filter(row => row.score != null)
+  const width = 640
+  const height = 220
+  const pad = { l: 44, r: 16, t: 16, b: 36 }
+  const innerW = width - pad.l - pad.r
+  const innerH = height - pad.t - pad.b
+  const useCost = scored.some(row => (row.costUsd ?? 0) > 0)
+  const useTokens = !useCost && scored.some(row => (row.totalTokens ?? 0) > 0)
+  const xs = scored.map(row => {
+    if (useCost) return row.costUsd ?? 0
+    if (useTokens) return row.totalTokens ?? 0
+    return row.medianTimeMs ?? 0
+  })
+  const maxX = Math.max(1, ...xs, 1)
+  const xOf = (value: number) => pad.l + (value / maxX) * innerW
+  const yOf = (score: number) => pad.t + innerH * (1 - score / 100)
+  const axis = useCost
+    ? t('费用', 'Cost')
+    : useTokens
+      ? t('Token', 'Tokens')
+      : t('耗时', 'Time')
+  const points = scored.map(row => {
+    const xValue = useCost ? (row.costUsd ?? 0) : useTokens ? (row.totalTokens ?? 0) : (row.medianTimeMs ?? 0)
+    return {
+      key: `${row.model.kernel ?? 'pi'}::${row.model.provider}::${row.model.model}`,
+      x: Number(xOf(xValue).toFixed(1)),
+      y: Number(yOf(row.score ?? 0).toFixed(1)),
+      score: row.score ?? 0,
+      rank: row.rank,
+      label: `${kernelLabel(row.model.kernel)} · ${modelLabel(row.model)}`,
+      selected: currentSelection(row),
+    }
+  })
+  return {
+    width,
+    height,
+    pad,
+    axis,
+    points,
+    grid: [0, 25, 50, 75, 100].map(value => ({
+      value,
+      y: yOf(value),
+      x1: pad.l,
+      x2: width - pad.r,
+    })),
+  }
+}
+
+function currentSelection(row: EvalBoardModel) {
+  const selection = parsePickerSelection(suiteModel.value[selectedSuite.value] ?? '')
+  const kernel = suiteKernel.value[selectedSuite.value] ?? 'pi'
+  return selection?.providerId === row.model.provider
+    && selection.model === row.model.model
+    && (row.model.kernel ?? 'pi') === kernel
+}
+
 function loadSelectedSuite() {
   try {
     const value = localStorage.getItem(SELECTED_SUITE_KEY)
-    if (value === 'cybench' || value === 'sec-bench' || value === 'autopen') return value
+    if (
+      value === 'cybench'
+      || value === 'sec-bench'
+      || value === 'autopen'
+      || value === 'cybergym'
+      || value === 'frontier-harness'
+    ) return value
   } catch {
     // ignore
   }
   return 'cybench'
+}
+
+function loadSuiteKernels(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(SUITE_KERNEL_KEY)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw) as unknown
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
+    const next: Record<string, string> = {}
+    for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+      if (value === 'dsh' || value === 'pi') next[key] = value
+    }
+    return next
+  } catch {
+    return {}
+  }
 }
 
 function loadSuiteModels(): Record<string, string> {
@@ -422,6 +577,16 @@ function loadSuiteModels(): Record<string, string> {
 const activitySuiteName = computed(() => (
   cards.value.find(item => item.suite.id === progress.value?.suite)?.suite.name ?? ''
 ))
+
+function turnPreview(reply?: string) {
+  const text = String(reply ?? '').replace(/\s+/g, ' ').trim()
+  if (!text) return ''
+  return text.length > 72 ? `${text.slice(0, 72)}…` : text
+}
+
+function turnResult(passed?: boolean) {
+  return passed ? t('通过', 'Passed') : t('未通过', 'Failed')
+}
 </script>
 
 <template>
@@ -430,26 +595,29 @@ const activitySuiteName = computed(() => (
 
     <div class="tool-workbench mt-2 grid min-h-[640px] overflow-hidden rounded-[8px] border border-border">
       <nav class="border-r border-border" :aria-label="t('评测套件', 'Eval suites')">
-        <button
-          v-for="item in cards"
-          :key="item.suite.id"
-          type="button"
-          class="tool-row"
-          :class="item.suite.id === selectedSuite ? 'is-selected' : ''"
-          @click="selectSuite(item.suite.id)"
-        >
+        <template v-for="group in groupedCards" :key="group.id">
+          <p class="tactical-label px-5 pt-4 pb-1">{{ group.label }}</p>
+          <button
+            v-for="item in group.items"
+            :key="item.suite.id"
+            type="button"
+            class="tool-row"
+            :class="item.suite.id === selectedSuite ? 'is-selected' : ''"
+            @click="selectSuite(item.suite.id)"
+          >
           <span class="tool-icon">
             <component :is="iconFor(item.suite.id)" class="size-5" />
           </span>
           <span class="min-w-0 flex-1 text-left">
             <strong class="block truncate text-base font-semibold">{{ item.suite.name }}</strong>
-            <small class="mt-0.5 block truncate text-caption text-muted-foreground">{{ item.suite.purpose }}</small>
+            <small class="mt-0.5 block truncate text-caption text-muted-foreground">{{ suitePurpose(item.suite.id) || item.suite.purpose }}</small>
           </span>
           <span
             class="tool-status"
             :data-tone="suiteBusy(item.suite.id) || suiteScore(item.suite.id) != null ? 'ready' : 'idle'"
           >{{ suiteScore(item.suite.id) }}</span>
         </button>
+        </template>
       </nav>
 
       <article class="min-w-0 px-9 py-7" :aria-label="current.suite.name">
@@ -457,9 +625,24 @@ const activitySuiteName = computed(() => (
           <div class="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p class="tactical-label text-primary">{{ current.suite.name }}</p>
-              <p class="mt-1 text-control text-muted-foreground">{{ current.suite.purpose }}</p>
+              <p class="mt-1 text-control text-muted-foreground">{{ current.purpose }}</p>
+              <p v-if="current.suite.missing && !current.suite.runnable" class="mt-2 text-caption text-muted-foreground">
+                {{ current.suite.missing }}
+              </p>
             </div>
-            <div class="flex items-center gap-2">
+            <div class="flex flex-wrap items-center justify-end gap-2">
+              <Select
+                :model-value="current.kernel"
+                @update:model-value="value => setSuiteKernel(current.suite.id, String(value ?? 'pi'))"
+              >
+                <SelectTrigger size="sm" class="w-44" :aria-label="t('Harness', 'Harness')">
+                  <SelectValue>{{ kernelLabel(current.kernel) }}</SelectValue>
+                </SelectTrigger>
+                <SelectContent size="sm" align="end">
+                  <SelectItem value="pi">Pi</SelectItem>
+                  <SelectItem value="dsh">{{ t('DeepSeek Harness', 'DeepSeek Harness') }}</SelectItem>
+                </SelectContent>
+              </Select>
               <Select
                 :model-value="current.modelKey"
                 @update:model-value="value => setSuiteModel(current.suite.id, String(value ?? ''))"
@@ -497,6 +680,15 @@ const activitySuiteName = computed(() => (
                 </SelectContent>
               </Select>
               <Button
+                v-if="!current.busy && (current.suite.id === 'frontier-harness' || current.suite.id === 'cybergym')"
+                size="sm"
+                variant="outline"
+                :disabled="!current.suite.runnable || !current.modelKey || running"
+                @click="startCurrent(current.suite.id, true)"
+              >
+                {{ t('冒烟', 'Smoke') }}
+              </Button>
+              <Button
                 v-if="!current.busy"
                 size="sm"
                 :disabled="!current.suite.runnable || !current.modelKey || running"
@@ -533,20 +725,79 @@ const activitySuiteName = computed(() => (
             </div>
           </template>
           <button
-            v-if="current.busy && progress"
+            v-if="showActivityChip && progress"
             type="button"
             class="activity-chip mt-4"
             @click="activityOpen = true"
           >
-            <AkLoadingMark :label="t('评测进行中', 'Eval running')" />
-            <span class="min-w-0 truncate">{{ progress.summary || progress.taskName }}</span>
-            <span class="tabular-nums">{{ clock(progress.elapsedMs) }}</span>
-            <span v-if="remainLabel(progress.remainMs)" class="text-muted-foreground">
+            <AkLoadingMark v-if="current.busy" :label="t('评测进行中', 'Eval running')" />
+            <span class="min-w-0 truncate">
+              {{ current.busy ? (progress.summary || progress.taskName) : t('本轮回复', 'This run') }}
+            </span>
+            <span v-if="current.busy" class="tabular-nums">{{ clock(progress.elapsedMs) }}</span>
+            <span v-else-if="progress.turns?.length" class="tabular-nums text-muted-foreground">
+              {{ progress.turns.length }}
+            </span>
+            <span v-if="current.busy && remainLabel(progress.remainMs)" class="text-muted-foreground">
               {{ remainLabel(progress.remainMs) }}
             </span>
           </button>
           <p v-if="current.error" class="mt-3 text-caption text-destructive">{{ current.error }}</p>
         </header>
+
+        <figure
+          v-if="current.ranking.points.length > 0"
+          class="border-b border-border py-5"
+          :aria-label="t(`${current.suite.name} 本机排名`, `${current.suite.name} local ranking`)"
+        >
+          <figcaption class="mb-3 text-base font-semibold">{{ t('本机排名', 'Local ranking') }}</figcaption>
+          <svg class="h-auto w-full" :viewBox="`0 0 ${current.ranking.width} ${current.ranking.height}`" role="img">
+            <line
+              v-for="line in current.ranking.grid"
+              :key="line.value"
+              :x1="line.x1"
+              :x2="line.x2"
+              :y1="line.y"
+              :y2="line.y"
+              stroke="currentColor"
+              class="text-border"
+              stroke-width="1"
+            />
+            <text
+              v-for="line in current.ranking.grid"
+              :key="`rank-y-${line.value}`"
+              :x="current.ranking.pad.l - 8"
+              :y="line.y + 4"
+              text-anchor="end"
+              class="fill-muted-foreground"
+              font-size="10"
+            >{{ line.value }}</text>
+            <circle
+              v-for="point in current.ranking.points"
+              :key="point.key"
+              :cx="point.x"
+              :cy="point.y"
+              :r="point.selected ? 6 : 4.5"
+              :fill="point.selected ? 'var(--brand)' : 'currentColor'"
+              :class="point.selected ? '' : 'text-muted-foreground/55'"
+            />
+            <text
+              v-for="point in current.ranking.points"
+              :key="`${point.key}-label`"
+              :x="point.x + 8"
+              :y="point.y + 4"
+              class="fill-foreground"
+              font-size="10"
+            >{{ point.rank }} · {{ point.label }}</text>
+            <text
+              :x="current.ranking.width / 2"
+              :y="current.ranking.height - 8"
+              text-anchor="middle"
+              class="fill-muted-foreground"
+              font-size="10"
+            >{{ current.ranking.axis }}</text>
+          </svg>
+        </figure>
 
         <figure
           v-if="current.chart.series.length > 0"
@@ -630,7 +881,10 @@ const activitySuiteName = computed(() => (
               <ModelVendorIcon :model="row.model.model" :label="modelLabel(row.model)" />
               <span class="min-w-0 flex-1 truncate">
                 <strong class="font-medium">{{ modelLabel(row.model) }}</strong>
-                <small class="mt-0.5 block truncate text-caption text-muted-foreground">{{ modelServiceLabel(row.model) }}</small>
+                <small class="mt-0.5 block truncate text-caption text-muted-foreground">
+                  {{ kernelLabel(row.model.kernel) }}
+                  <template v-if="modelServiceLabel(row.model)"> · {{ modelServiceLabel(row.model) }}</template>
+                </small>
               </span>
               <span class="rank-track">
                 <i
@@ -640,6 +894,9 @@ const activitySuiteName = computed(() => (
                 />
               </span>
               <strong class="w-14 text-right tabular-nums">{{ row.score ?? '' }}</strong>
+              <span class="hidden w-14 text-right text-caption tabular-nums text-muted-foreground sm:block">{{ row.medianTimeMs ? clock(row.medianTimeMs) : '' }}</span>
+              <span class="hidden w-16 text-right text-caption tabular-nums text-muted-foreground md:block">{{ formatCost(row) }}</span>
+              <span class="hidden w-10 text-right text-caption tabular-nums text-muted-foreground lg:block">{{ formatCache(row) }}</span>
             </li>
           </ol>
         </div>
@@ -647,7 +904,7 @@ const activitySuiteName = computed(() => (
     </div>
 
     <Dialog :open="activityOpen" @update:open="activityOpen = $event">
-      <DialogContent class="max-h-[80vh] overflow-y-auto sm:max-w-lg">
+      <DialogContent class="max-h-[80vh] overflow-y-auto sm:max-w-2xl">
         <DialogTitle>{{ activitySuiteName }}</DialogTitle>
         <p v-if="progress" class="mt-1 text-caption text-muted-foreground">
           {{ clock(progress.elapsedMs) }}
@@ -655,22 +912,58 @@ const activitySuiteName = computed(() => (
           <template v-if="progress.taskName"> · {{ progress.taskName }}</template>
           <template v-if="progress.taskTotal"> · {{ progress.taskIndex }} / {{ progress.taskTotal }}</template>
         </p>
-        <ol class="mt-4 space-y-2">
-          <li
-            v-for="step in progress?.steps ?? []"
-            :key="step.id || step.summary"
-            class="rounded-md border border-border px-3 py-2"
-          >
-            <div class="flex items-center gap-2 text-body">
-              <AkLoadingMark v-if="step.running" :label="t('进行中', 'Running')" />
-              <span class="min-w-0 flex-1 truncate">{{ step.summary }}</span>
-              <span v-if="step.durationMs" class="text-caption tabular-nums text-muted-foreground">
-                {{ t(`${Math.round(step.durationMs / 1000)} 秒`, `${Math.round(step.durationMs / 1000)} s`) }}
-              </span>
-            </div>
-            <pre v-if="step.detail" class="mt-2 max-h-32 overflow-auto whitespace-pre-wrap text-caption text-muted-foreground">{{ step.detail }}</pre>
-          </li>
-        </ol>
+        <section class="mt-4 rounded-[8px] border border-border bg-card p-3">
+          <h3 class="text-caption text-muted-foreground">{{ t('回复', 'Reply') }}</h3>
+          <pre
+            v-if="progress?.reply"
+            class="mt-2 max-h-64 overflow-auto whitespace-pre-wrap text-body"
+          >{{ progress.reply }}</pre>
+        </section>
+        <section v-if="(progress?.steps?.length ?? 0) > 0" class="mt-4">
+          <h3 class="text-caption text-muted-foreground">{{ t('工具步骤', 'Tool steps') }}</h3>
+          <ol class="mt-2 space-y-2">
+            <li
+              v-for="step in progress?.steps ?? []"
+              :key="step.id || step.summary"
+              class="rounded-[8px] border border-border px-3 py-2"
+            >
+              <div class="flex items-center gap-2 text-body">
+                <AkLoadingMark v-if="step.running" :label="t('进行中', 'Running')" />
+                <span class="min-w-0 flex-1 truncate">{{ step.summary }}</span>
+                <span v-if="step.durationMs" class="text-caption tabular-nums text-muted-foreground">
+                  {{ t(`${Math.round(step.durationMs / 1000)} 秒`, `${Math.round(step.durationMs / 1000)} s`) }}
+                </span>
+              </div>
+              <pre v-if="step.detail" class="mt-2 max-h-32 overflow-auto whitespace-pre-wrap text-caption text-muted-foreground">{{ step.detail }}</pre>
+            </li>
+          </ol>
+        </section>
+        <section v-if="(progress?.turns?.length ?? 0) > 0" class="mt-4">
+          <h3 class="text-caption text-muted-foreground">{{ t('本轮', 'This run') }}</h3>
+          <ol class="mt-2 space-y-2">
+            <li
+              v-for="(turn, index) in progress?.turns ?? []"
+              :key="`${turn.taskName}-${index}`"
+              class="rounded-[8px] border border-border px-3 py-2"
+            >
+              <details>
+                <summary class="cursor-pointer list-none">
+                  <div class="flex items-center gap-2 text-body">
+                    <span class="min-w-0 flex-1 truncate">{{ turn.taskName }}</span>
+                    <span class="text-caption text-muted-foreground">{{ turnResult(turn.passed) }}</span>
+                  </div>
+                  <p v-if="turnPreview(turn.reply)" class="mt-1 truncate text-caption text-muted-foreground">
+                    {{ turnPreview(turn.reply) }}
+                  </p>
+                </summary>
+                <pre
+                  v-if="turn.reply"
+                  class="mt-2 max-h-64 overflow-auto whitespace-pre-wrap text-caption"
+                >{{ turn.reply }}</pre>
+              </details>
+            </li>
+          </ol>
+        </section>
       </DialogContent>
     </Dialog>
   </div>
@@ -706,6 +999,8 @@ const activitySuiteName = computed(() => (
   cursor: pointer;
 }
 .activity-chip:hover { background: color-mix(in srgb, var(--brand) 12%, transparent); }
+details > summary { list-style: none; }
+details > summary::-webkit-details-marker { display: none; }
 @media (max-width: 1050px) { .tool-workbench { grid-template-columns: minmax(15rem, .72fr) minmax(24rem, 1.28fr); } }
 @media (max-width: 860px) { .tool-workbench { grid-template-columns: 1fr; } .tool-workbench > nav { border-right: 0; border-bottom: 1px solid hsl(var(--border)); } }
 </style>

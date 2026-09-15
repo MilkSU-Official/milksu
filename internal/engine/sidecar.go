@@ -284,7 +284,14 @@ func withWorkspaceTemporaryDirectory(environment []string, workspace string) ([]
 		}
 	}
 	filtered := environment[:0]
+	pathValue := ""
+	hadPath := false
 	for _, entry := range environment {
+		if strings.HasPrefix(entry, "PATH=") {
+			hadPath = true
+			pathValue = strings.TrimPrefix(entry, "PATH=")
+			continue
+		}
 		if !strings.HasPrefix(entry, "TMPDIR=") &&
 			!strings.HasPrefix(entry, "MILKSU_WORKSPACE_RUNTIME=") &&
 			!strings.HasPrefix(entry, "MILKSU_BACKGROUND_TASKS_DIR=") &&
@@ -292,13 +299,25 @@ func withWorkspaceTemporaryDirectory(environment []string, workspace string) ([]
 			filtered = append(filtered, entry)
 		}
 	}
-	return append(
+	evalBin := filepath.Join(workspace, ".milksu-eval")
+	if info, err := os.Stat(filepath.Join(evalBin, "bash")); err == nil && !info.IsDir() {
+		if pathValue == "" {
+			pathValue = os.Getenv("PATH")
+		}
+		pathValue = evalBin + string(os.PathListSeparator) + pathValue
+		hadPath = true
+	}
+	next := append(
 		filtered,
 		"TMPDIR="+temporaryDirectory,
 		"MILKSU_WORKSPACE_RUNTIME="+runtimeDirectory,
 		"MILKSU_BACKGROUND_TASKS_DIR="+backgroundTasksDirectory,
 		"MILKSU_AGENT_WORKSPACE="+workspace,
-	), nil
+	)
+	if hadPath {
+		next = append(next, "PATH="+pathValue)
+	}
+	return next, nil
 }
 
 func workspaceRuntimeDirectory(runtimeHome, workspace string) (string, error) {
