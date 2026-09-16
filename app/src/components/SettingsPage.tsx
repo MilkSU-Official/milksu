@@ -96,6 +96,13 @@ import { buildDiagnosticText, isDebugMode, setDebugMode } from '@/lib/debugMode'
 import { explainModelVerificationFailure } from '@/lib/tokenFluxError'
 import { applyUiLocale, normalizeUiLocale, t } from '@/lib/uiLocale'
 import {
+  applyUiEmphasis,
+  normalizeUiEmphasisPreset,
+  UI_EMPHASIS_PRESET_IDS,
+  UI_EMPHASIS_SWATCH,
+  type UiEmphasisPreset,
+} from '@/lib/uiEmphasis'
+import {
   applyUiFonts,
   normalizeUiFontPreset,
   normalizeUiFontSize,
@@ -145,6 +152,60 @@ function uiFontPresetLabel(id: UiFontPreset) {
     default:
       return t('Inter + Noto Sans SC（产品默认）', 'Inter + Noto Sans SC (product default)')
   }
+}
+
+function uiEmphasisPresetLabel(id: UiEmphasisPreset) {
+  switch (id) {
+    case 'blue':
+      return t('蓝色', 'Blue')
+    case 'violet':
+      return t('紫色', 'Violet')
+    case 'teal':
+      return t('青色', 'Teal')
+    case 'amber':
+      return t('琥珀', 'Amber')
+    case 'rose':
+      return t('玫红', 'Rose')
+    default:
+      return t('默认', 'Default')
+  }
+}
+
+function EmphasisSwatchPicker({
+  value,
+  onChange,
+}: {
+  value: UiEmphasisPreset
+  onChange: (value: UiEmphasisPreset) => void
+}) {
+  return (
+    <div
+      className="flex h-7 items-center gap-1.5"
+      role="radiogroup"
+      aria-label={t('强调色', 'Accent color')}
+    >
+      {UI_EMPHASIS_PRESET_IDS.map(id => {
+        const selected = value === id
+        return (
+          <button
+            key={id}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            aria-label={uiEmphasisPresetLabel(id)}
+            title={uiEmphasisPresetLabel(id)}
+            className={`size-5 shrink-0 rounded-full border transition-shadow ${
+              selected
+                ? 'border-transparent ring-2 ring-emphasis ring-offset-2 ring-offset-card'
+                : 'border-border'
+            }`}
+            style={{ background: UI_EMPHASIS_SWATCH[id] }}
+            onClick={() => onChange(id)}
+          />
+        )
+      })}
+    </div>
+  )
 }
 
 type SettingsNotice = { tone: 'ok' | 'error'; text: string }
@@ -408,6 +469,15 @@ export default function SettingsPage({
                           { value: 'en', label: 'English' },
                         ]}
                         onChange={value => void store.changeLocale(value)}
+                      />
+                    )}
+                  />
+                  <SettingsRow
+                    label={t('强调色', 'Accent color')}
+                    trailing={(
+                      <EmphasisSwatchPicker
+                        value={normalizeUiEmphasisPreset(working.ui_emphasis)}
+                        onChange={value => void store.changeUiEmphasis(value)}
                       />
                     )}
                   />
@@ -1487,6 +1557,7 @@ function createSettingsStore(
         uiFontSize: s.working.ui_font_size,
         conversationFontSize: s.working.conversation_font_size,
       })
+      applyUiEmphasis({ preset: s.working.ui_emphasis })
     }
   }
 
@@ -2981,6 +3052,13 @@ function createSettingsStore(
     await save()
   }
 
+  async function changeUiEmphasis(value: unknown) {
+    const uiEmphasis = normalizeUiEmphasisPreset(value)
+    patchWorking(working => { working.ui_emphasis = uiEmphasis })
+    applyUiEmphasis({ preset: uiEmphasis })
+    await save()
+  }
+
   async function loadUserArtifactDirectory() {
     if (!hasDesktopRuntime()) return
     try {
@@ -3056,6 +3134,7 @@ function createSettingsStore(
     changeConversationFont,
     changeUiFontSize,
     changeConversationFontSize,
+    changeUiEmphasis,
     formatBytes,
     databaseVersionText,
     formatBuildTrackingText,

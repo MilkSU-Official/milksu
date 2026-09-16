@@ -49,6 +49,7 @@ describe('model provider catalog', () => {
     expect(settings.conversation_font).toBe('product')
     expect(settings.ui_font_size).toBe('13')
     expect(settings.conversation_font_size).toBe('13')
+    expect(settings.ui_emphasis).toBe('default')
   })
 
   it('normalizes invalid font sizes to 13px', () => {
@@ -67,6 +68,12 @@ describe('model provider catalog', () => {
     } as AppSettings)
     expect(settings.ui_font_size).toBe('16')
     expect(settings.conversation_font_size).toBe('12')
+  })
+
+  it('normalizes ui_emphasis presets and aliases', () => {
+    expect(withAppSettingsDefaults({ ui_emphasis: 'blue' } as AppSettings).ui_emphasis).toBe('blue')
+    expect(withAppSettingsDefaults({ ui_emphasis: 'purple' } as AppSettings).ui_emphasis).toBe('violet')
+    expect(withAppSettingsDefaults({ ui_emphasis: 'neon' } as AppSettings).ui_emphasis).toBe('default')
   })
 
   it('normalizes default_kernel without rewriting other settings', () => {

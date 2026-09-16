@@ -230,9 +230,9 @@ export default function SecurityToolsSettingsPanel({
               <div className="pt-7">
                 <div className="flex items-center gap-4">
                   <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
-                    <div className="h-full bg-primary transition-[width] duration-300" style={{ width: `${setup?.percent ?? 0}%` }} />
+                    <div className="h-full bg-emphasis transition-[width] duration-300" style={{ width: `${setup?.percent ?? 0}%` }} />
                   </div>
-                  <span className="w-11 text-right font-mono text-sm text-primary">{setup?.percent ?? 0}%</span>
+                  <span className="w-11 text-right font-mono text-sm text-emphasis">{setup?.percent ?? 0}%</span>
                 </div>
                 <ol className="mt-8 space-y-0">
                   {(setup?.steps ?? []).map((step, index) => (

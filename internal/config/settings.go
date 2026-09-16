@@ -108,6 +108,8 @@ type AppSettings struct {
 	ConversationFont      string                                    `json:"conversation_font,omitempty"`
 	UiFontSize            string                                    `json:"ui_font_size,omitempty"`
 	ConversationFontSize  string                                    `json:"conversation_font_size,omitempty"`
+	// UiEmphasis is a preset id from app/src/lib/uiEmphasis.ts (default / blue / violet / …).
+	UiEmphasis            string                                    `json:"ui_emphasis,omitempty"`
 	SecurityTools         map[string]SecurityToolPreference         `json:"security_tools,omitempty"`
 	ModelThinking         map[string]map[string]ModelThinkingConfig `json:"model_thinking,omitempty"`
 	ModelContextWindows   map[string]map[string]int                 `json:"model_context_windows,omitempty"`
@@ -181,6 +183,23 @@ func NormalizeUiFontSize(value string) string {
 		return strconv.Itoa(factoryUiFontSizePx)
 	}
 	return strconv.Itoa(n)
+}
+
+func NormalizeUiEmphasis(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "blue":
+		return "blue"
+	case "violet", "purple", "indigo":
+		return "violet"
+	case "teal", "cyan", "green":
+		return "teal"
+	case "amber", "orange", "yellow":
+		return "amber"
+	case "rose", "pink", "red":
+		return "rose"
+	default:
+		return "default"
+	}
 }
 
 func NormalizeDefaultKernel(value string) string {
@@ -831,6 +850,7 @@ func withDefaults(value AppSettings) AppSettings {
 	value.ConversationFont = NormalizeUiFont(value.ConversationFont)
 	value.UiFontSize = NormalizeUiFontSize(value.UiFontSize)
 	value.ConversationFontSize = NormalizeUiFontSize(value.ConversationFontSize)
+	value.UiEmphasis = NormalizeUiEmphasis(value.UiEmphasis)
 	value.SecurityTools = normalizeSecurityToolPreferences(value.SecurityTools)
 	value.ModelThinking = normalizeModelThinkingOverrides(value.ModelThinking, value.Providers)
 	value.ModelContextWindows = normalizeModelContextWindowOverrides(value.ModelContextWindows, value.Providers)

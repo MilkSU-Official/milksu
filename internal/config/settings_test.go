@@ -163,6 +163,21 @@ func TestNormalizeUiFontSizeUsesConcretePixels(t *testing.T) {
 	}
 }
 
+func TestNormalizeUiEmphasis(t *testing.T) {
+	if got := NormalizeUiEmphasis(""); got != "default" {
+		t.Fatalf("empty: %q", got)
+	}
+	if got := NormalizeUiEmphasis("blue"); got != "blue" {
+		t.Fatalf("blue: %q", got)
+	}
+	if got := NormalizeUiEmphasis("purple"); got != "violet" {
+		t.Fatalf("purple alias: %q", got)
+	}
+	if got := NormalizeUiEmphasis("neon"); got != "default" {
+		t.Fatalf("unknown: %q", got)
+	}
+}
+
 func TestResolveSubmittedUsesJustWrittenDeepSeekKey(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "settings.json")
 	store, err := newStore(path, fakeSecretStore{})

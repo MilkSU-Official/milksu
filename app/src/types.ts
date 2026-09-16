@@ -1,5 +1,6 @@
 import { defaultAgentKernel, defaultBusySend, type BusySendPolicy } from '@/lib/agentKernel'
 import { normalizePreferredExternalEditor } from '@/lib/externalEditor'
+import { normalizeUiEmphasisPreset, type UiEmphasisPreset } from '@/lib/uiEmphasis'
 import { normalizeUiFontPreset, normalizeUiFontSize, type UiFontPreset, type UiFontSize } from '@/lib/uiFonts'
 import { normalizeModelContextWindows } from '@/lib/knownContextWindow'
 import { normalizeModelThinkingSettings } from '@/lib/modelThinking'
@@ -361,6 +362,7 @@ export interface AppSettings {
   conversation_font?: UiFontPreset
   ui_font_size?: UiFontSize
   conversation_font_size?: UiFontSize
+  ui_emphasis?: UiEmphasisPreset
   security_tools?: Record<string, { enabled: boolean }>
   model_thinking?: Record<string, Record<string, ModelThinkingConfig>>
   model_context_windows?: Record<string, Record<string, number>>
@@ -441,6 +443,7 @@ export function withAppSettingsDefaults(value: AppSettings): AppSettings {
     conversation_font: normalizeUiFontPreset(value.conversation_font),
     ui_font_size: normalizeUiFontSize(value.ui_font_size),
     conversation_font_size: normalizeUiFontSize(value.conversation_font_size),
+    ui_emphasis: normalizeUiEmphasisPreset(value.ui_emphasis),
     disabled_skills: [...new Set((value.disabled_skills ?? [])
       .map(name => String(name).trim())
       .filter(name => /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/.test(name)))],

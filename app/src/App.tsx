@@ -41,6 +41,7 @@ import { executeVulnerabilityCodingHandoff } from '@/lib/vulnerabilityCodingHand
 import { debugLog } from '@/lib/debugMode'
 import { applyUiLocale } from '@/lib/uiLocale'
 import { applyUiFonts } from '@/lib/uiFonts'
+import { applyUiEmphasis } from '@/lib/uiEmphasis'
 import { useT } from '@/hooks/useUiLocale'
 import { useStore, useStoreRuntime } from '@/lib/reactStore'
 import { cn } from '@/lib/cn'
@@ -442,7 +443,9 @@ export default function App() {
   function applyCurrentTheme() {
     const mode = themeModeRef.current
     applyThemeMode(mode)
-    syncWindowChrome(resolveThemeMode(mode), globalThis, mode)
+    const resolved = resolveThemeMode(mode)
+    syncWindowChrome(resolved, globalThis, mode)
+    applyUiEmphasis({ theme: resolved })
   }
 
   function persistWorkspaceViewState() {
@@ -468,6 +471,7 @@ export default function App() {
       uiFontSize: normalized.ui_font_size,
       conversationFontSize: normalized.conversation_font_size,
     })
+    applyUiEmphasis({ preset: normalized.ui_emphasis })
     conversations.setDefaultKernel(normalized.default_kernel ?? FACTORY_DEFAULT_KERNEL)
     conversations.setBusySend(normalized.busy_send ?? 'interrupt')
   }

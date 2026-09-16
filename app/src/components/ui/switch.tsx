@@ -14,7 +14,7 @@ function Switch({
       checked={checked}
       onCheckedChange={onCheckedChange}
       className={cn(
-        'peer inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border border-transparent bg-input transition-colors data-[state=checked]:bg-primary disabled:cursor-not-allowed disabled:opacity-40',
+        'peer inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border border-transparent bg-input transition-colors data-[state=checked]:bg-emphasis disabled:cursor-not-allowed disabled:opacity-40',
         className,
       )}
       {...props}

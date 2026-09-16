@@ -90,6 +90,10 @@ html[data-conversation-font='system'] { --font-conversation: var(--font-stack-sy
   --popover-foreground: #f0f0f0;
   --primary: #f0f0f0;
   --primary-foreground: #141414;
+  --emphasis: var(--primary);
+  --emphasis-foreground: var(--primary-foreground);
+  --emphasis-soft: color-mix(in srgb, var(--emphasis) 12%, transparent);
+  --emphasis-border: color-mix(in srgb, var(--emphasis) 28%, transparent);
   --secondary: #2a2a2a;
   --secondary-foreground: #f0f0f0;
   --muted: #2a2a2a;
@@ -260,6 +264,10 @@ html[data-conversation-font='system'] { --font-conversation: var(--font-stack-sy
   --popover-foreground: #141414;
   --primary: #141414;
   --primary-foreground: #fcfcfc;
+  --emphasis: var(--primary);
+  --emphasis-foreground: var(--primary-foreground);
+  --emphasis-soft: color-mix(in srgb, var(--emphasis) 12%, transparent);
+  --emphasis-border: color-mix(in srgb, var(--emphasis) 28%, transparent);
   --secondary: #ededed;
   --secondary-foreground: #141414;
   --muted: #ededed;
@@ -392,6 +400,10 @@ html[data-conversation-font='system'] { --font-conversation: var(--font-stack-sy
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-emphasis: var(--emphasis);
+  --color-emphasis-foreground: var(--emphasis-foreground);
+  --color-emphasis-soft: var(--emphasis-soft);
+  --color-emphasis-border: var(--emphasis-border);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
