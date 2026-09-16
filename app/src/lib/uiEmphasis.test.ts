@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -66,8 +68,9 @@ describe('uiEmphasis', () => {
 
   it('keeps theme-boot in sync with the storage key and presets', () => {
     expect(themeBootSource).toContain(UI_EMPHASIS_STORAGE_KEY)
+    expect(themeBootSource).toContain('applyStoredUiEmphasis')
     for (const id of UI_EMPHASIS_PRESET_IDS) {
-      expect(themeBootSource).toContain(`'${id}'`)
+      expect(themeBootSource).toContain(`${id}:`)
     }
   })
 })
