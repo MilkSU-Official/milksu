@@ -42,7 +42,9 @@ beforeEach(() => {
   desktop.invokeCommand.mockReset()
   desktop.invokeCommand.mockImplementation(async (command: string) => {
     if (command === 'save_conversation') return null
-    if (command === 'handoff_coding_session') return 'handed-session'
+    if (command === 'handoff_coding_session') {
+      return { sessionId: 'handed-session' }
+    }
     return null
   })
   desktop.listenEvent.mockClear()
@@ -78,8 +80,41 @@ describe('conversation context handoff', () => {
     const handed = conversations.conversations.find(item => item.id === 'handed-session')
     expect(handed?.kernel).toBe('dsh')
     expect(handed?.workspacePath).toBe('/workspace/app')
+    expect(handed?.messages.map(item => item.content)).toEqual(['u1', 'a1'])
+    expect(
+      handed?.messages.some(item => item.content.includes('已整理上一会话')),
+    ).toBe(false)
+  })
+
+  it('shows the harness summary in the new conversation when compact already produced one', async () => {
+    desktop.invokeCommand.mockImplementation(async (command: string) => {
+      if (command === 'save_conversation') return null
+      if (command === 'handoff_coding_session') {
+        return {
+          sessionId: 'handed-session',
+          summary: 'Goal: keep the dock',
+        }
+      }
+      return null
+    })
+    const conversations = mountConversations()
+    const source: Conversation = {
+      id: 'source-summary',
+      title: 'Keep the dock',
+      createdAt: 1,
+      kernel: 'dsh',
+      messages: [message('user', 'u1'), message('assistant', 'a1')],
+    }
+    conversations.conversations = [source]
+    conversations.activeId = 'source-summary'
+
+    await conversations.handoffContext('dsh')
+    await settle()
+
+    const handed = conversations.conversations.find(item => item.id === 'handed-session')
     expect(handed?.messages).toHaveLength(1)
     expect(handed?.messages[0]?.role).toBe('assistant')
+    expect(handed?.messages[0]?.content).toBe('Goal: keep the dock')
   })
 
   it('keeps the current conversation when sidecar handoff fails', async () => {

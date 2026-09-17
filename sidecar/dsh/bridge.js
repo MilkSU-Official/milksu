@@ -946,6 +946,14 @@ function compactionReceipt(result) {
   };
 }
 
+function handoffCompactionReceipt(result) {
+  return {
+    ...compactionReceipt(result),
+    summary: String(result?.summary ?? "").trim(),
+    surfaceText: String(result?.surfaceText ?? "").trim(),
+  };
+}
+
 async function compactSession(command) {
   const conversationId = String(command.conversationId ?? "").trim();
   const requestId = String(command.requestId ?? "").trim();
@@ -1057,7 +1065,7 @@ async function handoffSession(command) {
     emit(conversationId, "session_handoff", {
       requestId,
       forkedSessionId,
-      compaction: compactionReceipt(compacted),
+      compaction: handoffCompactionReceipt(compacted),
     });
   } catch (error) {
     emit(conversationId || null, "session_handoff", {

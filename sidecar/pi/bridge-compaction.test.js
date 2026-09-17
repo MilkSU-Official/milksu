@@ -4,6 +4,7 @@ import {
   armAutoCompactionDeadline,
   clearAutoCompactionDeadline,
   compactSession,
+  compactSummaryText,
   compactionInstructions,
   CONTEXT_COMPACTION_RATIO,
   contextUsageSnapshot,
@@ -52,7 +53,7 @@ test("compacts an idle session with the fixed structured instructions", async ()
   });
   const result = await compactSession(session);
   assert.equal(receivedInstructions, compactionInstructions);
-  assert.deepEqual(result, { tokensBefore: 3000, estimatedTokensAfter: 500 });
+  assert.deepEqual(result, { tokensBefore: 3000, estimatedTokensAfter: 500, summary: "s" });
 });
 
 test("requires an existing session", async () => {
@@ -71,7 +72,7 @@ test("manual compact still calls Pi on a busy session so Pi can abort then compa
     },
   });
   assert.equal(compacted, true);
-  assert.deepEqual(result, { tokensBefore: 3000, estimatedTokensAfter: 500 });
+  assert.deepEqual(result, { tokensBefore: 3000, estimatedTokensAfter: 500, summary: "" });
 });
 
 test("rejects an already-compacting session", async () => {
@@ -91,6 +92,7 @@ test("treats a session that is too small as a successful no-op", async () => {
   assert.deepEqual(await compactSession(session), {
     tokensBefore: 0,
     estimatedTokensAfter: 0,
+    summary: "",
   });
 });
 
@@ -155,6 +157,11 @@ test("fixed instructions cover goal, constraints, progress, decisions, next step
       `instructions must cover: ${part}`,
     );
   }
+});
+
+test("keeps Pi's compact summary for handoff without inventing one", () => {
+  assert.equal(compactSummaryText({ summary: "  Goal: keep the dock  " }), "Goal: keep the dock");
+  assert.equal(compactSummaryText({ tokensBefore: 3 }), "");
 });
 
 test("projects Pi native compaction events without exposing the summary", () => {

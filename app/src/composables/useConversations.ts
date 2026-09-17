@@ -30,6 +30,8 @@ import { explainModelServiceError } from '@/lib/tokenFluxError'
 import {
   assistantForkPoint,
   cloneConversationForFork,
+  handoffVisibleMessages,
+  parseSessionHandoffResult,
 } from '@/lib/conversationActions'
 import { t } from '@/lib/uiLocale'
 import {
@@ -2727,24 +2729,21 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
     ) return
     const targetKernel = normalizeAgentKernel(kernel ?? conversation.kernel)
     try {
-      const sessionId = String(await invokeCommand('handoff_coding_session', {
-        conversationId: conversation.id,
-        kernel: targetKernel,
-      })).trim()
-      if (!sessionId) return
+      const handedResult = parseSessionHandoffResult(
+        await invokeCommand('handoff_coding_session', {
+          conversationId: conversation.id,
+          kernel: targetKernel,
+        }),
+      )
+      if (!handedResult.sessionId) return
+      const sessionId = handedResult.sessionId
       const handed: Conversation = {
         ...conversation,
         id: sessionId,
         kernel: targetKernel,
         title: `${t('接力', 'Handoff')} · ${conversation.title}`.slice(0, 40),
         createdAt: Date.now(),
-        messages: [{
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          content: t('已整理上一会话并接到新任务。', 'Compacted the previous conversation and continued in a new task.'),
-          timestamp: Date.now(),
-          status: 'done',
-        }],
+        messages: handoffVisibleMessages(conversation.messages, handedResult),
       }
       s.conversations = [handed, ...s.conversations]
       s.activeId = sessionId

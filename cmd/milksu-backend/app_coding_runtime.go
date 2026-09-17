@@ -91,7 +91,7 @@ func (a *App) RewindCodingSession(conversationID string) error {
 	return a.engines.RewindSession(conversationID)
 }
 
-func (a *App) HandoffCodingSession(conversationID, kernel string) (string, error) {
+func (a *App) HandoffCodingSession(conversationID, kernel string) (engine.SessionHandoffResult, error) {
 	current := engine.KernelPi
 	if stored, err := a.conversations.Get(conversationID); err == nil {
 		current = engine.NormalizeKernel(stored.Kernel)
@@ -100,10 +100,15 @@ func (a *App) HandoffCodingSession(conversationID, kernel string) (string, error
 	if target == current {
 		return a.engines.HandoffSession(conversationID)
 	}
-	if _, err := a.engines.CompactSession(conversationID); err != nil {
-		return "", err
+	compacted, err := a.engines.CompactSession(conversationID)
+	if err != nil {
+		return engine.SessionHandoffResult{}, err
 	}
-	return newHandoffConversationID(), nil
+	return engine.SessionHandoffResult{
+		SessionID:   newHandoffConversationID(),
+		Summary:     compacted.Summary,
+		SurfaceText: compacted.SurfaceText,
+	}, nil
 }
 
 func newHandoffConversationID() string {

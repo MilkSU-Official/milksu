@@ -3,6 +3,8 @@ import {
   assistantForkPoint,
   cloneConversationForFork,
   conversationCopyText,
+  handoffVisibleMessages,
+  parseSessionHandoffResult,
 } from '@/lib/conversationActions'
 import type { Conversation, Message } from '@/types'
 
@@ -67,5 +69,48 @@ describe('conversation sidebar actions', () => {
     expect(forked.lastContextUsage).toBeUndefined()
     expect(forked.messages).toEqual(source.messages)
     expect(forked.messages[0]).not.toBe(source.messages[0])
+  })
+})
+
+describe('conversation handoff visible messages', () => {
+  it('reads session id and harness text from a handoff receipt', () => {
+    expect(parseSessionHandoffResult('handed-session')).toEqual({
+      sessionId: 'handed-session',
+      summary: '',
+      surfaceText: '',
+    })
+    expect(parseSessionHandoffResult({
+      sessionId: 'handed-session',
+      summary: 'Goal: keep the dock',
+      surfaceText: 'User: keep\n\nAssistant: ok',
+    })).toEqual({
+      sessionId: 'handed-session',
+      summary: 'Goal: keep the dock',
+      surfaceText: 'User: keep\n\nAssistant: ok',
+    })
+  })
+
+  it('copies previous user and assistant turns when compact did not produce a summary', () => {
+    const handed = handoffVisibleMessages(source.messages)
+    expect(handed.map(item => item.content)).toEqual(['u1', 'a1'])
+    expect(handed.every(item => item.status === 'done')).toBe(true)
+  })
+
+  it('shows the harness summary when compact already produced one', () => {
+    const handed = handoffVisibleMessages(source.messages, {
+      summary: 'Goal: keep the dock',
+      surfaceText: 'User: u1\n\nAssistant: a1',
+    })
+    expect(handed).toHaveLength(1)
+    expect(handed[0]?.role).toBe('assistant')
+    expect(handed[0]?.content).toBe('Goal: keep the dock')
+  })
+
+  it('falls back to harness surface text when there is no original turn', () => {
+    const handed = handoffVisibleMessages([], {
+      surfaceText: 'User: keep the dock\n\nAssistant: ok',
+    })
+    expect(handed).toHaveLength(1)
+    expect(handed[0]?.content).toBe('User: keep the dock\n\nAssistant: ok')
   })
 })

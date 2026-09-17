@@ -74,6 +74,7 @@ import type {
   BrowserUseRuntime,
   CodingBrowserStatus,
   CodingCompactionResult,
+  CodingSessionHandoffResult,
   CodingComputerUseDriverPrepareResult,
   CodingComputerUseStatus,
   CodingComputerUseTarget,
@@ -289,7 +290,7 @@ interface DesktopAppBindings {
   ): Promise<void>
   ForkConversation(conversationId: string, role: string, occurrence: number): Promise<string>
   RewindCodingSession(conversationId: string): Promise<void>
-  HandoffCodingSession(conversationId: string, kernel?: string): Promise<string>
+  HandoffCodingSession(conversationId: string, kernel?: string): Promise<CodingSessionHandoffResult>
   AbortMessage(conversationId: string): Promise<void>
   AbortSubagent(conversationId: string, subagentId: string): Promise<void>
   RespondToolApproval(

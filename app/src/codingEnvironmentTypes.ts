@@ -110,6 +110,14 @@ export interface CodingRuntimeStatus {
 export interface CodingCompactionResult {
   tokensBefore: number
   estimatedTokensAfter?: number
+  summary?: string
+  surfaceText?: string
+}
+
+export interface CodingSessionHandoffResult {
+  sessionId: string
+  summary?: string
+  surfaceText?: string
 }
 
 export type CodingTerminalStatus =

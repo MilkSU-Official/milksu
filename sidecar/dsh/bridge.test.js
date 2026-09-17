@@ -220,6 +220,8 @@ test("DSH handoff seeds the new session after compact", async () => {
       assert.equal(handed.error, undefined);
       assert.match(String(handed.forkedSessionId ?? ""), /^dsh_/);
       assert.equal(handed.compaction.tokensBefore, 80);
+      assert.equal(handed.compaction.surfaceText, "User: keep the dock\n\nAssistant: ok");
+      assert.equal(handed.compaction.summary, "");
       assert.equal(
         calls.some(call => (
           call.method === "seed_context"

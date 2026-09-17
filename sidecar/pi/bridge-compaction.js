@@ -114,7 +114,8 @@ export function clearAutoCompactionDeadline(deadlines, conversationId) {
 
 /**
  * Project Pi's native compaction lifecycle event onto MilkSU's bounded wire
- * schema. The summary body deliberately never crosses the bridge.
+ * schema. Regular compaction_end still omits the summary body. Handoff reads
+ * compactSession().summary so the product GUI can show the Pi result.
  * @param {object} event
  * @param {string | undefined} requestId
  * @returns {{ type: string, data: object } | null}
@@ -177,7 +178,7 @@ function sessionStateProblem(session) {
  * Run a bounded manual compaction on an existing, idle session.
  * @param {import("@earendil-works/pi-coding-agent").AgentSession} session
  * @param {{ timeoutMs?: number, instructions?: string }} [options]
- * @returns {Promise<{ tokensBefore: number, estimatedTokensAfter?: number }>}
+ * @returns {Promise<{ tokensBefore: number, estimatedTokensAfter?: number, summary: string }>}
  */
 export async function compactSession(session, options = {}) {
   const problem = sessionStateProblem(session);
@@ -207,17 +208,23 @@ export async function compactSession(session, options = {}) {
     return {
       tokensBefore: result?.tokensBefore,
       estimatedTokensAfter: result?.estimatedTokensAfter,
+      summary: compactSummaryText(result),
     };
   } catch (error) {
     // Pi refuses a short branch. Product compact / handoff still succeed:
     // there is nothing to reduce, and the current session stays usable.
     if (isNothingToCompactError(error)) {
-      return { tokensBefore: 0, estimatedTokensAfter: 0 };
+      return { tokensBefore: 0, estimatedTokensAfter: 0, summary: "" };
     }
     throw error;
   } finally {
     if (timer) clearTimeout(timer);
   }
+}
+
+export function compactSummaryText(result) {
+  const summary = result?.summary;
+  return typeof summary === "string" ? summary.trim() : "";
 }
 
 export function isNothingToCompactError(error) {

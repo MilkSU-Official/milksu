@@ -3260,13 +3260,13 @@ func TestHandoffSessionWaitsForSidecarReceipt(t *testing.T) {
 	}
 	supervisor.sessions["session-handoff"] = struct{}{}
 	type handoffResult struct {
-		id  string
-		err error
+		handed SessionHandoffResult
+		err    error
 	}
 	result := make(chan handoffResult, 1)
 	go func() {
-		id, handoffErr := supervisor.HandoffSession("session-handoff")
-		result <- handoffResult{id: id, err: handoffErr}
+		handed, handoffErr := supervisor.HandoffSession("session-handoff")
+		result <- handoffResult{handed: handed, err: handoffErr}
 	}()
 
 	line, err := bufio.NewReader(reader).ReadBytes('\n')
@@ -3292,6 +3292,8 @@ func TestHandoffSessionWaitsForSidecarReceipt(t *testing.T) {
 		Compaction: &CompactionResult{
 			TokensBefore:         4000,
 			EstimatedTokensAfter: 900,
+			Summary:              "Goal: keep the dock",
+			SurfaceText:          "User: keep the dock\n\nAssistant: ok",
 		},
 	}))
 
@@ -3300,8 +3302,14 @@ func TestHandoffSessionWaitsForSidecarReceipt(t *testing.T) {
 		if handed.err != nil {
 			t.Fatal(handed.err)
 		}
-		if handed.id != "session-handoff-next" {
-			t.Fatalf("unexpected forked session: %q", handed.id)
+		if handed.handed.SessionID != "session-handoff-next" {
+			t.Fatalf("unexpected forked session: %q", handed.handed.SessionID)
+		}
+		if handed.handed.Summary != "Goal: keep the dock" {
+			t.Fatalf("unexpected handoff summary: %q", handed.handed.Summary)
+		}
+		if handed.handed.SurfaceText != "User: keep the dock\n\nAssistant: ok" {
+			t.Fatalf("unexpected handoff surface: %q", handed.handed.SurfaceText)
 		}
 		supervisor.mu.Lock()
 		_, remembered := supervisor.sessions["session-handoff-next"]

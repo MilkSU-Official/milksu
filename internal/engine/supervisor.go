@@ -284,12 +284,25 @@ type CodingGoalState struct {
 	QueuedCount         int    `json:"queuedCount"`
 }
 
-// CompactionResult is the bounded projection of Pi's manual context
-// compaction outcome. The summary body stays inside the persisted Pi session;
-// only token accounting crosses the control surface.
+// CompactionResult is the bounded projection of a harness compaction
+// outcome. Regular /compact still carries token accounting only. Handoff
+// may also include the harness summary or remaining surface text so the
+// product GUI can show what was carried; MilkSU does not invent a second
+// summarizer.
 type CompactionResult struct {
-	TokensBefore         int64 `json:"tokensBefore"`
-	EstimatedTokensAfter int64 `json:"estimatedTokensAfter,omitempty"`
+	TokensBefore         int64  `json:"tokensBefore"`
+	EstimatedTokensAfter int64  `json:"estimatedTokensAfter,omitempty"`
+	Summary              string `json:"summary,omitempty"`
+	SurfaceText          string `json:"surfaceText,omitempty"`
+}
+
+// SessionHandoffResult is the Desktop RPC receipt for handing a conversation
+// to a new session. SessionID is the forked conversation. Summary and
+// SurfaceText come from Pi / DSH compact when they produced one.
+type SessionHandoffResult struct {
+	SessionID   string `json:"sessionId"`
+	Summary     string `json:"summary,omitempty"`
+	SurfaceText string `json:"surfaceText,omitempty"`
 }
 
 type ModelProbeResult struct {
@@ -1923,10 +1936,10 @@ func (s *Supervisor) RewindSession(sessionID string) error {
 	}
 }
 
-func (s *Supervisor) HandoffSession(sessionID string) (string, error) {
+func (s *Supervisor) HandoffSession(sessionID string) (SessionHandoffResult, error) {
 	sessionID = strings.TrimSpace(sessionID)
 	if sessionID == "" {
-		return "", fmt.Errorf("session id is required")
+		return SessionHandoffResult{}, fmt.Errorf("session id is required")
 	}
 	requestID := fmt.Sprintf("handoff_%d", time.Now().UnixNano())
 	events := make(chan Event, 1)
@@ -1943,7 +1956,7 @@ func (s *Supervisor) HandoffSession(sessionID string) (string, error) {
 	if _, exists := s.sessions[sessionID]; !exists {
 		err := s.sessionMissingError(sessionID)
 		s.mu.Unlock()
-		return "", err
+		return SessionHandoffResult{}, err
 	}
 	err := s.writeToSessionLocked(sessionID, map[string]any{
 		"action":         "handoff_session",
@@ -1952,7 +1965,7 @@ func (s *Supervisor) HandoffSession(sessionID string) (string, error) {
 	})
 	s.mu.Unlock()
 	if err != nil {
-		return "", fmt.Errorf("handoff session: %w", err)
+		return SessionHandoffResult{}, fmt.Errorf("handoff session: %w", err)
 	}
 
 	timer := time.NewTimer(defaultCompactionTimeout)
@@ -1960,19 +1973,29 @@ func (s *Supervisor) HandoffSession(sessionID string) (string, error) {
 	select {
 	case event := <-events:
 		if strings.TrimSpace(event.Error) != "" {
-			return "", fmt.Errorf("%s", probeFailureMessage(event))
+			return SessionHandoffResult{}, fmt.Errorf("%s", probeFailureMessage(event))
 		}
 		id := strings.TrimSpace(event.ForkedSessionID)
 		if event.Type != "session.handoff" || id == "" {
-			return "", fmt.Errorf("handoff ended without a forked session")
+			return SessionHandoffResult{}, fmt.Errorf("handoff ended without a forked session")
 		}
 		s.mu.Lock()
 		s.rememberForkedSessionLocked(sessionID, id)
 		s.mu.Unlock()
-		return id, nil
+		return sessionHandoffResultFromEvent(id, event.Compaction), nil
 	case <-timer.C:
-		return "", fmt.Errorf("handing off the conversation timed out")
+		return SessionHandoffResult{}, fmt.Errorf("handing off the conversation timed out")
 	}
+}
+
+func sessionHandoffResultFromEvent(sessionID string, compaction *CompactionResult) SessionHandoffResult {
+	result := SessionHandoffResult{SessionID: strings.TrimSpace(sessionID)}
+	if compaction == nil {
+		return result
+	}
+	result.Summary = strings.TrimSpace(compaction.Summary)
+	result.SurfaceText = strings.TrimSpace(compaction.SurfaceText)
+	return result
 }
 
 // SteerMessage delegates mid-run guidance to the live sidecar. Pi applies it
