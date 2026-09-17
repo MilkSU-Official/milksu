@@ -181,6 +181,7 @@ interface DesktopAppBindings {
   GetUpdateStatus(): Promise<UpdateStatus>
   CheckForUpdates(): Promise<UpdateStatus>
   DownloadUpdate(): Promise<UpdateStatus>
+  CancelUpdate(): Promise<UpdateStatus>
   InstallUpdate(): Promise<boolean>
   GetSettings(): Promise<AppSettings>
   GetModelCatalog(): Promise<ModelCatalogSnapshot>
@@ -602,6 +603,8 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.CheckForUpdates() as Promise<T>
       case 'download_update':
         return app.DownloadUpdate() as Promise<T>
+      case 'cancel_update':
+        return app.CancelUpdate() as Promise<T>
       case 'install_update':
         return app.InstallUpdate() as Promise<T>
       case 'get_settings':

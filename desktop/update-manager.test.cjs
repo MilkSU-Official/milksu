@@ -215,7 +215,11 @@ test('checks and downloads updates through a verified local feed', async () => {
 
     const downloaded = await manager.download()
     assert.equal(downloaded.state, 'downloaded')
-    assert.equal(events.some(event => event.state === 'downloading' && event.percent === 42), true)
+    assert.equal(events.some(event => event.state === 'downloading' && event.phase === 'checking'), true)
+    assert.equal(events.some(event => event.state === 'downloading' && event.phase === 'downloading'), true)
+    assert.equal(events.some(event => event.state === 'downloading' && event.phase === 'verifying'), true)
+    assert.equal(events.some(event => event.state === 'downloading' && event.phase === 'preparing'), true)
+    assert.equal(events.some(event => event.state === 'downloaded' && event.percent === 100), true)
     assert.match(options.updater.feed.url, /^http:\/\/127\.0\.0\.1:\d+\//u)
     assert.equal(options.updater.feed.useMultipleRangeRequest, false)
     assert.equal(await manager.install(), true)
@@ -310,6 +314,75 @@ test('stays idle when Admin latest has no downloadable artifact', async () => {
   const manager = new UpdateManager(options)
   try {
     assert.equal((await manager.check()).state, 'idle')
+  } finally {
+    await rm(options.userDataPath, { recursive: true, force: true })
+  }
+})
+
+test('does not mark the update ready when electron-updater emits update-downloaded early', async () => {
+  const seen = []
+  let manager
+  const options = await managerOptions({
+    downloadArtifact: async (url, file, size, sha256, hooks) => {
+      options.updater.emit('update-downloaded', {
+        version: '0.2.0',
+        downloadedFile: path.join(options.userDataPath, 'early.bin'),
+      })
+      seen.push(manager.view().state)
+      return require('./update-artifacts.cjs').downloadUpdateArtifact(url, file, size, sha256, hooks)
+    },
+  })
+  manager = new UpdateManager(options)
+  try {
+    assert.equal((await manager.check()).state, 'available')
+    const downloaded = await manager.download()
+    assert.deepEqual(seen, ['downloading'])
+    assert.equal(downloaded.state, 'downloaded')
+  } finally {
+    await rm(options.userDataPath, { recursive: true, force: true })
+  }
+})
+
+test('cancel aborts an in-flight download without installing', async () => {
+  const options = await managerOptions({
+    downloadArtifact: (_url, _file, _size, _sha256, hooks) => new Promise((_, reject) => {
+      const signal = hooks?.signal
+      if (!signal) {
+        reject(new Error('missing abort signal'))
+        return
+      }
+      if (signal.aborted) {
+        reject(Object.assign(new Error('aborted'), { name: 'AbortError' }))
+        return
+      }
+      signal.addEventListener('abort', () => {
+        reject(Object.assign(new Error('aborted'), { name: 'AbortError' }))
+      }, { once: true })
+    }),
+  })
+  const manager = new UpdateManager(options)
+  try {
+    assert.equal((await manager.check()).state, 'available')
+    const pending = manager.download()
+    await new Promise((resolve, reject) => {
+      const started = Date.now()
+      const timer = setInterval(() => {
+        if (manager.view().state === 'downloading') {
+          clearInterval(timer)
+          resolve()
+          return
+        }
+        if (Date.now() - started > 1000) {
+          clearInterval(timer)
+          reject(new Error('download did not start'))
+        }
+      }, 5)
+    })
+    manager.cancel()
+    const failed = await pending
+    assert.equal(failed.state, 'error')
+    assert.equal(failed.code, 'cancelled')
+    assert.equal(await manager.install(), false)
   } finally {
     await rm(options.userDataPath, { recursive: true, force: true })
   }

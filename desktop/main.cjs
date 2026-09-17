@@ -896,6 +896,13 @@ ipcMain.handle('milksu:invoke', async (event, request) => {
   if (method === 'DownloadUpdate') {
     return updateManager?.download() ?? null
   }
+  if (method === 'CancelUpdate') {
+    return updateManager?.cancel() ?? {
+      state: 'idle',
+      currentVersion: app.getVersion(),
+      enabled: false,
+    }
+  }
   if (method === 'InstallUpdate') {
     if (!updateManager || updateManager.view().state !== 'downloaded') return false
     if (browserShell) await browserShell.closeAll()

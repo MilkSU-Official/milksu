@@ -72,7 +72,7 @@
 | P0 | React + shadcn | 工作树 renderer 已是 React + shadcn（`main.tsx`）。新页和重构只走这条。不再跟 DSH web GUI，不再加 Felinic / Vue SFC。Desktop RPC 与 Go 不动。细节优化看下面「迁移残留」。 |
 | P0 | Pi Runtime 用户验收 | 跨目录读写、CTF/CVE 交接、长输出续跑、重启恢复；无 MilkSU 自建 workspace 策略或旧 session ID。 |
 | P1 | 下一版三端回执 | 新版本号、同一 source commit、三端产物、SHA-256 与平台验收。安装包见 README。 |
-| P1 | OTA / current pointer | 侧栏蓝色「更新」一点即下载并重启；有任务在跑时先确认退出并落盘后续跑；安装失败可见；CI 上传后发布 current pointer。 |
+| P1 | OTA / current pointer | 侧栏「更新」打开进度框下载；下完后用户点安装并重启；有任务在跑时先确认退出并落盘后续跑；安装失败可见；CI 上传后发布 current pointer。 |
 | P1 | Wide lab recon | `bg_status` 熔断与最多 4 条子 Agent lane 已进包。宽作业用 `recon-authorized-target` Skill，不另造 typed sweep。 |
 | P1 | 安全工具真实任务 | IDA / capa 已有设置与健康检查；用受控样本留回执。不把 HexStrike 做成默认 MCP。 |
 | P1 | Obelisk 学习记录 | 先定义可归因事实，再独立页面；不恢复已删的单会话图谱。 |

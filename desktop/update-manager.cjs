@@ -157,6 +157,7 @@ class UpdateManager {
     this.installRequested = false
     this.feed = null
     this.updateDirectory = ''
+    this.abort = null
     if (!this.enabled) return
 
     if (this.updater && this.platform !== 'linux') {
@@ -167,8 +168,10 @@ class UpdateManager {
       this.updater.disableDifferentialDownload = true
       this.updater.logger = null
       this.updater.on('download-progress', progress => {
+        if (this.status.phase && this.status.phase !== 'downloading') return
         this.setStatus({
           state: 'downloading',
+          phase: 'downloading',
           percent: Math.max(0, Math.min(100, Number(progress?.percent) || 0)),
           transferred: Math.max(0, Number(progress?.transferred) || 0),
           total: Math.max(0, Number(progress?.total) || 0),
@@ -176,12 +179,9 @@ class UpdateManager {
       })
       this.updater.on('update-downloaded', info => {
         this.updaterDownloadedFile = boundedText(info?.downloadedFile, 1024)
-        this.setStatus({
-          state: 'downloaded',
-          version: boundedText(info?.version, 64) || this.status.version,
-        })
       })
       this.updater.on('error', error => {
+        if (this.abort?.signal.aborted) return
         if (this.installRequested) {
           const failed = installError(error)
           this.installRequested = false
@@ -189,6 +189,7 @@ class UpdateManager {
             state: 'error',
             code: failed.code,
             message: failed.message,
+            phase: '',
           })
           return
         }
@@ -200,6 +201,7 @@ class UpdateManager {
           state: 'error',
           code: 'download_failed',
           message: '更新下载失败，请稍后重试',
+          phase: '',
         })
       })
     }
@@ -260,8 +262,23 @@ class UpdateManager {
     this.stopPolling()
     this.downloadRequested = false
     this.release = null
+    this.abort?.abort()
+    this.abort = null
     void this.discardPreparedUpdate()
-    this.setStatus({ state: 'idle', message: '', code: '', version: '', title: '', notes: '' })
+    this.setStatus({ state: 'idle', message: '', code: '', version: '', title: '', notes: '', phase: '', percent: 0 })
+  }
+
+  cancel() {
+    if (this.status.state !== 'downloading') return this.view()
+    if (this.status.phase && !['checking', 'downloading'].includes(this.status.phase)) {
+      return this.view()
+    }
+    this.abort?.abort()
+    return this.view()
+  }
+
+  aborted() {
+    return this.abort?.signal.aborted === true
   }
 
   linuxCanApply() {
@@ -298,13 +315,13 @@ class UpdateManager {
         const release = await this.fetchLatest(token)
         if (!release || !versionNewer(release.version, this.currentVersion) || !this.linuxCanApply()) {
           this.release = null
-          this.setStatus({ state: 'idle', version: '', title: '', notes: '', message: '', code: '' })
+          this.setStatus({ state: 'idle', version: '', title: '', notes: '', message: '', code: '', phase: '' })
           return this.view()
         }
         this.release = release
         if (!this.selectedDownload()) {
           this.release = null
-          this.setStatus({ state: 'idle', version: '', title: '', notes: '', message: '', code: '' })
+          this.setStatus({ state: 'idle', version: '', title: '', notes: '', message: '', code: '', phase: '' })
           return this.view()
         }
         this.setStatus({
@@ -358,7 +375,17 @@ class UpdateManager {
       return this.view()
     }
     this.downloadRequested = true
-    this.setStatus({ state: 'downloading', percent: 0, message: '', code: '' })
+    this.abort?.abort()
+    this.abort = new AbortController()
+    this.setStatus({
+      state: 'downloading',
+      phase: 'checking',
+      percent: 0,
+      transferred: 0,
+      total: 0,
+      message: '',
+      code: '',
+    })
     try {
       if (this.platform === 'linux') {
         await this.downloadLinux(token)
@@ -367,11 +394,23 @@ class UpdateManager {
       }
     } catch {
       await this.discardPreparedUpdate()
-      this.setStatus({
-        state: 'error',
-        code: 'download_failed',
-        message: '更新下载失败，请稍后重试',
-      })
+      if (this.aborted()) {
+        this.setStatus({
+          state: 'error',
+          code: 'cancelled',
+          message: '已取消更新下载',
+          phase: '',
+        })
+      } else {
+        this.setStatus({
+          state: 'error',
+          code: 'download_failed',
+          message: '更新下载失败，请稍后重试',
+          phase: '',
+        })
+      }
+    } finally {
+      this.abort = null
     }
     return this.view()
   }
@@ -386,16 +425,30 @@ class UpdateManager {
     this.updateDirectory = await mkdtemp(path.join(root, 'update-'))
     const destination = path.join(this.updateDirectory, this.artifactFileName())
     const headers = { authorization: `Bearer ${token}` }
+    const signal = this.abort?.signal
+    this.setStatus({
+      state: 'downloading',
+      phase: 'downloading',
+      percent: 0,
+      transferred: 0,
+      total: size,
+    })
     let lastError
+    let lastReport = 0
     for (let attempt = 0; attempt < 2; attempt += 1) {
+      if (this.aborted()) throw lastError || new Error('cancelled')
       try {
         await this.downloadArtifact(selected.url, destination, size, selected.sha256, {
           headers,
+          signal,
           fetchImpl: this.fetchImpl,
           onProgress: received => {
+            if (Date.now() - lastReport < 150 && received !== size) return
+            lastReport = Date.now()
             const percent = size > 0 ? Math.max(0, Math.min(100, (received / size) * 100)) : 0
             this.setStatus({
               state: 'downloading',
+              phase: 'downloading',
               percent,
               transferred: received,
               total: size,
@@ -406,12 +459,27 @@ class UpdateManager {
         break
       } catch (error) {
         lastError = error
-        if (attempt >= 1 || /校验|完整性|大小|SHA-256/u.test(String(error?.message || error))) {
+        if (this.aborted() || attempt >= 1 || /校验|完整性|大小|SHA-256/u.test(String(error?.message || error))) {
           throw error
         }
+        this.setStatus({
+          state: 'downloading',
+          phase: 'downloading',
+          percent: 0,
+          transferred: 0,
+          total: size,
+        })
       }
     }
     if (lastError) throw lastError
+    if (this.aborted()) throw new Error('cancelled')
+    this.setStatus({
+      state: 'downloading',
+      phase: 'verifying',
+      percent: 100,
+      transferred: size,
+      total: size,
+    })
     await this.verifyDownloaded(destination, size, selected.sha256)
     if (typeof this.updater?.setFeedURL !== 'function'
       || typeof this.updater?.checkForUpdates !== 'function'
@@ -429,6 +497,12 @@ class UpdateManager {
         this.release.version,
       )
     }
+    if (this.aborted()) throw new Error('cancelled')
+    this.setStatus({
+      state: 'downloading',
+      phase: 'preparing',
+      percent: 100,
+    })
     this.feed = await this.createFeed(prepared, this.release.version)
     const configPath = path.join(this.updateDirectory, 'app-update.yml')
     let configContents = 'updaterCacheDirName: milksu-updater\n'
@@ -468,6 +542,7 @@ class UpdateManager {
     this.installer = { file: this.updaterDownloadedFile, size: installerSize, sha256: installerSha256 }
     this.setStatus({
       state: 'downloaded',
+      phase: '',
       version: boundedText(this.release.version, 64),
       percent: 100,
     })
@@ -481,22 +556,31 @@ class UpdateManager {
     const destination = path.join(directory, this.artifactFileName())
     const response = await this.fetchImpl(selected.url, {
       headers: { authorization: `Bearer ${token}` },
+      signal: this.abort?.signal,
     })
     if (!response.ok || !response.body) throw new Error('linux_download_failed')
     const hash = createHash('sha256')
     let transferred = 0
     const total = Number(selected.size) || 0
+    this.setStatus({
+      state: 'downloading',
+      phase: 'downloading',
+      percent: 0,
+      transferred: 0,
+      total,
+    })
     const file = createWriteStream(destination, { mode: 0o600 })
     const body = response.body[Symbol.asyncIterator]
       ? response.body
       : Readable.fromWeb(response.body)
     try {
       for await (const chunk of body) {
+        if (this.aborted()) throw new Error('cancelled')
         const buffer = Buffer.from(chunk)
         hash.update(buffer)
         transferred += buffer.length
         const percent = total > 0 ? Math.max(0, Math.min(100, (transferred / total) * 100)) : 0
-        this.setStatus({ state: 'downloading', percent, transferred, total })
+        this.setStatus({ state: 'downloading', phase: 'downloading', percent, transferred, total })
         if (!file.write(buffer)) {
           await new Promise(resolve => file.once('drain', resolve))
         }
@@ -509,6 +593,13 @@ class UpdateManager {
       await unlink(destination).catch(() => {})
       throw error
     }
+    this.setStatus({
+      state: 'downloading',
+      phase: 'verifying',
+      percent: 100,
+      transferred: total,
+      total,
+    })
     if (hash.digest('hex') !== selected.sha256) {
       await unlink(destination).catch(() => {})
       throw new Error('linux_checksum_mismatch')
@@ -517,6 +608,7 @@ class UpdateManager {
     this.verified = { file: destination, size: total, sha256: selected.sha256 }
     this.setStatus({
       state: 'downloaded',
+      phase: '',
       version: boundedText(this.release.version, 64),
       percent: 100,
     })
@@ -554,6 +646,10 @@ class UpdateManager {
       }
       this.installRequested = true
       this.updater.autoInstallOnAppQuit = false
+      this.setStatus({
+        state: 'downloaded',
+        phase: 'installing',
+      })
       this.updater.quitAndInstall(true, true)
     } catch (error) {
       this.installRequested = false

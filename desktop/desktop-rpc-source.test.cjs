@@ -65,6 +65,7 @@ test('Electron-owned renderer methods remain handled before Go dispatch', () => 
     'GetUpdateStatus',
     'CheckForUpdates',
     'DownloadUpdate',
+    'CancelUpdate',
     'InstallUpdate',
   ]
 

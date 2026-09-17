@@ -22,6 +22,8 @@ export interface AccountStatus {
   provisional?: boolean
 }
 
+export type UpdatePhase = 'checking' | 'downloading' | 'verifying' | 'preparing' | 'installing'
+
 export interface UpdateStatus {
   state: 'idle' | 'checking' | 'available' | 'downloading' | 'downloaded' | 'error'
   currentVersion: string
@@ -33,6 +35,7 @@ export interface UpdateStatus {
   percent?: number
   transferred?: number
   total?: number
+  phase?: UpdatePhase | ''
   message?: string
   code?: string
 }

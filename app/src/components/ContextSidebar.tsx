@@ -913,7 +913,6 @@ export default function ContextSidebar({
               type="button"
               className="agent-sidebar__update app-no-drag"
               data-testid="sidebar-apply-update"
-              disabled={updateDownloading}
               aria-label={updateButtonLabel}
               title={updateButtonTitle}
               onClick={() => onApplyUpdate?.()}
