@@ -251,6 +251,71 @@ export function killHostJob(jobs, agent, jobId) {
   return { killed: status !== "already-finished", status, ...listHostJobs(jobs, agent) };
 }
 
+export function contentBlocksText(blocks) {
+  if (typeof blocks === "string") return blocks.trim();
+  if (!Array.isArray(blocks)) return "";
+  return blocks.flatMap((block) => {
+    if (typeof block === "string") return [block];
+    if (block?.type === "text") return [String(block.text ?? "")];
+    return [];
+  }).join("").trim();
+}
+
+export function sessionSurfaceText(session) {
+  const events = typeof session?.snapshotEvents === "function"
+    ? session.snapshotEvents()
+    : [];
+  const parts = [];
+  for (const event of events) {
+    const type = String(event?.type ?? "");
+    const data = event?.data ?? {};
+    const text = type === "user/message"
+      ? contentBlocksText(data.content ?? data.message?.content)
+      : type === "assistant/message"
+        ? contentBlocksText(data.message?.content ?? data.content)
+        : "";
+    if (!text) continue;
+    parts.push(`${type === "user/message" ? "User" : "Assistant"}: ${text}`);
+  }
+  return parts.join("\n\n").trim();
+}
+
+export function projectCompactResult(result, session) {
+  const surfaceText = sessionSurfaceText(session);
+  if (result == null) {
+    return {
+      compacted: false,
+      tokensBefore: 0,
+      estimatedTokensAfter: 0,
+      summary: "",
+      surfaceText,
+    };
+  }
+  return {
+    compacted: true,
+    tokensBefore: Number(result.shadowedTokenCount ?? result.tokensBefore ?? 0),
+    estimatedTokensAfter: Number(result.estimatedTokensAfter ?? result.tokensAfter ?? 0),
+    summary: contentBlocksText(result.summary),
+    summarySeq: result.summarySeq,
+    surfaceText,
+  };
+}
+
+export function seedHandoffContext(agent, text) {
+  const prompt = String(text ?? "").trim();
+  if (!prompt) return { seeded: false };
+  if (!agent?.session || typeof agent.session.append !== "function") {
+    throw new Error("DeepSeek Harness session cannot receive handoff context");
+  }
+  agent.session.append("user/message", {
+    id: `handoff_${Date.now()}`,
+    role: "user",
+    content: [{ type: "text", text: prompt }],
+    source: { kind: "plugin", plugin: "milksu-dsh-host", form: "recall" },
+  }, { surfaceOp: "append" });
+  return { seeded: true };
+}
+
 export function isExitPlanModeTool(toolCall) {
   const text = JSON.stringify(toolCall ?? "").toLowerCase();
   return /exit_plan_mode|"plan-review"|plan review/.test(text);

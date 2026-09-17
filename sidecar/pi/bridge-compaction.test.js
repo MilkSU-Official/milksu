@@ -8,6 +8,7 @@ import {
   CONTEXT_COMPACTION_RATIO,
   contextUsageSnapshot,
   DEFAULT_COMPACTION_TIMEOUT_MS,
+  isNothingToCompactError,
   projectCompactionEvent,
   trackCompaction,
   waitForCompaction,
@@ -80,13 +81,17 @@ test("rejects an already-compacting session", async () => {
   );
 });
 
-test("surfaces Pi failures such as nothing to compact without faking success", async () => {
+test("treats a session that is too small as a successful no-op", async () => {
   const session = idleSession({
     compact: async () => {
       throw new Error("Nothing to compact (session too small)");
     },
   });
-  await assert.rejects(compactSession(session), /Nothing to compact/);
+  assert.equal(isNothingToCompactError(new Error("Nothing to compact (session too small)")), true);
+  assert.deepEqual(await compactSession(session), {
+    tokensBefore: 0,
+    estimatedTokensAfter: 0,
+  });
 });
 
 test("surfaces model/auth failures without faking success", async () => {
@@ -188,6 +193,26 @@ test("projects Pi native compaction events without exposing the summary", () => 
     },
   });
   assert.equal(JSON.stringify(completed).includes("must stay inside Pi"), false);
+});
+
+test("projects a session-too-small compaction as a successful no-op", () => {
+  assert.deepEqual(projectCompactionEvent({
+    type: "compaction_end",
+    reason: "manual",
+    aborted: false,
+    errorMessage: "Compaction failed: Nothing to compact (session too small)",
+  }, "request-small"), {
+    type: "compaction_end",
+    data: {
+      requestId: "request-small",
+      reason: "manual",
+      aborted: false,
+      compaction: {
+        tokensBefore: 0,
+        estimatedTokensAfter: 0,
+      },
+    },
+  });
 });
 
 test("projects a failed Pi compaction as an error without a result", () => {

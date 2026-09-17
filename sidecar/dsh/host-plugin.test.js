@@ -335,4 +335,37 @@ test("dispatch reads agents through ctx.get so the plugin need not inject them",
   });
   assert.equal(compacted.compacted, true);
   assert.equal(compacted.tokensBefore, 12);
+  assert.equal(compacted.surfaceText, "");
+});
+
+test("dispatch seeds handoff context onto the live agent session", async () => {
+  const loaded = await loadHostPlugin();
+  const appended = [];
+  const ctx = {
+    get(name) {
+      if (name === "agents") {
+        return {
+          get: (id) => (id === "acp_1"
+            ? {
+              id,
+              session: {
+                append(type, data, opts) {
+                  appended.push({ type, data, opts });
+                },
+              },
+            }
+            : null),
+        };
+      }
+      return undefined;
+    },
+  };
+  const seeded = await loaded.dispatch(ctx, new Set(), {}, {
+    method: "seed_context",
+    params: { sessionId: "acp_1", text: "Goal: keep the dock." },
+  });
+  assert.deepEqual(seeded, { seeded: true });
+  assert.equal(appended[0].type, "user/message");
+  assert.equal(appended[0].data.content[0].text, "Goal: keep the dock.");
+  assert.equal(appended[0].opts.surfaceOp, "append");
 });

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   appendHostInbox,
+  contentBlocksText,
   executeHostCommand,
   getHostGoal,
   getHostPlanMode,
@@ -13,8 +14,11 @@ import {
   mapAskChoiceToUserQuestionAnswer,
   mutateHostGoal,
   parseSlashLine,
+  projectCompactResult,
   projectUserQuestionAsk,
   removeHostInbox,
+  seedHandoffContext,
+  sessionSurfaceText,
   setHostPlanMode,
 } from "./host-primitives.js";
 
@@ -182,4 +186,40 @@ test("exit_plan_mode is never treated as grantable auto-allow", () => {
     }], "Approve", true).answers[0].selected,
     ["Approve"],
   );
+});
+
+test("projectCompactResult keeps a no-op compact as success and exposes surface text", () => {
+  const session = {
+    snapshotEvents() {
+      return [
+        { type: "user/message", data: { content: [{ type: "text", text: "ship the dock" }] } },
+        { type: "assistant/message", data: { message: { content: [{ type: "text", text: "ok" }] } } },
+      ];
+    },
+  };
+  assert.equal(contentBlocksText([{ type: "text", text: "keep" }]), "keep");
+  assert.equal(sessionSurfaceText(session), "User: ship the dock\n\nAssistant: ok");
+  assert.deepEqual(projectCompactResult(null, session), {
+    compacted: false,
+    tokensBefore: 0,
+    estimatedTokensAfter: 0,
+    summary: "",
+    surfaceText: "User: ship the dock\n\nAssistant: ok",
+  });
+});
+
+test("seedHandoffContext appends a recall user message without starting a turn", () => {
+  const appended = [];
+  const seeded = seedHandoffContext({
+    session: {
+      append(type, data, opts) {
+        appended.push({ type, data, opts });
+      },
+    },
+  }, "Goal: keep the dock.");
+  assert.deepEqual(seeded, { seeded: true });
+  assert.equal(appended[0].type, "user/message");
+  assert.equal(appended[0].data.source.form, "recall");
+  assert.equal(appended[0].opts.surfaceOp, "append");
+  assert.deepEqual(seedHandoffContext({ session: { append() {} } }, "   "), { seeded: false });
 });

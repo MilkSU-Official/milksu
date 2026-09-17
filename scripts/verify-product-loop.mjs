@@ -158,6 +158,7 @@ async function runComposerRuntime() {
       'src/lib/agentKernel.test.ts',
       'src/lib/workingRoster.test.ts',
       'src/composables/useConversationsKernelMultitask.test.ts',
+      'src/composables/useConversationsContextHandoff.test.ts',
       'src/types.test.ts',
       'src/lib/uiLocale.test.ts',
     ],
@@ -184,30 +185,36 @@ async function runComposerRuntime() {
   }
   const queue = await runCommand(
     'go',
-    ['test', './internal/engine', '-count=1', '-run', 'TestQueueMessageUsesExistingDshSession|TestSteerMessageUsesExistingPiSession'],
+    ['test', './internal/engine', '-count=1', '-run', 'TestQueueMessageUsesExistingDshSession|TestSteerMessageUsesExistingPiSession|TestHandoffSession|TestCompactSessionWaitsForSidecarReceipt|TestCompactSessionReportsFailureWithoutSuccess'],
   )
   if (queue.code !== 0) {
     return {
       result: 'FAIL',
-      detail: 'DSH inbox 排队 / Pi 插话 supervisor 未过',
+      detail: 'DSH inbox 排队 / Pi 插话 / 整理上下文 / 接到新会话 supervisor 未过',
       stderr: queue.stderr.slice(-800),
     }
   }
   const host = await runCommand(
     'node',
-    ['--test', 'sidecar/dsh/host-plugin.test.js', 'sidecar/dsh/host-primitives.test.js'],
+    [
+      '--test',
+      'sidecar/dsh/host-plugin.test.js',
+      'sidecar/dsh/host-primitives.test.js',
+      'sidecar/dsh/bridge.test.js',
+      'sidecar/pi/bridge-compaction.test.js',
+    ],
   )
   if (host.code !== 0) {
     return {
       result: 'FAIL',
-      detail: 'DSH host commands/plan/goal/inbox/jobs 未过',
+      detail: 'DSH host / 整理上下文 / 接到新会话 未过',
       stdout: host.stdout.slice(-1_200),
       stderr: host.stderr.slice(-800),
     }
   }
   return {
     result: 'PASS',
-    detail: 'Stop/Send 相位、DSH host commands/plan/goal/inbox/jobs、Working followup、Pi 阻塞子代理、Multitask、locale/kernel/busy-send/model 落盘通过',
+    detail: 'Stop/Send 相位、DSH host commands/plan/goal/inbox/jobs、整理上下文/接到新会话、Working followup、Pi 阻塞子代理、Multitask、locale/kernel/busy-send/model 落盘通过',
   }
 }
 

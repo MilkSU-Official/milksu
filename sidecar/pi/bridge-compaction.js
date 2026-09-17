@@ -130,6 +130,20 @@ export function projectCompactionEvent(event, requestId) {
     };
   }
   if (event?.type !== "compaction_end") return null;
+  if (isNothingToCompactError(event.errorMessage)) {
+    return {
+      type: "compaction_end",
+      data: {
+        requestId,
+        reason: event.reason,
+        aborted: false,
+        compaction: {
+          tokensBefore: 0,
+          estimatedTokensAfter: 0,
+        },
+      },
+    };
+  }
   const error = event.errorMessage
     ?? (event.aborted
       ? "Context compaction cancelled"
@@ -194,7 +208,20 @@ export async function compactSession(session, options = {}) {
       tokensBefore: result?.tokensBefore,
       estimatedTokensAfter: result?.estimatedTokensAfter,
     };
+  } catch (error) {
+    // Pi refuses a short branch. Product compact / handoff still succeed:
+    // there is nothing to reduce, and the current session stays usable.
+    if (isNothingToCompactError(error)) {
+      return { tokensBefore: 0, estimatedTokensAfter: 0 };
+    }
+    throw error;
   } finally {
     if (timer) clearTimeout(timer);
   }
+}
+
+export function isNothingToCompactError(error) {
+  return /nothing to compact|session too small|already compacted/i.test(
+    error instanceof Error ? error.message : String(error ?? ""),
+  );
 }

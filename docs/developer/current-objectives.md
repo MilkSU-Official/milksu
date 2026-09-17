@@ -50,6 +50,7 @@
 - Computer Use 选窗器仍是可选人工面。宽作业走 `recon-authorized-target` Skill，不造 typed sweep。
 - DSH `bash` 没有 MilkSU 侧超时上界（工具在 harness 进程内，不要在客户端复刻第二套循环）。
 - 不要把 `test:dsh-complete-loop` 当主入口。产品回归走 `npm run test:product-loop`。
+- 整理上下文 / 接到新会话：Pi 短会话不再把「Nothing to compact」当成失败；DSH 整理失败不再开空会话，并把整理后的表面上下文种进新会话。`composer-runtime` 已覆盖。未进安装包。
 - Agent Harness：DSH 没有 Cursor 那种 `run_in_background` Task。ACP `session/prompt` 要等到 `whenIdle`（含子代理）才结算，所以主对话继续发走 host `Agent.followup`。作曲栏停止键只在父回合还在生成、压缩或中止时出现。加号 Multitask 才是另开 ACP 子会话。Pi 的 `subagent` 仍阻塞父工具。不要升 Pi 来假装能并行。
 - 不要复刻原厂 `dsh web` 皮肤、Queue dock、Jobs 顶栏、slash 目录或 Agent preset 切换器。未复刻 child transcript、preset、插件清单、归档、Schedule。
 - 设置 → 通用「强调色」：出厂默认墨色；可选蓝 / 紫 / 青 / 琥珀 / 玫红。彩色预设同时改写 `--emphasis` 与 `--primary`，发送/主按钮、选中滤片、Switch / Checkbox、进度条、侧栏选中细条和 `text-primary` 勾选跟色；侧栏「更新」仍用固定 `--update` 蓝。即时落盘。未进安装包。

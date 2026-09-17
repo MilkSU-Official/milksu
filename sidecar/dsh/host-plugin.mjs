@@ -18,9 +18,11 @@ import {
   listHostJobs,
   mapAskChoiceToUserQuestionAnswer,
   mutateHostGoal,
+  projectCompactResult,
   projectUserQuestionAsk,
   removeHostInbox,
   replaceHostInbox,
+  seedHandoffContext,
   setHostPlanMode,
 } from "./host-primitives.js";
 
@@ -304,6 +306,9 @@ export async function dispatch(ctx, watchers, socket, message, pendingUserQuesti
   if (message.method === "kill_job") {
     return killHostJob(hostService(ctx, "jobs"), agent, message.params?.jobId);
   }
+  if (message.method === "seed_context") {
+    return seedHandoffContext(agent, message.params?.text);
+  }
   if (message.method !== "compact") {
     throw new Error(`Unknown MilkSU host method: ${message.method}`);
   }
@@ -312,13 +317,5 @@ export async function dispatch(ctx, watchers, socket, message, pendingUserQuesti
     throw new Error("DeepSeek Harness compaction is unavailable");
   }
   const result = await compaction.compactNow(agent, AbortSignal.timeout(120_000));
-  if (result == null) {
-    return { compacted: false, tokensBefore: 0, estimatedTokensAfter: 0 };
-  }
-  return {
-    compacted: true,
-    tokensBefore: Number(result.shadowedTokenCount ?? 0),
-    estimatedTokensAfter: 0,
-    summarySeq: result.summarySeq,
-  };
+  return projectCompactResult(result, agent.session);
 }

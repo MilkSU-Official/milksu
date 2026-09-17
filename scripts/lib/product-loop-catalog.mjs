@@ -23,7 +23,7 @@ export const SUITES = {
     modes: ['gui', 'bridge'],
     needsDesktop: false,
     needsCredential: false,
-    detail: '作曲栏 Stop/Send 相位、DSH Working followup/inbox 排队、host commands/plan/goal/jobs、Pi 阻塞子代理、Multitask 子会话、默认运行时/忙碌发送/模型/界面语言落盘。不启桌面。',
+    detail: '作曲栏 Stop/Send 相位、DSH Working followup/inbox 排队、host commands/plan/goal/jobs、整理上下文/接到新会话、Pi 阻塞子代理、Multitask 子会话、默认运行时/忙碌发送/模型/界面语言落盘。不启桌面。',
   },
   'chat-pin': {
     id: 'chat-pin',

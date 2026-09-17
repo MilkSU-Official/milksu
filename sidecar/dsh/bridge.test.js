@@ -130,6 +130,116 @@ test("DSH compact reports a host IPC error instead of inventing session/compact"
   }
 });
 
+test("DSH handoff reports a compact failure instead of opening an empty session", async () => {
+  const bridge = runBridge();
+  try {
+    bridge.send({
+      action: "create_session",
+      conversationId: "conv-handoff-fail",
+      cwd: here,
+    });
+    await bridge.waitFor("ready");
+    bridge.send({
+      action: "handoff_session",
+      conversationId: "conv-handoff-fail",
+      requestId: "handoff-1",
+    });
+    const handed = await bridge.waitFor("session_handoff");
+    assert.equal(handed.requestId, "handoff-1");
+    assert.match(String(handed.error ?? ""), /host IPC|ECONNREFUSED|ENOENT|not configured/i);
+    assert.equal(handed.forkedSessionId, undefined);
+    assert.equal(
+      bridge.events.some(event => event.type === "ready" && event.id !== "conv-handoff-fail"),
+      false,
+    );
+  } finally {
+    bridge.child.kill();
+  }
+});
+
+test("DSH handoff seeds the new session after compact", async () => {
+  const hostPath = dshProductIpc(`host-handoff-${process.pid}`);
+  try {
+    unlinkSync(hostPath);
+  } catch {
+    // First listen.
+  }
+  const bridge = runBridge({ MILKSU_DSH_HOST_IPC: hostPath });
+  try {
+    bridge.send({
+      action: "create_session",
+      conversationId: "conv-handoff",
+      cwd: here,
+    });
+    await bridge.waitFor("ready");
+    const calls = [];
+    const server = createServer(socket => {
+      let buffer = "";
+      socket.on("data", chunk => {
+        buffer += chunk.toString("utf8");
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          const message = JSON.parse(line);
+          calls.push(message);
+          if (message.method === "compact") {
+            socket.write(`${JSON.stringify({
+              id: message.id,
+              result: {
+                tokensBefore: 80,
+                estimatedTokensAfter: 20,
+                surfaceText: "User: keep the dock\n\nAssistant: ok",
+              },
+            })}\n`);
+            continue;
+          }
+          if (message.method === "seed_context") {
+            socket.write(`${JSON.stringify({
+              id: message.id,
+              result: { seeded: true },
+            })}\n`);
+            continue;
+          }
+          socket.write(`${JSON.stringify({ id: message.id, result: {} })}\n`);
+        }
+      });
+    });
+    await new Promise((resolve, reject) => {
+      server.listen(hostPath, resolve);
+      server.on("error", reject);
+    });
+    try {
+      bridge.send({
+        action: "handoff_session",
+        conversationId: "conv-handoff",
+        requestId: "handoff-host",
+      });
+      const handed = await bridge.waitFor("session_handoff");
+      assert.equal(handed.requestId, "handoff-host");
+      assert.equal(handed.error, undefined);
+      assert.match(String(handed.forkedSessionId ?? ""), /^dsh_/);
+      assert.equal(handed.compaction.tokensBefore, 80);
+      assert.equal(
+        calls.some(call => (
+          call.method === "seed_context"
+          && call.params?.text === "User: keep the dock\n\nAssistant: ok"
+        )),
+        true,
+      );
+    } finally {
+      server.close();
+    }
+  } finally {
+    bridge.child.kill();
+    try {
+      unlinkSync(hostPath);
+    } catch {
+      // Already gone.
+    }
+  }
+});
+
 test("DSH compact uses the host plugin", async () => {
   const hostPath = dshProductIpc(`host-compact-${process.pid}`);
   try {
