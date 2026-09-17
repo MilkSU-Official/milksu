@@ -76,6 +76,7 @@ test("Sidecar package bundles the host plugin so DSH can load it from a CommonJS
   assert.match(packager, /bundleDshHostPlugin/);
   assert.match(packager, /host-plugin\.mjs/);
   assert.match(packager, /format: 'esm'/);
+  assert.match(packager, /playwright-lazy-mcp\.cjs/);
 });
 
 test("apply does not leak cannot-create-effect on inactive context", async (t) => {

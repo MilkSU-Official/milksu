@@ -40,6 +40,7 @@ if (pngSize("/usr/share/icons/hicolor/256x256/apps/milksu.png") !== "256x256") p
 grep -q linux/amd64 /opt/MilkSU/resources/milksu-sidecar/manifest.json
 test "$("$node_runtime" -p 'require("/opt/MilkSU/resources/milksu-sidecar/manifest.json").platform')" = "linux/amd64"
 test -f /opt/MilkSU/resources/milksu-sidecar/node_modules/@playwright/mcp/cli.js
+test -f /opt/MilkSU/resources/milksu-sidecar/playwright-lazy-mcp.cjs
 test -d /opt/MilkSU/resources/milksu-sidecar/node_modules/@deepseek-ai/cordis-plugin-group
 
 runtime_home="$(mktemp -d)"
