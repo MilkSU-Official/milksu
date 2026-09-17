@@ -1124,6 +1124,10 @@ const contextSidebarCss = `
 .agent-sidebar .agent-sidebar-item:hover,
 .agent-sidebar .agent-sidebar-item.is-current,
 .agent-sidebar .agent-sidebar-item[data-ui-selected] { background: var(--hover-2); }
+.agent-sidebar .agent-sidebar-item.is-current,
+.agent-sidebar .agent-sidebar-item[data-ui-selected] {
+  box-shadow: inset 3px 0 0 var(--primary);
+}
 .agent-sidebar-item .agent-sidebar-row,
 .agent-sidebar-item .agent-sidebar-row:hover,
 .agent-sidebar-item .agent-sidebar-row.is-current,

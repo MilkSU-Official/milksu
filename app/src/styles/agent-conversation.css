@@ -15,7 +15,7 @@
   --text-display: calc(var(--conversation-font-size) * 24 / 13);
   --text-display--line-height: calc(var(--conversation-font-size) * 29.6 / 13);
   font-size: var(--text-label);
-  --agent-accent: #2f6fec;
+  --agent-accent: var(--emphasis);
   --agent-ok: #1f7a4d;
   --agent-danger: #b42318;
   --agent-hold: #a35b10;

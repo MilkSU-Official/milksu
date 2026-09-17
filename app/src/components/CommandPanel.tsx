@@ -138,7 +138,7 @@ export default function CommandPanel({
               <button
                 key={item.id}
                 type="button"
-                className={`h-7 rounded-full px-2.5 text-label ${selected ? 'bg-accent text-foreground' : 'text-muted-foreground'}`}
+                className={`h-7 rounded-full px-2.5 text-label ${selected ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}
                 aria-pressed={selected}
                 onClick={() => setFilter(item.id)}
               >

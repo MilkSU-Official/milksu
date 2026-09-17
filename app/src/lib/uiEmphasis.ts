@@ -117,10 +117,16 @@ export function applyUiEmphasis(input: {
     if (preset === 'default') {
       root.style.removeProperty('--emphasis')
       root.style.removeProperty('--emphasis-foreground')
+      root.style.removeProperty('--primary')
+      root.style.removeProperty('--primary-foreground')
       root.style.removeProperty('--ring')
     } else {
+      // Colored presets drive both --emphasis and --primary so send / brand
+      // buttons, selected filter chips, and text-primary checks follow the accent.
       root.style.setProperty('--emphasis', tokens.emphasis)
       root.style.setProperty('--emphasis-foreground', tokens.foreground)
+      root.style.setProperty('--primary', tokens.emphasis)
+      root.style.setProperty('--primary-foreground', tokens.foreground)
       root.style.setProperty('--ring', tokens.ring)
     }
   }

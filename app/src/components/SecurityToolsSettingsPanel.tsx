@@ -355,7 +355,7 @@ export default function SecurityToolsSettingsPanel({
 const securityToolsCss = `
 .tool-row { position: relative; display: flex; min-height: 5.8rem; width: calc(100% - 1rem); align-items: center; gap: 1rem; margin: 0.15rem 0.5rem; border: 0; border-radius: 8px; background: transparent; padding: 1rem 1.1rem; color: hsl(var(--foreground)); cursor: pointer; }
 .tool-row:hover { background: var(--hover-2); }
-.tool-row.is-selected { background: var(--hover-2); box-shadow: none; }
+.tool-row.is-selected { background: var(--hover-2); box-shadow: inset 3px 0 0 var(--primary); }
 .tool-icon { display: grid; width: 2.8rem; height: 2.8rem; flex: 0 0 auto; place-items: center; border: 1px solid hsl(var(--border)); border-radius: 8px; color: hsl(var(--foreground)); }
 .tool-row.is-selected .tool-icon { border-color: var(--border); color: var(--foreground); }
 .tool-status { flex: 0 0 auto; font-size: .77rem; font-weight: 650; }

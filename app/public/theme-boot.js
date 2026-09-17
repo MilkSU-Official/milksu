@@ -114,5 +114,7 @@
   var pair = tokens[preset][theme]
   root.style.setProperty('--emphasis', pair.emphasis)
   root.style.setProperty('--emphasis-foreground', pair.foreground)
+  root.style.setProperty('--primary', pair.emphasis)
+  root.style.setProperty('--primary-foreground', pair.foreground)
   root.style.setProperty('--ring', pair.ring)
 })()

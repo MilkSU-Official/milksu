@@ -20,8 +20,18 @@ describe('uiEmphasis', () => {
     document.documentElement.removeAttribute('data-theme')
     document.documentElement.style.removeProperty('--emphasis')
     document.documentElement.style.removeProperty('--emphasis-foreground')
+    document.documentElement.style.removeProperty('--primary')
+    document.documentElement.style.removeProperty('--primary-foreground')
     document.documentElement.style.removeProperty('--ring')
-    window.localStorage.removeItem(UI_EMPHASIS_STORAGE_KEY)
+    const values = new Map<string, string>()
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      value: {
+        getItem(key: string) { return values.get(key) ?? null },
+        setItem(key: string, value: string) { values.set(key, value) },
+        removeItem(key: string) { values.delete(key) },
+      },
+    })
   })
 
   it('normalizes known presets and aliases', () => {
@@ -48,12 +58,15 @@ describe('uiEmphasis', () => {
     applyUiEmphasis({ preset: 'blue' })
     expect(document.documentElement.dataset.uiEmphasis).toBe('blue')
     expect(document.documentElement.style.getPropertyValue('--emphasis')).toBe('#5b9fff')
+    expect(document.documentElement.style.getPropertyValue('--primary')).toBe('#5b9fff')
+    expect(document.documentElement.style.getPropertyValue('--primary-foreground')).toBe('#0b1220')
     expect(document.documentElement.style.getPropertyValue('--ring')).toBe('#5b9fff')
     expect(window.localStorage.getItem(UI_EMPHASIS_STORAGE_KEY)).toBe('blue')
 
     applyUiEmphasis({ preset: 'default' })
     expect(document.documentElement.dataset.uiEmphasis).toBe('default')
     expect(document.documentElement.style.getPropertyValue('--emphasis')).toBe('')
+    expect(document.documentElement.style.getPropertyValue('--primary')).toBe('')
     expect(document.documentElement.style.getPropertyValue('--ring')).toBe('')
   })
 
