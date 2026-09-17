@@ -2,7 +2,11 @@ import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 
+const { tokenfluxBareModelID } = createRequire(import.meta.url)("../pi/tokenflux-model-id.cjs");
+
 export const dshAcpProviderId = "deepseek-official";
+export const tokenfluxChatCompletionsURL = "https://tokenflux.dev/v1";
+export const dshOfficialVendorPrefix = "deepseek";
 
 // Product default Flash is DeepSeek V4.1 (`deepseek-flash`), which declares
 // image input. DSH ACP's shipped profile still pins `deepseek-v4-flash`, a
@@ -33,6 +37,62 @@ export function dshRouteModel(modelId) {
     return dshDefaultAcpModel;
   }
   return dshModelLeaf(raw);
+}
+
+export function dshTalksToTokenFlux(env = process.env) {
+  const base = String(env?.DEEPSEEK_BASE_URL ?? "").trim().replace(/\/+$/u, "").toLowerCase();
+  return base === tokenfluxChatCompletionsURL;
+}
+
+// ACP catalog stays on the leaf (`deepseek-flash`). TokenFlux composite keys
+// require the product prefix/model on the HTTP wire. Official DeepSeek keeps
+// the leaf. Do not invent a prefix when the product selection is already bare.
+export function dshWireModel(modelId, env = process.env) {
+  const raw = String(modelId ?? "").trim();
+  const leaf = dshRouteModel(raw);
+  if (!leaf || !dshTalksToTokenFlux(env)) return leaf;
+  const bare = tokenfluxBareModelID(raw);
+  if (!bare || bare === raw) return leaf;
+  const prefix = raw.slice(0, raw.length - bare.length - 1);
+  return prefix ? `${prefix}/${leaf}` : leaf;
+}
+
+function dshAdvisoryCatalogModels(tokenflux) {
+  const official = [
+    {
+      id: "deepseek-flash",
+      name: "DeepSeek-V41-Flash",
+      image: true,
+      inHistory: true,
+    },
+    { id: "deepseek-v4-flash", name: "DeepSeek-V4-Flash" },
+    { id: "deepseek-v4-pro", name: "DeepSeek-V4-Pro" },
+    {
+      id: "deepseek-v4-flash-vision-exp",
+      name: "DeepSeek-V4-Flash-Vision-Exp",
+      image: true,
+    },
+  ];
+  if (!tokenflux) return official;
+  return official.flatMap(model => ([
+    { ...model, id: `${dshOfficialVendorPrefix}/${model.id}` },
+    model,
+  ]));
+}
+
+function renderCatalogModelYaml(model, indent) {
+  const pad = " ".repeat(indent);
+  const rows = [
+    `${pad}- id: ${model.id}`,
+    `${pad}  name: ${model.name}`,
+  ];
+  if (model.image) {
+    rows.push(`${pad}  inputModalities: [text, image]`);
+  }
+  if (model.inHistory) {
+    rows.push(`${pad}  systemPromptUpdate: in-history`);
+  }
+  return rows;
 }
 
 export function dshAcpSupportsModel(modelId) {
@@ -82,6 +142,7 @@ export function dshAcpHostPatchYaml(pluginPath, packages = {}) {
   // Experimental packages must be absolute paths: ACP resolves inserts from
   // $DSH_HOME/profiles/acp, not the Sidecar node_modules.
   const protocol = String(packages.protocol ?? "").trim();
+  const tokenflux = packages.tokenflux === true;
   const rows = [];
   if (protocol === "chat-completions") {
     rows.push(
@@ -89,12 +150,18 @@ export function dshAcpHostPatchYaml(pluginPath, packages = {}) {
       "  config:",
       "    protocol: chat-completions",
     );
+    if (tokenflux) {
+      rows.push("    models:");
+      for (const model of dshAdvisoryCatalogModels(true)) {
+        rows.push(...renderCatalogModelYaml(model, 6));
+      }
+    }
   }
   rows.push(
     "- id: acp",
     "  config:",
     `    provider: ${dshAcpProviderId}`,
-    `    model: ${dshDefaultAcpModel}`,
+    `    model: ${tokenflux ? `${dshOfficialVendorPrefix}/${dshDefaultAcpModel}` : dshDefaultAcpModel}`,
     "- insert:",
     "  - id: milksu-dsh-host",
     `    name: ${JSON.stringify(plugin)}`,
@@ -117,25 +184,45 @@ export function dshAcpHostPatchYaml(pluginPath, packages = {}) {
   return rows.join("\n");
 }
 
-export function dshAcpModelOptionValue(configOptions, modelId) {
+function parseAcpModelOptionValue(value) {
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed) && parsed.length >= 2) return parsed;
+  } catch {
+    // Opaque values that are not JSON arrays still match on the leaf name.
+  }
+  return null;
+}
+
+export function dshAcpModelOptionValue(configOptions, modelId, env = process.env) {
   const leaf = dshRouteModel(modelId);
   if (!leaf || !dshAcpSupportsModel(leaf)) return "";
+  const wire = dshWireModel(modelId, env) || leaf;
   const modelOption = (Array.isArray(configOptions) ? configOptions : [])
     .find(option => option?.id === "model");
+  let leafValue = "";
+  let leafAlias = "";
   for (const group of modelOption?.options ?? []) {
     for (const entry of group?.options ?? []) {
       const value = String(entry?.value ?? "");
       if (!value) continue;
-      try {
-        const parsed = JSON.parse(value);
-        if (Array.isArray(parsed) && dshModelLeaf(parsed[1]) === leaf) return value;
-      } catch {
-        // Opaque values that are not JSON arrays still match on the leaf name.
+      const parsed = parseAcpModelOptionValue(value);
+      const candidate = parsed ? String(parsed[1] ?? "") : "";
+      const name = String(entry?.name ?? "");
+      if (candidate === wire || name === wire) return value;
+      if (candidate === leaf || name === leaf) {
+        if (!leafValue) leafValue = value;
+        continue;
       }
-      if (dshModelLeaf(entry?.name) === leaf) return value;
+      if (!leafAlias && (
+        (candidate && dshModelLeaf(candidate) === leaf)
+        || dshModelLeaf(name) === leaf
+      )) {
+        leafAlias = value;
+      }
     }
   }
-  return "";
+  return leafValue || leafAlias;
 }
 
 export function dshReasoningOptionValue(configOptions, thinking) {

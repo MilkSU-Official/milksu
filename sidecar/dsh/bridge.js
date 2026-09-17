@@ -22,6 +22,7 @@ import {
   dshModelDeclaresImageInput,
   dshReasoningOptionValue,
   dshRouteModel,
+  dshTalksToTokenFlux,
 } from "./session-config.js";
 import { syncDshSkillCatalog } from "./skill-catalog.js";
 import { createProductIpc } from "./product-ipc.js";
@@ -191,6 +192,7 @@ function writeHostPatch() {
       computerUse: resolveDshPackageDir(here, "@deepseek-ai/dsh-computer-use"),
       autoReview: resolveDshPackageDir(here, "@deepseek-ai/dsh-experimental-auto-review"),
       protocol: String(process.env.MILKSU_DSH_LLM_PROTOCOL ?? "").trim(),
+      tokenflux: dshTalksToTokenFlux(),
     }),
     { encoding: "utf8", mode: 0o600 },
   );

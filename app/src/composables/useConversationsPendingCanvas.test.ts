@@ -46,7 +46,7 @@ describe('pending empty-canvas survives navigation', () => {
     conversations.startNew({ workspaceHome: 'ctf' })
     expect(conversations.activeId).toBeNull()
     expect(conversations.pendingWorkspaceHome).toBe('ctf')
-    expect(conversations.selectedKernel).toBe('dsh')
+    expect(conversations.selectedKernel).toBe('pi')
     expect(conversations.workspacePath).toBe('')
 
     conversations.resumePendingHome('chat')
@@ -151,7 +151,7 @@ describe('pending empty-canvas survives navigation', () => {
     expect(conversations.selectedKernel).toBe('dsh')
     conversations.startNew()
     expect(readComposerDraft('pending:chat')).toBeUndefined()
-    expect(conversations.selectedKernel).toBe('dsh')
+    expect(conversations.selectedKernel).toBe('pi')
     conversations.dispose()
   })
 })

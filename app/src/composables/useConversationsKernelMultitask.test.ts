@@ -78,12 +78,12 @@ describe('default kernel and DSH multitask children', () => {
     vi.resetModules()
   })
 
-  it('uses DSH as the factory default kernel for a new conversation', async () => {
+  it('uses Pi as the factory default kernel for a new conversation', async () => {
     const { createConversationsRuntime } = await import('@/composables/useConversations')
     const conversations = createConversationsRuntime()
     conversations.startNew()
     const id = conversations.ensureConversation('task')
-    expect(conversations.conversations.find(item => item.id === id)?.kernel).toBe('dsh')
+    expect(conversations.conversations.find(item => item.id === id)?.kernel).toBe('pi')
     conversations.dispose()
   })
 
@@ -104,6 +104,7 @@ describe('default kernel and DSH multitask children', () => {
   it('enables Multitask on a new empty DSH canvas before the first message', async () => {
     const { createConversationsRuntime } = await import('@/composables/useConversations')
     const conversations = createConversationsRuntime()
+    conversations.setDefaultKernel('dsh')
     conversations.startNew()
     expect(conversations.activeId).toBeNull()
     expect(conversations.selectedKernel).toBe('dsh')

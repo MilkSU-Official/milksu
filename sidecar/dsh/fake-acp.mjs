@@ -8,6 +8,7 @@ const dumpPath = String(process.env.MILKSU_DSH_FAKE_ACP_DUMP ?? "").trim();
 const received = [];
 let lastCreated = {};
 const v41 = JSON.stringify(["deepseek-official", "deepseek-flash"]);
+const v41Prefixed = JSON.stringify(["deepseek-official", "deepseek/deepseek-flash"]);
 const flash = JSON.stringify(["deepseek-official", "deepseek-v4-flash"]);
 const vision = JSON.stringify(["deepseek-official", "deepseek-v4-flash-vision-exp"]);
 const catalog = [
@@ -17,6 +18,7 @@ const catalog = [
     options: [{
       group: "deepseek-official",
       options: [
+        { value: v41Prefixed, name: "deepseek/deepseek-flash" },
         { value: v41, name: "deepseek-flash" },
         { value: flash, name: "deepseek-v4-flash" },
         { value: vision, name: "deepseek-v4-flash-vision-exp" },

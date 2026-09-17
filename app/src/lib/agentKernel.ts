@@ -2,7 +2,7 @@ export type AgentKernel = 'pi' | 'dsh'
 export type BusySendPolicy = 'interrupt' | 'queue'
 
 /** Factory Settings default for a new conversation. Existing rows keep their kernel. */
-export const FACTORY_DEFAULT_KERNEL: AgentKernel = 'dsh'
+export const FACTORY_DEFAULT_KERNEL: AgentKernel = 'pi'
 export const FACTORY_DEFAULT_BUSY_SEND: BusySendPolicy = 'interrupt'
 
 export function normalizeBusySend(value: unknown): BusySendPolicy {

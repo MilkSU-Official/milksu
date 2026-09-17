@@ -206,10 +206,8 @@ func NormalizeDefaultKernel(value string) string {
 	switch strings.ToLower(strings.TrimSpace(value)) {
 	case "dsh", "deepseek", "deepseek-harness":
 		return "dsh"
-	case "pi":
-		return "pi"
 	default:
-		return "dsh"
+		return "pi"
 	}
 }
 
@@ -217,7 +215,7 @@ func DefaultSettings() AppSettings {
 	return AppSettings{
 		ActiveProvider: presetDeepSeekServiceID,
 		ActiveModel:    "deepseek-flash",
-		DefaultKernel:  "dsh",
+		DefaultKernel:  "pi",
 		BusySend:       "interrupt",
 		ModelRouting: ModelRoutingConfig{
 			SourceOrder:  []string{ModelSourceAccount, ModelSourcePersonal},

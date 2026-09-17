@@ -12,11 +12,16 @@ import {
   dshModelLeaf,
   dshReasoningOptionValue,
   dshRouteModel,
+  dshTalksToTokenFlux,
+  dshWireModel,
+  tokenfluxChatCompletionsURL,
 } from "./session-config.js";
 
 const v41 = JSON.stringify(["deepseek-official", "deepseek-flash"]);
+const v41Prefixed = JSON.stringify(["deepseek-official", "deepseek/deepseek-flash"]);
 const flash = JSON.stringify(["deepseek-official", "deepseek-v4-flash"]);
 const vision = JSON.stringify(["deepseek-official", "deepseek-v4-flash-vision-exp"]);
+const tokenfluxEnv = { DEEPSEEK_BASE_URL: tokenfluxChatCompletionsURL };
 
 const configOptions = [
   {
@@ -25,6 +30,7 @@ const configOptions = [
     options: [{
       group: "deepseek-official",
       options: [
+        { value: v41Prefixed, name: "deepseek/deepseek-flash" },
         { value: v41, name: "deepseek-flash" },
         { value: flash, name: "deepseek-v4-flash" },
         { value: vision, name: "deepseek-v4-flash-vision-exp" },
@@ -75,9 +81,36 @@ test("TokenFlux default Flash is DSH deepseek-flash (V4.1), not text-only v4-fla
     computerUse,
     autoReview,
     protocol: "chat-completions",
+    tokenflux: true,
   });
   assert.match(tokenfluxPatch, /id: llm-deepseek/);
   assert.match(tokenfluxPatch, /protocol: chat-completions/);
+  assert.match(tokenfluxPatch, /id: deepseek\/deepseek-flash/);
+  assert.match(tokenfluxPatch, /model: deepseek\/deepseek-flash/);
+  const relayPatch = dshAcpHostPatchYaml("/abs/host-plugin.mjs", {
+    computerUse,
+    autoReview,
+    protocol: "chat-completions",
+  });
+  assert.match(relayPatch, /protocol: chat-completions/);
+  assert.doesNotMatch(relayPatch, /id: deepseek\/deepseek-flash/);
+  assert.match(relayPatch, /model: deepseek-flash/);
+});
+
+test("TokenFlux wire id keeps the product prefix; official DeepSeek stays on the ACP leaf", () => {
+  assert.equal(dshTalksToTokenFlux(tokenfluxEnv), true);
+  assert.equal(dshTalksToTokenFlux({ DEEPSEEK_BASE_URL: "https://api.deepseek.com" }), false);
+  assert.equal(dshTalksToTokenFlux({}), false);
+  assert.equal(dshWireModel("deepseek/deepseek-flash", tokenfluxEnv), "deepseek/deepseek-flash");
+  assert.equal(dshWireModel("deepseek/deepseek-v4-flash", tokenfluxEnv), "deepseek/deepseek-flash");
+  assert.equal(dshWireModel("deepseek-flash", tokenfluxEnv), "deepseek-flash");
+  assert.equal(dshWireModel("deepseek/deepseek-flash", {}), "deepseek-flash");
+  assert.equal(
+    dshAcpModelOptionValue(configOptions, "deepseek/deepseek-flash", tokenfluxEnv),
+    v41Prefixed,
+  );
+  assert.equal(dshAcpModelOptionValue(configOptions, "deepseek/deepseek-flash"), v41);
+  assert.equal(dshAcpModelOptionValue(configOptions, "deepseek-flash", tokenfluxEnv), v41);
 });
 
 test("only DeepSeek catalog vision routes declare image input", () => {

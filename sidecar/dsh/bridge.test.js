@@ -363,6 +363,39 @@ test("DSH session/new sends ACP stdio product MCP with env entries", async () =>
   }
 });
 
+test("DSH TokenFlux session keeps vendor-prefixed Flash on the ACP wire", async () => {
+  const dump = join(tmpdir(), `milksu-dsh-tokenflux-${process.pid}.json`);
+  try {
+    unlinkSync(dump);
+  } catch {
+    // First write.
+  }
+  const bridge = runBridge({
+    MILKSU_DSH_FAKE_ACP_DUMP: dump,
+    DEEPSEEK_BASE_URL: "https://tokenflux.dev/v1",
+    MILKSU_DSH_LLM_PROTOCOL: "chat-completions",
+  });
+  try {
+    bridge.send({
+      action: "create_session",
+      conversationId: "conv-tokenflux",
+      cwd: here,
+      model: "deepseek/deepseek-flash",
+    });
+    await bridge.waitFor("ready");
+    const applied = JSON.parse(readFileSync(dump, "utf8"));
+    assert.equal(applied.configId, "model");
+    assert.equal(applied.value, JSON.stringify(["deepseek-official", "deepseek/deepseek-flash"]));
+  } finally {
+    bridge.child.kill();
+    try {
+      unlinkSync(dump);
+    } catch {
+      // Already gone.
+    }
+  }
+});
+
 test("DSH session maps TokenFlux default Flash onto deepseek-flash", async () => {
   const dump = join(tmpdir(), `milksu-dsh-flash-${process.pid}.json`);
   try {

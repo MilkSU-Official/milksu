@@ -43,7 +43,7 @@ describe('model provider catalog', () => {
     const settings = withAppSettingsDefaults({} as AppSettings)
     expect(settings.active_provider).toBe('custom-relay-deepseek')
     expect(settings.active_model).toBe('deepseek-flash')
-    expect(settings.default_kernel).toBe('dsh')
+    expect(settings.default_kernel).toBe('pi')
     expect(settings.busy_send).toBe('interrupt')
     expect(settings.ui_font).toBe('product')
     expect(settings.conversation_font).toBe('product')

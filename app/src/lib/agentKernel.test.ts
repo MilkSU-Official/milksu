@@ -16,10 +16,10 @@ describe('agentKernel', () => {
     expect(normalizeAgentKernel('other')).toBe('pi')
   })
 
-  it('uses DSH as the factory Settings default for new conversations', () => {
-    expect(FACTORY_DEFAULT_KERNEL).toBe('dsh')
-    expect(defaultAgentKernel(undefined)).toBe('dsh')
-    expect(defaultAgentKernel('')).toBe('dsh')
+  it('uses Pi as the factory Settings default for new conversations', () => {
+    expect(FACTORY_DEFAULT_KERNEL).toBe('pi')
+    expect(defaultAgentKernel(undefined)).toBe('pi')
+    expect(defaultAgentKernel('')).toBe('pi')
     expect(defaultAgentKernel('pi')).toBe('pi')
     expect(defaultAgentKernel('deepseek-harness')).toBe('dsh')
   })
