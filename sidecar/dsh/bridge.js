@@ -46,6 +46,11 @@ import {
   settleSubagentTask,
 } from "./subagent-projection.js";
 import { parseSlashLine } from "./host-primitives.js";
+import {
+  logReasoningOnlyFinal,
+  reasoningOnlyRecoveryPrompt,
+  shouldRecoverReasoningOnlyTurn,
+} from "../pi/bridge-reasoning-recovery.js";
 
 const sessions = new Map();
 const pendingAsks = new Map();
@@ -710,6 +715,8 @@ function projectSessionUpdate(conversationId, update) {
     const text = update?.content?.text ?? update?.text ?? "";
     if (text) {
       finishThinking(conversationId);
+      const record = sessions.get(conversationId);
+      if (record) record.sawVisibleText = true;
       emit(conversationId, "text_delta", { delta: text });
     }
     return;
@@ -807,6 +814,8 @@ async function createSession(command) {
     thinkingOpen: false,
     thinkingText: "",
     thinkingStartedAt: 0,
+    sawVisibleText: false,
+    reasoningOnlyRecovered: false,
     model: "",
     imageCapable: false,
   };
@@ -863,6 +872,8 @@ async function sendMessage(command) {
     return;
   }
   emit(conversationId, "turn_started");
+  record.sawVisibleText = false;
+  record.reasoningOnlyRecovered = false;
   const prompt = await buildDshPromptBlocks(command, {
     imagePrompts: acpImagePrompts && record.imageCapable,
   });
@@ -877,6 +888,36 @@ async function sendMessage(command) {
       return;
     }
     throw error;
+  }
+  if (record.aborted) {
+    finishThinking(conversationId);
+    return;
+  }
+  if (
+    shouldRecoverReasoningOnlyTurn({
+      stopReason: "stop",
+      text: record.sawVisibleText ? "yes" : "",
+      thinking: record.thinkingText,
+      hasToolCall: false,
+    })
+    && !record.reasoningOnlyRecovered
+  ) {
+    record.reasoningOnlyRecovered = true;
+    logReasoningOnlyFinal({
+      kernel: "dsh",
+      stopReason: "stop",
+      reasoningChars: String(record.thinkingText ?? "").length,
+      contentChars: 0,
+      toolCallCount: 0,
+    });
+    try {
+      await client.request("session/prompt", {
+        sessionId: record.acpSessionId,
+        prompt: [{ type: "text", text: reasoningOnlyRecoveryPrompt() }],
+      });
+    } catch (error) {
+      if (!record.aborted) throw error;
+    }
   }
   if (record.aborted) {
     finishThinking(conversationId);

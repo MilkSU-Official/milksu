@@ -122,6 +122,14 @@ test("uses a bounded product fallback when an error has no message", () => {
   }]);
 });
 
+test("does not copy thinking into a visible reply for a reasoning-only stop", () => {
+  assert.deepEqual(projectAssistantMessageEnd({
+    role: "assistant",
+    content: [{ type: "thinking", thinking: "完整中文答复：下一步打开设置。" }],
+    stopReason: "stop",
+  }, { thinkingStreamed: true }), []);
+});
+
 test("does not invent a response for an empty non-error message", () => {
   assert.deepEqual(projectAssistantMessageEnd({
     role: "assistant",

@@ -331,6 +331,41 @@ export function isThinkingOnlyAssistant(message: Message) {
   return Boolean(String(message.thinking ?? '').trim()) || message.thinkingStatus === 'running'
 }
 
+export function shouldRetainAssistantWithoutText(message: Message) {
+  return Boolean(String(message.thinking ?? '').trim())
+    || message.thinkingStatus === 'running'
+    || message.thinkingStatus === 'done'
+}
+
+export function retainAssistantAfterEmptyCompletion(message: Message): Message | null {
+  if (!shouldRetainAssistantWithoutText(message)) return null
+  return {
+    ...message,
+    status: 'done',
+    thinkingStatus: message.thinkingStatus === 'running' ? 'done' : message.thinkingStatus,
+  }
+}
+
+export function hasEmptyVisibleReply(messages: Message[], running: boolean) {
+  if (running) return false
+  let lastUser = -1
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index]?.role === 'user') {
+      lastUser = index
+      break
+    }
+  }
+  if (lastUser < 0) return false
+  const after = messages.slice(lastUser + 1)
+  if (!after.length) return false
+  if (after.some(item => item.role === 'assistant' && String(item.content ?? '').trim())) {
+    return false
+  }
+  return after.some(item => (
+    item.role === 'assistant' && shouldRetainAssistantWithoutText(item)
+  ))
+}
+
 function isLiveThinking(message: Message) {
   return isThinkingOnlyAssistant(message) && message.thinkingStatus === 'running'
 }

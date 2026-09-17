@@ -33,6 +33,17 @@ export function recoverableAgentFailureId(
     : ''
 }
 
+export function emptyVisibleReplyRecoveryPrompt() {
+  return [
+    t('上一轮没有产生用户可见正文。', 'The previous turn produced no user-visible reply.'),
+    t(
+      '请根据刚才已完成的工作，只输出简短最终答复。',
+      'Based on the work already completed, output only a short final answer.',
+    ),
+    t('不要调用工具。', 'Do not call tools.'),
+  ].join(' ')
+}
+
 export function agentRecoveryPrompt(ctfSession: boolean) {
   if (ctfSession) {
     return [

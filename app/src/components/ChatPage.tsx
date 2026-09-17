@@ -43,6 +43,7 @@ import {
   PanelRightOpen,
   Plus,
   RefreshCw,
+  RotateCcw,
   Route,
   SquareTerminal,
   Wrench,
@@ -100,7 +101,7 @@ import {
   LOCAL_CODING_SHELL_ID,
   shouldRememberCodingProject,
 } from '@/lib/codingProjectMemory'
-import { buildChatActivityEntries, buildChatTranscript } from '@/lib/chatActivity'
+import { buildChatActivityEntries, buildChatTranscript, hasEmptyVisibleReply } from '@/lib/chatActivity'
 import { agentFileDiffChips, formatDemoElapsed } from '@/lib/agentConversation'
 import { latestCodingPlan } from '@/lib/codingPlan'
 import {
@@ -129,6 +130,7 @@ import AgentExecutionPlan from '@/components/AgentExecutionPlan'
 import ContextUsageMeter from '@/components/ContextUsageMeter'
 import {
   agentRecoveryPrompt,
+  emptyVisibleReplyRecoveryPrompt,
   recoverableAgentFailureId,
 } from '@/lib/agentRecovery'
 import {
@@ -889,6 +891,9 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
   chatTranscriptLengthRef.current = chatTranscript.length
   const recoverableFailureId = useMemo(() => (
     recoverableAgentFailureId(conversation?.messages ?? [], running)
+  ), [conversation?.messages, running])
+  const emptyVisibleReply = useMemo(() => (
+    hasEmptyVisibleReply(conversation?.messages ?? [], running)
   ), [conversation?.messages, running])
   const rewindableUserMessageId = useMemo(() => (
     lastRewindableUserMessageId(conversation?.messages ?? [])
@@ -1855,12 +1860,12 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
   }
 
   function resumeAfterFailure() {
-    if (running || !recoverableFailureId) return
+    if (running || (!recoverableFailureId && !emptyVisibleReply)) return
     const lastUserMessage = [...(conversation?.messages ?? [])]
       .reverse()
       .find(message => message.role === 'user')
     onSend?.(
-      agentRecoveryPrompt(ctfSession),
+      emptyVisibleReply ? emptyVisibleReplyRecoveryPrompt() : agentRecoveryPrompt(ctfSession),
       t('继续', 'Continue'),
       lastUserMessage?.attachments,
     )
@@ -2590,6 +2595,19 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
                     />
                   )
                 ))}
+                {emptyVisibleReply && !waitingForModel ? (
+                  <article className="agent-turn mb-7 min-w-0 w-full">
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <Button type="button" variant="outline" size="sm" onClick={resumeAfterFailure}>
+                        <RotateCcw className="size-3.5" />
+                        {t('继续', 'Continue')}
+                      </Button>
+                      <span className="text-caption text-muted-foreground">
+                        {t('这一轮没有可见正文。', 'This turn produced no visible reply.')}
+                      </span>
+                    </div>
+                  </article>
+                ) : null}
                 {waitingForModel && !compacting ? (
                   <p className="chat-model-loading">
                     <AgentPixelLoader

@@ -20,6 +20,7 @@ import {
   applyAssistantThinkingEvent,
   applyCodingToolEvent,
   hasIdleRunResidue,
+  retainAssistantAfterEmptyCompletion,
   settleLiveThinking,
   settleRunningToolMessages,
   withoutBlankAssistantMessages,
@@ -3331,7 +3332,11 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
         } else if (type === 'assistant.segment_completed') {
           if (last?.role === 'assistant' && last.status === 'running') {
             const content = String(text || last.content)
-            if (!content.trim()) messages.pop()
+            if (!content.trim()) {
+              const retained = retainAssistantAfterEmptyCompletion(last)
+              if (retained) messages[messages.length - 1] = retained
+              else messages.pop()
+            }
             else messages[messages.length - 1] = { ...last, content, status: 'done' }
           } else if (String(text ?? '').trim()) {
             messages.push({
@@ -3355,7 +3360,11 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
             }
           } else if (last?.role === 'assistant' && last.status === 'running') {
             const content = String(text || last.content)
-            if (!content.trim()) messages.pop()
+            if (!content.trim()) {
+              const retained = retainAssistantAfterEmptyCompletion(last)
+              if (retained) messages[messages.length - 1] = retained
+              else messages.pop()
+            }
             else messages[messages.length - 1] = { ...last, content, status: 'done' }
           } else if (String(text ?? '').trim()) {
             messages.push({
@@ -3368,7 +3377,11 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
           }
         } else if (type === 'assistant.settled') {
           if (last?.role === 'assistant' && last.status === 'running') {
-            if (!last.content.trim()) messages.pop()
+            if (!last.content.trim()) {
+              const retained = retainAssistantAfterEmptyCompletion(last)
+              if (retained) messages[messages.length - 1] = retained
+              else messages.pop()
+            }
             else messages[messages.length - 1] = { ...last, status: 'done' }
           }
           const settledTools = settleRunningToolMessages(messages)

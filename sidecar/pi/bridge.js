@@ -93,6 +93,7 @@ import {
   rewindLastExploration,
 } from "./bridge-session-tree.js";
 import { createCTFTruncationContinuationExtension } from "./bridge-ctf-continuation.js";
+import { createReasoningOnlyRecoveryExtension } from "./bridge-reasoning-recovery.js";
 import {
   armAutoCompactionDeadline,
   clearAutoCompactionDeadline,
@@ -199,6 +200,8 @@ const compactionRequestIds = new Map();
 const autoCompactionDeadlines = new Map();
 const suppressedQueueUpdates = new Set();
 const sessionTurnContracts = new Map();
+const reasoningOnlyRecovered = new Map();
+const reasoningOnlyPreviousTools = new Map();
 const sessionModelSources = new Map();
 const sessionConfiguredProviders = new Map();
 const abortedSessions = new Set();
@@ -1384,6 +1387,31 @@ function createMilkSUResourceLoader(
   // Keep Pi's ambient discovery disabled and load only MilkSU-reviewed resources.
   const extensionFactories = [
     createMilkSUWorkflowExtension(sessionRole, getPolicy, getSession, conversationId),
+    createReasoningOnlyRecoveryExtension({
+      isAborted: () => abortedSessions.has(conversationId),
+      wasRecovered: () => reasoningOnlyRecovered.get(conversationId) === true,
+      markRecovered: () => reasoningOnlyRecovered.set(conversationId, true),
+      applyNoTools: () => {
+        const session = sessions.get(conversationId);
+        const tools = typeof session?.getActiveToolNames === "function"
+          ? session.getActiveToolNames()
+          : [];
+        reasoningOnlyPreviousTools.set(conversationId, tools);
+        sessionTurnContracts.set(conversationId, {
+          toolAccess: "none",
+          reason: "text_projection",
+        });
+        sessionPolicyControllers.get(conversationId)?.setActiveTools([]);
+      },
+      restoreTools: () => {
+        const previous = reasoningOnlyPreviousTools.get(conversationId);
+        sessionTurnContracts.delete(conversationId);
+        if (previous) {
+          sessionPolicyControllers.get(conversationId)?.setActiveTools(previous);
+        }
+        reasoningOnlyPreviousTools.delete(conversationId);
+      },
+    }),
   ];
   if (sessionRole) {
     extensionFactories.push(createCTFTruncationContinuationExtension(sessionRole));
@@ -1782,6 +1810,7 @@ async function sendMessage(command) {
     emit(conversationId, "turn_settled");
     return;
   }
+  reasoningOnlyRecovered.delete(conversationId);
 
   let existing = sessions.get(conversationId);
   const previousPolicy = sessionPolicies.get(conversationId);
@@ -2070,6 +2099,8 @@ async function destroySession(command) {
   compactionRequestIds.delete(conversationId);
   clearAutoCompactionDeadline(autoCompactionDeadlines, conversationId);
   sessionTurnContracts.delete(conversationId);
+  reasoningOnlyRecovered.delete(conversationId);
+  reasoningOnlyPreviousTools.delete(conversationId);
   await disposeAgentSession(session);
   sessions.delete(conversationId);
   sessionPolicies.delete(conversationId);
@@ -2569,6 +2600,8 @@ async function disposeAllSessions() {
   compactionRequestIds.clear();
   suppressedQueueUpdates.clear();
   sessionTurnContracts.clear();
+  reasoningOnlyRecovered.clear();
+  reasoningOnlyPreviousTools.clear();
   await Promise.all(
     [...sessions.values()].map(session => disposeAgentSession(session)),
   );

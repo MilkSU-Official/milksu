@@ -10,8 +10,10 @@ import {
   chatActivityEntrySummary,
   chatActivitySummary,
   detailsToggleOpen,
+  hasEmptyVisibleReply,
   isBlankAssistantMessage,
   mergeProcessThinking,
+  retainAssistantAfterEmptyCompletion,
   processFoldStepCount,
   processFoldSummary,
   settleRunningToolMessages,
@@ -560,6 +562,33 @@ describe('applyCodingToolEvent', () => {
     expect(settled[0]?.status).toBe('done')
     expect(settled[1]?.status).toBe('running')
     expect(settled[1]?.approvalRequestId).toBe('approval-1')
+  })
+
+  it('keeps a thinking-only row after an empty completion and flags an empty visible reply', () => {
+    const thinking = message('think', 'assistant', '', {
+      thinking: '完整中文答复',
+      thinkingStatus: 'running',
+      status: 'running',
+    })
+    const retained = retainAssistantAfterEmptyCompletion(thinking)
+    expect(retained?.status).toBe('done')
+    expect(retained?.thinking).toBe('完整中文答复')
+    expect(retainAssistantAfterEmptyCompletion(message('blank', 'assistant', '', {
+      status: 'running',
+    }))).toBeNull()
+    expect(hasEmptyVisibleReply([
+      message('u1', 'user', '下一步做什么'),
+      retained!,
+    ], false)).toBe(true)
+    expect(hasEmptyVisibleReply([
+      message('u1', 'user', '下一步做什么'),
+      retained!,
+      message('a2', 'assistant', '先打开设置。'),
+    ], false)).toBe(false)
+    expect(hasEmptyVisibleReply([
+      message('u1', 'user', '下一步做什么'),
+      retained!,
+    ], true)).toBe(false)
   })
 
   it('keeps a thinking-only assistant row visible', () => {

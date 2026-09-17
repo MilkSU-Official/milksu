@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   agentRecoveryPrompt,
+  emptyVisibleReplyRecoveryPrompt,
   recoverableAgentFailureId,
 } from '@/lib/agentRecovery'
 import type { Message } from '@/types'
@@ -106,6 +107,14 @@ describe('agent recovery', () => {
     expect(prompt).toContain('不要复用重启前的审批状态')
     expect(prompt).toContain('Endpoint')
     expect(prompt).toContain('最小、可验证')
+  })
+
+  it('asks only for a short visible reply after a thinking-only final', () => {
+    const prompt = emptyVisibleReplyRecoveryPrompt()
+    expect(prompt).toContain('没有产生用户可见正文')
+    expect(prompt).toContain('不要调用工具')
+    expect(prompt).not.toContain('完整中文答复')
+    expect(prompt).not.toContain('reasoning')
   })
 
   it('resumes Coding work without reusing stale approvals after restart', () => {
