@@ -11,6 +11,11 @@ import { promisify } from 'node:util'
 import { writeReleaseUploadMetadata } from './lib/release-upload-metadata.mjs'
 import { ensureOwnerWritable } from './lib/bundle-owner-writable.mjs'
 import { assertShipItCanClearQuarantine } from './lib/shipit-quarantine-ready.mjs'
+import {
+  DMG_WINDOW_HEIGHT,
+  DMG_WINDOW_WIDTH,
+  rasterizeDmgBackground,
+} from './lib/dmg-background.mjs'
 
 const execFileAsync = promisify(execFile)
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -186,11 +191,10 @@ await assertShipItCanClearQuarantine(appPath, {
 await run('/usr/bin/ditto', ['-c', '-k', '--sequesterRsrc', '--keepParent', appPath, zipPath])
 await assertOtaZipShipItReady(zipPath)
 
-await run('/usr/bin/sips', [
-  '-s', 'format', 'png',
-  dmgBackgroundSourcePath,
-  '--out', dmgBackgroundPath,
-])
+await rasterizeDmgBackground({
+  sourceSvgPath: dmgBackgroundSourcePath,
+  outputPngPath: dmgBackgroundPath,
+})
 await writeFile(dmgBuilderConfigPath, `${JSON.stringify({
   appId: 'com.milksu.app',
   productName: 'MilkSU',
@@ -209,7 +213,7 @@ await writeFile(dmgBuilderConfigPath, `${JSON.stringify({
     filesystem: 'APFS',
     sign: false,
     writeUpdateInfo: false,
-    window: { width: 660, height: 440 },
+    window: { width: DMG_WINDOW_WIDTH, height: DMG_WINDOW_HEIGHT },
     contents: [
       { x: 170, y: 250, type: 'file', path: appPath, name: 'MilkSU.app' },
       { x: 490, y: 250, type: 'link', path: '/Applications' },

@@ -92,3 +92,10 @@ test('macOS DMG artifact name includes the package version like Win/Linux', () =
   assert.match(macWorkflow, /path: build\/release\/MilkSU-macOS-arm64-\*\.dmg/u)
   assert.doesNotMatch(macReleaseScript, /MilkSU-macOS-arm64\.dmg'/u)
 })
+
+test('macOS DMG background is rasterized at 1x and @2x for the Finder window', () => {
+  assert.match(macReleaseScript, /rasterizeDmgBackground\(/u)
+  assert.match(macReleaseScript, /DMG_WINDOW_WIDTH/u)
+  assert.match(macReleaseScript, /DMG_WINDOW_HEIGHT/u)
+  assert.doesNotMatch(macReleaseScript, /sips', \[\s*'-s', 'format', 'png'/u)
+})
