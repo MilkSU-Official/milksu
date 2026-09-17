@@ -1171,6 +1171,7 @@ async function buildSidecar(platform) {
   const chatOutput = join(output, 'chat-bridge.cjs')
   const dshOutput = join(output, 'dsh-bridge.cjs')
   const dshProductMcpOutput = join(output, 'product-mcp.cjs')
+  const dshPlaywrightLazyMcpOutput = join(output, 'playwright-lazy-mcp.cjs')
   const computerUseProxyOutput = join(output, 'computer-use-proxy.cjs')
   const pluginWorkerOutput = join(output, 'plugin-worker.mjs')
   const pluginLoaderOutput = join(output, 'deny-loader.mjs')
@@ -1503,6 +1504,7 @@ async function buildSidecar(platform) {
     bundleBridge('sidecar/pi/bridge.js', chatOutput),
     bundleBridge('sidecar/dsh/bridge.js', dshOutput),
     bundleBridge('sidecar/dsh/product-mcp.js', dshProductMcpOutput),
+    bundleBridge('sidecar/dsh/playwright-lazy-mcp.js', dshPlaywrightLazyMcpOutput),
     bundleDshHostPlugin(join(output, 'host-plugin.mjs')),
     bundleBridge('sidecar/computer-use/computer-use-proxy.js', computerUseProxyOutput),
     bundleBridge(
@@ -1519,6 +1521,7 @@ async function buildSidecar(platform) {
     chmod(chatOutput, 0o644),
     chmod(dshOutput, 0o644),
     chmod(dshProductMcpOutput, 0o644),
+    chmod(dshPlaywrightLazyMcpOutput, 0o644),
     chmod(join(output, 'host-plugin.mjs'), 0o644),
     chmod(computerUseProxyOutput, 0o644),
     chmod(piSubagentLauncherOutput, 0o755),
@@ -1751,6 +1754,10 @@ async function buildSidecar(platform) {
       chat: { file: 'chat-bridge.cjs', sha256: await sha256(chatOutput) },
       dsh: { file: 'dsh-bridge.cjs', sha256: await sha256(dshOutput) },
       dshProductMcp: { file: 'product-mcp.cjs', sha256: await sha256(dshProductMcpOutput) },
+      dshPlaywrightLazyMcp: {
+        file: 'playwright-lazy-mcp.cjs',
+        sha256: await sha256(dshPlaywrightLazyMcpOutput),
+      },
       computerUse: {
         file: 'computer-use-proxy.cjs',
         sha256: await sha256(computerUseProxyOutput),
@@ -1787,6 +1794,7 @@ async function smokeSidecar(platform) {
     join(output, 'THIRD_PARTY-LICENSES', 'deepseek-harness-MIT.txt'),
     join(output, 'dsh-bridge.cjs'),
     join(output, 'product-mcp.cjs'),
+    join(output, 'playwright-lazy-mcp.cjs'),
     join(output, 'host-plugin.mjs'),
     join(output, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js'),
     join(output, 'node_modules', 'commander', 'package.json'),
@@ -2714,6 +2722,7 @@ async function installSidecar(platform, binaryPath) {
     'chat-bridge.cjs',
     'dsh-bridge.cjs',
     'product-mcp.cjs',
+    'playwright-lazy-mcp.cjs',
     'host-plugin.mjs',
     'computer-use-proxy.cjs',
     'pi-subagent-launcher.sh',
@@ -2794,6 +2803,7 @@ async function installSidecar(platform, binaryPath) {
       'modelcontextprotocol-go-sdk-LICENSE.txt',
     ),
     join(destination, 'computer-use-proxy.cjs'),
+    join(destination, 'playwright-lazy-mcp.cjs'),
     join(destination, 'playwright-session-bridge.cjs'),
     join(destination, 'plugin-worker.mjs'),
     join(destination, 'deny-loader.mjs'),

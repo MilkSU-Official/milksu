@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
@@ -108,6 +110,19 @@ test("Playwright lazy MCP declaration forwards the live CDP endpoint", () => {
   });
   const env = Object.fromEntries(server.env.map(entry => [entry.name, entry.value]));
   assert.equal(env.MILKSU_CODING_BROWSER_CDP, "http://127.0.0.1:43117");
+});
+
+test("Sidecar package bundles the lazy Playwright MCP next to the DSH bridge", () => {
+  const packager = readFileSync(join(here, "..", "..", "scripts", "package-sidecar.mjs"), "utf8");
+  assert.match(packager, /playwright-lazy-mcp\.js/);
+  assert.match(packager, /playwright-lazy-mcp\.cjs/);
+});
+
+test("packaged sidecar layout resolves lazy Playwright MCP next to the bridge", () => {
+  const root = mkdtempSync(join(tmpdir(), "milksu-dsh-pw-"));
+  const packaged = join(root, "playwright-lazy-mcp.cjs");
+  writeFileSync(packaged, "export {}\n");
+  assert.equal(resolvePlaywrightLazyMcpScript(root), packaged);
 });
 
 test("Playwright lazy MCP stays off the session without a CLI or conversation", () => {

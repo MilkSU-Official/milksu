@@ -54,6 +54,7 @@
 - 不要复刻原厂 `dsh web` 皮肤、Queue dock、Jobs 顶栏、slash 目录或 Agent preset 切换器。未复刻 child transcript、preset、插件清单、归档、Schedule。
 - 设置 → 通用「强调色」：出厂默认墨色；可选蓝 / 紫 / 青 / 琥珀 / 玫红。彩色预设同时改写 `--emphasis` 与 `--primary`，发送/主按钮、选中滤片、Switch / Checkbox、进度条、侧栏选中细条和 `text-primary` 勾选跟色；侧栏「更新」仍用固定 `--update` 蓝。即时落盘。未进安装包。
 - 准备 writer 时按停止，有时同时出现「本轮已停止。」和「Agent 运行失败」。合同只留前者。
+- Windows 上 DSH 操作内置浏览器时，`milksu_workspace` 走 product IPC named pipe；客户端断开曾把未处理的 `error` 抛成 sidecar 退出，UI 只剩「这个项目的 Agent 进程已停止」。Pi 的 workspace 在桥进程内，所以同一场景 Pi 能点。打包 Sidecar 还漏了 `playwright-lazy-mcp.cjs`（Pi 有 `playwright-session-bridge.cjs`），安装包里的 DSH 挂不上隔离浏览器点击。工作树已修。未进安装包。
 
 ## 当前产品事实
 

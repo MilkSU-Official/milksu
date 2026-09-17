@@ -213,6 +213,7 @@ for (const required of [
   join(unpackedResources, 'milksu-sidecar', 'chat-bridge.cjs'),
   join(unpackedResources, 'milksu-sidecar', 'computer-use-proxy.cjs'),
   join(unpackedResources, 'milksu-sidecar', 'playwright-session-bridge.cjs'),
+  join(unpackedResources, 'milksu-sidecar', 'playwright-lazy-mcp.cjs'),
   join(unpackedResources, 'milksu-sidecar', 'cua-driver.exe'),
   join(unpackedResources, 'milksu-sidecar', 'THIRD_PARTY-LICENSES', 'cua-MIT.txt'),
   join(unpackedResources, 'milksu-sidecar', 'manifest.json'),

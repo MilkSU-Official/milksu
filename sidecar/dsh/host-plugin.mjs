@@ -158,6 +158,7 @@ export function apply(ctx) {
   });
 
   const server = createServer(socket => {
+    socket.on("error", () => {});
     let buffer = "";
     socket.on("close", () => watchers.delete(socket));
     socket.on("data", chunk => {
@@ -171,6 +172,7 @@ export function apply(ctx) {
     });
   });
 
+  server.on("error", () => {});
   registerOwnedEffect(ctx, () => {
     server.listen(path);
     return () => {
@@ -188,12 +190,20 @@ async function handleLine(ctx, socket, watchers, pendingUserQuestions, line) {
   }
   try {
     const result = await dispatch(ctx, watchers, socket, message, pendingUserQuestions);
-    socket.write(`${JSON.stringify({ id: message.id, result })}\n`);
+    try {
+      socket.write(`${JSON.stringify({ id: message.id, result })}\n`);
+    } catch {
+      // Client already closed the named pipe.
+    }
   } catch (error) {
-    socket.write(`${JSON.stringify({
-      id: message.id,
-      error: { message: error instanceof Error ? error.message : String(error) },
-    })}\n`);
+    try {
+      socket.write(`${JSON.stringify({
+        id: message.id,
+        error: { message: error instanceof Error ? error.message : String(error) },
+      })}\n`);
+    } catch {
+      // Client already closed the named pipe.
+    }
   }
 }
 
