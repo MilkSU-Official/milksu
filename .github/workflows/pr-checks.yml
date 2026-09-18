@@ -1,0 +1,91 @@
+name: Pull request checks
+
+# A pull request that only touches `sidecar/**` matches none of the existing
+# workflows' `paths`, so GitHub reports zero checks for it and nothing verifies the
+# change before a maintainer reads it. These three suites are the ones the release
+# flows already run, so a pull request can fail them first.
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/pr-checks.yml'
+      - 'app/**'
+      - 'browserextension/**'
+      - 'cmd/milksu-backend/**'
+      - 'desktop/**'
+      - 'go.mod'
+      - 'go.sum'
+      - 'internal/**'
+      - 'package-lock.json'
+      - 'package.json'
+      - 'scripts/**'
+      - 'sidecar/**'
+      - 'third_party/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-checks-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+# The sidecar and Go suites assume macOS (they expect /usr/bin/sandbox-exec and a
+# machine without a pre-installed Chrome), so they run on macOS like the release
+# flows do. The renderer suite is platform independent and stays on Linux.
+jobs:
+  sidecar:
+    name: sidecar suites
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install workspace dependencies
+        run: npm ci
+      - name: Install the command line tools the sidecar tests look for
+        run: brew install fd ripgrep
+      - name: Run sidecar, desktop and extension suites
+        run: npm run test:sidecar
+
+  go:
+    name: go suites
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Check backend formatting
+        shell: bash
+        run: |
+          unformatted=$(gofmt -l cmd/milksu-backend internal)
+          if [ -n "$unformatted" ]; then
+            echo "$unformatted"
+            echo 'cmd/milksu-backend or internal is not gofmt-clean'
+            exit 1
+          fi
+      - name: Run Go suites
+        run: go test ./internal/... ./cmd/milksu-backend/
+
+  renderer:
+    name: renderer suites
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Install renderer dependencies
+        run: npm ci --prefix app
+      - name: Run renderer suites
+        run: npm --prefix app run test

@@ -40,7 +40,7 @@ func (*codingHostFixture) SetViewport(string, CodingViewport) error { return nil
 func (*codingHostFixture) Navigate(string, string) error            { return nil }
 func (*codingHostFixture) Back(string) error                        { return nil }
 func (*codingHostFixture) Forward(string) error                     { return nil }
-func (*codingHostFixture) Reload(string) error { return nil }
+func (*codingHostFixture) Reload(string) error                      { return nil }
 func (*codingHostFixture) ListTabs(string) (CodingHostTabList, error) {
 	return CodingHostTabList{}, nil
 }

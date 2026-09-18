@@ -30,15 +30,15 @@ func New(dataDirectory string) (*Service, error) {
 		return nil, err
 	}
 	return &Service{
-		dataDirectory: dataDirectory,
-		store:         store,
-		compose:       execComposeRunner{},
-		android:       execAndroidRunner{},
-		apks:          httpAPKFetcher{},
-		waitReady:     waitHTTPReady,
-		addressReady:  httpReady,
-		inflight:      map[string]context.CancelFunc{},
-		autoCreateAVD: true,
+		dataDirectory:  dataDirectory,
+		store:          store,
+		compose:        execComposeRunner{},
+		android:        execAndroidRunner{},
+		apks:           httpAPKFetcher{},
+		waitReady:      waitHTTPReady,
+		addressReady:   httpReady,
+		inflight:       map[string]context.CancelFunc{},
+		autoCreateAVD:  true,
 		androidTooling: AndroidTooling{AutoCreateAVD: true},
 	}, nil
 }

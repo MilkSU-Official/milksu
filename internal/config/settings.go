@@ -104,10 +104,10 @@ type AppSettings struct {
 	PreferredExternalEditor string             `json:"preferred_external_editor,omitempty"`
 	// UiFont and ConversationFont are preset ids from app/src/lib/uiFonts.ts.
 	// UiFontSize and ConversationFontSize are concrete px strings such as "13".
-	UiFont                string                                    `json:"ui_font,omitempty"`
-	ConversationFont      string                                    `json:"conversation_font,omitempty"`
-	UiFontSize            string                                    `json:"ui_font_size,omitempty"`
-	ConversationFontSize  string                                    `json:"conversation_font_size,omitempty"`
+	UiFont               string `json:"ui_font,omitempty"`
+	ConversationFont     string `json:"conversation_font,omitempty"`
+	UiFontSize           string `json:"ui_font_size,omitempty"`
+	ConversationFontSize string `json:"conversation_font_size,omitempty"`
 	// UiEmphasis is a preset id from app/src/lib/uiEmphasis.ts (default / blue / violet / …).
 	UiEmphasis            string                                    `json:"ui_emphasis,omitempty"`
 	SecurityTools         map[string]SecurityToolPreference         `json:"security_tools,omitempty"`
