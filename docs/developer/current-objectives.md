@@ -46,6 +46,7 @@
 
 ## 未打进 GitHub 安装包
 
+- 凭据轮换不再切在飞回合、会话带自己的中转站与模型、删除守卫改判命令自写的脚本、切换对话不丢草稿、对话选中文字「加入对话」：已在 `main`（#120 / #119 / #106 / #122 / #123），`npm run test:product-loop` 六套全绿。
 - 新对话继承项目 `milksu`；Windows Computer Use 整段崩溃尚未真机验收。
 - Computer Use 选窗器仍是可选人工面。宽作业走 `recon-authorized-target` Skill，不造 typed sweep。
 - DSH `bash` 没有 MilkSU 侧超时上界（工具在 harness 进程内，不要在客户端复刻第二套循环）。
