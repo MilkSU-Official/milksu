@@ -21,6 +21,7 @@ import (
 	"github.com/MilkSU-Official/milksu/internal/codingterminal"
 	"github.com/MilkSU-Official/milksu/internal/codingtools"
 	"github.com/MilkSU-Official/milksu/internal/codingworkspace"
+	"github.com/MilkSU-Official/milksu/internal/companion"
 	"github.com/MilkSU-Official/milksu/internal/computercap"
 	"github.com/MilkSU-Official/milksu/internal/config"
 	"github.com/MilkSU-Official/milksu/internal/conversation"
@@ -77,6 +78,7 @@ type App struct {
 	ctfMemory         *ctf.MemoryStore
 	vulnJobs          *vuln.Service
 	sessionIndex      *sessionindex.Store
+	companion         *companion.Runtime
 	evalSuite         *evalsuite.Service
 	lifespanStart     appdata.LifespanStart
 	lifespanHandle    appdata.LifespanHandle
@@ -316,6 +318,31 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 		application.nssctfCatalog.Close()
 		return nil, fmt.Errorf("create session index: %w", err)
 	}
+	companionIndex, indexErr := companion.NewFTSIndex(filepath.Join(dataDirectory, "companion", "obelisk.sqlite"))
+	if indexErr != nil {
+		application.diagnostics.Record("companion", "error", "companion episodic index was not opened")
+	}
+	var companionIndexer companion.EpisodeIndexer
+	if companionIndex != nil {
+		companionIndexer = &conversationIndexer{
+			fts:   companionIndex,
+			store: application.conversations,
+		}
+	}
+	application.companion = companion.NewRuntime(companion.RuntimeOptions{
+		AgentDir:  filepath.Join(dataDirectory, "agent-home", "companion"),
+		StatePath: filepath.Join(dataDirectory, "companion", "state.json"),
+		Settings:  application.settings.GetResolved,
+		Catalog:   &conversationCatalog{store: application.conversations},
+		Speaker: &storeSpeaker{
+			store:   application.conversations,
+			engines: application.engines,
+		},
+		Control:  &supervisorControl{engines: application.engines},
+		Searcher: companion.CompositeSearcher(&sessionSearchAdapter{store: application.sessionIndex}, companionIndex),
+		Indexer:  companionIndexer,
+		Emit:     application.emitCompanionEvent,
+	})
 	application.modelUsage, err = modelusage.NewStore(
 		filepath.Join(dataDirectory, "usage", "model-usage.sqlite3"),
 	)
@@ -428,6 +455,9 @@ func (a *App) Startup(ctx context.Context) {
 }
 
 func (a *App) Shutdown(_ context.Context) {
+	if a.companion != nil {
+		_ = a.companion.Stop()
+	}
 	_ = a.vulnJobs.Close()
 	_ = a.ctfMemory.Close()
 	_ = a.ctfJobs.Close()
@@ -847,6 +877,9 @@ func (a *App) SaveSettingsCmd(settings config.AppSettings) error {
 	// it started on. A credential the user withdrew is not a replacement and gets no
 	// such grace, or a running child would keep it usable after it was taken away.
 	a.rotateEngineCredentials("settings saved")
+	if a.companion != nil {
+		a.companion.Invalidate()
+	}
 	if credentialWithdrawn(previous, a.settings.Get()) {
 		a.stopSidecarsHoldingWithdrawnCredential("settings saved")
 	}
@@ -2189,6 +2222,9 @@ func (a *App) emitEngineEvent(event engine.Event) {
 		_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedSidecarStopped)
 	case "engine.protocol_error":
 		_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedSidecarProtocolError)
+	}
+	if a.companion != nil {
+		a.companion.ObserveEngineEvent(event)
 	}
 	if a.evalSuite != nil {
 		a.evalSuite.Observe(event)

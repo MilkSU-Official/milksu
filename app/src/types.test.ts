@@ -252,6 +252,24 @@ describe('model provider catalog', () => {
     expect(settings.worker_source).toBe('account')
   })
 
+  it('fills companion factory defaults without inheriting the conversation model', () => {
+    const settings = withAppSettingsDefaults({
+      active_provider: 'tokenflux',
+      active_model: 'grok-4.5',
+      model_routing: { source_order: ['account', 'personal'], auto_fallback: false },
+      providers: {},
+    })
+    expect(settings.companion_provider).toBe('tokenflux')
+    expect(settings.companion_model).toBe('google/gemini-3.8-flash')
+    expect(settings.companion_source).toBe('personal')
+    expect(settings.companion_dispatch_enabled).toBe(true)
+    expect(settings.companion_memory_enabled).toBe(true)
+    expect(settings.companion_float_enabled).toBe(true)
+    expect(settings.companion_teaching).toBe('ask_me')
+    expect(settings.companion_proactivity?.task_events).toBe(true)
+    expect(settings.companion_proactivity?.idle_chat).toBe(false)
+  })
+
   it('normalizes model context window overrides and drops illegal values', () => {
     const settings = withAppSettingsDefaults({
       active_provider: 'tokenflux',

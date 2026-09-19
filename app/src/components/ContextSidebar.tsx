@@ -35,6 +35,7 @@ import {
   GitFork,
   Globe2,
   House,
+  PawPrint,
   LogOut,
   SquarePen,
   Moon,
@@ -101,6 +102,7 @@ function conversationMenuPosition(x: number, y: number) {
 
 const workspaceNavIcons = {
   chat: House,
+  companion: PawPrint,
   ctf: Flag,
   vuln: Bug,
   lab: FlaskConical,
@@ -117,6 +119,7 @@ const settingsNavIcons = {
   chats: Archive,
   browser: Globe2,
   eval: Gauge,
+  companion: PawPrint,
   plugins: Puzzle,
 } as const
 

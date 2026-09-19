@@ -95,6 +95,29 @@ type LabConfig struct {
 	AutoCreateAVD *bool  `json:"auto_create_avd,omitempty"`
 }
 
+const (
+	DefaultCompanionProvider = "tokenflux"
+	DefaultCompanionModel    = "google/gemini-3.8-flash"
+	CompanionTeachingAskMe   = "ask_me"
+	CompanionTeachingHints   = "hints"
+	CompanionTeachingReview  = "review"
+)
+
+// CompanionProactivity is the D8 factory policy. Task events default on;
+// teaching, scheduled broadcast, and idle chat default off.
+type CompanionProactivity struct {
+	TaskEvents         *bool `json:"task_events,omitempty"`
+	TeachingHints      *bool `json:"teaching_hints,omitempty"`
+	ScheduledBroadcast *bool `json:"scheduled_broadcast,omitempty"`
+	IdleChat           *bool `json:"idle_chat,omitempty"`
+}
+
+type CompanionModelSelection struct {
+	Provider string
+	Model    string
+	Source   string
+}
+
 type AppSettings struct {
 	ActiveProvider string `json:"active_provider"`
 	ActiveModel    string `json:"active_model"`
@@ -105,17 +128,25 @@ type AppSettings struct {
 	BusySend      string             `json:"busy_send,omitempty"`
 	ModelVerified *ModelVerification `json:"model_verification,omitempty"`
 	// ModelFailures holds the most recent real failure per model, for the picker's red mark.
-	ModelFailures           []ModelFailureRecord `json:"model_failures,omitempty"`
-	ModelRouting            ModelRoutingConfig   `json:"model_routing"`
-	Relay                   *RelayConfig         `json:"relay,omitempty"`
-	NSSCTFArena             *NSSCTFArenaConfig   `json:"nssctf_arena,omitempty"`
-	Locale                  *string              `json:"locale,omitempty"`
-	DisabledSkills          []string             `json:"disabled_skills"`
-	EnabledOptionalSkills   []string             `json:"enabled_optional_skills,omitempty"`
-	WorkerProvider          string               `json:"worker_provider,omitempty"`
-	WorkerModel             string               `json:"worker_model,omitempty"`
-	WorkerSource            string               `json:"worker_source,omitempty"`
-	PreferredExternalEditor string               `json:"preferred_external_editor,omitempty"`
+	ModelFailures            []ModelFailureRecord `json:"model_failures,omitempty"`
+	ModelRouting             ModelRoutingConfig   `json:"model_routing"`
+	Relay                    *RelayConfig         `json:"relay,omitempty"`
+	NSSCTFArena              *NSSCTFArenaConfig   `json:"nssctf_arena,omitempty"`
+	Locale                   *string              `json:"locale,omitempty"`
+	DisabledSkills           []string             `json:"disabled_skills"`
+	EnabledOptionalSkills    []string             `json:"enabled_optional_skills,omitempty"`
+	WorkerProvider           string               `json:"worker_provider,omitempty"`
+	WorkerModel              string               `json:"worker_model,omitempty"`
+	WorkerSource             string               `json:"worker_source,omitempty"`
+	CompanionProvider        string               `json:"companion_provider,omitempty"`
+	CompanionModel           string               `json:"companion_model,omitempty"`
+	CompanionSource          string               `json:"companion_source,omitempty"`
+	CompanionDispatchEnabled *bool                `json:"companion_dispatch_enabled,omitempty"`
+	CompanionMemoryEnabled   *bool                `json:"companion_memory_enabled,omitempty"`
+	CompanionFloatEnabled    *bool                `json:"companion_float_enabled,omitempty"`
+	CompanionProactivity     CompanionProactivity `json:"companion_proactivity,omitempty"`
+	CompanionTeaching        string               `json:"companion_teaching,omitempty"`
+	PreferredExternalEditor  string               `json:"preferred_external_editor,omitempty"`
 	// UiFont and ConversationFont are preset ids from app/src/lib/uiFonts.ts.
 	// UiFontSize and ConversationFontSize are concrete px strings such as "13".
 	UiFont               string `json:"ui_font,omitempty"`
@@ -938,6 +969,7 @@ func withDefaults(value AppSettings) AppSettings {
 	value.DisabledSkills = normalizeDisabledSkills(value.DisabledSkills)
 	value.EnabledOptionalSkills = normalizeEnabledOptionalSkills(value.EnabledOptionalSkills)
 	value = normalizeWorkerModel(value)
+	value = normalizeCompanionSettings(value)
 	value.PreferredExternalEditor = externaleditor.Normalize(value.PreferredExternalEditor)
 	value.UiFont = NormalizeUiFont(value.UiFont)
 	value.ConversationFont = NormalizeUiFont(value.ConversationFont)
@@ -1159,6 +1191,89 @@ func ResolveWorkerModel(settings AppSettings) (WorkerModelSelection, bool) {
 	}, true
 }
 
+func NormalizeCompanionTeaching(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case CompanionTeachingHints, "hint":
+		return CompanionTeachingHints
+	case CompanionTeachingReview, "retro":
+		return CompanionTeachingReview
+	default:
+		return CompanionTeachingAskMe
+	}
+}
+
+func normalizeCompanionSettings(value AppSettings) AppSettings {
+	provider := strings.TrimSpace(value.CompanionProvider)
+	model := strings.TrimSpace(value.CompanionModel)
+	if provider == "" || model == "" {
+		provider = DefaultCompanionProvider
+		model = DefaultCompanionModel
+	}
+	source := strings.TrimSpace(value.CompanionSource)
+	if source != ModelSourceAccount && source != ModelSourcePersonal && source != "service" {
+		if provider == "tokenflux" {
+			source = ModelSourcePersonal
+		} else {
+			source = "service"
+		}
+	}
+	value.CompanionProvider = provider
+	value.CompanionModel = model
+	value.CompanionSource = source
+	if value.CompanionDispatchEnabled == nil {
+		value.CompanionDispatchEnabled = boolPointer(true)
+	}
+	if value.CompanionMemoryEnabled == nil {
+		value.CompanionMemoryEnabled = boolPointer(true)
+	}
+	if value.CompanionFloatEnabled == nil {
+		value.CompanionFloatEnabled = boolPointer(true)
+	}
+	value.CompanionProactivity = normalizeCompanionProactivity(value.CompanionProactivity)
+	value.CompanionTeaching = NormalizeCompanionTeaching(value.CompanionTeaching)
+	return value
+}
+
+func normalizeCompanionProactivity(value CompanionProactivity) CompanionProactivity {
+	if value.TaskEvents == nil {
+		value.TaskEvents = boolPointer(true)
+	}
+	if value.TeachingHints == nil {
+		value.TeachingHints = boolPointer(false)
+	}
+	if value.ScheduledBroadcast == nil {
+		value.ScheduledBroadcast = boolPointer(false)
+	}
+	if value.IdleChat == nil {
+		value.IdleChat = boolPointer(false)
+	}
+	return value
+}
+
+func ResolveCompanionModel(settings AppSettings) CompanionModelSelection {
+	settings = normalizeCompanionSettings(settings)
+	return CompanionModelSelection{
+		Provider: settings.CompanionProvider,
+		Model:    settings.CompanionModel,
+		Source:   settings.CompanionSource,
+	}
+}
+
+func CompanionDispatchEnabled(settings AppSettings) bool {
+	settings = normalizeCompanionSettings(settings)
+	return settings.CompanionDispatchEnabled == nil || *settings.CompanionDispatchEnabled
+}
+
+func CompanionMemoryEnabled(settings AppSettings) bool {
+	settings = normalizeCompanionSettings(settings)
+	return settings.CompanionMemoryEnabled == nil || *settings.CompanionMemoryEnabled
+}
+
+func CompanionFloatEnabled(settings AppSettings) bool {
+	settings = normalizeCompanionSettings(settings)
+	return settings.CompanionFloatEnabled == nil || *settings.CompanionFloatEnabled
+}
+
 func clone(value AppSettings) AppSettings {
 	copy := value
 	copy.ModelRouting.SourceOrder = append([]string(nil), value.ModelRouting.SourceOrder...)
@@ -1212,8 +1327,41 @@ func clone(value AppSettings) AppSettings {
 		}
 		copy.Lab = &lab
 	}
+	if value.CompanionDispatchEnabled != nil {
+		enabled := *value.CompanionDispatchEnabled
+		copy.CompanionDispatchEnabled = &enabled
+	}
+	if value.CompanionMemoryEnabled != nil {
+		enabled := *value.CompanionMemoryEnabled
+		copy.CompanionMemoryEnabled = &enabled
+	}
+	if value.CompanionFloatEnabled != nil {
+		enabled := *value.CompanionFloatEnabled
+		copy.CompanionFloatEnabled = &enabled
+	}
+	copy.CompanionProactivity = cloneCompanionProactivity(value.CompanionProactivity)
 	copy.ModelVerified = cloneModelVerification(value.ModelVerified)
 	return copy
+}
+
+func cloneCompanionProactivity(value CompanionProactivity) CompanionProactivity {
+	if value.TaskEvents != nil {
+		flag := *value.TaskEvents
+		value.TaskEvents = &flag
+	}
+	if value.TeachingHints != nil {
+		flag := *value.TeachingHints
+		value.TeachingHints = &flag
+	}
+	if value.ScheduledBroadcast != nil {
+		flag := *value.ScheduledBroadcast
+		value.ScheduledBroadcast = &flag
+	}
+	if value.IdleChat != nil {
+		flag := *value.IdleChat
+		value.IdleChat = &flag
+	}
+	return value
 }
 
 func cloneModelVerification(value *ModelVerification) *ModelVerification {

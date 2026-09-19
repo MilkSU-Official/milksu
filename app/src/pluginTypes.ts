@@ -5,6 +5,7 @@ export type PluginPermission =
   | 'plugin.storage'
   | 'ui.background'
   | 'ui.theme'
+  | 'ui.pet'
   | 'agent.tools'
   | 'mcp.external.read'
 

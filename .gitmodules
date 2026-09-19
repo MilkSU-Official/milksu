@@ -1,3 +1,6 @@
 [submodule "third_party/archify"]
 	path = third_party/archify
 	url = https://github.com/tt-a1i/archify.git
+[submodule "third_party/obelisk"]
+	path = third_party/obelisk
+	url = https://github.com/tommy0103/obelisk.git

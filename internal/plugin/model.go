@@ -32,6 +32,7 @@ const (
 	PermissionStorage         Permission = "plugin.storage"
 	PermissionUIBackground    Permission = "ui.background"
 	PermissionUITheme         Permission = "ui.theme"
+	PermissionUIPet           Permission = "ui.pet"
 	PermissionAgentTools      Permission = "agent.tools"
 	PermissionMCPExternalRead Permission = "mcp.external.read"
 )

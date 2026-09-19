@@ -24,9 +24,9 @@ var (
 	toolNamePattern   = regexp.MustCompile(`^[a-z][a-z0-9_]{0,63}$`)
 	capabilityPattern = regexp.MustCompile(`^[a-z][a-z0-9.-]{2,95}$`)
 	hexDigestPattern  = regexp.MustCompile(`^[a-f0-9]{64}$`)
-	allowedSlots      = map[string]struct{}{"settings.plugin-panel": {}, "app.background": {}}
+	allowedSlots      = map[string]struct{}{"settings.plugin-panel": {}, "app.background": {}, "app.pet": {}}
 	allowedPermission = map[Permission]struct{}{
-		PermissionStorage: {}, PermissionUIBackground: {}, PermissionUITheme: {},
+		PermissionStorage: {}, PermissionUIBackground: {}, PermissionUITheme: {}, PermissionUIPet: {},
 		PermissionAgentTools: {}, PermissionMCPExternalRead: {},
 	}
 )
@@ -167,6 +167,11 @@ func validateManifest(directory string, value Manifest) error {
 	if value.UI != nil && value.UI.SettingsEntry != "" {
 		if _, ok := seenSlots["settings.plugin-panel"]; !ok {
 			return errors.New("settings entry requires settings.plugin-panel contribution")
+		}
+	}
+	if _, ok := seenSlots["app.pet"]; ok {
+		if _, permitted := permissionSet[PermissionUIPet]; !permitted {
+			return errors.New("app.pet contribution requires ui.pet permission")
 		}
 	}
 	if _, ok := seenSlots["app.background"]; ok {

@@ -1169,6 +1169,7 @@ async function buildSidecar(platform) {
   await mkdir(output, { recursive: true, mode: 0o700 })
   const nodeOutput = join(output, platformBinaryName(platform, 'node'))
   const chatOutput = join(output, 'chat-bridge.cjs')
+  const companionOutput = join(output, 'companion-bridge.cjs')
   const dshOutput = join(output, 'dsh-bridge.cjs')
   const dshProductMcpOutput = join(output, 'product-mcp.cjs')
   const dshPlaywrightLazyMcpOutput = join(output, 'playwright-lazy-mcp.cjs')
@@ -1502,6 +1503,7 @@ async function buildSidecar(platform) {
       ),
     }, null, 2)}\n`, { mode: 0o600 }),
     bundleBridge('sidecar/pi/bridge.js', chatOutput),
+    bundleBridge('sidecar/companion/bridge.js', companionOutput),
     bundleBridge('sidecar/dsh/bridge.js', dshOutput),
     bundleBridge('sidecar/dsh/product-mcp.js', dshProductMcpOutput),
     bundleBridge('sidecar/dsh/playwright-lazy-mcp.js', dshPlaywrightLazyMcpOutput),
@@ -1519,6 +1521,7 @@ async function buildSidecar(platform) {
     ...(cuaDriverOutput ? [chmod(cuaDriverOutput, 0o755)] : []),
     chmod(goplsOutput, 0o755),
     chmod(chatOutput, 0o644),
+    chmod(companionOutput, 0o644),
     chmod(dshOutput, 0o644),
     chmod(dshProductMcpOutput, 0o644),
     chmod(dshPlaywrightLazyMcpOutput, 0o644),
@@ -1752,6 +1755,7 @@ async function buildSidecar(platform) {
     esbuild: { version: '0.28.1' },
     bridges: {
       chat: { file: 'chat-bridge.cjs', sha256: await sha256(chatOutput) },
+      companion: { file: 'companion-bridge.cjs', sha256: await sha256(companionOutput) },
       dsh: { file: 'dsh-bridge.cjs', sha256: await sha256(dshOutput) },
       dshProductMcp: { file: 'product-mcp.cjs', sha256: await sha256(dshProductMcpOutput) },
       dshPlaywrightLazyMcp: {
@@ -1792,6 +1796,7 @@ async function smokeSidecar(platform) {
     join(output, 'THIRD_PARTY-LICENSES', 'gopher-lua-MIT.txt'),
     join(output, 'THIRD_PARTY-LICENSES', 'modelcontextprotocol-go-sdk-LICENSE.txt'),
     join(output, 'THIRD_PARTY-LICENSES', 'deepseek-harness-MIT.txt'),
+    join(output, 'companion-bridge.cjs'),
     join(output, 'dsh-bridge.cjs'),
     join(output, 'product-mcp.cjs'),
     join(output, 'playwright-lazy-mcp.cjs'),
@@ -2720,6 +2725,7 @@ async function installSidecar(platform, binaryPath) {
   const distributableFiles = [
     'node',
     'chat-bridge.cjs',
+    'companion-bridge.cjs',
     'dsh-bridge.cjs',
     'product-mcp.cjs',
     'playwright-lazy-mcp.cjs',

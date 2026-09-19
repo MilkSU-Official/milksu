@@ -11,12 +11,14 @@ const {
   dialog,
   ipcMain,
   Menu,
+  nativeImage,
   nativeTheme,
   net,
   protocol,
   session,
   shell,
   systemPreferences,
+  Tray,
   WebContentsView,
 } = require('electron')
 const { autoUpdater } = require('electron-updater')
@@ -67,6 +69,7 @@ const {
   productApplicationMenuTemplate,
 } = require('./renderer-reload.cjs')
 const { BackendRuntime } = require('./backend-runtime.cjs')
+const { createCompanionShell } = require('./companion-shell.cjs')
 
 const APP_ORIGIN = 'milksu://app'
 const EVENT_PATTERN = /^[a-z][a-z0-9._-]{0,100}$/u
@@ -628,7 +631,10 @@ class BrowserShell {
   }
 }
 
-function senderIsApp(event) {
+let companionShell = null
+
+function senderIsApp(event, method = '') {
+  if (companionShell) return companionShell.senderAllowed(event, method)
   return event.sender === mainWindow?.webContents
     && event.senderFrame === mainWindow?.webContents.mainFrame
     && event.senderFrame?.url?.startsWith(`${APP_ORIGIN}/`)
@@ -760,7 +766,12 @@ async function handleHostRequest(method, payload = {}) {
 }
 
 function emitRendererEvent(event, value) {
-  if (!EVENT_PATTERN.test(String(event)) || !mainWindow || mainWindow.isDestroyed()) return
+  if (!EVENT_PATTERN.test(String(event))) return
+  if (companionShell) {
+    companionShell.emit(event, value)
+    return
+  }
+  if (!mainWindow || mainWindow.isDestroyed()) return
   mainWindow.webContents.send(`milksu:event:${event}`, value)
 }
 
@@ -845,8 +856,10 @@ function createWindow() {
 }
 
 ipcMain.handle('milksu:invoke', async (event, request) => {
-  if (!senderIsApp(event)) throw new Error('desktop invocation came from an untrusted renderer')
   const method = String(request?.method ?? '')
+  if (!senderIsApp(event, method)) throw new Error('desktop invocation came from an untrusted renderer')
+  const companionResult = companionShell?.handleHostMethod(method, Array.isArray(request?.args) ? request.args[0] : request?.args)
+  if (companionResult !== undefined) return companionResult
   // Packaging provenance is owned by the desktop shell, not Go domain logic.
   if (method === 'GetBuildTracking') return loadBuildTracking()
   if (method === 'SetTitleBarOverlay') {
@@ -1021,6 +1034,29 @@ app.whenReady().then(async () => {
   }
   const upstreamEndpoint = await waitForDevTools()
   createWindow()
+  companionShell = createCompanionShell({
+    app,
+    BrowserWindow,
+    Tray,
+    Menu,
+    nativeImage,
+    APP_ORIGIN,
+    resourcesPath: process.resourcesPath,
+    repositoryRoot: path.join(__dirname, '..'),
+    isPackaged: app.isPackaged,
+    getMainWindow: () => mainWindow,
+    setMainWindow: window => { mainWindow = window },
+    onQuitRequested: () => app.quit(),
+  })
+  companionShell.register('main', mainWindow, null)
+  mainWindow.on('close', event => {
+    if (quitting) return
+    event.preventDefault()
+    mainWindow.hide()
+    if (process.platform === 'darwin' && app.dock) app.dock.hide()
+    companionShell.createTray()
+    companionShell.createFloat()
+  })
   Menu.setApplicationMenu(Menu.buildFromTemplate(productApplicationMenuTemplate()))
   startupLog('createWindow')
   browserShell = new BrowserShell(mainWindow, upstreamEndpoint)
@@ -1078,7 +1114,13 @@ app.whenReady().then(async () => {
   app.quit()
 })
 
-app.on('window-all-closed', () => app.quit())
+app.on('window-all-closed', () => {
+  if (companionShell) {
+    companionShell.handleWindowAllClosed()
+    return
+  }
+  app.quit()
+})
 
 app.on('before-quit', () => {
   if (quitting) return

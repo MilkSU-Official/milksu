@@ -267,6 +267,43 @@ func TestWithDefaultsKeepsExplicitTokenFlux(t *testing.T) {
 	}
 }
 
+func TestNormalizeCompanionSettingsDefaults(t *testing.T) {
+	settings := withDefaults(AppSettings{})
+	selection := ResolveCompanionModel(settings)
+	if selection.Provider != DefaultCompanionProvider || selection.Model != DefaultCompanionModel {
+		t.Fatalf("factory companion model: %#v", selection)
+	}
+	if !CompanionDispatchEnabled(settings) {
+		t.Fatal("dispatch should default on")
+	}
+	if settings.CompanionTeaching != CompanionTeachingAskMe {
+		t.Fatalf("teaching default: %q", settings.CompanionTeaching)
+	}
+	if settings.CompanionProactivity.TaskEvents == nil || !*settings.CompanionProactivity.TaskEvents {
+		t.Fatal("task events should default on")
+	}
+	if settings.CompanionProactivity.IdleChat == nil || *settings.CompanionProactivity.IdleChat {
+		t.Fatal("idle chat should default off")
+	}
+}
+
+func TestCloneCompanionPointers(t *testing.T) {
+	original := withDefaults(AppSettings{
+		CompanionProvider:        "tokenflux",
+		CompanionModel:           "google/gemini-3.8-flash",
+		CompanionDispatchEnabled: boolPointer(false),
+	})
+	copied := clone(original)
+	*copied.CompanionDispatchEnabled = true
+	*copied.CompanionProactivity.TaskEvents = false
+	if original.CompanionDispatchEnabled == nil || *original.CompanionDispatchEnabled {
+		t.Fatal("clone shared dispatch pointer")
+	}
+	if original.CompanionProactivity.TaskEvents == nil || !*original.CompanionProactivity.TaskEvents {
+		t.Fatal("clone shared proactivity pointer")
+	}
+}
+
 func TestNormalizeOptionalSkillsAndWorkerModel(t *testing.T) {
 	settings := withDefaults(AppSettings{
 		EnabledOptionalSkills: []string{" jadx ", "product-design", "ghidra-rpc", "../../x"},

@@ -100,18 +100,11 @@ test('account credential synchronization uses only the Electron host source', ()
   assert.doesNotMatch(syncSource, /backend\.invoke\(/u)
 })
 
-test('renderer sender must be the primary window main frame at the app origin', () => {
+test('renderer sender must be a registered window main frame at the app origin', () => {
   const senderSource = sourceBetween('function senderIsApp', 'function normalizeFilters')
 
-  assert.match(senderSource, /event\.sender === mainWindow\?\.webContents/u)
-  assert.match(
-    senderSource,
-    /event\.senderFrame === mainWindow\?\.webContents\.mainFrame/u,
-  )
-  assert.match(
-    senderSource,
-    /event\.senderFrame\?\.url\?\.startsWith\(`\$\{APP_ORIGIN\}\/`\)/u,
-  )
+  assert.match(senderSource, /companionShell\.senderAllowed/u)
+  assert.match(senderSource, /APP_ORIGIN/u)
 })
 
 test('preload exposes the desktop bridge only in the primary frame', () => {

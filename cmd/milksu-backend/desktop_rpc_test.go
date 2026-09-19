@@ -25,15 +25,18 @@ func TestDesktopAppMethodsMatchRendererBindings(t *testing.T) {
 	}
 	bindingPattern := regexp.MustCompile(`(?m)^  ([A-Z][A-Za-z0-9]+)\(`)
 	electronMethods := map[string]bool{
-		"GetAccountStatus":  true,
-		"StartAccountLogin": true,
-		"LogoutAccount":     true,
-		"GetUpdateStatus":   true,
-		"CheckForUpdates":   true,
-		"DownloadUpdate":    true,
-		"CancelUpdate":      true,
-		"InstallUpdate":     true,
-		"GetBuildTracking":  true,
+		"GetAccountStatus":         true,
+		"StartAccountLogin":        true,
+		"LogoutAccount":            true,
+		"GetUpdateStatus":          true,
+		"CheckForUpdates":          true,
+		"DownloadUpdate":           true,
+		"CancelUpdate":             true,
+		"InstallUpdate":            true,
+		"GetBuildTracking":         true,
+		"GetCompanionShellStatus":  true,
+		"SetCompanionFloatEnabled": true,
+		"QuitCompanionShell":       true,
 	}
 	wantRendererSet := map[string]bool{
 		"ListPlugins":             true,

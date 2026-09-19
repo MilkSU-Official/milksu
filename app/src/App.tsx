@@ -85,8 +85,10 @@ const ProfilePage = lazy(() => import('@/components/ProfilePage'))
 const SettingsPage = lazy(() => import('@/components/SettingsPage'))
 const VulnPage = lazy(() => import('@/components/VulnPage'))
 const LabPage = lazy(() => import('@/components/LabPage'))
+const CompanionPage = lazy(() => import('@/components/CompanionPage'))
+const CompanionPetWindow = lazy(() => import('@/components/CompanionPetWindow'))
 
-type Section = 'chat' | 'ctf' | 'vuln' | 'lab' | 'profile' | 'settings'
+type Section = 'chat' | 'ctf' | 'vuln' | 'lab' | 'companion' | 'profile' | 'settings'
 type DomainHome = 'ctf' | 'vuln' | 'lab'
 
 const localAccountModeKey = 'milksu.account.continue-local'
@@ -1512,6 +1514,14 @@ export default function App() {
     )
   }
 
+  if (new URLSearchParams(window.location.search).get('surface') === 'companion') {
+    return (
+      <Suspense fallback={null}>
+        <CompanionPetWindow />
+      </Suspense>
+    )
+  }
+
   if (showAccountGate) {
     return (
       <Suspense fallback={<div className="grid h-screen place-items-center bg-background text-xl font-semibold text-foreground">MilkSU</div>}>
@@ -1715,6 +1725,11 @@ export default function App() {
                   onOpenSettings={() => openSettings('apikeys')}
                   onOpenLabSettings={() => openSettings('lab')}
                 />
+              </div>
+            ) : null}
+            {section === 'companion' ? (
+              <div className="relative flex min-h-0 min-w-0 flex-1">
+                <CompanionPage />
               </div>
             ) : null}
             {section === 'chat' || section === 'settings' || section === 'profile' || dossierChatMaximized ? (

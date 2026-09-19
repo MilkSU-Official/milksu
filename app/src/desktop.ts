@@ -19,6 +19,15 @@ import {
   type ModelCatalogSnapshot,
   type StartupRecoveryStatus,
   type UpdateStatus,
+  type CompanionArchive,
+  type CompanionApprovedMemory,
+  type CompanionBoardSnapshot,
+  type CompanionDispatchResult,
+  type CompanionMemorySnapshot,
+  type CompanionShellStatus,
+  type CompanionStatus,
+  type CompanionTranscriptCursor,
+  type CompanionTranscriptPage,
 } from './types'
 import type {
   CTFArtifactPreview,
@@ -272,6 +281,32 @@ interface DesktopAppBindings {
   ChooseCodingAttachments(): Promise<CodingAttachment[]>
   ImportCodingAttachments(payloads: CodingAttachmentImport[]): Promise<CodingAttachment[]>
   PreviewCodingAttachment(attachment: CodingAttachment): Promise<CodingAttachmentPreview>
+  EnsureCompanion(): Promise<CompanionStatus>
+  SendCompanionMessage(prompt: string): Promise<void>
+  GetCompanionStatus(): Promise<CompanionStatus>
+  StopCompanion(): Promise<void>
+  GetCompanionBoard(): Promise<CompanionBoardSnapshot>
+  ListCompanionTranscript(
+    limit: number,
+    cursor: CompanionTranscriptCursor | null,
+    before: boolean,
+  ): Promise<CompanionTranscriptPage>
+  ArchiveCompanionTranscript(): Promise<CompanionArchive>
+  ListCompanionArchives(): Promise<CompanionArchive[]>
+  DeleteCompanionArchive(name: string): Promise<void>
+  GetCompanionMemory(): Promise<CompanionMemorySnapshot>
+  ApproveCompanionMemory(id: string): Promise<CompanionApprovedMemory>
+  ForgetCompanionMemory(id: string): Promise<void>
+  ConfirmCompanionDispatch(
+    action: string,
+    conversationId: string,
+    text: string,
+    idempotencyKey: string,
+    mode: string,
+  ): Promise<CompanionDispatchResult>
+  GetCompanionShellStatus(): Promise<CompanionShellStatus>
+  SetCompanionFloatEnabled(enabled: boolean): Promise<CompanionShellStatus>
+  QuitCompanionShell(): Promise<void>
   SendMessage(
     conversationId: string,
     prompt: string,
@@ -723,6 +758,48 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.PreviewCodingAttachment(
           args?.attachment as CodingAttachment,
         ) as Promise<T>
+      case 'ensure_companion':
+        return app.EnsureCompanion() as Promise<T>
+      case 'send_companion_message':
+        return app.SendCompanionMessage(args?.prompt as string) as Promise<T>
+      case 'get_companion_status':
+        return app.GetCompanionStatus() as Promise<T>
+      case 'stop_companion':
+        return app.StopCompanion() as Promise<T>
+      case 'get_companion_board':
+        return app.GetCompanionBoard() as Promise<T>
+      case 'list_companion_transcript':
+        return app.ListCompanionTranscript(
+          Number(args?.limit ?? 40),
+          (args?.cursor as CompanionTranscriptCursor | null) ?? null,
+          args?.before !== false,
+        ) as Promise<T>
+      case 'archive_companion_transcript':
+        return app.ArchiveCompanionTranscript() as Promise<T>
+      case 'list_companion_archives':
+        return app.ListCompanionArchives() as Promise<T>
+      case 'delete_companion_archive':
+        return app.DeleteCompanionArchive(args?.name as string) as Promise<T>
+      case 'get_companion_memory':
+        return app.GetCompanionMemory() as Promise<T>
+      case 'approve_companion_memory':
+        return app.ApproveCompanionMemory(args?.id as string) as Promise<T>
+      case 'forget_companion_memory':
+        return app.ForgetCompanionMemory(args?.id as string) as Promise<T>
+      case 'confirm_companion_dispatch':
+        return app.ConfirmCompanionDispatch(
+          args?.action as string,
+          args?.conversationId as string,
+          (args?.text as string) ?? '',
+          args?.idempotencyKey as string,
+          (args?.mode as string) ?? '',
+        ) as Promise<T>
+      case 'get_companion_shell_status':
+        return app.GetCompanionShellStatus() as Promise<T>
+      case 'set_companion_float_enabled':
+        return app.SetCompanionFloatEnabled(args?.enabled === true) as Promise<T>
+      case 'quit_companion_shell':
+        return app.QuitCompanionShell() as Promise<T>
       case 'send_message':
         return app.SendMessage(
           args?.conversationId as string,
