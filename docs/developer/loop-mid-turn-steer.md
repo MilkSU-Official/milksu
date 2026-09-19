@@ -34,7 +34,7 @@
    - 假 Provider 正在流式输出时 `steer`：断言 abort 当前 stream，引导进入当前 turn 的 steering 队列并触发下一跳，不新建 user 消息回合。  
    - 假 Provider 正在执行不可中断 bash 时 `steer`：bash 可结束；结束后的下一跳必须带上引导；不得另开对话。  
    - `steer_rejected` 与 session 丢失回退：字不能丢。
-2. **Vue**  
+2. **Composer（React）**  
    运行中发送后：引导气泡不是普通待发送的下一回合；排队计数在「已并入本回合」后更新或清零；撤回仍走 `remove_queued_message`。
 3. **手工**  
    真会话里模型还在打字时发送一句纠正，确认下一跳按纠正走，而不是等整轮工具循环结束才看到。
@@ -55,7 +55,7 @@ Advisor、关键词切模式、新斜杠、子 Agent Hub（那是另一切片）
 
 ## UI
 
-Composer 演化：运行中发送 = 本回合引导。产品 UI 见 `AGENTS.md`；不新开卡片层。不写 Vue 视觉合同测试。
+Composer 演化：运行中发送 = 本回合引导。产品 UI 见 `AGENTS.md`；不新开卡片层。不写挂载断言式的视觉合同测试。
 
 ## 删除路径
 

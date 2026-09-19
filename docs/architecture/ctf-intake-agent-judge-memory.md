@@ -44,7 +44,7 @@ erDiagram
 sequenceDiagram
     autonumber
     actor U as 学习者
-    participant UI as Vue CTF Workspace
+    participant UI as CTF Workspace（React）
     participant A as Go App Runtime
     participant P as Platform / Browser Adapter
     participant C as internal/ctf Service

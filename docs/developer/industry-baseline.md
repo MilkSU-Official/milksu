@@ -8,7 +8,7 @@
 > 更新：2026-07-19
 >
 > 当前产品取舍：本页保留当日调研证据，不代表现行接入队列。现行顺序见
-> [个人安全工作台计划：安全工具接入 Coding](./security-workspace-product-plan.md#4-安全工具接入-coding)。
+> [当前开发目标](./current-objectives.md)。
 > BoxPwnr、PentAGI 已明确不进入产品；CAI 保留为思想和评测参考，Shannon 保留为外部 Worker 候选。
 >
 > Wallbreaker Harness 只作 `adapt` / `benchmark-only` 参考，不进入依赖或 External Worker。过期调研稿不留在 `docs/`，考古用 Git history。

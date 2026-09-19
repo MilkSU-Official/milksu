@@ -20,13 +20,16 @@ npm run release:verify
 该命令依次运行唯一 canonical suite：
 
 ```text
-go test ./...
+node scripts/test-go-product.mjs   # 产品 Go 包，排除 build/ 与 spikes/
 npm --prefix app test
 npm run test:sidecar
 npm --prefix app run lint
 npm --prefix app run build
 npm run docs:build
 ```
+
+步骤清单以 `scripts/lib/release-source-verification.mjs` 的 `RELEASE_VERIFICATION_STEPS` 为准，
+改脚本时一并改本节。
 
 成功后在被 Git 忽略的 `build/test-results/release-source-verification.json` 写入本地回执。回执绑定
 完整 commit、版本和以上六项检查。HEAD、版本、tracked 文件或 `origin/main` 任一发生变化，回执立即失效，
@@ -42,7 +45,7 @@ commit 分发给 **macOS / Windows / Linux** 三条 workflow。macOS 本机打�
 
 ```bash
 npm run release:dispatch -- \
-  --release-title "MilkSU 26.825.1" \
+  --release-title "MilkSU <version>" \
   --release-notes "本次发行说明"
 ```
 
@@ -77,7 +80,7 @@ npm run release:dispatch -- --dry-run
 ```bash
 npm run release:collect -- --wait
 npm run release:github -- \
-  --release-title "MilkSU 26.825.1" \
+  --release-title "MilkSU <version>" \
   --release-notes "本次发行说明"
 ```
 

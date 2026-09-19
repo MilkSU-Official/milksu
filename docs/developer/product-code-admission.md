@@ -105,7 +105,7 @@ Key/Scope/Judge/不可逆外部效果，都可以直接开切片。
 - Go fixture 放在 `_test.go`、`testdata/` 或独立测试包；
 - 前端 mock 和 story 不从 `App.tsx` 或其他生产入口导入；
 - 正式 Desktop RPC / Preload 不暴露仅供测试使用的 `Smoke`、`Fixture` 或 `Sample` 方法；
-- 启动路径和 Vue lifecycle 不运行测试协调器，即使它通常因环境变量而空操作；
+- 启动路径和 renderer 入口（`app/src/main.tsx`）不运行测试协调器，即使它通常因环境变量而空操作；
 - Browser preview 可以展示静态组件状态，但不能伪造完整领域后端或持久化状态机；
 - benchmark 应调用生产 Runtime 的正式接口，不维护第二套 Agent Runtime；
 - 测试需要的产品操作应通过正常产品 API 完成，缺少可测性时优先改善真实接口边界。

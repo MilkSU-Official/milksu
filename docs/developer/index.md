@@ -1,5 +1,9 @@
 # 开发者文档
 
+> 文档状态：Current / Index
+>
+> 最后事实审计：2026-09-19
+
 这里按“当前事实 → 目标 → 证据 → 历史原因”组织文档，不再把旧 M0/M1/M2/M3 里程碑排成
 当前实施顺序。
 
@@ -19,8 +23,8 @@
 - [CTF Intake → Agent → Judge → Memory](/architecture/ctf-intake-agent-judge-memory)
 - [PI Resource Whitelist](/developer/pi-resource-whitelist)
 - [安全 Agent 与通用 Agent 的能力边界](/developer/security-agent-boundary)
-- [Electron/Chromium 桌面壳](/developer/adr/2026-08-10-electron-chromium-desktop-shell)
-- [核心架构：可验证安全任务运行时](/developer/architecture)
+- [Electron/Chromium 桌面壳](/developer/adr/2026-08-10-electron-chromium-desktop-shell)（壳的决策有效；其中「Vue 作为产品 UI」已被 React + shadcn 取代）
+- [核心架构：可验证安全任务运行时](/developer/architecture)（2026-07-19 的目标分层原则；平台与 UI 事实以当前目标为准，不再是 macOS-first + Vue）
 - [Security Role Packages](/developer/role-packages)
 - [插件框架实验性使用说明](/developer/plugin-user-guide)
 - [稳定 v1 插件框架、签名包与皮肤表面](/developer/plugin-framework)
@@ -52,6 +56,7 @@
 `developer/adr/*` 记录当时的决策原因，不是 backlog。顶部的 Historical/Evidence
 标识优先于正文中的旧“下一步”或“未完成”列表。过期调研快照和日期验收截图已删除，考古用 Git history。
 
-历史样本见[开源项目基线](/developer/industry-baseline)，当前接入顺序和拒绝项以
-[个人安全工作台计划：安全工具接入 Coding](/developer/security-workspace-product-plan#4-安全工具接入-coding)
-为准。项目写进调研表不等于已经进入产品；正式接入仍需经过许可证、供应链、权限面和真实任务验收。
+历史样本见[开源项目基线](/developer/industry-baseline)。当前接入顺序和拒绝项以
+[当前开发目标](/developer/current-objectives)为准；
+[个人安全工作台计划](/developer/security-workspace-product-plan)是 2026-08-11 的历史计划，只供追溯。
+项目写进调研表不等于已经进入产品；正式接入仍需经过许可证、供应链、权限面和真实任务验收。

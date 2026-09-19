@@ -1,11 +1,14 @@
 # ADR-0008：Vue 3、Memoh UI 与 Challenge Desk
 
-> 文档状态：**Historical ADR**。Vue 迁移决策仍有效；视觉和当前页面状态以代码、原生 App
-> 与最新验收记录为准。
+> 文档状态：**Historical ADR / Superseded**（2026-09-15，PR #104）。
+> 本页记录当时从 React 迁到 Vue 3 + Memoh 的原因；产品 renderer 已经改回
+> React + shadcn，`@felinic/ui` 与 Felinic submodule `packages/ui` 已从工作树移除。
+> 现行产品 UI 设计语言只写在仓库根目录 `AGENTS.md`，本页的 token、配色和
+> `data-color-scheme` 都不再是有效约束。
 >
 日期：2026-07-30
-状态：Accepted；配色部分已被后续黑绿产品主题取代，Vue、Memoh 依赖与 Challenge Desk
-信息架构仍有效。当前视觉事实见 `/architecture/`。
+状态：Superseded by React + shadcn（2026-09-15）。配色部分此前已被黑绿产品主题取代；
+Vue、Memoh 依赖与 Challenge Desk 信息架构现已全部废止。
 
 ## 背景
 

@@ -9,6 +9,9 @@
 > 本文形成于架构重启阶段。固定 `taskType`、模型直写安全面板、Engagement 红队模型和通用
 > 子代理原型已经删除；其后的 CTF、Coding、Browser Judge、Memory 与 Eval 实现不在本文的
 > 原始“当前代码”叙述中。
+>
+> 平台与 UI 事实已于 2026-09-19 对齐：产品发 macOS / Windows / Linux 三端，产品表面是
+> React + shadcn。本文其余部分是分层原则，不是平台或实现现状。
 
 ## 产品与运行时的一句话定义
 
@@ -121,7 +124,7 @@ Agent Engine 可以重建上下文，但不能拥有唯一真相。攻击路径�
 
 ```text
 L1  Desktop Surface
-    macOS first / Windows later
+    macOS / Windows / Linux
                  │
 L2  Role Packages
     Red / Blue / CTF / AppSec / Malware / Vulnerability Research
@@ -141,7 +144,7 @@ L6  Cross-cutting Agent Integrity
 
 ### L1：桌面交互表面
 
-第一阶段产品只有 macOS 桌面客户端，后续再评估 Windows；不提供 Web 产品、GraphQL 或公开 HTTP API。Electron/Chromium 承载 Vue 产品表面和会话隔离的内置浏览器；受限 Preload 与本地 JSONL RPC 把 UI 连接到受管 Go application service。loopback 只用于明确授权的 Browser Bridge、限定单一 Target 的 CDP Proxy 或其他本地进程协议，不构成公开 HTTP API。L1 负责：
+产品是 macOS / Windows / Linux 三端桌面客户端；不提供 Web 产品、GraphQL 或公开 HTTP API。Electron/Chromium 承载 React + shadcn 产品表面和会话隔离的内置浏览器；受限 Preload 与本地 JSONL RPC 把 UI 连接到受管 Go application service。loopback 只用于明确授权的 Browser Bridge、限定单一 Target 的 CDP Proxy 或其他本地进程协议，不构成公开 HTTP API。L1 负责：
 
 - 创建和查看 Engagement/Job；
 - 选择 Role Package、环境、Agent Engine、模型与预算；

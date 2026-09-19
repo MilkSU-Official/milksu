@@ -65,7 +65,7 @@ npm run test:product-loop-catalog
 | `pi-files` | 默认 Pi 工具循环 | 写出 `NOTES.md` 且出现文件工具 | 是 | 是 |
 | `desktop-surface` | Computer Use 或隔离浏览器 | 有计算器则 CU 观察并写 `SURFACE.md`；否则 Ensure 隔离浏览器读本机标记 | 是 | 是 |
 
-草稿按对话隔离没有 Desktop RPC，本套件不假装测过。计划卡回合结束隐藏、长对话分片挂载在运行中的窗口里看，不要用 Vue mount 单测锁。
+草稿按对话隔离没有 Desktop RPC，本套件不假装测过。计划卡回合结束隐藏、长对话分片挂载在运行中的窗口里看，不要用挂载断言式 UI 单测锁。
 
 ## 凭据与回执
 

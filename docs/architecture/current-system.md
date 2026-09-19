@@ -2,7 +2,7 @@
 
 > 文档状态：Current
 >
-> 事实审计：2026-09-17。本页描述当前代码结构，不安排任务。
+> 事实审计：2026-09-19。本页描述当前代码结构，不安排任务。
 > 发行回执见 [当前开发目标](/developer/current-objectives)。产品 UI 只写在 `AGENTS.md`。
 
 ## 系统上下文
@@ -63,7 +63,7 @@ Pi 拥有会话、压缩和工具循环。桌面 GUI 把外部动作变成可见
 | OTA | implemented | 已登录 Stable 轮询 Admin latest；侧栏打开进度框下载，下完后用户点安装并重启；macOS/Windows 走 electron-updater，Linux dpkg/tarball。GitHub Release 不上 OTA ZIP。 |
 | Go Runtime | implemented | JSONL RPC。Sidecar 停靠保活；凭据轮换惰性、撤回立即停。Pi `bash` 缺省 600 秒。 |
 | 插件 | packaged | `milksu.plugin/v1`：签名包、发布者信任、六个主题表面。 |
-| Pi | verified core | Session / Compaction / Tool Loop。Coding/CTF/CVE/实验室共用完整循环与 80% 自动压缩。`milksu_workspace`、`milksu_ask` 是产品工具。新对话可选 DSH（ACP，工作树钉 `0.1.6-alpha.1`）。出厂默认 kernel 是 Pi；设置里的默认运行时只决定新对话。短会话整理上下文不再失败；接到新会话铺上一会话原文或 harness 摘要。DSH 打 TokenFlux 保留 `prefix/model`。活着的子代理投影到 Working 短胶囊（折叠「进行中」或「进行中 · N」，点开才是列表）；DSH 模型自己拉起的 `subagent` 与 GUI Multitask 子会话走同一 roster，Pi 子代理仍阻塞父回合。 |
+| Agent 内核 | verified core | Pi 拥有 Session / Compaction / Tool Loop。Coding/CTF/CVE/实验室共用完整循环与 80% 自动压缩。`milksu_workspace`、`milksu_ask` 是产品工具。新对话可选 DSH（ACP，工作树钉 `0.1.6-alpha.1`）。出厂默认 kernel 是 Pi；设置里的默认运行时只决定新对话。短会话整理上下文不再失败；接到新会话铺上一会话原文或 harness 摘要。DSH 打 TokenFlux 保留 `prefix/model`。活着的子代理投影到 Working 短胶囊（折叠「进行中」或「进行中 · N」，点开才是列表）；DSH 模型自己拉起的 `subagent` 与 GUI Multitask 子会话走同一 roster，Pi 子代理仍阻塞父回合。 |
 | 安全工具 | setup 已通 | 设置 → MCP：IDA / capa 可准备。CodeQL / Burp / Shannon 仅检测。 |
 | 浏览器三面 | packaged / pairing pending | 隔离浏览器按会话；Browser Use 待桌面配对回执；Computer Use：模型列窗锁定，macOS/Windows 窗口 Scope + CUA `0.27.0`，Linux GNOME Portal。 |
 | CTF / CVE / 实验室 | implemented | CTF 持题目、Evidence、Judge。CVE 点进档案复现。实验室起本机 Docker / AVD 或用户地址。CTF 本地房还不能引用环境经纪。 |
@@ -94,6 +94,7 @@ flowchart TB
 
     subgraph sidecar["Sidecar"]
         pi["Pi Session"]
+        dsh["DSH Session（ACP，可选）"]
         policy["Approval"]
         resources["Skills / MCP / LSP"]
         adapters["IDA / capa"]
@@ -105,8 +106,10 @@ flowchart TB
     app --> runtime
     app --> plugins
     app --> supervisors <--> pi
+    supervisors <--> dsh
     app --> tool_catalog --> supervisors
     pi --> policy
+    dsh --> policy
     pi --> resources
     pi --> adapters
     pi <--> playwright
@@ -114,7 +117,7 @@ flowchart TB
     browser <--> proxy <--> playwright
 ```
 
-Renderer 只经 `window.milksu.invoke`。Electron 不拥有 CTF/CVE 事实，Go 不拥有通用模型循环，Pi 不拥有桌面授权。
+Renderer 只经 `window.milksu.invoke`。Electron 不拥有 CTF/CVE 事实，Go 不拥有通用模型循环，Agent 内核不拥有桌面授权。
 
 隔离浏览器的 Agent 控制走 `ScopedCDPProxy`：只公布当前一个 Target，拒绝创建 Target / Context 或关 Browser。
 
@@ -141,4 +144,4 @@ React → Electron Preload / Host → Desktop JSONL RPC → Go Application Servi
 
 ## 发行
 
-干净已推送的 `main` 上跑一次 canonical 验证，再三端 `workflow_dispatch`。macOS 用 `macos-release` 签名公证。正式包装 OTA 到私有 R2 并发布 current pointer。GitHub Release 只上用户安装包。三端回执不等于功能等价。
+干净已推送的 `main` 上跑一次 canonical 验证，再三端 `workflow_dispatch`。macOS DMG 用 `macos-release` 签名公证；Windows x64 EXE 目前未代码签名；Linux 发共用 x64 DEB 与 tarball 两份包。正式包装 OTA 到私有 R2 并发布 current pointer。GitHub Release 只上用户安装包。三端回执不等于功能等价。
