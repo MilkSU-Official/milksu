@@ -45,11 +45,9 @@ func (a *App) applyModelCallOutcome(event engine.Event) {
 			_ = a.settings.ClearModelFailure(provider, model)
 			return
 		}
-		reason := strings.TrimSpace(event.Error)
-		if reason == "" {
-			reason = "模型调用失败（服务端未返回成功结果）"
-		}
-		_ = a.settings.RecordModelFailure(provider, model, reason, time.Now())
+		// The reason is shown to the reader, so only the provider's own words go in. With no
+		// upstream text the record stays reasonless and the picker shows its own bilingual label.
+		_ = a.settings.RecordModelFailure(provider, model, strings.TrimSpace(event.Error), time.Now())
 	}
 }
 

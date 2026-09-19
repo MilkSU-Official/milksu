@@ -1091,8 +1091,11 @@ function configureRuntimeModel(
     customRelay,
   });
   if (selection.failure) {
+    const english = String(locale ?? "").toLowerCase().startsWith("en");
     const detail = account.unavailable && requestedOrder.includes("account")
-      ? `账户分配模型不支持 ${account.id}`
+      ? (english
+        ? `The account allocation does not cover ${account.id}.`
+        : `账户分配模型不支持 ${account.id}。`)
       : "";
     const message = modelSourceFailureMessage({
       provider,
