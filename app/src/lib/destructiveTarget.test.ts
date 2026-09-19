@@ -7,6 +7,7 @@ import {
   parseDestructiveTargets,
   protectedMatch,
 } from './destructiveTarget'
+import { writeProtectProjectPaths } from './approvalGuardsPreference'
 
 // The renderer is sandboxed and has no `process`, so tests pin a literal home directory.
 const testHome = '/Users/probe'
@@ -72,6 +73,24 @@ describe('protected rules and user data', () => {
       .toBe(true)
     expect(protectedMatch(`${testHome}/Library/Caches/whatever`).protected).toBe(false)
     expect(protectedMatch('/Users/me/Documents/report.pdf').protected).toBe(true)
+  })
+
+  // 读者被卡住的现场：自己的项目目录（maiRecord 等）也进了受保护清单，于是审批只能拒绝。
+  // 设置里关掉「项目目录保护」后必须能批准，而系统级保护不受这个偏好影响。
+  it('lets the reader approve their own project paths once the project protection is off', () => {
+    writeProtectProjectPaths(false)
+    try {
+      const own = assessDestructiveRequest(`rm -rf ${testHome}/mairecord-trainer/out`, [])
+      expect(own.protections).not.toContain('maiRecord 记录')
+
+      // 系统级保护与这个偏好无关：关掉后照样拦。
+      const documents = assessDestructiveRequest(`rm -rf ${testHome}/Documents/report.pdf`, [])
+      expect(documents.protections).toContain('~/Documents')
+      const caches = assessDestructiveRequest('rm -rf /private/tmp/milksu-restore-check-XYZ', [])
+      expect(caches.protections).toContain('/private/tmp/milksu-*')
+    } finally {
+      writeProtectProjectPaths(true)
+    }
   })
 })
 

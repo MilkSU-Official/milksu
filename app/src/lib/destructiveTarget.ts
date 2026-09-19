@@ -9,6 +9,8 @@
  * backend as measurements and merged in `describeDestructiveRequest`.
  */
 
+import { readProtectProjectPaths } from '@/lib/approvalGuardsPreference'
+
 export type DestructiveTargetKind = 'file' | 'directory-tree' | 'glob' | 'unknown'
 
 export interface DestructiveTarget {
@@ -568,7 +570,9 @@ export function assessDestructiveRequest(
   let undetermined = targets.some(target => target.kind === 'unknown')
 
   targets.forEach((target, index) => {
-    const match = protectedMatch(target.path)
+    // 项目目录保护（maiRecord 等）是读者本机的选择：设置里关掉后，他自己项目里的删除申请
+    // 就可以被批准；系统级保护不接受这个偏好（见 protectedMatch）。
+    const match = protectedMatch(target.path, { protectProjectPaths: readProtectProjectPaths() })
     if (match.protected && match.rule) protections.push(match.rule)
     if (touchesUserData(target.path)) touchesUserDataFlag = true
     const fact = facts[index]
