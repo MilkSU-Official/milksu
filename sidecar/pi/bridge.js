@@ -29,6 +29,15 @@ import {
 } from "./reviewed-ts/extensions.js";
 import { dropSendAfterAbort } from "./bridge-abort.js";
 import {
+  PROTECTED_ROOTS_ENV,
+  dataDirectoryFromEnvironment,
+  derivedProtectedRoots,
+  mergeProtectedRoots,
+  parseProtectedRoots,
+  protectedCommandViolation,
+  protectedWriteViolation,
+} from "./bridge-protected-paths.js";
+import {
   applyUserMemorySnapshot,
   isCompanionRelay,
   lastAssistantText,
@@ -497,6 +506,72 @@ function emitGoalState(conversationId, session) {
 }
 
 const approvalBroker = createApprovalBroker(emit);
+
+// The protected roots an agent may never write to. Resolved once: one sidecar serves one
+// workspace, and the host's list is fixed for its lifetime.
+let protectedRootsCache;
+function sessionProtectedRoots(workspace) {
+  if (!protectedRootsCache) {
+    protectedRootsCache = mergeProtectedRoots(
+      parseProtectedRoots(process.env[PROTECTED_ROOTS_ENV]),
+      derivedProtectedRoots({
+        workspace,
+        userHome: process.env.MILKSU_USER_HOME,
+        dataDirectory: dataDirectoryFromEnvironment(process.env),
+      }),
+    );
+  }
+  return protectedRootsCache;
+}
+
+// 读者在设置里指定的受限文件夹（agent 不可改写）。命中它不是"审批问题"：直接拒绝 +
+// 告诉他本人，并停住本轮。
+const USER_PROTECTED_FOLDER_LABEL = "user-protected-folder"
+
+function userProtectedRoots(policy) {
+  const list = Array.isArray(policy?.protectedFolders) ? policy.protectedFolders : []
+  return list
+    .map(value => String(value ?? "").trim())
+    .filter(Boolean)
+    .map(path => ({ path, label: USER_PROTECTED_FOLDER_LABEL }))
+}
+
+function protectedViolationFor(event, policy) {
+  const workspace = policy?.workspace
+  const roots = sessionProtectedRoots(workspace)
+  const enforcedRoots = userProtectedRoots(policy)
+  if (event.toolName === "bash" || event.toolName === "bg_task") {
+    // bg_task 同样是 agent 发起的 shell 写入（后台执行不等于可以绕过受限文件夹）。
+    return protectedCommandViolation(event.input?.command, {
+      roots,
+      enforcedRoots,
+      ownWorkspace: workspace,
+      // The shell runs in the session's own workspace, so a relative write target resolves
+      // against it - exactly where the shell would put the file.
+      cwd: workspace,
+    });
+  }
+  if (event.toolName === "edit" || event.toolName === "write") {
+    const target = typeof event.input?.path === "string" ? event.input.path : "";
+    return protectedWriteViolation(target, { roots, enforcedRoots, ownWorkspace: workspace });
+  }
+  return null;
+}
+
+function protectedAlarmNotice(violation, locale) {
+  const label = violation?.label ?? "protected";
+  if (label === USER_PROTECTED_FOLDER_LABEL) {
+    return String(locale ?? "") === "en"
+      ? "Blocked: this folder is on your protected list in Settings, so agents may not write to it. "
+        + "Reading still works, and there is no temporary allow: remove it in Settings if you want "
+        + "the agent to write there."
+      : "已拦截：这个目录在你的设置里被标记为「agent 不可改写」。读不受影响，也没有临时放行；"
+        + "要允许写入，请先在设置里把它移除。";
+  }
+  return String(locale ?? "") === "en"
+    ? `Blocked: the agent tried to write a protected path (rule: ${label}). The turn was stopped and the attempt was logged.`
+    : `已拦截：Agent 试图写入受保护路径（命中规则：${label}）。本轮已停止，并已记入审计。`;
+}
 const workspaceActionBroker = createWorkspaceActionBroker(emit);
 const pendingWorkspaceCompaction = new Set();
 const sessionContextUsage = new Map();
@@ -727,6 +802,21 @@ function createCodingPermissionExtension(
     pi.on("tool_call", async (event) => {
       const policy = getPolicy();
       if (!policy) return undefined;
+      // A write to a protected path is never an approval question: it stops the turn, tells
+      // the reader, and leaves an audit line. The session is marked aborted so nothing queued
+      // runs after it.
+      const protectedViolation = protectedViolationFor(event, policy);
+      if (protectedViolation) {
+        const reason = `MilkSU blocked a write to a protected path (${protectedViolation.label}): `
+          + protectedViolation.path;
+        emit(conversationId, "guard.alarm", {
+          toolName: event.toolName,
+          reason,
+          notice: protectedAlarmNotice(protectedViolation, policy.uiLocale),
+        });
+        abortedSessions.add(conversationId);
+        return { block: true, terminate: true, reason };
+      }
       if (codingTurnContractBlocksTool(getTurnContract())) {
         return {
           block: true,

@@ -135,6 +135,10 @@ type AppSettings struct {
 	Relay                    *RelayConfig         `json:"relay,omitempty"`
 	NSSCTFArena              *NSSCTFArenaConfig   `json:"nssctf_arena,omitempty"`
 	Locale                   *string              `json:"locale,omitempty"`
+	// ProtectedFolders are absolute paths the reader marked as "agents may not write".
+	// Empty by default: it only ever narrows what an agent may write. Reads are unaffected;
+	// the sidecar blocks writes the paths in this list and nothing else.
+	ProtectedFolders []string `json:"protected_folders,omitempty"`
 	DisabledSkills           []string             `json:"disabled_skills"`
 	EnabledOptionalSkills    []string             `json:"enabled_optional_skills,omitempty"`
 	WorkerProvider           string               `json:"worker_provider,omitempty"`

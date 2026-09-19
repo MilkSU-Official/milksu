@@ -1633,6 +1633,13 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}, sessionRole
             }
           : capability
   ));
+  const protectedFolders = Array.isArray(codingPolicy.protectedFolders)
+    ? [...new Set(
+        codingPolicy.protectedFolders
+          .map(value => String(value ?? "").trim())
+          .filter(Boolean),
+      )]
+    : [];
   const result = {
     ctf: false,
     ...normalized,
@@ -1649,6 +1656,9 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}, sessionRole
     codingCollaboration,
     imageDraw,
     readOnlyResourceRoots: [...(codingPolicy.readOnlyResourceRoots || [])],
+    // 读者在设置里指定的"agent 不可改写"文件夹（默认空）。侧车只把它用于写入拦截，
+    // 读一律不受影响。
+    protectedFolders,
     customTools: await createCodingToolDefinitions(
       root,
       codingPolicy.readOnlyResourceRoots,

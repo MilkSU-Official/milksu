@@ -337,6 +337,27 @@ export default function SettingsPage({
   const notice = state.notice
   // 审批护栏的本机偏好：默认开启（与以前行为一致），关掉后可以批准删除自己项目里的文件。
   const [protectProjectPaths, setProtectProjectPaths] = useState(() => readProtectProjectPaths())
+  // 受限文件夹的输入框（添加后即写进设置并落盘）。
+  const [newProtectedFolder, setNewProtectedFolder] = useState('')
+
+  // 受限文件夹：agent 对它们只能读，不能写。加进来 / 移除都立刻落盘。
+  function addProtectedFolder(raw: string) {
+    const path = String(raw ?? '').trim().replace(/\/+$/, '')
+    if (!path.startsWith('/') || path === '/') return
+    store.patchWorking(draft => {
+      const next = new Set(draft.protected_folders ?? [])
+      next.add(path)
+      draft.protected_folders = [...next]
+    })
+    void store.save()
+  }
+
+  function removeProtectedFolder(path: string) {
+    store.patchWorking(draft => {
+      draft.protected_folders = (draft.protected_folders ?? []).filter(entry => entry !== path)
+    })
+    void store.save()
+  }
   const customModelInput = state.customModelInput
   const thinkingModelKey = state.thinkingModelKey
   const windowModelKey = state.windowModelKey
@@ -564,6 +585,52 @@ export default function SettingsPage({
                     divider={false}
                     data-testid="user-artifact-directory"
                   />
+                <SettingsRow
+                  label={t('受限文件夹（agent 不可改写）', 'Protected folders (agents may not write)')}
+                  description={t(
+                    '把绝对路径加进来：agent 对这些目录只能读，不能写、不能改、不能删。没有临时放行；要允许写入，就把它从下面移除。',
+                    'Add absolute paths: agents may read inside them but never write, edit or delete. There is no temporary allow — remove an entry below if you want an agent to write there.',
+                  )}
+                  divider={false}
+                  trailing={(
+                    <div className="flex items-center gap-2">
+                      <input
+                        value={newProtectedFolder}
+                        placeholder="/Users/…/private"
+                        aria-label={t('新增受限文件夹', 'Add a protected folder')}
+                        className="h-8 w-56 rounded-md border border-border bg-transparent px-2 text-caption"
+                        onChange={event => setNewProtectedFolder(event.target.value)}
+                        onKeyDown={event => {
+                          if (event.key !== 'Enter') return
+                          addProtectedFolder(newProtectedFolder)
+                          setNewProtectedFolder('')
+                        }}
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          addProtectedFolder(newProtectedFolder)
+                          setNewProtectedFolder('')
+                        }}
+                      >
+                        {t('添加', 'Add')}
+                      </Button>
+                    </div>
+                  )}
+                />
+                {(working.protected_folders ?? []).map(path => (
+                  <SettingsRow
+                    key={path}
+                    label={path}
+                    divider={false}
+                    trailing={(
+                      <Button variant="ghost" size="sm" onClick={() => removeProtectedFolder(path)}>
+                        {t('移除', 'Remove')}
+                      </Button>
+                    )}
+                  />
+                ))}
                   <SettingsRow
                     label={t('同时保护我的项目目录（maiRecord 等）', 'Also protect my own project folders (maiRecord, …)')}
                     description={t(

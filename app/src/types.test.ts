@@ -338,3 +338,12 @@ describe('model provider catalog', () => {
     })
   })
 })
+
+// 受限文件夹：只收绝对路径。相对路径在 agent 的 shell 里没有确定含义，根目录 "/" 更是笔误，
+// 两者都不能进设置；尾斜杠与重复项要归一。
+it('keeps only absolute protected folders, trimmed and deduped', () => {
+  const settings = withAppSettingsDefaults({
+    protected_folders: ['/Users/me/private/', ' relative/path ', '/', '/Users/me/private', '  ', '/Users/me/other'],
+  } as AppSettings)
+  expect(settings.protected_folders).toEqual(['/Users/me/private', '/Users/me/other'])
+})
