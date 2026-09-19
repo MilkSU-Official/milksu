@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { EventEmitter } from 'node:events'
-import { CdpSession, GuiDriver, isMilkSUPage, killProcessGroup } from './lib/desktop-gui-driver.mjs'
+import { CdpSession, GuiDriver, isMilkSUPage, isProductLoopFixtureConversation, killProcessGroup } from './lib/desktop-gui-driver.mjs'
 import {
   observedIsolatedBrowserMarker,
   pickComputerUseTarget,
@@ -105,6 +105,30 @@ test('waitForTurn keeps polling after a transient CDP close', async () => {
   const turn = await driver.waitForTurn('conversation-1', 2_000)
   assert.equal(turn.timeout, false)
   assert.ok(calls >= 2)
+})
+
+test('isProductLoopFixtureConversation only matches regression leftovers', () => {
+  assert.equal(isProductLoopFixtureConversation({ id: 'loop-pin-abc-a', title: 'loop-pin-abc-a' }), true)
+  assert.equal(isProductLoopFixtureConversation({ id: 'product-loop-mu8jrg59', title: 'DSH 仓库只读+小改' }), true)
+  assert.equal(isProductLoopFixtureConversation({
+    id: 'uuid',
+    title: 'DSH隔离浏览器',
+    workspacePath: 'build/test-results/milksu-dsh-loop-Xvp8An',
+  }), true)
+  assert.equal(isProductLoopFixtureConversation({
+    id: 'dsh_edcb44a5-3711-4518-8ef6-7eafaf810c71',
+    title: '接力 · PR111 读仓库 DSH',
+    workspacePath: '/workspace/milksu',
+  }), false)
+  assert.equal(isProductLoopFixtureConversation({ id: '01a0ae35-df7f-787b', title: '打招呼' }), false)
+})
+
+test('GuiDriver.deleteConversation is a no-op without a conversation id', async () => {
+  const driver = new GuiDriver()
+  driver.invoke = async () => {
+    throw new Error('should not invoke DeleteConversation without an id')
+  }
+  await driver.deleteConversation('')
 })
 
 test('GuiDriver.abortMessage is a no-op without a conversation id', async () => {

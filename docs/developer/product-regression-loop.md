@@ -71,6 +71,7 @@ npm run test:product-loop-catalog
 
 - `dsh` / `pi-files` 认账户会话、设置里已存的 Provider，或环境变量 `DEEPSEEK_API_KEY` / `TOKENFLUX_API_KEY`。缺了记 `SKIP`，整次运行仍 exit 0（除非别的套件 FAIL）。
 - 回执：`build/test-results/product-loop.json`。DSH 子回执仍是 `build/test-results/dsh-complete-loop.json`。
+- `--gui` 测完会 `DeleteConversation` 清掉本机 fixture 会话（`loop-pin-*` / `product-loop-*` / `DSH …`），不留在侧栏。
 - 不要把回执提交进仓库。
 
 ## 不要做的

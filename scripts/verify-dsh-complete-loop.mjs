@@ -716,6 +716,7 @@ async function runGuiTasks(options) {
   receipt.gaps.push('禁止 desktop:start:beta / MilkSU Beta。本档只启动或附着 Stable。')
   receipt.gaps.push(
     'DSH workspace-write 允许平台临时目录；审批 canary 放在仓库 build/test-results 下。官方 Auto review 不会用于 workspace-auto / full-auto。',
+    'GUI 任务测完 DeleteConversation 清掉 DSH fixture 会话，不留在本机侧栏。',
   )
   receipt.gaps.push(
     '官方 DeepSeek 不写 DEEPSEEK_BASE_URL（Messages 默认 anthropic 根）。TokenFlux / 自定义 OpenAI 兼容端点才写 BASE_URL 并切 chat-completions。',

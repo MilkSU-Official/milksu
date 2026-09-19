@@ -224,6 +224,17 @@ export class CdpSession {
   }
 }
 
+export function isProductLoopFixtureConversation(value) {
+  const id = String(value?.id ?? value?.ID ?? '')
+  const title = String(value?.title ?? value?.Title ?? '')
+  const workspace = String(value?.workspacePath ?? value?.WorkspacePath ?? '')
+  if (/^(loop-pin-|loopopt-pin-|product-loop-|dsh-loop-)/.test(id)) return true
+  if (/^(loop-pin-|loopopt-pin-|product-loop\b|DSH )/.test(title)) return true
+  if (/^(DSH仓库|DSH隔离|DSH审批|DSH Computer Use)/.test(title)) return true
+  if (/(milksu-dsh-loop-|product-loop-surface-|product-loop-pi-|product-loop-isolated)/.test(workspace)) return true
+  return false
+}
+
 export class GuiDriver {
   constructor(options = {}) {
     this.repositoryRoot = options.repositoryRoot || repositoryRoot
@@ -231,6 +242,7 @@ export class GuiDriver {
     this.target = null
     this.startedChild = null
     this.gaps = []
+    this.createdConversationIds = new Set()
   }
 
   async attachOrStart(timeoutMs) {
@@ -404,12 +416,71 @@ export class GuiDriver {
       messages: [],
     }
     await this.invoke('SaveConversation', [conversation])
+    this.createdConversationIds.add(conversation.id)
     return conversation
   }
 
   async listConversations() {
     const list = await this.invoke('ListConversations', [])
     return Array.isArray(list) ? list : []
+  }
+
+  async listArchivedConversations() {
+    try {
+      const list = await this.invoke('ListArchivedConversations', [])
+      return Array.isArray(list) ? list : []
+    } catch {
+      return []
+    }
+  }
+
+  async deleteConversation(id) {
+    const conversationId = String(id ?? '').trim()
+    if (!conversationId) return
+    try {
+      await this.invoke('DeleteConversation', [conversationId])
+    } catch {
+      // Already gone or the window detached.
+    }
+    this.createdConversationIds.delete(conversationId)
+  }
+
+  async deleteArchivedConversation(id) {
+    const conversationId = String(id ?? '').trim()
+    if (!conversationId) return
+    try {
+      await this.invoke('DeleteArchivedConversation', [conversationId])
+    } catch {
+      // Already gone or the window detached.
+    }
+    this.createdConversationIds.delete(conversationId)
+  }
+
+  async cleanupConversations() {
+    const activeIds = new Set(this.createdConversationIds)
+    const archivedIds = new Set()
+    if (!this.cdpAlive() && !await this.ensureAttached()) return
+    try {
+      for (const item of await this.listConversations()) {
+        if (isProductLoopFixtureConversation(item)) {
+          activeIds.add(String(item.id ?? item.ID ?? ''))
+        }
+      }
+      for (const item of await this.listArchivedConversations()) {
+        if (isProductLoopFixtureConversation(item)) {
+          archivedIds.add(String(item.id ?? item.ID ?? ''))
+        }
+      }
+    } catch {
+      // Keep tracked IDs if listing fails.
+    }
+    for (const id of activeIds) {
+      if (id) await this.deleteConversation(id)
+    }
+    for (const id of archivedIds) {
+      if (id) await this.deleteArchivedConversation(id)
+    }
+    this.createdConversationIds.clear()
   }
 
   async sendMessage(conversationId, prompt, workspacePath, options = {}) {
@@ -482,6 +553,9 @@ export class GuiDriver {
   }
 
   async close() {
+    if (this.cdpAlive() || this.createdConversationIds.size) {
+      await this.cleanupConversations().catch(() => {})
+    }
     this.cdp?.close()
     this.cdp = null
     if (this.startedChild && this.startedChild.exitCode == null) {
