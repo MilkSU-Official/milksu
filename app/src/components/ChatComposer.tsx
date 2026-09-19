@@ -7,6 +7,7 @@ import {
   useState,
   type ComponentType,
 } from 'react'
+import { ComposerQuoteList } from '@/components/ComposerQuoteList'
 import {
   Button,
   Dialog,
@@ -107,6 +108,16 @@ import {
   writeComposerDraft,
   type StoredComposerDraft,
 } from '@/lib/composerDraftStore'
+import {
+  buildQuotedPrompt,
+  buildQuotedVisibleText,
+  type ComposerQuote,
+} from '@/lib/composerQuote'
+import {
+  clearComposerQuotes,
+  readComposerQuotes,
+  writeComposerQuotes,
+} from '@/lib/composerQuoteStore'
 import {
   COMPOSER_ADD_MENU_HEIGHT_CAP,
   layoutComposerAddMenu,
@@ -393,6 +404,8 @@ const COMPOSER_STYLES = `
 
 export type ChatComposerHandle = {
   appendDraftText: (text: string) => void
+  /** Quote material the reader selected in the transcript, shown above the input. */
+  appendQuote: (text: string) => void
   openAddMenu: () => void
   focusMessageInput: () => Promise<void>
 }
@@ -487,6 +500,10 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
   }))
 
   const [draft, setDraft] = useState('')
+  // Quoted material the reader picked in the transcript: shown above the input while they type the
+  // question it belongs to, and persisted per conversation exactly like the draft.
+  const [quotes, setQuotes] = useState<ComposerQuote[]>([])
+  const quotesRef = useRef<ComposerQuote[]>([])
   const composerFrame = useRef<HTMLDivElement | null>(null)
   const messageEditor = useRef<HTMLDivElement | null>(null)
   const [pendingAttachments, setPendingAttachments] = useState<CodingAttachment[]>([])
@@ -594,6 +611,12 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
     const normalized = String(key ?? '').trim()
     if (!normalized) return
     writeComposerDraft(normalized, captureComposerDraft())
+    writeComposerQuotes(normalized, quotesRef.current)
+  }
+
+  function applyQuotes(next: ComposerQuote[]) {
+    quotesRef.current = next
+    setQuotes(next)
   }
 
   function applyStoredComposerDraft(stored?: StoredComposerDraft) {
@@ -609,6 +632,8 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
     const switched = previous !== String(conversationKey ?? '')
     if (switched || hydratedComposerKey.current !== key) {
       applyStoredComposerDraft(key ? readComposerDraft(key) : undefined)
+      // Quotes come back with the draft, so switching away and back does not lose them.
+      applyQuotes(key ? readComposerQuotes(key) ?? [] : [])
       hydratedComposerKey.current = key
     }
     previousConversationKey.current = conversationKey
@@ -631,9 +656,13 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
     if (!owner) return
     key = owner
     const snapshot = captureComposerDraft()
-    if (!snapshot.html && !snapshot.text.trim() && !snapshot.attachments.length) return
-    writeComposerDraft(key, snapshot)
-  }, [draft, pendingAttachments])
+    if (snapshot.html || snapshot.text.trim() || snapshot.attachments.length) {
+      writeComposerDraft(key, snapshot)
+    }
+    // 引用和草稿属于同一格，必须一起保存：否则切换会话后引用会丢
+    // （读者已复现：输入内容还在、引用却没了）。
+    writeComposerQuotes(key, quotesRef.current)
+  }, [draft, pendingAttachments, quotes])
 
   useEffect(() => {
     return () => {
@@ -1294,10 +1323,15 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
       return
     }
     const activeSkillToken = skillToken ?? undefined
-    const prompt = treatAsSteer ? text : goalMode ? `/goal ${text}` : activeSkillToken ? `/skill:${activeSkillToken} ${text}` : text
-    const visiblePrompt = !treatAsSteer && activeSkillToken && !goalMode
+    const basePrompt = treatAsSteer ? text : goalMode ? `/goal ${text}` : activeSkillToken ? `/skill:${activeSkillToken} ${text}` : text
+    const baseVisiblePrompt = !treatAsSteer && activeSkillToken && !goalMode
       ? t(`使用 ${skillOption(activeSkillToken)?.label ?? activeSkillToken}\n${text}`, `Use ${skillOption(activeSkillToken)?.label ?? activeSkillToken}\n${text}`)
       : text
+    // Quoted material travels as an explicitly labelled block of *material*, and any directive
+    // (`/goal`, `/skill:`) is still built from the reader's own text only.
+    const pendingQuotes = quotesRef.current
+    const prompt = buildQuotedPrompt(pendingQuotes, basePrompt)
+    const visiblePrompt = buildQuotedVisibleText(pendingQuotes, baseVisiblePrompt)
     const activeScopeToken = scopeToken ?? undefined
     const scopeReady = activeScopeToken === 'browser-use' ? browserUseReady : activeScopeToken === 'computer-use' ? computerUseReady : true
     if (!scopeReady && activeScopeToken) {
@@ -1310,6 +1344,9 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
     }
     clearComposerInput()
     setPendingAttachments([])
+    // The quote belongs to the message that was just sent, so it is consumed with the draft.
+    applyQuotes([])
+    clearComposerQuotes(String(conversationKeyRef.current ?? currentConversationKey()))
     setAttachmentError('')
     if (activeScopeToken) props.onSend?.(prompt, visiblePrompt, attachments, activeScopeToken)
     else props.onSend?.(prompt, visiblePrompt, attachments)
@@ -1462,6 +1499,21 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
     }, 0)
   }
 
+  /**
+   * Add one quoted passage. Selecting the same passage twice is still one quote: the reader picked it
+   * once, and a duplicate chip would only be noise.
+   */
+  function appendQuote(text: string) {
+    const value = String(text ?? '').trim()
+    if (!value) return
+    const current = quotesRef.current
+    if (current.some(quote => quote.text === value)) return
+    applyQuotes([
+      ...current,
+      { id: `quote-${Date.now()}-${current.length}`, text: value, sourceLabel: t('引用', 'Quote') },
+    ])
+  }
+
   function appendDraftText(text: string) {
     const normalized = text.trim()
     if (!normalized) return
@@ -1501,6 +1553,7 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
 
   useImperativeHandle(ref, () => ({
     appendDraftText,
+    appendQuote,
     openAddMenu,
     focusMessageInput,
   }), [])
@@ -1574,6 +1627,10 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
           ) : null}
 
           <form className="chat-composer__island" onSubmit={event => { event.preventDefault(); submit() }}>
+            <ComposerQuoteList
+              quotes={quotes}
+              onRemove={id => applyQuotes(quotesRef.current.filter(quote => quote.id !== id))}
+            />
             {pendingAttachments.length ? (
               <div className="flex flex-wrap gap-2 px-1 pb-1" aria-label={t('待发送附件', 'Attachments to send')}>
                 {pendingAttachments.map(attachment => {

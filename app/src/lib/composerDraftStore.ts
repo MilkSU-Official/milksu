@@ -5,6 +5,8 @@ export type StoredComposerDraft = {
   html: string
   text: string
   attachments: CodingAttachment[]
+  /** 最近一次写入时间：用于超出上限时淘汰最久未用的那一格。旧存档没有这个字段。 */
+  at?: number
 }
 
 /**
@@ -16,8 +18,16 @@ export type StoredComposerDraft = {
  * 现在 Map 仍是读缓存，但每次写入都落盘（localStorage），启动时自动恢复。
  */
 const drafts = new Map<string, StoredComposerDraft>()
+// 写入次序：时间戳可能相同（同一毫秒内连续写），单靠时间戳淘汰顺序不确定。
+// 同一时间戳下，后写的算"更新"，先写的老格子先被淘汰。
+const draftOrder = new Map<string, number>()
+let draftSeq = 0
 
 const STORAGE_KEY = 'milksu.composer-drafts.v1'
+// 上限：避免长期使用后无限增长（读者的担心）。超出就丢最久没用过的会话格子，
+// 保留正在用的。体积上限同时兜住"某个会话里粘了超长文本"的情况。
+const MAX_DRAFT_ENTRIES = 50
+const MAX_DRAFT_BYTES = 256 * 1024
 
 function storage(): Storage | null {
   try {
@@ -45,10 +55,12 @@ function hydrate() {
     if (!parsed || typeof parsed !== 'object') return
     for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
       if (!key || !isStoredDraft(value)) continue
+      draftOrder.set(key, ++draftSeq)
       drafts.set(key, {
         html: value.html,
         text: value.text,
         attachments: Array.isArray(value.attachments) ? [...value.attachments] : [],
+        at: Number.isFinite(value.at) ? Number(value.at) : 0,
       })
     }
   } catch {
@@ -56,10 +68,35 @@ function hydrate() {
   }
 }
 
+function prune() {
+  if (drafts.size <= MAX_DRAFT_ENTRIES) {
+    const bytes = JSON.stringify(Object.fromEntries(drafts)).length
+    if (bytes <= MAX_DRAFT_BYTES) return
+  }
+  // 按最近使用时间从新到旧保留，先满足条数上限，再满足体积上限。
+  const ordered = [...drafts.entries()].sort((a, b) => {
+    const byTime = (b[1].at ?? 0) - (a[1].at ?? 0)
+    if (byTime !== 0) return byTime
+    return (draftOrder.get(b[0]) ?? 0) - (draftOrder.get(a[0]) ?? 0)
+  })
+  const kept = new Map<string, StoredComposerDraft>()
+  let bytes = 2
+  for (const [key, value] of ordered) {
+    if (kept.size >= MAX_DRAFT_ENTRIES) break
+    const size = JSON.stringify(value).length + key.length + 4
+    if (kept.size > 0 && bytes + size > MAX_DRAFT_BYTES) break
+    kept.set(key, value)
+    bytes += size
+  }
+  drafts.clear()
+  for (const [key, value] of kept) drafts.set(key, value)
+}
+
 function flush() {
   const store = storage()
   if (!store) return
   try {
+    prune()
     if (!drafts.size) {
       store.removeItem(STORAGE_KEY)
       return
@@ -126,7 +163,8 @@ export function writeComposerDraft(key: string, draft: StoredComposerDraft) {
       if (isBlankComposerMarkup(html)) html = String(stored.html ?? '')
     }
   }
-  drafts.set(normalized, { html, text, attachments })
+  drafts.set(normalized, { html, text, attachments, at: Date.now() })
+  draftOrder.set(normalized, ++draftSeq)
   flush()
 }
 
@@ -134,6 +172,7 @@ export function clearComposerDraft(key: string) {
   const normalized = String(key ?? '').trim()
   if (!normalized) return
   drafts.delete(normalized)
+  draftOrder.delete(normalized)
   flush()
 }
 

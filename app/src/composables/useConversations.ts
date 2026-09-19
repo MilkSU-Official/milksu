@@ -59,6 +59,7 @@ import { normalizeDomainTaskContext } from '@/lib/domainTaskContext'
 import { shouldRememberCodingProject } from '@/lib/codingProjectMemory'
 import { conversationWorkspaceHome, type WorkspaceHome } from '@/lib/workspaceSessionRouting'
 import { clearComposerDraft, composerDraftKey } from '@/lib/composerDraftStore'
+import { clearComposerQuotes } from '@/lib/composerQuoteStore'
 import {
   isBackgroundWorkingTool,
   parentHasActiveTurnResidue,
@@ -1587,12 +1588,23 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
   // The sidebar confirmation dialog renders this and stays open on failure, the
   // same way the archived-chat settings panel reports its own errors.
 
+  // 会话被归档/删除时，顺手清掉它在本地存储里的草稿与引用：
+  // 否则这些格子再也没机会被打开，会长期占着存储（读者提出过这个担心）。
+  function discardComposerMemory(id: string) {
+    const key = String(id ?? '').trim()
+    if (!key) return
+    clearComposerDraft(key)
+    clearComposerQuotes(key)
+  }
+
   async function archive(id: string) {
+    discardComposerMemory(id)
     await abortChildSessions(id)
     await runConversationAction(t('归档', 'Archive'), 'archive_conversation', id)
   }
 
   async function remove(id: string) {
+    discardComposerMemory(id)
     await abortChildSessions(id)
     await runConversationAction(t('删除', 'Delete'), 'delete_conversation', id)
   }

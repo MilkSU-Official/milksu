@@ -101,6 +101,21 @@ describe('composer draft store', () => {
     expect(store.readComposerDraft('conversation-previous')).toBeUndefined()
   })
 
+  it('keeps at most 50 conversations and drops the least recently used ones', async () => {
+    const store = await freshStore()
+    for (let index = 0; index < 55; index += 1) {
+      store.writeComposerDraft(`conversation-${index}`, {
+        html: '',
+        text: `第 ${index} 条`,
+        attachments: [],
+      })
+    }
+    // 最早写的那些应先被淘汰，最近写的必须还在
+    expect(store.readComposerDraft('conversation-0')).toBeUndefined()
+    expect(store.readComposerDraft('conversation-4')).toBeUndefined()
+    expect(store.readComposerDraft('conversation-54')?.text).toBe('第 54 条')
+  })
+
   // 非空的写入也会丢文字：它带着附件，所以不是"空写"，会直接把文字更多的旧草稿覆盖掉。
   // 这是真机残留缺陷的确切形态（附件留下、文字永久消失，且与先附件还是先文字无关）。
   it('never lets an attachment-only write wipe the text already stored for that key', async () => {

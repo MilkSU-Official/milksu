@@ -60,6 +60,7 @@ import AkLoadingMark from '@/components/AkLoadingMark'
 import ChatActivityGroup from '@/components/ChatActivityGroup'
 import ChatProcessFold from '@/components/ChatProcessFold'
 import ChatComposer, { type ChatComposerHandle } from '@/components/ChatComposer'
+import { ConversationQuoteMenu, selectedTextIn } from '@/components/ConversationQuoteMenu'
 import WorkingTray from '@/components/WorkingTray'
 import ChatMessageItem from '@/components/ChatMessageItem'
 import CodingArtifactPreviewPanel, {
@@ -382,6 +383,20 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     prompt: string
   } | null>(null)
   const composer = useRef<ChatComposerHandle | null>(null)
+  // The right-click menu only exists while the reader has text selected in the transcript.
+  const [quoteSelection, setQuoteSelection] = useState<{ text: string; x: number; y: number } | null>(null)
+
+  function openQuoteMenu(event: {
+    currentTarget: HTMLDivElement
+    clientX: number
+    clientY: number
+    preventDefault: () => void
+  }) {
+    const text = selectedTextIn(event.currentTarget)
+    if (!text) return
+    event.preventDefault()
+    setQuoteSelection({ text, x: event.clientX, y: event.clientY })
+  }
   const scrollArea = useRef<HTMLDivElement | null>(null)
   const APPROVAL_CONFIRM_TIMEOUT_MS = 3000
   const pendingApprovalMessage = conversation?.messages.find(message => (
@@ -2545,7 +2560,22 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
                 ) : null}
               </div>
             ) : null}
-              <div className={cn('agent-thread min-w-0', dockSurface ? 'agent-thread--dock' : '')}>
+              <div
+                className={cn('agent-thread min-w-0', dockSurface ? 'agent-thread--dock' : '')}
+                onContextMenu={openQuoteMenu}
+              >
+                {quoteSelection ? (
+                  <ConversationQuoteMenu
+                    text={quoteSelection.text}
+                    x={quoteSelection.x}
+                    y={quoteSelection.y}
+                    onAdd={text => {
+                      composer.current?.appendQuote(text)
+                      setQuoteSelection(null)
+                    }}
+                    onDismiss={() => setQuoteSelection(null)}
+                  />
+                ) : null}
                 {visibleTranscript.map(item => (
                   item.kind === 'process' ? (
                     <ChatProcessFold

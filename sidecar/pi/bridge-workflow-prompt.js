@@ -1,5 +1,6 @@
 import { codingWorkspaceIdentityGuidance } from "./bridge-collaboration.js";
 import { runtimeEnvironmentGuidance } from "./bridge-runtime-environment.js";
+import { quotedReferenceGuidance } from "./bridge-quoted-reference.js";
 import { researchReportGuidance } from "./bridge-workspace.js";
 
 export function roleGuidanceForSession(sessionRole) {
@@ -37,5 +38,8 @@ export function composeMilkSUWorkflowSystemPrompt(systemPrompt, {
     })}`
     + (workspaceIdentityGuidance
       ? `\n\nWorkspace identity:\n${workspaceIdentityGuidance}`
-      : "");
+      : "")
+    + `
+
+${quotedReferenceGuidance()}`;
 }
