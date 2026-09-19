@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Quote } from 'lucide-react'
 import { useT } from '@/hooks/useUiLocale'
 
@@ -42,6 +42,20 @@ export function ConversationQuoteMenu({
   onDismiss: () => void
 }) {
   const t = useT()
+  const menu = useRef<HTMLDivElement | null>(null)
+  // A right click near the right or bottom edge would otherwise open the menu off-screen.
+  const [position, setPosition] = useState({ left: x, top: y })
+
+  useLayoutEffect(() => {
+    const element = menu.current
+    if (!element) return
+    const margin = 8
+    const { width, height } = element.getBoundingClientRect()
+    setPosition({
+      left: Math.max(margin, Math.min(x, window.innerWidth - width - margin)),
+      top: Math.max(margin, Math.min(y, window.innerHeight - height - margin)),
+    })
+  }, [x, y])
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -62,11 +76,12 @@ export function ConversationQuoteMenu({
 
   return (
     <div
+      ref={menu}
       data-testid="conversation-quote-menu"
       role="menu"
       aria-label={t('引用这段内容', 'Quote this text')}
       className="fixed z-50 min-w-32 overflow-hidden rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md"
-      style={{ left: x, top: y }}
+      style={{ left: position.left, top: position.top }}
       onContextMenu={event => event.preventDefault()}
     >
       <button
