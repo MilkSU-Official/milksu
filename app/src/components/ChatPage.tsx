@@ -2695,6 +2695,15 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
           />
 
           <ChatComposer
+            // 按会话重挂载：输入框内部有多处"上一个会话"的 ref，若不重挂载，切换时
+            // 它们会互相滞后，把草稿记到别的会话名下（已在装机版复现串稿）。
+            // 用 key 让每个会话拥有全新的输入框实例，从结构上消除这类滞后。
+            key={composerDraftKey(
+              conversation?.id,
+              conversation
+                ? conversationWorkspaceHome(conversation)
+                : conversations.pendingWorkspaceHome,
+            )}
             ref={composer}
             conversationKey={composerDraftKey(
               conversation?.id,

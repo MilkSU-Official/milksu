@@ -102,6 +102,7 @@ import {
 import { CODING_SKILLS } from '@/codingSkills'
 import {
   clearComposerDraft,
+  isBlankComposerMarkup,
   readComposerDraft,
   writeComposerDraft,
   type StoredComposerDraft,
@@ -606,7 +607,6 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
     const key = currentConversationKey()
     const previous = String(previousConversationKey.current ?? '')
     const switched = previous !== String(conversationKey ?? '')
-    if (switched && previous) persistComposerDraft(previous)
     if (switched || hydratedComposerKey.current !== key) {
       applyStoredComposerDraft(key ? readComposerDraft(key) : undefined)
       hydratedComposerKey.current = key
@@ -615,8 +615,34 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
     conversationKeyRef.current = conversationKey
   }, [conversationKey])
 
+  // 草稿一变就写进 store（按当前会话 key）。原来只在“切走时保存上一份”，
+  // 那条路依赖比较基准的时序：基准一旦已经被更新成新会话，这一格就再也不会被写入，
+  // 用户切回去就是空的（已真机复现）。改成每次变化都写，切走/切回由 store 兜住。
+  // 用轻量防抖：挂载那一次的空状态不会抢先盖掉刚恢复出来的草稿。
   useEffect(() => {
-    return () => persistComposerDraft()
+    let key = currentConversationKey()
+    if (!key) return
+    // 立即按当前会话写入，不做防抖：防抖会留下"打完最后一个字就切走"的窗口，
+    // 那一下写盘还没发生，草稿就丢在旧会话里。空内容直接跳过，避免挂载时的
+    // 空状态盖掉刚恢复出来的草稿（清空由发送后的 clearComposerDraft 负责）。
+    // 写入的键取"编辑器里的内容真正属于哪个会话"：切换途中 conversationKey 会先变、
+    // 编辑器内容后换，用当前键写就会把上一条会话的文字记到新会话名下（串稿，已在装机版复现）。
+    const owner = String(hydratedComposerKey.current ?? '')
+    if (!owner) return
+    key = owner
+    const snapshot = captureComposerDraft()
+    if (!snapshot.html && !snapshot.text.trim() && !snapshot.attachments.length) return
+    writeComposerDraft(key, snapshot)
+  }, [draft, pendingAttachments])
+
+  useEffect(() => {
+    return () => {
+      // 卸载时也只写非空内容：store 的规则是"空即删除"，空写会把那一格抹掉
+      // （这与"切换对话丢草稿"是同一个根因，统一在写入前挡住）。
+      const snapshot = captureComposerDraft()
+      if (!snapshot.html && !snapshot.text.trim() && !snapshot.attachments.length) return
+      persistComposerDraft()
+    }
   }, [])
 
   const hasUnfinishedGoal = Boolean(goal && goal.status !== 'complete')
@@ -1032,8 +1058,14 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
   }
 
   function syncComposerInput() {
-    setDraft(readComposerText())
-    persistComposerDraft()
+    const nextText = readComposerText()
+    setDraft(nextText)
+    // 读者把输入框删空是明确意图：此时显式清掉这一格，避免下次切回来又冒出旧文字。
+    if (!nextText.trim() && !pendingAttachmentsRef.current.length && isBlankComposerMarkup(composerHtml())) {
+      clearComposerDraft(currentConversationKey())
+    } else {
+      persistComposerDraft()
+    }
     const token = messageEditor.current?.querySelector<HTMLElement>('[data-composer-scope-token]')
     const tokenValue = token?.dataset.composerScopeToken
     setScopeToken(tokenValue === 'browser-use' || tokenValue === 'computer-use' ? tokenValue : null)
