@@ -196,7 +196,7 @@ export default function ContextSidebar({
   const [pinnedDropTarget, setPinnedDropTarget] = useState('')
   const observedRunningIds = useRef<Set<string> | undefined>(undefined)
   const conversationList = useRef<HTMLDivElement | null>(null)
-  const [pendingAction, setPendingAction] = useState<{ conversation: Conversation, action: 'archive' | 'delete' } | null>(null)
+  const [pendingAction, setPendingAction] = useState<{ conversation: Conversation } | null>(null)
   const [pendingActionRunning, setPendingActionRunning] = useState(false)
   const [editingConversationId, setEditingConversationId] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState('')
@@ -278,10 +278,8 @@ export default function ContextSidebar({
 
   function confirmConversationAction() {
     if (!pendingAction || pendingActionRunning) return
-    const { conversation, action } = pendingAction
     setPendingActionRunning(true)
-    if (action === 'archive') onDeleteConversation?.(conversation.id)
-    else onDeleteConversationPermanently?.(conversation.id)
+    onDeleteConversationPermanently?.(pendingAction.conversation.id)
   }
 
   function closeConversationAction() {
@@ -641,7 +639,7 @@ export default function ContextSidebar({
             })}
             {conversationActionButton(conversation, pinned, {
               label: t('归档', 'Archive'),
-              onClick: () => setPendingAction({ conversation, action: 'archive' }),
+              onClick: () => onDeleteConversation?.(conversation.id),
               children: <Archive className="size-3.5" />,
             })}
           </div>
@@ -984,12 +982,12 @@ export default function ContextSidebar({
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
-              {pendingAction?.action === 'delete' ? t('永久删除聊天？', 'Permanently delete this chat?') : t('归档聊天？', 'Archive this chat?')}
+              {t('永久删除聊天？', 'Permanently delete this chat?')}
             </DialogTitle>
             <DialogDescription>
-              {pendingAction?.action === 'delete'
+              {pendingAction
                 ? t(`“${pendingAction.conversation.title}”的聊天记录将被永久删除，此操作无法撤销。项目文件不会被删除。`, `The chat history for “${pendingAction.conversation.title}” will be permanently deleted. This cannot be undone. Project files will not be deleted.`)
-                : t(`“${pendingAction?.conversation.title}”将从会话列表移到“设置 → 归档聊天”。之后可以恢复或永久删除。`, `“${pendingAction?.conversation.title}” will move from the chat list to Settings → Archived chats. You can restore or permanently delete it later.`)}
+                : null}
               {pendingAction && runningConversationIds.has(pendingAction.conversation.id)
                 ? t('该会话正在运行，本次操作会先中断当前回合。', 'This chat is running. This action will stop the current turn first.')
                 : null}
@@ -999,11 +997,11 @@ export default function ContextSidebar({
           <DialogFooter>
             <Button variant="ghost" onClick={closeConversationAction}>{t('取消', 'Cancel')}</Button>
             <Button
-              variant={pendingAction?.action === 'delete' ? 'destructive' : 'default'}
+              variant="destructive"
               disabled={pendingActionRunning}
               onClick={confirmConversationAction}
             >
-              {pendingAction?.action === 'delete' ? t('确认永久删除', 'Permanently delete') : t('确认归档', 'Archive')}
+              {t('确认永久删除', 'Permanently delete')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1070,14 +1068,14 @@ export default function ContextSidebar({
             <button
               type="button"
               className={`${menuItemClass} conversation-row-menu__item`}
-              onClick={() => runConversationMenuAction(() => setPendingAction({ conversation: conversationMenu.conversation, action: 'archive' }))}
+              onClick={() => runConversationMenuAction(() => onDeleteConversation?.(conversationMenu.conversation.id))}
             >
               <Archive className="size-4" />{t('归档', 'Archive')}
             </button>
             <button
               type="button"
               className={`${menuItemClass} conversation-row-menu__item text-destructive focus:text-destructive`}
-              onClick={() => runConversationMenuAction(() => setPendingAction({ conversation: conversationMenu.conversation, action: 'delete' }))}
+              onClick={() => runConversationMenuAction(() => setPendingAction({ conversation: conversationMenu.conversation }))}
             >
               <Trash2 className="size-4" />{t('删除', 'Delete')}
             </button>

@@ -512,6 +512,7 @@ function baseReceipt(options) {
       '协调器在 scripts/，不进 App 启动、不暴露测试专用 Desktop RPC。',
       'Settings → 评测仍是模型能力 bench（evalsuite / #82），不要和本回执混读。',
       '草稿按对话隔离没有 Desktop RPC，chat-pin 只覆盖钉选落盘。',
+      'GUI 套件测完走 DeleteConversation，清掉 loop-pin / product-loop / DSH fixture 会话，不留在本机侧栏。',
       'desktop-surface 优先 Computer Use 观察计算器；不可用才降级隔离浏览器 CDP。不点用户 Chrome。',
       '禁止 desktop:start:beta / MilkSU Beta。',
     ],

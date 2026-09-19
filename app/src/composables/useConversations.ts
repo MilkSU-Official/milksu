@@ -35,6 +35,7 @@ import {
   parseSessionHandoffResult,
 } from '@/lib/conversationActions'
 import { t } from '@/lib/uiLocale'
+import { toast } from '@/lib/appToast'
 import {
   conversationKernelLocked,
   FACTORY_DEFAULT_BUSY_SEND,
@@ -1585,8 +1586,8 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
     s.messageQueues = next
   }
 
-  // The sidebar confirmation dialog renders this and stays open on failure, the
-  // same way the archived-chat settings panel reports its own errors.
+  // Delete still uses the sidebar confirmation dialog and stays open on failure.
+  // Archive is immediate; a short-lived failure goes to a toast.
 
   // 会话被归档/删除时，顺手清掉它在本地存储里的草稿与引用：
   // 否则这些格子再也没机会被打开，会长期占着存储（读者提出过这个担心）。
@@ -1601,6 +1602,7 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
     discardComposerMemory(id)
     await abortChildSessions(id)
     await runConversationAction(t('归档', 'Archive'), 'archive_conversation', id)
+    if (s.conversationActionError) toast(s.conversationActionError, { tone: 'destructive' })
   }
 
   async function remove(id: string) {

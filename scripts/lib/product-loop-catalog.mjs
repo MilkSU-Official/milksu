@@ -33,7 +33,7 @@ export const SUITES = {
     needsDesktop: false,
     needsCredential: false,
     guiPersist: true,
-    detail: '钉选顺序经 conversation store 落盘。GUI 再走 SaveConversation / ListConversations。草稿隔离没有 Desktop RPC，不在这一刀冒充测过。',
+    detail: '钉选顺序经 conversation store 落盘。GUI 再走 SaveConversation / ListConversations，测完 DeleteConversation 清掉 fixture 会话。草稿隔离没有 Desktop RPC，不在这一刀冒充测过。',
   },
   'pi-files': {
     id: 'pi-files',
