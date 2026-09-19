@@ -691,12 +691,12 @@ func (a *App) rotateEngineCredentials(reason string) {
 	if marked == 0 {
 		return
 	}
-	log.Printf("[credentials] %d sidecar(s) restart with the new credentials (%s)", marked, reason)
+	log.Printf("[credentials] %d sidecar(s) marked for replacement; the next dispatch starts them with the new credentials (%s)", marked, reason)
 	if a.diagnostics != nil {
 		a.diagnostics.Record(
 			"coding-engine",
 			"info",
-			fmt.Sprintf("%d sidecar(s) restart with the new credentials (%s)", marked, reason),
+			fmt.Sprintf("%d sidecar(s) marked for replacement; the next dispatch starts them with the new credentials (%s)", marked, reason),
 		)
 	}
 }

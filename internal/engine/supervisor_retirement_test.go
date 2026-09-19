@@ -168,12 +168,15 @@ func TestRetiredSidecarIsNotPinnedByATurnOnTheFreshSidecar(t *testing.T) {
 	}
 }
 
-// Reaping a retired sidecar must leave the same trace as reaping a parked one: the
-// process is marked retired so readEvents writes the sidecar.stopped receipt instead of
-// dropping the exit, and any turn the grace window cut short is told individually.
-// Otherwise the session stays busy forever, which also pins every parked sidecar of that
-// workspace against idle reaping and eviction.
-func TestRetiredSidecarPastGraceReportsTheTurnItCuts(t *testing.T) {
+// Reaping a retired sidecar must leave the same trace as reaping a parked one: the process is
+// marked retired so readEvents writes the sidecar.stopped receipt instead of dropping the exit.
+//
+// The grace window no longer cuts a turn short. It is a bound on how long a stale sidecar may
+// serve, not a way to tell "working" from "idle": a single `sleep 75` produces no output at all, so
+// expiring the window used to stop a sidecar in the middle of a streaming answer - which is the
+// defect this change exists to fix. A sidecar carrying a turn is kept until that turn ends; only
+// staleSidecarBusyCeiling, the long backstop for a wrong busy record, may stop it earlier.
+func TestRetiredSidecarWithATurnIsNeverCutByGrace(t *testing.T) {
 	collector := newEventCollector()
 	supervisor := NewSupervisor(collector.emit)
 	retiring := testSidecarProcess("/workspace/a")
@@ -181,12 +184,24 @@ func TestRetiredSidecarPastGraceReportsTheTurnItCuts(t *testing.T) {
 	registerTestSession(supervisor, "session-a", KernelPi, "/workspace/a", true)
 	supervisor.InvalidateCredentials("settings saved")
 	supervisor.retireStaleProcessLocked(KernelPi, retiring)
+	// Past the grace window and silent, with a turn still in flight.
 	retiring.staleSince.Store(time.Now().Add(-staleSidecarGraceTimeout - time.Minute).UnixNano())
 
 	supervisor.reapStaleProcessesLocked()
+	if len(supervisor.retiring) != 1 || supervisor.retiring[0] != retiring {
+		t.Fatal("a sidecar carrying a turn must not be stopped, however long it has been silent")
+	}
+	if _, busy := supervisor.busySessions["session-a"]; !busy {
+		t.Fatal("the turn must still be running")
+	}
 
+	// The turn ends: now it is reaped, with the receipt, and the session is no longer busy.
+	supervisor.mu.Lock()
+	delete(supervisor.busySessions, "session-a")
+	supervisor.mu.Unlock()
+	supervisor.reapStaleProcessesLocked()
 	if len(supervisor.retiring) != 0 {
-		t.Fatal("a stale sidecar past its grace window must be reaped")
+		t.Fatal("a retired sidecar whose turn ended must be reaped")
 	}
 	if !retiring.retired.Load() {
 		t.Fatal("a reaped sidecar must be marked retired so its stop receipt is written")
@@ -194,9 +209,10 @@ func TestRetiredSidecarPastGraceReportsTheTurnItCuts(t *testing.T) {
 	if _, busy := supervisor.busySessions["session-a"]; busy {
 		t.Fatal("a turn whose sidecar was stopped must not stay busy forever")
 	}
-	event := collector.awaitSessionError(t, "session-a")
-	if event.Error != sidecarGoneError {
-		t.Fatalf("unexpected notice %q", event.Error)
+	// Nothing was cut short, so no session is told about an interruption. The receipt itself is
+	// written by readEvents when the process exits; `retired` above is what makes it write.
+	if len(collector.events) != 0 {
+		t.Fatalf("reaping an idle sidecar must not report an interrupted turn: %#v", collector.events)
 	}
 }
 

@@ -65,6 +65,17 @@ const (
 	staleSidecarGraceTimeout = 75 * time.Minute
 )
 
+// staleSidecarBusyCeiling bounds how long a sidecar that is carrying a turn may keep serving after a
+// rotation. It is only a backstop: if the busy record is ever wrong - a turn that never reports its
+// end, a session that was never forgotten - this bounds the damage instead of pinning the process
+// for the lifetime of the app.
+//
+// It is defined in terms of the grace window on purpose, and must stay above it: a ceiling below
+// staleSidecarGraceTimeout would silently *tighten* the longest turn a rotation is allowed to let
+// finish, which is the behaviour this change exists to protect. The turn ending is what ends the
+// wait in every normal case; this constant only decides when to stop believing the turn exists.
+const staleSidecarBusyCeiling = 4 * staleSidecarGraceTimeout
+
 // engineSidecarStoppedEvent records that one Sidecar process ended. It is a process
 // lifecycle receipt for the persisted log, not a session outcome: unlike
 // engine.stopped it must never fail the control waiters or end the running
@@ -938,9 +949,12 @@ func (s *Supervisor) reportInterruptedSessions(kernel string, sessions []string)
 // credential change has to reach the next turn. Stopping the processes outright also
 // stopped turns that were still streaming, and it stopped a model probe that was in
 // flight while the account credential was being synced - the reason "Test connection"
-// reported a failure even though the model had answered. Stale sidecars are replaced
-// lazily by ensureKernelProcessLocked and reaped by reapStaleProcessesLocked once the
-// turn they were kept for is over, or once staleSidecarGraceTimeout runs out.
+// reported a failure even though the model had answered.
+//
+// The mark is immediate, so a turn that starts next never runs on the environment the user just
+// replaced. Only the replacement is lazy: ensureKernelProcessLocked retires the stale process on
+// the next dispatch, and reapStaleProcessesLocked stops it once the turn it was carrying has
+// finished - or after staleSidecarBusyCeiling, the long backstop for a busy record that is wrong.
 //
 // It returns how many processes were marked so the caller can log the rotation.
 func (s *Supervisor) InvalidateCredentials(reason string) int {
@@ -952,6 +966,8 @@ func (s *Supervisor) InvalidateCredentials(reason string) int {
 		if process == nil || process.stale.Load() {
 			return
 		}
+		// Marked at once, even while a turn is in flight: the next dispatch must never start on the
+		// credentials the user just replaced. Retiring is what is lazy, not the mark.
 		process.stale.Store(true)
 		process.staleSince.Store(time.Now().UnixNano())
 		process.staleReason = reason
@@ -966,6 +982,69 @@ func (s *Supervisor) InvalidateCredentials(reason string) int {
 		mark(process)
 	}
 	return marked
+}
+
+// isRetiringLocked reports whether a process has already left rotation for a replacement.
+func (s *Supervisor) isRetiringLocked(process *childProcess) bool {
+	for _, existing := range s.retiring {
+		if existing == process {
+			return true
+		}
+	}
+	return false
+}
+
+// sidecarServesSessionLocked reports whether a session's turn belongs to this sidecar. A session
+// with no workspace binding belongs to whichever sidecar is active for its kernel.
+func (s *Supervisor) sidecarServesSessionLocked(process *childProcess, sessionID string) bool {
+	if process == nil || s.kernelForLocked(sessionID) != process.kernel {
+		return false
+	}
+	bound := s.sessionWorkspaces[sessionID]
+	if bound == "" {
+		return s.processForKernelLocked(process.kernel) == process
+	}
+	return bound == process.workspace
+}
+
+// sessionHasWaiterLocked reports whether a product caller is waiting on this session: a model
+// probe, a control call or a background recovery. A probe never settles a turn, so a sidecar
+// serving one has to be treated as busy even with no turn in flight.
+func (s *Supervisor) sessionHasWaiterLocked(sessionID string) bool {
+	if _, waiting := s.probeWaiters[sessionID]; waiting {
+		return true
+	}
+	if _, waiting := s.controlWaiters[sessionID]; waiting {
+		return true
+	}
+	return len(s.recoveryWaiters[sessionID]) > 0
+}
+
+// processBusyLocked reports whether a sidecar is serving something a rotation must not interrupt:
+// a turn in flight on one of its sessions, a probe/control/recovery waiter, or - for a sidecar that
+// already left rotation - a turn it was carrying when it left. A turn started after retirement
+// belongs to the replacement, even in the same workspace, so it must not pin the old process.
+func (s *Supervisor) processBusyLocked(process *childProcess) bool {
+	if process == nil {
+		return false
+	}
+	if process.retired.Load() || s.isRetiringLocked(process) {
+		if s.retiredTurnRunningLocked(process) {
+			return true
+		}
+	} else {
+		for sessionID := range s.busySessions {
+			if s.sidecarServesSessionLocked(process, sessionID) {
+				return true
+			}
+		}
+	}
+	for sessionID := range s.sessions {
+		if s.sidecarServesSessionLocked(process, sessionID) && s.sessionHasWaiterLocked(sessionID) {
+			return true
+		}
+	}
+	return false
 }
 
 // retireStaleProcessLocked takes a stale process out of rotation without stopping it,
@@ -1082,13 +1161,19 @@ func (s *Supervisor) stopRetiredProcessLocked(process *childProcess) []string {
 	return interrupted
 }
 
-// reapStaleProcessesLocked stops a stale process once the turn it was kept for has
-// finished, or once its grace window runs out.
+// reapStaleProcessesLocked stops a stale process once the turn it was carrying has finished.
 //
 // The turn decides, exactly as in reapParkedLocked: stdout silence cannot tell an
 // abandoned sidecar from a working one, because a foreground bash can run for minutes
 // without writing a line. Stopping on silence is what killed in-flight turns before,
 // and lastActivity only ever recorded stdout lines.
+//
+// staleSidecarGraceTimeout is not that signal either - it bounds how long a stale sidecar may
+// serve, it does not tell "working" from "idle" - so a sidecar that is carrying a turn is left
+// alone however long its window has been expired. staleSidecarBusyCeiling is the only thing that
+// may stop it earlier, and it is a backstop for a busy record that is wrong, not the normal path:
+// the turn ending is what ends the wait, and a sidecar with nothing in flight is still stopped
+// here at once.
 func (s *Supervisor) reapStaleProcessesLocked() {
 	if len(s.retiring) == 0 {
 		return
@@ -1099,8 +1184,16 @@ func (s *Supervisor) reapStaleProcessesLocked() {
 		if process == nil {
 			continue
 		}
-		graceExpired := now.Sub(time.Unix(0, process.staleSince.Load())) >= staleSidecarGraceTimeout
-		if s.retiredTurnRunningLocked(process) && !graceExpired {
+		// A sidecar that is carrying a turn is not stopped for a rotation: silence cannot tell a
+		// working sidecar from an abandoned one, so the turn itself decides. staleSidecarGraceTimeout
+		// cannot do this job either - it is a bound on how long a stale sidecar may serve, not a way
+		// to tell "working" from "idle", and a single sleep 75 produces no output at all.
+		//
+		// The ceiling below only exists so a wrongly recorded busy state cannot pin a process
+		// forever: past it the sidecar is retired anyway and the conversations that lose their turn
+		// are told individually.
+		if s.processBusyLocked(process) &&
+			now.Sub(time.Unix(0, process.staleSince.Load())) < staleSidecarBusyCeiling {
 			kept = append(kept, process)
 			continue
 		}
@@ -1114,7 +1207,7 @@ func (s *Supervisor) reapStaleProcessesLocked() {
 //
 // Rotating a credential is lazy on purpose: the new value takes over on the next turn, so a
 // sidecar that is mid-turn is left to finish on the environment it started with, and only
-// the grace window bounds it.
+// staleSidecarBusyCeiling bounds it.
 //
 // Revoking a credential is not that change. The user is taking the credential away, so there
 // is nothing left for the old environment to run with: a turn that is mid-flight would fail
