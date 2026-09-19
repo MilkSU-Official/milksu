@@ -321,7 +321,7 @@ export function splitTopLevelStatements(command) {
  * command would execute. Flags are skipped so `bash -e x.sh` still resolves to x.sh, while
  * `bash -c "..."` is not a file at all and therefore returns nothing.
  */
-const scriptFileExtensions = /\.(?:sh|bash|zsh|ksh|dash|py|pl|rb|mjs?|cjs)$/i;
+const scriptFileExtensions = /\.(?:sh|bash|zsh|ksh|dash|py|pl|rb|[mc]?js)$/i;
 
 export function shellScriptArgument(words) {
   const list = Array.isArray(words) ? words.map(value => String(value)) : [];
@@ -403,6 +403,63 @@ export function writesPath(command, file) {
   return false;
 }
 
+/**
+ * The text a command writes into `file`, when the command carries that text literally: a heredoc
+ * body, or a `printf`/`echo` argument redirected there.
+ *
+ * A script the command writes does not exist yet when the guard decides, so it cannot be read from
+ * disk - but the command usually spells it out. Judging that text is what separates
+ * `printf 'rm -rf …' > x.sh && bash x.sh`, which is a delete and must be approved, from
+ * `cat > t.sh <<EOF … EOF; bash t.sh`, which is how any test script gets written and deletes
+ * nothing.
+ *
+ * It returns undefined when the content is not in the command at all (a download, a variable, a
+ * copy of another file). That is the case the guard genuinely cannot check before it runs.
+ */
+export function writtenScriptText(command, file) {
+  const target = String(file ?? "").trim();
+  if (!target) return undefined;
+  const chunks = [];
+
+  // Heredoc bodies: `cat > x.sh <<'EOF' … EOF`, `tee x.sh <<EOF … EOF`.
+  let pending = null;
+  for (const line of String(command ?? "").split("\n")) {
+    if (pending) {
+      const candidate = pending.stripTabs ? line.replace(/^\t+/, "") : line;
+      if (candidate.trim() === pending.marker) {
+        if (pending.writesTarget) chunks.push(pending.body.join("\n"));
+        pending = null;
+        continue;
+      }
+      pending.body.push(candidate);
+      continue;
+    }
+    const opener = /<<(-?)\s*(['"]?)([A-Za-z_][A-Za-z0-9_]*)\2/.exec(line);
+    if (opener) {
+      pending = {
+        marker: opener[3],
+        stripTabs: opener[1] === "-",
+        body: [],
+        writesTarget: writesPath(line, target),
+      };
+    }
+  }
+
+  // `printf 'text' > x.sh`, `echo "text" >> x.sh`. Only a literal argument counts: anything
+  // built from a variable or another command is not text the guard can read here.
+  for (const statement of splitTopLevelStatements(stripHeredocBodies(command))) {
+    if (!writesPath(statement, target)) continue;
+    const literal = /^\s*(printf|echo)\s+(?:-[A-Za-z]+\s+)*('([^']*)'|"([^"]*)")/.exec(statement);
+    if (!literal) continue;
+    const raw = literal[3] ?? literal[4] ?? "";
+    chunks.push(literal[1] === "printf"
+      ? raw.replace(/\\n/g, "\n").replace(/\\t/g, "\t")
+      : raw);
+  }
+
+  return chunks.length ? chunks.join("\n") : undefined;
+}
+
 export function recursiveDeleteTargets(command, options = {}) {
   const depth = Number(options.depth ?? 0);
   const seen = options.seen instanceof Set ? options.seen : new Set();
@@ -413,15 +470,11 @@ export function recursiveDeleteTargets(command, options = {}) {
   // Named scripts the guard was asked to read but could not. The caller refuses instead of
   // guessing that such a script deletes nothing.
   const unresolved = Array.isArray(options.unresolved) ? options.unresolved : [];
-  // Depth and a visited set keep indirect scripts and cycles bounded.
-  if (depth > scriptDeleteMaxDepth) {
-    // Stopping here means the guard cannot see what this chain eventually runs. Reporting "no
-    // targets" made a delete four scripts deep pass unseen, so the caller refuses instead.
-    // A structured reason, so the caller can say which of the two problems this is: a chain the
-    // guard could not follow is not the same as a script the command writes itself.
-    unresolved.push({ kind: "depth", depth });
-    return [];
-  }
+  // Depth and a visited set keep indirect scripts and cycles bounded. Past the cap this text is
+  // still judged - a delete written right here is caught - but no further script is followed.
+  // Reporting "no targets" there let a delete four scripts deep pass unseen, so a chain that
+  // really continues past what the guard read is refused instead.
+  const beyondCap = depth > scriptDeleteMaxDepth;
   // Strip heredoc bodies first: their text is data, and splitting it into statements would
   // judge a "rm -rf" that only appears inside the heredoc.
   const statements = splitTopLevelStatements(stripHeredocBodies(command));
@@ -437,13 +490,23 @@ export function recursiveDeleteTargets(command, options = {}) {
     if (scriptArgument && !scriptArgument.startsWith("$")) {
       const resolved = resolve(scriptArgument);
       if (!seen.has(resolved)) {
-        const content = scriptText(resolved, readScript);
+        // A script this command writes itself does not exist yet, so disk cannot answer for it.
+        // The command usually spells its text out, and that text is the honest answer.
+        const content = scriptText(resolved, readScript)
+          ?? writtenScriptText(command, scriptArgument)
+          ?? writtenScriptText(rootCommand, scriptArgument);
         if (content !== undefined) {
-          seen.add(resolved);
-          targets.push(...recursiveDeleteTargets(content, { depth: depth + 1, seen, readScript, unresolved, rootCommand }));
+          if (beyondCap) {
+            // A structured reason, so the caller can say which of the two problems this is: a
+            // chain the guard could not follow is not the same as a script the command writes.
+            unresolved.push({ kind: "depth", depth });
+          } else {
+            seen.add(resolved);
+            targets.push(...recursiveDeleteTargets(content, { depth: depth + 1, seen, readScript, unresolved, rootCommand }));
+          }
         } else if (writesPath(command, scriptArgument) || writesPath(rootCommand, scriptArgument)) {
-          // The script does not exist yet, so what it would delete cannot be read here. Refuse
-          // rather than report "no targets" and let the delete run unseen.
+          // The command writes this script from something the guard cannot read - a download, a
+          // variable, a copy. Refuse rather than report "no targets" and let a delete run unseen.
           unresolved.push({ kind: "write", name: scriptArgument });
         }
       }
@@ -454,14 +517,14 @@ export function recursiveDeleteTargets(command, options = {}) {
     if (["sh", "bash", "zsh", "dash", "ksh"].includes(head)) {
       const commandFlag = words.slice(1).findIndex(value => value === "-c" || /^-[A-Za-z]*c$/.test(value));
       if (commandFlag >= 0 && words[commandFlag + 2]) {
-        targets.push(...recursiveDeleteTargets(words.slice(commandFlag + 2).join(" "), { unresolved, rootCommand }));
+        targets.push(...recursiveDeleteTargets(words.slice(commandFlag + 2).join(" "), { depth, seen, readScript, unresolved, rootCommand }));
       }
       continue;
     }
     // `... | xargs rm -rf` takes its targets from stdin, so the target is unknown: treat
     // it as the working directory instead of letting it pass unseen.
     if (head === "xargs") {
-      const inner = recursiveDeleteTargets(words.slice(1).join(" "), { unresolved, rootCommand });
+      const inner = recursiveDeleteTargets(words.slice(1).join(" "), { depth, seen, readScript, unresolved, rootCommand });
       if (inner.length) targets.push(...inner);
       else if (words.some(value => /(^|\/)rm$/.test(value))) targets.push(".");
       continue;
@@ -476,7 +539,7 @@ export function recursiveDeleteTargets(command, options = {}) {
       index > powershellIndex && ["-command", "-c"].includes(value)
     ));
     if (powershellIndex >= 0 && commandIndex >= 0 && words[commandIndex + 1]) {
-      targets.push(...recursiveDeleteTargets(words.slice(commandIndex + 1).join(" "), { unresolved, rootCommand }));
+      targets.push(...recursiveDeleteTargets(words.slice(commandIndex + 1).join(" "), { depth, seen, readScript, unresolved, rootCommand }));
     }
     for (let index = 0; index < words.length; index += 1) {
       const executable = lowered[index].split(/[\\/]/).at(-1);
@@ -651,16 +714,18 @@ export async function destructiveDeleteDecision({
     }
     if (deepest > 0) {
       parts.push(chinese
-        ? `脚本嵌套超过 ${scriptDeleteMaxDepth} 层（已到第 ${deepest} 层），链路太深，运行前无法看清它会删什么。`
-        : `its script chain nests deeper than ${scriptDeleteMaxDepth} levels (reached level `
-          + `${deepest}), so what it would delete cannot be seen before it runs.`);
+        ? `脚本链路比守卫读得更深（已读到第 ${deepest} 层，更深的那一个没有读），运行前无法看清它会删什么。`
+        : `its script chain runs deeper than the guard reads (it read ${deepest} levels and did `
+          + "not open the next one), so what it would delete cannot be seen before it runs.");
     }
+    // The command is refused because the guard could not see what it removes, which is not the
+    // same as knowing it removes something. The copy must not claim a deletion it never saw.
     return {
       action: "block",
       reason: chinese
-        ? `MilkSU 拒绝了这次删除：${parts.join("；")}请先把脚本跑通或看完，再用另一条命令执行删除。`
-        : `MilkSU refused this deletion: ${parts.join(" ")} Run or read the script first, then `
-          + "delete in a separate command.",
+        ? `MilkSU 拒绝执行这条命令：${parts.join("；")}请先单独把脚本写好并看过，再单独执行它。`
+        : `MilkSU refused to run this command: ${parts.join(" ")} Write and read the script in one `
+          + "command, then run it in another.",
     };
   }
   if (!rawTargets.length) return null;
