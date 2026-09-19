@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -824,5 +825,240 @@ func TestStoreNormalizesAndExplicitlyRemovesArenaToken(t *testing.T) {
 	}
 	if store.Get().NSSCTFArena.HasToken {
 		t.Fatal("removed Arena token still appears configured")
+	}
+}
+
+// The collaboration gate must never widen from a stale or hand-edited file: ids are trimmed,
+// self and duplicate entries drop out, and an all-empty list stays empty.
+func TestWithDefaultsNormalizesAgentCollaboration(t *testing.T) {
+	settings := withDefaults(AppSettings{
+		AgentCollaboration: &AgentCollaborationConfig{
+			AllowCrossConversation: true,
+			AllowByConversation: map[string][]string{
+				" conversation-a ": {"conversation-b", "conversation-b", "conversation-a", "  "},
+				"":                 {"conversation-b"},
+				"conversation-c":   {},
+			},
+		},
+	})
+	if settings.AgentCollaboration == nil {
+		t.Fatal("the collaboration config must survive withDefaults")
+	}
+	if !settings.AgentCollaboration.AllowCrossConversation {
+		t.Fatal("the switch must survive withDefaults")
+	}
+	got := settings.AgentCollaboration.AllowByConversation
+	if len(got) != 1 || len(got["conversation-a"]) != 1 || got["conversation-a"][0] != "conversation-b" {
+		t.Fatalf("allow_by_conversation = %#v, want only conversation-a -> [conversation-b]", got)
+	}
+	if _, exists := got[""]; exists {
+		t.Fatal("an empty source id must be dropped")
+	}
+	// Off with no list is the product default and must stay nil-ish (no accidental opening).
+	empty := withDefaults(AppSettings{})
+	if empty.AgentCollaboration != nil {
+		t.Fatalf("an untouched settings file must have no collaboration config, got %#v", empty.AgentCollaboration)
+	}
+}
+
+// The result-reply grant is normalized the same way: no empty/self/duplicate entries can
+// survive to widen who may answer a conversation.
+func TestWithDefaultsNormalizesResultReplyGrants(t *testing.T) {
+	settings := withDefaults(AppSettings{
+		AgentCollaboration: &AgentCollaborationConfig{
+			AllowCrossConversation:    true,
+			ResultReplyByConversation: map[string][]string{" asked ": {"replier", "replier", "asked", ""}},
+		},
+	})
+	if settings.AgentCollaboration == nil {
+		t.Fatal("the collaboration config must survive withDefaults")
+	}
+	got := settings.AgentCollaboration.ResultReplyByConversation
+	if len(got) != 1 || len(got["asked"]) != 1 || got["asked"][0] != "replier" {
+		t.Fatalf("result_reply_by_conversation = %#v, want only asked -> [replier]", got)
+	}
+}
+
+// The collaboration gate is sealed by an app-owned file: an agent that edits settings.json by
+// hand cannot make its change the reference, and the app says so.
+func TestCollaborationSealRefusesAnOutsideEdit(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	store, err := newStore(path, fakeSecretStore{})
+	if err != nil {
+		t.Fatalf("new store: %v", err)
+	}
+	on := &AgentCollaborationConfig{
+		AllowCrossConversation: true,
+		AllowByConversation:    map[string][]string{"conversation-a": {"conversation-b"}},
+	}
+	if err := store.SetAgentCollaboration(on); err != nil {
+		t.Fatalf("set collaboration: %v", err)
+	}
+
+	// The agent rewrites settings.json behind the app's back.
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read settings: %v", err)
+	}
+	var tampered map[string]any
+	if err := json.Unmarshal(raw, &tampered); err != nil {
+		t.Fatalf("decode settings: %v", err)
+	}
+	tampered["agent_collaboration"] = map[string]any{"allow_cross_conversation": false}
+	encoded, err := json.MarshalIndent(tampered, "", "  ")
+	if err != nil {
+		t.Fatalf("encode tampered settings: %v", err)
+	}
+	if err := os.WriteFile(path, encoded, 0o600); err != nil {
+		t.Fatalf("write tampered settings: %v", err)
+	}
+
+	reloaded, err := newStore(path, fakeSecretStore{})
+	if err != nil {
+		t.Fatalf("reload store: %v", err)
+	}
+	if !reloaded.IntegrityWarning() {
+		t.Fatal("an outside collaboration edit must raise the integrity warning")
+	}
+	if !reloaded.Get().SettingsIntegrityWarning {
+		t.Fatal("the warning must reach the renderer through Get")
+	}
+	got := reloaded.Get().AgentCollaboration
+	if got == nil || !got.AllowCrossConversation {
+		t.Fatalf("the sealed value must stay in force, got %#v", got)
+	}
+	if len(got.AllowByConversation["conversation-a"]) != 1 {
+		t.Fatalf("the sealed allow list must stay in force, got %#v", got.AllowByConversation)
+	}
+}
+
+// A general settings save may not move the gate: only SetAgentCollaboration can.
+func TestGeneralSaveCannotMoveTheCollaborationGate(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	store, err := newStore(path, fakeSecretStore{})
+	if err != nil {
+		t.Fatalf("new store: %v", err)
+	}
+	if err := store.SetAgentCollaboration(&AgentCollaborationConfig{AllowCrossConversation: true}); err != nil {
+		t.Fatalf("set collaboration: %v", err)
+	}
+
+	submitted := store.Get()
+	submitted.AgentCollaboration = &AgentCollaborationConfig{AllowCrossConversation: false}
+	submitted.PreferredExternalEditor = "vscode"
+	if err := store.Save(submitted); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+
+	got := store.Get()
+	if got.AgentCollaboration == nil || !got.AgentCollaboration.AllowCrossConversation {
+		t.Fatalf("a general save must not move the gate, got %#v", got.AgentCollaboration)
+	}
+	if got.PreferredExternalEditor != "vscode" {
+		t.Fatalf("the unrelated setting must still apply, got %q", got.PreferredExternalEditor)
+	}
+
+	// ...and the seal on disk agrees, so a reload stays consistent.
+	reloaded, err := newStore(path, fakeSecretStore{})
+	if err != nil {
+		t.Fatalf("reload store: %v", err)
+	}
+	if reloaded.IntegrityWarning() {
+		t.Fatal("no outside edit happened, so no warning is expected")
+	}
+	if reloaded.Get().AgentCollaboration == nil || !reloaded.Get().AgentCollaboration.AllowCrossConversation {
+		t.Fatal("the gate must survive the reload")
+	}
+}
+
+// A model that really failed once keeps a record of what happened, so the picker can mark it red
+// instead of guessing. The record is persisted, keeps only the most recent failure per model, and
+// disappears as soon as that model answers successfully once.
+func TestStoreRecordsAndClearsAModelFailure(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	store, err := newStore(path, fakeSecretStore{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Never failed: nothing is marked.
+	if failures := store.Get().ModelFailures; len(failures) != 0 {
+		t.Fatalf("a fresh store must not report model failures: %#v", failures)
+	}
+
+	at := time.Date(2026, 9, 18, 17, 0, 0, 0, time.UTC)
+	if err := store.RecordModelFailure(
+		"custom-relay-deepseek",
+		"deepseek-flash",
+		"502 status code (no body)",
+		at,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	reloaded, err := newStore(path, fakeSecretStore{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	failures := reloaded.Get().ModelFailures
+	if len(failures) != 1 {
+		t.Fatalf("the failure must persist: %#v", failures)
+	}
+	if failures[0].Provider != "custom-relay-deepseek" || failures[0].Model != "deepseek-flash" {
+		t.Fatalf("unexpected failure target: %#v", failures[0])
+	}
+	if !strings.Contains(failures[0].Reason, "502") {
+		t.Fatalf("the reason must keep the provider text: %#v", failures[0])
+	}
+	if failures[0].At == "" {
+		t.Fatalf("the failure must carry a time: %#v", failures[0])
+	}
+
+	// A second failure replaces the first: the picker shows the most recent one.
+	if err := store.RecordModelFailure(
+		"custom-relay-deepseek",
+		"deepseek-flash",
+		"connect: connection refused",
+		at.Add(time.Hour),
+	); err != nil {
+		t.Fatal(err)
+	}
+	failures = store.Get().ModelFailures
+	if len(failures) != 1 {
+		t.Fatalf("only the most recent failure per model is kept: %#v", failures)
+	}
+	if !strings.Contains(failures[0].Reason, "connection refused") {
+		t.Fatalf("the newer reason must replace the older one: %#v", failures[0])
+	}
+
+	// Another model's failure must not touch this one.
+	if err := store.RecordModelFailure("tokenflux", "grok-4.6", "429 too many requests", at); err != nil {
+		t.Fatal(err)
+	}
+	if failures := store.Get().ModelFailures; len(failures) != 2 {
+		t.Fatalf("each model keeps its own record: %#v", failures)
+	}
+
+	// Answering successfully once clears it.
+	if err := store.ClearModelFailure("custom-relay-deepseek", "deepseek-flash"); err != nil {
+		t.Fatal(err)
+	}
+	failures = store.Get().ModelFailures
+	if len(failures) != 1 || failures[0].Model != "grok-4.6" {
+		t.Fatalf("a recovered model must lose its record: %#v", failures)
+	}
+	clearedReload, err := newStore(path, fakeSecretStore{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if failures := clearedReload.Get().ModelFailures; len(failures) != 1 {
+		t.Fatalf("clearing must persist: %#v", failures)
+	}
+
+	// Clearing an unknown model is a no-op, not an error.
+	if err := store.ClearModelFailure("tokenflux", "never-seen"); err != nil {
+		t.Fatal(err)
+	}
+	if failures := store.Get().ModelFailures; len(failures) != 1 {
+		t.Fatalf("clearing an unknown model must not change anything: %#v", failures)
 	}
 }

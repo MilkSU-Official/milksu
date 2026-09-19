@@ -11,6 +11,25 @@ import {
 import { useT } from '@/hooks/useUiLocale'
 import { cn } from '@/lib/cn'
 
+/**
+ * The tooltip for one option: the provider's own failure text and when it happened, so a red mark
+ * explains itself without opening anything.
+ */
+function modelFailureTitle(
+  option: SearchableModelOption,
+  failedLabel: string,
+  fallback?: string,
+) {
+  if (option.failedReason === undefined) return fallback
+  const reason = String(option.failedReason).trim()
+  const at = String(option.failedAt ?? '').trim()
+  const when = at ? new Date(at) : null
+  const stamp = when && !Number.isNaN(when.getTime())
+    ? `${String(when.getHours()).padStart(2, '0')}:${String(when.getMinutes()).padStart(2, '0')}`
+    : ''
+  return [reason || failedLabel, stamp].filter(Boolean).join(' · ')
+}
+
 export function SearchableModelList({
   value,
   leading,
@@ -25,6 +44,7 @@ export function SearchableModelList({
   onChange?: (value: string) => void
 }) {
   const t = useT()
+  const failedLabel = t('这个模型上次调用失败', 'This model failed the last time it was called')
   const [query, setQuery] = useState('')
   const leadingItems = useMemo(
     () => filterSearchableModelOptions(leading ?? [], query),
@@ -46,7 +66,8 @@ export function SearchableModelList({
         key={option.value}
         type="button"
         disabled={option.disabled}
-        title={option.title}
+        data-testid={`model-option-${option.value}`}
+        title={modelFailureTitle(option, failedLabel, option.title)}
         className={cn(
           'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left',
           settingsControlTypeClass,
@@ -57,6 +78,16 @@ export function SearchableModelList({
       >
         <ModelVendorIcon model={option.model || option.label} label={option.label} />
         <span className="min-w-0 flex-1 truncate">{option.label}</span>
+        {option.failedReason !== undefined ? (
+          // A red mark, never a disable: the reader may still pick this model, and the record
+          // disappears as soon as it answers again.
+          <span
+            data-testid="model-failure-mark"
+            title={modelFailureTitle(option, failedLabel, option.title)}
+            aria-label={t('这个模型上次调用失败过', 'This model failed the last time it was called')}
+            className="size-2 shrink-0 rounded-full bg-destructive"
+          />
+        ) : null}
         {option.value === value ? <Check className="size-3.5 shrink-0" /> : null}
       </button>
     )

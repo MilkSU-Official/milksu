@@ -65,7 +65,7 @@ import {
 } from '@/modelCatalog'
 import { GitHubIcon } from '@/components/GitHubIcon'
 import SearchableModelPicker from '@/components/SearchableModelPicker'
-import type { SearchableModelGroup } from '@/lib/modelPickerSearch'
+import { annotateModelFailures, type SearchableModelGroup } from '@/lib/modelPickerSearch'
 import VulnerabilityIntelSettingsPanel from '@/components/VulnerabilityIntelSettingsPanel'
 import SettingsMCPPanel from '@/components/SettingsMCPPanel'
 import EvalSettingsPanel from '@/components/EvalSettingsPanel'
@@ -377,7 +377,7 @@ export default function SettingsPage({
   const defaultModelAvailable = store.defaultModelAvailable()
   const availableModelCount = store.availableModelCount()
   const defaultModelLabel = store.defaultModelLabel()
-  const searchablePickerGroups: SearchableModelGroup[] = availablePickerGroups.map(group => ({
+  const pickerGroupsWithFailures: SearchableModelGroup[] = availablePickerGroups.map(group => ({
     key: group.key,
     label: group.label,
     models: group.models.map(model => ({
@@ -386,6 +386,13 @@ export default function SettingsPage({
       model,
     })),
   }))
+  // A model that really failed once gets a red mark here. It stays selectable: the mark tells the
+  // reader what happened, and it disappears as soon as that model answers again.
+  const searchablePickerGroups = annotateModelFailures(
+    pickerGroupsWithFailures,
+    settings?.model_failures,
+    group => availablePickerGroups.find(item => item.key === group.key)?.providerId ?? '',
+  )
   const thinkingModelID = store.thinkingModelID()
   const thinkingModelLabel = store.thinkingModelLabel()
   const thinkingOverride = store.thinkingOverride()

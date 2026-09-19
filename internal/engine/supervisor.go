@@ -1614,6 +1614,9 @@ func (s *Supervisor) sendMessage(
 			preference,
 		),
 	}
+	if customProvider := customProviderTurnPayload(settings); customProvider != nil {
+		command["customProvider"] = customProvider
+	}
 	if strings.HasPrefix(sessionID, "milksu_text_projection_") ||
 		strings.HasPrefix(sessionID, "milksu_model_probe_") {
 		command["turnPolicy"] = map[string]any{
@@ -2521,6 +2524,7 @@ func (s *Supervisor) RefreshBackgroundTasks(
 		sessionID,
 		workspace,
 		codingPolicy,
+		settings,
 	)
 	if recoveryErr != nil {
 		status.BackgroundRecovery = &BackgroundRecoveryInfo{
@@ -3686,6 +3690,40 @@ func validateModelAccessFor(settings config.AppSettings, probe bool) error {
 		return fmt.Errorf("%s/%s cannot start because both model sources are unavailable; add a personal API key or connect the beta account quota in Settings", provider, model)
 	}
 	return nil
+}
+
+// customProviderTurnPayload carries the relay the conversation itself selected.
+//
+// The sidecar process is per workspace and its environment holds exactly one custom relay - the
+// one that was active when it was spawned. A conversation whose manual choice is a different
+// relay could therefore not resolve its own provider: the engine silently used the account
+// source instead (observed as milksu-account/deepseek/deepseek-flash, a 502 from a service the
+// user never picked, while the picker showed custom-relay-deepseek/deepseek-flash).
+//
+// The definition travels with the turn instead, so the process environment stays as narrow as
+// before and no unrelated relay credential enters it.
+func customProviderTurnPayload(settings config.AppSettings) map[string]any {
+	name := strings.TrimSpace(settings.ActiveProvider)
+	if name == "" {
+		return nil
+	}
+	provider, exists := settings.Providers[name]
+	if !exists || !provider.Custom || !provider.Enabled {
+		return nil
+	}
+	if provider.BaseURL == nil || strings.TrimSpace(*provider.BaseURL) == "" {
+		return nil
+	}
+	key := strings.TrimSpace(provider.APIKey)
+	if key == "" {
+		return nil
+	}
+	return map[string]any{
+		"id":      name,
+		"name":    strings.TrimSpace(provider.Name),
+		"key":     key,
+		"baseUrl": strings.TrimSpace(*provider.BaseURL),
+	}
 }
 
 func engineEnvironment(settings config.AppSettings) []string {

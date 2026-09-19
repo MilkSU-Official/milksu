@@ -27,7 +27,7 @@ import {
 } from '@/lib/chatActivity'
 import { redactProviderCredentials } from '@/lib/redaction'
 import { normalizeSubagentTasks } from '@/lib/subagentRoster'
-import { explainModelServiceError } from '@/lib/tokenFluxError'
+import { explainModelCallFailure } from '@/lib/tokenFluxError'
 import {
   assistantForkPoint,
   cloneConversationForFork,
@@ -287,6 +287,13 @@ interface AgentEvent {
   engine?: string
   type: string
   text?: string
+  /**
+   * Which source, provider and model actually ran. A model-source failure reports them, and they
+   * are closer to the truth than the conversation the renderer happens to be showing.
+   */
+  provider?: string
+  model?: string
+  message?: string
   toolName?: string
   toolCallId?: string
   durationMs?: number
@@ -730,7 +737,10 @@ function missingPiSession(value: unknown) {
   return /PI session not found|PI Sidecar is not running/i.test(String(value ?? ''))
 }
 
-export function agentRuntimeErrorMessage(value: unknown) {
+export function agentRuntimeErrorMessage(
+  value: unknown,
+  context?: { provider?: string; model?: string; source?: string },
+) {
   const raw = String(value ?? '')
   const detail = agentProviderErrorDetail(value)
   const normalized = agentErrorMessage(value)
@@ -767,7 +777,9 @@ export function agentRuntimeErrorMessage(value: unknown) {
   if (/model provider .* is not supported|provider .* is not supported by the local Agent runtime/i.test(raw)) {
     return t('当前默认模型不可用，请在设置中选择可用模型。', 'The current default model is unavailable. Choose an available model in Settings.')
   }
-  const modelService = explainModelServiceError(value)
+  // The turn-failure copy names the source, provider and model that actually ran, so an
+  // account-source fallback cannot hide behind a generic "model not found" sentence.
+  const modelService = explainModelCallFailure(value, context)
   if (modelService) return modelService
   if (new RegExp(t('运行时正在启动', 'Runtime is starting'), 'i').test(raw)) {
     return t('运行时正在启动，请稍候。', 'Runtime is starting. Please wait.')
@@ -823,8 +835,22 @@ export function agentRuntimeErrorMessage(value: unknown) {
   return t('本地 Agent 运行异常，请重试。', 'The local Agent hit a runtime error. Try again.')
 }
 
-export function agentEngineErrorBubble(error: unknown) {
-  const detail = agentRuntimeErrorMessage(error)
+export function agentEngineErrorBubble(
+  error: unknown,
+  context?: { provider?: string; model?: string; source?: string; message?: string },
+) {
+  // The engine's own sentence is the closer source of truth than anything the UI happens to be
+  // showing, and it already names the source, provider and model. Using it verbatim also avoids
+  // stacking two prefixes ("Agent failed: model call failed: ...").
+  const fromEngine = String(context?.message ?? '').trim()
+  if (fromEngine) {
+    return {
+      content: fromEngine,
+      approvalReason: t('Agent 运行失败，本次审批已失效', 'Agent failed, so this approval is no longer valid'),
+      stopped: false,
+    }
+  }
+  const detail = agentRuntimeErrorMessage(error, context)
   const stopped = t('本轮已停止。', 'This turn was stopped.')
   if (detail === stopped) {
     return {
@@ -2941,6 +2967,9 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
         steering,
         followUp,
         modelSource,
+        provider,
+        model,
+        message,
         usage,
         compaction,
         contextComposition,
@@ -3431,7 +3460,17 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
           if (cleaned !== messages) {
             messages.splice(0, messages.length, ...cleaned)
           }
-          const bubble = agentEngineErrorBubble(error)
+          const erroredConversation = s.conversations.find(item => item.id === sessionId)
+          const failedSource = String(modelSource ?? '').trim()
+            || String(erroredConversation?.modelSource ?? '').trim()
+          const bubble = agentEngineErrorBubble(error, {
+            // The payload knows which source, provider and model actually ran; the conversation is
+            // only a fallback for older engines that do not report them.
+            provider: String(provider ?? '').trim() || erroredConversation?.modelProvider,
+            model: String(model ?? '').trim() || erroredConversation?.modelId,
+            source: failedSource,
+            message: String(message ?? '').trim(),
+          })
           for (let index = 0; index < messages.length; index++) {
             if (messages[index].approvalState === 'pending') {
               messages[index] = {

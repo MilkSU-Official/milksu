@@ -54,6 +54,18 @@ type NSSCTFArenaConfig struct {
 	RemoveToken bool   `json:"remove_token,omitempty"`
 }
 
+// ModelFailureRecord is one real, observed model failure: the model could not answer because the
+// provider refused, the service was unreachable, and so on. The picker marks such a model red so
+// the reader can tell a broken model from a working one - it never disables the entry, and the
+// record disappears as soon as that model answers successfully once.
+type ModelFailureRecord struct {
+	Provider string `json:"provider"`
+	Model    string `json:"model"`
+	// Reason keeps the provider's own words (or a short category) so the reader can act on it.
+	Reason string `json:"reason,omitempty"`
+	At     string `json:"at"`
+}
+
 type ModelVerification struct {
 	Provider   string `json:"provider"`
 	Model      string `json:"model"`
@@ -83,6 +95,45 @@ type LabConfig struct {
 	AutoCreateAVD *bool  `json:"auto_create_avd,omitempty"`
 }
 
+// NetworkConfig carries the outbound proxy MilkSU should use. With UseProxy off the
+// backend falls back to the environment and, on macOS, the system proxy.
+type NetworkConfig struct {
+	UseProxy bool   `json:"use_proxy"`
+	ProxyURL string `json:"proxy_url,omitempty"`
+}
+
+// RemoteControlConfig describes the LAN companion server. The access password and the
+// paired devices live in the manager's own state file, so they never travel inside the
+// settings payload.
+type RemoteControlConfig struct {
+	Enabled bool `json:"enabled"`
+	// BindMode is "lan" (default) or "local".
+	BindMode string `json:"bind_mode,omitempty"`
+	// Port is the preferred listen port; 0 lets the manager choose one.
+	Port int `json:"port,omitempty"`
+	// AllowDangerousTools lets a control-capable device approve bash/edit/write and
+	// switch to an auto-approving policy. Nil means allowed (the user asked for remote
+	// approval); turning it off keeps those actions on this machine.
+	AllowDangerousTools *bool `json:"allow_dangerous_tools,omitempty"`
+}
+
+// AgentCollaborationConfig opens cross-conversation delivery beyond one project. It is off
+// by default, so an untouched settings file keeps the previous behaviour exactly: delivery
+// inside the same project is allowed, a different project is refused. Turning the switch on
+// is not enough by itself - the source conversation must also list the target in its own
+// allowlist.
+type AgentCollaborationConfig struct {
+	AllowCrossConversation bool `json:"allow_cross_conversation"`
+	// AllowByConversation is keyed by source conversation id. Each value is the set of
+	// conversation ids that source may reach across projects; empty means nobody.
+	AllowByConversation map[string][]string `json:"allow_by_conversation,omitempty"`
+	// ResultReplyByConversation is keyed by the conversation that was asked (the target of
+	// the original request). Each value is the set of conversations allowed to answer it
+	// with a result reply. A reply is result-only by construction: a request in the reverse
+	// direction still needs the other side's own allow list.
+	ResultReplyByConversation map[string][]string `json:"result_reply_by_conversation,omitempty"`
+}
+
 type AppSettings struct {
 	ActiveProvider string `json:"active_provider"`
 	ActiveModel    string `json:"active_model"`
@@ -90,18 +141,27 @@ type AppSettings struct {
 	// Existing conversations keep the kernel persisted on that row.
 	DefaultKernel string `json:"default_kernel,omitempty"`
 	// BusySend is the DSH parent-turn send policy: interrupt (followup) or queue (inbox).
-	BusySend                string             `json:"busy_send,omitempty"`
-	ModelVerified           *ModelVerification `json:"model_verification,omitempty"`
-	ModelRouting            ModelRoutingConfig `json:"model_routing"`
-	Relay                   *RelayConfig       `json:"relay,omitempty"`
-	NSSCTFArena             *NSSCTFArenaConfig `json:"nssctf_arena,omitempty"`
-	Locale                  *string            `json:"locale,omitempty"`
-	DisabledSkills          []string           `json:"disabled_skills"`
-	EnabledOptionalSkills   []string           `json:"enabled_optional_skills,omitempty"`
-	WorkerProvider          string             `json:"worker_provider,omitempty"`
-	WorkerModel             string             `json:"worker_model,omitempty"`
-	WorkerSource            string             `json:"worker_source,omitempty"`
-	PreferredExternalEditor string             `json:"preferred_external_editor,omitempty"`
+	BusySend      string             `json:"busy_send,omitempty"`
+	ModelVerified *ModelVerification `json:"model_verification,omitempty"`
+	// ModelFailures holds the most recent real failure per model, for the picker's red mark.
+	ModelFailures []ModelFailureRecord `json:"model_failures,omitempty"`
+	ModelRouting  ModelRoutingConfig   `json:"model_routing"`
+	Relay         *RelayConfig         `json:"relay,omitempty"`
+	NSSCTFArena   *NSSCTFArenaConfig   `json:"nssctf_arena,omitempty"`
+	// 以下三项由本地分支搬入（网络代理 / 远端控制 / Agent 协作门禁）。
+	Network            *NetworkConfig            `json:"network,omitempty"`
+	RemoteControl      *RemoteControlConfig      `json:"remote_control,omitempty"`
+	AgentCollaboration *AgentCollaborationConfig `json:"agent_collaboration,omitempty"`
+	Locale             *string                   `json:"locale,omitempty"`
+	DisabledSkills     []string                  `json:"disabled_skills"`
+	// Project pins live in the settings so they survive a restart. An older settings file
+	// simply has no value here, which reads as an empty list.
+	PinnedProjects          []string `json:"pinned_projects,omitempty"`
+	EnabledOptionalSkills   []string `json:"enabled_optional_skills,omitempty"`
+	WorkerProvider          string   `json:"worker_provider,omitempty"`
+	WorkerModel             string   `json:"worker_model,omitempty"`
+	WorkerSource            string   `json:"worker_source,omitempty"`
+	PreferredExternalEditor string   `json:"preferred_external_editor,omitempty"`
 	// UiFont and ConversationFont are preset ids from app/src/lib/uiFonts.ts.
 	// UiFontSize and ConversationFontSize are concrete px strings such as "13".
 	UiFont               string `json:"ui_font,omitempty"`
@@ -121,6 +181,57 @@ type AppSettings struct {
 	// never persisted or returned across Desktop RPC.
 	RuntimeModelCatalogPath string `json:"-"`
 	RuntimeThinkingLevel    string `json:"-"`
+	// SettingsIntegrityWarning reports that settings.json named a collaboration configuration
+	// this app never wrote, so it was not applied. Runtime-only: it is a fact about the read,
+	// never something to persist.
+	SettingsIntegrityWarning bool `json:"-"`
+}
+
+// collaborationSealPath is an app-owned file next to settings.json. Only this process writes
+// it, so it is the reference for what the collaboration gate should be: an agent that edits
+// settings.json by hand cannot make its change the reference.
+func collaborationSealPath(settingsPath string) string {
+	return filepath.Join(filepath.Dir(settingsPath), "settings-seal.json")
+}
+
+type collaborationSealFile struct {
+	AgentCollaboration *AgentCollaborationConfig `json:"agent_collaboration"`
+}
+
+func writeCollaborationSeal(path string, value *AgentCollaborationConfig) error {
+	data, err := json.MarshalIndent(collaborationSealFile{
+		AgentCollaboration: normalizeAgentCollaboration(value),
+	}, "", "  ")
+	if err != nil {
+		return fmt.Errorf("encode collaboration seal: %w", err)
+	}
+	if err := writePrivateFile(path, data); err != nil {
+		return fmt.Errorf("write collaboration seal: %w", err)
+	}
+	return nil
+}
+
+func readCollaborationSeal(path string) (*AgentCollaborationConfig, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var seal collaborationSealFile
+	if err := json.Unmarshal(data, &seal); err != nil {
+		return nil, fmt.Errorf("decode collaboration seal: %w", err)
+	}
+	return normalizeAgentCollaboration(seal.AgentCollaboration), nil
+}
+
+// agentCollaborationEqual compares the two configurations as the gate sees them, so a
+// reordered allow list is not mistaken for an outside edit.
+func agentCollaborationEqual(left, right *AgentCollaborationConfig) bool {
+	leftJSON, leftErr := json.Marshal(normalizeAgentCollaboration(left))
+	rightJSON, rightErr := json.Marshal(normalizeAgentCollaboration(right))
+	if leftErr != nil || rightErr != nil {
+		return false
+	}
+	return string(leftJSON) == string(rightJSON)
 }
 
 func defaultDeepSeekProvider() ProviderConfig {
@@ -235,6 +346,9 @@ type Store struct {
 	runtimeModelCatalogPath string
 	runtimeRelay            *RelayConfig
 	settings                AppSettings
+	// integrityWarning is set when settings.json held a collaboration configuration this
+	// app never wrote; the seal stays authoritative.
+	integrityWarning bool
 }
 
 func NewStore() (*Store, error) {
@@ -262,6 +376,15 @@ func newStore(path string, secrets secretStore) (*Store, error) {
 	return store, nil
 }
 
+// IntegrityWarning reports whether settings.json named a collaboration configuration this
+// app never wrote. The caller logs and audits it; the settings value itself never took
+// effect because the seal stayed authoritative.
+func (s *Store) IntegrityWarning() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.integrityWarning
+}
+
 // Get returns settings safe to send across the Wails boundary. Existing
 // credentials are represented only by HasKey/HasAPIKey and never returned.
 func (s *Store) Get() AppSettings {
@@ -270,7 +393,9 @@ func (s *Store) Get() AppSettings {
 	// Apply defaults on read so stale official providers (deepseek, …) never
 	// reach Desktop RPC or the Agent start path after a product surface change.
 	// The current factory default is official DeepSeek Flash.
-	return withDefaults(clone(s.settings))
+	result := withDefaults(clone(s.settings))
+	result.SettingsIntegrityWarning = s.integrityWarning
+	return result
 }
 
 // GetResolved returns a private copy for starting a local Engine process.
@@ -366,6 +491,29 @@ func (s *Store) SetRuntimeModelCatalogPath(path string) {
 }
 
 func (s *Store) Save(value AppSettings) error {
+	// The collaboration gate is UI-owned. A general save (the settings form, a restore, a
+	// remote action) may not move it, so the sealed value always wins here. Only
+	// SetAgentCollaboration may change it.
+	s.mu.RLock()
+	sealed := cloneAgentCollaboration(s.settings.AgentCollaboration)
+	s.mu.RUnlock()
+	value = withDefaults(value)
+	value.AgentCollaboration = sealed
+	return s.save(value)
+}
+
+// SetAgentCollaboration is the only writer of the cross-project gate. Keeping it a separate
+// entry point means an agent that edits settings.json, or a stale settings form, cannot
+// widen who may talk to whom.
+func (s *Store) SetAgentCollaboration(value *AgentCollaborationConfig) error {
+	s.mu.RLock()
+	next := clone(s.settings)
+	s.mu.RUnlock()
+	next.AgentCollaboration = normalizeAgentCollaboration(value)
+	return s.save(next)
+}
+
+func (s *Store) save(value AppSettings) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -514,8 +662,14 @@ func (s *Store) Save(value AppSettings) error {
 	if err := persistSettings(s.path, value); err != nil {
 		return err
 	}
+	// Re-seal the collaboration gate with what the app just wrote, so the next read treats it
+	// as authoritative and an outside edit is visible.
+	if err := writeCollaborationSeal(collaborationSealPath(s.path), value.AgentCollaboration); err != nil {
+		return err
+	}
 	s.settings = clone(value)
 	s.secretValues = secrets
+	s.integrityWarning = false
 	return errors.Join(persistenceErrors...)
 }
 
@@ -596,6 +750,87 @@ func validManagedSecretAccount(account string) bool {
 		}
 	}
 	return true
+}
+
+// maxModelFailureReasonBytes bounds what is kept from a provider error, so a huge HTML error page
+// cannot end up in settings.json.
+const maxModelFailureReasonBytes = 240
+
+// RecordModelFailure remembers that a model really failed, keeping only the most recent failure per
+// model. Callers only record what they observed: a provider error or an unreachable service.
+func (s *Store) RecordModelFailure(provider, model, reason string, at time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	provider = strings.TrimSpace(provider)
+	model = strings.TrimSpace(model)
+	if provider == "" || model == "" {
+		return fmt.Errorf("failed provider and model are required")
+	}
+	next := clone(s.settings)
+	record := ModelFailureRecord{
+		Provider: provider,
+		Model:    model,
+		Reason:   normalizeModelFailureReason(reason),
+		At:       at.UTC().Format(time.RFC3339),
+	}
+	replaced := false
+	failures := make([]ModelFailureRecord, 0, len(next.ModelFailures)+1)
+	for _, existing := range next.ModelFailures {
+		if existing.Provider == provider && existing.Model == model {
+			failures = append(failures, record)
+			replaced = true
+			continue
+		}
+		failures = append(failures, existing)
+	}
+	if !replaced {
+		failures = append(failures, record)
+	}
+	next.ModelFailures = failures
+	if err := persistSettings(s.path, next); err != nil {
+		return err
+	}
+	s.settings = next
+	return nil
+}
+
+// ClearModelFailure forgets a model's failure: the model answered successfully, so the picker's
+// red mark has to go away. An unknown model is a no-op.
+func (s *Store) ClearModelFailure(provider, model string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	provider = strings.TrimSpace(provider)
+	model = strings.TrimSpace(model)
+	if provider == "" || model == "" {
+		return nil
+	}
+	kept := make([]ModelFailureRecord, 0, len(s.settings.ModelFailures))
+	removed := false
+	for _, existing := range s.settings.ModelFailures {
+		if existing.Provider == provider && existing.Model == model {
+			removed = true
+			continue
+		}
+		kept = append(kept, existing)
+	}
+	if !removed {
+		return nil
+	}
+	next := clone(s.settings)
+	next.ModelFailures = kept
+	if err := persistSettings(s.path, next); err != nil {
+		return err
+	}
+	s.settings = next
+	return nil
+}
+
+func normalizeModelFailureReason(reason string) string {
+	collapsed := strings.Join(strings.Fields(strings.TrimSpace(reason)), " ")
+	if len(collapsed) > maxModelFailureReasonBytes {
+		collapsed = collapsed[:maxModelFailureReasonBytes]
+	}
+	return collapsed
 }
 
 func (s *Store) RecordModelVerification(provider, model string, verifiedAt time.Time) error {
@@ -721,6 +956,24 @@ func (s *Store) load() error {
 		value.NSSCTFArena.HasToken = s.secretValues[nssctfArenaSecretAccount] != ""
 	}
 
+	s.settings = value
+	// The collaboration gate is sealed separately: an agent that edits settings.json by hand
+	// cannot change who may talk to whom. A first run trusts the file and seals it at once.
+	sealPath := collaborationSealPath(s.path)
+	seal, sealErr := readCollaborationSeal(sealPath)
+	switch {
+	case sealErr == nil:
+		if !agentCollaborationEqual(seal, value.AgentCollaboration) {
+			s.integrityWarning = true
+		}
+		value.AgentCollaboration = seal
+	case errors.Is(sealErr, os.ErrNotExist):
+		if err := writeCollaborationSeal(sealPath, value.AgentCollaboration); err != nil {
+			return err
+		}
+	default:
+		return sealErr
+	}
 	s.settings = value
 	if migrated {
 		return persistSettings(s.path, value)
@@ -852,8 +1105,78 @@ func withDefaults(value AppSettings) AppSettings {
 	value.SecurityTools = normalizeSecurityToolPreferences(value.SecurityTools)
 	value.ModelThinking = normalizeModelThinkingOverrides(value.ModelThinking, value.Providers)
 	value.ModelContextWindows = normalizeModelContextWindowOverrides(value.ModelContextWindows, value.Providers)
+	value.AgentCollaboration = normalizeAgentCollaboration(value.AgentCollaboration)
 	value.Lab = normalizeLabConfig(value.Lab)
 	return value
+}
+
+// normalizeAgentCollaboration trims ids and drops self/duplicate/empty entries so a stale
+// or hand-edited settings file cannot widen what an agent may reach.
+func normalizeAgentCollaboration(value *AgentCollaborationConfig) *AgentCollaborationConfig {
+	if value == nil {
+		return nil
+	}
+	config := AgentCollaborationConfig{
+		AllowCrossConversation:    value.AllowCrossConversation,
+		AllowByConversation:       normalizeConversationIDList(value.AllowByConversation),
+		ResultReplyByConversation: normalizeConversationIDList(value.ResultReplyByConversation),
+	}
+	return &config
+}
+
+// cloneAgentCollaboration copies the gate so a caller cannot mutate the sealed value in
+// place through a shared pointer.
+func cloneAgentCollaboration(value *AgentCollaborationConfig) *AgentCollaborationConfig {
+	normalized := normalizeAgentCollaboration(value)
+	if normalized == nil {
+		return nil
+	}
+	cloned := AgentCollaborationConfig{AllowCrossConversation: normalized.AllowCrossConversation}
+	if len(normalized.AllowByConversation) > 0 {
+		cloned.AllowByConversation = cloneConversationIDList(normalized.AllowByConversation)
+	}
+	if len(normalized.ResultReplyByConversation) > 0 {
+		cloned.ResultReplyByConversation = cloneConversationIDList(normalized.ResultReplyByConversation)
+	}
+	return &cloned
+}
+
+func cloneConversationIDList(value map[string][]string) map[string][]string {
+	cloned := make(map[string][]string, len(value))
+	for key, list := range value {
+		cloned[key] = append([]string(nil), list...)
+	}
+	return cloned
+}
+
+func normalizeConversationIDList(value map[string][]string) map[string][]string {
+	if len(value) == 0 {
+		return nil
+	}
+	normalized := make(map[string][]string)
+	for source, targets := range value {
+		key := strings.TrimSpace(source)
+		if key == "" {
+			continue
+		}
+		seen := make(map[string]bool)
+		list := make([]string, 0, len(targets))
+		for _, target := range targets {
+			id := strings.TrimSpace(target)
+			if id == "" || id == key || seen[id] {
+				continue
+			}
+			seen[id] = true
+			list = append(list, id)
+		}
+		if len(list) > 0 {
+			normalized[key] = list
+		}
+	}
+	if len(normalized) == 0 {
+		return nil
+	}
+	return normalized
 }
 
 func normalizeLabConfig(value *LabConfig) *LabConfig {
@@ -1104,6 +1427,18 @@ func clone(value AppSettings) AppSettings {
 	if value.NSSCTFArena != nil {
 		arena := *value.NSSCTFArena
 		copy.NSSCTFArena = &arena
+	}
+	if value.Network != nil {
+		network := *value.Network
+		copy.Network = &network
+	}
+	if value.RemoteControl != nil {
+		remote := *value.RemoteControl
+		if value.RemoteControl.AllowDangerousTools != nil {
+			allowed := *value.RemoteControl.AllowDangerousTools
+			remote.AllowDangerousTools = &allowed
+		}
+		copy.RemoteControl = &remote
 	}
 	if value.Locale != nil {
 		locale := *value.Locale

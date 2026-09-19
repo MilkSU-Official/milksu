@@ -52,3 +52,21 @@ func TestResolveTaskModelHonorsManualOverride(t *testing.T) {
 		t.Fatalf("unexpected manual route: %#v", resolved)
 	}
 }
+
+// The user's rule, verbatim: the global default model only ever applies to a NEW conversation.
+// A manual conversation whose record carries no provider/model must fail loudly instead of
+// quietly running on the app default - that is how one bad default used to take over existing
+// conversations.
+func TestResolveTaskModelManualNeverInheritsTheGlobalDefault(t *testing.T) {
+	settings := modelSelectionSettings()
+	settings.ActiveProvider = "tokenflux"
+	settings.ActiveModel = "deepseek/deepseek-flash"
+
+	resolved, err := ResolveTaskModel(settings, "", ModelModeManual, "", "")
+	if err == nil {
+		t.Fatalf("manual without its own provider/model must not inherit the global default: %#v", resolved)
+	}
+	if resolved.ActiveProvider != "tokenflux" || resolved.ActiveModel != "deepseek/deepseek-flash" {
+		t.Fatalf("a failed resolution must not rewrite the settings: %#v", resolved)
+	}
+}

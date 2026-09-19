@@ -2,6 +2,8 @@ package engine
 
 import (
 	"fmt"
+
+	"github.com/MilkSU-Official/milksu/internal/config"
 	"strings"
 	"time"
 )
@@ -24,6 +26,7 @@ func (s *Supervisor) recoverBackgroundTaskSession(
 	sessionID,
 	workspace string,
 	policy CodingPolicy,
+	settings config.AppSettings,
 ) (bool, error) {
 	events := make(chan Event, 4)
 	s.addRecoveryWaiter(sessionID, events)
@@ -43,13 +46,23 @@ func (s *Supervisor) recoverBackgroundTaskSession(
 		return false, nil
 	}
 	delete(s.recoveryFailures, sessionID)
-	err := writeCommand(s.process.stdin, map[string]any{
+	recoveryCommand := map[string]any{
 		"action":          "create_session",
 		"conversationId":  sessionID,
 		"executionMode":   policy.ExecutionMode,
 		"approvalPolicy":  policy.ApprovalPolicy,
 		"recoveryPurpose": "background-tasks",
-	})
+		// The recovered session belongs to the conversation, so it is built on the conversation's
+		// own model. Leaving these out let the process default decide, which is how the global
+		// default model ended up inside an existing conversation.
+		"provider":         settings.ActiveProvider,
+		"model":            settings.ActiveModel,
+		"modelSourceOrder": preferredModelSourceOrder(settings, ""),
+	}
+	if customProvider := customProviderTurnPayload(settings); customProvider != nil {
+		recoveryCommand["customProvider"] = customProvider
+	}
+	err := writeCommand(s.process.stdin, recoveryCommand)
 	if err == nil {
 		// Reserve the session before releasing the process lock so concurrent
 		// refreshes cannot enqueue duplicate recovery commands. A bridge error

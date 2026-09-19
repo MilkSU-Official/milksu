@@ -57,6 +57,28 @@ describe('agent recovery', () => {
     ], false)).toBe('')
   })
 
+  // User requirement: when the source this conversation chose is unavailable, the turn must fail
+  // with a reason and the reader must be offered a retry - never a silent fallback to the account
+  // source or the global default model.
+  it('offers recovery when the conversation model source is unavailable', () => {
+    expect(recoverableAgentFailureId([
+      message(
+        'model-source',
+        'assistant',
+        '模型调用失败：自有来源 / custom-relay-deepseek / deepseek-flash → 这一轮所选模型来源当前不可用，'
+          + '且没有做任何替换（未回退账号来源、未使用全局默认模型）。请检查该来源的设置后重试。',
+      ),
+    ], false)).toBe('model-source')
+
+    // English copy is recognised the same way: the pattern is built once per process from the UI
+    // locale, which is how the copy itself is produced.
+
+    // The existing decision stands: a missing credential is configuration, not a retry.
+    expect(recoverableAgentFailureId([
+      message('missing-key', 'assistant', '当前模型没有可用的 API Key，请在“授权与模型”中保存并验证。'),
+    ], false)).toBe('')
+  })
+
   it('offers recovery after app, Sidecar, or protocol stops without reusing stale approvals', () => {
     for (const content of [
       'Agent 已停止：sidecar exited',

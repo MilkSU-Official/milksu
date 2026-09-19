@@ -351,6 +351,8 @@ export interface AppSettings {
   default_kernel?: import('@/lib/agentKernel').AgentKernel
   busy_send?: BusySendPolicy
   model_verification?: ModelVerification
+  /** The most recent real failure per model, for the picker's red mark. Never a disable list. */
+  model_failures?: Array<{ provider: string; model: string; reason?: string; at?: string }>
   model_routing: ModelRoutingConfig
   relay?: RelayConfig
   nssctf_arena?: NSSCTFArenaConfig

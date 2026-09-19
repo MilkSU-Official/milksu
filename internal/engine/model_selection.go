@@ -24,12 +24,15 @@ func ResolveTaskModel(
 ) (config.AppSettings, error) {
 	mode = strings.TrimSpace(mode)
 	if mode == ModelModeManual {
-		if strings.TrimSpace(provider) == "" && strings.TrimSpace(model) == "" {
-			provider = settings.ActiveProvider
-			model = settings.ActiveModel
-		}
+		// The app-level default is inherited once, when a conversation is created - never at run
+		// time. Filling it in here is how one bad default took over conversations that had already
+		// picked their own model, so a manual conversation without its own choice is a loud
+		// failure instead of a silent substitution.
 		if strings.TrimSpace(provider) == "" || strings.TrimSpace(model) == "" {
-			return settings, fmt.Errorf("manual model selection requires provider and model")
+			return settings, fmt.Errorf(
+				"this conversation selected its own model but its record has no provider/model; " +
+					"pick a model again in the model selector",
+			)
 		}
 		settings.ActiveProvider = strings.TrimSpace(provider)
 		settings.ActiveModel = strings.TrimSpace(model)

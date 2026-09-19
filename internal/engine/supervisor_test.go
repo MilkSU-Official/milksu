@@ -457,8 +457,6 @@ func TestRefreshBackgroundTasksRecoversRunningTasksWithoutModelTurn(t *testing.T
 	}
 	for _, forbidden := range []string{
 		"prompt",
-		"provider",
-		"model",
 		"mcpServers",
 		"mcpConfigDigest",
 		"codingBrowser",
@@ -468,6 +466,16 @@ func TestRefreshBackgroundTasksRecoversRunningTasksWithoutModelTurn(t *testing.T
 		if _, exists := recovery[forbidden]; exists {
 			t.Fatalf("background recovery unexpectedly restored %s: %#v", forbidden, recovery)
 		}
+	}
+	// The recovered session carries the conversation's own model so it can never be built on the
+	// app-level default. That is identity, not capability: nothing above is restored, and no model
+	// turn is created. (Previously any provider/model was forbidden, which left the recovered
+	// session on whatever the process default resolved to.)
+	recoverySettings := config.DefaultSettings()
+	if recovery["provider"] != recoverySettings.ActiveProvider ||
+		recovery["model"] != recoverySettings.ActiveModel {
+		t.Fatalf("background recovery must carry the conversation's own model (%s/%s): %#v",
+			recoverySettings.ActiveProvider, recoverySettings.ActiveModel, recovery)
 	}
 	supervisor.emitEvent(normalizeBridgeEvent(bridgeEvent{
 		Type:    "ready",
@@ -648,6 +656,7 @@ func TestBackgroundRecoveryFailurePersistsUntilLateReady(t *testing.T) {
 			ExecutionMode:  "go",
 			ApprovalPolicy: "workspace-auto",
 		},
+		config.DefaultSettings(),
 	)
 	if err == nil || err.Error() != "recovery timed out" || recovered {
 		t.Fatalf("unexpected persisted recovery failure: recovered=%v err=%v", recovered, err)
@@ -664,6 +673,7 @@ func TestBackgroundRecoveryFailurePersistsUntilLateReady(t *testing.T) {
 			ExecutionMode:  "go",
 			ApprovalPolicy: "workspace-auto",
 		},
+		config.DefaultSettings(),
 	)
 	if err != nil || recovered {
 		t.Fatalf("late ready did not clear recovery failure: recovered=%v err=%v", recovered, err)

@@ -4,6 +4,54 @@ export type SearchableModelOption = {
   model: string
   disabled?: boolean
   title?: string
+  /**
+   * The provider's own words from the last real failure of this model, when there was one. It only
+   * ever produces a red mark: the entry stays selectable, because a one-off provider outage must
+   * not take a model away from the reader.
+   */
+  failedReason?: string
+  failedAt?: string
+}
+
+/** One persisted failure record, as the backend reports it. */
+export type ModelFailureRecord = {
+  provider: string
+  model: string
+  reason?: string
+  at?: string
+}
+
+/**
+ * Annotate picker groups with the recorded failures, matching on the provider the group belongs to
+ * and the model id. A model with no record is left exactly as it was, so nothing is marked by
+ * default.
+ */
+export function annotateModelFailures(
+  groups: SearchableModelGroup[],
+  failures: readonly ModelFailureRecord[] | undefined,
+  providerOf: (group: SearchableModelGroup) => string,
+): SearchableModelGroup[] {
+  if (!failures?.length) return groups
+  const byKey = new Map<string, ModelFailureRecord>()
+  for (const failure of failures) {
+    const provider = String(failure?.provider ?? '').trim()
+    const model = String(failure?.model ?? '').trim()
+    if (!provider || !model) continue
+    byKey.set(`${provider}\u0000${model}`, failure)
+  }
+  if (!byKey.size) return groups
+  return groups.map(group => {
+    const provider = providerOf(group)
+    return {
+      ...group,
+      models: group.models.map(option => {
+        const failure = byKey.get(`${provider}\u0000${option.model}`)
+        return failure
+          ? { ...option, failedReason: failure.reason ?? '', failedAt: failure.at }
+          : option
+      }),
+    }
+  })
 }
 
 export type SearchableModelGroup = {

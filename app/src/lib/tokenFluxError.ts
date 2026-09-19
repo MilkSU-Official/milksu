@@ -258,6 +258,41 @@ function explainNeutralModelHttp(parsed: ParsedTokenFluxFailure): string | null 
 
 export type ModelServiceErrorContext = {
   provider?: string | null
+  model?: string | null
+  /** The source that actually served the turn, so a fallback cannot hide which one ran. */
+  source?: string | null
+}
+
+/**
+ * A model failure has to name what actually failed. The reported incident read
+ * "当前服务找不到这个模型" while the picker showed custom-relay-deepseek/deepseek-flash and the
+ * engine was really calling the account source with a different model id - the reader had no way
+ * to tell a chosen relay apart from the account fallback.
+ */
+function modelFailureRoute(
+  context: ModelServiceErrorContext | undefined,
+  parsed: ParsedTokenFluxFailure,
+  raw: unknown,
+) {
+  const provider = String(context?.provider ?? '').trim()
+  if (!provider) return ''
+  const model = String(context?.model ?? '').trim()
+  const source = String(context?.source ?? '').trim()
+  const sourceLabel = source === 'account'
+    ? t('账号来源', 'account source')
+    : source === 'personal'
+      ? t('自有来源', 'personal source')
+      : ''
+  const route = [sourceLabel, provider, model].filter(Boolean).join(' / ')
+  // Keep the provider's own words; fall back to the raw error when it never carried a message field.
+  const upstream = compactErrorText(parsed.message || parsed.reason || raw).slice(0, 120)
+  // The status stays inside the parentheses: the route is not allowed to carry its own arrow, or the
+  // sentence ends up with two of them ("route → HTTP 502 → explanation").
+  const status = parsed.status === null || upstream.includes(String(parsed.status))
+    ? ''
+    : `HTTP ${parsed.status}`
+  const detail = [status, upstream].filter(Boolean).join(' · ')
+  return detail ? `${route}（${detail}）` : route
 }
 
 export function explainModelServiceError(
@@ -266,13 +301,32 @@ export function explainModelServiceError(
 ): string | null {
   const parsed = parseTokenFluxFailure(value)
   const provider = String(context?.provider ?? '').trim()
-  if (provider === 'tokenflux') {
+  // `milksu-account` is the account source, and the account source IS the TokenFlux relay, so its
+  // failures deserve the actionable TokenFlux copy (quota, subscription, group) rather than a
+  // generic "service unavailable".
+  if (provider === 'tokenflux' || provider === 'milksu-account') {
     return explainTokenFluxError(value) ?? explainTokenFluxStatusFallback(parsed)
   }
   if (looksLikeTokenFluxFingerprint(parsed)) {
     return explainTokenFluxError(value)
   }
   return explainNeutralModelHttp(parsed)
+}
+
+/**
+ * The turn-failure copy. It is deliberately separate from `explainModelServiceError`, which also
+ * feeds the save-and-verify copy in Settings - that one must stay free of raw provider text, while
+ * a failed turn must say which source, provider and model actually ran.
+ */
+export function explainModelCallFailure(
+  value: unknown,
+  context?: ModelServiceErrorContext,
+): string | null {
+  const explanation = explainModelServiceError(value, context)
+  if (!explanation) return null
+  const route = modelFailureRoute(context, parseTokenFluxFailure(value), value)
+  if (!route) return explanation
+  return t(`模型调用失败：${route} → ${explanation}`, `Model call failed: ${route} → ${explanation}`)
 }
 
 export function explainModelVerificationFailure(

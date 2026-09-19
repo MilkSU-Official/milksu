@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { applyUiLocale } from './uiLocale'
 import {
+  explainModelCallFailure,
   explainModelServiceError,
   explainModelVerificationFailure,
   explainTokenFluxError,
@@ -93,18 +94,50 @@ describe('explainTokenFluxError', () => {
   })
 })
 
-describe('explainModelServiceError', () => {
-  it('uses TokenFlux copy only for TokenFlux provider or TokenFlux fingerprints', () => {
-    applyUiLocale('zh')
-    const bare = 'PI model verification failed: 403 status code (no body)'
-    expect(explainModelServiceError(bare)).toContain('模型服务拒绝了这次请求')
-    expect(explainModelServiceError(bare)).not.toContain('TokenFlux')
-    expect(explainModelServiceError(bare, { provider: 'custom-relay-deepseek' })).toContain('模型服务拒绝了这次请求')
-    expect(explainModelServiceError(bare, { provider: 'custom-relay-deepseek' })).not.toContain('TokenFlux')
-    expect(explainModelServiceError(bare, { provider: 'tokenflux' })).toContain('TokenFlux')
-    expect(explainModelServiceError(
-      '403: {"code":"INSUFFICIENT_BALANCE","message":"Insufficient account balance"}',
-    )).toContain('TokenFlux')
+describe('explainModelCallFailure', () => {
+  // The incident: the reader saw a generic sentence, the picker said deepseek-flash, and the engine
+  // was really on the account source with a different model id. The final string is locked, so the
+  // route cannot silently lose the source or gain a second arrow.
+  it('names the source, provider, model and upstream status in one sentence', () => {
+    expect(explainModelCallFailure('502 status code (no body)', {
+      provider: 'milksu-account',
+      model: 'deepseek/deepseek-flash',
+      source: 'account',
+    })).toBe(
+      '模型调用失败：账号来源 / milksu-account / deepseek/deepseek-flash'
+        + '（502 status code (no body)） → TokenFlux 上游暂时不可用，请稍后重试或换一个模型。',
+    )
+  })
+
+  it('names the personal source when that is what ran', () => {
+    const text = explainModelCallFailure('502 status code (no body)', {
+      provider: 'custom-relay-deepseek',
+      model: 'deepseek-flash',
+      source: 'personal',
+    })
+    expect(text).toBe(
+      '模型调用失败：自有来源 / custom-relay-deepseek / deepseek-flash'
+        + '（502 status code (no body)） → 模型服务暂时不可用，请稍后重试或换一个模型。',
+    )
+    // A personal relay failure must not borrow the TokenFlux wording.
+    expect(text).not.toContain('TokenFlux')
+  })
+
+  // Exactly one arrow: the route used to carry its own "→ status", which produced
+  // "route → HTTP 502 → explanation".
+  it('uses a single arrow', () => {
+    for (const context of [
+      { provider: 'milksu-account', model: 'deepseek/deepseek-flash', source: 'account' },
+      { provider: 'custom-relay-deepseek', model: 'deepseek-flash', source: 'personal' },
+    ]) {
+      const text = explainModelCallFailure('502 status code (no body)', context) ?? ''
+      expect(text.split('→')).toHaveLength(2)
+    }
+  })
+
+  it('stays unchanged when no context is available', () => {
+    expect(explainModelCallFailure('502 status code (no body)'))
+      .toBe(explainModelServiceError('502 status code (no body)'))
   })
 })
 

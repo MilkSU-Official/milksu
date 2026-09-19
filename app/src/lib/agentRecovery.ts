@@ -13,6 +13,13 @@ const interruptionFailure = new RegExp(
   `(?:${t('用户已中断', 'Interrupted by the user')}|${t('用户取消', 'Cancelled by the user')}|${t('已取消', 'Cancelled')}|${t('已中断', 'Interrupted')}|abort(?:ed)?|cancel(?:led|ed)|interrupted|operation was canceled|context canceled)`,
   'i',
 )
+// A model call that failed because the source this conversation chose is unavailable. The retry is
+// offered because such a source can come back; a missing credential stays configuration, not a
+// retry (see the "no API key" case above).
+const modelSourceFailure = new RegExp(
+  `(?:${t('模型调用失败', 'Model call failed')}|${t('所选模型来源当前不可用', 'the model source chosen for this conversation is unavailable')})`,
+  'i',
+)
 const contextWindowFailure = new RegExp(
   `(?:${t('上下文过长', 'Context is too long')}|${t('上下文已满', 'Context is full')}|${t('自动整理上下文失败', 'Automatic context compaction failed')}|${t('正在自动整理', 'Compacting automatically')}|context window|context length|maximum context|token limit|too many tokens|tokens exceeded|context_length_exceeded|overflow recovery failed)`,
   'i',
@@ -26,6 +33,7 @@ export function recoverableAgentFailureId(
   const latest = [...messages].reverse().find(message => message.role !== 'tool')
   if (!latest || latest.role !== 'assistant') return ''
   return networkFailure.test(latest.content)
+    || modelSourceFailure.test(latest.content)
     || runtimeStoppedFailure.test(latest.content)
     || interruptionFailure.test(latest.content)
     || contextWindowFailure.test(latest.content)

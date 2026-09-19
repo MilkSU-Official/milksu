@@ -2163,6 +2163,8 @@ func (a *App) CancelVulnJob(id string) error {
 }
 
 func (a *App) emitEngineEvent(event engine.Event) {
+	// A real model failure marks that model in the picker; a successful call clears it again.
+	a.applyModelCallOutcome(event)
 	if event.Error != "" {
 		// The renderer projects a bounded, actionable message. Keep the exact
 		// runtime failure only in the existing diagnostic recorder, which applies

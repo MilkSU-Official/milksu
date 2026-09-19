@@ -188,39 +188,75 @@ function providerRuntimeFor(provider) {
   return providerRuntime[provider];
 }
 
-function currentProviderDefinition(provider, model, environment = process.env) {
+function customRelayDefinition({ name, baseUrl, apiKey }, provider, model, environment) {
+  if (!baseUrl || !apiKey || !model) return undefined;
+  return {
+    name: String(name ?? provider).trim() || provider,
+    baseUrl,
+    apiKey,
+    api: "openai-completions",
+    models: [{
+      id: model,
+      name: model,
+      reasoning: false,
+      input: modelInput(),
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      contextWindow: registeredContextWindow(
+        model,
+        0,
+        contextWindowOverride(provider, model, environment),
+      ),
+      maxTokens: registeredMaxTokens(model, 0),
+      compat: {
+        supportsDeveloperRole: false,
+        supportsReasoningEffort: false,
+        maxTokensField: "max_tokens",
+      },
+    }],
+  };
+}
+
+/**
+ * True when `provider` is a relay the user configured (a custom OpenAI-compatible endpoint),
+ * named either by the process environment or by the turn itself. The account source cannot serve
+ * such a provider, so it must never stand in for it.
+ */
+function isCustomRelayProvider(provider, environment = process.env, turnProvider) {
+  const id = String(provider ?? "").trim();
+  if (!id || providerRuntimeFor(id)) return false;
+  return id === String(environment.MILKSU_CUSTOM_PROVIDER_ID ?? "").trim()
+    || id === String(turnProvider?.id ?? "").trim();
+}
+
+// `turnProvider` is the relay the conversation itself selected, carried by the turn command.
+// The process environment only ever holds one relay (the one active when the sidecar was
+// spawned), so without it a conversation whose own choice differs could not resolve its
+// provider at all and fell back to the account source.
+function currentProviderDefinition(
+  provider,
+  model,
+  environment = process.env,
+  turnProvider,
+) {
+  const turnProviderID = String(turnProvider?.id ?? "").trim();
+  if (turnProviderID && turnProviderID === provider) {
+    const fromTurn = customRelayDefinition({
+      name: String(turnProvider.name ?? provider).trim() || provider,
+      baseUrl: String(turnProvider.baseUrl ?? "").trim(),
+      apiKey: String(turnProvider.key ?? "").trim(),
+    }, provider, model, environment);
+    if (fromTurn) return fromTurn;
+  }
   const customProviderID = String(
     environment.MILKSU_CUSTOM_PROVIDER_ID ?? "",
   ).trim();
   if (customProviderID && customProviderID === provider) {
-    const baseUrl = String(environment.MILKSU_CUSTOM_PROVIDER_URL ?? "").trim();
-    const apiKey = String(environment.MILKSU_CUSTOM_PROVIDER_KEY ?? "").trim();
-    if (!baseUrl || !apiKey || !model) return undefined;
-    return {
+    return customRelayDefinition({
       name: String(environment.MILKSU_CUSTOM_PROVIDER_NAME ?? provider).trim()
         || provider,
-      baseUrl,
-      apiKey,
-      api: "openai-completions",
-      models: [{
-        id: model,
-        name: model,
-        reasoning: false,
-        input: modelInput(),
-        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-        contextWindow: registeredContextWindow(
-          model,
-          0,
-          contextWindowOverride(provider, model, environment),
-        ),
-        maxTokens: registeredMaxTokens(model, 0),
-        compat: {
-          supportsDeveloperRole: false,
-          supportsReasoningEffort: false,
-          maxTokensField: "max_tokens",
-        },
-      }],
-    };
+      baseUrl: String(environment.MILKSU_CUSTOM_PROVIDER_URL ?? "").trim(),
+      apiKey: String(environment.MILKSU_CUSTOM_PROVIDER_KEY ?? "").trim(),
+    }, provider, model, environment);
   }
   const runtime = providerRuntimeFor(provider);
   if (!runtime) return undefined;
@@ -275,6 +311,7 @@ function currentProviderDefinition(provider, model, environment = process.env) {
 
 module.exports = {
   currentProviderDefinition,
+  isCustomRelayProvider,
   providerRuntimeFor,
   runtimeTokenfluxModelCatalog,
   tokenfluxAccountModelAvailability,
