@@ -349,3 +349,41 @@ describe("evidence: prose and structured input agree on the target", () => {
     expect(structured.unverified).toBeUndefined()
   })
 })
+
+// "同时保护我的项目目录"关掉之后：自己的项目文件可以批准删除，系统级保护一条都不许松。
+describe('project protection is optional', () => {
+  // 默认（没有第二个参数）必须与以前完全一致：maiRecord 那条老规则自带 record，
+  // 任何含 mairecord 的路径都会命中，所以它必须先被锁死。
+  it('keeps protecting maiRecord project paths by default', () => {
+    expect(protectedMatch('/private/tmp/mairecord-backup')).toEqual({
+      protected: true,
+      rule: '/private/tmp/mairecord-*',
+    })
+    expect(protectedMatch(`${testHome}/mairecord-trainer/x`)).toEqual({
+      protected: true,
+      rule: 'maiRecord 记录',
+    })
+    // 显式传 true 与不传等价
+    expect(protectedMatch('/private/tmp/mairecord-backup', { protectProjectPaths: true }).protected).toBe(true)
+  })
+
+  it('lets the reader approve their own project paths when it is off', () => {
+    expect(protectedMatch('/private/tmp/mairecord-backup', { protectProjectPaths: false }).protected).toBe(false)
+    expect(protectedMatch(`${testHome}/mairecord-trainer/x`, { protectProjectPaths: false }).protected).toBe(false)
+  })
+
+  it('never relaxes the system-level protection', () => {
+    // 注意：这个文件里的规则**不覆盖** /Applications（`/Applications/MilkSU.app` 在这里
+    // 是 protected: false ✓ 我实测过 ✓）—— 系统级里属于本函数职责的是下面这些。
+    for (const path of [
+      `${testHome}/Library/Preferences`,
+      `${testHome}/Documents/x`,
+      '/private/tmp/milksu-restore-check-oWZogJ',
+      `${testHome}/Library/Application Support/com.milksu.app.beta/runtime-data`,
+    ]) {
+      const off = protectedMatch(path, { protectProjectPaths: false })
+      expect(off.protected).toBe(true)
+      expect(off).toEqual(protectedMatch(path))
+    }
+  })
+})

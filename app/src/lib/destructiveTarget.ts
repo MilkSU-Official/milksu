@@ -75,8 +75,8 @@ const USER_DATA_DIRECTORIES = [
   'Desktop',
 ]
 
-const PROTECTED_RULES: { rule: string; test: (path: string) => boolean }[] = [
-  { rule: '/private/tmp/mairecord-*', test: p => /^\/private\/tmp\/mairecord-/.test(p) },
+// 永远生效：系统级目录与产品自己的运行时数据，一条都不许删。
+const ALWAYS_PROTECTED_RULES: { rule: string; test: (path: string) => boolean }[] = [
   { rule: '/private/tmp/milksu-*', test: p => /^\/private\/tmp\/milksu-/.test(p) },
   { rule: 'DerivedData', test: p => /(^|\/)DerivedData(\/|$)/.test(p) },
   { rule: 'runtime-data', test: p => /(^|\/)runtime-data(\/|$)/.test(p) },
@@ -89,6 +89,13 @@ const PROTECTED_RULES: { rule: string; test: (path: string) => boolean }[] = [
       && !/(^|\/)Library\/Caches(\/|$)/.test(p)
       && !/(^|\/)Library\/Logs(\/|$)/.test(p),
   },
+]
+
+// 可开关：只保护"我们自己的项目目录"这一类。默认开（行为与以前完全一致），
+// 关掉之后读者才能批准删除自己的项目文件（真机：maiRecord 项目里审批只能拒绝，工作被卡住）。
+// 注意 maiRecord 规则自带 record，任何含 mairecord 的路径都会命中，所以它必须落在这一组。
+const PROJECT_PROTECTED_RULES: { rule: string; test: (path: string) => boolean }[] = [
+  { rule: '/private/tmp/mairecord-*', test: p => /^\/private\/tmp\/mairecord-/.test(p) },
   { rule: 'maiRecord 记录', test: p => /mairecord/i.test(p) && /(record|trainer)/i.test(p) },
 ]
 
@@ -405,9 +412,20 @@ export function assessApprovalRequest(
   return first ?? assessDestructiveRequest(String(input.content ?? ''), facts)
 }
 
-export function protectedMatch(path: string | undefined): ProtectedMatch {
+/**
+ * 命中哪条保护。`protectProjectPaths`（默认 true = 与以前完全一致）为 false 时，
+ * **只**跳过"可开关"那一组（maiRecord 这类项目目录），系统级判定一律照旧。
+ */
+export function protectedMatch(
+  path: string | undefined,
+  options?: { protectProjectPaths?: boolean },
+): ProtectedMatch {
   if (!path) return { protected: false }
-  for (const entry of PROTECTED_RULES) {
+  const protectProjectPaths = options?.protectProjectPaths !== false
+  const rules = protectProjectPaths
+    ? [...ALWAYS_PROTECTED_RULES, ...PROJECT_PROTECTED_RULES]
+    : ALWAYS_PROTECTED_RULES
+  for (const entry of rules) {
     if (entry.test(path)) return { protected: true, rule: entry.rule }
   }
   return { protected: false }
