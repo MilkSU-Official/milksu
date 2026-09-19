@@ -1007,21 +1007,34 @@ func (s *Supervisor) sidecarServesSessionLocked(process *childProcess, sessionID
 	return bound == process.workspace
 }
 
-// sessionHasWaiterLocked reports whether a product caller is waiting on this session: a model
-// probe, a control call or a background recovery. A probe never settles a turn, so a sidecar
-// serving one has to be treated as busy even with no turn in flight.
-func (s *Supervisor) sessionHasWaiterLocked(sessionID string) bool {
-	if _, waiting := s.probeWaiters[sessionID]; waiting {
-		return true
+// sessionsWithWaiters snapshots the sessions a product caller is waiting on: a model probe or a
+// background recovery. A probe never settles a turn, so a sidecar serving one has to be treated as
+// busy even with no turn in flight.
+//
+// controlWaiters is deliberately absent: it is keyed by request id, not session id, and a control
+// call is written to whichever process currently serves the session, never to a retired one. If
+// that process does stop, deliverControlEvent broadcasts engine.stopped to every control waiter,
+// so such a call fails loudly instead of hanging.
+//
+// These maps belong to probeMu, so they are read here under that lock and returned as a snapshot:
+// the caller holds s.mu, and taking probeMu inside s.mu is the order the rest of the file uses.
+func (s *Supervisor) sessionsWithWaiters() map[string]struct{} {
+	s.probeMu.Lock()
+	defer s.probeMu.Unlock()
+	waiting := make(map[string]struct{}, len(s.probeWaiters)+len(s.recoveryWaiters))
+	for sessionID := range s.probeWaiters {
+		waiting[sessionID] = struct{}{}
 	}
-	if _, waiting := s.controlWaiters[sessionID]; waiting {
-		return true
+	for sessionID, waiters := range s.recoveryWaiters {
+		if len(waiters) > 0 {
+			waiting[sessionID] = struct{}{}
+		}
 	}
-	return len(s.recoveryWaiters[sessionID]) > 0
+	return waiting
 }
 
 // processBusyLocked reports whether a sidecar is serving something a rotation must not interrupt:
-// a turn in flight on one of its sessions, a probe/control/recovery waiter, or - for a sidecar that
+// a turn in flight on one of its sessions, a probe or recovery waiter, or - for a sidecar that
 // already left rotation - a turn it was carrying when it left. A turn started after retirement
 // belongs to the replacement, even in the same workspace, so it must not pin the old process.
 func (s *Supervisor) processBusyLocked(process *childProcess) bool {
@@ -1039,8 +1052,11 @@ func (s *Supervisor) processBusyLocked(process *childProcess) bool {
 			}
 		}
 	}
-	for sessionID := range s.sessions {
-		if s.sidecarServesSessionLocked(process, sessionID) && s.sessionHasWaiterLocked(sessionID) {
+	for sessionID := range s.sessionsWithWaiters() {
+		if _, live := s.sessions[sessionID]; !live {
+			continue
+		}
+		if s.sidecarServesSessionLocked(process, sessionID) {
 			return true
 		}
 	}
