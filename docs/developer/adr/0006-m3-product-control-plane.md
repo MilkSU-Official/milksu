@@ -1,7 +1,8 @@
 # ADR-0006：M3 产品控制面与比赛/CVE 工作流
 
-> 文档状态：**Historical ADR**。本页保留当时产品壳决策；CVE 当前暂停，当前导航、状态和
-> 缺口以后继文档为准。
+> 文档状态：**Historical ADR**。本页保留当时产品壳决策；CVE 已进入主导航，当前导航、状态和
+> 缺口以后继文档为准。正文里的 Memoh 视觉规范已于 2026-09-15 随 React + shadcn 废止，
+> 现行设计语言只写在仓库根目录 `AGENTS.md`。
 >
 > 状态：Accepted for M3 Product Shell（2026-07-30）
 

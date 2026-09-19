@@ -1,7 +1,7 @@
 # ADR-0005：M3 Vuln Research 证据纵切
 
-> 文档状态：**Historical ADR**。CVE Research 当前暂停；本页的 fixture 证据不授权继续
-> 实现、运行触发输入或接入真实资产。
+> 文档状态：**Historical ADR**。CVE 已进入主导航，点进档案复现与环境经纪都已发行；
+> 本页只记录当时的 fixture 证据，其范围不外推为真实资产上的运行授权。
 >
 > 状态：Accepted for M3-A
 >

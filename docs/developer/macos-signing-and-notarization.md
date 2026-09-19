@@ -44,7 +44,7 @@ staple 与 Gatekeeper 验证。签名资产只存在 Personal Vault 和 GitHub S
 读取 `.p12` / `.p8`。正式云端打包会同时生成 DMG 与 updater ZIP。自托管
 runner 再加 `--use-self-hosted`。
 
-全仓 Go、Vue、Sidecar、lint 和生产/文档构建已由 commit-bound 本地回执证明，macOS 打包路径不重复
+产品 Go、app（React）、Sidecar、lint 和生产/文档构建已由 commit-bound 本地回执证明，macOS 打包路径不重复
 执行。OTA ZIP 与 release metadata 是正式打包的默认产物。
 
 任何签名、公证、staple 或 Gatekeeper 步骤失败都不得分发产物。普通功能开发验收继续用 ad-hoc
@@ -60,7 +60,7 @@ current pointer。发布只改变 D1 的 current pointer；R2 对象保持不可
 
 `milksu-releases` 必须保持私有，不配置公开 bucket domain。Desktop feed、ZIP 和 DMG 都经
 `accounts.milksu.org` Worker 返回，并要求受邀且访问状态正常的登录账户 Bearer session。会话只保存在
-Electron 主进程；不得进入 Vue、日志、诊断或模型上下文。暂停账户、未受邀账户和未登录客户端不能检查
+Electron 主进程；不得进入 renderer、日志、诊断或模型上下文。暂停账户、未受邀账户和未登录客户端不能检查
 或下载更新。
 
 ## OTA 发行验收

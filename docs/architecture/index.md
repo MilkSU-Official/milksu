@@ -59,9 +59,10 @@ Checkpoint 由 Git 历史与自动化重新生成，不再长期占用文档入�
   ImageGen、Computer Use、PR 和 worktree 也已有不同程度的工程主链或真实打包验收。
   Session Index 底层仍在，单会话相关历史/图谱前端已删除。真实外部 Provider/更广系统权限
   矩阵和最终长期自举 Gate 仍未完成。
-- 桌面主壳已迁到 Electron/Chromium：Vue 运行在主 `BrowserWindow`，Go 作为受管本地 Runtime
-  通过 JSONL RPC 提供应用服务；右栏“浏览器”是会话隔离的 `WebContentsView`，用户和 Agent
-  操作同一当前 Target。旧 Wails/CEF 生产链已删除。
+- 桌面主壳已迁到 Electron/Chromium：产品 renderer 是 React + shadcn（入口 `app/src/main.tsx`），
+  运行在主 `BrowserWindow`，Go 作为受管本地 Runtime 通过 JSONL RPC 提供应用服务；右栏“浏览器”是
+  会话隔离的 `WebContentsView`，用户和 Agent 操作同一当前 Target。旧 Wails/CEF 生产链与旧 Vue +
+  Felinic renderer 都已删除。产品 UI 设计语言见 `AGENTS.md`。
 - “浏览器”、Browser Use 与 Computer Use 是桌面 GUI 的三种独立执行表面：分别对应 MilkSU
   管理页面、用户授权的真实标签页和用户授权的可见 App/Window（含真实浏览器窗口）。它们共享可见 Scope、可接管和
   显式停止语义，但不共享 Profile 或权限；面板折叠不等于终止 Session。
@@ -76,9 +77,12 @@ Checkpoint 由 Git 历史与自动化重新生成，不再长期占用文档入�
   Agent Runtime 当前只有 5 个手选 static 样本：2 solved、1 unsolved、1 无效 JSON、
   1 回合超时。它验证了只读加载、强制重启和恢复，但不是完整 NYU CTF Bench 成绩、
   不是作用型 CTF Agent 工具链验收，也不是面向用户的题库或评测服务。
-- Coding Harness 遵循 **reuse-first**：Pi Core 或经审阅的社区扩展能负责的通用能力，
+- Coding Harness 遵循 **reuse-first**：内核或经审阅的社区扩展能负责的通用能力，
   MilkSU 不再写临时替代品；自研集中在桌面安全边界和 CTF 的 Evidence / Judge /
   Recovery / Memory。
+- 已接入两个 Agent 内核：Pi（`@earendil-works/pi-coding-agent` 0.84.1）和 DeepSeek Harness
+  （`@deepseek-ai/dsh` 0.1.6-alpha.1，走 ACP）。新对话二选一，出厂默认 Pi；
+  设置里的「默认运行时」只决定新对话，不改写已有会话。DSH 是可选内核，不是 UI 参考。
 
 ## 证据入口
 

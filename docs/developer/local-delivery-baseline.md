@@ -10,7 +10,8 @@
 >
 > 当前完成度与剩余缺口以代码、测试、Git 历史和[当前开发目标](./current-objectives.md)为准。
 >
-> 当前基线（2026-08-10）：自动化入口使用 Electron/Chromium 打包 App。
+> 当前基线（2026-08-10）：自动化入口使用 Electron/Chromium 打包 App。下面的体积与 chunk
+> 名称是当日快照，renderer 已于 2026-09-15 换为 React + shadcn，需要现值时重跑一次。
 
 ## 自动化入口
 
@@ -23,7 +24,7 @@ npm run test:local-delivery
 将它作为完整工程回归中的真实 App Gate：
 
 ```bash
-go test ./...
+node scripts/test-go-product.mjs
 npm run test:sidecar
 npm --prefix app test -- --run
 npm run sidecar:smoke

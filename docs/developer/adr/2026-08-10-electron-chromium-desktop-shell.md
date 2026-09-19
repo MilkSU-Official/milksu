@@ -1,6 +1,8 @@
 # Electron/Chromium 桌面壳与内置浏览器
 
-> 状态：Accepted / implemented for macOS ARM64 vertical slice
+> 状态：Accepted / implemented。壳的决策（Electron/Chromium + 受管 Go）仍然有效并已扩到三端；
+> 正文里「Vue 继续作为产品 UI」已于 2026-09-15 被 React + shadcn 取代（PR #104），
+> 「Windows 构建与签名评估」现状是 Windows x64 EXE 已发行、但尚未代码签名。
 >
 > 日期：2026-08-10
 

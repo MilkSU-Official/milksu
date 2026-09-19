@@ -1,7 +1,8 @@
 # ADR-0001：Agent Engine 与桌面进程边界
 
 > 文档状态：**Historical ADR**。保留最初 Engine 选择及其后继修订，不描述当前进度或任务。
-> 当前实现见[当前系统与分层](/architecture/current-system)。
+> 正文里的 Go + Wails 壳与 Vue 3 产品 UI 都已废止：桌面壳是 Electron/Chromium，
+> renderer 是 React + shadcn。当前实现见[当前系统与分层](/architecture/current-system)。
 >
 > 状态：Accepted for M0
 >
@@ -12,7 +13,7 @@
 MilkSU 的默认工程起点采用：
 
 - **Go + Wails v2.13.0**：桌面生命周期、本地存储、Sidecar 监管与 React 绑定；
-- **Vue 3 + TypeScript**：当前桌面产品 UI；最初的 React 壳已由 [ADR-0008](/developer/adr/0008-vue-memoh-frontend) 取代；
+- **Vue 3 + TypeScript**：当时的桌面产品 UI，由 [ADR-0008](/developer/adr/0008-vue-memoh-frontend) 取代最初的 React 壳；2026-09-15 又改回 React + shadcn；
 - **Pi SDK v0.80.2 TypeScript Sidecar**：首选可改造 Agent Engine；
 - **Codex app-server**：M0 对照基线，未来可作为 External Agent Runtime，不是默认 Harness；
 - **版本化 JSONL 事件**：隔离 Go 与 Engine 的原生对象，不让 Pi 或 Codex 的类型进入 Role/Runtime。

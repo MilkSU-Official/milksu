@@ -31,7 +31,7 @@ MilkSU 增加一个仅面向 NSSCTF 题目详情页的浏览器 Adapter：
 ## 信任边界
 
 - bridge 只监听 `127.0.0.1`，HTTP ingest 使用随机 Bearer token，WebSocket 同时校验协议和 token；
-- token 不以独立字段序列化到 Vue，前端只得到用户显式复制的封装配对码；持久化文件位于用户数据目录且权限固定为 `0600`；
+- token 不以独立字段序列化到 renderer，前端只得到用户显式复制的封装配对码；持久化文件位于用户数据目录且权限固定为 `0600`；
 - WebSocket 只接受 Chrome/Firefox 扩展 origin；
 - WebSocket 的 `hello` 会话清单限制为 24 项并逐项校验格式；“扩展在线”和“当前题目标签在线”是两个不同状态，Judge 只认后者；
 - 页面 URL 必须是无 query、无 fragment、无凭据的 NSSCTF canonical HTTPS 题目地址；

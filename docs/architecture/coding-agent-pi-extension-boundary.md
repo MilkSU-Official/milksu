@@ -2,7 +2,7 @@
 
 > 文档状态：Current engineering contract
 >
-> 事实审计：2026-09-02
+> 事实审计：2026-09-19
 >
 > Coding 核心交付、附件、统一 Composer 能力入口、PTY、后台任务、Git、Archify、隔离 Browser 和 LSP 已有真实或
 > 专项证据；Artifact Preview、Project MCP、Computer Use 外部 App slice、PR 发布确认、
@@ -19,7 +19,7 @@ MilkSU 负责桌面授权、固定资源白名单、工具可见性、事件桥�
 ```mermaid
 flowchart LR
     user["用户"]
-    vue["Coding UI<br/>项目 / 会话 / Composer 能力状态"]
+    renderer["Coding UI（React + shadcn）<br/>项目 / 会话 / Composer 能力状态"]
     host["Go Host<br/>Engine Supervisor"]
     pty["Go PTY Host<br/>用户直接输入 · Conversation 隔离"]
 
@@ -44,8 +44,8 @@ flowchart LR
     project["用户明确选择的项目目录"]
     agentData["MilkSU Agent 数据目录<br/>持久会话"]
 
-    user --> vue --> host --> bridge
-    vue --> pty --> project
+    user --> renderer --> host --> bridge
+    renderer --> pty --> project
     bridge --> loader --> session
     session --> coreTools
     session --> workflow
@@ -88,7 +88,7 @@ flowchart LR
 | `milksu_workspace` | 类型化产品 UI 工具：列出/聚焦/关闭内置浏览器标签，列出/预览产物，打开环境、变更、终端和后台任务。不改设置、凭据、审批档，不附着用户 Chrome | 同一套产品 UI 工具 | MilkSU first-party Extension + Desktop RPC |
 | 上下文压缩 | Pi 拥有 Compaction。用量达到窗口约 80% 且 Session 空闲时自动走与 `/compact` 相同的路径；用户 `/compact` 与 `compact_context` 立即排队该路径，不受 80% 限制 | 复用同一 Pi 压缩，不另建摘要器 | Pi Session compact；MilkSU 只投影用量并在空闲点调度自动整理 |
 | Browser Use | 用户把可删除 Scope 加入本轮输入后，固定 Playwright extension mode 才能进入真实浏览器标签页配对路径；不复用沙箱 profile | 同一套 Browser Use | 固定 Playwright MCP + 用户标签页授权 |
-| Artifact Preview | 工作区内 UTF-8 文本、Markdown、HTML 和图片；HTML 使用隔离、CSP、禁网和大小限制。发现在 `git status` 之上扫描被忽略目录与非 Git 工作区，只收近期写过的文件 | 同一套产物预览 | Go Preview Policy + Vue right page |
+| Artifact Preview | 工作区内 UTF-8 文本、Markdown、HTML 和图片；HTML 使用隔离、CSP、禁网和大小限制。发现在 `git status` 之上扫描被忽略目录与非 Git 工作区，只收近期写过的文件 | 同一套产物预览 | Go Preview Policy + React 右栏 |
 | ImageGen | 文生图和参考图编辑；用户明确发起付费动作，输出限制在项目资产范围并可预览 | 同一套 ImageGen | 受控 Provider Adapter |
 | Computer Use | 用户选择当前可见的非浏览器 App / PID / Window 并锁定不可变 Scope；调用遵循当前权限档位，`workspace-auto` 不会隐式启用或扩大 Scope | 同一套 Computer Use | Go Host + Computer Use Adapter |
 | PR / worktree | PR 发布前展示仓库、分支、提交和目标；写入 Agent 的独立 worktree 在委托 effectful 角色时从当前提交准备，不要求主工作区干净，允许 detached HEAD 与子目录项目 | 同一套 Git / worktree | Go Git/Platform Adapter |
@@ -97,9 +97,11 @@ flowchart LR
 | CTF 类型化工具 | 否 | Pi 会话上的 `ctf_inspect` / `ctf_decode` / `ctf_triage` 与 Judge；已删除独立 Security Bridge typed-action 循环 | MilkSU CTF domain + Pi |
 | 平台提交 | 否 | Agent 不能直接提交，只能写候选 | MilkSU Judge Gate |
 
-当前隔离由 `sidecar/pi/bridge.js` 的 `sessionRole` 分支和 `scripts/package-sidecar.mjs` 的正/负 Smoke
-断言执行：普通 Coding 能看到固定资源，CTF 会话现在看不到 frontend-visual-qa、Archify、LSP、Goal、
-后台任务和项目 MCP。扩展 CTF/CVE 接线时一并改这些断言，不要把旧断言当成产品方向。
+接线由 `sidecar/pi/bridge-policy.js` 的 `loadSessionPolicy` 执行：工作区没有 `challenge.json`、
+或 schema 不是当前 CTF schema 时直接走 `loadCodingSessionPolicy`；是 CTF 工作区时也先取同一份
+Coding policy，再把 `ctf_*` 类型化工具和题目 `activeTools` 并上去。所以 CTF / CVE / 实验室
+看得到 frontend-visual-qa、Archify、LSP、Goal、后台任务和项目 MCP，领域工具与 Judge 是叠加而不是替换。
+`sessionRole` 只用来收窄 Tool Builder 这类角色的工具面和注入角色 Guidance。
 
 ## Composer 能力状态
 
@@ -172,7 +174,7 @@ flowchart TB
 | Pi Coding Agent | `0.84.1` | `package.json`、`scripts/package-sidecar.mjs` | Sidecar 打包 / Smoke 已有 |
 | `frontend-visual-qa` | first-party | `skills/frontend-visual-qa`、`sidecar/pi/bridge-skills.js`、Composer Skill 状态 | **Verified narrow task**：要求测试、真实预览和沙箱 Browser 证据；打包 Sidecar 加载；CTF 从 `26.823.1` 起共用同一套 Skill |
 | Archify | `2.12.0`，commit `7b49d0b…` | `third_party/archify`、`sidecar/pi/bridge.js`、Sidecar manifest、Composer 产品动作 | **Verified**：真实打包 App 一键生成固定 JSON/HTML、9/9、0 error、0 warning，并在右侧预览 |
-| `@narumitw/pi-lsp` | `0.29.0` | `sidecar/pi/bridge-resource-policy.js`、`sidecar/pi/bridge-lsp.js`、`sidecar/pi/bridge.js`、`package-lock.json`、Sidecar `lsp-runtime` | 项目命令覆盖和凭据继承已阻断；TypeScript `5.3.0`、Vue `3.3.9`、SDK `6.0.3` 与官方 `gopls 0.23.0` 固定随包；真实原生 fixture 分别返回 `TS2322 @ 1:14` 与 `compiler.IncompatibleAssign @ 3:21`；TypeScript `source.organizeImports` 已验自动应用、精确 Diff、批准/拒绝和写后复核 |
+| `@narumitw/pi-lsp` | `0.29.0` | `sidecar/pi/bridge-resource-policy.js`、`sidecar/pi/bridge-lsp.js`、`sidecar/pi/bridge.js`、`package-lock.json`、Sidecar `lsp-runtime` | 项目命令覆盖和凭据继承已阻断；TypeScript `5.3.0`、Vue `3.3.9`（LSP 语言服务运行时，与产品 renderer 无关）、SDK `6.0.3` 与官方 `gopls 0.23.0` 固定随包；真实原生 fixture 分别返回 `TS2322 @ 1:14` 与 `compiler.IncompatibleAssign @ 3:21`；TypeScript `source.organizeImports` 已验自动应用、精确 Diff、批准/拒绝和写后复核 |
 | `@narumitw/pi-goal` | `0.43.0` | `sidecar/pi/bridge-resource-policy.js`、`sidecar/pi/bridge.js`、`package-lock.json` | **Verified**：Coding / CTF / CVE / 实验室固定加载；桌面目标仍以 `milksu_progress` 为事实源 |
 | `pi-better-background-tasks` | `0.1.10` | `sidecar/pi/bridge.js`、Sidecar manifest、会话级控制/运行时事件、右侧终端页 | **Verified**：真实原生会话运行短命令，并启动监听 `127.0.0.1:18876` 的任务；显示 PID/端口/有界日志后从桌面停止并确认端口关闭；不同 Conversation 的任务互相不可见；CTF 从 `26.823.1` 起共用同一套后台任务 |
 | `@xterm/xterm` / `@xterm/addon-fit` | `6.0.0` / `0.11.0` | `CodingTerminalPanel.tsx`、`third_party/licenses/xterm.js-MIT.txt` | **Verified**：真实原生 App 显示项目 Shell、实时输入输出和 resize；前端独立懒加载，不进入基础 ChatPage chunk |
@@ -212,7 +214,7 @@ flowchart TB
 - 项目里的 `.pi` 或用户级 Pi 资源不能通过 Ambient Discovery 静默进入产品会话。
 - LSP 不读取项目 `.pi/pi-lsp.json`；实际 Server 通过 `/usr/bin/env -i` 启动，只继承
   `HOME/PATH/TMPDIR/LANG/LC_ALL`，不能看到 Provider 或 Relay Key。
-- 插件升级不能使用浮动版本；必须重新审阅许可、权限和正向能力。CTF 现在少接 Coding 资源是现有接线，扩展时改断言，不要把负向隔离当成产品方向。
+- 插件升级不能使用浮动版本；必须重新审阅许可、权限和正向能力。
 - 扩展异常不能吞掉持久会话或让 UI 永久停在“运行中”。
 - 用户在右侧 PTY 中直接键入的命令以当前 macOS 用户权限运行；它不是 Agent 工具，也不受
   Plan/Go 自动执行策略伪装。Agent 自动命令仍走 Pi 与桌面审批，二者的权限语义不能混用。
@@ -226,9 +228,7 @@ flowchart TB
 - LSP、Artifact Preview、Project MCP、Browser Use、ImageGen、Computer Use、PR、worktree 和跨 App
   恢复按各自真实验收缺口推进；
 - 最终结果是一次打包 MilkSU 的长时间 “MilkSU develops MilkSU”，不是插件数量或按钮
-  数量；
-- CTF Session 当前看不到 frontend-visual-qa、Archify、LSP、Goal、后台任务、项目 MCP、隔离 Browser
-  和其他普通 Coding 资源。这是现有接线；需要时可以直接接。
+  数量。
 
 当前正确说法是“Coding 核心和多项扩展已有工程主链或窄验收，但完整长时间自举尚未通过”，
 不能写成“插件体系已完成”或“与 Codex 等价”。

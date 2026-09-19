@@ -2,7 +2,7 @@
 
 > 状态：Current / Living
 >
-> 最后事实审计：2026-09-17
+> 最后事实审计：2026-09-19
 >
 > 产品开发目标：内测迭代 / Agent Runtime 与跨平台发行收敛
 
@@ -47,7 +47,7 @@
 
 ## 当前边界
 
-- Electron/Chromium + 受管 Go + Pi Sidecar。产品 UI 是 React + shadcn。不再维护 Wails/CEF。
+- Electron/Chromium + 受管 Go + Agent Sidecar（Pi；新对话可选 DSH，走 ACP）。产品 UI 是 React + shadcn。不再维护 Wails/CEF。
 - Coding / CTF / CVE / 实验室共用 Pi 通用能力。浏览器、Browser Use、Computer Use 是三个 Scope；折叠面板不停止 Session。
 - Provider Key 不进 renderer、模型上下文、日志或文档。
 - 产物在文档目录 `MilkSU`；Runtime、凭据、Obelisk、浏览器 Profile 在用户配置目录。

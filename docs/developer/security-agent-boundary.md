@@ -278,7 +278,7 @@ MilkSU 会操作浏览器、工具、凭据和外部内容，所以仍然需要 
 ### 推荐分层
 
 ~~~text
-Desktop Surface (macOS first)
+Desktop Surface (macOS / Windows / Linux)
         |
 Role Packages
 Red / Blue / CTF / AppSec / Malware / Vulnerability Research

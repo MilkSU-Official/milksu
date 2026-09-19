@@ -27,7 +27,7 @@
    子 Agent 交 `{ files: ["a.ts"], findings: [{ path: "a.ts", note: "renamed" }] }`。断言父模型在 **零次额外工具** 下能报出 `files[0]`（假 Provider 脚本直接读 tool_result，不依赖真模型发挥）。
 3. **生命周期**  
    跑 / 停 / 成功 / 失败；父 abort 杀掉子进程；writer 不得改主会话 cwd。
-4. **Vue**  
+4. **renderer（React）**  
    名单在子任务 start 时出现，结束时变成成功/失败；空名单不画空卡片或「还没有子任务」说明（空白 + 控件自己的标签）。中英 `t()` 成对。视觉走现有事实面（工具组或环境栏），不新造一种卡片。
 
 ## 验收标准
@@ -59,7 +59,7 @@ Advisor 窗、OMP Agent Hub 全套 IRC、默认打开更多子 Agent 类型、�
 
 1. 读 `node_modules/pi-sub-agent/extensions/index.ts` 的 `SingleResult`。
 2. 调 `projectToolModelUsage`，喂一条假的 `details.results[]`。
-3. 搜 Vue：没有子任务名单组件。
+3. 搜 `app/src`：没有子任务名单组件。
 
 `SingleResult` 实机字段：`agent`、`agentSource`、`task`、`exitCode`、`messages`、`stderr`、`stdout`、`usage`、`model`、`step`。
 
