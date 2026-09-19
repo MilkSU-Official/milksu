@@ -152,6 +152,7 @@ import {
 } from "./bridge-steering.js";
 import {
   commandForTool,
+  destructiveDeleteApproval,
   destructiveDeleteDecision,
   destructiveJustification,
   issueDestructiveDeleteCredential,
@@ -494,11 +495,18 @@ function createMilkSUWorkflowExtension(sessionRole, getPolicy, getSession, conve
           emit(conversationId, "destructive.blocked", { notice: decision.reason });
           throw new Error(decision.reason);
         }
+        // The card judges a *delete*, so the approval always carries the delete in the shape
+        // the guard uses (see destructiveDeleteApproval).
+        const approval = destructiveDeleteApproval({
+          target,
+          decision,
+          chinese: policy?.uiLocale !== "en",
+        });
         const approved = await approvalBroker.request({
           conversationId,
           toolName: "destructive-delete",
-          content: decision?.content ?? target,
-          input: truncate(decision?.input ?? target, 16000),
+          content: approval.content,
+          input: truncate(approval.input, 16000),
           justification: { purpose, safety },
         });
         if (!approved) {
