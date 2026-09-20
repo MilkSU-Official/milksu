@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { companionPetSprite, resolveCompanionPetMotion } from '@/lib/companionPetMotion'
+import { companionPetDragMoved, companionPetSprite, resolveCompanionPetMotion } from '@/lib/companionPetMotion'
 
 describe('companionPetMotion', () => {
   it('picks decide over talk, think, and complete', () => {
@@ -48,5 +48,11 @@ describe('companionPetMotion', () => {
     expect(companionPetSprite('complete', { complete: true })).toBe('complete')
     expect(companionPetSprite('talk')).toBe('talk')
     expect(companionPetSprite('idle')).toBe('idle')
+  })
+
+  it('treats a short pointer move as a click, not a pet drag', () => {
+    expect(companionPetDragMoved(2, 2)).toBe(false)
+    expect(companionPetDragMoved(4, 0)).toBe(true)
+    expect(companionPetDragMoved(-3, -3)).toBe(true)
   })
 })

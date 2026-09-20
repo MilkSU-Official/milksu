@@ -15,7 +15,7 @@ import {
   usedComputerUseTools,
   usedIsolatedBrowserTools,
 } from './product-loop-desktop-surface.mjs'
-import { fail, leaveSettings, openWorkspace, pass } from './product-loop-session.mjs'
+import { dismissOverlays, fail, leaveSettings, openWorkspace, pass } from './product-loop-session.mjs'
 
 const COMPUTER_PROMPT = [
   '当前权限档是 workspace-auto。请用 Computer Use 观察本机已经打开的「计算器」窗口。',
@@ -338,6 +338,7 @@ export async function runDesktopBrowserMarker(driver, options = {}) {
   const fixture = await startBrowserFixture()
   try {
     return await withWorkspace('product-loop-browser-marker', async workspace => {
+      await dismissOverlays(driver)
       const conversation = await ensureBrowserConversation(driver, 'product-loop browser-marker', workspace)
       await driver.navigateCodingBrowser(conversation.id, fixture.url)
       await driver.sendMessage(conversation.id, browserMarkerPrompt(fixture.url), workspace)

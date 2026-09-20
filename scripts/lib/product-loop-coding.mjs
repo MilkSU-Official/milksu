@@ -11,11 +11,13 @@ import { describeCustomRelay, firstUseRelayModel, firstUseRelayName } from './pr
 import {
   clickAria,
   clickLabeled,
+  dismissOverlays,
   expectLabels,
   expandSidebar,
   fail,
   fillComposer,
   hoverLabeled,
+  isNewConversationCanvas,
   leaveSettings,
   openConversation,
   openWorkspace,
@@ -181,6 +183,7 @@ async function turnModelOptions(driver) {
 async function home(driver) {
   await leaveSettings(driver)
   await expandSidebar(driver)
+  await dismissOverlays(driver)
   return openWorkspace(driver, ['主页', 'Home'])
 }
 
@@ -615,8 +618,21 @@ export async function runCodingDshQueue(driver, options = {}) {
     kernel: 'dsh',
     prompt: LONG_PROMPT,
     async afterSend(conversation) {
-      await delay(700)
-      await driver.invoke('QueueDshMessage', [conversation.id, '排队：结束后在回复里写 QUEUE-OK。'])
+      const live = await waitForTurnStarted(driver, conversation.id, 25_000)
+      if (live.failed) throw new Error(live.error || 'engine stopped')
+      if (!live.started) throw new Error('DSH 主回合还没开始，排队没有对象')
+      let lastError = ''
+      for (let attempt = 0; attempt < 6; attempt += 1) {
+        try {
+          await driver.invoke('QueueDshMessage', [conversation.id, '排队：结束后在回复里写 QUEUE-OK。'])
+          return
+        } catch (error) {
+          lastError = error instanceof Error ? error.message : String(error)
+          if (!/not ready/i.test(lastError)) throw error
+          await delay(700)
+        }
+      }
+      throw new Error(lastError || 'DeepSeek Harness session is not ready')
     },
     async check({ turn }) {
       const broken = turnBroken(turn)
@@ -679,8 +695,9 @@ export async function runCodingDshMultitask(driver, options = {}) {
       approvalPolicy: 'workspace-auto',
       ...model,
     })
-    await openConversation(driver, parent.title)
-    await clickAria(driver, ['添加内容与工具', 'Add content and tools']).catch(() => false)
+    if (!await openConversation(driver, parent.title)) return fail('打不开 DSH 并行父会话')
+    await dismissOverlays(driver)
+    await clickAria(driver, ['添加内容与工具', 'Add content and tools'], '.chat-composer').catch(() => false)
     await delay(150)
     await clickLabeled(driver, ['并行', 'Multitask']).catch(() => false)
     await driver.sendMessage(parent.id, LONG_PROMPT, workspace, {
@@ -755,10 +772,11 @@ export async function runCodingDshCompact(driver, options = {}) {
 export async function runSessionNew(driver) {
   const opened = await home(driver)
   if (!opened.ok) return fail(opened.detail)
+  await dismissOverlays(driver)
   const plus = await clickLabeled(driver, ['新会话', 'New chat'])
   await delay(300)
   const snap = await pageSnapshot(driver)
-  return plus && snapshotHas(snap, ['我们要构建什么', 'What should we build'])
+  return plus && isNewConversationCanvas(snap)
     ? pass('加号打开了新会话画布')
     : fail('加号没有打开新会话画布')
 }
@@ -851,14 +869,17 @@ export async function runSessionCommandPanel(driver) {
     }).catch(() => {})
     await delay(250)
   }
-  return expectLabels(driver, ['搜索会话、设置或命令', 'Search chats, settings, or commands', '全部', 'All'], '命令面板打开了', '命令面板没打开')
+  const result = await expectLabels(driver, ['搜索会话、设置或命令', 'Search chats, settings, or commands', '全部', 'All'], '命令面板打开了', '命令面板没打开')
+  await dismissOverlays(driver)
+  return result
 }
 
 export async function runComposerModel(driver) {
   await home(driver)
+  await dismissOverlays(driver)
   await clickLabeled(driver, ['新会话', 'New chat']).catch(() => false)
   await delay(250)
-  if (!await clickAria(driver, ['选择本任务模型', 'Choose a model for this task'])) {
+  if (!await clickAria(driver, ['选择本任务模型', 'Choose a model for this task'], '.chat-composer')) {
     return fail('点不到作曲栏模型芯片')
   }
   await delay(250)
@@ -872,9 +893,10 @@ export async function runComposerModel(driver) {
 
 export async function runComposerRuntime(driver) {
   await home(driver)
+  await dismissOverlays(driver)
   await clickLabeled(driver, ['新会话', 'New chat']).catch(() => false)
   await delay(250)
-  if (!await clickAria(driver, ['选择本任务模型', 'Choose a model for this task'])) {
+  if (!await clickAria(driver, ['选择本任务模型', 'Choose a model for this task'], '.chat-composer')) {
     return fail('点不到作曲栏模型芯片')
   }
   await delay(200)
@@ -904,8 +926,9 @@ export async function runComposerGit(driver) {
       kernel: 'pi',
     })
     if (!await openConversation(driver, conversation.title)) return fail('打不开带仓库的会话')
+    await dismissOverlays(driver)
     await delay(600)
-    const opened = await clickAria(driver, ['当前分支', 'Current branch', '分支', 'Branch'])
+    const opened = await clickAria(driver, ['当前分支', 'Current branch', '分支', 'Branch'], '.chat-composer')
     if (!opened) return fail('这条会话没有 Git 芯片。工作区必须是 Git 仓库')
     await delay(250)
     return expectLabels(
@@ -921,10 +944,11 @@ export async function runComposerGit(driver) {
 
 export async function runComposerPlus(driver) {
   await home(driver)
+  await dismissOverlays(driver)
   await clickLabeled(driver, ['新会话', 'New chat']).catch(() => false)
   await delay(250)
   const openedPlus = await waitFor(
-    () => clickAria(driver, ['添加内容与工具', 'Add content and tools']),
+    () => clickAria(driver, ['添加内容与工具', 'Add content and tools'], '.chat-composer'),
     4_000,
   )
   if (!openedPlus) return fail('点不到作曲栏加号')
@@ -969,6 +993,7 @@ export async function runTerminalOpen(driver) {
 
 export async function runSessionContextMenu(driver) {
   await home(driver)
+  await dismissOverlays(driver)
   const conversation = await driver.createConversation({ title: `loop-menu-${Date.now().toString(36)}`, kernel: 'pi' })
   await delay(400)
   const openedMenu = await waitFor(() => driver.cdp.callFunction(`function(title) {

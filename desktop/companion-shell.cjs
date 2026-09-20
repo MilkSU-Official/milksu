@@ -23,6 +23,7 @@ const COMPANION_METHODS = new Set([
   'HideCompanionChatWindow',
   'ShowCompanionSettings',
   'PopupCompanionMenu',
+  'MoveCompanionPet',
   'ParkCompanionMainWindow',
   'QuitCompanionShell',
   'GetSettings',
@@ -181,6 +182,17 @@ function createCompanionShell(options) {
       .map(item => ({ id: item.id, label: item.label }))
   }
 
+  function windowBounds(window) {
+    if (!window || window.isDestroyed() || typeof window.getBounds !== 'function') return null
+    const bounds = window.getBounds()
+    return {
+      x: Number(bounds.x) || 0,
+      y: Number(bounds.y) || 0,
+      width: Number(bounds.width) || 0,
+      height: Number(bounds.height) || 0,
+    }
+  }
+
   function status() {
     return {
       floating: Boolean(float) && !wayland,
@@ -191,6 +203,8 @@ function createCompanionShell(options) {
       parked: mainParked(),
       platform,
       menu: menuSnapshot(),
+      petBounds: windowBounds(float),
+      chatBounds: windowBounds(chat),
     }
   }
 
@@ -313,6 +327,39 @@ function createCompanionShell(options) {
     return { x, y, width, height }
   }
 
+  function shiftWindow(window, dx, dy) {
+    if (!window || window.isDestroyed() || (!dx && !dy)) return
+    const bounds = typeof window.getBounds === 'function'
+      ? window.getBounds()
+      : { x: 0, y: 0 }
+    const x = Math.round(Number(bounds.x) + dx)
+    const y = Math.round(Number(bounds.y) + dy)
+    if (typeof window.setPosition === 'function') {
+      window.setPosition(x, y)
+      return
+    }
+    if (typeof window.setBounds === 'function') {
+      window.setBounds({
+        x,
+        y,
+        width: bounds.width,
+        height: bounds.height,
+      })
+    }
+  }
+
+  function movePet(payload = {}) {
+    if (!enabled || wayland || !float || float.isDestroyed()) return status()
+    const dx = Number(payload.dx)
+    const dy = Number(payload.dy)
+    if (!Number.isFinite(dx) || !Number.isFinite(dy) || (dx === 0 && dy === 0)) {
+      return status()
+    }
+    shiftWindow(float, dx, dy)
+    if (chatOpen()) shiftWindow(chat, dx, dy)
+    return status()
+  }
+
   function hideChatWindow() {
     if (chat && !chat.isDestroyed()) chat.hide()
     refreshMenus()
@@ -377,6 +424,7 @@ function createCompanionShell(options) {
       alwaysOnTop: true,
       hasShadow: false,
       hiddenInMissionControl: true,
+      movable: true,
       show: !petHidden,
       ...(platform === 'darwin' ? { type: 'panel' } : {}),
       webPreferences: {
@@ -504,6 +552,7 @@ function createCompanionShell(options) {
     if (method === 'HideCompanionChatWindow') return hideChatWindow()
     if (method === 'ShowCompanionSettings') return showCompanionSettings()
     if (method === 'PopupCompanionMenu') return popupCompanionMenu(payload)
+    if (method === 'MoveCompanionPet') return movePet(payload)
     if (method === 'ParkCompanionMainWindow') {
       parkMainWindow()
       createTray()

@@ -36,6 +36,7 @@ import {
 } from './lib/product-loop-catalog.mjs'
 import { PRODUCT_LOOP_RUNNERS } from './lib/product-loop-runners.mjs'
 import { buildProductLoopReport, formatFormalProductLoopReport, formatProductLoopReport } from './lib/product-loop-report.mjs'
+import { isNewConversationCanvas } from './lib/product-loop-session.mjs'
 import {
   applyProductLoopLocalEnv,
   describeProductLoopLocalEnv,
@@ -96,7 +97,7 @@ test('catalog keeps product regression away from evalsuite', () => {
   ])
   assert.equal(CASE_RUN_ORDER[0], 'login-gate')
   assert.equal(MODULES.coding.cases.length, 33)
-  assert.equal(MODULES.companion.cases.length, 22)
+  assert.equal(MODULES.companion.cases.length, 23)
   assert.equal(MODULES.workspaces.cases.length, 33)
   assert.equal(MODULES['desktop-surface'].cases.length, 9)
   assert.equal(MODULES['account-shell'].cases.length, 4)
@@ -180,6 +181,13 @@ test('product-loop report walks modules then cases then overall', () => {
   assert.match(html, /shots\/login-gate.png/)
   assert.match(html, /这一项没有截到产品窗口/)
   assert.ok(!html.includes('sk-'))
+})
+
+test('new conversation canvas accepts the project-scoped title', () => {
+  assert.equal(isNewConversationCanvas({ text: '我们要构建什么' }), true)
+  assert.equal(isNewConversationCanvas({ text: '我们在 product-loop-cite 中构建什么' }), true)
+  assert.equal(isNewConversationCanvas({ text: 'What should we build in cite' }), true)
+  assert.equal(isNewConversationCanvas({ text: '主页' }), false)
 })
 
 test('companion product facts come from a real turn, not RPC shape checks', () => {

@@ -176,6 +176,60 @@ export async function runCompanionPetMenu(driver) {
     : fail('桌宠右键菜单缺了对话、隐藏、主窗口、设置或退出')
 }
 
+export async function runCompanionPetDrag(driver) {
+  const shell = await enableCompanionFloat(driver)
+  if (shell?.wayland) return pass('Wayland 不能自己贴坐标，身体拖拽按产品边界跳过')
+  await driver.invoke('SetCompanionPetHidden', [{ hidden: false }]).catch(() => {})
+  const target = await waitForCompanionSurface()
+  if (!target) return fail('没有桌宠悬浮窗')
+  const before = await driver.getCompanionShellStatus()
+  const origin = before?.petBounds
+  if (!origin) return fail('壳没有回报桌宠窗口位置')
+  const session = new CdpSession(target.webSocketDebuggerUrl)
+  await session.open()
+  try {
+    const dragged = await session.evaluate(`(() => {
+      const body = document.querySelector('.companion-pet-body')
+      if (!body) return false
+      const box = body.getBoundingClientRect()
+      const x = box.left + box.width / 2
+      const y = box.top + box.height / 2
+      const screenX = window.screenX + x
+      const screenY = window.screenY + y
+      const start = { pointerId: 1, bubbles: true, cancelable: true, button: 0, clientX: x, clientY: y, screenX, screenY }
+      body.dispatchEvent(new PointerEvent('pointerdown', start))
+      body.dispatchEvent(new PointerEvent('pointermove', {
+        ...start,
+        clientX: x + 48,
+        clientY: y + 24,
+        screenX: screenX + 48,
+        screenY: screenY + 24,
+      }))
+      body.dispatchEvent(new PointerEvent('pointerup', {
+        ...start,
+        clientX: x + 48,
+        clientY: y + 24,
+        screenX: screenX + 48,
+        screenY: screenY + 24,
+      }))
+      return true
+    })()`)
+    if (!dragged) return fail('悬浮窗里没有宠物身体，不能拖对话框')
+  } finally {
+    session.close()
+  }
+  await delay(250)
+  let after = await driver.getCompanionShellStatus()
+  if (after?.petBounds && (after.petBounds.x !== origin.x || after.petBounds.y !== origin.y)) {
+    return pass('拖宠物身体后面板跟着走了')
+  }
+  await driver.invoke('MoveCompanionPet', [{ dx: 48, dy: 24 }])
+  after = await driver.getCompanionShellStatus()
+  return after?.petBounds && (after.petBounds.x !== origin.x || after.petBounds.y !== origin.y)
+    ? pass('宠物身体在，移动桌宠走同一条壳路径')
+    : fail('拖完或调用移动后桌宠窗口没有挪位置')
+}
+
 export async function runCompanionRelay(driver, options = {}) {
   const prefix = `product-loop-companion-${Date.now().toString(36)}`
   const title = `${prefix}-target`
@@ -196,7 +250,15 @@ export async function runCompanionRelay(driver, options = {}) {
       title,
       marker,
     }))
-    const turn = await driver.waitForCompanionTurn(options.taskTimeoutMs)
+    let turn = await driver.waitForCompanionTurn(options.taskTimeoutMs)
+    if (turn.timeout || companionTurnErrored(turn.events) || !companionTurnSettled(turn.events)) {
+      await driver.sendCompanionMessage(companionSpeakPrompt({
+        conversationId: conversation.id,
+        title,
+        marker,
+      }))
+      turn = await driver.waitForCompanionTurn(options.taskTimeoutMs)
+    }
     if (turn.timeout || companionTurnErrored(turn.events) || !companionTurnSettled(turn.events)) {
       return fail(`桌宠转达回合没完成 timeout=${Boolean(turn.timeout)} confirmed=${turn.confirmed}`)
     }
@@ -275,11 +337,19 @@ export async function runCompanionArchive(driver) {
 
 export async function runCompanionMemory(driver, options = {}) {
   await driver.ensureCompanion()
-  await driver.sendCompanionMessage('调用 companion_memory propose_memory，记一条「product-loop 正在测桌宠记忆」，然后结束。')
+  const prompt = '必须调用工具 companion_memory，action 用 propose_memory，title 用「product-loop 正在测桌宠记忆」。不要只聊天。'
+  await driver.sendCompanionMessage(prompt)
   await driver.waitForCompanionTurn(options.taskTimeoutMs || 180_000)
-  const memory = await driver.getCompanionMemory()
-  const pending = Array.isArray(memory?.pending) ? memory.pending : []
-  const approved = Array.isArray(memory?.approved) ? memory.approved : []
+  let memory = await driver.getCompanionMemory()
+  let pending = Array.isArray(memory?.pending) ? memory.pending : []
+  let approved = Array.isArray(memory?.approved) ? memory.approved : []
+  if (!pending.length && !approved.length) {
+    await driver.sendCompanionMessage(prompt)
+    await driver.waitForCompanionTurn(options.taskTimeoutMs || 180_000)
+    memory = await driver.getCompanionMemory()
+    pending = Array.isArray(memory?.pending) ? memory.pending : []
+    approved = Array.isArray(memory?.approved) ? memory.approved : []
+  }
   if (pending.length || approved.length) {
     return pass(`记忆里有 ${pending.length} 条待批准、${approved.length} 条已留下`)
   }

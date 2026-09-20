@@ -91,6 +91,15 @@ const CompanionPetWindow = lazy(() => import('@/components/CompanionPetWindow'))
 type Section = 'chat' | 'ctf' | 'vuln' | 'lab' | 'companion' | 'profile' | 'settings'
 type DomainHome = 'ctf' | 'vuln' | 'lab'
 
+function readRendererSurface() {
+  if (typeof window === 'undefined') return ''
+  try {
+    return String(new URLSearchParams(window.location.search).get('surface') || '')
+  } catch {
+    return ''
+  }
+}
+
 const localAccountModeKey = 'milksu.account.continue-local'
 const solidColors: Record<string, string> = {
   paper: '#f4f1e8', graphite: '#252525', black: '#000000', cyan: '#008ccf',
@@ -189,6 +198,7 @@ async function timedStartupStep<T>(label: string, work: () => Promise<T>): Promi
 
 export default function App() {
   const t = useT()
+  const rendererSurface = readRendererSurface()
   const restoredViewState = useRef(readWorkspaceViewState()).current
   const openPluginSettingsOnStartup = useRef(
     typeof location !== 'undefined'
@@ -1382,6 +1392,15 @@ export default function App() {
     let unlistenRuntime: (() => void) | undefined
     let unlistenPluginTheme: (() => void) | undefined
 
+    if (rendererSurface === 'companion' || rendererSurface === 'companion-chat') {
+      void loadSettings().catch(() => {})
+      return () => {
+        if (systemThemeMedia && systemThemeListener) {
+          systemThemeMedia.removeEventListener('change', systemThemeListener)
+        }
+      }
+    }
+
     void (async () => {
       unlistenAccount = await listenEvent<AccountStatus>('account.changed', event => {
         const previous = accountStatusRef.current
@@ -1527,27 +1546,26 @@ export default function App() {
     onEditQueuedGuidance: conversations.editQueuedGuidance,
   }
 
-  if (!accountLoaded) {
-    return (
-      <div className="grid h-screen place-items-center bg-background text-xl font-semibold text-foreground">
-        MilkSU
-      </div>
-    )
-  }
-
-  const surface = new URLSearchParams(window.location.search).get('surface')
-  if (surface === 'companion') {
+  if (rendererSurface === 'companion') {
     return (
       <Suspense fallback={null}>
         <CompanionPetWindow />
       </Suspense>
     )
   }
-  if (surface === 'companion-chat') {
+  if (rendererSurface === 'companion-chat') {
     return (
       <Suspense fallback={null}>
         <CompanionPage />
       </Suspense>
+    )
+  }
+
+  if (!accountLoaded) {
+    return (
+      <div className="grid h-screen place-items-center bg-background text-xl font-semibold text-foreground">
+        MilkSU
+      </div>
     )
   }
 

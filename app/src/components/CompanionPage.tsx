@@ -1,24 +1,46 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Textarea } from '@/components/ui'
+import { X } from 'lucide-react'
+import companionIdle from '@/assets/companion/idle.png'
+import { Button, Textarea } from '@/components/ui'
 import { useCompanion } from '@/composables/useCompanion'
-import { invokeCommand } from '@/desktop'
+import { invokeCommand, listenEvent } from '@/desktop'
 import { useT, useUiLocale } from '@/hooks/useUiLocale'
+import {
+  companionChatIsBubble,
+  companionChatIsUser,
+  companionChatShowsTimeCaption,
+  companionChatShowsTimeDivider,
+  companionChatTimestampMs,
+  formatCompanionChatStamp,
+} from '@/lib/companionChatLayout'
+import { cn } from '@/lib/cn'
+import type { AppSettings, CompanionSkinResolved } from '@/types'
+
+function fitComposer(node: HTMLTextAreaElement | null) {
+  if (!node) return
+  node.style.height = '0px'
+  node.style.height = `${Math.min(Math.max(node.scrollHeight, 22), 72)}px`
+}
 
 export default function CompanionPage() {
   const t = useT()
   const locale = useUiLocale()
   const companion = useCompanion()
   const parentRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
   const stickToEnd = useRef(true)
+  const [avatar, setAvatar] = useState(companionIdle)
+  const olderOffset = companion.hasMore ? 1 : 0
+  const typing = companion.busy && !companion.streaming
   const virtualizer = useVirtualizer({
-    count: companion.entries.length + (companion.hasMore ? 1 : 0),
+    count: companion.entries.length + olderOffset,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 72,
+    estimateSize: () => 56,
     overscan: 12,
     getItemKey: index => {
       if (companion.hasMore && index === 0) return 'older'
-      return companion.entries[index - (companion.hasMore ? 1 : 0)]?.id ?? index
+      return companion.entries[index - olderOffset]?.id ?? index
     },
   })
 
@@ -32,23 +54,55 @@ export default function CompanionPage() {
   }, [])
 
   useEffect(() => {
+    let cancelled = false
+    async function loadSkin(id?: string) {
+      try {
+        const settings = await invokeCommand<AppSettings>('get_settings')
+        const resolved = await invokeCommand<CompanionSkinResolved>('get_companion_skin', {
+          id: id || settings.companion_skin_id || 'default',
+        })
+        const src = resolved?.frames.idle || resolved?.frames.talk || companionIdle
+        if (!cancelled) setAvatar(src)
+      } catch {
+        if (!cancelled) setAvatar(companionIdle)
+      }
+    }
+    void loadSkin()
+    let stop: (() => void) | undefined
+    void listenEvent<{ id?: string }>('companion-skin.changed', event => {
+      void loadSkin(event.payload?.id)
+    }).then(unlisten => {
+      stop = unlisten
+    })
+    return () => {
+      cancelled = true
+      stop?.()
+    }
+  }, [])
+
+  useEffect(() => {
+    fitComposer(inputRef.current)
+  }, [companion.draft])
+
+  useEffect(() => {
     if (!stickToEnd.current || companion.entries.length === 0) return
-    virtualizer.scrollToIndex(companion.entries.length + (companion.hasMore ? 1 : 0) - 1, {
+    virtualizer.scrollToIndex(companion.entries.length + olderOffset - 1, {
       align: 'end',
     })
-  }, [companion.entries, companion.hasMore, virtualizer])
+  }, [companion.entries, olderOffset, typing, virtualizer])
 
   return (
     <main className="companion-chat" data-testid="companion-chat">
       <header className="companion-chat-head">
-        <p className="min-w-0 flex-1 truncate text-label font-medium">{t('桌宠', 'Companion')}</p>
+        <img className="companion-chat-avatar" src={avatar} alt="" draggable={false} />
+        <p className="companion-chat-title">{t('桌宠', 'Companion')}</p>
         <button
           type="button"
           className="companion-chat-icon"
           aria-label={t('关闭对话', 'Close chat')}
           onClick={() => void invokeCommand('hide_companion_chat_window', { locale })}
         >
-          {t('关闭', 'Close')}
+          <X className="size-3.5" />
         </button>
       </header>
       <div
@@ -60,68 +114,123 @@ export default function CompanionPage() {
           if (node.scrollTop < 48 && companion.hasMore) void companion.loadOlder()
         }}
       >
-        {companion.entries.length === 0 && !companion.busy ? (
-          <p className="px-3 py-2 text-caption text-muted-foreground">
-            {companion.status.model || companion.status.provider || t('桌宠', 'Companion')}
-          </p>
-        ) : (
+        {companion.entries.length === 0 ? null : (
           <div className="relative" style={{ height: `${virtualizer.getTotalSize()}px` }}>
             {virtualizer.getVirtualItems().map(item => {
               if (companion.hasMore && item.index === 0) {
                 return (
                   <div
                     key={item.key}
-                    className="absolute left-0 top-0 w-full px-3 text-caption text-muted-foreground"
+                    className="companion-chat-time absolute left-0 top-0 w-full"
                     style={{ transform: `translateY(${item.start}px)` }}
                   >
                     {t('更早的对话', 'Earlier messages')}
                   </div>
                 )
               }
-              const entry = companion.entries[item.index - (companion.hasMore ? 1 : 0)]
+              const entryIndex = item.index - olderOffset
+              const entry = companion.entries[entryIndex]
               if (!entry) return null
+              const previous = companion.entries[entryIndex - 1]
+              const next = companion.entries[entryIndex + 1]
+              const currentMs = companionChatTimestampMs(entry.timestamp)
+              const showDivider = companionChatShowsTimeDivider(
+                currentMs,
+                companionChatTimestampMs(previous?.timestamp),
+              )
+              const showCaption = companionChatShowsTimeCaption({
+                currentMs,
+                nextMs: companionChatTimestampMs(next?.timestamp),
+                currentRole: entry.role,
+                nextRole: next?.role,
+                showDivider,
+                isLast: entryIndex === companion.entries.length - 1,
+              })
+              const stamp = formatCompanionChatStamp(entry.timestamp, locale)
+              const user = companionChatIsUser(entry.role)
+              const bubble = companionChatIsBubble(entry.role)
               return (
                 <article
                   key={item.key}
                   data-index={item.index}
                   ref={virtualizer.measureElement}
-                  className="absolute left-0 top-0 w-full px-3 py-1.5"
+                  className={cn(
+                    'companion-chat-row absolute left-0 top-0 w-full',
+                    user ? 'companion-chat-row-user' : 'companion-chat-row-assistant',
+                    !bubble && 'companion-chat-row-system',
+                  )}
                   style={{ transform: `translateY(${item.start}px)` }}
                 >
-                  <p className="text-caption text-muted-foreground">
-                    {entry.role === 'user' ? t('你', 'You') : t('桌宠', 'Companion')}
-                  </p>
-                  <p className="whitespace-pre-wrap text-body text-foreground">{entry.text || entry.type}</p>
+                  {showDivider && stamp ? <p className="companion-chat-time">{stamp}</p> : null}
+                  {bubble ? (
+                    <p className={cn(
+                      'companion-chat-bubble',
+                      user ? 'companion-chat-bubble-user' : 'companion-chat-bubble-assistant',
+                      showCaption && 'companion-chat-bubble-tail',
+                    )}>
+                      {entry.text || entry.type}
+                    </p>
+                  ) : (
+                    <p className="companion-chat-system">{entry.text || entry.type}</p>
+                  )}
+                  {showCaption && stamp ? <p className="companion-chat-stamp">{stamp}</p> : null}
                 </article>
               )
             })}
           </div>
         )}
+        {typing ? (
+          <div className="companion-chat-row companion-chat-row-assistant">
+            <p className="companion-chat-bubble companion-chat-bubble-assistant companion-chat-typing" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+            </p>
+            <span className="sr-only">{t('正在回复', 'Replying')}</span>
+          </div>
+        ) : null}
       </div>
-      {(companion.memory.pending ?? []).length ? (
-        <div className="companion-chat-side">
+      {(companion.memory.pending ?? []).length || companion.confirm ? (
+        <div className="companion-chat-dock">
           {(companion.memory.pending ?? []).map(item => (
-            <div key={item.id} className="space-y-2 rounded-md border border-border bg-card p-2">
-              <p className="text-label">{item.title}</p>
-              <div className="flex gap-2">
-                <Button size="sm" onClick={() => void companion.approveMemory(item.id)}>
-                  {t('批准', 'Approve')}
+            <div key={item.id} className="companion-chat-memory">
+              <p>{item.title}</p>
+              <Button size="sm" className="h-7" onClick={() => void companion.approveMemory(item.id)}>
+                {t('批准', 'Approve')}
+              </Button>
+              <Button size="sm" variant="outline" className="h-7" onClick={() => void companion.forgetMemory(item.id)}>
+                {t('忘掉', 'Forget')}
+              </Button>
+            </div>
+          ))}
+          {companion.confirm ? (
+            <div className="companion-chat-confirm">
+              <p>
+                {companion.confirm.action === 'stop'
+                  ? t('终止这个会话的当前回合。', 'Stop the current turn in this conversation.')
+                  : companion.confirm.text.trim() || companion.confirm.targetTitle.trim()
+                    || t('把这条指令插入正在进行的回合。', 'Steer the current turn with this instruction.')}
+              </p>
+              <div className="companion-chat-confirm-actions">
+                <Button size="sm" variant="outline" className="h-7" onClick={() => void companion.resolveConfirm(false)}>
+                  {t('取消', 'Cancel')}
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => void companion.forgetMemory(item.id)}>
-                  {t('忘掉', 'Forget')}
+                <Button size="sm" className="h-7" onClick={() => void companion.resolveConfirm(true)}>
+                  {t('确认', 'Confirm')}
                 </Button>
               </div>
             </div>
-          ))}
+          ) : null}
         </div>
       ) : null}
       <div className="companion-chat-composer">
         {companion.error ? (
-          <p className="text-caption text-destructive">{companion.error}</p>
+          <p className="companion-chat-error">{companion.error}</p>
         ) : null}
-        <div className="flex items-end gap-2">
+        <div className="companion-chat-well">
           <Textarea
-            className="min-h-11 flex-1"
+            ref={inputRef}
+            className="companion-chat-input min-h-0 max-h-[72px] flex-1 resize-none border-0 bg-transparent px-0 py-1 shadow-none focus-visible:border-transparent"
             value={companion.draft}
             onChange={event => companion.setDraft(event.target.value)}
             onKeyDown={event => {
@@ -132,34 +241,15 @@ export default function CompanionPage() {
             }}
             aria-label={t('桌宠输入', 'Companion message')}
           />
-          <Button disabled={companion.busy || !companion.draft.trim()} onClick={() => void companion.send()}>
+          <Button
+            className="companion-chat-send"
+            disabled={companion.busy || !companion.draft.trim()}
+            onClick={() => void companion.send()}
+          >
             {companion.busy ? t('排队', 'Queue') : t('发送', 'Send')}
           </Button>
         </div>
       </div>
-      <Dialog open={Boolean(companion.confirm)} onOpenChange={open => { if (!open) void companion.resolveConfirm(false) }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('确认调度', 'Confirm dispatch')}</DialogTitle>
-            <DialogDescription>
-              {companion.confirm?.targetTitle || companion.confirm?.conversationId}
-            </DialogDescription>
-          </DialogHeader>
-          <p className="text-body text-foreground">
-            {companion.confirm?.action === 'stop'
-              ? t('终止这个会话的当前回合。', 'Stop the current turn in this conversation.')
-              : t('把这条指令插入正在进行的回合。', 'Steer the current turn with this instruction.')}
-          </p>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => void companion.resolveConfirm(false)}>
-              {t('取消', 'Cancel')}
-            </Button>
-            <Button onClick={() => void companion.resolveConfirm(true)}>
-              {t('确认', 'Confirm')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </main>
   )
 }

@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import companionDecide from '@/assets/companion/decide.png'
 import companionIdle from '@/assets/companion/idle.png'
 import companionTalk from '@/assets/companion/talk.png'
 import { useCompanion } from '@/composables/useCompanion'
 import { invokeCommand, listenEvent } from '@/desktop'
 import { useT, useUiLocale } from '@/hooks/useUiLocale'
-import { companionPetSprite, resolveCompanionPetMotion } from '@/lib/companionPetMotion'
+import { companionPetDragMoved, companionPetSprite, resolveCompanionPetMotion } from '@/lib/companionPetMotion'
 import type { AppSettings, CompanionSkinResolved } from '@/types'
 
 const factorySprites = {
@@ -73,6 +73,10 @@ export default function CompanionPetWindow() {
     return () => {
       document.documentElement.classList.remove('companion-surface')
       document.body.classList.remove('companion-surface')
+      if (pendingMove.current.frame) {
+        window.cancelAnimationFrame(pendingMove.current.frame)
+        pendingMove.current.frame = 0
+      }
     }
   }, [])
 
@@ -103,6 +107,90 @@ export default function CompanionPetWindow() {
   }, [])
 
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null)
+  const [dragging, setDragging] = useState(false)
+  const dragRef = useRef<{
+    pointerId: number
+    startX: number
+    startY: number
+    lastX: number
+    lastY: number
+    moved: boolean
+  } | null>(null)
+  const pendingMove = useRef({ dx: 0, dy: 0, frame: 0 })
+
+  function flushPetMove() {
+    pendingMove.current.frame = 0
+    const { dx, dy } = pendingMove.current
+    pendingMove.current.dx = 0
+    pendingMove.current.dy = 0
+    if (!dx && !dy) return
+    void invokeCommand('move_companion_pet', { dx, dy })
+  }
+
+  function queuePetMove(dx: number, dy: number) {
+    pendingMove.current.dx += dx
+    pendingMove.current.dy += dy
+    if (pendingMove.current.frame) return
+    pendingMove.current.frame = window.requestAnimationFrame(flushPetMove)
+  }
+
+  function endPetDrag(target: HTMLElement, pointerId: number) {
+    const drag = dragRef.current
+    if (!drag || drag.pointerId !== pointerId) return null
+    dragRef.current = null
+    setDragging(false)
+    if (pendingMove.current.frame) {
+      window.cancelAnimationFrame(pendingMove.current.frame)
+      flushPetMove()
+    }
+    try {
+      target.releasePointerCapture(pointerId)
+    } catch {
+      // Capture may already be released when the pointer is cancelled.
+    }
+    return drag
+  }
+
+  function onPetPointerDown(event: ReactPointerEvent<HTMLDivElement>) {
+    if (event.button !== 0) return
+    if (menu) {
+      setMenu(null)
+      return
+    }
+    event.currentTarget.setPointerCapture(event.pointerId)
+    dragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.screenX,
+      startY: event.screenY,
+      lastX: event.screenX,
+      lastY: event.screenY,
+      moved: false,
+    }
+  }
+
+  function onPetPointerMove(event: ReactPointerEvent<HTMLDivElement>) {
+    const drag = dragRef.current
+    if (!drag || drag.pointerId !== event.pointerId) return
+    const totalX = event.screenX - drag.startX
+    const totalY = event.screenY - drag.startY
+    if (!drag.moved && !companionPetDragMoved(totalX, totalY)) return
+    drag.moved = true
+    setDragging(true)
+    const dx = event.screenX - drag.lastX
+    const dy = event.screenY - drag.lastY
+    drag.lastX = event.screenX
+    drag.lastY = event.screenY
+    if (dx || dy) queuePetMove(dx, dy)
+  }
+
+  function onPetPointerUp(event: ReactPointerEvent<HTMLDivElement>) {
+    const drag = endPetDrag(event.currentTarget, event.pointerId)
+    if (!drag) return
+    if (!drag.moved) {
+      setMenu(null)
+      void invokeCommand('show_companion_chat_window', { locale })
+    }
+  }
 
   return (
     <div
@@ -112,13 +200,17 @@ export default function CompanionPetWindow() {
         `companion-pet-overlay-think-${skin.overlay.think}`,
         `companion-pet-overlay-decide-${skin.overlay.decide}`,
         `companion-pet-overlay-complete-${skin.overlay.complete}`,
-      ].join(' ')}
+        dragging ? 'companion-pet-dragging' : '',
+      ].filter(Boolean).join(' ')}
       onContextMenu={event => {
         event.preventDefault()
         event.stopPropagation()
+        const drag = dragRef.current
+        if (drag) endPetDrag(event.currentTarget, drag.pointerId)
         setMenu({ x: event.clientX, y: event.clientY })
       }}
       onClick={() => {
+        if (dragRef.current?.moved) return
         setMenu(null)
         void invokeCommand('show_companion_chat_window', { locale })
       }}
@@ -168,7 +260,17 @@ export default function CompanionPetWindow() {
           {bubble}
         </div>
       ) : null}
-      <div className="companion-pet-body" aria-hidden={true}>
+      <div
+        className="companion-pet-body"
+        aria-hidden={true}
+        onPointerDown={onPetPointerDown}
+        onPointerMove={onPetPointerMove}
+        onPointerUp={onPetPointerUp}
+        onPointerCancel={event => {
+          endPetDrag(event.currentTarget, event.pointerId)
+        }}
+        onClick={event => event.stopPropagation()}
+      >
         <img
           className="companion-pet-sprite"
           src={spriteSrc(skin, motion)}

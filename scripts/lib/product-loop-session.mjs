@@ -34,32 +34,48 @@ export async function releaseProductLoopWorkspace(driver, conversation, workspac
   if (workspace) await rm(workspace, { recursive: true, force: true }).catch(() => {})
 }
 
-export async function clickLabeled(driver, patterns) {
-  return driver.cdp.callFunction(`function(patterns) {
-    const nodes = Array.from(document.querySelectorAll('button, [role="button"]'))
-    for (const node of nodes) {
-      const label = [node.getAttribute('aria-label') || '', node.getAttribute('title') || '', node.textContent || ''].join(' ')
-      if (patterns.some(pattern => label.includes(pattern))) {
-        node.click()
-        return true
+function clickScript(mode) {
+  return `function(patterns, rootSelector) {
+    const root = rootSelector ? document.querySelector(rootSelector) : document
+    if (!root) return false
+    const selector = ${JSON.stringify(mode === 'aria'
+      ? 'button, [role="button"], [role="tab"]'
+      : 'button, [role="button"]')}
+    const nodes = Array.from(root.querySelectorAll(selector))
+    const visible = nodes.filter(node => {
+      const box = node.getBoundingClientRect()
+      return box.width > 1 && box.height > 1
+    })
+    const ranked = visible.length ? visible : nodes
+    let best = null
+    let bestScore = 0
+    for (const node of ranked) {
+      const aria = node.getAttribute('aria-label') || ''
+      const title = node.getAttribute('title') || ''
+      const text = (node.textContent || '').replace(/\\s+/g, ' ').trim()
+      const hay = ${mode === 'aria' ? 'aria' : '[aria, title, text].join(" ")'}
+      let score = 0
+      for (const pattern of patterns) {
+        if (aria === pattern || title === pattern || text === pattern) score = Math.max(score, 3)
+        else if (hay.includes(pattern)) score = Math.max(score, 1)
+      }
+      if (score > bestScore) {
+        best = node
+        bestScore = score
       }
     }
-    return false
-  }`, [patterns])
+    if (!best) return false
+    best.click()
+    return true
+  }`
 }
 
-export async function clickAria(driver, patterns) {
-  return driver.cdp.callFunction(`function(patterns) {
-    const nodes = Array.from(document.querySelectorAll('button, [role="button"], [role="tab"]'))
-    for (const node of nodes) {
-      const label = node.getAttribute('aria-label') || ''
-      if (patterns.some(pattern => label.includes(pattern))) {
-        node.click()
-        return true
-      }
-    }
-    return false
-  }`, [patterns])
+export async function clickLabeled(driver, patterns, rootSelector = '') {
+  return pageCall(driver, clickScript('label'), [patterns, rootSelector])
+}
+
+export async function clickAria(driver, patterns, rootSelector = '') {
+  return pageCall(driver, clickScript('aria'), [patterns, rootSelector])
 }
 
 export async function clickRole(driver, role, patterns, rootSelector = '') {
@@ -79,13 +95,17 @@ export async function clickRole(driver, role, patterns, rootSelector = '') {
 }
 
 export async function hoverLabeled(driver, patterns) {
-  return driver.cdp.callFunction(`function(patterns) {
+  return pageCall(driver, `function(patterns) {
     const nodes = Array.from(document.querySelectorAll('button, [role="button"], [role="menuitem"]'))
     for (const node of nodes) {
       const label = [node.getAttribute('aria-label') || '', node.textContent || ''].join(' ')
       if (!patterns.some(pattern => label.includes(pattern))) continue
+      const box = node.getBoundingClientRect()
+      if (box.width < 1 || box.height < 1) continue
+      node.dispatchEvent(new PointerEvent('pointerenter', { bubbles: true }))
       node.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }))
       node.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }))
+      node.click()
       return true
     }
     return false
@@ -107,24 +127,19 @@ export async function expandSidebar(driver) {
 
 export async function openConversation(driver, title) {
   await expandSidebar(driver)
-  const clicked = await driver.cdp.callFunction(`function(title) {
+  await dismissOverlays(driver)
+  const clicked = await waitFor(() => pageCall(driver, `function(title) {
     const row = Array.from(document.querySelectorAll('.agent-sidebar-item')).find(item => (item.textContent || '').includes(title))
     if (row) {
+      row.scrollIntoView({ block: 'nearest' })
       const button = row.querySelector('button.agent-sidebar-row, button')
       ;(button || row).click()
       return true
     }
-    const nodes = Array.from(document.querySelectorAll('button, [role="button"]'))
-    const node = nodes.find(item => {
-      const label = [item.getAttribute('aria-label') || '', item.textContent || ''].join(' ')
-      return label.includes(title)
-    })
-    if (!node) return false
-    node.click()
-    return true
-  }`, [title])
+    return false
+  }`, [title]), 6_000)
   await delay(400)
-  return clicked
+  return Boolean(clicked)
 }
 
 export async function pageSnapshot(driver) {
@@ -141,6 +156,50 @@ export function snapshotHas(snapshot, patterns) {
 
 export function snapshotText(snapshot) {
   return `${(snapshot?.aria || []).join('\n')}\n${snapshot?.text || ''}`
+}
+
+export function isNewConversationCanvas(snapshot) {
+  return /我们要构建什么|我们在 .+ 中构建什么|What should we build/.test(snapshotText(snapshot))
+}
+
+async function pageCall(driver, functionDeclaration, args = []) {
+  if (typeof driver.ensureAttached === 'function' && !await driver.ensureAttached()) {
+    throw new Error('CDP WebSocket closed')
+  }
+  try {
+    return await driver.cdp.callFunction(functionDeclaration, args)
+  } catch (error) {
+    const text = error instanceof Error ? error.message : String(error)
+    if (!/CDP WebSocket closed/i.test(text)) throw error
+    if (driver.cdp) driver.cdp.closed = true
+    if (typeof driver.ensureAttached !== 'function' || !await driver.ensureAttached()) throw error
+    return driver.cdp.callFunction(functionDeclaration, args)
+  }
+}
+
+export async function dismissOverlays(driver) {
+  if (!driver?.cdp) return false
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const open = await pageCall(driver, `function() {
+      const dialog = document.querySelector('[role="dialog"], [data-slot="dialog-content"], [cmdk-root], [data-testid="command-panel"]')
+      if (!dialog) return false
+      const box = dialog.getBoundingClientRect()
+      return box.width > 0 && box.height > 0
+    }`).catch(() => false)
+    if (!open) return attempt > 0
+    await driver.cdp.send('Input.dispatchKeyEvent', {
+      type: 'keyDown',
+      key: 'Escape',
+      windowsVirtualKeyCode: 27,
+    }).catch(() => {})
+    await driver.cdp.send('Input.dispatchKeyEvent', {
+      type: 'keyUp',
+      key: 'Escape',
+      windowsVirtualKeyCode: 27,
+    }).catch(() => {})
+    await delay(160)
+  }
+  return true
 }
 
 export function pass(detail) {
@@ -282,6 +341,7 @@ export async function waitFor(predicate, timeoutMs, intervalMs = 400) {
 }
 
 export async function openWorkspace(driver, labels) {
+  await dismissOverlays(driver)
   const clicked = await waitFor(() => clickLabeled(driver, labels), 8_000)
   if (!clicked) return { ok: false, detail: `侧栏找不到 ${labels[0]}` }
   await delay(400)
@@ -324,6 +384,7 @@ export async function ensureIsolatedProductSession(session = {}, options = {}) {
     await session.driver.ensureAttached()
     await keepExclusiveMilkSUWindow({ driver: session.driver, log: true })
     await expandSidebar(session.driver).catch(() => {})
+    await dismissOverlays(session.driver).catch(() => {})
     await leaveSettings(session.driver).catch(() => {})
     const gate = await enterHomepageSkipLocal(session.driver)
     if (!gate.ok) return { ...session, ok: false, detail: gate.detail }

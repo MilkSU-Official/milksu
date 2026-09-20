@@ -6,6 +6,7 @@ import { delay } from './desktop-gui-driver.mjs'
 import {
   clickAria,
   clickLabeled,
+  dismissOverlays,
   expectLabels,
   fail,
   leaveSettings,
@@ -18,13 +19,31 @@ import {
 } from './product-loop-session.mjs'
 
 async function openDomain(driver, labels) {
+  if (typeof driver.ensureAttached === 'function') {
+    await driver.ensureAttached().catch(() => false)
+  }
   await leaveSettings(driver)
-  return openWorkspace(driver, labels)
+  await dismissOverlays(driver)
+  try {
+    return await openWorkspace(driver, labels)
+  } catch (error) {
+    const text = error instanceof Error ? error.message : String(error)
+    if (!/CDP WebSocket closed/i.test(text)) throw error
+    if (driver.cdp) driver.cdp.closed = true
+    if (typeof driver.ensureAttached === 'function') await driver.ensureAttached()
+    await dismissOverlays(driver)
+    return openWorkspace(driver, labels)
+  }
 }
 
 async function showLabCatalog(driver) {
   await clickAria(driver, ['返回实验室', 'Back to Lab']).catch(() => false)
   await clickAria(driver, ['返回题目包', 'Back to packages']).catch(() => false)
+  await delay(200)
+}
+
+async function showCveCatalog(driver) {
+  await clickAria(driver, ['返回漏洞列表', 'Back to CVE list']).catch(() => false)
   await delay(200)
 }
 
@@ -261,6 +280,7 @@ export async function runWorkspaceCveList(driver) {
 export async function runWorkspaceCvePublicSearch(driver) {
   const nav = await openDomain(driver, ['CVE'])
   if (!nav.ok) return fail(nav.detail)
+  await showCveCatalog(driver)
   if (!await clickAria(driver, ['导入 CVE', 'Import CVE'])) return fail('点不开导入 CVE')
   await delay(300)
   return expectLabels(
@@ -274,6 +294,11 @@ export async function runWorkspaceCvePublicSearch(driver) {
 export async function runWorkspaceCveOpenItem(driver) {
   const nav = await openDomain(driver, ['CVE'])
   if (!nav.ok) return fail(nav.detail)
+  const snap = await pageSnapshot(driver)
+  if (snapshotHas(snap, ['CVE-2024', '开始复现', 'Start reproduction'])) {
+    return pass('已经打开了一条 CVE 对话')
+  }
+  await showCveCatalog(driver)
   const opened = await clickTestId(driver, 'open-item')
   await delay(400)
   if (opened) return pass('打开了一条 CVE')
@@ -281,6 +306,7 @@ export async function runWorkspaceCveOpenItem(driver) {
 }
 
 async function ensureCveListItem(driver, cveId, title) {
+  await showCveCatalog(driver)
   let opened = await clickTestId(driver, 'open-item')
   if (opened) return true
   await driver.invoke('EnsureVulnTrackingWorkspace', [{
@@ -292,6 +318,7 @@ async function ensureCveListItem(driver, cveId, title) {
   opened = await clickTestId(driver, 'open-item')
   if (opened) return true
   await openDomain(driver, ['CVE']).catch(() => null)
+  await showCveCatalog(driver)
   await delay(800)
   opened = await clickTestId(driver, 'open-item')
   if (opened) return true
@@ -473,7 +500,9 @@ export async function runWorkspaceLabCreate(driver) {
     || await clickTestId(driver, 'workspace-create')
   if (!opened) return fail('打不开创建自定义任务')
   await delay(300)
-  return expectLabels(driver, ['自定义任务', 'Custom job', '启动并打开', 'Start and open'], '创建自定义任务表单打开了', '创建按钮点了但表单没出来')
+  const result = await expectLabels(driver, ['自定义任务', 'Custom job', '启动并打开', 'Start and open'], '创建自定义任务表单打开了', '创建按钮点了但表单没出来')
+  await dismissOverlays(driver)
+  return result
 }
 
 export async function runWorkspaceLabSettings(driver) {

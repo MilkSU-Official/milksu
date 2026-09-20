@@ -22,6 +22,7 @@ const ALLOWED = new Set([
   'HideCompanionChatWindow',
   'ShowCompanionSettings',
   'PopupCompanionMenu',
+  'MoveCompanionPet',
   'ParkCompanionMainWindow',
   'QuitCompanionShell',
   'GetSettings',

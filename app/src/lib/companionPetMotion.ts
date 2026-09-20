@@ -1,4 +1,13 @@
 export const COMPANION_COMPLETE_HOLD_MS = 2800
+export const COMPANION_PET_DRAG_THRESHOLD_PX = 4
+
+export function companionPetDragMoved(
+  dx: number,
+  dy: number,
+  threshold = COMPANION_PET_DRAG_THRESHOLD_PX,
+) {
+  return (dx * dx) + (dy * dy) >= (threshold * threshold)
+}
 
 export type CompanionPetMotion = 'idle' | 'talk' | 'think' | 'decide' | 'complete'
 

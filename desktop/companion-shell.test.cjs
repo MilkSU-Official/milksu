@@ -32,8 +32,22 @@ function fakeWindow() {
     setAlwaysOnTop() {},
     setVisibleOnAllWorkspaces() {},
     setWindowButtonVisibility() {},
-    getBounds() { return { x: 80, y: 80, width: this.options?.width || 232, height: this.options?.height || 400 } },
-    setBounds() {},
+    getBounds() {
+      return {
+        x: this.x ?? this.options?.x ?? 80,
+        y: this.y ?? this.options?.y ?? 80,
+        width: this.options?.width || 232,
+        height: this.options?.height || 400,
+      }
+    },
+    setBounds(bounds) {
+      this.x = bounds.x
+      this.y = bounds.y
+    },
+    setPosition(x, y) {
+      this.x = x
+      this.y = y
+    },
     loadURL() {},
     close() { this.destroyed = true },
     on(event, handler) { this.events[event] = handler },
@@ -98,6 +112,7 @@ test('companion window methods are a subset of the main renderer surface', () =>
   assert.ok(COMPANION_METHODS.has('ShowCompanionMainWindow'))
   assert.ok(COMPANION_METHODS.has('ShowCompanionChatWindow'))
   assert.ok(COMPANION_METHODS.has('PopupCompanionMenu'))
+  assert.ok(COMPANION_METHODS.has('MoveCompanionPet'))
   assert.ok(COMPANION_METHODS.has('ParkCompanionMainWindow'))
   assert.ok(COMPANION_METHODS.has('GetCompanionSkin'))
   assert.ok(COMPANION_METHODS.has('EnsureCompanion'))
@@ -216,6 +231,27 @@ test('ShowCompanionChatWindow opens a small skipTaskbar chat beside the pet', ()
   assert.equal(created[1].options.skipTaskbar, true)
   assert.equal(created[1].options.frame, false)
   assert.equal(created[1].options.transparent, false)
+})
+
+test('MoveCompanionPet moves the sprite window and keeps an open chat attached', () => {
+  const { shell, created } = createShell()
+  shell.createFloat()
+  shell.handleHostMethod('ShowCompanionChatWindow')
+  const pet = created[0]
+  const chatWin = created[1]
+  pet.x = 400
+  pet.y = 200
+  chatWin.x = 52
+  chatWin.y = 200
+  const moved = shell.handleHostMethod('MoveCompanionPet', { dx: 24, dy: -10 })
+  assert.equal(pet.x, 424)
+  assert.equal(pet.y, 190)
+  assert.equal(chatWin.x, 76)
+  assert.equal(chatWin.y, 190)
+  assert.equal(moved.floating, true)
+  assert.equal(moved.petBounds.x, 424)
+  assert.equal(moved.petBounds.y, 190)
+  assert.equal(moved.chatBounds.x, 76)
 })
 
 test('SetCompanionPetHidden and ShowCompanionMainWindow are host methods', () => {
