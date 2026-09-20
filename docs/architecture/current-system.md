@@ -57,7 +57,7 @@ Pi 拥有会话、压缩和工具循环。桌面 GUI 把外部动作变成可见
 
 | 边界 | 状态 | 事实 |
 | --- | --- | --- |
-| 桌面壳 | packaged | `desktop/main.cjs` + Preload allowlist。macOS `hiddenInset`；Windows/Linux 画布色 overlay，系统按钮右上。macOS DMG 安装引导图为 1x + @2x HiDPI TIFF。桌宠悬浮窗是独立透明窗；关掉主窗口后 Dock / 任务栏仍保留 MilkSU（Linux 用托盘）。Wayland 只留主窗口里的桌宠页。 |
+| 桌面壳 | packaged | `desktop/main.cjs` + Preload allowlist。macOS `hiddenInset`；Windows/Linux 画布色 overlay，系统按钮右上。macOS DMG 安装引导图为 1x + @2x HiDPI TIFF。桌宠悬浮窗是独立透明窗；关掉主窗口后 Dock / 任务栏仍保留 MilkSU（Linux 用托盘）。Wayland 只留主窗口里的桌宠页。角色皮肤合同见 [桌宠皮肤设计合同](/developer/companion-skin)。 |
 | Renderer | packaged | React + shadcn：CTF / CVE / 实验室 / Coding / 设置 / Composer / 右栏 / Bottom Dock。入口 `main.tsx`。 |
 | 账户与模型 | packaged | GitHub PKCE；TokenFlux Key 只进 Go Credential Store，请求 `https://tokenflux.dev/v1`。账户目录优先，可安全回退个人来源。 |
 | OTA | implemented | 已登录 Stable 轮询 Admin latest；侧栏打开进度框下载，下完后用户点安装并重启；macOS/Windows 走 electron-updater，Linux dpkg/tarball。GitHub Release 不上 OTA ZIP。 |
