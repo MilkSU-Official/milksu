@@ -9,6 +9,7 @@ const { join } = require('node:path')
 const {
   CompanionSkinError,
   FACTORY_COMPANION_SKIN_ID,
+  factoryCompanionSkin,
   inspectCompanionPng,
   parseCompanionSkinManifest,
   parseCompanionSkinSelection,
@@ -16,6 +17,10 @@ const {
   rgbaPng1x1,
   writeCompanionSkinFixture,
 } = require('./companion-skin.cjs')
+
+test('factory companion is named Milk', () => {
+  assert.deepEqual(factoryCompanionSkin().name, { zh: 'Milk', en: 'Milk' })
+})
 
 test('factory selection is the reserved default id', () => {
   assert.deepEqual(parseCompanionSkinSelection(''), { id: FACTORY_COMPANION_SKIN_ID, source: 'factory' })

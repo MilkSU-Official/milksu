@@ -23,7 +23,7 @@ describe('workspace navigation', () => {
     expect(showsCodingHistory('lab')).toBe(true)
     expect(isDomainWorkspace('chat')).toBe(false)
     expect(isDomainWorkspace('ctf')).toBe(true)
-    expect(WORKSPACE_SIDEBAR_ITEMS.map(item => item.id)).toEqual(['chat', 'companion', 'ctf', 'vuln', 'lab'])
+    expect(WORKSPACE_SIDEBAR_ITEMS.map(item => item.id)).toEqual(['chat', 'ctf', 'vuln', 'lab'])
     expect(WORKSPACE_SIDEBAR_ITEMS[0].label()).toBe('主页')
   })
 

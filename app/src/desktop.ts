@@ -317,8 +317,19 @@ interface DesktopAppBindings {
   HideCompanionChatWindow(): Promise<CompanionShellStatus>
   ClickCompanionPet(request?: { locale?: string }): Promise<CompanionShellStatus>
   ShowCompanionSettings(): Promise<CompanionShellStatus>
-  PopupCompanionMenu(request?: { x?: number; y?: number; locale?: string }): Promise<CompanionShellStatus>
-  MoveCompanionPet(request: { dx: number; dy: number }): Promise<CompanionShellStatus>
+  PopupCompanionMenu(request?: {
+    x?: number
+    y?: number
+    screenX?: number
+    screenY?: number
+    locale?: string
+  }): Promise<CompanionShellStatus>
+  SetCompanionPointerPassthrough(request?: { ignore?: boolean }): Promise<CompanionShellStatus>
+  MoveCompanionPet(request: {
+    dx?: number
+    dy?: number
+    drag?: 'begin' | 'update' | 'end'
+  }): Promise<CompanionShellStatus>
   ParkCompanionMainWindow(): Promise<CompanionShellStatus>
   QuitCompanionShell(): Promise<void>
   ListCompanionSkins(): Promise<CompanionSkinList>
@@ -840,12 +851,21 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.PopupCompanionMenu({
           x: typeof args?.x === 'number' ? args.x : undefined,
           y: typeof args?.y === 'number' ? args.y : undefined,
+          screenX: typeof args?.screenX === 'number' ? args.screenX : undefined,
+          screenY: typeof args?.screenY === 'number' ? args.screenY : undefined,
           locale: typeof args?.locale === 'string' ? args.locale : undefined,
+        }) as Promise<T>
+      case 'set_companion_pointer_passthrough':
+        return app.SetCompanionPointerPassthrough({
+          ignore: args?.ignore !== false,
         }) as Promise<T>
       case 'move_companion_pet':
         return app.MoveCompanionPet({
           dx: Number(args?.dx ?? 0),
           dy: Number(args?.dy ?? 0),
+          drag: args?.drag === 'begin' || args?.drag === 'update' || args?.drag === 'end'
+            ? args.drag
+            : undefined,
         }) as Promise<T>
       case 'park_companion_main_window':
         return app.ParkCompanionMainWindow() as Promise<T>

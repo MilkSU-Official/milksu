@@ -23,6 +23,7 @@ const ALLOWED = new Set([
   'ClickCompanionPet',
   'ShowCompanionSettings',
   'PopupCompanionMenu',
+  'SetCompanionPointerPassthrough',
   'MoveCompanionPet',
   'ParkCompanionMainWindow',
   'QuitCompanionShell',
@@ -33,6 +34,28 @@ const ALLOWED = new Set([
 ])
 
 if (process.isMainFrame) {
+  let lastMenuAt = 0
+  function popupCompanionMenu() {
+    const now = Date.now()
+    if (now - lastMenuAt < 300) return
+    lastMenuAt = now
+    void ipcRenderer.invoke('milksu:invoke', { method: 'PopupCompanionMenu', args: {} })
+  }
+
+  function isEditableTarget(target) {
+    if (!target || typeof target.closest !== 'function') return false
+    return Boolean(target.closest('button, textarea, input, [contenteditable="true"]'))
+  }
+
+  // Single owner for the companion context menu. The renderer must not pop a
+  // second one, or the stacked menus swallow the click that picks an action.
+  window.addEventListener('contextmenu', event => {
+    if (isEditableTarget(event.target)) return
+    event.preventDefault()
+    event.stopPropagation()
+    popupCompanionMenu()
+  }, true)
+
   contextBridge.exposeInMainWorld('milksu', Object.freeze({
     hostPlatform: process.platform,
     invoke(method, args) {

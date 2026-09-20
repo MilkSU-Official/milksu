@@ -1075,6 +1075,8 @@ app.whenReady().then(async () => {
     emit: (event, value) => companionShell?.emit(event, value),
   })
   companionShell.register('main', mainWindow, null)
+  companionShell.createTray()
+  companionShell.createFloat()
   mainWindow.on('close', event => {
     if (quitting) return
     event.preventDefault()

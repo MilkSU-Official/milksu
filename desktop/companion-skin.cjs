@@ -81,7 +81,7 @@ function factoryCompanionSkin() {
     source: 'factory',
     factory: true,
     removable: false,
-    name: { zh: '默认', en: 'Default' },
+    name: { zh: 'Milk', en: 'Milk' },
     overlay: { ...DEFAULT_OVERLAY },
     mark: { ...DEFAULT_MARK },
     frames: {},

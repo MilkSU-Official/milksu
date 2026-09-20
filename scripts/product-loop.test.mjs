@@ -299,7 +299,7 @@ test('companion shell observations cover hide, default skin, and dock presence',
   assert.equal(companionPresenceKept({ parked: true, platform: 'win32' }).reason, '任务栏还在')
   assert.equal(companionPresenceKept({ parked: true, platform: 'linux', tray: true }).ok, true)
   assert.equal(companionPresenceKept({ parked: true, platform: 'linux', tray: false }).ok, false)
-  assert.equal(companionDefaultSkinVisible({ text: '皮肤\n默认', aria: [] }), true)
+  assert.equal(companionDefaultSkinVisible({ text: '皮肤\nMilk', aria: [] }), true)
   assert.equal(companionSkinEntryVisible({ text: '添加皮肤\n选择文件夹', aria: [] }), true)
   assert.equal(companionImportedSkinVisible({ text: '回路皮肤', aria: [] }, '回路皮肤'), true)
   assert.equal(companionSkinListed({ skins: [{ id: 'imported:loop.skin' }] }, 'imported:loop.skin'), true)

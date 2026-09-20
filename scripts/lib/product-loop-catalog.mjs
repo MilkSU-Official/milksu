@@ -179,7 +179,7 @@ export const MODULES = {
     needsDesktop: true,
     needsCredential: true,
     isolated: true,
-    detail: '桌宠小窗对话、右键菜单、身体拖拽、就绪、转达、看板、多会话、大量对话、归档、记忆，设置里的模型、调度、主动性、悬浮窗、出厂皮肤和第三方换装，以及隐藏、显示、关掉主窗口后从 Dock / 任务栏唤醒。',
+    detail: '桌宠手机对话、右键菜单、身体拖拽、就绪、转达、看板、多会话、大量对话、归档、记忆，设置里的模型、调度、主动性、悬浮窗、出厂皮肤和第三方换装，以及隐藏、显示、关掉主窗口后从 Dock / 任务栏唤醒。',
     cases: [
       'companion-ready', 'companion-page', 'companion-pet-menu', 'companion-pet-drag', 'companion-relay', 'companion-board', 'companion-sessions', 'companion-transcript',
       'companion-archive', 'companion-memory', 'companion-dispatch-confirm', 'companion-model-switch',

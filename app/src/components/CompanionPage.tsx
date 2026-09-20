@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { ArrowUp, X } from 'lucide-react'
+import { ArrowUp, ChevronLeft } from 'lucide-react'
 import companionIdle from '@/assets/companion/idle.png'
 import { Button, Textarea } from '@/components/ui'
 import { useCompanion } from '@/composables/useCompanion'
@@ -36,6 +36,7 @@ export default function CompanionPage({
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const stickToEnd = useRef(true)
   const [avatar, setAvatar] = useState(companionIdle)
+  const [petName, setPetName] = useState('Milk')
   const olderOffset = companion.hasMore ? 1 : 0
   const typing = companion.busy && !companion.streaming
   const virtualizer = useVirtualizer({
@@ -68,9 +69,18 @@ export default function CompanionPage({
           id: id || settings.companion_skin_id || 'default',
         })
         const src = resolved?.frames.idle || resolved?.frames.talk || companionIdle
-        if (!cancelled) setAvatar(src)
+        const name = locale === 'en'
+          ? String(resolved?.name?.en || resolved?.name?.zh || 'Milk').trim()
+          : String(resolved?.name?.zh || resolved?.name?.en || 'Milk').trim()
+        if (!cancelled) {
+          setAvatar(src)
+          setPetName(name || 'Milk')
+        }
       } catch {
-        if (!cancelled) setAvatar(companionIdle)
+        if (!cancelled) {
+          setAvatar(companionIdle)
+          setPetName('Milk')
+        }
       }
     }
     void loadSkin()
@@ -84,7 +94,7 @@ export default function CompanionPage({
       cancelled = true
       stop?.()
     }
-  }, [])
+  }, [locale])
 
   useEffect(() => {
     fitComposer(inputRef.current)
@@ -100,8 +110,6 @@ export default function CompanionPage({
   return (
     <main className="companion-chat" data-testid="companion-chat">
       <header className="companion-chat-head">
-        <img className="companion-chat-avatar" src={avatar} alt="" draggable={false} />
-        <p className="companion-chat-title">{t('桌宠', 'Companion')}</p>
         <Button
           type="button"
           variant="ghost"
@@ -111,8 +119,12 @@ export default function CompanionPage({
           title={t('关闭对话', 'Close chat')}
           onClick={() => void invokeCommand('hide_companion_chat_window', { locale })}
         >
-          <X className="size-3.5" />
+          <ChevronLeft className="size-4" />
         </Button>
+        <div className="companion-chat-identity">
+          <img className="companion-chat-avatar" src={avatar} alt="" draggable={false} />
+          <p className="companion-chat-title">{petName}</p>
+        </div>
       </header>
       <div
         ref={parentRef}

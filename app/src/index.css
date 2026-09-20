@@ -926,6 +926,9 @@ html.companion-surface,
 html.companion-surface body,
 html.companion-surface #app {
   background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  isolation: auto;
   overflow: hidden;
   width: 100%;
   min-width: 0;
@@ -935,24 +938,53 @@ html.companion-surface #app {
 
 .companion-unit {
   display: flex;
-  flex-direction: row;
   align-items: flex-end;
+  justify-content: center;
   width: 100%;
   height: 100%;
 }
 
-.companion-unit-gap {
-  width: 12px;
-  flex: none;
-}
-
-.companion-unit .companion-chat {
-  width: 336px;
-  height: 480px;
-  flex: none;
+.companion-phone {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  pointer-events: auto;
   overflow: hidden;
   border: 1px solid var(--border);
+  border-radius: 28px;
+  background: var(--popover);
+  color: var(--popover-foreground);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--foreground) 8%, transparent),
+    0 18px 48px color-mix(in srgb, var(--foreground) 18%, transparent);
+}
+
+.companion-phone .companion-chat {
+  flex: 1;
+  min-height: 0;
+  background: transparent;
+}
+
+.companion-phone-status {
+  flex: none;
+  display: flex;
+  justify-content: center;
+  padding: 10px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--foreground);
+  cursor: grab;
+}
+
+.companion-phone-home {
+  flex: none;
+  width: 36px;
+  height: 4px;
+  margin: 0 auto 10px;
   border-radius: 8px;
+  background: color-mix(in srgb, var(--foreground) 22%, transparent);
 }
 
 html.companion-chat-surface,
@@ -974,28 +1006,37 @@ html.companion-chat-surface #app {
 }
 
 .companion-chat-head {
+  position: relative;
   display: flex;
-  align-items: center;
-  gap: 8px;
-  height: 40px;
-  padding: 0 8px 0 10px;
-  border-bottom: 1px solid var(--border);
+  align-items: flex-start;
+  justify-content: center;
+  min-height: 92px;
+  padding: 8px 40px 14px;
+  border-bottom: 0;
+  cursor: grab;
   -webkit-app-region: no-drag;
 }
 
+.companion-chat-identity {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
 .companion-chat-avatar {
-  width: 28px;
-  height: 28px;
+  width: 56px;
+  height: 56px;
   flex: none;
-  border-radius: 8px;
+  border-radius: 999px;
   object-fit: contain;
   background: var(--accent);
-  -webkit-app-region: no-drag;
 }
 
 .companion-chat-title {
   min-width: 0;
-  flex: 1;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1014,6 +1055,9 @@ html.companion-chat-surface #app {
 }
 
 .companion-chat-icon {
+  position: absolute;
+  top: 10px;
+  left: 8px;
   width: 28px;
   height: 28px;
   flex: none;
@@ -1081,7 +1125,7 @@ html.companion-chat-surface #app {
 
 .companion-chat-bubble {
   max-width: 78%;
-  border-radius: 8px;
+  border-radius: 16px;
   padding: 6px 10px;
   font-size: var(--text-body);
   line-height: var(--text-body--line-height);
@@ -1200,9 +1244,9 @@ html.companion-chat-surface #app {
   align-items: flex-end;
   gap: 6px;
   min-height: 36px;
-  padding: 4px 4px 4px 10px;
+  padding: 4px 4px 4px 12px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 18px;
   background: var(--surface-raised);
   box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--foreground) 10%, transparent);
 }
@@ -1264,26 +1308,30 @@ html.companion-chat-surface #app {
 }
 
 .companion-pet {
-  width: 232px;
-  height: 400px;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
   position: relative;
   user-select: none;
   -webkit-app-region: no-drag;
 }
 
 .companion-pet-menu,
-.companion-pet-bubble,
-.companion-pet-body {
+.companion-pet-bubble {
+  pointer-events: auto;
   -webkit-app-region: no-drag;
 }
 
 .companion-pet-bubble {
   position: absolute;
-  left: 14px;
-  right: 14px;
-  top: 10px;
+  left: 6px;
+  right: 6px;
+  top: 4px;
   z-index: 3;
-  max-height: 52px;
+  max-height: 48px;
   overflow: hidden;
   display: -webkit-box;
   -webkit-box-orient: vertical;
@@ -1313,13 +1361,13 @@ html.companion-chat-surface #app {
 .companion-pet-body {
   position: relative;
   z-index: 1;
-  width: 148px;
-  height: 148px;
-  margin: 128px auto 0;
-  transform-origin: 50% 90%;
-  animation: companion-pet-bob 1.1s ease-in-out infinite;
+  width: 100%;
+  height: 100%;
+  background: transparent;
   touch-action: none;
   cursor: grab;
+  pointer-events: auto;
+  -webkit-app-region: no-drag;
 }
 
 .companion-pet-dragging .companion-pet-body,
@@ -1327,23 +1375,19 @@ html.companion-chat-surface #app {
   cursor: grabbing;
 }
 
-.companion-pet-dragging .companion-pet-body {
-  animation: none;
-}
-
-.companion-pet-talk .companion-pet-body {
+.companion-pet-talk .companion-pet-sprite {
   animation-duration: 0.28s;
 }
 
-.companion-pet-think .companion-pet-body {
+.companion-pet-think .companion-pet-sprite {
   animation-duration: 1.8s;
 }
 
-.companion-pet-decide .companion-pet-body {
+.companion-pet-decide .companion-pet-sprite {
   animation-duration: 0.7s;
 }
 
-.companion-pet-complete .companion-pet-body {
+.companion-pet-complete .companion-pet-sprite {
   animation-duration: 0.45s;
 }
 
@@ -1354,6 +1398,12 @@ html.companion-chat-surface #app {
   height: 100%;
   object-fit: contain;
   pointer-events: none;
+  transform-origin: 50% 90%;
+  animation: companion-pet-bob 1.1s ease-in-out infinite;
+}
+
+.companion-pet-dragging .companion-pet-sprite {
+  animation: none;
 }
 
 .companion-pet-mark {

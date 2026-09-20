@@ -6,8 +6,7 @@ import CompanionPage from '@/components/CompanionPage'
 import { useCompanion } from '@/composables/useCompanion'
 import { invokeCommand, listenEvent } from '@/desktop'
 import { useT, useUiLocale } from '@/hooks/useUiLocale'
-import { clampCompanionMenuOrigin } from '@/lib/companionOverlayState'
-import { companionPetDragMoved, companionPetSprite, resolveCompanionPetMotion } from '@/lib/companionPetMotion'
+import { companionPetSprite, resolveCompanionPetMotion } from '@/lib/companionPetMotion'
 import type { AppSettings, CompanionShellStatus, CompanionSkinResolved } from '@/types'
 
 const factorySprites = {
@@ -20,7 +19,7 @@ const factorySkin: CompanionSkinResolved = {
   id: 'default',
   source: 'factory',
   factory: true,
-  name: { zh: '默认', en: 'Default' },
+  name: { zh: 'Milk', en: 'Milk' },
   overlay: { think: 'spin', decide: 'bang', complete: 'bang' },
   mark: { cx: 0.5, cy: 0.24, size: 0.26 },
   frames: {},
@@ -41,6 +40,14 @@ function attentionText(input: {
   }
   if (input.error.trim()) return input.error.trim()
   return ''
+}
+
+function formatPhoneClock(locale: 'zh' | 'en') {
+  return new Intl.DateTimeFormat(locale === 'en' ? 'en-US' : 'zh-CN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(new Date())
 }
 
 function spriteSrc(skin: CompanionSkinResolved, motion: ReturnType<typeof resolveCompanionPetMotion>) {
@@ -100,10 +107,6 @@ export default function CompanionPetWindow() {
     return () => {
       document.documentElement.classList.remove('companion-surface')
       document.body.classList.remove('companion-surface')
-      if (pendingMove.current.frame) {
-        window.cancelAnimationFrame(pendingMove.current.frame)
-        pendingMove.current.frame = 0
-      }
     }
   }, [])
 
@@ -133,91 +136,60 @@ export default function CompanionPetWindow() {
     }
   }, [])
 
-  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null)
-  const [dragging, setDragging] = useState(false)
-  const dragRef = useRef<{
-    pointerId: number
-    startX: number
-    startY: number
-    lastX: number
-    lastY: number
-    moved: boolean
-  } | null>(null)
-  const pendingMove = useRef({ dx: 0, dy: 0, frame: 0 })
+  useEffect(() => {
+    document.title = t('桌宠', 'Companion')
+  }, [t])
 
-  function flushPetMove() {
-    pendingMove.current.frame = 0
-    const { dx, dy } = pendingMove.current
-    pendingMove.current.dx = 0
-    pendingMove.current.dy = 0
-    if (!dx && !dy) return
-    void invokeCommand('move_companion_pet', { dx, dy })
+  const [clock, setClock] = useState(() => formatPhoneClock(locale))
+  useEffect(() => {
+    const tick = () => setClock(formatPhoneClock(locale))
+    tick()
+    const id = window.setInterval(tick, 15_000)
+    return () => window.clearInterval(id)
+  }, [locale])
+
+  const pressRef = useRef<{ x: number; y: number; opensChat: boolean } | null>(null)
+  const lastOpenRef = useRef(0)
+
+  function openPetChat() {
+    const now = Date.now()
+    if (now - lastOpenRef.current < 400) return
+    lastOpenRef.current = now
+    void invokeCommand('click_companion_pet', { locale })
   }
 
-  function queuePetMove(dx: number, dy: number) {
-    pendingMove.current.dx += dx
-    pendingMove.current.dy += dy
-    if (pendingMove.current.frame) return
-    pendingMove.current.frame = window.requestAnimationFrame(flushPetMove)
-  }
-
-  function endPetDrag(target: HTMLElement, pointerId: number) {
-    const drag = dragRef.current
-    if (!drag || drag.pointerId !== pointerId) return null
-    dragRef.current = null
-    setDragging(false)
-    if (pendingMove.current.frame) {
-      window.cancelAnimationFrame(pendingMove.current.frame)
-      flushPetMove()
-    }
+  function beginDrag(event: ReactPointerEvent<HTMLElement>, opensChat: boolean) {
+    if (event.button !== 0 || pressRef.current) return
+    pressRef.current = { x: event.screenX, y: event.screenY, opensChat }
     try {
-      target.releasePointerCapture(pointerId)
+      event.currentTarget.setPointerCapture(event.pointerId)
     } catch {
-      // Capture may already be released when the pointer is cancelled.
+      // Capture is a convenience; the window listener below still ends the drag.
     }
-    return drag
+    void invokeCommand('move_companion_pet', { drag: 'begin' })
   }
 
-  function onPetPointerDown(event: ReactPointerEvent<HTMLDivElement>) {
-    if (event.button !== 0) return
-    if (menu) {
-      setMenu(null)
-      return
+  useEffect(() => {
+    const endDrag = (event: PointerEvent) => {
+      const press = pressRef.current
+      if (!press || (event.type === 'pointerup' && event.button !== 0)) return
+      pressRef.current = null
+      void invokeCommand<{ dragged?: boolean }>('move_companion_pet', { drag: 'end' })
+        .then(result => {
+          if (!press.opensChat || result?.dragged) return
+          const dx = event.screenX - press.x
+          const dy = event.screenY - press.y
+          if ((dx * dx) + (dy * dy) < 25) openPetChat()
+        })
+        .catch(() => undefined)
     }
-    event.currentTarget.setPointerCapture(event.pointerId)
-    dragRef.current = {
-      pointerId: event.pointerId,
-      startX: event.screenX,
-      startY: event.screenY,
-      lastX: event.screenX,
-      lastY: event.screenY,
-      moved: false,
+    window.addEventListener('pointerup', endDrag, true)
+    window.addEventListener('pointercancel', endDrag, true)
+    return () => {
+      window.removeEventListener('pointerup', endDrag, true)
+      window.removeEventListener('pointercancel', endDrag, true)
     }
-  }
-
-  function onPetPointerMove(event: ReactPointerEvent<HTMLDivElement>) {
-    const drag = dragRef.current
-    if (!drag || drag.pointerId !== event.pointerId) return
-    const totalX = event.screenX - drag.startX
-    const totalY = event.screenY - drag.startY
-    if (!drag.moved && !companionPetDragMoved(totalX, totalY)) return
-    drag.moved = true
-    setDragging(true)
-    const dx = event.screenX - drag.lastX
-    const dy = event.screenY - drag.lastY
-    drag.lastX = event.screenX
-    drag.lastY = event.screenY
-    if (dx || dy) queuePetMove(dx, dy)
-  }
-
-  function onPetPointerUp(event: ReactPointerEvent<HTMLDivElement>) {
-    const drag = endPetDrag(event.currentTarget, event.pointerId)
-    if (!drag) return
-    if (!drag.moved) {
-      setMenu(null)
-      void invokeCommand('click_companion_pet', { locale })
-    }
-  }
+  }, [locale])
 
   const pet = (
     <div
@@ -227,70 +199,8 @@ export default function CompanionPetWindow() {
         `companion-pet-overlay-think-${skin.overlay.think}`,
         `companion-pet-overlay-decide-${skin.overlay.decide}`,
         `companion-pet-overlay-complete-${skin.overlay.complete}`,
-        dragging ? 'companion-pet-dragging' : '',
       ].filter(Boolean).join(' ')}
-      onContextMenu={event => {
-        event.preventDefault()
-        event.stopPropagation()
-        const drag = dragRef.current
-        if (drag) endPetDrag(event.currentTarget, drag.pointerId)
-        setMenu(clampCompanionMenuOrigin({
-          x: event.clientX,
-          y: event.clientY,
-          workArea: {
-            x: 0,
-            y: 0,
-            width: window.innerWidth,
-            height: window.innerHeight,
-          },
-        }))
-      }}
-      onClick={() => {
-        if (dragRef.current?.moved) return
-        setMenu(null)
-        void invokeCommand('click_companion_pet', { locale })
-      }}
     >
-      {menu ? (
-        <div
-          className="companion-pet-menu"
-          data-testid="companion-pet-menu"
-          role="menu"
-          style={{ left: menu.x, top: menu.y }}
-          onClick={event => event.stopPropagation()}
-        >
-          <button type="button" role="menuitem" onClick={() => {
-            setMenu(null)
-            void invokeCommand('show_companion_chat_window', { locale })
-          }}>
-            {t('对话', 'Chat')}
-          </button>
-          <button type="button" role="menuitem" onClick={() => {
-            setMenu(null)
-            void invokeCommand('set_companion_pet_hidden', { hidden: true, locale })
-          }}>
-            {t('隐藏桌宠', 'Hide companion')}
-          </button>
-          <button type="button" role="menuitem" onClick={() => {
-            setMenu(null)
-            void invokeCommand('show_companion_main_window', { locale })
-          }}>
-            {t('打开主窗口', 'Open MilkSU')}
-          </button>
-          <button type="button" role="menuitem" onClick={() => {
-            setMenu(null)
-            void invokeCommand('show_companion_settings', { locale })
-          }}>
-            {t('桌宠设置', 'Companion settings')}
-          </button>
-          <button type="button" role="menuitem" onClick={() => {
-            setMenu(null)
-            void invokeCommand('quit_companion_shell', { locale })
-          }}>
-            {t('退出', 'Quit')}
-          </button>
-        </div>
-      ) : null}
       {bubble ? (
         <div className="companion-pet-bubble" role="status">
           {bubble}
@@ -298,14 +208,9 @@ export default function CompanionPetWindow() {
       ) : null}
       <div
         className="companion-pet-body"
+        data-testid="companion-pet-body"
         aria-hidden={true}
-        onPointerDown={onPetPointerDown}
-        onPointerMove={onPetPointerMove}
-        onPointerUp={onPetPointerUp}
-        onPointerCancel={event => {
-          endPetDrag(event.currentTarget, event.pointerId)
-        }}
-        onClick={event => event.stopPropagation()}
+        onPointerDown={event => beginDrag(event, true)}
       >
         <img
           className="companion-pet-sprite"
@@ -351,15 +256,30 @@ export default function CompanionPetWindow() {
       <span className="sr-only">{t('桌宠', 'Companion')}</span>
     </div>
   )
-  const chat = overlay.chatOpen ? <CompanionPage embedded /> : null
-  const gap = overlay.chatOpen ? <div className="companion-unit-gap" aria-hidden="true" /> : null
+  if (overlay.chatOpen) {
+    return (
+      <div
+        className="companion-phone"
+        data-testid="companion-phone"
+        data-form="phone"
+        data-chat="open"
+        onPointerDown={event => {
+          const target = event.target as HTMLElement
+          if (target.closest('button, textarea, input')) return
+          if (!target.closest('.companion-chat-head, .companion-phone-status')) return
+          beginDrag(event, false)
+        }}
+      >
+        <div className="companion-phone-status" aria-hidden="true">{clock}</div>
+        <CompanionPage embedded />
+        <div className="companion-phone-home" aria-hidden="true" />
+      </div>
+    )
+  }
+
   return (
-    <div
-      className="companion-unit"
-      data-chat={overlay.chatOpen ? 'open' : 'closed'}
-      data-side={overlay.chatSide}
-    >
-      {overlay.chatSide === 'right' ? <>{pet}{gap}{chat}</> : <>{chat}{gap}{pet}</>}
+    <div className="companion-unit" data-form="pet" data-chat="closed">
+      {pet}
     </div>
   )
 }

@@ -23,6 +23,40 @@ import {
 const execFileAsync = promisify(execFile)
 
 /**
+ * Entry point and every preload the shell hands to a BrowserWindow. A preload
+ * left out of the electron-builder `files` allowlist fails silently: the window
+ * still loads, but it has no desktop bridge, so nothing in it can act.
+ */
+export const REQUIRED_ASAR_FILES = [
+  'main.cjs',
+  'preload.cjs',
+  'companion-preload.cjs',
+]
+
+/**
+ * Read the top-level file names out of an asar archive header.
+ *
+ * @param {string} asarPath
+ * @returns {Promise<string[]>}
+ */
+export async function asarTopLevelFiles(asarPath) {
+  const handle = await fs.open(asarPath, 'r')
+  try {
+    const head = Buffer.alloc(16)
+    const { bytesRead } = await handle.read(head, 0, 16, 0)
+    if (bytesRead < 16) throw new Error('asar header is truncated')
+    const jsonLength = head.readUInt32LE(12)
+    if (!jsonLength) throw new Error('asar header is empty')
+    const json = Buffer.alloc(jsonLength)
+    await handle.read(json, 0, jsonLength, 16)
+    const parsed = JSON.parse(json.toString('utf8'))
+    return Object.keys(parsed?.files ?? {})
+  } finally {
+    await handle.close()
+  }
+}
+
+/**
  * Compare already-canonical executable paths (typically realpath results).
  * No substring matching of outside lookalike paths.
  *
@@ -134,6 +168,7 @@ export async function inspectPackagedApp(appPath, expectedChannel) {
     plist: null,
     tracking: null,
     icon: null,
+    asar: null,
   }
 
   if (!result.appPath) {
@@ -382,6 +417,23 @@ export async function inspectPackagedApp(appPath, expectedChannel) {
     }
   } catch (error) {
     issues.push(`milksu-backend signing inspect failed: ${error?.message || error}`)
+  }
+
+  // 6) Packed sources: a window whose preload was dropped from the asar loads
+  // without a desktop bridge, which looks like dead UI rather than a build error.
+  const asarPath = join(result.appPath, 'Contents', 'Resources', 'app.asar')
+  try {
+    await fs.access(asarPath)
+    const entries = new Set(await asarTopLevelFiles(asarPath))
+    const missing = REQUIRED_ASAR_FILES.filter(name => !entries.has(name))
+    result.asar = { path: asarPath, missing }
+    if (missing.length) {
+      issues.push(`app.asar is missing packed sources: ${missing.join(', ')}`)
+    }
+  } catch (error) {
+    if (error?.code !== 'ENOENT') {
+      issues.push(`app.asar inspect failed: ${error?.message || error}`)
+    }
   }
 
   result.ok = issues.length === 0

@@ -3,10 +3,14 @@ import {
   COMPANION_OVERLAY_ACTIONS,
   COMPANION_PET_MENU_HEIGHT,
   COMPANION_PET_MENU_WIDTH,
+  COMPANION_PHONE_HEIGHT,
+  COMPANION_PHONE_WIDTH,
   clampCompanionMenuOrigin,
   clampOverlayBounds,
   companionDragEffect,
+  companionOverlayVisible,
   companionPetVisible,
+  companionPhoneVisible,
   defaultCompanionPetOrigin,
   layoutCompanionUnit,
   normalizeCompanionOverlayState,
@@ -21,7 +25,7 @@ const idle = normalizeCompanionOverlayState({
 })
 
 describe('companionOverlayState', () => {
-  it('treats the pet as visible only when float is enabled and not hidden', () => {
+  it('treats the pet as visible only when float is enabled, not hidden, and chat is closed', () => {
     expect(companionPetVisible(idle)).toBe(true)
     expect(companionPetVisible(normalizeCompanionOverlayState({
       enabled: true,
@@ -31,30 +35,41 @@ describe('companionOverlayState', () => {
       enabled: true,
       wayland: true,
     }))).toBe(false)
+    expect(companionPetVisible(normalizeCompanionOverlayState({
+      enabled: true,
+      chatOpen: true,
+    }))).toBe(false)
   })
 
-  it('toggles the small chat on pet click and never opens a second panel', () => {
+  it('toggles phone on pet click and never shows both forms', () => {
     const opened = reduceCompanionOverlay(idle, COMPANION_OVERLAY_ACTIONS.CLICK_PET)
     expect(opened.state.chatOpen).toBe(true)
+    expect(opened.petVisible).toBe(false)
+    expect(opened.phoneVisible).toBe(true)
+    expect(opened.overlayVisible).toBe(true)
     expect(opened.effects.chat).toBe('show')
     expect(opened.effects.pet).toBe('none')
     const closed = reduceCompanionOverlay(opened.state, COMPANION_OVERLAY_ACTIONS.CLICK_PET)
     expect(closed.state.chatOpen).toBe(false)
+    expect(closed.petVisible).toBe(true)
+    expect(closed.phoneVisible).toBe(false)
     expect(closed.effects.chat).toBe('hide')
     const again = reduceCompanionOverlay(opened.state, COMPANION_OVERLAY_ACTIONS.OPEN_CHAT)
     expect(again.state.chatOpen).toBe(true)
+    expect(again.petVisible).toBe(false)
     expect(again.effects.chat).toBe('focus')
   })
 
-  it('keeps the pet when the small chat is closed', () => {
+  it('restores the pet when the phone is closed', () => {
     const open = reduceCompanionOverlay(idle, COMPANION_OVERLAY_ACTIONS.OPEN_CHAT)
     const closed = reduceCompanionOverlay(open.state, COMPANION_OVERLAY_ACTIONS.CLOSE_CHAT)
     expect(closed.state.chatOpen).toBe(false)
     expect(closed.petVisible).toBe(true)
+    expect(closed.phoneVisible).toBe(false)
     expect(closed.effects.pet).toBe('none')
   })
 
-  it('hides pet and small chat together, then restores only the pet', () => {
+  it('hides pet and phone together, then restores only the pet', () => {
     const open = reduceCompanionOverlay(idle, COMPANION_OVERLAY_ACTIONS.OPEN_CHAT)
     const hidden = reduceCompanionOverlay(open.state, COMPANION_OVERLAY_ACTIONS.HIDE_PET)
     expect(hidden.state.petHidden).toBe(true)
@@ -67,7 +82,7 @@ describe('companionOverlayState', () => {
     expect(shown.effects.chat).toBe('none')
   })
 
-  it('lets the main window and small chat stay open together', () => {
+  it('lets the main window and phone stay open together', () => {
     const open = reduceCompanionOverlay(idle, COMPANION_OVERLAY_ACTIONS.OPEN_CHAT)
     const main = reduceCompanionOverlay(open.state, COMPANION_OVERLAY_ACTIONS.SHOW_MAIN)
     expect(main.state.chatOpen).toBe(true)
@@ -85,11 +100,13 @@ describe('companionOverlayState', () => {
     const parked = reduceCompanionOverlay(open.state, COMPANION_OVERLAY_ACTIONS.PARK_MAIN)
     expect(parked.state.mainVisible).toBe(false)
     expect(parked.state.chatOpen).toBe(true)
-    expect(parked.petVisible).toBe(true)
+    expect(parked.petVisible).toBe(false)
+    expect(parked.phoneVisible).toBe(true)
+    expect(parked.overlayVisible).toBe(true)
     expect(parked.effects.main).toBe('park')
   })
 
-  it('wakes the pet from the taskbar without forcing the small chat open', () => {
+  it('wakes the pet from the taskbar without forcing the phone open', () => {
     const hidden = reduceCompanionOverlay(idle, COMPANION_OVERLAY_ACTIONS.HIDE_PET)
     const revealed = reduceCompanionOverlay(hidden.state, COMPANION_OVERLAY_ACTIONS.REVEAL_FROM_TASKBAR)
     expect(revealed.petVisible).toBe(true)
@@ -97,7 +114,7 @@ describe('companionOverlayState', () => {
     expect(revealed.effects.main).toBe('none')
   })
 
-  it('does not float on Wayland and still allows the small chat', () => {
+  it('does not float on Wayland and still allows the phone', () => {
     const wayland = normalizeCompanionOverlayState({ enabled: true, wayland: true })
     const click = reduceCompanionOverlay(wayland, COMPANION_OVERLAY_ACTIONS.CLICK_PET)
     expect(click.petVisible).toBe(false)
@@ -123,7 +140,7 @@ describe('companionOverlayState', () => {
     expect(companionDragEffect(hidden.state).moveUnit).toBe(false)
   })
 
-  it('clamps overlay windows to the work area and flips chat to the free side', () => {
+  it('replaces the pet window with the phone instead of gluing them side by side', () => {
     const area = { x: 0, y: 0, width: 1280, height: 800 }
     expect(clampOverlayBounds({ x: 4000, y: -40, width: 232, height: 400 }, area)).toEqual({
       x: 1048,
@@ -131,31 +148,34 @@ describe('companionOverlayState', () => {
       width: 232,
       height: 400,
     })
-    const left = layoutCompanionUnit({
+    const phone = layoutCompanionUnit({
       chatOpen: true,
-      petOrigin: { x: 80, y: 90 },
+      petOrigin: { x: 80, y: 200 },
       workArea: area,
     })
-    expect(left.chatSide).toBe('right')
-    expect(left.chatScreen).toMatchObject({
-      x: 80 + 232 + 12,
-      width: 336,
-      height: 480,
+    expect(phone.window).toMatchObject({
+      width: COMPANION_PHONE_WIDTH,
+      height: COMPANION_PHONE_HEIGHT,
     })
-    const inward = layoutCompanionUnit({
-      chatOpen: true,
-      petOrigin: { x: 600, y: 90 },
+    expect(phone.chatScreen).toMatchObject({
+      width: COMPANION_PHONE_WIDTH,
+      height: COMPANION_PHONE_HEIGHT,
+    })
+    expect(phone.pet.width).toBe(0)
+    const pet = layoutCompanionUnit({
+      chatOpen: false,
+      petOrigin: { x: 80, y: 200 },
       workArea: area,
     })
-    expect(inward.chatSide).toBe('left')
-    expect(inward.chatScreen).toMatchObject({
-      x: 600 - 336 - 12,
-    })
+    expect(pet.window).toMatchObject({ width: 160, height: 160 })
+    expect(pet.chatScreen).toBeNull()
+    expect(companionOverlayVisible(idle)).toBe(true)
+    expect(companionPhoneVisible(idle)).toBe(false)
   })
 
   it('spawns the unit at the bottom-right and opens the menu up-left', () => {
     const area = { x: 0, y: 0, width: 1440, height: 900 }
-    expect(defaultCompanionPetOrigin(area)).toEqual({ x: 1192, y: 484 })
+    expect(defaultCompanionPetOrigin(area)).toEqual({ x: 1264, y: 724 })
     const menu = clampCompanionMenuOrigin({
       x: 1380,
       y: 860,

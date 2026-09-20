@@ -6,6 +6,8 @@ const {
   COMPANION_OVERLAY_ACTIONS,
   COMPANION_PET_MENU_HEIGHT,
   COMPANION_PET_MENU_WIDTH,
+  COMPANION_PHONE_HEIGHT,
+  COMPANION_PHONE_WIDTH,
   clampCompanionMenuOrigin,
   clampOverlayBounds,
   companionDragEffect,
@@ -22,12 +24,16 @@ const idle = {
   mainVisible: true,
 }
 
-test('pet click toggles the one small chat', () => {
+test('pet click toggles the phone and hides the sprite', () => {
   const opened = reduceCompanionOverlay(idle, COMPANION_OVERLAY_ACTIONS.CLICK_PET)
   assert.equal(opened.state.chatOpen, true)
+  assert.equal(opened.petVisible, false)
+  assert.equal(opened.phoneVisible, true)
   assert.equal(opened.effects.chat, 'show')
+  assert.equal(opened.effects.pet, 'none')
   const closed = reduceCompanionOverlay(opened.state, COMPANION_OVERLAY_ACTIONS.CLICK_PET)
   assert.equal(closed.state.chatOpen, false)
+  assert.equal(closed.petVisible, true)
   assert.equal(closed.effects.chat, 'hide')
   const focused = reduceCompanionOverlay(opened.state, COMPANION_OVERLAY_ACTIONS.OPEN_CHAT)
   assert.equal(focused.effects.chat, 'focus')
@@ -47,7 +53,7 @@ test('hide parks pet and chat; show and taskbar restore only the pet', () => {
   assert.equal(revealed.effects.main, 'none')
 })
 
-test('main window and small chat may stay open together', () => {
+test('main window and phone may stay open together', () => {
   const open = reduceCompanionOverlay(idle, COMPANION_OVERLAY_ACTIONS.OPEN_CHAT)
   const main = reduceCompanionOverlay(open.state, COMPANION_OVERLAY_ACTIONS.SHOW_MAIN)
   assert.equal(main.state.chatOpen, true)
@@ -72,16 +78,18 @@ test('drag moves the overlay only, then clamps to the work area', () => {
   })
   const placed = layoutCompanionUnit({
     chatOpen: true,
-    petOrigin: { x: 40, y: 80 },
+    petOrigin: { x: 40, y: 200 },
     workArea: area,
   })
-  assert.equal(placed.chatSide, 'right')
-  assert.equal(placed.chatScreen.x, 40 + 232 + 12)
+  assert.equal(placed.window.width, COMPANION_PHONE_WIDTH)
+  assert.equal(placed.window.height, COMPANION_PHONE_HEIGHT)
+  assert.equal(placed.pet.width, 0)
+  assert.equal(placed.chatScreen.width, COMPANION_PHONE_WIDTH)
 })
 
 test('default spawn is bottom-right and the pet menu opens up-left', () => {
   const area = { x: 0, y: 0, width: 1440, height: 900 }
-  assert.deepEqual(defaultCompanionPetOrigin(area), { x: 1192, y: 484 })
+  assert.deepEqual(defaultCompanionPetOrigin(area), { x: 1264, y: 724 })
   const menu = clampCompanionMenuOrigin({ x: 1380, y: 860, workArea: area })
   assert.ok(menu.x + COMPANION_PET_MENU_WIDTH <= 1440 - 8)
   assert.ok(menu.y + COMPANION_PET_MENU_HEIGHT <= 900 - 8)

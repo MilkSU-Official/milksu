@@ -79,7 +79,7 @@ import {
   readSidebarWidth,
   writeSidebarWidth,
 } from '@/lib/sidebarWidth'
-import { useT } from '@/hooks/useUiLocale'
+import { useT, useUiLocale } from '@/hooks/useUiLocale'
 import { updateControlVisible } from '@/lib/updateRestart'
 import { updateStatusMessage } from '@/lib/updateStatus'
 import type { AccountStatus, BuildTracking, Conversation, UpdateStatus } from '@/types'
@@ -102,7 +102,6 @@ function conversationMenuPosition(x: number, y: number) {
 
 const workspaceNavIcons = {
   chat: House,
-  companion: PawPrint,
   ctf: Flag,
   vuln: Bug,
   lab: FlaskConical,
@@ -150,6 +149,7 @@ export default function ContextSidebar({
   onNavigate,
   onProfile,
   onSettings,
+  onCompanion,
   onSelectSettingsCategory,
   onCloseSettings,
   onAccountLogin,
@@ -185,6 +185,7 @@ export default function ContextSidebar({
   onNavigate?: (value: WorkspaceSection) => void
   onProfile?: () => void
   onSettings?: () => void
+  onCompanion?: () => void
   onSelectSettingsCategory?: (value: NormalizedSettingsCategory) => void
   onCloseSettings?: () => void
   onAccountLogin?: () => void
@@ -194,6 +195,7 @@ export default function ContextSidebar({
   onOpenCommandPanel?: () => void
 }) {
   const t = useT()
+  const locale = useUiLocale()
   const [unreadConversationIds, setUnreadConversationIds] = useState(() => new Set<string>())
   const [pinnedDragId, setPinnedDragId] = useState('')
   const [pinnedDropTarget, setPinnedDropTarget] = useState('')
@@ -929,6 +931,25 @@ export default function ContextSidebar({
             onClick={onToggleTheme}
           >
             <ThemeToggleIcon className="size-4" />
+          </button>
+          <button
+            type="button"
+            className="agent-sidebar__theme app-no-drag"
+            data-testid="sidebar-open-companion"
+            aria-label={t('桌宠', 'Companion')}
+            title={t('桌宠', 'Companion')}
+            onClick={onCompanion}
+            onContextMenu={event => {
+              event.preventDefault()
+              event.stopPropagation()
+              void invokeCommand('popup_companion_menu', {
+                screenX: event.screenX,
+                screenY: event.screenY,
+                locale,
+              })
+            }}
+          >
+            <PawPrint className="size-4" />
           </button>
           <button
             type="button"

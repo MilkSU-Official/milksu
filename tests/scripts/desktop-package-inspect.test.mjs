@@ -20,6 +20,8 @@ import {
   writeBuildTrackingFile,
 } from '../../scripts/lib/desktop-build-provenance.mjs'
 import {
+  REQUIRED_ASAR_FILES,
+  asarTopLevelFiles,
   codesignExecutablePathIssues,
   inspectCodesignExecutablePaths,
   inspectPackagedApp,
@@ -366,6 +368,63 @@ test('inspectPackagedApp accepts temp app when codesign reports /private/var pat
     assert.equal(reportedReal, expectedReal)
   } finally {
     await rm(dir, { recursive: true, force: true })
+  }
+})
+
+/** Minimal asar writer: size pickle, header pickle, then packed bodies. */
+function asarBuffer(fileNames) {
+  const bodies = fileNames.map(name => Buffer.from(`// ${name}\n`, 'utf8'))
+  const files = {}
+  let offset = 0
+  fileNames.forEach((name, index) => {
+    files[name] = { size: bodies[index].length, offset: String(offset) }
+    offset += bodies[index].length
+  })
+  const json = Buffer.from(JSON.stringify({ files }), 'utf8')
+  const padding = (4 - (json.length % 4)) % 4
+  const headerPayload = 4 + json.length + padding
+  const head = Buffer.alloc(16 + json.length + padding)
+  head.writeUInt32LE(4, 0)
+  head.writeUInt32LE(4 + headerPayload, 4)
+  head.writeUInt32LE(headerPayload, 8)
+  head.writeUInt32LE(json.length, 12)
+  json.copy(head, 16)
+  return Buffer.concat([head, ...bodies])
+}
+
+test('inspectPackagedApp rejects an app.asar that dropped a window preload', async () => {
+  assert.ok(REQUIRED_ASAR_FILES.includes('companion-preload.cjs'))
+
+  const complete = await writeMinimalApp({
+    channel: 'stable',
+    mutateAfterSign: async ({ resources }) => {
+      await writeFile(join(resources, 'app.asar'), asarBuffer([...REQUIRED_ASAR_FILES]))
+    },
+  })
+  try {
+    const names = await asarTopLevelFiles(join(complete.appPath, 'Contents', 'Resources', 'app.asar'))
+    assert.deepEqual(names.sort(), [...REQUIRED_ASAR_FILES].sort())
+  } finally {
+    await rm(complete.dir, { recursive: true, force: true })
+  }
+
+  const dropped = await writeMinimalApp({
+    channel: 'stable',
+    mutateAfterSign: async ({ appPath, resources }) => {
+      const packed = REQUIRED_ASAR_FILES.filter(name => name !== 'companion-preload.cjs')
+      await writeFile(join(resources, 'app.asar'), asarBuffer(packed))
+      await execFileAsync('/usr/bin/codesign', ['--force', '--sign', '-', appPath])
+    },
+  })
+  try {
+    const result = await inspectPackagedApp(dropped.appPath, 'stable')
+    assert.equal(result.ok, false)
+    assert.ok(
+      result.issues.some(issue => issue.includes('app.asar is missing packed sources: companion-preload.cjs')),
+      result.issues.join('; '),
+    )
+  } finally {
+    await rm(dropped.dir, { recursive: true, force: true })
   }
 })
 

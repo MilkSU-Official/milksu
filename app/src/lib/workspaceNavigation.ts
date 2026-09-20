@@ -35,12 +35,11 @@ export function isDomainWorkspace(section: AppSection) {
 
 export const WORKSPACE_SIDEBAR_ITEMS = [
   { id: 'chat', label: () => t('主页', 'Home') },
-  { id: 'companion', label: () => t('桌宠', 'Companion') },
   { id: 'ctf', label: () => 'CTF' },
   { id: 'vuln', label: () => 'CVE' },
   { id: 'lab', label: () => 'Lab' },
 ] as const satisfies ReadonlyArray<{
-  id: WorkspaceSection
+  id: Exclude<WorkspaceSection, 'companion'>
   label: () => string
 }>
 

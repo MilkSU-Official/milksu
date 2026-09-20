@@ -23,8 +23,9 @@ export function formatCompanionChatStamp(
   const start = new Date(now)
   start.setHours(0, 0, 0, 0)
   if (ms >= start.getTime()) return time
+  const weekday = new Intl.DateTimeFormat(tag, { weekday: 'short' }).format(date)
   const day = new Intl.DateTimeFormat(tag, { month: 'numeric', day: 'numeric' }).format(date)
-  return `${day} ${time}`
+  return locale === 'en' ? `${weekday}, ${day} ${time}` : `${day} ${weekday} ${time}`
 }
 
 export function companionChatIsUser(role?: string) {

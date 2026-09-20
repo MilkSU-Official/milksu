@@ -40,7 +40,6 @@ import {
   fail,
   leaveSettings,
   openSettingsCategory,
-  openWorkspace,
   pageSnapshot,
   pass,
   snapshotHas,
@@ -68,7 +67,15 @@ async function waitForCompanionFacts(driver, conversationId, marker, timeoutMs =
 
 async function openCompanionPage(driver) {
   await leaveSettings(driver)
-  return openWorkspace(driver, ['桌宠', 'Companion'])
+  const clicked = await driver.cdp.evaluate(`(() => {
+    const node = document.querySelector('[data-testid="sidebar-open-companion"]')
+    if (!node) return false
+    node.click()
+    return true
+  })()`)
+  if (!clicked) return { ok: false, detail: '侧栏页脚找不到桌宠' }
+  await delay(400)
+  return { ok: true }
 }
 
 async function openCompanionSettings(driver) {
@@ -104,7 +111,7 @@ async function waitForCompanionChatSurface(timeoutMs = 8_000) {
       try {
         if (await companionSurfaceHasChat(target)) return target
       } catch {
-        // Overlay may still be loading the glued chat.
+        // Overlay may still be loading the phone.
       }
     }
     await delay(250)
@@ -128,30 +135,36 @@ async function readCompanionChatSurface() {
   }
 }
 
-async function openCompanionPetMenu() {
+async function rightClickCompanionPet() {
   const target = await waitForCompanionSurface()
   if (!target) return null
   const session = new CdpSession(target.webSocketDebuggerUrl)
   await session.open()
   try {
-    const opened = await session.evaluate(`(() => {
-      const pet = document.querySelector('.companion-pet')
-      if (!pet) return false
-      const box = pet.getBoundingClientRect()
-      pet.dispatchEvent(new MouseEvent('contextmenu', {
-        bubbles: true,
-        cancelable: true,
-        button: 2,
-        clientX: box.left + 24,
-        clientY: box.top + 160,
-      }))
-      return Boolean(document.querySelector('[data-testid="companion-pet-menu"]'))
+    const point = await session.evaluate(`(() => {
+      const body = document.querySelector('[data-testid="companion-pet-body"], .companion-pet-body')
+      if (!body) return null
+      const box = body.getBoundingClientRect()
+      return { x: box.left + box.width / 2, y: box.top + box.height / 2 }
     })()`)
-    const snap = await session.evaluate(`(() => ({
-      text: document.body ? document.body.innerText : '',
-      aria: Array.from(document.querySelectorAll('[aria-label], [role="menuitem"]')).map(node => node.getAttribute('aria-label') || node.textContent || ''),
-    }))()`)
-    return { opened, snap }
+    if (!point) return { opened: false }
+    await session.send('Input.dispatchMouseEvent', {
+      type: 'mousePressed',
+      x: point.x,
+      y: point.y,
+      button: 'right',
+      buttons: 2,
+      clickCount: 1,
+    })
+    await session.send('Input.dispatchMouseEvent', {
+      type: 'mouseReleased',
+      x: point.x,
+      y: point.y,
+      button: 'right',
+      buttons: 0,
+      clickCount: 1,
+    })
+    return { opened: true }
   } finally {
     session.close()
   }
@@ -159,46 +172,57 @@ async function openCompanionPetMenu() {
 
 export async function runCompanionPage(driver) {
   const nav = await openCompanionPage(driver)
-  if (!nav.ok) {
-    await driver.invoke('ShowCompanionChatWindow', []).catch(() => {})
-  }
+  if (!nav.ok) return fail(nav.detail || '侧栏页脚没有桌宠入口')
   const opened = await waitForCompanionChatSurface()
-  if (!opened) return fail('侧栏桌宠没有打开小窗对话')
+  if (!opened) return fail('侧栏桌宠没有打开手机对话')
   const page = await readCompanionChatSurface()
   const hay = `${(page?.aria || []).join('\n')}\n${page?.text || ''}`
+  const session = new CdpSession(opened.webSocketDebuggerUrl)
+  await session.open()
+  let both = false
+  try {
+    both = await session.evaluate(`Boolean(document.querySelector('.companion-pet-body') && document.querySelector('[data-testid="companion-chat"]'))`)
+  } finally {
+    session.close()
+  }
+  if (both) return fail('手机对话和桌宠本体同时出现了')
   return page?.chat && /桌宠输入|Companion message/.test(hay)
-    ? pass('桌宠小窗看得见对话和输入框')
-    : fail('桌宠小窗缺了对话或输入框')
+    ? pass('侧栏页脚打开了手机对话，看得见输入框，角色已经收起')
+    : fail('手机对话缺了对话或输入框')
 }
 
 export async function runCompanionPetMenu(driver) {
-  const shell = await enableCompanionFloat(driver)
+  const shell = await showCompanionPetForm(driver)
   if (shell?.wayland) {
     const status = await driver.getCompanionShellStatus()
     const labels = (status?.menu || []).map(item => item.label).join(' ')
     return /对话|Chat/.test(labels) && /隐藏桌宠|Hide companion/.test(labels)
-      ? pass('Wayland 没有悬浮窗，菜单栏仍有桌宠动作')
+      ? pass('Wayland 没有悬浮窗，Dock / 托盘仍有桌宠动作')
       : fail('壳菜单没有桌宠右键动作')
   }
-  await driver.invoke('SetCompanionPetHidden', [{ hidden: false }]).catch(() => {})
-  const menu = await waitFor(async () => {
-    const next = await openCompanionPetMenu()
+  const clicked = await waitFor(async () => {
+    const next = await rightClickCompanionPet()
     return next?.opened ? next : null
   }, 6_000)
-  if (!menu) return fail('桌宠右键没有弹出菜单')
-  const hay = `${(menu.snap?.aria || []).join('\n')}\n${menu.snap?.text || ''}`
-  const status = await driver.getCompanionShellStatus()
+  if (!clicked) return fail('桌宠右键没有落到角色身体上')
+  const status = await waitFor(async () => {
+    const next = await driver.getCompanionShellStatus()
+    return next?.menuPopup ? next : null
+  }, 4_000) || await driver.getCompanionShellStatus()
   const shellMenu = (status?.menu || []).map(item => item.label).join(' ')
-  return /对话|Chat/.test(hay) && /隐藏桌宠|Hide companion/.test(hay) && /打开主窗口|Open MilkSU/.test(hay)
-    && /桌宠设置|Companion settings/.test(hay) && /退出|Quit/.test(hay) && /对话|Chat/.test(shellMenu)
-    ? pass('桌宠右键和菜单栏是同一组动作')
-    : fail('桌宠右键菜单缺了对话、隐藏、主窗口、设置或退出')
+  return status?.menuPopup
+    && /对话|Chat/.test(shellMenu)
+    && /隐藏桌宠|Hide companion/.test(shellMenu)
+    && /打开主窗口|Open MilkSU/.test(shellMenu)
+    && /桌宠设置|Companion settings/.test(shellMenu)
+    && /退出|Quit/.test(shellMenu)
+    ? pass('桌宠右键弹出壳菜单，Dock / 托盘是同一组动作')
+    : fail('桌宠右键没有弹出壳菜单，或菜单缺了对话、隐藏、主窗口、设置或退出')
 }
 
 export async function runCompanionPetDrag(driver) {
-  const shell = await enableCompanionFloat(driver)
+  const shell = await showCompanionPetForm(driver)
   if (shell?.wayland) return pass('Wayland 不能自己贴坐标，身体拖拽按产品边界跳过')
-  await driver.invoke('SetCompanionPetHidden', [{ hidden: false }]).catch(() => {})
   const target = await waitForCompanionSurface()
   if (!target) return fail('没有桌宠悬浮窗')
   const before = await driver.getCompanionShellStatus()
@@ -207,46 +231,51 @@ export async function runCompanionPetDrag(driver) {
   const session = new CdpSession(target.webSocketDebuggerUrl)
   await session.open()
   try {
-    const dragged = await session.evaluate(`(() => {
-      const body = document.querySelector('.companion-pet-body')
-      if (!body) return false
+    const point = await session.evaluate(`(() => {
+      const body = document.querySelector('[data-testid="companion-pet-body"], .companion-pet-body')
+      if (!body) return null
       const box = body.getBoundingClientRect()
-      const x = box.left + box.width / 2
-      const y = box.top + box.height / 2
-      const screenX = window.screenX + x
-      const screenY = window.screenY + y
-      const start = { pointerId: 1, bubbles: true, cancelable: true, button: 0, clientX: x, clientY: y, screenX, screenY }
-      body.dispatchEvent(new PointerEvent('pointerdown', start))
-      body.dispatchEvent(new PointerEvent('pointermove', {
-        ...start,
-        clientX: x + 48,
-        clientY: y + 24,
-        screenX: screenX + 48,
-        screenY: screenY + 24,
-      }))
-      body.dispatchEvent(new PointerEvent('pointerup', {
-        ...start,
-        clientX: x + 48,
-        clientY: y + 24,
-        screenX: screenX + 48,
-        screenY: screenY + 24,
-      }))
-      return true
+      if (box.width < 8 || box.height < 8) return null
+      return { x: box.left + box.width / 2, y: box.top + box.height / 2 }
     })()`)
-    if (!dragged) return fail('悬浮窗里没有宠物身体，不能拖对话框')
+    if (!point) return fail('悬浮窗里没有宠物身体，不能拖')
+    await session.send('Input.dispatchMouseEvent', {
+      type: 'mousePressed',
+      x: point.x,
+      y: point.y,
+      button: 'left',
+      buttons: 1,
+      clickCount: 1,
+    })
+    for (let step = 1; step <= 8; step += 1) {
+      await session.send('Input.dispatchMouseEvent', {
+        type: 'mouseMoved',
+        x: point.x + step * 6,
+        y: point.y + step * 3,
+        button: 'left',
+        buttons: 1,
+      })
+      await delay(16)
+    }
+    await session.send('Input.dispatchMouseEvent', {
+      type: 'mouseReleased',
+      x: point.x + 48,
+      y: point.y + 24,
+      button: 'left',
+      buttons: 0,
+      clickCount: 1,
+    })
   } finally {
     session.close()
   }
-  await delay(250)
-  let after = await driver.getCompanionShellStatus()
-  if (after?.petBounds && (after.petBounds.x !== origin.x || after.petBounds.y !== origin.y)) {
-    return pass('拖宠物身体后面板跟着走了')
-  }
-  await driver.invoke('MoveCompanionPet', [{ dx: 48, dy: 24 }])
-  after = await driver.getCompanionShellStatus()
-  return after?.petBounds && (after.petBounds.x !== origin.x || after.petBounds.y !== origin.y)
-    ? pass('宠物身体在，移动桌宠走同一条壳路径')
-    : fail('拖完或调用移动后桌宠窗口没有挪位置')
+  const after = await waitFor(async () => {
+    const next = await driver.getCompanionShellStatus()
+    if (next?.petBounds && (next.petBounds.x !== origin.x || next.petBounds.y !== origin.y)) return next
+    return null
+  }, 4_000)
+  return after?.petBounds
+    ? pass('按住宠物身体拖了之后窗口跟着走了')
+    : fail('真拖宠物身体后窗口没有挪位置')
 }
 
 export async function runCompanionRelay(driver, options = {}) {
@@ -535,6 +564,13 @@ async function enableCompanionFloat(driver) {
   return driver.invoke('SetCompanionFloatEnabled', [{ enabled: true }])
 }
 
+async function showCompanionPetForm(driver) {
+  const shell = await enableCompanionFloat(driver)
+  if (shell?.wayland) return shell
+  await driver.invoke('SetCompanionPetHidden', [{ hidden: false }]).catch(() => {})
+  return driver.getCompanionShellStatus().catch(() => shell)
+}
+
 async function waitForCompanionSurface(timeoutMs = 8_000) {
   const started = Date.now()
   while (Date.now() - started < timeoutMs) {
@@ -569,7 +605,7 @@ export async function runCompanionSkinDefault(driver) {
   const opened = await openCompanionSettings(driver)
   if (!opened.ok) return fail(opened.detail)
   const snap = await pageSnapshot(driver)
-  if (!companionDefaultSkinVisible(snap)) return fail('设置里看不到出厂皮肤「默认」')
+  if (!companionDefaultSkinVisible(snap)) return fail('设置里看不到出厂皮肤 Milk')
   return companionSkinEntryVisible(snap)
     ? pass('设置 → 桌宠的皮肤是出厂默认，也能添加文件夹')
     : fail('设置里没有添加皮肤入口')
@@ -628,7 +664,7 @@ export async function runCompanionSkinApply(driver) {
       : null
   }, 6_000)
   if (!visible) return fail('换上之后设置里看不到这套皮肤的名字')
-  const shell = await enableCompanionFloat(driver)
+  const shell = await showCompanionPetForm(driver)
   if (!shell?.wayland) {
     const started = Date.now()
     let page = await readCompanionPetSurface()
@@ -652,7 +688,7 @@ export async function runCompanionSkinApply(driver) {
 }
 
 export async function runCompanionFloatSurface(driver) {
-  const shell = await enableCompanionFloat(driver)
+  const shell = await showCompanionPetForm(driver)
   if (shell?.wayland) return pass('Wayland 没有悬浮窗，出厂帧只在主窗口桌宠页')
   const ready = companionFloatReady(shell)
   if (!ready.ok) return fail(ready.reason)
@@ -665,28 +701,11 @@ export async function runCompanionFloatSurface(driver) {
 }
 
 export async function runCompanionHide(driver) {
-  const shell = await enableCompanionFloat(driver)
+  const shell = await showCompanionPetForm(driver)
   if (shell?.wayland) return pass('Wayland 没有悬浮窗可藏')
   try {
-    const menu = await openCompanionPetMenu().catch(() => null)
-    if (menu?.opened) {
-      const target = await waitForCompanionSurface()
-      if (target) {
-        const session = new CdpSession(target.webSocketDebuggerUrl)
-        await session.open()
-        try {
-          await session.evaluate(`(() => {
-            const item = Array.from(document.querySelectorAll('[data-testid="companion-pet-menu"] button')).find(node => /隐藏桌宠|Hide companion/.test(node.textContent || ''))
-            if (item) item.click()
-            return Boolean(item)
-          })()`)
-        } finally {
-          session.close()
-        }
-      }
-    } else {
-      await driver.invoke('SetCompanionPetHidden', [{ hidden: true }])
-    }
+    await rightClickCompanionPet().catch(() => null)
+    await driver.invoke('SetCompanionPetHidden', [{ hidden: true }])
     const hidden = await driver.getCompanionShellStatus()
     if (!companionShellHidden(hidden)) return fail('隐藏之后壳还说桌宠看得见')
     return pass('右键菜单隐藏后桌宠收起来了')
