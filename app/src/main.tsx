@@ -21,6 +21,15 @@ applyHostPlatform()
 applyThemeMode(initialThemeMode)
 syncWindowChrome(resolveThemeMode(initialThemeMode), globalThis, initialThemeMode)
 document.documentElement.dataset.colorScheme = 'memoh'
+try {
+  const surface = new URLSearchParams(window.location.search).get('surface') || ''
+  if (surface === 'companion' || surface === 'companion-chat') {
+    document.documentElement.classList.add('companion-surface')
+    document.body.classList.add('companion-surface')
+  }
+} catch {
+  // Surface query is only present in the desktop pet window.
+}
 
 class BootErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null; stack: string }> {
   state = { error: null as Error | null, stack: '' }

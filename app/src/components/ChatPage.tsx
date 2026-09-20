@@ -414,7 +414,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
       || /\bxargs\b/.test(command)
       || approvalAssessed.targets.some(target => target.kind !== 'unknown')
   }, [approvalAssessed.targets, pendingApprovalMessage?.approvalInput, pendingApprovalMessage?.content])
-  const approvalCanAllow = !approvalBarIsDestructive || approvalAssessed.canAllow
+  const approvalUnverified = approvalBarIsDestructive && !approvalAssessed.canAllow
   const [approvalSubmitting, setApprovalSubmitting] = useState(false)
   const [approvalError, setApprovalError] = useState('')
   const approvalSummary = String(pendingApprovalMessage?.toolName ?? pendingApprovalMessage?.content ?? '')
@@ -424,7 +424,6 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
 
   function submitApproval(approved: boolean) {
     if (!pendingApprovalMessage?.approvalRequestId || approvalSubmitting) return
-    if (approved && !approvalCanAllow) return
     setApprovalSubmitting(true)
     setApprovalError('')
     onRespondApproval?.(pendingApprovalMessage.approvalRequestId, approved, 'once')
@@ -2545,19 +2544,17 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
                   </span>
                 ) : approvalError ? (
                   <span className="shrink-0 text-caption text-destructive">{approvalError}</span>
-                ) : !approvalCanAllow ? (
+                ) : approvalUnverified ? (
                   <span className="shrink-0 text-caption font-medium text-destructive" data-testid="approval-bar-gate">
-                    {t('核验拒绝：本卡只提供「拒绝」', 'Verification refused: deny only')}
+                    {t('范围未核验，仍可确认', 'Unverified scope; you can still confirm')}
                   </span>
                 ) : null}
                 <Button type="button" variant="outline" size="sm" disabled={approvalSubmitting} data-testid="approval-bar-deny" onClick={() => submitApproval(false)}>
                   {t('拒绝', 'Deny')}
                 </Button>
-                {approvalCanAllow ? (
-                  <Button type="button" size="sm" disabled={approvalSubmitting} data-testid="approval-bar-allow" onClick={() => submitApproval(true)}>
-                    {t('允许这一次', 'Allow once')}
-                  </Button>
-                ) : null}
+                <Button type="button" size="sm" disabled={approvalSubmitting} data-testid="approval-bar-allow" onClick={() => submitApproval(true)}>
+                  {t('允许这一次', 'Allow once')}
+                </Button>
               </div>
             ) : null}
               <div

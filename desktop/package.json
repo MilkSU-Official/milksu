@@ -45,6 +45,7 @@
       "renderer-protocol.cjs",
       "renderer-reload.cjs",
       "companion-shell.cjs",
+      "companion-preload.cjs",
       "companion-overlay-state.cjs",
       "companion-skin-host.cjs",
       "companion-skin.cjs",
@@ -68,6 +69,10 @@
       "node_modules/tiny-typed-emitter/**/*"
     ],
     "extraResources": [
+      {
+        "from": "../build/appicon.png",
+        "to": "appicon.png"
+      },
       {
         "from": "../app/dist",
         "to": "renderer"

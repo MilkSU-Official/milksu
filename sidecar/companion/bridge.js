@@ -1,4 +1,3 @@
-import { createRequire } from "node:module";
 import { createInterface } from "node:readline";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
@@ -11,12 +10,12 @@ import { createCompanionExtension, COMPANION_SESSION_ID } from "./extension.js";
 import { createCompanionTools } from "./tools.js";
 import { queryCompanionMemory, scheduleCompanionIndexRefresh } from "./obelisk-index.js";
 import { companionProviderEnvironment } from "./companion-model-env.js";
+import currentProviderRuntime from "../pi/current-provider-runtime.cjs";
 
-const require = createRequire(import.meta.url);
 const {
   currentProviderDefinition,
   isCustomRelayProvider,
-} = require("../pi/current-provider-runtime.cjs");
+} = currentProviderRuntime;
 
 const DEFAULT_SYSTEM_PROMPT = [
   "You are the MilkSU companion.",

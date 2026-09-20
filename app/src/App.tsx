@@ -666,9 +666,8 @@ export default function App() {
       return
     }
     if (value === 'companion') {
-      // Overlay launcher: open the small chat, never a blank full-page companion.
+      // Sidebar footer opens the phone. SHOW_PET would close it again.
       void invokeCommand('show_companion_chat_window')
-      void invokeCommand('set_companion_pet_hidden', { hidden: false })
       return
     }
     setSection(value)
@@ -1631,6 +1630,7 @@ export default function App() {
           onAccountLogin={startAccountLogin}
           onAccountLogout={logoutAccount}
           onSettings={() => openSettings('general')}
+          onCompanion={() => navigateSection('companion')}
           settingsCategory={settingsCategory}
           onSelectSettingsCategory={category => {
             setSettingsCategory(category)

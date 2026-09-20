@@ -215,6 +215,7 @@ for (const required of [
   join(unpackedResources, 'milksu-sidecar', 'playwright-session-bridge.cjs'),
   join(unpackedResources, 'milksu-sidecar', 'playwright-lazy-mcp.cjs'),
   join(unpackedResources, 'milksu-sidecar', 'cua-driver.exe'),
+  join(unpackedResources, 'milksu-sidecar', 'photon_rs_bg.wasm'),
   join(unpackedResources, 'milksu-sidecar', 'THIRD_PARTY-LICENSES', 'cua-MIT.txt'),
   join(unpackedResources, 'milksu-sidecar', 'manifest.json'),
   join(unpackedResources, 'milksu-sidecar', 'node_modules', '@playwright', 'mcp', 'cli.js'),

@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
   COMPANION_CHAT_TIME_GAP_MS,
+  companionChatContinuesRun,
+  companionChatEndsRun,
   companionChatIsBubble,
   companionChatIsUser,
   companionChatShowsTimeCaption,
   companionChatShowsTimeDivider,
+  companionChatSide,
   companionChatTimestampMs,
   formatCompanionChatStamp,
 } from '@/lib/companionChatLayout'
@@ -67,5 +70,75 @@ describe('companionChatLayout', () => {
     expect(companionChatIsUser('assistant')).toBe(false)
     expect(companionChatIsBubble('assistant')).toBe(true)
     expect(companionChatIsBubble('system')).toBe(false)
+  })
+
+  it('groups adjacent rows from the same side into one run', () => {
+    const first = '2026-09-20T10:00:00.000Z'
+    const soon = '2026-09-20T10:02:00.000Z'
+    const later = '2026-09-20T10:20:00.000Z'
+    expect(companionChatContinuesRun(
+      { role: 'assistant', timestamp: soon },
+      { role: 'assistant', timestamp: first },
+    )).toBe(true)
+    expect(companionChatContinuesRun(
+      { role: 'user', timestamp: soon },
+      { role: 'assistant', timestamp: first },
+    )).toBe(false)
+    expect(companionChatContinuesRun(
+      { role: 'assistant', timestamp: later },
+      { role: 'assistant', timestamp: first },
+    )).toBe(false)
+    expect(companionChatContinuesRun(
+      { role: 'assistant', timestamp: soon },
+      undefined,
+    )).toBe(false)
+  })
+
+  it('groups transcript entries that carry no role into one block', () => {
+    const first = '2026-09-20T10:00:00.000Z'
+    const soon = '2026-09-20T10:00:10.000Z'
+    expect(companionChatSide(undefined)).toBe('note')
+    expect(companionChatSide('')).toBe('note')
+    expect(companionChatSide('system')).toBe('note')
+    expect(companionChatContinuesRun(
+      { timestamp: soon },
+      { timestamp: first },
+    )).toBe(true)
+    expect(companionChatContinuesRun(
+      { role: 'assistant', timestamp: soon },
+      { timestamp: first },
+    )).toBe(false)
+  })
+
+  it('ends a run on the last row, a role change, or a time gap', () => {
+    const first = Date.parse('2026-09-20T10:00:00.000Z')
+    expect(companionChatEndsRun({
+      currentMs: first,
+      nextMs: first + 60_000,
+      currentRole: 'user',
+      nextRole: 'user',
+      isLast: false,
+    })).toBe(false)
+    expect(companionChatEndsRun({
+      currentMs: first,
+      nextMs: first + 60_000,
+      currentRole: 'user',
+      nextRole: 'user',
+      isLast: true,
+    })).toBe(true)
+    expect(companionChatEndsRun({
+      currentMs: first,
+      nextMs: first + 60_000,
+      currentRole: 'user',
+      nextRole: 'assistant',
+      isLast: false,
+    })).toBe(true)
+    expect(companionChatEndsRun({
+      currentMs: first,
+      nextMs: first + COMPANION_CHAT_TIME_GAP_MS,
+      currentRole: 'user',
+      nextRole: 'user',
+      isLast: false,
+    })).toBe(true)
   })
 })

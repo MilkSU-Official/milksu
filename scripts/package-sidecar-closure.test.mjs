@@ -1,10 +1,31 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { collectInstalledPackageClosure, copyDshRuntime, dshRuntimeRootPackages } from './package-sidecar.mjs'
+import {
+  collectInstalledPackageClosure,
+  copyDshRuntime,
+  dshRuntimeRootPackages,
+  resolvePhotonRuntime,
+} from './package-sidecar.mjs'
+
+test('Pi inline image processing keeps a shippable Photon runtime', async () => {
+  // Pi resizes inline images with Photon. The bundled bridges load it from
+  // `path.dirname(process.execPath)`, so packaging copies the module from here.
+  // A renamed or dropped dependency would make every image read silently fail.
+  const photon = await resolvePhotonRuntime()
+  assert.equal(photon.version, '0.3.4')
+  assert.equal(photon.licenseName, 'Apache-2.0')
+  const wasm = await readFile(photon.wasm)
+  assert.ok(wasm.byteLength > 1_000_000, `unexpected Photon module size: ${wasm.byteLength}`)
+  assert.ok(
+    wasm.subarray(0, 4).equals(Buffer.from([0x00, 0x61, 0x73, 0x6d])),
+    'Photon module must start with the WebAssembly magic bytes',
+  )
+  assert.ok((await readFile(photon.license)).byteLength > 0, 'Photon license must ship with it')
+})
 
 test('DSH packaged closure includes required app-boot peers', async () => {
   const dependenciesOnly = await collectInstalledPackageClosure(['@deepseek-ai/dsh'])

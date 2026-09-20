@@ -28,17 +28,32 @@ export function turnBroken(turn) {
   return ''
 }
 
-export async function releaseProductLoopWorkspace(driver, conversation, workspace) {
-  const id = typeof conversation === 'string'
-    ? conversation.trim()
-    : String(conversation?.id ?? conversation?.ID ?? '').trim()
-  if (driver && id) {
-    await driver.abortMessage(id).catch(() => {})
-    await delay(250)
-    await driver.deleteConversation(id).catch(() => {})
-    await delay(250)
+const pendingWorkspaceReleases = []
+
+export function deferProductLoopCleanup(job) {
+  if (typeof job === 'function') pendingWorkspaceReleases.push(job)
+}
+
+export async function flushProductLoopCleanup() {
+  const jobs = pendingWorkspaceReleases.splice(0)
+  for (const job of jobs) {
+    await job().catch(() => {})
   }
-  if (workspace) await rm(workspace, { recursive: true, force: true }).catch(() => {})
+}
+
+export async function releaseProductLoopWorkspace(driver, conversation, workspace) {
+  deferProductLoopCleanup(async () => {
+    const id = typeof conversation === 'string'
+      ? conversation.trim()
+      : String(conversation?.id ?? conversation?.ID ?? '').trim()
+    if (driver && id) {
+      await driver.abortMessage(id).catch(() => {})
+      await delay(250)
+      await driver.deleteConversation(id).catch(() => {})
+      await delay(250)
+    }
+    if (workspace) await rm(workspace, { recursive: true, force: true }).catch(() => {})
+  })
 }
 
 function visibleRootScript() {

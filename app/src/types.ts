@@ -498,7 +498,10 @@ export interface CompanionShellStatus {
   tray: boolean
   parked?: boolean
   platform?: string
+  title?: string
   menu?: Array<{ id: string; label: string }>
+  menuPopup?: { x: number; y: number } | null
+  dragged?: boolean
   petBounds?: { x: number; y: number; width: number; height: number }
   chatBounds?: { x: number; y: number; width: number; height: number }
   overlay?: {

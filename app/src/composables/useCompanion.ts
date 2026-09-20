@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { desktopErrorMessage, hasDesktopRuntime, invokeCommand, listenEvent } from '@/desktop'
+import { explainCompanionError } from '@/lib/companionUserError'
 import { COMPANION_COMPLETE_HOLD_MS } from '@/lib/companionPetMotion'
 import type {
   CompanionArchive,
@@ -126,11 +127,12 @@ export function useCompanion() {
         await Promise.all([loadTail(), refreshBoard(), refreshMemory(), refreshArchives()])
         setShell(await invokeCommand<CompanionShellStatus>('get_companion_shell_status'))
       } catch (reason) {
-        if (!cancelled) setError(desktopErrorMessage(reason))
+        if (!cancelled) setError(explainCompanionError(desktopErrorMessage(reason)))
       }
       unlisten = await listenEvent<{
         type?: string
         text?: string
+        error?: string
         notice?: string
         input?: string
         requestId?: string
@@ -174,8 +176,9 @@ export function useCompanion() {
             // Confirmation is parked on the host until the user answers.
           }
         }
-        if (payload?.type === 'engine.error' && payload.text) {
-          setError(payload.text)
+        if (payload?.type === 'engine.error') {
+          const text = explainCompanionError(payload.text || payload.error)
+          if (text) setError(text)
           setBusy(false)
           clearComplete()
         }
@@ -201,7 +204,7 @@ export function useCompanion() {
     try {
       await invokeCommand('send_companion_message', { prompt })
     } catch (reason) {
-      setError(desktopErrorMessage(reason))
+      setError(explainCompanionError(desktopErrorMessage(reason)))
       setBusy(false)
     }
   }, [busy, clearComplete, draft])

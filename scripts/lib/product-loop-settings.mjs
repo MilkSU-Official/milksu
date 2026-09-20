@@ -149,7 +149,7 @@ export async function runSettingsCompanion(driver) {
   if (error) return error
   return expectLabels(
     driver,
-    ['桌宠模型', 'Companion model', '跨会话调度', 'Dispatch', '悬浮窗', 'Floating window', '皮肤', 'Skin', '默认', 'Default', '添加皮肤', 'Add skin', '选择文件夹', 'Choose folder'],
+    ['桌宠模型', 'Companion model', '跨会话调度', 'Dispatch', '悬浮窗', 'Floating window', '皮肤', 'Skin', 'Milk', '添加皮肤', 'Add skin', '选择文件夹', 'Choose folder'],
     '桌宠设置页在',
     '桌宠设置页缺了控件',
   )

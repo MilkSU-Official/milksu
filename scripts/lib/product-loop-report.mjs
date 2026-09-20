@@ -4,10 +4,9 @@
  * Also writes a formal HTML report with per-case screenshots.
  */
 
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
-  isCompanionChatSurface,
   isCompanionPetSurface,
   repositoryRoot,
 } from './desktop-gui-driver.mjs'
@@ -111,31 +110,70 @@ function escapeHtml(value) {
     .replace(/"/g, '&quot;')
 }
 
-export async function captureProductLoopEvidence(driver, id) {
-  const shots = []
-  if (!driver) return shots
+export async function resetProductLoopReportDir() {
+  await rm(join(PRODUCT_LOOP_REPORT_DIR, 'shots'), { recursive: true, force: true })
+  await mkdir(join(PRODUCT_LOOP_REPORT_DIR, 'shots'), { recursive: true })
+}
+
+export function evidenceSurfacesForCase(id) {
+  const module = CASES[id]?.module
+  if (module === 'companion') {
+    if (/^companion-(settings-|skin-default|skin-import|float$)/.test(id)) return ['main']
+    if (/^companion-(hide|dock-park)$/.test(id)) return ['main', 'companion']
+    return ['companion']
+  }
+  return ['main']
+}
+
+export function normalizeScreenshot(shot) {
+  if (!shot) return null
+  if (typeof shot === 'string') return { src: shot, label: '', caption: '' }
+  const src = String(shot.src || shot.path || '').trim()
+  if (!src) return null
+  return {
+    src,
+    label: String(shot.label || ''),
+    caption: String(shot.caption || ''),
+  }
+}
+
+async function saveEvidenceShot(name, label, shot) {
+  const buffer = shot?.buffer
+  if (!buffer?.length) return null
   const dir = join(PRODUCT_LOOP_REPORT_DIR, 'shots')
   await mkdir(dir, { recursive: true })
-  async function save(name, buffer) {
-    if (!buffer?.length) return
-    const file = `${name}.png`
-    await writeFile(join(dir, file), buffer)
-    shots.push(`shots/${file}`)
+  const file = `${name}.png`
+  await writeFile(join(dir, file), buffer)
+  return {
+    src: `shots/${file}`,
+    label,
+    caption: String(shot.caption || '').slice(0, 200),
   }
-  try {
-    await save(`${id}-pet`, await driver.captureSurfacePng(isCompanionPetSurface))
-  } catch {
-    // Pet window may be hidden.
+}
+
+export async function captureProductLoopEvidence(driver, id) {
+  const shots = []
+  if (!driver || !id) return shots
+  const surfaces = evidenceSurfacesForCase(id)
+  if (surfaces.includes('companion')) {
+    try {
+      const overlay = await saveEvidenceShot(
+        `${id}-companion`,
+        '桌宠',
+        await driver.captureSurfaceEvidence(isCompanionPetSurface),
+      )
+      if (overlay) shots.push(overlay)
+    } catch {
+      // Overlay may be hidden or parked.
+    }
   }
-  try {
-    await save(`${id}-chat`, await driver.captureSurfacePng(isCompanionChatSurface))
-  } catch {
-    // Chat window may be closed.
-  }
-  try {
-    await save(id, await driver.capturePagePng())
-  } catch {
-    // Main window may be parked.
+  if (surfaces.includes('main')) {
+    try {
+      const main = await saveEvidenceShot(id, '主窗口', await driver.captureMainEvidence())
+      if (main) shots.push(main)
+    } catch {
+      // Main window may be parked.
+    }
   }
   return shots
 }
@@ -161,13 +199,15 @@ export function formatFormalProductLoopReport(receipt = {}, report = buildProduc
     blocks.push(`<section><h2>${escapeHtml(module.title)} <span class="${String(module.result).toLowerCase()}">[${escapeHtml(module.result)}]</span> ${module.passed}/${module.total}</h2>`)
     for (const item of module.cases) {
       const raw = byId.get(item.id) || {}
-      const shots = Array.isArray(raw.screenshots) ? raw.screenshots : []
+      const shots = (Array.isArray(raw.screenshots) ? raw.screenshots : []).map(normalizeScreenshot).filter(Boolean)
       blocks.push('<article>')
       blocks.push(`<h3 class="${String(item.result).toLowerCase()}">${escapeHtml(item.result)}　${escapeHtml(item.title)}　<code>${escapeHtml(item.id)}</code></h3>`)
       if (item.detail) blocks.push(`<p>${escapeHtml(item.detail)}</p>`)
       if (!shots.length) blocks.push('<p class="skip">这一项没有截到产品窗口。</p>')
       for (const shot of shots) {
-        blocks.push(`<img src="${escapeHtml(shot)}" alt="${escapeHtml(item.id)}">`)
+        const title = [shot.label, shot.caption].filter(Boolean).join(' · ')
+        if (title) blocks.push(`<p>${escapeHtml(title)}</p>`)
+        blocks.push(`<img src="${escapeHtml(shot.src)}" alt="${escapeHtml(title || item.id)}">`)
       }
       blocks.push('</article>')
     }

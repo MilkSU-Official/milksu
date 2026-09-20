@@ -37,6 +37,7 @@ const COMPANION_METHODS = new Set([
   'ClickCompanionPet',
   'ShowCompanionSettings',
   'PopupCompanionMenu',
+  'SetCompanionPointerPassthrough',
   'MoveCompanionPet',
   'ParkCompanionMainWindow',
   'QuitCompanionShell',
@@ -46,6 +47,8 @@ const COMPANION_METHODS = new Set([
   'GetCompanionSkin',
 ])
 
+const PET_DRAG_FRAME_MS = 16
+const PET_DRAG_MAX_MS = 30_000
 const COMPANION_FLOAT_WIDTH = COMPANION_PET_WIDTH
 const COMPANION_FLOAT_HEIGHT = COMPANION_PET_HEIGHT
 
@@ -133,6 +136,11 @@ function createCompanionShell(options) {
   let tray = null
   let enabled = !wayland
   let petHidden = false
+  let lastMenuPopup = null
+  let petDrag = null
+  let petDragTimer = null
+  let lastPetDragged = false
+  let pointerPassthrough = false
   let uiLocale = normalizeUiLocale(
     typeof getUiLocale === 'function' ? getUiLocale() : '',
     'zh',
@@ -145,6 +153,93 @@ function createCompanionShell(options) {
   function rememberLocale(value) {
     if (value == null || value === '') return
     uiLocale = normalizeUiLocale(value, uiLocale)
+    lockCompanionTitle(float)
+  }
+
+  function companionWindowTitle() {
+    return t('桌宠', 'Companion')
+  }
+
+  function lockCompanionTitle(window) {
+    if (!window || window.isDestroyed()) return
+    const title = companionWindowTitle()
+    if (typeof window.setTitle === 'function') window.setTitle(title)
+  }
+
+  function applyOverlayBounds(window, bounds) {
+    if (!window || window.isDestroyed() || !bounds) return
+    if (typeof window.setMinimumSize === 'function') window.setMinimumSize(1, 1)
+    const wasResizable = typeof window.isResizable === 'function' ? window.isResizable() : false
+    if (typeof window.setResizable === 'function') window.setResizable(true)
+    if (typeof window.setBounds === 'function') {
+      window.setBounds({
+        x: Math.round(Number(bounds.x) || 0),
+        y: Math.round(Number(bounds.y) || 0),
+        width: Math.max(1, Math.round(Number(bounds.width) || 0)),
+        height: Math.max(1, Math.round(Number(bounds.height) || 0)),
+      })
+    }
+    if (typeof window.setResizable === 'function') window.setResizable(wasResizable)
+  }
+
+  function bindOverlayWindowEvents(window) {
+    if (!window || typeof window.on !== 'function') return
+    window.on('page-title-updated', event => {
+      event.preventDefault()
+      lockCompanionTitle(window)
+    })
+    window.on('closed', () => {
+      stopPetDragTimer()
+      petDrag = null
+      float = null
+      unitLayout = null
+      windows.delete('companion')
+    })
+  }
+
+  function applyPointerPassthrough() {
+    if (!float || float.isDestroyed() || typeof float.setIgnoreMouseEvents !== 'function') return
+    float.setIgnoreMouseEvents(false)
+  }
+
+  function setPointerPassthrough() {
+    pointerPassthrough = false
+    applyPointerPassthrough()
+    return status()
+  }
+
+  function stopPetDragTimer() {
+    if (petDragTimer) {
+      clearInterval(petDragTimer)
+      petDragTimer = null
+    }
+  }
+
+  function followPetDragCursor() {
+    if (!petDrag || !float || float.isDestroyed()) {
+      stopPetDragTimer()
+      return
+    }
+    // A pointerup can be lost (window closed, session switch). Never let the
+    // overlay keep chasing the cursor once a drag has outlived a real gesture.
+    if (Date.now() - petDrag.startedAt > PET_DRAG_MAX_MS) {
+      stopPetDragTimer()
+      petDrag = null
+      return
+    }
+    const cursor = cursorScreenPoint()
+    if (!cursor || !petDrag.cursor) return
+    const dx = cursor.x - petDrag.cursor.x
+    const dy = cursor.y - petDrag.cursor.y
+    if (!dx && !dy) return
+    if ((dx * dx) + (dy * dy) >= 16) petDrag.moved = true
+    applyUnitLayout(moveCompanionUnit({
+      petScreen: petDrag.pet,
+      dx,
+      dy,
+      chatOpen: chatOpenFlag,
+      workArea: wayland ? null : (workAreaNear(petDrag.pet) || primaryWorkArea()),
+    }))
   }
 
   function keepAppPresence() {
@@ -152,8 +247,35 @@ function createCompanionShell(options) {
   }
 
   function iconPath() {
-    if (isPackaged) return path.join(resourcesPath, 'appicon.png')
-    return path.join(repositoryRoot, 'build', 'appicon.png')
+    const packaged = resourcesPath ? path.join(resourcesPath, 'appicon.png') : ''
+    const repo = repositoryRoot ? path.join(repositoryRoot, 'build', 'appicon.png') : ''
+    if (isPackaged && packaged) return packaged
+    return repo || packaged
+  }
+
+  function trayIconImage() {
+    if (!nativeImage) return null
+    let image = null
+    try {
+      image = nativeImage.createFromPath(iconPath())
+    } catch {
+      image = null
+    }
+    if ((!image || (typeof image.isEmpty === 'function' && image.isEmpty()))
+      && platform === 'darwin'
+      && app.dock
+      && typeof app.dock.getIcon === 'function') {
+      try {
+        image = app.dock.getIcon()
+      } catch {
+        image = null
+      }
+    }
+    if (!image || (typeof image.isEmpty === 'function' && image.isEmpty())) {
+      return typeof nativeImage.createEmpty === 'function' ? nativeImage.createEmpty() : image
+    }
+    const sized = typeof image.resize === 'function' ? image.resize({ width: 18, height: 18 }) : image
+    return sized || image
   }
 
   function mainParked() {
@@ -164,8 +286,13 @@ function createCompanionShell(options) {
     return false
   }
 
+  function overlayVisible() {
+    if (wayland) return Boolean(float) && chatOpenFlag
+    return Boolean(float) && !petHidden && enabled
+  }
+
   function petVisible() {
-    return Boolean(float) && !petHidden && enabled && !wayland
+    return overlayVisible() && !chatOpenFlag && !wayland
   }
 
   function chatOpen() {
@@ -217,6 +344,19 @@ function createCompanionShell(options) {
     return workAreaNear({ x: 0, y: 0 })
   }
 
+  function cursorScreenPoint() {
+    if (!screen || typeof screen.getCursorScreenPoint !== 'function') return null
+    try {
+      const point = screen.getCursorScreenPoint()
+      const x = Number(point && point.x)
+      const y = Number(point && point.y)
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return null
+      return { x, y }
+    } catch {
+      return null
+    }
+  }
+
   function currentPetScreen() {
     if (unitLayout && unitLayout.petScreen) return unitLayout.petScreen
     const bounds = windowBounds(float)
@@ -237,7 +377,7 @@ function createCompanionShell(options) {
   function applyUnitLayout(layout) {
     unitLayout = layout
     if (!float || float.isDestroyed() || !layout?.window) return
-    if (typeof float.setBounds === 'function') float.setBounds(layout.window)
+    applyOverlayBounds(float, layout.window)
     emitOverlay()
   }
 
@@ -273,6 +413,8 @@ function createCompanionShell(options) {
   }
 
   function destroyOverlayWindows() {
+    stopPetDragTimer()
+    petDrag = null
     if (float && !float.isDestroyed()) float.close()
     float = null
     chatOpenFlag = false
@@ -289,16 +431,16 @@ function createCompanionShell(options) {
       return
     }
     if (decision.effects.pet === 'hide') hidePetWindow()
-    else if (decision.effects.pet === 'show' || (decision.petVisible && (!float || float.isDestroyed()))) {
-      showPetWindow()
-    } else if (wayland && chatOpenFlag && (!float || float.isDestroyed())) {
-      createFloat()
+    else if (decision.effects.pet === 'show' || (decision.overlayVisible && (!float || float.isDestroyed()))) {
+      if (wayland) createFloat()
+      else showPetWindow()
     }
     if (float && !float.isDestroyed() && decision.effects.pet !== 'hide') {
       relayoutUnit()
-      if (decision.effects.chat === 'show' || decision.effects.chat === 'focus') {
+      applyPointerPassthrough()
+      if (decision.effects.chat === 'show' || decision.effects.chat === 'focus' || decision.phoneVisible) {
         float.show()
-        float.focus()
+        if (decision.effects.chat === 'show' || decision.effects.chat === 'focus') float.focus()
       }
     }
     if (decision.effects.main === 'show') showMainWindowImpl()
@@ -317,7 +459,7 @@ function createCompanionShell(options) {
   function actionMenu(extra = {}) {
     return companionActionMenuTemplate({
       t,
-      petVisible: petVisible(),
+      petVisible: overlayVisible(),
       enabled,
       wayland,
       includeQuit: extra.includeQuit,
@@ -360,7 +502,10 @@ function createCompanionShell(options) {
       tray: Boolean(tray),
       parked: mainParked(),
       platform,
+      title: companionWindowTitle(),
       menu: menuSnapshot(),
+      menuPopup: lastMenuPopup,
+      dragged: lastPetDragged,
       petBounds: petScreen
         ? {
             x: petScreen.x,
@@ -392,11 +537,7 @@ function createCompanionShell(options) {
 
   function refreshAppMenu() {
     if (!Menu || typeof Menu.setApplicationMenu !== 'function') return
-    const companion = {
-      label: t('桌宠', 'Companion'),
-      submenu: actionMenu({ includeQuit: platform !== 'darwin' }),
-    }
-    Menu.setApplicationMenu(Menu.buildFromTemplate(productApplicationMenuTemplate(platform, { companion })))
+    Menu.setApplicationMenu(Menu.buildFromTemplate(productApplicationMenuTemplate(platform)))
   }
 
   function refreshMenus() {
@@ -411,9 +552,10 @@ function createCompanionShell(options) {
       refreshMenus()
       return
     }
-    const image = nativeImage.createFromPath(iconPath())
-    tray = new Tray(image.isEmpty() ? nativeImage.createEmpty() : image)
-    tray.setToolTip('MilkSU')
+    if (!Tray) return
+    const image = trayIconImage()
+    tray = new Tray(image)
+    if (typeof tray.setToolTip === 'function') tray.setToolTip('MilkSU')
     tray.on('click', () => {
       if (enabled && !wayland && petHidden) showPet()
       else showMainWindow()
@@ -480,11 +622,34 @@ function createCompanionShell(options) {
   function movePet(payload = {}) {
     const decision = reduceCompanionOverlay(snapshot(), COMPANION_OVERLAY_ACTIONS.MOVE_PET)
     if (!decision.effects.drag.moveUnit || !float || float.isDestroyed()) return status()
+    const drag = String(payload.drag || '').trim()
+    if (drag === 'begin') {
+      lastPetDragged = false
+      petDrag = {
+        cursor: cursorScreenPoint(),
+        pet: { ...currentPetScreen() },
+        moved: false,
+        startedAt: Date.now(),
+      }
+      stopPetDragTimer()
+      petDragTimer = setInterval(followPetDragCursor, PET_DRAG_FRAME_MS)
+      return status()
+    }
+    if (drag === 'end') {
+      followPetDragCursor()
+      lastPetDragged = Boolean(petDrag && petDrag.moved)
+      stopPetDragTimer()
+      petDrag = null
+      return { ...status(), dragged: lastPetDragged }
+    }
+    if (drag === 'update') return status()
     const dx = Number(payload.dx)
     const dy = Number(payload.dy)
     if (!Number.isFinite(dx) || !Number.isFinite(dy) || (dx === 0 && dy === 0)) {
       return status()
     }
+    stopPetDragTimer()
+    petDrag = null
     applyUnitLayout(moveCompanionUnit({
       petScreen: currentPetScreen(),
       dx,
@@ -510,41 +675,38 @@ function createCompanionShell(options) {
   function popupCompanionMenu(payload = {}) {
     if (!Menu || typeof Menu.buildFromTemplate !== 'function') return status()
     const menu = Menu.buildFromTemplate(actionMenu({ includeQuit: true }))
-    const target = (float && !float.isDestroyed() && petVisible()) ? float : getMainWindow()
-    if (menu && typeof menu.popup === 'function' && target && !target.isDestroyed()) {
-      const bounds = windowBounds(target) || { x: 0, y: 0, width: 0, height: 0 }
-      const hasClient = Number.isFinite(Number(payload.x)) && Number.isFinite(Number(payload.y))
-      let screenPoint
-      if (hasClient) {
-        screenPoint = {
-          x: Number(bounds.x) + Number(payload.x),
-          y: Number(bounds.y) + Number(payload.y),
-        }
-      } else if (screen && typeof screen.getCursorScreenPoint === 'function') {
-        try {
-          screenPoint = screen.getCursorScreenPoint()
-        } catch {
-          screenPoint = null
-        }
-      }
-      if (!screenPoint || !Number.isFinite(Number(screenPoint.x))) {
-        screenPoint = {
-          x: Number(bounds.x) + Number(bounds.width || 0),
-          y: Number(bounds.y) + Number(bounds.height || 0),
-        }
-      }
-      const workArea = workAreaNear(screenPoint) || primaryWorkArea()
-      const clamped = clampCompanionMenuOrigin({
-        x: Number(screenPoint.x),
-        y: Number(screenPoint.y),
-        workArea,
-      })
-      menu.popup({
-        window: target,
-        x: Math.round(clamped.x - Number(bounds.x || 0)),
-        y: Math.round(clamped.y - Number(bounds.y || 0)),
-      })
+    const target = (float && !float.isDestroyed() && overlayVisible()) ? float : getMainWindow()
+    if (!menu || typeof menu.popup !== 'function' || !target || target.isDestroyed()) return status()
+    if (typeof target.focus === 'function') target.focus()
+    const bounds = windowBounds(target) || { x: 0, y: 0, width: 0, height: 0 }
+    let screenPoint = cursorScreenPoint()
+    if (!screenPoint && Number.isFinite(Number(payload.screenX)) && Number.isFinite(Number(payload.screenY))) {
+      screenPoint = { x: Number(payload.screenX), y: Number(payload.screenY) }
     }
+    if (!screenPoint && Number.isFinite(Number(payload.x)) && Number.isFinite(Number(payload.y))) {
+      screenPoint = {
+        x: Number(bounds.x) + Number(payload.x),
+        y: Number(bounds.y) + Number(payload.y),
+      }
+    }
+    if (!screenPoint || !Number.isFinite(Number(screenPoint.x))) {
+      screenPoint = {
+        x: Number(bounds.x) + Number(bounds.width || 0),
+        y: Number(bounds.y) + Number(bounds.height || 0),
+      }
+    }
+    const workArea = workAreaNear(screenPoint) || primaryWorkArea()
+    const clamped = clampCompanionMenuOrigin({
+      x: Number(screenPoint.x),
+      y: Number(screenPoint.y),
+      workArea,
+    })
+    lastMenuPopup = { x: clamped.x, y: clamped.y }
+    menu.popup({
+      window: target,
+      x: Math.round(clamped.x - Number(bounds.x || 0)),
+      y: Math.round(clamped.y - Number(bounds.y || 0)),
+    })
     return status()
   }
 
@@ -571,12 +733,16 @@ function createCompanionShell(options) {
       workArea,
     })
     float = new BrowserWindow({
+      title: companionWindowTitle(),
       width: unitLayout.window.width,
       height: unitLayout.window.height,
       ...(wayland ? {} : { x: unitLayout.window.x, y: unitLayout.window.y }),
       useContentSize: true,
       frame: false,
       transparent: true,
+      backgroundColor: '#00000000',
+      acceptFirstMouse: true,
+      focusable: true,
       resizable: false,
       maximizable: false,
       minimizable: false,
@@ -587,7 +753,6 @@ function createCompanionShell(options) {
       hiddenInMissionControl: true,
       movable: false,
       show: !petHidden || chatOpenFlag,
-      ...(platform === 'darwin' ? { type: 'panel' } : {}),
       webPreferences: {
         preload: path.join(__dirname, 'companion-preload.cjs'),
         contextIsolation: true,
@@ -598,14 +763,23 @@ function createCompanionShell(options) {
     if (typeof float.setWindowButtonVisibility === 'function') {
       float.setWindowButtonVisibility(false)
     }
+    if (typeof float.setBackgroundColor === 'function') {
+      float.setBackgroundColor('#00000000')
+    }
+    if (platform === 'darwin' && typeof float.setVibrancy === 'function') {
+      try {
+        float.setVibrancy(null)
+      } catch {
+        // Panel pets must stay clear; some hosts reject a null vibrancy clear.
+      }
+    }
+    lockCompanionTitle(float)
+    bindOverlayWindowEvents(float)
     keepOverlayAboveApps(float)
+    applyPointerPassthrough()
     float.loadURL(`${APP_ORIGIN}/index.html?surface=companion`)
-    float.on('closed', () => {
-      float = null
-      unitLayout = null
-      windows.delete('companion')
-    })
     register('companion', float, path.join(__dirname, 'companion-preload.cjs'))
+    createTray()
     emitOverlay()
   }
 
@@ -673,6 +847,9 @@ function createCompanionShell(options) {
     if (method === 'ClickCompanionPet') return clickPet()
     if (method === 'ShowCompanionSettings') return showCompanionSettings()
     if (method === 'PopupCompanionMenu') return popupCompanionMenu(payload)
+    if (method === 'SetCompanionPointerPassthrough') {
+      return setPointerPassthrough(payload.ignore !== false)
+    }
     if (method === 'MoveCompanionPet') return movePet(payload)
     if (method === 'ParkCompanionMainWindow') {
       parkMainWindow()
@@ -696,6 +873,8 @@ function createCompanionShell(options) {
     }
     onQuitRequested()
   }
+
+  createTray()
 
   return {
     register,

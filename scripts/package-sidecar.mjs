@@ -36,6 +36,13 @@ const nodeVersion = '24.18.0'
 const archifyCommit = '7b49d0b715fd4ba48116bcdecd1ba3789a279613'
 const piVersion = '0.84.1'
 const dshVersion = '0.1.6-alpha.1'
+// Pi decodes and resizes inline images with Photon (Rust/WASM). The bundled
+// bridges inline Photon's JS glue, which loads the module from `__dirname` and
+// then falls back to `path.dirname(process.execPath)`. Ship it next to the
+// bundled `node` binary, or every image read is silently omitted.
+const photonPackage = '@silvia-odwyer/photon-node'
+const photonWasmFileName = 'photon_rs_bg.wasm'
+const photonLicenseFile = 'photon-node-Apache-2.0.txt'
 const dshRuntimeRootPackages = [
   '@deepseek-ai/dsh',
   '@deepseek-ai/dsh-browser-use',
@@ -193,6 +200,33 @@ async function resolveInstalledPackage(packageName, fromDirectory, optional = fa
   }
   if (optional) return ''
   throw new Error(`installed package is missing: ${packageName}`)
+}
+
+/**
+ * Locate the Photon runtime that Pi bundles for inline image processing.
+ * Resolved from Pi's own directory so the nested install resolves too.
+ * Exported for `package-sidecar-closure.test.mjs`.
+ */
+export async function resolvePhotonRuntime() {
+  const piDirectory = join(repositoryRoot, 'node_modules', '@earendil-works', 'pi-coding-agent')
+  const directory = await resolveInstalledPackage(photonPackage, piDirectory, true)
+  if (!directory) {
+    throw new Error(
+      `packaged Sidecar requires ${photonPackage} for inline image reads, but it is not installed`,
+    )
+  }
+  const wasm = join(directory, photonWasmFileName)
+  if (!await exists(wasm)) {
+    throw new Error(`${photonPackage} does not ship ${photonWasmFileName}: ${directory}`)
+  }
+  const document = JSON.parse(await readFile(join(directory, 'package.json'), 'utf8'))
+  return {
+    directory,
+    wasm,
+    license: join(directory, 'LICENSE.md'),
+    version: String(document.version ?? ''),
+    licenseName: String(document.license ?? ''),
+  }
 }
 
 function optionalPeerDependencyNames(document) {
@@ -807,6 +841,64 @@ async function smokePackagedDshCli(node, output, workspace, dshHome) {
   }
 }
 
+async function smokePackagedCompanionBridge(node, output, workspace) {
+  const child = spawn(node, [
+    join(output, 'companion-bridge.cjs'),
+  ], {
+    cwd: workspace,
+    env: {
+      ...process.env,
+      HOME: workspace,
+      TMPDIR: workspace,
+    },
+    stdio: ['pipe', 'pipe', 'pipe'],
+  })
+  let stdout = ''
+  let stderr = ''
+  child.stdout.setEncoding('utf8')
+  child.stderr.setEncoding('utf8')
+  child.stdout.on('data', chunk => { stdout += chunk })
+  child.stderr.on('data', chunk => { stderr += chunk })
+  const deadline = Date.now() + 10_000
+  try {
+    while (Date.now() < deadline) {
+      if (stdout.includes('"type":"hello"')) return
+      if (child.exitCode != null) {
+        throw new Error(`packaged companion-bridge exited: ${stderr || stdout}`)
+      }
+      await new Promise(resolve => setTimeout(resolve, 50))
+    }
+    throw new Error(`timed out waiting for companion-bridge hello: ${stdout}${stderr}`)
+  } finally {
+    child.kill('SIGKILL')
+  }
+}
+
+/**
+ * Pi loads Photon's module from `path.dirname(process.execPath)` when the
+ * bundled copy is not next to the script. Assert the shipped file is where that
+ * fallback looks, and that it is a real WebAssembly module.
+ */
+async function smokePackagedPhotonWasm(node, output, workspace) {
+  const run = await runWithInput(node, [
+    '-e',
+    [
+      "const path = require('node:path')",
+      "const fs = require('node:fs')",
+      `const wasm = path.join(path.dirname(process.execPath), ${JSON.stringify(photonWasmFileName)})`,
+      'const bytes = fs.readFileSync(wasm)',
+      "if (!WebAssembly.validate(bytes)) throw new Error('not a WebAssembly module: ' + wasm)",
+      "console.log('photon-wasm-ok:' + wasm + ':' + bytes.length)",
+    ].join('\n'),
+  ], '', {
+    cwd: workspace,
+    env: { ...process.env, HOME: workspace, TMPDIR: workspace },
+  })
+  if (!run.stdout.includes('photon-wasm-ok:')) {
+    throw new Error(`packaged Photon runtime did not load: ${run.stdout}${run.stderr}`)
+  }
+}
+
 async function smokePackagedDshBridge(node, output, workspace, dshHome) {
   const child = spawn(node, [
     join(output, 'dsh-bridge.cjs'),
@@ -1201,6 +1293,7 @@ async function buildSidecar(platform) {
     output: join(output, 'skills', name),
   }))
   const licenseOutput = join(output, 'THIRD_PARTY-LICENSES')
+  const photonRuntime = await resolvePhotonRuntime()
   const diffSource = join(repositoryRoot, 'node_modules', 'diff')
   const archifyPackage = JSON.parse(await readFile(join(archifySource, 'package.json'), 'utf8'))
   const diffPackage = JSON.parse(await readFile(join(diffSource, 'package.json'), 'utf8'))
@@ -1359,6 +1452,8 @@ async function buildSidecar(platform) {
   await Promise.all([
     copyFile(runtime.binary, nodeOutput),
     copyFile(runtime.license, join(output, 'NODE-LICENSE')),
+    copyFile(photonRuntime.wasm, join(output, photonWasmFileName)),
+    copyFile(photonRuntime.license, join(licenseOutput, photonLicenseFile)),
     ...(cuaRuntime ? [copyFile(cuaRuntime.binary, cuaDriverOutput)] : []),
     copyFile(goplsRuntime.binary, goplsOutput),
     copyFile(
@@ -1523,6 +1618,7 @@ async function buildSidecar(platform) {
   await sanitizePackagedNodeModules(join(output, 'node_modules'))
   await Promise.all([
     chmod(nodeOutput, 0o755),
+    chmod(join(output, photonWasmFileName), 0o644),
     ...(cuaDriverOutput ? [chmod(cuaDriverOutput, 0o755)] : []),
     chmod(goplsOutput, 0o755),
     chmod(chatOutput, 0o644),
@@ -1556,6 +1652,14 @@ async function buildSidecar(platform) {
       version: piVersion,
       license: 'MIT',
       licenseFile: 'THIRD_PARTY-LICENSES/pi-MIT.txt',
+      photon: {
+        package: photonPackage,
+        version: photonRuntime.version,
+        license: photonRuntime.licenseName,
+        licenseFile: `THIRD_PARTY-LICENSES/${photonLicenseFile}`,
+        wasm: photonWasmFileName,
+        wasmSha256: await sha256(join(output, photonWasmFileName)),
+      },
     },
     dsh: {
       package: '@deepseek-ai/dsh',
@@ -1796,12 +1900,14 @@ async function smokeSidecar(platform) {
     join(output, 'THIRD_PARTY-LICENSES', 'playwright-mcp-Apache-2.0.txt'),
     join(output, 'THIRD_PARTY-LICENSES', 'playwright-Apache-2.0.txt'),
     join(output, 'THIRD_PARTY-LICENSES', 'playwright-core-Apache-2.0.txt'),
+    join(output, 'THIRD_PARTY-LICENSES', photonLicenseFile),
     join(output, 'THIRD_PARTY-LICENSES', 'gopls-BSD-3-Clause.txt'),
     join(output, 'THIRD_PARTY-LICENSES', 'diff-BSD-3-Clause.txt'),
     join(output, 'THIRD_PARTY-LICENSES', 'cua-MIT.txt'),
     join(output, 'THIRD_PARTY-LICENSES', 'gopher-lua-MIT.txt'),
     join(output, 'THIRD_PARTY-LICENSES', 'modelcontextprotocol-go-sdk-LICENSE.txt'),
     join(output, 'THIRD_PARTY-LICENSES', 'deepseek-harness-MIT.txt'),
+    join(output, photonWasmFileName),
     join(output, 'companion-bridge.cjs'),
     join(output, 'obelisk-schema.sql'),
     join(output, 'dsh-bridge.cjs'),
@@ -1877,6 +1983,8 @@ async function smokeSidecar(platform) {
   await smokePackagedDshHostPlugin(node, output, workspace)
   await smokePackagedDshCli(node, output, workspace, dshHome)
   await smokePackagedDshBridge(node, output, workspace, dshHome)
+  await smokePackagedCompanionBridge(node, output, workspace)
+  await smokePackagedPhotonWasm(node, output, workspace)
   const computerUseProxyRun = await runWithInput(
     node,
     [
@@ -2748,6 +2856,7 @@ async function installSidecar(platform, binaryPath) {
     'deny-loader.mjs',
     'pi-subagent-cli.cjs',
     'cua-driver',
+    photonWasmFileName,
     'manifest.json',
     'package.json',
     'NODE-LICENSE',
@@ -2816,6 +2925,8 @@ async function installSidecar(platform, binaryPath) {
       'THIRD_PARTY-LICENSES',
       'modelcontextprotocol-go-sdk-LICENSE.txt',
     ),
+    join(destination, 'THIRD_PARTY-LICENSES', photonLicenseFile),
+    join(destination, photonWasmFileName),
     join(destination, 'computer-use-proxy.cjs'),
     join(destination, 'playwright-lazy-mcp.cjs'),
     join(destination, 'playwright-session-bridge.cjs'),

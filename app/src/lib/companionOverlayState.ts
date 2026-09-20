@@ -1,24 +1,22 @@
 /**
  * Desktop companion overlay state machine.
  *
- * Surfaces
- * - pet: always-on-top sprite. Visible when float is enabled, the session can
- *   place windows, and the user has not hidden it.
- * - chat: messenger panel glued to the pet inside the same overlay window.
- *   Never a second desktop window, never a full-page companion app.
- * - main: the MilkSU product window. Settings → 桌宠 lives here. This is the
- *   "big window". Main and the overlay unit may stay open together (PiP over app).
- *
- * Grammar taken from Chrome picture-in-picture, Android / Google chat-heads,
- * and macOS notification banners. MilkSU chrome still wins: no Gemini brand,
- * no Messenger skin, no magnetic dock.
+ * Two exclusive forms, never on screen together:
+ * - pet: the floating sprite. The window is the sprite box itself so no
+ *   invisible margin can swallow clicks meant for the app underneath.
+ * - phone: an iPhone-like messenger. Opening chat hides the sprite; closing
+ *   chat hides the phone and brings the sprite back.
+ * Main MilkSU may stay open with either form. Never a second desktop window,
+ * never a full-page companion workspace.
  */
 
-export const COMPANION_PET_WIDTH = 232
-export const COMPANION_PET_HEIGHT = 400
-export const COMPANION_CHAT_WIDTH = 336
-export const COMPANION_CHAT_HEIGHT = 480
-export const COMPANION_UNIT_GAP = 12
+export const COMPANION_PET_WIDTH = 160
+export const COMPANION_PET_HEIGHT = 160
+export const COMPANION_CHAT_WIDTH = 320
+export const COMPANION_CHAT_HEIGHT = 620
+export const COMPANION_PHONE_WIDTH = COMPANION_CHAT_WIDTH
+export const COMPANION_PHONE_HEIGHT = COMPANION_CHAT_HEIGHT
+export const COMPANION_UNIT_GAP = 0
 export const COMPANION_UNIT_MARGIN = 16
 export const COMPANION_PET_MENU_WIDTH = 176
 export const COMPANION_PET_MENU_HEIGHT = 184
@@ -94,6 +92,8 @@ export type CompanionOverlayMainEffect = 'show' | 'park' | 'none'
 export interface CompanionOverlayDecision {
   state: CompanionOverlayState
   petVisible: boolean
+  overlayVisible: boolean
+  phoneVisible: boolean
   canFloat: boolean
   effects: {
     pet: CompanionOverlayPetEffect
@@ -124,13 +124,22 @@ export function companionCanFloat(state: CompanionOverlayState) {
   return state.enabled && !state.wayland
 }
 
-export function companionPetVisible(state: CompanionOverlayState) {
+export function companionOverlayVisible(state: CompanionOverlayState) {
+  if (state.wayland) return state.chatOpen
   return companionCanFloat(state) && !state.petHidden
+}
+
+export function companionPetVisible(state: CompanionOverlayState) {
+  return companionOverlayVisible(state) && !state.chatOpen && companionCanFloat(state)
+}
+
+export function companionPhoneVisible(state: CompanionOverlayState) {
+  return companionOverlayVisible(state) && state.chatOpen
 }
 
 export function companionDragEffect(state: CompanionOverlayState): CompanionOverlayDrag {
   return {
-    moveUnit: companionPetVisible(state),
+    moveUnit: companionOverlayVisible(state),
     moveMain: false,
   }
 }
@@ -141,12 +150,12 @@ function effectsFromTransition(
   action: CompanionOverlayAction,
 ): CompanionOverlayDecision['effects'] {
   const destroyOverlay = action === COMPANION_OVERLAY_ACTIONS.DISABLE
-  const previousPet = companionPetVisible(previous)
-  const nextPet = companionPetVisible(next)
+  const previousOverlay = companionOverlayVisible(previous)
+  const nextOverlay = companionOverlayVisible(next)
   let pet: CompanionOverlayPetEffect = 'none'
   if (destroyOverlay) pet = 'destroy'
-  else if (nextPet && !previousPet) pet = 'show'
-  else if (!nextPet && previousPet) pet = 'hide'
+  else if (nextOverlay && !previousOverlay) pet = 'show'
+  else if (!nextOverlay && previousOverlay) pet = 'hide'
 
   let chat: CompanionOverlayChatEffect = 'none'
   if (destroyOverlay) chat = 'destroy'
@@ -202,6 +211,7 @@ export function reduceCompanionOverlay(
     next.chatOpen = false
   } else if (known === COMPANION_OVERLAY_ACTIONS.SHOW_PET && canFloat) {
     next.petHidden = false
+    next.chatOpen = false
   } else if (known === COMPANION_OVERLAY_ACTIONS.SHOW_MAIN) {
     next.mainVisible = true
   } else if (known === COMPANION_OVERLAY_ACTIONS.SHOW_SETTINGS) {
@@ -225,6 +235,8 @@ export function reduceCompanionOverlay(
   return {
     state,
     petVisible: companionPetVisible(state),
+    overlayVisible: companionOverlayVisible(state),
+    phoneVisible: companionPhoneVisible(state),
     canFloat: companionCanFloat(state),
     effects: known
       ? effectsFromTransition(previous, state, known)
@@ -292,12 +304,24 @@ export function defaultCompanionPetOrigin(
 }
 
 export function resolveCompanionChatSide(
-  petOrigin: { x: number; y: number },
-  workArea?: CompanionOverlayWorkArea | null,
+  _petOrigin?: { x: number; y: number },
+  _workArea?: CompanionOverlayWorkArea | null,
 ): CompanionChatSide {
-  const leftX = Number(petOrigin.x) - COMPANION_UNIT_GAP - COMPANION_CHAT_WIDTH
-  if (!workArea) return 'left'
-  return leftX >= (Number(workArea.x) || 0) + 8 ? 'left' : 'right'
+  return 'left'
+}
+
+export function phoneOriginFromPet(petOrigin: { x: number; y: number }) {
+  return {
+    x: Number(petOrigin.x) + (COMPANION_PET_WIDTH - COMPANION_PHONE_WIDTH) / 2,
+    y: Number(petOrigin.y) + COMPANION_PET_HEIGHT - COMPANION_PHONE_HEIGHT,
+  }
+}
+
+export function petOriginFromPhone(phoneOrigin: { x: number; y: number }) {
+  return {
+    x: Number(phoneOrigin.x) - (COMPANION_PET_WIDTH - COMPANION_PHONE_WIDTH) / 2,
+    y: Number(phoneOrigin.y) - COMPANION_PET_HEIGHT + COMPANION_PHONE_HEIGHT,
+  }
 }
 
 export function layoutCompanionUnit(input: {
@@ -309,7 +333,6 @@ export function layoutCompanionUnit(input: {
     ? input.workArea
     : null
   const origin = input.petOrigin || defaultCompanionPetOrigin(area)
-  const side = resolveCompanionChatSide(origin, area)
   if (!input.chatOpen) {
     const window = clampOverlayBounds({
       x: origin.x,
@@ -321,50 +344,30 @@ export function layoutCompanionUnit(input: {
       window,
       pet: { x: 0, y: 0, width: COMPANION_PET_WIDTH, height: COMPANION_PET_HEIGHT },
       chat: null,
-      chatSide: side,
+      chatSide: 'left',
       petScreen: { x: window.x, y: window.y },
       chatScreen: null,
     }
   }
-  const chatX = side === 'left'
-    ? origin.x - COMPANION_UNIT_GAP - COMPANION_CHAT_WIDTH
-    : origin.x + COMPANION_PET_WIDTH + COMPANION_UNIT_GAP
-  const chatY = origin.y + COMPANION_PET_HEIGHT - COMPANION_CHAT_HEIGHT
-  const minX = Math.min(origin.x, chatX)
-  const minY = Math.min(origin.y, chatY)
-  const union = {
-    x: minX,
-    y: minY,
-    width: Math.max(origin.x + COMPANION_PET_WIDTH, chatX + COMPANION_CHAT_WIDTH) - minX,
-    height: Math.max(origin.y + COMPANION_PET_HEIGHT, chatY + COMPANION_CHAT_HEIGHT) - minY,
-  }
-  const window = clampOverlayBounds(union, area)
-  const shiftX = window.x - union.x
-  const shiftY = window.y - union.y
-  const petScreen = { x: origin.x + shiftX, y: origin.y + shiftY }
-  const chatScreen = {
-    x: chatX + shiftX,
-    y: chatY + shiftY,
-    width: COMPANION_CHAT_WIDTH,
-    height: COMPANION_CHAT_HEIGHT,
-  }
+  const raw = phoneOriginFromPet(origin)
+  const window = clampOverlayBounds({
+    x: raw.x,
+    y: raw.y,
+    width: COMPANION_PHONE_WIDTH,
+    height: COMPANION_PHONE_HEIGHT,
+  }, area)
   return {
     window,
-    pet: {
-      x: petScreen.x - window.x,
-      y: petScreen.y - window.y,
-      width: COMPANION_PET_WIDTH,
-      height: COMPANION_PET_HEIGHT,
+    pet: { x: 0, y: 0, width: 0, height: 0 },
+    chat: { x: 0, y: 0, width: COMPANION_PHONE_WIDTH, height: COMPANION_PHONE_HEIGHT },
+    chatSide: 'left',
+    petScreen: petOriginFromPhone(window),
+    chatScreen: {
+      x: window.x,
+      y: window.y,
+      width: COMPANION_PHONE_WIDTH,
+      height: COMPANION_PHONE_HEIGHT,
     },
-    chat: {
-      x: chatScreen.x - window.x,
-      y: chatScreen.y - window.y,
-      width: COMPANION_CHAT_WIDTH,
-      height: COMPANION_CHAT_HEIGHT,
-    },
-    chatSide: side,
-    petScreen,
-    chatScreen,
   }
 }
 

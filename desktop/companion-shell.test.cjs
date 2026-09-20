@@ -39,12 +39,23 @@ function fakeWindow() {
       this.visibleOnAllWorkspacesCalls.push({ visible, options })
     },
     setWindowButtonVisibility() {},
+    title: '',
+    resizable: false,
+    setTitle(value) { this.title = String(value || '') },
+    getTitle() { return this.title || this.options?.title || '' },
+    setResizable(value) { this.resizable = value === true },
+    isResizable() { return this.resizable === true },
+    setMinimumSize() {},
+    ignoreMouseCalls: [],
+    setIgnoreMouseEvents(ignore, options) {
+      this.ignoreMouseCalls.push({ ignore, options })
+    },
     getBounds() {
       return {
         x: this.x ?? this.options?.x ?? 80,
         y: this.y ?? this.options?.y ?? 80,
-        width: this.width || this.options?.width || 232,
-        height: this.height || this.options?.height || 400,
+        width: this.width || this.options?.width || 160,
+        height: this.height || this.options?.height || 160,
       }
     },
     setBounds(bounds) {
@@ -59,9 +70,16 @@ function fakeWindow() {
     },
     loadURL() {},
     close() { this.destroyed = true },
-    on(event, handler) { this.events[event] = handler },
+    on(event, handler) {
+      if (!Array.isArray(this.events[event])) this.events[event] = []
+      this.events[event].push(handler)
+    },
+    emit(event, ...args) {
+      for (const handler of this.events[event] || []) handler(...args)
+    },
     webContents: {
       send(channel, value) { window.sentEvents.push({ channel, value }) },
+      on() {},
       mainFrame: {},
     },
   }
@@ -85,6 +103,18 @@ function createShell(overrides = {}) {
       return { x: 1380, y: 860 }
     },
   }
+  const menuApi = overrides.Menu || {
+    lastApplication: null,
+    buildFromTemplate(template) {
+      return {
+        template,
+        popup(options) { popups.push(options) },
+      }
+    },
+    setApplicationMenu(menu) {
+      this.lastApplication = menu
+    },
+  }
   const shell = createCompanionShell({
     app: { dock, getLocale: () => 'zh-CN' },
     BrowserWindow: class MockWindow {
@@ -103,20 +133,15 @@ function createShell(overrides = {}) {
       setContextMenu(menu) { menus.push(menu) }
       on(event, handler) { this.clicks.push({ event, handler }) }
     },
-    Menu: {
-      lastApplication: null,
-      buildFromTemplate(template) {
+    Menu: menuApi,
+    nativeImage: {
+      createFromPath() {
         return {
-          template,
-          popup(options) { popups.push(options) },
+          isEmpty: () => true,
+          resize() { return this },
+          setTemplateImage() {},
         }
       },
-      setApplicationMenu(menu) {
-        this.lastApplication = menu
-      },
-    },
-    nativeImage: {
-      createFromPath() { return { isEmpty: () => true } },
       createEmpty() { return {} },
     },
     APP_ORIGIN: 'milksu://app',
@@ -132,7 +157,7 @@ function createShell(overrides = {}) {
     ...overrides,
     app: { dock, getLocale: () => 'zh-CN', ...(overrides.app || {}) },
   })
-  return { shell, created, menus, dock, main, popups }
+  return { shell, created, menus, dock, main, popups, menuApi }
 }
 
 test('companion window methods are a subset of the main renderer surface', () => {
@@ -168,6 +193,11 @@ test('Wayland sessions report a degraded float status', () => {
   assert.equal(created.length, 0)
 })
 
+test('companion shell shows a tray icon while the main window is open', () => {
+  const { shell } = createShell()
+  assert.equal(shell.status().tray, true)
+})
+
 test('float window is a small skipTaskbar pet, not a second taskbar app', () => {
   const { shell, created } = createShell()
   shell.createFloat()
@@ -177,14 +207,27 @@ test('float window is a small skipTaskbar pet, not a second taskbar app', () => 
   assert.equal(created[0].options.skipTaskbar, true)
   assert.equal(created[0].options.frame, false)
   assert.equal(created[0].options.transparent, true)
+  assert.equal(created[0].options.backgroundColor, '#00000000')
+  assert.equal(created[0].options.acceptFirstMouse, true)
   assert.equal(created[0].options.resizable, false)
   assert.equal(created[0].options.maximizable, false)
   assert.equal(created[0].options.fullscreenable, false)
   assert.equal(created[0].options.hiddenInMissionControl, true)
-  assert.equal(created[0].options.type, 'panel')
+  assert.equal(created[0].options.movable, false)
+  assert.equal(created[0].options.type, undefined)
   assert.equal(created[0].options.alwaysOnTop, true)
   assert.equal(created[0].alwaysOnTopCalls.at(-1)?.level, 'floating')
   assert.equal(created[0].visibleOnAllWorkspacesCalls.at(-1)?.options.visibleOnFullScreen, false)
+})
+
+test('pet window never eats clicks for the main window', () => {
+  const { shell, created } = createShell({ platform: 'darwin' })
+  shell.createFloat()
+  assert.equal(created[0].options.width, 160)
+  assert.equal(created[0].options.height, 160)
+  assert.ok(created[0].ignoreMouseCalls.every(call => call.ignore === false))
+  shell.handleHostMethod('ShowCompanionChatWindow')
+  assert.ok(created[0].ignoreMouseCalls.every(call => call.ignore === false))
 })
 
 test('Windows float is not a panel type', () => {
@@ -237,8 +280,8 @@ test('hidden pet can be woken from the taskbar without showing the main window',
   assert.equal(main.showCalls, beforeShow)
 })
 
-test('tray, dock, and app menus share the companion actions', () => {
-  const { shell, menus, main, dock } = createShell()
+test('tray and dock share companion actions; the application menu is not a companion menu', () => {
+  const { shell, menus, main, dock, menuApi } = createShell()
   shell.createFloat()
   shell.createTray()
   const labels = menus.at(-1).template.map(item => item.label)
@@ -247,24 +290,47 @@ test('tray, dock, and app menus share the companion actions', () => {
   assert.deepEqual(dock.menu.template.map(item => item.label).filter(Boolean), ['对话', '隐藏桌宠', '打开主窗口', '桌宠设置'])
   const statusLabels = shell.status().menu.map(item => item.label)
   assert.deepEqual(statusLabels, ['对话', '隐藏桌宠', '打开主窗口', '桌宠设置', '退出'])
+  const appLabels = JSON.stringify(menuApi.lastApplication || {})
+  assert.equal(appLabels.includes('桌宠'), false)
+  dock.menu.template.find(item => item.id === 'chat').click()
+  assert.equal(shell.status().chatOpen, true)
   menus.at(-1).template[1].click()
   assert.equal(shell.status().hidden, true)
   menus.at(-1).template[2].click()
   assert.equal(main.showCalls >= 1, true)
 })
 
-test('ShowCompanionChatWindow grows the same overlay instead of a second window', () => {
+test('ShowCompanionChatWindow replaces the pet with the phone, not a second window', () => {
   const { shell, created } = createShell()
   shell.createFloat()
+  assert.equal(created[0].options.title, '桌宠')
   const opened = shell.handleHostMethod('ShowCompanionChatWindow', { locale: 'zh' })
   assert.equal(opened.chatOpen, true)
+  assert.equal(opened.overlay.petVisible, false)
   assert.equal(created.length, 1)
-  assert.equal(opened.overlay.chatSide, 'left')
-  assert.ok(created[0].width >= 232 + 12 + 336)
-  assert.equal(created[0].height, 480)
+  assert.equal(created[0].width, 320)
+  assert.equal(created[0].height, 620)
+  assert.equal(opened.title, '桌宠')
+  const closed = shell.handleHostMethod('HideCompanionChatWindow')
+  assert.equal(closed.chatOpen, false)
+  assert.equal(closed.overlay.petVisible, true)
+  assert.equal(created[0].width, 160)
+  assert.equal(created[0].height, 160)
 })
 
-test('MoveCompanionPet moves the glued unit from the pet origin', () => {
+test('showing the pet form after the phone closes the phone', () => {
+  const { shell, created } = createShell()
+  shell.createFloat()
+  shell.handleHostMethod('ShowCompanionChatWindow')
+  const shown = shell.handleHostMethod('SetCompanionPetHidden', { hidden: false })
+  assert.equal(shown.chatOpen, false)
+  assert.equal(shown.overlay.petVisible, true)
+  assert.equal(created.length, 1)
+  assert.equal(created[0].width, 160)
+  assert.equal(created[0].height, 160)
+})
+
+test('MoveCompanionPet moves the overlay from the pet origin', () => {
   const { shell, created } = createShell()
   shell.createFloat()
   shell.handleHostMethod('ShowCompanionChatWindow')
@@ -289,7 +355,7 @@ test('SetCompanionPetHidden and ShowCompanionMainWindow are host methods', () =>
   assert.equal(shown.parked, false)
 })
 
-test('ClickCompanionPet toggles one small chat and hide closes chat with the pet', () => {
+test('ClickCompanionPet toggles the phone and hide closes chat with the pet', () => {
   const { shell, created, main } = createShell()
   main.x = 120
   main.y = 40
@@ -313,7 +379,7 @@ test('ClickCompanionPet toggles one small chat and hide closes chat with the pet
   assert.equal(shown.chatOpen, false)
 })
 
-test('opening the main window or settings keeps the small chat open', () => {
+test('opening the main window or settings keeps the phone open', () => {
   const { shell, main } = createShell()
   shell.createFloat()
   shell.handleHostMethod('ShowCompanionChatWindow')
@@ -343,14 +409,13 @@ test('dragging the pet never moves the main window and clamps to the work area',
   shell.handleHostMethod('ShowCompanionChatWindow')
   const inward = shell.handleHostMethod('MoveCompanionPet', { dx: -80, dy: -20 })
   assert.equal(created.length, 1)
-  assert.equal(inward.petBounds.x, 800 - 16 - 232 - 80)
   assert.equal(main.x, 16)
   assert.equal(main.y, 24)
+  assert.ok(inward.chatBounds)
   const clamped = shell.handleHostMethod('MoveCompanionPet', { dx: 4000, dy: 4000 })
-  assert.equal(clamped.petBounds.x, 800 - 232)
-  assert.equal(clamped.petBounds.y, 600 - 400)
-  assert.ok(clamped.chatBounds.x + 336 <= 800)
-  assert.ok(clamped.chatBounds.y + 480 <= 600)
+  assert.equal(clamped.chatBounds.x, 800 - 320)
+  assert.equal(clamped.chatBounds.y, 0)
+  assert.ok(clamped.chatBounds.x + 320 <= 800)
 })
 
 test('overlay stacking stays below system IME chrome', () => {
@@ -364,21 +429,98 @@ test('overlay stacking stays below system IME chrome', () => {
   assert.equal(created[0].visibleOnAllWorkspacesCalls.at(-1)?.options.visibleOnFullScreen, false)
 })
 
-test('PopupCompanionMenu stays inside the work area at the default corner', () => {
-  const { shell, created, popups } = createShell()
+test('PopupCompanionMenu uses the OS cursor and stays in the work area', () => {
+  const { shell, created, popups, main } = createShell()
   shell.createFloat()
-  shell.handleHostMethod('PopupCompanionMenu', { x: 200, y: 380 })
+  shell.handleHostMethod('PopupCompanionMenu')
   const popup = popups.at(-1)
   const bounds = created[0].getBounds()
   assert.ok(popup)
-  assert.ok(popup.x + 176 <= bounds.width)
-  assert.ok(popup.y + 184 <= bounds.height)
-  assert.ok(popup.x >= 0)
-  assert.ok(popup.y >= 0)
+  assert.equal(created[0].focusCalls, 1)
   const screenX = bounds.x + popup.x
   const screenY = bounds.y + popup.y
+  assert.ok(screenX >= 8)
+  assert.ok(screenY >= 8)
   assert.ok(screenX + 176 <= 1440 - 8)
   assert.ok(screenY + 184 <= 900 - 8)
+  assert.equal(main.focusCalls, 0)
+})
+
+test('the pet window is the sprite box, so no invisible margin covers the app', () => {
+  const { shell, created } = createShell()
+  shell.createFloat()
+  const bounds = created[0].getBounds()
+  assert.equal(bounds.width, COMPANION_FLOAT_WIDTH)
+  assert.equal(bounds.height, COMPANION_FLOAT_HEIGHT)
+  assert.equal(COMPANION_FLOAT_WIDTH, 160)
+  assert.equal(COMPANION_FLOAT_HEIGHT, 160)
+})
+
+test('a dropped pointerup cannot leave the pet chasing the cursor', async () => {
+  const cursor = { x: 400, y: 400 }
+  const screen = {
+    getPrimaryDisplay() { return { workArea: { x: 0, y: 0, width: 1440, height: 900 } } },
+    getDisplayNearestPoint() { return { workArea: { x: 0, y: 0, width: 1440, height: 900 } } },
+    getCursorScreenPoint() { return { ...cursor } },
+  }
+  const { shell, created } = createShell({ screen })
+  shell.createFloat()
+  shell.handleHostMethod('MoveCompanionPet', { drag: 'begin' })
+  cursor.x += 24
+  await new Promise(resolve => setTimeout(resolve, 40))
+  const moved = created[0].getBounds().x
+  created[0].close()
+  cursor.x += 200
+  await new Promise(resolve => setTimeout(resolve, 40))
+  assert.equal(created[0].getBounds().x, moved)
+})
+
+test('a pointer press hands the drag to the shell, which follows the OS cursor', async () => {
+  const cursor = { x: 200, y: 240 }
+  const screen = {
+    getPrimaryDisplay() {
+      return { workArea: { x: 0, y: 0, width: 1440, height: 900 } }
+    },
+    getDisplayNearestPoint() {
+      return { workArea: { x: 0, y: 0, width: 1440, height: 900 } }
+    },
+    getCursorScreenPoint() {
+      return { ...cursor }
+    },
+  }
+  const { shell } = createShell({ screen })
+  shell.createFloat()
+  shell.handleHostMethod('MoveCompanionPet', { dx: -200, dy: -80 })
+  const before = shell.handleHostMethod('GetCompanionShellStatus')
+  shell.handleHostMethod('MoveCompanionPet', { drag: 'begin' })
+  cursor.x += 48
+  cursor.y += 24
+  await new Promise(resolve => setTimeout(resolve, 40))
+  const after = shell.handleHostMethod('GetCompanionShellStatus')
+  assert.equal(after.petBounds.x, before.petBounds.x + 48)
+  assert.equal(after.petBounds.y, before.petBounds.y + 24)
+  const ended = shell.handleHostMethod('MoveCompanionPet', { drag: 'end' })
+  assert.equal(ended.dragged, true)
+})
+
+test('a press without cursor travel stays a click, so the pet opens the phone', async () => {
+  const screen = {
+    getPrimaryDisplay() {
+      return { workArea: { x: 0, y: 0, width: 1440, height: 900 } }
+    },
+    getDisplayNearestPoint() {
+      return { workArea: { x: 0, y: 0, width: 1440, height: 900 } }
+    },
+    getCursorScreenPoint() {
+      return { x: 600, y: 600 }
+    },
+  }
+  const { shell } = createShell({ screen })
+  shell.createFloat()
+  shell.handleHostMethod('MoveCompanionPet', { drag: 'begin' })
+  await new Promise(resolve => setTimeout(resolve, 40))
+  const ended = shell.handleHostMethod('MoveCompanionPet', { drag: 'end' })
+  assert.equal(ended.dragged, false)
 })
 
 test('overlay events still reach an unregistered main window', () => {

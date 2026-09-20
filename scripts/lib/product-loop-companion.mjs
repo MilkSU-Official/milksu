@@ -159,7 +159,7 @@ export function companionPresenceKept(status) {
 
 export function companionDefaultSkinVisible(snapshot) {
   const hay = `${(snapshot?.aria || []).join('\n')}\n${snapshot?.text || ''}`
-  return /皮肤|Skin/.test(hay) && /默认|Default/.test(hay)
+  return /皮肤|Skin/.test(hay) && /\bMilk\b/.test(hay)
 }
 
 export function companionSkinEntryVisible(snapshot) {
