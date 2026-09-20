@@ -195,8 +195,7 @@ export default function CompanionPage({
     const syncFade = () => {
       const chatTop = chat.getBoundingClientRect().top
       const titleBox = title.getBoundingClientRect()
-      // Strip covers through the Milk capsule: shallow at capsule bottom, nearly
-      // opaque by avatar / status (Apple's "almost gone" band).
+      // Cover through Milk: mask is shallow at capsule, already strong by avatar.
       chat.style.setProperty('--companion-fade-end', `${Math.max(0, Math.round(titleBox.bottom - chatTop))}px`)
       chat.style.setProperty('--companion-log-pad', `${Math.max(96, Math.round(titleBox.bottom - chatTop + 8))}px`)
     }

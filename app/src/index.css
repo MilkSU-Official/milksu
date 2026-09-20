@@ -1132,10 +1132,9 @@ html.companion-chat-surface #app {
 }
 
 .companion-chat-fade {
-  /* iMessage-style dynamic frost: backdrop-filter only, no fill.
-     Apple nearly erases bubbles by the name/avatar band; ramp the mask
-     hard so mid-strip is already near-opaque, deepest at the status bar.
-     clip-path keeps Chromium from painting a square past the screen curve. */
+  /* iMessage frost: backdrop-filter only. Do not put clip-path / overflow:clip
+     on this layer — Chromium then samples an empty backdrop and blur looks zero.
+     Phone screen already clips to the bezel. Mask: shallow at Milk, deep at top. */
   position: absolute;
   top: 0;
   right: 0;
@@ -1143,9 +1142,6 @@ html.companion-chat-surface #app {
   z-index: 2;
   height: var(--companion-fade-end);
   pointer-events: none;
-  overflow: clip;
-  border-radius: var(--companion-screen-radius) var(--companion-screen-radius) 0 0;
-  clip-path: inset(0 round var(--companion-screen-radius) var(--companion-screen-radius) 0 0);
   background: transparent;
 }
 
@@ -1153,54 +1149,49 @@ html.companion-chat-surface #app {
 .companion-chat-fade-hard {
   position: absolute;
   inset: 0;
-  overflow: clip;
-  border-radius: inherit;
-  clip-path: inherit;
   background: transparent;
   pointer-events: none;
 }
 
 .companion-chat-fade-soft {
-  -webkit-backdrop-filter: blur(44px) saturate(170%);
-  backdrop-filter: blur(44px) saturate(170%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  backdrop-filter: blur(28px) saturate(180%);
   -webkit-mask-image: linear-gradient(
     to top,
     transparent 0%,
-    rgb(0 0 0 / 32%) 10%,
-    rgb(0 0 0 / 72%) 32%,
-    rgb(0 0 0 / 92%) 62%,
-    rgb(0 0 0 / 98%) 100%
+    rgb(0 0 0 / 55%) 12%,
+    rgb(0 0 0 / 88%) 38%,
+    #000 70%,
+    #000 100%
   );
   mask-image: linear-gradient(
     to top,
     transparent 0%,
-    rgb(0 0 0 / 32%) 10%,
-    rgb(0 0 0 / 72%) 32%,
-    rgb(0 0 0 / 92%) 62%,
-    rgb(0 0 0 / 98%) 100%
+    rgb(0 0 0 / 55%) 12%,
+    rgb(0 0 0 / 88%) 38%,
+    #000 70%,
+    #000 100%
   );
 }
 
 .companion-chat-fade-hard {
-  -webkit-backdrop-filter: blur(80px) saturate(170%);
-  backdrop-filter: blur(80px) saturate(170%);
+  -webkit-backdrop-filter: blur(48px) saturate(180%);
+  backdrop-filter: blur(48px) saturate(180%);
   -webkit-mask-image: linear-gradient(
     to top,
     transparent 0%,
-    transparent 6%,
-    rgb(0 0 0 / 45%) 22%,
-    rgb(0 0 0 / 88%) 48%,
-    rgb(0 0 0 / 97%) 78%,
-    rgb(0 0 0 / 100%) 100%
+    rgb(0 0 0 / 35%) 8%,
+    rgb(0 0 0 / 78%) 28%,
+    #000 52%,
+    #000 100%
   );
   mask-image: linear-gradient(
     to top,
     transparent 0%,
-    transparent 6%,
-    rgb(0 0 0 / 45%) 22%,
-    rgb(0 0 0 / 88%) 48%,
-    rgb(0 0 0 / 97%) 78%,
-    rgb(0 0 0 / 100%) 100%
+    rgb(0 0 0 / 35%) 8%,
+    rgb(0 0 0 / 78%) 28%,
+    #000 52%,
+    #000 100%
   );
 }
 
