@@ -3,10 +3,13 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { ArrowUp, ChevronLeft, FileText, Plus, X } from 'lucide-react'
 import companionIdle from '@/assets/companion/idle.png'
 import CompanionPhoneStatusBar from '@/components/CompanionPhoneStatusBar'
+import CompanionSettingsPanel from '@/components/CompanionSettingsPanel'
+import MarkdownContent from '@/components/MarkdownContent'
 import { Button, Textarea } from '@/components/ui'
 import { useCompanion } from '@/composables/useCompanion'
 import { desktopErrorMessage, invokeCommand, listenEvent } from '@/desktop'
 import { useT, useUiLocale } from '@/hooks/useUiLocale'
+import { toastError } from '@/lib/appToast'
 import {
   companionChatContinuesRun,
   companionChatEndsRun,
@@ -24,13 +27,28 @@ import {
   explainCompanionError,
 } from '@/lib/companionUserError'
 import { isComposingKey } from '@/lib/imeComposition'
-import type {
-  AppSettings,
-  CodingAttachment,
-  CodingAttachmentImport,
-  CodingAttachmentPreview,
-  CompanionSkinResolved,
+import {
+  encodePickerSelection,
+  installAppModelSettings,
+  loadModelCatalog,
+  useLiveModelCatalog,
+} from '@/modelCatalog'
+import { applyUiFonts } from '@/lib/uiFonts'
+import type { SearchableModelGroup } from '@/lib/modelPickerSearch'
+import {
+  withAppSettingsDefaults,
+  type AppSettings,
+  type CodingAttachment,
+  type CodingAttachmentImport,
+  type CodingAttachmentPreview,
+  type CompanionSkinResolved,
 } from '@/types'
+
+type CompanionPhoneScreen = 'chat' | 'settings'
+
+function cloneSettings(value: AppSettings): AppSettings {
+  return JSON.parse(JSON.stringify(withAppSettingsDefaults(value))) as AppSettings
+}
 
 function fitComposer(node: HTMLTextAreaElement | null) {
   if (!node) return
@@ -65,11 +83,26 @@ export default function CompanionPage({
   const titleRef = useRef<HTMLParagraphElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const stickToEnd = useRef(true)
+  const [screen, setScreen] = useState<CompanionPhoneScreen>('chat')
+  const [phoneSettings, setPhoneSettings] = useState<AppSettings | null>(null)
   const [avatar, setAvatar] = useState(companionIdle)
   const [petName, setPetName] = useState('Milk')
   const [thumbs, setThumbs] = useState<Record<string, string>>({})
   const [attachError, setAttachError] = useState('')
   const choosing = useRef(false)
+  const modelCatalog = useLiveModelCatalog(() => ({
+    providers: phoneSettings?.providers ?? {},
+    relay: phoneSettings?.relay,
+  }))
+  const modelGroups: SearchableModelGroup[] = modelCatalog.pickerGroups.map(group => ({
+    key: group.key,
+    label: group.label,
+    models: group.models.map(model => ({
+      value: encodePickerSelection(group.providerId, model, group.source),
+      label: modelCatalog.pickerModelLabel(group, model),
+      model,
+    })),
+  }))
   const olderOffset = companion.hasMore ? 1 : 0
   const typing = companion.busy && !companion.streaming
   const needsNewChat = companionChatNeedsNewConversation(companion.error)
@@ -131,20 +164,48 @@ export default function CompanionPage({
     }
   }, [locale])
 
+  useEffect(() => {
+    if (screen !== 'settings') return undefined
+    let cancelled = false
+    void (async () => {
+      try {
+        await loadModelCatalog()
+        const value = await invokeCommand<AppSettings>('get_settings')
+        if (cancelled) return
+        const next = cloneSettings(value)
+        setPhoneSettings(next)
+        installAppModelSettings(next)
+      } catch (reason) {
+        if (!cancelled) {
+          toastError(reason, t('设置暂时打不开。', 'Settings could not be opened.'))
+          setScreen('chat')
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [screen, t])
+
   useLayoutEffect(() => {
+    if (screen !== 'chat') return undefined
     const chat = chatRef.current
     const title = titleRef.current
     if (!chat || !title) return undefined
     const syncFade = () => {
-      const fadeEnd = title.getBoundingClientRect().bottom - chat.getBoundingClientRect().top + 8
-      chat.style.setProperty('--companion-fade-end', `${Math.max(96, Math.round(fadeEnd))}px`)
+      const chatTop = chat.getBoundingClientRect().top
+      const titleBox = title.getBoundingClientRect()
+      // Strip covers through the Milk capsule: shallow at capsule bottom, nearly
+      // opaque by avatar / status (Apple's "almost gone" band).
+      chat.style.setProperty('--companion-fade-end', `${Math.max(0, Math.round(titleBox.bottom - chatTop))}px`)
+      chat.style.setProperty('--companion-log-pad', `${Math.max(96, Math.round(titleBox.bottom - chatTop + 8))}px`)
     }
     syncFade()
     const observer = new ResizeObserver(syncFade)
     observer.observe(chat)
     observer.observe(title)
     return () => observer.disconnect()
-  }, [petName, embedded])
+  }, [petName, embedded, screen])
 
   useEffect(() => {
     fitComposer(inputRef.current)
@@ -213,6 +274,32 @@ export default function CompanionPage({
     }
   }
 
+  async function persistPhoneSettings() {
+    if (!phoneSettings) return
+    const submitted = cloneSettings(phoneSettings)
+    try {
+      await invokeCommand('save_settings_cmd', { newSettings: submitted })
+      const refreshed = await invokeCommand<AppSettings>('get_settings')
+      const next = cloneSettings(refreshed)
+      setPhoneSettings(next)
+      installAppModelSettings(next)
+      applyUiFonts({
+        uiFont: next.ui_font,
+        conversationFont: next.conversation_font,
+        uiFontSize: next.ui_font_size,
+        conversationFontSize: next.conversation_font_size,
+      })
+    } catch (reason) {
+      toastError(reason, t('设置未保存', 'Settings were not saved'))
+      try {
+        const refreshed = await invokeCommand<AppSettings>('get_settings')
+        setPhoneSettings(cloneSettings(refreshed))
+      } catch {
+        // Keep the in-memory draft if refresh also fails.
+      }
+    }
+  }
+
   async function importFiles(files: File[]) {
     if (!files.length || companion.busy) return
     if (companion.attachments.length + files.length > 8) {
@@ -247,6 +334,38 @@ export default function CompanionPage({
       align: 'end',
     })
   }, [companion.entries, olderOffset, typing, virtualizer])
+
+  if (screen === 'settings') {
+    return (
+      <main className="companion-chat companion-phone-settings" data-testid="companion-phone-settings">
+        <div className="companion-phone-settings-scroll">
+          <CompanionSettingsPanel
+            settings={phoneSettings}
+            groups={modelGroups}
+            compact
+            onPersist={() => void persistPhoneSettings()}
+          />
+        </div>
+        <div className="companion-chat-chrome">
+          <CompanionPhoneStatusBar />
+          <header className="companion-phone-settings-head">
+            <button
+              type="button"
+              className="companion-chat-icon companion-glass"
+              aria-label={t('返回对话', 'Back to chat')}
+              title={t('返回对话', 'Back to chat')}
+              onClick={() => setScreen('chat')}
+            >
+              <ChevronLeft className="size-5" strokeWidth={2.4} />
+            </button>
+            <p className="companion-phone-settings-title companion-glass">
+              {t('桌宠设置', 'Companion settings')}
+            </p>
+          </header>
+        </div>
+      </main>
+    )
+  }
 
   return (
     <main ref={chatRef} className="companion-chat" data-testid="companion-chat">
@@ -359,7 +478,18 @@ export default function CompanionPage({
                           })}
                         </div>
                       ) : null}
-                      {body ? <p className="companion-chat-bubble-text">{body}</p> : null}
+                      {body ? (
+                        entry.error ? (
+                          <p className="companion-chat-bubble-text companion-chat-bubble-text-plain">{body}</p>
+                        ) : (
+                          <MarkdownContent
+                            className="companion-chat-bubble-text"
+                            content={body}
+                            compact
+                            streaming={entry.id === 'streaming'}
+                          />
+                        )
+                      ) : null}
                     </div>
                   ) : (
                     <p className="companion-chat-system">{body}</p>
@@ -382,8 +512,8 @@ export default function CompanionPage({
         ) : null}
       </div>
       <div className="companion-chat-fade" aria-hidden="true">
-        <div className="companion-chat-fade-layer companion-chat-fade-soft" />
-        <div className="companion-chat-fade-layer companion-chat-fade-hard" />
+        <div className="companion-chat-fade-soft" />
+        <div className="companion-chat-fade-hard" />
       </div>
       <div className="companion-chat-chrome">
         <CompanionPhoneStatusBar />
@@ -398,7 +528,15 @@ export default function CompanionPage({
             <ChevronLeft className="size-5" strokeWidth={2.4} />
           </button>
           <div className="companion-chat-identity">
-            <img className="companion-chat-avatar" src={avatar} alt="" draggable={false} />
+            <button
+              type="button"
+              className="companion-chat-avatar-btn"
+              aria-label={t('桌宠设置', 'Companion settings')}
+              title={t('桌宠设置', 'Companion settings')}
+              onClick={() => setScreen('settings')}
+            >
+              <img className="companion-chat-avatar" src={avatar} alt="" draggable={false} />
+            </button>
             <p ref={titleRef} className="companion-chat-title companion-glass">{petName}</p>
           </div>
         </header>

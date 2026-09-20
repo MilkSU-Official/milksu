@@ -7,9 +7,9 @@
 
 const COMPANION_PET_WIDTH = 160
 const COMPANION_PET_HEIGHT = 160
-// iPhone 17 body 71.5 × 149.6 mm. Window is the handset, not the 402×874 screen grid.
-const COMPANION_CHAT_WIDTH = 280
-const COMPANION_CHAT_HEIGHT = 586
+// iPhone 17 handset matches build/iphone17-compare/iphone17-mirror.png (288 × 604).
+const COMPANION_CHAT_WIDTH = 288
+const COMPANION_CHAT_HEIGHT = 604
 const COMPANION_PHONE_WIDTH = COMPANION_CHAT_WIDTH
 const COMPANION_PHONE_HEIGHT = COMPANION_CHAT_HEIGHT
 const COMPANION_UNIT_GAP = 0

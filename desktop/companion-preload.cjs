@@ -32,9 +32,14 @@ const ALLOWED = new Set([
   'ParkCompanionMainWindow',
   'QuitCompanionShell',
   'GetSettings',
+  'SaveSettingsCmd',
+  'GetModelCatalog',
   'EnsureCompanion',
   'ListCompanionSkins',
   'GetCompanionSkin',
+  'ImportCompanionSkin',
+  'RemoveCompanionSkin',
+  'NotifyCompanionSkinChanged',
 ])
 
 if (process.isMainFrame) {

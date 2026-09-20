@@ -1,11 +1,14 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   applyUiFonts,
   FACTORY_UI_FONT,
   FACTORY_UI_FONT_SIZE,
   normalizeUiFontPreset,
   normalizeUiFontSize,
+  publishUiFontsSync,
+  subscribeUiFontsSync,
+  UI_FONT_SYNC_CHANNEL,
 } from './uiFonts'
 
 describe('uiFonts', () => {
@@ -78,5 +81,25 @@ describe('uiFonts', () => {
     })
     expect(document.documentElement.style.getPropertyValue('--ui-font-size')).toBe('16px')
     expect(document.documentElement.style.getPropertyValue('--conversation-font-size')).toBe('11px')
+  })
+
+  it('syncs font changes across windows without republishing', async () => {
+    const seen: Array<{ conversationFontSize: string }> = []
+    const stop = subscribeUiFontsSync(fonts => {
+      seen.push({ conversationFontSize: fonts.conversationFontSize })
+      applyUiFonts(fonts, { sync: false })
+    })
+    publishUiFontsSync({
+      uiFont: 'geist',
+      conversationFont: 'noto-serif-sc',
+      uiFontSize: '15',
+      conversationFontSize: '17',
+    })
+    await vi.waitFor(() => {
+      expect(seen).toEqual([{ conversationFontSize: '17' }])
+    })
+    expect(document.documentElement.style.getPropertyValue('--conversation-font-size')).toBe('17px')
+    expect(UI_FONT_SYNC_CHANNEL).toBe('milksu.ui-font-sync')
+    stop()
   })
 })

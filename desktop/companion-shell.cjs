@@ -46,9 +46,14 @@ const COMPANION_METHODS = new Set([
   'ParkCompanionMainWindow',
   'QuitCompanionShell',
   'GetSettings',
+  'SaveSettingsCmd',
+  'GetModelCatalog',
   'EnsureCompanion',
   'ListCompanionSkins',
   'GetCompanionSkin',
+  'ImportCompanionSkin',
+  'RemoveCompanionSkin',
+  'NotifyCompanionSkinChanged',
 ])
 
 const PET_DRAG_FRAME_MS = 16

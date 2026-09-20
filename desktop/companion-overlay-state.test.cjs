@@ -25,8 +25,8 @@ const idle = {
 }
 
 test('phone window uses the iPhone 17 body, not the iOS point grid', () => {
-  assert.equal(COMPANION_PHONE_WIDTH, 280)
-  assert.equal(COMPANION_PHONE_HEIGHT, 586)
+  assert.equal(COMPANION_PHONE_WIDTH, 288)
+  assert.equal(COMPANION_PHONE_HEIGHT, 604)
   assert.ok(Math.abs(COMPANION_PHONE_HEIGHT / COMPANION_PHONE_WIDTH - 149.6 / 71.5) < 0.01)
 })
 

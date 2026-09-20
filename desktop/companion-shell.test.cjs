@@ -181,9 +181,12 @@ test('companion window methods are a subset of the main renderer surface', () =>
   assert.ok(COMPANION_METHODS.has('GetCompanionSkin'))
   assert.ok(COMPANION_METHODS.has('GetCompanionPhoneStatus'))
   assert.ok(COMPANION_METHODS.has('EnsureCompanion'))
+  assert.ok(COMPANION_METHODS.has('SaveSettingsCmd'))
+  assert.ok(COMPANION_METHODS.has('GetModelCatalog'))
+  assert.ok(COMPANION_METHODS.has('ImportCompanionSkin'))
+  assert.ok(COMPANION_METHODS.has('RemoveCompanionSkin'))
+  assert.ok(COMPANION_METHODS.has('NotifyCompanionSkinChanged'))
   assert.ok(!COMPANION_METHODS.has('SendMessage'))
-  assert.ok(!COMPANION_METHODS.has('SaveSettingsCmd'))
-  assert.ok(!COMPANION_METHODS.has('ImportCompanionSkin'))
 })
 
 test('GetCompanionPhoneStatus reports host power and network without a fake battery', () => {
@@ -488,9 +491,9 @@ test('dragging the pet never moves the main window and clamps to the work area',
   assert.ok(inward.chatBounds)
   const clamped = shell.handleHostMethod('MoveCompanionPet', { dx: 4000, dy: 4000 })
   assert.equal(clamped.chatBounds.x, 800 - COMPANION_CHAT_WIDTH)
-  assert.equal(clamped.chatBounds.y, 600 - COMPANION_CHAT_HEIGHT)
+  assert.equal(clamped.chatBounds.y, Math.max(0, 600 - COMPANION_CHAT_HEIGHT))
   assert.ok(clamped.chatBounds.x + COMPANION_CHAT_WIDTH <= 800)
-  assert.ok(clamped.chatBounds.y + COMPANION_CHAT_HEIGHT <= 600)
+  assert.ok(clamped.chatBounds.y + Math.min(COMPANION_CHAT_HEIGHT, 600) <= 600)
 })
 
 test('overlay stacking stays below system IME chrome', () => {

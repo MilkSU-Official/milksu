@@ -14,6 +14,7 @@ import { ConversationsProvider } from '@/stores/conversationsStore'
 import { LabJobsProvider } from '@/stores/labJobsStore'
 import { applyHostPlatform, syncWindowChrome } from '@/lib/hostPlatform'
 import { applyUiEmphasis } from '@/lib/uiEmphasis'
+import { applyUiFonts, subscribeUiFontsSync } from '@/lib/uiFonts'
 import { applyThemeMode, readThemeMode, resolveThemeMode, subscribeThemeSync } from '@/lib/themeMode'
 import './index.css'
 
@@ -25,6 +26,9 @@ subscribeThemeSync((mode, resolved) => {
   applyThemeMode(mode, document.documentElement, resolved === 'dark')
   syncWindowChrome(resolved, globalThis, mode)
   applyUiEmphasis({ theme: resolved })
+})
+subscribeUiFontsSync(fonts => {
+  applyUiFonts(fonts, { sync: false })
 })
 document.documentElement.dataset.colorScheme = 'memoh'
 try {

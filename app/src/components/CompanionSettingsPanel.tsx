@@ -5,6 +5,14 @@ import SearchableModelPicker from '@/components/SearchableModelPicker'
 import ModelVendorIcon from '@/components/ModelVendorIcon'
 import { encodePickerSelection, parsePickerSelection } from '@/modelCatalog'
 import { toastError } from '@/lib/appToast'
+import {
+  applyUiFonts,
+  normalizeUiFontPreset,
+  normalizeUiFontSize,
+  UI_FONT_PRESET_IDS,
+  UI_FONT_SIZE_IDS,
+  uiFontPresetLabel,
+} from '@/lib/uiFonts'
 import { useT, useUiLocale } from '@/hooks/useUiLocale'
 import type { SearchableModelGroup } from '@/lib/modelPickerSearch'
 import type {
@@ -24,11 +32,15 @@ export default function CompanionSettingsPanel({
   settings,
   groups,
   onPersist,
+  compact = false,
 }: {
   settings: AppSettings | null
   groups: SearchableModelGroup[]
   onPersist: () => void
+  /** Narrow phone chrome: stack label above control. */
+  compact?: boolean
 }) {
+  const rowStack = compact ? 'always' as const : 'never' as const
   const t = useT()
   const locale = useUiLocale()
   const [shell, setShell] = useState<CompanionShellStatus | null>(null)
@@ -103,12 +115,13 @@ export default function CompanionSettingsPanel({
       <SettingsSection title={t('模型', 'Model')}>
         <SettingsRow
           label={t('桌宠模型', 'Companion model')}
+          stack={rowStack}
           trailing={(
             <SearchableModelPicker
               value={modelKey}
               triggerClassName="settings-control h-7 px-2"
               ariaLabel={t('桌宠模型', 'Companion model')}
-              align="end"
+              align={compact ? 'start' : 'end'}
               trigger={(
                 <span className="inline-flex min-w-0 items-center gap-2">
                   <ModelVendorIcon model={settings.companion_model ?? ''} label={modelLabel} />
@@ -130,6 +143,7 @@ export default function CompanionSettingsPanel({
         />
         <SettingsRow
           label={t('跨会话调度', 'Dispatch')}
+          stack={rowStack}
           trailing={(
             <Switch
               checked={settings.companion_dispatch_enabled !== false}
@@ -142,6 +156,7 @@ export default function CompanionSettingsPanel({
       <SettingsSection title={t('主动性', 'Proactivity')}>
         <SettingsRow
           label={t('任务事件', 'Task events')}
+          stack={rowStack}
           trailing={(
             <Switch
               checked={settings.companion_proactivity?.task_events !== false}
@@ -154,6 +169,7 @@ export default function CompanionSettingsPanel({
         />
         <SettingsRow
           label={t('教学提示', 'Teaching hints')}
+          stack={rowStack}
           trailing={(
             <Switch
               checked={settings.companion_proactivity?.teaching_hints === true}
@@ -166,6 +182,7 @@ export default function CompanionSettingsPanel({
         />
         <SettingsRow
           label={t('定时播报', 'Scheduled broadcast')}
+          stack={rowStack}
           trailing={(
             <Switch
               checked={settings.companion_proactivity?.scheduled_broadcast === true}
@@ -178,6 +195,7 @@ export default function CompanionSettingsPanel({
         />
         <SettingsRow
           label={t('闲聊', 'Idle chat')}
+          stack={rowStack}
           divider={false}
           trailing={(
             <Switch
@@ -193,6 +211,7 @@ export default function CompanionSettingsPanel({
       <SettingsSection title={t('教学', 'Teaching')}>
         <SettingsRow
           label={t('教学形态', 'Teaching style')}
+          stack={rowStack}
           divider={false}
           trailing={(
             <SettingsGhostPicker
@@ -211,6 +230,7 @@ export default function CompanionSettingsPanel({
       <SettingsSection title={t('隐私', 'Privacy')}>
         <SettingsRow
           label={t('情景检索', 'Episodic search')}
+          stack={rowStack}
           divider={false}
           trailing={(
             <Switch
@@ -223,10 +243,51 @@ export default function CompanionSettingsPanel({
       </SettingsSection>
       <SettingsSection title={t('外观', 'Appearance')}>
         <SettingsRow
+          label={t('对话字体', 'Conversation font')}
+          description={t('手机聊天与主窗口对话共用。', 'Shared with main-window chat.')}
+          stack={rowStack}
+          trailing={(
+            <SettingsGhostPicker
+              value={normalizeUiFontPreset(settings.conversation_font)}
+              ariaLabel={t('对话字体', 'Conversation font')}
+              wide
+              options={UI_FONT_PRESET_IDS.map(id => ({
+                value: id,
+                label: uiFontPresetLabel(id),
+              }))}
+              onChange={value => {
+                const conversationFont = normalizeUiFontPreset(value)
+                patch({ conversation_font: conversationFont })
+                applyUiFonts({ conversationFont })
+              }}
+            />
+          )}
+        />
+        <SettingsRow
+          label={t('对话字号', 'Conversation size')}
+          stack={rowStack}
+          trailing={(
+            <SettingsGhostPicker
+              value={normalizeUiFontSize(settings.conversation_font_size)}
+              ariaLabel={t('对话字号', 'Conversation size')}
+              options={UI_FONT_SIZE_IDS.map(id => ({
+                value: id,
+                label: id,
+              }))}
+              onChange={value => {
+                const conversationFontSize = normalizeUiFontSize(value)
+                patch({ conversation_font_size: conversationFontSize })
+                applyUiFonts({ conversationFontSize })
+              }}
+            />
+          )}
+        />
+        <SettingsRow
           label={t('悬浮窗', 'Floating window')}
           description={shell?.wayland
             ? t('当前会话是 Wayland，不能贴悬浮窗。', 'This session is Wayland, so the float cannot be placed.')
             : undefined}
+          stack={rowStack}
           trailing={(
             <Switch
               checked={settings.companion_float_enabled !== false && !shell?.wayland}
@@ -243,6 +304,7 @@ export default function CompanionSettingsPanel({
         />
         <SettingsRow
           label={t('皮肤', 'Skin')}
+          stack={rowStack}
           trailing={(
             <SettingsGhostPicker
               value={selectedSkin}
@@ -257,6 +319,7 @@ export default function CompanionSettingsPanel({
         />
         <SettingsRow
           label={t('添加皮肤', 'Add skin')}
+          stack={rowStack}
           divider={!selected?.removable}
           trailing={(
             <Button
@@ -272,6 +335,7 @@ export default function CompanionSettingsPanel({
         {selected?.removable ? (
           <SettingsRow
             label={t('移除皮肤', 'Remove skin')}
+            stack={rowStack}
             divider={false}
             trailing={(
               <Button

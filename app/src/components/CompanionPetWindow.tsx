@@ -3,6 +3,7 @@ import companionDecide from '@/assets/companion/decide.png'
 import companionIdle from '@/assets/companion/idle.png'
 import companionTalk from '@/assets/companion/talk.png'
 import CompanionPage from '@/components/CompanionPage'
+import { Toaster } from '@/components/ui'
 import { useCompanion } from '@/composables/useCompanion'
 import { invokeCommand, listenEvent } from '@/desktop'
 import { useT, useUiLocale } from '@/hooks/useUiLocale'
@@ -248,22 +249,25 @@ export default function CompanionPetWindow() {
   )
   if (overlay.chatOpen) {
     return (
-      <div
-        className="companion-phone"
-        data-testid="companion-phone"
-        data-form="phone"
-        data-chat="open"
-        onPointerDown={event => {
-          const target = event.target as HTMLElement
-          if (target.closest('button, textarea, input')) return
-          if (!target.closest('.companion-chat-chrome, .companion-chat-head, .companion-chat-statusbar')) return
-          beginDrag(event, false)
-        }}
-      >
-        <div className="companion-phone-screen">
-          <CompanionPage embedded />
+      <>
+        <div
+          className="companion-phone"
+          data-testid="companion-phone"
+          data-form="phone"
+          data-chat="open"
+          onPointerDown={event => {
+            const target = event.target as HTMLElement
+            if (target.closest('button, textarea, input, [contenteditable="true"]')) return
+            if (target.closest('.companion-chat-log, .companion-phone-settings-scroll')) return
+            beginDrag(event, false)
+          }}
+        >
+          <div className="companion-phone-screen">
+            <CompanionPage embedded />
+          </div>
         </div>
-      </div>
+        <Toaster />
+      </>
     )
   }
 
