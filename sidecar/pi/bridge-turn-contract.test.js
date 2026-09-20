@@ -63,7 +63,8 @@ test("keeps only the current hidden typed policy in model context", () => {
     ordinary,
     currentContract,
   ]);
-  assert.match(codingTurnContractContext({ toolAccess: "none" }), /typed turn policy/);
+  assert.match(codingTurnContractContext({ toolAccess: "none" }), /本回合策略/);
+  assert.match(codingTurnContractContext({ toolAccess: "none" }, "en"), /typed turn policy/);
   assert.doesNotMatch(codingTurnContractContext({ toolAccess: "none" }), /未核验/);
   assert.equal(codingTurnContractContext(undefined), "");
 });
@@ -89,7 +90,8 @@ test("removes tools for one typed turn and restores them", async () => {
   }, async () => {
     assert.deepEqual(activeTools, []);
     assert.equal(codingTurnContractBlocksTool(contracts.get("conversation-1")), true);
-    assert.match(codingTurnContractGuidance(contract), /tool-free/);
+    assert.match(codingTurnContractGuidance(contract), /本回合不能用工具/);
+    assert.match(codingTurnContractGuidance(contract, "en"), /tool-free/);
     return "direct answer";
   });
 

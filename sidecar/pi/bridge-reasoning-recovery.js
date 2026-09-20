@@ -24,16 +24,19 @@ function thinkingContent(message) {
 
 export const reasoningOnlyRecoveryCustomType = "milksu-reasoning-only-recovery";
 
-export function reasoningOnlyRecoveryPrompt() {
+export function reasoningOnlyRecoveryPrompt(uiLocale) {
+  if (String(uiLocale ?? "").trim() !== "en") {
+    return "上一回合没有对用户可见的回复。根据已经完成的工作，只输出一段简短的最终答复。不要调用工具。";
+  }
   return "The previous turn produced no user-visible reply. "
     + "Based on the work already completed, output only a short final answer. "
     + "Do not call tools.";
 }
 
-export function reasoningOnlyRecoveryMessage() {
+export function reasoningOnlyRecoveryMessage(uiLocale) {
   return {
     customType: reasoningOnlyRecoveryCustomType,
-    content: reasoningOnlyRecoveryPrompt(),
+    content: reasoningOnlyRecoveryPrompt(uiLocale),
     display: false,
   };
 }
@@ -88,6 +91,7 @@ export function createReasoningOnlyRecoveryExtension({
   markRecovered,
   applyNoTools,
   restoreTools,
+  getUiLocale,
 } = {}) {
   return (pi) => {
     pi.on("agent_end", async (event) => {
@@ -107,7 +111,7 @@ export function createReasoningOnlyRecoveryExtension({
         provider: last.provider,
         model: last.model,
       }));
-      pi.sendMessage(reasoningOnlyRecoveryMessage(), {
+      pi.sendMessage(reasoningOnlyRecoveryMessage(getUiLocale?.()), {
         deliverAs: "followUp",
         triggerTurn: true,
       });

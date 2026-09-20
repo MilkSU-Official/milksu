@@ -99,6 +99,16 @@ func TestWithDefaults(t *testing.T) {
 	}
 }
 
+func TestResolvedUserInterfaceLocale(t *testing.T) {
+	if got := ResolvedUserInterfaceLocale(DefaultSettings()); got != "zh" {
+		t.Fatalf("default interface locale = %q, want zh", got)
+	}
+	locale := "EN"
+	if got := ResolvedUserInterfaceLocale(AppSettings{Locale: &locale}); got != "en" {
+		t.Fatalf("configured interface locale = %q, want en", got)
+	}
+}
+
 func TestStorePersistsLocaleKernelAndActiveModel(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "settings.json")
 	store, err := newStore(path, fakeSecretStore{})

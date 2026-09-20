@@ -822,16 +822,18 @@ function createCodingPermissionExtension(
     });
 
     pi.on("before_agent_start", async (event) => {
-      const turnGuidance = codingTurnContractGuidance(getTurnContract());
+      const uiLocale = getPolicy()?.uiLocale;
+      const turnGuidance = codingTurnContractGuidance(getTurnContract(), uiLocale);
       if (!turnGuidance) return undefined;
+      const heading = uiLocale === "en" ? "MilkSU per-turn contract" : "MilkSU 本回合合同";
       const result = {
         systemPrompt: `${event.systemPrompt}`
-          + `\n\nMilkSU per-turn contract:\n${turnGuidance}`,
+          + `\n\n${heading}:\n${turnGuidance}`,
       };
       if (turnGuidance) {
         result.message = {
           customType: codingTurnContractMessageType,
-          content: codingTurnContractContext(getTurnContract()),
+          content: codingTurnContractContext(getTurnContract(), uiLocale),
           display: false,
           details: {
             scope: "current-turn",
@@ -1413,10 +1415,14 @@ async function createSessionManager(cwd, agentDir, conversationId) {
   return SessionManager.create(cwd, sessionDir, { id: conversationId });
 }
 
-async function loadProjectInstructions(cwd) {
+async function loadProjectInstructions(cwd, uiLocale) {
   try {
     const content = await readFile(join(cwd, "AGENTS.md"), "utf8");
-    return `Project instructions from ${join(cwd, "AGENTS.md")}:\n\n${truncate(content, 64000)}`;
+    const path = join(cwd, "AGENTS.md");
+    const prefix = uiLocale === "en"
+      ? `Project instructions from ${path}:`
+      : `来自 ${path} 的项目说明：`;
+    return `${prefix}\n\n${truncate(content, 64000)}`;
   } catch (error) {
     if (error?.code === "ENOENT") return undefined;
     throw error;
@@ -1464,6 +1470,7 @@ function createMilkSUResourceLoader(
         }
         reasoningOnlyPreviousTools.delete(conversationId);
       },
+      getUiLocale: () => sessionPolicies.get(conversationId)?.uiLocale,
     }),
   ];
   if (sessionRole) {
@@ -1733,7 +1740,10 @@ async function createSession(command) {
 
   const cwd = process.cwd();
   const agentDir = process.env.MILKSU_PI_AGENT_DIR || join(cwd, ".milksu", "pi");
-  const projectInstructions = await loadProjectInstructions(cwd);
+  const projectInstructions = await loadProjectInstructions(
+    cwd,
+    command.locale === "en" ? "en" : "zh",
+  );
   const {
     policy: sessionPolicy,
     effectiveSessionRole,
@@ -2015,6 +2025,7 @@ async function sendMessage(command) {
     const prepared = await preparePromptAttachments(
       command.attachments,
       attachmentRoot,
+      { uiLocale: command.locale === "en" ? "en" : "zh" },
     );
     const contract = normalizeCodingTurnContract(command.turnPolicy);
     const prompt = `${command.prompt ?? ""}${prepared.context}`;

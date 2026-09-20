@@ -10,6 +10,7 @@ import { createCompanionExtension, COMPANION_SESSION_ID } from "./extension.js";
 import { createCompanionTools } from "./tools.js";
 import { queryCompanionMemory, scheduleCompanionIndexRefresh } from "./obelisk-index.js";
 import { companionProviderEnvironment } from "./companion-model-env.js";
+import { companionSystemPrompt } from "./system-prompt.js";
 import { companionAssistantTurnError } from "./turn-error.js";
 import { withTokenFluxModelCompat } from "../pi/tokenflux-model-compat.js";
 import currentProviderRuntime from "../pi/current-provider-runtime.cjs";
@@ -19,13 +20,7 @@ const {
   isCustomRelayProvider,
 } = currentProviderRuntime;
 
-const DEFAULT_SYSTEM_PROMPT = [
-  "You are the MilkSU companion.",
-  "You coordinate and report across the user's Coding, CTF, CVE, and Lab conversations.",
-  "Never invent a completion or run-state. Session run state comes only from companion_board.",
-  "Use companion_board, companion_dispatch, and companion_memory.",
-  "speak requires an explicit conversationId. For stop or steer, call companion_dispatch immediately; the host confirms with a button, not chat.",
-].join(" ");
+let uiLocale = "zh";
 
 const pendingHost = new Map();
 let hostRequestSeq = 0;
@@ -121,7 +116,7 @@ async function createCompanionSession(command) {
         getSemanticMemories: () => semanticMemories,
         getEpisodicRecalls: () => episodicRecalls,
         getPersona: () => persona,
-        getSystemPrompt: () => DEFAULT_SYSTEM_PROMPT,
+        getSystemPrompt: () => companionSystemPrompt(uiLocale),
       }),
     ],
     noExtensions: true,
@@ -213,9 +208,16 @@ async function sendPrompt(prompt) {
   await promptQueue;
 }
 
+function applyCompanionLocale(command) {
+  if (command?.locale === "en" || command?.locale === "zh") {
+    uiLocale = command.locale;
+  }
+}
+
 async function handleCommand(command) {
   switch (command.action) {
     case "create_session":
+      applyCompanionLocale(command);
       if (command.memorySearchEnabled === false) memorySearchEnabled = false;
       if (command.memorySearchEnabled === true) memorySearchEnabled = true;
       await createCompanionSession(command);
@@ -225,6 +227,7 @@ async function handleCommand(command) {
       }
       return;
     case "send_message":
+      applyCompanionLocale(command);
       await createCompanionSession(command);
       if (!subscribed) {
         subscribeCompanion();
@@ -239,6 +242,7 @@ async function handleCommand(command) {
       await sendPrompt(String(command.prompt ?? ""));
       return;
     case "update_context":
+      applyCompanionLocale(command);
       if (command.boardSnapshot) boardSnapshot = command.boardSnapshot;
       if (Array.isArray(command.semanticMemories)) semanticMemories = command.semanticMemories;
       if (Array.isArray(command.episodicRecalls)) episodicRecalls = command.episodicRecalls;

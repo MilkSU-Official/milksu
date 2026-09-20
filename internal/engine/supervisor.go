@@ -1692,10 +1692,7 @@ func (s *Supervisor) sendMessage(
 }
 
 func resolvedUserInterfaceLocale(settings config.AppSettings) string {
-	if settings.Locale != nil && strings.EqualFold(strings.TrimSpace(*settings.Locale), "en") {
-		return "en"
-	}
-	return "zh"
+	return config.ResolvedUserInterfaceLocale(settings)
 }
 
 func normalizeCodingProductActionDescriptor(

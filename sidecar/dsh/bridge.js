@@ -818,6 +818,7 @@ async function createSession(command) {
     thinkingStartedAt: 0,
     sawVisibleText: false,
     reasoningOnlyRecovered: false,
+    uiLocale: command.locale === "en" ? "en" : "zh",
     model: "",
     imageCapable: false,
   };
@@ -854,6 +855,9 @@ async function sendMessage(command) {
   const record = sessionRecord(conversationId);
   if (command.approvalPolicy) {
     record.approvalPolicy = dshNormalizeApprovalPolicy(command.approvalPolicy);
+  }
+  if (command.locale === "en" || command.locale === "zh") {
+    record.uiLocale = command.locale;
   }
   const client = await ensureAcp(record.cwd);
   if (command.model && dshRouteModel(command.model) !== record.model) {
@@ -915,7 +919,7 @@ async function sendMessage(command) {
     try {
       await client.request("session/prompt", {
         sessionId: record.acpSessionId,
-        prompt: [{ type: "text", text: reasoningOnlyRecoveryPrompt() }],
+        prompt: [{ type: "text", text: reasoningOnlyRecoveryPrompt(record.uiLocale) }],
       });
     } catch (error) {
       if (!record.aborted) throw error;

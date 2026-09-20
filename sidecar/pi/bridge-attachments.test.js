@@ -25,7 +25,7 @@ test("prepares verified read-only attachment context without embedding file data
   assert.equal(result.images.length, 0);
   assert.equal(result.attachments.length, 1);
   assert.match(result.context, /notes\.md/);
-  assert.match(result.context, /read-only path:/);
+  assert.match(result.context, /只读路径:/);
   assert.doesNotMatch(result.context, /# MilkSU/);
 });
 
@@ -38,7 +38,9 @@ test("passes supported images through without a MilkSU vision allowlist", async 
   const vision = await preparePromptAttachments([attachment], root);
   assert.equal(vision.images.length, 1);
   assert.equal(vision.images[0].mimeType, "image/png");
-  assert.match(vision.context, /user-provided evidence/);
+  assert.match(vision.context, /用户提供的证据/);
+  const english = await preparePromptAttachments([attachment], root, { uiLocale: "en" });
+  assert.match(english.context, /user-provided evidence/);
 });
 
 test("rejects tampered metadata and symlinked stored content", async () => {

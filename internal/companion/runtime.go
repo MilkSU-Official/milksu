@@ -114,6 +114,7 @@ func (r *Runtime) Send(prompt string) error {
 	command := map[string]any{
 		"action":              "send_message",
 		"prompt":              prompt,
+		"locale":              config.ResolvedUserInterfaceLocale(r.resolvedSettings()),
 		"provider":            selection.Provider,
 		"model":               selection.Model,
 		"source":              selection.Source,
@@ -373,6 +374,7 @@ func (r *Runtime) startLocked() error {
 	selection := r.selection()
 	create := map[string]any{
 		"action":              "create_session",
+		"locale":              config.ResolvedUserInterfaceLocale(settings),
 		"provider":            selection.Provider,
 		"model":               selection.Model,
 		"source":              selection.Source,

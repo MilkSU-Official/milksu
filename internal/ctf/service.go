@@ -28,6 +28,7 @@ const maxArtifactPreviewBytes = 128 * 1024
 type ServiceOptions struct {
 	Engine      securityruntime.AgentEngine
 	Environment securityruntime.Environment
+	UILocale    func() string
 }
 
 type activeRun struct {
@@ -46,6 +47,7 @@ type Service struct {
 	runtime     *securityruntime.Service
 	engine      securityruntime.AgentEngine
 	environment securityruntime.Environment
+	uiLocale    func() string
 	capability  *Capability
 	judge       *Judge
 
@@ -66,11 +68,21 @@ func NewService(runtime *securityruntime.Service, options ServiceOptions) (*Serv
 	}
 	service := &Service{
 		runtime: runtime, engine: options.Engine, environment: options.Environment,
-		active: make(map[string]*activeRun),
+		uiLocale: options.UILocale,
+		active:   make(map[string]*activeRun),
 	}
 	service.capability = NewCapability(runtime)
 	service.judge = NewJudge(runtime)
 	return service, nil
+}
+
+func (s *Service) resolvedUILocale() string {
+	if s != nil && s.uiLocale != nil {
+		if locale := strings.TrimSpace(s.uiLocale()); locale != "" {
+			return locale
+		}
+	}
+	return "zh"
 }
 
 func (s *Service) StartChallenge(ctx context.Context, request ChallengeRequest) (Projection, error) {
@@ -503,7 +515,7 @@ func (s *Service) runJob(ctx context.Context, jobID string) (state runState, res
 			return state, err
 		}
 		state.step = &step
-		engineInput, err := buildAgentInput(core, challenge, attempt, step)
+		engineInput, err := buildAgentInput(core, challenge, attempt, step, s.resolvedUILocale())
 		if err != nil {
 			return state, err
 		}

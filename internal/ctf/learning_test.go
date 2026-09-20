@@ -148,7 +148,7 @@ func TestCoachModeRecordsOneHintAndWaitsForLearner(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	input, err := buildAgentInput(coreProjection, challenge, coreProjection.Attempts[0], coreProjection.Steps[0])
+	input, err := buildAgentInput(coreProjection, challenge, coreProjection.Attempts[0], coreProjection.Steps[0], "")
 	if err != nil {
 		t.Fatal(err)
 	}

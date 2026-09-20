@@ -98,7 +98,7 @@ test("sends one hidden no-tool follow-up and does not copy thinking", async () =
   assert.equal(sent[0].message.display, false);
   assert.doesNotMatch(sent[0].message.content, /完整中文答复/);
   assert.doesNotMatch(sent[0].message.content, /推理预算/);
-  assert.match(sent[0].message.content, /no user-visible reply/);
+  assert.match(sent[0].message.content, /没有对用户可见的回复/);
   assert.deepEqual(sent[0].options, { deliverAs: "followUp", triggerTurn: true });
   assert.equal(state.noToolsApplied, 1);
   assert.equal(state.tools.length, 0);

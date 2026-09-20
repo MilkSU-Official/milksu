@@ -249,6 +249,13 @@ func NormalizeUiEmphasis(value string) string {
 	}
 }
 
+func ResolvedUserInterfaceLocale(settings AppSettings) string {
+	if settings.Locale != nil && strings.EqualFold(strings.TrimSpace(*settings.Locale), "en") {
+		return "en"
+	}
+	return "zh"
+}
+
 func NormalizeDefaultKernel(value string) string {
 	switch strings.ToLower(strings.TrimSpace(value)) {
 	case "dsh", "deepseek", "deepseek-harness":

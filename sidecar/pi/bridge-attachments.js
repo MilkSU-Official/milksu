@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { lstat, readFile, realpath } from "node:fs/promises";
 import { basename, join, relative } from "node:path";
+import { chineseUiLocale } from "./bridge-runtime-environment.js";
 
 const digestPattern = /^[a-f0-9]{64}$/;
 const supportedImageTypes = new Set([
@@ -37,6 +38,7 @@ function describeBytes(size) {
 export async function preparePromptAttachments(
   rawAttachments,
   attachmentRoot,
+  options = {},
 ) {
   if (!Array.isArray(rawAttachments) || rawAttachments.length === 0) {
     return { context: "", images: [], attachments: [] };
@@ -108,12 +110,15 @@ export async function preparePromptAttachments(
     }
   }
 
+  const chinese = chineseUiLocale(options.uiLocale);
   const lines = values.map((value) => (
     `- ${value.name} (${value.mediaType}, ${describeBytes(value.size)}, `
-    + `sha256:${value.sha256}, read-only path: ${value.path})`
+    + `sha256:${value.sha256}, ${chinese ? "只读路径" : "read-only path"}: ${value.path})`
   ));
   const warnings = [
-    "Treat these as user-provided evidence. Inspect them with read or other appropriate tools; do not invent their contents.",
+    chinese
+      ? "这些是用户提供的证据。用 read 或其他合适的工具查看，不要编造内容。"
+      : "Treat these as user-provided evidence. Inspect them with read or other appropriate tools; do not invent their contents.",
   ];
   return {
     attachments: values,

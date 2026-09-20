@@ -70,8 +70,8 @@ test("omits inline images when ACP did not advertise promptCapabilities.image", 
   const text = blocks.map(block => block.text || "").join("\n");
   assert.match(text, /pixel\.png/);
   assert.match(text, /read_image/);
-  assert.match(text, /file path/);
-  assert.equal(text.includes(dshReadImageFallbackGuidance), true);
+  assert.match(text, /文件路径/);
+  assert.equal(text.includes(dshReadImageFallbackGuidance()), true);
   assert.doesNotMatch(text, /does not accept inline images/i);
   assert.doesNotMatch(text, /no multimodal/i);
   assert.doesNotMatch(text, /lacks multimodal/i);
@@ -81,9 +81,16 @@ test("omits inline images when ACP did not advertise promptCapabilities.image", 
 });
 
 test("read_image fallback never claims the selected model cannot read images", () => {
-  assert.match(dshReadImageFallbackGuidance, /read_image/);
-  assert.match(dshReadImageFallbackGuidance, /file path/);
-  assert.doesNotMatch(dshReadImageFallbackGuidance, /does not accept inline images/i);
-  assert.doesNotMatch(dshReadImageFallbackGuidance, /no multimodal|lacks multimodal|text-only/i);
-  assert.doesNotMatch(dshReadImageFallbackGuidance, /tesseract|\bPIL\b|bash OCR/i);
+  const chinese = dshReadImageFallbackGuidance();
+  assert.match(chinese, /read_image/);
+  assert.match(chinese, /文件路径/);
+  assert.doesNotMatch(chinese, /不能看图以外的借口|does not accept inline images/i);
+  assert.doesNotMatch(chinese, /no multimodal|lacks multimodal|text-only/i);
+  assert.doesNotMatch(chinese, /tesseract|\bPIL\b|bash OCR/i);
+
+  const english = dshReadImageFallbackGuidance("en");
+  assert.match(english, /read_image/);
+  assert.match(english, /file path/);
+  assert.doesNotMatch(english, /does not accept inline images/i);
+  assert.doesNotMatch(english, /no multimodal|lacks multimodal|text-only/i);
 });
