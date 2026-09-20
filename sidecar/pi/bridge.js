@@ -499,8 +499,9 @@ function createMilkSUWorkflowExtension(sessionRole, getPolicy, getSession, conve
           throw new Error(decision.reason);
         }
         // The card judges a *delete*, so the approval always carries the delete in the shape
-        // the guard uses (see destructiveDeleteApproval). Former unmeasurable cases now
-        // arrive as approval too.
+        // the guard uses (see destructiveDeleteApproval). Unmeasurable cases also arrive
+        // as approval. If a later switch uses refuseUnmeasuredDelete, that block reason
+        // is thrown here so the model can change the command.
         const approval = destructiveDeleteApproval({
           target,
           decision,
@@ -630,8 +631,9 @@ function createCodingPermissionExtension(
       }
       if (deleteDecision?.action === "approval") {
         const chinese = policy?.uiLocale !== "en";
-        // A background task cannot show a card. Everything else asks, including a
-        // bash delete that did not go through request_destructive_delete.
+        // A background task cannot show a card. Risky and unmeasurable deletes still
+        // ask in the foreground. If a later switch uses refuseUnmeasuredDelete, the
+        // block reason above is what the model sees.
         if (event.toolName === "bg_task") {
           const blockReason = chinese
             ? "后台任务无法弹出确认。请在前台执行这条删除，以便确认。"

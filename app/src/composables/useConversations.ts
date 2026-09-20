@@ -3180,18 +3180,15 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
         return
       }
       if (type === 'destructive.blocked') {
-        // The guard refused a deletion without asking. The reader must see that the command
-        // did nothing and why - as a status line, never as a message in the transcript.
+        // The command did not run. The reader and the model both need the reason so
+        // the next attempt can change; do not summarise it away.
         const reason = String(
           (event.payload as unknown as { reason?: string; notice?: string })?.reason
           ?? (event.payload as unknown as { notice?: string })?.notice
           ?? '',
         ).trim()
-        // The engine speaks English for these refusals. Mixing that into a Chinese status
-        // line reads badly, so an untranslated reason is summarised instead of pasted.
-        const localized = /[\u4e00-\u9fff]/.test(reason) ? reason : ''
-        pushEngineNotice(localized
-          ? t(`已拦截一条删除命令：${localized} —— 未执行。`, `Refused a delete command: ${localized} - nothing ran.`)
+        pushEngineNotice(reason
+          ? t(`已拦截一条删除命令：${reason} —— 未执行。`, `Refused a delete command: ${reason} - nothing ran.`)
           : t('已拦截一条删除命令 —— 未执行。', 'Refused a delete command - nothing ran.'))
         return
       }

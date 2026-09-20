@@ -12,6 +12,7 @@ import test from "node:test";
 import {
   destructiveDeleteApproval,
   destructiveDeleteDecision,
+  refuseUnmeasuredDelete,
   destructiveJustification,
   expandDeleteTarget,
   commandAssignments,
@@ -155,6 +156,24 @@ test("unresolved recursive delete targets ask instead of being approved silently
   assert.equal(decision.action, "approval");
   assert.match(decision.reason, /无法安全解析/);
   assert.match(decision.content, /删除需要确认/);
+});
+
+test("intercept prefab blocks with a reason the model can use to change the command", () => {
+  const chinese = refuseUnmeasuredDelete({
+    chinese: true,
+    reason: "无法安全解析删除目标中的变量",
+  });
+  assert.equal(chinese.action, "block");
+  assert.match(chinese.reason, /无法安全解析删除目标中的变量/);
+  assert.match(chinese.reason, /改用可以事先看清删除目标的写法/);
+
+  const english = refuseUnmeasuredDelete({
+    chinese: false,
+    reason: "the target cannot be resolved",
+  });
+  assert.equal(english.action, "block");
+  assert.match(english.reason, /the target cannot be resolved/);
+  assert.match(english.reason, /Change the command/);
 });
 
 // A background task must be judged exactly like the foreground call; anything that

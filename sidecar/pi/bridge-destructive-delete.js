@@ -660,6 +660,22 @@ function confirmDeleteDecision({ chinese, command, reason, targets = [] }) {
   };
 }
 
+/**
+ * Intercept strategy for unmeasurable deletes. The current product does not use
+ * this: risky and unmeasurable deletes still ask. If the product later switches
+ * to intercept, use this helper — never silent. The reason goes to the user and
+ * back to the model so it can change the command.
+ */
+export function refuseUnmeasuredDelete({ chinese, reason }) {
+  const text = String(reason ?? "").trim().replace(/[.。]+$/, "");
+  return {
+    action: "block",
+    reason: chinese
+      ? `${text}。命令未执行。请改用可以事先看清删除目标的写法后再试。`
+      : `${text}. Nothing ran. Change the command so the delete target can be checked first, then try again.`,
+  };
+}
+
 export function commandForTool(toolName, input) {
   const record = input && typeof input === "object" ? input : {};
   // An argv shape and a command string describe the same execution, so they must be read
