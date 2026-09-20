@@ -272,9 +272,9 @@ export default function VulnPage({
         if (!jobId) continue
         const projection = await invokeCommand('get_vuln_job', { id: jobId }).catch(() => null)
         if (cancelled || !projection || typeof projection !== 'object') continue
-        const target = (projection as { target?: { name?: string }; Target?: { Name?: string } }).target
-          ?? (projection as { Target?: { Name?: string } }).Target
-        const cveId = String(target?.name ?? (target as { Name?: string } | undefined)?.Name ?? '').trim().toUpperCase()
+        const raw = projection as { target?: { name?: string; Name?: string }; Target?: { name?: string; Name?: string } }
+        const target = raw.target ?? raw.Target
+        const cveId = String(target?.name ?? target?.Name ?? '').trim().toUpperCase()
         if (!/^CVE-\d{4}-\d{4,}$/.test(cveId)) continue
         try {
           dashboard.addTrackingItem({
