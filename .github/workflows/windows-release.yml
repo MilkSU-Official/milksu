@@ -211,34 +211,33 @@ jobs:
           $startInfo.Environment['MILKSU_INSTANCE_ID'] = 'windows-release-no-git-smoke'
 
           if (-not ('MilkSUWinEnum' -as [type])) {
-            Add-Type -TypeDefinition @'
-using System;
-using System.Collections.Generic;
-using System.Runtime.InteropServices;
-using System.Text;
-public static class MilkSUWinEnum {
-  private delegate bool EnumProc(IntPtr hWnd, IntPtr lParam);
-  [DllImport("user32.dll")] private static extern bool EnumWindows(EnumProc cb, IntPtr l);
-  [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint pid);
-  [DllImport("user32.dll")] private static extern int GetWindowText(IntPtr hWnd, StringBuilder text, int max);
-  [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr hWnd);
-  public static string[] VisibleTitles(int pid) {
-    var titles = new List<string>();
-    EnumWindows((hWnd, l) => {
-      uint windowPid;
-      GetWindowThreadProcessId(hWnd, out windowPid);
-      if (windowPid == (uint)pid && IsWindowVisible(hWnd)) {
-        var buffer = new StringBuilder(512);
-        if (GetWindowText(hWnd, buffer, buffer.Capacity) > 0) {
-          titles.Add(buffer.ToString());
-        }
-      }
-      return true;
-    }, IntPtr.Zero);
-    return titles.ToArray();
-  }
-}
-'@
+            $enumSource = @(
+              'using System;'
+              'using System.Collections.Generic;'
+              'using System.Runtime.InteropServices;'
+              'using System.Text;'
+              'public static class MilkSUWinEnum {'
+              '  private delegate bool EnumProc(IntPtr hWnd, IntPtr lParam);'
+              '  [DllImport("user32.dll")] private static extern bool EnumWindows(EnumProc cb, IntPtr l);'
+              '  [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint pid);'
+              '  [DllImport("user32.dll")] private static extern int GetWindowText(IntPtr hWnd, StringBuilder text, int max);'
+              '  [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr hWnd);'
+              '  public static string[] VisibleTitles(int pid) {'
+              '    var titles = new List<string>();'
+              '    EnumWindows((hWnd, l) => {'
+              '      uint windowPid;'
+              '      GetWindowThreadProcessId(hWnd, out windowPid);'
+              '      if (windowPid == (uint)pid && IsWindowVisible(hWnd)) {'
+              '        var buffer = new StringBuilder(512);'
+              '        if (GetWindowText(hWnd, buffer, buffer.Capacity) > 0) titles.Add(buffer.ToString());'
+              '      }'
+              '      return true;'
+              '    }, IntPtr.Zero);'
+              '    return titles.ToArray();'
+              '  }'
+              '}'
+            ) -join [Environment]::NewLine
+            Add-Type -TypeDefinition $enumSource
           }
 
           $appProcess = [System.Diagnostics.Process]::new()
