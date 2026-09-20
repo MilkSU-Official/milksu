@@ -48,10 +48,17 @@ mkdir -p "$runtime_home/.git"
 printf '%s\n' \
   '{"action":"create_session","conversationId":"debian13-package-smoke","executionMode":"go","approvalPolicy":"workspace-auto"}' \
   '{"action":"destroy_session","conversationId":"debian13-package-smoke"}' \
-  | HOME="$runtime_home" "$node_runtime" \
+  | HOME="$runtime_home" \
+    OPENAI_API_KEY='package-smoke-imagegen-credential-never-log' \
+    TOKENFLUX_API_KEY='package-smoke-imagegen-credential-never-log' \
+    "$node_runtime" \
     /opt/MilkSU/resources/milksu-sidecar/chat-bridge.cjs \
   | tee /tmp/milksu-sidecar.stdout
 grep -q '"type":"ready"' /tmp/milksu-sidecar.stdout
+if grep -q 'package-smoke-imagegen-credential-never-log' /tmp/milksu-sidecar.stdout; then
+  echo 'packaged sidecar smoke leaked the dummy credential' >&2
+  exit 1
+fi
 
 backend=/opt/MilkSU/resources/milksu-backend
 test -x "$backend"

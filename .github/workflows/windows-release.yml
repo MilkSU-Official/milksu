@@ -210,12 +210,44 @@ jobs:
           $startInfo.Environment['MILKSU_USER_ARTIFACTS_DIR'] = $smokeArtifacts
           $startInfo.Environment['MILKSU_INSTANCE_ID'] = 'windows-release-no-git-smoke'
 
+          if (-not ('MilkSUWinEnum' -as [type])) {
+            Add-Type -TypeDefinition @'
+using System;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+using System.Text;
+public static class MilkSUWinEnum {
+  private delegate bool EnumProc(IntPtr hWnd, IntPtr lParam);
+  [DllImport("user32.dll")] private static extern bool EnumWindows(EnumProc cb, IntPtr l);
+  [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint pid);
+  [DllImport("user32.dll")] private static extern int GetWindowText(IntPtr hWnd, StringBuilder text, int max);
+  [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr hWnd);
+  public static string[] VisibleTitles(int pid) {
+    var titles = new List<string>();
+    EnumWindows((hWnd, l) => {
+      uint windowPid;
+      GetWindowThreadProcessId(hWnd, out windowPid);
+      if (windowPid == (uint)pid && IsWindowVisible(hWnd)) {
+        var buffer = new StringBuilder(512);
+        if (GetWindowText(hWnd, buffer, buffer.Capacity) > 0) {
+          titles.Add(buffer.ToString());
+        }
+      }
+      return true;
+    }, IntPtr.Zero);
+    return titles.ToArray();
+  }
+}
+'@
+          }
+
           $appProcess = [System.Diagnostics.Process]::new()
           $appProcess.StartInfo = $startInfo
           if (-not $appProcess.Start()) { throw 'packaged MilkSU did not start' }
           try {
             $startupReady = $false
             $backendChildren = @()
+            $windowTitles = @()
             $deadline = [DateTime]::UtcNow.AddSeconds(60)
             while ([DateTime]::UtcNow -lt $deadline) {
               Start-Sleep -Milliseconds 500
@@ -227,15 +259,17 @@ jobs:
                 Get-CimInstance Win32_Process -Filter "Name = 'milksu-backend.exe'" |
                   Where-Object { $_.ParentProcessId -eq $appProcess.Id }
               )
-              $windowReady = $appProcess.MainWindowHandle -ne 0 -and
-                $appProcess.MainWindowTitle -eq 'MilkSU'
+              $windowTitles = [MilkSUWinEnum]::VisibleTitles([int]$appProcess.Id)
+              # Companion float is also titled 桌宠 / Companion; Win32 MainWindowTitle
+              # often reports that overlay instead of the product window.
+              $windowReady = $windowTitles -contains 'MilkSU'
               if ($windowReady -and $backendChildren.Count -gt 0) {
                 $startupReady = $true
                 break
               }
             }
             if (-not $startupReady) {
-              throw "packaged MilkSU did not expose its main window and owned Go runtime within 60 seconds (title=$($appProcess.MainWindowTitle), backend_count=$($backendChildren.Count))"
+              throw "packaged MilkSU did not expose its main window and owned Go runtime within 60 seconds (titles=$($windowTitles -join ','), backend_count=$($backendChildren.Count))"
             }
           } finally {
             $ownedChildProcesses = @(
