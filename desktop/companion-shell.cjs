@@ -168,6 +168,7 @@ function createCompanionShell(options) {
   let chatOpenFlag = false
   let unitLayout = null
   let tray = null
+  let shuttingDown = false
   let enabled = !wayland
   let petHidden = false
   let lastMenuPopup = null
@@ -581,6 +582,7 @@ function createCompanionShell(options) {
   }
 
   function createTray() {
+    if (shuttingDown) return
     keepAppPresence()
     if (tray) {
       refreshMenus()
@@ -750,7 +752,28 @@ function createCompanionShell(options) {
     return dispatch(COMPANION_OVERLAY_ACTIONS.REVEAL_FROM_TASKBAR)
   }
 
+  function beginQuit() {
+    shuttingDown = true
+    stopPetDragTimer()
+    petDrag = null
+    if (float && !float.isDestroyed()) {
+      try {
+        float.destroy()
+      } catch {}
+    }
+    float = null
+    unitLayout = null
+    windows.delete('companion')
+    if (tray && typeof tray.destroy === 'function') {
+      try {
+        tray.destroy()
+      } catch {}
+    }
+    tray = null
+  }
+
   function createFloat() {
+    if (shuttingDown) return
     const allow = (enabled && !wayland) || (wayland && chatOpenFlag)
     if (!allow) return
     if (float && !float.isDestroyed()) {
@@ -902,6 +925,7 @@ function createCompanionShell(options) {
   }
 
   function handleWindowAllClosed() {
+    if (shuttingDown) return
     keepAppPresence()
     if (enabled && !wayland) {
       createTray()
@@ -922,6 +946,7 @@ function createCompanionShell(options) {
     createFloat,
     createChat,
     handleWindowAllClosed,
+    beginQuit,
     parkMainWindow,
     hidePet,
     showPet,

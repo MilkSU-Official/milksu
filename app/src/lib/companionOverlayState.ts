@@ -12,9 +12,9 @@
 
 export const COMPANION_PET_WIDTH = 160
 export const COMPANION_PET_HEIGHT = 160
-/** iPhone 17 logical display: 2622×1206 @3x → 402×874 (≈19.5:9). */
-export const COMPANION_CHAT_WIDTH = 402
-export const COMPANION_CHAT_HEIGHT = 874
+/** iPhone 17 body 71.5 × 149.6 mm. Window is the handset, not the 402×874 screen grid. */
+export const COMPANION_CHAT_WIDTH = 280
+export const COMPANION_CHAT_HEIGHT = 586
 export const COMPANION_PHONE_WIDTH = COMPANION_CHAT_WIDTH
 export const COMPANION_PHONE_HEIGHT = COMPANION_CHAT_HEIGHT
 export const COMPANION_UNIT_GAP = 0

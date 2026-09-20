@@ -256,7 +256,7 @@ export default function CompanionPetWindow() {
         onPointerDown={event => {
           const target = event.target as HTMLElement
           if (target.closest('button, textarea, input')) return
-          if (!target.closest('.companion-chat-head, .companion-chat-statusbar')) return
+          if (!target.closest('.companion-chat-chrome, .companion-chat-head, .companion-chat-statusbar')) return
           beginDrag(event, false)
         }}
       >

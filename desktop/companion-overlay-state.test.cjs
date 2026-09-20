@@ -24,9 +24,10 @@ const idle = {
   mainVisible: true,
 }
 
-test('phone window uses the iPhone 17 logical display', () => {
-  assert.equal(COMPANION_PHONE_WIDTH, 402)
-  assert.equal(COMPANION_PHONE_HEIGHT, 874)
+test('phone window uses the iPhone 17 body, not the iOS point grid', () => {
+  assert.equal(COMPANION_PHONE_WIDTH, 280)
+  assert.equal(COMPANION_PHONE_HEIGHT, 586)
+  assert.ok(Math.abs(COMPANION_PHONE_HEIGHT / COMPANION_PHONE_WIDTH - 149.6 / 71.5) < 0.01)
 })
 
 test('pet click toggles the phone and hides the sprite', () => {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   companionChatAttachmentsFromText,
+  companionChatNeedsNewConversation,
   companionChatVisibleText,
   explainCompanionError,
 } from './companionUserError'
@@ -27,12 +28,17 @@ describe('explainCompanionError', () => {
     expect(text).not.toBe('message')
   })
 
-  it('maps a broken tool history to archive-and-start-over copy', () => {
+  it('maps a broken tool history to start-over copy', () => {
     applyUiLocale('zh')
     expect(explainCompanionError(
       "400: Messages with role 'tool' must be a response to a preceding message with 'tool_calls'",
       { provider: 'tokenflux', model: 'google/gemini-3.8-flash-tiered' },
-    )).toBe('这段对话的工具记录断了，请归档后开新对话。')
+    )).toBe('这段对话没法继续了。')
+    expect(companionChatNeedsNewConversation(
+      "400: Messages with role 'tool' must be a response to a preceding message with 'tool_calls'",
+    )).toBe(true)
+    expect(companionChatNeedsNewConversation('这段对话没法继续了。')).toBe(true)
+    expect(companionChatNeedsNewConversation('当前服务找不到这个模型。')).toBe(false)
   })
 
   it('leaves unrelated errors alone', () => {

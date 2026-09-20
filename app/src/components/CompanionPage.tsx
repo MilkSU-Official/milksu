@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { ArrowUp, ChevronLeft, FileText, Plus, X } from 'lucide-react'
 import companionIdle from '@/assets/companion/idle.png'
@@ -18,7 +18,11 @@ import {
   formatCompanionChatStamp,
 } from '@/lib/companionChatLayout'
 import { cn } from '@/lib/cn'
-import { companionChatVisibleText, explainCompanionError } from '@/lib/companionUserError'
+import {
+  companionChatNeedsNewConversation,
+  companionChatVisibleText,
+  explainCompanionError,
+} from '@/lib/companionUserError'
 import { isComposingKey } from '@/lib/imeComposition'
 import type {
   AppSettings,
@@ -57,6 +61,8 @@ export default function CompanionPage({
   const locale = useUiLocale()
   const companion = useCompanion()
   const parentRef = useRef<HTMLDivElement>(null)
+  const chatRef = useRef<HTMLElement>(null)
+  const titleRef = useRef<HTMLParagraphElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const stickToEnd = useRef(true)
   const [avatar, setAvatar] = useState(companionIdle)
@@ -66,6 +72,8 @@ export default function CompanionPage({
   const choosing = useRef(false)
   const olderOffset = companion.hasMore ? 1 : 0
   const typing = companion.busy && !companion.streaming
+  const needsNewChat = companionChatNeedsNewConversation(companion.error)
+    || companion.entries.some(entry => companionChatNeedsNewConversation(entry.error || entry.text))
   const virtualizer = useVirtualizer({
     count: companion.entries.length + olderOffset,
     getScrollElement: () => parentRef.current,
@@ -122,6 +130,21 @@ export default function CompanionPage({
       stop?.()
     }
   }, [locale])
+
+  useLayoutEffect(() => {
+    const chat = chatRef.current
+    const title = titleRef.current
+    if (!chat || !title) return undefined
+    const syncFade = () => {
+      const fadeEnd = title.getBoundingClientRect().bottom - chat.getBoundingClientRect().top + 8
+      chat.style.setProperty('--companion-fade-end', `${Math.max(96, Math.round(fadeEnd))}px`)
+    }
+    syncFade()
+    const observer = new ResizeObserver(syncFade)
+    observer.observe(chat)
+    observer.observe(title)
+    return () => observer.disconnect()
+  }, [petName, embedded])
 
   useEffect(() => {
     fitComposer(inputRef.current)
@@ -226,25 +249,7 @@ export default function CompanionPage({
   }, [companion.entries, olderOffset, typing, virtualizer])
 
   return (
-    <main className="companion-chat" data-testid="companion-chat">
-      <CompanionPhoneStatusBar />
-      <header className="companion-chat-head">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="companion-chat-icon size-8"
-          aria-label={t('关闭对话', 'Close chat')}
-          title={t('关闭对话', 'Close chat')}
-          onClick={() => void invokeCommand('hide_companion_chat_window', { locale })}
-        >
-          <ChevronLeft className="size-6" strokeWidth={2.25} />
-        </Button>
-        <div className="companion-chat-identity">
-          <img className="companion-chat-avatar" src={avatar} alt="" draggable={false} />
-          <p className="companion-chat-title">{petName}</p>
-        </div>
-      </header>
+    <main ref={chatRef} className="companion-chat" data-testid="companion-chat">
       <div
         ref={parentRef}
         className="companion-chat-log"
@@ -376,6 +381,28 @@ export default function CompanionPage({
           </div>
         ) : null}
       </div>
+      <div className="companion-chat-fade" aria-hidden="true">
+        <div className="companion-chat-fade-layer companion-chat-fade-soft" />
+        <div className="companion-chat-fade-layer companion-chat-fade-hard" />
+      </div>
+      <div className="companion-chat-chrome">
+        <CompanionPhoneStatusBar />
+        <header className="companion-chat-head">
+          <button
+            type="button"
+            className="companion-chat-icon companion-glass"
+            aria-label={t('关闭对话', 'Close chat')}
+            title={t('关闭对话', 'Close chat')}
+            onClick={() => void invokeCommand('hide_companion_chat_window', { locale })}
+          >
+            <ChevronLeft className="size-5" strokeWidth={2.4} />
+          </button>
+          <div className="companion-chat-identity">
+            <img className="companion-chat-avatar" src={avatar} alt="" draggable={false} />
+            <p ref={titleRef} className="companion-chat-title companion-glass">{petName}</p>
+          </div>
+        </header>
+      </div>
       {(companion.memory.pending ?? []).length || companion.confirm ? (
         <div className="companion-chat-dock">
           {(companion.memory.pending ?? []).map(item => (
@@ -410,8 +437,25 @@ export default function CompanionPage({
         </div>
       ) : null}
       <div className="companion-chat-composer">
-        {companion.error || attachError ? (
-          <p className="companion-chat-error">{companion.error || attachError}</p>
+        {companion.error || attachError || needsNewChat ? (
+          <div className="companion-chat-error-row">
+            <p className="companion-chat-error">
+              {companion.error || attachError || t('这段对话没法继续了。', 'This chat can\'t continue.')}
+            </p>
+            {needsNewChat ? (
+              <Button
+                type="button"
+                size="sm"
+                className="h-7 shrink-0"
+                disabled={companion.busy}
+                onClick={() => void companion.archive().catch(reason => {
+                  setAttachError(explainCompanionError(desktopErrorMessage(reason)))
+                })}
+              >
+                {t('开新对话', 'New chat')}
+              </Button>
+            ) : null}
+          </div>
         ) : null}
         {companion.attachments.length ? (
           <div className="companion-chat-attach-list" aria-label={t('待发送附件', 'Attachments to send')}>

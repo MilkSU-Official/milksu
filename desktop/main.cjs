@@ -1160,6 +1160,7 @@ app.on('activate', () => {
 })
 
 app.on('window-all-closed', () => {
+  if (quitting) return
   if (companionShell) {
     companionShell.handleWindowAllClosed()
     return
@@ -1180,9 +1181,12 @@ app.on('before-quit', () => {
     }
   }
   quitting = true
-  // Do not preventDefault or wait for Go/browser teardown. Cmd+Q used to
-  // intercept quit, hide the window, then sit ~3s on shutdown+SIGTERM.
-  // stdin EOF / this shutdown line is enough for Go to mark a clean exit.
+  // Cmd+Q / menu Quit must end the process. Do not recreate the pet or wait
+  // for Go/browser teardown. stdin EOF / this shutdown line is enough for Go
+  // to mark a clean exit.
+  try {
+    companionShell?.beginQuit()
+  } catch {}
   try {
     backend?.beginStop()
     backend?.send({ type: 'shutdown' }, { allowClosed: true })

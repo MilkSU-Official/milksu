@@ -25,9 +25,10 @@ const idle = normalizeCompanionOverlayState({
 })
 
 describe('companionOverlayState', () => {
-  it('sizes the phone to the iPhone 17 logical display', () => {
-    expect(COMPANION_PHONE_WIDTH).toBe(402)
-    expect(COMPANION_PHONE_HEIGHT).toBe(874)
+  it('sizes the phone to the iPhone 17 body, not the iOS point grid', () => {
+    expect(COMPANION_PHONE_WIDTH).toBe(280)
+    expect(COMPANION_PHONE_HEIGHT).toBe(586)
+    expect(COMPANION_PHONE_HEIGHT / COMPANION_PHONE_WIDTH).toBeCloseTo(149.6 / 71.5, 2)
   })
 
   it('treats the pet as visible only when float is enabled, not hidden, and chat is closed', () => {

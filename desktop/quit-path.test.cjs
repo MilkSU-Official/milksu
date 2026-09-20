@@ -11,5 +11,13 @@ test('Cmd+Q does not intercept Electron quit to wait for Go teardown', () => {
   assert.ok(match, 'missing before-quit handler')
   assert.doesNotMatch(match[0], /event\.preventDefault/)
   assert.doesNotMatch(match[0], /teardownDesktopRuntime/)
+  assert.match(match[0], /companionShell\?\.beginQuit/)
   assert.match(match[0], /type: 'shutdown'/)
+})
+
+test('window-all-closed does not revive companion after Cmd+Q', () => {
+  const source = readFileSync(join(__dirname, 'main.cjs'), 'utf8')
+  const match = source.match(/app\.on\('window-all-closed',[\s\S]*?app\.on\('before-quit'/)
+  assert.ok(match, 'missing window-all-closed handler')
+  assert.match(match[0], /if \(quitting\) return/)
 })

@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { desktopErrorMessage, hasDesktopRuntime, invokeCommand, listenEvent } from '@/desktop'
-import { companionChatHydrateEntry, explainCompanionError } from '@/lib/companionUserError'
+import {
+  companionChatHydrateEntry,
+  companionChatNeedsNewConversation,
+  explainCompanionError,
+} from '@/lib/companionUserError'
 import { COMPANION_COMPLETE_HOLD_MS } from '@/lib/companionPetMotion'
 import type {
   CodingAttachment,
@@ -257,19 +261,22 @@ export function useCompanion() {
     setError('')
     setDraft('')
     setAttachments([])
-    setEntries(current => [
-      ...current,
-      {
-        id: outgoingId,
-        type: 'message',
-        timestamp: new Date().toISOString(),
-        role: 'user',
-        text: prompt,
-        attachments: pending,
-      },
-    ])
+    const outgoingEntry = {
+      id: outgoingId,
+      type: 'message',
+      timestamp: new Date().toISOString(),
+      role: 'user',
+      text: prompt,
+      attachments: pending,
+    }
     clearComplete()
     try {
+      if (companionChatNeedsNewConversation(error)) {
+        await invokeCommand('archive_companion_transcript')
+      }
+      setEntries(current => companionChatNeedsNewConversation(error)
+        ? [outgoingEntry]
+        : [...current, outgoingEntry])
       await invokeCommand('send_companion_message', { prompt, attachments: pending })
     } catch (reason) {
       outgoing.current = null
@@ -279,10 +286,13 @@ export function useCompanion() {
       setError(explainCompanionError(desktopErrorMessage(reason)))
       setBusy(false)
     }
-  }, [attachments, busy, clearComplete, draft])
+  }, [attachments, busy, clearComplete, draft, error])
 
   const archive = useCallback(async () => {
     await invokeCommand('archive_companion_transcript')
+    outgoing.current = null
+    setError('')
+    setBusy(false)
     await Promise.all([loadTail(), refreshArchives()])
   }, [loadTail, refreshArchives])
 

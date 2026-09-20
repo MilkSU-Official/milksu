@@ -73,6 +73,7 @@ function fakeWindow() {
     },
     loadURL() {},
     close() { this.destroyed = true },
+    destroy() { this.destroyed = true; this.emit('closed') },
     on(event, handler) {
       if (!Array.isArray(this.events[event])) this.events[event] = []
       this.events[event].push(handler)
@@ -131,10 +132,12 @@ function createShell(overrides = {}) {
     Tray: class {
       constructor() {
         this.clicks = []
+        this.destroyed = false
       }
       setToolTip() {}
       setContextMenu(menu) { menus.push(menu) }
       on(event, handler) { this.clicks.push({ event, handler }) }
+      destroy() { this.destroyed = true }
     },
     Menu: menuApi,
     nativeImage: {
@@ -309,6 +312,34 @@ test('closing all windows no longer hides the Dock', () => {
   assert.ok(dock.showCalls >= 1)
 })
 
+test('beginQuit destroys the pet and does not recreate it after window-all-closed', () => {
+  const trays = []
+  const { shell, created } = createShell({
+    Tray: class {
+      constructor() {
+        trays.push(this)
+        this.clicks = []
+        this.destroyed = false
+      }
+      setToolTip() {}
+      setContextMenu() {}
+      on() {}
+      destroy() { this.destroyed = true }
+    },
+  })
+  shell.createFloat()
+  assert.equal(created.length, 1)
+  assert.equal(trays.length >= 1, true)
+  shell.beginQuit()
+  assert.equal(created[0].destroyed, true)
+  assert.ok(trays.every(tray => tray.destroyed === true))
+  shell.handleWindowAllClosed()
+  shell.createFloat()
+  shell.createTray()
+  assert.equal(created.length, 1)
+  assert.equal(trays.every(tray => tray.destroyed === true), true)
+})
+
 test('hidden pet can be woken from the taskbar without showing the main window', () => {
   const { shell, created, main } = createShell()
   shell.createFloat()
@@ -457,8 +488,9 @@ test('dragging the pet never moves the main window and clamps to the work area',
   assert.ok(inward.chatBounds)
   const clamped = shell.handleHostMethod('MoveCompanionPet', { dx: 4000, dy: 4000 })
   assert.equal(clamped.chatBounds.x, 800 - COMPANION_CHAT_WIDTH)
-  assert.equal(clamped.chatBounds.y, 0)
+  assert.equal(clamped.chatBounds.y, 600 - COMPANION_CHAT_HEIGHT)
   assert.ok(clamped.chatBounds.x + COMPANION_CHAT_WIDTH <= 800)
+  assert.ok(clamped.chatBounds.y + COMPANION_CHAT_HEIGHT <= 600)
 })
 
 test('overlay stacking stays below system IME chrome', () => {

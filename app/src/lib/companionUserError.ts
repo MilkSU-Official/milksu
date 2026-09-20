@@ -19,10 +19,15 @@ export function explainCompanionError(
   if (/companion model returned no text/i.test(message)) {
     return t('这一轮没有回复。', 'This turn did not produce a reply.')
   }
-  if (/role ['"]tool['"].*tool_calls/i.test(message)) {
-    return t('这段对话的工具记录断了，请归档后开新对话。', 'This conversation\'s tool history is broken. Archive it and start a new chat.')
+  if (companionChatNeedsNewConversation(message)) {
+    return t('这段对话没法继续了。', 'This chat can\'t continue.')
   }
   return explainModelCallFailure(message, context) || message
+}
+
+export function companionChatNeedsNewConversation(reason: unknown): boolean {
+  return /role ['"]tool['"].*tool_calls|工具记录断了|tool history is broken|这段对话没法继续了|This chat can't continue/i
+    .test(String(reason ?? ''))
 }
 
 export function companionChatAttachmentsFromText(text: string): CodingAttachment[] {
