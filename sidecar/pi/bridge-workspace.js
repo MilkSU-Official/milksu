@@ -75,15 +75,23 @@ export function resolveWorkflowSessionRole(sessionRole = "", isCtf = false) {
 // and the env tools describe their own lease. So this carries only what the
 // workspace cannot show by itself: which file the user is watching, the
 // authorized-target boundary, and the evidence rule for CVE identifiers.
-export function researchReportGuidance(sessionRole = "") {
-  const lines = [
-    "The user is watching report.md in this workspace; it is the lasting result of this job, including when reproduction fails.",
-    "Stay on the user-selected target for this job; do not scan unrelated hosts or internet ranges.",
-  ];
+export function researchReportGuidance(sessionRole = "", uiLocale) {
+  const chinese = String(uiLocale ?? "").trim() !== "en";
+  const lines = chinese
+    ? [
+      "用户在看这个工作区里的 report.md；它是这次作业留下的结果，复现失败时也一样。",
+      "只停留在用户选定的目标上；不要扫描无关主机或互联网网段。",
+    ]
+    : [
+      "The user is watching report.md in this workspace; it is the lasting result of this job, including when reproduction fails.",
+      "Stay on the user-selected target for this job; do not scan unrelated hosts or internet ranges.",
+    ];
   if (sessionRole === "cve-research") {
     lines.push(
-      "The dossier also shows related.md.",
-      "Only record CVE IDs found in public sources; do not invent them.",
+      chinese ? "档案里还有 related.md。" : "The dossier also shows related.md.",
+      chinese
+        ? "只记录公开来源里出现的 CVE ID，不要编造。"
+        : "Only record CVE IDs found in public sources; do not invent them.",
     );
   }
   return lines.join(" ");

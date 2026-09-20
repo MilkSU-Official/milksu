@@ -185,11 +185,22 @@ export function codingSubagentGuidance() {
   ].join(" ");
 }
 
-export function codingWorkspaceIdentityGuidance(workspace, collaboration) {
+export function codingWorkspaceIdentityGuidance(workspace, collaboration, uiLocale) {
   const mainWorkspace = String(
     workspace || collaboration?.workspace || "",
   ).trim();
   if (!mainWorkspace) return "";
+  const chinese = String(uiLocale ?? "").trim() !== "en";
+  if (chinese) {
+    return [
+      `本主会话的权威工作目录是 ${mainWorkspace}。`,
+      "相对路径和当前仓库描述都从该目录解析。",
+      collaboration?.worktrees?.length > 0
+        ? "受管的 writer worktree 是可选的隔离目录，不能取代主会话工作目录。"
+        : "对话或协作元数据里提到的路径，不能取代主会话工作目录。",
+      "如果结果依赖路径，先用命令工具核实当前目录再报告。",
+    ].join(" ");
+  }
   return [
     `The authoritative working directory for this main session is ${mainWorkspace}.`,
     "Resolve relative paths and describe the current repository from that directory.",

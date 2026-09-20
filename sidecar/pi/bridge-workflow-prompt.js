@@ -1,20 +1,30 @@
 import { codingWorkspaceIdentityGuidance } from "./bridge-collaboration.js";
-import { runtimeEnvironmentGuidance } from "./bridge-runtime-environment.js";
+import {
+  chineseUiLocale,
+  runtimeEnvironmentGuidance,
+} from "./bridge-runtime-environment.js";
 import { quotedReferenceGuidance } from "./bridge-quoted-reference.js";
 import { researchReportGuidance } from "./bridge-workspace.js";
 
-export function roleGuidanceForSession(sessionRole) {
+export function roleGuidanceForSession(sessionRole, uiLocale) {
+  const chinese = chineseUiLocale(uiLocale);
   if (sessionRole === "strategist") {
-    return "Act as an independent reviewer: challenge the current route and return an evidence-backed recommendation.";
+    return chinese
+      ? "作为独立审阅者：质疑当前路线，给出有证据的建议。"
+      : "Act as an independent reviewer: challenge the current route and return an evidence-backed recommendation.";
   }
   if (sessionRole === "tool-builder") {
-    return "Treat the requested helper as a software deliverable and verify it.";
+    return chinese
+      ? "把被要求的辅助能力当成软件交付物来做，并核验它。"
+      : "Treat the requested helper as a software deliverable and verify it.";
   }
   if (sessionRole === "solver") {
-    return "Advance one falsifiable CTF hypothesis at a time and preserve evidence for the learner.";
+    return chinese
+      ? "一次只推进一个可证伪的 CTF 假设，并为学习者保留证据。"
+      : "Advance one falsifiable CTF hypothesis at a time and preserve evidence for the learner.";
   }
   if (sessionRole === "cve-research" || sessionRole === "lab-job") {
-    return researchReportGuidance(sessionRole);
+    return researchReportGuidance(sessionRole, uiLocale);
   }
   return "";
 }
@@ -26,20 +36,23 @@ export function composeMilkSUWorkflowSystemPrompt(systemPrompt, {
   sessionRole = "",
   policy = {},
 } = {}) {
-  const roleGuidance = roleGuidanceForSession(sessionRole);
+  const uiLocale = policy?.uiLocale;
+  const chinese = chineseUiLocale(uiLocale);
+  const roleGuidance = roleGuidanceForSession(sessionRole, uiLocale);
   const workspaceIdentityGuidance = codingWorkspaceIdentityGuidance(
     policy?.workspace,
     policy?.codingCollaboration,
+    uiLocale,
   );
   return `${systemPrompt ?? ""}`
     + (roleGuidance ? `\n\n${roleGuidance}` : "")
-    + `\n\nRuntime context:\n${runtimeEnvironmentGuidance({
-      uiLocale: policy?.uiLocale,
+    + `\n\n${chinese ? "运行时上下文" : "Runtime context"}:\n${runtimeEnvironmentGuidance({
+      uiLocale,
     })}`
     + (workspaceIdentityGuidance
-      ? `\n\nWorkspace identity:\n${workspaceIdentityGuidance}`
+      ? `\n\n${chinese ? "工作区身份" : "Workspace identity"}:\n${workspaceIdentityGuidance}`
       : "")
     + `
 
-${quotedReferenceGuidance()}`;
+${quotedReferenceGuidance(uiLocale)}`;
 }

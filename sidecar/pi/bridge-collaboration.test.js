@@ -65,8 +65,8 @@ test("main workspace identity cannot be replaced by writer worktree metadata", a
   const { descriptor, workspace, worktrees } = await fixture();
   const guidance = codingWorkspaceIdentityGuidance(workspace, descriptor);
   assert.match(guidance, new RegExp(workspace.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
-  assert.match(guidance, /authoritative working directory for this main session/);
-  assert.match(guidance, /never replace the main session working directory/);
+  assert.match(guidance, /本主会话的权威工作目录/);
+  assert.match(guidance, /不能取代主会话工作目录/);
   for (const worktree of worktrees) {
     assert.equal(guidance.includes(worktree.path), false);
   }

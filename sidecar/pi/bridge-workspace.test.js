@@ -77,14 +77,14 @@ test("CVE and lab keep research session roles so the Coding Pi loop still applie
 
 test("research report guidance tells the model to edit report.md", () => {
   assert.match(researchReportGuidance(), /report\.md/);
-  assert.match(researchReportGuidance(), /Stay on the user-selected target/);
+  assert.match(researchReportGuidance(), /只停留在用户选定的目标上/);
   // Section headings come from the seeded report.md, and the lease facts come
   // from the env tool descriptions, so neither is restated here.
   assert.doesNotMatch(researchReportGuidance(), /env_status/);
   assert.doesNotMatch(researchReportGuidance("cve-research"), /上游/);
   assert.doesNotMatch(researchReportGuidance("lab-job"), /related\.md/);
   assert.match(researchReportGuidance("cve-research"), /related\.md/);
-  assert.match(researchReportGuidance("cve-research"), /do not invent them/);
+  assert.match(researchReportGuidance("cve-research"), /不要编造/);
 });
 
 test("the model lists and locks Computer Use windows without a forced picker", () => {

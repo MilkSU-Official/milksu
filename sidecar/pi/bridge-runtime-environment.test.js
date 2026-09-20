@@ -11,12 +11,12 @@ test("describes the real Pi Bash boundary on a Windows host", () => {
     uiLocale: "zh",
   });
 
-  assert.match(guidance, /Simplified Chinese/);
-  assert.match(guidance, /Windows \(win32\)/);
+  assert.match(guidance, /界面语言：简体中文/);
+  assert.match(guidance, /Windows（win32）/);
   assert.match(guidance, /x64/);
-  assert.match(guidance, /Bash backend on Windows/);
-  assert.match(guidance, /invoke powershell\.exe explicitly/);
-  assert.match(guidance, /every user-visible progress update, answer, label, diagram/);
+  assert.match(guidance, /已评审的 Bash 后端/);
+  assert.match(guidance, /显式调用 powershell\.exe/);
+  assert.match(guidance, /思考、过程旁白、进度、答复/);
   assert.doesNotMatch(guidance, /API|TOKEN|KEY/);
 });
 
@@ -41,14 +41,14 @@ test("describes the selected POSIX shell without copying ambient environment", (
 test("does not tell the model the runtime is text-only", () => {
   const guidance = runtimeEnvironmentGuidance({});
 
-  assert.match(guidance, /Attached images are sent to the current model as images/);
-  assert.match(guidance, /Do not claim the runtime is text-only/);
+  assert.match(guidance, /附件图片按图片交给当前模型/);
+  assert.match(guidance, /不要声称运行时只能处理文字/);
 });
 
 test("does not let failed live research fall back to unverified model memory", () => {
   const guidance = runtimeEnvironmentGuidance();
 
-  assert.match(guidance, /empty response, timeout, authentication error/);
-  assert.match(guidance, /verification failed/);
-  assert.match(guidance, /do not present model memory as current or verified fact/);
+  assert.match(guidance, /空响应、超时、认证错误/);
+  assert.match(guidance, /核实失败/);
+  assert.match(guidance, /不要把模型记忆写成当前或已核实的事实/);
 });
