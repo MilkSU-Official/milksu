@@ -1,6 +1,6 @@
 import { t } from '@/lib/uiLocale'
 
-export type WorkspaceSection = 'ctf' | 'vuln' | 'lab' | 'chat'
+export type WorkspaceSection = 'ctf' | 'vuln' | 'lab' | 'chat' | 'companion'
 export type CTFWorkspaceSection = 'catalog'
 export type AppSection = WorkspaceSection | 'profile' | 'settings'
 
@@ -35,6 +35,7 @@ export function isDomainWorkspace(section: AppSection) {
 
 export const WORKSPACE_SIDEBAR_ITEMS = [
   { id: 'chat', label: () => t('主页', 'Home') },
+  { id: 'companion', label: () => t('桌宠', 'Companion') },
   { id: 'ctf', label: () => 'CTF' },
   { id: 'vuln', label: () => 'CVE' },
   { id: 'lab', label: () => 'Lab' },

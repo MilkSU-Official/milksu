@@ -13,6 +13,7 @@ export type SettingsCategory =
   | 'security-tools'
   | 'ctf'
   | 'eval'
+  | 'companion'
   | 'plugins'
 
 export type NormalizedSettingsCategory = Exclude<SettingsCategory, 'security-tools' | 'coding'>
@@ -34,6 +35,7 @@ export const SETTINGS_SIDEBAR_ITEMS = [
   { value: 'chats' as const, label: () => t('归档聊天', 'Archived chats') },
   { value: 'browser' as const, label: () => t('浏览器控制', 'Browser') },
   { value: 'eval' as const, label: () => t('评测', 'Eval') },
+  { value: 'companion' as const, label: () => t('桌宠', 'Companion') },
   { value: 'plugins' as const, label: () => t('插件', 'Plugins') },
 ] as const satisfies ReadonlyArray<{
   value: NormalizedSettingsCategory

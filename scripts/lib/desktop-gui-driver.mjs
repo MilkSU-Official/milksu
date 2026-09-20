@@ -9,13 +9,78 @@ import { execFile } from 'node:child_process'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
+import { parseCompanionConfirm } from './product-loop-companion.mjs'
 
 const execFileAsync = promisify(execFile)
 
 export const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 
+export const DESKTOP_CREDENTIAL_ENV_KEYS = Object.freeze([
+  'DEEPSEEK_API_KEY',
+  'TOKENFLUX_API_KEY',
+  'OPENAI_API_KEY',
+])
+
+export function stripDesktopCredentialEnv(env = {}) {
+  const next = { ...env }
+  for (const name of DESKTOP_CREDENTIAL_ENV_KEYS) delete next[name]
+  return next
+}
+
 export function delay(ms) {
   return new Promise(resolveDelay => setTimeout(resolveDelay, ms))
+}
+
+export function eventSessionId(event) {
+  if (!event || typeof event !== 'object') return ''
+  const nested = event.payload && typeof event.payload === 'object' ? event.payload : null
+  return String(
+    event.sessionId
+    ?? event.SessionID
+    ?? nested?.sessionId
+    ?? nested?.SessionID
+    ?? '',
+  ).trim()
+}
+
+export function eventTypeOf(event) {
+  if (!event || typeof event !== 'object') return ''
+  const nested = event.payload && typeof event.payload === 'object' ? event.payload : null
+  return String(event.type ?? event.Type ?? nested?.type ?? nested?.Type ?? '')
+}
+
+export function eventToolName(event) {
+  if (!event || typeof event !== 'object') return ''
+  const nested = event.payload && typeof event.payload === 'object' ? event.payload : null
+  return String(
+    event.toolName
+    ?? event.ToolName
+    ?? nested?.toolName
+    ?? nested?.ToolName
+    ?? event.title
+    ?? event.kind
+    ?? '',
+  ).trim()
+}
+
+export function classifyTurnEvents(events) {
+  const rows = events ?? []
+  const types = rows.map(event => eventTypeOf(event))
+  const error = rows
+    .map(event => {
+      const nested = event?.payload && typeof event.payload === 'object' ? event.payload : null
+      return String(event?.error ?? event?.Error ?? nested?.error ?? event?.text ?? event?.Text ?? '')
+    })
+    .find(text => text.trim())
+    || ''
+  const sidecarStopped = types.some(type => type === 'engine.sidecar_stopped')
+  const failed = types.some(type =>
+    type === 'engine.error'
+    || type === 'engine.protocol_error'
+    || type === 'engine.stopped',
+  )
+  const settled = types.some(type => type === 'assistant.settled' || type === 'assistant.completed')
+  return { settled, failed, error, sidecarStopped }
 }
 
 export function killProcessGroup(child, signal = 'SIGTERM') {
@@ -72,20 +137,72 @@ async function fetchJson(url, timeoutMs = 400) {
   return response.json()
 }
 
+export function isCompanionPetSurface(target) {
+  return /(?:\?|&)surface=companion(?:&|#|$)/i.test(String(target?.url ?? ''))
+}
+
+export function isCompanionChatSurface(target) {
+  const url = String(target?.url ?? '')
+  if (/(?:\?|&)surface=companion-chat(?:&|#|$)/i.test(url)) return true
+  return isCompanionPetSurface(target)
+}
+
+export function isCompanionSurface(target) {
+  return isCompanionPetSurface(target) || isCompanionChatSurface(target)
+}
+
+export function isMainProductSurface(target) {
+  return isMilkSUPage(target) && !isCompanionSurface(target)
+}
+
 export function isMilkSUPage(target) {
   const title = String(target?.title ?? '')
   const url = String(target?.url ?? '')
   if (/fixture/i.test(title + url)) return false
   if (/about:blank/i.test(url)) return false
+  if (isCompanionSurface(target)) return true
   if (/milksu:\/\//i.test(url)) return true
   if (/localhost:\d+/.test(url) && /milksu|vite/i.test(url + title)) return true
   return false
 }
 
-export async function listDesktopCdpTargets() {
+export function desktopTargetKey(target) {
+  return `${target?.port ?? ''}:${target?.webSocketDebuggerUrl ?? ''}`
+}
+
+export async function listRawCdpPages(options = {}) {
   const found = []
   const ports = await listLoopbackListenPorts()
+  const wantedPort = options.port == null || options.port === '' ? null : Number(options.port)
   for (const port of ports) {
+    if (wantedPort != null && Number.isFinite(wantedPort) && port !== wantedPort) continue
+    try {
+      const list = await fetchJson(`http://127.0.0.1:${port}/json/list`)
+      const pages = Array.isArray(list) ? list : []
+      for (const item of pages) {
+        if ((item.type === 'page' || item.type === 'webview') && item.webSocketDebuggerUrl) {
+          found.push({
+            port,
+            title: item.title ?? '',
+            url: item.url ?? '',
+            webSocketDebuggerUrl: item.webSocketDebuggerUrl,
+          })
+        }
+      }
+    } catch {
+      // Not a DevTools endpoint.
+    }
+  }
+  return found
+}
+
+export async function listDesktopCdpTargets(options = {}) {
+  const found = []
+  const ports = await listLoopbackListenPorts()
+  const wantedPort = options.port == null || options.port === '' ? null : Number(options.port)
+  const excludeKeys = options.excludeKeys instanceof Set ? options.excludeKeys : null
+  for (const port of ports) {
+    if (wantedPort != null && Number.isFinite(wantedPort) && port !== wantedPort) continue
     try {
       const version = await fetchJson(`http://127.0.0.1:${port}/json/version`)
       const browser = String(version.Browser ?? version.browser ?? '')
@@ -98,13 +215,15 @@ export async function listDesktopCdpTargets() {
           && item.webSocketDebuggerUrl
           && isMilkSUPage(item)
         ) {
-          found.push({
+          const target = {
             port,
             browser,
             title: item.title ?? '',
             url: item.url ?? '',
             webSocketDebuggerUrl: item.webSocketDebuggerUrl,
-          })
+          }
+          if (excludeKeys?.has(desktopTargetKey(target))) continue
+          found.push(target)
         }
       }
     } catch {
@@ -112,6 +231,9 @@ export async function listDesktopCdpTargets() {
     }
   }
   found.sort((left, right) => {
+    const leftCompanion = isCompanionSurface(left) ? 1 : 0
+    const rightCompanion = isCompanionSurface(right) ? 1 : 0
+    if (leftCompanion !== rightCompanion) return leftCompanion - rightCompanion
     const leftApp = /milksu:\/\//i.test(left.url) ? 0 : 1
     const rightApp = /milksu:\/\//i.test(right.url) ? 0 : 1
     return leftApp - rightApp
@@ -119,9 +241,11 @@ export async function listDesktopCdpTargets() {
   return found
 }
 
-export async function findDesktopCdpTarget() {
-  const targets = await listDesktopCdpTargets()
-  return targets[0] ?? null
+export async function findDesktopCdpTarget(options = {}) {
+  const targets = await listDesktopCdpTargets(options)
+  const main = targets.find(isMainProductSurface)
+  if (main) return main
+  return options.allowCompanion === true ? (targets[0] ?? null) : null
 }
 
 export const CDP_EVAL_TIMEOUT_MS = 15_000
@@ -213,6 +337,30 @@ export class CdpSession {
     return result?.result?.value
   }
 
+  async callFunction(functionDeclaration, args = [], awaitPromise = false) {
+    const globalThisHandle = await this.send('Runtime.evaluate', {
+      expression: 'globalThis',
+      returnByValue: false,
+    })
+    const objectId = globalThisHandle?.result?.objectId
+    if (!objectId) throw new Error('CDP globalThis missing')
+    const result = await this.send(
+      'Runtime.callFunctionOn',
+      {
+        objectId,
+        functionDeclaration,
+        arguments: args.map(value => ({ value })),
+        awaitPromise,
+        returnByValue: true,
+      },
+      awaitPromise ? CDP_INVOKE_TIMEOUT_MS : CDP_EVAL_TIMEOUT_MS,
+    )
+    if (result?.exceptionDetails) {
+      throw new Error(result.exceptionDetails.text || 'renderer call failed')
+    }
+    return result?.result?.value
+  }
+
   close() {
     this.closed = true
     this.rejectPending(new Error('CDP WebSocket closed'))
@@ -243,17 +391,20 @@ export class GuiDriver {
     this.startedChild = null
     this.gaps = []
     this.createdConversationIds = new Set()
+    this.preferredPort = options.preferredPort ?? null
+    this.instanceId = String(options.instanceId ?? '').trim()
+    this.windowClaim = null
   }
 
   async attachOrStart(timeoutMs) {
-    this.target = await findDesktopCdpTarget()
+    this.target = await findDesktopCdpTarget({ port: this.preferredPort })
     if (!this.target) {
       this.startedChild = spawn('npm', ['run', 'desktop:start'], {
         cwd: this.repositoryRoot,
-        env: {
+        env: stripDesktopCredentialEnv({
           ...process.env,
           MILKSU_CHANNEL: 'stable',
-        },
+        }),
         stdio: ['ignore', 'pipe', 'pipe'],
         detached: process.platform !== 'win32',
       })
@@ -263,7 +414,7 @@ export class GuiDriver {
           throw new Error(`desktop:start exited ${this.startedChild.exitCode}`)
         }
         await delay(1_000)
-        this.target = await findDesktopCdpTarget()
+        this.target = await findDesktopCdpTarget({ port: this.preferredPort })
       }
     }
     if (!this.target) {
@@ -272,6 +423,45 @@ export class GuiDriver {
       )
       return false
     }
+    return this.bindRuntime()
+  }
+
+  async startFresh(options = {}) {
+    const { keepExclusiveMilkSUWindow } = await import('./product-loop-windows.mjs')
+    this.windowClaim = await keepExclusiveMilkSUWindow({ log: true })
+    const before = new Set((await listDesktopCdpTargets()).map(desktopTargetKey))
+    const instanceId = String(options.instanceId ?? this.instanceId ?? '').trim()
+    if (!instanceId) throw new Error('startFresh requires MILKSU_INSTANCE_ID')
+    this.instanceId = instanceId
+    const extraArgs = options.buildRuntime ? [] : ['--', '--no-build']
+    const childEnv = stripDesktopCredentialEnv({
+      ...process.env,
+      MILKSU_CHANNEL: 'stable',
+      MILKSU_INSTANCE_ID: instanceId,
+      MILKSU_ACCOUNT_API_URL: process.env.MILKSU_ACCOUNT_API_URL || 'https://accounts.milksu.org',
+    })
+    this.startedChild = spawn('npm', ['run', 'desktop:start', ...extraArgs], {
+      cwd: this.repositoryRoot,
+      env: childEnv,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      detached: process.platform !== 'win32',
+    })
+    const deadline = Date.now() + Number(options.timeoutMs || 240_000)
+    while (Date.now() < deadline && !this.target) {
+      if (this.startedChild.exitCode != null) {
+        throw new Error(`desktop:start exited ${this.startedChild.exitCode}`)
+      }
+      await delay(1_000)
+      this.target = await findDesktopCdpTarget({ excludeKeys: before })
+    }
+    if (!this.target) {
+      this.gaps.push(
+        '未能附着这次启动的产品窗口：独立实例的 DevTools 端口扫描超时。',
+      )
+      return false
+    }
+    this.preferredPort = this.target.port
+    this.windowClaim = await keepExclusiveMilkSUWindow({ driver: this, log: true })
     return this.bindRuntime()
   }
 
@@ -284,11 +474,20 @@ export class GuiDriver {
       return false
     }
     await this.cdp.evaluate(`(() => {
-      if (window.__milksuProductLoop) return true;
-      window.__milksuProductLoop = { events: [] };
-      window.milksu.onEvent('engine-event', value => {
-        window.__milksuProductLoop.events.push(value);
-      });
+      const loop = window.__milksuProductLoop || (window.__milksuProductLoop = { events: [], companionEvents: [] });
+      loop.companionEvents = loop.companionEvents || [];
+      if (!loop.engineBound) {
+        window.milksu.onEvent('engine-event', value => {
+          loop.events.push(value);
+        });
+        loop.engineBound = true;
+      }
+      if (!loop.companionBound) {
+        window.milksu.onEvent('companion-event', value => {
+          loop.companionEvents.push(value);
+        });
+        loop.companionBound = true;
+      }
       return true;
     })()`)
     return true
@@ -299,11 +498,18 @@ export class GuiDriver {
   }
 
   async ensureAttached() {
-    if (this.cdpAlive()) return true
+    if (this.cdpAlive() && this.target && isMainProductSurface(this.target)) return true
+    if (this.cdpAlive() && this.target && isCompanionSurface(this.target)) {
+      this.cdp.close()
+    }
     const deadline = Date.now() + 8_000
     while (Date.now() <= deadline) {
-      const targets = await listDesktopCdpTargets()
-      for (const target of targets) {
+      const targets = await listDesktopCdpTargets({ port: this.preferredPort })
+      const ordered = [
+        ...targets.filter(isMainProductSurface),
+        ...(this.allowCompanionAttach ? targets.filter(isCompanionSurface) : []),
+      ]
+      for (const target of ordered) {
         this.target = target
         try {
           if (await this.bindRuntime()) return true
@@ -337,6 +543,165 @@ export class GuiDriver {
     }
   }
 
+  async drainCompanionEvents() {
+    const run = () => this.cdp.evaluate(
+      'window.__milksuProductLoop ? window.__milksuProductLoop.companionEvents.splice(0) : []',
+    )
+    if (!await this.ensureAttached()) {
+      throw new Error('CDP WebSocket closed')
+    }
+    let raw
+    try {
+      raw = await run()
+    } catch (error) {
+      const text = error instanceof Error ? error.message : String(error)
+      if (!/CDP WebSocket closed|CDP Runtime\.evaluate timed out/i.test(text)) throw error
+      this.cdp.closed = true
+      if (!await this.ensureAttached()) throw error
+      raw = await run()
+    }
+    return Array.isArray(raw) ? raw : []
+  }
+
+  async clickCompanionConfirm() {
+    await this.invoke('ShowCompanionChatWindow', []).catch(() => {})
+    const targets = await listDesktopCdpTargets({ port: this.preferredPort })
+    for (const target of targets.filter(isCompanionSurface)) {
+      const session = new CdpSession(target.webSocketDebuggerUrl)
+      await session.open()
+      try {
+        const clicked = await session.evaluate(`(() => {
+          const buttons = Array.from(document.querySelectorAll('button'))
+          const confirm = buttons.find(node => /^(确认|Confirm)$/.test((node.textContent || '').trim()))
+          if (!confirm) return false
+          confirm.click()
+          return true
+        })()`)
+        if (clicked) return true
+      } finally {
+        session.close()
+      }
+    }
+    return false
+  }
+
+  async injectCompanionEventHook(session) {
+    await session.evaluate(`(() => {
+      const loop = window.__milksuProductLoop || (window.__milksuProductLoop = { events: [], companionEvents: [] });
+      loop.companionEvents = loop.companionEvents || [];
+      if (!loop.companionBound && window.milksu && window.milksu.onEvent) {
+        window.milksu.onEvent('companion-event', value => {
+          loop.companionEvents.push(value);
+        });
+        loop.companionBound = true;
+      }
+      return true;
+    })()`)
+  }
+
+  async drainCompanionEventsFromSurfaces() {
+    const events = [...await this.drainCompanionEvents()]
+    if (!this.preferredPort) return events
+    const targets = await listDesktopCdpTargets({ port: this.preferredPort }).catch(() => [])
+    for (const target of targets.filter(isCompanionSurface)) {
+      if (this.target && target.webSocketDebuggerUrl === this.target.webSocketDebuggerUrl) continue
+      const session = new CdpSession(target.webSocketDebuggerUrl)
+      await session.open()
+      try {
+        await this.injectCompanionEventHook(session)
+        const batch = await session.evaluate(
+          'window.__milksuProductLoop ? window.__milksuProductLoop.companionEvents.splice(0) : []',
+        )
+        if (Array.isArray(batch)) events.push(...batch)
+      } catch {
+        // Overlay may still be loading.
+      } finally {
+        session.close()
+      }
+    }
+    return events
+  }
+
+  companionStatusPending(status) {
+    const pending = status?.pendingConfirm || status?.PendingConfirm
+    if (!pending || typeof pending !== 'object') return null
+    const hostRequestId = String(pending.hostRequestId ?? pending.HostRequestID ?? pending.HostRequestId ?? '').trim()
+    if (!hostRequestId) return null
+    return {
+      action: String(pending.action ?? pending.Action ?? 'stop'),
+      conversationId: String(pending.conversationId ?? pending.ConversationID ?? pending.ConversationId ?? ''),
+      text: String(pending.text ?? pending.Text ?? ''),
+      idempotencyKey: String(pending.idempotencyKey ?? pending.IdempotencyKey ?? ''),
+      mode: String(pending.mode ?? pending.Mode ?? ''),
+      hostRequestId,
+    }
+  }
+
+  async waitForCompanionTurn(timeoutMs) {
+    const collected = []
+    const confirmed = []
+    const seenConfirm = new Set()
+    const started = Date.now()
+    let overlaySweepAt = 0
+    await this.invoke('ShowCompanionChatWindow', []).catch(() => {})
+    while (Date.now() - started < timeoutMs) {
+      try {
+        const now = Date.now()
+        const batch = now - overlaySweepAt > 2_000
+          ? await this.drainCompanionEventsFromSurfaces()
+          : await this.drainCompanionEvents()
+        if (now - overlaySweepAt > 2_000) overlaySweepAt = now
+        collected.push(...batch)
+        for (const event of batch) {
+          const request = parseCompanionConfirm(event)
+          if (!request?.hostRequestId || seenConfirm.has(request.hostRequestId)) continue
+          await this.confirmCompanionDispatch({
+            action: request.action,
+            conversationId: request.conversationId,
+            text: request.text,
+            idempotencyKey: request.idempotencyKey,
+            mode: request.mode,
+            hostRequestId: request.hostRequestId,
+            accepted: true,
+          })
+          seenConfirm.add(request.hostRequestId)
+          confirmed.push(request)
+        }
+        const pending = this.companionStatusPending(await this.getCompanionStatus().catch(() => null))
+        if (pending && !seenConfirm.has(pending.hostRequestId)) {
+          await this.confirmCompanionDispatch({ ...pending, accepted: true })
+          seenConfirm.add(pending.hostRequestId)
+          confirmed.push(pending)
+        }
+      } catch (error) {
+        const text = error instanceof Error ? error.message : String(error)
+        if (!/CDP WebSocket closed|CDP Runtime\.evaluate timed out/i.test(text)) throw error
+        if (this.cdp) this.cdp.closed = true
+        await this.ensureAttached()
+        await delay(400)
+        continue
+      }
+      const outcome = classifyTurnEvents(collected)
+      if (outcome.sidecarStopped) {
+        return { events: collected, timeout: false, confirmed: confirmed.length, sidecarStopped: true }
+      }
+      if (outcome.settled || outcome.failed) {
+        return {
+          events: collected,
+          timeout: false,
+          confirmed: confirmed.length,
+          failed: outcome.failed,
+          error: outcome.error,
+        }
+      }
+      if (confirmed.length === 0) {
+        await this.clickCompanionConfirm().catch(() => false)
+      }
+      await delay(250)
+    }
+    return { events: collected, timeout: true, confirmed: confirmed.length, error: 'companion turn timed out' }
+  }
+
   async drainEvents(conversationId) {
     const run = () => this.cdp.evaluate(
       'window.__milksuProductLoop ? window.__milksuProductLoop.events.splice(0) : []',
@@ -356,10 +721,7 @@ export class GuiDriver {
     }
     const events = Array.isArray(raw) ? raw : []
     if (!conversationId) return events
-    return events.filter(event => {
-      const id = String(event?.sessionId ?? event?.id ?? '')
-      return !id || id === conversationId
-    })
+    return events.filter(event => eventSessionId(event) === conversationId)
   }
 
   async waitForTurn(conversationId, timeoutMs) {
@@ -377,17 +739,24 @@ export class GuiDriver {
         await delay(400)
         continue
       }
-      if (collected.some(event => {
-        const type = String(event?.type ?? event?.Type ?? '')
-        return type === 'assistant.settled'
-          || type === 'assistant.completed'
-          || /^(error|engine\.error|engine\.protocol_error)$/i.test(type)
-      })) {
-        return { events: collected, timeout: false }
+      const outcome = classifyTurnEvents(collected)
+      if (outcome.sidecarStopped) {
+        return { events: collected, timeout: false, failed: false, sidecarStopped: true }
+      }
+      if (outcome.failed) {
+        return { events: collected, timeout: false, failed: true, error: outcome.error }
+      }
+      if (outcome.settled) {
+        const owned = collected.some(event => {
+          const type = eventTypeOf(event)
+          if (type !== 'assistant.settled' && type !== 'assistant.completed') return false
+          return eventSessionId(event) === String(conversationId ?? '').trim()
+        })
+        if (owned) return { events: collected, timeout: false, failed: false }
       }
       await delay(250)
     }
-    return { events: collected, timeout: true, error: 'GUI turn timed out' }
+    return { events: collected, timeout: true, failed: false, error: 'GUI turn timed out' }
   }
 
   async createKernelConversation(workspacePath, title, kernel = 'dsh') {
@@ -407,8 +776,12 @@ export class GuiDriver {
       createdAt: Date.now(),
       workspacePath: options.workspacePath,
       kernel: options.kernel || 'pi',
+      modelMode: options.modelMode,
+      modelProvider: options.modelProvider,
+      modelId: options.modelId,
       executionMode: options.executionMode || 'go',
       approvalPolicy: options.approvalPolicy || 'workspace-auto',
+      multitask: options.multitask === true ? true : undefined,
       pinned: options.pinned === true ? true : undefined,
       pinnedOrder: Number.isFinite(Number(options.pinnedOrder))
         ? Number(options.pinnedOrder)
@@ -456,6 +829,60 @@ export class GuiDriver {
     this.createdConversationIds.delete(conversationId)
   }
 
+  async archiveConversation(id) {
+    const conversationId = String(id ?? '').trim()
+    if (!conversationId) return
+    await this.invoke('ArchiveConversation', [conversationId])
+  }
+
+  async ensureCompanion() {
+    return this.invoke('EnsureCompanion', [])
+  }
+
+  async sendCompanionMessage(prompt) {
+    return this.invoke('SendCompanionMessage', [String(prompt ?? '')])
+  }
+
+  async stopCompanion() {
+    try {
+      await this.invoke('StopCompanion', [])
+    } catch {
+      // Sidecar already gone.
+    }
+  }
+
+  async getCompanionStatus() {
+    return this.invoke('GetCompanionStatus', [])
+  }
+
+  async getCompanionBoard() {
+    return this.invoke('GetCompanionBoard', [])
+  }
+
+  async listCompanionTranscript(limit = 20) {
+    return this.invoke('ListCompanionTranscript', [limit, null, true])
+  }
+
+  async getCompanionMemory() {
+    return this.invoke('GetCompanionMemory', [])
+  }
+
+  async getCompanionShellStatus() {
+    return this.invoke('GetCompanionShellStatus', [])
+  }
+
+  async confirmCompanionDispatch(options) {
+    return this.invoke('ConfirmCompanionDispatch', [
+      String(options.action ?? ''),
+      String(options.conversationId ?? ''),
+      String(options.text ?? ''),
+      String(options.idempotencyKey ?? ''),
+      String(options.mode ?? ''),
+      String(options.hostRequestId ?? ''),
+      options.accepted !== false,
+    ])
+  }
+
   async cleanupConversations() {
     const activeIds = new Set(this.createdConversationIds)
     const archivedIds = new Set()
@@ -488,16 +915,16 @@ export class GuiDriver {
       conversationId,
       prompt,
       workspacePath,
-      '',
-      '',
-      '',
-      '',
-      'auto',
+      options.modelMode || (options.modelProvider ? 'manual' : ''),
+      options.modelProvider || '',
+      options.modelId || '',
+      options.thinkingLevel || '',
+      options.modelSourcePreference || 'auto',
       options.executionMode || 'go',
       options.approvalPolicy || 'workspace-auto',
       '',
       [],
-      [],
+      Array.isArray(options.attachments) ? options.attachments : [],
       undefined,
       -1,
     ])
@@ -514,15 +941,12 @@ export class GuiDriver {
       const settings = await this.invoke('GetSettings', [])
       const providers = settings?.Providers || settings?.providers || {}
       for (const provider of Object.values(providers)) {
+        if (provider?.has_api_key || provider?.hasApiKey) return 'settings-provider'
         if (String(provider?.APIKey || provider?.apiKey || '').trim()) return 'settings-provider'
       }
     } catch {
       // Settings unavailable.
     }
-    const deepseek = String(process.env.DEEPSEEK_API_KEY ?? '').trim()
-    const tokenflux = String(process.env.TOKENFLUX_API_KEY ?? '').trim()
-    if (deepseek) return 'env:DEEPSEEK_API_KEY'
-    if (tokenflux) return 'env:TOKENFLUX_API_KEY'
     return 'none'
   }
 
@@ -549,6 +973,27 @@ export class GuiDriver {
       return await this.invoke('ListCodingComputerUseTargets', [])
     } catch (error) {
       return { error: String(error instanceof Error ? error.message : error) }
+    }
+  }
+
+  async capturePagePng() {
+    if (!await this.ensureAttached()) return null
+    const result = await this.cdp.send('Page.captureScreenshot', { format: 'png', fromSurface: true })
+    if (!result?.data) return null
+    return Buffer.from(result.data, 'base64')
+  }
+
+  async captureSurfacePng(match) {
+    const target = (await listDesktopCdpTargets({ port: this.preferredPort })).find(match)
+    if (!target) return null
+    const session = new CdpSession(target.webSocketDebuggerUrl)
+    await session.open()
+    try {
+      const result = await session.send('Page.captureScreenshot', { format: 'png', fromSurface: true })
+      if (!result?.data) return null
+      return Buffer.from(result.data, 'base64')
+    } finally {
+      session.close()
     }
   }
 

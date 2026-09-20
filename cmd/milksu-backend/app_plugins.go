@@ -101,6 +101,13 @@ func (a *App) ListPlugins() []pluginruntime.Descriptor {
 	return a.pluginRegistry.List()
 }
 
+func (a *App) ListPetPluginPackages() []pluginruntime.PetPluginPackage {
+	if a.pluginRegistry == nil {
+		return []pluginruntime.PetPluginPackage{}
+	}
+	return a.pluginRegistry.ListPetPluginPackages()
+}
+
 func (a *App) SetPluginEnabled(id string, enabled bool) ([]pluginruntime.Descriptor, error) {
 	if a.pluginRegistry == nil {
 		return nil, errors.New("plugin registry is unavailable")

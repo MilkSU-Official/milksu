@@ -1,119 +1,44 @@
 #!/usr/bin/env node
 /**
- * Product-regression coordinator (issue #96 family B).
- * Observes the product through official Desktop RPC / existing tests.
- * Not Settings → 评测 (evalsuite / FrontierHarness). Not imported by App startup.
+ * Product-regression coordinator.
+ * Observes the product through official Desktop RPC.
+ * Not Settings → 评测. Not imported by App startup.
  *
  *   npm run test:product-loop -- --list
- *   npm run test:product-loop -- --suite stop-scope,chat-pin
+ *   npm run test:product-loop -- --suite first-use
  *   npm run test:product-loop -- --gui --suite all
- *   npm run test:product-loop -- --bridge --suite dsh
  */
 
-import { spawn } from 'node:child_process'
-import { createServer } from 'node:http'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { redactProcessText } from '../sidecar/dsh/redact.js'
-import { GuiDriver, repositoryRoot } from './lib/desktop-gui-driver.mjs'
+import { repositoryRoot } from './lib/desktop-gui-driver.mjs'
 import {
-  observedIsolatedBrowserMarker,
-  pickComputerUseTarget,
-  usedComputerUseTools,
-  usedIsolatedBrowserTools,
-} from './lib/product-loop-desktop-surface.mjs'
-import {
-  DEFAULT_SUITES,
+  CASES,
+  DEFAULT_MODULES,
+  MODULES,
   PRODUCT_LOOP_SCHEMA,
-  SUITES,
   TOKENFLUX_BASE_URL,
-  parseProductLoopArgs,
   finalizeProductLoopResult,
-  suiteRunnable,
+  groupCasesByModule,
+  parseProductLoopArgs,
 } from './lib/product-loop-catalog.mjs'
+import {
+  applyProductLoopLocalEnv,
+  describeProductLoopLocalEnv,
+} from './lib/product-loop-local-env.mjs'
+import { runFirstUse, saveCustomRelay } from './lib/product-loop-first-use.mjs'
+import {
+  captureProductLoopEvidence,
+  printProductLoopReport,
+  writeFormalProductLoopReport,
+} from './lib/product-loop-report.mjs'
+import { runProductLoopCase } from './lib/product-loop-runners.mjs'
+import { ensureIsolatedProductSession } from './lib/product-loop-session.mjs'
+import { keepExclusiveMilkSUWindow } from './lib/product-loop-windows.mjs'
 
 const resultPath = join(repositoryRoot, 'build', 'test-results', 'product-loop.json')
-const FILE_TOOL_PATTERN = /(read|write|edit|apply_patch|glob|grep|ls|list_dir|read_file|write_file|str_replace|bash|shell)/i
-const PLAYWRIGHT_OFFICIAL_PREFIX = 'mcp__playwright-mcp__'
-
-const TASK_COMPUTER_PROMPT = [
-  '当前权限档是 workspace-auto。请用 Computer Use 观察本机已经打开的「计算器」窗口。',
-  '不要改系统设置，不要点辅助功能 / 屏幕录制权限对话框，不要安装驱动，不要点用户自己的 Chrome / Edge。',
-  '把你实际看到的窗口标题或计算器显示内容写进工作区 SURFACE.md，并说明用了 Computer Use。',
-  '如果看不到窗口或没有权限，直接说明原因并结束，不要重试绕过 TCC。',
-].join('\n')
-
-function browserSurfacePrompt(url) {
-  return [
-    '请使用本产品的隔离浏览器访问这个本机页面（只走 127.0.0.1，不要打开用户自己的 Chrome / Edge）：',
-    url,
-    '页面上有一段标记字符串。请读取该标记，把它原样写进工作区 SURFACE.md，并在回复里引用该标记。',
-    `优先使用官方 Playwright MCP 工具（名称通常带 ${PLAYWRIGHT_OFFICIAL_PREFIX} 前缀），或产品内置的隔离浏览器 / milksu_workspace 浏览器动作。`,
-    '不要启动第二只用户日常浏览器，不要做 Browser Use 配对。',
-  ].join('\n')
-}
-
-const TASK_A_PROMPT = [
-  '你在当前工作区里做一次真实的文件循环，不要只聊天回复。',
-  '1. 先列出工作区根目录和已有文件，确认这是一个临时仓库。',
-  '2. 新建 NOTES.md，写入：你看到了哪些文件、各自一两句说明，以及今天的日期。',
-  '3. 再把 NOTES.md 读回来，核对自己刚写的内容，并在回复里引用其中一行。',
-  '完成标准：工作区必须出现 NOTES.md，且你实际调用了文件类工具（列出/写入/读取），不要只用纯文本假装写过。',
-].join('\n')
-
-function delay(ms) {
-  return new Promise(resolveDelay => setTimeout(resolveDelay, ms))
-}
-
-function collectToolNames(events) {
-  const names = []
-  for (const event of events ?? []) {
-    const name = String(event?.toolName ?? event?.title ?? event?.kind ?? '')
-    if (name) names.push(name)
-  }
-  return [...new Set(names)]
-}
-
-function assistantSummary(events) {
-  const chunks = []
-  for (const event of events ?? []) {
-    const type = String(event?.type ?? event?.Type ?? '')
-    if (type === 'text_delta' || type === 'assistant.delta') {
-      chunks.push(String(event.delta ?? event.text ?? ''))
-    }
-    if (type === 'assistant.completed' || type === 'assistant.settled' || type === 'message_done') {
-      chunks.push(String(event.content ?? event.text ?? ''))
-    }
-  }
-  return redactProcessText(chunks.join(''), 2000)
-}
-
-async function runCommand(command, args, options = {}) {
-  return new Promise(resolveRun => {
-    const child = spawn(command, args, {
-      cwd: options.cwd || repositoryRoot,
-      env: { ...process.env, ...options.env },
-      stdio: options.stdio || ['ignore', 'pipe', 'pipe'],
-    })
-    let stdout = ''
-    let stderr = ''
-    child.stdout?.on('data', chunk => {
-      stdout += chunk.toString('utf8')
-    })
-    child.stderr?.on('data', chunk => {
-      stderr += chunk.toString('utf8')
-    })
-    child.on('close', (code, signal) => {
-      resolveRun({
-        code: code ?? 1,
-        signal: signal || '',
-        stdout: redactProcessText(stdout, 8_000),
-        stderr: redactProcessText(stderr, 4_000),
-      })
-    })
-  })
-}
 
 async function writeReceipt(receipt) {
   await mkdir(dirname(resultPath), { recursive: true })
@@ -124,377 +49,26 @@ function printHelp() {
   console.log(`MilkSU product-regression loop
 
   node scripts/verify-product-loop.mjs --list
-  node scripts/verify-product-loop.mjs --suite stop-scope,composer-runtime,chat-pin
+  node scripts/verify-product-loop.mjs --suite first-use
   node scripts/verify-product-loop.mjs --gui --suite all
-  node scripts/verify-product-loop.mjs --bridge --suite dsh
 
-套件：
-${DEFAULT_SUITES.map(id => `  ${id.padEnd(12)} ${SUITES[id].title}  (${SUITES[id].from})`).join('\n')}
+默认按上手顺序跑产品模块：上手 → 主页 Coding → 桌宠 → 领域工作区 → 桌面执行面 → 账户与更新 → 设置其余项。
+独立实例贯穿。开测前清掉其它 MilkSU 窗口，只留测试窗。Key 打进设置密码框，不注入 sidecar。
+结束后打印从大模块到小模块的文字报告，并写带截图的正式 HTML 报告。
 
---gui     启动或附着 Stable（禁止 Beta）。pi-files / dsh 走 Desktop RPC。
---bridge  只跑不需要窗口的套件，并把 dsh 交给 verify-dsh-complete-loop --bridge。
-缺 Key 的套件 SKIP 且不把整次运行打成失败。
+模块：
+${DEFAULT_MODULES.map(id => `  ${id.padEnd(16)} ${MODULES[id].title}  ${MODULES[id].cases.length} 项`).join('\n')}
+
+独立 Stable（禁止 Beta）。本机 Key 填 docs/developer/product-loop.local.env。回执不写值。
 回执 ${resultPath}
-这不是 Settings 评测，也不写模型 Pass@1。
 用法：docs/developer/product-regression-loop.md
 `)
 }
 
 function printList() {
-  for (const id of DEFAULT_SUITES) {
-    const suite = SUITES[id]
-    console.log(`${suite.id}\t${suite.title}\t${suite.from}\t${suite.detail}`)
-  }
-}
-
-async function runComposerRuntime() {
-  const vitest = await runCommand(
-    'npx',
-    [
-      'vitest',
-      'run',
-      'src/lib/composerRunState.test.ts',
-      'src/lib/dshHostSurface.test.ts',
-      'src/lib/agentKernel.test.ts',
-      'src/lib/workingRoster.test.ts',
-      'src/composables/useConversationsKernelMultitask.test.ts',
-      'src/composables/useConversationsContextHandoff.test.ts',
-      'src/types.test.ts',
-      'src/lib/uiLocale.test.ts',
-    ],
-    { cwd: join(repositoryRoot, 'app') },
-  )
-  if (vitest.code !== 0) {
-    return {
-      result: 'FAIL',
-      detail: 'composer / Multitask / settings UI 状态机未过',
-      stdout: vitest.stdout.slice(-1_200),
-      stderr: vitest.stderr.slice(-800),
-    }
-  }
-  const settings = await runCommand(
-    'go',
-    ['test', './internal/config', '-count=1', '-run', 'TestWithDefaults|TestStorePersistsLocaleKernelAndActiveModel'],
-  )
-  if (settings.code !== 0) {
-    return {
-      result: 'FAIL',
-      detail: '默认运行时 / 忙碌发送 / 模型 / 界面语言落盘未过',
-      stderr: settings.stderr.slice(-800),
-    }
-  }
-  const queue = await runCommand(
-    'go',
-    ['test', './internal/engine', '-count=1', '-run', 'TestQueueMessageUsesExistingDshSession|TestSteerMessageUsesExistingPiSession|TestHandoffSession|TestCompactSessionWaitsForSidecarReceipt|TestCompactSessionReportsFailureWithoutSuccess'],
-  )
-  if (queue.code !== 0) {
-    return {
-      result: 'FAIL',
-      detail: 'DSH inbox 排队 / Pi 插话 / 整理上下文 / 接到新会话 supervisor 未过',
-      stderr: queue.stderr.slice(-800),
-    }
-  }
-  const host = await runCommand(
-    'node',
-    [
-      '--test',
-      'sidecar/dsh/host-plugin.test.js',
-      'sidecar/dsh/host-primitives.test.js',
-      'sidecar/dsh/bridge.test.js',
-      'sidecar/pi/bridge-compaction.test.js',
-    ],
-  )
-  if (host.code !== 0) {
-    return {
-      result: 'FAIL',
-      detail: 'DSH host / 整理上下文 / 接到新会话 未过',
-      stdout: host.stdout.slice(-1_200),
-      stderr: host.stderr.slice(-800),
-    }
-  }
-  return {
-    result: 'PASS',
-    detail: 'Stop/Send 相位、DSH host commands/plan/goal/inbox/jobs、整理上下文/接到新会话、Working followup、Pi 阻塞子代理、Multitask、locale/kernel/busy-send/model 落盘通过',
-  }
-}
-
-async function runStopScope() {
-  const vitest = await runCommand(
-    'npx',
-    ['vitest', 'run', 'src/composables/useConversationsAbortSteering.test.ts', '-t', 'engine stop scoping'],
-    { cwd: join(repositoryRoot, 'app') },
-  )
-  if (vitest.code !== 0) {
-    return {
-      result: 'FAIL',
-      detail: 'useConversationsAbortSteering engine stop scoping 未过',
-      stdout: vitest.stdout.slice(-1_200),
-      stderr: vitest.stderr.slice(-800),
-    }
-  }
-  return {
-    result: 'PASS',
-    detail: 'engine.stopped 带 sessions 才清运行态；无身份不广播',
-  }
-}
-
-async function runChatPinLogic() {
-  const store = await runCommand(
-    'go',
-    ['test', './internal/conversation', '-count=1', '-run', 'TestStoreRoundTripsPinnedOrder'],
-  )
-  if (store.code !== 0) {
-    return {
-      result: 'FAIL',
-      detail: 'conversation store 钉选往返未过',
-      stderr: store.stderr.slice(-800),
-    }
-  }
-  const pinning = await runCommand(
-    'npx',
-    ['vitest', 'run', 'src/composables/useConversationsPinning.test.ts', 'src/lib/codingConversationGroups.test.ts'],
-    { cwd: join(repositoryRoot, 'app') },
-  )
-  if (pinning.code !== 0) {
-    return {
-      result: 'FAIL',
-      detail: '钉选 / 分组状态机未过',
-      stdout: pinning.stdout.slice(-1_200),
-      stderr: pinning.stderr.slice(-800),
-    }
-  }
-  return {
-    result: 'PASS',
-    detail: 'store 与钉选状态机通过。草稿仍是 Composer 内存，没有 Desktop RPC。',
-  }
-}
-
-async function runChatPinPersist(driver) {
-  const prefix = `loop-pin-${Date.now().toString(36)}`
-  const first = await driver.createConversation({
-    id: `${prefix}-a`,
-    title: `${prefix}-a`,
-    pinned: true,
-    pinnedOrder: 0,
-    kernel: 'pi',
-  })
-  const second = await driver.createConversation({
-    id: `${prefix}-b`,
-    title: `${prefix}-b`,
-    pinned: true,
-    pinnedOrder: 1,
-    kernel: 'pi',
-  })
-  const listed = await driver.listConversations()
-  const byId = new Map(listed.map(item => [String(item.id ?? item.ID ?? ''), item]))
-  const savedA = byId.get(first.id)
-  const savedB = byId.get(second.id)
-  const pinnedA = savedA?.pinned === true || savedA?.Pinned === true
-  const pinnedB = savedB?.pinned === true || savedB?.Pinned === true
-  const orderA = Number(savedA?.pinnedOrder ?? savedA?.PinnedOrder)
-  const orderB = Number(savedB?.pinnedOrder ?? savedB?.PinnedOrder)
-  if (!pinnedA || !pinnedB || orderA !== 0 || orderB !== 1) {
-    return {
-      result: 'FAIL',
-      detail: `SaveConversation/ListConversations 钉选未往返 a=${pinnedA}/${orderA} b=${pinnedB}/${orderB}`,
-    }
-  }
-  return {
-    result: 'PASS',
-    detail: 'GUI SaveConversation / ListConversations 钉选顺序往返',
-    conversationIds: [first.id, second.id],
-  }
-}
-
-async function preparePiWorkspace() {
-  const root = await mkdtemp(join(repositoryRoot, 'build', 'test-results', 'product-loop-pi-'))
-  await runCommand('git', ['init'], { cwd: root })
-  await writeFile(join(root, 'README.md'), 'product-loop pi-files workspace\n')
-  return root
-}
-
-async function runPiFiles(driver, options) {
-  const workspace = await preparePiWorkspace()
-  try {
-    const conversation = await driver.createConversation({
-      title: 'product-loop pi-files',
-      workspacePath: workspace,
-      kernel: 'pi',
-      approvalPolicy: 'workspace-auto',
-    })
-    await driver.sendMessage(conversation.id, TASK_A_PROMPT, workspace)
-    const turn = await driver.waitForTurn(conversation.id, options.taskTimeoutMs)
-    const notesPath = join(workspace, 'NOTES.md')
-    let notes = false
-    try {
-      await readFile(notesPath)
-      notes = true
-    } catch {
-      notes = false
-    }
-    const toolNames = collectToolNames(turn.events)
-    const usedFiles = toolNames.some(name => FILE_TOOL_PATTERN.test(name))
-    if (!notes || !usedFiles || turn.timeout) {
-      return {
-        result: 'FAIL',
-        detail: `NOTES.md=${notes} fileTools=${usedFiles} timeout=${Boolean(turn.timeout)}`,
-        toolNames,
-      }
-    }
-    return {
-      result: 'PASS',
-      detail: 'Pi 写出 NOTES.md 且出现文件工具',
-      toolNames,
-    }
-  } finally {
-    await rm(workspace, { recursive: true, force: true }).catch(() => {})
-  }
-}
-
-async function startMarkerServer() {
-  const marker = `MILKSU_SURFACE_${Date.now().toString(36)}`
-  const html = `<!doctype html>
-<html lang="zh-CN">
-  <head><meta charset="utf-8"><title>MilkSU product-loop fixture</title></head>
-  <body>
-    <h1>隔离浏览器降级页</h1>
-    <p id="marker">${marker}</p>
-  </body>
-</html>
-`
-  const server = createServer((request, response) => {
-    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
-    response.end(html)
-  })
-  await new Promise((resolveListen, rejectListen) => {
-    server.once('error', rejectListen)
-    server.listen(0, '127.0.0.1', () => resolveListen())
-  })
-  const address = server.address()
-  return {
-    url: `http://127.0.0.1:${address.port}/`,
-    marker,
-    close() {
-      return new Promise(resolveClose => server.close(() => resolveClose()))
-    },
-  }
-}
-
-async function fileContains(path, needle) {
-  try {
-    const text = await readFile(path, 'utf8')
-    return text.includes(needle)
-  } catch {
-    return false
-  }
-}
-
-async function runDesktopSurface(driver, options) {
-  const workspace = await mkdtemp(join(repositoryRoot, 'build', 'test-results', 'product-loop-surface-'))
-  await runCommand('git', ['init'], { cwd: workspace })
-  await writeFile(join(workspace, 'README.md'), 'product-loop desktop-surface workspace\n')
-  const fixture = await startMarkerServer()
-  const surfacePath = join(workspace, 'SURFACE.md')
-  try {
-    const targets = await driver.listComputerUseTargets()
-    const picked = pickComputerUseTarget(targets)
-    if (picked.available) {
-      const conversation = await driver.createConversation({
-        title: 'product-loop computer-use',
-        workspacePath: workspace,
-        kernel: 'pi',
-        approvalPolicy: 'workspace-auto',
-      })
-      await driver.sendMessage(conversation.id, TASK_COMPUTER_PROMPT, workspace)
-      const turn = await driver.waitForTurn(conversation.id, options.taskTimeoutMs)
-      const toolNames = collectToolNames(turn.events)
-      let hasSurface = false
-      try {
-        const text = await readFile(surfacePath, 'utf8')
-        hasSurface = text.trim().length > 0
-      } catch {
-        hasSurface = false
-      }
-      if (!turn.timeout && usedComputerUseTools(toolNames) && hasSurface) {
-        return {
-          result: 'PASS',
-          detail: `Computer Use 观察了计算器并写下 SURFACE.md`,
-          surface: 'computer-use',
-          degraded: false,
-          toolNames,
-        }
-      }
-      return {
-        result: 'FAIL',
-        detail: `Computer Use 可用但未完成观察 timeout=${Boolean(turn.timeout)} tools=${usedComputerUseTools(toolNames)} surface=${hasSurface}`,
-        surface: 'computer-use',
-        degraded: false,
-        toolNames,
-      }
-    }
-
-    const conversation = await driver.createConversation({
-      title: 'product-loop isolated-browser',
-      workspacePath: workspace,
-      kernel: 'pi',
-      approvalPolicy: 'workspace-auto',
-    })
-    await driver.ensureCodingBrowser(conversation.id)
-    await driver.navigateCodingBrowser(conversation.id, fixture.url)
-    await driver.sendMessage(conversation.id, browserSurfacePrompt(fixture.url), workspace)
-    const turn = await driver.waitForTurn(conversation.id, options.taskTimeoutMs)
-    const toolNames = collectToolNames(turn.events)
-    const fileHasMarker = await fileContains(surfacePath, fixture.marker)
-    const assistantHasMarker = assistantSummary(turn.events).includes(fixture.marker)
-    const hasMarker = observedIsolatedBrowserMarker({ fileHasMarker, assistantHasMarker })
-    if (!turn.timeout && usedIsolatedBrowserTools(toolNames) && hasMarker) {
-      return {
-        result: 'PASS',
-        detail: `Computer Use 不可用（${picked.reason}），已降级隔离浏览器 CDP 并读到标记`,
-        surface: 'isolated-browser',
-        degraded: true,
-        toolNames,
-      }
-    }
-    return {
-      result: 'FAIL',
-      detail: `降级隔离浏览器失败 timeout=${Boolean(turn.timeout)} browser=${usedIsolatedBrowserTools(toolNames)} marker=${hasMarker}`,
-      surface: 'isolated-browser',
-      degraded: true,
-      toolNames,
-    }
-  } finally {
-    await fixture.close()
-    await rm(workspace, { recursive: true, force: true }).catch(() => {})
-  }
-}
-
-async function runDshDelegate(mode) {
-  const result = await runCommand(
-    process.execPath,
-    [join(repositoryRoot, 'scripts', 'verify-dsh-complete-loop.mjs'), mode === 'bridge' ? '--bridge' : '--gui'],
-    { stdio: 'inherit' },
-  )
-  let nested
-  try {
-    nested = JSON.parse(await readFile(join(repositoryRoot, 'build', 'test-results', 'dsh-complete-loop.json'), 'utf8'))
-  } catch (error) {
-    return {
-      result: result.code === 0 ? 'PASS' : 'FAIL',
-      detail: `dsh 委托结束 code=${result.code}，读不到回执：${redactProcessText(error instanceof Error ? error.message : error, 200)}`,
-    }
-  }
-  if (nested.skipped) {
-    return {
-      result: 'SKIP',
-      detail: nested.skipReason || 'dsh complete-loop skipped',
-      nestedResult: nested.result,
-    }
-  }
-  return {
-    result: nested.result === 'PASS' ? 'PASS' : 'FAIL',
-    detail: `dsh complete-loop ${nested.result} tasks=${(nested.tasks ?? []).map(task => `${task.id}:${task.result}`).join(',')}`,
-    nestedResult: nested.result,
+  for (const id of DEFAULT_MODULES) {
+    const module = MODULES[id]
+    console.log(`${module.id}\t${module.title}\t${module.cases.join(',')}\t${module.detail}`)
   }
 }
 
@@ -510,15 +84,17 @@ function baseReceipt(options) {
     not: 'settings-evalsuite',
     gaps: [
       '协调器在 scripts/，不进 App 启动、不暴露测试专用 Desktop RPC。',
-      'Settings → 评测仍是模型能力 bench（evalsuite / #82），不要和本回执混读。',
-      '草稿按对话隔离没有 Desktop RPC，chat-pin 只覆盖钉选落盘。',
-      'GUI 套件测完走 DeleteConversation，清掉 loop-pin / product-loop / DSH fixture 会话，不留在本机侧栏。',
-      'desktop-surface 优先 Computer Use 观察计算器；不可用才降级隔离浏览器 CDP。不点用户 Chrome。',
+      '按上手顺序走独立实例。Key 只打进设置密码框，不注入 sidecar。',
+      '开测前和每条用例前清掉其它 MilkSU 窗口，只留这一扇测试窗。GitHub 回调不进日常窗口。',
+      'Computer Use 缺权限记失败，不偷偷改走隔离浏览器。隔离浏览器自己测打开、跳转、点击、标签和读标记。',
+      'GUI 测完走 DeleteConversation / DeleteArchivedConversation，清掉 product-loop fixture。',
       '禁止 desktop:start:beta / MilkSU Beta。',
     ],
     suites: [],
+    modules: [],
     humanReview: [],
-    eventsNote: 'no Provider keys; nested dsh receipt is separately redacted',
+    eventsNote: 'no Provider keys',
+    localEnv: { loaded: false, applied: [], unknown: [], publicValues: {} },
   }
 }
 
@@ -534,131 +110,150 @@ async function main() {
   }
 
   const receipt = baseReceipt(options)
-  let driver = null
+  const localEnv = await applyProductLoopLocalEnv(process.env)
+  receipt.localEnv = describeProductLoopLocalEnv({ ...localEnv, env: process.env })
+  const requestedCases = options.cases ?? []
+  let session = { driver: null, instanceId: '', sourcesReady: false, ok: false }
+
+  async function attachEvidence(id, record) {
+    const driver = session.driver
+    if (!driver) return record
+    try {
+      record.screenshots = await captureProductLoopEvidence(driver, id)
+    } catch {
+      record.screenshots = record.screenshots || []
+    }
+    return record
+  }
+
+  async function recordCase(id, outcome) {
+    const item = CASES[id]
+    const record = {
+      id,
+      title: item?.title || id,
+      module: item?.module || '',
+      from: item ? MODULES[item.module]?.from : '',
+      result: outcome.result,
+      detail: redactProcessText(outcome.detail || '', 500),
+      toolNames: outcome.toolNames,
+      surface: outcome.surface,
+      degraded: outcome.degraded,
+      steps: outcome.steps,
+      screenshots: Array.isArray(outcome.screenshots) ? outcome.screenshots : [],
+    }
+    if (!record.screenshots.length) await attachEvidence(id, record)
+    receipt.suites.push(record)
+    process.stdout.write(`CASE ${id} ${record.result} ${record.detail}\n`)
+    return record
+  }
+
+  async function ensureProductSession() {
+    session = await ensureIsolatedProductSession(session, options)
+    if (!session.ok || !session.driver?.cdpAlive()) {
+      receipt.gaps.push(session.detail || session.driver?.gaps?.join(' ') || '没附着独立产品窗口')
+      return false
+    }
+    if (!session.sourcesReady) {
+      const relay = await saveCustomRelay(session.driver)
+      session.sourcesReady = relay.ok === true
+      if (!relay.ok) receipt.humanReview.push(relay.detail || '中转站没配上')
+    }
+    return true
+  }
+
+  async function runProductCase(id) {
+    const item = CASES[id]
+    if (item?.needsCredential && !session.sourcesReady) {
+      return { result: 'FAIL', detail: '中转站还不能发，主页发送不再 SKIP' }
+    }
+    return runProductLoopCase(id, session.driver, options)
+  }
 
   try {
-    async function ensureDriver() {
-      if (options.mode !== 'gui') return driver
-      if (driver?.cdpAlive()) return driver
-      if (driver && await driver.ensureAttached()) return driver
-      driver = driver || new GuiDriver()
-      const attached = await driver.attachOrStart(options.desktopReadyMs)
-      if (!attached) receipt.gaps.push(...driver.gaps)
-      return driver
-    }
-
-    for (const id of options.suites) {
-      const suite = SUITES[id]
-      const runnable = suiteRunnable(suite, options.mode)
-      process.stdout.write(`SUITE ${id} start ${suite.title}\n`)
-      let outcome
-      try {
-      if (!runnable.ok) {
-        outcome = { result: 'SKIP', detail: runnable.reason }
-      } else if (id === 'stop-scope') {
-        outcome = await runStopScope()
-      } else if (id === 'composer-runtime') {
-        outcome = await runComposerRuntime()
-      } else if (id === 'chat-pin') {
-        const logic = await runChatPinLogic()
-        if (logic.result !== 'PASS') {
-          outcome = logic
-        } else if (options.mode === 'gui') {
-          await ensureDriver()
-          if (driver?.cdpAlive()) {
-            const persist = await runChatPinPersist(driver)
-            outcome = persist.result === 'PASS'
-              ? { result: 'PASS', detail: `${logic.detail}；${persist.detail}` }
-              : persist
-          } else {
-            outcome = {
-              result: 'PASS',
-              detail: `${logic.detail} GUI 落盘未附着窗口。`,
-            }
-          }
-        } else {
-          outcome = {
-            result: 'PASS',
-            detail: `${logic.detail} GUI 落盘未跑（mode=${options.mode}）。`,
+    const claim = await keepExclusiveMilkSUWindow({ log: true })
+    if (claim.closed) receipt.humanReview.push(claim.detail)
+    for (const group of groupCasesByModule(requestedCases)) {
+      process.stdout.write(`MODULE ${group.module.id} start ${group.module.title}\n`)
+      if (group.module.id === 'first-use') {
+        if (session.driver) {
+          await session.driver.close().catch(() => {})
+          session = { driver: null, instanceId: '', sourcesReady: false, ok: false }
+        }
+        const outcome = await runFirstUse({
+          ...options,
+          keepOpen: true,
+          onStep: async (id, driver) => captureProductLoopEvidence(driver, id),
+        })
+        if (outcome.notes?.length) receipt.humanReview.push(...outcome.notes)
+        if (outcome.driver) {
+          session = {
+            driver: outcome.driver,
+            instanceId: outcome.instanceId,
+            sourcesReady: outcome.sourcesReady === true,
+            ok: true,
           }
         }
-      } else if (id === 'pi-files') {
-        await ensureDriver()
-        if (!driver?.cdpAlive()) {
-          outcome = { result: 'SKIP', detail: '需要 --gui 且已附着产品窗口' }
-        } else {
-          const creds = await driver.credentialPresent()
-          if (creds === 'none') {
-            outcome = { result: 'SKIP', detail: '没有账户会话或 Provider Key，跳过 Pi 文件循环' }
-          } else {
-            outcome = await runPiFiles(driver, options)
+        const produced = new Set((outcome.steps ?? []).map(step => step.id))
+        const optional = new Set(['login-github-active', 'account-model-fileloop', 'relay-model-fileloop'])
+        for (const item of group.cases) {
+          const step = (outcome.steps ?? []).find(row => row.id === item.id)
+          if (step) {
+            await recordCase(item.id, step)
+            continue
           }
-        }
-      } else if (id === 'desktop-surface') {
-        await ensureDriver()
-        if (!driver?.cdpAlive()) {
-          outcome = { result: 'SKIP', detail: '需要 --gui 且已附着产品窗口' }
-        } else {
-          const creds = await driver.credentialPresent()
-          if (creds === 'none') {
-            outcome = { result: 'SKIP', detail: '没有账户会话或 Provider Key，跳过桌面执行面' }
-          } else {
-            outcome = await runDesktopSurface(driver, options)
+          if (optional.has(item.id)) {
+            await recordCase(item.id, { result: 'SKIP', detail: '这次没走到账户登录' })
+            continue
           }
+          if (produced.size && !produced.has(item.id)) {
+            await recordCase(item.id, { result: 'FAIL', detail: '上手流程没跑到这一步' })
+            continue
+          }
+          await recordCase(item.id, { result: outcome.result, detail: outcome.detail })
         }
-      } else if (id === 'dsh') {
-        if (driver) {
-          await driver.close()
-          driver = null
-          await delay(1_500)
-        }
-        outcome = await runDshDelegate(options.mode)
-      } else {
-        outcome = { result: 'FAIL', detail: `no runner for ${id}` }
-      }
-      } catch (error) {
-        const message = redactProcessText(error instanceof Error ? error.message : error, 400)
-        receipt.humanReview.push(message)
-        outcome = { result: 'FAIL', detail: message }
+        continue
       }
 
-      const record = {
-        id,
-        title: suite.title,
-        from: suite.from,
-        result: outcome.result,
-        detail: redactProcessText(outcome.detail || '', 500),
-        toolNames: outcome.toolNames,
-        surface: outcome.surface,
-        degraded: outcome.degraded,
+      for (const item of group.cases) {
+        let outcome
+        try {
+          const ready = await ensureProductSession()
+          if (!ready) {
+            outcome = { result: 'FAIL', detail: session.detail || '没附着独立产品窗口' }
+          } else {
+            outcome = await runProductCase(item.id)
+          }
+        } catch (error) {
+          const message = redactProcessText(error instanceof Error ? error.message : error, 400)
+          receipt.humanReview.push(message)
+          outcome = { result: 'FAIL', detail: message }
+        }
+        await recordCase(item.id, outcome)
       }
-      receipt.suites.push(record)
-      process.stdout.write(`SUITE ${id} ${record.result} ${record.detail}\n`)
     }
   } catch (error) {
     const message = redactProcessText(error instanceof Error ? error.message : error, 400)
     receipt.humanReview.push(message)
-    for (const id of options.suites) {
+    for (const id of requestedCases) {
       if (receipt.suites.some(row => row.id === id)) continue
-      const suite = SUITES[id]
-      receipt.suites.push({
-        id,
-        title: suite.title,
-        from: suite.from,
-        result: 'FAIL',
-        detail: message,
-      })
-      process.stdout.write(`SUITE ${id} FAIL ${message}\n`)
+      await recordCase(id, { result: 'FAIL', detail: message })
     }
   } finally {
-    if (driver) await driver.close()
+    if (session.driver) await session.driver.close()
   }
 
   receipt.finishedAt = new Date().toISOString()
-  receipt.result = finalizeProductLoopResult(receipt.suites, options.suites, receipt.humanReview)
+  receipt.result = finalizeProductLoopResult(receipt.suites, requestedCases, receipt.humanReview)
+  const report = printProductLoopReport(receipt)
+  receipt.report = {
+    modules: report.modules.map(item => ({ id: item.id, title: item.title, result: item.result, total: item.total, passed: item.passed, failed: item.failed, skipped: item.skipped })),
+    overall: report.overall,
+  }
+  const formalPath = await writeFormalProductLoopReport(receipt, report)
+  receipt.formalReport = formalPath
   await writeReceipt(receipt)
-  console.log(`${receipt.result} mode=${options.mode} suites=${receipt.suites.length}`)
   console.log(`receipt ${resultPath}`)
+  console.log(`formal-report ${formalPath}`)
   process.exitCode = receipt.result === 'PASS' ? 0 : 1
 }
 

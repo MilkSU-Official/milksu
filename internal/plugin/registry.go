@@ -238,6 +238,32 @@ func (r *Registry) addIssueLocked(id string, source Source, message string) {
 	})
 }
 
+func (r *Registry) ListPetPluginPackages() []PetPluginPackage {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if err := r.refreshStateLocked(); err != nil {
+		r.state = defaultState()
+	}
+	result := make([]PetPluginPackage, 0)
+	for _, record := range r.items {
+		if record.errorText != "" || !r.state.Enabled[record.manifest.ID] {
+			continue
+		}
+		if !hasPermission(record.manifest, PermissionUIPet) || !contributesSlot(record.manifest, "app.pet") {
+			continue
+		}
+		result = append(result, PetPluginPackage{
+			ID:        record.manifest.ID,
+			Name:      record.manifest.Name,
+			Directory: record.directory,
+		})
+	}
+	sort.SliceStable(result, func(i, j int) bool {
+		return result[i].ID < result[j].ID
+	})
+	return result
+}
+
 func (r *Registry) List() []Descriptor {
 	r.mu.Lock()
 	defer r.mu.Unlock()

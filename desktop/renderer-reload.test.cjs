@@ -31,6 +31,8 @@ test('product menu omits the Chromium View reload entries', () => {
   assert.equal(roles(productApplicationMenuTemplate('win32')).includes('viewMenu'), false)
   assert.equal(roles(productApplicationMenuTemplate('darwin')).includes('viewMenu'), false)
   assert.ok(roles(productApplicationMenuTemplate('darwin')).includes('appMenu'))
+  const withCompanion = productApplicationMenuTemplate('darwin', { companion: { label: '桌宠', submenu: [] } })
+  assert.equal(withCompanion.some(item => item.label === '桌宠'), true)
 })
 
 test('reload guard prevents the Electron input event', () => {
@@ -50,7 +52,7 @@ test('reload guard prevents the Electron input event', () => {
 test('desktop shell installs the reload guard and a menu without View', () => {
   const source = readFileSync(join(__dirname, 'main.cjs'), 'utf8')
   assert.match(source, /installRendererReloadGuard\(mainWindow\.webContents\)/)
-  assert.match(source, /productApplicationMenuTemplate\(\)/)
+  assert.match(source, /companionShell\.refreshMenus\(\)/)
   assert.match(source, /did-finish-load/)
   assert.doesNotMatch(source, /once\('did-finish-load'/)
 })

@@ -94,6 +94,7 @@ export default function CommandPanel({
         showCloseButton={false}
         overlayClassName="bg-black/20"
         data-command-panel=""
+        data-testid="command-panel"
         className="top-[16%] w-[min(40rem,calc(100vw-2rem))] max-w-none translate-y-0 gap-0 overflow-hidden rounded-[12px] border border-border bg-popover p-0 shadow-xl"
       >
         <DialogTitle className="sr-only">{t('搜索', 'Search')}</DialogTitle>
@@ -109,6 +110,11 @@ export default function CommandPanel({
             placeholder={t('搜索会话、设置、命令', 'Search chats, settings, commands')}
             aria-label={t('搜索', 'Search')}
             onKeyDown={event => {
+              if (event.key === 'Escape') {
+                event.preventDefault()
+                close()
+                return
+              }
               if (event.key === 'Tab') {
                 event.preventDefault()
                 const order = FILTERS.map(item => item.id)

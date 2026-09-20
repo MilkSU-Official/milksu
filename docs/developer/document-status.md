@@ -2,7 +2,7 @@
 
 > 状态：Current / Living
 >
-> 最后事实审计：2026-09-19
+> 最后事实审计：2026-09-20
 >
 > 产品开发目标：内测迭代 / Agent Runtime 与跨平台发行收敛
 
@@ -27,7 +27,7 @@
 | --- | --- |
 | 许可证 | `AGPL-3.0-only`。Obelisk 兼容、尚未 vendored。 |
 | Linux | 共用 x64 DEB + tarball。GNOME Portal Computer Use。无 Secret Service / 本地 OCR。见 [Linux 合同](linux-platform-support.md)。 |
-| Agent | Pi 拥有 Session / Compaction / Tool Loop。新对话可选 DSH（工作树钉 `0.1.6-alpha.1`）；出厂默认运行时 Pi，设置项只改新对话。短会话整理上下文不再失败；接到新会话铺原文或 harness 摘要。DSH 打 TokenFlux 保留厂商前缀。子 Agent 默认主工作区。DSH Multitask 用 ACP 子会话并行；模型自己拉起的 DSH `subagent` 也投影到 Working 胶囊。Pi 子代理阻塞。Working 是投影。产品回归 `npm run test:product-loop`。不扫描用户句子做意图路由。 |
+| Agent | Pi 拥有 Session / Compaction / Tool Loop。新对话可选 DSH（工作树钉 `0.1.6-alpha.1`）；出厂默认运行时 Pi，设置项只改新对话。短会话整理上下文不再失败；接到新会话铺原文或 harness 摘要。DSH 打 TokenFlux 保留厂商前缀。子 Agent 默认主工作区。DSH Multitask 用 ACP 子会话并行；模型自己拉起的 DSH `subagent` 也投影到 Working 胶囊。Pi 子代理阻塞。Working 是投影。产品回归 `npm run test:product-loop`，文字报告之外写带每项截图的正式 HTML。不扫描用户句子做意图路由。 |
 | 宿主 | 会话目录、凭据隔离、桌面授权、Judge、危险删除确认。 |
 | 模型与附件 | 账户与本机目录共用；附件原图进当前回合。 |
 | 发行 | 干净 `main` 验证一次；三端云端打包。OTA 走私有 R2，侧栏进度框下载后由用户点安装并重启。macOS DMG 引导图为 Retina @2x。GitHub Release 只上安装包。 |
@@ -37,9 +37,10 @@
 | 文档 | 状态 | 负责什么 | 不负责什么 |
 | --- | --- | --- | --- |
 | [当前开发目标](current-objectives.md) | Current / Canonical | 当前阶段、能力事实、已发行记录、未打进安装包的代码、下一完成线和未接线方向 | 不写「当前最新版是」版本号或 hash；不保存完整聊天或旧验收过程；不复述 UI 规范 |
-| [产品回归循环](product-regression-loop.md) | Evidence / Living | 改功能后怎么选跑产品契约套件；和 Settings 评测 / NYU / DSH 单脚本的分界 | 不写模型 Pass@1；不替代安装包真机验收 |
+| [产品回归循环](product-regression-loop.md) | Evidence / Living | 改功能后按上手顺序跑独立 Stable 窗口；和 Settings 评测 / NYU 的分界 | 不写模型 Pass@1；不替代安装包真机验收 |
 | [当前系统与分层](../architecture/current-system.md) | Current / Canonical | 当前运行结构、依赖方向、桌面表面、能力边界和发行结构 | 不写「当前最新版是」版本号或 hash；不安排任务优先级；不复述 UI 规范 |
 | [Linux 安装与桌面合同](linux-platform-support.md) | Target / Designed | 共用 x64 DEB + 通用 tarball；ARM 只测不发；GNOME Portal Computer Use；ISSUE #19 已关闭 | 不把未发版安装面写成 GitHub Latest；不按 arch×distro 发 8 份包 |
+| [桌宠皮肤设计合同](companion-skin.md) | Current / Authoring | 桌宠运动、必交帧、帽顶叠层，以及设置里的文件夹 / 插件换装 | 不复述产品 chrome |
 | 仓库根目录 `AGENTS.md` | Current / Canonical | 仓库协作约束与产品 UI 设计语言 | 其他文档只指向它，不复制层级、token 或原语表 |
 | 本文件 | Current / Living | 事实优先级、文档职责、生命周期和维护规则 | 不复制实现细节或测试日志 |
 | Evidence 文档 | Evidence | 可复现命令、截图、哈希、平台回执和失败证据 | 不自动升级为当前完成状态 |

@@ -262,6 +262,42 @@ export default function VulnPage({
       dashboard.selectedId = ''
     }
   }, [filteredItems, selectedId, dashboard])
+  useEffect(() => {
+    let cancelled = false
+    async function ingestTrackingJobs() {
+      const jobs = await invokeCommand('list_vuln_jobs').catch(() => [])
+      if (cancelled || !Array.isArray(jobs)) return
+      for (const job of jobs) {
+        const jobId = String((job as { id?: string; ID?: string })?.id ?? (job as { ID?: string })?.ID ?? '').trim()
+        if (!jobId) continue
+        const projection = await invokeCommand('get_vuln_job', { id: jobId }).catch(() => null)
+        if (cancelled || !projection || typeof projection !== 'object') continue
+        const raw = projection as { target?: { name?: string; Name?: string }; Target?: { name?: string; Name?: string } }
+        const target = raw.target ?? raw.Target
+        const cveId = String(target?.name ?? target?.Name ?? '').trim().toUpperCase()
+        if (!/^CVE-\d{4}-\d{4,}$/.test(cveId)) continue
+        try {
+          dashboard.addTrackingItem({
+            id: cveId,
+            title: String((job as { title?: string })?.title ?? cveId),
+            vendor: '',
+            product: '',
+            affected: '',
+            summary: '',
+          })
+          dashboard.setRuntimeProjection(cveId, projection as never)
+        } catch {
+          // Keep going through the rest of the tracking jobs.
+        }
+      }
+    }
+    void ingestTrackingJobs()
+    const timer = window.setInterval(() => { void ingestTrackingJobs() }, 1_500)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [dashboard, navigationEpoch])
 
   function relatedConversations(cveId: string) {
     return conversations.filter(item => (

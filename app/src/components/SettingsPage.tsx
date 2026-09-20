@@ -70,6 +70,7 @@ import VulnerabilityIntelSettingsPanel from '@/components/VulnerabilityIntelSett
 import SettingsMCPPanel from '@/components/SettingsMCPPanel'
 import EvalSettingsPanel from '@/components/EvalSettingsPanel'
 import LabSettingsPanel from '@/components/LabSettingsPanel'
+import CompanionSettingsPanel from '@/components/CompanionSettingsPanel'
 import PluginSettingsPanel from '@/components/PluginSettingsPanel'
 import ModelVendorIcon from '@/components/ModelVendorIcon'
 import ArchivedConversationsSettings from '@/components/ArchivedConversationsSettings'
@@ -1338,6 +1339,12 @@ export default function SettingsPage({
               </>
             ) : working && category === 'lab' ? (
               <LabSettingsPanel settings={working} onPersist={() => void store.save()} />
+            ) : working && category === 'companion' ? (
+              <CompanionSettingsPanel
+                settings={working}
+                groups={searchablePickerGroups}
+                onPersist={() => void store.save()}
+              />
             ) : category === 'plugins' ? (
               <PluginSettingsPanel theme={resolvedTheme} />
             ) : category === 'cve' && dashboard ? (

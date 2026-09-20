@@ -84,6 +84,19 @@ test('registers unpackaged protocol clients with the Electron executable and app
     execPath: 'C:\\electron\\electron.exe',
     argv: ['C:\\electron\\electron.exe'],
   }), { scheme: 'milksu', register: false })
+  assert.deepEqual(desktopProtocolClientRegistration({
+    channel: 'stable',
+    isPackaged: false,
+    defaultApp: false,
+    execPath: '/repo/node_modules/electron/dist/Electron',
+    argv: ['/repo/node_modules/electron/dist/Electron', '/repo/desktop'],
+    instanceId: 'plfu-1',
+  }), {
+    scheme: 'milksu',
+    register: true,
+    execPath: '/repo/node_modules/electron/dist/Electron',
+    args: [path.resolve('/repo/desktop')],
+  })
 })
 
 test('keeps Stable and Beta OAuth callbacks on separate protocol handlers', async () => {

@@ -1259,6 +1259,8 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
   const activeTurnPolicies = new Set<string>()
   const titleGenerationAttemptedIds = new Set<string>()
   let disposeEvents: (() => void) | undefined
+  let disposeConversationList: (() => void) | undefined
+  let unknownSessionReloadAt = 0
 
   function persist(conversation: Conversation) {
     return invokeCommand('save_conversation', { conversation }).catch(console.error)
@@ -2948,6 +2950,11 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
   }
 
   async function listen() {
+    disposeConversationList?.()
+    disposeEvents?.()
+    disposeConversationList = await listenEvent('conversations-changed', () => {
+      void load()
+    })
     disposeEvents = await listenEvent<AgentEvent>('engine-event', event => {
       const {
         sessionId,
@@ -3076,6 +3083,13 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
         return
       }
       if (!sessionId) return
+      if (!s.conversations.some(item => item.id === sessionId)) {
+        const now = Date.now()
+        if (now - unknownSessionReloadAt > 400) {
+          unknownSessionReloadAt = now
+          void load()
+        }
+      }
       const sessionKernel = normalizeAgentKernel(
         s.conversations.find(item => item.id === sessionId)?.kernel,
       )
@@ -3556,6 +3570,8 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
     stopWatchActiveId()
     disposeEvents?.()
     disposeEvents = undefined
+    disposeConversationList?.()
+    disposeConversationList = undefined
     activeTurnPolicies.clear()
     for (const timer of saveTimers.values()) window.clearTimeout(timer)
     saveTimers.clear()

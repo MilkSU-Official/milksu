@@ -85,9 +85,19 @@ const ProfilePage = lazy(() => import('@/components/ProfilePage'))
 const SettingsPage = lazy(() => import('@/components/SettingsPage'))
 const VulnPage = lazy(() => import('@/components/VulnPage'))
 const LabPage = lazy(() => import('@/components/LabPage'))
+const CompanionPetWindow = lazy(() => import('@/components/CompanionPetWindow'))
 
-type Section = 'chat' | 'ctf' | 'vuln' | 'lab' | 'profile' | 'settings'
+type Section = 'chat' | 'ctf' | 'vuln' | 'lab' | 'companion' | 'profile' | 'settings'
 type DomainHome = 'ctf' | 'vuln' | 'lab'
+
+function readRendererSurface() {
+  if (typeof window === 'undefined') return ''
+  try {
+    return String(new URLSearchParams(window.location.search).get('surface') || '')
+  } catch {
+    return ''
+  }
+}
 
 const localAccountModeKey = 'milksu.account.continue-local'
 const solidColors: Record<string, string> = {
@@ -97,7 +107,10 @@ const solidColors: Record<string, string> = {
 
 function readLocalAccountMode() {
   try {
-    return window.localStorage?.getItem(localAccountModeKey) === '1'
+    // 「暂不登录」只对这一次进程有效。关掉再开必须再看见登录页。
+    const skipped = window.sessionStorage?.getItem(localAccountModeKey) === '1'
+    window.localStorage?.removeItem(localAccountModeKey)
+    return skipped
   } catch {
     return false
   }
@@ -105,8 +118,9 @@ function readLocalAccountMode() {
 
 function writeLocalAccountMode(enabled: boolean) {
   try {
-    if (enabled) window.localStorage?.setItem(localAccountModeKey, '1')
-    else window.localStorage?.removeItem(localAccountModeKey)
+    if (enabled) window.sessionStorage?.setItem(localAccountModeKey, '1')
+    else window.sessionStorage?.removeItem(localAccountModeKey)
+    window.localStorage?.removeItem(localAccountModeKey)
   } catch {
     // Some embedded or test renderers intentionally expose no local storage.
   }
@@ -183,6 +197,7 @@ async function timedStartupStep<T>(label: string, work: () => Promise<T>): Promi
 
 export default function App() {
   const t = useT()
+  const rendererSurface = readRendererSurface()
   const restoredViewState = useRef(readWorkspaceViewState()).current
   const openPluginSettingsOnStartup = useRef(
     typeof location !== 'undefined'
@@ -648,6 +663,12 @@ export default function App() {
     if (value === 'chat') {
       restoreCodingWorkspace()
       setSection(value)
+      return
+    }
+    if (value === 'companion') {
+      // Overlay launcher: open the small chat, never a blank full-page companion.
+      void invokeCommand('show_companion_chat_window')
+      void invokeCommand('set_companion_pet_hidden', { hidden: false })
       return
     }
     setSection(value)
@@ -1318,6 +1339,18 @@ export default function App() {
   }, [])
 
   useEffect(() => {
+    let stop: (() => void) | undefined
+    void listenEvent<{ section?: string; category?: string }>('companion.navigate', event => {
+      if (event.payload?.section !== 'settings') return
+      setSettingsCategory(normalizeSettingsCategory((event.payload.category as SettingsCategory) || 'companion'))
+      setSection('settings')
+    }).then(unlisten => {
+      stop = unlisten
+    })
+    return () => stop?.()
+  }, [])
+
+  useEffect(() => {
     if (section !== 'ctf' && section !== 'vuln' && section !== 'lab') return
     setKeptWorkspacePages(prev => {
       if (prev.has(section)) return prev
@@ -1358,6 +1391,15 @@ export default function App() {
     let unlistenWorkspaceRecords: (() => void) | undefined
     let unlistenRuntime: (() => void) | undefined
     let unlistenPluginTheme: (() => void) | undefined
+
+    if (rendererSurface === 'companion' || rendererSurface === 'companion-chat') {
+      void loadSettings().catch(() => {})
+      return () => {
+        if (systemThemeMedia && systemThemeListener) {
+          systemThemeMedia.removeEventListener('change', systemThemeListener)
+        }
+      }
+    }
 
     void (async () => {
       unlistenAccount = await listenEvent<AccountStatus>('account.changed', event => {
@@ -1502,6 +1544,14 @@ export default function App() {
     onClearWorkspace: clearCodingWorkspace,
     onCancelQueuedGuidance: conversations.cancelQueuedGuidance,
     onEditQueuedGuidance: conversations.editQueuedGuidance,
+  }
+
+  if (rendererSurface === 'companion' || rendererSurface === 'companion-chat') {
+    return (
+      <Suspense fallback={null}>
+        <CompanionPetWindow />
+      </Suspense>
+    )
   }
 
   if (!accountLoaded) {

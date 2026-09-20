@@ -57,7 +57,7 @@ Pi 拥有会话、压缩和工具循环。桌面 GUI 把外部动作变成可见
 
 | 边界 | 状态 | 事实 |
 | --- | --- | --- |
-| 桌面壳 | packaged | `desktop/main.cjs` + Preload allowlist。macOS `hiddenInset`；Windows/Linux 画布色 overlay，系统按钮右上。macOS DMG 安装引导图为 1x + @2x HiDPI TIFF。 |
+| 桌面壳 | packaged | `desktop/main.cjs` + Preload allowlist。macOS `hiddenInset`；Windows/Linux 画布色 overlay，系统按钮右上。macOS DMG 安装引导图为 1x + @2x HiDPI TIFF。桌宠悬浮窗是独立透明窗，角色和小窗对话粘成一组（默认工作区右下）；点角色切换小窗，隐藏同时收起整组，主窗口可以和小窗同时开着；叠层低于系统输入法，右键菜单夹在显示器工作区内；右键、菜单栏、Dock / 托盘是同一组动作。关掉主窗口后 Dock / 任务栏仍保留 MilkSU（Linux 用托盘）。Wayland 不能自己贴悬浮窗坐标，仍开小窗对话。角色皮肤合同见 [桌宠皮肤设计合同](/developer/companion-skin)；设置 → 桌宠可以导入文件夹或选用已启用的 `app.pet` 插件皮肤。 |
 | Renderer | packaged | React + shadcn：CTF / CVE / 实验室 / Coding / 设置 / Composer / 右栏 / Bottom Dock。入口 `main.tsx`。 |
 | 账户与模型 | packaged | GitHub PKCE；TokenFlux Key 只进 Go Credential Store，请求 `https://tokenflux.dev/v1`。账户目录优先，可安全回退个人来源。 |
 | OTA | implemented | 已登录 Stable 轮询 Admin latest；侧栏打开进度框下载，下完后用户点安装并重启；macOS/Windows 走 electron-updater，Linux dpkg/tarball。GitHub Release 不上 OTA ZIP。 |
@@ -69,7 +69,7 @@ Pi 拥有会话、压缩和工具循环。桌面 GUI 把外部动作变成可见
 | CTF / CVE / 实验室 | implemented | CTF 持题目、Evidence、Judge。CVE 点进档案复现。实验室起本机 Docker / AVD 或用户地址。CTF 本地房还不能引用环境经纪。 |
 | Worktree | opt-in | 子 Agent 默认主工作区；writer 只在模型调用 `prepare_coding_worktree` 时准备。脏主区不进 writer。 |
 | 持久化 | implemented | 产物在文档目录 `MilkSU`；Runtime、凭据、Obelisk、浏览器 Profile 在用户配置目录。 |
-| 产品回归 | implemented | `npm run test:product-loop`，见 [产品回归循环](/developer/product-regression-loop)。套件含 `composer-runtime`（Stop/Send、Working、Multitask、整理上下文/接到新会话、设置落盘）。CDP 只附着产品主窗，不附着 DSH fixture 页。`desktop-surface` 优先 Computer Use，不可用降级隔离浏览器。Settings「评测」是另一条。 |
+| 产品回归 | implemented | `npm run test:product-loop`，见 [产品回归循环](/developer/product-regression-loop)。默认按上手顺序走独立实例（登录 / 中转站密码框 → 主页 → 桌宠 → CTF/CVE/Lab → 桌面执行面 → 资料/更新 → 设置其余项），测完打印层级报告。CDP 只附着产品主窗。`desktop-surface` 优先 Computer Use，不可用降级隔离浏览器。Settings「评测」是另一条。 |
 
 ## 进程与 IPC
 

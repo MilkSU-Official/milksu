@@ -9,6 +9,35 @@ import (
 	"testing"
 )
 
+func TestListPetPluginPackagesOnlyReturnsEnabledPetPlugins(t *testing.T) {
+	officialRoot := t.TempDir()
+	dataRoot := t.TempDir()
+	pet := testManifest("pet.plugin")
+	pet.Permissions = []Permission{PermissionUIPet}
+	pet.Contributes.Slots = []string{"app.pet"}
+	plain := testManifest("plain.plugin")
+	writeRegistryTestPlugin(t, officialRoot, pet)
+	writeRegistryTestPlugin(t, officialRoot, plain)
+	writeRegistryTestLock(t, officialRoot, pet.ID, plain.ID)
+	registry, err := New(Options{OfficialDirectory: officialRoot, DataDirectory: dataRoot})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if packages := registry.ListPetPluginPackages(); len(packages) != 0 {
+		t.Fatalf("disabled pet plugin leaked: %#v", packages)
+	}
+	if err := registry.SetEnabled(pet.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	if err := registry.SetEnabled(plain.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	packages := registry.ListPetPluginPackages()
+	if len(packages) != 1 || packages[0].ID != pet.ID || packages[0].Directory == "" {
+		t.Fatalf("pet packages = %#v", packages)
+	}
+}
+
 func TestRegistryProductionModeIgnoresDevelopmentDirectory(t *testing.T) {
 	officialRoot := t.TempDir()
 	developmentRoot := t.TempDir()

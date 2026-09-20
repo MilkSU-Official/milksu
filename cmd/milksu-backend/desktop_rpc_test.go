@@ -25,15 +25,32 @@ func TestDesktopAppMethodsMatchRendererBindings(t *testing.T) {
 	}
 	bindingPattern := regexp.MustCompile(`(?m)^  ([A-Z][A-Za-z0-9]+)\(`)
 	electronMethods := map[string]bool{
-		"GetAccountStatus":  true,
-		"StartAccountLogin": true,
-		"LogoutAccount":     true,
-		"GetUpdateStatus":   true,
-		"CheckForUpdates":   true,
-		"DownloadUpdate":    true,
-		"CancelUpdate":      true,
-		"InstallUpdate":     true,
-		"GetBuildTracking":  true,
+		"GetAccountStatus":           true,
+		"StartAccountLogin":          true,
+		"LogoutAccount":              true,
+		"GetUpdateStatus":            true,
+		"CheckForUpdates":            true,
+		"DownloadUpdate":             true,
+		"CancelUpdate":               true,
+		"InstallUpdate":              true,
+		"GetBuildTracking":           true,
+		"GetCompanionShellStatus":    true,
+		"SetCompanionFloatEnabled":   true,
+		"SetCompanionPetHidden":      true,
+		"ShowCompanionMainWindow":    true,
+		"ShowCompanionChatWindow":    true,
+		"HideCompanionChatWindow":    true,
+		"ClickCompanionPet":          true,
+		"ShowCompanionSettings":      true,
+		"PopupCompanionMenu":         true,
+		"MoveCompanionPet":           true,
+		"ParkCompanionMainWindow":    true,
+		"QuitCompanionShell":         true,
+		"ListCompanionSkins":         true,
+		"GetCompanionSkin":           true,
+		"ImportCompanionSkin":        true,
+		"RemoveCompanionSkin":        true,
+		"NotifyCompanionSkinChanged": true,
 	}
 	wantRendererSet := map[string]bool{
 		"ListPlugins":             true,
@@ -79,7 +96,7 @@ func TestDesktopAppMethodsMatchRendererBindings(t *testing.T) {
 	if !reflect.DeepEqual(gotRenderer, wantRenderer) {
 		t.Fatalf("renderer desktop method registry drift\n got: %v\nwant: %v", gotRenderer, wantRenderer)
 	}
-	wantElectronHost := []string{"ClearAccountModelCredential", "SetAccountModelCredential"}
+	wantElectronHost := []string{"ClearAccountModelCredential", "ListPetPluginPackages", "SetAccountModelCredential"}
 	if !reflect.DeepEqual(gotElectronHost, wantElectronHost) {
 		t.Fatalf("Electron host method registry drift: got %v, want %v", gotElectronHost, wantElectronHost)
 	}

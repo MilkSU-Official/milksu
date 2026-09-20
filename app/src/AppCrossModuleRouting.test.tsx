@@ -569,7 +569,7 @@ describe('App cross-module routing', () => {
       state: 'active',
       user: { githubLogin: 'milksu', displayName: 'MilkSU', avatarUrl: '' },
     }
-    window.localStorage.setItem('milksu.account.continue-local', '1')
+    window.sessionStorage.setItem('milksu.account.continue-local', '1')
     const { host } = await mountApp()
 
     expect(host.querySelector('[aria-label="mock account login gate"]')).toBeNull()
@@ -578,7 +578,7 @@ describe('App cross-module routing', () => {
 
     expect(host.querySelector('[aria-label="mock account login gate"]')?.textContent).toBe('signed_out')
     expect(host.querySelector('[aria-label="mock sidebar"]')).toBeNull()
-    expect(window.localStorage.getItem('milksu.account.continue-local')).toBeNull()
+    expect(window.sessionStorage.getItem('milksu.account.continue-local')).toBeNull()
   }, 30_000)
 
   it('opens a security-tool setup draft in a new Coding task without sending it', async () => {

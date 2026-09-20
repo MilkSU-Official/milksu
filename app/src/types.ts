@@ -362,6 +362,15 @@ export interface AppSettings {
   worker_provider?: string
   worker_model?: string
   worker_source?: 'account' | 'personal' | 'service' | ''
+  companion_provider?: string
+  companion_model?: string
+  companion_source?: 'account' | 'personal' | 'service' | ''
+  companion_dispatch_enabled?: boolean
+  companion_memory_enabled?: boolean
+  companion_float_enabled?: boolean
+  companion_skin_id?: string
+  companion_proactivity?: CompanionProactivity
+  companion_teaching?: CompanionTeaching
   preferred_external_editor?: string
   ui_font?: UiFontPreset
   conversation_font?: UiFontPreset
@@ -391,6 +400,168 @@ export const PRIMARY_MODEL_SELECTION: ModelSelection = {
   model: 'deepseek-flash',
 }
 export const TOKENFLUX_DEFAULT_MODEL = 'x-ai/grok-4.6'
+export const DEFAULT_COMPANION_PROVIDER = 'tokenflux'
+export const DEFAULT_COMPANION_MODEL = 'google/gemini-3.8-flash'
+export const DEFAULT_COMPANION_SKIN_ID = 'default'
+export type CompanionTeaching = 'ask_me' | 'hints' | 'review'
+
+export interface CompanionProactivity {
+  task_events?: boolean
+  teaching_hints?: boolean
+  scheduled_broadcast?: boolean
+  idle_chat?: boolean
+}
+
+export interface CompanionPendingConfirm {
+  action?: string
+  conversationId?: string
+  text?: string
+  idempotencyKey?: string
+  mode?: string
+  hostRequestId?: string
+  targetTitle?: string
+}
+
+export interface CompanionStatus {
+  ready: boolean
+  provider: string
+  model: string
+  error?: string
+  pendingConfirm?: CompanionPendingConfirm
+}
+
+export interface CompanionTranscriptCursor {
+  byteOffset: number
+  entryId: string
+  timestamp: string
+  lineLength: number
+}
+
+export interface CompanionTranscriptEntry {
+  id: string
+  type: string
+  timestamp: string
+  role?: string
+  text?: string
+}
+
+export interface CompanionTranscriptPage {
+  entries: CompanionTranscriptEntry[]
+  nextCursor?: CompanionTranscriptCursor
+  prevCursor?: CompanionTranscriptCursor
+  hasMore: boolean
+  file?: string
+}
+
+export interface CompanionArchive {
+  name: string
+  size: number
+  modified: number
+  exportable: boolean
+}
+
+export interface CompanionMemoryProposal {
+  id: string
+  title: string
+  markdown: string
+  sourceSessionIds?: string[]
+  pending: boolean
+}
+
+export interface CompanionApprovedMemory {
+  id: string
+  title: string
+  markdown: string
+  sourceSessionIds?: string[]
+}
+
+export interface CompanionMemorySnapshot {
+  pending: CompanionMemoryProposal[]
+  approved: CompanionApprovedMemory[]
+}
+
+export interface CompanionDispatchResult {
+  accepted: boolean
+  delivered: boolean
+  targetTitle?: string
+  entryId?: string
+  error?: string
+  needsConfirmation?: boolean
+  idempotentReplay?: boolean
+}
+
+export interface CompanionShellStatus {
+  floating: boolean
+  hidden: boolean
+  chatOpen?: boolean
+  wayland: boolean
+  tray: boolean
+  parked?: boolean
+  platform?: string
+  menu?: Array<{ id: string; label: string }>
+  petBounds?: { x: number; y: number; width: number; height: number }
+  chatBounds?: { x: number; y: number; width: number; height: number }
+  overlay?: {
+    petVisible: boolean
+    chatOpen: boolean
+    mainVisible: boolean
+    chatSide?: 'left' | 'right'
+  }
+}
+
+export interface CompanionSkinName {
+  zh: string
+  en: string
+}
+
+export interface CompanionSkinSummary {
+  id: string
+  source: 'factory' | 'imported' | 'plugin'
+  factory?: boolean
+  removable?: boolean
+  name: CompanionSkinName
+}
+
+export interface CompanionSkinResolved extends CompanionSkinSummary {
+  overlay: {
+    think: 'spin' | 'none'
+    decide: 'bang' | 'none'
+    complete: 'bang' | 'none'
+  }
+  mark: { cx: number; cy: number; size: number }
+  frames: Partial<Record<'idle' | 'talk' | 'decide' | 'think' | 'complete', string>>
+}
+
+export interface CompanionSkinList {
+  skins: CompanionSkinSummary[]
+}
+
+export interface CompanionSkinImportResult {
+  canceled: boolean
+  imported?: CompanionSkinSummary
+  skins: CompanionSkinSummary[]
+}
+
+export interface CompanionBoardSnapshot {
+  sessions: Array<{
+    id: string
+    title: string
+    kind?: string
+    status: string
+    lastError?: string
+    archived?: boolean
+  }>
+  todos: Array<{
+    id: string
+    title: string
+    targetConversationId?: string
+    dependsOn?: string[]
+    note?: string
+    reason?: string
+    status: string
+    updatedAt?: number
+  }>
+}
 export const TOKENFLUX_FALLBACK_SELECTION: ModelSelection = {
   provider: 'tokenflux',
   model: TOKENFLUX_DEFAULT_MODEL,
@@ -456,6 +627,7 @@ export function withAppSettingsDefaults(value: AppSettings): AppSettings {
       .map(name => String(name).trim())
       .filter(name => name === 'ghidra-rpc' || name === 'jadx'))],
     ...normalizeWorkerSelection(value),
+    ...normalizeCompanionSelection(value),
     model_thinking: normalizeModelThinkingSettings(value.model_thinking, configuredProviders),
     model_context_windows: normalizeModelContextWindows(value.model_context_windows, configuredProviders),
     providers: configuredProviders,
@@ -484,6 +656,72 @@ function normalizeWorkerSelection(value: AppSettings): Pick<
     ? value.worker_source
     : provider === 'tokenflux' ? 'personal' : 'service'
   return { worker_provider: provider, worker_model: model, worker_source: source }
+}
+
+function normalizeCompanionTeaching(value: unknown): CompanionTeaching {
+  switch (String(value ?? '').trim()) {
+    case 'hints':
+    case 'hint':
+      return 'hints'
+    case 'review':
+    case 'retro':
+      return 'review'
+    default:
+      return 'ask_me'
+  }
+}
+
+function normalizeCompanionSkinId(value: unknown): string {
+  const id = String(value ?? '').trim()
+  if (!id || id === DEFAULT_COMPANION_SKIN_ID) return DEFAULT_COMPANION_SKIN_ID
+  if (id.includes('..') || /[\\/]/.test(id)) return DEFAULT_COMPANION_SKIN_ID
+  if (id.startsWith('imported:') || id.startsWith('plugin:')) {
+    const rest = id.slice(id.indexOf(':') + 1)
+    if (!rest || (id.startsWith('imported:') && rest === DEFAULT_COMPANION_SKIN_ID)) {
+      return DEFAULT_COMPANION_SKIN_ID
+    }
+    return id
+  }
+  return DEFAULT_COMPANION_SKIN_ID
+}
+
+function normalizeCompanionSelection(value: AppSettings): Pick<
+  AppSettings,
+  | 'companion_provider'
+  | 'companion_model'
+  | 'companion_source'
+  | 'companion_dispatch_enabled'
+  | 'companion_memory_enabled'
+  | 'companion_float_enabled'
+  | 'companion_skin_id'
+  | 'companion_proactivity'
+  | 'companion_teaching'
+> {
+  const provider = String(value.companion_provider ?? '').trim()
+  const model = String(value.companion_model ?? '').trim()
+  const resolvedProvider = provider && model ? provider : DEFAULT_COMPANION_PROVIDER
+  const resolvedModel = provider && model ? model : DEFAULT_COMPANION_MODEL
+  const source = value.companion_source === 'account'
+    || value.companion_source === 'personal'
+    || value.companion_source === 'service'
+    ? value.companion_source
+    : resolvedProvider === 'tokenflux' ? 'personal' : 'service'
+  return {
+    companion_provider: resolvedProvider,
+    companion_model: resolvedModel,
+    companion_source: source,
+    companion_dispatch_enabled: value.companion_dispatch_enabled !== false,
+    companion_memory_enabled: value.companion_memory_enabled !== false,
+    companion_float_enabled: value.companion_float_enabled !== false,
+    companion_skin_id: normalizeCompanionSkinId(value.companion_skin_id),
+    companion_proactivity: {
+      task_events: value.companion_proactivity?.task_events !== false,
+      teaching_hints: value.companion_proactivity?.teaching_hints === true,
+      scheduled_broadcast: value.companion_proactivity?.scheduled_broadcast === true,
+      idle_chat: value.companion_proactivity?.idle_chat === true,
+    },
+    companion_teaching: normalizeCompanionTeaching(value.companion_teaching),
+  }
 }
 
 export function normalizeModelRouting(value?: Partial<ModelRoutingConfig>): ModelRoutingConfig {

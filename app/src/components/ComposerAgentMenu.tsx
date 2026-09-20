@@ -85,6 +85,8 @@ export default function ComposerAgentMenu({
         )}
         aria-expanded={active}
         onMouseEnter={() => openPane(id)}
+        onPointerEnter={() => openPane(id)}
+        onClick={() => openPane(id)}
       >
         <span className="min-w-0 flex-1 truncate">{label}</span>
         <span className="max-w-[7rem] shrink-0 truncate text-caption text-muted-foreground">{value}</span>

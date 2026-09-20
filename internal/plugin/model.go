@@ -32,6 +32,7 @@ const (
 	PermissionStorage         Permission = "plugin.storage"
 	PermissionUIBackground    Permission = "ui.background"
 	PermissionUITheme         Permission = "ui.theme"
+	PermissionUIPet           Permission = "ui.pet"
 	PermissionAgentTools      Permission = "agent.tools"
 	PermissionMCPExternalRead Permission = "mcp.external.read"
 )
@@ -157,6 +158,14 @@ type Descriptor struct {
 	ThemeTokens     ThemeTokens   `json:"theme_tokens,omitempty"`
 	LightTokens     ThemeTokens   `json:"light_theme_tokens,omitempty"`
 	DarkTokens      ThemeTokens   `json:"dark_theme_tokens,omitempty"`
+}
+
+// PetPluginPackage is an enabled app.pet plugin whose directory the desktop
+// host can read for a companion skin.json. Paths stay in the Electron host.
+type PetPluginPackage struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Directory string `json:"directory"`
 }
 
 type SurfaceSlot string
