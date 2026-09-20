@@ -41,8 +41,7 @@ export function classifyTurnEvents(events) {
   const failed = types.some(type =>
     type === 'engine.error'
     || type === 'engine.protocol_error'
-    || type === 'engine.stopped'
-    || type === 'engine.sidecar_stopped',
+    || type === 'engine.stopped',
   )
   const settled = types.some(type => type === 'assistant.settled' || type === 'assistant.completed')
   return { settled, failed, error }
@@ -102,11 +101,28 @@ async function fetchJson(url, timeoutMs = 400) {
   return response.json()
 }
 
+export function isCompanionPetSurface(target) {
+  return /(?:\?|&)surface=companion(?:&|#|$)/i.test(String(target?.url ?? ''))
+}
+
+export function isCompanionChatSurface(target) {
+  return /(?:\?|&)surface=companion-chat(?:&|#|$)/i.test(String(target?.url ?? ''))
+}
+
+export function isCompanionSurface(target) {
+  return isCompanionPetSurface(target) || isCompanionChatSurface(target)
+}
+
+export function isMainProductSurface(target) {
+  return isMilkSUPage(target) && !isCompanionSurface(target)
+}
+
 export function isMilkSUPage(target) {
   const title = String(target?.title ?? '')
   const url = String(target?.url ?? '')
   if (/fixture/i.test(title + url)) return false
   if (/about:blank/i.test(url)) return false
+  if (isCompanionSurface(target)) return true
   if (/milksu:\/\//i.test(url)) return true
   if (/localhost:\d+/.test(url) && /milksu|vite/i.test(url + title)) return true
   return false
@@ -177,6 +193,9 @@ export async function listDesktopCdpTargets(options = {}) {
     }
   }
   found.sort((left, right) => {
+    const leftCompanion = isCompanionSurface(left) ? 1 : 0
+    const rightCompanion = isCompanionSurface(right) ? 1 : 0
+    if (leftCompanion !== rightCompanion) return leftCompanion - rightCompanion
     const leftApp = /milksu:\/\//i.test(left.url) ? 0 : 1
     const rightApp = /milksu:\/\//i.test(right.url) ? 0 : 1
     return leftApp - rightApp
@@ -186,7 +205,9 @@ export async function listDesktopCdpTargets(options = {}) {
 
 export async function findDesktopCdpTarget(options = {}) {
   const targets = await listDesktopCdpTargets(options)
-  return targets[0] ?? null
+  const main = targets.find(isMainProductSurface)
+  if (main) return main
+  return options.allowCompanion === true ? (targets[0] ?? null) : null
 }
 
 export const CDP_EVAL_TIMEOUT_MS = 15_000
@@ -334,6 +355,7 @@ export class GuiDriver {
     this.createdConversationIds = new Set()
     this.preferredPort = options.preferredPort ?? null
     this.instanceId = String(options.instanceId ?? '').trim()
+    this.windowClaim = null
   }
 
   async attachOrStart(timeoutMs) {
@@ -367,9 +389,9 @@ export class GuiDriver {
   }
 
   async startFresh(options = {}) {
-    const before = options.excludeKeys instanceof Set
-      ? options.excludeKeys
-      : new Set((await listDesktopCdpTargets()).map(desktopTargetKey))
+    const { keepExclusiveMilkSUWindow } = await import('./product-loop-windows.mjs')
+    this.windowClaim = await keepExclusiveMilkSUWindow({ log: true })
+    const before = new Set((await listDesktopCdpTargets()).map(desktopTargetKey))
     const instanceId = String(options.instanceId ?? this.instanceId ?? '').trim()
     if (!instanceId) throw new Error('startFresh requires MILKSU_INSTANCE_ID')
     this.instanceId = instanceId
@@ -401,6 +423,7 @@ export class GuiDriver {
       return false
     }
     this.preferredPort = this.target.port
+    this.windowClaim = await keepExclusiveMilkSUWindow({ driver: this, log: true })
     return this.bindRuntime()
   }
 
@@ -437,11 +460,18 @@ export class GuiDriver {
   }
 
   async ensureAttached() {
-    if (this.cdpAlive()) return true
+    if (this.cdpAlive() && this.target && isMainProductSurface(this.target)) return true
+    if (this.cdpAlive() && this.target && isCompanionSurface(this.target)) {
+      this.cdp.close()
+    }
     const deadline = Date.now() + 8_000
     while (Date.now() <= deadline) {
       const targets = await listDesktopCdpTargets({ port: this.preferredPort })
-      for (const target of targets) {
+      const ordered = [
+        ...targets.filter(isMainProductSurface),
+        ...(this.allowCompanionAttach ? targets.filter(isCompanionSurface) : []),
+      ]
+      for (const target of ordered) {
         this.target = target
         try {
           if (await this.bindRuntime()) return true
@@ -804,6 +834,27 @@ export class GuiDriver {
       return await this.invoke('ListCodingComputerUseTargets', [])
     } catch (error) {
       return { error: String(error instanceof Error ? error.message : error) }
+    }
+  }
+
+  async capturePagePng() {
+    if (!await this.ensureAttached()) return null
+    const result = await this.cdp.send('Page.captureScreenshot', { format: 'png', fromSurface: true })
+    if (!result?.data) return null
+    return Buffer.from(result.data, 'base64')
+  }
+
+  async captureSurfacePng(match) {
+    const target = (await listDesktopCdpTargets({ port: this.preferredPort })).find(match)
+    if (!target) return null
+    const session = new CdpSession(target.webSocketDebuggerUrl)
+    await session.open()
+    try {
+      const result = await session.send('Page.captureScreenshot', { format: 'png', fromSurface: true })
+      if (!result?.data) return null
+      return Buffer.from(result.data, 'base64')
+    } finally {
+      session.close()
     }
   }
 

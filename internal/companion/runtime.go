@@ -116,6 +116,7 @@ func (r *Runtime) Send(prompt string) error {
 		"prompt":              prompt,
 		"provider":            selection.Provider,
 		"model":               selection.Model,
+		"source":              selection.Source,
 		"boardSnapshot":       r.board.Snapshot(),
 		"semanticMemories":    r.semanticPayload(),
 		"episodicRecalls":     []any{},
@@ -331,6 +332,7 @@ func (r *Runtime) startLocked() error {
 		"action":              "create_session",
 		"provider":            selection.Provider,
 		"model":               selection.Model,
+		"source":              selection.Source,
 		"memorySearchEnabled": r.memorySearchEnabled(),
 	}
 	if custom := engine.CompanionCustomProvider(settings); custom != nil {

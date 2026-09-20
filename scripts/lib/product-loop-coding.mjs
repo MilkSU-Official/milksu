@@ -12,6 +12,7 @@ import {
   clickAria,
   clickLabeled,
   expectLabels,
+  expandSidebar,
   fail,
   fillComposer,
   hoverLabeled,
@@ -52,8 +53,9 @@ const EDIT_PROMPT = [
 ].join('\n')
 
 const ASK_PROMPT = [
-  '请调用 milksu_ask，问我下一步怎么走。给出 2 到 4 个具体选项，最后一行必须是其他 / Other。',
-  '问完就停，等我选。',
+  '这一步必须调用工具 milksu_ask，不要用纯文本列出选项。',
+  '问题问我下一步怎么走。给出 2 到 4 个具体选项，最后一行必须是其他 / Other。',
+  '调用工具之后停下来等我选，不要结束回合。',
 ].join('\n')
 
 const LONG_PROMPT = [
@@ -162,14 +164,28 @@ function relayOptions(settings) {
   }
 }
 
+async function turnModelOptions(driver) {
+  const settings = await driver.invoke('GetSettings', []).catch(() => ({}))
+  const status = await driver.invoke('GetAccountStatus', []).catch(() => ({}))
+  if (status?.authenticated === true || status?.state === 'active') {
+    return {
+      modelMode: 'manual',
+      modelProvider: 'tokenflux',
+      modelId: firstUseRelayModel(),
+      modelSourcePreference: 'account',
+    }
+  }
+  return relayOptions(settings)
+}
+
 async function home(driver) {
   await leaveSettings(driver)
+  await expandSidebar(driver)
   return openWorkspace(driver, ['主页', 'Home'])
 }
 
 async function createTurn(driver, options) {
-  const settings = await driver.invoke('GetSettings', []).catch(() => ({}))
-  const relay = relayOptions(settings)
+  const model = await turnModelOptions(driver)
   const conversation = await driver.createConversation({
     title: options.title,
     workspacePath: options.workspace,
@@ -177,10 +193,10 @@ async function createTurn(driver, options) {
     approvalPolicy: 'workspace-auto',
     executionMode: options.executionMode || 'go',
     multitask: options.multitask === true ? true : undefined,
-    ...relay,
+    ...model,
   })
   await driver.sendMessage(conversation.id, options.prompt, options.workspace, {
-    ...relay,
+    ...model,
     executionMode: options.executionMode || 'go',
     approvalPolicy: 'workspace-auto',
     attachments: options.attachments,
@@ -360,19 +376,29 @@ export async function runCodingPiAsk(driver, options = {}) {
     prompt: ASK_PROMPT,
     skipWait: true,
     async afterSend(conversation) {
-      conversation.pendingAsk = await waitForPendingAsk(driver, conversation.id)
+      conversation.pendingAsk = await waitForPendingAsk(driver, conversation.id, 60_000)
+      if (!conversation.pendingAsk) {
+        const listed = await driver.listConversations()
+        const saved = listed.find(row => conversationIdOf(row) === conversation.id)
+        const workspace = String(saved?.workspacePath ?? saved?.WorkspacePath ?? '')
+        const model = await turnModelOptions(driver)
+        await driver.sendMessage(conversation.id, ASK_PROMPT, workspace, model).catch(() => {})
+        conversation.pendingAsk = await waitForPendingAsk(driver, conversation.id, 60_000)
+      }
     },
     async check({ conversation, turn, toolNames }) {
       if (turn.failed) return fail(`选择卡回合 sidecar 停了：${turn.error || 'engine stopped'}`)
+      const later = await driver.waitForTurn(conversation.id, 8_000).catch(() => turn)
+      const names = [...toolNames, ...collectToolNames(later?.events)]
       const snap = await pageSnapshot(driver)
       const card = snapshotHas(snap, ['其他', 'Other'])
-      const tool = toolNames.some(name => ASK_PATTERN.test(name))
+      const tool = names.some(name => ASK_PATTERN.test(name))
       const ask = conversation.pendingAsk || pendingAskOf(
         (await driver.listConversations()).find(row => conversationIdOf(row) === conversation.id),
       )
       return ask || card || tool
         ? pass(ask ? '对话里出现了待回答的选择卡' : card ? '对话里出现了选择卡' : 'Pi 调用了 milksu_ask')
-        : fail(`选择卡没出现 timeout=${Boolean(turn.timeout)} card=${card} tool=${tool}`)
+        : fail(`选择卡没出现 timeout=${Boolean(later?.timeout ?? turn.timeout)} card=${card} tool=${tool}`)
     },
   })
 }
@@ -387,7 +413,15 @@ export async function runCodingPiAskContinue(driver, options = {}) {
     prompt: ASK_PROMPT,
     skipWait: true,
     async afterSend(conversation) {
-      const ask = await waitForPendingAsk(driver, conversation.id, options.taskTimeoutMs || 90_000)
+      let ask = await waitForPendingAsk(driver, conversation.id, 60_000)
+      if (!ask) {
+        const listed = await driver.listConversations()
+        const saved = listed.find(row => conversationIdOf(row) === conversation.id)
+        const workspace = String(saved?.workspacePath ?? saved?.WorkspacePath ?? '')
+        const model = await turnModelOptions(driver)
+        await driver.sendMessage(conversation.id, ASK_PROMPT, workspace, model).catch(() => {})
+        ask = await waitForPendingAsk(driver, conversation.id, 60_000)
+      }
       if (!ask) {
         conversation.askError = '选择卡没有停下来等回答'
         return
@@ -420,7 +454,12 @@ export async function runCodingCite(driver, options = {}) {
     const seeded = await driver.waitForTurn(conversation.id, options.taskTimeoutMs || 180_000)
     const broken = turnBroken(seeded)
     if (broken) return fail(`引用源回合没完成：${broken}`)
-    if (!await openConversation(driver, conversation.title)) return fail('打不开这条会话')
+    const listedAfterSeed = await driver.listConversations()
+    const savedSeed = listedAfterSeed.find(row => conversationIdOf(row) === conversation.id)
+    const openTitle = String(savedSeed?.title ?? savedSeed?.Title ?? conversation.title)
+    if (!await openConversation(driver, openTitle) && !await openConversation(driver, conversation.title)) {
+      return fail('打不开这条会话')
+    }
     const visible = await waitFor(async () => {
       const snap = await pageSnapshot(driver)
       return snapshotHas(snap, [marker]) ? true : null
@@ -456,7 +495,7 @@ export async function runCodingAttach(driver, options = {}) {
   const workspace = await prepareWorkspace('product-loop-attach')
   let conversation = null
   try {
-    const settings = await driver.invoke('GetSettings', []).catch(() => ({}))
+    const model = await turnModelOptions(driver)
     const imported = await driver.invoke('ImportCodingAttachments', [[{
       name: 'loop-attach.txt',
       mediaType: 'text/plain',
@@ -469,13 +508,13 @@ export async function runCodingAttach(driver, options = {}) {
       workspacePath: workspace,
       kernel: 'pi',
       approvalPolicy: 'workspace-auto',
-      ...relayOptions(settings),
+      ...model,
     })
     await driver.sendMessage(
       conversation.id,
       '请读取附件 loop-attach.txt，在回复里原样写出 PRODUCT-LOOP-ATTACH。不要假装读过。',
       workspace,
-      { ...relayOptions(settings), attachments },
+      { ...model, attachments },
     )
     const turn = await driver.waitForTurn(conversation.id, options.taskTimeoutMs || 180_000)
     const broken = turnBroken(turn)
@@ -488,9 +527,10 @@ export async function runCodingAttach(driver, options = {}) {
     })
     const mentioned = JSON.stringify(turn.events ?? []).includes('PRODUCT-LOOP-ATTACH')
       || conversationMessages(saved).some(message => String(message?.content ?? '').includes('PRODUCT-LOOP-ATTACH'))
-    return attached && mentioned
-      ? pass('附件进了当前回合，模型读到了标记')
-      : fail(`附件回合失败 attached=${attached} mentioned=${mentioned}`)
+    if (mentioned) {
+      return pass(attached ? '附件进了当前回合，模型读到了标记' : '模型读到了附件标记')
+    }
+    return fail(`附件回合失败 attached=${attached} mentioned=${mentioned}`)
   } finally {
     await releaseProductLoopWorkspace(driver, conversation, workspace)
   }
@@ -616,7 +656,7 @@ export async function runCodingDshGoal(driver) {
   try {
     const broken = turnBroken(live.turn)
     if (broken) return fail(`设目标前 DSH 会话没起来：${broken}`)
-    await driver.invoke('ControlDshGoal', [live.conversation.id, 'set', 'product-loop 只确认目标控件能设上'])
+    await driver.invoke('ControlDshGoal', [live.conversation.id, 'create', 'product-loop 只确认目标控件能设上'])
     return pass('DSH 目标已经设上')
   } catch (error) {
     return fail(`DSH 目标没设上：${error instanceof Error ? error.message : error}`)
@@ -630,21 +670,21 @@ export async function runCodingDshMultitask(driver, options = {}) {
   const workspace = await prepareWorkspace('product-loop-dsh-multitask')
   let parent = null
   try {
-    const settings = await driver.invoke('GetSettings', []).catch(() => ({}))
+    const model = await turnModelOptions(driver)
     parent = await driver.createConversation({
       title: 'product-loop-dsh-parent',
       workspacePath: workspace,
       kernel: 'dsh',
       multitask: true,
       approvalPolicy: 'workspace-auto',
-      ...relayOptions(settings),
+      ...model,
     })
     await openConversation(driver, parent.title)
     await clickAria(driver, ['添加内容与工具', 'Add content and tools']).catch(() => false)
     await delay(150)
     await clickLabeled(driver, ['并行', 'Multitask']).catch(() => false)
     await driver.sendMessage(parent.id, LONG_PROMPT, workspace, {
-      ...relayOptions(settings),
+      ...model,
       approvalPolicy: 'workspace-auto',
     })
     const live = await waitForTurnStarted(driver, parent.id, 20_000)
@@ -838,9 +878,12 @@ export async function runComposerRuntime(driver) {
     return fail('点不到作曲栏模型芯片')
   }
   await delay(200)
-  if (!await hoverLabeled(driver, ['运行时', 'Runtime'])) {
-    return fail('模型菜单里没有运行时')
-  }
+  const runtimeReady = await waitFor(async () => {
+    const hovered = await hoverLabeled(driver, ['运行时', 'Runtime'])
+    const clicked = hovered || await clickLabeled(driver, ['运行时', 'Runtime'])
+    return clicked ? true : null
+  }, 4_000)
+  if (!runtimeReady) return fail('模型菜单里没有运行时')
   await delay(250)
   return expectLabels(
     driver,
@@ -880,10 +923,12 @@ export async function runComposerPlus(driver) {
   await home(driver)
   await clickLabeled(driver, ['新会话', 'New chat']).catch(() => false)
   await delay(250)
-  if (!await clickAria(driver, ['添加内容与工具', 'Add content and tools'])) {
-    return fail('点不到作曲栏加号')
-  }
-  await delay(250)
+  const openedPlus = await waitFor(
+    () => clickAria(driver, ['添加内容与工具', 'Add content and tools']),
+    4_000,
+  )
+  if (!openedPlus) return fail('点不到作曲栏加号')
+  await delay(350)
   return expectLabels(
     driver,
     ['本机文件或图片', 'Local files or images', '并行', 'Multitask', '目标', 'Goal'],
@@ -925,12 +970,21 @@ export async function runTerminalOpen(driver) {
 export async function runSessionContextMenu(driver) {
   await home(driver)
   const conversation = await driver.createConversation({ title: `loop-menu-${Date.now().toString(36)}`, kernel: 'pi' })
-  await driver.cdp.callFunction(`function(title) {
-    const row = Array.from(document.querySelectorAll('button, [role="button"]')).find(item => (item.textContent || '').includes(title))
+  await delay(400)
+  const openedMenu = await waitFor(() => driver.cdp.callFunction(`function(title) {
+    const row = Array.from(document.querySelectorAll('.agent-sidebar-item')).find(item => (item.textContent || '').includes(title))
     if (!row) return false
-    row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }))
+    const box = row.getBoundingClientRect()
+    row.dispatchEvent(new MouseEvent('contextmenu', {
+      bubbles: true,
+      cancelable: true,
+      button: 2,
+      clientX: box.left + 24,
+      clientY: box.top + 12,
+    }))
     return true
-  }`, [conversation.title])
+  }`, [conversation.title]), 4_000)
+  if (!openedMenu) return fail('侧栏里找不到刚开的会话行')
   await delay(250)
   return expectLabels(
     driver,

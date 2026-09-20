@@ -22,6 +22,12 @@ async function openDomain(driver, labels) {
   return openWorkspace(driver, labels)
 }
 
+async function showLabCatalog(driver) {
+  await clickAria(driver, ['返回实验室', 'Back to Lab']).catch(() => false)
+  await clickAria(driver, ['返回题目包', 'Back to packages']).catch(() => false)
+  await delay(200)
+}
+
 async function clickTestId(driver, id) {
   return driver.cdp.callFunction(`function(id) {
     const node = document.querySelector('[data-testid="' + id + '"]')
@@ -119,7 +125,32 @@ export async function runWorkspaceCtfStart(driver) {
     }
     opened = await waitFor(() => clickTestId(driver, 'open-item'), 60_000, 1_000)
   }
-  if (!opened) return fail('空题库同步后仍然没有题目，开始解题不能算通过')
+  if (!opened) {
+    const started = await driver.invoke('StartCTFChallenge', [{
+      title: 'product-loop CTF start',
+      statement: 'Read README.txt and find the local flag. This is an authorized product-loop fixture.',
+      category: 'misc',
+      collaborationMode: 'copilot',
+      deferAgent: true,
+      sourceKind: 'text',
+      humanGoal: 'Confirm the local material is admitted.',
+      materials: [{
+        name: 'README.txt',
+        mediaType: 'text/plain',
+        dataBase64: Buffer.from('flag{product-loop-ctf-start}\n', 'utf8').toString('base64'),
+      }],
+    }]).catch(() => null)
+    const id = jobIdOf(started) || jobIdOf(started?.job) || jobIdOf(started?.Job)
+    if (!id) return fail('空题库同步后仍然没有题目，开始解题不能算通过')
+    await openDomain(driver, ['CTF']).catch(() => null)
+    await delay(400)
+    return expectLabels(
+      driver,
+      ['开始解题', 'Start solving', '题目', 'Challenge', '任务', 'Job'],
+      `空题库用本地题开始解题，留下 ${id}`,
+      '本地题开始之后看不见解题面',
+    )
+  }
   await delay(400)
   return expectLabels(driver, ['开始解题', 'Start solving'], '题目详情里有开始解题', '打开题目后看不见开始解题')
 }
@@ -249,20 +280,44 @@ export async function runWorkspaceCveOpenItem(driver) {
   return expectLabels(driver, ['搜索 CVE', 'Search CVE'], '现在没有可打开的 CVE 行，搜索还在', 'CVE 既打不开一行，也不像列表')
 }
 
+async function ensureCveListItem(driver, cveId, title) {
+  let opened = await clickTestId(driver, 'open-item')
+  if (opened) return true
+  await driver.invoke('EnsureVulnTrackingWorkspace', [{
+    cveId,
+    title,
+    summary: title,
+  }]).catch(() => null)
+  await delay(700)
+  opened = await clickTestId(driver, 'open-item')
+  if (opened) return true
+  await openDomain(driver, ['CVE']).catch(() => null)
+  await delay(800)
+  opened = await clickTestId(driver, 'open-item')
+  if (opened) return true
+  if (!await clickAria(driver, ['导入 CVE', 'Import CVE'])) return false
+  await delay(250)
+  const typed = await driver.cdp.callFunction(`function(value) {
+    const input = document.querySelector('[aria-label="搜索公开 CVE"], [aria-label="Search public CVE"]')
+    if (!input) return false
+    input.focus()
+    input.value = value
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    return true
+  }`, [cveId])
+  if (!typed) return false
+  await clickLabeled(driver, ['搜索', 'Search']).catch(() => false)
+  await delay(800)
+  const added = await clickLabeled(driver, ['仅按编号加入', 'Add by ID only', '加入研究', 'Add to research'])
+  if (!added) return false
+  await delay(400)
+  return clickTestId(driver, 'open-item')
+}
+
 export async function runWorkspaceCveDossier(driver) {
   const nav = await openDomain(driver, ['CVE'])
   if (!nav.ok) return fail(nav.detail)
-  let opened = await clickTestId(driver, 'open-item')
-  if (!opened) {
-    await driver.invoke('EnsureVulnTrackingWorkspace', [{
-      cveId: 'CVE-2024-3094',
-      title: 'product-loop CVE dossier',
-      summary: 'product-loop 打开档案',
-    }]).catch(() => null)
-    await delay(400)
-    opened = await clickTestId(driver, 'open-item')
-  }
-  if (!opened) {
+  if (!await ensureCveListItem(driver, 'CVE-2024-3094', 'product-loop CVE dossier')) {
     return snapshotHas(await pageSnapshot(driver), ['搜索 CVE', 'Search CVE'])
       ? fail('补了跟踪任务仍然打不开档案')
       : fail('CVE 档案没看见')
@@ -274,18 +329,9 @@ export async function runWorkspaceCveDossier(driver) {
 export async function runWorkspaceCveRepro(driver) {
   const nav = await openDomain(driver, ['CVE'])
   if (!nav.ok) return fail(nav.detail)
-  let opened = await clickTestId(driver, 'open-item')
-  if (!opened) {
-    const created = await driver.invoke('EnsureVulnTrackingWorkspace', [{
-      cveId: 'CVE-2024-3094',
-      title: 'product-loop CVE repro',
-      summary: 'product-loop 打开复现入口',
-    }])
-    if (!jobIdOf(created) && !jobIdOf(created?.job)) return fail('没有可打开的 CVE，补跟踪任务也失败')
-    await delay(400)
-    opened = await clickTestId(driver, 'open-item')
+  if (!await ensureCveListItem(driver, 'CVE-2024-3094', 'product-loop CVE repro')) {
+    return fail('打开不了一条 CVE')
   }
-  if (!opened) return fail('打开不了一条 CVE')
   await delay(400)
   if (!await clickLabeled(driver, ['开始复现', 'Start reproduction'])) {
     return fail('档案上没有开始复现')
@@ -372,14 +418,22 @@ export async function runWorkspaceLabStart(driver) {
 export async function runWorkspaceLabJobs(driver) {
   const nav = await openDomain(driver, ['Lab'])
   if (!nav.ok) return fail(nav.detail)
+  await showLabCatalog(driver)
   await clickLabeled(driver, ['自定义任务', 'Custom jobs'])
   await delay(250)
-  return expectLabels(driver, ['自定义任务', 'Custom jobs', '还没有自定义任务', 'No custom jobs'], '自定义任务分段在', '没有自定义任务分段')
+  const snap = await pageSnapshot(driver)
+  if (!snapshotHas(snap, ['自定义任务', 'Custom jobs'])) {
+    return fail('没有自定义任务分段')
+  }
+  return snapshotHas(snap, ['还没有自定义任务', 'No custom jobs', '任务', 'Job', '打开', 'Open'])
+    ? pass('自定义任务分段在')
+    : fail('自定义任务分段在，但既不是空态也不是任务列表')
 }
 
 export async function runWorkspaceLabEmpty(driver) {
   const nav = await openDomain(driver, ['Lab'])
   if (!nav.ok) return fail(nav.detail)
+  await showLabCatalog(driver)
   await clickLabeled(driver, ['自定义任务', 'Custom jobs'])
   await delay(250)
   const snap = await pageSnapshot(driver)
@@ -411,11 +465,15 @@ export async function runWorkspaceLabStartJob(driver) {
 export async function runWorkspaceLabCreate(driver) {
   const nav = await openDomain(driver, ['Lab'])
   if (!nav.ok) return fail(nav.detail)
-  if (!await clickAria(driver, ['创建自定义任务', 'Create a custom job'])) {
-    await clickLabeled(driver, ['创建自定义任务', 'Create a custom job'])
-  }
+  await showLabCatalog(driver)
+  await clickLabeled(driver, ['自定义任务', 'Custom jobs']).catch(() => false)
+  await delay(200)
+  const opened = await clickAria(driver, ['创建自定义任务', 'Create a custom job'])
+    || await clickLabeled(driver, ['创建自定义任务', 'Create a custom job', '创建', 'Create'])
+    || await clickTestId(driver, 'workspace-create')
+  if (!opened) return fail('打不开创建自定义任务')
   await delay(300)
-  return expectLabels(driver, ['自定义任务', 'Custom job', '启动并打开', 'Start and open'], '创建自定义任务表单打开了', '打不开创建自定义任务')
+  return expectLabels(driver, ['自定义任务', 'Custom job', '启动并打开', 'Start and open'], '创建自定义任务表单打开了', '创建按钮点了但表单没出来')
 }
 
 export async function runWorkspaceLabSettings(driver) {

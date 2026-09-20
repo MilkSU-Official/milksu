@@ -10,6 +10,7 @@ import {
 import { createCompanionExtension, COMPANION_SESSION_ID } from "./extension.js";
 import { createCompanionTools } from "./tools.js";
 import { queryCompanionMemory, scheduleCompanionIndexRefresh } from "./obelisk-index.js";
+import { companionProviderEnvironment } from "./companion-model-env.js";
 
 const require = createRequire(import.meta.url);
 const {
@@ -160,7 +161,7 @@ async function applyCompanionModel(command) {
   const definition = currentProviderDefinition(
     provider,
     model,
-    process.env,
+    companionProviderEnvironment(command),
     command?.customProvider,
   );
   if (definition) {

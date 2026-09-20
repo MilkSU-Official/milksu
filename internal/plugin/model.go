@@ -160,6 +160,14 @@ type Descriptor struct {
 	DarkTokens      ThemeTokens   `json:"dark_theme_tokens,omitempty"`
 }
 
+// PetPluginPackage is an enabled app.pet plugin whose directory the desktop
+// host can read for a companion skin.json. Paths stay in the Electron host.
+type PetPluginPackage struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Directory string `json:"directory"`
+}
+
 type SurfaceSlot string
 
 const (

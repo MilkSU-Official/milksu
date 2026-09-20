@@ -38,7 +38,7 @@ npm run test:product-loop -- --gui --suite first-use
 先把设置里的两条来源走通，再出设置测别的，最后才回归设置其余项。
 
 1. 填本地 env。
-2. **启动 A**（必须先看见登录页，不要附着已经在首页的窗口）：GitHub 登录 → 账户模型文件循环 → 设置自定义中转站 → 中转站文件循环。
+2. **启动 A**（必须先看见登录页）：脚本先清掉其它 MilkSU 窗口，只开这一扇测试窗。GitHub 登录 → 账户模型文件循环 → 设置自定义中转站 → 中转站文件循环。
 3. 关掉 A。
 4. **启动 B**（再看见登录页）：「暂不登录，使用自己的 API Key」→ 进首页 → 中转站仍可用。
 5. 离开设置，按下面「设置以外」往下测。
@@ -70,7 +70,7 @@ npm run test:product-loop -- --gui --suite first-use
 
 1. 点「使用 GitHub 登录」（或 `StartAccountLogin`）。
 2. 系统浏览器里由你完成授权。脚本只轮询账户状态。
-3. 回到产品，登录门消失，进到壳里。
+3. 回到**这一扇测试窗**，登录门消失，进到壳里。日常 MilkSU 和残留窗口在开测前会被关掉，`milksu://` 不该进那扇窗。
 
 **必须看见：** `GetAccountStatus.state === active`，已认证。
 
@@ -151,9 +151,9 @@ npm run test:product-loop -- --gui --suite first-use
 
 ### 桌宠
 
-**ID：** `companion-relay`
+**ID：** `companion-relay` / `companion-skin-import`
 
-真实桌宠回合，把标记转达到指定 Coding 会话。抄本、看板、目标会话都要看到。
+真实桌宠回合，把标记转达到指定 Coding 会话。抄本、看板、目标会话都要看到。第三方皮肤用回路自己生成的合同夹具，不要填本机路径。
 
 ### 领域工作区
 
@@ -179,10 +179,10 @@ npm run test:product-loop -- --gui --suite first-use
 
 最后再打开设置：通用「界面语言」、模型「默认运行时」、已启用的中转站行。不重填 Key。
 
-测完 stdout 会打一份从大模块到小模块再到整体的报告。
+测完 stdout 会打一份从大模块到小模块再到整体的文字报告，并写 `build/test-results/product-loop-report/index.html`（每一项带截图）。
 
 ## 正式接口和禁区
 
 - 只走官方 Desktop RPC / 产品按钮：`GetAccountStatus`、`StartAccountLogin`、`LogoutAccount`、`GetSettings`、`SaveSettings`、`SaveConversation`、`SendMessage`、听 `engine-event`。
 - 不造测试专用 RPC。不要 Beta。
-- 回执：`build/test-results/product-loop.json`。不要提交回执。
+- 回执：`build/test-results/product-loop.json`。正式报告：`build/test-results/product-loop-report/`。不要提交回执或截图。

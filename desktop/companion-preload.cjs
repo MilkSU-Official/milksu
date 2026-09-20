@@ -18,8 +18,16 @@ const ALLOWED = new Set([
   'SetCompanionFloatEnabled',
   'SetCompanionPetHidden',
   'ShowCompanionMainWindow',
+  'ShowCompanionChatWindow',
+  'HideCompanionChatWindow',
+  'ShowCompanionSettings',
+  'PopupCompanionMenu',
+  'ParkCompanionMainWindow',
   'QuitCompanionShell',
   'GetSettings',
+  'EnsureCompanion',
+  'ListCompanionSkins',
+  'GetCompanionSkin',
 ])
 
 if (process.isMainFrame) {

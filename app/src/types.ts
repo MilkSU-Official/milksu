@@ -368,6 +368,7 @@ export interface AppSettings {
   companion_dispatch_enabled?: boolean
   companion_memory_enabled?: boolean
   companion_float_enabled?: boolean
+  companion_skin_id?: string
   companion_proactivity?: CompanionProactivity
   companion_teaching?: CompanionTeaching
   preferred_external_editor?: string
@@ -401,6 +402,7 @@ export const PRIMARY_MODEL_SELECTION: ModelSelection = {
 export const TOKENFLUX_DEFAULT_MODEL = 'x-ai/grok-4.6'
 export const DEFAULT_COMPANION_PROVIDER = 'tokenflux'
 export const DEFAULT_COMPANION_MODEL = 'google/gemini-3.8-flash'
+export const DEFAULT_COMPANION_SKIN_ID = 'default'
 export type CompanionTeaching = 'ask_me' | 'hints' | 'review'
 
 export interface CompanionProactivity {
@@ -480,8 +482,45 @@ export interface CompanionDispatchResult {
 export interface CompanionShellStatus {
   floating: boolean
   hidden: boolean
+  chatOpen?: boolean
   wayland: boolean
   tray: boolean
+  parked?: boolean
+  platform?: string
+  menu?: Array<{ id: string; label: string }>
+}
+
+export interface CompanionSkinName {
+  zh: string
+  en: string
+}
+
+export interface CompanionSkinSummary {
+  id: string
+  source: 'factory' | 'imported' | 'plugin'
+  factory?: boolean
+  removable?: boolean
+  name: CompanionSkinName
+}
+
+export interface CompanionSkinResolved extends CompanionSkinSummary {
+  overlay: {
+    think: 'spin' | 'none'
+    decide: 'bang' | 'none'
+    complete: 'bang' | 'none'
+  }
+  mark: { cx: number; cy: number; size: number }
+  frames: Partial<Record<'idle' | 'talk' | 'decide' | 'think' | 'complete', string>>
+}
+
+export interface CompanionSkinList {
+  skins: CompanionSkinSummary[]
+}
+
+export interface CompanionSkinImportResult {
+  canceled: boolean
+  imported?: CompanionSkinSummary
+  skins: CompanionSkinSummary[]
 }
 
 export interface CompanionBoardSnapshot {
@@ -613,6 +652,20 @@ function normalizeCompanionTeaching(value: unknown): CompanionTeaching {
   }
 }
 
+function normalizeCompanionSkinId(value: unknown): string {
+  const id = String(value ?? '').trim()
+  if (!id || id === DEFAULT_COMPANION_SKIN_ID) return DEFAULT_COMPANION_SKIN_ID
+  if (id.includes('..') || /[\\/]/.test(id)) return DEFAULT_COMPANION_SKIN_ID
+  if (id.startsWith('imported:') || id.startsWith('plugin:')) {
+    const rest = id.slice(id.indexOf(':') + 1)
+    if (!rest || (id.startsWith('imported:') && rest === DEFAULT_COMPANION_SKIN_ID)) {
+      return DEFAULT_COMPANION_SKIN_ID
+    }
+    return id
+  }
+  return DEFAULT_COMPANION_SKIN_ID
+}
+
 function normalizeCompanionSelection(value: AppSettings): Pick<
   AppSettings,
   | 'companion_provider'
@@ -621,6 +674,7 @@ function normalizeCompanionSelection(value: AppSettings): Pick<
   | 'companion_dispatch_enabled'
   | 'companion_memory_enabled'
   | 'companion_float_enabled'
+  | 'companion_skin_id'
   | 'companion_proactivity'
   | 'companion_teaching'
 > {
@@ -640,6 +694,7 @@ function normalizeCompanionSelection(value: AppSettings): Pick<
     companion_dispatch_enabled: value.companion_dispatch_enabled !== false,
     companion_memory_enabled: value.companion_memory_enabled !== false,
     companion_float_enabled: value.companion_float_enabled !== false,
+    companion_skin_id: normalizeCompanionSkinId(value.companion_skin_id),
     companion_proactivity: {
       task_events: value.companion_proactivity?.task_events !== false,
       teaching_hints: value.companion_proactivity?.teaching_hints === true,

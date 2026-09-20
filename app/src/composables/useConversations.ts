@@ -1259,6 +1259,7 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
   const activeTurnPolicies = new Set<string>()
   const titleGenerationAttemptedIds = new Set<string>()
   let disposeEvents: (() => void) | undefined
+  let unknownSessionReloadAt = 0
 
   function persist(conversation: Conversation) {
     return invokeCommand('save_conversation', { conversation }).catch(console.error)
@@ -3076,6 +3077,13 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
         return
       }
       if (!sessionId) return
+      if (!s.conversations.some(item => item.id === sessionId)) {
+        const now = Date.now()
+        if (now - unknownSessionReloadAt > 400) {
+          unknownSessionReloadAt = now
+          void load()
+        }
+      }
       const sessionKernel = normalizeAgentKernel(
         s.conversations.find(item => item.id === sessionId)?.kernel,
       )

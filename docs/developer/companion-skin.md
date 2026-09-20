@@ -6,9 +6,9 @@
 >
 > 本页回答「要自己画一款桌宠皮肤，必须交出哪些帧、画在多大的画布上、哪些部位要留给产品」。
 > 产品 chrome 仍以仓库根目录 `AGENTS.md` 为准，这里不复述颜色 token。
-> 插件槽位 `app.pet` / 权限 `ui.pet` 已预留，见 [插件框架](plugin-framework.md)；设置页还不能选第三方皮肤。
+> 插件槽位 `app.pet` / 权限 `ui.pet` 已接线，见 [插件框架](plugin-framework.md)。设置 → 桌宠可以选文件夹导入，或选已启用的 `app.pet` 插件皮肤。
 
-当前出厂皮肤是 `app/src/assets/companion/idle.png`、`talk.png` 与 `decide.png`。悬浮窗渲染器在 `CompanionPetWindow.tsx`。自定义皮肤按本页交帧即可对齐现行产品；换装入口尚未接线。
+当前出厂皮肤是 `app/src/assets/companion/idle.png`、`talk.png` 与 `decide.png`。悬浮窗渲染器在 `CompanionPetWindow.tsx`。自定义皮肤按本页交帧，从设置 → 桌宠换上。
 
 ## 运动，不是表情包
 
@@ -96,9 +96,9 @@
 
 以后若某套皮肤自带 `think.png` / `complete.png`，仍然不要把加载圈或叹号画死在帽子上，除非它同时声明关闭产品叠层。默认皮肤走叠层，思考复用 `idle`，完成复用 `talk`。
 
-## 自定义包（设计目标，尚未接线）
+## 自定义包
 
-设置 → 桌宠 → 皮肤现在只显示「默认」。作者先按这个目录准备，等换装入口接上就能用：
+设置 → 桌宠 → 皮肤默认是「默认」。选「添加皮肤」指向下面这个文件夹，或启用带 `app.pet` / `ui.pet` 的插件：
 
 ```text
 my-companion-skin/
@@ -140,7 +140,7 @@ my-companion-skin/
 - `overlay.think`：`spin` 或 `none`。`overlay.decide` / `overlay.complete`：`bang` 或 `none`。
 - `name` 必须中英成对。不要把说明、作者故事或「这不是官方皮肤」写进产品气泡。
 - 图片：PNG，RGBA，建议 480×480，单张不超过 2 MiB，边长不超过 1024。不要 JPG 白底。
-- 插件若走 `app.pet` 槽位，Manifest 必须带 `ui.pet`。宿主尚未读取这些帧；现在打包也只是为了对齐合同。
+- 插件若走 `app.pet` 槽位，Manifest 必须带 `ui.pet`。启用后设置里会出现这套皮肤；宿主读包根目录的 `skin.json` 和帧。
 
 缺帧时的回退：没有 `talk` 或 `decide` 就不要发布；没有 `think` 用 `idle` + 叠层，没有 `complete` 用 `talk` + 绿色叹号。不要静默拿一张完全不同的脸去补。
 
@@ -151,6 +151,6 @@ my-companion-skin/
 3. 让它忙起来但还没流式输出：仍是闭嘴，帽顶加载饰在转，且转的方向是顺时针看去的反方向（CSS `rotate(-360deg)`），速度大约 1.6 秒一圈。黄星可以露在加载饰旁边。
 4. 触发跨会话确认或让它报错：切到惊讶嘴，帽顶变成黄色叹号，气泡完整停在脑袋上方，帽子和头发不得盖住字。
 5. 回合说完：切到微笑，帽顶绿色叹号大约 2.8 秒，然后回到空闲闭嘴。
-6. 右键皮肤：桌宠隐藏；macOS Dock 或 Windows 任务栏（Linux 托盘）还能唤醒。这是壳行为，不是皮肤的一部分。
+6. 右键角色：弹出菜单（对话 / 隐藏桌宠 / 打开主窗口 / 桌宠设置 / 退出），不要直接藏起来。菜单栏、macOS Dock 右键和 Linux 托盘右键是同一组动作。对话打开旁边的小窗，不是主窗口里的整页。隐藏之后，macOS Dock 或 Windows 任务栏（Linux 托盘）还能唤醒。这是壳行为，不是皮肤的一部分。
 
 不要用挂载测试去锁 class 名或 PNG 哈希。换默认皮肤时，更新本页出厂描述，并替换 `app/src/assets/companion/` 那三张图。

@@ -45,6 +45,19 @@ describe('workspaceViewState', () => {
       settingsReturnTarget: 'ctf',
     })
   })
+
+  it('opens the last workspace instead of the retired companion page', () => {
+    const storage = createMemoryStorage()
+    storage.setItem(WORKSPACE_VIEW_STATE_STORAGE_KEY, JSON.stringify({
+      version: 1,
+      section: 'companion',
+      settingsReturnTarget: 'companion',
+    }))
+    expect(readWorkspaceViewState(storage)).toMatchObject({
+      section: 'chat',
+      settingsReturnTarget: 'chat',
+    })
+  })
 })
 
 function createMemoryStorage(): Storage {

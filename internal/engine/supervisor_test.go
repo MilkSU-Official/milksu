@@ -2514,6 +2514,29 @@ func TestWithDSHProviderEnvironmentOfficialDeepSeekOmitsChatCompletionsRoot(t *t
 	}
 }
 
+func TestWithDSHProviderEnvironmentMapsAccountTokenFluxRelay(t *testing.T) {
+	settings := config.DefaultSettings()
+	settings.ActiveProvider = "tokenflux"
+	settings.ActiveModel = "deepseek/deepseek-flash"
+	settings.Providers["tokenflux"] = config.ProviderConfig{Enabled: true}
+	settings.Relay = &config.RelayConfig{
+		Enabled: true,
+		URL:     "https://tokenflux.dev/v1",
+		Key:     "account-tokenflux-secret",
+	}
+
+	environment := withDSHProviderEnvironment(engineEnvironment(settings), settings)
+	for _, expected := range []string{
+		"DEEPSEEK_API_KEY=account-tokenflux-secret",
+		"DEEPSEEK_BASE_URL=https://tokenflux.dev/v1",
+		"MILKSU_DSH_LLM_PROTOCOL=chat-completions",
+	} {
+		if !containsEnvironmentEntry(environment, expected) {
+			t.Fatalf("expected %q in DSH env when only the account TokenFlux relay has a key", expected)
+		}
+	}
+}
+
 func TestWithDSHProviderEnvironmentMapsActiveTokenFlux(t *testing.T) {
 	baseURL := "https://tokenflux.dev/v1"
 	settings := config.DefaultSettings()

@@ -4,12 +4,13 @@
  */
 
 import { rm } from 'node:fs/promises'
-import { classifyTurnEvents, delay, desktopTargetKey, listDesktopCdpTargets } from './desktop-gui-driver.mjs'
+import { classifyTurnEvents, delay } from './desktop-gui-driver.mjs'
 import {
   describeCustomRelay,
   firstUseRelayName,
   startFirstUseDesktop,
 } from './product-loop-first-use.mjs'
+import { keepExclusiveMilkSUWindow } from './product-loop-windows.mjs'
 
 export { classifyTurnEvents }
 
@@ -79,7 +80,7 @@ export async function clickRole(driver, role, patterns, rootSelector = '') {
 
 export async function hoverLabeled(driver, patterns) {
   return driver.cdp.callFunction(`function(patterns) {
-    const nodes = Array.from(document.querySelectorAll('button, [role="button"]'))
+    const nodes = Array.from(document.querySelectorAll('button, [role="button"], [role="menuitem"]'))
     for (const node of nodes) {
       const label = [node.getAttribute('aria-label') || '', node.textContent || ''].join(' ')
       if (!patterns.some(pattern => label.includes(pattern))) continue
@@ -91,8 +92,37 @@ export async function hoverLabeled(driver, patterns) {
   }`, [patterns])
 }
 
+export async function expandSidebar(driver) {
+  const expanded = await driver.cdp.callFunction(`function() {
+    const sidebar = document.querySelector('[data-testid="coding-context-drawer"]')
+    if (sidebar?.getAttribute('data-sidebar-collapsed') !== 'true') return true
+    const button = document.querySelector('[data-testid="coding-history-expand"], [aria-label="展开侧栏"], [aria-label="Expand sidebar"]')
+    if (!button) return false
+    button.click()
+    return true
+  }`).catch(() => false)
+  if (expanded) await delay(200)
+  return expanded
+}
+
 export async function openConversation(driver, title) {
-  const clicked = await clickLabeled(driver, [title])
+  await expandSidebar(driver)
+  const clicked = await driver.cdp.callFunction(`function(title) {
+    const row = Array.from(document.querySelectorAll('.agent-sidebar-item')).find(item => (item.textContent || '').includes(title))
+    if (row) {
+      const button = row.querySelector('button.agent-sidebar-row, button')
+      ;(button || row).click()
+      return true
+    }
+    const nodes = Array.from(document.querySelectorAll('button, [role="button"]'))
+    const node = nodes.find(item => {
+      const label = [item.getAttribute('aria-label') || '', item.textContent || ''].join(' ')
+      return label.includes(title)
+    })
+    if (!node) return false
+    node.click()
+    return true
+  }`, [title])
   await delay(400)
   return clicked
 }
@@ -141,8 +171,16 @@ export async function clickSettingsCategory(driver, labels) {
 }
 
 export async function openSettings(driver) {
+  await driver.invoke('ShowCompanionMainWindow', []).catch(() => {})
+  await driver.ensureAttached()
+  await expandSidebar(driver)
   if (snapshotHas(await pageSnapshot(driver), ['设置分类', 'Settings categories'])) return { ok: true }
-  const clicked = await clickLabeled(driver, ['设置', 'Settings'])
+  const clicked = await driver.cdp.callFunction(`function() {
+    const button = document.querySelector('[data-testid="sidebar-open-settings"]')
+    if (!button) return false
+    button.click()
+    return true
+  }`)
   if (!clicked) return { ok: false, detail: '打不开设置' }
   await delay(400)
   return snapshotHas(await pageSnapshot(driver), ['设置分类', 'Settings categories'])
@@ -274,12 +312,18 @@ export async function enterHomepageSkipLocal(driver) {
 export async function sourcesReady(driver) {
   const creds = await driver.credentialPresent()
   if (creds !== 'none') return true
+  const status = await driver.invoke('GetAccountStatus', []).catch(() => ({}))
+  if (status?.authenticated === true || status?.state === 'active') return true
   const relay = describeCustomRelay(await driver.invoke('GetSettings', []).catch(() => ({})), firstUseRelayName())
   return Boolean(relay.hasKey && relay.enabled && relay.models.length)
 }
 
 export async function ensureIsolatedProductSession(session = {}, options = {}) {
   if (session.driver?.cdpAlive()) {
+    await session.driver.invoke('ShowCompanionMainWindow', []).catch(() => {})
+    await session.driver.ensureAttached()
+    await keepExclusiveMilkSUWindow({ driver: session.driver, log: true })
+    await expandSidebar(session.driver).catch(() => {})
     await leaveSettings(session.driver).catch(() => {})
     const gate = await enterHomepageSkipLocal(session.driver)
     if (!gate.ok) return { ...session, ok: false, detail: gate.detail }
@@ -290,12 +334,10 @@ export async function ensureIsolatedProductSession(session = {}, options = {}) {
       sourcesReady: session.sourcesReady || await sourcesReady(session.driver),
     }
   }
-  const existing = await listDesktopCdpTargets()
   const instanceId = session.instanceId || `plmod-${process.pid}-${Date.now().toString(36)}`
   const launch = await startFirstUseDesktop({
     instanceId,
     timeoutMs: options.desktopReadyMs || 240_000,
-    excludeKeys: new Set(existing.map(desktopTargetKey)),
   })
   if (!launch.attached || !launch.driver?.cdpAlive()) {
     return {

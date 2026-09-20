@@ -42,8 +42,10 @@ describe('companionPetMotion', () => {
       complete: true,
     })).toBe('complete')
     expect(companionPetSprite('think')).toBe('idle')
+    expect(companionPetSprite('think', { think: true })).toBe('think')
     expect(companionPetSprite('decide')).toBe('decide')
     expect(companionPetSprite('complete')).toBe('talk')
+    expect(companionPetSprite('complete', { complete: true })).toBe('complete')
     expect(companionPetSprite('talk')).toBe('talk')
     expect(companionPetSprite('idle')).toBe('idle')
   })

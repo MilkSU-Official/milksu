@@ -72,10 +72,12 @@ function desktopProtocolClientRegistration({
   defaultApp = false,
   execPath = '',
   argv = [],
+  instanceId = '',
 } = {}) {
   const scheme = new URL(accountRedirectURL(channel)).protocol.replace(/:$/u, '')
   if (isPackaged) return { scheme, register: true }
-  if (!defaultApp || !execPath) return { scheme, register: false }
+  const isolated = /^[A-Za-z0-9_.-]{1,64}$/u.test(String(instanceId ?? '').trim())
+  if ((!defaultApp && !isolated) || !execPath) return { scheme, register: false }
   const script = firstProtocolClientScript(argv, execPath)
   if (!script) return { scheme, register: false }
   return { scheme, register: true, execPath, args: [path.resolve(script)] }

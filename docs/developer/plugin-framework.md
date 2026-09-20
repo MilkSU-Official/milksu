@@ -81,7 +81,7 @@ Lua 与 TypeScript 每次隔离调用都依次执行 `initialize`、业务方法
 | `overlay-menu` | Select、Dropdown、ContextMenu、Popover、HoverCard |
 | `chat-composer` | Composer 外壳、输入区和工具栏 |
 
-桌宠角色皮肤不是这六个表面。`app.pet` / `ui.pet` 已预留，帧合同见 [桌宠皮肤设计合同](companion-skin.md)。宿主还没有读取第三方桌宠包。
+桌宠角色皮肤不是这六个表面。`app.pet` / `ui.pet` 按 [桌宠皮肤设计合同](companion-skin.md) 交帧；启用后设置 → 桌宠可以选这套皮肤。文件夹导入是同一条换装入口，不要求先做成插件。
 
 每个表面初始为 `inherit`，完全保持核心原色。`solid` 提供系统原始、纸白、石墨、纯黑、青蓝、信号金、冷灰和自定义色；宿主自动选择黑/白前景并要求至少 4.5:1 对比度。`image` 为每个槽位选择独立 PNG/JPEG/WebP，限制 16 MiB 与 8192×8192，固定 `cover center`，可调 0..0.6 可见度与 0..24 模糊。
 

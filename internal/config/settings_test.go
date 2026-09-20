@@ -285,6 +285,15 @@ func TestNormalizeCompanionSettingsDefaults(t *testing.T) {
 	if settings.CompanionProactivity.IdleChat == nil || *settings.CompanionProactivity.IdleChat {
 		t.Fatal("idle chat should default off")
 	}
+	if settings.CompanionSkinID != DefaultCompanionSkinID {
+		t.Fatalf("skin default: %q", settings.CompanionSkinID)
+	}
+	if got := NormalizeCompanionSkinID("imported:loop.skin"); got != "imported:loop.skin" {
+		t.Fatalf("imported skin id: %q", got)
+	}
+	if got := NormalizeCompanionSkinID("../etc"); got != DefaultCompanionSkinID {
+		t.Fatalf("unsafe skin id: %q", got)
+	}
 }
 
 func TestCloneCompanionPointers(t *testing.T) {

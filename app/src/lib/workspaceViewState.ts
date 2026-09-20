@@ -26,9 +26,15 @@ export function readWorkspaceViewState(
   try {
     const value = JSON.parse(storage.getItem(WORKSPACE_VIEW_STATE_STORAGE_KEY) ?? '') as Partial<WorkspaceViewState>
     if (value.version !== 1 || !sections.has(value.section as PersistedWorkspaceSection)) return null
+    const section = value.section === 'companion' ? 'chat' : value.section as PersistedWorkspaceSection
+    const settingsReturnTarget = value.settingsReturnTarget === 'companion'
+      ? 'chat'
+      : returnSections.has(value.settingsReturnTarget as Exclude<PersistedWorkspaceSection, 'settings'>)
+        ? value.settingsReturnTarget as Exclude<PersistedWorkspaceSection, 'settings'>
+        : 'ctf'
     return {
       version: 1,
-      section: value.section as PersistedWorkspaceSection,
+      section,
       activeConversationId: typeof value.activeConversationId === 'string' && value.activeConversationId
         ? value.activeConversationId
         : null,
@@ -36,9 +42,7 @@ export function readWorkspaceViewState(
       ctfSection: ctfSections.has(value.ctfSection as PersistedCTFSection)
         ? value.ctfSection as PersistedCTFSection
         : 'catalog',
-      settingsReturnTarget: returnSections.has(value.settingsReturnTarget as Exclude<PersistedWorkspaceSection, 'settings'>)
-        ? value.settingsReturnTarget as Exclude<PersistedWorkspaceSection, 'settings'>
-        : 'ctf',
+      settingsReturnTarget,
     }
   } catch {
     return null

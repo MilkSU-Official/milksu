@@ -98,6 +98,7 @@ type LabConfig struct {
 const (
 	DefaultCompanionProvider = "tokenflux"
 	DefaultCompanionModel    = "google/gemini-3.8-flash"
+	DefaultCompanionSkinID   = "default"
 	CompanionTeachingAskMe   = "ask_me"
 	CompanionTeachingHints   = "hints"
 	CompanionTeachingReview  = "review"
@@ -144,6 +145,7 @@ type AppSettings struct {
 	CompanionDispatchEnabled *bool                `json:"companion_dispatch_enabled,omitempty"`
 	CompanionMemoryEnabled   *bool                `json:"companion_memory_enabled,omitempty"`
 	CompanionFloatEnabled    *bool                `json:"companion_float_enabled,omitempty"`
+	CompanionSkinID          string               `json:"companion_skin_id,omitempty"`
 	CompanionProactivity     CompanionProactivity `json:"companion_proactivity,omitempty"`
 	CompanionTeaching        string               `json:"companion_teaching,omitempty"`
 	PreferredExternalEditor  string               `json:"preferred_external_editor,omitempty"`
@@ -1229,9 +1231,35 @@ func normalizeCompanionSettings(value AppSettings) AppSettings {
 	if value.CompanionFloatEnabled == nil {
 		value.CompanionFloatEnabled = boolPointer(true)
 	}
+	value.CompanionSkinID = NormalizeCompanionSkinID(value.CompanionSkinID)
 	value.CompanionProactivity = normalizeCompanionProactivity(value.CompanionProactivity)
 	value.CompanionTeaching = NormalizeCompanionTeaching(value.CompanionTeaching)
 	return value
+}
+
+func NormalizeCompanionSkinID(value string) string {
+	id := strings.TrimSpace(value)
+	if id == "" || strings.EqualFold(id, DefaultCompanionSkinID) {
+		return DefaultCompanionSkinID
+	}
+	if strings.Contains(id, "..") || strings.ContainsAny(id, `/\`) {
+		return DefaultCompanionSkinID
+	}
+	if strings.HasPrefix(id, "imported:") {
+		rest := strings.TrimPrefix(id, "imported:")
+		if rest == "" || rest == DefaultCompanionSkinID {
+			return DefaultCompanionSkinID
+		}
+		return id
+	}
+	if strings.HasPrefix(id, "plugin:") {
+		rest := strings.TrimPrefix(id, "plugin:")
+		if rest == "" {
+			return DefaultCompanionSkinID
+		}
+		return id
+	}
+	return DefaultCompanionSkinID
 }
 
 func normalizeCompanionProactivity(value CompanionProactivity) CompanionProactivity {

@@ -25,6 +25,9 @@ import {
   type CompanionDispatchResult,
   type CompanionMemorySnapshot,
   type CompanionShellStatus,
+  type CompanionSkinImportResult,
+  type CompanionSkinList,
+  type CompanionSkinResolved,
   type CompanionStatus,
   type CompanionTranscriptCursor,
   type CompanionTranscriptPage,
@@ -310,7 +313,17 @@ interface DesktopAppBindings {
   SetCompanionFloatEnabled(enabled: boolean): Promise<CompanionShellStatus>
   SetCompanionPetHidden(request: { hidden: boolean; locale?: string }): Promise<CompanionShellStatus>
   ShowCompanionMainWindow(): Promise<CompanionShellStatus>
+  ShowCompanionChatWindow(): Promise<CompanionShellStatus>
+  HideCompanionChatWindow(): Promise<CompanionShellStatus>
+  ShowCompanionSettings(): Promise<CompanionShellStatus>
+  PopupCompanionMenu(request?: { x?: number; y?: number; locale?: string }): Promise<CompanionShellStatus>
+  ParkCompanionMainWindow(): Promise<CompanionShellStatus>
   QuitCompanionShell(): Promise<void>
+  ListCompanionSkins(): Promise<CompanionSkinList>
+  GetCompanionSkin(id: string): Promise<CompanionSkinResolved>
+  ImportCompanionSkin(request?: { directory?: string; locale?: string }): Promise<CompanionSkinImportResult>
+  RemoveCompanionSkin(request: { id: string }): Promise<CompanionSkinList>
+  NotifyCompanionSkinChanged(request: { id: string }): Promise<{ id: string }>
   SendMessage(
     conversationId: string,
     prompt: string,
@@ -811,8 +824,35 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         }) as Promise<T>
       case 'show_companion_main_window':
         return app.ShowCompanionMainWindow() as Promise<T>
+      case 'show_companion_chat_window':
+        return app.ShowCompanionChatWindow() as Promise<T>
+      case 'hide_companion_chat_window':
+        return app.HideCompanionChatWindow() as Promise<T>
+      case 'show_companion_settings':
+        return app.ShowCompanionSettings() as Promise<T>
+      case 'popup_companion_menu':
+        return app.PopupCompanionMenu({
+          x: typeof args?.x === 'number' ? args.x : undefined,
+          y: typeof args?.y === 'number' ? args.y : undefined,
+          locale: typeof args?.locale === 'string' ? args.locale : undefined,
+        }) as Promise<T>
+      case 'park_companion_main_window':
+        return app.ParkCompanionMainWindow() as Promise<T>
       case 'quit_companion_shell':
         return app.QuitCompanionShell() as Promise<T>
+      case 'list_companion_skins':
+        return app.ListCompanionSkins() as Promise<T>
+      case 'get_companion_skin':
+        return app.GetCompanionSkin((args?.id as string) ?? '') as Promise<T>
+      case 'import_companion_skin':
+        return app.ImportCompanionSkin({
+          directory: typeof args?.directory === 'string' ? args.directory : undefined,
+          locale: typeof args?.locale === 'string' ? args.locale : undefined,
+        }) as Promise<T>
+      case 'remove_companion_skin':
+        return app.RemoveCompanionSkin({ id: (args?.id as string) ?? '' }) as Promise<T>
+      case 'notify_companion_skin_changed':
+        return app.NotifyCompanionSkinChanged({ id: (args?.id as string) ?? '' }) as Promise<T>
       case 'send_message':
         return app.SendMessage(
           args?.conversationId as string,

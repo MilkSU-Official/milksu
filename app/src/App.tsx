@@ -656,6 +656,11 @@ export default function App() {
       setSection(value)
       return
     }
+    if (value === 'companion') {
+      void invokeCommand('show_companion_chat_window')
+      void invokeCommand('set_companion_pet_hidden', { hidden: false })
+      return
+    }
     setSection(value)
   }
 
@@ -1324,6 +1329,18 @@ export default function App() {
   }, [])
 
   useEffect(() => {
+    let stop: (() => void) | undefined
+    void listenEvent<{ section?: string; category?: string }>('companion.navigate', event => {
+      if (event.payload?.section !== 'settings') return
+      setSettingsCategory(normalizeSettingsCategory((event.payload.category as SettingsCategory) || 'companion'))
+      setSection('settings')
+    }).then(unlisten => {
+      stop = unlisten
+    })
+    return () => stop?.()
+  }, [])
+
+  useEffect(() => {
     if (section !== 'ctf' && section !== 'vuln' && section !== 'lab') return
     setKeptWorkspacePages(prev => {
       if (prev.has(section)) return prev
@@ -1518,10 +1535,18 @@ export default function App() {
     )
   }
 
-  if (new URLSearchParams(window.location.search).get('surface') === 'companion') {
+  const surface = new URLSearchParams(window.location.search).get('surface')
+  if (surface === 'companion') {
     return (
       <Suspense fallback={null}>
         <CompanionPetWindow />
+      </Suspense>
+    )
+  }
+  if (surface === 'companion-chat') {
+    return (
+      <Suspense fallback={null}>
+        <CompanionPage />
       </Suspense>
     )
   }
@@ -1729,11 +1754,6 @@ export default function App() {
                   onOpenSettings={() => openSettings('apikeys')}
                   onOpenLabSettings={() => openSettings('lab')}
                 />
-              </div>
-            ) : null}
-            {section === 'companion' ? (
-              <div className="relative flex min-h-0 min-w-0 flex-1">
-                <CompanionPage />
               </div>
             ) : null}
             {section === 'chat' || section === 'settings' || section === 'profile' || dossierChatMaximized ? (

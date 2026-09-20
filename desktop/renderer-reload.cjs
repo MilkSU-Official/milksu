@@ -15,12 +15,14 @@ function installRendererReloadGuard(webContents) {
   })
 }
 
-function productApplicationMenuTemplate(platform = process.platform) {
+function productApplicationMenuTemplate(platform = process.platform, extras = {}) {
   const isMac = platform === 'darwin'
+  const companion = extras.companion
   return [
     ...(isMac ? [{ role: 'appMenu' }] : []),
     { role: 'fileMenu' },
     { role: 'editMenu' },
+    ...(companion ? [companion] : []),
     { role: 'windowMenu' },
   ]
 }

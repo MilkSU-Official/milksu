@@ -933,12 +933,100 @@ html.companion-surface #app {
   min-height: 0;
 }
 
+html.companion-chat-surface,
+html.companion-chat-surface body,
+html.companion-chat-surface #app {
+  background: var(--popover) !important;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+}
+
+.companion-chat {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  background: var(--popover);
+  color: var(--popover-foreground);
+}
+
+.companion-chat-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--border);
+  -webkit-app-region: drag;
+}
+
+.companion-chat-icon,
+.companion-chat-composer,
+.companion-chat-log,
+.companion-chat-side {
+  -webkit-app-region: no-drag;
+}
+
+.companion-chat-icon {
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--text-label);
+}
+
+.companion-chat-log {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.companion-chat-side,
+.companion-chat-composer {
+  border-top: 1px solid var(--border);
+  padding: 8px 10px;
+}
+
+.companion-pet-menu {
+  position: absolute;
+  z-index: 8;
+  min-width: 9.5rem;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--popover);
+  color: var(--popover-foreground);
+  -webkit-app-region: no-drag;
+}
+
+.companion-pet-menu button {
+  display: flex;
+  width: 100%;
+  height: 28px;
+  align-items: center;
+  border-radius: 8px;
+  padding: 0 8px;
+  font-size: 13px;
+  text-align: left;
+}
+
+.companion-pet-menu button:hover {
+  background: var(--hover-2);
+}
+
 .companion-pet {
   width: 232px;
   height: 400px;
   position: relative;
   user-select: none;
   -webkit-app-region: drag;
+}
+
+.companion-pet-menu,
+.companion-pet-bubble,
+.companion-pet-body {
+  -webkit-app-region: no-drag;
 }
 
 .companion-pet-bubble {
@@ -1028,13 +1116,13 @@ html.companion-surface #app {
   opacity: 0;
 }
 
-.companion-pet-think .companion-pet-spinner {
+.companion-pet-think.companion-pet-overlay-think-spin .companion-pet-spinner {
   opacity: 1;
   animation: companion-pet-spin 1.6s linear infinite;
 }
 
-.companion-pet-decide .companion-pet-bang-yellow,
-.companion-pet-complete .companion-pet-bang-green {
+.companion-pet-decide.companion-pet-overlay-decide-bang .companion-pet-bang-yellow,
+.companion-pet-complete.companion-pet-overlay-complete-bang .companion-pet-bang-green {
   opacity: 1;
 }
 

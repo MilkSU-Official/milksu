@@ -70,6 +70,7 @@ const {
 } = require('./renderer-reload.cjs')
 const { BackendRuntime } = require('./backend-runtime.cjs')
 const { createCompanionShell } = require('./companion-shell.cjs')
+const { createCompanionSkinHost } = require('./companion-skin-host.cjs')
 
 const APP_ORIGIN = 'milksu://app'
 const EVENT_PATTERN = /^[a-z][a-z0-9._-]{0,100}$/u
@@ -632,6 +633,7 @@ class BrowserShell {
 }
 
 let companionShell = null
+let companionSkinHost = null
 
 function senderIsApp(event, method = '') {
   if (companionShell) return companionShell.senderAllowed(event, method)
@@ -858,8 +860,11 @@ function createWindow() {
 ipcMain.handle('milksu:invoke', async (event, request) => {
   const method = String(request?.method ?? '')
   if (!senderIsApp(event, method)) throw new Error('desktop invocation came from an untrusted renderer')
-  const companionResult = companionShell?.handleHostMethod(method, Array.isArray(request?.args) ? request.args[0] : request?.args)
+  const hostArgs = Array.isArray(request?.args) ? request.args[0] : request?.args
+  const companionResult = companionShell?.handleHostMethod(method, hostArgs)
   if (companionResult !== undefined) return companionResult
+  const skinResult = companionSkinHost?.handleHostMethod(method, hostArgs)
+  if (skinResult !== undefined) return skinResult
   // Packaging provenance is owned by the desktop shell, not Go domain logic.
   if (method === 'GetBuildTracking') return loadBuildTracking()
   if (method === 'SetTitleBarOverlay') {
@@ -983,6 +988,7 @@ app.whenReady().then(async () => {
     defaultApp: Boolean(process.defaultApp),
     execPath: process.execPath,
     argv: process.argv,
+    instanceId: process.env.MILKSU_INSTANCE_ID,
   })
   if (protocolClient.register) {
     const registered = protocolClient.execPath
@@ -1052,6 +1058,20 @@ app.whenReady().then(async () => {
     setMainWindow: window => { mainWindow = window },
     onQuitRequested: () => app.quit(),
   })
+  companionSkinHost = createCompanionSkinHost({
+    userDataPath: app.getPath('userData'),
+    openDirectory: payload => handleHostRequest('dialog.openDirectory', payload),
+    listPetPlugins: async () => {
+      if (!backend) return []
+      try {
+        const rows = await backend.invokeFromElectronHost('ListPetPluginPackages', [])
+        return Array.isArray(rows) ? rows : []
+      } catch {
+        return []
+      }
+    },
+    emit: (event, value) => companionShell?.emit(event, value),
+  })
   companionShell.register('main', mainWindow, null)
   mainWindow.on('close', event => {
     if (quitting) return
@@ -1063,7 +1083,7 @@ app.whenReady().then(async () => {
   mainWindow.on('restore', () => {
     companionShell.revealFromTaskbar()
   })
-  Menu.setApplicationMenu(Menu.buildFromTemplate(productApplicationMenuTemplate()))
+  companionShell.refreshMenus()
   startupLog('createWindow')
   browserShell = new BrowserShell(mainWindow, upstreamEndpoint)
   const backendSpawnStarted = Date.now()

@@ -7,6 +7,7 @@ import {
   clickLabeled,
   clickRole,
   expectLabels,
+  expandSidebar,
   fail,
   fillAria,
   leaveSettings,
@@ -16,6 +17,10 @@ import {
 } from './product-loop-session.mjs'
 
 async function openUserMenu(driver) {
+  await driver.invoke('ShowCompanionMainWindow', []).catch(() => {})
+  await driver.ensureAttached()
+  await expandSidebar(driver)
+  await leaveSettings(driver)
   const opened = await driver.cdp.callFunction(`function() {
     const button = Array.from(document.querySelectorAll('button')).find(item => {
       const label = item.getAttribute('aria-label') || ''
@@ -79,6 +84,9 @@ export async function runProfileTabs(driver) {
 }
 
 export async function runUpdateChrome(driver) {
+  await driver.invoke('ShowCompanionMainWindow', []).catch(() => {})
+  await driver.ensureAttached()
+  await expandSidebar(driver)
   await leaveSettings(driver)
   const snap = await pageSnapshot(driver)
   const update = snapshotHas(snap, ['更新', 'Update'])

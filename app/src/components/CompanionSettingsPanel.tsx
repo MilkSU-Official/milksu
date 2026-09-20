@@ -1,12 +1,24 @@
 import { useEffect, useState } from 'react'
-import { SettingsGhostPicker, SettingsRow, SettingsSection, Switch } from '@/components/ui'
+import { Button, SettingsGhostPicker, SettingsRow, SettingsSection, Switch } from '@/components/ui'
 import { invokeCommand } from '@/desktop'
 import SearchableModelPicker from '@/components/SearchableModelPicker'
 import ModelVendorIcon from '@/components/ModelVendorIcon'
 import { encodePickerSelection, parsePickerSelection } from '@/modelCatalog'
-import { useT } from '@/hooks/useUiLocale'
+import { toastError } from '@/lib/appToast'
+import { useT, useUiLocale } from '@/hooks/useUiLocale'
 import type { SearchableModelGroup } from '@/lib/modelPickerSearch'
-import type { AppSettings, CompanionShellStatus, CompanionTeaching } from '@/types'
+import type {
+  AppSettings,
+  CompanionShellStatus,
+  CompanionSkinImportResult,
+  CompanionSkinList,
+  CompanionSkinSummary,
+  CompanionTeaching,
+} from '@/types'
+
+function skinLabel(skin: CompanionSkinSummary, locale: string) {
+  return locale === 'en' ? skin.name.en : skin.name.zh
+}
 
 export default function CompanionSettingsPanel({
   settings,
@@ -18,12 +30,24 @@ export default function CompanionSettingsPanel({
   onPersist: () => void
 }) {
   const t = useT()
+  const locale = useUiLocale()
   const [shell, setShell] = useState<CompanionShellStatus | null>(null)
+  const [skins, setSkins] = useState<CompanionSkinSummary[]>([
+    { id: 'default', source: 'factory', factory: true, name: { zh: '默认', en: 'Default' } },
+  ])
+  const [busy, setBusy] = useState<'import' | 'remove' | null>(null)
+
   useEffect(() => {
     void invokeCommand<CompanionShellStatus>('get_companion_shell_status')
       .then(value => setShell(value))
       .catch(() => undefined)
+    void invokeCommand<CompanionSkinList>('list_companion_skins')
+      .then(value => {
+        if (Array.isArray(value?.skins) && value.skins.length) setSkins(value.skins)
+      })
+      .catch(() => undefined)
   }, [])
+
   if (!settings) return null
   const modelKey = encodePickerSelection(
     settings.companion_provider ?? '',
@@ -31,10 +55,47 @@ export default function CompanionSettingsPanel({
     settings.companion_source || 'personal',
   )
   const modelLabel = settings.companion_model || t('选择模型', 'Choose a model')
+  const selectedSkin = skins.some(item => item.id === settings.companion_skin_id)
+    ? (settings.companion_skin_id ?? 'default')
+    : 'default'
+  const selected = skins.find(item => item.id === selectedSkin)
 
   function patch(next: Partial<AppSettings>) {
     Object.assign(settings!, next)
     onPersist()
+  }
+
+  function applySkin(id: string) {
+    patch({ companion_skin_id: id })
+    void invokeCommand('notify_companion_skin_changed', { id }).catch(() => undefined)
+  }
+
+  async function importSkin() {
+    setBusy('import')
+    try {
+      const result = await invokeCommand<CompanionSkinImportResult>('import_companion_skin', { locale })
+      if (result?.canceled) return
+      if (Array.isArray(result?.skins) && result.skins.length) setSkins(result.skins)
+      if (result?.imported?.id) applySkin(result.imported.id)
+    } catch (reason) {
+      toastError(reason, t('这不是有效的桌宠皮肤', 'This is not a valid companion skin'))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function removeSkin() {
+    if (!selected?.removable) return
+    setBusy('remove')
+    try {
+      const result = await invokeCommand<CompanionSkinList>('remove_companion_skin', { id: selected.id })
+      if (Array.isArray(result?.skins) && result.skins.length) setSkins(result.skins)
+      applySkin('default')
+    } catch (reason) {
+      toastError(reason, t('没能移除这套皮肤', 'Could not remove this skin'))
+    } finally {
+      setBusy(null)
+    }
   }
 
   return (
@@ -182,9 +243,48 @@ export default function CompanionSettingsPanel({
         />
         <SettingsRow
           label={t('皮肤', 'Skin')}
-          divider={false}
-          trailing={<span className="text-label text-muted-foreground">{t('默认', 'Default')}</span>}
+          trailing={(
+            <SettingsGhostPicker
+              value={selectedSkin}
+              ariaLabel={t('皮肤', 'Skin')}
+              options={skins.map(item => ({
+                value: item.id,
+                label: skinLabel(item, locale),
+              }))}
+              onChange={value => applySkin(value)}
+            />
+          )}
         />
+        <SettingsRow
+          label={t('添加皮肤', 'Add skin')}
+          divider={!selected?.removable}
+          trailing={(
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={busy === 'import'}
+              onClick={() => void importSkin()}
+            >
+              {t('选择文件夹', 'Choose folder')}
+            </Button>
+          )}
+        />
+        {selected?.removable ? (
+          <SettingsRow
+            label={t('移除皮肤', 'Remove skin')}
+            divider={false}
+            trailing={(
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={busy === 'remove'}
+                onClick={() => void removeSkin()}
+              >
+                {t('移除', 'Remove')}
+              </Button>
+            )}
+          />
+        ) : null}
       </SettingsSection>
     </>
   )

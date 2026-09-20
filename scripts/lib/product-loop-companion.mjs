@@ -128,6 +128,76 @@ export function conversationHasRelay(conversation, marker) {
   return { ok: true, reason: '' }
 }
 
+export function companionShellHidden(status) {
+  return status?.hidden === true
+}
+
+export function companionFloatReady(status) {
+  if (status?.wayland) return { ok: true, wayland: true, reason: 'Wayland 没有自己贴坐标的悬浮窗' }
+  if (status?.floating === true && status?.hidden !== true) {
+    return { ok: true, wayland: false, reason: '' }
+  }
+  return { ok: false, wayland: false, reason: `悬浮窗没出来 floating=${Boolean(status?.floating)} hidden=${Boolean(status?.hidden)}` }
+}
+
+export function companionParked(status) {
+  return status?.parked === true
+}
+
+export function companionPresenceKept(status) {
+  if (!companionParked(status)) return { ok: false, reason: '主窗口没有收进桌面栏' }
+  const platform = String(status?.platform ?? '')
+  if (platform === 'linux' && status?.tray !== true) {
+    return { ok: false, reason: 'Linux 关掉主窗口后托盘没留下' }
+  }
+  return { ok: true, reason: platform === 'win32' ? '任务栏还在' : platform === 'linux' ? '托盘还在' : 'Dock 还在' }
+}
+
+export function companionDefaultSkinVisible(snapshot) {
+  const hay = `${(snapshot?.aria || []).join('\n')}\n${snapshot?.text || ''}`
+  return /皮肤|Skin/.test(hay) && /默认|Default/.test(hay)
+}
+
+export function companionSkinEntryVisible(snapshot) {
+  const hay = `${(snapshot?.aria || []).join('\n')}\n${snapshot?.text || ''}`
+  return /添加皮肤|Add skin/.test(hay) && /选择文件夹|Choose folder/.test(hay)
+}
+
+export function companionImportedSkinVisible(snapshot, name = '回路皮肤') {
+  const hay = `${(snapshot?.aria || []).join('\n')}\n${snapshot?.text || ''}`
+  return hay.includes(name)
+}
+
+export function companionSkinListed(list, id) {
+  return asList(pick(list, 'skins', 'Skins')).some(item => String(pick(item, 'id', 'ID') ?? '') === id)
+}
+
+export function companionSkinFramesAreCustom(skin) {
+  const idle = String(pick(pick(skin, 'frames', 'Frames'), 'idle', 'Idle') ?? '')
+  if (!idle.startsWith('data:image/png')) {
+    return { ok: false, reason: '自定义皮肤没有读到 PNG 帧' }
+  }
+  return { ok: true, reason: '' }
+}
+
+export function companionPetSurfaceReady(page) {
+  const motion = String(page?.motion ?? page?.className ?? '')
+  const src = String(page?.src ?? '')
+  if (!/companion-pet/.test(motion)) return { ok: false, reason: '悬浮窗没有桌宠角色' }
+  if (!src.trim()) return { ok: false, reason: '出厂皮肤帧没有画上去' }
+  return { ok: true, reason: '' }
+}
+
+export function companionPetSurfaceUsesCustomSkin(page) {
+  const ready = companionPetSurfaceReady(page)
+  if (!ready.ok) return ready
+  const src = String(page?.src ?? '')
+  if (!src.startsWith('data:image/png')) {
+    return { ok: false, reason: '悬浮窗还在画出厂帧' }
+  }
+  return { ok: true, reason: '' }
+}
+
 export function conversationMovedToArchive(active, archived, id) {
   const live = asList(active).some(item => conversationIdOf(item) === id)
   const stored = asList(archived).some(item => conversationIdOf(item) === id)

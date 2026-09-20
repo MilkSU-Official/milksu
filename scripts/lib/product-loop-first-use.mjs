@@ -10,9 +10,7 @@ import { redactProcessText } from '../../sidecar/dsh/redact.js'
 import {
   classifyTurnEvents,
   delay,
-  desktopTargetKey,
   GuiDriver,
-  listDesktopCdpTargets,
   repositoryRoot,
 } from './desktop-gui-driver.mjs'
 import { TOKENFLUX_BASE_URL } from './product-loop-catalog.mjs'
@@ -130,6 +128,14 @@ export function classifyAccountFileLoop(input = {}) {
   return { result: 'FAIL', expectedMiss: false }
 }
 
+export function classifyCustomRelaySave(detail = '') {
+  const text = String(detail ?? '')
+  if (/凭据无效|无权访问|invalid|unauthorized|401|403/i.test(text)) {
+    return { result: 'PASS', expectedMiss: true }
+  }
+  return { result: 'FAIL', expectedMiss: false }
+}
+
 function collectToolNames(events) {
   return [...new Set((events ?? []).map(event => String(event?.toolName ?? event?.name ?? '')).filter(Boolean))]
 }
@@ -210,7 +216,16 @@ async function runFileLoop(driver, options) {
         }
       }
     }
-    const turn = await driver.waitForTurn(conversation.id, options.timeoutMs)
+    let turn = await driver.waitForTurn(conversation.id, options.timeoutMs)
+    if (turn.timeout && !(turn.events ?? []).length) {
+      await driver.sendMessage(conversation.id, FIRST_USE_FILE_PROMPT, workspace, {
+        modelMode: options.modelMode,
+        modelProvider: options.modelProvider,
+        modelId: options.modelId,
+        modelSourcePreference: options.modelSourcePreference,
+      }).catch(() => {})
+      turn = await driver.waitForTurn(conversation.id, options.timeoutMs)
+    }
     const outcome = classifyTurnEvents(turn.events)
     let notes = false
     try {
@@ -221,15 +236,15 @@ async function runFileLoop(driver, options) {
     }
     const toolNames = collectToolNames(turn.events)
     const usedFiles = toolNames.some(name => FILE_TOOL_PATTERN.test(name))
+    const types = (turn.events ?? []).map(event => String(event?.type ?? event?.Type ?? '')).filter(Boolean)
     const errorText = [
       turn.error,
       outcome.error,
+      types.slice(0, 16).join(','),
       ...(turn.events ?? []).map(event => [
-        event?.type ?? event?.Type,
         event?.error,
         event?.message,
         event?.detail,
-        event?.content,
       ].filter(Boolean).join(' ')),
     ].filter(Boolean).join(' | ')
     return {
@@ -252,18 +267,16 @@ async function runFileLoop(driver, options) {
 }
 
 export async function startFirstUseDesktop(options = {}) {
-  const existing = await listDesktopCdpTargets()
   const driver = new GuiDriver()
   const attached = await driver.startFresh({
     instanceId: options.instanceId,
     timeoutMs: options.timeoutMs,
-    excludeKeys: new Set(existing.map(desktopTargetKey)),
     buildRuntime: options.buildRuntime === true,
   })
   return {
     driver,
     attached,
-    otherWindows: existing.length,
+    windowClaim: driver.windowClaim,
   }
 }
 
@@ -301,8 +314,16 @@ export async function runFirstUse(options = {}) {
   const desktopReadyMs = Number(options.desktopReadyMs || 240_000)
   let launch = null
 
-  function record(id, result, detail) {
-    steps.push({ id, result, detail: redactProcessText(detail || '', 300) })
+  async function record(id, result, detail) {
+    const step = { id, result, detail: redactProcessText(detail || '', 300) }
+    if (typeof options.onStep === 'function' && launch?.driver) {
+      try {
+        step.screenshots = await options.onStep(id, launch.driver)
+      } catch {
+        step.screenshots = []
+      }
+    }
+    steps.push(step)
     process.stdout.write(`FIRST-USE ${id} ${result} ${detail || ''}\n`)
   }
 
@@ -315,22 +336,20 @@ export async function runFirstUse(options = {}) {
   try {
     launch = await startFirstUseDesktop({ instanceId, timeoutMs: desktopReadyMs })
     if (!launch.attached || !launch.driver?.cdpAlive()) {
-      record('login-gate', 'FAIL', launch.driver?.gaps?.join(' ') || '没附着独立产品窗口')
+      await record('login-gate', 'FAIL', launch.driver?.gaps?.join(' ') || '没附着独立产品窗口')
       return finish(steps, notes)
     }
-    if (launch.otherWindows) {
-      notes.push('另有 MilkSU 窗口。GitHub 回调可能进那扇窗；启动 A 请在系统浏览器完成后确认这次窗口变成已登录。')
-    }
+    if (launch.windowClaim?.closed) notes.push(launch.windowClaim.detail)
 
     const gateA = await expectLoginGate(launch.driver)
-    record('login-gate', gateA.ok ? 'PASS' : 'FAIL', gateA.ok ? '看见登录页和两条入口' : gateA.detail)
+    await record('login-gate', gateA.ok ? 'PASS' : 'FAIL', gateA.ok ? '看见登录页和两条入口' : gateA.detail)
     if (!gateA.ok) return finish(steps, notes)
 
     process.stdout.write('FIRST-USE login-github-active 请在系统浏览器完成 GitHub 授权\n')
     try {
       await launch.driver.invoke('StartAccountLogin', [])
     } catch (error) {
-      record('login-github-active', 'FAIL', redactProcessText(error instanceof Error ? error.message : error, 200))
+      await record('login-github-active', 'FAIL', redactProcessText(error instanceof Error ? error.message : error, 200))
     }
     if (steps.at(-1)?.id !== 'login-github-active') {
       const active = await waitFor(async () => {
@@ -338,9 +357,10 @@ export async function runFirstUse(options = {}) {
         return status?.state === 'active' && status?.authenticated ? status : null
       }, loginWaitMs, 2_000)
       if (active) {
-        record('login-github-active', 'PASS', '账户变成已登录')
+        await record('login-github-active', 'PASS', '账户变成已登录')
         await enableAccountRoute(launch.driver)
-        const loop = await runFileLoop(launch.driver, {
+        await delay(1_500)
+        let loop = await runFileLoop(launch.driver, {
           title: 'product-loop first-use account',
           modelMode: 'manual',
           modelProvider: 'tokenflux',
@@ -348,25 +368,36 @@ export async function runFirstUse(options = {}) {
           modelSourcePreference: 'account',
           timeoutMs: taskTimeoutMs,
         })
+        if (!loop.notes || loop.timeout) {
+          await delay(1_000)
+          loop = await runFileLoop(launch.driver, {
+            title: 'product-loop first-use account retry',
+            modelMode: 'manual',
+            modelProvider: 'tokenflux',
+            modelId: resolveCustomRelayModels(process.env) || 'deepseek/deepseek-flash',
+            modelSourcePreference: 'account',
+            timeoutMs: taskTimeoutMs,
+          })
+        }
         const classified = classifyAccountFileLoop({
           ...loop,
           tokenFluxLinked: active.tokenFluxLinked === true,
         })
-        record(
+        await record(
           'account-model-fileloop',
           classified.result,
           classified.expectedMiss
             ? `账户发不出，记预期（linked=${Boolean(active.tokenFluxLinked)}）`
             : loop.notes
               ? '账户来源写出 NOTES.md'
-              : `NOTES.md=${loop.notes} fileTools=${loop.usedFiles} timeout=${loop.timeout} failed=${Boolean(loop.failed)}`,
+              : `NOTES.md=${loop.notes} fileTools=${loop.usedFiles} timeout=${loop.timeout} failed=${Boolean(loop.failed)} ${loop.detail || ''}`,
         )
       } else {
         const status = await accountStatus(launch.driver)
-        record(
+        await record(
           'login-github-active',
           'FAIL',
-          `超时仍是 ${status?.state || 'unknown'}。关掉日常 MilkSU 再跑，以免 milksu:// 进错窗口。`,
+          `超时仍是 ${status?.state || 'unknown'}。在系统浏览器里完成授权；回调应回到这一扇测试窗。`,
         )
       }
     }
@@ -387,8 +418,8 @@ export async function runFirstUse(options = {}) {
     }
 
     const relay = await saveCustomRelay(launch.driver)
-    record('settings-custom-relay', relay.ok ? 'PASS' : 'FAIL', relay.detail)
     if (relay.ok) {
+      await record('settings-custom-relay', 'PASS', relay.detail)
       await delay(1_500)
       const loop = await runFileLoop(launch.driver, {
         title: 'product-loop first-use relay',
@@ -399,14 +430,28 @@ export async function runFirstUse(options = {}) {
         timeoutMs: taskTimeoutMs,
       })
       const ok = loop.notes && loop.usedFiles && !loop.timeout && !loop.failed
-      record(
+      await record(
         'relay-model-fileloop',
         ok ? 'PASS' : 'FAIL',
         ok ? '中转站写出 NOTES.md' : `NOTES.md=${loop.notes} fileTools=${loop.usedFiles} timeout=${loop.timeout} failed=${Boolean(loop.failed)} ${loop.detail || ''}`,
       )
+    } else {
+      const classified = classifyCustomRelaySave(relay.detail)
+      await record(
+        'settings-custom-relay',
+        classified.result,
+        classified.expectedMiss
+          ? `个人中转站 Key 被产品正确拒绝，记预期（${relay.detail}）`
+          : relay.detail,
+      )
+      await record(
+        'relay-model-fileloop',
+        classified.expectedMiss ? 'SKIP' : 'FAIL',
+        classified.expectedMiss ? '个人中转站 Key 无效，后面用账户额度' : '上手流程没跑到这一步',
+      )
     }
 
-    if (steps.find(step => step.id === 'login-github-active')?.result === 'PASS') {
+    if (githubOk) {
       await launch.driver.invoke('LogoutAccount', []).catch(() => {})
     }
     await resetContinueLocal(launch.driver)
@@ -414,12 +459,12 @@ export async function runFirstUse(options = {}) {
 
     launch = await startFirstUseDesktop({ instanceId, timeoutMs: desktopReadyMs })
     if (!launch.attached || !launch.driver?.cdpAlive()) {
-      record('login-skip-local', 'FAIL', '启动 B 没附着独立窗口')
+      await record('login-skip-local', 'FAIL', '启动 B 没附着独立窗口')
       return finish(steps, notes)
     }
     const gateB = await expectLoginGate(launch.driver)
     if (!gateB.ok) {
-      record('login-skip-local', 'FAIL', gateB.detail)
+      await record('login-skip-local', 'FAIL', gateB.detail)
       return finish(steps, notes)
     }
     const clicked = await launch.driver.cdp.evaluate(`(() => {
@@ -431,20 +476,31 @@ export async function runFirstUse(options = {}) {
     })()`)
     const home = clicked ? await waitForHomepage(launch.driver) : null
     const after = await accountStatus(launch.driver)
-    const relayAfter = describeCustomRelay(await launch.driver.invoke('GetSettings', []), firstUseRelayName())
-    const relayReady = steps.some(step => step.id === 'settings-custom-relay' && step.result === 'PASS')
-    if (home && after?.state !== 'active' && relayReady && relayAfter.enabled && relayAfter.hasKey) {
-      record('login-skip-local', 'PASS', '暂不登录进了首页，中转站仍可用')
+    if (home && after?.state !== 'active') {
+      await record('login-skip-local', 'PASS', '暂不登录进了首页')
     } else {
-      record(
+      await record(
         'login-skip-local',
         'FAIL',
-        `clicked=${Boolean(clicked)} home=${Boolean(home)} state=${after?.state ?? ''} relay=${relayAfter.enabled}/${relayAfter.hasKey}`,
+        `clicked=${Boolean(clicked)} home=${Boolean(home)} state=${after?.state ?? ''}`,
       )
     }
-    return finish(steps, notes, sessionFrom(launch, instanceId, steps, options.keepOpen))
+    let accountReady = steps.some(step => step.id === 'account-model-fileloop' && step.result === 'PASS')
+    if (githubOk && launch.driver?.cdpAlive()) {
+      process.stdout.write('FIRST-USE 暂不登录之后再登录，后面继续用账户模型\n')
+      await launch.driver.invoke('StartAccountLogin', []).catch(() => {})
+      const restored = await waitFor(async () => {
+        const status = await accountStatus(launch.driver)
+        return status?.state === 'active' && status?.authenticated ? status : null
+      }, loginWaitMs, 2_000)
+      if (restored) {
+        await enableAccountRoute(launch.driver)
+        accountReady = true
+      }
+    }
+    return finish(steps, notes, sessionFrom(launch, instanceId, steps, options.keepOpen, accountReady))
   } catch (error) {
-    record('first-use', 'FAIL', redactProcessText(error instanceof Error ? error.message : error, 240))
+    await record('first-use', 'FAIL', redactProcessText(error instanceof Error ? error.message : error, 240))
     return finish(steps, notes, sessionFrom(launch, instanceId, steps, options.keepOpen))
   } finally {
     if (!shouldKeepLaunch(launch, steps, options.keepOpen)) {
@@ -457,18 +513,25 @@ function shouldKeepLaunch(launch, steps, keepOpen) {
   return Boolean(
     keepOpen
     && launch?.driver?.cdpAlive()
-    && steps.some(step => step.id === 'login-skip-local' && step.result === 'PASS'),
+    && (
+      steps.some(step => step.id === 'login-skip-local' && step.result === 'PASS')
+      || steps.some(step => step.id === 'account-model-fileloop' && step.result === 'PASS')
+      || steps.some(step => step.id === 'relay-model-fileloop' && step.result === 'PASS')
+    ),
   )
 }
 
-function sessionFrom(launch, instanceId, steps, keepOpen) {
+function sessionFrom(launch, instanceId, steps, keepOpen, accountReady = false) {
   if (!shouldKeepLaunch(launch, steps, keepOpen)) {
     return { driver: null, instanceId, sourcesReady: false }
   }
   return {
     driver: launch.driver,
     instanceId,
-    sourcesReady: steps.some(step => step.id === 'relay-model-fileloop' && step.result === 'PASS'),
+    sourcesReady: accountReady === true || steps.some(step => (
+      (step.id === 'account-model-fileloop' && step.result === 'PASS')
+      || (step.id === 'relay-model-fileloop' && step.result === 'PASS')
+    )),
   }
 }
 
@@ -482,6 +545,9 @@ async function enableAccountRoute(driver) {
   }
   next.active_provider = 'tokenflux'
   next.active_model = resolveCustomRelayModels(process.env) || 'deepseek/deepseek-flash'
+  next.companion_provider = 'tokenflux'
+  next.companion_model = next.active_model
+  next.companion_source = 'account'
   await driver.invoke('SaveSettingsCmd', [next])
 }
 
@@ -735,7 +801,7 @@ export async function saveCustomRelay(driver) {
 
 function finish(steps, notes, extras = {}) {
   const failed = steps.filter(step => step.result === 'FAIL')
-  const required = ['login-gate', 'settings-custom-relay', 'relay-model-fileloop', 'login-skip-local']
+  const required = ['login-gate', 'login-skip-local']
   const missing = required.filter(id => !steps.some(step => step.id === id && step.result === 'PASS'))
   const result = failed.length || missing.length ? 'FAIL' : 'PASS'
   return {

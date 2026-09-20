@@ -198,6 +198,7 @@ func desktopAppMethods(app *App) map[string]desktopAppMethod {
 		"GetModelCatalog":                      rendererDesktopMethod(app.GetModelCatalog),
 		"SaveSettingsCmd":                      rendererDesktopMethod(app.SaveSettingsCmd),
 		"ListPlugins":                          rendererDesktopMethod(app.ListPlugins),
+		"ListPetPluginPackages":                electronHostDesktopMethod(app.ListPetPluginPackages),
 		"SetPluginEnabled":                     rendererDesktopMethod(app.SetPluginEnabled),
 		"GetPluginSettingsScript":              rendererDesktopMethod(app.GetPluginSettingsScript),
 		"GetActivePluginTheme":                 rendererDesktopMethod(app.GetActivePluginTheme),

@@ -5,13 +5,20 @@ import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { EventEmitter } from 'node:events'
-import { CdpSession, classifyTurnEvents, GuiDriver, isMilkSUPage, isProductLoopFixtureConversation, killProcessGroup, stripDesktopCredentialEnv } from './lib/desktop-gui-driver.mjs'
+import { CdpSession, classifyTurnEvents, GuiDriver, isCompanionChatSurface, isCompanionPetSurface, isCompanionSurface, isMainProductSurface, isMilkSUPage, isProductLoopFixtureConversation, killProcessGroup, stripDesktopCredentialEnv } from './lib/desktop-gui-driver.mjs'
+import {
+  classifyMilkSUHostCommand,
+  describeExclusiveWindows,
+  parsePsTable,
+  selectForeignMilkSUHosts,
+} from './lib/product-loop-windows.mjs'
 import {
   observedIsolatedBrowserMarker,
   pickComputerUseTarget,
   usedComputerUseTools,
   usedIsolatedBrowserTools,
 } from './lib/product-loop-desktop-surface.mjs'
+import { classifyComputerUseUnavailable } from './lib/product-loop-desktop-run.mjs'
 import {
   CASE_RUN_ORDER,
   CASES,
@@ -28,7 +35,7 @@ import {
   finalizeProductLoopResult,
 } from './lib/product-loop-catalog.mjs'
 import { PRODUCT_LOOP_RUNNERS } from './lib/product-loop-runners.mjs'
-import { buildProductLoopReport, formatProductLoopReport } from './lib/product-loop-report.mjs'
+import { buildProductLoopReport, formatFormalProductLoopReport, formatProductLoopReport } from './lib/product-loop-report.mjs'
 import {
   applyProductLoopLocalEnv,
   describeProductLoopLocalEnv,
@@ -43,6 +50,7 @@ import {
 } from './lib/product-loop-local-env.mjs'
 import {
   classifyAccountFileLoop,
+  classifyCustomRelaySave,
   describeCustomRelay,
   FIRST_USE_RELAY_ID,
   inspectLoginPage,
@@ -52,6 +60,17 @@ import {
   boardHasConversation,
   companionIsReady,
   companionRelayPrefix,
+  companionDefaultSkinVisible,
+  companionImportedSkinVisible,
+  companionPetSurfaceUsesCustomSkin,
+  companionSkinEntryVisible,
+  companionSkinFramesAreCustom,
+  companionSkinListed,
+  companionFloatReady,
+  companionParked,
+  companionPetSurfaceReady,
+  companionPresenceKept,
+  companionShellHidden,
   companionSpeakPrompt,
   companionStopPrompt,
   companionTurnErrored,
@@ -77,7 +96,7 @@ test('catalog keeps product regression away from evalsuite', () => {
   ])
   assert.equal(CASE_RUN_ORDER[0], 'login-gate')
   assert.equal(MODULES.coding.cases.length, 33)
-  assert.equal(MODULES.companion.cases.length, 14)
+  assert.equal(MODULES.companion.cases.length, 22)
   assert.equal(MODULES.workspaces.cases.length, 33)
   assert.equal(MODULES['desktop-surface'].cases.length, 9)
   assert.equal(MODULES['account-shell'].cases.length, 4)
@@ -148,6 +167,19 @@ test('product-loop report walks modules then cases then overall', () => {
   assert.match(text, /整体/)
   assert.match(text, /结论\s+FAIL/)
   assert.ok(!text.includes('sk-'))
+  const html = formatFormalProductLoopReport({
+    ...receipt,
+    suites: receipt.suites.map(item => (
+      item.id === 'login-gate'
+        ? { ...item, screenshots: ['shots/login-gate.png'] }
+        : item
+    )),
+  }, report)
+  assert.match(html, /正式报告/)
+  assert.match(html, /login-gate/)
+  assert.match(html, /shots\/login-gate.png/)
+  assert.match(html, /这一项没有截到产品窗口/)
+  assert.ok(!html.includes('sk-'))
 })
 
 test('companion product facts come from a real turn, not RPC shape checks', () => {
@@ -216,6 +248,57 @@ test('isMilkSUPage rejects Cursor and accepts the product window', () => {
   assert.equal(isMilkSUPage({ title: 'MilkSU', url: 'milksu://app' }), true)
   assert.equal(isMilkSUPage({ title: 'MilkSU DSH fixture', url: 'http://127.0.0.1:49501/' }), false)
   assert.equal(isMilkSUPage({ title: 'MilkSU', url: 'about:blank' }), false)
+  assert.equal(isCompanionSurface({ url: 'milksu://app/index.html?surface=companion' }), true)
+  assert.equal(isCompanionPetSurface({ url: 'milksu://app/index.html?surface=companion' }), true)
+  assert.equal(isCompanionChatSurface({ url: 'milksu://app/index.html?surface=companion-chat' }), true)
+  assert.equal(isCompanionPetSurface({ url: 'milksu://app/index.html?surface=companion-chat' }), false)
+  assert.equal(isMilkSUPage({ title: '', url: 'http://localhost:5173/index.html?surface=companion' }), true)
+  assert.equal(isMainProductSurface({ title: 'MilkSU', url: 'milksu://app' }), true)
+  assert.equal(isMainProductSurface({ title: '', url: 'http://localhost:5173/index.html?surface=companion' }), false)
+  assert.equal(isMainProductSurface({ title: '', url: 'milksu://app/index.html?surface=companion-chat' }), false)
+})
+
+test('companion shell observations cover hide, default skin, and dock presence', () => {
+  assert.equal(companionShellHidden({ hidden: true }), true)
+  assert.equal(companionFloatReady({ wayland: true }).ok, true)
+  assert.equal(companionFloatReady({ floating: true, hidden: false }).ok, true)
+  assert.equal(companionFloatReady({ floating: false, hidden: true }).ok, false)
+  assert.equal(companionParked({ parked: true }), true)
+  assert.equal(companionPresenceKept({ parked: true, platform: 'darwin' }).ok, true)
+  assert.equal(companionPresenceKept({ parked: true, platform: 'win32' }).reason, '任务栏还在')
+  assert.equal(companionPresenceKept({ parked: true, platform: 'linux', tray: true }).ok, true)
+  assert.equal(companionPresenceKept({ parked: true, platform: 'linux', tray: false }).ok, false)
+  assert.equal(companionDefaultSkinVisible({ text: '皮肤\n默认', aria: [] }), true)
+  assert.equal(companionSkinEntryVisible({ text: '添加皮肤\n选择文件夹', aria: [] }), true)
+  assert.equal(companionImportedSkinVisible({ text: '回路皮肤', aria: [] }, '回路皮肤'), true)
+  assert.equal(companionSkinListed({ skins: [{ id: 'imported:loop.skin' }] }, 'imported:loop.skin'), true)
+  assert.equal(companionSkinFramesAreCustom({ frames: { idle: 'data:image/png;base64,xx' } }).ok, true)
+  assert.equal(companionPetSurfaceReady({ motion: 'companion-pet companion-pet-idle', src: '/assets/idle.png' }).ok, true)
+  assert.equal(companionPetSurfaceUsesCustomSkin({ motion: 'companion-pet companion-pet-idle', src: 'data:image/png;base64,xx' }).ok, true)
+  assert.equal(companionPetSurfaceReady({ motion: '', src: '' }).ok, false)
+})
+
+test('exclusive window classification keeps only MilkSU hosts', () => {
+  const repo = '/repo/milksu'
+  assert.equal(classifyMilkSUHostCommand('/Applications/Cursor.app/Contents/MacOS/Cursor', repo), 'cursor')
+  assert.equal(classifyMilkSUHostCommand('/Applications/MilkSU Beta.app/Contents/MacOS/MilkSU Beta', repo), 'beta')
+  assert.equal(classifyMilkSUHostCommand('/Applications/MilkSU.app/Contents/Frameworks/MilkSU Helper.app/Contents/MacOS/MilkSU Helper', repo), 'helper')
+  assert.equal(classifyMilkSUHostCommand('/Applications/MilkSU.app/Contents/MacOS/MilkSU', repo), 'packaged-stable')
+  assert.equal(
+    classifyMilkSUHostCommand(`${repo}/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron ${repo}/desktop`, repo),
+    'unpackaged-repo',
+  )
+  const rows = parsePsTable([
+    '11 1 /Applications/Cursor.app/Contents/MacOS/Cursor',
+    '22 1 /Applications/MilkSU.app/Contents/MacOS/MilkSU',
+    '33 1 /Applications/MilkSU Beta.app/Contents/MacOS/MilkSU Beta',
+    `44 9 ${repo}/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron ${repo}/desktop`,
+    '55 44 /Applications/Calculator.app/Contents/MacOS/Calculator',
+  ].join('\n'))
+  const foreign = selectForeignMilkSUHosts(rows, { repoRoot: repo, keepPids: new Set([44]) })
+  assert.deepEqual(foreign.map(row => row.pid), [22])
+  assert.equal(describeExclusiveWindows({ closed: 2, remaining: 1, closedKinds: ['日常安装包', '残留 Electron'] }), '窗口关掉 2 扇（日常安装包、残留 Electron），只留测试窗')
+  assert.equal(describeExclusiveWindows({ closed: 0, remaining: 1 }), '窗口只留测试窗')
 })
 
 test('waitForCompanionTurn accepts a parked confirm then waits for settle', async () => {
@@ -264,9 +347,9 @@ test('waitForTurn keeps polling after a transient CDP close', async () => {
   assert.ok(calls >= 2)
 })
 
-test('waitForTurn treats sidecar death as a failed turn, not a settle', async () => {
+test('waitForTurn treats the active sidecar stopping as a failed turn, not a settle', async () => {
   const driver = new GuiDriver()
-  driver.drainEvents = async () => [{ type: 'engine.sidecar_stopped', error: 'sidecar exited' }]
+  driver.drainEvents = async () => [{ type: 'engine.stopped', error: 'sidecar exited' }]
   driver.ensureAttached = async () => true
   const turn = await driver.waitForTurn('conversation-1', 2_000)
   assert.equal(turn.timeout, false)
@@ -274,6 +357,7 @@ test('waitForTurn treats sidecar death as a failed turn, not a settle', async ()
   assert.match(String(turn.error || ''), /sidecar exited/)
   assert.equal(classifyTurnEvents([{ type: 'assistant.settled' }]).settled, true)
   assert.equal(classifyTurnEvents([{ type: 'engine.error' }]).failed, true)
+  assert.equal(classifyTurnEvents([{ type: 'engine.sidecar_stopped', error: 'parked sidecar reaped' }]).failed, false)
 })
 
 test('isProductLoopFixtureConversation only matches regression leftovers', () => {
@@ -431,6 +515,10 @@ test('first-use helpers inspect the login page and keep keys out of relay descri
     classifyAccountFileLoop({ notes: false, usedFiles: false, failed: true, tokenFluxLinked: false }).result,
     'FAIL',
   )
+  assert.equal(classifyCustomRelaySave('DEEPSEEK_API_KEY 模型凭据无效或无权访问。').expectedMiss, true)
+  assert.equal(classifyCustomRelaySave('打不开设置').result, 'FAIL')
+  assert.equal(classifyComputerUseUnavailable({ available: false, problem: '打包的 Cua Driver 不可用。' }).expectedMiss, true)
+  assert.equal(classifyComputerUseUnavailable({ available: false, authorized: false, problem: '缺辅助功能' }).result, 'FAIL')
 })
 
 test('desktop spawn env strips provider keys', () => {

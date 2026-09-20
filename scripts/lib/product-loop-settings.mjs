@@ -147,7 +147,12 @@ export async function runSettingsEval(driver) {
 export async function runSettingsCompanion(driver) {
   const error = await openOrFail(driver, ['桌宠', 'Companion'])
   if (error) return error
-  return expectLabels(driver, ['桌宠模型', 'Companion model', '跨会话调度', 'Dispatch', '悬浮窗', 'Floating window'], '桌宠设置页在', '桌宠设置页缺了控件')
+  return expectLabels(
+    driver,
+    ['桌宠模型', 'Companion model', '跨会话调度', 'Dispatch', '悬浮窗', 'Floating window', '皮肤', 'Skin', '默认', 'Default', '添加皮肤', 'Add skin', '选择文件夹', 'Choose folder'],
+    '桌宠设置页在',
+    '桌宠设置页缺了控件',
+  )
 }
 
 export async function runSettingsPlugins(driver) {

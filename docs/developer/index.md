@@ -28,7 +28,7 @@
 - [Security Role Packages](/developer/role-packages)
 - [插件框架实验性使用说明](/developer/plugin-user-guide)
 - [稳定 v1 插件框架、签名包与皮肤表面](/developer/plugin-framework)
-- [桌宠皮肤设计合同](/developer/companion-skin)（运动、必交帧和帽顶叠层；换装入口尚未接线）
+- [桌宠皮肤设计合同](/developer/companion-skin)（运动、必交帧、帽顶叠层，以及设置里的文件夹 / 插件换装）
 
 这些文档描述稳定边界，不单独安排开发顺序；发生实现状态冲突时回到当前目标、代码和测试事实。
 

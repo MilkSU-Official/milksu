@@ -29,9 +29,14 @@ import {
   describeProductLoopLocalEnv,
 } from './lib/product-loop-local-env.mjs'
 import { runFirstUse, saveCustomRelay } from './lib/product-loop-first-use.mjs'
-import { printProductLoopReport } from './lib/product-loop-report.mjs'
+import {
+  captureProductLoopEvidence,
+  printProductLoopReport,
+  writeFormalProductLoopReport,
+} from './lib/product-loop-report.mjs'
 import { runProductLoopCase } from './lib/product-loop-runners.mjs'
 import { ensureIsolatedProductSession } from './lib/product-loop-session.mjs'
+import { keepExclusiveMilkSUWindow } from './lib/product-loop-windows.mjs'
 
 const resultPath = join(repositoryRoot, 'build', 'test-results', 'product-loop.json')
 
@@ -48,8 +53,8 @@ function printHelp() {
   node scripts/verify-product-loop.mjs --gui --suite all
 
 默认按上手顺序跑产品模块：上手 → 主页 Coding → 桌宠 → 领域工作区 → 桌面执行面 → 账户与更新 → 设置其余项。
-独立实例贯穿，不附着已在首页的日常窗口。Key 打进设置密码框，不注入 sidecar。
-结束后打印从大模块到小模块的报告。
+独立实例贯穿。开测前清掉其它 MilkSU 窗口，只留测试窗。Key 打进设置密码框，不注入 sidecar。
+结束后打印从大模块到小模块的文字报告，并写带截图的正式 HTML 报告。
 
 模块：
 ${DEFAULT_MODULES.map(id => `  ${id.padEnd(16)} ${MODULES[id].title}  ${MODULES[id].cases.length} 项`).join('\n')}
@@ -80,6 +85,7 @@ function baseReceipt(options) {
     gaps: [
       '协调器在 scripts/，不进 App 启动、不暴露测试专用 Desktop RPC。',
       '按上手顺序走独立实例。Key 只打进设置密码框，不注入 sidecar。',
+      '开测前和每条用例前清掉其它 MilkSU 窗口，只留这一扇测试窗。GitHub 回调不进日常窗口。',
       'Computer Use 缺权限记失败，不偷偷改走隔离浏览器。隔离浏览器自己测打开、跳转、点击、标签和读标记。',
       'GUI 测完走 DeleteConversation / DeleteArchivedConversation，清掉 product-loop fixture。',
       '禁止 desktop:start:beta / MilkSU Beta。',
@@ -109,7 +115,18 @@ async function main() {
   const requestedCases = options.cases ?? []
   let session = { driver: null, instanceId: '', sourcesReady: false, ok: false }
 
-  function recordCase(id, outcome) {
+  async function attachEvidence(id, record) {
+    const driver = session.driver
+    if (!driver) return record
+    try {
+      record.screenshots = await captureProductLoopEvidence(driver, id)
+    } catch {
+      record.screenshots = record.screenshots || []
+    }
+    return record
+  }
+
+  async function recordCase(id, outcome) {
     const item = CASES[id]
     const record = {
       id,
@@ -122,7 +139,9 @@ async function main() {
       surface: outcome.surface,
       degraded: outcome.degraded,
       steps: outcome.steps,
+      screenshots: Array.isArray(outcome.screenshots) ? outcome.screenshots : [],
     }
+    if (!record.screenshots.length) await attachEvidence(id, record)
     receipt.suites.push(record)
     process.stdout.write(`CASE ${id} ${record.result} ${record.detail}\n`)
     return record
@@ -151,6 +170,8 @@ async function main() {
   }
 
   try {
+    const claim = await keepExclusiveMilkSUWindow({ log: true })
+    if (claim.closed) receipt.humanReview.push(claim.detail)
     for (const group of groupCasesByModule(requestedCases)) {
       process.stdout.write(`MODULE ${group.module.id} start ${group.module.title}\n`)
       if (group.module.id === 'first-use') {
@@ -158,7 +179,11 @@ async function main() {
           await session.driver.close().catch(() => {})
           session = { driver: null, instanceId: '', sourcesReady: false, ok: false }
         }
-        const outcome = await runFirstUse({ ...options, keepOpen: true })
+        const outcome = await runFirstUse({
+          ...options,
+          keepOpen: true,
+          onStep: async (id, driver) => captureProductLoopEvidence(driver, id),
+        })
         if (outcome.notes?.length) receipt.humanReview.push(...outcome.notes)
         if (outcome.driver) {
           session = {
@@ -169,22 +194,22 @@ async function main() {
           }
         }
         const produced = new Set((outcome.steps ?? []).map(step => step.id))
-        const optional = new Set(['login-github-active', 'account-model-fileloop'])
+        const optional = new Set(['login-github-active', 'account-model-fileloop', 'relay-model-fileloop'])
         for (const item of group.cases) {
           const step = (outcome.steps ?? []).find(row => row.id === item.id)
           if (step) {
-            recordCase(item.id, step)
+            await recordCase(item.id, step)
             continue
           }
           if (optional.has(item.id)) {
-            recordCase(item.id, { result: 'SKIP', detail: '这次没走到账户登录' })
+            await recordCase(item.id, { result: 'SKIP', detail: '这次没走到账户登录' })
             continue
           }
           if (produced.size && !produced.has(item.id)) {
-            recordCase(item.id, { result: 'FAIL', detail: '上手流程没跑到这一步' })
+            await recordCase(item.id, { result: 'FAIL', detail: '上手流程没跑到这一步' })
             continue
           }
-          recordCase(item.id, { result: outcome.result, detail: outcome.detail })
+          await recordCase(item.id, { result: outcome.result, detail: outcome.detail })
         }
         continue
       }
@@ -203,7 +228,7 @@ async function main() {
           receipt.humanReview.push(message)
           outcome = { result: 'FAIL', detail: message }
         }
-        recordCase(item.id, outcome)
+        await recordCase(item.id, outcome)
       }
     }
   } catch (error) {
@@ -211,7 +236,7 @@ async function main() {
     receipt.humanReview.push(message)
     for (const id of requestedCases) {
       if (receipt.suites.some(row => row.id === id)) continue
-      recordCase(id, { result: 'FAIL', detail: message })
+      await recordCase(id, { result: 'FAIL', detail: message })
     }
   } finally {
     if (session.driver) await session.driver.close()
@@ -224,8 +249,11 @@ async function main() {
     modules: report.modules.map(item => ({ id: item.id, title: item.title, result: item.result, total: item.total, passed: item.passed, failed: item.failed, skipped: item.skipped })),
     overall: report.overall,
   }
+  const formalPath = await writeFormalProductLoopReport(receipt, report)
+  receipt.formalReport = formalPath
   await writeReceipt(receipt)
   console.log(`receipt ${resultPath}`)
+  console.log(`formal-report ${formalPath}`)
   process.exitCode = receipt.result === 'PASS' ? 0 : 1
 }
 

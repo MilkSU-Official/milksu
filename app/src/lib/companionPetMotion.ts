@@ -2,7 +2,7 @@ export const COMPANION_COMPLETE_HOLD_MS = 2800
 
 export type CompanionPetMotion = 'idle' | 'talk' | 'think' | 'decide' | 'complete'
 
-export type CompanionPetSprite = 'idle' | 'talk' | 'decide'
+export type CompanionPetSprite = 'idle' | 'talk' | 'decide' | 'think' | 'complete'
 
 export function resolveCompanionPetMotion(input: {
   confirm: boolean
@@ -18,8 +18,13 @@ export function resolveCompanionPetMotion(input: {
   return 'idle'
 }
 
-export function companionPetSprite(motion: CompanionPetMotion): CompanionPetSprite {
+export function companionPetSprite(
+  motion: CompanionPetMotion,
+  frames?: { think?: boolean; complete?: boolean },
+): CompanionPetSprite {
   if (motion === 'decide') return 'decide'
-  if (motion === 'talk' || motion === 'complete') return 'talk'
+  if (motion === 'talk') return 'talk'
+  if (motion === 'complete') return frames?.complete ? 'complete' : 'talk'
+  if (motion === 'think') return frames?.think ? 'think' : 'idle'
   return 'idle'
 }

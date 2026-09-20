@@ -1,16 +1,27 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import companionDecide from '@/assets/companion/decide.png'
 import companionIdle from '@/assets/companion/idle.png'
 import companionTalk from '@/assets/companion/talk.png'
 import { useCompanion } from '@/composables/useCompanion'
-import { invokeCommand } from '@/desktop'
+import { invokeCommand, listenEvent } from '@/desktop'
 import { useT, useUiLocale } from '@/hooks/useUiLocale'
 import { companionPetSprite, resolveCompanionPetMotion } from '@/lib/companionPetMotion'
+import type { AppSettings, CompanionSkinResolved } from '@/types'
 
-const sprites = {
+const factorySprites = {
   idle: companionIdle,
   talk: companionTalk,
   decide: companionDecide,
+}
+
+const factorySkin: CompanionSkinResolved = {
+  id: 'default',
+  source: 'factory',
+  factory: true,
+  name: { zh: '默认', en: 'Default' },
+  overlay: { think: 'spin', decide: 'bang', complete: 'bang' },
+  mark: { cx: 0.5, cy: 0.24, size: 0.26 },
+  frames: {},
 }
 
 function attentionText(input: {
@@ -30,10 +41,20 @@ function attentionText(input: {
   return ''
 }
 
+function spriteSrc(skin: CompanionSkinResolved, motion: ReturnType<typeof resolveCompanionPetMotion>) {
+  const key = companionPetSprite(motion, {
+    think: Boolean(skin.frames.think),
+    complete: Boolean(skin.frames.complete),
+  })
+  return skin.frames[key]
+    || factorySprites[key === 'think' ? 'idle' : key === 'complete' ? 'talk' : key]
+}
+
 export default function CompanionPetWindow() {
   const t = useT()
   const locale = useUiLocale()
   const companion = useCompanion()
+  const [skin, setSkin] = useState<CompanionSkinResolved>(factorySkin)
   const motion = resolveCompanionPetMotion({
     confirm: Boolean(companion.confirm),
     error: Boolean(companion.error.trim()),
@@ -55,18 +76,93 @@ export default function CompanionPetWindow() {
     }
   }, [])
 
+  useEffect(() => {
+    let cancelled = false
+    async function loadSkin(id?: string) {
+      try {
+        const settings = await invokeCommand<AppSettings>('get_settings')
+        const resolved = await invokeCommand<CompanionSkinResolved>('get_companion_skin', {
+          id: id || settings.companion_skin_id || 'default',
+        })
+        if (!cancelled && resolved) setSkin(resolved)
+      } catch {
+        if (!cancelled) setSkin(factorySkin)
+      }
+    }
+    void loadSkin()
+    let stop: (() => void) | undefined
+    void listenEvent<{ id?: string }>('companion-skin.changed', event => {
+      void loadSkin(event.payload?.id)
+    }).then(unlisten => {
+      stop = unlisten
+    })
+    return () => {
+      cancelled = true
+      stop?.()
+    }
+  }, [])
+
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null)
+
   return (
     <div
-      className={`companion-pet companion-pet-${motion}`}
+      className={[
+        'companion-pet',
+        `companion-pet-${motion}`,
+        `companion-pet-overlay-think-${skin.overlay.think}`,
+        `companion-pet-overlay-decide-${skin.overlay.decide}`,
+        `companion-pet-overlay-complete-${skin.overlay.complete}`,
+      ].join(' ')}
       onContextMenu={event => {
         event.preventDefault()
-        void invokeCommand('set_companion_pet_hidden', { hidden: true, locale })
+        event.stopPropagation()
+        setMenu({ x: event.clientX, y: event.clientY })
       }}
       onClick={() => {
-        if (motion !== 'decide') return
-        void invokeCommand('show_companion_main_window')
+        setMenu(null)
+        void invokeCommand('show_companion_chat_window', { locale })
       }}
     >
+      {menu ? (
+        <div
+          className="companion-pet-menu"
+          data-testid="companion-pet-menu"
+          role="menu"
+          style={{ left: Math.min(menu.x, 96), top: Math.min(menu.y, 220) }}
+          onClick={event => event.stopPropagation()}
+        >
+          <button type="button" role="menuitem" onClick={() => {
+            setMenu(null)
+            void invokeCommand('show_companion_chat_window', { locale })
+          }}>
+            {t('对话', 'Chat')}
+          </button>
+          <button type="button" role="menuitem" onClick={() => {
+            setMenu(null)
+            void invokeCommand('set_companion_pet_hidden', { hidden: true, locale })
+          }}>
+            {t('隐藏桌宠', 'Hide companion')}
+          </button>
+          <button type="button" role="menuitem" onClick={() => {
+            setMenu(null)
+            void invokeCommand('show_companion_main_window', { locale })
+          }}>
+            {t('打开主窗口', 'Open MilkSU')}
+          </button>
+          <button type="button" role="menuitem" onClick={() => {
+            setMenu(null)
+            void invokeCommand('show_companion_settings', { locale })
+          }}>
+            {t('桌宠设置', 'Companion settings')}
+          </button>
+          <button type="button" role="menuitem" onClick={() => {
+            setMenu(null)
+            void invokeCommand('quit_companion_shell', { locale })
+          }}>
+            {t('退出', 'Quit')}
+          </button>
+        </div>
+      ) : null}
       {bubble ? (
         <div className="companion-pet-bubble" role="status">
           {bubble}
@@ -75,11 +171,19 @@ export default function CompanionPetWindow() {
       <div className="companion-pet-body" aria-hidden={true}>
         <img
           className="companion-pet-sprite"
-          src={sprites[companionPetSprite(motion)]}
+          src={spriteSrc(skin, motion)}
           alt=""
           draggable={false}
         />
-        <div className="companion-pet-mark">
+        <div
+          className="companion-pet-mark"
+          style={{
+            left: `${skin.mark.cx * 100}%`,
+            top: `${skin.mark.cy * 100}%`,
+            width: `${skin.mark.size * 100}%`,
+            height: `${skin.mark.size * 100}%`,
+          }}
+        >
           <svg className="companion-pet-spinner" viewBox="-50 -50 100 100" aria-hidden="true">
             <g transform="rotate(16)">
               {Array.from({ length: 8 }, (_, index) => (
