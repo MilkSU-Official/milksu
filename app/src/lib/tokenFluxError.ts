@@ -77,7 +77,7 @@ function has(parsed: ParsedTokenFluxFailure, pattern: RegExp): boolean {
   return pattern.test(parsed.haystack) || pattern.test(parsed.code) || pattern.test(parsed.reason)
 }
 
-const TOKENFLUX_FINGERPRINT = /tokenflux|API_KEY_|INSUFFICIENT_BALANCE|GROUP_|TEAM_|SUBSCRIPTION_|QUOTA_EXHAUSTED|DAILY_LIMIT_EXCEEDED|WEEKLY_LIMIT_EXCEEDED|MONTHLY_LIMIT_EXCEEDED|COMPOSITE_KEY_MODEL_PREFIX|Claude Code|composite api key model|not supported by any configured account|No available accounts|All available accounts exhausted|Billing service temporarily unavailable|内容审计命中风险规则|restricted to Claude Code|only allows Claude Code|\/v1\/messages only|does not allow (?:Anthropic|OpenAI|Gemini)|not assigned to any group|rate limited|Concurrency limit|Too many pending requests|Upstream rate limit|model group rate/i
+const TOKENFLUX_FINGERPRINT = /tokenflux|API_KEY_|INSUFFICIENT_BALANCE|GROUP_|TEAM_|SUBSCRIPTION_|QUOTA_EXHAUSTED|DAILY_LIMIT_EXCEEDED|WEEKLY_LIMIT_EXCEEDED|MONTHLY_LIMIT_EXCEEDED|COMPOSITE_KEY_MODEL_PREFIX|Claude Code|composite api key model|not supported by any configured account|does not support the requested model|No available accounts|All available accounts exhausted|Billing service temporarily unavailable|内容审计命中风险规则|restricted to Claude Code|only allows Claude Code|\/v1\/messages only|does not allow (?:Anthropic|OpenAI|Gemini)|not assigned to any group|rate limited|Concurrency limit|Too many pending requests|Upstream rate limit|model group rate/i
 
 function looksLikeTokenFluxFingerprint(parsed: ParsedTokenFluxFailure): boolean {
   return TOKENFLUX_FINGERPRINT.test(parsed.haystack)

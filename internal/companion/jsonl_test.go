@@ -64,6 +64,36 @@ func TestTranscriptKeysetDoesNotUseOffset(t *testing.T) {
 	}
 }
 
+func TestTranscriptKeepsAssistantErrorAndSkipsBareTypeNames(t *testing.T) {
+	dir := t.TempDir()
+	lines := []string{
+		`{"type":"session","id":"companion","timestamp":"2026-01-01T00:00:00Z"}`,
+		`{"type":"model_change","id":"m1","timestamp":"2026-01-01T00:00:00Z","provider":"tokenflux","modelId":"google/gemini-3.8-flash"}`,
+		`{"type":"message","id":"u1","timestamp":"2026-01-01T00:00:01Z","message":{"role":"user","content":[{"type":"text","text":"hi"}]}}`,
+		`{"type":"message","id":"a1","timestamp":"2026-01-01T00:00:02Z","message":{"role":"assistant","content":[],"stopReason":"error","errorMessage":"403: {\"message\":\"The current group does not support the requested model\"}"}}`,
+	}
+	path := writeCompanionJSONL(t, dir, lines)
+	page, err := ReadTranscriptPage(path, 10, nil, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Entries) != 2 {
+		t.Fatalf("entries: %#v", page.Entries)
+	}
+	if page.Entries[0].Role != "user" || page.Entries[0].Text != "hi" {
+		t.Fatalf("user: %#v", page.Entries[0])
+	}
+	if page.Entries[1].Role != "assistant" {
+		t.Fatalf("assistant role: %#v", page.Entries[1])
+	}
+	if page.Entries[1].Text != "" {
+		t.Fatalf("failed assistant must not invent text: %#v", page.Entries[1])
+	}
+	if !strings.Contains(page.Entries[1].Error, "does not support the requested model") {
+		t.Fatalf("assistant error: %#v", page.Entries[1])
+	}
+}
+
 func TestArchiveAndDeleteCompanionSegment(t *testing.T) {
 	dir := t.TempDir()
 	path := writeCompanionJSONL(t, dir, []string{

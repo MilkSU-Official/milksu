@@ -120,9 +120,12 @@ export function useCompanion() {
     let cancelled = false
     let unlisten: (() => void) | undefined
     void (async () => {
+      const route = { provider: '', model: '' }
       try {
         const next = await invokeCommand<CompanionStatus>('ensure_companion')
         if (cancelled) return
+        route.provider = next.provider
+        route.model = next.model
         setStatus(next)
         await Promise.all([loadTail(), refreshBoard(), refreshMemory(), refreshArchives()])
         setShell(await invokeCommand<CompanionShellStatus>('get_companion_shell_status'))
@@ -177,7 +180,10 @@ export function useCompanion() {
           }
         }
         if (payload?.type === 'engine.error') {
-          const text = explainCompanionError(payload.text || payload.error)
+          const text = explainCompanionError(payload.error || payload.text, {
+            provider: route.provider,
+            model: route.model,
+          })
           if (text) setError(text)
           setBusy(false)
           clearComplete()

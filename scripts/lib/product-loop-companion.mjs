@@ -112,6 +112,26 @@ export function transcriptHasPrompt(page, needle) {
   return { ok: true, reason: '' }
 }
 
+export function transcriptHasAssistantReply(page) {
+  const entries = asList(pick(page, 'entries', 'Entries'))
+  const assistants = entries.filter((entry) => String(pick(entry, 'role', 'Role') ?? '') === 'assistant')
+  if (!assistants.length) {
+    return { ok: false, reason: '桌宠抄本没有助手回复' }
+  }
+  const spoken = assistants.some((entry) => {
+    const text = String(pick(entry, 'text', 'Text', 'content', 'Content') ?? '').trim()
+    const err = String(pick(entry, 'error', 'Error') ?? '').trim()
+    const type = String(pick(entry, 'type', 'Type') ?? '').trim()
+    if (err) return false
+    if (!text || text === type || text === 'message') return false
+    return true
+  })
+  if (!spoken) {
+    return { ok: false, reason: '桌宠助手没有可见回复（空正文、类型名 message，或只有错误）' }
+  }
+  return { ok: true, reason: '' }
+}
+
 export function boardHasConversation(board, id) {
   const sessions = asList(pick(board, 'sessions', 'Sessions'))
   if (!sessions.some(item => conversationIdOf(item) === id)) {

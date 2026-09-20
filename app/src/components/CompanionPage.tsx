@@ -17,6 +17,7 @@ import {
   formatCompanionChatStamp,
 } from '@/lib/companionChatLayout'
 import { cn } from '@/lib/cn'
+import { companionChatVisibleText, explainCompanionError } from '@/lib/companionUserError'
 import { isComposingKey } from '@/lib/imeComposition'
 import type { AppSettings, CompanionSkinResolved } from '@/types'
 
@@ -182,6 +183,14 @@ export default function CompanionPage({
               const stamp = formatCompanionChatStamp(entry.timestamp, locale)
               const user = companionChatIsUser(entry.role)
               const bubble = companionChatIsBubble(entry.role)
+              const raw = companionChatVisibleText(entry)
+              const body = entry.error
+                ? explainCompanionError(entry.error, {
+                    provider: companion.status.provider,
+                    model: companion.status.model,
+                  })
+                : raw
+              if (!body) return null
               return (
                 <article
                   key={item.key}
@@ -203,10 +212,10 @@ export default function CompanionPage({
                       user ? 'companion-chat-bubble-user' : 'companion-chat-bubble-assistant',
                       endsRun && 'companion-chat-bubble-tail',
                     )}>
-                      {entry.text || entry.type}
+                      {body}
                     </p>
                   ) : (
-                    <p className="companion-chat-system">{entry.text || entry.type}</p>
+                    <p className="companion-chat-system">{body}</p>
                   )}
                   {showCaption && stamp ? <p className="companion-chat-stamp">{stamp}</p> : null}
                 </article>

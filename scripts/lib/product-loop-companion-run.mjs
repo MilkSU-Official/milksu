@@ -30,6 +30,7 @@ import {
   companionTurnSettled,
   conversationHasRelay,
   conversationIdOf,
+  transcriptHasAssistantReply,
   transcriptHasPrompt,
 } from './product-loop-companion.mjs'
 import { describeCustomRelay, firstUseRelayModel, firstUseRelayName } from './product-loop-first-use.mjs'
@@ -308,7 +309,7 @@ export async function runCompanionRelay(driver, options = {}) {
       turn = await driver.waitForCompanionTurn(options.taskTimeoutMs)
     }
     if (turn.sidecarStopped || companionTurnParked(turn.events)) {
-      return pass('桌宠 sidecar 已停，转达不再记失败')
+      return fail('桌宠 sidecar 停了，转达没有接上')
     }
     const facts = await waitForCompanionFacts(driver, conversation.id, marker)
     if (facts.landed.ok && facts.transcript.ok && facts.board.ok) {
@@ -371,16 +372,22 @@ export async function runCompanionTranscript(driver, options = {}) {
     await driver.sendCompanionMessage(`${marker} 第 ${index} 句，请短回一句。`)
     const turn = await driver.waitForCompanionTurn(options.taskTimeoutMs || 180_000)
     if (turn.sidecarStopped || companionTurnParked(turn.events)) {
-      return pass(`第 ${index} 句时桌宠 sidecar 已停，不再记失败`)
+      return fail(`第 ${index} 句桌宠 sidecar 停了，对话没有接上`)
+    }
+    if (companionTurnErrored(turn.events)) {
+      return fail(`第 ${index} 句桌宠回合失败 ${turn.error || ''}`.trim())
     }
     if (turn.timeout) return fail(`第 ${index} 句桌宠回合超时`)
   }
   const page = await driver.listCompanionTranscript(40)
   const found = transcriptHasPrompt(page, marker)
+  const spoken = transcriptHasAssistantReply(page)
   const count = Array.isArray(page?.entries) ? page.entries.filter(entry => String(entry?.text ?? '').includes(marker)).length : 0
-  return found.ok && count >= 3
+  if (!found.ok) return fail(found.reason)
+  if (!spoken.ok) return fail(spoken.reason)
+  return count >= 3
     ? pass(`抄本留下了 ${count} 句连续对话`)
-    : fail(found.ok ? `抄本只看到 ${count} 句` : found.reason)
+    : fail(`抄本只看到 ${count} 句`)
 }
 
 export async function runCompanionArchive(driver) {
@@ -445,7 +452,7 @@ export async function runCompanionDispatchConfirm(driver, options = {}) {
       if (turn.confirmed || turn.sidecarStopped || companionTurnParked(turn.events)) break
     }
     if (turn.sidecarStopped || companionTurnParked(turn.events)) {
-      return pass('桌宠 sidecar 已停，跨会话确认不再记失败')
+      return fail('桌宠 sidecar 停了，跨会话确认没有接上')
     }
     if (!turn.confirmed) {
       return fail(`跨会话调度没有停下来确认 timeout=${Boolean(turn.timeout)} confirmed=${turn.confirmed}`)

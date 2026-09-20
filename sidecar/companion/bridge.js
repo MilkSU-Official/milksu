@@ -10,6 +10,8 @@ import { createCompanionExtension, COMPANION_SESSION_ID } from "./extension.js";
 import { createCompanionTools } from "./tools.js";
 import { queryCompanionMemory, scheduleCompanionIndexRefresh } from "./obelisk-index.js";
 import { companionProviderEnvironment } from "./companion-model-env.js";
+import { companionAssistantTurnError } from "./turn-error.js";
+import { withTokenFluxModelCompat } from "../pi/tokenflux-model-compat.js";
 import currentProviderRuntime from "../pi/current-provider-runtime.cjs";
 
 const {
@@ -164,7 +166,10 @@ async function applyCompanionModel(command) {
     command?.customProvider,
   );
   if (definition) {
-    session.modelRuntime.registerProvider(provider, definition);
+    const registered = provider === "tokenflux" || provider === "milksu-account"
+      ? withTokenFluxModelCompat(definition)
+      : definition;
+    session.modelRuntime.registerProvider(provider, registered);
   }
   if (isCustomRelayProvider(provider, process.env, command?.customProvider)) {
     // Relay definition is already registered above when present.
@@ -188,6 +193,8 @@ function subscribeCompanion() {
       return;
     }
     if (event.type === "agent_end") {
+      const error = companionAssistantTurnError(session.messages);
+      if (error) emit("error", { error });
       emit("turn_settled", {});
       if (memorySearchEnabled) scheduleCompanionIndexRefresh();
       return;

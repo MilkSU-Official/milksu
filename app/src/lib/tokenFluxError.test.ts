@@ -57,6 +57,11 @@ describe('explainTokenFluxError', () => {
       'not supported by any configured account',
     ],
     [
+      '403: {"message":"The current group does not support the requested model \\"gemini-3.8-flash\\"","type":"permission_error"}',
+      '不支持这个模型',
+      'does not support the requested model',
+    ],
+    [
       '503: {"message":"No available accounts"}',
       '没有可用账号',
       'No available accounts',

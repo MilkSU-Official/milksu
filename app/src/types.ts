@@ -443,6 +443,7 @@ export interface CompanionTranscriptEntry {
   timestamp: string
   role?: string
   text?: string
+  error?: string
 }
 
 export interface CompanionTranscriptPage {

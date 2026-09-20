@@ -80,6 +80,7 @@ import {
   conversationHasRelay,
   conversationMovedToArchive,
   parseCompanionConfirm,
+  transcriptHasAssistantReply,
   transcriptHasPrompt,
 } from './lib/product-loop-companion.mjs'
 
@@ -243,6 +244,18 @@ test('companion product facts come from a real turn, not RPC shape checks', () =
   assert.equal(transcriptHasPrompt({
     entries: [{ role: 'user', text: '请转达 product-loop-marker' }],
   }, 'product-loop-marker').ok, true)
+  assert.equal(transcriptHasAssistantReply({
+    entries: [{ role: 'assistant', type: 'message', text: '' }],
+  }).ok, false)
+  assert.equal(transcriptHasAssistantReply({
+    entries: [{ role: 'assistant', type: 'message', text: 'message' }],
+  }).ok, false)
+  assert.equal(transcriptHasAssistantReply({
+    entries: [{ role: 'assistant', type: 'message', error: '403: group does not support the requested model' }],
+  }).ok, false)
+  assert.equal(transcriptHasAssistantReply({
+    entries: [{ role: 'assistant', type: 'message', text: '收到，看板里有 3 条会话。' }],
+  }).ok, true)
   assert.equal(boardHasConversation({ sessions: [{ id: 'coding-1', title: 'A' }] }, 'coding-1').ok, true)
   assert.equal(conversationHasRelay({
     messages: [{ content: `${companionRelayPrefix()}\nproduct-loop-marker` }],

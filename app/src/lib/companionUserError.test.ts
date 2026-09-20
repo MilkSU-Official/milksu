@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { explainCompanionError } from './companionUserError'
+import { companionChatVisibleText, explainCompanionError } from './companionUserError'
 import { applyUiLocale } from './uiLocale'
 
 describe('explainCompanionError', () => {
@@ -13,10 +13,33 @@ describe('explainCompanionError', () => {
     applyUiLocale('zh')
   })
 
+  it('maps TokenFlux group model rejection to product copy', () => {
+    applyUiLocale('zh')
+    const text = explainCompanionError(
+      '403: {"message":"The current group does not support the requested model \\"gemini-3.8-flash\\"","type":"permission_error"}',
+      { provider: 'tokenflux', model: 'google/gemini-3.8-flash' },
+    )
+    expect(text).toContain('当前 TokenFlux 分组不支持这个模型')
+    expect(text).not.toBe('message')
+  })
+
   it('leaves unrelated errors alone', () => {
     applyUiLocale('zh')
-    expect(explainCompanionError('companion model not found: tokenflux/missing')).toBe(
-      'companion model not found: tokenflux/missing',
+    expect(explainCompanionError('companion session is not ready')).toBe(
+      'companion session is not ready',
     )
+  })
+})
+
+describe('companionChatVisibleText', () => {
+  it('does not fall back to the JSONL type name', () => {
+    expect(companionChatVisibleText({ type: 'message', text: '' })).toBe('')
+    expect(companionChatVisibleText({ type: 'message', text: 'message' })).toBe('')
+    expect(companionChatVisibleText({
+      type: 'message',
+      role: 'assistant',
+      error: '403: group does not support the requested model',
+    })).toBe('403: group does not support the requested model')
+    expect(companionChatVisibleText({ type: 'message', text: '你好' })).toBe('你好')
   })
 })

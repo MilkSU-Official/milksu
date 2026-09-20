@@ -24,6 +24,7 @@ type TranscriptEntry struct {
 	Timestamp string `json:"timestamp"`
 	Role      string `json:"role,omitempty"`
 	Text      string `json:"text,omitempty"`
+	Error     string `json:"error,omitempty"`
 }
 
 type TranscriptPage struct {
@@ -341,6 +342,9 @@ func decodeTranscriptLine(line []byte) (TranscriptEntry, bool) {
 	if message, ok := raw["message"].(map[string]any); ok {
 		entry.Role = strings.TrimSpace(stringValue(message["role"]))
 		entry.Text = extractMessageText(message["content"])
+		if errText := strings.TrimSpace(stringValue(message["errorMessage"])); errText != "" {
+			entry.Error = errText
+		}
 	}
 	if content, ok := raw["content"]; ok && entry.Text == "" {
 		entry.Text = extractMessageText(content)
@@ -348,8 +352,21 @@ func decodeTranscriptLine(line []byte) (TranscriptEntry, bool) {
 	if text := strings.TrimSpace(stringValue(raw["summary"])); text != "" && entry.Text == "" {
 		entry.Text = text
 	}
+	if entry.Error == "" {
+		if errText := strings.TrimSpace(stringValue(raw["errorMessage"])); errText != "" {
+			entry.Error = errText
+		} else if errText := strings.TrimSpace(stringValue(raw["error"])); errText != "" {
+			entry.Error = errText
+		}
+	}
 	if entry.ID == "" {
 		entry.ID = fmt.Sprintf("%s:%s", entry.Type, entry.Timestamp)
+	}
+	// model_change / thinking_level_change have no user-visible body. Keep
+	// failed assistant turns (empty content + errorMessage) so the chat can
+	// show the real failure instead of the JSONL type name "message".
+	if entry.Text == "" && entry.Error == "" && kind != "message" {
+		return TranscriptEntry{}, false
 	}
 	return entry, true
 }
