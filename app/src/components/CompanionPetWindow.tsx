@@ -1,11 +1,17 @@
 import { useEffect, useMemo } from 'react'
+import companionDecide from '@/assets/companion/decide.png'
+import companionIdle from '@/assets/companion/idle.png'
+import companionTalk from '@/assets/companion/talk.png'
 import { useCompanion } from '@/composables/useCompanion'
 import { invokeCommand } from '@/desktop'
 import { useT, useUiLocale } from '@/hooks/useUiLocale'
-import companionIdle from '@/assets/companion/idle.png'
-import companionTalk from '@/assets/companion/talk.png'
+import { companionPetSprite, resolveCompanionPetMotion } from '@/lib/companionPetMotion'
 
-type PetMotion = 'idle' | 'talk' | 'think' | 'decide'
+const sprites = {
+  idle: companionIdle,
+  talk: companionTalk,
+  decide: companionDecide,
+}
 
 function attentionText(input: {
   confirm: { action: string; text: string; targetTitle: string } | null
@@ -28,13 +34,13 @@ export default function CompanionPetWindow() {
   const t = useT()
   const locale = useUiLocale()
   const companion = useCompanion()
-  const motion: PetMotion = companion.confirm || companion.error
-    ? 'decide'
-    : companion.streaming
-      ? 'talk'
-      : companion.busy
-        ? 'think'
-        : 'idle'
+  const motion = resolveCompanionPetMotion({
+    confirm: Boolean(companion.confirm),
+    error: Boolean(companion.error.trim()),
+    streaming: Boolean(companion.streaming),
+    busy: companion.busy,
+    complete: companion.complete,
+  })
   const bubble = useMemo(
     () => attentionText({ confirm: companion.confirm, error: companion.error, t }),
     [companion.confirm, companion.error, t],
@@ -69,7 +75,7 @@ export default function CompanionPetWindow() {
       <div className="companion-pet-body" aria-hidden={true}>
         <img
           className="companion-pet-sprite"
-          src={motion === 'talk' ? companionTalk : companionIdle}
+          src={sprites[companionPetSprite(motion)]}
           alt=""
           draggable={false}
         />
@@ -86,11 +92,17 @@ export default function CompanionPetWindow() {
               <circle r="6.5" fill="#d4deee" />
             </g>
           </svg>
-          <svg className="companion-pet-bang" viewBox="0 0 48 56" aria-hidden="true">
-            <rect x="18" y="2" width="12" height="34" rx="6" fill="#f4f2ef" />
-            <rect x="20.5" y="5" width="7" height="28" rx="3.5" fill="#4a3238" />
-            <circle cx="24" cy="46" r="7" fill="#f4f2ef" />
-            <circle cx="24" cy="46" r="4.6" fill="#4a3238" />
+          <svg className="companion-pet-bang companion-pet-bang-yellow" viewBox="0 0 48 56" aria-hidden="true">
+            <rect x="18" y="2" width="12" height="34" rx="6" fill="#fff4c2" />
+            <rect x="20.5" y="5" width="7" height="28" rx="3.5" fill="#f0b400" />
+            <circle cx="24" cy="46" r="7" fill="#fff4c2" />
+            <circle cx="24" cy="46" r="4.6" fill="#f0b400" />
+          </svg>
+          <svg className="companion-pet-bang companion-pet-bang-green" viewBox="0 0 48 56" aria-hidden="true">
+            <rect x="18" y="2" width="12" height="34" rx="6" fill="#d9ffe6" />
+            <rect x="20.5" y="5" width="7" height="28" rx="3.5" fill="#2fbf5a" />
+            <circle cx="24" cy="46" r="7" fill="#d9ffe6" />
+            <circle cx="24" cy="46" r="4.6" fill="#2fbf5a" />
           </svg>
         </div>
       </div>

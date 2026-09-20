@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { desktopErrorMessage, hasDesktopRuntime, invokeCommand, listenEvent } from '@/desktop'
+import { COMPANION_COMPLETE_HOLD_MS } from '@/lib/companionPetMotion'
 import type {
   CompanionArchive,
   CompanionBoardSnapshot,
@@ -48,7 +49,26 @@ export function useCompanion() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [confirm, setConfirm] = useState<CompanionConfirm | null>(null)
+  const [complete, setComplete] = useState(false)
   const loadingOlder = useRef(false)
+  const completeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const clearComplete = useCallback(() => {
+    if (completeTimer.current) {
+      clearTimeout(completeTimer.current)
+      completeTimer.current = null
+    }
+    setComplete(false)
+  }, [])
+
+  const flashComplete = useCallback(() => {
+    if (completeTimer.current) clearTimeout(completeTimer.current)
+    setComplete(true)
+    completeTimer.current = setTimeout(() => {
+      completeTimer.current = null
+      setComplete(false)
+    }, COMPANION_COMPLETE_HOLD_MS)
+  }, [])
 
   const refreshBoard = useCallback(async () => {
     if (!hasDesktopRuntime()) return
@@ -121,7 +141,16 @@ export function useCompanion() {
           setStreaming(current => current + payload.text)
           return
         }
-        if (payload?.type === 'assistant.settled' || payload?.type === 'session.ready') {
+        if (payload?.type === 'assistant.settled') {
+          setStreaming('')
+          setBusy(false)
+          flashComplete()
+          void loadTail()
+          void refreshBoard()
+          void refreshMemory()
+          return
+        }
+        if (payload?.type === 'session.ready') {
           setStreaming('')
           setBusy(false)
           void loadTail()
@@ -148,14 +177,19 @@ export function useCompanion() {
         if (payload?.type === 'engine.error' && payload.text) {
           setError(payload.text)
           setBusy(false)
+          clearComplete()
         }
       })
     })()
     return () => {
       cancelled = true
       unlisten?.()
+      if (completeTimer.current) {
+        clearTimeout(completeTimer.current)
+        completeTimer.current = null
+      }
     }
-  }, [loadTail, refreshArchives, refreshBoard, refreshMemory])
+  }, [clearComplete, flashComplete, loadTail, refreshArchives, refreshBoard, refreshMemory])
 
   const send = useCallback(async () => {
     const prompt = draft.trim()
@@ -163,13 +197,14 @@ export function useCompanion() {
     setBusy(true)
     setError('')
     setDraft('')
+    clearComplete()
     try {
       await invokeCommand('send_companion_message', { prompt })
     } catch (reason) {
       setError(desktopErrorMessage(reason))
       setBusy(false)
     }
-  }, [busy, draft])
+  }, [busy, clearComplete, draft])
 
   const archive = useCallback(async () => {
     await invokeCommand('archive_companion_transcript')
@@ -241,6 +276,7 @@ export function useCompanion() {
     streaming,
     error,
     confirm,
+    complete,
     send,
     archive,
     removeArchive,

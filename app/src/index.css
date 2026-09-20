@@ -996,6 +996,10 @@ html.companion-surface #app {
   animation-duration: 0.7s;
 }
 
+.companion-pet-complete .companion-pet-body {
+  animation-duration: 0.45s;
+}
+
 .companion-pet-sprite {
   position: absolute;
   inset: 0;
@@ -1029,7 +1033,8 @@ html.companion-surface #app {
   animation: companion-pet-spin 1.6s linear infinite;
 }
 
-.companion-pet-decide .companion-pet-bang {
+.companion-pet-decide .companion-pet-bang-yellow,
+.companion-pet-complete .companion-pet-bang-green {
   opacity: 1;
 }
 
