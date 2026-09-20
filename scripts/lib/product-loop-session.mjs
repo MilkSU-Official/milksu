@@ -41,9 +41,21 @@ export async function releaseProductLoopWorkspace(driver, conversation, workspac
   if (workspace) await rm(workspace, { recursive: true, force: true }).catch(() => {})
 }
 
+function visibleRootScript() {
+  return `function pickVisibleRoot(rootSelector) {
+    if (!rootSelector) return document
+    const candidates = Array.from(document.querySelectorAll(rootSelector))
+    return candidates.find(node => {
+      const box = node.getBoundingClientRect()
+      return box.width > 8 && box.height > 8
+    }) || candidates[0] || null
+  }`
+}
+
 function clickScript(mode) {
   return `function(patterns, rootSelector) {
-    const root = rootSelector ? document.querySelector(rootSelector) : document
+    ${visibleRootScript()}
+    const root = pickVisibleRoot(rootSelector)
     if (!root) return false
     const selector = ${JSON.stringify(mode === 'aria'
       ? 'button, [role="button"], [role="tab"]'
@@ -215,17 +227,33 @@ async function pageCall(driver, functionDeclaration, args = []) {
   }
 }
 
+function overlayLayerSelector() {
+  return '[data-command-panel], [data-testid="command-panel"], [role="dialog"], [data-slot="dialog-content"], [cmdk-root], [role="menu"], [data-slot="dropdown-menu-content"]'
+}
+
+export async function overlayBlocking(driver) {
+  if (!driver?.cdp) return false
+  return Boolean(await pageCall(driver, `function(selector) {
+    return Array.from(document.querySelectorAll(selector)).some(node => {
+      const box = node.getBoundingClientRect()
+      return box.width > 1 && box.height > 1
+    })
+  }`, [overlayLayerSelector()]).catch(() => false))
+}
+
 export async function dismissOverlays(driver) {
   if (!driver?.cdp) return false
-  for (let attempt = 0; attempt < 6; attempt += 1) {
-    const state = await pageCall(driver, `function() {
-      const dialog = document.querySelector(
-        '[data-command-panel], [role="dialog"], [data-slot="dialog-content"], [cmdk-root], [data-testid="command-panel"], [role="menu"], [data-slot="dropdown-menu-content"]',
-      )
-      if (!dialog) return 'none'
-      const box = dialog.getBoundingClientRect()
-      if (box.width < 1 || box.height < 1) return 'none'
+  let closedAny = false
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const state = await pageCall(driver, `function(selector) {
+      const layers = Array.from(document.querySelectorAll(selector)).filter(node => {
+        const box = node.getBoundingClientRect()
+        return box.width > 1 && box.height > 1
+      })
+      if (!layers.length) return 'none'
       const cancel = Array.from(document.querySelectorAll('button')).find(node => {
+        const box = node.getBoundingClientRect()
+        if (box.width < 1 || box.height < 1) return false
         const text = (node.textContent || '').trim()
         const label = node.getAttribute('aria-label') || ''
         return /^(取消|Cancel|关闭|Close)$/.test(text) || /关闭|Close/.test(label)
@@ -234,27 +262,57 @@ export async function dismissOverlays(driver) {
         cancel.click()
         return 'clicked'
       }
-      const overlay = document.querySelector('[data-slot="dialog-overlay"]')
+      const overlay = Array.from(document.querySelectorAll('[data-slot="dialog-overlay"]')).find(node => {
+        const box = node.getBoundingClientRect()
+        return box.width > 1 && box.height > 1
+      })
       if (overlay) {
-        overlay.click()
+        const box = overlay.getBoundingClientRect()
+        const x = box.left + 8
+        const y = box.top + 8
+        for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) {
+          const EventCtor = type.startsWith('pointer') ? PointerEvent : MouseEvent
+          overlay.dispatchEvent(new EventCtor(type, {
+            bubbles: true,
+            cancelable: true,
+            clientX: x,
+            clientY: y,
+            pointerId: 1,
+            pointerType: 'mouse',
+            button: 0,
+          }))
+        }
         return 'clicked'
       }
-      return 'open'
-    }`).catch(() => 'open')
-    if (state === 'none') return attempt > 0
+      const input = document.querySelector('[data-command-panel] input, [data-testid="command-panel"] input')
+      if (input) input.focus()
+      document.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'Escape',
+        code: 'Escape',
+        bubbles: true,
+        cancelable: true,
+      }))
+      return 'escape'
+    }`, [overlayLayerSelector()]).catch(() => 'open')
+    if (state === 'none') return closedAny
+    closedAny = true
     if (state !== 'clicked') {
       await driver.cdp.send('Input.dispatchKeyEvent', {
         type: 'keyDown',
         key: 'Escape',
+        code: 'Escape',
         windowsVirtualKeyCode: 27,
+        nativeVirtualKeyCode: 27,
       }).catch(() => {})
       await driver.cdp.send('Input.dispatchKeyEvent', {
         type: 'keyUp',
         key: 'Escape',
+        code: 'Escape',
         windowsVirtualKeyCode: 27,
+        nativeVirtualKeyCode: 27,
       }).catch(() => {})
     }
-    await delay(160)
+    await delay(180)
   }
   return false
 }
@@ -314,8 +372,14 @@ export async function openSettingsCategory(driver, labels) {
 }
 
 export async function fillComposer(driver, text) {
-  return driver.cdp.callFunction(`function(text) {
-    const editor = document.querySelector('[aria-label="消息"], [aria-label="Message"]')
+  return pageCall(driver, `function(text) {
+    const composers = Array.from(document.querySelectorAll('.chat-composer'))
+    const composer = composers.find(node => {
+      const box = node.getBoundingClientRect()
+      return box.width > 8 && box.height > 8
+    })
+    if (!composer) return false
+    const editor = composer.querySelector('[aria-label="消息"], [aria-label="Message"]')
     if (!editor) return false
     editor.focus()
     const selection = window.getSelection()
@@ -330,7 +394,23 @@ export async function fillComposer(driver, text) {
 }
 
 export async function sendComposer(driver) {
-  return clickLabeled(driver, ['发送引导', 'Send steering', '发送', 'Send'])
+  return pageCall(driver, `function() {
+    const composers = Array.from(document.querySelectorAll('.chat-composer'))
+    const composer = composers.find(node => {
+      const box = node.getBoundingClientRect()
+      return box.width > 8 && box.height > 8
+    })
+    if (!composer) return false
+    const send = Array.from(composer.querySelectorAll('button, [role="button"]')).find(node => {
+      const box = node.getBoundingClientRect()
+      if (box.width < 1 || box.height < 1) return false
+      const label = [node.getAttribute('aria-label') || '', node.getAttribute('title') || '', node.textContent || ''].join(' ')
+      return /发送引导|Send steering|发送|Send/.test(label)
+    })
+    if (!send) return false
+    send.click()
+    return true
+  }`)
 }
 
 export async function quoteConversationText(driver, marker) {

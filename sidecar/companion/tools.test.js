@@ -47,6 +47,8 @@ test("dispatch host request does not time out while waiting for confirmation", a
     return { needsConfirmation: true, accepted: false, delivered: false };
   });
   const dispatch = tools.find(tool => tool.name === "companion_dispatch");
+  assert.match(dispatch.description, /immediately/i);
+  assert.match(dispatch.description, /confirm button/i);
   const result = await dispatch.execute("1", {
     action: "stop",
     conversationId: "live",

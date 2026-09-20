@@ -15,7 +15,7 @@ import {
   usedComputerUseTools,
   usedIsolatedBrowserTools,
 } from './product-loop-desktop-surface.mjs'
-import { dismissOverlays, fail, leaveSettings, openWorkspace, pass } from './product-loop-session.mjs'
+import { dismissOverlays, fail, leaveSettings, openWorkspace, overlayBlocking, pageSnapshot, pass, snapshotHas } from './product-loop-session.mjs'
 
 const COMPUTER_PROMPT = [
   '当前权限档是 workspace-auto。请用 Computer Use 观察本机已经打开的「计算器」窗口。',
@@ -26,11 +26,12 @@ const COMPUTER_PROMPT = [
 
 function browserMarkerPrompt(url) {
   return [
-    '请使用本产品的隔离浏览器访问这个本机页面（只走 127.0.0.1，不要打开用户自己的 Chrome / Edge）：',
+    '隔离浏览器已经打开了这个本机页面。你必须调用工具去读它，不要只聊天：',
     url,
-    '页面上有一段标记字符串。请读取该标记，把它原样写进工作区 SURFACE.md，并在回复里引用该标记。',
-    '优先使用官方 Playwright MCP 或产品内置的隔离浏览器 / milksu_workspace 浏览器动作。',
-    '不要启动第二只用户日常浏览器。',
+    '立刻调用 milksu_workspace 或 milksu-playwright / Playwright MCP（browser_snapshot / browser_navigate）读取当前隔离浏览器标签。',
+    '页面上有一段标记字符串。把它原样写进工作区 SURFACE.md，并在回复里引用该标记。',
+    '不要打开用户自己的 Chrome / Edge，不要启动第二只日常浏览器。',
+    '没有调用隔离浏览器工具就不算完成。',
   ].join('\n')
 }
 
@@ -338,29 +339,44 @@ export async function runDesktopBrowserMarker(driver, options = {}) {
   const fixture = await startBrowserFixture()
   try {
     return await withWorkspace('product-loop-browser-marker', async workspace => {
-      await dismissOverlays(driver)
+      for (let attempt = 0; attempt < 4; attempt += 1) {
+        await dismissOverlays(driver)
+        const snap = await pageSnapshot(driver)
+        if (!await overlayBlocking(driver) && !snapshotHas(snap, ['创建自定义任务', '自定义任务'])) break
+      }
       const conversation = await ensureBrowserConversation(driver, 'product-loop browser-marker', workspace)
       await driver.navigateCodingBrowser(conversation.id, fixture.url)
       await driver.sendMessage(conversation.id, browserMarkerPrompt(fixture.url), workspace)
       let turn = await driver.waitForTurn(conversation.id, options.taskTimeoutMs)
+      const events = [...(turn.events || [])]
       let fileHasMarker = false
       try {
         fileHasMarker = (await readFile(join(workspace, 'SURFACE.md'), 'utf8')).includes(fixture.marker)
       } catch {
         fileHasMarker = false
       }
-      let assistantHasMarker = assistantSummary(turn.events).includes(fixture.marker)
-      if ((!fileHasMarker && !assistantHasMarker) || turn.timeout) {
-        await driver.sendMessage(conversation.id, `标记已经在打开的隔离浏览器页上。把它原样写进 SURFACE.md：${fixture.marker}`, workspace).catch(() => {})
+      let assistantHasMarker = assistantSummary(events).includes(fixture.marker)
+      if (!usedIsolatedBrowserTools(collectToolNames(events)) || (!fileHasMarker && !assistantHasMarker) || turn.timeout) {
+        await driver.sendMessage(
+          conversation.id,
+          [
+            '上一条没有调用隔离浏览器工具。',
+            `当前隔离浏览器已经打开 ${fixture.url}。`,
+            `立刻调用 milksu_workspace 或 milksu-playwright 读取页面，把标记 ${fixture.marker} 原样写进 SURFACE.md。`,
+            '不要只聊天。',
+          ].join(''),
+          workspace,
+        ).catch(() => {})
         turn = await driver.waitForTurn(conversation.id, options.taskTimeoutMs)
+        events.push(...(turn.events || []))
         try {
           fileHasMarker = (await readFile(join(workspace, 'SURFACE.md'), 'utf8')).includes(fixture.marker)
         } catch {
           fileHasMarker = false
         }
-        assistantHasMarker = assistantSummary(turn.events).includes(fixture.marker)
+        assistantHasMarker = assistantSummary(events).includes(fixture.marker)
       }
-      const toolNames = collectToolNames(turn.events)
+      const toolNames = collectToolNames(events)
       const hasMarker = observedIsolatedBrowserMarker({ fileHasMarker, assistantHasMarker })
       if (turn.failed) {
         return fail(`读标记时 sidecar 停了：${turn.error || 'engine stopped'}`)

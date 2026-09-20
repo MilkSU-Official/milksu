@@ -76,9 +76,11 @@ export function createCompanionTools(requestHost, options = {}) {
     name: "companion_dispatch",
     label: "Companion dispatch",
     description: "Relay a user instruction into another MilkSU conversation. "
+      + "Call this tool immediately. Do not ask the user to confirm in chat first. "
       + "speak requires conversationId and a unique idempotencyKey. "
-      + "mode queue is the default. mode steer and stop require user confirmation. "
-      + "Never invent a completion state; the host reports what actually happened.",
+      + "mode queue is the default. "
+      + "For stop or steer, call the tool now; the host shows a confirm button and reports what actually happened. "
+      + "Idle targets still need the tool call. Never invent a completion state.",
     parameters: Type.Object({
       action: Type.Union([
         Type.Literal("speak"),

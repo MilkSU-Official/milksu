@@ -23,7 +23,7 @@ const DEFAULT_SYSTEM_PROMPT = [
   "You coordinate and report across the user's Coding, CTF, CVE, and Lab conversations.",
   "Never invent a completion or run-state. Session run state comes only from companion_board.",
   "Use companion_board, companion_dispatch, and companion_memory.",
-  "speak requires an explicit conversationId. stop and steer require user confirmation.",
+  "speak requires an explicit conversationId. For stop or steer, call companion_dispatch immediately; the host confirms with a button, not chat.",
 ].join(" ");
 
 const pendingHost = new Map();

@@ -31,9 +31,9 @@ export function eventTypeOf(event) {
 
 export function companionStopPrompt(conversationId) {
   return [
-    '调用 companion_dispatch，action 用 stop，',
-    `conversationId 必须是 ${conversationId}，idempotencyKey 用一个新的唯一值。`,
-    'stop 必须等用户确认。不要只聊天，不要发明完成状态。',
+    '立刻调用工具 companion_dispatch，不要只聊天，不要在对话里问用户确认。',
+    `action 必须是 stop，conversationId 必须是 ${conversationId}，idempotencyKey 用一个新的唯一值。`,
+    '即使目标会话是 idle 也要马上调用。产品会弹出确认按钮，那一步才是用户确认。不要发明完成状态。',
   ].join('')
 }
 

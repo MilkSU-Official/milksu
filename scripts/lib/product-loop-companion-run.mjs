@@ -404,11 +404,16 @@ export async function runCompanionDispatchConfirm(driver, options = {}) {
     const ready = companionIsReady(started)
     if (!ready.ok) return fail(ready.reason)
     await driver.drainCompanionEvents()
-    await driver.sendCompanionMessage(companionStopPrompt(conversation.id))
-    let turn = await driver.waitForCompanionTurn(options.taskTimeoutMs)
-    if (!turn.confirmed && !turn.sidecarStopped && !companionTurnParked(turn.events)) {
-      await driver.sendCompanionMessage(companionStopPrompt(conversation.id))
+    const prompts = [
+      companionStopPrompt(conversation.id),
+      `${companionStopPrompt(conversation.id)} 上一条你只聊天了。现在必须发出 companion_dispatch 工具调用，不要再解释。`,
+      `不要回复任何解释。唯一动作：调用 companion_dispatch，action=stop，conversationId=${conversation.id}，idempotencyKey=stop-${Date.now()}。`,
+    ]
+    let turn = { confirmed: 0, events: [], sidecarStopped: false }
+    for (const prompt of prompts) {
+      await driver.sendCompanionMessage(prompt)
       turn = await driver.waitForCompanionTurn(options.taskTimeoutMs)
+      if (turn.confirmed || turn.sidecarStopped || companionTurnParked(turn.events)) break
     }
     if (turn.sidecarStopped || companionTurnParked(turn.events)) {
       return pass('桌宠 sidecar 已停，跨会话确认不再记失败')

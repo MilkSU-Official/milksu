@@ -13,6 +13,7 @@ import {
   clickLabeled,
   dismissOverlays,
   expectLabels,
+  overlayBlocking,
   expandSidebar,
   fail,
   findConversationRow,
@@ -187,6 +188,45 @@ async function home(driver) {
   await expandSidebar(driver)
   await dismissOverlays(driver)
   return openWorkspace(driver, ['主页', 'Home'])
+}
+
+async function clearBlockingOverlays(driver) {
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    await dismissOverlays(driver)
+    if (!await overlayBlocking(driver)) return true
+    const snap = await pageSnapshot(driver)
+    if (!snapshotHas(snap, ['搜索会话、设置或命令', 'Search chats, settings, or commands', '搜索会话、设置、命令', '创建自定义任务'])) {
+      if (!await overlayBlocking(driver)) return true
+    }
+  }
+  return !await overlayBlocking(driver)
+}
+
+async function ensureDshMultitaskOn(driver) {
+  if (snapshotHas(await pageSnapshot(driver), ['并行已开启', 'Multitask is on'])) return true
+  await clickAria(driver, ['添加内容与工具', 'Add content and tools'], '.chat-composer').catch(() => false)
+  await delay(200)
+  if (snapshotHas(await pageSnapshot(driver), ['并行已开启', 'Multitask is on'])) {
+    await dismissOverlays(driver)
+    return true
+  }
+  const state = await driver.cdp.callFunction(`function() {
+    const items = Array.from(document.querySelectorAll('[role="menuitem"], [role="menuitemcheckbox"], button'))
+    const row = items.find(node => {
+      const box = node.getBoundingClientRect()
+      if (box.width < 1 || box.height < 1) return false
+      const label = [node.getAttribute('aria-label') || '', node.textContent || ''].join(' ')
+      return /并行|Multitask/.test(label)
+    })
+    if (!row) return 'missing'
+    if (row.querySelector('svg.lucide-check, .text-primary')) return 'already'
+    row.click()
+    return 'clicked'
+  }`).catch(() => 'missing')
+  await delay(250)
+  const on = snapshotHas(await pageSnapshot(driver), ['并行已开启', 'Multitask is on'])
+  await dismissOverlays(driver)
+  return on || state === 'already'
 }
 
 async function createTurn(driver, options) {
@@ -718,10 +758,8 @@ export async function runCodingDshMultitask(driver, options = {}) {
       ...model,
     })
     if (!await openConversation(driver, parent.title)) return fail('打不开 DSH 并行父会话')
-    await dismissOverlays(driver)
-    await clickAria(driver, ['添加内容与工具', 'Add content and tools'], '.chat-composer').catch(() => false)
-    await delay(150)
-    await clickLabeled(driver, ['并行', 'Multitask']).catch(() => false)
+    await clearBlockingOverlays(driver)
+    if (!await ensureDshMultitaskOn(driver)) return fail('父会话没有打开并行')
     await dismissOverlays(driver)
     await driver.sendMessage(parent.id, LONG_PROMPT, workspace, {
       ...model,
@@ -731,6 +769,8 @@ export async function runCodingDshMultitask(driver, options = {}) {
     if (live.failed) return fail(`主回合还没跑起来 sidecar 就停了：${live.error || 'engine stopped'}`)
     if (!live.started) return fail('主回合没有开始，第二条发出去也不是并行')
     if (!await openConversation(driver, parent.title)) return fail('主回合开始后父会话不再是当前会话')
+    await clearBlockingOverlays(driver)
+    if (!await ensureDshMultitaskOn(driver)) return fail('主回合开始后并行被关掉了')
     await dismissOverlays(driver)
     const childPrompt = '这是并行子会话。只回一句 MULTITASK-CHILD。'
     if (!await fillComposer(driver, childPrompt)) return fail('忙碌时作曲栏写不进下一条')
@@ -742,6 +782,27 @@ export async function runCodingDshMultitask(driver, options = {}) {
       child = listed.find(row => parentConversationIdOf(row) === parent.id)
       if (child) break
       await delay(400)
+    }
+    if (!child) {
+      await driver.sendMessage(parent.id, LONG_PROMPT, workspace, {
+        ...model,
+        approvalPolicy: 'workspace-auto',
+      })
+      const again = await waitForTurnStarted(driver, parent.id, 20_000)
+      if (again.started && !again.failed) {
+        if (!await openConversation(driver, parent.title)) return fail('重开主回合后父会话不再是当前会话')
+        await clearBlockingOverlays(driver)
+        if (!await ensureDshMultitaskOn(driver)) return fail('重开主回合后并行没开')
+        if (!await fillComposer(driver, childPrompt)) return fail('重试时作曲栏写不进下一条')
+        if (!await sendComposer(driver)) return fail('重试时第二条没发出去')
+        const retryStarted = Date.now()
+        while (Date.now() - retryStarted < 20_000) {
+          const listed = await driver.listConversations()
+          child = listed.find(row => parentConversationIdOf(row) === parent.id)
+          if (child) break
+          await delay(400)
+        }
+      }
     }
     if (!child) return fail('DSH 并行没有开出带父会话的 ACP 子会话')
     driver.createdConversationIds.add(conversationIdOf(child))
@@ -895,15 +956,16 @@ export async function runSessionCommandPanel(driver) {
     await delay(250)
   }
   const result = await expectLabels(driver, ['搜索会话、设置或命令', 'Search chats, settings, or commands', '全部', 'All'], '命令面板打开了', '命令面板没打开')
-  await dismissOverlays(driver)
+  await clearBlockingOverlays(driver)
   return result
 }
 
 export async function runComposerModel(driver) {
   await home(driver)
-  await dismissOverlays(driver)
+  await clearBlockingOverlays(driver)
   await clickLabeled(driver, ['新会话', 'New chat']).catch(() => false)
   await delay(250)
+  if (!await clearBlockingOverlays(driver)) return fail('命令面板还挡着作曲栏')
   if (!await clickAria(driver, ['选择本任务模型', 'Choose a model for this task'], '.chat-composer')) {
     return fail('点不到作曲栏模型芯片')
   }
@@ -918,10 +980,10 @@ export async function runComposerModel(driver) {
 
 export async function runComposerRuntime(driver) {
   await home(driver)
-  await dismissOverlays(driver)
+  await clearBlockingOverlays(driver)
   await clickLabeled(driver, ['新会话', 'New chat']).catch(() => false)
   await delay(250)
-  await dismissOverlays(driver)
+  if (!await clearBlockingOverlays(driver)) return fail('命令面板还挡着模型菜单')
   if (!await clickAria(driver, ['选择本任务模型', 'Choose a model for this task'], '.chat-composer')) {
     return fail('点不到作曲栏模型芯片')
   }
