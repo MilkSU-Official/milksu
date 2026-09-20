@@ -7,7 +7,7 @@ import { createServer } from 'node:http'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { spawn } from 'node:child_process'
-import { CdpSession, delay, listRawCdpPages, repositoryRoot } from './desktop-gui-driver.mjs'
+import { CdpSession, delay, eventToolName, eventTypeOf, listRawCdpPages, repositoryRoot } from './desktop-gui-driver.mjs'
 import { redactProcessText } from '../../sidecar/dsh/redact.js'
 import {
   observedIsolatedBrowserMarker,
@@ -15,7 +15,8 @@ import {
   usedComputerUseTools,
   usedIsolatedBrowserTools,
 } from './product-loop-desktop-surface.mjs'
-import { dismissOverlays, fail, leaveSettings, openWorkspace, overlayBlocking, pageSnapshot, pass, snapshotHas } from './product-loop-session.mjs'
+import { firstUseRelayModel } from './product-loop-first-use.mjs'
+import { dismissOverlays, fail, leaveSettings, openConversation, openWorkspace, overlayBlocking, pageSnapshot, pass, snapshotHas } from './product-loop-session.mjs'
 
 const COMPUTER_PROMPT = [
   '当前权限档是 workspace-auto。请用 Computer Use 观察本机已经打开的「计算器」窗口。',
@@ -36,16 +37,53 @@ function browserMarkerPrompt(url) {
 }
 
 function collectToolNames(events) {
-  return [...new Set((events ?? []).map(event => String(event?.toolName ?? event?.title ?? event?.kind ?? '')).filter(Boolean))]
+  return [...new Set((events ?? []).map(event => eventToolName(event)).filter(Boolean))]
+}
+
+function conversationMessages(conversation) {
+  if (Array.isArray(conversation?.messages)) return conversation.messages
+  if (Array.isArray(conversation?.Messages)) return conversation.Messages
+  return []
+}
+
+function collectMessageToolNames(conversation) {
+  return [...new Set(conversationMessages(conversation).map(message => String(message?.toolName ?? message?.ToolName ?? '').trim()).filter(Boolean))]
+}
+
+function conversationAssistantText(conversation) {
+  return conversationMessages(conversation)
+    .filter(message => /assistant/i.test(String(message?.role ?? message?.Role ?? '')))
+    .map(message => String(message?.content ?? message?.Content ?? message?.text ?? message?.Text ?? ''))
+    .join('\n')
+}
+
+async function accountTurnModel(driver) {
+  const status = await driver.invoke('GetAccountStatus', []).catch(() => ({}))
+  if (status?.authenticated === true || status?.state === 'active') {
+    return {
+      modelMode: 'manual',
+      modelProvider: 'tokenflux',
+      modelId: firstUseRelayModel(),
+      modelSourcePreference: 'account',
+    }
+  }
+  return {}
+}
+
+async function loadSavedConversation(driver, conversationId) {
+  const listed = await driver.listConversations().catch(() => [])
+  return listed.find(row => String(row?.id ?? row?.ID ?? '') === conversationId) || null
 }
 
 function assistantSummary(events) {
   const chunks = []
   for (const event of events ?? []) {
-    const type = String(event?.type ?? event?.Type ?? '')
-    if (type === 'text_delta' || type === 'assistant.delta') chunks.push(String(event.delta ?? event.text ?? ''))
+    const type = eventTypeOf(event)
+    const nested = event?.payload && typeof event.payload === 'object' ? event.payload : null
+    const text = String(event?.delta ?? event?.text ?? event?.content ?? nested?.delta ?? nested?.text ?? nested?.content ?? '')
+    if (type === 'text_delta' || type === 'assistant.delta') chunks.push(text)
     if (type === 'assistant.completed' || type === 'assistant.settled' || type === 'message_done') {
-      chunks.push(String(event.content ?? event.text ?? ''))
+      chunks.push(text)
     }
   }
   return redactProcessText(chunks.join(''), 2000)
@@ -344,11 +382,17 @@ export async function runDesktopBrowserMarker(driver, options = {}) {
         const snap = await pageSnapshot(driver)
         if (!await overlayBlocking(driver) && !snapshotHas(snap, ['创建自定义任务', '自定义任务'])) break
       }
+      await driver.clickCompanionConfirm().catch(() => false)
+      const model = await accountTurnModel(driver)
       const conversation = await ensureBrowserConversation(driver, 'product-loop browser-marker', workspace)
+      await openConversation(driver, conversation.title).catch(() => false)
       await driver.navigateCodingBrowser(conversation.id, fixture.url)
-      await driver.sendMessage(conversation.id, browserMarkerPrompt(fixture.url), workspace)
+      await delay(600)
+      await driver.drainEvents().catch(() => [])
+      await driver.sendMessage(conversation.id, browserMarkerPrompt(fixture.url), workspace, model)
       let turn = await driver.waitForTurn(conversation.id, options.taskTimeoutMs)
       const events = [...(turn.events || [])]
+      let saved = await loadSavedConversation(driver, conversation.id)
       let fileHasMarker = false
       try {
         fileHasMarker = (await readFile(join(workspace, 'SURFACE.md'), 'utf8')).includes(fixture.marker)
@@ -356,7 +400,13 @@ export async function runDesktopBrowserMarker(driver, options = {}) {
         fileHasMarker = false
       }
       let assistantHasMarker = assistantSummary(events).includes(fixture.marker)
-      if (!usedIsolatedBrowserTools(collectToolNames(events)) || (!fileHasMarker && !assistantHasMarker) || turn.timeout) {
+        || conversationAssistantText(saved).includes(fixture.marker)
+      let toolNames = [...new Set([
+        ...collectToolNames(events),
+        ...collectMessageToolNames(saved),
+      ])]
+      if (!usedIsolatedBrowserTools(toolNames) || (!fileHasMarker && !assistantHasMarker) || turn.timeout) {
+        await driver.drainEvents().catch(() => [])
         await driver.sendMessage(
           conversation.id,
           [
@@ -366,24 +416,31 @@ export async function runDesktopBrowserMarker(driver, options = {}) {
             '不要只聊天。',
           ].join(''),
           workspace,
+          model,
         ).catch(() => {})
         turn = await driver.waitForTurn(conversation.id, options.taskTimeoutMs)
         events.push(...(turn.events || []))
+        saved = await loadSavedConversation(driver, conversation.id)
         try {
           fileHasMarker = (await readFile(join(workspace, 'SURFACE.md'), 'utf8')).includes(fixture.marker)
         } catch {
           fileHasMarker = false
         }
         assistantHasMarker = assistantSummary(events).includes(fixture.marker)
+          || conversationAssistantText(saved).includes(fixture.marker)
+        toolNames = [...new Set([
+          ...collectToolNames(events),
+          ...collectMessageToolNames(saved),
+        ])]
       }
-      const toolNames = collectToolNames(events)
       const hasMarker = observedIsolatedBrowserMarker({ fileHasMarker, assistantHasMarker })
       if (turn.failed) {
         return fail(`读标记时 sidecar 停了：${turn.error || 'engine stopped'}`)
       }
       const ok = usedIsolatedBrowserTools(toolNames) && hasMarker
+      const types = [...new Set(events.map(event => eventTypeOf(event)).filter(Boolean))].slice(0, 8)
       return {
-        ...(ok ? pass('隔离浏览器读到了页面标记') : fail(`读标记失败 timeout=${Boolean(turn.timeout)} browser=${usedIsolatedBrowserTools(toolNames)} marker=${hasMarker}`)),
+        ...(ok ? pass('隔离浏览器读到了页面标记') : fail(`读标记失败 timeout=${Boolean(turn.timeout)} browser=${usedIsolatedBrowserTools(toolNames)} marker=${hasMarker} types=${types.join(',')}`)),
         surface: 'isolated-browser',
         degraded: false,
         toolNames,

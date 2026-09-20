@@ -5,7 +5,7 @@ import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { EventEmitter } from 'node:events'
-import { CdpSession, classifyTurnEvents, GuiDriver, isCompanionChatSurface, isCompanionPetSurface, isCompanionSurface, isMainProductSurface, isMilkSUPage, isProductLoopFixtureConversation, killProcessGroup, stripDesktopCredentialEnv } from './lib/desktop-gui-driver.mjs'
+import { CdpSession, classifyTurnEvents, eventSessionId, eventToolName, eventTypeOf, GuiDriver, isCompanionChatSurface, isCompanionPetSurface, isCompanionSurface, isMainProductSurface, isMilkSUPage, isProductLoopFixtureConversation, killProcessGroup, stripDesktopCredentialEnv } from './lib/desktop-gui-driver.mjs'
 import {
   classifyMilkSUHostCommand,
   describeExclusiveWindows,
@@ -251,6 +251,7 @@ test('pickComputerUseTarget only accepts a calculator, then degrades', () => {
   assert.equal(usedComputerUseTools(['screenshot', 'bash']), true)
   assert.equal(usedIsolatedBrowserTools(['mcp__playwright-mcp__browser_navigate']), true)
   assert.equal(usedIsolatedBrowserTools(['milksu_workspace']), true)
+  assert.equal(usedIsolatedBrowserTools(['write']), false)
   assert.equal(usedComputerUseTools(['bash']), false)
   assert.equal(observedIsolatedBrowserMarker({ fileHasMarker: true, assistantHasMarker: false }), true)
   assert.equal(observedIsolatedBrowserMarker({ fileHasMarker: false, assistantHasMarker: true }), true)
@@ -353,7 +354,7 @@ test('waitForTurn keeps polling after a transient CDP close', async () => {
   driver.drainEvents = async () => {
     calls += 1
     if (calls === 1) throw new Error('CDP WebSocket closed')
-    return [{ type: 'assistant.settled' }]
+    return [{ type: 'assistant.settled', sessionId: 'conversation-1' }]
   }
   driver.ensureAttached = async () => true
   const turn = await driver.waitForTurn('conversation-1', 2_000)
@@ -371,6 +372,11 @@ test('waitForTurn treats the active sidecar stopping as a failed turn, not a set
   assert.equal(turn.failed, true)
   assert.match(String(turn.error || ''), /sidecar exited/)
   assert.equal(classifyTurnEvents([{ type: 'assistant.settled' }]).settled, true)
+  assert.equal(classifyTurnEvents([{ payload: { type: 'assistant.settled' } }]).settled, true)
+  assert.equal(eventSessionId({ sessionId: 'a' }), 'a')
+  assert.equal(eventSessionId({ payload: { sessionId: 'b' } }), 'b')
+  assert.equal(eventTypeOf({ payload: { type: 'tool.started' } }), 'tool.started')
+  assert.equal(eventToolName({ payload: { toolName: 'milksu_workspace' } }), 'milksu_workspace')
   assert.equal(classifyTurnEvents([{ type: 'engine.error' }]).failed, true)
   assert.equal(classifyTurnEvents([{ type: 'engine.sidecar_stopped', error: 'parked sidecar reaped' }]).failed, false)
   assert.equal(classifyTurnEvents([{ type: 'engine.sidecar_stopped', error: 'parked sidecar reaped' }]).sidecarStopped, true)

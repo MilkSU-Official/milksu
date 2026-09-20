@@ -31,11 +31,46 @@ export function delay(ms) {
   return new Promise(resolveDelay => setTimeout(resolveDelay, ms))
 }
 
+export function eventSessionId(event) {
+  if (!event || typeof event !== 'object') return ''
+  const nested = event.payload && typeof event.payload === 'object' ? event.payload : null
+  return String(
+    event.sessionId
+    ?? event.SessionID
+    ?? nested?.sessionId
+    ?? nested?.SessionID
+    ?? '',
+  ).trim()
+}
+
+export function eventTypeOf(event) {
+  if (!event || typeof event !== 'object') return ''
+  const nested = event.payload && typeof event.payload === 'object' ? event.payload : null
+  return String(event.type ?? event.Type ?? nested?.type ?? nested?.Type ?? '')
+}
+
+export function eventToolName(event) {
+  if (!event || typeof event !== 'object') return ''
+  const nested = event.payload && typeof event.payload === 'object' ? event.payload : null
+  return String(
+    event.toolName
+    ?? event.ToolName
+    ?? nested?.toolName
+    ?? nested?.ToolName
+    ?? event.title
+    ?? event.kind
+    ?? '',
+  ).trim()
+}
+
 export function classifyTurnEvents(events) {
   const rows = events ?? []
-  const types = rows.map(event => String(event?.type ?? event?.Type ?? ''))
+  const types = rows.map(event => eventTypeOf(event))
   const error = rows
-    .map(event => String(event?.error ?? event?.Error ?? event?.text ?? event?.Text ?? ''))
+    .map(event => {
+      const nested = event?.payload && typeof event.payload === 'object' ? event.payload : null
+      return String(event?.error ?? event?.Error ?? nested?.error ?? event?.text ?? event?.Text ?? '')
+    })
     .find(text => text.trim())
     || ''
   const sidecarStopped = types.some(type => type === 'engine.sidecar_stopped')
@@ -686,10 +721,7 @@ export class GuiDriver {
     }
     const events = Array.isArray(raw) ? raw : []
     if (!conversationId) return events
-    return events.filter(event => {
-      const id = String(event?.sessionId ?? event?.SessionID ?? '')
-      return !id || id === conversationId
-    })
+    return events.filter(event => eventSessionId(event) === conversationId)
   }
 
   async waitForTurn(conversationId, timeoutMs) {
@@ -715,7 +747,12 @@ export class GuiDriver {
         return { events: collected, timeout: false, failed: true, error: outcome.error }
       }
       if (outcome.settled) {
-        return { events: collected, timeout: false, failed: false }
+        const owned = collected.some(event => {
+          const type = eventTypeOf(event)
+          if (type !== 'assistant.settled' && type !== 'assistant.completed') return false
+          return eventSessionId(event) === String(conversationId ?? '').trim()
+        })
+        if (owned) return { events: collected, timeout: false, failed: false }
       }
       await delay(250)
     }
