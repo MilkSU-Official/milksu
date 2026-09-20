@@ -63,7 +63,7 @@ function companionChatRowsShareRun(
 /**
  * Two adjacent rows belong to one run when they come from the same side of the
  * conversation and were sent close together. Runs decide row spacing and which
- * bubble carries the messenger tail.
+ * outer corners stay stacked instead of fully rounded.
  */
 export function companionChatContinuesRun(
   current: { role?: string; timestamp?: string },
@@ -76,7 +76,7 @@ export function companionChatContinuesRun(
   )
 }
 
-/** The last row of a run is the only one that carries the tail and the stamp. */
+/** The last row of a run keeps the full outer corner and the stamp. */
 export function companionChatEndsRun(input: {
   currentMs: number
   nextMs: number

@@ -307,6 +307,7 @@ export default function CompanionPage({
                     user ? 'companion-chat-row-user' : 'companion-chat-row-assistant',
                     !bubble && 'companion-chat-row-system',
                     continuesRun ? 'companion-chat-row-continue' : 'companion-chat-row-start',
+                    !endsRun && 'companion-chat-row-open',
                     showDivider && 'companion-chat-row-divided',
                   )}
                   style={{ transform: `translateY(${item.start}px)` }}
@@ -316,7 +317,6 @@ export default function CompanionPage({
                     <p className={cn(
                       'companion-chat-bubble',
                       user ? 'companion-chat-bubble-user' : 'companion-chat-bubble-assistant',
-                      endsRun && 'companion-chat-bubble-tail',
                     )}>
                       {body}
                     </p>
