@@ -36,6 +36,8 @@ func TestDesktopAppMethodsMatchRendererBindings(t *testing.T) {
 		"GetBuildTracking":         true,
 		"GetCompanionShellStatus":  true,
 		"SetCompanionFloatEnabled": true,
+		"SetCompanionPetHidden":    true,
+		"ShowCompanionMainWindow":  true,
 		"QuitCompanionShell":       true,
 	}
 	wantRendererSet := map[string]bool{

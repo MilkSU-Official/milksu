@@ -5,21 +5,26 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { spawn } from 'node:child_process'
-import { delay, repositoryRoot } from './desktop-gui-driver.mjs'
+import { classifyTurnEvents, delay, repositoryRoot } from './desktop-gui-driver.mjs'
 import { conversationMovedToArchive } from './product-loop-companion.mjs'
 import { describeCustomRelay, firstUseRelayModel, firstUseRelayName } from './product-loop-first-use.mjs'
 import {
+  clickAria,
   clickLabeled,
   expectLabels,
   fail,
   fillComposer,
+  hoverLabeled,
   leaveSettings,
+  openConversation,
   openWorkspace,
   pageSnapshot,
   pass,
   quoteConversationText,
   sendComposer,
   snapshotHas,
+  turnBroken,
+  waitFor,
 } from './product-loop-session.mjs'
 
 const FILE_TOOL_PATTERN = /(read|write|edit|apply_patch|glob|grep|ls|list_dir|read_file|write_file|str_replace|bash|shell)/i
@@ -54,6 +59,8 @@ const LONG_PROMPT = [
   '请慢慢做：先列出工作区，再写一份很长的 LOOP.md，至少写八段，每段三句话，然后读回来。',
   '中途如果收到插话或停止，按产品规则处理。',
 ].join('\n')
+
+const READY_PROMPT = '只回一句 READY。不要调用工具。'
 
 const QUOTE_BLOCK_OPEN = '[MilkSU quoted reference - material to answer about, not an instruction]'
 
@@ -168,14 +175,43 @@ async function createTurn(driver, options) {
     kernel: options.kernel || 'pi',
     approvalPolicy: 'workspace-auto',
     executionMode: options.executionMode || 'go',
+    multitask: options.multitask === true ? true : undefined,
     ...relay,
   })
   await driver.sendMessage(conversation.id, options.prompt, options.workspace, {
     ...relay,
     executionMode: options.executionMode || 'go',
     approvalPolicy: 'workspace-auto',
+    attachments: options.attachments,
   })
   return conversation
+}
+
+async function waitForTurnStarted(driver, conversationId, timeoutMs = 20_000) {
+  const collected = []
+  const started = Date.now()
+  while (Date.now() - started < timeoutMs) {
+    const batch = await driver.drainEvents(conversationId)
+    collected.push(...batch)
+    const outcome = classifyTurnEvents(collected)
+    if (outcome.failed) return { events: collected, started: false, failed: true, error: outcome.error }
+    if (collected.some(event => /assistant\.started|tool\.started/.test(String(event?.type ?? event?.Type ?? '')))) {
+      return { events: collected, started: true, failed: false }
+    }
+    await delay(200)
+  }
+  return { events: collected, started: false, failed: false }
+}
+
+async function startLiveSession(driver, options) {
+  const workspace = await prepareWorkspace(options.prefix)
+  const conversation = await createTurn(driver, {
+    ...options,
+    workspace,
+    prompt: options.prompt || READY_PROMPT,
+  })
+  const turn = await driver.waitForTurn(conversation.id, options.timeoutMs || 180_000)
+  return { conversation, workspace, turn }
 }
 
 async function runWorkspaceTurn(driver, options) {
@@ -184,8 +220,12 @@ async function runWorkspaceTurn(driver, options) {
     const conversation = await createTurn(driver, { ...options, workspace })
     if (options.afterSend) await options.afterSend(conversation, workspace)
     const turn = options.skipWait
-      ? { events: [], timeout: false }
+      ? { events: [], timeout: false, failed: false }
       : await driver.waitForTurn(conversation.id, options.timeoutMs || 180_000)
+    const broken = options.skipWait ? '' : turnBroken(turn)
+    if (broken && !options.allowBroken) {
+      return fail(broken)
+    }
     const toolNames = collectToolNames(turn.events)
     const check = await options.check({ conversation, workspace, turn, toolNames })
     return { ...check, toolNames }
@@ -254,7 +294,8 @@ export async function runCodingPiCompact(driver, options = {}) {
     kernel: 'pi',
     prompt: CODING_FILE_PROMPT,
     async check({ conversation, turn }) {
-      if (turn.timeout) return fail('写文件回合超时，没法整理上下文')
+      const broken = turnBroken(turn)
+      if (broken) return fail(`写文件回合没完成，没法整理上下文：${broken}`)
       try {
         await driver.invoke('CompactCodingSession', [conversation.id])
       } catch (error) {
@@ -278,7 +319,9 @@ export async function runCodingPiSteer(driver, options = {}) {
       await driver.invoke('SteerMessage', [conversation.id, '插话：立刻停在当前步骤，在回复里写 STEER-OK。'])
     },
     async check({ turn }) {
-      return turn.timeout ? fail('插话后回合没有结束') : pass('Pi 忙碌时插话已经送达并结束回合')
+      const broken = turnBroken(turn)
+      if (broken) return fail(`插话后回合异常结束：${broken}`)
+      return pass('Pi 忙碌时插话已经送达并结束回合')
     },
   })
 }
@@ -296,6 +339,7 @@ export async function runCodingPiStop(driver, options = {}) {
       await driver.abortMessage(conversation.id)
     },
     async check({ turn }) {
+      if (turn.failed) return fail(`停止时 sidecar 停了：${turn.error || 'engine stopped'}`)
       if (!turn.timeout || turnAborted(turn.events)) {
         return pass('Pi 停止后回合结束了，或收到了中止回执')
       }
@@ -317,6 +361,7 @@ export async function runCodingPiAsk(driver, options = {}) {
       conversation.pendingAsk = await waitForPendingAsk(driver, conversation.id)
     },
     async check({ conversation, turn, toolNames }) {
+      if (turn.failed) return fail(`选择卡回合 sidecar 停了：${turn.error || 'engine stopped'}`)
       const snap = await pageSnapshot(driver)
       const card = snapshotHas(snap, ['其他', 'Other'])
       const tool = toolNames.some(name => ASK_PATTERN.test(name))
@@ -351,7 +396,8 @@ export async function runCodingPiAskContinue(driver, options = {}) {
     async check({ conversation }) {
       if (conversation.askError) return fail(conversation.askError)
       const turn = conversation.continued
-      if (!turn || turn.timeout) return fail('答完选择卡后同一回合没有继续结束')
+      const broken = turnBroken(turn)
+      if (broken) return fail(`答完选择卡后回合异常：${broken}`)
       return pass('答完选择卡后同一回合继续跑完了')
     },
   })
@@ -362,23 +408,21 @@ export async function runCodingCite(driver, options = {}) {
   const workspace = await prepareWorkspace('product-loop-cite')
   const marker = `QUOTE-SRC-${Date.now().toString(36)}`
   try {
-    const settings = await driver.invoke('GetSettings', []).catch(() => ({}))
-    const conversation = await driver.createConversation({
+    const conversation = await createTurn(driver, {
       title: 'product-loop coding-cite',
-      workspacePath: workspace,
+      workspace,
       kernel: 'pi',
-      approvalPolicy: 'workspace-auto',
-      ...relayOptions(settings),
+      prompt: `请在回复里原样写出 ${marker}。不要调用工具。`,
     })
-    await driver.invoke('SaveConversation', [{
-      ...conversation,
-      messages: [
-        { id: `${conversation.id}-u`, role: 'user', content: `请记住这段 ${marker}`, timestamp: Date.now() },
-        { id: `${conversation.id}-a`, role: 'assistant', content: `助手回复里有标记 ${marker}`, timestamp: Date.now() + 1, status: 'done' },
-      ],
-    }])
-    await clickLabeled(driver, [conversation.title]).catch(() => false)
-    await delay(400)
+    const seeded = await driver.waitForTurn(conversation.id, options.taskTimeoutMs || 180_000)
+    const broken = turnBroken(seeded)
+    if (broken) return fail(`引用源回合没完成：${broken}`)
+    if (!await openConversation(driver, conversation.title)) return fail('打不开这条会话')
+    const visible = await waitFor(async () => {
+      const snap = await pageSnapshot(driver)
+      return snapshotHas(snap, [marker]) ? true : null
+    }, 8_000)
+    if (!visible) return fail('对话正文里还没有标记，选不了')
     if (!await quoteConversationText(driver, marker)) {
       return fail('没能选中对话正文并点加入对话')
     }
@@ -389,15 +433,16 @@ export async function runCodingCite(driver, options = {}) {
     if (!await fillComposer(driver, question)) return fail('作曲栏写不进去')
     if (!await sendComposer(driver)) return fail('作曲栏发送没点到')
     const turn = await driver.waitForTurn(conversation.id, options.taskTimeoutMs || 180_000)
+    if (turnBroken(turn)) return fail(`引用发出去后回合异常：${turnBroken(turn)}`)
     const listed = await driver.listConversations()
     const saved = listed.find(row => conversationIdOf(row) === conversation.id)
     const sent = conversationMessages(saved).some(message => {
       const text = String(message?.content ?? message?.Content ?? '')
       return text.includes(marker) && (text.includes(QUOTE_BLOCK_OPEN) || text.includes('>') || text.includes(question))
     })
-    return !turn.timeout && sent
+    return sent
       ? pass('选中对话正文加入对话后发出去了')
-      : fail(`引用没进回合 timeout=${Boolean(turn.timeout)} sent=${sent}`)
+      : fail('引用没进回合')
   } finally {
     await rm(workspace, { recursive: true, force: true }).catch(() => {})
   }
@@ -429,6 +474,8 @@ export async function runCodingAttach(driver, options = {}) {
       { ...relayOptions(settings), attachments },
     )
     const turn = await driver.waitForTurn(conversation.id, options.taskTimeoutMs || 180_000)
+    const broken = turnBroken(turn)
+    if (broken) return fail(`附件回合异常：${broken}`)
     const listed = await driver.listConversations()
     const saved = listed.find(row => conversationIdOf(row) === conversation.id)
     const attached = conversationMessages(saved).some(message => {
@@ -437,9 +484,9 @@ export async function runCodingAttach(driver, options = {}) {
     })
     const mentioned = JSON.stringify(turn.events ?? []).includes('PRODUCT-LOOP-ATTACH')
       || conversationMessages(saved).some(message => String(message?.content ?? '').includes('PRODUCT-LOOP-ATTACH'))
-    return !turn.timeout && attached && mentioned
+    return attached && mentioned
       ? pass('附件进了当前回合，模型读到了标记')
-      : fail(`附件回合失败 timeout=${Boolean(turn.timeout)} attached=${attached} mentioned=${mentioned}`)
+      : fail(`附件回合失败 attached=${attached} mentioned=${mentioned}`)
   } finally {
     await rm(workspace, { recursive: true, force: true }).catch(() => {})
   }
@@ -447,26 +494,38 @@ export async function runCodingAttach(driver, options = {}) {
 
 export async function runCodingPiHandoff(driver) {
   await home(driver)
-  const workspace = await prepareWorkspace('product-loop-pi-handoff')
+  const live = await startLiveSession(driver, {
+    prefix: 'product-loop-pi-handoff',
+    title: 'product-loop coding-pi-handoff',
+    kernel: 'pi',
+  })
   try {
-    const settings = await driver.invoke('GetSettings', []).catch(() => ({}))
-    const conversation = await driver.createConversation({
-      title: 'product-loop coding-pi-handoff',
-      workspacePath: workspace,
-      kernel: 'pi',
-      approvalPolicy: 'workspace-auto',
-      ...relayOptions(settings),
-    })
-    const result = await driver.invoke('HandoffCodingSession', [conversation.id, 'dsh'])
-    const kernel = String(result?.kernel ?? result?.Kernel ?? result?.session?.kernel ?? '')
+    const broken = turnBroken(live.turn)
+    if (broken) return fail(`接到新会话前 Pi 回合没完成：${broken}`)
+    const result = await driver.invoke('HandoffCodingSession', [live.conversation.id, 'dsh'])
+    const sessionId = String(result?.sessionId ?? result?.SessionID ?? '')
+    if (!sessionId || sessionId === live.conversation.id) {
+      return fail('接到新会话没有给出新会话 id')
+    }
+    const handed = {
+      ...live.conversation,
+      id: sessionId,
+      kernel: 'dsh',
+      title: `接力 · ${live.conversation.title}`.slice(0, 40),
+      createdAt: Date.now(),
+    }
+    await driver.invoke('SaveConversation', [handed])
+    driver.createdConversationIds.add(sessionId)
     const listed = await driver.listConversations()
-    const saved = listed.find(row => String(row.id ?? row.ID) === conversation.id)
-    const next = String(saved?.kernel ?? saved?.Kernel ?? kernel)
-    return next === 'dsh' || /dsh/i.test(JSON.stringify(result ?? {}))
-      ? pass('这条会话已经接到 DSH')
-      : fail(`接到新会话后 kernel=${next || '(empty)'}`)
+    const saved = listed.find(row => conversationIdOf(row) === sessionId)
+    const kernel = String(saved?.kernel ?? saved?.Kernel ?? '')
+    return kernel === 'dsh'
+      ? pass('整理后开出了新的 DSH 会话')
+      : fail(`新会话 kernel=${kernel || '(empty)'}`)
+  } catch (error) {
+    return fail(`接到新会话失败：${error instanceof Error ? error.message : error}`)
   } finally {
-    await rm(workspace, { recursive: true, force: true }).catch(() => {})
+    await rm(live.workspace, { recursive: true, force: true }).catch(() => {})
   }
 }
 
@@ -516,49 +575,49 @@ export async function runCodingDshQueue(driver, options = {}) {
       await driver.invoke('QueueDshMessage', [conversation.id, '排队：结束后在回复里写 QUEUE-OK。'])
     },
     async check({ turn }) {
-      return turn.timeout ? fail('排队后回合没有结束') : pass('DSH 忙碌时排队已经送达')
+      const broken = turnBroken(turn)
+      if (broken) return fail(`排队后回合异常结束：${broken}`)
+      return pass('DSH 忙碌时排队已经送达')
     },
   })
 }
 
 export async function runCodingDshPlan(driver) {
   await home(driver)
-  const workspace = await prepareWorkspace('product-loop-dsh-plan')
+  const live = await startLiveSession(driver, {
+    prefix: 'product-loop-dsh-plan',
+    title: 'product-loop coding-dsh-plan',
+    kernel: 'dsh',
+  })
   try {
-    const settings = await driver.invoke('GetSettings', []).catch(() => ({}))
-    const conversation = await driver.createConversation({
-      title: 'product-loop coding-dsh-plan',
-      workspacePath: workspace,
-      kernel: 'dsh',
-      approvalPolicy: 'workspace-auto',
-      ...relayOptions(settings),
-    })
-    const mode = await driver.invoke('SetDshPlanMode', [conversation.id, true])
+    const broken = turnBroken(live.turn)
+    if (broken) return fail(`计划模式前 DSH 会话没起来：${broken}`)
+    const mode = await driver.invoke('SetDshPlanMode', [live.conversation.id, true])
     const active = mode?.active === true || mode?.Active === true || mode === true
     return active ? pass('DSH 计划模式打开了') : fail(`计划模式回执 ${JSON.stringify(mode ?? {})}`)
+  } catch (error) {
+    return fail(`计划模式没打开：${error instanceof Error ? error.message : error}`)
   } finally {
-    await rm(workspace, { recursive: true, force: true }).catch(() => {})
+    await rm(live.workspace, { recursive: true, force: true }).catch(() => {})
   }
 }
 
 export async function runCodingDshGoal(driver) {
   await home(driver)
-  const workspace = await prepareWorkspace('product-loop-dsh-goal')
+  const live = await startLiveSession(driver, {
+    prefix: 'product-loop-dsh-goal',
+    title: 'product-loop coding-dsh-goal',
+    kernel: 'dsh',
+  })
   try {
-    const settings = await driver.invoke('GetSettings', []).catch(() => ({}))
-    const conversation = await driver.createConversation({
-      title: 'product-loop coding-dsh-goal',
-      workspacePath: workspace,
-      kernel: 'dsh',
-      approvalPolicy: 'workspace-auto',
-      ...relayOptions(settings),
-    })
-    await driver.invoke('ControlDshGoal', [conversation.id, 'set', 'product-loop 只确认目标控件能设上'])
+    const broken = turnBroken(live.turn)
+    if (broken) return fail(`设目标前 DSH 会话没起来：${broken}`)
+    await driver.invoke('ControlDshGoal', [live.conversation.id, 'set', 'product-loop 只确认目标控件能设上'])
     return pass('DSH 目标已经设上')
   } catch (error) {
     return fail(`DSH 目标没设上：${error instanceof Error ? error.message : error}`)
   } finally {
-    await rm(workspace, { recursive: true, force: true }).catch(() => {})
+    await rm(live.workspace, { recursive: true, force: true }).catch(() => {})
   }
 }
 
@@ -575,15 +634,17 @@ export async function runCodingDshMultitask(driver, options = {}) {
       approvalPolicy: 'workspace-auto',
       ...relayOptions(settings),
     })
-    await clickLabeled(driver, [parent.title]).catch(() => false)
-    await delay(250)
-    await clickLabeled(driver, ['添加', 'Add', '加号']).catch(() => false)
+    await openConversation(driver, parent.title)
+    await clickAria(driver, ['添加内容与工具', 'Add content and tools']).catch(() => false)
     await delay(150)
     await clickLabeled(driver, ['并行', 'Multitask']).catch(() => false)
-    await delay(200)
-    if (!await fillComposer(driver, LONG_PROMPT)) return fail('主会话作曲栏写不进去')
-    if (!await sendComposer(driver)) return fail('主会话没发出去')
-    await delay(1200)
+    await driver.sendMessage(parent.id, LONG_PROMPT, workspace, {
+      ...relayOptions(settings),
+      approvalPolicy: 'workspace-auto',
+    })
+    const live = await waitForTurnStarted(driver, parent.id, 20_000)
+    if (live.failed) return fail(`主回合还没跑起来 sidecar 就停了：${live.error || 'engine stopped'}`)
+    if (!live.started) return fail('主回合没有开始，第二条发出去也不是并行')
     const childPrompt = '这是并行子会话。只回一句 MULTITASK-CHILD。'
     if (!await fillComposer(driver, childPrompt)) return fail('忙碌时作曲栏写不进下一条')
     if (!await sendComposer(driver)) return fail('忙碌时第二条没发出去')
@@ -616,6 +677,7 @@ export async function runCodingDshStop(driver, options = {}) {
       await driver.abortMessage(conversation.id)
     },
     async check({ turn }) {
+      if (turn.failed) return fail(`DSH 停止时 sidecar 停了：${turn.error || 'engine stopped'}`)
       if (!turn.timeout || turnAborted(turn.events)) {
         return pass('DSH 停止后回合结束了，或收到了中止回执')
       }
@@ -633,7 +695,8 @@ export async function runCodingDshCompact(driver, options = {}) {
     kernel: 'dsh',
     prompt: CODING_FILE_PROMPT,
     async check({ conversation, turn }) {
-      if (turn.timeout) return fail('写文件回合超时，没法整理上下文')
+      const broken = turnBroken(turn)
+      if (broken) return fail(`写文件回合没完成，没法整理上下文：${broken}`)
       try {
         await driver.invoke('CompactCodingSession', [conversation.id])
       } catch (error) {
@@ -687,16 +750,24 @@ export async function runSessionRename(driver) {
 
 export async function runSessionFork(driver) {
   await home(driver)
-  const conversation = await driver.createConversation({ title: 'product-loop-fork-src', kernel: 'pi' })
-  await driver.invoke('SaveConversation', [{
-    ...conversation,
-    messages: [{ id: `${conversation.id}-u`, role: 'user', content: 'fork source', timestamp: Date.now() }],
-  }])
-  const forked = await driver.invoke('ForkConversation', [conversation.id, 'user', 0])
-  const id = String(forked?.id ?? forked?.ID ?? forked ?? '')
-  if (!id || id === conversation.id) return fail('Fork 没有给出新会话')
-  driver.createdConversationIds.add(id)
-  return pass('Fork 出了一条新会话')
+  const live = await startLiveSession(driver, {
+    prefix: 'product-loop-fork',
+    title: 'product-loop-fork-src',
+    kernel: 'pi',
+  })
+  try {
+    const broken = turnBroken(live.turn)
+    if (broken) return fail(`Fork 前会话没起来：${broken}`)
+    const forked = await driver.invoke('ForkConversation', [live.conversation.id, 'user', 0])
+    const id = String(forked?.id ?? forked?.ID ?? forked ?? '')
+    if (!id || id === live.conversation.id) return fail('Fork 没有给出新会话')
+    driver.createdConversationIds.add(id)
+    return pass('Fork 出了一条新会话')
+  } catch (error) {
+    return fail(`Fork 失败：${error instanceof Error ? error.message : error}`)
+  } finally {
+    await rm(live.workspace, { recursive: true, force: true }).catch(() => {})
+  }
 }
 
 export async function runSessionArchive(driver) {
@@ -742,45 +813,74 @@ export async function runComposerModel(driver) {
   await home(driver)
   await clickLabeled(driver, ['新会话', 'New chat']).catch(() => false)
   await delay(250)
-  const snap = await pageSnapshot(driver)
-  return snapshotHas(snap, ['模型', 'Model', '推理', 'Reasoning', '上下文', 'Context'])
-    ? pass('作曲栏看得到模型相关控件')
-    : fail('作曲栏看不到模型芯片')
+  if (!await clickAria(driver, ['选择本任务模型', 'Choose a model for this task'])) {
+    return fail('点不到作曲栏模型芯片')
+  }
+  await delay(250)
+  return expectLabels(
+    driver,
+    ['模型', 'Model', '运行时', 'Runtime', '上下文', 'Context'],
+    '模型芯片打开了模型和运行时',
+    '模型芯片打开后看不到模型或运行时',
+  )
 }
 
 export async function runComposerRuntime(driver) {
   await home(driver)
   await clickLabeled(driver, ['新会话', 'New chat']).catch(() => false)
   await delay(250)
-  const snap = await pageSnapshot(driver)
-  return snapshotHas(snap, ['Pi', 'DSH', '运行时', 'Runtime'])
-    ? pass('作曲栏看得到运行时')
-    : fail('作曲栏看不到 Pi / DSH')
+  if (!await clickAria(driver, ['选择本任务模型', 'Choose a model for this task'])) {
+    return fail('点不到作曲栏模型芯片')
+  }
+  await delay(200)
+  if (!await hoverLabeled(driver, ['运行时', 'Runtime'])) {
+    return fail('模型菜单里没有运行时')
+  }
+  await delay(250)
+  return expectLabels(
+    driver,
+    ['Pi', 'DeepSeek Harness', 'DSH'],
+    '运行时飞出面板里看得见 Pi / DSH',
+    '运行时飞出面板没出来',
+  )
 }
 
 export async function runComposerGit(driver) {
   await home(driver)
-  await clickLabeled(driver, ['新会话', 'New chat']).catch(() => false)
-  await delay(250)
-  await clickLabeled(driver, ['分支', 'Branch', 'Git']).catch(() => false)
-  await delay(250)
-  return expectLabels(
-    driver,
-    ['创建分支', 'Create branch', '搜索', 'Search', 'main', 'master'],
-    'Git 芯片能打开分支菜单',
-    '打不开作曲栏 Git',
-  )
+  const workspace = await prepareWorkspace('product-loop-git')
+  try {
+    const conversation = await driver.createConversation({
+      title: 'product-loop-composer-git',
+      workspacePath: workspace,
+      kernel: 'pi',
+    })
+    if (!await openConversation(driver, conversation.title)) return fail('打不开带仓库的会话')
+    await delay(600)
+    const opened = await clickAria(driver, ['当前分支', 'Current branch', '分支', 'Branch'])
+    if (!opened) return fail('这条会话没有 Git 芯片。工作区必须是 Git 仓库')
+    await delay(250)
+    return expectLabels(
+      driver,
+      ['创建分支', 'Create Branch', '搜索分支', 'Search branches'],
+      'Git 芯片能打开分支菜单',
+      '打不开作曲栏 Git',
+    )
+  } finally {
+    await rm(workspace, { recursive: true, force: true }).catch(() => {})
+  }
 }
 
 export async function runComposerPlus(driver) {
   await home(driver)
   await clickLabeled(driver, ['新会话', 'New chat']).catch(() => false)
   await delay(250)
-  await clickLabeled(driver, ['添加', 'Add', '加号']).catch(() => false)
+  if (!await clickAria(driver, ['添加内容与工具', 'Add content and tools'])) {
+    return fail('点不到作曲栏加号')
+  }
   await delay(250)
   return expectLabels(
     driver,
-    ['并行', 'Multitask', '附件', 'Attach', 'Skill', 'MCP', 'Computer Use', 'Browser'],
+    ['本机文件或图片', 'Local files or images', '并行', 'Multitask', '目标', 'Goal'],
     '作曲栏加号菜单打开了',
     '作曲栏加号菜单没打开',
   )

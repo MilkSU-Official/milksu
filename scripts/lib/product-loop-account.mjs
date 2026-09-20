@@ -5,6 +5,7 @@
 import { delay } from './desktop-gui-driver.mjs'
 import {
   clickLabeled,
+  clickRole,
   expectLabels,
   fail,
   fillAria,
@@ -66,11 +67,15 @@ export async function runProfileEdit(driver) {
 export async function runProfileTabs(driver) {
   const opened = await openProfile(driver)
   if (!opened.ok) return fail(opened.detail)
+  const tablist = '[role="tablist"][aria-label="成长模块"], [role="tablist"][aria-label="Progress modules"]'
   for (const label of ['CTF', 'CVE', 'Coding']) {
-    if (!await clickLabeled(driver, [label])) return fail(`资料页切不到 ${label}`)
+    if (!await clickRole(driver, 'tab', [label], tablist)) return fail(`资料页切不到 ${label}`)
     await delay(200)
   }
-  return expectLabels(driver, ['CTF', 'CVE', 'Coding'], '资料页三个页签都能点', '资料页页签不齐')
+  const panel = await pageSnapshot(driver)
+  return snapshotHas(panel, ['Coding 活动与用量', 'Coding activity and usage', 'CTF 练习与验证', 'CVE 研究与来源'])
+    ? pass('资料页三个页签都能点')
+    : fail('资料页页签点了，面板没切过来')
 }
 
 export async function runUpdateChrome(driver) {

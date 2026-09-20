@@ -16,6 +16,8 @@ const ALLOWED = new Set([
   'ConfirmCompanionDispatch',
   'GetCompanionShellStatus',
   'SetCompanionFloatEnabled',
+  'SetCompanionPetHidden',
+  'ShowCompanionMainWindow',
   'QuitCompanionShell',
   'GetSettings',
 ])

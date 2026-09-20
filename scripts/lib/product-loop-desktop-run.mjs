@@ -178,6 +178,9 @@ export async function runDesktopCuObserve(driver, options = {}) {
     } catch {
       hasSurface = false
     }
+    if (turn.failed) {
+      return fail(`观察时 sidecar 停了：${turn.error || 'engine stopped'}`)
+    }
     const ok = !turn.timeout && usedComputerUseTools(toolNames) && hasSurface
     return {
       ...(ok ? pass('Computer Use 观察了计算器并写下 SURFACE.md') : fail(`观察没完成 timeout=${Boolean(turn.timeout)} tools=${usedComputerUseTools(toolNames)} surface=${hasSurface}`)),
@@ -332,6 +335,9 @@ export async function runDesktopBrowserMarker(driver, options = {}) {
       }
       const assistantHasMarker = assistantSummary(turn.events).includes(fixture.marker)
       const hasMarker = observedIsolatedBrowserMarker({ fileHasMarker, assistantHasMarker })
+      if (turn.failed) {
+        return fail(`读标记时 sidecar 停了：${turn.error || 'engine stopped'}`)
+      }
       const ok = !turn.timeout && usedIsolatedBrowserTools(toolNames) && hasMarker
       return {
         ...(ok ? pass('隔离浏览器读到了页面标记') : fail(`读标记失败 timeout=${Boolean(turn.timeout)} browser=${usedIsolatedBrowserTools(toolNames)} marker=${hasMarker}`)),

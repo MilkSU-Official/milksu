@@ -39,6 +39,7 @@ export function useCompanion() {
   const [archives, setArchives] = useState<CompanionArchive[]>([])
   const [shell, setShell] = useState<CompanionShellStatus>({
     floating: false,
+    hidden: true,
     wayland: false,
     tray: false,
   })
@@ -237,6 +238,7 @@ export function useCompanion() {
     draft,
     setDraft,
     busy,
+    streaming,
     error,
     confirm,
     send,

@@ -31,6 +31,23 @@ export function delay(ms) {
   return new Promise(resolveDelay => setTimeout(resolveDelay, ms))
 }
 
+export function classifyTurnEvents(events) {
+  const rows = events ?? []
+  const types = rows.map(event => String(event?.type ?? event?.Type ?? ''))
+  const error = rows
+    .map(event => String(event?.error ?? event?.Error ?? event?.text ?? event?.Text ?? ''))
+    .find(text => text.trim())
+    || ''
+  const failed = types.some(type =>
+    type === 'engine.error'
+    || type === 'engine.protocol_error'
+    || type === 'engine.stopped'
+    || type === 'engine.sidecar_stopped',
+  )
+  const settled = types.some(type => type === 'assistant.settled' || type === 'assistant.completed')
+  return { settled, failed, error }
+}
+
 export function killProcessGroup(child, signal = 'SIGTERM') {
   if (!child || child.exitCode != null) return false
   if (process.platform === 'win32') {
@@ -561,17 +578,16 @@ export class GuiDriver {
         await delay(400)
         continue
       }
-      if (collected.some(event => {
-        const type = String(event?.type ?? event?.Type ?? '')
-        return type === 'assistant.settled'
-          || type === 'assistant.completed'
-          || /^(error|engine\.error|engine\.protocol_error)$/i.test(type)
-      })) {
-        return { events: collected, timeout: false }
+      const outcome = classifyTurnEvents(collected)
+      if (outcome.failed) {
+        return { events: collected, timeout: false, failed: true, error: outcome.error }
+      }
+      if (outcome.settled) {
+        return { events: collected, timeout: false, failed: false }
       }
       await delay(250)
     }
-    return { events: collected, timeout: true, error: 'GUI turn timed out' }
+    return { events: collected, timeout: true, failed: false, error: 'GUI turn timed out' }
   }
 
   async createKernelConversation(workspacePath, title, kernel = 'dsh') {

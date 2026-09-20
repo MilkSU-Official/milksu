@@ -100,7 +100,7 @@ export async function runSettingsCtf(driver) {
 export async function runSettingsCve(driver) {
   const error = await openOrFail(driver, ['CVE'])
   if (error) return error
-  return expectLabels(driver, ['同步公开源', 'Public sources', 'CISA', 'Vulhub'], 'CVE 设置看得到公开源', 'CVE 设置缺了公开源')
+  return expectLabels(driver, ['公开源', 'Public sources', 'CISA', 'Vulhub', '同步公开源', 'Sync public sources'], 'CVE 设置看得到公开源', 'CVE 设置缺了公开源')
 }
 
 export async function runSettingsLab(driver) {

@@ -479,6 +479,7 @@ export interface CompanionDispatchResult {
 
 export interface CompanionShellStatus {
   floating: boolean
+  hidden: boolean
   wayland: boolean
   tray: boolean
 }

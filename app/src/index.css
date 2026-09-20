@@ -921,3 +921,112 @@ pre,
 .plugin-surface-control-button-active [data-button]:not([data-variant='destructive']):not([data-variant='link']):not([data-variant='link-static']):not([data-variant='link-draw']):not(:disabled):active::before {
   background-color: var(--ui-pressed) !important;
 }
+
+html.companion-surface,
+html.companion-surface body,
+html.companion-surface #app {
+  background: transparent !important;
+  overflow: hidden;
+}
+
+.companion-pet {
+  width: 232px;
+  height: 360px;
+  position: relative;
+  user-select: none;
+  -webkit-app-region: drag;
+}
+
+.companion-pet-bubble {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  top: 8px;
+  background: var(--popover);
+  color: var(--popover-foreground);
+  border-radius: 8px;
+  padding: 7px 9px 8px;
+  font-size: 11px;
+  line-height: 1.4;
+  -webkit-app-region: no-drag;
+}
+
+.companion-pet-bubble::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -6px;
+  width: 0;
+  height: 0;
+  margin-left: -6px;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 6px solid var(--popover);
+}
+
+.companion-pet-body {
+  position: relative;
+  width: 148px;
+  height: 148px;
+  margin: 96px auto 0;
+  transform-origin: 50% 90%;
+  animation: companion-pet-bob 1.1s ease-in-out infinite;
+}
+
+.companion-pet-talk .companion-pet-body {
+  animation-duration: 0.28s;
+}
+
+.companion-pet-think .companion-pet-body {
+  animation-duration: 1.8s;
+}
+
+.companion-pet-decide .companion-pet-body {
+  animation-duration: 0.7s;
+}
+
+.companion-pet-sprite {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.companion-pet-mark {
+  position: absolute;
+  left: 50%;
+  top: 24%;
+  width: 26%;
+  height: 26%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.companion-pet-spinner,
+.companion-pet-bang {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+}
+
+.companion-pet-think .companion-pet-spinner {
+  opacity: 1;
+  animation: companion-pet-spin 1.6s linear infinite;
+}
+
+.companion-pet-decide .companion-pet-bang {
+  opacity: 1;
+}
+
+@keyframes companion-pet-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(4px); }
+}
+
+@keyframes companion-pet-spin {
+  to { transform: rotate(-360deg); }
+}

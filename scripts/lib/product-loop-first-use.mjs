@@ -8,6 +8,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { redactProcessText } from '../../sidecar/dsh/redact.js'
 import {
+  classifyTurnEvents,
   delay,
   desktopTargetKey,
   GuiDriver,
@@ -17,13 +18,13 @@ import {
 import { TOKENFLUX_BASE_URL } from './product-loop-catalog.mjs'
 import {
   TOKENFLUX_CATALOG_DEFAULT_MODEL,
-  productLoopRelayCredential,
+  productLoopRelayAttempts,
   resolveCustomRelayModels,
 } from './product-loop-local-env.mjs'
 
 export const FIRST_USE_RELAY_ID = 'custom-relay-product-loop'
 export const FIRST_USE_RELAY_NAME = 'product-loop'
-export const FIRST_USE_LOGIN_WAIT_MS = 300_000
+export const FIRST_USE_LOGIN_WAIT_MS = 90_000
 const FILE_TOOL_PATTERN = /(read|write|edit|apply_patch|glob|grep|ls|list_dir|read_file|write_file|str_replace|bash|shell)/i
 
 export const FIRST_USE_FILE_PROMPT = [
@@ -118,10 +119,11 @@ export function classifyAccountFileLoop(input = {}) {
   const notes = input.notes === true
   const usedFiles = input.usedFiles === true
   const timeout = input.timeout === true
+  const failed = input.failed === true
   const linked = input.tokenFluxLinked === true
   const detail = String(input.detail ?? '')
-  if (notes && usedFiles && !timeout) return { result: 'PASS', expectedMiss: false }
-  if (timeout) return { result: 'FAIL', expectedMiss: false }
+  if (notes && usedFiles && !timeout && !failed) return { result: 'PASS', expectedMiss: false }
+  if (timeout || failed) return { result: 'FAIL', expectedMiss: false }
   if (!linked || /额度|quota|未连接|没有可用|unavailable|insufficient/i.test(detail)) {
     return { result: 'PASS', expectedMiss: true }
   }
@@ -208,6 +210,7 @@ async function runFileLoop(driver, options) {
       }
     }
     const turn = await driver.waitForTurn(conversation.id, options.timeoutMs)
+    const outcome = classifyTurnEvents(turn.events)
     let notes = false
     try {
       await readFile(join(workspace, 'NOTES.md'))
@@ -217,20 +220,22 @@ async function runFileLoop(driver, options) {
     }
     const toolNames = collectToolNames(turn.events)
     const usedFiles = toolNames.some(name => FILE_TOOL_PATTERN.test(name))
-    const errorText = (turn.events ?? [])
-      .map(event => [
+    const errorText = [
+      turn.error,
+      outcome.error,
+      ...(turn.events ?? []).map(event => [
         event?.type ?? event?.Type,
         event?.error,
         event?.message,
         event?.detail,
         event?.content,
-      ].filter(Boolean).join(' '))
-      .filter(Boolean)
-      .join(' | ')
+      ].filter(Boolean).join(' ')),
+    ].filter(Boolean).join(' | ')
     return {
       notes,
       usedFiles,
       timeout: Boolean(turn.timeout),
+      failed: Boolean(turn.failed || outcome.failed),
       toolNames,
       detail: redactProcessText(errorText, 240),
     }
@@ -347,7 +352,7 @@ export async function runFirstUse(options = {}) {
             ? `账户发不出，记预期（linked=${Boolean(active.tokenFluxLinked)}）`
             : loop.notes
               ? '账户来源写出 NOTES.md'
-              : `NOTES.md=${loop.notes} fileTools=${loop.usedFiles} timeout=${loop.timeout}`,
+              : `NOTES.md=${loop.notes} fileTools=${loop.usedFiles} timeout=${loop.timeout} failed=${Boolean(loop.failed)}`,
         )
       } else {
         const status = await accountStatus(launch.driver)
@@ -385,17 +390,18 @@ export async function runFirstUse(options = {}) {
         modelSourcePreference: 'personal',
         timeoutMs: taskTimeoutMs,
       })
-      const ok = loop.notes && loop.usedFiles && !loop.timeout
+      const ok = loop.notes && loop.usedFiles && !loop.timeout && !loop.failed
       record(
         'relay-model-fileloop',
         ok ? 'PASS' : 'FAIL',
-        ok ? '中转站写出 NOTES.md' : `NOTES.md=${loop.notes} fileTools=${loop.usedFiles} timeout=${loop.timeout} ${loop.detail || ''}`,
+        ok ? '中转站写出 NOTES.md' : `NOTES.md=${loop.notes} fileTools=${loop.usedFiles} timeout=${loop.timeout} failed=${Boolean(loop.failed)} ${loop.detail || ''}`,
       )
     }
 
     if (steps.find(step => step.id === 'login-github-active')?.result === 'PASS') {
       await launch.driver.invoke('LogoutAccount', []).catch(() => {})
     }
+    await resetContinueLocal(launch.driver)
     await closeLaunch()
 
     launch = await startFirstUseDesktop({ instanceId, timeoutMs: desktopReadyMs })
@@ -418,7 +424,8 @@ export async function runFirstUse(options = {}) {
     const home = clicked ? await waitForHomepage(launch.driver) : null
     const after = await accountStatus(launch.driver)
     const relayAfter = describeCustomRelay(await launch.driver.invoke('GetSettings', []), firstUseRelayName())
-    if (home && after?.state !== 'active' && relayAfter.enabled && relayAfter.hasKey) {
+    const relayReady = steps.some(step => step.id === 'settings-custom-relay' && step.result === 'PASS')
+    if (home && after?.state !== 'active' && relayReady && relayAfter.enabled && relayAfter.hasKey) {
       record('login-skip-local', 'PASS', '暂不登录进了首页，中转站仍可用')
     } else {
       record(
@@ -484,7 +491,16 @@ async function clickMatching(driver, patterns) {
   }`, [patterns])
 }
 
-async function fillCustomRelayInSettings(driver, fields, apiKey) {
+async function resetContinueLocal(driver) {
+  if (!driver?.cdpAlive()) return
+  await driver.cdp.evaluate(`(() => {
+    try { window.sessionStorage?.removeItem('milksu.account.continue-local') } catch {}
+    try { window.localStorage?.removeItem('milksu.account.continue-local') } catch {}
+    return true
+  })()`).catch(() => false)
+}
+
+async function openRelayEditor(driver) {
   const openedSettings = await waitFor(async () => {
     const state = await driver.cdp.callFunction(`function() {
       if (document.querySelector('[aria-label="设置分类"], [aria-label="Settings categories"]')) return 'settings'
@@ -515,11 +531,19 @@ async function fillCustomRelayInSettings(driver, fields, apiKey) {
   if (!openedModels) return { ok: false, detail: '设置里找不到模型分类' }
   await delay(400)
 
+  const editorOpen = await waitFor(() => driver.cdp.callFunction(`function() {
+    return Boolean(document.querySelector('[role="dialog"]'))
+  }`), 1_200).catch(() => false)
+  if (editorOpen) return { ok: true }
+
   const openedEditor = await waitFor(() => clickMatching(driver, ['新增模型服务', 'Add a model service']), 8_000)
   if (!openedEditor) return { ok: false, detail: '找不到新增模型服务' }
   await delay(400)
+  return { ok: true }
+}
 
-  const filled = await driver.cdp.callFunction(`function(fields) {
+function relayEditorScript() {
+  return `function(fields) {
     function setInput(input, value) {
       if (!input) return false
       const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set
@@ -538,87 +562,167 @@ async function fillCustomRelayInSettings(driver, fields, apiKey) {
     }
     const dialog = document.querySelector('[role="dialog"]')
     if (!dialog) return { ok: false, detail: '中转站对话框没打开' }
-    if (!setInput(byAria(['API 端点', 'API endpoint']), fields.baseUrl)) {
+    if (fields.baseUrl && !setInput(byAria(['API 端点', 'API endpoint']), fields.baseUrl)) {
       return { ok: false, detail: '找不到 API 端点' }
     }
-    if (!setInput(byAria(['中转站名称', 'Relay name']), fields.name)) {
+    if (fields.name && !setInput(byAria(['中转站名称', 'Relay name']), fields.name)) {
       return { ok: false, detail: '找不到中转站名称' }
     }
-    if (!setInput(byAria(['模型 ID 或关键词前缀', 'Model ID or keyword prefix']), fields.model)) {
+    if (fields.removeModels) {
+      for (const button of Array.from(dialog.querySelectorAll('button[aria-label]'))) {
+        const label = button.getAttribute('aria-label') || ''
+        if (/^移除模型 |^Remove model /.test(label)) button.click()
+      }
+    }
+    if (fields.model && !setInput(byAria(['模型 ID 或关键词前缀', 'Model ID or keyword prefix']), fields.model)) {
       return { ok: false, detail: '找不到模型输入' }
     }
-    const add = Array.from(dialog.querySelectorAll('button')).find(item => /^(添加|Add)$/.test((item.textContent || '').trim()))
-    if (add) add.click()
-    if (!setInput(byAria(['API Key']), fields.apiKey)) {
+    if (fields.apiKey && !setInput(byAria(['API Key']), fields.apiKey)) {
       return { ok: false, detail: '找不到 API Key 密码框' }
     }
-    const test = Array.from(dialog.querySelectorAll('button')).find(item => /测试连接|Test connection|正在测试|Testing/.test(item.textContent || ''))
-    if (!test) return { ok: false, detail: '找不到测试连接' }
-    test.click()
+    if (fields.addModel) {
+      const add = Array.from(dialog.querySelectorAll('button')).find(item => /^(添加|Add)$/.test((item.textContent || '').trim()))
+      if (!add) return { ok: false, detail: '找不到添加模型' }
+      add.click()
+    }
+    if (fields.test) {
+      const test = Array.from(dialog.querySelectorAll('button')).find(item => /测试连接|Test connection|正在测试|Testing/.test(item.textContent || ''))
+      if (!test) return { ok: false, detail: '找不到测试连接' }
+      test.click()
+    }
     return { ok: true }
-  }`, [{
+  }`
+}
+
+async function applyRelayEditorFields(driver, fields, apiKey) {
+  const prepared = await driver.cdp.callFunction(relayEditorScript(), [{
     name: fields.name,
     baseUrl: fields.baseUrl,
     model: fields.model,
     apiKey,
+    removeModels: true,
   }])
-  if (!filled?.ok) return { ok: false, detail: filled?.detail || '设置页没填上中转站' }
+  if (!prepared?.ok) return { ok: false, detail: prepared?.detail || '设置页没填上中转站' }
+  await delay(250)
+  const added = await driver.cdp.callFunction(relayEditorScript(), [{ addModel: true }])
+  if (!added?.ok) return added
+  const chip = await waitFor(() => driver.cdp.callFunction(`function(model) {
+    const dialog = document.querySelector('[role="dialog"]')
+    if (!dialog) return false
+    return Array.from(dialog.querySelectorAll('span, button')).some(node => (node.textContent || '').trim() === model)
+  }`, [fields.model]), 5_000)
+  if (!chip) return { ok: false, detail: `模型 ${fields.model} 没有加进中转站` }
+  await delay(150)
+  const tested = await driver.cdp.callFunction(relayEditorScript(), [{ test: true }])
+  if (!tested?.ok) return tested
+  return { ok: true }
+}
 
-  const saved = await waitFor(async () => {
-    const row = describeCustomRelay(await driver.invoke('GetSettings', []), fields.name)
-    return row.hasKey && row.enabled && row.models.length ? row : null
-  }, 90_000, 1_000)
-  if (!saved) {
-    const notice = await driver.cdp.callFunction(`function() {
-      const node = document.querySelector('[role="dialog"] .text-destructive, [role="dialog"] .text-primary')
-      return node ? String(node.textContent || '').trim() : ''
-    }`).catch(() => '')
-    return { ok: false, detail: notice || '设置页保存后中转站仍没有 Key' }
+async function verifyStoredRelay(driver, described) {
+  if (!described?.hasKey || !described.enabled || !described.models.length || !described.baseURL) {
+    return { ok: false, detail: '' }
   }
+  if (described.baseURL.includes('tokenflux.ai')) {
+    return { ok: false, detail: '官方 TokenFlux 不能用 tokenflux.ai' }
+  }
+  try {
+    const settings = await driver.invoke('GetSettings', [])
+    const probe = await driver.invoke('TestAgentModel', [settings])
+    if (probe?.ready === false) {
+      return { ok: false, detail: '已存中转站测试连接没通过' }
+    }
+    return {
+      ok: true,
+      id: described.id,
+      model: described.models[0],
+      detail: '已存中转站，测试连接通过',
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      detail: redactProcessText(error instanceof Error ? error.message : error, 180),
+    }
+  }
+}
 
+async function waitForRelayVerify(driver) {
+  await delay(400)
+  return waitFor(async () => {
+    const state = await driver.cdp.callFunction(`function() {
+      const testing = Array.from(document.querySelectorAll('button')).some(item => /正在测试|Testing/.test(item.textContent || ''))
+      if (testing) return { pending: true }
+      const notice = document.querySelector('[role="dialog"] .text-destructive, [role="dialog"] .text-primary')
+      const text = notice ? String(notice.textContent || '').trim() : ''
+      if (/连接正常|Connected /.test(text)) return { ok: true, text }
+      if (notice && notice.classList.contains('text-destructive') && text) return { ok: false, text }
+      return { pending: true }
+    }`)
+    if (!state || state.pending) return null
+    return state
+  }, 90_000, 800)
+}
+
+async function closeRelayEditor(driver) {
   await driver.cdp.callFunction(`function() {
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
     return true
   }`).catch(() => false)
   await delay(200)
   await clickMatching(driver, ['返回', 'Back']).catch(() => false)
-  return { ok: true, relay: saved }
 }
 
 export async function saveCustomRelay(driver) {
   const settings = await driver.invoke('GetSettings', [])
   const described = describeCustomRelay(settings, firstUseRelayName())
-  if (described.hasKey && described.enabled && described.models.length) {
-    if (described.baseURL.includes('tokenflux.ai')) {
-      return { ok: false, detail: '官方 TokenFlux 不能用 tokenflux.ai' }
-    }
-    return {
-      ok: true,
-      id: described.id,
-      model: described.models[0],
-      detail: '已存中转站，核过启用和模型',
-    }
-  }
-  const credential = productLoopRelayCredential()
-  if (!credential.value) {
+  const stored = await verifyStoredRelay(driver, described)
+  if (stored.ok) return stored
+  const attempts = productLoopRelayAttempts()
+  if (!attempts.length) {
     return { ok: false, detail: '没有已存中转站，也没有 TOKENFLUX_API_KEY / DEEPSEEK_API_KEY' }
   }
-  const filled = await fillCustomRelayInSettings(driver, {
-    name: firstUseRelayName(),
-    baseUrl: firstUseRelayBaseUrl(),
-    model: firstUseRelayModel(),
-  }, credential.value)
-  if (!filled.ok) return filled
-  const saved = filled.relay
-  if (saved.baseURL.includes('tokenflux.ai')) {
-    return { ok: false, detail: '官方 TokenFlux 不能用 tokenflux.ai' }
+  const opened = await openRelayEditor(driver)
+  if (!opened.ok) return opened
+  let lastDetail = ''
+  for (const attempt of attempts) {
+    const filled = await applyRelayEditorFields(driver, {
+      name: firstUseRelayName(),
+      baseUrl: attempt.baseUrl,
+      model: attempt.model,
+    }, attempt.value)
+    if (!filled.ok) {
+      lastDetail = filled.detail
+      continue
+    }
+    const verified = await waitForRelayVerify(driver)
+    if (!verified) {
+      lastDetail = `${attempt.name} 测试连接没有回执`
+      continue
+    }
+    if (!verified.ok) {
+      lastDetail = `${attempt.name} ${redactProcessText(verified.text || '测试连接失败', 180)}`
+      continue
+    }
+    const saved = await waitFor(async () => {
+      const row = describeCustomRelay(await driver.invoke('GetSettings', []), firstUseRelayName())
+      return row.hasKey && row.enabled && row.models.length ? row : null
+    }, 15_000, 500)
+    if (!saved) {
+      lastDetail = `${attempt.name} 测试通过后中转站仍没有 Key`
+      continue
+    }
+    if (saved.baseURL.includes('tokenflux.ai')) {
+      return { ok: false, detail: '官方 TokenFlux 不能用 tokenflux.ai' }
+    }
+    await closeRelayEditor(driver)
+    return {
+      ok: true,
+      id: saved.id,
+      model: saved.models.includes(attempt.model) ? attempt.model : saved.models[0],
+      detail: `在设置密码框填入 ${attempt.name}（回执不写 Key）`,
+    }
   }
-  return {
-    ok: true,
-    id: saved.id,
-    model: saved.models[0],
-    detail: `在设置密码框填入 ${credential.name}（回执不写 Key）`,
-  }
+  await closeRelayEditor(driver)
+  return { ok: false, detail: lastDetail || '设置页保存后中转站仍没有 Key' }
 }
 
 function finish(steps, notes, extras = {}) {

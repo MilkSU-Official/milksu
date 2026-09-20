@@ -99,7 +99,10 @@ const solidColors: Record<string, string> = {
 
 function readLocalAccountMode() {
   try {
-    return window.localStorage?.getItem(localAccountModeKey) === '1'
+    // 「暂不登录」只对这一次进程有效。关掉再开必须再看见登录页。
+    const skipped = window.sessionStorage?.getItem(localAccountModeKey) === '1'
+    window.localStorage?.removeItem(localAccountModeKey)
+    return skipped
   } catch {
     return false
   }
@@ -107,8 +110,9 @@ function readLocalAccountMode() {
 
 function writeLocalAccountMode(enabled: boolean) {
   try {
-    if (enabled) window.localStorage?.setItem(localAccountModeKey, '1')
-    else window.localStorage?.removeItem(localAccountModeKey)
+    if (enabled) window.sessionStorage?.setItem(localAccountModeKey, '1')
+    else window.sessionStorage?.removeItem(localAccountModeKey)
+    window.localStorage?.removeItem(localAccountModeKey)
   } catch {
     // Some embedded or test renderers intentionally expose no local storage.
   }

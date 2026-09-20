@@ -165,7 +165,7 @@ export default function CompanionSettingsPanel({
           label={t('悬浮窗', 'Floating window')}
           description={shell?.wayland
             ? t('当前 Linux 会话是 Wayland，客户端不能自己设定窗口全局坐标，所以只保留主窗口里的桌宠页。', 'This Linux session is Wayland. Clients cannot set global window coordinates, so Companion stays in the main window.')
-            : ''}
+            : t('关掉主窗口后，macOS Dock 和 Windows 任务栏仍显示 MilkSU，用来唤醒桌宠。Linux 用托盘。', 'After the main window is hidden, macOS Dock and Windows taskbar still show MilkSU so you can wake the companion. Linux uses the tray.')}
           trailing={(
             <Switch
               checked={settings.companion_float_enabled !== false && !shell?.wayland}
@@ -183,7 +183,7 @@ export default function CompanionSettingsPanel({
         <SettingsRow
           label={t('皮肤', 'Skin')}
           divider={false}
-          trailing={<span className="text-label text-muted-foreground">{t('序列帧 / APNG / WebP', 'Sprite / APNG / WebP')}</span>}
+          trailing={<span className="text-label text-muted-foreground">{t('默认', 'Default')}</span>}
         />
       </SettingsSection>
     </>

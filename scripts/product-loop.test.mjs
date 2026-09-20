@@ -5,7 +5,7 @@ import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { EventEmitter } from 'node:events'
-import { CdpSession, GuiDriver, isMilkSUPage, isProductLoopFixtureConversation, killProcessGroup, stripDesktopCredentialEnv } from './lib/desktop-gui-driver.mjs'
+import { CdpSession, classifyTurnEvents, GuiDriver, isMilkSUPage, isProductLoopFixtureConversation, killProcessGroup, stripDesktopCredentialEnv } from './lib/desktop-gui-driver.mjs'
 import {
   observedIsolatedBrowserMarker,
   pickComputerUseTarget,
@@ -34,8 +34,11 @@ import {
   describeProductLoopLocalEnv,
   parseProductLoopLocalEnv,
   productLoopLocalSecret,
+  productLoopRelayAttempts,
   resetProductLoopLocalSecrets,
   resolveCustomRelayModels,
+  DEEPSEEK_OFFICIAL_BASE_URL,
+  DEEPSEEK_OFFICIAL_MODEL,
   TOKENFLUX_CATALOG_DEFAULT_MODEL,
 } from './lib/product-loop-local-env.mjs'
 import {
@@ -257,7 +260,20 @@ test('waitForTurn keeps polling after a transient CDP close', async () => {
   driver.ensureAttached = async () => true
   const turn = await driver.waitForTurn('conversation-1', 2_000)
   assert.equal(turn.timeout, false)
+  assert.equal(turn.failed, false)
   assert.ok(calls >= 2)
+})
+
+test('waitForTurn treats sidecar death as a failed turn, not a settle', async () => {
+  const driver = new GuiDriver()
+  driver.drainEvents = async () => [{ type: 'engine.sidecar_stopped', error: 'sidecar exited' }]
+  driver.ensureAttached = async () => true
+  const turn = await driver.waitForTurn('conversation-1', 2_000)
+  assert.equal(turn.timeout, false)
+  assert.equal(turn.failed, true)
+  assert.match(String(turn.error || ''), /sidecar exited/)
+  assert.equal(classifyTurnEvents([{ type: 'assistant.settled' }]).settled, true)
+  assert.equal(classifyTurnEvents([{ type: 'engine.error' }]).failed, true)
 })
 
 test('isProductLoopFixtureConversation only matches regression leftovers', () => {
@@ -411,6 +427,10 @@ test('first-use helpers inspect the login page and keep keys out of relay descri
     classifyAccountFileLoop({ notes: true, usedFiles: true, timeout: false }).result,
     'PASS',
   )
+  assert.equal(
+    classifyAccountFileLoop({ notes: false, usedFiles: false, failed: true, tokenFluxLinked: false }).result,
+    'FAIL',
+  )
 })
 
 test('desktop spawn env strips provider keys', () => {
@@ -426,6 +446,26 @@ test('desktop spawn env strips provider keys', () => {
   assert.equal(stripped.DEEPSEEK_API_KEY, undefined)
   assert.equal(stripped.TOKENFLUX_API_KEY, undefined)
   assert.equal(stripped.OPENAI_API_KEY, undefined)
+})
+
+test('TokenFlux 401 falls back to official DeepSeek as the next relay attempt', async () => {
+  resetProductLoopLocalSecrets()
+  const root = await mkdtemp(join(tmpdir(), 'milksu-loop-relay-'))
+  const path = join(root, 'docs', 'developer', 'product-loop.local.env')
+  await mkdir(join(root, 'docs', 'developer'), { recursive: true })
+  await writeFile(path, [
+    'TOKENFLUX_API_KEY=sk-not-for-tokenflux',
+    'DEEPSEEK_API_KEY=sk-official-deepseek',
+    'CUSTOM_RELAY_BASE_URL=https://tokenflux.dev/v1',
+  ].join('\n'))
+  await applyProductLoopLocalEnv({}, { path })
+  const attempts = productLoopRelayAttempts({ CUSTOM_RELAY_BASE_URL: 'https://tokenflux.dev/v1' })
+  assert.deepEqual(attempts.map(item => ({ name: item.name, baseUrl: item.baseUrl, model: item.model })), [
+    { name: 'TOKENFLUX_API_KEY', baseUrl: 'https://tokenflux.dev/v1', model: TOKENFLUX_CATALOG_DEFAULT_MODEL },
+    { name: 'DEEPSEEK_API_KEY', baseUrl: DEEPSEEK_OFFICIAL_BASE_URL, model: DEEPSEEK_OFFICIAL_MODEL },
+  ])
+  assert.ok(!JSON.stringify(attempts.map(item => ({ name: item.name, baseUrl: item.baseUrl, model: item.model }))).includes('sk-'))
+  resetProductLoopLocalSecrets()
 })
 
 test('empty CUSTOM_RELAY_MODELS on official TokenFlux uses the catalog id', () => {

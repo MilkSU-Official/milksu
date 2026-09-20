@@ -308,6 +308,8 @@ interface DesktopAppBindings {
   ): Promise<CompanionDispatchResult>
   GetCompanionShellStatus(): Promise<CompanionShellStatus>
   SetCompanionFloatEnabled(enabled: boolean): Promise<CompanionShellStatus>
+  SetCompanionPetHidden(request: { hidden: boolean; locale?: string }): Promise<CompanionShellStatus>
+  ShowCompanionMainWindow(): Promise<CompanionShellStatus>
   QuitCompanionShell(): Promise<void>
   SendMessage(
     conversationId: string,
@@ -802,6 +804,13 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.GetCompanionShellStatus() as Promise<T>
       case 'set_companion_float_enabled':
         return app.SetCompanionFloatEnabled(args?.enabled === true) as Promise<T>
+      case 'set_companion_pet_hidden':
+        return app.SetCompanionPetHidden({
+          hidden: args?.hidden === true,
+          locale: typeof args?.locale === 'string' ? args.locale : undefined,
+        }) as Promise<T>
+      case 'show_companion_main_window':
+        return app.ShowCompanionMainWindow() as Promise<T>
       case 'quit_companion_shell':
         return app.QuitCompanionShell() as Promise<T>
       case 'send_message':

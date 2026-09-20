@@ -3,12 +3,21 @@
  * Does not attach an already-inside daily window. Does not inject Provider keys.
  */
 
-import { delay, desktopTargetKey, listDesktopCdpTargets } from './desktop-gui-driver.mjs'
+import { classifyTurnEvents, delay, desktopTargetKey, listDesktopCdpTargets } from './desktop-gui-driver.mjs'
 import {
   describeCustomRelay,
   firstUseRelayName,
   startFirstUseDesktop,
 } from './product-loop-first-use.mjs'
+
+export { classifyTurnEvents }
+
+export function turnBroken(turn) {
+  if (!turn) return '回合没有回执'
+  if (turn.failed) return turn.error || 'sidecar 在回合里停了'
+  if (turn.timeout) return turn.error || '回合超时'
+  return ''
+}
 
 export async function clickLabeled(driver, patterns) {
   return driver.cdp.callFunction(`function(patterns) {
@@ -22,6 +31,56 @@ export async function clickLabeled(driver, patterns) {
     }
     return false
   }`, [patterns])
+}
+
+export async function clickAria(driver, patterns) {
+  return driver.cdp.callFunction(`function(patterns) {
+    const nodes = Array.from(document.querySelectorAll('button, [role="button"], [role="tab"]'))
+    for (const node of nodes) {
+      const label = node.getAttribute('aria-label') || ''
+      if (patterns.some(pattern => label.includes(pattern))) {
+        node.click()
+        return true
+      }
+    }
+    return false
+  }`, [patterns])
+}
+
+export async function clickRole(driver, role, patterns, rootSelector = '') {
+  return driver.cdp.callFunction(`function(role, patterns, rootSelector) {
+    const root = rootSelector ? document.querySelector(rootSelector) : document
+    if (!root) return false
+    const nodes = Array.from(root.querySelectorAll('[role="' + role + '"]'))
+    for (const node of nodes) {
+      const label = [node.getAttribute('aria-label') || '', node.textContent || ''].join(' ')
+      if (patterns.some(pattern => label.includes(pattern))) {
+        node.click()
+        return true
+      }
+    }
+    return false
+  }`, [role, patterns, rootSelector])
+}
+
+export async function hoverLabeled(driver, patterns) {
+  return driver.cdp.callFunction(`function(patterns) {
+    const nodes = Array.from(document.querySelectorAll('button, [role="button"]'))
+    for (const node of nodes) {
+      const label = [node.getAttribute('aria-label') || '', node.textContent || ''].join(' ')
+      if (!patterns.some(pattern => label.includes(pattern))) continue
+      node.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }))
+      node.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }))
+      return true
+    }
+    return false
+  }`, [patterns])
+}
+
+export async function openConversation(driver, title) {
+  const clicked = await clickLabeled(driver, [title])
+  await delay(400)
+  return clicked
 }
 
 export async function pageSnapshot(driver) {
@@ -159,7 +218,7 @@ export async function pressMetaKey(driver, key) {
   await driver.cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', modifiers: 4, key, windowsVirtualKeyCode: key.toUpperCase().charCodeAt(0) })
 }
 
-async function waitFor(predicate, timeoutMs, intervalMs = 400) {
+export async function waitFor(predicate, timeoutMs, intervalMs = 400) {
   const started = Date.now()
   let last
   while (Date.now() - started < timeoutMs) {

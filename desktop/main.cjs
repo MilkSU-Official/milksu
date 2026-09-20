@@ -953,6 +953,7 @@ app.on('open-url', (event, url) => {
 })
 
 app.on('second-instance', (_event, argv = []) => {
+  if (companionShell) companionShell.revealFromTaskbar()
   if (mainWindow) {
     if (mainWindow.isMinimized()) mainWindow.restore()
     mainWindow.show()
@@ -972,6 +973,9 @@ app.on('second-instance', (_event, argv = []) => {
 
 app.whenReady().then(async () => {
   startupLog('app.whenReady')
+  if (process.platform === 'win32' && typeof app.setAppUserModelId === 'function') {
+    app.setAppUserModelId(desktopIdentity.appId)
+  }
   await startupTime('installRendererProtocol', () => installRendererProtocol())
   const protocolClient = desktopProtocolClientRegistration({
     channel: desktopChannel,
@@ -1052,10 +1056,12 @@ app.whenReady().then(async () => {
   mainWindow.on('close', event => {
     if (quitting) return
     event.preventDefault()
-    mainWindow.hide()
-    if (process.platform === 'darwin' && app.dock) app.dock.hide()
+    companionShell.parkMainWindow()
     companionShell.createTray()
     companionShell.createFloat()
+  })
+  mainWindow.on('restore', () => {
+    companionShell.revealFromTaskbar()
   })
   Menu.setApplicationMenu(Menu.buildFromTemplate(productApplicationMenuTemplate()))
   startupLog('createWindow')
@@ -1112,6 +1118,18 @@ app.whenReady().then(async () => {
 }).catch(error => {
   dialog.showErrorBox('MilkSU 启动失败', error.message)
   app.quit()
+})
+
+app.on('activate', () => {
+  if (companionShell) {
+    companionShell.revealFromTaskbar()
+    return
+  }
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.show()
+    mainWindow.focus()
+  }
 })
 
 app.on('window-all-closed', () => {

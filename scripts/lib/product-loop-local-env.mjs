@@ -15,6 +15,8 @@ export const PRODUCT_LOOP_LOCAL_ENV_RELATIVE = 'docs/developer/product-loop.loca
 
 /** TokenFlux catalog id. Custom relays at tokenflux.dev use this when models are left blank. */
 export const TOKENFLUX_CATALOG_DEFAULT_MODEL = 'deepseek/deepseek-flash'
+export const DEEPSEEK_OFFICIAL_BASE_URL = 'https://api.deepseek.com'
+export const DEEPSEEK_OFFICIAL_MODEL = 'deepseek-chat'
 
 export const PRODUCT_LOOP_LOCAL_SECRET_KEYS = Object.freeze([
   'DEEPSEEK_API_KEY',
@@ -95,12 +97,65 @@ export function productLoopLocalSecret(name) {
   return String(heldSecrets[name] ?? '').trim()
 }
 
-export function productLoopRelayCredential() {
+function officialTokenFluxURL(url) {
+  try {
+    return new URL(String(url ?? '').trim()).hostname.toLowerCase() === 'tokenflux.dev'
+  } catch {
+    return false
+  }
+}
+
+function pushRelayAttempt(attempts, item) {
+  const name = String(item?.name ?? '').trim()
+  const value = String(item?.value ?? '').trim()
+  const baseUrl = String(item?.baseUrl ?? '').trim()
+  const model = String(item?.model ?? '').trim()
+  if (!name || !value || !baseUrl || !model) return
+  if (attempts.some(row => row.name === name && row.baseUrl === baseUrl && row.model === model)) return
+  attempts.push({ name, value, baseUrl, model })
+}
+
+export function productLoopRelayAttempts(env = process.env) {
+  const configuredUrl = String(env.CUSTOM_RELAY_BASE_URL ?? '').trim() || TOKENFLUX_BASE_URL
+  const configuredModels = resolveCustomRelayModels(env)
   const tokenflux = productLoopLocalSecret('TOKENFLUX_API_KEY')
   const deepseek = productLoopLocalSecret('DEEPSEEK_API_KEY')
-  if (tokenflux) return { name: 'TOKENFLUX_API_KEY', value: tokenflux }
-  if (deepseek) return { name: 'DEEPSEEK_API_KEY', value: deepseek }
-  return { name: '', value: '' }
+  const attempts = []
+  if (officialTokenFluxURL(configuredUrl)) {
+    pushRelayAttempt(attempts, {
+      name: 'TOKENFLUX_API_KEY',
+      value: tokenflux,
+      baseUrl: configuredUrl,
+      model: configuredModels || TOKENFLUX_CATALOG_DEFAULT_MODEL,
+    })
+    pushRelayAttempt(attempts, {
+      name: 'DEEPSEEK_API_KEY',
+      value: deepseek,
+      baseUrl: DEEPSEEK_OFFICIAL_BASE_URL,
+      model: DEEPSEEK_OFFICIAL_MODEL,
+    })
+    return attempts
+  }
+  const model = configuredModels || DEEPSEEK_OFFICIAL_MODEL
+  pushRelayAttempt(attempts, {
+    name: 'TOKENFLUX_API_KEY',
+    value: tokenflux,
+    baseUrl: configuredUrl,
+    model,
+  })
+  pushRelayAttempt(attempts, {
+    name: 'DEEPSEEK_API_KEY',
+    value: deepseek,
+    baseUrl: configuredUrl,
+    model,
+  })
+  return attempts
+}
+
+export function productLoopRelayCredential() {
+  const attempt = productLoopRelayAttempts()[0]
+  if (!attempt) return { name: '', value: '' }
+  return { name: attempt.name, value: attempt.value }
 }
 
 function holdSecret(name, value) {

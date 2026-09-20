@@ -22,7 +22,7 @@ npm run test:product-loop -- --gui --suite first-use
 
 | 字段 | 用来做什么 |
 | --- | --- |
-| `TOKENFLUX_API_KEY` / `DEEPSEEK_API_KEY` | 设置里打进密码框；本机已经存过中转站就不用再填 |
+| `TOKENFLUX_API_KEY` / `DEEPSEEK_API_KEY` | 设置里打进密码框；本机已经存过中转站就不用再填。官方 TokenFlux 那把 Key 若被拒绝（401），有 `DEEPSEEK_API_KEY` 就会改走官方 DeepSeek 端点 |
 | `CUSTOM_RELAY_BASE_URL` | 自定义中转站端点 |
 | `CUSTOM_RELAY_MODELS` | 可以不填。官方 TokenFlux 空着就用目录里的 `deepseek/deepseek-flash`，不用猜前缀。第三方中转站才需要自己写 ID |
 | `CUSTOM_RELAY_NAME` | 设置里显示的中转站名字 |
