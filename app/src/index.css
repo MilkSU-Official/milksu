@@ -951,13 +951,27 @@ html.companion-surface #app {
   height: 100%;
   pointer-events: auto;
   overflow: hidden;
-  border: 1px solid var(--border);
+  padding: 7px;
+  border: 0;
+  border-radius: 36px;
+  background: #2a2a2e;
+  color: var(--popover-foreground);
+  box-shadow: none;
+}
+
+:root[data-theme='light'] .companion-phone {
+  background: #3d3d42;
+}
+
+.companion-phone-screen {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
   border-radius: 28px;
   background: var(--popover);
-  color: var(--popover-foreground);
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--foreground) 8%, transparent),
-    0 18px 48px color-mix(in srgb, var(--foreground) 18%, transparent);
+  box-shadow: none;
 }
 
 .companion-phone .companion-chat {

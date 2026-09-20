@@ -270,9 +270,11 @@ export default function CompanionPetWindow() {
           beginDrag(event, false)
         }}
       >
-        <div className="companion-phone-status" aria-hidden="true">{clock}</div>
-        <CompanionPage embedded />
-        <div className="companion-phone-home" aria-hidden="true" />
+        <div className="companion-phone-screen">
+          <div className="companion-phone-status" aria-hidden="true">{clock}</div>
+          <CompanionPage embedded />
+          <div className="companion-phone-home" aria-hidden="true" />
+        </div>
       </div>
     )
   }
