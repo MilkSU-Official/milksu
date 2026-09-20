@@ -36,7 +36,7 @@ test "$("$node_runtime" --version)" = "v24.18.0"
 runtime_home="$(mktemp -d)"
 mkdir -p "$runtime_home/.git"
 printf '%s\n' \
-  '{"action":"create_session","conversationId":"arch-package-smoke","executionMode":"go","approvalPolicy":"workspace-auto"}' \
+  '{"action":"create_session","conversationId":"arch-package-smoke","executionMode":"go","approvalPolicy":"workspace-auto","provider":"tokenflux","model":"deepseek/deepseek-flash","modelSourceOrder":["personal"]}' \
   '{"action":"destroy_session","conversationId":"arch-package-smoke"}' \
   | HOME="$runtime_home" \
     OPENAI_API_KEY='package-smoke-imagegen-credential-never-log' \

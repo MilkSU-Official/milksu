@@ -46,7 +46,7 @@ test -d /opt/MilkSU/resources/milksu-sidecar/node_modules/@deepseek-ai/cordis-pl
 runtime_home="$(mktemp -d)"
 mkdir -p "$runtime_home/.git"
 printf '%s\n' \
-  '{"action":"create_session","conversationId":"debian13-package-smoke","executionMode":"go","approvalPolicy":"workspace-auto"}' \
+  '{"action":"create_session","conversationId":"debian13-package-smoke","executionMode":"go","approvalPolicy":"workspace-auto","provider":"tokenflux","model":"deepseek/deepseek-flash","modelSourceOrder":["personal"]}' \
   '{"action":"destroy_session","conversationId":"debian13-package-smoke"}' \
   | HOME="$runtime_home" \
     OPENAI_API_KEY='package-smoke-imagegen-credential-never-log' \
