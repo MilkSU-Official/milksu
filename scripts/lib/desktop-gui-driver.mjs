@@ -879,7 +879,7 @@ export class GuiDriver {
   }
 
   async sendCompanionMessage(prompt) {
-    return this.invoke('SendCompanionMessage', [String(prompt ?? '')])
+    return this.invoke('SendCompanionMessage', [String(prompt ?? ''), []])
   }
 
   async stopCompanion() {

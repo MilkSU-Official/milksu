@@ -7,14 +7,18 @@ export const COMPANION_TOOL_NAMES = Object.freeze([
   "companion_memory",
 ]);
 
-export const FORBIDDEN_COMPANION_TOOL_NAMES = Object.freeze([
+// Upstream Pi built-ins. createAgentSession only activates listed names.
+export const PI_COMPANION_TOOL_NAMES = Object.freeze([
+  "read",
   "bash",
   "edit",
   "write",
-  "read",
   "grep",
   "find",
   "ls",
+]);
+
+export const FORBIDDEN_COMPANION_TOOL_NAMES = Object.freeze([
   "mark_complete",
   "set_session_state",
   "companion_set_runtime",
@@ -22,6 +26,10 @@ export const FORBIDDEN_COMPANION_TOOL_NAMES = Object.freeze([
 
 export function companionToolNames() {
   return [...COMPANION_TOOL_NAMES];
+}
+
+export function companionSessionToolNames() {
+  return [...new Set([...PI_COMPANION_TOOL_NAMES, ...COMPANION_TOOL_NAMES])];
 }
 
 export function assertNoRuntimeWriteTools(names) {

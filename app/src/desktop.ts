@@ -285,7 +285,7 @@ interface DesktopAppBindings {
   ImportCodingAttachments(payloads: CodingAttachmentImport[]): Promise<CodingAttachment[]>
   PreviewCodingAttachment(attachment: CodingAttachment): Promise<CodingAttachmentPreview>
   EnsureCompanion(): Promise<CompanionStatus>
-  SendCompanionMessage(prompt: string): Promise<void>
+  SendCompanionMessage(prompt: string, attachments: CodingAttachment[]): Promise<void>
   GetCompanionStatus(): Promise<CompanionStatus>
   StopCompanion(): Promise<void>
   GetCompanionBoard(): Promise<CompanionBoardSnapshot>
@@ -791,7 +791,10 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
       case 'ensure_companion':
         return app.EnsureCompanion() as Promise<T>
       case 'send_companion_message':
-        return app.SendCompanionMessage(args?.prompt as string) as Promise<T>
+        return app.SendCompanionMessage(
+          (args?.prompt as string) ?? '',
+          (args?.attachments as CodingAttachment[]) ?? [],
+        ) as Promise<T>
       case 'get_companion_status':
         return app.GetCompanionStatus() as Promise<T>
       case 'stop_companion':

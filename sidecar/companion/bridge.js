@@ -7,11 +7,12 @@ import {
   SessionManager,
 } from "@earendil-works/pi-coding-agent";
 import { createCompanionExtension, COMPANION_SESSION_ID } from "./extension.js";
-import { createCompanionTools } from "./tools.js";
+import { companionSessionToolNames, createCompanionTools } from "./tools.js";
 import { queryCompanionMemory, scheduleCompanionIndexRefresh } from "./obelisk-index.js";
 import { companionProviderEnvironment } from "./companion-model-env.js";
 import { companionSystemPrompt } from "./system-prompt.js";
 import { companionAssistantTurnError } from "./turn-error.js";
+import { prepareCompanionPrompt } from "./attachments.js";
 import { withTokenFluxModelCompat } from "../pi/tokenflux-model-compat.js";
 import currentProviderRuntime from "../pi/current-provider-runtime.cjs";
 
@@ -131,8 +132,7 @@ async function createCompanionSession(command) {
     agentDir,
     sessionManager: await openCompanionSessionManager(cwd, agentDir),
     resourceLoader,
-    noTools: "all",
-    tools: tools.map(tool => tool.name),
+    tools: companionSessionToolNames(),
     customTools: tools,
   }));
   await session.bindExtensions({ mode: "print" });
@@ -200,10 +200,17 @@ function subscribeCompanion() {
   });
 }
 
-async function sendPrompt(prompt) {
+async function sendPrompt(command) {
   if (!session) throw new Error("companion session is not ready");
+  const prepared = await prepareCompanionPrompt(command);
+  if (!prepared.prompt) {
+    throw new Error("companion prompt is required");
+  }
   promptQueue = promptQueue.then(async () => {
-    await session.prompt(prompt);
+    await session.prompt(
+      prepared.prompt,
+      prepared.images.length ? { images: prepared.images } : undefined,
+    );
   });
   await promptQueue;
 }
@@ -239,7 +246,7 @@ async function handleCommand(command) {
       if (typeof command.persona === "string") persona = command.persona;
       if (command.memorySearchEnabled === false) memorySearchEnabled = false;
       if (command.memorySearchEnabled === true) memorySearchEnabled = true;
-      await sendPrompt(String(command.prompt ?? ""));
+      await sendPrompt(command);
       return;
     case "update_context":
       applyCompanionLocale(command);

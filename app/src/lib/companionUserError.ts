@@ -20,7 +20,9 @@ export function companionChatVisibleText(entry: {
   type?: string
   error?: string
 }): string {
-  const text = String(entry.text ?? '').trim()
+  let text = String(entry.text ?? '').trim()
+  const cut = text.search(/\n\n\[MilkSU attachments\]/u)
+  if (cut >= 0) text = text.slice(0, cut).trim()
   const type = String(entry.type ?? '').trim()
   if (text && text !== type) return text
   return String(entry.error ?? '').trim()

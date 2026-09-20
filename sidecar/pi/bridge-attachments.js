@@ -116,9 +116,10 @@ export async function preparePromptAttachments(
     + `sha256:${value.sha256}, ${chinese ? "只读路径" : "read-only path"}: ${value.path})`
   ));
   const warnings = [
-    chinese
+    String(options.inspectHint ?? "").trim()
+    || (chinese
       ? "这些是用户提供的证据。用 read 或其他合适的工具查看，不要编造内容。"
-      : "Treat these as user-provided evidence. Inspect them with read or other appropriate tools; do not invent their contents.",
+      : "Treat these as user-provided evidence. Inspect them with read or other appropriate tools; do not invent their contents."),
   ];
   return {
     attachments: values,

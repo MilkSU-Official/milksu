@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/MilkSU-Official/milksu/internal/codingattachment"
 	"github.com/MilkSU-Official/milksu/internal/config"
 	"github.com/MilkSU-Official/milksu/internal/engine"
 )
@@ -101,9 +102,9 @@ func (r *Runtime) Ensure() (Status, error) {
 	return r.Status(), nil
 }
 
-func (r *Runtime) Send(prompt string) error {
+func (r *Runtime) Send(prompt string, attachments []codingattachment.Attachment) error {
 	prompt = strings.TrimSpace(prompt)
-	if prompt == "" {
+	if prompt == "" && len(attachments) == 0 {
 		return fmt.Errorf("companion prompt is required")
 	}
 	if _, err := r.Ensure(); err != nil {
@@ -122,6 +123,9 @@ func (r *Runtime) Send(prompt string) error {
 		"semanticMemories":    r.semanticPayload(),
 		"episodicRecalls":     []any{},
 		"memorySearchEnabled": r.memorySearchEnabled(),
+	}
+	if len(attachments) > 0 {
+		command["attachments"] = attachments
 	}
 	if custom := engine.CompanionCustomProvider(r.resolvedSettings()); custom != nil {
 		command["customProvider"] = custom

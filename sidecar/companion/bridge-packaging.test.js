@@ -15,3 +15,8 @@ test("companion bridge imports provider runtime as ESM so packaging can bundle i
   assert.doesNotMatch(source, /createRequire/);
   assert.doesNotMatch(source, /require\(["']\.\.\/pi\/current-provider-runtime\.cjs["']\)/);
 });
+
+test("companion session keeps the full Pi tool loop instead of noTools all", () => {
+  assert.match(source, /companionSessionToolNames\(\)/);
+  assert.doesNotMatch(source, /noTools:\s*"all"/);
+});

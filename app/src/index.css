@@ -1294,6 +1294,64 @@ html.companion-chat-surface #app {
   padding: 6px 10px 12px;
 }
 
+.companion-chat-compose-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.companion-chat-attach {
+  width: 28px !important;
+  height: 28px !important;
+  flex: none;
+  border-radius: 999px !important;
+  color: var(--muted-foreground);
+}
+
+.companion-chat-attach-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 34px 8px;
+}
+
+.companion-chat-attach-chip {
+  position: relative;
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--companion-field);
+  color: var(--popover-foreground);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  padding: 5px 22px 5px 8px;
+}
+
+.companion-chat-attach-chip img {
+  display: block;
+  width: 48px;
+  height: 48px;
+  margin: -5px 0 -5px -8px;
+  object-fit: cover;
+}
+
+.companion-chat-attach-remove {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border: 0;
+  border-radius: 999px;
+  background: rgb(20 20 20 / 0.55);
+  color: #fff;
+}
+
 .companion-chat-error {
   margin-bottom: 6px;
   font-size: var(--text-caption);
@@ -1303,6 +1361,7 @@ html.companion-chat-surface #app {
 
 .companion-chat-well {
   display: flex;
+  flex: 1;
   align-items: flex-end;
   gap: 6px;
   min-height: 36px;

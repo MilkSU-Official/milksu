@@ -5,6 +5,9 @@ const { contextBridge, ipcRenderer } = require('electron')
 const ALLOWED = new Set([
   'GetCompanionStatus',
   'SendCompanionMessage',
+  'ChooseCodingAttachments',
+  'ImportCodingAttachments',
+  'PreviewCodingAttachment',
   'GetCompanionBoard',
   'ListCompanionTranscript',
   'ArchiveCompanionTranscript',

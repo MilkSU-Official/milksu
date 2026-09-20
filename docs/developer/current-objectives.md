@@ -57,9 +57,10 @@
 ## 当前产品事实
 
 - Coding / CTF / CVE / 实验室共用 Pi 文件、Shell、自动压缩（80% 空闲与 `/compact` 同一路径）和完整工作循环。工具结果进模型前走 Pi `tool_result` 截断。不扫描用户句子做意图路由。同一工作区的多条 Pi 对话可以同时跑回合（按会话排队 prompt）；同一条会话里的 Pi 子代理仍阻塞父工具。
+- 桌宠会话使用完整 Pi 工具循环（read / bash / grep / find / ls / edit / write），并保留 companion_board / companion_dispatch / companion_memory；系统提示优先聊天和把工作调度到对话，必要时才用小型工具。附件与 Coding 同一条 preparePromptAttachments + 原图进回合路径。
 - MilkSU 只持会话目录、凭据隔离、桌面授权、领域事实/Judge，以及危险或量不到的递归删除二次确认。给模型看的 MilkSU 正文跟界面语言走（默认中文）：运行时上下文、桌宠默认提示、空回复抢救、无工具合同、DSH 读图回退、附件前言、AGENTS.md 包装句、CTF ROLE_STATE。工具 schema 和 Pi 自带英文 coding harness 仍是原文。
 - 账户 TokenFlux 与本机 Provider 共用可调用目录；保存的模型 id 跟目录真实后缀走（例如目录只有 `gemini-3.8-flash-tiered` 时不再请求无后缀的 `gemini-3.8-flash`）。附件原图进当前回合。网页查证复用 Pi `web_search` / `web_fetch`。
-- 桌面壳是 Electron/Chromium。产品 UI 是 React + shadcn。隔离浏览器、Browser Use、Computer Use 是三个表面；面板折叠不停止 Session。产物在各 OS 文档目录 `MilkSU/{Coding,CTF,CVE,Lab}`。
+- 桌面壳是 Electron/Chromium。产品 UI 是 React + shadcn。桌宠作曲栏加号走现有本机附件 RPC：图片缩略图，文件进当前回合。隔离浏览器、Browser Use、Computer Use 是三个表面；面板折叠不停止 Session。产物在各 OS 文档目录 `MilkSU/{Coding,CTF,CVE,Lab}`。
 - 产品 UI 只写在 `AGENTS.md`。
 
 ## 当前完成线

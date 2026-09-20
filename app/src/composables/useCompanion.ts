@@ -3,6 +3,7 @@ import { desktopErrorMessage, hasDesktopRuntime, invokeCommand, listenEvent } fr
 import { explainCompanionError } from '@/lib/companionUserError'
 import { COMPANION_COMPLETE_HOLD_MS } from '@/lib/companionPetMotion'
 import type {
+  CodingAttachment,
   CompanionArchive,
   CompanionBoardSnapshot,
   CompanionDispatchResult,
@@ -46,6 +47,7 @@ export function useCompanion() {
     tray: false,
   })
   const [draft, setDraft] = useState('')
+  const [attachments, setAttachments] = useState<CodingAttachment[]>([])
   const [streaming, setStreaming] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -202,18 +204,22 @@ export function useCompanion() {
 
   const send = useCallback(async () => {
     const prompt = draft.trim()
-    if (!prompt || busy) return
+    const pending = [...attachments]
+    if ((!prompt && !pending.length) || busy) return
     setBusy(true)
     setError('')
     setDraft('')
+    setAttachments([])
     clearComplete()
     try {
-      await invokeCommand('send_companion_message', { prompt })
+      await invokeCommand('send_companion_message', { prompt, attachments: pending })
     } catch (reason) {
+      setDraft(prompt)
+      setAttachments(pending)
       setError(explainCompanionError(desktopErrorMessage(reason)))
       setBusy(false)
     }
-  }, [busy, clearComplete, draft])
+  }, [attachments, busy, clearComplete, draft])
 
   const archive = useCallback(async () => {
     await invokeCommand('archive_companion_transcript')
@@ -281,6 +287,8 @@ export function useCompanion() {
     shell,
     draft,
     setDraft,
+    attachments,
+    setAttachments,
     busy,
     streaming,
     error,

@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { ArrowUp, ChevronLeft } from 'lucide-react'
+import { ArrowUp, ChevronLeft, FileText, Plus, X } from 'lucide-react'
 import companionIdle from '@/assets/companion/idle.png'
 import { Button, Textarea } from '@/components/ui'
 import { useCompanion } from '@/composables/useCompanion'
-import { invokeCommand, listenEvent } from '@/desktop'
+import { desktopErrorMessage, invokeCommand, listenEvent } from '@/desktop'
 import { useT, useUiLocale } from '@/hooks/useUiLocale'
 import {
   companionChatContinuesRun,
@@ -19,12 +19,32 @@ import {
 import { cn } from '@/lib/cn'
 import { companionChatVisibleText, explainCompanionError } from '@/lib/companionUserError'
 import { isComposingKey } from '@/lib/imeComposition'
-import type { AppSettings, CompanionSkinResolved } from '@/types'
+import type {
+  AppSettings,
+  CodingAttachment,
+  CodingAttachmentImport,
+  CodingAttachmentPreview,
+  CompanionSkinResolved,
+} from '@/types'
 
 function fitComposer(node: HTMLTextAreaElement | null) {
   if (!node) return
   node.style.height = '0px'
   node.style.height = `${Math.min(Math.max(node.scrollHeight, 22), 72)}px`
+}
+
+function attachmentKey(attachment: CodingAttachment) {
+  return `${attachment.id}:${attachment.name}`
+}
+
+function isImageAttachment(attachment: CodingAttachment) {
+  return attachment.mediaType.startsWith('image/')
+}
+
+function formatAttachmentSize(size: number) {
+  if (size >= 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`
+  if (size >= 1024) return `${(size / 1024).toFixed(1)} KB`
+  return `${size} B`
 }
 
 export default function CompanionPage({
@@ -40,6 +60,9 @@ export default function CompanionPage({
   const stickToEnd = useRef(true)
   const [avatar, setAvatar] = useState(companionIdle)
   const [petName, setPetName] = useState('Milk')
+  const [thumbs, setThumbs] = useState<Record<string, string>>({})
+  const [attachError, setAttachError] = useState('')
+  const choosing = useRef(false)
   const olderOffset = companion.hasMore ? 1 : 0
   const typing = companion.busy && !companion.streaming
   const virtualizer = useVirtualizer({
@@ -102,6 +125,89 @@ export default function CompanionPage({
   useEffect(() => {
     fitComposer(inputRef.current)
   }, [companion.draft])
+
+  useEffect(() => {
+    const images = companion.attachments.filter(isImageAttachment)
+    if (!images.length) {
+      setThumbs({})
+      return
+    }
+    let cancelled = false
+    void Promise.all(images.map(async attachment => {
+      try {
+        const preview = await invokeCommand<CodingAttachmentPreview>('preview_coding_attachment', {
+          attachment,
+        })
+        if (preview.kind === 'image' && preview.dataUrl) {
+          return [attachmentKey(attachment), preview.dataUrl] as const
+        }
+      } catch {
+        // Keep the filename chip when the stored image cannot be read.
+      }
+      return null
+    })).then(rows => {
+      if (cancelled) return
+      const next: Record<string, string> = {}
+      for (const row of rows) {
+        if (row) next[row[0]] = row[1]
+      }
+      setThumbs(next)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [companion.attachments])
+
+  function mergeAttachments(selected: CodingAttachment[]) {
+    const merged = new Map(companion.attachments.map(value => [attachmentKey(value), value]))
+    for (const attachment of selected) merged.set(attachmentKey(attachment), attachment)
+    if (merged.size > 8) {
+      setAttachError(t('每条消息最多添加 8 个附件。', 'Each message can have at most 8 attachments.'))
+      return
+    }
+    setAttachError('')
+    companion.setAttachments([...merged.values()])
+  }
+
+  async function chooseAttachments() {
+    if (companion.busy || choosing.current) return
+    choosing.current = true
+    try {
+      mergeAttachments(await invokeCommand<CodingAttachment[]>('choose_coding_attachments'))
+    } catch (reason) {
+      setAttachError(desktopErrorMessage(reason) || t('暂时无法添加附件。', 'Attachments cannot be added right now.'))
+    } finally {
+      choosing.current = false
+    }
+  }
+
+  async function importFiles(files: File[]) {
+    if (!files.length || companion.busy) return
+    if (companion.attachments.length + files.length > 8) {
+      setAttachError(t('每条消息最多添加 8 个附件。', 'Each message can have at most 8 attachments.'))
+      return
+    }
+    try {
+      const payloads: CodingAttachmentImport[] = await Promise.all(files.map(async (file, index) => ({
+        name: file.name.trim() || `${t('粘贴附件', 'Pasted attachment')}-${index + 1}`,
+        mediaType: file.type || 'application/octet-stream',
+        dataBase64: await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onerror = () => reject(reader.error ?? new Error(t('读取附件失败', 'Failed to read the attachment')))
+          reader.onload = () => {
+            const result = String(reader.result ?? '')
+            const separator = result.indexOf(',')
+            if (separator < 0) reject(new Error(t('读取附件失败', 'Failed to read the attachment')))
+            else resolve(result.slice(separator + 1))
+          }
+          reader.readAsDataURL(file)
+        }),
+      })))
+      mergeAttachments(await invokeCommand<CodingAttachment[]>('import_coding_attachments', { payloads }))
+    } catch (reason) {
+      setAttachError(desktopErrorMessage(reason) || t('暂时无法添加附件。', 'Attachments cannot be added right now.'))
+    }
+  }
 
   useEffect(() => {
     if (!stickToEnd.current || companion.entries.length === 0) return
@@ -268,37 +374,98 @@ export default function CompanionPage({
         </div>
       ) : null}
       <div className="companion-chat-composer">
-        {companion.error ? (
-          <p className="companion-chat-error">{companion.error}</p>
+        {companion.error || attachError ? (
+          <p className="companion-chat-error">{companion.error || attachError}</p>
         ) : null}
-        <div className="companion-chat-well">
-          <Textarea
-            ref={inputRef}
-            className="companion-chat-input min-h-0 max-h-[72px] flex-1 resize-none border-0 bg-transparent px-0 py-1 shadow-none focus-visible:border-transparent"
-            value={companion.draft}
-            placeholder={t('发消息', 'Message')}
-            onChange={event => companion.setDraft(event.target.value)}
-            onKeyDown={event => {
-              if (isComposingKey(event.nativeEvent)) return
-              if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault()
-                void companion.send()
-              }
-            }}
-            aria-label={t('桌宠输入', 'Companion message')}
-          />
+        {companion.attachments.length ? (
+          <div className="companion-chat-attach-list" aria-label={t('待发送附件', 'Attachments to send')}>
+            {companion.attachments.map(attachment => {
+              const key = attachmentKey(attachment)
+              const thumb = thumbs[key]
+              return (
+                <span key={key} className="companion-chat-attach-chip" title={`${attachment.name} · ${formatAttachmentSize(attachment.size)}`}>
+                  {isImageAttachment(attachment) && thumb ? (
+                    <img src={thumb} alt={attachment.name} />
+                  ) : (
+                    <>
+                      <FileText className="size-3.5 shrink-0" />
+                      <span className="min-w-0 truncate">{attachment.name}</span>
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    className="companion-chat-attach-remove"
+                    aria-label={t(`移除 ${attachment.name}`, `Remove ${attachment.name}`)}
+                    onClick={() => companion.setAttachments(
+                      companion.attachments.filter(item => attachmentKey(item) !== key),
+                    )}
+                  >
+                    <X className="size-3" />
+                  </button>
+                </span>
+              )
+            })}
+          </div>
+        ) : null}
+        <div className="companion-chat-compose-row">
           <Button
             type="button"
-            variant="brand"
+            variant="ghost"
             size="icon"
-            className="companion-chat-send"
-            disabled={companion.busy || !companion.draft.trim()}
-            aria-label={companion.busy ? t('排队', 'Queue') : t('发送', 'Send')}
-            title={companion.busy ? t('排队', 'Queue') : t('发送', 'Send')}
-            onClick={() => void companion.send()}
+            className="companion-chat-attach"
+            disabled={companion.busy}
+            aria-label={t('添加附件', 'Add attachment')}
+            title={t('添加本机文件或图片', 'Add a local file or image')}
+            onClick={() => void chooseAttachments()}
           >
-            <ArrowUp className="size-4" />
+            <Plus className="size-4" />
           </Button>
+          <div
+            className="companion-chat-well"
+            onDragOver={event => {
+              if (![...event.dataTransfer.types].includes('Files')) return
+              event.preventDefault()
+            }}
+            onDrop={event => {
+              if (!event.dataTransfer.files.length) return
+              event.preventDefault()
+              void importFiles([...event.dataTransfer.files])
+            }}
+          >
+            <Textarea
+              ref={inputRef}
+              className="companion-chat-input min-h-0 max-h-[72px] flex-1 resize-none border-0 bg-transparent px-0 py-1 shadow-none focus-visible:border-transparent"
+              value={companion.draft}
+              placeholder={t('发消息', 'Message')}
+              onChange={event => companion.setDraft(event.target.value)}
+              onPaste={event => {
+                const files = [...event.clipboardData.files]
+                if (!files.length) return
+                event.preventDefault()
+                void importFiles(files)
+              }}
+              onKeyDown={event => {
+                if (isComposingKey(event.nativeEvent)) return
+                if (event.key === 'Enter' && !event.shiftKey) {
+                  event.preventDefault()
+                  void companion.send()
+                }
+              }}
+              aria-label={t('桌宠输入', 'Companion message')}
+            />
+            <Button
+              type="button"
+              variant="brand"
+              size="icon"
+              className="companion-chat-send"
+              disabled={companion.busy || (!companion.draft.trim() && !companion.attachments.length)}
+              aria-label={companion.busy ? t('排队', 'Queue') : t('发送', 'Send')}
+              title={companion.busy ? t('排队', 'Queue') : t('发送', 'Send')}
+              onClick={() => void companion.send()}
+            >
+              <ArrowUp className="size-4" />
+            </Button>
+          </div>
         </div>
       </div>
     </main>

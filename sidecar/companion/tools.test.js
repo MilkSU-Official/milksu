@@ -3,24 +3,40 @@ import test from "node:test";
 import {
   COMPANION_TOOL_NAMES,
   FORBIDDEN_COMPANION_TOOL_NAMES,
+  PI_COMPANION_TOOL_NAMES,
   assertNoRuntimeWriteTools,
+  companionSessionToolNames,
   companionToolNames,
   createCompanionTools,
 } from "./tools.js";
 
-test("companion tool set is only the three typed product tools", () => {
+test("companion custom tools stay the three typed product tools", () => {
   const tools = createCompanionTools(async () => ({}));
   assert.deepEqual(tools.map(tool => tool.name).sort(), [...COMPANION_TOOL_NAMES].sort());
   assert.deepEqual(companionToolNames().sort(), [...COMPANION_TOOL_NAMES].sort());
 });
 
-test("companion tool set cannot write session runtime state", () => {
+test("companion session enables the full Pi tool loop plus companion tools", () => {
+  const names = companionSessionToolNames();
+  for (const name of PI_COMPANION_TOOL_NAMES) {
+    assert.equal(names.includes(name), true, name);
+  }
+  for (const name of COMPANION_TOOL_NAMES) {
+    assert.equal(names.includes(name), true, name);
+  }
+  for (const name of FORBIDDEN_COMPANION_TOOL_NAMES) {
+    assert.equal(names.includes(name), false, name);
+  }
+});
+
+test("companion custom tools cannot write session runtime state", () => {
   assert.throws(
     () => assertNoRuntimeWriteTools(["companion_board", "mark_complete"]),
     /mark_complete/,
   );
   for (const name of FORBIDDEN_COMPANION_TOOL_NAMES) {
     assert.equal(COMPANION_TOOL_NAMES.includes(name), false);
+    assert.equal(PI_COMPANION_TOOL_NAMES.includes(name), false);
   }
 });
 

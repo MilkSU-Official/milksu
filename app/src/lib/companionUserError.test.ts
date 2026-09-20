@@ -41,5 +41,9 @@ describe('companionChatVisibleText', () => {
       error: '403: group does not support the requested model',
     })).toBe('403: group does not support the requested model')
     expect(companionChatVisibleText({ type: 'message', text: '你好' })).toBe('你好')
+    expect(companionChatVisibleText({
+      type: 'message',
+      text: '附件：notes.md\n\n[MilkSU attachments]\n- notes.md\n不要编造没给出的内容。',
+    })).toBe('附件：notes.md')
   })
 })

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MilkSU-Official/milksu/internal/codingattachment"
 	"github.com/MilkSU-Official/milksu/internal/companion"
 	"github.com/MilkSU-Official/milksu/internal/conversation"
 	"github.com/MilkSU-Official/milksu/internal/engine"
@@ -222,11 +223,11 @@ func (a *App) EnsureCompanion() (companion.Status, error) {
 	return a.companion.Ensure()
 }
 
-func (a *App) SendCompanionMessage(prompt string) error {
+func (a *App) SendCompanionMessage(prompt string, attachments []codingattachment.Attachment) error {
 	if a == nil || a.companion == nil {
 		return fmt.Errorf("companion runtime is not configured")
 	}
-	return a.companion.Send(prompt)
+	return a.companion.Send(prompt, attachments)
 }
 
 func (a *App) GetCompanionStatus() companion.Status {

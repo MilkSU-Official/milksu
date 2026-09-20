@@ -19,6 +19,9 @@ const {
 const COMPANION_METHODS = new Set([
   'GetCompanionStatus',
   'SendCompanionMessage',
+  'ChooseCodingAttachments',
+  'ImportCodingAttachments',
+  'PreviewCodingAttachment',
   'GetCompanionBoard',
   'ListCompanionTranscript',
   'ArchiveCompanionTranscript',
