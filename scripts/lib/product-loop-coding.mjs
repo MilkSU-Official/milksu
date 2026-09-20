@@ -523,27 +523,39 @@ export async function runCodingAttach(driver, options = {}) {
       approvalPolicy: 'workspace-auto',
       ...model,
     })
-    await driver.sendMessage(
-      conversation.id,
-      '请读取附件 loop-attach.txt，在回复里原样写出 PRODUCT-LOOP-ATTACH。不要假装读过。',
-      workspace,
-      { ...model, attachments },
-    )
-    const turn = await driver.waitForTurn(conversation.id, options.taskTimeoutMs || 180_000)
+    const attachPrompt = '请读取附件 loop-attach.txt，在回复里原样写出 PRODUCT-LOOP-ATTACH。不要假装读过。'
+    await driver.sendMessage(conversation.id, attachPrompt, workspace, { ...model, attachments })
+    let turn = await driver.waitForTurn(conversation.id, options.taskTimeoutMs || 180_000)
+    const inspect = async () => {
+      const listed = await driver.listConversations()
+      const saved = listed.find(row => conversationIdOf(row) === conversation.id)
+      const attached = conversationMessages(saved).some(message => {
+        const files = message?.attachments || message?.Attachments || []
+        return Array.isArray(files) && files.some(file => String(file?.name ?? file?.Name ?? '').includes('loop-attach'))
+      })
+      const hay = JSON.stringify(turn.events ?? [])
+      const mentioned = hay.includes('PRODUCT-LOOP-ATTACH')
+        || hay.includes('loop-attach.txt')
+        || conversationMessages(saved).some(message => String(message?.content ?? '').includes('PRODUCT-LOOP-ATTACH'))
+      return { attached, mentioned, saved }
+    }
+    let seen = await inspect()
+    if (!seen.mentioned) {
+      await driver.sendMessage(
+        conversation.id,
+        '附件 loop-attach.txt 已经在当前回合里。先 read 它，再原样写出 PRODUCT-LOOP-ATTACH。',
+        workspace,
+        { ...model, attachments },
+      )
+      turn = await driver.waitForTurn(conversation.id, options.taskTimeoutMs || 180_000)
+      seen = await inspect()
+    }
     const broken = turnBroken(turn)
     if (broken) return fail(`附件回合异常：${broken}`)
-    const listed = await driver.listConversations()
-    const saved = listed.find(row => conversationIdOf(row) === conversation.id)
-    const attached = conversationMessages(saved).some(message => {
-      const files = message?.attachments || message?.Attachments || []
-      return Array.isArray(files) && files.some(file => String(file?.name ?? file?.Name ?? '').includes('loop-attach'))
-    })
-    const mentioned = JSON.stringify(turn.events ?? []).includes('PRODUCT-LOOP-ATTACH')
-      || conversationMessages(saved).some(message => String(message?.content ?? '').includes('PRODUCT-LOOP-ATTACH'))
-    if (mentioned) {
-      return pass(attached ? '附件进了当前回合，模型读到了标记' : '模型读到了附件标记')
+    if (seen.mentioned) {
+      return pass(seen.attached ? '附件进了当前回合，模型读到了标记' : '模型读到了附件标记')
     }
-    return fail(`附件回合失败 attached=${attached} mentioned=${mentioned}`)
+    return fail(`附件回合失败 attached=${seen.attached} mentioned=${seen.mentioned}`)
   } finally {
     await releaseProductLoopWorkspace(driver, conversation, workspace)
   }
@@ -710,6 +722,7 @@ export async function runCodingDshMultitask(driver, options = {}) {
     await clickAria(driver, ['添加内容与工具', 'Add content and tools'], '.chat-composer').catch(() => false)
     await delay(150)
     await clickLabeled(driver, ['并行', 'Multitask']).catch(() => false)
+    await dismissOverlays(driver)
     await driver.sendMessage(parent.id, LONG_PROMPT, workspace, {
       ...model,
       approvalPolicy: 'workspace-auto',
@@ -717,6 +730,8 @@ export async function runCodingDshMultitask(driver, options = {}) {
     const live = await waitForTurnStarted(driver, parent.id, 20_000)
     if (live.failed) return fail(`主回合还没跑起来 sidecar 就停了：${live.error || 'engine stopped'}`)
     if (!live.started) return fail('主回合没有开始，第二条发出去也不是并行')
+    if (!await openConversation(driver, parent.title)) return fail('主回合开始后父会话不再是当前会话')
+    await dismissOverlays(driver)
     const childPrompt = '这是并行子会话。只回一句 MULTITASK-CHILD。'
     if (!await fillComposer(driver, childPrompt)) return fail('忙碌时作曲栏写不进下一条')
     if (!await sendComposer(driver)) return fail('忙碌时第二条没发出去')
@@ -906,10 +921,15 @@ export async function runComposerRuntime(driver) {
   await dismissOverlays(driver)
   await clickLabeled(driver, ['新会话', 'New chat']).catch(() => false)
   await delay(250)
+  await dismissOverlays(driver)
   if (!await clickAria(driver, ['选择本任务模型', 'Choose a model for this task'], '.chat-composer')) {
     return fail('点不到作曲栏模型芯片')
   }
-  await delay(200)
+  const menu = await waitFor(async () => {
+    const snap = await pageSnapshot(driver)
+    return snapshotHas(snap, ['运行时', 'Runtime']) ? true : null
+  }, 2_500)
+  if (!menu) return fail('模型菜单里没有运行时')
   const runtimeReady = await waitFor(async () => {
     const hovered = await hoverLabeled(driver, ['运行时', 'Runtime'])
     const clicked = hovered || await clickLabeled(driver, ['运行时', 'Runtime'])

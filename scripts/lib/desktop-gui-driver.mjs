@@ -607,10 +607,15 @@ export class GuiDriver {
     const confirmed = []
     const seenConfirm = new Set()
     const started = Date.now()
+    let overlaySweepAt = 0
     await this.invoke('ShowCompanionChatWindow', []).catch(() => {})
     while (Date.now() - started < timeoutMs) {
       try {
-        const batch = await this.drainCompanionEventsFromSurfaces()
+        const now = Date.now()
+        const batch = now - overlaySweepAt > 2_000
+          ? await this.drainCompanionEventsFromSurfaces()
+          : await this.drainCompanionEvents()
+        if (now - overlaySweepAt > 2_000) overlaySweepAt = now
         collected.push(...batch)
         for (const event of batch) {
           const request = parseCompanionConfirm(event)

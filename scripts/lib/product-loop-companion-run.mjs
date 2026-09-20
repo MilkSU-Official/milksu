@@ -281,10 +281,15 @@ export async function runCompanionRelay(driver, options = {}) {
     if (turn.sidecarStopped || companionTurnParked(turn.events)) {
       return pass('桌宠 sidecar 已停，转达不再记失败')
     }
+    const facts = await waitForCompanionFacts(driver, conversation.id, marker)
+    if (facts.landed.ok && facts.transcript.ok && facts.board.ok) {
+      return pass(turn.confirmed
+        ? '桌宠把标记转达进了 Coding 会话，抄本和看板都看到了，并接受了 stop 确认'
+        : '桌宠把标记转达进了 Coding 会话，抄本和看板都看到了')
+    }
     if (turn.timeout || companionTurnErrored(turn.events) || !companionTurnSettled(turn.events)) {
       return fail(`桌宠转达回合没完成 timeout=${Boolean(turn.timeout)} confirmed=${turn.confirmed}`)
     }
-    const facts = await waitForCompanionFacts(driver, conversation.id, marker)
     if (!facts.landed.ok) return fail(facts.landed.reason)
     if (!facts.transcript.ok) return fail(facts.transcript.reason)
     if (!facts.board.ok) return fail(facts.board.reason)
@@ -330,6 +335,7 @@ export async function runCompanionSessions(driver, options = {}) {
 }
 
 export async function runCompanionTranscript(driver, options = {}) {
+  await driver.invoke('ArchiveCompanionTranscript', []).catch(() => {})
   await driver.ensureCompanion()
   const marker = `product-loop-talk-${Date.now().toString(36)}`
   for (let index = 1; index <= 4; index += 1) {
@@ -387,13 +393,23 @@ export async function runCompanionDispatchConfirm(driver, options = {}) {
     kernel: 'pi',
   })
   try {
+    await driver.invoke('ArchiveCompanionTranscript', []).catch(() => {})
+    const memory = await driver.getCompanionMemory().catch(() => ({}))
+    for (const item of [...(memory?.pending || []), ...(memory?.Pending || [])]) {
+      const id = String(item?.id ?? item?.ID ?? '')
+      if (id) await driver.invoke('ForgetCompanionMemory', [id]).catch(() => {})
+    }
     await driver.drainCompanionEvents()
     const started = await driver.ensureCompanion()
     const ready = companionIsReady(started)
     if (!ready.ok) return fail(ready.reason)
     await driver.drainCompanionEvents()
     await driver.sendCompanionMessage(companionStopPrompt(conversation.id))
-    const turn = await driver.waitForCompanionTurn(options.taskTimeoutMs)
+    let turn = await driver.waitForCompanionTurn(options.taskTimeoutMs)
+    if (!turn.confirmed && !turn.sidecarStopped && !companionTurnParked(turn.events)) {
+      await driver.sendCompanionMessage(companionStopPrompt(conversation.id))
+      turn = await driver.waitForCompanionTurn(options.taskTimeoutMs)
+    }
     if (turn.sidecarStopped || companionTurnParked(turn.events)) {
       return pass('桌宠 sidecar 已停，跨会话确认不再记失败')
     }

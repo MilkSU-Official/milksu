@@ -4,10 +4,12 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/MilkSU-Official/milksu/internal/appdata"
 	"github.com/MilkSU-Official/milksu/internal/codingenv"
+	"github.com/MilkSU-Official/milksu/internal/conversation"
 	"github.com/MilkSU-Official/milksu/internal/engine"
 )
 
@@ -93,8 +95,12 @@ func (a *App) RewindCodingSession(conversationID string) error {
 
 func (a *App) HandoffCodingSession(conversationID, kernel string) (engine.SessionHandoffResult, error) {
 	current := engine.KernelPi
-	if stored, err := a.conversations.Get(conversationID); err == nil {
-		current = engine.NormalizeKernel(stored.Kernel)
+	stored, storedErr := conversation.StoredConversation{}, error(nil)
+	if a != nil && a.conversations != nil {
+		stored, storedErr = a.conversations.Get(conversationID)
+		if storedErr == nil {
+			current = engine.NormalizeKernel(stored.Kernel)
+		}
 	}
 	target := engine.NormalizeKernel(kernel)
 	if target == current {
@@ -102,6 +108,9 @@ func (a *App) HandoffCodingSession(conversationID, kernel string) (engine.Sessio
 	}
 	compacted, err := a.engines.CompactSession(conversationID)
 	if err != nil {
+		if storedErr == nil && compactionAllowsStoredHandoff(err) {
+			return handoffFromStoredConversation(stored), nil
+		}
 		return engine.SessionHandoffResult{}, err
 	}
 	return engine.SessionHandoffResult{
@@ -109,6 +118,50 @@ func (a *App) HandoffCodingSession(conversationID, kernel string) (engine.Sessio
 		Summary:     compacted.Summary,
 		SurfaceText: compacted.SurfaceText,
 	}, nil
+}
+
+func compactionAllowsStoredHandoff(err error) bool {
+	if err == nil {
+		return false
+	}
+	text := strings.ToLower(err.Error())
+	return strings.Contains(text, "session not found") ||
+		strings.Contains(text, "sidecar is not running")
+}
+
+func handoffSummaryFromStored(stored conversation.StoredConversation) string {
+	parts := make([]string, 0, 8)
+	for _, message := range stored.Messages {
+		content := strings.TrimSpace(message.Content)
+		role := strings.TrimSpace(message.Role)
+		if content == "" {
+			continue
+		}
+		if len(content) > 400 {
+			content = content[:400]
+		}
+		if role == "" {
+			parts = append(parts, content)
+		} else {
+			parts = append(parts, role+": "+content)
+		}
+		if len(parts) >= 8 {
+			break
+		}
+	}
+	if len(parts) == 0 {
+		return strings.TrimSpace(stored.Title)
+	}
+	return strings.Join(parts, "\n")
+}
+
+func handoffFromStoredConversation(stored conversation.StoredConversation) engine.SessionHandoffResult {
+	summary := handoffSummaryFromStored(stored)
+	return engine.SessionHandoffResult{
+		SessionID:   newHandoffConversationID(),
+		Summary:     summary,
+		SurfaceText: summary,
+	}
 }
 
 func newHandoffConversationID() string {

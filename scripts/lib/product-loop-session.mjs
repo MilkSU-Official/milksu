@@ -171,8 +171,13 @@ export async function openConversation(driver, title) {
     }
     return false
   }`, [title]), 8_000)
+  if (!clicked) return false
+  const selected = await waitFor(() => pageCall(driver, `function(title) {
+    const current = document.querySelector('.agent-sidebar-item.is-current')
+    return Boolean(current && (current.textContent || '').includes(title))
+  }`, [title]), 4_000)
   await delay(400)
-  return Boolean(clicked)
+  return Boolean(selected)
 }
 
 export async function pageSnapshot(driver) {
@@ -212,27 +217,46 @@ async function pageCall(driver, functionDeclaration, args = []) {
 
 export async function dismissOverlays(driver) {
   if (!driver?.cdp) return false
-  for (let attempt = 0; attempt < 4; attempt += 1) {
-    const open = await pageCall(driver, `function() {
-      const dialog = document.querySelector('[role="dialog"], [data-slot="dialog-content"], [cmdk-root], [data-testid="command-panel"], [role="menu"], [data-slot="dropdown-menu-content"]')
-      if (!dialog) return false
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    const state = await pageCall(driver, `function() {
+      const dialog = document.querySelector(
+        '[data-command-panel], [role="dialog"], [data-slot="dialog-content"], [cmdk-root], [data-testid="command-panel"], [role="menu"], [data-slot="dropdown-menu-content"]',
+      )
+      if (!dialog) return 'none'
       const box = dialog.getBoundingClientRect()
-      return box.width > 0 && box.height > 0
-    }`).catch(() => false)
-    if (!open) return attempt > 0
-    await driver.cdp.send('Input.dispatchKeyEvent', {
-      type: 'keyDown',
-      key: 'Escape',
-      windowsVirtualKeyCode: 27,
-    }).catch(() => {})
-    await driver.cdp.send('Input.dispatchKeyEvent', {
-      type: 'keyUp',
-      key: 'Escape',
-      windowsVirtualKeyCode: 27,
-    }).catch(() => {})
+      if (box.width < 1 || box.height < 1) return 'none'
+      const cancel = Array.from(document.querySelectorAll('button')).find(node => {
+        const text = (node.textContent || '').trim()
+        const label = node.getAttribute('aria-label') || ''
+        return /^(取消|Cancel|关闭|Close)$/.test(text) || /关闭|Close/.test(label)
+      })
+      if (cancel) {
+        cancel.click()
+        return 'clicked'
+      }
+      const overlay = document.querySelector('[data-slot="dialog-overlay"]')
+      if (overlay) {
+        overlay.click()
+        return 'clicked'
+      }
+      return 'open'
+    }`).catch(() => 'open')
+    if (state === 'none') return attempt > 0
+    if (state !== 'clicked') {
+      await driver.cdp.send('Input.dispatchKeyEvent', {
+        type: 'keyDown',
+        key: 'Escape',
+        windowsVirtualKeyCode: 27,
+      }).catch(() => {})
+      await driver.cdp.send('Input.dispatchKeyEvent', {
+        type: 'keyUp',
+        key: 'Escape',
+        windowsVirtualKeyCode: 27,
+      }).catch(() => {})
+    }
     await delay(160)
   }
-  return true
+  return false
 }
 
 export function pass(detail) {
