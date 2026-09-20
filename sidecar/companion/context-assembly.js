@@ -85,9 +85,24 @@ function isEmptyAssistantMessage(message) {
 
 export function stripCompanionCustomMessages(messages) {
   if (!Array.isArray(messages)) return [];
-  return messages.filter(message => (
-    !isCompanionCustomMessage(message) && !isEmptyAssistantMessage(message)
-  ));
+  const kept = [];
+  for (const message of messages) {
+    if (isCompanionCustomMessage(message)) continue;
+    if (isEmptyAssistantMessage(message)) {
+      dropImagesFromPreviousUser(kept);
+      continue;
+    }
+    kept.push(message);
+  }
+  return kept;
+}
+
+function dropImagesFromPreviousUser(messages) {
+  const previous = messages[messages.length - 1];
+  if (previous?.role !== "user" || !Array.isArray(previous.content)) return;
+  const content = previous.content.filter(block => block?.type !== "image");
+  if (content.length === previous.content.length) return;
+  messages[messages.length - 1] = { ...previous, content };
 }
 
 function createCustomMessage(customType, text, details) {

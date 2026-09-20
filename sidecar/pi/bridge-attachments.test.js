@@ -29,6 +29,18 @@ test("prepares verified read-only attachment context without embedding file data
   assert.doesNotMatch(result.context, /# MilkSU/);
 });
 
+test("sniffs gif bytes even when the stored name says jpeg", async () => {
+  const { root, attachment } = await fixture(
+    "sticker.jpg",
+    Buffer.from("GIF89a\x01\x00\x01\x00\x00\x00\x00"),
+    "image/jpeg",
+  );
+  const result = await preparePromptAttachments([attachment], root);
+  assert.equal(result.images.length, 1);
+  assert.equal(result.images[0].mimeType, "image/gif");
+  assert.match(result.context, /image\/gif/);
+});
+
 test("passes supported images through without a MilkSU vision allowlist", async () => {
   const { root, attachment } = await fixture(
     "pixel.png",

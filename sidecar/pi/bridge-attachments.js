@@ -10,6 +10,47 @@ const supportedImageTypes = new Set([
   "image/png",
   "image/webp",
 ]);
+
+function sniffImageMediaType(data, fallback) {
+  if (!Buffer.isBuffer(data) || data.length < 3) {
+    return String(fallback ?? "").toLowerCase();
+  }
+  if (
+    data.length >= 6
+    && data[0] === 0x47
+    && data[1] === 0x49
+    && data[2] === 0x46
+    && data[3] === 0x38
+    && (data[4] === 0x37 || data[4] === 0x39)
+    && data[5] === 0x61
+  ) {
+    return "image/gif";
+  }
+  if (
+    data.length >= 8
+    && data[0] === 0x89
+    && data[1] === 0x50
+    && data[2] === 0x4e
+    && data[3] === 0x47
+    && data[4] === 0x0d
+    && data[5] === 0x0a
+    && data[6] === 0x1a
+    && data[7] === 0x0a
+  ) {
+    return "image/png";
+  }
+  if (data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff) {
+    return "image/jpeg";
+  }
+  if (
+    data.length >= 12
+    && data.subarray(0, 4).toString("ascii") === "RIFF"
+    && data.subarray(8, 12).toString("ascii") === "WEBP"
+  ) {
+    return "image/webp";
+  }
+  return String(fallback ?? "").toLowerCase();
+}
 const maxCount = 8;
 const maxFileBytes = 32 * 1024 * 1024;
 const maxTotalBytes = 96 * 1024 * 1024;
@@ -101,11 +142,13 @@ export async function preparePromptAttachments(
       path: resolved,
     };
     values.push(value);
-    if (supportedImageTypes.has(mediaType)) {
+    const imageType = sniffImageMediaType(data, mediaType);
+    value.mediaType = imageType;
+    if (supportedImageTypes.has(imageType)) {
       images.push({
         type: "image",
         data: data.toString("base64"),
-        mimeType: mediaType,
+        mimeType: imageType,
       });
     }
   }

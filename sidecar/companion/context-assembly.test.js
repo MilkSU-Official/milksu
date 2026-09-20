@@ -67,7 +67,13 @@ test("reassembly strips previously injected companion custom messages", () => {
 test("empty assistant turns are stripped so later prompts are not poisoned", () => {
   const assembled = assembleCompanionMessages({
     recentMessages: [
-      userMessage("看图"),
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "看图" },
+          { type: "image", mimeType: "image/jpeg", data: "R0lGODlh" },
+        ],
+      },
       { role: "assistant", content: [], stopReason: "stop" },
       userMessage("hi"),
     ],
@@ -77,6 +83,7 @@ test("empty assistant turns are stripped so later prompts are not poisoned", () 
     [],
   );
   const users = assembled.messages.filter(message => message.role === "user");
+  assert.deepEqual(users[0].content, [{ type: "text", text: "看图" }]);
   assert.equal(users.at(-1).content[0].text, "hi");
 });
 
