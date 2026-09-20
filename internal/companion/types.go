@@ -58,11 +58,22 @@ type DispatchResult struct {
 	IdempotentReplay  bool   `json:"idempotentReplay,omitempty"`
 }
 
+type PendingConfirm struct {
+	Action         string `json:"action,omitempty"`
+	ConversationID string `json:"conversationId,omitempty"`
+	Text           string `json:"text,omitempty"`
+	IdempotencyKey string `json:"idempotencyKey,omitempty"`
+	Mode           string `json:"mode,omitempty"`
+	HostRequestID  string `json:"hostRequestId,omitempty"`
+	TargetTitle    string `json:"targetTitle,omitempty"`
+}
+
 type Status struct {
-	Ready    bool   `json:"ready"`
-	Provider string `json:"provider"`
-	Model    string `json:"model"`
-	Error    string `json:"error,omitempty"`
+	Ready          bool            `json:"ready"`
+	Provider       string          `json:"provider"`
+	Model          string          `json:"model"`
+	Error          string          `json:"error,omitempty"`
+	PendingConfirm *PendingConfirm `json:"pendingConfirm,omitempty"`
 }
 
 type MemoryProposal struct {

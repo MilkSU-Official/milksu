@@ -412,11 +412,22 @@ export interface CompanionProactivity {
   idle_chat?: boolean
 }
 
+export interface CompanionPendingConfirm {
+  action?: string
+  conversationId?: string
+  text?: string
+  idempotencyKey?: string
+  mode?: string
+  hostRequestId?: string
+  targetTitle?: string
+}
+
 export interface CompanionStatus {
   ready: boolean
   provider: string
   model: string
   error?: string
+  pendingConfirm?: CompanionPendingConfirm
 }
 
 export interface CompanionTranscriptCursor {

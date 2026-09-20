@@ -642,10 +642,15 @@ function createCompanionShell(options) {
   }
 
   function emit(event, value) {
+    const seen = new Set()
     for (const entry of windows.values()) {
-      if (!entry.window.isDestroyed()) {
-        entry.window.webContents.send(`milksu:event:${event}`, value)
-      }
+      if (!entry.window || entry.window.isDestroyed()) continue
+      entry.window.webContents.send(`milksu:event:${event}`, value)
+      seen.add(entry.window)
+    }
+    const main = typeof getMainWindow === 'function' ? getMainWindow() : null
+    if (main && !main.isDestroyed() && !seen.has(main)) {
+      main.webContents.send(`milksu:event:${event}`, value)
     }
   }
 

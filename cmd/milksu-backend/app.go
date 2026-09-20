@@ -960,10 +960,24 @@ func (a *App) ListConversations() ([]conversation.StoredConversation, error) {
 
 func (a *App) SaveConversation(value conversation.StoredConversation) error {
 	value.Kernel = conversation.NormalizeKernel(value.Kernel)
-	if existing, err := a.conversations.Get(value.ID); err == nil && conversation.HasStarted(existing) {
+	existing, existedErr := a.conversations.Get(value.ID)
+	if existedErr == nil && conversation.HasStarted(existing) {
 		value.Kernel = conversation.NormalizeKernel(existing.Kernel)
 	}
-	return a.conversations.Save(value)
+	if err := a.conversations.Save(value); err != nil {
+		return err
+	}
+	if existedErr != nil {
+		a.notifyConversationsChanged()
+	}
+	return nil
+}
+
+func (a *App) notifyConversationsChanged() {
+	if a == nil || a.ctx == nil {
+		return
+	}
+	a.emitDesktopEvent("conversations-changed", struct{}{})
 }
 
 func (a *App) ListArchivedConversations() ([]conversation.StoredConversation, error) {
@@ -1013,11 +1027,13 @@ func (a *App) DeleteConversation(id string) error {
 }
 
 func (a *App) refreshConversationIndex() error {
-	if a.sessionIndex == nil {
-		return nil
+	if a.sessionIndex != nil {
+		if _, err := a.refreshSessionIndex(); err != nil {
+			return err
+		}
 	}
-	_, err := a.refreshSessionIndex()
-	return err
+	a.notifyConversationsChanged()
+	return nil
 }
 
 func (a *App) stopConversationResources(id string) error {

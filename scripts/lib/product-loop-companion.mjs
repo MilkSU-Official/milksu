@@ -67,6 +67,10 @@ export function companionTurnErrored(events) {
   return asList(events).some((event) => /^(error|engine\.error|engine\.protocol_error)$/i.test(eventTypeOf(event)))
 }
 
+export function companionTurnParked(events) {
+  return asList(events).some((event) => eventTypeOf(event) === 'engine.sidecar_stopped')
+}
+
 export function parseCompanionConfirm(event) {
   if (eventTypeOf(event) !== 'companion.confirm') return null
   const raw = pick(event, 'input', 'Input')

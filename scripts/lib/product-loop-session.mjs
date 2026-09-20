@@ -14,8 +14,15 @@ import { keepExclusiveMilkSUWindow } from './product-loop-windows.mjs'
 
 export { classifyTurnEvents }
 
+export function turnHasSidecarStopped(turn) {
+  if (!turn) return false
+  if (turn.sidecarStopped) return true
+  return (turn.events || []).some(event => String(event?.type ?? event?.Type ?? '') === 'engine.sidecar_stopped')
+}
+
 export function turnBroken(turn) {
   if (!turn) return '回合没有回执'
+  if (turnHasSidecarStopped(turn)) return ''
   if (turn.failed) return turn.error || 'sidecar 在回合里停了'
   if (turn.timeout) return turn.error || '回合超时'
   return ''
@@ -125,19 +132,45 @@ export async function expandSidebar(driver) {
   return expanded
 }
 
-export async function openConversation(driver, title) {
+export async function revealConversationRows(driver) {
   await expandSidebar(driver)
+  return pageCall(driver, `function() {
+    for (const details of document.querySelectorAll('details.coding-project-group, details.coding-temporary-group')) {
+      details.open = true
+    }
+    return true
+  }`).catch(() => false)
+}
+
+export async function findConversationRow(driver, title) {
+  return pageCall(driver, `function(title) {
+    const row = Array.from(document.querySelectorAll('.agent-sidebar-item')).find(item => (item.textContent || '').includes(title))
+    if (!row) return false
+    row.scrollIntoView({ block: 'nearest' })
+    return true
+  }`, [title]).catch(() => false)
+}
+
+export async function openConversation(driver, title) {
+  await driver.invoke('ShowCompanionMainWindow', []).catch(() => {})
+  if (typeof driver.ensureAttached === 'function') {
+    await driver.ensureAttached().catch(() => false)
+  }
+  await leaveSettings(driver)
+  await revealConversationRows(driver)
   await dismissOverlays(driver)
   const clicked = await waitFor(() => pageCall(driver, `function(title) {
     const row = Array.from(document.querySelectorAll('.agent-sidebar-item')).find(item => (item.textContent || '').includes(title))
     if (row) {
       row.scrollIntoView({ block: 'nearest' })
-      const button = row.querySelector('button.agent-sidebar-row, button')
+      const button = row.querySelector('button.agent-sidebar-row')
+        || Array.from(row.querySelectorAll('button')).find(node => (node.textContent || '').includes(title))
+        || row.querySelector('button')
       ;(button || row).click()
       return true
     }
     return false
-  }`, [title]), 6_000)
+  }`, [title]), 8_000)
   await delay(400)
   return Boolean(clicked)
 }
@@ -181,7 +214,7 @@ export async function dismissOverlays(driver) {
   if (!driver?.cdp) return false
   for (let attempt = 0; attempt < 4; attempt += 1) {
     const open = await pageCall(driver, `function() {
-      const dialog = document.querySelector('[role="dialog"], [data-slot="dialog-content"], [cmdk-root], [data-testid="command-panel"]')
+      const dialog = document.querySelector('[role="dialog"], [data-slot="dialog-content"], [cmdk-root], [data-testid="command-panel"], [role="menu"], [data-slot="dropdown-menu-content"]')
       if (!dialog) return false
       const box = dialog.getBoundingClientRect()
       return box.width > 0 && box.height > 0

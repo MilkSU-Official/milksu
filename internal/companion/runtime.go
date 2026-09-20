@@ -145,16 +145,59 @@ func (r *Runtime) Invalidate() {
 	r.finishParked(pending, "companion sidecar stopped")
 }
 
+func mapString(input map[string]any, key string) string {
+	if input == nil {
+		return ""
+	}
+	value, ok := input[key]
+	if !ok || value == nil {
+		return ""
+	}
+	if text, ok := value.(string); ok {
+		return strings.TrimSpace(text)
+	}
+	return strings.TrimSpace(fmt.Sprint(value))
+}
+
+func pendingConfirmFromParked(pending parkedConfirm) *PendingConfirm {
+	if pending.requestID == "" && len(pending.input) == 0 {
+		return nil
+	}
+	input := pending.input
+	hostID := mapString(input, "hostRequestId")
+	if hostID == "" {
+		hostID = strings.TrimSpace(pending.requestID)
+	}
+	action := mapString(input, "action")
+	if action == "" {
+		action = "stop"
+	}
+	return &PendingConfirm{
+		Action:         action,
+		ConversationID: mapString(input, "conversationId"),
+		Text:           mapString(input, "text"),
+		IdempotencyKey: mapString(input, "idempotencyKey"),
+		Mode:           mapString(input, "mode"),
+		HostRequestID:  hostID,
+		TargetTitle:    pending.title,
+	}
+}
+
 func (r *Runtime) Status() Status {
 	selection := r.selection()
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return Status{
+	status := Status{
 		Ready:    r.ready,
 		Provider: selection.Provider,
 		Model:    selection.Model,
 		Error:    r.lastErr,
 	}
+	for _, pending := range r.pendingConfirms {
+		status.PendingConfirm = pendingConfirmFromParked(pending)
+		break
+	}
+	return status
 }
 
 func (r *Runtime) BoardSnapshot() BoardSnapshot {

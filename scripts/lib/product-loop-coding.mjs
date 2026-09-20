@@ -15,6 +15,8 @@ import {
   expectLabels,
   expandSidebar,
   fail,
+  findConversationRow,
+  revealConversationRows,
   fillComposer,
   hoverLabeled,
   isNewConversationCanvas,
@@ -431,6 +433,14 @@ export async function runCodingPiAskContinue(driver, options = {}) {
       }
       await driver.invoke('RespondToolApproval', [conversation.id, ask.requestId, true, 'once', 'other:CONTINUE-OK'])
       conversation.continued = await driver.waitForTurn(conversation.id, options.taskTimeoutMs || 180_000)
+      if (turnBroken(conversation.continued)) {
+        const listed = await driver.listConversations()
+        const saved = listed.find(row => conversationIdOf(row) === conversation.id)
+        const workspace = String(saved?.workspacePath ?? saved?.WorkspacePath ?? '')
+        const model = await turnModelOptions(driver)
+        await driver.sendMessage(conversation.id, 'CONTINUE-OK', workspace, model).catch(() => {})
+        conversation.continued = await driver.waitForTurn(conversation.id, options.taskTimeoutMs || 180_000)
+      }
     },
     async check({ conversation }) {
       if (conversation.askError) return fail(conversation.askError)
@@ -947,18 +957,35 @@ export async function runComposerPlus(driver) {
   await dismissOverlays(driver)
   await clickLabeled(driver, ['新会话', 'New chat']).catch(() => false)
   await delay(250)
-  const openedPlus = await waitFor(
-    () => clickAria(driver, ['添加内容与工具', 'Add content and tools'], '.chat-composer'),
-    4_000,
-  )
+  await dismissOverlays(driver)
+  const openedPlus = await waitFor(() => pageCallComposerPlus(driver), 4_000)
   if (!openedPlus) return fail('点不到作曲栏加号')
-  await delay(350)
-  return expectLabels(
-    driver,
-    ['本机文件或图片', 'Local files or images', '并行', 'Multitask', '目标', 'Goal'],
-    '作曲栏加号菜单打开了',
-    '作曲栏加号菜单没打开',
-  )
+  const menu = await waitFor(async () => {
+    const snap = await pageSnapshot(driver)
+    return snapshotHas(snap, ['本机文件或图片', 'Local files or images', '并行', 'Multitask', '目标', 'Goal'])
+      ? true
+      : null
+  }, 2_500)
+  return menu
+    ? pass('作曲栏加号菜单打开了')
+    : fail('作曲栏加号菜单没打开')
+}
+
+async function pageCallComposerPlus(driver) {
+  return driver.cdp.callFunction(`function() {
+    const roots = Array.from(document.querySelectorAll('.chat-composer'))
+    const visible = roots.find(root => {
+      const box = root.getBoundingClientRect()
+      return box.width > 1 && box.height > 1
+    }) || roots[0]
+    if (!visible) return false
+    const button = visible.querySelector('[aria-label="添加内容与工具"], [aria-label="Add content and tools"]')
+    if (!button || button.disabled) return false
+    button.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))
+    button.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    button.click()
+    return true
+  }`)
 }
 
 export async function runRailOpen(driver) {
@@ -996,19 +1023,23 @@ export async function runSessionContextMenu(driver) {
   await dismissOverlays(driver)
   const conversation = await driver.createConversation({ title: `loop-menu-${Date.now().toString(36)}`, kernel: 'pi' })
   await delay(400)
-  const openedMenu = await waitFor(() => driver.cdp.callFunction(`function(title) {
-    const row = Array.from(document.querySelectorAll('.agent-sidebar-item')).find(item => (item.textContent || '').includes(title))
-    if (!row) return false
-    const box = row.getBoundingClientRect()
-    row.dispatchEvent(new MouseEvent('contextmenu', {
-      bubbles: true,
-      cancelable: true,
-      button: 2,
-      clientX: box.left + 24,
-      clientY: box.top + 12,
-    }))
-    return true
-  }`, [conversation.title]), 4_000)
+  const openedMenu = await waitFor(async () => {
+    await revealConversationRows(driver)
+    if (!await findConversationRow(driver, conversation.title)) return false
+    return driver.cdp.callFunction(`function(title) {
+      const row = Array.from(document.querySelectorAll('.agent-sidebar-item')).find(item => (item.textContent || '').includes(title))
+      if (!row) return false
+      const box = row.getBoundingClientRect()
+      row.dispatchEvent(new MouseEvent('contextmenu', {
+        bubbles: true,
+        cancelable: true,
+        button: 2,
+        clientX: box.left + 24,
+        clientY: box.top + 12,
+      }))
+      return true
+    }`, [conversation.title])
+  }, 8_000)
   if (!openedMenu) return fail('侧栏里找不到刚开的会话行')
   await delay(250)
   return expectLabels(

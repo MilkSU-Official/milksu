@@ -11,7 +11,7 @@ const {
 } = require('./companion-shell.cjs')
 
 function fakeWindow() {
-  return {
+  const window = {
     destroyed: false,
     visible: true,
     minimized: false,
@@ -21,6 +21,7 @@ function fakeWindow() {
     minimizeCalls: 0,
     restoreCalls: 0,
     focusCalls: 0,
+    sentEvents: [],
     isDestroyed() { return this.destroyed },
     isMinimized() { return this.minimized },
     isVisible() { return this.visible !== false },
@@ -59,8 +60,12 @@ function fakeWindow() {
     loadURL() {},
     close() { this.destroyed = true },
     on(event, handler) { this.events[event] = handler },
-    webContents: { send() {}, mainFrame: {} },
+    webContents: {
+      send(channel, value) { window.sentEvents.push({ channel, value }) },
+      mainFrame: {},
+    },
   }
+  return window
 }
 
 function createShell(overrides = {}) {
@@ -374,6 +379,13 @@ test('PopupCompanionMenu stays inside the work area at the default corner', () =
   const screenY = bounds.y + popup.y
   assert.ok(screenX + 176 <= 1440 - 8)
   assert.ok(screenY + 184 <= 900 - 8)
+})
+
+test('overlay events still reach an unregistered main window', () => {
+  const main = fakeWindow()
+  const { shell } = createShell({ main })
+  shell.emit('companion-event', { type: 'companion.confirm' })
+  assert.ok(main.sentEvents.some(item => item.channel === 'milksu:event:companion-event'))
 })
 
 test('ParkCompanionMainWindow is the same path as closing the main window', () => {

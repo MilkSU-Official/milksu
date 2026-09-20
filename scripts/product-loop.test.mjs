@@ -36,7 +36,7 @@ import {
 } from './lib/product-loop-catalog.mjs'
 import { PRODUCT_LOOP_RUNNERS } from './lib/product-loop-runners.mjs'
 import { buildProductLoopReport, formatFormalProductLoopReport, formatProductLoopReport } from './lib/product-loop-report.mjs'
-import { isNewConversationCanvas } from './lib/product-loop-session.mjs'
+import { isNewConversationCanvas, turnBroken } from './lib/product-loop-session.mjs'
 import {
   applyProductLoopLocalEnv,
   describeProductLoopLocalEnv,
@@ -75,6 +75,7 @@ import {
   companionSpeakPrompt,
   companionStopPrompt,
   companionTurnErrored,
+  companionTurnParked,
   companionTurnSettled,
   conversationHasRelay,
   conversationMovedToArchive,
@@ -206,6 +207,8 @@ test('companion product facts come from a real turn, not RPC shape checks', () =
   assert.equal(companionIsReady({ ready: false, error: 'sidecar down' }).ok, false)
   assert.equal(companionTurnSettled([{ type: 'assistant.settled' }]), true)
   assert.equal(companionTurnErrored([{ type: 'engine.error' }]), true)
+  assert.equal(companionTurnParked([{ type: 'engine.sidecar_stopped' }]), true)
+  assert.equal(companionTurnParked([{ type: 'assistant.settled' }]), false)
   const confirm = parseCompanionConfirm({
     type: 'companion.confirm',
     requestId: 'companion-host-1',
@@ -367,6 +370,18 @@ test('waitForTurn treats the active sidecar stopping as a failed turn, not a set
   assert.equal(classifyTurnEvents([{ type: 'assistant.settled' }]).settled, true)
   assert.equal(classifyTurnEvents([{ type: 'engine.error' }]).failed, true)
   assert.equal(classifyTurnEvents([{ type: 'engine.sidecar_stopped', error: 'parked sidecar reaped' }]).failed, false)
+  assert.equal(classifyTurnEvents([{ type: 'engine.sidecar_stopped', error: 'parked sidecar reaped' }]).sidecarStopped, true)
+})
+
+test('waitForTurn treats sidecar_stopped as a parked stop, not a timeout', async () => {
+  const driver = new GuiDriver()
+  driver.drainEvents = async () => [{ type: 'engine.sidecar_stopped', error: 'parked sidecar reaped' }]
+  driver.ensureAttached = async () => true
+  const turn = await driver.waitForTurn('conversation-1', 2_000)
+  assert.equal(turn.timeout, false)
+  assert.equal(turn.failed, false)
+  assert.equal(turn.sidecarStopped, true)
+  assert.equal(turnBroken(turn), '')
 })
 
 test('isProductLoopFixtureConversation only matches regression leftovers', () => {

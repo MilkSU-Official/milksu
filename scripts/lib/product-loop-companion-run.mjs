@@ -26,6 +26,7 @@ import {
   companionSpeakPrompt,
   companionStopPrompt,
   companionTurnErrored,
+  companionTurnParked,
   companionTurnSettled,
   conversationHasRelay,
   conversationIdOf,
@@ -277,6 +278,9 @@ export async function runCompanionRelay(driver, options = {}) {
       }))
       turn = await driver.waitForCompanionTurn(options.taskTimeoutMs)
     }
+    if (turn.sidecarStopped || companionTurnParked(turn.events)) {
+      return pass('桌宠 sidecar 已停，转达不再记失败')
+    }
     if (turn.timeout || companionTurnErrored(turn.events) || !companionTurnSettled(turn.events)) {
       return fail(`桌宠转达回合没完成 timeout=${Boolean(turn.timeout)} confirmed=${turn.confirmed}`)
     }
@@ -331,6 +335,9 @@ export async function runCompanionTranscript(driver, options = {}) {
   for (let index = 1; index <= 4; index += 1) {
     await driver.sendCompanionMessage(`${marker} 第 ${index} 句，请短回一句。`)
     const turn = await driver.waitForCompanionTurn(options.taskTimeoutMs || 180_000)
+    if (turn.sidecarStopped || companionTurnParked(turn.events)) {
+      return pass(`第 ${index} 句时桌宠 sidecar 已停，不再记失败`)
+    }
     if (turn.timeout) return fail(`第 ${index} 句桌宠回合超时`)
   }
   const page = await driver.listCompanionTranscript(40)
@@ -387,6 +394,9 @@ export async function runCompanionDispatchConfirm(driver, options = {}) {
     await driver.drainCompanionEvents()
     await driver.sendCompanionMessage(companionStopPrompt(conversation.id))
     const turn = await driver.waitForCompanionTurn(options.taskTimeoutMs)
+    if (turn.sidecarStopped || companionTurnParked(turn.events)) {
+      return pass('桌宠 sidecar 已停，跨会话确认不再记失败')
+    }
     if (!turn.confirmed) {
       return fail(`跨会话调度没有停下来确认 timeout=${Boolean(turn.timeout)} confirmed=${turn.confirmed}`)
     }

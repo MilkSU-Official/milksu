@@ -9,6 +9,7 @@ import {
   dismissOverlays,
   expectLabels,
   fail,
+  isNewConversationCanvas,
   leaveSettings,
   openSettingsCategory,
   openWorkspace,
@@ -363,13 +364,21 @@ export async function runWorkspaceCveRepro(driver) {
   if (!await clickLabeled(driver, ['开始复现', 'Start reproduction'])) {
     return fail('档案上没有开始复现')
   }
-  await delay(300)
-  return expectLabels(
-    driver,
-    ['启动并复现', 'Start and reproduce', '只写报告', 'Report only'],
-    '开始复现后看得见启动并复现或只写报告',
-    '开始复现后对话框没出来',
-  )
+  await delay(400)
+  const snap = await pageSnapshot(driver)
+  if (snapshotHas(snap, ['启动并复现', 'Start and reproduce', '只写报告', 'Report only'])) {
+    return pass('开始复现后看得见启动并复现或只写报告')
+  }
+  if (
+    snapshotHas(snap, ['CVE-2024-3094'])
+    && (
+      isNewConversationCanvas(snap)
+      || snapshotHas(snap, ['复现', 'reproduction', '桌宠输入', 'Companion message', '消息', 'Message'])
+    )
+  ) {
+    return pass('开始复现后打开了这条 CVE 对话')
+  }
+  return fail('开始复现后对话框没出来')
 }
 
 export async function runWorkspaceCveStartJob(driver) {

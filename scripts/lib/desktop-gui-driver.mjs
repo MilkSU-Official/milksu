@@ -38,13 +38,14 @@ export function classifyTurnEvents(events) {
     .map(event => String(event?.error ?? event?.Error ?? event?.text ?? event?.Text ?? ''))
     .find(text => text.trim())
     || ''
+  const sidecarStopped = types.some(type => type === 'engine.sidecar_stopped')
   const failed = types.some(type =>
     type === 'engine.error'
     || type === 'engine.protocol_error'
     || type === 'engine.stopped',
   )
   const settled = types.some(type => type === 'assistant.settled' || type === 'assistant.completed')
-  return { settled, failed, error }
+  return { settled, failed, error, sidecarStopped }
 }
 
 export function killProcessGroup(child, signal = 'SIGTERM') {
@@ -527,17 +528,93 @@ export class GuiDriver {
     return Array.isArray(raw) ? raw : []
   }
 
+  async clickCompanionConfirm() {
+    await this.invoke('ShowCompanionChatWindow', []).catch(() => {})
+    const targets = await listDesktopCdpTargets({ port: this.preferredPort })
+    for (const target of targets.filter(isCompanionSurface)) {
+      const session = new CdpSession(target.webSocketDebuggerUrl)
+      await session.open()
+      try {
+        const clicked = await session.evaluate(`(() => {
+          const buttons = Array.from(document.querySelectorAll('button'))
+          const confirm = buttons.find(node => /^(确认|Confirm)$/.test((node.textContent || '').trim()))
+          if (!confirm) return false
+          confirm.click()
+          return true
+        })()`)
+        if (clicked) return true
+      } finally {
+        session.close()
+      }
+    }
+    return false
+  }
+
+  async injectCompanionEventHook(session) {
+    await session.evaluate(`(() => {
+      const loop = window.__milksuProductLoop || (window.__milksuProductLoop = { events: [], companionEvents: [] });
+      loop.companionEvents = loop.companionEvents || [];
+      if (!loop.companionBound && window.milksu && window.milksu.onEvent) {
+        window.milksu.onEvent('companion-event', value => {
+          loop.companionEvents.push(value);
+        });
+        loop.companionBound = true;
+      }
+      return true;
+    })()`)
+  }
+
+  async drainCompanionEventsFromSurfaces() {
+    const events = [...await this.drainCompanionEvents()]
+    if (!this.preferredPort) return events
+    const targets = await listDesktopCdpTargets({ port: this.preferredPort }).catch(() => [])
+    for (const target of targets.filter(isCompanionSurface)) {
+      if (this.target && target.webSocketDebuggerUrl === this.target.webSocketDebuggerUrl) continue
+      const session = new CdpSession(target.webSocketDebuggerUrl)
+      await session.open()
+      try {
+        await this.injectCompanionEventHook(session)
+        const batch = await session.evaluate(
+          'window.__milksuProductLoop ? window.__milksuProductLoop.companionEvents.splice(0) : []',
+        )
+        if (Array.isArray(batch)) events.push(...batch)
+      } catch {
+        // Overlay may still be loading.
+      } finally {
+        session.close()
+      }
+    }
+    return events
+  }
+
+  companionStatusPending(status) {
+    const pending = status?.pendingConfirm || status?.PendingConfirm
+    if (!pending || typeof pending !== 'object') return null
+    const hostRequestId = String(pending.hostRequestId ?? pending.HostRequestID ?? pending.HostRequestId ?? '').trim()
+    if (!hostRequestId) return null
+    return {
+      action: String(pending.action ?? pending.Action ?? 'stop'),
+      conversationId: String(pending.conversationId ?? pending.ConversationID ?? pending.ConversationId ?? ''),
+      text: String(pending.text ?? pending.Text ?? ''),
+      idempotencyKey: String(pending.idempotencyKey ?? pending.IdempotencyKey ?? ''),
+      mode: String(pending.mode ?? pending.Mode ?? ''),
+      hostRequestId,
+    }
+  }
+
   async waitForCompanionTurn(timeoutMs) {
     const collected = []
     const confirmed = []
+    const seenConfirm = new Set()
     const started = Date.now()
+    await this.invoke('ShowCompanionChatWindow', []).catch(() => {})
     while (Date.now() - started < timeoutMs) {
       try {
-        const batch = await this.drainCompanionEvents()
+        const batch = await this.drainCompanionEventsFromSurfaces()
         collected.push(...batch)
         for (const event of batch) {
           const request = parseCompanionConfirm(event)
-          if (!request?.hostRequestId) continue
+          if (!request?.hostRequestId || seenConfirm.has(request.hostRequestId)) continue
           await this.confirmCompanionDispatch({
             action: request.action,
             conversationId: request.conversationId,
@@ -547,7 +624,14 @@ export class GuiDriver {
             hostRequestId: request.hostRequestId,
             accepted: true,
           })
+          seenConfirm.add(request.hostRequestId)
           confirmed.push(request)
+        }
+        const pending = this.companionStatusPending(await this.getCompanionStatus().catch(() => null))
+        if (pending && !seenConfirm.has(pending.hostRequestId)) {
+          await this.confirmCompanionDispatch({ ...pending, accepted: true })
+          seenConfirm.add(pending.hostRequestId)
+          confirmed.push(pending)
         }
       } catch (error) {
         const text = error instanceof Error ? error.message : String(error)
@@ -557,13 +641,21 @@ export class GuiDriver {
         await delay(400)
         continue
       }
-      if (collected.some(event => {
-        const type = String(event?.type ?? event?.Type ?? '')
-        return type === 'assistant.settled'
-          || type === 'assistant.completed'
-          || /^(error|engine\.error|engine\.protocol_error)$/i.test(type)
-      })) {
-        return { events: collected, timeout: false, confirmed: confirmed.length }
+      const outcome = classifyTurnEvents(collected)
+      if (outcome.sidecarStopped) {
+        return { events: collected, timeout: false, confirmed: confirmed.length, sidecarStopped: true }
+      }
+      if (outcome.settled || outcome.failed) {
+        return {
+          events: collected,
+          timeout: false,
+          confirmed: confirmed.length,
+          failed: outcome.failed,
+          error: outcome.error,
+        }
+      }
+      if (confirmed.length === 0) {
+        await this.clickCompanionConfirm().catch(() => false)
       }
       await delay(250)
     }
@@ -590,7 +682,7 @@ export class GuiDriver {
     const events = Array.isArray(raw) ? raw : []
     if (!conversationId) return events
     return events.filter(event => {
-      const id = String(event?.sessionId ?? event?.id ?? '')
+      const id = String(event?.sessionId ?? event?.SessionID ?? '')
       return !id || id === conversationId
     })
   }
@@ -611,6 +703,9 @@ export class GuiDriver {
         continue
       }
       const outcome = classifyTurnEvents(collected)
+      if (outcome.sidecarStopped) {
+        return { events: collected, timeout: false, failed: false, sidecarStopped: true }
+      }
       if (outcome.failed) {
         return { events: collected, timeout: false, failed: true, error: outcome.error }
       }
