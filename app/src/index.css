@@ -1182,6 +1182,44 @@ html.companion-chat-surface #app {
   color: var(--companion-bubble-outgoing-fg);
 }
 
+.companion-chat-bubble-files {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px;
+}
+
+.companion-chat-bubble-text {
+  padding: 1px 5px 3px;
+}
+
+.companion-chat-bubble-attach {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.companion-chat-bubble-file {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  border-radius: 10px;
+  background: color-mix(in srgb, #000 18%, transparent);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  padding: 5px 8px;
+}
+
+.companion-chat-bubble-file img {
+  display: block;
+  width: 120px;
+  height: 120px;
+  margin: -5px -8px;
+  object-fit: cover;
+}
+
 .companion-chat-bubble-assistant {
   background: var(--companion-bubble-incoming);
   color: var(--companion-bubble-incoming-fg);

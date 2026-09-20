@@ -127,13 +127,21 @@ export default function CompanionPage({
   }, [companion.draft])
 
   useEffect(() => {
-    const images = companion.attachments.filter(isImageAttachment)
-    if (!images.length) {
+    const images = new Map<string, CodingAttachment>()
+    for (const attachment of companion.attachments) {
+      if (isImageAttachment(attachment)) images.set(attachmentKey(attachment), attachment)
+    }
+    for (const entry of companion.entries) {
+      for (const attachment of entry.attachments ?? []) {
+        if (isImageAttachment(attachment)) images.set(attachmentKey(attachment), attachment)
+      }
+    }
+    if (!images.size) {
       setThumbs({})
       return
     }
     let cancelled = false
-    void Promise.all(images.map(async attachment => {
+    void Promise.all([...images.values()].map(async attachment => {
       try {
         const preview = await invokeCommand<CodingAttachmentPreview>('preview_coding_attachment', {
           attachment,
@@ -156,7 +164,7 @@ export default function CompanionPage({
     return () => {
       cancelled = true
     }
-  }, [companion.attachments])
+  }, [companion.attachments, companion.entries])
 
   function mergeAttachments(selected: CodingAttachment[]) {
     const merged = new Map(companion.attachments.map(value => [attachmentKey(value), value]))
@@ -296,7 +304,8 @@ export default function CompanionPage({
                     model: companion.status.model,
                   })
                 : raw
-              if (!body) return null
+              const sent = entry.attachments ?? []
+              if (!body && !sent.length) return null
               return (
                 <article
                   key={item.key}
@@ -314,12 +323,37 @@ export default function CompanionPage({
                 >
                   {showDivider && stamp ? <p className="companion-chat-time">{stamp}</p> : null}
                   {bubble ? (
-                    <p className={cn(
+                    <div className={cn(
                       'companion-chat-bubble',
                       user ? 'companion-chat-bubble-user' : 'companion-chat-bubble-assistant',
+                      sent.length && 'companion-chat-bubble-files',
                     )}>
-                      {body}
-                    </p>
+                      {sent.length ? (
+                        <div className="companion-chat-bubble-attach" aria-label={t('消息附件', 'Message attachments')}>
+                          {sent.map(attachment => {
+                            const key = attachmentKey(attachment)
+                            const thumb = thumbs[key]
+                            return (
+                              <span
+                                key={key}
+                                className="companion-chat-bubble-file"
+                                title={`${attachment.name}${attachment.size ? ` · ${formatAttachmentSize(attachment.size)}` : ''}`}
+                              >
+                                {isImageAttachment(attachment) && thumb ? (
+                                  <img src={thumb} alt={attachment.name} />
+                                ) : (
+                                  <>
+                                    <FileText className="size-3.5 shrink-0" />
+                                    <span className="min-w-0 truncate">{attachment.name}</span>
+                                  </>
+                                )}
+                              </span>
+                            )
+                          })}
+                        </div>
+                      ) : null}
+                      {body ? <p className="companion-chat-bubble-text">{body}</p> : null}
+                    </div>
                   ) : (
                     <p className="companion-chat-system">{body}</p>
                   )}

@@ -19,12 +19,12 @@ async function fixture(name, content, mediaType = "text/plain") {
   };
 }
 
-test("visible prompt keeps user text and names attachments when the field is empty", () => {
+test("visible prompt keeps user text and asks the model to look when the field is empty", () => {
   assert.equal(companionVisiblePrompt("看这张图", [{ name: "a.png" }]), "看这张图");
-  assert.equal(companionVisiblePrompt("  ", [{ name: "a.png" }, { name: "notes.md" }]), "附件：a.png、notes.md");
+  assert.equal(companionVisiblePrompt("  ", [{ name: "a.png" }, { name: "notes.md" }]), "请看这些附件。");
   assert.equal(
     companionVisiblePrompt("", [{ name: "a.png" }], "en"),
-    "Attachments: a.png",
+    "Please look at these attachments.",
   );
 });
 
@@ -38,11 +38,33 @@ test("uses the Coding attachment catalog so companion can read the files", async
       locale: "zh",
       attachments: [attachment],
     });
-    assert.match(prepared.prompt, /^附件：notes\.md/);
+    assert.match(prepared.prompt, /^请看这些附件。/);
     assert.match(prepared.prompt, /\[MilkSU attachments\]/);
     assert.match(prepared.prompt, /用 read /);
     assert.doesNotMatch(prepared.prompt, /# MilkSU evidence/);
     assert.equal(prepared.images.length, 0);
+  } finally {
+    if (previous === undefined) delete process.env.MILKSU_CODING_ATTACHMENT_ROOT;
+    else process.env.MILKSU_CODING_ATTACHMENT_ROOT = previous;
+  }
+});
+
+test("empty image-only send still asks the model and passes the image", async () => {
+  const { root, attachment } = await fixture(
+    "pixel.png",
+    Buffer.from([0x89, 0x50, 0x4e, 0x47]),
+    "image/png",
+  );
+  const previous = process.env.MILKSU_CODING_ATTACHMENT_ROOT;
+  process.env.MILKSU_CODING_ATTACHMENT_ROOT = root;
+  try {
+    const prepared = await prepareCompanionPrompt({
+      prompt: "",
+      locale: "zh",
+      attachments: [attachment],
+    });
+    assert.match(prepared.prompt, /^请看这些附件。/);
+    assert.equal(prepared.images.length, 1);
   } finally {
     if (previous === undefined) delete process.env.MILKSU_CODING_ATTACHMENT_ROOT;
     else process.env.MILKSU_CODING_ATTACHMENT_ROOT = previous;

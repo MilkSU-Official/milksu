@@ -444,6 +444,7 @@ export interface CompanionTranscriptEntry {
   role?: string
   text?: string
   error?: string
+  attachments?: CodingAttachment[]
 }
 
 export interface CompanionTranscriptPage {

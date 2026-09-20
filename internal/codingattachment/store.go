@@ -202,7 +202,7 @@ func (s *Store) Preview(attachment Attachment) (Preview, error) {
 	}
 	preview := Preview{
 		Name: attachment.Name, MediaType: attachment.MediaType,
-		Size: attachment.Size, Kind: "metadata",
+		Size: int64(len(data)), Kind: "metadata",
 	}
 	if strings.HasPrefix(attachment.MediaType, "image/") && len(data) <= 12*1024*1024 {
 		preview.Kind = "image"
@@ -230,8 +230,10 @@ func (s *Store) read(attachment Attachment) ([]byte, error) {
 	}
 	path := filepath.Join(s.root, attachment.ID, attachment.Name)
 	info, err := os.Lstat(path)
-	if err != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 ||
-		info.Size() != attachment.Size {
+	if err != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+		return nil, fmt.Errorf("附件 %q 不可用", attachment.Name)
+	}
+	if attachment.Size != 0 && info.Size() != attachment.Size {
 		return nil, fmt.Errorf("附件 %q 不可用", attachment.Name)
 	}
 	data, err := os.ReadFile(path)

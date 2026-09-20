@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { desktopErrorMessage, hasDesktopRuntime, invokeCommand, listenEvent } from '@/desktop'
-import { explainCompanionError } from '@/lib/companionUserError'
+import { companionChatHydrateEntry, explainCompanionError } from '@/lib/companionUserError'
 import { COMPANION_COMPLETE_HOLD_MS } from '@/lib/companionPetMotion'
 import type {
   CodingAttachment,
@@ -17,6 +17,27 @@ import type {
 
 const emptyBoard: CompanionBoardSnapshot = { sessions: [], todos: [] }
 const emptyMemory: CompanionMemorySnapshot = { pending: [], approved: [] }
+
+function attachmentKeys(attachments: CodingAttachment[] | undefined) {
+  return (attachments ?? [])
+    .map(item => `${item.sha256 || item.id}:${item.name}`)
+    .filter(Boolean)
+    .sort()
+    .join('|')
+}
+
+function transcriptHasOutgoing(
+  entries: CompanionTranscriptEntry[],
+  pending: { id: string; prompt: string; attachments: CodingAttachment[] },
+) {
+  return entries.some(entry => {
+    if (entry.id === pending.id || entry.role !== 'user') return entry.id === pending.id
+    if (pending.attachments.length && attachmentKeys(entry.attachments) === attachmentKeys(pending.attachments)) {
+      return true
+    }
+    return Boolean(pending.prompt) && String(entry.text ?? '').includes(pending.prompt)
+  })
+}
 
 interface CompanionConfirm {
   action: string
@@ -54,6 +75,11 @@ export function useCompanion() {
   const [confirm, setConfirm] = useState<CompanionConfirm | null>(null)
   const [complete, setComplete] = useState(false)
   const loadingOlder = useRef(false)
+  const outgoing = useRef<{
+    id: string
+    prompt: string
+    attachments: CodingAttachment[]
+  } | null>(null)
   const completeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const clearComplete = useCallback(() => {
@@ -95,7 +121,7 @@ export function useCompanion() {
       cursor: null,
       before: true,
     })
-    setEntries(page.entries ?? [])
+    setEntries((page.entries ?? []).map(companionChatHydrateEntry))
     setPrevCursor(page.prevCursor ?? null)
     setHasMore(Boolean(page.hasMore))
   }, [])
@@ -109,7 +135,7 @@ export function useCompanion() {
         cursor: prevCursor,
         before: true,
       })
-      setEntries(current => [...(page.entries ?? []), ...current])
+      setEntries(current => [...(page.entries ?? []).map(companionChatHydrateEntry), ...current])
       setPrevCursor(page.prevCursor ?? null)
       setHasMore(Boolean(page.hasMore))
     } finally {
@@ -152,6 +178,7 @@ export function useCompanion() {
           setStreaming('')
           setBusy(false)
           flashComplete()
+          outgoing.current = null
           void loadTail()
           void refreshBoard()
           void refreshMemory()
@@ -189,6 +216,24 @@ export function useCompanion() {
           if (text) setError(text)
           setBusy(false)
           clearComplete()
+          const pending = outgoing.current
+          void loadTail().then(() => {
+            if (!pending) return
+            let restore = false
+            setEntries(current => {
+              if (transcriptHasOutgoing(current, pending)) {
+                outgoing.current = null
+                return current
+              }
+              restore = true
+              outgoing.current = null
+              return current.filter(entry => entry.id !== pending.id)
+            })
+            if (restore) {
+              setDraft(pending.prompt)
+              setAttachments(pending.attachments)
+            }
+          })
         }
       })
     })()
@@ -206,14 +251,29 @@ export function useCompanion() {
     const prompt = draft.trim()
     const pending = [...attachments]
     if ((!prompt && !pending.length) || busy) return
+    const outgoingId = `pending:${Date.now()}`
+    outgoing.current = { id: outgoingId, prompt, attachments: pending }
     setBusy(true)
     setError('')
     setDraft('')
     setAttachments([])
+    setEntries(current => [
+      ...current,
+      {
+        id: outgoingId,
+        type: 'message',
+        timestamp: new Date().toISOString(),
+        role: 'user',
+        text: prompt,
+        attachments: pending,
+      },
+    ])
     clearComplete()
     try {
       await invokeCommand('send_companion_message', { prompt, attachments: pending })
     } catch (reason) {
+      outgoing.current = null
+      setEntries(current => current.filter(entry => entry.id !== outgoingId))
       setDraft(prompt)
       setAttachments(pending)
       setError(explainCompanionError(desktopErrorMessage(reason)))
@@ -263,9 +323,10 @@ export function useCompanion() {
   }, [])
 
   const visibleEntries = useMemo(() => {
-    if (!streaming) return entries
+    const hydrated = entries.map(companionChatHydrateEntry)
+    if (!streaming) return hydrated
     return [
-      ...entries,
+      ...hydrated,
       {
         id: 'streaming',
         type: 'message',

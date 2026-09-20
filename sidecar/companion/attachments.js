@@ -1,5 +1,8 @@
 import { preparePromptAttachments } from "../pi/bridge-attachments.js";
 
+export const COMPANION_ATTACHMENT_PROMPT_ZH = "请看这些附件。";
+export const COMPANION_ATTACHMENT_PROMPT_EN = "Please look at these attachments.";
+
 export function companionVisiblePrompt(prompt, attachments = [], locale = "zh") {
   const text = String(prompt ?? "").trim();
   if (text) return text;
@@ -7,7 +10,7 @@ export function companionVisiblePrompt(prompt, attachments = [], locale = "zh") 
     .map(item => String(item?.name ?? "").trim())
     .filter(Boolean);
   if (!names.length) return "";
-  return locale === "en" ? `Attachments: ${names.join(", ")}` : `附件：${names.join("、")}`;
+  return locale === "en" ? COMPANION_ATTACHMENT_PROMPT_EN : COMPANION_ATTACHMENT_PROMPT_ZH;
 }
 
 export async function prepareCompanionPrompt(command) {
