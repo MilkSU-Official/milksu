@@ -927,11 +927,15 @@ html.companion-surface body,
 html.companion-surface #app {
   background: transparent !important;
   overflow: hidden;
+  width: 232px;
+  min-width: 0;
+  height: 400px;
+  min-height: 0;
 }
 
 .companion-pet {
   width: 232px;
-  height: 360px;
+  height: 400px;
   position: relative;
   user-select: none;
   -webkit-app-region: drag;
@@ -941,7 +945,13 @@ html.companion-surface #app {
   position: absolute;
   left: 14px;
   right: 14px;
-  top: 8px;
+  top: 10px;
+  z-index: 3;
+  max-height: 52px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   background: var(--popover);
   color: var(--popover-foreground);
   border-radius: 8px;
@@ -966,9 +976,10 @@ html.companion-surface #app {
 
 .companion-pet-body {
   position: relative;
+  z-index: 1;
   width: 148px;
   height: 148px;
-  margin: 96px auto 0;
+  margin: 128px auto 0;
   transform-origin: 50% 90%;
   animation: companion-pet-bob 1.1s ease-in-out infinite;
 }

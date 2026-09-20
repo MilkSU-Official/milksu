@@ -118,6 +118,19 @@ test('float window is a small skipTaskbar pet, not a second taskbar app', () => 
   assert.equal(created[0].options.skipTaskbar, true)
   assert.equal(created[0].options.frame, false)
   assert.equal(created[0].options.transparent, true)
+  assert.equal(created[0].options.resizable, false)
+  assert.equal(created[0].options.maximizable, false)
+  assert.equal(created[0].options.fullscreenable, false)
+  assert.equal(created[0].options.hiddenInMissionControl, true)
+  assert.equal(created[0].options.type, 'panel')
+})
+
+test('Windows float is not a panel type', () => {
+  const { shell, created } = createShell({ platform: 'win32' })
+  shell.createFloat()
+  assert.equal(created[0].options.skipTaskbar, true)
+  assert.equal(created[0].options.type, undefined)
+  assert.equal(created[0].options.hiddenInMissionControl, true)
 })
 
 test('macOS parks the main window without hiding the Dock', () => {

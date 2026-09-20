@@ -23,7 +23,7 @@ const COMPANION_METHODS = new Set([
 ])
 
 const COMPANION_FLOAT_WIDTH = 232
-const COMPANION_FLOAT_HEIGHT = 360
+const COMPANION_FLOAT_HEIGHT = 400
 
 function isWaylandSession(env = process.env, platform = process.platform) {
   return platform === 'linux' && (
@@ -204,13 +204,19 @@ function createCompanionShell(options) {
     float = new BrowserWindow({
       width: COMPANION_FLOAT_WIDTH,
       height: COMPANION_FLOAT_HEIGHT,
+      useContentSize: true,
       frame: false,
       transparent: true,
       resizable: false,
+      maximizable: false,
+      minimizable: false,
+      fullscreenable: false,
       skipTaskbar: true,
       alwaysOnTop: true,
       hasShadow: false,
+      hiddenInMissionControl: true,
       show: !petHidden,
+      ...(platform === 'darwin' ? { type: 'panel' } : {}),
       webPreferences: {
         preload: path.join(__dirname, 'companion-preload.cjs'),
         contextIsolation: true,
@@ -218,6 +224,9 @@ function createCompanionShell(options) {
         backgroundThrottling: false,
       },
     })
+    if (typeof float.setWindowButtonVisibility === 'function') {
+      float.setWindowButtonVisibility(false)
+    }
     float.setAlwaysOnTop(true, 'screen-saver')
     float.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
     float.loadURL(`${APP_ORIGIN}/index.html?surface=companion`)
