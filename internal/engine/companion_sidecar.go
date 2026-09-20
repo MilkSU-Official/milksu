@@ -50,10 +50,19 @@ func OpenCompanionSidecar(
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	indexPath := filepath.Join(filepath.Dir(filepath.Dir(agentDir)), "companion", "obelisk.sqlite")
+	runtimeHome, err := sidecarRuntimeHome()
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	dataDirectory := filepath.Dir(runtimeHome)
+	indexPath := filepath.Join(dataDirectory, "companion", "obelisk.sqlite")
 	command.Env = mergeSidecarEnvironment(environment, []string{
 		"MILKSU_COMPANION_AGENT_DIR=" + agentDir,
 		"MILKSU_COMPANION_INDEX_PATH=" + indexPath,
+		"MILKSU_PI_SESSIONS_DIR=" + filepath.Join(runtimeHome, "pi", "sessions"),
+		"MILKSU_DSH_SESSIONS_DIR=" + filepath.Join(runtimeHome, "dsh", "sessions"),
+		"MILKSU_COMPANION_SESSIONS_DIR=" + filepath.Join(agentDir, "sessions"),
+		"MILKSU_CONVERSATIONS_DIR=" + filepath.Join(dataDirectory, "conversations"),
 	})
 	command.Stderr = os.Stderr
 	stdin, err := command.StdinPipe()
@@ -88,4 +97,25 @@ func (s *Supervisor) HasRegisteredSession(sessionID string) bool {
 	defer s.mu.Unlock()
 	_, ok := s.sessions[sessionID]
 	return ok
+}
+
+func (s *Supervisor) SessionBusy(sessionID string) bool {
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" || s == nil {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, ok := s.busySessions[sessionID]
+	return ok
+}
+
+func (s *Supervisor) SessionKernel(sessionID string) string {
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" || s == nil {
+		return KernelPi
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.kernelForLocked(sessionID)
 }

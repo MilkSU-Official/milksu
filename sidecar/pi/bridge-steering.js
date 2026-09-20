@@ -84,6 +84,36 @@ function abortAssistantStream(session) {
   }
 }
 
+export async function followUpSession(sessions, command) {
+  const conversationId = String(command?.conversationId ?? "").trim();
+  if (!conversationId) throw new Error("conversationId is required");
+  const session = sessions.get(conversationId);
+  if (!session) throw new Error(`PI session not found: ${conversationId}`);
+  const message = normalizedSteeringMessage(command?.prompt);
+  if (typeof session.followUp !== "function") {
+    throw new Error("PI session cannot queue a follow-up");
+  }
+  await session.followUp(message);
+  const queued = typeof session.getFollowUpMessages === "function"
+    ? session.getFollowUpMessages()
+    : [];
+  if (Array.isArray(queued) && !queued.some(item => String(item) === message)) {
+    throw new Error("follow-up was not queued");
+  }
+}
+
+export async function relaySession(sessions, command) {
+  const conversationId = String(command?.conversationId ?? "").trim();
+  if (!conversationId) throw new Error("conversationId is required");
+  const session = sessions.get(conversationId);
+  if (!session) throw new Error(`PI session not found: ${conversationId}`);
+  const message = normalizedSteeringMessage(command?.prompt);
+  if (typeof session.prompt !== "function") {
+    throw new Error("PI session cannot start a turn");
+  }
+  await session.prompt(message);
+}
+
 export async function steerSession(sessions, command) {
   const conversationId = String(command?.conversationId ?? "").trim();
   if (!conversationId) throw new Error("conversationId is required");

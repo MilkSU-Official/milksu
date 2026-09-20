@@ -55,7 +55,7 @@ Advisor、关键词切模式、新斜杠、子 Agent Hub（那是另一切片）
 
 ## UI
 
-Composer 演化：运行中发送 = 本回合引导。产品 UI 见 `AGENTS.md`；不新开卡片层。不写挂载断言式的视觉合同测试。
+Composer 演化：运行中发送 = 本回合引导。产品 UI 见 `AGENTS.md`；不新开卡片层。
 
 ## 删除路径
 

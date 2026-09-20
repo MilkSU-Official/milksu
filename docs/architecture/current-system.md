@@ -69,7 +69,7 @@ Pi 拥有会话、压缩和工具循环。桌面 GUI 把外部动作变成可见
 | CTF / CVE / 实验室 | implemented | CTF 持题目、Evidence、Judge。CVE 点进档案复现。实验室起本机 Docker / AVD 或用户地址。CTF 本地房还不能引用环境经纪。 |
 | Worktree | opt-in | 子 Agent 默认主工作区；writer 只在模型调用 `prepare_coding_worktree` 时准备。脏主区不进 writer。 |
 | 持久化 | implemented | 产物在文档目录 `MilkSU`；Runtime、凭据、Obelisk、浏览器 Profile 在用户配置目录。 |
-| 产品回归 | implemented | `npm run test:product-loop`，见 [产品回归循环](/developer/product-regression-loop)。套件含 `composer-runtime`（Stop/Send、Working、Multitask、整理上下文/接到新会话、设置落盘）。CDP 只附着产品主窗，不附着 DSH fixture 页。`desktop-surface` 优先 Computer Use，不可用降级隔离浏览器。Settings「评测」是另一条。 |
+| 产品回归 | implemented | `npm run test:product-loop`，见 [产品回归循环](/developer/product-regression-loop)。默认按上手顺序走独立实例（登录 / 中转站密码框 → 主页 → 桌宠 → CTF/CVE/Lab → 桌面执行面 → 资料/更新 → 设置其余项），测完打印层级报告。CDP 只附着产品主窗。`desktop-surface` 优先 Computer Use，不可用降级隔离浏览器。Settings「评测」是另一条。 |
 
 ## 进程与 IPC
 

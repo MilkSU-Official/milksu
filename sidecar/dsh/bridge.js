@@ -1179,6 +1179,14 @@ async function handleCommand(command) {
     case "queue_message":
       await queueParent(command);
       break;
+    case "relay_message": {
+      const conversationId = String(command.conversationId ?? "").trim();
+      if (!sessions.has(conversationId)) {
+        throw new Error("DeepSeek Harness session is not ready");
+      }
+      await sendMessage(command);
+      break;
+    }
     case "list_commands":
       await listSessionCommands(command);
       break;

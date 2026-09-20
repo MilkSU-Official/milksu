@@ -21,9 +21,10 @@ Third-party software includes, without limitation:
   Copyright (C) 2026 tommy0103 and contributors. AGPL-3.0-only.
   Embedded as git submodule third_party/obelisk at
   774d4bc1878021878a01129c1f47ec7a8fefdfa6 (upstream main).
-  MilkSU does not modify Obelisk source in this tree. Companion episodic
-  search currently uses a thin FTS index plus the first-party session
-  index; a full MilkSUProvider adapter remains the #115 merge.
+  MilkSU does not modify Obelisk source in this tree. The companion sidecar
+  consumes packages/core: Pi, DSH, companion JSONL, and a MilkSU conversation
+  provider write the product index at companion/obelisk.sqlite under the
+  upstream writer lease. Go does not write that database.
 - Felinic UI (@felinic/ui).
   https://github.com/memohai/ui
   Present in Vue installers through v26.915.1. The working tree no longer

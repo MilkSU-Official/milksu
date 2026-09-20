@@ -2169,6 +2169,68 @@ func (s *Supervisor) QueueMessage(sessionID, prompt string) error {
 	return nil
 }
 
+// FollowUpMessage parks a next-turn prompt on a live Pi session without aborting
+// the current assistant stream.
+func (s *Supervisor) FollowUpMessage(sessionID, prompt string) error {
+	sessionID = strings.TrimSpace(sessionID)
+	prompt = strings.TrimSpace(prompt)
+	if sessionID == "" {
+		return fmt.Errorf("session id is required")
+	}
+	if prompt == "" {
+		return fmt.Errorf("follow-up message is required")
+	}
+	if len([]rune(prompt)) > 16000 {
+		return fmt.Errorf("follow-up message exceeds 16000 characters")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, exists := s.sessions[sessionID]; !exists {
+		return s.sessionMissingError(sessionID)
+	}
+	if err := s.writeToSessionLocked(sessionID, map[string]any{
+		"action":         "followup_message",
+		"conversationId": sessionID,
+		"prompt":         prompt,
+	}); err != nil {
+		return fmt.Errorf("follow-up engine message: %w", err)
+	}
+	return nil
+}
+
+// SendRegisteredMessage starts a new turn on a sidecar session that is already
+// live, without rebuilding the session policy from a full send_message payload.
+func (s *Supervisor) SendRegisteredMessage(sessionID, prompt string) error {
+	sessionID = strings.TrimSpace(sessionID)
+	prompt = strings.TrimSpace(prompt)
+	if sessionID == "" {
+		return fmt.Errorf("session id is required")
+	}
+	if prompt == "" {
+		return fmt.Errorf("relay message is required")
+	}
+	if len([]rune(prompt)) > 16000 {
+		return fmt.Errorf("relay message exceeds 16000 characters")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, exists := s.sessions[sessionID]; !exists {
+		return s.sessionMissingError(sessionID)
+	}
+	if err := s.writeToSessionLocked(sessionID, map[string]any{
+		"action":         "relay_message",
+		"conversationId": sessionID,
+		"prompt":         prompt,
+	}); err != nil {
+		return fmt.Errorf("relay engine message: %w", err)
+	}
+	if s.busySessions == nil {
+		s.busySessions = make(map[string]struct{})
+	}
+	s.busySessions[sessionID] = struct{}{}
+	return nil
+}
+
 func (s *Supervisor) waitHostControl(
 	sessionID, action string,
 	payload map[string]any,

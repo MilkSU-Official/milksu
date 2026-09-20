@@ -257,6 +257,21 @@ func TestConfirmedStopAndSteerUseSessionControl(t *testing.T) {
 	}
 }
 
+func TestSpeakRouteSplitsColdIdleAndBusyKernels(t *testing.T) {
+	if got := SpeakRoute(false, false, "pi"); got != SpeakRouteSave {
+		t.Fatalf("cold: %s", got)
+	}
+	if got := SpeakRoute(true, false, "pi"); got != SpeakRouteSend {
+		t.Fatalf("idle pi: %s", got)
+	}
+	if got := SpeakRoute(true, true, "pi"); got != SpeakRouteFollowUp {
+		t.Fatalf("busy pi: %s", got)
+	}
+	if got := SpeakRoute(true, true, "dsh"); got != SpeakRouteQueue {
+		t.Fatalf("busy dsh: %s", got)
+	}
+}
+
 func TestBoardCannotWriteRuntimeState(t *testing.T) {
 	board := NewBoard()
 	if _, err := board.Handle(map[string]any{"action": "mark_complete"}); err == nil {

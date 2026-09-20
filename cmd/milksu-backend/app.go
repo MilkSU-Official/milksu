@@ -318,17 +318,6 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 		application.nssctfCatalog.Close()
 		return nil, fmt.Errorf("create session index: %w", err)
 	}
-	companionIndex, indexErr := companion.NewFTSIndex(filepath.Join(dataDirectory, "companion", "obelisk.sqlite"))
-	if indexErr != nil {
-		application.diagnostics.Record("companion", "error", "companion episodic index was not opened")
-	}
-	var companionIndexer companion.EpisodeIndexer
-	if companionIndex != nil {
-		companionIndexer = &conversationIndexer{
-			fts:   companionIndex,
-			store: application.conversations,
-		}
-	}
 	application.companion = companion.NewRuntime(companion.RuntimeOptions{
 		AgentDir:  filepath.Join(dataDirectory, "agent-home", "companion"),
 		StatePath: filepath.Join(dataDirectory, "companion", "state.json"),
@@ -338,10 +327,8 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 			store:   application.conversations,
 			engines: application.engines,
 		},
-		Control:  &supervisorControl{engines: application.engines},
-		Searcher: companion.CompositeSearcher(&sessionSearchAdapter{store: application.sessionIndex}, companionIndex),
-		Indexer:  companionIndexer,
-		Emit:     application.emitCompanionEvent,
+		Control: &supervisorControl{engines: application.engines},
+		Emit:    application.emitCompanionEvent,
 	})
 	application.modelUsage, err = modelusage.NewStore(
 		filepath.Join(dataDirectory, "usage", "model-usage.sqlite3"),

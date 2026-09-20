@@ -1503,7 +1503,12 @@ async function buildSidecar(platform) {
       ),
     }, null, 2)}\n`, { mode: 0o600 }),
     bundleBridge('sidecar/pi/bridge.js', chatOutput),
-    bundleBridge('sidecar/companion/bridge.js', companionOutput),
+    bundleBridge('sidecar/companion/bridge.js', companionOutput).then(async () => {
+      await copyFile(
+        join(repositoryRoot, 'third_party/obelisk/packages/core/src/schema.sql'),
+        join(output, 'obelisk-schema.sql'),
+      )
+    }),
     bundleBridge('sidecar/dsh/bridge.js', dshOutput),
     bundleBridge('sidecar/dsh/product-mcp.js', dshProductMcpOutput),
     bundleBridge('sidecar/dsh/playwright-lazy-mcp.js', dshPlaywrightLazyMcpOutput),
@@ -1522,6 +1527,7 @@ async function buildSidecar(platform) {
     chmod(goplsOutput, 0o755),
     chmod(chatOutput, 0o644),
     chmod(companionOutput, 0o644),
+    chmod(join(output, 'obelisk-schema.sql'), 0o644),
     chmod(dshOutput, 0o644),
     chmod(dshProductMcpOutput, 0o644),
     chmod(dshPlaywrightLazyMcpOutput, 0o644),
@@ -1797,6 +1803,7 @@ async function smokeSidecar(platform) {
     join(output, 'THIRD_PARTY-LICENSES', 'modelcontextprotocol-go-sdk-LICENSE.txt'),
     join(output, 'THIRD_PARTY-LICENSES', 'deepseek-harness-MIT.txt'),
     join(output, 'companion-bridge.cjs'),
+    join(output, 'obelisk-schema.sql'),
     join(output, 'dsh-bridge.cjs'),
     join(output, 'product-mcp.cjs'),
     join(output, 'playwright-lazy-mcp.cjs'),
@@ -2726,6 +2733,7 @@ async function installSidecar(platform, binaryPath) {
     'node',
     'chat-bridge.cjs',
     'companion-bridge.cjs',
+    'obelisk-schema.sql',
     'dsh-bridge.cjs',
     'product-mcp.cjs',
     'playwright-lazy-mcp.cjs',

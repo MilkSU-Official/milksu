@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  followUpSession,
   projectSteeringQueue,
+  relaySession,
   removeQueuedMessage,
   shouldAbortAssistantStream,
   steerSession,
@@ -33,6 +35,12 @@ function queuedSession(steering, followUp) {
       async followUp(message) {
         state.followUp.push(message);
         state.calls.push(["followUp", message]);
+      },
+      getFollowUpMessages() {
+        return [...state.followUp];
+      },
+      async prompt(message) {
+        state.calls.push(["prompt", message]);
       },
     },
   };
@@ -251,4 +259,34 @@ test("rejects malformed queue controls before mutating Pi", async () => {
     /unsupported queued message type/,
   );
   assert.deepEqual(fixture.state.calls, []);
+});
+
+test("queues a follow-up without aborting the current stream", async () => {
+  const fixture = queuedSession([], ["已有"]);
+  const sessions = new Map([["coding-1", fixture.session]]);
+  await followUpSession(sessions, {
+    conversationId: "coding-1",
+    prompt: "桌宠转达 / Companion relay:\nrun the tests",
+  });
+  assert.deepEqual(fixture.state.followUp, [
+    "已有",
+    "桌宠转达 / Companion relay:\nrun the tests",
+  ]);
+  assert.deepEqual(fixture.state.calls, [[
+    "followUp",
+    "桌宠转达 / Companion relay:\nrun the tests",
+  ]]);
+});
+
+test("relays into an idle Pi session as a new prompt", async () => {
+  const fixture = queuedSession([], []);
+  const sessions = new Map([["coding-1", fixture.session]]);
+  await relaySession(sessions, {
+    conversationId: "coding-1",
+    prompt: "桌宠转达 / Companion relay:\nlook at the board",
+  });
+  assert.deepEqual(fixture.state.calls, [[
+    "prompt",
+    "桌宠转达 / Companion relay:\nlook at the board",
+  ]]);
 });

@@ -37,10 +37,11 @@ function hostResult(requestHost, action, input) {
   return requestHost(action, input);
 }
 
-export function createCompanionTools(requestHost) {
+export function createCompanionTools(requestHost, options = {}) {
   if (typeof requestHost !== "function") {
     throw new Error("companion tools require a host request function");
   }
+  const queryMemory = options.queryMemory;
 
   const board = defineTool({
     name: "companion_board",
@@ -97,7 +98,7 @@ export function createCompanionTools(requestHost) {
       firstMessage: Type.Optional(Type.String()),
     }),
     execute: async (_toolCallId, params) => {
-      const result = await hostResult(requestHost, "dispatch", params);
+      const result = await requestHost("dispatch", params, { timeoutMs: 0 });
       return {
         content: [{ type: "text", text: JSON.stringify(result) }],
         details: result,
@@ -129,6 +130,14 @@ export function createCompanionTools(requestHost) {
       memoryId: Type.Optional(Type.String()),
     }),
     execute: async (_toolCallId, params) => {
+      const action = String(params?.action ?? "").trim();
+      if ((action === "search" || action === "recall") && typeof queryMemory === "function") {
+        const result = await queryMemory(params);
+        return {
+          content: [{ type: "text", text: JSON.stringify(result) }],
+          details: result,
+        };
+      }
       const result = await hostResult(requestHost, "memory", params);
       return {
         content: [{ type: "text", text: JSON.stringify(result) }],

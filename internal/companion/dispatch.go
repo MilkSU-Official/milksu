@@ -330,6 +330,26 @@ func (d *Dispatcher) recordFailure(key string, ref ConversationRef, entryID, rea
 	return result
 }
 
+const (
+	SpeakRouteSave     = "save"
+	SpeakRouteSend     = "send"
+	SpeakRouteQueue    = "queue"
+	SpeakRouteFollowUp = "followup"
+)
+
+func SpeakRoute(registered, busy bool, kernel string) string {
+	if !registered {
+		return SpeakRouteSave
+	}
+	if !busy {
+		return SpeakRouteSend
+	}
+	if strings.EqualFold(strings.TrimSpace(kernel), "dsh") {
+		return SpeakRouteQueue
+	}
+	return SpeakRouteFollowUp
+}
+
 func normalizeConversationKind(value string) string {
 	switch strings.ToLower(strings.TrimSpace(value)) {
 	case "ctf":

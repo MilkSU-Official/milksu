@@ -2,7 +2,7 @@
 
 > 文档状态：Current / Canonical target contract
 >
-> 最后收口：2026-09-19
+> 最后收口：2026-09-20
 >
 > 本页只回答“当前处于什么阶段、下一条完成线是什么”。实现以当前代码、测试、Git 历史和原生 App 为准。
 > 可下载安装包只写在 README，本页不写「当前最新版是」版本号或 hash。
@@ -46,7 +46,7 @@
 
 ## 未打进 GitHub 安装包
 
-- 凭据轮换不再切在飞回合、会话带自己的中转站与模型、删除守卫改判命令自写的脚本、切换对话不丢草稿、对话选中文字「加入对话」：已在 `main`（#120 / #119 / #106 / #122 / #123），`npm run test:product-loop` 六套全绿。
+- 凭据轮换不再切在飞回合、会话带自己的中转站与模型、删除守卫改判命令自写的脚本、切换对话不丢草稿、对话选中文字「加入对话」：已在 `main`（#120 / #119 / #106 / #122 / #123），未打进安装包。产品回归按上手顺序走独立实例：登录 / 中转站密码框 → 主页 Pi/DSH → 桌宠 → CTF/CVE/Lab → 桌面执行面 → 资料/更新 → 设置其余项。测完打印从大模块到小模块的报告。
 - 新对话继承项目 `milksu`；Windows Computer Use 整段崩溃尚未真机验收。
 - Computer Use 选窗器仍是可选人工面。宽作业走 `recon-authorized-target` Skill，不造 typed sweep。
 - DSH `bash` 没有 MilkSU 侧超时上界（工具在 harness 进程内，不要在客户端复刻第二套循环）。
@@ -69,7 +69,7 @@
 
 | 优先级 | 事项 | 完成标准 |
 | --- | --- | --- |
-| P0 | 产品回归 | 改对话 / 引擎 / DSH / 隔离浏览器后跑 `npm run test:product-loop`。见 [产品回归循环](product-regression-loop.md)。Settings「评测」不替代这条。C9 / C15 / C16 / C20 已确认；DSH A/B/C 已复验。 |
+| P0 | 产品回归 | 改对话 / 引擎 / DSH / 隔离浏览器后跑 `npm run test:product-loop`。见 [产品回归循环](product-regression-loop.md)。Settings「评测」不替代这条。 |
 | P0 | React + shadcn | 工作树 renderer 已是 React + shadcn（`main.tsx`）。新页和重构只走这条。不再跟 DSH web GUI，不再加 Felinic / Vue SFC。Desktop RPC 与 Go 不动。设计语言和已收口的交互细节见 `AGENTS.md`；剩余不一致按 bug 单独记。 |
 | P0 | Pi Runtime 用户验收 | 跨目录读写、CTF/CVE 交接、长输出续跑、重启恢复；无 MilkSU 自建 workspace 策略或旧 session ID。 |
 | P1 | 下一版三端回执 | 新版本号、同一 source commit、三端产物、SHA-256 与平台验收。安装包见 README。 |

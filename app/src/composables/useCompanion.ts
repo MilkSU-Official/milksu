@@ -21,6 +21,7 @@ interface CompanionConfirm {
   text: string
   idempotencyKey: string
   mode: string
+  hostRequestId: string
   targetTitle: string
 }
 
@@ -111,6 +112,7 @@ export function useCompanion() {
         text?: string
         notice?: string
         input?: string
+        requestId?: string
         done?: boolean
       }>('companion-event', event => {
         const payload = event.payload
@@ -135,10 +137,11 @@ export function useCompanion() {
               text: request.text || '',
               idempotencyKey: request.idempotencyKey,
               mode: request.mode || '',
+              hostRequestId: request.hostRequestId || payload.requestId || '',
               targetTitle: payload.notice || '',
             })
           } catch {
-            // The host already returned needsConfirmation to the model.
+            // Confirmation is parked on the host until the user answers.
           }
         }
         if (payload?.type === 'engine.error' && payload.text) {
@@ -190,15 +193,17 @@ export function useCompanion() {
   const resolveConfirm = useCallback(async (accepted: boolean) => {
     const pending = confirm
     setConfirm(null)
-    if (!accepted || !pending) return
+    if (!pending) return
     const result = await invokeCommand<CompanionDispatchResult>('confirm_companion_dispatch', {
       action: pending.action,
       conversationId: pending.conversationId,
       text: pending.text,
       idempotencyKey: pending.idempotencyKey,
       mode: pending.mode,
+      hostRequestId: pending.hostRequestId,
+      accepted,
     })
-    if (result.error) setError(result.error)
+    if (result.error && accepted) setError(result.error)
     await refreshBoard()
   }, [confirm, refreshBoard])
 

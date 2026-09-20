@@ -303,6 +303,8 @@ interface DesktopAppBindings {
     text: string,
     idempotencyKey: string,
     mode: string,
+    hostRequestId: string,
+    accepted: boolean,
   ): Promise<CompanionDispatchResult>
   GetCompanionShellStatus(): Promise<CompanionShellStatus>
   SetCompanionFloatEnabled(enabled: boolean): Promise<CompanionShellStatus>
@@ -793,6 +795,8 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
           (args?.text as string) ?? '',
           args?.idempotencyKey as string,
           (args?.mode as string) ?? '',
+          (args?.hostRequestId as string) ?? '',
+          args?.accepted !== false,
         ) as Promise<T>
       case 'get_companion_shell_status':
         return app.GetCompanionShellStatus() as Promise<T>

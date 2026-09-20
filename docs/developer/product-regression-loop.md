@@ -2,49 +2,46 @@
 
 > 文档状态：**Evidence / Living Runbook**
 >
-> 改完对话、引擎、DSH 或隔离浏览器之后，选套件跑产品契约。这不是 Settings「评测」，
+> 改完对话、引擎、DSH 或隔离浏览器之后，按用户上手顺序跑整条产品。这不是 Settings「评测」，
 > 也不是 NYU safe-static 或 FrontierHarness 模型刷分。
 >
 > 协调器：`scripts/verify-product-loop.mjs`。不进 App 启动，不暴露测试专用 Desktop RPC。
 > 禁止 `desktop:start:beta` / MilkSU Beta。TokenFlux 只用 `https://tokenflux.dev/v1`。
-> 回执不写 Provider Key。
+> 回执不写 Provider Key。上手顺序和本机 Key 填在
+> [`product-loop.local.example.md`](product-loop.local.example.md)；复制成 gitignore 的
+> `product-loop.local.md` / `product-loop.local.env` 再填，不要把 Key 写进仓库或回执。
+> 测完会打印从大模块到小模块再到整体的报告。
 
 ## 和其它「评测」的区别
 
 | 入口 | 问的问题 | 怎么跑 |
 | --- | --- | --- |
-| 本页 · 产品回归 | 改完功能后，停会话、钉选、文件循环、隔离浏览器、审批边界还成不成立 | `npm run test:product-loop` |
+| 本页 · 产品回归 | 改完功能后，上手、主页、桌宠、领域工作区、桌面执行面、资料和设置其余项还成不成立 | `npm run test:product-loop` |
 | Settings → 评测 | 这个型号 + 内核，Cybench / SEC-bench / AutoPen 能得几分 | 产品设置页；数据在 `internal/evalsuite` |
 | NYU safe-static | 窄域开发者静态题 | `docs/developer/nyu-ctf-bench-eval.md` |
-| `test:dsh-complete-loop` | 只跑 DSH A/B/C | 仍可用；等价于下面的 `--suite dsh`。新回归请走本页入口。 |
+| `test:dsh-complete-loop` | 独立的 DSH 桥脚本 | 不是 product-loop 的一套。产品回归走本页入口。 |
 
-不要把 Pass@1、模糊指令或模型排名写进本回执。`desktop-surface` 优先 Computer Use 观察计算器；TCC / 平台不可用 / 没打开计算器时降级隔离浏览器 CDP，降级成功仍算 PASS，回执写明 `degraded`。计算器已在、CU 回合失败则 FAIL，不静默降级。不把用户 Chrome 当 CU 目标。
+不要把 Pass@1、模糊指令或模型排名写进本回执。Computer Use 缺权限或没开计算器记失败，不偷偷改走隔离浏览器。隔离浏览器自己测打开、跳转、点击、打字、标签、后退和读标记。不把用户 Chrome 当 CU 目标。
 
 ## 怎么调用
 
 在仓库根目录：
 
 ```bash
-# 看套件
+# 看默认模块
 npm run test:product-loop -- --list
 
-# 改停会话 / 钉选：不启桌面也能跑逻辑
-npm run test:product-loop -- --bridge --suite stop-scope,composer-runtime,chat-pin
+# 改上手登录 / 账户模型 / 自定义中转站
+npm run test:product-loop -- --gui --suite first-use
 
-# 改 DSH / 隔离浏览器 / 审批
-npm run test:product-loop -- --gui --suite dsh
-
-# 改默认 Pi 文件循环
-npm run test:product-loop -- --gui --suite pi-files
-
-# 改 Computer Use / 隔离浏览器执行面（CU 不可用会降级）
-npm run test:product-loop -- --gui --suite desktop-surface
-
-# 功能改动后的整次产品回归（默认套件，会自己排好顺序）
+# 整次产品回归（默认模块，会自己排好顺序）
 npm run test:product-loop -- --gui --suite all
+
+# 只跑一个小模块
+npm run test:product-loop -- --gui --suite coding-pi,workspace-ctf
 ```
 
-`--gui` 是默认。`--bridge` 只跑不需要窗口的部分，并把 `dsh` 交给 sidecar 桥（没有 Ensure 隔离浏览器）。
+只走独立 Stable 窗口和官方 Desktop RPC。
 
 套件目录自测（不启桌面、不打模型）：
 
@@ -52,32 +49,193 @@ npm run test:product-loop -- --gui --suite all
 npm run test:product-loop-catalog
 ```
 
-## 选哪一套
+## 测什么
 
-协调器会按 `stop-scope → composer-runtime → dsh → chat-pin → pi-files → desktop-surface` 排序。DSH 必须先于其它 GUI 套件，单独启停 Stable 窗口；叠在 Pi 会话上会把官方 Playwright MCP 弄坏。
+默认按用户上手顺序，同一独立实例贯穿：
 
-| 套件 | 改了什么时跑 | 断言 | 要桌面 | 要 Key / 账户 |
-| --- | --- | --- | --- | --- |
-| `stop-scope` | 引擎停会话、Sidecar 回收 | `engine.stopped` 只打到带 `sessions` 的对话；没有身份不广播 | 否 | 否 |
-| `composer-runtime` | 作曲栏 Stop/Send、Working、Multitask、DSH host 投影、设置落盘 | DSH Working 时 Send 不是 Stop；host `commands`/`plan`/`goal`/`inbox`/`jobs`；整理上下文 / 接到新会话；子代理跑完收掉 `runningIds`；Pi 子代理仍 Stop；compact/abort 仍 Stop；默认运行时 / 忙碌发送 / 模型 / 界面语言 Save 后再读 | 否 | 否 |
-| `dsh` | DSH 内核、Messages 根、隔离浏览器、审批 | 文件循环、本机标记、工作区写入自动过、区外删除被拦 | DSH 自己拉 Stable | 是 |
-| `chat-pin` | 侧栏钉选、会话 store | 钉选顺序落盘；`--gui` 再走 `SaveConversation` / `ListConversations` | 仅 GUI 落盘 | 否 |
-| `pi-files` | 默认 Pi 工具循环 | 写出 `NOTES.md` 且出现文件工具 | 是 | 是 |
-| `desktop-surface` | Computer Use 或隔离浏览器 | 有计算器则 CU 观察并写 `SURFACE.md`；否则 Ensure 隔离浏览器读本机标记 | 是 | 是 |
+`上手 → 主页 Coding → 桌宠 → 领域工作区 → 桌面执行面 → 账户与更新 → 设置其余项`
 
-草稿按对话隔离没有 Desktop RPC，本套件不假装测过。计划卡回合结束隐藏、长对话分片挂载在运行中的窗口里看，不要用挂载断言式 UI 单测锁。
+不附着已经在首页的日常窗口。Key 打进设置密码框，不注入 sidecar。中转站能发之后，主页发送缺来源记 FAIL。
+
+### 上手
+
+冷启动两次。第一次走登录和配中转站，第二次确认「暂不登录」还能进首页。
+
+| 测试项 | 测什么 |
+| --- | --- |
+| 登录门 | 新开一扇独立窗口，必须先停在登录页，看得见「使用 GitHub 登录」和「暂不登录」。已经进了首页算失败。 |
+| GitHub 登录 | 点 GitHub，你在系统浏览器里授权，产品里变成已登录。这次没走到（没授权）记跳过；等太久还没登录算失败。 |
+| 账户模型 | 用账户额度让模型列目录、写一份 `NOTES.md` 再读回来。管理员没开通额度时记「预期发不出」，不算整次失败。 |
+| 设置中转站 | 进设置 → 模型，把端点、名字、模型和 Key 打进密码框并保存。没有 Key、也没有已经存过的中转站，算失败。 |
+| 中转站模型 | 用刚配好的中转站再让模型写一份 `NOTES.md`。写不出来就不能往下测，算失败。 |
+| 暂不登录 | 关掉再开一次，必须再看见登录页。点「暂不登录」进首页，刚才的中转站还在。 |
+
+### 主页 Coding（33）
+
+离开设置，还在刚才那扇窗里。Pi 和 DSH 各走一遍日常开发，再测会话壳和作曲栏。
+
+| 测试项 | 测什么 |
+| --- | --- |
+| Pi 写文件 | 用 Pi 列目录、写出 `NOTES.md`、再读回来。只聊天不算。 |
+| Pi 跑命令 | 用 shell 写出 `DATE.txt`。 |
+| Pi 改文件 | 已有 `NOTES.md`，改成带标记的一行。 |
+| Pi 整理上下文 | 写完一轮后发出整理上下文。 |
+| Pi 插话 | 回合还在跑时插一句话，回合要收得住。 |
+| Pi 停止 | 回合还在跑时按停止。 |
+| Pi 选择卡 | 让模型出 `milksu_ask`，对话里出现待回答的选项。只聊天不算。 |
+| Pi 选择卡答完续跑 | 选完一项（或 Other）后，同一回合继续跑完。 |
+| 加入对话引用 | 选中对话正文，点「加入对话」，引用进作曲栏后再发出去。 |
+| 附件进回合 | 导入附件并随消息发出，模型读到附件里的标记。 |
+| Pi 接到 DSH | 把这条会话从 Pi 接到 DSH。 |
+| DSH 写文件 | 换成 DSH 再写一遍 `NOTES.md`。 |
+| DSH 跑命令 | DSH 写出 `DATE.txt`。 |
+| DSH 排队 | 回合还在跑时把下一句排进去。 |
+| DSH 计划模式 | 打开计划模式。 |
+| DSH 目标 | 给这条会话设一个目标。 |
+| DSH 并行会话 | 主会话还在跑时再发一条，必须开出带父会话的 ACP 子会话。只开两条列表不算。 |
+| DSH 停止 | 回合还在跑时按停止，回合要结束或留下中止回执。 |
+| DSH 整理上下文 | 写完一轮后发出整理上下文。 |
+| 新会话画布 | 加号打开「我们要构建什么」。 |
+| 钉选顺序 | 两条会话钉住，顺序还在。 |
+| 重命名会话 | 改名后列表里还是新名字。 |
+| Fork 会话 | Fork 出一条新会话。 |
+| 归档会话 | 归档后立刻离开活动列表。 |
+| 删除会话 | 删掉后活动列表里没有它。 |
+| 命令面板 | 侧栏搜索或快捷键打开命令面板。 |
+| 作曲栏模型 | 看得见模型相关控件。 |
+| 作曲栏运行时 | 看得见 Pi / DSH。 |
+| 作曲栏 Git | 打得开分支菜单。 |
+| 作曲栏加号 | 打得开附件 / 并行一类菜单。 |
+| 右侧栏 | 打得开右栏。 |
+| 底部终端 | 打得开底部终端。 |
+| 会话右键菜单 | 右键能看到置顶、重命名、Fork、归档、删除。 |
+
+### 桌宠（14）
+
+| 测试项 | 测什么 |
+| --- | --- |
+| 桌宠就绪 | 启动后 ready，能读到模型。 |
+| 桌宠页 | 侧栏进桌宠，看得见抄本、看板、记忆和输入框。 |
+| 桌宠转达 | 把一句标记送到指定 Coding 会话；抄本、看板和那个会话都要看见。 |
+| 桌宠看板 | 刚开的 Coding 会话能出现在看板。 |
+| 多会话看板 | 连开 8 条会话，看板或列表里能看见它们。 |
+| 大量对话 | 连发 4 句，抄本留下至少 3 句。 |
+| 桌宠归档 | 能归档当前段，页上有归档。 |
+| 桌宠记忆 | 必须提出一条待批准或已留下的记忆。只看见记忆栏不算。 |
+| 跨会话调度确认 | 桌宠 `stop` 必须停下来确认。没确认不算。 |
+| 换桌宠模型再发 | 换成另一台模型后再发出一句。 |
+| 桌宠模型设置 | 设置 → 桌宠有模型选择。 |
+| 跨会话调度设置 | 设置里有跨会话调度。 |
+| 主动性设置 | 任务事件、教学提示、定时播报、闲聊都在。 |
+| 悬浮窗设置 | 设置里有悬浮窗。Wayland 只说明不能贴坐标。 |
+
+### 领域工作区（CTF 11 / CVE 11 / Lab 11）
+
+CTF：
+
+| 测试项 | 测什么 |
+| --- | --- |
+| 打开 CTF | 侧栏点进去就是题库。 |
+| CTF 同步 | 看得见手动同步，不会自己偷偷拉题。 |
+| CTF 搜索 | 有按题号或题名搜的框。 |
+| CTF 分类 | 有全部分类。 |
+| CTF 列表 | 有题就列出；空着必须是空列表加同步。 |
+| 打开一道 CTF | 点打开能进详情；没题就停在空态。 |
+| CTF 训练平台 | 有选择训练平台。 |
+| CTF 开始解题 | 详情里必须有开始解题。空题库不能算通过。 |
+| CTF 开始并留下任务 | 开始一道本地题，任务列表里必须留下这条。 |
+| CTF 每日挑战 | 有每日挑战就看见；没有也不把题库判死。 |
+| CTF 任务列表 | 任务列表不能是空的。 |
+
+CVE：
+
+| 测试项 | 测什么 |
+| --- | --- |
+| 打开 CVE | 侧栏点进去就是列表。 |
+| CVE 搜索 | 有搜索我添加的 CVE。 |
+| CVE 严重性 | 有严重性筛选。 |
+| CVE 同步公开源 | 有同步公开源。 |
+| CVE 列表 | 列表在，能读到跟踪条数。 |
+| 查找公开 CVE | 有按编号或产品名查找。 |
+| 打开一条 CVE | 点得开一行；没有行就停在列表。 |
+| CVE 档案 | 打得开档案或报告。 |
+| CVE 复现入口 | 打开一条后必须看见启动并复现或只写报告。 |
+| CVE 开始并留下任务 | 留下一条 CVE 跟踪任务。 |
+| CVE 跟踪列表 | 跟踪列表不能是空的。 |
+
+Lab：
+
+| 测试项 | 测什么 |
+| --- | --- |
+| 打开 Lab | 侧栏点进去就是题目包或分段。 |
+| Lab 题目包 | 题目包分段在。 |
+| Lab 题目包卡片 | 有卡片就看见；没有也不把分段判死。 |
+| Lab 启动 | 题目包上必须看得见启动。 |
+| Lab 自定义任务 | 自定义任务分段在。 |
+| Lab 空任务 | 没有任务时能回到题目包。 |
+| Lab 创建任务 | 打得开创建表单。 |
+| Lab 开始并留下任务 | 保存一条自定义任务，列表里必须有它。 |
+| Lab 本机环境 | 设置里看得到 Android SDK 和重新检测。 |
+| Lab 环境状态 | 能读到这台电脑的 Lab 环境。 |
+| Lab Docker | 页上或设置里能看到环境或题目包。 |
+
+### 桌面执行面（9）
+
+Computer Use 和隔离浏览器分开测。缺权限不能靠浏览器凑成通过。
+
+| 测试项 | 测什么 |
+| --- | --- |
+| Computer Use 权限 | 读得到状态：好不好用、辅助功能、屏幕录制。 |
+| Computer Use 观察计算器 | 必须有权限，而且本机开着计算器。观察并写下 `SURFACE.md`。缺权限或没开计算器都算失败，不改走浏览器。 |
+| 隔离浏览器打开 | Ensure 之后浏览器真的起来。 |
+| 隔离浏览器打开页面 | 打开本机 127.0.0.1 页面。 |
+| 隔离浏览器点击 | 页上的按钮点得动，结果会变。 |
+| 隔离浏览器打字 | 页上的输入框打得动字。 |
+| 隔离浏览器标签 | 能再开一个标签。 |
+| 隔离浏览器后退 | 前进后再后退。 |
+| 隔离浏览器读标记 | 模型用隔离浏览器读到标记并写进 `SURFACE.md`。不点你日常 Chrome。 |
+
+### 账户与更新（4）
+
+| 测试项 | 测什么 |
+| --- | --- |
+| 打开个人资料 | 账户菜单打得开个人资料。 |
+| 编辑资料 | 点编辑资料，改显示名称和介绍，保存后还在。 |
+| 资料页页签 | CTF / CVE / Coding 三个页签都能切。 |
+| 客户端更新 | 侧栏页脚有版本号。有更新才出现「更新」，只看不点安装。 |
+
+### 设置其余项（13）
+
+全部测完再回来看设置，不重填 Key。十二个分类都要能打开。
+
+| 测试项 | 测什么 |
+| --- | --- |
+| 十二个设置分类 | 通用、模型、CTF、CVE、Lab、Skills、MCP、归档聊天、浏览器控制、评测、桌宠、插件都能点开。 |
+| 通用 | 语言、强调色、字体、数据目录、调试模式都在；强调色改完即存。 |
+| 模型 | 默认运行时、默认模型、忙碌时发送都在；上手配过的中转站还在。 |
+| 设置 CTF | Arena 和题目浏览器扩展在。 |
+| 设置 CVE | 同步公开源在。 |
+| 设置 Lab | 本机 Android 检测在。 |
+| Skills | 内置和用户两栏都在。 |
+| MCP | 内置和用户两栏都在。 |
+| 归档聊天 | 归档聊天页打得开。 |
+| 浏览器控制 | Browser Use、Computer Use、CTF 站点都在。 |
+| 评测 | 套件和开始都在。不在这里跑刷分。 |
+| 设置桌宠 | 模型、调度、悬浮窗都在。 |
+| 插件 | 插件框架和安装插件都在。 |
 
 ## 凭据与回执
 
-- `dsh` / `pi-files` 认账户会话、设置里已存的 Provider，或环境变量 `DEEPSEEK_API_KEY` / `TOKENFLUX_API_KEY`。缺了记 `SKIP`，整次运行仍 exit 0（除非别的套件 FAIL）。
-- 回执：`build/test-results/product-loop.json`。DSH 子回执仍是 `build/test-results/dsh-complete-loop.json`。
-- `--gui` 测完会 `DeleteConversation` 清掉本机 fixture 会话（`loop-pin-*` / `product-loop-*` / `DSH …`），不留在侧栏。
+- 本机先填 `docs/developer/product-loop.local.env`（模板是旁边的 `.example.env`）。协调器读入公开字段；密钥只留在脚本内存，到设置密码框再填，不注入 sidecar。回执只写变量名。
+- 登录 / 账户模型 / 自定义中转站按上手手册走通之后，没可用来源的主页发送记 FAIL，不再 SKIP。
+- 回执：`build/test-results/product-loop.json`。结束后 stdout 打印从大模块到小模块的报告。
+- `--gui` 测完会 `DeleteConversation` 清掉本机 fixture 会话，不留在侧栏。
 - 不要把回执提交进仓库。
 
 ## 不要做的
 
 - 不要为了跑回归构建 MilkSU Beta。
 - 不要把协调器挂进 Settings「评测」或 App 启动。
-- 不要发明第二套 GUI runner；CDP 附着走 `scripts/lib/desktop-gui-driver.mjs`，产品接口是 `window.milksu.invoke`。`isMilkSUPage` 必须先排除标题或 URL 带 fixture 的页（例如 `MilkSU DSH fixture`）；那些隔离浏览器页会抢走 CDP，主窗的 `window.milksu` 就连不上。
+- 不要发明第二套 GUI runner；CDP 附着走 `scripts/lib/desktop-gui-driver.mjs`，产品接口是 `window.milksu.invoke`。`isMilkSUPage` 必须先排除标题或 URL 带 fixture 的页。
 - 不要在 CI 默认跑 `--gui --suite all`（真 API、本机窗口）。
 - 不要把本回执写成 Coding / CTF / Memory / 发版完成。

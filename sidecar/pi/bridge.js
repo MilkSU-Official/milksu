@@ -146,7 +146,9 @@ import {
   projectSubagentToolResult,
 } from "./bridge-subagent-yield.js";
 import {
+  followUpSession,
   projectSteeringQueue,
+  relaySession,
   removeQueuedMessage,
   steerSession,
 } from "./bridge-steering.js";
@@ -2520,6 +2522,12 @@ async function handleCommand(command) {
       break;
     case "steer_message":
       await steerSession(sessions, command);
+      break;
+    case "followup_message":
+      await followUpSession(sessions, command);
+      break;
+    case "relay_message":
+      await relaySession(sessions, command);
       break;
     case "remove_queued_message":
       await removeQueuedMessageCommand(command);

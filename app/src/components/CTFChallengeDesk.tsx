@@ -244,7 +244,10 @@ export default function CTFChallengeDesk({
                 <p className="mt-2 max-w-lg text-caption leading-5 text-muted-foreground">{catalogError || emptyDetail}</p>
               ) : null}
               {activeBank === 'nssctf' ? (
-                <Button variant="outline" size="sm" className="mt-4" onClick={onSyncNssctf}><RefreshCw className="size-4" />{t('重新同步', 'Resync')}</Button>
+                <Button variant="outline" size="sm" className={catalogError || resolvedEmptyTitle ? 'mt-4' : ''} onClick={onSyncNssctf}>
+                  <RefreshCw className="size-4" />
+                  {t('同步', 'Sync')}
+                </Button>
               ) : (
                 <Button variant="outline" size="sm" className="mt-4" onClick={onOpenCtfshow}><ExternalLink className="size-4" />{t('打开 CTFshow', 'Open CTFshow')}</Button>
               )}

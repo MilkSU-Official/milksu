@@ -56,7 +56,6 @@ import { useCTFShowCatalog } from '@/composables/useCTFShow'
 import { useNSSCTFArena, useNSSCTFChallenges, useNSSCTFWebBridge } from '@/composables/useNSSCTF'
 import { useNSSCTFCatalog, useNSSCTFTraining } from '@/composables/useNSSCTFTraining'
 import { invokeCommand } from '@/desktop'
-import { shouldBootstrapNSSCTFCatalog } from '@/lib/ctfCatalogBootstrap'
 import {
   chooseCTFDailyChallenge,
   CTF_DAILY_CHALLENGE_STORAGE_KEY,
@@ -272,7 +271,6 @@ export default function CTFPage({
   const [platformReview, setPlatformReview] = useState(false)
   const [outcomeNotice, setOutcomeNotice] = useState('')
   const [catalogNotice, setCatalogNotice] = useState('')
-  const [catalogBootstrapAttempted, setCatalogBootstrapAttempted] = useState(false)
   const [attachmentError, setAttachmentError] = useState('')
   const [localMaterials, setLocalMaterials] = useState<CTFMaterialRequest[]>([])
   const [working, setWorking] = useState(false)
@@ -479,13 +477,11 @@ export default function CTFPage({
   const deskLoadingTitle = activeBank === 'ctfshow'
     ? t('正在检查 CTFshow 连接', 'Checking CTFshow connection')
     : trainingSyncing
-      ? t('正在首次同步 NSSCTF 公开题库', 'First sync of the NSSCTF public catalog')
+      ? t('正在同步 NSSCTF 公开题库', 'Syncing the NSSCTF public catalog')
       : t('正在读取 NSSCTF 本地题库', 'Reading the local NSSCTF catalog')
   const deskLoadingDetail = activeBank === 'ctfshow'
     ? t('在 CTFshow 题库页打开 MilkSU 扩展以同步题目。', 'Open the MilkSU extension on a CTFshow catalog page to sync challenges.')
-    : trainingSyncing
-      ? t('正在同步 NSSCTF 公开题库', 'Syncing the NSSCTF public catalog')
-      : ''
+    : ''
   const deskEmptyTitle = (deskQuery.trim() || deskCategory !== 'all') ? t('没有匹配题目', 'No matching challenges') : ''
   const catalogErrorMessage = (activeBank === 'nssctf' ? catalogError ?? trainingError : ctfshowError)
     ? t('题库暂时没有同步成功，请稍后重试。', 'The catalog did not sync. Try again later.')
@@ -530,17 +526,6 @@ export default function CTFPage({
       setCatalogNotice(t(`已把 ${result.total} 道公开题目更新到本地题库。`, `Updated ${result.total} public challenges into the local catalog.`))
       if (screen === 'challenge' && !selectedProblem) await loadPublicCatalog(1)
     }
-  }
-
-  async function bootstrapNSSCTFCatalog() {
-    if (!shouldBootstrapNSSCTFCatalog({
-      activeBank,
-      catalogTotal: trainingDashboard?.catalogTotal ?? 0,
-      syncing: trainingSyncing,
-      attempted: catalogBootstrapAttempted,
-    })) return
-    setCatalogBootstrapAttempted(true)
-    await syncCatalog()
   }
 
   function dailyChallengeCandidates() {
@@ -1067,9 +1052,7 @@ export default function CTFPage({
     if (!mountedRef.current) return
     if (activeBank === 'ctfshow') void ctfshow.refresh()
     else if (activeBank === 'nssctf') {
-      void loadPublicCatalog(1).then(async () => {
-        await bootstrapNSSCTFCatalog()
-      })
+      void loadPublicCatalog(1)
     }
   }, [activeBank])
 
@@ -1141,7 +1124,6 @@ export default function CTFPage({
       activeBank === 'ctfshow' ? ctfshow.refresh() : Promise.resolve(null),
       activeBank === 'nssctf' ? loadPublicCatalog(1) : Promise.resolve(null),
     ]).then(async () => {
-      await bootstrapNSSCTFCatalog()
       await resumeInitialJobIfNeeded(initialJobId)
       if (arenaReady) await arena.refresh()
     })

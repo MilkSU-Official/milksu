@@ -1236,6 +1236,79 @@ func TestQueueMessageUsesExistingDshSession(t *testing.T) {
 	}
 }
 
+func TestFollowUpMessageUsesExistingPiSession(t *testing.T) {
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	defer writer.Close()
+
+	supervisor := NewSupervisor(nil)
+	supervisor.process = &childProcess{stdin: writer, workspace: t.TempDir()}
+	supervisor.sessions["session-1"] = struct{}{}
+	defer func() {
+		supervisor.mu.Lock()
+		supervisor.process = nil
+		supervisor.sessions = make(map[string]struct{})
+		supervisor.mu.Unlock()
+	}()
+
+	if err := supervisor.FollowUpMessage("session-1", "桌宠转达 / Companion relay:\n下一回合再看"); err != nil {
+		t.Fatal(err)
+	}
+	line, err := bufio.NewReader(reader).ReadBytes('\n')
+	if err != nil {
+		t.Fatal(err)
+	}
+	var command map[string]any
+	if err := json.Unmarshal(line, &command); err != nil {
+		t.Fatal(err)
+	}
+	if command["action"] != "followup_message" ||
+		command["conversationId"] != "session-1" {
+		t.Fatalf("unexpected follow-up command: %#v", command)
+	}
+}
+
+func TestSendRegisteredMessageMarksSessionBusy(t *testing.T) {
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	defer writer.Close()
+
+	supervisor := NewSupervisor(nil)
+	supervisor.process = &childProcess{stdin: writer, workspace: t.TempDir()}
+	supervisor.sessions["session-1"] = struct{}{}
+	defer func() {
+		supervisor.mu.Lock()
+		supervisor.process = nil
+		supervisor.sessions = make(map[string]struct{})
+		supervisor.busySessions = make(map[string]struct{})
+		supervisor.mu.Unlock()
+	}()
+
+	if err := supervisor.SendRegisteredMessage("session-1", "桌宠转达 / Companion relay:\n继续"); err != nil {
+		t.Fatal(err)
+	}
+	if !supervisor.SessionBusy("session-1") {
+		t.Fatal("relay should mark the live session busy")
+	}
+	line, err := bufio.NewReader(reader).ReadBytes('\n')
+	if err != nil {
+		t.Fatal(err)
+	}
+	var command map[string]any
+	if err := json.Unmarshal(line, &command); err != nil {
+		t.Fatal(err)
+	}
+	if command["action"] != "relay_message" {
+		t.Fatalf("unexpected relay command: %#v", command)
+	}
+}
+
 func TestRemoveQueuedMessageWaitsForExactSidecarReceipt(t *testing.T) {
 	reader, writer, err := os.Pipe()
 	if err != nil {

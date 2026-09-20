@@ -9,7 +9,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { createCompanionExtension, COMPANION_SESSION_ID } from "./extension.js";
 import { createCompanionTools } from "./tools.js";
-import { openCompanionIndex, scheduleIndex } from "./obelisk-index.js";
+import { queryCompanionMemory, scheduleCompanionIndexRefresh } from "./obelisk-index.js";
 
 const require = createRequire(import.meta.url);
 const {
@@ -34,16 +34,7 @@ let boardSnapshot = { sessions: [], todos: [] };
 let semanticMemories = [];
 let episodicRecalls = [];
 let persona = "";
-let companionIndexPromise = null;
-
-function companionIndex() {
-  const path = process.env.MILKSU_COMPANION_INDEX_PATH;
-  if (!path) return null;
-  if (!companionIndexPromise) {
-    companionIndexPromise = openCompanionIndex(path).catch(() => null);
-  }
-  return companionIndexPromise;
-}
+let memorySearchEnabled = true;
 
 function emit(type, data = {}) {
   process.stdout.write(`${JSON.stringify({
@@ -53,21 +44,25 @@ function emit(type, data = {}) {
   })}\n`);
 }
 
-function requestHost(action, input) {
+function requestHost(action, input, options = {}) {
   const requestId = `companion-host-${++hostRequestSeq}`;
+  const timeoutMs = Number.isFinite(options.timeoutMs) ? options.timeoutMs : 30_000;
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      if (!pendingHost.has(requestId)) return;
-      pendingHost.delete(requestId);
-      reject(new Error("companion host request timed out"));
-    }, 30_000);
+    let timer = null;
+    if (timeoutMs > 0) {
+      timer = setTimeout(() => {
+        if (!pendingHost.has(requestId)) return;
+        pendingHost.delete(requestId);
+        reject(new Error("companion host request timed out"));
+      }, timeoutMs);
+    }
     pendingHost.set(requestId, {
       resolve: (value) => {
-        clearTimeout(timer);
+        if (timer) clearTimeout(timer);
         resolve(value);
       },
       reject: (error) => {
-        clearTimeout(timer);
+        if (timer) clearTimeout(timer);
         reject(error);
       },
     });
@@ -112,7 +107,9 @@ async function createCompanionSession(command) {
   const agentDir = companionAgentDir();
   await mkdir(join(agentDir, "sessions"), { recursive: true });
   const cwd = process.cwd();
-  const tools = createCompanionTools(requestHost);
+  const tools = createCompanionTools(requestHost, {
+    queryMemory: params => queryCompanionMemory(params, { memorySearchEnabled }),
+  });
   const resourceLoader = new DefaultResourceLoader({
     cwd,
     agentDir,
@@ -192,15 +189,7 @@ function subscribeCompanion() {
     }
     if (event.type === "agent_end") {
       emit("turn_settled", {});
-      void Promise.resolve(companionIndex()).then(index => {
-        if (!index) return;
-        scheduleIndex(index, {
-          sessionId: COMPANION_SESSION_ID,
-          title: "companion",
-          snippet: "companion turn settled",
-          kernel: "pi",
-        });
-      });
+      if (memorySearchEnabled) scheduleCompanionIndexRefresh();
       return;
     }
     if (event.type === "compaction_start" || event.type === "compaction_end") {
@@ -220,6 +209,8 @@ async function sendPrompt(prompt) {
 async function handleCommand(command) {
   switch (command.action) {
     case "create_session":
+      if (command.memorySearchEnabled === false) memorySearchEnabled = false;
+      if (command.memorySearchEnabled === true) memorySearchEnabled = true;
       await createCompanionSession(command);
       if (!subscribed) {
         subscribeCompanion();
@@ -236,6 +227,8 @@ async function handleCommand(command) {
       if (Array.isArray(command.semanticMemories)) semanticMemories = command.semanticMemories;
       if (Array.isArray(command.episodicRecalls)) episodicRecalls = command.episodicRecalls;
       if (typeof command.persona === "string") persona = command.persona;
+      if (command.memorySearchEnabled === false) memorySearchEnabled = false;
+      if (command.memorySearchEnabled === true) memorySearchEnabled = true;
       await sendPrompt(String(command.prompt ?? ""));
       return;
     case "update_context":

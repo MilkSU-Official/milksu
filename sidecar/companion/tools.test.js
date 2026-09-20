@@ -29,12 +29,28 @@ test("memory search path does not write", async () => {
   const [board, dispatch, memory] = createCompanionTools(async (action, input) => {
     calls.push({ action, input });
     return { written: false, results: [] };
+  }, {
+    queryMemory: async () => ({ written: false, results: [{ sessionId: "s1", snippet: "auth" }] }),
   });
   assert.equal(board.name, "companion_board");
   assert.equal(dispatch.name, "companion_dispatch");
   const result = await memory.execute("1", { action: "search", query: "auth" });
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].action, "memory");
-  assert.equal(calls[0].input.action, "search");
+  assert.equal(calls.length, 0);
   assert.match(result.content[0].text, /"written":false/);
+});
+
+test("dispatch host request does not time out while waiting for confirmation", async () => {
+  const [,,] = [];
+  const tools = createCompanionTools(async (action, _input, options) => {
+    assert.equal(action, "dispatch");
+    assert.equal(options?.timeoutMs, 0);
+    return { needsConfirmation: true, accepted: false, delivered: false };
+  });
+  const dispatch = tools.find(tool => tool.name === "companion_dispatch");
+  const result = await dispatch.execute("1", {
+    action: "stop",
+    conversationId: "live",
+    idempotencyKey: "k1",
+  });
+  assert.match(result.content[0].text, /needsConfirmation/);
 });

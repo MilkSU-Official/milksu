@@ -25,7 +25,6 @@ type RuntimeOptions struct {
 	Speaker          Speaker
 	Control          SessionControl
 	Searcher         SessionSearcher
-	Indexer          EpisodeIndexer
 	Emit             func(engine.Event)
 	Start            func(config.AppSettings, string, string) (*exec.Cmd, io.WriteCloser, io.ReadCloser, error)
 }
@@ -51,12 +50,19 @@ type Runtime struct {
 	board      *Board
 	dispatcher *Dispatcher
 	memory     *Memory
-	indexer    EpisodeIndexer
+
+	pendingConfirms map[string]parkedConfirm
 
 	command *exec.Cmd
 	stdin   io.WriteCloser
 	ready   bool
 	lastErr string
+}
+
+type parkedConfirm struct {
+	requestID string
+	input     map[string]any
+	title     string
 }
 
 func NewRuntime(options RuntimeOptions) *Runtime {
@@ -78,7 +84,7 @@ func NewRuntime(options RuntimeOptions) *Runtime {
 	}
 	runtime.dispatcher = NewDispatcher(options.Catalog, options.Speaker, board, runtime.dispatchEnabled)
 	runtime.dispatcher.SetControl(options.Control)
-	runtime.indexer = options.Indexer
+	runtime.pendingConfirms = map[string]parkedConfirm{}
 	runtime.loadState()
 	return runtime
 }
@@ -106,13 +112,14 @@ func (r *Runtime) Send(prompt string) error {
 	r.refreshBoard()
 	selection := r.selection()
 	command := map[string]any{
-		"action":           "send_message",
-		"prompt":           prompt,
-		"provider":         selection.Provider,
-		"model":            selection.Model,
-		"boardSnapshot":    r.board.Snapshot(),
-		"semanticMemories": r.semanticPayload(),
-		"episodicRecalls":  []any{},
+		"action":              "send_message",
+		"prompt":              prompt,
+		"provider":            selection.Provider,
+		"model":               selection.Model,
+		"boardSnapshot":       r.board.Snapshot(),
+		"semanticMemories":    r.semanticPayload(),
+		"episodicRecalls":     []any{},
+		"memorySearchEnabled": r.memorySearchEnabled(),
 	}
 	if custom := engine.CompanionCustomProvider(r.resolvedSettings()); custom != nil {
 		command["customProvider"] = custom
@@ -122,14 +129,19 @@ func (r *Runtime) Send(prompt string) error {
 
 func (r *Runtime) Stop() error {
 	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.stopLocked()
+	pending := r.takeAllParkedLocked()
+	err := r.stopLocked()
+	r.mu.Unlock()
+	r.finishParked(pending, "companion sidecar stopped")
+	return err
 }
 
 func (r *Runtime) Invalidate() {
 	r.mu.Lock()
-	defer r.mu.Unlock()
+	pending := r.takeAllParkedLocked()
 	_ = r.stopLocked()
+	r.mu.Unlock()
+	r.finishParked(pending, "companion sidecar stopped")
 }
 
 func (r *Runtime) Status() Status {
@@ -168,7 +180,6 @@ func (r *Runtime) ObserveEngineEvent(event engine.Event) {
 		r.board.SetSessionStatus(sessionID, "needs_approval", "")
 	case "assistant.settled", "assistant.completed":
 		r.board.SetSessionStatus(sessionID, "idle", "")
-		r.enqueueEpisode(event)
 	case "engine.error":
 		r.board.SetSessionStatus(sessionID, "error", event.Error)
 	case "engine.stopped", "session.destroyed":
@@ -243,36 +254,51 @@ func (r *Runtime) ForgetMemory(id string) error {
 	return nil
 }
 
-func (r *Runtime) ConfirmDispatch(action, conversationID, text, idempotencyKey, mode string) (DispatchResult, error) {
+func (r *Runtime) ConfirmDispatch(action, conversationID, text, idempotencyKey, mode, hostRequestID string, accepted bool) (DispatchResult, error) {
 	if r.dispatcher == nil {
 		return DispatchResult{}, fmt.Errorf("companion dispatcher is not configured")
 	}
+	pending := r.takeParked(hostRequestID)
+	if !accepted {
+		result := DispatchResult{
+			Accepted:    false,
+			Delivered:   false,
+			TargetTitle: pending.title,
+			Error:       "user declined",
+		}
+		if pending.requestID != "" {
+			r.respondHost(pending.requestID, result, nil)
+		}
+		return result, nil
+	}
 	r.refreshBoard()
+	var result DispatchResult
 	switch strings.TrimSpace(action) {
 	case "stop":
-		result := r.dispatcher.Stop(StopRequest{
+		result = r.dispatcher.Stop(StopRequest{
 			ConversationID: conversationID,
 			IdempotencyKey: idempotencyKey,
 			Confirmed:      true,
 		})
-		r.persistState()
-		return result, nil
 	case "speak", "steer":
 		if mode == "" {
 			mode = "steer"
 		}
-		result := r.dispatcher.Speak(SpeakRequest{
+		result = r.dispatcher.Speak(SpeakRequest{
 			ConversationID: conversationID,
 			Text:           text,
 			IdempotencyKey: idempotencyKey,
 			Mode:           mode,
 			Confirmed:      true,
 		})
-		r.persistState()
-		return result, nil
 	default:
 		return DispatchResult{}, fmt.Errorf("unknown companion confirm action %q", action)
 	}
+	r.persistState()
+	if pending.requestID != "" {
+		r.respondHost(pending.requestID, result, nil)
+	}
+	return result, nil
 }
 
 func (r *Runtime) startLocked() error {
@@ -302,9 +328,10 @@ func (r *Runtime) startLocked() error {
 	go r.readEvents(stdout)
 	selection := r.selection()
 	create := map[string]any{
-		"action":   "create_session",
-		"provider": selection.Provider,
-		"model":    selection.Model,
+		"action":              "create_session",
+		"provider":            selection.Provider,
+		"model":               selection.Model,
+		"memorySearchEnabled": r.memorySearchEnabled(),
 	}
 	if custom := engine.CompanionCustomProvider(settings); custom != nil {
 		create["customProvider"] = custom
@@ -312,8 +339,10 @@ func (r *Runtime) startLocked() error {
 	if err := r.write(create); err != nil {
 		r.mu.Lock()
 		r.lastErr = err.Error()
+		pending := r.takeAllParkedLocked()
 		_ = r.stopLocked()
 		r.mu.Unlock()
+		r.finishParked(pending, err.Error())
 		return err
 	}
 	deadline := time.Now().Add(20 * time.Second)
@@ -394,7 +423,9 @@ func (r *Runtime) readEvents(stdout io.ReadCloser) {
 	}
 	r.command = nil
 	r.stdin = nil
+	pending := r.takeAllParkedLocked()
 	r.mu.Unlock()
+	r.finishParked(pending, "companion sidecar stopped")
 }
 
 func (r *Runtime) answerHost(raw map[string]any) {
@@ -404,7 +435,22 @@ func (r *Runtime) answerHost(raw map[string]any) {
 	if input == nil {
 		input = map[string]any{}
 	}
+	if action == "dispatch" {
+		parked, result, err := r.dispatchHost(requestID, input)
+		if parked {
+			return
+		}
+		r.respondHost(requestID, result, err)
+		return
+	}
 	result, err := r.handleHost(action, input)
+	r.respondHost(requestID, result, err)
+}
+
+func (r *Runtime) respondHost(requestID string, result any, err error) {
+	if strings.TrimSpace(requestID) == "" {
+		return
+	}
 	response := map[string]any{
 		"action":    "companion_host_response",
 		"requestId": requestID,
@@ -420,22 +466,90 @@ func (r *Runtime) answerHost(raw map[string]any) {
 	}
 }
 
+func (r *Runtime) dispatchHost(requestID string, input map[string]any) (bool, any, error) {
+	result, err := r.dispatcher.Handle(input)
+	r.persistState()
+	if err != nil {
+		return false, result, err
+	}
+	dispatch, ok := result.(DispatchResult)
+	if !ok || !dispatch.NeedsConfirmation {
+		return false, result, nil
+	}
+	r.parkConfirm(requestID, input, dispatch.TargetTitle)
+	payload := map[string]any{}
+	for key, value := range input {
+		payload[key] = value
+	}
+	payload["hostRequestId"] = requestID
+	encoded, _ := json.Marshal(payload)
+	r.emitEvent(engine.Event{
+		Type:      "companion.confirm",
+		RequestID: requestID,
+		Input:     string(encoded),
+		Notice:    dispatch.TargetTitle,
+	})
+	return true, nil, nil
+}
+
+func (r *Runtime) parkConfirm(requestID string, input map[string]any, title string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.pendingConfirms == nil {
+		r.pendingConfirms = map[string]parkedConfirm{}
+	}
+	r.pendingConfirms[requestID] = parkedConfirm{
+		requestID: requestID,
+		input:     input,
+		title:     title,
+	}
+}
+
+func (r *Runtime) takeParked(hostRequestID string) parkedConfirm {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.pendingConfirms == nil {
+		return parkedConfirm{}
+	}
+	hostRequestID = strings.TrimSpace(hostRequestID)
+	if hostRequestID != "" {
+		pending := r.pendingConfirms[hostRequestID]
+		delete(r.pendingConfirms, hostRequestID)
+		return pending
+	}
+	if len(r.pendingConfirms) == 1 {
+		for key, pending := range r.pendingConfirms {
+			delete(r.pendingConfirms, key)
+			return pending
+		}
+	}
+	return parkedConfirm{}
+}
+
+func (r *Runtime) takeAllParkedLocked() map[string]parkedConfirm {
+	pending := r.pendingConfirms
+	r.pendingConfirms = map[string]parkedConfirm{}
+	return pending
+}
+
+func (r *Runtime) finishParked(pending map[string]parkedConfirm, reason string) {
+	for _, item := range pending {
+		r.respondHost(item.requestID, DispatchResult{
+			Accepted:    false,
+			Delivered:   false,
+			TargetTitle: item.title,
+			Error:       reason,
+		}, nil)
+	}
+}
+
 func (r *Runtime) handleHost(action string, input map[string]any) (any, error) {
 	r.refreshBoard()
 	switch action {
 	case "board":
 		return r.board.Handle(input)
 	case "dispatch":
-		result, err := r.dispatcher.Handle(input)
-		r.persistState()
-		if dispatch, ok := result.(DispatchResult); ok && dispatch.NeedsConfirmation {
-			payload, _ := json.Marshal(input)
-			r.emitEvent(engine.Event{
-				Type:   "companion.confirm",
-				Input:  string(payload),
-				Notice: dispatch.TargetTitle,
-			})
-		}
+		_, result, err := r.dispatchHost("", input)
 		return result, err
 	case "memory":
 		if strings.TrimSpace(stringValue(input["action"])) == "search" && !r.memorySearchEnabled() {
@@ -479,26 +593,6 @@ func (r *Runtime) dispatchEnabled() bool {
 
 func (r *Runtime) memorySearchEnabled() bool {
 	return config.CompanionMemoryEnabled(r.resolvedSettings())
-}
-
-func (r *Runtime) enqueueEpisode(event engine.Event) {
-	if r.indexer == nil || !r.memorySearchEnabled() {
-		return
-	}
-	title := strings.TrimSpace(event.Notice)
-	if title == "" {
-		title = event.SessionID
-	}
-	text := strings.TrimSpace(event.Text)
-	if text == "" {
-		text = strings.TrimSpace(event.Reason)
-	}
-	go r.indexer.IndexEpisode(Episode{
-		SessionID: event.SessionID,
-		Title:     title,
-		Snippet:   text,
-		Kernel:    event.Engine,
-	})
 }
 
 func (r *Runtime) resolvedSettings() config.AppSettings {

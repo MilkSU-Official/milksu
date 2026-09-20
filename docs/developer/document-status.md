@@ -2,7 +2,7 @@
 
 > 状态：Current / Living
 >
-> 最后事实审计：2026-09-19
+> 最后事实审计：2026-09-20
 >
 > 产品开发目标：内测迭代 / Agent Runtime 与跨平台发行收敛
 
@@ -37,7 +37,7 @@
 | 文档 | 状态 | 负责什么 | 不负责什么 |
 | --- | --- | --- | --- |
 | [当前开发目标](current-objectives.md) | Current / Canonical | 当前阶段、能力事实、已发行记录、未打进安装包的代码、下一完成线和未接线方向 | 不写「当前最新版是」版本号或 hash；不保存完整聊天或旧验收过程；不复述 UI 规范 |
-| [产品回归循环](product-regression-loop.md) | Evidence / Living | 改功能后怎么选跑产品契约套件；和 Settings 评测 / NYU / DSH 单脚本的分界 | 不写模型 Pass@1；不替代安装包真机验收 |
+| [产品回归循环](product-regression-loop.md) | Evidence / Living | 改功能后按上手顺序跑独立 Stable 窗口；和 Settings 评测 / NYU 的分界 | 不写模型 Pass@1；不替代安装包真机验收 |
 | [当前系统与分层](../architecture/current-system.md) | Current / Canonical | 当前运行结构、依赖方向、桌面表面、能力边界和发行结构 | 不写「当前最新版是」版本号或 hash；不安排任务优先级；不复述 UI 规范 |
 | [Linux 安装与桌面合同](linux-platform-support.md) | Target / Designed | 共用 x64 DEB + 通用 tarball；ARM 只测不发；GNOME Portal Computer Use；ISSUE #19 已关闭 | 不把未发版安装面写成 GitHub Latest；不按 arch×distro 发 8 份包 |
 | 仓库根目录 `AGENTS.md` | Current / Canonical | 仓库协作约束与产品 UI 设计语言 | 其他文档只指向它，不复制层级、token 或原语表 |
