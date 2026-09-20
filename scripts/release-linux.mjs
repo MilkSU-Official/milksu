@@ -227,6 +227,7 @@ for (const required of [
   join(unpackedResources, BUILD_TRACKING_RESOURCE),
   join(unpackedResources, 'milksu-sidecar', 'node'),
   join(unpackedResources, 'milksu-sidecar', 'chat-bridge.cjs'),
+  join(unpackedResources, 'milksu-sidecar', 'photon_rs_bg.wasm'),
   join(unpackedResources, 'milksu-sidecar', 'manifest.json'),
   join(unpackedResources, 'milksu-sidecar', 'node_modules', '@playwright', 'mcp', 'cli.js'),
   join(unpackedResources, 'milksu-sidecar', 'node_modules', '@deepseek-ai', 'cordis-plugin-group'),

@@ -627,8 +627,8 @@ async function inspectDirectory(root) {
 }
 
 /**
- * A recursive delete must carry the requester's own purpose and safety note. Blank or
- * whitespace-only text counts as missing, and a missing note never reaches the card.
+ * Optional requester notes for the confirmation card. A missing note no longer
+ * refuses the delete: the card still appears, and the guard's own reason fills in.
  */
 export function destructiveJustification(input) {
   const record = input && typeof input === "object" ? input : {};
@@ -641,8 +641,22 @@ export function destructiveJustification(input) {
     ok: Boolean(purpose) && Boolean(safety),
     purpose,
     safety,
-    reason: "MilkSU refused this recursive delete: it has no reason attached. "
-      + "Use request_destructive_delete and fill in 用途 (purpose) and 安全性 (safety).",
+    reason: "",
+  };
+}
+
+function confirmDeleteDecision({ chinese, command, reason, targets = [] }) {
+  return {
+    action: "approval",
+    reason,
+    content: chinese
+      ? `删除需要确认\n原因：${reason}\n原始命令：${command}`
+      : `Deletion requires confirmation\nReason: ${reason}\nOriginal command: ${command}`,
+    input: JSON.stringify({
+      command,
+      reason,
+      normalizedTargets: targets,
+    }, null, 2),
   };
 }
 
@@ -667,17 +681,53 @@ export function commandForTool(toolName, input) {
       : "";
 }
 
+function unquoteShellToken(value) {
+  return String(value ?? "").replace(/^['"]|['"]$/g, "").trim();
+}
+
+function sameDeleteTarget(left, right) {
+  const a = String(left ?? "");
+  const b = String(right ?? "");
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const prefix = value => (value.endsWith("/") ? value : `${value}/`);
+  return a.startsWith(prefix(b)) || b.startsWith(prefix(a));
+}
+
+/**
+ * Simple `NAME=value` assignments the command itself writes (`REPRO=/tmp/x` or
+ * `REPRO=/tmp/x rm -rf "$REPRO"`). The delete target is then a known path, not an
+ * unknown host variable. Values that still contain substitution are skipped.
+ */
+export function commandAssignments(command) {
+  const assignments = {};
+  for (const statement of splitTopLevelStatements(stripHeredocBodies(command))) {
+    let text = String(statement ?? "").replace(/^\s*export\s+/, "").trim();
+    while (text) {
+      const match = /^([A-Za-z_][A-Za-z0-9_]*)=("[^"]*"|'[^']*'|[^\s;|&]+)\s*/.exec(text);
+      if (!match) break;
+      const value = unquoteShellToken(match[2]);
+      if (value && !/`|\$\(|\$\{|\$[A-Za-z_]|%[A-Za-z_]/.test(value)) {
+        assignments[match[1]] = value;
+      }
+      text = text.slice(match[0].length).trim();
+    }
+  }
+  return assignments;
+}
+
 // A command can create the very tree it deletes (`mkdir -p X; …; rm -rf X`). The target
 // then looks missing or tiny to the pre-flight check, so it must be refused outright.
+// `rm -rf X && mkdir X` is the opposite: it clears a path that already exists, then
+// recreates it. That delete can be measured now, so it is not this case.
 function createsItsOwnTarget(command, targets) {
-  const unquote = value => String(value ?? "").replace(/^['"]|['"]$/g, "");
-  for (const match of String(command).matchAll(/mkdir\s+(?:-p\s+)?("[^"]+"|'[^']+'|[^\s;&|]+)/g)) {
-    const created = unquote(match[1]).trim();
+  const text = String(command ?? "");
+  for (const match of text.matchAll(/mkdir\s+(?:-p\s+)?("[^"]+"|'[^']+'|[^\s;&|]+)/g)) {
+    const created = unquoteShellToken(match[1]);
     if (!created) continue;
-    const prefix = created.endsWith("/") ? created : `${created}/`;
-    if (targets.some(target => String(target) === created || String(target).startsWith(prefix))) {
-      return true;
-    }
+    if (!targets.some(target => sameDeleteTarget(target, created))) continue;
+    const later = recursiveDeleteTargets(text.slice(match.index + match[0].length));
+    if (later.some(target => sameDeleteTarget(target, created))) return true;
   }
   return false;
 }
@@ -718,26 +768,32 @@ export async function destructiveDeleteDecision({
         : `its script chain runs deeper than the guard reads (it read ${deepest} levels and did `
           + "not open the next one), so what it would delete cannot be seen before it runs.");
     }
-    // The command is refused because the guard could not see what it removes, which is not the
-    // same as knowing it removes something. The copy must not claim a deletion it never saw.
-    return {
-      action: "block",
+    // The guard could not see what the command removes. Ask, do not silently refuse.
+    return confirmDeleteDecision({
+      chinese,
+      command,
       reason: chinese
-        ? `MilkSU 拒绝执行这条命令：${parts.join("；")}请先单独把脚本写好并看过，再单独执行它。`
-        : `MilkSU refused to run this command: ${parts.join(" ")} Write and read the script in one `
-          + "command, then run it in another.",
-    };
+        ? `${parts.join("；")}确认后才会按原始命令执行。`
+        : `${parts.join(" ")} Confirm to run the original command.`,
+    });
   }
   if (!rawTargets.length) return null;
+  const chinese = policy?.uiLocale !== "en";
   if (createsItsOwnTarget(command, rawTargets)) {
-    return {
-      action: "block",
-      reason:
-        "MilkSU refused this deletion: the same command creates the target first, so what "
-        + "it would remove cannot be checked before running it.",
-    };
+    return confirmDeleteDecision({
+      chinese,
+      command,
+      reason: chinese
+        ? "同一条命令先创建目标，运行前无法检查它会删掉什么。"
+        : "the same command creates the target first, so what it would remove cannot be "
+          + "checked before running it.",
+    });
   }
 
+  const assignedEnvironment = {
+    ...environment,
+    ...commandAssignments(command),
+  };
   const workspace = String(policy?.workspace ?? process.cwd()).trim() || process.cwd();
   const protectedRoots = [
     { path: homeDirectory, reason: "用户主目录" },
@@ -758,15 +814,18 @@ export async function destructiveDeleteDecision({
   const reviewedTargets = [];
   for (const rawTarget of rawTargets) {
     const expanded = expandDeleteTarget(rawTarget, {
-      environment,
+      environment: assignedEnvironment,
       homeDirectory,
       platform,
     });
     if (expanded.error) {
-      return {
-        action: "block",
-        reason: `${expanded.error}。请先解析成一个明确的绝对路径，再重新发起删除。`,
-      };
+      return confirmDeleteDecision({
+        chinese,
+        command,
+        reason: chinese
+          ? `${expanded.error}。确认后才会按原始命令执行。`
+          : `${expanded.error} Confirm to run the original command.`,
+      });
     }
     const absolute = isAbsolute(expanded.value)
       ? resolve(expanded.value)
@@ -802,12 +861,14 @@ export async function destructiveDeleteDecision({
   }
   if (!reviewedTargets.length) return null;
 
-  const chinese = policy?.uiLocale !== "en";
   const targetSummary = reviewedTargets.map(target => (
     `${target.path}（${target.reasons.join("、")}）`
   )).join("\n");
   return {
     action: "approval",
+    reason: chinese
+      ? `大范围删除：${reviewedTargets.map(target => target.reasons.join("、")).join("；")}`
+      : `broad deletion: ${reviewedTargets.map(target => target.reasons.join(", ")).join("; ")}`,
     content: chinese
       ? `大范围删除需要再次确认\n规范化目标：\n${targetSummary}\n影响：目标中的内容将被递归删除，通常无法从 MilkSU 恢复。\n原始命令：${command}`
       : `Broad deletion requires confirmation\nNormalized target(s):\n${targetSummary}\nImpact: contents will be deleted recursively and usually cannot be recovered by MilkSU.\nOriginal command: ${command}`,

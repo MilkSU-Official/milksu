@@ -399,7 +399,7 @@ export default function ChatMessageItem({
     || /\bxargs\b/.test(`${approvalCommand}\n${message.approvalInput ?? ''}`)
     || approvalVerification.targets.some(target => target.kind !== 'unknown')
   )
-  const approvalBlocked = approvalIsDestructive && !approvalVerification.canAllow
+  const approvalUnverified = approvalIsDestructive && !approvalVerification.canAllow
   const approvalMeasurement = measuredFacts.find(fact => (
     typeof fact.fileCount === 'number' || typeof fact.inGitRepository === 'boolean'
   )) ?? {}
@@ -638,9 +638,9 @@ export default function ChatMessageItem({
               ) : null}
               {message.approvalState === 'pending' && message.approvalRequestId ? (
                 <div className="agent-approve__actions">
-                  {approvalBlocked ? (
+                  {approvalUnverified ? (
                     <p className="w-full text-caption font-medium text-destructive" data-testid="approval-gate">
-                      {t('核验为高风险或目标无法确定：本卡不提供「允许」。请让发起者补上用途与安全性，或改用更小的目标。', 'Verification failed (high risk or unknown scope): this card offers no allow. Ask the requester for a purpose and safety note, or narrow the target.')}
+                      {t('目标或影响范围无法完全核验。允许这一次将按原始命令执行。', 'The target or impact could not be fully verified. Allow once runs the original command.')}
                     </p>
                   ) : null}
                   <Button
@@ -651,16 +651,14 @@ export default function ChatMessageItem({
                   >
                     {t('拒绝', 'Deny')}
                   </Button>
-                  {!approvalBlocked ? (
-                    <Button
-                      type="button"
-                      variant={message.approvalGrantable ? 'outline' : 'default'}
-                      size="sm"
-                      onClick={() => onRespondApproval?.(message.approvalRequestId as string, true, 'once')}
-                    >
-                      {t('允许这一次', 'Allow once')}
-                    </Button>
-                  ) : null}
+                  <Button
+                    type="button"
+                    variant={message.approvalGrantable ? 'outline' : 'default'}
+                    size="sm"
+                    onClick={() => onRespondApproval?.(message.approvalRequestId as string, true, 'once')}
+                  >
+                    {t('允许这一次', 'Allow once')}
+                  </Button>
                 </div>
               ) : message.approvalReason ? (
                 <p className="mt-2 text-caption text-muted-foreground">

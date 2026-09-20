@@ -53,7 +53,7 @@ export interface DestructiveAssessment {
   protections: string[]
   /** True when nothing could be determined: never allow by default. */
   undetermined: boolean
-  /** The allow button is gated on this: unknown scope or a protected path. */
+  /** Scope is determined and not on the protected list. Informational: the card still offers Allow. */
   canAllow: boolean
   /** Nothing can bring it back (no git tracking, no backup) - shown in red. */
   irrecoverable: boolean
@@ -424,7 +424,7 @@ function formatBytes(bytes: number): string {
 
 /**
  * Merge the parsed targets with measured facts into what the card shows.
- * `undetermined` is the gate for the "allow" button: no reason, no allow.
+ * `undetermined` is shown as a warning; the user can still allow.
  */
 /**
  * Approval requests carry the tool input, not always a shell command: a `bash` call arrives
@@ -585,7 +585,7 @@ export function assessDestructiveRequest(
     targets,
     protections,
     undetermined,
-    // The allow button is gated on this: unknown scope or a protected path, nothing else.
+    // Informational only. The confirmation card still offers Allow; the user is the backstop.
     canAllow: !undetermined && protections.length === 0,
     irrecoverable,
     verdict: `风险：${risk === 'high' ? '高' : risk === 'medium' ? '中' : '低'}（${parts.join('；')}）`,

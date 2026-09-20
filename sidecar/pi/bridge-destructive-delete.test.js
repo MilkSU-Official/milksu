@@ -14,6 +14,7 @@ import {
   destructiveDeleteDecision,
   destructiveJustification,
   expandDeleteTarget,
+  commandAssignments,
   commandForTool,
   consumeDestructiveDeleteCredential,
   consumeMatchingDestructiveDeleteCredential,
@@ -143,7 +144,7 @@ test("small recursive deletes remain automatic while large directories require c
   assert.match(decision.content, /大型目录/);
 });
 
-test("unresolved recursive delete targets are blocked instead of being approved ambiguously", async () => {
+test("unresolved recursive delete targets ask instead of being approved silently", async () => {
   const decision = await destructiveDeleteDecision({
     toolName: "bash",
     input: { command: 'rm -rf "$UNKNOWN_ROOT"' },
@@ -151,8 +152,9 @@ test("unresolved recursive delete targets are blocked instead of being approved 
     environment: {},
     homeDirectory: "/nonexistent-home",
   });
-  assert.equal(decision.action, "block");
-  assert.match(decision.reason, /明确的绝对路径/);
+  assert.equal(decision.action, "approval");
+  assert.match(decision.reason, /无法安全解析/);
+  assert.match(decision.content, /删除需要确认/);
 });
 
 // A background task must be judged exactly like the foreground call; anything that
@@ -197,10 +199,10 @@ test("judges a background task like the foreground command", async () => {
 
 // A recursive delete must carry the requester's own reason; a bare rm -rf fails closed
 // so the card can never show "the requester did not provide a purpose".
-test("requires a purpose and a safety note for a recursive delete", () => {
+test("reads an optional purpose and safety note for the confirmation card", () => {
   const missing = destructiveJustification({ command: "rm -rf /x" });
   assert.equal(missing.ok, false);
-  assert.match(missing.reason, /request_destructive_delete/);
+  assert.equal(missing.reason, "");
 
   assert.equal(destructiveJustification({ justification: { purpose: " ", safety: "x" } }).ok, false);
   assert.equal(destructiveJustification({ justification: { purpose: "x", safety: "  " } }).ok, false);
@@ -333,10 +335,11 @@ test("a command that creates its own delete target is blocked", async (t) => {
       command: `rm -rf ${target}; mkdir -p ${target}; `
         + `for i in $(seq 1 1200); do : > "${target}/f$i"; done; rm -rf ${target}`,
     },
-    policy: { workspace },
+    policy: { workspace, uiLocale: "en" },
   });
-  assert.equal(decision?.action, "block");
+  assert.equal(decision?.action, "approval");
   assert.match(String(decision?.reason ?? ""), /creates the target first/i);
+  assert.match(String(decision?.content ?? ""), /Deletion requires confirmation/);
 
   // A delete of a directory the command does not create is judged normally.
   const plain = await destructiveDeleteDecision({
@@ -345,6 +348,46 @@ test("a command that creates its own delete target is blocked", async (t) => {
     policy: { workspace },
   });
   assert.notEqual(plain?.action, "block");
+});
+
+// `rm -rf X && mkdir X` clears a path that already exists, then recreates it. The
+// delete is of the current tree and can be measured; refusing it blocked ordinary
+// repro / preview harnesses (`REPRO=/tmp/x; rm -rf "$REPRO" && mkdir -p "$REPRO"`).
+test("guard-clean-slate: rm then mkdir of the same path is not a hidden create", async (t) => {
+  const workspace = await mkdtemp(join(tmpdir(), "milksu-clean-slate-"));
+  t.after(async () => {
+    await rm(workspace, { recursive: true, force: true });
+  });
+  const target = join(workspace, "repro");
+
+  const clean = await destructiveDeleteDecision({
+    toolName: "bash",
+    input: { command: `rm -rf ${target} && mkdir -p ${target}` },
+    policy: { workspace, uiLocale: "zh" },
+  });
+  assert.equal(clean, null);
+
+  assert.deepEqual(commandAssignments(`REPRO=${target}\nrm -rf "$REPRO" && mkdir -p "$REPRO"`), {
+    REPRO: target,
+  });
+  const assigned = await destructiveDeleteDecision({
+    toolName: "bash",
+    input: {
+      command: `set -e\nREPRO=${target}\nrm -rf "$REPRO" && mkdir -p "$REPRO"`,
+    },
+    policy: { workspace, uiLocale: "zh" },
+  });
+  assert.equal(assigned, null);
+
+  // mkdir before a later rm of the same path is still the hidden-create case.
+  const created = await destructiveDeleteDecision({
+    toolName: "bash",
+    input: { command: `mkdir -p ${target}; rm -rf ${target}` },
+    policy: { workspace, uiLocale: "zh" },
+  });
+  assert.equal(created?.action, "approval");
+  assert.match(String(created?.reason ?? ""), /先创建目标/);
+  assert.match(String(created?.content ?? ""), /删除需要确认/);
 });
 
 // The three quoting forms of the same delete must reach the same decision on the sidecar
@@ -621,7 +664,7 @@ test("guard-fd: descriptor redirections are not file writes", () => {
 // delete deep in a chain pass unseen, so a chain that really continues past what it read is
 // refused - but a chain that simply ends there is judged on what it says, not refused for being
 // long.
-test("guard-script-depth: a chain that outruns the guard is refused", async (t) => {
+test("guard-script-depth: a chain that outruns the guard asks first", async (t) => {
   const workspace = await mkdtemp("/tmp/milksu-script-depth-");
   t.after(async () => {
     await rm(workspace, { recursive: true, force: true });
@@ -642,25 +685,26 @@ test("guard-script-depth: a chain that outruns the guard is refused", async (t) 
   assert.equal(shallow?.action, "approval");
 
   // One level earlier the chain runs past what the guard opened, so it cannot see the delete; it
-  // has to refuse rather than allow.
+  // asks rather than letting it through unseen.
   const deep = await destructiveDeleteDecision({
     toolName: "bash",
     input: { command: `bash ${script(0)}` },
     policy: { workspace },
   });
-  assert.equal(deep?.action, "block");
+  assert.equal(deep?.action, "approval");
 
   // The depth reason is its own sentence: a chain that merely runs deep is NOT a script the
   // command writes, and it must not be described as one.
   assert.match(String(deep?.reason ?? ""), /脚本链路比守卫读得更深/);
   assert.doesNotMatch(String(deep?.reason ?? ""), /命令自己写入的脚本/);
+  assert.match(String(deep?.content ?? ""), /删除需要确认/);
 
   const english = await destructiveDeleteDecision({
     toolName: "bash",
     input: { command: `bash ${script(0)}` },
     policy: { workspace, uiLocale: "en" },
   });
-  assert.equal(english?.action, "block");
+  assert.equal(english?.action, "approval");
   assert.match(String(english?.reason ?? ""), /runs deeper than the guard reads/);
   // No Chinese fragment may be pasted into the English sentence.
   assert.doesNotMatch(String(english?.reason ?? ""), /[\u4e00-\u9fff]/);
@@ -719,7 +763,7 @@ test("guard-script-written: the text the command writes is what gets judged", as
 // The other reason keeps its own wording, in both languages: the command writes a script from
 // something the guard cannot read - a download, a variable, a copy - so what it would delete is
 // not in the command either.
-test("a written-but-unreadable script is refused with the write reason", async (t) => {
+test("a written-but-unreadable script asks with the write reason", async (t) => {
   const workspace = await mkdtemp("/tmp/milksu-script-written-copy-");
   t.after(async () => {
     await rm(workspace, { recursive: true, force: true });
@@ -736,8 +780,9 @@ test("a written-but-unreadable script is refused with the write reason", async (
       input: { command },
       policy: { workspace, uiLocale: locale },
     });
-    assert.equal(decision?.action, "block");
+    assert.equal(decision?.action, "approval");
     assert.match(String(decision?.reason ?? ""), expected);
+    assert.match(String(decision?.content ?? ""), locale === "zh" ? /删除需要确认/ : /Deletion requires confirmation/);
     assert.doesNotMatch(String(decision?.reason ?? ""), forbidden);
     if (locale === "en") {
       // The English sentence must not carry a Chinese fragment from the other copy.

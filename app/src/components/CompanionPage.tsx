@@ -7,6 +7,8 @@ import { useCompanion } from '@/composables/useCompanion'
 import { invokeCommand, listenEvent } from '@/desktop'
 import { useT, useUiLocale } from '@/hooks/useUiLocale'
 import {
+  companionChatContinuesRun,
+  companionChatEndsRun,
   companionChatIsBubble,
   companionChatIsUser,
   companionChatShowsTimeCaption,
@@ -155,17 +157,27 @@ export default function CompanionPage({
               const previous = companion.entries[entryIndex - 1]
               const next = companion.entries[entryIndex + 1]
               const currentMs = companionChatTimestampMs(entry.timestamp)
+              const nextMs = companionChatTimestampMs(next?.timestamp)
+              const isLast = entryIndex === companion.entries.length - 1
               const showDivider = companionChatShowsTimeDivider(
                 currentMs,
                 companionChatTimestampMs(previous?.timestamp),
               )
+              const continuesRun = companionChatContinuesRun(entry, previous)
+              const endsRun = companionChatEndsRun({
+                currentMs,
+                nextMs,
+                currentRole: entry.role,
+                nextRole: next?.role,
+                isLast,
+              })
               const showCaption = companionChatShowsTimeCaption({
                 currentMs,
-                nextMs: companionChatTimestampMs(next?.timestamp),
+                nextMs,
                 currentRole: entry.role,
                 nextRole: next?.role,
                 showDivider,
-                isLast: entryIndex === companion.entries.length - 1,
+                isLast,
               })
               const stamp = formatCompanionChatStamp(entry.timestamp, locale)
               const user = companionChatIsUser(entry.role)
@@ -179,6 +191,8 @@ export default function CompanionPage({
                     'companion-chat-row absolute left-0 top-0 w-full',
                     user ? 'companion-chat-row-user' : 'companion-chat-row-assistant',
                     !bubble && 'companion-chat-row-system',
+                    continuesRun ? 'companion-chat-row-continue' : 'companion-chat-row-start',
+                    showDivider && 'companion-chat-row-divided',
                   )}
                   style={{ transform: `translateY(${item.start}px)` }}
                 >
@@ -187,7 +201,7 @@ export default function CompanionPage({
                     <p className={cn(
                       'companion-chat-bubble',
                       user ? 'companion-chat-bubble-user' : 'companion-chat-bubble-assistant',
-                      showCaption && 'companion-chat-bubble-tail',
+                      endsRun && 'companion-chat-bubble-tail',
                     )}>
                       {entry.text || entry.type}
                     </p>
@@ -201,7 +215,7 @@ export default function CompanionPage({
           </div>
         )}
         {typing ? (
-          <div className="companion-chat-row companion-chat-row-assistant">
+          <div className="companion-chat-row companion-chat-row-assistant companion-chat-row-start">
             <p className="companion-chat-bubble companion-chat-bubble-assistant companion-chat-typing" aria-hidden="true">
               <span />
               <span />
@@ -253,6 +267,7 @@ export default function CompanionPage({
             ref={inputRef}
             className="companion-chat-input min-h-0 max-h-[72px] flex-1 resize-none border-0 bg-transparent px-0 py-1 shadow-none focus-visible:border-transparent"
             value={companion.draft}
+            placeholder={t('发消息', 'Message')}
             onChange={event => companion.setDraft(event.target.value)}
             onKeyDown={event => {
               if (isComposingKey(event.nativeEvent)) return

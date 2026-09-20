@@ -25,7 +25,7 @@
 | --- | --- |
 | 阶段 | 内测迭代 / Agent Runtime 与跨平台发行收敛。不再按 M3/M4 组织。 |
 | 历史基线 | M3 product-loop 已在 `108e0e3`（2026-08-05）合并，仅供追溯。 |
-| 当前开发 | 新对话可选 Pi 或 DeepSeek Harness；设置 → 模型「默认运行时」只改新对话 kernel，不改写旧会话。出厂默认官方 DeepSeek Flash、默认运行时 Pi。工作树 DSH 钉 `0.1.6-alpha.1`（内核，不是 UI 参考；原厂 GUI 是 `dsh web`）。Pi 子 Agent 默认主工作区、父回合阻塞；DSH 可在 Multitask 下用 ACP `session/new` 开子会话并继续主对话。Working 短胶囊对 Pi / DSH 同一套信息架构。Computer Use 由模型列窗 / 认窗 / 锁定。桌宠悬浮窗用出厂默认皮肤，出厂角色叫 Milk，只有两种互斥形态：桌面上的角色本体，和点开后单独出现的圆角手机对话（顶部是头像和名字，不是旁边再挂一只宠物）。点角色或侧栏页脚（日夜模式和设置之间）打开手机并收起角色；关掉对话角色再出现。不是主窗口整页，也不是左上角工作区菜单。主窗口 / 设置可以和其中一种形态同时开着。角色窗就是精灵那个方框（160 × 160），没有透明边压住下面的按钮，也不穿透；拖角色由壳跟着系统光标走，松手后夹回屏幕。右键菜单只有 Preload 一个入口，渲染器不再另弹一个。叠层不盖系统输入法；右键菜单夹在当前显示器工作区内。右键、macOS 菜单栏、macOS Dock、Windows 通知区和 Linux 托盘是同一组动作（对话 / 隐藏 / 打开主窗口 / 桌宠设置 / 退出），应用菜单不再放桌宠。桌宠开着时菜单栏 / 托盘就有图标，不必先关掉主窗口。窗口标题是「桌宠」，与主窗口 MilkSU 分开。设置 → 桌宠可以导入文件夹或选用已启用的 `app.pet` 插件皮肤；运动和必交帧见 [桌宠皮肤设计合同](companion-skin.md)。关掉主窗口后 macOS Dock / Windows 任务栏仍显示 MilkSU，用来唤醒桌宠，Linux 用托盘；Wayland 仍不能自己贴坐标。产品回归覆盖桌宠手机对话、右键菜单、隐藏 / 显示、出厂与第三方换装、关主窗留桌面栏。产品回归入口 `npm run test:product-loop`；`--gui` 测完会删掉本机 fixture 会话，并写出带每项截图的正式报告（截图在拆 fixture 之前拍，只挂该用例当时的窗）。侧栏归档立即执行，只有永久删除二次确认。产品 UI 语言和工作树 renderer 是 React + shadcn，见 `AGENTS.md`。未做：新对话继承项目 `milksu`；Windows Computer Use 整段崩溃尚未真机验收。宽作业用 `recon-authorized-target` Skill，不造 typed sweep。 |
+| 当前开发 | 新对话可选 Pi 或 DeepSeek Harness；设置 → 模型「默认运行时」只改新对话 kernel，不改写旧会话。出厂默认官方 DeepSeek Flash、默认运行时 Pi。工作树 DSH 钉 `0.1.6-alpha.1`（内核，不是 UI 参考；原厂 GUI 是 `dsh web`）。Pi 子 Agent 默认主工作区、父回合阻塞；DSH 可在 Multitask 下用 ACP `session/new` 开子会话并继续主对话。Working 短胶囊对 Pi / DSH 同一套信息架构。Computer Use 由模型列窗 / 认窗 / 锁定。桌宠独立 sidecar 打包时把 provider runtime 打进 `companion-bridge.cjs`，不再运行时去要 `../pi/`。桌宠悬浮窗用出厂默认皮肤，出厂角色叫 Milk，只有两种互斥形态：桌面上的角色本体，和点开后单独出现的圆角手机对话（顶部是头像和名字，不是旁边再挂一只宠物）。点角色或侧栏页脚（日夜模式和设置之间）打开手机并收起角色；关掉对话角色再出现。不是主窗口整页，也不是左上角工作区菜单。主窗口 / 设置可以和其中一种形态同时开着。角色窗就是精灵那个方框（160 × 160），没有透明边压住下面的按钮，也不穿透；拖角色由壳跟着系统光标走，松手后夹回屏幕。右键菜单只有 Preload 一个入口，渲染器不再另弹一个。叠层不盖系统输入法；右键菜单夹在当前显示器工作区内。右键、macOS 菜单栏、macOS Dock、Windows 通知区和 Linux 托盘是同一组动作（对话 / 隐藏 / 打开主窗口 / 桌宠设置 / 退出），应用菜单不再放桌宠。桌宠开着时菜单栏 / 托盘就有图标，不必先关掉主窗口。窗口标题是「桌宠」，与主窗口 MilkSU 分开。设置 → 桌宠可以导入文件夹或选用已启用的 `app.pet` 插件皮肤；运动和必交帧见 [桌宠皮肤设计合同](companion-skin.md)。关掉主窗口后 macOS Dock / Windows 任务栏仍显示 MilkSU，用来唤醒桌宠，Linux 用托盘；Wayland 仍不能自己贴坐标。产品回归覆盖桌宠手机对话、右键菜单、隐藏 / 显示、出厂与第三方换装、关主窗留桌面栏。产品回归入口 `npm run test:product-loop`；`--gui` 测完会删掉本机 fixture 会话，并写出带每项截图的正式报告（截图在拆 fixture 之前拍，只挂该用例当时的窗）。侧栏归档立即执行，只有永久删除二次确认。产品 UI 语言和工作树 renderer 是 React + shadcn，见 `AGENTS.md`。未做：新对话继承项目 `milksu`；Windows Computer Use 整段崩溃尚未真机验收。宽作业用 `recon-authorized-target` Skill，不造 typed sweep。 |
 | 平台边界 | macOS DMG 签名公证，安装引导图为 1x + @2x HiDPI TIFF；Windows 安装器未代码签名，打入 CUA Driver `0.27.0`；Linux 发共用 DEB 与 tarball，GNOME Portal 已进包，无 Secret Service / 本地 OCR；Hyprland/Xorg Computer Use 不可用。Windows/Linux 窗口铬尚未真机验收。安装包见 README。 |
 | 发行流水 | 干净已推送的 `main` 上跑一次 canonical 验证；三端走 GitHub-hosted。`macos-release` 仅限 `main`，dispatch 后立即签名。正式包装 OTA 到私有 R2 并发布 current pointer；GitHub Release 不上 updater ZIP。 |
 
@@ -46,7 +46,7 @@
 
 ## 未打进 GitHub 安装包
 
-- 凭据轮换不再切在飞回合、会话带自己的中转站与模型、删除守卫改判命令自写的脚本、切换对话不丢草稿、对话选中文字「加入对话」：已在 `main`（#120 / #119 / #106 / #122 / #123），未打进安装包。产品回归按上手顺序走独立实例：登录 / 中转站密码框 → 主页 Pi/DSH → 桌宠 → CTF/CVE/Lab → 桌面执行面 → 资料/更新 → 设置其余项。开测前和每条用例前只留一扇测试窗，关掉日常 MilkSU 和残留 Electron，GitHub 回调不进日常窗口。测完打印从大模块到小模块的报告。
+- 凭据轮换不再切在飞回合、会话带自己的中转站与模型、删除守卫改判命令自写的脚本、切换对话不丢草稿、对话选中文字「加入对话」：已在 `main`（#120 / #119 / #106 / #122 / #123），未打进安装包。删除守卫不再把 `rm -rf X && mkdir X` 或命令里自赋的 `REPRO=…; rm -rf "$REPRO"` 当成「先创建再删除」。量不到目标、变量解不开、或缺用途时改为弹出确认卡（理由写在卡上），不再直接拦截且不说原因；后台任务仍不能弹卡。产品回归按上手顺序走独立实例：登录 / 中转站密码框 → 主页 Pi/DSH → 桌宠 → CTF/CVE/Lab → 桌面执行面 → 资料/更新 → 设置其余项。开测前和每条用例前只留一扇测试窗，关掉日常 MilkSU 和残留 Electron，GitHub 回调不进日常窗口。测完打印从大模块到小模块的报告。
 - 新对话继承项目 `milksu`；Windows Computer Use 整段崩溃尚未真机验收。
 - Computer Use 选窗器仍是可选人工面。宽作业走 `recon-authorized-target` Skill，不造 typed sweep。
 - DSH `bash` 没有 MilkSU 侧超时上界（工具在 harness 进程内，不要在客户端复刻第二套循环）。
@@ -56,8 +56,8 @@
 
 ## 当前产品事实
 
-- Coding / CTF / CVE / 实验室共用 Pi 文件、Shell、自动压缩（80% 空闲与 `/compact` 同一路径）和完整工作循环。工具结果进模型前走 Pi `tool_result` 截断。不扫描用户句子做意图路由。
-- MilkSU 只持会话目录、凭据隔离、桌面授权、领域事实/Judge，以及危险大目录删除二次确认。
+- Coding / CTF / CVE / 实验室共用 Pi 文件、Shell、自动压缩（80% 空闲与 `/compact` 同一路径）和完整工作循环。工具结果进模型前走 Pi `tool_result` 截断。不扫描用户句子做意图路由。同一工作区的多条 Pi 对话可以同时跑回合（按会话排队 prompt）；同一条会话里的 Pi 子代理仍阻塞父工具。
+- MilkSU 只持会话目录、凭据隔离、桌面授权、领域事实/Judge，以及危险或量不到的递归删除二次确认。
 - 账户 TokenFlux 与本机 Provider 共用可调用目录；附件原图进当前回合。网页查证复用 Pi `web_search` / `web_fetch`。
 - 桌面壳是 Electron/Chromium。产品 UI 是 React + shadcn。隔离浏览器、Browser Use、Computer Use 是三个表面；面板折叠不停止 Session。产物在各 OS 文档目录 `MilkSU/{Coding,CTF,CVE,Lab}`。
 - 产品 UI 只写在 `AGENTS.md`。
