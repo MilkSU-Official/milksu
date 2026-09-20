@@ -3,6 +3,7 @@
  * Does not attach an already-inside daily window. Does not inject Provider keys.
  */
 
+import { rm } from 'node:fs/promises'
 import { classifyTurnEvents, delay, desktopTargetKey, listDesktopCdpTargets } from './desktop-gui-driver.mjs'
 import {
   describeCustomRelay,
@@ -17,6 +18,19 @@ export function turnBroken(turn) {
   if (turn.failed) return turn.error || 'sidecar 在回合里停了'
   if (turn.timeout) return turn.error || '回合超时'
   return ''
+}
+
+export async function releaseProductLoopWorkspace(driver, conversation, workspace) {
+  const id = typeof conversation === 'string'
+    ? conversation.trim()
+    : String(conversation?.id ?? conversation?.ID ?? '').trim()
+  if (driver && id) {
+    await driver.abortMessage(id).catch(() => {})
+    await delay(250)
+    await driver.deleteConversation(id).catch(() => {})
+    await delay(250)
+  }
+  if (workspace) await rm(workspace, { recursive: true, force: true }).catch(() => {})
 }
 
 export async function clickLabeled(driver, patterns) {

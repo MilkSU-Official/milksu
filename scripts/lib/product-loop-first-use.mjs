@@ -173,8 +173,9 @@ async function prepareWorkspace() {
 
 async function runFileLoop(driver, options) {
   const workspace = await prepareWorkspace()
+  let conversation = null
   try {
-    const conversation = await driver.createConversation({
+    conversation = await driver.createConversation({
       title: options.title,
       workspacePath: workspace,
       kernel: 'pi',
@@ -240,6 +241,12 @@ async function runFileLoop(driver, options) {
       detail: redactProcessText(errorText, 240),
     }
   } finally {
+    if (conversation?.id) {
+      await driver.abortMessage(conversation.id).catch(() => {})
+      await delay(250)
+      await driver.deleteConversation(conversation.id).catch(() => {})
+      await delay(250)
+    }
     await rm(workspace, { recursive: true, force: true }).catch(() => {})
   }
 }
@@ -382,6 +389,7 @@ export async function runFirstUse(options = {}) {
     const relay = await saveCustomRelay(launch.driver)
     record('settings-custom-relay', relay.ok ? 'PASS' : 'FAIL', relay.detail)
     if (relay.ok) {
+      await delay(1_500)
       const loop = await runFileLoop(launch.driver, {
         title: 'product-loop first-use relay',
         modelMode: 'manual',

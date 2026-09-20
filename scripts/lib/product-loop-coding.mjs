@@ -2,7 +2,7 @@
  * Homepage Coding: Pi / DSH daily turns and session chrome.
  */
 
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { spawn } from 'node:child_process'
 import { classifyTurnEvents, delay, repositoryRoot } from './desktop-gui-driver.mjs'
@@ -21,6 +21,7 @@ import {
   pageSnapshot,
   pass,
   quoteConversationText,
+  releaseProductLoopWorkspace,
   sendComposer,
   snapshotHas,
   turnBroken,
@@ -216,8 +217,9 @@ async function startLiveSession(driver, options) {
 
 async function runWorkspaceTurn(driver, options) {
   const workspace = await prepareWorkspace(options.prefix, options.extraFiles)
+  let conversation = null
   try {
-    const conversation = await createTurn(driver, { ...options, workspace })
+    conversation = await createTurn(driver, { ...options, workspace })
     if (options.afterSend) await options.afterSend(conversation, workspace)
     const turn = options.skipWait
       ? { events: [], timeout: false, failed: false }
@@ -230,7 +232,7 @@ async function runWorkspaceTurn(driver, options) {
     const check = await options.check({ conversation, workspace, turn, toolNames })
     return { ...check, toolNames }
   } finally {
-    if (!options.keepWorkspace) await rm(workspace, { recursive: true, force: true }).catch(() => {})
+    if (!options.keepWorkspace) await releaseProductLoopWorkspace(driver, conversation, workspace)
   }
 }
 
@@ -407,8 +409,9 @@ export async function runCodingCite(driver, options = {}) {
   await home(driver)
   const workspace = await prepareWorkspace('product-loop-cite')
   const marker = `QUOTE-SRC-${Date.now().toString(36)}`
+  let conversation = null
   try {
-    const conversation = await createTurn(driver, {
+    conversation = await createTurn(driver, {
       title: 'product-loop coding-cite',
       workspace,
       kernel: 'pi',
@@ -444,13 +447,14 @@ export async function runCodingCite(driver, options = {}) {
       ? pass('选中对话正文加入对话后发出去了')
       : fail('引用没进回合')
   } finally {
-    await rm(workspace, { recursive: true, force: true }).catch(() => {})
+    await releaseProductLoopWorkspace(driver, conversation, workspace)
   }
 }
 
 export async function runCodingAttach(driver, options = {}) {
   await home(driver)
   const workspace = await prepareWorkspace('product-loop-attach')
+  let conversation = null
   try {
     const settings = await driver.invoke('GetSettings', []).catch(() => ({}))
     const imported = await driver.invoke('ImportCodingAttachments', [[{
@@ -460,7 +464,7 @@ export async function runCodingAttach(driver, options = {}) {
     }]])
     const attachments = Array.isArray(imported) ? imported : []
     if (!attachments.length) return fail('ImportCodingAttachments 没有留下附件')
-    const conversation = await driver.createConversation({
+    conversation = await driver.createConversation({
       title: 'product-loop coding-attach',
       workspacePath: workspace,
       kernel: 'pi',
@@ -488,7 +492,7 @@ export async function runCodingAttach(driver, options = {}) {
       ? pass('附件进了当前回合，模型读到了标记')
       : fail(`附件回合失败 attached=${attached} mentioned=${mentioned}`)
   } finally {
-    await rm(workspace, { recursive: true, force: true }).catch(() => {})
+    await releaseProductLoopWorkspace(driver, conversation, workspace)
   }
 }
 
@@ -525,7 +529,7 @@ export async function runCodingPiHandoff(driver) {
   } catch (error) {
     return fail(`接到新会话失败：${error instanceof Error ? error.message : error}`)
   } finally {
-    await rm(live.workspace, { recursive: true, force: true }).catch(() => {})
+    await releaseProductLoopWorkspace(driver, live.conversation, live.workspace)
   }
 }
 
@@ -598,7 +602,7 @@ export async function runCodingDshPlan(driver) {
   } catch (error) {
     return fail(`计划模式没打开：${error instanceof Error ? error.message : error}`)
   } finally {
-    await rm(live.workspace, { recursive: true, force: true }).catch(() => {})
+    await releaseProductLoopWorkspace(driver, live.conversation, live.workspace)
   }
 }
 
@@ -617,16 +621,17 @@ export async function runCodingDshGoal(driver) {
   } catch (error) {
     return fail(`DSH 目标没设上：${error instanceof Error ? error.message : error}`)
   } finally {
-    await rm(live.workspace, { recursive: true, force: true }).catch(() => {})
+    await releaseProductLoopWorkspace(driver, live.conversation, live.workspace)
   }
 }
 
 export async function runCodingDshMultitask(driver, options = {}) {
   await home(driver)
   const workspace = await prepareWorkspace('product-loop-dsh-multitask')
+  let parent = null
   try {
     const settings = await driver.invoke('GetSettings', []).catch(() => ({}))
-    const parent = await driver.createConversation({
+    parent = await driver.createConversation({
       title: 'product-loop-dsh-parent',
       workspacePath: workspace,
       kernel: 'dsh',
@@ -660,7 +665,7 @@ export async function runCodingDshMultitask(driver, options = {}) {
     driver.createdConversationIds.add(conversationIdOf(child))
     return pass('DSH 并行开出了子会话')
   } finally {
-    await rm(workspace, { recursive: true, force: true }).catch(() => {})
+    await releaseProductLoopWorkspace(driver, parent, workspace)
   }
 }
 
@@ -766,7 +771,7 @@ export async function runSessionFork(driver) {
   } catch (error) {
     return fail(`Fork 失败：${error instanceof Error ? error.message : error}`)
   } finally {
-    await rm(live.workspace, { recursive: true, force: true }).catch(() => {})
+    await releaseProductLoopWorkspace(driver, live.conversation, live.workspace)
   }
 }
 
@@ -848,8 +853,9 @@ export async function runComposerRuntime(driver) {
 export async function runComposerGit(driver) {
   await home(driver)
   const workspace = await prepareWorkspace('product-loop-git')
+  let conversation = null
   try {
-    const conversation = await driver.createConversation({
+    conversation = await driver.createConversation({
       title: 'product-loop-composer-git',
       workspacePath: workspace,
       kernel: 'pi',
@@ -866,7 +872,7 @@ export async function runComposerGit(driver) {
       '打不开作曲栏 Git',
     )
   } finally {
-    await rm(workspace, { recursive: true, force: true }).catch(() => {})
+    await releaseProductLoopWorkspace(driver, conversation, workspace)
   }
 }
 
