@@ -927,10 +927,32 @@ html.companion-surface body,
 html.companion-surface #app {
   background: transparent !important;
   overflow: hidden;
-  width: 232px;
+  width: 100%;
   min-width: 0;
-  height: 400px;
+  height: 100%;
   min-height: 0;
+}
+
+.companion-unit {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  width: 100%;
+  height: 100%;
+}
+
+.companion-unit-gap {
+  width: 12px;
+  flex: none;
+}
+
+.companion-unit .companion-chat {
+  width: 336px;
+  height: 480px;
+  flex: none;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
 }
 
 html.companion-chat-surface,
@@ -958,7 +980,7 @@ html.companion-chat-surface #app {
   height: 40px;
   padding: 0 8px 0 10px;
   border-bottom: 1px solid var(--border);
-  -webkit-app-region: drag;
+  -webkit-app-region: no-drag;
 }
 
 .companion-chat-avatar {
@@ -992,18 +1014,13 @@ html.companion-chat-surface #app {
 }
 
 .companion-chat-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   width: 28px;
   height: 28px;
   flex: none;
-  border-radius: 8px;
   color: var(--muted-foreground);
 }
 
 .companion-chat-icon:hover {
-  background: var(--hover-2);
   color: var(--foreground);
 }
 
@@ -1136,7 +1153,7 @@ html.companion-chat-surface #app {
   padding: 8px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: var(--accent);
+  background: var(--card);
 }
 
 .companion-chat-confirm {
@@ -1182,11 +1199,18 @@ html.companion-chat-surface #app {
   display: flex;
   align-items: flex-end;
   gap: 6px;
-  min-height: 32px;
-  padding: 3px 3px 3px 10px;
+  min-height: 36px;
+  padding: 4px 4px 4px 10px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: var(--input);
+  background: var(--surface-raised);
+  box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--foreground) 10%, transparent);
+}
+
+.companion-chat-well:focus-within {
+  box-shadow:
+    0 0 0 0.5px color-mix(in srgb, var(--foreground) 22%, transparent),
+    0 0 0 2px color-mix(in srgb, var(--ring) 30%, transparent);
 }
 
 .companion-chat-input {
@@ -1207,9 +1231,9 @@ html.companion-chat-surface #app {
 }
 
 .companion-chat-send {
-  height: 26px;
-  min-width: 44px;
-  padding: 0 8px;
+  width: 28px !important;
+  height: 28px !important;
+  border-radius: 999px !important;
 }
 
 .companion-pet-menu {

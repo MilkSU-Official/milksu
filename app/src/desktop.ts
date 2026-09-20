@@ -315,6 +315,7 @@ interface DesktopAppBindings {
   ShowCompanionMainWindow(): Promise<CompanionShellStatus>
   ShowCompanionChatWindow(): Promise<CompanionShellStatus>
   HideCompanionChatWindow(): Promise<CompanionShellStatus>
+  ClickCompanionPet(request?: { locale?: string }): Promise<CompanionShellStatus>
   ShowCompanionSettings(): Promise<CompanionShellStatus>
   PopupCompanionMenu(request?: { x?: number; y?: number; locale?: string }): Promise<CompanionShellStatus>
   MoveCompanionPet(request: { dx: number; dy: number }): Promise<CompanionShellStatus>
@@ -829,6 +830,10 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.ShowCompanionChatWindow() as Promise<T>
       case 'hide_companion_chat_window':
         return app.HideCompanionChatWindow() as Promise<T>
+      case 'click_companion_pet':
+        return app.ClickCompanionPet({
+          locale: typeof args?.locale === 'string' ? args.locale : undefined,
+        }) as Promise<T>
       case 'show_companion_settings':
         return app.ShowCompanionSettings() as Promise<T>
       case 'popup_companion_menu':

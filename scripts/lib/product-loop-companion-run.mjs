@@ -83,11 +83,29 @@ export async function runCompanionReady(driver) {
   return pass(`桌宠已就绪${model ? ` ${provider} ${model}` : ''}`)
 }
 
+async function companionSurfaceHasChat(target) {
+  const session = new CdpSession(target.webSocketDebuggerUrl)
+  await session.open()
+  try {
+    return Boolean(await session.evaluate(`Boolean(document.querySelector('[data-testid="companion-chat"]'))`))
+  } finally {
+    session.close()
+  }
+}
+
 async function waitForCompanionChatSurface(timeoutMs = 8_000) {
   const started = Date.now()
   while (Date.now() - started < timeoutMs) {
-    const target = (await listDesktopCdpTargets()).find(isCompanionChatSurface)
-    if (target) return target
+    const targets = (await listDesktopCdpTargets()).filter(target => (
+      isCompanionChatSurface(target) || isCompanionPetSurface(target)
+    ))
+    for (const target of targets) {
+      try {
+        if (await companionSurfaceHasChat(target)) return target
+      } catch {
+        // Overlay may still be loading the glued chat.
+      }
+    }
     await delay(250)
   }
   return null

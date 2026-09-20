@@ -15,6 +15,7 @@ const {
   nativeTheme,
   net,
   protocol,
+  screen,
   session,
   shell,
   systemPreferences,
@@ -1057,6 +1058,7 @@ app.whenReady().then(async () => {
     getMainWindow: () => mainWindow,
     setMainWindow: window => { mainWindow = window },
     onQuitRequested: () => app.quit(),
+    screen,
   })
   companionSkinHost = createCompanionSkinHost({
     userDataPath: app.getPath('userData'),

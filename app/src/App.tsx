@@ -85,7 +85,6 @@ const ProfilePage = lazy(() => import('@/components/ProfilePage'))
 const SettingsPage = lazy(() => import('@/components/SettingsPage'))
 const VulnPage = lazy(() => import('@/components/VulnPage'))
 const LabPage = lazy(() => import('@/components/LabPage'))
-const CompanionPage = lazy(() => import('@/components/CompanionPage'))
 const CompanionPetWindow = lazy(() => import('@/components/CompanionPetWindow'))
 
 type Section = 'chat' | 'ctf' | 'vuln' | 'lab' | 'companion' | 'profile' | 'settings'
@@ -667,6 +666,7 @@ export default function App() {
       return
     }
     if (value === 'companion') {
+      // Overlay launcher: open the small chat, never a blank full-page companion.
       void invokeCommand('show_companion_chat_window')
       void invokeCommand('set_companion_pet_hidden', { hidden: false })
       return
@@ -1546,17 +1546,10 @@ export default function App() {
     onEditQueuedGuidance: conversations.editQueuedGuidance,
   }
 
-  if (rendererSurface === 'companion') {
+  if (rendererSurface === 'companion' || rendererSurface === 'companion-chat') {
     return (
       <Suspense fallback={null}>
         <CompanionPetWindow />
-      </Suspense>
-    )
-  }
-  if (rendererSurface === 'companion-chat') {
-    return (
-      <Suspense fallback={null}>
-        <CompanionPage />
       </Suspense>
     )
   }

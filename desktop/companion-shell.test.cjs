@@ -29,20 +29,28 @@ function fakeWindow() {
     minimize() { this.minimizeCalls += 1; this.minimized = true; this.visible = false },
     restore() { this.restoreCalls += 1; this.minimized = false; this.visible = true },
     focus() { this.focusCalls += 1 },
-    setAlwaysOnTop() {},
-    setVisibleOnAllWorkspaces() {},
+    alwaysOnTopCalls: [],
+    visibleOnAllWorkspacesCalls: [],
+    setAlwaysOnTop(flag, level) {
+      this.alwaysOnTopCalls.push({ flag, level })
+    },
+    setVisibleOnAllWorkspaces(visible, options) {
+      this.visibleOnAllWorkspacesCalls.push({ visible, options })
+    },
     setWindowButtonVisibility() {},
     getBounds() {
       return {
         x: this.x ?? this.options?.x ?? 80,
         y: this.y ?? this.options?.y ?? 80,
-        width: this.options?.width || 232,
-        height: this.options?.height || 400,
+        width: this.width || this.options?.width || 232,
+        height: this.height || this.options?.height || 400,
       }
     },
     setBounds(bounds) {
       this.x = bounds.x
       this.y = bounds.y
+      if (bounds.width) this.width = bounds.width
+      if (bounds.height) this.height = bounds.height
     },
     setPosition(x, y) {
       this.x = x
@@ -58,8 +66,20 @@ function fakeWindow() {
 function createShell(overrides = {}) {
   const created = []
   const menus = []
+  const popups = []
   const dock = { hideCalls: 0, showCalls: 0, menu: null, hide() { this.hideCalls += 1 }, show() { this.showCalls += 1 }, setMenu(menu) { this.menu = menu } }
   const main = overrides.main || fakeWindow()
+  const defaultScreen = {
+    getPrimaryDisplay() {
+      return { workArea: { x: 0, y: 0, width: 1440, height: 900 } }
+    },
+    getDisplayNearestPoint() {
+      return { workArea: { x: 0, y: 0, width: 1440, height: 900 } }
+    },
+    getCursorScreenPoint() {
+      return { x: 1380, y: 860 }
+    },
+  }
   const shell = createCompanionShell({
     app: { dock, getLocale: () => 'zh-CN' },
     BrowserWindow: class MockWindow {
@@ -81,7 +101,10 @@ function createShell(overrides = {}) {
     Menu: {
       lastApplication: null,
       buildFromTemplate(template) {
-        return { template, popup() {} }
+        return {
+          template,
+          popup(options) { popups.push(options) },
+        }
       },
       setApplicationMenu(menu) {
         this.lastApplication = menu
@@ -100,10 +123,11 @@ function createShell(overrides = {}) {
     onQuitRequested: () => {},
     platform: 'darwin',
     env: {},
+    screen: defaultScreen,
     ...overrides,
     app: { dock, getLocale: () => 'zh-CN', ...(overrides.app || {}) },
   })
-  return { shell, created, menus, dock, main }
+  return { shell, created, menus, dock, main, popups }
 }
 
 test('companion window methods are a subset of the main renderer surface', () => {
@@ -111,6 +135,7 @@ test('companion window methods are a subset of the main renderer surface', () =>
   assert.ok(COMPANION_METHODS.has('SetCompanionPetHidden'))
   assert.ok(COMPANION_METHODS.has('ShowCompanionMainWindow'))
   assert.ok(COMPANION_METHODS.has('ShowCompanionChatWindow'))
+  assert.ok(COMPANION_METHODS.has('ClickCompanionPet'))
   assert.ok(COMPANION_METHODS.has('PopupCompanionMenu'))
   assert.ok(COMPANION_METHODS.has('MoveCompanionPet'))
   assert.ok(COMPANION_METHODS.has('ParkCompanionMainWindow'))
@@ -152,6 +177,9 @@ test('float window is a small skipTaskbar pet, not a second taskbar app', () => 
   assert.equal(created[0].options.fullscreenable, false)
   assert.equal(created[0].options.hiddenInMissionControl, true)
   assert.equal(created[0].options.type, 'panel')
+  assert.equal(created[0].options.alwaysOnTop, true)
+  assert.equal(created[0].alwaysOnTopCalls.at(-1)?.level, 'floating')
+  assert.equal(created[0].visibleOnAllWorkspacesCalls.at(-1)?.options.visibleOnFullScreen, false)
 })
 
 test('Windows float is not a panel type', () => {
@@ -220,38 +248,29 @@ test('tray, dock, and app menus share the companion actions', () => {
   assert.equal(main.showCalls >= 1, true)
 })
 
-test('ShowCompanionChatWindow opens a small skipTaskbar chat beside the pet', () => {
+test('ShowCompanionChatWindow grows the same overlay instead of a second window', () => {
   const { shell, created } = createShell()
   shell.createFloat()
   const opened = shell.handleHostMethod('ShowCompanionChatWindow', { locale: 'zh' })
   assert.equal(opened.chatOpen, true)
-  assert.equal(created.length, 2)
-  assert.equal(created[1].options.width, 336)
-  assert.equal(created[1].options.height, 480)
-  assert.equal(created[1].options.skipTaskbar, true)
-  assert.equal(created[1].options.frame, false)
-  assert.equal(created[1].options.transparent, false)
+  assert.equal(created.length, 1)
+  assert.equal(opened.overlay.chatSide, 'left')
+  assert.ok(created[0].width >= 232 + 12 + 336)
+  assert.equal(created[0].height, 480)
 })
 
-test('MoveCompanionPet moves the sprite window and keeps an open chat attached', () => {
+test('MoveCompanionPet moves the glued unit from the pet origin', () => {
   const { shell, created } = createShell()
   shell.createFloat()
   shell.handleHostMethod('ShowCompanionChatWindow')
-  const pet = created[0]
-  const chatWin = created[1]
-  pet.x = 400
-  pet.y = 200
-  chatWin.x = 52
-  chatWin.y = 200
-  const moved = shell.handleHostMethod('MoveCompanionPet', { dx: 24, dy: -10 })
-  assert.equal(pet.x, 424)
-  assert.equal(pet.y, 190)
-  assert.equal(chatWin.x, 76)
-  assert.equal(chatWin.y, 190)
+  const before = shell.status()
+  const moved = shell.handleHostMethod('MoveCompanionPet', { dx: -24, dy: -10 })
+  assert.equal(created.length, 1)
   assert.equal(moved.floating, true)
-  assert.equal(moved.petBounds.x, 424)
-  assert.equal(moved.petBounds.y, 190)
-  assert.equal(moved.chatBounds.x, 76)
+  assert.equal(moved.petBounds.x, before.petBounds.x - 24)
+  assert.equal(moved.petBounds.y, before.petBounds.y - 10)
+  assert.equal(moved.chatBounds.x, before.chatBounds.x - 24)
+  assert.equal(moved.chatBounds.y, before.chatBounds.y - 10)
 })
 
 test('SetCompanionPetHidden and ShowCompanionMainWindow are host methods', () => {
@@ -263,6 +282,98 @@ test('SetCompanionPetHidden and ShowCompanionMainWindow are host methods', () =>
   assert.equal(main.showCalls >= 1, true)
   assert.equal(shown.tray || true, true)
   assert.equal(shown.parked, false)
+})
+
+test('ClickCompanionPet toggles one small chat and hide closes chat with the pet', () => {
+  const { shell, created, main } = createShell()
+  main.x = 120
+  main.y = 40
+  shell.createFloat()
+  const opened = shell.handleHostMethod('ClickCompanionPet')
+  assert.equal(opened.chatOpen, true)
+  assert.equal(opened.overlay.chatOpen, true)
+  assert.equal(created.length, 1)
+  const focused = shell.handleHostMethod('ShowCompanionChatWindow')
+  assert.equal(focused.chatOpen, true)
+  assert.equal(created.length, 1)
+  const closed = shell.handleHostMethod('ClickCompanionPet')
+  assert.equal(closed.chatOpen, false)
+  assert.equal(created[0].visible, true)
+  shell.handleHostMethod('ShowCompanionChatWindow')
+  const hidden = shell.handleHostMethod('SetCompanionPetHidden', { hidden: true })
+  assert.equal(hidden.hidden, true)
+  assert.equal(hidden.chatOpen, false)
+  const shown = shell.handleHostMethod('SetCompanionPetHidden', { hidden: false })
+  assert.equal(shown.hidden, false)
+  assert.equal(shown.chatOpen, false)
+})
+
+test('opening the main window or settings keeps the small chat open', () => {
+  const { shell, main } = createShell()
+  shell.createFloat()
+  shell.handleHostMethod('ShowCompanionChatWindow')
+  const before = main.showCalls
+  const shown = shell.handleHostMethod('ShowCompanionMainWindow')
+  assert.equal(shown.chatOpen, true)
+  assert.equal(shown.overlay.mainVisible, true)
+  assert.ok(main.showCalls >= before)
+  const settings = shell.handleHostMethod('ShowCompanionSettings')
+  assert.equal(settings.chatOpen, true)
+  assert.equal(settings.parked, false)
+})
+
+test('dragging the pet never moves the main window and clamps to the work area', () => {
+  const screen = {
+    getPrimaryDisplay() {
+      return { workArea: { x: 0, y: 0, width: 800, height: 600 } }
+    },
+    getDisplayNearestPoint() {
+      return { workArea: { x: 0, y: 0, width: 800, height: 600 } }
+    },
+  }
+  const { shell, created, main } = createShell({ screen })
+  main.x = 16
+  main.y = 24
+  shell.createFloat()
+  shell.handleHostMethod('ShowCompanionChatWindow')
+  const inward = shell.handleHostMethod('MoveCompanionPet', { dx: -80, dy: -20 })
+  assert.equal(created.length, 1)
+  assert.equal(inward.petBounds.x, 800 - 16 - 232 - 80)
+  assert.equal(main.x, 16)
+  assert.equal(main.y, 24)
+  const clamped = shell.handleHostMethod('MoveCompanionPet', { dx: 4000, dy: 4000 })
+  assert.equal(clamped.petBounds.x, 800 - 232)
+  assert.equal(clamped.petBounds.y, 600 - 400)
+  assert.ok(clamped.chatBounds.x + 336 <= 800)
+  assert.ok(clamped.chatBounds.y + 480 <= 600)
+})
+
+test('overlay stacking stays below system IME chrome', () => {
+  const { shell, created } = createShell()
+  shell.createFloat()
+  const levels = created[0].alwaysOnTopCalls.map(call => call.level)
+  assert.ok(levels.includes('floating'))
+  assert.ok(!levels.includes('screen-saver'))
+  assert.ok(!levels.includes('pop-up-menu'))
+  assert.ok(!levels.includes('modal-panel'))
+  assert.equal(created[0].visibleOnAllWorkspacesCalls.at(-1)?.options.visibleOnFullScreen, false)
+})
+
+test('PopupCompanionMenu stays inside the work area at the default corner', () => {
+  const { shell, created, popups } = createShell()
+  shell.createFloat()
+  shell.handleHostMethod('PopupCompanionMenu', { x: 200, y: 380 })
+  const popup = popups.at(-1)
+  const bounds = created[0].getBounds()
+  assert.ok(popup)
+  assert.ok(popup.x + 176 <= bounds.width)
+  assert.ok(popup.y + 184 <= bounds.height)
+  assert.ok(popup.x >= 0)
+  assert.ok(popup.y >= 0)
+  const screenX = bounds.x + popup.x
+  const screenY = bounds.y + popup.y
+  assert.ok(screenX + 176 <= 1440 - 8)
+  assert.ok(screenY + 184 <= 900 - 8)
 })
 
 test('ParkCompanionMainWindow is the same path as closing the main window', () => {

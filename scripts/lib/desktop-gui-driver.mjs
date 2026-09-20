@@ -106,7 +106,9 @@ export function isCompanionPetSurface(target) {
 }
 
 export function isCompanionChatSurface(target) {
-  return /(?:\?|&)surface=companion-chat(?:&|#|$)/i.test(String(target?.url ?? ''))
+  const url = String(target?.url ?? '')
+  if (/(?:\?|&)surface=companion-chat(?:&|#|$)/i.test(url)) return true
+  return isCompanionPetSurface(target)
 }
 
 export function isCompanionSurface(target) {

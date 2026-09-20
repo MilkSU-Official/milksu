@@ -488,6 +488,14 @@ export interface CompanionShellStatus {
   parked?: boolean
   platform?: string
   menu?: Array<{ id: string; label: string }>
+  petBounds?: { x: number; y: number; width: number; height: number }
+  chatBounds?: { x: number; y: number; width: number; height: number }
+  overlay?: {
+    petVisible: boolean
+    chatOpen: boolean
+    mainVisible: boolean
+    chatSide?: 'left' | 'right'
+  }
 }
 
 export interface CompanionSkinName {

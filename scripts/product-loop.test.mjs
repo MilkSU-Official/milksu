@@ -258,6 +258,7 @@ test('isMilkSUPage rejects Cursor and accepts the product window', () => {
   assert.equal(isMilkSUPage({ title: 'MilkSU', url: 'about:blank' }), false)
   assert.equal(isCompanionSurface({ url: 'milksu://app/index.html?surface=companion' }), true)
   assert.equal(isCompanionPetSurface({ url: 'milksu://app/index.html?surface=companion' }), true)
+  assert.equal(isCompanionChatSurface({ url: 'milksu://app/index.html?surface=companion' }), true)
   assert.equal(isCompanionChatSurface({ url: 'milksu://app/index.html?surface=companion-chat' }), true)
   assert.equal(isCompanionPetSurface({ url: 'milksu://app/index.html?surface=companion-chat' }), false)
   assert.equal(isMilkSUPage({ title: '', url: 'http://localhost:5173/index.html?surface=companion' }), true)

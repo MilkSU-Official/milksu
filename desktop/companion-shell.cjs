@@ -2,6 +2,19 @@
 
 const path = require('node:path')
 const { productApplicationMenuTemplate } = require('./renderer-reload.cjs')
+const {
+  COMPANION_OVERLAY_ACTIONS,
+  COMPANION_CHAT_HEIGHT,
+  COMPANION_CHAT_WIDTH,
+  COMPANION_PET_HEIGHT,
+  COMPANION_PET_WIDTH,
+  COMPANION_OVERLAY_Z_LEVEL,
+  clampCompanionMenuOrigin,
+  defaultCompanionPetOrigin,
+  layoutCompanionUnit,
+  moveCompanionUnit,
+  reduceCompanionOverlay,
+} = require('./companion-overlay-state.cjs')
 
 const COMPANION_METHODS = new Set([
   'GetCompanionStatus',
@@ -21,6 +34,7 @@ const COMPANION_METHODS = new Set([
   'ShowCompanionMainWindow',
   'ShowCompanionChatWindow',
   'HideCompanionChatWindow',
+  'ClickCompanionPet',
   'ShowCompanionSettings',
   'PopupCompanionMenu',
   'MoveCompanionPet',
@@ -32,10 +46,8 @@ const COMPANION_METHODS = new Set([
   'GetCompanionSkin',
 ])
 
-const COMPANION_FLOAT_WIDTH = 232
-const COMPANION_FLOAT_HEIGHT = 400
-const COMPANION_CHAT_WIDTH = 336
-const COMPANION_CHAT_HEIGHT = 480
+const COMPANION_FLOAT_WIDTH = COMPANION_PET_WIDTH
+const COMPANION_FLOAT_HEIGHT = COMPANION_PET_HEIGHT
 
 function isWaylandSession(env = process.env, platform = process.platform) {
   return platform === 'linux' && (
@@ -110,12 +122,14 @@ function createCompanionShell(options) {
     setMainWindow,
     onQuitRequested,
     getUiLocale,
+    screen,
   } = options
   const platform = options.platform || process.platform
   const wayland = isWaylandSession(options.env, platform)
   const windows = new Map()
   let float = null
-  let chat = null
+  let chatOpenFlag = false
+  let unitLayout = null
   let tray = null
   let enabled = !wayland
   let petHidden = false
@@ -155,7 +169,149 @@ function createCompanionShell(options) {
   }
 
   function chatOpen() {
-    return Boolean(chat) && !chat.isDestroyed() && (typeof chat.isVisible !== 'function' || chat.isVisible())
+    return chatOpenFlag
+  }
+
+  function snapshot() {
+    return {
+      enabled,
+      wayland,
+      petHidden,
+      chatOpen: chatOpenFlag,
+      mainVisible: !mainParked(),
+    }
+  }
+
+  function workAreaNear(point) {
+    if (!screen || typeof screen.getDisplayNearestPoint !== 'function') return null
+    try {
+      const display = screen.getDisplayNearestPoint({
+        x: Math.round(Number(point?.x) || 0),
+        y: Math.round(Number(point?.y) || 0),
+      })
+      const area = display && display.workArea
+      if (!area) return null
+      return {
+        x: Number(area.x) || 0,
+        y: Number(area.y) || 0,
+        width: Number(area.width) || 0,
+        height: Number(area.height) || 0,
+      }
+    } catch {
+      return null
+    }
+  }
+
+  function primaryWorkArea() {
+    if (screen && typeof screen.getPrimaryDisplay === 'function') {
+      const area = screen.getPrimaryDisplay()?.workArea
+      if (area) {
+        return {
+          x: Number(area.x) || 0,
+          y: Number(area.y) || 0,
+          width: Number(area.width) || 0,
+          height: Number(area.height) || 0,
+        }
+      }
+    }
+    return workAreaNear({ x: 0, y: 0 })
+  }
+
+  function currentPetScreen() {
+    if (unitLayout && unitLayout.petScreen) return unitLayout.petScreen
+    const bounds = windowBounds(float)
+    if (bounds && unitLayout && unitLayout.pet) {
+      return { x: bounds.x + unitLayout.pet.x, y: bounds.y + unitLayout.pet.y }
+    }
+    if (bounds) return { x: bounds.x, y: bounds.y }
+    return defaultCompanionPetOrigin(primaryWorkArea())
+  }
+
+  function emitOverlay() {
+    emit('companion.overlay', {
+      chatOpen: chatOpenFlag,
+      chatSide: unitLayout?.chatSide === 'right' ? 'right' : 'left',
+    })
+  }
+
+  function applyUnitLayout(layout) {
+    unitLayout = layout
+    if (!float || float.isDestroyed() || !layout?.window) return
+    if (typeof float.setBounds === 'function') float.setBounds(layout.window)
+    emitOverlay()
+  }
+
+  function relayoutUnit() {
+    applyUnitLayout(layoutCompanionUnit({
+      chatOpen: chatOpenFlag,
+      petOrigin: currentPetScreen(),
+      workArea: wayland ? null : (workAreaNear(currentPetScreen()) || primaryWorkArea()),
+    }))
+  }
+
+  function keepOverlayAboveApps(window) {
+    if (!window || window.isDestroyed()) return
+    if (typeof window.setAlwaysOnTop === 'function') {
+      window.setAlwaysOnTop(true, COMPANION_OVERLAY_Z_LEVEL)
+    }
+    if (typeof window.setVisibleOnAllWorkspaces === 'function') {
+      window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: false })
+    }
+  }
+
+  function hidePetWindow() {
+    if (float && !float.isDestroyed()) float.hide()
+  }
+
+  function showPetWindow() {
+    if (!enabled || wayland) return
+    createFloat()
+    if (float && !float.isDestroyed()) {
+      float.show()
+      keepOverlayAboveApps(float)
+    }
+  }
+
+  function destroyOverlayWindows() {
+    if (float && !float.isDestroyed()) float.close()
+    float = null
+    chatOpenFlag = false
+    unitLayout = null
+  }
+
+  function applyDecision(decision) {
+    enabled = decision.state.enabled
+    petHidden = decision.state.petHidden
+    chatOpenFlag = decision.state.chatOpen
+    if (decision.effects.destroyOverlay) {
+      destroyOverlayWindows()
+      refreshMenus()
+      return
+    }
+    if (decision.effects.pet === 'hide') hidePetWindow()
+    else if (decision.effects.pet === 'show' || (decision.petVisible && (!float || float.isDestroyed()))) {
+      showPetWindow()
+    } else if (wayland && chatOpenFlag && (!float || float.isDestroyed())) {
+      createFloat()
+    }
+    if (float && !float.isDestroyed() && decision.effects.pet !== 'hide') {
+      relayoutUnit()
+      if (decision.effects.chat === 'show' || decision.effects.chat === 'focus') {
+        float.show()
+        float.focus()
+      }
+    }
+    if (decision.effects.main === 'show') showMainWindowImpl()
+    else if (decision.effects.main === 'park') parkMainWindowImpl()
+    if (decision.effects.navigateSettings) {
+      emit('companion.navigate', { section: 'settings', category: 'companion' })
+    }
+    refreshMenus()
+  }
+
+  function dispatch(action) {
+    applyDecision(reduceCompanionOverlay(snapshot(), action))
+    return status()
   }
 
   function actionMenu(extra = {}) {
@@ -194,17 +350,32 @@ function createCompanionShell(options) {
   }
 
   function status() {
+    const petScreen = unitLayout?.petScreen
+    const chatScreen = unitLayout?.chatScreen
     return {
       floating: Boolean(float) && !wayland,
-      hidden: petHidden || !float,
+      hidden: wayland || petHidden || !float,
       chatOpen: chatOpen(),
       wayland,
       tray: Boolean(tray),
       parked: mainParked(),
       platform,
       menu: menuSnapshot(),
-      petBounds: windowBounds(float),
-      chatBounds: windowBounds(chat),
+      petBounds: petScreen
+        ? {
+            x: petScreen.x,
+            y: petScreen.y,
+            width: COMPANION_PET_WIDTH,
+            height: COMPANION_PET_HEIGHT,
+          }
+        : windowBounds(float),
+      chatBounds: chatOpenFlag && chatScreen ? chatScreen : null,
+      overlay: {
+        petVisible: petVisible(),
+        chatOpen: chatOpen(),
+        mainVisible: !mainParked(),
+        chatSide: unitLayout?.chatSide === 'right' ? 'right' : 'left',
+      },
     }
   }
 
@@ -255,7 +426,7 @@ function createCompanionShell(options) {
     refreshMenus()
   }
 
-  function showMainWindow() {
+  function showMainWindowImpl() {
     let main = getMainWindow()
     if (!main || main.isDestroyed()) {
       main = new BrowserWindow({
@@ -273,17 +444,17 @@ function createCompanionShell(options) {
     if (main.isMinimized()) main.restore()
     main.show()
     main.focus()
-    refreshMenus()
-    return status()
+  }
+
+  function showMainWindow() {
+    return dispatch(COMPANION_OVERLAY_ACTIONS.SHOW_MAIN)
   }
 
   function showCompanionSettings() {
-    const shown = showMainWindow()
-    emit('companion.navigate', { section: 'settings', category: 'companion' })
-    return shown
+    return dispatch(COMPANION_OVERLAY_ACTIONS.SHOW_SETTINGS)
   }
 
-  function parkMainWindow() {
+  function parkMainWindowImpl() {
     const main = getMainWindow()
     if (!main || main.isDestroyed()) return
     keepAppPresence()
@@ -294,89 +465,46 @@ function createCompanionShell(options) {
     }
   }
 
+  function parkMainWindow() {
+    dispatch(COMPANION_OVERLAY_ACTIONS.PARK_MAIN)
+  }
+
   function hidePet() {
-    petHidden = true
-    if (float && !float.isDestroyed()) float.hide()
-    refreshMenus()
-    return status()
+    return dispatch(COMPANION_OVERLAY_ACTIONS.HIDE_PET)
   }
 
   function showPet() {
-    if (!enabled || wayland) return status()
-    petHidden = false
-    createFloat()
-    if (float && !float.isDestroyed()) {
-      float.show()
-      float.setAlwaysOnTop(true, 'screen-saver')
-    }
-    refreshMenus()
-    return status()
-  }
-
-  function chatBounds() {
-    const width = COMPANION_CHAT_WIDTH
-    const height = COMPANION_CHAT_HEIGHT
-    let x = 48
-    let y = 72
-    if (float && !float.isDestroyed() && typeof float.getBounds === 'function') {
-      const pet = float.getBounds()
-      x = Number(pet.x) - width - 12
-      if (x < 8) x = Number(pet.x) + Number(pet.width || COMPANION_FLOAT_WIDTH) + 12
-      y = Number(pet.y)
-    }
-    return { x, y, width, height }
-  }
-
-  function shiftWindow(window, dx, dy) {
-    if (!window || window.isDestroyed() || (!dx && !dy)) return
-    const bounds = typeof window.getBounds === 'function'
-      ? window.getBounds()
-      : { x: 0, y: 0 }
-    const x = Math.round(Number(bounds.x) + dx)
-    const y = Math.round(Number(bounds.y) + dy)
-    if (typeof window.setPosition === 'function') {
-      window.setPosition(x, y)
-      return
-    }
-    if (typeof window.setBounds === 'function') {
-      window.setBounds({
-        x,
-        y,
-        width: bounds.width,
-        height: bounds.height,
-      })
-    }
+    return dispatch(COMPANION_OVERLAY_ACTIONS.SHOW_PET)
   }
 
   function movePet(payload = {}) {
-    if (!enabled || wayland || !float || float.isDestroyed()) return status()
+    const decision = reduceCompanionOverlay(snapshot(), COMPANION_OVERLAY_ACTIONS.MOVE_PET)
+    if (!decision.effects.drag.moveUnit || !float || float.isDestroyed()) return status()
     const dx = Number(payload.dx)
     const dy = Number(payload.dy)
     if (!Number.isFinite(dx) || !Number.isFinite(dy) || (dx === 0 && dy === 0)) {
       return status()
     }
-    shiftWindow(float, dx, dy)
-    if (chatOpen()) shiftWindow(chat, dx, dy)
+    applyUnitLayout(moveCompanionUnit({
+      petScreen: currentPetScreen(),
+      dx,
+      dy,
+      chatOpen: chatOpenFlag,
+      workArea: wayland ? null : (workAreaNear(currentPetScreen()) || primaryWorkArea()),
+    }))
     return status()
   }
 
   function hideChatWindow() {
-    if (chat && !chat.isDestroyed()) chat.hide()
-    refreshMenus()
-    return status()
+    return dispatch(COMPANION_OVERLAY_ACTIONS.CLOSE_CHAT)
   }
 
   function showChatWindow() {
-    if (enabled && !wayland) showPet()
-    createChat()
-    if (chat && !chat.isDestroyed()) {
-      const bounds = chatBounds()
-      if (typeof chat.setBounds === 'function') chat.setBounds(bounds)
-      chat.show()
-      chat.focus()
-    }
-    refreshMenus()
-    return status()
+    return dispatch(COMPANION_OVERLAY_ACTIONS.OPEN_CHAT)
+  }
+
+  function clickPet() {
+    return dispatch(COMPANION_OVERLAY_ACTIONS.CLICK_PET)
   }
 
   function popupCompanionMenu(payload = {}) {
@@ -384,10 +512,37 @@ function createCompanionShell(options) {
     const menu = Menu.buildFromTemplate(actionMenu({ includeQuit: true }))
     const target = (float && !float.isDestroyed() && petVisible()) ? float : getMainWindow()
     if (menu && typeof menu.popup === 'function' && target && !target.isDestroyed()) {
+      const bounds = windowBounds(target) || { x: 0, y: 0, width: 0, height: 0 }
+      const hasClient = Number.isFinite(Number(payload.x)) && Number.isFinite(Number(payload.y))
+      let screenPoint
+      if (hasClient) {
+        screenPoint = {
+          x: Number(bounds.x) + Number(payload.x),
+          y: Number(bounds.y) + Number(payload.y),
+        }
+      } else if (screen && typeof screen.getCursorScreenPoint === 'function') {
+        try {
+          screenPoint = screen.getCursorScreenPoint()
+        } catch {
+          screenPoint = null
+        }
+      }
+      if (!screenPoint || !Number.isFinite(Number(screenPoint.x))) {
+        screenPoint = {
+          x: Number(bounds.x) + Number(bounds.width || 0),
+          y: Number(bounds.y) + Number(bounds.height || 0),
+        }
+      }
+      const workArea = workAreaNear(screenPoint) || primaryWorkArea()
+      const clamped = clampCompanionMenuOrigin({
+        x: Number(screenPoint.x),
+        y: Number(screenPoint.y),
+        workArea,
+      })
       menu.popup({
         window: target,
-        x: Number.isFinite(Number(payload.x)) ? Number(payload.x) : undefined,
-        y: Number.isFinite(Number(payload.y)) ? Number(payload.y) : undefined,
+        x: Math.round(clamped.x - Number(bounds.x || 0)),
+        y: Math.round(clamped.y - Number(bounds.y || 0)),
       })
     }
     return status()
@@ -396,23 +551,29 @@ function createCompanionShell(options) {
   function revealFromTaskbar() {
     keepAppPresence()
     createTray()
-    if (enabled && !wayland) showPet()
-    refreshMenus()
-    return status()
+    return dispatch(COMPANION_OVERLAY_ACTIONS.REVEAL_FROM_TASKBAR)
   }
 
   function createFloat() {
-    if (!enabled || wayland) return
+    const allow = (enabled && !wayland) || (wayland && chatOpenFlag)
+    if (!allow) return
     if (float && !float.isDestroyed()) {
-      if (!petHidden) {
+      if (!petHidden || chatOpenFlag) {
         float.show()
-        float.setAlwaysOnTop(true, 'screen-saver')
+        keepOverlayAboveApps(float)
       }
       return
     }
+    const workArea = wayland ? null : primaryWorkArea()
+    unitLayout = layoutCompanionUnit({
+      chatOpen: chatOpenFlag,
+      petOrigin: wayland ? undefined : defaultCompanionPetOrigin(workArea),
+      workArea,
+    })
     float = new BrowserWindow({
-      width: COMPANION_FLOAT_WIDTH,
-      height: COMPANION_FLOAT_HEIGHT,
+      width: unitLayout.window.width,
+      height: unitLayout.window.height,
+      ...(wayland ? {} : { x: unitLayout.window.x, y: unitLayout.window.y }),
       useContentSize: true,
       frame: false,
       transparent: true,
@@ -424,8 +585,8 @@ function createCompanionShell(options) {
       alwaysOnTop: true,
       hasShadow: false,
       hiddenInMissionControl: true,
-      movable: true,
-      show: !petHidden,
+      movable: false,
+      show: !petHidden || chatOpenFlag,
       ...(platform === 'darwin' ? { type: 'panel' } : {}),
       webPreferences: {
         preload: path.join(__dirname, 'companion-preload.cjs'),
@@ -437,71 +598,25 @@ function createCompanionShell(options) {
     if (typeof float.setWindowButtonVisibility === 'function') {
       float.setWindowButtonVisibility(false)
     }
-    float.setAlwaysOnTop(true, 'screen-saver')
-    float.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+    keepOverlayAboveApps(float)
     float.loadURL(`${APP_ORIGIN}/index.html?surface=companion`)
     float.on('closed', () => {
       float = null
+      unitLayout = null
       windows.delete('companion')
     })
     register('companion', float, path.join(__dirname, 'companion-preload.cjs'))
+    emitOverlay()
   }
 
   function createChat() {
-    if (chat && !chat.isDestroyed()) return
-    const bounds = chatBounds()
-    chat = new BrowserWindow({
-      width: bounds.width,
-      height: bounds.height,
-      x: bounds.x,
-      y: bounds.y,
-      useContentSize: true,
-      frame: false,
-      transparent: false,
-      resizable: true,
-      maximizable: false,
-      minimizable: false,
-      fullscreenable: false,
-      skipTaskbar: true,
-      alwaysOnTop: true,
-      hasShadow: true,
-      show: true,
-      minWidth: 280,
-      minHeight: 360,
-      webPreferences: {
-        preload: path.join(__dirname, 'companion-preload.cjs'),
-        contextIsolation: true,
-        sandbox: true,
-        backgroundThrottling: false,
-      },
-    })
-    if (typeof chat.setWindowButtonVisibility === 'function') {
-      chat.setWindowButtonVisibility(false)
-    }
-    chat.setAlwaysOnTop(true, 'screen-saver')
-    chat.loadURL(`${APP_ORIGIN}/index.html?surface=companion-chat`)
-    chat.on('closed', () => {
-      chat = null
-      windows.delete('companion-chat')
-      refreshMenus()
-    })
-    register('companion-chat', chat, path.join(__dirname, 'companion-preload.cjs'))
+    chatOpenFlag = true
+    createFloat()
+    relayoutUnit()
   }
 
   function setEnabled(next) {
-    enabled = Boolean(next) && !wayland
-    if (!enabled) {
-      petHidden = false
-      if (float && !float.isDestroyed()) float.close()
-      float = null
-      if (chat && !chat.isDestroyed()) chat.close()
-      chat = null
-      refreshMenus()
-      return status()
-    }
-    createFloat()
-    refreshMenus()
-    return status()
+    return dispatch(next ? COMPANION_OVERLAY_ACTIONS.ENABLE : COMPANION_OVERLAY_ACTIONS.DISABLE)
   }
 
   function register(id, window, preloadPath) {
@@ -550,6 +665,7 @@ function createCompanionShell(options) {
     if (method === 'ShowCompanionMainWindow') return showMainWindow()
     if (method === 'ShowCompanionChatWindow') return showChatWindow()
     if (method === 'HideCompanionChatWindow') return hideChatWindow()
+    if (method === 'ClickCompanionPet') return clickPet()
     if (method === 'ShowCompanionSettings') return showCompanionSettings()
     if (method === 'PopupCompanionMenu') return popupCompanionMenu(payload)
     if (method === 'MoveCompanionPet') return movePet(payload)
@@ -590,6 +706,7 @@ function createCompanionShell(options) {
     showPet,
     showChatWindow,
     hideChatWindow,
+    clickPet,
     revealFromTaskbar,
     keepAppPresence,
     refreshMenus,

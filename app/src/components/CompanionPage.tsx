@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { X } from 'lucide-react'
+import { ArrowUp, X } from 'lucide-react'
 import companionIdle from '@/assets/companion/idle.png'
 import { Button, Textarea } from '@/components/ui'
 import { useCompanion } from '@/composables/useCompanion'
@@ -15,6 +15,7 @@ import {
   formatCompanionChatStamp,
 } from '@/lib/companionChatLayout'
 import { cn } from '@/lib/cn'
+import { isComposingKey } from '@/lib/imeComposition'
 import type { AppSettings, CompanionSkinResolved } from '@/types'
 
 function fitComposer(node: HTMLTextAreaElement | null) {
@@ -23,7 +24,11 @@ function fitComposer(node: HTMLTextAreaElement | null) {
   node.style.height = `${Math.min(Math.max(node.scrollHeight, 22), 72)}px`
 }
 
-export default function CompanionPage() {
+export default function CompanionPage({
+  embedded = false,
+}: {
+  embedded?: boolean
+}) {
   const t = useT()
   const locale = useUiLocale()
   const companion = useCompanion()
@@ -45,13 +50,14 @@ export default function CompanionPage() {
   })
 
   useEffect(() => {
+    if (embedded) return undefined
     document.documentElement.classList.add('companion-chat-surface')
     document.body.classList.add('companion-chat-surface')
     return () => {
       document.documentElement.classList.remove('companion-chat-surface')
       document.body.classList.remove('companion-chat-surface')
     }
-  }, [])
+  }, [embedded])
 
   useEffect(() => {
     let cancelled = false
@@ -96,14 +102,17 @@ export default function CompanionPage() {
       <header className="companion-chat-head">
         <img className="companion-chat-avatar" src={avatar} alt="" draggable={false} />
         <p className="companion-chat-title">{t('桌宠', 'Companion')}</p>
-        <button
+        <Button
           type="button"
-          className="companion-chat-icon"
+          variant="ghost"
+          size="icon"
+          className="companion-chat-icon size-7"
           aria-label={t('关闭对话', 'Close chat')}
+          title={t('关闭对话', 'Close chat')}
           onClick={() => void invokeCommand('hide_companion_chat_window', { locale })}
         >
           <X className="size-3.5" />
-        </button>
+        </Button>
       </header>
       <div
         ref={parentRef}
@@ -234,6 +243,7 @@ export default function CompanionPage() {
             value={companion.draft}
             onChange={event => companion.setDraft(event.target.value)}
             onKeyDown={event => {
+              if (isComposingKey(event.nativeEvent)) return
               if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault()
                 void companion.send()
@@ -242,11 +252,16 @@ export default function CompanionPage() {
             aria-label={t('桌宠输入', 'Companion message')}
           />
           <Button
+            type="button"
+            variant="brand"
+            size="icon"
             className="companion-chat-send"
             disabled={companion.busy || !companion.draft.trim()}
+            aria-label={companion.busy ? t('排队', 'Queue') : t('发送', 'Send')}
+            title={companion.busy ? t('排队', 'Queue') : t('发送', 'Send')}
             onClick={() => void companion.send()}
           >
-            {companion.busy ? t('排队', 'Queue') : t('发送', 'Send')}
+            <ArrowUp className="size-4" />
           </Button>
         </div>
       </div>

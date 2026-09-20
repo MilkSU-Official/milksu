@@ -2,11 +2,13 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointer
 import companionDecide from '@/assets/companion/decide.png'
 import companionIdle from '@/assets/companion/idle.png'
 import companionTalk from '@/assets/companion/talk.png'
+import CompanionPage from '@/components/CompanionPage'
 import { useCompanion } from '@/composables/useCompanion'
 import { invokeCommand, listenEvent } from '@/desktop'
 import { useT, useUiLocale } from '@/hooks/useUiLocale'
+import { clampCompanionMenuOrigin } from '@/lib/companionOverlayState'
 import { companionPetDragMoved, companionPetSprite, resolveCompanionPetMotion } from '@/lib/companionPetMotion'
-import type { AppSettings, CompanionSkinResolved } from '@/types'
+import type { AppSettings, CompanionShellStatus, CompanionSkinResolved } from '@/types'
 
 const factorySprites = {
   idle: companionIdle,
@@ -55,6 +57,10 @@ export default function CompanionPetWindow() {
   const locale = useUiLocale()
   const companion = useCompanion()
   const [skin, setSkin] = useState<CompanionSkinResolved>(factorySkin)
+  const [overlay, setOverlay] = useState<{ chatOpen: boolean; chatSide: 'left' | 'right' }>({
+    chatOpen: false,
+    chatSide: 'left',
+  })
   const motion = resolveCompanionPetMotion({
     confirm: Boolean(companion.confirm),
     error: Boolean(companion.error.trim()),
@@ -66,6 +72,27 @@ export default function CompanionPetWindow() {
     () => attentionText({ confirm: companion.confirm, error: companion.error, t }),
     [companion.confirm, companion.error, t],
   )
+
+  useEffect(() => {
+    let stop: (() => void) | undefined
+    void invokeCommand<CompanionShellStatus>('get_companion_shell_status')
+      .then(status => {
+        setOverlay({
+          chatOpen: Boolean(status?.chatOpen),
+          chatSide: status?.overlay?.chatSide === 'right' ? 'right' : 'left',
+        })
+      })
+      .catch(() => undefined)
+    void listenEvent<{ chatOpen?: boolean; chatSide?: string }>('companion.overlay', event => {
+      setOverlay({
+        chatOpen: Boolean(event.payload?.chatOpen),
+        chatSide: event.payload?.chatSide === 'right' ? 'right' : 'left',
+      })
+    }).then(unlisten => {
+      stop = unlisten
+    })
+    return () => stop?.()
+  }, [])
 
   useEffect(() => {
     document.documentElement.classList.add('companion-surface')
@@ -188,11 +215,11 @@ export default function CompanionPetWindow() {
     if (!drag) return
     if (!drag.moved) {
       setMenu(null)
-      void invokeCommand('show_companion_chat_window', { locale })
+      void invokeCommand('click_companion_pet', { locale })
     }
   }
 
-  return (
+  const pet = (
     <div
       className={[
         'companion-pet',
@@ -207,12 +234,21 @@ export default function CompanionPetWindow() {
         event.stopPropagation()
         const drag = dragRef.current
         if (drag) endPetDrag(event.currentTarget, drag.pointerId)
-        setMenu({ x: event.clientX, y: event.clientY })
+        setMenu(clampCompanionMenuOrigin({
+          x: event.clientX,
+          y: event.clientY,
+          workArea: {
+            x: 0,
+            y: 0,
+            width: window.innerWidth,
+            height: window.innerHeight,
+          },
+        }))
       }}
       onClick={() => {
         if (dragRef.current?.moved) return
         setMenu(null)
-        void invokeCommand('show_companion_chat_window', { locale })
+        void invokeCommand('click_companion_pet', { locale })
       }}
     >
       {menu ? (
@@ -220,7 +256,7 @@ export default function CompanionPetWindow() {
           className="companion-pet-menu"
           data-testid="companion-pet-menu"
           role="menu"
-          style={{ left: Math.min(menu.x, 96), top: Math.min(menu.y, 220) }}
+          style={{ left: menu.x, top: menu.y }}
           onClick={event => event.stopPropagation()}
         >
           <button type="button" role="menuitem" onClick={() => {
@@ -313,6 +349,17 @@ export default function CompanionPetWindow() {
         </div>
       </div>
       <span className="sr-only">{t('桌宠', 'Companion')}</span>
+    </div>
+  )
+  const chat = overlay.chatOpen ? <CompanionPage embedded /> : null
+  const gap = overlay.chatOpen ? <div className="companion-unit-gap" aria-hidden="true" /> : null
+  return (
+    <div
+      className="companion-unit"
+      data-chat={overlay.chatOpen ? 'open' : 'closed'}
+      data-side={overlay.chatSide}
+    >
+      {overlay.chatSide === 'right' ? <>{pet}{gap}{chat}</> : <>{chat}{gap}{pet}</>}
     </div>
   )
 }
