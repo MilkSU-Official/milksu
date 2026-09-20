@@ -85,6 +85,25 @@ test("retries a catalog-known bare alternate when the prefixed form is rejected"
   assert.equal(events.at(-1).type, "done");
 });
 
+test("requests the catalog thinking suffix instead of a suffix-less saved id", async () => {
+  const seen = [];
+  const done = message("google/gemini-3.8-flash-tiered");
+  const routed = streamTokenFluxModelWithCompat({
+    model: { id: "google/gemini-3.8-flash", provider: "tokenflux", api: "openai-completions" },
+    context: { systemPrompt: "", messages: [], tools: [] },
+    options: {},
+    catalogModelIDs: ["google/gemini-3.8-flash-tiered", "google/gemini-3.1-pro-high"],
+    open(model) {
+      seen.push(model.id);
+      return stream([{ type: "done", reason: "stop", message: done }]);
+    },
+  });
+  const events = [];
+  for await (const event of routed) events.push(event);
+  assert.deepEqual(seen, ["google/gemini-3.8-flash-tiered"]);
+  assert.equal(events.at(-1).type, "done");
+});
+
 test("does not rewrite after the first content token", async () => {
   const partial = message("grok-4.5", "error", "COMPOSITE_KEY_MODEL_PREFIX_REQUIRED");
   const seen = [];

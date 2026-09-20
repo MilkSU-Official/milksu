@@ -46,6 +46,7 @@ function tokenfluxModelNotFound(error) {
   return (
     /\bmodel_not_found\b/u.test(message)
     || /model[\s\S]{0,384}(not found|not supported|unsupported|unavailable)/u.test(message)
+    || /does not support the requested model/u.test(message)
     || /not supported by any configured account/u.test(message)
     || /COMPOSITE_KEY_PREFIX_NOT_FOUND|composite_key_prefix_not_found/u.test(message)
   );
@@ -61,10 +62,29 @@ function tokenfluxBareModelID(modelID) {
   return id.slice(slash + 1);
 }
 
+// TokenFlux thinking-tier groups expose the same model as -tiered / -high / -low.
+// Longer suffixes first so -xhigh is not stripped as -high.
+const TOKENFLUX_THINKING_SUFFIXES = ["-tiered", "-xhigh", "-medium", "-high", "-low", "-max"];
+
+function tokenfluxModelStem(modelID) {
+  const bare = tokenfluxBareModelID(modelID);
+  const lower = bare.toLowerCase();
+  for (const suffix of TOKENFLUX_THINKING_SUFFIXES) {
+    if (lower.endsWith(suffix)) return bare.slice(0, -suffix.length);
+  }
+  return bare;
+}
+
+function tokenfluxAliasRank(modelID) {
+  const lower = tokenfluxBareModelID(modelID).toLowerCase();
+  if (lower.endsWith("-tiered")) return 2;
+  return 1;
+}
+
 function tokenfluxRequestModelIDs(modelID, catalogModelIDs = []) {
   const id = normalizeModelID(modelID);
   if (!id) return [];
-  const result = [id];
+  const result = [];
   const push = value => {
     const next = normalizeModelID(value);
     if (next && !result.includes(next)) result.push(next);
@@ -76,23 +96,39 @@ function tokenfluxRequestModelIDs(modelID, catalogModelIDs = []) {
       .filter(Boolean),
   );
 
-  // If the catalog lists an alternate bare/prefixed form of the same selection,
-  // try it after the exact id. Do not invent vendor prefixes — composite
-  // prefixes are user-defined (GPT, Claude, …).
+  // Prefer catalog-known forms of the same selection. Do not invent vendor
+  // prefixes or thinking suffixes — only reuse ids TokenFlux already returned
+  // (bare vs prefix, or -tiered / -high). A saved suffix-less id must not
+  // lead the request if the catalog only lists the thinking-tier form.
   if (catalog.size > 0) {
     const bare = tokenfluxBareModelID(id);
+    const stem = tokenfluxModelStem(id);
+    if (catalog.has(id)) push(id);
     if (bare !== id && catalog.has(bare)) push(bare);
+    const extras = [];
     for (const candidate of catalog) {
       if (candidate === id) continue;
-      if (tokenfluxBareModelID(candidate) === bare || tokenfluxBareModelID(candidate) === id) {
-        push(candidate);
+      const candidateBare = tokenfluxBareModelID(candidate);
+      if (candidateBare === bare || candidateBare === id || tokenfluxModelStem(candidate) === stem) {
+        extras.push(candidate);
       }
+    }
+    extras.sort((left, right) => tokenfluxAliasRank(right) - tokenfluxAliasRank(left));
+    for (const candidate of extras) {
+      push(candidate);
+      const candidateBare = tokenfluxBareModelID(candidate);
+      if (candidateBare !== candidate) push(candidateBare);
+    }
+    if (result.length === 0) {
+      push(id);
+      if (bare !== id) push(bare);
     }
     return result;
   }
 
   // Without a catalog, only try stripping an existing composite prefix so a
   // single-group key can accept a previously saved prefix/model selection.
+  push(id);
   const bare = tokenfluxBareModelID(id);
   if (bare !== id) push(bare);
   return result;
@@ -116,6 +152,7 @@ module.exports = {
   tokenfluxBareModelID,
   tokenfluxCompositePrefixRequired,
   tokenfluxModelNotFound,
+  tokenfluxModelStem,
   tokenfluxRequestModelIDs,
   tokenfluxRequestModels,
   tokenfluxRequestRetryable,
