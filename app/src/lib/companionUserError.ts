@@ -16,6 +16,9 @@ export function explainCompanionError(
   if (SIDECAR_DOWN.test(message)) {
     return t('桌宠暂时连不上。', 'The companion could not start.')
   }
+  if (/companion model returned no text/i.test(message)) {
+    return t('这一轮没有回复。', 'This turn did not produce a reply.')
+  }
   return explainModelCallFailure(message, context) || message
 }
 
@@ -60,6 +63,7 @@ export function companionChatVisibleText(entry: {
   text?: string
   type?: string
   error?: string
+  role?: string
   attachments?: CodingAttachment[]
 }): string {
   const attachments = entry.attachments?.length
@@ -68,5 +72,10 @@ export function companionChatVisibleText(entry: {
   const text = companionChatUserFacingText(entry.text ?? '', attachments.length > 0)
   const type = String(entry.type ?? '').trim()
   if (text && text !== type) return text
-  return String(entry.error ?? '').trim()
+  const error = String(entry.error ?? '').trim()
+  if (error) return error
+  if (entry.role === 'assistant') {
+    return t('这一轮没有回复。', 'This turn did not produce a reply.')
+  }
+  return ''
 }

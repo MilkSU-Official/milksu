@@ -64,6 +64,22 @@ test("reassembly strips previously injected companion custom messages", () => {
   assert.equal(stripCompanionCustomMessages(previous.messages).length, 1);
 });
 
+test("empty assistant turns are stripped so later prompts are not poisoned", () => {
+  const assembled = assembleCompanionMessages({
+    recentMessages: [
+      userMessage("看图"),
+      { role: "assistant", content: [], stopReason: "stop" },
+      userMessage("hi"),
+    ],
+  });
+  assert.deepEqual(
+    assembled.messages.filter(message => message.role === "assistant"),
+    [],
+  );
+  const users = assembled.messages.filter(message => message.role === "user");
+  assert.equal(users.at(-1).content[0].text, "hi");
+});
+
 test("board segment is never dropped when over budget", () => {
   const sessions = Array.from({ length: 80 }, (_, index) => ({
     id: `session-${index}`,

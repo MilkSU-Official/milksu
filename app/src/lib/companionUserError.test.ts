@@ -44,6 +44,7 @@ describe('companionChatVisibleText', () => {
       role: 'assistant',
       error: '403: group does not support the requested model',
     })).toBe('403: group does not support the requested model')
+    expect(companionChatVisibleText({ type: 'message', role: 'assistant', text: '' })).toBe('这一轮没有回复。')
     expect(companionChatVisibleText({ type: 'message', text: '你好' })).toBe('你好')
     expect(companionChatVisibleText({
       type: 'message',

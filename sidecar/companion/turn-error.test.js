@@ -22,6 +22,12 @@ test("does not treat a completed assistant turn as an error", () => {
   ]), "");
 });
 
+test("treats a completed turn with no text as a failure", () => {
+  assert.equal(companionAssistantTurnError([
+    { message: { role: "assistant", content: [], stopReason: "stop" } },
+  ]), "companion model returned no text");
+});
+
 test("uses a fallback when stopReason is error but errorMessage is empty", () => {
   assert.equal(companionAssistantTurnError([
     { role: "assistant", content: [], stopReason: "error" },

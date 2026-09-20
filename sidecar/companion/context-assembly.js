@@ -76,9 +76,18 @@ export function isCompanionCustomMessage(message) {
     && COMPANION_CUSTOM_TYPE_SET.has(String(message.customType ?? ""));
 }
 
+function isEmptyAssistantMessage(message) {
+  if (message?.role !== "assistant") return false;
+  const content = message.content;
+  if (!Array.isArray(content) || content.length === 0) return true;
+  return !content.some(block => String(block?.text ?? "").trim());
+}
+
 export function stripCompanionCustomMessages(messages) {
   if (!Array.isArray(messages)) return [];
-  return messages.filter(message => !isCompanionCustomMessage(message));
+  return messages.filter(message => (
+    !isCompanionCustomMessage(message) && !isEmptyAssistantMessage(message)
+  ));
 }
 
 function createCustomMessage(customType, text, details) {

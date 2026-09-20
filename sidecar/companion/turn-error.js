@@ -7,6 +7,11 @@ export function companionAssistantTurnError(messages) {
     if (message.stopReason === "error") {
       return String(message.errorMessage ?? "").trim() || "companion model call failed";
     }
+    const hasText = Array.isArray(message.content)
+      && message.content.some(block => String(block?.text ?? "").trim());
+    if (!hasText) {
+      return String(message.errorMessage ?? "").trim() || "companion model returned no text";
+    }
     return "";
   }
   return "";

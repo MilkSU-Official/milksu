@@ -173,7 +173,10 @@ async function applyCompanionModel(command) {
   if (!desired) {
     throw new Error(`companion model not found: ${provider}/${model}`);
   }
-  await session.setModel(desired);
+  const current = session.model;
+  if (!current || current.provider !== desired.provider || current.id !== desired.id) {
+    await session.setModel(desired);
+  }
   const thinking = command?.thinking;
   if (thinking && typeof thinking === "object") {
     session.setThinkingLevel(thinking.enabled === false ? "off" : (thinking.level || "low"));
@@ -207,10 +210,10 @@ async function sendPrompt(command) {
     throw new Error("companion prompt is required");
   }
   promptQueue = promptQueue.then(async () => {
-    await session.prompt(
-      prepared.prompt,
-      prepared.images.length ? { images: prepared.images } : undefined,
-    );
+    await session.prompt(prepared.prompt, {
+      expandPromptTemplates: false,
+      ...(prepared.images.length ? { images: prepared.images } : {}),
+    });
   });
   await promptQueue;
 }
