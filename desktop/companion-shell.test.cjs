@@ -3,9 +3,12 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
 const {
+  COMPANION_CHAT_HEIGHT,
+  COMPANION_CHAT_WIDTH,
   COMPANION_FLOAT_HEIGHT,
   COMPANION_FLOAT_WIDTH,
   COMPANION_METHODS,
+  readCompanionPhoneStatus,
   createCompanionShell,
   normalizeUiLocale,
 } = require('./companion-shell.cjs')
@@ -173,10 +176,47 @@ test('companion window methods are a subset of the main renderer surface', () =>
   assert.ok(COMPANION_METHODS.has('MoveCompanionPet'))
   assert.ok(COMPANION_METHODS.has('ParkCompanionMainWindow'))
   assert.ok(COMPANION_METHODS.has('GetCompanionSkin'))
+  assert.ok(COMPANION_METHODS.has('GetCompanionPhoneStatus'))
   assert.ok(COMPANION_METHODS.has('EnsureCompanion'))
   assert.ok(!COMPANION_METHODS.has('SendMessage'))
   assert.ok(!COMPANION_METHODS.has('SaveSettingsCmd'))
   assert.ok(!COMPANION_METHODS.has('ImportCompanionSkin'))
+})
+
+test('GetCompanionPhoneStatus reports host power and network without a fake battery', () => {
+  const now = Date.parse('2026-09-21T08:05:00.000Z')
+  assert.deepEqual(readCompanionPhoneStatus({
+    now,
+    powerMonitor: { isOnBatteryPower: () => false },
+    net: { isOnline: () => true },
+  }), {
+    time: '2026-09-21T08:05:00.000Z',
+    batteryPercent: null,
+    charging: true,
+    online: true,
+    wifi: true,
+  })
+  assert.deepEqual(readCompanionPhoneStatus({
+    now,
+    powerMonitor: { isOnBatteryPower: () => true },
+    net: { isOnline: () => false },
+  }), {
+    time: '2026-09-21T08:05:00.000Z',
+    batteryPercent: null,
+    charging: false,
+    online: false,
+    wifi: false,
+  })
+  const { shell } = createShell({
+    powerMonitor: { isOnBatteryPower: () => true },
+    net: { isOnline: () => true },
+  })
+  const status = shell.handleHostMethod('GetCompanionPhoneStatus')
+  assert.equal(status.charging, false)
+  assert.equal(status.online, true)
+  assert.equal(status.wifi, true)
+  assert.equal(status.batteryPercent, null)
+  assert.ok(Date.parse(status.time))
 })
 
 test('normalizeUiLocale maps OS and product locale values', () => {
@@ -311,8 +351,8 @@ test('ShowCompanionChatWindow replaces the pet with the phone, not a second wind
   assert.equal(opened.chatOpen, true)
   assert.equal(opened.overlay.petVisible, false)
   assert.equal(created.length, 1)
-  assert.equal(created[0].width, 320)
-  assert.equal(created[0].height, 620)
+  assert.equal(created[0].width, COMPANION_CHAT_WIDTH)
+  assert.equal(created[0].height, COMPANION_CHAT_HEIGHT)
   assert.equal(opened.title, '桌宠')
   const closed = shell.handleHostMethod('HideCompanionChatWindow')
   assert.equal(closed.chatOpen, false)
@@ -416,9 +456,9 @@ test('dragging the pet never moves the main window and clamps to the work area',
   assert.equal(main.y, 24)
   assert.ok(inward.chatBounds)
   const clamped = shell.handleHostMethod('MoveCompanionPet', { dx: 4000, dy: 4000 })
-  assert.equal(clamped.chatBounds.x, 800 - 320)
+  assert.equal(clamped.chatBounds.x, 800 - COMPANION_CHAT_WIDTH)
   assert.equal(clamped.chatBounds.y, 0)
-  assert.ok(clamped.chatBounds.x + 320 <= 800)
+  assert.ok(clamped.chatBounds.x + COMPANION_CHAT_WIDTH <= 800)
 })
 
 test('overlay stacking stays below system IME chrome', () => {

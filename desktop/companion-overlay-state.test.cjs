@@ -24,6 +24,11 @@ const idle = {
   mainVisible: true,
 }
 
+test('phone window uses the iPhone 17 logical display', () => {
+  assert.equal(COMPANION_PHONE_WIDTH, 402)
+  assert.equal(COMPANION_PHONE_HEIGHT, 874)
+})
+
 test('pet click toggles the phone and hides the sprite', () => {
   const opened = reduceCompanionOverlay(idle, COMPANION_OVERLAY_ACTIONS.CLICK_PET)
   assert.equal(opened.state.chatOpen, true)

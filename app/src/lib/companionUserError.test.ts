@@ -27,6 +27,14 @@ describe('explainCompanionError', () => {
     expect(text).not.toBe('message')
   })
 
+  it('maps a broken tool history to archive-and-start-over copy', () => {
+    applyUiLocale('zh')
+    expect(explainCompanionError(
+      "400: Messages with role 'tool' must be a response to a preceding message with 'tool_calls'",
+      { provider: 'tokenflux', model: 'google/gemini-3.8-flash-tiered' },
+    )).toBe('这段对话的工具记录断了，请归档后开新对话。')
+  })
+
   it('leaves unrelated errors alone', () => {
     applyUiLocale('zh')
     expect(explainCompanionError('companion session is not ready')).toBe(

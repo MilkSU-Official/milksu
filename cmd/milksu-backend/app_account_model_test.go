@@ -74,6 +74,25 @@ func TestAlignCompanionModelFollowsCatalogSuffix(t *testing.T) {
 	}
 }
 
+func TestAlignCompanionModelKeepsAccountDeepSeekDefault(t *testing.T) {
+	settings := config.DefaultSettings()
+	settings.CompanionProvider = config.DefaultCompanionProvider
+	settings.CompanionModel = config.DefaultCompanionModel
+	settings.CompanionSource = config.DefaultCompanionSource
+	next := alignCompanionModel(settings, modelcatalog.Snapshot{
+		Models: []modelcatalog.Model{
+			{ID: "deepseek/deepseek-flash"},
+			{ID: "google/gemini-3.8-flash-tiered"},
+		},
+	})
+	if next.CompanionProvider != "tokenflux" || next.CompanionModel != "deepseek/deepseek-flash" {
+		t.Fatalf("companion default = %s/%s, want tokenflux/deepseek/deepseek-flash", next.CompanionProvider, next.CompanionModel)
+	}
+	if next.CompanionSource != "account" {
+		t.Fatalf("companion source = %q, want account", next.CompanionSource)
+	}
+}
+
 func TestAccountCatalogModelFallsBackToBestAssignedModel(t *testing.T) {
 	models := []modelcatalog.Model{
 		{ID: "grok-4.3"},

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { ArrowUp, ChevronLeft, FileText, Plus, X } from 'lucide-react'
 import companionIdle from '@/assets/companion/idle.png'
+import CompanionPhoneStatusBar from '@/components/CompanionPhoneStatusBar'
 import { Button, Textarea } from '@/components/ui'
 import { useCompanion } from '@/composables/useCompanion'
 import { desktopErrorMessage, invokeCommand, listenEvent } from '@/desktop'
@@ -226,17 +227,18 @@ export default function CompanionPage({
 
   return (
     <main className="companion-chat" data-testid="companion-chat">
+      <CompanionPhoneStatusBar />
       <header className="companion-chat-head">
         <Button
           type="button"
           variant="ghost"
           size="icon"
-          className="companion-chat-icon size-7"
+          className="companion-chat-icon size-8"
           aria-label={t('关闭对话', 'Close chat')}
           title={t('关闭对话', 'Close chat')}
           onClick={() => void invokeCommand('hide_companion_chat_window', { locale })}
         >
-          <ChevronLeft className="size-4" />
+          <ChevronLeft className="size-6" strokeWidth={2.25} />
         </Button>
         <div className="companion-chat-identity">
           <img className="companion-chat-avatar" src={avatar} alt="" draggable={false} />

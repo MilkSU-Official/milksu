@@ -19,6 +19,9 @@ export function explainCompanionError(
   if (/companion model returned no text/i.test(message)) {
     return t('这一轮没有回复。', 'This turn did not produce a reply.')
   }
+  if (/role ['"]tool['"].*tool_calls/i.test(message)) {
+    return t('这段对话的工具记录断了，请归档后开新对话。', 'This conversation\'s tool history is broken. Archive it and start a new chat.')
+  }
   return explainModelCallFailure(message, context) || message
 }
 

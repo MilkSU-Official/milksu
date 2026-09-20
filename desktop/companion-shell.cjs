@@ -31,6 +31,7 @@ const COMPANION_METHODS = new Set([
   'ApproveCompanionMemory',
   'ForgetCompanionMemory',
   'ConfirmCompanionDispatch',
+  'GetCompanionPhoneStatus',
   'GetCompanionShellStatus',
   'SetCompanionFloatEnabled',
   'SetCompanionPetHidden',
@@ -60,6 +61,34 @@ function isWaylandSession(env = process.env, platform = process.platform) {
     String(env.XDG_SESSION_TYPE || '').toLowerCase() === 'wayland'
     || Boolean(env.WAYLAND_DISPLAY)
   )
+}
+
+function readCompanionPhoneStatus(input = {}) {
+  const now = Number.isFinite(Number(input.now)) ? Number(input.now) : Date.now()
+  let charging = null
+  if (input.powerMonitor && typeof input.powerMonitor.isOnBatteryPower === 'function') {
+    try {
+      charging = !input.powerMonitor.isOnBatteryPower()
+    } catch {
+      charging = null
+    }
+  }
+  let online = true
+  if (input.net && typeof input.net.isOnline === 'function') {
+    try {
+      online = input.net.isOnline() !== false
+    } catch {
+      online = true
+    }
+  }
+  const percent = Number(input.batteryPercent)
+  return {
+    time: new Date(now).toISOString(),
+    batteryPercent: Number.isFinite(percent) ? Math.min(100, Math.max(0, Math.round(percent))) : null,
+    charging,
+    online,
+    wifi: online,
+  }
 }
 
 function normalizeUiLocale(value, fallback = 'zh') {
@@ -129,6 +158,8 @@ function createCompanionShell(options) {
     onQuitRequested,
     getUiLocale,
     screen,
+    powerMonitor,
+    net,
   } = options
   const platform = options.platform || process.platform
   const wayland = isWaylandSession(options.env, platform)
@@ -834,6 +865,9 @@ function createCompanionShell(options) {
   function handleHostMethod(method, args = {}) {
     const payload = args && typeof args === 'object' && !Array.isArray(args) ? args : {}
     rememberLocale(payload.locale)
+    if (method === 'GetCompanionPhoneStatus') {
+      return readCompanionPhoneStatus({ powerMonitor, net })
+    }
     if (method === 'GetCompanionShellStatus') return status()
     if (method === 'SetCompanionFloatEnabled') {
       const next = typeof args === 'boolean' ? args : payload.enabled !== false
@@ -904,6 +938,7 @@ function createCompanionShell(options) {
 
 module.exports = {
   COMPANION_METHODS,
+  readCompanionPhoneStatus,
   COMPANION_FLOAT_WIDTH,
   COMPANION_FLOAT_HEIGHT,
   COMPANION_CHAT_WIDTH,

@@ -8,24 +8,17 @@ export function companionChatTimestampMs(value: string | undefined): number {
 
 export function formatCompanionChatStamp(
   value: string | undefined,
-  locale: 'zh' | 'en',
-  now = Date.now(),
+  _locale?: 'zh' | 'en',
 ): string {
   const ms = companionChatTimestampMs(value)
   if (!ms) return ''
-  const date = new Date(ms)
-  const tag = locale === 'en' ? 'en-US' : 'zh-CN'
-  const time = new Intl.DateTimeFormat(tag, {
-    hour: '2-digit',
+  return new Intl.DateTimeFormat(undefined, {
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
     minute: '2-digit',
-    hour12: false,
-  }).format(date)
-  const start = new Date(now)
-  start.setHours(0, 0, 0, 0)
-  if (ms >= start.getTime()) return time
-  const weekday = new Intl.DateTimeFormat(tag, { weekday: 'short' }).format(date)
-  const day = new Intl.DateTimeFormat(tag, { month: 'numeric', day: 'numeric' }).format(date)
-  return locale === 'en' ? `${weekday}, ${day} ${time}` : `${day} ${weekday} ${time}`
+  }).format(new Date(ms))
 }
 
 export function companionChatIsUser(role?: string) {

@@ -19,15 +19,18 @@ describe('companionChatLayout', () => {
     expect(companionChatTimestampMs('2026-09-20T10:00:00.000Z')).toBe(Date.parse('2026-09-20T10:00:00.000Z'))
   })
 
-  it('formats same-day clock time and older day plus time', () => {
-    const now = Date.parse('2026-09-20T12:00:00')
-    const morning = new Date(now)
-    morning.setHours(8, 5, 0, 0)
-    expect(formatCompanionChatStamp(morning.toISOString(), 'zh', now)).toMatch(/^\d{1,2}:\d{2}$/)
-    const earlier = new Date(now)
-    earlier.setDate(earlier.getDate() - 2)
-    earlier.setHours(8, 5, 0, 0)
-    expect(formatCompanionChatStamp(earlier.toISOString(), 'en', now)).toMatch(/\d+[^\d]+\d+ \d{1,2}:\d{2}/)
+  it('formats stamps with a system-locale date and time', () => {
+    const morning = new Date('2026-09-20T08:05:00')
+    const expected = new Intl.DateTimeFormat(undefined, {
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    }).format(morning)
+    expect(formatCompanionChatStamp(morning.toISOString(), 'zh')).toBe(expected)
+    expect(formatCompanionChatStamp(morning.toISOString(), 'en')).toBe(expected)
+    expect(formatCompanionChatStamp('', 'zh')).toBe('')
   })
 
   it('shows a divider after a five-minute gap, not inside a tight cluster', () => {

@@ -17,6 +17,7 @@ const ALLOWED = new Set([
   'ApproveCompanionMemory',
   'ForgetCompanionMemory',
   'ConfirmCompanionDispatch',
+  'GetCompanionPhoneStatus',
   'GetCompanionShellStatus',
   'SetCompanionFloatEnabled',
   'SetCompanionPetHidden',

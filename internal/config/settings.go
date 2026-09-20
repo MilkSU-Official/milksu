@@ -97,7 +97,8 @@ type LabConfig struct {
 
 const (
 	DefaultCompanionProvider = "tokenflux"
-	DefaultCompanionModel    = "google/gemini-3.8-flash"
+	DefaultCompanionModel    = "deepseek/deepseek-flash"
+	DefaultCompanionSource   = ModelSourceAccount
 	DefaultCompanionSkinID   = "default"
 	CompanionTeachingAskMe   = "ask_me"
 	CompanionTeachingHints   = "hints"
@@ -1214,13 +1215,17 @@ func NormalizeCompanionTeaching(value string) string {
 func normalizeCompanionSettings(value AppSettings) AppSettings {
 	provider := strings.TrimSpace(value.CompanionProvider)
 	model := strings.TrimSpace(value.CompanionModel)
+	usedFactory := false
 	if provider == "" || model == "" {
 		provider = DefaultCompanionProvider
 		model = DefaultCompanionModel
+		usedFactory = true
 	}
 	source := strings.TrimSpace(value.CompanionSource)
 	if source != ModelSourceAccount && source != ModelSourcePersonal && source != "service" {
-		if provider == "tokenflux" {
+		if usedFactory {
+			source = DefaultCompanionSource
+		} else if provider == "tokenflux" {
 			source = ModelSourcePersonal
 		} else {
 			source = "service"

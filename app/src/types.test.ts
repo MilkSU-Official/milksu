@@ -260,8 +260,8 @@ describe('model provider catalog', () => {
       providers: {},
     })
     expect(settings.companion_provider).toBe('tokenflux')
-    expect(settings.companion_model).toBe('google/gemini-3.8-flash')
-    expect(settings.companion_source).toBe('personal')
+    expect(settings.companion_model).toBe('deepseek/deepseek-flash')
+    expect(settings.companion_source).toBe('account')
     expect(settings.companion_dispatch_enabled).toBe(true)
     expect(settings.companion_memory_enabled).toBe(true)
     expect(settings.companion_float_enabled).toBe(true)
@@ -269,6 +269,21 @@ describe('model provider catalog', () => {
     expect(settings.companion_teaching).toBe('ask_me')
     expect(settings.companion_proactivity?.task_events).toBe(true)
     expect(settings.companion_proactivity?.idle_chat).toBe(false)
+  })
+
+  it('keeps a saved companion model when the factory default changes', () => {
+    const settings = withAppSettingsDefaults({
+      active_provider: 'tokenflux',
+      active_model: 'grok-4.5',
+      model_routing: { source_order: ['account', 'personal'], auto_fallback: false },
+      providers: {},
+      companion_provider: 'tokenflux',
+      companion_model: 'google/gemini-3.8-flash',
+      companion_source: 'personal',
+    })
+    expect(settings.companion_provider).toBe('tokenflux')
+    expect(settings.companion_model).toBe('google/gemini-3.8-flash')
+    expect(settings.companion_source).toBe('personal')
   })
 
   it('normalizes model context window overrides and drops illegal values', () => {

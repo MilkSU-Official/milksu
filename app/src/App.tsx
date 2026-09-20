@@ -14,6 +14,7 @@ import { syncWindowChrome } from '@/lib/hostPlatform'
 import {
   applyThemeMode,
   nextThemeMode,
+  publishThemeSync,
   readThemeMode,
   resolveThemeMode,
   writeThemeMode,
@@ -463,6 +464,9 @@ export default function App() {
     const resolved = resolveThemeMode(mode)
     syncWindowChrome(resolved, globalThis, mode)
     applyUiEmphasis({ theme: resolved })
+    if (rendererSurface !== 'companion' && rendererSurface !== 'companion-chat') {
+      publishThemeSync(mode)
+    }
   }
 
   function persistWorkspaceViewState() {

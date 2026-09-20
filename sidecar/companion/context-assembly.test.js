@@ -87,6 +87,49 @@ test("empty assistant turns are stripped so later prompts are not poisoned", () 
   assert.equal(users.at(-1).content[0].text, "hi");
 });
 
+test("keeps tool-call assistants and drops orphaned tool results", () => {
+  const assembled = assembleCompanionMessages({
+    recentMessages: [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "看图" },
+          { type: "image", mimeType: "image/png", data: "iVBORw0KGgo" },
+        ],
+      },
+      {
+        role: "assistant",
+        content: [{ type: "toolCall", id: "call-1", name: "read", arguments: { path: "a.png" } }],
+        stopReason: "toolUse",
+      },
+      {
+        role: "toolResult",
+        toolCallId: "call-1",
+        content: [{ type: "text", text: "Read image file [image/png]" }],
+      },
+      { role: "assistant", content: [], stopReason: "stop" },
+      {
+        role: "toolResult",
+        toolCallId: "orphan",
+        content: [{ type: "text", text: "stale" }],
+      },
+      userMessage("hi"),
+    ],
+  });
+  const roles = assembled.messages
+    .filter(message => message.role !== "custom")
+    .map(message => message.role);
+  assert.deepEqual(roles, ["user", "assistant", "toolResult", "user"]);
+  assert.equal(
+    assembled.messages.find(message => message.role === "assistant")?.content[0].name,
+    "read",
+  );
+  assert.deepEqual(
+    assembled.messages.find(message => message.role === "user")?.content,
+    [{ type: "text", text: "看图" }],
+  );
+});
+
 test("board segment is never dropped when over budget", () => {
   const sessions = Array.from({ length: 80 }, (_, index) => ({
     id: `session-${index}`,

@@ -280,8 +280,11 @@ func TestWithDefaultsKeepsExplicitTokenFlux(t *testing.T) {
 func TestNormalizeCompanionSettingsDefaults(t *testing.T) {
 	settings := withDefaults(AppSettings{})
 	selection := ResolveCompanionModel(settings)
-	if selection.Provider != DefaultCompanionProvider || selection.Model != DefaultCompanionModel {
+	if selection.Provider != "tokenflux" || selection.Model != "deepseek/deepseek-flash" || selection.Source != "account" {
 		t.Fatalf("factory companion model: %#v", selection)
+	}
+	if selection.Provider != DefaultCompanionProvider || selection.Model != DefaultCompanionModel || selection.Source != DefaultCompanionSource {
+		t.Fatalf("factory companion constants drifted: %#v", selection)
 	}
 	if !CompanionDispatchEnabled(settings) {
 		t.Fatal("dispatch should default on")
@@ -303,6 +306,18 @@ func TestNormalizeCompanionSettingsDefaults(t *testing.T) {
 	}
 	if got := NormalizeCompanionSkinID("../etc"); got != DefaultCompanionSkinID {
 		t.Fatalf("unsafe skin id: %q", got)
+	}
+}
+
+func TestNormalizeCompanionSettingsKeepsSavedModel(t *testing.T) {
+	settings := withDefaults(AppSettings{
+		CompanionProvider: "tokenflux",
+		CompanionModel:    "google/gemini-3.8-flash",
+		CompanionSource:   "personal",
+	})
+	selection := ResolveCompanionModel(settings)
+	if selection.Provider != "tokenflux" || selection.Model != "google/gemini-3.8-flash" || selection.Source != "personal" {
+		t.Fatalf("saved companion model was overwritten: %#v", selection)
 	}
 }
 

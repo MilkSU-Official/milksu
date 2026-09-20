@@ -14,6 +14,7 @@ const {
   nativeImage,
   nativeTheme,
   net,
+  powerMonitor,
   protocol,
   screen,
   session,
@@ -1059,6 +1060,8 @@ app.whenReady().then(async () => {
     setMainWindow: window => { mainWindow = window },
     onQuitRequested: () => app.quit(),
     screen,
+    net,
+    powerMonitor,
   })
   companionSkinHost = createCompanionSkinHost({
     userDataPath: app.getPath('userData'),

@@ -22,6 +22,16 @@ test("does not treat a completed assistant turn as an error", () => {
   ]), "");
 });
 
+test("does not treat a tool-call turn as an empty reply", () => {
+  assert.equal(companionAssistantTurnError([
+    {
+      role: "assistant",
+      content: [{ type: "toolCall", id: "call-1", name: "read" }],
+      stopReason: "toolUse",
+    },
+  ]), "");
+});
+
 test("treats a completed turn with no text as a failure", () => {
   assert.equal(companionAssistantTurnError([
     { message: { role: "assistant", content: [], stopReason: "stop" } },

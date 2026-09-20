@@ -144,6 +144,17 @@ describe('explainModelCallFailure', () => {
     expect(explainModelCallFailure('502 status code (no body)'))
       .toBe(explainModelServiceError('502 status code (no body)'))
   })
+
+  it('maps a broken tool history instead of blaming the model ID', () => {
+    applyUiLocale('zh')
+    const text = explainModelServiceError(
+      "400: Messages with role 'tool' must be a response to a preceding message with 'tool_calls'",
+      { provider: 'tokenflux', model: 'google/gemini-3.8-flash-tiered' },
+    )
+    expect(text).toContain('工具记录断了')
+    expect(text).not.toContain('模型 ID')
+    expect(text).not.toContain('tool_calls')
+  })
 })
 
 describe('explainModelVerificationFailure', () => {

@@ -4,7 +4,7 @@ const (
 	SessionID = "companion"
 
 	DefaultProvider = "tokenflux"
-	DefaultModel    = "google/gemini-3.8-flash"
+	DefaultModel    = "deepseek/deepseek-flash"
 
 	TeachingAskMe  = "ask_me"
 	TeachingHints  = "hints"

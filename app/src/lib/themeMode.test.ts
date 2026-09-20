@@ -5,10 +5,13 @@ import { join } from 'node:path'
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
   THEME_MODE_STORAGE_KEY,
+  THEME_SYNC_CHANNEL,
   applyThemeMode,
   nextThemeMode,
   normalizeThemeMode,
+  publishThemeSync,
   readThemeMode,
+  subscribeThemeSync,
   writeThemeMode,
 } from './themeMode'
 
@@ -79,6 +82,7 @@ describe('themeMode', () => {
     expect(themeBootSource).toContain("root.classList.toggle('dark', resolved === 'dark')")
     expect(mainSource).toContain('applyThemeMode(initialThemeMode)')
     expect(mainSource).toContain("syncWindowChrome(resolveThemeMode(initialThemeMode), globalThis, initialThemeMode)")
+    expect(mainSource).toContain('subscribeThemeSync')
 
     const values = new Map<string, string>([[THEME_MODE_STORAGE_KEY, 'dark']])
     Object.defineProperty(window, 'localStorage', {
@@ -94,6 +98,27 @@ describe('themeMode', () => {
     expect(document.documentElement.dataset.themeMode).toBe('dark')
     expect(document.documentElement.classList.contains('dark')).toBe(true)
     expect(document.documentElement.style.colorScheme).toBe('dark')
+  })
+
+  it('publishes the resolved appearance for other renderer surfaces', async () => {
+    const seen: Array<{ mode: string; resolved: string }> = []
+    const stop = subscribeThemeSync((mode, resolved) => {
+      seen.push({ mode, resolved })
+    })
+    const posted = publishThemeSync('dark', false)
+    expect(posted).toEqual({ mode: 'dark', resolved: 'dark' })
+    await new Promise<void>(resolve => {
+      if (typeof BroadcastChannel !== 'function') {
+        resolve()
+        return
+      }
+      window.setTimeout(resolve, 0)
+    })
+    if (typeof BroadcastChannel === 'function') {
+      expect(seen).toContainEqual({ mode: 'dark', resolved: 'dark' })
+    }
+    stop()
+    expect(THEME_SYNC_CHANNEL).toBe('milksu.theme-sync')
   })
 })
 

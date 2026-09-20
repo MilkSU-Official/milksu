@@ -24,6 +24,7 @@ import {
   type CompanionBoardSnapshot,
   type CompanionDispatchResult,
   type CompanionMemorySnapshot,
+  type CompanionPhoneStatus,
   type CompanionShellStatus,
   type CompanionSkinImportResult,
   type CompanionSkinList,
@@ -309,6 +310,7 @@ interface DesktopAppBindings {
     hostRequestId: string,
     accepted: boolean,
   ): Promise<CompanionDispatchResult>
+  GetCompanionPhoneStatus(): Promise<CompanionPhoneStatus>
   GetCompanionShellStatus(): Promise<CompanionShellStatus>
   SetCompanionFloatEnabled(enabled: boolean): Promise<CompanionShellStatus>
   SetCompanionPetHidden(request: { hidden: boolean; locale?: string }): Promise<CompanionShellStatus>
@@ -829,6 +831,8 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
           (args?.hostRequestId as string) ?? '',
           args?.accepted !== false,
         ) as Promise<T>
+      case 'get_companion_phone_status':
+        return app.GetCompanionPhoneStatus() as Promise<T>
       case 'get_companion_shell_status':
         return app.GetCompanionShellStatus() as Promise<T>
       case 'set_companion_float_enabled':

@@ -401,7 +401,8 @@ export const PRIMARY_MODEL_SELECTION: ModelSelection = {
 }
 export const TOKENFLUX_DEFAULT_MODEL = 'x-ai/grok-4.6'
 export const DEFAULT_COMPANION_PROVIDER = 'tokenflux'
-export const DEFAULT_COMPANION_MODEL = 'google/gemini-3.8-flash'
+export const DEFAULT_COMPANION_MODEL = 'deepseek/deepseek-flash'
+export const DEFAULT_COMPANION_SOURCE = 'account'
 export const DEFAULT_COMPANION_SKIN_ID = 'default'
 export type CompanionTeaching = 'ask_me' | 'hints' | 'review'
 
@@ -490,6 +491,14 @@ export interface CompanionDispatchResult {
   error?: string
   needsConfirmation?: boolean
   idempotentReplay?: boolean
+}
+
+export interface CompanionPhoneStatus {
+  time: string
+  batteryPercent: number | null
+  charging: boolean | null
+  online: boolean
+  wifi: boolean
 }
 
 export interface CompanionShellStatus {
@@ -704,13 +713,16 @@ function normalizeCompanionSelection(value: AppSettings): Pick<
 > {
   const provider = String(value.companion_provider ?? '').trim()
   const model = String(value.companion_model ?? '').trim()
-  const resolvedProvider = provider && model ? provider : DEFAULT_COMPANION_PROVIDER
-  const resolvedModel = provider && model ? model : DEFAULT_COMPANION_MODEL
+  const usedFactory = !(provider && model)
+  const resolvedProvider = usedFactory ? DEFAULT_COMPANION_PROVIDER : provider
+  const resolvedModel = usedFactory ? DEFAULT_COMPANION_MODEL : model
   const source = value.companion_source === 'account'
     || value.companion_source === 'personal'
     || value.companion_source === 'service'
     ? value.companion_source
-    : resolvedProvider === 'tokenflux' ? 'personal' : 'service'
+    : usedFactory
+      ? DEFAULT_COMPANION_SOURCE
+      : resolvedProvider === 'tokenflux' ? 'personal' : 'service'
   return {
     companion_provider: resolvedProvider,
     companion_model: resolvedModel,

@@ -76,21 +76,51 @@ export function isCompanionCustomMessage(message) {
     && COMPANION_CUSTOM_TYPE_SET.has(String(message.customType ?? ""));
 }
 
-function isEmptyAssistantMessage(message) {
+function assistantHasModelWork(message) {
   if (message?.role !== "assistant") return false;
   const content = message.content;
-  if (!Array.isArray(content) || content.length === 0) return true;
-  return !content.some(block => String(block?.text ?? "").trim());
+  if (!Array.isArray(content) || content.length === 0) return false;
+  return content.some(block => {
+    if (String(block?.text ?? "").trim()) return true;
+    if (block?.type === "toolCall" && String(block?.id ?? block?.name ?? "").trim()) return true;
+    if (block?.type === "thinking" && String(block?.thinking ?? "").trim()) return true;
+    return false;
+  });
+}
+
+function isEmptyAssistantMessage(message) {
+  return message?.role === "assistant" && !assistantHasModelWork(message);
+}
+
+function toolCallIdsFromAssistant(message) {
+  if (message?.role !== "assistant" || !Array.isArray(message.content)) return [];
+  return message.content
+    .filter(block => block?.type === "toolCall")
+    .map(block => String(block.id ?? "").trim())
+    .filter(Boolean);
 }
 
 export function stripCompanionCustomMessages(messages) {
   if (!Array.isArray(messages)) return [];
   const kept = [];
+  let pendingToolCallIds = new Set();
   for (const message of messages) {
     if (isCompanionCustomMessage(message)) continue;
     if (isEmptyAssistantMessage(message)) {
       dropImagesFromPreviousUser(kept);
+      pendingToolCallIds = new Set();
       continue;
+    }
+    if (message?.role === "toolResult") {
+      const id = String(message.toolCallId ?? "").trim();
+      if (!id || !pendingToolCallIds.has(id)) continue;
+      kept.push(message);
+      continue;
+    }
+    if (message?.role === "assistant") {
+      pendingToolCallIds = new Set(toolCallIdsFromAssistant(message));
+    } else {
+      pendingToolCallIds = new Set();
     }
     kept.push(message);
   }
@@ -98,11 +128,15 @@ export function stripCompanionCustomMessages(messages) {
 }
 
 function dropImagesFromPreviousUser(messages) {
-  const previous = messages[messages.length - 1];
-  if (previous?.role !== "user" || !Array.isArray(previous.content)) return;
-  const content = previous.content.filter(block => block?.type !== "image");
-  if (content.length === previous.content.length) return;
-  messages[messages.length - 1] = { ...previous, content };
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message?.role !== "user") continue;
+    if (!Array.isArray(message.content)) return;
+    const content = message.content.filter(block => block?.type !== "image");
+    if (content.length === message.content.length) return;
+    messages[index] = { ...message, content };
+    return;
+  }
 }
 
 function createCustomMessage(customType, text, details) {

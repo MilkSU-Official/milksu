@@ -980,27 +980,6 @@ html.companion-surface #app {
   background: transparent;
 }
 
-.companion-phone-status {
-  flex: none;
-  display: flex;
-  justify-content: center;
-  padding: 10px 0 0;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  color: var(--foreground);
-  cursor: grab;
-}
-
-.companion-phone-home {
-  flex: none;
-  width: 36px;
-  height: 4px;
-  margin: 0 auto 10px;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--foreground) 22%, transparent);
-}
-
 html.companion-chat-surface,
 html.companion-chat-surface body,
 html.companion-chat-surface #app {
@@ -1026,6 +1005,8 @@ html.companion-chat-surface #app {
   --companion-send-idle: #3a3a3c;
   --companion-run-gap: 10px;
   --companion-stack-gap: 2px;
+  --companion-name-chip: rgb(255 255 255 / 14%);
+  --companion-name-chip-border: rgb(255 255 255 / 20%);
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -1042,6 +1023,77 @@ html.companion-chat-surface #app {
   --companion-field: #f2f2f7;
   --companion-field-border: #e3e3e8;
   --companion-send-idle: #c7c7cc;
+  --companion-name-chip: rgb(255 255 255 / 66%);
+  --companion-name-chip-border: rgb(0 0 0 / 8%);
+}
+
+.companion-chat-statusbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: none;
+  min-height: 28px;
+  padding: 10px 20px 2px;
+  color: var(--popover-foreground);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  cursor: grab;
+  -webkit-app-region: no-drag;
+}
+
+.companion-chat-statusbar-time {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.companion-chat-statusbar-end {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.companion-chat-statusbar-glyph {
+  width: 13px;
+  height: 13px;
+  flex: none;
+}
+
+.companion-chat-battery {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.companion-chat-battery-body {
+  box-sizing: border-box;
+  width: 22px;
+  height: 11px;
+  padding: 1px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+}
+
+.companion-chat-battery-level {
+  display: block;
+  height: 100%;
+  border-radius: 1px;
+  background: currentColor;
+}
+
+.companion-chat-battery-nub {
+  width: 2px;
+  height: 5px;
+  border-radius: 0 1px 1px 0;
+  background: currentColor;
+  opacity: 0.72;
+}
+
+.companion-chat-battery-bolt {
+  width: 9px;
+  height: 9px;
+  flex: none;
 }
 
 .companion-chat-head {
@@ -1074,11 +1126,19 @@ html.companion-chat-surface #app {
 }
 
 .companion-chat-title {
+  width: fit-content;
   min-width: 0;
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  padding: 2px 10px;
+  border: 1px solid var(--companion-name-chip-border);
+  border-radius: 999px;
+  background: var(--companion-name-chip);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  color: var(--popover-foreground);
   font-size: var(--text-label);
   line-height: var(--text-label--line-height);
   font-weight: 600;
@@ -1089,23 +1149,26 @@ html.companion-chat-surface #app {
 .companion-chat-log,
 .companion-chat-dock,
 .companion-chat-confirm,
-.companion-chat-side {
+.companion-chat-side,
+.companion-chat-statusbar {
   -webkit-app-region: no-drag;
 }
 
-.companion-chat-icon {
+.companion-chat button.companion-chat-icon {
   position: absolute;
-  top: 14px;
-  left: 8px;
-  width: 30px;
-  height: 30px;
+  top: 16px;
+  left: 4px;
+  width: 32px;
+  height: 32px;
   flex: none;
   color: var(--companion-bubble-outgoing);
+  background: transparent;
 }
 
-.companion-chat-icon:hover {
+.companion-chat button.companion-chat-icon:hover {
   color: var(--companion-bubble-outgoing);
-  opacity: 0.7;
+  background: transparent;
+  opacity: 0.72;
 }
 
 .companion-chat-log {

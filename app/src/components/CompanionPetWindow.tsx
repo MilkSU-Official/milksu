@@ -7,6 +7,7 @@ import { useCompanion } from '@/composables/useCompanion'
 import { invokeCommand, listenEvent } from '@/desktop'
 import { useT, useUiLocale } from '@/hooks/useUiLocale'
 import { companionPetSprite, resolveCompanionPetMotion } from '@/lib/companionPetMotion'
+import { applyThemeMode, readThemeMode } from '@/lib/themeMode'
 import type { AppSettings, CompanionShellStatus, CompanionSkinResolved } from '@/types'
 
 const factorySprites = {
@@ -40,14 +41,6 @@ function attentionText(input: {
   }
   if (input.error.trim()) return input.error.trim()
   return ''
-}
-
-function formatPhoneClock(locale: 'zh' | 'en') {
-  return new Intl.DateTimeFormat(locale === 'en' ? 'en-US' : 'zh-CN', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }).format(new Date())
 }
 
 function spriteSrc(skin: CompanionSkinResolved, motion: ReturnType<typeof resolveCompanionPetMotion>) {
@@ -140,13 +133,10 @@ export default function CompanionPetWindow() {
     document.title = t('桌宠', 'Companion')
   }, [t])
 
-  const [clock, setClock] = useState(() => formatPhoneClock(locale))
   useEffect(() => {
-    const tick = () => setClock(formatPhoneClock(locale))
-    tick()
-    const id = window.setInterval(tick, 15_000)
-    return () => window.clearInterval(id)
-  }, [locale])
+    if (!overlay.chatOpen) return
+    applyThemeMode(readThemeMode())
+  }, [overlay.chatOpen])
 
   const pressRef = useRef<{ x: number; y: number; opensChat: boolean } | null>(null)
   const lastOpenRef = useRef(0)
@@ -266,14 +256,12 @@ export default function CompanionPetWindow() {
         onPointerDown={event => {
           const target = event.target as HTMLElement
           if (target.closest('button, textarea, input')) return
-          if (!target.closest('.companion-chat-head, .companion-phone-status')) return
+          if (!target.closest('.companion-chat-head, .companion-chat-statusbar')) return
           beginDrag(event, false)
         }}
       >
         <div className="companion-phone-screen">
-          <div className="companion-phone-status" aria-hidden="true">{clock}</div>
           <CompanionPage embedded />
-          <div className="companion-phone-home" aria-hidden="true" />
         </div>
       </div>
     )
