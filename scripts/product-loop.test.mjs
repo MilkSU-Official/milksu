@@ -35,7 +35,7 @@ import {
   finalizeProductLoopResult,
 } from './lib/product-loop-catalog.mjs'
 import { PRODUCT_LOOP_RUNNERS } from './lib/product-loop-runners.mjs'
-import { buildProductLoopReport, formatFormalProductLoopReport, formatProductLoopReport } from './lib/product-loop-report.mjs'
+import { buildProductLoopReport, evidenceSurfacesForCase, formatFormalProductLoopReport, formatProductLoopReport, normalizeScreenshot } from './lib/product-loop-report.mjs'
 import { isNewConversationCanvas, turnBroken } from './lib/product-loop-session.mjs'
 import {
   applyProductLoopLocalEnv,
@@ -173,15 +173,30 @@ test('product-loop report walks modules then cases then overall', () => {
     ...receipt,
     suites: receipt.suites.map(item => (
       item.id === 'login-gate'
-        ? { ...item, screenshots: ['shots/login-gate.png'] }
+        ? { ...item, screenshots: [{ src: 'shots/login-gate.png', label: '主窗口', caption: '使用 GitHub 登录' }] }
         : item
     )),
   }, report)
   assert.match(html, /正式报告/)
   assert.match(html, /login-gate/)
   assert.match(html, /shots\/login-gate.png/)
+  assert.match(html, /主窗口/)
   assert.match(html, /这一项没有截到产品窗口/)
   assert.ok(!html.includes('sk-'))
+})
+
+test('formal evidence only attaches the window that case actually used', () => {
+  assert.deepEqual(evidenceSurfacesForCase('coding-pi-files'), ['main'])
+  assert.deepEqual(evidenceSurfacesForCase('login-gate'), ['main'])
+  assert.deepEqual(evidenceSurfacesForCase('workspace-ctf-list'), ['main'])
+  assert.deepEqual(evidenceSurfacesForCase('companion-page'), ['companion'])
+  assert.deepEqual(evidenceSurfacesForCase('companion-settings-model'), ['main'])
+  assert.deepEqual(evidenceSurfacesForCase('companion-hide'), ['main', 'companion'])
+  assert.deepEqual(normalizeScreenshot('shots/login-gate.png'), {
+    src: 'shots/login-gate.png',
+    label: '',
+    caption: '',
+  })
 })
 
 test('new conversation canvas accepts the project-scoped title', () => {

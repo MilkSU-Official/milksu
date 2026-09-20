@@ -32,10 +32,11 @@ import { runFirstUse, saveCustomRelay } from './lib/product-loop-first-use.mjs'
 import {
   captureProductLoopEvidence,
   printProductLoopReport,
+  resetProductLoopReportDir,
   writeFormalProductLoopReport,
 } from './lib/product-loop-report.mjs'
 import { runProductLoopCase } from './lib/product-loop-runners.mjs'
-import { ensureIsolatedProductSession } from './lib/product-loop-session.mjs'
+import { ensureIsolatedProductSession, flushProductLoopCleanup } from './lib/product-loop-session.mjs'
 import { keepExclusiveMilkSUWindow } from './lib/product-loop-windows.mjs'
 
 const resultPath = join(repositoryRoot, 'build', 'test-results', 'product-loop.json')
@@ -110,6 +111,7 @@ async function main() {
   }
 
   const receipt = baseReceipt(options)
+  if (options.gui) await resetProductLoopReportDir()
   const localEnv = await applyProductLoopLocalEnv(process.env)
   receipt.localEnv = describeProductLoopLocalEnv({ ...localEnv, env: process.env })
   const requestedCases = options.cases ?? []
@@ -144,6 +146,7 @@ async function main() {
     if (!record.screenshots.length) await attachEvidence(id, record)
     receipt.suites.push(record)
     process.stdout.write(`CASE ${id} ${record.result} ${record.detail}\n`)
+    await flushProductLoopCleanup()
     return record
   }
 
@@ -239,6 +242,7 @@ async function main() {
       await recordCase(id, { result: 'FAIL', detail: message })
     }
   } finally {
+    await flushProductLoopCleanup()
     if (session.driver) await session.driver.close()
   }
 

@@ -237,7 +237,7 @@ Computer Use 和隔离浏览器分开测。缺权限不能靠浏览器凑成通�
 - 本机先填 `docs/developer/product-loop.local.env`（模板是旁边的 `.example.env`）。协调器读入公开字段；密钥只留在脚本内存，到设置密码框再填，不注入 sidecar。回执只写变量名。
 - 登录 / 账户模型 / 自定义中转站按上手手册走通之后，没可用来源的主页发送记 FAIL，不再 SKIP。
 - 回执：`build/test-results/product-loop.json`。结束后 stdout 打印从大模块到小模块的文字报告。
-- 正式报告：`build/test-results/product-loop-report/index.html`，每一项带成功或失败时的产品窗口截图（主窗口，以及当时在的桌宠悬浮窗 / 小窗）。截图和回执都不写 Provider Key。
+- 正式报告：`build/test-results/product-loop-report/index.html`。每一项只拍该用例当时还在的窗（主窗口或桌宠），在拆掉 fixture 会话之前拍，并写窗口标签和页面摘录。开跑会清掉上次的 `shots/`，避免旧图挂到新项上。截图和回执都不写 Provider Key。
 - `--gui` 测完会 `DeleteConversation` 清掉本机 fixture 会话，不留在侧栏。
 - 不要把回执或截图提交进仓库。
 

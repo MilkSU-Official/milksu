@@ -241,6 +241,45 @@ export async function listDesktopCdpTargets(options = {}) {
   return found
 }
 
+export async function captureActivatedPng(session) {
+  await session.send('Page.bringToFront').catch(() => {})
+  try {
+    await session.evaluate(`new Promise(resolve => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve(true)))
+    })`, true)
+  } catch {
+    // Hidden or tearing-down surfaces can reject animation frames.
+  }
+  await delay(120)
+  const result = await session.send('Page.captureScreenshot', { format: 'png', fromSurface: true })
+  if (!result?.data) return null
+  return Buffer.from(result.data, 'base64')
+}
+
+export async function readPageCaption(session) {
+  try {
+    return String(await session.evaluate(`(() => {
+      const text = String(document.body && document.body.innerText || '').replace(/\\s+/g, ' ').trim()
+      return text.slice(0, 200)
+    })()`) || '')
+  } catch {
+    return ''
+  }
+}
+
+export async function captureTargetEvidence(target) {
+  if (!target?.webSocketDebuggerUrl) return { buffer: null, caption: '' }
+  const session = new CdpSession(target.webSocketDebuggerUrl)
+  await session.open()
+  try {
+    const buffer = await captureActivatedPng(session)
+    const caption = await readPageCaption(session)
+    return { buffer, caption }
+  } finally {
+    session.close()
+  }
+}
+
 export async function findDesktopCdpTarget(options = {}) {
   const targets = await listDesktopCdpTargets(options)
   const main = targets.find(isMainProductSurface)
@@ -976,25 +1015,26 @@ export class GuiDriver {
     }
   }
 
+  async captureMainEvidence() {
+    const target = (await listDesktopCdpTargets({ port: this.preferredPort })).find(isMainProductSurface)
+    if (!target) return { buffer: null, caption: '' }
+    return captureTargetEvidence(target)
+  }
+
+  async captureSurfaceEvidence(match) {
+    const target = (await listDesktopCdpTargets({ port: this.preferredPort })).find(match)
+    if (!target) return { buffer: null, caption: '' }
+    return captureTargetEvidence(target)
+  }
+
   async capturePagePng() {
-    if (!await this.ensureAttached()) return null
-    const result = await this.cdp.send('Page.captureScreenshot', { format: 'png', fromSurface: true })
-    if (!result?.data) return null
-    return Buffer.from(result.data, 'base64')
+    const shot = await this.captureMainEvidence()
+    return shot.buffer || null
   }
 
   async captureSurfacePng(match) {
-    const target = (await listDesktopCdpTargets({ port: this.preferredPort })).find(match)
-    if (!target) return null
-    const session = new CdpSession(target.webSocketDebuggerUrl)
-    await session.open()
-    try {
-      const result = await session.send('Page.captureScreenshot', { format: 'png', fromSurface: true })
-      if (!result?.data) return null
-      return Buffer.from(result.data, 'base64')
-    } finally {
-      session.close()
-    }
+    const shot = await this.captureSurfaceEvidence(match)
+    return shot.buffer || null
   }
 
   async close() {

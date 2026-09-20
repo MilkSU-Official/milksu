@@ -246,5 +246,5 @@ export const PRODUCT_LOOP_RUNNERS = {
 export function runProductLoopCase(id, driver, options) {
   const runner = PRODUCT_LOOP_RUNNERS[id]
   if (!runner) return Promise.resolve({ result: 'FAIL', detail: `no runner for ${id}` })
-  return runner(driver, options)
+  return runner(driver, { ...options, caseId: id })
 }
