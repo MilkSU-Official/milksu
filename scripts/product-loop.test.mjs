@@ -363,6 +363,14 @@ test('waitForTurn keeps polling after a transient CDP close', async () => {
   assert.ok(calls >= 2)
 })
 
+test('waitForTurn ignores leftover settle without this session id', async () => {
+  const driver = new GuiDriver()
+  driver.drainEvents = async () => [{ type: 'assistant.settled' }, { type: 'assistant.settled', sessionId: 'other' }]
+  driver.ensureAttached = async () => true
+  const turn = await driver.waitForTurn('conversation-1', 400)
+  assert.equal(turn.timeout, true)
+})
+
 test('waitForTurn treats the active sidecar stopping as a failed turn, not a settle', async () => {
   const driver = new GuiDriver()
   driver.drainEvents = async () => [{ type: 'engine.stopped', error: 'sidecar exited' }]
