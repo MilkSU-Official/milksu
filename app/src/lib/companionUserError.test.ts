@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
   companionChatAttachmentsFromText,
+  companionChatIsVisibleEntry,
   companionChatNeedsNewConversation,
+  companionChatPlainText,
   companionChatVisibleText,
   companionHostToolFailure,
+  companionLooksLikeDebugPayload,
+  companionTurnCancelled,
   explainCompanionError,
 } from './companionUserError'
 import { applyUiLocale } from './uiLocale'
@@ -90,11 +94,54 @@ describe('explainCompanionError', () => {
     applyUiLocale('zh')
   })
 
+  it('maps request abort to cancelled copy without harness English', () => {
+    applyUiLocale('zh')
+    expect(explainCompanionError('Request aborted')).toBe('这一轮已取消。')
+    expect(explainCompanionError('AbortError: The operation was aborted')).toBe('这一轮已取消。')
+    expect(explainCompanionError('Error: request aborted')).toBe('这一轮已取消。')
+    expect(explainCompanionError('Request aborted')).not.toMatch(/Request aborted|AbortError/i)
+    applyUiLocale('en')
+    expect(explainCompanionError('Request aborted')).toBe('This turn was cancelled.')
+    applyUiLocale('zh')
+    expect(companionTurnCancelled('Request aborted')).toBe(true)
+    expect(companionTurnCancelled('turn aborted')).toBe(false)
+    expect(companionHostToolFailure('Request aborted')).toBe(false)
+  })
+
   it('leaves unrelated errors alone', () => {
     applyUiLocale('zh')
     expect(explainCompanionError('companion session is not ready')).toBe(
       'companion session is not ready',
     )
+  })
+})
+
+describe('companion debug payload', () => {
+  it('hides get_settings dumps and host envelopes', () => {
+    applyUiLocale('zh')
+    expect(companionLooksLikeDebugPayload(
+      '{"ok":true,"settings":{"companion_float_enabled":true,"relay":{"url":"https://tokenflux.dev/v1"}}}',
+    )).toBe(true)
+    expect(companionLooksLikeDebugPayload(
+      '{enabled:true,url:"https://tokenflux.dev/v1",companion_float_enabled:true,ui_font:""}',
+    )).toBe(true)
+    expect(companionLooksLikeDebugPayload('看板列一下当前会话标题')).toBe(false)
+    expect(companionLooksLikeDebugPayload('读一下不含密钥的设置摘要')).toBe(false)
+    expect(companionChatIsVisibleEntry({
+      role: 'user',
+      text: '{"ok":true,"settings":{"companion_float_enabled":true}}',
+    })).toBe(false)
+    expect(companionChatIsVisibleEntry({
+      role: 'toolResult',
+      text: '{"ok":true,"settings":{"locale":"zh"}}',
+    })).toBe(false)
+    expect(companionChatPlainText({
+      text: '{"ok":true,"settings":{"companion_float_enabled":true}}',
+    })).toBe('')
+    expect(companionChatVisibleText({
+      role: 'assistant',
+      text: 'Request aborted',
+    })).toBe('这一轮已取消。')
   })
 })
 

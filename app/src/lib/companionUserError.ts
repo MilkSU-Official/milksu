@@ -150,7 +150,9 @@ export function companionChatPlainText(entry: {
   const attachments = entry.attachments?.length
     ? entry.attachments
     : companionChatAttachmentsFromText(entry.text ?? '')
-  return companionChatUserFacingText(entry.text ?? '', attachments.length > 0)
+  const text = companionChatUserFacingText(entry.text ?? '', attachments.length > 0)
+  if (companionLooksLikeDebugPayload(text) || companionTurnCancelled(text)) return ''
+  return text
 }
 
 export function companionChatVisibleText(entry: {
@@ -167,8 +169,15 @@ export function companionChatVisibleText(entry: {
     : companionChatAttachmentsFromText(entry.text ?? '')
   const text = companionChatUserFacingText(entry.text ?? '', attachments.length > 0)
   const type = String(entry.type ?? '').trim()
-  if (text && text !== type) return text
   const error = String(entry.error ?? '').trim()
+  if (companionTurnCancelled(error || text)) {
+    return explainCompanionError(error || text)
+  }
+  if (companionLooksLikeDebugPayload(text)) {
+    if (error) return explainCompanionError(error) || ''
+    return ''
+  }
+  if (text && text !== type) return text
   if (error) return explainCompanionError(error) || error
   // Thinking / tool-only rows are process chrome. Truly empty final replies are
   // decided by the phone renderer after the turn settles.
