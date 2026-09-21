@@ -56,7 +56,7 @@
 
 ## 当前产品事实
 
-- Coding / CTF / CVE / 实验室共用 Pi 文件、Shell、自动压缩（80% 空闲与 `/compact` 同一路径）和完整工作循环。工具结果进模型前走 Pi `tool_result` 截断。不扫描用户句子做意图路由。同一工作区的多条 Pi 对话可以同时跑回合（按会话排队 prompt）；同一条会话里的 Pi 子代理仍阻塞父工具。
+- Coding / CTF / CVE / 实验室共用 Pi 文件、Shell、自动压缩（80% 空闲与 `/compact` 同一路径）和完整工作循环。工具结果进模型前走 Pi `tool_result` 截断。不扫描用户句子做意图路由。同一工作区的多条 Pi 对话可以同时跑回合（按会话排队 prompt）；同一条会话里的 Pi 子代理仍阻塞父工具。对话里每段思考结束后正文仍留在时间线上，不收进「过程」；已结束的工具组仍折叠进「过程」。
 - 桌宠会话使用完整 Pi 工具循环（read / bash / grep / find / ls / edit / write），并保留 companion_board / companion_dispatch / companion_memory / companion_app。系统提示优先把工作交给已有对话；用户要桌宠自己做、没有合适对话、或要操作 MilkSU 本体时，桌宠自己用这些工具或 companion_app 做。companion_app 可打开主窗口、聚焦会话、读取会话摘录和不含凭据的设置；改这些设置、退出和重启要宿主确认。speak_many 一次最多 8 个会话，steer 与 stop 仍要确认。运行状态仍只由看板读取，不能改写，也不能读写 API Key。出厂默认账户官方 DeepSeek Flash（`deepseek/deepseek-flash`，`companion_source=account`）；已保存的桌宠模型不因出厂默认变更而改写。附件与 Coding 同一条 preparePromptAttachments + 原图进回合路径；图片 MIME 按文件内容，不跟错误后缀。空助手回合不再从转录里消失，也不再把只有 tool call 的回合删掉；孤儿 toolResult 不会再送进下一轮。工具记录断了时手机里直接「开新对话」，当前记录归档，不必去设置里找归档。
 - MilkSU 只持会话目录、凭据隔离、桌面授权、领域事实/Judge，以及危险或量不到的递归删除二次确认。给模型看的 MilkSU 正文跟界面语言走（默认中文）：运行时上下文、桌宠默认提示、空回复抢救、无工具合同、DSH 读图回退、附件前言、AGENTS.md 包装句、CTF ROLE_STATE。工具 schema 和 Pi 自带英文 coding harness 仍是原文。
 - 账户 TokenFlux 与本机 Provider 共用可调用目录；保存的模型 id 跟目录真实后缀走（例如目录只有 `gemini-3.8-flash-tiered` 时不再请求无后缀的 `gemini-3.8-flash`）。附件原图进当前回合。网页查证复用 Pi `web_search` / `web_fetch`。

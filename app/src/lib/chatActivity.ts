@@ -366,16 +366,11 @@ export function hasEmptyVisibleReply(messages: Message[], running: boolean) {
   ))
 }
 
-function isLiveThinking(message: Message) {
-  return isThinkingOnlyAssistant(message) && message.thinkingStatus === 'running'
-}
-
 function isFoldableTurnBlock(block: ChatTurnBlock) {
+  // Finished tool groups fold into 过程. Thinking stays in the open thread,
+  // including after it completes, so each burst between tools remains visible.
   if (block.kind === 'activity') return !block.running
-  if (isApproval(block.message)) return false
-  if (block.message.role === 'assistant' && String(block.message.content ?? '').trim()) return false
-  if (isLiveThinking(block.message)) return false
-  return isThinkingOnlyAssistant(block.message)
+  return false
 }
 
 export function mergeProcessThinking(blocks: readonly ChatTurnBlock[]): Message | null {
@@ -437,9 +432,9 @@ function flushFoldableTurn(
   if (merged) output.push(messageBlock(merged))
 }
 
-// Completed thinking and finished tool groups go into 过程. Assistant text
-// with content stays in the open thread (staged results). Only the live
-// thinking row or a still-running tool group remains visible as work-in-progress.
+// Finished tool groups go into 过程. Assistant text and thinking stay in the
+// open thread, so intermediate reasoning remains visible between tool groups.
+// A still-running tool group stays outside the fold as work-in-progress.
 function foldTurnProcess(turn: ChatTurnBlock[]): ChatTranscriptBlock[] {
   const output: ChatTranscriptBlock[] = []
   let foldables: ChatTurnBlock[] = []

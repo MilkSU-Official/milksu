@@ -27,17 +27,6 @@ import { assessApprovalRequest, type DestructiveAssessment, type DestructiveFact
 import { useT } from '@/hooks/useUiLocale'
 import type { CodingAttachment, CodingAttachmentPreview, Message } from '@/types'
 
-const THINKING_COLLAPSE_CHARS = 300
-const THINKING_COLLAPSE_ROWS = 3
-
-function countThinkingRows(text: string) {
-  let rows = 0
-  for (const line of text.split('\n')) {
-    if (line.trim()) rows += 1
-  }
-  return rows
-}
-
 export default function ChatMessageItem({
   message,
   recoverable,
@@ -329,26 +318,18 @@ export default function ChatMessageItem({
 
   const thinkingRunning = message.thinkingStatus === 'running'
   const quietSeconds = Math.max(0, Math.round((thinkingNow - lastOutputAt) / 1000))
-  const conclusionStarted = Boolean(message.content?.trim())
   const thinkingRows = String(message.thinking ?? '')
     .split(/\n+/)
     .map(line => line.trim())
     .filter(Boolean)
-  const thinkingCollapsible = (() => {
-    const text = String(message.thinking ?? '')
-    if (text.length >= THINKING_COLLAPSE_CHARS) return true
-    return countThinkingRows(text) >= THINKING_COLLAPSE_ROWS
-  })()
 
   useEffect(() => {
     if (thinkingRunning) setThinkManual(null)
   }, [thinkingRunning])
 
-  const thinkOpen = thinkManual !== null
-    ? thinkManual
-    : thinkingCollapsible
-      ? false
-      : thinkingRunning && !conclusionStarted
+  // Stay open after thinking finishes so the text remains on the thread.
+  // A click still collapses that row.
+  const thinkOpen = thinkManual !== null ? thinkManual : true
 
   function toggleThink() {
     setThinkManual(!thinkOpen)

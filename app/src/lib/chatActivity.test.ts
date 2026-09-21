@@ -12,7 +12,6 @@ import {
   detailsToggleOpen,
   hasEmptyVisibleReply,
   isBlankAssistantMessage,
-  mergeProcessThinking,
   retainAssistantAfterEmptyCompletion,
   processFoldStepCount,
   processFoldSummary,
@@ -77,7 +76,7 @@ describe('buildChatTranscript', () => {
     ])
   })
 
-  it('folds finished thinking into process once a tool group exists', () => {
+  it('keeps finished thinking in the open thread once a tool group exists', () => {
     const transcript = buildChatTranscript([
       message('u1', 'user', '完成任务'),
       message('a1', 'assistant', '', {
@@ -101,22 +100,30 @@ describe('buildChatTranscript', () => {
 
     expect(transcript.map(block => block.kind)).toEqual([
       'message',
+      'message',
+      'message',
       'process',
       'message',
     ])
-    expect(transcript[1]?.kind === 'process' && transcript[1].blocks.map(item => item.kind))
-      .toEqual(['message', 'message', 'activity'])
-    expect(transcript[2]?.kind === 'message' && transcript[2].message.id).toBe('a3')
-    expect(transcript[1]?.kind === 'process' && processFoldStepCount(transcript[1].blocks)).toBe(2)
-    expect(transcript[1]?.kind === 'process' && processFoldSummary(transcript[1].blocks))
-      .toBe('运行了命令')
-    expect(transcript[1]?.kind === 'process' && mergeProcessThinking(transcript[1].blocks)).toMatchObject({
-      thinking: '先看仓库。\n\n再跑测试。',
-      thinkingDurationMs: 1300,
+    expect(transcript[1]?.kind === 'message' && transcript[1].message).toMatchObject({
+      id: 'a1',
+      thinking: '先看仓库。',
+      thinkingDurationMs: 800,
     })
+    expect(transcript[2]?.kind === 'message' && transcript[2].message).toMatchObject({
+      id: 'a2',
+      thinking: '再跑测试。',
+      thinkingDurationMs: 500,
+    })
+    expect(transcript[3]?.kind === 'process' && transcript[3].blocks.map(item => item.kind))
+      .toEqual(['activity'])
+    expect(transcript[4]?.kind === 'message' && transcript[4].message.id).toBe('a3')
+    expect(transcript[3]?.kind === 'process' && processFoldStepCount(transcript[3].blocks)).toBe(2)
+    expect(transcript[3]?.kind === 'process' && processFoldSummary(transcript[3].blocks))
+      .toBe('运行了命令')
   })
 
-  it('merges leftover finished thinking into one row when no tools have started', () => {
+  it('keeps each finished thinking row when no tools have started', () => {
     const transcript = buildChatTranscript([
       message('u1', 'user', '完成任务'),
       message('a1', 'assistant', '', {
@@ -131,11 +138,16 @@ describe('buildChatTranscript', () => {
       }),
     ], true)
 
-    expect(transcript.map(block => block.kind)).toEqual(['message', 'message'])
+    expect(transcript.map(block => block.kind)).toEqual(['message', 'message', 'message'])
     expect(transcript[1]?.kind === 'message' && transcript[1].message).toMatchObject({
-      id: 'process-thinking:a1',
-      thinking: '先看仓库。\n\n再看测试。',
-      thinkingDurationMs: 1200,
+      id: 'a1',
+      thinking: '先看仓库。',
+      thinkingDurationMs: 800,
+    })
+    expect(transcript[2]?.kind === 'message' && transcript[2].message).toMatchObject({
+      id: 'a2',
+      thinking: '再看测试。',
+      thinkingDurationMs: 400,
     })
   })
 
