@@ -271,3 +271,4 @@ product-loop `--gui` **不是**用 OS 级 robot / nut.js 去抢全局鼠标键�
 - **首次启动把窗口建出来**：第一次 `show()` 仍会进任务栏；之后复用会话不再每次 `ShowCompanionMainWindow` 抢焦点。
 
 目标：你在旁边打字时，product-loop 尽量只动 MilkSU 自己的 CDP / RPC，不要每条用例都把窗口拽到最前。
+桌宠工具历史：abort / host 超时可能留下未配对的 `toolCall`。sidecar 在下一轮 send / 换模型 / abort 后会补 synthetic error `toolResult`（与 Pi 截断工具批的做法同型），不要靠狂刷 `ArchiveCompanionTranscript` 或逼用户「开新对话」来续跑。「开新对话」只留作手动归档出口。
