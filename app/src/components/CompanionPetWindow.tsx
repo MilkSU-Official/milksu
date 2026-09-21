@@ -1,13 +1,19 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import companionDecide from '@/assets/companion/decide.png'
 import companionIdle from '@/assets/companion/idle.png'
 import companionTalk from '@/assets/companion/talk.png'
 import CompanionPage from '@/components/CompanionPage'
 import { Toaster } from '@/components/ui'
 import { useCompanion } from '@/composables/useCompanion'
-import { invokeCommand, listenEvent } from '@/desktop'
+import { hasDesktopRuntime, invokeCommand, listenEvent } from '@/desktop'
 import { useT, useUiLocale } from '@/hooks/useUiLocale'
-import { companionPetSprite, resolveCompanionPetMotion } from '@/lib/companionPetMotion'
+import { companionMissingApiKey, companionSidecarDown } from '@/lib/companionUserError'
+import {
+  COMPANION_PET_BUBBLE_LEAVE_MS,
+  companionPetSprite,
+  companionPrefersUiMotion,
+  resolveCompanionPetMotion,
+} from '@/lib/companionPetMotion'
 import { applyThemeMode, readThemeMode } from '@/lib/themeMode'
 import type { AppSettings, CompanionShellStatus, CompanionSkinResolved } from '@/types'
 
@@ -52,8 +58,9 @@ function attentionText(input: {
     if (input.confirm.targetTitle.trim()) return input.confirm.targetTitle.trim()
     return input.t('这次操作需要你点头', 'This action needs your confirmation')
   }
-  if (input.error.trim()) return input.error.trim()
-  return ''
+  const error = input.error.trim()
+  if (!error || companionMissingApiKey(error) || companionSidecarDown(error)) return ''
+  return error
 }
 
 function spriteSrc(skin: CompanionSkinResolved, motion: ReturnType<typeof resolveCompanionPetMotion>) {
@@ -70,13 +77,26 @@ export default function CompanionPetWindow() {
   const locale = useUiLocale()
   const companion = useCompanion()
   const [skin, setSkin] = useState<CompanionSkinResolved>(factorySkin)
+  const [dragging, setDragging] = useState(false)
+  const [spoken, setSpoken] = useState('')
+  const [bubbleLeaving, setBubbleLeaving] = useState(false)
   const [overlay, setOverlay] = useState<{ chatOpen: boolean; chatSide: 'left' | 'right' }>({
     chatOpen: false,
     chatSide: 'left',
   })
+  const previewPhone = !hasDesktopRuntime() && (() => {
+    try {
+      return new URLSearchParams(window.location.search).get('surface') === 'companion-chat'
+    } catch {
+      return false
+    }
+  })()
+  const chatOpen = overlay.chatOpen || previewPhone
   const motion = resolveCompanionPetMotion({
     confirm: Boolean(companion.confirm),
-    error: Boolean(companion.error.trim()),
+    error: Boolean(companion.error.trim())
+      && !companionMissingApiKey(companion.error)
+      && !companionSidecarDown(companion.error),
     streaming: Boolean(companion.streaming),
     busy: companion.busy,
     complete: companion.complete,
@@ -85,6 +105,33 @@ export default function CompanionPetWindow() {
     () => attentionText({ confirm: companion.confirm, error: companion.error, t }),
     [companion.confirm, companion.error, t],
   )
+
+  useEffect(() => {
+    if (bubble) {
+      setSpoken(bubble)
+      setBubbleLeaving(false)
+      return
+    }
+    if (!spoken) return
+    if (!companionPrefersUiMotion()) {
+      setSpoken('')
+      setBubbleLeaving(false)
+      return
+    }
+    setBubbleLeaving(true)
+    const timer = window.setTimeout(() => {
+      setSpoken('')
+      setBubbleLeaving(false)
+    }, COMPANION_PET_BUBBLE_LEAVE_MS)
+    return () => window.clearTimeout(timer)
+  }, [bubble, spoken])
+
+  useLayoutEffect(() => {
+    if (!hasDesktopRuntime()) return
+    void invokeCommand('set_companion_pet_bubble', {
+      visible: Boolean(spoken) && !overlay.chatOpen,
+    }).catch(() => undefined)
+  }, [spoken, overlay.chatOpen])
 
   useEffect(() => {
     let stop: (() => void) | undefined
@@ -147,9 +194,9 @@ export default function CompanionPetWindow() {
   }, [t])
 
   useEffect(() => {
-    if (!overlay.chatOpen) return
+    if (!chatOpen) return
     applyThemeMode(readThemeMode())
-  }, [overlay.chatOpen])
+  }, [chatOpen])
 
   const pressRef = useRef<{ x: number; y: number; opensChat: boolean } | null>(null)
   const lastOpenRef = useRef(0)
@@ -169,6 +216,7 @@ export default function CompanionPetWindow() {
     } catch {
       // Capture is a convenience; the window listener below still ends the drag.
     }
+    setDragging(true)
     void invokeCommand('move_companion_pet', { drag: 'begin' })
   }
 
@@ -177,6 +225,7 @@ export default function CompanionPetWindow() {
       const press = pressRef.current
       if (!press || (event.type === 'pointerup' && event.button !== 0)) return
       pressRef.current = null
+      setDragging(false)
       void invokeCommand<{ dragged?: boolean }>('move_companion_pet', { drag: 'end' })
         .then(result => {
           if (!press.opensChat || result?.dragged) return
@@ -198,15 +247,19 @@ export default function CompanionPetWindow() {
     <div
       className={[
         'companion-pet',
+        dragging ? 'companion-pet-dragging' : '',
         `companion-pet-${motion}`,
         `companion-pet-overlay-think-${skin.overlay.think}`,
         `companion-pet-overlay-decide-${skin.overlay.decide}`,
         `companion-pet-overlay-complete-${skin.overlay.complete}`,
       ].filter(Boolean).join(' ')}
     >
-      {bubble ? (
-        <div className="companion-pet-bubble" role="status">
-          {bubble}
+      {spoken ? (
+        <div
+          className={['companion-pet-bubble', bubbleLeaving ? 'is-leaving' : ''].filter(Boolean).join(' ')}
+          role="status"
+        >
+          {spoken}
         </div>
       ) : null}
       <div
@@ -216,6 +269,7 @@ export default function CompanionPetWindow() {
         onPointerDown={event => beginDrag(event, true)}
       >
         <img
+          key={skin.id}
           className="companion-pet-sprite"
           src={spriteSrc(skin, motion)}
           alt=""
@@ -259,14 +313,15 @@ export default function CompanionPetWindow() {
       <span className="sr-only">{t('桌宠', 'Companion')}</span>
     </div>
   )
-  if (overlay.chatOpen) {
-    return (
-      <>
-        <div
+  if (chatOpen) {
+    const phone = (
+      <div
           className="companion-phone"
           data-testid="companion-phone"
           data-form="phone"
           data-chat="open"
+          data-preview={previewPhone ? 'true' : undefined}
+          style={previewPhone ? { width: 288, height: 604 } : undefined}
           onPointerDown={event => {
             const target = event.target as HTMLElement
             if (target.closest('button, textarea, input, [contenteditable="true"]')) return
@@ -278,6 +333,10 @@ export default function CompanionPetWindow() {
             <CompanionPage embedded />
           </div>
         </div>
+    )
+    return (
+      <>
+        {previewPhone ? <div className="companion-unit">{phone}</div> : phone}
         <Toaster />
       </>
     )

@@ -6,6 +6,7 @@ const {
   COMPANION_OVERLAY_ACTIONS,
   COMPANION_PET_MENU_HEIGHT,
   COMPANION_PET_MENU_WIDTH,
+  COMPANION_PET_BUBBLE_LIFT,
   COMPANION_PHONE_HEIGHT,
   COMPANION_PHONE_WIDTH,
   clampCompanionMenuOrigin,
@@ -91,6 +92,19 @@ test('drag moves the overlay only, then clamps to the work area', () => {
   assert.equal(placed.window.height, COMPANION_PHONE_HEIGHT)
   assert.equal(placed.pet.width, 0)
   assert.equal(placed.chatScreen.width, COMPANION_PHONE_WIDTH)
+  const speech = layoutCompanionUnit({
+    chatOpen: false,
+    bubble: true,
+    petOrigin: { x: 80, y: 200 },
+    workArea: area,
+  })
+  assert.deepEqual(speech.window, {
+    x: 80,
+    y: 200 - COMPANION_PET_BUBBLE_LIFT,
+    width: 160,
+    height: 160 + COMPANION_PET_BUBBLE_LIFT,
+  })
+  assert.deepEqual(speech.petScreen, { x: 80, y: 200 })
 })
 
 test('default spawn is bottom-right and the pet menu opens up-left', () => {

@@ -6,6 +6,8 @@ import {
   companionChatPlainText,
   companionHostToolFailure,
   companionLooksLikeDebugPayload,
+  companionMissingApiKey,
+  companionSidecarDown,
   companionTurnCancelled,
   explainCompanionError,
 } from '@/lib/companionUserError'
@@ -74,6 +76,7 @@ interface CompanionEnginePayload {
   toolCallId?: string
   durationMs?: number
   done?: boolean
+  aborted?: boolean
 }
 
 /** Never leak `[object Object]` or structured blobs into tool row detail. */
@@ -293,10 +296,14 @@ export function useCompanion() {
         route.provider = next.provider
         route.model = next.model
         setStatus(next)
+        setError('')
         await Promise.all([loadTail(), refreshBoard(), refreshMemory(), refreshArchives()])
         setShell(await invokeCommand<CompanionShellStatus>('get_companion_shell_status'))
       } catch (reason) {
-        if (!cancelled) setError(explainCompanionError(desktopErrorMessage(reason)))
+        const raw = desktopErrorMessage(reason)
+        if (!cancelled && !companionMissingApiKey(raw) && !companionSidecarDown(raw)) {
+          setError(explainCompanionError(raw))
+        }
       }
       unlisten = await listenEvent<CompanionEnginePayload>('companion-event', event => {
         const payload = event.payload
@@ -346,9 +353,38 @@ export function useCompanion() {
           setLiveProcess(emptyCompanionTurnProcess())
           setBusy(false)
           setConfirm(null)
-          // Successful settle (including abort repair) must not leave a sticky
-          // 「没法继续了」 that forces archive after the transcript is usable again.
-          setError('')
+          if (payload.aborted) {
+            // Recover/teardown abort has no user turn — keep the pet quiet.
+            if (outgoing.current) {
+              setError(explainCompanionError('Request aborted'))
+            }
+            setEntries(current => {
+              const last = current[current.length - 1]
+              if (last?.role === 'assistant') {
+                const plain = companionChatPlainText(last)
+                if (plain || last.error) return current
+                return current.map((entry, index) => (
+                  index === current.length - 1
+                    ? { ...entry, error: 'Request aborted' }
+                    : entry
+                ))
+              }
+              return [
+                ...current,
+                {
+                  id: `live-abort:${Date.now()}`,
+                  type: 'message',
+                  timestamp: new Date().toISOString(),
+                  role: 'assistant',
+                  error: 'Request aborted',
+                },
+              ]
+            })
+          } else {
+            // Successful settle (including abort repair) must not leave a sticky
+            // 「没法继续了」 that forces archive after the transcript is usable again.
+            setError('')
+          }
           flashComplete()
           outgoing.current = null
           void loadTail()
@@ -360,6 +396,7 @@ export function useCompanion() {
           setLiveProcess(emptyCompanionTurnProcess())
           setSettledProcess(null)
           setBusy(false)
+          setError('')
           void loadTail()
           void refreshBoard()
           void refreshMemory()
@@ -397,6 +434,13 @@ export function useCompanion() {
           // do not clear busy or force Archive even if the tool row has not
           // projected yet.
           if (companionHostToolFailure(rawError) || emptyWhileWorking) {
+            return
+          }
+          if (
+            (companionMissingApiKey(rawError) || companionMissingApiKey(text) || companionSidecarDown(rawError) || companionSidecarDown(text))
+            && !outgoing.current
+          ) {
+            setBusy(false)
             return
           }
           if (text) setError(text)
@@ -483,7 +527,15 @@ export function useCompanion() {
   }, [busy, confirm])
 
   const archive = useCallback(async () => {
-    await invokeCommand('archive_companion_transcript')
+    try {
+      await invokeCommand('archive_companion_transcript')
+    } catch (reason) {
+      const raw = desktopErrorMessage(reason)
+      if (!/sidecar is not running|sidecar stopped|sidecar did not become ready/i.test(raw)) {
+        setError(explainCompanionError(raw))
+        return
+      }
+    }
     outgoing.current = null
     setError('')
     setBusy(false)
@@ -520,7 +572,7 @@ export function useCompanion() {
       hostRequestId: pending.hostRequestId,
       accepted,
     })
-    if (result.error && accepted) setError(result.error)
+    if (result.error && accepted) setError(explainCompanionError(result.error))
     await refreshBoard()
   }, [confirm, refreshBoard])
 

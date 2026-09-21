@@ -85,14 +85,30 @@ export function companionTranscriptClean(page) {
   return { ok: true, reason: '' }
 }
 
-export function companionSpeakPrompt({ conversationId, title, marker }) {
+export function companionSpeakPrompt({ conversationId, title }) {
   return [
     '你是 MilkSU 桌宠。请用产品工具做完这件事，不要只聊天回复。',
     `1. 先调用 companion_board list，确认能看到标题「${title}」、id 为 ${conversationId} 的会话。`,
-    `2. 再调用 companion_dispatch，action 用 speak，conversationId 必须是 ${conversationId}，text 必须原样包含 ${marker}，idempotencyKey 用一个新的唯一值，mode 用 queue。`,
+    `2. 再调用 companion_dispatch，action 用 speak，conversationId 必须是 ${conversationId}，idempotencyKey 用一个新的唯一值，mode 用 queue。text 写一句短任务即可。`,
     `3. 然后对同一个 conversationId 再调用 companion_dispatch stop，另给一个 idempotencyKey。stop 会等用户确认；确认之后结束。`,
-    '完成标准：目标会话必须出现桌宠转达，且你实际调用了 companion_board 和 companion_dispatch。不要发明完成状态。',
+    '完成标准：你实际调用了 companion_board 和 companion_dispatch speak。不要发明完成状态。',
   ].join('\n')
+}
+
+/** Sidecar formats dispatch input as "companion_dispatch speak". Do not treat speak_many as speak. */
+export function companionDispatchSpeakCalled(events) {
+  return asList(events).some((event) => {
+    const type = eventTypeOf(event)
+    const name = String(pick(event, 'toolName', 'ToolName') ?? '')
+    const text = String(pick(event, 'text', 'Text', 'content', 'Content') ?? '')
+    const isTool = /^tool\.(started|completed|progress)$/i.test(type)
+      || /companion_dispatch/i.test(name)
+    if (!isTool) return false
+    const hay = `${name} ${text}`
+    if (!/companion_dispatch/i.test(hay)) return false
+    if (/\bspeak_many\b/i.test(hay)) return false
+    return /\bspeak\b/i.test(hay)
+  })
 }
 
 export function companionIsReady(status) {
@@ -132,6 +148,11 @@ export function companionTurnErrored(events, options = {}) {
     if (companionHostToolError(text)) return hostTimeoutIsError
     return /^(error|engine\.error|engine\.protocol_error)$/i.test(eventTypeOf(event))
   })
+}
+
+/** Broken-history copy only. The continue prompt says 不要开新对话 and is not a failure. */
+export function companionContinueBlocked(error) {
+  return /没法继续了|This chat can't continue|tool history is broken/i.test(String(error ?? ''))
 }
 
 export function companionTurnParked(events) {
@@ -179,6 +200,25 @@ export function transcriptHasPrompt(page, needle) {
   return { ok: true, reason: '' }
 }
 
+export function transcriptHasVisibleAssistantOutcome(page) {
+  const spoken = transcriptHasAssistantReply(page)
+  if (spoken.ok) return spoken
+  const entries = asList(pick(page, 'entries', 'Entries'))
+  const visible = entries.some((entry) => {
+    const role = String(pick(entry, 'role', 'Role') ?? '')
+    if (role && role !== 'assistant') return false
+    const text = String(pick(entry, 'text', 'Text', 'content', 'Content') ?? '')
+    const err = String(pick(entry, 'error', 'Error') ?? '')
+    const hay = `${text}\n${err}`
+    return /这一轮已取消|This turn was cancelled|这一轮没有回复|did not produce a reply|request aborted|companion model returned no text/i
+      .test(hay)
+  })
+  if (!visible) {
+    return { ok: false, reason: '桌宠助手没有可见回复（空正文，也没有取消或空回复文案）' }
+  }
+  return { ok: true, reason: '' }
+}
+
 export function transcriptHasAssistantReply(page) {
   const entries = asList(pick(page, 'entries', 'Entries'))
   const assistants = entries.filter((entry) => String(pick(entry, 'role', 'Role') ?? '') === 'assistant')
@@ -209,7 +249,21 @@ export function boardHasConversation(board, id) {
   return { ok: true, reason: '' }
 }
 
+export function conversationHasCompanionRelay(conversation) {
+  const messages = asList(pick(conversation, 'messages', 'Messages'))
+  const found = messages.some((message) => {
+    const content = String(pick(message, 'content', 'Content') ?? '')
+    return content.includes(RELAY_PREFIX)
+  })
+  if (!found) {
+    return { ok: false, reason: '目标会话没有桌宠转达（产品前缀未落盘）' }
+  }
+  return { ok: true, reason: '' }
+}
+
 export function conversationHasRelay(conversation, marker) {
+  const prefix = conversationHasCompanionRelay(conversation)
+  if (!prefix.ok) return prefix
   const messages = asList(pick(conversation, 'messages', 'Messages'))
   const found = messages.some((message) => {
     const content = String(pick(message, 'content', 'Content') ?? '')

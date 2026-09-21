@@ -129,6 +129,7 @@ import {
   runWorkspaceLabStartJob,
   runWorkspaceLabStatus,
 } from './product-loop-workspaces.mjs'
+import { applySurfaceScan, inspectProductLoopSurfaces, mergeSurfaceScans } from './product-loop-surface-scan.mjs'
 
 export const PRODUCT_LOOP_RUNNERS = {
   'coding-pi-files': (driver, options) => runCodingPiFiles(driver, options),
@@ -253,8 +254,28 @@ export const PRODUCT_LOOP_RUNNERS = {
   'settings-plugins': driver => runSettingsPlugins(driver),
 }
 
-export function runProductLoopCase(id, driver, options) {
+export async function runProductLoopCase(id, driver, options) {
   const runner = PRODUCT_LOOP_RUNNERS[id]
-  if (!runner) return Promise.resolve({ result: 'FAIL', detail: `no runner for ${id}` })
-  return runner(driver, { ...options, caseId: id })
+  if (!runner) return { result: 'FAIL', detail: `no runner for ${id}` }
+  const before = await inspectProductLoopSurfaces(driver, { caseId: id, phase: 'before' }).catch(() => null)
+  let outcome
+  try {
+    outcome = await runner(driver, { ...options, caseId: id })
+  } catch (error) {
+    outcome = {
+      result: 'FAIL',
+      detail: error instanceof Error ? error.message : String(error),
+    }
+  }
+  const after = await inspectProductLoopSurfaces(driver, {
+    caseId: id,
+    phase: 'after',
+    result: outcome?.result,
+    expectedMiss: outcome?.expectedMiss === true,
+  }).catch(() => null)
+  return applySurfaceScan(
+    outcome || { result: 'FAIL', detail: `no runner for ${id}` },
+    mergeSurfaceScans(before, after),
+    { caseId: id, result: outcome?.result, expectedMiss: outcome?.expectedMiss === true },
+  )
 }

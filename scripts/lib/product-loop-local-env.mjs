@@ -16,7 +16,8 @@ export const PRODUCT_LOOP_LOCAL_ENV_RELATIVE = 'docs/developer/product-loop.loca
 /** TokenFlux catalog id. Custom relays at tokenflux.dev use this when models are left blank. */
 export const TOKENFLUX_CATALOG_DEFAULT_MODEL = 'deepseek/deepseek-flash'
 export const DEEPSEEK_OFFICIAL_BASE_URL = 'https://api.deepseek.com'
-export const DEEPSEEK_OFFICIAL_MODEL = 'deepseek-chat'
+/** Official DeepSeek leaf id. Matches PRESET_DEEPSEEK_MODELS (deepseek-flash / deepseek-v4-pro), not deepseek-chat. */
+export const DEEPSEEK_OFFICIAL_MODEL = 'deepseek-flash'
 
 export const PRODUCT_LOOP_LOCAL_SECRET_KEYS = Object.freeze([
   'DEEPSEEK_API_KEY',

@@ -1,9 +1,19 @@
 import { Globe2, Mail, ShieldCheck } from 'lucide-react'
 import { GitHubIcon } from '@/components/GitHubIcon'
 import { Alert, AlertDescription, Button } from '@/components/ui'
-import brandLockup from '@/assets/milksu-brand-lockup.png'
 import { useT } from '@/hooks/useUiLocale'
 import type { AccountStatus } from '@/types'
+
+function BrandMark() {
+  return (
+    <div className="flex items-center gap-2 text-foreground">
+      <svg viewBox="0 0 24 24" className="size-7" fill="currentColor" aria-hidden="true">
+        <path d="M3.1 20V4h3.7l5.2 9.35L17.2 4h3.7v16h-3.15V8.85L13.7 16.6h-3.4L6.25 8.85V20H3.1Z" />
+      </svg>
+      <span className="text-base font-semibold tracking-tight">MilkSU</span>
+    </div>
+  )
+}
 
 export default function AccountLoginPage({
   status,
@@ -33,13 +43,13 @@ export default function AccountLoginPage({
     : t('使用 GitHub 登录', 'Sign in with GitHub')
 
   return (
-    <main className="flex min-h-screen min-w-0 bg-background text-foreground" aria-label={t('登录 MilkSU', 'Sign in to MilkSU')}>
-      <section className="flex min-w-0 flex-1 flex-col px-10 py-9 md:px-20 md:py-16">
-        <header className="flex items-center gap-3">
-          <img src={brandLockup} alt="MilkSU" className="h-[2.6rem] w-auto object-contain" />
+    <main className="flex min-h-screen min-w-0 justify-center bg-background text-foreground" aria-label={t('登录 MilkSU', 'Sign in to MilkSU')}>
+      <section className="flex min-w-0 w-full max-w-[540px] flex-col px-10 py-9 md:px-20 md:py-16">
+        <header className="flex items-center">
+          <BrandMark />
         </header>
 
-        <div className="my-auto w-full max-w-[540px] py-14">
+        <div className="my-auto w-full py-14">
           <p className="text-sm text-muted-foreground">{t('内测访问', 'Private beta')}</p>
           <h1 className="mt-3 text-4xl font-semibold tracking-tight">
             {t('登录', 'Sign in')} MilkSU
@@ -79,8 +89,6 @@ export default function AccountLoginPage({
           </div>
         </div>
       </section>
-
-      <aside className="relative hidden w-[42%] shrink-0 overflow-hidden border-l border-border bg-card xl:block" aria-hidden="true" />
     </main>
   )
 }

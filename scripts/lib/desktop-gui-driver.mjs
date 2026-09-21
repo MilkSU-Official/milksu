@@ -6,7 +6,7 @@
 
 import { spawn } from 'node:child_process'
 import { execFile } from 'node:child_process'
-import { dirname, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import { companionHostToolError, parseCompanionConfirm } from './product-loop-companion.mjs'
@@ -14,6 +14,29 @@ import { companionHostToolError, parseCompanionConfirm } from './product-loop-co
 const execFileAsync = promisify(execFile)
 
 export const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
+
+export function resolveProductLoopLaunchPlan(env = process.env, root = repositoryRoot) {
+  const appPath = String(env.MILKSU_PRODUCT_LOOP_APP || env.MILKSU_APP_PATH || '').trim()
+  if (!appPath) {
+    return {
+      mode: 'desktop-start',
+      appPath: '',
+      executable: '',
+      buildRuntime: env.MILKSU_PRODUCT_LOOP_BUILD === '1',
+    }
+  }
+  const executable = process.platform === 'darwin'
+    ? join(appPath, 'Contents', 'MacOS', 'MilkSU')
+    : process.platform === 'win32'
+      ? appPath.replace(/\.exe$/i, '') + '.exe'
+      : appPath
+  return {
+    mode: 'packaged',
+    appPath,
+    executable,
+    buildRuntime: false,
+  }
+}
 
 export const DESKTOP_CREDENTIAL_ENV_KEYS = Object.freeze([
   'DEEPSEEK_API_KEY',
@@ -482,19 +505,27 @@ export class GuiDriver {
     const instanceId = String(options.instanceId ?? this.instanceId ?? '').trim()
     if (!instanceId) throw new Error('startFresh requires MILKSU_INSTANCE_ID')
     this.instanceId = instanceId
-    const extraArgs = options.buildRuntime ? [] : ['--', '--no-build']
+    const launch = resolveProductLoopLaunchPlan(process.env, this.repositoryRoot)
+    const extraArgs = options.buildRuntime || launch.buildRuntime ? [] : ['--', '--no-build']
     const childEnv = stripDesktopCredentialEnv({
       ...process.env,
       MILKSU_CHANNEL: 'stable',
       MILKSU_INSTANCE_ID: instanceId,
       MILKSU_ACCOUNT_API_URL: process.env.MILKSU_ACCOUNT_API_URL || 'https://accounts.milksu.org',
     })
-    this.startedChild = spawn('npm', ['run', 'desktop:start', ...extraArgs], {
-      cwd: this.repositoryRoot,
-      env: childEnv,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      detached: process.platform !== 'win32',
-    })
+    this.startedChild = launch.mode === 'packaged'
+      ? spawn(launch.executable, [], {
+        cwd: this.repositoryRoot,
+        env: childEnv,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        detached: process.platform !== 'win32',
+      })
+      : spawn('npm', ['run', 'desktop:start', ...extraArgs], {
+        cwd: this.repositoryRoot,
+        env: childEnv,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        detached: process.platform !== 'win32',
+      })
     const deadline = Date.now() + Number(options.timeoutMs || 240_000)
     while (Date.now() < deadline && !this.target) {
       if (this.startedChild.exitCode != null) {

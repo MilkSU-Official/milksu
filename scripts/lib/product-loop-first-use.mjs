@@ -19,6 +19,7 @@ import {
   productLoopRelayAttempts,
   resolveCustomRelayModels,
 } from './product-loop-local-env.mjs'
+import { adoptEvidence, applySurfaceScan, inspectProductLoopSurfaces } from './product-loop-surface-scan.mjs'
 
 export const FIRST_USE_RELAY_ID = 'custom-relay-product-loop'
 export const FIRST_USE_RELAY_NAME = 'product-loop'
@@ -448,13 +449,23 @@ export async function runFirstUse(options = {}) {
     const step = { id, result, detail: redactProcessText(detail || '', 300) }
     if (typeof options.onStep === 'function' && launch?.driver) {
       try {
-        step.screenshots = await options.onStep(id, launch.driver)
+        adoptEvidence(step, await options.onStep(id, launch.driver, { result: step.result }))
       } catch {
         step.screenshots = []
       }
     }
+    if (launch?.driver) {
+      try {
+        applySurfaceScan(step, await inspectProductLoopSurfaces(launch.driver, {
+          caseId: id,
+          result: step.result,
+        }), { caseId: id, result: step.result })
+      } catch {
+        // Login window may have torn down between steps.
+      }
+    }
     steps.push(step)
-    process.stdout.write(`FIRST-USE ${id} ${result} ${detail || ''}\n`)
+    process.stdout.write(`FIRST-USE ${id} ${step.result} ${step.detail || ''}\n`)
   }
 
   async function closeLaunch() {

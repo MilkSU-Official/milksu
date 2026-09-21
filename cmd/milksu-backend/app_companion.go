@@ -270,7 +270,11 @@ func (a *App) ArchiveCompanionTranscript() (companion.CompanionArchive, error) {
 	if a == nil || a.companion == nil {
 		return companion.CompanionArchive{}, fmt.Errorf("companion runtime is not configured")
 	}
-	return a.companion.ArchiveTranscript()
+	archived, err := a.companion.ArchiveTranscript()
+	if err != nil && strings.Contains(err.Error(), "sidecar is not running") {
+		return archived, nil
+	}
+	return archived, err
 }
 
 func (a *App) ListCompanionArchives() ([]companion.CompanionArchive, error) {

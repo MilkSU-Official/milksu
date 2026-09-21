@@ -42,18 +42,25 @@
 | Dialog | 淡入 + `scale(0.98)`，**原点保持居中**（模态不跟触发点） | `index.css` |
 | Toast | 从下进、同方向出；退出时先标记 `leaving` 再卸载 | `appToast.ts` + `toaster.tsx` |
 | 侧栏拖宽、右栏拖宽 | 拖动中不参与过渡（拖动时加 `is-resizing` 关掉 transition），松手后夹回 | `ContextSidebar.tsx`、`ContextRail.tsx` |
-| 思考像素加载、标签呼吸、流式光标、任务环、桌宠动画 | 常驻循环，仅 `opacity` / `transform` | `agent-conversation.css`、`index.css` |
+| 思考像素加载、标签呼吸、流式光标、任务环、桌宠角色循环 | 常驻循环，仅 `opacity` / `transform` | `agent-conversation.css`、`index.css` |
+| 桌宠角色显隐、说话气泡、手机开合 | 角色 / 手机：淡入 + `scale(0.96)`（手机从脚下、`--ease-drawer`）；气泡：`scale` + `opacity`，布局抬升仍用 `translateY(-100%)` | `index.css`；气泡离开由 `CompanionPetWindow` 短持 |
+| 桌宠手机消息 / 确认卡 / 附件条 | 文档流列表：新行 `opacity` + `translateY(4px)` 入场，离开对称淡出；刷新时用指纹把 pending / live-stream / process 接到持久 id，避免重播入场；同列气泡 FLIP 滑到新位置。确认 / 记忆 / 错误条同路淡入 | `companionChatMotion.ts`、`CompanionPage`、`index.css` |
+| 桌宠过程披露、设置页、换肤 | 过程展开淡入（关闭即卸，避免折叠正文留在 DOM）；设置从抬头原点 `scale(0.98)`；皮肤 `img` 重挂淡入 | `CompanionTurnProcessView`、`index.css` |
+| 桌宠按下 | 角色本体与玻璃图标 / 附件芯片 `scale(0.97)`；右键菜单行（若渲染）`--pressed-row` | `index.css`；发送 / 加号走 `button.tsx` |
 
 ## 刻意不动的地方
 
 这些不是漏做，是决定：
 
-- **命令面板（Cmd/Ctrl+K）、设置页、会话列表 hover**：键盘触发或每天上百次，加动效只会变慢。
+- **命令面板（Cmd/Ctrl+K）、设置页、会话列表 hover**：键盘触发或每天上百次，加动效只会变慢。主窗口设置 → 桌宠也走这条；手机里叠的桌宠设置页是一张从抬头长出的 sheet，可以动。
+- **桌宠拖动中 / 松手夹回**：拖的时候停浮动，坐标由 Electron 跟着光标；松手夹回是窗口移动，不加 CSS settle，避免和 `setBounds` 打架。
+- **桌宠隐藏、Dock 停主窗、原生右键菜单**：`BrowserWindow.hide` / 最小化 / Electron `Menu` 是系统面。显示角色时有短入场；隐藏不把窗口留 180ms 再关（会抢焦点、也会让回归截图拍到还在的窗）。右键只有 Preload 一个入口，渲染器不再另弹一层。
+- **桌宠手机首屏灌入**：第一次 `list_companion_transcript` 灌满历史时不级联入场。之后的新行、离开和重排才动。
 - **列表级联（stagger）**：同一批元素依次入场看着好，但会话列表和工具列表是高频面。
 - **逐表面 `backdrop-filter` 材质**：材质归 `desktop/window-chrome.cjs` 的
   `vibrancy: 'under-window'` / `backgroundMaterial: 'acrylic'`。浮层上不加 `backdrop-filter`
   （Windows Chromium 经常不给毛玻璃，薄填充会直接透出一个洞）。
-- **动画库**：没有 Motion / Framer Motion / GSAP。当前 12 组 keyframes + CSS transition 够用；
+- **动画库**：没有 Motion / Framer Motion / GSAP。继续用 CSS keyframes + transition；
   只有真出现"可抛掷的手势"时才值得重新评估。
 - **`transition: all`**：全仓没有带时长的 `transition: all`，保持这个状态。
 
@@ -102,6 +109,7 @@ curl -s http://127.0.0.1:<port>/json/list
 | 圆角过渡 | 已从 `.agent-task-row` 去掉；其余 surface 若出现圆角过渡建议同样去掉（会重绘） |
 | 字号相关的字距 | `--text-title` / `--text-heading` / `--text-display` 没有 `--letter-spacing` 变量，只有两处散装负值。大字号该负字距、小字号该略正，属于排版而非动效，单独评估 |
 | 桌宠压住主窗控件 | 桌宠窗 160×160 默认在屏幕右下角，与主窗作曲栏的发送/停止键位置重叠，会挡住点击。与动效无关，单独记录 |
+| 桌宠隐藏淡出 | 显示已有入场。隐藏若要对称，得让壳先通知渲染器再 `hide()`；现在故意不延后关窗 |
 
 ## 最近一次改动的边界
 

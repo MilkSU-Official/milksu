@@ -1,6 +1,7 @@
 import { createInterface } from "node:readline";
 import { mkdir } from "node:fs/promises";
-import { join, resolve as resolvePath } from "node:path";
+import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
+import { dirname, join, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   createAgentSession,
@@ -16,6 +17,7 @@ import { companionSystemPrompt } from "./system-prompt.js";
 import {
   companionAssistantTurnError,
   repairCompanionToolHistory,
+  stampCompanionAbortedTurn,
 } from "./turn-error.js";
 import { prepareCompanionPrompt } from "./attachments.js";
 import { withTokenFluxModelCompat } from "../pi/tokenflux-model-compat.js";
@@ -43,7 +45,26 @@ let memorySearchEnabled = true;
 
 /** Same as main Pi: host replies and abort must not wait behind session.prompt. */
 export function companionCommandRunsImmediately(action) {
-  return action === "companion_host_response" || action === "abort";
+  return action === "companion_host_response" || action === "abort" || action === "shutdown";
+}
+
+export function companionSessionFileMatches(name, sessionId = COMPANION_SESSION_ID) {
+  const file = String(name ?? "").trim();
+  const id = String(sessionId ?? "").trim() || COMPANION_SESSION_ID;
+  return file === `${id}.jsonl` || file.endsWith(`_${id}.jsonl`);
+}
+
+export function pickLatestCompanionSessionName(names, sessionId = COMPANION_SESSION_ID) {
+  return (Array.isArray(names) ? names : [])
+    .filter(name => companionSessionFileMatches(name, sessionId))
+    .sort()
+    .at(-1) || "";
+}
+
+export function serializeCompanionSessionFile(header, entries) {
+  const rows = [header, ...(Array.isArray(entries) ? entries : [])].filter(Boolean);
+  if (!rows.length) return "";
+  return `${rows.map(row => JSON.stringify(row)).join("\n")}\n`;
 }
 
 export function isCompanionAbortError(error) {
@@ -79,6 +100,16 @@ function companionAgentDir() {
     || join(process.cwd(), ".milksu", "companion");
 }
 
+function findCompanionSessionPath(sessionDir) {
+  if (!sessionDir || !existsSync(sessionDir)) return "";
+  try {
+    const name = pickLatestCompanionSessionName(readdirSync(sessionDir));
+    return name ? join(sessionDir, name) : "";
+  } catch {
+    return "";
+  }
+}
+
 async function openCompanionSessionManager(cwd, agentDir) {
   const sessionDir = join(agentDir, "sessions");
   const existing = (await SessionManager.list(cwd, sessionDir))
@@ -86,10 +117,49 @@ async function openCompanionSessionManager(cwd, agentDir) {
   if (existing) {
     return SessionManager.open(existing.path, sessionDir, cwd);
   }
+  // list() filters custom sessionDir by cwd. A previous sidecar cwd miss
+  // must not create a second empty companion jsonl and hide the first user line.
+  const onDisk = findCompanionSessionPath(sessionDir);
+  if (onDisk) {
+    return SessionManager.open(onDisk, sessionDir, cwd);
+  }
   return SessionManager.create(cwd, sessionDir, { id: COMPANION_SESSION_ID });
 }
 
+function flushCompanionSessionFile() {
+  const manager = session?.sessionManager;
+  if (!manager || typeof manager.getSessionFile !== "function") return "";
+  const path = manager.getSessionFile();
+  const header = typeof manager.getHeader === "function" ? manager.getHeader() : null;
+  const entries = typeof manager.getEntries === "function" ? manager.getEntries() : [];
+  const body = serializeCompanionSessionFile(header, entries);
+  if (!path || !body) return "";
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, body);
+  // Pi's _persist skips writing until an assistant row, then creates with "wx".
+  // Mark flushed so later appends do not try to exclusively create this file.
+  manager.flushed = true;
+  return path;
+}
+
+function dropCompanionSession() {
+  subscribed = false;
+  turnAborted = false;
+  promptQueue = Promise.resolve();
+  session = null;
+}
+
 async function createCompanionSession(command) {
+  const livePath = session?.sessionManager?.getSessionFile?.();
+  const fileMissing = Boolean(session) && (!livePath || !existsSync(livePath));
+  if (session && (command?.reset || fileMissing)) {
+    try {
+      await session.abort?.();
+    } catch {
+      // Reset after archive / missing jsonl; the next create opens a new file.
+    }
+    dropCompanionSession();
+  }
   if (session) {
     if (command?.provider && command?.model) {
       await applyCompanionModel(command);
@@ -137,6 +207,7 @@ async function createCompanionSession(command) {
     session.setAutoCompactionEnabled(false);
   }
   await applyCompanionModel(command);
+  flushCompanionSessionFile();
   emit("ready", {
     workspace: cwd,
     tools: session.getActiveToolNames(),
@@ -238,10 +309,12 @@ function subscribeCompanion() {
     if (event.type === "agent_end") {
       if (turnAborted) {
         repairCompanionSessionHistory("companion tool interrupted by abort");
+        persistCompanionAbortedTurn();
       } else {
         const error = companionAssistantTurnError(session.messages);
         if (error) emit("error", { error });
       }
+      flushCompanionSessionFile();
       emit("turn_settled", {});
       if (memorySearchEnabled) scheduleCompanionIndexRefresh();
       return;
@@ -314,20 +387,36 @@ export function formatCompanionToolResult(result) {
  * Abort / host timeout can leave Pi mid-batch without toolResults; main chat
  * recovers by continuing, companion used to hard-fail into 「开新对话」.
  */
+function persistCompanionMessages(extra) {
+  if (!session || !Array.isArray(extra) || !extra.length) return;
+  const agent = session.agent;
+  if (agent?.state && Array.isArray(agent.state.messages)) {
+    agent.state.messages = [...agent.state.messages, ...extra];
+  }
+  const append = session.sessionManager?.appendMessage?.bind(session.sessionManager);
+  if (typeof append === "function") {
+    for (const message of extra) append(message);
+  }
+  flushCompanionSessionFile();
+}
+
 function repairCompanionSessionHistory(reason = "companion tool interrupted") {
   if (!session) return 0;
   const current = Array.isArray(session.messages) ? session.messages : [];
   const { repaired, repairedCount } = repairCompanionToolHistory(current, reason);
   if (!repairedCount) return 0;
-  const agent = session.agent;
-  if (agent?.state && Array.isArray(agent.state.messages)) {
-    agent.state.messages = [...agent.state.messages, ...repaired];
-  }
-  const append = session.sessionManager?.appendMessage?.bind(session.sessionManager);
-  if (typeof append === "function") {
-    for (const message of repaired) append(message);
-  }
+  persistCompanionMessages(repaired);
   return repairedCount;
+}
+
+function persistCompanionAbortedTurn() {
+  if (!session) return;
+  const current = Array.isArray(session.messages) ? session.messages : [];
+  const { messages, appended } = stampCompanionAbortedTurn(current);
+  if (appended.length) {
+    session.messages = messages;
+    persistCompanionMessages(appended);
+  }
 }
 
 async function abortCompanionTurn() {
@@ -339,6 +428,8 @@ async function abortCompanionTurn() {
     // Abort races are fine; repair below is what keeps the transcript usable.
   }
   repairCompanionSessionHistory("companion tool interrupted by abort");
+  persistCompanionAbortedTurn();
+  flushCompanionSessionFile();
   emit("turn_settled", { aborted: true });
 }
 
@@ -363,13 +454,23 @@ async function sendPrompt(command) {
   // timeout — that aborted the loop mid-turn.
   promptQueue = promptQueue.then(async () => {
     try {
-      await session.prompt(prepared.prompt, {
+      const pending = session.prompt(prepared.prompt, {
         expandPromptTemplates: false,
         ...(prepared.images.length ? { images: prepared.images } : {}),
       });
+      // Pi SessionManager does not write jsonl until an assistant row. Flush
+      // the user line immediately so StopCompanion / recover still has it.
+      queueMicrotask(() => {
+        flushCompanionSessionFile();
+      });
+      await pending;
+      flushCompanionSessionFile();
     } catch (error) {
+      flushCompanionSessionFile();
       if (turnAborted || isCompanionAbortError(error)) {
         repairCompanionSessionHistory("companion tool interrupted by abort");
+        persistCompanionAbortedTurn();
+        flushCompanionSessionFile();
         return;
       }
       emit("error", { error: error instanceof Error ? error.message : String(error) });
@@ -425,6 +526,7 @@ async function handleCommand(command) {
       await abortCompanionTurn();
       return;
     case "shutdown":
+      flushCompanionSessionFile();
       ensureHostBroker().cancelAll("companion sidecar stopped");
       process.exit(0);
       return;
@@ -455,6 +557,12 @@ function dispatchCompanionLine(line) {
     return abortCompanionTurn().catch((error) => {
       emit("error", { error: error instanceof Error ? error.message : String(error) });
     });
+  }
+  if (command.action === "shutdown") {
+    flushCompanionSessionFile();
+    ensureHostBroker().cancelAll("companion sidecar stopped");
+    process.exit(0);
+    return Promise.resolve();
   }
   return null;
 }

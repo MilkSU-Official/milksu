@@ -98,6 +98,17 @@ test("dispatch queue and app reads use the default host timeout", async () => {
   assert.equal(seen[2].options?.timeoutMs, 0);
 });
 
+test("memory search timeout throws so Pi can emit an error toolResult and continue", async () => {
+  const tools = createCompanionTools(async () => ({ ok: true }), {
+    queryMemory: () => new Promise(() => {}),
+  });
+  const memory = tools.find(tool => tool.name === "companion_memory");
+  await assert.rejects(
+    () => memory.execute("1", { action: "search", query: "auth" }),
+    /timed out \(memory\)/,
+  );
+});
+
 test("dispatch host rejection throws so Pi can emit an error toolResult and continue", async () => {
   const tools = createCompanionTools(async () => {
     throw new Error("companion host request timed out (dispatch)");

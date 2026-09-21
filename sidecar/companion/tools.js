@@ -168,11 +168,22 @@ export function createCompanionTools(requestHost, options = {}) {
     execute: async (_toolCallId, params) => {
       const action = String(params?.action ?? "").trim();
       if ((action === "search" || action === "recall") && typeof queryMemory === "function") {
-        const result = await queryMemory(params);
-        return {
-          content: [{ type: "text", text: JSON.stringify(result) }],
-          details: result,
-        };
+        try {
+          const result = await Promise.race([
+            queryMemory(params),
+            new Promise((_, reject) => {
+              setTimeout(() => {
+                reject(new Error("companion host request timed out (memory)"));
+              }, 8_000);
+            }),
+          ]);
+          return {
+            content: [{ type: "text", text: JSON.stringify(result) }],
+            details: result,
+          };
+        } catch (error) {
+          throw new Error(companionHostToolErrorMessage(error));
+        }
       }
       return runHostTool(requestHost, "memory", params);
     },

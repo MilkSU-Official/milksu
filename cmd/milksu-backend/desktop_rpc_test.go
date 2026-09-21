@@ -37,6 +37,7 @@ func TestDesktopAppMethodsMatchRendererBindings(t *testing.T) {
 		"GetCompanionShellStatus":        true,
 		"SetCompanionFloatEnabled":       true,
 		"SetCompanionPetHidden":          true,
+		"SetCompanionPetBubble":          true,
 		"ShowCompanionMainWindow":        true,
 		"ShowCompanionChatWindow":        true,
 		"HideCompanionChatWindow":        true,
@@ -52,6 +53,7 @@ func TestDesktopAppMethodsMatchRendererBindings(t *testing.T) {
 		"ImportCompanionSkin":            true,
 		"RemoveCompanionSkin":            true,
 		"NotifyCompanionSkinChanged":     true,
+		"GetCompanionPhoneStatus":        true,
 	}
 	wantRendererSet := map[string]bool{
 		"ListPlugins":             true,

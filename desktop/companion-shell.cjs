@@ -36,6 +36,7 @@ const COMPANION_METHODS = new Set([
   'GetCompanionShellStatus',
   'SetCompanionFloatEnabled',
   'SetCompanionPetHidden',
+  'SetCompanionPetBubble',
   'ShowCompanionMainWindow',
   'ShowCompanionChatWindow',
   'HideCompanionChatWindow',
@@ -182,6 +183,7 @@ function createCompanionShell(options) {
   let petDragTimer = null
   let lastPetDragged = false
   let pointerPassthrough = false
+  let petBubble = false
   let uiLocale = normalizeUiLocale(
     typeof getUiLocale === 'function' ? getUiLocale() : '',
     'zh',
@@ -279,6 +281,7 @@ function createCompanionShell(options) {
       dx,
       dy,
       chatOpen: chatOpenFlag,
+      bubble: petBubble && !chatOpenFlag,
       workArea: wayland ? null : (workAreaNear(petDrag.pet) || primaryWorkArea()),
     }))
   }
@@ -425,6 +428,7 @@ function createCompanionShell(options) {
   function relayoutUnit() {
     applyUnitLayout(layoutCompanionUnit({
       chatOpen: chatOpenFlag,
+      bubble: petBubble && !chatOpenFlag,
       petOrigin: currentPetScreen(),
       workArea: wayland ? null : (workAreaNear(currentPetScreen()) || primaryWorkArea()),
     }))
@@ -459,6 +463,7 @@ function createCompanionShell(options) {
     if (float && !float.isDestroyed()) float.close()
     float = null
     chatOpenFlag = false
+    petBubble = false
     unitLayout = null
   }
 
@@ -709,6 +714,7 @@ function createCompanionShell(options) {
       dx,
       dy,
       chatOpen: chatOpenFlag,
+      bubble: petBubble && !chatOpenFlag,
       workArea: wayland ? null : (workAreaNear(currentPetScreen()) || primaryWorkArea()),
     }))
     return status()
@@ -804,6 +810,7 @@ function createCompanionShell(options) {
     const workArea = wayland ? null : primaryWorkArea()
     unitLayout = layoutCompanionUnit({
       chatOpen: chatOpenFlag,
+      bubble: petBubble && !chatOpenFlag,
       petOrigin: wayland ? undefined : defaultCompanionPetOrigin(workArea),
       workArea,
     })
@@ -918,6 +925,13 @@ function createCompanionShell(options) {
       if (!enabled || wayland) return status()
       const hidden = typeof args === 'boolean' ? args : payload.hidden === true
       return hidden ? hidePet() : showPet()
+    }
+    if (method === 'SetCompanionPetBubble') {
+      const visible = typeof args === 'boolean' ? args : payload.visible === true
+      if (petBubble === visible) return status()
+      petBubble = visible
+      if (!chatOpenFlag) relayoutUnit()
+      return status()
     }
     if (method === 'ShowCompanionMainWindow') return showMainWindow(payload)
     if (method === 'ShowCompanionChatWindow') return showChatWindow(payload)

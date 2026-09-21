@@ -7,6 +7,8 @@ import {
   companionChatVisibleText,
   companionHostToolFailure,
   companionLooksLikeDebugPayload,
+  companionMissingApiKey,
+  companionSidecarDown,
   companionTurnCancelled,
   explainCompanionError,
 } from './companionUserError'
@@ -16,9 +18,18 @@ describe('explainCompanionError', () => {
   it('maps sidecar-down internals to product copy', () => {
     applyUiLocale('zh')
     expect(explainCompanionError('companion sidecar stopped')).toBe('桌宠暂时连不上。')
+    expect(explainCompanionError('companion sidecar is not running')).toBe('桌宠暂时连不上。')
+    expect(explainCompanionError('write EPIPE')).toBe('桌宠暂时连不上。')
+    expect(explainCompanionError('no companion transcript to archive')).toBe('没有可归档的抄本。')
     applyUiLocale('en')
     expect(explainCompanionError('Error: companion sidecar did not become ready')).toBe(
       'The companion could not start.',
+    )
+    expect(explainCompanionError('companion sidecar is not running')).toBe(
+      'The companion could not start.',
+    )
+    expect(explainCompanionError('no companion transcript to archive')).toBe(
+      'There is no companion transcript to archive.',
     )
     applyUiLocale('zh')
   })
@@ -108,11 +119,52 @@ describe('explainCompanionError', () => {
     expect(companionHostToolFailure('Request aborted')).toBe(false)
   })
 
-  it('leaves unrelated errors alone', () => {
+  it('maps missing API key without provider or model ids', () => {
+    applyUiLocale('zh')
+    expect(explainCompanionError('No API key for tokenflux/deepseek/deepseek-flash')).toBe(
+      '当前模型没有可用的 API Key。',
+    )
+    expect(explainCompanionError('Error: No API key for tokenflux/deepseek/deepseek-flash')).not.toMatch(
+      /tokenflux|deepseek\//i,
+    )
+    applyUiLocale('en')
+    expect(explainCompanionError('No API key for tokenflux/deepseek/deepseek-flash')).toBe(
+      'No API key is available for the current model.',
+    )
+    expect(explainCompanionError('No API key for tokenflux/deepseek/deepseek-flash')).not.toMatch(
+      /tokenflux\/deepseek/i,
+    )
+    applyUiLocale('zh')
+    expect(companionMissingApiKey('No API key for tokenflux/deepseek/deepseek-flash')).toBe(true)
+    expect(companionMissingApiKey('当前模型没有可用的 API Key。')).toBe(true)
+    expect(companionMissingApiKey('No API key is available for the current model.')).toBe(true)
+    expect(companionMissingApiKey('companion session is not ready')).toBe(false)
+    expect(companionSidecarDown('companion sidecar is not running')).toBe(true)
+    expect(companionSidecarDown('write EPIPE')).toBe(true)
+    expect(companionSidecarDown('桌宠暂时连不上。')).toBe(true)
+    expect(companionSidecarDown('这一轮已取消。')).toBe(false)
+  })
+
+  it('maps session-not-ready internals to product copy', () => {
     applyUiLocale('zh')
     expect(explainCompanionError('companion session is not ready')).toBe(
-      'companion session is not ready',
+      '桌宠还没准备好，请稍后再试。',
     )
+    expect(explainCompanionError('Error: companion session is not ready')).not.toMatch(
+      /session is not ready/i,
+    )
+    expect(explainCompanionError('companion prompt is required')).toBe('还没有可发送的内容。')
+    expect(explainCompanionError('companion model not found: tokenflux/deepseek/deepseek-flash')).toBe(
+      '桌宠还没有可用的模型。',
+    )
+    expect(explainCompanionError('companion model not found: tokenflux/deepseek/deepseek-flash')).not.toMatch(
+      /tokenflux|deepseek\//i,
+    )
+    applyUiLocale('en')
+    expect(explainCompanionError('companion session is not ready')).toBe(
+      'The companion is not ready yet. Try again.',
+    )
+    applyUiLocale('zh')
   })
 })
 

@@ -1,5 +1,12 @@
 export const COMPANION_COMPLETE_HOLD_MS = 2800
 export const COMPANION_PET_DRAG_THRESHOLD_PX = 4
+/** Matches `--motion-base`. Holds the speak bubble while it eases out. */
+export const COMPANION_PET_BUBBLE_LEAVE_MS = 180
+
+export function companionPrefersUiMotion() {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false
+  return window.matchMedia('(prefers-reduced-motion: no-preference)').matches
+}
 
 export function companionPetDragMoved(
   dx: number,

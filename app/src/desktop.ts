@@ -315,6 +315,7 @@ interface DesktopAppBindings {
   GetCompanionShellStatus(): Promise<CompanionShellStatus>
   SetCompanionFloatEnabled(enabled: boolean): Promise<CompanionShellStatus>
   SetCompanionPetHidden(request: { hidden: boolean; locale?: string }): Promise<CompanionShellStatus>
+  SetCompanionPetBubble(request: { visible: boolean }): Promise<CompanionShellStatus>
   ShowCompanionMainWindow(): Promise<CompanionShellStatus>
   ShowCompanionChatWindow(): Promise<CompanionShellStatus>
   HideCompanionChatWindow(): Promise<CompanionShellStatus>
@@ -844,6 +845,10 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.SetCompanionPetHidden({
           hidden: args?.hidden === true,
           locale: typeof args?.locale === 'string' ? args.locale : undefined,
+        }) as Promise<T>
+      case 'set_companion_pet_bubble':
+        return app.SetCompanionPetBubble({
+          visible: args?.visible === true,
         }) as Promise<T>
       case 'show_companion_main_window':
         return app.ShowCompanionMainWindow() as Promise<T>

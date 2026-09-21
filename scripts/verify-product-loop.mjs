@@ -30,11 +30,12 @@ import {
 } from './lib/product-loop-local-env.mjs'
 import { enablePersonalRelayRoute, runFirstUse, saveCustomRelay } from './lib/product-loop-first-use.mjs'
 import {
-  captureProductLoopEvidence,
+  captureProductLoopEvidenceBundle,
   printProductLoopReport,
   resetProductLoopReportDir,
   writeFormalProductLoopReport,
 } from './lib/product-loop-report.mjs'
+import { adoptEvidence, applySurfaceScan, inspectProductLoopSurfaces } from './lib/product-loop-surface-scan.mjs'
 import { runProductLoopCase } from './lib/product-loop-runners.mjs'
 import { ensureIsolatedProductSession, flushProductLoopCleanup } from './lib/product-loop-session.mjs'
 import { keepExclusiveMilkSUWindow } from './lib/product-loop-windows.mjs'
@@ -122,7 +123,11 @@ async function main() {
     const driver = session.driver
     if (!driver) return record
     try {
-      record.screenshots = await captureProductLoopEvidence(driver, id)
+      const bundle = await captureProductLoopEvidenceBundle(driver, id, {
+        result: record.result,
+        expectedMiss: record.expectedMiss === true,
+      })
+      adoptEvidence(record, bundle)
     } catch {
       record.screenshots = record.screenshots || []
     }
@@ -145,9 +150,22 @@ async function main() {
       skipKind: outcome.skipKind || '',
       steps: outcome.steps,
       screenshots: Array.isArray(outcome.screenshots) ? outcome.screenshots : [],
+      anomalies: Array.isArray(outcome.anomalies) ? outcome.anomalies : undefined,
+      expectedMiss: outcome.expectedMiss === true,
     }
     if (record.source) receipt.companionModelSource = record.source
     if (!record.screenshots.length) await attachEvidence(id, record)
+    else if (session.driver && !record.anomalies) {
+      try {
+        applySurfaceScan(record, await inspectProductLoopSurfaces(session.driver, {
+          caseId: id,
+          result: record.result,
+          expectedMiss: outcome.expectedMiss === true,
+        }), { caseId: id, result: record.result, expectedMiss: outcome.expectedMiss === true })
+      } catch {
+        // Surface may have torn down after the case.
+      }
+    }
     receipt.suites.push(record)
     process.stdout.write(`CASE ${id} ${record.result} ${record.detail}\n`)
     await flushProductLoopCleanup()
@@ -195,7 +213,7 @@ async function main() {
         const outcome = await runFirstUse({
           ...options,
           keepOpen: true,
-          onStep: async (id, driver) => captureProductLoopEvidence(driver, id),
+          onStep: async (id, driver, extra = {}) => captureProductLoopEvidenceBundle(driver, id, extra),
         })
         if (outcome.notes?.length) receipt.humanReview.push(...outcome.notes)
         session = {

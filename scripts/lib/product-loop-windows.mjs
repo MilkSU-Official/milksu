@@ -26,6 +26,10 @@ export function classifyMilkSUHostCommand(command, repoRoot = '') {
   if (/Cursor\.app(?:\/|$)|\/Cursor(?:\.exe)?(?:\s|$)/i.test(text)) return 'cursor'
   if (/MilkSU Beta\.app|MilkSU Beta\.exe|MilkSU-Beta/i.test(text)) return 'beta'
   if (/Helper|plugin-container/i.test(text)) return 'helper'
+  const repo = normalizeHostCommand(repoRoot)
+  if (repo && text.toLowerCase().includes(`${repo.toLowerCase()}/build/bin/`) && /MilkSU\.app\/Contents\/MacOS\/MilkSU/i.test(text)) {
+    return 'packaged-repo'
+  }
   if (
     /MilkSU\.app\/Contents\/MacOS\/MilkSU(?:\s|$)/i.test(text)
     || /(?:^|\/)MilkSU\.exe(?:\s|$)/i.test(text)
@@ -33,7 +37,6 @@ export function classifyMilkSUHostCommand(command, repoRoot = '') {
   ) {
     return 'packaged-stable'
   }
-  const repo = normalizeHostCommand(repoRoot)
   if (repo && text.toLowerCase().includes(repo.toLowerCase()) && /electron/i.test(text)) {
     return 'unpackaged-repo'
   }
@@ -81,7 +84,7 @@ export function selectForeignMilkSUHosts(rows, options = {}) {
     .filter(row => {
       if (keepPids.has(row.pid)) return false
       const kind = classifyMilkSUHostCommand(row.command, repoRoot)
-      return kind === 'packaged-stable' || kind === 'unpackaged-repo'
+      return kind === 'unpackaged-repo' || kind === 'packaged-repo'
     })
     .map(row => ({
       ...row,
@@ -256,21 +259,6 @@ export async function closeCdpBrowser(port) {
   }
 }
 
-async function quitPackagedMilkSU() {
-  if (process.platform === 'darwin') {
-    await execFileAsync('osascript', [
-      '-e',
-      'tell application "System Events" to if exists process "MilkSU" then tell application "MilkSU" to quit',
-    ], { timeout: 8_000 }).catch(() => {})
-    return
-  }
-  if (process.platform === 'win32') {
-    await execFileAsync('taskkill', ['/IM', 'MilkSU.exe', '/T'], { timeout: 8_000 }).catch(() => {})
-    return
-  }
-  await execFileAsync('pkill', ['-x', 'MilkSU'], { timeout: 8_000 }).catch(() => {})
-}
-
 function killHost(row, signal) {
   if (process.platform === 'win32') {
     spawn('taskkill', signal === 'SIGKILL'
@@ -297,6 +285,7 @@ async function terminateHosts(rows, signal) {
 function kindLabels(rows) {
   const labels = {
     'packaged-stable': '日常安装包',
+    'packaged-repo': '仓库测试包',
     'unpackaged-repo': '残留 Electron',
   }
   return [...new Set(rows.map(row => labels[row.kind] || row.kind))]
@@ -317,9 +306,6 @@ export async function keepExclusiveMilkSUWindow(options = {}) {
   for (const port of foreignPorts) {
     await closeCdpBrowser(port)
   }
-
-  const packaged = foreign.filter(row => row.kind === 'packaged-stable')
-  if (packaged.length) await quitPackagedMilkSU()
 
   await terminateHosts(foreign, 'SIGTERM')
   const deadline = Date.now() + Number(options.timeoutMs || 8_000)

@@ -22,6 +22,7 @@ const ALLOWED = new Set([
   'GetCompanionShellStatus',
   'SetCompanionFloatEnabled',
   'SetCompanionPetHidden',
+  'SetCompanionPetBubble',
   'ShowCompanionMainWindow',
   'ShowCompanionChatWindow',
   'HideCompanionChatWindow',

@@ -5,7 +5,7 @@ import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { EventEmitter } from 'node:events'
-import { CdpSession, classifyTurnEvents, eventSessionId, eventToolName, eventTypeOf, GuiDriver, isCompanionChatSurface, isCompanionPetSurface, isCompanionSurface, isMainProductSurface, isMilkSUPage, isProductLoopFixtureConversation, killProcessGroup, stripDesktopCredentialEnv } from './lib/desktop-gui-driver.mjs'
+import { CdpSession, classifyTurnEvents, eventSessionId, eventToolName, eventTypeOf, GuiDriver, isCompanionChatSurface, isCompanionPetSurface, isCompanionSurface, isMainProductSurface, isMilkSUPage, isProductLoopFixtureConversation, killProcessGroup, resolveProductLoopLaunchPlan, stripDesktopCredentialEnv } from './lib/desktop-gui-driver.mjs'
 import {
   classifyMilkSUHostCommand,
   describeExclusiveWindows,
@@ -37,6 +37,15 @@ import {
 } from './lib/product-loop-catalog.mjs'
 import { PRODUCT_LOOP_RUNNERS } from './lib/product-loop-runners.mjs'
 import { buildProductLoopReport, evidenceSurfacesForCase, formatFormalProductLoopReport, formatProductLoopReport, normalizeScreenshot } from './lib/product-loop-report.mjs'
+import {
+  SURFACE_ALLOW,
+  SURFACE_SCAN_PREFIX,
+  applySurfaceScan,
+  isSurfaceLeakText,
+  scanProductLoopSurface,
+  scanProductLoopSurfaces,
+  surfaceAllowKinds,
+} from './lib/product-loop-surface-scan.mjs'
 import { isNewConversationCanvas, turnBroken } from './lib/product-loop-session.mjs'
 import {
   applyProductLoopLocalEnv,
@@ -81,16 +90,20 @@ import {
   companionPetSurfaceReady,
   companionPresenceKept,
   companionShellHidden,
+  companionDispatchSpeakCalled,
   companionSpeakPrompt,
   companionStopPrompt,
+  companionContinueBlocked,
   companionHostToolError,
   companionTurnErrored,
   companionTurnParked,
   companionTurnSettled,
+  conversationHasCompanionRelay,
   conversationHasRelay,
   conversationMovedToArchive,
   parseCompanionConfirm,
   transcriptHasAssistantReply,
+  transcriptHasVisibleAssistantOutcome,
   transcriptHasPrompt,
 } from './lib/product-loop-companion.mjs'
 
@@ -257,7 +270,6 @@ test('companion product facts come from a real turn, not RPC shape checks', () =
   const prompt = companionSpeakPrompt({
     conversationId: 'coding-1',
     title: 'product-loop-companion-target',
-    marker: 'product-loop-marker',
   })
   assert.match(prompt, /companion_board/)
   assert.match(companionStopPrompt('coding-1'), /companion_dispatch/)
@@ -265,8 +277,28 @@ test('companion product facts come from a real turn, not RPC shape checks', () =
   assert.match(companionStopPrompt('coding-1'), /立刻/)
   assert.match(companionStopPrompt('coding-1'), /不要在对话里问用户确认/)
   assert.match(prompt, /companion_dispatch/)
+  assert.match(prompt, /action 用 speak/)
   assert.match(prompt, /coding-1/)
-  assert.match(prompt, /product-loop-marker/)
+  assert.doesNotMatch(prompt, /必须原样包含/)
+  assert.equal(companionDispatchSpeakCalled([{
+    type: 'tool.started',
+    toolName: 'companion_dispatch',
+    text: 'companion_dispatch speak',
+  }]), true)
+  assert.equal(companionDispatchSpeakCalled([{
+    type: 'tool.started',
+    toolName: 'companion_dispatch',
+    text: 'companion_dispatch speak_many',
+  }]), false)
+  assert.equal(companionDispatchSpeakCalled([{
+    type: 'tool.started',
+    toolName: 'companion_dispatch',
+    text: 'companion_dispatch stop',
+  }]), false)
+  assert.equal(companionDispatchSpeakCalled([{
+    type: 'assistant.settled',
+    text: 'I called companion_dispatch speak',
+  }]), false)
   const fuzz = companionFuzzDispatchPrompts({ title: 't', marker: 'm1' })
   assert.equal(fuzz.length >= 2, true)
   assert.equal(fuzz.every(text => !/companion_dispatch|companion_board|companion_app/.test(text)), true)
@@ -323,10 +355,23 @@ test('companion product facts come from a real turn, not RPC shape checks', () =
   assert.equal(transcriptHasAssistantReply({
     entries: [{ role: 'assistant', type: 'message', text: '{"companion_float_enabled":true}' }],
   }).ok, false)
+  assert.equal(transcriptHasVisibleAssistantOutcome({
+    entries: [{ role: 'assistant', type: 'message', error: 'Request aborted' }],
+  }).ok, true)
+  assert.equal(transcriptHasVisibleAssistantOutcome({
+    entries: [{ role: 'assistant', type: 'message', text: '' }],
+  }).ok, false)
   assert.equal(boardHasConversation({ sessions: [{ id: 'coding-1', title: 'A' }] }, 'coding-1').ok, true)
+  assert.equal(conversationHasCompanionRelay({
+    messages: [{ content: `${companionRelayPrefix()}\nany task text` }],
+  }).ok, true)
+  assert.equal(conversationHasCompanionRelay({ messages: [{ content: 'plain' }] }).ok, false)
   assert.equal(conversationHasRelay({
     messages: [{ content: `${companionRelayPrefix()}\nproduct-loop-marker` }],
   }, 'product-loop-marker').ok, true)
+  assert.equal(conversationHasRelay({
+    messages: [{ content: `${companionRelayPrefix()}\nparaphrased task` }],
+  }, 'product-loop-marker').ok, false)
   assert.equal(conversationHasRelay({ messages: [{ content: 'plain' }] }, 'product-loop-marker').ok, false)
   assert.equal(conversationMovedToArchive(
     [{ id: 'live' }],
@@ -396,6 +441,10 @@ test('exclusive window classification keeps only MilkSU hosts', () => {
   assert.equal(classifyMilkSUHostCommand('/Applications/MilkSU.app/Contents/Frameworks/MilkSU Helper.app/Contents/MacOS/MilkSU Helper', repo), 'helper')
   assert.equal(classifyMilkSUHostCommand('/Applications/MilkSU.app/Contents/MacOS/MilkSU', repo), 'packaged-stable')
   assert.equal(
+    classifyMilkSUHostCommand(`${repo}/build/bin/MilkSU.app/Contents/MacOS/MilkSU`, repo),
+    'packaged-repo',
+  )
+  assert.equal(
     classifyMilkSUHostCommand(`${repo}/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron ${repo}/desktop`, repo),
     'unpackaged-repo',
   )
@@ -404,10 +453,11 @@ test('exclusive window classification keeps only MilkSU hosts', () => {
     '22 1 /Applications/MilkSU.app/Contents/MacOS/MilkSU',
     '33 1 /Applications/MilkSU Beta.app/Contents/MacOS/MilkSU Beta',
     `44 9 ${repo}/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron ${repo}/desktop`,
+    `66 1 ${repo}/build/bin/MilkSU.app/Contents/MacOS/MilkSU`,
     '55 44 /Applications/Calculator.app/Contents/MacOS/Calculator',
   ].join('\n'))
   const foreign = selectForeignMilkSUHosts(rows, { repoRoot: repo, keepPids: new Set([44]) })
-  assert.deepEqual(foreign.map(row => row.pid), [22])
+  assert.deepEqual(foreign.map(row => row.pid), [66])
   const helperRows = parsePsTable([
     '11 1 /Applications/Cursor.app/Contents/MacOS/Cursor',
     '22 1 /Applications/MilkSU.app/Contents/MacOS/MilkSU',
@@ -419,12 +469,12 @@ test('exclusive window classification keeps only MilkSU hosts', () => {
   assert.equal(keptByHelperPort.has(46), true)
   assert.equal(keptByHelperPort.has(44), true)
   assert.equal(keptByHelperPort.has(90), true)
-  assert.equal(selectForeignMilkSUHosts(helperRows, { repoRoot: repo, keepPids: keptByHelperPort }).map(row => row.pid).join(','), '22')
+  assert.equal(selectForeignMilkSUHosts(helperRows, { repoRoot: repo, keepPids: keptByHelperPort }).map(row => row.pid).join(','), '')
   const keptByPort = mergeKeepPids(new Set([9]), new Set([44]), rows)
   assert.equal(keptByPort.has(44), true)
   assert.equal(keptByPort.has(9), true)
   const stillForeign = selectForeignMilkSUHosts(rows, { repoRoot: repo, keepPids: keptByPort })
-  assert.deepEqual(stillForeign.map(row => row.pid), [22])
+  assert.deepEqual(stillForeign.map(row => row.pid), [66])
   assert.equal(describeExclusiveWindows({ closed: 2, remaining: 1, closedKinds: ['日常安装包', '残留 Electron'] }), '窗口关掉 2 扇（日常安装包、残留 Electron），只留测试窗')
   assert.equal(describeExclusiveWindows({ closed: 0, remaining: 1 }), '窗口只留测试窗')
 })
@@ -777,9 +827,12 @@ test('relay attempts prefer official DeepSeek before a dead TokenFlux key', asyn
   ].join('\n'))
   await applyProductLoopLocalEnv({}, { path })
   const attempts = productLoopRelayAttempts({ CUSTOM_RELAY_BASE_URL: 'https://tokenflux.dev/v1' })
+  assert.equal(DEEPSEEK_OFFICIAL_MODEL, 'deepseek-flash')
+  assert.equal(TOKENFLUX_CATALOG_DEFAULT_MODEL, 'deepseek/deepseek-flash')
+  assert.notEqual(DEEPSEEK_OFFICIAL_MODEL, 'deepseek-chat')
   assert.deepEqual(attempts.map(item => ({ name: item.name, baseUrl: item.baseUrl, model: item.model })), [
-    { name: 'DEEPSEEK_API_KEY', baseUrl: DEEPSEEK_OFFICIAL_BASE_URL, model: DEEPSEEK_OFFICIAL_MODEL },
-    { name: 'TOKENFLUX_API_KEY', baseUrl: 'https://tokenflux.dev/v1', model: TOKENFLUX_CATALOG_DEFAULT_MODEL },
+    { name: 'DEEPSEEK_API_KEY', baseUrl: DEEPSEEK_OFFICIAL_BASE_URL, model: 'deepseek-flash' },
+    { name: 'TOKENFLUX_API_KEY', baseUrl: 'https://tokenflux.dev/v1', model: 'deepseek/deepseek-flash' },
   ])
   assert.ok(!JSON.stringify(attempts.map(item => ({ name: item.name, baseUrl: item.baseUrl, model: item.model }))).includes('sk-'))
   resetProductLoopLocalSecrets()
@@ -856,4 +909,203 @@ test('killProcessGroup is a no-op for an already-exited child', () => {
     throw new Error('should not kill an exited child')
   }
   assert.equal(killProcessGroup(child), false)
+})
+
+test('surface scanner fails leaks and unexpected error chrome, not expected form or confirm copy', () => {
+  const packagedLaunch = resolveProductLoopLaunchPlan({
+    MILKSU_APP_PATH: '/repo/milksu/build/bin/MilkSU.app',
+  }, '/repo/milksu')
+  assert.equal(packagedLaunch.mode, 'packaged')
+  assert.equal(packagedLaunch.buildRuntime, false)
+  assert.match(packagedLaunch.executable, /MilkSU\.app\/Contents\/MacOS\/MilkSU$/)
+  assert.equal(resolveProductLoopLaunchPlan({}, '/repo/milksu').mode, 'desktop-start')
+
+  assert.equal(isSurfaceLeakText('No API key for tokenflux/deepseek/deepseek-flash'), true)
+  assert.equal(isSurfaceLeakText('Request aborted'), true)
+  assert.equal(isSurfaceLeakText('AbortError: The operation was aborted'), true)
+  assert.equal(isSurfaceLeakText('[object Object]'), true)
+  assert.equal(isSurfaceLeakText('unknown companion host request: companion-host-9'), true)
+  assert.equal(isSurfaceLeakText('companion session is not ready'), true)
+  assert.equal(isSurfaceLeakText('当前模型没有可用的 API Key。'), false)
+  assert.deepEqual(surfaceAllowKinds('login-gate'), SURFACE_ALLOW['login-gate'])
+
+  const leak = scanProductLoopSurface({
+    surface: 'companion',
+    locale: 'zh-CN',
+    text: 'No API key for tokenflux/deepseek/deepseek-flash',
+    findings: [{ kind: 'companion-bubble', text: 'No API key for tokenflux/deepseek/deepseek-flash' }],
+  }, { caseId: 'login-gate' })
+  assert.equal(leak.fail, true)
+  assert.match(leak.summary, /No API key for/)
+  assert.equal(leak.hits.some(item => item.severity === 'leak' && item.kind === 'no-api-key-debug'), true)
+
+  const mappedOnLogin = scanProductLoopSurface({
+    surface: 'companion',
+    locale: 'zh-CN',
+    text: '当前模型没有可用的 API Key。',
+    findings: [{ kind: 'companion-bubble', text: '当前模型没有可用的 API Key。' }],
+  }, { caseId: 'login-gate' })
+  assert.equal(mappedOnLogin.fail, false)
+
+  const mappedOnCoding = scanProductLoopSurface({
+    surface: 'companion',
+    locale: 'zh-CN',
+    text: '当前模型没有可用的 API Key。',
+    findings: [{ kind: 'companion-bubble', text: '当前模型没有可用的 API Key。' }],
+  }, { caseId: 'coding-pi-files' })
+  assert.equal(mappedOnCoding.fail, true)
+
+  const settingsDump = scanProductLoopSurface({
+    surface: 'companion',
+    locale: 'zh-CN',
+    text: '{"ok":true,"settings":{"companion_float_enabled":true,"relay":{"url":"https://tokenflux.dev/v1"}}}',
+    findings: [{
+      kind: 'companion-error',
+      text: '{"ok":true,"settings":{"companion_float_enabled":true,"relay":{"url":"https://tokenflux.dev/v1"}}}',
+    }],
+  }, { caseId: 'companion-page' })
+  assert.equal(settingsDump.fail, true)
+  assert.equal(settingsDump.hits.some(item => item.kind === 'settings-json'), true)
+
+  const confirm = scanProductLoopSurface({
+    surface: 'companion',
+    locale: 'zh-CN',
+    text: '有一条命令在等你确认',
+    findings: [{ kind: 'confirm', role: 'alertdialog', text: '有一条命令在等你确认' }],
+  }, { caseId: 'companion-dispatch-confirm' })
+  assert.equal(confirm.fail, false)
+
+  const leftoverConfirm = scanProductLoopSurface({
+    surface: 'main',
+    locale: 'zh-CN',
+    findings: [{ kind: 'confirm', role: 'alertdialog', text: '有一条命令在等你确认' }],
+  }, { caseId: 'coding-pi-files' })
+  assert.equal(leftoverConfirm.fail, true)
+
+  const loginForm = scanProductLoopSurface({
+    surface: 'main',
+    locale: 'zh-CN',
+    findings: [{ kind: 'destructive', className: 'text-destructive', text: '登录没有完成' }],
+  }, { caseId: 'login-github-active', result: 'FAIL' })
+  assert.equal(loginForm.fail, false)
+
+  const leftoverLoginForm = scanProductLoopSurface({
+    surface: 'main',
+    locale: 'zh-CN',
+    findings: [{ kind: 'destructive', className: 'text-destructive', text: '登录没有完成' }],
+  }, { caseId: 'login-github-active', result: 'PASS' })
+  assert.equal(leftoverLoginForm.fail, true)
+
+  const blank = scanProductLoopSurface({
+    surface: 'main',
+    locale: 'zh-CN',
+    text: '选择项目',
+    findings: [{ kind: 'destructive', text: '删除' }],
+  }, { caseId: 'session-new' })
+  assert.equal(blank.fail, false)
+
+  const unlocalized = scanProductLoopSurface({
+    surface: 'companion',
+    locale: 'zh-CN',
+    findings: [{ kind: 'companion-error', text: 'AbortError: The operation was aborted' }],
+  }, { caseId: 'companion-fuzz-abort' })
+  assert.equal(unlocalized.fail, true)
+
+  const cancelled = scanProductLoopSurface({
+    surface: 'companion',
+    locale: 'zh-CN',
+    findings: [{ kind: 'companion-error', text: '这一轮已取消。' }],
+  }, { caseId: 'companion-fuzz-abort' })
+  assert.equal(cancelled.fail, false)
+
+  const cancelledRecovery = scanProductLoopSurface({
+    surface: 'companion',
+    locale: 'zh-CN',
+    findings: [{ kind: 'companion-bubble', text: '这一轮已取消。' }],
+  }, { caseId: 'companion-fuzz-recovery' })
+  assert.equal(cancelledRecovery.fail, false)
+
+  const cancelledRapid = scanProductLoopSurface({
+    surface: 'companion',
+    locale: 'en',
+    findings: [{ kind: 'companion-error', text: 'This turn was cancelled.' }],
+  }, { caseId: 'companion-fuzz-rapid' })
+  assert.equal(cancelledRapid.fail, false)
+
+  assert.equal(companionContinueBlocked('这段对话没法继续了。'), true)
+  assert.equal(companionContinueBlocked('This chat can\'t continue.'), true)
+  assert.equal(
+    companionContinueBlocked('product-loop-abort-continue-x 刚才中止了，请只短回一句，不要开新对话。'),
+    false,
+  )
+
+  const emptyReply = scanProductLoopSurface({
+    surface: 'companion',
+    locale: 'zh-CN',
+    findings: [{ kind: 'companion-bubble', text: '这一轮没有回复。' }],
+  }, { caseId: 'companion-fuzz-abort' })
+  assert.equal(emptyReply.fail, false)
+
+  const sessionLeak = scanProductLoopSurface({
+    surface: 'companion',
+    locale: 'zh-CN',
+    findings: [{ kind: 'companion-error', text: 'companion session is not ready' }],
+  }, { caseId: 'login-gate' })
+  assert.equal(sessionLeak.fail, true)
+  assert.equal(sessionLeak.hits.some(item => item.kind === 'session-not-ready'), true)
+})
+
+test('surface scanner upgrades PASS and expectedMiss SKIP, never greenwashes a leak', () => {
+  const leak = scanProductLoopSurfaces([{
+    surface: 'companion',
+    locale: 'zh-CN',
+    findings: [{ kind: 'companion-bubble', text: 'No API key for tokenflux/deepseek/deepseek-flash' }],
+  }], { caseId: 'login-gate' })
+  const passed = applySurfaceScan({ id: 'login-gate', result: 'PASS', detail: '看见登录页' }, leak, { caseId: 'login-gate' })
+  assert.equal(passed.result, 'FAIL')
+  assert.match(passed.detail, new RegExp(SURFACE_SCAN_PREFIX))
+  assert.equal(passed.anomalies.some(item => item.severity === 'leak'), true)
+
+  const skipped = applySurfaceScan({
+    id: 'account-model-fileloop',
+    result: 'SKIP',
+    detail: '账户没额度',
+    expectedMiss: true,
+  }, leak, { caseId: 'account-model-fileloop', expectedMiss: true })
+  assert.equal(skipped.result, 'FAIL')
+  assert.notEqual(skipped.result, 'SKIP')
+
+  const miss = scanProductLoopSurface({
+    surface: 'main',
+    locale: 'zh-CN',
+    text: '当前模型没有可用的 API Key。',
+    findings: [{ kind: 'alert', text: '当前模型没有可用的 API Key。' }],
+  }, { caseId: 'account-model-fileloop', result: 'SKIP', expectedMiss: true })
+  const stillSkip = applySurfaceScan({
+    id: 'account-model-fileloop',
+    result: 'SKIP',
+    detail: '账户没额度',
+    expectedMiss: true,
+  }, miss, { caseId: 'account-model-fileloop', expectedMiss: true })
+  assert.equal(stillSkip.result, 'SKIP')
+
+  const alreadyFail = applySurfaceScan({ id: 'coding-pi-files', result: 'FAIL', detail: 'NOTES.md=false' }, leak, {
+    caseId: 'coding-pi-files',
+  })
+  assert.equal(alreadyFail.result, 'FAIL')
+  assert.match(alreadyFail.detail, /NOTES.md=false/)
+
+  const html = formatFormalProductLoopReport({
+    result: 'FAIL',
+    suites: [{
+      id: 'login-gate',
+      result: 'FAIL',
+      detail: `${SURFACE_SCAN_PREFIX}No API key for tokenflux/deepseek/deepseek-flash`,
+      screenshots: [{ src: 'shots/login-gate.png', label: '主窗口', caption: '表面异常' }],
+      anomalies: [{ surface: 'companion', kind: 'no-api-key-debug', text: 'No API key for tokenflux/deepseek/deepseek-flash' }],
+    }],
+  })
+  assert.match(html, /表面异常/)
+  assert.match(html, /No API key for/)
+  assert.ok(!html.includes('sk-'))
 })

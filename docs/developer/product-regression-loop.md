@@ -61,6 +61,8 @@ npm run test:product-loop-catalog
 
 SKIP 不会让整次回归或某个大模块看起来已经跑完。`expectedMiss`（账户没额度、本机没有 Key）只能是 SKIP 或 FAIL，不能是 PASS，也不能把 `sourcesReady` / `accountReady` 标成真。上手模块要有真实凭据路径才算过：GitHub 登录后账户文件循环 PASS，或个人中转站文件循环 PASS。只过登录门 +「暂不登录」不算。StartAccountLogin 已发出却一直没变成已登录：`login-github-active` 记 FAIL，不因本机已有 Key 改成 SKIP。上手已经开跑却没落到某一步：FAIL「上手没跑到」，不是 SKIP。桌宠 host 超时 / 取消对转达和模糊调度是错误，除非该项专门在测恢复。`--suite companion` 没有已验证的个人中转站、也没有已验证的账户模型时，`companion-ready` 和模型相关项 FAIL，回执要写下 `personal` / `account` / `none`。
 
+操作前后扫描主窗口和桌宠的可见 DOM / a11y 文本，以及 `role=alert`、`text-destructive`、toast、桌宠气泡。截图里或页面上出现未翻译的 `Request aborted` / `AbortError`、`No API key for tokenflux/…`、设置 JSON、`[object Object]`、companion-host 请求号或其它实现泄漏，记硬异常并把该项改成 FAIL（`expectedMiss` SKIP 也不放过泄漏）。用例目录允许的确认框、故意提交后的表单错误、停轮次的「这一轮已取消」不算。异常写进正式报告，带着截图和原文。
+
 ## 测什么
 
 默认按用户上手顺序，同一独立实例贯穿：
@@ -255,7 +257,7 @@ Computer Use 和隔离浏览器分开测。缺权限不能靠浏览器凑成通�
 - 本机先填 `docs/developer/product-loop.local.env`（模板是旁边的 `.example.env`）。协调器读入公开字段；密钥只留在脚本内存，到设置密码框再填，不注入 sidecar。回执只写变量名。上手配好个人 TokenFlux / 中转站后，桌宠也会切到同一条 personal 来源，避免「暂不登录」或 GitHub 账户额度缺失时桌宠 toast「No API key for tokenflux/…」。
 - 登录 / 账户模型 / 自定义中转站按上手手册走通之后，没可用来源的主页发送记 FAIL，不再 SKIP。
 - 回执：`build/test-results/product-loop.json`。结束后 stdout 打印从大模块到小模块的文字报告。
-- 正式报告：`build/test-results/product-loop-report/index.html`。每一项只拍该用例当时还在的窗（主窗口或桌宠），在拆掉 fixture 会话之前拍，并写窗口标签和页面摘录。开跑会清掉上次的 `shots/`，避免旧图挂到新项上。截图和回执都不写 Provider Key。
+- 正式报告：`build/test-results/product-loop-report/index.html`。每一项只拍该用例当时还在的窗（主窗口或桌宠），在拆掉 fixture 会话之前拍，并写窗口标签和页面摘录。表面异常会多挂桌宠窗（如果泄漏在桌宠上）并列出原文。开跑会清掉上次的 `shots/`，避免旧图挂到新项上。截图和回执都不写 Provider Key。
 - `--gui` 测完会 `DeleteConversation` 清掉本机 fixture 会话，不留在侧栏。
 - 不要把回执或截图提交进仓库。
 

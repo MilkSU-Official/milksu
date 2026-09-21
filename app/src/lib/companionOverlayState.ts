@@ -12,6 +12,10 @@
 
 export const COMPANION_PET_WIDTH = 160
 export const COMPANION_PET_HEIGHT = 160
+/** Matches `.companion-pet-bubble` max-height. */
+export const COMPANION_PET_BUBBLE_MAX_HEIGHT = 48
+/** Room above the 160px sprite: one own-height lift plus max bubble plus a top inset. */
+export const COMPANION_PET_BUBBLE_LIFT = 104
 /** iPhone 17 handset matches build/iphone17-compare/iphone17-mirror.png (288 × 604). */
 export const COMPANION_CHAT_WIDTH = 288
 export const COMPANION_CHAT_HEIGHT = 604
@@ -327,6 +331,7 @@ export function petOriginFromPhone(phoneOrigin: { x: number; y: number }) {
 
 export function layoutCompanionUnit(input: {
   chatOpen: boolean
+  bubble?: boolean
   petOrigin?: { x: number; y: number } | null
   workArea?: CompanionOverlayWorkArea | null
 }): CompanionUnitLayout {
@@ -335,18 +340,19 @@ export function layoutCompanionUnit(input: {
     : null
   const origin = input.petOrigin || defaultCompanionPetOrigin(area)
   if (!input.chatOpen) {
+    const lift = input.bubble ? COMPANION_PET_BUBBLE_LIFT : 0
     const window = clampOverlayBounds({
       x: origin.x,
-      y: origin.y,
+      y: origin.y - lift,
       width: COMPANION_PET_WIDTH,
-      height: COMPANION_PET_HEIGHT,
+      height: COMPANION_PET_HEIGHT + lift,
     }, area)
     return {
       window,
-      pet: { x: 0, y: 0, width: COMPANION_PET_WIDTH, height: COMPANION_PET_HEIGHT },
+      pet: { x: 0, y: lift, width: COMPANION_PET_WIDTH, height: COMPANION_PET_HEIGHT },
       chat: null,
       chatSide: 'left',
-      petScreen: { x: window.x, y: window.y },
+      petScreen: { x: window.x, y: window.y + lift },
       chatScreen: null,
     }
   }
@@ -377,10 +383,12 @@ export function moveCompanionUnit(input: {
   dx: number
   dy: number
   chatOpen: boolean
+  bubble?: boolean
   workArea?: CompanionOverlayWorkArea | null
 }): CompanionUnitLayout {
   return layoutCompanionUnit({
     chatOpen: input.chatOpen,
+    bubble: input.bubble,
     petOrigin: {
       x: Number(input.petScreen.x) + Number(input.dx),
       y: Number(input.petScreen.y) + Number(input.dy),

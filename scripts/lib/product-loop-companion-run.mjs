@@ -27,16 +27,20 @@ import {
   companionPetSurfaceReady,
   companionPresenceKept,
   companionShellHidden,
+  companionDispatchSpeakCalled,
   companionSpeakPrompt,
   companionStopPrompt,
+  companionContinueBlocked,
   companionTranscriptClean,
   companionTurnErrored,
   companionTurnParked,
   companionTurnSettled,
+  conversationHasCompanionRelay,
   conversationHasRelay,
   conversationIdOf,
   asList,
   transcriptHasAssistantReply,
+  transcriptHasVisibleAssistantOutcome,
   transcriptHasPrompt,
 } from './product-loop-companion.mjs'
 import { describeCustomRelay, firstUseRelayName, resolveCompanionModelRoute } from './product-loop-first-use.mjs'
@@ -54,7 +58,10 @@ import {
   waitFor,
 } from './product-loop-session.mjs'
 
-async function waitForCompanionFacts(driver, conversationId, marker, timeoutMs = 8_000) {
+async function waitForCompanionFacts(driver, conversationId, options = {}) {
+  const marker = String(options.marker ?? '').trim()
+  const promptNeedle = String(options.promptNeedle ?? marker).trim()
+  const timeoutMs = options.timeoutMs || 8_000
   const started = Date.now()
   let facts = {
     transcript: { ok: false, reason: '桌宠抄本还没读到' },
@@ -62,11 +69,15 @@ async function waitForCompanionFacts(driver, conversationId, marker, timeoutMs =
     landed: { ok: false, reason: '目标会话还没有桌宠转达' },
   }
   while (Date.now() - started < timeoutMs) {
-    facts.transcript = transcriptHasPrompt(await driver.listCompanionTranscript(), marker)
+    facts.transcript = promptNeedle
+      ? transcriptHasPrompt(await driver.listCompanionTranscript(), promptNeedle)
+      : { ok: true, reason: '' }
     facts.board = boardHasConversation(await driver.getCompanionBoard(), conversationId)
     const listed = await driver.listConversations()
     const saved = listed.find(item => conversationIdOf(item) === conversationId)
-    facts.landed = conversationHasRelay(saved, marker)
+    facts.landed = marker
+      ? conversationHasRelay(saved, marker)
+      : conversationHasCompanionRelay(saved)
     if (facts.transcript.ok && facts.board.ok && facts.landed.ok) return facts
     await delay(250)
   }
@@ -102,6 +113,22 @@ async function ensureCompanionChatVisible(driver) {
  * "Request aborted" onto the last assistant row. The phone must map that to
  * 「这一轮已取消」; do not call this while a user-visible reply is still wanted.
  */
+async function sendCompanionOrRecover(driver, prompt) {
+  try {
+    await driver.sendCompanionMessage(prompt)
+    return { ok: true }
+  } catch (error) {
+    const text = error instanceof Error ? error.message : String(error)
+    if (!/sidecar stopped|not running|not ready/i.test(text)) {
+      return { ok: false, error: text }
+    }
+    const again = await recoverCompanionSidecar(driver)
+    if (!again.ok) return { ok: false, error: again.reason }
+    await driver.sendCompanionMessage(prompt)
+    return { ok: true }
+  }
+}
+
 async function recoverCompanionSidecar(driver) {
   await driver.abortCompanionTurn().catch(() => {})
   await driver.stopCompanion().catch(() => {})
@@ -353,7 +380,6 @@ export async function runCompanionPetDrag(driver) {
 export async function runCompanionRelay(driver, options = {}) {
   const prefix = `product-loop-companion-${Date.now().toString(36)}`
   const title = `${prefix}-target`
-  const marker = `${prefix}-relay`
   const conversation = await driver.createConversation({
     id: `${prefix}-target`,
     title,
@@ -366,43 +392,44 @@ export async function runCompanionRelay(driver, options = {}) {
     await driver.drainCompanionEvents()
     const started = await recoverCompanionSidecar(driver)
     if (!started.ok) return fail(started.reason)
-    const speak = async () => {
-      try {
-        await driver.sendCompanionMessage(companionSpeakPrompt({
-          conversationId: conversation.id,
-          title,
-          marker,
-        }))
-      } catch (error) {
-        const text = error instanceof Error ? error.message : String(error)
-        if (!/sidecar stopped|not running|not ready/i.test(text)) throw error
-        const again = await recoverCompanionSidecar(driver)
-        if (!again.ok) throw new Error(`桌宠转达发不出：${again.reason}`)
-        await driver.sendCompanionMessage(companionSpeakPrompt({
-          conversationId: conversation.id,
-          title,
-          marker,
-        }))
+    const prompt = companionSpeakPrompt({
+      conversationId: conversation.id,
+      title,
+    })
+    const prompts = [
+      prompt,
+      `${prompt} 上一条你只聊天了。现在必须发出 companion_dispatch speak，不要再解释。`,
+    ]
+    const turnTimeout = options.taskTimeoutMs || 300_000
+    let turn = { events: [], confirmed: 0, timeout: false, sidecarStopped: false }
+    let spoke = false
+    let facts = {
+      transcript: { ok: false, reason: '桌宠抄本还没读到' },
+      board: { ok: false, reason: '看板还没读到' },
+      landed: { ok: false, reason: '目标会话还没有桌宠转达' },
+    }
+    for (const next of prompts) {
+      const sent = await sendCompanionOrRecover(driver, next)
+      if (!sent.ok) return fail(sent.error || '桌宠转达发不出')
+      turn = await driver.waitForCompanionTurn(turnTimeout)
+      if (turn.sidecarStopped || companionTurnParked(turn.events)) {
+        return fail('桌宠 sidecar 停了，转达没有接上')
+      }
+      spoke = companionDispatchSpeakCalled(turn.events)
+      facts = await waitForCompanionFacts(driver, conversation.id, {
+        promptNeedle: conversation.id,
+      })
+      if (spoke && !facts.landed.ok) {
+        return fail(facts.landed.reason)
+      }
+      if (spoke && facts.landed.ok && facts.board.ok) {
+        return pass(turn.confirmed
+          ? 'companion_dispatch speak 落到了目标会话，产品转达前缀已落盘，并接受了 stop 确认'
+          : 'companion_dispatch speak 落到了目标会话，产品转达前缀已落盘')
       }
     }
-    await speak()
-    const turnTimeout = options.taskTimeoutMs || 300_000
-    let turn = await driver.waitForCompanionTurn(turnTimeout)
-    if (turn.timeout || companionTurnErrored(turn.events) || !companionTurnSettled(turn.events)
-      || turn.sidecarStopped || companionTurnParked(turn.events)) {
-      // Repair orphan tool history in-sidecar; do not Archive just to retry.
-      await recoverCompanionSidecar(driver)
-      await speak()
-      turn = await driver.waitForCompanionTurn(turnTimeout)
-    }
-    if (turn.sidecarStopped || companionTurnParked(turn.events)) {
-      return fail('桌宠 sidecar 停了，转达没有接上')
-    }
-    const facts = await waitForCompanionFacts(driver, conversation.id, marker)
-    if (facts.landed.ok && facts.transcript.ok && facts.board.ok) {
-      return pass(turn.confirmed
-        ? '桌宠把标记转达进了 Coding 会话，抄本和看板都看到了，并接受了 stop 确认'
-        : '桌宠把标记转达进了 Coding 会话，抄本和看板都看到了')
+    if (!spoke) {
+      return fail('回合里没有 companion_dispatch speak，转达没有发出去')
     }
     if (turn.timeout || companionTurnErrored(turn.events) || !companionTurnSettled(turn.events)) {
       return fail(`桌宠转达回合没完成 timeout=${Boolean(turn.timeout)} confirmed=${turn.confirmed}`)
@@ -411,8 +438,8 @@ export async function runCompanionRelay(driver, options = {}) {
     if (!facts.transcript.ok) return fail(facts.transcript.reason)
     if (!facts.board.ok) return fail(facts.board.reason)
     return pass(turn.confirmed
-      ? '桌宠把标记转达进了 Coding 会话，抄本和看板都看到了，并接受了 stop 确认'
-      : '桌宠把标记转达进了 Coding 会话，抄本和看板都看到了')
+      ? 'companion_dispatch speak 落到了目标会话，产品转达前缀已落盘，并接受了 stop 确认'
+      : 'companion_dispatch speak 落到了目标会话，产品转达前缀已落盘')
   } finally {
     await driver.abortCompanionTurn().catch(() => {})
     await driver.stopCompanion().catch(() => {})
@@ -433,8 +460,8 @@ export async function runCompanionBoard(driver) {
 }
 
 export async function runCompanionSessions(driver, options = {}) {
-  await driver.ensureCompanion()
-  await ensureCompanionChatVisible(driver)
+  const started = await recoverCompanionSidecar(driver)
+  if (!started.ok) return fail(started.reason)
   const created = []
   for (let index = 0; index < 8; index += 1) {
     created.push(await driver.createConversation({
@@ -442,7 +469,11 @@ export async function runCompanionSessions(driver, options = {}) {
       kernel: index % 2 ? 'dsh' : 'pi',
     }))
   }
-  await driver.sendCompanionMessage('调用 companion_board list，在回复里列出你看到的会话标题。不要只聊天。')
+  const sent = await sendCompanionOrRecover(
+    driver,
+    '调用 companion_board list，在回复里列出你看到的会话标题。不要只聊天。',
+  )
+  if (!sent.ok) return fail(sent.error || '多会话看板发不出')
   await driver.waitForCompanionTurn(options.taskTimeoutMs || 180_000)
   const board = await driver.getCompanionBoard()
   const sessions = Array.isArray(board?.sessions) ? board.sessions : []
@@ -455,11 +486,12 @@ export async function runCompanionSessions(driver, options = {}) {
 
 export async function runCompanionTranscript(driver, options = {}) {
   await driver.invoke('ArchiveCompanionTranscript', []).catch(() => {})
-  await driver.ensureCompanion()
-  await ensureCompanionChatVisible(driver)
+  const started = await recoverCompanionSidecar(driver)
+  if (!started.ok) return fail(started.reason)
   const marker = `product-loop-talk-${Date.now().toString(36)}`
   for (let index = 1; index <= 4; index += 1) {
-    await driver.sendCompanionMessage(`${marker} 第 ${index} 句，请短回一句。`)
+    const sent = await sendCompanionOrRecover(driver, `${marker} 第 ${index} 句，请短回一句。`)
+    if (!sent.ok) return fail(sent.error || `第 ${index} 句发不出`)
     const turn = await driver.waitForCompanionTurn(options.taskTimeoutMs || 180_000)
     if (turn.sidecarStopped || companionTurnParked(turn.events)) {
       return fail(`第 ${index} 句桌宠 sidecar 停了，对话没有接上`)
@@ -481,8 +513,16 @@ export async function runCompanionTranscript(driver, options = {}) {
 }
 
 export async function runCompanionArchive(driver) {
-  await driver.ensureCompanion()
-  const archived = await driver.invoke('ArchiveCompanionTranscript', [])
+  const started = await recoverCompanionSidecar(driver)
+  if (!started.ok) return fail(started.reason)
+  let archived
+  try {
+    archived = await driver.invoke('ArchiveCompanionTranscript', [])
+  } catch (error) {
+    const text = error instanceof Error ? error.message : String(error)
+    if (!/no companion transcript|没有可归档/i.test(text)) throw error
+    return fail('没有可归档的抄本')
+  }
   const list = await driver.invoke('ListCompanionArchives', [])
   const rows = Array.isArray(list) ? list : []
   const name = String(archived?.name ?? archived?.Name ?? '')
@@ -493,12 +533,13 @@ export async function runCompanionArchive(driver) {
 }
 
 export async function runCompanionMemory(driver, options = {}) {
-  await driver.ensureCompanion()
-  await ensureCompanionChatVisible(driver)
+  const started = await recoverCompanionSidecar(driver)
+  if (!started.ok) return fail(started.reason)
   const prompts = companionFuzzMemoryPrompts()
   let memory = { pending: [], approved: [] }
   for (const prompt of prompts) {
-    await driver.sendCompanionMessage(prompt)
+    const sent = await sendCompanionOrRecover(driver, prompt)
+    if (!sent.ok) return fail(sent.error || '桌宠记忆发不出')
     await driver.waitForCompanionTurn(options.taskTimeoutMs || 180_000)
     memory = await driver.getCompanionMemory()
     const pending = Array.isArray(memory?.pending) ? memory.pending : []
@@ -872,7 +913,10 @@ export async function runCompanionFuzzDispatch(driver, options = {}) {
         await driver.drainCompanionEvents()
         continue
       }
-      const facts = await waitForCompanionFacts(driver, conversation.id, marker, 12_000)
+      const facts = await waitForCompanionFacts(driver, conversation.id, {
+        marker,
+        timeoutMs: 12_000,
+      })
       if (facts.landed.ok) {
         return pass(`模糊调度把 ${marker} 转达到「${title}」，工具 ${[...tools].join(',') || '(无)'}`)
       }
@@ -1011,7 +1055,7 @@ export async function runCompanionFuzzAbort(driver, options = {}) {
       return fail('中止后续跑 sidecar 停了')
     }
     if (cont.timeout) return fail('中止后续跑超时')
-    if (/没法继续了|This chat can't continue|tool history is broken|开新对话/i.test(String(cont.error || ''))) {
+    if (companionContinueBlocked(cont.error)) {
       return fail(`中止后同一段对话没法续跑：${cont.error}`)
     }
     if (!companionTurnSettled(cont.events)) {
@@ -1021,8 +1065,8 @@ export async function runCompanionFuzzAbort(driver, options = {}) {
     const found = transcriptHasPrompt(page, marker)
     if (!found.ok) return fail(found.reason)
     let spoken = transcriptHasAssistantReply(page)
-    if (!spoken.ok) {
-      // Same-chat continue worked; one more short prompt for a visible result.
+    let visible = transcriptHasVisibleAssistantOutcome(page)
+    if (!spoken.ok && !visible.ok) {
       await driver.sendCompanionMessage(`${marker} 请再短回一句确认还能聊。`)
       cont = await driver.waitForCompanionTurn(options.taskTimeoutMs || 120_000)
       if (cont.timeout || cont.sidecarStopped) {
@@ -1030,15 +1074,12 @@ export async function runCompanionFuzzAbort(driver, options = {}) {
       }
       page = await driver.listCompanionTranscript(40)
       spoken = transcriptHasAssistantReply(page)
+      visible = transcriptHasVisibleAssistantOutcome(page)
     }
     const clean = companionTranscriptClean(page)
     if (!clean.ok) return fail(clean.reason)
-    // Continue-after-abort contract: same transcript accepts the next send.
-    // Visible assistant text is preferred but model-empty after abort is soft.
-    if (!spoken.ok) {
-      return pass(parked
-        ? '确认驻留时中止后，同一段对话还能继续（助手正文为空，记软结果）'
-        : '回合中止后同一段对话还能继续（助手正文为空，记软结果）')
+    if (!spoken.ok && !visible.ok) {
+      return fail(visible.reason || spoken.reason)
     }
     return pass(parked
       ? '确认驻留时中止后，同一段对话还能继续并给出结果'

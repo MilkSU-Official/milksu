@@ -1,5 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { useVirtualizer } from '@tanstack/react-virtual'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { ArrowUp, ChevronLeft, FileText, Plus, Square, X } from 'lucide-react'
 import ProgressiveBlur from 'react-progressive-blur'
 import companionIdle from '@/assets/companion/idle.png'
@@ -9,7 +8,7 @@ import CompanionSettingsPanel from '@/components/CompanionSettingsPanel'
 import MarkdownContent from '@/components/MarkdownContent'
 import { Button, Textarea } from '@/components/ui'
 import { useCompanion } from '@/composables/useCompanion'
-import { desktopErrorMessage, invokeCommand, listenEvent } from '@/desktop'
+import { desktopErrorMessage, hasDesktopRuntime, invokeCommand, listenEvent } from '@/desktop'
 import { useT, useUiLocale } from '@/hooks/useUiLocale'
 import { toastError } from '@/lib/appToast'
 import {
@@ -27,14 +26,21 @@ import {
   companionChatIsVisibleEntry,
   companionChatNeedsNewConversation,
   companionChatPlainText,
+  companionMissingApiKey,
   companionTurnCancelled,
   explainCompanionError,
 } from '@/lib/companionUserError'
+import {
+  companionChatRowFingerprint,
+  useCompanionChatListMotion,
+  type CompanionChatMotionKind,
+} from '@/lib/companionChatMotion'
 import {
   companionEntryHasProcess,
   companionEntryIsProcessOnly,
   companionTurnHasProcess,
   processFromCompanionEntry,
+  type CompanionTurnProcess,
 } from '@/lib/companionTurnProcess'
 import { isComposingKey } from '@/lib/imeComposition'
 import {
@@ -52,9 +58,61 @@ import {
   type CodingAttachmentImport,
   type CodingAttachmentPreview,
   type CompanionSkinResolved,
+  type CompanionTranscriptEntry,
 } from '@/types'
 
 type CompanionPhoneScreen = 'chat' | 'settings'
+
+type CompanionLogRow = {
+  key: string
+  fingerprint: string
+  kind: CompanionChatMotionKind
+  entry?: CompanionTranscriptEntry
+  index?: number
+  process?: CompanionTurnProcess
+  stream?: string
+}
+
+function companionChatPreviewEntries(
+  t: (zh: string, en: string) => string,
+): CompanionTranscriptEntry[] {
+  return [
+    {
+      id: 'preview-user-1',
+      type: 'message',
+      timestamp: '2026-09-21T14:00:00.000Z',
+      role: 'user',
+      text: t('下午一起看这段对话动效', 'Let us look at this chat motion this afternoon'),
+    },
+    {
+      id: 'preview-asst-1',
+      type: 'message',
+      timestamp: '2026-09-21T14:00:08.000Z',
+      role: 'assistant',
+      text: t(
+        '好。新消息会淡入，旧气泡会滑到新位置，不会整表跳切。',
+        'Okay. New messages fade in, and older bubbles slide to their new place instead of jumping.',
+      ),
+    },
+    {
+      id: 'preview-user-2',
+      type: 'message',
+      timestamp: '2026-09-21T14:01:00.000Z',
+      role: 'user',
+      text: t('刷新的时候也不要瞬间消失。', 'Do not vanish instantly when the list refreshes.'),
+    },
+    {
+      id: 'preview-asst-2',
+      type: 'message',
+      timestamp: '2026-09-21T14:01:10.000Z',
+      role: 'assistant',
+      text: t(
+        '同一条消息更新不会重播入场。离开的气泡会淡出。',
+        'Updating the same message does not replay enter. Leaving bubbles fade out.',
+      ),
+    },
+  ]
+}
 
 function cloneSettings(value: AppSettings): AppSettings {
   return JSON.parse(JSON.stringify(withAppSettingsDefaults(value))) as AppSettings
@@ -124,7 +182,9 @@ export default function CompanionPage({
   const [petName, setPetName] = useState('Milk')
   const [thumbs, setThumbs] = useState<Record<string, string>>({})
   const [attachError, setAttachError] = useState('')
+  const [previewPulse, setPreviewPulse] = useState(false)
   const choosing = useRef(false)
+  const previewChat = import.meta.env.DEV && !hasDesktopRuntime()
   const modelCatalog = useLiveModelCatalog(() => ({
     providers: phoneSettings?.providers ?? {},
     relay: phoneSettings?.relay,
@@ -138,24 +198,128 @@ export default function CompanionPage({
       model,
     })),
   }))
-  const olderOffset = companion.hasMore ? 1 : 0
   const liveWorking = companionTurnHasProcess(companion.liveProcess)
-  const typing = companion.busy && !companion.streaming && !liveWorking
+  const heldStream = useRef('')
+  if (companion.streaming) heldStream.current = companion.streaming
+  const streamAbsorbed = companion.entries.some(entry => (
+    entry.role === 'assistant'
+    && Boolean(heldStream.current)
+    && companionChatPlainText(entry) === heldStream.current
+  ))
+  const streamText = streamAbsorbed ? '' : (companion.streaming || heldStream.current)
+  if (streamAbsorbed) heldStream.current = ''
+  const typing = (companion.busy && !streamText && !liveWorking) || previewPulse
+  const transcript = companion.entries.length || !previewChat
+    ? companion.entries
+    : companionChatPreviewEntries(t)
   const emptyReplyLabel = t('这一轮没有回复。', 'This turn did not produce a reply.')
   // Only the live error gates 「开新对话」. Historical transcript rows may still
   // carry a past broken-history errorMessage after sidecar repair; scanning them
   // would thrash the archive button forever and push users to wipe usable chat.
   const needsNewChat = companionChatNeedsNewConversation(companion.error)
-  const virtualizer = useVirtualizer({
-    count: companion.entries.length + olderOffset,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => 56,
-    overscan: 12,
-    getItemKey: index => {
-      if (companion.hasMore && index === 0) return 'older'
-      return companion.entries[index - olderOffset]?.id ?? index
-    },
-  })
+  const userHasSpoken = companion.entries.some(entry => companionChatIsUser(entry.role))
+  const chatError = companionMissingApiKey(companion.error) && !userHasSpoken
+    ? ''
+    : companion.error
+  const logRows = useMemo<CompanionLogRow[]>(() => {
+    const rows: CompanionLogRow[] = []
+    if (companion.hasMore) {
+      rows.push({
+        key: 'older',
+        fingerprint: companionChatRowFingerprint({ kind: 'older' }),
+        kind: 'older',
+      })
+    }
+    transcript.forEach((entry, index) => {
+      if (!companionChatIsVisibleEntry(entry)) return
+      rows.push({
+        key: entry.id,
+        fingerprint: companionChatRowFingerprint({
+          kind: 'entry',
+          role: entry.role,
+          text: companionChatPlainText(entry) || entry.error || '',
+          processOnly: companionEntryIsProcessOnly(entry),
+        }),
+        kind: 'entry',
+        entry,
+        index,
+      })
+    })
+    if (liveWorking) {
+      rows.push({
+        key: 'live:process',
+        fingerprint: companionChatRowFingerprint({ kind: 'live-process' }),
+        kind: 'live-process',
+        process: companion.liveProcess,
+      })
+    }
+    if (streamText) {
+      rows.push({
+        key: 'live:stream',
+        fingerprint: companionChatRowFingerprint({
+          kind: 'live-stream',
+          role: 'assistant',
+          text: streamText,
+        }),
+        kind: 'live-stream',
+        stream: streamText,
+      })
+    }
+    if (companion.settledProcess && !companion.busy && !liveWorking) {
+      rows.push({
+        key: 'live:settled',
+        fingerprint: companionChatRowFingerprint({ kind: 'live-settled' }),
+        kind: 'live-settled',
+        process: companion.settledProcess,
+      })
+    }
+    if (typing) {
+      rows.push({
+        key: 'live:typing',
+        fingerprint: companionChatRowFingerprint({ kind: 'live-typing' }),
+        kind: 'live-typing',
+      })
+    }
+    return rows
+  }, [
+    companion.busy,
+    companion.hasMore,
+    companion.liveProcess,
+    companion.settledProcess,
+    liveWorking,
+    streamText,
+    transcript,
+    typing,
+  ])
+  const motionItems = useMemo(
+    () => logRows.map(row => ({ key: row.key, fingerprint: row.fingerprint })),
+    [logRows],
+  )
+  const layoutEpoch = [
+    companion.confirm ? 'confirm' : '',
+    String((companion.memory.pending ?? []).length),
+    chatError || attachError || (needsNewChat ? 'new' : ''),
+    String(companion.attachments.length),
+  ].join(':')
+  const listMotion = useCompanionChatListMotion(parentRef, motionItems, layoutEpoch, stickToEnd)
+  const rowSnap = useRef(new Map<string, CompanionLogRow>())
+  for (const row of logRows) rowSnap.current.set(row.key, row)
+  const renderRows: CompanionLogRow[] = [
+    ...logRows,
+    ...listMotion.leaving
+      .map(item => rowSnap.current.get(item.key))
+      .filter((row): row is CompanionLogRow => {
+        if (!row) return false
+        return !logRows.some(live => live.key === row.key)
+      }),
+  ]
+
+  useEffect(() => {
+    if (!previewChat) return undefined
+    const onPulse = () => setPreviewPulse(value => !value)
+    window.addEventListener('milksu-companion-chat-preview-pulse', onPulse)
+    return () => window.removeEventListener('milksu-companion-chat-preview-pulse', onPulse)
+  }, [previewChat])
 
   useEffect(() => {
     if (embedded) return undefined
@@ -366,13 +530,6 @@ export default function CompanionPage({
     }
   }
 
-  useEffect(() => {
-    if (!stickToEnd.current || companion.entries.length === 0) return
-    virtualizer.scrollToIndex(companion.entries.length + olderOffset - 1, {
-      align: 'end',
-    })
-  }, [companion.entries, olderOffset, typing, virtualizer])
-
   if (screen === 'settings') {
     return (
       <main className="companion-chat companion-phone-settings" data-testid="companion-phone-settings">
@@ -409,210 +566,104 @@ export default function CompanionPage({
     <main ref={chatRef} className="companion-chat" data-testid="companion-chat">
       <div
         ref={parentRef}
-        className="companion-chat-log"
+        className="companion-chat-log companion-chat-log-flow"
         onScroll={event => {
           const node = event.currentTarget
           stickToEnd.current = node.scrollHeight - node.scrollTop - node.clientHeight < 48
           if (node.scrollTop < 48 && companion.hasMore) void companion.loadOlder()
         }}
       >
-        {companion.entries.length === 0 ? null : (
-          <div className="relative" style={{ height: `${virtualizer.getTotalSize()}px` }}>
-            {virtualizer.getVirtualItems().map(item => {
-              if (companion.hasMore && item.index === 0) {
-                return (
-                  <div
-                    key={item.key}
-                    className="companion-chat-time absolute left-0 top-0 w-full"
-                    style={{ transform: `translateY(${item.start}px)` }}
-                  >
-                    {t('更早的对话', 'Earlier messages')}
-                  </div>
-                )
-              }
-              const entryIndex = item.index - olderOffset
-              const entry = companion.entries[entryIndex]
-              if (!entry || !companionChatIsVisibleEntry(entry)) return null
-              const previous = companion.entries[entryIndex - 1]
-              const next = companion.entries[entryIndex + 1]
-              const currentMs = companionChatTimestampMs(entry.timestamp)
-              const nextMs = companionChatTimestampMs(next?.timestamp)
-              const isLast = entryIndex === companion.entries.length - 1
-              const showDivider = companionChatShowsTimeDivider(
-                currentMs,
-                companionChatTimestampMs(previous?.timestamp),
-              )
-              const continuesRun = companionChatContinuesRun(entry, previous)
-              const endsRun = companionChatEndsRun({
-                currentMs,
-                nextMs,
-                currentRole: entry.role,
-                nextRole: next?.role,
-                isLast,
-              })
-              const showCaption = companionChatShowsTimeCaption({
-                currentMs,
-                nextMs,
-                currentRole: entry.role,
-                nextRole: next?.role,
-                showDivider,
-                isLast,
-              })
-              const stamp = formatCompanionChatStamp(entry.timestamp, locale)
-              const user = companionChatIsUser(entry.role)
-              const bubble = companionChatIsBubble(entry.role)
-              const processOnly = companionEntryIsProcessOnly(entry)
-              const entryProcess = companionEntryHasProcess(entry)
-                ? processFromCompanionEntry(entry)
-                : null
-              const plain = companionChatPlainText(entry)
-              const errorContext = {
-                provider: companion.status.provider,
-                model: companion.status.model,
-              }
-              const abortSource = entry.error || entry.text
-              const showEmptyReply = entry.role === 'assistant'
-                && !plain
-                && !processOnly
-                && !companion.busy
-                && !liveWorking
-                && !(entry.attachments?.length)
-                && (!entry.error || /companion model returned no text/i.test(entry.error))
-                && !companionTurnCancelled(abortSource)
-              const body = companionTurnCancelled(abortSource) && !processOnly
-                ? explainCompanionError(abortSource, errorContext)
-                : entry.error && !showEmptyReply && !processOnly
-                  ? explainCompanionError(entry.error, errorContext)
-                  : (plain || (showEmptyReply ? emptyReplyLabel : ''))
-              const sent = entry.attachments ?? []
-              if (processOnly) {
-                return (
-                  <article
-                    key={item.key}
-                    data-index={item.index}
-                    ref={virtualizer.measureElement}
-                    className="companion-chat-row companion-chat-row-assistant companion-chat-row-start absolute left-0 top-0 w-full"
-                    style={{ transform: `translateY(${item.start}px)` }}
-                  >
-                    <CompanionTurnProcessView
-                      process={entryProcess!}
-                      foldable
-                      defaultOpen={false}
-                    />
-                  </article>
-                )
-              }
-              if (!body && !sent.length) return null
-              return (
-                <article
-                  key={item.key}
-                  data-index={item.index}
-                  ref={virtualizer.measureElement}
-                  className={cn(
-                    'companion-chat-row absolute left-0 top-0 w-full',
-                    user ? 'companion-chat-row-user' : 'companion-chat-row-assistant',
-                    !bubble && 'companion-chat-row-system',
-                    continuesRun ? 'companion-chat-row-continue' : 'companion-chat-row-start',
-                    !endsRun && 'companion-chat-row-open',
-                    showDivider && 'companion-chat-row-divided',
-                  )}
-                  style={{ transform: `translateY(${item.start}px)` }}
-                >
-                  {showDivider && stamp ? <p className="companion-chat-time">{stamp}</p> : null}
-                  {entryProcess && entry.role === 'assistant' ? (
-                    <CompanionTurnProcessView
-                      process={entryProcess}
-                      foldable
-                      defaultOpen={false}
-                    />
-                  ) : null}
-                  {bubble ? (
-                    <div className={cn(
-                      'companion-chat-bubble',
-                      user ? 'companion-chat-bubble-user' : 'companion-chat-bubble-assistant',
-                      sent.length && 'companion-chat-bubble-files',
-                    )}>
-                      {sent.length ? (
-                        <div className="companion-chat-bubble-attach" aria-label={t('消息附件', 'Message attachments')}>
-                          {sent.map(attachment => {
-                            const key = attachmentKey(attachment)
-                            const thumb = thumbs[key]
-                            return (
-                              <span
-                                key={key}
-                                className="companion-chat-bubble-file"
-                                title={`${attachment.name}${attachment.size ? ` · ${formatAttachmentSize(attachment.size)}` : ''}`}
-                              >
-                                {isImageAttachment(attachment) && thumb ? (
-                                  <img src={thumb} alt={attachment.name} />
-                                ) : (
-                                  <>
-                                    <FileText className="size-3.5 shrink-0" />
-                                    <span className="min-w-0 truncate">{attachment.name}</span>
-                                  </>
-                                )}
-                              </span>
-                            )
-                          })}
-                        </div>
-                      ) : null}
-                      {body ? (
-                        entry.error || showEmptyReply ? (
-                          <p className="companion-chat-bubble-text companion-chat-bubble-text-plain">{body}</p>
-                        ) : (
-                          <MarkdownContent
-                            className="companion-chat-bubble-text"
-                            content={body}
-                            compact
-                          />
-                        )
-                      ) : null}
-                    </div>
-                  ) : (
-                    <p className="companion-chat-system">{body}</p>
-                  )}
-                  {showCaption && stamp ? <p className="companion-chat-stamp">{stamp}</p> : null}
-                </article>
-              )
-            })}
-          </div>
-        )}
-        {liveWorking ? (
-          <div className="companion-chat-row companion-chat-row-assistant companion-chat-row-start">
-            <CompanionTurnProcessView process={companion.liveProcess} />
-          </div>
-        ) : null}
-        {companion.streaming ? (
-          <div className="companion-chat-row companion-chat-row-assistant companion-chat-row-start">
-            <div className="companion-chat-bubble companion-chat-bubble-assistant">
-              <MarkdownContent
-                className="companion-chat-bubble-text"
-                content={companion.streaming}
-                compact
-                streaming
-              />
-            </div>
-          </div>
-        ) : null}
-        {companion.settledProcess && !companion.busy && !liveWorking ? (
-          <div className="companion-chat-row companion-chat-row-assistant companion-chat-row-start">
-            <CompanionTurnProcessView
-              process={companion.settledProcess}
-              foldable
-              defaultOpen={false}
+        {renderRows.map(row => {
+          const motion = listMotion.motionFor(row.key)
+          const rowProps = {
+            ref: listMotion.bindRow(row.key),
+            'data-chat-key': row.key,
+            'data-chat-motion': motion,
+          }
+          if (row.kind === 'older') {
+            return (
+              <div key={row.key} {...rowProps} className="companion-chat-row">
+                <p className="companion-chat-time">{t('更早的对话', 'Earlier messages')}</p>
+              </div>
+            )
+          }
+          if (row.kind === 'live-process' && row.process) {
+            return (
+              <div
+                key={row.key}
+                {...rowProps}
+                className="companion-chat-row companion-chat-row-assistant companion-chat-row-start"
+              >
+                <CompanionTurnProcessView process={row.process} />
+              </div>
+            )
+          }
+          if (row.kind === 'live-stream' && row.stream) {
+            return (
+              <div
+                key={row.key}
+                {...rowProps}
+                className="companion-chat-row companion-chat-row-assistant companion-chat-row-start"
+              >
+                <div className="companion-chat-bubble companion-chat-bubble-assistant">
+                  <MarkdownContent
+                    className="companion-chat-bubble-text"
+                    content={row.stream}
+                    compact
+                    streaming
+                  />
+                </div>
+              </div>
+            )
+          }
+          if (row.kind === 'live-settled' && row.process) {
+            return (
+              <div
+                key={row.key}
+                {...rowProps}
+                className="companion-chat-row companion-chat-row-assistant companion-chat-row-start"
+              >
+                <CompanionTurnProcessView
+                  process={row.process}
+                  foldable
+                  defaultOpen={false}
+                />
+              </div>
+            )
+          }
+          if (row.kind === 'live-typing') {
+            return (
+              <div
+                key={row.key}
+                {...rowProps}
+                className="companion-chat-row companion-chat-row-assistant companion-chat-row-start"
+              >
+                <p className="companion-chat-bubble companion-chat-bubble-assistant companion-chat-typing" aria-hidden="true">
+                  <span />
+                  <span />
+                  <span />
+                </p>
+                <span className="sr-only">{t('正在回复', 'Replying')}</span>
+              </div>
+            )
+          }
+          if (!row.entry || row.index == null) return null
+          return (
+            <CompanionChatEntryArticle
+              key={row.key}
+              rowProps={rowProps}
+              entry={row.entry}
+              entryIndex={row.index}
+              entries={transcript}
+              locale={locale}
+              emptyReplyLabel={emptyReplyLabel}
+              thumbs={thumbs}
+              provider={companion.status.provider}
+              model={companion.status.model}
+              t={t}
             />
-          </div>
-        ) : null}
-        {typing ? (
-          <div className="companion-chat-row companion-chat-row-assistant companion-chat-row-start">
-            <p className="companion-chat-bubble companion-chat-bubble-assistant companion-chat-typing" aria-hidden="true">
-              <span />
-              <span />
-              <span />
-            </p>
-            <span className="sr-only">{t('正在回复', 'Replying')}</span>
-          </div>
-        ) : null}
+          )
+        })}
       </div>
       <div className="companion-chat-fade" aria-hidden="true">
         <ProgressiveBlur
@@ -641,7 +692,7 @@ export default function CompanionPage({
               title={t('桌宠设置', 'Companion settings')}
               onClick={() => setScreen('settings')}
             >
-              <img className="companion-chat-avatar" src={avatar} alt="" draggable={false} />
+              <img key={avatar} className="companion-chat-avatar" src={avatar} alt="" draggable={false} />
             </button>
             <p ref={titleRef} className="companion-chat-title companion-glass">{petName}</p>
           </div>
@@ -676,10 +727,10 @@ export default function CompanionPage({
         </div>
       ) : null}
       <div className="companion-chat-composer">
-        {companion.error || attachError || needsNewChat ? (
+        {chatError || attachError || needsNewChat ? (
           <div className="companion-chat-error-row">
             <p className="companion-chat-error">
-              {companion.error || attachError || t('这段对话没法继续了。', 'This chat can\'t continue.')}
+              {chatError || attachError || t('这段对话没法继续了。', 'This chat can\'t continue.')}
             </p>
             {needsNewChat ? (
               <Button
@@ -796,5 +847,169 @@ export default function CompanionPage({
         </div>
       </div>
     </main>
+  )
+}
+
+function CompanionChatEntryArticle({
+  rowProps,
+  entry,
+  entryIndex,
+  entries,
+  locale,
+  emptyReplyLabel,
+  thumbs,
+  provider,
+  model,
+  t,
+}: {
+  rowProps: {
+    ref: (node: HTMLElement | null) => void
+    'data-chat-key': string
+    'data-chat-motion': 'enter' | 'leave' | undefined
+  }
+  entry: CompanionTranscriptEntry
+  entryIndex: number
+  entries: CompanionTranscriptEntry[]
+  locale: 'zh' | 'en'
+  emptyReplyLabel: string
+  thumbs: Record<string, string>
+  provider?: string
+  model?: string
+  t: (zh: string, en: string) => string
+}) {
+  const previous = entries[entryIndex - 1]
+  const next = entries[entryIndex + 1]
+  const currentMs = companionChatTimestampMs(entry.timestamp)
+  const nextMs = companionChatTimestampMs(next?.timestamp)
+  const isLast = entryIndex === entries.length - 1
+  const showDivider = companionChatShowsTimeDivider(
+    currentMs,
+    companionChatTimestampMs(previous?.timestamp),
+  )
+  const continuesRun = companionChatContinuesRun(entry, previous)
+  const endsRun = companionChatEndsRun({
+    currentMs,
+    nextMs,
+    currentRole: entry.role,
+    nextRole: next?.role,
+    isLast,
+  })
+  const showCaption = companionChatShowsTimeCaption({
+    currentMs,
+    nextMs,
+    currentRole: entry.role,
+    nextRole: next?.role,
+    showDivider,
+    isLast,
+  })
+  const stamp = formatCompanionChatStamp(entry.timestamp, locale)
+  const user = companionChatIsUser(entry.role)
+  const bubble = companionChatIsBubble(entry.role)
+  const processOnly = companionEntryIsProcessOnly(entry)
+  const entryProcess = companionEntryHasProcess(entry)
+    ? processFromCompanionEntry(entry)
+    : null
+  const plain = companionChatPlainText(entry)
+  const errorContext = { provider, model }
+  const abortSource = entry.error || entry.text
+  const showEmptyReply = entry.role === 'assistant'
+    && !plain
+    && !processOnly
+    && !(entry.attachments?.length)
+    && (!entry.error || /companion model returned no text/i.test(entry.error))
+    && !companionTurnCancelled(abortSource)
+  const body = companionTurnCancelled(abortSource) && !processOnly
+    ? explainCompanionError(abortSource || 'Request aborted', errorContext)
+    : entry.error && !showEmptyReply && !processOnly
+      ? explainCompanionError(entry.error, errorContext)
+      : (plain || (showEmptyReply ? emptyReplyLabel : ''))
+  const sent = entry.attachments ?? []
+  const visibleBody = body || (
+    entry.role === 'assistant' && !processOnly && !sent.length
+      ? emptyReplyLabel
+      : ''
+  )
+  if (processOnly) {
+    return (
+      <article
+        {...rowProps}
+        className="companion-chat-row companion-chat-row-assistant companion-chat-row-start"
+      >
+        <CompanionTurnProcessView
+          process={entryProcess!}
+          foldable
+          defaultOpen={false}
+        />
+      </article>
+    )
+  }
+  if (!visibleBody && !sent.length) return null
+  return (
+    <article
+      {...rowProps}
+      className={cn(
+        'companion-chat-row',
+        user ? 'companion-chat-row-user' : 'companion-chat-row-assistant',
+        !bubble && 'companion-chat-row-system',
+        continuesRun ? 'companion-chat-row-continue' : 'companion-chat-row-start',
+        !endsRun && 'companion-chat-row-open',
+        showDivider && 'companion-chat-row-divided',
+      )}
+    >
+      {showDivider && stamp ? <p className="companion-chat-time">{stamp}</p> : null}
+      {entryProcess && entry.role === 'assistant' ? (
+        <CompanionTurnProcessView
+          process={entryProcess}
+          foldable
+          defaultOpen={false}
+        />
+      ) : null}
+      {bubble ? (
+        <div className={cn(
+          'companion-chat-bubble',
+          user ? 'companion-chat-bubble-user' : 'companion-chat-bubble-assistant',
+          sent.length && 'companion-chat-bubble-files',
+        )}>
+          {sent.length ? (
+            <div className="companion-chat-bubble-attach" aria-label={t('消息附件', 'Message attachments')}>
+              {sent.map(attachment => {
+                const key = attachmentKey(attachment)
+                const thumb = thumbs[key]
+                return (
+                  <span
+                    key={key}
+                    className="companion-chat-bubble-file"
+                    title={`${attachment.name}${attachment.size ? ` · ${formatAttachmentSize(attachment.size)}` : ''}`}
+                  >
+                    {isImageAttachment(attachment) && thumb ? (
+                      <img src={thumb} alt={attachment.name} />
+                    ) : (
+                      <>
+                        <FileText className="size-3.5 shrink-0" />
+                        <span className="min-w-0 truncate">{attachment.name}</span>
+                      </>
+                    )}
+                  </span>
+                )
+              })}
+            </div>
+          ) : null}
+          {visibleBody ? (
+            entry.error || showEmptyReply || companionTurnCancelled(abortSource) ? (
+              <p className="companion-chat-bubble-text companion-chat-bubble-text-plain">{visibleBody}</p>
+            ) : (
+              <MarkdownContent
+                className="companion-chat-bubble-text"
+                content={visibleBody}
+                compact
+              />
+            )
+          ) : null}
+        </div>
+      ) : (
+        <p className="companion-chat-system">{visibleBody}</p>
+      )}
+      {showCaption && stamp ? <p className="companion-chat-stamp">{stamp}</p> : null}
+    </article>
   )
 }

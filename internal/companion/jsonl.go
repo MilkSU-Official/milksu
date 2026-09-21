@@ -424,6 +424,26 @@ func looksLikeCompanionAbort(text string) bool {
 		strings.Contains(folded, "the operation was aborted")
 }
 
+func companionCancelledCopy(locale string) string {
+	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(locale)), "en") {
+		return "This turn was cancelled."
+	}
+	return "这一轮已取消。"
+}
+
+func localizeCompanionTranscriptAbort(page *TranscriptPage, locale string) {
+	if page == nil {
+		return
+	}
+	copy := companionCancelledCopy(locale)
+	for index := range page.Entries {
+		if looksLikeCompanionAbort(page.Entries[index].Error) || looksLikeCompanionAbort(page.Entries[index].Text) {
+			page.Entries[index].Text = ""
+			page.Entries[index].Error = copy
+		}
+	}
+}
+
 func looksLikeCompanionDebugJSON(text string) bool {
 	trimmed := strings.TrimSpace(text)
 	if trimmed == "" {

@@ -11,6 +11,11 @@ import {
   repositoryRoot,
 } from './desktop-gui-driver.mjs'
 import { CASES, MODULES, MODULE_RUN_ORDER, finalizeProductLoopResult } from './product-loop-catalog.mjs'
+import {
+  inspectProductLoopSurfaces,
+  mergeSurfaceScans,
+  scanProductLoopSurfaces,
+} from './product-loop-surface-scan.mjs'
 
 export const PRODUCT_LOOP_REPORT_DIR = join(repositoryRoot, 'build', 'test-results', 'product-loop-report')
 
@@ -154,30 +159,70 @@ async function saveEvidenceShot(name, label, shot) {
 }
 
 export async function captureProductLoopEvidence(driver, id) {
-  const shots = []
-  if (!driver || !id) return shots
+  const bundle = await captureProductLoopEvidenceBundle(driver, id)
+  return bundle.screenshots
+}
+
+export async function captureProductLoopEvidenceBundle(driver, id, options = {}) {
+  const screenshots = []
+  const snapshots = []
+  const scanOptions = {
+    caseId: id,
+    result: options.result,
+    expectedMiss: options.expectedMiss === true,
+  }
+  if (!driver || !id) {
+    return { screenshots, scan: scanProductLoopSurfaces([], scanOptions) }
+  }
   const surfaces = evidenceSurfacesForCase(id)
   if (surfaces.includes('companion')) {
     try {
-      const overlay = await saveEvidenceShot(
-        `${id}-companion`,
-        '桌宠',
-        await driver.captureSurfaceEvidence(isCompanionPetSurface),
-      )
-      if (overlay) shots.push(overlay)
+      const shot = await driver.captureSurfaceEvidence(isCompanionPetSurface)
+      const overlay = await saveEvidenceShot(`${id}-companion`, '桌宠', shot)
+      if (overlay) screenshots.push(overlay)
+      if (shot?.caption) snapshots.push({ surface: 'companion', text: shot.caption, caption: shot.caption })
     } catch {
       // Overlay may be hidden or parked.
     }
   }
   if (surfaces.includes('main')) {
     try {
-      const main = await saveEvidenceShot(id, '主窗口', await driver.captureMainEvidence())
-      if (main) shots.push(main)
+      const shot = await driver.captureMainEvidence()
+      const main = await saveEvidenceShot(id, '主窗口', shot)
+      if (main) screenshots.push(main)
+      if (shot?.caption) snapshots.push({ surface: 'main', text: shot.caption, caption: shot.caption })
     } catch {
       // Main window may be parked.
     }
   }
-  return shots
+  let liveScan
+  try {
+    liveScan = await inspectProductLoopSurfaces(driver, { ...scanOptions, phase: 'evidence' })
+  } catch {
+    liveScan = scanProductLoopSurfaces(snapshots, { ...scanOptions, phase: 'evidence' })
+  }
+  const captionScan = scanProductLoopSurfaces(snapshots, { ...scanOptions, phase: 'caption' })
+  const scan = mergeSurfaceScans(liveScan, captionScan)
+  if (scan.fail && scan.hits.some(item => item.surface === 'companion') && !screenshots.some(item => item.label === '桌宠')) {
+    try {
+      const extra = await saveEvidenceShot(
+        `${id}-companion-anomaly`,
+        '桌宠',
+        await driver.captureSurfaceEvidence(isCompanionPetSurface),
+      )
+      if (extra) screenshots.push(extra)
+    } catch {
+      // Companion may already be hidden.
+    }
+  }
+  const firstHit = (scan.hits || []).find(item => item.severity === 'leak' || item.severity === 'error')
+  if (firstHit) {
+    for (const shot of screenshots) {
+      if (shot.caption && shot.caption.includes(firstHit.text)) continue
+      shot.caption = [shot.caption, scan.summary].filter(Boolean).join(' · ').slice(0, 240)
+    }
+  }
+  return { screenshots, scan }
 }
 
 export function formatFormalProductLoopReport(receipt = {}, report = buildProductLoopReport(receipt)) {
@@ -205,6 +250,15 @@ export function formatFormalProductLoopReport(receipt = {}, report = buildProduc
       blocks.push('<article>')
       blocks.push(`<h3 class="${String(item.result).toLowerCase()}">${escapeHtml(item.result)}　${escapeHtml(item.title)}　<code>${escapeHtml(item.id)}</code></h3>`)
       if (item.detail) blocks.push(`<p>${escapeHtml(item.detail)}</p>`)
+      const anomalies = Array.isArray(raw.anomalies) ? raw.anomalies : []
+      if (anomalies.length) {
+        blocks.push('<div class="fail"><p>表面异常</p><ul>')
+        for (const hit of anomalies) {
+          const line = [hit.surface, hit.kind, hit.text].filter(Boolean).join(' · ')
+          blocks.push(`<li>${escapeHtml(line)}</li>`)
+        }
+        blocks.push('</ul></div>')
+      }
       if (!shots.length) blocks.push('<p class="skip">这一项没有截到产品窗口。</p>')
       for (const shot of shots) {
         const title = [shot.label, shot.caption].filter(Boolean).join(' · ')

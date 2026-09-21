@@ -7,6 +7,10 @@
 
 const COMPANION_PET_WIDTH = 160
 const COMPANION_PET_HEIGHT = 160
+// Matches `.companion-pet-bubble` max-height.
+const COMPANION_PET_BUBBLE_MAX_HEIGHT = 48
+// Room above the 160px sprite: one own-height lift plus max bubble plus a top inset.
+const COMPANION_PET_BUBBLE_LIFT = 104
 // iPhone 17 handset matches build/iphone17-compare/iphone17-mirror.png (288 × 604).
 const COMPANION_CHAT_WIDTH = 288
 const COMPANION_CHAT_HEIGHT = 604
@@ -231,18 +235,19 @@ function layoutCompanionUnit(input = {}) {
   const area = input.workArea && Number.isFinite(input.workArea.width) ? input.workArea : null
   const origin = input.petOrigin || defaultCompanionPetOrigin(area)
   if (!input.chatOpen) {
+    const lift = input.bubble ? COMPANION_PET_BUBBLE_LIFT : 0
     const windowBounds = clampOverlayBounds({
       x: origin.x,
-      y: origin.y,
+      y: origin.y - lift,
       width: COMPANION_PET_WIDTH,
-      height: COMPANION_PET_HEIGHT,
+      height: COMPANION_PET_HEIGHT + lift,
     }, area)
     return {
       window: windowBounds,
-      pet: { x: 0, y: 0, width: COMPANION_PET_WIDTH, height: COMPANION_PET_HEIGHT },
+      pet: { x: 0, y: lift, width: COMPANION_PET_WIDTH, height: COMPANION_PET_HEIGHT },
       chat: null,
       chatSide: 'left',
-      petScreen: { x: windowBounds.x, y: windowBounds.y },
+      petScreen: { x: windowBounds.x, y: windowBounds.y + lift },
       chatScreen: null,
     }
   }
@@ -271,6 +276,7 @@ function layoutCompanionUnit(input = {}) {
 function moveCompanionUnit(input = {}) {
   return layoutCompanionUnit({
     chatOpen: Boolean(input.chatOpen),
+    bubble: Boolean(input.bubble),
     petOrigin: {
       x: Number(input.petScreen && input.petScreen.x) + Number(input.dx),
       y: Number(input.petScreen && input.petScreen.y) + Number(input.dy),
@@ -308,6 +314,8 @@ module.exports = {
   COMPANION_FALLBACK_WORK_AREA,
   COMPANION_OVERLAY_ACTIONS,
   COMPANION_OVERLAY_Z_LEVEL,
+  COMPANION_PET_BUBBLE_LIFT,
+  COMPANION_PET_BUBBLE_MAX_HEIGHT,
   COMPANION_PET_HEIGHT,
   COMPANION_PET_MENU_HEIGHT,
   COMPANION_PET_MENU_WIDTH,

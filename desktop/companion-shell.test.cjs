@@ -12,6 +12,7 @@ const {
   createCompanionShell,
   normalizeUiLocale,
 } = require('./companion-shell.cjs')
+const { COMPANION_PET_BUBBLE_LIFT } = require('./companion-overlay-state.cjs')
 
 function fakeWindow() {
   const window = {
@@ -175,6 +176,7 @@ test('companion window methods are a subset of the main renderer surface', () =>
   assert.ok(COMPANION_METHODS.has('ImportCodingAttachments'))
   assert.ok(COMPANION_METHODS.has('PreviewCodingAttachment'))
   assert.ok(COMPANION_METHODS.has('SetCompanionPetHidden'))
+  assert.ok(COMPANION_METHODS.has('SetCompanionPetBubble'))
   assert.ok(COMPANION_METHODS.has('ShowCompanionMainWindow'))
   assert.ok(COMPANION_METHODS.has('ShowCompanionChatWindow'))
   assert.ok(COMPANION_METHODS.has('ClickCompanionPet'))
@@ -547,6 +549,23 @@ test('the pet window is the sprite box, so no invisible margin covers the app', 
   assert.equal(bounds.height, COMPANION_FLOAT_HEIGHT)
   assert.equal(COMPANION_FLOAT_WIDTH, 160)
   assert.equal(COMPANION_FLOAT_HEIGHT, 160)
+})
+
+test('a speech bubble grows the window up by one bubble height and keeps the sprite', () => {
+  const { shell, created } = createShell()
+  shell.createFloat()
+  const idle = created[0].getBounds()
+  const status = shell.handleHostMethod('SetCompanionPetBubble', { visible: true })
+  const lifted = created[0].getBounds()
+  assert.equal(lifted.width, 160)
+  assert.equal(lifted.height, idle.height + COMPANION_PET_BUBBLE_LIFT)
+  assert.equal(lifted.y, idle.y - COMPANION_PET_BUBBLE_LIFT)
+  assert.equal(status.petBounds.y, idle.y)
+  assert.equal(status.petBounds.height, 160)
+  shell.handleHostMethod('SetCompanionPetBubble', { visible: false })
+  const restored = created[0].getBounds()
+  assert.equal(restored.height, 160)
+  assert.equal(restored.y, idle.y)
 })
 
 test('a dropped pointerup cannot leave the pet chasing the cursor', async () => {

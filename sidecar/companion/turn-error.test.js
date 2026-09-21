@@ -4,6 +4,7 @@ import {
   companionAssistantTurnError,
   companionToolHistoryBroken,
   repairCompanionToolHistory,
+  stampCompanionAbortedTurn,
 } from "./turn-error.js";
 
 test("projects the last assistant errorMessage", () => {
@@ -42,6 +43,39 @@ test("does not treat a thinking-only turn as an empty reply", () => {
       role: "assistant",
       content: [{ type: "thinking", thinking: "先看看板。" }],
       stopReason: "stop",
+    },
+  ]), "");
+});
+
+test("stamps an empty last assistant as aborted for the phone", () => {
+  const messages = [
+    { role: "user", content: [{ type: "text", text: "hi" }] },
+    { role: "assistant", content: [], stopReason: "stop" },
+  ];
+  const { stamped, appended } = stampCompanionAbortedTurn(messages);
+  assert.equal(stamped, true);
+  assert.equal(appended.length, 0);
+  assert.equal(messages[1].errorMessage, "Request aborted");
+});
+
+test("appends a cancelled assistant when abort happens before any reply", () => {
+  const messages = [
+    { role: "user", content: [{ type: "text", text: "hi" }] },
+  ];
+  const { messages: next, stamped, appended } = stampCompanionAbortedTurn(messages);
+  assert.equal(stamped, true);
+  assert.equal(appended.length, 1);
+  assert.equal(next.at(-1).errorMessage, "Request aborted");
+  assert.equal(next.at(-1).stopReason, "aborted");
+});
+
+test("does not treat a host memory timeout as a turn failure", () => {
+  assert.equal(companionAssistantTurnError([
+    {
+      role: "assistant",
+      content: [{ type: "text", text: "companion host request timed out (memory)" }],
+      stopReason: "error",
+      errorMessage: "companion host request timed out (memory)",
     },
   ]), "");
 });

@@ -3,6 +3,7 @@ package companion
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/MilkSU-Official/milksu/internal/codingattachment"
@@ -57,12 +59,13 @@ type Runtime struct {
 
 	pendingConfirms map[string]parkedConfirm
 
-	command  *exec.Cmd
-	stdin    io.WriteCloser
-	ready    bool
-	lastErr  string
-	stale    atomic.Bool
-	inFlight atomic.Bool
+	command    *exec.Cmd
+	stdin      io.WriteCloser
+	ready      bool
+	lastErr    string
+	sidecarGen atomic.Uint64
+	stale      atomic.Bool
+	inFlight   atomic.Bool
 }
 
 type parkedConfirm struct {
@@ -99,9 +102,11 @@ func NewRuntime(options RuntimeOptions) *Runtime {
 func (r *Runtime) Ensure() (Status, error) {
 	r.refreshBoard()
 	r.restartIfStaleIdle()
-	status := r.Status()
-	if status.Ready {
-		return status, nil
+	r.mu.Lock()
+	alive := r.ready && r.stdin != nil && r.command != nil
+	r.mu.Unlock()
+	if alive {
+		return r.Status(), nil
 	}
 	if err := r.startLocked(); err != nil {
 		return r.Status(), err
@@ -137,7 +142,7 @@ func (r *Runtime) Send(prompt string, attachments []codingattachment.Attachment)
 	if custom := engine.CompanionCustomProvider(r.resolvedSettings()); custom != nil {
 		command["customProvider"] = custom
 	}
-	if err := r.write(command); err != nil {
+	if err := r.writeEnsured(command); err != nil {
 		return err
 	}
 	r.setInFlight(true)
@@ -168,6 +173,9 @@ func (r *Runtime) AbortTurn() error {
 	r.mu.Unlock()
 	err := r.write(map[string]any{"action": "abort"})
 	r.finishParked(pending, "turn aborted")
+	if err != nil && strings.Contains(err.Error(), "sidecar is not running") {
+		return nil
+	}
 	return err
 }
 
@@ -313,6 +321,7 @@ func (r *Runtime) Transcript(limit int, cursor *TranscriptCursor, before bool) (
 		return TranscriptPage{}, err
 	}
 	page.File = filepath.Base(page.File)
+	localizeCompanionTranscriptAbort(&page, config.ResolvedUserInterfaceLocale(r.resolvedSettings()))
 	return page, nil
 }
 
@@ -328,8 +337,41 @@ func (r *Runtime) ArchiveTranscript() (CompanionArchive, error) {
 	if err != nil {
 		return CompanionArchive{}, err
 	}
-	r.Invalidate()
+	r.inFlight.Store(false)
+	// Keep the sidecar. Killing it on archive leaked "sidecar is not running"
+	// into the next invoke and left 「桌宠暂时连不上」 on the pet.
+	if err := r.resetCompanionSession(); err != nil && !strings.Contains(err.Error(), "sidecar is not running") {
+		_, _ = r.Ensure()
+	}
 	return archived, nil
+}
+
+func (r *Runtime) resetCompanionSession() error {
+	if r == nil {
+		return nil
+	}
+	r.mu.Lock()
+	alive := r.ready && r.stdin != nil
+	r.mu.Unlock()
+	if !alive {
+		_, err := r.Ensure()
+		return err
+	}
+	settings := r.resolvedSettings()
+	selection := r.selection()
+	create := map[string]any{
+		"action":              "create_session",
+		"locale":              config.ResolvedUserInterfaceLocale(settings),
+		"provider":            selection.Provider,
+		"model":               selection.Model,
+		"source":              selection.Source,
+		"memorySearchEnabled": r.memorySearchEnabled(),
+	}
+	if custom := engine.CompanionCustomProvider(settings); custom != nil {
+		create["customProvider"] = custom
+	}
+	create["reset"] = true
+	return r.writeEnsured(create)
 }
 
 func (r *Runtime) Archives() ([]CompanionArchive, error) {
@@ -458,9 +500,12 @@ func (r *Runtime) ConfirmDispatch(action, conversationID, text, idempotencyKey, 
 
 func (r *Runtime) startLocked() error {
 	r.mu.Lock()
-	if r.ready && r.command != nil {
+	if r.ready && r.command != nil && r.stdin != nil {
 		r.mu.Unlock()
 		return nil
+	}
+	if r.command != nil || r.stdin != nil {
+		_ = r.stopLocked()
 	}
 	if err := os.MkdirAll(r.agentDir, 0o700); err != nil {
 		r.lastErr = err.Error()
@@ -474,13 +519,14 @@ func (r *Runtime) startLocked() error {
 		r.mu.Unlock()
 		return err
 	}
+	gen := r.sidecarGen.Add(1)
 	r.command = command
 	r.stdin = stdin
 	r.ready = false
 	r.lastErr = ""
 	r.mu.Unlock()
 
-	go r.readEvents(stdout)
+	go r.readEvents(stdout, gen)
 	selection := r.selection()
 	create := map[string]any{
 		"action":              "create_session",
@@ -520,18 +566,44 @@ func (r *Runtime) startLocked() error {
 }
 
 func (r *Runtime) stopLocked() error {
+	command := r.command
 	if r.stdin != nil {
 		_ = writeJSON(r.stdin, map[string]any{"action": "shutdown"})
 		_ = r.stdin.Close()
 		r.stdin = nil
 	}
-	if r.command != nil && r.command.Process != nil {
-		_ = r.command.Process.Kill()
-		_, _ = r.command.Process.Wait()
+	if command != nil && command.Process != nil {
+		// Let shutdown flush the jsonl (Pi defers the file until an assistant
+		// row). Immediate Kill() dropped the first user line across recover.
+		done := make(chan struct{})
+		go func() {
+			_, _ = command.Process.Wait()
+			close(done)
+		}()
+		select {
+		case <-done:
+		case <-time.After(800 * time.Millisecond):
+			_ = command.Process.Kill()
+			<-done
+		}
 	}
 	r.command = nil
 	r.ready = false
 	return nil
+}
+
+func sidecarWriteLost(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, syscall.EPIPE) || errors.Is(err, io.ErrClosedPipe) {
+		return true
+	}
+	text := strings.ToLower(err.Error())
+	return strings.Contains(text, "sidecar is not running") ||
+		strings.Contains(text, "broken pipe") ||
+		strings.Contains(text, "epipe") ||
+		strings.Contains(text, "closed pipe")
 }
 
 func (r *Runtime) write(value any) error {
@@ -541,10 +613,34 @@ func (r *Runtime) write(value any) error {
 	if stdin == nil {
 		return fmt.Errorf("companion sidecar is not running")
 	}
-	return writeJSON(stdin, value)
+	err := writeJSON(stdin, value)
+	if sidecarWriteLost(err) {
+		r.mu.Lock()
+		if r.stdin == stdin {
+			r.stdin = nil
+			r.ready = false
+		}
+		r.mu.Unlock()
+		return fmt.Errorf("companion sidecar is not running")
+	}
+	return err
 }
 
-func (r *Runtime) readEvents(stdout io.ReadCloser) {
+// writeEnsured retries once after a dead stdin / EPIPE so a previous case's
+// StopCompanion (or a crashed reader) cannot leave the next Send failing
+// with "companion sidecar is not running".
+func (r *Runtime) writeEnsured(value any) error {
+	err := r.write(value)
+	if err == nil || !sidecarWriteLost(err) {
+		return err
+	}
+	if _, ensureErr := r.Ensure(); ensureErr != nil {
+		return ensureErr
+	}
+	return r.write(value)
+}
+
+func (r *Runtime) readEvents(stdout io.ReadCloser, gen uint64) {
 	defer stdout.Close()
 	scanner := bufio.NewScanner(stdout)
 	buffer := make([]byte, 64*1024)
@@ -562,18 +658,26 @@ func (r *Runtime) readEvents(stdout io.ReadCloser) {
 		}
 		if eventType == "ready" {
 			r.mu.Lock()
-			r.ready = true
-			r.lastErr = ""
+			if r.sidecarGen.Load() == gen {
+				r.ready = true
+				r.lastErr = ""
+			}
 			r.mu.Unlock()
 		}
 		if eventType == "error" {
 			r.mu.Lock()
-			r.lastErr = strings.TrimSpace(stringValue(raw["error"]))
+			if r.sidecarGen.Load() == gen {
+				r.lastErr = strings.TrimSpace(stringValue(raw["error"]))
+			}
 			r.mu.Unlock()
 		}
 		r.emitEvent(mapCompanionEvent(raw))
 	}
 	r.mu.Lock()
+	if r.sidecarGen.Load() != gen {
+		r.mu.Unlock()
+		return
+	}
 	r.ready = false
 	if r.lastErr == "" {
 		r.lastErr = "companion sidecar stopped"

@@ -2,7 +2,13 @@ import type { CodingAttachment, CompanionTranscriptEntry } from '@/types'
 import { explainModelCallFailure, type ModelServiceErrorContext } from './tokenFluxError'
 import { t } from './uiLocale'
 
-const SIDECAR_DOWN = /companion sidecar stopped|companion sidecar did not become ready|companion sidecar is not running|companion runtime is not configured|cannot find module.*current-provider-runtime/i
+const SIDECAR_DOWN = /companion sidecar stopped|companion sidecar did not become ready|companion sidecar is not running|companion runtime is not configured|cannot find module.*current-provider-runtime|broken pipe|EPIPE|桌宠暂时连不上|The companion could not start/i
+const ARCHIVE_EMPTY = /no companion transcript to archive|没有可归档的抄本/i
+const SESSION_NOT_READY = /companion session is not ready|coding session is not ready|deepseek harness session is not ready|session is not ready/i
+const MODEL_ROUTE_MISSING = /companion provider and model are required|companion model not found/i
+const MISSING_API_KEY = /no API key is configured|No API key for|当前模型没有可用的 API Key|No API key is available for the current model|当前模型没有可用凭据|No credentials are available for the current model/i
+const PROMPT_REQUIRED = /companion prompt is required/i
+const UNKNOWN_ACTION = /unknown companion action/i
 const ATTACHMENT_BLOCK = /\n\n\[MilkSU attachments\][\s\S]*$/u
 const ATTACHMENT_ROW = /^- (.+?) \(([^,]+), [^,]+, sha256:([a-f0-9]{64}),/gmu
 const ATTACHMENT_LABEL = /^(附件：|Attachments:)/u
@@ -13,8 +19,20 @@ export function explainCompanionError(
 ): string {
   const message = String(reason ?? '').trim()
   if (!message) return ''
-  if (SIDECAR_DOWN.test(message)) {
+  if (SIDECAR_DOWN.test(message) || UNKNOWN_ACTION.test(message)) {
     return t('桌宠暂时连不上。', 'The companion could not start.')
+  }
+  if (ARCHIVE_EMPTY.test(message)) {
+    return t('没有可归档的抄本。', 'There is no companion transcript to archive.')
+  }
+  if (SESSION_NOT_READY.test(message)) {
+    return t('桌宠还没准备好，请稍后再试。', 'The companion is not ready yet. Try again.')
+  }
+  if (MODEL_ROUTE_MISSING.test(message)) {
+    return t('桌宠还没有可用的模型。', 'The companion does not have a model yet.')
+  }
+  if (PROMPT_REQUIRED.test(message)) {
+    return t('还没有可发送的内容。', 'There is nothing to send yet.')
   }
   if (/companion model returned no text/i.test(message)) {
     return t('这一轮没有回复。', 'This turn did not produce a reply.')
@@ -38,7 +56,22 @@ export function explainCompanionError(
   ) {
     return t('连不上模型服务，请稍后重试。', 'Could not reach the model service. Try again later.')
   }
+  if (companionMissingApiKey(message)) {
+    return t('当前模型没有可用的 API Key。', 'No API key is available for the current model.')
+  }
   return explainModelCallFailure(message, context) || message
+}
+
+/**
+ * Missing credentials before the user has sent. The pet stays idle; do not
+ * park this on the bubble after a later route already became ready.
+ */
+export function companionMissingApiKey(reason: unknown): boolean {
+  return MISSING_API_KEY.test(String(reason ?? ''))
+}
+
+export function companionSidecarDown(reason: unknown): boolean {
+  return SIDECAR_DOWN.test(String(reason ?? ''))
 }
 
 /**
@@ -55,7 +88,7 @@ export function companionHostToolFailure(reason: unknown): boolean {
  * recover teardown, user stop). Distinct from host-tool timeout.
  */
 export function companionTurnCancelled(reason: unknown): boolean {
-  return /abort\s*error|request aborted|this operation was aborted|the operation was aborted|operation was aborted/i
+  return /abort\s*error|request aborted|this operation was aborted|the operation was aborted|operation was aborted|这一轮已取消|This turn was cancelled/i
     .test(String(reason ?? ''))
 }
 

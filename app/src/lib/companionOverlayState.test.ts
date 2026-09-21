@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   COMPANION_OVERLAY_ACTIONS,
+  COMPANION_PET_BUBBLE_LIFT,
   COMPANION_PET_MENU_HEIGHT,
   COMPANION_PET_MENU_WIDTH,
   COMPANION_PHONE_HEIGHT,
@@ -175,6 +176,29 @@ describe('companionOverlayState', () => {
     })
     expect(pet.window).toMatchObject({ width: 160, height: 160 })
     expect(pet.chatScreen).toBeNull()
+    const speech = layoutCompanionUnit({
+      chatOpen: false,
+      bubble: true,
+      petOrigin: { x: 80, y: 200 },
+      workArea: area,
+    })
+    expect(speech.window).toMatchObject({
+      x: 80,
+      y: 200 - COMPANION_PET_BUBBLE_LIFT,
+      width: 160,
+      height: 160 + COMPANION_PET_BUBBLE_LIFT,
+    })
+    expect(speech.petScreen).toEqual({ x: 80, y: 200 })
+    expect(speech.pet).toMatchObject({ x: 0, y: COMPANION_PET_BUBBLE_LIFT, width: 160, height: 160 })
+    const tight = layoutCompanionUnit({
+      chatOpen: false,
+      bubble: true,
+      petOrigin: { x: 80, y: 10 },
+      workArea: area,
+    })
+    expect(tight.window.y).toBe(0)
+    expect(tight.window.y + tight.window.height).toBeLessThanOrEqual(area.height)
+    expect(tight.petScreen.y).toBe(COMPANION_PET_BUBBLE_LIFT)
     expect(companionOverlayVisible(idle)).toBe(true)
     expect(companionPhoneVisible(idle)).toBe(false)
   })

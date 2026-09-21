@@ -128,6 +128,13 @@ func TestTranscriptHidesToolResultsAndSettingsJSON(t *testing.T) {
 	if page.Entries[3].Text != "" || !strings.Contains(page.Entries[3].Error, "Request aborted") {
 		t.Fatalf("abort must move English harness text into error: %#v", page.Entries[3])
 	}
+	localizeCompanionTranscriptAbort(&page, "zh")
+	if page.Entries[3].Text != "" || page.Entries[3].Error != "这一轮已取消。" {
+		t.Fatalf("RPC transcript must localize abort: %#v", page.Entries[3])
+	}
+	if strings.Contains(page.Entries[3].Error, "Request aborted") {
+		t.Fatalf("localized abort still has harness English: %#v", page.Entries[3])
+	}
 	for _, entry := range page.Entries {
 		if strings.Contains(entry.Text, "tokenflux.dev") || strings.Contains(entry.Text, "companion_float_enabled") {
 			t.Fatalf("settings dump leaked: %#v", entry)
