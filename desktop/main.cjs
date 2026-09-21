@@ -765,6 +765,10 @@ async function handleHostRequest(method, payload = {}) {
       setImmediate(() => app.quit())
       return true
     }
+    case 'app.quit': {
+      setImmediate(() => app.quit())
+      return true
+    }
     default: throw new Error(`unsupported desktop host method: ${method}`)
   }
 }

@@ -7,6 +7,7 @@ import (
 
 	"github.com/MilkSU-Official/milksu/internal/codingattachment"
 	"github.com/MilkSU-Official/milksu/internal/companion"
+	"github.com/MilkSU-Official/milksu/internal/config"
 	"github.com/MilkSU-Official/milksu/internal/conversation"
 	"github.com/MilkSU-Official/milksu/internal/engine"
 )
@@ -316,6 +317,94 @@ func (a *App) emitCompanionEvent(event engine.Event) {
 		event.SessionID = companion.SessionID
 	}
 	a.emitDesktopEvent("companion-event", event)
+}
+
+type companionAppControl struct {
+	app *App
+}
+
+func (c *companionAppControl) OpenMainWindow() error {
+	if c == nil || c.app == nil {
+		return fmt.Errorf("desktop host is unavailable")
+	}
+	return c.app.desktopCall("window.show", map[string]any{}, nil)
+}
+
+func (c *companionAppControl) FocusConversation(id string) error {
+	if _, err := c.lookup(id); err != nil {
+		return err
+	}
+	if err := c.OpenMainWindow(); err != nil {
+		return err
+	}
+	c.app.emitDesktopEvent("companion-focus", map[string]any{"conversationId": id})
+	return nil
+}
+
+func (c *companionAppControl) ReadConversation(id string, limit int) (companion.ConversationExcerpt, error) {
+	stored, err := c.lookup(id)
+	if err != nil {
+		return companion.ConversationExcerpt{}, err
+	}
+	roles := make([]string, len(stored.Messages))
+	contents := make([]string, len(stored.Messages))
+	for i, message := range stored.Messages {
+		roles[i] = message.Role
+		contents[i] = message.Content
+	}
+	return companion.ExcerptFromMessages(stored.ID, firstNonEmpty(stored.Title, stored.ID), roles, contents, limit), nil
+}
+
+func (c *companionAppControl) CurrentSettings() (config.AppSettings, error) {
+	if c == nil || c.app == nil || c.app.settings == nil {
+		return config.AppSettings{}, fmt.Errorf("settings are not configured")
+	}
+	return c.app.settings.Get(), nil
+}
+
+func (c *companionAppControl) SaveSettings(next config.AppSettings) error {
+	if c == nil || c.app == nil {
+		return fmt.Errorf("settings are not configured")
+	}
+	return c.app.SaveSettingsCmd(next)
+}
+
+func (c *companionAppControl) Quit() error {
+	if c == nil || c.app == nil {
+		return fmt.Errorf("desktop host is unavailable")
+	}
+	return c.app.desktopCall("app.quit", nil, nil)
+}
+
+func (c *companionAppControl) Relaunch() error {
+	if c == nil || c.app == nil {
+		return fmt.Errorf("desktop host is unavailable")
+	}
+	_, err := c.app.RelaunchDesktopApp()
+	return err
+}
+
+func (c *companionAppControl) lookup(id string) (conversation.StoredConversation, error) {
+	if c == nil || c.app == nil || c.app.conversations == nil {
+		return conversation.StoredConversation{}, fmt.Errorf("conversation store is not configured")
+	}
+	stored, err := c.app.conversations.Get(id)
+	if err == nil {
+		if stored.ArchivedAt > 0 {
+			return conversation.StoredConversation{}, fmt.Errorf("conversation is archived")
+		}
+		return stored, nil
+	}
+	archived, listErr := c.app.conversations.ListArchived()
+	if listErr != nil {
+		return conversation.StoredConversation{}, fmt.Errorf("conversation was not found")
+	}
+	for _, item := range archived {
+		if item.ID == id {
+			return conversation.StoredConversation{}, fmt.Errorf("conversation is archived")
+		}
+	}
+	return conversation.StoredConversation{}, fmt.Errorf("conversation was not found")
 }
 
 func firstNonEmpty(values ...string) string {

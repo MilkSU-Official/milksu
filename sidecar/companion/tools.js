@@ -5,6 +5,7 @@ export const COMPANION_TOOL_NAMES = Object.freeze([
   "companion_board",
   "companion_dispatch",
   "companion_memory",
+  "companion_app",
 ]);
 
 // Upstream Pi built-ins. createAgentSession only activates listed names.
@@ -84,18 +85,22 @@ export function createCompanionTools(requestHost, options = {}) {
     name: "companion_dispatch",
     label: "Companion dispatch",
     description: "Relay a user instruction into another MilkSU conversation. "
+      + "Prefer this when an existing conversation can do the work. "
       + "Call this tool immediately. Do not ask the user to confirm in chat first. "
       + "speak requires conversationId and a unique idempotencyKey. "
       + "mode queue is the default. "
-      + "For stop or steer, call the tool now; the host shows a confirm button and reports what actually happened. "
+      + "speak_many sends the same text to at most 8 conversationIds. "
+      + "For stop, steer, or speak_many in steer mode, call the tool now; the host shows a confirm button and reports what actually happened. "
       + "Idle targets still need the tool call. Never invent a completion state.",
     parameters: Type.Object({
       action: Type.Union([
         Type.Literal("speak"),
+        Type.Literal("speak_many"),
         Type.Literal("create_conversation"),
         Type.Literal("stop"),
       ]),
       conversationId: Type.Optional(Type.String()),
+      conversationIds: Type.Optional(Type.Array(Type.String())),
       text: Type.Optional(Type.String()),
       idempotencyKey: Type.Optional(Type.String()),
       mode: Type.Optional(Type.Union([
@@ -156,7 +161,43 @@ export function createCompanionTools(requestHost, options = {}) {
     },
   });
 
-  const tools = [board, dispatch, memory];
+  const app = defineTool({
+    name: "companion_app",
+    label: "Companion app",
+    description: "Operate MilkSU itself when the user asks you to, or when no conversation should own the job. "
+      + "Prefer companion_dispatch for work that belongs in a conversation. "
+      + "open_main_window and focus_conversation show the main window. "
+      + "read_conversation returns a short user/assistant excerpt, not the full transcript. "
+      + "get_settings returns non-credential settings only. "
+      + "patch_settings, quit, and relaunch call the tool immediately; the host shows a confirm button. "
+      + "Never read or write API keys, tokens, or relay secrets. Never write session run state.",
+    parameters: Type.Object({
+      action: Type.Union([
+        Type.Literal("open_main_window"),
+        Type.Literal("focus_conversation"),
+        Type.Literal("read_conversation"),
+        Type.Literal("get_settings"),
+        Type.Literal("patch_settings"),
+        Type.Literal("quit"),
+        Type.Literal("relaunch"),
+      ]),
+      conversationId: Type.Optional(Type.String()),
+      limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 8 })),
+      patch: Type.Optional(Type.Record(
+        Type.String(),
+        Type.Union([Type.String(), Type.Boolean(), Type.Number()]),
+      )),
+    }),
+    execute: async (_toolCallId, params) => {
+      const result = await requestHost("app", params, { timeoutMs: 0 });
+      return {
+        content: [{ type: "text", text: JSON.stringify(result) }],
+        details: result,
+      };
+    },
+  });
+
+  const tools = [board, dispatch, memory, app];
   assertNoRuntimeWriteTools(tools.map(tool => tool.name));
   return tools;
 }

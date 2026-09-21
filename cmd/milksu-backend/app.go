@@ -333,6 +333,7 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 			engines: application.engines,
 		},
 		Control: &supervisorControl{engines: application.engines},
+		App:     &companionAppControl{app: application},
 		Emit:    application.emitCompanionEvent,
 	})
 	application.modelUsage, err = modelusage.NewStore(

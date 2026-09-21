@@ -71,6 +71,31 @@ function formatAttachmentSize(size: number) {
   return `${size} B`
 }
 
+function companionConfirmLine(
+  confirm: { action: string; text: string; targetTitle: string },
+  t: (zh: string, en: string) => string,
+) {
+  switch (confirm.action) {
+    case 'stop':
+      return t('终止这个会话的当前回合。', 'Stop the current turn in this conversation.')
+    case 'quit':
+      return t('退出 MilkSU。', 'Quit MilkSU.')
+    case 'relaunch':
+      return t('重启 MilkSU。', 'Relaunch MilkSU.')
+    case 'patch_settings':
+      return confirm.text.trim()
+        ? t(`更改这些设置：${confirm.text.trim()}`, `Change these settings: ${confirm.text.trim()}`)
+        : t('更改这些设置。', 'Change these settings.')
+    case 'speak_many':
+      return confirm.text.trim()
+        ? t(`把这句插进这些会话：${confirm.text.trim()}`, `Steer these conversations: ${confirm.text.trim()}`)
+        : t('把同一句发给这些会话。', 'Send the same instruction to these conversations.')
+    default:
+      return confirm.text.trim() || confirm.targetTitle.trim()
+        || t('把这条指令插入正在进行的回合。', 'Steer the current turn with this instruction.')
+  }
+}
+
 export default function CompanionPage({
   embedded = false,
 }: {
@@ -559,12 +584,7 @@ export default function CompanionPage({
           ))}
           {companion.confirm ? (
             <div className="companion-chat-confirm">
-              <p>
-                {companion.confirm.action === 'stop'
-                  ? t('终止这个会话的当前回合。', 'Stop the current turn in this conversation.')
-                  : companion.confirm.text.trim() || companion.confirm.targetTitle.trim()
-                    || t('把这条指令插入正在进行的回合。', 'Steer the current turn with this instruction.')}
-              </p>
+              <p>{companionConfirmLine(companion.confirm, t)}</p>
               <div className="companion-chat-confirm-actions">
                 <Button size="sm" variant="outline" className="h-7" onClick={() => void companion.resolveConfirm(false)}>
                   {t('取消', 'Cancel')}

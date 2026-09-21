@@ -26,6 +26,7 @@ type RuntimeOptions struct {
 	Speaker          Speaker
 	Control          SessionControl
 	Searcher         SessionSearcher
+	App              AppControl
 	Emit             func(engine.Event)
 	Start            func(config.AppSettings, string, string) (*exec.Cmd, io.WriteCloser, io.ReadCloser, error)
 }
@@ -51,6 +52,7 @@ type Runtime struct {
 	board      *Board
 	dispatcher *Dispatcher
 	memory     *Memory
+	apps       AppControl
 
 	pendingConfirms map[string]parkedConfirm
 
@@ -79,6 +81,7 @@ func NewRuntime(options RuntimeOptions) *Runtime {
 		emit:             options.Emit,
 		board:            board,
 		memory:           memory,
+		apps:             options.App,
 	}
 	if runtime.start == nil {
 		runtime.start = engine.OpenCompanionSidecar
@@ -321,8 +324,47 @@ func (r *Runtime) ConfirmDispatch(action, conversationID, text, idempotencyKey, 
 		return result, nil
 	}
 	r.refreshBoard()
+	resolvedAction := strings.TrimSpace(action)
+	if pending.input != nil {
+		if parkedAction := strings.TrimSpace(stringValue(pending.input["action"])); parkedAction != "" {
+			resolvedAction = parkedAction
+		}
+		pending.input["confirmed"] = true
+	}
 	var result DispatchResult
-	switch strings.TrimSpace(action) {
+	switch resolvedAction {
+	case "speak_many":
+		if pending.input == nil {
+			return DispatchResult{}, fmt.Errorf("companion confirm is missing the parked request")
+		}
+		raw, err := r.dispatcher.Handle(pending.input)
+		r.persistState()
+		if err != nil {
+			return DispatchResult{}, err
+		}
+		if pending.requestID != "" {
+			r.respondHost(pending.requestID, raw, nil)
+		}
+		if batch, ok := raw.(SpeakManyResult); ok && batch.Error != "" {
+			return DispatchResult{Accepted: batch.Accepted, Error: batch.Error, TargetTitle: pending.title}, nil
+		}
+		return DispatchResult{Accepted: true, Delivered: true, TargetTitle: pending.title}, nil
+	case "quit", "relaunch", "patch_settings":
+		if pending.input == nil {
+			return DispatchResult{}, fmt.Errorf("companion confirm is missing the parked request")
+		}
+		outcome, err := HandleApp(r.apps, pending.input)
+		if err != nil {
+			return DispatchResult{}, err
+		}
+		if pending.requestID != "" {
+			r.respondHost(pending.requestID, outcome, nil)
+		}
+		outcome.RunAfter(r.apps)
+		if outcome.Error != "" {
+			return DispatchResult{Accepted: false, Error: outcome.Error, TargetTitle: pending.title}, nil
+		}
+		return DispatchResult{Accepted: outcome.OK, Delivered: outcome.OK, TargetTitle: pending.title}, nil
 	case "stop":
 		result = r.dispatcher.Stop(StopRequest{
 			ConversationID: conversationID,
@@ -494,6 +536,17 @@ func (r *Runtime) answerHost(raw map[string]any) {
 		r.respondHost(requestID, result, err)
 		return
 	}
+	if action == "app" {
+		parked, result, err := r.appHost(requestID, input)
+		if parked {
+			return
+		}
+		r.respondHost(requestID, result, err)
+		if outcome, ok := result.(AppOutcome); ok {
+			outcome.RunAfter(r.apps)
+		}
+		return
+	}
 	result, err := r.handleHost(action, input)
 	r.respondHost(requestID, result, err)
 }
@@ -539,6 +592,33 @@ func (r *Runtime) dispatchHost(requestID string, input map[string]any) (bool, an
 		RequestID: requestID,
 		Input:     string(encoded),
 		Notice:    dispatch.TargetTitle,
+	})
+	return true, nil, nil
+}
+
+func (r *Runtime) appHost(requestID string, input map[string]any) (bool, any, error) {
+	outcome, err := HandleApp(r.apps, input)
+	if err != nil {
+		return false, outcome, err
+	}
+	if !outcome.NeedsConfirmation {
+		return false, outcome, nil
+	}
+	if strings.TrimSpace(stringValue(input["text"])) == "" {
+		input["text"] = outcome.Summary
+	}
+	r.parkConfirm(requestID, input, outcome.Summary)
+	payload := map[string]any{}
+	for key, value := range input {
+		payload[key] = value
+	}
+	payload["hostRequestId"] = requestID
+	encoded, _ := json.Marshal(payload)
+	r.emitEvent(engine.Event{
+		Type:      "companion.confirm",
+		RequestID: requestID,
+		Input:     string(encoded),
+		Notice:    outcome.Summary,
 	})
 	return true, nil, nil
 }
@@ -608,6 +688,12 @@ func (r *Runtime) handleHost(action string, input map[string]any) (any, error) {
 		}
 		result, err := r.memory.Handle(input)
 		r.persistState()
+		return result, err
+	case "app":
+		_, result, err := r.appHost("", input)
+		if outcome, ok := result.(AppOutcome); ok && err == nil {
+			outcome.RunAfter(r.apps)
+		}
 		return result, err
 	default:
 		return nil, fmt.Errorf("unknown companion host action %q", action)

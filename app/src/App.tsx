@@ -742,6 +742,22 @@ export default function App() {
     setDomainChatDockOpen(true, home)
   }
 
+  useEffect(() => {
+    let unlisten: (() => void) | undefined
+    let cancelled = false
+    void listenEvent<{ conversationId?: string }>('companion-focus', payload => {
+      const id = String(payload?.conversationId ?? '').trim()
+      if (id) selectSidebarConversation(id)
+    }).then(stop => {
+      if (cancelled) stop()
+      else unlisten = stop
+    })
+    return () => {
+      cancelled = true
+      unlisten?.()
+    }
+  }, [conversations.conversations])
+
   async function chooseAgentWorkspace() {
     const workspacePath = await invokeCommand<string>('choose_agent_workspace')
     if (workspacePath) conversations.setWorkspace(workspacePath)

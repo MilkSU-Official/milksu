@@ -10,7 +10,7 @@ import {
   createCompanionTools,
 } from "./tools.js";
 
-test("companion custom tools stay the three typed product tools", () => {
+test("companion custom tools stay the typed product tools", () => {
   const tools = createCompanionTools(async () => ({}));
   assert.deepEqual(tools.map(tool => tool.name).sort(), [...COMPANION_TOOL_NAMES].sort());
   assert.deepEqual(companionToolNames().sort(), [...COMPANION_TOOL_NAMES].sort());
@@ -64,6 +64,7 @@ test("dispatch host request does not time out while waiting for confirmation", a
   });
   const dispatch = tools.find(tool => tool.name === "companion_dispatch");
   assert.match(dispatch.description, /immediately/i);
+  assert.match(dispatch.description, /speak_many/);
   assert.match(dispatch.description, /confirm button/i);
   const result = await dispatch.execute("1", {
     action: "stop",

@@ -36,6 +36,18 @@ function attentionText(input: {
     if (input.confirm.action === 'stop') {
       return input.t('有一条命令在等你确认', 'A command is waiting for your confirmation')
     }
+    if (input.confirm.action === 'quit') {
+      return input.t('退出 MilkSU 需要你确认', 'Quitting MilkSU needs your confirmation')
+    }
+    if (input.confirm.action === 'relaunch') {
+      return input.t('重启 MilkSU 需要你确认', 'Relaunching MilkSU needs your confirmation')
+    }
+    if (input.confirm.action === 'patch_settings') {
+      return input.t('有一项设置更改在等你确认', 'A settings change is waiting for your confirmation')
+    }
+    if (input.confirm.action === 'speak_many') {
+      return input.t('有一批转达在等你确认', 'A batch relay is waiting for your confirmation')
+    }
     if (input.confirm.text.trim()) return input.confirm.text.trim()
     if (input.confirm.targetTitle.trim()) return input.confirm.targetTitle.trim()
     return input.t('这次操作需要你点头', 'This action needs your confirmation')

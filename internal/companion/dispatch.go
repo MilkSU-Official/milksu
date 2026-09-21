@@ -57,6 +57,14 @@ func (d *Dispatcher) Handle(input map[string]any) (any, error) {
 			IdempotencyKey: strings.TrimSpace(stringValue(input["idempotencyKey"])),
 			Confirmed:      boolValue(input["confirmed"]),
 		}), nil
+	case "speak_many":
+		return d.SpeakMany(SpeakManyRequest{
+			ConversationIDs: stringSlice(input["conversationIds"]),
+			Text:            strings.TrimSpace(stringValue(input["text"])),
+			IdempotencyKey:  strings.TrimSpace(stringValue(input["idempotencyKey"])),
+			Mode:            strings.TrimSpace(stringValue(input["mode"])),
+			Confirmed:       boolValue(input["confirmed"]),
+		}), nil
 	default:
 		return nil, fmt.Errorf("unknown companion_dispatch action %q", action)
 	}
@@ -160,6 +168,101 @@ func (d *Dispatcher) Speak(req SpeakRequest) DispatchResult {
 	}
 	d.store(req.IdempotencyKey, result)
 	return result
+}
+
+const maxSpeakMany = 8
+
+type SpeakManyRequest struct {
+	ConversationIDs []string
+	Text            string
+	IdempotencyKey  string
+	Mode            string
+	Confirmed       bool
+}
+
+type SpeakManyResult struct {
+	Accepted          bool             `json:"accepted"`
+	NeedsConfirmation bool             `json:"needsConfirmation,omitempty"`
+	TargetTitle       string           `json:"targetTitle,omitempty"`
+	Results           []DispatchResult `json:"results,omitempty"`
+	Error             string           `json:"error,omitempty"`
+}
+
+func (d *Dispatcher) SpeakMany(req SpeakManyRequest) any {
+	if result, ok := d.replay(req.IdempotencyKey); ok {
+		return result
+	}
+	if !d.dispatchEnabled() {
+		return d.fail(req.IdempotencyKey, "", "companion dispatch is turned off")
+	}
+	if strings.TrimSpace(req.Text) == "" {
+		return d.fail(req.IdempotencyKey, "", "speak_many requires text")
+	}
+	if req.IdempotencyKey == "" {
+		return d.fail(req.IdempotencyKey, "", "speak_many requires idempotencyKey")
+	}
+	ids := uniqueIDs(req.ConversationIDs)
+	if len(ids) == 0 {
+		return d.fail(req.IdempotencyKey, "", "speak_many requires conversationIds")
+	}
+	if len(ids) > maxSpeakMany {
+		return d.fail(req.IdempotencyKey, "", fmt.Sprintf("speak_many accepts at most %d conversations", maxSpeakMany))
+	}
+	mode := strings.ToLower(strings.TrimSpace(req.Mode))
+	if mode == "" {
+		mode = "queue"
+	}
+	if mode != "queue" && mode != "steer" {
+		return d.fail(req.IdempotencyKey, "", "speak mode must be queue or steer")
+	}
+	if mode == "steer" && !req.Confirmed {
+		return DispatchResult{
+			Accepted:          false,
+			Delivered:         false,
+			TargetTitle:       req.Text,
+			NeedsConfirmation: true,
+		}
+	}
+	results := make([]DispatchResult, 0, len(ids))
+	accepted := false
+	for _, id := range ids {
+		item := d.Speak(SpeakRequest{
+			ConversationID: id,
+			Text:           req.Text,
+			IdempotencyKey: req.IdempotencyKey + ":" + id,
+			Mode:           mode,
+			Confirmed:      req.Confirmed || mode == "queue",
+		})
+		if item.Accepted && item.Delivered {
+			accepted = true
+		}
+		results = append(results, item)
+	}
+	batch := SpeakManyResult{
+		Accepted: accepted,
+		Results:  results,
+	}
+	if !accepted {
+		batch.Error = "no conversation received the instruction"
+	}
+	return batch
+}
+
+func uniqueIDs(ids []string) []string {
+	seen := map[string]struct{}{}
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	return out
 }
 
 func (d *Dispatcher) CreateConversation(req CreateRequest) DispatchResult {
