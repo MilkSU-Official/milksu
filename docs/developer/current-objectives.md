@@ -2,7 +2,7 @@
 
 > 文档状态：Current / Canonical target contract
 >
-> 最后收口：2026-09-20
+> 最后收口：2026-09-22
 >
 > 本页只回答“当前处于什么阶段、下一条完成线是什么”。实现以当前代码、测试、Git 历史和原生 App 为准。
 > 可下载安装包只写在 README，本页不写「当前最新版是」版本号或 hash。
@@ -33,20 +33,19 @@
 
 更早的 tag 见 [GitHub Releases](https://github.com/MilkSU-Official/milksu/releases)，本页不复述。
 
-最近一次正式包装源 `d3ee32bd`（`26.917.3`）：侧栏「更新」打开进度框下载，下完后用户点安装并重启；macOS DMG 安装引导图为 Retina @2x。一并打进：整理上下文 / 接到新会话短会话不再失败；DSH 打 TokenFlux 保留厂商前缀；出厂默认运行时 Pi。Windows 安装器仍未代码签名。`26.917.2` 没有 GitHub Release。
+最近一次正式包装源 `80e8ebb7`（`26.922.1`）：桌宠进安装包（手机对话、出厂 DeepSeek Flash、完整 Pi 工具与附件；sidecar 换代不再清掉新进程 stdin，用户句和归档会刷盘；中止与调试内容不进气泡；手机消息有进出场过渡）。一并打进：思考结束后正文留在时间线；会话自带中转站与模型；凭据轮换不切断在飞回合；删除改为确认卡；选中文字可加入对话；切换对话保留草稿；资料页用量估算。DeepSeek V4 Pro 思考档为 `low / high / max`。Windows 安装器仍未代码签名。
 
-发行页：<https://github.com/MilkSU-Official/milksu/releases/tag/v26.917.3>
+发行页：<https://github.com/MilkSU-Official/milksu/releases/tag/v26.922.1>
 
 | 平台 | Workflow | 安装包 | 大小 | SHA-256 |
 | --- | --- | --- | ---: | --- |
-| macOS ARM64 | `35205819724` | `MilkSU-macOS-arm64-26.917.3.dmg` | 329,693,780 B | `fc24f9bf907bfdbddccda796072c84cf013b5f1683df9ae6f0055af0c26ae792` |
-| Windows x64 | `35205823589` | `MilkSU-Windows-x64-26.917.3-Setup.exe` | 263,093,940 B | `7db65b8dd7dbaa8638a3bbfee54253039e3531720aa3db58fa59ac7325fb1104` |
-| Linux x64 DEB | `35205827853` | `MilkSU-Linux-x64-26.917.3.deb` | 236,968,756 B | `67e539cdee66fe798ebb05fae4eb75efb5d311d4f3f525a2adfdb6d89df66fcf` |
-| Linux x64 tarball | `35205827853` | `MilkSU-Linux-x64-26.917.3.tar.gz` | 290,175,038 B | `c2ae0a3ea47b9ece37fe0da7a0475afec0dbd55a3546f573199ffa8bc793da73` |
+| macOS ARM64 | `35624477220` | `MilkSU-macOS-arm64-26.922.1.dmg` | 335,706,576 B | `707f34ccd1ef626d395834f70977b6622928b61cf9d54bc7a1569fffc602eeef` |
+| Windows x64 | `35624482552` | `MilkSU-Windows-x64-26.922.1-Setup.exe` | 267,305,089 B | `9f997eafdf4713403641cce4bdff9186fcf2344a0e65ed7a493ef926be02535f` |
+| Linux x64 DEB | `35624486985` | `MilkSU-Linux-x64-26.922.1.deb` | 241,418,652 B | `8c08759e12b58a8871e89f9138768d1f2b4ba4eec9a0e767ac579765684f384f` |
+| Linux x64 tarball | `35624486985` | `MilkSU-Linux-x64-26.922.1.tar.gz` | 295,179,112 B | `2fccd91a242704b83b42e1af21bb33dec9189e42ac7afea549fb0055a5b8c910` |
 
 ## 未打进 GitHub 安装包
 
-- 凭据轮换不再切在飞回合、会话带自己的中转站与模型、删除守卫改判命令自写的脚本、切换对话不丢草稿、对话选中文字「加入对话」：已在 `main`（#120 / #119 / #106 / #122 / #123），未打进安装包。删除守卫不再把 `rm -rf X && mkdir X` 或命令里自赋的 `REPRO=…; rm -rf "$REPRO"` 当成「先创建再删除」。有风险（主目录 / 工作区根 / 超大目录）和量不到目标仍弹确认卡；后台任务仍不能弹卡。原先静默拦截的预制策略已改成：若将来切到拦截，必须把原因给用户和大模型，让模型改方案；当前未启用。产品回归按上手顺序走独立实例：登录 / 中转站密码框 → 主页 Pi/DSH → 桌宠 → CTF/CVE/Lab → 桌面执行面 → 资料/更新 → 设置其余项。开测前和每条用例前只留一扇测试窗，关掉日常 MilkSU 和残留 Electron，GitHub 回调不进日常窗口。测完打印从大模块到小模块的报告。
 - 新对话继承项目 `milksu`；Windows Computer Use 整段崩溃尚未真机验收。
 - Computer Use 选窗器仍是可选人工面。宽作业走 `recon-authorized-target` Skill，不造 typed sweep。
 - DSH `bash` 没有 MilkSU 侧超时上界（工具在 harness 进程内，不要在客户端复刻第二套循环）。
@@ -58,7 +57,7 @@
 
 - Coding / CTF / CVE / 实验室共用 Pi 文件、Shell、自动压缩（80% 空闲与 `/compact` 同一路径）和完整工作循环。工具结果进模型前走 Pi `tool_result` 截断。不扫描用户句子做意图路由。同一工作区的多条 Pi 对话可以同时跑回合（按会话排队 prompt）；同一条会话里的 Pi 子代理仍阻塞父工具。对话里每段思考结束后正文仍留在时间线上，不收进「过程」；下一段思考出结果后，上一段默认折叠。已结束的工具组仍折叠进「过程」。个人资料 Coding 用量按钉死的 models.dev 价目显示「约 $…」估算（不是账单）；发版前要连窗口 / 思考档位一起刷新。
 - 桌宠会话使用完整 Pi 工具循环（read / bash / grep / find / ls / edit / write），并保留 companion_board / companion_dispatch / companion_memory / companion_app。编排粒度：调研/摸底优先 dispatch 到对话并用 subagent 进 Working，落盘/长执行优先开或 steer 对话，桌宠本体只编排、确认、短回复；用户要桌宠自己做、没有合适对话、或要操作 MilkSU 本体时才本地工具或 companion_app。手机对话流式正文，进行中展示思考/工具，回合结束后可折叠过程；只有真正空且无过程才报「这一轮没有回复」。companion_app 可打开主窗口、聚焦会话、读取会话摘录和不含凭据的设置；改这些设置、退出和重启要宿主确认。speak_many 一次最多 8 个会话，steer 与 stop 仍要确认。运行状态仍只由看板读取，不能改写，也不能读写 API Key。出厂默认账户官方 DeepSeek Flash（`deepseek/deepseek-flash`，`companion_source=account`）；已保存的桌宠模型不因出厂默认变更而改写。附件与 Coding 同一条 preparePromptAttachments + 原图进回合路径；图片 MIME 按文件内容，不跟错误后缀。空助手回合不再从转录里消失，也不再把只有 tool call 的回合删掉；孤儿 toolResult 不会再送进下一轮。工具记录断了时 sidecar 先补合成错误 toolResult，不再自动归档逼「开新对话」。宿主 IPC 与主对话同一套：默认有限超时（读会话 / 看板 / 记忆 / queue 投递），只有确认驻留（patch_settings / quit / relaunch、steer / stop）才 `timeoutMs:0`；host 回执和用户中止立刻处理，不排在 `session.prompt` 后面。board / dispatch / memory / app 失败变成 error toolResult，Pi 继续 think/tool 直到助手正文或用户中止 / 拒绝驻留确认。设置保存只把桌宠 sidecar 标成 stale，不杀进行中的回合。桌宠 session 挂同一份 Pi hang-guard（bash 默认超时）和 tool_result 上界，不另造防挂死。StopCompanion / 换 sidecar 时旧 stdout 读循环不得清掉新进程的 stdin；Pi 要等第一条助手回复才写 jsonl，桌宠在用户句、归档后 reset 和 shutdown 时自己刷盘，恢复后同一段抄本还在。模型连不上显示「连不上模型服务」；host 超时显示「桌宠操作已取消或超时」，不结束回合。中止回合显示「这一轮已取消」；sidecar 中途退出显示「桌宠暂时连不上」，不把 Request aborted、companion sidecar is not running、companion_app get_settings 的设置 JSON 或 toolResult 信封画进手机气泡。
-- MilkSU 只持会话目录、凭据隔离、桌面授权、领域事实/Judge，以及危险或量不到的递归删除二次确认。给模型看的 MilkSU 正文跟界面语言走（默认中文）：运行时上下文、桌宠默认提示、空回复抢救、无工具合同、DSH 读图回退、附件前言、AGENTS.md 包装句、CTF ROLE_STATE。工具 schema 和 Pi 自带英文 coding harness 仍是原文。
+- MilkSU 只持会话目录、凭据隔离、桌面授权、领域事实/Judge，以及危险或量不到的递归删除二次确认。删除守卫不再把 `rm -rf X && mkdir X` 或命令里自赋的删除路径当成先创建再删除；有风险和量不到的目标仍弹确认卡，后台任务仍不能弹卡。给模型看的 MilkSU 正文跟界面语言走（默认中文）：运行时上下文、桌宠默认提示、空回复抢救、无工具合同、DSH 读图回退、附件前言、AGENTS.md 包装句、CTF ROLE_STATE。工具 schema 和 Pi 自带英文 coding harness 仍是原文。
 - 账户 TokenFlux 与本机 Provider 共用可调用目录；保存的模型 id 跟目录真实后缀走（例如目录只有 `gemini-3.8-flash-tiered` 时不再请求无后缀的 `gemini-3.8-flash`）。附件原图进当前回合。网页查证复用 Pi `web_search` / `web_fetch`。
 - 桌面壳是 Electron/Chromium。产品 UI 是 React + shadcn。桌宠作曲栏加号走现有本机附件 RPC：图片缩略图按原比例，文件进当前回合；发出去的气泡立刻出现。桌宠气泡按 gifted-chat 分组圆角收口，不再画遮字尖角；助手与用户正文复用 Coding 的 `MarkdownContent`（错误串仍纯文本）。设置 → 桌宠「外观」可调对话字体 / 字号，与设置 → 通用、主窗口对话共用同一组 `conversation_font` / `conversation_font_size`，改完经 BroadcastChannel / localStorage 同步到桌宠窗。桌宠手机窗按 iPhone 镜像 `build/iphone17-compare/iphone17-mirror.png` 做成 288 × 604。屏幕圆角仍按 402×874 pt 上 `_displayCornerRadius` 62 pt 缩放到 41.64 px，机身再加 3 px 边；不用 Chromium `corner-shape:squircle`。抬头用 MIT `react-progressive-blur` 多层 `backdrop-filter`：记录滚进 Milk 胶囊带才被磨砂，没有实心白遮罩；磨砂层不加 `clip-path`。手机抬头头像白底带细边框，点头像在同一手机窗内叠一层桌宠设置页（复用 `CompanionSettingsPanel`；companion preload / shell 放行 `GetSettings` / `SaveSettingsCmd` / `GetModelCatalog` 与皮肤导入移除，字体 / 悬浮窗 / 皮肤可在手机内改完即存）；返回玻璃 chevron 回到对话，不关手机。托盘 / 菜单「桌宠设置」仍打开主窗口设置 → 桌宠。对话时间按系统日期格式。夜间模式跟主窗口同一套存储并同步到桌宠窗。Cmd+Q / Ctrl+Q / 菜单退出结束进程；关主窗仍留桌宠。隔离浏览器、Browser Use、Computer Use 是三个表面；面板折叠不停止 Session。产物在各 OS 文档目录 `MilkSU/{Coding,CTF,CVE,Lab}`。
 - 产品 UI 只写在 `AGENTS.md`。
