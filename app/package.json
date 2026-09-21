@@ -43,6 +43,7 @@
     "markdown-it": "15.0.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
+    "react-progressive-blur": "^1.0.6",
     "tailwind-merge": "^3.7.0"
   },
   "devDependencies": {

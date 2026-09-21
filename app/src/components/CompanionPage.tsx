@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { ArrowUp, ChevronLeft, FileText, Plus, X } from 'lucide-react'
+import ProgressiveBlur from 'react-progressive-blur'
 import companionIdle from '@/assets/companion/idle.png'
 import CompanionPhoneStatusBar from '@/components/CompanionPhoneStatusBar'
 import CompanionSettingsPanel from '@/components/CompanionSettingsPanel'
@@ -511,8 +512,11 @@ export default function CompanionPage({
         ) : null}
       </div>
       <div className="companion-chat-fade" aria-hidden="true">
-        <div className="companion-chat-fade-soft" />
-        <div className="companion-chat-fade-hard" />
+        <ProgressiveBlur
+          className="companion-chat-fade-progressive"
+          position="top"
+          intensity={100}
+        />
       </div>
       <div className="companion-chat-chrome">
         <CompanionPhoneStatusBar />
