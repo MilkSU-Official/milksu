@@ -11,8 +11,10 @@ import {
   chatActivitySummary,
   detailsToggleOpen,
   hasEmptyVisibleReply,
+  latestFinishedThinkingId,
   isBlankAssistantMessage,
   retainAssistantAfterEmptyCompletion,
+  thinkingStaysOpen,
   processFoldStepCount,
   processFoldSummary,
   settleRunningToolMessages,
@@ -149,6 +151,31 @@ describe('buildChatTranscript', () => {
       thinking: '再看测试。',
       thinkingDurationMs: 400,
     })
+  })
+
+  it('keeps only the latest finished thinking open once the next result lands', () => {
+    const transcript = buildChatTranscript([
+      message('u1', 'user', '完成任务'),
+      message('a1', 'assistant', '', {
+        thinking: '先看仓库。',
+        thinkingStatus: 'done',
+      }),
+      message('t1', 'tool', '/repo', { toolName: 'read' }),
+      message('a2', 'assistant', '', {
+        thinking: '再跑测试。',
+        thinkingStatus: 'done',
+      }),
+      message('a3', 'assistant', '', {
+        thinking: '还在想。',
+        thinkingStatus: 'running',
+        status: 'running',
+      }),
+    ], true)
+
+    expect(thinkingStaysOpen('a1', transcript)).toBe(false)
+    expect(thinkingStaysOpen('a2', transcript)).toBe(true)
+    expect(thinkingStaysOpen('a3', transcript)).toBe(true)
+    expect(latestFinishedThinkingId(transcript)).toBe('a2')
   })
 
   it('groups consecutive tools beneath one process disclosure', () => {

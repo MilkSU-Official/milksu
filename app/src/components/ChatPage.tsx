@@ -102,7 +102,7 @@ import {
   LOCAL_CODING_SHELL_ID,
   shouldRememberCodingProject,
 } from '@/lib/codingProjectMemory'
-import { buildChatActivityEntries, buildChatTranscript, hasEmptyVisibleReply } from '@/lib/chatActivity'
+import { buildChatActivityEntries, buildChatTranscript, hasEmptyVisibleReply, latestFinishedThinkingId, thinkingStaysOpen } from '@/lib/chatActivity'
 import { agentFileDiffChips, formatDemoElapsed } from '@/lib/agentConversation'
 import { latestCodingPlan } from '@/lib/codingPlan'
 import {
@@ -902,6 +902,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
   const chatTranscript = useMemo(() => (
     buildChatTranscript(conversation?.messages ?? [], running)
   ), [conversation?.messages, running])
+  const thinkingFoldKey = useMemo(() => latestFinishedThinkingId(chatTranscript), [chatTranscript])
   chatTranscriptLengthRef.current = chatTranscript.length
   const recoverableFailureId = useMemo(() => (
     recoverableAgentFailureId(conversation?.messages ?? [], running)
@@ -2614,6 +2615,8 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
                       canRewind={item.message.id === rewindableUserMessageId}
                       rewindDisabled={rewindUnavailable}
                       kernel={agentKernel}
+                      thinkingDefaultOpen={thinkingStaysOpen(item.message.id, chatTranscript)}
+                      thinkingFoldKey={thinkingFoldKey}
                       onRespondApproval={(requestId, approved, scope, choice) => onRespondApproval?.(requestId, approved, scope, choice)}
                       onRetry={resumeAfterFailure}
                       onEditUser={(messageId, content) => onEditUser?.(messageId, content)}

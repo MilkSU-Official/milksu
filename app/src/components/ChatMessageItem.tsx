@@ -35,6 +35,8 @@ export default function ChatMessageItem({
   rewindDisabled,
   kernel,
   thinkingTotal,
+  thinkingDefaultOpen = false,
+  thinkingFoldKey = '',
   onRespondApproval,
   onRetry,
   onEditUser,
@@ -48,6 +50,8 @@ export default function ChatMessageItem({
   rewindDisabled?: boolean
   kernel?: 'pi' | 'dsh'
   thinkingTotal?: boolean
+  thinkingDefaultOpen?: boolean
+  thinkingFoldKey?: string
   onRespondApproval?: (requestId: string, approved: boolean, scope?: 'once' | 'conversation', choice?: string) => void
   onRetry?: () => void
   onEditUser?: (messageId: string, content: string) => void
@@ -327,9 +331,13 @@ export default function ChatMessageItem({
     if (thinkingRunning) setThinkManual(null)
   }, [thinkingRunning])
 
-  // Stay open after thinking finishes so the text remains on the thread.
-  // A click still collapses that row.
-  const thinkOpen = thinkManual !== null ? thinkManual : true
+  useEffect(() => {
+    if (!thinkingDefaultOpen) setThinkManual(false)
+  }, [thinkingFoldKey, thinkingDefaultOpen])
+
+  // Latest finished thinking stays open. A newer finished result folds this one.
+  // A click can still open or close it until that next result arrives.
+  const thinkOpen = thinkManual !== null ? thinkManual : thinkingDefaultOpen
 
   function toggleThink() {
     setThinkManual(!thinkOpen)

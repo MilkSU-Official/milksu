@@ -373,6 +373,47 @@ function isFoldableTurnBlock(block: ChatTurnBlock) {
   return false
 }
 
+function messageHasThinking(message: Message) {
+  return message.role === 'assistant' && (
+    Boolean(String(message.thinking ?? '').trim())
+    || message.thinkingStatus === 'running'
+  )
+}
+
+// Only the latest finished thinking stays open. A live burst stays open too.
+// When the next burst finishes, the previous one collapses.
+export function thinkingStaysOpen(messageId: string, blocks: readonly ChatTranscriptBlock[]) {
+  const thoughts: Message[] = []
+  for (const block of blocks) {
+    if (block.kind === 'message' && messageHasThinking(block.message)) {
+      thoughts.push(block.message)
+    }
+  }
+  const index = thoughts.findIndex(item => item.id === messageId)
+  if (index < 0) return false
+  const message = thoughts[index]!
+  if (message.thinkingStatus === 'running') return true
+  return !thoughts.slice(index + 1).some(item => (
+    item.thinkingStatus === 'done' && Boolean(String(item.thinking ?? '').trim())
+  ))
+}
+
+export function latestFinishedThinkingId(blocks: readonly ChatTranscriptBlock[]) {
+  let id = ''
+  for (const block of blocks) {
+    if (block.kind !== 'message') continue
+    const message = block.message
+    if (
+      message.role === 'assistant'
+      && message.thinkingStatus === 'done'
+      && Boolean(String(message.thinking ?? '').trim())
+    ) {
+      id = message.id
+    }
+  }
+  return id
+}
+
 export function mergeProcessThinking(blocks: readonly ChatTurnBlock[]): Message | null {
   const thoughts = blocks.flatMap(block => (
     block.kind === 'message' && isThinkingOnlyAssistant(block.message)
