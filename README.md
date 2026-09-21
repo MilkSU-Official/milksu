@@ -9,14 +9,14 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/MilkSU-Official/milksu/releases/tag/v26.917.3"><img src="https://img.shields.io/badge/latest_release-26.917.3-f3f0e8?style=flat-square&labelColor=20211f" alt="Latest GitHub Release 26.917.3"></a>
+  <a href="https://github.com/MilkSU-Official/milksu/releases/tag/v26.922.1"><img src="https://img.shields.io/badge/latest_release-26.922.1-f3f0e8?style=flat-square&labelColor=20211f" alt="Latest GitHub Release 26.922.1"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue?style=flat-square&labelColor=20211f" alt="AGPL-3.0-only"></a>
   <img src="https://img.shields.io/badge/platform-macOS_Windows_Linux-f3f0e8?style=flat-square&labelColor=20211f" alt="macOS, Windows and Linux">
   <img src="https://img.shields.io/badge/desktop-Electron_%2B_React_%2B_Go-f3f0e8?style=flat-square&labelColor=20211f" alt="Electron, React and Go">
 </p>
 
 <p align="center">
-  <a href="https://github.com/MilkSU-Official/milksu/releases/tag/v26.917.3">下载 26.917.3</a>
+  <a href="https://github.com/MilkSU-Official/milksu/releases/tag/v26.922.1">下载 26.922.1</a>
   ·
   <a href="https://github.com/MilkSU-Official/milksu/releases">全部发行</a>
   ·
@@ -85,7 +85,7 @@ MilkSU 把 Coding、CTF、CVE 和实验室放进同一个桌面。界面是 Reac
 
 ## 安装
 
-当前安装包是 **[26.917.3](https://github.com/MilkSU-Official/milksu/releases/tag/v26.917.3)**：macOS ARM64 DMG（Developer ID 签名并公证，安装引导图为 Retina @2x）、Windows x64 EXE、Linux x64 `.deb` 与 `.tar.gz`。Windows 安装器尚未代码签名，可能被 SmartScreen 拦住。已登录后侧栏「更新」打开进度框下载，下完后点安装并重启。
+当前安装包是 **[26.922.1](https://github.com/MilkSU-Official/milksu/releases/tag/v26.922.1)**：macOS ARM64 DMG（Developer ID 签名并公证，安装引导图为 Retina @2x）、Windows x64 EXE、Linux x64 `.deb` 与 `.tar.gz`。这一版带上桌宠（手机对话、出厂 DeepSeek Flash）。Windows 安装器尚未代码签名，可能被 SmartScreen 拦住。已登录后侧栏「更新」打开进度框下载，下完后点安装并重启。
 
 | 系统 | 安装包 | Computer Use | Browser Use |
 | --- | --- | --- | --- |
@@ -98,7 +98,7 @@ Linux 只发两份包：Ubuntu / Debian 用 `.deb`，Omarchy / Arch / NixOS 用�
 
 ```bash
 # Ubuntu / Debian
-sudo apt install ./MilkSU-Linux-x64-26.917.3.deb
+sudo apt install ./MilkSU-Linux-x64-26.922.1.deb
 
 # Omarchy / Arch：用仓库 packaging/linux/PKGBUILD.in，填版本与 sha256 后
 makepkg -si
