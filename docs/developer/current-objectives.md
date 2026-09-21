@@ -46,6 +46,7 @@
 
 ## 未打进 GitHub 安装包
 
+- 桌宠凭据生命周期、个人来源不被账户目录改写、GitHub 登录回调回到发起登录的实例、停靠上限不再杀掉仍在忙的 sidecar：在功能分支 `fix/companion-credential-lifecycle`（`1f39a9b`）上，合并进 `main` 之后才会进入安装包。从 `80e8ebb` 打出的 GitHub 安装包不含这些修复。
 - 新对话继承项目 `milksu`；Windows Computer Use 整段崩溃尚未真机验收。
 - Computer Use 选窗器仍是可选人工面。宽作业走 `recon-authorized-target` Skill，不造 typed sweep。
 - DSH `bash` 没有 MilkSU 侧超时上界（工具在 harness 进程内，不要在客户端复刻第二套循环）。
