@@ -44,8 +44,25 @@ export function assertNoRuntimeWriteTools(names) {
 
 const APP_CONFIRM_ACTIONS = new Set(["patch_settings", "quit", "relaunch"]);
 
-function hostResult(requestHost, action, input, options) {
-  return requestHost(action, input, options);
+/** Build a host failure message. Prefer throwing this so Pi marks isError. */
+export function companionHostToolErrorMessage(error) {
+  return error instanceof Error
+    ? error.message
+    : String(error || "companion host request failed");
+}
+
+async function runHostTool(requestHost, action, input, options) {
+  try {
+    const result = await requestHost(action, input, options);
+    return {
+      content: [{ type: "text", text: JSON.stringify(result) }],
+      details: result,
+    };
+  } catch (error) {
+    // Throw: Pi's agent-loop catches execute errors, writes an isError toolResult,
+    // and continues thinking/tools. Do not cancelAll or abort the session here.
+    throw new Error(companionHostToolErrorMessage(error));
+  }
 }
 
 function dispatchNeedsConfirmPark(params) {
@@ -81,13 +98,7 @@ export function createCompanionTools(requestHost, options = {}) {
       note: Type.Optional(Type.String()),
       reason: Type.Optional(Type.String()),
     }),
-    execute: async (_toolCallId, params) => {
-      const result = await hostResult(requestHost, "board", params);
-      return {
-        content: [{ type: "text", text: JSON.stringify(result) }],
-        details: result,
-      };
-    },
+    execute: async (_toolCallId, params) => runHostTool(requestHost, "board", params),
   });
 
   const dispatch = defineTool({
@@ -127,11 +138,7 @@ export function createCompanionTools(requestHost, options = {}) {
       // Confirm-parked actions wait like main-chat approvalBroker (no timeout).
       // Everything else uses the host broker default, same as workspace_action.
       const hostOptions = dispatchNeedsConfirmPark(params) ? { timeoutMs: 0 } : undefined;
-      const result = await hostResult(requestHost, "dispatch", params, hostOptions);
-      return {
-        content: [{ type: "text", text: JSON.stringify(result) }],
-        details: result,
-      };
+      return runHostTool(requestHost, "dispatch", params, hostOptions);
     },
   });
 
@@ -167,11 +174,7 @@ export function createCompanionTools(requestHost, options = {}) {
           details: result,
         };
       }
-      const result = await hostResult(requestHost, "memory", params);
-      return {
-        content: [{ type: "text", text: JSON.stringify(result) }],
-        details: result,
-      };
+      return runHostTool(requestHost, "memory", params);
     },
   });
 
@@ -205,11 +208,7 @@ export function createCompanionTools(requestHost, options = {}) {
     execute: async (_toolCallId, params) => {
       const action = String(params?.action ?? "").trim();
       const hostOptions = APP_CONFIRM_ACTIONS.has(action) ? { timeoutMs: 0 } : undefined;
-      const result = await hostResult(requestHost, "app", params, hostOptions);
-      return {
-        content: [{ type: "text", text: JSON.stringify(result) }],
-        details: result,
-      };
+      return runHostTool(requestHost, "app", params, hostOptions);
     },
   });
 

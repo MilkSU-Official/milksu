@@ -401,6 +401,58 @@ export async function runFirstUse(options = {}) {
     launch = null
   }
 
+  async function recordCustomRelay(driver) {
+    if (steps.some(step => step.id === 'settings-custom-relay')) return
+    const relay = await saveCustomRelay(driver)
+    if (relay.ok) {
+      markProductLoopPersonalRelayUsable(true)
+      await record('settings-custom-relay', 'PASS', relay.detail)
+      await enablePersonalRelayRoute(driver)
+      await delay(1_500)
+      if (!driver?.cdpAlive()) {
+        await record('relay-model-fileloop', 'FAIL', '填完 Key 后 CDP 断了，文件循环没跑')
+        return
+      }
+      try {
+        const loop = await runFileLoop(driver, {
+          title: 'product-loop first-use relay',
+          modelMode: 'manual',
+          modelProvider: relay.id,
+          modelId: relay.model,
+          modelSourcePreference: 'personal',
+          timeoutMs: taskTimeoutMs,
+        })
+        const ok = loop.notes && loop.usedFiles && !loop.timeout && !loop.failed
+        await record(
+          'relay-model-fileloop',
+          ok ? 'PASS' : 'FAIL',
+          ok ? '中转站写出 NOTES.md' : `NOTES.md=${loop.notes} fileTools=${loop.usedFiles} timeout=${loop.timeout} failed=${Boolean(loop.failed)} ${loop.detail || ''}`,
+        )
+      } catch (error) {
+        await record(
+          'relay-model-fileloop',
+          'FAIL',
+          redactProcessText(error instanceof Error ? error.message : error, 180),
+        )
+      }
+      return
+    }
+    const classified = classifyCustomRelaySave(relay.detail)
+    markProductLoopPersonalRelayUsable(false)
+    await record(
+      'settings-custom-relay',
+      classified.result,
+      classified.expectedMiss
+        ? `没有可用的本机 Key（${relay.detail}）`
+        : relay.detail,
+    )
+    await record(
+      'relay-model-fileloop',
+      'FAIL',
+      classified.expectedMiss ? '本机没有可填的中转站 Key' : '上手流程没跑到这一步',
+    )
+  }
+
   try {
     launch = await startFirstUseDesktop({ instanceId, timeoutMs: desktopReadyMs })
     if (!launch.attached || !launch.driver?.cdpAlive()) {
@@ -429,38 +481,72 @@ export async function runFirstUse(options = {}) {
         await record('login-github-active', 'PASS', '账户变成已登录')
         await enableAccountRoute(launch.driver)
         await delay(1_500)
-        let loop = await runFileLoop(launch.driver, {
-          title: 'product-loop first-use account',
-          modelMode: 'manual',
-          modelProvider: 'tokenflux',
-          modelId: resolveCustomRelayModels(process.env) || 'deepseek/deepseek-flash',
-          modelSourcePreference: 'account',
-          timeoutMs: taskTimeoutMs,
-        })
-        if (!loop.notes || loop.timeout) {
-          await delay(1_000)
-          loop = await runFileLoop(launch.driver, {
-            title: 'product-loop first-use account retry',
-            modelMode: 'manual',
-            modelProvider: 'tokenflux',
-            modelId: resolveCustomRelayModels(process.env) || 'deepseek/deepseek-flash',
-            modelSourcePreference: 'account',
-            timeoutMs: taskTimeoutMs,
-          })
+        // Fill the personal relay before the long account fileloop. That
+        // loop has been closing CDP, which skipped key-fill entirely.
+        if (launch.driver?.cdpAlive()) {
+          try {
+            await recordCustomRelay(launch.driver)
+          } catch (error) {
+            if (!steps.some(step => step.id === 'settings-custom-relay')) {
+              await record(
+                'settings-custom-relay',
+                'FAIL',
+                redactProcessText(error instanceof Error ? error.message : error, 180),
+              )
+              await record('relay-model-fileloop', 'FAIL', '上手流程没跑到这一步')
+            } else if (!steps.some(step => step.id === 'relay-model-fileloop')) {
+              await record(
+                'relay-model-fileloop',
+                'FAIL',
+                redactProcessText(error instanceof Error ? error.message : error, 180),
+              )
+            }
+          }
         }
-        const classified = classifyAccountFileLoop({
-          ...loop,
-          tokenFluxLinked: active.tokenFluxLinked === true,
-        })
-        await record(
-          'account-model-fileloop',
-          classified.result,
-          classified.expectedMiss
-            ? `账户发不出，linked=${Boolean(active.tokenFluxLinked)}，不记通过、不标来源就绪`
-            : loop.notes
-              ? '账户来源写出 NOTES.md'
-              : `NOTES.md=${loop.notes} fileTools=${loop.usedFiles} timeout=${loop.timeout} failed=${Boolean(loop.failed)} ${loop.detail || ''}`,
-        )
+        if (launch.driver?.cdpAlive()) {
+          try {
+            let loop = await runFileLoop(launch.driver, {
+              title: 'product-loop first-use account',
+              modelMode: 'manual',
+              modelProvider: 'tokenflux',
+              modelId: resolveCustomRelayModels(process.env) || 'deepseek/deepseek-flash',
+              modelSourcePreference: 'account',
+              timeoutMs: taskTimeoutMs,
+            })
+            if (launch.driver?.cdpAlive() && (!loop.notes || loop.timeout)) {
+              await delay(1_000)
+              loop = await runFileLoop(launch.driver, {
+                title: 'product-loop first-use account retry',
+                modelMode: 'manual',
+                modelProvider: 'tokenflux',
+                modelId: resolveCustomRelayModels(process.env) || 'deepseek/deepseek-flash',
+                modelSourcePreference: 'account',
+                timeoutMs: taskTimeoutMs,
+              })
+            }
+            const classified = classifyAccountFileLoop({
+              ...loop,
+              tokenFluxLinked: active.tokenFluxLinked === true,
+            })
+            await record(
+              'account-model-fileloop',
+              classified.result,
+              classified.expectedMiss
+                ? `账户发不出，linked=${Boolean(active.tokenFluxLinked)}，不记通过、不标来源就绪`
+                : loop.notes
+                  ? '账户来源写出 NOTES.md'
+                  : `NOTES.md=${loop.notes} fileTools=${loop.usedFiles} timeout=${loop.timeout} failed=${Boolean(loop.failed)} ${loop.detail || ''}`,
+            )
+          } catch (error) {
+            await record(
+              'account-model-fileloop',
+              'FAIL',
+              redactProcessText(error instanceof Error ? error.message : error, 180),
+            )
+          }
+        } else if (!steps.some(step => step.id === 'account-model-fileloop')) {
+          await record('account-model-fileloop', 'FAIL', 'CDP 在账户文件循环前断开')
+        }
       } else {
         const status = await accountStatus(launch.driver)
         await record(
@@ -475,7 +561,7 @@ export async function runFirstUse(options = {}) {
     }
 
     const githubOk = steps.find(step => step.id === 'login-github-active')?.result === 'PASS'
-    if (!githubOk) {
+    if (!githubOk && launch.driver?.cdpAlive()) {
       const snapshot = inspectLoginPage(await snapshotLoginPage(launch.driver))
       if (snapshot.gate && snapshot.skip) {
         await launch.driver.cdp.evaluate(`(() => {
@@ -489,44 +575,14 @@ export async function runFirstUse(options = {}) {
       }
     }
 
-    const relay = await saveCustomRelay(launch.driver)
-    if (relay.ok) {
-      markProductLoopPersonalRelayUsable(true)
-      await record('settings-custom-relay', 'PASS', relay.detail)
-      await enablePersonalRelayRoute(launch.driver)
-      await delay(1_500)
-      const loop = await runFileLoop(launch.driver, {
-        title: 'product-loop first-use relay',
-        modelMode: 'manual',
-        modelProvider: relay.id,
-        modelId: relay.model,
-        modelSourcePreference: 'personal',
-        timeoutMs: taskTimeoutMs,
-      })
-      const ok = loop.notes && loop.usedFiles && !loop.timeout && !loop.failed
-      await record(
-        'relay-model-fileloop',
-        ok ? 'PASS' : 'FAIL',
-        ok ? '中转站写出 NOTES.md' : `NOTES.md=${loop.notes} fileTools=${loop.usedFiles} timeout=${loop.timeout} failed=${Boolean(loop.failed)} ${loop.detail || ''}`,
-      )
-    } else {
-      const classified = classifyCustomRelaySave(relay.detail)
-      markProductLoopPersonalRelayUsable(false)
-      await record(
-        'settings-custom-relay',
-        classified.result,
-        classified.expectedMiss
-          ? `没有可用的本机 Key（${relay.detail}）`
-          : relay.detail,
-      )
-      await record(
-        'relay-model-fileloop',
-        'FAIL',
-        classified.expectedMiss ? '本机没有可填的中转站 Key' : '上手流程没跑到这一步',
-      )
+    if (launch.driver?.cdpAlive()) {
+      await recordCustomRelay(launch.driver)
+    } else if (!steps.some(step => step.id === 'settings-custom-relay')) {
+      await record('settings-custom-relay', 'FAIL', 'CDP 在填 Key 前断开')
+      await record('relay-model-fileloop', 'FAIL', '上手流程没跑到这一步')
     }
 
-    if (githubOk) {
+    if (githubOk && launch.driver?.cdpAlive()) {
       await launch.driver.invoke('LogoutAccount', []).catch(() => {})
     }
     await resetContinueLocal(launch.driver)

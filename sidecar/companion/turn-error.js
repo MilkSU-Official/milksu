@@ -90,6 +90,8 @@ export function companionAssistantTurnError(messages) {
     if (message.stopReason === "error") {
       return String(message.errorMessage ?? "").trim() || "companion model call failed";
     }
+    // User / AbortCompanionTurn stop — not an empty-reply failure; transcript is repaired.
+    if (message.stopReason === "aborted") return "";
     // toolUse / unfinished tool rounds still have visible work for the phone UI.
     if (message.stopReason === "toolUse") return "";
     if (assistantHasVisibleWork(message)) return "";

@@ -3,6 +3,7 @@ import {
   companionChatAttachmentsFromText,
   companionChatNeedsNewConversation,
   companionChatVisibleText,
+  companionHostToolFailure,
   explainCompanionError,
 } from './companionUserError'
 import { applyUiLocale } from './uiLocale'
@@ -52,6 +53,9 @@ describe('explainCompanionError', () => {
     expect(explainCompanionError('companion host request timed out')).toBe(
       '桌宠操作已取消或超时，请再试一次。',
     )
+    expect(explainCompanionError('companion host request timed out (board)')).toBe(
+      '桌宠操作已取消或超时，请再试一次。',
+    )
     expect(explainCompanionError('turn aborted')).toBe(
       '桌宠操作已取消或超时，请再试一次。',
     )
@@ -63,6 +67,12 @@ describe('explainCompanionError', () => {
       'The companion action was cancelled or timed out. Try again.',
     )
     applyUiLocale('zh')
+  })
+
+  it('exposes host tool failures for loop-continuity guards', () => {
+    expect(companionHostToolFailure('companion host request timed out (board)')).toBe(true)
+    expect(companionHostToolFailure('Connection error.')).toBe(false)
+    expect(companionHostToolFailure('tool history is broken')).toBe(false)
   })
 
   it('maps unknown host request ids to product copy without leaking internals', () => {

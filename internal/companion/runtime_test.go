@@ -66,6 +66,31 @@ func TestAbortTurnClearsParkedConfirm(t *testing.T) {
 	}
 }
 
+func TestMarkStaleDoesNotKillInFlightSidecar(t *testing.T) {
+	runtime := NewRuntime(RuntimeOptions{})
+	runtime.ready = true
+	runtime.inFlight.Store(true)
+	runtime.MarkStale()
+	if !runtime.stale.Load() {
+		t.Fatal("settings save should mark companion stale")
+	}
+	runtime.restartIfStaleIdle()
+	if !runtime.ready {
+		t.Fatal("in-flight companion must keep the sidecar after settings save")
+	}
+	if !runtime.stale.Load() {
+		t.Fatal("stale flag should wait until the turn settles")
+	}
+	runtime.setInFlight(false)
+	runtime.restartIfStaleIdle()
+	if runtime.ready {
+		t.Fatal("idle stale companion should restart")
+	}
+	if runtime.stale.Load() {
+		t.Fatal("restart should clear stale")
+	}
+}
+
 func statusOf(runtime *Runtime, id string) string {
 	for _, session := range runtime.BoardSnapshot().Sessions {
 		if session.ID == id {

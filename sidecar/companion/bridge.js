@@ -34,11 +34,22 @@ let hostBroker = null;
 let session = null;
 let subscribed = false;
 let promptQueue = Promise.resolve();
+let turnAborted = false;
 let boardSnapshot = { sessions: [], todos: [] };
 let semanticMemories = [];
 let episodicRecalls = [];
 let persona = "";
 let memorySearchEnabled = true;
+
+/** Same as main Pi: host replies and abort must not wait behind session.prompt. */
+export function companionCommandRunsImmediately(action) {
+  return action === "companion_host_response" || action === "abort";
+}
+
+export function isCompanionAbortError(error) {
+  const text = error instanceof Error ? error.message : String(error ?? "");
+  return /turn aborted|abort(?:ed)?|cancel(?:led|ed)|interrupted/i.test(text);
+}
 
 function emit(type, data = {}) {
   process.stdout.write(`${JSON.stringify({
@@ -225,8 +236,12 @@ function subscribeCompanion() {
       return;
     }
     if (event.type === "agent_end") {
-      const error = companionAssistantTurnError(session.messages);
-      if (error) emit("error", { error });
+      if (turnAborted) {
+        repairCompanionSessionHistory("companion tool interrupted by abort");
+      } else {
+        const error = companionAssistantTurnError(session.messages);
+        if (error) emit("error", { error });
+      }
       emit("turn_settled", {});
       if (memorySearchEnabled) scheduleCompanionIndexRefresh();
       return;
@@ -296,8 +311,21 @@ function repairCompanionSessionHistory(reason = "companion tool interrupted") {
   return repairedCount;
 }
 
+async function abortCompanionTurn() {
+  turnAborted = true;
+  ensureHostBroker().cancelAll("turn aborted");
+  try {
+    await session?.abort?.();
+  } catch {
+    // Abort races are fine; repair below is what keeps the transcript usable.
+  }
+  repairCompanionSessionHistory("companion tool interrupted by abort");
+  emit("turn_settled", { aborted: true });
+}
+
 async function sendPrompt(command) {
   if (!session) throw new Error("companion session is not ready");
+  turnAborted = false;
   repairCompanionSessionHistory("companion tool interrupted before next turn");
   const prepared = await prepareCompanionPrompt(command);
   if (!prepared.prompt) {
@@ -309,13 +337,25 @@ async function sendPrompt(command) {
     text: prepared.prompt,
     hasAttachments: prepared.images.length > 0,
   });
+  // Do not await session.prompt on the stdin command queue. Main Coding Pi
+  // detaches the prompt so workspace_action_response and abort_session can
+  // run while the agent loop is in flight. Companion host replies / abort
+  // used to sit behind this await and every host tool deadlocked until
+  // timeout — that aborted the loop mid-turn.
   promptQueue = promptQueue.then(async () => {
-    await session.prompt(prepared.prompt, {
-      expandPromptTemplates: false,
-      ...(prepared.images.length ? { images: prepared.images } : {}),
-    });
+    try {
+      await session.prompt(prepared.prompt, {
+        expandPromptTemplates: false,
+        ...(prepared.images.length ? { images: prepared.images } : {}),
+      });
+    } catch (error) {
+      if (turnAborted || isCompanionAbortError(error)) {
+        repairCompanionSessionHistory("companion tool interrupted by abort");
+        return;
+      }
+      emit("error", { error: error instanceof Error ? error.message : String(error) });
+    }
   });
-  await promptQueue;
 }
 
 function applyCompanionLocale(command) {
@@ -363,16 +403,7 @@ async function handleCommand(command) {
       resolveHost(command);
       return;
     case "abort":
-      // Mirror main-chat abort: cancel parked/in-flight host waits, then abort the agent loop.
-      // After settle, repair any orphan toolCalls so the next send/model switch continues.
-      ensureHostBroker().cancelAll("turn aborted");
-      try {
-        await session?.abort?.();
-      } catch {
-        // Abort races are fine; repair below is what keeps the transcript usable.
-      }
-      repairCompanionSessionHistory("companion tool interrupted by abort");
-      emit("turn_settled", { aborted: true });
+      await abortCompanionTurn();
       return;
     case "shutdown":
       ensureHostBroker().cancelAll("companion sidecar stopped");
@@ -381,6 +412,32 @@ async function handleCommand(command) {
     default:
       throw new Error(`unknown companion action: ${command.action}`);
   }
+}
+
+function dispatchCompanionLine(line) {
+  if (!String(line ?? "").trim()) return Promise.resolve();
+  let command;
+  try {
+    command = JSON.parse(line);
+  } catch (error) {
+    emit("error", { error: error instanceof Error ? error.message : String(error) });
+    return Promise.resolve();
+  }
+  // Immediate path mirrors main Pi abort_session / workspace_action_response.
+  if (command.action === "companion_host_response") {
+    try {
+      resolveHost(command);
+    } catch {
+      // Broker ignores unknown / late host ids.
+    }
+    return Promise.resolve();
+  }
+  if (command.action === "abort") {
+    return abortCompanionTurn().catch((error) => {
+      emit("error", { error: error instanceof Error ? error.message : String(error) });
+    });
+  }
+  return null;
 }
 
 const isCompanionBridgeMain = process.env.MILKSU_COMPANION_BRIDGE_MAIN === "1"
@@ -393,11 +450,14 @@ if (isCompanionBridgeMain) {
   const input = createInterface({ input: process.stdin });
   let commandQueue = Promise.resolve();
   input.on("line", (line) => {
+    const immediate = dispatchCompanionLine(line);
+    if (immediate) return;
     commandQueue = commandQueue.then(async () => {
       const command = JSON.parse(line);
       try {
         await handleCommand(command);
       } catch (error) {
+        if (turnAborted || isCompanionAbortError(error)) return;
         emit("error", { error: error instanceof Error ? error.message : String(error) });
       }
     });

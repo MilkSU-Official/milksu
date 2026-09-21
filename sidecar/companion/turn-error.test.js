@@ -46,6 +46,17 @@ test("does not treat a thinking-only turn as an empty reply", () => {
   ]), "");
 });
 
+test("does not treat stopReason aborted as an empty reply", () => {
+  assert.equal(companionAssistantTurnError([
+    {
+      role: "assistant",
+      content: [],
+      stopReason: "aborted",
+      errorMessage: "turn aborted",
+    },
+  ]), "");
+});
+
 test("does not treat stopReason toolUse as an empty reply", () => {
   assert.equal(companionAssistantTurnError([
     {

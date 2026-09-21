@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/MilkSU-Official/milksu/internal/codingattachment"
@@ -56,10 +57,12 @@ type Runtime struct {
 
 	pendingConfirms map[string]parkedConfirm
 
-	command *exec.Cmd
-	stdin   io.WriteCloser
-	ready   bool
-	lastErr string
+	command  *exec.Cmd
+	stdin    io.WriteCloser
+	ready    bool
+	lastErr  string
+	stale    atomic.Bool
+	inFlight atomic.Bool
 }
 
 type parkedConfirm struct {
@@ -95,6 +98,7 @@ func NewRuntime(options RuntimeOptions) *Runtime {
 
 func (r *Runtime) Ensure() (Status, error) {
 	r.refreshBoard()
+	r.restartIfStaleIdle()
 	status := r.Status()
 	if status.Ready {
 		return status, nil
@@ -133,13 +137,19 @@ func (r *Runtime) Send(prompt string, attachments []codingattachment.Attachment)
 	if custom := engine.CompanionCustomProvider(r.resolvedSettings()); custom != nil {
 		command["customProvider"] = custom
 	}
-	return r.write(command)
+	if err := r.write(command); err != nil {
+		return err
+	}
+	r.setInFlight(true)
+	return nil
 }
 
 func (r *Runtime) Stop() error {
 	r.mu.Lock()
 	pending := r.takeAllParkedLocked()
 	err := r.stopLocked()
+	r.inFlight.Store(false)
+	r.stale.Store(false)
 	r.mu.Unlock()
 	r.finishParked(pending, "companion sidecar stopped")
 	return err
@@ -164,8 +174,46 @@ func (r *Runtime) Invalidate() {
 	r.mu.Lock()
 	pending := r.takeAllParkedLocked()
 	_ = r.stopLocked()
+	r.stale.Store(false)
+	r.inFlight.Store(false)
 	r.mu.Unlock()
 	r.finishParked(pending, "companion sidecar stopped")
+}
+
+// MarkStale replaces the sidecar on the next idle Ensure/Send. Settings save
+// must not kill an in-flight Pi loop — coding sidecars already do this lazily.
+func (r *Runtime) MarkStale() {
+	if r == nil {
+		return
+	}
+	r.stale.Store(true)
+}
+
+func (r *Runtime) setInFlight(inFlight bool) {
+	if r == nil {
+		return
+	}
+	r.inFlight.Store(inFlight)
+}
+
+func (r *Runtime) restartIfStaleIdle() {
+	if r == nil {
+		return
+	}
+	if !r.stale.Load() || r.inFlight.Load() {
+		return
+	}
+	r.mu.Lock()
+	if !r.stale.Load() || r.inFlight.Load() {
+		r.mu.Unlock()
+		return
+	}
+	pending := r.takeAllParkedLocked()
+	_ = r.stopLocked()
+	r.stale.Store(false)
+	r.inFlight.Store(false)
+	r.mu.Unlock()
+	r.finishParked(pending, "companion sidecar replaced")
 }
 
 func mapString(input map[string]any, key string) string {
@@ -531,6 +579,7 @@ func (r *Runtime) readEvents(stdout io.ReadCloser) {
 	}
 	r.command = nil
 	r.stdin = nil
+	r.inFlight.Store(false)
 	pending := r.takeAllParkedLocked()
 	r.mu.Unlock()
 	r.finishParked(pending, "companion sidecar stopped")
@@ -759,6 +808,9 @@ func (r *Runtime) selection() config.CompanionModelSelection {
 }
 
 func (r *Runtime) emitEvent(event engine.Event) {
+	if event.Type == "assistant.settled" {
+		r.setInFlight(false)
+	}
 	if r.emit == nil {
 		return
 	}

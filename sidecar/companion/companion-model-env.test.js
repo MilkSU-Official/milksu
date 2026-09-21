@@ -18,3 +18,12 @@ test("personal companion source keeps the personal TokenFlux key", () => {
   );
   assert.equal(env.TOKENFLUX_API_KEY, "personal-key");
 });
+
+test("personal companion source does not overlay the account key", () => {
+  const env = companionProviderEnvironment(
+    { source: "personal" },
+    { MILKSU_RELAY_KEY: "account-relay", MILKSU_RELAY_URL: "https://tokenflux.dev/v1" },
+  );
+  assert.equal(env.TOKENFLUX_API_KEY, undefined);
+  assert.equal(env.MILKSU_RELAY_KEY, "account-relay");
+});

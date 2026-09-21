@@ -97,3 +97,30 @@ test("dispatch queue and app reads use the default host timeout", async () => {
   assert.equal(seen[1].options, undefined);
   assert.equal(seen[2].options?.timeoutMs, 0);
 });
+
+test("dispatch host rejection throws so Pi can emit an error toolResult and continue", async () => {
+  const tools = createCompanionTools(async () => {
+    throw new Error("companion host request timed out (dispatch)");
+  });
+  const dispatch = tools.find(tool => tool.name === "companion_dispatch");
+  await assert.rejects(
+    () => dispatch.execute("1", {
+      action: "speak",
+      conversationId: "live",
+      text: "hi",
+      idempotencyKey: "k1",
+    }),
+    /timed out \(dispatch\)/,
+  );
+});
+
+test("board host rejection throws so Pi can continue the loop", async () => {
+  const tools = createCompanionTools(async () => {
+    throw new Error("companion host request failed");
+  });
+  const board = tools.find(tool => tool.name === "companion_board");
+  await assert.rejects(
+    () => board.execute("1", { action: "list" }),
+    /companion host request failed/,
+  );
+});

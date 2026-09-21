@@ -41,6 +41,42 @@ test("respond resolves a pending host request", async () => {
   assert.deepEqual(await pending, { sessions: [] });
 });
 
+test("one host timeout does not cancelAll other pending host waits", async () => {
+  let parkedId = "";
+  const broker = createCompanionHostBroker((_type, data) => {
+    if (data?.action === "app") parkedId = data.requestId;
+  }, { defaultTimeoutMs: 20 });
+  const timedOut = broker.request("board", { action: "list" });
+  const parked = broker.request("app", { action: "quit" }, { timeoutMs: 0 });
+  await assert.rejects(() => timedOut, /timed out \(board\)/);
+  // Finite timeout must not wipe parked confirm waits — that would abort the loop.
+  assert.equal(broker.pendingCount(), 1);
+  assert.ok(parkedId);
+  assert.equal(broker.respond({ requestId: parkedId, ok: true, result: { ok: true } }), true);
+  assert.deepEqual(await parked, { ok: true });
+  assert.equal(broker.pendingCount(), 0);
+});
+
+test("host timeout rejects without calling cancelAll", async () => {
+  let cancelReason = "";
+  const events = [];
+  const broker = createCompanionHostBroker((type, data) => {
+    events.push({ type, ...data });
+  }, { defaultTimeoutMs: 15 });
+  const originalCancel = broker.cancelAll.bind(broker);
+  broker.cancelAll = (reason) => {
+    cancelReason = String(reason || "");
+    return originalCancel(reason);
+  };
+  await assert.rejects(
+    () => broker.request("dispatch", { action: "speak" }),
+    /timed out \(dispatch\)/,
+  );
+  assert.equal(cancelReason, "");
+  assert.equal(broker.pendingCount(), 0);
+  assert.equal(events.length, 1);
+});
+
 test("late respond after cancelAll is ignored without throwing", async () => {
   let requestId = "";
   const broker = createCompanionHostBroker((_type, data) => {

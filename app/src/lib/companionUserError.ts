@@ -22,12 +22,14 @@ export function explainCompanionError(
   if (companionChatNeedsNewConversation(message)) {
     return t('这段对话没法继续了。', 'This chat can\'t continue.')
   }
+  // AbortCompanionTurn / recover teardown aborts the in-flight Pi HTTP
+  // request. undici surfaces that as "Request aborted" — not a model outage.
+  if (companionTurnCancelled(message)) {
+    return t('这一轮已取消。', 'This turn was cancelled.')
+  }
   // Host IPC (board / dispatch / memory / app) must not look like a model outage.
   // The model may still be streaming while a host wait times out or is aborted.
-  if (
-    /companion host request timed out|companion host request failed|companion host cancelled|turn aborted|unknown companion host request|companion-host-\d+/i
-      .test(message)
-  ) {
+  if (companionHostToolFailure(message)) {
     return t('桌宠操作已取消或超时，请再试一次。', 'The companion action was cancelled or timed out. Try again.')
   }
   if (
@@ -37,6 +39,62 @@ export function explainCompanionError(
     return t('连不上模型服务，请稍后重试。', 'Could not reach the model service. Try again later.')
   }
   return explainModelCallFailure(message, context) || message
+}
+
+/**
+ * Host board/dispatch/memory/app failure. Pi must turn this into an error
+ * toolResult and keep the agent loop; MilkSU must not abort the run.
+ */
+export function companionHostToolFailure(reason: unknown): boolean {
+  return /companion host request timed out|companion host request failed|companion host cancelled|turn aborted|unknown companion host request|companion-host-\d+/i
+    .test(String(reason ?? ''))
+}
+
+/**
+ * In-flight model HTTP was cancelled (AbortCompanionTurn, StopCompanion,
+ * recover teardown, user stop). Distinct from host-tool timeout.
+ */
+export function companionTurnCancelled(reason: unknown): boolean {
+  return /abort\s*error|request aborted|this operation was aborted|the operation was aborted|operation was aborted/i
+    .test(String(reason ?? ''))
+}
+
+/**
+ * Host / sidecar / settings dumps. Never a chat bubble, process detail, or
+ * error line. Fuzz user prompts are Chinese prose and do not match.
+ */
+export function companionLooksLikeDebugPayload(value: unknown): boolean {
+  const text = String(value ?? '').trim()
+  if (!text) return false
+  if (/\[object Object\]/i.test(text)) return true
+  if (/companion-host-\d+/i.test(text)) return true
+  if (/companion_float_enabled|tokenflux\.dev\/v1/i.test(text) && /[{[]/.test(text)) {
+    return true
+  }
+  if (!/^[{\[]/.test(text)) return false
+  try {
+    const parsed = JSON.parse(text) as unknown
+    return parsed !== null && typeof parsed === 'object'
+  } catch {
+    return /"settings"\s*:|"ok"\s*:\s*true|"relay"\s*:/.test(text)
+  }
+}
+
+export function companionChatIsVisibleEntry(entry: {
+  role?: string
+  text?: string
+  thinking?: string
+  tools?: string[]
+  attachments?: CodingAttachment[]
+}): boolean {
+  const role = String(entry.role ?? '').trim()
+  if (role === 'tool' || role === 'toolResult' || role === 'custom') return false
+  if (role && role !== 'user' && role !== 'assistant') return false
+  const plain = companionChatUserFacingText(entry.text ?? '', Boolean(entry.attachments?.length))
+  if (companionLooksLikeDebugPayload(plain)) {
+    return Boolean(String(entry.thinking ?? '').trim() || (entry.tools?.length ?? 0) > 0)
+  }
+  return true
 }
 
 /**

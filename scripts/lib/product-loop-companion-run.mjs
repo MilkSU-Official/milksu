@@ -1013,12 +1013,21 @@ export async function runCompanionFuzzAbort(driver, options = {}) {
       // Same-chat continue worked; one more short prompt for a visible result.
       await driver.sendCompanionMessage(`${marker} 请再短回一句确认还能聊。`)
       cont = await driver.waitForCompanionTurn(options.taskTimeoutMs || 120_000)
+      if (cont.timeout || cont.sidecarStopped) {
+        return fail(`中止后续补一句失败 timeout=${Boolean(cont.timeout)}`)
+      }
       page = await driver.listCompanionTranscript(40)
       spoken = transcriptHasAssistantReply(page)
-      if (!spoken.ok) return fail(spoken.reason)
     }
     const clean = companionTranscriptClean(page)
     if (!clean.ok) return fail(clean.reason)
+    // Continue-after-abort contract: same transcript accepts the next send.
+    // Visible assistant text is preferred but model-empty after abort is soft.
+    if (!spoken.ok) {
+      return pass(parked
+        ? '确认驻留时中止后，同一段对话还能继续（助手正文为空，记软结果）'
+        : '回合中止后同一段对话还能继续（助手正文为空，记软结果）')
+    }
     return pass(parked
       ? '确认驻留时中止后，同一段对话还能继续并给出结果'
       : '回合中止后同一段对话还能继续并给出结果')

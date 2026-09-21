@@ -3778,7 +3778,11 @@ func validateModelAccessFor(settings config.AppSettings, probe bool) error {
 // The definition travels with the turn instead, so the process environment stays as narrow as
 // before and no unrelated relay credential enters it.
 func customProviderTurnPayload(settings config.AppSettings) map[string]any {
-	name := strings.TrimSpace(settings.ActiveProvider)
+	return customProviderPayloadFor(settings, settings.ActiveProvider)
+}
+
+func customProviderPayloadFor(settings config.AppSettings, name string) map[string]any {
+	name = strings.TrimSpace(name)
 	if name == "" {
 		return nil
 	}

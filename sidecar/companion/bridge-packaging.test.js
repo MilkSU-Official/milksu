@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { companionCommandRunsImmediately } from "./bridge.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const source = readFileSync(join(here, "bridge.js"), "utf8");
@@ -25,4 +26,13 @@ test("development run-bridge marks itself as the companion main entry", async ()
   const entry = readFileSync(join(here, "run-bridge.mjs"), "utf8");
   assert.match(entry, /MILKSU_COMPANION_BRIDGE_MAIN/);
   assert.match(source, /MILKSU_COMPANION_BRIDGE_MAIN/);
+});
+
+test("host replies and abort run immediately like main Pi workspace_action / abort_session", () => {
+  assert.equal(companionCommandRunsImmediately("companion_host_response"), true);
+  assert.equal(companionCommandRunsImmediately("abort"), true);
+  assert.equal(companionCommandRunsImmediately("send_message"), false);
+  assert.equal(companionCommandRunsImmediately("create_session"), false);
+  assert.match(source, /dispatchCompanionLine/);
+  assert.match(source, /Do not await session\.prompt on the stdin command queue/);
 });

@@ -3,6 +3,7 @@ import { desktopErrorMessage, hasDesktopRuntime, invokeCommand, listenEvent } fr
 import {
   companionChatHydrateEntry,
   companionChatPlainText,
+  companionHostToolFailure,
   explainCompanionError,
 } from '@/lib/companionUserError'
 import {
@@ -372,18 +373,23 @@ export function useCompanion() {
           }
         }
         if (payload.type === 'engine.error') {
-          const text = explainCompanionError(payload.error || payload.text, {
+          const rawError = String(payload.error || payload.text || '')
+          const text = explainCompanionError(rawError, {
             provider: route.provider,
             model: route.model,
           })
+          const working = companionTurnHasProcess(liveProcessRef.current)
           // Empty-reply noise while thinking/tools are visible is not a chat failure.
           const emptyWhileWorking = /这一轮没有回复|did not produce a reply|companion model returned no text/i
-            .test(`${text}\n${payload.error || ''}`)
-            && companionTurnHasProcess(liveProcessRef.current)
-          if (text && !emptyWhileWorking) setError(text)
-          if (emptyWhileWorking) {
+            .test(`${text}\n${rawError}`)
+            && working
+          // Host tool timeout/cancel is an error toolResult. Pi keeps looping;
+          // do not clear busy or force Archive even if the tool row has not
+          // projected yet.
+          if (companionHostToolFailure(rawError) || emptyWhileWorking) {
             return
           }
+          if (text) setError(text)
           setBusy(false)
           clearComplete()
           const pending = outgoing.current

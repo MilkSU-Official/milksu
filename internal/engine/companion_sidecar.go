@@ -84,8 +84,18 @@ func OpenCompanionSidecar(
 
 // CompanionCustomProvider is the turn-scoped custom relay definition for the
 // companion process. Keys stay in this payload and never enter tool output.
+//
+// Companion selection is independent of the homepage ActiveProvider. Using
+// ActiveProvider here dropped a personal custom-relay key whenever the
+// homepage still pointed at official TokenFlux, and the sidecar then sent
+// the leftover TokenFlux secret (or nothing) to the relay the companion
+// actually selected.
 func CompanionCustomProvider(settings config.AppSettings) map[string]any {
-	return customProviderTurnPayload(settings)
+	name := strings.TrimSpace(settings.CompanionProvider)
+	if name == "" {
+		name = settings.ActiveProvider
+	}
+	return customProviderPayloadFor(settings, name)
 }
 
 func (s *Supervisor) HasRegisteredSession(sessionID string) bool {

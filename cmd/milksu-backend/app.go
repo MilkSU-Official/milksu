@@ -914,7 +914,9 @@ func (a *App) SaveSettingsCmd(settings config.AppSettings) error {
 	// such grace, or a running child would keep it usable after it was taken away.
 	a.rotateEngineCredentials("settings saved")
 	if a.companion != nil {
-		a.companion.Invalidate()
+		// Do not kill an in-flight companion Pi loop. Coding sidecars are
+		// marked stale; companion follows the same rule on settings save.
+		a.companion.MarkStale()
 	}
 	if credentialWithdrawn(previous, a.settings.Get()) {
 		a.stopSidecarsHoldingWithdrawnCredential("settings saved")
