@@ -55,6 +55,21 @@ describe('explainCompanionError', () => {
     applyUiLocale('zh')
   })
 
+  it('maps unknown host request ids to product copy without leaking internals', () => {
+    applyUiLocale('zh')
+    expect(explainCompanionError('unknown companion host request: companion-host-1')).toBe(
+      '桌宠操作已取消或超时，请再试一次。',
+    )
+    expect(explainCompanionError('Error: unknown companion host request: companion-host-12')).not.toMatch(
+      /companion-host/,
+    )
+    applyUiLocale('en')
+    expect(explainCompanionError('unknown companion host request: companion-host-1')).toBe(
+      'The companion action was cancelled or timed out. Try again.',
+    )
+    applyUiLocale('zh')
+  })
+
   it('leaves unrelated errors alone', () => {
     applyUiLocale('zh')
     expect(explainCompanionError('companion session is not ready')).toBe(
@@ -71,7 +86,12 @@ describe('companionChatVisibleText', () => {
       type: 'message',
       role: 'assistant',
       error: '403: group does not support the requested model',
-    })).toBe('403: group does not support the requested model')
+    })).toContain('当前 TokenFlux 分组不支持这个模型')
+    expect(companionChatVisibleText({
+      type: 'message',
+      role: 'assistant',
+      error: 'unknown companion host request: companion-host-1',
+    })).toBe('桌宠操作已取消或超时，请再试一次。')
     expect(companionChatVisibleText({ type: 'message', role: 'assistant', text: '' })).toBe('')
     expect(companionChatVisibleText({
       type: 'message',

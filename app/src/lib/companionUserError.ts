@@ -28,6 +28,9 @@ export function explainCompanionError(
   ) {
     return t('连不上模型服务，请稍后重试。', 'Could not reach the model service. Try again later.')
   }
+  if (/unknown companion host request|companion-host-\d+/i.test(message)) {
+    return t('桌宠操作已取消或超时，请再试一次。', 'The companion action was cancelled or timed out. Try again.')
+  }
   return explainModelCallFailure(message, context) || message
 }
 
@@ -99,7 +102,7 @@ export function companionChatVisibleText(entry: {
   const type = String(entry.type ?? '').trim()
   if (text && text !== type) return text
   const error = String(entry.error ?? '').trim()
-  if (error) return error
+  if (error) return explainCompanionError(error) || error
   // Thinking / tool-only rows are process chrome. Truly empty final replies are
   // decided by the phone renderer after the turn settles.
   return ''

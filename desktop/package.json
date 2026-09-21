@@ -26,6 +26,7 @@
     },
     "files": [
       "main.cjs",
+      "safe-console.cjs",
       "backend-runtime.cjs",
       "startup-environment.cjs",
       "preload.cjs",

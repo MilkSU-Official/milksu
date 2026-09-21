@@ -35,7 +35,7 @@ import {
   transcriptHasAssistantReply,
   transcriptHasPrompt,
 } from './product-loop-companion.mjs'
-import { describeCustomRelay, firstUseRelayName, enablePersonalRelayRoute } from './product-loop-first-use.mjs'
+import { describeCustomRelay, firstUseRelayName, enablePersonalRelayRoute, enableAccountRoute } from './product-loop-first-use.mjs'
 import {
   clickAria,
   clickLabeled,
@@ -85,21 +85,24 @@ async function openCompanionSettings(driver) {
   return openSettingsCategory(driver, ['桌宠', 'Companion'])
 }
 
-export async function runCompanionReady(driver) {
+async function ensureCompanionModelRoute(driver) {
   const personal = await enablePersonalRelayRoute(driver)
-  if (!personal.ok) {
-    // Fall through: EnsureCompanion may still work on account quota.
-    // Surface the miss so the receipt explains a later No API key toast.
-  }
+  if (personal.ok) return personal
+  await enableAccountRoute(driver)
+  return { ok: true, account: true, detail: 'account' }
+}
+
+export async function runCompanionReady(driver) {
+  const route = await ensureCompanionModelRoute(driver)
   const started = await driver.ensureCompanion()
   const ready = companionIsReady(started)
   if (!ready.ok) {
-    return fail(personal.ok ? ready.reason : `${ready.reason}；${personal.detail}`)
+    return fail(`${ready.reason}；${route.detail || ''}`)
   }
   const model = String(started?.model ?? started?.Model ?? '')
   const provider = String(started?.provider ?? started?.Provider ?? '')
-  const route = personal.ok ? ` personal=${personal.id}` : ''
-  return pass(`桌宠已就绪${model ? ` ${provider} ${model}` : ''}${route}`)
+  const label = route.account ? ' account' : (route.id ? ` personal=${route.id}` : '')
+  return pass(`桌宠已就绪${model ? ` ${provider} ${model}` : ''}${label}`)
 }
 
 async function companionSurfaceHasChat(target) {
@@ -242,36 +245,27 @@ export async function runCompanionPetDrag(driver) {
   const session = new CdpSession(target.webSocketDebuggerUrl)
   await session.open()
   try {
-    // Shell drag follows the OS cursor (screen.getCursorScreenPoint). CDP mouse
-    // events stay inside the page and do not move that cursor, so drive the same
-    // MoveCompanionPet product path the pet body uses after pointerdown.
-    const moved = await session.evaluate(`(async () => {
-      const body = document.querySelector('[data-testid="companion-pet-body"], .companion-pet-body')
-      if (!body || !window.milksu?.invoke) return { ok: false, reason: 'no-body' }
-      const box = body.getBoundingClientRect()
-      body.dispatchEvent(new PointerEvent('pointerdown', {
-        bubbles: true,
-        button: 0,
-        buttons: 1,
-        pointerId: 1,
-        clientX: box.left + box.width / 2,
-        clientY: box.top + box.height / 2,
-        screenX: Math.round(box.left + box.width / 2),
-        screenY: Math.round(box.top + box.height / 2),
-      }))
-      await window.milksu.invoke('MoveCompanionPet', { dx: 48, dy: 24 })
-      window.dispatchEvent(new PointerEvent('pointerup', {
-        bubbles: true,
-        button: 0,
-        buttons: 0,
-        pointerId: 1,
-      }))
-      return { ok: true }
-    })()`)
-    if (!moved?.ok) return fail('悬浮窗里没有宠物身体，不能拖')
+    const probe = await waitFor(async () => {
+      const next = await session.evaluate(`(() => {
+        const body = document.querySelector('[data-testid="companion-pet-body"], .companion-pet-body')
+        return {
+          body: Boolean(body),
+          invoke: Boolean(window.milksu?.invoke),
+        }
+      })()`)
+      return next?.body ? next : null
+    }, 4_000)
+    if (!probe?.body) {
+      return fail(`悬浮窗里没有宠物身体 body=${Boolean(probe?.body)} invoke=${Boolean(probe?.invoke)}`)
+    }
   } finally {
     session.close()
   }
+  // Drive MoveCompanionPet from the main-window Desktop RPC (same shell path
+  // the pet body uses). In-page CDP + pointer events do not move the OS cursor.
+  await driver.invoke('MoveCompanionPet', [{ drag: 'begin' }])
+  await driver.invoke('MoveCompanionPet', [{ dx: 48, dy: 24 }])
+  await driver.invoke('MoveCompanionPet', [{ drag: 'end' }])
   const after = await waitFor(async () => {
     const next = await driver.getCompanionShellStatus()
     if (next?.petBounds && (next.petBounds.x !== origin.x || next.petBounds.y !== origin.y)) return next
@@ -292,7 +286,7 @@ export async function runCompanionRelay(driver, options = {}) {
     kernel: 'pi',
   })
   try {
-    await enablePersonalRelayRoute(driver)
+    await ensureCompanionModelRoute(driver)
     await driver.invoke('ArchiveCompanionTranscript', []).catch(() => {})
     await driver.drainCompanionEvents()
     const started = await driver.ensureCompanion()
@@ -309,7 +303,7 @@ export async function runCompanionRelay(driver, options = {}) {
     if (turn.timeout || companionTurnErrored(turn.events) || !companionTurnSettled(turn.events)) {
       await driver.invoke('ArchiveCompanionTranscript', []).catch(() => {})
       await driver.stopCompanion().catch(() => {})
-      await enablePersonalRelayRoute(driver)
+      await ensureCompanionModelRoute(driver)
       await driver.ensureCompanion()
       await driver.drainCompanionEvents()
       await driver.sendCompanionMessage(companionSpeakPrompt({
@@ -476,8 +470,11 @@ export async function runCompanionDispatchConfirm(driver, options = {}) {
 
 
 export async function runCompanionModelSwitch(driver, options = {}) {
-  const personal = await enablePersonalRelayRoute(driver)
-  if (!personal.ok) return fail(personal.detail)
+  const route = await ensureCompanionModelRoute(driver)
+  if (!route.ok) return fail(route.detail)
+  if (route.account) {
+    return pass('当前用账户模型，个人中转站不可用，换个人模型跳过')
+  }
   const settings = await driver.invoke('GetSettings', [])
   const current = String(settings?.companion_model ?? settings?.CompanionModel ?? '')
   const relay = describeCustomRelay(settings, firstUseRelayName())
@@ -761,7 +758,7 @@ export async function runCompanionFuzzDispatch(driver, options = {}) {
     kernel: 'pi',
   })
   try {
-    await enablePersonalRelayRoute(driver)
+    await ensureCompanionModelRoute(driver)
     await driver.invoke('ArchiveCompanionTranscript', []).catch(() => {})
     await driver.drainCompanionEvents()
     const started = await driver.ensureCompanion()
@@ -809,7 +806,7 @@ export async function runCompanionFuzzDispatch(driver, options = {}) {
 }
 
 export async function runCompanionFuzzApp(driver, options = {}) {
-  await enablePersonalRelayRoute(driver)
+  await ensureCompanionModelRoute(driver)
   await driver.invoke('ArchiveCompanionTranscript', []).catch(() => {})
   await driver.drainCompanionEvents()
   const started = await driver.ensureCompanion()
@@ -830,7 +827,7 @@ export async function runCompanionFuzzApp(driver, options = {}) {
     if (broken) {
       await driver.invoke('ArchiveCompanionTranscript', []).catch(() => {})
       await driver.stopCompanion().catch(() => {})
-      await enablePersonalRelayRoute(driver)
+      await ensureCompanionModelRoute(driver)
       await driver.ensureCompanion()
       await driver.drainCompanionEvents()
       continue

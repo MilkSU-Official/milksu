@@ -1,5 +1,8 @@
 'use strict'
 
+const { installBrokenPipeGuards, safeConsoleInfo } = require('./safe-console.cjs')
+installBrokenPipeGuards()
+
 const { execFileSync, spawn } = require('node:child_process')
 const { randomUUID } = require('node:crypto')
 const { promises: fs } = require('node:fs')
@@ -106,7 +109,7 @@ const processBootMs = Date.now()
 function startupLog(label, detail = '') {
   const total = Date.now() - processBootMs
   const suffix = detail ? ` ${detail}` : ''
-  console.info(`[startup] +${total}ms ${label}${suffix}`)
+  safeConsoleInfo(`[startup] +${total}ms ${label}${suffix}`)
 }
 
 async function startupTime(label, work) {

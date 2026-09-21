@@ -46,13 +46,16 @@ export function createCompanionHostBroker(emit, options = {}) {
     respond(payload) {
       const requestId = String(payload?.requestId ?? "");
       const entry = pending.get(requestId);
-      if (!entry) throw new Error(`unknown companion host request: ${requestId}`);
+      // Late replies after timeout / cancelAll / abort are normal; do not throw
+      // a host id that would leak into the phone transcript.
+      if (!entry) return false;
       pending.delete(requestId);
       if (payload?.ok === false) {
         entry.reject(new Error(String(payload?.error || "companion host request failed")));
-        return;
+        return true;
       }
       entry.resolve(payload?.result ?? {});
+      return true;
     },
 
     cancelAll(reason = "companion host cancelled") {

@@ -23,6 +23,17 @@ import {
 export const FIRST_USE_RELAY_ID = 'custom-relay-product-loop'
 export const FIRST_USE_RELAY_NAME = 'product-loop'
 export const FIRST_USE_LOGIN_WAIT_MS = 90_000
+
+/** null = unknown; false after上手 rejected every product-loop Key. */
+let productLoopPersonalRelayUsable = null
+
+export function resetProductLoopPersonalRelayGate() {
+  productLoopPersonalRelayUsable = null
+}
+
+export function markProductLoopPersonalRelayUsable(ok) {
+  productLoopPersonalRelayUsable = ok === true
+}
 const FILE_TOOL_PATTERN = /(read|write|edit|apply_patch|glob|grep|ls|list_dir|read_file|write_file|str_replace|bash|shell)/i
 
 export const FIRST_USE_FILE_PROMPT = [
@@ -92,6 +103,9 @@ export function describeCustomRelay(settings, idOrName) {
  * typed into Settings as a personal relay — use that for the rest of the walk.
  */
 export async function enablePersonalRelayRoute(driver) {
+  if (productLoopPersonalRelayUsable === false) {
+    return { ok: false, detail: '个人中转站 Key 已在上手流程被拒绝' }
+  }
   const settings = await driver.invoke('GetSettings', [])
   const relay = describeCustomRelay(settings, firstUseRelayName())
   if (!relay?.hasKey || !relay.enabled) {
@@ -109,6 +123,7 @@ export async function enablePersonalRelayRoute(driver) {
     companion_provider: relay.id,
     companion_model: model,
   }])
+  markProductLoopPersonalRelayUsable(true)
   return {
     ok: true,
     id: relay.id,
@@ -345,6 +360,7 @@ export async function runFirstUse(options = {}) {
   const taskTimeoutMs = Number(options.taskTimeoutMs || 180_000)
   const desktopReadyMs = Number(options.desktopReadyMs || 240_000)
   let launch = null
+  resetProductLoopPersonalRelayGate()
 
   async function record(id, result, detail) {
     const step = { id, result, detail: redactProcessText(detail || '', 300) }
@@ -454,6 +470,7 @@ export async function runFirstUse(options = {}) {
 
     const relay = await saveCustomRelay(launch.driver)
     if (relay.ok) {
+      markProductLoopPersonalRelayUsable(true)
       await record('settings-custom-relay', 'PASS', relay.detail)
       await enablePersonalRelayRoute(launch.driver)
       await delay(1_500)
@@ -473,6 +490,7 @@ export async function runFirstUse(options = {}) {
       )
     } else {
       const classified = classifyCustomRelaySave(relay.detail)
+      markProductLoopPersonalRelayUsable(false)
       await record(
         'settings-custom-relay',
         classified.result,
@@ -485,6 +503,9 @@ export async function runFirstUse(options = {}) {
         classified.expectedMiss ? 'SKIP' : 'FAIL',
         classified.expectedMiss ? '个人中转站 Key 无效，后面用账户额度' : '上手流程没跑到这一步',
       )
+      if (classified.expectedMiss && githubOk) {
+        await enableAccountRoute(launch.driver).catch(() => {})
+      }
     }
 
     if (githubOk) {
@@ -534,13 +555,17 @@ export async function runFirstUse(options = {}) {
         accountReady = true
       }
     }
-    // Always prefer product-loop.local.env personal TokenFlux for companion after
-    // first-use: account route alone leaves "No API key for tokenflux/…" when
-    // GitHub OAuth or account quota is missing after 暂不登录.
+    // Prefer product-loop personal relay when it actually has a usable Key.
+    // If saveCustomRelay rejected every Key (or leftover personal is broken),
+    // fall back to the account TokenFlux route that already passed fileloop.
     if (launch.driver?.cdpAlive()) {
       const personal = await enablePersonalRelayRoute(launch.driver)
       if (personal.ok) {
         process.stdout.write(`FIRST-USE ${personal.detail}\n`)
+        accountReady = true
+      } else if (githubOk || steps.some(step => step.id === 'account-model-fileloop' && step.result === 'PASS')) {
+        await enableAccountRoute(launch.driver)
+        process.stdout.write('FIRST-USE 个人中转站不可用，桌宠与主页改用账户模型\n')
         accountReady = true
       }
     }
@@ -581,7 +606,7 @@ function sessionFrom(launch, instanceId, steps, keepOpen, accountReady = false) 
   }
 }
 
-async function enableAccountRoute(driver) {
+export async function enableAccountRoute(driver) {
   const settings = await driver.invoke('GetSettings', [])
   const next = { ...settings }
   next.relay = {

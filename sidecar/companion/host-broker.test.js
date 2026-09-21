@@ -37,6 +37,18 @@ test("respond resolves a pending host request", async () => {
     requestId = data.requestId;
   });
   const pending = broker.request("board", { action: "list" });
-  broker.respond({ requestId, ok: true, result: { sessions: [] } });
+  assert.equal(broker.respond({ requestId, ok: true, result: { sessions: [] } }), true);
   assert.deepEqual(await pending, { sessions: [] });
+});
+
+test("late respond after cancelAll is ignored without throwing", async () => {
+  let requestId = "";
+  const broker = createCompanionHostBroker((_type, data) => {
+    requestId = data.requestId;
+  });
+  const pending = broker.request("app", { action: "quit" }, { timeoutMs: 0 });
+  broker.cancelAll("turn aborted");
+  await assert.rejects(() => pending, /turn aborted/);
+  assert.equal(broker.respond({ requestId, ok: true, result: {} }), false);
+  assert.equal(broker.pendingCount(), 0);
 });
