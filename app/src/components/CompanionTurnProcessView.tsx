@@ -5,6 +5,7 @@ import {
   type CompanionTurnProcess,
 } from '@/lib/companionTurnProcess'
 import { formatDemoElapsed } from '@/lib/agentConversation'
+import { companionLooksLikeDebugPayload } from '@/lib/companionUserError'
 import { useT } from '@/hooks/useUiLocale'
 
 export default function CompanionTurnProcessView({
@@ -68,7 +69,7 @@ export default function CompanionTurnProcessView({
               className={`companion-chat-process-tool${tool.running ? ' is-running' : ''}${tool.error ? ' is-error' : ''}`}
             >
               <span className="companion-chat-process-tool-name">{tool.name}</span>
-              {tool.detail && tool.detail !== tool.name && !/\[object Object\]/i.test(tool.detail) ? (
+              {tool.detail && tool.detail !== tool.name && !companionLooksLikeDebugPayload(tool.detail) ? (
                 <span className="companion-chat-process-tool-detail">{tool.detail}</span>
               ) : null}
             </p>

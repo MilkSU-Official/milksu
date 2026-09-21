@@ -2,8 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { desktopErrorMessage, hasDesktopRuntime, invokeCommand, listenEvent } from '@/desktop'
 import {
   companionChatHydrateEntry,
+  companionChatIsVisibleEntry,
   companionChatPlainText,
   companionHostToolFailure,
+  companionLooksLikeDebugPayload,
+  companionTurnCancelled,
   explainCompanionError,
 } from '@/lib/companionUserError'
 import {
@@ -78,7 +81,9 @@ export function companionToolUserText(value: unknown, fallback = ''): string {
   if (value == null) return fallback
   if (typeof value === 'string') {
     const trimmed = value.trim()
-    if (!trimmed || /\[object Object\]/i.test(trimmed)) return fallback
+    if (!trimmed || companionLooksLikeDebugPayload(trimmed) || companionTurnCancelled(trimmed)) {
+      return fallback
+    }
     return trimmed
   }
   if (Array.isArray(value)) {
@@ -183,7 +188,7 @@ export function useCompanion() {
       cursor: null,
       before: true,
     })
-    setEntries((page.entries ?? []).map(companionChatHydrateEntry))
+    setEntries((page.entries ?? []).map(companionChatHydrateEntry).filter(companionChatIsVisibleEntry))
     setPrevCursor(page.prevCursor ?? null)
     setHasMore(Boolean(page.hasMore))
     // Transcript now owns settled thinking/tools; drop the live snapshot.
@@ -199,7 +204,10 @@ export function useCompanion() {
         cursor: prevCursor,
         before: true,
       })
-      setEntries(current => [...(page.entries ?? []).map(companionChatHydrateEntry), ...current])
+      setEntries(current => [
+        ...(page.entries ?? []).map(companionChatHydrateEntry).filter(companionChatIsVisibleEntry),
+        ...current,
+      ])
       setPrevCursor(page.prevCursor ?? null)
       setHasMore(Boolean(page.hasMore))
     } finally {
@@ -214,9 +222,11 @@ export function useCompanion() {
       return
     }
     if (type === 'assistant.thinking_delta' && payload.text) {
+      const delta = companionToolUserText(payload.text)
+      if (!delta) return
       setLiveProcess(current => ({
         ...current,
-        thinking: `${current.thinking}${payload.text}`,
+        thinking: `${current.thinking}${delta}`,
         thinkingRunning: true,
       }))
       return
@@ -224,7 +234,7 @@ export function useCompanion() {
     if (type === 'assistant.thinking_completed') {
       setLiveProcess(current => ({
         ...current,
-        thinking: String(payload.text ?? current.thinking),
+        thinking: companionToolUserText(payload.text, current.thinking),
         thinkingRunning: false,
         thinkingDurationMs: payload.durationMs ?? current.thinkingDurationMs,
       }))
@@ -305,7 +315,7 @@ export function useCompanion() {
         }
         if (payload.type === 'user.message') {
           const text = companionToolUserText(payload.text)
-          if (!text) return
+          if (!text || companionLooksLikeDebugPayload(text)) return
           setBusy(true)
           setError('')
           setEntries(current => {
@@ -518,7 +528,10 @@ export function useCompanion() {
     setShell(await invokeCommand<CompanionShellStatus>('set_companion_float_enabled', { enabled }))
   }, [])
 
-  const visibleEntries = useMemo(() => entries.map(companionChatHydrateEntry), [entries])
+  const visibleEntries = useMemo(
+    () => entries.map(companionChatHydrateEntry).filter(companionChatIsVisibleEntry),
+    [entries],
+  )
   const streaming = liveProcess.reply
   const liveActive = busy
     || companionTurnHasProcess(liveProcess)

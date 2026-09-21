@@ -24,8 +24,10 @@ import {
 } from '@/lib/companionChatLayout'
 import { cn } from '@/lib/cn'
 import {
+  companionChatIsVisibleEntry,
   companionChatNeedsNewConversation,
   companionChatPlainText,
+  companionTurnCancelled,
   explainCompanionError,
 } from '@/lib/companionUserError'
 import {
@@ -430,7 +432,7 @@ export default function CompanionPage({
               }
               const entryIndex = item.index - olderOffset
               const entry = companion.entries[entryIndex]
-              if (!entry) return null
+              if (!entry || !companionChatIsVisibleEntry(entry)) return null
               const previous = companion.entries[entryIndex - 1]
               const next = companion.entries[entryIndex + 1]
               const currentMs = companionChatTimestampMs(entry.timestamp)
@@ -464,6 +466,11 @@ export default function CompanionPage({
                 ? processFromCompanionEntry(entry)
                 : null
               const plain = companionChatPlainText(entry)
+              const errorContext = {
+                provider: companion.status.provider,
+                model: companion.status.model,
+              }
+              const abortSource = entry.error || entry.text
               const showEmptyReply = entry.role === 'assistant'
                 && !plain
                 && !processOnly
@@ -471,12 +478,12 @@ export default function CompanionPage({
                 && !liveWorking
                 && !(entry.attachments?.length)
                 && (!entry.error || /companion model returned no text/i.test(entry.error))
-              const body = entry.error && !showEmptyReply && !processOnly
-                ? explainCompanionError(entry.error, {
-                    provider: companion.status.provider,
-                    model: companion.status.model,
-                  })
-                : (plain || (showEmptyReply ? emptyReplyLabel : ''))
+                && !companionTurnCancelled(abortSource)
+              const body = companionTurnCancelled(abortSource) && !processOnly
+                ? explainCompanionError(abortSource, errorContext)
+                : entry.error && !showEmptyReply && !processOnly
+                  ? explainCompanionError(entry.error, errorContext)
+                  : (plain || (showEmptyReply ? emptyReplyLabel : ''))
               const sent = entry.attachments ?? []
               if (processOnly) {
                 return (
