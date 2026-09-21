@@ -41,6 +41,20 @@ describe('explainCompanionError', () => {
     expect(companionChatNeedsNewConversation('当前服务找不到这个模型。')).toBe(false)
   })
 
+  it('maps connection and host timeout failures to product copy', () => {
+    applyUiLocale('zh')
+    expect(explainCompanionError('Connection error.')).toBe('连不上模型服务，请稍后重试。')
+    expect(explainCompanionError('Request timed out.')).toBe('连不上模型服务，请稍后重试。')
+    expect(explainCompanionError('companion host request timed out')).toBe(
+      '连不上模型服务，请稍后重试。',
+    )
+    applyUiLocale('en')
+    expect(explainCompanionError('Connection error.')).toBe(
+      'Could not reach the model service. Try again later.',
+    )
+    applyUiLocale('zh')
+  })
+
   it('leaves unrelated errors alone', () => {
     applyUiLocale('zh')
     expect(explainCompanionError('companion session is not ready')).toBe(
@@ -50,7 +64,7 @@ describe('explainCompanionError', () => {
 })
 
 describe('companionChatVisibleText', () => {
-  it('does not fall back to the JSONL type name', () => {
+  it('does not invent empty-reply copy for blank assistant rows', () => {
     expect(companionChatVisibleText({ type: 'message', text: '' })).toBe('')
     expect(companionChatVisibleText({ type: 'message', text: 'message' })).toBe('')
     expect(companionChatVisibleText({
@@ -58,7 +72,13 @@ describe('companionChatVisibleText', () => {
       role: 'assistant',
       error: '403: group does not support the requested model',
     })).toBe('403: group does not support the requested model')
-    expect(companionChatVisibleText({ type: 'message', role: 'assistant', text: '' })).toBe('这一轮没有回复。')
+    expect(companionChatVisibleText({ type: 'message', role: 'assistant', text: '' })).toBe('')
+    expect(companionChatVisibleText({
+      type: 'message',
+      role: 'assistant',
+      text: '',
+      thinking: '先看板。',
+    })).toBe('')
     expect(companionChatVisibleText({ type: 'message', text: '你好' })).toBe('你好')
     expect(companionChatVisibleText({
       type: 'message',

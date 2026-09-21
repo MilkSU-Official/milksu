@@ -109,6 +109,24 @@ async function loadAccountConfig({ env = process.env, resourcesPath = '', isPack
   }
 }
 
+function desktopOAuthErrorMessage(code) {
+  switch (String(code || '')) {
+    case 'github_oauth_rate_limited':
+      return 'GitHub 暂时限制了登录请求，请稍后再试'
+    case 'github_oauth_bad_code':
+      return 'GitHub 授权码已失效，请重新登录'
+    case 'github_oauth_misconfigured':
+      return '账户登录配置异常，请联系维护者'
+    case 'github_identity_failed':
+      return '无法读取 GitHub 身份，请稍后重试'
+    case 'access_denied':
+    case 'github_oauth_denied':
+      return '已取消 GitHub 登录'
+    default:
+      return 'GitHub 登录失败'
+  }
+}
+
 class AccountSession {
   constructor({ config, userDataPath, openExternal, fetchImpl = fetch, onChanged = () => {} }) {
     this.config = config
@@ -473,6 +491,13 @@ class AccountSession {
     try { url = new URL(rawURL) } catch { return false }
     const expected = new URL(this.config.redirectUrl)
     if (url.protocol !== expected.protocol || url.hostname !== expected.hostname || url.pathname !== expected.pathname) return false
+    const oauthError = String(url.searchParams.get('error') ?? '').trim()
+    if (oauthError) {
+      this.pending = null
+      this.clearNetworkCaches()
+      this.onChanged(await this.status())
+      throw new Error(desktopOAuthErrorMessage(oauthError))
+    }
     const code = String(url.searchParams.get('code') ?? '')
     if (!code) throw new Error('登录回调缺少授权码')
     const response = await this.fetch(`${this.config.apiUrl}/v1/auth/exchange`, {

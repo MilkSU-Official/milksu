@@ -85,6 +85,38 @@ export function describeCustomRelay(settings, idOrName) {
     || describeRelayRow(wanted, settingsProviders(settings)[wanted])
 }
 
+/**
+ * Point homepage + companion at the product-loop personal TokenFlux/custom relay.
+ * Companion defaults to account TokenFlux; after「暂不登录」or when GitHub quota is
+ * missing that shows "No API key for tokenflux/…". Product-loop.local.env keys are
+ * typed into Settings as a personal relay — use that for the rest of the walk.
+ */
+export async function enablePersonalRelayRoute(driver) {
+  const settings = await driver.invoke('GetSettings', [])
+  const relay = describeCustomRelay(settings, firstUseRelayName())
+  if (!relay?.hasKey || !relay.enabled) {
+    return { ok: false, detail: '个人中转站还没有 Key' }
+  }
+  const model = relay.models.find(Boolean) || firstUseRelayModel()
+  if (!model) {
+    return { ok: false, detail: '个人中转站没有可用模型' }
+  }
+  await driver.invoke('SaveSettingsCmd', [{
+    ...settings,
+    active_provider: relay.id,
+    active_model: model,
+    companion_source: 'personal',
+    companion_provider: relay.id,
+    companion_model: model,
+  }])
+  return {
+    ok: true,
+    id: relay.id,
+    model,
+    detail: `桌宠与主页改用个人中转站 ${relay.name || relay.id}`,
+  }
+}
+
 export function mergeCustomRelay(settings, options = {}) {
   const next = { ...(settings || {}) }
   const providers = { ...settingsProviders(next) }
@@ -394,10 +426,13 @@ export async function runFirstUse(options = {}) {
         )
       } else {
         const status = await accountStatus(launch.driver)
+        const hasRelay = productLoopRelayAttempts().some(attempt => attempt.value)
         await record(
           'login-github-active',
-          'FAIL',
-          `超时仍是 ${status?.state || 'unknown'}。在系统浏览器里完成授权；回调应回到这一扇测试窗。`,
+          hasRelay ? 'SKIP' : 'FAIL',
+          hasRelay
+            ? `GitHub 授权未完成（${status?.state || 'unknown'}）；改用 product-loop 个人中转站`
+            : `超时仍是 ${status?.state || 'unknown'}。在系统浏览器里完成授权；回调应回到这一扇测试窗。`,
         )
       }
     }
@@ -420,6 +455,7 @@ export async function runFirstUse(options = {}) {
     const relay = await saveCustomRelay(launch.driver)
     if (relay.ok) {
       await record('settings-custom-relay', 'PASS', relay.detail)
+      await enablePersonalRelayRoute(launch.driver)
       await delay(1_500)
       const loop = await runFileLoop(launch.driver, {
         title: 'product-loop first-use relay',
@@ -495,6 +531,16 @@ export async function runFirstUse(options = {}) {
       }, loginWaitMs, 2_000)
       if (restored) {
         await enableAccountRoute(launch.driver)
+        accountReady = true
+      }
+    }
+    // Always prefer product-loop.local.env personal TokenFlux for companion after
+    // first-use: account route alone leaves "No API key for tokenflux/…" when
+    // GitHub OAuth or account quota is missing after 暂不登录.
+    if (launch.driver?.cdpAlive()) {
+      const personal = await enablePersonalRelayRoute(launch.driver)
+      if (personal.ok) {
+        process.stdout.write(`FIRST-USE ${personal.detail}\n`)
         accountReady = true
       }
     }
@@ -788,6 +834,7 @@ export async function saveCustomRelay(driver) {
       return { ok: false, detail: '官方 TokenFlux 不能用 tokenflux.ai' }
     }
     await closeRelayEditor(driver)
+    await enablePersonalRelayRoute(driver)
     return {
       ok: true,
       id: saved.id,

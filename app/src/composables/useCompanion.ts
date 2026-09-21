@@ -5,6 +5,12 @@ import {
   companionChatNeedsNewConversation,
   explainCompanionError,
 } from '@/lib/companionUserError'
+import {
+  companionTurnHasProcess,
+  emptyCompanionTurnProcess,
+  type CompanionProcessTool,
+  type CompanionTurnProcess,
+} from '@/lib/companionTurnProcess'
 import { COMPANION_COMPLETE_HOLD_MS } from '@/lib/companionPetMotion'
 import type {
   CodingAttachment,
@@ -53,6 +59,30 @@ interface CompanionConfirm {
   targetTitle: string
 }
 
+interface CompanionEnginePayload {
+  type?: string
+  text?: string
+  error?: string
+  notice?: string
+  input?: string
+  requestId?: string
+  toolName?: string
+  toolCallId?: string
+  durationMs?: number
+  done?: boolean
+}
+
+function upsertTool(
+  tools: CompanionProcessTool[],
+  next: CompanionProcessTool,
+): CompanionProcessTool[] {
+  const index = tools.findIndex(item => item.id === next.id)
+  if (index < 0) return [...tools, next]
+  const copy = tools.slice()
+  copy[index] = { ...copy[index], ...next }
+  return copy
+}
+
 export function useCompanion() {
   const [status, setStatus] = useState<CompanionStatus>({
     ready: false,
@@ -73,7 +103,8 @@ export function useCompanion() {
   })
   const [draft, setDraft] = useState('')
   const [attachments, setAttachments] = useState<CodingAttachment[]>([])
-  const [streaming, setStreaming] = useState('')
+  const [liveProcess, setLiveProcess] = useState<CompanionTurnProcess>(emptyCompanionTurnProcess)
+  const [settledProcess, setSettledProcess] = useState<CompanionTurnProcess | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [confirm, setConfirm] = useState<CompanionConfirm | null>(null)
@@ -85,6 +116,8 @@ export function useCompanion() {
     attachments: CodingAttachment[]
   } | null>(null)
   const completeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const liveProcessRef = useRef(liveProcess)
+  liveProcessRef.current = liveProcess
 
   const clearComplete = useCallback(() => {
     if (completeTimer.current) {
@@ -128,6 +161,8 @@ export function useCompanion() {
     setEntries((page.entries ?? []).map(companionChatHydrateEntry))
     setPrevCursor(page.prevCursor ?? null)
     setHasMore(Boolean(page.hasMore))
+    // Transcript now owns settled thinking/tools; drop the live snapshot.
+    setSettledProcess(null)
   }, [])
 
   const loadOlder = useCallback(async () => {
@@ -147,6 +182,66 @@ export function useCompanion() {
     }
   }, [prevCursor])
 
+  const applyLiveEvent = useCallback((payload: CompanionEnginePayload) => {
+    const type = String(payload.type ?? '')
+    if (type === 'assistant.thinking_started') {
+      setLiveProcess(current => ({ ...current, thinkingRunning: true }))
+      return
+    }
+    if (type === 'assistant.thinking_delta' && payload.text) {
+      setLiveProcess(current => ({
+        ...current,
+        thinking: `${current.thinking}${payload.text}`,
+        thinkingRunning: true,
+      }))
+      return
+    }
+    if (type === 'assistant.thinking_completed') {
+      setLiveProcess(current => ({
+        ...current,
+        thinking: String(payload.text ?? current.thinking),
+        thinkingRunning: false,
+        thinkingDurationMs: payload.durationMs ?? current.thinkingDurationMs,
+      }))
+      return
+    }
+    if (type === 'assistant.delta' && payload.text) {
+      setLiveProcess(current => ({
+        ...current,
+        reply: `${current.reply}${payload.text}`,
+      }))
+      return
+    }
+    if (type === 'tool.started') {
+      const id = String(payload.toolCallId || payload.toolName || `tool:${Date.now()}`)
+      const name = String(payload.toolName || 'tool')
+      setLiveProcess(current => ({
+        ...current,
+        thinkingRunning: false,
+        tools: upsertTool(current.tools, {
+          id,
+          name,
+          detail: String(payload.text || name),
+          running: true,
+        }),
+      }))
+      return
+    }
+    if (type === 'tool.completed') {
+      const id = String(payload.toolCallId || payload.toolName || '')
+      setLiveProcess(current => ({
+        ...current,
+        tools: upsertTool(current.tools, {
+          id: id || `tool:${current.tools.length}`,
+          name: String(payload.toolName || 'tool'),
+          detail: String(payload.text || payload.toolName || 'tool'),
+          running: false,
+          error: payload.error,
+        }),
+      }))
+    }
+  }, [])
+
   useEffect(() => {
     if (!hasDesktopRuntime()) return
     let cancelled = false
@@ -164,22 +259,25 @@ export function useCompanion() {
       } catch (reason) {
         if (!cancelled) setError(explainCompanionError(desktopErrorMessage(reason)))
       }
-      unlisten = await listenEvent<{
-        type?: string
-        text?: string
-        error?: string
-        notice?: string
-        input?: string
-        requestId?: string
-        done?: boolean
-      }>('companion-event', event => {
+      unlisten = await listenEvent<CompanionEnginePayload>('companion-event', event => {
         const payload = event.payload
-        if (payload?.type === 'assistant.delta' && payload.text) {
-          setStreaming(current => current + payload.text)
+        if (!payload?.type) return
+        if (
+          payload.type === 'assistant.thinking_started'
+          || payload.type === 'assistant.thinking_delta'
+          || payload.type === 'assistant.thinking_completed'
+          || payload.type === 'assistant.delta'
+          || payload.type === 'tool.started'
+          || payload.type === 'tool.progress'
+          || payload.type === 'tool.completed'
+        ) {
+          applyLiveEvent(payload)
           return
         }
-        if (payload?.type === 'assistant.settled') {
-          setStreaming('')
+        if (payload.type === 'assistant.settled') {
+          const snapshot = liveProcessRef.current
+          setSettledProcess(companionTurnHasProcess(snapshot) ? snapshot : null)
+          setLiveProcess(emptyCompanionTurnProcess())
           setBusy(false)
           flashComplete()
           outgoing.current = null
@@ -188,15 +286,16 @@ export function useCompanion() {
           void refreshMemory()
           return
         }
-        if (payload?.type === 'session.ready') {
-          setStreaming('')
+        if (payload.type === 'session.ready') {
+          setLiveProcess(emptyCompanionTurnProcess())
+          setSettledProcess(null)
           setBusy(false)
           void loadTail()
           void refreshBoard()
           void refreshMemory()
           return
         }
-        if (payload?.type === 'companion.confirm' && payload.input) {
+        if (payload.type === 'companion.confirm' && payload.input) {
           try {
             const request = JSON.parse(payload.input) as CompanionConfirm
             setConfirm({
@@ -212,12 +311,19 @@ export function useCompanion() {
             // Confirmation is parked on the host until the user answers.
           }
         }
-        if (payload?.type === 'engine.error') {
+        if (payload.type === 'engine.error') {
           const text = explainCompanionError(payload.error || payload.text, {
             provider: route.provider,
             model: route.model,
           })
-          if (text) setError(text)
+          // Empty-reply noise while thinking/tools are visible is not a chat failure.
+          const emptyWhileWorking = /这一轮没有回复|did not produce a reply|companion model returned no text/i
+            .test(`${text}\n${payload.error || ''}`)
+            && companionTurnHasProcess(liveProcessRef.current)
+          if (text && !emptyWhileWorking) setError(text)
+          if (emptyWhileWorking) {
+            return
+          }
           setBusy(false)
           clearComplete()
           const pending = outgoing.current
@@ -249,7 +355,7 @@ export function useCompanion() {
         completeTimer.current = null
       }
     }
-  }, [clearComplete, flashComplete, loadTail, refreshArchives, refreshBoard, refreshMemory])
+  }, [applyLiveEvent, clearComplete, flashComplete, loadTail, refreshArchives, refreshBoard, refreshMemory])
 
   const send = useCallback(async () => {
     const prompt = draft.trim()
@@ -261,6 +367,8 @@ export function useCompanion() {
     setError('')
     setDraft('')
     setAttachments([])
+    setLiveProcess(emptyCompanionTurnProcess())
+    setSettledProcess(null)
     const outgoingEntry = {
       id: outgoingId,
       type: 'message',
@@ -293,6 +401,8 @@ export function useCompanion() {
     outgoing.current = null
     setError('')
     setBusy(false)
+    setLiveProcess(emptyCompanionTurnProcess())
+    setSettledProcess(null)
     await Promise.all([loadTail(), refreshArchives()])
   }, [loadTail, refreshArchives])
 
@@ -332,20 +442,11 @@ export function useCompanion() {
     setShell(await invokeCommand<CompanionShellStatus>('set_companion_float_enabled', { enabled }))
   }, [])
 
-  const visibleEntries = useMemo(() => {
-    const hydrated = entries.map(companionChatHydrateEntry)
-    if (!streaming) return hydrated
-    return [
-      ...hydrated,
-      {
-        id: 'streaming',
-        type: 'message',
-        timestamp: '',
-        role: 'assistant',
-        text: streaming,
-      },
-    ]
-  }, [entries, streaming])
+  const visibleEntries = useMemo(() => entries.map(companionChatHydrateEntry), [entries])
+  const streaming = liveProcess.reply
+  const liveActive = busy
+    || companionTurnHasProcess(liveProcess)
+    || Boolean(streaming.trim())
 
   return {
     status,
@@ -362,6 +463,9 @@ export function useCompanion() {
     setAttachments,
     busy,
     streaming,
+    liveProcess,
+    settledProcess,
+    liveActive,
     error,
     confirm,
     complete,

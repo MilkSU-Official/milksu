@@ -1035,12 +1035,12 @@ html.companion-surface #app {
 
 .companion-phone {
   /* iPhone 17 display 402x874 pt, _displayCornerRadius 62 pt.
-     Scale 62/402 onto the 270 px screen, then add the 5 px bezel.
+     Scale 62/402 onto the screen, then add the 3 px bezel.
      Do not use corner-shape:squircle: Chromium treats that as a full-box
      superellipse and the handset becomes an app-icon blob. */
-  --companion-phone-bezel: 5px;
+  --companion-phone-bezel: 3px;
   --companion-screen-radius: 41.64px;
-  --companion-phone-radius: 46.64px;
+  --companion-phone-radius: 44.64px;
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -1642,6 +1642,74 @@ html.companion-chat-surface #app {
 @keyframes companion-chat-typing {
   0%, 80%, 100% { opacity: 0.28; transform: translateY(0); }
   40% { opacity: 0.72; transform: translateY(-2px); }
+}
+
+.companion-chat-process {
+  width: 100%;
+  max-width: min(92%, 240px);
+  margin: 0 0 4px;
+}
+
+.companion-chat-process-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  cursor: pointer;
+}
+
+.companion-chat-process-summary-static {
+  cursor: default;
+}
+
+.companion-chat-process-elapsed {
+  opacity: 0.72;
+}
+
+.companion-chat-process-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.companion-chat-process-think,
+.companion-chat-process-tool {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.companion-chat-process-tool {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+
+.companion-chat-process-tool.is-running {
+  color: var(--foreground);
+}
+
+.companion-chat-process-tool.is-error {
+  color: var(--destructive);
+}
+
+.companion-chat-process-tool-name {
+  font-weight: 500;
+}
+
+.companion-chat-process-tool-detail {
+  opacity: 0.8;
 }
 
 .companion-chat-dock {

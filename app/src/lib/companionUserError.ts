@@ -22,6 +22,12 @@ export function explainCompanionError(
   if (companionChatNeedsNewConversation(message)) {
     return t('这段对话没法继续了。', 'This chat can\'t continue.')
   }
+  if (
+    /\bconnection error\b|request timed out|companion host request timed out|ECONNREFUSED|ECONNRESET|ENOTFOUND|ETIMEDOUT|fetch failed|network is unreachable/i
+      .test(message)
+  ) {
+    return t('连不上模型服务，请稍后重试。', 'Could not reach the model service. Try again later.')
+  }
   return explainModelCallFailure(message, context) || message
 }
 
@@ -67,11 +73,23 @@ function companionChatUserFacingText(text: string, hasAttachments: boolean) {
   return value
 }
 
+export function companionChatPlainText(entry: {
+  text?: string
+  attachments?: CodingAttachment[]
+}): string {
+  const attachments = entry.attachments?.length
+    ? entry.attachments
+    : companionChatAttachmentsFromText(entry.text ?? '')
+  return companionChatUserFacingText(entry.text ?? '', attachments.length > 0)
+}
+
 export function companionChatVisibleText(entry: {
   text?: string
   type?: string
   error?: string
   role?: string
+  thinking?: string
+  tools?: string[]
   attachments?: CodingAttachment[]
 }): string {
   const attachments = entry.attachments?.length
@@ -82,8 +100,7 @@ export function companionChatVisibleText(entry: {
   if (text && text !== type) return text
   const error = String(entry.error ?? '').trim()
   if (error) return error
-  if (entry.role === 'assistant') {
-    return t('这一轮没有回复。', 'This turn did not produce a reply.')
-  }
+  // Thinking / tool-only rows are process chrome. Truly empty final replies are
+  // decided by the phone renderer after the turn settles.
   return ''
 }

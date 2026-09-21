@@ -418,7 +418,33 @@ export async function runDesktopBrowserMarker(driver, options = {}) {
           workspace,
           model,
         ).catch(() => {})
-        turn = await driver.waitForTurn(conversation.id, options.taskTimeoutMs)
+        turn = await driver.waitForTurn(conversation.id, options.taskTimeoutMs || 300_000)
+        events.push(...(turn.events || []))
+        saved = await loadSavedConversation(driver, conversation.id)
+        try {
+          fileHasMarker = (await readFile(join(workspace, 'SURFACE.md'), 'utf8')).includes(fixture.marker)
+        } catch {
+          fileHasMarker = false
+        }
+        assistantHasMarker = assistantSummary(events).includes(fixture.marker)
+          || conversationAssistantText(saved).includes(fixture.marker)
+        toolNames = [...new Set([
+          ...collectToolNames(events),
+          ...collectMessageToolNames(saved),
+        ])]
+      }
+      if ((!fileHasMarker && !assistantHasMarker) || !usedIsolatedBrowserTools(toolNames)) {
+        await driver.drainEvents().catch(() => [])
+        await driver.sendMessage(
+          conversation.id,
+          [
+            `只用隔离浏览器工具。打开 ${fixture.url}，读取页面正文里的标记 ${fixture.marker}，写入 SURFACE.md 后结束。`,
+            '禁止纯聊天。',
+          ].join(''),
+          workspace,
+          model,
+        ).catch(() => {})
+        turn = await driver.waitForTurn(conversation.id, options.taskTimeoutMs || 300_000)
         events.push(...(turn.events || []))
         saved = await loadSavedConversation(driver, conversation.id)
         try {

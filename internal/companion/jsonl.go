@@ -19,12 +19,14 @@ type TranscriptCursor struct {
 }
 
 type TranscriptEntry struct {
-	ID        string `json:"id"`
-	Type      string `json:"type"`
-	Timestamp string `json:"timestamp"`
-	Role      string `json:"role,omitempty"`
-	Text      string `json:"text,omitempty"`
-	Error     string `json:"error,omitempty"`
+	ID        string   `json:"id"`
+	Type      string   `json:"type"`
+	Timestamp string   `json:"timestamp"`
+	Role      string   `json:"role,omitempty"`
+	Text      string   `json:"text,omitempty"`
+	Thinking  string   `json:"thinking,omitempty"`
+	Tools     []string `json:"tools,omitempty"`
+	Error     string   `json:"error,omitempty"`
 }
 
 type TranscriptPage struct {
@@ -342,12 +344,20 @@ func decodeTranscriptLine(line []byte) (TranscriptEntry, bool) {
 	if message, ok := raw["message"].(map[string]any); ok {
 		entry.Role = strings.TrimSpace(stringValue(message["role"]))
 		entry.Text = extractMessageText(message["content"])
+		entry.Thinking = extractMessageThinking(message["content"])
+		entry.Tools = extractMessageTools(message["content"])
 		if errText := strings.TrimSpace(stringValue(message["errorMessage"])); errText != "" {
 			entry.Error = errText
 		}
 	}
 	if content, ok := raw["content"]; ok && entry.Text == "" {
 		entry.Text = extractMessageText(content)
+		if entry.Thinking == "" {
+			entry.Thinking = extractMessageThinking(content)
+		}
+		if len(entry.Tools) == 0 {
+			entry.Tools = extractMessageTools(content)
+		}
 	}
 	if text := strings.TrimSpace(stringValue(raw["summary"])); text != "" && entry.Text == "" {
 		entry.Text = text
@@ -365,7 +375,8 @@ func decodeTranscriptLine(line []byte) (TranscriptEntry, bool) {
 	// model_change / thinking_level_change have no user-visible body. Keep
 	// failed assistant turns (empty content + errorMessage) so the chat can
 	// show the real failure instead of the JSONL type name "message".
-	if entry.Text == "" && entry.Error == "" && kind != "message" {
+	// Thinking / tool-only assistant rows stay so the phone can fold process.
+	if entry.Text == "" && entry.Error == "" && entry.Thinking == "" && len(entry.Tools) == 0 && kind != "message" {
 		return TranscriptEntry{}, false
 	}
 	return entry, true
@@ -393,4 +404,55 @@ func extractMessageText(content any) string {
 	default:
 		return ""
 	}
+}
+
+func extractMessageThinking(content any) string {
+	blocks, ok := content.([]any)
+	if !ok {
+		return ""
+	}
+	var builder strings.Builder
+	for _, item := range blocks {
+		block, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		thinking := strings.TrimSpace(stringValue(block["thinking"]))
+		if thinking == "" && strings.TrimSpace(stringValue(block["type"])) == "thinking" {
+			thinking = strings.TrimSpace(stringValue(block["text"]))
+		}
+		if thinking == "" {
+			continue
+		}
+		if builder.Len() > 0 {
+			builder.WriteString("\n\n")
+		}
+		builder.WriteString(thinking)
+	}
+	return builder.String()
+}
+
+func extractMessageTools(content any) []string {
+	blocks, ok := content.([]any)
+	if !ok {
+		return nil
+	}
+	tools := make([]string, 0)
+	seen := map[string]struct{}{}
+	for _, item := range blocks {
+		block, ok := item.(map[string]any)
+		if !ok || strings.TrimSpace(stringValue(block["type"])) != "toolCall" {
+			continue
+		}
+		name := strings.TrimSpace(stringValue(block["name"]))
+		if name == "" {
+			continue
+		}
+		if _, exists := seen[name]; exists {
+			continue
+		}
+		seen[name] = struct{}{}
+		tools = append(tools, name)
+	}
+	return tools
 }

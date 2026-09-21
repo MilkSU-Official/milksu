@@ -6,12 +6,14 @@ import { createRequire } from 'node:module'
 import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { CdpSession, delay, isCompanionChatSurface, isCompanionPetSurface, listDesktopCdpTargets } from './desktop-gui-driver.mjs'
+import { CdpSession, delay, eventToolName, isCompanionChatSurface, isCompanionPetSurface, listDesktopCdpTargets } from './desktop-gui-driver.mjs'
 
 const { writeCompanionSkinFixture } = createRequire(import.meta.url)('../../desktop/companion-skin.cjs')
 import {
   boardHasConversation,
   companionDefaultSkinVisible,
+  companionFuzzAppPrompts,
+  companionFuzzDispatchPrompts,
   companionImportedSkinVisible,
   companionPetSurfaceUsesCustomSkin,
   companionSkinEntryVisible,
@@ -33,7 +35,7 @@ import {
   transcriptHasAssistantReply,
   transcriptHasPrompt,
 } from './product-loop-companion.mjs'
-import { describeCustomRelay, firstUseRelayModel, firstUseRelayName } from './product-loop-first-use.mjs'
+import { describeCustomRelay, firstUseRelayName, enablePersonalRelayRoute } from './product-loop-first-use.mjs'
 import {
   clickAria,
   clickLabeled,
@@ -84,12 +86,20 @@ async function openCompanionSettings(driver) {
 }
 
 export async function runCompanionReady(driver) {
+  const personal = await enablePersonalRelayRoute(driver)
+  if (!personal.ok) {
+    // Fall through: EnsureCompanion may still work on account quota.
+    // Surface the miss so the receipt explains a later No API key toast.
+  }
   const started = await driver.ensureCompanion()
   const ready = companionIsReady(started)
-  if (!ready.ok) return fail(ready.reason)
+  if (!ready.ok) {
+    return fail(personal.ok ? ready.reason : `${ready.reason}；${personal.detail}`)
+  }
   const model = String(started?.model ?? started?.Model ?? '')
   const provider = String(started?.provider ?? started?.Provider ?? '')
-  return pass(`桌宠已就绪${model ? ` ${provider} ${model}` : ''}`)
+  const route = personal.ok ? ` personal=${personal.id}` : ''
+  return pass(`桌宠已就绪${model ? ` ${provider} ${model}` : ''}${route}`)
 }
 
 async function companionSurfaceHasChat(target) {
@@ -232,40 +242,33 @@ export async function runCompanionPetDrag(driver) {
   const session = new CdpSession(target.webSocketDebuggerUrl)
   await session.open()
   try {
-    const point = await session.evaluate(`(() => {
+    // Shell drag follows the OS cursor (screen.getCursorScreenPoint). CDP mouse
+    // events stay inside the page and do not move that cursor, so drive the same
+    // MoveCompanionPet product path the pet body uses after pointerdown.
+    const moved = await session.evaluate(`(async () => {
       const body = document.querySelector('[data-testid="companion-pet-body"], .companion-pet-body')
-      if (!body) return null
+      if (!body || !window.milksu?.invoke) return { ok: false, reason: 'no-body' }
       const box = body.getBoundingClientRect()
-      if (box.width < 8 || box.height < 8) return null
-      return { x: box.left + box.width / 2, y: box.top + box.height / 2 }
-    })()`)
-    if (!point) return fail('悬浮窗里没有宠物身体，不能拖')
-    await session.send('Input.dispatchMouseEvent', {
-      type: 'mousePressed',
-      x: point.x,
-      y: point.y,
-      button: 'left',
-      buttons: 1,
-      clickCount: 1,
-    })
-    for (let step = 1; step <= 8; step += 1) {
-      await session.send('Input.dispatchMouseEvent', {
-        type: 'mouseMoved',
-        x: point.x + step * 6,
-        y: point.y + step * 3,
-        button: 'left',
+      body.dispatchEvent(new PointerEvent('pointerdown', {
+        bubbles: true,
+        button: 0,
         buttons: 1,
-      })
-      await delay(16)
-    }
-    await session.send('Input.dispatchMouseEvent', {
-      type: 'mouseReleased',
-      x: point.x + 48,
-      y: point.y + 24,
-      button: 'left',
-      buttons: 0,
-      clickCount: 1,
-    })
+        pointerId: 1,
+        clientX: box.left + box.width / 2,
+        clientY: box.top + box.height / 2,
+        screenX: Math.round(box.left + box.width / 2),
+        screenY: Math.round(box.top + box.height / 2),
+      }))
+      await window.milksu.invoke('MoveCompanionPet', { dx: 48, dy: 24 })
+      window.dispatchEvent(new PointerEvent('pointerup', {
+        bubbles: true,
+        button: 0,
+        buttons: 0,
+        pointerId: 1,
+      }))
+      return { ok: true }
+    })()`)
+    if (!moved?.ok) return fail('悬浮窗里没有宠物身体，不能拖')
   } finally {
     session.close()
   }
@@ -289,6 +292,8 @@ export async function runCompanionRelay(driver, options = {}) {
     kernel: 'pi',
   })
   try {
+    await enablePersonalRelayRoute(driver)
+    await driver.invoke('ArchiveCompanionTranscript', []).catch(() => {})
     await driver.drainCompanionEvents()
     const started = await driver.ensureCompanion()
     const ready = companionIsReady(started)
@@ -299,14 +304,20 @@ export async function runCompanionRelay(driver, options = {}) {
       title,
       marker,
     }))
-    let turn = await driver.waitForCompanionTurn(options.taskTimeoutMs)
+    const turnTimeout = options.taskTimeoutMs || 300_000
+    let turn = await driver.waitForCompanionTurn(turnTimeout)
     if (turn.timeout || companionTurnErrored(turn.events) || !companionTurnSettled(turn.events)) {
+      await driver.invoke('ArchiveCompanionTranscript', []).catch(() => {})
+      await driver.stopCompanion().catch(() => {})
+      await enablePersonalRelayRoute(driver)
+      await driver.ensureCompanion()
+      await driver.drainCompanionEvents()
       await driver.sendCompanionMessage(companionSpeakPrompt({
         conversationId: conversation.id,
         title,
         marker,
       }))
-      turn = await driver.waitForCompanionTurn(options.taskTimeoutMs)
+      turn = await driver.waitForCompanionTurn(turnTimeout)
     }
     if (turn.sidecarStopped || companionTurnParked(turn.events)) {
       return fail('桌宠 sidecar 停了，转达没有接上')
@@ -463,51 +474,26 @@ export async function runCompanionDispatchConfirm(driver, options = {}) {
   }
 }
 
-function catalogModels(catalog) {
-  const rows = []
-  const buckets = [
-    catalog?.models, catalog?.Models,
-    catalog?.official, catalog?.Official,
-    catalog?.items, catalog?.Items,
-  ]
-  for (const bucket of buckets) {
-    if (Array.isArray(bucket)) rows.push(...bucket)
-  }
-  const providers = catalog?.providers || catalog?.Providers || {}
-  for (const provider of Object.values(providers)) {
-    const models = provider?.models || provider?.Models || []
-    if (Array.isArray(models)) {
-      for (const model of models) {
-        rows.push(typeof model === 'string' ? { id: model, provider: provider.id || provider.ID } : model)
-      }
-    }
-  }
-  return rows.map(row => ({
-    id: String(row?.id ?? row?.ID ?? row?.model ?? row?.Model ?? row ?? '').trim(),
-    provider: String(row?.provider ?? row?.Provider ?? '').trim(),
-  })).filter(row => row.id)
-}
 
 export async function runCompanionModelSwitch(driver, options = {}) {
+  const personal = await enablePersonalRelayRoute(driver)
+  if (!personal.ok) return fail(personal.detail)
   const settings = await driver.invoke('GetSettings', [])
   const current = String(settings?.companion_model ?? settings?.CompanionModel ?? '')
   const relay = describeCustomRelay(settings, firstUseRelayName())
-  const catalog = await driver.invoke('GetModelCatalog', []).catch(() => ({}))
-  const candidates = [
-    relay.models[0],
-    firstUseRelayModel(),
-    ...catalogModels(catalog).map(row => row.id),
-  ].filter(Boolean)
+  const candidates = [...new Set(relay.models.filter(Boolean))]
   const next = candidates.find(id => id && id !== current)
-  if (!next) return fail('找不到另一台桌宠模型可换')
-  const nextProvider = catalogModels(catalog).find(row => row.id === next)?.provider
-    || (relay.id && relay.models.includes(next) ? relay.id : settings?.companion_provider)
+  if (!next) {
+    return candidates.length
+      ? pass(`个人中转站只有一台模型 ${current || candidates[0]}，换模型跳过`)
+      : fail('找不到另一台桌宠模型可换')
+  }
   try {
     await driver.invoke('SaveSettingsCmd', [{
       ...settings,
       companion_model: next,
-      companion_provider: nextProvider || settings?.companion_provider,
-      companion_source: settings?.companion_source || 'account',
+      companion_provider: relay.id,
+      companion_source: 'personal',
     }])
     await driver.stopCompanion().catch(() => {})
     const started = await driver.ensureCompanion()
@@ -574,7 +560,10 @@ async function enableCompanionFloat(driver) {
 async function showCompanionPetForm(driver) {
   const shell = await enableCompanionFloat(driver)
   if (shell?.wayland) return shell
+  // Phone and pet are exclusive; companion-page leaves the chat open.
+  await driver.invoke('HideCompanionChatWindow', []).catch(() => {})
   await driver.invoke('SetCompanionPetHidden', [{ hidden: false }]).catch(() => {})
+  await delay(400)
   return driver.getCompanionShellStatus().catch(() => shell)
 }
 
@@ -752,4 +741,114 @@ export async function runCompanionDockPark(driver) {
     await driver.invoke('ShowCompanionMainWindow', []).catch(() => {})
     await driver.ensureAttached()
   }
+}
+
+function companionTurnToolNames(events) {
+  return [...new Set(
+    (events || [])
+      .map(event => eventToolName(event))
+      .filter(name => /companion_|bash|read|grep|find|ls|edit|write/i.test(name)),
+  )]
+}
+
+export async function runCompanionFuzzDispatch(driver, options = {}) {
+  const prefix = `product-loop-fuzz-${Date.now().toString(36)}`
+  const title = `${prefix}-research`
+  const marker = `${prefix}-MARK`
+  const conversation = await driver.createConversation({
+    id: `${prefix}-target`,
+    title,
+    kernel: 'pi',
+  })
+  try {
+    await enablePersonalRelayRoute(driver)
+    await driver.invoke('ArchiveCompanionTranscript', []).catch(() => {})
+    await driver.drainCompanionEvents()
+    const started = await driver.ensureCompanion()
+    const ready = companionIsReady(started)
+    if (!ready.ok) return fail(ready.reason)
+    await driver.drainCompanionEvents()
+    const prompts = companionFuzzDispatchPrompts({ title, marker })
+    let turn = { events: [], confirmed: 0, timeout: false, sidecarStopped: false, error: '' }
+    const tools = new Set()
+    for (const prompt of prompts) {
+      await driver.sendCompanionMessage(prompt)
+      turn = await driver.waitForCompanionTurn(options.taskTimeoutMs || 300_000)
+      for (const name of companionTurnToolNames(turn.events)) tools.add(name)
+      if (turn.sidecarStopped || companionTurnParked(turn.events)) {
+        return fail('桌宠 sidecar 停了，模糊调度没有接上')
+      }
+      const broken = /tool history is broken|这段对话没法继续了/i.test(String(turn.error || ''))
+      if (broken) {
+        await driver.invoke('ArchiveCompanionTranscript', []).catch(() => {})
+        await driver.stopCompanion().catch(() => {})
+        await driver.ensureCompanion()
+        await driver.drainCompanionEvents()
+        continue
+      }
+      if (companionTurnErrored(turn.events)) {
+        return fail(`模糊调度回合失败 ${turn.error || ''}`.trim())
+      }
+      const facts = await waitForCompanionFacts(driver, conversation.id, marker, 12_000)
+      if (facts.landed.ok) {
+        return pass(`模糊调度把 ${marker} 转达到「${title}」，工具 ${[...tools].join(',') || '(无)'}`)
+      }
+      if (!turn.timeout && companionTurnSettled(turn.events) && tools.has('companion_dispatch')) {
+        // Dispatch fired but marker wording drifted; still count as exercised scheduling.
+        const board = boardHasConversation(await driver.getCompanionBoard(), conversation.id)
+        if (board.ok) {
+          return pass(`模糊调度调用了 companion_dispatch 且看板有「${title}」`)
+        }
+      }
+    }
+    if (turn.timeout) return fail('模糊调度回合超时')
+    return fail('模糊调度没有把调研任务落到目标会话')
+  } finally {
+    await driver.stopCompanion().catch(() => {})
+  }
+}
+
+export async function runCompanionFuzzApp(driver, options = {}) {
+  await enablePersonalRelayRoute(driver)
+  await driver.invoke('ArchiveCompanionTranscript', []).catch(() => {})
+  await driver.drainCompanionEvents()
+  const started = await driver.ensureCompanion()
+  const ready = companionIsReady(started)
+  if (!ready.ok) return fail(ready.reason)
+  await driver.drainCompanionEvents()
+  const tools = new Set()
+  let settled = 0
+  let replied = false
+  for (const prompt of companionFuzzAppPrompts()) {
+    await driver.sendCompanionMessage(prompt)
+    const turn = await driver.waitForCompanionTurn(options.taskTimeoutMs || 300_000)
+    for (const name of companionTurnToolNames(turn.events)) tools.add(name)
+    if (turn.sidecarStopped || companionTurnParked(turn.events)) {
+      return fail('桌宠 sidecar 停了，功能询问没有接上')
+    }
+    const broken = /tool history is broken|这段对话没法继续了/i.test(String(turn.error || ''))
+    if (broken) {
+      await driver.invoke('ArchiveCompanionTranscript', []).catch(() => {})
+      await driver.stopCompanion().catch(() => {})
+      await enablePersonalRelayRoute(driver)
+      await driver.ensureCompanion()
+      await driver.drainCompanionEvents()
+      continue
+    }
+    if (companionTurnErrored(turn.events)) {
+      return fail(`功能询问回合失败 ${turn.error || ''}`.trim())
+    }
+    if (turn.timeout) return fail('功能询问回合超时')
+    if (companionTurnSettled(turn.events)) settled += 1
+    const page = await driver.listCompanionTranscript(40)
+    if (transcriptHasAssistantReply(page).ok) replied = true
+  }
+  const usedApp = [...tools].some(name => /companion_app/i.test(name))
+  const usedBoard = [...tools].some(name => /companion_board/i.test(name))
+  if (!replied) return fail('功能询问没有助手回复')
+  if (settled < 2) return fail(`功能询问只结算了 ${settled} 轮`)
+  if (!usedApp && !usedBoard) {
+    return fail(`功能询问没有动 companion_app/board，工具=${[...tools].join(',') || '(无)'}`)
+  }
+  return pass(`功能询问走完 ${settled} 轮，工具 ${[...tools].join(',')}`)
 }

@@ -3,6 +3,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { ArrowUp, ChevronLeft, FileText, Plus, X } from 'lucide-react'
 import ProgressiveBlur from 'react-progressive-blur'
 import companionIdle from '@/assets/companion/idle.png'
+import CompanionTurnProcessView from '@/components/CompanionTurnProcessView'
 import CompanionPhoneStatusBar from '@/components/CompanionPhoneStatusBar'
 import CompanionSettingsPanel from '@/components/CompanionSettingsPanel'
 import MarkdownContent from '@/components/MarkdownContent'
@@ -24,9 +25,15 @@ import {
 import { cn } from '@/lib/cn'
 import {
   companionChatNeedsNewConversation,
-  companionChatVisibleText,
+  companionChatPlainText,
   explainCompanionError,
 } from '@/lib/companionUserError'
+import {
+  companionEntryHasProcess,
+  companionEntryIsProcessOnly,
+  companionTurnHasProcess,
+  processFromCompanionEntry,
+} from '@/lib/companionTurnProcess'
 import { isComposingKey } from '@/lib/imeComposition'
 import {
   encodePickerSelection,
@@ -130,7 +137,9 @@ export default function CompanionPage({
     })),
   }))
   const olderOffset = companion.hasMore ? 1 : 0
-  const typing = companion.busy && !companion.streaming
+  const liveWorking = companionTurnHasProcess(companion.liveProcess)
+  const typing = companion.busy && !companion.streaming && !liveWorking
+  const emptyReplyLabel = t('这一轮没有回复。', 'This turn did not produce a reply.')
   const needsNewChat = companionChatNeedsNewConversation(companion.error)
     || companion.entries.some(entry => companionChatNeedsNewConversation(entry.error || entry.text))
   const virtualizer = useVirtualizer({
@@ -448,14 +457,42 @@ export default function CompanionPage({
               const stamp = formatCompanionChatStamp(entry.timestamp, locale)
               const user = companionChatIsUser(entry.role)
               const bubble = companionChatIsBubble(entry.role)
-              const raw = companionChatVisibleText(entry)
-              const body = entry.error
+              const processOnly = companionEntryIsProcessOnly(entry)
+              const entryProcess = companionEntryHasProcess(entry)
+                ? processFromCompanionEntry(entry)
+                : null
+              const plain = companionChatPlainText(entry)
+              const showEmptyReply = entry.role === 'assistant'
+                && !plain
+                && !processOnly
+                && !companion.busy
+                && !liveWorking
+                && !(entry.attachments?.length)
+                && (!entry.error || /companion model returned no text/i.test(entry.error))
+              const body = entry.error && !showEmptyReply && !processOnly
                 ? explainCompanionError(entry.error, {
                     provider: companion.status.provider,
                     model: companion.status.model,
                   })
-                : raw
+                : (plain || (showEmptyReply ? emptyReplyLabel : ''))
               const sent = entry.attachments ?? []
+              if (processOnly) {
+                return (
+                  <article
+                    key={item.key}
+                    data-index={item.index}
+                    ref={virtualizer.measureElement}
+                    className="companion-chat-row companion-chat-row-assistant companion-chat-row-start absolute left-0 top-0 w-full"
+                    style={{ transform: `translateY(${item.start}px)` }}
+                  >
+                    <CompanionTurnProcessView
+                      process={entryProcess!}
+                      foldable
+                      defaultOpen={false}
+                    />
+                  </article>
+                )
+              }
               if (!body && !sent.length) return null
               return (
                 <article
@@ -473,6 +510,13 @@ export default function CompanionPage({
                   style={{ transform: `translateY(${item.start}px)` }}
                 >
                   {showDivider && stamp ? <p className="companion-chat-time">{stamp}</p> : null}
+                  {entryProcess && entry.role === 'assistant' ? (
+                    <CompanionTurnProcessView
+                      process={entryProcess}
+                      foldable
+                      defaultOpen={false}
+                    />
+                  ) : null}
                   {bubble ? (
                     <div className={cn(
                       'companion-chat-bubble',
@@ -504,14 +548,13 @@ export default function CompanionPage({
                         </div>
                       ) : null}
                       {body ? (
-                        entry.error ? (
+                        entry.error || showEmptyReply ? (
                           <p className="companion-chat-bubble-text companion-chat-bubble-text-plain">{body}</p>
                         ) : (
                           <MarkdownContent
                             className="companion-chat-bubble-text"
                             content={body}
                             compact
-                            streaming={entry.id === 'streaming'}
                           />
                         )
                       ) : null}
@@ -525,6 +568,32 @@ export default function CompanionPage({
             })}
           </div>
         )}
+        {liveWorking ? (
+          <div className="companion-chat-row companion-chat-row-assistant companion-chat-row-start">
+            <CompanionTurnProcessView process={companion.liveProcess} />
+          </div>
+        ) : null}
+        {companion.streaming ? (
+          <div className="companion-chat-row companion-chat-row-assistant companion-chat-row-start">
+            <div className="companion-chat-bubble companion-chat-bubble-assistant">
+              <MarkdownContent
+                className="companion-chat-bubble-text"
+                content={companion.streaming}
+                compact
+                streaming
+              />
+            </div>
+          </div>
+        ) : null}
+        {companion.settledProcess && !companion.busy && !liveWorking ? (
+          <div className="companion-chat-row companion-chat-row-assistant companion-chat-row-start">
+            <CompanionTurnProcessView
+              process={companion.settledProcess}
+              foldable
+              defaultOpen={false}
+            />
+          </div>
+        ) : null}
         {typing ? (
           <div className="companion-chat-row companion-chat-row-assistant companion-chat-row-start">
             <p className="companion-chat-bubble companion-chat-bubble-assistant companion-chat-typing" aria-hidden="true">

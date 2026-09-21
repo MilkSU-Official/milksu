@@ -59,6 +59,8 @@ import {
 } from './lib/product-loop-first-use.mjs'
 import {
   boardHasConversation,
+  companionFuzzAppPrompts,
+  companionFuzzDispatchPrompts,
   companionIsReady,
   companionRelayPrefix,
   companionDefaultSkinVisible,
@@ -99,7 +101,7 @@ test('catalog keeps product regression away from evalsuite', () => {
   ])
   assert.equal(CASE_RUN_ORDER[0], 'login-gate')
   assert.equal(MODULES.coding.cases.length, 33)
-  assert.equal(MODULES.companion.cases.length, 23)
+  assert.equal(MODULES.companion.cases.length, 25)
   assert.equal(MODULES.workspaces.cases.length, 33)
   assert.equal(MODULES['desktop-surface'].cases.length, 9)
   assert.equal(MODULES['account-shell'].cases.length, 4)
@@ -221,6 +223,10 @@ test('companion product facts come from a real turn, not RPC shape checks', () =
   assert.match(prompt, /companion_dispatch/)
   assert.match(prompt, /coding-1/)
   assert.match(prompt, /product-loop-marker/)
+  const fuzz = companionFuzzDispatchPrompts({ title: 't', marker: 'm1' })
+  assert.equal(fuzz.length >= 2, true)
+  assert.equal(fuzz.every(text => !/companion_dispatch|companion_board|companion_app/.test(text)), true)
+  assert.equal(companionFuzzAppPrompts().every(text => !/companion_dispatch|companion_app/.test(text)), true)
   assert.equal(companionIsReady({ ready: true }).ok, true)
   assert.equal(companionIsReady({ ready: false, error: 'sidecar down' }).ok, false)
   assert.equal(companionTurnSettled([{ type: 'assistant.settled' }]), true)

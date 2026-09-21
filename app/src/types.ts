@@ -444,6 +444,8 @@ export interface CompanionTranscriptEntry {
   timestamp: string
   role?: string
   text?: string
+  thinking?: string
+  tools?: string[]
   error?: string
   attachments?: CodingAttachment[]
 }

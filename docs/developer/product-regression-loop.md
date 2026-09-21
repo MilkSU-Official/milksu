@@ -110,7 +110,7 @@ npm run test:product-loop-catalog
 | 底部终端 | 打得开底部终端。 |
 | 会话右键菜单 | 右键能看到置顶、重命名、Fork、归档、删除。 |
 
-### 桌宠（22）
+### 桌宠（25）
 
 | 测试项 | 测什么 |
 | --- | --- |
@@ -124,6 +124,8 @@ npm run test:product-loop-catalog
 | 桌宠归档 | 能归档当前段，页上有归档。 |
 | 桌宠记忆 | 必须提出一条待批准或已留下的记忆。只看见记忆栏不算。 |
 | 跨会话调度确认 | 桌宠 `stop` 必须停下来确认。没确认不算。 |
+| 桌宠模糊调度 | 用人话让桌宠去看板、把调研派到指定对话；不点名工具 schema。标记进目标会话或确实调了调度工具才算。 |
+| 桌宠功能询问 | 用人话问桌宠能干啥、能不能改设置/开主窗口，再让它打开主窗口并读不含密钥的设置；要有助手回复且动过 companion_app 或看板。 |
 | 换桌宠模型再发 | 换成另一台模型后再发出一句。 |
 | 桌宠模型设置 | 设置 → 桌宠有模型选择。 |
 | 跨会话调度设置 | 设置里有跨会话调度。 |
@@ -234,7 +236,7 @@ Computer Use 和隔离浏览器分开测。缺权限不能靠浏览器凑成通�
 
 ## 凭据与回执
 
-- 本机先填 `docs/developer/product-loop.local.env`（模板是旁边的 `.example.env`）。协调器读入公开字段；密钥只留在脚本内存，到设置密码框再填，不注入 sidecar。回执只写变量名。
+- 本机先填 `docs/developer/product-loop.local.env`（模板是旁边的 `.example.env`）。协调器读入公开字段；密钥只留在脚本内存，到设置密码框再填，不注入 sidecar。回执只写变量名。上手配好个人 TokenFlux / 中转站后，桌宠也会切到同一条 personal 来源，避免「暂不登录」或 GitHub 账户额度缺失时桌宠 toast「No API key for tokenflux/…」。
 - 登录 / 账户模型 / 自定义中转站按上手手册走通之后，没可用来源的主页发送记 FAIL，不再 SKIP。
 - 回执：`build/test-results/product-loop.json`。结束后 stdout 打印从大模块到小模块的文字报告。
 - 正式报告：`build/test-results/product-loop-report/index.html`。每一项只拍该用例当时还在的窗（主窗口或桌宠），在拆掉 fixture 会话之前拍，并写窗口标签和页面摘录。开跑会清掉上次的 `shots/`，避免旧图挂到新项上。截图和回执都不写 Provider Key。

@@ -8,12 +8,18 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { createCompanionExtension, COMPANION_SESSION_ID } from "./extension.js";
 import { companionSessionToolNames, createCompanionTools } from "./tools.js";
+import { createCompanionHostBroker } from "./host-broker.js";
 import { queryCompanionMemory, scheduleCompanionIndexRefresh } from "./obelisk-index.js";
 import { companionProviderEnvironment } from "./companion-model-env.js";
 import { companionSystemPrompt } from "./system-prompt.js";
-import { companionAssistantTurnError } from "./turn-error.js";
+import {
+  companionAssistantTurnError,
+  companionToolHistoryBroken,
+} from "./turn-error.js";
 import { prepareCompanionPrompt } from "./attachments.js";
 import { withTokenFluxModelCompat } from "../pi/tokenflux-model-compat.js";
+import { createHangGuardExtension } from "../pi/bridge-hang-guard.js";
+import { createToolResultBoundExtension } from "../pi/bridge-tool-result-bound.js";
 import currentProviderRuntime from "../pi/current-provider-runtime.cjs";
 
 const {
@@ -23,8 +29,7 @@ const {
 
 let uiLocale = "zh";
 
-const pendingHost = new Map();
-let hostRequestSeq = 0;
+let hostBroker = null;
 let session = null;
 let subscribed = false;
 let promptQueue = Promise.resolve();
@@ -42,42 +47,19 @@ function emit(type, data = {}) {
   })}\n`);
 }
 
-function requestHost(action, input, options = {}) {
-  const requestId = `companion-host-${++hostRequestSeq}`;
-  const timeoutMs = Number.isFinite(options.timeoutMs) ? options.timeoutMs : 30_000;
-  return new Promise((resolve, reject) => {
-    let timer = null;
-    if (timeoutMs > 0) {
-      timer = setTimeout(() => {
-        if (!pendingHost.has(requestId)) return;
-        pendingHost.delete(requestId);
-        reject(new Error("companion host request timed out"));
-      }, timeoutMs);
-    }
-    pendingHost.set(requestId, {
-      resolve: (value) => {
-        if (timer) clearTimeout(timer);
-        resolve(value);
-      },
-      reject: (error) => {
-        if (timer) clearTimeout(timer);
-        reject(error);
-      },
-    });
-    emit("companion_host", { requestId, action, input });
-  });
+function ensureHostBroker() {
+  if (!hostBroker) {
+    hostBroker = createCompanionHostBroker(emit);
+  }
+  return hostBroker;
+}
+
+function requestHost(action, input, options) {
+  return ensureHostBroker().request(action, input, options);
 }
 
 function resolveHost(payload) {
-  const requestId = String(payload?.requestId ?? "");
-  const pending = pendingHost.get(requestId);
-  if (!pending) throw new Error(`unknown companion host request: ${requestId}`);
-  pendingHost.delete(requestId);
-  if (payload?.ok === false) {
-    pending.reject(new Error(String(payload?.error || "companion host request failed")));
-    return;
-  }
-  pending.resolve(payload?.result ?? {});
+  ensureHostBroker().respond(payload);
 }
 
 function companionAgentDir() {
@@ -119,6 +101,9 @@ async function createCompanionSession(command) {
         getPersona: () => persona,
         getSystemPrompt: () => companionSystemPrompt(uiLocale),
       }),
+      // Same Pi hardening as the main coding bridge: bash timeout bound + tool_result clip.
+      createHangGuardExtension(),
+      createToolResultBoundExtension(),
     ],
     noExtensions: true,
     noSkills: true,
@@ -185,9 +170,54 @@ async function applyCompanionModel(command) {
 }
 
 function subscribeCompanion() {
+  const thinkingStartedAt = new Map();
+  const toolStartedAt = new Map();
   session.subscribe((event) => {
-    if (event.type === "message_update" && event.assistantMessageEvent?.type === "text_delta") {
-      emit("text_delta", { delta: event.assistantMessageEvent.delta ?? "" });
+    if (event.type === "message_update" && event.assistantMessageEvent) {
+      const update = event.assistantMessageEvent;
+      if (update.type === "thinking_start") {
+        if (!thinkingStartedAt.has("live")) thinkingStartedAt.set("live", Date.now());
+        emit("thinking_start", {});
+      } else if (update.type === "thinking_delta") {
+        emit("thinking_delta", { delta: update.delta ?? "" });
+      } else if (update.type === "thinking_end") {
+        const startedAt = thinkingStartedAt.get("live");
+        thinkingStartedAt.delete("live");
+        emit("thinking_done", {
+          content: update.content ?? "",
+          durationMs: startedAt === undefined ? undefined : Math.max(0, Date.now() - startedAt),
+        });
+      } else if (update.type === "text_delta") {
+        emit("text_delta", { delta: update.delta ?? "" });
+      }
+      return;
+    }
+    if (event.type === "tool_execution_start") {
+      toolStartedAt.set(event.toolCallId, Date.now());
+      emit("tool_call_start", {
+        toolCallId: event.toolCallId,
+        toolName: event.toolName,
+        content: formatCompanionToolInput(event.toolName, event.args),
+      });
+      return;
+    }
+    if (event.type === "tool_execution_update") {
+      emit("tool_call_progress", {
+        toolCallId: event.toolCallId,
+        toolName: event.toolName,
+      });
+      return;
+    }
+    if (event.type === "tool_execution_end") {
+      const startedAt = toolStartedAt.get(event.toolCallId);
+      toolStartedAt.delete(event.toolCallId);
+      emit("tool_call_end", {
+        toolCallId: event.toolCallId,
+        toolName: event.toolName,
+        content: String(event.result?.content ?? event.result?.details ?? "").slice(0, 400),
+        durationMs: startedAt === undefined ? undefined : Math.max(0, Date.now() - startedAt),
+        isError: event.isError,
+      });
       return;
     }
     if (event.type === "agent_end") {
@@ -203,8 +233,27 @@ function subscribeCompanion() {
   });
 }
 
+function formatCompanionToolInput(toolName, args) {
+  const name = String(toolName ?? "").trim() || "tool";
+  if (!args || typeof args !== "object") return name;
+  const detail = String(
+    args.path
+    ?? args.file
+    ?? args.command
+    ?? args.query
+    ?? args.pattern
+    ?? args.id
+    ?? "",
+  ).trim();
+  if (!detail) return name;
+  return `${name} ${detail.slice(0, 120)}`;
+}
+
 async function sendPrompt(command) {
   if (!session) throw new Error("companion session is not ready");
+  if (companionToolHistoryBroken(session.messages)) {
+    throw new Error("tool history is broken");
+  }
   const prepared = await prepareCompanionPrompt(command);
   if (!prepared.prompt) {
     throw new Error("companion prompt is required");
@@ -263,10 +312,13 @@ async function handleCommand(command) {
       resolveHost(command);
       return;
     case "abort":
+      // Mirror main-chat abort: cancel parked/in-flight host waits, then abort the agent loop.
+      ensureHostBroker().cancelAll("turn aborted");
       session?.abort?.();
       emit("turn_settled", { aborted: true });
       return;
     case "shutdown":
+      ensureHostBroker().cancelAll("companion sidecar stopped");
       process.exit(0);
       return;
     default:

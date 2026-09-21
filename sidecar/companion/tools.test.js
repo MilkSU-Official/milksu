@@ -56,7 +56,6 @@ test("memory search path does not write", async () => {
 });
 
 test("dispatch host request does not time out while waiting for confirmation", async () => {
-  const [,,] = [];
   const tools = createCompanionTools(async (action, _input, options) => {
     assert.equal(action, "dispatch");
     assert.equal(options?.timeoutMs, 0);
@@ -66,10 +65,35 @@ test("dispatch host request does not time out while waiting for confirmation", a
   assert.match(dispatch.description, /immediately/i);
   assert.match(dispatch.description, /speak_many/);
   assert.match(dispatch.description, /confirm button/i);
+  assert.match(dispatch.description, /subagent/);
+  assert.match(dispatch.description, /Working/);
+  assert.match(dispatch.description, /create_conversation|steer/i);
   const result = await dispatch.execute("1", {
     action: "stop",
     conversationId: "live",
     idempotencyKey: "k1",
   });
   assert.match(result.content[0].text, /needsConfirmation/);
+});
+
+test("dispatch queue and app reads use the default host timeout", async () => {
+  const seen = [];
+  const tools = createCompanionTools(async (action, input, options) => {
+    seen.push({ action, input, options });
+    return { ok: true };
+  });
+  const dispatch = tools.find(tool => tool.name === "companion_dispatch");
+  const app = tools.find(tool => tool.name === "companion_app");
+  await dispatch.execute("1", {
+    action: "speak",
+    conversationId: "live",
+    text: "hi",
+    idempotencyKey: "k1",
+    mode: "queue",
+  });
+  await app.execute("2", { action: "read_conversation", conversationId: "live" });
+  await app.execute("3", { action: "patch_settings", patch: { companion_enabled: true } });
+  assert.equal(seen[0].options, undefined);
+  assert.equal(seen[1].options, undefined);
+  assert.equal(seen[2].options?.timeoutMs, 0);
 });

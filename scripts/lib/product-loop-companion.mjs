@@ -37,6 +37,22 @@ export function companionStopPrompt(conversationId) {
   ].join('')
 }
 
+/** Natural-language prompts: no tool schema names. Product-loop fuzz for new-user companion. */
+export function companionFuzzDispatchPrompts({ title, marker }) {
+  return [
+    `刚升级看到桌宠了。帮我瞄一眼现在有哪些对话，把标题叫「${title}」的那条派去摸底：让它看看工作区里有啥，回复里务必带上 ${marker}。长活别在手机里自己干。`,
+    `别光聊天。去找「${title}」那条对话，转达一句带 ${marker} 的调研任务过去，让那边去列文件。`,
+  ]
+}
+
+export function companionFuzzAppPrompts() {
+  return [
+    '刚升完级，桌宠到底能干啥？能帮我改设置吗？能打开主窗口吗？先用人话讲清楚你会什么。',
+    '那就帮我打开主窗口，再告诉我当前桌宠用的是哪个模型；先别改任何设置。',
+    '再帮我看一眼不含密钥的设置摘要，说说界面语言和桌宠开没开就行。',
+  ]
+}
+
 export function companionSpeakPrompt({ conversationId, title, marker }) {
   return [
     '你是 MilkSU 桌宠。请用产品工具做完这件事，不要只聊天回复。',

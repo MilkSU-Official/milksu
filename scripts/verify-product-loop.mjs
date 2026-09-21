@@ -28,7 +28,7 @@ import {
   applyProductLoopLocalEnv,
   describeProductLoopLocalEnv,
 } from './lib/product-loop-local-env.mjs'
-import { runFirstUse, saveCustomRelay } from './lib/product-loop-first-use.mjs'
+import { enablePersonalRelayRoute, runFirstUse, saveCustomRelay } from './lib/product-loop-first-use.mjs'
 import {
   captureProductLoopEvidence,
   printProductLoopReport,
@@ -160,6 +160,8 @@ async function main() {
       const relay = await saveCustomRelay(session.driver)
       session.sourcesReady = relay.ok === true
       if (!relay.ok) receipt.humanReview.push(relay.detail || '中转站没配上')
+    } else {
+      await enablePersonalRelayRoute(session.driver).catch(() => {})
     }
     return true
   }

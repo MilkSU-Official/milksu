@@ -42,8 +42,17 @@ export function assertNoRuntimeWriteTools(names) {
   }
 }
 
-function hostResult(requestHost, action, input) {
-  return requestHost(action, input);
+const APP_CONFIRM_ACTIONS = new Set(["patch_settings", "quit", "relaunch"]);
+
+function hostResult(requestHost, action, input, options) {
+  return requestHost(action, input, options);
+}
+
+function dispatchNeedsConfirmPark(params) {
+  const action = String(params?.action ?? "").trim();
+  if (action === "stop") return true;
+  if (action !== "speak" && action !== "speak_many") return false;
+  return String(params?.mode ?? "").trim().toLowerCase() === "steer";
 }
 
 export function createCompanionTools(requestHost, options = {}) {
@@ -85,7 +94,9 @@ export function createCompanionTools(requestHost, options = {}) {
     name: "companion_dispatch",
     label: "Companion dispatch",
     description: "Relay a user instruction into another MilkSU conversation. "
-      + "Prefer this when an existing conversation can do the work. "
+      + "Prefer this for research and long execution instead of running that work in the companion itself. "
+      + "For investigation, tell the target conversation to use its subagent into Working, then discuss results after Working returns. "
+      + "For landing or packaging work, create_conversation or steer an existing conversation. "
       + "Call this tool immediately. Do not ask the user to confirm in chat first. "
       + "speak requires conversationId and a unique idempotencyKey. "
       + "mode queue is the default. "
@@ -113,7 +124,10 @@ export function createCompanionTools(requestHost, options = {}) {
       firstMessage: Type.Optional(Type.String()),
     }),
     execute: async (_toolCallId, params) => {
-      const result = await requestHost("dispatch", params, { timeoutMs: 0 });
+      // Confirm-parked actions wait like main-chat approvalBroker (no timeout).
+      // Everything else uses the host broker default, same as workspace_action.
+      const hostOptions = dispatchNeedsConfirmPark(params) ? { timeoutMs: 0 } : undefined;
+      const result = await hostResult(requestHost, "dispatch", params, hostOptions);
       return {
         content: [{ type: "text", text: JSON.stringify(result) }],
         details: result,
@@ -189,7 +203,9 @@ export function createCompanionTools(requestHost, options = {}) {
       )),
     }),
     execute: async (_toolCallId, params) => {
-      const result = await requestHost("app", params, { timeoutMs: 0 });
+      const action = String(params?.action ?? "").trim();
+      const hostOptions = APP_CONFIRM_ACTIONS.has(action) ? { timeoutMs: 0 } : undefined;
+      const result = await hostResult(requestHost, "app", params, hostOptions);
       return {
         content: [{ type: "text", text: JSON.stringify(result) }],
         details: result,

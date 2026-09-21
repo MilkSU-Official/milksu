@@ -811,11 +811,17 @@ func writeJSON(writer io.Writer, value any) error {
 
 func mapCompanionEvent(raw map[string]any) engine.Event {
 	event := engine.Event{
-		Engine:    SessionID,
-		SessionID: SessionID,
-		Text:      stringValue(raw["delta"]),
-		Error:     stringValue(raw["error"]),
-		Reason:    stringValue(raw["reason"]),
+		Engine:     SessionID,
+		SessionID:  SessionID,
+		Text:       stringValue(raw["delta"]),
+		Error:      stringValue(raw["error"]),
+		Reason:     stringValue(raw["reason"]),
+		ToolName:   stringValue(raw["toolName"]),
+		ToolCallID: stringValue(raw["toolCallId"]),
+		DurationMS: int64(intValue(raw["durationMs"])),
+	}
+	if content := strings.TrimSpace(stringValue(raw["content"])); content != "" && event.Text == "" {
+		event.Text = content
 	}
 	switch strings.TrimSpace(stringValue(raw["type"])) {
 	case "hello":
@@ -825,6 +831,26 @@ func mapCompanionEvent(raw map[string]any) engine.Event {
 		event.Resumed = boolValue(raw["resumed"])
 	case "text_delta":
 		event.Type = "assistant.delta"
+	case "thinking_start":
+		event.Type = "assistant.thinking_started"
+	case "thinking_delta":
+		event.Type = "assistant.thinking_delta"
+	case "thinking_done":
+		event.Type = "assistant.thinking_completed"
+		if content := strings.TrimSpace(stringValue(raw["content"])); content != "" {
+			event.Text = content
+		}
+	case "tool_call_start":
+		event.Type = "tool.started"
+	case "tool_call_progress":
+		event.Type = "tool.progress"
+		event.Text = ""
+	case "tool_call_end":
+		event.Type = "tool.completed"
+		event.Done = true
+		if boolValue(raw["isError"]) {
+			event.Error = stringValue(raw["content"])
+		}
 	case "turn_settled":
 		event.Type = "assistant.settled"
 		event.Done = true
