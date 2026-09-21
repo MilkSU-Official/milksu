@@ -745,8 +745,8 @@ export default function App() {
   useEffect(() => {
     let unlisten: (() => void) | undefined
     let cancelled = false
-    void listenEvent<{ conversationId?: string }>('companion-focus', payload => {
-      const id = String(payload?.conversationId ?? '').trim()
+    void listenEvent<{ conversationId?: string }>('companion-focus', event => {
+      const id = String(event.payload?.conversationId ?? '').trim()
       if (id) selectSidebarConversation(id)
     }).then(stop => {
       if (cancelled) stop()
