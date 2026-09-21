@@ -93,7 +93,14 @@ export function companionAssistantTurnError(messages) {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = unwrapCompanionMessage(messages[index]);
     if (message?.role !== "assistant") continue;
-    if (companionRequestAborted(message.errorMessage) || companionRequestAborted(message.stopReason)) {
+    const contentText = Array.isArray(message.content)
+      ? message.content.map(block => String(block?.text ?? "")).join("\n")
+      : "";
+    if (
+      companionRequestAborted(message.errorMessage)
+      || companionRequestAborted(message.stopReason)
+      || companionRequestAborted(contentText)
+    ) {
       // AbortCompanionTurn / recover teardown. Phone maps this to 「这一轮已取消」.
       return "";
     }
