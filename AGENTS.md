@@ -54,14 +54,12 @@ M3 product-loop 已在 2026-08-05 squash 合并进 `main`。从 `current-objecti
 models.dev 只用来补目录里缺失或占位的字段。
 
 2026-09-14 对照各官方实验室（deepseek、openai、anthropic、xai、google、alibaba）核过一次。
-下表任一数字与 models.dev 不一致时，连同三份代码副本一起改：
+**每次发版前**再对照一次（见 [三端打包与发版流程](docs/developer/release-process.md) §1.5）。
+下表任一数字与 models.dev 不一致时，连同下列代码副本一起改：
 
-- `internal/modelcatalog/context_window.go`
-- `app/src/lib/knownContextWindow.ts`
-- `sidecar/pi/known-context-window.cjs`
-
-思考档位清单在 `internal/config/model_thinking.go` 和 `app/src/lib/modelThinking.ts`。
-models.dev 的 `none` 映射成 Pi 的 `off`。
+- 上下文 / 输出：`internal/modelcatalog/context_window.go`、`app/src/lib/knownContextWindow.ts`、`sidecar/pi/known-context-window.cjs`
+- 思考档位：`internal/config/model_thinking.go`、`app/src/lib/modelThinking.ts`（models.dev 的 `none` 映射成 Pi 的 `off`）
+- 用量美金估算价目：`app/src/lib/knownModelPricing.ts`（个人资料 Coding 页；标成估算，不是账单）
 
 | 系列 | 上下文 | 输出 | 思考 |
 | --- | ---: | ---: | --- |
@@ -122,7 +120,7 @@ CTF / CVE / 实验室领域 chrome，以及桌面授权。
 
 | 层 | 负责 | 怎么用 |
 | --- | --- | --- |
-| 材料 | token、颜色、字体、动效 | shadcn 结构，Cursor Light / Cursor Dark 表面。页面和侧栏填充保持高不透明度（约 70–90%），好让 macOS `under-window` vibrancy 和 Windows acrylic 透出一丝壁纸；Linux 保持不透明。夜间页面 `#181818` / 侧栏 `#141414`；浅色页面 `#fcfcfc` / 侧栏 `#f3f3f3`。浮层 Dialog / Popover / Sheet / DropdownMenu 完全不透明 `#141414` / `#f3f3f3`，浮层上不加 `backdrop-filter`（Windows Chromium 经常不给毛玻璃，薄填充会直接透出一个洞）。不要 OLED 纯黑（`#09090b`），不要 zinc-950，不要纯白 `#ffffff` 页底，不要洗色叠层，不要碳纤维纹理，不要页面级 cyan。出厂 `--primary` 是高对比墨色（夜间 `#f0f0f0`、浅色 `#141414`）。设置 → 通用「强调色」预设（默认墨色、blue、violet、teal、amber、rose；实时生效）驱动 `--emphasis`；彩色预设还会重映射 `--primary` / `--primary-foreground` / 焦点 `--ring`，让发送与品牌按钮、选中的筛选芯片、Switch / Checkbox、进度条、侧栏与工具选中态的内嵌条、以及 `text-primary` 的勾都跟着强调色走。默认预设清掉这些重映射，保持墨色。不要用颜色去洗页面或侧栏填充，浮层保持灰阶。侧栏更新动作固定用 `--update`（Cursor 那种蓝：夜间 `#5b9fff` / 浅色 `#2563eb`），不跟用户强调色。shadcn 的 `--accent` 仍然是悬停灰面，不是品牌色。圆角 8px（`rounded-md`）。产品外观不是 Mica。字体默认 Inter Variable + Noto Sans SC Variable。设置 → 通用可以改界面字体、对话字体及其字号（预设，实时生效）。动效约 200ms。 |
+| 材料 | token、颜色、字体、动效 | shadcn 结构，Cursor Light / Cursor Dark 表面。页面和侧栏填充保持高不透明度（约 70–90%），好让 macOS `under-window` vibrancy 和 Windows acrylic 透出一丝壁纸；Linux 保持不透明。夜间页面 `#181818` / 侧栏 `#141414`；浅色页面 `#fcfcfc` / 侧栏 `#f3f3f3`。浮层 Dialog / Popover / Sheet / DropdownMenu 完全不透明 `#141414` / `#f3f3f3`，浮层上不加 `backdrop-filter`（Windows Chromium 经常不给毛玻璃，薄填充会直接透出一个洞）。不要 OLED 纯黑（`#09090b`），不要 zinc-950，不要纯白 `#ffffff` 页底，不要洗色叠层，不要碳纤维纹理，不要页面级 cyan。出厂 `--primary` 是高对比墨色（夜间 `#f0f0f0`、浅色 `#141414`）。设置 → 通用「强调色」预设（默认墨色、blue、violet、teal、amber、rose；实时生效）驱动 `--emphasis`；彩色预设还会重映射 `--primary` / `--primary-foreground` / 焦点 `--ring`，让发送与品牌按钮、选中的筛选芯片、Switch / Checkbox、进度条、侧栏与工具选中态的内嵌条、以及 `text-primary` 的勾都跟着强调色走。默认预设清掉这些重映射，保持墨色。不要用颜色去洗页面或侧栏填充，浮层保持灰阶。侧栏更新动作固定用 `--update`（Cursor 那种蓝：夜间 `#5b9fff` / 浅色 `#2563eb`），不跟用户强调色。shadcn 的 `--accent` 仍然是悬停灰面，不是品牌色。圆角 8px（`rounded-md`）。产品外观不是 Mica。字体默认 Inter Variable + Noto Sans SC Variable。设置 → 通用可以改界面字体、对话字体及其字号（预设，实时生效）。动效三条曲线（`--ease-out` / `--ease-in-out` / `--ease-drawer`）三档时长（`--motion-fast` / `--motion-base` / `--motion-slow`），纯变色用 `ease`，UI 动效不超过 300ms。按下反馈落在按下那一刻：按钮和芯片缩放 0.97，整行宽的行改用加深底色 `--pressed-row`，不加缩放。浮层从触发点缩放进入、模态保持居中；只动 `transform` / `scale` / `opacity`，不要 `transition: all`；会被反复触发的用 transition 不用 keyframes。命令面板、设置页这类键盘触发的高频路径不加动效。新增动效统一挂在 `prefers-reduced-motion: no-preference` 白名单下。实现位置、动效面清单与验证方法见 `docs/developer/motion.md`。 |
 | 壳 | 侧栏、顶栏、页面列 | 一个侧栏 + 一个页面列。折叠 52px；展开最小 224px、默认 264px，拖右边缘调宽。选中行是 8px 圆角矩形。会话行右键出上下文菜单（拦掉浏览器菜单）：置顶 / 取消置顶、已置顶时的排序、重命名、Fork、复制、归档、删除。归档立即执行，只有永久删除二次确认。会话行右侧显示相对活跃时间（`1m` / `16h` / `5d`，和命令面板同一个 helper）。悬停时钉选和归档占用那个位置。不要在行上放三点按钮。同样是 8px 命中区和 `--hover-2`。置顶分组用图钉标记，不是文件夹。项目文件夹折叠时用 `Folder`、展开时用 `FolderOpen`。侧栏搜索（以及 Cmd/Ctrl+K）打开同一个居中的不透明命令面板：齐平搜索框、筛选芯片 全部 / 会话 / 设置 / 命令、带强调色圆点 + 工作区名 + 相对时间的最近会话，然后在那些筛选（或查询）需要时才出设置或 slash。页脚显示 打开 / 选择 / 关闭 三个键位。它不是第二个侧栏，不是行内列表过滤，也不是带边框、配空文档图标的表单对话框。浮层填充用 `--surface-overlay` / `--popover`，不加 `backdrop-filter`。侧栏页脚：版本号，有更新时是一个蓝色 `--update` 文字控件「更新」/ Update（下载进度就显示在这个控件上的百分比，不是一个灰色下载图标），然后是主题和设置图标；折叠时这两个图标都保留。工作区头像菜单只和它的条目一样宽。设置直接替换掉同一个侧栏变成分类列表，不要保留工作区侧栏再叠第二列设置导航。设置返回是整行宽的头部（chevron + 设置 / Settings），不是一个纯图标按钮。`--page-stack-width` 是 64rem。窗口框只有一套壳：macOS 用 `hiddenInset`，红绿灯压在侧栏上；Windows 和 Linux 隐藏原生标题栏与窗口内菜单，画一层画布色 overlay，系统按钮放右上。Windows / Linux 上不要留 mac 红绿灯的洞，也不要第二条白色标题栏。 |
 | 列表 chrome | 筛选、历史、主操作 | shadcn Button / Input / Select / Badge。筛选是一排 `Button`（`outline` / 选中 `default`，`rounded-md` 或 `rounded-full`）。目录表格用画布色或卡片填充加普通的 caption 表头，不是等宽大写的「调度台」表头。分类 / 难度 / 严重度用 `Badge`。会话列表 chrome 和侧栏一致：悬停钉选 / 归档，右键出完整动作菜单，行上没有三点。命令面板筛选芯片用同一套「选中填充 / 未选中只有文字」的行。 |
 | 事实 | 卡片、表格、对话框、状态 | shadcn Card / Table / Dialog / Alert / Switch。设置跟 Cursor：一组 `SettingsSection` 列表，`SettingsRow` 是左边标签、右边一个紧凑控件。标签和控件共用 `--text-label`（13px），控件高 28px。改完即存，不要页面级的「保存」/「保存并验证」。厂商 / 应用标记（编辑器、模型）放在 Select 选项和收起的 trigger 里面，不是控件旁边的兄弟图标。不要嵌套卡片，不要 workbench 分栏，不要在一个分类里堆 ActionCard。审批、凭据和就地表单错误仍用 `Alert`。后台和短时失败用 toast（`Toaster`，不透明 `--popover`）。不要把 API Key 放进 toast。更新重启对话框就是同一个不透明 Dialog：有回合在跑时先问要不要退出，然后一次确认就应用已下载的更新并重启。 |

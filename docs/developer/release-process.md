@@ -11,6 +11,19 @@
 `desktop/package.json` 的版本必须相同。任意已登录 `gh` 的机器都可以发这一轮，不要求本机有
 Developer ID 或 Apple 公证环境。
 
+## 1.5 必做：对照 models.dev 刷新钉死的模型事实
+
+**每次发版前**对照 <https://models.dev/api.json>（官方实验室：deepseek、openai、anthropic、
+xai、google、alibaba）把钉死的模型事实更新一遍。产品运行时不要去拉 models.dev。
+
+| 事实 | 改哪里 |
+| --- | --- |
+| 上下文窗口 / 输出上限 | `internal/modelcatalog/context_window.go`、`app/src/lib/knownContextWindow.ts`、`sidecar/pi/known-context-window.cjs`；`AGENTS.md`「模型事实」表 |
+| 思考档位 | `internal/config/model_thinking.go`、`app/src/lib/modelThinking.ts`；`AGENTS.md` 表 |
+| 用量美金估算价目（USD / 百万 token） | `app/src/lib/knownModelPricing.ts`（个人资料 Coding 页「约 $…」） |
+
+不一致就改齐再进 `release:verify`。资料页金额只是估算，不是账单；TokenFlux / 账户实价可能不同。
+
 ## 2. 全量验证一次
 
 ```bash

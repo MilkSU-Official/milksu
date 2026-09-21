@@ -9,8 +9,14 @@ import type { CTFSummary } from '@/ctfTypes'
 import { providerModelLabel } from '@/modelCatalog'
 import {
   EMPTY_CODING_USAGE,
+  type CodingUsageDay,
+  type CodingUsageModelBreakdown,
   type CodingUsageSnapshot,
 } from '@/modelUsageTypes'
+import {
+  estimateUsageCostUsd,
+  formatEstimatedUsd,
+} from '@/lib/knownModelPricing'
 import type { AccountStatus, Conversation } from '@/types'
 import {
   vulnerabilityStatusLabel,
@@ -85,6 +91,38 @@ function sourceLabel(source: string, t: Translate) {
 function formatDuration(durationMs: number, t: Translate) {
   if (durationMs < 1000) return `${Math.round(durationMs)} ms`
   return t(`${trimDecimal(durationMs / 1000)} 秒`, `${trimDecimal(durationMs / 1000)}s`)
+}
+
+function estimateModelUsd(model: CodingUsageModelBreakdown) {
+  return estimateUsageCostUsd(model.model, model)
+}
+
+function estimateDayUsd(day: CodingUsageDay) {
+  let total = 0
+  let known = false
+  for (const model of day.models) {
+    const amount = estimateModelUsd(model)
+    if (amount === undefined) continue
+    known = true
+    total += amount
+  }
+  return known ? total : undefined
+}
+
+function estimateSnapshotUsd(usage: CodingUsageSnapshot) {
+  let total = 0
+  let known = false
+  for (const day of usage.days) {
+    const amount = estimateDayUsd(day)
+    if (amount === undefined) continue
+    known = true
+    total += amount
+  }
+  return known ? total : undefined
+}
+
+function formatUsdEstimate(amount: number | undefined, t: Translate) {
+  return t(formatEstimatedUsd(amount, 'zh'), formatEstimatedUsd(amount, 'en'))
 }
 
 function formatDate(timestamp: number, t: Translate) {
@@ -526,6 +564,7 @@ export default function ProfilePage({
                 {state.activeTab === 'coding' ? (
                   <>
                     <span><b>{compactNumber(state.codingUsage.totalTokens, t)}</b> Token</span>
+                    <span><b>{formatUsdEstimate(estimateSnapshotUsd(state.codingUsage), t)}</b></span>
                     <span><b>{state.codingUsage.activeDays}</b> {t('个用量日', 'usage days')}</span>
                     <span><b>{t(new Intl.NumberFormat('zh-CN').format(state.codingUsage.toolCalls), new Intl.NumberFormat('en').format(state.codingUsage.toolCalls))}</b> {t('次工具调用', 'tool calls')}</span>
                   </>
@@ -584,7 +623,7 @@ export default function ProfilePage({
               {state.activeTab === 'coding' && selectedCodingDay ? (
                 <div className="detail-grid mt-5">
                   <section className="detail-column" aria-labelledby="coding-models-heading">
-                    <h3 id="coding-models-heading">{selectedDateLabel(selectedCodingDay.date, t)} · {compactNumber(selectedCodingDay.totalTokens, t)} Token</h3>
+                    <h3 id="coding-models-heading">{selectedDateLabel(selectedCodingDay.date, t)} · {compactNumber(selectedCodingDay.totalTokens, t)} Token · {formatUsdEstimate(estimateDayUsd(selectedCodingDay), t)}</h3>
                     <ul className="detail-list">
                       {selectedCodingDay.models.map(model => (
                         <li key={`${model.provider}:${model.model}:${model.source}`}>
@@ -592,12 +631,15 @@ export default function ProfilePage({
                             <b>{modelLabel(model.provider, model.model)}</b>
                             <small>{sourceLabel(model.source, t)} · {t(`${model.calls} 次响应`, `${model.calls} responses`)}</small>
                           </span>
-                          <strong>{compactNumber(model.totalTokens, t)}</strong>
+                          <strong>
+                            {compactNumber(model.totalTokens, t)}
+                            <small className="ml-2 font-normal text-muted-foreground">{formatUsdEstimate(estimateModelUsd(model), t)}</small>
+                          </strong>
                         </li>
                       ))}
                     </ul>
                     <p className="detail-foot">
-                      {t(`输入 ${compactNumber(selectedCodingDay.inputTokens, t)} · 输出 ${compactNumber(selectedCodingDay.outputTokens, t)} · 缓存读取 ${compactNumber(selectedCodingDay.cacheReadTokens, t)}`, `Input ${compactNumber(selectedCodingDay.inputTokens, t)} · output ${compactNumber(selectedCodingDay.outputTokens, t)} · cache read ${compactNumber(selectedCodingDay.cacheReadTokens, t)}`)}
+                      {t(`输入 ${compactNumber(selectedCodingDay.inputTokens, t)} · 输出 ${compactNumber(selectedCodingDay.outputTokens, t)} · 缓存读取 ${compactNumber(selectedCodingDay.cacheReadTokens, t)} · 金额按 models.dev 价目估算，不是账单`, `Input ${compactNumber(selectedCodingDay.inputTokens, t)} · output ${compactNumber(selectedCodingDay.outputTokens, t)} · cache read ${compactNumber(selectedCodingDay.cacheReadTokens, t)} · USD from models.dev rates; not a bill`)}
                     </p>
                   </section>
                   <section className="detail-column" aria-labelledby="coding-tools-heading">
@@ -735,7 +777,7 @@ const profilePageCss = `
 .profile-identity { border-radius: 8px; }
 .profile-command-panel { overflow: hidden; border-radius: 8px; background: var(--background); }
 .profile-tabs { display: flex; gap: 1px; padding: 0.25rem; }
-.profile-tab { position: relative; min-height: 2rem; border: 0; border-radius: 8px; background: transparent; padding: 0 0.75rem; color: var(--muted-foreground); font-size: 14px; font-weight: 500; cursor: pointer; transition: color 150ms ease, background 150ms ease; }
+.profile-tab { position: relative; min-height: 2rem; border: 0; border-radius: 8px; background: transparent; padding: 0 0.75rem; color: var(--muted-foreground); font-size: 14px; font-weight: 500; cursor: pointer; transition: color var(--motion-fast) ease, background var(--motion-fast) ease; }
 .profile-tab:hover { background: var(--hover-2); color: var(--foreground); }
 .profile-tab.active { background: var(--hover-2); color: var(--foreground); }
 .profile-tab.active::after { content: none; }
