@@ -34,6 +34,10 @@ export function explainCompanionError(
   return explainModelCallFailure(message, context) || message
 }
 
+/**
+ * Maps a broken tool history to start-over copy for the rare case repair
+ * could not run (provider still rejects). Prefer repair over Archive.
+ */
 export function companionChatNeedsNewConversation(reason: unknown): boolean {
   return /role ['"]tool['"].*tool_calls|工具记录断了|tool history is broken|这段对话没法继续了|This chat can't continue/i
     .test(String(reason ?? ''))

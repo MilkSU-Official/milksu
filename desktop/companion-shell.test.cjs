@@ -21,6 +21,7 @@ function fakeWindow() {
     events: {},
     hideCalls: 0,
     showCalls: 0,
+    showInactiveCalls: 0,
     minimizeCalls: 0,
     restoreCalls: 0,
     focusCalls: 0,
@@ -30,6 +31,7 @@ function fakeWindow() {
     isVisible() { return this.visible !== false },
     hide() { this.hideCalls += 1; this.visible = false },
     show() { this.showCalls += 1; this.visible = true; this.minimized = false },
+    showInactive() { this.showInactiveCalls += 1; this.visible = true; this.minimized = false },
     minimize() { this.minimizeCalls += 1; this.minimized = true; this.visible = false },
     restore() { this.restoreCalls += 1; this.minimized = false; this.visible = true },
     focus() { this.focusCalls += 1 },
@@ -430,6 +432,18 @@ test('SetCompanionPetHidden and ShowCompanionMainWindow are host methods', () =>
   assert.equal(main.showCalls >= 1, true)
   assert.equal(shown.tray || true, true)
   assert.equal(shown.parked, false)
+})
+
+test('ShowCompanionMainWindow and ShowCompanionChatWindow honor focus:false', () => {
+  const { shell, main, created } = createShell()
+  shell.createFloat()
+  const beforeFocus = main.focusCalls
+  shell.handleHostMethod('ShowCompanionMainWindow', { focus: false })
+  assert.ok(main.showInactiveCalls >= 1)
+  assert.equal(main.focusCalls, beforeFocus)
+  shell.handleHostMethod('ShowCompanionChatWindow', { focus: false })
+  assert.equal(created[0].focusCalls || 0, 0)
+  assert.equal(created[0].visible, true)
 })
 
 test('ClickCompanionPet toggles the phone and hide closes chat with the pet', () => {

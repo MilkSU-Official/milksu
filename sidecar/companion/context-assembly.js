@@ -104,25 +104,80 @@ export function stripCompanionCustomMessages(messages) {
   if (!Array.isArray(messages)) return [];
   const kept = [];
   let pendingToolCallIds = new Set();
+  let pendingToolMeta = new Map();
   for (const message of messages) {
     if (isCompanionCustomMessage(message)) continue;
     if (isEmptyAssistantMessage(message)) {
       dropImagesFromPreviousUser(kept);
+      // Empty/aborted assistant after toolCalls would orphan those calls for the
+      // provider — close them with synthetic error results instead of dropping.
+      for (const [id, name] of pendingToolMeta) {
+        kept.push({
+          role: "toolResult",
+          toolCallId: id,
+          toolName: name,
+          content: [{ type: "text", text: "companion tool interrupted" }],
+          details: { repaired: true },
+          isError: true,
+          timestamp: Date.now(),
+        });
+      }
       pendingToolCallIds = new Set();
+      pendingToolMeta = new Map();
       continue;
     }
     if (message?.role === "toolResult") {
       const id = String(message.toolCallId ?? "").trim();
       if (!id || !pendingToolCallIds.has(id)) continue;
       kept.push(message);
+      pendingToolCallIds.delete(id);
+      pendingToolMeta.delete(id);
       continue;
     }
     if (message?.role === "assistant") {
-      pendingToolCallIds = new Set(toolCallIdsFromAssistant(message));
+      const calls = toolCallIdsFromAssistant(message);
+      pendingToolCallIds = new Set(calls);
+      pendingToolMeta = new Map();
+      for (const id of calls) {
+        const block = Array.isArray(message.content)
+          ? message.content.find(item => item?.type === "toolCall" && String(item.id ?? "").trim() === id)
+          : null;
+        pendingToolMeta.set(id, String(block?.name ?? "tool").trim() || "tool");
+      }
+    } else if (message?.role === "user" && pendingToolCallIds.size > 0) {
+      for (const [id, name] of pendingToolMeta) {
+        kept.push({
+          role: "toolResult",
+          toolCallId: id,
+          toolName: name,
+          content: [{ type: "text", text: "companion tool interrupted" }],
+          details: { repaired: true },
+          isError: true,
+          timestamp: Date.now(),
+        });
+      }
+      pendingToolCallIds = new Set();
+      pendingToolMeta = new Map();
+      kept.push(message);
+      continue;
     } else {
       pendingToolCallIds = new Set();
+      pendingToolMeta = new Map();
     }
     kept.push(message);
+  }
+  if (pendingToolCallIds.size > 0) {
+    for (const [id, name] of pendingToolMeta) {
+      kept.push({
+        role: "toolResult",
+        toolCallId: id,
+        toolName: name,
+        content: [{ type: "text", text: "companion tool interrupted" }],
+        details: { repaired: true },
+        isError: true,
+        timestamp: Date.now(),
+      });
+    }
   }
   return kept;
 }

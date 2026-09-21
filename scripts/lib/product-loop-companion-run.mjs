@@ -81,6 +81,13 @@ async function openCompanionPage(driver) {
   return { ok: true }
 }
 
+/** Keep the phone chat open for CDP / screenshots without raising OS focus. */
+async function ensureCompanionChatVisible(driver) {
+  await openCompanionPage(driver).catch(() => {})
+  await driver.invoke('ShowCompanionChatWindow', [{ focus: false }]).catch(() => {})
+  await delay(200)
+}
+
 async function openCompanionSettings(driver) {
   return openSettingsCategory(driver, ['桌宠', 'Companion'])
 }
@@ -292,6 +299,7 @@ export async function runCompanionRelay(driver, options = {}) {
     const started = await driver.ensureCompanion()
     const ready = companionIsReady(started)
     if (!ready.ok) return fail(ready.reason)
+    await ensureCompanionChatVisible(driver)
     await driver.drainCompanionEvents()
     await driver.sendCompanionMessage(companionSpeakPrompt({
       conversationId: conversation.id,
@@ -301,10 +309,11 @@ export async function runCompanionRelay(driver, options = {}) {
     const turnTimeout = options.taskTimeoutMs || 300_000
     let turn = await driver.waitForCompanionTurn(turnTimeout)
     if (turn.timeout || companionTurnErrored(turn.events) || !companionTurnSettled(turn.events)) {
-      await driver.invoke('ArchiveCompanionTranscript', []).catch(() => {})
+      // Repair orphan tool history in-sidecar; do not Archive just to retry.
       await driver.stopCompanion().catch(() => {})
       await ensureCompanionModelRoute(driver)
       await driver.ensureCompanion()
+      await ensureCompanionChatVisible(driver)
       await driver.drainCompanionEvents()
       await driver.sendCompanionMessage(companionSpeakPrompt({
         conversationId: conversation.id,
@@ -351,6 +360,7 @@ export async function runCompanionBoard(driver) {
 
 export async function runCompanionSessions(driver, options = {}) {
   await driver.ensureCompanion()
+  await ensureCompanionChatVisible(driver)
   const created = []
   for (let index = 0; index < 8; index += 1) {
     created.push(await driver.createConversation({
@@ -372,6 +382,7 @@ export async function runCompanionSessions(driver, options = {}) {
 export async function runCompanionTranscript(driver, options = {}) {
   await driver.invoke('ArchiveCompanionTranscript', []).catch(() => {})
   await driver.ensureCompanion()
+  await ensureCompanionChatVisible(driver)
   const marker = `product-loop-talk-${Date.now().toString(36)}`
   for (let index = 1; index <= 4; index += 1) {
     await driver.sendCompanionMessage(`${marker} 第 ${index} 句，请短回一句。`)
@@ -409,6 +420,7 @@ export async function runCompanionArchive(driver) {
 
 export async function runCompanionMemory(driver, options = {}) {
   await driver.ensureCompanion()
+  await ensureCompanionChatVisible(driver)
   const prompt = '必须调用工具 companion_memory，action 用 propose_memory，title 用「product-loop 正在测桌宠记忆」。不要只聊天。'
   await driver.sendCompanionMessage(prompt)
   await driver.waitForCompanionTurn(options.taskTimeoutMs || 180_000)
@@ -444,6 +456,7 @@ export async function runCompanionDispatchConfirm(driver, options = {}) {
     const started = await driver.ensureCompanion()
     const ready = companionIsReady(started)
     if (!ready.ok) return fail(ready.reason)
+    await ensureCompanionChatVisible(driver)
     await driver.drainCompanionEvents()
     const prompts = [
       companionStopPrompt(conversation.id),
@@ -500,6 +513,7 @@ export async function runCompanionModelSwitch(driver, options = {}) {
     if (model && model !== next && !model.includes(next.split('/').pop() || next)) {
       return fail(`换模型后桌宠仍是 ${model}，要的是 ${next}`)
     }
+    await ensureCompanionChatVisible(driver)
     await driver.sendCompanionMessage('短回一句 MODEL-SWITCH-OK，不要调用工具。')
     const turn = await driver.waitForCompanionTurn(options.taskTimeoutMs || 180_000)
     if (turn.timeout || companionTurnErrored(turn.events) || !companionTurnSettled(turn.events)) {
@@ -735,7 +749,7 @@ export async function runCompanionDockPark(driver) {
     }
     return pass(`关掉主窗口后${presence.reason}，还能唤醒桌宠`)
   } finally {
-    await driver.invoke('ShowCompanionMainWindow', []).catch(() => {})
+    await driver.invoke('ShowCompanionMainWindow', [{ focus: false }]).catch(() => {})
     await driver.ensureAttached()
   }
 }
@@ -764,6 +778,7 @@ export async function runCompanionFuzzDispatch(driver, options = {}) {
     const started = await driver.ensureCompanion()
     const ready = companionIsReady(started)
     if (!ready.ok) return fail(ready.reason)
+    await ensureCompanionChatVisible(driver)
     await driver.drainCompanionEvents()
     const prompts = companionFuzzDispatchPrompts({ title, marker })
     let turn = { events: [], confirmed: 0, timeout: false, sidecarStopped: false, error: '' }
@@ -777,9 +792,10 @@ export async function runCompanionFuzzDispatch(driver, options = {}) {
       }
       const broken = /tool history is broken|这段对话没法继续了/i.test(String(turn.error || ''))
       if (broken) {
-        await driver.invoke('ArchiveCompanionTranscript', []).catch(() => {})
+        // Sidecar repairs orphans on next prompt; restart without Archive.
         await driver.stopCompanion().catch(() => {})
         await driver.ensureCompanion()
+        await ensureCompanionChatVisible(driver)
         await driver.drainCompanionEvents()
         continue
       }
@@ -812,6 +828,7 @@ export async function runCompanionFuzzApp(driver, options = {}) {
   const started = await driver.ensureCompanion()
   const ready = companionIsReady(started)
   if (!ready.ok) return fail(ready.reason)
+  await ensureCompanionChatVisible(driver)
   await driver.drainCompanionEvents()
   const tools = new Set()
   let settled = 0
@@ -825,10 +842,9 @@ export async function runCompanionFuzzApp(driver, options = {}) {
     }
     const broken = /tool history is broken|这段对话没法继续了/i.test(String(turn.error || ''))
     if (broken) {
-      await driver.invoke('ArchiveCompanionTranscript', []).catch(() => {})
       await driver.stopCompanion().catch(() => {})
-      await ensureCompanionModelRoute(driver)
       await driver.ensureCompanion()
+      await ensureCompanionChatVisible(driver)
       await driver.drainCompanionEvents()
       continue
     }

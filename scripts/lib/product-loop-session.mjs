@@ -179,7 +179,7 @@ export async function findConversationRow(driver, title) {
 }
 
 export async function openConversation(driver, title) {
-  await driver.invoke('ShowCompanionMainWindow', []).catch(() => {})
+  await driver.invoke('ShowCompanionMainWindow', [{ focus: false }]).catch(() => {})
   if (typeof driver.ensureAttached === 'function') {
     await driver.ensureAttached().catch(() => false)
   }
@@ -360,7 +360,7 @@ export async function clickSettingsCategory(driver, labels) {
 }
 
 export async function openSettings(driver) {
-  await driver.invoke('ShowCompanionMainWindow', []).catch(() => {})
+  await driver.invoke('ShowCompanionMainWindow', [{ focus: false }]).catch(() => {})
   await driver.ensureAttached()
   await expandSidebar(driver)
   if (snapshotHas(await pageSnapshot(driver), ['设置分类', 'Settings categories'])) return { ok: true }
@@ -532,7 +532,7 @@ export async function sourcesReady(driver) {
 
 export async function ensureIsolatedProductSession(session = {}, options = {}) {
   if (session.driver?.cdpAlive()) {
-    await session.driver.invoke('ShowCompanionMainWindow', []).catch(() => {})
+    // Reuse the attached CDP session; do not ShowCompanionMainWindow (steals OS focus).
     await session.driver.ensureAttached()
     await keepExclusiveMilkSUWindow({ driver: session.driver, log: true })
     await expandSidebar(session.driver).catch(() => {})

@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   companionAssistantTurnError,
   companionToolHistoryBroken,
+  repairCompanionToolHistory,
 } from "./turn-error.js";
 
 test("projects the last assistant errorMessage", () => {
@@ -21,7 +22,7 @@ test("projects the last assistant errorMessage", () => {
 
 test("does not treat a completed assistant turn as an error", () => {
   assert.equal(companionAssistantTurnError([
-    { message: { role: "assistant", content: [{ type: "text", text: "ok" }], stopReason: "stop" } },
+    { role: "assistant", content: [{ type: "text", text: "ok" }], stopReason: "stop" },
   ]), "");
 });
 
@@ -94,4 +95,25 @@ test("detects unfinished toolCalls left without toolResults", () => {
     },
     { role: "user", content: [{ type: "text", text: "next" }] },
   ]), true);
+});
+
+test("repairCompanionToolHistory appends synthetic error toolResults", () => {
+  const broken = [
+    { role: "user", content: [{ type: "text", text: "hi" }] },
+    {
+      role: "assistant",
+      content: [{ type: "toolCall", id: "call-1", name: "companion_dispatch" }],
+      stopReason: "toolUse",
+    },
+  ];
+  const { messages, repairedCount, repaired } = repairCompanionToolHistory(
+    broken,
+    "companion tool interrupted by abort",
+  );
+  assert.equal(repairedCount, 1);
+  assert.equal(repaired[0].role, "toolResult");
+  assert.equal(repaired[0].toolCallId, "call-1");
+  assert.equal(repaired[0].isError, true);
+  assert.equal(companionToolHistoryBroken(messages), false);
+  assert.equal(companionToolHistoryBroken(broken), true);
 });

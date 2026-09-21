@@ -848,8 +848,16 @@ func mapCompanionEvent(raw map[string]any) engine.Event {
 	case "tool_call_end":
 		event.Type = "tool.completed"
 		event.Done = true
+		if content := strings.TrimSpace(stringValue(raw["content"])); content != "" {
+			event.Text = content
+		}
 		if boolValue(raw["isError"]) {
-			event.Error = stringValue(raw["content"])
+			event.Error = strings.TrimSpace(stringValue(raw["content"]))
+		}
+	case "user_message":
+		event.Type = "user.message"
+		if content := strings.TrimSpace(stringValue(raw["text"])); content != "" {
+			event.Text = content
 		}
 	case "turn_settled":
 		event.Type = "assistant.settled"

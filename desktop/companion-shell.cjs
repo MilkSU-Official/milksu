@@ -461,7 +461,10 @@ function createCompanionShell(options) {
     unitLayout = null
   }
 
-  function applyDecision(decision) {
+  function applyDecision(decision, options = {}) {
+    // Product-loop / automation may pass focus:false so windows become visible
+    // for CDP / screenshots without stealing the user's OS mouse and keyboard.
+    const allowFocus = options.focus !== false
     enabled = decision.state.enabled
     petHidden = decision.state.petHidden
     chatOpenFlag = decision.state.chatOpen
@@ -480,10 +483,12 @@ function createCompanionShell(options) {
       applyPointerPassthrough()
       if (decision.effects.chat === 'show' || decision.effects.chat === 'focus' || decision.phoneVisible) {
         float.show()
-        if (decision.effects.chat === 'show' || decision.effects.chat === 'focus') float.focus()
+        if (allowFocus && (decision.effects.chat === 'show' || decision.effects.chat === 'focus')) {
+          float.focus()
+        }
       }
     }
-    if (decision.effects.main === 'show') showMainWindowImpl()
+    if (decision.effects.main === 'show') showMainWindowImpl({ focus: allowFocus })
     else if (decision.effects.main === 'park') parkMainWindowImpl()
     if (decision.effects.navigateSettings) {
       emit('companion.navigate', { section: 'settings', category: 'companion' })
@@ -491,8 +496,8 @@ function createCompanionShell(options) {
     refreshMenus()
   }
 
-  function dispatch(action) {
-    applyDecision(reduceCompanionOverlay(snapshot(), action))
+  function dispatch(action, options = {}) {
+    applyDecision(reduceCompanionOverlay(snapshot(), action), options)
     return status()
   }
 
@@ -609,7 +614,7 @@ function createCompanionShell(options) {
     refreshMenus()
   }
 
-  function showMainWindowImpl() {
+  function showMainWindowImpl(options = {}) {
     let main = getMainWindow()
     if (!main || main.isDestroyed()) {
       main = new BrowserWindow({
@@ -625,12 +630,19 @@ function createCompanionShell(options) {
       main.loadURL(`${APP_ORIGIN}/index.html`)
     }
     if (main.isMinimized()) main.restore()
+    if (options.focus === false) {
+      // showInactive keeps the user's foreground app; falls back to show()
+      // without focus() when the platform lacks it (some Linux builds).
+      if (typeof main.showInactive === 'function') main.showInactive()
+      else main.show()
+      return
+    }
     main.show()
     main.focus()
   }
 
-  function showMainWindow() {
-    return dispatch(COMPANION_OVERLAY_ACTIONS.SHOW_MAIN)
+  function showMainWindow(payload = {}) {
+    return dispatch(COMPANION_OVERLAY_ACTIONS.SHOW_MAIN, { focus: payload.focus !== false })
   }
 
   function showCompanionSettings() {
@@ -705,8 +717,8 @@ function createCompanionShell(options) {
     return dispatch(COMPANION_OVERLAY_ACTIONS.CLOSE_CHAT)
   }
 
-  function showChatWindow() {
-    return dispatch(COMPANION_OVERLAY_ACTIONS.OPEN_CHAT)
+  function showChatWindow(payload = {}) {
+    return dispatch(COMPANION_OVERLAY_ACTIONS.OPEN_CHAT, { focus: payload.focus !== false })
   }
 
   function clickPet() {
@@ -906,8 +918,8 @@ function createCompanionShell(options) {
       const hidden = typeof args === 'boolean' ? args : payload.hidden === true
       return hidden ? hidePet() : showPet()
     }
-    if (method === 'ShowCompanionMainWindow') return showMainWindow()
-    if (method === 'ShowCompanionChatWindow') return showChatWindow()
+    if (method === 'ShowCompanionMainWindow') return showMainWindow(payload)
+    if (method === 'ShowCompanionChatWindow') return showChatWindow(payload)
     if (method === 'HideCompanionChatWindow') return hideChatWindow()
     if (method === 'ClickCompanionPet') return clickPet()
     if (method === 'ShowCompanionSettings') return showCompanionSettings()

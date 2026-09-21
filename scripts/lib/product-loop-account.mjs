@@ -17,7 +17,7 @@ import {
 } from './product-loop-session.mjs'
 
 async function openUserMenu(driver) {
-  await driver.invoke('ShowCompanionMainWindow', []).catch(() => {})
+  await driver.invoke('ShowCompanionMainWindow', [{ focus: false }]).catch(() => {})
   await driver.ensureAttached()
   await expandSidebar(driver)
   await leaveSettings(driver)
@@ -84,7 +84,7 @@ export async function runProfileTabs(driver) {
 }
 
 export async function runUpdateChrome(driver) {
-  await driver.invoke('ShowCompanionMainWindow', []).catch(() => {})
+  await driver.invoke('ShowCompanionMainWindow', [{ focus: false }]).catch(() => {})
   await driver.ensureAttached()
   await expandSidebar(driver)
   await leaveSettings(driver)

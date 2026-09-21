@@ -1,6 +1,7 @@
 import { createInterface } from "node:readline";
 import { mkdir } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve as resolvePath } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   createAgentSession,
   DefaultResourceLoader,
@@ -14,7 +15,7 @@ import { companionProviderEnvironment } from "./companion-model-env.js";
 import { companionSystemPrompt } from "./system-prompt.js";
 import {
   companionAssistantTurnError,
-  companionToolHistoryBroken,
+  repairCompanionToolHistory,
 } from "./turn-error.js";
 import { prepareCompanionPrompt } from "./attachments.js";
 import { withTokenFluxModelCompat } from "../pi/tokenflux-model-compat.js";
@@ -158,6 +159,8 @@ async function applyCompanionModel(command) {
   if (!desired) {
     throw new Error(`companion model not found: ${provider}/${model}`);
   }
+  // Model switch must not re-read a broken orphan tool transcript — repair first.
+  repairCompanionSessionHistory("companion tool interrupted before model switch");
   const current = session.model;
   if (!current || current.provider !== desired.provider || current.id !== desired.id) {
     await session.setModel(desired);
@@ -211,10 +214,11 @@ function subscribeCompanion() {
     if (event.type === "tool_execution_end") {
       const startedAt = toolStartedAt.get(event.toolCallId);
       toolStartedAt.delete(event.toolCallId);
+      const content = formatCompanionToolResult(event.result).slice(0, 400);
       emit("tool_call_end", {
         toolCallId: event.toolCallId,
         toolName: event.toolName,
-        content: String(event.result?.content ?? event.result?.details ?? "").slice(0, 400),
+        content,
         durationMs: startedAt === undefined ? undefined : Math.max(0, Date.now() - startedAt),
         isError: event.isError,
       });
@@ -242,6 +246,7 @@ function formatCompanionToolInput(toolName, args) {
     ?? args.command
     ?? args.query
     ?? args.pattern
+    ?? args.action
     ?? args.id
     ?? "",
   ).trim();
@@ -249,15 +254,61 @@ function formatCompanionToolInput(toolName, args) {
   return `${name} ${detail.slice(0, 120)}`;
 }
 
+/** Pi tool results use content blocks; never String(array) → [object Object]. */
+export function formatCompanionToolResult(result) {
+  if (typeof result === "string") return result.trim();
+  if (!result || typeof result !== "object") return "";
+  if (typeof result.content === "string") return result.content.trim();
+  if (Array.isArray(result.content)) {
+    return result.content
+      .map((item) => {
+        if (typeof item === "string") return item;
+        if (item && typeof item === "object" && typeof item.text === "string") return item.text;
+        return "";
+      })
+      .filter(Boolean)
+      .join("\n")
+      .trim();
+  }
+  if (typeof result.details === "string") return result.details.trim();
+  if (typeof result.text === "string") return result.text.trim();
+  return "";
+}
+
+/**
+ * Fill dangling toolCalls with synthetic error toolResults and persist them.
+ * Abort / host timeout can leave Pi mid-batch without toolResults; main chat
+ * recovers by continuing, companion used to hard-fail into 「开新对话」.
+ */
+function repairCompanionSessionHistory(reason = "companion tool interrupted") {
+  if (!session) return 0;
+  const current = Array.isArray(session.messages) ? session.messages : [];
+  const { repaired, repairedCount } = repairCompanionToolHistory(current, reason);
+  if (!repairedCount) return 0;
+  const agent = session.agent;
+  if (agent?.state && Array.isArray(agent.state.messages)) {
+    agent.state.messages = [...agent.state.messages, ...repaired];
+  }
+  const append = session.sessionManager?.appendMessage?.bind(session.sessionManager);
+  if (typeof append === "function") {
+    for (const message of repaired) append(message);
+  }
+  return repairedCount;
+}
+
 async function sendPrompt(command) {
   if (!session) throw new Error("companion session is not ready");
-  if (companionToolHistoryBroken(session.messages)) {
-    throw new Error("tool history is broken");
-  }
+  repairCompanionSessionHistory("companion tool interrupted before next turn");
   const prepared = await prepareCompanionPrompt(command);
   if (!prepared.prompt) {
     throw new Error("companion prompt is required");
   }
+  // So the phone UI can show the user bubble immediately when Send comes from
+  // Desktop RPC / product-loop (not only the in-phone optimistic path).
+  emit("user_message", {
+    text: prepared.prompt,
+    hasAttachments: prepared.images.length > 0,
+  });
   promptQueue = promptQueue.then(async () => {
     await session.prompt(prepared.prompt, {
       expandPromptTemplates: false,
@@ -313,8 +364,14 @@ async function handleCommand(command) {
       return;
     case "abort":
       // Mirror main-chat abort: cancel parked/in-flight host waits, then abort the agent loop.
+      // After settle, repair any orphan toolCalls so the next send/model switch continues.
       ensureHostBroker().cancelAll("turn aborted");
-      session?.abort?.();
+      try {
+        await session?.abort?.();
+      } catch {
+        // Abort races are fine; repair below is what keeps the transcript usable.
+      }
+      repairCompanionSessionHistory("companion tool interrupted by abort");
       emit("turn_settled", { aborted: true });
       return;
     case "shutdown":
@@ -326,17 +383,22 @@ async function handleCommand(command) {
   }
 }
 
-const input = createInterface({ input: process.stdin });
-let commandQueue = Promise.resolve();
-input.on("line", (line) => {
-  commandQueue = commandQueue.then(async () => {
-    const command = JSON.parse(line);
-    try {
-      await handleCommand(command);
-    } catch (error) {
-      emit("error", { error: error instanceof Error ? error.message : String(error) });
-    }
-  });
-});
+const isCompanionBridgeMain = Boolean(process.argv[1])
+  && resolvePath(fileURLToPath(import.meta.url)) === resolvePath(process.argv[1]);
 
-emit("hello", { role: "companion" });
+if (isCompanionBridgeMain) {
+  const input = createInterface({ input: process.stdin });
+  let commandQueue = Promise.resolve();
+  input.on("line", (line) => {
+    commandQueue = commandQueue.then(async () => {
+      const command = JSON.parse(line);
+      try {
+        await handleCommand(command);
+      } catch (error) {
+        emit("error", { error: error instanceof Error ? error.message : String(error) });
+      }
+    });
+  });
+
+  emit("hello", { role: "companion" });
+}

@@ -250,3 +250,24 @@ Computer Use 和隔离浏览器分开测。缺权限不能靠浏览器凑成通�
 - 不要发明第二套 GUI runner；CDP 附着走 `scripts/lib/desktop-gui-driver.mjs`，产品接口是 `window.milksu.invoke`。`isMilkSUPage` 必须先排除标题或 URL 带 fixture 的页。
 - 不要在 CI 默认跑 `--gui --suite all`（真 API、本机窗口）。
 - 不要把本回执写成 Coding / CTF / Memory / 发版完成。
+
+## 输入与焦点（诚实边界）
+
+product-loop `--gui` **不是**用 OS 级 robot / nut.js 去抢全局鼠标键盘。主路径是：
+
+| 手段 | 用途 | 是否抢用户前台 |
+| --- | --- | --- |
+| Electron CDP 附着 + `Runtime.evaluate` / `callFunction` | 点按钮、读 DOM、填作曲栏 | 基本不抢；页内 `input.focus()` 在部分平台可能抬窗 |
+| `window.milksu.invoke` Desktop RPC | SendCompanionMessage、ConfirmCompanionDispatch、MoveCompanionPet、开关桌宠窗 | 不抢（`ShowCompanion*` 传 `{ focus: false }` 时用 `showInactive`） |
+| CDP `Page.captureScreenshot`（`fromSurface: true`） | 用例证据图 | **默认不** `Page.bringToFront` |
+| CDP `Input.dispatchMouseEvent`（桌宠表面） | 宠物右键菜单坐标 | 可能激活桌宠浮层，但不走系统鼠标 |
+| `MoveCompanionPet` RPC | 拖宠物测 bounds | 不需要全局焦点 |
+
+仍需要用户前台 / 系统表面的项：
+
+- **GitHub OAuth**：系统浏览器登录与回调（`openExternal`），无法 background 化。
+- **Companion OS 右键菜单**（`Menu.popup`）：宿主会 `focus()` 目标窗再弹系统菜单。
+- **Computer Use / 打包真机脚本**：故意驱动本机其他 App（计算器等），会占鼠标键盘；那不是 product-loop 主套件。
+- **首次启动把窗口建出来**：第一次 `show()` 仍会进任务栏；之后复用会话不再每次 `ShowCompanionMainWindow` 抢焦点。
+
+目标：你在旁边打字时，product-loop 尽量只动 MilkSU 自己的 CDP / RPC，不要每条用例都把窗口拽到最前。

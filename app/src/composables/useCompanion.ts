@@ -3,6 +3,7 @@ import { desktopErrorMessage, hasDesktopRuntime, invokeCommand, listenEvent } fr
 import {
   companionChatHydrateEntry,
   companionChatNeedsNewConversation,
+  companionChatPlainText,
   explainCompanionError,
 } from '@/lib/companionUserError'
 import {
@@ -70,6 +71,30 @@ interface CompanionEnginePayload {
   toolCallId?: string
   durationMs?: number
   done?: boolean
+}
+
+/** Never leak `[object Object]` or structured blobs into tool row detail. */
+export function companionToolUserText(value: unknown, fallback = ''): string {
+  if (value == null) return fallback
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed || /\[object Object\]/i.test(trimmed)) return fallback
+    return trimmed
+  }
+  if (Array.isArray(value)) {
+    const parts = value.map(item => {
+      if (typeof item === 'string') return item.trim()
+      if (item && typeof item === 'object' && typeof (item as { text?: unknown }).text === 'string') {
+        return String((item as { text: string }).text).trim()
+      }
+      return ''
+    }).filter(Boolean)
+    return parts.join('\n').trim() || fallback
+  }
+  if (typeof value === 'object' && typeof (value as { text?: unknown }).text === 'string') {
+    return companionToolUserText((value as { text: string }).text, fallback)
+  }
+  return fallback
 }
 
 function upsertTool(
@@ -221,7 +246,7 @@ export function useCompanion() {
         tools: upsertTool(current.tools, {
           id,
           name,
-          detail: String(payload.text || name),
+          detail: companionToolUserText(payload.text, name),
           running: true,
         }),
       }))
@@ -229,14 +254,18 @@ export function useCompanion() {
     }
     if (type === 'tool.completed') {
       const id = String(payload.toolCallId || payload.toolName || '')
+      const name = String(payload.toolName || 'tool')
+      const detail = companionToolUserText(payload.text, name)
+      const rawError = companionToolUserText(payload.error)
+      const errorText = rawError ? explainCompanionError(rawError) || rawError : ''
       setLiveProcess(current => ({
         ...current,
         tools: upsertTool(current.tools, {
           id: id || `tool:${current.tools.length}`,
-          name: String(payload.toolName || 'tool'),
-          detail: String(payload.text || payload.toolName || 'tool'),
+          name,
+          detail: errorText || detail,
           running: false,
-          error: payload.error,
+          error: errorText || undefined,
         }),
       }))
     }
@@ -274,6 +303,33 @@ export function useCompanion() {
           applyLiveEvent(payload)
           return
         }
+        if (payload.type === 'user.message') {
+          const text = companionToolUserText(payload.text)
+          if (!text) return
+          setBusy(true)
+          setError('')
+          setEntries(current => {
+            const pending = outgoing.current
+            if (pending && (pending.prompt === text || transcriptHasOutgoing(current, pending))) {
+              return current
+            }
+            const last = current[current.length - 1]
+            if (last?.role === 'user' && companionChatPlainText(last) === text) {
+              return current
+            }
+            return [
+              ...current,
+              {
+                id: `live-user:${Date.now()}`,
+                type: 'message',
+                timestamp: new Date().toISOString(),
+                role: 'user',
+                text,
+              },
+            ]
+          })
+          return
+        }
         if (payload.type === 'assistant.settled') {
           const snapshot = liveProcessRef.current
           setSettledProcess(companionTurnHasProcess(snapshot) ? snapshot : null)
@@ -296,6 +352,7 @@ export function useCompanion() {
           return
         }
         if (payload.type === 'companion.confirm' && payload.input) {
+          setError('')
           try {
             const request = JSON.parse(payload.input) as CompanionConfirm
             setConfirm({
@@ -379,12 +436,10 @@ export function useCompanion() {
     }
     clearComplete()
     try {
-      if (companionChatNeedsNewConversation(error)) {
-        await invokeCommand('archive_companion_transcript')
-      }
-      setEntries(current => companionChatNeedsNewConversation(error)
-        ? [outgoingEntry]
-        : [...current, outgoingEntry])
+      // Do not ArchiveCompanionTranscript here: orphan tool history is repaired
+      // in the sidecar before the next prompt. Forcing a new chat on every
+      // recoverable break was wiping usable phone history.
+      setEntries(current => [...current, outgoingEntry])
       await invokeCommand('send_companion_message', { prompt, attachments: pending })
     } catch (reason) {
       outgoing.current = null
@@ -394,7 +449,7 @@ export function useCompanion() {
       setError(explainCompanionError(desktopErrorMessage(reason)))
       setBusy(false)
     }
-  }, [attachments, busy, clearComplete, draft, error])
+  }, [attachments, busy, clearComplete, draft])
 
   const archive = useCallback(async () => {
     await invokeCommand('archive_companion_transcript')

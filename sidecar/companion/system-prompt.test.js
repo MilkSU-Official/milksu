@@ -4,6 +4,7 @@ import { companionSystemPrompt } from "./system-prompt.js";
 
 test("companion default prompt follows the UI locale", () => {
   const chinese = companionSystemPrompt("zh");
+  assert.match(chinese, /始终用简体中文/);
   assert.match(chinese, /你是 MilkSU 桌宠/);
   assert.match(chinese, /companion_board/);
   assert.match(chinese, /companion_dispatch/);

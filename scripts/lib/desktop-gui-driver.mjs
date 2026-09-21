@@ -241,8 +241,12 @@ export async function listDesktopCdpTargets(options = {}) {
   return found
 }
 
-export async function captureActivatedPng(session) {
-  await session.send('Page.bringToFront').catch(() => {})
+export async function captureActivatedPng(session, options = {}) {
+  // Default: do not Page.bringToFront — that steals the user's OS focus every
+  // product-loop evidence shot. fromSurface still captures an occluded window.
+  if (options.activate === true) {
+    await session.send('Page.bringToFront').catch(() => {})
+  }
   try {
     await session.evaluate(`new Promise(resolve => {
       requestAnimationFrame(() => requestAnimationFrame(() => resolve(true)))
@@ -603,7 +607,8 @@ export class GuiDriver {
   }
 
   async clickCompanionConfirm() {
-    await this.invoke('ShowCompanionChatWindow', []).catch(() => {})
+    // Prefer in-page evaluate on an already-open chat surface; do not raise OS focus.
+    await this.invoke('ShowCompanionChatWindow', [{ focus: false }]).catch(() => {})
     const targets = await listDesktopCdpTargets({ port: this.preferredPort })
     for (const target of targets.filter(isCompanionSurface)) {
       const session = new CdpSession(target.webSocketDebuggerUrl)
@@ -682,7 +687,7 @@ export class GuiDriver {
     const seenConfirm = new Set()
     const started = Date.now()
     let overlaySweepAt = 0
-    await this.invoke('ShowCompanionChatWindow', []).catch(() => {})
+    // Confirm via Desktop RPC; do not ShowCompanionChatWindow / bringToFront.
     while (Date.now() - started < timeoutMs) {
       try {
         const now = Date.now()

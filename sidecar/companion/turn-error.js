@@ -7,33 +7,79 @@ function toolCallIdsFromAssistant(message) {
   if (message?.role !== "assistant" || !Array.isArray(message.content)) return [];
   return message.content
     .filter(block => block?.type === "toolCall")
-    .map(block => String(block.id ?? "").trim())
-    .filter(Boolean);
+    .map(block => ({
+      id: String(block.id ?? "").trim(),
+      name: String(block.name ?? "tool").trim() || "tool",
+    }))
+    .filter(item => item.id);
 }
 
 /**
- * Same failure mode the main chat hits when toolCalls never got toolResults:
- * the next model call rejects with a broken tool history. Detect before prompt
- * so the phone can offer "开新对话" instead of raw provider text.
+ * Pending toolCall ids that never received a matching toolResult.
+ * Same failure mode the main chat hits when abort/timeout interrupts a tool
+ * batch: Pi can leave assistant(toolCall) without toolResult, and the next
+ * provider call rejects with a broken tool history.
  */
-export function companionToolHistoryBroken(messages) {
-  if (!Array.isArray(messages)) return false;
-  const pending = new Set();
+export function companionPendingToolCalls(messages) {
+  if (!Array.isArray(messages)) return [];
+  const pending = new Map();
   for (const row of messages) {
     const message = unwrapCompanionMessage(row);
     const role = message?.role;
     if (role === "assistant") {
-      for (const id of toolCallIdsFromAssistant(message)) pending.add(id);
+      for (const call of toolCallIdsFromAssistant(message)) {
+        pending.set(call.id, call);
+      }
       continue;
     }
     if (role === "toolResult" || role === "tool") {
       const id = String(message.toolCallId ?? message.tool_call_id ?? "").trim();
       if (id) pending.delete(id);
-      continue;
     }
-    if (role === "user" && pending.size > 0) return true;
   }
-  return pending.size > 0;
+  return [...pending.values()];
+}
+
+export function companionToolHistoryBroken(messages) {
+  return companionPendingToolCalls(messages).length > 0;
+}
+
+/**
+ * Synthetic error toolResults for dangling toolCalls — same pattern Pi uses
+ * for truncated tool batches (`createErrorToolResult` / failToolCallsFromTruncatedMessage).
+ * Prefer this over archiving / forcing 「开新对话」.
+ */
+export function companionSyntheticToolResult(call, reason = "companion tool interrupted") {
+  const toolName = String(call?.name ?? "tool").trim() || "tool";
+  const toolCallId = String(call?.id ?? "").trim();
+  const text = String(reason || "companion tool interrupted").trim() || "companion tool interrupted";
+  return {
+    role: "toolResult",
+    toolCallId,
+    toolName,
+    content: [{ type: "text", text }],
+    details: { repaired: true, reason: text },
+    isError: true,
+    timestamp: Date.now(),
+  };
+}
+
+/**
+ * Returns a new message list with synthetic toolResults appended for every
+ * orphan toolCall. Does not mutate the input array.
+ */
+export function repairCompanionToolHistory(messages, reason = "companion tool interrupted") {
+  const source = Array.isArray(messages) ? messages : [];
+  const pending = companionPendingToolCalls(source);
+  if (!pending.length) {
+    return { messages: source, repaired: [], repairedCount: 0 };
+  }
+  const repairs = pending.map(call => companionSyntheticToolResult(call, reason));
+  return {
+    messages: [...source, ...repairs],
+    repaired: repairs,
+    repairedCount: repairs.length,
+  };
 }
 
 export function companionAssistantTurnError(messages) {
@@ -62,4 +108,3 @@ function assistantHasVisibleWork(message) {
     return false;
   });
 }
-

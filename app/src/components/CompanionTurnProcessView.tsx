@@ -68,7 +68,7 @@ export default function CompanionTurnProcessView({
               className={`companion-chat-process-tool${tool.running ? ' is-running' : ''}${tool.error ? ' is-error' : ''}`}
             >
               <span className="companion-chat-process-tool-name">{tool.name}</span>
-              {tool.detail && tool.detail !== tool.name ? (
+              {tool.detail && tool.detail !== tool.name && !/\[object Object\]/i.test(tool.detail) ? (
                 <span className="companion-chat-process-tool-detail">{tool.detail}</span>
               ) : null}
             </p>

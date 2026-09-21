@@ -130,6 +130,28 @@ test("keeps tool-call assistants and drops orphaned tool results", () => {
   );
 });
 
+test("repairs unfinished toolCalls before a following user message", () => {
+  const assembled = assembleCompanionMessages({
+    recentMessages: [
+      userMessage("先读一下"),
+      {
+        role: "assistant",
+        content: [{ type: "toolCall", id: "call-2", name: "bash", arguments: { command: "ls" } }],
+        stopReason: "toolUse",
+      },
+      // Abort left no toolResult; next user must still be sendable.
+      userMessage("继续"),
+    ],
+  });
+  const roles = assembled.messages
+    .filter(message => message.role !== "custom")
+    .map(message => message.role);
+  assert.deepEqual(roles, ["user", "assistant", "toolResult", "user"]);
+  const repaired = assembled.messages.find(message => message.role === "toolResult");
+  assert.equal(repaired?.toolCallId, "call-2");
+  assert.equal(repaired?.isError, true);
+});
+
 test("board segment is never dropped when over budget", () => {
   const sessions = Array.from({ length: 80 }, (_, index) => ({
     id: `session-${index}`,
