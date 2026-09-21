@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -82,20 +83,64 @@ func OpenCompanionSidecar(
 	return command, stdin, stdout, nil
 }
 
+// ErrCompanionCredentialMissing means the companion's selected source has no
+// key. Callers must fail the turn instead of borrowing another source.
+var ErrCompanionCredentialMissing = errors.New("companion credential missing")
+
 // CompanionCustomProvider is the turn-scoped custom relay definition for the
 // companion process. Keys stay in this payload and never enter tool output.
 //
-// Companion selection is independent of the homepage ActiveProvider. Using
-// ActiveProvider here dropped a personal custom-relay key whenever the
-// homepage still pointed at official TokenFlux, and the sidecar then sent
-// the leftover TokenFlux secret (or nothing) to the relay the companion
-// actually selected.
+// The payload follows companion_source. Personal and service turns use that
+// provider's own key. Account turns use the account relay and do not attach
+// a homepage or personal relay payload. An empty companion provider is not
+// filled from ActiveProvider.
 func CompanionCustomProvider(settings config.AppSettings) map[string]any {
-	name := strings.TrimSpace(settings.CompanionProvider)
-	if name == "" {
-		name = settings.ActiveProvider
+	payload, err := CompanionTurnAuth(settings)
+	if err != nil {
+		return nil
 	}
-	return customProviderPayloadFor(settings, name)
+	return payload
+}
+
+// CompanionTurnAuth resolves the credential the companion turn is allowed to
+// use. A missing key is an error so the caller does not send the account
+// relay secret, or an empty key, to a different relay.
+func CompanionTurnAuth(settings config.AppSettings) (map[string]any, error) {
+	selection := config.ResolveCompanionModel(settings)
+	switch selection.Source {
+	case config.ModelSourceAccount:
+		if !accountRelayReady(settings) {
+			return nil, ErrCompanionCredentialMissing
+		}
+		return nil, nil
+	case config.ModelSourcePersonal, "service":
+		name := strings.TrimSpace(settings.CompanionProvider)
+		if name == "" {
+			return nil, ErrCompanionCredentialMissing
+		}
+		provider, exists := settings.Providers[name]
+		if !exists || !provider.Enabled {
+			return nil, ErrCompanionCredentialMissing
+		}
+		if provider.Custom {
+			payload := customProviderPayloadFor(settings, name)
+			if payload == nil {
+				return nil, ErrCompanionCredentialMissing
+			}
+			return payload, nil
+		}
+		if strings.TrimSpace(provider.APIKey) == "" {
+			return nil, ErrCompanionCredentialMissing
+		}
+		return nil, nil
+	default:
+		return nil, ErrCompanionCredentialMissing
+	}
+}
+
+func accountRelayReady(settings config.AppSettings) bool {
+	relay := settings.Relay
+	return relay != nil && relay.Enabled && strings.TrimSpace(relay.Key) != ""
 }
 
 func (s *Supervisor) HasRegisteredSession(sessionID string) bool {

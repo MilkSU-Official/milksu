@@ -4,6 +4,7 @@ import {
   PROVIDERS,
   PROVIDER_GROUPS,
   providerModelLabel,
+  companionSettingsSource,
   withAppSettingsDefaults,
   type AppSettings,
 } from './types'
@@ -262,6 +263,10 @@ describe('model provider catalog', () => {
     expect(settings.companion_provider).toBe('tokenflux')
     expect(settings.companion_model).toBe('deepseek/deepseek-flash')
     expect(settings.companion_source).toBe('account')
+    expect(companionSettingsSource(undefined)).toBe('account')
+    expect(companionSettingsSource('')).toBe('account')
+    expect(companionSettingsSource('personal')).toBe('personal')
+    expect(companionSettingsSource('service')).toBe('service')
     expect(settings.companion_dispatch_enabled).toBe(true)
     expect(settings.companion_memory_enabled).toBe(true)
     expect(settings.companion_float_enabled).toBe(true)

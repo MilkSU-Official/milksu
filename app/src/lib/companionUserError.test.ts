@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  companionAccountModelAlignedNotice,
   companionChatAttachmentsFromText,
   companionChatIsVisibleEntry,
   companionChatNeedsNewConversation,
@@ -143,6 +144,34 @@ describe('explainCompanionError', () => {
     expect(companionSidecarDown('write EPIPE')).toBe(true)
     expect(companionSidecarDown('桌宠暂时连不上。')).toBe(true)
     expect(companionSidecarDown('这一轮已取消。')).toBe(false)
+  })
+
+  it('maps withdrawn and missing companion credentials without internals', () => {
+    applyUiLocale('zh')
+    expect(explainCompanionError('companion credential withdrawn')).toBe(
+      '账户已退出或密钥已移除，桌宠没法继续。请重新登录，或改选一个已有密钥的模型。',
+    )
+    expect(explainCompanionError('companion credential missing')).toBe(
+      '桌宠这个来源还没有密钥。请重新登录，或改选一个已有密钥的模型。',
+    )
+    expect(explainCompanionError('companion credential withdrawn')).not.toMatch(
+      /sidecar is not running|tokenflux|https?:\/\//i,
+    )
+    applyUiLocale('en')
+    expect(explainCompanionError('companion credential withdrawn')).toBe(
+      'The companion cannot continue because the account signed out or the key was removed. Sign in again, or pick a model that has a key.',
+    )
+    expect(explainCompanionError('companion credential missing')).toBe(
+      'This companion source has no key. Sign in again, or pick a model that has a key.',
+    )
+    expect(companionAccountModelAlignedNotice()).toBe(
+      'The account model for the companion left the catalog, so it was switched to one that is still available.',
+    )
+    applyUiLocale('zh')
+    expect(companionAccountModelAlignedNotice()).toBe(
+      '桌宠的账户模型已不在目录里，已换成还能用的模型。',
+    )
+    expect(companionSidecarDown('companion credential withdrawn')).toBe(false)
   })
 
   it('maps session-not-ready internals to product copy', () => {

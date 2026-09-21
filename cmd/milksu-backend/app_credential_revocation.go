@@ -46,10 +46,13 @@ func credentialWithdrawn(previous, next config.AppSettings) bool {
 // or not. A turn running on a credential the user just took away would fail on its next
 // model call anyway, and leaving it alive is exactly what the user undid.
 func (a *App) stopSidecarsHoldingWithdrawnCredential(reason string) {
-	if a.engines == nil {
-		return
+	stopped := 0
+	if a.engines != nil {
+		stopped += a.engines.StopStaleSidecars()
 	}
-	stopped := a.engines.StopStaleSidecars()
+	if a.companion != nil && a.companion.StopHoldingWithdrawnCredential() {
+		stopped++
+	}
 	if stopped == 0 {
 		return
 	}

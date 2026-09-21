@@ -15,13 +15,14 @@ import {
 } from '@/lib/uiFonts'
 import { useT, useUiLocale } from '@/hooks/useUiLocale'
 import type { SearchableModelGroup } from '@/lib/modelPickerSearch'
-import type {
-  AppSettings,
-  CompanionShellStatus,
-  CompanionSkinImportResult,
-  CompanionSkinList,
-  CompanionSkinSummary,
-  CompanionTeaching,
+import {
+  companionSettingsSource,
+  type AppSettings,
+  type CompanionShellStatus,
+  type CompanionSkinImportResult,
+  type CompanionSkinList,
+  type CompanionSkinSummary,
+  type CompanionTeaching,
 } from '@/types'
 
 function skinLabel(skin: CompanionSkinSummary, locale: string) {
@@ -64,7 +65,7 @@ export default function CompanionSettingsPanel({
   const modelKey = encodePickerSelection(
     settings.companion_provider ?? '',
     settings.companion_model ?? '',
-    settings.companion_source || 'personal',
+    companionSettingsSource(settings.companion_source),
   )
   const modelLabel = settings.companion_model || t('选择模型', 'Choose a model')
   const selectedSkin = skins.some(item => item.id === settings.companion_skin_id)
@@ -135,7 +136,7 @@ export default function CompanionSettingsPanel({
                 patch({
                   companion_provider: selection.providerId,
                   companion_model: selection.model,
-                  companion_source: selection.source,
+                  companion_source: companionSettingsSource(selection.source),
                 })
               }}
             />

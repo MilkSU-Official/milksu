@@ -403,6 +403,13 @@ export const TOKENFLUX_DEFAULT_MODEL = 'x-ai/grok-4.6'
 export const DEFAULT_COMPANION_PROVIDER = 'tokenflux'
 export const DEFAULT_COMPANION_MODEL = 'deepseek/deepseek-flash'
 export const DEFAULT_COMPANION_SOURCE = 'account'
+
+export function companionSettingsSource(
+  source: 'account' | 'personal' | 'service' | '' | undefined | null,
+): 'account' | 'personal' | 'service' {
+  if (source === 'account' || source === 'personal' || source === 'service') return source
+  return DEFAULT_COMPANION_SOURCE
+}
 export const DEFAULT_COMPANION_SKIN_ID = 'default'
 export type CompanionTeaching = 'ask_me' | 'hints' | 'review'
 

@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/MilkSU-Official/milksu/internal/config"
@@ -41,5 +42,48 @@ func TestCompanionCustomProviderUsesCompanionRelayNotHomepage(t *testing.T) {
 	}
 	if homepage := customProviderTurnPayload(settings); homepage != nil {
 		t.Fatalf("homepage TokenFlux is not a custom relay: %#v", homepage)
+	}
+}
+
+func TestCompanionTurnAuthDoesNotCrossWireSources(t *testing.T) {
+	relayURL := "https://tokenflux.dev/v1"
+	personalURL := "https://relay.example.test"
+	settings := config.DefaultSettings()
+	settings.ActiveProvider = "custom-relay-home"
+	settings.CompanionSource = "personal"
+	settings.CompanionProvider = ""
+	settings.CompanionModel = "deepseek-chat"
+	settings.Relay = &config.RelayConfig{Enabled: true, Key: "account-secret", URL: relayURL}
+	settings.Providers["custom-relay-home"] = config.ProviderConfig{
+		Custom:  true,
+		Enabled: true,
+		Name:    "home",
+		APIKey:  "home-secret",
+		BaseURL: &personalURL,
+		Models:  []string{"deepseek-chat"},
+	}
+
+	payload, err := CompanionTurnAuth(settings)
+	if !errors.Is(err, ErrCompanionCredentialMissing) || payload != nil {
+		t.Fatalf("empty personal provider must not use the homepage relay: payload=%#v err=%v", payload, err)
+	}
+	if got := CompanionCustomProvider(settings); got != nil {
+		t.Fatalf("custom payload must not fall back to ActiveProvider: %#v", got)
+	}
+
+	settings.CompanionSource = "account"
+	settings.CompanionProvider = "custom-relay-home"
+	settings.CompanionModel = "deepseek/deepseek-flash"
+	payload, err = CompanionTurnAuth(settings)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload != nil {
+		t.Fatalf("account source must use the account credential, not the personal relay: %#v", payload)
+	}
+
+	settings.Relay = nil
+	if _, err = CompanionTurnAuth(settings); !errors.Is(err, ErrCompanionCredentialMissing) {
+		t.Fatalf("account source without a key = %v, want missing credential", err)
 	}
 }

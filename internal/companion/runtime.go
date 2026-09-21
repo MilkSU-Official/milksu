@@ -119,6 +119,10 @@ func (r *Runtime) Send(prompt string, attachments []codingattachment.Attachment)
 	if prompt == "" && len(attachments) == 0 {
 		return fmt.Errorf("companion prompt is required")
 	}
+	custom, authErr := engine.CompanionTurnAuth(r.resolvedSettings())
+	if authErr != nil {
+		return authErr
+	}
 	if _, err := r.Ensure(); err != nil {
 		return err
 	}
@@ -139,7 +143,7 @@ func (r *Runtime) Send(prompt string, attachments []codingattachment.Attachment)
 	if len(attachments) > 0 {
 		command["attachments"] = attachments
 	}
-	if custom := engine.CompanionCustomProvider(r.resolvedSettings()); custom != nil {
+	if custom != nil {
 		command["customProvider"] = custom
 	}
 	if err := r.writeEnsured(command); err != nil {
@@ -189,6 +193,11 @@ func (r *Runtime) Invalidate() {
 	r.finishParked(pending, "companion sidecar stopped")
 }
 
+// CredentialWithdrawnError is the stable reason a companion turn stops because
+// the account signed out or a key it was holding was removed. The phone maps
+// it to user-facing copy; it must not include provider ids or the secret.
+const CredentialWithdrawnError = "companion credential withdrawn"
+
 // MarkStale replaces the sidecar on the next idle Ensure/Send. Settings save
 // must not kill an in-flight Pi loop — coding sidecars already do this lazily.
 func (r *Runtime) MarkStale() {
@@ -196,6 +205,35 @@ func (r *Runtime) MarkStale() {
 		return
 	}
 	r.stale.Store(true)
+}
+
+// StopHoldingWithdrawnCredential ends the companion process immediately, including
+// a turn that is still running. The key was copied into the process environment
+// at spawn, so leaving the process up keeps the withdrawn secret usable.
+// Settings saves that only replace a key use MarkStale instead.
+// It reports whether a live sidecar or parked confirm was actually stopped.
+func (r *Runtime) StopHoldingWithdrawnCredential() bool {
+	if r == nil {
+		return false
+	}
+	r.mu.Lock()
+	pending := r.takeAllParkedLocked()
+	alive := r.ready || r.command != nil || r.stdin != nil || r.inFlight.Load() || len(pending) > 0
+	r.lastErr = CredentialWithdrawnError
+	if alive {
+		_ = r.stopLocked()
+	}
+	r.ready = false
+	r.stale.Store(false)
+	r.inFlight.Store(false)
+	r.mu.Unlock()
+	if len(pending) > 0 {
+		r.finishParked(pending, CredentialWithdrawnError)
+	}
+	if alive {
+		r.emitEvent(engine.Event{Type: "engine.error", Error: CredentialWithdrawnError})
+	}
+	return alive
 }
 
 func (r *Runtime) setInFlight(inFlight bool) {
@@ -359,6 +397,10 @@ func (r *Runtime) resetCompanionSession() error {
 	}
 	settings := r.resolvedSettings()
 	selection := r.selection()
+	custom, authErr := engine.CompanionTurnAuth(settings)
+	if authErr != nil {
+		return authErr
+	}
 	create := map[string]any{
 		"action":              "create_session",
 		"locale":              config.ResolvedUserInterfaceLocale(settings),
@@ -367,7 +409,7 @@ func (r *Runtime) resetCompanionSession() error {
 		"source":              selection.Source,
 		"memorySearchEnabled": r.memorySearchEnabled(),
 	}
-	if custom := engine.CompanionCustomProvider(settings); custom != nil {
+	if custom != nil {
 		create["customProvider"] = custom
 	}
 	create["reset"] = true
@@ -513,6 +555,12 @@ func (r *Runtime) startLocked() error {
 		return err
 	}
 	settings := r.resolvedSettings()
+	custom, authErr := engine.CompanionTurnAuth(settings)
+	if authErr != nil {
+		r.lastErr = authErr.Error()
+		r.mu.Unlock()
+		return authErr
+	}
 	command, stdin, stdout, err := r.start(settings, r.sidecarDirectory, r.agentDir)
 	if err != nil {
 		r.lastErr = err.Error()
@@ -536,7 +584,7 @@ func (r *Runtime) startLocked() error {
 		"source":              selection.Source,
 		"memorySearchEnabled": r.memorySearchEnabled(),
 	}
-	if custom := engine.CompanionCustomProvider(settings); custom != nil {
+	if custom != nil {
 		create["customProvider"] = custom
 	}
 	if err := r.write(create); err != nil {

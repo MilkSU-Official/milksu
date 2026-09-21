@@ -6,6 +6,8 @@ import CompanionPage from '@/components/CompanionPage'
 import { Toaster } from '@/components/ui'
 import { useCompanion } from '@/composables/useCompanion'
 import { hasDesktopRuntime, invokeCommand, listenEvent } from '@/desktop'
+import { toast } from '@/lib/appToast'
+import { companionAccountModelAlignedNotice } from '@/lib/companionUserError'
 import { useT, useUiLocale } from '@/hooks/useUiLocale'
 import { companionMissingApiKey, companionSidecarDown } from '@/lib/companionUserError'
 import {
@@ -105,6 +107,17 @@ export default function CompanionPetWindow() {
     () => attentionText({ confirm: companion.confirm, error: companion.error, t }),
     [companion.confirm, companion.error, t],
   )
+
+  useEffect(() => {
+    if (!hasDesktopRuntime()) return undefined
+    let stop: (() => void) | undefined
+    void listenEvent('companion-model-aligned', () => {
+      toast(companionAccountModelAlignedNotice())
+    }).then(unlisten => {
+      stop = unlisten
+    })
+    return () => stop?.()
+  }, [])
 
   useEffect(() => {
     if (bubble) {

@@ -4,6 +4,7 @@ const { installBrokenPipeGuards, safeConsoleInfo } = require('./safe-console.cjs
 installBrokenPipeGuards()
 
 const { execFileSync, spawn } = require('node:child_process')
+const os = require('node:os')
 const { randomUUID } = require('node:crypto')
 const { promises: fs } = require('node:fs')
 const path = require('node:path')
@@ -39,11 +40,17 @@ const {
 const { loadBuildTrackingView } = require('./build-tracking-view.cjs')
 const {
   AccountSession,
+  accountCallbackForwardPlan,
   accountCallbackFromArgv,
   accountModelAuthorizationAction,
   accountModelAuthorizationRefreshRequired,
+  clearAccountLoginClaim,
   desktopProtocolClientRegistration,
   loadAccountConfig,
+  publicOAuthError,
+  readAccountLoginClaim,
+  routeAccountCallback,
+  writeAccountLoginClaim,
 } = require('./account-session.cjs')
 const { pluginFrameScriptHeaders, rendererHeaders } = require('./renderer-protocol.cjs')
 const { UpdateManager } = require('./update-manager.cjs')
@@ -173,6 +180,117 @@ let browserShell
 let accountSession
 let updateManager
 let pendingAccountCallback = accountCallbackFromArgv(process.argv, desktopChannel)
+
+function focusMainWindow() {
+  if (companionShell) companionShell.revealFromTaskbar()
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  mainWindow.show()
+  mainWindow.focus()
+}
+
+function processAlive(pid) {
+  if (!Number.isInteger(pid) || pid <= 0 || pid === process.pid) return false
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function accountDialogLocale() {
+  try {
+    const settings = await backend?.invokeFromElectronHost?.('GetSettings', [])
+    if (String(settings?.locale ?? '').trim().toLowerCase() === 'en') return 'en'
+  } catch {
+    // Locale is optional. The dialog stays in the product default.
+  }
+  return 'zh'
+}
+
+function accountDialogText(locale, zh, en) {
+  return locale === 'en' ? en : zh
+}
+
+function forwardAccountCallback(decision, callback) {
+  try {
+    const plan = accountCallbackForwardPlan({
+      execPath: process.execPath,
+      argv: process.argv,
+      instanceId: decision.instanceId,
+      callback,
+    })
+    const env = { ...process.env }
+    if (plan.envPatch.MILKSU_INSTANCE_ID) env.MILKSU_INSTANCE_ID = plan.envPatch.MILKSU_INSTANCE_ID
+    else delete env.MILKSU_INSTANCE_ID
+    const child = spawn(process.execPath, plan.args, {
+      detached: true,
+      stdio: 'ignore',
+      env,
+    })
+    child.unref()
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function showAccountLoginNotice(kind, detail = '') {
+  const locale = await accountDialogLocale()
+  const text = (zh, en) => accountDialogText(locale, zh, en)
+  if (kind === 'other-window') {
+    await dialog.showMessageBox({
+      type: 'info',
+      title: text('登录', 'Sign-in'),
+      message: text(
+        '登录会在另一扇 MilkSU 窗口里完成。',
+        'Sign-in will finish in the other MilkSU window.',
+      ),
+    })
+    return
+  }
+  const fallback = text(
+    '请在发起登录的那扇窗口里重试。',
+    'Try again in the window where you started sign-in.',
+  )
+  dialog.showErrorBox(
+    text('登录没有完成', 'Sign-in did not finish'),
+    detail || fallback,
+  )
+}
+
+async function deliverAccountCallback(rawURL) {
+  const callback = String(rawURL ?? '').trim()
+  if (!callback || !accountSession) return
+  const claim = await readAccountLoginClaim(os.tmpdir())
+  const decision = routeAccountCallback({
+    hasPendingLogin: accountSession.hasPendingLogin(),
+    claim,
+    selfPid: process.pid,
+  })
+  if (decision.action === 'accept') {
+    focusMainWindow()
+    try {
+      const ok = await accountSession.handleCallback(callback)
+      if (ok) await clearAccountLoginClaim(os.tmpdir(), process.pid)
+      if (!ok) await showAccountLoginNotice('retry')
+    } catch (error) {
+      const detail = publicOAuthError(error?.message)
+      const locale = await accountDialogLocale()
+      dialog.showErrorBox(
+        accountDialogText(locale, 'MilkSU 登录失败', 'MilkSU sign-in failed'),
+        detail || accountDialogText(locale, 'GitHub 登录失败', 'GitHub sign-in failed'),
+      )
+    }
+    return
+  }
+  if (decision.action === 'forward' && processAlive(decision.pid) && forwardAccountCallback(decision, callback)) {
+    await showAccountLoginNotice('other-window')
+    return
+  }
+  await showAccountLoginNotice('retry')
+}
 let quitting = false
 let relaunchScheduled = false
 let screenRecordingRelaunchArm = null
@@ -904,10 +1022,20 @@ ipcMain.handle('milksu:invoke', async (event, request) => {
   }
   if (method === 'StartAccountLogin') {
     if (!accountSession) throw new Error('内测账户尚未就绪')
-    return accountSession.startLogin()
+    await writeAccountLoginClaim(os.tmpdir(), {
+      instanceId: process.env.MILKSU_INSTANCE_ID || '',
+      pid: process.pid,
+    })
+    try {
+      return await accountSession.startLogin()
+    } catch (error) {
+      await clearAccountLoginClaim(os.tmpdir(), process.pid)
+      throw error
+    }
   }
   if (method === 'LogoutAccount') {
     if (!accountSession) return { configured: false, state: 'unconfigured', authenticated: false }
+    await clearAccountLoginClaim(os.tmpdir(), process.pid)
     return accountSession.logout()
   }
   if (method === 'GetUpdateStatus') {
@@ -961,28 +1089,20 @@ app.on('open-url', (event, url) => {
     pendingAccountCallback = url
     return
   }
-  void accountSession.handleCallback(url).catch(error => {
-    dialog.showErrorBox('MilkSU 登录失败', error.message)
-  })
+  void deliverAccountCallback(url)
 })
 
 app.on('second-instance', (_event, argv = []) => {
-  if (companionShell) companionShell.revealFromTaskbar()
-  if (mainWindow) {
-    if (mainWindow.isMinimized()) mainWindow.restore()
-    mainWindow.show()
-    mainWindow.focus()
-  }
   const callback = accountCallbackFromArgv(argv, desktopChannel)
   if (callback) {
     if (!accountSession) {
       pendingAccountCallback = callback
-    } else {
-      void accountSession.handleCallback(callback).catch(error => {
-        dialog.showErrorBox('MilkSU 登录失败', error.message)
-      })
+      return
     }
+    void deliverAccountCallback(callback)
+    return
   }
+  focusMainWindow()
 })
 
 app.whenReady().then(async () => {
@@ -1049,7 +1169,7 @@ app.whenReady().then(async () => {
   if (pendingAccountCallback) {
     const callback = pendingAccountCallback
     pendingAccountCallback = ''
-    await startupTime('account.handleCallback', () => accountSession.handleCallback(callback))
+    await startupTime('account.handleCallback', () => deliverAccountCallback(callback))
   }
   const upstreamEndpoint = await waitForDevTools()
   createWindow()

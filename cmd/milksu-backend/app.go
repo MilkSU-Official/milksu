@@ -512,6 +512,12 @@ func (a *App) SetAccountModelCredential(baseURL, credential string) error {
 		return nil
 	}
 	a.rotateEngineCredentials("account model credential synced")
+	if a.companion != nil {
+		// A synced key replaces the value baked in at spawn. Mark stale so the
+		// next idle turn restarts; an in-flight turn keeps the process it
+		// started on, matching Coding rotation.
+		a.companion.MarkStale()
+	}
 	return nil
 }
 
@@ -524,12 +530,18 @@ func (a *App) alignAccountModelSelection(catalog modelcatalog.Snapshot) (bool, e
 		}
 	}
 	settings = alignWorkerModel(settings, catalog)
-	settings = alignCompanionModel(settings, catalog)
+	var companionLeftCatalog bool
+	settings, companionLeftCatalog = alignCompanionModel(settings, catalog)
 	if !workerModelChanged(previous, settings) && !companionModelChanged(previous, settings) && previous.ActiveModel == settings.ActiveModel {
 		return false, nil
 	}
 	if err := a.settings.Save(settings); err != nil {
 		return false, fmt.Errorf("align account model selection: %w", err)
+	}
+	if companionLeftCatalog {
+		a.emitDesktopEvent("companion-model-aligned", map[string]any{
+			"reason": "account-catalog",
+		})
 	}
 	return true, nil
 }
@@ -572,17 +584,36 @@ func workerModelChanged(previous, next config.AppSettings) bool {
 		previous.WorkerSource != next.WorkerSource
 }
 
-func alignCompanionModel(settings config.AppSettings, catalog modelcatalog.Snapshot) config.AppSettings {
+func alignCompanionModel(settings config.AppSettings, catalog modelcatalog.Snapshot) (config.AppSettings, bool) {
 	selection := config.ResolveCompanionModel(settings)
-	if selection.Provider != modelcatalog.ProviderTokenFlux || len(catalog.Models) == 0 {
-		return settings
+	if selection.Source != config.ModelSourceAccount {
+		return settings, false
 	}
+	if selection.Provider != modelcatalog.ProviderTokenFlux || len(catalog.Models) == 0 {
+		return settings, false
+	}
+	saved := strings.TrimSpace(settings.CompanionModel)
 	model := accountCatalogModel(selection.Model, catalog.Models)
-	if model == "" {
-		return settings
+	if model == "" || model == saved {
+		return settings, false
 	}
 	settings.CompanionModel = model
-	return settings
+	if saved == "" {
+		return settings, false
+	}
+	return settings, !companionModelAlias(saved, model, catalog.Models)
+}
+
+func companionModelAlias(previous, next string, models []modelcatalog.Model) bool {
+	if previous == "" || next == "" || previous == next {
+		return true
+	}
+	for _, candidate := range tokenfluxCatalogModelAliases(previous, models) {
+		if candidate == next {
+			return true
+		}
+	}
+	return false
 }
 
 func companionModelChanged(previous, next config.AppSettings) bool {
@@ -729,18 +760,7 @@ func (a *App) ClearAccountModelCredential() error {
 	// key has nothing left to run with, so every sidecar still holding it is stopped here -
 	// including one that is mid-turn, which would fail on its next model call anyway.
 	a.rotateEngineCredentials("account model credential cleared")
-	if a.engines != nil {
-		if stopped := a.engines.StopStaleSidecars(); stopped > 0 {
-			log.Printf("[credentials] %d sidecar(s) stopped after the credential was cleared", stopped)
-			if a.diagnostics != nil {
-				a.diagnostics.Record(
-					"coding-engine",
-					"info",
-					fmt.Sprintf("%d sidecar(s) stopped after the credential was cleared", stopped),
-				)
-			}
-		}
-	}
+	a.stopSidecarsHoldingWithdrawnCredential("account model credential cleared")
 	return nil
 }
 

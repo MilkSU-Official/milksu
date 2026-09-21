@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/url"
 	"os"
@@ -35,8 +36,11 @@ const (
 	// running a turn is kept even when that leaves the set over the limit: stopping
 	// it is exactly the loss parking exists to prevent.
 	maxParkedSidecars = 3
-	// maxParkedSidecarsHardLimit bounds the set even when every parked sidecar still
-	// looks busy, so a turn that never reports completion cannot leak processes.
+	// maxParkedSidecarsHardLimit is the point where a parked set that is still
+	// busy is left alone. Eviction stops only idle parked sidecars. If the cap
+	// is hit and nothing idle can be evicted, the busy ones stay and the skip
+	// is logged. Stopping a sidecar whose workspace is still in a turn would
+	// drop the work parking exists to keep.
 	maxParkedSidecarsHardLimit = 2 * maxParkedSidecars
 	// sidecarIdleTimeout stops a parked sidecar the user has not come back to and
 	// that has no turn in flight.
@@ -808,16 +812,18 @@ func (s *Supervisor) oldestParkedCandidateLocked(kernel string, requireIdle bool
 	return oldestKey
 }
 
-// evictParkedOverLimitLocked trims the parked set of one kernel back to
-// maxParkedSidecars, preferring sidecars with no turn in flight. If every candidate is
-// still working, the set is allowed to stay over the limit until the hard limit, where
-// the least recently parked one goes regardless so a stuck turn cannot leak processes.
+// evictParkedOverLimitLocked trims the parked set of one kernel back toward
+// maxParkedSidecars by stopping idle sidecars only. A workspace that still has
+// a turn in flight is never evicted, including past maxParkedSidecarsHardLimit.
+// When the cap is hit and every candidate is busy, eviction stops and the skip
+// is logged for the process, not shown to the user.
 func (s *Supervisor) evictParkedOverLimitLocked(kernel string) {
+	skippedBusy := false
 	for s.parkedCountLocked(kernel) > maxParkedSidecars {
-		overHardLimit := s.parkedCountLocked(kernel) > maxParkedSidecarsHardLimit
-		key := s.oldestParkedCandidateLocked(kernel, !overHardLimit)
+		key := s.oldestParkedCandidateLocked(kernel, true)
 		if key == "" {
-			return
+			skippedBusy = s.parkedCountLocked(kernel) > maxParkedSidecarsHardLimit
+			break
 		}
 		if process := s.parked[key]; process != nil {
 			s.stopParkedLocked(kernel, key, process)
@@ -825,6 +831,13 @@ func (s *Supervisor) evictParkedOverLimitLocked(kernel string) {
 		}
 		delete(s.parked, key)
 		delete(s.parkedAt, key)
+	}
+	if skippedBusy {
+		log.Printf(
+			"[sidecar] parked eviction skipped; %d %s sidecar(s) are still busy",
+			s.parkedCountLocked(kernel),
+			NormalizeKernel(kernel),
+		)
 	}
 }
 

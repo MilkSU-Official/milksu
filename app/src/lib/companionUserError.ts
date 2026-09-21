@@ -2,6 +2,8 @@ import type { CodingAttachment, CompanionTranscriptEntry } from '@/types'
 import { explainModelCallFailure, type ModelServiceErrorContext } from './tokenFluxError'
 import { t } from './uiLocale'
 
+const CREDENTIAL_WITHDRAWN = /companion credential withdrawn/i
+const CREDENTIAL_MISSING = /companion credential missing/i
 const SIDECAR_DOWN = /companion sidecar stopped|companion sidecar did not become ready|companion sidecar is not running|companion runtime is not configured|cannot find module.*current-provider-runtime|broken pipe|EPIPE|桌宠暂时连不上|The companion could not start/i
 const ARCHIVE_EMPTY = /no companion transcript to archive|没有可归档的抄本/i
 const SESSION_NOT_READY = /companion session is not ready|coding session is not ready|deepseek harness session is not ready|session is not ready/i
@@ -19,6 +21,18 @@ export function explainCompanionError(
 ): string {
   const message = String(reason ?? '').trim()
   if (!message) return ''
+  if (CREDENTIAL_WITHDRAWN.test(message)) {
+    return t(
+      '账户已退出或密钥已移除，桌宠没法继续。请重新登录，或改选一个已有密钥的模型。',
+      'The companion cannot continue because the account signed out or the key was removed. Sign in again, or pick a model that has a key.',
+    )
+  }
+  if (CREDENTIAL_MISSING.test(message)) {
+    return t(
+      '桌宠这个来源还没有密钥。请重新登录，或改选一个已有密钥的模型。',
+      'This companion source has no key. Sign in again, or pick a model that has a key.',
+    )
+  }
   if (SIDECAR_DOWN.test(message) || UNKNOWN_ACTION.test(message)) {
     return t('桌宠暂时连不上。', 'The companion could not start.')
   }
@@ -66,6 +80,13 @@ export function explainCompanionError(
  * Missing credentials before the user has sent. The pet stays idle; do not
  * park this on the bubble after a later route already became ready.
  */
+export function companionAccountModelAlignedNotice() {
+  return t(
+    '桌宠的账户模型已不在目录里，已换成还能用的模型。',
+    'The account model for the companion left the catalog, so it was switched to one that is still available.',
+  )
+}
+
 export function companionMissingApiKey(reason: unknown): boolean {
   return MISSING_API_KEY.test(String(reason ?? ''))
 }
