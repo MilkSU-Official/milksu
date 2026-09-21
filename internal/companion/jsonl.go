@@ -342,7 +342,13 @@ func decodeTranscriptLine(line []byte) (TranscriptEntry, bool) {
 		Timestamp: strings.TrimSpace(stringValue(raw["timestamp"])),
 	}
 	if message, ok := raw["message"].(map[string]any); ok {
+		if shown, ok := message["display"].(bool); ok && !shown {
+			return TranscriptEntry{}, false
+		}
 		entry.Role = strings.TrimSpace(stringValue(message["role"]))
+		if !transcriptRoleVisible(entry.Role) {
+			return TranscriptEntry{}, false
+		}
 		entry.Text = extractMessageText(message["content"])
 		entry.Thinking = extractMessageThinking(message["content"])
 		entry.Tools = extractMessageTools(message["content"])
@@ -372,6 +378,16 @@ func decodeTranscriptLine(line []byte) (TranscriptEntry, bool) {
 	if entry.ID == "" {
 		entry.ID = fmt.Sprintf("%s:%s", entry.Type, entry.Timestamp)
 	}
+	if looksLikeCompanionAbort(entry.Text) && strings.TrimSpace(entry.Error) == "" {
+		entry.Error = strings.TrimSpace(entry.Text)
+		entry.Text = ""
+	}
+	if looksLikeCompanionDebugJSON(entry.Text) {
+		if entry.Role != "assistant" || (entry.Thinking == "" && len(entry.Tools) == 0) {
+			return TranscriptEntry{}, false
+		}
+		entry.Text = ""
+	}
 	// model_change / thinking_level_change have no user-visible body. Keep
 	// failed assistant turns (empty content + errorMessage) so the chat can
 	// show the real failure instead of the JSONL type name "message".
@@ -380,6 +396,52 @@ func decodeTranscriptLine(line []byte) (TranscriptEntry, bool) {
 		return TranscriptEntry{}, false
 	}
 	return entry, true
+}
+
+func transcriptRoleVisible(role string) bool {
+	switch strings.ToLower(strings.TrimSpace(role)) {
+	case "user", "assistant", "":
+		return true
+	default:
+		return false
+	}
+}
+
+func looksLikeCompanionAbort(text string) bool {
+	folded := strings.ToLower(strings.TrimSpace(text))
+	if folded == "" {
+		return false
+	}
+	return strings.Contains(folded, "request aborted") ||
+		strings.Contains(folded, "aborterror") ||
+		strings.Contains(folded, "this operation was aborted") ||
+		strings.Contains(folded, "the operation was aborted")
+}
+
+func looksLikeCompanionDebugJSON(text string) bool {
+	trimmed := strings.TrimSpace(text)
+	if trimmed == "" {
+		return false
+	}
+	if strings.Contains(strings.ToLower(trimmed), "[object object]") {
+		return true
+	}
+	if strings.Contains(trimmed, "companion_float_enabled") || strings.Contains(trimmed, "tokenflux.dev/v1") {
+		return strings.ContainsAny(trimmed, "{[")
+	}
+	if !strings.HasPrefix(trimmed, "{") && !strings.HasPrefix(trimmed, "[") {
+		return false
+	}
+	var parsed any
+	if json.Unmarshal([]byte(trimmed), &parsed) != nil {
+		return strings.Contains(trimmed, `"settings"`) || strings.Contains(trimmed, `"relay"`)
+	}
+	switch parsed.(type) {
+	case map[string]any, []any:
+		return true
+	default:
+		return false
+	}
 }
 
 func extractMessageText(content any) string {
@@ -391,6 +453,10 @@ func extractMessageText(content any) string {
 		for _, item := range typed {
 			block, ok := item.(map[string]any)
 			if !ok {
+				continue
+			}
+			blockType := strings.TrimSpace(stringValue(block["type"]))
+			if blockType != "" && blockType != "text" {
 				continue
 			}
 			if text := strings.TrimSpace(stringValue(block["text"])); text != "" {
