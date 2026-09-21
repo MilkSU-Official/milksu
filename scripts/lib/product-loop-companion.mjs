@@ -75,6 +75,12 @@ export function companionTranscriptClean(page) {
     if (/companion-host-\d+/i.test(hay)) {
       return { ok: false, reason: '抄本泄露了 companion-host 请求号' }
     }
+    if (/companion_float_enabled|tokenflux\.dev\/v1/i.test(hay) && /[{[]/.test(hay)) {
+      return { ok: false, reason: '抄本泄露了设置 JSON' }
+    }
+    if (/request aborted|aborterror/i.test(hay) && !/这一轮已取消|This turn was cancelled/i.test(hay)) {
+      return { ok: false, reason: '抄本出现了未翻译的 Request aborted' }
+    }
   }
   return { ok: true, reason: '' }
 }
@@ -180,6 +186,8 @@ export function transcriptHasAssistantReply(page) {
     const type = String(pick(entry, 'type', 'Type') ?? '').trim()
     if (err) return false
     if (!text || text === type || text === 'message') return false
+    if (/request aborted|aborterror|companion_float_enabled|tokenflux\.dev\/v1/i.test(text)) return false
+    if (/^[{\[]/.test(text)) return false
     return true
   })
   if (!spoken) {

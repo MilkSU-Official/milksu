@@ -96,6 +96,10 @@ async function ensureCompanionChatVisible(driver) {
  * Abort a stuck mid-turn loop and bring the sidecar back. Host tool failures must
  * leave Pi free to continue; product-loop timeouts are the opposite — we stop the
  * wait so the next case is not blocked by a still-running agent.
+ *
+ * AbortCompanionTurn cancels the in-flight Pi HTTP request. undici then writes
+ * "Request aborted" onto the last assistant row. The phone must map that to
+ * 「这一轮已取消」; do not call this while a user-visible reply is still wanted.
  */
 async function recoverCompanionSidecar(driver) {
   await driver.abortCompanionTurn().catch(() => {})
@@ -891,6 +895,7 @@ export async function runCompanionFuzzApp(driver, options = {}) {
   const turnBudget = Math.min(options.taskTimeoutMs || 180_000, 180_000)
   try {
     for (const prompt of companionFuzzAppPrompts()) {
+      await driver.drainCompanionEvents()
       try {
         await driver.sendCompanionMessage(prompt)
       } catch (error) {
@@ -927,7 +932,9 @@ export async function runCompanionFuzzApp(driver, options = {}) {
       if (transcriptHasAssistantReply(page).ok) replied = true
     }
   } finally {
-    await driver.abortCompanionTurn().catch(() => {})
+    // Wait out an in-flight last turn. Do not AbortCompanionTurn here — that
+    // was painting "Request aborted" onto 看板列一下当前会话标题.
+    await driver.waitForCompanionTurn(8_000).catch(() => ({}))
   }
   const usedApp = [...tools].some(name => /companion_app/i.test(name))
   const usedBoard = [...tools].some(name => /companion_board/i.test(name))

@@ -203,6 +203,15 @@ export function firstUseModuleResult(steps = []) {
   return 'PASS'
 }
 
+/** Keep instanceId + sourcesReady even when CDP died; companion must reopen the same isolated instance. */
+export function firstUseSessionHandoff(launch, instanceId, steps, keepOpen) {
+  return {
+    driver: shouldKeepLaunch(launch, steps, keepOpen) ? launch?.driver ?? null : null,
+    instanceId: instanceId || '',
+    sourcesReady: firstUseSourcesReady(steps),
+  }
+}
+
 function collectToolNames(events) {
   return [...new Set((events ?? []).map(event => String(event?.toolName ?? event?.name ?? '')).filter(Boolean))]
 }
@@ -216,6 +225,15 @@ async function snapshotLoginPage(driver) {
 
 async function accountStatus(driver) {
   return driver.invoke('GetAccountStatus', [])
+}
+
+async function safeAccountStatus(driver) {
+  if (!driver?.cdpAlive()) return null
+  try {
+    return await accountStatus(driver)
+  } catch {
+    return null
+  }
 }
 
 async function waitFor(predicate, timeoutMs, intervalMs = 500) {
@@ -348,28 +366,48 @@ export async function startFirstUseDesktop(options = {}) {
 }
 
 async function expectLoginGate(driver, timeoutMs = 30_000) {
-  const ready = await waitFor(async () => {
-    const snapshot = inspectLoginPage(await snapshotLoginPage(driver))
-    const account = await accountStatus(driver)
-    return snapshot.gate && snapshot.github && snapshot.skip ? { ok: true, account } : null
-  }, timeoutMs, 500)
-  if (ready?.ok) return ready
-  const snapshot = inspectLoginPage(await snapshotLoginPage(driver))
-  const account = await accountStatus(driver)
-  return {
-    ok: false,
-    account,
-    detail: account?.configured === false
-      ? '账户服务未配置，看不见登录页'
-      : `没看见登录页 github=${snapshot.github} skip=${snapshot.skip} state=${account?.state ?? ''}`,
+  try {
+    const ready = await waitFor(async () => {
+      if (!driver?.cdpAlive()) return { dead: true }
+      try {
+        const snapshot = inspectLoginPage(await snapshotLoginPage(driver))
+        const account = await safeAccountStatus(driver)
+        return snapshot.gate && snapshot.github && snapshot.skip ? { ok: true, account } : null
+      } catch {
+        return driver?.cdpAlive() ? null : { dead: true }
+      }
+    }, timeoutMs, 500)
+    if (ready?.dead) return { ok: false, detail: '登录页等待时 CDP 断开' }
+    if (ready?.ok) return ready
+    const snapshot = driver?.cdpAlive()
+      ? inspectLoginPage(await snapshotLoginPage(driver).catch(() => ({})))
+      : { github: false, skip: false }
+    const account = await safeAccountStatus(driver)
+    return {
+      ok: false,
+      account,
+      detail: account?.configured === false
+        ? '账户服务未配置，看不见登录页'
+        : `没看见登录页 github=${snapshot.github} skip=${snapshot.skip} state=${account?.state ?? ''}`,
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      detail: redactProcessText(error instanceof Error ? error.message : error, 180),
+    }
   }
 }
 
 async function waitForHomepage(driver, timeoutMs = 15_000) {
-  return waitFor(async () => {
-    const snapshot = inspectLoginPage(await snapshotLoginPage(driver))
-    return snapshot.gate ? null : true
-  }, timeoutMs)
+  try {
+    return await waitFor(async () => {
+      if (!driver?.cdpAlive()) return null
+      const snapshot = inspectLoginPage(await snapshotLoginPage(driver))
+      return snapshot.gate ? null : true
+    }, timeoutMs)
+  } catch {
+    return null
+  }
 }
 
 export async function runFirstUse(options = {}) {
@@ -401,8 +439,28 @@ export async function runFirstUse(options = {}) {
     launch = null
   }
 
+  function forgetFailedStep(id) {
+    const idx = steps.findIndex(step => step.id === id && step.result !== 'PASS')
+    if (idx >= 0) steps.splice(idx, 1)
+  }
+
+  async function recordOrReplace(id, result, detail) {
+    const existing = steps.find(step => step.id === id)
+    if (existing?.result === 'PASS') return
+    if (existing && result === 'PASS') {
+      existing.result = result
+      existing.detail = redactProcessText(detail || '', 300)
+      process.stdout.write(`FIRST-USE ${id} ${result} ${existing.detail || ''}\n`)
+      return
+    }
+    if (existing) return
+    await record(id, result, detail)
+  }
+
   async function recordCustomRelay(driver) {
-    if (steps.some(step => step.id === 'settings-custom-relay')) return
+    if (steps.some(step => step.id === 'settings-custom-relay' && step.result === 'PASS')) return
+    forgetFailedStep('settings-custom-relay')
+    forgetFailedStep('relay-model-fileloop')
     const relay = await saveCustomRelay(driver)
     if (relay.ok) {
       markProductLoopPersonalRelayUsable(true)

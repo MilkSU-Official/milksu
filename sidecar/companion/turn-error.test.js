@@ -46,6 +46,17 @@ test("does not treat a thinking-only turn as an empty reply", () => {
   ]), "");
 });
 
+test("does not emit Request aborted as an engine error", () => {
+  assert.equal(companionAssistantTurnError([
+    {
+      role: "assistant",
+      content: [{ type: "text", text: "Request aborted" }],
+      stopReason: "error",
+      errorMessage: "Request aborted",
+    },
+  ]), "");
+});
+
 test("does not treat stopReason aborted as an empty reply", () => {
   assert.equal(companionAssistantTurnError([
     {

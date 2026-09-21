@@ -157,7 +157,8 @@ func (r *Runtime) Stop() error {
 
 // AbortTurn cancels in-flight host waits and the current agent loop without
 // killing the sidecar. Bridge repairs orphan toolCalls so the next send
-// continues the same transcript.
+// continues the same transcript. The in-flight model HTTP then fails as
+// "Request aborted"; the phone must show 「这一轮已取消」, not that English.
 func (r *Runtime) AbortTurn() error {
 	if r == nil {
 		return nil

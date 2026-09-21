@@ -312,6 +312,12 @@ test('companion product facts come from a real turn, not RPC shape checks', () =
   assert.equal(transcriptHasAssistantReply({
     entries: [{ role: 'assistant', type: 'message', text: '收到，看板里有 3 条会话。' }],
   }).ok, true)
+  assert.equal(transcriptHasAssistantReply({
+    entries: [{ role: 'assistant', type: 'message', text: 'Request aborted' }],
+  }).ok, false)
+  assert.equal(transcriptHasAssistantReply({
+    entries: [{ role: 'assistant', type: 'message', text: '{"companion_float_enabled":true}' }],
+  }).ok, false)
   assert.equal(boardHasConversation({ sessions: [{ id: 'coding-1', title: 'A' }] }, 'coding-1').ok, true)
   assert.equal(conversationHasRelay({
     messages: [{ content: `${companionRelayPrefix()}\nproduct-loop-marker` }],
@@ -473,6 +479,15 @@ test('companionTranscriptClean rejects leaked host ids and object Object', () =>
   assert.equal(companionTranscriptClean({
     entries: [{ error: 'unknown companion host request: companion-host-9' }],
   }).ok, false)
+  assert.equal(companionTranscriptClean({
+    entries: [{ text: '{"companion_float_enabled":true,"relay":{"url":"https://tokenflux.dev/v1"}}' }],
+  }).ok, false)
+  assert.equal(companionTranscriptClean({
+    entries: [{ text: 'Request aborted' }],
+  }).ok, false)
+  assert.equal(companionTranscriptClean({
+    entries: [{ text: '读一下不含密钥的设置摘要' }],
+  }).ok, true)
 })
 
 test('waitForTurn keeps polling after a transient CDP close', async () => {
@@ -516,6 +531,10 @@ test('waitForTurn treats the active sidecar stopping as a failed turn, not a set
   assert.equal(classifyTurnEvents([{
     type: 'engine.error',
     error: 'companion host request timed out (dispatch)',
+  }]).failed, false)
+  assert.equal(classifyTurnEvents([{
+    type: 'engine.error',
+    error: 'Request aborted',
   }]).failed, false)
   assert.equal(classifyTurnEvents([{
     type: 'engine.error',

@@ -83,6 +83,7 @@ export function classifyTurnEvents(events) {
       && type !== 'engine.stopped'
     ) return false
     return !companionHostToolError(errorTexts[index])
+      && !/request aborted|aborterror/i.test(errorTexts[index])
   })
   const settled = types.some(type => type === 'assistant.settled' || type === 'assistant.completed')
   return { settled, failed, error, sidecarStopped, hostTimedOut }
