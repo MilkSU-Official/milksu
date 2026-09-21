@@ -33,13 +33,13 @@ export function buildProductLoopReport(receipt = {}) {
       .map(id => byId.get(id))
       .filter(Boolean)
     if (!rows.length) continue
-    const failed = countBy(rows, 'FAIL')
+    const failed = countBy(rows, 'FAIL') + countBy(rows, 'BLOCKED')
     const skipped = countBy(rows, 'SKIP')
     const passed = countBy(rows, 'PASS')
     modules.push({
       id: module.id,
       title: module.title,
-      result: failed ? 'FAIL' : rows.length === skipped ? 'SKIP' : 'PASS',
+      result: failed ? 'FAIL' : skipped ? 'SKIP' : 'PASS',
       passed,
       failed,
       skipped,
@@ -62,6 +62,7 @@ export function buildProductLoopReport(receipt = {}) {
     casePass: countBy(cases, 'PASS'),
     caseFail: countBy(cases, 'FAIL'),
     caseSkip: countBy(cases, 'SKIP'),
+    companionModelSource: receipt.companionModelSource || '',
     mode: receipt.mode || '',
     startedAt: receipt.startedAt || '',
     finishedAt: receipt.finishedAt || '',
@@ -90,6 +91,7 @@ export function formatProductLoopReport(receipt = {}, report = buildProductLoopR
   lines.push('整体')
   lines.push(`  大模块  ${overall.modules}  通过 ${overall.modulePass}  失败 ${overall.moduleFail}  跳过 ${overall.moduleSkip}`)
   lines.push(`  小模块  ${overall.cases}  通过 ${overall.casePass}  失败 ${overall.caseFail}  跳过 ${overall.caseSkip}`)
+  if (overall.companionModelSource) lines.push(`  桌宠来源  ${overall.companionModelSource}`)
   lines.push(`  结论    ${overall.result}`)
   lines.push('================================================================================')
   lines.push('')
@@ -193,7 +195,7 @@ export function formatFormalProductLoopReport(receipt = {}, report = buildProduc
     '</style></head><body>',
     '<h1>MilkSU 产品回归正式报告</h1>',
     `<p>模式 ${escapeHtml(overall.mode)}　结果 <strong class="${String(overall.result).toLowerCase()}">${escapeHtml(overall.result)}</strong>　开始 ${escapeHtml(overall.startedAt)}　结束 ${escapeHtml(overall.finishedAt)}</p>`,
-    `<p>大模块 ${overall.modules}（通过 ${overall.modulePass} / 失败 ${overall.moduleFail} / 跳过 ${overall.moduleSkip}）　小模块 ${overall.cases}（通过 ${overall.casePass} / 失败 ${overall.caseFail} / 跳过 ${overall.caseSkip}）</p>`,
+    `<p>大模块 ${overall.modules}（通过 ${overall.modulePass} / 失败 ${overall.moduleFail} / 跳过 ${overall.moduleSkip}）　小模块 ${overall.cases}（通过 ${overall.casePass} / 失败 ${overall.caseFail} / 跳过 ${overall.caseSkip}）${overall.companionModelSource ? `　桌宠来源 ${escapeHtml(overall.companionModelSource)}` : ''}</p>`,
   ]
   for (const module of modules) {
     blocks.push(`<section><h2>${escapeHtml(module.title)} <span class="${String(module.result).toLowerCase()}">[${escapeHtml(module.result)}]</span> ${module.passed}/${module.total}</h2>`)

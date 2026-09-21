@@ -95,6 +95,7 @@ function baseReceipt(options) {
     modules: [],
     humanReview: [],
     eventsNote: 'no Provider keys',
+    companionModelSource: '',
     localEnv: { loaded: false, applied: [], unknown: [], publicValues: {} },
   }
 }
@@ -140,9 +141,12 @@ async function main() {
       toolNames: outcome.toolNames,
       surface: outcome.surface,
       degraded: outcome.degraded,
+      source: outcome.source || '',
+      skipKind: outcome.skipKind || '',
       steps: outcome.steps,
       screenshots: Array.isArray(outcome.screenshots) ? outcome.screenshots : [],
     }
+    if (record.source) receipt.companionModelSource = record.source
     if (!record.screenshots.length) await attachEvidence(id, record)
     receipt.suites.push(record)
     process.stdout.write(`CASE ${id} ${record.result} ${record.detail}\n`)
@@ -169,7 +173,11 @@ async function main() {
   async function runProductCase(id) {
     const item = CASES[id]
     if (item?.needsCredential && !session.sourcesReady) {
-      return { result: 'FAIL', detail: '中转站还不能发，主页发送不再 SKIP' }
+      return {
+        result: 'FAIL',
+        detail: '没有可用的个人中转站，也没有已验证的账户模型；source=none',
+        source: 'none',
+      }
     }
     return runProductLoopCase(id, session.driver, options)
   }
@@ -199,22 +207,16 @@ async function main() {
           }
         }
         const produced = new Set((outcome.steps ?? []).map(step => step.id))
-        const optional = new Set(['login-github-active', 'account-model-fileloop', 'relay-model-fileloop'])
         for (const item of group.cases) {
           const step = (outcome.steps ?? []).find(row => row.id === item.id)
           if (step) {
             await recordCase(item.id, step)
             continue
           }
-          if (optional.has(item.id)) {
-            await recordCase(item.id, { result: 'SKIP', detail: '这次没走到账户登录' })
-            continue
-          }
-          if (produced.size && !produced.has(item.id)) {
-            await recordCase(item.id, { result: 'FAIL', detail: '上手流程没跑到这一步' })
-            continue
-          }
-          await recordCase(item.id, { result: outcome.result, detail: outcome.detail })
+          await recordCase(item.id, {
+            result: 'FAIL',
+            detail: produced.size ? '上手没跑到' : (outcome.detail || '上手没跑到'),
+          })
         }
         continue
       }

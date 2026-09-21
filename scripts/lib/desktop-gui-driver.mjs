@@ -9,7 +9,7 @@ import { execFile } from 'node:child_process'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
-import { parseCompanionConfirm } from './product-loop-companion.mjs'
+import { companionHostToolError, parseCompanionConfirm } from './product-loop-companion.mjs'
 
 const execFileAsync = promisify(execFile)
 
@@ -66,21 +66,26 @@ export function eventToolName(event) {
 export function classifyTurnEvents(events) {
   const rows = events ?? []
   const types = rows.map(event => eventTypeOf(event))
-  const error = rows
-    .map(event => {
-      const nested = event?.payload && typeof event.payload === 'object' ? event.payload : null
-      return String(event?.error ?? event?.Error ?? nested?.error ?? event?.text ?? event?.Text ?? '')
-    })
-    .find(text => text.trim())
-    || ''
+  const errorTexts = rows.map(event => {
+    const nested = event?.payload && typeof event.payload === 'object' ? event.payload : null
+    return String(event?.error ?? event?.Error ?? nested?.error ?? event?.text ?? event?.Text ?? '')
+  })
+  const error = errorTexts.find(text => text.trim()) || ''
   const sidecarStopped = types.some(type => type === 'engine.sidecar_stopped')
-  const failed = types.some(type =>
-    type === 'engine.error'
-    || type === 'engine.protocol_error'
-    || type === 'engine.stopped',
-  )
+  const hostTimedOut = errorTexts.some(text => companionHostToolError(text))
+  // Host board/dispatch timeouts stay inside Pi's loop. Do not abort the wait
+  // before assistant.settled. Assertions still see hostTimedOut / companionTurnErrored.
+  const failed = rows.some((event, index) => {
+    const type = eventTypeOf(event)
+    if (
+      type !== 'engine.error'
+      && type !== 'engine.protocol_error'
+      && type !== 'engine.stopped'
+    ) return false
+    return !companionHostToolError(errorTexts[index])
+  })
   const settled = types.some(type => type === 'assistant.settled' || type === 'assistant.completed')
-  return { settled, failed, error, sidecarStopped }
+  return { settled, failed, error, sidecarStopped, hostTimedOut }
 }
 
 export function killProcessGroup(child, signal = 'SIGTERM') {

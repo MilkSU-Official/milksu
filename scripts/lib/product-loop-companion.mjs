@@ -48,10 +48,9 @@ export function companionFuzzDispatchPrompts({ title, marker }) {
 
 export function companionFuzzAppPrompts() {
   return [
-    '刚升完级，桌宠到底能干啥？能帮我改设置吗？能打开主窗口吗？先用人话讲清楚你会什么。',
-    '那就帮我打开主窗口，再告诉我当前桌宠用的是哪个模型；先别改任何设置。',
-    '再帮我看一眼不含密钥的设置摘要，说说界面语言和桌宠开没开就行。',
-    '回一下刚才说的模型名，别再改设置，也别退出应用。',
+    '打开主窗口，然后只短回一句你干了什么。不要改设置，也不要退出。',
+    '读一下不含密钥的设置摘要，只说界面语言和桌宠开没开，然后短回。不要改设置。',
+    '看板列一下当前会话标题，挑一两个念出来，短回即可。',
   ]
 }
 
@@ -99,6 +98,11 @@ export function companionIsReady(status) {
   return { ok: true, reason: '' }
 }
 
+export function companionHostToolError(text) {
+  return /companion host request timed out|companion host request failed|companion host cancelled|turn aborted|unknown companion host request|companion-host-\d+/i
+    .test(String(text ?? ''))
+}
+
 export function companionTurnSettled(events) {
   return asList(events).some((event) => {
     const type = eventTypeOf(event)
@@ -106,8 +110,17 @@ export function companionTurnSettled(events) {
   })
 }
 
-export function companionTurnErrored(events) {
-  return asList(events).some((event) => /^(error|engine\.error|engine\.protocol_error)$/i.test(eventTypeOf(event)))
+export function companionTurnErrored(events, options = {}) {
+  const hostTimeoutIsError = options.hostTimeoutIsError !== false
+  return asList(events).some((event) => {
+    const text = String(
+      pick(event, 'error', 'Error', 'text', 'Text')
+      ?? event?.payload?.error
+      ?? '',
+    )
+    if (companionHostToolError(text)) return hostTimeoutIsError
+    return /^(error|engine\.error|engine\.protocol_error)$/i.test(eventTypeOf(event))
+  })
 }
 
 export function companionTurnParked(events) {

@@ -6,8 +6,7 @@
 import { rm } from 'node:fs/promises'
 import { classifyTurnEvents, delay } from './desktop-gui-driver.mjs'
 import {
-  describeCustomRelay,
-  firstUseRelayName,
+  resolveCompanionModelRoute,
   startFirstUseDesktop,
 } from './product-loop-first-use.mjs'
 import { keepExclusiveMilkSUWindow } from './product-loop-windows.mjs'
@@ -332,12 +331,16 @@ export async function dismissOverlays(driver) {
   return false
 }
 
-export function pass(detail) {
-  return { result: 'PASS', detail }
+export function pass(detail, extras = {}) {
+  return { result: 'PASS', detail, ...extras }
 }
 
-export function fail(detail) {
-  return { result: 'FAIL', detail }
+export function fail(detail, extras = {}) {
+  return { result: 'FAIL', detail, ...extras }
+}
+
+export function skip(detail, extras = {}) {
+  return { result: 'SKIP', detail, ...extras }
 }
 
 export async function expectLabels(driver, patterns, okDetail, failDetail) {
@@ -522,12 +525,8 @@ export async function enterHomepageSkipLocal(driver) {
 }
 
 export async function sourcesReady(driver) {
-  const creds = await driver.credentialPresent()
-  if (creds !== 'none') return true
-  const status = await driver.invoke('GetAccountStatus', []).catch(() => ({}))
-  if (status?.authenticated === true || status?.state === 'active') return true
-  const relay = describeCustomRelay(await driver.invoke('GetSettings', []).catch(() => ({})), firstUseRelayName())
-  return Boolean(relay.hasKey && relay.enabled && relay.models.length)
+  const route = await resolveCompanionModelRoute(driver).catch(() => ({ ok: false, source: 'none' }))
+  return route.ok === true
 }
 
 export async function ensureIsolatedProductSession(session = {}, options = {}) {

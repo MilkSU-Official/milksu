@@ -54,6 +54,9 @@ import {
   classifyCustomRelaySave,
   describeCustomRelay,
   FIRST_USE_RELAY_ID,
+  firstUseHasCredentialPath,
+  firstUseModuleResult,
+  firstUseSourcesReady,
   inspectLoginPage,
   mergeCustomRelay,
 } from './lib/product-loop-first-use.mjs'
@@ -77,6 +80,7 @@ import {
   companionShellHidden,
   companionSpeakPrompt,
   companionStopPrompt,
+  companionHostToolError,
   companionTurnErrored,
   companionTurnParked,
   companionTurnSettled,
@@ -149,6 +153,42 @@ test('finalizeProductLoopResult fails a dropped suite instead of passing 5 of 6'
     finalizeProductLoopResult(wanted.map(id => ({ id, result: 'PASS' })), DEFAULT_SUITES),
     'PASS',
   )
+})
+
+test('finalizeProductLoopResult does not treat SKIP as a complete PASS', () => {
+  const wanted = ['login-gate', 'login-github-active']
+  assert.equal(finalizeProductLoopResult([
+    { id: 'login-gate', result: 'PASS' },
+    { id: 'login-github-active', result: 'SKIP' },
+  ], wanted), 'SKIP')
+  assert.equal(finalizeProductLoopResult([
+    { id: 'login-gate', result: 'PASS' },
+    { id: 'login-github-active', result: 'FAIL' },
+  ], wanted), 'FAIL')
+  assert.equal(finalizeProductLoopResult([
+    { id: 'login-gate', result: 'PASS' },
+    { id: 'login-github-active', result: 'BLOCKED' },
+  ], wanted), 'FAIL')
+})
+
+test('product-loop report does not mark a module PASS when cases SKIP', () => {
+  const receipt = {
+    mode: 'gui',
+    result: 'SKIP',
+    companionModelSource: 'personal',
+    suites: [
+      { id: 'companion-ready', result: 'PASS', detail: '桌宠已就绪 personal', source: 'personal' },
+      { id: 'companion-pet-drag', result: 'SKIP', detail: 'Wayland 不能自己贴坐标' },
+    ],
+  }
+  const report = buildProductLoopReport(receipt)
+  const companion = report.modules.find(item => item.id === 'companion')
+  assert.equal(companion.result, 'SKIP')
+  assert.equal(report.overall.result, 'SKIP')
+  assert.equal(report.overall.companionModelSource, 'personal')
+  const text = formatProductLoopReport(receipt, report)
+  assert.match(text, /桌宠来源\s+personal/)
+  assert.match(text, /结论\s+SKIP/)
 })
 
 test('product-loop report walks modules then cases then overall', () => {
@@ -232,6 +272,15 @@ test('companion product facts come from a real turn, not RPC shape checks', () =
   assert.equal(companionIsReady({ ready: false, error: 'sidecar down' }).ok, false)
   assert.equal(companionTurnSettled([{ type: 'assistant.settled' }]), true)
   assert.equal(companionTurnErrored([{ type: 'engine.error' }]), true)
+  assert.equal(companionHostToolError('companion host request timed out (board)'), true)
+  assert.equal(companionTurnErrored([{
+    type: 'engine.error',
+    error: 'companion host request timed out (board)',
+  }]), true)
+  assert.equal(companionTurnErrored([{
+    type: 'engine.error',
+    error: 'companion host request timed out (dispatch)',
+  }], { hostTimeoutIsError: false }), false)
   assert.equal(companionTurnParked([{ type: 'engine.sidecar_stopped' }]), true)
   assert.equal(companionTurnParked([{ type: 'assistant.settled' }]), false)
   const confirm = parseCompanionConfirm({
@@ -464,6 +513,18 @@ test('waitForTurn treats the active sidecar stopping as a failed turn, not a set
   assert.equal(eventTypeOf({ payload: { type: 'tool.started' } }), 'tool.started')
   assert.equal(eventToolName({ payload: { toolName: 'milksu_workspace' } }), 'milksu_workspace')
   assert.equal(classifyTurnEvents([{ type: 'engine.error' }]).failed, true)
+  assert.equal(classifyTurnEvents([{
+    type: 'engine.error',
+    error: 'companion host request timed out (dispatch)',
+  }]).failed, false)
+  assert.equal(classifyTurnEvents([{
+    type: 'engine.error',
+    error: 'companion host request timed out (dispatch)',
+  }]).hostTimedOut, true)
+  assert.equal(classifyTurnEvents([
+    { type: 'engine.error', error: 'companion host request timed out (board)' },
+    { type: 'engine.error', error: 'Connection error.' },
+  ]).failed, true)
   assert.equal(classifyTurnEvents([{ type: 'engine.sidecar_stopped', error: 'parked sidecar reaped' }]).failed, false)
   assert.equal(classifyTurnEvents([{ type: 'engine.sidecar_stopped', error: 'parked sidecar reaped' }]).sidecarStopped, true)
 })
@@ -622,10 +683,10 @@ test('first-use helpers inspect the login page and keep keys out of relay descri
   })
   assert.equal(named.id, 'custom-relay-abc123')
   assert.equal(named.hasKey, true)
-  assert.equal(
-    classifyAccountFileLoop({ notes: false, usedFiles: false, tokenFluxLinked: false }).expectedMiss,
-    true,
-  )
+  const accountMiss = classifyAccountFileLoop({ notes: false, usedFiles: false, tokenFluxLinked: false })
+  assert.equal(accountMiss.expectedMiss, true)
+  assert.equal(accountMiss.result, 'SKIP')
+  assert.notEqual(accountMiss.result, 'PASS')
   assert.equal(
     classifyAccountFileLoop({ notes: true, usedFiles: true, timeout: false }).result,
     'PASS',
@@ -634,7 +695,15 @@ test('first-use helpers inspect the login page and keep keys out of relay descri
     classifyAccountFileLoop({ notes: false, usedFiles: false, failed: true, tokenFluxLinked: false }).result,
     'FAIL',
   )
-  assert.equal(classifyCustomRelaySave('DEEPSEEK_API_KEY 模型凭据无效或无权访问。').expectedMiss, true)
+  assert.equal(
+    classifyAccountFileLoop({ notes: false, usedFiles: false, tokenFluxLinked: true, detail: '401 invalid key' }).result,
+    'FAIL',
+  )
+  assert.equal(classifyCustomRelaySave('DEEPSEEK_API_KEY 模型凭据无效或无权访问。').result, 'FAIL')
+  const noKey = classifyCustomRelaySave('没有已存中转站，也没有 TOKENFLUX_API_KEY / DEEPSEEK_API_KEY')
+  assert.equal(noKey.expectedMiss, true)
+  assert.equal(noKey.result, 'FAIL')
+  assert.notEqual(noKey.result, 'PASS')
   assert.equal(classifyCustomRelaySave('打不开设置').result, 'FAIL')
   assert.equal(classifyComputerUseUnavailable({ available: false, problem: '打包的 Cua Driver 不可用。' }).expectedMiss, true)
   assert.equal(classifyComputerUseUnavailable({ available: false, authorized: false, problem: '缺辅助功能' }).result, 'FAIL')
@@ -655,7 +724,7 @@ test('desktop spawn env strips provider keys', () => {
   assert.equal(stripped.OPENAI_API_KEY, undefined)
 })
 
-test('TokenFlux 401 falls back to official DeepSeek as the next relay attempt', async () => {
+test('relay attempts prefer official DeepSeek before a dead TokenFlux key', async () => {
   resetProductLoopLocalSecrets()
   const root = await mkdtemp(join(tmpdir(), 'milksu-loop-relay-'))
   const path = join(root, 'docs', 'developer', 'product-loop.local.env')
@@ -668,11 +737,52 @@ test('TokenFlux 401 falls back to official DeepSeek as the next relay attempt', 
   await applyProductLoopLocalEnv({}, { path })
   const attempts = productLoopRelayAttempts({ CUSTOM_RELAY_BASE_URL: 'https://tokenflux.dev/v1' })
   assert.deepEqual(attempts.map(item => ({ name: item.name, baseUrl: item.baseUrl, model: item.model })), [
-    { name: 'TOKENFLUX_API_KEY', baseUrl: 'https://tokenflux.dev/v1', model: TOKENFLUX_CATALOG_DEFAULT_MODEL },
     { name: 'DEEPSEEK_API_KEY', baseUrl: DEEPSEEK_OFFICIAL_BASE_URL, model: DEEPSEEK_OFFICIAL_MODEL },
+    { name: 'TOKENFLUX_API_KEY', baseUrl: 'https://tokenflux.dev/v1', model: TOKENFLUX_CATALOG_DEFAULT_MODEL },
   ])
   assert.ok(!JSON.stringify(attempts.map(item => ({ name: item.name, baseUrl: item.baseUrl, model: item.model }))).includes('sk-'))
   resetProductLoopLocalSecrets()
+})
+
+test('first-use cannot PASS on login-gate and login-skip-local alone', () => {
+  const gateOnly = [
+    { id: 'login-gate', result: 'PASS' },
+    { id: 'login-skip-local', result: 'PASS' },
+  ]
+  assert.equal(firstUseHasCredentialPath(gateOnly), false)
+  assert.equal(firstUseSourcesReady(gateOnly), false)
+  assert.equal(firstUseModuleResult(gateOnly), 'FAIL')
+  const expectedMiss = [
+    ...gateOnly,
+    { id: 'account-model-fileloop', result: 'SKIP' },
+    { id: 'settings-custom-relay', result: 'FAIL' },
+    { id: 'relay-model-fileloop', result: 'FAIL' },
+  ]
+  assert.equal(firstUseHasCredentialPath(expectedMiss), false)
+  assert.equal(firstUseSourcesReady(expectedMiss), false)
+  assert.equal(firstUseModuleResult(expectedMiss), 'FAIL')
+  const relayOk = [
+    ...gateOnly,
+    { id: 'relay-model-fileloop', result: 'PASS' },
+  ]
+  assert.equal(firstUseHasCredentialPath(relayOk), true)
+  assert.equal(firstUseSourcesReady(relayOk), true)
+  assert.equal(firstUseModuleResult(relayOk), 'PASS')
+  const verifiedRelayOnly = [
+    ...gateOnly,
+    { id: 'settings-custom-relay', result: 'PASS' },
+    { id: 'relay-model-fileloop', result: 'FAIL' },
+  ]
+  assert.equal(firstUseHasCredentialPath(verifiedRelayOnly), false)
+  assert.equal(firstUseSourcesReady(verifiedRelayOnly), true)
+  assert.equal(firstUseModuleResult(verifiedRelayOnly), 'FAIL')
+  const githubFailRelayOk = [
+    ...gateOnly,
+    { id: 'login-github-active', result: 'FAIL' },
+    { id: 'relay-model-fileloop', result: 'PASS' },
+  ]
+  assert.equal(firstUseHasCredentialPath(githubFailRelayOk), true)
+  assert.equal(firstUseModuleResult(githubFailRelayOk), 'FAIL')
 })
 
 test('empty CUSTOM_RELAY_MODELS on official TokenFlux uses the catalog id', () => {

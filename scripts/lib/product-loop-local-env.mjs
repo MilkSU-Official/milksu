@@ -123,29 +123,29 @@ export function productLoopRelayAttempts(env = process.env) {
   const attempts = []
   if (officialTokenFluxURL(configuredUrl)) {
     pushRelayAttempt(attempts, {
-      name: 'TOKENFLUX_API_KEY',
-      value: tokenflux,
-      baseUrl: configuredUrl,
-      model: configuredModels || TOKENFLUX_CATALOG_DEFAULT_MODEL,
-    })
-    pushRelayAttempt(attempts, {
       name: 'DEEPSEEK_API_KEY',
       value: deepseek,
       baseUrl: DEEPSEEK_OFFICIAL_BASE_URL,
       model: DEEPSEEK_OFFICIAL_MODEL,
     })
+    pushRelayAttempt(attempts, {
+      name: 'TOKENFLUX_API_KEY',
+      value: tokenflux,
+      baseUrl: configuredUrl,
+      model: configuredModels || TOKENFLUX_CATALOG_DEFAULT_MODEL,
+    })
     return attempts
   }
   const model = configuredModels || DEEPSEEK_OFFICIAL_MODEL
   pushRelayAttempt(attempts, {
-    name: 'TOKENFLUX_API_KEY',
-    value: tokenflux,
+    name: 'DEEPSEEK_API_KEY',
+    value: deepseek,
     baseUrl: configuredUrl,
     model,
   })
   pushRelayAttempt(attempts, {
-    name: 'DEEPSEEK_API_KEY',
-    value: deepseek,
+    name: 'TOKENFLUX_API_KEY',
+    value: tokenflux,
     baseUrl: configuredUrl,
     model,
   })

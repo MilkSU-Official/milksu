@@ -67,7 +67,7 @@ export const CASES = {
   'companion-fuzz-dispatch': item('companion-fuzz-dispatch', '桌宠模糊调度', 'companion', true),
   'companion-fuzz-app': item('companion-fuzz-app', '桌宠功能询问', 'companion', true),
   'companion-fuzz-abort': item('companion-fuzz-abort', '桌宠中止后续跑', 'companion', true),
-  'companion-fuzz-recovery': item('companion-fuzz-recovery', '桌宠超时重启续跑', 'companion', true),
+  'companion-fuzz-recovery': item('companion-fuzz-recovery', '桌宠停后再续跑', 'companion', true),
   'companion-fuzz-rapid': item('companion-fuzz-rapid', '桌宠连发', 'companion', true),
   'companion-model-switch': item('companion-model-switch', '换桌宠模型再发', 'companion', true),
   'companion-settings-model': item('companion-settings-model', '桌宠模型设置', 'companion'),
@@ -184,7 +184,7 @@ export const MODULES = {
     needsDesktop: true,
     needsCredential: true,
     isolated: true,
-    detail: '桌宠手机对话、右键菜单、身体拖拽、就绪、转达、看板、多会话、大量对话、归档、记忆，自然语言模糊调度与功能询问，设置里的模型、调度、主动性、悬浮窗、出厂皮肤和第三方换装，以及隐藏、显示、关掉主窗口后从 Dock / 任务栏唤醒。',
+    detail: '桌宠手机对话、右键菜单、身体拖拽、就绪、转达、看板、多会话、大量对话、归档、记忆，自然语言模糊调度与功能询问，回合结束后停再续跑，设置里的模型、调度、主动性、悬浮窗、出厂皮肤和第三方换装，以及隐藏、显示、关掉主窗口后从 Dock / 任务栏唤醒。',
     cases: [
       'companion-ready', 'companion-page', 'companion-pet-menu', 'companion-pet-drag', 'companion-relay', 'companion-board', 'companion-sessions', 'companion-transcript',
       'companion-archive', 'companion-memory', 'companion-dispatch-confirm', 'companion-fuzz-dispatch', 'companion-fuzz-app',
@@ -376,11 +376,13 @@ export function parseProductLoopArgs(argv) {
 
 export function finalizeProductLoopResult(suites, requestedIds, humanReview = []) {
   const rows = suites ?? []
-  const failed = rows.filter(row => row.result === 'FAIL')
+  const failed = rows.filter(row => row.result === 'FAIL' || row.result === 'BLOCKED')
+  const skipped = rows.filter(row => row.result === 'SKIP')
   const recorded = new Set(rows.map(row => row.id))
   const wanted = expandSuiteSelection(requestedIds ?? [])
   const missing = wanted.filter(id => !recorded.has(id))
   if (failed.length || missing.length) return 'FAIL'
   if (!rows.length && (humanReview ?? []).length) return 'FAIL'
+  if (skipped.length) return 'SKIP'
   return 'PASS'
 }

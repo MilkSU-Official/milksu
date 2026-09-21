@@ -104,31 +104,28 @@ export function describeCustomRelay(settings, idOrName) {
  */
 export async function enablePersonalRelayRoute(driver) {
   if (productLoopPersonalRelayUsable === false) {
-    return { ok: false, detail: '个人中转站 Key 已在上手流程被拒绝' }
+    return { ok: false, detail: '个人中转站还没有通过验证的 Key' }
   }
   const settings = await driver.invoke('GetSettings', [])
   const relay = describeCustomRelay(settings, firstUseRelayName())
-  if (!relay?.hasKey || !relay.enabled) {
-    return { ok: false, detail: '个人中转站还没有 Key' }
-  }
-  const model = relay.models.find(Boolean) || firstUseRelayModel()
-  if (!model) {
-    return { ok: false, detail: '个人中转站没有可用模型' }
+  const probed = await probeCustomRelay(driver, relay)
+  if (!probed.ok) {
+    return { ok: false, detail: probed.detail || '个人中转站还没有 Key' }
   }
   await driver.invoke('SaveSettingsCmd', [{
     ...settings,
-    active_provider: relay.id,
-    active_model: model,
+    active_provider: probed.id,
+    active_model: probed.model,
     companion_source: 'personal',
-    companion_provider: relay.id,
-    companion_model: model,
+    companion_provider: probed.id,
+    companion_model: probed.model,
   }])
   markProductLoopPersonalRelayUsable(true)
   return {
     ok: true,
-    id: relay.id,
-    model,
-    detail: `桌宠与主页改用个人中转站 ${relay.name || relay.id}`,
+    id: probed.id,
+    model: probed.model,
+    detail: `桌宠与主页改用个人中转站 ${relay.name || probed.id}`,
   }
 }
 
@@ -169,18 +166,41 @@ export function classifyAccountFileLoop(input = {}) {
   const detail = String(input.detail ?? '')
   if (notes && usedFiles && !timeout && !failed) return { result: 'PASS', expectedMiss: false }
   if (timeout || failed) return { result: 'FAIL', expectedMiss: false }
+  if (/无效|无权|401|拒绝|rejected|invalid|unauthorized/i.test(detail)) {
+    return { result: 'FAIL', expectedMiss: false }
+  }
   if (!linked || /额度|quota|未连接|没有可用|unavailable|insufficient/i.test(detail)) {
-    return { result: 'PASS', expectedMiss: true }
+    return { result: 'SKIP', expectedMiss: true }
   }
   return { result: 'FAIL', expectedMiss: false }
 }
 
 export function classifyCustomRelaySave(detail = '') {
   const text = String(detail ?? '')
-  if (/凭据无效|无权访问|invalid|unauthorized|401|403/i.test(text)) {
-    return { result: 'PASS', expectedMiss: true }
+  if (/没有已存中转站，也没有 TOKENFLUX_API_KEY \/ DEEPSEEK_API_KEY/.test(text)) {
+    return { result: 'FAIL', expectedMiss: true }
   }
   return { result: 'FAIL', expectedMiss: false }
+}
+
+export function firstUseHasCredentialPath(steps = []) {
+  return steps.some(step => (
+    (step.id === 'account-model-fileloop' && step.result === 'PASS')
+    || (step.id === 'relay-model-fileloop' && step.result === 'PASS')
+  ))
+}
+
+export function firstUseSourcesReady(steps = []) {
+  return firstUseHasCredentialPath(steps)
+    || steps.some(step => step.id === 'settings-custom-relay' && step.result === 'PASS')
+}
+
+export function firstUseModuleResult(steps = []) {
+  const failed = steps.filter(step => step.result === 'FAIL' || step.result === 'BLOCKED')
+  const required = ['login-gate', 'login-skip-local']
+  const missing = required.filter(id => !steps.some(step => step.id === id && step.result === 'PASS'))
+  if (failed.length || missing.length || !firstUseHasCredentialPath(steps)) return 'FAIL'
+  return 'PASS'
 }
 
 function collectToolNames(events) {
@@ -318,7 +338,7 @@ export async function startFirstUseDesktop(options = {}) {
   const attached = await driver.startFresh({
     instanceId: options.instanceId,
     timeoutMs: options.timeoutMs,
-    buildRuntime: options.buildRuntime === true,
+    buildRuntime: options.buildRuntime === true || process.env.MILKSU_PRODUCT_LOOP_BUILD === '1',
   })
   return {
     driver,
@@ -398,8 +418,9 @@ export async function runFirstUse(options = {}) {
       await launch.driver.invoke('StartAccountLogin', [])
     } catch (error) {
       await record('login-github-active', 'FAIL', redactProcessText(error instanceof Error ? error.message : error, 200))
+      await record('account-model-fileloop', 'SKIP', 'GitHub 登录没发出去，账户模型没跑')
     }
-    if (steps.at(-1)?.id !== 'login-github-active') {
+    if (!steps.some(step => step.id === 'login-github-active')) {
       const active = await waitFor(async () => {
         const status = await accountStatus(launch.driver)
         return status?.state === 'active' && status?.authenticated ? status : null
@@ -435,22 +456,22 @@ export async function runFirstUse(options = {}) {
           'account-model-fileloop',
           classified.result,
           classified.expectedMiss
-            ? `账户发不出，记预期（linked=${Boolean(active.tokenFluxLinked)}）`
+            ? `账户发不出，linked=${Boolean(active.tokenFluxLinked)}，不记通过、不标来源就绪`
             : loop.notes
               ? '账户来源写出 NOTES.md'
               : `NOTES.md=${loop.notes} fileTools=${loop.usedFiles} timeout=${loop.timeout} failed=${Boolean(loop.failed)} ${loop.detail || ''}`,
         )
       } else {
         const status = await accountStatus(launch.driver)
-        const hasRelay = productLoopRelayAttempts().some(attempt => attempt.value)
         await record(
           'login-github-active',
-          hasRelay ? 'SKIP' : 'FAIL',
-          hasRelay
-            ? `GitHub 授权未完成（${status?.state || 'unknown'}）；改用 product-loop 个人中转站`
-            : `超时仍是 ${status?.state || 'unknown'}。在系统浏览器里完成授权；回调应回到这一扇测试窗。`,
+          'FAIL',
+          `StartAccountLogin 已发出但超时仍是 ${status?.state || 'unknown'}。不能因为本机已有 Key 改成跳过。`,
         )
+        await record('account-model-fileloop', 'SKIP', 'GitHub 未登录，账户模型没跑')
       }
+    } else if (!steps.some(step => step.id === 'account-model-fileloop')) {
+      await record('account-model-fileloop', 'SKIP', 'GitHub 登录失败，账户模型没跑')
     }
 
     const githubOk = steps.find(step => step.id === 'login-github-active')?.result === 'PASS'
@@ -495,17 +516,14 @@ export async function runFirstUse(options = {}) {
         'settings-custom-relay',
         classified.result,
         classified.expectedMiss
-          ? `个人中转站 Key 被产品正确拒绝，记预期（${relay.detail}）`
+          ? `没有可用的本机 Key（${relay.detail}）`
           : relay.detail,
       )
       await record(
         'relay-model-fileloop',
-        classified.expectedMiss ? 'SKIP' : 'FAIL',
-        classified.expectedMiss ? '个人中转站 Key 无效，后面用账户额度' : '上手流程没跑到这一步',
+        'FAIL',
+        classified.expectedMiss ? '本机没有可填的中转站 Key' : '上手流程没跑到这一步',
       )
-      if (classified.expectedMiss && githubOk) {
-        await enableAccountRoute(launch.driver).catch(() => {})
-      }
     }
 
     if (githubOk) {
@@ -542,7 +560,7 @@ export async function runFirstUse(options = {}) {
         `clicked=${Boolean(clicked)} home=${Boolean(home)} state=${after?.state ?? ''}`,
       )
     }
-    let accountReady = steps.some(step => step.id === 'account-model-fileloop' && step.result === 'PASS')
+    const accountFileloopOk = steps.some(step => step.id === 'account-model-fileloop' && step.result === 'PASS')
     if (githubOk && launch.driver?.cdpAlive()) {
       process.stdout.write('FIRST-USE 暂不登录之后再登录，后面继续用账户模型\n')
       await launch.driver.invoke('StartAccountLogin', []).catch(() => {})
@@ -550,26 +568,20 @@ export async function runFirstUse(options = {}) {
         const status = await accountStatus(launch.driver)
         return status?.state === 'active' && status?.authenticated ? status : null
       }, loginWaitMs, 2_000)
-      if (restored) {
+      if (restored && accountFileloopOk) {
         await enableAccountRoute(launch.driver)
-        accountReady = true
       }
     }
-    // Prefer product-loop personal relay when it actually has a usable Key.
-    // If saveCustomRelay rejected every Key (or leftover personal is broken),
-    // fall back to the account TokenFlux route that already passed fileloop.
     if (launch.driver?.cdpAlive()) {
       const personal = await enablePersonalRelayRoute(launch.driver)
       if (personal.ok) {
         process.stdout.write(`FIRST-USE ${personal.detail}\n`)
-        accountReady = true
-      } else if (githubOk || steps.some(step => step.id === 'account-model-fileloop' && step.result === 'PASS')) {
+      } else if (accountFileloopOk) {
         await enableAccountRoute(launch.driver)
-        process.stdout.write('FIRST-USE 个人中转站不可用，桌宠与主页改用账户模型\n')
-        accountReady = true
+        process.stdout.write('FIRST-USE 个人中转站不可用，桌宠与主页改用已验证的账户模型\n')
       }
     }
-    return finish(steps, notes, sessionFrom(launch, instanceId, steps, options.keepOpen, accountReady))
+    return finish(steps, notes, sessionFrom(launch, instanceId, steps, options.keepOpen))
   } catch (error) {
     await record('first-use', 'FAIL', redactProcessText(error instanceof Error ? error.message : error, 240))
     return finish(steps, notes, sessionFrom(launch, instanceId, steps, options.keepOpen))
@@ -592,17 +604,14 @@ function shouldKeepLaunch(launch, steps, keepOpen) {
   )
 }
 
-function sessionFrom(launch, instanceId, steps, keepOpen, accountReady = false) {
+function sessionFrom(launch, instanceId, steps, keepOpen) {
   if (!shouldKeepLaunch(launch, steps, keepOpen)) {
     return { driver: null, instanceId, sourcesReady: false }
   }
   return {
     driver: launch.driver,
     instanceId,
-    sourcesReady: accountReady === true || steps.some(step => (
-      (step.id === 'account-model-fileloop' && step.result === 'PASS')
-      || (step.id === 'relay-model-fileloop' && step.result === 'PASS')
-    )),
+    sourcesReady: firstUseSourcesReady(steps),
   }
 }
 
@@ -620,6 +629,58 @@ export async function enableAccountRoute(driver) {
   next.companion_model = next.active_model
   next.companion_source = 'account'
   await driver.invoke('SaveSettingsCmd', [next])
+}
+
+export async function probeAccountRoute(driver) {
+  const status = await accountStatus(driver).catch(() => null)
+  if (!status || status.state !== 'active' || !status.authenticated) {
+    return { ok: false, source: 'none', detail: '账户未登录或未验证' }
+  }
+  try {
+    const settings = await driver.invoke('GetSettings', [])
+    const model = resolveCustomRelayModels(process.env) || 'deepseek/deepseek-flash'
+    const probe = await driver.invoke('TestAgentModel', [{
+      ...settings,
+      active_provider: 'tokenflux',
+      active_model: model,
+    }])
+    if (probe?.ready === false) {
+      return { ok: false, source: 'none', detail: '账户模型测试连接没通过' }
+    }
+    return { ok: true, source: 'account', model, detail: '账户模型测试连接通过' }
+  } catch (error) {
+    return {
+      ok: false,
+      source: 'none',
+      detail: redactProcessText(error instanceof Error ? error.message : error, 180),
+    }
+  }
+}
+
+export async function resolveCompanionModelRoute(driver) {
+  const personal = await enablePersonalRelayRoute(driver).catch(() => ({ ok: false, detail: '' }))
+  if (personal.ok) {
+    return {
+      ok: true,
+      source: 'personal',
+      id: personal.id,
+      model: personal.model,
+      detail: personal.detail,
+    }
+  }
+  const account = await probeAccountRoute(driver)
+  if (account.ok) {
+    await enableAccountRoute(driver)
+    return {
+      ok: true,
+      source: 'account',
+      model: account.model,
+      detail: account.detail,
+    }
+  }
+  const detail = [personal.detail, account.detail].filter(Boolean).join('；')
+    || '没有可用的个人中转站，也没有已验证的账户模型'
+  return { ok: false, source: 'none', detail }
 }
 
 async function clickMatching(driver, patterns) {
@@ -697,6 +758,11 @@ function relayEditorScript() {
       setter.call(input, value)
       input.dispatchEvent(new Event('input', { bubbles: true }))
       input.dispatchEvent(new Event('change', { bubbles: true }))
+      const reactKey = Object.keys(input).find(key => key.startsWith('__reactProps$'))
+      const onChange = reactKey ? input[reactKey]?.onChange : null
+      if (typeof onChange === 'function') {
+        onChange({ target: input, currentTarget: input })
+      }
       return true
     }
     function byAria(patterns) {
@@ -763,8 +829,8 @@ async function applyRelayEditorFields(driver, fields, apiKey) {
   return { ok: true }
 }
 
-async function verifyStoredRelay(driver, described) {
-  if (!described?.hasKey || !described.enabled || !described.models.length || !described.baseURL) {
+export async function probeCustomRelay(driver, described) {
+  if (!described?.id || !described.hasKey || !described.enabled || !described.models.length || !described.baseURL) {
     return { ok: false, detail: '' }
   }
   if (described.baseURL.includes('tokenflux.ai')) {
@@ -772,14 +838,19 @@ async function verifyStoredRelay(driver, described) {
   }
   try {
     const settings = await driver.invoke('GetSettings', [])
-    const probe = await driver.invoke('TestAgentModel', [settings])
+    const model = described.models.find(Boolean)
+    const probe = await driver.invoke('TestAgentModel', [{
+      ...settings,
+      active_provider: described.id,
+      active_model: model,
+    }])
     if (probe?.ready === false) {
       return { ok: false, detail: '已存中转站测试连接没通过' }
     }
     return {
       ok: true,
       id: described.id,
-      model: described.models[0],
+      model,
       detail: '已存中转站，测试连接通过',
     }
   } catch (error) {
@@ -788,6 +859,57 @@ async function verifyStoredRelay(driver, described) {
       detail: redactProcessText(error instanceof Error ? error.message : error, 180),
     }
   }
+}
+
+async function verifyStoredRelay(driver, described) {
+  return probeCustomRelay(driver, described)
+}
+
+async function persistRelayAttempt(driver, attempt) {
+  const settings = await driver.invoke('GetSettings', [])
+  const providers = { ...settingsProviders(settings) }
+  const existing = describeCustomRelay(settings, firstUseRelayName())
+  const id = existing.id && providers[existing.id] ? existing.id : FIRST_USE_RELAY_ID
+  const current = providers[id] || {}
+  providers[id] = {
+    ...current,
+    enabled: true,
+    custom: true,
+    name: firstUseRelayName(),
+    base_url: attempt.baseUrl,
+    models: [attempt.model],
+    api_key: attempt.value,
+    has_api_key: true,
+    remove_api_key: false,
+  }
+  const next = {
+    ...settings,
+    providers,
+    active_provider: id,
+    active_model: attempt.model,
+    companion_source: 'personal',
+    companion_provider: id,
+    companion_model: attempt.model,
+  }
+  await driver.invoke('SaveSettingsCmd', [next])
+  return { id, model: attempt.model }
+}
+
+async function discardRelayKey(driver) {
+  const settings = await driver.invoke('GetSettings', [])
+  const providers = { ...settingsProviders(settings) }
+  const existing = describeCustomRelay(settings, firstUseRelayName())
+  if (!existing.id || !providers[existing.id]) return
+  providers[existing.id] = {
+    ...providers[existing.id],
+    api_key: '',
+    has_api_key: false,
+    remove_api_key: true,
+  }
+  await driver.invoke('SaveSettingsCmd', [{
+    ...settings,
+    providers,
+  }]).catch(() => {})
 }
 
 async function waitForRelayVerify(driver) {
@@ -836,48 +958,40 @@ export async function saveCustomRelay(driver) {
     }, attempt.value)
     if (!filled.ok) {
       lastDetail = filled.detail
+      await discardRelayKey(driver)
       continue
     }
     const verified = await waitForRelayVerify(driver)
-    if (!verified) {
-      lastDetail = `${attempt.name} 测试连接没有回执`
-      continue
+    await persistRelayAttempt(driver, attempt)
+    const saved = describeCustomRelay(await driver.invoke('GetSettings', []), firstUseRelayName())
+    const probed = await probeCustomRelay(driver, {
+      ...saved,
+      models: [attempt.model],
+      baseURL: attempt.baseUrl,
+    })
+    if (probed.ok) {
+      await closeRelayEditor(driver)
+      await enablePersonalRelayRoute(driver)
+      return {
+        ok: true,
+        id: probed.id,
+        model: attempt.model,
+        detail: `在设置密码框填入 ${attempt.name}（回执不写 Key）${verified?.ok ? '' : '；对话框回执失败后按该 Key 与端点对重试通过'}`,
+      }
     }
-    if (!verified.ok) {
-      lastDetail = `${attempt.name} ${redactProcessText(verified.text || '测试连接失败', 180)}`
-      continue
-    }
-    const saved = await waitFor(async () => {
-      const row = describeCustomRelay(await driver.invoke('GetSettings', []), firstUseRelayName())
-      return row.hasKey && row.enabled && row.models.length ? row : null
-    }, 15_000, 500)
-    if (!saved) {
-      lastDetail = `${attempt.name} 测试通过后中转站仍没有 Key`
-      continue
-    }
-    if (saved.baseURL.includes('tokenflux.ai')) {
-      return { ok: false, detail: '官方 TokenFlux 不能用 tokenflux.ai' }
-    }
-    await closeRelayEditor(driver)
-    await enablePersonalRelayRoute(driver)
-    return {
-      ok: true,
-      id: saved.id,
-      model: saved.models.includes(attempt.model) ? attempt.model : saved.models[0],
-      detail: `在设置密码框填入 ${attempt.name}（回执不写 Key）`,
-    }
+    lastDetail = `${attempt.name} ${redactProcessText(
+      probed.detail || verified?.text || (verified ? '测试连接失败' : '测试连接没有回执'),
+      180,
+    )}`
+    await discardRelayKey(driver)
   }
   await closeRelayEditor(driver)
   return { ok: false, detail: lastDetail || '设置页保存后中转站仍没有 Key' }
 }
 
 function finish(steps, notes, extras = {}) {
-  const failed = steps.filter(step => step.result === 'FAIL')
-  const required = ['login-gate', 'login-skip-local']
-  const missing = required.filter(id => !steps.some(step => step.id === id && step.result === 'PASS'))
-  const result = failed.length || missing.length ? 'FAIL' : 'PASS'
   return {
-    result,
+    result: firstUseModuleResult(steps),
     detail: steps.map(step => `${step.id}:${step.result}`).join(' '),
     steps,
     notes,

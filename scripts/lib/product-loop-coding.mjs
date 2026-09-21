@@ -592,8 +592,8 @@ export async function runCodingAttach(driver, options = {}) {
     }
     const broken = turnBroken(turn)
     if (broken) return fail(`附件回合异常：${broken}`)
-    if (seen.mentioned) {
-      return pass(seen.attached ? '附件进了当前回合，模型读到了标记' : '模型读到了附件标记')
+    if (seen.attached && seen.mentioned) {
+      return pass('附件进了当前回合，模型读到了标记')
     }
     return fail(`附件回合失败 attached=${seen.attached} mentioned=${seen.mentioned}`)
   } finally {
