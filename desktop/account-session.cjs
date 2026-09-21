@@ -466,6 +466,10 @@ class AccountSession {
     }
   }
 
+  hasPendingLogin() {
+    return Boolean(this.pending)
+  }
+
   async activeAccessToken() {
     const status = await this.status()
     if (status.state !== 'active') return ''
@@ -537,12 +541,93 @@ class AccountSession {
   }
 }
 
+function accountLoginClaimPath(directory) {
+  return path.join(String(directory ?? ''), 'milksu-pending-account-login.json')
+}
+
+function routeAccountCallback({ hasPendingLogin = false, claim = null, selfPid = 0 } = {}) {
+  if (hasPendingLogin) return { action: 'accept' }
+  const pid = Number(claim?.pid)
+  if (Number.isInteger(pid) && pid > 0 && pid !== selfPid) {
+    return {
+      action: 'forward',
+      instanceId: String(claim.instanceId ?? ''),
+      pid,
+    }
+  }
+  return { action: 'ignore' }
+}
+
+function accountCallbackForwardPlan({
+  execPath = '',
+  argv = [],
+  instanceId = '',
+  callback = '',
+} = {}) {
+  const script = firstProtocolClientScript(argv, execPath)
+  const args = []
+  if (script) args.push(script)
+  if (callback) args.push(callback)
+  const id = String(instanceId ?? '').trim()
+  const envPatch = {
+    MILKSU_INSTANCE_ID: /^[A-Za-z0-9_.-]{1,64}$/u.test(id) ? id : '',
+  }
+  return { args, envPatch }
+}
+
+function publicOAuthError(message) {
+  const text = String(message ?? '').trim()
+  if (!text || /:\/\//u.test(text) || /(?:code|token|verifier)=/iu.test(text) || text.length > 180) {
+    return ''
+  }
+  return text
+}
+
+async function writeAccountLoginClaim(directory, { instanceId = '', pid = process.pid } = {}) {
+  const file = accountLoginClaimPath(directory)
+  const body = JSON.stringify({
+    instanceId: String(instanceId ?? ''),
+    pid: Number(pid),
+    at: Date.now(),
+  })
+  const temporary = `${file}.${process.pid}.tmp`
+  await fs.writeFile(temporary, body, { mode: 0o600 })
+  await fs.rename(temporary, file)
+}
+
+async function readAccountLoginClaim(directory) {
+  try {
+    const parsed = JSON.parse(await fs.readFile(accountLoginClaimPath(directory), 'utf8'))
+    const pid = Number(parsed?.pid)
+    if (!Number.isInteger(pid) || pid <= 0) return null
+    return {
+      instanceId: String(parsed.instanceId ?? ''),
+      pid,
+    }
+  } catch {
+    return null
+  }
+}
+
+async function clearAccountLoginClaim(directory, pid) {
+  const current = await readAccountLoginClaim(directory)
+  if (!current || current.pid !== Number(pid)) return
+  await fs.unlink(accountLoginClaimPath(directory)).catch(() => {})
+}
+
 module.exports = {
   AccountSession,
   accountCallbackFromArgv,
   accountModelAuthorizationAction,
   accountModelAuthorizationRefreshRequired,
   accountRedirectURL,
+  accountCallbackForwardPlan,
+  accountLoginClaimPath,
+  clearAccountLoginClaim,
   desktopProtocolClientRegistration,
   loadAccountConfig,
+  publicOAuthError,
+  readAccountLoginClaim,
+  routeAccountCallback,
+  writeAccountLoginClaim,
 }

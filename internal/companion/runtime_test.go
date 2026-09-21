@@ -3,6 +3,7 @@ package companion
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"io"
 	"os"
 	"os/exec"
@@ -12,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/MilkSU-Official/milksu/internal/config"
 	"github.com/MilkSU-Official/milksu/internal/engine"
 )
 
@@ -196,6 +198,53 @@ func TestWriteMarksClosedPipeAsSidecarDown(t *testing.T) {
 	}
 	if runtime.stdin != nil || runtime.ready {
 		t.Fatal("lost write must drop the dead stdin so Ensure can start a new sidecar")
+	}
+}
+
+func TestStopHoldingWithdrawnCredentialStopsInFlight(t *testing.T) {
+	var events []engine.Event
+	runtime := NewRuntime(RuntimeOptions{Emit: func(event engine.Event) {
+		events = append(events, event)
+	}})
+	runtime.ready = true
+	runtime.inFlight.Store(true)
+	runtime.command = &exec.Cmd{}
+	if !runtime.StopHoldingWithdrawnCredential() {
+		t.Fatal("an in-flight companion sidecar must be stopped when its credential is withdrawn")
+	}
+	if runtime.ready || runtime.inFlight.Load() || runtime.command != nil {
+		t.Fatal("withdrawn credential must not leave the companion sidecar running")
+	}
+	if runtime.Status().Error != CredentialWithdrawnError {
+		t.Fatalf("error = %q", runtime.Status().Error)
+	}
+	if len(events) != 1 || events[0].Error != CredentialWithdrawnError || events[0].Type != "engine.error" {
+		t.Fatalf("events = %#v", events)
+	}
+}
+
+func TestSendRejectsPersonalSourceWithoutItsOwnKey(t *testing.T) {
+	relayURL := "https://tokenflux.dev/v1"
+	settings := config.DefaultSettings()
+	settings.CompanionSource = "personal"
+	settings.CompanionProvider = ""
+	settings.CompanionModel = "deepseek-chat"
+	settings.ActiveProvider = "tokenflux"
+	settings.Relay = &config.RelayConfig{Enabled: true, Key: "account-secret", URL: relayURL}
+	started := false
+	runtime := NewRuntime(RuntimeOptions{
+		Settings: func() config.AppSettings { return settings },
+		Start: func(config.AppSettings, string, string) (*exec.Cmd, io.WriteCloser, io.ReadCloser, error) {
+			started = true
+			return nil, nil, nil, errors.New("should not start")
+		},
+	})
+	err := runtime.Send("hello", nil)
+	if err == nil || !errors.Is(err, engine.ErrCompanionCredentialMissing) {
+		t.Fatalf("send err = %v", err)
+	}
+	if started {
+		t.Fatal("a personal companion with no key must not start a sidecar")
 	}
 }
 

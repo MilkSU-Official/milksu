@@ -63,7 +63,8 @@ func TestAlignCompanionModelFollowsCatalogSuffix(t *testing.T) {
 	settings := config.DefaultSettings()
 	settings.CompanionProvider = "tokenflux"
 	settings.CompanionModel = "google/gemini-3.8-flash"
-	next := alignCompanionModel(settings, modelcatalog.Snapshot{
+	settings.CompanionSource = config.ModelSourceAccount
+	next, notice := alignCompanionModel(settings, modelcatalog.Snapshot{
 		Models: []modelcatalog.Model{
 			{ID: "google/gemini-3.8-flash-tiered"},
 			{ID: "google/gemini-3.1-pro-high"},
@@ -72,6 +73,9 @@ func TestAlignCompanionModelFollowsCatalogSuffix(t *testing.T) {
 	if next.CompanionModel != "google/gemini-3.8-flash-tiered" {
 		t.Fatalf("companion model = %q, want google/gemini-3.8-flash-tiered", next.CompanionModel)
 	}
+	if notice {
+		t.Fatal("a catalog suffix of the same model should not raise a replacement notice")
+	}
 }
 
 func TestAlignCompanionModelKeepsAccountDeepSeekDefault(t *testing.T) {
@@ -79,17 +83,74 @@ func TestAlignCompanionModelKeepsAccountDeepSeekDefault(t *testing.T) {
 	settings.CompanionProvider = config.DefaultCompanionProvider
 	settings.CompanionModel = config.DefaultCompanionModel
 	settings.CompanionSource = config.DefaultCompanionSource
-	next := alignCompanionModel(settings, modelcatalog.Snapshot{
+	next, notice := alignCompanionModel(settings, modelcatalog.Snapshot{
 		Models: []modelcatalog.Model{
 			{ID: "deepseek/deepseek-flash"},
 			{ID: "google/gemini-3.8-flash-tiered"},
 		},
 	})
+	if notice {
+		t.Fatal("keeping the account default should not raise a replacement notice")
+	}
 	if next.CompanionProvider != "tokenflux" || next.CompanionModel != "deepseek/deepseek-flash" {
 		t.Fatalf("companion default = %s/%s, want tokenflux/deepseek/deepseek-flash", next.CompanionProvider, next.CompanionModel)
 	}
 	if next.CompanionSource != "account" {
 		t.Fatalf("companion source = %q, want account", next.CompanionSource)
+	}
+}
+
+func TestAlignCompanionModelSkipsPersonalSource(t *testing.T) {
+	settings := config.DefaultSettings()
+	settings.CompanionSource = config.ModelSourcePersonal
+	settings.CompanionProvider = "tokenflux"
+	settings.CompanionModel = "my-personal-model"
+	next, notice := alignCompanionModel(settings, modelcatalog.Snapshot{
+		Models: []modelcatalog.Model{
+			{ID: "grok-4.6"},
+			{ID: "deepseek/deepseek-flash"},
+		},
+	})
+	if next.CompanionModel != "my-personal-model" || next.CompanionSource != "personal" {
+		t.Fatalf("personal companion model = %s/%s, want personal/my-personal-model", next.CompanionSource, next.CompanionModel)
+	}
+	if notice {
+		t.Fatal("a personal companion model must not be rewritten when the account catalog refreshes")
+	}
+}
+
+func TestAlignCompanionModelSkipsServiceSource(t *testing.T) {
+	settings := config.DefaultSettings()
+	settings.CompanionSource = "service"
+	settings.CompanionProvider = "custom-relay-deepseek"
+	settings.CompanionModel = "deepseek-chat"
+	next, notice := alignCompanionModel(settings, modelcatalog.Snapshot{
+		Models: []modelcatalog.Model{{ID: "grok-4.6"}},
+	})
+	if next.CompanionModel != "deepseek-chat" || next.CompanionProvider != "custom-relay-deepseek" {
+		t.Fatalf("service companion model changed: %s/%s", next.CompanionProvider, next.CompanionModel)
+	}
+	if notice {
+		t.Fatal("a service companion model must not be rewritten from the account catalog")
+	}
+}
+
+func TestAlignCompanionModelNoticesWhenAccountModelLeavesCatalog(t *testing.T) {
+	settings := config.DefaultSettings()
+	settings.CompanionSource = config.ModelSourceAccount
+	settings.CompanionProvider = "tokenflux"
+	settings.CompanionModel = "openai/gpt-4.1"
+	next, notice := alignCompanionModel(settings, modelcatalog.Snapshot{
+		Models: []modelcatalog.Model{
+			{ID: "grok-4.3"},
+			{ID: "grok-4.6"},
+		},
+	})
+	if next.CompanionModel != "grok-4.6" {
+		t.Fatalf("account companion model = %q, want grok-4.6", next.CompanionModel)
+	}
+	if !notice {
+		t.Fatal("an account companion model that left the catalog should raise a notice")
 	}
 }
 

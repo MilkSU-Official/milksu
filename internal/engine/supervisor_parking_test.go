@@ -261,21 +261,57 @@ func TestEvictionPrefersASidecarWithNoTurnInFlight(t *testing.T) {
 	}
 }
 
-// A turn that never reports completion must not let parked processes grow without bound.
-func TestHardLimitEvictsEvenABusySidecar(t *testing.T) {
+// A busy workspace stays parked even past the hard cap. Eviction only removes
+// idle sidecars; if none are idle, the busy set is left as-is.
+func TestHardLimitKeepsBusySidecars(t *testing.T) {
 	supervisor := NewSupervisor(nil)
 	oldest := time.Now().Add(-time.Hour)
+	var kept []*childProcess
 	for index := 0; index <= maxParkedSidecarsHardLimit; index++ {
 		workspace := fmt.Sprintf("/workspace/%d", index)
-		parkTestProcess(supervisor, workspace, oldest.Add(time.Duration(index)*time.Minute))
+		process := parkTestProcess(supervisor, workspace, oldest.Add(time.Duration(index)*time.Minute))
 		registerTestSession(supervisor, "session-"+workspace, KernelPi, workspace, true)
+		kept = append(kept, process)
+	}
+	before := supervisor.parkedCountLocked(KernelPi)
+
+	supervisor.evictParkedOverLimitLocked(KernelPi)
+
+	if got := supervisor.parkedCountLocked(KernelPi); got != before {
+		t.Fatalf("busy parked set = %d, want %d", got, before)
+	}
+	for _, process := range kept {
+		if process.retired.Load() {
+			t.Fatal("the hard limit must not stop a sidecar whose workspace is still busy")
+		}
+	}
+}
+
+func TestHardLimitEvictsIdleAndKeepsBusy(t *testing.T) {
+	supervisor := NewSupervisor(nil)
+	oldest := time.Now().Add(-time.Hour)
+	var busy *childProcess
+	var idle *childProcess
+	for index := 0; index <= maxParkedSidecarsHardLimit; index++ {
+		workspace := fmt.Sprintf("/workspace/%d", index)
+		process := parkTestProcess(supervisor, workspace, oldest.Add(time.Duration(index)*time.Minute))
+		working := index != maxParkedSidecarsHardLimit
+		registerTestSession(supervisor, "session-"+workspace, KernelPi, workspace, working)
+		if working && busy == nil {
+			busy = process
+		}
+		if !working {
+			idle = process
+		}
 	}
 
 	supervisor.evictParkedOverLimitLocked(KernelPi)
 
-	if supervisor.parkedCountLocked(KernelPi) > maxParkedSidecarsHardLimit {
-		t.Fatalf("the hard limit must bound the parked set, got %d",
-			supervisor.parkedCountLocked(KernelPi))
+	if busy.retired.Load() {
+		t.Fatal("a busy sidecar must stay when an idle one can be evicted")
+	}
+	if idle == nil || !idle.retired.Load() {
+		t.Fatal("an idle sidecar past the cap must be the one that is evicted")
 	}
 }
 

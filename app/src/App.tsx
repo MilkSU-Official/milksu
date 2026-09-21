@@ -8,6 +8,8 @@ import CodingToolBudgetDialog from '@/components/CodingToolBudgetDialog'
 import { useConversations } from '@/stores/conversationsStore'
 import { useLabJobs } from '@/stores/labJobsStore'
 import { invokeCommand, listenEvent } from '@/desktop'
+import { toast } from '@/lib/appToast'
+import { companionAccountModelAlignedNotice } from '@/lib/companionUserError'
 import type { CTFAgentWorkspaceHandoff } from '@/ctfTypes'
 import { useVulnerabilityDashboard, type VulnerabilityCodingTask } from '@/composables/useVulnerabilityDashboard'
 import { syncWindowChrome } from '@/lib/hostPlatform'
@@ -1410,6 +1412,7 @@ export default function App() {
     let unlistenWorkspaceRecords: (() => void) | undefined
     let unlistenRuntime: (() => void) | undefined
     let unlistenPluginTheme: (() => void) | undefined
+    let unlistenCompanionModel: (() => void) | undefined
 
     if (rendererSurface === 'companion' || rendererSurface === 'companion-chat') {
       void loadSettings().catch(() => {})
@@ -1461,6 +1464,9 @@ export default function App() {
       })
       unlistenPluginTheme = await listenEvent<ActivePluginTheme | null>('plugin-theme-changed', event => {
         setPluginTheme(normalizeActivePluginTheme(event.payload))
+      })
+      unlistenCompanionModel = await listenEvent('companion-model-aligned', () => {
+        toast(companionAccountModelAlignedNotice())
       })
       if (cancelled) return
 
@@ -1525,6 +1531,7 @@ export default function App() {
       unlistenWorkspaceRecords?.()
       unlistenRuntime?.()
       unlistenPluginTheme?.()
+      unlistenCompanionModel?.()
       if (typeof document !== 'undefined') {
         for (const property of documentPluginSurfaceProperties.current) document.documentElement.style.removeProperty(property)
         document.documentElement.classList.remove('plugin-surface-overlay-menu-active')

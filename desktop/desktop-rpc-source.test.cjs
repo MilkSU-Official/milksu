@@ -100,6 +100,19 @@ test('account credential synchronization uses only the Electron host source', ()
   assert.doesNotMatch(syncSource, /backend\.invoke\(/u)
 })
 
+test('oauth callback is routed to the instance that started login', () => {
+  assert.match(mainSource, /routeAccountCallback\(/u)
+  assert.match(mainSource, /writeAccountLoginClaim\(/u)
+  const openURL = sourceBetween("app.on('open-url'", "app.on('second-instance'")
+  assert.match(openURL, /deliverAccountCallback\(/u)
+  assert.doesNotMatch(openURL, /console\.(?:log|info|debug|error)\(/u)
+  assert.doesNotMatch(openURL, /handleCallback\(/u)
+  const second = sourceBetween("app.on('second-instance'", 'app.whenReady')
+  assert.match(second, /deliverAccountCallback\(/u)
+  assert.doesNotMatch(second, /console\.(?:log|info|debug|error)\(/u)
+  assert.doesNotMatch(second, /handleCallback\(/u)
+})
+
 test('renderer sender must be a registered window main frame at the app origin', () => {
   const senderSource = sourceBetween('function senderIsApp', 'function normalizeFilters')
 

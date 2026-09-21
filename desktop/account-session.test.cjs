@@ -7,12 +7,18 @@ const { promises: fs } = require('node:fs')
 const test = require('node:test')
 const {
   AccountSession,
+  accountCallbackForwardPlan,
   accountCallbackFromArgv,
+  accountLoginClaimPath,
   accountModelAuthorizationAction,
   accountModelAuthorizationRefreshRequired,
   accountRedirectURL,
   desktopProtocolClientRegistration,
   loadAccountConfig,
+  publicOAuthError,
+  readAccountLoginClaim,
+  routeAccountCallback,
+  writeAccountLoginClaim,
 } = require('./account-session.cjs')
 
 test('preserves account model authorization during transient account status failures', () => {
@@ -423,4 +429,57 @@ test('stores the account session locally without reading the legacy Keychain pay
   if (process.platform !== 'win32') {
     assert.equal((await fs.stat(path.join(root, 'account-session.json'))).mode & 0o777, 0o600)
   }
+})
+
+test('oauth callback stays with the instance that started login', () => {
+  assert.deepEqual(routeAccountCallback({
+    hasPendingLogin: true,
+    claim: { instanceId: 'other', pid: 42 },
+    selfPid: 7,
+  }), { action: 'accept' })
+  assert.deepEqual(routeAccountCallback({
+    hasPendingLogin: false,
+    claim: { instanceId: 'loop-1', pid: 42 },
+    selfPid: 7,
+  }), { action: 'forward', instanceId: 'loop-1', pid: 42 })
+  assert.deepEqual(routeAccountCallback({
+    hasPendingLogin: false,
+    claim: { instanceId: '', pid: 7 },
+    selfPid: 7,
+  }), { action: 'ignore' })
+  assert.equal(routeAccountCallback({ hasPendingLogin: false, claim: null, selfPid: 7 }).action, 'ignore')
+})
+
+test('login claim records the instance and not an oauth code', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'milksu-login-claim-'))
+  await writeAccountLoginClaim(dir, { instanceId: 'loop-1', pid: 42 })
+  const raw = await fs.readFile(accountLoginClaimPath(dir), 'utf8')
+  assert.doesNotMatch(raw, /code|token|verifier|secret/iu)
+  assert.deepEqual(await readAccountLoginClaim(dir), { instanceId: 'loop-1', pid: 42 })
+})
+
+test('callback forward plan keeps the code out of the environment', () => {
+  const callback = 'milksu://auth/callback?code=one-time'
+  const plan = accountCallbackForwardPlan({
+    execPath: '/usr/bin/electron',
+    argv: ['/usr/bin/electron', '/app/desktop/main.cjs'],
+    instanceId: 'loop-1',
+    callback,
+  })
+  assert.equal(plan.envPatch.MILKSU_INSTANCE_ID, 'loop-1')
+  assert.equal(Object.values(plan.envPatch).join(' ').includes('one-time'), false)
+  assert.equal(plan.args.at(-1), callback)
+  const daily = accountCallbackForwardPlan({
+    execPath: '/usr/bin/electron',
+    argv: ['/usr/bin/electron', '/app/desktop/main.cjs'],
+    instanceId: '',
+    callback,
+  })
+  assert.equal(daily.envPatch.MILKSU_INSTANCE_ID, '')
+})
+
+test('public oauth errors do not echo codes or callback urls', () => {
+  assert.equal(publicOAuthError('GitHub 授权码已失效，请重新登录'), 'GitHub 授权码已失效，请重新登录')
+  assert.equal(publicOAuthError('milksu://auth/callback?code=one-time'), '')
+  assert.equal(publicOAuthError('exchange failed code=one-time'), '')
 })

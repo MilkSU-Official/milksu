@@ -3,6 +3,7 @@ package main
 import (
 	"testing"
 
+	"github.com/MilkSU-Official/milksu/internal/companion"
 	"github.com/MilkSU-Official/milksu/internal/config"
 )
 
@@ -81,5 +82,14 @@ func TestCredentialWithdrawnSeparatesRemovalFromRotation(t *testing.T) {
 				t.Fatalf("credentialWithdrawn = %v, want %v", got, testCase.withdrawn)
 			}
 		})
+	}
+}
+
+func TestWithdrawnCredentialStopsCompanion(t *testing.T) {
+	runtime := companion.NewRuntime(companion.RuntimeOptions{})
+	app := &App{companion: runtime}
+	app.stopSidecarsHoldingWithdrawnCredential("settings saved")
+	if got := runtime.Status().Error; got != companion.CredentialWithdrawnError {
+		t.Fatalf("companion error = %q, want %q", got, companion.CredentialWithdrawnError)
 	}
 }
