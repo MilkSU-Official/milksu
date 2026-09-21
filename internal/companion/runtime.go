@@ -397,10 +397,9 @@ func (r *Runtime) resetCompanionSession() error {
 	}
 	settings := r.resolvedSettings()
 	selection := r.selection()
-	custom, authErr := engine.CompanionTurnAuth(settings)
-	if authErr != nil {
-		return authErr
-	}
+	// The process is already running, so a missing key must not skip the
+	// fresh-jsonl reset. Send and startLocked still refuse that key.
+	custom, _ := engine.CompanionTurnAuth(settings)
 	create := map[string]any{
 		"action":              "create_session",
 		"locale":              config.ResolvedUserInterfaceLocale(settings),
