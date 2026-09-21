@@ -1117,7 +1117,7 @@ const contextSidebarCss = `
 .agent-sidebar {
   background: var(--sidebar);
   color: var(--foreground);
-  transition: width 280ms cubic-bezier(0.16, 1, 0.3, 1);
+  transition: width var(--motion-slow) var(--ease-drawer);
 }
 .agent-sidebar.is-resizing { transition: none; }
 .agent-sidebar__resize {
@@ -1142,6 +1142,29 @@ const contextSidebarCss = `
 .agent-sidebar-row:hover { background: var(--hover-2); }
 .agent-sidebar-row.is-current,
 .agent-sidebar-row[aria-current='page'] { background: var(--hover-2); }
+
+/*
+ * Hover and selection fills move at the shared fast step instead of snapping,
+ * and a press deepens the fill on pointer-down. These rows are full width, so
+ * the feedback is the fill rather than a scale.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .agent-sidebar__workspace,
+  .agent-sidebar__icon,
+  .agent-sidebar__expand,
+  .agent-sidebar-row,
+  .agent-sidebar-item {
+    transition: background-color var(--motion-fast) ease, box-shadow var(--motion-fast) ease;
+  }
+
+  .agent-sidebar__workspace:hover:active,
+  .agent-sidebar__icon:hover:active,
+  .agent-sidebar__expand:hover:active,
+  .agent-sidebar-row:hover:active,
+  .agent-sidebar .agent-sidebar-item:hover:active {
+    background: var(--pressed-row);
+  }
+}
 .agent-sidebar .agent-sidebar-item:hover,
 .agent-sidebar .agent-sidebar-item.is-current,
 .agent-sidebar .agent-sidebar-item[data-ui-selected] { background: var(--hover-2); }

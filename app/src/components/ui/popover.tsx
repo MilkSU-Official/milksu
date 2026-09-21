@@ -21,6 +21,7 @@ function PopoverContent({
       <PopoverPrimitive.Content
         align={align}
         sideOffset={sideOffset}
+        data-slot="popover-content"
         className={cn(
           'z-50 w-72 rounded-md border border-border bg-popover p-3 text-popover-foreground',
           className,

@@ -20,6 +20,8 @@ export function Toaster() {
             type="button"
             className={cn(
               'pointer-events-auto w-full rounded-md border border-border bg-popover px-3 py-2 text-left text-sm text-popover-foreground',
+              'transition-[opacity,translate] duration-[180ms] ease-[var(--ease-out)] starting:translate-y-2 starting:opacity-0',
+              item.leaving && 'pointer-events-none translate-y-2 opacity-0',
               item.tone === 'destructive' && 'border-destructive-border text-destructive',
             )}
             onClick={() => dismissToast(item.id)}

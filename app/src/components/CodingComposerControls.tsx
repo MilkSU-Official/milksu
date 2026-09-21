@@ -38,7 +38,7 @@ const CONTROL_STYLES = `
   border-radius: 8px;
   font-size: 13px;
   line-height: 20px;
-  transition: background-color 100ms ease, color 100ms ease;
+  transition: background-color var(--motion-fast) ease, color var(--motion-fast) ease, transform var(--motion-fast) var(--ease-out);
 }
 .composer-control[data-slot='select-trigger'] {
   font-size: var(--text-body, 0.75rem) !important;

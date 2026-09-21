@@ -76,6 +76,30 @@
   margin-inline: 0;
 }
 
+/*
+ * A turn lands instead of teleporting. Kept short and opacity-led: this fires
+ * for every message in a conversation when one is opened, so anything larger
+ * reads as the transcript performing rather than settling. `scale` and
+ * `translate` are separate properties, so this composes with any transform a
+ * descendant or utility already sets on the turn.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  [data-agent-conversation] .agent-turn {
+    animation: agent-turn-in var(--motion-base) var(--ease-out) both;
+  }
+}
+
+@keyframes agent-turn-in {
+  from {
+    opacity: 0;
+    translate: 0 4px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
 [data-agent-conversation] .agent-time {
   display: flex;
   align-items: center;
@@ -271,7 +295,7 @@
 
 [data-agent-conversation] .agent-think__chevron {
   flex-shrink: 0;
-  transition: transform 300ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: transform var(--motion-base) var(--ease-out);
 }
 
 [data-agent-conversation] .agent-think__chevron--open {
@@ -284,8 +308,8 @@
   grid-template-rows: 0fr;
   opacity: 0;
   transition:
-    grid-template-rows 300ms cubic-bezier(0.23, 1, 0.32, 1),
-    opacity 300ms cubic-bezier(0.23, 1, 0.32, 1);
+    grid-template-rows var(--motion-slow) var(--ease-out),
+    opacity var(--motion-slow) var(--ease-out);
 }
 
 [data-agent-conversation] .agent-think__more[data-open='true'] {
@@ -722,6 +746,22 @@
   background: color-mix(in srgb, var(--muted) 70%, transparent);
 }
 
+/*
+ * These rows are full width, so press feedback is the fill deepening on
+ * pointer-down rather than a scale. A tool row is the most-clicked surface in
+ * the transcript; answering on press is what keeps it feeling direct.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  [data-agent-conversation] .agent-chip {
+    transition: background-color var(--motion-fast) ease;
+  }
+
+  [data-agent-conversation] .tool-activity-entry:active > .agent-chip,
+  [data-agent-conversation] .agent-chip:active {
+    background: color-mix(in srgb, var(--muted) 70%, transparent);
+  }
+}
+
 [data-agent-conversation] .agent-chip::-webkit-details-marker {
   display: none;
 }
@@ -739,7 +779,7 @@
 
 [data-agent-conversation] .agent-chip__glyph,
 [data-agent-conversation] .agent-chip__chevron {
-  transition: opacity 120ms ease, transform 150ms ease;
+  transition: opacity var(--motion-fast) ease, transform var(--motion-base) var(--ease-out);
 }
 
 [data-agent-conversation] .agent-chip__chevron {
@@ -970,6 +1010,32 @@
   background: color-mix(in srgb, var(--muted) 70%, var(--card));
 }
 
+/*
+ * The panel swaps in where the capsule was, so it arrives from that anchor
+ * instead of appearing on top of it. Exiting is a plain unmount.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  [data-agent-conversation] .agent-working__capsule {
+    transition: background-color var(--motion-fast) ease, transform var(--motion-fast) var(--ease-out);
+  }
+
+  [data-agent-conversation] .agent-working__capsule:active {
+    transform: scale(0.97);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-agent-conversation] .agent-working__panel {
+    transform-origin: bottom center;
+    transition: opacity var(--motion-base) var(--ease-out), scale var(--motion-base) var(--ease-out);
+
+    @starting-style {
+      opacity: 0;
+      scale: 0.96;
+    }
+  }
+}
+
 [data-agent-conversation] .agent-working__panel {
   position: absolute;
   left: 50%;
@@ -1186,9 +1252,7 @@
   border-radius: 22px;
   background: var(--card);
   box-shadow: var(--agent-float-shadow);
-  transition:
-    border-radius 300ms cubic-bezier(0.23, 1, 0.32, 1),
-    background-color 300ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: background-color var(--motion-base) ease;
 }
 
 [data-agent-conversation] .agent-task-row--child {
@@ -1257,7 +1321,7 @@
 
 [data-agent-conversation] .agent-task-row__chevron svg {
   transform: rotate(180deg);
-  transition: transform 300ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: transform var(--motion-base) var(--ease-out);
 }
 
 [data-agent-conversation] .agent-task-row[data-open='true'] .agent-task-row__chevron svg {
@@ -1377,9 +1441,9 @@
   visibility: hidden;
   opacity: 0;
   transition:
-    grid-template-rows 300ms cubic-bezier(0.23, 1, 0.32, 1),
-    opacity 300ms cubic-bezier(0.23, 1, 0.32, 1),
-    visibility 0s linear 300ms;
+    grid-template-rows var(--motion-slow) var(--ease-out),
+    opacity var(--motion-slow) var(--ease-out),
+    visibility 0s linear var(--motion-slow);
 }
 
 [data-agent-conversation] .agent-task-rows__more[data-open='true'] {
@@ -1388,8 +1452,8 @@
   visibility: visible;
   opacity: 1;
   transition:
-    grid-template-rows 300ms cubic-bezier(0.23, 1, 0.32, 1),
-    opacity 300ms cubic-bezier(0.23, 1, 0.32, 1),
+    grid-template-rows var(--motion-slow) var(--ease-out),
+    opacity var(--motion-slow) var(--ease-out),
     visibility 0s;
 }
 
@@ -1402,7 +1466,7 @@
 }
 
 [data-agent-conversation] .agent-task-rows__more[data-open='true'] .agent-task-row--child {
-  animation: agent-fade-up 450ms cubic-bezier(0.23, 1, 0.32, 1) both;
+  animation: agent-fade-up 200ms var(--ease-out) both;
 }
 
 @keyframes agent-task-spin {
@@ -1486,7 +1550,7 @@
   background: var(--background);
   color: var(--foreground);
   border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-  animation: agent-chrome-in-y 280ms cubic-bezier(0.16, 1, 0.3, 1);
+  animation: agent-chrome-in-y var(--motion-base) var(--ease-out);
 }
 
 @keyframes agent-chrome-in-y {

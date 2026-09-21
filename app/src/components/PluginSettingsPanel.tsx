@@ -443,7 +443,7 @@ const pluginSettingsCss = `
 .plugin-settings-grid { display: grid; gap: 1.25rem; }
 .plugin-settings-shell { background-color: var(--card); color: var(--card-foreground); }
 .plugin-settings-list { background-color: color-mix(in srgb, var(--muted) 34%, var(--card)); }
-.plugin-settings-row { background-color: transparent; color: var(--foreground); transition: background-color 120ms ease, box-shadow 120ms ease; }
+.plugin-settings-row { background-color: transparent; color: var(--foreground); transition: background-color var(--motion-fast) ease, box-shadow var(--motion-fast) ease; }
 .plugin-settings-row:hover { background-color: var(--overlay-hover-light); }
 .plugin-settings-row.is-selected { background-color: var(--overlay-active); box-shadow: inset 3px 0 0 var(--brand); }
 .plugin-settings-icon, .plugin-settings-frame { background-color: var(--background); }

@@ -62,6 +62,22 @@ html[data-conversation-font='system'] { --font-conversation: var(--font-stack-sy
   --font-weight-bold: 700;
 
   --radius: 8px;
+
+  /*
+   * Motion tokens. Three curves and three durations cover every product
+   * surface. `ease` stays in use for pure color changes. Surfaces should
+   * reference these instead of typing their own cubic-bezier or millisecond
+   * value; see the motion section in AGENTS.md for when to use which.
+   */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --motion-fast: 120ms;
+  --motion-base: 180ms;
+  --motion-slow: 260ms;
+  /* Pressed fill for full-width rows, which deepen instead of scaling. */
+  --pressed-row: color-mix(in srgb, var(--hover-2) 88%, var(--foreground) 12%);
+
   --text-caption: calc(var(--ui-font-size) * 11 / 13);
   --text-caption--line-height: calc(var(--ui-font-size) * 16 / 13);
   --text-caption--letter-spacing: 0;
@@ -676,8 +692,26 @@ body {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  [data-ui-selected] {
-    transition: background-color 150ms ease, border-color 150ms ease;
+  /*
+   * The transition belongs to the resting surface, not to `[data-ui-selected]`.
+   * On the selected state alone it animated the row arriving at the selection
+   * and snapped the one leaving it.
+   */
+  [data-ui-selected],
+  .tactical-row {
+    transition: background-color var(--motion-fast) ease, border-color var(--motion-fast) ease;
+  }
+}
+
+/*
+ * Press feedback. Feedback belongs on pointer-down so a surface answers before
+ * the click resolves. Full-width rows deepen their fill instead of scaling,
+ * which is how a native macOS sidebar reads.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .tactical-row:hover:active,
+  .tactical-row:active {
+    background: var(--pressed-row);
   }
 }
 
@@ -882,6 +916,61 @@ pre,
 [data-slot="hover-card-content"],
 .tactical-floating-surface {
   border-radius: 8px;
+}
+
+/*
+ * Overlay surfaces arrive from their trigger; modals stay centred.
+ *
+ * These animate the `scale` property rather than `transform`: Radix positions
+ * popper content with an inline transform, and a stylesheet transform would lose
+ * to it. `transform-origin` is the variable Radix already computes for the
+ * content, so a menu grows out of the control that opened it.
+ */
+[data-slot='popover-content'] {
+  transform-origin: var(--radix-popover-content-transform-origin, center);
+}
+
+[data-slot='dropdown-menu-content'],
+[data-slot='dropdown-menu-sub-content'] {
+  transform-origin: var(--radix-dropdown-menu-content-transform-origin, center);
+}
+
+[data-slot='select-content'] {
+  transform-origin: var(--radix-select-content-transform-origin, center);
+}
+
+[data-slot='tooltip-content'] {
+  transform-origin: var(--radix-tooltip-content-transform-origin, center);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-slot='popover-content'],
+  [data-slot='dropdown-menu-content'],
+  [data-slot='dropdown-menu-sub-content'],
+  [data-slot='select-content'],
+  [data-slot='tooltip-content'],
+  [data-slot='dialog-content'],
+  [data-slot='dialog-overlay'] {
+    transition: opacity var(--motion-base) var(--ease-out), scale var(--motion-base) var(--ease-out);
+  }
+
+  [data-slot='popover-content'][data-state='closed'],
+  [data-slot='dropdown-menu-content'][data-state='closed'],
+  [data-slot='dropdown-menu-sub-content'][data-state='closed'],
+  [data-slot='select-content'][data-state='closed'],
+  [data-slot='tooltip-content'][data-state='closed'] {
+    opacity: 0;
+    scale: 0.97;
+  }
+
+  [data-slot='dialog-content'][data-state='closed'] {
+    opacity: 0;
+    scale: 0.98;
+  }
+
+  [data-slot='dialog-overlay'][data-state='closed'] {
+    opacity: 0;
+  }
 }
 
 /* Plugin/v1 button surface layering.

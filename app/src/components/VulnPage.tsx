@@ -973,7 +973,7 @@ export default function VulnPage({
       )}
       {dock}
       <style>{`
-        .vuln-row { position: relative; cursor: default; transition: background-color 140ms ease; }
+        .vuln-row { position: relative; cursor: default; transition: background-color var(--motion-fast) ease; }
         .vuln-row-selected { background: var(--hover-2); }
         .cve-search-dialog { max-height: min(760px, calc(100vh - 3rem)); overflow: hidden; }
         .cve-search-results { max-height: min(470px, calc(100vh - 17rem)); overflow: auto; }

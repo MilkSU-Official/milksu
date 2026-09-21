@@ -41,6 +41,7 @@ export default defineConfig({
             { text: 'Role Packages', link: '/developer/role-packages' },
             { text: '插件实验性使用说明', link: '/developer/plugin-user-guide' },
             { text: '插件 v1 技术契约', link: '/developer/plugin-framework' },
+            { text: '动效', link: '/developer/motion' },
           ],
         },
         {

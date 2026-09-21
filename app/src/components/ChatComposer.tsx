@@ -202,8 +202,9 @@ const COMPOSER_STYLES = `
   line-height: 20px;
   font-weight: 500;
   color: var(--muted-foreground);
-  transition: background-color 100ms ease, color 100ms ease;
+  transition: background-color var(--motion-fast) ease, color var(--motion-fast) ease, transform var(--motion-fast) var(--ease-out);
 }
+.chat-composer__chip:active:not(:disabled) { transform: scale(0.97); }
 .chat-composer__chip:hover:not(:disabled),
 .chat-composer__chip[aria-expanded='true'] { background: var(--btn-ghost-hover); }
 .chat-composer__chip:disabled { opacity: 0.55; }

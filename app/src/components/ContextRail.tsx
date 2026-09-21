@@ -95,7 +95,7 @@ const contextRailCss = `
   border-left: 1px solid var(--border);
   background: var(--background);
   color: var(--foreground);
-  animation: agent-chrome-in-x 200ms ease-out;
+  animation: agent-chrome-in-x var(--motion-base) var(--ease-out);
 }
 
 .context-rail[data-panel-size='compact'],

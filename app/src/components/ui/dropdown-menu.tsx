@@ -19,6 +19,7 @@ function DropdownMenuContent({
     <DropdownMenuPrimitive.Portal>
       <DropdownMenuPrimitive.Content
         sideOffset={sideOffset}
+        data-slot="dropdown-menu-content"
         className={cn(
           'z-50 min-w-32 overflow-hidden rounded-md border border-border bg-popover p-1 text-popover-foreground',
           className,
