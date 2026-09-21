@@ -378,8 +378,14 @@ func decodeTranscriptLine(line []byte) (TranscriptEntry, bool) {
 	if entry.ID == "" {
 		entry.ID = fmt.Sprintf("%s:%s", entry.Type, entry.Timestamp)
 	}
-	if looksLikeCompanionAbort(entry.Text) && strings.TrimSpace(entry.Error) == "" {
-		entry.Error = strings.TrimSpace(entry.Text)
+	if looksLikeCompanionAbort(entry.Text) {
+		if strings.TrimSpace(entry.Error) == "" {
+			entry.Error = strings.TrimSpace(entry.Text)
+		}
+		entry.Text = ""
+	}
+	if looksLikeCompanionAbort(entry.Error) {
+		// Keep Error for the phone to map to 「这一轮已取消」; never leave harness English in Text.
 		entry.Text = ""
 	}
 	if looksLikeCompanionDebugJSON(entry.Text) {

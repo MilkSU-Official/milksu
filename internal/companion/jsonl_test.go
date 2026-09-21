@@ -94,6 +94,47 @@ func TestTranscriptKeepsAssistantErrorAndSkipsBareTypeNames(t *testing.T) {
 	}
 }
 
+func TestTranscriptHidesToolResultsAndSettingsJSON(t *testing.T) {
+	dir := t.TempDir()
+	lines := []string{
+		`{"type":"session","id":"companion","timestamp":"2026-01-01T00:00:00Z"}`,
+		`{"type":"message","id":"u1","timestamp":"2026-01-01T00:00:01Z","message":{"role":"user","content":[{"type":"text","text":"读一下不含密钥的设置摘要"}]}}`,
+		`{"type":"message","id":"tr1","timestamp":"2026-01-01T00:00:02Z","message":{"role":"toolResult","content":[{"type":"text","text":"{\"ok\":true,\"settings\":{\"companion_float_enabled\":true,\"relay\":{\"url\":\"https://tokenflux.dev/v1\"}}}"}]}}`,
+		`{"type":"message","id":"a1","timestamp":"2026-01-01T00:00:03Z","message":{"role":"assistant","content":[{"type":"thinking","thinking":"先读设置。"},{"type":"toolCall","name":"companion_app","text":"{\"action\":\"get_settings\"}"},{"type":"text","text":"界面语言是简体中文。"}]}}`,
+		`{"type":"message","id":"u2","timestamp":"2026-01-01T00:00:04Z","message":{"role":"user","content":[{"type":"text","text":"看板列一下当前会话标题"}]}}`,
+		`{"type":"message","id":"a2","timestamp":"2026-01-01T00:00:05Z","message":{"role":"assistant","content":[{"type":"text","text":"Request aborted"}],"stopReason":"error","errorMessage":"Request aborted"}}`,
+		`{"type":"message","id":"board","timestamp":"2026-01-01T00:00:06Z","message":{"role":"custom","display":false,"content":[{"type":"text","text":"{\"sessions\":[]}" }]}}`,
+	}
+	path := writeCompanionJSONL(t, dir, lines)
+	page, err := ReadTranscriptPage(path, 20, nil, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Entries) != 4 {
+		t.Fatalf("entries: %#v", page.Entries)
+	}
+	if page.Entries[0].Role != "user" || page.Entries[0].Text != "读一下不含密钥的设置摘要" {
+		t.Fatalf("user settings prompt: %#v", page.Entries[0])
+	}
+	if page.Entries[1].Role != "assistant" || page.Entries[1].Text != "界面语言是简体中文。" {
+		t.Fatalf("assistant summary must keep prose and drop toolCall JSON: %#v", page.Entries[1])
+	}
+	if strings.Contains(page.Entries[1].Text, "companion_float_enabled") || strings.Contains(page.Entries[1].Text, "get_settings") {
+		t.Fatalf("assistant leaked tool JSON: %#v", page.Entries[1])
+	}
+	if page.Entries[2].Text != "看板列一下当前会话标题" {
+		t.Fatalf("board prompt: %#v", page.Entries[2])
+	}
+	if page.Entries[3].Text != "" || !strings.Contains(page.Entries[3].Error, "Request aborted") {
+		t.Fatalf("abort must move English harness text into error: %#v", page.Entries[3])
+	}
+	for _, entry := range page.Entries {
+		if strings.Contains(entry.Text, "tokenflux.dev") || strings.Contains(entry.Text, "companion_float_enabled") {
+			t.Fatalf("settings dump leaked: %#v", entry)
+		}
+	}
+}
+
 func TestArchiveAndDeleteCompanionSegment(t *testing.T) {
 	dir := t.TempDir()
 	path := writeCompanionJSONL(t, dir, []string{

@@ -22,3 +22,23 @@ test("formatCompanionToolResult never returns [object Object]", () => {
   assert.doesNotMatch(text, /\[object Object\]/);
   assert.equal(formatCompanionToolResult({ content: [{ foo: 1 }, { bar: 2 }] }), "");
 });
+
+test("formatCompanionToolResult hides get_settings JSON dumps", () => {
+  const dumped = formatCompanionToolResult({
+    content: [{
+      type: "text",
+      text: JSON.stringify({
+        ok: true,
+        settings: {
+          companion_float_enabled: true,
+          relay: { url: "https://tokenflux.dev/v1" },
+        },
+      }),
+    }],
+  });
+  assert.equal(dumped, "");
+  assert.doesNotMatch(
+    formatCompanionToolResult({ content: [{ type: "text", text: "会话 A" }] }),
+    /companion_float_enabled/,
+  );
+});

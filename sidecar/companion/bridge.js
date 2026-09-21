@@ -269,13 +269,32 @@ function formatCompanionToolInput(toolName, args) {
   return `${name} ${detail.slice(0, 120)}`;
 }
 
+function companionToolEventText(text) {
+  const value = String(text ?? "").trim();
+  if (!value || /\[object Object\]/i.test(value)) return "";
+  // Host tools return JSON.stringify(result) for the model. That dump must
+  // stay in toolResult content, never in phone process rows or events.
+  if (/companion_float_enabled|tokenflux\.dev\/v1/i.test(value) && /[{[]/.test(value)) {
+    return "";
+  }
+  if (/^[{\[]/.test(value)) {
+    try {
+      const parsed = JSON.parse(value);
+      if (parsed && typeof parsed === "object") return "";
+    } catch {
+      if (/"settings"\s*:|"ok"\s*:\s*true|"relay"\s*:/.test(value)) return "";
+    }
+  }
+  return value;
+}
+
 /** Pi tool results use content blocks; never String(array) → [object Object]. */
 export function formatCompanionToolResult(result) {
-  if (typeof result === "string") return result.trim();
+  if (typeof result === "string") return companionToolEventText(result);
   if (!result || typeof result !== "object") return "";
-  if (typeof result.content === "string") return result.content.trim();
+  if (typeof result.content === "string") return companionToolEventText(result.content);
   if (Array.isArray(result.content)) {
-    return result.content
+    return companionToolEventText(result.content
       .map((item) => {
         if (typeof item === "string") return item;
         if (item && typeof item === "object" && typeof item.text === "string") return item.text;
@@ -283,10 +302,10 @@ export function formatCompanionToolResult(result) {
       })
       .filter(Boolean)
       .join("\n")
-      .trim();
+      .trim());
   }
-  if (typeof result.details === "string") return result.details.trim();
-  if (typeof result.text === "string") return result.text.trim();
+  if (typeof result.details === "string") return companionToolEventText(result.details);
+  if (typeof result.text === "string") return companionToolEventText(result.text);
   return "";
 }
 

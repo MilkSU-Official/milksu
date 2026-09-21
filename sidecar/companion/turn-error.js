@@ -3,6 +3,12 @@ export function unwrapCompanionMessage(row) {
   return row;
 }
 
+/** In-flight Pi HTTP abort (AbortCompanionTurn / StopCompanion / recover). */
+export function companionRequestAborted(reason) {
+  return /abort\s*error|request aborted|this operation was aborted|the operation was aborted|operation was aborted/i
+    .test(String(reason ?? ""));
+}
+
 function toolCallIdsFromAssistant(message) {
   if (message?.role !== "assistant" || !Array.isArray(message.content)) return [];
   return message.content
@@ -87,6 +93,10 @@ export function companionAssistantTurnError(messages) {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = unwrapCompanionMessage(messages[index]);
     if (message?.role !== "assistant") continue;
+    if (companionRequestAborted(message.errorMessage) || companionRequestAborted(message.stopReason)) {
+      // AbortCompanionTurn / recover teardown. Phone maps this to 「这一轮已取消」.
+      return "";
+    }
     if (message.stopReason === "error") {
       return String(message.errorMessage ?? "").trim() || "companion model call failed";
     }
