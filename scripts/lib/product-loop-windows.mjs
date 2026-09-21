@@ -123,6 +123,76 @@ function keepPidsFrom(options = {}, rows = []) {
   return descendantPids(rows, roots)
 }
 
+export function ancestorPids(rows, pids, repoRoot = '') {
+  const byPid = new Map(rows.map(row => [row.pid, row]))
+  const keep = new Set()
+  for (const raw of pids || []) {
+    let pid = Number(raw)
+    const seen = new Set()
+    while (Number.isInteger(pid) && pid > 1 && !seen.has(pid)) {
+      seen.add(pid)
+      keep.add(pid)
+      const row = byPid.get(pid)
+      if (!row?.ppid || row.ppid <= 1) break
+      const parent = byPid.get(row.ppid)
+      if (!parent) break
+      const kind = classifyMilkSUHostCommand(parent.command, repoRoot)
+      const command = normalizeHostCommand(parent.command)
+      const harness = /(?:^|\/)(npm|node|electron)(?:\.exe)?(?:\s|$)/i.test(command)
+        || (repoRoot && command.toLowerCase().includes(String(repoRoot).toLowerCase()))
+      if (kind === 'packaged-stable' || kind === 'cursor' || kind === 'beta' || kind === 'helper') break
+      if (!harness && kind === 'other') break
+      pid = row.ppid
+    }
+  }
+  return keep
+}
+
+export function mergeKeepPids(processKeep, portKeep, rows = [], repoRoot = '') {
+  const roots = new Set()
+  for (const pid of [...(processKeep || []), ...(portKeep || [])]) {
+    const value = Number(pid)
+    if (Number.isInteger(value) && value > 0) roots.add(value)
+  }
+  return descendantPids(rows, ancestorPids(rows, roots, repoRoot))
+}
+
+async function pidsListeningOnPorts(ports) {
+  const wanted = [...ports].map(Number).filter(port => Number.isInteger(port) && port > 0)
+  if (!wanted.length) return new Set()
+  if (process.platform === 'win32') {
+    try {
+      const { stdout } = await execFileAsync('powershell.exe', [
+        '-NoProfile',
+        '-Command',
+        `Get-NetTCPConnection -LocalAddress 127.0.0.1 -State Listen -ErrorAction SilentlyContinue | Where-Object { @(${wanted.join(',')}) -contains $_.LocalPort } | ForEach-Object { $_.OwningProcess }`,
+      ], {
+        encoding: 'utf8',
+        timeout: 8_000,
+      })
+      return new Set(String(stdout).split(/\s+/).map(Number).filter(pid => Number.isInteger(pid) && pid > 0))
+    } catch {
+      return new Set()
+    }
+  }
+  const keep = new Set()
+  for (const port of wanted) {
+    try {
+      const { stdout } = await execFileAsync('lsof', ['-nP', `-iTCP:${port}`, '-sTCP:LISTEN'], {
+        encoding: 'utf8',
+        timeout: 5_000,
+      })
+      for (const line of stdout.split('\n')) {
+        const match = line.trim().match(/^\S+\s+(\d+)\s+/)
+        if (match) keep.add(Number(match[1]))
+      }
+    } catch {
+      // Port already gone.
+    }
+  }
+  return keep
+}
+
 async function listProcessRows() {
   if (process.platform === 'win32') {
     const { stdout } = await execFileAsync('powershell.exe', [
@@ -146,7 +216,13 @@ async function listProcessRows() {
 
 export async function listMilkSUHostProcesses(options = {}) {
   const rows = await listProcessRows().catch(() => [])
-  const keepPids = keepPidsFrom(options, rows)
+  const portPids = await pidsListeningOnPorts(keepPortsFrom(options))
+  const keepPids = mergeKeepPids(
+    keepPidsFrom(options, rows),
+    portPids,
+    rows,
+    options.repoRoot || repositoryRoot,
+  )
   const hosts = selectForeignMilkSUHosts(rows, {
     repoRoot: options.repoRoot || repositoryRoot,
     keepPids: new Set(),

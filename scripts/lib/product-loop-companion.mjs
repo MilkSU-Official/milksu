@@ -104,6 +104,11 @@ export function companionIsReady(status) {
   return { ok: true, reason: '' }
 }
 
+export function companionSurfaceMissingKey(snapshot = {}) {
+  const text = [snapshot.text, ...(snapshot.aria || [])].join('\n')
+  return /No API key for |没有可用的.*(?:API Key|密钥)|中转站还不能发/i.test(text)
+}
+
 export function companionHostToolError(text) {
   return /companion host request timed out|companion host request failed|companion host cancelled|turn aborted|unknown companion host request|companion-host-\d+/i
     .test(String(text ?? ''))

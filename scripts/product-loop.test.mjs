@@ -9,6 +9,7 @@ import { CdpSession, classifyTurnEvents, eventSessionId, eventToolName, eventTyp
 import {
   classifyMilkSUHostCommand,
   describeExclusiveWindows,
+  mergeKeepPids,
   parsePsTable,
   selectForeignMilkSUHosts,
 } from './lib/product-loop-windows.mjs'
@@ -56,6 +57,7 @@ import {
   FIRST_USE_RELAY_ID,
   firstUseHasCredentialPath,
   firstUseModuleResult,
+  firstUseSessionHandoff,
   firstUseSourcesReady,
   inspectLoginPage,
   mergeCustomRelay,
@@ -65,6 +67,7 @@ import {
   companionFuzzAppPrompts,
   companionFuzzDispatchPrompts,
   companionIsReady,
+  companionSurfaceMissingKey,
   companionRelayPrefix,
   companionTranscriptClean,
   companionDefaultSkinVisible,
@@ -270,6 +273,8 @@ test('companion product facts come from a real turn, not RPC shape checks', () =
   assert.equal(companionFuzzAppPrompts().every(text => !/companion_dispatch|companion_app/.test(text)), true)
   assert.equal(companionIsReady({ ready: true }).ok, true)
   assert.equal(companionIsReady({ ready: false, error: 'sidecar down' }).ok, false)
+  assert.equal(companionSurfaceMissingKey({ text: 'No API key for tokenflux/deepseek/deepseek-flash' }), true)
+  assert.equal(companionSurfaceMissingKey({ text: '桌宠已就绪' }), false)
   assert.equal(companionTurnSettled([{ type: 'assistant.settled' }]), true)
   assert.equal(companionTurnErrored([{ type: 'engine.error' }]), true)
   assert.equal(companionHostToolError('companion host request timed out (board)'), true)
@@ -403,6 +408,23 @@ test('exclusive window classification keeps only MilkSU hosts', () => {
   ].join('\n'))
   const foreign = selectForeignMilkSUHosts(rows, { repoRoot: repo, keepPids: new Set([44]) })
   assert.deepEqual(foreign.map(row => row.pid), [22])
+  const helperRows = parsePsTable([
+    '11 1 /Applications/Cursor.app/Contents/MacOS/Cursor',
+    '22 1 /Applications/MilkSU.app/Contents/MacOS/MilkSU',
+    `90 1 /usr/bin/npm run desktop:start`,
+    `44 90 ${repo}/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron ${repo}/desktop`,
+    `46 44 ${repo}/node_modules/electron/dist/Electron.app/Contents/Frameworks/Electron Helper.app/Contents/MacOS/Electron Helper`,
+  ].join('\n'))
+  const keptByHelperPort = mergeKeepPids(new Set(), new Set([46]), helperRows, repo)
+  assert.equal(keptByHelperPort.has(46), true)
+  assert.equal(keptByHelperPort.has(44), true)
+  assert.equal(keptByHelperPort.has(90), true)
+  assert.equal(selectForeignMilkSUHosts(helperRows, { repoRoot: repo, keepPids: keptByHelperPort }).map(row => row.pid).join(','), '22')
+  const keptByPort = mergeKeepPids(new Set([9]), new Set([44]), rows)
+  assert.equal(keptByPort.has(44), true)
+  assert.equal(keptByPort.has(9), true)
+  const stillForeign = selectForeignMilkSUHosts(rows, { repoRoot: repo, keepPids: keptByPort })
+  assert.deepEqual(stillForeign.map(row => row.pid), [22])
   assert.equal(describeExclusiveWindows({ closed: 2, remaining: 1, closedKinds: ['日常安装包', '残留 Electron'] }), '窗口关掉 2 扇（日常安装包、残留 Electron），只留测试窗')
   assert.equal(describeExclusiveWindows({ closed: 0, remaining: 1 }), '窗口只留测试窗')
 })
@@ -802,6 +824,10 @@ test('first-use cannot PASS on login-gate and login-skip-local alone', () => {
   ]
   assert.equal(firstUseHasCredentialPath(githubFailRelayOk), true)
   assert.equal(firstUseModuleResult(githubFailRelayOk), 'FAIL')
+  const handoff = firstUseSessionHandoff(null, 'plfu-dead-cdp', verifiedRelayOnly, true)
+  assert.equal(handoff.instanceId, 'plfu-dead-cdp')
+  assert.equal(handoff.sourcesReady, true)
+  assert.equal(handoff.driver, null)
 })
 
 test('empty CUSTOM_RELAY_MODELS on official TokenFlux uses the catalog id', () => {

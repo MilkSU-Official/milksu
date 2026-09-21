@@ -510,36 +510,47 @@ export class GuiDriver {
       return false
     }
     this.preferredPort = this.target.port
+    const bound = await this.bindRuntime()
     this.windowClaim = await keepExclusiveMilkSUWindow({ driver: this, log: true })
-    return this.bindRuntime()
+    if (!this.cdpAlive()) {
+      this.gaps.push('独立窗口刚附着就被清窗关掉了')
+      return false
+    }
+    return bound
   }
 
   async bindRuntime() {
     this.cdp = new CdpSession(this.target.webSocketDebuggerUrl)
-    await this.cdp.open()
-    const hasRuntime = await this.cdp.evaluate('Boolean(window.milksu && window.milksu.invoke)')
-    if (!hasRuntime) {
-      this.cdp.close()
+    try {
+      await this.cdp.open()
+      const hasRuntime = await this.cdp.evaluate('Boolean(window.milksu && window.milksu.invoke)')
+      if (!hasRuntime) {
+        this.cdp.close()
+        return false
+      }
+      await this.cdp.evaluate(`(() => {
+        const loop = window.__milksuProductLoop || (window.__milksuProductLoop = { events: [], companionEvents: [] });
+        loop.companionEvents = loop.companionEvents || [];
+        if (!loop.engineBound) {
+          window.milksu.onEvent('engine-event', value => {
+            loop.events.push(value);
+          });
+          loop.engineBound = true;
+        }
+        if (!loop.companionBound) {
+          window.milksu.onEvent('companion-event', value => {
+            loop.companionEvents.push(value);
+          });
+          loop.companionBound = true;
+        }
+        return true;
+      })()`)
+      return true
+    } catch (error) {
+      this.gaps.push(error instanceof Error ? error.message : 'CDP WebSocket failed')
+      this.cdp?.close()
       return false
     }
-    await this.cdp.evaluate(`(() => {
-      const loop = window.__milksuProductLoop || (window.__milksuProductLoop = { events: [], companionEvents: [] });
-      loop.companionEvents = loop.companionEvents || [];
-      if (!loop.engineBound) {
-        window.milksu.onEvent('engine-event', value => {
-          loop.events.push(value);
-        });
-        loop.engineBound = true;
-      }
-      if (!loop.companionBound) {
-        window.milksu.onEvent('companion-event', value => {
-          loop.companionEvents.push(value);
-        });
-        loop.companionBound = true;
-      }
-      return true;
-    })()`)
-    return true
   }
 
   cdpAlive() {

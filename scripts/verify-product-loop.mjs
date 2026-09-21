@@ -198,13 +198,11 @@ async function main() {
           onStep: async (id, driver) => captureProductLoopEvidence(driver, id),
         })
         if (outcome.notes?.length) receipt.humanReview.push(...outcome.notes)
-        if (outcome.driver) {
-          session = {
-            driver: outcome.driver,
-            instanceId: outcome.instanceId,
-            sourcesReady: outcome.sourcesReady === true,
-            ok: true,
-          }
+        session = {
+          driver: outcome.driver || null,
+          instanceId: outcome.instanceId || '',
+          sourcesReady: outcome.sourcesReady === true,
+          ok: Boolean(outcome.driver),
         }
         const produced = new Set((outcome.steps ?? []).map(step => step.id))
         for (const item of group.cases) {

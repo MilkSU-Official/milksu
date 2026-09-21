@@ -102,13 +102,27 @@ export function describeCustomRelay(settings, idOrName) {
  * missing that shows "No API key for tokenflux/…". Product-loop.local.env keys are
  * typed into Settings as a personal relay — use that for the rest of the walk.
  */
+export function isProductLoopPersonalRelayUsable() {
+  return productLoopPersonalRelayUsable === true
+}
+
 export async function enablePersonalRelayRoute(driver) {
   if (productLoopPersonalRelayUsable === false) {
     return { ok: false, detail: '个人中转站还没有通过验证的 Key' }
   }
   const settings = await driver.invoke('GetSettings', [])
   const relay = describeCustomRelay(settings, firstUseRelayName())
-  const probed = await probeCustomRelay(driver, relay)
+  const alreadyVerified = productLoopPersonalRelayUsable === true
+    && Boolean(relay.id && relay.hasKey && relay.enabled && relay.models.length && relay.baseURL)
+    && !relay.baseURL.includes('tokenflux.ai')
+  const probed = alreadyVerified
+    ? {
+      ok: true,
+      id: relay.id,
+      model: relay.models.find(Boolean),
+      detail: '个人中转站已在上手流程验证',
+    }
+    : await probeCustomRelay(driver, relay)
   if (!probed.ok) {
     return { ok: false, detail: probed.detail || '个人中转站还没有 Key' }
   }
@@ -353,15 +367,25 @@ async function runFileLoop(driver, options) {
 
 export async function startFirstUseDesktop(options = {}) {
   const driver = new GuiDriver()
-  const attached = await driver.startFresh({
-    instanceId: options.instanceId,
-    timeoutMs: options.timeoutMs,
-    buildRuntime: options.buildRuntime === true || process.env.MILKSU_PRODUCT_LOOP_BUILD === '1',
-  })
-  return {
-    driver,
-    attached,
-    windowClaim: driver.windowClaim,
+  try {
+    const attached = await driver.startFresh({
+      instanceId: options.instanceId,
+      timeoutMs: options.timeoutMs,
+      buildRuntime: options.buildRuntime === true || process.env.MILKSU_PRODUCT_LOOP_BUILD === '1',
+    })
+    return {
+      driver,
+      attached,
+      windowClaim: driver.windowClaim,
+    }
+  } catch (error) {
+    driver.gaps = driver.gaps || []
+    driver.gaps.push(redactProcessText(error instanceof Error ? error.message : error, 180))
+    return {
+      driver,
+      attached: false,
+      windowClaim: driver.windowClaim,
+    }
   }
 }
 
@@ -511,194 +535,257 @@ export async function runFirstUse(options = {}) {
     )
   }
 
-  try {
-    launch = await startFirstUseDesktop({ instanceId, timeoutMs: desktopReadyMs })
-    if (!launch.attached || !launch.driver?.cdpAlive()) {
-      await record('login-gate', 'FAIL', launch.driver?.gaps?.join(' ') || '没附着独立产品窗口')
-      return finish(steps, notes)
-    }
-    if (launch.windowClaim?.closed) notes.push(launch.windowClaim.detail)
-
-    const gateA = await expectLoginGate(launch.driver)
-    await record('login-gate', gateA.ok ? 'PASS' : 'FAIL', gateA.ok ? '看见登录页和两条入口' : gateA.detail)
-    if (!gateA.ok) return finish(steps, notes)
-
-    process.stdout.write('FIRST-USE login-github-active 请在系统浏览器完成 GitHub 授权\n')
-    try {
-      await launch.driver.invoke('StartAccountLogin', [])
-    } catch (error) {
-      await record('login-github-active', 'FAIL', redactProcessText(error instanceof Error ? error.message : error, 200))
-      await record('account-model-fileloop', 'SKIP', 'GitHub 登录没发出去，账户模型没跑')
-    }
-    if (!steps.some(step => step.id === 'login-github-active')) {
-      const active = await waitFor(async () => {
-        const status = await accountStatus(launch.driver)
-        return status?.state === 'active' && status?.authenticated ? status : null
-      }, loginWaitMs, 2_000)
-      if (active) {
-        await record('login-github-active', 'PASS', '账户变成已登录')
-        await enableAccountRoute(launch.driver)
-        await delay(1_500)
-        // Fill the personal relay before the long account fileloop. That
-        // loop has been closing CDP, which skipped key-fill entirely.
-        if (launch.driver?.cdpAlive()) {
-          try {
-            await recordCustomRelay(launch.driver)
-          } catch (error) {
-            if (!steps.some(step => step.id === 'settings-custom-relay')) {
-              await record(
-                'settings-custom-relay',
-                'FAIL',
-                redactProcessText(error instanceof Error ? error.message : error, 180),
-              )
-              await record('relay-model-fileloop', 'FAIL', '上手流程没跑到这一步')
-            } else if (!steps.some(step => step.id === 'relay-model-fileloop')) {
-              await record(
-                'relay-model-fileloop',
-                'FAIL',
-                redactProcessText(error instanceof Error ? error.message : error, 180),
-              )
-            }
-          }
-        }
-        if (launch.driver?.cdpAlive()) {
-          try {
-            let loop = await runFileLoop(launch.driver, {
-              title: 'product-loop first-use account',
-              modelMode: 'manual',
-              modelProvider: 'tokenflux',
-              modelId: resolveCustomRelayModels(process.env) || 'deepseek/deepseek-flash',
-              modelSourcePreference: 'account',
-              timeoutMs: taskTimeoutMs,
-            })
-            if (launch.driver?.cdpAlive() && (!loop.notes || loop.timeout)) {
-              await delay(1_000)
-              loop = await runFileLoop(launch.driver, {
-                title: 'product-loop first-use account retry',
-                modelMode: 'manual',
-                modelProvider: 'tokenflux',
-                modelId: resolveCustomRelayModels(process.env) || 'deepseek/deepseek-flash',
-                modelSourcePreference: 'account',
-                timeoutMs: taskTimeoutMs,
-              })
-            }
-            const classified = classifyAccountFileLoop({
-              ...loop,
-              tokenFluxLinked: active.tokenFluxLinked === true,
-            })
-            await record(
-              'account-model-fileloop',
-              classified.result,
-              classified.expectedMiss
-                ? `账户发不出，linked=${Boolean(active.tokenFluxLinked)}，不记通过、不标来源就绪`
-                : loop.notes
-                  ? '账户来源写出 NOTES.md'
-                  : `NOTES.md=${loop.notes} fileTools=${loop.usedFiles} timeout=${loop.timeout} failed=${Boolean(loop.failed)} ${loop.detail || ''}`,
-            )
-          } catch (error) {
-            await record(
-              'account-model-fileloop',
-              'FAIL',
-              redactProcessText(error instanceof Error ? error.message : error, 180),
-            )
-          }
-        } else if (!steps.some(step => step.id === 'account-model-fileloop')) {
-          await record('account-model-fileloop', 'FAIL', 'CDP 在账户文件循环前断开')
-        }
-      } else {
-        const status = await accountStatus(launch.driver)
-        await record(
-          'login-github-active',
-          'FAIL',
-          `StartAccountLogin 已发出但超时仍是 ${status?.state || 'unknown'}。不能因为本机已有 Key 改成跳过。`,
-        )
-        await record('account-model-fileloop', 'SKIP', 'GitHub 未登录，账户模型没跑')
-      }
-    } else if (!steps.some(step => step.id === 'account-model-fileloop')) {
-      await record('account-model-fileloop', 'SKIP', 'GitHub 登录失败，账户模型没跑')
-    }
-
-    const githubOk = steps.find(step => step.id === 'login-github-active')?.result === 'PASS'
-    if (!githubOk && launch.driver?.cdpAlive()) {
-      const snapshot = inspectLoginPage(await snapshotLoginPage(launch.driver))
-      if (snapshot.gate && snapshot.skip) {
-        await launch.driver.cdp.evaluate(`(() => {
-          const buttons = Array.from(document.querySelectorAll('button'))
-          const button = buttons.find(item => /暂不登录，使用自己的 API Key|Skip sign-in and use your own API key/.test(item.textContent || ''))
-          if (!button) return false
-          button.click()
-          return true
-        })()`)
-        await waitForHomepage(launch.driver)
-      }
-    }
-
-    if (launch.driver?.cdpAlive()) {
-      await recordCustomRelay(launch.driver)
-    } else if (!steps.some(step => step.id === 'settings-custom-relay')) {
-      await record('settings-custom-relay', 'FAIL', 'CDP 在填 Key 前断开')
-      await record('relay-model-fileloop', 'FAIL', '上手流程没跑到这一步')
-    }
-
-    if (githubOk && launch.driver?.cdpAlive()) {
-      await launch.driver.invoke('LogoutAccount', []).catch(() => {})
-    }
-    await resetContinueLocal(launch.driver)
-    await closeLaunch()
-
-    launch = await startFirstUseDesktop({ instanceId, timeoutMs: desktopReadyMs })
-    if (!launch.attached || !launch.driver?.cdpAlive()) {
-      await record('login-skip-local', 'FAIL', '启动 B 没附着独立窗口')
-      return finish(steps, notes)
-    }
-    const gateB = await expectLoginGate(launch.driver)
-    if (!gateB.ok) {
-      await record('login-skip-local', 'FAIL', gateB.detail)
-      return finish(steps, notes)
-    }
-    const clicked = await launch.driver.cdp.evaluate(`(() => {
+  async function clickSkipLocal() {
+    return launch.driver.cdp.evaluate(`(() => {
       const buttons = Array.from(document.querySelectorAll('button'))
       const button = buttons.find(item => /暂不登录，使用自己的 API Key|Skip sign-in and use your own API key/.test(item.textContent || ''))
       if (!button) return false
       button.click()
       return true
     })()`)
-    const home = clicked ? await waitForHomepage(launch.driver) : null
-    const after = await accountStatus(launch.driver)
-    if (home && after?.state !== 'active') {
-      await record('login-skip-local', 'PASS', '暂不登录进了首页')
-    } else {
-      await record(
-        'login-skip-local',
-        'FAIL',
-        `clicked=${Boolean(clicked)} home=${Boolean(home)} state=${after?.state ?? ''}`,
-      )
+  }
+
+  async function startSkipLocalHome() {
+    if (launch?.driver?.cdpAlive()) {
+      try {
+        const snapshot = inspectLoginPage(await snapshotLoginPage(launch.driver))
+        if (snapshot.gate && snapshot.skip) {
+          const clicked = await clickSkipLocal()
+          const home = clicked ? await waitForHomepage(launch.driver) : null
+          const after = await safeAccountStatus(launch.driver)
+          if (home && after?.state !== 'active') {
+            return { ok: true, detail: '暂不登录进了首页' }
+          }
+        } else if (!snapshot.gate) {
+          const after = await safeAccountStatus(launch.driver)
+          if (after?.state !== 'active') {
+            return { ok: true, detail: '已在首页' }
+          }
+        }
+      } catch {
+        // Window died after GitHub; relaunch the same isolated instance.
+      }
     }
+    await closeLaunch()
+    launch = await startFirstUseDesktop({ instanceId, timeoutMs: desktopReadyMs })
+    if (!launch.attached || !launch.driver?.cdpAlive()) {
+      await closeLaunch()
+      await delay(800)
+      launch = await startFirstUseDesktop({ instanceId, timeoutMs: desktopReadyMs })
+    }
+    if (!launch.attached || !launch.driver?.cdpAlive()) {
+      return { ok: false, detail: launch.driver?.gaps?.join(' ') || '启动 B 没附着独立窗口' }
+    }
+    const gateB = await expectLoginGate(launch.driver)
+    if (gateB.ok) await recordOrReplace('login-gate', 'PASS', '看见登录页和两条入口')
+    if (!gateB.ok) return { ok: false, detail: gateB.detail }
+    const clicked = await clickSkipLocal()
+    const home = clicked ? await waitForHomepage(launch.driver) : null
+    const after = await safeAccountStatus(launch.driver)
+    if (home && after?.state !== 'active') {
+      return { ok: true, detail: '暂不登录进了首页' }
+    }
+    return {
+      ok: false,
+      detail: `clicked=${Boolean(clicked)} home=${Boolean(home)} state=${after?.state ?? ''}`,
+    }
+  }
+
+  async function fillRelayOnCurrentOrRelaunch() {
+    if (launch?.driver?.cdpAlive()) {
+      try {
+        await recordCustomRelay(launch.driver)
+        return
+      } catch (error) {
+        notes.push(redactProcessText(error instanceof Error ? error.message : error, 180))
+      }
+    }
+    if (steps.some(step => step.id === 'settings-custom-relay' && step.result === 'PASS')) return
+    const skip = await startSkipLocalHome()
+    await recordOrReplace('login-skip-local', skip.ok ? 'PASS' : 'FAIL', skip.detail)
+    if (skip.ok && launch?.driver?.cdpAlive()) {
+      await recordCustomRelay(launch.driver)
+    }
+  }
+
+  try {
+    launch = await startFirstUseDesktop({ instanceId, timeoutMs: desktopReadyMs })
+    if (!launch.attached || !launch.driver?.cdpAlive()) {
+      await closeLaunch()
+      await delay(800)
+      launch = await startFirstUseDesktop({ instanceId, timeoutMs: desktopReadyMs })
+    }
+    if (!launch.attached || !launch.driver?.cdpAlive()) {
+      await record('login-gate', 'FAIL', launch.driver?.gaps?.join(' ') || '没附着独立产品窗口')
+    } else {
+      if (launch.windowClaim?.closed) notes.push(launch.windowClaim.detail)
+
+      const gateA = await expectLoginGate(launch.driver)
+      await record('login-gate', gateA.ok ? 'PASS' : 'FAIL', gateA.ok ? '看见登录页和两条入口' : gateA.detail)
+      if (gateA.ok) {
+        process.stdout.write('FIRST-USE login-github-active 请在系统浏览器完成 GitHub 授权\n')
+        try {
+          await launch.driver.invoke('StartAccountLogin', [])
+        } catch (error) {
+          await record('login-github-active', 'FAIL', redactProcessText(error instanceof Error ? error.message : error, 200))
+          await record('account-model-fileloop', 'SKIP', 'GitHub 登录没发出去，账户模型没跑')
+        }
+        if (!steps.some(step => step.id === 'login-github-active')) {
+          let active = null
+          try {
+            active = await waitFor(async () => {
+              if (!launch.driver?.cdpAlive()) return { dead: true }
+              const status = await safeAccountStatus(launch.driver)
+              if (!launch.driver?.cdpAlive() && !status) return { dead: true }
+              return status?.state === 'active' && status?.authenticated ? status : null
+            }, loginWaitMs, 2_000)
+          } catch (error) {
+            await record(
+              'login-github-active',
+              'FAIL',
+              redactProcessText(error instanceof Error ? error.message : error, 200),
+            )
+            await record('account-model-fileloop', 'SKIP', 'GitHub 登录期间窗口断了，账户模型没跑')
+          }
+          if (active?.dead) {
+            await record('login-github-active', 'FAIL', 'StartAccountLogin 之后窗口 CDP 断开')
+            await record('account-model-fileloop', 'SKIP', 'GitHub 登录期间窗口断了，账户模型没跑')
+          } else if (active && !active.dead) {
+            await record('login-github-active', 'PASS', '账户变成已登录')
+            await enableAccountRoute(launch.driver).catch(() => {})
+            await delay(1_500)
+            if (launch.driver?.cdpAlive()) {
+              try {
+                await recordCustomRelay(launch.driver)
+              } catch (error) {
+                notes.push(redactProcessText(error instanceof Error ? error.message : error, 180))
+              }
+            }
+            if (launch.driver?.cdpAlive()) {
+              try {
+                let loop = await runFileLoop(launch.driver, {
+                  title: 'product-loop first-use account',
+                  modelMode: 'manual',
+                  modelProvider: 'tokenflux',
+                  modelId: resolveCustomRelayModels(process.env) || 'deepseek/deepseek-flash',
+                  modelSourcePreference: 'account',
+                  timeoutMs: taskTimeoutMs,
+                })
+                if (launch.driver?.cdpAlive() && (!loop.notes || loop.timeout)) {
+                  await delay(1_000)
+                  loop = await runFileLoop(launch.driver, {
+                    title: 'product-loop first-use account retry',
+                    modelMode: 'manual',
+                    modelProvider: 'tokenflux',
+                    modelId: resolveCustomRelayModels(process.env) || 'deepseek/deepseek-flash',
+                    modelSourcePreference: 'account',
+                    timeoutMs: taskTimeoutMs,
+                  })
+                }
+                const classified = classifyAccountFileLoop({
+                  ...loop,
+                  tokenFluxLinked: active.tokenFluxLinked === true,
+                })
+                await record(
+                  'account-model-fileloop',
+                  classified.result,
+                  classified.expectedMiss
+                    ? `账户发不出，linked=${Boolean(active.tokenFluxLinked)}，不记通过、不标来源就绪`
+                    : loop.notes
+                      ? '账户来源写出 NOTES.md'
+                      : `NOTES.md=${loop.notes} fileTools=${loop.usedFiles} timeout=${loop.timeout} failed=${Boolean(loop.failed)} ${loop.detail || ''}`,
+                )
+              } catch (error) {
+                await record(
+                  'account-model-fileloop',
+                  'FAIL',
+                  redactProcessText(error instanceof Error ? error.message : error, 180),
+                )
+              }
+            } else if (!steps.some(step => step.id === 'account-model-fileloop')) {
+              await record('account-model-fileloop', 'SKIP', 'CDP 在账户文件循环前断开，账户模型没跑')
+            }
+          } else if (!steps.some(step => step.id === 'login-github-active')) {
+            const status = await safeAccountStatus(launch.driver)
+            await record(
+              'login-github-active',
+              'FAIL',
+              `StartAccountLogin 已发出但超时仍是 ${status?.state || 'unknown'}。不能因为本机已有 Key 改成跳过。`,
+            )
+            await record('account-model-fileloop', 'SKIP', 'GitHub 未登录，账户模型没跑')
+          }
+        } else if (!steps.some(step => step.id === 'account-model-fileloop')) {
+          await record('account-model-fileloop', 'SKIP', 'GitHub 登录失败，账户模型没跑')
+        }
+      } else {
+        await record('login-github-active', 'FAIL', '没看见登录页，GitHub 没跑')
+        await record('account-model-fileloop', 'SKIP', '没看见登录页，账户模型没跑')
+      }
+    }
+
+    const githubOk = steps.find(step => step.id === 'login-github-active')?.result === 'PASS'
+    if (githubOk && launch?.driver?.cdpAlive()) {
+      await launch.driver.invoke('LogoutAccount', []).catch(() => {})
+    }
+    await resetContinueLocal(launch?.driver)
+
+    const skip = await startSkipLocalHome()
+    await recordOrReplace('login-skip-local', skip.ok ? 'PASS' : 'FAIL', skip.detail)
+    if (skip.ok && launch?.driver?.cdpAlive()) {
+      try {
+        await recordCustomRelay(launch.driver)
+      } catch (error) {
+        if (!steps.some(step => step.id === 'settings-custom-relay')) {
+          await record(
+            'settings-custom-relay',
+            'FAIL',
+            redactProcessText(error instanceof Error ? error.message : error, 180),
+          )
+          await record('relay-model-fileloop', 'FAIL', '上手流程没跑到这一步')
+        }
+      }
+    } else if (!steps.some(step => step.id === 'settings-custom-relay')) {
+      await record('settings-custom-relay', 'FAIL', skip.ok ? 'CDP 在填 Key 前断开' : '启动 B 没进首页，没填上 Key')
+      await record('relay-model-fileloop', 'FAIL', '上手流程没跑到这一步')
+    }
+
     const accountFileloopOk = steps.some(step => step.id === 'account-model-fileloop' && step.result === 'PASS')
-    if (githubOk && launch.driver?.cdpAlive()) {
+    if (githubOk && launch?.driver?.cdpAlive()) {
       process.stdout.write('FIRST-USE 暂不登录之后再登录，后面继续用账户模型\n')
       await launch.driver.invoke('StartAccountLogin', []).catch(() => {})
       const restored = await waitFor(async () => {
-        const status = await accountStatus(launch.driver)
+        if (!launch.driver?.cdpAlive()) return { dead: true }
+        const status = await safeAccountStatus(launch.driver)
         return status?.state === 'active' && status?.authenticated ? status : null
-      }, loginWaitMs, 2_000)
-      if (restored && accountFileloopOk) {
-        await enableAccountRoute(launch.driver)
+      }, loginWaitMs, 2_000).catch(() => null)
+      if (restored && !restored.dead && accountFileloopOk) {
+        await enableAccountRoute(launch.driver).catch(() => {})
       }
     }
-    if (launch.driver?.cdpAlive()) {
+    if (launch?.driver?.cdpAlive()) {
       const personal = await enablePersonalRelayRoute(launch.driver)
       if (personal.ok) {
         process.stdout.write(`FIRST-USE ${personal.detail}\n`)
+      } else if (isProductLoopPersonalRelayUsable()) {
+        process.stdout.write('FIRST-USE 个人中转站已验证，保持个人来源\n')
       } else if (accountFileloopOk) {
         await enableAccountRoute(launch.driver)
         process.stdout.write('FIRST-USE 个人中转站不可用，桌宠与主页改用已验证的账户模型\n')
       }
     }
-    return finish(steps, notes, sessionFrom(launch, instanceId, steps, options.keepOpen))
+    return finish(steps, notes, firstUseSessionHandoff(launch, instanceId, steps, options.keepOpen))
   } catch (error) {
-    await record('first-use', 'FAIL', redactProcessText(error instanceof Error ? error.message : error, 240))
-    return finish(steps, notes, sessionFrom(launch, instanceId, steps, options.keepOpen))
+    const detail = redactProcessText(error instanceof Error ? error.message : error, 240)
+    notes.push(detail)
+    try {
+      await fillRelayOnCurrentOrRelaunch()
+    } catch (recoverError) {
+      notes.push(redactProcessText(recoverError instanceof Error ? recoverError.message : recoverError, 180))
+    }
+    if (!firstUseSourcesReady(steps)) {
+      await record('first-use', 'FAIL', detail)
+    }
+    return finish(steps, notes, firstUseSessionHandoff(launch, instanceId, steps, options.keepOpen))
   } finally {
     if (!shouldKeepLaunch(launch, steps, options.keepOpen)) {
       await closeLaunch()
@@ -719,14 +806,7 @@ function shouldKeepLaunch(launch, steps, keepOpen) {
 }
 
 function sessionFrom(launch, instanceId, steps, keepOpen) {
-  if (!shouldKeepLaunch(launch, steps, keepOpen)) {
-    return { driver: null, instanceId, sourcesReady: false }
-  }
-  return {
-    driver: launch.driver,
-    instanceId,
-    sourcesReady: firstUseSourcesReady(steps),
-  }
+  return firstUseSessionHandoff(launch, instanceId, steps, keepOpen)
 }
 
 export async function enableAccountRoute(driver) {

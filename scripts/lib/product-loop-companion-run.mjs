@@ -22,6 +22,7 @@ import {
   companionSkinListed,
   companionFloatReady,
   companionIsReady,
+  companionSurfaceMissingKey,
   companionParked,
   companionPetSurfaceReady,
   companionPresenceKept,
@@ -171,6 +172,10 @@ export async function runCompanionReady(driver) {
   const provider = String(started?.provider ?? started?.Provider ?? '')
   const source = route.source || (route.account ? 'account' : (route.id ? 'personal' : 'none'))
   const label = source === 'account' ? ' account' : (route.id ? ` personal=${route.id}` : ` ${source}`)
+  const surface = await readCompanionChatSurface().catch(() => null)
+  if (companionSurfaceMissingKey(surface || {})) {
+    return fail(`桌宠窗没有可用 Key；${route.detail || ''} source=${source}`, { source })
+  }
   return pass(`桌宠已就绪${model ? ` ${provider} ${model}` : ''}${label}`, { source })
 }
 
