@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { ArrowUp, ChevronLeft, FileText, Plus, X } from 'lucide-react'
+import { ArrowUp, ChevronLeft, FileText, Plus, Square, X } from 'lucide-react'
 import ProgressiveBlur from 'react-progressive-blur'
 import companionIdle from '@/assets/companion/idle.png'
 import CompanionTurnProcessView from '@/components/CompanionTurnProcessView'
@@ -140,8 +140,10 @@ export default function CompanionPage({
   const liveWorking = companionTurnHasProcess(companion.liveProcess)
   const typing = companion.busy && !companion.streaming && !liveWorking
   const emptyReplyLabel = t('这一轮没有回复。', 'This turn did not produce a reply.')
+  // Only the live error gates 「开新对话」. Historical transcript rows may still
+  // carry a past broken-history errorMessage after sidecar repair; scanning them
+  // would thrash the archive button forever and push users to wipe usable chat.
   const needsNewChat = companionChatNeedsNewConversation(companion.error)
-    || companion.entries.some(entry => companionChatNeedsNewConversation(entry.error || entry.text))
   const virtualizer = useVirtualizer({
     count: companion.entries.length + olderOffset,
     getScrollElement: () => parentRef.current,
@@ -765,15 +767,23 @@ export default function CompanionPage({
             />
             <Button
               type="button"
-              variant="brand"
+              variant={companion.busy ? 'destructive' : 'brand'}
               size="icon"
               className="companion-chat-send"
-              disabled={companion.busy || (!companion.draft.trim() && !companion.attachments.length)}
-              aria-label={companion.busy ? t('排队', 'Queue') : t('发送', 'Send')}
-              title={companion.busy ? t('排队', 'Queue') : t('发送', 'Send')}
-              onClick={() => void companion.send()}
+              disabled={!companion.busy && (!companion.draft.trim() && !companion.attachments.length)}
+              aria-label={companion.busy ? t('停止', 'Stop') : t('发送', 'Send')}
+              title={companion.busy ? t('停止当前回合', 'Stop this turn') : t('发送', 'Send')}
+              onClick={() => {
+                if (companion.busy) {
+                  void companion.abort()
+                  return
+                }
+                void companion.send()
+              }}
             >
-              <ArrowUp className="size-4" />
+              {companion.busy
+                ? <Square className="size-3.5 fill-current" />
+                : <ArrowUp className="size-4" />}
             </Button>
           </div>
         </div>

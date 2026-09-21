@@ -63,6 +63,7 @@ import {
   companionFuzzDispatchPrompts,
   companionIsReady,
   companionRelayPrefix,
+  companionTranscriptClean,
   companionDefaultSkinVisible,
   companionImportedSkinVisible,
   companionPetSurfaceUsesCustomSkin,
@@ -101,7 +102,7 @@ test('catalog keeps product regression away from evalsuite', () => {
   ])
   assert.equal(CASE_RUN_ORDER[0], 'login-gate')
   assert.equal(MODULES.coding.cases.length, 33)
-  assert.equal(MODULES.companion.cases.length, 25)
+  assert.equal(MODULES.companion.cases.length, 28)
   assert.equal(MODULES.workspaces.cases.length, 33)
   assert.equal(MODULES['desktop-surface'].cases.length, 9)
   assert.equal(MODULES['account-shell'].cases.length, 4)
@@ -380,6 +381,49 @@ test('waitForCompanionTurn accepts a parked confirm then waits for settle', asyn
   assert.equal(turn.confirmed, 1)
   assert.equal(confirmed[0].action, 'stop')
   assert.equal(confirmed[0].accepted, true)
+})
+
+test('waitForCompanionTurn can reject a parked confirm', async () => {
+  const driver = new GuiDriver()
+  let calls = 0
+  const decisions = []
+  driver.drainCompanionEvents = async () => {
+    calls += 1
+    if (calls === 1) {
+      return [{
+        type: 'companion.confirm',
+        requestId: 'companion-host-2',
+        input: JSON.stringify({
+          action: 'stop',
+          conversationId: 'coding-2',
+          idempotencyKey: 'k-stop-2',
+          hostRequestId: 'companion-host-2',
+        }),
+      }]
+    }
+    return [{ type: 'assistant.settled' }]
+  }
+  driver.ensureAttached = async () => true
+  driver.getCompanionStatus = async () => ({})
+  driver.confirmCompanionDispatch = async (request) => {
+    decisions.push(request)
+  }
+  const turn = await driver.waitForCompanionTurn(2_000, { rejectConfirm: true })
+  assert.equal(turn.timeout, false)
+  assert.equal(turn.rejected, 1)
+  assert.equal(decisions[0].accepted, false)
+})
+
+test('companionTranscriptClean rejects leaked host ids and object Object', () => {
+  assert.equal(companionTranscriptClean({
+    entries: [{ text: 'hello', error: '' }],
+  }).ok, true)
+  assert.equal(companionTranscriptClean({
+    entries: [{ text: 'see [object Object]' }],
+  }).ok, false)
+  assert.equal(companionTranscriptClean({
+    entries: [{ error: 'unknown companion host request: companion-host-9' }],
+  }).ok, false)
 })
 
 test('waitForTurn keeps polling after a transient CDP close', async () => {

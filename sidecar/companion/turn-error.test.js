@@ -117,3 +117,34 @@ test("repairCompanionToolHistory appends synthetic error toolResults", () => {
   assert.equal(companionToolHistoryBroken(messages), false);
   assert.equal(companionToolHistoryBroken(broken), true);
 });
+
+test("repairCompanionToolHistory is a no-op when history is already complete", () => {
+  const ok = [
+    { role: "user", content: [{ type: "text", text: "hi" }] },
+    {
+      role: "assistant",
+      content: [{ type: "toolCall", id: "call-1", name: "read" }],
+      stopReason: "toolUse",
+    },
+    { role: "toolResult", toolCallId: "call-1", content: [{ type: "text", text: "ok" }] },
+  ];
+  const { messages, repairedCount } = repairCompanionToolHistory(ok);
+  assert.equal(repairedCount, 0);
+  assert.equal(messages, ok);
+});
+
+test("repairCompanionToolHistory covers multiple dangling toolCalls", () => {
+  const broken = [
+    {
+      role: "assistant",
+      content: [
+        { type: "toolCall", id: "a", name: "companion_board" },
+        { type: "toolCall", id: "b", name: "companion_app" },
+      ],
+      stopReason: "toolUse",
+    },
+  ];
+  const { messages, repairedCount } = repairCompanionToolHistory(broken, "aborted");
+  assert.equal(repairedCount, 2);
+  assert.equal(companionToolHistoryBroken(messages), false);
+});

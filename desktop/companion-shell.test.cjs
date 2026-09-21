@@ -170,6 +170,7 @@ function createShell(overrides = {}) {
 
 test('companion window methods are a subset of the main renderer surface', () => {
   assert.ok(COMPANION_METHODS.has('SendCompanionMessage'))
+  assert.ok(COMPANION_METHODS.has('AbortCompanionTurn'))
   assert.ok(COMPANION_METHODS.has('ChooseCodingAttachments'))
   assert.ok(COMPANION_METHODS.has('ImportCodingAttachments'))
   assert.ok(COMPANION_METHODS.has('PreviewCodingAttachment'))

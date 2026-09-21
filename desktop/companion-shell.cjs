@@ -19,6 +19,7 @@ const {
 const COMPANION_METHODS = new Set([
   'GetCompanionStatus',
   'SendCompanionMessage',
+  'AbortCompanionTurn',
   'ChooseCodingAttachments',
   'ImportCodingAttachments',
   'PreviewCodingAttachment',

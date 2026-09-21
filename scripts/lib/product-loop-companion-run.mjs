@@ -14,6 +14,7 @@ import {
   companionDefaultSkinVisible,
   companionFuzzAppPrompts,
   companionFuzzDispatchPrompts,
+  companionFuzzMemoryPrompts,
   companionImportedSkinVisible,
   companionPetSurfaceUsesCustomSkin,
   companionSkinEntryVisible,
@@ -27,11 +28,13 @@ import {
   companionShellHidden,
   companionSpeakPrompt,
   companionStopPrompt,
+  companionTranscriptClean,
   companionTurnErrored,
   companionTurnParked,
   companionTurnSettled,
   conversationHasRelay,
   conversationIdOf,
+  asList,
   transcriptHasAssistantReply,
   transcriptHasPrompt,
 } from './product-loop-companion.mjs'
@@ -101,10 +104,26 @@ async function ensureCompanionModelRoute(driver) {
 
 export async function runCompanionReady(driver) {
   const route = await ensureCompanionModelRoute(driver)
-  const started = await driver.ensureCompanion()
+  let started = null
+  let lastReason = ''
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      if (attempt > 0) await driver.stopCompanion().catch(() => {})
+      started = await driver.ensureCompanion()
+      const ready = companionIsReady(started)
+      if (ready.ok) break
+      lastReason = ready.reason
+    } catch (error) {
+      lastReason = error instanceof Error ? error.message : String(error)
+      if (!/sidecar stopped|not ready|not running/i.test(lastReason)) {
+        return fail(`${lastReason}；${route.detail || ''}`)
+      }
+    }
+    await delay(400)
+  }
   const ready = companionIsReady(started)
   if (!ready.ok) {
-    return fail(`${ready.reason}；${route.detail || ''}`)
+    return fail(`${lastReason || ready.reason}；${route.detail || ''}`)
   }
   const model = String(started?.model ?? started?.Model ?? '')
   const provider = String(started?.provider ?? started?.Provider ?? '')
@@ -421,21 +440,19 @@ export async function runCompanionArchive(driver) {
 export async function runCompanionMemory(driver, options = {}) {
   await driver.ensureCompanion()
   await ensureCompanionChatVisible(driver)
-  const prompt = '必须调用工具 companion_memory，action 用 propose_memory，title 用「product-loop 正在测桌宠记忆」。不要只聊天。'
-  await driver.sendCompanionMessage(prompt)
-  await driver.waitForCompanionTurn(options.taskTimeoutMs || 180_000)
-  let memory = await driver.getCompanionMemory()
-  let pending = Array.isArray(memory?.pending) ? memory.pending : []
-  let approved = Array.isArray(memory?.approved) ? memory.approved : []
-  if (!pending.length && !approved.length) {
+  const prompts = companionFuzzMemoryPrompts()
+  let memory = { pending: [], approved: [] }
+  for (const prompt of prompts) {
     await driver.sendCompanionMessage(prompt)
     await driver.waitForCompanionTurn(options.taskTimeoutMs || 180_000)
     memory = await driver.getCompanionMemory()
-    pending = Array.isArray(memory?.pending) ? memory.pending : []
-    approved = Array.isArray(memory?.approved) ? memory.approved : []
-  }
-  if (pending.length || approved.length) {
-    return pass(`记忆里有 ${pending.length} 条待批准、${approved.length} 条已留下`)
+    const pending = Array.isArray(memory?.pending) ? memory.pending : []
+    const approved = Array.isArray(memory?.approved) ? memory.approved : []
+    if (pending.length || approved.length) {
+      const clean = companionTranscriptClean(await driver.listCompanionTranscript(40))
+      if (!clean.ok) return fail(clean.reason)
+      return pass(`记忆里有 ${pending.length} 条待批准、${approved.length} 条已留下`)
+    }
   }
   return fail('桌宠记忆没有提出待批准或已留下的条目')
 }
@@ -863,5 +880,152 @@ export async function runCompanionFuzzApp(driver, options = {}) {
   if (!usedApp && !usedBoard) {
     return fail(`功能询问没有动 companion_app/board，工具=${[...tools].join(',') || '(无)'}`)
   }
+  const clean = companionTranscriptClean(await driver.listCompanionTranscript(40))
+  if (!clean.ok) return fail(clean.reason)
   return pass(`功能询问走完 ${settled} 轮，工具 ${[...tools].join(',')}`)
+}
+
+export async function runCompanionFuzzAbort(driver, options = {}) {
+  const conversation = await driver.createConversation({
+    title: 'product-loop-companion-fuzz-abort',
+    kernel: 'pi',
+  })
+  try {
+    await ensureCompanionModelRoute(driver)
+    await driver.invoke('ArchiveCompanionTranscript', []).catch(() => {})
+    await driver.drainCompanionEvents()
+    const started = await driver.ensureCompanion()
+    const ready = companionIsReady(started)
+    if (!ready.ok) return fail(ready.reason)
+    await ensureCompanionChatVisible(driver)
+    await driver.drainCompanionEvents()
+
+    await driver.sendCompanionMessage(companionStopPrompt(conversation.id))
+    let turn = await driver.waitForCompanionTurn(
+      Math.min(options.taskTimeoutMs || 180_000, 90_000),
+      { autoConfirm: false, returnOnConfirm: true },
+    )
+    if (turn.sidecarStopped || companionTurnParked(turn.events)) {
+      return fail('桌宠 sidecar 停了，中止确认没有接上')
+    }
+    const parked = turn.confirmed > 0
+      || Boolean(driver.companionStatusPending(await driver.getCompanionStatus().catch(() => null)))
+    await driver.abortCompanionTurn()
+    // Abort emits turn_settled; do not wait a full model turn. Drain and continue.
+    await driver.waitForCompanionTurn(8_000, { autoConfirm: false }).catch(() => ({}))
+    await driver.drainCompanionEvents()
+
+    const marker = `product-loop-abort-continue-${Date.now().toString(36)}`
+    let cont = { timeout: true, events: [], error: '' }
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      if (attempt > 0) {
+        await driver.stopCompanion().catch(() => {})
+        await driver.ensureCompanion()
+        await ensureCompanionChatVisible(driver)
+        await driver.drainCompanionEvents()
+      }
+      await driver.sendCompanionMessage(`${marker} 刚才中止了，请只短回一句，不要开新对话。`)
+      cont = await driver.waitForCompanionTurn(options.taskTimeoutMs || 180_000)
+      if (!cont.timeout && !cont.sidecarStopped) break
+    }
+    if (cont.sidecarStopped || companionTurnParked(cont.events)) {
+      return fail('中止后续跑 sidecar 停了')
+    }
+    if (cont.timeout) return fail('中止后续跑超时')
+    if (/没法继续了|tool history is broken|开新对话/i.test(String(cont.error || ''))) {
+      return fail(`中止后同一段对话没法续跑：${cont.error}`)
+    }
+    const page = await driver.listCompanionTranscript(40)
+    const found = transcriptHasPrompt(page, marker)
+    if (!found.ok) return fail(found.reason)
+    const clean = companionTranscriptClean(page)
+    if (!clean.ok) return fail(clean.reason)
+    return pass(parked
+      ? '确认驻留时中止后，同一段对话还能继续'
+      : '回合中止后同一段对话还能继续')
+  } finally {
+    await driver.stopCompanion().catch(() => {})
+  }
+}
+
+export async function runCompanionFuzzRecovery(driver, options = {}) {
+  await ensureCompanionModelRoute(driver)
+  await driver.invoke('ArchiveCompanionTranscript', []).catch(() => {})
+  await driver.drainCompanionEvents()
+  const started = await driver.ensureCompanion()
+  const ready = companionIsReady(started)
+  if (!ready.ok) return fail(ready.reason)
+  await ensureCompanionChatVisible(driver)
+  await driver.drainCompanionEvents()
+
+  const before = `product-loop-recovery-before-${Date.now().toString(36)}`
+  await driver.sendCompanionMessage(`${before} 先短回一句。`)
+  const first = await driver.waitForCompanionTurn(options.taskTimeoutMs || 180_000)
+  if (first.timeout) return fail('恢复用例第一句超时')
+  if (first.sidecarStopped) return fail('恢复用例第一句 sidecar 停了')
+
+  // Kill sidecar mid-path (host timeout / crash analogue), then continue same chat.
+  await driver.stopCompanion().catch(() => {})
+  await driver.ensureCompanion()
+  await ensureCompanionChatVisible(driver)
+  await driver.drainCompanionEvents()
+
+  const after = `product-loop-recovery-after-${Date.now().toString(36)}`
+  await driver.sendCompanionMessage(`${after} sidecar 刚重启，请在同一段对话里短回一句，不要开新对话。`)
+  const second = await driver.waitForCompanionTurn(options.taskTimeoutMs || 180_000)
+  if (second.timeout) return fail('恢复后续跑超时')
+  if (second.sidecarStopped) return fail('恢复后续跑 sidecar 停了')
+  if (/没法继续了|tool history is broken/i.test(String(second.error || ''))) {
+    return fail(`超时/重启后同一段对话没法续跑：${second.error}`)
+  }
+  const page = await driver.listCompanionTranscript(60)
+  const beforeOk = transcriptHasPrompt(page, before)
+  const afterOk = transcriptHasPrompt(page, after)
+  if (!beforeOk.ok) return fail(`恢复后丢了中止前的用户句：${beforeOk.reason}`)
+  if (!afterOk.ok) return fail(afterOk.reason)
+  const spoken = transcriptHasAssistantReply(page)
+  if (!spoken.ok) return fail(spoken.reason)
+  const clean = companionTranscriptClean(page)
+  if (!clean.ok) return fail(clean.reason)
+  return pass('sidecar 重启后同一段对话继续，前后用户句都在')
+}
+
+export async function runCompanionFuzzRapid(driver, options = {}) {
+  await ensureCompanionModelRoute(driver)
+  await driver.invoke('ArchiveCompanionTranscript', []).catch(() => {})
+  await driver.drainCompanionEvents()
+  const started = await driver.ensureCompanion()
+  const ready = companionIsReady(started)
+  if (!ready.ok) return fail(ready.reason)
+  await ensureCompanionChatVisible(driver)
+  await driver.drainCompanionEvents()
+
+  const prefix = `product-loop-rapid-${Date.now().toString(36)}`
+  // Fire overlapping sends; product should queue or reject safely without crashing.
+  const prompts = [
+    `${prefix}-a 第一句，短回。`,
+    `${prefix}-b 第二句，短回。`,
+    `${prefix}-c 第三句，短回。`,
+  ]
+  await Promise.all(prompts.map(prompt => driver.sendCompanionMessage(prompt).catch(() => {})))
+  let settled = 0
+  let timedOut = false
+  for (let index = 0; index < prompts.length; index += 1) {
+    const turn = await driver.waitForCompanionTurn(options.taskTimeoutMs || 180_000)
+    if (turn.sidecarStopped || companionTurnParked(turn.events)) {
+      return fail('连发时 sidecar 停了')
+    }
+    if (turn.timeout) {
+      timedOut = true
+      break
+    }
+    if (companionTurnSettled(turn.events) || companionTurnErrored(turn.events)) settled += 1
+  }
+  const page = await driver.listCompanionTranscript(40)
+  const seen = asList(page?.entries).filter(entry => String(entry?.text ?? '').includes(prefix)).length
+  const clean = companionTranscriptClean(page)
+  if (!clean.ok) return fail(clean.reason)
+  if (seen < 1) return fail('连发后抄本没有用户句')
+  if (settled < 1 && timedOut) return fail('连发后没有任何回合结算')
+  return pass(`连发后抄本留了 ${seen} 句用户标记，结算约 ${settled} 轮`)
 }

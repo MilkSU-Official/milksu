@@ -145,6 +145,21 @@ func (r *Runtime) Stop() error {
 	return err
 }
 
+// AbortTurn cancels in-flight host waits and the current agent loop without
+// killing the sidecar. Bridge repairs orphan toolCalls so the next send
+// continues the same transcript.
+func (r *Runtime) AbortTurn() error {
+	if r == nil {
+		return nil
+	}
+	r.mu.Lock()
+	pending := r.takeAllParkedLocked()
+	r.mu.Unlock()
+	err := r.write(map[string]any{"action": "abort"})
+	r.finishParked(pending, "turn aborted")
+	return err
+}
+
 func (r *Runtime) Invalidate() {
 	r.mu.Lock()
 	pending := r.takeAllParkedLocked()

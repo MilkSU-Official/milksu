@@ -47,6 +47,25 @@ func TestObserveEngineEventOwnsRuntimeStatus(t *testing.T) {
 	}
 }
 
+func TestAbortTurnClearsParkedConfirm(t *testing.T) {
+	runtime := NewRuntime(RuntimeOptions{})
+	runtime.parkConfirm("host-abort", map[string]any{
+		"action":         "stop",
+		"conversationId": "coding-1",
+		"idempotencyKey": "k-abort",
+		"hostRequestId":  "host-abort",
+	}, "Coding work")
+	// No sidecar stdin: AbortTurn should still clear parked confirm and return
+	// the "not running" write error without leaving a sticky park.
+	err := runtime.AbortTurn()
+	if err == nil {
+		t.Fatal("expected write error without a sidecar")
+	}
+	if status := runtime.Status(); status.PendingConfirm != nil {
+		t.Fatalf("abort should clear parked confirm: %#v", status.PendingConfirm)
+	}
+}
+
 func statusOf(runtime *Runtime, id string) string {
 	for _, session := range runtime.BoardSnapshot().Sessions {
 		if session.ID == id {

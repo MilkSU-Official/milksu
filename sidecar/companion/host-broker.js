@@ -26,7 +26,7 @@ export function createCompanionHostBroker(emit, options = {}) {
           timer = setTimeout(() => {
             if (!pending.has(requestId)) return;
             pending.delete(requestId);
-            reject(new Error("companion host request timed out"));
+            reject(new Error(`companion host request timed out (${action || "host"})`));
           }, timeoutMs);
         }
         pending.set(requestId, {

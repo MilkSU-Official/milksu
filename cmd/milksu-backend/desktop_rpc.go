@@ -258,6 +258,7 @@ func desktopAppMethods(app *App) map[string]desktopAppMethod {
 		"SendMessage":                          rendererDesktopMethod(app.SendMessage),
 		"EnsureCompanion":                      rendererDesktopMethod(app.EnsureCompanion),
 		"SendCompanionMessage":                 rendererDesktopMethod(app.SendCompanionMessage),
+		"AbortCompanionTurn":                   rendererDesktopMethod(app.AbortCompanionTurn),
 		"GetCompanionStatus":                   rendererDesktopMethod(app.GetCompanionStatus),
 		"StopCompanion":                        rendererDesktopMethod(app.StopCompanion),
 		"GetCompanionBoard":                    rendererDesktopMethod(app.GetCompanionBoard),

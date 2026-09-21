@@ -110,7 +110,7 @@ npm run test:product-loop-catalog
 | 底部终端 | 打得开底部终端。 |
 | 会话右键菜单 | 右键能看到置顶、重命名、Fork、归档、删除。 |
 
-### 桌宠（25）
+### 桌宠（28）
 
 | 测试项 | 测什么 |
 | --- | --- |
@@ -126,6 +126,9 @@ npm run test:product-loop-catalog
 | 跨会话调度确认 | 桌宠 `stop` 必须停下来确认。没确认不算。 |
 | 桌宠模糊调度 | 用人话让桌宠去看板、把调研派到指定对话；不点名工具 schema。标记进目标会话或确实调了调度工具才算。 |
 | 桌宠功能询问 | 用人话问桌宠能干啥、能不能改设置/开主窗口，再让它打开主窗口并读不含密钥的设置；要有助手回复且动过 companion_app 或看板。 |
+| 桌宠中止后续跑 | 确认驻留或回合中 AbortCompanionTurn，修复孤儿工具后同一段对话还能再发；抄本无 `[object Object]` / `companion-host-*`。 |
+| 桌宠超时重启续跑 | StopCompanion 后 Ensure 再发，前后用户句都在同一段抄本。 |
+| 桌宠连发 | 短间隔连发多句，sidecar 不崩，抄本至少留下用户标记。 |
 | 换桌宠模型再发 | 换成另一台模型后再发出一句。 |
 | 桌宠模型设置 | 设置 → 桌宠有模型选择。 |
 | 跨会话调度设置 | 设置里有跨会话调度。 |
@@ -271,4 +274,4 @@ product-loop `--gui` **不是**用 OS 级 robot / nut.js 去抢全局鼠标键�
 - **首次启动把窗口建出来**：第一次 `show()` 仍会进任务栏；之后复用会话不再每次 `ShowCompanionMainWindow` 抢焦点。
 
 目标：你在旁边打字时，product-loop 尽量只动 MilkSU 自己的 CDP / RPC，不要每条用例都把窗口拽到最前。
-桌宠工具历史：abort / host 超时可能留下未配对的 `toolCall`。sidecar 在下一轮 send / 换模型 / abort 后会补 synthetic error `toolResult`（与 Pi 截断工具批的做法同型），不要靠狂刷 `ArchiveCompanionTranscript` 或逼用户「开新对话」来续跑。「开新对话」只留作手动归档出口。
+桌宠工具历史：abort / host 超时可能留下未配对的 `toolCall`。sidecar 在下一轮 send / 换模型 / abort 后会补 synthetic error `toolResult`（与 Pi 截断工具批的做法同型），不要靠狂刷 `ArchiveCompanionTranscript` 或逼用户「开新对话」来续跑。「开新对话」只在**当前** live error 仍是断工具历史时出现，不因抄本里旧的 errorMessage 一直刷；手机忙时发送键变成停止（`AbortCompanionTurn`）。

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { desktopErrorMessage, hasDesktopRuntime, invokeCommand, listenEvent } from '@/desktop'
 import {
   companionChatHydrateEntry,
-  companionChatNeedsNewConversation,
   companionChatPlainText,
   explainCompanionError,
 } from '@/lib/companionUserError'
@@ -335,6 +334,10 @@ export function useCompanion() {
           setSettledProcess(companionTurnHasProcess(snapshot) ? snapshot : null)
           setLiveProcess(emptyCompanionTurnProcess())
           setBusy(false)
+          setConfirm(null)
+          // Successful settle (including abort repair) must not leave a sticky
+          // 「没法继续了」 that forces archive after the transcript is usable again.
+          setError('')
           flashComplete()
           outgoing.current = null
           void loadTail()
@@ -451,6 +454,18 @@ export function useCompanion() {
     }
   }, [attachments, busy, clearComplete, draft])
 
+  const abort = useCallback(async () => {
+    if (!busy && !confirm) return
+    setConfirm(null)
+    setError('')
+    try {
+      await invokeCommand('abort_companion_turn')
+    } catch (reason) {
+      setError(explainCompanionError(desktopErrorMessage(reason)))
+      setBusy(false)
+    }
+  }, [busy, confirm])
+
   const archive = useCallback(async () => {
     await invokeCommand('archive_companion_transcript')
     outgoing.current = null
@@ -525,6 +540,7 @@ export function useCompanion() {
     confirm,
     complete,
     send,
+    abort,
     archive,
     removeArchive,
     approveMemory,

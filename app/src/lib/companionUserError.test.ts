@@ -39,18 +39,28 @@ describe('explainCompanionError', () => {
     )).toBe(true)
     expect(companionChatNeedsNewConversation('这段对话没法继续了。')).toBe(true)
     expect(companionChatNeedsNewConversation('当前服务找不到这个模型。')).toBe(false)
+    // Historical transcript rows must not by themselves force 「开新对话」.
+    expect(companionChatNeedsNewConversation('')).toBe(false)
+    expect(companionChatNeedsNewConversation(null)).toBe(false)
   })
 
   it('maps connection and host timeout failures to product copy', () => {
     applyUiLocale('zh')
     expect(explainCompanionError('Connection error.')).toBe('连不上模型服务，请稍后重试。')
     expect(explainCompanionError('Request timed out.')).toBe('连不上模型服务，请稍后重试。')
+    // Host board/dispatch timeout is not a model outage — model may still be fine.
     expect(explainCompanionError('companion host request timed out')).toBe(
-      '连不上模型服务，请稍后重试。',
+      '桌宠操作已取消或超时，请再试一次。',
+    )
+    expect(explainCompanionError('turn aborted')).toBe(
+      '桌宠操作已取消或超时，请再试一次。',
     )
     applyUiLocale('en')
     expect(explainCompanionError('Connection error.')).toBe(
       'Could not reach the model service. Try again later.',
+    )
+    expect(explainCompanionError('companion host request timed out')).toBe(
+      'The companion action was cancelled or timed out. Try again.',
     )
     applyUiLocale('zh')
   })

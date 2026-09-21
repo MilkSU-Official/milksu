@@ -383,8 +383,11 @@ async function handleCommand(command) {
   }
 }
 
-const isCompanionBridgeMain = Boolean(process.argv[1])
-  && resolvePath(fileURLToPath(import.meta.url)) === resolvePath(process.argv[1]);
+const isCompanionBridgeMain = process.env.MILKSU_COMPANION_BRIDGE_MAIN === "1"
+  || (
+    Boolean(process.argv[1])
+    && resolvePath(fileURLToPath(import.meta.url)) === resolvePath(process.argv[1])
+  );
 
 if (isCompanionBridgeMain) {
   const input = createInterface({ input: process.stdin });

@@ -22,14 +22,19 @@ export function explainCompanionError(
   if (companionChatNeedsNewConversation(message)) {
     return t('这段对话没法继续了。', 'This chat can\'t continue.')
   }
+  // Host IPC (board / dispatch / memory / app) must not look like a model outage.
+  // The model may still be streaming while a host wait times out or is aborted.
   if (
-    /\bconnection error\b|request timed out|companion host request timed out|ECONNREFUSED|ECONNRESET|ENOTFOUND|ETIMEDOUT|fetch failed|network is unreachable/i
+    /companion host request timed out|companion host request failed|companion host cancelled|turn aborted|unknown companion host request|companion-host-\d+/i
+      .test(message)
+  ) {
+    return t('桌宠操作已取消或超时，请再试一次。', 'The companion action was cancelled or timed out. Try again.')
+  }
+  if (
+    /\bconnection error\b|request timed out|ECONNREFUSED|ECONNRESET|ENOTFOUND|ETIMEDOUT|fetch failed|network is unreachable/i
       .test(message)
   ) {
     return t('连不上模型服务，请稍后重试。', 'Could not reach the model service. Try again later.')
-  }
-  if (/unknown companion host request|companion-host-\d+/i.test(message)) {
-    return t('桌宠操作已取消或超时，请再试一次。', 'The companion action was cancelled or timed out. Try again.')
   }
   return explainModelCallFailure(message, context) || message
 }

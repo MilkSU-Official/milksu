@@ -13,7 +13,7 @@ test("host broker defaults to a finite timeout like workspace_action", async () 
   }, { defaultTimeoutMs: 20 });
   await assert.rejects(
     () => broker.request("app", { action: "read_conversation" }),
-    /timed out/,
+    /timed out \(app\)/,
   );
   assert.equal(events.length, 1);
   assert.equal(events[0].type, "companion_host");

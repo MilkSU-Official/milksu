@@ -20,3 +20,9 @@ test("companion session keeps the full Pi tool loop instead of noTools all", () 
   assert.match(source, /companionSessionToolNames\(\)/);
   assert.doesNotMatch(source, /noTools:\s*"all"/);
 });
+
+test("development run-bridge marks itself as the companion main entry", async () => {
+  const entry = readFileSync(join(here, "run-bridge.mjs"), "utf8");
+  assert.match(entry, /MILKSU_COMPANION_BRIDGE_MAIN/);
+  assert.match(source, /MILKSU_COMPANION_BRIDGE_MAIN/);
+});

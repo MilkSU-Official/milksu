@@ -245,6 +245,13 @@ func (a *App) StopCompanion() error {
 	return a.companion.Stop()
 }
 
+func (a *App) AbortCompanionTurn() error {
+	if a == nil || a.companion == nil {
+		return nil
+	}
+	return a.companion.AbortTurn()
+}
+
 func (a *App) GetCompanionBoard() companion.BoardSnapshot {
 	if a == nil || a.companion == nil {
 		return companion.BoardSnapshot{}

@@ -551,6 +551,7 @@ export async function ensureIsolatedProductSession(session = {}, options = {}) {
   const launch = await startFirstUseDesktop({
     instanceId,
     timeoutMs: options.desktopReadyMs || 240_000,
+    buildRuntime: options.buildRuntime === true || process.env.MILKSU_PRODUCT_LOOP_BUILD === '1',
   })
   if (!launch.attached || !launch.driver?.cdpAlive()) {
     return {

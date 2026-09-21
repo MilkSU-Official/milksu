@@ -42,6 +42,7 @@ export function companionFuzzDispatchPrompts({ title, marker }) {
   return [
     `刚升级看到桌宠了。帮我瞄一眼现在有哪些对话，把标题叫「${title}」的那条派去摸底：让它看看工作区里有啥，回复里务必带上 ${marker}。长活别在手机里自己干。`,
     `别光聊天。去找「${title}」那条对话，转达一句带 ${marker} 的调研任务过去，让那边去列文件。`,
+    `先看板再调度：看一眼会话列表，确认「${title}」还在，然后只把带 ${marker} 的短任务转达过去，不要自己 bash。`,
   ]
 }
 
@@ -50,7 +51,33 @@ export function companionFuzzAppPrompts() {
     '刚升完级，桌宠到底能干啥？能帮我改设置吗？能打开主窗口吗？先用人话讲清楚你会什么。',
     '那就帮我打开主窗口，再告诉我当前桌宠用的是哪个模型；先别改任何设置。',
     '再帮我看一眼不含密钥的设置摘要，说说界面语言和桌宠开没开就行。',
+    '回一下刚才说的模型名，别再改设置，也别退出应用。',
   ]
+}
+
+export function companionFuzzMemoryPrompts() {
+  return [
+    '记一件事：我正在做 product-loop 桌宠稳定性手测。先提出来等我批准，不要直接当成已批准。',
+    '如果还没提出记忆，请再提一条标题带 product-loop 的待批准记忆。',
+  ]
+}
+
+export function companionTranscriptClean(page) {
+  const entries = asList(pick(page, 'entries', 'Entries'))
+  for (const entry of entries) {
+    const hay = [
+      pick(entry, 'text', 'Text'),
+      pick(entry, 'error', 'Error'),
+      pick(entry, 'thinking', 'Thinking'),
+    ].map(value => String(value ?? '')).join('\n')
+    if (/\[object Object\]/i.test(hay)) {
+      return { ok: false, reason: '抄本出现了 [object Object]' }
+    }
+    if (/companion-host-\d+/i.test(hay)) {
+      return { ok: false, reason: '抄本泄露了 companion-host 请求号' }
+    }
+  }
+  return { ok: true, reason: '' }
 }
 
 export function companionSpeakPrompt({ conversationId, title, marker }) {

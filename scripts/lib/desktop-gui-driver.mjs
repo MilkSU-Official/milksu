@@ -681,12 +681,16 @@ export class GuiDriver {
     }
   }
 
-  async waitForCompanionTurn(timeoutMs) {
+  async waitForCompanionTurn(timeoutMs, options = {}) {
     const collected = []
     const confirmed = []
+    const rejected = []
     const seenConfirm = new Set()
     const started = Date.now()
     let overlaySweepAt = 0
+    const autoConfirm = options.autoConfirm !== false
+    const rejectConfirm = options.rejectConfirm === true
+    const returnOnConfirm = options.returnOnConfirm === true
     // Confirm via Desktop RPC; do not ShowCompanionChatWindow / bringToFront.
     while (Date.now() - started < timeoutMs) {
       try {
@@ -699,6 +703,12 @@ export class GuiDriver {
         for (const event of batch) {
           const request = parseCompanionConfirm(event)
           if (!request?.hostRequestId || seenConfirm.has(request.hostRequestId)) continue
+          if (!autoConfirm && !rejectConfirm) {
+            seenConfirm.add(request.hostRequestId)
+            confirmed.push(request)
+            continue
+          }
+          const accepted = !rejectConfirm
           await this.confirmCompanionDispatch({
             action: request.action,
             conversationId: request.conversationId,
@@ -706,16 +716,24 @@ export class GuiDriver {
             idempotencyKey: request.idempotencyKey,
             mode: request.mode,
             hostRequestId: request.hostRequestId,
-            accepted: true,
+            accepted,
           })
           seenConfirm.add(request.hostRequestId)
-          confirmed.push(request)
+          if (accepted) confirmed.push(request)
+          else rejected.push(request)
         }
         const pending = this.companionStatusPending(await this.getCompanionStatus().catch(() => null))
         if (pending && !seenConfirm.has(pending.hostRequestId)) {
-          await this.confirmCompanionDispatch({ ...pending, accepted: true })
-          seenConfirm.add(pending.hostRequestId)
-          confirmed.push(pending)
+          if (!autoConfirm && !rejectConfirm) {
+            seenConfirm.add(pending.hostRequestId)
+            confirmed.push(pending)
+          } else {
+            const accepted = !rejectConfirm
+            await this.confirmCompanionDispatch({ ...pending, accepted })
+            seenConfirm.add(pending.hostRequestId)
+            if (accepted) confirmed.push(pending)
+            else rejected.push(pending)
+          }
         }
       } catch (error) {
         const text = error instanceof Error ? error.message : String(error)
@@ -725,25 +743,47 @@ export class GuiDriver {
         await delay(400)
         continue
       }
+      if (returnOnConfirm && (confirmed.length > 0 || rejected.length > 0)) {
+        return {
+          events: collected,
+          timeout: false,
+          confirmed: confirmed.length,
+          rejected: rejected.length,
+          parked: true,
+        }
+      }
       const outcome = classifyTurnEvents(collected)
       if (outcome.sidecarStopped) {
-        return { events: collected, timeout: false, confirmed: confirmed.length, sidecarStopped: true }
+        return {
+          events: collected,
+          timeout: false,
+          confirmed: confirmed.length,
+          rejected: rejected.length,
+          sidecarStopped: true,
+        }
       }
       if (outcome.settled || outcome.failed) {
         return {
           events: collected,
           timeout: false,
           confirmed: confirmed.length,
+          rejected: rejected.length,
           failed: outcome.failed,
           error: outcome.error,
         }
       }
-      if (confirmed.length === 0) {
+      if (autoConfirm && !rejectConfirm && confirmed.length === 0) {
         await this.clickCompanionConfirm().catch(() => false)
       }
       await delay(250)
     }
-    return { events: collected, timeout: true, confirmed: confirmed.length, error: 'companion turn timed out' }
+    return {
+      events: collected,
+      timeout: true,
+      confirmed: confirmed.length,
+      rejected: rejected.length,
+      error: 'companion turn timed out',
+    }
   }
 
   async drainEvents(conversationId) {
@@ -885,6 +925,14 @@ export class GuiDriver {
 
   async sendCompanionMessage(prompt) {
     return this.invoke('SendCompanionMessage', [String(prompt ?? ''), []])
+  }
+
+  async abortCompanionTurn() {
+    try {
+      await this.invoke('AbortCompanionTurn', [])
+    } catch {
+      // Turn already settled.
+    }
   }
 
   async stopCompanion() {
