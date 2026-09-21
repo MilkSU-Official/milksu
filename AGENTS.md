@@ -53,7 +53,7 @@ M3 product-loop 已在 2026-08-05 squash 合并进 `main`。从 `current-objecti
 产品运行时不要去拉 models.dev。TokenFlux / 官方 Provider 目录才是线上产品来源，
 models.dev 只用来补目录里缺失或占位的字段。
 
-2026-09-14 对照各官方实验室（deepseek、openai、anthropic、xai、google、alibaba）核过一次。
+2026-09-22 对照各官方实验室（deepseek、openai、anthropic、xai、google、alibaba）核过一次。
 **每次发版前**再对照一次（见 [三端打包与发版流程](docs/developer/release-process.md) §1.5）。
 下表任一数字与 models.dev 不一致时，连同下列代码副本一起改：
 
@@ -63,7 +63,7 @@ models.dev 只用来补目录里缺失或占位的字段。
 
 | 系列 | 上下文 | 输出 | 思考 |
 | --- | ---: | ---: | --- |
-| DeepSeek Flash / V4 Flash / V4 Pro | 1,000,000 | 384,000 | Flash：`low / high / max`（默认 high）；Pro：`high / max` |
+| DeepSeek Flash / V4 Flash / V4 Pro | 1,000,000 | 384,000 | `low / high / max`（默认 high） |
 | Grok 4.6 | 500,000 | 500,000 | `low / medium / high / xhigh` |
 | Grok 4.5 | 500,000 | 500,000 | `low / medium / high` |
 | Grok 4.3 / 4.20 | 1,000,000 | 30,000 | 4.3：`off / low / medium / high` |

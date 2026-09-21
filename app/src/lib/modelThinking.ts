@@ -174,7 +174,7 @@ export function builtInModelThinking(model: string): ModelThinkingConfig | undef
   }
 
   if (id.includes('deepseek-v4-pro')) {
-    return profile(['high', 'max'], 'high')
+    return profile(['low', 'high', 'max'], 'high')
   }
   if (id.includes('deepseek-v4-flash') || id.includes('deepseek-flash')) {
     return profile(['low', 'high', 'max'], 'high')

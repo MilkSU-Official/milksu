@@ -6,7 +6,7 @@ import "strings"
 // in sync with sidecar/pi/known-context-window.cjs and
 // app/src/lib/knownContextWindow.ts. Specific series must precede broader
 // family presets so an omitted or placeholder catalog value stays safe.
-// Checked against models.dev official labs on 2026-09-14.
+// Checked against models.dev official labs on 2026-09-22.
 
 const (
 	placeholderContextWindow = 128_000

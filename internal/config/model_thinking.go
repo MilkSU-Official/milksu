@@ -198,7 +198,7 @@ func builtInModelThinking(model string) (ModelThinkingConfig, bool) {
 	}
 
 	if strings.Contains(id, "deepseek-v4-pro") {
-		return profile([]string{"high", "max"}, "high")
+		return profile([]string{"low", "high", "max"}, "high")
 	}
 	if strings.Contains(id, "deepseek-v4-flash") ||
 		strings.Contains(id, "deepseek-flash") {
