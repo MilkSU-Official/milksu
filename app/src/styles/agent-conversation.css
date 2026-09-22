@@ -453,6 +453,17 @@
   animation: agent-pixel-on 650ms ease-in-out infinite;
 }
 
+.agent-pixel--decision .agent-pixel__cell {
+  background: var(--warning);
+  opacity: 1;
+  animation: none;
+}
+
+.agent-pixel__cell--hole {
+  width: 4px;
+  height: 4px;
+}
+
 [data-agent-conversation] .agent-pixel-loader__label {
   font-size: 0.8rem;
   font-weight: 500;
