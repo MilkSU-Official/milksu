@@ -112,22 +112,22 @@ export function chatWorkTotalsLabel(entries: readonly ChatActivityEntry[], think
   const parts: string[] = []
   if (thinkingMs >= 500) parts.push(thinkingSummary(thinkingMs))
   if (counts.files) {
-    parts.push(countLabel(counts.files, '个文件', '1 file', '%d files'))
+    parts.push(countLabel(counts.files, t('个文件', 'files'), '1 file', '%d files'))
   }
   if (counts.searches) {
-    parts.push(countLabel(counts.searches, '次检索', '1 search', '%d searches'))
+    parts.push(countLabel(counts.searches, t('次检索', 'searches'), '1 search', '%d searches'))
   }
   if (counts.commands) {
-    parts.push(countLabel(counts.commands, '条命令', '1 command', '%d commands'))
+    parts.push(countLabel(counts.commands, t('条命令', 'commands'), '1 command', '%d commands'))
   }
   if (counts.edits) {
-    parts.push(countLabel(counts.edits, '处编辑', '1 edit', '%d edits'))
+    parts.push(countLabel(counts.edits, t('处编辑', 'edits'), '1 edit', '%d edits'))
   }
   if (counts.other) {
     const alongside = parts.length > 0
     parts.push(alongside
-      ? countLabel(counts.other, '次其他调用', '1 other call', '%d other calls')
-      : countLabel(counts.other, '次工具调用', '1 tool call', '%d tool calls'))
+      ? countLabel(counts.other, t('次其他调用', 'other calls'), '1 other call', '%d other calls')
+      : countLabel(counts.other, t('次工具调用', 'tool calls'), '1 tool call', '%d tool calls'))
   }
   return parts.join(' · ')
 }
