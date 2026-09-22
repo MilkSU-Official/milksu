@@ -17,10 +17,10 @@ var imageGalleryExtensions = map[string]struct{}{
 }
 
 const (
-	maxGalleryImages     = 48
-	maxImageScanEntries  = 8000
-	maxImageScanDepth    = 8
-	imageRecencyWindow   = 7 * 24 * time.Hour
+	maxGalleryImages    = 48
+	maxImageScanEntries = 8000
+	maxImageScanDepth   = 8
+	imageRecencyWindow  = 7 * 24 * time.Hour
 )
 
 // DiscoverImages lists recent workspace images for the ContextRail gallery.
