@@ -10,10 +10,15 @@
  * deployable without codegen on every laptop.
  */
 
+// Re-export when Sandbox Durable Object is bound (CF Sandbox get-started).
+export { Sandbox } from '@cloudflare/sandbox'
+
 export interface Env {
   DB?: D1Database
   WORKSPACES?: R2Bucket
   ACCOUNT_API_URL?: string
+  /** Present after milksu-admin wires CF Sandbox Durable Object. */
+  Sandbox?: DurableObjectNamespace
   /** AES key material for user-supplied cloud credentials (Secret). */
   CREDENTIAL_KEK?: string
 }
@@ -158,11 +163,39 @@ export default {
         }
         return json({})
       }
-      case 'SendTurn':
+      case 'SendTurn': {
+        const sessionId = String(body.session_id || '').trim()
+        if (!sessionId) {
+          return json({ code: 'invalid_argument', message: 'session_id required' }, 400)
+        }
+        const row = sessions.get(sessionId)
+        if (!row || row.owner_token_hash !== tokenHash) {
+          return json({ code: 'not_found', message: 'Session not found' }, 404)
+        }
+        // Mature CF Sandbox path when Durable Object binding is present
+        // (https://developers.cloudflare.com/sandbox/get-started/).
+        if (env.Sandbox) {
+          try {
+            const { getSandbox } = await import('@cloudflare/sandbox')
+            const sandbox = getSandbox(env.Sandbox, `sess-${sessionId}`)
+            await sandbox.exec('true')
+            const turnId = crypto.randomUUID()
+            row.status = 'running'
+            row.updated_at_ms = Date.now()
+            sessions.set(sessionId, row)
+            return json({ turn_id: turnId })
+          } catch (error) {
+            return json({
+              code: 'unavailable',
+              message: error instanceof Error ? error.message : 'Sandbox start failed',
+            }, 503)
+          }
+        }
         return json({
           code: 'failed_precondition',
           message: 'Sandbox binding not configured in this environment',
         }, 400)
+      }
       case 'Subscribe':
         // Connect streaming requires application/connect+json framing; return
         // a clear unary error until generated Connect router is plugged in.

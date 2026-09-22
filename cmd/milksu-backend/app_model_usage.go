@@ -103,8 +103,20 @@ func (a *App) recordCodingUsageTurn(event engine.Event, occurredAt time.Time) (b
 		InputTokens: in, OutputTokens: out, CacheReadTokens: cr, CacheWriteTokens: cw, ReasoningTokens: reason,
 	})
 	turnID := fmt.Sprintf("turn:%s:%d", sessionID, occurredAt.UTC().UnixMilli())
+	host := "local"
+	kernel := "pi"
+	if a.conversations != nil {
+		if stored, err := a.conversations.Get(sessionID); err == nil {
+			if strings.EqualFold(strings.TrimSpace(stored.Host), "cloud") {
+				host = "cloud"
+			}
+			if strings.EqualFold(strings.TrimSpace(stored.Kernel), "dsh") {
+				kernel = "dsh"
+			}
+		}
+	}
 	if err := a.modelUsage.RecordTurn(context.Background(), modelusage.Turn{
-		ID: turnID, ConversationID: sessionID, Host: "local", Kernel: "pi",
+		ID: turnID, ConversationID: sessionID, Host: host, Kernel: kernel,
 		Model: model, Source: source, OccurredAt: occurredAt,
 		InputTokens: in, OutputTokens: out, CacheRead: cr, CacheWrite: cw, Reasoning: reason, TotalTokens: tot,
 		ModelCostEstUSD: est, SandboxSeconds: 0, SandboxCostEstUSD: 0,

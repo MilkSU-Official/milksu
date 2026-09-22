@@ -21,4 +21,6 @@ test('worker source keeps health and Connect path prefix', () => {
   assert.match(src, /Sandbox binding not configured/)
   assert.match(src, /MigrateCopy/)
   assert.match(src, /owner_token_hash/)
+  assert.match(src, /getSandbox/)
+  assert.match(src, /export \{ Sandbox \}/)
 })

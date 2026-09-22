@@ -1,0 +1,18 @@
+{
+  "version": 2,
+  "plugins": [
+    {
+      "local": [
+        "protoc-gen-es",
+        "--plugin=protoc-gen-es",
+        "--es_out=gen",
+        "--es_opt=target=ts"
+      ]
+    },
+    {
+      "remote": "buf.build/connectrpc/es",
+      "out": "gen",
+      "opt": "target=ts"
+    }
+  ]
+}

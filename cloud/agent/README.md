@@ -20,7 +20,9 @@ npm test
 
 ## 还未接线（需 milksu-admin / CF 凭据）
 
-- D1 / R2 / Sandbox Durable Object 绑定
-- 用户 Key 的加密落库（`CREDENTIAL_KEK`）
-- 生成 `@connectrpc` 客户端给桌面 TS / iOS Swift / Android Kotlin
-- 镜像内钉版 Pi + DSH 闭包打包（`scripts/cloud-sandbox-bundle.sh`）
+- 解开 `wrangler.toml` 里 containers / Durable Object / migrations（官方 Sandbox 形状已写好）
+- D1 / R2 / `CREDENTIAL_KEK`
+- `buf generate`（`buf.yaml` + `buf.gen.yaml`）出 TS / Swift / Kotlin 客户端
+- 镜像内钉版 Pi + DSH 闭包（`scripts/cloud-sandbox-bundle.sh`）
+
+SendTurn：无 `Sandbox` 绑定时返回 `failed_precondition`；有绑定时走 `getSandbox(env.Sandbox, sess-*)`。

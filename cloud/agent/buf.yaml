@@ -1,0 +1,5 @@
+# proto module for MilkSU Cloud Agent Connect surface
+version: v2
+modules:
+  - path: proto
+name: buf.build/milksu/cloud-agent
