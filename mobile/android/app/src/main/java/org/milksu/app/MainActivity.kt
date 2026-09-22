@@ -125,14 +125,3 @@ fun CloudSessionScreen(accessToken: String, onSignOut: () -> Unit) {
     }
   }
 }
-
-fun MilkSUCloudAgentClient.createSession(kernel: String = "pi"): JSONObject {
-  return call(
-    "CreateSession",
-    JSONObject()
-      .put("kernel", kernel)
-      .put("model", "")
-      .put("title", "")
-      .put("credential_id", ""),
-  )
-}

@@ -29,6 +29,17 @@ class MilkSUCloudAgentClient(
     }
   }
 
+  fun createSession(kernel: String = "pi", model: String = "", title: String = ""): JSONObject {
+    return call(
+      "CreateSession",
+      JSONObject()
+        .put("kernel", kernel)
+        .put("model", model)
+        .put("title", title)
+        .put("credential_id", ""),
+    )
+  }
+
   fun migrateCopy(sourceSessionId: String, transcriptJson: String): String {
     val body = call(
       "MigrateCopy",
