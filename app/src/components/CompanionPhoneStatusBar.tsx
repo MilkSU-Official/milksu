@@ -1,5 +1,4 @@
 import { useEffect, useId, useState } from 'react'
-import { Wifi, WifiOff } from 'lucide-react'
 import { CompanionPetBang, CompanionPetSpinner } from '@/components/CompanionPetGlyph'
 import { hasDesktopRuntime, invokeCommand } from '@/desktop'
 import { useT } from '@/hooks/useUiLocale'
@@ -73,12 +72,33 @@ function batteryLabel(
   return t(`电量 ${status.batteryPercent}%`, `Battery ${status.batteryPercent}%`)
 }
 
-const BATTERY_VB_W = 31.2
-const BATTERY_VB_H = 13
-const BATTERY_BODY = { x: 0.55, y: 0.7, w: 27.6, h: 11.6, rx: 3.5 }
-const BATTERY_NUB = { x: 27.85, y: 4.15, w: 2.05, h: 4.15, rx: 0.95 }
-const BATTERY_STROKE = 0.8
-const BOLT_PATH = 'M7.2 0.2 L1.1 6.4 H4.6 L3.1 12.6 L11.4 5.2 H7.6 L9.2 0.2 Z'
+const BATTERY_VB_W = 40
+const BATTERY_VB_H = 18
+const BATTERY_BODY = { x: 0, y: 0, w: 36.6, h: 18, rx: 5 }
+const BATTERY_NUB = { x: 35.2, y: 6.15, w: 2.9, h: 5.7, rx: 0.95 }
+const BATTERY_INSET_X = 2.4
+// CSS draws the capsule at 14px. Marks scale up by the viewBox/CSS ratio so
+// the digits and bolt keep the size they had when the capsule was 16px tall.
+const MARK_SCALE = BATTERY_VB_H / 14
+const FONT_SIZE = 9.93 * MARK_SCALE
+const FIGURE_CAP_RATIO = 0.71
+const DIGIT_ADVANCE = 6.35 * MARK_SCALE
+const BOLT_GAP = 0.9 * MARK_SCALE
+const BOLT_PATH = 'M6.4 0 L0.6 6.2 H3.8 L2.2 12 L10.2 4.8 H6.6 L8.2 0 Z'
+const BOLT_PATH_BOX = { x: 0.6, y: 0, w: 9.6, h: 12 }
+
+function batteryNubPath(x: number, y: number, w: number, h: number, r: number) {
+  const radius = Math.min(r, w, h / 2)
+  return [
+    `M ${x} ${y}`,
+    `H ${x + w - radius}`,
+    `A ${radius} ${radius} 0 0 1 ${x + w} ${y + radius}`,
+    `V ${y + h - radius}`,
+    `A ${radius} ${radius} 0 0 1 ${x + w - radius} ${y + h}`,
+    `H ${x}`,
+    'Z',
+  ].join(' ')
+}
 
 function CompanionBatteryGlyph({
   percent,
@@ -97,18 +117,36 @@ function CompanionBatteryGlyph({
     : full
       ? BATTERY_VB_W
       : BATTERY_BODY.x + BATTERY_BODY.w * (level / 100)
-  const fontSize = 7.35
-  const textW = digits.length * fontSize * 0.58
-  const boltW = 4.05
-  const boltH = 7.05
-  const gap = showBolt && digits ? 0.45 : 0
-  const groupW = textW + (showBolt ? gap + boltW : 0)
-  const groupX = BATTERY_BODY.x + (BATTERY_BODY.w - groupW) / 2
-  const textY = BATTERY_BODY.y + BATTERY_BODY.h / 2 + 0.35
+  const midY = BATTERY_BODY.y + BATTERY_BODY.h / 2
+  const capH = FONT_SIZE * FIGURE_CAP_RATIO
+  const innerLeft = BATTERY_BODY.x + BATTERY_INSET_X
+  const innerW = BATTERY_BODY.w - BATTERY_INSET_X * 2
+  const boltH = showBolt ? capH : 0
+  const boltW = showBolt ? capH * (BOLT_PATH_BOX.w / BOLT_PATH_BOX.h) : 0
+  const gap = showBolt && digits ? BOLT_GAP : 0
+  const textW = digits ? digits.length * DIGIT_ADVANCE : 0
+  const groupW = textW + gap + boltW
+  const groupX = innerLeft + Math.max(0, (innerW - groupW) / 2)
+  const textY = midY + capH / 2
   const boltX = groupX + textW + gap
-  const boltY = BATTERY_BODY.y + (BATTERY_BODY.h - boltH) / 2
-  const boltScaleX = boltW / 10.3
-  const boltScaleY = boltH / 12.4
+  const boltY = midY - capH / 2
+  const boltScaleX = boltW / BOLT_PATH_BOX.w
+  const boltScaleY = boltH / BOLT_PATH_BOX.h
+
+  function shell(opacity: number) {
+    return (
+      <g fill="currentColor" opacity={opacity}>
+        <rect
+          x={BATTERY_BODY.x}
+          y={BATTERY_BODY.y}
+          width={BATTERY_BODY.w}
+          height={BATTERY_BODY.h}
+          rx={BATTERY_BODY.rx}
+        />
+        <path d={batteryNubPath(BATTERY_NUB.x, BATTERY_NUB.y, BATTERY_NUB.w, BATTERY_NUB.h, BATTERY_NUB.rx)} />
+      </g>
+    )
+  }
 
   function marks(fill: string) {
     if (!digits && !showBolt) return null
@@ -116,15 +154,14 @@ function CompanionBatteryGlyph({
       <g fill={fill}>
         {digits ? (
           <text
+            className="companion-chat-battery-digits"
             x={groupX}
             y={textY}
             textAnchor="start"
-            dominantBaseline="central"
-            fontSize={fontSize}
-            fontWeight="700"
+            dominantBaseline="alphabetic"
+            fontSize={FONT_SIZE}
+            fontWeight="600"
             fontFamily="inherit"
-            textLength={textW}
-            lengthAdjust="spacingAndGlyphs"
             style={{ fontVariantNumeric: 'tabular-nums' }}
           >
             {digits}
@@ -133,7 +170,7 @@ function CompanionBatteryGlyph({
         {showBolt ? (
           <path
             d={BOLT_PATH}
-            transform={`translate(${boltX - 1.1 * boltScaleX} ${boltY - 0.2 * boltScaleY}) scale(${boltScaleX} ${boltScaleY})`}
+            transform={`translate(${boltX - BOLT_PATH_BOX.x * boltScaleX} ${boltY - BOLT_PATH_BOX.y * boltScaleY}) scale(${boltScaleX} ${boltScaleY})`}
           />
         ) : null}
       </g>
@@ -147,6 +184,15 @@ function CompanionBatteryGlyph({
       aria-hidden="true"
     >
       <defs>
+        <clipPath id={`${uid}-body`}>
+          <rect
+            x={BATTERY_BODY.x}
+            y={BATTERY_BODY.y}
+            width={BATTERY_BODY.w}
+            height={BATTERY_BODY.h}
+            rx={BATTERY_BODY.rx}
+          />
+        </clipPath>
         <clipPath id={`${uid}-fill`}>
           <rect x="0" y="0" width={fillEnd} height={BATTERY_VB_H} />
         </clipPath>
@@ -154,63 +200,59 @@ function CompanionBatteryGlyph({
           <rect x={fillEnd} y="0" width={Math.max(0, BATTERY_VB_W - fillEnd)} height={BATTERY_VB_H} />
         </clipPath>
       </defs>
-      {full ? null : (
-        <g
-          clipPath={`url(#${uid}-rest)`}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={BATTERY_STROKE}
-          strokeLinejoin="round"
-          opacity="0.42"
-        >
-          <rect
-            x={BATTERY_BODY.x}
-            y={BATTERY_BODY.y}
-            width={BATTERY_BODY.w}
-            height={BATTERY_BODY.h}
-            rx={BATTERY_BODY.rx}
-          />
-          <rect
-            x={BATTERY_NUB.x}
-            y={BATTERY_NUB.y}
-            width={BATTERY_NUB.w}
-            height={BATTERY_NUB.h}
-            rx={BATTERY_NUB.rx}
-          />
+      {full ? shell(1) : (
+        <g clipPath={`url(#${uid}-rest)`}>
+          {shell(0.38)}
         </g>
       )}
-      {fillEnd > 0 ? (
-        <g clipPath={`url(#${uid}-fill)`} strokeLinejoin="round">
-          <rect
-            x={BATTERY_BODY.x}
-            y={BATTERY_BODY.y}
-            width={BATTERY_BODY.w}
-            height={BATTERY_BODY.h}
-            rx={BATTERY_BODY.rx}
-            fill="currentColor"
-            stroke="currentColor"
-            strokeWidth={BATTERY_STROKE}
-          />
-          {full ? (
-            <rect
-              x={BATTERY_NUB.x}
-              y={BATTERY_NUB.y}
-              width={BATTERY_NUB.w}
-              height={BATTERY_NUB.h}
-              rx={BATTERY_NUB.rx}
-              fill="currentColor"
-              stroke="currentColor"
-              strokeWidth={BATTERY_STROKE}
-            />
-          ) : null}
-          {marks('var(--companion-page)')}
+      {fillEnd > 0 && !full ? (
+        <g clipPath={`url(#${uid}-fill)`}>
+          {shell(1)}
         </g>
       ) : null}
-      {full ? null : (
-        <g clipPath={`url(#${uid}-rest)`}>
-          {marks('currentColor')}
-        </g>
-      )}
+      <g clipPath={`url(#${uid}-body)`}>
+        {fillEnd > 0 ? (
+          <g clipPath={`url(#${uid}-fill)`}>
+            {marks('var(--companion-page)')}
+          </g>
+        ) : null}
+        {full ? null : (
+          <g clipPath={`url(#${uid}-rest)`}>
+            {marks('currentColor')}
+          </g>
+        )}
+      </g>
+    </svg>
+  )
+}
+
+function CompanionWifiGlyph({ off }: { off?: boolean }) {
+  return (
+    <svg className="companion-chat-wifi" viewBox="0 1.5 16 11" aria-hidden="true">
+      <circle cx="8" cy="11.15" r="1.05" fill="currentColor" />
+      <path
+        d="M4.15 8.05a5.15 5.15 0 0 1 7.7 0"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.45"
+        strokeLinecap="round"
+      />
+      <path
+        d="M1.55 5.15a8.85 8.85 0 0 1 12.9 0"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.45"
+        strokeLinecap="round"
+      />
+      {off ? (
+        <path
+          d="M2.4 2.35 L13.5 11.7"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.35"
+          strokeLinecap="round"
+        />
+      ) : null}
     </svg>
   )
 }
@@ -394,9 +436,13 @@ export default function CompanionPhoneStatusBar({
         <p className="companion-chat-statusbar-time">{status.time || formatCompanionPhoneClock()}</p>
         <div className="companion-chat-statusbar-end">
           {status.wifi ? (
-            <Wifi className="companion-chat-statusbar-glyph" aria-label={t('无线网络', 'Wi-Fi')} />
+            <span className="companion-chat-statusbar-glyph" role="img" aria-label={t('无线网络', 'Wi-Fi')}>
+              <CompanionWifiGlyph />
+            </span>
           ) : (
-            <WifiOff className="companion-chat-statusbar-glyph" aria-label={t('无网络', 'No network')} />
+            <span className="companion-chat-statusbar-glyph" role="img" aria-label={t('无网络', 'No network')}>
+              <CompanionWifiGlyph off />
+            </span>
           )}
           <span className="companion-chat-battery" aria-label={batteryLabel(status, t)}>
             <CompanionBatteryGlyph

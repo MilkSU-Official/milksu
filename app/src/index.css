@@ -1041,8 +1041,9 @@ html.companion-surface #app {
   position: relative;
   z-index: 2;
   --companion-phone-bezel: 3px;
-  --companion-screen-radius: 41.64px;
-  --companion-phone-radius: 44.64px;
+  /* 62 pt / 402 pt on the 314 px screen inside the 320 px window. */
+  --companion-screen-radius: 48.43px;
+  --companion-phone-radius: 51.43px;
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -1185,8 +1186,8 @@ html.companion-chat-surface #app {
   align-items: center;
   column-gap: 8px;
   flex: none;
-  min-height: 28px;
-  padding: 10px 20px 2px;
+  min-height: 36px;
+  padding: 16px 31px 2px;
   color: var(--companion-bubble-incoming-fg);
   font-size: 12px;
   font-weight: 600;
@@ -1204,7 +1205,11 @@ html.companion-chat-surface #app {
   grid-column: 1;
   grid-row: 1;
   margin: 0;
+  font-size: 14px;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  line-height: 1;
   white-space: nowrap;
 }
 
@@ -1250,7 +1255,7 @@ button.companion-island {
   color: #fff;
   box-shadow: none;
   cursor: pointer;
-  overflow: visible;
+  overflow: hidden;
   clip-path: inset(0 0 calc(100% - 26px) 0 round 13px);
   -webkit-app-region: no-drag;
 }
@@ -1354,16 +1359,23 @@ button.companion-island {
 }
 
 .companion-chat-statusbar-glyph {
-  width: 13px;
-  height: 13px;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+}
+
+.companion-chat-wifi {
+  display: block;
+  width: calc(14px * 16 / 11);
+  height: 14px;
   flex: none;
 }
 
 .companion-chat-battery {
   display: inline-flex;
   flex: none;
-  width: 31px;
-  height: 13px;
+  width: calc(40px * 14 / 18);
+  height: 14px;
   color: inherit;
 }
 
