@@ -134,12 +134,13 @@ Cloud API
 | --- | --- | --- |
 | 1 用量 + Connect 契约 | 骨架已进仓 | `internal/modelpricing`、`usage_turns`、`cloud/agent/proto`、Worker stub |
 | 2–3 CF Pi/DSH | 骨架 | `cloud/agent/sandbox`；需 CF 绑定与镜像闭包 |
-| 4 左下切换 + 先拷后删 | UI + Desktop RPC | `ComposerHostSwitch`、`migrateConversationHost`、`desktop/cloud-agent-client.cjs`（`CloudAgentInvoke`，Bearer 只在 Electron main） |
+| 4 左下切换 + 先拷后删 | UI + Desktop RPC | `ComposerHostSwitch`、`migrateConversationHost`、`desktop/cloud-agent-client.cjs`（`CloudAgentInvoke`，Bearer 只在 Electron main）；云宿主 `SendTurn` 走同一代理 |
 | 5 原生双端 | Connect-JSON 客户端 | `mobile/ios`、`mobile/android`（手搓 unary；codegen 后替换） |
 
 桌面渲染进程**不得**持有账户 Bearer；云 unary 一律走 `CloudAgentInvoke`。
+空画布可用 `pendingHost`；已开回合迁移成功后写入 `cloudSessionId`。
 部署与密钥仍在 `milksu-admin` / CF 控制台（本 Agent 无该仓写权限）。
-SendTurn / Subscribe / 真沙箱仍待 CF Sandbox 绑定。
+Subscribe 流式与真沙箱仍待 CF Sandbox 绑定。
 
 ## 检查点
 
