@@ -133,10 +133,10 @@ Cloud API
 | 刀 | 状态 | 落点 |
 | --- | --- | --- |
 | 1 用量 + Connect 契约 | 骨架已进仓 | `internal/modelpricing`、`usage_turns`、`cloud/agent/proto`、Worker stub |
-| 2–3 CF Pi/DSH | 骨架 | `cloud/agent/sandbox`；需 CF 绑定与镜像闭包 |
+| 2–3 CF Pi/DSH | 骨架 | `sandbox/Dockerfile` + `package-pins.json`（钉 Pi 0.84.1 / DSH 0.1.6-alpha.1）；`migrations/0001_init.sql`；需 milksu-admin 解开 wrangler containers/DO/D1 |
 | 4 左下切换 + 先拷后删 | UI + Desktop RPC | `ComposerHostSwitch`、`migrateConversationHost`、`desktop/cloud-agent-client.cjs`（`CloudAgentInvoke`，Bearer 只在 Electron main）；云宿主 `SendTurn` 走同一代理 |
 | 5 原生双端 | Connect-JSON + Subscribe | `mobile/ios`、`mobile/android`：PKCE、`Info.plist` / `AndroidManifest` deep link、列表 + 对话、`SendTurn` / `Subscribe` 长轮询重连 |
-| 云端 BYOK | 设置入口 | `CloudCredentialSettings` → `UpsertCredential`（服务端加密；明文成功后清空） |
+| 云端 BYOK | 设置入口 | `CloudCredentialSettings` → `UpsertCredential`；Worker AES-GCM（`CREDENTIAL_KEK`）+ D1；无 KEK 时拒绝存盘；明文成功后清空 |
 | Subscribe 流 | 已落地 | Worker `application/connect+json` 长轮询窗口 + `after_event_id`；桌面 main 自动重连；stub `SendTurn` 发 thinking / chunked delta / `turn.settled` |
 
 桌面渲染进程**不得**持有账户 Bearer；云 unary / Subscribe 一律走 Electron main。

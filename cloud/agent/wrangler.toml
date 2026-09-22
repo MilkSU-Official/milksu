@@ -6,7 +6,7 @@ compatibility_flags = ["nodejs_compat"]
 # Official Cloudflare Sandbox Worker shape
 # (https://developers.cloudflare.com/sandbox/configuration/wrangler/).
 # milksu-admin fills secrets / account ids at deploy. Uncomment containers + DO
-# when the Pi+DSH image is built via scripts/cloud-sandbox-bundle.sh.
+# after scripts/cloud-sandbox-bundle.sh writes package-pins.json.
 
 # [[containers]]
 # class_name = "Sandbox"
@@ -30,6 +30,7 @@ compatibility_flags = ["nodejs_compat"]
 # binding = "DB"
 # database_name = "milksu-cloud"
 # database_id = "replace-me"
+# migrations_dir = "migrations"
 
 [vars]
 ACCOUNT_API_URL = "https://accounts.milksu.org"

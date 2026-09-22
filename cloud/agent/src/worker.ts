@@ -15,6 +15,8 @@
  * deployable without codegen on every laptop.
  */
 
+import { encryptCredentialSecret } from './credential-crypto'
+
 // Re-export when Sandbox Durable Object is bound (CF Sandbox get-started).
 export { Sandbox } from '@cloudflare/sandbox'
 
@@ -426,15 +428,68 @@ export default {
         sessions.set(id, row)
         return json({ ok: true, error: '' })
       }
-      case 'UpsertCredential':
-        if (!String(body.api_key || '').trim()) {
+      case 'UpsertCredential': {
+        const apiKey = String(body.api_key || '').trim()
+        if (!apiKey) {
           return json({ code: 'invalid_argument', message: 'api_key required' }, 400)
         }
-        // Persist encrypted ciphertext only when D1 + CREDENTIAL_KEK are bound.
-        // Never echo api_key back.
-        return json({ id: String(body.id || crypto.randomUUID()) })
-      case 'DeleteCredential':
+        const id = String(body.id || crypto.randomUUID())
+        const label = String(body.label || '')
+        const baseUrl = String(body.base_url || '')
+        // Encrypt when CREDENTIAL_KEK is bound; never echo api_key back.
+        if (!env.CREDENTIAL_KEK) {
+          return json({
+            code: 'failed_precondition',
+            message: 'CREDENTIAL_KEK not bound; refuse to store cloud credentials',
+          }, 503)
+        }
+        let sealed: { iv_b64: string; ciphertext_b64: string }
+        try {
+          sealed = await encryptCredentialSecret(env.CREDENTIAL_KEK, apiKey)
+        } catch (error) {
+          return json({
+            code: 'internal',
+            message: error instanceof Error ? error.message : 'encrypt failed',
+          }, 500)
+        }
+        if (env.DB) {
+          const now = Date.now()
+          await env.DB.prepare(
+            `INSERT INTO cloud_credentials
+              (id, owner_token_hash, label, base_url, iv_b64, ciphertext_b64, created_at_ms, updated_at_ms)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT(id) DO UPDATE SET
+               label=excluded.label,
+               base_url=excluded.base_url,
+               iv_b64=excluded.iv_b64,
+               ciphertext_b64=excluded.ciphertext_b64,
+               updated_at_ms=excluded.updated_at_ms
+             WHERE owner_token_hash=?`,
+          ).bind(
+            id,
+            tokenHash,
+            label,
+            baseUrl,
+            sealed.iv_b64,
+            sealed.ciphertext_b64,
+            now,
+            now,
+            tokenHash,
+          ).run()
+        }
+        // Without D1 the ciphertext is discarded after this response — deploy
+        // must bind DB before BYOK is durable. Still never return plaintext.
+        return json({ id })
+      }
+      case 'DeleteCredential': {
+        const id = String(body.id || '').trim()
+        if (env.DB && id) {
+          await env.DB.prepare(
+            'DELETE FROM cloud_credentials WHERE id = ? AND owner_token_hash = ?',
+          ).bind(id, tokenHash).run()
+        }
         return json({})
+      }
       default:
         return json({ code: 'unimplemented', message: `Method ${method}` }, 501)
     }
