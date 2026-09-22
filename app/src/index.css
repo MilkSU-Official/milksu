@@ -1653,6 +1653,21 @@ button.companion-chat-title {
   justify-content: flex-end;
 }
 
+/* A stacked control is the whole row, not a trailing picker. The 58% clamp
+   and the label column's overflow clip the second reply-style preview. */
+.companion-phone-settings-scroll section > div:last-child > div.settings-row-stack {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.companion-phone-settings-scroll section > div:last-child > div.settings-row-stack > div {
+  flex: none;
+  width: 100%;
+  max-width: none;
+  overflow: visible;
+  justify-content: flex-start;
+}
+
 .companion-phone-settings-scroll section > div:last-child > div:not(:last-child)::after {
   content: "";
   position: absolute;
@@ -1900,6 +1915,58 @@ button.companion-chat-title {
 
 .companion-chat-bubble .markdown-content hr {
   border-top-color: color-mix(in srgb, currentColor 22%, transparent);
+}
+
+.companion-chat-stack {
+  display: flex;
+  width: 100%;
+  max-width: 100%;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.companion-chat-note {
+  width: min(100%, 268px);
+  border-radius: var(--companion-bubble-radius);
+  background: var(--companion-bubble-incoming);
+  color: var(--companion-bubble-incoming-fg);
+  padding: 8px 10px 10px;
+}
+
+.companion-chat-note-toggle {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.companion-chat-note-preview {
+  display: -webkit-box;
+  margin: 6px 0 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  font-size: 12px;
+  line-height: 16px;
+  opacity: 0.72;
+}
+
+.companion-chat-note-body {
+  margin-top: 8px;
+  color: inherit;
+}
+
+.companion-chat-note .markdown-content :is(p, li, h1, h2, h3, h4, code, pre) {
+  color: inherit;
 }
 
 .companion-chat-bubble-attach {

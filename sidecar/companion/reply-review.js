@@ -1,20 +1,25 @@
-export function companionReplyReviewInstructions(locale) {
+export function companionReplyReviewInstructions(locale, replyStyle = "markdown") {
+  const chat = replyStyle === "chat";
   if (locale === "en") {
-    return [
+    const lines = [
       "Review the draft before it is shown.",
       "If it recites old work the user did not ask to hear, or session ids and hashes they did not ask for, rewrite it shorter.",
       "A greeting stays one or two sentences.",
       "Otherwise keep the meaning.",
       "Return only the reply text.",
-    ].join(" ");
+    ];
+    if (chat) lines.push("Keep blank lines. Do not merge short lines into the long paragraph.");
+    return lines.join(" ");
   }
-  return [
+  const lines = [
     "在发出前审这一稿。",
     "如果草稿在复述用户没让你说的旧任务，或念出用户没要的会话 id、哈希，就改写成更短的回复。",
     "打招呼只留一两句。",
     "其余保持原意。",
     "只输出用户该看到的正文。",
-  ].join("");
+  ];
+  if (chat) lines.push("空行留着，短句不要并进长段。");
+  return lines.join("");
 }
 
 export function assistantVisibleText(message) {
@@ -71,6 +76,7 @@ export async function reviewCompanionDraft({
   draft,
   userText,
   locale,
+  replyStyle,
   complete,
 } = {}) {
   const original = String(draft ?? "").trim();
@@ -82,7 +88,7 @@ export async function reviewCompanionDraft({
     : `用户刚才说：\n${asked}\n\n草稿：\n${original}`;
   try {
     const message = await complete({
-      systemPrompt: companionReplyReviewInstructions(language),
+      systemPrompt: companionReplyReviewInstructions(language, replyStyle),
       messages: [{
         role: "user",
         content: [{ type: "text", text: body }],

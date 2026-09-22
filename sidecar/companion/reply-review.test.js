@@ -2,9 +2,16 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   applyReviewedAssistantText,
+  companionReplyReviewInstructions,
   reviewCompanionDraft,
   rewriteLastAssistantReply,
 } from "./reply-review.js";
+
+test("chat review keeps the short lines apart from the long paragraph", () => {
+  assert.match(companionReplyReviewInstructions("zh", "chat"), /空行留着/);
+  assert.match(companionReplyReviewInstructions("en", "chat"), /blank lines/);
+  assert.doesNotMatch(companionReplyReviewInstructions("zh", "markdown"), /空行留着/);
+});
 
 test("review keeps the draft when the pass fails", async () => {
   const text = await reviewCompanionDraft({

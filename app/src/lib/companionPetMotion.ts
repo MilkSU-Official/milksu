@@ -51,7 +51,7 @@ export function companionPetSprite(
 
 export type CompanionIslandKind = 'none' | 'think' | 'confirm' | 'error' | 'complete'
 
-/** Phone island. Same priority as the pet: decide, talk, think, complete, idle. Talk and idle draw nothing. */
+/** Phone island. Decide, think, and complete draw. The think timer stays up while the reply streams. Idle draws nothing. */
 export function resolveCompanionIsland(input: {
   confirm: boolean
   error: boolean
@@ -60,7 +60,7 @@ export function resolveCompanionIsland(input: {
   complete: boolean
 }): CompanionIslandKind {
   const motion = resolveCompanionPetMotion(input)
-  if (motion === 'think') return 'think'
+  if (motion === 'think' || motion === 'talk') return 'think'
   if (motion === 'decide') return input.confirm ? 'confirm' : 'error'
   if (motion === 'complete') return 'complete'
   return 'none'

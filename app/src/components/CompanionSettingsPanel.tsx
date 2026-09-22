@@ -30,19 +30,19 @@ import {
 function ReplyStyleThumb({ kind }: { kind: 'markdown' | 'chat' }) {
   if (kind === 'chat') {
     return (
-      <span className="pointer-events-none flex h-16 w-[88px] flex-col justify-center gap-1 rounded-md bg-muted/50 px-1.5" aria-hidden="true">
-        <span className="h-2.5 w-10 rounded-md bg-foreground/15" />
-        <span className="inline-flex h-2.5 w-8 items-center justify-center gap-0.5 rounded-md bg-foreground/15">
-          <span className="size-1 rounded-full bg-foreground/50" />
-          <span className="size-1 rounded-full bg-foreground/50" />
-          <span className="size-1 rounded-full bg-foreground/50" />
+      <span className="pointer-events-none flex h-16 w-[88px] flex-col justify-center gap-1 rounded-md bg-muted px-1.5" aria-hidden="true">
+        <span className="h-2.5 w-10 rounded-md bg-foreground/25" />
+        <span className="inline-flex h-2.5 w-8 items-center justify-center gap-0.5 rounded-md bg-foreground/20">
+          <span className="size-1 rounded-full bg-foreground/70" />
+          <span className="size-1 rounded-full bg-foreground/70" />
+          <span className="size-1 rounded-full bg-foreground/70" />
         </span>
-        <span className="h-2.5 w-12 rounded-md bg-foreground/15" />
+        <span className="h-2.5 w-12 rounded-md bg-foreground/25" />
       </span>
     )
   }
   return (
-    <span className="pointer-events-none flex h-16 w-[88px] flex-col justify-center gap-1 rounded-md bg-muted/50 px-1.5" aria-hidden="true">
+    <span className="pointer-events-none flex h-16 w-[88px] flex-col justify-center gap-1 rounded-md bg-muted px-1.5" aria-hidden="true">
       <span className="h-1 w-full rounded-sm bg-foreground/25" />
       <span className="h-1 w-full rounded-sm bg-foreground/20" />
       <span className="h-1 w-4/5 rounded-sm bg-foreground/20" />
@@ -203,8 +203,10 @@ export default function CompanionSettingsPanel({
                   role="radio"
                   aria-checked={selected}
                   className={cn(
-                    'rounded-md p-1 text-left',
-                    selected && 'ring-2 ring-emphasis ring-offset-2 ring-offset-card',
+                    'shrink-0 rounded-md border-2 border-transparent p-1 text-left outline-none',
+                    'transition-[border-color,transform] duration-[120ms] ease-[var(--ease-out)] active:scale-[0.97]',
+                    'focus-visible:border-emphasis',
+                    selected && 'border-emphasis',
                   )}
                   onClick={() => patch({ companion_reply_style: value })}
                 >

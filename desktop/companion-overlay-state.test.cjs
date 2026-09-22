@@ -109,9 +109,16 @@ test('drag moves the overlay only, then clamps to the work area', () => {
   assert.deepEqual(speech.petScreen, { x: 80, y: 200 })
 })
 
-test('default spawn is bottom-right and the pet menu opens up-left', () => {
+test('default spawn is flush to the bottom-right and the pet menu opens up-left', () => {
   const area = { x: 0, y: 0, width: 1440, height: 900 }
-  assert.deepEqual(defaultCompanionPetOrigin(area), { x: 1264, y: 724 })
+  const origin = defaultCompanionPetOrigin(area)
+  assert.deepEqual(origin, { x: 1280, y: 740 })
+  const phone = layoutCompanionUnit({ chatOpen: true, petOrigin: origin, workArea: area })
+  assert.equal(phone.window.x + phone.window.width, area.width)
+  assert.equal(phone.window.y + phone.window.height, area.height)
+  assert.deepEqual(phone.petScreen, origin)
+  const back = layoutCompanionUnit({ chatOpen: false, petOrigin: phone.petScreen, workArea: area })
+  assert.deepEqual(back.petScreen, origin)
   const menu = clampCompanionMenuOrigin({ x: 1380, y: 860, workArea: area })
   assert.ok(menu.x + COMPANION_PET_MENU_WIDTH <= 1440 - 8)
   assert.ok(menu.y + COMPANION_PET_MENU_HEIGHT <= 900 - 8)

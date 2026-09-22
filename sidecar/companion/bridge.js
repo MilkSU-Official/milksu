@@ -280,11 +280,12 @@ function subscribeCompanion() {
           durationMs: startedAt === undefined ? undefined : Math.max(0, Date.now() - startedAt),
         });
       } else if (update.type === "text_delta") {
-        if (captureReply) {
-          heldReply += String(update.delta ?? "");
-          return;
-        }
-        emit("text_delta", { delta: update.delta ?? "" });
+        const delta = String(update.delta ?? "");
+        if (captureReply) heldReply += delta;
+        // Chat style shows the opening line while the turn is still running.
+        // Markdown keeps the draft until the review pass.
+        if (captureReply && replyStyle !== "chat") return;
+        emit("text_delta", { delta });
       }
       return;
     }
@@ -509,6 +510,7 @@ async function publishReviewedReply(userText) {
     draft,
     userText,
     locale: uiLocale,
+    replyStyle,
     complete: completeCompanionReview,
   });
   if (turnAborted) return;
@@ -517,7 +519,7 @@ async function publishReviewedReply(userText) {
     session?.agent?.state?.messages,
     session?.sessionManager?.getEntries?.(),
   ], reviewed);
-  emit("text_delta", { delta: reviewed });
+  if (replyStyle !== "chat") emit("text_delta", { delta: reviewed });
 }
 
 async function sendPrompt(command) {

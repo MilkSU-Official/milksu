@@ -20,6 +20,10 @@ import {
   type CompanionTurnProcess,
 } from '@/lib/companionTurnProcess'
 import { COMPANION_COMPLETE_HOLD_MS } from '@/lib/companionPetMotion'
+import {
+  mergeCompanionTranscriptTail,
+  transcriptHasOutgoing,
+} from '@/lib/companionTranscriptTail'
 import type {
   CodingAttachment,
   CompanionArchive,
@@ -35,27 +39,6 @@ import type {
 
 const emptyBoard: CompanionBoardSnapshot = { sessions: [], todos: [] }
 const emptyMemory: CompanionMemorySnapshot = { pending: [], approved: [] }
-
-function attachmentKeys(attachments: CodingAttachment[] | undefined) {
-  return (attachments ?? [])
-    .map(item => `${item.sha256 || item.id}:${item.name}`)
-    .filter(Boolean)
-    .sort()
-    .join('|')
-}
-
-function transcriptHasOutgoing(
-  entries: CompanionTranscriptEntry[],
-  pending: { id: string; prompt: string; attachments: CodingAttachment[] },
-) {
-  return entries.some(entry => {
-    if (entry.id === pending.id || entry.role !== 'user') return entry.id === pending.id
-    if (pending.attachments.length && attachmentKeys(entry.attachments) === attachmentKeys(pending.attachments)) {
-      return true
-    }
-    return Boolean(pending.prompt) && String(entry.text ?? '').includes(pending.prompt)
-  })
-}
 
 interface CompanionConfirm {
   action: string
@@ -195,7 +178,10 @@ export function useCompanion() {
       before: true,
     })
     const hydrated = (page.entries ?? []).map(companionChatHydrateEntry).filter(companionChatIsVisibleEntry)
-    setEntries(stampMeasuredThinkingDuration(hydrated, measuredThinking.current))
+    setEntries(current => stampMeasuredThinkingDuration(
+      mergeCompanionTranscriptTail(hydrated, current, outgoing.current),
+      measuredThinking.current,
+    ))
     measuredThinking.current = null
     setPrevCursor(page.prevCursor ?? null)
     setHasMore(Boolean(page.hasMore))
@@ -428,10 +414,15 @@ export function useCompanion() {
           return
         }
         if (payload.type === 'session.ready') {
-          setLiveProcess(emptyCompanionTurnProcess())
-          setSettledProcess(null)
-          setBusy(false)
-          setError('')
+          // A settings save restarts the sidecar as the send begins. That
+          // ready event used to reload the tail and clear busy, which dropped
+          // the user line that had not been flushed yet.
+          if (!outgoing.current) {
+            setLiveProcess(emptyCompanionTurnProcess())
+            setSettledProcess(null)
+            setBusy(false)
+            setError('')
+          }
           void loadTail()
           void refreshBoard()
           void refreshMemory()

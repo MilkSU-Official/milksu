@@ -1,7 +1,7 @@
 import { chineseUiLocale } from "../pi/bridge-runtime-environment.js";
 
-const CHAT_RHYTHM_ZH = "回复分成短消息：先一句短的接话，再把事情分开写成短消息，最后一句短的收束。不要写成一篇长文。";
-const CHAT_RHYTHM_EN = "Reply as separate short messages: one short opening line, then the work as short messages, then one short closing line. Do not write one long article.";
+const CHAT_RHYTHM_ZH = "回复分成短消息：动手前先写一句短的接话，做完再写一句短的收束。长说明、清单和代码单独成段，不要写成一篇长文。";
+const CHAT_RHYTHM_EN = "Reply as separate short messages: one short line before the work, then one short line to close. Keep long explanations, lists, and code in their own paragraph. Do not write one long article.";
 
 export function companionSystemPrompt(uiLocale, replyStyle = "markdown") {
   const chat = replyStyle === "chat";

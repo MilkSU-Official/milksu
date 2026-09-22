@@ -219,9 +219,16 @@ describe('companionOverlayState', () => {
     expect(companionPhoneVisible(idle)).toBe(false)
   })
 
-  it('spawns the unit at the bottom-right and opens the menu up-left', () => {
+  it('spawns the unit flush to the bottom-right and opens the menu up-left', () => {
     const area = { x: 0, y: 0, width: 1440, height: 900 }
-    expect(defaultCompanionPetOrigin(area)).toEqual({ x: 1264, y: 724 })
+    const origin = defaultCompanionPetOrigin(area)
+    expect(origin).toEqual({ x: 1280, y: 740 })
+    const phone = layoutCompanionUnit({ chatOpen: true, petOrigin: origin, workArea: area })
+    expect(phone.window.x + phone.window.width).toBe(area.width)
+    expect(phone.window.y + phone.window.height).toBe(area.height)
+    expect(phone.petScreen).toEqual(origin)
+    const back = layoutCompanionUnit({ chatOpen: false, petOrigin: phone.petScreen, workArea: area })
+    expect(back.petScreen).toEqual(origin)
     const menu = clampCompanionMenuOrigin({
       x: 1380,
       y: 860,

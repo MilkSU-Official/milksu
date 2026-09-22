@@ -45,7 +45,9 @@ test("chat rhythm is prompt text only in chat mode", () => {
   const chinese = companionSystemPrompt("zh", "chat");
   const english = companionSystemPrompt("en", "chat");
   assert.match(chinese, /短消息/);
+  assert.match(chinese, /单独成段/);
   assert.match(english, /short messages/);
+  assert.match(english, /own paragraph/);
   assert.match(companionSystemPrompt("zh", "markdown"), /对话标题/);
   assert.doesNotMatch(companionSystemPrompt("zh", "markdown"), /短消息/);
 });

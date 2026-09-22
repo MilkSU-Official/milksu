@@ -65,14 +65,14 @@ describe('companionPetMotion', () => {
     expect(companionPetDragMoved(-3, -3)).toBe(true)
   })
 
-  it('draws an island for think, confirm, error, and complete only', () => {
+  it('keeps the think island up while a reply is streaming', () => {
     const quiet = { confirm: false, error: false, streaming: false, busy: false, complete: false }
     expect(resolveCompanionIsland({ ...quiet, busy: true })).toBe('think')
+    expect(resolveCompanionIsland({ ...quiet, streaming: true, busy: true })).toBe('think')
     expect(resolveCompanionIsland({ ...quiet, confirm: true, streaming: true, busy: true })).toBe('confirm')
     expect(resolveCompanionIsland({ ...quiet, confirm: true, error: true, busy: true })).toBe('confirm')
     expect(resolveCompanionIsland({ ...quiet, error: true, complete: true })).toBe('error')
     expect(resolveCompanionIsland({ ...quiet, complete: true })).toBe('complete')
-    expect(resolveCompanionIsland({ ...quiet, streaming: true, busy: true })).toBe('none')
     expect(resolveCompanionIsland(quiet)).toBe('none')
   })
 

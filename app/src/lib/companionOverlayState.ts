@@ -24,7 +24,9 @@ export const COMPANION_CHAT_HEIGHT = 696
 export const COMPANION_PHONE_WIDTH = COMPANION_CHAT_WIDTH
 export const COMPANION_PHONE_HEIGHT = COMPANION_CHAT_HEIGHT
 export const COMPANION_UNIT_GAP = 0
-export const COMPANION_UNIT_MARGIN = 16
+// Flush to the work-area corner. The sprite body sits on the canvas bottom-right
+// and the hat meets the canvas top-right, so an inset shows that crop.
+export const COMPANION_UNIT_MARGIN = 0
 export const COMPANION_PET_MENU_WIDTH = 176
 export const COMPANION_PET_MENU_HEIGHT = 184
 /** Stay above normal apps, below macOS/Windows/Linux IME, menu, and Dock. */
@@ -329,14 +331,14 @@ export function resolveCompanionChatSide(
 
 export function phoneOriginFromPet(petOrigin: { x: number; y: number }) {
   return {
-    x: Number(petOrigin.x) + (COMPANION_PET_WIDTH - COMPANION_PHONE_WIDTH) / 2,
+    x: Number(petOrigin.x) + COMPANION_PET_WIDTH - COMPANION_PHONE_WIDTH,
     y: Number(petOrigin.y) + COMPANION_PET_HEIGHT - COMPANION_PHONE_HEIGHT,
   }
 }
 
 export function petOriginFromPhone(phoneOrigin: { x: number; y: number }) {
   return {
-    x: Number(phoneOrigin.x) - (COMPANION_PET_WIDTH - COMPANION_PHONE_WIDTH) / 2,
+    x: Number(phoneOrigin.x) - COMPANION_PET_WIDTH + COMPANION_PHONE_WIDTH,
     y: Number(phoneOrigin.y) - COMPANION_PET_HEIGHT + COMPANION_PHONE_HEIGHT,
   }
 }

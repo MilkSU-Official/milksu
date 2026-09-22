@@ -73,6 +73,7 @@ function SettingsRow({
         'flex min-h-12 justify-between gap-4 border-border px-4 py-2.5',
         divider ? 'border-b last:border-b-0' : 'border-b-0',
         rowStack,
+        stack === 'always' && 'settings-row-stack',
         className,
       )}
       {...props}

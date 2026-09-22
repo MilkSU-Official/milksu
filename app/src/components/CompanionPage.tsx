@@ -11,6 +11,7 @@ import { useCompanion } from '@/composables/useCompanion'
 import { desktopErrorMessage, hasDesktopRuntime, invokeCommand, listenEvent } from '@/desktop'
 import { useT, useUiLocale } from '@/hooks/useUiLocale'
 import { toastError } from '@/lib/appToast'
+import { companionChatPieces, type CompanionChatPiece } from '@/lib/companionChatPieces'
 import {
   companionChatContinuesRun,
   companionChatEndsRun,
@@ -637,14 +638,12 @@ export default function CompanionPage({
                 {...rowProps}
                 className="companion-chat-row companion-chat-row-assistant companion-chat-row-start"
               >
-                <div className="companion-chat-bubble companion-chat-bubble-assistant">
-                  <MarkdownContent
-                    className="companion-chat-bubble-text"
-                    content={row.stream}
-                    compact
-                    streaming
-                  />
-                </div>
+                <CompanionAssistantBody
+                  text={row.stream}
+                  replyStyle={replyStyle}
+                  streaming
+                  t={t}
+                />
               </div>
             )
           }
@@ -692,6 +691,7 @@ export default function CompanionPage({
               thumbs={thumbs}
               provider={companion.status.provider}
               model={companion.status.model}
+              replyStyle={replyStyle}
               t={t}
             />
           )
@@ -944,6 +944,90 @@ export default function CompanionPage({
   )
 }
 
+function CompanionChatNote({ title, text }: { title: string; text: string }) {
+  const t = useT()
+  const [open, setOpen] = useState(false)
+  const preview = text.replace(/^#{1,6}\s+/gm, '').trim()
+  return (
+    <div className="companion-chat-note">
+      <button
+        type="button"
+        className="companion-chat-note-toggle active:scale-[0.97]"
+        aria-expanded={open}
+        onClick={() => setOpen(value => !value)}
+      >
+        <FileText className="size-3.5 shrink-0" />
+        <span className="min-w-0 flex-1 truncate">{title}</span>
+        <span className="shrink-0 text-[length:var(--text-caption)] text-muted-foreground">
+          {open ? t('收起', 'Hide') : t('展开', 'Show')}
+        </span>
+      </button>
+      {open ? (
+        <MarkdownContent className="companion-chat-note-body" content={text} compact />
+      ) : (
+        <p className="companion-chat-note-preview">{preview}</p>
+      )}
+    </div>
+  )
+}
+
+function CompanionAssistantBody({
+  text,
+  replyStyle,
+  streaming = false,
+  t,
+}: {
+  text: string
+  replyStyle: 'markdown' | 'chat'
+  streaming?: boolean
+  t: (zh: string, en: string) => string
+}) {
+  const pieces = companionChatPieces(text, replyStyle)
+  if (replyStyle !== 'chat' || pieces.length === 0) {
+    return (
+      <div className="companion-chat-bubble companion-chat-bubble-assistant">
+        <MarkdownContent
+          className="companion-chat-bubble-text"
+          content={text}
+          compact
+          streaming={streaming}
+        />
+      </div>
+    )
+  }
+  return (
+    <div className="companion-chat-stack">
+      {pieces.map((piece, index) => (
+        <CompanionChatPieceView key={`${piece.kind}:${index}`} piece={piece} streaming={streaming} t={t} />
+      ))}
+    </div>
+  )
+}
+
+function CompanionChatPieceView({
+  piece,
+  streaming,
+  t,
+}: {
+  piece: CompanionChatPiece
+  streaming?: boolean
+  t: (zh: string, en: string) => string
+}) {
+  if (piece.kind === 'note') {
+    return <CompanionChatNote title={piece.title || t('笔记', 'Note')} text={piece.text} />
+  }
+  return (
+    <div className="companion-chat-bubble companion-chat-bubble-assistant">
+      <MarkdownContent
+        className="companion-chat-bubble-text"
+        content={piece.text}
+        compact
+        streaming={streaming}
+      />
+    </div>
+  )
+}
+
 function CompanionChatEntryArticle({
   rowProps,
   entry,
@@ -954,6 +1038,7 @@ function CompanionChatEntryArticle({
   thumbs,
   provider,
   model,
+  replyStyle,
   t,
 }: {
   rowProps: {
@@ -969,6 +1054,7 @@ function CompanionChatEntryArticle({
   thumbs: Record<string, string>
   provider?: string
   model?: string
+  replyStyle: 'markdown' | 'chat'
   t: (zh: string, en: string) => string
 }) {
   const previous = entries[entryIndex - 1]
@@ -1024,6 +1110,12 @@ function CompanionChatEntryArticle({
       ? emptyReplyLabel
       : ''
   )
+  const chatBody = !user
+    && replyStyle === 'chat'
+    && Boolean(visibleBody)
+    && !entry.error
+    && !showEmptyReply
+    && !companionTurnCancelled(abortSource)
   if (processOnly) {
     return (
       <article
@@ -1059,7 +1151,35 @@ function CompanionChatEntryArticle({
           defaultOpen={false}
         />
       ) : null}
-      {bubble ? (
+      {chatBody ? (
+        <div className="companion-chat-stack">
+          {sent.length ? (
+            <div className="companion-chat-bubble-attach" aria-label={t('消息附件', 'Message attachments')}>
+              {sent.map(attachment => {
+                const key = attachmentKey(attachment)
+                const thumb = thumbs[key]
+                return (
+                  <span
+                    key={key}
+                    className="companion-chat-bubble-file"
+                    title={`${attachment.name}${attachment.size ? ` · ${formatAttachmentSize(attachment.size)}` : ''}`}
+                  >
+                    {isImageAttachment(attachment) && thumb ? (
+                      <img src={thumb} alt={attachment.name} />
+                    ) : (
+                      <>
+                        <FileText className="size-3.5 shrink-0" />
+                        <span className="min-w-0 truncate">{attachment.name}</span>
+                      </>
+                    )}
+                  </span>
+                )
+              })}
+            </div>
+          ) : null}
+          <CompanionAssistantBody text={visibleBody} replyStyle="chat" t={t} />
+        </div>
+      ) : bubble ? (
         <div className={cn(
           'companion-chat-bubble',
           user ? 'companion-chat-bubble-user' : 'companion-chat-bubble-assistant',
