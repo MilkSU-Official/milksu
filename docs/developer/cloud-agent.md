@@ -135,7 +135,8 @@ Cloud API
 | 1 用量 + Connect 契约 | 骨架已进仓 | `internal/modelpricing`、`usage_turns`、`cloud/agent/proto`、Worker stub |
 | 2–3 CF Pi/DSH | 骨架 | `cloud/agent/sandbox`；需 CF 绑定与镜像闭包 |
 | 4 左下切换 + 先拷后删 | UI + Desktop RPC | `ComposerHostSwitch`、`migrateConversationHost`、`desktop/cloud-agent-client.cjs`（`CloudAgentInvoke`，Bearer 只在 Electron main）；云宿主 `SendTurn` 走同一代理 |
-| 5 原生双端 | Connect-JSON 客户端 | `mobile/ios`、`mobile/android`（手搓 unary；codegen 后替换） |
+| 5 原生双端 | Connect-JSON 客户端 | `mobile/ios`、`mobile/android`（SwiftUI / Compose 列表骨架 + unary） |
+| 云端 BYOK | 设置入口 | `CloudCredentialSettings` → `UpsertCredential`（服务端加密；明文成功后清空） |
 
 桌面渲染进程**不得**持有账户 Bearer；云 unary 一律走 `CloudAgentInvoke`。
 空画布可用 `pendingHost`；已开回合迁移成功后写入 `cloudSessionId`。
