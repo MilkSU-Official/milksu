@@ -34,7 +34,10 @@ func TestDesktopAppMethodsMatchRendererBindings(t *testing.T) {
 		"CancelUpdate":                   true,
 		"InstallUpdate":                  true,
 		"GetBuildTracking":               true,
+		// 这个方法由桌宠宿主壳自己处理（desktop/companion-shell.cjs 的 host method 分支，
+		// 它也有自己的测试覆盖），和 GetCompanionShellStatus 那批同类；加豁免时漏了这一条。
 		"GetCompanionShellStatus":        true,
+		"GetCompanionPhoneStatus":        true,
 		"SetCompanionFloatEnabled":       true,
 		"SetCompanionPetHidden":          true,
 		"ShowCompanionMainWindow":        true,
