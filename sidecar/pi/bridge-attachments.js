@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { lstat, readFile, realpath } from "node:fs/promises";
+import { createImageSizeCache } from "./bridge-image-size.js";
 import { basename, join, relative } from "node:path";
 import { chineseUiLocale } from "./bridge-runtime-environment.js";
 
@@ -70,6 +71,8 @@ function inside(root, target) {
   return path === "" || (!path.startsWith("..") && path !== "..");
 }
 
+const imageSizeCache = createImageSizeCache();
+
 function describeBytes(size) {
   if (size >= 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MiB`;
   if (size >= 1024) return `${(size / 1024).toFixed(1)} KiB`;
@@ -133,6 +136,8 @@ export async function preparePromptAttachments(
       throw new Error(`MilkSU Coding attachment ${name} failed its integrity check`);
     }
 
+    // 量尺寸只读文件头，并按 sha256 记一次；读不出来就不显示尺寸。
+    const measured = supportedImageTypes.has(mediaType) ? imageSizeCache.sizeFor(sha256, data) : null;
     const value = {
       id,
       name,
@@ -140,6 +145,8 @@ export async function preparePromptAttachments(
       size: info.size,
       sha256,
       path: resolved,
+      width: measured ? measured.width : undefined,
+      height: measured ? measured.height : undefined,
     };
     values.push(value);
     const imageType = sniffImageMediaType(data, mediaType);
