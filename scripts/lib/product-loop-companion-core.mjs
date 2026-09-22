@@ -35,6 +35,33 @@ export const COMPANION_CORE_REPLY_TIMEOUT_MS = 180_000
 export const COMPANION_CORE_TOOL_TIMEOUT_MS = 600_000
 export const COMPANION_CORE_AFTER_TOOL_MS = 60_000
 
+const COMPANION_GENERATION_TYPES = new Set([
+  'assistant.delta',
+  'assistant.thinking_delta',
+  'assistant.thinking_completed',
+  'tool.started',
+])
+
+function companionEventType(event) {
+  const nested = event?.payload && typeof event.payload === 'object' ? event.payload : null
+  return String(event?.type ?? event?.Type ?? nested?.type ?? nested?.Type ?? '')
+}
+
+/**
+ * The phone turns Send into Stop as soon as the turn is busy, which is the
+ * user line, before the model has produced anything. A stop case has to see
+ * real generation first. thinking_started and a leftover assistant.settled
+ * do not count.
+ */
+export function companionGenerationStarted(events) {
+  return (events || []).some(event => COMPANION_GENERATION_TYPES.has(companionEventType(event)))
+}
+
+/** True when this prompt already has an assistant row. A previous turn's settle does not. */
+export function companionPromptHasReply(page, needle) {
+  return assistantTextAfterPrompt(page, needle).trim().length > 0
+}
+
 export function companionToolsStillOpen(events) {
   const open = new Set()
   for (const event of events || []) {
