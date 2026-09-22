@@ -103,7 +103,21 @@ func (s *Store) ImportPayloads(payloads []ImportPayload) ([]Attachment, error) {
 		if err != nil {
 			return nil, fmt.Errorf("附件 %q 的数据无效", payload.Name)
 		}
-		attachment, err := attachmentFromData(payload.Name, payload.MediaType, data)
+		name := payload.Name
+		mediaType := payload.MediaType
+		// iPhone 照片默认是 HEIC，而模型服务端不收它。导入那一刻就转成 PNG（只换容器，像素尺寸不变），
+		// 这样尺寸预检、发送、历史全都按 PNG 走；磁盘上那张原图我们没动（库里只是一份副本）。
+		if LooksLikeHEIC(data) || IsHEIFMediaType(payload.MediaType) {
+			converted, convertErr := ConvertHEICToPNG(data, nil)
+			if convertErr != nil {
+				// 诚实告知是哪张、为什么 —— 不静默丢弃，也不偷偷发一张坏图。
+				return nil, fmt.Errorf("附件 %q 是 HEIC/HEIF 照片，无法在本机转成 PNG：%v", payload.Name, convertErr)
+			}
+			data = converted
+			name = PNGNameFor(payload.Name)
+			mediaType = "image/png"
+		}
+		attachment, err := attachmentFromData(name, mediaType, data)
 		if err != nil {
 			return nil, err
 		}
