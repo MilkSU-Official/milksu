@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useT } from '@/hooks/useUiLocale'
-import { ATTACHMENT_LIMIT, isFileDrag, nextDragDepth, planFileDrop } from '@/lib/composerFileDrop'
+import { ATTACHMENT_LIMIT, isFileDrag, nextDragDepth, planFileDrop, selectableDropFiles, type DropFileItem } from '@/lib/composerFileDrop'
 import { windowFileDropOutcome, type WindowFileDropNotice } from '@/lib/windowFileDropOutcome'
 
 /**
@@ -17,12 +17,15 @@ import { windowFileDropOutcome, type WindowFileDropNotice } from '@/lib/windowFi
 export default function WindowFileDrop({
   children,
   pendingCount = 0,
+  getPendingCount,
   limit = ATTACHMENT_LIMIT,
   onFiles,
 }: {
   children: ReactNode
-  /** 当前已有几个附件（用于算"还能收几个"✓）。 */
+  /** 当前已有几个附件（用于算"还能收几个"✓）。放下那一刻优先读 getPendingCount。 */
   pendingCount?: number
+  /** 放下时再读一次已挂上的附件数。输入框自己持有这份状态。 */
+  getPendingCount?: () => number
   limit?: number
   /** 真正要导入的文件 + 要如实告诉读者的提示（双语 ✓，可能为空 ✓）。 */
   onFiles: (files: File[], notices: WindowFileDropNotice[]) => void
@@ -31,8 +34,8 @@ export default function WindowFileDrop({
   const depth = useRef(0)
   const [dragging, setDragging] = useState(false)
   // 用 ref 拿最新的 props，避免把监听器绑成"会过期的闭包"。
-  const latest = useRef({ pendingCount, limit, onFiles })
-  latest.current = { pendingCount, limit, onFiles }
+  const latest = useRef({ pendingCount, getPendingCount, limit, onFiles })
+  latest.current = { pendingCount, getPendingCount, limit, onFiles }
 
   const endDrag = useCallback(() => {
     depth.current = 0
@@ -62,35 +65,38 @@ export default function WindowFileDrop({
     }
     function handleDrop(event: DragEvent) {
       if (!isFile(event)) return
+      // 捕获阶段先收下，并停掉冒泡。输入框自己的 drop 不再导第二遍。
       event.preventDefault()
+      event.stopPropagation()
       endDrag()
-      const dropped = Array.from(event.dataTransfer?.files ?? [])
-      // 文件夹：真实环境（Electron）能用 webkitGetAsEntry 判出来 ✓；jsdom 里没有这个 API ⇒ 数到 0 ✓
-      // （**不假装它存在** ✗；测试要用"注入假 items"的方式才测得到 ✓）。
-      const folders = countDroppedFolders(event.dataTransfer as unknown as { items?: unknown })
+      const selected = selectableDropFiles(
+        event.dataTransfer?.files,
+        event.dataTransfer?.items as unknown as { length: number; [index: number]: DropFileItem | undefined } | undefined,
+      )
+      const pending = latest.current.getPendingCount?.() ?? latest.current.pendingCount
       const plan = planFileDrop({
-        fileCount: dropped.length,
-        pendingCount: latest.current.pendingCount,
-        folderCount: folders,
+        fileCount: selected.files.length + selected.folders,
+        pendingCount: pending,
+        folderCount: selected.folders,
         limit: latest.current.limit,
       })
       // 决策统一交给纯模块 ⇒ 组件与 ChatPage 都不各写一套（也不各弹一次 ✗）。
       const outcome = windowFileDropOutcome({
-        accepted: dropped.slice(0, plan.accept),
+        accepted: selected.files.slice(0, plan.accept),
         overflow: plan.overflow,
-        folders,
+        folders: selected.folders,
       })
       latest.current.onFiles(outcome.transfer, outcome.notices)
     }
     window.addEventListener('dragenter', handleEnter)
     window.addEventListener('dragover', handleOver)
     window.addEventListener('dragleave', handleLeave)
-    window.addEventListener('drop', handleDrop)
+    window.addEventListener('drop', handleDrop, true)
     return () => {
       window.removeEventListener('dragenter', handleEnter)
       window.removeEventListener('dragover', handleOver)
       window.removeEventListener('dragleave', handleLeave)
-      window.removeEventListener('drop', handleDrop)
+      window.removeEventListener('drop', handleDrop, true)
     }
   }, [onFiles, endDrag])
 
@@ -113,23 +119,3 @@ export default function WindowFileDrop({
   )
 }
 
-/**
- * 数出这次拖进来的**文件夹**个数。
- * 只有真实环境才有 `webkitGetAsEntry` ✓（jsdom 没有 ⇒ 返回 0 ✓）：因此这条分支只在 Electron 里生效，
- * 测试用"注入一个假 items 对象"来覆盖 ✓（而不是假装 jsdom 有这个 API ✗）。
- */
-export function countDroppedFolders(dataTransfer: { items?: unknown } | undefined): number {
-  const items = (dataTransfer as { items?: unknown } | undefined)?.items
-  if (!items || typeof (items as { length?: unknown }).length !== 'number') return 0
-  let folders = 0
-  const list = items as { length: number; [index: number]: unknown }
-  for (let index = 0; index < list.length; index += 1) {
-    const item = list[index] as { kind?: unknown; webkitGetAsEntry?: () => unknown } | undefined
-    if (!item || item.kind !== 'file' || typeof item.webkitGetAsEntry !== 'function') continue
-    try {
-      const entry = item.webkitGetAsEntry() as { isDirectory?: unknown } | null
-      if (entry?.isDirectory === true) folders += 1
-    } catch { /* 判不出来就不算文件夹（不外溢） */ }
-  }
-  return folders
-}

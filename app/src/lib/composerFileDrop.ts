@@ -42,6 +42,54 @@ export type FileDropPlan = {
  * 把"拖进来的东西"拆成：能收几个 ✓、超了几个 ✓、几个是文件夹 ✓。
  * `folderCount` 由调用方用 `webkitGetAsEntry()` 判出来 ✓（拿不到就传 0 ✓）。
  */
+export type DropFileItem = {
+  kind?: string
+  getAsFile?: () => File | null
+  webkitGetAsEntry?: () => { isDirectory?: boolean } | null
+}
+
+/**
+ * 从一次 drop 里挑出可以导入的文件。
+ * `webkitGetAsEntry` 能用时，文件夹不进入文件列表：它们仍占着 FileList 的位置，
+ * 直接按计划切片会把目录算进名额，体积为 0 时还会让整批被拒绝。
+ * 没有这个 API 时原样返回 FileList。
+ */
+export function selectableDropFiles(
+  fileList: ArrayLike<File> | undefined,
+  items?: { length: number; [index: number]: DropFileItem | undefined } | null,
+): { files: File[]; folders: number } {
+  const raw = fileList ? Array.from(fileList) : []
+  if (!items || typeof items.length !== 'number') return { files: raw, folders: 0 }
+  let sawEntry = false
+  let fileIndex = 0
+  const files: File[] = []
+  let folders = 0
+  for (let index = 0; index < items.length; index += 1) {
+    const item = items[index]
+    if (!item || item.kind !== 'file') continue
+    const fromList = raw[fileIndex]
+    fileIndex += 1
+    let isDirectory = false
+    if (typeof item.webkitGetAsEntry === 'function') {
+      sawEntry = true
+      try {
+        isDirectory = item.webkitGetAsEntry()?.isDirectory === true
+      } catch {
+        isDirectory = false
+      }
+    }
+    if (isDirectory) {
+      folders += 1
+      continue
+    }
+    const fromItem = typeof item.getAsFile === 'function' ? item.getAsFile() : null
+    const file = fromItem ?? fromList
+    if (file) files.push(file)
+  }
+  if (!sawEntry) return { files: raw, folders: 0 }
+  return { files, folders }
+}
+
 export function planFileDrop(input: {
   fileCount: number
   pendingCount: number

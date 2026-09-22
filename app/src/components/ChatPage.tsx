@@ -2810,6 +2810,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
           {/* 整窗拖拽加附件（监听在 window 上 ⇒ 拖到窗口任意处都生效；遮罩 fixed inset-0）。
               文件交给 composer 现成的 importCodingFiles（经 ref）⇒ 上限/体积/报错都由它负责。 */}
           <WindowFileDrop
+            getPendingCount={() => composer.current?.pendingAttachmentCount() ?? 0}
             onFiles={(files, notices) => {
               if (files.length) composer.current?.addDroppedFiles(files)
               // 提示统一从纯模块给的 notices 出口出，文案用 t(中文, English) 成对拼（仓库约定，uiLocaleCoverage 会抓）。
