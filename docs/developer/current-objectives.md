@@ -33,20 +33,19 @@
 
 更早的 tag 见 [GitHub Releases](https://github.com/MilkSU-Official/milksu/releases)，本页不复述。
 
-最近一次正式包装源 `80e8ebb7`（`26.922.1`）：看板娘进安装包（手机对话、出厂 DeepSeek Flash、完整 Pi 工具与附件；sidecar 换代不再清掉新进程 stdin，用户句和归档会刷盘；中止与调试内容不进气泡；手机消息有进出场过渡）。一并打进：思考结束后正文留在时间线；会话自带中转站与模型；凭据轮换不切断在飞回合；删除改为确认卡；选中文字可加入对话；切换对话保留草稿；资料页用量估算。DeepSeek V4 Pro 思考档为 `low / high / max`。Windows 安装器仍未代码签名。
+最近一次正式包装源 `2fa97b3d`（`26.922.2`）：看板娘可以拖到另一块显示器，松手后夹进离窗口中心最近的工作区。界面收成冷白液态玻璃；主对话滚到顶栏和输入栏时字渐隐。看板娘手机跟主界面同一套冷白，短句进气泡、长文收成笔记；撤回凭据会停掉看板娘 sidecar。用量估算补上 Grok 4.7 与 GPT-6 Astra，Fable 5 与 5.1 的缓存读取价分开。Windows 安装器仍未代码签名。
 
-发行页：<https://github.com/MilkSU-Official/milksu/releases/tag/v26.922.1>
+发行页：<https://github.com/MilkSU-Official/milksu/releases/tag/v26.922.2>
 
 | 平台 | Workflow | 安装包 | 大小 | SHA-256 |
 | --- | --- | --- | ---: | --- |
-| macOS ARM64 | `35624477220` | `MilkSU-macOS-arm64-26.922.1.dmg` | 335,706,576 B | `707f34ccd1ef626d395834f70977b6622928b61cf9d54bc7a1569fffc602eeef` |
-| Windows x64 | `35624482552` | `MilkSU-Windows-x64-26.922.1-Setup.exe` | 267,305,089 B | `9f997eafdf4713403641cce4bdff9186fcf2344a0e65ed7a493ef926be02535f` |
-| Linux x64 DEB | `35624486985` | `MilkSU-Linux-x64-26.922.1.deb` | 241,418,652 B | `8c08759e12b58a8871e89f9138768d1f2b4ba4eec9a0e767ac579765684f384f` |
-| Linux x64 tarball | `35624486985` | `MilkSU-Linux-x64-26.922.1.tar.gz` | 295,179,112 B | `2fccd91a242704b83b42e1af21bb33dec9189e42ac7afea549fb0055a5b8c910` |
+| macOS ARM64 | `35719595545` | `MilkSU-macOS-arm64-26.922.2.dmg` | 335,767,350 B | `a05546387ccded76b2858ae5c7ef6172fbca9bafc7df08252cdbf1c22ed8205c` |
+| Windows x64 | `35719599395` | `MilkSU-Windows-x64-26.922.2-Setup.exe` | 267,318,961 B | `7b93104543121b2d0fcd28b0e7915f1010a1bf3d4f4e84004c2c9f413f6dc7b5` |
+| Linux x64 DEB | `35719603250` | `MilkSU-Linux-x64-26.922.2.deb` | 241,440,852 B | `561b908749cca1979b3e9d22b1db2024fe9081c974d227d2dd226f5ffd4777fe` |
+| Linux x64 tarball | `35719603250` | `MilkSU-Linux-x64-26.922.2.tar.gz` | 295,198,785 B | `4216d02a746602047d34ae5a2e838a7728e8be995ceab51696bc70cf3a536125` |
 
 ## 未打进 GitHub 安装包
 
-- 看板娘凭据生命周期、个人来源不被账户目录改写、GitHub 登录回调回到发起登录的实例、停靠上限不再杀掉仍在忙的 sidecar：合并进 `main` 之后仍不在从 `80e8ebb` 打出的 26.922.1 GitHub 安装包里。
 - 新对话继承项目 `milksu`；Windows Computer Use 整段崩溃尚未真机验收。
 - Computer Use 选窗器仍是可选人工面。宽作业走 `recon-authorized-target` Skill，不造 typed sweep。
 - DSH `bash` 没有 MilkSU 侧超时上界（工具在 harness 进程内，不要在客户端复刻第二套循环）。
