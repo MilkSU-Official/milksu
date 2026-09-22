@@ -16,6 +16,10 @@ import { companionProviderEnvironment } from "./companion-model-env.js";
 import { companionSystemPrompt } from "./system-prompt.js";
 import { reviewCompanionDraft, rewriteLastAssistantReply } from "./reply-review.js";
 import {
+  createMemoryExtractController,
+  extractCompanionMemories,
+} from "./memory-extract.js";
+import {
   companionAssistantTurnError,
   repairCompanionToolHistory,
   stampCompanionAbortedTurn,
@@ -44,6 +48,13 @@ let episodicRecalls = [];
 let persona = "";
 let memorySearchEnabled = true;
 let replyStyle = "markdown";
+const memoryExtract = createMemoryExtractController({
+  extract: job => runMemoryExtract(job),
+  setTimer: (fn, ms) => setTimeout(() => {
+    promptQueue = promptQueue.then(() => fn());
+  }, ms),
+  clearTimer: handle => clearTimeout(handle),
+});
 let heldReply = "";
 let captureReply = false;
 let turnGate = null;
@@ -501,11 +512,41 @@ async function completeCompanionReview(context) {
   }
 }
 
+function applyMemoryExtract(command) {
+  if (command?.memoryExtract == null && command?.memoryExtractIdleMinutes == null) return;
+  memoryExtract.configure({
+    mode: command.memoryExtract,
+    idleMinutes: command.memoryExtractIdleMinutes,
+  });
+}
+
+async function runMemoryExtract(job) {
+  const stretch = Array.isArray(job?.stretch) ? job.stretch : [];
+  const userText = stretch.map(item => String(item?.user ?? "").trim()).filter(Boolean).join("\n");
+  if (!userText) return;
+  const assistantText = stretch.map(item => String(item?.assistant ?? "").trim()).filter(Boolean).join("\n");
+  const items = await extractCompanionMemories({
+    userText,
+    assistantText,
+    memories: semanticMemories,
+    locale: uiLocale,
+    maxItems: job?.maxItems,
+    complete: completeCompanionReview,
+  });
+  if (!items.length) return;
+  const result = await requestHost("memory", {
+    action: "commit",
+    userText,
+    items,
+  });
+  if (Array.isArray(result?.approved)) semanticMemories = result.approved;
+}
+
 async function publishReviewedReply(userText) {
   const draft = heldReply;
   heldReply = "";
   captureReply = false;
-  if (turnAborted || !String(draft).trim()) return;
+  if (turnAborted || !String(draft).trim()) return "";
   const reviewed = await reviewCompanionDraft({
     draft,
     userText,
@@ -513,13 +554,14 @@ async function publishReviewedReply(userText) {
     replyStyle,
     complete: completeCompanionReview,
   });
-  if (turnAborted) return;
+  if (turnAborted) return "";
   rewriteLastAssistantReply([
     session?.messages,
     session?.agent?.state?.messages,
     session?.sessionManager?.getEntries?.(),
   ], reviewed);
   if (replyStyle !== "chat") emit("text_delta", { delta: reviewed });
+  return reviewed;
 }
 
 async function sendPrompt(command) {
@@ -543,6 +585,7 @@ async function sendPrompt(command) {
   // timeout — that aborted the loop mid-turn.
   promptQueue = promptQueue.then(async () => {
     const gate = armReplyCapture();
+    memoryExtract.beginTurn();
     try {
       await retrieveCompanionTurnMemory(prepared.prompt);
       const pending = session.prompt(prepared.prompt, {
@@ -560,10 +603,18 @@ async function sendPrompt(command) {
         openReplyCapture();
       }
       await gate.done;
-      if (turnAborted) return;
-      await publishReviewedReply(prepared.prompt);
+      if (turnAborted) {
+        await memoryExtract.finishTurn({ aborted: true });
+        return;
+      }
+      const assistantText = await publishReviewedReply(prepared.prompt);
       flushCompanionSessionFile();
       emit("turn_settled", {});
+      await memoryExtract.finishTurn({
+        userText: prepared.prompt,
+        assistantText,
+        aborted: turnAborted,
+      });
     } catch (error) {
       openReplyCapture();
       captureReply = false;
@@ -573,10 +624,12 @@ async function sendPrompt(command) {
         repairCompanionSessionHistory("companion tool interrupted by abort");
         persistCompanionAbortedTurn();
         flushCompanionSessionFile();
+        await memoryExtract.finishTurn({ aborted: true });
         return;
       }
       emit("error", { error: error instanceof Error ? error.message : String(error) });
       emit("turn_settled", {});
+      await memoryExtract.finishTurn({ aborted: true });
     }
   });
 }
@@ -594,6 +647,7 @@ async function handleCommand(command) {
       applyReplyStyle(command);
       if (command.memorySearchEnabled === false) memorySearchEnabled = false;
       if (command.memorySearchEnabled === true) memorySearchEnabled = true;
+      applyMemoryExtract(command);
       await createCompanionSession(command);
       if (!subscribed) {
         subscribeCompanion();
@@ -614,6 +668,7 @@ async function handleCommand(command) {
       if (typeof command.persona === "string") persona = command.persona;
       if (command.memorySearchEnabled === false) memorySearchEnabled = false;
       if (command.memorySearchEnabled === true) memorySearchEnabled = true;
+      applyMemoryExtract(command);
       await sendPrompt(command);
       return;
     case "update_context":
@@ -623,6 +678,9 @@ async function handleCommand(command) {
       if (Array.isArray(command.semanticMemories)) semanticMemories = command.semanticMemories;
       if (Array.isArray(command.episodicRecalls)) episodicRecalls = command.episodicRecalls;
       if (typeof command.persona === "string") persona = command.persona;
+      if (command.memorySearchEnabled === false) memorySearchEnabled = false;
+      if (command.memorySearchEnabled === true) memorySearchEnabled = true;
+      applyMemoryExtract(command);
       emit("context_updated", {});
       return;
     case "companion_host_response":

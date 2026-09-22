@@ -936,7 +936,9 @@ func (a *App) SaveSettingsCmd(settings config.AppSettings) error {
 	if a.companion != nil {
 		// Do not kill an in-flight companion Pi loop. Coding sidecars are
 		// marked stale; companion follows the same rule on settings save.
+		// The live process still learns the new extract timing immediately.
 		a.companion.MarkStale()
+		a.companion.SyncLiveContext()
 	}
 	if credentialWithdrawn(previous, a.settings.Get()) {
 		a.stopSidecarsHoldingWithdrawnCredential("settings saved")

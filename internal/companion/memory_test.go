@@ -64,6 +64,52 @@ func TestForgetRemovesMemoryFromAssembly(t *testing.T) {
 	}
 }
 
+func TestCommitWritesQuotedMemoryWithoutPending(t *testing.T) {
+	memory := NewMemory(nil, nil)
+	first := memory.Commit("以后都用中文回复我", []MemoryCommit{{
+		Action:   "create",
+		Title:    "回复语言",
+		Markdown: "回复保持简体中文",
+		Evidence: "以后都用中文回复我",
+	}})
+	if first["count"] != 1 {
+		t.Fatalf("create count: %#v", first)
+	}
+	if len(memory.Snapshot().Pending) != 0 {
+		t.Fatal("commit must not create a pending proposal")
+	}
+	approved := memory.ApprovedForAssembly()
+	if len(approved) != 1 || approved[0].Markdown != "回复保持简体中文" || approved[0].At == "" {
+		t.Fatalf("approved: %#v", approved)
+	}
+	rejected := memory.Commit("以后都用中文回复我", []MemoryCommit{{
+		Action:   "create",
+		Title:    "英文",
+		Markdown: "不要用英文",
+		Evidence: "不要用英文回复",
+	}})
+	if rejected["count"] != 0 || len(memory.ApprovedForAssembly()) != 1 {
+		t.Fatalf("paraphrase was stored: %#v", rejected)
+	}
+	updated := memory.Commit("英文也可以", []MemoryCommit{{
+		Action:     "update",
+		ExistingID: approved[0].ID,
+		Title:      "回复语言",
+		Markdown:   "回复可以用英文",
+		Evidence:   "英文也可以",
+	}})
+	if updated["count"] != 1 {
+		t.Fatalf("update count: %#v", updated)
+	}
+	current := memory.ApprovedForAssembly()
+	if len(current) != 1 || current[0].ID != approved[0].ID || current[0].Markdown != "回复可以用英文" {
+		t.Fatalf("update replaced the row: %#v", current)
+	}
+	if current[0].At != approved[0].At {
+		t.Fatal("update should keep the original timestamp")
+	}
+}
+
 func TestSearchEmptyQueryDoesNotWrite(t *testing.T) {
 	memory := NewMemory(nil, nil)
 	result, err := memory.Search("", 0, "")

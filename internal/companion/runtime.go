@@ -129,17 +129,19 @@ func (r *Runtime) Send(prompt string, attachments []codingattachment.Attachment)
 	r.refreshBoard()
 	selection := r.selection()
 	command := map[string]any{
-		"action":              "send_message",
-		"prompt":              prompt,
-		"locale":              config.ResolvedUserInterfaceLocale(r.resolvedSettings()),
-		"provider":            selection.Provider,
-		"model":               selection.Model,
-		"source":              selection.Source,
-		"boardSnapshot":       r.board.Snapshot(),
-		"semanticMemories":    r.semanticPayload(),
-		"episodicRecalls":     []any{},
-		"memorySearchEnabled": r.memorySearchEnabled(),
-		"replyStyle":          config.CompanionReplyStyle(r.resolvedSettings()),
+		"action":                   "send_message",
+		"prompt":                   prompt,
+		"locale":                   config.ResolvedUserInterfaceLocale(r.resolvedSettings()),
+		"provider":                 selection.Provider,
+		"model":                    selection.Model,
+		"source":                   selection.Source,
+		"boardSnapshot":            r.board.Snapshot(),
+		"semanticMemories":         r.semanticPayload(),
+		"episodicRecalls":          []any{},
+		"memorySearchEnabled":      r.memorySearchEnabled(),
+		"memoryExtract":            config.CompanionMemoryExtract(r.resolvedSettings()),
+		"memoryExtractIdleMinutes": config.CompanionMemoryExtractIdleMinutes(r.resolvedSettings()),
+		"replyStyle":               config.CompanionReplyStyle(r.resolvedSettings()),
 	}
 	if len(attachments) > 0 {
 		command["attachments"] = attachments
@@ -452,6 +454,8 @@ func (r *Runtime) ForgetMemory(id string) error {
 		return err
 	}
 	r.persistState()
+	r.emitEvent(engine.Event{Type: "companion.memory"})
+	r.SyncLiveContext()
 	return nil
 }
 
@@ -906,8 +910,17 @@ func (r *Runtime) handleHost(action string, input map[string]any) (any, error) {
 			return map[string]any{"written": false, "results": []MemoryHit{}}, nil
 		}
 		result, err := r.memory.Handle(input)
+		if err != nil {
+			return result, err
+		}
 		r.persistState()
-		return result, err
+		if strings.TrimSpace(stringValue(input["action"])) == "commit" {
+			if payload, ok := result.(map[string]any); ok && intValue(payload["count"]) > 0 {
+				r.emitEvent(engine.Event{Type: "companion.memory"})
+				r.SyncLiveContext()
+			}
+		}
+		return result, nil
 	case "app":
 		_, result, err := r.appHost("", input)
 		if outcome, ok := result.(AppOutcome); ok && err == nil {
@@ -935,6 +948,7 @@ func (r *Runtime) semanticPayload() []map[string]string {
 	payload := make([]map[string]string, 0, len(approved))
 	for _, memory := range approved {
 		payload = append(payload, map[string]string{
+			"id":       memory.ID,
 			"title":    memory.Title,
 			"markdown": memory.Markdown,
 		})
@@ -949,6 +963,25 @@ func (r *Runtime) dispatchEnabled() bool {
 
 func (r *Runtime) memorySearchEnabled() bool {
 	return config.CompanionMemoryEnabled(r.resolvedSettings())
+}
+
+// SyncLiveContext tells a running sidecar the current extract timing and
+// approved memories. Settings changes and forgets use it so the next quiet
+// period follows the saved choice without waiting for a new message.
+func (r *Runtime) SyncLiveContext() {
+	if r == nil {
+		return
+	}
+	settings := r.resolvedSettings()
+	_ = r.write(map[string]any{
+		"action":                   "update_context",
+		"semanticMemories":         r.semanticPayload(),
+		"memoryExtract":            config.CompanionMemoryExtract(settings),
+		"memoryExtractIdleMinutes": config.CompanionMemoryExtractIdleMinutes(settings),
+		"memorySearchEnabled":      r.memorySearchEnabled(),
+		"locale":                   config.ResolvedUserInterfaceLocale(settings),
+		"replyStyle":               config.CompanionReplyStyle(settings),
+	})
 }
 
 func (r *Runtime) resolvedSettings() config.AppSettings {

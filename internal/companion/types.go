@@ -89,6 +89,7 @@ type ApprovedMemory struct {
 	Title            string   `json:"title"`
 	Markdown         string   `json:"markdown"`
 	SourceSessionIDs []string `json:"sourceSessionIds,omitempty"`
+	At               string   `json:"at,omitempty"`
 }
 
 type Catalog interface {

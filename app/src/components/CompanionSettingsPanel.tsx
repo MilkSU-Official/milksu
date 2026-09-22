@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Button, SettingsGhostPicker, SettingsRow, SettingsSection, Switch } from '@/components/ui'
 import { cn } from '@/lib/cn'
-import { invokeCommand } from '@/desktop'
+import { invokeCommand, listenEvent } from '@/desktop'
 import SearchableModelPicker from '@/components/SearchableModelPicker'
 import ModelVendorIcon from '@/components/ModelVendorIcon'
 import { encodePickerSelection, parsePickerSelection } from '@/modelCatalog'
@@ -17,9 +17,15 @@ import {
 import { useT, useUiLocale } from '@/hooks/useUiLocale'
 import type { SearchableModelGroup } from '@/lib/modelPickerSearch'
 import {
+  COMPANION_MEMORY_EXTRACT_IDLE_MINUTES,
   companionSettingsSource,
+  normalizeCompanionMemoryExtract,
+  normalizeCompanionMemoryExtractIdleMinutes,
   normalizeCompanionReplyStyle,
   type AppSettings,
+  type CompanionApprovedMemory,
+  type CompanionMemoryExtract,
+  type CompanionMemorySnapshot,
   type CompanionShellStatus,
   type CompanionSkinImportResult,
   type CompanionSkinList,
@@ -80,6 +86,34 @@ export default function CompanionSettingsPanel({
     { id: 'default', source: 'factory', factory: true, name: { zh: 'Milk', en: 'Milk' } },
   ])
   const [busy, setBusy] = useState<'import' | 'remove' | null>(null)
+  const [memories, setMemories] = useState<CompanionApprovedMemory[]>([])
+  const [forgetting, setForgetting] = useState('')
+
+  useEffect(() => {
+    let stop = false
+    const loadMemories = () => {
+      void invokeCommand<CompanionMemorySnapshot>('get_companion_memory')
+        .then(value => {
+          if (stop) return
+          const rows = Array.isArray(value?.approved) ? [...value.approved] : []
+          rows.sort((left, right) => String(right.at ?? '').localeCompare(String(left.at ?? '')))
+          setMemories(rows)
+        })
+        .catch(() => undefined)
+    }
+    loadMemories()
+    let unlisten: (() => void) | undefined
+    void listenEvent<{ type?: string }>('companion-event', event => {
+      if (event.payload?.type === 'companion.memory') loadMemories()
+    }).then(dispose => {
+      if (stop) dispose()
+      else unlisten = dispose
+    })
+    return () => {
+      stop = true
+      unlisten?.()
+    }
+  }, [])
 
   useEffect(() => {
     void invokeCommand<CompanionShellStatus>('get_companion_shell_status')
@@ -103,6 +137,10 @@ export default function CompanionSettingsPanel({
     ? (settings.companion_skin_id ?? 'default')
     : 'default'
   const selected = skins.find(item => item.id === selectedSkin)
+  const memoryExtract = normalizeCompanionMemoryExtract(settings.companion_memory_extract)
+  const memoryIdleMinutes = normalizeCompanionMemoryExtractIdleMinutes(
+    settings.companion_memory_extract_idle_minutes,
+  )
 
   function patch(next: Partial<AppSettings>) {
     Object.assign(settings!, next)
@@ -112,6 +150,18 @@ export default function CompanionSettingsPanel({
   function applySkin(id: string) {
     patch({ companion_skin_id: id })
     void invokeCommand('notify_companion_skin_changed', { id }).catch(() => undefined)
+  }
+
+  async function forgetMemory(id: string) {
+    setForgetting(id)
+    try {
+      await invokeCommand('forget_companion_memory', { id })
+      setMemories(current => current.filter(item => item.id !== id))
+    } catch (reason) {
+      toastError(reason, t('没能忘掉这条记忆', 'Could not forget this memory'))
+    } finally {
+      setForgetting('')
+    }
   }
 
   async function importSkin() {
@@ -296,6 +346,68 @@ export default function CompanionSettingsPanel({
             />
           )}
         />
+      </SettingsSection>
+      <SettingsSection title={t('记忆', 'Memory')}>
+        <SettingsRow
+          label={t('提取', 'Extract')}
+          stack={rowStack}
+          divider={memoryExtract === 'idle' || memories.length > 0}
+          trailing={(
+            <SettingsGhostPicker
+              value={memoryExtract}
+              ariaLabel={t('提取', 'Extract')}
+              menuClassName={pickerMenuClassName}
+              options={[
+                { value: 'off', label: t('关闭', 'Off') },
+                { value: 'turn', label: t('每轮结束', 'Each turn') },
+                { value: 'idle', label: t('闲置后', 'After idle') },
+              ]}
+              onChange={value => patch({ companion_memory_extract: value as CompanionMemoryExtract })}
+            />
+          )}
+        />
+        {memoryExtract === 'idle' ? (
+          <SettingsRow
+            label={t('闲置', 'Idle')}
+            stack={rowStack}
+            divider={memories.length > 0}
+            trailing={(
+              <SettingsGhostPicker
+                value={String(memoryIdleMinutes)}
+                ariaLabel={t('闲置', 'Idle')}
+                menuClassName={pickerMenuClassName}
+                options={COMPANION_MEMORY_EXTRACT_IDLE_MINUTES.map(minutes => ({
+                  value: String(minutes),
+                  label: t(`${minutes} 分钟`, `${minutes} min`),
+                }))}
+                onChange={value => patch({
+                  companion_memory_extract_idle_minutes: normalizeCompanionMemoryExtractIdleMinutes(value),
+                })}
+              />
+            )}
+          />
+        ) : null}
+        {memories.map((item, index) => (
+          <SettingsRow
+            key={item.id}
+            stack={rowStack}
+            divider={index < memories.length - 1}
+            trailing={(
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={forgetting === item.id}
+                onClick={() => void forgetMemory(item.id)}
+              >
+                {t('忘掉', 'Forget')}
+              </Button>
+            )}
+          >
+            <p className="min-w-0 break-words text-[length:var(--text-label)] leading-[var(--text-label--line-height)]">
+              {item.markdown || item.title}
+            </p>
+          </SettingsRow>
+        ))}
       </SettingsSection>
       <SettingsSection title={t('隐私', 'Privacy')}>
         <SettingsRow

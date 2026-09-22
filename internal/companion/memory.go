@@ -4,7 +4,10 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 )
+
+const memoryCommitLimit = 3
 
 type Memory struct {
 	mu        sync.Mutex
@@ -45,6 +48,8 @@ func (m *Memory) Handle(input map[string]any) (any, error) {
 			Markdown:         strings.TrimSpace(stringValue(input["markdown"])),
 			SourceSessionIDs: stringSlice(input["sourceSessionIds"]),
 		})
+	case "commit":
+		return m.Commit(strings.TrimSpace(stringValue(input["userText"])), commitItems(input["items"])), nil
 	case "forget":
 		return m.Forget(strings.TrimSpace(stringValue(input["memoryId"])))
 	default:
@@ -108,6 +113,95 @@ func (m *Memory) Recall(sessionID, cursor string) (map[string]any, error) {
 		"cursor":    cursor,
 		"kind":      ref.Kind,
 	}, nil
+}
+
+type MemoryCommit struct {
+	Action     string
+	ExistingID string
+	Title      string
+	Markdown   string
+	Evidence   string
+}
+
+func commitItems(value any) []MemoryCommit {
+	rows, ok := value.([]any)
+	if !ok {
+		return nil
+	}
+	items := make([]MemoryCommit, 0, len(rows))
+	for _, row := range rows {
+		item, ok := row.(map[string]any)
+		if !ok {
+			continue
+		}
+		items = append(items, MemoryCommit{
+			Action:     strings.TrimSpace(stringValue(item["action"])),
+			ExistingID: strings.TrimSpace(stringValue(item["existingId"])),
+			Title:      strings.TrimSpace(stringValue(item["title"])),
+			Markdown:   strings.TrimSpace(stringValue(item["markdown"])),
+			Evidence:   strings.TrimSpace(stringValue(item["evidence"])),
+		})
+	}
+	return items
+}
+
+func (m *Memory) Commit(userText string, items []MemoryCommit) map[string]any {
+	userText = strings.TrimSpace(userText)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	written := 0
+	for _, item := range items {
+		if written >= memoryCommitLimit {
+			break
+		}
+		title := strings.TrimSpace(item.Title)
+		markdown := strings.TrimSpace(item.Markdown)
+		evidence := strings.TrimSpace(item.Evidence)
+		if title == "" || markdown == "" || evidence == "" || userText == "" || !strings.Contains(userText, evidence) {
+			continue
+		}
+		switch strings.TrimSpace(item.Action) {
+		case "update":
+			id := strings.TrimSpace(item.ExistingID)
+			current, ok := m.approved[id]
+			if !ok || m.forgotten[id] {
+				continue
+			}
+			current.Title = title
+			current.Markdown = markdown
+			m.approved[id] = current
+			written++
+		case "create":
+			id := newPrefixedID("mem")
+			m.approved[id] = ApprovedMemory{
+				ID:       id,
+				Title:    title,
+				Markdown: markdown,
+				At:       time.Now().UTC().Format(time.RFC3339Nano),
+			}
+			written++
+		}
+	}
+	return map[string]any{
+		"written":  true,
+		"count":    written,
+		"approved": approvedPayload(m.approved, m.forgotten),
+	}
+}
+
+func approvedPayload(approved map[string]ApprovedMemory, forgotten map[string]bool) []map[string]string {
+	payload := make([]map[string]string, 0, len(approved))
+	for _, memory := range approved {
+		if forgotten[memory.ID] {
+			continue
+		}
+		payload = append(payload, map[string]string{
+			"id":       memory.ID,
+			"title":    memory.Title,
+			"markdown": memory.Markdown,
+		})
+	}
+	return payload
 }
 
 func (m *Memory) Propose(proposal MemoryProposal) (map[string]any, error) {
