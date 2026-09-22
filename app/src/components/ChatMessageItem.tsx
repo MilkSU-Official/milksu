@@ -27,6 +27,9 @@ import { assessApprovalRequest, type DestructiveAssessment, type DestructiveFact
 import { useT } from '@/hooks/useUiLocale'
 import type { CodingAttachment, CodingAttachmentPreview, Message } from '@/types'
 
+/** 过长的消息（派单清单、长回复）默认只显示这么多行，点一下展开全文。折叠只影响渲染，不丢内容。 */
+const COLLAPSED_BODY_LINES = 15
+
 export default function ChatMessageItem({
   message,
   recoverable,
@@ -59,6 +62,13 @@ export default function ChatMessageItem({
   onBranchAssistant?: (messageId: string) => void
 }) {
   const t = useT()
+  // 折叠只作用在**发送侧**（读者自己发的、以及跨会话发出去/发进来的那种）；
+  // 我（assistant）的回复是读者要看的内容，永远不折。
+  const [bodyExpanded, setBodyExpanded] = useState(false)
+  const bodyContent = message.content ?? ''
+  const bodyLineCount = bodyContent ? bodyContent.split('\n').length : 0
+  const bodyIsLong = message.role === 'user' && bodyLineCount > COLLAPSED_BODY_LINES
+  const collapsedBody = bodyContent.split('\n').slice(0, COLLAPSED_BODY_LINES).join('\n')
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const [copied, setCopied] = useState(false)
@@ -746,10 +756,23 @@ export default function ChatMessageItem({
           ) : null}
           {message.content ? (
             <MarkdownContent
-              content={message.content}
+              content={bodyIsLong && !bodyExpanded && !replyTicking ? collapsedBody : bodyContent}
               compact={message.role === 'user'}
               streaming={replyTicking}
             />
+          ) : null}
+          {bodyIsLong && !editing ? (
+            <button
+              type="button"
+              className="mt-2 text-caption opacity-60 transition-opacity hover:opacity-100"
+              data-testid="message-body-toggle"
+              aria-expanded={bodyExpanded}
+              onClick={() => setBodyExpanded(value => !value)}
+            >
+              {bodyExpanded
+                ? t('收起', 'Collapse')
+                : t(`展开全部（共 ${bodyLineCount} 行）`, `Show all (${bodyLineCount} lines)`)}
+            </button>
           ) : null}
           {sources.length ? (
             <div className="agent-sources">

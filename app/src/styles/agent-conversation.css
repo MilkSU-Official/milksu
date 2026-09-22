@@ -253,7 +253,8 @@
   border-left: 0.38rem solid currentColor;
 }
 
-[data-agent-conversation] .agent-process[open] > .agent-process__summary::before {
+[data-agent-conversation] .agent-process[open] > .agent-process__summary::before,
+[data-agent-conversation] .agent-process > details[open] > .agent-process__summary::before {
   transform: rotate(90deg);
 }
 
@@ -264,6 +265,95 @@
 
 [data-agent-conversation] .agent-process__body {
   margin-top: 0.65rem;
+}
+
+[data-agent-conversation] .agent-process__totals {
+  min-width: 0;
+}
+
+[data-agent-conversation] .agent-process__live {
+  margin: 0.2rem 0 0;
+  padding-left: 1.2rem;
+  color: var(--muted-foreground);
+  font-size: 0.8rem;
+  line-height: 1.3;
+}
+
+[data-agent-conversation] .agent-process__swap {
+  position: relative;
+  display: inline-grid;
+  min-height: 1.3em;
+}
+
+[data-agent-conversation] .agent-process__swap-enter,
+[data-agent-conversation] .agent-process__swap-leave {
+  grid-area: 1 / 1;
+}
+
+[data-agent-conversation] .agent-process__activity {
+  color: var(--muted-foreground);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-agent-conversation] .agent-process__swap-enter {
+    background-image: linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--muted-foreground) 70%, transparent) 0%,
+      color-mix(in srgb, var(--muted-foreground) 70%, transparent) 35%,
+      var(--foreground) 50%,
+      color-mix(in srgb, var(--muted-foreground) 70%, transparent) 65%,
+      color-mix(in srgb, var(--muted-foreground) 70%, transparent) 100%
+    );
+    background-size: 200% 100%;
+    background-repeat: no-repeat;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation:
+      agent-activity-enter var(--motion-base) var(--ease-out) both,
+      agent-activity-sweep 1.6s linear infinite;
+  }
+
+  [data-agent-conversation] .agent-process__swap-leave {
+    animation: agent-activity-leave var(--motion-base) var(--ease-out) both;
+  }
+
+  [data-agent-conversation] .agent-process > details > .agent-process__summary::before {
+    transition: transform var(--motion-fast) var(--ease-out);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-agent-conversation] .agent-process__swap-leave {
+    display: none;
+  }
+}
+
+@keyframes agent-activity-sweep {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
+
+@keyframes agent-activity-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes agent-activity-leave {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
 }
 
 [data-agent-conversation] .agent-think {

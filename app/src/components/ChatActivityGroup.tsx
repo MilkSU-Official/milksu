@@ -1,5 +1,6 @@
 import { useMemo, useRef } from 'react'
 import AgentPixelLoader from '@/components/AgentPixelLoader'
+import ChatWorkFold from '@/components/ChatWorkFold'
 import {
   buildChatActivityEntries,
   detailsToggleOpen,
@@ -8,19 +9,22 @@ import {
   type ChatActivityEntry,
 } from '@/lib/chatActivity'
 import { agentToolChip } from '@/lib/agentConversation'
+import type { ChatFoldModel } from '@/lib/chatWorkStatus'
 import { useT } from '@/hooks/useUiLocale'
 import type { SubagentTask } from '@/types'
 
 export default function ChatActivityGroup({
   activity,
+  model,
   open,
   openEntryIds,
   revealCompleted = false,
   subagentTasks: _subagentTasks = [],
-  onToggleGroup: _onToggleGroup,
+  onToggleGroup,
   onToggleEntry,
 }: {
   activity: ChatActivityBlock
+  model?: ChatFoldModel
   open: boolean
   openEntryIds: ReadonlySet<string>
   revealCompleted?: boolean
@@ -72,12 +76,7 @@ export default function ChatActivityGroup({
 
   if (!toolEntries.length) return null
 
-  return (
-    <div
-      className="tool-activity mb-7"
-      data-activity-open={open ? 'true' : 'false'}
-    >
-      {toolEntries.length ? (
+  const entries = (
         <div className="tool-activity__entries">
           {toolEntries.map(entry => {
             const chipValue = chip(entry)
@@ -144,7 +143,25 @@ export default function ChatActivityGroup({
             )
           })}
         </div>
-      ) : null}
-    </div>
+  )
+
+  if (revealCompleted || !model) {
+    return (
+      <div className="tool-activity" data-activity-open={open ? 'true' : 'false'}>
+        {entries}
+      </div>
+    )
+  }
+
+  return (
+    <ChatWorkFold
+      model={model}
+      open={open}
+      onToggle={next => onToggleGroup?.(next)}
+    >
+      <div className="tool-activity" data-activity-open={open ? 'true' : 'false'}>
+        {entries}
+      </div>
+    </ChatWorkFold>
   )
 }
