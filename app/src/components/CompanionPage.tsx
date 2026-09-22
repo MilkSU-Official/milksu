@@ -40,6 +40,7 @@ import {
   companionEntryHasProcess,
   companionEntryIsProcessOnly,
   companionTurnHasProcess,
+  resolveCompanionLiveStream,
   processFromCompanionEntry,
   withThinkingDuration,
   type CompanionTurnProcess,
@@ -225,19 +226,21 @@ export default function CompanionPage({
     })),
   }))
   const liveWorking = companionTurnHasProcess(companion.liveProcess)
-  const heldStream = useRef('')
-  if (companion.streaming) heldStream.current = companion.streaming
-  const streamAbsorbed = companion.entries.some(entry => (
-    entry.role === 'assistant'
-    && Boolean(heldStream.current)
-    && companionChatPlainText(entry) === heldStream.current
-  ))
-  const streamText = streamAbsorbed ? '' : (companion.streaming || heldStream.current)
-  if (streamAbsorbed) heldStream.current = ''
-  const typing = (companion.busy && !streamText && !liveWorking) || previewPulse
   const transcript = companion.entries.length || !previewChat
     ? companion.entries
     : companionChatPreviewEntries(t)
+  const streamHold = useRef({ held: '', anchorUserId: '' })
+  const liveStream = resolveCompanionLiveStream(
+    transcript,
+    companion.streaming,
+    streamHold.current,
+  )
+  streamHold.current = {
+    held: liveStream.held,
+    anchorUserId: liveStream.anchorUserId,
+  }
+  const streamText = liveStream.text
+  const typing = (companion.busy && !streamText && !liveWorking) || previewPulse
   const emptyReplyLabel = t('这一轮没有回复。', 'This turn did not produce a reply.')
   // Only the live error gates 「开新对话」. Historical transcript rows may still
   // carry a past broken-history errorMessage after sidecar repair; scanning them
@@ -645,7 +648,11 @@ export default function CompanionPage({
                 {...rowProps}
                 className="companion-chat-row companion-chat-row-assistant companion-chat-row-start"
               >
-                <CompanionTurnProcessView process={row.process} />
+                <CompanionTurnProcessView
+                  process={row.process}
+                  foldable
+                  defaultOpen={false}
+                />
               </div>
             )
           }

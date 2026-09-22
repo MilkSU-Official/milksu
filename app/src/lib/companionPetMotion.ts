@@ -51,7 +51,7 @@ export function companionPetSprite(
 
 export type CompanionIslandKind = 'none' | 'think' | 'confirm' | 'error' | 'complete'
 
-/** Phone island. Decide, think, and complete draw. The think timer stays up while the reply streams. Idle draws nothing. */
+/** Phone island. Decide, think, and complete fill the capsule. The think timer stays up while the reply streams. Idle keeps the resting capsule. */
 export function resolveCompanionIsland(input: {
   confirm: boolean
   error: boolean
