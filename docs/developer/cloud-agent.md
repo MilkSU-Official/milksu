@@ -1,10 +1,10 @@
-# 云 Agent（登录即用；手机一阶段 + 电脑端客户端）
+# 云 Agent（登录即用；手机 + 电脑客户端）
 
-> 文档状态：Target / Designed（传输是否锁定 Connect 仍待拍）
+> 文档状态：Target / Designed
 >
 > 对齐日期：2026-09-22
 >
-> 本页是产品代码准入（Gate 1）。**只有「已与你对齐」可当实现依据；标「草案 / 待拍」的须再问。**
+> 本页是产品代码准入（Gate 1）。**「已与你对齐」可当实现依据。**
 > 尚未实现。跟踪 issue：[#153](https://github.com/MilkSU-Official/milksu/issues/153)。
 > 产品 UI 只写在仓库根目录 `AGENTS.md`，本页不复述 token 或原语数字。
 >
@@ -13,42 +13,31 @@
 
 ## 已与你对齐
 
-| # | 决定 |
+| 项 | 决定 |
 | --- | --- |
 | 沙箱 | **Cloudflare Sandbox** |
 | 内核 | 云上 **Pi 和 DSH 都要**（同钉；按会话二选一） |
-| 传输 | 先调研；你对 **Connect** 感兴趣（见专节介绍）。**是否定为第一包管道仍待你一句确认。** |
-| 计量 | **只要展示，额度 / 硬拦先不做。** 模型费用 **models.dev** 价目估算。云 = 模型费 + 沙箱费；本地 = 仅模型费。 |
+| 传输 | 客户端 ↔ Cloud API 第一包定 **Connect**（见下） |
+| 计量 | **只展示，额度 / 硬拦 / 充值后置。** 模型费用 **models.dev** 估算，文案须说明「仅根据 models.dev 估算，方便统计，不是账单」。云 = 模型费 + 沙箱费；本地 = 仅模型费。**所有本地回合都记**（含个人 Key）。 |
 | 客户端 | 桌面云 + **原生**手机（**iOS 与 Android 并行**）；手机 **从 0** |
-| 桌面切换 UI | 输入栏胶囊**外左下**（与审批 / 项目 / 分支同一带，像 Cursor）点一下：**本地 PC \| 云**。未开回合可自由切；**开过后切换要迁移。** |
+| 桌面切换 | 输入栏胶囊**外左下**点一下：**本地 PC \| 云**。未开回合可自由切；开过后走 **换宿主迁移** |
+| 迁移 | **先复制到另一端，确认成功后再删源端**（安全换宿主，不是先删再碰运气，也不是永久双开分叉） |
 
 ## 用户要看见什么
 
-- 登录后能开云会话；手机与电脑同一账户云会话。
-- 每回合 / 累计消耗可见：本地只显示模型费；云显示模型费 + 沙箱费。
-- 不在本阶段做「余额不足不能发」或充值。
+- 登录后开云会话；手机与电脑同一账户云会话。
+- 消耗可见且带估算说明；本地无沙箱费行。
+- 左下可切本地 / 云；开过后迁移有明确进度与失败可回退（源端尚未删）。
 
-## Connect 是什么（给你看的介绍）
+## Connect（已定为第一包管道）
 
-[Connect](https://connectrpc.com/docs/introduction/)（Buf 家）是一套 **用 Protobuf 定义 API、在普通 HTTP 上跑 RPC** 的库族——可以想成「好用的、浏览器也友好的 gRPC 亲戚」。
+[Connect](https://connectrpc.com/docs/introduction/)：Protobuf 定义 API，在普通 HTTP 上 RPC；默认可兼容 gRPC / gRPC-Web。自有协议跑 HTTP/1.1+，支持 JSON 或二进制 Protobuf 与 streaming。Cursor SDK Bridge 同族（Connect over HTTP/1.1）。我们用 **TS + Swift + Kotlin** 生成客户端。
 
-| 点 | 说明 |
-| --- | --- |
-| 你写什么 | 一份很短的 `.proto`，生成服务端路由和**各语言类型安全客户端** |
-| 三种协议 | 同一套服务默认可讲：**Connect 自有协议**、**gRPC**、**gRPC-Web**。客户端默认走 Connect 协议，也可拨成 gRPC |
-| Connect 自有协议 | 跑在 **HTTP/1.1 / 2 / 3**；支持 unary 与 streaming；body 可以是 **JSON 或二进制 Protobuf**。甚至能用 curl 调 |
-| 和「经典 gRPC」差别 | 经典 gRPC 强依赖 HTTP/2 帧语义，浏览器不能直接说；Connect 为浏览器 / 移动 / Node 设计。Cursor 的 SDK Bridge 也是 **Connect over HTTP/1.1**，并写明经典 gRPC 连不上 |
-| 流式 | 有 server-streaming 等；适合「发一句、收回合事件流」 |
-| 我们关心的语言 | **TypeScript**（桌面 Electron/renderer 或 preload）、**Swift**（稳定）、**Kotlin**（移动，beta）——和「原生双端 + 桌面」对得上 |
-| 和 CF | Worker 侧可走 Connect / gRPC-Web 翻译路径；全双工 bidi 仍要按 CF 能力选型，实现时用证据 |
+- 客户端 ↔ Cloud API：**Connect**（unary 建会话 / 发回合 / 审批；server-stream 推事件）。  
+- 沙箱内 Pi/DSH：仍用各自 bridge / ACP，不要求客户端直连容器 stdio。  
+- 编码：实现时在 JSON 与 proto 间择一默认（可双开），不另造第二套事件名。
 
-**和 WSS / SSE 怎么比（直觉）：**
-
-- **SSE / 手工 JSON：** 实现轻，但类型与多端桩要自己维护。  
-- **WSS + JSON 事件：** 双向自然，CF Agents 常用；契约要自管。  
-- **Connect：** 契约在 `.proto` 里；桌面 / iOS / Android 生成同一套 RPC；流式用 HTTP，不必先上 WebSocket；需要时仍能兼容 gRPC 生态。
-
-**草案倾向：** 若你确认，第一包客户端 ↔ Cloud API 用 **Connect（JSON 或 proto，server-stream 推事件）**；沙箱内 Pi/DSH 仍用各自 bridge/ACP，不要求浏览器直连容器 stdio。
+调研背景（Codex SSE/WS、Cursor Connect、CF Agents WS、ACP 传输无关）见 Git 历史；现已锁定 Connect，不再并列待选。
 
 ## 沙箱与内核
 
@@ -56,98 +45,87 @@
 
 ```text
 原生手机 / 桌面
-  --(账户 Bearer + 待确认：Connect?)-->
+  --(账户 Bearer + Connect)-->
 Cloud API
   --> CF Sandbox → Pi 或 DSH → TokenFlux/官方（服务端凭据）
 ```
 
-## 传输调研摘要（仍有效）
+## RPC / 事件契约
 
-Codex Web：HTTP+SSE；Codex App Server 远程：WS 或 stdio JSON-RPC。  
-Cursor Bridge：Connect / HTTP/1.1，非经典 gRPC。  
-CF Agents：交互常 WebSocket，也可用 SSE。  
-ACP：传输无关，JSON-RPC。
+`.proto` 定义 `CloudSessionService` + stream，推送对齐桌面 conversation 投影：
 
-→ 没有唯一业界标准；**Connect 是与「原生双端 + 类型契约」最贴的成熟选项之一。**
+`session.snapshot` · `message.delta` · `thinking.*` · `tool.*` · `approval.requested` · `ask.requested` · `turn.settled`（消耗明细）· `usage.updated` · `error` · `migrate.*`（进度 / 成功 / 失败）
 
-## 消息 / RPC 契约（草案）
+## 计量与费用展示
 
-用 Connect 时：`.proto` 里定义 `CloudSessionService`（建会话、发回合、中止、审批）+ server-stream `Subscribe` / `Run` 推：
-
-`session.snapshot` · `message.delta` · `thinking.*` · `tool.*` · `approval.requested` · `ask.requested` · `turn.settled`（带消耗明细）· `usage.updated` · `error`
-
-载荷尽量对齐现有桌面 conversation 投影，避免第二套气泡协议。
-
-## 计量与费用展示（已对齐）
-
-| 场景 | 计什么 | 怎么算 |
+| 场景 | 计什么 | 怎么算 / 怎么说 |
 | --- | --- | --- |
-| **本地对话** | 仅 **模型费** | 用 **models.dev**（与现有 `knownModelPricing` / 发版刷新同源）按 token 估算；展示「约 …」，标明估算 |
-| **云对话** | **模型费 + 沙箱费** | 模型同上；沙箱按秒（或活跃 CPU 折算）× 系数，Admin 可调系数 |
-| 额度 | **不做** | 不硬拦、不扣钱包；只记账与展示 |
-| 充值 | **后置** | |
+| 本地 | 仅模型费 | models.dev 价 × token；**所有本地回合都记**（账户与个人 Key） |
+| 云 | 模型费 + 沙箱费 | 模型同上；沙箱秒 × 系数 |
+| 文案 | 必有 | 「根据 models.dev 估算，方便统计，不是账单 / 实扣」中英成对 |
+| 额度 | 不做 | 不硬拦、不扣钱包 |
 
-落库：`usage_turn`（环境 `local|cloud`、kernel、model、tokens、sandbox_seconds、model_cost_est、sandbox_cost_est）。  
-本地个人 Key 与账户云调用都可记模型费展示；沙箱费只出现在 `cloud`。
+落库 `usage_turn`：`local|cloud`、kernel、model、tokens、sandbox_seconds、model_cost_est、sandbox_cost_est、source（account/personal）。
 
 ## 产品面
 
-### 电脑：本地 / 云切换（已对齐位置）
+### 电脑：本地 / 云切换
 
-- 位置：输入栏胶囊**外左下**，与审批 / 项目 / 分支同一行（`AGENTS.md` 已写）。  
-- 交互：点一下在 **本地 PC** 与 **云** 之间切换「下一条对话开在哪」。  
-- **未发出第一条消息：** 可自由切换，只影响新会话落点。  
-- **已经开过回合再切换：必须走迁移**，不能静默清空或假装还在同一执行面。
+- 位置：胶囊外左下（`AGENTS.md`）。  
+- 空会话：自由切换落点。  
+- 已开回合：触发迁移，不可静默丢上下文。
 
-#### 迁移（草案，细节可再问）
+### 换宿主迁移（已对齐）
 
-目标：用户从本地切到云（或反过来）时，**对话可继续，执行面换边**。
+**先复制到目标端 → 目标端可打开并校验成功 → 再删（或归档作废）源端。**
 
-| 方向 | 草案行为 |
+| 步骤 | 行为 |
 | --- | --- |
-| 本地 → 云 | 创建（或关联）云会话；把当前可见抄本 / 附件策略迁到云沙箱；后续回合在 CF 跑；本地会话标记已迁移或保留只读 |
-| 云 → 本地 | 在本机建关联会话；拉下需要的上下文 / 产物；后续回合用本机 Pi/DSH；云会话标记已迁出 |
+| 1 复制 | 在目标环境建关联会话；抄本 / 必要附件按策略拷入（云则进沙箱+R2） |
+| 2 校验 | 目标端能列出会话、打开抄本；用户或自动 smoke 通过 |
+| 3 切换 | UI 落到目标会话；后续回合在新宿主跑 |
+| 4 删源 | **仅成功后**删除或标记废弃源端；失败则保留源端、报错、不切过去 |
 
-实现前须再拍：是 **复制后分叉** 还是 **单一会话换宿主**；大工作区是否只迁对话不迁整盘。
+大工作区是否整盘拷贝：实现纵切再定边界（可先迁对话与明示附件，整盘后置），但「先复制成功再删」不变。
 
-### 手机（从 0，已对齐）
+### 手机（从 0）
 
-- **原生**：iOS（SwiftUI）+ Android（Kotlin）**并行**。  
-- 主屏幕名 MilkSU；GitHub PKCE 登录 → 云会话列表 → 对话（流式、审批、消耗）。  
-- 设计语言跟 `AGENTS.md` 意向 + 平台控件；不画假桌面壳。  
-- 一阶段主路径只有云；扫电脑留给 #131。  
-- 与桌面共用 Cloud API / 同一事件契约（若定 Connect，则双端生成客户端）。
+原生 iOS（SwiftUI）+ Android（Kotlin）并行。登录 → 云列表 → 对话（流式、审批、带说明的消耗）。一阶段主路径只有云；#131 扫码后置。Connect 生成双端客户端。
 
 ## 上游阶梯
 
 1. 账户 PKCE、钉版 Pi/DSH、models.dev 价目副本。  
-2. CF Sandbox、R2、TokenFlux；Connect（若你确认）或你另选的管道。  
-3. 用量展示、桌面左下切换 + 迁移、双端原生工程。
+2. CF Sandbox、R2、TokenFlux、**Connect**。  
+3. 用量展示、左下切换 + 先拷后删迁移、双端原生工程。
 
 ## 最小纵切
 
-1. 本地回合：`usage_turn` 模型费（models.dev）可见。  
-2. 云 Pi 一回合：模型费 + 沙箱费可见。  
+1. 本地回合用量（全记 + 估算文案）。  
+2. 云 Pi：模型费 + 沙箱费展示。  
 3. 云 DSH 一回合。  
-4. 桌面左下本地/云切换（空会话）+ 迁移最小路径（至少一种方向）。  
-5. iOS 与 Android：登录 + 云对话各一轮。
+4. 左下切换 + 迁移最小路径（先拷后删，至少一个方向）。  
+5. iOS、Android 各一轮云对话。
 
 ## 成功怎么算
 
-- 本地与云消耗展示符合「本地仅模型 / 云模型+沙箱」。  
-- Pi 与 DSH 云回合通。  
-- 左下切换与至少一条迁移路径真机可演示。  
-- iOS、Android 各至少一轮云对话。  
-- 无额度硬拦；Key 不上客户端。
+- 本地 / 云消耗展示与文案符合对齐表。  
+- Pi 与 DSH 云通。  
+- 迁移失败时源端仍在；成功后源端已清理、目标可续聊。  
+- iOS、Android 各至少一轮。  
+- Connect 契约有生成客户端；Key 不上客户端。
 
-## 下一轮只问这些
+## 没有收益时怎么删
 
-1. **传输是否就定 Connect 做第一包？**（是 / 否，否的话选 WSS 或 POST+SSE）  
-2. 迁移策略：切环境是 **复制分叉** 还是 **同一会话换宿主**？  
-3. 本地模型费：是否 **所有本地回合都记**（含个人 Key），还是只记账户模型来源？
+关 Cloud API / Sandbox；删桌面云入口与手机云面；用量表可只读归档。
+
+## 实现顺序
+
+1. Connect `.proto` + Cloud API 骨架 + 用量记账。  
+2. CF 镜像 Pi→DSH。  
+3. 桌面左下切换与迁移。  
+4. iOS / Android 并行云对话。  
+5. 额度、充值、#131：后置。
 
 ## 检查点
 
-1. 已拍：CF、双内核、计量展示、models.dev 模型费、云加沙箱费、原生双端并行、左下切换+迁移。  
-2. 待拍：Connect 是否锁定、迁移语义、本地记账范围。  
-3. #131 不阻塞。
+Gate 1 主决策已对齐（含 Connect、先拷后删换宿主、全记本地估算）。实现中碰到整盘迁移边界、Connect 默认 JSON vs proto 等细则再问，不回开已拍项。
