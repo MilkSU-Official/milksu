@@ -70,6 +70,8 @@
     "@deepseek-ai/dsh-experimental-browser-use-playwright-mcp": "0.1.6-alpha.1",
     "@deepseek-ai/dsh-experimental-browser-use-runtime": "0.1.6-alpha.1",
     "@deepseek-ai/dsh-experimental-computer-use-cua-driver-mcp": "0.1.6-alpha.1",
+    "@earendil-works/chord": "0.87.0",
+    "@earendil-works/pi-agent-core": "0.87.0",
     "@earendil-works/pi-ai": "0.87.0",
     "@earendil-works/pi-coding-agent": "0.87.0",
     "@earendil-works/pi-tui": "0.87.0",

@@ -1031,8 +1031,8 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
             ? 'PI Background Tasks'
             : value === 'pi-mcp-adapter'
               ? 'PI MCP Adapter'
-              : value === 'pi-sub-agent'
-                ? 'PI Sub Agent'
+              : value === 'pi-subagents' || value === 'pi-sub-agent'
+                ? 'PI Subagents'
                 : value
   }
 

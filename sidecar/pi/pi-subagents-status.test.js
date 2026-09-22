@@ -39,7 +39,7 @@ test("async dir reads stay inside temp or the workspace and hide absolute paths"
   assert.match(snapshot.transcript, /hello/);
 
   const link = join(workspace, "escape");
-  await symlink(outside, link);
+  await symlink("/usr", link);
   assert.equal(acceptedAsyncDir(link, workspace), "");
   assert.equal(acceptedAsyncDir(join(run, "..", "..", "etc"), workspace), "");
 });

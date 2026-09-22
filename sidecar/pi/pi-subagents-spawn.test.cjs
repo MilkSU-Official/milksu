@@ -1,6 +1,7 @@
 "use strict";
 
 const assert = require("node:assert/strict");
+const { existsSync } = require("node:fs");
 const test = require("node:test");
 const {
   guardSubagentSpawn,
@@ -57,21 +58,22 @@ test("macOS write profile allows the workspace and temp dir and denies .git", ()
   assert.match(profile, /subpath "\/var\/folders\/t"/);
   assert.match(profile, /subpath "\/work\/repo\/\.milksu\/pi"/);
   assert.match(profile, /subpath "\/work\/repo\/\.git"/);
-  const guarded = guardSubagentSpawn({
+  const launch = {
     command: "/usr/bin/node",
     args: ["runner.js"],
     env: { OPENAI_API_KEY: "secret" },
     cwd: "/work/repo",
     externalCli: false,
     platform: "darwin",
-  });
-  if (process.platform === "darwin") {
-    assert.equal(guarded.command, "/usr/bin/sandbox-exec");
-    assert.equal(guarded.args[0], "-p");
-    assert.match(guarded.args[1], /deny file-write\*/);
-    assert.equal(guarded.args[2], "/usr/bin/node");
-    assert.equal(guarded.env.OPENAI_API_KEY, "secret");
-  } else {
-    assert.equal(guarded.command, "/usr/bin/node");
+  };
+  if (!existsSync("/usr/bin/sandbox-exec")) {
+    assert.throws(() => guardSubagentSpawn(launch), /sandbox-exec/);
+    return;
   }
+  const guarded = guardSubagentSpawn(launch);
+  assert.equal(guarded.command, "/usr/bin/sandbox-exec");
+  assert.equal(guarded.args[0], "-p");
+  assert.match(guarded.args[1], /deny file-write\*/);
+  assert.equal(guarded.args[2], "/usr/bin/node");
+  assert.equal(guarded.env.OPENAI_API_KEY, "secret");
 });

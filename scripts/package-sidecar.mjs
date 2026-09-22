@@ -800,6 +800,11 @@ async function copyPiSubagentsRuntime(output) {
   if (!packages.some(pkg => pkg.name === '@earendil-works/pi-coding-agent' && pkg.version === piVersion)) {
     throw new Error(`Pi subagent runtime closure is missing @earendil-works/pi-coding-agent@${piVersion}`)
   }
+  for (const name of ['@earendil-works/pi-agent-core', '@earendil-works/chord']) {
+    if (!packages.some(pkg => pkg.name === name && pkg.version === piVersion)) {
+      throw new Error(`Pi subagent runtime closure is missing ${name}@${piVersion}`)
+    }
+  }
   await mkdir(join(output, 'node_modules'), { recursive: true, mode: 0o700 })
   for (const pkg of packages) {
     const destination = join(output, 'node_modules', pkg.relativePath)
