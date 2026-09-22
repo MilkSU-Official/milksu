@@ -195,6 +195,7 @@ import {
   projectAssistantUsage,
   projectToolModelUsage,
 } from "./bridge-usage-view.js";
+import { assistantFailureText } from "./bridge-model-failure.js";
 import { projectSessionContextComposition } from "./bridge-context-composition.js";
 import { withTokenFluxModelCompat } from "./tokenflux-model-compat.js";
 
@@ -1330,6 +1331,7 @@ function configureRuntimeModel(
       requestedOrder,
       reason: selection.failure.reason,
       message,
+      notice: message,
     });
     throw new Error(message);
   }
@@ -1521,6 +1523,14 @@ function subscribeSession(
         thinkingStreamed,
       })) {
         emit(conversationId, projected.type, projected.data);
+      }
+      // 模型调用失败（如 429）时 pi 会给出 stopReason:"error" + errorMessage —— 以前这里只取 usage
+      // ⇒ 失败被整条丢掉 ⇒ 引擎收不到、界面也收不到 ⇒ 读者只能对着空回合（真事：tokenflux 回 429）。
+      const failure = assistantFailureText(event.message);
+      if (failure) {
+        emit(conversationId, "error", { error: failure });
+        // 光报告不够：pi 会把失败当一步继续跑 ⇒ 同一轮反复重试、还烧额度（真事）。
+        void session.abort().catch(() => undefined);
       }
       const usage = projectAssistantUsage(event.message, {
         conversationId,
