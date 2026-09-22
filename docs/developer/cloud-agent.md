@@ -69,7 +69,7 @@
 
 ```text
 手机 / 电脑客户端
-  --(HTTPS + WSS, Bearer session)-->
+  --(账户 Bearer + 流式传输，见下)-->
 MilkSU Cloud API (Worker)
   --(计量、启停)-->
 CF Sandbox 容器
@@ -80,9 +80,31 @@ CF Sandbox 容器
 - Provider API Key **只在服务端**注入沙箱环境；永不下发到手机或桌面 renderer，不进模型上下文与日志正文。
 - 客户端不直连 TokenFlux。
 
+### 传输层（不必绑死 WSS）
+
+**契约绑定的是上面的帧 / 事件类型，不是某一种管道。** WSS 不是硬性要求，也不是「唯一业内标准」。
+
+业界常见做法（聊天 / Agent 流式）：
+
+| 传输 | 常见场景 | 备注 |
+| --- | --- | --- |
+| **HTTPS + SSE** | 单向 token / 事件流 | 实现简单；客户端→服务端仍用普通 HTTP POST（发消息、中止、审批） |
+| **WSS（WebSocket over TLS）** | 浏览器 / Electron / 手机双向实时 | CF Workers 一等公民；打断、审批回传、重连补发都方便 |
+| **gRPC（含 server-streaming / bidi）** | 原生移动端、强类型 RPC | 业界标准之一；与 WSS 并列，不是替代「标准」的唯一答案 |
+| **gRPC-Web / Connect** | 浏览器里用 gRPC 风格 API | 桌面 Chromium renderer 若走 gRPC，通常要这一层 |
+
+对本产品的具体判断：
+
+1. **可以 gRPC。** 尤其 iOS / Android 原生客户端：生成桩、类型安全、与「账户 API」风格统一都合适。  
+2. **CF 上的约束要写进实现：** Worker 上 gRPC 以 unary / server-streaming 为主（经 gRPC-Web 翻译）；**全双工 bidi** 更稳妥的是 Sandbox/Container 里跑 gRPC server，或客户端仍用 WSS/SSE 连 Worker。选型时用证据，不预设。  
+3. **默认倾向（可改）：** 第一包用 **WSS 或 SSE+HTTP** 接 CF Worker（路径短、桌面 renderer 零额外栈）。若手机侧强烈偏好 gRPC，允许 **同一事件契约上的 gRPC 适配**，不另造第二套业务协议。  
+4. **远程控制 #131** 的 `wss://`+Noise 是本机配对管道，与云 Agent 传输选型独立，不要互相绑架。
+
+禁止：为换传输重写气泡/工具事件模型；在文档里把「必须 WSS」写成不可谈判边界。
+
 ### 消息格式（Cloud Session Protocol）
 
-外层：`wss://`（或 HTTPS SSE 降级）+ 现有账户 Bearer。  
+外层：账户 Bearer + 上节任一传输。  
 内层帧与桌面事件投影对齐，便于电脑 / 手机共用渲染：
 
 | 方向 | 类型 | 用途 |
@@ -152,7 +174,7 @@ CF Sandbox 容器
 ## 上游阶梯
 
 1. 现有：GitHub PKCE 账户、`accounts.milksu.org` Worker/D1、桌面事件投影、钉版 Pi。  
-2. 固定机制：Cloudflare Sandbox SDK、R2、WSS、TokenFlux HTTP。  
+2. 固定机制：Cloudflare Sandbox SDK、R2、TokenFlux HTTP；客户端流式传输首选 WSS 或 SSE+HTTP，允许同契约的 gRPC 适配。  
 3. 自有最小层：Cloud Session API、wallet/ledger、客户端云环境适配、iOS 云对话面。
 
 不在客户端重造 Pi；不在手机里跑工具循环。
