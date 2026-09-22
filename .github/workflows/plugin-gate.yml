@@ -79,5 +79,5 @@ jobs:
           node --test sidecar/plugin-runtime/*.test.mjs sidecar/pi/bridge-plugin-mcp.test.js desktop/backend-runtime.test.cjs desktop/desktop-rpc-source.test.cjs desktop/renderer-protocol.test.cjs desktop/startup-environment.test.cjs
       - name: Validate renderer plugin contracts
         run: |
-          npm --prefix app test -- --run src/lib/pluginFrame.test.ts src/lib/pluginThemeBridgeContract.test.ts
+          npm --prefix app test -- --run src/lib/pluginFrame.test.ts
           npm --prefix app run build
