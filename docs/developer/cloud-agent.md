@@ -141,7 +141,7 @@ Cloud API
 
 桌面渲染进程**不得**持有账户 Bearer；云 unary / Subscribe 一律走 Electron main。
 空画布可用 `pendingHost`；已开回合迁移成功后写入 `cloudSessionId`。
-Subscribe 已用手搓 Connect 信封（长轮询 + 客户端 resume，不发明非信封 keepalive）；真 Pi/DSH 回合仍待 CF Sandbox 绑定。
+Subscribe 已用手搓 Connect 信封（长轮询 + 客户端 resume，不发明非信封 keepalive）；会话优先写 D1（有绑定），否则内存 Map。真 Pi/DSH 回合仍待 CF Sandbox 绑定。
 部署与密钥仍在 `milksu-admin` / CF 控制台（本 Agent 无该仓写权限）。
 
 ## 检查点
