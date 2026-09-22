@@ -46,6 +46,17 @@ final class MilkSUCloudAgentClient {
     return try JSONDecoder().decode([MilkSUCloudSession].self, from: data)
   }
 
+  func createSession(kernel: String = "pi", model: String = "", title: String = "") async throws -> MilkSUCloudSession {
+    let body = try await call(method: "CreateSession", body: [
+      "kernel": kernel,
+      "model": model,
+      "title": title,
+      "credential_id": "",
+    ]) as [String: Any]
+    let data = try JSONSerialization.data(withJSONObject: body)
+    return try JSONDecoder().decode(MilkSUCloudSession.self, from: data)
+  }
+
   func migrateCopy(sourceSessionId: String, transcriptJSON: String) async throws -> String {
     let body = try await call(method: "MigrateCopy", body: [
       "source_session_id": sourceSessionId,
