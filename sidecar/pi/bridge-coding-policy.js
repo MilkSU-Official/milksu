@@ -133,7 +133,7 @@ export function normalizeCodingPolicy(
         label: "ImageGen",
         status: effectfulToolsAvailable ? "approval-required" : "blocked",
         detail: effectfulToolsAvailable
-          ? "使用隔离的 OpenAI Provider Adapter；每次生成或参考图编辑都单独展示输入、输出、尺寸和费用后批准。"
+          ? "使用隔离的 ImageGen 凭据；每次生成或参考图编辑都单独展示输入、输出、尺寸和费用后批准。对话模型不会用于生图。"
           : "Plan 与 Read-only 不提供付费 ImageGen 调用。",
       },
       {

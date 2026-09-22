@@ -5,9 +5,10 @@ import { defineTool } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 
 export const codingImageGenToolName = "milksu_imagegen";
-export const codingImageGenModel = "gpt-image-2";
+/** @deprecated Prefer resolveImageGenModel(); kept for older tests. */
+export const codingImageGenModel = "openai/gpt-image-2";
 
-const defaultBaseURL = "https://api.openai.com/v1";
+const defaultBaseURL = "https://tokenflux.dev/v1";
 const maxReferenceBytes = 8 * 1024 * 1024;
 const maxOutputBytes = 8 * 1024 * 1024;
 const maxResponseBytes = 12 * 1024 * 1024;
@@ -20,6 +21,48 @@ const outputCostUSD = {
   "1024x1536": { low: 0.005, medium: 0.041, high: 0.165 },
 };
 
+/** Curated ImageGen ids that accept /v1/images/edits. Chat models stay out. */
+const editCapableModels = new Set([
+  "openai/gpt-image-2",
+  "openai/gpt-image-1",
+  "gpt-image-2",
+  "gpt-image-1",
+  "xai/grok-imagine-image",
+  "xai/grok-imagine-image-2.0",
+]);
+
+export function resolveImageGenModel(env = process.env) {
+  return String(env.MILKSU_IMAGEGEN_MODEL ?? "").trim()
+    || String(env.OPENAI_IMAGE_MODEL ?? "").trim()
+    || codingImageGenModel;
+}
+
+export function resolveImageGenAPIKey(env = process.env) {
+  return String(env.MILKSU_IMAGEGEN_API_KEY ?? "").trim()
+    || String(env.OPENAI_API_KEY ?? "").trim();
+}
+
+export function resolveImageGenBaseURLValue(env = process.env) {
+  return String(env.MILKSU_IMAGEGEN_BASE_URL ?? "").trim()
+    || String(env.OPENAI_BASE_URL ?? "").trim()
+    || defaultBaseURL;
+}
+
+export function resolveImageGenProvider(env = process.env) {
+  return String(env.MILKSU_IMAGEGEN_PROVIDER ?? "").trim() || "tokenflux";
+}
+
+export function imageGenIsConfigured(env = process.env) {
+  return Boolean(
+    String(env.MILKSU_IMAGEGEN_CONFIGURED ?? "").trim() === "1"
+    || resolveImageGenAPIKey(env),
+  ) && Boolean(resolveImageGenModel(env));
+}
+
+export function imageGenSupportsEdit(model = resolveImageGenModel()) {
+  return editCapableModels.has(String(model ?? "").trim());
+}
+
 function isLoopbackHost(hostname) {
   const normalized = String(hostname ?? "").toLowerCase().replace(/^\[|\]$/g, "");
   return normalized === "localhost"
@@ -27,12 +70,12 @@ function isLoopbackHost(hostname) {
     || normalized.startsWith("127.");
 }
 
-export function normalizeImageGenBaseURL(value = process.env.OPENAI_BASE_URL) {
+export function normalizeImageGenBaseURL(value = resolveImageGenBaseURLValue()) {
   let url;
   try {
     url = new URL(String(value || defaultBaseURL));
   } catch {
-    throw new Error("MilkSU ImageGen rejected an invalid OpenAI Base URL");
+    throw new Error("MilkSU ImageGen rejected an invalid ImageGen Base URL");
   }
   if (
     url.username
@@ -41,7 +84,7 @@ export function normalizeImageGenBaseURL(value = process.env.OPENAI_BASE_URL) {
     || url.hash
     || !["http:", "https:"].includes(url.protocol)
   ) {
-    throw new Error("MilkSU ImageGen rejected a credentialed or ambiguous OpenAI Base URL");
+    throw new Error("MilkSU ImageGen rejected a credentialed or ambiguous ImageGen Base URL");
   }
   if (url.protocol !== "https:" && !isLoopbackHost(url.hostname)) {
     throw new Error("MilkSU ImageGen requires HTTPS except for a loopback test endpoint");
@@ -64,7 +107,9 @@ export function imageGenOutputEstimate(size, quality) {
 
 export function formatImageGenApprovalInput(
   params,
-  baseURL = process.env.OPENAI_BASE_URL,
+  baseURL = resolveImageGenBaseURLValue(),
+  model = resolveImageGenModel(),
+  provider = resolveImageGenProvider(),
 ) {
   const mode = params?.mode === "edit" ? "参考图编辑" : "文本生成";
   const size = supportedSizes.has(params?.size) ? params.size : "1024x1024";
@@ -73,7 +118,7 @@ export function formatImageGenApprovalInput(
   const estimate = imageGenOutputEstimate(size, quality);
   return [
     `ImageGen ${mode}`,
-    `Provider openai/${codingImageGenModel}`,
+    `Provider ${provider}/${model}`,
     `Endpoint ${endpoint.toString()}`,
     `输出 ${String(params?.outputPath ?? "").trim() || "(未指定)"}`,
     `尺寸 ${size}`,
@@ -306,17 +351,23 @@ export function createImageGenTool(
     ensureRead,
     ensureMutation,
     fetchImpl = globalThis.fetch,
-    apiKey = process.env.OPENAI_API_KEY,
-    baseURL = process.env.OPENAI_BASE_URL,
+    apiKey = resolveImageGenAPIKey(),
+    baseURL = resolveImageGenBaseURLValue(),
+    model = resolveImageGenModel(),
+    provider = resolveImageGenProvider(),
   } = {},
 ) {
+  const selectedModel = String(model ?? "").trim() || codingImageGenModel;
+  const selectedProvider = String(provider ?? "").trim() || "tokenflux";
   return defineTool({
     name: codingImageGenToolName,
     label: "Generate or edit a project image",
-    description: "Generate one PNG from a text prompt or edit one workspace image with OpenAI "
-      + `${codingImageGenModel}. Every call pauses for separate user approval because it uses a `
-      + "credentialed network request with Provider cost. The Provider credential never enters "
-      + "tool input or output. outputPath must be a new workspace .png file and is never overwritten.",
+    description: "Generate one PNG from a text prompt or edit one workspace image with the "
+      + `configured ImageGen model (${selectedModel}). Every call pauses for separate user `
+      + "approval because it uses a credentialed network request with Provider cost. The "
+      + "Provider credential never enters tool input or output. outputPath must be a new "
+      + "workspace .png file and is never overwritten. This tool is independent of the chat "
+      + "model selected in the composer.",
     parameters: Type.Object({
       mode: Type.Union([
         Type.Literal("generate"),
@@ -348,7 +399,14 @@ export function createImageGenTool(
       const params = validateParams(rawParams);
       if (!String(apiKey ?? "").trim()) {
         throw new Error(
-          "OpenAI ImageGen is unavailable: configure and enable OpenAI in Settings > API Keys",
+          "ImageGen is unavailable: choose an ImageGen model in Settings > Models "
+            + "and enable an account or personal TokenFlux key",
+        );
+      }
+      if (params.mode === "edit" && !imageGenSupportsEdit(selectedModel)) {
+        throw new Error(
+          `MilkSU ImageGen model ${selectedModel} does not support reference edits; `
+            + "switch to GPT Image or Grok Imagine, or use generate mode",
         );
       }
       if (typeof ensureRead !== "function" || typeof ensureMutation !== "function") {
@@ -400,7 +458,7 @@ export function createImageGenTool(
       };
       if (params.mode === "edit") {
         body = new FormData();
-        body.append("model", codingImageGenModel);
+        body.append("model", selectedModel);
         body.append("prompt", params.prompt);
         body.append("n", "1");
         body.append("size", params.size);
@@ -416,7 +474,7 @@ export function createImageGenTool(
       } else {
         headers = { ...headers, "Content-Type": "application/json" };
         body = JSON.stringify({
-          model: codingImageGenModel,
+          model: selectedModel,
           prompt: params.prompt,
           n: 1,
           size: params.size,
@@ -483,8 +541,8 @@ export function createImageGenTool(
         schema: "milksu-imagegen-receipt/v1",
         status: "completed",
         operation: params.mode,
-        provider: "openai",
-        model: codingImageGenModel,
+        provider: selectedProvider,
+        model: selectedModel,
         endpoint: endpoint.toString(),
         input: {
           promptCharacters: params.prompt.length,
@@ -511,7 +569,7 @@ export function createImageGenTool(
           inputEstimateUsd: null,
           actualTotalUsd: null,
           pricingAsOf: "2026-08-03",
-          note: "OpenAI does not return the billed USD total here; actual input and total cost remain in Provider billing.",
+          note: "Provider does not return the billed USD total here; actual input and total cost remain in Provider billing.",
         },
         providerRequestId: redactProviderMessage(
           response.headers.get("x-request-id") || "",

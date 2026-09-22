@@ -63,6 +63,12 @@ import {
   modelCatalogStore,
   type PickerServiceGroup,
 } from '@/modelCatalog'
+import {
+  BUILTIN_IMAGEGEN_MODELS,
+  IMAGEGEN_MODEL_OFF,
+  imageGenModelLabel as formatImageGenModelLabel,
+  isImageGenModelID,
+} from '@/lib/imageGenCatalog'
 import { GitHubIcon } from '@/components/GitHubIcon'
 import SearchableModelPicker from '@/components/SearchableModelPicker'
 import { annotateModelFailures, type SearchableModelGroup } from '@/lib/modelPickerSearch'
@@ -377,6 +383,9 @@ export default function SettingsPage({
   const effectiveWindow = store.effectiveWindow()
   const workerModelKey = store.workerModelKey()
   const workerModelLabel = store.workerModelLabel()
+  const imageGenModelKey = store.imageGenModelKey()
+  const imageGenModelLabelText = store.imageGenModelLabel()
+  const imageGenPickerGroups = store.imageGenPickerGroups()
   const userSkills = store.userSkills()
   const accountRoute = store.accountRoute()
   const modelServiceRows = store.modelServiceRows()
@@ -957,7 +966,6 @@ export default function SettingsPage({
                   />
                   <SettingsRow
                     label={t('subagent', 'subagent')}
-                    divider={false}
                     trailing={(
                       <SearchableModelPicker
                         value={workerModelKey}
@@ -972,6 +980,27 @@ export default function SettingsPage({
                         }]}
                         groups={searchablePickerGroups}
                         onChange={value => store.setWorkerModelKey(value)}
+                      />
+                    )}
+                  />
+                  <SettingsRow
+                    label={t('生图模型', 'Image generation')}
+                    description={t('仅用于对话内生图，与默认对话模型分开', 'Only for in-chat ImageGen; separate from the default chat model')}
+                    divider={false}
+                    trailing={(
+                      <SearchableModelPicker
+                        value={imageGenModelKey}
+                        triggerClassName="settings-control h-7 px-2"
+                        ariaLabel={t('生图模型', 'Image generation')}
+                        align="end"
+                        trigger={<span className="min-w-0 truncate">{imageGenModelLabelText}</span>}
+                        leading={[{
+                          value: IMAGEGEN_MODEL_OFF,
+                          label: t('关闭', 'Off'),
+                          model: '',
+                        }]}
+                        groups={imageGenPickerGroups}
+                        onChange={value => store.setImageGenModelKey(value)}
                       />
                     )}
                   />
@@ -1956,6 +1985,91 @@ function createSettingsStore(
       working.worker_source = ''
     })
     void save()
+  }
+
+  function imageGenPickerGroups(): SearchableModelGroup[] {
+    const working = s.working
+    if (!working) return []
+    const models = BUILTIN_IMAGEGEN_MODELS.map(model => model.id)
+    const groups: SearchableModelGroup[] = []
+    const accountOn = Boolean(working.relay?.enabled && working.relay.has_key)
+    const personalOn = Boolean(
+      working.providers.tokenflux?.enabled
+      && working.providers.tokenflux.has_api_key,
+    )
+    if (accountOn) {
+      groups.push({
+        key: 'imagegen-account-tokenflux',
+        label: t('MilkSU 账户 · 生图', 'MilkSU account · ImageGen'),
+        models: models.map(model => ({
+          value: encodePickerSelection('tokenflux', model, 'account'),
+          label: formatImageGenModelLabel(model),
+          model,
+        })),
+      })
+    }
+    if (personalOn) {
+      groups.push({
+        key: 'imagegen-personal-tokenflux',
+        label: t('TokenFlux · 生图', 'TokenFlux · ImageGen'),
+        models: models.map(model => ({
+          value: encodePickerSelection('tokenflux', model, 'personal'),
+          label: formatImageGenModelLabel(model),
+          model,
+        })),
+      })
+    }
+    for (const [id, config] of Object.entries(working.providers)) {
+      if (!config?.custom || !config.enabled || !config.has_api_key) continue
+      const info = customProviderInfo(id, config)
+      if (!info) continue
+      groups.push({
+        key: `imagegen-service-${id}`,
+        label: t(`${info.name} · 生图`, `${info.name} · ImageGen`),
+        models: models.map(model => ({
+          value: encodePickerSelection(id, model, 'service'),
+          label: formatImageGenModelLabel(model),
+          model,
+        })),
+      })
+    }
+    return groups
+  }
+
+  function imageGenModelKey() {
+    if (!s.working?.imagegen_provider || !s.working.imagegen_model) {
+      return IMAGEGEN_MODEL_OFF
+    }
+    return encodePickerSelection(
+      s.working.imagegen_provider,
+      s.working.imagegen_model,
+      s.working.imagegen_source || 'account',
+    )
+  }
+
+  function setImageGenModelKey(value: string) {
+    const key = String(value ?? '')
+    patchWorking(working => {
+      if (!key || key === IMAGEGEN_MODEL_OFF) {
+        working.imagegen_provider = ''
+        working.imagegen_model = ''
+        working.imagegen_source = ''
+        return
+      }
+      const selection = parsePickerSelection(key)
+      if (!selection || !isImageGenModelID(selection.model)) return
+      working.imagegen_provider = selection.providerId
+      working.imagegen_model = selection.model
+      working.imagegen_source = selection.source
+    })
+    void save()
+  }
+
+  const imageGenModelLabel = () => {
+    if (!s.working?.imagegen_provider || !s.working.imagegen_model) {
+      return t('关闭', 'Off')
+    }
+    return formatImageGenModelLabel(s.working.imagegen_model)
   }
 
 
@@ -3109,6 +3223,7 @@ function createSettingsStore(
     patchEditingProvider,
     setDefaultModelKey,
     setWorkerModelKey,
+    setImageGenModelKey,
     setProviderEditorOpen,
     setDebugModeOn,
     setBuiltinSkillDocument,
@@ -3197,6 +3312,9 @@ function createSettingsStore(
     effectiveWindow,
     workerModelKey,
     workerModelLabel,
+    imageGenModelKey,
+    imageGenModelLabel,
+    imageGenPickerGroups,
     userSkills,
     accountRoute,
     modelServiceRows,

@@ -196,6 +196,7 @@ func desktopAppMethods(app *App) map[string]desktopAppMethod {
 	return map[string]desktopAppMethod{
 		"GetSettings":                          rendererDesktopMethod(app.GetSettings),
 		"GetModelCatalog":                      rendererDesktopMethod(app.GetModelCatalog),
+		"GetImageGenCatalog":                   rendererDesktopMethod(app.GetImageGenCatalog),
 		"SaveSettingsCmd":                      rendererDesktopMethod(app.SaveSettingsCmd),
 		"ListPlugins":                          rendererDesktopMethod(app.ListPlugins),
 		"ListPetPluginPackages":                electronHostDesktopMethod(app.ListPetPluginPackages),

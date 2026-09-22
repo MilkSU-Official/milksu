@@ -29,6 +29,7 @@ import {
   ExternalLink,
   FileDiff,
   FileImage,
+  ImageIcon,
   Flag,
   FolderOpen,
   GitBranch,
@@ -67,6 +68,7 @@ import ChatMessageItem from '@/components/ChatMessageItem'
 import CodingArtifactPreviewPanel, {
   type CodingArtifactPreviewPanelHandle,
 } from '@/components/CodingArtifactPreviewPanel'
+import CodingImageGalleryPanel from '@/components/CodingImageGalleryPanel'
 import CodingChangesPanel from '@/components/CodingChangesPanel'
 import CodingComputerUsePanel from '@/components/CodingComputerUsePanel'
 import CodingComputerUsePermissionDialog from '@/components/CodingComputerUsePermissionDialog'
@@ -208,6 +210,7 @@ const contextPanelValues = [
   'environment',
   'changes',
   'artifacts',
+  'images',
   'browser',
   'browser-use',
   'computer-use',
@@ -725,8 +728,16 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
           effectiveExecutionMode,
           effectiveApprovalPolicy,
           Boolean(
-            settings?.providers?.openai?.enabled
-            && settings.providers.openai.has_api_key,
+            settings?.imagegen_provider
+            && settings?.imagegen_model
+            && (
+              (settings.imagegen_source === 'account' && settings.relay?.enabled && settings.relay.has_key)
+              || (
+                settings.imagegen_source !== 'account'
+                && settings.providers?.[settings.imagegen_provider]?.enabled
+                && settings.providers[settings.imagegen_provider].has_api_key
+              )
+            ),
           ),
         )
     if (!computerUseStatus) return capabilities
@@ -958,6 +969,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     environment: ctfSession ? t('解题环境', 'Challenge environment') : t('环境信息', 'Environment'),
     changes: t('变更', 'Changes'),
     artifacts: t('产物', 'Artifacts'),
+    images: t('图片', 'Images'),
     browser: t('浏览器', 'Browser'),
     'browser-use': 'Browser Use',
     'computer-use': 'Computer Use',
@@ -1369,7 +1381,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
       void showComputerUseScope()
       return
     }
-    if (panel === 'browser' || panel === 'artifacts' || panel === 'changes' || panel === 'environment') {
+    if (panel === 'browser' || panel === 'artifacts' || panel === 'images' || panel === 'changes' || panel === 'environment') {
       setContextPanel(panel)
       setEnvironmentOpen(true)
     }
@@ -1793,6 +1805,10 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
   async function refreshContextPanel(panel = contextPanelRef.current) {
     if (panel === 'artifacts') {
       await artifactPanel.current?.refresh()
+      return
+    }
+    if (panel === 'images') {
+      await refreshEnvironment()
       return
     }
     if (['browser', 'computer-use'].includes(panel)) {
@@ -2467,7 +2483,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     if (['browser', 'browser-use', 'computer-use'].includes(contextPanel) && environmentOpen) {
       void refreshBrowserPanel()
     }
-    if (['artifacts', 'changes'].includes(contextPanel) && environmentOpen) void refreshEnvironment()
+    if (['artifacts', 'images', 'changes'].includes(contextPanel) && environmentOpen) void refreshEnvironment()
     if (contextPanel === 'browser' && environmentOpen) {
       void ensureCodingBrowser().then(() => {
         requestAnimationFrame(() => void syncCodingBrowserViewport())
@@ -2501,6 +2517,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     if (panel === 'environment') return <Activity className="size-3.5 shrink-0" />
     if (panel === 'changes') return <FileDiff className="size-3.5 shrink-0" />
     if (panel === 'artifacts') return <FileImage className="size-3.5 shrink-0" />
+    if (panel === 'images') return <ImageIcon className="size-3.5 shrink-0" />
     if (panel === 'browser' || panel === 'browser-use') return <Globe2 className="size-3.5 shrink-0" />
     if (panel === 'computer-use') return <MousePointer2 className="size-3.5 shrink-0" />
     if (panel === 'collaboration') return <Wrench className="size-3.5 shrink-0" />
@@ -2510,6 +2527,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     { id: 'environment', label: ctfSession ? t('解题环境', 'Challenge environment') : t('环境信息', 'Environment') },
     { id: 'changes', label: t('变更', 'Changes') },
     { id: 'artifacts', label: t('产物', 'Artifacts') },
+    { id: 'images', label: t('图片', 'Images') },
     { id: 'browser', label: t('浏览器', 'Browser') },
     ...(ctfSession ? [
       { id: 'collaboration' as const, label: t('Agent 协作', 'Agent collaboration') },
@@ -3343,6 +3361,13 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
                   environment={codingEnvironment}
                   requestedPath={requestedArtifactPath}
                   onPreviewed={recordArtifactPreview}
+                />
+              ) : contextPanel === 'images' ? (
+                <CodingImageGalleryPanel
+                  workspacePath={workspacePath}
+                  environment={codingEnvironment}
+                  requestedPath={requestedArtifactPath}
+                  onSelect={path => setRequestedArtifactPath(path)}
                 />
               ) : contextPanel === 'browser' ? (
                 <section className="coding-browser-panel flex h-full min-h-0 flex-col">

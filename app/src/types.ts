@@ -372,6 +372,10 @@ export interface AppSettings {
   companion_proactivity?: CompanionProactivity
   companion_teaching?: CompanionTeaching
   companion_reply_style?: 'markdown' | 'chat'
+  /** ImageGen route — independent of active_provider / active_model (chat). */
+  imagegen_provider?: string
+  imagegen_model?: string
+  imagegen_source?: 'account' | 'personal' | 'service' | ''
   preferred_external_editor?: string
   ui_font?: UiFontPreset
   conversation_font?: UiFontPreset
@@ -654,6 +658,7 @@ export function withAppSettingsDefaults(value: AppSettings): AppSettings {
       .filter(name => name === 'ghidra-rpc' || name === 'jadx'))],
     ...normalizeWorkerSelection(value),
     ...normalizeCompanionSelection(value),
+    ...normalizeImageGenSelection(value),
     model_thinking: normalizeModelThinkingSettings(value.model_thinking, configuredProviders),
     model_context_windows: normalizeModelContextWindows(value.model_context_windows, configuredProviders),
     providers: configuredProviders,
@@ -682,6 +687,29 @@ function normalizeWorkerSelection(value: AppSettings): Pick<
     ? value.worker_source
     : provider === 'tokenflux' ? 'personal' : 'service'
   return { worker_provider: provider, worker_model: model, worker_source: source }
+}
+
+function normalizeImageGenSelection(value: AppSettings): Pick<
+  AppSettings,
+  'imagegen_provider' | 'imagegen_model' | 'imagegen_source'
+> {
+  const provider = String(value.imagegen_provider ?? '').trim()
+  const model = String(value.imagegen_model ?? '').trim()
+  if (!provider && !model) {
+    return { imagegen_provider: '', imagegen_model: '', imagegen_source: '' }
+  }
+  const resolvedProvider = provider || 'tokenflux'
+  const resolvedModel = model || 'openai/gpt-image-2'
+  const source = value.imagegen_source === 'account'
+    || value.imagegen_source === 'personal'
+    || value.imagegen_source === 'service'
+    ? value.imagegen_source
+    : resolvedProvider === 'tokenflux' ? 'account' : 'service'
+  return {
+    imagegen_provider: resolvedProvider,
+    imagegen_model: resolvedModel,
+    imagegen_source: source,
+  }
 }
 
 export function normalizeCompanionReplyStyle(value: unknown): 'markdown' | 'chat' {

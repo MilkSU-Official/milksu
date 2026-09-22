@@ -199,6 +199,7 @@ interface DesktopAppBindings {
   InstallUpdate(): Promise<boolean>
   GetSettings(): Promise<AppSettings>
   GetModelCatalog(): Promise<ModelCatalogSnapshot>
+  GetImageGenCatalog(): Promise<import('@/lib/imageGenCatalog').ImageGenCatalogSnapshot>
   SaveSettingsCmd(settings: AppSettings): Promise<void>
   ListSecurityTools(): Promise<SecurityToolSnapshot[]>
   SetSecurityToolEnabled(id: string, enabled: boolean): Promise<void>
@@ -681,6 +682,8 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.GetSettings() as Promise<T>
       case 'get_model_catalog':
         return app.GetModelCatalog() as Promise<T>
+      case 'get_imagegen_catalog':
+        return app.GetImageGenCatalog() as Promise<T>
       case 'get_coding_usage_snapshot':
         return app.GetCodingUsageSnapshot() as Promise<T>
       case 'save_settings_cmd':

@@ -66,7 +66,7 @@ test("ImageGen approval shows the exact paid scope without any credential", () =
     "https://api.openai.com/v1",
   );
   assert.match(summary, /ImageGen 参考图编辑/);
-  assert.match(summary, new RegExp(codingImageGenModel));
+  assert.match(summary, new RegExp(codingImageGenModel.replace("/", "\\/")));
   assert.match(summary, /https:\/\/api\.openai\.com\/v1\/images\/edits/);
   assert.match(summary, /assets\/edited\.png/);
   assert.match(summary, /assets\/source\.png/);

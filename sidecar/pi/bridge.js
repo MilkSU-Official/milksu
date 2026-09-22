@@ -123,6 +123,7 @@ import {
 import {
   authorizeImageGenToolCall,
   codingImageGenToolName,
+  imageGenIsConfigured,
 } from "./bridge-imagegen.js";
 import {
   resolveWorkflowSessionRole,
@@ -1627,7 +1628,7 @@ async function loadRuntimeSessionPolicy(cwd, command) {
     computerUse: selectedMcp.computerUse,
     browserUse: selectedMcp.browserUse,
     codingCollaboration,
-    imageGenConfigured: Boolean(String(process.env.OPENAI_API_KEY ?? "").trim()),
+    imageGenConfigured: imageGenIsConfigured(),
   });
   const effectiveSessionRole = resolveWorkflowSessionRole(
     command.sessionRole,
@@ -1659,7 +1660,7 @@ async function loadRuntimeSessionPolicy(cwd, command) {
       computerUse: selectedMcp.computerUse,
       browserUse: selectedMcp.browserUse,
       codingCollaboration,
-      imageGenConfigured: Boolean(String(process.env.OPENAI_API_KEY ?? "").trim()),
+      imageGenConfigured: imageGenIsConfigured(),
       readOnlyResourceRoots: codingResourceRoots,
     });
   }

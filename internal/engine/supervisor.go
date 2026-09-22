@@ -3863,6 +3863,7 @@ func engineEnvironment(settings config.AppSettings) []string {
 			environment = append(environment, "MILKSU_MODEL_SOURCE_FALLBACK=1")
 		}
 	}
+	environment = appendImageGenEnvironment(environment, settings)
 	return environment
 }
 

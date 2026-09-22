@@ -86,7 +86,7 @@ export function previewCodingCapabilities(
         ? t('当前模式不可用。', 'Unavailable in this mode.')
         : imageGenConfigured
           ? t('每次调用前确认输入与费用。', 'Confirms the input and cost before each call.')
-          : t('需在设置中配置 OpenAI。', 'Configure OpenAI in Settings.'),
+          : t('需在设置 → 模型中选择生图模型。', 'Choose an ImageGen model in Settings → Models.'),
     },
     {
       id: 'credentials',
