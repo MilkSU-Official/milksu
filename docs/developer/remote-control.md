@@ -14,10 +14,10 @@
 手机 App 是 **本机 MilkSU 的远程渲染器**，不是 Cursor 那种云 Agent，也不是远程桌面。
 
 - 执行面只在已打开的桌面进程：Pi / DSH、凭据、工具、Judge、工作区都留在电脑上。
-- 手机看见：桌宠对话（第一优先）、普通会话列表与一条会话的输入栏（第二优先）、确认/审批、连接状态。
+- 手机看见：看板娘对话（第一优先）、普通会话列表与一条会话的输入栏（第二优先）、确认/审批、连接状态。
 - 用户不填 Cloudflare 账号、不装 `cloudflared`、不跑仓库脚本。设置里打开远程、在电脑旁扫码即可。
 
-理想态（C）：出门用蜂窝也能连、能说话，桌宠 + 会话 + 审批都在。  
+理想态（C）：出门用蜂窝也能连、能说话，看板娘 + 会话 + 审批都在。  
 底线（A）：同一 Wi-Fi 必须能说话。蜂窝挂了时局域网这条还在。
 
 ## 为什么不是 Cloudflare 隧道
@@ -26,14 +26,14 @@ CF Tunnel 是「把本机 HTTP 发布到公网」，不是设备网格。MilkSU 
 
 ## 最小可交付纵切
 
-设置打开远程 → iPhone 扫码 → 同网对桌宠发一句并看到流式 → 确认卡能在手机上按。  
+设置打开远程 → iPhone 扫码 → 同网对看板娘发一句并看到流式 → 确认卡能在手机上按。  
 同一条线上接着：官方盲中继让蜂窝可用、会话列表、审批、新对话「+」、照片和文件附件。
 
 不做：APNs、常驻守护进程、云端存对话、远程桌面、手机直连 TokenFlux。
 
 ## 上游阶梯
 
-1. 本机：mDNS / 局域网、系统相机扫码、现有桌宠与会话 RPC。
+1. 本机：mDNS / 局域网、系统相机扫码、现有看板娘与会话 RPC。
 2. 固定机制：WSS/TLS 1.3（443）、Noise（与 WireGuard 同族）、现有 Desktop RPC 帧与方法名、browsercap 那种 pairing 文件形状。
 3. 自有最小层：每台电脑一个 Phone Gateway、本机设备名单、`remote_client` 白名单、开源盲中继（只对拷密文）。
 
@@ -41,7 +41,7 @@ CF Tunnel 是「把本机 HTTP 发布到公网」，不是设备网格。MilkSU 
 
 ## 成功怎么算
 
-- 真机：扫码后同 Wi-Fi 桌宠一轮（流式 + 确认）。
+- 真机：扫码后同 Wi-Fi 看板娘一轮（流式 + 确认）。
 - 真机：蜂窝经官方中继再来一轮，中继日志无正文。
 - 真机：点进已有会话发一句、解一条 `approval.requested`。
 - 逻辑测试：白名单拒凭据方法、撤销后旧票作废、relay 日志契约。
@@ -57,7 +57,7 @@ CF Tunnel 是「把本机 HTTP 发布到公网」，不是设备网格。MilkSU 
 - 桌面主机：macOS / Windows / Linux 同一套能力。第一包用 iOS 连 Mac 验收即可，不得把某一端当成唯一交付。
 - 手机：原生 iOS 先（主屏幕名 MilkSU），Android 后做。iPad 当大号 iPhone。
 - 配置面：设置 → 远程的开关、QR、已配对列表、管道（自动 / 仅局域网 / 自定义中继 URL）。官方中继 `wss://` 预置。隐藏环境变量和「自己去建 CF 隧道」不是配置面。
-- 通道只在本机 MilkSU 进程还在时存在。关主窗但菜单栏/托盘仍在（与现有桌宠相同）则还能连；`Cmd+Q` / 退出进程或合盖休眠则手机写「电脑不在」。不另做常驻 daemon。防休眠以后再改。
+- 通道只在本机 MilkSU 进程还在时存在。关主窗但菜单栏/托盘仍在（与现有看板娘相同）则还能连；`Cmd+Q` / 退出进程或合盖休眠则手机写「电脑不在」。不另做常驻 daemon。防休眠以后再改。
 
 ## 信任
 
@@ -94,7 +94,7 @@ CF Tunnel 是「把本机 HTTP 发布到公网」，不是设备网格。MilkSU 
 
 ## RPC 白名单
 
-桌宠：`EnsureCompanion`、`SendCompanionMessage`、`AbortCompanionTurn`、`GetCompanionStatus`、`GetCompanionBoard`、`ListCompanionTranscript`、`ConfirmCompanionDispatch`、`ApproveCompanionMemory`、`ForgetCompanionMemory`；`companion-event` 全量扇出。
+看板娘：`EnsureCompanion`、`SendCompanionMessage`、`AbortCompanionTurn`、`GetCompanionStatus`、`GetCompanionBoard`、`ListCompanionTranscript`、`ConfirmCompanionDispatch`、`ApproveCompanionMemory`、`ForgetCompanionMemory`；`companion-event` 全量扇出。
 
 会话：会话列表投影（不要整份 `messages[]`）、分页 transcript、`SendMessage` / `SteerMessage` / `AbortMessage` / `QueueDshMessage`、`RespondToolApproval`；只推当前订阅的 `conversationId`。
 
@@ -104,7 +104,7 @@ CF Tunnel 是「把本机 HTTP 发布到公网」，不是设备网格。MilkSU 
 
 ## 产品面（抄 Codex 环境模型）
 
-手机三个面：Milk（桌宠）、会话、连接。不要搬侧栏、右栏浏览器、Computer Use 或整页设置。真机不要再画一层假 iPhone 壳。设计语言跟 `AGENTS.md`，壳按真机导航改。
+手机三个面：Milk（看板娘）、会话、连接。不要搬侧栏、右栏浏览器、Computer Use 或整页设置。真机不要再画一层假 iPhone 壳。设计语言跟 `AGENTS.md`，壳按真机导航改。
 
 - 主屏幕名：MilkSU。语言和外观在 App 内自设，不跟当前电脑。
 - 会话「+」：选类型；工作区用那台电脑该类型上次路径，否则产品文档目录；模型用桌面默认。不远程选文件夹。
@@ -114,7 +114,7 @@ CF Tunnel 是「把本机 HTTP 发布到公网」，不是设备网格。MilkSU 
 ## 关键节点
 
 1. 准入即本页。没过本页不要嵌 `cloudflared`。
-2. 本机网关 + 扫码 + 局域网桌宠。
+2. 本机网关 + 扫码 + 局域网看板娘。
 3. E2E 握手（此后任何管道都只搬密文）。
 4. 手机能解 `companion.confirm`。
 5. 盲中继上线（域名由运营者提供）。
@@ -125,5 +125,5 @@ CF Tunnel 是「把本机 HTTP 发布到公网」，不是设备网格。MilkSU 
 
 ## 实现顺序
 
-协议和局域网桌宠 → 中继 → 会话/审批/附件 → TestFlight → Android。  
+协议和局域网看板娘 → 中继 → 会话/审批/附件 → TestFlight → Android。  
 不要先做 App 再把 UI 绑死在一条隧道上。

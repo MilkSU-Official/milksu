@@ -140,7 +140,7 @@ export async function enablePersonalRelayRoute(driver) {
     ok: true,
     id: probed.id,
     model: probed.model,
-    detail: `桌宠与主页改用个人中转站 ${relay.name || probed.id}`,
+    detail: `看板娘与主页改用个人中转站 ${relay.name || probed.id}`,
   }
 }
 
@@ -781,7 +781,7 @@ export async function runFirstUse(options = {}) {
         process.stdout.write('FIRST-USE 个人中转站已验证，保持个人来源\n')
       } else if (accountFileloopOk) {
         await enableAccountRoute(launch.driver)
-        process.stdout.write('FIRST-USE 个人中转站不可用，桌宠与主页改用已验证的账户模型\n')
+        process.stdout.write('FIRST-USE 个人中转站不可用，看板娘与主页改用已验证的账户模型\n')
       }
     }
     return finish(steps, notes, firstUseSessionHandoff(launch, instanceId, steps, options.keepOpen))

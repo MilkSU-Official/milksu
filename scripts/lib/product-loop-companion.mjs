@@ -3,7 +3,7 @@
  * after a real companion turn. Not imported by App startup.
  */
 
-const RELAY_PREFIX = '桌宠转达 / Companion relay:'
+const RELAY_PREFIX = '看板娘转达 / Companion relay:'
 
 export function companionRelayPrefix() {
   return RELAY_PREFIX
@@ -40,7 +40,7 @@ export function companionStopPrompt(conversationId) {
 /** Natural-language prompts: no tool schema names. Product-loop fuzz for new-user companion. */
 export function companionFuzzDispatchPrompts({ title, marker }) {
   return [
-    `刚升级看到桌宠了。帮我瞄一眼现在有哪些对话，把标题叫「${title}」的那条派去摸底：让它看看工作区里有啥，回复里务必带上 ${marker}。长活别在手机里自己干。`,
+    `刚升级看到看板娘了。帮我瞄一眼现在有哪些对话，把标题叫「${title}」的那条派去摸底：让它看看工作区里有啥，回复里务必带上 ${marker}。长活别在手机里自己干。`,
     `别光聊天。去找「${title}」那条对话，转达一句带 ${marker} 的调研任务过去，让那边去列文件。`,
     `先看板再调度：看一眼会话列表，确认「${title}」还在，然后只把带 ${marker} 的短任务转达过去，不要自己 bash。`,
   ]
@@ -49,14 +49,14 @@ export function companionFuzzDispatchPrompts({ title, marker }) {
 export function companionFuzzAppPrompts() {
   return [
     '打开主窗口，然后只短回一句你干了什么。不要改设置，也不要退出。',
-    '读一下不含密钥的设置摘要，只说界面语言和桌宠开没开，然后短回。不要改设置。',
+    '读一下不含密钥的设置摘要，只说界面语言和看板娘开没开，然后短回。不要改设置。',
     '看板列一下当前会话标题，挑一两个念出来，短回即可。',
   ]
 }
 
 export function companionFuzzMemoryPrompts() {
   return [
-    '记一件事：我正在做 product-loop 桌宠稳定性手测。先提出来等我批准，不要直接当成已批准。',
+    '记一件事：我正在做 product-loop 看板娘稳定性手测。先提出来等我批准，不要直接当成已批准。',
     '如果还没提出记忆，请再提一条标题带 product-loop 的待批准记忆。',
   ]
 }
@@ -87,7 +87,7 @@ export function companionTranscriptClean(page) {
 
 export function companionSpeakPrompt({ conversationId, title }) {
   return [
-    '你是 MilkSU 桌宠。请用产品工具做完这件事，不要只聊天回复。',
+    '你是 MilkSU 看板娘。请用产品工具做完这件事，不要只聊天回复。',
     `1. 先调用 companion_board list，确认能看到标题「${title}」、id 为 ${conversationId} 的会话。`,
     `2. 再调用 companion_dispatch，action 用 speak，conversationId 必须是 ${conversationId}，idempotencyKey 用一个新的唯一值，mode 用 queue。text 写一句短任务即可。`,
     `3. 然后对同一个 conversationId 再调用 companion_dispatch stop，另给一个 idempotencyKey。stop 会等用户确认；确认之后结束。`,
@@ -115,7 +115,7 @@ export function companionIsReady(status) {
   const ready = pick(status, 'ready', 'Ready') === true
   const error = String(pick(status, 'error', 'Error') ?? '')
   if (!ready) {
-    return { ok: false, reason: `桌宠未就绪 ready=${ready} error=${error || '(empty)'}` }
+    return { ok: false, reason: `看板娘未就绪 ready=${ready} error=${error || '(empty)'}` }
   }
   return { ok: true, reason: '' }
 }
@@ -195,7 +195,7 @@ export function transcriptHasPrompt(page, needle) {
     return text.includes(needle) && (!role || role === 'user')
   })
   if (!found) {
-    return { ok: false, reason: `桌宠抄本没有用户原话 needle=${needle}` }
+    return { ok: false, reason: `看板娘抄本没有用户原话 needle=${needle}` }
   }
   return { ok: true, reason: '' }
 }
@@ -214,7 +214,7 @@ export function transcriptHasVisibleAssistantOutcome(page) {
       .test(hay)
   })
   if (!visible) {
-    return { ok: false, reason: '桌宠助手没有可见回复（空正文，也没有取消或空回复文案）' }
+    return { ok: false, reason: '看板娘助手没有可见回复（空正文，也没有取消或空回复文案）' }
   }
   return { ok: true, reason: '' }
 }
@@ -223,7 +223,7 @@ export function transcriptHasAssistantReply(page) {
   const entries = asList(pick(page, 'entries', 'Entries'))
   const assistants = entries.filter((entry) => String(pick(entry, 'role', 'Role') ?? '') === 'assistant')
   if (!assistants.length) {
-    return { ok: false, reason: '桌宠抄本没有助手回复' }
+    return { ok: false, reason: '看板娘抄本没有助手回复' }
   }
   const spoken = assistants.some((entry) => {
     const text = String(pick(entry, 'text', 'Text', 'content', 'Content') ?? '').trim()
@@ -236,7 +236,7 @@ export function transcriptHasAssistantReply(page) {
     return true
   })
   if (!spoken) {
-    return { ok: false, reason: '桌宠助手没有可见回复（空正文、类型名 message，或只有错误）' }
+    return { ok: false, reason: '看板娘助手没有可见回复（空正文、类型名 message，或只有错误）' }
   }
   return { ok: true, reason: '' }
 }
@@ -256,7 +256,7 @@ export function conversationHasCompanionRelay(conversation) {
     return content.includes(RELAY_PREFIX)
   })
   if (!found) {
-    return { ok: false, reason: '目标会话没有桌宠转达（产品前缀未落盘）' }
+    return { ok: false, reason: '目标会话没有看板娘转达（产品前缀未落盘）' }
   }
   return { ok: true, reason: '' }
 }
@@ -270,7 +270,7 @@ export function conversationHasRelay(conversation, marker) {
     return content.includes(RELAY_PREFIX) && content.includes(marker)
   })
   if (!found) {
-    return { ok: false, reason: `目标会话没有桌宠转达 marker=${marker}` }
+    return { ok: false, reason: `目标会话没有看板娘转达 marker=${marker}` }
   }
   return { ok: true, reason: '' }
 }
@@ -330,7 +330,7 @@ export function companionSkinFramesAreCustom(skin) {
 export function companionPetSurfaceReady(page) {
   const motion = String(page?.motion ?? page?.className ?? '')
   const src = String(page?.src ?? '')
-  if (!/companion-pet/.test(motion)) return { ok: false, reason: '悬浮窗没有桌宠角色' }
+  if (!/companion-pet/.test(motion)) return { ok: false, reason: '悬浮窗没有看板娘角色' }
   if (!src.trim()) return { ok: false, reason: '出厂皮肤帧没有画上去' }
   return { ok: true, reason: '' }
 }

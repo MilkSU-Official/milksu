@@ -31,8 +31,8 @@ test('product menu omits the Chromium View reload entries', () => {
   assert.equal(roles(productApplicationMenuTemplate('win32')).includes('viewMenu'), false)
   assert.equal(roles(productApplicationMenuTemplate('darwin')).includes('viewMenu'), false)
   assert.ok(roles(productApplicationMenuTemplate('darwin')).includes('appMenu'))
-  const withCompanion = productApplicationMenuTemplate('darwin', { companion: { label: '桌宠', submenu: [] } })
-  assert.equal(withCompanion.some(item => item.label === '桌宠'), true)
+  const withCompanion = productApplicationMenuTemplate('darwin', { companion: { label: '看板娘', submenu: [] } })
+  assert.equal(withCompanion.some(item => item.label === '看板娘'), true)
 })
 
 test('reload guard prevents the Electron input event', () => {

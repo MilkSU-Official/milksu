@@ -10,7 +10,7 @@ const (
 	TeachingHints  = "hints"
 	TeachingReview = "review"
 
-	RelayPrefix = "桌宠转达 / Companion relay:\n"
+	RelayPrefix = "看板娘转达 / Companion relay:\n"
 )
 
 type ConversationRef struct {

@@ -25,7 +25,7 @@ const CATEGORIES = [
   ['归档聊天', 'Archived chats'],
   ['浏览器控制', 'Browser'],
   ['评测', 'Eval'],
-  ['桌宠', 'Companion'],
+  ['看板娘', 'Companion'],
   ['插件', 'Plugins'],
 ]
 
@@ -145,13 +145,13 @@ export async function runSettingsEval(driver) {
 }
 
 export async function runSettingsCompanion(driver) {
-  const error = await openOrFail(driver, ['桌宠', 'Companion'])
+  const error = await openOrFail(driver, ['看板娘', 'Companion'])
   if (error) return error
   return expectLabels(
     driver,
-    ['桌宠模型', 'Companion model', '跨会话调度', 'Dispatch', '悬浮窗', 'Floating window', '皮肤', 'Skin', 'Milk', '添加皮肤', 'Add skin', '选择文件夹', 'Choose folder'],
-    '桌宠设置页在',
-    '桌宠设置页缺了控件',
+    ['看板娘模型', 'Companion model', '跨会话调度', 'Dispatch', '悬浮窗', 'Floating window', '皮肤', 'Skin', 'Milk', '添加皮肤', 'Add skin', '选择文件夹', 'Choose folder'],
+    '看板娘设置页在',
+    '看板娘设置页缺了控件',
   )
 }
 

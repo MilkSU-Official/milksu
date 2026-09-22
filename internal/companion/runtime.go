@@ -378,7 +378,7 @@ func (r *Runtime) ArchiveTranscript() (CompanionArchive, error) {
 	}
 	r.inFlight.Store(false)
 	// Keep the sidecar. Killing it on archive leaked "sidecar is not running"
-	// into the next invoke and left 「桌宠暂时连不上」 on the pet.
+	// into the next invoke and left 「看板娘暂时连不上」 on the pet.
 	if err := r.resetCompanionSession(); err != nil && !strings.Contains(err.Error(), "sidecar is not running") {
 		_, _ = r.Ensure()
 	}

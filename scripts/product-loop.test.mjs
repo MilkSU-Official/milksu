@@ -245,7 +245,7 @@ test('product-loop report does not mark a module PASS when cases SKIP', () => {
     result: 'SKIP',
     companionModelSource: 'personal',
     suites: [
-      { id: 'companion-ready', result: 'PASS', detail: '桌宠已就绪 personal', source: 'personal' },
+      { id: 'companion-ready', result: 'PASS', detail: '看板娘已就绪 personal', source: 'personal' },
       { id: 'companion-pet-drag', result: 'SKIP', detail: 'Wayland 不能自己贴坐标' },
     ],
   }
@@ -255,7 +255,7 @@ test('product-loop report does not mark a module PASS when cases SKIP', () => {
   assert.equal(report.overall.result, 'SKIP')
   assert.equal(report.overall.companionModelSource, 'personal')
   const text = formatProductLoopReport(receipt, report)
-  assert.match(text, /桌宠来源\s+personal/)
+  assert.match(text, /看板娘来源\s+personal/)
   assert.match(text, /结论\s+SKIP/)
 })
 
@@ -358,7 +358,7 @@ test('companion product facts come from a real turn, not RPC shape checks', () =
   assert.equal(companionIsReady({ ready: true }).ok, true)
   assert.equal(companionIsReady({ ready: false, error: 'sidecar down' }).ok, false)
   assert.equal(companionSurfaceMissingKey({ text: 'No API key for tokenflux/deepseek/deepseek-flash' }), true)
-  assert.equal(companionSurfaceMissingKey({ text: '桌宠已就绪' }), false)
+  assert.equal(companionSurfaceMissingKey({ text: '看板娘已就绪' }), false)
   assert.equal(companionTurnSettled([{ type: 'assistant.settled' }]), true)
   assert.equal(companionTurnErrored([{ type: 'engine.error' }]), true)
   assert.equal(companionHostToolError('companion host request timed out (board)'), true)

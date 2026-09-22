@@ -197,7 +197,7 @@ export default function CompanionPetWindow() {
   }, [])
 
   useEffect(() => {
-    document.title = t('桌宠', 'Companion')
+    document.title = t('看板娘', 'Companion')
   }, [t])
 
   useEffect(() => {
@@ -353,7 +353,7 @@ export default function CompanionPetWindow() {
           <CompanionPetBang tone="green" className="companion-pet-bang companion-pet-bang-green" />
         </div>
       </div>
-      <span className="sr-only">{t('桌宠', 'Companion')}</span>
+      <span className="sr-only">{t('看板娘', 'Companion')}</span>
     </div>
   )
   if (showPhone) {

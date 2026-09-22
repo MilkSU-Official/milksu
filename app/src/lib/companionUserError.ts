@@ -4,7 +4,7 @@ import { t } from './uiLocale'
 
 const CREDENTIAL_WITHDRAWN = /companion credential withdrawn/i
 const CREDENTIAL_MISSING = /companion credential missing/i
-const SIDECAR_DOWN = /companion sidecar stopped|companion sidecar did not become ready|companion sidecar is not running|companion runtime is not configured|cannot find module.*current-provider-runtime|broken pipe|EPIPE|桌宠暂时连不上|The companion could not start/i
+const SIDECAR_DOWN = /companion sidecar stopped|companion sidecar did not become ready|companion sidecar is not running|companion runtime is not configured|cannot find module.*current-provider-runtime|broken pipe|EPIPE|看板娘暂时连不上|The Companion could not start/i
 const ARCHIVE_EMPTY = /no companion transcript to archive|没有可归档的抄本/i
 const SESSION_NOT_READY = /companion session is not ready|coding session is not ready|deepseek harness session is not ready|session is not ready/i
 const MODEL_ROUTE_MISSING = /companion provider and model are required|companion model not found/i
@@ -23,27 +23,27 @@ export function explainCompanionError(
   if (!message) return ''
   if (CREDENTIAL_WITHDRAWN.test(message)) {
     return t(
-      '账户已退出或密钥已移除，桌宠没法继续。请重新登录，或改选一个已有密钥的模型。',
-      'The companion cannot continue because the account signed out or the key was removed. Sign in again, or pick a model that has a key.',
+      '账户已退出或密钥已移除，看板娘没法继续。请重新登录，或改选一个已有密钥的模型。',
+      'The Companion cannot continue because the account signed out or the key was removed. Sign in again, or pick a model that has a key.',
     )
   }
   if (CREDENTIAL_MISSING.test(message)) {
     return t(
-      '桌宠这个来源还没有密钥。请重新登录，或改选一个已有密钥的模型。',
-      'This companion source has no key. Sign in again, or pick a model that has a key.',
+      '看板娘这个来源还没有密钥。请重新登录，或改选一个已有密钥的模型。',
+      'This Companion source has no key. Sign in again, or pick a model that has a key.',
     )
   }
   if (SIDECAR_DOWN.test(message) || UNKNOWN_ACTION.test(message)) {
-    return t('桌宠暂时连不上。', 'The companion could not start.')
+    return t('看板娘暂时连不上。', 'The Companion could not start.')
   }
   if (ARCHIVE_EMPTY.test(message)) {
-    return t('没有可归档的抄本。', 'There is no companion transcript to archive.')
+    return t('没有可归档的抄本。', 'There is no Companion transcript to archive.')
   }
   if (SESSION_NOT_READY.test(message)) {
-    return t('桌宠还没准备好，请稍后再试。', 'The companion is not ready yet. Try again.')
+    return t('看板娘还没准备好，请稍后再试。', 'The Companion is not ready yet. Try again.')
   }
   if (MODEL_ROUTE_MISSING.test(message)) {
-    return t('桌宠还没有可用的模型。', 'The companion does not have a model yet.')
+    return t('看板娘还没有可用的模型。', 'The Companion does not have a model yet.')
   }
   if (PROMPT_REQUIRED.test(message)) {
     return t('还没有可发送的内容。', 'There is nothing to send yet.')
@@ -62,7 +62,7 @@ export function explainCompanionError(
   // Host IPC (board / dispatch / memory / app) must not look like a model outage.
   // The model may still be streaming while a host wait times out or is aborted.
   if (companionHostToolFailure(message)) {
-    return t('桌宠操作已取消或超时，请再试一次。', 'The companion action was cancelled or timed out. Try again.')
+    return t('看板娘操作已取消或超时，请再试一次。', 'The Companion action was cancelled or timed out. Try again.')
   }
   if (
     /\bconnection error\b|request timed out|ECONNREFUSED|ECONNRESET|ENOTFOUND|ETIMEDOUT|fetch failed|network is unreachable/i
@@ -82,7 +82,7 @@ export function explainCompanionError(
  */
 export function companionAccountModelAlignedNotice() {
   return t(
-    '桌宠的账户模型已不在目录里，已换成还能用的模型。',
+    '看板娘的账户模型已不在目录里，已换成还能用的模型。',
     'The account model for the companion left the catalog, so it was switched to one that is still available.',
   )
 }

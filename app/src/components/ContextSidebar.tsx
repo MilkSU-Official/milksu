@@ -944,8 +944,8 @@ export default function ContextSidebar({
             ].filter(Boolean).join(' ')}
             data-testid="sidebar-open-companion"
             data-companion-paw={companionPaw}
-            aria-label={companionPaw === 'phone' ? t('桌宠对话', 'Companion chat') : t('打开桌宠对话', 'Open companion chat')}
-            title={companionPaw === 'phone' ? t('桌宠对话', 'Companion chat') : t('打开桌宠对话', 'Open companion chat')}
+            aria-label={companionPaw === 'phone' ? t('看板娘对话', 'Companion chat') : t('打开看板娘对话', 'Open Companion chat')}
+            title={companionPaw === 'phone' ? t('看板娘对话', 'Companion chat') : t('打开看板娘对话', 'Open Companion chat')}
             aria-current={companionPaw === 'phone' ? 'true' : undefined}
             onClick={onCompanion}
             onContextMenu={event => {

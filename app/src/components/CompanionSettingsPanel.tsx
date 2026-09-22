@@ -121,7 +121,7 @@ export default function CompanionSettingsPanel({
       if (Array.isArray(result?.skins) && result.skins.length) setSkins(result.skins)
       if (result?.imported?.id) applySkin(result.imported.id)
     } catch (reason) {
-      toastError(reason, t('这不是有效的桌宠皮肤', 'This is not a valid companion skin'))
+      toastError(reason, t('这不是有效的看板娘皮肤', 'This is not a valid companion skin'))
     } finally {
       setBusy(null)
     }
@@ -145,13 +145,13 @@ export default function CompanionSettingsPanel({
     <>
       <SettingsSection title={t('模型', 'Model')}>
         <SettingsRow
-          label={t('桌宠模型', 'Companion model')}
+          label={t('看板娘模型', 'Companion model')}
           stack={rowStack}
           trailing={(
             <SearchableModelPicker
               value={modelKey}
               triggerClassName="settings-control h-7 px-2"
-              ariaLabel={t('桌宠模型', 'Companion model')}
+              ariaLabel={t('看板娘模型', 'Companion model')}
               align={pickerAlign}
               trigger={(
                 <span className="inline-flex min-w-0 items-center gap-2">

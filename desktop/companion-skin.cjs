@@ -40,7 +40,7 @@ function localizeSkinError(error, locale = 'zh') {
   if (error instanceof CompanionSkinError) {
     return locale === 'en' ? error.en : error.zh
   }
-  return locale === 'en' ? 'This skin package is invalid' : '这不是有效的桌宠皮肤'
+  return locale === 'en' ? 'This skin package is invalid' : '这不是有效的看板娘皮肤'
 }
 
 function isFactoryCompanionSkinId(value) {

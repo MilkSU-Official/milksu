@@ -167,7 +167,7 @@ function createCompanionSkinHost(options) {
     let directory = String(payload.directory ?? '').trim()
     if (!directory) {
       directory = await openDirectory({
-        title: locale === 'en' ? 'Choose a companion skin folder' : '选择桌宠皮肤文件夹',
+        title: locale === 'en' ? 'Choose a companion skin folder' : '选择看板娘皮肤文件夹',
       })
       if (!directory) return { canceled: true, skins: (await listSkins()).skins }
     }

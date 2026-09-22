@@ -731,8 +731,8 @@ export default function CompanionPage({
             <button
               type="button"
               className="companion-chat-avatar-btn"
-              aria-label={t('桌宠设置', 'Companion settings')}
-              title={t('桌宠设置', 'Companion settings')}
+              aria-label={t('看板娘设置', 'Companion settings')}
+              title={t('看板娘设置', 'Companion settings')}
               onClick={() => setScreen('settings')}
             >
               <img key={avatar} className="companion-chat-avatar" src={avatar} alt="" draggable={false} />
@@ -741,8 +741,8 @@ export default function CompanionPage({
               ref={titleRef}
               type="button"
               className="companion-chat-title companion-glass"
-              aria-label={t('桌宠设置', 'Companion settings')}
-              title={t('桌宠设置', 'Companion settings')}
+              aria-label={t('看板娘设置', 'Companion settings')}
+              title={t('看板娘设置', 'Companion settings')}
               onClick={() => setScreen('settings')}
             >
               {petName}
@@ -874,7 +874,7 @@ export default function CompanionPage({
                   void companion.send()
                 }
               }}
-              aria-label={t('桌宠输入', 'Companion message')}
+              aria-label={t('看板娘输入', 'Companion message')}
             />
             <Button
               type="button"
@@ -934,7 +934,7 @@ export default function CompanionPage({
                 <ChevronLeft className="size-5" strokeWidth={2.4} />
               </button>
               <p className="companion-phone-settings-title">
-                {t('桌宠设置', 'Companion settings')}
+                {t('看板娘设置', 'Companion settings')}
               </p>
             </header>
           </div>

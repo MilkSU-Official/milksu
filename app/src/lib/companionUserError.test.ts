@@ -18,19 +18,19 @@ import { applyUiLocale } from './uiLocale'
 describe('explainCompanionError', () => {
   it('maps sidecar-down internals to product copy', () => {
     applyUiLocale('zh')
-    expect(explainCompanionError('companion sidecar stopped')).toBe('桌宠暂时连不上。')
-    expect(explainCompanionError('companion sidecar is not running')).toBe('桌宠暂时连不上。')
-    expect(explainCompanionError('write EPIPE')).toBe('桌宠暂时连不上。')
+    expect(explainCompanionError('companion sidecar stopped')).toBe('看板娘暂时连不上。')
+    expect(explainCompanionError('companion sidecar is not running')).toBe('看板娘暂时连不上。')
+    expect(explainCompanionError('write EPIPE')).toBe('看板娘暂时连不上。')
     expect(explainCompanionError('no companion transcript to archive')).toBe('没有可归档的抄本。')
     applyUiLocale('en')
     expect(explainCompanionError('Error: companion sidecar did not become ready')).toBe(
-      'The companion could not start.',
+      'The Companion could not start.',
     )
     expect(explainCompanionError('companion sidecar is not running')).toBe(
-      'The companion could not start.',
+      'The Companion could not start.',
     )
     expect(explainCompanionError('no companion transcript to archive')).toBe(
-      'There is no companion transcript to archive.',
+      'There is no Companion transcript to archive.',
     )
     applyUiLocale('zh')
   })
@@ -67,20 +67,20 @@ describe('explainCompanionError', () => {
     expect(explainCompanionError('Request timed out.')).toBe('连不上模型服务，请稍后重试。')
     // Host board/dispatch timeout is not a model outage — model may still be fine.
     expect(explainCompanionError('companion host request timed out')).toBe(
-      '桌宠操作已取消或超时，请再试一次。',
+      '看板娘操作已取消或超时，请再试一次。',
     )
     expect(explainCompanionError('companion host request timed out (board)')).toBe(
-      '桌宠操作已取消或超时，请再试一次。',
+      '看板娘操作已取消或超时，请再试一次。',
     )
     expect(explainCompanionError('turn aborted')).toBe(
-      '桌宠操作已取消或超时，请再试一次。',
+      '看板娘操作已取消或超时，请再试一次。',
     )
     applyUiLocale('en')
     expect(explainCompanionError('Connection error.')).toBe(
       'Could not reach the model service. Try again later.',
     )
     expect(explainCompanionError('companion host request timed out')).toBe(
-      'The companion action was cancelled or timed out. Try again.',
+      'The Companion action was cancelled or timed out. Try again.',
     )
     applyUiLocale('zh')
   })
@@ -94,14 +94,14 @@ describe('explainCompanionError', () => {
   it('maps unknown host request ids to product copy without leaking internals', () => {
     applyUiLocale('zh')
     expect(explainCompanionError('unknown companion host request: companion-host-1')).toBe(
-      '桌宠操作已取消或超时，请再试一次。',
+      '看板娘操作已取消或超时，请再试一次。',
     )
     expect(explainCompanionError('Error: unknown companion host request: companion-host-12')).not.toMatch(
       /companion-host/,
     )
     applyUiLocale('en')
     expect(explainCompanionError('unknown companion host request: companion-host-1')).toBe(
-      'The companion action was cancelled or timed out. Try again.',
+      'The Companion action was cancelled or timed out. Try again.',
     )
     applyUiLocale('zh')
   })
@@ -142,34 +142,34 @@ describe('explainCompanionError', () => {
     expect(companionMissingApiKey('companion session is not ready')).toBe(false)
     expect(companionSidecarDown('companion sidecar is not running')).toBe(true)
     expect(companionSidecarDown('write EPIPE')).toBe(true)
-    expect(companionSidecarDown('桌宠暂时连不上。')).toBe(true)
+    expect(companionSidecarDown('看板娘暂时连不上。')).toBe(true)
     expect(companionSidecarDown('这一轮已取消。')).toBe(false)
   })
 
   it('maps withdrawn and missing companion credentials without internals', () => {
     applyUiLocale('zh')
     expect(explainCompanionError('companion credential withdrawn')).toBe(
-      '账户已退出或密钥已移除，桌宠没法继续。请重新登录，或改选一个已有密钥的模型。',
+      '账户已退出或密钥已移除，看板娘没法继续。请重新登录，或改选一个已有密钥的模型。',
     )
     expect(explainCompanionError('companion credential missing')).toBe(
-      '桌宠这个来源还没有密钥。请重新登录，或改选一个已有密钥的模型。',
+      '看板娘这个来源还没有密钥。请重新登录，或改选一个已有密钥的模型。',
     )
     expect(explainCompanionError('companion credential withdrawn')).not.toMatch(
       /sidecar is not running|tokenflux|https?:\/\//i,
     )
     applyUiLocale('en')
     expect(explainCompanionError('companion credential withdrawn')).toBe(
-      'The companion cannot continue because the account signed out or the key was removed. Sign in again, or pick a model that has a key.',
+      'The Companion cannot continue because the account signed out or the key was removed. Sign in again, or pick a model that has a key.',
     )
     expect(explainCompanionError('companion credential missing')).toBe(
-      'This companion source has no key. Sign in again, or pick a model that has a key.',
+      'This Companion source has no key. Sign in again, or pick a model that has a key.',
     )
     expect(companionAccountModelAlignedNotice()).toBe(
       'The account model for the companion left the catalog, so it was switched to one that is still available.',
     )
     applyUiLocale('zh')
     expect(companionAccountModelAlignedNotice()).toBe(
-      '桌宠的账户模型已不在目录里，已换成还能用的模型。',
+      '看板娘的账户模型已不在目录里，已换成还能用的模型。',
     )
     expect(companionSidecarDown('companion credential withdrawn')).toBe(false)
   })
@@ -177,21 +177,21 @@ describe('explainCompanionError', () => {
   it('maps session-not-ready internals to product copy', () => {
     applyUiLocale('zh')
     expect(explainCompanionError('companion session is not ready')).toBe(
-      '桌宠还没准备好，请稍后再试。',
+      '看板娘还没准备好，请稍后再试。',
     )
     expect(explainCompanionError('Error: companion session is not ready')).not.toMatch(
       /session is not ready/i,
     )
     expect(explainCompanionError('companion prompt is required')).toBe('还没有可发送的内容。')
     expect(explainCompanionError('companion model not found: tokenflux/deepseek/deepseek-flash')).toBe(
-      '桌宠还没有可用的模型。',
+      '看板娘还没有可用的模型。',
     )
     expect(explainCompanionError('companion model not found: tokenflux/deepseek/deepseek-flash')).not.toMatch(
       /tokenflux|deepseek\//i,
     )
     applyUiLocale('en')
     expect(explainCompanionError('companion session is not ready')).toBe(
-      'The companion is not ready yet. Try again.',
+      'The Companion is not ready yet. Try again.',
     )
     applyUiLocale('zh')
   })
@@ -239,7 +239,7 @@ describe('companionChatVisibleText', () => {
       type: 'message',
       role: 'assistant',
       error: 'unknown companion host request: companion-host-1',
-    })).toBe('桌宠操作已取消或超时，请再试一次。')
+    })).toBe('看板娘操作已取消或超时，请再试一次。')
     expect(companionChatVisibleText({ type: 'message', role: 'assistant', text: '' })).toBe('')
     expect(companionChatVisibleText({
       type: 'message',

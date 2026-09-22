@@ -120,7 +120,7 @@ function companionActionMenuTemplate(options = {}) {
     },
     {
       id: 'toggle-pet',
-      label: petVisible ? t('隐藏桌宠', 'Hide companion') : t('显示桌宠', 'Show companion'),
+      label: petVisible ? t('隐藏看板娘', 'Hide Companion') : t('显示看板娘', 'Show Companion'),
       enabled: enabled && !wayland,
       click: () => {
         if (petVisible) actions.hidePet?.()
@@ -134,7 +134,7 @@ function companionActionMenuTemplate(options = {}) {
     },
     {
       id: 'settings',
-      label: t('桌宠设置', 'Companion settings'),
+      label: t('看板娘设置', 'Companion settings'),
       click: () => actions.openSettings?.(),
     },
   ]
@@ -211,7 +211,7 @@ function createCompanionShell(options) {
   }
 
   function companionWindowTitle() {
-    return t('桌宠', 'Companion')
+    return t('看板娘', 'Companion')
   }
 
   function lockCompanionTitle(window) {
@@ -834,7 +834,7 @@ function createCompanionShell(options) {
     keepAppPresence()
     createTray()
     // Dock / taskbar / second-instance bring the main window forward.
-    // A hidden pet stays hidden until 显示桌宠 or 对话. A gesture that just
+    // A hidden pet stays hidden until 显示看板娘 or 对话. A gesture that just
     // focused the phone or the sprite must not also pop the main window.
     if (Date.now() < companionGestureUntil) return status()
     if (!mainParked()) return status()

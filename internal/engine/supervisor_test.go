@@ -1254,7 +1254,7 @@ func TestFollowUpMessageUsesExistingPiSession(t *testing.T) {
 		supervisor.mu.Unlock()
 	}()
 
-	if err := supervisor.FollowUpMessage("session-1", "桌宠转达 / Companion relay:\n下一回合再看"); err != nil {
+	if err := supervisor.FollowUpMessage("session-1", "看板娘转达 / Companion relay:\n下一回合再看"); err != nil {
 		t.Fatal(err)
 	}
 	line, err := bufio.NewReader(reader).ReadBytes('\n')
@@ -1290,7 +1290,7 @@ func TestSendRegisteredMessageMarksSessionBusy(t *testing.T) {
 		supervisor.mu.Unlock()
 	}()
 
-	if err := supervisor.SendRegisteredMessage("session-1", "桌宠转达 / Companion relay:\n继续"); err != nil {
+	if err := supervisor.SendRegisteredMessage("session-1", "看板娘转达 / Companion relay:\n继续"); err != nil {
 		t.Fatal(err)
 	}
 	if !supervisor.SessionBusy("session-1") {

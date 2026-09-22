@@ -149,7 +149,7 @@ npm run test:product-loop -- --gui --suite first-use
 
 缺可用来源记 FAIL。
 
-### 桌宠
+### 看板娘
 
 **ID：** `companion-core` / `companion-skin-import`
 

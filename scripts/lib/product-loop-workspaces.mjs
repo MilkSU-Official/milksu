@@ -373,7 +373,7 @@ export async function runWorkspaceCveRepro(driver) {
     snapshotHas(snap, ['CVE-2024-3094'])
     && (
       isNewConversationCanvas(snap)
-      || snapshotHas(snap, ['复现', 'reproduction', '桌宠输入', 'Companion message', '消息', 'Message'])
+      || snapshotHas(snap, ['复现', 'reproduction', '看板娘输入', 'Companion message', '消息', 'Message'])
     )
   ) {
     return pass('开始复现后打开了这条 CVE 对话')

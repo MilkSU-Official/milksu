@@ -85,7 +85,7 @@ MilkSU 把 Coding、CTF、CVE 和实验室放进同一个桌面。界面是 Reac
 
 ## 安装
 
-当前安装包是 **[26.922.1](https://github.com/MilkSU-Official/milksu/releases/tag/v26.922.1)**：macOS ARM64 DMG（Developer ID 签名并公证，安装引导图为 Retina @2x）、Windows x64 EXE、Linux x64 `.deb` 与 `.tar.gz`。这一版带上桌宠（手机对话、出厂 DeepSeek Flash）。Windows 安装器尚未代码签名，可能被 SmartScreen 拦住。已登录后侧栏「更新」打开进度框下载，下完后点安装并重启。
+当前安装包是 **[26.922.1](https://github.com/MilkSU-Official/milksu/releases/tag/v26.922.1)**：macOS ARM64 DMG（Developer ID 签名并公证，安装引导图为 Retina @2x）、Windows x64 EXE、Linux x64 `.deb` 与 `.tar.gz`。这一版带上看板娘（手机对话、出厂 DeepSeek Flash）。Windows 安装器尚未代码签名，可能被 SmartScreen 拦住。已登录后侧栏「更新」打开进度框下载，下完后点安装并重启。
 
 | 系统 | 安装包 | Computer Use | Browser Use |
 | --- | --- | --- | --- |

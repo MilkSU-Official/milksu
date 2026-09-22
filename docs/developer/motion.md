@@ -42,25 +42,25 @@
 | Dialog | 淡入 + `scale(0.98)`，**原点保持居中**（模态不跟触发点） | `index.css` |
 | Toast | 从下进、同方向出；退出时先标记 `leaving` 再卸载 | `appToast.ts` + `toaster.tsx` |
 | 侧栏拖宽、右栏拖宽 | 拖动中不参与过渡（拖动时加 `is-resizing` 关掉 transition），松手后夹回 | `ContextSidebar.tsx`、`ContextRail.tsx` |
-| 思考像素加载、标签呼吸、流式光标、任务环、桌宠角色循环 | 常驻循环，仅 `opacity` / `transform` | `agent-conversation.css`、`index.css` |
-| 桌宠角色显隐、说话气泡、手机开合 | 开合是竖向合页：`clip-path: inset()` 把手机从上、下收到中线一条亮缝，缝再淡出；打开是同一条路倒放。角色停在手机底部，下半截让开或盖回去。合页播完清掉 `clip-path`，免得磨砂层的 `backdrop-filter` 被祖先裁切空掉。关对话时壳先保持 320×696；合页 260ms 后渲染器换成贴在底部的角色，再留一小段绘制时间才缩窗口。气泡：`scale` + `opacity` | `index.css`；壳在 `companion-shell.cjs` 推迟 `setBounds`；角色让位由 `CompanionPetWindow` 短持 |
-| 桌宠手机状态岛 | 状态栏中间的实心黑胶囊。点开后固定盒子用 `clip-path: inset()` 向下展开，同时交叉淡入展开文案。只过渡 `clip-path` 和 `opacity`，`--motion-slow` + `--ease-drawer`。`prefers-reduced-motion` 直接跳到终态。不加 `backdrop-filter`，`clip-path` 只在这座黑胶囊上，不加在磨砂层 | `CompanionPhoneStatusBar`、`index.css` |
-| 桌宠手机消息 / 确认卡 / 附件条 | 文档流列表：新的历史行 `opacity` + `translateY(4px)` 入场，离开对称淡出；刷新时用指纹把 pending / live-stream 接到持久 id，避免重播入场。正在回复的行不入场、不离场，长高时也不做 FLIP。回合之外，同列气泡才滑到新位置。确认 / 记忆 / 错误条同路淡入 | `companionChatMotion.ts`、`CompanionPage`、`index.css` |
-| 桌宠过程披露、设置页、换肤 | 过程展开淡入（关闭即卸，避免折叠正文留在 DOM）。名字胶囊打开设置，整页从右侧 `translateX` 推入再弹出；手机设置是一块玻璃上的内缩分组列表。皮肤 `img` 重挂淡入 | `CompanionTurnProcessView`、`index.css` |
-| 桌宠按下 | 角色本体、名字胶囊、玻璃图标与附件芯片 `scale(0.97)`；右键菜单行（若渲染）`--pressed-row` | `index.css`；发送 / 加号走 `button.tsx` |
+| 思考像素加载、标签呼吸、流式光标、任务环、看板娘角色循环 | 常驻循环，仅 `opacity` / `transform` | `agent-conversation.css`、`index.css` |
+| 看板娘角色显隐、说话气泡、手机开合 | 开合是竖向合页：`clip-path: inset()` 把手机从上、下收到中线一条亮缝，缝再淡出；打开是同一条路倒放。角色停在手机底部，下半截让开或盖回去。合页播完清掉 `clip-path`，免得磨砂层的 `backdrop-filter` 被祖先裁切空掉。关对话时壳先保持 320×696；合页 260ms 后渲染器换成贴在底部的角色，再留一小段绘制时间才缩窗口。气泡：`scale` + `opacity` | `index.css`；壳在 `companion-shell.cjs` 推迟 `setBounds`；角色让位由 `CompanionPetWindow` 短持 |
+| 看板娘手机状态岛 | 状态栏中间的实心黑胶囊。点开后固定盒子用 `clip-path: inset()` 向下展开，同时交叉淡入展开文案。只过渡 `clip-path` 和 `opacity`，`--motion-slow` + `--ease-drawer`。`prefers-reduced-motion` 直接跳到终态。不加 `backdrop-filter`，`clip-path` 只在这座黑胶囊上，不加在磨砂层 | `CompanionPhoneStatusBar`、`index.css` |
+| 看板娘手机消息 / 确认卡 / 附件条 | 文档流列表：新的历史行 `opacity` + `translateY(4px)` 入场，离开对称淡出；刷新时用指纹把 pending / live-stream 接到持久 id，避免重播入场。正在回复的行不入场、不离场，长高时也不做 FLIP。回合之外，同列气泡才滑到新位置。确认 / 记忆 / 错误条同路淡入 | `companionChatMotion.ts`、`CompanionPage`、`index.css` |
+| 看板娘过程披露、设置页、换肤 | 过程展开淡入（关闭即卸，避免折叠正文留在 DOM）。名字胶囊打开设置，整页从右侧 `translateX` 推入再弹出；手机设置是一块玻璃上的内缩分组列表。皮肤 `img` 重挂淡入 | `CompanionTurnProcessView`、`index.css` |
+| 看板娘按下 | 角色本体、名字胶囊、玻璃图标与附件芯片 `scale(0.97)`；右键菜单行（若渲染）`--pressed-row` | `index.css`；发送 / 加号走 `button.tsx` |
 
 ## 刻意不动的地方
 
 这些不是漏做，是决定：
 
-- **命令面板（Cmd/Ctrl+K）、设置页、会话列表 hover**：键盘触发或每天上百次，加动效只会变慢。主窗口设置 → 桌宠也走这条；手机里名字胶囊打开的桌宠设置从右侧推入，可以动。
-- **桌宠拖动中 / 松手夹回**：拖的时候停浮动，坐标由 Electron 跟着光标；松手夹回是窗口移动，不加 CSS settle，避免和 `setBounds` 打架。
-- **桌宠隐藏、Dock 停主窗、原生右键菜单**：`BrowserWindow.hide` / 最小化 / Electron `Menu` 是系统面。显示角色时有短入场；隐藏不把窗口留 180ms 再关（会抢焦点、也会让回归截图拍到还在的窗）。右键只有 Preload 一个入口，渲染器不再另弹一层。
-- **桌宠手机首屏灌入**：第一次 `list_companion_transcript` 灌满历史时不级联入场。之后的新行、离开和重排才动。
+- **命令面板（Cmd/Ctrl+K）、设置页、会话列表 hover**：键盘触发或每天上百次，加动效只会变慢。主窗口设置 → 看板娘也走这条；手机里名字胶囊打开的看板娘设置从右侧推入，可以动。
+- **看板娘拖动中 / 松手夹回**：拖的时候停浮动，坐标由 Electron 跟着光标；松手夹回是窗口移动，不加 CSS settle，避免和 `setBounds` 打架。
+- **看板娘隐藏、Dock 停主窗、原生右键菜单**：`BrowserWindow.hide` / 最小化 / Electron `Menu` 是系统面。显示角色时有短入场；隐藏不把窗口留 180ms 再关（会抢焦点、也会让回归截图拍到还在的窗）。右键只有 Preload 一个入口，渲染器不再另弹一层。
+- **看板娘手机首屏灌入**：第一次 `list_companion_transcript` 灌满历史时不级联入场。之后的新行、离开和重排才动。
 - **列表级联（stagger）**：同一批元素依次入场看着好，但会话列表和工具列表是高频面。
 - **逐表面 `backdrop-filter` 材质**：材质归 `desktop/window-chrome.cjs` 的
   `vibrancy: 'under-window'` / `backgroundMaterial: 'acrylic'`。浮层上不加 `backdrop-filter`
-  （Windows Chromium 经常不给毛玻璃，薄填充会直接透出一个洞）。桌宠手机屏幕里的玻璃控件模糊的是屏幕内的记录，不采样桌面。
+  （Windows Chromium 经常不给毛玻璃，薄填充会直接透出一个洞）。看板娘手机屏幕里的玻璃控件模糊的是屏幕内的记录，不采样桌面。
 - **动画库**：没有 Motion / Framer Motion / GSAP。继续用 CSS keyframes + transition；
   只有真出现"可抛掷的手势"时才值得重新评估。
 - **`transition: all`**：全仓没有带时长的 `transition: all`，保持这个状态。
@@ -73,7 +73,7 @@
 # 开发运行时监听 127.0.0.1 的调试端口；先看它开在哪个端口
 lsof -nP -iTCP -sTCP:LISTEN | grep -i electron
 
-# 页面 target（主窗与桌宠窗各一个）
+# 页面 target（主窗与看板娘窗各一个）
 curl -s http://127.0.0.1:<port>/json/list
 ```
 
@@ -87,7 +87,7 @@ curl -s http://127.0.0.1:<port>/json/list
 3. **布局属性有没有被过渡**：`transitionProperty` 只应出现 `opacity` / `transform` /
    `scale` / `translate` / 颜色类。出现 `width` / `height` / `margin` / `padding` / `top` / `left`
    要问清楚原因（`grid-template-rows` 是展开折叠的既定手法，属于已知例外）。
-   桌宠手机合页用 keyframes 动 `clip-path`，不放进 `transition`；播完即卸，静止时手机上没有 `clip-path`。
+   看板娘手机合页用 keyframes 动 `clip-path`，不放进 `transition`；播完即卸，静止时手机上没有 `clip-path`。
 4. **`prefers-reduced-motion`**：在 DevTools Rendering 面板切到 reduce，
    确认循环动画停下、位移类消失、颜色和透明度反馈还在（减弱动效不等于没有反馈）。
 
@@ -110,8 +110,8 @@ curl -s http://127.0.0.1:<port>/json/list
 | 工作区图标栏按下反馈 | `.workspace-rail-item` 只有悬停，没有按下 |
 | 圆角过渡 | 已从 `.agent-task-row` 去掉；其余 surface 若出现圆角过渡建议同样去掉（会重绘） |
 | 字号相关的字距 | `--text-title` / `--text-heading` / `--text-display` 没有 `--letter-spacing` 变量，只有两处散装负值。大字号该负字距、小字号该略正，属于排版而非动效，单独评估 |
-| 桌宠压住主窗控件 | 桌宠窗 160×160 默认在屏幕右下角，与主窗输入栏的发送/停止键位置重叠，会挡住点击。与动效无关，单独记录 |
-| 桌宠隐藏淡出 | 显示已有入场。隐藏若要对称，得让壳先通知渲染器再 `hide()`；现在故意不延后关窗 |
+| 看板娘压住主窗控件 | 看板娘窗 160×160 默认在屏幕右下角，与主窗输入栏的发送/停止键位置重叠，会挡住点击。与动效无关，单独记录 |
+| 看板娘隐藏淡出 | 显示已有入场。隐藏若要对称，得让壳先通知渲染器再 `hide()`；现在故意不延后关窗 |
 
 ## 最近一次改动的边界
 
@@ -122,4 +122,4 @@ curl -s http://127.0.0.1:<port>/json/list
   109 文件 / 694 用例通过。
 - 顺带修掉一个挡路的既有问题：`app/src/App.tsx` 的 `companion-focus` 监听把
   事件信封当成 payload 读了（`payload?.conversationId`），`tsc -b` 因此失败，
-  桌宠点开对话时也永远拿不到会话 id。改成和其它监听一致的 `event.payload?.conversationId`。
+  看板娘点开对话时也永远拿不到会话 id。改成和其它监听一致的 `event.payload?.conversationId`。

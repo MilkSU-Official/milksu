@@ -102,6 +102,8 @@ React 组件、hooks 和前端 lib 文案里每一条用户可见的中文串，
 模块名 CTF、CVE、Lab 和 Coding 在两种语言下都保持产品名不变。
 强制手段：`app/src/lib/uiLocaleCoverage.test.ts`。
 
+看板娘的英文是 Companion。它以前叫「桌宠」。开发、测试和搜旧记录时，桌宠就是看板娘。代码标识、测试 id、目录和插件槽位仍是 companion / `app.pet`。
+
 ## 产品 UI 设计语言
 
 本节是唯一的产品 UI 语言。其他文档指向这里，不得复制层级表、token 名或原语数字。

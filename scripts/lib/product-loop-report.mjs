@@ -96,7 +96,7 @@ export function formatProductLoopReport(receipt = {}, report = buildProductLoopR
   lines.push('整体')
   lines.push(`  大模块  ${overall.modules}  通过 ${overall.modulePass}  失败 ${overall.moduleFail}  跳过 ${overall.moduleSkip}`)
   lines.push(`  小模块  ${overall.cases}  通过 ${overall.casePass}  失败 ${overall.caseFail}  跳过 ${overall.caseSkip}`)
-  if (overall.companionModelSource) lines.push(`  桌宠来源  ${overall.companionModelSource}`)
+  if (overall.companionModelSource) lines.push(`  看板娘来源  ${overall.companionModelSource}`)
   lines.push(`  结论    ${overall.result}`)
   lines.push('================================================================================')
   lines.push('')
@@ -178,7 +178,7 @@ export async function captureProductLoopEvidenceBundle(driver, id, options = {})
   if (surfaces.includes('companion')) {
     try {
       const shot = await driver.captureSurfaceEvidence(isCompanionPetSurface)
-      const overlay = await saveEvidenceShot(`${id}-companion`, '桌宠', shot)
+      const overlay = await saveEvidenceShot(`${id}-companion`, '看板娘', shot)
       if (overlay) screenshots.push(overlay)
       if (shot?.caption) snapshots.push({ surface: 'companion', text: shot.caption, caption: shot.caption })
     } catch {
@@ -203,11 +203,11 @@ export async function captureProductLoopEvidenceBundle(driver, id, options = {})
   }
   const captionScan = scanProductLoopSurfaces(snapshots, { ...scanOptions, phase: 'caption' })
   const scan = mergeSurfaceScans(liveScan, captionScan)
-  if (scan.fail && scan.hits.some(item => item.surface === 'companion') && !screenshots.some(item => item.label === '桌宠')) {
+  if (scan.fail && scan.hits.some(item => item.surface === 'companion') && !screenshots.some(item => item.label === '看板娘')) {
     try {
       const extra = await saveEvidenceShot(
         `${id}-companion-anomaly`,
-        '桌宠',
+        '看板娘',
         await driver.captureSurfaceEvidence(isCompanionPetSurface),
       )
       if (extra) screenshots.push(extra)
@@ -240,7 +240,7 @@ export function formatFormalProductLoopReport(receipt = {}, report = buildProduc
     '</style></head><body>',
     '<h1>MilkSU 产品回归正式报告</h1>',
     `<p>模式 ${escapeHtml(overall.mode)}　结果 <strong class="${String(overall.result).toLowerCase()}">${escapeHtml(overall.result)}</strong>　开始 ${escapeHtml(overall.startedAt)}　结束 ${escapeHtml(overall.finishedAt)}</p>`,
-    `<p>大模块 ${overall.modules}（通过 ${overall.modulePass} / 失败 ${overall.moduleFail} / 跳过 ${overall.moduleSkip}）　小模块 ${overall.cases}（通过 ${overall.casePass} / 失败 ${overall.caseFail} / 跳过 ${overall.caseSkip}）${overall.companionModelSource ? `　桌宠来源 ${escapeHtml(overall.companionModelSource)}` : ''}</p>`,
+    `<p>大模块 ${overall.modules}（通过 ${overall.modulePass} / 失败 ${overall.moduleFail} / 跳过 ${overall.moduleSkip}）　小模块 ${overall.cases}（通过 ${overall.casePass} / 失败 ${overall.caseFail} / 跳过 ${overall.caseSkip}）${overall.companionModelSource ? `　看板娘来源 ${escapeHtml(overall.companionModelSource)}` : ''}</p>`,
   ]
   for (const module of modules) {
     blocks.push(`<section><h2>${escapeHtml(module.title)} <span class="${String(module.result).toLowerCase()}">[${escapeHtml(module.result)}]</span> ${module.passed}/${module.total}</h2>`)

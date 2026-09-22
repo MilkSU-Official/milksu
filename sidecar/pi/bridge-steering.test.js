@@ -266,15 +266,15 @@ test("queues a follow-up without aborting the current stream", async () => {
   const sessions = new Map([["coding-1", fixture.session]]);
   await followUpSession(sessions, {
     conversationId: "coding-1",
-    prompt: "桌宠转达 / Companion relay:\nrun the tests",
+    prompt: "看板娘转达 / Companion relay:\nrun the tests",
   });
   assert.deepEqual(fixture.state.followUp, [
     "已有",
-    "桌宠转达 / Companion relay:\nrun the tests",
+    "看板娘转达 / Companion relay:\nrun the tests",
   ]);
   assert.deepEqual(fixture.state.calls, [[
     "followUp",
-    "桌宠转达 / Companion relay:\nrun the tests",
+    "看板娘转达 / Companion relay:\nrun the tests",
   ]]);
 });
 
@@ -283,10 +283,10 @@ test("relays into an idle Pi session as a new prompt", async () => {
   const sessions = new Map([["coding-1", fixture.session]]);
   await relaySession(sessions, {
     conversationId: "coding-1",
-    prompt: "桌宠转达 / Companion relay:\nlook at the board",
+    prompt: "看板娘转达 / Companion relay:\nlook at the board",
   });
   assert.deepEqual(fixture.state.calls, [[
     "prompt",
-    "桌宠转达 / Companion relay:\nlook at the board",
+    "看板娘转达 / Companion relay:\nlook at the board",
   ]]);
 });

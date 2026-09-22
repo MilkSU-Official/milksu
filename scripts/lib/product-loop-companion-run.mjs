@@ -68,7 +68,7 @@ async function openCompanionPage(driver) {
     node.click()
     return true
   })()`)
-  if (!clicked) return { ok: false, detail: '侧栏页脚找不到桌宠' }
+  if (!clicked) return { ok: false, detail: '侧栏页脚找不到看板娘' }
   await delay(400)
   return { ok: true }
 }
@@ -125,11 +125,11 @@ async function recoverCompanionSidecar(driver) {
     }
     await delay(400)
   }
-  return { ok: false, reason: lastError || '桌宠未能重新就绪' }
+  return { ok: false, reason: lastError || '看板娘未能重新就绪' }
 }
 
 async function openCompanionSettings(driver) {
-  return openSettingsCategory(driver, ['桌宠', 'Companion'])
+  return openSettingsCategory(driver, ['看板娘', 'Companion'])
 }
 
 async function ensureCompanionModelRoute(driver) {
@@ -177,9 +177,9 @@ export async function runCompanionReady(driver) {
   const label = source === 'account' ? ' account' : (route.id ? ` personal=${route.id}` : ` ${source}`)
   const surface = await readCompanionChatSurface().catch(() => null)
   if (companionSurfaceMissingKey(surface || {})) {
-    return fail(`桌宠窗没有可用 Key；${route.detail || ''} source=${source}`, { source })
+    return fail(`看板娘窗没有可用 Key；${route.detail || ''} source=${source}`, { source })
   }
-  return pass(`桌宠已就绪${model ? ` ${provider} ${model}` : ''}${label}`, { source })
+  return pass(`看板娘已就绪${model ? ` ${provider} ${model}` : ''}${label}`, { source })
 }
 
 async function companionSurfaceHasChat(target) {
@@ -263,9 +263,9 @@ async function rightClickCompanionPet() {
 
 export async function runCompanionPage(driver) {
   const nav = await openCompanionPage(driver)
-  if (!nav.ok) return fail(nav.detail || '侧栏页脚没有桌宠入口')
+  if (!nav.ok) return fail(nav.detail || '侧栏页脚没有看板娘入口')
   const opened = await waitForCompanionChatSurface()
-  if (!opened) return fail('侧栏桌宠没有打开手机对话')
+  if (!opened) return fail('侧栏看板娘没有打开手机对话')
   const page = await readCompanionChatSurface()
   const hay = `${(page?.aria || []).join('\n')}\n${page?.text || ''}`
   const session = new CdpSession(opened.webSocketDebuggerUrl)
@@ -276,8 +276,8 @@ export async function runCompanionPage(driver) {
   } finally {
     session.close()
   }
-  if (both) return fail('手机对话和桌宠本体同时出现了')
-  return page?.chat && /桌宠输入|Companion message/.test(hay)
+  if (both) return fail('手机对话和看板娘本体同时出现了')
+  return page?.chat && /看板娘输入|Companion message/.test(hay)
     ? pass('侧栏页脚打开了手机对话，看得见输入框，角色已经收起')
     : fail('手机对话缺了对话或输入框')
 }
@@ -287,15 +287,15 @@ export async function runCompanionPetMenu(driver) {
   if (shell?.wayland) {
     const status = await driver.getCompanionShellStatus()
     const labels = (status?.menu || []).map(item => item.label).join(' ')
-    return /对话|Chat/.test(labels) && /隐藏桌宠|Hide companion/.test(labels)
-      ? pass('Wayland 没有悬浮窗，Dock / 托盘仍有桌宠动作')
-      : fail('壳菜单没有桌宠右键动作')
+    return /对话|Chat/.test(labels) && /隐藏看板娘|Hide Companion/.test(labels)
+      ? pass('Wayland 没有悬浮窗，Dock / 托盘仍有看板娘动作')
+      : fail('壳菜单没有看板娘右键动作')
   }
   const clicked = await waitFor(async () => {
     const next = await rightClickCompanionPet()
     return next?.opened ? next : null
   }, 6_000)
-  if (!clicked) return fail('桌宠右键没有落到角色身体上')
+  if (!clicked) return fail('看板娘右键没有落到角色身体上')
   const status = await waitFor(async () => {
     const next = await driver.getCompanionShellStatus()
     return next?.menuPopup ? next : null
@@ -303,22 +303,22 @@ export async function runCompanionPetMenu(driver) {
   const shellMenu = (status?.menu || []).map(item => item.label).join(' ')
   return status?.menuPopup
     && /对话|Chat/.test(shellMenu)
-    && /隐藏桌宠|Hide companion/.test(shellMenu)
+    && /隐藏看板娘|Hide Companion/.test(shellMenu)
     && /打开主窗口|Open MilkSU/.test(shellMenu)
-    && /桌宠设置|Companion settings/.test(shellMenu)
+    && /看板娘设置|Companion settings/.test(shellMenu)
     && /退出|Quit/.test(shellMenu)
-    ? pass('桌宠右键弹出壳菜单，Dock / 托盘是同一组动作')
-    : fail('桌宠右键没有弹出壳菜单，或菜单缺了对话、隐藏、主窗口、设置或退出')
+    ? pass('看板娘右键弹出壳菜单，Dock / 托盘是同一组动作')
+    : fail('看板娘右键没有弹出壳菜单，或菜单缺了对话、隐藏、主窗口、设置或退出')
 }
 
 export async function runCompanionPetDrag(driver) {
   const shell = await showCompanionPetForm(driver)
   if (shell?.wayland) return skip('Wayland 不能自己贴坐标，身体拖拽按平台跳过', { skipKind: 'platform' })
   const target = await waitForCompanionSurface()
-  if (!target) return fail('没有桌宠悬浮窗')
+  if (!target) return fail('没有看板娘悬浮窗')
   const before = await driver.getCompanionShellStatus()
   const origin = before?.petBounds
-  if (!origin) return fail('壳没有回报桌宠窗口位置')
+  if (!origin) return fail('壳没有回报看板娘窗口位置')
   const session = new CdpSession(target.webSocketDebuggerUrl)
   await session.open()
   try {
@@ -333,7 +333,7 @@ export async function runCompanionPetDrag(driver) {
       return next?.body ? next : null
     }, 4_000)
     if (!probe?.body) {
-      return fail(`悬浮窗里没有宠物身体 body=${Boolean(probe?.body)} invoke=${Boolean(probe?.invoke)}`)
+      return fail(`悬浮窗里没有看板娘身体 body=${Boolean(probe?.body)} invoke=${Boolean(probe?.invoke)}`)
     }
   } finally {
     session.close()
@@ -349,8 +349,8 @@ export async function runCompanionPetDrag(driver) {
     return null
   }, 4_000)
   return after?.petBounds
-    ? pass('按住宠物身体拖了之后窗口跟着走了')
-    : fail('真拖宠物身体后窗口没有挪位置')
+    ? pass('按住看板娘身体拖了之后窗口跟着走了')
+    : fail('真拖看板娘身体后窗口没有挪位置')
 }
 
 export async function runCompanionArchive(driver) {
@@ -370,7 +370,7 @@ export async function runCompanionArchive(driver) {
   const stored = rows.some(row => String(row?.name ?? row?.Name ?? '') === name)
   return name && (rows.length > 0 || stored)
     ? pass(`当前段已归档 ${name}`)
-    : fail('桌宠归档没有留下条目')
+    : fail('看板娘归档没有留下条目')
 }
 
 export async function runCompanionMemory(driver, options = {}) {
@@ -380,7 +380,7 @@ export async function runCompanionMemory(driver, options = {}) {
   let memory = { pending: [], approved: [] }
   for (const prompt of prompts) {
     const sent = await sendCompanionOrRecover(driver, prompt)
-    if (!sent.ok) return fail(sent.error || '桌宠记忆发不出')
+    if (!sent.ok) return fail(sent.error || '看板娘记忆发不出')
     await driver.waitForCompanionTurn(options.taskTimeoutMs || 180_000)
     memory = await driver.getCompanionMemory()
     const pending = Array.isArray(memory?.pending) ? memory.pending : []
@@ -391,7 +391,7 @@ export async function runCompanionMemory(driver, options = {}) {
       return pass(`记忆里有 ${pending.length} 条待批准、${approved.length} 条已留下`)
     }
   }
-  return fail('桌宠记忆没有提出待批准或已留下的条目')
+  return fail('看板娘记忆没有提出待批准或已留下的条目')
 }
 
 export async function runCompanionDispatchConfirm(driver, options = {}) {
@@ -424,12 +424,12 @@ export async function runCompanionDispatchConfirm(driver, options = {}) {
       if (turn.confirmed || turn.sidecarStopped || companionTurnParked(turn.events)) break
     }
     if (turn.sidecarStopped || companionTurnParked(turn.events)) {
-      return fail('桌宠 sidecar 停了，跨会话确认没有接上')
+      return fail('看板娘 sidecar 停了，跨会话确认没有接上')
     }
     if (!turn.confirmed) {
       return fail(`跨会话调度没有停下来确认 timeout=${Boolean(turn.timeout)} confirmed=${turn.confirmed}`)
     }
-    return pass(`桌宠 stop 调度停下来确认了 ${turn.confirmed} 次`)
+    return pass(`看板娘 stop 调度停下来确认了 ${turn.confirmed} 次`)
   } finally {
     await driver.stopCompanion().catch(() => {})
   }
@@ -450,7 +450,7 @@ export async function runCompanionModelSwitch(driver, options = {}) {
   if (!next) {
     return candidates.length
       ? skip(`个人中转站只有一台模型 ${current || candidates[0]}，换模型没得测`, { source: 'personal' })
-      : fail('找不到另一台桌宠模型可换')
+      : fail('找不到另一台看板娘模型可换')
   }
   try {
     await driver.invoke('SaveSettingsCmd', [{
@@ -465,15 +465,15 @@ export async function runCompanionModelSwitch(driver, options = {}) {
     if (!ready.ok) return fail(ready.reason)
     const model = String(started?.model ?? started?.Model ?? '')
     if (model && model !== next && !model.includes(next.split('/').pop() || next)) {
-      return fail(`换模型后桌宠仍是 ${model}，要的是 ${next}`)
+      return fail(`换模型后看板娘仍是 ${model}，要的是 ${next}`)
     }
     await ensureCompanionChatVisible(driver)
     await driver.sendCompanionMessage('短回一句 MODEL-SWITCH-OK，不要调用工具。')
     const turn = await driver.waitForCompanionTurn(options.taskTimeoutMs || 180_000)
     if (turn.timeout || companionTurnErrored(turn.events) || !companionTurnSettled(turn.events)) {
-      return fail(`换模型后桌宠没发出去 timeout=${Boolean(turn.timeout)}`)
+      return fail(`换模型后看板娘没发出去 timeout=${Boolean(turn.timeout)}`)
     }
-    return pass(`桌宠已换成 ${next} 并完成一句对话`)
+    return pass(`看板娘已换成 ${next} 并完成一句对话`)
   } finally {
     await driver.invoke('SaveSettingsCmd', [settings]).catch(() => {})
   }
@@ -482,7 +482,7 @@ export async function runCompanionModelSwitch(driver, options = {}) {
 export async function runCompanionSettingsModel(driver) {
   const opened = await openCompanionSettings(driver)
   if (!opened.ok) return fail(opened.detail)
-  return expectLabels(driver, ['桌宠模型', 'Companion model'], '设置里有桌宠模型', '设置里没有桌宠模型')
+  return expectLabels(driver, ['看板娘模型', 'Companion model'], '设置里有看板娘模型', '设置里没有看板娘模型')
 }
 
 export async function runCompanionSettingsDispatch(driver) {
@@ -568,7 +568,7 @@ export async function runCompanionSkinDefault(driver) {
   const snap = await pageSnapshot(driver)
   if (!companionDefaultSkinVisible(snap)) return fail('设置里看不到出厂皮肤 Milk')
   return companionSkinEntryVisible(snap)
-    ? pass('设置 → 桌宠的皮肤是出厂默认，也能添加文件夹')
+    ? pass('设置 → 看板娘的皮肤是出厂默认，也能添加文件夹')
     : fail('设置里没有添加皮肤入口')
 }
 
@@ -668,10 +668,10 @@ export async function runCompanionHide(driver) {
     await rightClickCompanionPet().catch(() => null)
     await driver.invoke('SetCompanionPetHidden', [{ hidden: true }])
     const hidden = await driver.getCompanionShellStatus()
-    if (!companionShellHidden(hidden)) return fail('隐藏之后壳还说桌宠看得见')
+    if (!companionShellHidden(hidden)) return fail('隐藏之后壳还说看板娘看得见')
     const main = await driver.invoke('ShowCompanionMainWindow', [{ focus: false }])
-    if (!companionShellHidden(main)) return fail('打开主窗口把已隐藏的桌宠带出来了')
-    return pass('右键菜单隐藏后桌宠收起来了，打开主窗口也不会把它带出来')
+    if (!companionShellHidden(main)) return fail('打开主窗口把已隐藏的看板娘带出来了')
+    return pass('右键菜单隐藏后看板娘收起来了，打开主窗口也不会把它带出来')
   } finally {
     await driver.invoke('SetCompanionPetHidden', [{ hidden: false }]).catch(() => {})
   }
@@ -684,7 +684,7 @@ export async function runCompanionShow(driver) {
   const shown = await driver.invoke('SetCompanionPetHidden', [{ hidden: false }])
   const ready = companionFloatReady(shown)
   if (!ready.ok) return fail(ready.reason)
-  return pass('显示桌宠后悬浮窗又回来了')
+  return pass('显示看板娘后悬浮窗又回来了')
 }
 
 export async function runCompanionDockPark(driver) {
@@ -701,9 +701,9 @@ export async function runCompanionDockPark(driver) {
     if (!presence.ok) return fail(presence.reason)
     if (!before?.wayland) {
       const shown = await driver.invoke('SetCompanionPetHidden', [{ hidden: false }])
-      if (companionShellHidden(shown)) return fail('从桌面栏唤醒后桌宠还是藏着')
+      if (companionShellHidden(shown)) return fail('从桌面栏唤醒后看板娘还是藏着')
     }
-    return pass(`关掉主窗口后${presence.reason}，还能唤醒桌宠`)
+    return pass(`关掉主窗口后${presence.reason}，还能唤醒看板娘`)
   } finally {
     await driver.invoke('ShowCompanionMainWindow', [{ focus: false }]).catch(() => {})
     await driver.ensureAttached()
@@ -745,7 +745,7 @@ export async function runCompanionFuzzApp(driver, options = {}) {
       for (const name of companionTurnToolNames(turn.events)) tools.add(name)
       if (turn.sidecarStopped || companionTurnParked(turn.events)) {
         const again = await recoverCompanionSidecar(driver)
-        if (!again.ok) return fail('桌宠 sidecar 停了，功能询问没有接上')
+        if (!again.ok) return fail('看板娘 sidecar 停了，功能询问没有接上')
         continue
       }
       const broken = /tool history is broken|这段对话没法继续了/i.test(String(turn.error || ''))

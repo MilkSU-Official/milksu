@@ -66,7 +66,7 @@ test("turn search can skip the live companion transcript", async () => {
     })}\n`);
     await writeFile(join(conversations, "companion.json"), `${JSON.stringify({
       id: "companion",
-      title: "桌宠",
+      title: "看板娘",
       messages: [
         { id: "u2", role: "user", content: "fixed the auth handler in this chat", timestamp: Date.parse("2026-09-21T00:00:01.000Z") },
       ],

@@ -259,7 +259,7 @@ jobs:
                   Where-Object { $_.ParentProcessId -eq $appProcess.Id }
               )
               $windowTitles = [MilkSUWinEnum]::VisibleTitles([int]$appProcess.Id)
-              # Companion float is also titled 桌宠 / Companion; Win32 MainWindowTitle
+              # Companion float is also titled 看板娘 / Companion; Win32 MainWindowTitle
               # often reports that overlay instead of the product window.
               $windowReady = $windowTitles -contains 'MilkSU'
               if ($windowReady -and $backendChildren.Count -gt 0) {

@@ -54,7 +54,7 @@ function printHelp() {
   node scripts/verify-product-loop.mjs --suite first-use
   node scripts/verify-product-loop.mjs --gui --suite all
 
-默认按上手顺序跑产品模块：上手 → 主页 Coding → 桌宠 → 领域工作区 → 桌面执行面 → 账户与更新 → 设置其余项。
+默认按上手顺序跑产品模块：上手 → 主页 Coding → 看板娘 → 领域工作区 → 桌面执行面 → 账户与更新 → 设置其余项。
 独立实例贯穿。开测前清掉其它 MilkSU 窗口，只留测试窗。Key 打进设置密码框，不注入 sidecar。
 结束后打印从大模块到小模块的文字报告，并写带截图的正式 HTML 报告。
 

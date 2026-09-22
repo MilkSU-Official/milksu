@@ -16,7 +16,7 @@
 
 | 入口 | 问的问题 | 怎么跑 |
 | --- | --- | --- |
-| 本页 · 产品回归 | 改完功能后，上手、主页、桌宠、领域工作区、桌面执行面、资料和设置其余项还成不成立 | `npm run test:product-loop` |
+| 本页 · 产品回归 | 改完功能后，上手、主页、看板娘、领域工作区、桌面执行面、资料和设置其余项还成不成立 | `npm run test:product-loop` |
 | Settings → 评测 | 这个型号 + 内核，Cybench / SEC-bench / AutoPen 能得几分 | 产品设置页；数据在 `internal/evalsuite` |
 | NYU safe-static | 窄域开发者静态题 | `docs/developer/nyu-ctf-bench-eval.md` |
 | `test:dsh-complete-loop` | 独立的 DSH 桥脚本 | 不是 product-loop 的一套。产品回归走本页入口。 |
@@ -59,15 +59,15 @@ npm run test:product-loop-catalog
 | FAIL | 任一项 FAIL / BLOCKED，或点名了却没记下结果 | 1 |
 | SKIP | 没有 FAIL，但有 SKIP（平台不能测、前置没满足） | 1 |
 
-SKIP 不会让整次回归或某个大模块看起来已经跑完。`expectedMiss`（账户没额度、本机没有 Key）只能是 SKIP 或 FAIL，不能是 PASS，也不能把 `sourcesReady` / `accountReady` 标成真。上手模块要有真实凭据路径才算过：GitHub 登录后账户文件循环 PASS，或个人中转站文件循环 PASS。只过登录门 +「暂不登录」不算。StartAccountLogin 已发出却一直没变成已登录：`login-github-active` 记 FAIL，不因本机已有 Key 改成 SKIP。上手已经开跑却没落到某一步：FAIL「上手没跑到」，不是 SKIP。桌宠 host 超时 / 取消对转达和模糊调度是错误，除非该项专门在测恢复。`--suite companion` 没有已验证的个人中转站、也没有已验证的账户模型时，`companion-ready` 和模型相关项 FAIL，回执要写下 `personal` / `account` / `none`。
+SKIP 不会让整次回归或某个大模块看起来已经跑完。`expectedMiss`（账户没额度、本机没有 Key）只能是 SKIP 或 FAIL，不能是 PASS，也不能把 `sourcesReady` / `accountReady` 标成真。上手模块要有真实凭据路径才算过：GitHub 登录后账户文件循环 PASS，或个人中转站文件循环 PASS。只过登录门 +「暂不登录」不算。StartAccountLogin 已发出却一直没变成已登录：`login-github-active` 记 FAIL，不因本机已有 Key 改成 SKIP。上手已经开跑却没落到某一步：FAIL「上手没跑到」，不是 SKIP。看板娘 host 超时 / 取消对转达和模糊调度是错误，除非该项专门在测恢复。`--suite companion` 没有已验证的个人中转站、也没有已验证的账户模型时，`companion-ready` 和模型相关项 FAIL，回执要写下 `personal` / `account` / `none`。
 
-操作前后扫描主窗口和桌宠的可见 DOM / a11y 文本，以及 `role=alert`、`text-destructive`、toast、桌宠气泡。截图里或页面上出现未翻译的 `Request aborted` / `AbortError`、`No API key for tokenflux/…`、设置 JSON、`[object Object]`、companion-host 请求号或其它实现泄漏，记硬异常并把该项改成 FAIL（`expectedMiss` SKIP 也不放过泄漏）。用例目录允许的确认框、故意提交后的表单错误、停轮次的「这一轮已取消」不算。异常写进正式报告，带着截图和原文。
+操作前后扫描主窗口和看板娘的可见 DOM / a11y 文本，以及 `role=alert`、`text-destructive`、toast、看板娘气泡。截图里或页面上出现未翻译的 `Request aborted` / `AbortError`、`No API key for tokenflux/…`、设置 JSON、`[object Object]`、companion-host 请求号或其它实现泄漏，记硬异常并把该项改成 FAIL（`expectedMiss` SKIP 也不放过泄漏）。用例目录允许的确认框、故意提交后的表单错误、停轮次的「这一轮已取消」不算。异常写进正式报告，带着截图和原文。
 
 ## 测什么
 
 默认按用户上手顺序，同一独立实例贯穿：
 
-`上手 → 主页 Coding → 桌宠 → 领域工作区 → 桌面执行面 → 账户与更新 → 设置其余项`
+`上手 → 主页 Coding → 看板娘 → 领域工作区 → 桌面执行面 → 账户与更新 → 设置其余项`
 
 不附着已经在首页的日常窗口。开测前和每条用例前检查本机 MilkSU 窗口，关掉日常安装包和残留 Electron，只留这一扇测试窗。不要越开越多。Key 打进设置密码框，不注入 sidecar。中转站能发之后，主页发送缺来源记 FAIL。
 
@@ -124,32 +124,34 @@ SKIP 不会让整次回归或某个大模块看起来已经跑完。`expectedMis
 | 底部终端 | 打得开底部终端。 |
 | 会话右键菜单 | 右键能看到置顶、重命名、Fork、归档、删除。 |
 
-### 桌宠（22）
+### 看板娘（22）
+
+看板娘的英文是 Companion。它以前叫「桌宠」。搜「桌宠」时指的就是看板娘；用例 id、代码标识和目录仍是 `companion`。
 
 | 测试项 | 测什么 |
 | --- | --- |
-| 桌宠就绪 | 启动后 ready，能读到模型。没有已验证的个人中转站、也没有已验证的账户模型：FAIL。回执写下 personal / account / none。 |
-| 桌宠手机对话 | 侧栏页脚点桌宠打开手机对话，角色收起，看得见输入框。不是主窗口整页，也不和角色并排。 |
-| 桌宠右键菜单 | 悬浮窗右键出现对话 / 隐藏桌宠 / 打开主窗口 / 桌宠设置 / 退出；壳菜单栏和 Dock / 托盘右键是同一组动作。 |
-| 桌宠身体拖拽 | 按住角色身体拖了之后窗口跟着走。Wayland 不能贴坐标：SKIP（平台），不记 PASS。 |
-| 桌宠核心循环 | 用例开始时用 `SaveConversation` 把主窗口抄本写进这次独立实例：click#3840（WinError 87 / `edit_files`）、express#7362（`res.send(ArrayBuffer)` 变成 `{}`）、electron#38154（`pagesPerSheet` 仍是一页一张）、electron#28084（`setMinimumSize` 500 没有立刻变成 700），加上周末接孩子、界面语言、回复正文。不写进日常 MilkSU。写完才在手机里提问、按停止按钮、收尾。停止要出现「这一轮已取消。」。打招呼不展开旧任务。点名用对话标题。click / express 检出只读，HEAD 和工作区不能变，也不给上游开 PR。`MILKSU_EVAL_PROJECTS` 指向检出目录，默认是本机 `code/eval-projects`；没检出就只靠抄本。`MILKSU_EVAL_GITHUB_REPO` 若设置，只许提到那个测试仓库，断言仍是上游检出没动。 |
-| 桌宠归档 | 能归档当前段，页上有归档。 |
-| 桌宠记忆 | 必须提出一条待批准或已留下的记忆。只看见记忆栏不算。 |
-| 跨会话调度确认 | 桌宠 `stop` 必须停下来确认。没确认不算。 |
-| 桌宠功能询问 | 用人话问桌宠能干啥、能不能改设置/开主窗口，再让它打开主窗口并读不含密钥的设置；要有助手回复且动过 companion_app 或看板。 |
-| 桌宠停后再续跑 | 先完成一句，StopCompanion 后再发，前后用户句都在同一段抄本。这不是回合中途杀 sidecar。 |
-| 换桌宠模型再发 | 换成另一台模型后再发出一句。只有一台或只有账户模型、没法换：SKIP，不记 PASS。 |
-| 桌宠模型设置 | 设置 → 桌宠有模型选择。 |
+| 看板娘就绪 | 启动后 ready，能读到模型。没有已验证的个人中转站、也没有已验证的账户模型：FAIL。回执写下 personal / account / none。 |
+| 看板娘手机对话 | 侧栏页脚点看板娘打开手机对话，角色收起，看得见输入框。不是主窗口整页，也不和角色并排。 |
+| 看板娘右键菜单 | 悬浮窗右键出现对话 / 隐藏看板娘 / 打开主窗口 / 看板娘设置 / 退出；壳菜单栏和 Dock / 托盘右键是同一组动作。 |
+| 看板娘身体拖拽 | 按住角色身体拖了之后窗口跟着走。Wayland 不能贴坐标：SKIP（平台），不记 PASS。 |
+| 看板娘核心循环 | 用例开始时用 `SaveConversation` 把主窗口抄本写进这次独立实例：click#3840（WinError 87 / `edit_files`）、express#7362（`res.send(ArrayBuffer)` 变成 `{}`）、electron#38154（`pagesPerSheet` 仍是一页一张）、electron#28084（`setMinimumSize` 500 没有立刻变成 700），加上周末接孩子、界面语言、回复正文。不写进日常 MilkSU。写完才在手机里提问、按停止按钮、收尾。停止要出现「这一轮已取消。」。打招呼不展开旧任务。点名用对话标题。click / express 检出只读，HEAD 和工作区不能变，也不给上游开 PR。`MILKSU_EVAL_PROJECTS` 指向检出目录，默认是本机 `code/eval-projects`；没检出就只靠抄本。`MILKSU_EVAL_GITHUB_REPO` 若设置，只许提到那个测试仓库，断言仍是上游检出没动。 |
+| 看板娘归档 | 能归档当前段，页上有归档。 |
+| 看板娘记忆 | 必须提出一条待批准或已留下的记忆。只看见记忆栏不算。 |
+| 跨会话调度确认 | 看板娘 `stop` 必须停下来确认。没确认不算。 |
+| 看板娘功能询问 | 用人话问看板娘能干啥、能不能改设置/开主窗口，再让它打开主窗口并读不含密钥的设置；要有助手回复且动过 companion_app 或看板。 |
+| 看板娘停后再续跑 | 先完成一句，StopCompanion 后再发，前后用户句都在同一段抄本。这不是回合中途杀 sidecar。 |
+| 换看板娘模型再发 | 换成另一台模型后再发出一句。只有一台或只有账户模型、没法换：SKIP，不记 PASS。 |
+| 看板娘模型设置 | 设置 → 看板娘有模型选择。 |
 | 跨会话调度设置 | 设置里有跨会话调度。 |
 | 主动性设置 | 任务事件、教学提示、定时播报、闲聊都在。 |
 | 悬浮窗设置 | 设置里有悬浮窗。Wayland 只说明不能贴坐标。 |
-| 出厂皮肤 | 设置 → 桌宠的皮肤是 Milk，并且有添加皮肤入口。 |
+| 出厂皮肤 | 设置 → 看板娘的皮肤是 Milk，并且有添加皮肤入口。 |
 | 导入第三方皮肤 | 导入一份合同夹具包后，皮肤列表里有它。 |
 | 换上第三方皮肤 | 选中导入的皮肤后，设置里能看见它的名字；悬浮窗画的是导入的 PNG，不是出厂资源。测完会移除并回到默认。 |
 | 悬浮窗出厂帧 | 悬浮窗页面画出出厂角色。不锁 PNG 哈希。Wayland 没有悬浮窗：SKIP（平台），不记 PASS。 |
-| 隐藏桌宠 | 走产品隐藏路径后，壳报告桌宠已藏。接着打开主窗口，桌宠仍藏着。Wayland 没有悬浮窗可藏：SKIP。 |
-| 显示桌宠 | 再显示后，悬浮窗回来。Wayland 没有悬浮窗可唤醒：SKIP。 |
-| 关掉主窗口留桌面栏 | 关掉主窗口后应用还在：macOS 留 Dock，Windows 最小化留任务栏，Linux 留托盘。还能唤醒桌宠，再打开主窗口。 |
+| 隐藏看板娘 | 走产品隐藏路径后，壳报告看板娘已藏。接着打开主窗口，看板娘仍藏着。Wayland 没有悬浮窗可藏：SKIP。 |
+| 显示看板娘 | 再显示后，悬浮窗回来。Wayland 没有悬浮窗可唤醒：SKIP。 |
+| 关掉主窗口留桌面栏 | 关掉主窗口后应用还在：macOS 留 Dock，Windows 最小化留任务栏，Linux 留托盘。还能唤醒看板娘，再打开主窗口。 |
 
 ### 领域工作区（CTF 11 / CVE 11 / Lab 11）
 
@@ -232,7 +234,7 @@ Computer Use 和隔离浏览器分开测。缺权限不能靠浏览器凑成通�
 
 | 测试项 | 测什么 |
 | --- | --- |
-| 十二个设置分类 | 通用、模型、CTF、CVE、Lab、Skills、MCP、归档聊天、浏览器控制、评测、桌宠、插件都能点开。 |
+| 十二个设置分类 | 通用、模型、CTF、CVE、Lab、Skills、MCP、归档聊天、浏览器控制、评测、看板娘、插件都能点开。 |
 | 通用 | 语言、强调色、字体、数据目录、调试模式都在；强调色改完即存。 |
 | 模型 | 默认运行时、默认模型、忙碌时发送都在；上手配过的中转站还在。 |
 | 设置 CTF | Arena 和题目浏览器扩展在。 |
@@ -243,15 +245,15 @@ Computer Use 和隔离浏览器分开测。缺权限不能靠浏览器凑成通�
 | 归档聊天 | 归档聊天页打得开。 |
 | 浏览器控制 | Browser Use、Computer Use、CTF 站点都在。 |
 | 评测 | 套件和开始都在。不在这里跑刷分。 |
-| 设置桌宠 | 模型、调度、悬浮窗、出厂皮肤和添加皮肤都在。 |
+| 设置看板娘 | 模型、调度、悬浮窗、出厂皮肤和添加皮肤都在。 |
 | 插件 | 插件框架和安装插件都在。 |
 
 ## 凭据与回执
 
-- 本机先填 `docs/developer/product-loop.local.env`（模板是旁边的 `.example.env`）。协调器读入公开字段；密钥只留在脚本内存，到设置密码框再填，不注入 sidecar。回执只写变量名。上手配好个人 TokenFlux / 中转站后，桌宠也会切到同一条 personal 来源，避免「暂不登录」或 GitHub 账户额度缺失时桌宠 toast「No API key for tokenflux/…」。
+- 本机先填 `docs/developer/product-loop.local.env`（模板是旁边的 `.example.env`）。协调器读入公开字段；密钥只留在脚本内存，到设置密码框再填，不注入 sidecar。回执只写变量名。上手配好个人 TokenFlux / 中转站后，看板娘也会切到同一条 personal 来源，避免「暂不登录」或 GitHub 账户额度缺失时看板娘 toast「No API key for tokenflux/…」。
 - 登录 / 账户模型 / 自定义中转站按上手手册走通之后，没可用来源的主页发送记 FAIL，不再 SKIP。
 - 回执：`build/test-results/product-loop.json`。结束后 stdout 打印从大模块到小模块的文字报告。
-- 正式报告：`build/test-results/product-loop-report/index.html`。每一项只拍该用例当时还在的窗（主窗口或桌宠），在拆掉 fixture 会话之前拍，并写窗口标签和页面摘录。表面异常会多挂桌宠窗（如果泄漏在桌宠上）并列出原文。开跑会清掉上次的 `shots/`，避免旧图挂到新项上。截图和回执都不写 Provider Key。
+- 正式报告：`build/test-results/product-loop-report/index.html`。每一项只拍该用例当时还在的窗（主窗口或看板娘），在拆掉 fixture 会话之前拍，并写窗口标签和页面摘录。表面异常会多挂看板娘窗（如果泄漏在看板娘上）并列出原文。开跑会清掉上次的 `shots/`，避免旧图挂到新项上。截图和回执都不写 Provider Key。
 - `--gui` 测完会 `DeleteConversation` 清掉本机 fixture 会话，不留在侧栏。
 - 不要把回执或截图提交进仓库。
 
@@ -270,10 +272,10 @@ product-loop `--gui` **不是**用 OS 级 robot / nut.js 去抢全局鼠标键�
 | 手段 | 用途 | 是否抢用户前台 |
 | --- | --- | --- |
 | Electron CDP 附着 + `Runtime.evaluate` / `callFunction` | 点按钮、读 DOM、填输入栏 | 基本不抢；页内 `input.focus()` 在部分平台可能抬窗 |
-| `window.milksu.invoke` Desktop RPC | SendCompanionMessage、ConfirmCompanionDispatch、MoveCompanionPet、开关桌宠窗 | 不抢（`ShowCompanion*` 传 `{ focus: false }` 时用 `showInactive`） |
+| `window.milksu.invoke` Desktop RPC | SendCompanionMessage、ConfirmCompanionDispatch、MoveCompanionPet、开关看板娘窗 | 不抢（`ShowCompanion*` 传 `{ focus: false }` 时用 `showInactive`） |
 | CDP `Page.captureScreenshot`（`fromSurface: true`） | 用例证据图 | **默认不** `Page.bringToFront` |
-| CDP `Input.dispatchMouseEvent`（桌宠表面） | 宠物右键菜单坐标 | 可能激活桌宠浮层，但不走系统鼠标 |
-| `MoveCompanionPet` RPC | 拖宠物测 bounds | 不需要全局焦点 |
+| CDP `Input.dispatchMouseEvent`（看板娘表面） | 看板娘右键菜单坐标 | 可能激活看板娘浮层，但不走系统鼠标 |
+| `MoveCompanionPet` RPC | 拖看板娘测 bounds | 不需要全局焦点 |
 
 仍需要用户前台 / 系统表面的项：
 
@@ -283,4 +285,4 @@ product-loop `--gui` **不是**用 OS 级 robot / nut.js 去抢全局鼠标键�
 - **首次启动把窗口建出来**：第一次 `show()` 仍会进任务栏；之后复用会话不再每次 `ShowCompanionMainWindow` 抢焦点。
 
 目标：你在旁边打字时，product-loop 尽量只动 MilkSU 自己的 CDP / RPC，不要每条用例都把窗口拽到最前。
-桌宠工具历史：abort / host 超时可能留下未配对的 `toolCall`。sidecar 在下一轮 send / 换模型 / abort 后会补 synthetic error `toolResult`（与 Pi 截断工具批的做法同型），不要靠狂刷 `ArchiveCompanionTranscript` 或逼用户「开新对话」来续跑。「开新对话」只在**当前** live error 仍是断工具历史时出现，不因抄本里旧的 errorMessage 一直刷；手机忙时发送键变成停止（`AbortCompanionTurn`）。
+看板娘工具历史：abort / host 超时可能留下未配对的 `toolCall`。sidecar 在下一轮 send / 换模型 / abort 后会补 synthetic error `toolResult`（与 Pi 截断工具批的做法同型），不要靠狂刷 `ArchiveCompanionTranscript` 或逼用户「开新对话」来续跑。「开新对话」只在**当前** live error 仍是断工具历史时出现，不因抄本里旧的 errorMessage 一直刷；手机忙时发送键变成停止（`AbortCompanionTurn`）。
