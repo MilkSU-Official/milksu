@@ -531,6 +531,10 @@ const COMPOSER_STYLES = `
 `
 
 export type ChatComposerHandle = {
+  /** 整窗拖放：把窗口级 drop 收到的文件交进来（内部走现成的 importCodingFiles）。 */
+  addDroppedFiles: (files: File[]) => void
+  /** 当前已经挂上、还没发出去的附件数。整窗放下时用来算还剩几个名额。 */
+  pendingAttachmentCount: () => number
   appendDraftText: (text: string) => void
   /** Quote material the reader selected in the transcript, shown above the input. */
   appendQuote: (text: string) => void
@@ -637,6 +641,7 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
   const messageEditor = useRef<HTMLDivElement | null>(null)
   const [pendingAttachments, setPendingAttachments] = useState<CodingAttachment[]>([])
   const pendingAttachmentsRef = useRef<CodingAttachment[]>([])
+  const importCodingFilesRef = useRef<(files: File[]) => void>(() => {})
   const [attachmentError, setAttachmentError] = useState('')
   const [attachmentImporting, setAttachmentImporting] = useState(false)
   const attachmentPreviewDialog = useRef<HTMLDialogElement | null>(null)
@@ -1052,7 +1057,7 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
   }
 
   function mergeCodingAttachments(selected: CodingAttachment[]) {
-    const merged = new Map(pendingAttachments.map(value => [`${value.id}:${value.name}`, value]))
+    const merged = new Map(pendingAttachmentsRef.current.map(value => [`${value.id}:${value.name}`, value]))
     for (const attachment of selected) merged.set(`${attachment.id}:${attachment.name}`, attachment)
     if (merged.size > 8) {
       setAttachmentError(t('每条消息最多添加 8 个附件。', 'Each message can have at most 8 attachments.'))
@@ -1088,7 +1093,7 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
   async function importCodingFiles(files: File[]) {
     if (!files.length || attachmentImporting) return
     setAttachmentError('')
-    if (pendingAttachments.length + files.length > 8) {
+    if (pendingAttachmentsRef.current.length + files.length > 8) {
       setAttachmentError(t('每条消息最多添加 8 个附件。', 'Each message can have at most 8 attachments.'))
       return
     }
@@ -1441,8 +1446,8 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
     const editor = messageEditor.current
     const files = [...(event.dataTransfer?.files ?? [])]
     if (files.length) {
+      // 文件在 window 捕获阶段已经导入一次。这里再导会把同一批附件加两遍。
       event.preventDefault()
-      void importCodingFiles(files)
       return
     }
     const text = event.dataTransfer?.getData('text/plain') ?? ''
@@ -1722,7 +1727,11 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
     }
   }, [slashCommands])
 
+  importCodingFilesRef.current = importCodingFiles
+
   useImperativeHandle(ref, () => ({
+    addDroppedFiles: (files: File[]) => importCodingFilesRef.current(files),
+    pendingAttachmentCount: () => pendingAttachmentsRef.current.length,
     appendDraftText,
     appendQuote,
     openAddMenu,

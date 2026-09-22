@@ -58,6 +58,7 @@ import AgentPixelLoader from '@/components/AgentPixelLoader'
 import AkLoadingMark from '@/components/AkLoadingMark'
 import ChatActivityGroup from '@/components/ChatActivityGroup'
 import ChatProcessFold from '@/components/ChatProcessFold'
+import WindowFileDrop from '@/components/WindowFileDrop'
 import ChatComposer, { type ChatComposerHandle } from '@/components/ChatComposer'
 import { ChatEdgeFade } from '@/components/ChatEdgeFade'
 import { ConversationQuoteMenu, selectedTextIn } from '@/components/ConversationQuoteMenu'
@@ -2805,6 +2806,24 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
               void conversations.abortWorkingAll(workingRoot?.id)
             }}
           />
+
+          {/* 整窗拖拽加附件（监听在 window 上 ⇒ 拖到窗口任意处都生效；遮罩 fixed inset-0）。
+              文件交给 composer 现成的 importCodingFiles（经 ref）⇒ 上限/体积/报错都由它负责。 */}
+          <WindowFileDrop
+            getPendingCount={() => composer.current?.pendingAttachmentCount() ?? 0}
+            onFiles={(files, notices) => {
+              if (files.length) composer.current?.addDroppedFiles(files)
+              // 提示统一从纯模块给的 notices 出口出，文案用 t(中文, English) 成对拼（仓库约定，uiLocaleCoverage 会抓）。
+              for (const notice of notices) {
+                const message = notice.kind === 'overflow'
+                  ? t(`最多 8 个附件，已忽略多余的 ${notice.count} 个。`, `At most 8 attachments; ${notice.count} were ignored.`)
+                  : t('暂不支持文件夹，请拖文件或压缩后再试。', 'Folders are not supported yet; drop files (or a zip) instead.')
+                toastError(message, message)
+              }
+            }}
+          >
+            <span className="hidden" aria-hidden="true" />
+          </WindowFileDrop>
 
           <ChatComposer
             // 按会话重挂载：输入框内部有多处"上一个会话"的 ref，若不重挂载，切换时
