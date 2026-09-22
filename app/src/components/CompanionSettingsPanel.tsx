@@ -34,14 +34,18 @@ export default function CompanionSettingsPanel({
   groups,
   onPersist,
   compact = false,
+  presentation = 'page',
 }: {
   settings: AppSettings | null
   groups: SearchableModelGroup[]
   onPersist: () => void
-  /** Narrow phone chrome: stack label above control. */
+  /** Narrow phone chrome: stack label above control. Ignored when presentation is phone. */
   compact?: boolean
+  /** Phone draws inset grouped rows; page keeps the desktop SettingsRow metrics. */
+  presentation?: 'page' | 'phone'
 }) {
-  const rowStack = compact ? 'always' as const : 'never' as const
+  const rowStack = presentation === 'phone' ? 'never' as const : compact ? 'always' as const : 'never' as const
+  const pickerAlign = presentation === 'phone' ? 'end' as const : compact ? 'start' as const : 'end' as const
   const t = useT()
   const locale = useUiLocale()
   const [shell, setShell] = useState<CompanionShellStatus | null>(null)
@@ -122,7 +126,7 @@ export default function CompanionSettingsPanel({
               value={modelKey}
               triggerClassName="settings-control h-7 px-2"
               ariaLabel={t('桌宠模型', 'Companion model')}
-              align={compact ? 'start' : 'end'}
+              align={pickerAlign}
               trigger={(
                 <span className="inline-flex min-w-0 items-center gap-2">
                   <ModelVendorIcon model={settings.companion_model ?? ''} label={modelLabel} />

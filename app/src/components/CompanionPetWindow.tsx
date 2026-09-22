@@ -3,18 +3,22 @@ import companionDecide from '@/assets/companion/decide.png'
 import companionIdle from '@/assets/companion/idle.png'
 import companionTalk from '@/assets/companion/talk.png'
 import CompanionPage from '@/components/CompanionPage'
+import { CompanionPetBang, CompanionPetSpinner } from '@/components/CompanionPetGlyph'
 import { Toaster } from '@/components/ui'
 import { useCompanion } from '@/composables/useCompanion'
 import { hasDesktopRuntime, invokeCommand, listenEvent } from '@/desktop'
 import { toast } from '@/lib/appToast'
 import { companionAccountModelAlignedNotice } from '@/lib/companionUserError'
 import { useT, useUiLocale } from '@/hooks/useUiLocale'
-import { companionMissingApiKey, companionSidecarDown } from '@/lib/companionUserError'
 import {
+  COMPANION_FORM_MS,
   COMPANION_PET_BUBBLE_LEAVE_MS,
+  companionAttentionText,
+  companionPetShowsError,
   companionPetSprite,
   companionPrefersUiMotion,
   resolveCompanionPetMotion,
+  stepCompanionThinkClock,
 } from '@/lib/companionPetMotion'
 import { applyThemeMode, readThemeMode } from '@/lib/themeMode'
 import type { AppSettings, CompanionShellStatus, CompanionSkinResolved } from '@/types'
@@ -33,36 +37,6 @@ const factorySkin: CompanionSkinResolved = {
   overlay: { think: 'spin', decide: 'bang', complete: 'bang' },
   mark: { cx: 0.5, cy: 0.24, size: 0.26 },
   frames: {},
-}
-
-function attentionText(input: {
-  confirm: { action: string; text: string; targetTitle: string } | null
-  error: string
-  t: (zh: string, en: string) => string
-}) {
-  if (input.confirm) {
-    if (input.confirm.action === 'stop') {
-      return input.t('有一条命令在等你确认', 'A command is waiting for your confirmation')
-    }
-    if (input.confirm.action === 'quit') {
-      return input.t('退出 MilkSU 需要你确认', 'Quitting MilkSU needs your confirmation')
-    }
-    if (input.confirm.action === 'relaunch') {
-      return input.t('重启 MilkSU 需要你确认', 'Relaunching MilkSU needs your confirmation')
-    }
-    if (input.confirm.action === 'patch_settings') {
-      return input.t('有一项设置更改在等你确认', 'A settings change is waiting for your confirmation')
-    }
-    if (input.confirm.action === 'speak_many') {
-      return input.t('有一批转达在等你确认', 'A batch relay is waiting for your confirmation')
-    }
-    if (input.confirm.text.trim()) return input.confirm.text.trim()
-    if (input.confirm.targetTitle.trim()) return input.confirm.targetTitle.trim()
-    return input.t('这次操作需要你点头', 'This action needs your confirmation')
-  }
-  const error = input.error.trim()
-  if (!error || companionMissingApiKey(error) || companionSidecarDown(error)) return ''
-  return error
 }
 
 function spriteSrc(skin: CompanionSkinResolved, motion: ReturnType<typeof resolveCompanionPetMotion>) {
@@ -94,19 +68,38 @@ export default function CompanionPetWindow() {
     }
   })()
   const chatOpen = overlay.chatOpen || previewPhone
+  const [yielding, setYielding] = useState(false)
+  const [phoneHeld, setPhoneHeld] = useState(false)
+  const [irisSettled, setIrisSettled] = useState(false)
+  const [thinkStartedAt, setThinkStartedAt] = useState<number | null>(null)
+  const chatWasOpen = useRef(chatOpen)
+  const phoneShown = useRef(chatOpen)
+  // Set when the closing phone unmounts, so the pet unit does not replay
+  // the opacity-0 entrance under a still phone-sized window.
+  const handoffPet = useRef(false)
+  const phoneKey = useRef(0)
+  const prevChatOpen = useRef(chatOpen)
+  const phoneOpening = (chatOpen || previewPhone) && !prevChatOpen.current
+  if (phoneOpening) phoneKey.current += 1
+  prevChatOpen.current = chatOpen || previewPhone
   const motion = resolveCompanionPetMotion({
     confirm: Boolean(companion.confirm),
-    error: Boolean(companion.error.trim())
-      && !companionMissingApiKey(companion.error)
-      && !companionSidecarDown(companion.error),
+    error: companionPetShowsError(companion.error),
     streaming: Boolean(companion.streaming),
     busy: companion.busy,
     complete: companion.complete,
   })
   const bubble = useMemo(
-    () => attentionText({ confirm: companion.confirm, error: companion.error, t }),
+    () => companionAttentionText({ confirm: companion.confirm, error: companion.error, t }),
     [companion.confirm, companion.error, t],
   )
+  const nextThinkStartedAt = stepCompanionThinkClock(
+    thinkStartedAt,
+    motion,
+    motion === 'think' && thinkStartedAt == null ? Date.now() : 0,
+    companion.busy,
+  )
+  if (nextThinkStartedAt !== thinkStartedAt) setThinkStartedAt(nextThinkStartedAt)
 
   useEffect(() => {
     if (!hasDesktopRuntime()) return undefined
@@ -211,6 +204,57 @@ export default function CompanionPetWindow() {
     applyThemeMode(readThemeMode())
   }, [chatOpen])
 
+  useEffect(() => {
+    if (!chatOpen) {
+      chatWasOpen.current = false
+      setYielding(false)
+      return
+    }
+    if (chatWasOpen.current || previewPhone || !companionPrefersUiMotion()) {
+      chatWasOpen.current = true
+      return
+    }
+    chatWasOpen.current = true
+    setYielding(true)
+    const timer = window.setTimeout(() => setYielding(false), COMPANION_FORM_MS)
+    return () => {
+      window.clearTimeout(timer)
+      chatWasOpen.current = false
+    }
+  }, [chatOpen, previewPhone])
+
+  useEffect(() => {
+    const visible = chatOpen || previewPhone
+    if (!visible || !companionPrefersUiMotion()) {
+      setIrisSettled(true)
+      return
+    }
+    setIrisSettled(false)
+    const timer = window.setTimeout(() => setIrisSettled(true), COMPANION_FORM_MS)
+    return () => window.clearTimeout(timer)
+  }, [chatOpen, previewPhone])
+
+  useEffect(() => {
+    if (chatOpen || previewPhone) {
+      phoneShown.current = true
+      handoffPet.current = false
+      setPhoneHeld(false)
+      return
+    }
+    if (!phoneShown.current || !companionPrefersUiMotion()) {
+      handoffPet.current = false
+      setPhoneHeld(false)
+      return
+    }
+    setPhoneHeld(true)
+    const timer = window.setTimeout(() => {
+      phoneShown.current = false
+      handoffPet.current = true
+      setPhoneHeld(false)
+    }, COMPANION_FORM_MS)
+    return () => window.clearTimeout(timer)
+  }, [chatOpen, previewPhone])
+
   const pressRef = useRef<{ x: number; y: number; opensChat: boolean } | null>(null)
   const lastOpenRef = useRef(0)
 
@@ -256,6 +300,11 @@ export default function CompanionPetWindow() {
     }
   }, [locale])
 
+  const showPhone = chatOpen || phoneHeld
+  // The close handoff mounts a new unit while the shell still holds phone
+  // bounds. Skip the entrance fade and the sprite's starting opacity so
+  // this frame is the pet, not another transparent layer.
+  const petArrived = handoffPet.current && !showPhone
   const pet = (
     <div
       className={[
@@ -287,6 +336,7 @@ export default function CompanionPetWindow() {
           src={spriteSrc(skin, motion)}
           alt=""
           draggable={false}
+          style={petArrived ? { opacity: 1, transition: 'none' } : undefined}
         />
         <div
           className="companion-pet-mark"
@@ -297,42 +347,22 @@ export default function CompanionPetWindow() {
             height: `${skin.mark.size * 100}%`,
           }}
         >
-          <svg className="companion-pet-spinner" viewBox="-50 -50 100 100" aria-hidden="true">
-            <g transform="rotate(16)">
-              {Array.from({ length: 8 }, (_, index) => (
-                <g key={index} transform={`rotate(${index * 45})`}>
-                  <rect x="-7.1" y="-46" width="14.2" height="49" rx="7.1" fill="#f4f2ef" />
-                  <rect x="-3.3" y="-36" width="6.6" height="30" rx="3.3" fill="#4a3238" />
-                </g>
-              ))}
-              <circle r="11" fill="#e8eef8" />
-              <circle r="6.5" fill="#d4deee" />
-            </g>
-          </svg>
-          <svg className="companion-pet-bang companion-pet-bang-yellow" viewBox="0 0 48 56" aria-hidden="true">
-            <rect x="18" y="2" width="12" height="34" rx="6" fill="#fff4c2" />
-            <rect x="20.5" y="5" width="7" height="28" rx="3.5" fill="#f0b400" />
-            <circle cx="24" cy="46" r="7" fill="#fff4c2" />
-            <circle cx="24" cy="46" r="4.6" fill="#f0b400" />
-          </svg>
-          <svg className="companion-pet-bang companion-pet-bang-green" viewBox="0 0 48 56" aria-hidden="true">
-            <rect x="18" y="2" width="12" height="34" rx="6" fill="#d9ffe6" />
-            <rect x="20.5" y="5" width="7" height="28" rx="3.5" fill="#2fbf5a" />
-            <circle cx="24" cy="46" r="7" fill="#d9ffe6" />
-            <circle cx="24" cy="46" r="4.6" fill="#2fbf5a" />
-          </svg>
+          <CompanionPetSpinner className="companion-pet-spinner" />
+          <CompanionPetBang tone="yellow" className="companion-pet-bang companion-pet-bang-yellow" />
+          <CompanionPetBang tone="green" className="companion-pet-bang companion-pet-bang-green" />
         </div>
       </div>
       <span className="sr-only">{t('桌宠', 'Companion')}</span>
     </div>
   )
-  if (chatOpen) {
+  if (showPhone) {
     const phone = (
       <div
-          className="companion-phone"
+          key={phoneKey.current}
+          className={['companion-phone', phoneHeld && !chatOpen ? 'is-closing' : '', irisSettled && !phoneOpening ? 'is-settled' : ''].filter(Boolean).join(' ')}
           data-testid="companion-phone"
           data-form="phone"
-          data-chat="open"
+          data-chat={chatOpen ? 'open' : 'closing'}
           data-preview={previewPhone ? 'true' : undefined}
           style={previewPhone ? { width: 288, height: 604 } : undefined}
           onPointerDown={event => {
@@ -343,20 +373,26 @@ export default function CompanionPetWindow() {
           }}
         >
           <div className="companion-phone-screen">
-            <CompanionPage embedded />
+            <CompanionPage embedded thinkStartedAt={nextThinkStartedAt} />
           </div>
         </div>
     )
     return (
       <>
         {previewPhone ? <div className="companion-unit">{phone}</div> : phone}
+        {yielding || phoneHeld ? <div className="companion-pet-yield">{pet}</div> : null}
         <Toaster />
       </>
     )
   }
 
   return (
-    <div className="companion-unit" data-form="pet" data-chat="closed">
+    <div
+      className="companion-unit"
+      data-form="pet"
+      data-chat="closed"
+      style={petArrived ? { animation: 'none' } : undefined}
+    >
       {pet}
     </div>
   )

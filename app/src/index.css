@@ -1038,6 +1038,8 @@ html.companion-surface #app {
      Scale 62/402 onto the screen, then add the 3 px bezel.
      Do not use corner-shape:squircle: Chromium treats that as a full-box
      superellipse and the handset becomes an app-icon blob. */
+  position: relative;
+  z-index: 2;
   --companion-phone-bezel: 3px;
   --companion-screen-radius: 41.64px;
   --companion-phone-radius: 44.64px;
@@ -1053,6 +1055,22 @@ html.companion-surface #app {
   background: #111;
   color: var(--popover-foreground);
   box-shadow: none;
+}
+
+.companion-phone::after {
+  content: '';
+  position: absolute;
+  z-index: 8;
+  left: 18%;
+  right: 18%;
+  top: 50%;
+  height: 2px;
+  translate: 0 -50%;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 0 8px rgb(255 255 255 / 90%);
+  pointer-events: none;
+  opacity: 0;
 }
 
 :root[data-theme='light'] .companion-phone {
@@ -1111,9 +1129,14 @@ html.companion-chat-surface #app {
   --companion-send-idle: #3a3a3c;
   --companion-run-gap: 10px;
   --companion-stack-gap: 2px;
-  --companion-glass: rgb(255 255 255 / 26%);
-  --companion-glass-border: rgb(255 255 255 / 20%);
-  --companion-glass-highlight: rgb(255 255 255 / 30%);
+  --companion-glass: rgb(28 28 30 / 42%);
+  --companion-glass-field: rgb(28 28 30 / 58%);
+  --companion-glass-border: rgb(255 255 255 / 22%);
+  --companion-glass-highlight: rgb(255 255 255 / 36%);
+  --companion-glass-sheen: rgb(255 255 255 / 28%);
+  --companion-phone-group: rgb(28 28 30 / 94%);
+  --companion-phone-group-line: rgb(255 255 255 / 12%);
+  --companion-phone-settings-tint: rgb(0 0 0 / 55%);
   --companion-stamp: #8e8e93;
   --companion-fade-end: 104px;
   --companion-log-pad: 148px;
@@ -1136,15 +1159,31 @@ html.companion-chat-surface #app {
   --companion-field: #f9f9f9;
   --companion-field-border: #ebebeb;
   --companion-send-idle: #c7c7cc;
-  --companion-glass: rgb(249 249 251 / 72%);
-  --companion-glass-border: rgb(0 0 0 / 8%);
-  --companion-glass-highlight: rgb(255 255 255 / 88%);
+  --companion-glass: rgb(255 255 255 / 46%);
+  --companion-glass-field: rgb(255 255 255 / 62%);
+  --companion-glass-border: rgb(255 255 255 / 72%);
+  --companion-glass-highlight: rgb(255 255 255 / 90%);
+  --companion-glass-sheen: rgb(255 255 255 / 70%);
+  --companion-phone-group: rgb(255 255 255 / 94%);
+  --companion-phone-group-line: rgb(0 0 0 / 8%);
+  --companion-phone-settings-tint: rgb(242 242 247 / 72%);
+}
+
+.companion-chat-stage {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
 }
 
 .companion-chat-statusbar {
-  display: flex;
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
+  column-gap: 8px;
   flex: none;
   min-height: 28px;
   padding: 10px 20px 2px;
@@ -1157,15 +1196,161 @@ html.companion-chat-surface #app {
   -webkit-app-region: no-drag;
 }
 
+.companion-chat-statusbar-facts {
+  display: contents;
+}
+
 .companion-chat-statusbar-time {
+  grid-column: 1;
+  grid-row: 1;
   margin: 0;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.companion-island-slot {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: center;
+  position: relative;
+  width: 0;
+  height: 0;
+}
+
+.companion-island-slot[data-live] {
+  width: 120px;
+  max-width: 100%;
+  min-width: 0;
+  height: 26px;
 }
 
 .companion-chat-statusbar-end {
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: end;
   display: flex;
   align-items: center;
   gap: 6px;
+  white-space: nowrap;
+}
+
+/* Solid black capsule. The clip stays on this fill, not on the glass fade. */
+button.companion-island {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 116px;
+  margin: 0;
+  padding: 0;
+  appearance: none;
+  border: 0;
+  border-radius: 0;
+  background: #000;
+  color: #fff;
+  box-shadow: none;
+  cursor: pointer;
+  overflow: visible;
+  clip-path: inset(0 0 calc(100% - 26px) 0 round 13px);
+  -webkit-app-region: no-drag;
+}
+
+:root[data-theme='light'] button.companion-island {
+  background: #000;
+  color: #fff;
+}
+
+.companion-island-compact,
+.companion-island-detail {
+  position: absolute;
+  right: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  pointer-events: none;
+}
+
+.companion-island-compact {
+  top: 0;
+  gap: 4px;
+  height: 26px;
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.01em;
+}
+
+.companion-island-detail {
+  top: 0;
+  bottom: 0;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 10px 12px;
+  opacity: 0;
+}
+
+.companion-island.is-open .companion-island-compact {
+  opacity: 0;
+}
+
+.companion-island.is-open .companion-island-detail {
+  opacity: 1;
+}
+
+.companion-island-readout,
+.companion-island-duration {
+  font-variant-numeric: tabular-nums;
+}
+
+.companion-island-title,
+.companion-island-duration,
+.companion-island-sentence {
+  margin: 0;
+  color: #fff;
+  font-weight: 600;
+  text-align: center;
+}
+
+.companion-island-title {
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.companion-island-duration {
+  font-size: 22px;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.companion-island-sentence {
+  font-size: 12px;
+  line-height: 1.35;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+}
+
+.companion-island-spinner {
+  display: block;
+  flex: none;
+  width: 14px;
+  height: 14px;
+}
+
+.companion-island-bang {
+  display: block;
+  flex: none;
+  width: 12px;
+  height: 16px;
+}
+
+.companion-island-detail .companion-island-bang {
+  width: 14px;
+  height: 18px;
 }
 
 .companion-chat-statusbar-glyph {
@@ -1176,38 +1361,17 @@ html.companion-chat-surface #app {
 
 .companion-chat-battery {
   display: inline-flex;
-  align-items: center;
-  gap: 2px;
-}
-
-.companion-chat-battery-body {
-  box-sizing: border-box;
-  width: 22px;
-  height: 11px;
-  padding: 1px;
-  border: 1px solid currentColor;
-  border-radius: 3px;
-}
-
-.companion-chat-battery-level {
-  display: block;
-  height: 100%;
-  border-radius: 1px;
-  background: currentColor;
-}
-
-.companion-chat-battery-nub {
-  width: 2px;
-  height: 5px;
-  border-radius: 0 1px 1px 0;
-  background: currentColor;
-  opacity: 0.72;
-}
-
-.companion-chat-battery-bolt {
-  width: 9px;
-  height: 9px;
   flex: none;
+  width: 31px;
+  height: 13px;
+  color: inherit;
+}
+
+.companion-chat-battery-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
 }
 
 .companion-chat-chrome {
@@ -1262,6 +1426,7 @@ html.companion-chat-surface #app {
 .companion-chat-identity {
   display: flex;
   min-width: 0;
+  max-width: 100%;
   flex-direction: column;
   align-items: center;
   gap: 5px;
@@ -1281,7 +1446,8 @@ html.companion-chat-surface #app {
   -webkit-app-region: no-drag;
 }
 
-.companion-chat-avatar-btn:hover {
+.companion-chat-avatar-btn:hover,
+button.companion-chat-title:hover {
   opacity: 0.78;
 }
 
@@ -1300,12 +1466,20 @@ html.companion-chat-surface #app {
 
 .companion-glass {
   border: 0.5px solid var(--companion-glass-border);
-  background: var(--companion-glass);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  backdrop-filter: blur(20px) saturate(180%);
+  background:
+    linear-gradient(180deg, var(--companion-glass-sheen), transparent 46%),
+    var(--companion-glass);
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
+  backdrop-filter: blur(22px) saturate(180%);
   box-shadow:
     inset 0 0.5px 0 var(--companion-glass-highlight),
-    0 0.5px 1px rgb(0 0 0 / 8%);
+    0 10px 24px rgb(0 0 0 / 12%);
+}
+
+.companion-glass-field {
+  background:
+    linear-gradient(180deg, var(--companion-glass-sheen), transparent 42%),
+    var(--companion-glass-field, var(--companion-glass));
 }
 
 .companion-chat-title {
@@ -1323,8 +1497,62 @@ html.companion-chat-surface #app {
   font-weight: 600;
 }
 
+button.companion-chat-title {
+  display: block;
+  margin: 0;
+  appearance: none;
+  cursor: pointer;
+  text-align: center;
+}
+
+/* Phone settings push. The pane is the only backdrop-filter. It counter-translates
+   against the sheet so its box stays inside the screen and does not sample the
+   desktop. Do not put clip-path on the pane: Chromium drops the backdrop. */
 .companion-phone-settings {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  overflow: hidden;
   font-family: var(--font-ui);
+  pointer-events: none;
+  background: transparent;
+}
+
+.companion-phone-settings.is-open {
+  pointer-events: auto;
+}
+
+.companion-phone-settings-sheet {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transform: translateX(100%);
+}
+
+.companion-phone-settings.is-open .companion-phone-settings-sheet {
+  transform: translateX(0);
+}
+
+.companion-phone-settings-pane {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: var(--companion-phone-settings-tint);
+  transform: translateX(-100%);
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
+  backdrop-filter: blur(22px) saturate(180%);
+}
+
+.companion-phone-settings.is-open .companion-phone-settings-pane {
+  transform: translateX(0);
+}
+
+.companion-phone-settings .companion-glass {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 .companion-phone-settings-scroll {
@@ -1334,12 +1562,12 @@ html.companion-chat-surface #app {
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  padding: 96px 10px 24px;
+  padding: 112px 16px 28px;
   -webkit-app-region: no-drag;
 }
 
 .companion-phone-settings-scroll > * + * {
-  margin-top: 12px;
+  margin-top: 22px;
 }
 
 .companion-phone-settings-head {
@@ -1354,28 +1582,98 @@ html.companion-chat-surface #app {
 }
 
 .companion-phone-settings-title {
-  width: fit-content;
+  margin: 0;
   max-width: calc(100% - 8px);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  padding: 5px 12px;
-  border-radius: 999px;
   color: var(--companion-bubble-incoming-fg);
-  font-size: var(--text-label);
-  line-height: var(--text-label--line-height);
+  font-size: 16px;
+  line-height: 20px;
   font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.companion-phone-settings-scroll section > div:first-child {
+  min-height: 0;
+  padding: 0 4px 6px;
+}
+
+.companion-phone-settings-scroll section > div:first-child h2 {
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 16px;
+  letter-spacing: -0.01em;
+  color: var(--companion-stamp);
+}
+
+.companion-phone-settings-scroll section > div:last-child {
+  border: 0.5px solid var(--companion-phone-group-line);
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, var(--companion-glass-sheen), transparent 28%),
+    var(--companion-phone-group);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow: none;
+}
+
+.companion-phone-settings-scroll section > div:last-child > div {
+  position: relative;
+  min-height: 44px;
+  align-items: center;
+  flex-direction: row;
+  gap: 10px;
+  padding: 10px 16px;
+  background: transparent;
+  border-bottom: 0;
+}
+
+.companion-phone-settings-scroll section > div:last-child > div > div:first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.companion-phone-settings-scroll section > div:last-child > div > div:last-child {
+  min-width: 0;
+  max-width: 58%;
+  justify-content: flex-end;
+}
+
+.companion-phone-settings-scroll section > div:last-child > div:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  left: 16px;
+  right: 0;
+  bottom: 0;
+  height: 0.5px;
+  background: var(--companion-phone-group-line);
+  pointer-events: none;
 }
 
 .companion-phone-settings .settings-row-type {
-  font-size: var(--text-label);
-  line-height: var(--text-label--line-height);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: -0.02em;
+}
+
+.companion-phone-settings .settings-control {
+  width: auto;
+  max-width: 100%;
+  min-width: 0;
+  height: 28px;
+  min-height: 28px;
 }
 
 .companion-chat-icon,
 .companion-chat-composer,
 .companion-chat-log,
 .companion-phone-settings-scroll,
+.companion-chat-footer,
 .companion-chat-dock,
 .companion-chat-confirm,
 .companion-chat-side,
@@ -1413,7 +1711,7 @@ html.companion-chat-surface #app {
   min-height: 0;
   flex-direction: column;
   overflow-y: auto;
-  padding: var(--companion-log-pad) 10px 8px;
+  padding: var(--companion-log-pad) 10px var(--companion-footer-space, 88px);
 }
 
 .companion-chat-log-flow {
@@ -1719,14 +2017,37 @@ html.companion-chat-surface #app {
   opacity: 0.8;
 }
 
+.companion-chat-fade-bottom {
+  top: auto;
+  bottom: 0;
+  height: calc(var(--companion-footer-space, 88px) + 28px);
+}
+
+.companion-chat-footer {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 0 0;
+  pointer-events: none;
+}
+
+.companion-chat-footer > * {
+  pointer-events: auto;
+}
+
 .companion-chat-dock {
   position: relative;
   z-index: 3;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 0 10px 8px;
-  background: var(--companion-page);
+  padding: 0 10px;
+  background: transparent;
 }
 
 .companion-chat-confirm,
@@ -1772,7 +2093,7 @@ html.companion-chat-surface #app {
   position: relative;
   z-index: 3;
   padding: 6px 10px 12px;
-  background: var(--companion-page);
+  background: transparent;
 }
 
 .companion-chat-compose-row {
@@ -1859,9 +2180,7 @@ html.companion-chat-surface #app {
   gap: 6px;
   min-height: 36px;
   padding: 3px 4px 3px 12px;
-  border: 1px solid var(--companion-field-border);
   border-radius: 18px;
-  background: var(--companion-field);
 }
 
 .companion-chat-well:focus-within {
@@ -1933,6 +2252,17 @@ html.companion-chat-surface #app {
 
 .companion-pet-menu button:active {
   background: var(--pressed-row);
+}
+
+.companion-pet-yield {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  z-index: 1;
+  width: 160px;
+  height: 160px;
+  margin-left: -80px;
+  pointer-events: none;
 }
 
 .companion-pet {
@@ -2070,6 +2400,39 @@ html.companion-chat-surface #app {
   }
 }
 
+@keyframes companion-phone-iris-in {
+  from { clip-path: inset(49.8% 0 49.8% 0); }
+  to { clip-path: inset(0% 0 0% 0); }
+}
+
+@keyframes companion-phone-iris-out {
+  0% {
+    clip-path: inset(0% 0 0% 0);
+    opacity: 1;
+  }
+  72% {
+    clip-path: inset(49.8% 0 49.8% 0);
+    opacity: 1;
+  }
+  100% {
+    clip-path: inset(49.8% 0 49.8% 0);
+    opacity: 0;
+  }
+}
+
+@keyframes companion-phone-seam-in {
+  0% { opacity: 1; }
+  28% { opacity: 1; }
+  55% { opacity: 0; }
+  100% { opacity: 0; }
+}
+
+@keyframes companion-phone-seam-out {
+  0% { opacity: 0; }
+  60% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
 @keyframes companion-sheet-in {
   from {
     opacity: 0;
@@ -2135,13 +2498,37 @@ html.companion-chat-surface #app {
   }
 
   .companion-phone {
-    transform-origin: 50% 100%;
-    animation: companion-surface-in var(--motion-slow) var(--ease-drawer) both;
+    animation: companion-phone-iris-in var(--motion-slow) var(--ease-drawer) both;
   }
 
-  .companion-phone-settings {
-    transform-origin: 50% 0;
-    animation: companion-sheet-in var(--motion-slow) var(--ease-drawer) both;
+  .companion-phone::after {
+    animation: companion-phone-seam-in var(--motion-slow) var(--ease-out) both;
+  }
+
+  .companion-phone.is-closing {
+    animation: companion-phone-iris-out var(--motion-slow) var(--ease-drawer) both;
+    pointer-events: none;
+  }
+
+  .companion-phone.is-closing::after {
+    animation: companion-phone-seam-out var(--motion-slow) var(--ease-out) both;
+  }
+
+  /* Drop the iris clip once the handset is open. An ancestor clip-path
+     leaves Chromium's backdrop-filter empty, which blanks the glass. */
+  .companion-phone.is-settled:not(.is-closing) {
+    animation: none;
+    clip-path: none;
+  }
+
+  .companion-phone.is-settled:not(.is-closing)::after {
+    animation: none;
+    opacity: 0;
+  }
+
+  .companion-phone-settings-sheet,
+  .companion-phone-settings-pane {
+    transition: transform var(--motion-slow) var(--ease-drawer);
   }
 
   .companion-pet-bubble {
@@ -2215,12 +2602,27 @@ html.companion-chat-surface #app {
     animation: companion-pet-spin 1.6s linear infinite;
   }
 
+  button.companion-island {
+    transition: clip-path var(--motion-slow) var(--ease-drawer);
+  }
+
+  .companion-island-compact,
+  .companion-island-detail {
+    transition: opacity var(--motion-slow) var(--ease-drawer);
+  }
+
+  .companion-island-spinner {
+    transform-origin: center;
+    animation: companion-pet-spin 1.6s linear infinite;
+  }
+
   .companion-chat-typing span {
     animation: companion-chat-typing 1s var(--ease-in-out) infinite;
   }
 
   .companion-chat-icon,
   .companion-chat-avatar-btn,
+  .companion-chat-title,
   .companion-chat-attach-chip,
   .companion-chat-attach-remove {
     transition: opacity var(--motion-fast) ease, transform var(--motion-fast) var(--ease-out);
@@ -2228,6 +2630,7 @@ html.companion-chat-surface #app {
 
   .companion-chat-icon:active,
   .companion-chat-avatar-btn:active,
+  .companion-chat-title:active,
   .companion-chat-attach-chip:active,
   .companion-chat-attach-remove:active {
     transform: scale(0.97);
@@ -2247,5 +2650,18 @@ html.companion-chat-surface #app {
 
   .companion-pet-menu button {
     transition: background-color var(--motion-fast) ease;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .companion-phone-settings-sheet,
+  .companion-phone-settings-pane,
+  .companion-phone-settings.is-open .companion-phone-settings-sheet,
+  .companion-phone-settings.is-open .companion-phone-settings-pane {
+    transform: none;
+  }
+
+  .companion-phone-settings:not(.is-open) {
+    visibility: hidden;
   }
 }

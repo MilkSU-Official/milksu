@@ -83,17 +83,18 @@ func OpenCompanionSidecar(
 	return command, stdin, stdout, nil
 }
 
-// ErrCompanionCredentialMissing means the companion's selected source has no
-// key. Callers must fail the turn instead of borrowing another source.
+// ErrCompanionCredentialMissing means the companion turn's source has no key.
+// An explicit personal or service choice is not replaced. The factory account
+// route is the one exception: when that relay has no key, ResolveCompanionTurn
+// adopts the main window's already configured provider instead of failing.
 var ErrCompanionCredentialMissing = errors.New("companion credential missing")
 
 // CompanionCustomProvider is the turn-scoped custom relay definition for the
 // companion process. Keys stay in this payload and never enter tool output.
 //
-// The payload follows companion_source. Personal and service turns use that
+// The payload follows the turn selection. Personal and service turns use that
 // provider's own key. Account turns use the account relay and do not attach
-// a homepage or personal relay payload. An empty companion provider is not
-// filled from ActiveProvider.
+// a homepage or personal relay payload.
 func CompanionCustomProvider(settings config.AppSettings) map[string]any {
 	payload, err := CompanionTurnAuth(settings)
 	if err != nil {
@@ -102,11 +103,67 @@ func CompanionCustomProvider(settings config.AppSettings) map[string]any {
 	return payload
 }
 
+// ResolveCompanionTurn is the model the companion process may call.
+// A saved explicit source is kept. The factory account route stays on the
+// account relay when that relay has a key. When the factory account route
+// has no key, the turn uses the same provider and model the main window
+// can already call, and the same key already stored for that provider.
+func ResolveCompanionTurn(settings config.AppSettings) config.CompanionModelSelection {
+	selection := config.ResolveCompanionModel(settings)
+	if !companionFactoryAccountWithoutKey(settings, selection) {
+		return selection
+	}
+	if adopted, ok := companionMainWindowRoute(settings); ok {
+		return adopted
+	}
+	return selection
+}
+
+func companionFactoryAccountWithoutKey(settings config.AppSettings, selection config.CompanionModelSelection) bool {
+	if selection.Source != config.ModelSourceAccount || accountRelayReady(settings) {
+		return false
+	}
+	return selection.Provider == config.DefaultCompanionProvider &&
+		selection.Model == config.DefaultCompanionModel
+}
+
+// companionMainWindowRoute is the provider and model the main window already
+// uses. It reads that provider's existing key. It does not invent a source
+// or copy the key into companion settings.
+func companionMainWindowRoute(settings config.AppSettings) (config.CompanionModelSelection, bool) {
+	providerName := strings.TrimSpace(settings.ActiveProvider)
+	model := strings.TrimSpace(settings.ActiveModel)
+	if providerName == "" || model == "" {
+		return config.CompanionModelSelection{}, false
+	}
+	provider, exists := settings.Providers[providerName]
+	if !exists || !provider.Enabled {
+		return config.CompanionModelSelection{}, false
+	}
+	source := config.ModelSourcePersonal
+	if provider.Custom {
+		source = "service"
+		if customProviderPayloadFor(settings, providerName) == nil {
+			return config.CompanionModelSelection{}, false
+		}
+	} else if strings.TrimSpace(provider.APIKey) == "" {
+		return config.CompanionModelSelection{}, false
+	}
+	return config.CompanionModelSelection{
+		Provider: providerName,
+		Model:    model,
+		Source:   source,
+	}, true
+}
+
 // CompanionTurnAuth resolves the credential the companion turn is allowed to
 // use. A missing key is an error so the caller does not send the account
 // relay secret, or an empty key, to a different relay.
 func CompanionTurnAuth(settings config.AppSettings) (map[string]any, error) {
-	selection := config.ResolveCompanionModel(settings)
+	return companionAuthFor(settings, ResolveCompanionTurn(settings))
+}
+
+func companionAuthFor(settings config.AppSettings, selection config.CompanionModelSelection) (map[string]any, error) {
 	switch selection.Source {
 	case config.ModelSourceAccount:
 		if !accountRelayReady(settings) {
@@ -114,7 +171,7 @@ func CompanionTurnAuth(settings config.AppSettings) (map[string]any, error) {
 		}
 		return nil, nil
 	case config.ModelSourcePersonal, "service":
-		name := strings.TrimSpace(settings.CompanionProvider)
+		name := strings.TrimSpace(selection.Provider)
 		if name == "" {
 			return nil, ErrCompanionCredentialMissing
 		}

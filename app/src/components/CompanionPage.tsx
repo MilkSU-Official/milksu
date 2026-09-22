@@ -44,6 +44,11 @@ import {
 } from '@/lib/companionTurnProcess'
 import { isComposingKey } from '@/lib/imeComposition'
 import {
+  companionAttentionText,
+  companionPetShowsError,
+  resolveCompanionIsland,
+} from '@/lib/companionPetMotion'
+import {
   encodePickerSelection,
   installAppModelSettings,
   loadModelCatalog,
@@ -165,15 +170,30 @@ function companionConfirmLine(
 
 export default function CompanionPage({
   embedded = false,
+  thinkStartedAt = null,
 }: {
   embedded?: boolean
+  thinkStartedAt?: number | null
 }) {
   const t = useT()
   const locale = useUiLocale()
   const companion = useCompanion()
+  const island = resolveCompanionIsland({
+    confirm: Boolean(companion.confirm),
+    error: companionPetShowsError(companion.error),
+    streaming: Boolean(companion.streaming),
+    busy: companion.busy,
+    complete: companion.complete,
+  })
+  const attention = companionAttentionText({
+    confirm: companion.confirm,
+    error: companion.error,
+    t,
+  })
   const parentRef = useRef<HTMLDivElement>(null)
   const chatRef = useRef<HTMLElement>(null)
-  const titleRef = useRef<HTMLParagraphElement>(null)
+  const footerRef = useRef<HTMLDivElement>(null)
+  const titleRef = useRef<HTMLButtonElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const stickToEnd = useRef(true)
   const [screen, setScreen] = useState<CompanionPhoneScreen>('chat')
@@ -391,7 +411,6 @@ export default function CompanionPage({
   }, [screen, t])
 
   useLayoutEffect(() => {
-    if (screen !== 'chat') return undefined
     const chat = chatRef.current
     const title = titleRef.current
     if (!chat || !title) return undefined
@@ -530,40 +549,26 @@ export default function CompanionPage({
     }
   }
 
-  if (screen === 'settings') {
-    return (
-      <main className="companion-chat companion-phone-settings" data-testid="companion-phone-settings">
-        <div className="companion-phone-settings-scroll">
-          <CompanionSettingsPanel
-            settings={phoneSettings}
-            groups={modelGroups}
-            compact
-            onPersist={() => void persistPhoneSettings()}
-          />
-        </div>
-        <div className="companion-chat-chrome">
-          <CompanionPhoneStatusBar />
-          <header className="companion-phone-settings-head">
-            <button
-              type="button"
-              className="companion-chat-icon companion-glass"
-              aria-label={t('返回对话', 'Back to chat')}
-              title={t('返回对话', 'Back to chat')}
-              onClick={() => setScreen('chat')}
-            >
-              <ChevronLeft className="size-5" strokeWidth={2.4} />
-            </button>
-            <p className="companion-phone-settings-title companion-glass">
-              {t('桌宠设置', 'Companion settings')}
-            </p>
-          </header>
-        </div>
-      </main>
-    )
-  }
+  useLayoutEffect(() => {
+    const footer = footerRef.current
+    const root = chatRef.current
+    const log = parentRef.current
+    if (!footer || !root) return
+    const apply = () => {
+      root.style.setProperty('--companion-footer-space', `${footer.offsetHeight + 12}px`)
+      if (log && stickToEnd.current) log.scrollTop = log.scrollHeight
+    }
+    apply()
+    const observer = new ResizeObserver(apply)
+    observer.observe(footer)
+    return () => observer.disconnect()
+  }, [screen, layoutEpoch])
+
+  const settingsOpen = screen === 'settings'
 
   return (
     <main ref={chatRef} className="companion-chat" data-testid="companion-chat">
+      <div className="companion-chat-stage" inert={settingsOpen ? true : undefined}>
       <div
         ref={parentRef}
         className="companion-chat-log companion-chat-log-flow"
@@ -672,8 +677,19 @@ export default function CompanionPage({
           intensity={100}
         />
       </div>
+      <div className="companion-chat-fade companion-chat-fade-bottom" aria-hidden="true">
+        <ProgressiveBlur
+          className="companion-chat-fade-progressive"
+          position="bottom"
+          intensity={100}
+        />
+      </div>
       <div className="companion-chat-chrome">
-        <CompanionPhoneStatusBar />
+        <CompanionPhoneStatusBar
+          island={island}
+          attention={attention}
+          thinkStartedAt={thinkStartedAt}
+        />
         <header className="companion-chat-head">
           <button
             type="button"
@@ -694,10 +710,20 @@ export default function CompanionPage({
             >
               <img key={avatar} className="companion-chat-avatar" src={avatar} alt="" draggable={false} />
             </button>
-            <p ref={titleRef} className="companion-chat-title companion-glass">{petName}</p>
+            <button
+              ref={titleRef}
+              type="button"
+              className="companion-chat-title companion-glass"
+              aria-label={t('桌宠设置', 'Companion settings')}
+              title={t('桌宠设置', 'Companion settings')}
+              onClick={() => setScreen('settings')}
+            >
+              {petName}
+            </button>
           </div>
         </header>
       </div>
+      <div ref={footerRef} className="companion-chat-footer">
       {(companion.memory.pending ?? []).length || companion.confirm ? (
         <div className="companion-chat-dock">
           {(companion.memory.pending ?? []).map(item => (
@@ -791,7 +817,7 @@ export default function CompanionPage({
             <Plus className="size-4" />
           </Button>
           <div
-            className="companion-chat-well"
+            className="companion-chat-well companion-glass companion-glass-field"
             onDragOver={event => {
               if (![...event.dataTransfer.types].includes('Files')) return
               event.preventDefault()
@@ -843,6 +869,47 @@ export default function CompanionPage({
                 ? <Square className="size-3.5 fill-current" />
                 : <ArrowUp className="size-4" />}
             </Button>
+          </div>
+        </div>
+      </div>
+      </div>
+      </div>
+      <div
+        className={cn('companion-phone-settings', settingsOpen && 'is-open')}
+        data-testid="companion-phone-settings"
+        inert={settingsOpen ? undefined : true}
+        aria-hidden={settingsOpen ? undefined : true}
+      >
+        <div className="companion-phone-settings-sheet">
+          <div className="companion-phone-settings-pane" aria-hidden="true" />
+          <div className="companion-phone-settings-scroll">
+            <CompanionSettingsPanel
+              settings={phoneSettings}
+              groups={modelGroups}
+              presentation="phone"
+              onPersist={() => void persistPhoneSettings()}
+            />
+          </div>
+          <div className="companion-chat-chrome">
+            <CompanionPhoneStatusBar
+              island={island}
+              attention={attention}
+              thinkStartedAt={thinkStartedAt}
+            />
+            <header className="companion-phone-settings-head">
+              <button
+                type="button"
+                className="companion-chat-icon companion-glass"
+                aria-label={t('返回对话', 'Back to chat')}
+                title={t('返回对话', 'Back to chat')}
+                onClick={() => setScreen('chat')}
+              >
+                <ChevronLeft className="size-5" strokeWidth={2.4} />
+              </button>
+              <p className="companion-phone-settings-title">
+                {t('桌宠设置', 'Companion settings')}
+              </p>
+            </header>
           </div>
         </div>
       </div>

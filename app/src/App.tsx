@@ -70,7 +70,8 @@ import {
 } from '@/lib/updateResumeState'
 import { updateStatusMessage } from '@/lib/updateStatus'
 import { FACTORY_DEFAULT_KERNEL } from '@/lib/agentKernel'
-import { withAppSettingsDefaults, type AccountStatus, type AppSettings, type CTFChatAction, type UpdateStatus } from '@/types'
+import { companionPawState, type CompanionPawState } from '@/lib/companionOverlayState'
+import { withAppSettingsDefaults, type AccountStatus, type AppSettings, type CompanionShellStatus, type CTFChatAction, type UpdateStatus } from '@/types'
 import type { ModelCatalogSnapshot } from '@/types'
 import { installAppModelSettings, installModelCatalog, loadModelCatalog } from '@/modelCatalog'
 import { toolBudgetToolName } from '@/lib/toolBudget'
@@ -247,6 +248,7 @@ export default function App() {
   const applyingUpdate = useRef(false)
   const confirmingUpdateRestart = useRef(false)
   const [themeMode, setThemeMode] = useState<ThemeMode>(readThemeMode)
+  const [companionPaw, setCompanionPaw] = useState<CompanionPawState>('pet')
   const [systemDark, setSystemDark] = useState(false)
   const [pluginTheme, setPluginTheme] = useState<ActivePluginTheme>(() => normalizeActivePluginTheme(null))
   const [runtimeStatus, setRuntimeStatus] = useState<'ready' | 'starting' | 'recovering' | 'exited'>('ready')
@@ -1361,6 +1363,24 @@ export default function App() {
 
   useEffect(() => {
     let stop: (() => void) | undefined
+    void invokeCommand<CompanionShellStatus>('get_companion_shell_status')
+      .then(status => {
+        setCompanionPaw(companionPawState({
+          chatOpen: status?.chatOpen,
+          petHidden: status?.petHidden,
+        }))
+      })
+      .catch(() => undefined)
+    void listenEvent<{ chatOpen?: boolean; petHidden?: boolean }>('companion.overlay', event => {
+      setCompanionPaw(companionPawState(event.payload))
+    }).then(unlisten => {
+      stop = unlisten
+    })
+    return () => stop?.()
+  }, [])
+
+  useEffect(() => {
+    let stop: (() => void) | undefined
     void listenEvent<{ section?: string; category?: string }>('companion.navigate', event => {
       if (event.payload?.section !== 'settings') return
       setSettingsCategory(normalizeSettingsCategory((event.payload.category as SettingsCategory) || 'companion'))
@@ -1657,6 +1677,7 @@ export default function App() {
           onAccountLogin={startAccountLogin}
           onAccountLogout={logoutAccount}
           onSettings={() => openSettings('general')}
+          companionPaw={companionPaw}
           onCompanion={() => navigateSection('companion')}
           settingsCategory={settingsCategory}
           onSelectSettingsCategory={category => {

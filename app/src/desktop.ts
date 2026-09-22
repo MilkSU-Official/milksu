@@ -1,4 +1,5 @@
 import { recordRpcCall } from '@/lib/debugMode'
+import { companionPrefersUiMotion } from '@/lib/companionPetMotion'
 import {
   type AccountStatus,
   type AppSettings,
@@ -318,8 +319,8 @@ interface DesktopAppBindings {
   SetCompanionPetBubble(request: { visible: boolean }): Promise<CompanionShellStatus>
   ShowCompanionMainWindow(): Promise<CompanionShellStatus>
   ShowCompanionChatWindow(): Promise<CompanionShellStatus>
-  HideCompanionChatWindow(): Promise<CompanionShellStatus>
-  ClickCompanionPet(request?: { locale?: string }): Promise<CompanionShellStatus>
+  HideCompanionChatWindow(request?: { motion?: boolean; locale?: string }): Promise<CompanionShellStatus>
+  ClickCompanionPet(request?: { locale?: string; motion?: boolean }): Promise<CompanionShellStatus>
   ShowCompanionSettings(): Promise<CompanionShellStatus>
   PopupCompanionMenu(request?: {
     x?: number
@@ -855,10 +856,14 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
       case 'show_companion_chat_window':
         return app.ShowCompanionChatWindow() as Promise<T>
       case 'hide_companion_chat_window':
-        return app.HideCompanionChatWindow() as Promise<T>
+        return app.HideCompanionChatWindow({
+          locale: typeof args?.locale === 'string' ? args.locale : undefined,
+          motion: companionPrefersUiMotion(),
+        }) as Promise<T>
       case 'click_companion_pet':
         return app.ClickCompanionPet({
           locale: typeof args?.locale === 'string' ? args.locale : undefined,
+          motion: companionPrefersUiMotion(),
         }) as Promise<T>
       case 'show_companion_settings':
         return app.ShowCompanionSettings() as Promise<T>

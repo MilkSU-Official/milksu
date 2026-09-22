@@ -109,6 +109,8 @@ React 组件、hooks 和前端 lib 文案里每一条用户可见的中文串，
 新 UI 和每一次重构都用 **React + [shadcn/ui](https://ui.shadcn.com/)（New York、zinc）**。
 不新开 Vue 页面，不加 Felinic。不跟 DeepSeek Harness 的 web GUI。
 不要把 Beautiful UI 夜间玻璃、战术 / 游戏感 chrome 和 ak-ui 混在同一个表面上。
+所有 UI 功能先联网搜索成熟实现作为参考，并套进本节已有的 React + shadcn、token 和动效规则；不要手搓一次性的控件、图标或布局，除非用户明确确认要手搓。
+所有 UI 功能先联网搜索成熟实现作为参考，并套进本节已有的 React + shadcn、token 和动效规则；不要手搓一次性的控件、图标或布局，除非用户明确确认要手搓。
 
 MilkSU 仍然自己持有：双语 `t('中文', 'English')`、空控件留白、三端窗口框、
 CTF / CVE / 实验室领域 chrome，以及桌面授权。

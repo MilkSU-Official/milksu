@@ -3,6 +3,7 @@ import { useT } from '@/hooks/useUiLocale'
 import type { ThemeMode } from '@/lib/themeMode'
 import type { NormalizedSettingsCategory } from '@/lib/settingsNavigation'
 import type { AppSection, CTFWorkspaceSection, WorkspaceSection } from '@/lib/workspaceNavigation'
+import type { CompanionPawState } from '@/lib/companionOverlayState'
 import type { AccountStatus, Conversation, UpdateStatus } from '@/types'
 
 export default function AppSidebar({
@@ -20,6 +21,7 @@ export default function AppSidebar({
   onNavigate,
   onSettings,
   onCompanion,
+  companionPaw,
   settingsCategory,
   onSelectSettingsCategory,
   onCloseSettings,
@@ -56,6 +58,7 @@ export default function AppSidebar({
   onNavigate?: (value: WorkspaceSection) => void
   onSettings?: () => void
   onCompanion?: () => void
+  companionPaw?: CompanionPawState
   settingsCategory?: NormalizedSettingsCategory
   onSelectSettingsCategory?: (value: NormalizedSettingsCategory) => void
   onCloseSettings?: () => void
@@ -116,6 +119,7 @@ export default function AppSidebar({
         onProfile={onProfile}
         onSettings={onSettings}
         onCompanion={onCompanion}
+        companionPaw={companionPaw}
         onAccountLogin={onAccountLogin}
         onAccountLogout={onAccountLogout}
         onToggleTheme={onToggleTheme}

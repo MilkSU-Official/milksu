@@ -178,12 +178,23 @@ function createCompanionShell(options) {
   let shuttingDown = false
   let enabled = !wayland
   let petHidden = false
+  let companionGestureUntil = 0
   let lastMenuPopup = null
   let petDrag = null
   let petDragTimer = null
   let lastPetDragged = false
   let pointerPassthrough = false
   let petBubble = false
+  let chatIrisTimer = null
+  // Iris length matches `--motion-slow` / COMPANION_FORM_MS. The renderer
+  // swaps to the pet at that mark while this window is still phone-sized.
+  // The paint tail lets that sprite composite before setBounds. It is not a
+  // motion token, and it does not delay BrowserWindow.hide. Tests pass 0 so
+  // bounds settle in the same turn.
+  const chatIrisPaintTailMs = 48
+  const chatIrisMs = Number.isFinite(Number(options.chatIrisMs))
+    ? Math.max(0, Number(options.chatIrisMs))
+    : 260
   let uiLocale = normalizeUiLocale(
     typeof getUiLocale === 'function' ? getUiLocale() : '',
     'zh',
@@ -414,6 +425,7 @@ function createCompanionShell(options) {
   function emitOverlay() {
     emit('companion.overlay', {
       chatOpen: chatOpenFlag,
+      petHidden,
       chatSide: unitLayout?.chatSide === 'right' ? 'right' : 'left',
     })
   }
@@ -425,7 +437,26 @@ function createCompanionShell(options) {
     emitOverlay()
   }
 
+  function cancelChatIris() {
+    if (!chatIrisTimer) return
+    clearTimeout(chatIrisTimer)
+    chatIrisTimer = null
+  }
+
+  function finishChatIris() {
+    chatIrisTimer = null
+    if (chatOpenFlag || petHidden || !float || float.isDestroyed()) return
+    relayoutUnit()
+  }
+
+  function armChatIris() {
+    cancelChatIris()
+    // chatIrisMs is already > 0 here. The tail is only this chat-close hold.
+    chatIrisTimer = setTimeout(finishChatIris, chatIrisMs + chatIrisPaintTailMs)
+  }
+
   function relayoutUnit() {
+    if (chatIrisTimer) return
     applyUnitLayout(layoutCompanionUnit({
       chatOpen: chatOpenFlag,
       bubble: petBubble && !chatOpenFlag,
@@ -458,6 +489,7 @@ function createCompanionShell(options) {
   }
 
   function destroyOverlayWindows() {
+    cancelChatIris()
     stopPetDragTimer()
     petDrag = null
     if (float && !float.isDestroyed()) float.close()
@@ -476,19 +508,39 @@ function createCompanionShell(options) {
     chatOpenFlag = decision.state.chatOpen
     if (decision.effects.destroyOverlay) {
       destroyOverlayWindows()
+      emitOverlay()
       refreshMenus()
       return
     }
-    if (decision.effects.pet === 'hide') hidePetWindow()
-    else if (decision.effects.pet === 'show' || (decision.overlayVisible && (!float || float.isDestroyed()))) {
+    const holdPhoneForIris = options.motion !== false
+      && chatIrisMs > 0
+      && decision.effects.chat === 'hide'
+      && decision.overlayVisible
+      && decision.effects.pet !== 'hide'
+    if (decision.effects.pet === 'hide') {
+      cancelChatIris()
+      hidePetWindow()
+    } else if (decision.overlayVisible && (!float || float.isDestroyed())) {
       if (wayland) createFloat()
       else showPetWindow()
     }
-    if (float && !float.isDestroyed() && decision.effects.pet !== 'hide') {
-      relayoutUnit()
+    if (float && !float.isDestroyed() && decision.overlayVisible && decision.effects.pet !== 'hide') {
+      if (holdPhoneForIris) {
+        armChatIris()
+        emitOverlay()
+      } else {
+        cancelChatIris()
+        relayoutUnit()
+      }
       applyPointerPassthrough()
-      if (decision.effects.chat === 'show' || decision.effects.chat === 'focus' || decision.phoneVisible) {
+      if (
+        decision.effects.pet === 'show'
+        || decision.effects.chat === 'show'
+        || decision.effects.chat === 'focus'
+        || decision.phoneVisible
+      ) {
         float.show()
+        keepOverlayAboveApps(float)
         if (allowFocus && (decision.effects.chat === 'show' || decision.effects.chat === 'focus')) {
           float.focus()
         }
@@ -499,6 +551,7 @@ function createCompanionShell(options) {
     if (decision.effects.navigateSettings) {
       emit('companion.navigate', { section: 'settings', category: 'companion' })
     }
+    emitOverlay()
     refreshMenus()
   }
 
@@ -548,6 +601,7 @@ function createCompanionShell(options) {
     return {
       floating: Boolean(float) && !wayland,
       hidden: wayland || petHidden || !float,
+      petHidden,
       chatOpen: chatOpen(),
       wayland,
       tray: Boolean(tray),
@@ -609,8 +663,7 @@ function createCompanionShell(options) {
     tray = new Tray(image)
     if (typeof tray.setToolTip === 'function') tray.setToolTip('MilkSU')
     tray.on('click', () => {
-      if (enabled && !wayland && petHidden) showPet()
-      else showMainWindow()
+      showMainWindow()
     })
     if (typeof tray.on === 'function') {
       tray.on('right-click', () => {
@@ -670,6 +723,10 @@ function createCompanionShell(options) {
     dispatch(COMPANION_OVERLAY_ACTIONS.PARK_MAIN)
   }
 
+  function noteCompanionGesture() {
+    companionGestureUntil = Date.now() + 500
+  }
+
   function hidePet() {
     return dispatch(COMPANION_OVERLAY_ACTIONS.HIDE_PET)
   }
@@ -720,16 +777,19 @@ function createCompanionShell(options) {
     return status()
   }
 
-  function hideChatWindow() {
-    return dispatch(COMPANION_OVERLAY_ACTIONS.CLOSE_CHAT)
+  function hideChatWindow(payload = {}) {
+    noteCompanionGesture()
+    return dispatch(COMPANION_OVERLAY_ACTIONS.CLOSE_CHAT, { motion: payload.motion !== false })
   }
 
   function showChatWindow(payload = {}) {
+    noteCompanionGesture()
     return dispatch(COMPANION_OVERLAY_ACTIONS.OPEN_CHAT, { focus: payload.focus !== false })
   }
 
-  function clickPet() {
-    return dispatch(COMPANION_OVERLAY_ACTIONS.CLICK_PET)
+  function clickPet(payload = {}) {
+    noteCompanionGesture()
+    return dispatch(COMPANION_OVERLAY_ACTIONS.CLICK_PET, { motion: payload.motion !== false })
   }
 
   function popupCompanionMenu(payload = {}) {
@@ -773,7 +833,12 @@ function createCompanionShell(options) {
   function revealFromTaskbar() {
     keepAppPresence()
     createTray()
-    return dispatch(COMPANION_OVERLAY_ACTIONS.REVEAL_FROM_TASKBAR)
+    // Dock / taskbar / second-instance bring the main window forward.
+    // A hidden pet stays hidden until 显示桌宠 or 对话. A gesture that just
+    // focused the phone or the sprite must not also pop the main window.
+    if (Date.now() < companionGestureUntil) return status()
+    if (!mainParked()) return status()
+    return showMainWindow()
   }
 
   function beginQuit() {
@@ -935,8 +1000,8 @@ function createCompanionShell(options) {
     }
     if (method === 'ShowCompanionMainWindow') return showMainWindow(payload)
     if (method === 'ShowCompanionChatWindow') return showChatWindow(payload)
-    if (method === 'HideCompanionChatWindow') return hideChatWindow()
-    if (method === 'ClickCompanionPet') return clickPet()
+    if (method === 'HideCompanionChatWindow') return hideChatWindow(payload)
+    if (method === 'ClickCompanionPet') return clickPet(payload)
     if (method === 'ShowCompanionSettings') return showCompanionSettings()
     if (method === 'PopupCompanionMenu') return popupCompanionMenu(payload)
     if (method === 'SetCompanionPointerPassthrough') {

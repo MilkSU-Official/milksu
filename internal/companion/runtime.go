@@ -956,7 +956,7 @@ func (r *Runtime) resolvedSettings() config.AppSettings {
 }
 
 func (r *Runtime) selection() config.CompanionModelSelection {
-	return config.ResolveCompanionModel(r.resolvedSettings())
+	return engine.ResolveCompanionTurn(r.resolvedSettings())
 }
 
 func (r *Runtime) emitEvent(event engine.Event) {

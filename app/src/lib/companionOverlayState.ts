@@ -8,6 +8,8 @@
  *   chat hides the phone and brings the sprite back.
  * Main MilkSU may stay open with either form. Never a second desktop window,
  * never a full-page companion workspace.
+ * A hidden sprite stays hidden until show-pet or open-chat. Showing the main
+ * window, or a Dock / taskbar reveal, does not clear that.
  */
 
 export const COMPANION_PET_WIDTH = 160
@@ -134,6 +136,15 @@ export function companionOverlayVisible(state: CompanionOverlayState) {
   return companionCanFloat(state) && !state.petHidden
 }
 
+export type CompanionPawState = 'pet' | 'phone' | 'hidden'
+
+/** Sidebar paw. Phone wins over hidden; opening chat from hidden clears the hide. */
+export function companionPawState(input?: { chatOpen?: boolean; petHidden?: boolean } | null): CompanionPawState {
+  if (input?.chatOpen) return 'phone'
+  if (input?.petHidden) return 'hidden'
+  return 'pet'
+}
+
 export function companionPetVisible(state: CompanionOverlayState) {
   return companionOverlayVisible(state) && !state.chatOpen && companionCanFloat(state)
 }
@@ -178,6 +189,7 @@ function effectsFromTransition(
   if (
     action === COMPANION_OVERLAY_ACTIONS.SHOW_MAIN
     || action === COMPANION_OVERLAY_ACTIONS.SHOW_SETTINGS
+    || action === COMPANION_OVERLAY_ACTIONS.REVEAL_FROM_TASKBAR
   ) {
     main = 'show'
   } else if (!next.mainVisible && previous.mainVisible) {
@@ -224,7 +236,7 @@ export function reduceCompanionOverlay(
   } else if (known === COMPANION_OVERLAY_ACTIONS.PARK_MAIN) {
     next.mainVisible = false
   } else if (known === COMPANION_OVERLAY_ACTIONS.REVEAL_FROM_TASKBAR) {
-    if (canFloat) next.petHidden = false
+    next.mainVisible = true
   } else if (known === COMPANION_OVERLAY_ACTIONS.ENABLE) {
     if (!previous.wayland) {
       next.enabled = true

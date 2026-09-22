@@ -16,6 +16,7 @@ import {
 } from '@/components/ui'
 import { menuContentClass, menuItemClass, menuSeparatorClass } from '@/components/ui/menu'
 import { conversationCopyText } from '@/lib/conversationActions'
+import type { CompanionPawState } from '@/lib/companionOverlayState'
 import { formatRelativeAge } from '@/lib/relativeAge'
 import { conversationActivityAt } from '@/lib/workspaceSessionRouting'
 import {
@@ -150,6 +151,7 @@ export default function ContextSidebar({
   onProfile,
   onSettings,
   onCompanion,
+  companionPaw = 'pet',
   onSelectSettingsCategory,
   onCloseSettings,
   onAccountLogin,
@@ -186,6 +188,7 @@ export default function ContextSidebar({
   onProfile?: () => void
   onSettings?: () => void
   onCompanion?: () => void
+  companionPaw?: CompanionPawState
   onSelectSettingsCategory?: (value: NormalizedSettingsCategory) => void
   onCloseSettings?: () => void
   onAccountLogin?: () => void
@@ -934,10 +937,16 @@ export default function ContextSidebar({
           </button>
           <button
             type="button"
-            className="agent-sidebar__theme app-no-drag"
+            className={[
+              'agent-sidebar__theme app-no-drag',
+              companionPaw === 'phone' ? 'is-current' : '',
+              companionPaw === 'hidden' ? 'is-hidden' : '',
+            ].filter(Boolean).join(' ')}
             data-testid="sidebar-open-companion"
-            aria-label={t('桌宠', 'Companion')}
-            title={t('桌宠', 'Companion')}
+            data-companion-paw={companionPaw}
+            aria-label={companionPaw === 'phone' ? t('桌宠对话', 'Companion chat') : t('打开桌宠对话', 'Open companion chat')}
+            title={companionPaw === 'phone' ? t('桌宠对话', 'Companion chat') : t('打开桌宠对话', 'Open companion chat')}
+            aria-current={companionPaw === 'phone' ? 'true' : undefined}
             onClick={onCompanion}
             onContextMenu={event => {
               event.preventDefault()
@@ -1316,6 +1325,7 @@ const contextSidebarCss = `
 }
 .agent-sidebar__theme:hover,
 .agent-sidebar__theme.is-current { background: var(--hover-2); }
+.agent-sidebar__theme.is-hidden { color: color-mix(in srgb, var(--foreground) 40%, transparent); }
 .agent-sidebar__update {
   display: inline-flex;
   align-items: center;

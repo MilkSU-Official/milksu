@@ -46,7 +46,7 @@ test('pet click toggles the phone and hides the sprite', () => {
   assert.equal(focused.effects.chat, 'focus')
 })
 
-test('hide parks pet and chat; show and taskbar restore only the pet', () => {
+test('hide parks pet and chat; show restores the pet; taskbar reveal does not', () => {
   const open = reduceCompanionOverlay(idle, COMPANION_OVERLAY_ACTIONS.OPEN_CHAT)
   const hidden = reduceCompanionOverlay(open.state, COMPANION_OVERLAY_ACTIONS.HIDE_PET)
   assert.equal(hidden.state.petHidden, true)
@@ -55,9 +55,11 @@ test('hide parks pet and chat; show and taskbar restore only the pet', () => {
   assert.equal(shown.petVisible, true)
   assert.equal(shown.state.chatOpen, false)
   const revealed = reduceCompanionOverlay(hidden.state, COMPANION_OVERLAY_ACTIONS.REVEAL_FROM_TASKBAR)
-  assert.equal(revealed.petVisible, true)
+  assert.equal(revealed.state.petHidden, true)
+  assert.equal(revealed.petVisible, false)
   assert.equal(revealed.state.chatOpen, false)
-  assert.equal(revealed.effects.main, 'none')
+  assert.equal(revealed.effects.main, 'show')
+  assert.equal(revealed.effects.pet, 'none')
 })
 
 test('main window and phone may stay open together', () => {

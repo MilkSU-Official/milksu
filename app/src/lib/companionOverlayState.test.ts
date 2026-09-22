@@ -10,6 +10,7 @@ import {
   clampOverlayBounds,
   companionDragEffect,
   companionOverlayVisible,
+  companionPawState,
   companionPetVisible,
   companionPhoneVisible,
   defaultCompanionPetOrigin,
@@ -30,6 +31,14 @@ describe('companionOverlayState', () => {
     expect(COMPANION_PHONE_WIDTH).toBe(288)
     expect(COMPANION_PHONE_HEIGHT).toBe(604)
     expect(COMPANION_PHONE_HEIGHT / COMPANION_PHONE_WIDTH).toBeCloseTo(149.6 / 71.5, 2)
+  })
+
+  it('maps the sidebar paw to pet, phone, and hidden', () => {
+    expect(companionPawState({ chatOpen: false, petHidden: false })).toBe('pet')
+    expect(companionPawState({ chatOpen: true, petHidden: false })).toBe('phone')
+    expect(companionPawState({ chatOpen: false, petHidden: true })).toBe('hidden')
+    expect(companionPawState({ chatOpen: true, petHidden: true })).toBe('phone')
+    expect(companionPawState(null)).toBe('pet')
   })
 
   it('treats the pet as visible only when float is enabled, not hidden, and chat is closed', () => {
@@ -113,12 +122,19 @@ describe('companionOverlayState', () => {
     expect(parked.effects.main).toBe('park')
   })
 
-  it('wakes the pet from the taskbar without forcing the phone open', () => {
+  it('keeps a hidden pet hidden when the main window is revealed', () => {
     const hidden = reduceCompanionOverlay(idle, COMPANION_OVERLAY_ACTIONS.HIDE_PET)
     const revealed = reduceCompanionOverlay(hidden.state, COMPANION_OVERLAY_ACTIONS.REVEAL_FROM_TASKBAR)
-    expect(revealed.petVisible).toBe(true)
+    expect(revealed.state.petHidden).toBe(true)
+    expect(revealed.petVisible).toBe(false)
     expect(revealed.state.chatOpen).toBe(false)
-    expect(revealed.effects.main).toBe('none')
+    expect(revealed.state.mainVisible).toBe(true)
+    expect(revealed.effects.main).toBe('show')
+    expect(revealed.effects.pet).toBe('none')
+    const main = reduceCompanionOverlay(hidden.state, COMPANION_OVERLAY_ACTIONS.SHOW_MAIN)
+    expect(main.state.petHidden).toBe(true)
+    expect(main.petVisible).toBe(false)
+    expect(main.effects.pet).toBe('none')
   })
 
   it('does not float on Wayland and still allows the phone', () => {

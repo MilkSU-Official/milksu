@@ -165,6 +165,7 @@ function createShell(overrides = {}) {
     screen: defaultScreen,
     ...overrides,
     app: { dock, getLocale: () => 'zh-CN', ...(overrides.app || {}) },
+    chatIrisMs: overrides.chatIrisMs ?? 0,
   })
   return { shell, created, menus, dock, main, popups, menuApi }
 }
@@ -348,18 +349,27 @@ test('beginQuit destroys the pet and does not recreate it after window-all-close
   assert.equal(trays.every(tray => tray.destroyed === true), true)
 })
 
-test('hidden pet can be woken from the taskbar without showing the main window', () => {
+test('opening the main window leaves a hidden pet hidden', () => {
   const { shell, created, main } = createShell()
   shell.createFloat()
   const pet = created[0]
   shell.hidePet()
   assert.equal(pet.hideCalls, 1)
+  assert.equal(pet.visible, false)
   assert.equal(shell.status().hidden, true)
-  const beforeShow = main.showCalls
+  const petShows = pet.showCalls
+  shell.handleHostMethod('ShowCompanionMainWindow')
   shell.revealFromTaskbar()
-  assert.equal(pet.showCalls >= 1, true)
-  assert.equal(shell.status().hidden, false)
-  assert.equal(main.showCalls, beforeShow)
+  assert.equal(pet.showCalls, petShows)
+  assert.equal(pet.visible, false)
+  assert.equal(shell.status().hidden, true)
+  assert.ok(main.showCalls >= 1)
+  shell.handleHostMethod('ParkCompanionMainWindow')
+  const before = main.showCalls
+  shell.revealFromTaskbar()
+  assert.ok(main.showCalls > before)
+  assert.equal(shell.status().hidden, true)
+  assert.equal(shell.status().parked, false)
 })
 
 test('tray and dock share companion actions; the application menu is not a companion menu', () => {
@@ -380,6 +390,7 @@ test('tray and dock share companion actions; the application menu is not a compa
   assert.equal(shell.status().hidden, true)
   menus.at(-1).template[2].click()
   assert.equal(main.showCalls >= 1, true)
+  assert.equal(shell.status().hidden, true)
 })
 
 test('ShowCompanionChatWindow replaces the pet with the phone, not a second window', () => {
@@ -398,6 +409,48 @@ test('ShowCompanionChatWindow replaces the pet with the phone, not a second wind
   assert.equal(closed.overlay.petVisible, true)
   assert.equal(created[0].width, 160)
   assert.equal(created[0].height, 160)
+})
+
+test('closing the phone keeps the handset frame until the iris finishes', async () => {
+  const { shell, created } = createShell({ chatIrisMs: 40 })
+  shell.createFloat()
+  shell.handleHostMethod('ShowCompanionChatWindow')
+  const closed = shell.handleHostMethod('HideCompanionChatWindow', { motion: true })
+  assert.equal(closed.chatOpen, false)
+  assert.equal(created[0].width, COMPANION_CHAT_WIDTH)
+  assert.equal(created[0].height, COMPANION_CHAT_HEIGHT)
+  // Still the handset after the 40ms iris, before the 48ms paint tail.
+  await new Promise(resolve => setTimeout(resolve, 50))
+  assert.equal(created[0].width, COMPANION_CHAT_WIDTH)
+  assert.equal(created[0].height, COMPANION_CHAT_HEIGHT)
+  await new Promise(resolve => setTimeout(resolve, 110))
+  assert.equal(created[0].width, 160)
+  assert.equal(created[0].height, 160)
+})
+
+test('reopening chat during the iris keeps the phone frame', async () => {
+  const { shell, created } = createShell({ chatIrisMs: 40 })
+  shell.createFloat()
+  shell.handleHostMethod('ShowCompanionChatWindow')
+  shell.handleHostMethod('HideCompanionChatWindow', { motion: true })
+  shell.handleHostMethod('ShowCompanionChatWindow')
+  await new Promise(resolve => setTimeout(resolve, 160))
+  assert.equal(shell.status().chatOpen, true)
+  assert.equal(created[0].width, COMPANION_CHAT_WIDTH)
+  assert.equal(created[0].height, COMPANION_CHAT_HEIGHT)
+})
+
+test('hiding the pet during the iris does not bring the window back', async () => {
+  const { shell, created } = createShell({ chatIrisMs: 40 })
+  shell.createFloat()
+  shell.handleHostMethod('ShowCompanionChatWindow')
+  shell.handleHostMethod('HideCompanionChatWindow', { motion: true })
+  const hidden = shell.handleHostMethod('SetCompanionPetHidden', { hidden: true })
+  assert.equal(hidden.hidden, true)
+  assert.equal(created[0].visible, false)
+  await new Promise(resolve => setTimeout(resolve, 160))
+  assert.equal(created[0].visible, false)
+  assert.equal(shell.status().hidden, true)
 })
 
 test('showing the pet form after the phone closes the phone', () => {
@@ -633,6 +686,25 @@ test('a press without cursor travel stays a click, so the pet opens the phone', 
   await new Promise(resolve => setTimeout(resolve, 40))
   const ended = shell.handleHostMethod('MoveCompanionPet', { drag: 'end' })
   assert.equal(ended.dragged, false)
+})
+
+test('hiding the pet tells the main window, and opening chat clears the hide', () => {
+  const { shell, main } = createShell()
+  shell.createFloat()
+  shell.handleHostMethod('SetCompanionPetHidden', { hidden: true })
+  const hidden = main.sentEvents.filter(item => item.channel === 'milksu:event:companion.overlay')
+  assert.equal(hidden.at(-1).value.petHidden, true)
+  assert.equal(hidden.at(-1).value.chatOpen, false)
+  const opened = shell.handleHostMethod('ShowCompanionChatWindow')
+  assert.equal(opened.chatOpen, true)
+  assert.equal(opened.petHidden, false)
+  const shown = main.sentEvents.filter(item => item.channel === 'milksu:event:companion.overlay')
+  assert.equal(shown.at(-1).value.chatOpen, true)
+  assert.equal(shown.at(-1).value.petHidden, false)
+  const closed = shell.handleHostMethod('HideCompanionChatWindow')
+  assert.equal(closed.chatOpen, false)
+  assert.equal(closed.petHidden, false)
+  assert.equal(closed.overlay.petVisible, true)
 })
 
 test('overlay events still reach an unregistered main window', () => {

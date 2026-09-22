@@ -513,6 +513,7 @@ export interface CompanionPhoneStatus {
 export interface CompanionShellStatus {
   floating: boolean
   hidden: boolean
+  petHidden?: boolean
   chatOpen?: boolean
   wayland: boolean
   tray: boolean

@@ -93,7 +93,11 @@ function effectsFromTransition(previous, next, action) {
   }
 
   let main = 'none'
-  if (action === COMPANION_OVERLAY_ACTIONS.SHOW_MAIN || action === COMPANION_OVERLAY_ACTIONS.SHOW_SETTINGS) {
+  if (
+    action === COMPANION_OVERLAY_ACTIONS.SHOW_MAIN
+    || action === COMPANION_OVERLAY_ACTIONS.SHOW_SETTINGS
+    || action === COMPANION_OVERLAY_ACTIONS.REVEAL_FROM_TASKBAR
+  ) {
     main = 'show'
   } else if (!next.mainVisible && previous.mainVisible) {
     main = 'park'
@@ -136,7 +140,7 @@ function reduceCompanionOverlay(input, action) {
   } else if (known === COMPANION_OVERLAY_ACTIONS.PARK_MAIN) {
     next.mainVisible = false
   } else if (known === COMPANION_OVERLAY_ACTIONS.REVEAL_FROM_TASKBAR) {
-    if (canFloat) next.petHidden = false
+    next.mainVisible = true
   } else if (known === COMPANION_OVERLAY_ACTIONS.ENABLE) {
     if (!previous.wayland) {
       next.enabled = true

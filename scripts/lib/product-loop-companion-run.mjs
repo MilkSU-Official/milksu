@@ -296,7 +296,7 @@ export async function runCompanionPage(driver) {
   await session.open()
   let both = false
   try {
-    both = await session.evaluate(`Boolean(document.querySelector('.companion-pet-body') && document.querySelector('[data-testid="companion-chat"]'))`)
+    both = await session.evaluate(`Boolean(document.querySelector('[data-form="pet"] .companion-pet-body') && document.querySelector('[data-testid="companion-chat"]'))`)
   } finally {
     session.close()
   }
@@ -828,7 +828,9 @@ export async function runCompanionHide(driver) {
     await driver.invoke('SetCompanionPetHidden', [{ hidden: true }])
     const hidden = await driver.getCompanionShellStatus()
     if (!companionShellHidden(hidden)) return fail('隐藏之后壳还说桌宠看得见')
-    return pass('右键菜单隐藏后桌宠收起来了')
+    const main = await driver.invoke('ShowCompanionMainWindow', [{ focus: false }])
+    if (!companionShellHidden(main)) return fail('打开主窗口把已隐藏的桌宠带出来了')
+    return pass('右键菜单隐藏后桌宠收起来了，打开主窗口也不会把它带出来')
   } finally {
     await driver.invoke('SetCompanionPetHidden', [{ hidden: false }]).catch(() => {})
   }

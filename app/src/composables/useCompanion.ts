@@ -290,6 +290,7 @@ export function useCompanion() {
     let unlisten: (() => void) | undefined
     void (async () => {
       const route = { provider: '', model: '' }
+      let ensured = false
       try {
         const next = await invokeCommand<CompanionStatus>('ensure_companion')
         if (cancelled) return
@@ -297,12 +298,26 @@ export function useCompanion() {
         route.model = next.model
         setStatus(next)
         setError('')
-        await Promise.all([loadTail(), refreshBoard(), refreshMemory(), refreshArchives()])
+        ensured = true
         setShell(await invokeCommand<CompanionShellStatus>('get_companion_shell_status'))
       } catch (reason) {
         const raw = desktopErrorMessage(reason)
         if (!cancelled && !companionMissingApiKey(raw) && !companionSidecarDown(raw)) {
           setError(explainCompanionError(raw))
+        }
+      }
+      // The error line sits by the composer. A failed ensure must not skip
+      // the transcript, or the red line replaces the history.
+      if (!cancelled) {
+        try {
+          await Promise.all([loadTail(), refreshBoard(), refreshMemory(), refreshArchives()])
+        } catch (reason) {
+          if (ensured && !cancelled) {
+            const raw = desktopErrorMessage(reason)
+            if (!companionMissingApiKey(raw) && !companionSidecarDown(raw)) {
+              setError(explainCompanionError(raw))
+            }
+          }
         }
       }
       unlisten = await listenEvent<CompanionEnginePayload>('companion-event', event => {
