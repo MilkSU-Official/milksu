@@ -5,7 +5,10 @@ CF Sandbox runtime for MilkSU cloud Coding
 
 ## Bridge
 
-`bridge-entry.sh` is the container `CMD` (Pi/DSH attach placeholder). Set `MILKSU_CLOUD_KERNEL=pi|dsh` at start.
+`bridge-entry.sh` is the container `CMD` (keeps the sandbox warm).
+`turn-runner.mjs` is the per-turn entry the Worker calls via `execStream` + stdin JSON
+(https://developers.cloudflare.com/sandbox/api/commands/). Set `MILKSU_CLOUD_KERNEL=pi|dsh`.
+Replace the runner body with the real Pi bridge / DSH ACP when ready.
 
 ## Pins
 

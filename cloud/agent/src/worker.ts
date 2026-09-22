@@ -312,17 +312,62 @@ export default {
         }
         const turnId = crypto.randomUUID()
         // Mature CF Sandbox path when Durable Object binding is present
-        // (https://developers.cloudflare.com/sandbox/get-started/).
+        // (https://developers.cloudflare.com/sandbox/get-started/ + exec stdin).
         if (env.Sandbox) {
           try {
-            const { getSandbox } = await import('@cloudflare/sandbox')
+            const { getSandbox, parseSSEStream } = await import('@cloudflare/sandbox')
             const sandbox = getSandbox(env.Sandbox, `sess-${sessionId}`)
-            await sandbox.exec('true')
+            const kernel = row.kernel === 'dsh' ? 'dsh' : 'pi'
+            const startedAt = Date.now()
             row.status = 'running'
             row.updated_at_ms = Date.now()
             await saveSession(env, row)
-            await enqueueEvent(env, row, 'assistant.delta', turnId, {
-              text: 'Sandbox ready; Pi/DSH bridge not yet attached in this deploy.',
+            await enqueueEvent(env, row, 'assistant.thinking_delta', turnId, {
+              text: `Starting ${kernel} in sandbox…`,
+            })
+            const stream = await sandbox.execStream('node /workspace/milksu/turn-runner.mjs', {
+              cwd: '/workspace/milksu',
+              env: {
+                MILKSU_CLOUD_KERNEL: kernel,
+                MILKSU_CLOUD_KERNEL_ROOT: '/workspace/milksu/node_modules',
+              },
+              stdin: JSON.stringify({
+                session_id: sessionId,
+                turn_id: turnId,
+                text,
+                model: row.model,
+              }),
+              timeout: 120_000,
+            })
+            let sawStdout = false
+            for await (const event of parseSSEStream(stream)) {
+              if (event.type === 'stdout' && typeof event.data === 'string' && event.data) {
+                sawStdout = true
+                await enqueueEvent(env, row, 'assistant.delta', turnId, { text: event.data })
+              } else if (event.type === 'stderr' && typeof event.data === 'string' && event.data.trim()) {
+                await enqueueEvent(env, row, 'assistant.delta', turnId, {
+                  text: `[stderr] ${event.data}`,
+                })
+              } else if (event.type === 'error') {
+                throw new Error(String(event.error || 'Sandbox exec failed'))
+              }
+            }
+            if (!sawStdout) {
+              await enqueueEvent(env, row, 'assistant.delta', turnId, {
+                text: 'Sandbox finished with empty stdout; Pi/DSH bridge not attached yet.',
+              })
+            }
+            const sandboxSeconds = Math.max(1, Math.ceil((Date.now() - startedAt) / 1000))
+            await enqueueEvent(env, row, 'turn.settled', turnId, {
+              usage: {
+                input_tokens: Math.max(1, Math.ceil(text.length / 4)),
+                output_tokens: 32,
+                cache_read_tokens: 0,
+                model_cost_est_usd: 0,
+                sandbox_cost_est_usd: 0,
+                sandbox_seconds: sandboxSeconds,
+              },
+              disclaimer: '根据 models.dev 估算，方便统计，不是账单',
             })
             await enqueueEvent(env, row, 'assistant.settled', turnId, {})
             row.status = 'ready'

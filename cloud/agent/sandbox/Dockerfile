@@ -9,11 +9,12 @@ WORKDIR /workspace/milksu
 # (same Pi / DSH versions as the desktop sidecar).
 COPY package-pins.json /workspace/milksu/package-pins.json
 COPY bridge-entry.sh /workspace/milksu/bridge-entry.sh
+COPY turn-runner.mjs /workspace/milksu/turn-runner.mjs
 
 RUN node -e "const pins=require('./package-pins.json'); \
   require('fs').writeFileSync('package.json', JSON.stringify({ name: 'milksu-cloud-sandbox', private: true, dependencies: pins }, null, 2));" \
   && npm install --omit=dev --no-audit --no-fund \
-  && chmod +x /workspace/milksu/bridge-entry.sh \
+  && chmod +x /workspace/milksu/bridge-entry.sh /workspace/milksu/turn-runner.mjs \
   && rm -rf /tmp/* /root/.npm
 
 # Runtime credentials are injected by the Cloud Agent Worker — never bake keys.
