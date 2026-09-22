@@ -16,13 +16,17 @@ import (
 // renderer only displays the result. Status distinguishes the failure modes so a
 // missing path is never reported as "no backup".
 type DestructiveTargetInspection struct {
-	Path            string   `json:"path"`
-	Status          string   `json:"status"`
-	Exists          bool     `json:"exists"`
-	IsDirectory     bool     `json:"isDirectory"`
-	EmptyDirectory  bool     `json:"emptyDirectory"`
-	FileCount       int      `json:"fileCount"`
-	TotalBytes      int64    `json:"totalBytes"`
+	Path           string `json:"path"`
+	Status         string `json:"status"`
+	Exists         bool   `json:"exists"`
+	IsDirectory    bool   `json:"isDirectory"`
+	EmptyDirectory bool   `json:"emptyDirectory"`
+	FileCount      int    `json:"fileCount"`
+	TotalBytes     int64  `json:"totalBytes"`
+	// DiskBytes is what deleting the target frees (du accounting). -1 means the platform
+	// does not expose a block count, and the renderer must fall back to TotalBytes and
+	// label it "content size" rather than "will free".
+	DiskBytes       int64    `json:"diskBytes"`
 	Sampled         bool     `json:"sampled"`
 	InGitRepository bool     `json:"inGitRepository"`
 	GitTracked      bool     `json:"gitTracked"`
@@ -71,6 +75,7 @@ func (a *App) InspectDestructiveTarget(path string) (DestructiveTargetInspection
 	result.IsDirectory = info.IsDir()
 	result.FileCount = 1
 	result.TotalBytes = info.Size()
+	result.DiskBytes = diskBytesOf(info)
 	result.Status = "ok"
 
 	if info.IsDir() {
@@ -98,6 +103,13 @@ func (a *App) InspectDestructiveTarget(path string) (DestructiveTargetInspection
 			}
 			result.FileCount++
 			result.TotalBytes += entryInfo.Size()
+			if result.DiskBytes >= 0 {
+				if freed := diskBytesOf(entryInfo); freed >= 0 {
+					result.DiskBytes += freed
+				} else {
+					result.DiskBytes = -1
+				}
+			}
 			return nil
 		})
 		if walkErr != nil && !errors.Is(walkErr, fs.SkipAll) {
