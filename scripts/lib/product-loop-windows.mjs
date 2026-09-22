@@ -77,6 +77,40 @@ export function descendantPids(rows, rootPids) {
   return keep
 }
 
+/**
+ * Detect the MilkSU instance that spawned the current Node.js process.
+ * When running `node scripts/verify-product-loop.mjs` inside MilkSU,
+ * this prevents the script from killing its own parent process.
+ */
+export function detectCallerMilkSUPid(rows) {
+  let currentPid = process.pid
+  const visited = new Set()
+  const byPid = new Map(rows.map(row => [row.pid, row]))
+
+  // Walk up the process tree
+  while (currentPid > 1 && !visited.has(currentPid)) {
+    visited.add(currentPid)
+    const row = byPid.get(currentPid)
+    if (!row) break
+
+    const cmd = normalizeHostCommand(row.command)
+
+    // Skip sidecar node processes and helpers
+    if (/milksu-sidecar.*node|node.*milksu-sidecar/i.test(cmd) || /Helper|plugin-container/i.test(cmd)) {
+      currentPid = row.ppid
+      continue
+    }
+
+    const kind = classifyMilkSUHostCommand(row.command)
+    if (kind === 'packaged-stable' || kind === 'packaged-repo' || kind === 'unpackaged-repo') {
+      return currentPid
+    }
+    currentPid = row.ppid
+  }
+
+  return null
+}
+
 export function selectForeignMilkSUHosts(rows, options = {}) {
   const repoRoot = options.repoRoot || repositoryRoot
   const keepPids = options.keepPids instanceof Set ? options.keepPids : new Set(options.keepPids || [])
@@ -251,6 +285,13 @@ export async function claimProductLoopProtocol(options = {}) {
 export async function listMilkSUHostProcesses(options = {}) {
   const rows = await listProcessRows().catch(() => [])
   const portPids = await pidsListeningOnPorts(keepPortsFrom(options))
+
+  // Protect the MilkSU instance that spawned this script
+  const callerPid = detectCallerMilkSUPid(rows)
+  if (callerPid && !options.allowSelfTermination) {
+    portPids.add(callerPid)
+  }
+
   const keepPids = mergeKeepPids(
     keepPidsFrom(options, rows),
     portPids,
