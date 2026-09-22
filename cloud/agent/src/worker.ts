@@ -16,6 +16,19 @@
  */
 
 import { encryptCredentialSecret } from './credential-crypto'
+import {
+  d1AppendEvent,
+  d1DeleteSession,
+  d1ListSessions,
+  d1LoadSession,
+  d1SaveSession,
+  memoryDelete,
+  memoryGet,
+  memoryList,
+  memorySet,
+  type SessionEventRow,
+  type SessionRow,
+} from './session-store'
 
 // Re-export when Sandbox Durable Object is bound (CF Sandbox get-started).
 export { Sandbox } from '@cloudflare/sandbox'
@@ -32,34 +45,38 @@ export interface Env {
 
 type Json = Record<string, unknown>
 
-type SessionRow = {
-  id: string
-  title: string
-  kernel: string
-  model: string
-  status: string
-  created_at_ms: number
-  updated_at_ms: number
-  transcript_json: string
-  owner_token_hash: string
-  events: SessionEventRow[]
-}
-
-type SessionEventRow = {
-  id: string
-  type: string
-  turn_id: string
-  timestamp_ms: number
-  json_payload: string
-}
-
-/** Ephemeral until D1 binding is attached in milksu-admin deploy. */
-const sessions = new Map<string, SessionRow>()
-
 const FLAG_END_STREAM = 0x02
 /** Workers wall budget for one Subscribe long-poll before EndStream + client resume. */
 const SUBSCRIBE_WINDOW_MS = 25_000
 const SUBSCRIBE_POLL_MS = 200
+
+async function loadSession(env: Env, id: string): Promise<SessionRow | undefined> {
+  const cached = memoryGet(id)
+  if (cached) return cached
+  if (env.DB) {
+    const row = await d1LoadSession(env.DB, id)
+    if (row) {
+      memorySet(row)
+      return row
+    }
+  }
+  return undefined
+}
+
+async function saveSession(env: Env, row: SessionRow): Promise<void> {
+  memorySet(row)
+  if (env.DB) await d1SaveSession(env.DB, row)
+}
+
+async function listOwnerSessions(env: Env, tokenHash: string): Promise<SessionRow[]> {
+  if (env.DB) return d1ListSessions(env.DB, tokenHash)
+  return memoryList(tokenHash)
+}
+
+async function removeSession(env: Env, id: string, tokenHash: string): Promise<void> {
+  memoryDelete(id)
+  if (env.DB) await d1DeleteSession(env.DB, id, tokenHash)
+}
 
 function encodeEnvelope(message: Json, flags = 0): Uint8Array {
   const payload = new TextEncoder().encode(JSON.stringify(message ?? {}))
@@ -89,19 +106,31 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   })
 }
 
-function enqueueEvent(row: SessionRow, type: string, turnId: string, payload: Json) {
-  row.events.push({
+async function enqueueEvent(
+  env: Env,
+  row: SessionRow,
+  type: string,
+  turnId: string,
+  payload: Json,
+): Promise<SessionEventRow> {
+  const event: SessionEventRow = {
     id: crypto.randomUUID(),
     type,
     turn_id: turnId,
     timestamp_ms: Date.now(),
     json_payload: JSON.stringify(payload ?? {}),
-  })
-  // Bound memory for long-lived stub sessions.
+  }
+  row.events.push(event)
   if (row.events.length > 200) {
     row.events.splice(0, row.events.length - 200)
   }
   row.updated_at_ms = Date.now()
+  memorySet(row)
+  if (env.DB) {
+    await d1AppendEvent(env.DB, row.id, event)
+    await d1SaveSession(env.DB, row)
+  }
+  return event
 }
 
 function sessionEventWire(row: SessionRow, event: SessionEventRow): Json {
@@ -125,17 +154,17 @@ function chunkText(text: string, size = 48): string[] {
   return parts
 }
 
-function enqueueStubTurn(row: SessionRow, turnId: string, userText: string) {
+async function enqueueStubTurn(env: Env, row: SessionRow, turnId: string, userText: string) {
   const reply = userText.trim()
     ? '云沙箱尚未绑定：已收到你的消息，部署 Sandbox 后会在这里跑 Pi/DSH。 / Cloud sandbox is not bound yet; your message was accepted.'
     : '云沙箱尚未绑定。 / Cloud sandbox is not bound yet.'
-  enqueueEvent(row, 'assistant.thinking_delta', turnId, {
+  await enqueueEvent(env, row, 'assistant.thinking_delta', turnId, {
     text: 'Preparing cloud turn…',
   })
   for (const part of chunkText(reply)) {
-    enqueueEvent(row, 'assistant.delta', turnId, { text: part })
+    await enqueueEvent(env, row, 'assistant.delta', turnId, { text: part })
   }
-  enqueueEvent(row, 'turn.settled', turnId, {
+  await enqueueEvent(env, row, 'turn.settled', turnId, {
     usage: {
       input_tokens: Math.max(1, Math.ceil(userText.length / 4)),
       output_tokens: Math.max(1, Math.ceil(reply.length / 4)),
@@ -146,7 +175,7 @@ function enqueueStubTurn(row: SessionRow, turnId: string, userText: string) {
     },
     disclaimer: '根据 models.dev 估算，方便统计，不是账单',
   })
-  enqueueEvent(row, 'assistant.settled', turnId, {})
+  await enqueueEvent(env, row, 'assistant.settled', turnId, {})
 }
 
 function json(data: Json, status = 200): Response {
@@ -235,9 +264,7 @@ export default {
 
     switch (method) {
       case 'ListSessions': {
-        const list = [...sessions.values()]
-          .filter(row => row.owner_token_hash === tokenHash)
-          .map(publicSession)
+        const list = (await listOwnerSessions(env, tokenHash)).map(publicSession)
         return json({ sessions: list })
       }
       case 'CreateSession': {
@@ -254,12 +281,12 @@ export default {
           owner_token_hash: tokenHash,
           events: [],
         }
-        sessions.set(row.id, row)
+        await saveSession(env, row)
         return json(publicSession(row))
       }
       case 'GetSession': {
         const id = String(body.session_id || '')
-        const row = sessions.get(id)
+        const row = await loadSession(env, id)
         if (!row || row.owner_token_hash !== tokenHash) {
           return json({ code: 'not_found', message: 'Session not found' }, 404)
         }
@@ -267,9 +294,9 @@ export default {
       }
       case 'DeleteSession': {
         const id = String(body.session_id || '')
-        const row = sessions.get(id)
+        const row = await loadSession(env, id)
         if (row && row.owner_token_hash === tokenHash) {
-          sessions.delete(id)
+          await removeSession(env, id, tokenHash)
         }
         return json({})
       }
@@ -279,7 +306,7 @@ export default {
         if (!sessionId) {
           return json({ code: 'invalid_argument', message: 'session_id required' }, 400)
         }
-        const row = sessions.get(sessionId)
+        const row = await loadSession(env, sessionId)
         if (!row || row.owner_token_hash !== tokenHash) {
           return json({ code: 'not_found', message: 'Session not found' }, 404)
         }
@@ -293,12 +320,13 @@ export default {
             await sandbox.exec('true')
             row.status = 'running'
             row.updated_at_ms = Date.now()
-            sessions.set(sessionId, row)
-            enqueueEvent(row, 'assistant.delta', turnId, {
+            await saveSession(env, row)
+            await enqueueEvent(env, row, 'assistant.delta', turnId, {
               text: 'Sandbox ready; Pi/DSH bridge not yet attached in this deploy.',
             })
-            enqueueEvent(row, 'assistant.settled', turnId, {})
+            await enqueueEvent(env, row, 'assistant.settled', turnId, {})
             row.status = 'ready'
+            await saveSession(env, row)
             return json({ turn_id: turnId })
           } catch (error) {
             return json({
@@ -310,26 +338,27 @@ export default {
         // Stub path: accept the turn and emit chunked events so Subscribe /
         // desktop / mobile can exercise the Connect stream before Sandbox bind.
         row.status = 'running'
-        enqueueStubTurn(row, turnId, text)
+        await enqueueStubTurn(env, row, turnId, text)
         row.status = 'ready'
         row.updated_at_ms = Date.now()
-        sessions.set(sessionId, row)
+        await saveSession(env, row)
         return json({ turn_id: turnId })
       }
       case 'AbortTurn': {
         const sessionId = String(body.session_id || '').trim()
-        const row = sessions.get(sessionId)
+        const row = await loadSession(env, sessionId)
         if (!row || row.owner_token_hash !== tokenHash) {
           return json({ code: 'not_found', message: 'Session not found' }, 404)
         }
         row.status = 'ready'
         row.updated_at_ms = Date.now()
-        enqueueEvent(row, 'turn.aborted', '', {})
+        await enqueueEvent(env, row, 'turn.aborted', '', {})
+        await saveSession(env, row)
         return json({})
       }
       case 'Subscribe': {
         const sessionId = String(body.session_id || '').trim()
-        const row = sessions.get(sessionId)
+        const row = await loadSession(env, sessionId)
         if (!row || row.owner_token_hash !== tokenHash) {
           return json({ code: 'not_found', message: 'Session not found' }, 404)
         }
@@ -354,7 +383,14 @@ export default {
             try {
               while (Date.now() - started < SUBSCRIBE_WINDOW_MS) {
                 if (signal.aborted) break
-                const live = sessions.get(sessionId)
+                let live = memoryGet(sessionId)
+                if (env.DB) {
+                  const fresh = await d1LoadSession(env.DB, sessionId)
+                  if (fresh) {
+                    memorySet(fresh)
+                    live = fresh
+                  }
+                }
                 if (!live || live.owner_token_hash !== tokenHash) break
                 while (cursor < live.events.length) {
                   const event = live.events[cursor]
@@ -375,7 +411,7 @@ export default {
                 return
               }
             }
-            const live = sessions.get(sessionId)
+            const live = memoryGet(sessionId) || await loadSession(env, sessionId)
             if (live) {
               while (cursor < live.events.length) {
                 const event = live.events[cursor]
@@ -410,7 +446,7 @@ export default {
           owner_token_hash: tokenHash,
           events: [],
         }
-        sessions.set(row.id, row)
+        await saveSession(env, row)
         return json({
           target_session_id: row.id,
           ok: true,
@@ -419,13 +455,13 @@ export default {
       }
       case 'MigrateFinalize': {
         const id = String(body.target_session_id || '')
-        const row = sessions.get(id)
+        const row = await loadSession(env, id)
         if (!row || row.owner_token_hash !== tokenHash) {
           return json({ ok: false, error: 'target session not found' })
         }
         row.status = 'ready'
         row.updated_at_ms = Date.now()
-        sessions.set(id, row)
+        await saveSession(env, row)
         return json({ ok: true, error: '' })
       }
       case 'UpsertCredential': {
