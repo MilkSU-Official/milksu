@@ -1,47 +1,32 @@
 import SwiftUI
 
-/// Minimal MilkSU cloud Coding shell (phase 1: sign-in + session list).
-/// Full Connect-Swift stubs replace MilkSUCloudAgentClient when buf generate lands.
+/// Minimal MilkSU cloud Coding shell (phase 1: PKCE sign-in + session list).
 @main
 struct MilkSUAppMain: App {
-  @StateObject private var session = MilkSUAccountSession()
+  @StateObject private var auth = MilkSUAccountAuth()
 
   var body: some Scene {
     WindowGroup {
       Group {
-        if session.isSignedIn {
-          CloudSessionListView(session: session)
+        if auth.isSignedIn {
+          CloudSessionListView(auth: auth)
         } else {
-          SignInView(session: session)
+          SignInView(auth: auth)
         }
       }
       .preferredColorScheme(.light)
+      .task { auth.restoreFromKeychain() }
+      .onOpenURL { url in
+        Task {
+          try? await auth.handleCallback(url)
+        }
+      }
     }
   }
 }
 
-@MainActor
-final class MilkSUAccountSession: ObservableObject {
-  @Published var accessToken: String?
-  @Published var displayName: String = ""
-
-  var isSignedIn: Bool { !(accessToken ?? "").isEmpty }
-
-  func signInWithStoredToken(_ token: String, displayName: String) {
-    // Product path: PKCE against accounts.milksu.org; Keychain-backed.
-    self.accessToken = token
-    self.displayName = displayName
-  }
-
-  func signOut() {
-    accessToken = nil
-    displayName = ""
-  }
-}
-
 struct SignInView: View {
-  @ObservedObject var session: MilkSUAccountSession
-  @State private var tokenDraft = ""
+  @ObservedObject var auth: MilkSUAccountAuth
 
   var body: some View {
     VStack(alignment: .leading, spacing: 16) {
@@ -50,14 +35,14 @@ struct SignInView: View {
       Text("Cloud Coding")
         .font(.title3)
         .foregroundStyle(.secondary)
-      TextField("Access token (dev)", text: $tokenDraft)
-        .textFieldStyle(.roundedBorder)
-      Button("Continue") {
-        let token = tokenDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !token.isEmpty else { return }
-        session.signInWithStoredToken(token, displayName: "Developer")
+      Button("Sign in with GitHub") {
+        Task { await auth.startLogin() }
       }
       .buttonStyle(.borderedProminent)
+      if !auth.errorText.isEmpty {
+        Text(auth.errorText)
+          .foregroundStyle(.red)
+      }
       Spacer()
     }
     .padding(24)
@@ -65,7 +50,7 @@ struct SignInView: View {
 }
 
 struct CloudSessionListView: View {
-  @ObservedObject var session: MilkSUAccountSession
+  @ObservedObject var auth: MilkSUAccountAuth
   @State private var sessions: [MilkSUCloudSession] = []
   @State private var errorText = ""
   @State private var busy = false
@@ -80,14 +65,14 @@ struct CloudSessionListView: View {
             .foregroundStyle(.secondary)
         }
       }
-      .navigationTitle("Cloud")
+      .navigationTitle(auth.displayName.isEmpty ? "Cloud" : auth.displayName)
       .toolbar {
         ToolbarItem(placement: .topBarTrailing) {
           Button("New") { Task { await createSession() } }
             .disabled(busy)
         }
         ToolbarItem(placement: .topBarLeading) {
-          Button("Sign out") { session.signOut() }
+          Button("Sign out") { auth.signOut() }
         }
       }
       .overlay {
@@ -100,7 +85,7 @@ struct CloudSessionListView: View {
   }
 
   private var client: MilkSUCloudAgentClient {
-    MilkSUCloudAgentClient(accessToken: { session.accessToken })
+    MilkSUCloudAgentClient(accessToken: { auth.accessToken })
   }
 
   private func reload() async {

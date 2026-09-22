@@ -9,7 +9,11 @@ Cloud Coding client for MilkSU accounts.
 
 ## Auth
 
-PKCE against `accounts.milksu.org`. Keep the access token in EncryptedSharedPreferences / Keystore; never log it.
+PKCE against `accounts.milksu.org` (same wire as desktop `AccountSession`):
+- `AccountAuth.kt` + Chrome Custom Tabs
+- Callback: `milksu://auth/callback` (register intent-filter in the real AndroidManifest when packaging)
+
+Keep the access token in EncryptedSharedPreferences / Keystore; never log it.
 
 ## First vertical slice
 

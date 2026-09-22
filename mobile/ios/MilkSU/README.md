@@ -9,7 +9,11 @@ Cloud Coding client for MilkSU accounts.
 
 ## Auth
 
-Use the same PKCE login as desktop (`accounts.milksu.org`). Store the access token in Keychain; never log it.
+PKCE against `accounts.milksu.org`（与桌面 `AccountSession` 同线）：
+- iOS：`AccountAuth.swift` + `ASWebAuthenticationSession` + Keychain
+- Android：`AccountAuth.kt` + Chrome Custom Tabs + `milksu://auth/callback`
+
+Redirect：`milksu://auth/callback`（与桌面 stable scheme 一致；需在系统里注册）。
 
 ## First vertical slice
 
