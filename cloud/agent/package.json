@@ -1,0 +1,23 @@
+{
+  "name": "@milksu/cloud-agent",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "MilkSU Cloud Agent API (Connect + CF Sandbox). Deploy separately from the desktop app.",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test src/*.test.js"
+  },
+  "dependencies": {
+    "@bufbuild/protobuf": "^2.2.3",
+    "@cloudflare/sandbox": "^0.7.0",
+    "@connectrpc/connect": "^2.0.1"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250917.0",
+    "typescript": "^5.9.2",
+    "wrangler": "^4.34.0"
+  }
+}

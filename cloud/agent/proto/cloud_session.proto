@@ -1,0 +1,148 @@
+syntax = "proto3";
+
+package milksu.cloud.v1;
+
+option go_package = "github.com/MilkSU-Official/milksu/cloud/agent/gen/milksu/cloud/v1;cloudv1";
+
+// CloudSessionService is the Connect surface for cloud Coding sessions.
+// Event type names match desktop engine projection (assistant.delta, not message.delta).
+service CloudSessionService {
+  rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse);
+  rpc CreateSession(CreateSessionRequest) returns (Session);
+  rpc GetSession(GetSessionRequest) returns (Session);
+  rpc DeleteSession(DeleteSessionRequest) returns (DeleteSessionResponse);
+
+  rpc SendTurn(SendTurnRequest) returns (SendTurnResponse);
+  rpc AbortTurn(AbortTurnRequest) returns (AbortTurnResponse);
+  rpc RespondApproval(RespondApprovalRequest) returns (RespondApprovalResponse);
+  rpc RespondAsk(RespondAskRequest) returns (RespondAskResponse);
+
+  // Server-stream of session events while the client is subscribed.
+  rpc Subscribe(SubscribeRequest) returns (stream SessionEvent);
+
+  rpc MigrateCopy(MigrateCopyRequest) returns (MigrateCopyResponse);
+  rpc MigrateFinalize(MigrateFinalizeRequest) returns (MigrateFinalizeResponse);
+
+  rpc UpsertCredential(UpsertCredentialRequest) returns (UpsertCredentialResponse);
+  rpc DeleteCredential(DeleteCredentialRequest) returns (DeleteCredentialResponse);
+}
+
+message ListSessionsRequest {}
+message ListSessionsResponse {
+  repeated Session sessions = 1;
+}
+
+message CreateSessionRequest {
+  string kernel = 1; // "pi" | "dsh"
+  string model = 2;
+  string title = 3;
+  string credential_id = 4; // empty = account-held default
+}
+
+message GetSessionRequest {
+  string session_id = 1;
+}
+
+message DeleteSessionRequest {
+  string session_id = 1;
+}
+message DeleteSessionResponse {}
+
+message Session {
+  string id = 1;
+  string title = 2;
+  string kernel = 3;
+  string model = 4;
+  string status = 5;
+  int64 created_at_ms = 6;
+  int64 updated_at_ms = 7;
+  UsageSummary usage = 8;
+}
+
+message UsageSummary {
+  int64 input_tokens = 1;
+  int64 output_tokens = 2;
+  int64 cache_read_tokens = 3;
+  double model_cost_est_usd = 4;
+  double sandbox_cost_est_usd = 5;
+  int64 sandbox_seconds = 6;
+}
+
+message SendTurnRequest {
+  string session_id = 1;
+  string text = 2;
+  repeated string attachment_ids = 3;
+}
+message SendTurnResponse {
+  string turn_id = 1;
+}
+
+message AbortTurnRequest {
+  string session_id = 1;
+}
+message AbortTurnResponse {}
+
+message RespondApprovalRequest {
+  string session_id = 1;
+  string approval_request_id = 2;
+  string decision = 3; // allow_once | always | deny
+}
+message RespondApprovalResponse {}
+
+message RespondAskRequest {
+  string session_id = 1;
+  string ask_id = 2;
+  string choice_id = 3;
+  string other_text = 4;
+}
+message RespondAskResponse {}
+
+message SubscribeRequest {
+  string session_id = 1;
+  string after_event_id = 2;
+}
+
+message SessionEvent {
+  string id = 1;
+  string type = 2; // assistant.delta | assistant.thinking_delta | tool.started | ...
+  string session_id = 3;
+  string turn_id = 4;
+  int64 timestamp_ms = 5;
+  string json_payload = 6; // engine.Event-compatible JSON fragment
+}
+
+message MigrateCopyRequest {
+  string source_session_id = 1;
+  string direction = 2; // local_to_cloud | cloud_to_local
+  string transcript_json = 3; // for local_to_cloud: desktop-provided snapshot
+}
+message MigrateCopyResponse {
+  string target_session_id = 1;
+  bool ok = 2;
+  string error = 3;
+}
+
+message MigrateFinalizeRequest {
+  string source_session_id = 1;
+  string target_session_id = 2;
+  string direction = 3;
+}
+message MigrateFinalizeResponse {
+  bool ok = 1;
+  string error = 2;
+}
+
+message UpsertCredentialRequest {
+  string id = 1;
+  string label = 2;
+  string base_url = 3;
+  string api_key = 4; // write-only; never returned
+}
+message UpsertCredentialResponse {
+  string id = 1;
+}
+
+message DeleteCredentialRequest {
+  string id = 1;
+}
+message DeleteCredentialResponse {}

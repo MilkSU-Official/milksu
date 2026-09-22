@@ -50,9 +50,9 @@ func TestDatabaseCompatDescriptors(t *testing.T) {
 			ctfshow.SupportedCTFshowCatalogDatabaseVersion,
 		)
 	}
-	if modelusage.SupportedDatabaseVersion != 1 {
+	if modelusage.SupportedDatabaseVersion != 2 {
 		t.Fatalf(
-			"SupportedDatabaseVersion = %d, want 1",
+			"SupportedDatabaseVersion = %d, want 2",
 			modelusage.SupportedDatabaseVersion,
 		)
 	}
@@ -247,7 +247,7 @@ func TestGetLocalDataStatusIncludesDatabaseCompatibility(t *testing.T) {
 		usageStatus.State != "compatible" {
 		t.Fatalf("unexpected Coding Agent Usage status: %#v", usageStatus)
 	}
-	if usageStatus.Current == nil || *usageStatus.Current != 1 ||
+	if usageStatus.Current == nil || *usageStatus.Current != modelusage.SupportedDatabaseVersion ||
 		usageStatus.Supported == nil || *usageStatus.Supported != modelusage.SupportedDatabaseVersion {
 		t.Fatalf("unexpected Coding Agent Usage versions: %#v", usageStatus)
 	}

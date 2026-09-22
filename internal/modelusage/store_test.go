@@ -102,11 +102,11 @@ func TestStoreUsesNumberedMigrationAndRejectsInvalidRecords(t *testing.T) {
 		name    string
 	)
 	if err := store.db.QueryRow(
-		`SELECT version, name FROM schema_migrations`,
+		`SELECT version, name FROM schema_migrations ORDER BY version DESC LIMIT 1`,
 	).Scan(&version, &name); err != nil {
 		t.Fatal(err)
 	}
-	if version != SupportedDatabaseVersion || name != usageV1MigrationName {
+	if version != SupportedDatabaseVersion || name != usageV2MigrationName {
 		t.Fatalf("unexpected migration history: %d %q", version, name)
 	}
 

@@ -472,6 +472,7 @@ export function normalizeConversation(raw: Record<string, unknown>): Conversatio
       ? Number(raw.pinnedOrder)
       : undefined,
     kernel: normalizeAgentKernel(raw.kernel),
+    host: raw.host === 'cloud' ? 'cloud' : 'local',
     parentConversationId: typeof raw.parentConversationId === 'string'
       && raw.parentConversationId.trim()
       ? raw.parentConversationId.trim()
@@ -2110,6 +2111,12 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
     update(s.activeId, conversation => ({ ...conversation, kernel: next }))
   }
 
+  function setHost(host: import('@/lib/conversationHost').ConversationHost) {
+    const next = host === 'cloud' ? 'cloud' as const : 'local' as const
+    if (!s.activeId) return
+    update(s.activeId, conversation => ({ ...conversation, host: next }))
+  }
+
   function setModelSelection(
     mode: 'auto' | 'manual',
     provider?: string,
@@ -3651,6 +3658,7 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
     abortWorkingItem,
     abortWorkingAll,
     setKernel,
+    setHost,
     setModelSelection,
     setThinkingLevel,
     setModelSourcePreference,

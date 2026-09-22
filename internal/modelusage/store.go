@@ -17,9 +17,10 @@ import (
 const (
 	// SupportedDatabaseVersion is the numbered migration version recorded for
 	// the local Coding Agent usage ledger.
-	SupportedDatabaseVersion = 1
+	SupportedDatabaseVersion = 2
 
 	usageV1MigrationName = "create Coding Agent usage ledger"
+	usageV2MigrationName = "add usage_turns host ledger"
 	maximumTextRunes     = 512
 	maximumTokenCount    = int64(1_000_000_000_000)
 )
@@ -122,11 +123,18 @@ func NewStore(path string) (*Store, error) {
 	}
 	migrator, err := sqlitemigrate.Open(
 		path,
-		[]sqlitemigrate.Migration{{
-			Version: 1,
-			Name:    usageV1MigrationName,
-			Up:      usageV1Up,
-		}},
+		[]sqlitemigrate.Migration{
+			{
+				Version: 1,
+				Name:    usageV1MigrationName,
+				Up:      usageV1Up,
+			},
+			{
+				Version: 2,
+				Name:    usageV2MigrationName,
+				Up:      usageV2Up,
+			},
+		},
 		sqlitemigrate.WithPragmas([]string{"PRAGMA journal_mode = WAL"}),
 	)
 	if err != nil {
@@ -178,6 +186,134 @@ func usageV1Up(ctx context.Context, tx *sql.Tx) error {
 		}
 	}
 	return nil
+}
+
+func usageV2Up(ctx context.Context, tx *sql.Tx) error {
+	statements := []string{
+		`CREATE TABLE IF NOT EXISTS usage_turns (
+			id TEXT PRIMARY KEY,
+			conversation_id TEXT NOT NULL,
+			host TEXT NOT NULL CHECK(host IN ('local', 'cloud')),
+			kernel TEXT NOT NULL,
+			model TEXT NOT NULL,
+			source TEXT NOT NULL,
+			occurred_at_ms INTEGER NOT NULL,
+			input_tokens INTEGER NOT NULL,
+			output_tokens INTEGER NOT NULL,
+			cache_read_tokens INTEGER NOT NULL,
+			cache_write_tokens INTEGER NOT NULL,
+			reasoning_tokens INTEGER NOT NULL,
+			total_tokens INTEGER NOT NULL,
+			model_cost_est_usd REAL NOT NULL,
+			sandbox_seconds INTEGER NOT NULL,
+			sandbox_cost_est_usd REAL NOT NULL
+		)`,
+		`CREATE INDEX IF NOT EXISTS usage_turns_occurred_at
+			ON usage_turns(occurred_at_ms, host)`,
+		`CREATE INDEX IF NOT EXISTS usage_turns_conversation
+			ON usage_turns(conversation_id, occurred_at_ms)`,
+	}
+	for _, statement := range statements {
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
+			return fmt.Errorf("create usage_turns schema: %w", err)
+		}
+	}
+	return nil
+}
+
+// Turn is one settled Coding turn for local|cloud usage display (models.dev estimate, not a bill).
+type Turn struct {
+	ID                 string
+	ConversationID     string
+	Host               string // local | cloud
+	Kernel             string
+	Model              string
+	Source             string
+	OccurredAt         time.Time
+	InputTokens        int64
+	OutputTokens       int64
+	CacheRead          int64
+	CacheWrite         int64
+	Reasoning          int64
+	TotalTokens        int64
+	ModelCostEstUSD    float64
+	SandboxSeconds     int64
+	SandboxCostEstUSD  float64
+}
+
+func (s *Store) RecordTurn(ctx context.Context, turn Turn) error {
+	host := strings.TrimSpace(turn.Host)
+	if host != "local" && host != "cloud" {
+		return fmt.Errorf("usage turn host must be local or cloud")
+	}
+	id := strings.TrimSpace(turn.ID)
+	if id == "" {
+		return fmt.Errorf("usage turn id required")
+	}
+	conversationID := strings.TrimSpace(turn.ConversationID)
+	if conversationID == "" {
+		return fmt.Errorf("usage turn conversation id required")
+	}
+	occurred := turn.OccurredAt
+	if occurred.IsZero() {
+		occurred = time.Now().UTC()
+	}
+	_, err := s.db.ExecContext(ctx, `INSERT OR IGNORE INTO usage_turns (
+		id, conversation_id, host, kernel, model, source, occurred_at_ms,
+		input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
+		reasoning_tokens, total_tokens, model_cost_est_usd, sandbox_seconds, sandbox_cost_est_usd
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		id,
+		conversationID,
+		host,
+		strings.TrimSpace(turn.Kernel),
+		strings.TrimSpace(turn.Model),
+		strings.TrimSpace(turn.Source),
+		occurred.UTC().UnixMilli(),
+		turn.InputTokens,
+		turn.OutputTokens,
+		turn.CacheRead,
+		turn.CacheWrite,
+		turn.Reasoning,
+		turn.TotalTokens,
+		turn.ModelCostEstUSD,
+		turn.SandboxSeconds,
+		turn.SandboxCostEstUSD,
+	)
+	if err != nil {
+		return fmt.Errorf("insert usage turn: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) SumModelTokensSince(ctx context.Context, conversationID string, sinceMs int64) (input, output, cacheRead, cacheWrite, reasoning, total int64, model, source string, err error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT provider, model, source, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, reasoning_tokens, total_tokens
+		FROM usage_events
+		WHERE conversation_id = ? AND kind = 'model' AND occurred_at_ms >= ?
+		ORDER BY occurred_at_ms ASC`, conversationID, sinceMs)
+	if err != nil {
+		return 0, 0, 0, 0, 0, 0, "", "", err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var provider, m, src string
+		var in, out, cr, cw, reason, tot int64
+		if scanErr := rows.Scan(&provider, &m, &src, &in, &out, &cr, &cw, &reason, &tot); scanErr != nil {
+			return 0, 0, 0, 0, 0, 0, "", "", scanErr
+		}
+		input += in
+		output += out
+		cacheRead += cr
+		cacheWrite += cw
+		reasoning += reason
+		total += tot
+		if m != "" {
+			model = m
+			source = src
+		}
+		_ = provider
+	}
+	return input, output, cacheRead, cacheWrite, reasoning, total, model, source, rows.Err()
 }
 
 func (s *Store) Record(ctx context.Context, record Record) error {

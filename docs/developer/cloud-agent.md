@@ -128,6 +128,17 @@ Cloud API
 4. iOS / Android 并行云对话。  
 5. 额度、充值、#131：后置。
 
+## 本仓落地进度（2026-09-22）
+
+| 刀 | 状态 | 落点 |
+| --- | --- | --- |
+| 1 用量 + Connect 契约 | 骨架已进仓 | `internal/modelpricing`、`usage_turns`、`cloud/agent/proto`、Worker stub |
+| 2–3 CF Pi/DSH | 骨架 | `cloud/agent/sandbox`；需 CF 绑定与镜像闭包 |
+| 4 左下切换 + 先拷后删 | UI + 客户端 helper | `ComposerHostSwitch`、`migrateConversationHost`；真云 Migrate 待 Worker |
+| 5 原生双端 | 工程占位 | `mobile/ios`、`mobile/android` |
+
+部署与密钥仍在 `milksu-admin` / CF 控制台（本 Agent 无该仓写权限）。
+
 ## 检查点
 
 Gate 1 主决策已对齐（含 Connect、先拷后删换宿主、全记本地估算、**云端允许自带 Key/中转且仅服务端持有**）。实现中碰到整盘迁移边界、Connect 默认 JSON vs proto 等细则再问，不回开已拍项。

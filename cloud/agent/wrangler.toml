@@ -1,0 +1,24 @@
+name = "milksu-cloud-agent"
+main = "src/worker.ts"
+compatibility_date = "2026-09-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Bindings are filled at deploy time in milksu-admin / CF dashboard.
+# [[durable_objects.bindings]]
+# name = "Sandbox"
+# class_name = "Sandbox"
+
+# [[containers]]
+# class_name = "Sandbox"
+# image = "./sandbox/Dockerfile"
+# instance_type = "basic"
+# max_instances = 20
+
+# [[r2_buckets]]
+# binding = "WORKSPACES"
+# bucket_name = "milksu-cloud-workspaces"
+
+# [[d1_databases]]
+# binding = "DB"
+# database_name = "milksu-cloud"
+# database_id = "replace-me"

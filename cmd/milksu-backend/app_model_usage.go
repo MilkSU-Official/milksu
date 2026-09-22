@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/MilkSU-Official/milksu/internal/engine"
+	"github.com/MilkSU-Official/milksu/internal/modelpricing"
 	"github.com/MilkSU-Official/milksu/internal/modelusage"
 )
 
@@ -51,6 +52,17 @@ func (a *App) recordCodingUsage(event engine.Event) (bool, error) {
 		record.TotalTokens = event.Usage.TotalTokens
 		record.CostUSD = event.Usage.CostUSD
 		record.Success = event.Usage.Success
+		if record.CostUSD == 0 {
+			if est, ok := modelpricing.EstimateUSD(record.Model, modelpricing.Usage{
+				InputTokens:      record.InputTokens,
+				OutputTokens:     record.OutputTokens,
+				CacheReadTokens:  record.CacheRead,
+				CacheWriteTokens: record.CacheWrite,
+				ReasoningTokens:  record.Reasoning,
+			}); ok {
+				record.CostUSD = est
+			}
+		}
 	case "tool.completed":
 		if event.Module != "coding" {
 			return false, nil
@@ -63,10 +75,40 @@ func (a *App) recordCodingUsage(event engine.Event) (bool, error) {
 		record.Kind = modelusage.KindTool
 		record.ToolName = event.ToolName
 		record.DurationMS = event.DurationMS
+	case "assistant.settled":
+		return a.recordCodingUsageTurn(event, occurredAt)
 	default:
 		return false, nil
 	}
 	if err := a.modelUsage.Record(context.Background(), record); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func (a *App) recordCodingUsageTurn(event engine.Event, occurredAt time.Time) (bool, error) {
+	sessionID := strings.TrimSpace(event.SessionID)
+	if sessionID == "" {
+		return false, nil
+	}
+	sinceMs := occurredAt.Add(-2 * time.Hour).UTC().UnixMilli()
+	in, out, cr, cw, reason, tot, model, source, err := a.modelUsage.SumModelTokensSince(context.Background(), sessionID, sinceMs)
+	if err != nil {
+		return false, err
+	}
+	if tot == 0 && in == 0 && out == 0 {
+		return false, nil
+	}
+	est, _ := modelpricing.EstimateUSD(model, modelpricing.Usage{
+		InputTokens: in, OutputTokens: out, CacheReadTokens: cr, CacheWriteTokens: cw, ReasoningTokens: reason,
+	})
+	turnID := fmt.Sprintf("turn:%s:%d", sessionID, occurredAt.UTC().UnixMilli())
+	if err := a.modelUsage.RecordTurn(context.Background(), modelusage.Turn{
+		ID: turnID, ConversationID: sessionID, Host: "local", Kernel: "pi",
+		Model: model, Source: source, OccurredAt: occurredAt,
+		InputTokens: in, OutputTokens: out, CacheRead: cr, CacheWrite: cw, Reasoning: reason, TotalTokens: tot,
+		ModelCostEstUSD: est, SandboxSeconds: 0, SandboxCostEstUSD: 0,
+	}); err != nil {
 		return false, err
 	}
 	return true, nil

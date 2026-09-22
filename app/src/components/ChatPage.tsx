@@ -2844,6 +2844,45 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
             thinkingLevel={currentThinkingLevel}
             kernel={agentKernel}
             kernelLocked={Boolean(conversation?.messages.some(message => message.role === 'user' && message.status !== 'queued'))}
+            conversationHost={conversation?.host ?? 'local'}
+            conversationStarted={Boolean(conversation?.messages?.length)}
+            onChangeConversationHost={async host => {
+              if (!conversation?.id) return
+              const started = Boolean(conversation.messages?.length)
+              if (!started) {
+                conversations.setHost(host)
+                return
+              }
+              // Started sessions: copy-then-delete migrate (cloud API required for local→cloud).
+              try {
+                const { migrateConversationHost } = await import('@/lib/cloud/migrateConversationHost')
+                const { defaultCloudAgentBaseUrl } = await import('@/lib/cloud/cloudAgentClient')
+                const direction = host === 'cloud' ? 'local_to_cloud' as const : 'cloud_to_local' as const
+                await migrateConversationHost({
+                  direction,
+                  sourceSessionId: conversation.id,
+                  messageCount: conversation.messages.length,
+                  transcriptJson: JSON.stringify(conversation.messages),
+                  getAccessToken: async () => {
+                    const status = await invokeCommand<{ accessToken?: string }>('get_account_status').catch(() => null)
+                    return status?.accessToken ?? null
+                  },
+                  baseUrl: defaultCloudAgentBaseUrl(),
+                  deleteSource: async () => {
+                    await conversations.archive(conversation.id)
+                  },
+                  createLocalFromTranscript: async () => {
+                    conversations.setHost('local')
+                    return conversation.id
+                  },
+                })
+                conversations.setHost(host)
+              } catch (error) {
+                toastError(
+                  error instanceof Error ? error.message : t('切换本地/云失败', 'Failed to switch local/cloud'),
+                )
+              }
+            }}
             planModeActive={conversation?.planMode?.active === true}
             dshCommands={conversation?.dshCommands}
             dshCommandsError={conversation?.dshCommandsError}
