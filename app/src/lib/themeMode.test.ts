@@ -112,9 +112,18 @@ describe('themeMode', () => {
         resolve()
         return
       }
-      window.setTimeout(resolve, 0)
+      // 这里不再固定等 0ms（那是冤红的来源 ✗）；真正等多少交给下面的有界轮询 ✓。
+      resolve()
     })
     if (typeof BroadcastChannel === 'function') {
+      // 固定 `setTimeout(0)` 在**全量负载**下会先于 BroadcastChannel 的投递 ⇒ `seen` 还是空的
+      // ⇒ 冤红（真事：单独跑绿、全量跑红 ✗）。改成**有界轮询**：等到出现，或 500ms 后放弃
+      // （那时仍会断言失败 —— 但那是真问题，不是计时误差 ✓）。
+      const deadline = Date.now() + 500
+      const arrived = () => seen.some(entry => entry.mode === 'dark' && entry.resolved === 'dark')
+      while (!arrived() && Date.now() < deadline) {
+        await new Promise<void>(resolve => window.setTimeout(resolve, 10))
+      }
       expect(seen).toContainEqual({ mode: 'dark', resolved: 'dark' })
     }
     stop()
