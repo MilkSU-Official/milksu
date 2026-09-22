@@ -3470,6 +3470,10 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
             },
           )
           messages.splice(0, messages.length, ...nextMessages)
+        } else if (type === 'session.model_source_unavailable') {
+          const payload = event.payload as unknown as { notice?: string; message?: string }
+          const text = String(payload?.notice ?? payload?.message ?? '').trim()
+          if (text) pushEngineNotice(text)
         } else if (type === 'engine.error') {
           const erroredQueue = s.messageQueues.get(sessionId)
           if (erroredQueue?.steering.length) {
