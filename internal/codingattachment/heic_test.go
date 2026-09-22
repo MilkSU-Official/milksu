@@ -7,14 +7,19 @@ import (
 	"testing"
 )
 
-// 真机那张 iPhone 照片：5712×4284（`sips -g pixelWidth` 实测）。读者就是用这张被服务端拒过。
-const realHeicPath = "/Users/xiaoxingjiang/Downloads/IMG_2646.HEIC"
+// 真机素材由环境变量提供（MILKSU_REAL_HEIC），**不在仓库里硬编码任何人的路径**：
+// 那张 iPhone 照片是 5712×4284，读者正是用它被服务端拒过。没有素材就跳过，而不是失败。
+func realHeicPath() string { return os.Getenv("MILKSU_REAL_HEIC") }
 
 func readRealHeic(t *testing.T) []byte {
 	t.Helper()
-	data, err := os.ReadFile(realHeicPath)
+	path := realHeicPath()
+	if path == "" {
+		t.Skip("未提供 MILKSU_REAL_HEIC（真机素材）——跳过需要真实照片的用例")
+	}
+	data, err := os.ReadFile(path)
 	if err != nil {
-		t.Skipf("真机 HEIC 不在本机（%s）：%v", realHeicPath, err)
+		t.Skipf("读不到 MILKSU_REAL_HEIC 指向的文件（%s）：%v", path, err)
 	}
 	return data
 }
@@ -55,14 +60,17 @@ func TestConvertHEICToPNGKeepsTheRealDimensions(t *testing.T) {
 
 // 读者的原图必须原封不动：我们只是复制进库并转换。
 func TestConversionLeavesTheOriginalFileUntouched(t *testing.T) {
-	before, err := os.Stat(realHeicPath)
+	if realHeicPath() == "" {
+		t.Skip("未提供 MILKSU_REAL_HEIC（真机素材）——跳过这条")
+	}
+	before, err := os.Stat(realHeicPath())
 	if err != nil {
-		t.Fatal(err)
+		t.Skipf("读不到 MILKSU_REAL_HEIC 指向的文件：%v", err)
 	}
 	if _, err := ConvertHEICToPNG(readRealHeic(t), nil); err != nil {
 		t.Fatalf("converting the real photo failed: %v", err)
 	}
-	after, err := os.Stat(realHeicPath)
+	after, err := os.Stat(realHeicPath())
 	if err != nil {
 		t.Fatalf("the reader's original file disappeared: %v", err)
 	}
