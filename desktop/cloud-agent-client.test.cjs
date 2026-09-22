@@ -65,3 +65,44 @@ test('ALLOWED_METHODS covers migrate and credential surface', () => {
   assert.ok(ALLOWED_METHODS.includes('UpsertCredential'))
   assert.ok(!ALLOWED_METHODS.includes('Subscribe'))
 })
+
+test('CloudAgentClient.subscribe decodes Connect envelopes until end-stream', async () => {
+  const envelope = require('../cloud/agent/src/connect-envelope.cjs')
+  const events = []
+  const frames = Buffer.concat([
+    envelope.encodeEnvelope({
+      id: 'e1',
+      type: 'assistant.delta',
+      session_id: 's1',
+      turn_id: 't1',
+      timestamp_ms: 1,
+      json_payload: JSON.stringify({ text: 'hi' }),
+    }),
+    envelope.encodeEndStream(),
+  ])
+  const client = new CloudAgentClient({
+    baseUrl: 'https://agent.example',
+    getAccessToken: async () => 'tok',
+    fetchImpl: async () => ({
+      ok: true,
+      status: 200,
+      body: {
+        getReader() {
+          let done = false
+          return {
+            async read() {
+              if (done) return { done: true, value: undefined }
+              done = true
+              return { done: false, value: frames }
+            },
+          }
+        },
+      },
+    }),
+  })
+  await client.subscribe('s1', {
+    onEvent: event => events.push(event),
+  })
+  assert.equal(events.length, 1)
+  assert.equal(events[0].type, 'assistant.delta')
+})

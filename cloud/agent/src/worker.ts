@@ -5,6 +5,11 @@
  * (same shape as CF's Connect/gRPC-web Worker examples and community
  * Workers Connect servers). Sandbox orchestration follows @cloudflare/sandbox.
  *
+ * Subscribe uses Connect enveloped application/connect+json
+ * (https://connectrpc.com/docs/protocol/) with a short-lived long-poll window
+ * and after_event_id resume — same reconnect shape as Connect-ES clients and
+ * Cursor-style event streams, without inventing non-envelope keepalive frames.
+ *
  * Full generated Connect stubs land when buf generate runs in CI; this
  * file is the hand-routed HTTP surface so the service is reviewable and
  * deployable without codegen on every laptop.
@@ -50,6 +55,9 @@ type SessionEventRow = {
 const sessions = new Map<string, SessionRow>()
 
 const FLAG_END_STREAM = 0x02
+/** Workers wall budget for one Subscribe long-poll before EndStream + client resume. */
+const SUBSCRIBE_WINDOW_MS = 25_000
+const SUBSCRIBE_POLL_MS = 200
 
 function encodeEnvelope(message: Json, flags = 0): Uint8Array {
   const payload = new TextEncoder().encode(JSON.stringify(message ?? {}))
@@ -59,6 +67,24 @@ function encodeEnvelope(message: Json, flags = 0): Uint8Array {
   view.setUint32(1, payload.length, false)
   out.set(payload, 5)
   return out
+}
+
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException('Aborted', 'AbortError'))
+      return
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    const onAbort = () => {
+      clearTimeout(timer)
+      reject(new DOMException('Aborted', 'AbortError'))
+    }
+    signal?.addEventListener('abort', onAbort, { once: true })
+  })
 }
 
 function enqueueEvent(row: SessionRow, type: string, turnId: string, payload: Json) {
@@ -85,6 +111,40 @@ function sessionEventWire(row: SessionRow, event: SessionEventRow): Json {
     timestamp_ms: event.timestamp_ms,
     json_payload: event.json_payload,
   }
+}
+
+function chunkText(text: string, size = 48): string[] {
+  const trimmed = text.trim()
+  if (!trimmed) return ['']
+  const parts: string[] = []
+  for (let i = 0; i < trimmed.length; i += size) {
+    parts.push(trimmed.slice(i, i + size))
+  }
+  return parts
+}
+
+function enqueueStubTurn(row: SessionRow, turnId: string, userText: string) {
+  const reply = userText.trim()
+    ? '云沙箱尚未绑定：已收到你的消息，部署 Sandbox 后会在这里跑 Pi/DSH。 / Cloud sandbox is not bound yet; your message was accepted.'
+    : '云沙箱尚未绑定。 / Cloud sandbox is not bound yet.'
+  enqueueEvent(row, 'assistant.thinking_delta', turnId, {
+    text: 'Preparing cloud turn…',
+  })
+  for (const part of chunkText(reply)) {
+    enqueueEvent(row, 'assistant.delta', turnId, { text: part })
+  }
+  enqueueEvent(row, 'turn.settled', turnId, {
+    usage: {
+      input_tokens: Math.max(1, Math.ceil(userText.length / 4)),
+      output_tokens: Math.max(1, Math.ceil(reply.length / 4)),
+      cache_read_tokens: 0,
+      model_cost_est_usd: 0,
+      sandbox_cost_est_usd: 0,
+      sandbox_seconds: 0,
+    },
+    disclaimer: '根据 models.dev 估算，方便统计，不是账单',
+  })
+  enqueueEvent(row, 'assistant.settled', turnId, {})
 }
 
 function json(data: Json, status = 200): Response {
@@ -245,18 +305,25 @@ export default {
             }, 503)
           }
         }
-        // Stub path: still accept the turn so Connect + desktop Subscribe can be
-        // exercised before milksu-admin wires Sandbox. Message is user-visible.
-        enqueueEvent(row, 'assistant.delta', turnId, {
-          text: text.trim()
-            ? '云沙箱尚未绑定：已收到你的消息，部署 Sandbox 后会在这里跑 Pi/DSH。 / Cloud sandbox is not bound yet; your message was accepted.'
-            : '云沙箱尚未绑定。 / Cloud sandbox is not bound yet.',
-        })
-        enqueueEvent(row, 'assistant.settled', turnId, {})
+        // Stub path: accept the turn and emit chunked events so Subscribe /
+        // desktop / mobile can exercise the Connect stream before Sandbox bind.
+        row.status = 'running'
+        enqueueStubTurn(row, turnId, text)
         row.status = 'ready'
         row.updated_at_ms = Date.now()
         sessions.set(sessionId, row)
         return json({ turn_id: turnId })
+      }
+      case 'AbortTurn': {
+        const sessionId = String(body.session_id || '').trim()
+        const row = sessions.get(sessionId)
+        if (!row || row.owner_token_hash !== tokenHash) {
+          return json({ code: 'not_found', message: 'Session not found' }, 404)
+        }
+        row.status = 'ready'
+        row.updated_at_ms = Date.now()
+        enqueueEvent(row, 'turn.aborted', '', {})
+        return json({})
       }
       case 'Subscribe': {
         const sessionId = String(body.session_id || '').trim()
@@ -270,8 +337,9 @@ export default {
           const idx = row.events.findIndex(event => event.id === after)
           cursor = idx >= 0 ? idx + 1 : 0
         }
+        const signal = request.signal
         const stream = new ReadableStream<Uint8Array>({
-          start(controller) {
+          async start(controller) {
             controller.enqueue(encodeEnvelope({
               id: crypto.randomUUID(),
               type: 'session.snapshot',
@@ -280,27 +348,41 @@ export default {
               timestamp_ms: Date.now(),
               json_payload: JSON.stringify(publicSession(row)),
             }))
-          },
-          pull(controller) {
-            while (cursor < row.events.length) {
-              const event = row.events[cursor]
-              cursor += 1
-              controller.enqueue(encodeEnvelope(sessionEventWire(row, event)))
-            }
-            // Keep the stream open briefly so late SendTurn events can arrive,
-            // then end with Connect EndStreamResponse.
-            return new Promise(resolve => {
-              setTimeout(() => {
-                while (cursor < row.events.length) {
-                  const event = row.events[cursor]
+            const started = Date.now()
+            try {
+              while (Date.now() - started < SUBSCRIBE_WINDOW_MS) {
+                if (signal.aborted) break
+                const live = sessions.get(sessionId)
+                if (!live || live.owner_token_hash !== tokenHash) break
+                while (cursor < live.events.length) {
+                  const event = live.events[cursor]
                   cursor += 1
-                  controller.enqueue(encodeEnvelope(sessionEventWire(row, event)))
+                  controller.enqueue(encodeEnvelope(sessionEventWire(live, event)))
                 }
-                controller.enqueue(encodeEnvelope({}, FLAG_END_STREAM))
+                await sleep(SUBSCRIBE_POLL_MS, signal)
+              }
+            } catch (error) {
+              if (!(error instanceof DOMException && error.name === 'AbortError')) {
+                controller.enqueue(encodeEnvelope({
+                  error: {
+                    code: 'internal',
+                    message: error instanceof Error ? error.message : 'Subscribe failed',
+                  },
+                }, FLAG_END_STREAM))
                 controller.close()
-                resolve()
-              }, 50)
-            })
+                return
+              }
+            }
+            const live = sessions.get(sessionId)
+            if (live) {
+              while (cursor < live.events.length) {
+                const event = live.events[cursor]
+                cursor += 1
+                controller.enqueue(encodeEnvelope(sessionEventWire(live, event)))
+              }
+            }
+            controller.enqueue(encodeEnvelope({}, FLAG_END_STREAM))
+            controller.close()
           },
         })
         return new Response(stream, {
@@ -308,6 +390,7 @@ export default {
           headers: {
             'content-type': 'application/connect+json',
             'connect-protocol-version': '1',
+            'cache-control': 'no-cache',
           },
         })
       }

@@ -1074,22 +1074,37 @@ ipcMain.handle('milksu:invoke', async (event, request) => {
       baseUrl: defaultCloudAgentBaseUrl(),
       getAccessToken: async () => token,
     })
-    void client.subscribe(sessionId, {
-      afterEventId: String(payload?.afterEventId ?? ''),
-      signal: controller.signal,
-      onEvent: event => {
-        emitRendererEvent('cloud-agent-event', {
-          sessionId,
-          event,
-        })
-      },
-    }).catch(error => {
-      if (controller.signal.aborted) return
-      emitRendererEvent('cloud-agent-event', {
-        sessionId,
-        error: String(error?.message || error || 'Subscribe failed'),
-      })
-    }).finally(() => {
+    // Worker Subscribe is a Connect long-poll window; resume with after_event_id
+    // until the renderer unsubscribes (same shape as Connect-ES reconnect).
+    void (async () => {
+      let afterEventId = String(payload?.afterEventId ?? '')
+      while (!controller.signal.aborted) {
+        try {
+          await client.subscribe(sessionId, {
+            afterEventId,
+            signal: controller.signal,
+            onEvent: event => {
+              const id = typeof event?.id === 'string' ? event.id.trim() : ''
+              if (id) afterEventId = id
+              emitRendererEvent('cloud-agent-event', {
+                sessionId,
+                event,
+              })
+            },
+          })
+        } catch (error) {
+          if (controller.signal.aborted) return
+          emitRendererEvent('cloud-agent-event', {
+            sessionId,
+            error: String(error?.message || error || 'Subscribe failed'),
+          })
+          await new Promise(resolve => setTimeout(resolve, 750))
+          continue
+        }
+        if (controller.signal.aborted) return
+        await new Promise(resolve => setTimeout(resolve, 100))
+      }
+    })().finally(() => {
       if (cloudSubscribeControllers.get(sessionId) === controller) {
         cloudSubscribeControllers.delete(sessionId)
       }

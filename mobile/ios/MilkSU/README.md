@@ -4,20 +4,20 @@ Cloud Coding client for MilkSU accounts.
 
 ## Layout
 
-- `CloudConfig.swift` — Connect-JSON unary client (`MilkSUCloudAgentClient`) matching `cloud/agent` Worker wire.
+- `CloudConfig.swift` — Connect-JSON unary + Subscribe envelope client (`MilkSUCloudAgentClient`) matching `cloud/agent` Worker wire.
+- `AccountAuth.swift` — PKCE against `accounts.milksu.org` (same wire as desktop `AccountSession`).
+- `MilkSUApp.swift` — Sign-in, session list, chat with Subscribe reconnect loop.
+- `Info.plist` — registers `milksu://` URL scheme for `milksu://auth/callback`.
 - Generate Connect-Swift from `cloud/agent/proto/cloud_session.proto` when buf tooling is in CI; replace the hand client.
 
 ## Auth
 
-PKCE against `accounts.milksu.org`（与桌面 `AccountSession` 同线）：
-- iOS：`AccountAuth.swift` + `ASWebAuthenticationSession` + Keychain
-- Android：`AccountAuth.kt` + Chrome Custom Tabs + `milksu://auth/callback`
-
-Redirect：`milksu://auth/callback`（与桌面 stable scheme 一致；需在系统里注册）。
+- `ASWebAuthenticationSession` + Keychain
+- Redirect: `milksu://auth/callback` (desktop stable scheme)
 
 ## First vertical slice
 
-1. Sign in.
+1. Sign in (PKCE).
 2. `ListSessions` / `CreateSession`.
-3. Stream turns via `Subscribe` once the generated Connect router ships.
-4. Show usage with the models.dev estimate disclaimer (not a bill).
+3. Open a session → `SendTurn` + `Subscribe` (long-poll resume via `after_event_id`).
+4. Usage disclaimer: estimates from models.dev are for stats only, not a bill.

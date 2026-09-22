@@ -25,4 +25,8 @@ test('worker source keeps health and Connect path prefix', () => {
   assert.match(src, /application\/connect\+json/)
   assert.match(src, /FLAG_END_STREAM/)
   assert.match(src, /session\.snapshot/)
+  assert.match(src, /SUBSCRIBE_WINDOW_MS/)
+  assert.match(src, /assistant\.thinking_delta/)
+  assert.match(src, /turn\.settled/)
+  assert.match(src, /after_event_id/)
 })
