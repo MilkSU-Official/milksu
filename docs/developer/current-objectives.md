@@ -81,7 +81,7 @@
 | 未接线 | 同一作业 vs 新业务 | 当前 CVE/实验室复用同一会话和 `report.md`。 |
 | 未接线 | CTF 比赛模式 | 对着一场比赛打，不走练习题库。尚未设计准入。 |
 | 未接线 | 实验室红队模式 | 另开学习面，不是对外红队。尚未设计准入。 |
-| P1 | 云 Agent | 登录即用；CF Sandbox + 云端 Pi/DSH；桌面云环境 + 手机一阶段云对话；MilkSU 账户计费（模型 + 沙箱）。准入与决策见 [云 Agent](cloud-agent.md)。跟踪 [#153](https://github.com/MilkSU-Official/milksu/issues/153)。尚未实现。 |
+| P1 | 云 Agent | CF Sandbox；云端 Pi+DSH；桌面云客户端 + 从 0 手机 App；先计量消耗（充值后置）。准入见 [云 Agent](cloud-agent.md)。跟踪 [#153](https://github.com/MilkSU-Official/milksu/issues/153)。传输/手机栈等仍有待拍项。尚未实现。 |
 | 未接线 | 远程控制 App | 手机连本机执行，不是云 Agent（二阶段）。准入与决策见 [远程控制](remote-control.md)。跟踪 [#131](https://github.com/MilkSU-Official/milksu/issues/131)。尚未实现。 |
 
 CVE：点进档案复现，Agent 改 `report.md`。实验室：独立入口，练习包起本机 Docker / AVD 或用户给地址，活报告 + 对话小窗。环境契约见 [靶机、环境经纪与活靶面](/architecture/target-environments)。
@@ -90,7 +90,7 @@ CVE：点进档案复现，Agent 改 `report.md`。实验室：独立入口，�
 
 只在新复现、自动化失败或用户明确要求时重开：已撤单会话图谱；Wails/CEF；workspace-only 文件工具；Security Bridge / `continue_ctf_job`；关键词意图路由；把 dirty HEAD 写成已发版；M3/M4 台账。
 
-计费：历史「退出 MilkSU 自有余额 / 只下发 TokenFlux Key」对**云 Agent**已过时。账户云路径重新做 wallet / ledger / 配额（模型 + 沙箱）；见 [云 Agent](cloud-agent.md)。本机个人 Provider Key 仍可不进该账本。
+计费：历史「退出 MilkSU 自有余额」对云 Agent 过时。云路径先做**计量与消耗展示**（模型 + 沙箱）；充值等后置。见 [云 Agent](cloud-agent.md)。本机个人 Provider Key 仍可不进该账本。
 
 ## 领域与文档
 
