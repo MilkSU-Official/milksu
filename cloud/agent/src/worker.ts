@@ -20,6 +20,21 @@ export interface Env {
 
 type Json = Record<string, unknown>
 
+type SessionRow = {
+  id: string
+  title: string
+  kernel: string
+  model: string
+  status: string
+  created_at_ms: number
+  updated_at_ms: number
+  transcript_json: string
+  owner_token_hash: string
+}
+
+/** Ephemeral until D1 binding is attached in milksu-admin deploy. */
+const sessions = new Map<string, SessionRow>()
+
 function json(data: Json, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
@@ -40,6 +55,12 @@ function bearer(request: Request): string | null {
   return m ? m[1].trim() : null
 }
 
+async function hashToken(token: string): Promise<string> {
+  const data = new TextEncoder().encode(token)
+  const digest = await crypto.subtle.digest('SHA-256', data)
+  return [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
 async function assertAccount(env: Env, token: string): Promise<boolean> {
   const base = (env.ACCOUNT_API_URL || 'https://accounts.milksu.org').replace(/\/$/, '')
   try {
@@ -49,6 +70,18 @@ async function assertAccount(env: Env, token: string): Promise<boolean> {
     return res.ok
   } catch {
     return false
+  }
+}
+
+function publicSession(row: SessionRow): Json {
+  return {
+    id: row.id,
+    title: row.title,
+    kernel: row.kernel,
+    model: row.model,
+    status: row.status,
+    created_at_ms: row.created_at_ms,
+    updated_at_ms: row.updated_at_ms,
   }
 }
 
@@ -71,6 +104,7 @@ export default {
     if (!token || !(await assertAccount(env, token))) {
       return unauthorized()
     }
+    const tokenHash = await hashToken(token)
 
     const prefix = '/milksu.cloud.v1.CloudSessionService/'
     if (!url.pathname.startsWith(prefix)) {
@@ -78,8 +112,6 @@ export default {
     }
     const method = url.pathname.slice(prefix.length)
 
-    // Body is accepted but cloud execution is still scaffolding until Sandbox
-    // bindings are wired in milksu-admin deploy.
     let body: Json = {}
     try {
       body = (await request.json()) as Json
@@ -88,22 +120,44 @@ export default {
     }
 
     switch (method) {
-      case 'ListSessions':
-        return json({ sessions: [] })
+      case 'ListSessions': {
+        const list = [...sessions.values()]
+          .filter(row => row.owner_token_hash === tokenHash)
+          .map(publicSession)
+        return json({ sessions: list })
+      }
       case 'CreateSession': {
-        const id = crypto.randomUUID()
-        return json({
-          id,
+        const now = Date.now()
+        const row: SessionRow = {
+          id: crypto.randomUUID(),
           title: String(body.title || ''),
           kernel: String(body.kernel || 'pi'),
           model: String(body.model || ''),
           status: 'ready',
-          created_at_ms: Date.now(),
-          updated_at_ms: Date.now(),
-        })
+          created_at_ms: now,
+          updated_at_ms: now,
+          transcript_json: '[]',
+          owner_token_hash: tokenHash,
+        }
+        sessions.set(row.id, row)
+        return json(publicSession(row))
       }
-      case 'GetSession':
-        return json({ code: 'not_found', message: 'Session not found' }, 404)
+      case 'GetSession': {
+        const id = String(body.session_id || '')
+        const row = sessions.get(id)
+        if (!row || row.owner_token_hash !== tokenHash) {
+          return json({ code: 'not_found', message: 'Session not found' }, 404)
+        }
+        return json(publicSession(row))
+      }
+      case 'DeleteSession': {
+        const id = String(body.session_id || '')
+        const row = sessions.get(id)
+        if (row && row.owner_token_hash === tokenHash) {
+          sessions.delete(id)
+        }
+        return json({})
+      }
       case 'SendTurn':
         return json({
           code: 'failed_precondition',
@@ -116,19 +170,43 @@ export default {
           code: 'unimplemented',
           message: 'Subscribe streaming requires generated Connect router + Sandbox',
         }, 501)
-      case 'MigrateCopy':
+      case 'MigrateCopy': {
+        const now = Date.now()
+        const row: SessionRow = {
+          id: crypto.randomUUID(),
+          title: 'Migrated',
+          kernel: 'pi',
+          model: '',
+          status: 'migrating',
+          created_at_ms: now,
+          updated_at_ms: now,
+          transcript_json: String(body.transcript_json || '[]'),
+          owner_token_hash: tokenHash,
+        }
+        sessions.set(row.id, row)
         return json({
-          target_session_id: crypto.randomUUID(),
+          target_session_id: row.id,
           ok: true,
           error: '',
         })
-      case 'MigrateFinalize':
+      }
+      case 'MigrateFinalize': {
+        const id = String(body.target_session_id || '')
+        const row = sessions.get(id)
+        if (!row || row.owner_token_hash !== tokenHash) {
+          return json({ ok: false, error: 'target session not found' })
+        }
+        row.status = 'ready'
+        row.updated_at_ms = Date.now()
+        sessions.set(id, row)
         return json({ ok: true, error: '' })
+      }
       case 'UpsertCredential':
         if (!String(body.api_key || '').trim()) {
           return json({ code: 'invalid_argument', message: 'api_key required' }, 400)
         }
         // Persist encrypted ciphertext only when D1 + CREDENTIAL_KEK are bound.
+        // Never echo api_key back.
         return json({ id: String(body.id || crypto.randomUUID()) })
       case 'DeleteCredential':
         return json({})

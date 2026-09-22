@@ -19,4 +19,6 @@ test('worker source keeps health and Connect path prefix', () => {
   assert.match(src, /\/health/)
   assert.match(src, /milksu\.cloud\.v1\.CloudSessionService/)
   assert.match(src, /Sandbox binding not configured/)
+  assert.match(src, /MigrateCopy/)
+  assert.match(src, /owner_token_hash/)
 })

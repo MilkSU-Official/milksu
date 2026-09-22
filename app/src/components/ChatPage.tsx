@@ -2848,28 +2848,21 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
             conversationStarted={Boolean(conversation?.messages?.length)}
             onChangeConversationHost={async host => {
               if (!conversation?.id) return
-              const started = Boolean(conversation.messages?.length)
-              if (!started) {
+              if (!conversation.messages?.length) {
                 conversations.setHost(host)
                 return
               }
-              // Started sessions: copy-then-delete migrate (cloud API required for local→cloud).
               try {
                 const { migrateConversationHost } = await import('@/lib/cloud/migrateConversationHost')
-                const { defaultCloudAgentBaseUrl } = await import('@/lib/cloud/cloudAgentClient')
                 const direction = host === 'cloud' ? 'local_to_cloud' as const : 'cloud_to_local' as const
                 await migrateConversationHost({
                   direction,
                   sourceSessionId: conversation.id,
                   messageCount: conversation.messages.length,
                   transcriptJson: JSON.stringify(conversation.messages),
-                  getAccessToken: async () => {
-                    const status = await invokeCommand<{ accessToken?: string }>('get_account_status').catch(() => null)
-                    return status?.accessToken ?? null
-                  },
-                  baseUrl: defaultCloudAgentBaseUrl(),
                   deleteSource: async () => {
-                    await conversations.archive(conversation.id)
+                    // In-place host flip: keep the conversation row; engine session
+                    // cleanup lands with full cloud list sync.
                   },
                   createLocalFromTranscript: async () => {
                     conversations.setHost('local')

@@ -1,19 +1,23 @@
 import type { ConversationHost } from '@/lib/conversationHost'
 import { canFlipHostWithoutMigrate } from '@/lib/conversationHost'
-import { CloudAgentClient, defaultCloudAgentBaseUrl } from '@/lib/cloud/cloudAgentClient'
+import {
+  CloudAgentClient,
+  desktopCloudAgentClient,
+} from '@/lib/cloud/cloudAgentClient'
 
 /**
  * Copy-then-delete host migration (docs/developer/cloud-agent.md).
  * Local→cloud uses CloudAgentClient.MigrateCopy then Finalize.
  * Cloud→local copies transcript into a new local conversation id supplied by caller.
+ * Product path uses desktopCloudAgentClient (token in Electron main).
  */
 export async function migrateConversationHost(input: {
   direction: 'local_to_cloud' | 'cloud_to_local'
   sourceSessionId: string
   messageCount: number
   transcriptJson?: string
-  getAccessToken: () => Promise<string | null>
-  baseUrl?: string
+  /** Optional override for tests; product code omits this. */
+  client?: CloudAgentClient
   /** Called only after target is verified; deletes or archives the source. */
   deleteSource: (sourceSessionId: string) => Promise<void>
   /** Cloud→local: create local conversation from transcript; return new id. */
@@ -24,10 +28,7 @@ export async function migrateConversationHost(input: {
   }
 
   if (input.direction === 'local_to_cloud') {
-    const client = new CloudAgentClient({
-      baseUrl: input.baseUrl ?? defaultCloudAgentBaseUrl(),
-      getAccessToken: input.getAccessToken,
-    })
+    const client = input.client ?? desktopCloudAgentClient()
     const copied = await client.migrateCopy({
       sourceSessionId: input.sourceSessionId,
       direction: 'local_to_cloud',

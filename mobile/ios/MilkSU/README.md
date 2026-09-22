@@ -1,21 +1,19 @@
-# MilkSU iOS (原生)
+# MilkSU iOS (native)
 
-从 0 的原生客户端：SwiftUI + Connect-Swift。
+Cloud Coding client for MilkSU accounts.
 
-## 一阶段范围
+## Layout
 
-- GitHub PKCE 登录（复用 `accounts.milksu.org`）
-- 云会话列表 / 对话（Connect → `CloudSessionService`）
-- 消耗展示（models.dev 估算文案）
+- `CloudConfig.swift` — Connect-JSON unary client (`MilkSUCloudAgentClient`) matching `cloud/agent` Worker wire.
+- Generate Connect-Swift from `cloud/agent/proto/cloud_session.proto` when buf tooling is in CI; replace the hand client.
 
-## 工程
+## Auth
 
-Xcode 工程在本机创建后放入此目录；协议源：`cloud/agent/proto/cloud_session.proto`。
+Use the same PKCE login as desktop (`accounts.milksu.org`). Store the access token in Keychain; never log it.
 
-```text
-mobile/ios/MilkSU/
-  README.md          # 本文件
-  (Xcode project TBD on Apple silicon CI / developer Mac)
-```
+## First vertical slice
 
-扫电脑 / 局域网属 #131，不在此面。
+1. Sign in.
+2. `ListSessions` / `CreateSession`.
+3. Stream turns via `Subscribe` once the generated Connect router ships.
+4. Show usage with the models.dev estimate disclaimer (not a bill).

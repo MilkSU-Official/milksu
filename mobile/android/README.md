@@ -1,15 +1,19 @@
-# MilkSU Android (原生)
+# MilkSU Android (native)
 
-从 0 的原生客户端：Kotlin + Connect-Kotlin。
+Cloud Coding client for MilkSU accounts.
 
-## 一阶段范围
+## Layout
 
-与 iOS 相同：登录 → 云会话 → 对话 → 消耗展示。协议：`cloud/agent/proto/cloud_session.proto`。
+- `app/src/main/java/org/milksu/app/MilkSUApp.kt` — Connect-JSON unary client matching `cloud/agent` Worker wire.
+- Prefer Connect-Kotlin stubs from `cloud/agent/proto/cloud_session.proto` when buf generate is available.
 
-```text
-mobile/android/
-  README.md
-  app/src/main/java/org/milksu/app/
-```
+## Auth
 
-Android Studio 工程与 Gradle 包装器在具备 JDK/SDK 的环境补齐。
+PKCE against `accounts.milksu.org`. Keep the access token in EncryptedSharedPreferences / Keystore; never log it.
+
+## First vertical slice
+
+1. Sign in.
+2. `ListSessions` / `CreateSession`.
+3. Wire `Subscribe` streaming when the Worker exposes Connect streams.
+4. Usage UI must say estimates are from models.dev, not a bill.

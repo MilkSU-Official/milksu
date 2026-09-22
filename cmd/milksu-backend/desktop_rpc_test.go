@@ -28,6 +28,7 @@ func TestDesktopAppMethodsMatchRendererBindings(t *testing.T) {
 		"GetAccountStatus":               true,
 		"StartAccountLogin":              true,
 		"LogoutAccount":                  true,
+		"CloudAgentInvoke":               true,
 		"GetUpdateStatus":                true,
 		"CheckForUpdates":                true,
 		"DownloadUpdate":                 true,

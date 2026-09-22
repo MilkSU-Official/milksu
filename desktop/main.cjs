@@ -55,6 +55,10 @@ const {
 const { pluginFrameScriptHeaders, rendererHeaders } = require('./renderer-protocol.cjs')
 const { UpdateManager } = require('./update-manager.cjs')
 const {
+  CloudAgentClient,
+  defaultCloudAgentBaseUrl,
+} = require('./cloud-agent-client.cjs')
+const {
   attachBrowserView,
   detachBrowserView,
 } = require('./browser-view-attachment.cjs')
@@ -1037,6 +1041,20 @@ ipcMain.handle('milksu:invoke', async (event, request) => {
     if (!accountSession) return { configured: false, state: 'unconfigured', authenticated: false }
     await clearAccountLoginClaim(os.tmpdir(), process.pid)
     return accountSession.logout()
+  }
+  if (method === 'CloudAgentInvoke') {
+    // Connect unary proxy: Bearer from AccountSession stays in Electron main.
+    if (!accountSession) throw new Error('内测账户尚未就绪')
+    const payload = Array.isArray(request?.args) ? request.args[0] : request?.args
+    const rpcMethod = String(payload?.method ?? '').trim()
+    const body = payload?.body && typeof payload.body === 'object' ? payload.body : {}
+    const token = await accountSession.activeAccessToken()
+    if (!token) throw new Error('请先登录 MilkSU 账户')
+    const client = new CloudAgentClient({
+      baseUrl: defaultCloudAgentBaseUrl(),
+      getAccessToken: async () => token,
+    })
+    return client.call(rpcMethod, body)
   }
   if (method === 'GetUpdateStatus') {
     return updateManager?.view() ?? {
