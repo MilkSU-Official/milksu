@@ -1985,13 +1985,18 @@ async function smokeSidecar(platform) {
   await smokePackagedDshBridge(node, output, workspace, dshHome)
   await smokePackagedCompanionBridge(node, output, workspace)
   await smokePackagedPhotonWasm(node, output, workspace)
+  // 代理子进程会用**它自己**的临时根重算预期 socket 并比对传入值。hostpath 在 macOS 上
+  // 直接读当前进程的 TMPDIR（不看传入 env），所以子进程必须用与父进程同一个根（ephemeralRoot()），
+  // 否则两者必然不一致，这步以 “rejected the private driver socket” 失败，
+  // 整个 packaged Sidecar 自检也就永远跑不到终点。
+  const computerUseSmokeEnv = { ...process.env, HOME: workspace, TMPDIR: ephemeralRoot() }
   const computerUseProxyRun = await runWithInput(
     node,
     [
       ...chatRuntimeArguments,
       join(output, 'computer-use-proxy.cjs'),
       '--socket',
-      computerUseSocket('computer_packaged-smoke'),
+      computerUseSocket('computer_packaged-smoke', computerUseSmokeEnv),
       '--session',
       'computer_packaged-smoke',
       '--target-name',
@@ -2010,7 +2015,7 @@ async function smokeSidecar(platform) {
       '{"jsonrpc":"2.0","id":2,"method":"tools/list"}',
       '',
     ].join('\n'),
-    { cwd: workspace, env: { ...process.env, HOME: workspace, TMPDIR: workspace } },
+    { cwd: workspace, env: computerUseSmokeEnv },
   )
   const computerUseProxyResponses = computerUseProxyRun.stdout
     .trim()
@@ -2022,7 +2027,9 @@ async function smokeSidecar(platform) {
   if (
     computerUseTools?.length !== 1
     || computerUseTools[0]?.name !== 'computer_use'
-    || !computerUseTools[0]?.description?.includes('visible App window selected by the user')
+    // 产品文案已改为 “locked for this task”（上游改过，冒烟断言一直没跟上，因为 CI 里不跑冒烟）。
+    // 这里断言当前产品措辞，并继续拒绝旧措辞 “MilkSU application window”。
+    || !computerUseTools[0]?.description?.includes('visible App window locked for this task')
     || computerUseTools[0]?.description?.includes('MilkSU application window')
   ) {
     throw new Error(
