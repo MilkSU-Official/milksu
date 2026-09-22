@@ -94,22 +94,22 @@ type Day struct {
 }
 
 type Snapshot struct {
-	From               string          `json:"from"`
-	To                 string          `json:"to"`
-	ActiveDays         int             `json:"activeDays"`
-	ModelCalls         int             `json:"modelCalls"`
-	ToolCalls          int             `json:"toolCalls"`
-	InputTokens        int64           `json:"inputTokens"`
-	OutputTokens       int64           `json:"outputTokens"`
-	CacheRead          int64           `json:"cacheReadTokens"`
-	CacheWrite         int64           `json:"cacheWriteTokens"`
-	Reasoning          int64           `json:"reasoningTokens"`
-	TotalTokens        int64           `json:"totalTokens"`
-	LocalModelCostEst  float64         `json:"localModelCostEstUsd"`
-	CloudModelCostEst  float64         `json:"cloudModelCostEstUsd"`
-	CloudSandboxCostEst float64        `json:"cloudSandboxCostEstUsd"`
-	Days               []Day           `json:"days"`
-	Hosts              []HostBreakdown `json:"hosts"`
+	From                string          `json:"from"`
+	To                  string          `json:"to"`
+	ActiveDays          int             `json:"activeDays"`
+	ModelCalls          int             `json:"modelCalls"`
+	ToolCalls           int             `json:"toolCalls"`
+	InputTokens         int64           `json:"inputTokens"`
+	OutputTokens        int64           `json:"outputTokens"`
+	CacheRead           int64           `json:"cacheReadTokens"`
+	CacheWrite          int64           `json:"cacheWriteTokens"`
+	Reasoning           int64           `json:"reasoningTokens"`
+	TotalTokens         int64           `json:"totalTokens"`
+	LocalModelCostEst   float64         `json:"localModelCostEstUsd"`
+	CloudModelCostEst   float64         `json:"cloudModelCostEstUsd"`
+	CloudSandboxCostEst float64         `json:"cloudSandboxCostEstUsd"`
+	Days                []Day           `json:"days"`
+	Hosts               []HostBreakdown `json:"hosts"`
 }
 
 // HostBreakdown aggregates usage_turns by local|cloud for display-only estimates.
@@ -236,22 +236,22 @@ func usageV2Up(ctx context.Context, tx *sql.Tx) error {
 
 // Turn is one settled Coding turn for local|cloud usage display (models.dev estimate, not a bill).
 type Turn struct {
-	ID                 string
-	ConversationID     string
-	Host               string // local | cloud
-	Kernel             string
-	Model              string
-	Source             string
-	OccurredAt         time.Time
-	InputTokens        int64
-	OutputTokens       int64
-	CacheRead          int64
-	CacheWrite         int64
-	Reasoning          int64
-	TotalTokens        int64
-	ModelCostEstUSD    float64
-	SandboxSeconds     int64
-	SandboxCostEstUSD  float64
+	ID                string
+	ConversationID    string
+	Host              string // local | cloud
+	Kernel            string
+	Model             string
+	Source            string
+	OccurredAt        time.Time
+	InputTokens       int64
+	OutputTokens      int64
+	CacheRead         int64
+	CacheWrite        int64
+	Reasoning         int64
+	TotalTokens       int64
+	ModelCostEstUSD   float64
+	SandboxSeconds    int64
+	SandboxCostEstUSD float64
 }
 
 func (s *Store) RecordTurn(ctx context.Context, turn Turn) error {

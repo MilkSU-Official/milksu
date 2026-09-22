@@ -2880,7 +2880,8 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
                 })
               } catch (error) {
                 toastError(
-                  error instanceof Error ? error.message : t('切换本地/云失败', 'Failed to switch local/cloud'),
+                  error,
+                  t('切换本地/云失败', 'Failed to switch local/cloud'),
                 )
               }
             }}

@@ -30,7 +30,7 @@ export default function CloudCredentialSettings() {
   async function save() {
     const key = apiKey.trim()
     if (!key) {
-      toastError(t('请填写 API Key', 'API key is required'))
+      toastError(null, t('请填写 API Key', 'API key is required'))
       return
     }
     setBusy(true)
@@ -45,9 +45,7 @@ export default function CloudCredentialSettings() {
       setOpen(false)
       toast(t('已保存到云端（仅服务端持有）', 'Saved to cloud (server-held only)'))
     } catch (error) {
-      toastError(
-        error instanceof Error ? error.message : t('保存云端凭据失败', 'Failed to save cloud credential'),
-      )
+      toastError(error, t('保存云端凭据失败', 'Failed to save cloud credential'))
     } finally {
       setBusy(false)
     }
