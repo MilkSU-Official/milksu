@@ -278,6 +278,7 @@ function createCompanionShell(options) {
     // overlay keep chasing the cursor once a drag has outlived a real gesture.
     if (Date.now() - petDrag.startedAt > PET_DRAG_MAX_MS) {
       stopPetDragTimer()
+      settlePetOnNearestDisplay()
       petDrag = null
       return
     }
@@ -287,13 +288,29 @@ function createCompanionShell(options) {
     const dy = cursor.y - petDrag.cursor.y
     if (!dx && !dy) return
     if ((dx * dx) + (dy * dy) >= 16) petDrag.moved = true
+    // Follow the OS cursor in global screen coordinates. Clamping to the
+    // display where the drag started would pin the pet to that screen's edge.
     applyUnitLayout(moveCompanionUnit({
       petScreen: petDrag.pet,
       dx,
       dy,
       chatOpen: chatOpenFlag,
       bubble: petBubble && !chatOpenFlag,
-      workArea: wayland ? null : (workAreaNear(petDrag.pet) || primaryWorkArea()),
+      workArea: null,
+    }))
+  }
+
+  function settlePetOnNearestDisplay() {
+    if (wayland || !float || float.isDestroyed()) return
+    const bounds = unitLayout && unitLayout.window
+    const anchor = bounds
+      ? { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }
+      : currentPetScreen()
+    applyUnitLayout(layoutCompanionUnit({
+      chatOpen: chatOpenFlag,
+      bubble: petBubble && !chatOpenFlag,
+      petOrigin: currentPetScreen(),
+      workArea: workAreaNear(anchor) || primaryWorkArea(),
     }))
   }
 
@@ -755,6 +772,7 @@ function createCompanionShell(options) {
       followPetDragCursor()
       lastPetDragged = Boolean(petDrag && petDrag.moved)
       stopPetDragTimer()
+      settlePetOnNearestDisplay()
       petDrag = null
       return { ...status(), dragged: lastPetDragged }
     }
@@ -766,13 +784,14 @@ function createCompanionShell(options) {
     }
     stopPetDragTimer()
     petDrag = null
+    const origin = currentPetScreen()
     applyUnitLayout(moveCompanionUnit({
-      petScreen: currentPetScreen(),
+      petScreen: origin,
       dx,
       dy,
       chatOpen: chatOpenFlag,
       bubble: petBubble && !chatOpenFlag,
-      workArea: wayland ? null : (workAreaNear(currentPetScreen()) || primaryWorkArea()),
+      workArea: wayland ? null : (workAreaNear({ x: origin.x + dx, y: origin.y + dy }) || primaryWorkArea()),
     }))
     return status()
   }

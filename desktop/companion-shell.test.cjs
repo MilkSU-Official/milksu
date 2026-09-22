@@ -668,6 +668,89 @@ test('a pointer press hands the drag to the shell, which follows the OS cursor',
   assert.equal(ended.dragged, true)
 })
 
+test('dragging the pet follows the cursor onto another display and settles inside it', async () => {
+  const cursor = { x: 1300, y: 800 }
+  const screen = {
+    getPrimaryDisplay() {
+      return { workArea: { x: 0, y: 0, width: 1440, height: 900 } }
+    },
+    getDisplayNearestPoint(point) {
+      const x = Number(point && point.x) || 0
+      const area = x >= 1440
+        ? { x: 1440, y: 0, width: 1440, height: 900 }
+        : { x: 0, y: 0, width: 1440, height: 900 }
+      return { workArea: area }
+    },
+    getCursorScreenPoint() {
+      return { ...cursor }
+    },
+  }
+  const { shell, created } = createShell({ screen })
+  shell.createFloat()
+  const start = created[0].getBounds()
+  shell.handleHostMethod('MoveCompanionPet', { drag: 'begin' })
+  cursor.x += 400
+  await new Promise(resolve => setTimeout(resolve, 40))
+  const crossing = created[0].getBounds()
+  assert.equal(crossing.x, start.x + 400)
+  assert.ok(crossing.x >= 1440)
+  const ended = shell.handleHostMethod('MoveCompanionPet', { drag: 'end' })
+  const settled = created[0].getBounds()
+  assert.equal(ended.dragged, true)
+  assert.ok(settled.x >= 1440)
+  assert.ok(settled.x + settled.width <= 2880)
+  assert.ok(settled.y >= 0)
+  assert.ok(settled.y + settled.height <= 900)
+})
+
+test('releasing the pet between two displays settles it on the nearer work area', async () => {
+  const cursor = { x: 1300, y: 800 }
+  const left = { x: 0, y: 0, width: 1440, height: 900 }
+  const right = { x: 1800, y: 0, width: 1440, height: 900 }
+  function nearest(point) {
+    const x = Number(point && point.x) || 0
+    const y = Number(point && point.y) || 0
+    let best = left
+    let bestDist = Infinity
+    for (const area of [left, right]) {
+      const cx = Math.min(Math.max(x, area.x), area.x + area.width)
+      const cy = Math.min(Math.max(y, area.y), area.y + area.height)
+      const dist = ((x - cx) ** 2) + ((y - cy) ** 2)
+      if (dist < bestDist) {
+        best = area
+        bestDist = dist
+      }
+    }
+    return { workArea: best }
+  }
+  const screen = {
+    getPrimaryDisplay() { return { workArea: left } },
+    getDisplayNearestPoint(point) { return nearest(point) },
+    getCursorScreenPoint() { return { ...cursor } },
+  }
+  const { shell, created } = createShell({ screen })
+  shell.createFloat()
+  shell.handleHostMethod('MoveCompanionPet', { drag: 'begin' })
+  cursor.x += 200
+  await new Promise(resolve => setTimeout(resolve, 40))
+  assert.equal(created[0].getBounds().x, 1280 + 200)
+  shell.handleHostMethod('MoveCompanionPet', { drag: 'end' })
+  const snappedBack = created[0].getBounds()
+  assert.equal(snappedBack.x, 1280)
+  assert.ok(snappedBack.x + snappedBack.width <= left.width)
+
+  cursor.x = 1300
+  shell.handleHostMethod('MoveCompanionPet', { drag: 'begin' })
+  cursor.x += 500
+  await new Promise(resolve => setTimeout(resolve, 40))
+  shell.handleHostMethod('MoveCompanionPet', { drag: 'end' })
+  const crossed = created[0].getBounds()
+  assert.ok(crossed.x >= right.x)
+  assert.ok(crossed.x + crossed.width <= right.x + right.width)
+  assert.ok(crossed.y >= right.y)
+  assert.ok(crossed.y + crossed.height <= right.y + right.height)
+})
+
 test('a press without cursor travel stays a click, so the pet opens the phone', async () => {
   const screen = {
     getPrimaryDisplay() {
