@@ -25,6 +25,45 @@ export const COMPANION_CORE_PICKUP_TITLE = '周末去接孩子'
 export const COMPANION_CORE_UI_TITLE = '界面语言切英文'
 export const COMPANION_CORE_REPLY_TITLE = '回复正文变成英文'
 
+/** Idle reply steps. A turn with no tool call should settle inside this. */
+export const COMPANION_CORE_REPLY_TIMEOUT_MS = 180_000
+/**
+ * Same ceiling as sidecar/pi/bridge-hang-guard.js DEFAULT_BASH_TIMEOUT_SECONDS.
+ * A running tool emits no assistant.settled until it returns, so the reply
+ * waiter has to outlast that budget or it aborts a still-running command.
+ */
+export const COMPANION_CORE_TOOL_TIMEOUT_MS = 600_000
+export const COMPANION_CORE_AFTER_TOOL_MS = 60_000
+
+export function companionToolsStillOpen(events) {
+  const open = new Set()
+  for (const event of events || []) {
+    const type = String(event?.type ?? event?.Type ?? '')
+    const id = String(event?.toolCallId ?? event?.ToolCallID ?? event?.toolName ?? event?.ToolName ?? '').trim()
+    if (type === 'tool.started') open.add(id || `tool:${open.size}`)
+    if (type === 'tool.completed') open.delete(id)
+  }
+  return open.size > 0
+}
+
+export function nextCompanionReplyDeadline({
+  startedAt,
+  now,
+  events,
+  toolSeenAt = 0,
+}) {
+  const open = companionToolsStillOpen(events)
+  const seen = open && !toolSeenAt ? now : toolSeenAt
+  const idleDeadline = startedAt + COMPANION_CORE_REPLY_TIMEOUT_MS
+  if (!seen) return { deadline: idleDeadline, toolSeenAt: 0 }
+  const toolDeadline = seen + COMPANION_CORE_TOOL_TIMEOUT_MS + COMPANION_CORE_AFTER_TOOL_MS
+  if (open) return { deadline: Math.max(idleDeadline, toolDeadline), toolSeenAt: seen }
+  return {
+    deadline: Math.min(Math.max(idleDeadline, now + COMPANION_CORE_AFTER_TOOL_MS), toolDeadline),
+    toolSeenAt: seen,
+  }
+}
+
 const ISSUE_FACTS = Object.freeze({
   [COMPANION_CORE_CLICK_ID]: ['WinError 87', 'shlex.split', '3840'],
   [COMPANION_CORE_EXPRESS_ID]: ['ArrayBuffer', 'application/json', '7362'],

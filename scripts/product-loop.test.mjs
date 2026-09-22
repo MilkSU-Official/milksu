@@ -115,7 +115,9 @@ import {
   companionCoreSeedConversations,
   COMPANION_CORE_MINSIZE_ID,
   COMPANION_CORE_PRINT_ID,
+  companionToolsStillOpen,
   judgeCompanionCoreReply,
+  nextCompanionReplyDeadline,
   transcriptCancelledAfter,
 } from './lib/product-loop-companion-core.mjs'
 
@@ -1160,4 +1162,32 @@ test('surface scanner upgrades PASS and expectedMiss SKIP, never greenwashes a l
   assert.match(html, /表面异常/)
   assert.match(html, /No API key for/)
   assert.ok(!html.includes('sk-'))
+})
+
+test('companion core reply wait outlasts a running tool', () => {
+  const startedAt = 1_000
+  const idle = nextCompanionReplyDeadline({ startedAt, now: 1_000, events: [] })
+  assert.equal(idle.deadline, startedAt + 180_000)
+  assert.equal(companionToolsStillOpen([{ type: 'tool.started', toolCallId: 'a' }]), true)
+  assert.equal(companionToolsStillOpen([
+    { type: 'tool.started', toolCallId: 'a' },
+    { type: 'tool.completed', toolCallId: 'a' },
+  ]), false)
+  const running = nextCompanionReplyDeadline({
+    startedAt,
+    now: 5_000,
+    events: [{ type: 'tool.started', toolCallId: 'bash-1', toolName: 'bash' }],
+  })
+  assert.equal(running.toolSeenAt, 5_000)
+  assert.equal(running.deadline, 5_000 + 600_000 + 60_000)
+  const after = nextCompanionReplyDeadline({
+    startedAt,
+    now: 200_000,
+    toolSeenAt: 5_000,
+    events: [
+      { type: 'tool.started', toolCallId: 'bash-1' },
+      { type: 'tool.completed', toolCallId: 'bash-1' },
+    ],
+  })
+  assert.equal(after.deadline, 200_000 + 60_000)
 })
