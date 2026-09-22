@@ -29,6 +29,11 @@ export interface DestructiveFacts {
   /** Measured by the backend: files and bytes under the target. */
   fileCount?: number
   totalBytes?: number
+  /**
+   * 删除**将释放**的空间（磁盘块占用口径，就是 du 那种）。-1/缺失 ⇒ 这个平台拿不到块数 ⇒
+   * 回退去用 totalBytes，并把口径用词改成“内容大小”——绝不把回退值冒称“将释放”。
+   */
+  diskBytes?: number
   /** Sampled means the backend stopped early; the numbers are a lower bound. */
   sampled?: boolean
   /** Git facts: inside a repository and whether the target is tracked. */
@@ -578,7 +583,12 @@ export function assessDestructiveRequest(
 
   const size = facts.find(fact => typeof fact.totalBytes === 'number' && typeof fact.fileCount === 'number')
   if (size) {
-    parts.push(`${size.fileCount} 个文件 / ${formatBytes(size.totalBytes ?? 0)}${size.sampled ? '（仅采样）' : ''}`)
+    // 读者关心的是“删掉能腾出多少”。拿得到块占用就说“将释放”；拿不到才退回内容大小，
+    // 并且换用词——不把回退值冒称“将释放”。采样时保留“至少”的下限语义。
+    const diskKnown = typeof size.diskBytes === 'number' && size.diskBytes >= 0
+    const freed = diskKnown ? (size.diskBytes ?? 0) : (size.totalBytes ?? 0)
+    const measure = diskKnown ? '将释放' : '内容大小'
+    parts.push(`${size.fileCount} 个文件 / ${measure} ${formatBytes(freed)}${size.sampled ? '（仅采样，至少）' : ''}`)
   }
 
   return {
