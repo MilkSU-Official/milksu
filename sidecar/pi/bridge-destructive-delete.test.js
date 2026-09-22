@@ -386,13 +386,16 @@ test("guard-clean-slate: rm then mkdir of the same path is not a hidden create",
   });
   assert.equal(clean, null);
 
-  assert.deepEqual(commandAssignments(`REPRO=${target}\nrm -rf "$REPRO" && mkdir -p "$REPRO"`), {
+  // The value holds spaces (`/…/Application Support/…`), so the assignment has to be
+  // quoted: unquoted, the shell itself would stop the value at the first space and the
+  // test would be asserting a rule the shell does not have.
+  assert.deepEqual(commandAssignments(`REPRO="${target}"\nrm -rf "$REPRO" && mkdir -p "$REPRO"`), {
     REPRO: target,
   });
   const assigned = await destructiveDeleteDecision({
     toolName: "bash",
     input: {
-      command: `set -e\nREPRO=${target}\nrm -rf "$REPRO" && mkdir -p "$REPRO"`,
+      command: `set -e\nREPRO="${target}"\nrm -rf "$REPRO" && mkdir -p "$REPRO"`,
     },
     policy: { workspace, uiLocale: "zh" },
   });
