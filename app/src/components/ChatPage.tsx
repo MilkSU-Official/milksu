@@ -104,6 +104,7 @@ import {
   shouldRememberCodingProject,
 } from '@/lib/codingProjectMemory'
 import { buildChatActivityEntries, buildChatTranscript, hasEmptyVisibleReply, latestFinishedThinkingId, thinkingStaysOpen } from '@/lib/chatActivity'
+import { chatFoldModel } from '@/lib/chatWorkStatus'
 import { agentFileDiffChips, formatDemoElapsed } from '@/lib/agentConversation'
 import { latestCodingPlan } from '@/lib/codingPlan'
 import {
@@ -2656,6 +2657,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
                     <ChatProcessFold
                       key={item.id}
                       process={item}
+                      model={chatFoldModel(chatTranscript, item.id, running)}
                       recoverableFailureId={recoverableFailureId}
                       recoveryContext={ctfSession ? 'ctf' : 'coding'}
                       rewindableUserMessageId={rewindableUserMessageId}
@@ -2677,6 +2679,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
                     <ChatActivityGroup
                       key={item.id}
                       activity={item}
+                      model={chatFoldModel(chatTranscript, item.id, running)}
                       open={chatActivityGroupIsOpen(item.id)}
                       openEntryIds={chatActivityOpenEntries(item.id)}
                       subagentTasks={conversation?.subagentTasks}

@@ -34,6 +34,107 @@ async function freshStore() {
   return import('@/lib/composerDraftStore')
 }
 
+describe('an explicit clear really clears the stored draft', () => {
+  // 真机 beta.50：读者点掉最后一个附件之后，存储里还留着旧值，重启又回来了。
+  // 因为"空写不删"这条保护把"用户主动删除"也一起挡了。
+  it('removes the key for an explicit clear, but keeps protecting an accidental one', async () => {
+    const store = await freshStore()
+    const key = 'conversation-explicit'
+    store.writeComposerDraft(key, { html: '', text: '昨天写的话', attachments: [] })
+    store.flushComposerDraftsNow()
+    expect(store.readComposerDraft(key)?.text).toBe('昨天写的话')
+
+    // ① 意外空写（切换对话/卸载）：旧值必须留着
+    store.writeComposerDraft(key, { html: '', text: '', attachments: [] })
+    expect(store.readComposerDraft(key)?.text).toBe('昨天写的话')
+
+    // ② 用户主动删除：合并后由调用方（作曲栏）走 clearComposerDraft ⇒ 立刻落盘，这一格要消失
+    store.clearComposerDraft(key)
+    expect(store.readComposerDraft(key)).toBeUndefined()
+    expect(installStorageStub().getItem(STORAGE_KEY) ?? '').not.toContain('昨天写的话')
+
+    // 重新 hydrate（= 重启）也不能把它找回来
+    const restarted = await freshStore()
+    expect(restarted.readComposerDraft(key)).toBeUndefined()
+  })
+
+  // 用户场景：附件 + 文字 → 显式删除 → 重启后都不在。
+  it('does not resurrect a deleted attachment after a restart', async () => {
+    const store = await freshStore()
+    const key = 'conversation-attach'
+    const attachment = { id: 'a1', name: 'image.png', mediaType: 'image/png', size: 1, sha256: 'z' }
+    store.writeComposerDraft(key, { html: '', text: '', attachments: [attachment] })
+    store.flushComposerDraftsNow()
+    expect(store.readComposerDraft(key)?.attachments).toHaveLength(1)
+
+    // 读者点掉了最后一个附件 ⇒ 显式删除。这里断言**存储本身**不再含旧正文/旧附件名，
+    // 而不只是看 store 的读接口（只看读接口的话，修前也会"通过"，等于没锁住）。
+    store.writeComposerDraft(key, { html: '', text: '昨天的正文', attachments: [attachment] })
+    store.flushComposerDraftsNow()
+    store.clearComposerDraft(key)
+
+    const raw = installStorageStub().getItem(STORAGE_KEY) ?? ''
+    expect(raw).not.toContain('昨天的正文')
+    expect(raw).not.toContain('image.png')
+
+    const restarted = await freshStore()
+    expect(restarted.readComposerDraft(key)).toBeUndefined()
+  })
+
+  it('keeps the previous conversation draft through the switch-away write', async () => {
+    const store = await freshStore()
+    store.writeComposerDraft('conversation-previous', {
+      html: '<p>还没发的内容</p>',
+      text: '还没发的内容',
+      attachments: [],
+    })
+    // 旧作曲栏在切换时会把手里的编辑器状态写一次，而那一刻编辑器是空的。
+    store.writeComposerDraft('conversation-previous', { html: '', text: '', attachments: [] })
+    expect(store.readComposerDraft('conversation-previous')?.text).toBe('还没发的内容')
+
+    store.writeComposerDraft('conversation-next', {
+      html: '<p>下一个会话的内容</p>',
+      text: '下一个会话的内容',
+      attachments: [],
+    })
+    expect(store.readComposerDraft('conversation-next')?.text).toBe('下一个会话的内容')
+    expect(store.readComposerDraft('conversation-previous')?.text).toBe('还没发的内容')
+
+    // 只有显式清空才会移除。
+    store.clearComposerDraft('conversation-previous')
+    expect(store.readComposerDraft('conversation-previous')).toBeUndefined()
+  })
+})
+
+describe('clearing the body covers the same intent', () => {
+  // 装机线的输入回调在"读者把正文删空且没有附件"时走 clearComposerDraft（显式清空）。
+  // 这里锁住那条路的本意：键消失、且落盘，重启不再冒出来。
+  it('removes the key when the body is cleared', async () => {
+    const store = await freshStore()
+    const key = 'conversation-body-cleared'
+    store.writeComposerDraft(key, { html: '', text: '打了一半又删掉', attachments: [] })
+    store.flushComposerDraftsNow()
+    expect(store.readComposerDraft(key)?.text).toBe('打了一半又删掉')
+
+    store.clearComposerDraft(key)
+    store.flushComposerDraftsNow()
+    expect(installStorageStub().getItem(STORAGE_KEY) ?? '').not.toContain('打了一半又删掉')
+    const restarted = await freshStore()
+    expect(restarted.readComposerDraft(key)).toBeUndefined()
+  })
+
+  // 同时锁住反面：切换会话造成的空写，旧值必须仍在。
+  it('still keeps the old value for an empty write that is not a deletion', async () => {
+    const store = await freshStore()
+    const key = 'conversation-switched-away'
+    store.writeComposerDraft(key, { html: '', text: '切走前的正文', attachments: [] })
+    store.flushComposerDraftsNow()
+    store.writeComposerDraft(key, { html: '', text: '', attachments: [] })
+    store.flushComposerDraftsNow()
+    expect(store.readComposerDraft(key)?.text).toBe('切走前的正文')
+  })
+})
+
 describe('composer draft store', () => {
   beforeEach(() => {
     installStorageStub().clear()
@@ -52,6 +153,8 @@ describe('composer draft store', () => {
   it('survives a restart because the draft is written to storage', async () => {
     const first = await freshStore()
     first.writeComposerDraft('conversation-a', { html: '', text: '崩溃前的草稿', attachments: [] })
+    // 落盘现在是防抖的（避免每次按键都写盘）：要"立刻落盘"的测试自己显式喊一次。
+    first.flushComposerDraftsNow()
     expect(installStorageStub().getItem(STORAGE_KEY)).toContain('崩溃前的草稿')
 
     // 重新加载模块 = 应用重启（内存 Map 清空），草稿应从落盘内容恢复。
@@ -72,35 +175,6 @@ describe('composer draft store', () => {
   // 切换对话等路径会在切走时顺手写一次空内容，若沿用"空即删除"的旧规则，
   // 读者的草稿就会在切走的一瞬间被抹掉（已真机复现并抓到调用栈）。
   // 现在只有显式 clearComposerDraft 才会移除草稿。
-  // The exact switch-away sequence that lost drafts in the shipped composer: the editor was already
-  // emptied when the conversation changed, and that emptied content was written back under the
-  // *previous* conversation's key. Writing emptiness must never be what removes a draft.
-  it('keeps the previous conversation draft through the switch-away write', async () => {
-    const store = await freshStore()
-    store.writeComposerDraft('conversation-previous', {
-      html: '<p>还没发的内容</p>',
-      text: '还没发的内容',
-      attachments: [],
-    })
-    // What the old composer did on switch: persist whatever the editor held, which was empty.
-    store.writeComposerDraft('conversation-previous', { html: '', text: '', attachments: [] })
-
-    expect(store.readComposerDraft('conversation-previous')?.text).toBe('还没发的内容')
-
-    // The conversation switched to keeps its own draft, and the other one is untouched.
-    store.writeComposerDraft('conversation-next', {
-      html: '<p>下一个会话的内容</p>',
-      text: '下一个会话的内容',
-      attachments: [],
-    })
-    expect(store.readComposerDraft('conversation-next')?.text).toBe('下一个会话的内容')
-    expect(store.readComposerDraft('conversation-previous')?.text).toBe('还没发的内容')
-
-    // Only an explicit clear removes it.
-    store.clearComposerDraft('conversation-previous')
-    expect(store.readComposerDraft('conversation-previous')).toBeUndefined()
-  })
-
   it('keeps at most 50 conversations and drops the least recently used ones', async () => {
     const store = await freshStore()
     for (let index = 0; index < 55; index += 1) {
@@ -110,6 +184,8 @@ describe('composer draft store', () => {
         attachments: [],
       })
     }
+    // 淘汰发生在落盘时（写入现在是防抖的），所以先显式落一次盘。
+    store.flushComposerDraftsNow()
     // 最早写的那些应先被淘汰，最近写的必须还在
     expect(store.readComposerDraft('conversation-0')).toBeUndefined()
     expect(store.readComposerDraft('conversation-4')).toBeUndefined()
