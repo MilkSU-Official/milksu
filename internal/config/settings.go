@@ -150,8 +150,8 @@ type AppSettings struct {
 	CompanionProactivity     CompanionProactivity `json:"companion_proactivity,omitempty"`
 	CompanionTeaching        string               `json:"companion_teaching,omitempty"`
 	// CompanionReplyStyle is markdown (full-width assistant text) or chat (bubbles).
-	CompanionReplyStyle      string               `json:"companion_reply_style,omitempty"`
-	PreferredExternalEditor  string               `json:"preferred_external_editor,omitempty"`
+	CompanionReplyStyle     string `json:"companion_reply_style,omitempty"`
+	PreferredExternalEditor string `json:"preferred_external_editor,omitempty"`
 	// UiFont and ConversationFont are preset ids from app/src/lib/uiFonts.ts.
 	// UiFontSize and ConversationFontSize are concrete px strings such as "13".
 	UiFont               string `json:"ui_font,omitempty"`
