@@ -50,7 +50,7 @@
 - 新对话继承项目 `milksu`；Windows Computer Use 整段崩溃尚未真机验收。
 - Computer Use 选窗器仍是可选人工面。宽作业走 `recon-authorized-target` Skill，不造 typed sweep。
 - DSH `bash` 没有 MilkSU 侧超时上界（工具在 harness 进程内，不要在客户端复刻第二套循环）。
-- 不要把 `test:dsh-complete-loop` 当主入口。产品回归走 `npm run test:product-loop`。
+- 不要把 `test:dsh-complete-loop` 当主入口。产品回归走 `npm run test:product-loop`。桌宠核心循环是 `companion-core`：开测时把议题抄本写进这次独立实例，再在手机里提问、按停止、收尾；click / express 检出只读。
 - Agent Harness：DSH 没有 Cursor 那种 `run_in_background` Task。ACP `session/prompt` 要等到 `whenIdle`（含子代理）才结算，所以主对话继续发走 host `Agent.followup`。输入栏停止键只在父回合还在生成、压缩或中止时出现。加号 Multitask 才是另开 ACP 子会话。Pi 的 `subagent` 仍阻塞父工具。不要升 Pi 来假装能并行。
 - 不要复刻原厂 `dsh web` 皮肤、Queue dock、Jobs 顶栏、slash 目录或 Agent preset 切换器。未复刻 child transcript、preset、插件清单、归档、Schedule。
 

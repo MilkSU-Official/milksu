@@ -151,9 +151,9 @@ npm run test:product-loop -- --gui --suite first-use
 
 ### 桌宠
 
-**ID：** `companion-relay` / `companion-skin-import`
+**ID：** `companion-core` / `companion-skin-import`
 
-真实桌宠回合，把标记转达到指定 Coding 会话。抄本、看板、目标会话都要看到。第三方皮肤用回路自己生成的合同夹具，不要填本机路径。
+核心循环在这次独立实例里写入议题抄本，再在手机里提问、按停止、收尾。第三方皮肤用回路自己生成的合同夹具，不要填本机路径。click / express 检出只读；`MILKSU_EVAL_PROJECTS` 可指向它们，不写进日常 MilkSU。
 
 ### 领域工作区
 

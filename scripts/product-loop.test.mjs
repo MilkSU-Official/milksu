@@ -106,6 +106,18 @@ import {
   transcriptHasVisibleAssistantOutcome,
   transcriptHasPrompt,
 } from './lib/product-loop-companion.mjs'
+import {
+  assistantTextAfterPrompt,
+  companionCoreFactInSnippet,
+  companionCoreLiveSteps,
+  companionCorePromptsExposeTools,
+  companionCoreRequiredFacts,
+  companionCoreSeedConversations,
+  COMPANION_CORE_MINSIZE_ID,
+  COMPANION_CORE_PRINT_ID,
+  judgeCompanionCoreReply,
+  transcriptCancelledAfter,
+} from './lib/product-loop-companion-core.mjs'
 
 test('catalog keeps product regression away from evalsuite', () => {
   assert.equal(PRODUCT_LOOP_SCHEMA, 'milksu-product-loop/v2')
@@ -122,7 +134,7 @@ test('catalog keeps product regression away from evalsuite', () => {
   ])
   assert.equal(CASE_RUN_ORDER[0], 'login-gate')
   assert.equal(MODULES.coding.cases.length, 33)
-  assert.equal(MODULES.companion.cases.length, 28)
+  assert.equal(MODULES.companion.cases.length, 22)
   assert.equal(MODULES.workspaces.cases.length, 33)
   assert.equal(MODULES['desktop-surface'].cases.length, 9)
   assert.equal(MODULES['account-shell'].cases.length, 4)
@@ -136,6 +148,46 @@ test('catalog keeps product regression away from evalsuite', () => {
     assert.ok(SUITES[id].from)
     assert.ok(SUITES[id].detail)
   }
+})
+
+test('companion core seeds issue transcripts when the case starts', () => {
+  const now = 1_800_000_000_000
+  const seeded = companionCoreSeedConversations(now, { click: '', express: '', githubRepo: '' })
+  assert.equal(seeded.length, 7)
+  assert.equal(seeded.some(row => /登录闪退/.test(row.title)), false)
+  assert.equal(JSON.stringify(seeded).includes('/Users/'), false)
+  const facts = companionCoreRequiredFacts()
+  for (const [id, needles] of Object.entries(facts)) {
+    const row = seeded.find(item => item.id === id)
+    assert.ok(row, id)
+    for (const needle of needles) {
+      assert.equal(companionCoreFactInSnippet(row, needle), true, `${id} ${needle}`)
+    }
+  }
+  const minsize = seeded.find(row => row.id === COMPANION_CORE_MINSIZE_ID)
+  const print = seeded.find(row => row.id === COMPANION_CORE_PRINT_ID)
+  assert.ok(minsize.createdAt < print.createdAt)
+  const steps = companionCoreLiveSteps('CORE-RELAY-test', { githubRepo: '' })
+  assert.equal(companionCorePromptsExposeTools(steps), false)
+  assert.equal(steps.filter(step => step.kind === 'stop').length, 3)
+  assert.equal(judgeCompanionCoreReply('你好。', steps.find(step => step.id === 'hello')).ok, true)
+  assert.equal(judgeCompanionCoreReply('你好。WinError 87 还开着。', steps.find(step => step.id === 'hello')).ok, false)
+  const page = {
+    entries: [
+      { role: 'user', text: '先读 click 仓库里 src/click/_termui_impl.py' },
+      { role: 'assistant', text: '这一轮已取消。' },
+      { role: 'user', text: '你好' },
+      { role: 'assistant', text: '在。' },
+    ],
+  }
+  assert.equal(transcriptCancelledAfter(page, '先读 click').ok, true)
+  assert.equal(assistantTextAfterPrompt(page, '你好'), '在。')
+  assert.equal(transcriptCancelledAfter({
+    entries: [
+      { role: 'user', text: '先读 click 仓库' },
+      { role: 'assistant', text: 'Request aborted' },
+    ],
+  }, '先读 click').ok, false)
 })
 
 test('parseSuiteList accepts all and rejects unknown ids', () => {
@@ -1008,14 +1060,14 @@ test('surface scanner fails leaks and unexpected error chrome, not expected form
     surface: 'companion',
     locale: 'zh-CN',
     findings: [{ kind: 'companion-error', text: 'AbortError: The operation was aborted' }],
-  }, { caseId: 'companion-fuzz-abort' })
+  }, { caseId: 'companion-core' })
   assert.equal(unlocalized.fail, true)
 
   const cancelled = scanProductLoopSurface({
     surface: 'companion',
     locale: 'zh-CN',
     findings: [{ kind: 'companion-error', text: '这一轮已取消。' }],
-  }, { caseId: 'companion-fuzz-abort' })
+  }, { caseId: 'companion-core' })
   assert.equal(cancelled.fail, false)
 
   const cancelledRecovery = scanProductLoopSurface({
@@ -1029,7 +1081,7 @@ test('surface scanner fails leaks and unexpected error chrome, not expected form
     surface: 'companion',
     locale: 'en',
     findings: [{ kind: 'companion-error', text: 'This turn was cancelled.' }],
-  }, { caseId: 'companion-fuzz-rapid' })
+  }, { caseId: 'companion-core' })
   assert.equal(cancelledRapid.fail, false)
 
   assert.equal(companionContinueBlocked('这段对话没法继续了。'), true)
@@ -1043,7 +1095,7 @@ test('surface scanner fails leaks and unexpected error chrome, not expected form
     surface: 'companion',
     locale: 'zh-CN',
     findings: [{ kind: 'companion-bubble', text: '这一轮没有回复。' }],
-  }, { caseId: 'companion-fuzz-abort' })
+  }, { caseId: 'companion-core' })
   assert.equal(emptyReply.fail, false)
 
   const sessionLeak = scanProductLoopSurface({
