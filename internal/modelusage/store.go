@@ -94,18 +94,31 @@ type Day struct {
 }
 
 type Snapshot struct {
-	From         string `json:"from"`
-	To           string `json:"to"`
-	ActiveDays   int    `json:"activeDays"`
-	ModelCalls   int    `json:"modelCalls"`
-	ToolCalls    int    `json:"toolCalls"`
-	InputTokens  int64  `json:"inputTokens"`
-	OutputTokens int64  `json:"outputTokens"`
-	CacheRead    int64  `json:"cacheReadTokens"`
-	CacheWrite   int64  `json:"cacheWriteTokens"`
-	Reasoning    int64  `json:"reasoningTokens"`
-	TotalTokens  int64  `json:"totalTokens"`
-	Days         []Day  `json:"days"`
+	From               string          `json:"from"`
+	To                 string          `json:"to"`
+	ActiveDays         int             `json:"activeDays"`
+	ModelCalls         int             `json:"modelCalls"`
+	ToolCalls          int             `json:"toolCalls"`
+	InputTokens        int64           `json:"inputTokens"`
+	OutputTokens       int64           `json:"outputTokens"`
+	CacheRead          int64           `json:"cacheReadTokens"`
+	CacheWrite         int64           `json:"cacheWriteTokens"`
+	Reasoning          int64           `json:"reasoningTokens"`
+	TotalTokens        int64           `json:"totalTokens"`
+	LocalModelCostEst  float64         `json:"localModelCostEstUsd"`
+	CloudModelCostEst  float64         `json:"cloudModelCostEstUsd"`
+	CloudSandboxCostEst float64        `json:"cloudSandboxCostEstUsd"`
+	Days               []Day           `json:"days"`
+	Hosts              []HostBreakdown `json:"hosts"`
+}
+
+// HostBreakdown aggregates usage_turns by local|cloud for display-only estimates.
+type HostBreakdown struct {
+	Host              string  `json:"host"`
+	Turns             int     `json:"turns"`
+	ModelCostEstUSD   float64 `json:"modelCostEstUsd"`
+	SandboxCostEstUSD float64 `json:"sandboxCostEstUsd"`
+	SandboxSeconds    int64   `json:"sandboxSeconds"`
 }
 
 type Store struct {
@@ -578,7 +591,51 @@ func (s *Store) Snapshot(ctx context.Context, now time.Time) (Snapshot, error) {
 		day.toolIndex = nil
 	}
 	snapshot.ActiveDays = len(snapshot.Days)
+	if err := s.attachHostBreakdown(ctx, &snapshot, from.UTC().UnixMilli(), tomorrow.UTC().UnixMilli()); err != nil {
+		return Snapshot{}, err
+	}
 	return snapshot, nil
+}
+
+func (s *Store) attachHostBreakdown(ctx context.Context, snapshot *Snapshot, fromMs, toMs int64) error {
+	rows, err := s.db.QueryContext(ctx, `SELECT host,
+		COUNT(*),
+		COALESCE(SUM(model_cost_est_usd), 0),
+		COALESCE(SUM(sandbox_cost_est_usd), 0),
+		COALESCE(SUM(sandbox_seconds), 0)
+		FROM usage_turns
+		WHERE occurred_at_ms >= ? AND occurred_at_ms < ?
+		GROUP BY host
+		ORDER BY host ASC`, fromMs, toMs)
+	if err != nil {
+		// usage_turns may be empty on fresh DBs; treat missing table as no host rows.
+		if strings.Contains(err.Error(), "no such table") {
+			snapshot.Hosts = []HostBreakdown{}
+			return nil
+		}
+		return fmt.Errorf("query usage turns by host: %w", err)
+	}
+	defer rows.Close()
+	hosts := make([]HostBreakdown, 0, 2)
+	for rows.Next() {
+		var row HostBreakdown
+		if scanErr := rows.Scan(&row.Host, &row.Turns, &row.ModelCostEstUSD, &row.SandboxCostEstUSD, &row.SandboxSeconds); scanErr != nil {
+			return fmt.Errorf("scan usage turns by host: %w", scanErr)
+		}
+		switch row.Host {
+		case "local":
+			snapshot.LocalModelCostEst = row.ModelCostEstUSD
+		case "cloud":
+			snapshot.CloudModelCostEst = row.ModelCostEstUSD
+			snapshot.CloudSandboxCostEst = row.SandboxCostEstUSD
+		}
+		hosts = append(hosts, row)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate usage turns by host: %w", err)
+	}
+	snapshot.Hosts = hosts
+	return nil
 }
 
 func (s *Store) Close() error {

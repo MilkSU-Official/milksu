@@ -34,6 +34,14 @@ export interface CodingUsageDay {
   tools: CodingUsageToolBreakdown[]
 }
 
+export interface CodingUsageHostBreakdown {
+  host: 'local' | 'cloud' | string
+  turns: number
+  modelCostEstUsd: number
+  sandboxCostEstUsd: number
+  sandboxSeconds: number
+}
+
 export interface CodingUsageSnapshot {
   from: string
   to: string
@@ -46,6 +54,10 @@ export interface CodingUsageSnapshot {
   cacheWriteTokens: number
   reasoningTokens: number
   totalTokens: number
+  localModelCostEstUsd?: number
+  cloudModelCostEstUsd?: number
+  cloudSandboxCostEstUsd?: number
+  hosts?: CodingUsageHostBreakdown[]
   days: CodingUsageDay[]
 }
 
@@ -61,5 +73,9 @@ export const EMPTY_CODING_USAGE: CodingUsageSnapshot = {
   cacheWriteTokens: 0,
   reasoningTokens: 0,
   totalTokens: 0,
+  localModelCostEstUsd: 0,
+  cloudModelCostEstUsd: 0,
+  cloudSandboxCostEstUsd: 0,
+  hosts: [],
   days: [],
 }
