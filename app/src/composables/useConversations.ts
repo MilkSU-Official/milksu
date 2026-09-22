@@ -3470,6 +3470,13 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
             },
           )
           messages.splice(0, messages.length, ...nextMessages)
+        } else if (type === 'guard.alarm') {
+          // 引擎的守卫示警（受保护路径被拦、思考陷入重复）。与 attachment.held 同一形状：
+          // 引擎给中英两句，这里按界面语言选一句 ⇒ 读者看得见（绝不静默吞掉）。
+          const payload = event.payload as unknown as { notice?: string; noticeEnglish?: string }
+          const chinese = String(payload?.notice ?? '').trim()
+          const english = String(payload?.noticeEnglish ?? '').trim()
+          if (chinese || english) pushEngineNotice(t(chinese || english, english || chinese))
         } else if (type === 'engine.error') {
           const erroredQueue = s.messageQueues.get(sessionId)
           if (erroredQueue?.steering.length) {
