@@ -38,4 +38,24 @@ describe('migrateConversationHost', () => {
       target_session_id: 'cloud-1',
     }))
   })
+
+  it('creates local then DeleteSession for cloud_to_local', async () => {
+    const deleted: string[] = []
+    const call = vi.fn(async (method: string) => {
+      if (method === 'DeleteSession') return {}
+      throw new Error(`unexpected ${method}`)
+    })
+    const result = await migrateConversationHost({
+      direction: 'cloud_to_local',
+      sourceSessionId: 'cloud-src',
+      messageCount: 3,
+      transcriptJson: '[{"role":"user"}]',
+      client: new CloudAgentClient({ call }),
+      deleteSource: async id => { deleted.push(id) },
+      createLocalFromTranscript: async () => 'local-new',
+    })
+    expect(result.targetSessionId).toBe('local-new')
+    expect(deleted).toEqual(['cloud-src'])
+    expect(call).toHaveBeenCalledWith('DeleteSession', { session_id: 'cloud-src' })
+  })
 })

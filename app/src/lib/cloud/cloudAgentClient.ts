@@ -130,6 +130,10 @@ export class CloudAgentClient {
     }) as Promise<{ turn_id: string }>
   }
 
+  async deleteSession(sessionId: string): Promise<void> {
+    await this.call('DeleteSession', { session_id: sessionId })
+  }
+
   /** Write-only: api_key never returned by the cloud API. */
   async upsertCredential(input: {
     id?: string

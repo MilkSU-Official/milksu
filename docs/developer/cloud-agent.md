@@ -144,6 +144,17 @@ Cloud API
 Subscribe 已用手搓 Connect 信封（长轮询 + 客户端 resume，不发明非信封 keepalive）；会话优先写 D1（有绑定），否则内存 Map。真 Pi/DSH 回合仍待 CF Sandbox 绑定。
 部署与密钥仍在 `milksu-admin` / CF 控制台（本 Agent 无该仓写权限）。
 
+## milksu-admin 部署清单（醒来后）
+
+1. `cd cloud/agent && ./../../scripts/cloud-sandbox-bundle.sh`（钉 Pi/DSH 与桌面同版）
+2. 解开 `wrangler.toml`：`[[containers]]` / Durable Object / migrations / D1 / R2
+3. `npx wrangler d1 migrations apply milksu-cloud`（`migrations/0001_init.sql`）
+4. `npx wrangler secret put CREDENTIAL_KEK`（32 字节 base64）
+5. Docker 就绪后 `npx wrangler deploy`（会构建 `sandbox/Dockerfile`）
+6. 把 `agent.milksu.org` DNS 指到该 Worker
+7. 用真 Pi bridge / DSH ACP 替换 `sandbox/turn-runner.mjs` 占位
+8. （可选）CI 跑 `npm run generate`，把 `gen/{es,swift,kotlin}` 接到三端客户端
+
 ## 检查点
 
 Gate 1 主决策已对齐（含 Connect、先拷后删换宿主、全记本地估算、**云端允许自带 Key/中转且仅服务端持有**）。实现中碰到整盘迁移边界、Connect 默认 JSON vs proto 等细则再问，不回开已拍项。

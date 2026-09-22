@@ -8,11 +8,12 @@ import {
 /**
  * Copy-then-delete host migration (docs/developer/cloud-agent.md).
  * Local→cloud uses CloudAgentClient.MigrateCopy then Finalize.
- * Cloud→local copies transcript into a new local conversation id supplied by caller.
+ * Cloud→local creates the local target first, then DeleteSession on the cloud source.
  * Product path uses desktopCloudAgentClient (token in Electron main).
  */
 export async function migrateConversationHost(input: {
   direction: 'local_to_cloud' | 'cloud_to_local'
+  /** local_to_cloud: local conversation id; cloud_to_local: cloud session id to delete after copy. */
   sourceSessionId: string
   messageCount: number
   transcriptJson?: string
@@ -54,6 +55,11 @@ export async function migrateConversationHost(input: {
     throw new Error('cloud_to_local requires createLocalFromTranscript')
   }
   const targetSessionId = await createLocal(input.transcriptJson ?? '[]')
+  const client = input.client ?? desktopCloudAgentClient()
+  // Target local exists first; only then delete the cloud source (copy-then-delete).
+  if (input.sourceSessionId.trim()) {
+    await client.deleteSession(input.sourceSessionId)
+  }
   await input.deleteSource(input.sourceSessionId)
   return { targetSessionId }
 }

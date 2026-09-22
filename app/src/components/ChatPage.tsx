@@ -2858,9 +2858,16 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
               try {
                 const { migrateConversationHost } = await import('@/lib/cloud/migrateConversationHost')
                 const direction = host === 'cloud' ? 'local_to_cloud' as const : 'cloud_to_local' as const
+                const sourceSessionId = direction === 'cloud_to_local'
+                  ? (conversation.cloudSessionId ?? '')
+                  : conversation.id
+                if (direction === 'cloud_to_local' && !sourceSessionId) {
+                  conversations.setHost('local')
+                  return
+                }
                 await migrateConversationHost({
                   direction,
-                  sourceSessionId: conversation.id,
+                  sourceSessionId,
                   messageCount: conversation.messages.length,
                   transcriptJson: JSON.stringify(conversation.messages),
                   deleteSource: async () => {
