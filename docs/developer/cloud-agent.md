@@ -138,10 +138,10 @@ Cloud API
 | 5 原生双端 | Connect-JSON 客户端 | `mobile/ios`、`mobile/android`（SwiftUI / Compose 列表骨架 + unary） |
 | 云端 BYOK | 设置入口 | `CloudCredentialSettings` → `UpsertCredential`（服务端加密；明文成功后清空） |
 
-桌面渲染进程**不得**持有账户 Bearer；云 unary 一律走 `CloudAgentInvoke`。
+桌面渲染进程**不得**持有账户 Bearer；云 unary / Subscribe 一律走 Electron main。
 空画布可用 `pendingHost`；已开回合迁移成功后写入 `cloudSessionId`。
+Subscribe 已用手搓 Connect 信封；真 Pi/DSH 回合仍待 CF Sandbox 绑定。
 部署与密钥仍在 `milksu-admin` / CF 控制台（本 Agent 无该仓写权限）。
-Subscribe 流式与真沙箱仍待 CF Sandbox 绑定。
 
 ## 检查点
 
