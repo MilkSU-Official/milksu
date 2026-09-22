@@ -75,6 +75,7 @@ type StoredConversation struct {
 	WorkspacePath        string              `json:"workspacePath,omitempty"`
 	Kernel               string              `json:"kernel,omitempty"`
 	Host                 string              `json:"host,omitempty"` // local | cloud; empty = local
+	CloudSessionID       string              `json:"cloudSessionId,omitempty"`
 	ParentConversationID string              `json:"parentConversationId,omitempty"`
 	Multitask            bool                `json:"multitask,omitempty"`
 	ModelMode            string              `json:"modelMode,omitempty"`

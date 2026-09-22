@@ -117,6 +117,18 @@ export class CloudAgentClient {
       direction: input.direction,
     }) as Promise<{ ok: boolean; error: string }>
   }
+
+  async sendTurn(input: {
+    sessionId: string
+    text: string
+    attachmentIds?: string[]
+  }): Promise<{ turn_id: string }> {
+    return this.call('SendTurn', {
+      session_id: input.sessionId,
+      text: input.text,
+      attachment_ids: input.attachmentIds ?? [],
+    }) as Promise<{ turn_id: string }>
+  }
 }
 
 export function defaultCloudAgentBaseUrl(): string {

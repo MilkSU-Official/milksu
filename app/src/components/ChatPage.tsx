@@ -2844,10 +2844,13 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
             thinkingLevel={currentThinkingLevel}
             kernel={agentKernel}
             kernelLocked={Boolean(conversation?.messages.some(message => message.role === 'user' && message.status !== 'queued'))}
-            conversationHost={conversation?.host ?? 'local'}
+            conversationHost={conversation?.host ?? conversations.pendingHost ?? 'local'}
             conversationStarted={Boolean(conversation?.messages?.length)}
             onChangeConversationHost={async host => {
-              if (!conversation?.id) return
+              if (!conversation?.id) {
+                conversations.setHost(host)
+                return
+              }
               if (!conversation.messages?.length) {
                 conversations.setHost(host)
                 return
@@ -2868,8 +2871,13 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
                     conversations.setHost('local')
                     return conversation.id
                   },
+                }).then(result => {
+                  if (host === 'cloud') {
+                    conversations.setHost('cloud', result.targetSessionId)
+                  } else {
+                    conversations.setHost('local')
+                  }
                 })
-                conversations.setHost(host)
               } catch (error) {
                 toastError(
                   error instanceof Error ? error.message : t('切换本地/云失败', 'Failed to switch local/cloud'),
