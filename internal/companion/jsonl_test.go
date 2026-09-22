@@ -142,6 +142,23 @@ func TestTranscriptHidesToolResultsAndSettingsJSON(t *testing.T) {
 	}
 }
 
+func TestLooksLikeCompanionAbortRequestWas(t *testing.T) {
+	if !looksLikeCompanionAbort("Request was aborted") {
+		t.Fatal("provider abort copy must count as a cancelled turn")
+	}
+	if !looksLikeCompanionAbort("Request aborted") {
+		t.Fatal("undici abort copy must still count")
+	}
+	page := TranscriptPage{Entries: []TranscriptEntry{{
+		Role: "assistant",
+		Text: "Request was aborted",
+	}}}
+	localizeCompanionTranscriptAbort(&page, "zh")
+	if page.Entries[0].Text != "" || page.Entries[0].Error != "这一轮已取消。" {
+		t.Fatalf("localized: %#v", page.Entries[0])
+	}
+}
+
 func TestArchiveAndDeleteCompanionSegment(t *testing.T) {
 	dir := t.TempDir()
 	path := writeCompanionJSONL(t, dir, []string{

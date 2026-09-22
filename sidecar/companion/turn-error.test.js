@@ -2,10 +2,17 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   companionAssistantTurnError,
+  companionRequestAborted,
   companionToolHistoryBroken,
   repairCompanionToolHistory,
   stampCompanionAbortedTurn,
 } from "./turn-error.js";
+
+test("request was aborted is the same cancel as request aborted", () => {
+  assert.equal(companionRequestAborted("Request was aborted"), true);
+  assert.equal(companionRequestAborted("Request aborted"), true);
+  assert.equal(companionRequestAborted("turn aborted"), false);
+});
 
 test("projects the last assistant errorMessage", () => {
   assert.equal(companionAssistantTurnError([

@@ -28,6 +28,7 @@ import {
   companionStopPrompt,
   companionContinueBlocked,
   companionTranscriptClean,
+  parseCompanionConfirm,
   companionTurnErrored,
   companionTurnParked,
   companionTurnSettled,
@@ -43,6 +44,7 @@ import {
   companionCoreProjects,
   companionCoreSeedConversations,
   judgeCompanionCoreReply,
+  judgeCompanionWorkspaceCase,
   transcriptCancelledAfter,
 } from './product-loop-companion-core.mjs'
 import { describeCustomRelay, firstUseRelayName, resolveCompanionModelRoute } from './product-loop-first-use.mjs'
@@ -867,6 +869,34 @@ async function pressCompanionStop(timeoutMs = 25_000) {
   return { ok: false }
 }
 
+async function waitForPromptReply(driver, needle, timeoutMs, waitOptions) {
+  const started = Date.now()
+  let turn = { timeout: true, events: [] }
+  let page = null
+  while (Date.now() - started < timeoutMs) {
+    const remaining = timeoutMs - (Date.now() - started)
+    turn = await driver.waitForCompanionTurn(remaining, waitOptions)
+    if (turn.sidecarStopped || turn.timeout || companionTurnParked(turn.events) || turn.parked) break
+    page = await driver.listCompanionTranscript(120).catch(() => null)
+    const text = assistantTextAfterPrompt(page, needle)
+    if (text) return { turn, page, text }
+    await settleCompanionAfterStop(driver)
+  }
+  if (!page) page = await driver.listCompanionTranscript(120).catch(() => null)
+  return { turn, page, text: assistantTextAfterPrompt(page, needle) }
+}
+
+async function settleCompanionAfterStop(driver) {
+  const started = Date.now()
+  let quietSince = Date.now()
+  while (Date.now() - started < 4_000) {
+    const batch = await driver.drainCompanionEventsFromSurfaces().catch(() => [])
+    if (Array.isArray(batch) && batch.length) quietSince = Date.now()
+    if (Date.now() - quietSince >= 700) return
+    await delay(120)
+  }
+}
+
 async function waitForCompanionCancel(driver, needle, timeoutMs) {
   const started = Date.now()
   let last = { ok: false, reason: '停止后没有「这一轮已取消。」' }
@@ -913,6 +943,7 @@ export async function runCompanionCore(driver, options = {}) {
     const timeoutMs = options.taskTimeoutMs || 180_000
     let stops = 0
     for (const step of steps) {
+      process.stdout.write(`COMPANION-CORE ${step.id}\n`)
       if (step.kind === 'archive') {
         await driver.archiveConversation(step.conversationId)
         const still = (await driver.listConversations()).some(item => storedConversationId(item) === step.conversationId)
@@ -929,12 +960,45 @@ export async function runCompanionCore(driver, options = {}) {
         const clean = companionTranscriptClean(await driver.listCompanionTranscript(120))
         if (!clean.ok) return fail(`${step.id}：${clean.reason}`)
         stops += 1
-        await driver.drainCompanionEvents()
+        await settleCompanionAfterStop(driver)
         continue
       }
       const sent = await sendCompanionOrRecover(driver, step.prompt)
       if (!sent.ok) return fail(`${step.id} 发不出：${sent.error}`)
-      const turn = await driver.waitForCompanionTurn(timeoutMs)
+      if (step.kind === 'workspace') {
+        const waited = await waitForPromptReply(driver, step.needle, timeoutMs, step.confirm
+          ? { autoConfirm: false, returnOnConfirm: true }
+          : undefined)
+        const turn = waited.turn
+        if (turn.sidecarStopped || companionTurnParked(turn.events)) {
+          return fail(`${step.id}：sidecar 停了`)
+        }
+        if (turn.timeout) return fail(`${step.id}：超时`)
+        if (companionContinueBlocked(turn.error)) return fail(`${step.id}：${turn.error}`)
+        const page = waited.page
+        const clean = companionTranscriptClean(page)
+        if (!clean.ok) return fail(`${step.id}：${clean.reason}`)
+        let confirm = null
+        let confirmRaw = ''
+        for (const event of turn.events || []) {
+          const parsed = parseCompanionConfirm(event)
+          if (!parsed) continue
+          confirm = parsed
+          confirmRaw = String(event?.input ?? event?.Input ?? '')
+          break
+        }
+        const judged = judgeCompanionWorkspaceCase(step, {
+          text: assistantTextAfterPrompt(page, step.needle),
+          active: await driver.listConversations(),
+          archived: await driver.listArchivedConversations(),
+          confirm,
+          confirmRaw,
+        })
+        if (!judged.ok) return fail(`${step.id}：${judged.reason}`)
+        continue
+      }
+      const waited = await waitForPromptReply(driver, step.needle || step.prompt, timeoutMs)
+      const turn = waited.turn
       if (turn.sidecarStopped || companionTurnParked(turn.events)) {
         return fail(`${step.id}：sidecar 停了`)
       }
@@ -943,7 +1007,7 @@ export async function runCompanionCore(driver, options = {}) {
       if (companionTurnErrored(turn.events) && !companionTurnSettled(turn.events)) {
         return fail(`${step.id}：${turn.error || '回合失败'}`)
       }
-      const page = await driver.listCompanionTranscript(120)
+      const page = waited.page
       const clean = companionTranscriptClean(page)
       if (!clean.ok) return fail(`${step.id}：${clean.reason}`)
       if (step.kind === 'relay') {
@@ -959,7 +1023,7 @@ export async function runCompanionCore(driver, options = {}) {
         if (!landed) return fail(`${step.id}：标记没有进目标会话`)
         continue
       }
-      const text = assistantTextAfterPrompt(page, step.needle)
+      const text = waited.text || assistantTextAfterPrompt(page, step.needle)
       const judged = judgeCompanionCoreReply(text, step)
       if (!judged.ok) return fail(`${step.id}：${judged.reason}：${text.slice(0, 160)}`)
     }

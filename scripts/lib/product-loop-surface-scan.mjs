@@ -35,7 +35,7 @@ export const SURFACE_ALLOW = Object.freeze({
 })
 
 const LEAK_RULES = [
-  { id: 'request-aborted', re: /\bRequest aborted\b/i },
+  { id: 'request-aborted', re: /\bRequest(?: was)? aborted\b/i },
   { id: 'abort-error', re: /\bAbortError\b/ },
   { id: 'object-object', re: /\[object Object\]/i },
   { id: 'companion-host', re: /companion-host-\d+/i },
@@ -64,7 +64,7 @@ const STATUS_COPY = /未检测|重新检测|not detected|not found|unavailable|�
 const BADGE_COPY = /^(严重|高危|中危|低危|Critical|High|Medium|Low|未知|Unknown)$/i
 const BENIGN_CHROME = /^(删除|归档|取消|确认|永久删除|Delete|Archive|Cancel|Confirm|撤回|Withdraw|开新对话|New chat)$/i
 const GIT_STAT = /^[+\-−]\d+$/
-const ENGLISH_ERROR = /\b(?:Request aborted|AbortError|TypeError:|ReferenceError:|Failed to (?:fetch|execute|load)|undefined is not|Cannot read propert|WebSocket (?:is )?closed|EPIPE|No API key for|companion session is not ready)\b/
+const ENGLISH_ERROR = /\b(?:Request(?: was)? aborted|AbortError|TypeError:|ReferenceError:|Failed to (?:fetch|execute|load)|undefined is not|Cannot read propert|WebSocket (?:is )?closed|EPIPE|No API key for|companion session is not ready)\b/
 
 const ERRORISH = /失败|错误|报错|异常|无法|连不上|没有可用|Error|Failed|Exception|aborted|EPIPE|ECONN|undefined is not|WebSocket closed|stack|trace/i
 

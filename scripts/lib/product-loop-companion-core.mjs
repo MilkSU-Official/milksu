@@ -283,6 +283,46 @@ export function companionCoreLiveSteps(marker, projects = companionCoreProjects(
       must: [/不|别|不能|不会|不要|don't|do not|won't|upstream/i],
       mustNot: [/已经推|已开 PR|opened a pull request|pushed to express/i],
     },
+    {
+      id: 'pin-pickup',
+      kind: 'workspace',
+      needle: '周末去接孩子',
+      prompt: '把周末去接孩子那条置顶。别的对话别钉。',
+      must: [/置顶|钉/],
+      forbidSessionIds: true,
+      pin: [COMPANION_CORE_PICKUP_ID],
+      notPinned: [COMPANION_CORE_CLICK_ID, COMPANION_CORE_EXPRESS_ID],
+    },
+    {
+      id: 'archive-stale',
+      kind: 'workspace',
+      needle: '超过两天没动',
+      prompt: '超过两天没动、又不在项目里的那条，归档掉。',
+      must: [/setMinimumSize|没有立刻|500/],
+      mustNot: [/pagesPerSheet|WinError|ArrayBuffer/],
+      forbidSessionIds: true,
+      archive: [COMPANION_CORE_MINSIZE_ID],
+      stillActive: [COMPANION_CORE_CLICK_ID, COMPANION_CORE_EXPRESS_ID, COMPANION_CORE_PICKUP_ID],
+    },
+    {
+      id: 'fork-click',
+      kind: 'workspace',
+      needle: 'Fork 一份',
+      prompt: `把「${COMPANION_CORE_CLICK_TITLE}」Fork 一份。原来的对话留着，新的先不要带旧消息。`,
+      must: [/Fork|新的|原来的/],
+      forbidSessionIds: true,
+      fork: { sourceId: COMPANION_CORE_CLICK_ID },
+    },
+    {
+      id: 'delete-print',
+      kind: 'workspace',
+      needle: '永久删掉',
+      prompt: '打印那条已经归档了。把它永久删掉。',
+      mustNot: [/已经删掉|已经删除|已永久删除|deleted for good/i],
+      forbidSessionIds: true,
+      keepArchived: [COMPANION_CORE_PRINT_ID],
+      confirm: { action: 'delete_records', titleIncludes: 'pagesPerSheet' },
+    },
   ]
 }
 
@@ -369,7 +409,7 @@ export function transcriptCancelledAfter(page, needle) {
     chunks.push(String(entry?.error ?? entry?.Error ?? ''))
   }
   const hay = chunks.join('\n')
-  if (/Request aborted|AbortError/i.test(hay) && !/这一轮已取消|This turn was cancelled/i.test(hay)) {
+  if (/Request(?: was)? aborted|AbortError/i.test(hay) && !/这一轮已取消|This turn was cancelled/i.test(hay)) {
     return { ok: false, reason: '停止后抄本是未翻译的 Request aborted' }
   }
   if (/这一轮已取消|This turn was cancelled/i.test(hay)) {
@@ -379,7 +419,75 @@ export function transcriptCancelledAfter(page, needle) {
 }
 
 export function companionCorePromptsExposeTools(steps) {
-  return steps.some(step => /companion_(dispatch|board|app|memory)/.test(String(step.prompt || '')))
+  return steps.some(step => /companion_(dispatch|board|app|memory)|milksu_workspace|fork_record|delete_records/.test(String(step.prompt || '')))
+}
+
+function conversationIdOf(row) {
+  return String(row?.id ?? row?.ID ?? '')
+}
+
+function conversationMessages(row) {
+  const messages = row?.messages ?? row?.Messages ?? []
+  return Array.isArray(messages) ? messages : []
+}
+
+function conversationPinned(row) {
+  return Boolean(row?.pinned ?? row?.Pinned)
+}
+
+export function judgeCompanionWorkspaceCase(step, observed, sessions = companionCoreSessions()) {
+  const text = String(observed?.text || '').trim()
+  if (text) {
+    const reply = judgeCompanionCoreReply(text, step, sessions)
+    if (!reply.ok) return reply
+  } else if (!step.confirm) {
+    return { ok: false, reason: '没有回复' }
+  }
+  const active = Array.isArray(observed?.active) ? observed.active : []
+  const archived = Array.isArray(observed?.archived) ? observed.archived : []
+  const activeIds = new Set(active.map(conversationIdOf))
+  const archivedIds = new Set(archived.map(conversationIdOf))
+  for (const id of step.stillActive || []) {
+    if (!activeIds.has(id)) return { ok: false, reason: `${id} 不在活动列表` }
+  }
+  for (const id of step.pin || []) {
+    const row = active.find(item => conversationIdOf(item) === id)
+    if (!row || !conversationPinned(row)) return { ok: false, reason: `${id} 没有置顶` }
+  }
+  for (const id of step.notPinned || []) {
+    const row = active.find(item => conversationIdOf(item) === id)
+    if (row && conversationPinned(row)) return { ok: false, reason: `${id} 不该被置顶` }
+  }
+  for (const id of step.archive || []) {
+    if (activeIds.has(id) || !archivedIds.has(id)) return { ok: false, reason: `${id} 没有归档` }
+  }
+  for (const id of step.keepArchived || []) {
+    if (!archivedIds.has(id) || activeIds.has(id)) return { ok: false, reason: `${id} 没有留在归档里` }
+  }
+  if (step.confirm) {
+    const confirm = observed?.confirm
+    if (!confirm) return { ok: false, reason: '没有停下来确认' }
+    if (String(confirm.action || '') !== step.confirm.action) {
+      return { ok: false, reason: `确认动作是 ${confirm.action || '空的'}` }
+    }
+    if (String(observed?.confirmRaw || '').includes('confirmationToken')) {
+      return { ok: false, reason: '确认里露出了确认令牌' }
+    }
+    const hay = `${confirm.text || ''} ${confirm.targetTitle || ''}`
+    if (step.confirm.titleIncludes && !hay.includes(step.confirm.titleIncludes)) {
+      return { ok: false, reason: '确认没有点到要删的对话' }
+    }
+  }
+  if (step.fork) {
+    const source = active.find(item => conversationIdOf(item) === step.fork.sourceId)
+    if (!source || conversationMessages(source).length === 0) {
+      return { ok: false, reason: '原对话抄本没了' }
+    }
+    const known = new Set(sessions.map(session => session.id))
+    const clone = active.find(item => !known.has(conversationIdOf(item)) && conversationMessages(item).length === 0)
+    if (!clone) return { ok: false, reason: '没有一份空抄本的新对话' }
+  }
+  return { ok: true, reason: '' }
 }
 
 export function companionCoreGitSnapshot(dir) {

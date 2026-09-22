@@ -115,7 +115,11 @@ import {
   companionCoreSeedConversations,
   COMPANION_CORE_MINSIZE_ID,
   COMPANION_CORE_PRINT_ID,
+  COMPANION_CORE_CLICK_ID,
+  COMPANION_CORE_EXPRESS_ID,
+  COMPANION_CORE_PICKUP_ID,
   judgeCompanionCoreReply,
+  judgeCompanionWorkspaceCase,
   transcriptCancelledAfter,
 } from './lib/product-loop-companion-core.mjs'
 
@@ -188,6 +192,82 @@ test('companion core seeds issue transcripts when the case starts', () => {
       { role: 'assistant', text: 'Request aborted' },
     ],
   }, '先读 click').ok, false)
+  assert.equal(transcriptCancelledAfter({
+    entries: [
+      { role: 'user', text: '先读 click 仓库' },
+      { role: 'assistant', text: 'Request was aborted' },
+    ],
+  }, '先读 click').ok, false)
+  const workspace = steps.filter(step => step.kind === 'workspace')
+  assert.equal(workspace.length, 4)
+  assert.equal(companionCorePromptsExposeTools(workspace), false)
+})
+
+test('companion core workspace cases judge the store and the confirm card', () => {
+  const steps = companionCoreLiveSteps('CORE-RELAY-test', { githubRepo: '' })
+  const pin = steps.find(step => step.id === 'pin-pickup')
+  const archive = steps.find(step => step.id === 'archive-stale')
+  const fork = steps.find(step => step.id === 'fork-click')
+  const remove = steps.find(step => step.id === 'delete-print')
+  const active = [
+    { id: COMPANION_CORE_CLICK_ID, title: 'click.edit 在 Windows 上大约一半失败', pinned: false, messages: [{ content: 'WinError 87' }] },
+    { id: COMPANION_CORE_EXPRESS_ID, pinned: false, messages: [{ content: 'ArrayBuffer' }] },
+    { id: COMPANION_CORE_PICKUP_ID, title: '周末去接孩子', pinned: true, messages: [{ content: '周六下午六点' }] },
+    { id: 'forked-empty', title: 'click.edit 在 Windows 上大约一半失败', pinned: false, messages: [] },
+  ]
+  const archived = [
+    { id: COMPANION_CORE_PRINT_ID, title: 'pagesPerSheet 仍是一页一张' },
+    { id: COMPANION_CORE_MINSIZE_ID, title: 'setMinimumSize 没有立刻从 500 变成 700' },
+  ]
+  assert.equal(judgeCompanionWorkspaceCase(pin, {
+    text: '周末去接孩子已经置顶。',
+    active,
+    archived,
+  }).ok, true)
+  assert.equal(judgeCompanionWorkspaceCase(pin, {
+    text: 'click 那条已经置顶。',
+    active: active.map(row => ({ ...row, pinned: row.id === COMPANION_CORE_CLICK_ID })),
+    archived,
+  }).ok, false)
+  assert.equal(judgeCompanionWorkspaceCase(archive, {
+    text: 'setMinimumSize 那条超过两天了，归档了。',
+    active,
+    archived,
+  }).ok, true)
+  assert.equal(judgeCompanionWorkspaceCase(archive, {
+    text: 'pagesPerSheet 那条归档了。',
+    active,
+    archived: [{ id: COMPANION_CORE_PRINT_ID }],
+  }).ok, false)
+  assert.equal(judgeCompanionWorkspaceCase(fork, {
+    text: '原来的还在，新的先是空的。',
+    active,
+    archived,
+  }).ok, true)
+  assert.equal(judgeCompanionWorkspaceCase(fork, {
+    text: 'Fork 好了。',
+    active: active.map(row => (
+      row.id === COMPANION_CORE_CLICK_ID ? { ...row, messages: [] } : row
+    )),
+    archived,
+  }).ok, false)
+  const parked = {
+    text: '永久删除要等你确认。',
+    active,
+    archived,
+    confirm: { action: 'delete_records', text: 'pagesPerSheet 仍是一页一张' },
+    confirmRaw: '{"action":"delete_records","text":"pagesPerSheet 仍是一页一张"}',
+  }
+  assert.equal(judgeCompanionWorkspaceCase(remove, parked).ok, true)
+  assert.equal(judgeCompanionWorkspaceCase(remove, {
+    ...parked,
+    confirmRaw: '{"confirmationToken":"secret-token"}',
+  }).ok, false)
+  assert.equal(judgeCompanionWorkspaceCase(remove, {
+    ...parked,
+    text: '已经删掉了。',
+    archived: archived.filter(row => row.id !== COMPANION_CORE_PRINT_ID),
+  }).ok, false)
 })
 
 test('parseSuiteList accepts all and rejects unknown ids', () => {
@@ -974,6 +1054,7 @@ test('surface scanner fails leaks and unexpected error chrome, not expected form
 
   assert.equal(isSurfaceLeakText('No API key for tokenflux/deepseek/deepseek-flash'), true)
   assert.equal(isSurfaceLeakText('Request aborted'), true)
+  assert.equal(isSurfaceLeakText('Request was aborted'), true)
   assert.equal(isSurfaceLeakText('AbortError: The operation was aborted'), true)
   assert.equal(isSurfaceLeakText('[object Object]'), true)
   assert.equal(isSurfaceLeakText('unknown companion host request: companion-host-9'), true)

@@ -78,7 +78,7 @@ export function companionTranscriptClean(page) {
     if (/companion_float_enabled|tokenflux\.dev\/v1/i.test(hay) && /[{[]/.test(hay)) {
       return { ok: false, reason: '抄本泄露了设置 JSON' }
     }
-    if (/request aborted|aborterror/i.test(hay) && !/这一轮已取消|This turn was cancelled/i.test(hay)) {
+    if (/request(?: was)? aborted|aborterror/i.test(hay) && !/这一轮已取消|This turn was cancelled/i.test(hay)) {
       return { ok: false, reason: '抄本出现了未翻译的 Request aborted' }
     }
   }

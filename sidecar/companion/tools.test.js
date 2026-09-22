@@ -10,6 +10,26 @@ import {
   createCompanionTools,
 } from "./tools.js";
 
+test("companion workspace files records and waits on delete", async () => {
+  const seen = [];
+  const tools = createCompanionTools(async (action, input, options) => {
+    seen.push({ action, input, options });
+    return { records: [] };
+  });
+  const workspace = tools.find(tool => tool.name === "milksu_workspace");
+  assert.match(workspace.description, /delete_records/);
+  assert.match(workspace.description, /olderThanDays/);
+  await workspace.execute("1", { action: "list_records", kind: "conversation", unpinned: true });
+  assert.equal(seen[0].action, "workspace");
+  assert.equal(seen[0].options, undefined);
+  await assert.rejects(
+    () => workspace.execute("2", { action: "list_browser_tabs" }),
+    /requires conversationId/,
+  );
+  await workspace.execute("3", { action: "delete_records", kind: "conversation", ids: ["a"] });
+  assert.equal(seen[1].options?.timeoutMs, 0);
+});
+
 test("companion custom tools stay the typed product tools", () => {
   const tools = createCompanionTools(async () => ({}));
   assert.deepEqual(tools.map(tool => tool.name).sort(), [...COMPANION_TOOL_NAMES].sort());

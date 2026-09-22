@@ -109,6 +109,7 @@ describe('explainCompanionError', () => {
   it('maps request abort to cancelled copy without harness English', () => {
     applyUiLocale('zh')
     expect(explainCompanionError('Request aborted')).toBe('这一轮已取消。')
+    expect(explainCompanionError('Request was aborted')).toBe('这一轮已取消。')
     expect(explainCompanionError('AbortError: The operation was aborted')).toBe('这一轮已取消。')
     expect(explainCompanionError('Error: request aborted')).toBe('这一轮已取消。')
     expect(explainCompanionError('Request aborted')).not.toMatch(/Request aborted|AbortError/i)
@@ -116,6 +117,7 @@ describe('explainCompanionError', () => {
     expect(explainCompanionError('Request aborted')).toBe('This turn was cancelled.')
     applyUiLocale('zh')
     expect(companionTurnCancelled('Request aborted')).toBe(true)
+    expect(companionTurnCancelled('Request was aborted')).toBe(true)
     expect(companionTurnCancelled('turn aborted')).toBe(false)
     expect(companionHostToolFailure('Request aborted')).toBe(false)
   })

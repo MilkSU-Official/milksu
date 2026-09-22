@@ -7,6 +7,11 @@ import {
   isResearchSessionRole,
   researchReportGuidance,
   resolveWorkflowSessionRole,
+  codingWorkspaceMutatingActions,
+  codingWorkspaceNeedsConversation,
+  codingWorkspaceReadActions,
+  codingWorkspaceRecordActions,
+  codingWorkspaceSessionActions,
   codingWorkspaceToolName,
   createCodingWorkspaceExtension,
   createWorkspaceActionBroker,
@@ -20,6 +25,19 @@ import {
 
 test("workspace tool rejects unknown actions and plan mutations", () => {
   assert.equal(codingWorkspaceToolName, "milksu_workspace");
+  const known = new Set([
+    ...codingWorkspaceReadActions,
+    ...codingWorkspaceMutatingActions,
+  ]);
+  for (const name of codingWorkspaceSessionActions) {
+    assert.equal(known.has(name), true, name);
+  }
+  for (const name of codingWorkspaceRecordActions) {
+    assert.equal(known.has(name), true, name);
+    assert.equal(codingWorkspaceNeedsConversation(name), false, name);
+  }
+  assert.equal(codingWorkspaceNeedsConversation("list_browser_tabs"), true);
+  assert.equal(codingWorkspaceNeedsConversation("list_computer_use_windows"), false);
   assert.equal(normalizeCodingWorkspaceAction("focus_browser_tab"), "focus_browser_tab");
   assert.equal(normalizeCodingWorkspaceAction("delete_everything"), "");
   assert.equal(codingWorkspaceActionBlocked("list_browser_tabs", {
@@ -278,4 +296,84 @@ test("compact_context queues Pi compaction below the 80 percent auto threshold",
   assert.match(result.content[0].text, /"threshold":80/);
   assert.equal(highPending.has("conversation-1"), true);
   assert.equal(await runQueuedWorkspaceCompaction(highPending, "conversation-1", async () => "ok"), "ok");
+});
+
+test("delete_records confirms before the token is used", async () => {
+  const requested = [];
+  const approvals = [];
+  const tools = [];
+  const extension = createCodingWorkspaceExtension(
+    "conversation-1",
+    () => ({ executionMode: "go", approvalPolicy: "ask" }),
+    async request => {
+      requested.push(request);
+      if (request.input?.confirmationToken) {
+        return JSON.stringify({ deleted: true });
+      }
+      return JSON.stringify({
+        needsConfirmation: true,
+        confirmationToken: "secret-token",
+        summary: "旧会话",
+        ids: ["chat-1"],
+      });
+    },
+    () => {},
+    () => ({}),
+    {
+      request: async card => {
+        approvals.push(card);
+        return true;
+      },
+    },
+  );
+  extension({ registerTool(tool) { tools.push(tool); } });
+  const result = await tools[0].execute("call-delete", {
+    action: "delete_records",
+    kind: "conversation",
+    ids: ["chat-1"],
+  });
+  assert.equal(approvals.length, 1);
+  assert.equal(approvals[0].content, "旧会话");
+  assert.equal(JSON.stringify(approvals[0]).includes("secret-token"), false);
+  assert.equal(requested[1].input.confirmationToken, "secret-token");
+  assert.match(result.content[0].text, /deleted/);
+
+  const hidden = [];
+  const bare = createCodingWorkspaceExtension(
+    "conversation-1",
+    () => ({ executionMode: "go", approvalPolicy: "ask" }),
+    async () => JSON.stringify({
+      needsConfirmation: true,
+      confirmationToken: "secret-token",
+      summary: "旧会话",
+      ids: ["chat-1"],
+    }),
+  );
+  bare({ registerTool(tool) { hidden.push(tool); } });
+  const stripped = await hidden[0].execute("call-hide", {
+    action: "delete_records",
+    ids: ["chat-1"],
+  });
+  assert.match(stripped.content[0].text, /needsConfirmation/);
+  assert.equal(stripped.content[0].text.includes("secret-token"), false);
+
+  const denied = [];
+  const blocking = createCodingWorkspaceExtension(
+    "conversation-1",
+    () => ({ executionMode: "go", approvalPolicy: "ask" }),
+    async () => JSON.stringify({
+      needsConfirmation: true,
+      confirmationToken: "secret-token",
+      summary: "旧会话",
+      ids: ["chat-1"],
+    }),
+    () => {},
+    () => ({}),
+    { request: async () => false },
+  );
+  blocking({ registerTool(tool) { denied.push(tool); } });
+  await assert.rejects(
+    () => denied[0].execute("call-deny", { action: "delete_records", ids: ["chat-1"] }),
+    /denied/,
+  );
 });

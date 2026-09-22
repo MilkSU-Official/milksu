@@ -419,6 +419,7 @@ func looksLikeCompanionAbort(text string) bool {
 		return false
 	}
 	return strings.Contains(folded, "request aborted") ||
+		strings.Contains(folded, "request was aborted") ||
 		strings.Contains(folded, "aborterror") ||
 		strings.Contains(folded, "this operation was aborted") ||
 		strings.Contains(folded, "the operation was aborted")

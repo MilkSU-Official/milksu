@@ -32,9 +32,39 @@ export const codingWorkspaceMutatingActions = Object.freeze([
   "update_record",
   "archive_records",
   "restore_records",
+  "pin_records",
+  "delete_records",
+  "fork_record",
   "prepare_coding_worktree",
   "lock_computer_use_window",
 ]);
+
+// App-wide record actions. Every other milksu_workspace action is session-scoped:
+// omitting it from this list fails closed and requires conversationId.
+export const codingWorkspaceRecordActions = Object.freeze([
+  "list_records",
+  "get_record",
+  "search_records",
+  "focus_record",
+  "create_record",
+  "update_record",
+  "archive_records",
+  "restore_records",
+  "pin_records",
+  "delete_records",
+  "fork_record",
+]);
+
+export const codingWorkspaceSessionActions = Object.freeze(
+  [...codingWorkspaceReadActions, ...codingWorkspaceMutatingActions]
+    .filter(name => !codingWorkspaceRecordActions.includes(name)),
+);
+
+// list_computer_use_windows enumerates the machine. It does not belong to one conversation.
+export function codingWorkspaceNeedsConversation(action) {
+  return !codingWorkspaceRecordActions.includes(action)
+    && action !== "list_computer_use_windows";
+}
 
 const writerWorktreePrepareTimeoutMs = 5 * 60_000;
 const computerUseLockTimeoutMs = 90_000;
@@ -233,93 +263,112 @@ export function createWorkspaceActionBroker(emit, createID = () => crypto.random
   };
 }
 
+export async function resolveWorkspaceDeletion(result, params, approvalBroker, conversationId, requestAction) {
+  let parsed = null;
+  try {
+    parsed = JSON.parse(String(result ?? ""));
+  } catch {
+    return result;
+  }
+  if (!parsed || parsed.needsConfirmation !== true) return result;
+  if (typeof approvalBroker?.request !== "function") {
+    delete parsed.confirmationToken;
+    return JSON.stringify(parsed);
+  }
+  const approved = await approvalBroker.request({
+    conversationId,
+    toolName: codingWorkspaceToolName,
+    content: String(parsed.summary || "Permanently delete these conversations."),
+    input: JSON.stringify({ action: "delete_records", ids: parsed.ids ?? [] }),
+  });
+  if (!approved) {
+    throw new Error("MilkSU user denied this deletion.");
+  }
+  return requestAction({
+    conversationId,
+    action: "delete_records",
+    input: {
+      ...(params ?? {}),
+      confirmationToken: parsed.confirmationToken,
+    },
+  });
+}
+
+export function codingWorkspaceToolParameters({ conversationId = false } = {}) {
+  const fields = {
+    action: Type.Union(
+      [...codingWorkspaceReadActions, ...codingWorkspaceMutatingActions].map(name => Type.Literal(name)),
+    ),
+    tabId: Type.Optional(Type.String({ maxLength: 80 })),
+    query: Type.Optional(Type.String({ maxLength: 200 })),
+    url: Type.Optional(Type.String({ maxLength: 2000 })),
+    path: Type.Optional(Type.String({ maxLength: 500 })),
+    panel: Type.Optional(Type.Union([
+      Type.Literal("browser"),
+      Type.Literal("artifacts"),
+      Type.Literal("changes"),
+      Type.Literal("environment"),
+      Type.Literal("computer-use"),
+    ], {
+      description: "Which product surface to bring forward. computer-use is optional chrome; list and lock windows with the typed Computer Use actions instead of asking the user to pick first.",
+    })),
+    writers: Type.Optional(Type.Integer({ minimum: 1, maximum: 2 })),
+    targetPid: Type.Optional(Type.Integer({ minimum: 1 })),
+    targetWindowId: Type.Optional(Type.Integer({ minimum: 1 })),
+    kind: Type.Optional(Type.Union([
+      Type.Literal("conversation"),
+      Type.Literal("lab"),
+      Type.Literal("cve"),
+      Type.Literal("ctf"),
+    ])),
+    id: Type.Optional(Type.String({ maxLength: 128 })),
+    ids: Type.Optional(Type.Array(Type.String({ maxLength: 128 }), { maxItems: 50 })),
+    title: Type.Optional(Type.String({ maxLength: 120 })),
+    archived: Type.Optional(Type.Boolean()),
+    limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 100 })),
+    workspacePath: Type.Optional(Type.String({ maxLength: 500 })),
+    unpinned: Type.Optional(Type.Boolean()),
+    olderThanDays: Type.Optional(Type.Integer({ minimum: 1, maximum: 3650 })),
+    pinned: Type.Optional(Type.Boolean()),
+    scope: Type.Optional(Type.Union([
+      Type.Literal("local"),
+      Type.Literal("remote"),
+    ])),
+    request: Type.Optional(Type.String({ maxLength: 4000 })),
+    statement: Type.Optional(Type.String({ maxLength: 12000 })),
+    category: Type.Optional(Type.String({ maxLength: 80 })),
+    summary: Type.Optional(Type.String({ maxLength: 1200 })),
+    cveId: Type.Optional(Type.String({ maxLength: 32 })),
+    vendor: Type.Optional(Type.String({ maxLength: 120 })),
+    product: Type.Optional(Type.String({ maxLength: 120 })),
+    affected: Type.Optional(Type.String({ maxLength: 240 })),
+    sourceKind: Type.Optional(Type.Union([
+      Type.Literal("text"),
+      Type.Literal("url"),
+      Type.Literal("socket"),
+      Type.Literal("ssh"),
+    ])),
+  };
+  if (conversationId) {
+    fields.conversationId = Type.Optional(Type.String({ maxLength: 128 }));
+  }
+  return Type.Object(fields);
+}
+
 export function createCodingWorkspaceExtension(
   conversationId,
   getPolicy,
   requestAction,
   queueCompact,
   inspectUsage,
+  approvalBroker,
 ) {
   return (pi) => {
     pi.registerTool({
       name: codingWorkspaceToolName,
       label: "MilkSU workspace",
       description: codingWorkspaceGuidance(),
-      parameters: Type.Object({
-        action: Type.Union([
-          Type.Literal("list_browser_tabs"),
-          Type.Literal("focus_browser_tab"),
-          Type.Literal("open_browser_tab"),
-          Type.Literal("close_browser_tab"),
-          Type.Literal("close_all_browser_tabs"),
-          Type.Literal("list_artifacts"),
-          Type.Literal("preview_artifact"),
-          Type.Literal("reveal_artifacts"),
-          Type.Literal("show_panel"),
-          Type.Literal("list_status"),
-          Type.Literal("compact_context"),
-          Type.Literal("show_terminal"),
-          Type.Literal("hide_terminal"),
-          Type.Literal("list_terminals"),
-          Type.Literal("list_background_tasks"),
-          Type.Literal("list_records"),
-          Type.Literal("get_record"),
-          Type.Literal("create_record"),
-          Type.Literal("update_record"),
-          Type.Literal("archive_records"),
-          Type.Literal("restore_records"),
-          Type.Literal("focus_record"),
-          Type.Literal("search_records"),
-          Type.Literal("list_computer_use_windows"),
-          Type.Literal("lock_computer_use_window"),
-          Type.Literal("prepare_coding_worktree"),
-        ]),
-        tabId: Type.Optional(Type.String({ maxLength: 80 })),
-        query: Type.Optional(Type.String({ maxLength: 200 })),
-        url: Type.Optional(Type.String({ maxLength: 2000 })),
-        path: Type.Optional(Type.String({ maxLength: 500 })),
-        panel: Type.Optional(Type.Union([
-          Type.Literal("browser"),
-          Type.Literal("artifacts"),
-          Type.Literal("changes"),
-          Type.Literal("environment"),
-          Type.Literal("computer-use"),
-        ], {
-          description: "Which product surface to bring forward. computer-use is optional chrome; list and lock windows with the typed Computer Use actions instead of asking the user to pick first.",
-        })),
-        writers: Type.Optional(Type.Integer({ minimum: 1, maximum: 2 })),
-        targetPid: Type.Optional(Type.Integer({ minimum: 1 })),
-        targetWindowId: Type.Optional(Type.Integer({ minimum: 1 })),
-        kind: Type.Optional(Type.Union([
-          Type.Literal("conversation"),
-          Type.Literal("lab"),
-          Type.Literal("cve"),
-          Type.Literal("ctf"),
-        ])),
-        id: Type.Optional(Type.String({ maxLength: 128 })),
-        ids: Type.Optional(Type.Array(Type.String({ maxLength: 128 }), { maxItems: 50 })),
-        title: Type.Optional(Type.String({ maxLength: 120 })),
-        archived: Type.Optional(Type.Boolean()),
-        limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 100 })),
-        scope: Type.Optional(Type.Union([
-          Type.Literal("local"),
-          Type.Literal("remote"),
-        ])),
-        request: Type.Optional(Type.String({ maxLength: 4000 })),
-        statement: Type.Optional(Type.String({ maxLength: 12000 })),
-        category: Type.Optional(Type.String({ maxLength: 80 })),
-        summary: Type.Optional(Type.String({ maxLength: 1200 })),
-        cveId: Type.Optional(Type.String({ maxLength: 32 })),
-        vendor: Type.Optional(Type.String({ maxLength: 120 })),
-        product: Type.Optional(Type.String({ maxLength: 120 })),
-        affected: Type.Optional(Type.String({ maxLength: 240 })),
-        sourceKind: Type.Optional(Type.Union([
-          Type.Literal("text"),
-          Type.Literal("url"),
-          Type.Literal("socket"),
-          Type.Literal("ssh"),
-        ])),
-      }),
+      parameters: codingWorkspaceToolParameters(),
       async execute(_toolCallId, params) {
         const action = normalizeCodingWorkspaceAction(params.action);
         const blocked = codingWorkspaceActionBlocked(action, getPolicy?.());
@@ -339,12 +388,21 @@ export function createCodingWorkspaceExtension(
           : action === "lock_computer_use_window"
             ? computerUseLockTimeoutMs
             : undefined;
-        const result = await requestAction({
+        let result = await requestAction({
           conversationId,
           action,
           input: params,
           timeoutMs,
         });
+        if (action === "delete_records") {
+          result = await resolveWorkspaceDeletion(
+            result,
+            params,
+            approvalBroker,
+            conversationId,
+            requestAction,
+          );
+        }
         const policy = getPolicy?.();
         if (policy && action === "prepare_coding_worktree") {
           try {

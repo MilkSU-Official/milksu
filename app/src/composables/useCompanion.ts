@@ -14,6 +14,7 @@ import {
 import {
   companionTurnHasProcess,
   emptyCompanionTurnProcess,
+  finishCompanionTurn,
   finiteThinkingDurationMs,
   stampMeasuredThinkingDuration,
   type CompanionProcessTool,
@@ -88,6 +89,11 @@ export function companionToolUserText(value: unknown, fallback = ''): string {
     return companionToolUserText((value as { text: string }).text, fallback)
   }
   return fallback
+}
+
+function withTurnClock(current: CompanionTurnProcess): CompanionTurnProcess {
+  if (current.turnStartedAt != null) return current
+  return { ...current, turnStartedAt: Date.now() }
 }
 
 function upsertTool(
@@ -213,7 +219,7 @@ export function useCompanion() {
     const type = String(payload.type ?? '')
     if (type === 'assistant.thinking_started') {
       setLiveProcess(current => ({
-        ...current,
+        ...withTurnClock(current),
         thinkingRunning: true,
         thinkingStartedAt: Date.now(),
       }))
@@ -223,7 +229,7 @@ export function useCompanion() {
       const delta = companionToolUserText(payload.text)
       if (!delta) return
       setLiveProcess(current => ({
-        ...current,
+        ...withTurnClock(current),
         thinking: `${current.thinking}${delta}`,
         thinkingRunning: true,
         thinkingStartedAt: current.thinkingStartedAt ?? Date.now(),
@@ -239,7 +245,7 @@ export function useCompanion() {
         const base = current.thinkingRunning ? (current.thinkingDurationMs ?? 0) : 0
         const total = base + (segment ?? 0)
         return {
-          ...current,
+          ...withTurnClock(current),
           thinking: companionToolUserText(payload.text, current.thinking),
           thinkingRunning: false,
           thinkingStartedAt: undefined,
@@ -250,7 +256,7 @@ export function useCompanion() {
     }
     if (type === 'assistant.delta' && payload.text) {
       setLiveProcess(current => ({
-        ...current,
+        ...withTurnClock(current),
         reply: `${current.reply}${payload.text}`,
       }))
       return
@@ -259,7 +265,7 @@ export function useCompanion() {
       const id = String(payload.toolCallId || payload.toolName || `tool:${Date.now()}`)
       const name = String(payload.toolName || 'tool')
       setLiveProcess(current => ({
-        ...current,
+        ...withTurnClock(current),
         thinkingRunning: false,
         tools: upsertTool(current.tools, {
           id,
@@ -277,7 +283,7 @@ export function useCompanion() {
       const rawError = companionToolUserText(payload.error)
       const errorText = rawError ? explainCompanionError(rawError) || rawError : ''
       setLiveProcess(current => ({
-        ...current,
+        ...withTurnClock(current),
         tools: upsertTool(current.tools, {
           id: id || `tool:${current.tools.length}`,
           name,
@@ -368,7 +374,7 @@ export function useCompanion() {
           return
         }
         if (payload.type === 'assistant.settled') {
-          const snapshot = liveProcessRef.current
+          const snapshot = finishCompanionTurn(liveProcessRef.current)
           measuredThinking.current = companionTurnHasProcess(snapshot) ? snapshot : null
           setSettledProcess(measuredThinking.current)
           setLiveProcess(emptyCompanionTurnProcess())

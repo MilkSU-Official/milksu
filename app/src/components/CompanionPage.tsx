@@ -165,6 +165,10 @@ function companionConfirmLine(
       return confirm.text.trim()
         ? t(`把这句插进这些会话：${confirm.text.trim()}`, `Steer these conversations: ${confirm.text.trim()}`)
         : t('把同一句发给这些会话。', 'Send the same instruction to these conversations.')
+    case 'delete_records':
+      return confirm.text.trim()
+        ? t(`永久删除这些对话：${confirm.text.trim()}`, `Permanently delete these conversations: ${confirm.text.trim()}`)
+        : t('永久删除这些对话。', 'Permanently delete these conversations.')
     default:
       return confirm.text.trim() || confirm.targetTitle.trim()
         || t('把这条指令插入正在进行的回合。', 'Steer the current turn with this instruction.')
@@ -645,7 +649,7 @@ export default function CompanionPage({
                 {...rowProps}
                 className="companion-chat-row companion-chat-row-assistant companion-chat-row-start"
               >
-                <CompanionTurnProcessView process={row.process} />
+                <CompanionTurnProcessView process={row.process} live />
               </div>
             )
           }

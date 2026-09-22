@@ -524,7 +524,6 @@ async function publishReviewedReply(userText) {
 
 async function sendPrompt(command) {
   if (!session) throw new Error("companion session is not ready");
-  turnAborted = false;
   repairCompanionSessionHistory("companion tool interrupted before next turn");
   const prepared = await prepareCompanionPrompt(command);
   if (!prepared.prompt) {
@@ -542,6 +541,9 @@ async function sendPrompt(command) {
   // used to sit behind this await and every host tool deadlocked until
   // timeout — that aborted the loop mid-turn.
   promptQueue = promptQueue.then(async () => {
+    // The previous turn's abort handler still reads this flag. Clear it only
+    // after that handler has returned, so its cancel is not applied to this prompt.
+    turnAborted = false;
     const gate = armReplyCapture();
     try {
       await retrieveCompanionTurnMemory(prepared.prompt);

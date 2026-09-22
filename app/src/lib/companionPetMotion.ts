@@ -119,6 +119,9 @@ export function companionAttentionText(input: {
     if (input.confirm.action === 'speak_many') {
       return input.t('有一批转达在等你确认', 'A batch relay is waiting for your confirmation')
     }
+    if (input.confirm.action === 'delete_records') {
+      return input.t('有一批对话删除在等你确认', 'Deleting conversations is waiting for your confirmation')
+    }
     if (input.confirm.text.trim()) return input.confirm.text.trim()
     if (input.confirm.targetTitle.trim()) return input.confirm.targetTitle.trim()
     return input.t('这次操作需要你点头', 'This action needs your confirmation')

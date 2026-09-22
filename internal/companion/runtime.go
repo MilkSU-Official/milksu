@@ -30,6 +30,7 @@ type RuntimeOptions struct {
 	Control          SessionControl
 	Searcher         SessionSearcher
 	App              AppControl
+	Workspace        func(conversationID, action, input string) (string, error)
 	Emit             func(engine.Event)
 	Start            func(config.AppSettings, string, string) (*exec.Cmd, io.WriteCloser, io.ReadCloser, error)
 }
@@ -56,6 +57,7 @@ type Runtime struct {
 	dispatcher *Dispatcher
 	memory     *Memory
 	apps       AppControl
+	workspace  func(conversationID, action, input string) (string, error)
 
 	pendingConfirms map[string]parkedConfirm
 
@@ -88,6 +90,7 @@ func NewRuntime(options RuntimeOptions) *Runtime {
 		board:            board,
 		memory:           memory,
 		apps:             options.App,
+		workspace:        options.Workspace,
 	}
 	if runtime.start == nil {
 		runtime.start = engine.OpenCompanionSidecar
@@ -498,6 +501,18 @@ func (r *Runtime) ConfirmDispatch(action, conversationID, text, idempotencyKey, 
 			return DispatchResult{Accepted: batch.Accepted, Error: batch.Error, TargetTitle: pending.title}, nil
 		}
 		return DispatchResult{Accepted: true, Delivered: true, TargetTitle: pending.title}, nil
+	case "delete_records":
+		if pending.input == nil {
+			return DispatchResult{}, fmt.Errorf("companion confirm is missing the parked request")
+		}
+		raw, err := r.handleWorkspace(pending.input)
+		if pending.requestID != "" {
+			r.respondHost(pending.requestID, raw, err)
+		}
+		if err != nil {
+			return DispatchResult{Accepted: false, Error: err.Error(), TargetTitle: pending.title}, nil
+		}
+		return DispatchResult{Accepted: true, Delivered: true, TargetTitle: pending.title}, nil
 	case "quit", "relaunch", "patch_settings":
 		if pending.input == nil {
 			return DispatchResult{}, fmt.Errorf("companion confirm is missing the parked request")
@@ -749,6 +764,14 @@ func (r *Runtime) answerHost(raw map[string]any) {
 	}
 	if action == "dispatch" {
 		parked, result, err := r.dispatchHost(requestID, input)
+		if parked {
+			return
+		}
+		r.respondHost(requestID, result, err)
+		return
+	}
+	if action == "workspace" {
+		parked, result, err := r.workspaceHost(requestID, input)
 		if parked {
 			return
 		}

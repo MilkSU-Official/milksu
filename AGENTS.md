@@ -285,7 +285,7 @@ React -> Electron Preload / Desktop RPC -> Application Service -> Domain / Runti
   隔离浏览器之所以启动，是因为用户打开了右栏，或者模型调用了 typed 的 `milksu_workspace`
   浏览器动作（`EnsureCodingBrowser`），不是因为提示词里出现了「打开浏览器」，
   也不是因为发过一句 Go 的问候语。
-- `milksu_workspace` 是 typed 的产品 UI 工具。它可以列出、聚焦或关闭隔离浏览器标签页，
+- `milksu_workspace` 是 typed 的产品 UI 工具。看板娘和 Coding / CTF / CVE / 实验室共用它，走同一个 Go 处理函数。它可以列出、聚焦或关闭隔离浏览器标签页，
   列出或预览产物，打开环境、diff、终端或后台任务表面。
   Coding、CTF、CVE 和实验室共用这个表面；领域工具和 Judge 叠在 Coding 循环之上，而不是取代它。
   它不得修改设置、凭据、审批策略，也不得附着到用户自己的 Chrome。

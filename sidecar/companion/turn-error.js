@@ -5,7 +5,7 @@ export function unwrapCompanionMessage(row) {
 
 /** In-flight Pi HTTP abort (AbortCompanionTurn / StopCompanion / recover). */
 export function companionRequestAborted(reason) {
-  return /abort\s*error|request aborted|this operation was aborted|the operation was aborted|operation was aborted/i
+  return /abort\s*error|request(?:\s+was)?\s+aborted|this operation was aborted|the operation was aborted|operation was aborted/i
     .test(String(reason ?? ""));
 }
 

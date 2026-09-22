@@ -109,7 +109,7 @@ export function companionHostToolFailure(reason: unknown): boolean {
  * recover teardown, user stop). Distinct from host-tool timeout.
  */
 export function companionTurnCancelled(reason: unknown): boolean {
-  return /abort\s*error|request aborted|this operation was aborted|the operation was aborted|operation was aborted|这一轮已取消|This turn was cancelled/i
+  return /abort\s*error|request(?:\s+was)?\s+aborted|this operation was aborted|the operation was aborted|operation was aborted|这一轮已取消|This turn was cancelled/i
     .test(String(reason ?? ''))
 }
 

@@ -4,7 +4,13 @@
  */
 
 import { rm } from 'node:fs/promises'
-import { classifyTurnEvents, delay } from './desktop-gui-driver.mjs'
+import {
+  CdpSession,
+  classifyTurnEvents,
+  delay,
+  isCompanionChatSurface,
+  listDesktopCdpTargets,
+} from './desktop-gui-driver.mjs'
 import {
   resolveCompanionModelRoute,
   startFirstUseDesktop,
@@ -522,6 +528,55 @@ export async function enterHomepageSkipLocal(driver) {
     return /登录 MilkSU|Sign in to MilkSU/.test(`${(next.aria || []).join('\n')}\n${next.text || ''}`) ? null : true
   }, 15_000)
   return home ? { ok: true } : { ok: false, detail: '点了暂不登录仍停在登录页' }
+}
+
+/**
+ * The phone paints 「这个来源还没有密钥」 when it opens before the relay exists.
+ * Saving settings does not clear that composer line, so reload the phone once
+ * the personal relay is in place and wait until the line is gone.
+ */
+export async function reloadCompanionAfterRelay(driver) {
+  const port = driver?.preferredPort
+  if (!port) return
+  const targets = await listDesktopCdpTargets({ port }).catch(() => [])
+  const chats = targets.filter(isCompanionChatSurface)
+  if (!chats.length) return
+  await driver.stopCompanion().catch(() => {})
+  for (const target of chats) {
+    const session = new CdpSession(target.webSocketDebuggerUrl)
+    try {
+      await session.open()
+      await session.evaluate('location.reload()')
+    } catch {
+      // Navigation closes the socket.
+    } finally {
+      session.close()
+    }
+  }
+  const started = Date.now()
+  while (Date.now() - started < 20_000) {
+    await delay(500)
+    const next = await listDesktopCdpTargets({ port }).catch(() => [])
+    const chat = next.find(isCompanionChatSurface)
+    if (!chat) continue
+    const session = new CdpSession(chat.webSocketDebuggerUrl)
+    try {
+      await session.open()
+      const state = await session.evaluate(`(() => {
+        const root = document.querySelector('[data-testid="companion-chat"]')
+        const text = document.body ? document.body.innerText : ''
+        return {
+          ready: Boolean(root),
+          missingKey: /这个来源还没有密钥|This Companion source has no key/.test(text),
+        }
+      })()`)
+      if (state?.ready && !state.missingKey) return
+    } catch {
+      // The phone is still reloading.
+    } finally {
+      session.close()
+    }
+  }
 }
 
 export async function sourcesReady(driver) {

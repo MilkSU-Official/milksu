@@ -106,7 +106,7 @@ export function classifyTurnEvents(events) {
       && type !== 'engine.stopped'
     ) return false
     return !companionHostToolError(errorTexts[index])
-      && !/request aborted|aborterror/i.test(errorTexts[index])
+      && !/request(?: was)? aborted|aborterror/i.test(errorTexts[index])
   })
   const settled = types.some(type => type === 'assistant.settled' || type === 'assistant.completed')
   return { settled, failed, error, sidecarStopped, hostTimedOut }
@@ -811,6 +811,11 @@ export class GuiDriver {
         }
       }
       if (outcome.settled || outcome.failed) {
+        // The same companion-event is delivered to every window. A settle
+        // drained from the main window is often still queued on the phone.
+        // Pull those copies now so the next wait does not treat them as this turn.
+        const rest = await this.drainCompanionEventsFromSurfaces().catch(() => [])
+        if (Array.isArray(rest) && rest.length) collected.push(...rest)
         return {
           events: collected,
           timeout: false,

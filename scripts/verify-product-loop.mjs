@@ -37,7 +37,7 @@ import {
 } from './lib/product-loop-report.mjs'
 import { adoptEvidence, applySurfaceScan, inspectProductLoopSurfaces } from './lib/product-loop-surface-scan.mjs'
 import { runProductLoopCase } from './lib/product-loop-runners.mjs'
-import { ensureIsolatedProductSession, flushProductLoopCleanup } from './lib/product-loop-session.mjs'
+import { ensureIsolatedProductSession, flushProductLoopCleanup, reloadCompanionAfterRelay } from './lib/product-loop-session.mjs'
 import { keepExclusiveMilkSUWindow } from './lib/product-loop-windows.mjs'
 
 const resultPath = join(repositoryRoot, 'build', 'test-results', 'product-loop.json')
@@ -184,6 +184,9 @@ async function main() {
       if (!relay.ok) receipt.humanReview.push(relay.detail || '中转站没配上')
     } else {
       await enablePersonalRelayRoute(session.driver).catch(() => {})
+    }
+    if (session.sourcesReady) {
+      await reloadCompanionAfterRelay(session.driver).catch(() => {})
     }
     return true
   }

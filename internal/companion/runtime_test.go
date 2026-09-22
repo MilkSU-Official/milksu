@@ -248,6 +248,50 @@ func TestSendRejectsPersonalSourceWithoutItsOwnKey(t *testing.T) {
 	}
 }
 
+func TestWorkspaceDeleteParksConfirmAndReplaysToken(t *testing.T) {
+	var calls []string
+	var events []engine.Event
+	runtime := NewRuntime(RuntimeOptions{
+		Workspace: func(conversationID, action, input string) (string, error) {
+			calls = append(calls, conversationID+" "+action+" "+input)
+			if strings.Contains(input, "secret-token") {
+				return `{"deleted":true}`, nil
+			}
+			return `{"needsConfirmation":true,"confirmationToken":"secret-token","summary":"旧会话","ids":["chat-1"]}`, nil
+		},
+		Emit: func(event engine.Event) {
+			events = append(events, event)
+		},
+	})
+	parked, result, err := runtime.workspaceHost("req-1", map[string]any{
+		"action": "delete_records",
+		"kind":   "conversation",
+		"ids":    []any{"chat-1"},
+	})
+	if err != nil || !parked || result != nil {
+		t.Fatalf("parked=%v result=%#v err=%v", parked, result, err)
+	}
+	if len(events) != 1 || events[0].Type != "companion.confirm" || strings.Contains(events[0].Input, "secret-token") {
+		t.Fatalf("confirm event leaked the token: %#v", events)
+	}
+	_, err = runtime.handleWorkspace(map[string]any{
+		"action": "compact_context",
+	})
+	if err == nil || !strings.Contains(err.Error(), "compact_context") {
+		t.Fatalf("compact_context: %v", err)
+	}
+	outcome, err := runtime.ConfirmDispatch("delete_records", "", "", "", "", "req-1", true)
+	if err != nil {
+		t.Fatalf("confirm: %v", err)
+	}
+	if !outcome.Accepted || !outcome.Delivered {
+		t.Fatalf("outcome: %#v", outcome)
+	}
+	if len(calls) != 2 || !strings.HasPrefix(calls[0], " delete_records") || !strings.Contains(calls[1], "secret-token") {
+		t.Fatalf("workspace calls: %#v", calls)
+	}
+}
+
 type nopWriteCloser struct {
 	io.Writer
 }

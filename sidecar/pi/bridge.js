@@ -1506,6 +1506,7 @@ function createMilkSUResourceLoader(
           contextWindow: sessions.get(id)?.model?.contextWindow
             ?? sessionContextUsage.get(id)?.contextWindow,
         }),
+        approvalBroker,
       ),
       createEnvExtension(
         conversationId,

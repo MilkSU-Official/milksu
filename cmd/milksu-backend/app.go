@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/MilkSU-Official/milksu/internal/agentresources"
@@ -45,44 +46,46 @@ import (
 
 // App is the thin L1 desktop adapter. Domain code must not depend on the desktop shell.
 type App struct {
-	ctx               context.Context
-	host              desktopHost
-	dataDirectory     string
-	artifactDirectory string
-	diagnostics       *appdata.DiagnosticRecorder
-	settings          *config.Store
-	conversations     *conversation.Store
-	labJobs           *lab.Store
-	envBroker         *envbroker.Service
-	codingFiles       *codingattachment.Store
-	codingCollab      *codingcollab.Manager
-	ctfMaterials      *localCTFMaterialStore
-	codingTerminals   *codingterminal.Manager
-	codingProjects    *codingworkspace.Store
-	codingPRs         *codingenv.PullRequestPublisher
-	computerUse       *computercap.Manager
-	engines           *engine.Supervisor
-	securityTools     *securitytools.Service
-	codingTools       *codingtools.Service
-	agentResources    *agentresources.Store
-	modelCatalog      *modelcatalog.Service
-	modelUsage        *modelusage.Store
-	pluginRegistry    *pluginruntime.Registry
-	nssctf            *nssctf.Client
-	nssctfCatalog     *nssctf.CatalogService
-	ctfshowCatalog    *ctfshow.CatalogService
-	nssctfArena       *nssctf.ArenaClient
-	browserBridge     *browsercap.Manager
-	jobs              *securityruntime.Service
-	ctfJobs           *ctf.Service
-	ctfAgent          *ctfAgentRecorder
-	ctfMemory         *ctf.MemoryStore
-	vulnJobs          *vuln.Service
-	sessionIndex      *sessionindex.Store
-	companion         *companion.Runtime
-	evalSuite         *evalsuite.Service
-	lifespanStart     appdata.LifespanStart
-	lifespanHandle    appdata.LifespanHandle
+	ctx                 context.Context
+	host                desktopHost
+	dataDirectory       string
+	artifactDirectory   string
+	diagnostics         *appdata.DiagnosticRecorder
+	settings            *config.Store
+	conversations       *conversation.Store
+	labJobs             *lab.Store
+	envBroker           *envbroker.Service
+	codingFiles         *codingattachment.Store
+	codingCollab        *codingcollab.Manager
+	ctfMaterials        *localCTFMaterialStore
+	codingTerminals     *codingterminal.Manager
+	codingProjects      *codingworkspace.Store
+	codingPRs           *codingenv.PullRequestPublisher
+	computerUse         *computercap.Manager
+	engines             *engine.Supervisor
+	securityTools       *securitytools.Service
+	codingTools         *codingtools.Service
+	agentResources      *agentresources.Store
+	modelCatalog        *modelcatalog.Service
+	modelUsage          *modelusage.Store
+	pluginRegistry      *pluginruntime.Registry
+	nssctf              *nssctf.Client
+	nssctfCatalog       *nssctf.CatalogService
+	ctfshowCatalog      *ctfshow.CatalogService
+	nssctfArena         *nssctf.ArenaClient
+	browserBridge       *browsercap.Manager
+	jobs                *securityruntime.Service
+	ctfJobs             *ctf.Service
+	ctfAgent            *ctfAgentRecorder
+	ctfMemory           *ctf.MemoryStore
+	vulnJobs            *vuln.Service
+	sessionIndex        *sessionindex.Store
+	companion           *companion.Runtime
+	evalSuite           *evalsuite.Service
+	lifespanStart       appdata.LifespanStart
+	lifespanHandle      appdata.LifespanHandle
+	recordDeleteMu      sync.Mutex
+	recordDeletePreview map[string]recordDeleteGrant
 }
 
 func newAppWithDesktopHost(host desktopHost) (*App, error) {
@@ -332,9 +335,10 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 			store:   application.conversations,
 			engines: application.engines,
 		},
-		Control: &supervisorControl{engines: application.engines},
-		App:     &companionAppControl{app: application},
-		Emit:    application.emitCompanionEvent,
+		Control:   &supervisorControl{engines: application.engines},
+		App:       &companionAppControl{app: application},
+		Workspace: application.handleCodingWorkspaceAction,
+		Emit:      application.emitCompanionEvent,
 	})
 	application.modelUsage, err = modelusage.NewStore(
 		filepath.Join(dataDirectory, "usage", "model-usage.sqlite3"),

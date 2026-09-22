@@ -18,6 +18,8 @@ export interface CompanionTurnProcess {
   thinking: string
   thinkingRunning: boolean
   thinkingStartedAt?: number
+  /** Wall clock for the whole live turn. Step clocks must not replace this. */
+  turnStartedAt?: number
   thinkingDurationMs?: number
   tools: CompanionProcessTool[]
   reply: string
@@ -148,6 +150,7 @@ export function mergeCompanionProcess(
   return {
     thinking,
     thinkingRunning: left.thinkingRunning || right.thinkingRunning,
+    turnStartedAt: left.turnStartedAt ?? right.turnStartedAt,
     thinkingDurationMs: (left.thinkingDurationMs ?? 0) + (right.thinkingDurationMs ?? 0) || undefined,
     tools,
     reply: right.reply || left.reply,
@@ -203,6 +206,65 @@ export function buildCompanionDisplayRows(
   return rows
 }
 
+export function companionToolActivity(name: string) {
+  const tool = name.trim().toLowerCase()
+  if (tool === 'bash' || tool === 'shell') return t('正在等命令', 'Waiting for the command')
+  if (tool === 'read') return t('正在读文件', 'Reading a file')
+  if (tool === 'grep' || tool === 'find' || tool === 'ls' || tool === 'glob') {
+    return t('正在检索', 'Searching')
+  }
+  if (tool === 'edit' || tool === 'write') return t('正在改文件', 'Editing a file')
+  if (tool === 'companion_dispatch') return t('正在等对话', 'Waiting for the conversation')
+  if (tool === 'companion_board') return t('正在看看板', 'Checking the board')
+  if (tool === 'companion_memory') return t('正在查记忆', 'Checking memory')
+  if (tool === 'companion_app') return t('正在处理应用', 'Working in the app')
+  if (tool === 'milksu_workspace') return t('正在处理会话', 'Working on a conversation')
+  return t('正在调用工具', 'Running a tool')
+}
+
+/** What the live turn is doing now. Tool count stays on the whole turn. */
+export function companionLiveActivity(process: CompanionTurnProcess) {
+  const running = [...process.tools].reverse().find(tool => tool.running)
+  if (running) return companionToolActivity(running.name)
+  if (process.reply.trim() && !process.thinkingRunning) return t('正在回复', 'Replying')
+  return t('正在思考', 'Thinking')
+}
+
+export function companionToolCountLabel(count: number) {
+  return t(
+    `${count} 次工具调用`,
+    count === 1 ? '1 tool call' : `${count} tool calls`,
+  )
+}
+
+export function companionLiveSummary(process: CompanionTurnProcess, now: number) {
+  const elapsedMs = process.turnStartedAt != null
+    ? Math.max(0, now - process.turnStartedAt)
+    : 0
+  return {
+    activity: companionLiveActivity(process),
+    elapsed: elapsedMs >= 500 ? formatDemoElapsed(elapsedMs) : '',
+    tools: process.tools.length ? companionToolCountLabel(process.tools.length) : '',
+  }
+}
+
+/** Keep the number the user was watching: the whole turn, not the last thinking step. */
+export function finishCompanionTurn(
+  process: CompanionTurnProcess,
+  now = Date.now(),
+): CompanionTurnProcess {
+  const wall = process.turnStartedAt != null
+    ? Math.floor(Math.max(0, now - process.turnStartedAt))
+    : undefined
+  return {
+    ...process,
+    thinkingRunning: false,
+    thinkingStartedAt: undefined,
+    thinkingDurationMs: wall && wall > 0 ? wall : process.thinkingDurationMs,
+    tools: process.tools.map(tool => ({ ...tool, running: false })),
+  }
+}
+
 export function companionThinkingLabel(process: CompanionTurnProcess, liveElapsedMs?: number) {
   if (process.thinkingRunning) {
     const elapsed = liveElapsedMs !== undefined && liveElapsedMs >= 500
@@ -219,11 +281,15 @@ export function companionThinkingLabel(process: CompanionTurnProcess, liveElapse
 
 export function companionProcessSummary(process: CompanionTurnProcess, liveElapsedMs?: number) {
   const parts: string[] = []
-  if (process.thinking.trim() || process.thinkingRunning) {
+  if (
+    process.thinking.trim()
+    || process.thinkingRunning
+    || finiteThinkingDurationMs(process.thinkingDurationMs) !== undefined
+  ) {
     parts.push(companionThinkingLabel(process, liveElapsedMs))
   }
   if (process.tools.length) {
-    parts.push(t(`${process.tools.length} 个工具`, `${process.tools.length} tools`))
+    parts.push(companionToolCountLabel(process.tools.length))
   }
   return parts.join(' · ')
 }

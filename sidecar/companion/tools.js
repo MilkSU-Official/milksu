@@ -1,12 +1,20 @@
 import { Type } from "typebox";
 import { defineTool } from "@earendil-works/pi-coding-agent";
 import { formatBoardForModel } from "./context-assembly.js";
+import {
+  codingWorkspaceGuidance,
+  codingWorkspaceNeedsConversation,
+  codingWorkspaceToolName,
+  codingWorkspaceToolParameters,
+  normalizeCodingWorkspaceAction,
+} from "../pi/bridge-workspace.js";
 
 export const COMPANION_TOOL_NAMES = Object.freeze([
   "companion_board",
   "companion_dispatch",
   "companion_memory",
   "companion_app",
+  codingWorkspaceToolName,
 ]);
 
 // Upstream Pi built-ins. createAgentSession only activates listed names.
@@ -233,7 +241,41 @@ export function createCompanionTools(requestHost, options = {}) {
     },
   });
 
-  const tools = [board, dispatch, memory, app];
+  const workspace = defineTool({
+    name: codingWorkspaceToolName,
+    label: "MilkSU workspace",
+    description: `${codingWorkspaceGuidance()} `
+      + "From the Companion, file conversation, lab, CVE, and CTF records with list_records or search_records, then archive_records, restore_records, pin_records, fork_record, update_record, or focus_record using those ids. "
+      + "list_records can filter by workspacePath, unpinned, or olderThanDays. "
+      + "fork_record clones the product row without the transcript. "
+      + "delete_records waits for the user to confirm the titles. "
+      + "Record actions do not need conversationId. "
+      + "Browser, terminal, artifact, panel, background task, worktree, and Computer Use lock actions require the target conversationId. "
+      + "compact_context stays on that conversation. "
+      + "Do not change settings, credentials, or approval policy.",
+    parameters: codingWorkspaceToolParameters({ conversationId: true }),
+    execute: async (_toolCallId, params) => {
+      const action = normalizeCodingWorkspaceAction(params?.action);
+      if (!action) throw new Error("unknown milksu_workspace action");
+      if (action === "compact_context") {
+        throw new Error("compact_context stays on that conversation's milksu_workspace");
+      }
+      const conversationId = String(params?.conversationId ?? "").trim();
+      if (codingWorkspaceNeedsConversation(action) && !conversationId) {
+        throw new Error(`milksu_workspace ${action} requires conversationId`);
+      }
+      const hostOptions = action === "delete_records"
+        ? { timeoutMs: 0 }
+        : action === "prepare_coding_worktree"
+          ? { timeoutMs: 300_000 }
+          : action === "lock_computer_use_window"
+            ? { timeoutMs: 90_000 }
+            : undefined;
+      return runHostTool(requestHost, "workspace", params, hostOptions);
+    },
+  });
+
+  const tools = [board, dispatch, memory, app, workspace];
   assertNoRuntimeWriteTools(tools.map(tool => tool.name));
   return tools;
 }

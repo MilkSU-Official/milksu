@@ -10,31 +10,36 @@ import (
 )
 
 type codingWorkspaceRequest struct {
-	Action         string   `json:"action"`
-	TabID          string   `json:"tabId"`
-	Query          string   `json:"query"`
-	URL            string   `json:"url"`
-	Path           string   `json:"path"`
-	Panel          string   `json:"panel"`
-	Kind           string   `json:"kind"`
-	ID             string   `json:"id"`
-	IDs            []string `json:"ids"`
-	Title          string   `json:"title"`
-	Archived       bool     `json:"archived"`
-	Limit          int      `json:"limit"`
-	Writers        int      `json:"writers"`
-	Scope          string   `json:"scope"`
-	Request        string   `json:"request"`
-	Statement      string   `json:"statement"`
-	Category       string   `json:"category"`
-	Summary        string   `json:"summary"`
-	CVEID          string   `json:"cveId"`
-	Vendor         string   `json:"vendor"`
-	Product        string   `json:"product"`
-	Affected       string   `json:"affected"`
-	SourceKind     string   `json:"sourceKind"`
-	TargetPID      int      `json:"targetPid"`
-	TargetWindowID int64    `json:"targetWindowId"`
+	Action            string   `json:"action"`
+	TabID             string   `json:"tabId"`
+	Query             string   `json:"query"`
+	URL               string   `json:"url"`
+	Path              string   `json:"path"`
+	Panel             string   `json:"panel"`
+	Kind              string   `json:"kind"`
+	ID                string   `json:"id"`
+	IDs               []string `json:"ids"`
+	Title             string   `json:"title"`
+	Archived          bool     `json:"archived"`
+	Limit             int      `json:"limit"`
+	WorkspacePath     string   `json:"workspacePath"`
+	Unpinned          bool     `json:"unpinned"`
+	OlderThanDays     int      `json:"olderThanDays"`
+	Pinned            *bool    `json:"pinned"`
+	ConfirmationToken string   `json:"confirmationToken"`
+	Writers           int      `json:"writers"`
+	Scope             string   `json:"scope"`
+	Request           string   `json:"request"`
+	Statement         string   `json:"statement"`
+	Category          string   `json:"category"`
+	Summary           string   `json:"summary"`
+	CVEID             string   `json:"cveId"`
+	Vendor            string   `json:"vendor"`
+	Product           string   `json:"product"`
+	Affected          string   `json:"affected"`
+	SourceKind        string   `json:"sourceKind"`
+	TargetPID         int      `json:"targetPid"`
+	TargetWindowID    int64    `json:"targetWindowId"`
 }
 
 type codingWorkspaceReveal struct {
@@ -43,6 +48,30 @@ type codingWorkspaceReveal struct {
 	ArtifactPath   string `json:"artifactPath,omitempty"`
 	ChangePath     string `json:"changePath,omitempty"`
 	Terminal       string `json:"terminal,omitempty"`
+}
+
+// Keep this aligned with codingWorkspaceRecordActions in sidecar/pi/bridge-workspace.js.
+var codingWorkspaceRecordActions = []string{
+	"list_records",
+	"get_record",
+	"search_records",
+	"focus_record",
+	"create_record",
+	"update_record",
+	"archive_records",
+	"restore_records",
+	"pin_records",
+	"delete_records",
+	"fork_record",
+}
+
+func codingWorkspaceRecordAction(action string) bool {
+	for _, name := range codingWorkspaceRecordActions {
+		if name == action {
+			return true
+		}
+	}
+	return false
 }
 
 func (a *App) handleCodingWorkspaceAction(conversationID, action, input string) (string, error) {
@@ -55,7 +84,21 @@ func (a *App) handleCodingWorkspaceAction(conversationID, action, input string) 
 	if action == "" {
 		action = request.Action
 	}
-	switch strings.TrimSpace(action) {
+	action = strings.TrimSpace(action)
+	if action == "" {
+		return "", fmt.Errorf("unknown Coding workspace action")
+	}
+	if strings.TrimSpace(conversationID) == "" {
+		if codingWorkspaceRecordAction(action) {
+			conversationID = "companion"
+		} else if action != "list_computer_use_windows" {
+			return "", fmt.Errorf("milksu_workspace %s requires conversationId", action)
+		}
+	}
+	if codingWorkspaceRecordAction(action) {
+		return a.handleWorkspaceRecordAction(conversationID, action, request)
+	}
+	switch action {
 	case "prepare_coding_worktree":
 		workspacePath, err := a.resolveConversationWorkspace(conversationID, request.Path)
 		if err != nil {
@@ -292,8 +335,6 @@ func (a *App) handleCodingWorkspaceAction(conversationID, action, input string) 
 			})
 		}
 		return encodeWorkspaceResult(map[string]any{"tasks": rows})
-	case "list_records", "get_record", "create_record", "update_record", "archive_records", "restore_records", "focus_record", "search_records":
-		return a.handleWorkspaceRecordAction(conversationID, action, request)
 	case "env_status", "env_start", "env_reset", "env_stop":
 		return a.handleEnvWorkspaceAction(conversationID, action)
 	default:

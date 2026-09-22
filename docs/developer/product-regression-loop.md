@@ -134,7 +134,7 @@ SKIP 不会让整次回归或某个大模块看起来已经跑完。`expectedMis
 | 看板娘手机对话 | 侧栏页脚点看板娘打开手机对话，角色收起，看得见输入框。不是主窗口整页，也不和角色并排。 |
 | 看板娘右键菜单 | 悬浮窗右键出现对话 / 隐藏看板娘 / 打开主窗口 / 看板娘设置 / 退出；壳菜单栏和 Dock / 托盘右键是同一组动作。 |
 | 看板娘身体拖拽 | 按住角色身体拖了之后窗口跟着走。Wayland 不能贴坐标：SKIP（平台），不记 PASS。 |
-| 看板娘核心循环 | 用例开始时用 `SaveConversation` 把主窗口抄本写进这次独立实例：click#3840（WinError 87 / `edit_files`）、express#7362（`res.send(ArrayBuffer)` 变成 `{}`）、electron#38154（`pagesPerSheet` 仍是一页一张）、electron#28084（`setMinimumSize` 500 没有立刻变成 700），加上周末接孩子、界面语言、回复正文。不写进日常 MilkSU。写完才在手机里提问、按停止按钮、收尾。停止要出现「这一轮已取消。」。打招呼不展开旧任务。点名用对话标题。click / express 检出只读，HEAD 和工作区不能变，也不给上游开 PR。`MILKSU_EVAL_PROJECTS` 指向检出目录，默认是本机 `code/eval-projects`；没检出就只靠抄本。`MILKSU_EVAL_GITHUB_REPO` 若设置，只许提到那个测试仓库，断言仍是上游检出没动。 |
+| 看板娘核心循环 | 用例开始时用 `SaveConversation` 把主窗口抄本写进这次独立实例：click#3840（WinError 87 / `edit_files`）、express#7362（`res.send(ArrayBuffer)` 变成 `{}`）、electron#38154（`pagesPerSheet` 仍是一页一张）、electron#28084（`setMinimumSize` 500 没有立刻变成 700），加上周末接孩子、界面语言、回复正文。不写进日常 MilkSU。写完才在手机里提问、按停止按钮、收尾。停止要出现「这一轮已取消。」。打招呼不展开旧任务。点名用对话标题。接着要能置顶「周末去接孩子」、归档超过两天且不在项目里的 setMinimumSize、Fork 一份不带旧消息的 click，并在永久删除已归档的 pagesPerSheet 时停下来确认、确认前不删。click / express 检出只读，HEAD 和工作区不能变，也不给上游开 PR。`MILKSU_EVAL_PROJECTS` 指向检出目录，默认是本机 `code/eval-projects`；没检出就只靠抄本。`MILKSU_EVAL_GITHUB_REPO` 若设置，只许提到那个测试仓库，断言仍是上游检出没动。 |
 | 看板娘归档 | 能归档当前段，页上有归档。 |
 | 看板娘记忆 | 必须提出一条待批准或已留下的记忆。只看见记忆栏不算。 |
 | 跨会话调度确认 | 看板娘 `stop` 必须停下来确认。没确认不算。 |

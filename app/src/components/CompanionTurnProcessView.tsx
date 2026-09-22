@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
+import { ChevronDown } from 'lucide-react'
 import {
+  companionLiveSummary,
   companionProcessSummary,
   companionTurnHasProcess,
   type CompanionTurnProcess,
@@ -9,15 +11,17 @@ import { useT } from '@/hooks/useUiLocale'
 
 export default function CompanionTurnProcessView({
   process,
-  foldable = false,
+  foldable = true,
   defaultOpen = false,
+  live = false,
 }: {
   process: CompanionTurnProcess
   foldable?: boolean
   defaultOpen?: boolean
+  live?: boolean
 }) {
   const t = useT()
-  const [open, setOpen] = useState(defaultOpen || process.thinkingRunning || process.tools.some(tool => tool.running))
+  const [open, setOpen] = useState(defaultOpen)
   const [now, setNow] = useState(0)
   const thinkingRows = process.thinking
     .split(/\n+/)
@@ -25,24 +29,29 @@ export default function CompanionTurnProcessView({
     .filter(Boolean)
 
   useEffect(() => {
-    if (process.thinkingRunning || process.tools.some(tool => tool.running)) {
-      setOpen(true)
-    }
-  }, [process.thinkingRunning, process.tools])
-
-  useEffect(() => {
-    if (!process.thinkingRunning || process.thinkingStartedAt == null) return undefined
+    if (!live) return undefined
     setNow(Date.now())
     const timer = window.setInterval(() => setNow(Date.now()), 200)
     return () => window.clearInterval(timer)
-  }, [process.thinkingRunning, process.thinkingStartedAt])
+  }, [live])
 
   if (!companionTurnHasProcess(process)) return null
 
-  const liveElapsed = process.thinkingRunning && process.thinkingStartedAt != null
-    ? Math.max(0, now - process.thinkingStartedAt)
-    : undefined
-  const summary = companionProcessSummary(process, liveElapsed)
+  const liveLine = live ? companionLiveSummary(process, now || Date.now()) : null
+  const summary = liveLine
+    ? [liveLine.activity, liveLine.elapsed].filter(Boolean).join(' ')
+      + (liveLine.tools ? ` · ${liveLine.tools}` : '')
+    : companionProcessSummary(process)
+
+  const summaryBody = liveLine ? (
+    <>
+      <span className="companion-chat-process-activity">{liveLine.activity}</span>
+      {liveLine.elapsed ? <span className="companion-chat-process-meter">{liveLine.elapsed}</span> : null}
+      {liveLine.tools ? <span className="companion-chat-process-meter">{`· ${liveLine.tools}`}</span> : null}
+    </>
+  ) : (
+    <span>{summary || t('过程', 'Process')}</span>
+  )
 
   return (
     <div className="companion-chat-process">
@@ -53,11 +62,12 @@ export default function CompanionTurnProcessView({
           aria-expanded={open}
           onClick={() => setOpen(current => !current)}
         >
-          <span>{summary || t('过程', 'Process')}</span>
+          {summaryBody}
+          <ChevronDown aria-hidden="true" className={`companion-chat-process-chevron${open ? ' is-open' : ''}`} />
         </button>
       ) : (
         <p className="companion-chat-process-summary companion-chat-process-summary-static">
-          <span>{summary || (process.thinkingRunning ? t('正在思考', 'Thinking') : t('过程', 'Process'))}</span>
+          {summaryBody}
         </p>
       )}
       {(!foldable || open) ? (

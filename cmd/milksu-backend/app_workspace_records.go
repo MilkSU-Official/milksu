@@ -48,6 +48,12 @@ func (a *App) handleWorkspaceRecordAction(
 		return a.focusWorkspaceRecord(conversationID, kind, request)
 	case "search_records":
 		return a.searchWorkspaceRecords(kind, request)
+	case "pin_records":
+		return a.pinWorkspaceRecords(conversationID, kind, request)
+	case "delete_records":
+		return a.deleteWorkspaceRecords(conversationID, kind, request)
+	case "fork_record":
+		return a.forkWorkspaceRecord(conversationID, kind, request)
 	default:
 		return "", fmt.Errorf("unknown workspace record action")
 	}
@@ -59,10 +65,16 @@ func (a *App) listWorkspaceRecords(kind string, request codingWorkspaceRequest) 
 		limit = 50
 	}
 	query := strings.TrimSpace(request.Query)
+	if request.Unpinned || strings.TrimSpace(request.WorkspacePath) != "" || request.OlderThanDays > 0 {
+		if kind != "" && kind != "conversation" {
+			return "", fmt.Errorf("workspacePath, unpinned, and olderThanDays apply to conversation records")
+		}
+		kind = "conversation"
+	}
 	records := make([]map[string]any, 0)
 	switch kind {
 	case "", "conversation":
-		listed, err := a.listConversationRecords(request.Archived, query, limit)
+		listed, err := a.listConversationRecords(request)
 		if err != nil {
 			return "", err
 		}
@@ -537,10 +549,14 @@ func (a *App) createCTFRecord(conversationID string, request codingWorkspaceRequ
 	return encodeWorkspaceResult(map[string]any{"record": record})
 }
 
-func (a *App) listConversationRecords(archived bool, query string, limit int) ([]map[string]any, error) {
+func (a *App) listConversationRecords(request codingWorkspaceRequest) ([]map[string]any, error) {
+	limit := request.Limit
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
 	var values []conversation.StoredConversation
 	var err error
-	if archived {
+	if request.Archived {
 		values, err = a.conversations.ListArchived()
 	} else {
 		values, err = a.conversations.List()
@@ -548,9 +564,13 @@ func (a *App) listConversationRecords(archived bool, query string, limit int) ([
 	if err != nil {
 		return nil, err
 	}
+	query := strings.TrimSpace(request.Query)
 	records := make([]map[string]any, 0, len(values))
 	for _, value := range values {
-		record := conversationRecord(value, archived)
+		if !conversationMatchesRecordFilter(value, request) {
+			continue
+		}
+		record := conversationRecord(value, request.Archived)
 		if !recordMatchesQuery(record, query) {
 			continue
 		}
@@ -790,6 +810,9 @@ func conversationRecord(value conversation.StoredConversation, archived bool) ma
 		"id":             value.ID,
 		"title":          value.Title,
 		"createdAt":      value.CreatedAt,
+		"updatedAt":      conversationActivityAt(value),
+		"workspacePath":  value.WorkspacePath,
+		"pinned":         value.Pinned,
 		"archived":       archived,
 		"domainKind":     domainKind,
 		"ctfJobId":       value.CTFJobID,
