@@ -64,6 +64,11 @@ import { ChatEdgeFade } from '@/components/ChatEdgeFade'
 import { ConversationQuoteMenu, selectedTextIn } from '@/components/ConversationQuoteMenu'
 import WorkingTray from '@/components/WorkingTray'
 import ChatGeneratedImage from '@/components/ChatGeneratedImage'
+import {
+  computeTranscriptWindow,
+  TRANSCRIPT_MOUNT_CAP,
+  TRANSCRIPT_OLDER_CHUNK,
+} from '@/lib/transcriptWindow'
 import ChatMessageItem from '@/components/ChatMessageItem'
 import CodingArtifactPreviewPanel, {
   type CodingArtifactPreviewPanelHandle,
@@ -225,7 +230,6 @@ type ContextPanel = typeof contextPanelValues[number]
 
 const TRANSCRIPT_INITIAL_BLOCKS = 60
 const TRANSCRIPT_REFILL_CHUNK = 150
-const TRANSCRIPT_TOP_REFILL_CHUNK = 300
 const emptyActivityExpansion = createChatActivityExpansionState()
 
 export type ChatPageProps = {
@@ -542,6 +546,8 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
   const mcpServersRef = useRef(mcpServers)
   const mcpConfigDigestRef = useRef(mcpConfigDigest)
   const chatTranscriptLengthRef = useRef(0)
+  // 窗口可整体往回滑：更早的内容够得到，但不会无限多挂（页面不变重）。
+  const [transcriptWindowShift, setTranscriptWindowShift] = useState(0)
   const mountedTranscriptBlocksRef = useRef(0)
   const lastConversationIdForTranscript = useRef('')
   const codingBrowserResizeObserver = useRef<ResizeObserver | null>(null)
@@ -1015,11 +1021,20 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
       ? t(`${workshopState.toolCount} 个本题工具已保存在工作区`, `${workshopState.toolCount} challenge tools saved in the workspace`)
       : t('当前没有工具请求', 'No tool requests')
   }, [workshopState, t])
-  const visibleTranscript = useMemo(() => {
-    if (chatTranscript.length <= mountedTranscriptBlocks) return chatTranscript
-    return chatTranscript.slice(chatTranscript.length - mountedTranscriptBlocks)
-  }, [chatTranscript, mountedTranscriptBlocks])
-  const hiddenTranscriptBlocks = Math.max(0, chatTranscript.length - visibleTranscript.length)
+  // 渲染窗口 = 有上限的滑动窗口：总长度 ≤ TRANSCRIPT_MOUNT_CAP，可整体往回挪（更早的内容够得到）。
+  const transcriptWindow = useMemo(
+    () => computeTranscriptWindow({
+      length: chatTranscript.length,
+      mounted: mountedTranscriptBlocks,
+      shift: transcriptWindowShift,
+    }),
+    [chatTranscript.length, mountedTranscriptBlocks, transcriptWindowShift],
+  )
+  const visibleTranscript = useMemo(
+    () => chatTranscript.slice(transcriptWindow.start, transcriptWindow.end),
+    [chatTranscript, transcriptWindow.start, transcriptWindow.end],
+  )
+  const hiddenTranscriptBlocks = transcriptWindow.hidden
 
   async function revealTranscriptMessage(messageId: string) {
     const index = chatTranscript.findIndex(block => block.kind === 'message' && block.message.id === messageId)
@@ -2185,25 +2200,11 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     }, delay)
   }, [])
 
-  function mountEarlierTranscriptBlocks(count: number) {
-    const element = scrollArea.current
-    pendingTranscriptRestore.current = {
-      height: element?.scrollHeight ?? 0,
-      top: element?.scrollTop ?? 0,
-    }
-    setMountedTranscriptBlocks(current => Math.min(
-      chatTranscript.length,
-      current + count,
-    ))
-  }
 
   function handleChatScroll() {
     const element = scrollArea.current
     if (!element) return
     noteTranscriptInteraction()
-    if (element.scrollTop <= 8 && hiddenTranscriptBlocks > 0) {
-      mountEarlierTranscriptBlocks(TRANSCRIPT_TOP_REFILL_CHUNK)
-    }
     chatAutoScrollPinned.current = nextChatAutoScrollPinned(
       lastChatScrollTop.current,
       element.scrollTop,
@@ -2746,6 +2747,28 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
                     }}
                     onDismiss={() => setQuoteSelection(null)}
                   />
+                ) : null}
+                {hiddenTranscriptBlocks > 0 ? (
+                  <div className="flex justify-center py-2" data-testid="transcript-earlier">
+                    <button
+                      type="button"
+                      className="rounded-full border px-3 py-1 text-xs opacity-70 hover:opacity-100"
+                      onClick={() => {
+                        const limit = Math.min(chatTranscriptLengthRef.current, TRANSCRIPT_MOUNT_CAP)
+                        setTranscriptWindowShift(current => Math.min(
+                          current + TRANSCRIPT_OLDER_CHUNK,
+                          Math.max(0, chatTranscriptLengthRef.current - limit),
+                        ))
+                        const element = scrollArea.current
+                        if (element) element.scrollTop = 0
+                      }}
+                    >
+                      {t(
+                        `更早的 ${hiddenTranscriptBlocks} 段内容 · 点开看`,
+                        `${hiddenTranscriptBlocks} earlier blocks · open`,
+                      )}
+                    </button>
+                  </div>
                 ) : null}
                 {visibleTranscript.map(item => (
                   item.kind === 'process' ? (
