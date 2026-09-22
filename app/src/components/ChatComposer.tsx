@@ -1729,9 +1729,7 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
   const goalAddLabel = t('目标', 'Goal')
   const goalAddDetail = hasUnfinishedGoal ? t('当前已有持续目标', 'A goal is already in progress') : t('设置一个持续追踪的目标', 'Set a goal to keep working toward')
   const multitaskAddLabel = t('并行', 'Multitask')
-  const multitaskAddDetail = kernel === 'dsh'
-    ? t('一边跑子代理，一边继续主对话', 'Keep chatting while subagents run')
-    : t('Pi 不能并行。模型拉起的子代理仍会出现在进行中。', 'Pi cannot run in parallel. Model-started subagents still appear in Working.')
+  const multitaskAddDetail = t('一边跑子代理，一边继续主对话', 'Keep chatting while subagents run')
   const browserAddLabel = t('浏览器', 'Browser')
   const browserUseDetail = t('选择真实浏览器标签页加入本轮输入', 'Choose a real browser tab for this turn')
   const computerUseDetail = t('选择一个外部 App 窗口加入本轮输入', 'Choose an external app window for this turn')
@@ -1924,7 +1922,7 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
                     window.setTimeout(() => addMenuSearch.current?.focus(), 0)
                   }}>
                     <DropdownMenuTrigger asChild>
-                      <Button ref={addMenuTrigger} type="button" variant="ghost" size="icon" className="chat-composer__add" disabled={parentTurnActive && kernel !== 'dsh'} aria-label={t('添加内容与工具', 'Add content and tools')} title={t('添加附件、工作方式或交互范围', 'Add attachments, a working mode, or an interaction scope')}>
+                      <Button ref={addMenuTrigger} type="button" variant="ghost" size="icon" className="chat-composer__add" disabled={parentTurnActive && kernel !== 'dsh' && kernel !== 'pi'} aria-label={t('添加内容与工具', 'Add content and tools')} title={t('添加附件、工作方式或交互范围', 'Add attachments, a working mode, or an interaction scope')}>
                         <Plus className="size-3.5" />
                       </Button>
                     </DropdownMenuTrigger>
@@ -1980,9 +1978,9 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
                       {showMultitaskAdd ? (
                       <DropdownMenuItem
                         className="composer-add-option"
-                        disabled={kernel !== 'dsh'}
+                        disabled={kernel !== 'dsh' && kernel !== 'pi'}
                         onSelect={() => {
-                          if (kernel !== 'dsh') return
+                          if (kernel !== 'dsh' && kernel !== 'pi') return
                           props.onToggleMultitask?.(!multitask)
                         }}
                       >

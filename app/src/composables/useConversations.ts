@@ -34,6 +34,7 @@ import {
   handoffVisibleMessages,
   parseSessionHandoffResult,
 } from '@/lib/conversationActions'
+import { piMultitaskModelHint } from '@/lib/composerMultitask'
 import { t } from '@/lib/uiLocale'
 import { toast } from '@/lib/appToast'
 import {
@@ -1946,9 +1947,7 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
         : s.pendingModelSourcePreference,
       executionMode: s.pendingExecutionMode,
       approvalPolicy: s.pendingApprovalPolicy,
-      multitask: normalizeAgentKernel(s.pendingKernel) === 'dsh' && s.pendingMultitask
-        ? true
-        : undefined,
+      multitask: s.pendingMultitask ? true : undefined,
       mcpServers: s.pendingMCPServers.length ? s.pendingMCPServers : undefined,
       mcpConfigDigest: s.pendingMCPServers.length
         ? s.pendingMCPConfigDigest
@@ -2087,12 +2086,11 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
   function setMultitask(enabled: boolean) {
     const next = enabled === true
     if (!s.activeId) {
-      if (normalizeAgentKernel(s.pendingKernel) !== 'dsh') return
       s.pendingMultitask = next
       return
     }
     const current = s.conversations.find(item => item.id === s.activeId)
-    if (!current || normalizeAgentKernel(current.kernel) !== 'dsh') return
+    if (!current) return
     update(s.activeId, conversation => ({
       ...conversation,
       multitask: next ? true : undefined,
@@ -2354,9 +2352,7 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
           : s.pendingModelSourcePreference,
         executionMode: s.pendingExecutionMode,
         approvalPolicy: s.pendingApprovalPolicy,
-        multitask: normalizeAgentKernel(s.pendingKernel) === 'dsh' && s.pendingMultitask
-          ? true
-          : undefined,
+        multitask: s.pendingMultitask ? true : undefined,
         mcpServers: s.pendingMCPServers.length ? s.pendingMCPServers : undefined,
         mcpConfigDigest: s.pendingMCPServers.length
           ? s.pendingMCPConfigDigest
@@ -2387,12 +2383,19 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
       return true
     }
 
+    const modelPrompt = (value: string) => {
+      const conversation = s.conversations.find(item => item.id === conversationId)
+      const kernel = normalizeAgentKernel(conversation?.kernel ?? activeKernel)
+      if (answeringAsk || kernel !== 'pi' || !conversation?.multitask) return value
+      return `${value}\n\n${piMultitaskModelHint(t)}`
+    }
+
     if (steering) {
       try {
         const queueNext = activeKernel === 'dsh' && s.busySend === 'queue'
         await invokeCommand(queueNext ? 'queue_dsh_message' : 'steer_message', {
           conversationId,
-          prompt,
+          prompt: modelPrompt(prompt),
         })
         const currentQueue = s.messageQueues.get(conversationId)
           ?? { steering: [], followUp: [] }
@@ -2453,7 +2456,7 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
       }
       if (conversation) await invokeCommand('save_conversation', { conversation })
       const dispatch: RuntimeTurnDispatch = {
-        prompt: outboundPrompt,
+        prompt: modelPrompt(outboundPrompt),
         attachments,
         scopeToken,
         productAction,

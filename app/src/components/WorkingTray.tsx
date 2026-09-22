@@ -21,11 +21,13 @@ export default function WorkingTray({
   conversations,
   onStopOne,
   onStopAll,
+  onOpenItem,
 }: {
   items: readonly WorkingItem[]
   conversations: readonly Conversation[]
   onStopOne?: (item: WorkingItem) => void
   onStopAll?: () => void
+  onOpenItem?: (item: WorkingItem) => void
 }) {
   const t = useT()
   const root = useRef<HTMLDivElement>(null)
@@ -57,6 +59,7 @@ export default function WorkingTray({
   function openItem(item: WorkingItem) {
     setViewingItem(item)
     setViewingId(item.conversationId ?? '')
+    if (item.kind === 'subagent') onOpenItem?.(item)
   }
 
   return (

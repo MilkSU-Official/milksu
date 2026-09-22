@@ -5,6 +5,7 @@ const { spawnSync } = require("node:child_process");
 const { createHash } = require("node:crypto");
 const { createServer } = require("node:http");
 const {
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -158,21 +159,11 @@ test("launcher removes ambient Node options before runner startup", {
   assert.equal(result.stdout, "launcher-ok");
 });
 
-test("bundled subagent heartbeats keep an absolute execution limit", () => {
-  const source = readFileSync(
-    join(repositoryRoot, "node_modules/pi-sub-agent/extensions/index.ts"),
-    "utf8",
+test("the retired pi-sub-agent package is not the product path", () => {
+  assert.equal(
+    existsSync(join(repositoryRoot, "node_modules/pi-sub-agent/extensions/index.ts")),
+    false,
   );
-  assert.match(
-    source,
-    /MILKSU_SUBAGENT_HEARTBEAT_INTERVAL_MS = 30_000/,
-  );
-  assert.match(
-    source,
-    /MILKSU_SUBAGENT_EXECUTION_LIMIT_MS = 10 \* 60_000/,
-  );
-  assert.match(source, /\(\) => abort\("timeout"\)/);
-  assert.match(source, /Subagent exceeded the 10 minute execution limit/);
 });
 
 test("runner admits only the exact bundled role prompt from its temporary root", () => {

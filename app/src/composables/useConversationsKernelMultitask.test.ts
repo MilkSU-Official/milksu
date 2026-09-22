@@ -325,14 +325,18 @@ describe('default kernel and DSH multitask children', () => {
     conversations.startNew()
     const parentId = conversations.ensureConversation('parent')
     conversations.setMultitask(true)
-    expect(conversations.conversations.find(item => item.id === parentId)?.multitask).toBeUndefined()
+    expect(conversations.conversations.find(item => item.id === parentId)?.multitask).toBe(true)
     await conversations.send('first turn')
     const sent = await conversations.send('review auth')
     expect(sent).toBe(true)
     expect(conversations.conversations.some(item => item.parentConversationId === parentId)).toBe(false)
+    expect(conversations.conversations.find(item => item.id === parentId)?.messages.at(-1)?.content).toBe('review auth')
     expect(invokeCommand).toHaveBeenCalledWith(
       'steer_message',
-      expect.objectContaining({ conversationId: parentId }),
+      expect.objectContaining({
+        conversationId: parentId,
+        prompt: expect.stringContaining('并行已开'),
+      }),
     )
     conversations.dispose()
   })

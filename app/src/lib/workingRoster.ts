@@ -77,7 +77,7 @@ export function workingItemsForConversation(
       kind: 'subagent',
       conversationId: child?.id,
       role: task.role,
-      detail: formatSubagentYield(task.yield),
+      detail: task.summary || task.transcript || formatSubagentYield(task.yield),
       stoppable: kernel === 'dsh',
     }
   })

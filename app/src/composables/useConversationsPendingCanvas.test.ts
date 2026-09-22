@@ -110,12 +110,12 @@ describe('pending empty-canvas survives navigation', () => {
     conversations.dispose()
   })
 
-  it('does not enable Multitask on a pending Pi canvas', () => {
+  it('enables Multitask on a pending Pi canvas', () => {
     const conversations = createConversationsRuntime()
     conversations.startNew()
     conversations.setKernel('pi')
     conversations.setMultitask(true)
-    expect(conversations.selectedMultitask).toBe(false)
+    expect(conversations.selectedMultitask).toBe(true)
     conversations.dispose()
   })
 

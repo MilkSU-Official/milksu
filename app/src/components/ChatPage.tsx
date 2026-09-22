@@ -177,6 +177,7 @@ import {
 } from '@/composables/useConversations'
 import { useConversations } from '@/stores/conversationsStore'
 import { composerDraftKey } from '@/lib/composerDraftStore'
+import { subagentCitationText } from '@/lib/subagentRoster'
 import { conversationWorkspaceHome } from '@/lib/workspaceSessionRouting'
 import {
   liveWorkingItems,
@@ -2671,6 +2672,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
                       onEditUser={(messageId, content) => onEditUser?.(messageId, content)}
                       onRewindContext={() => onRewindContext?.()}
                       onBranchAssistant={branchFromAssistantMessage}
+                      onOpenSubagent={task => composer.current?.appendQuote(subagentCitationText(task))}
                     />
                   ) : item.kind === 'activity' ? (
                     <ChatActivityGroup
@@ -2681,6 +2683,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
                       subagentTasks={conversation?.subagentTasks}
                       onToggleGroup={open => handleActivityGroupToggle(item.id, open)}
                       onToggleEntry={(entryId, open) => handleActivityEntryToggle(item.id, entryId, open)}
+                      onOpenSubagent={task => composer.current?.appendQuote(subagentCitationText(task))}
                     />
                   ) : (
                     <ChatMessageItem
@@ -2800,6 +2803,14 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
             }}
             onStopAll={() => {
               void conversations.abortWorkingAll(workingRoot?.id)
+            }}
+            onOpenItem={item => {
+              const task = (workingRoot?.subagentTasks ?? []).find(entry => entry.id === item.id)
+              composer.current?.appendQuote(subagentCitationText(task ?? {
+                role: item.role || item.title,
+                id: item.id,
+                summary: item.detail,
+              }))
             }}
           />
 

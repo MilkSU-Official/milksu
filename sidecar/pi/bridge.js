@@ -4,6 +4,7 @@ import {
   SessionManager,
 } from "@earendil-works/pi-coding-agent";
 import { existsSync } from "node:fs";
+import piSubagentsExtension from "pi-subagents";
 import { createInterface } from "node:readline";
 import { basename, dirname, join, resolve } from "node:path";
 import { readFile, rm, unlink } from "node:fs/promises";
@@ -22,7 +23,6 @@ import {
   piBackgroundTasksExtension,
   piGoalExtension,
   piLspExtension,
-  piSubAgentExtension,
   readPiBackgroundTaskLog,
   spawnPiBackgroundTask,
   stopPiBackgroundTask,
@@ -40,8 +40,8 @@ import {
 } from "./bridge-policy.js";
 import { createApprovalBroker } from "./bridge-approval.js";
 import {
-  codingCollaborationRequiresApproval,
   codingMcpOperationRequiresApproval,
+  subagentCallRequiresApproval,
   mcpConversationGrantKey,
   resolveCodingMcpServer,
 } from "./bridge-auto-approval.js";
@@ -120,6 +120,7 @@ import {
   normalizeCodingCollaboration,
   validateSubagentInput,
 } from "./bridge-collaboration.js";
+import { readAsyncSubagentSnapshot } from "./pi-subagents-status.js";
 import {
   authorizeImageGenToolCall,
   codingImageGenToolName,
@@ -354,6 +355,8 @@ function createReviewedBackgroundTasksExtension(conversationId) {
   };
 }
 
+const subagentPollers = new Map();
+
 function emitSubagentTasks(conversationId, tasks) {
   const next = Array.isArray(tasks) ? tasks : [];
   if (next.length) sessionSubagentTasks.set(conversationId, next);
@@ -367,8 +370,62 @@ function emitSubagentTasks(conversationId, tasks) {
       durationMs: task.durationMs,
       exitCode: task.exitCode,
       yield: task.yield,
+      summary: task.summary,
+      transcript: task.transcript,
     })),
   });
+}
+
+function stopSubagentPoll(conversationId) {
+  const timer = subagentPollers.get(conversationId);
+  if (timer) clearInterval(timer);
+  subagentPollers.delete(conversationId);
+}
+
+function subagentStillLive(tasks) {
+  return tasks.some(task => (
+    task.asyncDir
+    && (task.status === "running" || task.status === "start")
+  ));
+}
+
+function refreshSubagentTasks(conversationId) {
+  const current = sessionSubagentTasks.get(conversationId) ?? [];
+  if (!current.length) {
+    stopSubagentPoll(conversationId);
+    return;
+  }
+  const workspace = sessionPolicies.get(conversationId)?.workspace;
+  let changed = false;
+  const next = current.map((task) => {
+    if (!task.asyncDir || (task.status !== "running" && task.status !== "start")) {
+      return task;
+    }
+    const snapshot = readAsyncSubagentSnapshot(task.asyncDir, workspace);
+    if (!snapshot) return task;
+    if (
+      snapshot.status !== task.status
+      || snapshot.summary !== task.summary
+      || snapshot.transcript !== task.transcript
+    ) {
+      changed = true;
+    }
+    return {
+      ...task,
+      status: snapshot.status,
+      summary: snapshot.summary || task.summary,
+      transcript: snapshot.transcript || task.transcript,
+    };
+  });
+  if (!subagentStillLive(next)) stopSubagentPoll(conversationId);
+  if (changed) emitSubagentTasks(conversationId, next);
+}
+
+function ensureSubagentPoll(conversationId) {
+  if (subagentPollers.has(conversationId)) return;
+  const timer = setInterval(() => refreshSubagentTasks(conversationId), 1000);
+  timer.unref?.();
+  subagentPollers.set(conversationId, timer);
 }
 
 function emitGoalState(conversationId, session) {
@@ -707,8 +764,9 @@ function createCodingPermissionExtension(
       });
       if (imageGenDecision) return imageGenDecision;
       if (event.toolName === codingCollaborationToolName) {
+        let subagentRequest;
         try {
-          validateSubagentInput(
+          subagentRequest = validateSubagentInput(
             event.input,
             policy.codingCollaboration,
             policy.workspace,
@@ -719,7 +777,10 @@ function createCodingPermissionExtension(
             reason: error instanceof Error ? error.message : String(error),
           };
         }
-        if (codingCollaborationRequiresApproval(policy.approvalPolicy)) {
+        if (subagentCallRequiresApproval(
+          subagentRequest.externalCli,
+          policy.approvalPolicy,
+        )) {
           const approved = await approvalBroker.request({
             conversationId,
             toolName: codingCollaborationToolName,
@@ -1369,16 +1430,20 @@ function subscribeSession(
           collaboration: policy?.codingCollaboration,
           worktrees: policy?.codingCollaboration?.worktrees,
         });
+        const projected = projectSubagentRosterEnd(owned, wrapped, {
+          toolCallId: event.toolCallId,
+          durationMs: startedAt === undefined
+            ? undefined
+            : Math.max(0, Date.now() - startedAt),
+          isError: event.isError,
+        });
         emitSubagentTasks(conversationId, [
           ...others,
-          ...projectSubagentRosterEnd(owned, wrapped, {
-            toolCallId: event.toolCallId,
-            durationMs: startedAt === undefined
-              ? undefined
-              : Math.max(0, Date.now() - startedAt),
-            isError: event.isError,
-          }),
+          ...projected,
         ]);
+        if (subagentStillLive(sessionSubagentTasks.get(conversationId) ?? [])) {
+          ensureSubagentPoll(conversationId);
+        }
       }
       for (const usage of projectToolModelUsage(event.result, {
         conversationId,
@@ -1519,7 +1584,7 @@ function createMilkSUResourceLoader(
         request => workspaceActionBroker.request(request),
       ),
       createComputerUseToolExtension(getPolicy),
-      piSubAgentExtension,
+      piSubagentsExtension,
       createSubagentYieldExtension(() => {
         const policy = getPolicy?.();
         return {
@@ -1683,43 +1748,23 @@ async function loadRuntimeSessionPolicy(cwd, command) {
   };
 }
 
-function configureSubagentRuntime(cwd, collaboration) {
-  const launcher = join(bridgeDirectory, "pi-subagent-launcher.sh");
-  const runner = join(bridgeDirectory, "pi-subagent-runner.cjs");
-  const packagedCLI = join(bridgeDirectory, "pi-subagent-cli.cjs");
-  const developmentCLI = join(
-    sidecarResourceDirectory,
-    "node_modules",
-    "@earendil-works",
-    "pi-coding-agent",
-    "dist",
-    "cli.js",
-  );
-  const packagedAgents = join(bridgeDirectory, "subagents", "agents");
-  const developmentAgents = join(
-    sidecarResourceDirectory,
-    "node_modules",
-    "pi-sub-agent",
-    "extensions",
-    "agents",
-  );
-  const cli = existsSync(packagedCLI) ? packagedCLI : developmentCLI;
-  const agents = existsSync(packagedAgents) ? packagedAgents : developmentAgents;
-  for (const [label, path] of [
-    ["launcher", launcher],
-    ["runner", runner],
-    ["Pi CLI", cli],
-    ["agent prompts", agents],
-  ]) {
-    if (!existsSync(path)) {
-      throw new Error(`MilkSU subagent ${label} is unavailable: ${path}`);
-    }
+function configureSubagentRuntime() {
+  const packagedRoot = join(bridgeDirectory, "node_modules", "pi-subagents");
+  const developmentRoot = join(sidecarResourceDirectory, "node_modules", "pi-subagents");
+  const root = existsSync(join(packagedRoot, "package.json"))
+    ? packagedRoot
+    : developmentRoot;
+  if (!existsSync(join(root, "package.json"))) {
+    throw new Error(`MilkSU subagent package is unavailable: ${root}`);
   }
-  process.env.MILKSU_PI_SUBAGENT_LAUNCHER = launcher;
-  process.env.MILKSU_PI_SUBAGENT_RUNNER = runner;
-  process.env.MILKSU_PI_SUBAGENT_CLI = cli;
-  process.env.MILKSU_PI_SUBAGENT_AGENTS_DIR = agents;
+  const guard = join(bridgeDirectory, "pi-subagents-spawn.cjs");
+  if (!existsSync(guard)) {
+    throw new Error(`MilkSU subagent spawn guard is unavailable: ${guard}`);
+  }
+  process.env.MILKSU_PI_SUBAGENTS_ROOT = root;
+  process.env.MILKSU_PI_SUBAGENT_SPAWN_GUARD = guard;
   process.env.MILKSU_PI_SUBAGENT_BUNDLED_ONLY = "1";
+  delete process.env.PI_SUBAGENT_EXTRA_AGENT_DIRS;
 }
 
 async function createSession(command) {
@@ -1752,7 +1797,7 @@ async function createSession(command) {
     securityTools,
   } = await loadRuntimeSessionPolicy(cwd, command);
   applyCodingResourcePolicy();
-  configureSubagentRuntime(cwd, sessionPolicy.codingCollaboration);
+  configureSubagentRuntime();
   sessionPolicies.set(conversationId, sessionPolicy);
   if (mcpConfig) {
     await ensureMcpMetadataCache(agentDir);
@@ -1944,6 +1989,7 @@ async function sendMessage(command) {
     )
   ) {
     await disposeAgentSession(existing, "reload");
+    stopSubagentPoll(conversationId);
     sessions.delete(conversationId);
     sessionPolicies.delete(conversationId);
     sessionPolicyControllers.delete(conversationId);
@@ -2166,6 +2212,7 @@ async function destroySession(command) {
   reasoningOnlyRecovered.delete(conversationId);
   reasoningOnlyPreviousTools.delete(conversationId);
   await disposeAgentSession(session);
+  stopSubagentPoll(conversationId);
   sessions.delete(conversationId);
   sessionPolicies.delete(conversationId);
   sessionPolicyControllers.delete(conversationId);
@@ -2676,6 +2723,7 @@ async function disposeAllSessions() {
   await Promise.all(
     [...sessions.values()].map(session => disposeAgentSession(session)),
   );
+  for (const conversationId of subagentPollers.keys()) stopSubagentPoll(conversationId);
   sessions.clear();
   sessionCreateCommands.clear();
   backgroundTaskControllers.clear();

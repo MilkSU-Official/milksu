@@ -1,5 +1,6 @@
 import { useMemo, useRef } from 'react'
 import AgentPixelLoader from '@/components/AgentPixelLoader'
+import ChatSubagentRoster from '@/components/ChatSubagentRoster'
 import {
   buildChatActivityEntries,
   detailsToggleOpen,
@@ -8,6 +9,7 @@ import {
   type ChatActivityEntry,
 } from '@/lib/chatActivity'
 import { agentToolChip } from '@/lib/agentConversation'
+import { subagentTasksForActivity } from '@/lib/subagentRoster'
 import { useT } from '@/hooks/useUiLocale'
 import type { SubagentTask } from '@/types'
 
@@ -16,9 +18,10 @@ export default function ChatActivityGroup({
   open,
   openEntryIds,
   revealCompleted = false,
-  subagentTasks: _subagentTasks = [],
+  subagentTasks = [],
   onToggleGroup: _onToggleGroup,
   onToggleEntry,
+  onOpenSubagent,
 }: {
   activity: ChatActivityBlock
   open: boolean
@@ -27,6 +30,7 @@ export default function ChatActivityGroup({
   subagentTasks?: readonly SubagentTask[]
   onToggleGroup?: (open: boolean) => void
   onToggleEntry?: (entryId: string, open: boolean) => void
+  onOpenSubagent?: (task: SubagentTask) => void
 }) {
   const t = useT()
   const entryDetails = useRef(new Map<string, HTMLDetailsElement>())
@@ -36,6 +40,10 @@ export default function ChatActivityGroup({
       .filter(entry => entry.toolName !== 'subagent')
     return revealCompleted ? entries : visibleChatActivityEntries(entries, openEntryIds)
   }, [activity.messages, revealCompleted, openEntryIds])
+  const roster = useMemo(
+    () => subagentTasksForActivity(subagentTasks, activity.messages),
+    [activity.messages, subagentTasks],
+  )
 
   function setEntryDetails(entryId: string, element: HTMLDetailsElement | null) {
     if (element) entryDetails.current.set(entryId, element)
@@ -70,7 +78,7 @@ export default function ChatActivityGroup({
     return t(`${Math.round(durationMs / 1000)} 秒`, `${Math.round(durationMs / 1000)} s`)
   }
 
-  if (!toolEntries.length) return null
+  if (!toolEntries.length && !roster.length) return null
 
   return (
     <div
@@ -145,6 +153,7 @@ export default function ChatActivityGroup({
           })}
         </div>
       ) : null}
+      <ChatSubagentRoster tasks={roster} onOpen={onOpenSubagent} />
     </div>
   )
 }

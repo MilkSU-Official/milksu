@@ -34,7 +34,7 @@ const execFileAsync = promisify(execFile)
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const nodeVersion = '24.18.0'
 const archifyCommit = '7b49d0b715fd4ba48116bcdecd1ba3789a279613'
-const piVersion = '0.84.1'
+const piVersion = '0.87.0'
 const dshVersion = '0.1.6-alpha.1'
 // Pi decodes and resizes inline images with Photon (Rust/WASM). The bundled
 // bridges inline Photon's JS glue, which loads the module from `__dirname` and
@@ -56,8 +56,8 @@ const piLspVersion = '0.29.0'
 const piGoalVersion = '0.43.0'
 const piBackgroundTasksVersion = '0.1.10'
 const piMcpAdapterVersion = '2.17.0'
-const piSubAgentVersion = '0.1.5'
-const piSubAgentIntegrity = 'sha512-ILgmYfAhP1nzpz7oLLN/lSFrwwigS0hfEKc8NppdkajCX2n2L5RVphG/cQnAWPlfKBXiOovqK8qNwksP1Y4pzw=='
+const piSubagentsVersion = '0.70.1'
+const piSubagentsIntegrity = 'sha512-cWNjguyrTfx6VmFzD+jCWIzJK3mBL5zjAhw5Z1E+5I3Iq5O2gCSmM0DphGDY6fh9w7eUewH1OR6Vsi/+Uje6oQ=='
 const playwrightMcpVersion = '0.0.78'
 const playwrightVersion = '1.62.0-alpha-1783623505000'
 const playwrightSocketRoot = playwrightSocketRootFor()
@@ -752,7 +752,26 @@ async function bundleDshHostPlugin(outfile) {
   })
 }
 
-async function bundleBridge(entry, outfile) {
+function bridgeBundleBanner(subagentsRoot = false) {
+  const lines = [
+    "const __import_meta_url = require('node:url').pathToFileURL(__filename).href;",
+  ]
+  if (subagentsRoot) {
+    lines.push(
+      "const __milksuPath = require('node:path');",
+      "const __milksuFs = require('node:fs');",
+      "const __milksuSubagentsRoot = __milksuPath.join(__dirname, 'node_modules', 'pi-subagents');",
+      "if (__milksuFs.existsSync(__milksuPath.join(__milksuSubagentsRoot, 'package.json'))) {",
+      "  process.env.MILKSU_PI_SUBAGENTS_ROOT = __milksuSubagentsRoot;",
+      "}",
+      "process.env.MILKSU_PI_SUBAGENT_BUNDLED_ONLY = '1';",
+      "process.env.MILKSU_PI_SUBAGENT_SPAWN_GUARD = __milksuPath.join(__dirname, 'pi-subagents-spawn.cjs');",
+    )
+  }
+  return lines.join('\n')
+}
+
+async function bundleBridge(entry, outfile, options = {}) {
   await build({
     entryPoints: [join(repositoryRoot, entry)],
     outfile,
@@ -761,11 +780,33 @@ async function bundleBridge(entry, outfile) {
     format: 'cjs',
     target: 'node24',
     external: ['@napi-rs/system-ocr'],
-    banner: { js: "const __import_meta_url = require('node:url').pathToFileURL(__filename).href;" },
+    banner: { js: bridgeBundleBanner(options.subagentsRoot === true) },
     define: { 'import.meta.url': '__import_meta_url' },
     legalComments: 'eof',
     logLevel: 'info',
   })
+}
+
+async function copyPiSubagentsRuntime(output) {
+  const packages = minimalPackageCopySet(
+    await collectInstalledPackageClosure(['pi-subagents'], {
+      includePeerDependencies: true,
+    }),
+  )
+  const root = packages.find(pkg => pkg.name === 'pi-subagents')
+  if (!root || root.version !== piSubagentsVersion) {
+    throw new Error(`Pi subagent runtime closure is missing pi-subagents@${piSubagentsVersion}`)
+  }
+  if (!packages.some(pkg => pkg.name === '@earendil-works/pi-coding-agent' && pkg.version === piVersion)) {
+    throw new Error(`Pi subagent runtime closure is missing @earendil-works/pi-coding-agent@${piVersion}`)
+  }
+  await mkdir(join(output, 'node_modules'), { recursive: true, mode: 0o700 })
+  for (const pkg of packages) {
+    const destination = join(output, 'node_modules', pkg.relativePath)
+    await mkdir(dirname(destination), { recursive: true, mode: 0o700 })
+    await cp(pkg.source, destination, { recursive: true })
+  }
+  await sanitizePackagedNodeModules(join(output, 'node_modules'))
 }
 
 function packagedDshCliEnv(output, workspace, dshHome) {
@@ -1279,7 +1320,7 @@ async function buildSidecar(platform) {
     'interactive',
     'theme',
   )
-  const piSubagentSource = join(repositoryRoot, 'node_modules', 'pi-sub-agent')
+  const piSubagentSource = join(repositoryRoot, 'node_modules', 'pi-subagents')
   const piSubagentAgentsOutput = join(output, 'subagents', 'agents')
   const cuaDriverOutput = cuaRuntime
     ? join(output, goos === 'windows' ? 'cua-driver.exe' : 'cua-driver')
@@ -1311,14 +1352,14 @@ async function buildSidecar(platform) {
     throw new Error(`Diff package mismatch: expected diff@${diffVersion} BSD-3-Clause`)
   }
   if (
-    piSubagentPackage.version !== piSubAgentVersion
+    piSubagentPackage.version !== piSubagentsVersion
     || piSubagentPackage.license !== 'MIT'
-    || repositoryLock.packages?.['node_modules/pi-sub-agent']?.integrity
-      !== piSubAgentIntegrity
+    || repositoryLock.packages?.['node_modules/pi-subagents']?.integrity
+      !== piSubagentsIntegrity
     || !await exists(join(piSubagentSource, 'LICENSE'))
   ) {
     throw new Error(
-      `Pi subagent package mismatch: expected pi-sub-agent@${piSubAgentVersion} `
+      `Pi subagent package mismatch: expected pi-subagents@${piSubagentsVersion} `
       + `MIT with reviewed npm integrity`,
     )
   }
@@ -1499,7 +1540,7 @@ async function buildSidecar(platform) {
     ),
     copyFile(
       join(piSubagentSource, 'LICENSE'),
-      join(licenseOutput, 'pi-sub-agent-MIT.txt'),
+      join(licenseOutput, 'pi-subagents-MIT.txt'),
     ),
     copyFile(
       join(repositoryRoot, 'sidecar', 'pi', 'pi-subagent-launcher.sh'),
@@ -1558,7 +1599,7 @@ async function buildSidecar(platform) {
       join(piSubagentThemeOutput, 'light.json'),
     ),
     cp(
-      join(piSubagentSource, 'extensions', 'agents'),
+      join(piSubagentSource, 'agents'),
       piSubagentAgentsOutput,
       { recursive: true },
     ),
@@ -1597,7 +1638,7 @@ async function buildSidecar(platform) {
         ]),
       ),
     }, null, 2)}\n`, { mode: 0o600 }),
-    bundleBridge('sidecar/pi/bridge.js', chatOutput),
+    bundleBridge('sidecar/pi/bridge.js', chatOutput, { subagentsRoot: true }),
     bundleBridge('sidecar/companion/bridge.js', companionOutput).then(async () => {
       await copyFile(
         join(repositoryRoot, 'third_party/obelisk/packages/core/src/schema.sql'),
@@ -1615,6 +1656,11 @@ async function buildSidecar(platform) {
     ),
   ])
   await copyDshRuntime(output)
+  await copyPiSubagentsRuntime(output)
+  await copyFile(
+    join(repositoryRoot, 'sidecar', 'pi', 'pi-subagents-spawn.cjs'),
+    join(output, 'pi-subagents-spawn.cjs'),
+  )
   await sanitizePackagedNodeModules(join(output, 'node_modules'))
   await Promise.all([
     chmod(nodeOutput, 0o755),
@@ -1757,12 +1803,12 @@ async function buildSidecar(platform) {
         licenseFile: 'THIRD_PARTY-LICENSES/pi-mcp-adapter-MIT.txt',
         scope: 'coding-opt-in',
       },
-      piSubAgent: {
-        package: 'pi-sub-agent',
-        version: piSubAgentVersion,
-        npmIntegrity: piSubAgentIntegrity,
+      piSubagents: {
+        package: 'pi-subagents',
+        version: piSubagentsVersion,
+        npmIntegrity: piSubagentsIntegrity,
         license: 'MIT',
-        licenseFile: 'THIRD_PARTY-LICENSES/pi-sub-agent-MIT.txt',
+        licenseFile: 'THIRD_PARTY-LICENSES/pi-subagents-MIT.txt',
         scope: 'coding-worktree-opt-in',
         launcher: {
           file: 'pi-subagent-launcher.sh',
@@ -1895,7 +1941,7 @@ async function smokeSidecar(platform) {
     join(output, 'THIRD_PARTY-LICENSES', 'narumitw-pi-extensions-MIT.txt'),
     join(output, 'THIRD_PARTY-LICENSES', 'pi-better-background-tasks-MIT.txt'),
     join(output, 'THIRD_PARTY-LICENSES', 'pi-mcp-adapter-MIT.txt'),
-    join(output, 'THIRD_PARTY-LICENSES', 'pi-sub-agent-MIT.txt'),
+    join(output, 'THIRD_PARTY-LICENSES', 'pi-subagents-MIT.txt'),
     join(output, 'THIRD_PARTY-LICENSES', 'napi-rs-system-ocr-MIT.txt'),
     join(output, 'THIRD_PARTY-LICENSES', 'playwright-mcp-Apache-2.0.txt'),
     join(output, 'THIRD_PARTY-LICENSES', 'playwright-Apache-2.0.txt'),
@@ -2294,7 +2340,7 @@ async function smokeSidecar(platform) {
   )
   if (
     !collaborationReady?.tools?.includes('subagent')
-    || !collaborationReady?.extensions?.includes('pi-sub-agent')
+    || !collaborationReady?.extensions?.includes('pi-subagents')
     || !collaborationReady.capabilities?.some(
       capability => capability.id === 'collaboration'
         && capability.status === 'allowed',

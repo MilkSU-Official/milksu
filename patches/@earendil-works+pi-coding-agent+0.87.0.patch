@@ -1,9 +1,9 @@
 diff --git a/node_modules/@earendil-works/pi-coding-agent/dist/core/tools/bash.js b/node_modules/@earendil-works/pi-coding-agent/dist/core/tools/bash.js
-index f274908..2e13c8e 100644
+index c0dcf14..8e83dac 100644
 --- a/node_modules/@earendil-works/pi-coding-agent/dist/core/tools/bash.js
 +++ b/node_modules/@earendil-works/pi-coding-agent/dist/core/tools/bash.js
-@@ -55,7 +55,19 @@ export function createLocalBashOperations(options) {
-                 throw new Error(`Working directory does not exist: ${cwd}\nCannot execute bash commands.`);
+@@ -47,7 +47,19 @@ export function createLocalShellOperations(shellName, resolveShellConfig) {
+                 throw new Error(`Working directory does not exist: ${cwd}\nCannot execute ${shellName} commands.`);
              }
              const commandFromStdin = shellConfig.commandTransport === "stdin";
 -            const child = spawn(shellConfig.shell, commandFromStdin ? shellConfig.args : [...shellConfig.args, command], {
@@ -24,10 +24,10 @@ index f274908..2e13c8e 100644
                  detached: process.platform !== "win32",
                  env: env ?? getShellEnv(),
 diff --git a/node_modules/@earendil-works/pi-coding-agent/dist/core/trust-manager.js b/node_modules/@earendil-works/pi-coding-agent/dist/core/trust-manager.js
-index 17af938..7eb71e9 100644
+index 0877ee7..6d34111 100644
 --- a/node_modules/@earendil-works/pi-coding-agent/dist/core/trust-manager.js
 +++ b/node_modules/@earendil-works/pi-coding-agent/dist/core/trust-manager.js
-@@ -147,6 +147,9 @@ function withTrustFileLock(path, fn) {
+@@ -148,6 +148,9 @@ function withTrustFileLock(path, fn) {
   * trusted user resource and is ignored here, even when cwd is $HOME.
   */
  export function hasTrustRequiringProjectResources(cwd) {
@@ -38,10 +38,10 @@ index 17af938..7eb71e9 100644
      const userAgentsSkillsDir = join(homeDir, ".agents", "skills");
      let currentDir = canonicalizePath(resolvePath(cwd));
 diff --git a/node_modules/@earendil-works/pi-coding-agent/dist/utils/shell.js b/node_modules/@earendil-works/pi-coding-agent/dist/utils/shell.js
-index 68e7e51..089593e 100644
+index 19605cc..6f1155c 100644
 --- a/node_modules/@earendil-works/pi-coding-agent/dist/utils/shell.js
 +++ b/node_modules/@earendil-works/pi-coding-agent/dist/utils/shell.js
-@@ -107,10 +107,35 @@ export function getShellEnv() {
+@@ -119,10 +119,35 @@ export function getShellEnv() {
      const pathEntries = currentPath.split(delimiter).filter(Boolean);
      const hasBinDir = pathEntries.includes(binDir);
      const updatedPath = hasBinDir ? currentPath : [binDir, currentPath].filter(Boolean).join(delimiter);

@@ -80,7 +80,7 @@ Checkpoint 由 Git 历史与自动化重新生成，不再长期占用文档入�
 - Coding Harness 遵循 **reuse-first**：内核或经审阅的社区扩展能负责的通用能力，
   MilkSU 不再写临时替代品；自研集中在桌面安全边界和 CTF 的 Evidence / Judge /
   Recovery / Memory。
-- 已接入两个 Agent 内核：Pi（`@earendil-works/pi-coding-agent` 0.84.1）和 DeepSeek Harness
+- 已接入两个 Agent 内核：Pi（`@earendil-works/pi-coding-agent` 0.87.0）和 DeepSeek Harness
   （`@deepseek-ai/dsh` 0.1.6-alpha.1，走 ACP）。新对话二选一，出厂默认 Pi；
   设置里的「默认运行时」只决定新对话，不改写已有会话。DSH 是可选内核，不是 UI 参考。
 

@@ -346,6 +346,21 @@ export function readSubagentYieldField(toolResult, path) {
   return current;
 }
 
+export function isAsyncSubagentReceipt(result) {
+  const details = result?.details;
+  const text = contentText(result?.content ?? result);
+  const asyncDir = typeof details?.asyncDir === "string" ? details.asyncDir.trim() : "";
+  const detached = /The async run is detached/.test(text) || /^Async:\s+\S+/m.test(text);
+  if (!asyncDir && !detached) return null;
+  const headline = text.match(/^Async:\s+(\S+)\s+\[([^\]]+)\]/m);
+  return {
+    asyncDir,
+    runId: String(details?.runId ?? details?.asyncId ?? headline?.[2] ?? "").trim(),
+    agent: String(headline?.[1] ?? "").trim(),
+    summary: shortSummary(text.split("\n")[0] ?? ""),
+  };
+}
+
 function taskStubs(input) {
   if (!exactObject(input)) return [];
   if (typeof input.agent === "string" || typeof input.task === "string") {
@@ -388,6 +403,24 @@ export function projectSubagentRosterStart(input, context = {}) {
 }
 
 export function projectSubagentRosterEnd(tasks, result, context = {}) {
+  const receipt = isAsyncSubagentReceipt(result);
+  if (receipt && !context.isError) {
+    const list = Array.isArray(tasks) && tasks.length
+      ? tasks
+      : [{
+        id: String(context.toolCallId || receipt.runId || "subagent"),
+        toolCallId: context.toolCallId,
+        role: receipt.agent || String(context.role ?? "subagent"),
+        status: "start",
+      }];
+    return list.map(task => ({
+      ...task,
+      status: "running",
+      asyncDir: receipt.asyncDir || undefined,
+      runId: receipt.runId || undefined,
+      summary: receipt.summary || undefined,
+    }));
+  }
   const yields = projectSubagentYields(result, context);
   const list = Array.isArray(tasks) ? tasks : [];
   if (!list.length && yields.length) {
@@ -433,6 +466,12 @@ export function projectSubagentYields(raw, context = {}) {
 }
 
 export function projectSubagentToolResult(event, context = {}) {
+  if (isAsyncSubagentReceipt(event)) {
+    return {
+      content: event?.content,
+      details: event?.details,
+    };
+  }
   const raw = {
     content: event?.content,
     details: event?.details,
@@ -491,6 +530,7 @@ export function createSubagentYieldExtension(getContext) {
   return (pi) => {
     pi.on("tool_result", async (event) => {
       if (String(event?.toolName ?? "").trim() !== "subagent") return undefined;
+      if (isAsyncSubagentReceipt(event)) return undefined;
       const context = typeof getContext === "function" ? getContext() : getContext;
       try {
         return projectSubagentToolResult(event, context);

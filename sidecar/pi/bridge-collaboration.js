@@ -5,21 +5,51 @@ import { isAbsolute, join, relative, resolve, sep } from "node:path";
 export const codingCollaborationToolName = "subagent";
 
 const readOnlyAgents = new Set([
-  "planner",
-  "reviewer",
   "scout",
-  "security-auditor",
+  "researcher",
+  "evidence-auditor",
+  "reviewer",
+  "oracle",
+  "delegate",
 ]);
-const worktreeAgents = new Set([
-  "debugger",
-  "docs-writer",
-  "refactorer",
-  "verifier",
+const externalCliAgents = new Set([
+  "cursor-agent",
+  "cursor-agent-writer",
+  "claude-code",
+  "claude-code-writer",
+  "codex-exec",
+  "codex-exec-writer",
+]);
+const builtinAgents = new Set([
+  ...readOnlyAgents,
   "worker",
+  ...externalCliAgents,
 ]);
-const allAgents = new Set([...readOnlyAgents, ...worktreeAgents]);
+const allowedActions = new Set([
+  "status",
+  "steer",
+  "interrupt",
+  "stop",
+  "resume",
+  "guide",
+  "list",
+  "get",
+  "models",
+  "children.list",
+  "doctor",
+  "validate",
+  "schedule.list",
+  "schedule.show",
+  "schedule.history",
+  "mission.list",
+  "mission.show",
+  "watchdog.status",
+  "watchdog.check",
+  "watchdog.recommend-model",
+  "refine.show",
+  "lane.status",
+]);
 const maxWriterWorktrees = 2;
-const maxTasksPerCall = 4;
 const maxTaskCharacters = 16000;
 
 function exactObject(value) {
@@ -123,50 +153,39 @@ function resolveRequestedCwd(value, workspace) {
   return realpath(candidate, "Subagent working directory");
 }
 
-function taskEntries(input) {
+function rejectCutFields(input) {
   if (!exactObject(input)) {
     throw new Error("Subagent input must be an object");
   }
-  const hasSingle = typeof input.agent === "string" || typeof input.task === "string";
-  const hasParallel = Array.isArray(input.tasks) && input.tasks.length > 0;
-  const hasChain = Array.isArray(input.chain) && input.chain.length > 0;
-  if (Number(hasSingle) + Number(hasParallel) + Number(hasChain) !== 1) {
-    throw new Error("Use exactly one subagent mode: single, parallel, or chain");
+  if (input.workflowScript !== undefined || input.workflowScriptPath !== undefined) {
+    throw new Error("MilkSU does not run model-authored subagent workflow scripts");
   }
-  if (hasSingle) {
-    if (typeof input.agent !== "string" || typeof input.task !== "string") {
-      throw new Error("Single subagent mode requires both agent and task");
-    }
-    return { mode: "single", values: [input] };
+  if (input.share === true) {
+    throw new Error("MilkSU does not share subagent sessions");
   }
-  const mode = hasParallel ? "parallel" : "chain";
-  const values = hasParallel ? input.tasks : input.chain;
-  if (values.length > maxTasksPerCall) {
-    throw new Error(
-      `MilkSU allows at most ${maxTasksPerCall} subagent tasks per approved call`,
-    );
+  if (String(input.machine ?? "").trim()) {
+    throw new Error("MilkSU does not open remote or tmux subagent panes");
   }
-  if (values.some(value => !exactObject(value))) {
-    throw new Error(`Subagent ${mode} entries must be objects`);
+  if (
+    Array.isArray(input.tasks)
+    || Array.isArray(input.chain)
+    || Array.isArray(input.parallel)
+  ) {
+    throw new Error("MilkSU accepts one subagent launch per call");
   }
-  return { mode, values };
+  const scope = String(input.agentScope ?? "").trim();
+  if (scope === "user" || scope === "project" || scope === "both") {
+    throw new Error("MilkSU allows only reviewed bundled subagents");
+  }
 }
 
 export function isReadOnlySubagent(agent) {
   return readOnlyAgents.has(String(agent ?? "").trim());
 }
 
-// writerWorktreesRequired counts how many isolated writers the model asked
-// to prepare. Isolation is opt-in: the default cwd is the main workspace.
-export function writerWorktreesRequired(input) {
-  try {
-    const effectful = taskEntries(input).values.filter(entry => (
-      worktreeAgents.has(String(entry?.agent ?? "").trim())
-    ));
-    return Math.min(effectful.length, maxWriterWorktrees);
-  } catch {
-    return 0;
-  }
+// Isolation is opt-in. MilkSU does not preallocate writer worktrees by role.
+export function writerWorktreesRequired(_input) {
+  return 0;
 }
 
 // assignWriterWorktrees no longer relocates effectful roles. Isolation is
@@ -175,12 +194,12 @@ export function assignWriterWorktrees(input, _collaboration) {
   return input;
 }
 
-// The subagent tool schema names the roles. This is the host cap Pi cannot
-// know: four tasks per call, and the default working directory.
+// The package tool description names the roles. This is only the host contract
+// Pi cannot see: shared checkout, background by default, and status before control.
 export function codingSubagentGuidance() {
   return [
-    "MilkSU runs at most four subagent tasks per approved call.",
-    "Subagents default to the main workspace.",
+    "Subagents run in the background by default and share the main workspace unless the call sets worktree.",
+    "Before steer, interrupt, resume, or stop, read that subagent's status and choose the action.",
     "Call milksu_workspace prepare_coding_worktree only when you want an isolated writer, then pass that cwd.",
   ].join(" ");
 }
@@ -217,13 +236,27 @@ export function validateSubagentInput(input, collaboration, workspace) {
     throw new Error("Subagent workspace is required");
   }
   const root = resolveRequestedCwd(requestedRoot, requestedRoot);
-  if (input.agentScope !== undefined && input.agentScope !== "user") {
-    throw new Error("MilkSU allows only reviewed bundled subagents");
+  rejectCutFields(input);
+  const action = String(input.action ?? "").trim();
+  if (action) {
+    if (!allowedActions.has(action)) {
+      throw new Error(`MilkSU blocked subagent action "${action}"`);
+    }
+    return Object.freeze({
+      mode: "control",
+      action,
+      externalCli: false,
+      tasks: Object.freeze([]),
+    });
   }
-  if (input.confirmProjectAgents === false) {
-    throw new Error("MilkSU does not allow bypassing subagent source confirmation");
+  const agent = String(input.agent ?? "").trim();
+  const task = String(input.task ?? "").trim();
+  if (!builtinAgents.has(agent)) {
+    throw new Error(`MilkSU rejected unsupported bundled subagent "${agent}"`);
   }
-  const { mode, values } = taskEntries(input);
+  if (!task || task.length > maxTaskCharacters) {
+    throw new Error(`Subagent task must contain 1-${maxTaskCharacters} characters`);
+  }
   const allowedPaths = new Set([
     root,
     ...(collaboration?.worktrees ?? []).map(worktree => worktree.path),
@@ -231,62 +264,40 @@ export function validateSubagentInput(input, collaboration, workspace) {
   const worktreePaths = new Set(
     (collaboration?.worktrees ?? []).map(worktree => worktree.path),
   );
-  const effectfulPaths = new Set();
-  const tasks = values.map((entry, index) => {
-    const agent = String(entry.agent ?? "").trim();
-    const task = String(entry.task ?? "").trim();
-    if (!allAgents.has(agent)) {
-      throw new Error(`MilkSU rejected unsupported bundled subagent "${agent}"`);
-    }
-    if (!task || task.length > maxTaskCharacters) {
-      throw new Error(
-        `Subagent task ${index + 1} must contain 1-${maxTaskCharacters} characters`,
-      );
-    }
-    const cwd = resolveRequestedCwd(
-      entry.cwd ?? input.cwd,
-      root,
+  const cwd = resolveRequestedCwd(input.cwd, root);
+  if (!allowedPaths.has(cwd)) {
+    throw new Error(
+      `Subagent ${agent} must use the main workspace or a registered writer worktree`,
     );
-    if (!allowedPaths.has(cwd)) {
-      throw new Error(
-        `Subagent ${agent} must use the main workspace or a registered writer worktree`,
-      );
-    }
-    if (worktreePaths.has(cwd) && worktreeAgents.has(agent)) {
-      if (effectfulPaths.has(cwd)) {
-        throw new Error(
-          "Effectful subagents must use distinct writer worktrees",
-        );
-      }
-      effectfulPaths.add(cwd);
-    }
-    return Object.freeze({
+  }
+  return Object.freeze({
+    mode: "single",
+    externalCli: externalCliAgents.has(agent),
+    tasks: Object.freeze([Object.freeze({
       agent,
       task,
       cwd,
-      access: worktreePaths.has(cwd) ? "worktree" : (
-        worktreeAgents.has(agent) ? "workspace" : "read-only"
-      ),
-    });
+      access: worktreePaths.has(cwd)
+        ? "worktree"
+        : (readOnlyAgents.has(agent) ? "read-only" : "workspace"),
+    })]),
   });
-  return Object.freeze({ mode, tasks: Object.freeze(tasks) });
 }
 
 export function formatSubagentApproval(input, collaboration, workspace) {
   const request = validateSubagentInput(input, collaboration, workspace);
-  const rows = request.tasks.map(task => {
-    const worktree = collaboration?.worktrees.find(value => value.path === task.cwd);
-    const location = worktree
-      ? `${worktree.id} · ${worktree.branch}`
-      : "主工作区";
-    const preview = task.task.length > 240
-      ? `${task.task.slice(0, 240)}…`
-      : task.task;
-    return `${task.agent} → ${location}\n${preview}`;
-  });
+  if (request.mode === "control") return request.action;
+  const task = request.tasks[0];
+  const worktree = collaboration?.worktrees.find(value => value.path === task.cwd);
+  const location = worktree
+    ? `${worktree.id} · ${worktree.branch}`
+    : "主工作区";
+  const preview = task.task.length > 240
+    ? `${task.task.slice(0, 240)}…`
+    : task.task;
   return [
-    `${request.mode} · ${request.tasks.length} 个独立 Pi 会话`,
-    ...rows,
+    "single · 1 个后台 Pi 会话",
+    `${task.agent} → ${location}\n${preview}`,
   ].join("\n\n");
 }
 

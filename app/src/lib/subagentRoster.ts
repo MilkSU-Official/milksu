@@ -7,6 +7,24 @@ const rosterStatuses = new Set<SubagentTaskStatus>([
   'failed',
 ])
 
+function boundedText(value: unknown, limit: number) {
+  const text = String(value ?? '').trim()
+  if (!text) return undefined
+  return text.length > limit ? text.slice(text.length - limit) : text
+}
+
+export function subagentCitationText(task: {
+  role?: string
+  id?: string
+  summary?: string
+  transcript?: string
+}, limit = 2000) {
+  const title = `${String(task.role ?? '').trim()} ${String(task.id ?? '').trim()}`.trim()
+  const body = String(task.transcript || task.summary || '').trim()
+  const clipped = body.length > limit ? body.slice(0, limit) : body
+  return clipped ? `${title}\n${clipped}` : title
+}
+
 function exactObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
@@ -60,6 +78,8 @@ export function normalizeSubagentTasks(value: unknown): SubagentTask[] {
         : undefined,
       exitCode: Number.isSafeInteger(exitCode) ? exitCode : undefined,
       yield: normalizeYield(entry.yield),
+      summary: boundedText(entry.summary, 240),
+      transcript: boundedText(entry.transcript, 8000),
     }]
   })
 }
