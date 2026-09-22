@@ -11,6 +11,7 @@ func TestKnownContextWindow(t *testing.T) {
 		id     string
 		window int
 	}{
+		{"x-ai/grok-4.7", 500_000},
 		{"x-ai/grok-4.6", 500_000},
 		{"grok-4.6", 500_000},
 		{"grok-4.5", 500_000},

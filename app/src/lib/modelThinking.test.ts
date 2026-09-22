@@ -45,6 +45,11 @@ describe('model thinking profiles', () => {
       defaultLevel: 'high',
       levels: ['low', 'high', 'max'],
     })
+    expect(resolveModelThinking(settings(), 'tokenflux', 'x-ai/grok-4.7')).toMatchObject({
+      enabled: true,
+      defaultLevel: 'medium',
+      levels: ['low', 'medium', 'high', 'xhigh'],
+    })
     expect(resolveModelThinking(settings(), 'tokenflux', 'x-ai/grok-4.6')).toMatchObject({
       enabled: true,
       defaultLevel: 'medium',

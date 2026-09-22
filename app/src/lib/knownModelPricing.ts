@@ -1,7 +1,7 @@
 // Official lab USD / 1M-token rates from https://models.dev/ (api.json).
 // Product runtime must not fetch models.dev. Refresh this table before each
 // release together with knownContextWindow / modelThinking (see release-process §1.5).
-// Checked against models.dev official labs on 2026-09-21.
+// Checked against models.dev official labs on 2026-09-22.
 
 export interface ModelTokenUsage {
   inputTokens?: number
@@ -28,12 +28,14 @@ const knownModelPricing: PricingRow[] = [
   ['deepseek-v4-flash', { input: 0.15, output: 0.6, cacheRead: 0.003, reasoning: 0.6 }],
   ['deepseek-flash', { input: 0.15, output: 0.6, cacheRead: 0.003, reasoning: 0.6 }],
   ['deepseek-', { input: 0.15, output: 0.6, cacheRead: 0.003, reasoning: 0.6 }],
+  ['grok-4.7', { input: 2, output: 6, cacheRead: 0.5 }],
   ['grok-4.6', { input: 2, output: 6, cacheRead: 0.5 }],
   ['grok-4.5', { input: 2, output: 6, cacheRead: 0.3 }],
   ['grok-4.20', { input: 1.25, output: 2.5, cacheRead: 0.2 }],
   ['grok-4.3', { input: 1.25, output: 2.5, cacheRead: 0.2 }],
   ['grok-build-', { input: 1, output: 2, cacheRead: 0.2 }],
   ['grok-4', { input: 1.25, output: 2.5, cacheRead: 0.2 }],
+  ['gpt-6', { input: 10, output: 50, cacheRead: 1, cacheWrite: 12.5 }],
   ['gpt-5.6', { input: 4, output: 20, cacheRead: 0.4, cacheWrite: 5 }],
   ['gpt-5.5-pro', { input: 30, output: 180 }],
   ['gpt-5.5', { input: 5, output: 30, cacheRead: 0.5 }],
@@ -54,7 +56,8 @@ const knownModelPricing: PricingRow[] = [
   ['gpt-4.1', { input: 2, output: 8, cacheRead: 0.5 }],
   ['gpt-4o-mini', { input: 0.15, output: 0.6, cacheRead: 0.075 }],
   ['gpt-4o', { input: 2.5, output: 10, cacheRead: 1.25 }],
-  ['claude-fable-5', { input: 10, output: 50, cacheRead: 0.25, cacheWrite: 12.5 }],
+  ['claude-fable-5-1', { input: 10, output: 50, cacheRead: 0.25, cacheWrite: 12.5 }],
+  ['claude-fable-5', { input: 10, output: 50, cacheRead: 1, cacheWrite: 12.5 }],
   ['claude-mythos-5', { input: 10, output: 50, cacheRead: 1, cacheWrite: 12.5 }],
   ['claude-opus-5', { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 }],
   ['claude-sonnet-5', { input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2.5 }],

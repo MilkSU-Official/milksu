@@ -15,6 +15,7 @@ func TestResolveModelThinkingUsesBuiltInPresets(t *testing.T) {
 		{model: "anthropic/claude-fable-5", requested: "xhigh", wantLevel: "xhigh", wantContains: "max"},
 		{model: "deepseek-flash", requested: "max", wantLevel: "max", wantContains: "high"},
 		{model: "deepseek-v4-pro", requested: "low", wantLevel: "low", wantContains: "max"},
+		{model: "x-ai/grok-4.7", requested: "xhigh", wantLevel: "xhigh", wantContains: "medium"},
 		{model: "x-ai/grok-4.6", requested: "xhigh", wantLevel: "xhigh", wantContains: "medium"},
 	}
 	for _, test := range tests {

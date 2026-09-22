@@ -13,6 +13,8 @@ const {
 } = require("./known-context-window.cjs");
 
 test("resolves known series and keeps explicit catalog windows", () => {
+  assert.equal(knownContextWindow("x-ai/grok-4.7"), 500_000);
+  assert.equal(resolveModelMaxTokens("x-ai/grok-4.7", 32_768), 500_000);
   assert.equal(knownContextWindow("x-ai/grok-4.6"), 500_000);
   assert.equal(resolveModelContextWindow("grok-4.6", 0), 500_000);
   assert.equal(resolveModelContextWindow("grok-4.6", 128_000), 500_000);

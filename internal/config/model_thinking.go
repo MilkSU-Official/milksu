@@ -205,7 +205,9 @@ func builtInModelThinking(model string) (ModelThinkingConfig, bool) {
 		return profile([]string{"low", "high", "max"}, "high")
 	}
 
-	if strings.Contains(id, "grok-4-6") || strings.Contains(id, "grok-4-20-multi-agent") {
+	if strings.Contains(id, "grok-4-7") ||
+		strings.Contains(id, "grok-4-6") ||
+		strings.Contains(id, "grok-4-20-multi-agent") {
 		return profile([]string{"low", "medium", "high", "xhigh"}, "medium")
 	}
 	if strings.Contains(id, "grok-4-5") {

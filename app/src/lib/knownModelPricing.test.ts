@@ -21,6 +21,14 @@ describe('knownModelPricing', () => {
       input: 0.75,
       output: 4.5,
     })
+    expect(lookupKnownModelPricing('openai/gpt-6-astra')).toMatchObject({
+      input: 10,
+      output: 50,
+      cacheRead: 1,
+    })
+    expect(lookupKnownModelPricing('anthropic/claude-fable-5')).toMatchObject({ cacheRead: 1 })
+    expect(lookupKnownModelPricing('anthropic/claude-fable-5-1')).toMatchObject({ cacheRead: 0.25 })
+    expect(lookupKnownModelPricing('x-ai/grok-4.7')).toMatchObject({ input: 2, output: 6 })
   })
 
   it('estimates USD from token buckets without double-counting matching reasoning', () => {

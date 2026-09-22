@@ -64,7 +64,7 @@ models.dev 只用来补目录里缺失或占位的字段。
 | 系列 | 上下文 | 输出 | 思考 |
 | --- | ---: | ---: | --- |
 | DeepSeek Flash / V4 Flash / V4 Pro | 1,000,000 | 384,000 | `low / high / max`（默认 high） |
-| Grok 4.6 | 500,000 | 500,000 | `low / medium / high / xhigh` |
+| Grok 4.7 / 4.6 | 500,000 | 500,000 | `low / medium / high / xhigh` |
 | Grok 4.5 | 500,000 | 500,000 | `low / medium / high` |
 | Grok 4.3 / 4.20 | 1,000,000 | 30,000 | 4.3：`off / low / medium / high` |
 | Grok Build 0.1 | 256,000 | 256,000 | 有推理，无档位清单 |

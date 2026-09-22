@@ -180,7 +180,7 @@ export function builtInModelThinking(model: string): ModelThinkingConfig | undef
     return profile(['low', 'high', 'max'], 'high')
   }
 
-  if (id.includes('grok-4-6') || id.includes('grok-4-20-multi-agent')) {
+  if (id.includes('grok-4-7') || id.includes('grok-4-6') || id.includes('grok-4-20-multi-agent')) {
     return profile(['low', 'medium', 'high', 'xhigh'], 'medium')
   }
   if (id.includes('grok-4-5')) {

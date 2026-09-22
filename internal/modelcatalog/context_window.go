@@ -22,6 +22,7 @@ type knownLimit struct {
 }
 
 var knownModelLimits = []knownLimit{
+	{key: "grok-4.7", window: 500_000, maxTokens: 500_000},
 	{key: "grok-4.6", window: 500_000, maxTokens: 500_000},
 	{key: "grok-4.5", window: 500_000, maxTokens: 500_000},
 	{key: "grok-4.20", window: 1_000_000, maxTokens: 30_000},

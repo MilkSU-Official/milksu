@@ -9,6 +9,7 @@ const PLACEHOLDER_CONTEXT_WINDOW = 128_000
 const PLACEHOLDER_MAX_TOKENS = new Set([8_192, 16_384, 32_768])
 
 const knownModelLimits: Array<[string, number, number]> = [
+  ['grok-4.7', 500_000, 500_000],
   ['grok-4.6', 500_000, 500_000],
   ['grok-4.5', 500_000, 500_000],
   ['grok-4.20', 1_000_000, 30_000],

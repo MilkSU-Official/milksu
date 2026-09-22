@@ -9,6 +9,8 @@ import {
 
 describe('knownContextWindow', () => {
   it('fills known series and keeps explicit catalog values', () => {
+    expect(resolveModelContextWindow('x-ai/grok-4.7', 0)).toBe(500_000)
+    expect(resolveModelMaxTokens('x-ai/grok-4.7', 32_768)).toBe(500_000)
     expect(resolveModelContextWindow('x-ai/grok-4.6', 0)).toBe(500_000)
     expect(resolveModelContextWindow('grok-4.6', 128_000)).toBe(500_000)
     expect(resolveModelContextWindow('grok-4.6', 256_000)).toBe(256_000)
