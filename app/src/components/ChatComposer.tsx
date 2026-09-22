@@ -104,6 +104,7 @@ import {
 import { CODING_SKILLS } from '@/codingSkills'
 import {
   clearComposerDraft,
+  flushComposerDraftsNow,
   isBlankComposerMarkup,
   readComposerDraft,
   writeComposerDraft,
@@ -761,6 +762,8 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
     const key = currentConversationKey()
     const previous = String(previousConversationKey.current ?? '')
     const switched = previous !== String(conversationKey ?? '')
+    // 打字落盘是合并的。切走之前把内存里已经更新的草稿写下去，最后一个字不会停在定时器里。
+    if (switched && previous) flushComposerDraftsNow()
     if (switched || hydratedComposerKey.current !== key) {
       applyStoredComposerDraft(key ? readComposerDraft(key) : undefined)
       // Quotes come back with the draft, so switching away and back does not lose them.
@@ -771,16 +774,14 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
     conversationKeyRef.current = conversationKey
   }, [conversationKey])
 
-  // 草稿一变就写进 store（按当前会话 key）。原来只在“切走时保存上一份”，
+  // 草稿一变就写进 store 的内存（按当前会话 key）。原来只在“切走时保存上一份”，
   // 那条路依赖比较基准的时序：基准一旦已经被更新成新会话，这一格就再也不会被写入，
-  // 用户切回去就是空的（已真机复现）。改成每次变化都写，切走/切回由 store 兜住。
-  // 用轻量防抖：挂载那一次的空状态不会抢先盖掉刚恢复出来的草稿。
+  // 用户切回去就是空的（已真机复现）。改成每次变化都写进内存，切走时立刻落盘。
   useEffect(() => {
     let key = currentConversationKey()
     if (!key) return
-    // 立即按当前会话写入，不做防抖：防抖会留下"打完最后一个字就切走"的窗口，
-    // 那一下写盘还没发生，草稿就丢在旧会话里。空内容直接跳过，避免挂载时的
-    // 空状态盖掉刚恢复出来的草稿（清空由发送后的 clearComposerDraft 负责）。
+    // 内存立刻更新。落盘由 store 按窗口合并；切走、失焦、卸载和 pagehide 会立刻 flush。
+    // 空内容直接跳过，避免挂载时的空状态盖掉刚恢复出来的草稿（清空由发送后的 clearComposerDraft 负责）。
     // 写入的键取"编辑器里的内容真正属于哪个会话"：切换途中 conversationKey 会先变、
     // 编辑器内容后换，用当前键写就会把上一条会话的文字记到新会话名下（串稿，已在装机版复现）。
     const owner = String(hydratedComposerKey.current ?? '')
@@ -796,12 +797,22 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
   }, [draft, pendingAttachments, quotes])
 
   useEffect(() => {
+    const flushOnLeave = () => flushComposerDraftsNow()
+    const flushWhenHidden = () => {
+      if (document.visibilityState === 'hidden') flushComposerDraftsNow()
+    }
+    window.addEventListener('pagehide', flushOnLeave)
+    document.addEventListener('visibilitychange', flushWhenHidden)
     return () => {
-      // 卸载时也只写非空内容：store 的规则是"空即删除"，空写会把那一格抹掉
-      // （这与"切换对话丢草稿"是同一个根因，统一在写入前挡住）。
+      window.removeEventListener('pagehide', flushOnLeave)
+      document.removeEventListener('visibilitychange', flushWhenHidden)
+      // 卸载时也只把非空内容写进内存：空写会把那一格抹掉。
+      // 然后再立刻落盘，避免合并窗口里的最后一次输入停在定时器上。
       const snapshot = captureComposerDraft()
-      if (!snapshot.html && !snapshot.text.trim() && !snapshot.attachments.length) return
-      persistComposerDraft()
+      if (snapshot.html || snapshot.text.trim() || snapshot.attachments.length) {
+        persistComposerDraft()
+      }
+      flushComposerDraftsNow()
     }
   }, [])
 
@@ -1891,6 +1902,7 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
               onBeforeInput={rememberComposerSnapshot}
               onKeyDown={handleComposerKeyDown}
               onInput={() => syncComposerInput()}
+              onBlur={() => flushComposerDraftsNow()}
               onKeyUp={detectSlashQuery}
               onClick={detectSlashQuery}
               onPaste={handleComposerPaste}
