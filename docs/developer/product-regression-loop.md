@@ -86,7 +86,7 @@ SKIP 不会让整次回归或某个大模块看起来已经跑完。`expectedMis
 
 ### 主页 Coding（33）
 
-离开设置，还在刚才那扇窗里。Pi 和 DSH 各走一遍日常开发，再测会话壳和作曲栏。
+离开设置，还在刚才那扇窗里。Pi 和 DSH 各走一遍日常开发，再测会话壳和输入栏。
 
 | 测试项 | 测什么 |
 | --- | --- |
@@ -98,7 +98,7 @@ SKIP 不会让整次回归或某个大模块看起来已经跑完。`expectedMis
 | Pi 停止 | 回合还在跑时按停止。 |
 | Pi 选择卡 | 让模型出 `milksu_ask`，对话里出现待回答的选项。只聊天不算。 |
 | Pi 选择卡答完续跑 | 选完一项（或 Other）后，同一回合继续跑完。 |
-| 加入对话引用 | 选中对话正文，点「加入对话」，引用进作曲栏后再发出去。 |
+| 加入对话引用 | 选中对话正文，点「加入对话」，引用进输入栏后再发出去。 |
 | 附件进回合 | 导入附件并随消息发出。必须附件进了当前回合，并且回复提到附件里的标记。 |
 | Pi 接到 DSH | 先完成一轮 Pi 对话，再整理并开出新的 DSH 会话。 |
 | DSH 写文件 | 换成 DSH 再写一遍 `NOTES.md`。 |
@@ -116,10 +116,10 @@ SKIP 不会让整次回归或某个大模块看起来已经跑完。`expectedMis
 | 归档会话 | 归档后立刻离开活动列表。 |
 | 删除会话 | 删掉后活动列表里没有它。 |
 | 命令面板 | 侧栏搜索或快捷键打开命令面板。 |
-| 作曲栏模型 | 点开模型芯片，看得见模型、运行时、上下文。 |
-| 作曲栏运行时 | 点开模型芯片再悬停运行时，飞出面板里看得见 Pi / DSH。 |
-| 作曲栏 Git | 在带 Git 仓库的会话上打开分支菜单。 |
-| 作曲栏加号 | 点「添加内容与工具」，看得见附件、并行、目标。 |
+| 输入栏模型 | 点开模型芯片，看得见模型、运行时、上下文。 |
+| 输入栏运行时 | 点开模型芯片再悬停运行时，飞出面板里看得见 Pi / DSH。 |
+| 输入栏 Git | 在带 Git 仓库的会话上打开分支菜单。 |
+| 输入栏加号 | 点「添加内容与工具」，看得见附件、并行、目标。 |
 | 右侧栏 | 打得开右栏。 |
 | 底部终端 | 打得开底部终端。 |
 | 会话右键菜单 | 右键能看到置顶、重命名、Fork、归档、删除。 |
@@ -275,7 +275,7 @@ product-loop `--gui` **不是**用 OS 级 robot / nut.js 去抢全局鼠标键�
 
 | 手段 | 用途 | 是否抢用户前台 |
 | --- | --- | --- |
-| Electron CDP 附着 + `Runtime.evaluate` / `callFunction` | 点按钮、读 DOM、填作曲栏 | 基本不抢；页内 `input.focus()` 在部分平台可能抬窗 |
+| Electron CDP 附着 + `Runtime.evaluate` / `callFunction` | 点按钮、读 DOM、填输入栏 | 基本不抢；页内 `input.focus()` 在部分平台可能抬窗 |
 | `window.milksu.invoke` Desktop RPC | SendCompanionMessage、ConfirmCompanionDispatch、MoveCompanionPet、开关桌宠窗 | 不抢（`ShowCompanion*` 传 `{ focus: false }` 时用 `showInactive`） |
 | CDP `Page.captureScreenshot`（`fromSurface: true`） | 用例证据图 | **默认不** `Page.bringToFront` |
 | CDP `Input.dispatchMouseEvent`（桌宠表面） | 宠物右键菜单坐标 | 可能激活桌宠浮层，但不走系统鼠标 |

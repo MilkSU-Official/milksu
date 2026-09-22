@@ -29,7 +29,7 @@
 | 表面 | 现在怎么动 | 由谁驱动 |
 | --- | --- | --- |
 | shadcn Button 全部变体（发送、停止、图标按钮…） | 按下 `scale(0.97)`；颜色变化走同一档时长 | `button.tsx` 基类；`link` / `link-static` / `link-draw` 变体显式关掉缩放 |
-| 作曲栏芯片（模型、分支、工作区、加号） | 悬停改底色；按下缩放 | `ChatComposer.tsx` 的 `.chat-composer__chip` |
+| 输入栏芯片（模型、分支、工作区、加号） | 悬停改底色；按下缩放 | `ChatComposer.tsx` 的 `.chat-composer__chip` |
 | 侧栏会话行、项目行、CTF/CVE/Lab 导航、设置图标 | 悬停与选中改底色；按下加深底色（不缩放） | `ContextSidebar.tsx` 的 `.agent-sidebar-row` / `.agent-sidebar-item` |
 | 工作区图标栏 | 悬停改底色 | `WorkspaceRail.tsx` 的 `.workspace-rail-item`（未加按下反馈） |
 | 工具行（`.agent-chip`） | 悬停与展开同一底色；按下即加深 | `agent-conversation.css` |
@@ -38,7 +38,7 @@
 | Working 胶囊与面板 | 胶囊按下缩放；面板从胶囊原点淡入放大（`@starting-style`） | `agent-conversation.css` |
 | Working 面板里的子任务行 | 淡入 + 上移 | `agent-conversation.css` 的 `agent-fade-up` |
 | Popover / DropdownMenu / Select / Tooltip | 从 Radix 算好的触发点原点缩放进入，关闭同路退出 | `index.css`；`popover.tsx` / `dropdown-menu.tsx` 带 `data-slot` 供选择器命中 |
-| 作曲栏芯片的二级面板 | 从被悬停那一行的边缘飞入（`origin-left` / `origin-right`） | `ComposerAgentMenu.tsx` 的 `starting:` 变体 |
+| 输入栏芯片的二级面板 | 从被悬停那一行的边缘飞入（`origin-left` / `origin-right`） | `ComposerAgentMenu.tsx` 的 `starting:` 变体 |
 | Dialog | 淡入 + `scale(0.98)`，**原点保持居中**（模态不跟触发点） | `index.css` |
 | Toast | 从下进、同方向出；退出时先标记 `leaving` 再卸载 | `appToast.ts` + `toaster.tsx` |
 | 侧栏拖宽、右栏拖宽 | 拖动中不参与过渡（拖动时加 `is-resizing` 关掉 transition），松手后夹回 | `ContextSidebar.tsx`、`ContextRail.tsx` |
@@ -92,7 +92,7 @@ curl -s http://127.0.0.1:<port>/json/list
 时序手感靠眼睛和慢放，不靠上面这些数字：
 
 - DevTools Animations 面板把播放速度调到 10%，逐帧看开合、披露、toast。
-- 悬停作曲栏模型芯片的每一行，确认二级面板是从那一行的边缘长出来，不是从中心。
+- 悬停输入栏模型芯片的每一行，确认二级面板是从那一行的边缘长出来，不是从中心。
 - 快速连续开关同一个披露，确认它从当前位置接着走，不是从零重播。
 - toast 连点几次，确认进出走同一条边、不闪。
 
@@ -102,13 +102,13 @@ curl -s http://127.0.0.1:<port>/json/list
 
 | 候选 | 说明 |
 | --- | --- |
-| 剩余硬编码时长 | 作曲栏芯片、侧栏、披露之外的零散 surface 仍有各自的毫秒值，尚未全部收进 token |
+| 剩余硬编码时长 | 输入栏芯片、侧栏、披露之外的零散 surface 仍有各自的毫秒值，尚未全部收进 token |
 | 少数按钮的按下缩放不过渡 | 调用方传了 `transition-opacity` 时，`cn` / `twMerge` 会用 `opacity` 顶掉 Button 基类的过渡列表。缩放仍然生效，但那一帧是直接跳。要修就把调用方的 `transition-opacity` 换成显式属性列表 |
 | 选中态的不对称 | 已把过渡移到基类，但 `is-current` 的左侧内嵌条（`box-shadow`）在切换时仍是瞬变 |
 | 工作区图标栏按下反馈 | `.workspace-rail-item` 只有悬停，没有按下 |
 | 圆角过渡 | 已从 `.agent-task-row` 去掉；其余 surface 若出现圆角过渡建议同样去掉（会重绘） |
 | 字号相关的字距 | `--text-title` / `--text-heading` / `--text-display` 没有 `--letter-spacing` 变量，只有两处散装负值。大字号该负字距、小字号该略正，属于排版而非动效，单独评估 |
-| 桌宠压住主窗控件 | 桌宠窗 160×160 默认在屏幕右下角，与主窗作曲栏的发送/停止键位置重叠，会挡住点击。与动效无关，单独记录 |
+| 桌宠压住主窗控件 | 桌宠窗 160×160 默认在屏幕右下角，与主窗输入栏的发送/停止键位置重叠，会挡住点击。与动效无关，单独记录 |
 | 桌宠隐藏淡出 | 显示已有入场。隐藏若要对称，得让壳先通知渲染器再 `hide()`；现在故意不延后关窗 |
 
 ## 最近一次改动的边界

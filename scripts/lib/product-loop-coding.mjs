@@ -523,10 +523,10 @@ export async function runCodingCite(driver, options = {}) {
     }
     await delay(250)
     const quoted = snapshotHas(await pageSnapshot(driver), [marker])
-    if (!quoted) return fail('点了加入对话，作曲栏上方没有引用')
+    if (!quoted) return fail('点了加入对话，输入栏上方没有引用')
     const question = '这段引用里的标记是什么？在回复里写 CITE-OK。'
-    if (!await fillComposer(driver, question)) return fail('作曲栏写不进去')
-    if (!await sendComposer(driver)) return fail('作曲栏发送没点到')
+    if (!await fillComposer(driver, question)) return fail('输入栏写不进去')
+    if (!await sendComposer(driver)) return fail('输入栏发送没点到')
     const turn = await driver.waitForTurn(conversation.id, options.taskTimeoutMs || 180_000)
     if (turnBroken(turn)) return fail(`引用发出去后回合异常：${turnBroken(turn)}`)
     const listed = await driver.listConversations()
@@ -773,7 +773,7 @@ export async function runCodingDshMultitask(driver, options = {}) {
     if (!await ensureDshMultitaskOn(driver)) return fail('主回合开始后并行被关掉了')
     await dismissOverlays(driver)
     const childPrompt = '这是并行子会话。只回一句 MULTITASK-CHILD。'
-    if (!await fillComposer(driver, childPrompt)) return fail('忙碌时作曲栏写不进下一条')
+    if (!await fillComposer(driver, childPrompt)) return fail('忙碌时输入栏写不进下一条')
     if (!await sendComposer(driver)) return fail('忙碌时第二条没发出去')
     const started = Date.now()
     let child = null
@@ -793,7 +793,7 @@ export async function runCodingDshMultitask(driver, options = {}) {
         if (!await openConversation(driver, parent.title)) return fail('重开主回合后父会话不再是当前会话')
         await clearBlockingOverlays(driver)
         if (!await ensureDshMultitaskOn(driver)) return fail('重开主回合后并行没开')
-        if (!await fillComposer(driver, childPrompt)) return fail('重试时作曲栏写不进下一条')
+        if (!await fillComposer(driver, childPrompt)) return fail('重试时输入栏写不进下一条')
         if (!await sendComposer(driver)) return fail('重试时第二条没发出去')
         const retryStarted = Date.now()
         while (Date.now() - retryStarted < 20_000) {
@@ -965,9 +965,9 @@ export async function runComposerModel(driver) {
   await clearBlockingOverlays(driver)
   await clickLabeled(driver, ['新会话', 'New chat']).catch(() => false)
   await delay(250)
-  if (!await clearBlockingOverlays(driver)) return fail('命令面板还挡着作曲栏')
+  if (!await clearBlockingOverlays(driver)) return fail('命令面板还挡着输入栏')
   if (!await clickAria(driver, ['选择本任务模型', 'Choose a model for this task'], '.chat-composer')) {
-    return fail('点不到作曲栏模型芯片')
+    return fail('点不到输入栏模型芯片')
   }
   await delay(250)
   return expectLabels(
@@ -985,7 +985,7 @@ export async function runComposerRuntime(driver) {
   await delay(250)
   if (!await clearBlockingOverlays(driver)) return fail('命令面板还挡着模型菜单')
   if (!await clickAria(driver, ['选择本任务模型', 'Choose a model for this task'], '.chat-composer')) {
-    return fail('点不到作曲栏模型芯片')
+    return fail('点不到输入栏模型芯片')
   }
   const menu = await waitFor(async () => {
     const snap = await pageSnapshot(driver)
@@ -1027,7 +1027,7 @@ export async function runComposerGit(driver) {
       driver,
       ['创建分支', 'Create Branch', '搜索分支', 'Search branches'],
       'Git 芯片能打开分支菜单',
-      '打不开作曲栏 Git',
+      '打不开输入栏 Git',
     )
   } finally {
     await releaseProductLoopWorkspace(driver, conversation, workspace)
@@ -1041,7 +1041,7 @@ export async function runComposerPlus(driver) {
   await delay(250)
   await dismissOverlays(driver)
   const openedPlus = await waitFor(() => pageCallComposerPlus(driver), 4_000)
-  if (!openedPlus) return fail('点不到作曲栏加号')
+  if (!openedPlus) return fail('点不到输入栏加号')
   const menu = await waitFor(async () => {
     const snap = await pageSnapshot(driver)
     return snapshotHas(snap, ['本机文件或图片', 'Local files or images', '并行', 'Multitask', '目标', 'Goal'])
@@ -1049,8 +1049,8 @@ export async function runComposerPlus(driver) {
       : null
   }, 2_500)
   return menu
-    ? pass('作曲栏加号菜单打开了')
-    : fail('作曲栏加号菜单没打开')
+    ? pass('输入栏加号菜单打开了')
+    : fail('输入栏加号菜单没打开')
 }
 
 async function pageCallComposerPlus(driver) {

@@ -107,7 +107,7 @@ npm run test:product-loop -- --gui --suite first-use
 1. 设置 → 模型 → 模型服务 → 新增自定义中转站。
 2. 填 API 端点、名字、模型；Key 打进密码框（`type=password`）。
 3. 启用。改完即存。
-4. 作曲栏能选到这些模型。
+4. 输入栏能选到这些模型。
 
 **必须看见：** 该行「已启用」；模型列表在；端点若是官方 TokenFlux 则是 `https://tokenflux.dev/v1`。
 
@@ -130,7 +130,7 @@ npm run test:product-loop -- --gui --suite first-use
 **ID：** `login-skip-local`
 
 1. 点「暂不登录，使用自己的 API Key」。
-2. 登录门消失，进到主页（Coding 作曲栏）。
+2. 登录门消失，进到主页（Coding 输入栏）。
 3. 账户不是 `active`。设置仍打得开。中转站仍可用（或再走一遍 2.1 已存核对）。
 
 **算 FAIL：** 仍停在登录页；被当成已登录账户；还没配中转站就去发对话。
