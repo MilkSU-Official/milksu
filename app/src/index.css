@@ -1144,7 +1144,7 @@ html.companion-surface #app {
 }
 
 :root[data-theme='light'] .companion-phone-screen {
-  background: #f4f6f8;
+  background: #f8f8fa;
 }
 
 .companion-phone .companion-chat {
@@ -1206,7 +1206,7 @@ html.companion-chat-surface #app {
 }
 
 :root[data-theme='light'] .companion-chat {
-  --companion-page: #f4f6f8;
+  --companion-page: #f8f8fa;
   --companion-bubble-incoming: #e9e9eb;
   --companion-bubble-incoming-fg: #000000;
   --companion-bubble-outgoing: #44b4fc;
