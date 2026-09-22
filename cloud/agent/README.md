@@ -15,6 +15,7 @@
 cd cloud/agent
 npm install
 npm test
+npm run generate   # buf generate → gen/{es,swift,kotlin}; needs network
 # npm run dev   # 需要 wrangler 登录与绑定
 ```
 
@@ -22,7 +23,7 @@ npm test
 
 - 解开 `wrangler.toml` 里 containers / Durable Object / migrations（官方 Sandbox 形状已写好）
 - D1 / R2 / `CREDENTIAL_KEK`
-- `buf generate`（`buf.yaml` + `buf.gen.yaml`）出 TS / Swift / Kotlin 客户端
+- CI 里跑 `npm run generate` 并把生成客户端接到桌面 / iOS / Android（手搓 Connect-JSON 仍可用）
 - 镜像内钉版 Pi + DSH 闭包（`scripts/cloud-sandbox-bundle.sh`）+ 真 harness 替换 `turn-runner.mjs`
 
 SendTurn：无 `Sandbox` 绑定时走内存 stub（chunked Subscribe 事件）；有绑定时

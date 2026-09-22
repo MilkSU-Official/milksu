@@ -8,7 +8,8 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
-    "test": "node --test src/*.test.js src/*.test.cjs"
+    "test": "node --test src/*.test.js src/*.test.cjs",
+    "generate": "buf generate"
   },
   "dependencies": {
     "@bufbuild/protobuf": "^2.2.3",

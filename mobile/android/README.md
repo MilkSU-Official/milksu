@@ -5,16 +5,16 @@ Cloud Coding client for MilkSU accounts.
 ## Layout
 
 - `app/src/main/java/org/milksu/app/MilkSUApp.kt` — Connect-JSON unary + Subscribe envelope client.
-- `AccountAuth.kt` — PKCE + Chrome Custom Tabs.
+- `AccountAuth.kt` — PKCE + Chrome Custom Tabs + EncryptedSharedPreferences.
 - `MainActivity.kt` — Sign-in, session list, chat with Subscribe reconnect loop.
 - `AndroidManifest.xml` — `INTERNET` + `milksu://auth/callback` intent-filter.
-- Prefer Connect-Kotlin stubs from `cloud/agent/proto/cloud_session.proto` when buf generate is available.
+- Prefer Connect-Kotlin stubs from `cloud/agent/proto` when `npm run generate` lands in CI.
 
 ## Auth
 
 - Callback: `milksu://auth/callback` (same as desktop `AccountSession`)
-- Keep the access token in SharedPreferences for the skeleton; EncryptedSharedPreferences / Keystore before store release.
-- Never log the access token.
+- Access token in `EncryptedSharedPreferences` (AES256-GCM); never log it.
+- One-shot migrate from the earlier plaintext `milksu.account` prefs.
 
 ## First vertical slice
 
@@ -25,4 +25,4 @@ Cloud Coding client for MilkSU accounts.
 
 ## Build
 
-Gradle skeleton: root `settings.gradle.kts` + `app/build.gradle.kts` (Compose Material3). Open `mobile/android` in Android Studio to sync.
+Gradle skeleton: root `settings.gradle.kts` + `app/build.gradle.kts` (Compose Material3 + security-crypto). Open `mobile/android` in Android Studio to sync.

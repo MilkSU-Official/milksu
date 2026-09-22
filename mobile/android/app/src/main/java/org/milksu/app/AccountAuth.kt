@@ -1,9 +1,12 @@
 package org.milksu.app
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.net.Uri
 import android.util.Base64
 import androidx.browser.customtabs.CustomTabsIntent
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
 import java.security.MessageDigest
 import java.security.SecureRandom
 import org.json.JSONObject
@@ -13,9 +16,10 @@ import java.net.URI
 /**
  * MilkSU account PKCE (same wire as desktop AccountSession → accounts.milksu.org).
  * Uses Chrome Custom Tabs for the authorize step; the app handles milksu://auth/callback.
+ * Access token lives in EncryptedSharedPreferences (AES256-GCM), never logged.
  */
 class MilkSUAccountAuth(private val context: Context) {
-  private val prefs = context.getSharedPreferences("milksu.account", Context.MODE_PRIVATE)
+  private val prefs: SharedPreferences by lazy { securePrefs() }
   private val apiBase = MilkSUApp.ACCOUNT_API.trimEnd('/')
   private val redirectUri = "milksu://auth/callback"
 
@@ -67,6 +71,27 @@ class MilkSUAccountAuth(private val context: Context) {
     } catch (_: Exception) {
       null
     }
+  }
+
+  private fun securePrefs(): SharedPreferences {
+    val masterKey = MasterKey.Builder(context)
+      .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+      .build()
+    val encrypted = EncryptedSharedPreferences.create(
+      context,
+      "milksu.account.secure",
+      masterKey,
+      EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+      EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+    )
+    // One-shot migrate from the earlier plaintext SharedPreferences skeleton.
+    val legacy = context.getSharedPreferences("milksu.account", Context.MODE_PRIVATE)
+    val legacyToken = legacy.getString("accessToken", null)
+    if (!legacyToken.isNullOrBlank() && encrypted.getString("accessToken", null).isNullOrBlank()) {
+      encrypted.edit().putString("accessToken", legacyToken).apply()
+      legacy.edit().clear().apply()
+    }
+    return encrypted
   }
 
   private fun postJson(url: String, body: JSONObject, bearer: String?): JSONObject {

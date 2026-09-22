@@ -14,6 +14,17 @@ test('proto declares CloudSessionService and desktop-aligned event comment', () 
   assert.match(proto, /UpsertCredential/)
 })
 
+test('buf.gen.yaml pins Connect remote plugins for es/swift/kotlin', () => {
+  const gen = readFileSync(join(root, 'buf.gen.yaml'), 'utf8')
+  assert.match(gen, /buf\.build\/bufbuild\/es/)
+  assert.match(gen, /buf\.build\/connectrpc\/es/)
+  assert.match(gen, /buf\.build\/connectrpc\/swift/)
+  assert.match(gen, /buf\.build\/connectrpc\/kotlin/)
+  assert.match(gen, /gen\/es/)
+  assert.match(gen, /gen\/swift/)
+  assert.match(gen, /gen\/kotlin/)
+})
+
 test('worker source keeps health and Connect path prefix', () => {
   const src = readFileSync(join(root, 'src/worker.ts'), 'utf8')
   assert.match(src, /\/health/)
