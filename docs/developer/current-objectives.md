@@ -81,7 +81,7 @@
 | 未接线 | 同一作业 vs 新业务 | 当前 CVE/实验室复用同一会话和 `report.md`。 |
 | 未接线 | CTF 比赛模式 | 对着一场比赛打，不走练习题库。尚未设计准入。 |
 | 未接线 | 实验室红队模式 | 另开学习面，不是对外红队。尚未设计准入。 |
-| P1 | 云 Agent | CF Sandbox；Pi+DSH；Connect；原生 iOS/Android 并行；左下本地/云切换（先复制成功再删源的换宿主）；消耗只展示（models.dev 估算文案；云=模型+沙箱；本地全记仅模型；额度后置）。见 [云 Agent](cloud-agent.md) / [#153](https://github.com/MilkSU-Official/milksu/issues/153)。 |
+| P1 | 云 Agent | CF Sandbox；Pi+DSH；Connect；原生 iOS/Android 并行；左下本地/云切换（先复制成功再删源）；消耗只展示（models.dev 估算文案；云=模型+沙箱；本地全记仅模型；额度后置）；**云端允许自带 Key/中转（仅服务端持有）**。见 [云 Agent](cloud-agent.md) / [#153](https://github.com/MilkSU-Official/milksu/issues/153)。 |
 | 未接线 | 远程控制 App | 手机连本机执行，不是云 Agent（二阶段）。准入与决策见 [远程控制](remote-control.md)。跟踪 [#131](https://github.com/MilkSU-Official/milksu/issues/131)。尚未实现。 |
 
 CVE：点进档案复现，Agent 改 `report.md`。实验室：独立入口，练习包起本机 Docker / AVD 或用户给地址，活报告 + 对话小窗。环境契约见 [靶机、环境经纪与活靶面](/architecture/target-environments)。
