@@ -6,7 +6,7 @@ import {
 import { existsSync } from "node:fs";
 import { createInterface } from "node:readline";
 import { basename, dirname, join, resolve } from "node:path";
-import { readFile, rm, unlink } from "node:fs/promises";
+import { readFile, rm, unlink, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { Type } from "typebox";
 import {
@@ -179,6 +179,7 @@ import {
   projectAssistantUsage,
   projectToolModelUsage,
 } from "./bridge-usage-view.js";
+import { withNoProviderRetry } from "./bridge-provider-retry.js";
 import { projectSessionContextComposition } from "./bridge-context-composition.js";
 import { withTokenFluxModelCompat } from "./tokenflux-model-compat.js";
 
@@ -1722,6 +1723,19 @@ function configureSubagentRuntime(cwd, collaboration) {
   process.env.MILKSU_PI_SUBAGENT_BUNDLED_ONLY = "1";
 }
 
+// 限流（429）不要自动重试：pi-ai 默认重试 3 次 ⇒ 同一轮连打 3~4 次、越打越被限流（真事）。
+async function ensureNoProviderRetry(agentDir) {
+  try {
+    const file = join(String(agentDir ?? ""), "settings.json");
+    if (!file) return;
+    let current = "";
+    try { current = await readFile(file, "utf8"); } catch { current = ""; }
+    const next = withNoProviderRetry(current);
+    if (next === null) return;
+    await writeFile(file, next, { mode: 0o600 });
+  } catch { /* 补不上也不能拦住会话 */ }
+}
+
 async function createSession(command) {
   const conversationId = command.conversationId;
   if (!conversationId) throw new Error("conversationId is required");
@@ -1778,6 +1792,7 @@ async function createSession(command) {
     resolveProjectTrust: async () => false,
   });
 
+  await ensureNoProviderRetry(agentDir);
   try {
     ({ session } = await createAgentSession({
       cwd,
