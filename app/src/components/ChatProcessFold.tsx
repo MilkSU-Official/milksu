@@ -1,18 +1,19 @@
 import { useMemo } from 'react'
 import ChatActivityGroup from '@/components/ChatActivityGroup'
 import ChatMessageItem from '@/components/ChatMessageItem'
+import ChatWorkFold from '@/components/ChatWorkFold'
 import {
   isThinkingOnlyAssistant,
   mergeProcessThinking,
-  processFoldSummary,
   type ChatProcessFoldBlock,
   type ChatTurnBlock,
 } from '@/lib/chatActivity'
-import { useT } from '@/hooks/useUiLocale'
+import type { ChatFoldModel } from '@/lib/chatWorkStatus'
 import type { SubagentTask } from '@/types'
 
 export default function ChatProcessFold({
   process,
+  model,
   recoverableFailureId,
   recoveryContext,
   rewindableUserMessageId,
@@ -30,6 +31,7 @@ export default function ChatProcessFold({
   onBranchAssistant,
 }: {
   process: ChatProcessFoldBlock
+  model: ChatFoldModel
   recoverableFailureId?: string | null
   recoveryContext?: 'ctf' | 'coding'
   rewindableUserMessageId?: string
@@ -47,8 +49,6 @@ export default function ChatProcessFold({
   onRewindContext?: () => void
   onBranchAssistant?: (messageId: string) => void
 }) {
-  const t = useT()
-  const foldSummary = useMemo(() => processFoldSummary(process.blocks), [process.blocks])
   const foldedThinking = useMemo(() => mergeProcessThinking(process.blocks), [process.blocks])
   const visibleBlocks = useMemo(() => (
     process.blocks.filter((block): block is ChatTurnBlock => (
@@ -58,12 +58,7 @@ export default function ChatProcessFold({
   ), [process.blocks])
 
   return (
-    <details className="agent-process mb-7">
-      <summary className="agent-process__summary">
-        <span>{t('过程', 'Process')}</span>
-        {foldSummary ? <span className="agent-process__count">{foldSummary}</span> : null}
-      </summary>
-      <div className="agent-process__body">
+    <ChatWorkFold model={model}>
         {foldedThinking ? (
           <ChatMessageItem
             message={foldedThinking}
@@ -99,7 +94,6 @@ export default function ChatProcessFold({
             />
           )
         ))}
-      </div>
-    </details>
+    </ChatWorkFold>
   )
 }
