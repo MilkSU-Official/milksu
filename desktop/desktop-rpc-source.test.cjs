@@ -63,6 +63,8 @@ test('Electron-owned renderer methods remain handled before Go dispatch', () => 
     'StartAccountLogin',
     'LogoutAccount',
     'CloudAgentInvoke',
+    'CloudAgentSubscribe',
+    'CloudAgentUnsubscribe',
     'GetUpdateStatus',
     'CheckForUpdates',
     'DownloadUpdate',

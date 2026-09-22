@@ -1268,6 +1268,7 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
   const activeTurnPolicies = new Set<string>()
   const titleGenerationAttemptedIds = new Set<string>()
   let disposeEvents: (() => void) | undefined
+  let disposeCloudEvents: (() => void) | undefined
   let disposeConversationList: (() => void) | undefined
   let unknownSessionReloadAt = 0
 
@@ -1531,6 +1532,9 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
         text: dispatch.prompt,
         attachmentIds: (dispatch.attachments ?? []).map(item => item.id),
       })
+      await invokeCommand('cloud_agent_subscribe', {
+        sessionId: cloudSessionId,
+      }).catch(() => undefined)
       return
     }
     await invokeCommand('send_message', {
@@ -3008,8 +3012,73 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
   async function listen() {
     disposeConversationList?.()
     disposeEvents?.()
+    disposeCloudEvents?.()
     disposeConversationList = await listenEvent('conversations-changed', () => {
       void load()
+    })
+    disposeCloudEvents = await listenEvent<{
+      sessionId?: string
+      event?: {
+        type?: string
+        json_payload?: string
+      }
+      error?: string
+    }>('cloud-agent-event', envelope => {
+      const sessionId = String(envelope.payload?.sessionId ?? '').trim()
+      if (!sessionId) return
+      const conversation = s.conversations.find(item => item.cloudSessionId === sessionId)
+      if (!conversation) return
+      if (envelope.payload?.error) {
+        finishRun(conversation.id)
+        update(conversation.id, current => ({
+          ...current,
+          messages: [...current.messages, {
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: String(envelope.payload.error),
+            timestamp: Date.now(),
+            status: 'done',
+          }],
+        }))
+        return
+      }
+      const event = envelope.payload?.event
+      const type = String(event?.type ?? '')
+      let text = ''
+      try {
+        const parsed = JSON.parse(String(event?.json_payload ?? '{}')) as { text?: string }
+        text = typeof parsed.text === 'string' ? parsed.text : ''
+      } catch {
+        text = ''
+      }
+      if (type === 'assistant.delta' && text) {
+        update(conversation.id, current => {
+          const messages = [...current.messages]
+          const last = messages.at(-1)
+          if (last?.role === 'assistant' && last.status === 'running') {
+            messages[messages.length - 1] = { ...last, content: last.content + text }
+          } else {
+            messages.push({
+              id: crypto.randomUUID(),
+              role: 'assistant',
+              content: text,
+              timestamp: Date.now(),
+              status: 'running',
+            })
+          }
+          return { ...current, messages }
+        })
+      } else if (type === 'assistant.settled' || type === 'assistant.completed') {
+        finishRun(conversation.id)
+        update(conversation.id, current => {
+          const messages = [...current.messages]
+          const last = messages.at(-1)
+          if (last?.role === 'assistant' && last.status === 'running') {
+            messages[messages.length - 1] = { ...last, status: 'done' }
+          }
+          return { ...current, messages }
+        })
+      }
     })
     disposeEvents = await listenEvent<AgentEvent>('engine-event', event => {
       const {
@@ -3623,6 +3692,8 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
     stopWatchActiveId()
     disposeEvents?.()
     disposeEvents = undefined
+    disposeCloudEvents?.()
+    disposeCloudEvents = undefined
     disposeConversationList?.()
     disposeConversationList = undefined
     activeTurnPolicies.clear()

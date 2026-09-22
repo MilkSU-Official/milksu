@@ -58,6 +58,9 @@ const {
   CloudAgentClient,
   defaultCloudAgentBaseUrl,
 } = require('./cloud-agent-client.cjs')
+
+/** sessionId -> AbortController for Connect Subscribe streams. */
+const cloudSubscribeControllers = new Map()
 const {
   attachBrowserView,
   detachBrowserView,
@@ -1055,6 +1058,53 @@ ipcMain.handle('milksu:invoke', async (event, request) => {
       getAccessToken: async () => token,
     })
     return client.call(rpcMethod, body)
+  }
+  if (method === 'CloudAgentSubscribe') {
+    if (!accountSession) throw new Error('内测账户尚未就绪')
+    const payload = Array.isArray(request?.args) ? request.args[0] : request?.args
+    const sessionId = String(payload?.sessionId ?? '').trim()
+    if (!sessionId) throw new Error('sessionId required')
+    const token = await accountSession.activeAccessToken()
+    if (!token) throw new Error('请先登录 MilkSU 账户')
+    const previous = cloudSubscribeControllers.get(sessionId)
+    if (previous) previous.abort()
+    const controller = new AbortController()
+    cloudSubscribeControllers.set(sessionId, controller)
+    const client = new CloudAgentClient({
+      baseUrl: defaultCloudAgentBaseUrl(),
+      getAccessToken: async () => token,
+    })
+    void client.subscribe(sessionId, {
+      afterEventId: String(payload?.afterEventId ?? ''),
+      signal: controller.signal,
+      onEvent: event => {
+        emitRendererEvent('cloud-agent-event', {
+          sessionId,
+          event,
+        })
+      },
+    }).catch(error => {
+      if (controller.signal.aborted) return
+      emitRendererEvent('cloud-agent-event', {
+        sessionId,
+        error: String(error?.message || error || 'Subscribe failed'),
+      })
+    }).finally(() => {
+      if (cloudSubscribeControllers.get(sessionId) === controller) {
+        cloudSubscribeControllers.delete(sessionId)
+      }
+    })
+    return { ok: true, sessionId }
+  }
+  if (method === 'CloudAgentUnsubscribe') {
+    const payload = Array.isArray(request?.args) ? request.args[0] : request?.args
+    const sessionId = String(payload?.sessionId ?? '').trim()
+    const controller = cloudSubscribeControllers.get(sessionId)
+    if (controller) {
+      controller.abort()
+      cloudSubscribeControllers.delete(sessionId)
+    }
+    return { ok: true }
   }
   if (method === 'GetUpdateStatus') {
     return updateManager?.view() ?? {

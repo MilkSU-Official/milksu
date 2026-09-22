@@ -35,10 +35,57 @@ type SessionRow = {
   updated_at_ms: number
   transcript_json: string
   owner_token_hash: string
+  events: SessionEventRow[]
+}
+
+type SessionEventRow = {
+  id: string
+  type: string
+  turn_id: string
+  timestamp_ms: number
+  json_payload: string
 }
 
 /** Ephemeral until D1 binding is attached in milksu-admin deploy. */
 const sessions = new Map<string, SessionRow>()
+
+const FLAG_END_STREAM = 0x02
+
+function encodeEnvelope(message: Json, flags = 0): Uint8Array {
+  const payload = new TextEncoder().encode(JSON.stringify(message ?? {}))
+  const out = new Uint8Array(5 + payload.length)
+  out[0] = flags & 0xff
+  const view = new DataView(out.buffer)
+  view.setUint32(1, payload.length, false)
+  out.set(payload, 5)
+  return out
+}
+
+function enqueueEvent(row: SessionRow, type: string, turnId: string, payload: Json) {
+  row.events.push({
+    id: crypto.randomUUID(),
+    type,
+    turn_id: turnId,
+    timestamp_ms: Date.now(),
+    json_payload: JSON.stringify(payload ?? {}),
+  })
+  // Bound memory for long-lived stub sessions.
+  if (row.events.length > 200) {
+    row.events.splice(0, row.events.length - 200)
+  }
+  row.updated_at_ms = Date.now()
+}
+
+function sessionEventWire(row: SessionRow, event: SessionEventRow): Json {
+  return {
+    id: event.id,
+    type: event.type,
+    session_id: row.id,
+    turn_id: event.turn_id,
+    timestamp_ms: event.timestamp_ms,
+    json_payload: event.json_payload,
+  }
+}
 
 function json(data: Json, status = 200): Response {
   return new Response(JSON.stringify(data), {
@@ -143,6 +190,7 @@ export default {
           updated_at_ms: now,
           transcript_json: '[]',
           owner_token_hash: tokenHash,
+          events: [],
         }
         sessions.set(row.id, row)
         return json(publicSession(row))
@@ -165,6 +213,7 @@ export default {
       }
       case 'SendTurn': {
         const sessionId = String(body.session_id || '').trim()
+        const text = String(body.text || '')
         if (!sessionId) {
           return json({ code: 'invalid_argument', message: 'session_id required' }, 400)
         }
@@ -172,6 +221,7 @@ export default {
         if (!row || row.owner_token_hash !== tokenHash) {
           return json({ code: 'not_found', message: 'Session not found' }, 404)
         }
+        const turnId = crypto.randomUUID()
         // Mature CF Sandbox path when Durable Object binding is present
         // (https://developers.cloudflare.com/sandbox/get-started/).
         if (env.Sandbox) {
@@ -179,10 +229,14 @@ export default {
             const { getSandbox } = await import('@cloudflare/sandbox')
             const sandbox = getSandbox(env.Sandbox, `sess-${sessionId}`)
             await sandbox.exec('true')
-            const turnId = crypto.randomUUID()
             row.status = 'running'
             row.updated_at_ms = Date.now()
             sessions.set(sessionId, row)
+            enqueueEvent(row, 'assistant.delta', turnId, {
+              text: 'Sandbox ready; Pi/DSH bridge not yet attached in this deploy.',
+            })
+            enqueueEvent(row, 'assistant.settled', turnId, {})
+            row.status = 'ready'
             return json({ turn_id: turnId })
           } catch (error) {
             return json({
@@ -191,18 +245,72 @@ export default {
             }, 503)
           }
         }
-        return json({
-          code: 'failed_precondition',
-          message: 'Sandbox binding not configured in this environment',
-        }, 400)
+        // Stub path: still accept the turn so Connect + desktop Subscribe can be
+        // exercised before milksu-admin wires Sandbox. Message is user-visible.
+        enqueueEvent(row, 'assistant.delta', turnId, {
+          text: text.trim()
+            ? '云沙箱尚未绑定：已收到你的消息，部署 Sandbox 后会在这里跑 Pi/DSH。 / Cloud sandbox is not bound yet; your message was accepted.'
+            : '云沙箱尚未绑定。 / Cloud sandbox is not bound yet.',
+        })
+        enqueueEvent(row, 'assistant.settled', turnId, {})
+        row.status = 'ready'
+        row.updated_at_ms = Date.now()
+        sessions.set(sessionId, row)
+        return json({ turn_id: turnId })
       }
-      case 'Subscribe':
-        // Connect streaming requires application/connect+json framing; return
-        // a clear unary error until generated Connect router is plugged in.
-        return json({
-          code: 'unimplemented',
-          message: 'Subscribe streaming requires generated Connect router + Sandbox',
-        }, 501)
+      case 'Subscribe': {
+        const sessionId = String(body.session_id || '').trim()
+        const row = sessions.get(sessionId)
+        if (!row || row.owner_token_hash !== tokenHash) {
+          return json({ code: 'not_found', message: 'Session not found' }, 404)
+        }
+        let cursor = 0
+        const after = String(body.after_event_id || '').trim()
+        if (after) {
+          const idx = row.events.findIndex(event => event.id === after)
+          cursor = idx >= 0 ? idx + 1 : 0
+        }
+        const stream = new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(encodeEnvelope({
+              id: crypto.randomUUID(),
+              type: 'session.snapshot',
+              session_id: row.id,
+              turn_id: '',
+              timestamp_ms: Date.now(),
+              json_payload: JSON.stringify(publicSession(row)),
+            }))
+          },
+          pull(controller) {
+            while (cursor < row.events.length) {
+              const event = row.events[cursor]
+              cursor += 1
+              controller.enqueue(encodeEnvelope(sessionEventWire(row, event)))
+            }
+            // Keep the stream open briefly so late SendTurn events can arrive,
+            // then end with Connect EndStreamResponse.
+            return new Promise(resolve => {
+              setTimeout(() => {
+                while (cursor < row.events.length) {
+                  const event = row.events[cursor]
+                  cursor += 1
+                  controller.enqueue(encodeEnvelope(sessionEventWire(row, event)))
+                }
+                controller.enqueue(encodeEnvelope({}, FLAG_END_STREAM))
+                controller.close()
+                resolve()
+              }, 50)
+            })
+          },
+        })
+        return new Response(stream, {
+          status: 200,
+          headers: {
+            'content-type': 'application/connect+json',
+            'connect-protocol-version': '1',
+          },
+        })
+      }
       case 'MigrateCopy': {
         const now = Date.now()
         const row: SessionRow = {
@@ -215,6 +323,7 @@ export default {
           updated_at_ms: now,
           transcript_json: String(body.transcript_json || '[]'),
           owner_token_hash: tokenHash,
+          events: [],
         }
         sessions.set(row.id, row)
         return json({

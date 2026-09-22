@@ -194,6 +194,8 @@ interface DesktopAppBindings {
   LogoutAccount(): Promise<AccountStatus>
   /** Electron-main Connect proxy; Bearer never reaches the renderer. */
   CloudAgentInvoke(request: { method: string; body?: unknown }): Promise<unknown>
+  CloudAgentSubscribe(request: { sessionId: string; afterEventId?: string }): Promise<{ ok: boolean; sessionId: string }>
+  CloudAgentUnsubscribe(request: { sessionId: string }): Promise<{ ok: boolean }>
   GetUpdateStatus(): Promise<UpdateStatus>
   CheckForUpdates(): Promise<UpdateStatus>
   DownloadUpdate(): Promise<UpdateStatus>
@@ -673,6 +675,15 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.CloudAgentInvoke({
           method: String(args?.method ?? ''),
           body: args?.body,
+        }) as Promise<T>
+      case 'cloud_agent_subscribe':
+        return app.CloudAgentSubscribe({
+          sessionId: String(args?.sessionId ?? ''),
+          afterEventId: String(args?.afterEventId ?? ''),
+        }) as Promise<T>
+      case 'cloud_agent_unsubscribe':
+        return app.CloudAgentUnsubscribe({
+          sessionId: String(args?.sessionId ?? ''),
         }) as Promise<T>
       case 'get_update_status':
         return app.GetUpdateStatus() as Promise<T>
