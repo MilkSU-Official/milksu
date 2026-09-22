@@ -53,6 +53,8 @@ import { invokeCommand, listenEvent } from '@/desktop'
 import { toastError } from '@/lib/appToast'
 import { isAskMessage } from '@/lib/agentAsk'
 import { nextChatAutoScrollPinned } from '@/lib/chatAutoScroll'
+import { syncChatEdgeFade } from '@/lib/chatEdgeFade'
+import { readHostPlatform } from '@/lib/hostPlatform'
 import { assessApprovalRequest } from '@/lib/destructiveTarget'
 import { isGeneratedScratchWorkspace } from '@/lib/codingConversationGroups'
 import AgentPixelLoader from '@/components/AgentPixelLoader'
@@ -60,6 +62,7 @@ import AkLoadingMark from '@/components/AkLoadingMark'
 import ChatActivityGroup from '@/components/ChatActivityGroup'
 import ChatProcessFold from '@/components/ChatProcessFold'
 import ChatComposer, { type ChatComposerHandle } from '@/components/ChatComposer'
+import { ChatEdgeFade } from '@/components/ChatEdgeFade'
 import { ConversationQuoteMenu, selectedTextIn } from '@/components/ConversationQuoteMenu'
 import WorkingTray from '@/components/WorkingTray'
 import ChatMessageItem from '@/components/ChatMessageItem'
@@ -2092,6 +2095,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
       element.scrollTop = beforeTop + Math.max(0, element.scrollHeight - beforeHeight)
     }
     lastChatScrollTop.current = element.scrollTop
+    syncChatEdgeFade(element)
   }
 
   const scheduleTranscriptRefill = useCallback((delay = 64) => {
@@ -2143,6 +2147,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
       element.scrollHeight,
     )
     lastChatScrollTop.current = element.scrollTop
+    syncChatEdgeFade(element)
   }
 
   async function scrollChatToBottom(force = false) {
@@ -2153,11 +2158,13 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     if (!element) return
     element.scrollTop = element.scrollHeight
     lastChatScrollTop.current = element.scrollTop
+    syncChatEdgeFade(element)
     await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
     if (!force && !chatAutoScrollPinned.current) return
     if (scrollArea.current) {
       scrollArea.current.scrollTop = scrollArea.current.scrollHeight
       lastChatScrollTop.current = scrollArea.current.scrollTop
+      syncChatEdgeFade(scrollArea.current)
     }
   }
 
@@ -2197,6 +2204,18 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     pendingTranscriptRestore.current = null
     restoreTranscriptScroll(pending.height, pending.top)
   }, [mountedTranscriptBlocks, visibleTranscript.length])
+
+  useLayoutEffect(() => {
+    const element = scrollArea.current
+    if (!element || emptyCanvas) return undefined
+    const sync = () => syncChatEdgeFade(element)
+    sync()
+    if (typeof ResizeObserver === 'undefined') return undefined
+    const observer = new ResizeObserver(sync)
+    observer.observe(element)
+    for (const child of element.children) observer.observe(child)
+    return () => observer.disconnect()
+  }, [emptyCanvas, visibleTranscript.length, pendingApprovalMessage])
 
   useEffect(() => {
     void refreshUserSkills()
@@ -2513,9 +2532,14 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
             )}
           >
           {!emptyCanvas ? (
+          <div className="chat-scroll-frame relative min-h-0 min-w-0 flex-1">
           <div
             ref={scrollArea}
-            className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto"
+            className={cn(
+              'chat-edge-scroll absolute inset-0 overflow-x-hidden overflow-y-auto fade-bottom fade-size-y-sm fade-travel-sm',
+              !pendingApprovalMessage && 'fade-top',
+              (readHostPlatform() === 'win32' || readHostPlatform() === 'linux') && 'fade-scrollbar-safe-y',
+            )}
             onScroll={handleChatScroll}
           >
             {engineNotice ? (
@@ -2648,6 +2672,8 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
                   </p>
                 ) : null}
               </div>
+          </div>
+          <ChatEdgeFade showTop={!pendingApprovalMessage} />
           </div>
           ) : (
             <div className="flex w-full flex-col items-center px-8">

@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "tw-fade";
 @custom-variant dark (&:where(.dark, .dark *));
 @import "./styles/agent-conversation.css";
 @source ".";

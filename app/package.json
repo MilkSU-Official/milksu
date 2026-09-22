@@ -44,7 +44,8 @@
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-progressive-blur": "^1.0.6",
-    "tailwind-merge": "^3.7.0"
+    "tailwind-merge": "^3.7.0",
+    "tw-fade": "^0.8.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.1",
