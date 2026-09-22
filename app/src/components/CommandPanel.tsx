@@ -106,7 +106,7 @@ export default function CommandPanel({
             ref={input}
             value={query}
             onChange={event => setQuery(event.target.value)}
-            className="h-10 w-full border-0 bg-transparent text-[15px] outline-none placeholder:text-muted-foreground"
+            className="h-10 w-full border-0 bg-transparent text-label outline-none placeholder:text-muted-foreground"
             placeholder={t('搜索会话、设置、命令', 'Search chats, settings, commands')}
             aria-label={t('搜索', 'Search')}
             onKeyDown={event => {
@@ -163,7 +163,7 @@ export default function CommandPanel({
                   <button
                     key={`${item.kind}:${item.kind === 'settings' ? item.category : item.id}`}
                     type="button"
-                    className={`flex h-8 w-full items-center gap-2.5 rounded-[8px] px-2.5 text-left text-sm ${index === activeIndex ? 'bg-accent' : ''}`}
+                    className={`flex h-8 w-full items-center gap-2.5 rounded-[8px] px-2.5 text-left text-label ${index === activeIndex ? 'bg-accent' : ''}`}
                     onMouseEnter={() => setActiveIndex(index)}
                     onClick={() => choose(item)}
                   >
@@ -195,7 +195,7 @@ export default function CommandPanel({
             </section>
           ))}
           {query.trim() && !items.length ? (
-            <p className="px-4 py-6 text-sm text-muted-foreground">{t('没有匹配的会话', 'No matching chats')}</p>
+            <p className="px-4 py-6 text-label text-muted-foreground">{t('没有匹配的会话', 'No matching chats')}</p>
           ) : null}
         </div>
         <div className="flex items-center gap-4 border-t border-border px-3 py-2 text-caption text-muted-foreground">

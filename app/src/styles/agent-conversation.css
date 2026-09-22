@@ -35,8 +35,8 @@
 }
 
 :root[data-theme='light'] [data-agent-conversation] {
-  --agent-code-surface: #fcfcfc;
-  --agent-code-inset: #f3f3f3;
+  --agent-code-surface: #f4f6f8;
+  --agent-code-inset: #e8eaed;
   --agent-code-kw: #2f6fec;
   --agent-code-str: #1f7a4d;
   --agent-code-num: #a35b10;
@@ -1048,11 +1048,8 @@
   overflow-y: auto;
   border: 1px solid var(--border);
   border-radius: 12px;
-  background: var(--surface-overlay);
   box-shadow: var(--agent-float-shadow);
   padding: 0.25rem;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
 }
 
 [data-agent-conversation] .agent-working__panel-head {
@@ -1206,7 +1203,6 @@
   grid-template-rows: none;
   border: 0;
   border-radius: 12px;
-  background: var(--card);
   box-shadow: none;
   padding: 0;
 }
@@ -1590,8 +1586,9 @@
 
 [data-agent-conversation] .chat-composer__island {
   border: 0;
-  border-radius: var(--agent-island-radius);
-  background: var(--surface-raised);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
@@ -1732,23 +1729,63 @@
 }
 
 /*
- * Transcript edges. tw-fade masks the scroller so glyphs dissolve instead of
- * clipping. These bands are the same MIT react-progressive-blur stack as the
- * phone chrome, and only turn on once that edge actually has overflow.
+ * Transcript scrolls under the top bar and the composer dock. The dock's blank
+ * margin does not clip glyphs; MIT react-progressive-blur frosts that band.
+ * The composer island stays an opaque card so its own labels stay readable.
  * Do not clip-path the blur: Chromium samples an empty backdrop.
  */
-.chat-scroll-frame {
-  --chat-edge-top: 0;
-  --chat-edge-bottom: 0;
-  --chat-edge-fade: 2rem;
+.chat-column {
+  --chat-edge-top: 0px;
+  --chat-edge-bottom: 0px;
+  --chat-edge-feather: 28px;
+}
+
+.chat-column__top {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 4;
+  background: transparent;
+  pointer-events: none;
+}
+
+.chat-column__top > * {
+  pointer-events: auto;
+}
+
+.chat-column__dock {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 4;
+  background: transparent;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.chat-column__dock .chat-composer__island,
+.chat-column__dock .chat-composer__command-menu,
+.chat-column__dock .chat-composer__queued-guidance,
+.chat-column__dock .agent-status-capsule,
+.chat-column__dock .agent-working__anchor,
+.chat-column__dock .compact-bar {
+  pointer-events: auto;
+}
+
+.chat-column--reading .chat-edge-scroll {
+  padding-top: var(--chat-edge-top);
+  padding-bottom: var(--chat-edge-bottom);
+  scroll-padding-top: var(--chat-edge-top);
+  scroll-padding-bottom: var(--chat-edge-bottom);
 }
 
 .chat-edge-fade {
   position: absolute;
   right: 0;
   left: 0;
-  z-index: 2;
-  height: var(--chat-edge-fade);
+  z-index: 3;
   pointer-events: none;
   background: transparent;
   overflow: visible;
@@ -1756,12 +1793,12 @@
 
 .chat-edge-fade-top {
   top: 0;
-  opacity: var(--chat-edge-top);
+  height: calc(var(--chat-edge-top) + var(--chat-edge-feather));
 }
 
 .chat-edge-fade-bottom {
   bottom: 0;
-  opacity: var(--chat-edge-bottom);
+  height: calc(var(--chat-edge-bottom) + var(--chat-edge-feather));
 }
 
 .chat-edge-fade-progressive {

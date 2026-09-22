@@ -628,7 +628,7 @@ export default function ContextSidebar({
               ) : null}
             </span>
             <span className="flex size-5 shrink-0" aria-hidden="true" />
-            <span className="agent-sidebar__copy ml-1.5 min-w-0 flex-1 truncate text-[14px] font-medium">{conversation.title}</span>
+            <span className={`agent-sidebar__copy ml-1.5 min-w-0 flex-1 truncate text-label ${activeConversationId === conversation.id ? 'font-medium text-foreground' : 'font-normal text-muted-foreground'}`}>{conversation.title}</span>
             {age ? (
               <span className="agent-sidebar-item__age agent-sidebar__copy" aria-hidden="true">{age}</span>
             ) : null}
@@ -677,6 +677,7 @@ export default function ContextSidebar({
         />
       ) : null}
       <div className="agent-sidebar__inner flex min-h-0 shrink-0 flex-col" style={innerStyle}>
+        <div className="agent-sidebar__drag app-drag" aria-hidden="true" />
         <div className="agent-sidebar__head relative mb-2.5 h-10 shrink-0">
           {activeSection === 'settings' ? (
             <button
@@ -687,7 +688,7 @@ export default function ContextSidebar({
               onClick={onCloseSettings}
             >
               <ChevronLeft className="size-4 shrink-0" />
-              <span className="agent-sidebar__copy ml-1.5 min-w-0 flex-1 truncate text-[14px] font-medium">
+              <span className="agent-sidebar__copy ml-1.5 min-w-0 flex-1 truncate text-control font-medium">
                 {t('设置', 'Settings')}
               </span>
             </button>
@@ -716,7 +717,7 @@ export default function ContextSidebar({
                 </span>
               ) : null}
             </span>
-            <span className="agent-sidebar__copy ml-1.5 min-w-0 flex-1 truncate text-[14px] font-medium">
+            <span className="agent-sidebar__copy ml-1.5 min-w-0 flex-1 truncate text-control font-medium">
               {workspaceName}
             </span>
             <ChevronDown className="agent-sidebar__copy ml-1 size-4 shrink-0 text-muted-foreground" />
@@ -766,7 +767,7 @@ export default function ContextSidebar({
                 <span className="flex size-5 shrink-0 items-center justify-center">
                   <Icon className="size-4" />
                 </span>
-                <span className="agent-sidebar__copy ml-1.5 min-w-0 flex-1 truncate text-[14px] font-medium">
+                <span className="agent-sidebar__copy ml-1.5 min-w-0 flex-1 truncate text-control font-medium">
                   {item.label()}
                 </span>
               </button>
@@ -785,7 +786,7 @@ export default function ContextSidebar({
             <span className="flex size-5 shrink-0 items-center justify-center">
               <SquarePen className="size-4" />
             </span>
-            <span className="agent-sidebar__copy ml-1.5 min-w-0 flex-1 truncate text-[14px] font-medium">
+            <span className="agent-sidebar__copy ml-1.5 min-w-0 flex-1 truncate text-control font-medium">
               {t('新会话', 'New chat')}
             </span>
           </button>
@@ -802,7 +803,7 @@ export default function ContextSidebar({
                 <span className="flex size-5 shrink-0 items-center justify-center">
                   <Icon className="size-4" />
                 </span>
-                <span className="agent-sidebar__copy ml-1.5 min-w-0 flex-1 truncate text-[14px] font-medium">
+                <span className="agent-sidebar__copy ml-1.5 min-w-0 flex-1 truncate text-control font-medium">
                   {item.label()}
                 </span>
               </button>
@@ -812,7 +813,7 @@ export default function ContextSidebar({
 
         <div className="agent-sidebar__chats mt-3 min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
           <div className="agent-sidebar-search relative mx-2 mb-1 h-8">
-            <div className="agent-sidebar__copy absolute inset-0 flex items-center gap-1.5 px-2 text-[12.5px] font-medium text-muted-foreground">
+            <div className="agent-sidebar__copy absolute inset-0 flex items-center gap-1.5 px-2 text-body font-medium text-muted-foreground">
               {t('会话', 'Chats')}
             </div>
             <button
@@ -847,7 +848,7 @@ export default function ContextSidebar({
                               </>
                             )}
                           </span>
-                          <span className="agent-sidebar__copy ml-1.5 min-w-0 flex-1 truncate text-[14px] font-medium">{group.name}</span>
+                          <span className="agent-sidebar__copy ml-1.5 min-w-0 flex-1 truncate text-control font-medium text-muted-foreground">{group.name}</span>
                           {group.path ? (
                             <Button
                               variant="ghost"
@@ -881,7 +882,7 @@ export default function ContextSidebar({
                       <span className="flex size-5 shrink-0 items-center justify-center text-muted-foreground">
                         <Clock className="size-4" />
                       </span>
-                      <span className="agent-sidebar__copy ml-1.5 min-w-0 flex-1 truncate text-[14px] font-medium">{temporaryGroup.name}</span>
+                      <span className="agent-sidebar__copy ml-1.5 min-w-0 flex-1 truncate text-control font-medium text-muted-foreground">{temporaryGroup.name}</span>
                       <Button
                         variant="ghost"
                         size="icon-sm"
@@ -1140,7 +1141,8 @@ const contextSidebarCss = `
 }
 .agent-sidebar__resize:hover,
 .agent-sidebar.is-resizing .agent-sidebar__resize { background: var(--hover-2); }
-.agent-sidebar__inner { padding-top: var(--shell-title-safe-top); padding-bottom: 0.75rem; }
+.agent-sidebar__drag { height: var(--shell-title-safe-top); flex-shrink: 0; }
+.agent-sidebar__inner { padding-bottom: 0.75rem; }
 .agent-sidebar__workspace,
 .agent-sidebar__icon,
 .agent-sidebar__expand,
@@ -1304,7 +1306,7 @@ const contextSidebarCss = `
   padding: 0 0.5rem;
   overflow: hidden;
   color: var(--muted-foreground);
-  font-size: 11px;
+  font-size: var(--text-caption);
   font-weight: 500;
   line-height: 2rem;
   text-overflow: ellipsis;
@@ -1337,7 +1339,7 @@ const contextSidebarCss = `
   border-radius: 8px;
   background: transparent;
   color: var(--update);
-  font-size: 12px;
+  font-size: var(--text-label);
   font-weight: 500;
   line-height: 1;
   cursor: pointer;

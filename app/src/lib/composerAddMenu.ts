@@ -1,6 +1,8 @@
 export const COMPOSER_ADD_MENU_HEIGHT_CAP = 24 * 16
 export const COMPOSER_ADD_MENU_HEIGHT_FLOOR = 10 * 16
 export const COMPOSER_ADD_MENU_VIEW_MARGIN = 16
+const COMPOSER_SLASH_MENU_GAP = 8
+const COMPOSER_SLASH_MENU_HEIGHT_CAP = 16 * 16
 
 export function layoutComposerAddMenu(
   trigger: { top: number; bottom: number } | null | undefined,
@@ -15,5 +17,15 @@ export function layoutComposerAddMenu(
       COMPOSER_ADD_MENU_HEIGHT_FLOOR,
       Math.min(COMPOSER_ADD_MENU_HEIGHT_CAP, Math.floor(available)),
     ),
+  }
+}
+
+// The slash menu only opens upward. Use the space above the composer, with the
+// same cap and window margin as the add menu, so a centered new-chat composer
+// does not push the list into the top of the window.
+export function layoutComposerSlashMenu(anchorTop: number) {
+  const available = Math.max(0, Math.floor(anchorTop - COMPOSER_SLASH_MENU_GAP - COMPOSER_ADD_MENU_VIEW_MARGIN))
+  return {
+    maxHeight: Math.min(COMPOSER_SLASH_MENU_HEIGHT_CAP, available),
   }
 }

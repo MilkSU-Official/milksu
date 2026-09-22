@@ -17,12 +17,9 @@ import {
   Badge,
   Button,
   Input,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectSeparator,
-  SelectTrigger,
-  SelectValue,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
 } from '@/components/ui'
 import {
   Activity,
@@ -43,6 +40,7 @@ import {
   PanelRightOpen,
   Plus,
   RefreshCw,
+  Search,
   RotateCcw,
   Route,
   SquareTerminal,
@@ -53,8 +51,7 @@ import { invokeCommand, listenEvent } from '@/desktop'
 import { toastError } from '@/lib/appToast'
 import { isAskMessage } from '@/lib/agentAsk'
 import { nextChatAutoScrollPinned } from '@/lib/chatAutoScroll'
-import { syncChatEdgeFade } from '@/lib/chatEdgeFade'
-import { readHostPlatform } from '@/lib/hostPlatform'
+import { applyChatEdgeChrome } from '@/lib/chatEdgeFade'
 import { assessApprovalRequest } from '@/lib/destructiveTarget'
 import { isGeneratedScratchWorkspace } from '@/lib/codingConversationGroups'
 import AgentPixelLoader from '@/components/AgentPixelLoader'
@@ -401,6 +398,9 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     setQuoteSelection({ text, x: event.clientX, y: event.clientY })
   }
   const scrollArea = useRef<HTMLDivElement | null>(null)
+  const chatColumnRef = useRef<HTMLDivElement | null>(null)
+  const topChromeRef = useRef<HTMLDivElement | null>(null)
+  const bottomChromeRef = useRef<HTMLDivElement | null>(null)
   const APPROVAL_CONFIRM_TIMEOUT_MS = 3000
   const pendingApprovalMessage = conversation?.messages.find(message => (
     message.approvalState === 'pending'
@@ -451,9 +451,10 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
   const [contextRailWidth, setContextRailWidth] = useState<number | null>(readCodingRailWidth())
   const [terminalOpen, setTerminalOpen] = useState(false)
   const [terminalHeight, setTerminalHeight] = useState(readCodingTerminalHeight())
-  const [contextPanel, setContextPanel] = useState<ContextPanel>(
-    ctfSession || vulnerabilitySession ? 'domain' : 'environment',
-  )
+  const [contextPanel, setContextPanel] = useState<ContextPanel>('environment')
+  const [railTabs, setRailTabs] = useState<ContextPanel[]>(['environment'])
+  const [railMenuOpen, setRailMenuOpen] = useState(false)
+  const [railQuery, setRailQuery] = useState('')
   const artifactPanel = useRef<CodingArtifactPreviewPanelHandle | null>(null)
   const [requestedArtifactPath, setRequestedArtifactPath] = useState('')
   const [, setEnvironmentLoading] = useState(false)
@@ -1806,9 +1807,28 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
   function changeContextPanel(value: string) {
     if (!contextPanelValues.some(panel => panel === value)) return
     if (value === 'collaboration' && !ctfSessionRef.current) return
-    setContextPanel(value as ContextPanel)
+    const panel = value as ContextPanel
+    if (panel !== 'browser-use' && panel !== 'computer-use' && panel !== 'domain') {
+      setRailTabs(tabs => tabs.includes(panel) ? tabs : [...tabs, panel])
+    }
+    setContextPanel(panel)
     setEnvironmentOpen(true)
-    void refreshContextPanel(value as ContextPanel)
+    void refreshContextPanel(panel)
+  }
+
+  function closeRailTab(panel: ContextPanel) {
+    const remaining = railTabs.filter(item => item !== panel && item !== 'domain')
+    if (remaining.length === 0) {
+      setRailTabs(['environment'])
+      setEnvironmentOpen(false)
+      return
+    }
+    setRailTabs(remaining)
+    if (contextPanelRef.current === panel) {
+      const fallback = remaining[remaining.length - 1]
+      setContextPanel(fallback)
+      void refreshContextPanel(fallback)
+    }
   }
 
   function openChanges(path = '') {
@@ -2095,7 +2115,6 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
       element.scrollTop = beforeTop + Math.max(0, element.scrollHeight - beforeHeight)
     }
     lastChatScrollTop.current = element.scrollTop
-    syncChatEdgeFade(element)
   }
 
   const scheduleTranscriptRefill = useCallback((delay = 64) => {
@@ -2147,7 +2166,6 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
       element.scrollHeight,
     )
     lastChatScrollTop.current = element.scrollTop
-    syncChatEdgeFade(element)
   }
 
   async function scrollChatToBottom(force = false) {
@@ -2158,13 +2176,11 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     if (!element) return
     element.scrollTop = element.scrollHeight
     lastChatScrollTop.current = element.scrollTop
-    syncChatEdgeFade(element)
     await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
     if (!force && !chatAutoScrollPinned.current) return
     if (scrollArea.current) {
       scrollArea.current.scrollTop = scrollArea.current.scrollHeight
       lastChatScrollTop.current = scrollArea.current.scrollTop
-      syncChatEdgeFade(scrollArea.current)
     }
   }
 
@@ -2206,16 +2222,41 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
   }, [mountedTranscriptBlocks, visibleTranscript.length])
 
   useLayoutEffect(() => {
-    const element = scrollArea.current
-    if (!element || emptyCanvas) return undefined
-    const sync = () => syncChatEdgeFade(element)
-    sync()
-    if (typeof ResizeObserver === 'undefined') return undefined
-    const observer = new ResizeObserver(sync)
-    observer.observe(element)
-    for (const child of element.children) observer.observe(child)
-    return () => observer.disconnect()
-  }, [emptyCanvas, visibleTranscript.length, pendingApprovalMessage])
+    const column = chatColumnRef.current
+    if (!column || emptyCanvas) return undefined
+    const apply = () => {
+      applyChatEdgeChrome(column, {
+        top: dockSurface ? 0 : (topChromeRef.current?.offsetHeight ?? 0),
+        bottom: bottomChromeRef.current?.offsetHeight ?? 0,
+      })
+    }
+    apply()
+    const frame = requestAnimationFrame(apply)
+    const later = window.setTimeout(apply, 200)
+    if (typeof ResizeObserver === 'undefined') {
+      return () => {
+        cancelAnimationFrame(frame)
+        window.clearTimeout(later)
+      }
+    }
+    const observer = new ResizeObserver(apply)
+    const watch = bottomChromeRef.current
+    if (topChromeRef.current) observer.observe(topChromeRef.current)
+    if (watch) {
+      observer.observe(watch)
+      for (const child of watch.children) observer.observe(child)
+    }
+    const mutations = typeof MutationObserver === 'undefined' || !watch
+      ? null
+      : new MutationObserver(apply)
+    mutations?.observe(watch!, { childList: true, subtree: true })
+    return () => {
+      cancelAnimationFrame(frame)
+      window.clearTimeout(later)
+      observer.disconnect()
+      mutations?.disconnect()
+    }
+  }, [emptyCanvas, dockSurface, compacting, compactionError, hasComposerDock])
 
   useEffect(() => {
     void refreshUserSkills()
@@ -2454,17 +2495,28 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ctfSession, conversation?.id, workspacePath, running])
 
-  const contextPanelIcon = contextPanel === 'environment'
-    ? <Activity className="size-4" />
-    : contextPanel === 'changes'
-      ? <FileDiff className="size-4" />
-      : contextPanel === 'artifacts'
-        ? <FileImage className="size-4" />
-        : contextPanel === 'browser'
-          ? <Globe2 className="size-4" />
-          : contextPanel === 'collaboration'
-            ? <Wrench className="size-4" />
-            : <CircleDot className="size-4" />
+  function railPanelIcon(panel: ContextPanel) {
+    if (panel === 'environment') return <Activity className="size-3.5 shrink-0" />
+    if (panel === 'changes') return <FileDiff className="size-3.5 shrink-0" />
+    if (panel === 'artifacts') return <FileImage className="size-3.5 shrink-0" />
+    if (panel === 'browser' || panel === 'browser-use') return <Globe2 className="size-3.5 shrink-0" />
+    if (panel === 'computer-use') return <MousePointer2 className="size-3.5 shrink-0" />
+    if (panel === 'collaboration') return <Wrench className="size-3.5 shrink-0" />
+    return <CircleDot className="size-3.5 shrink-0" />
+  }
+  const railCatalog: { id: ContextPanel; label: string }[] = [
+    { id: 'environment', label: ctfSession ? t('解题环境', 'Challenge environment') : t('环境信息', 'Environment') },
+    { id: 'changes', label: t('变更', 'Changes') },
+    { id: 'artifacts', label: t('产物', 'Artifacts') },
+    { id: 'browser', label: t('浏览器', 'Browser') },
+    ...(ctfSession ? [
+      { id: 'collaboration' as const, label: t('Agent 协作', 'Agent collaboration') },
+      { id: 'evidence' as const, label: t('证据与 Judge', 'Evidence and Judge') },
+    ] : []),
+  ]
+  const railQueryText = railQuery.trim().toLocaleLowerCase()
+  const railMenuItems = railCatalog.filter(item => !railQueryText || item.label.toLocaleLowerCase().includes(railQueryText))
+  const visibleRailTabs = railTabs.filter(id => railCatalog.some(item => item.id === id))
 
   return (
     <section
@@ -2477,8 +2529,9 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
       data-testid={dockSurface ? 'coding-agent-dock-surface' : undefined}
     >
       <div className="coding-workspace relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
-        <main className="chat-main flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-editor">
+        <main className="chat-main relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-editor">
           {!dockSurface ? (
+            <div ref={topChromeRef} className={cn(!emptyCanvas && 'chat-column__top')}>
             <WorkspaceModuleTopBar
               module={topbarModule}
               title={topbarPresentation.title}
@@ -2523,23 +2576,21 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
                 </>
               )}
             />
+            </div>
           ) : null}
 
           <div
+            ref={chatColumnRef}
             className={cn(
-              'flex min-h-0 min-w-0 flex-1 flex-col',
-              emptyCanvas ? 'chat-empty-canvas justify-center overflow-x-hidden overflow-y-auto' : 'overflow-hidden',
+              'chat-column relative flex min-h-0 min-w-0 flex-1 flex-col',
+              emptyCanvas ? 'chat-empty-canvas justify-center overflow-x-hidden overflow-y-auto' : 'chat-column--reading overflow-hidden',
             )}
           >
           {!emptyCanvas ? (
-          <div className="chat-scroll-frame relative min-h-0 min-w-0 flex-1">
+          <>
           <div
             ref={scrollArea}
-            className={cn(
-              'chat-edge-scroll absolute inset-0 overflow-x-hidden overflow-y-auto fade-bottom fade-size-y-sm fade-travel-sm',
-              !pendingApprovalMessage && 'fade-top',
-              (readHostPlatform() === 'win32' || readHostPlatform() === 'linux') && 'fade-scrollbar-safe-y',
-            )}
+            className="chat-edge-scroll absolute inset-0 overflow-x-hidden overflow-y-auto"
             onScroll={handleChatScroll}
           >
             {engineNotice ? (
@@ -2557,7 +2608,8 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
             ) : null}
             {pendingApprovalMessage ? (
               <div
-                className="sticky top-0 z-30 mx-auto mb-2 flex w-[72%] items-center gap-2 rounded-xl border border-primary/40 bg-background/95 px-3 py-2 shadow-sm"
+                className="sticky z-30 mx-auto mb-2 flex w-[72%] items-center gap-2 rounded-xl border border-primary/40 bg-background/95 px-3 py-2 shadow-sm"
+                style={{ top: 'var(--chat-edge-top)' }}
                 data-testid="approval-bar"
               >
                 <span className="min-w-0 flex-1 truncate text-caption font-medium text-foreground">
@@ -2673,8 +2725,8 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
                 ) : null}
               </div>
           </div>
-          <ChatEdgeFade showTop={!pendingApprovalMessage} />
-          </div>
+          <ChatEdgeFade showTop={!dockSurface} />
+          </>
           ) : (
             <div className="flex w-full flex-col items-center px-8">
               {engineNotice ? (
@@ -2699,6 +2751,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
             </div>
           )}
 
+          <div ref={bottomChromeRef} className={cn(!emptyCanvas && 'chat-column__dock')}>
           {compacting ? (
             <p
               className="compact-bar agent-thread"
@@ -2837,6 +2890,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
             onChangeMcpServers={(servers, digest) => onChangeMcpServers?.(servers, digest)}
           />
           </div>
+          </div>
         </main>
 
         {!dockSurface && environmentOpen ? (
@@ -2851,33 +2905,73 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
             data-testid="single-right-context-rail"
             onWidthChange={persistContextRailWidth}
             header={(
-              <div className="app-drag flex w-full items-center gap-px">
+              <div className="app-drag flex w-full min-w-0 items-center gap-0.5">
                 {!transientComputerUsePanel ? (
-                  <Select
-                    value={contextPanel}
-                    onValueChange={value => changeContextPanel(String(value ?? ''))}
-                  >
-                    <SelectTrigger
-                      className="agent-chrome-tab app-no-drag h-8 min-w-0 flex-1 justify-start border-0 bg-transparent px-2 text-[14px] font-medium shadow-none"
-                      aria-label={t('选择右侧页面', 'Choose the right-rail page')}
-                    >
-                      {contextPanelIcon}
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent align="start" className="agent-floating min-w-56">
-                      <SelectItem value="environment">{t('环境信息', 'Environment')}</SelectItem>
-                      <SelectItem value="changes">{t('变更', 'Changes')}</SelectItem>
-                      <SelectItem value="artifacts">{t('产物', 'Artifacts')}</SelectItem>
-                      <SelectItem value="browser">{t('浏览器', 'Browser')}</SelectItem>
-                      {ctfSession ? (
-                        <>
-                          <SelectSeparator />
-                          <SelectItem value="collaboration">{t('Agent 协作', 'Agent collaboration')}</SelectItem>
-                          <SelectItem value="evidence">{t('证据与 Judge', 'Evidence and Judge')}</SelectItem>
-                        </>
-                      ) : null}
-                    </SelectContent>
-                  </Select>
+                  <>
+                    <Popover open={railMenuOpen} onOpenChange={open => { setRailMenuOpen(open); if (!open) setRailQuery('') }}>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          className="agent-chrome-icon app-no-drag"
+                          aria-label={t('打开右侧页面', 'Open a right-rail page')}
+                          title={t('打开右侧页面', 'Open a right-rail page')}
+                        >
+                          <Plus className="size-4" />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent align="start" side="bottom" sideOffset={6} className="agent-floating rail-add-menu app-no-drag w-60 p-0">
+                        <label className="rail-add-menu__search">
+                          <Search className="size-3.5 shrink-0" />
+                          <input
+                            value={railQuery}
+                            onChange={event => setRailQuery(event.target.value)}
+                            placeholder={t('打开页面', 'Open a page')}
+                            aria-label={t('打开页面', 'Open a page')}
+                          />
+                        </label>
+                        <div className="rail-add-menu__list" role="listbox" aria-label={t('右侧页面', 'Right-rail pages')}>
+                          {railMenuItems.length ? railMenuItems.map(item => (
+                            <button
+                              key={item.id}
+                              type="button"
+                              role="option"
+                              className="rail-add-menu__item"
+                              aria-selected={contextPanel === item.id}
+                              onClick={() => { changeContextPanel(item.id); setRailMenuOpen(false); setRailQuery('') }}
+                            >
+                              {railPanelIcon(item.id)}
+                              <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                            </button>
+                          )) : (
+                            <p className="px-2 py-2 text-caption text-muted-foreground">{t('没有匹配', 'No matches')}</p>
+                          )}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                    <div className="context-rail__tabs app-no-drag" aria-label={t('右侧页面', 'Right-rail pages')}>
+                      {visibleRailTabs.map(id => {
+                        const item = railCatalog.find(entry => entry.id === id)
+                        if (!item) return null
+                        const active = contextPanel === id
+                        return (
+                          <div key={id} className={active ? 'context-rail__tab is-active' : 'context-rail__tab'}>
+                            <button type="button" className="context-rail__tab-main" aria-pressed={active} onClick={() => changeContextPanel(id)}>
+                              {railPanelIcon(id)}
+                              <span className="min-w-0 truncate">{item.label}</span>
+                            </button>
+                            <button
+                              type="button"
+                              className="context-rail__tab-close"
+                              aria-label={t('关闭这个页面', 'Close this page')}
+                              onClick={() => closeRailTab(id)}
+                            >
+                              <X className="size-3" />
+                            </button>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </>
                 ) : (
                   <div className="app-no-drag flex min-w-0 flex-1 items-center gap-2 px-2 text-[14px] font-medium">
                     {contextPanel === 'browser-use' ? (

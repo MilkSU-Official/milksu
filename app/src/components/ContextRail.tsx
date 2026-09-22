@@ -1,4 +1,5 @@
 import type { CSSProperties, HTMLAttributes, PointerEvent as ReactPointerEvent, ReactNode } from 'react'
+import ProgressiveBlur from 'react-progressive-blur'
 import { clampCodingRailWidth } from '@/lib/codingRailWidth'
 import { cn } from '@/lib/cn'
 import { useT } from '@/hooks/useUiLocale'
@@ -74,6 +75,9 @@ export default function ContextRail({
           onPointerDown={startResize}
         />
       ) : null}
+      <div className="context-rail__fade" aria-hidden="true">
+        <ProgressiveBlur className="chat-edge-fade-progressive" position="top" intensity={100} />
+      </div>
       {header ? <header className="context-rail__header">{header}</header> : null}
       <div className="context-rail__body">{children}</div>
       {footer ? <footer className="context-rail__footer">{footer}</footer> : null}
@@ -126,18 +130,120 @@ const contextRailCss = `
   background: var(--hover-2);
 }
 
+.context-rail__fade {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 1;
+  height: calc(2.5rem + 28px);
+  pointer-events: none;
+}
 .context-rail__header {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 2;
   display: flex;
   min-height: 2.5rem;
+  align-items: center;
+  padding: 0.25rem calc(0.5rem + var(--shell-window-control-safe-right)) 0.25rem 0.35rem;
+  background: transparent;
+  pointer-events: none;
+}
+.context-rail__header > * { pointer-events: auto; }
+.context-rail__tabs {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.context-rail__tabs::-webkit-scrollbar { display: none; }
+.context-rail__tab {
+  display: inline-flex;
+  height: 26px;
+  min-width: 0;
   flex: none;
   align-items: center;
-  padding: 0.25rem calc(0.5rem + var(--shell-window-control-safe-right)) 0.25rem 0.5rem;
+  border-radius: 8px;
+  color: var(--muted-foreground);
 }
+.context-rail__tab.is-active {
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+  color: var(--foreground);
+}
+.context-rail__tab-main,
+.context-rail__tab-close {
+  display: inline-flex;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.context-rail__tab-main {
+  min-width: 0;
+  gap: 4px;
+  padding: 0 2px 0 8px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.context-rail__tab-close {
+  width: 18px;
+  height: 18px;
+  justify-content: center;
+  margin-right: 3px;
+  border-radius: 6px;
+  opacity: 0;
+}
+.context-rail__tab:hover .context-rail__tab-close,
+.context-rail__tab.is-active .context-rail__tab-close { opacity: 0.7; }
+.context-rail__tab-close:hover { background: var(--hover); opacity: 1; }
+.rail-add-menu__search {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  border-bottom: 1px solid var(--border);
+  padding: 0.4rem 0.6rem;
+  color: var(--muted-foreground);
+}
+.rail-add-menu__search input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+}
+.rail-add-menu__list { display: flex; flex-direction: column; padding: 0.2rem; }
+.rail-add-menu__item {
+  display: flex;
+  height: 30px;
+  align-items: center;
+  gap: 0.45rem;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  padding: 0 0.45rem;
+  color: var(--foreground);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.rail-add-menu__item:hover,
+.rail-add-menu__item[aria-selected='true'] { background: var(--accent); }
 
 .context-rail__body {
   display: flex;
   min-height: 0;
   flex: 1;
+  padding-top: 2.5rem;
 }
 
 .context-rail__body > * {

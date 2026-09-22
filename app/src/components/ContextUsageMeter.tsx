@@ -7,7 +7,6 @@ import { useT } from '@/hooks/useUiLocale'
 const METER_STYLES = `
 .context-usage-panel {
   border-radius: 8px !important;
-  background: var(--popover, var(--background));
 }
 .context-usage-meter__cache { stroke: var(--muted-foreground); }
 .context-usage-meter__fresh { stroke: var(--foreground); }
@@ -45,6 +44,7 @@ export default function ContextUsageMeter({
   running,
   compacting,
   defaultOpen,
+  showLabel = true,
   onCompactContext,
   onHandoffContext,
 }: {
@@ -53,6 +53,7 @@ export default function ContextUsageMeter({
   running?: boolean
   compacting?: boolean
   defaultOpen?: boolean
+  showLabel?: boolean
   onCompactContext?: () => void
   onHandoffContext?: () => void
 }) {
@@ -119,6 +120,7 @@ export default function ContextUsageMeter({
             className={`context-usage-meter inline-flex items-center gap-1.5 rounded-md px-0.5 py-0.5 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring${usage.nearLimit ? ' text-warning' : ''}`}
             data-testid="context-usage-meter"
             aria-label={triggerLabel}
+            title={triggerLabel}
             aria-expanded={panelOpen}
           >
             {hasRing ? (
@@ -175,9 +177,11 @@ export default function ContextUsageMeter({
                 aria-hidden="true"
               />
             )}
-            <span className="font-mono text-caption tabular-nums">
-              {usage.compacting ? t('整理中', 'Compacting') : hasRing ? `${usage.percent}%` : usage.ioLabel}
-            </span>
+            {showLabel ? (
+              <span className="font-mono text-caption tabular-nums">
+                {usage.compacting ? t('整理中', 'Compacting') : hasRing ? `${usage.percent}%` : usage.ioLabel}
+              </span>
+            ) : null}
           </button>
         </PopoverTrigger>
         <PopoverContent

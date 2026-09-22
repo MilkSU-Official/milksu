@@ -30,7 +30,6 @@ import ComposerAgentMenu from '@/components/ComposerAgentMenu'
 import { useT } from '@/hooks/useUiLocale'
 
 const CONTROL_STYLES = `
-.composer-controls { flex: 1 1 auto; }
 .composer-control {
   height: 28px;
   min-height: 28px;
@@ -121,6 +120,8 @@ export default function CodingComposerControls({
   kernel,
   contextUsage,
   leading,
+  footerEnd,
+  accessory,
   status,
   context,
   onChangeApprovalPolicy,
@@ -141,6 +142,8 @@ export default function CodingComposerControls({
   kernel?: 'pi' | 'dsh'
   contextUsage?: ContextUsagePresentation | null
   leading?: ReactNode
+  footerEnd?: ReactNode
+  accessory?: ReactNode
   status?: ReactNode
   context?: ReactNode
   onChangeApprovalPolicy?: (value: string) => void
@@ -195,12 +198,11 @@ export default function CodingComposerControls({
   void ctfSession
 
   return (
-    <>
+    <div className="chat-composer__slots">
       <style>{CONTROL_STYLES}</style>
-      <div className="composer-controls app-no-drag flex min-w-0 flex-1 items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-1.5">
-          {leading}
-          <DropdownMenu>
+      {leading ? <div className="chat-composer__add-slot">{leading}</div> : null}
+      <div className="chat-composer__meta app-no-drag">
+        <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
@@ -266,11 +268,11 @@ export default function CodingComposerControls({
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          {status}
-        </div>
-
-        <div className="flex min-w-0 items-center gap-1.5">
           {context}
+          {status}
+          {footerEnd ? <span className="chat-composer__meta-end">{footerEnd}</span> : null}
+      </div>
+      <div className="chat-composer__primary-trail app-no-drag">
           <ComposerAgentMenu
             modelKey={modelKey}
             modelLabel={compactModelLabel}
@@ -300,8 +302,8 @@ export default function CodingComposerControls({
             onChangeKernel={onChangeKernel}
             onChangeThinkingLevel={onChangeThinkingLevel}
           />
-        </div>
+          {accessory}
       </div>
-    </>
+    </div>
   )
 }

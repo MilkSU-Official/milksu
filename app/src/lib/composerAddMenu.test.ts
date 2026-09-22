@@ -3,6 +3,7 @@ import {
   COMPOSER_ADD_MENU_HEIGHT_CAP,
   COMPOSER_ADD_MENU_HEIGHT_FLOOR,
   layoutComposerAddMenu,
+  layoutComposerSlashMenu,
 } from './composerAddMenu'
 
 describe('layoutComposerAddMenu', () => {
@@ -29,5 +30,22 @@ describe('layoutComposerAddMenu', () => {
       { height: 200 },
     )
     expect(next.maxHeight).toBe(COMPOSER_ADD_MENU_HEIGHT_FLOOR)
+  })
+})
+
+describe('layoutComposerSlashMenu', () => {
+  it('stops at the space above a centered new-chat composer', () => {
+    const next = layoutComposerSlashMenu(280)
+    expect(next.maxHeight).toBe(280 - 8 - 16)
+    expect(next.maxHeight).toBeLessThan(COMPOSER_ADD_MENU_HEIGHT_CAP)
+  })
+
+  it('stays shorter than the add menu once the composer sits low enough', () => {
+    expect(layoutComposerSlashMenu(820).maxHeight).toBe(16 * 16)
+    expect(layoutComposerSlashMenu(820).maxHeight).toBeLessThan(COMPOSER_ADD_MENU_HEIGHT_CAP)
+  })
+
+  it('does not force a floor that would run into the top chrome', () => {
+    expect(layoutComposerSlashMenu(40).maxHeight).toBe(40 - 8 - 16)
   })
 })

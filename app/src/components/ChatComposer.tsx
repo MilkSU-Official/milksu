@@ -2,6 +2,7 @@ import {
   forwardRef,
   useEffect,
   useImperativeHandle,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -121,6 +122,7 @@ import {
 import {
   COMPOSER_ADD_MENU_HEIGHT_CAP,
   layoutComposerAddMenu,
+  layoutComposerSlashMenu,
 } from '@/lib/composerAddMenu'
 import { shouldShowMultitaskCapsule } from '@/lib/composerMultitask'
 import { useT } from '@/hooks/useUiLocale'
@@ -162,13 +164,13 @@ const COMPOSER_STYLES = `
   left: 0;
   z-index: 10;
   width: min(30rem, calc(100vw - 3rem));
-  max-height: min(30rem, calc(100vh - 14rem));
   overflow-x: hidden;
   overflow-y: auto;
   border: 0;
-  border-radius: 16px;
-  background: var(--popover);
-  padding: 0.35rem;
+  border-radius: 8px;
+  padding: 0.2rem;
+  font-size: var(--text-label);
+  line-height: var(--text-label--line-height);
   box-shadow:
     0 0 0 0.5px color-mix(in srgb, var(--foreground) 12%, transparent),
     0 12px 32px rgb(0 0 0 / 28%);
@@ -176,10 +178,11 @@ const COMPOSER_STYLES = `
 .chat-composer__command-option {
   display: flex;
   width: 100%;
+  min-height: 0;
   align-items: center;
-  gap: 0.75rem;
-  border-radius: 0.7rem;
-  padding: 0.65rem 0.75rem;
+  gap: 0.45rem;
+  border-radius: 6px;
+  padding: 0.28rem 0.5rem;
   color: var(--foreground);
   outline: none;
 }
@@ -223,7 +226,6 @@ const COMPOSER_STYLES = `
   width: min(24rem, calc(100vw - 2rem));
   border: 1px solid var(--border);
   border-radius: 16px;
-  background: var(--card);
   padding: 0.75rem 0.85rem;
   box-shadow: 0 18px 42px rgb(0 0 0 / 18%), 0 3px 10px rgb(0 0 0 / 10%);
 }
@@ -249,39 +251,147 @@ const COMPOSER_STYLES = `
   .chat-composer__chip--goal .chat-composer__chip__chevron { display: none; }
   .chat-composer__progress-pill { min-width: 0; overflow: hidden; padding-inline: 0.5rem; }
 }
-.composer-add-option { display: flex; min-height: 3.5rem; align-items: center; gap: 0.75rem; padding: 0.55rem 0.75rem; }
+.composer-add-option { display: flex; min-height: 0; align-items: center; gap: 0.45rem; padding: 0.28rem 0.5rem !important; }
 .composer-add-menu {
+  width: 17rem !important;
   max-height: min(24rem, var(--radix-dropdown-menu-content-available-height, calc(100vh - 8rem)));
   overflow-x: hidden;
   overflow-y: auto;
+  padding: 0.2rem !important;
+  font-size: var(--text-label);
+  line-height: var(--text-label--line-height);
 }
-.chat-composer__island {
+.composer-add-search {
   display: flex;
-  flex-direction: column;
-  gap: 12px;
+  align-items: center;
+  min-height: 32px;
+  padding: 0.2rem 0.55rem 0.15rem;
+}
+.composer-add-search input {
+  width: 100%;
   border: 0;
-  border-radius: 22px;
-  background: var(--surface-raised);
-  padding: 8px 0 0;
-  box-shadow:
-    0 0 0 0.5px color-mix(in srgb, var(--foreground) 12%, transparent),
-    0 8px 28px rgb(0 0 0 / 22%);
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  outline: none;
+}
+.composer-add-search input::placeholder { color: var(--muted-foreground); }
+.composer-add-menu [role='separator'] { margin-inline: 0.65rem !important; }
+.composer-add-menu [data-slot='dropdown-menu-label'] { padding: 0.35rem 0.5rem 0.15rem !important; }
+.chat-composer__island {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 2px;
+  row-gap: 6px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+  box-shadow: none;
   color: var(--foreground);
 }
-.chat-composer__island:focus-within {
-  box-shadow:
-    0 0 0 0.5px color-mix(in srgb, var(--foreground) 22%, transparent),
-    0 10px 32px rgb(0 0 0 / 26%);
+.chat-composer__pill {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  z-index: 0;
+  min-height: 40px;
+  border-radius: 999px;
+  background: #1c1c1c;
+  box-shadow: 0 0 0 1px rgb(240 240 240 / 0.14);
+  pointer-events: none;
 }
-:root[data-theme='light'] .chat-composer__island {
-  box-shadow:
-    0 0 0 0.5px rgb(24 24 27 / 10%),
-    0 8px 24px rgb(24 24 27 / 8%);
+.chat-composer__add-slot,
+.chat-composer__input,
+.chat-composer__primary-trail,
+.chat-composer__island-span { position: relative; z-index: 1; }
+.chat-composer__slots { display: contents; }
+.chat-composer__island-span { grid-column: 1 / -1; }
+.chat-composer__add-slot { grid-column: 1; grid-row: 1; align-self: center; }
+.chat-composer__primary-trail {
+  display: flex;
+  grid-column: 3;
+  grid-row: 1;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
 }
-:root[data-theme='light'] .chat-composer__island:focus-within {
-  box-shadow:
-    0 0 0 0.5px rgb(24 24 27 / 16%),
-    0 10px 28px rgb(24 24 27 / 10%);
+.chat-composer__meta {
+  display: flex;
+  grid-column: 1 / -1;
+  grid-row: 2;
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 2px;
+  min-height: 0;
+  padding: 0 8px 0 4px;
+  background: transparent;
+}
+.chat-composer__meta .composer-control,
+.chat-composer__meta .chat-composer__chip,
+.chat-composer__meta .chat-composer__workspace-clear {
+  height: 16px !important;
+  min-height: 16px !important;
+  padding-inline: 4px !important;
+  border-radius: 6px;
+  color: var(--muted-foreground);
+  font-size: 12px !important;
+  font-weight: 400 !important;
+  line-height: 16px;
+}
+.chat-composer__meta .composer-control svg,
+.chat-composer__meta .chat-composer__chip svg,
+.chat-composer__meta .chat-composer__workspace-clear svg {
+  width: 12px;
+  height: 12px;
+}
+.chat-composer__meta-end {
+  display: inline-flex;
+  align-items: center;
+  margin-left: auto;
+  padding-right: 6px;
+}
+.chat-composer__meta-end .context-usage-meter {
+  height: 16px;
+  padding: 0;
+}
+.chat-composer__meta-end .context-usage-meter svg {
+  width: 15px;
+  height: 15px;
+}
+.chat-composer__meta-end .context-usage-meter .stroke-border {
+  stroke: color-mix(in srgb, var(--foreground) 48%, transparent);
+}
+.chat-composer__island[data-shape='bar'] .chat-composer__add-slot { margin-left: 6px; }
+.chat-composer__island[data-shape='bar'] .chat-composer__primary-trail { margin-right: 6px; }
+.chat-composer__island[data-shape='stack'] .chat-composer__pill {
+  grid-row: 1 / 4;
+  min-height: 0;
+  border-radius: 16px;
+}
+.chat-composer__island[data-shape='stack'] .chat-composer__island-span { grid-row: 1; padding: 8px 10px 0; }
+.chat-composer__island[data-shape='stack'] .chat-composer__input {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  align-self: stretch;
+  padding-inline: 12px;
+}
+.chat-composer__island[data-shape='stack'] .chat-composer__add-slot { grid-row: 3; margin: 0 0 8px 8px; }
+.chat-composer__island[data-shape='stack'] .chat-composer__primary-trail { grid-row: 3; justify-self: end; margin: 0 8px 8px 0; }
+.chat-composer__island[data-shape='stack'] .chat-composer__meta { grid-row: 4; }
+.chat-composer__island:focus-within .chat-composer__pill {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--foreground) 32%, transparent);
+}
+:root[data-theme='light'] .chat-composer__pill {
+  background: #f7f8fa;
+  box-shadow: 0 0 0 1px rgb(20 20 20 / 0.12);
+}
+:root[data-theme='light'] .chat-composer__island:focus-within .chat-composer__pill {
+  box-shadow: 0 0 0 1px rgb(20 20 20 / 0.28);
 }
 .chat-composer__workspace { display: inline-flex; min-width: 0; max-width: 14rem; align-items: center; border-radius: 8px; }
 .chat-composer__workspace:not(.chat-composer__workspace--locked):hover .chat-composer__chip--workspace,
@@ -307,43 +417,59 @@ const COMPOSER_STYLES = `
 .chat-composer__workspace-clear:disabled { cursor: default; opacity: 0.55; }
 .chat-composer__chip--workspace-empty { color: var(--muted-foreground); }
 .chat-composer__chip--workspace-split { border-radius: 8px 0 0 8px; padding-inline-end: 0.35rem; }
-.chat-composer__toolbar {
-  display: flex;
-  min-width: 0;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  border-top: 0;
-  padding: 2px 8px 6px;
+.chat-composer__primary-trail .composer-control {
+  height: 26px !important;
+  min-height: 26px !important;
+  padding-inline: 6px !important;
+  color: var(--muted-foreground);
+  font-size: 13px !important;
+  font-weight: 400 !important;
 }
 .chat-composer__add {
-  width: 28px !important;
-  height: 28px !important;
+  width: 26px !important;
+  height: 26px !important;
   border-radius: 999px !important;
-  background: var(--muted) !important;
-  color: var(--foreground) !important;
+  background: color-mix(in srgb, var(--foreground) 6%, transparent) !important;
+  color: var(--muted-foreground) !important;
 }
-.chat-composer__add:hover:not(:disabled) { background: var(--hover-2) !important; }
+.chat-composer__add:hover:not(:disabled) { background: color-mix(in srgb, var(--foreground) 10%, transparent) !important; }
 .chat-composer__send,
 .chat-composer__stop {
-  width: 34px !important;
-  height: 34px !important;
+  width: 26px !important;
+  height: 26px !important;
   border-radius: 999px !important;
-  transform: translateY(-2px);
+}
+.chat-composer__send:disabled {
+  opacity: 1 !important;
+  background: var(--foreground) !important;
+  color: var(--primary-foreground) !important;
 }
 .chat-composer__input {
+  grid-column: 2;
+  grid-row: 1;
   overflow-y: auto;
-  min-height: 36px;
-  padding: 4px 8px 0 14px;
+  min-width: 0;
+  min-height: 28px;
+  max-height: 11rem;
+  padding: 3px 6px;
   white-space: pre-wrap;
   word-break: break-word;
   outline: none;
   font-size: 14px;
-  line-height: 24px;
+  line-height: 22px;
   color: var(--foreground);
 }
+.chat-composer__island[data-shape='bar'] .chat-composer__input {
+  max-height: 28px;
+  overflow: hidden;
+}
 .chat-composer__input:empty::before { color: var(--muted-foreground); content: attr(data-placeholder); pointer-events: none; }
+.chat-composer__island[data-shape='bar'] .chat-composer__input:empty::before {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .chat-composer__input .chat-composer__inline-token {
   display: inline-flex;
   min-height: 1.65rem;
@@ -504,6 +630,7 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
   // Quoted material the reader picked in the transcript: shown above the input while they type the
   // question it belongs to, and persisted per conversation exactly like the draft.
   const [quotes, setQuotes] = useState<ComposerQuote[]>([])
+  const [inputStacked, setInputStacked] = useState(false)
   const quotesRef = useRef<ComposerQuote[]>([])
   const composerFrame = useRef<HTMLDivElement | null>(null)
   const messageEditor = useRef<HTMLDivElement | null>(null)
@@ -526,6 +653,7 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
   const [slashMenuDismissed, setSlashMenuDismissed] = useState(false)
   const [activeSlashCommandIndex, setActiveSlashCommandIndex] = useState(0)
   const [slashQuery, setSlashQuery] = useState<string | null>(null)
+  const [slashMenuMaxHeight, setSlashMenuMaxHeight] = useState(COMPOSER_ADD_MENU_HEIGHT_CAP)
   const slashQueryRange = useRef<Range | null>(null)
   const [pendingMigrateKernel, setPendingMigrateKernel] = useState<'pi' | 'dsh' | null>(null)
   const [scopeToken, setScopeToken] = useState<ComposerScopeToken | null>(null)
@@ -534,6 +662,8 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
   const [goalPanelOpen, setGoalPanelOpen] = useState(false)
   const goalSlot = useRef<HTMLDivElement | null>(null)
   const addMenuTrigger = useRef<HTMLButtonElement | null>(null)
+  const addMenuSearch = useRef<HTMLInputElement | null>(null)
+  const [addMenuQuery, setAddMenuQuery] = useState('')
   const [addMenuMaxHeight, setAddMenuMaxHeight] = useState(COMPOSER_ADD_MENU_HEIGHT_CAP)
   const conversationKeyRef = useRef(conversationKey)
   const previousConversationKey = useRef(conversationKey)
@@ -723,21 +853,21 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
 
   const slashCommandCatalog = [
     { id: 'goal', label: t('目标', 'Goal'), description: t('设置一个持续追踪的目标', 'Set a goal to keep working toward'), keywords: ['target'], icon: Target },
-    { id: 'new', label: t('新任务', 'New task'), description: t('开始一个新的编码会话', 'Start a new coding session'), keywords: ['clear', '新建'], icon: MessageSquarePlus },
+    { id: 'new', label: t('新任务', 'New task'), description: '', keywords: ['clear', '新建'], icon: MessageSquarePlus },
     { id: 'plan', label: kernel === 'dsh' ? dshPlanCopy(t, Boolean(planModeActive)).label : t('计划模式', 'Plan mode'), description: kernel === 'dsh' ? dshPlanCopy(t, Boolean(planModeActive)).description : t('只分析和规划，不修改文件', 'Analyze and plan only, without changing files'), keywords: ['mode', '规划'], icon: Lightbulb },
     { id: 'understand', label: t('理解项目', 'Understand the project'), description: t('读取入口、结构、运行方式和风险', 'Read the entry points, structure, how it runs, and the risks'), keywords: ['project', '项目', '了解'], icon: Compass },
     { id: 'test', label: t('运行测试', 'Run tests'), description: t('自动识别并运行项目的主验证链', 'Detect and run the project’s main verification chain'), keywords: ['verify', '测试'], icon: Terminal },
     { id: 'review', label: t('审阅变更', 'Review changes'), description: t('按文件和风险检查当前 Git 变更', 'Inspect current Git changes by file and risk'), keywords: ['diff', 'code-review', '审查', '审阅'], icon: ScanSearch },
     { id: 'fix', label: t('修复失败', 'Fix a failure'), description: t('复现最近失败并完成最小修复', 'Reproduce the latest failure and make the smallest fix'), keywords: ['repair', '修复'], icon: Wrench },
     { id: 'summary', label: t('生成总结', 'Write a summary'), description: t('汇总改动、验证、风险和下一步', 'Summarize changes, verification, risks, and next steps'), keywords: ['report', '总结'], icon: FileText },
-    { id: 'compact', label: t('整理上下文', 'Compact context'), description: t('整理当前会话上下文', 'Compact the current conversation context'), keywords: ['context', '上下文', 'summarize'], icon: Shrink },
+    { id: 'compact', label: t('整理上下文', 'Compact context'), description: '', keywords: ['context', '上下文', 'summarize'], icon: Shrink },
     { id: 'rewind', label: t('丢掉探索', 'Rewind'), description: t('丢掉最近一段探索，留在同一会话', 'Drop the latest exploration and stay in this chat'), keywords: ['undo', '回退', 'rewind'], icon: Undo2 },
     { id: 'handoff', label: t('接到新会话', 'Handoff'), description: t('整理后开新会话继续同一任务', 'Compact, then continue the same task in a new chat'), keywords: ['fork', '接力', 'handoff'], icon: ArrowRightLeft },
-    { id: 'model', label: t('模型', 'Model'), description: t('打开当前任务的模型选择', 'Open the model picker for this task'), keywords: ['provider', '模型'], icon: Bot },
+    { id: 'model', label: t('模型', 'Model'), description: '', keywords: ['provider', '模型'], icon: Bot },
     { id: 'permissions', label: t('权限', 'Permissions'), description: t('打开审批与访问范围选择', 'Open approval and access-scope options'), keywords: ['approve', 'approval', '权限'], icon: ShieldCheck },
     { id: 'status', label: t('状态', 'Status'), description: t('查看会话、Git 和运行环境', 'View the session, Git, and runtime environment'), keywords: ['session', 'environment', '状态'], icon: Activity },
-    { id: 'diff', label: t('变更', 'Changes'), description: t('查看当前工作区的文件改动', 'View file changes in the current workspace'), keywords: ['changes', '变更'], icon: FileDiff },
-    { id: 'mcp', label: 'MCP', description: t('查看或接入当前项目的 MCP 服务', 'View or attach MCP servers for this project'), keywords: ['tools', '工具'], icon: Plug },
+    { id: 'diff', label: t('变更', 'Changes'), description: '', keywords: ['changes', '变更'], icon: FileDiff },
+    { id: 'mcp', label: 'MCP', description: '', keywords: ['tools', '工具'], icon: Plug },
     { id: 'browser', label: t('浏览器', 'Browser'), description: t('打开隔离浏览器', 'Open the isolated browser'), keywords: ['playwright', '浏览器'], icon: Monitor },
     { id: 'browser-use', label: 'Browser Use', description: t('把一个用户浏览器窗口加入本轮输入', 'Add a user browser window to this turn'), keywords: ['chrome', 'safari', '浏览器'], icon: Globe2 },
     { id: 'computer-use', label: 'Computer Use', description: t('把一个外部 App 窗口加入本轮输入', 'Add an external app window to this turn'), keywords: ['app', '窗口', '电脑'], icon: MousePointer2 },
@@ -787,6 +917,17 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
 
   const slashMenuOpen = !slashMenuDismissed && slashCommands.length > 0
   const activeSlashCommand = slashCommands[activeSlashCommandIndex] ?? slashCommands[0]
+
+  useLayoutEffect(() => {
+    if (!slashMenuOpen) return
+    function measure() {
+      const top = composerFrame.current?.getBoundingClientRect().top ?? 0
+      setSlashMenuMaxHeight(layoutComposerSlashMenu(top).maxHeight)
+    }
+    measure()
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [slashMenuOpen])
   const goalStatusLabel = goal?.status === 'active' ? t('进行中', 'In progress')
     : goal?.status === 'paused' ? t('已暂停', 'Paused')
       : goal?.status === 'blocked' ? t('受阻', 'Blocked')
@@ -1104,6 +1245,24 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
     setSlashMenuDismissed(false)
     detectSlashQuery()
   }
+
+  useLayoutEffect(() => {
+    const editor = messageEditor.current
+    if (!editor) return
+    const text = editor.innerText.replace(/\n$/u, '')
+    let stacked = text.includes('\n')
+    if (!stacked && text.trim()) {
+      const range = document.createRange()
+      range.selectNodeContents(editor)
+      const tops = new Set<number>()
+      for (const rect of range.getClientRects()) {
+        if (rect.width < 1 || rect.height < 1) continue
+        tops.add(Math.round(rect.top))
+      }
+      stacked = tops.size > 1
+    }
+    setInputStacked(current => current === stacked ? current : stacked)
+  }, [draft, pendingAttachments.length, quotes.length])
 
   function removeSlashQueryText() {
     rememberComposerSnapshot()
@@ -1559,13 +1718,57 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
     focusMessageInput,
   }), [])
 
+  function addMenuHit(label: string, detail = '') {
+    const query = addMenuQuery.trim().toLowerCase()
+    if (!query) return true
+    return `${label} ${detail}`.toLowerCase().includes(query)
+  }
+  const fileAddLabel = t('本机文件或图片', 'Local files or images')
+  const mentionAddLabel = t('提及文件', 'Mention a file')
+  const projectAddLabel = t('项目目录', 'Project folder')
+  const goalAddLabel = t('目标', 'Goal')
+  const goalAddDetail = hasUnfinishedGoal ? t('当前已有持续目标', 'A goal is already in progress') : t('设置一个持续追踪的目标', 'Set a goal to keep working toward')
+  const multitaskAddLabel = t('并行', 'Multitask')
+  const multitaskAddDetail = kernel === 'dsh'
+    ? t('一边跑子代理，一边继续主对话', 'Keep chatting while subagents run')
+    : t('Pi 不能并行。模型拉起的子代理仍会出现在进行中。', 'Pi cannot run in parallel. Model-started subagents still appear in Working.')
+  const browserAddLabel = t('浏览器', 'Browser')
+  const browserUseDetail = t('选择真实浏览器标签页加入本轮输入', 'Choose a real browser tab for this turn')
+  const computerUseDetail = t('选择一个外部 App 窗口加入本轮输入', 'Choose an external app window for this turn')
+  const projectMcpLabel = t('项目 MCP', 'Project MCP')
+  const projectMcpDetail = selectedMcpDescription || t('查看当前项目的 MCP 服务', 'View MCP servers for this project')
+  const showFileAdd = addMenuHit(fileAddLabel)
+  const showMentionAdd = addMenuHit(mentionAddLabel)
+  const showProjectAdd = !workspaceFixed && addMenuHit(projectAddLabel)
+  const showGoalAdd = addMenuHit(goalAddLabel, goalAddDetail)
+  const showMultitaskAdd = addMenuHit(multitaskAddLabel, multitaskAddDetail)
+  const showPlanAdd = addMenuHit(planCopy.label, planCopy.description)
+  const showBrowserAdd = addMenuHit(browserAddLabel)
+  const showBrowserUseAdd = addMenuHit('Browser Use', browserUseDetail)
+  const showComputerUseAdd = addMenuHit('Computer Use', computerUseDetail)
+  const visibleSkillOptions = availableSkillOptions.filter(skill => addMenuHit(skill.label, skill.description ?? ''))
+  const visibleMcpServers = (mcpCatalog ?? []).filter(server => addMenuHit(
+    server.name,
+    server.scope === 'user'
+      ? t('已在设置中启用', 'Enabled in Settings')
+      : server.reviewReady
+        ? t('为本任务接入', 'Attach to this task')
+        : t('审阅信息不完整', 'Review details incomplete'),
+  ))
+  const showProjectMcp = addMenuHit(projectMcpLabel, projectMcpDetail)
+  const showAddSection = showFileAdd || showMentionAdd || showProjectAdd || showGoalAdd || showMultitaskAdd || showPlanAdd
+  const showBrowseSection = showBrowserAdd || showBrowserUseAdd || showComputerUseAdd
+  const showSkillSection = visibleSkillOptions.length > 0
+  const showMcpSection = visibleMcpServers.length > 0 || showProjectMcp
+  const addMenuEmpty = addMenuQuery.trim().length > 0 && !showAddSection && !showBrowseSection && !showSkillSection && !showMcpSection
+
   return (
     <>
       <style>{COMPOSER_STYLES}</style>
       <div className="chat-composer shrink-0 bg-transparent px-0 pb-2 pt-0" data-plugin-surface="chat-composer">
         <div ref={composerFrame} className="chat-composer__frame agent-thread">
           {slashMenuOpen ? (
-            <div id="coding-slash-command-menu" className="chat-composer__command-menu" role="listbox" aria-label={t('斜杠命令', 'Slash commands')}>
+            <div id="coding-slash-command-menu" className="chat-composer__command-menu" role="listbox" aria-label={t('斜杠命令', 'Slash commands')} style={{ maxHeight: slashMenuMaxHeight }}>
               {slashCommands.map((command, index) => {
                 const Icon = command.icon
                 return (
@@ -1585,12 +1788,10 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
                     onMouseEnter={() => setActiveSlashCommandIndex(index)}
                   >
                     <Icon className="size-4 shrink-0" />
-                    <span className="min-w-0 text-left">
-                      <span className="block text-body font-medium">
-                        <span className="font-mono">/{command.id}</span>
-                        <span className="ml-2 text-muted-foreground">{command.label}</span>
-                      </span>
-                      <span className="mt-0.5 block text-caption text-muted-foreground">{command.description}</span>
+                    <span className="flex min-w-0 flex-1 items-baseline gap-2 text-left">
+                      <span className="shrink-0 font-mono font-medium">/{command.id}</span>
+                      <span className="shrink-0 font-medium">{command.label}</span>
+                      {command.description ? <span className="min-w-0 truncate font-normal text-muted-foreground">{command.description}</span> : null}
                     </span>
                   </button>
                 )
@@ -1627,13 +1828,22 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
             </section>
           ) : null}
 
-          <form className="chat-composer__island" onSubmit={event => { event.preventDefault(); submit() }}>
-            <ComposerQuoteList
-              quotes={quotes}
-              onRemove={id => applyQuotes(quotesRef.current.filter(quote => quote.id !== id))}
-            />
+          <form
+            className="chat-composer__island"
+            data-shape={inputStacked || pendingAttachments.length > 0 || quotes.length > 0 ? 'stack' : 'bar'}
+            onSubmit={event => { event.preventDefault(); submit() }}
+          >
+            <div className="chat-composer__pill" aria-hidden="true" />
+            {quotes.length ? (
+              <div className="chat-composer__island-span">
+                <ComposerQuoteList
+                  quotes={quotes}
+                  onRemove={id => applyQuotes(quotesRef.current.filter(quote => quote.id !== id))}
+                />
+              </div>
+            ) : null}
             {pendingAttachments.length ? (
-              <div className="flex flex-wrap gap-2 px-1 pb-1" aria-label={t('待发送附件', 'Attachments to send')}>
+              <div className="chat-composer__island-span flex flex-wrap gap-2 px-1 pb-1" aria-label={t('待发送附件', 'Attachments to send')}>
                 {pendingAttachments.map(attachment => {
                   const key = attachmentKey(attachment)
                   const thumb = attachmentThumbs[key]
@@ -1666,7 +1876,7 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
             ) : null}
             <div
               ref={messageEditor}
-              className="chat-composer__input max-h-44 resize-none border-0 bg-transparent shadow-none focus-visible:ring-0"
+              className="chat-composer__input resize-none border-0 bg-transparent shadow-none focus-visible:ring-0"
               contentEditable
               role="textbox"
               aria-label={t('消息', 'Message')}
@@ -1686,13 +1896,7 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
               onPaste={handleComposerPaste}
               onDrop={handleComposerDrop}
             />
-            {contextUsage ? (
-              <div className="chat-composer__context-strip flex min-w-0 items-center justify-end gap-3 px-1 pb-0.5" data-testid="composer-context-strip">
-                <ContextUsageMeter usage={contextUsage} size="sm" running={parentTurnActive} compacting={Boolean(compacting)} onCompactContext={() => props.onRunSlashCommand?.('compact')} onHandoffContext={() => props.onRunSlashCommand?.('handoff')} />
-              </div>
-            ) : null}
-            <div className="chat-composer__toolbar">
-              <CodingComposerControls
+            <CodingComposerControls
                 running={parentTurnActive}
                 ctfSession={ctfSession}
                 approvalPolicy={approvalPolicy}
@@ -1711,15 +1915,17 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
                 onShowPermissions={() => props.onShowPermissions?.()}
                 leading={(
                   <DropdownMenu onOpenChange={open => {
+                    setAddMenuQuery('')
                     if (!open) return
                     setAddMenuMaxHeight(layoutComposerAddMenu(
                       addMenuTrigger.current?.getBoundingClientRect(),
                       { height: window.innerHeight },
                     ).maxHeight)
+                    window.setTimeout(() => addMenuSearch.current?.focus(), 0)
                   }}>
                     <DropdownMenuTrigger asChild>
                       <Button ref={addMenuTrigger} type="button" variant="ghost" size="icon" className="chat-composer__add" disabled={parentTurnActive && kernel !== 'dsh'} aria-label={t('添加内容与工具', 'Add content and tools')} title={t('添加附件、工作方式或交互范围', 'Add attachments, a working mode, or an interaction scope')}>
-                        <Plus className="size-4" />
+                        <Plus className="size-3.5" />
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent
@@ -1731,28 +1937,47 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
                       className="agent-floating composer-add-menu app-no-drag w-[31rem] max-w-[calc(100vw-2rem)] overflow-y-auto p-1"
                       style={{ maxHeight: `min(${addMenuMaxHeight}px, var(--radix-dropdown-menu-content-available-height, ${addMenuMaxHeight}px))` }}
                     >
-                      <DropdownMenuLabel className="px-3 pb-1.5 pt-2 text-caption">{t('添加', 'Add')}</DropdownMenuLabel>
+                      <div className="composer-add-search">
+                        <input
+                          ref={addMenuSearch}
+                          value={addMenuQuery}
+                          placeholder={t('搜索技能、文件、工具', 'Search skills, files, tools')}
+                          aria-label={t('搜索', 'Search')}
+                          onChange={event => setAddMenuQuery(event.target.value)}
+                          onKeyDown={event => {
+                            if (event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'Escape' || event.key === 'Tab') return
+                            event.stopPropagation()
+                          }}
+                        />
+                      </div>
+                      {showFileAdd ? (
                       <DropdownMenuItem className="composer-add-option app-no-drag cursor-pointer" onPointerDown={event => startCodingAttachmentChooser(event.nativeEvent)} onSelect={() => startCodingAttachmentChooser()}>
                         <Paperclip className="size-4 shrink-0" />
-                        <span className="min-w-0 flex-1"><span className="block text-label font-medium">{t('本机文件或图片', 'Local files or images')}</span></span>
+                        <span className="min-w-0 flex-1"><span className="block text-label font-medium">{fileAddLabel}</span></span>
                       </DropdownMenuItem>
+                      ) : null}
+                      {showMentionAdd ? (
                       <DropdownMenuItem className="composer-add-option app-no-drag cursor-pointer" disabled={parentTurnActive} onSelect={() => void attachFromAtMention()}>
                         <AtSign className="size-4 shrink-0" />
-                        <span className="min-w-0 flex-1"><span className="block text-label font-medium">{t('提及文件', 'Mention a file')}</span></span>
+                        <span className="min-w-0 flex-1"><span className="block text-label font-medium">{mentionAddLabel}</span></span>
                       </DropdownMenuItem>
-                      {!workspaceFixed ? (
+                      ) : null}
+                      {showProjectAdd ? (
                         <DropdownMenuItem className="composer-add-option" onSelect={() => props.onChooseWorkspace?.()}>
                           <FolderOpen className="size-4 shrink-0" />
-                          <span className="min-w-0 flex-1"><span className="block text-label font-medium">{t('项目目录', 'Project folder')}</span></span>
+                          <span className="min-w-0 flex-1"><span className="block text-label font-medium">{projectAddLabel}</span></span>
                         </DropdownMenuItem>
                       ) : null}
+                      {showGoalAdd ? (
                       <DropdownMenuItem className="composer-add-option" disabled={parentTurnActive || goalMode || hasUnfinishedGoal} onSelect={startGoalFromPlus}>
                         <Target className="size-4 shrink-0" />
                         <span className="min-w-0 flex-1">
-                          <span className="block text-label font-medium">{t('目标', 'Goal')}</span>
-                          <span className="block text-caption text-muted-foreground">{hasUnfinishedGoal ? t('当前已有持续目标', 'A goal is already in progress') : t('设置一个持续追踪的目标', 'Set a goal to keep working toward')}</span>
+                          <span className="block text-label font-medium">{goalAddLabel}</span>
+                          <span className="block text-caption text-muted-foreground">{goalAddDetail}</span>
                         </span>
                       </DropdownMenuItem>
+                      ) : null}
+                      {showMultitaskAdd ? (
                       <DropdownMenuItem
                         className="composer-add-option"
                         disabled={kernel !== 'dsh'}
@@ -1763,15 +1988,13 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
                       >
                         <Layers2 className="size-4 shrink-0" />
                         <span className="min-w-0 flex-1">
-                          <span className="block text-label font-medium">{t('并行', 'Multitask')}</span>
-                          <span className="block text-caption text-muted-foreground">
-                            {kernel === 'dsh'
-                              ? t('一边跑子代理，一边继续主对话', 'Keep chatting while subagents run')
-                              : t('Pi 不能并行。模型拉起的子代理仍会出现在进行中。', 'Pi cannot run in parallel. Model-started subagents still appear in Working.')}
-                          </span>
+                          <span className="block text-label font-medium">{multitaskAddLabel}</span>
+                          <span className="block text-caption text-muted-foreground">{multitaskAddDetail}</span>
                         </span>
                         {shouldShowMultitaskCapsule({ kernel, multitask }) ? <Check className="size-4 shrink-0 text-primary" /> : null}
                       </DropdownMenuItem>
+                      ) : null}
+                      {showPlanAdd ? (
                       <DropdownMenuItem className="composer-add-option" onSelect={togglePlanningMode}>
                         <Lightbulb className="size-4 shrink-0" />
                         <span className="min-w-0 flex-1">
@@ -1780,31 +2003,38 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
                         </span>
                         {planActive ? <Check className="size-4 shrink-0 text-primary" /> : null}
                       </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuLabel className="px-3 pb-1.5 pt-2 text-caption">{t('浏览与控制', 'Browse and control')}</DropdownMenuLabel>
+                      ) : null}
+                      {showAddSection && (showBrowseSection || showSkillSection || showMcpSection) ? <DropdownMenuSeparator /> : null}
+                      {showBrowseSection ? <DropdownMenuLabel className="px-3 pb-1.5 pt-2 text-caption">{t('浏览与控制', 'Browse and control')}</DropdownMenuLabel> : null}
+                      {showBrowserAdd ? (
                       <DropdownMenuItem className="composer-add-option" disabled={!workspaceReady} onSelect={() => runComposerShortcut('browser')}>
                         <Monitor className="size-4 shrink-0" />
-                        <span className="min-w-0 flex-1"><span className="block text-label font-medium">{t('浏览器', 'Browser')}</span></span>
+                        <span className="min-w-0 flex-1"><span className="block text-label font-medium">{browserAddLabel}</span></span>
                       </DropdownMenuItem>
+                      ) : null}
+                      {showBrowserUseAdd ? (
                       <DropdownMenuItem className="composer-add-option" onSelect={() => insertScopeToken('browser-use')}>
                         <Globe2 className="size-4 shrink-0" />
                         <span className="min-w-0 flex-1">
                           <span className="block text-label font-medium">Browser Use</span>
-                          <span className="block text-caption text-muted-foreground">{t('选择真实浏览器标签页加入本轮输入', 'Choose a real browser tab for this turn')}</span>
+                          <span className="block text-caption text-muted-foreground">{browserUseDetail}</span>
                         </span>
                         {scopeToken === 'browser-use' ? <Check className="size-4 shrink-0 text-primary" /> : null}
                       </DropdownMenuItem>
+                      ) : null}
+                      {showComputerUseAdd ? (
                       <DropdownMenuItem className="composer-add-option" onSelect={() => insertScopeToken('computer-use')}>
                         <MousePointer2 className="size-4 shrink-0" />
                         <span className="min-w-0 flex-1">
                           <span className="block text-label font-medium">Computer Use</span>
-                          <span className="block text-caption text-muted-foreground">{t('选择一个外部 App 窗口加入本轮输入', 'Choose an external app window for this turn')}</span>
+                          <span className="block text-caption text-muted-foreground">{computerUseDetail}</span>
                         </span>
                         {scopeToken === 'computer-use' ? <Check className="size-4 shrink-0 text-primary" /> : null}
                       </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuLabel className="px-3 pb-1.5 pt-2 text-caption">Skills</DropdownMenuLabel>
-                      {availableSkillOptions.map(skill => {
+                      ) : null}
+                      {showBrowseSection && (showSkillSection || showMcpSection) ? <DropdownMenuSeparator /> : null}
+                      {showSkillSection ? <DropdownMenuLabel className="px-3 pb-1.5 pt-2 text-caption">Skills</DropdownMenuLabel> : null}
+                      {visibleSkillOptions.map(skill => {
                         const Icon = skill.icon
                         return (
                           <DropdownMenuItem key={skill.name} className="composer-add-option" disabled={!workspaceReady} onSelect={() => insertSkillToken(skill.name)}>
@@ -1817,9 +2047,9 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
                           </DropdownMenuItem>
                         )
                       })}
-                      <DropdownMenuSeparator />
-                      <DropdownMenuLabel className="px-3 pb-1.5 pt-2 text-caption">MCP</DropdownMenuLabel>
-                      {(mcpCatalog ?? []).map(server => (
+                      {showSkillSection && showMcpSection ? <DropdownMenuSeparator /> : null}
+                      {showMcpSection ? <DropdownMenuLabel className="px-3 pb-1.5 pt-2 text-caption">MCP</DropdownMenuLabel> : null}
+                      {visibleMcpServers.map(server => (
                         <DropdownMenuItem key={server.name} className="composer-add-option" disabled={parentTurnActive || (server.scope !== 'user' && (!server.reviewReady || !mcpConfigDigest))} onSelect={() => toggleCatalogMcpServer(server)}>
                           <Plug className="size-4 shrink-0" />
                           <span className="min-w-0 flex-1">
@@ -1831,14 +2061,17 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
                           {server.scope === 'user' || selectedMcpServers?.includes(server.name) ? <Check className="size-4 shrink-0 text-primary" /> : null}
                         </DropdownMenuItem>
                       ))}
+                      {showProjectMcp ? (
                       <DropdownMenuItem className="composer-add-option" disabled={!workspaceReady} onSelect={() => runComposerShortcut('mcp')}>
                         <Plug className="size-4 shrink-0" />
                         <span className="min-w-0 flex-1">
-                          <span className="block text-label font-medium">{t('项目 MCP', 'Project MCP')}</span>
-                          {selectedMcpDescription ? <span className="block truncate text-caption text-muted-foreground">{selectedMcpDescription}</span> : <span className="block text-caption text-muted-foreground">{t('查看当前项目的 MCP 服务', 'View MCP servers for this project')}</span>}
+                          <span className="block text-label font-medium">{projectMcpLabel}</span>
+                          <span className="block truncate text-caption text-muted-foreground">{projectMcpDetail}</span>
                         </span>
                         {selectedMcpServers?.length ? <Check className="size-4 shrink-0 text-primary" /> : null}
                       </DropdownMenuItem>
+                      ) : null}
+                      {addMenuEmpty ? <p className="px-2.5 py-3 text-label text-muted-foreground">{t('没有匹配项', 'No matches')}</p> : null}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 )}
@@ -1942,29 +2175,43 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
                     ) : null}
                   </>
                 ) : undefined}
+                footerEnd={contextUsage ? (
+                  <ContextUsageMeter
+                    usage={contextUsage}
+                    size="sm"
+                    showLabel={false}
+                    running={parentTurnActive}
+                    compacting={Boolean(compacting)}
+                    onCompactContext={() => props.onRunSlashCommand?.('compact')}
+                    onHandoffContext={() => props.onRunSlashCommand?.('handoff')}
+                  />
+                ) : undefined}
+                accessory={(
+                  <>
+                    {showStop ? (
+                      <Button type="button" variant="destructive" size="icon" className="chat-composer__stop" disabled={aborting} aria-label={aborting ? t('正在停止 Agent', 'Stopping agent') : abortStalled ? t('重试停止 Agent', 'Retry stopping the agent') : compacting ? t('停止整理上下文', 'Stop compacting context') : t('停止 Agent', 'Stop agent')} title={aborting ? t('正在等待 Agent 安全停止', 'Waiting for the agent to stop safely') : abortStalled ? t('停止请求未确认，点击重试', 'The stop request is not confirmed. Click to retry.') : compacting ? t('取消当前上下文整理', 'Cancel the current context compaction') : t('停止当前 Agent 回合', 'Stop the current agent turn')} onPointerDown={event => { event.preventDefault(); event.stopPropagation(); props.onAbort?.() }} onClick={event => { event.preventDefault(); event.stopPropagation(); props.onAbort?.() }}>
+                        {aborting ? <LoaderCircle className="size-3.5 animate-spin" /> : <Square className="size-3.5 fill-current" />}
+                      </Button>
+                    ) : null}
+                    {!compacting && (allowFollowupSend || kernel === 'dsh' || draft.trim() || pendingAttachments.length) ? (
+                      <Button
+                        type="submit"
+                        variant="brand"
+                        size="icon"
+                        className="chat-composer__send"
+                        disabled={
+                          attachmentImporting
+                          || (!draft.trim() && !pendingAttachments.length)
+                        }
+                        aria-label={parentTurnActive && kernel === 'pi' ? t('发送引导', 'Send steering') : t('发送', 'Send')}
+                        title={parentTurnActive && kernel === 'pi' ? sendSteeringTitle : t('发送', 'Send')}
+                      >
+                        <ArrowUp className="size-3.5" />
+                      </Button>
+                    ) : null}
+                  </>
+                )}
               />
-              {showStop ? (
-                <Button type="button" variant="destructive" size="icon" className="chat-composer__stop" disabled={aborting} aria-label={aborting ? t('正在停止 Agent', 'Stopping agent') : abortStalled ? t('重试停止 Agent', 'Retry stopping the agent') : compacting ? t('停止整理上下文', 'Stop compacting context') : t('停止 Agent', 'Stop agent')} title={aborting ? t('正在等待 Agent 安全停止', 'Waiting for the agent to stop safely') : abortStalled ? t('停止请求未确认，点击重试', 'The stop request is not confirmed. Click to retry.') : compacting ? t('取消当前上下文整理', 'Cancel the current context compaction') : t('停止当前 Agent 回合', 'Stop the current agent turn')} onPointerDown={event => { event.preventDefault(); event.stopPropagation(); props.onAbort?.() }} onClick={event => { event.preventDefault(); event.stopPropagation(); props.onAbort?.() }}>
-                  {aborting ? <LoaderCircle className="size-3.5 animate-spin" /> : <Square className="size-3.5 fill-current" />}
-                </Button>
-              ) : null}
-              {!compacting && (allowFollowupSend || kernel === 'dsh' || draft.trim() || pendingAttachments.length) ? (
-                <Button
-                  type="submit"
-                  variant="brand"
-                  size="icon"
-                  className="chat-composer__send"
-                  disabled={
-                    attachmentImporting
-                    || (!draft.trim() && !pendingAttachments.length)
-                  }
-                  aria-label={parentTurnActive && kernel === 'pi' ? t('发送引导', 'Send steering') : t('发送', 'Send')}
-                  title={parentTurnActive && kernel === 'pi' ? sendSteeringTitle : t('发送', 'Send')}
-                >
-                  <ArrowUp className="size-4" />
-                </Button>
-              ) : null}
-            </div>
           </form>
           {attachmentError ? <p className="px-2 pt-1.5 text-caption text-destructive">{attachmentError}</p> : attachmentImporting ? (
             <p className="chat-model-loading px-2 pt-1.5">

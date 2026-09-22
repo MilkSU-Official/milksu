@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@import "tw-fade";
 @custom-variant dark (&:where(.dark, .dark *));
 @import "./styles/agent-conversation.css";
 @source ".";
@@ -105,9 +104,9 @@ html[data-conversation-font='system'] { --font-conversation: var(--font-stack-sy
   --card-foreground: #f0f0f0;
   --popover: #141414;
   --popover-foreground: #f0f0f0;
-  --overlay-glass: rgb(36 36 38 / 78%);
-  --overlay-glass-sheen: rgb(255 255 255 / 18%);
-  --overlay-glass-highlight: rgb(255 255 255 / 32%);
+  --overlay-glass: rgb(28 28 30 / 42%);
+  --overlay-glass-sheen: rgb(255 255 255 / 14%);
+  --overlay-glass-highlight: rgb(255 255 255 / 28%);
   --overlay-glass-fg: #f0f0f0;
   --primary: #f0f0f0;
   --primary-foreground: #141414;
@@ -276,16 +275,16 @@ html[data-conversation-font='system'] { --font-conversation: var(--font-stack-sy
 :root[data-theme='light'] {
   color-scheme: light;
 
-  --background: rgb(252 252 252 / 0.84);
-  --background-chrome: rgb(243 243 243 / 0.74);
+  --background: rgb(244 246 248 / 0.84);
+  --background-chrome: rgb(236 238 241 / 0.74);
   --foreground: #141414;
-  --card: rgb(252 252 252 / 0.88);
+  --card: rgb(244 246 248 / 0.88);
   --card-foreground: #141414;
-  --popover: #f3f3f3;
+  --popover: #f7f8fa;
   --popover-foreground: #141414;
-  --overlay-glass: rgb(255 255 255 / 82%);
-  --overlay-glass-sheen: rgb(255 255 255 / 78%);
-  --overlay-glass-highlight: rgb(255 255 255 / 96%);
+  --overlay-glass: rgb(244 246 248 / 34%);
+  --overlay-glass-sheen: rgb(255 255 255 / 22%);
+  --overlay-glass-highlight: rgb(255 255 255 / 55%);
   --overlay-glass-fg: #141414;
   --primary: #141414;
   --primary-foreground: #fcfcfc;
@@ -308,7 +307,7 @@ html[data-conversation-font='system'] { --font-conversation: var(--font-stack-sy
   --ring: #141414;
   --hover: #e5e5e5;
   --hover-2: #d6d6d6;
-  --sidebar: rgb(243 243 243 / 0.70);
+  --sidebar: rgb(236 238 241 / 0.70);
   --sidebar-foreground: #141414;
   --sidebar-border: #e5e5e5;
   --sidebar-accent: #d6d6d6;
@@ -339,16 +338,16 @@ html[data-conversation-font='system'] { --font-conversation: var(--font-stack-sy
   --focus-panel: rgb(20 20 20 / 0.04);
   --focus-panel-strong: rgb(20 20 20 / 0.08);
   --grid-line: rgb(20 20 20 / 0.06);
-  --surface-wash: rgb(252 252 252 / 0.84);
-  --surface-wash-spot: rgb(243 243 243 / 0.78);
-  --surface-read: rgb(252 252 252 / 0.84);
-  --surface-clear: rgb(243 243 243 / 0.78);
-  --surface-clear-strong: rgb(243 243 243 / 0.86);
-  --surface-overlay: #f3f3f3;
+  --surface-wash: rgb(244 246 248 / 0.84);
+  --surface-wash-spot: rgb(236 238 241 / 0.78);
+  --surface-read: rgb(244 246 248 / 0.84);
+  --surface-clear: rgb(236 238 241 / 0.78);
+  --surface-clear-strong: rgb(236 238 241 / 0.86);
+  --surface-overlay: #eef0f3;
   --surface-specular: none;
   --surface-glass-shadow: 0 12px 32px rgb(20 20 20 / 0.1);
-  --surface-raised: rgb(255 255 255 / 0.92);
-  --surface-sunken: rgb(243 243 243 / 0.78);
+  --surface-raised: rgb(247 248 250 / 0.92);
+  --surface-sunken: rgb(236 238 241 / 0.78);
 
   --overlay-hover-light: var(--hover);
   --overlay-hover: var(--hover-2);
@@ -358,7 +357,7 @@ html[data-conversation-font='system'] { --font-conversation: var(--font-stack-sy
   --action-card-hover: rgb(20 20 20 / 0.04);
   --action-card-active: rgb(20 20 20 / 0.07);
   --segment-track: #ededed;
-  --segment-thumb: #fcfcfc;
+  --segment-thumb: #f7f8fa;
 
   --success: #00854c;
   --success-foreground: #00663b;
@@ -388,7 +387,7 @@ html[data-conversation-font='system'] { --font-conversation: var(--font-stack-sy
 
   --tooltip: #141414;
   --tooltip-foreground: #fcfcfc;
-  --terminal-background: rgb(252 252 252 / 0.92);
+  --terminal-background: rgb(244 246 248 / 0.92);
   --terminal-foreground: #141414;
   --terminal-cursor: #141414;
   --terminal-selection: rgb(20 20 20 / 0.12);
@@ -412,8 +411,8 @@ html[data-conversation-font='system'] { --font-conversation: var(--font-stack-sy
   --tactical-orange: var(--warning);
   --tactical-shadow: 0 12px 32px rgb(20 20 20 / 0.1);
 
-  --settings-field-fill: rgb(243 243 243 / 0.82);
-  --settings-field-fill-hover: #d6d6d6;
+  --settings-field-fill: rgb(236 238 241 / 0.92);
+  --settings-field-fill-hover: #e2e4e8;
 }
 
 @theme inline {
@@ -689,12 +688,17 @@ body {
 .tactical-floating-surface,
 .bg-popover,
 .agent-working__panel,
-.agent-attachment-lightbox {
+[data-agent-conversation] .agent-working__panel,
+.agent-task-rows__more,
+.agent-attachment-lightbox,
+.chat-composer__command-menu,
+.chat-composer__goal-panel,
+.companion-pet-menu {
   background-color: var(--overlay-glass) !important;
   background-image: linear-gradient(180deg, var(--overlay-glass-sheen), transparent 46%) !important;
   border-color: color-mix(in srgb, var(--overlay-glass-fg) 14%, transparent);
-  -webkit-backdrop-filter: blur(22px) saturate(180%);
-  backdrop-filter: blur(22px) saturate(180%);
+  -webkit-backdrop-filter: blur(56px) saturate(180%) !important;
+  backdrop-filter: blur(56px) saturate(180%) !important;
   box-shadow:
     inset 0 0.5px 0 var(--overlay-glass-highlight),
     var(--surface-glass-shadow),
@@ -708,14 +712,14 @@ body {
   background-image: none !important;
   border-color: transparent;
   box-shadow: none;
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
 }
 
 [data-slot="native-select"] option,
 [data-slot="native-select-option"] {
   color: var(--popover-foreground);
-  background-color: var(--surface-overlay);
+  background-color: var(--popover);
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -747,6 +751,28 @@ input,
 textarea,
 select {
   font: inherit;
+}
+
+/*
+ * Those controls inherit the browser's 16px root size, and that unlayered
+ * shorthand beats the layered text-label utility. The command panel sets the
+ * interface size on its own root so the field, chips, and rows follow it.
+ */
+[data-command-panel] {
+  font-size: var(--text-label);
+  line-height: var(--text-label--line-height);
+}
+
+[data-command-panel] input {
+  border-radius: 8px;
+  padding-inline: 10px;
+  background-color: rgb(244 246 248 / 42%);
+  background-image: linear-gradient(180deg, rgb(255 255 255 / 18%), transparent 46%);
+  -webkit-backdrop-filter: blur(56px) saturate(180%);
+  backdrop-filter: blur(56px) saturate(180%);
+  box-shadow:
+    inset 0 0.5px 0 rgb(255 255 255 / 72%),
+    0 0 0 0.5px color-mix(in srgb, #141414 8%, transparent);
 }
 
 /*
@@ -1118,7 +1144,7 @@ html.companion-surface #app {
 }
 
 :root[data-theme='light'] .companion-phone-screen {
-  background: #ffffff;
+  background: #f4f6f8;
 }
 
 .companion-phone .companion-chat {
@@ -1180,19 +1206,19 @@ html.companion-chat-surface #app {
 }
 
 :root[data-theme='light'] .companion-chat {
-  --companion-page: #ffffff;
+  --companion-page: #f4f6f8;
   --companion-bubble-incoming: #e9e9eb;
   --companion-bubble-incoming-fg: #000000;
   --companion-bubble-outgoing: #44b4fc;
-  --companion-field: #f9f9f9;
-  --companion-field-border: #ebebeb;
+  --companion-field: #f6f7f9;
+  --companion-field-border: #e6e8eb;
   --companion-send-idle: #c7c7cc;
-  --companion-glass: rgb(255 255 255 / 46%);
-  --companion-glass-field: rgb(255 255 255 / 62%);
+  --companion-glass: rgb(244 246 248 / 46%);
+  --companion-glass-field: rgb(247 248 250 / 62%);
   --companion-glass-border: rgb(255 255 255 / 72%);
   --companion-glass-highlight: rgb(255 255 255 / 90%);
   --companion-glass-sheen: rgb(255 255 255 / 70%);
-  --companion-phone-group: rgb(255 255 255 / 94%);
+  --companion-phone-group: rgb(244 246 248 / 94%);
   --companion-phone-group-line: rgb(0 0 0 / 8%);
   --companion-phone-settings-tint: rgb(242 242 247 / 72%);
 }
@@ -1496,7 +1522,7 @@ button.companion-chat-title:hover {
   flex: none;
   border-radius: 999px;
   object-fit: contain;
-  background: #ffffff;
+  background: #f7f8fa;
   border: 0.5px solid var(--companion-glass-border);
   box-shadow:
     inset 0 0.5px 0 var(--companion-glass-highlight),
@@ -1737,11 +1763,11 @@ button.companion-chat-title {
 }
 
 /* Phone menus portal to the window, so they do not inherit the settings type.
-   White glass, even when the app theme is dark: the handset asked for a light menu. */
+   Cool-white glass, even when the app theme is dark: the handset asked for a light menu. */
 .companion-settings-menu {
-  --overlay-glass: rgb(255 255 255 / 84%);
-  --overlay-glass-sheen: rgb(255 255 255 / 80%);
-  --overlay-glass-highlight: rgb(255 255 255 / 96%);
+  --overlay-glass: rgb(244 246 248 / 36%);
+  --overlay-glass-sheen: rgb(255 255 255 / 22%);
+  --overlay-glass-highlight: rgb(255 255 255 / 55%);
   --overlay-glass-fg: #141414;
   width: min(16.5rem, calc(100vw - 1.5rem)) !important;
   max-width: calc(100vw - 1.5rem);
@@ -1769,8 +1795,11 @@ button.companion-chat-title {
 }
 
 .companion-settings-menu [data-slot="input"] {
-  background-color: rgb(255 255 255 / 72%);
+  background-color: rgb(236 238 241 / 42%);
+  background-image: linear-gradient(180deg, rgb(255 255 255 / 18%), transparent 46%);
   border-color: rgb(20 20 20 / 10%);
+  -webkit-backdrop-filter: blur(56px) saturate(180%);
+  backdrop-filter: blur(56px) saturate(180%);
 }
 
 .companion-settings-menu .bg-accent,
@@ -2461,7 +2490,6 @@ button.companion-chat-title {
   padding: 4px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: var(--popover);
   color: var(--popover-foreground);
   -webkit-app-region: no-drag;
 }
