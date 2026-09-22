@@ -72,6 +72,7 @@ export default function CompanionSettingsPanel({
 }) {
   const rowStack = presentation === 'phone' ? 'never' as const : compact ? 'always' as const : 'never' as const
   const pickerAlign = presentation === 'phone' ? 'end' as const : compact ? 'start' as const : 'end' as const
+  const pickerMenuClassName = presentation === 'phone' ? 'companion-settings-menu' : undefined
   const t = useT()
   const locale = useUiLocale()
   const [shell, setShell] = useState<CompanionShellStatus | null>(null)
@@ -152,6 +153,7 @@ export default function CompanionSettingsPanel({
               value={modelKey}
               triggerClassName="settings-control h-7 px-2"
               ariaLabel={t('看板娘模型', 'Companion model')}
+              contentClassName={pickerMenuClassName}
               align={pickerAlign}
               trigger={(
                 <span className="inline-flex min-w-0 items-center gap-2">
@@ -284,6 +286,7 @@ export default function CompanionSettingsPanel({
             <SettingsGhostPicker
               value={settings.companion_teaching ?? 'ask_me'}
               ariaLabel={t('教学形态', 'Teaching style')}
+              menuClassName={pickerMenuClassName}
               options={[
                 { value: 'ask_me', label: t('先问我', 'Ask me') },
                 { value: 'hints', label: t('提示', 'Hints') },
@@ -311,12 +314,12 @@ export default function CompanionSettingsPanel({
       <SettingsSection title={t('外观', 'Appearance')}>
         <SettingsRow
           label={t('对话字体', 'Conversation font')}
-          description={t('手机聊天与主窗口对话共用。', 'Shared with main-window chat.')}
           stack={rowStack}
           trailing={(
             <SettingsGhostPicker
               value={normalizeUiFontPreset(settings.conversation_font)}
               ariaLabel={t('对话字体', 'Conversation font')}
+              menuClassName={pickerMenuClassName}
               wide
               options={UI_FONT_PRESET_IDS.map(id => ({
                 value: id,
@@ -337,6 +340,7 @@ export default function CompanionSettingsPanel({
             <SettingsGhostPicker
               value={normalizeUiFontSize(settings.conversation_font_size)}
               ariaLabel={t('对话字号', 'Conversation size')}
+              menuClassName={pickerMenuClassName}
               options={UI_FONT_SIZE_IDS.map(id => ({
                 value: id,
                 label: id,
@@ -376,6 +380,7 @@ export default function CompanionSettingsPanel({
             <SettingsGhostPicker
               value={selectedSkin}
               ariaLabel={t('皮肤', 'Skin')}
+              menuClassName={pickerMenuClassName}
               options={skins.map(item => ({
                 value: item.id,
                 label: skinLabel(item, locale),

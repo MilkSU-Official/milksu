@@ -130,6 +130,7 @@ export default function SearchableModelPicker({
   groups,
   footer,
   align = 'end',
+  contentClassName,
   onChange,
 }: {
   value: string
@@ -142,6 +143,7 @@ export default function SearchableModelPicker({
   groups: readonly SearchableModelGroup[]
   footer?: ReactNode
   align?: 'start' | 'center' | 'end'
+  contentClassName?: string
   onChange?: (value: string) => void
 }) {
   const [open, setOpen] = useState(false)
@@ -164,7 +166,7 @@ export default function SearchableModelPicker({
           <ChevronDown className="size-3.5 shrink-0 text-muted-foreground opacity-50" />
         </button>
       </PopoverTrigger>
-      <PopoverContent align={align} sideOffset={8} className="settings-picker-menu w-[22rem] max-w-[calc(100vw-2rem)] p-0">
+      <PopoverContent align={align} sideOffset={8} className={cn('settings-picker-menu w-[22rem] max-w-[calc(100vw-2rem)] p-0', contentClassName)}>
         <SearchableModelList
           value={value}
           leading={leading}

@@ -58,9 +58,9 @@
 - **看板娘隐藏、Dock 停主窗、原生右键菜单**：`BrowserWindow.hide` / 最小化 / Electron `Menu` 是系统面。显示角色时有短入场；隐藏不把窗口留 180ms 再关（会抢焦点、也会让回归截图拍到还在的窗）。右键只有 Preload 一个入口，渲染器不再另弹一层。
 - **看板娘手机首屏灌入**：第一次 `list_companion_transcript` 灌满历史时不级联入场。之后的新行、离开和重排才动。
 - **列表级联（stagger）**：同一批元素依次入场看着好，但会话列表和工具列表是高频面。
-- **逐表面 `backdrop-filter` 材质**：材质归 `desktop/window-chrome.cjs` 的
-  `vibrancy: 'under-window'` / `backgroundMaterial: 'acrylic'`。浮层上不加 `backdrop-filter`
-  （Windows Chromium 经常不给毛玻璃，薄填充会直接透出一个洞）。看板娘手机屏幕里的玻璃控件模糊的是屏幕内的记录，不采样桌面。
+- **窗口 vibrancy 与浮层材质**：窗口的 `vibrancy: 'under-window'` /
+  `backgroundMaterial: 'acrylic'` 仍归 `desktop/window-chrome.cjs`。浮层材质以
+  `AGENTS.md` 为准，落在 `index.css`。看板娘手机屏幕里的玻璃控件模糊的是屏幕内的记录，不采样桌面。磨砂层不加 `clip-path`。
 - **动画库**：没有 Motion / Framer Motion / GSAP。继续用 CSS keyframes + transition；
   只有真出现"可抛掷的手势"时才值得重新评估。
 - **`transition: all`**：全仓没有带时长的 `transition: all`，保持这个状态。

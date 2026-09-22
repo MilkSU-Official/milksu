@@ -98,12 +98,14 @@ function SettingsGhostPicker({
   options,
   onChange,
   wide = false,
+  menuClassName,
 }: {
   value: string
   ariaLabel: string
   options: { value: string; label: string; leading?: ReactNode }[]
   onChange: (value: string) => void
   wide?: boolean
+  menuClassName?: string
 }) {
   const [open, setOpen] = useState(false)
   const selected = options.find(option => option.value === value)
@@ -128,7 +130,7 @@ function SettingsGhostPicker({
       </PopoverTrigger>
       <PopoverContent
         align="end"
-        className={cn('settings-picker-menu p-1', wide ? 'w-[20rem]' : 'w-[14rem]')}
+        className={cn('settings-picker-menu p-1', wide ? 'w-[20rem]' : 'w-[14rem]', menuClassName)}
       >
         {options.map(option => (
           <button

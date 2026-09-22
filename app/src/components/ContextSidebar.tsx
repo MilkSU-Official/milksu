@@ -36,7 +36,7 @@ import {
   GitFork,
   Globe2,
   House,
-  PawPrint,
+  Star,
   LogOut,
   SquarePen,
   Moon,
@@ -119,7 +119,7 @@ const settingsNavIcons = {
   chats: Archive,
   browser: Globe2,
   eval: Gauge,
-  companion: PawPrint,
+  companion: Star,
   plugins: Puzzle,
 } as const
 
@@ -958,7 +958,7 @@ export default function ContextSidebar({
               })
             }}
           >
-            <PawPrint className="size-4" />
+            <Star className="size-4" />
           </button>
           <button
             type="button"

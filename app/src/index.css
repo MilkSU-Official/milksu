@@ -105,6 +105,10 @@ html[data-conversation-font='system'] { --font-conversation: var(--font-stack-sy
   --card-foreground: #f0f0f0;
   --popover: #141414;
   --popover-foreground: #f0f0f0;
+  --overlay-glass: rgb(36 36 38 / 78%);
+  --overlay-glass-sheen: rgb(255 255 255 / 18%);
+  --overlay-glass-highlight: rgb(255 255 255 / 32%);
+  --overlay-glass-fg: #f0f0f0;
   --primary: #f0f0f0;
   --primary-foreground: #141414;
   --emphasis: var(--primary);
@@ -279,6 +283,10 @@ html[data-conversation-font='system'] { --font-conversation: var(--font-stack-sy
   --card-foreground: #141414;
   --popover: #f3f3f3;
   --popover-foreground: #141414;
+  --overlay-glass: rgb(255 255 255 / 82%);
+  --overlay-glass-sheen: rgb(255 255 255 / 78%);
+  --overlay-glass-highlight: rgb(255 255 255 / 96%);
+  --overlay-glass-fg: #141414;
   --primary: #141414;
   --primary-foreground: #fcfcfc;
   --emphasis: var(--primary);
@@ -678,12 +686,30 @@ body {
 [data-slot="select-content"],
 [data-slot="sheet-content"],
 [data-slot="hover-card-content"],
-.tactical-floating-surface {
-  color: var(--popover-foreground);
-  background-color: var(--surface-overlay) !important;
-  backdrop-filter: none;
+.tactical-floating-surface,
+.bg-popover,
+.agent-working__panel,
+.agent-attachment-lightbox {
+  background-color: var(--overlay-glass) !important;
+  background-image: linear-gradient(180deg, var(--overlay-glass-sheen), transparent 46%) !important;
+  border-color: color-mix(in srgb, var(--overlay-glass-fg) 14%, transparent);
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
+  backdrop-filter: blur(22px) saturate(180%);
+  box-shadow:
+    inset 0 0.5px 0 var(--overlay-glass-highlight),
+    var(--surface-glass-shadow),
+    var(--surface-specular);
+}
+
+/* Composer flyouts paint their own glass panels. The portal shell stays clear. */
+[data-slot="popover-content"].bg-transparent {
+  color: inherit;
+  background-color: transparent !important;
+  background-image: none !important;
+  border-color: transparent;
+  box-shadow: none;
   -webkit-backdrop-filter: none;
-  box-shadow: var(--surface-glass-shadow), var(--surface-specular);
+  backdrop-filter: none;
 }
 
 [data-slot="native-select"] option,
@@ -1518,15 +1544,19 @@ button.companion-chat-title {
   text-align: center;
 }
 
-/* Phone settings push. The pane is the only backdrop-filter. It counter-translates
-   against the sheet so its box stays inside the screen and does not sample the
-   desktop. Do not put clip-path on the pane: Chromium drops the backdrop. */
+/* Phone settings push. The pane blurs the chat behind the sheet and counter-translates
+   so it stays inside the screen and does not sample the desktop. The top fade blurs
+   settings rows under the status bar and title. Do not put clip-path on either:
+   Chromium drops the backdrop. */
 .companion-phone-settings {
   position: absolute;
   inset: 0;
   z-index: 5;
   overflow: hidden;
   font-family: var(--font-ui);
+  /* One step under the page title. The title itself stays 16px. */
+  --text-caption: 10px;
+  --text-caption--line-height: 14px;
   pointer-events: none;
   background: transparent;
 }
@@ -1568,6 +1598,23 @@ button.companion-chat-title {
   backdrop-filter: none;
 }
 
+.companion-phone-settings .companion-chat-fade {
+  height: var(--companion-settings-fade-end, 148px);
+}
+
+/* The shared stack is clear along its bottom edge. Hold a full frost through
+   the status bar and title, then feather only below that chrome. */
+.companion-settings-fade-hold {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  mask-image: linear-gradient(to bottom, black 0, black var(--companion-settings-chrome, 112px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, black 0, black var(--companion-settings-chrome, 112px), transparent 100%);
+}
+
 .companion-phone-settings-scroll {
   position: relative;
   z-index: 1;
@@ -1575,7 +1622,7 @@ button.companion-chat-title {
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  padding: 112px 16px 28px;
+  padding: calc(var(--companion-settings-fade-end, 112px) + 8px) 16px 28px;
   -webkit-app-region: no-drag;
 }
 
@@ -1613,9 +1660,9 @@ button.companion-chat-title {
 }
 
 .companion-phone-settings-scroll section > div:first-child h2 {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 400;
-  line-height: 16px;
+  line-height: 15px;
   letter-spacing: -0.01em;
   color: var(--companion-stamp);
 }
@@ -1683,10 +1730,57 @@ button.companion-chat-title {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 400;
-  line-height: 20px;
+  line-height: 18px;
   letter-spacing: -0.02em;
+}
+
+/* Phone menus portal to the window, so they do not inherit the settings type.
+   White glass, even when the app theme is dark: the handset asked for a light menu. */
+.companion-settings-menu {
+  --overlay-glass: rgb(255 255 255 / 84%);
+  --overlay-glass-sheen: rgb(255 255 255 / 80%);
+  --overlay-glass-highlight: rgb(255 255 255 / 96%);
+  --overlay-glass-fg: #141414;
+  width: min(16.5rem, calc(100vw - 1.5rem)) !important;
+  max-width: calc(100vw - 1.5rem);
+  max-height: min(18rem, calc(100vh - 6rem));
+  overflow: auto;
+  border-radius: 10px;
+  color: #141414;
+  font-size: 14px;
+  line-height: 18px;
+  font-weight: 400;
+}
+
+.companion-settings-menu .settings-row-type,
+.companion-settings-menu button,
+.companion-settings-menu input {
+  font-size: 14px;
+  line-height: 18px;
+  font-weight: 400;
+  color: #141414;
+}
+
+.companion-settings-menu .text-muted-foreground,
+.companion-settings-menu .text-caption {
+  color: #6b6b6b;
+}
+
+.companion-settings-menu [data-slot="input"] {
+  background-color: rgb(255 255 255 / 72%);
+  border-color: rgb(20 20 20 / 10%);
+}
+
+.companion-settings-menu .bg-accent,
+.companion-settings-menu .hover\:bg-accent:hover {
+  background-color: rgb(20 20 20 / 6%);
+}
+
+.companion-phone-settings .text-sm {
+  font-size: 13px;
+  line-height: 18px;
 }
 
 .companion-phone-settings .settings-control {

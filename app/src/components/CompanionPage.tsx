@@ -197,6 +197,8 @@ export default function CompanionPage({
   const chatRef = useRef<HTMLElement>(null)
   const footerRef = useRef<HTMLDivElement>(null)
   const titleRef = useRef<HTMLButtonElement>(null)
+  const settingsRef = useRef<HTMLDivElement>(null)
+  const settingsHeadRef = useRef<HTMLElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const stickToEnd = useRef(true)
   const [screen, setScreen] = useState<CompanionPhoneScreen>('chat')
@@ -452,6 +454,22 @@ export default function CompanionPage({
     observer.observe(title)
     return () => observer.disconnect()
   }, [petName, embedded, screen])
+
+  useLayoutEffect(() => {
+    const root = settingsRef.current
+    const head = settingsHeadRef.current
+    if (!root || !head) return undefined
+    const syncFade = () => {
+      const chrome = Math.max(0, Math.round(head.getBoundingClientRect().bottom - root.getBoundingClientRect().top))
+      root.style.setProperty('--companion-settings-chrome', `${chrome}px`)
+      root.style.setProperty('--companion-settings-fade-end', `${chrome + 36}px`)
+    }
+    syncFade()
+    const observer = new ResizeObserver(syncFade)
+    observer.observe(root)
+    observer.observe(head)
+    return () => observer.disconnect()
+  }, [screen])
 
   useEffect(() => {
     fitComposer(inputRef.current)
@@ -902,6 +920,7 @@ export default function CompanionPage({
       </div>
       </div>
       <div
+        ref={settingsRef}
         className={cn('companion-phone-settings', settingsOpen && 'is-open')}
         data-testid="companion-phone-settings"
         inert={settingsOpen ? undefined : true}
@@ -917,13 +936,21 @@ export default function CompanionPage({
               onPersist={() => void persistPhoneSettings()}
             />
           </div>
+          <div className="companion-chat-fade" aria-hidden="true">
+            <ProgressiveBlur
+              className="companion-chat-fade-progressive"
+              position="top"
+              intensity={100}
+            />
+            <div className="companion-settings-fade-hold" />
+          </div>
           <div className="companion-chat-chrome">
             <CompanionPhoneStatusBar
               island={island}
               attention={attention}
               thinkStartedAt={thinkStartedAt}
             />
-            <header className="companion-phone-settings-head">
+            <header ref={settingsHeadRef} className="companion-phone-settings-head">
               <button
                 type="button"
                 className="companion-chat-icon companion-glass"
