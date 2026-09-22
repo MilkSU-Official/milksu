@@ -129,6 +129,21 @@ export class CloudAgentClient {
       attachment_ids: input.attachmentIds ?? [],
     }) as Promise<{ turn_id: string }>
   }
+
+  /** Write-only: api_key never returned by the cloud API. */
+  async upsertCredential(input: {
+    id?: string
+    label: string
+    baseUrl: string
+    apiKey: string
+  }): Promise<{ id: string }> {
+    return this.call('UpsertCredential', {
+      id: input.id ?? '',
+      label: input.label,
+      base_url: input.baseUrl,
+      api_key: input.apiKey,
+    }) as Promise<{ id: string }>
+  }
 }
 
 export function defaultCloudAgentBaseUrl(): string {
