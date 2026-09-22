@@ -3019,7 +3019,9 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
     disposeCloudEvents = await listenEvent<{
       sessionId?: string
       event?: {
+        id?: string
         type?: string
+        turn_id?: string
         json_payload?: string
       }
       error?: string
@@ -3045,9 +3047,34 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
       const event = envelope.payload?.event
       const type = String(event?.type ?? '')
       let text = ''
+      let usagePayload: {
+        usage?: {
+          input_tokens?: number
+          output_tokens?: number
+          cache_read_tokens?: number
+          cache_write_tokens?: number
+          reasoning_tokens?: number
+          model_cost_est_usd?: number
+          sandbox_cost_est_usd?: number
+          sandbox_seconds?: number
+        }
+      } = {}
       try {
-        const parsed = JSON.parse(String(event?.json_payload ?? '{}')) as { text?: string }
+        const parsed = JSON.parse(String(event?.json_payload ?? '{}')) as {
+          text?: string
+          usage?: {
+            input_tokens?: number
+            output_tokens?: number
+            cache_read_tokens?: number
+            cache_write_tokens?: number
+            reasoning_tokens?: number
+            model_cost_est_usd?: number
+            sandbox_cost_est_usd?: number
+            sandbox_seconds?: number
+          }
+        }
         text = typeof parsed.text === 'string' ? parsed.text : ''
+        usagePayload = parsed
       } catch {
         text = ''
       }
@@ -3068,6 +3095,23 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
           }
           return { ...current, messages }
         })
+      } else if (type === 'turn.settled') {
+        const usage = usagePayload.usage ?? {}
+        void invokeCommand('record_cloud_usage_turn', {
+          conversationId: conversation.id,
+          turnId: String(event?.turn_id ?? event?.id ?? ''),
+          kernel: normalizeAgentKernel(conversation.kernel),
+          model: conversation.modelId ?? '',
+          source: conversation.modelSourcePreference === 'personal' ? 'personal' : 'account',
+          inputTokens: Number(usage.input_tokens ?? 0),
+          outputTokens: Number(usage.output_tokens ?? 0),
+          cacheReadTokens: Number(usage.cache_read_tokens ?? 0),
+          cacheWriteTokens: Number(usage.cache_write_tokens ?? 0),
+          reasoningTokens: Number(usage.reasoning_tokens ?? 0),
+          sandboxSeconds: Number(usage.sandbox_seconds ?? 0),
+          modelCostEstUsd: Number(usage.model_cost_est_usd ?? 0),
+          sandboxCostEstUsd: Number(usage.sandbox_cost_est_usd ?? 0),
+        }).catch(() => undefined)
       } else if (type === 'assistant.settled' || type === 'assistant.completed') {
         finishRun(conversation.id)
         update(conversation.id, current => {

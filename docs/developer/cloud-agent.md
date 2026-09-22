@@ -132,7 +132,7 @@ Cloud API
 
 | 刀 | 状态 | 落点 |
 | --- | --- | --- |
-| 1 用量 + Connect 契约 | 骨架已进仓 | `internal/modelpricing`、`usage_turns`、`cloud/agent/proto`、Worker stub |
+| 1 用量 + Connect 契约 | 骨架已进仓 | `internal/modelpricing`、`usage_turns`、`RecordCloudUsageTurn`（云 `turn.settled`→本机账本）、`cloud/agent/proto`、Worker stub |
 | 2–3 CF Pi/DSH | 骨架 | `sandbox/Dockerfile` + `package-pins.json`（钉 Pi 0.84.1 / DSH 0.1.6-alpha.1）；`migrations/0001_init.sql`；需 milksu-admin 解开 wrangler containers/DO/D1 |
 | 4 左下切换 + 先拷后删 | UI + Desktop RPC | `ComposerHostSwitch`、`migrateConversationHost`、`desktop/cloud-agent-client.cjs`（`CloudAgentInvoke`，Bearer 只在 Electron main）；云宿主 `SendTurn` 走同一代理 |
 | 5 原生双端 | Connect-JSON + Subscribe | `mobile/ios`、`mobile/android`：PKCE、`Info.plist` / `AndroidManifest` deep link、列表 + 对话、`SendTurn` / `Subscribe` 长轮询重连 |

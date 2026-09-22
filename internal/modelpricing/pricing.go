@@ -130,6 +130,22 @@ func EstimateUSD(model string, usage Usage) (float64, bool) {
 	return total, true
 }
 
+// SandboxUSDPerSecond is the display-only cloud sandbox coefficient.
+// Not a bill; product UI must say so. Tunable when CF publishes list prices.
+const SandboxUSDPerSecond = 0.00005
+
+// EstimateSandboxUSD returns seconds × SandboxUSDPerSecond (clamped, never negative).
+func EstimateSandboxUSD(seconds int64) float64 {
+	if seconds <= 0 {
+		return 0
+	}
+	total := float64(seconds) * SandboxUSDPerSecond
+	if math.IsNaN(total) || math.IsInf(total, 0) {
+		return 0
+	}
+	return total
+}
+
 func nonNeg(v int64) int64 {
 	if v < 0 {
 		return 0

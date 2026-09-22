@@ -18,6 +18,83 @@ func (a *App) GetCodingUsageSnapshot() (modelusage.Snapshot, error) {
 	return a.modelUsage.Snapshot(a.commandContext(), time.Now())
 }
 
+// RecordCloudUsageTurnRequest is the Desktop RPC body for cloud turn.settled.
+type RecordCloudUsageTurnRequest struct {
+	ConversationID    string  `json:"conversationId"`
+	TurnID            string  `json:"turnId"`
+	Kernel            string  `json:"kernel"`
+	Model             string  `json:"model"`
+	Source            string  `json:"source"`
+	InputTokens       int64   `json:"inputTokens"`
+	OutputTokens      int64   `json:"outputTokens"`
+	CacheReadTokens   int64   `json:"cacheReadTokens"`
+	CacheWriteTokens  int64   `json:"cacheWriteTokens"`
+	ReasoningTokens   int64   `json:"reasoningTokens"`
+	SandboxSeconds    int64   `json:"sandboxSeconds"`
+	ModelCostEstUSD   float64 `json:"modelCostEstUsd"`
+	SandboxCostEstUSD float64 `json:"sandboxCostEstUsd"`
+}
+
+// RecordCloudUsageTurn persists a cloud host row from Connect turn.settled.
+// Model cost falls back to models.dev estimate; sandbox cost uses the shared coefficient.
+func (a *App) RecordCloudUsageTurn(req RecordCloudUsageTurnRequest) error {
+	if a.modelUsage == nil {
+		return fmt.Errorf("Coding Agent usage ledger is unavailable")
+	}
+	conversationID := strings.TrimSpace(req.ConversationID)
+	if conversationID == "" {
+		return fmt.Errorf("conversationId required")
+	}
+	turnID := strings.TrimSpace(req.TurnID)
+	if turnID == "" {
+		turnID = fmt.Sprintf("cloud-turn:%s:%d", conversationID, time.Now().UTC().UnixMilli())
+	}
+	kernel := strings.TrimSpace(req.Kernel)
+	if kernel == "" {
+		kernel = "pi"
+	}
+	model := strings.TrimSpace(req.Model)
+	source := strings.TrimSpace(req.Source)
+	if source == "" {
+		source = "account"
+	}
+	modelCost := req.ModelCostEstUSD
+	if modelCost <= 0 {
+		if est, ok := modelpricing.EstimateUSD(model, modelpricing.Usage{
+			InputTokens:      req.InputTokens,
+			OutputTokens:     req.OutputTokens,
+			CacheReadTokens:  req.CacheReadTokens,
+			CacheWriteTokens: req.CacheWriteTokens,
+			ReasoningTokens:  req.ReasoningTokens,
+		}); ok {
+			modelCost = est
+		}
+	}
+	sandboxCost := req.SandboxCostEstUSD
+	if sandboxCost <= 0 && req.SandboxSeconds > 0 {
+		sandboxCost = modelpricing.EstimateSandboxUSD(req.SandboxSeconds)
+	}
+	total := req.InputTokens + req.OutputTokens + req.CacheReadTokens + req.CacheWriteTokens + req.ReasoningTokens
+	return a.modelUsage.RecordTurn(context.Background(), modelusage.Turn{
+		ID:                turnID,
+		ConversationID:    conversationID,
+		Host:              "cloud",
+		Kernel:            kernel,
+		Model:             model,
+		Source:            source,
+		OccurredAt:        time.Now().UTC(),
+		InputTokens:       req.InputTokens,
+		OutputTokens:      req.OutputTokens,
+		CacheRead:         req.CacheReadTokens,
+		CacheWrite:        req.CacheWriteTokens,
+		Reasoning:         req.ReasoningTokens,
+		TotalTokens:       total,
+		ModelCostEstUSD:   modelCost,
+		SandboxSeconds:    req.SandboxSeconds,
+		SandboxCostEstUSD: sandboxCost,
+	})
+}
+
 func (a *App) recordCodingUsage(event engine.Event) (bool, error) {
 	if a.modelUsage == nil {
 		return false, nil

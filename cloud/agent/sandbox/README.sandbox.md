@@ -3,6 +3,10 @@
 CF Sandbox runtime for MilkSU cloud Coding
 (https://developers.cloudflare.com/sandbox/configuration/dockerfile/).
 
+## Bridge
+
+`bridge-entry.sh` is the container `CMD` (Pi/DSH attach placeholder). Set `MILKSU_CLOUD_KERNEL=pi|dsh` at start.
+
 ## Pins
 
 - Base image: `docker.io/cloudflare/sandbox:0.7.0` — must match `@cloudflare/sandbox` in `cloud/agent/package.json`.

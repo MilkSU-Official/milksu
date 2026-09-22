@@ -20,3 +20,14 @@ func TestEstimateUnknownModel(t *testing.T) {
 		t.Fatal("expected miss")
 	}
 }
+
+func TestEstimateSandboxUSD(t *testing.T) {
+	if got := EstimateSandboxUSD(0); got != 0 {
+		t.Fatalf("zero seconds = %v", got)
+	}
+	got := EstimateSandboxUSD(20)
+	want := 20 * SandboxUSDPerSecond
+	if got != want {
+		t.Fatalf("got %v want %v", got, want)
+	}
+}
