@@ -371,6 +371,7 @@ export interface AppSettings {
   companion_skin_id?: string
   companion_proactivity?: CompanionProactivity
   companion_teaching?: CompanionTeaching
+  companion_reply_style?: 'markdown' | 'chat'
   preferred_external_editor?: string
   ui_font?: UiFontPreset
   conversation_font?: UiFontPreset
@@ -453,6 +454,7 @@ export interface CompanionTranscriptEntry {
   text?: string
   thinking?: string
   tools?: string[]
+  thinkingDurationMs?: number
   error?: string
   attachments?: CodingAttachment[]
 }
@@ -682,6 +684,10 @@ function normalizeWorkerSelection(value: AppSettings): Pick<
   return { worker_provider: provider, worker_model: model, worker_source: source }
 }
 
+export function normalizeCompanionReplyStyle(value: unknown): 'markdown' | 'chat' {
+  return value === 'chat' ? 'chat' : 'markdown'
+}
+
 function normalizeCompanionTeaching(value: unknown): CompanionTeaching {
   switch (String(value ?? '').trim()) {
     case 'hints':
@@ -720,6 +726,7 @@ function normalizeCompanionSelection(value: AppSettings): Pick<
   | 'companion_skin_id'
   | 'companion_proactivity'
   | 'companion_teaching'
+  | 'companion_reply_style'
 > {
   const provider = String(value.companion_provider ?? '').trim()
   const model = String(value.companion_model ?? '').trim()
@@ -748,6 +755,7 @@ function normalizeCompanionSelection(value: AppSettings): Pick<
       idle_chat: value.companion_proactivity?.idle_chat === true,
     },
     companion_teaching: normalizeCompanionTeaching(value.companion_teaching),
+    companion_reply_style: normalizeCompanionReplyStyle(value.companion_reply_style),
   }
 }
 

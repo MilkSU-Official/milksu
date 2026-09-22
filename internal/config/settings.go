@@ -149,6 +149,8 @@ type AppSettings struct {
 	CompanionSkinID          string               `json:"companion_skin_id,omitempty"`
 	CompanionProactivity     CompanionProactivity `json:"companion_proactivity,omitempty"`
 	CompanionTeaching        string               `json:"companion_teaching,omitempty"`
+	// CompanionReplyStyle is markdown (full-width assistant text) or chat (bubbles).
+	CompanionReplyStyle      string               `json:"companion_reply_style,omitempty"`
 	PreferredExternalEditor  string               `json:"preferred_external_editor,omitempty"`
 	// UiFont and ConversationFont are preset ids from app/src/lib/uiFonts.ts.
 	// UiFontSize and ConversationFontSize are concrete px strings such as "13".
@@ -1246,6 +1248,7 @@ func normalizeCompanionSettings(value AppSettings) AppSettings {
 	value.CompanionSkinID = NormalizeCompanionSkinID(value.CompanionSkinID)
 	value.CompanionProactivity = normalizeCompanionProactivity(value.CompanionProactivity)
 	value.CompanionTeaching = NormalizeCompanionTeaching(value.CompanionTeaching)
+	value.CompanionReplyStyle = NormalizeCompanionReplyStyle(value.CompanionReplyStyle)
 	return value
 }
 
@@ -1307,6 +1310,20 @@ func CompanionDispatchEnabled(settings AppSettings) bool {
 func CompanionMemoryEnabled(settings AppSettings) bool {
 	settings = normalizeCompanionSettings(settings)
 	return settings.CompanionMemoryEnabled == nil || *settings.CompanionMemoryEnabled
+}
+
+func NormalizeCompanionReplyStyle(value string) string {
+	switch strings.TrimSpace(value) {
+	case "chat":
+		return "chat"
+	default:
+		return "markdown"
+	}
+}
+
+func CompanionReplyStyle(settings AppSettings) string {
+	settings = normalizeCompanionSettings(settings)
+	return NormalizeCompanionReplyStyle(settings.CompanionReplyStyle)
 }
 
 func CompanionFloatEnabled(settings AppSettings) bool {

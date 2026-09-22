@@ -125,6 +125,18 @@ test("dispatch host rejection throws so Pi can emit an error toolResult and cont
   );
 });
 
+test("board text leads with the conversation title", async () => {
+  const tools = createCompanionTools(async () => ({
+    sessions: [{ id: "abc123dead", title: "修登录", status: "running" }],
+    todos: [],
+  }));
+  const board = tools.find(tool => tool.name === "companion_board");
+  const result = await board.execute("1", { action: "list" });
+  assert.match(result.content[0].text, /^修登录/);
+  assert.doesNotMatch(result.content[0].text, /^\[abc123dead\]/);
+  assert.match(result.content[0].text, /conversationId: abc123dead/);
+});
+
 test("board host rejection throws so Pi can continue the loop", async () => {
   const tools = createCompanionTools(async () => {
     throw new Error("companion host request failed");

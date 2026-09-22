@@ -4,7 +4,6 @@ import {
   companionTurnHasProcess,
   type CompanionTurnProcess,
 } from '@/lib/companionTurnProcess'
-import { formatDemoElapsed } from '@/lib/agentConversation'
 import { companionLooksLikeDebugPayload } from '@/lib/companionUserError'
 import { useT } from '@/hooks/useUiLocale'
 
@@ -19,6 +18,7 @@ export default function CompanionTurnProcessView({
 }) {
   const t = useT()
   const [open, setOpen] = useState(defaultOpen || process.thinkingRunning || process.tools.some(tool => tool.running))
+  const [now, setNow] = useState(0)
   const thinkingRows = process.thinking
     .split(/\n+/)
     .map(line => line.trim())
@@ -30,12 +30,19 @@ export default function CompanionTurnProcessView({
     }
   }, [process.thinkingRunning, process.tools])
 
+  useEffect(() => {
+    if (!process.thinkingRunning || process.thinkingStartedAt == null) return undefined
+    setNow(Date.now())
+    const timer = window.setInterval(() => setNow(Date.now()), 200)
+    return () => window.clearInterval(timer)
+  }, [process.thinkingRunning, process.thinkingStartedAt])
+
   if (!companionTurnHasProcess(process)) return null
 
-  const summary = companionProcessSummary(process)
-  const elapsed = process.thinkingDurationMs === undefined
-    ? ''
-    : formatDemoElapsed(process.thinkingDurationMs)
+  const liveElapsed = process.thinkingRunning && process.thinkingStartedAt != null
+    ? Math.max(0, now - process.thinkingStartedAt)
+    : undefined
+  const summary = companionProcessSummary(process, liveElapsed)
 
   return (
     <div className="companion-chat-process">
@@ -47,12 +54,10 @@ export default function CompanionTurnProcessView({
           onClick={() => setOpen(current => !current)}
         >
           <span>{summary || t('过程', 'Process')}</span>
-          {elapsed ? <span className="companion-chat-process-elapsed">{elapsed}</span> : null}
         </button>
       ) : (
         <p className="companion-chat-process-summary companion-chat-process-summary-static">
           <span>{summary || (process.thinkingRunning ? t('正在思考', 'Thinking') : t('过程', 'Process'))}</span>
-          {elapsed ? <span className="companion-chat-process-elapsed">{elapsed}</span> : null}
         </p>
       )}
       {(!foldable || open) ? (

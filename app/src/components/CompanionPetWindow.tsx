@@ -20,6 +20,7 @@ import {
   resolveCompanionPetMotion,
   stepCompanionThinkClock,
 } from '@/lib/companionPetMotion'
+import { COMPANION_PHONE_HEIGHT, COMPANION_PHONE_WIDTH } from '@/lib/companionOverlayState'
 import { applyThemeMode, readThemeMode } from '@/lib/themeMode'
 import type { AppSettings, CompanionShellStatus, CompanionSkinResolved } from '@/types'
 
@@ -364,7 +365,7 @@ export default function CompanionPetWindow() {
           data-form="phone"
           data-chat={chatOpen ? 'open' : 'closing'}
           data-preview={previewPhone ? 'true' : undefined}
-          style={previewPhone ? { width: 288, height: 604 } : undefined}
+          style={previewPhone ? { width: COMPANION_PHONE_WIDTH, height: COMPANION_PHONE_HEIGHT } : undefined}
           onPointerDown={event => {
             const target = event.target as HTMLElement
             if (target.closest('button, textarea, input, [contenteditable="true"]')) return

@@ -27,10 +27,10 @@ const idle = normalizeCompanionOverlayState({
 })
 
 describe('companionOverlayState', () => {
-  it('sizes the phone to the iPhone 17 body, not the iOS point grid', () => {
-    expect(COMPANION_PHONE_WIDTH).toBe(288)
-    expect(COMPANION_PHONE_HEIGHT).toBe(604)
-    expect(COMPANION_PHONE_HEIGHT / COMPANION_PHONE_WIDTH).toBeCloseTo(149.6 / 71.5, 2)
+  it('sizes the phone to the iPhone 17 screen, one step wider than 288', () => {
+    expect(COMPANION_PHONE_WIDTH).toBe(320)
+    expect(COMPANION_PHONE_HEIGHT).toBe(696)
+    expect(COMPANION_PHONE_HEIGHT / COMPANION_PHONE_WIDTH).toBeCloseTo(874 / 402, 2)
   })
 
   it('maps the sidebar paw to pet, phone, and hidden', () => {

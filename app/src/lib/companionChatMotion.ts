@@ -106,7 +106,9 @@ export function useCompanionChatListMotion(
 
   const alias = aliasCompanionChatKeys(prevItemsRef.current, items)
   const nextKeys = new Set(items.map(item => item.key))
-  const newlyGone = prevItemsRef.current.filter(item => !nextKeys.has(item.key) && !alias.has(item.key))
+  const newlyGone = prevItemsRef.current.filter(item => (
+    !nextKeys.has(item.key) && !alias.has(item.key) && !item.key.startsWith('live:')
+  ))
   const born: string[] = []
   if (!companionPrefersUiMotion()) {
     leavingRef.current = []
@@ -138,8 +140,9 @@ export function useCompanionChatListMotion(
     leavingRef.current = [...hold.values()].filter(item => !nextKeys.has(item.key))
     for (const item of items) {
       if (seenRef.current.has(item.key) || [...alias.values()].includes(item.key)) continue
-      born.push(item.key)
       seenRef.current.add(item.key)
+      if (item.key.startsWith('live:')) continue
+      born.push(item.key)
       enteringRef.current.add(item.key)
     }
     for (const key of [...enteringRef.current]) {
@@ -154,6 +157,9 @@ export function useCompanionChatListMotion(
   useLayoutEffect(() => {
     const log = logRef.current
     const aliasNow = aliasCompanionChatKeys(prevItemsRef.current, items)
+    const keysUnchanged = prevItemsRef.current.map(item => item.key).join('\n') === itemsKey
+    const liveTurn = items.some(item => item.key.startsWith('live:'))
+      || prevItemsRef.current.some(item => item.key.startsWith('live:'))
 
     const firstKey = items[0]?.key ?? ''
     const prepended = Boolean(
@@ -170,7 +176,9 @@ export function useCompanionChatListMotion(
       }
     }
 
-    if (companionPrefersUiMotion() && log) {
+    // A growing reply used to FLIP every row on each token and on each
+    // resize. That slides the column up and down and replays the fade.
+    if (companionPrefersUiMotion() && log && !keysUnchanged && !liveTurn) {
       const logTop = log.getBoundingClientRect().top
       const nextTops = new Map<string, number>()
       for (const [key, node] of nodesRef.current) {
@@ -242,6 +250,12 @@ export function useCompanionChatListMotion(
     if (!log || typeof ResizeObserver !== 'function') return undefined
     const observer = new ResizeObserver(() => {
       if (!companionPrefersUiMotion() || !hydratedRef.current) return
+      if ([...nodesRef.current.keys()].some(key => key.startsWith('live:'))) {
+        prevTopsRef.current = new Map(
+          [...nodesRef.current].map(([key, node]) => [key, node.getBoundingClientRect().top]),
+        )
+        return
+      }
       const nextTops = new Map<string, number>()
       for (const [key, node] of nodesRef.current) {
         nextTops.set(key, node.getBoundingClientRect().top)

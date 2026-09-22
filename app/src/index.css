@@ -1255,7 +1255,7 @@ button.companion-island {
   color: #fff;
   box-shadow: none;
   cursor: pointer;
-  overflow: hidden;
+  overflow: visible;
   clip-path: inset(0 0 calc(100% - 26px) 0 round 13px);
   -webkit-app-region: no-drag;
 }
@@ -1383,7 +1383,7 @@ button.companion-island {
   display: block;
   width: 100%;
   height: 100%;
-  overflow: visible;
+  overflow: hidden;
 }
 
 .companion-chat-chrome {
@@ -1756,8 +1756,14 @@ button.companion-chat-title {
   align-self: flex-end;
 }
 
-.companion-chat-row-assistant .companion-chat-bubble,
-.companion-chat-row-assistant .companion-chat-stamp {
+.companion-chat-row-assistant .companion-chat-bubble:not(.companion-chat-typing) {
+  align-self: stretch;
+  width: 100%;
+  max-width: none;
+}
+
+.companion-chat-row-assistant .companion-chat-stamp,
+.companion-chat-row-assistant .companion-chat-typing {
   align-self: flex-start;
 }
 
@@ -1801,9 +1807,9 @@ button.companion-chat-title {
   position: relative;
   max-width: 76%;
   border-radius: var(--companion-bubble-radius);
-  padding: 7px 11px;
-  font-size: calc(var(--conversation-font-size) * 14 / 13);
-  line-height: calc(var(--conversation-font-size) * 18 / 13);
+  padding: 6px 10px;
+  font-size: 13px;
+  line-height: 18px;
   word-break: break-word;
 }
 
@@ -1831,8 +1837,21 @@ button.companion-chat-title {
 
 .companion-chat-bubble .markdown-content {
   color: inherit;
-  font-size: inherit;
-  line-height: inherit;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.companion-chat-bubble .markdown-content :is(h1, h2, h3, h4, h5, h6) {
+  margin: 8px 0 4px;
+  color: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+}
+
+.companion-chat-bubble .markdown-content :is(p, li, blockquote) {
+  font-size: 13px;
+  line-height: 18px;
 }
 
 .companion-chat-bubble .markdown-content a {
@@ -1911,9 +1930,48 @@ button.companion-chat-title {
   object-fit: contain;
 }
 
-.companion-chat-bubble-assistant {
-  background: var(--companion-bubble-incoming);
+.companion-chat-bubble-assistant:not(.companion-chat-typing) {
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
   color: var(--companion-bubble-incoming-fg);
+}
+
+.companion-chat[data-reply='chat'] .companion-chat-row-assistant .companion-chat-bubble:not(.companion-chat-typing) {
+  align-self: flex-start;
+  width: auto;
+  max-width: 76%;
+}
+
+.companion-chat[data-reply='chat'] .companion-chat-bubble-assistant:not(.companion-chat-typing) {
+  border-radius: var(--companion-bubble-radius);
+  background: var(--companion-bubble-incoming);
+  padding: 6px 10px;
+  color: var(--companion-bubble-incoming-fg);
+}
+
+.companion-chat[data-reply='chat'] .companion-chat-bubble-assistant:not(.companion-chat-typing) .companion-chat-bubble-text {
+  padding-right: 5px;
+  padding-left: 5px;
+}
+
+.companion-chat[data-reply='chat'] .companion-chat-row-assistant.companion-chat-row-continue .companion-chat-bubble {
+  border-top-left-radius: var(--companion-bubble-stack);
+  border-top-right-radius: var(--companion-bubble-radius);
+  border-bottom-right-radius: var(--companion-bubble-radius);
+  border-bottom-left-radius: var(--companion-bubble-radius);
+}
+
+.companion-chat[data-reply='chat'] .companion-chat-row-assistant.companion-chat-row-open .companion-chat-bubble {
+  border-bottom-left-radius: var(--companion-bubble-stack);
+  border-top-left-radius: var(--companion-bubble-radius);
+  border-top-right-radius: var(--companion-bubble-radius);
+  border-bottom-right-radius: var(--companion-bubble-radius);
+}
+
+.companion-chat-bubble-assistant:not(.companion-chat-typing) .companion-chat-bubble-text {
+  padding-right: 0;
+  padding-left: 0;
 }
 
 .companion-chat-row-user.companion-chat-row-continue .companion-chat-bubble {
@@ -1921,7 +1979,7 @@ button.companion-chat-title {
 }
 
 .companion-chat-row-assistant.companion-chat-row-continue .companion-chat-bubble {
-  border-top-left-radius: var(--companion-bubble-stack);
+  border-radius: 0;
 }
 
 .companion-chat-row-user.companion-chat-row-open .companion-chat-bubble {
@@ -1929,7 +1987,7 @@ button.companion-chat-title {
 }
 
 .companion-chat-row-assistant.companion-chat-row-open .companion-chat-bubble {
-  border-bottom-left-radius: var(--companion-bubble-stack);
+  border-radius: 0;
 }
 
 .companion-chat-typing {
@@ -1938,6 +1996,9 @@ button.companion-chat-title {
   gap: 4px;
   min-height: 18px;
   padding: 8px 12px;
+  border-radius: var(--companion-bubble-radius);
+  background: var(--companion-bubble-incoming);
+  color: var(--companion-bubble-incoming-fg);
 }
 
 .companion-chat-typing span {
@@ -1984,10 +2045,6 @@ button.companion-chat-title {
 
 .companion-chat-process-summary-static {
   cursor: default;
-}
-
-.companion-chat-process-elapsed {
-  opacity: 0.72;
 }
 
 .companion-chat-process-body {

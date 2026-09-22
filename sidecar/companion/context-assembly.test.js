@@ -7,7 +7,7 @@ import {
   assembleCompanionMessages,
   composeSystemPrompt,
   estimateTokens,
-  handleSessionBeforeCompact,
+  formatBoardForModel,
   stripCompanionCustomMessages,
 } from "./context-assembly.js";
 
@@ -27,18 +27,22 @@ test("assembly order keeps stable segments before volatile ones", () => {
       sessions: [{ id: "c1", title: "milksu", state: "running" }],
       todos: [{ id: "t1", title: "run tests" }],
     },
-    episodicRecalls: [{ sessionId: "c1", snippet: "last turn compiled" }],
+    episodicRecalls: [{ sessionId: "c1", title: "登录修复", snippet: "last turn compiled" }],
     currentUserMessage: userMessage("what is running?"),
   });
 
   assert.deepEqual(assembled.order, [
     COMPANION_CUSTOM_TYPES.semantic,
-    "user",
-    "assistant",
-    COMPANION_CUSTOM_TYPES.board,
     COMPANION_CUSTOM_TYPES.episodic,
     "user",
+    "assistant",
+    "user",
   ]);
+  assert.equal(assembled.messages.some(message => message.customType === COMPANION_CUSTOM_TYPES.board), false);
+  const episodic = assembled.messages.find(message => message.customType === COMPANION_CUSTOM_TYPES.episodic);
+  assert.match(episodic.content[0].text, /^登录修复/);
+  assert.doesNotMatch(episodic.content[0].text, /^\[c1\]/);
+  assert.match(episodic.content[0].text, /conversationId: c1/);
   assert.deepEqual(
     assembled.segments.map(segment => segment.id),
     ["semantic", "recent", "board", "episodic", "user"],
@@ -152,7 +156,7 @@ test("repairs unfinished toolCalls before a following user message", () => {
   assert.equal(repaired?.isError, true);
 });
 
-test("board segment is never dropped when over budget", () => {
+test("board stays a tool and retrieved memory is injected", () => {
   const sessions = Array.from({ length: 80 }, (_, index) => ({
     id: `session-${index}`,
     title: `session ${index} ${"x".repeat(200)}`,
@@ -161,29 +165,53 @@ test("board segment is never dropped when over budget", () => {
   const assembled = assembleCompanionMessages({
     recentMessages: [userMessage("board?")],
     boardSnapshot: { sessions, todos: [] },
+    episodicRecalls: [{ sessionId: "c1", title: "编译", snippet: "compiled" }],
   });
-  const board = assembled.messages.find(
-    message => message.customType === COMPANION_CUSTOM_TYPES.board,
-  );
-  assert.ok(board, "board custom message must remain");
+  assert.equal(assembled.messages.some(message => message.customType === COMPANION_CUSTOM_TYPES.board), false);
+  assert.equal(assembled.messages.some(message => message.customType === COMPANION_CUSTOM_TYPES.episodic), true);
   const boardSegment = assembled.segments.find(segment => segment.id === "board");
-  assert.ok(boardSegment.tokens <= ASSEMBLY_BUDGETS.board);
-  assert.equal(boardSegment.truncated, true);
-  assert.ok(boardSegment.tokens > 0);
+  const episodicSegment = assembled.segments.find(segment => segment.id === "episodic");
+  assert.equal(boardSegment.injected, false);
+  assert.equal(boardSegment.tokens, 0);
+  assert.equal(episodicSegment.injected, true);
+  assert.equal(episodicSegment.available, true);
+  assert.ok(episodicSegment.tokens > 0);
 });
 
-test("recent history is trimmed oldest-first", () => {
-  const recentMessages = [];
+test("session transcript is not cut to a turn window", () => {
+  const recentMessages = [
+    { role: "compactionSummary", summary: "earlier work stays in Pi's summary" },
+  ];
   for (let index = 0; index < 40; index += 1) {
-    recentMessages.push(userMessage(`turn ${index} ${"y".repeat(6000)}`));
-    recentMessages.push(assistantMessage(`reply ${index} ${"z".repeat(6000)}`));
+    recentMessages.push(userMessage(`turn ${index} ${"y".repeat(200)}`));
+    recentMessages.push(assistantMessage(`reply ${index}`));
   }
   const assembled = assembleCompanionMessages({ recentMessages });
   const recent = assembled.segments.find(segment => segment.id === "recent");
-  assert.ok(recent.tokens <= ASSEMBLY_BUDGETS.recent);
-  assert.equal(recent.truncated, true);
+  assert.equal(recent.truncated, false);
   const users = assembled.messages.filter(message => message.role === "user");
+  assert.equal(users.length, 40);
+  assert.ok(users[0].content[0].text.startsWith("turn 0"));
   assert.ok(users.at(-1).content[0].text.startsWith("turn 39"));
+  assert.equal(
+    assembled.messages.some(message => message.role === "compactionSummary"),
+    true,
+  );
+  assert.equal(
+    assembled.messages.some(message => message.customType === COMPANION_CUSTOM_TYPES.board),
+    false,
+  );
+});
+
+test("board text for the model leads with the title", () => {
+  const text = formatBoardForModel({
+    sessions: [{ id: "abc123dead", title: "修登录", status: "running" }],
+    todos: [{ id: "todo-1", title: "跑测试" }],
+  });
+  assert.match(text, /^修登录 · running/);
+  assert.doesNotMatch(text, /^\[abc123dead\]/);
+  assert.match(text, /conversationId: abc123dead/);
+  assert.match(text, /跑测试\nid: todo-1/);
 });
 
 test("system prompt is budgeted independently of messages", () => {
@@ -194,10 +222,6 @@ test("system prompt is budgeted independently of messages", () => {
   assert.ok(composed.tokens <= ASSEMBLY_BUDGETS.system);
   assert.equal(composed.truncated, true);
   assert.ok(composed.text.startsWith("You are the MilkSU companion."));
-});
-
-test("session_before_compact always cancels Pi default compaction", () => {
-  assert.deepEqual(handleSessionBeforeCompact(), { cancel: true });
 });
 
 test("token estimate uses Pi chars/4 heuristic", () => {

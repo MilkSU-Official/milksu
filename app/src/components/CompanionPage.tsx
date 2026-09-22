@@ -40,6 +40,7 @@ import {
   companionEntryIsProcessOnly,
   companionTurnHasProcess,
   processFromCompanionEntry,
+  withThinkingDuration,
   type CompanionTurnProcess,
 } from '@/lib/companionTurnProcess'
 import { isComposingKey } from '@/lib/imeComposition'
@@ -57,6 +58,7 @@ import {
 import { applyUiFonts } from '@/lib/uiFonts'
 import type { SearchableModelGroup } from '@/lib/modelPickerSearch'
 import {
+  normalizeCompanionReplyStyle,
   withAppSettingsDefaults,
   type AppSettings,
   type CodingAttachment,
@@ -198,6 +200,7 @@ export default function CompanionPage({
   const stickToEnd = useRef(true)
   const [screen, setScreen] = useState<CompanionPhoneScreen>('chat')
   const [phoneSettings, setPhoneSettings] = useState<AppSettings | null>(null)
+  const [replyStyle, setReplyStyle] = useState<'markdown' | 'chat'>('markdown')
   const [avatar, setAvatar] = useState(companionIdle)
   const [petName, setPetName] = useState('Milk')
   const [thumbs, setThumbs] = useState<Record<string, string>>({})
@@ -388,6 +391,26 @@ export default function CompanionPage({
   }, [locale])
 
   useEffect(() => {
+    if (!hasDesktopRuntime()) return undefined
+    let cancelled = false
+    async function loadReplyStyle() {
+      try {
+        const value = await invokeCommand<AppSettings>('get_settings')
+        if (!cancelled) setReplyStyle(normalizeCompanionReplyStyle(value.companion_reply_style))
+      } catch {
+        // Markdown stays the default until settings load.
+      }
+    }
+    void loadReplyStyle()
+    const onFocus = () => { void loadReplyStyle() }
+    window.addEventListener('focus', onFocus)
+    return () => {
+      cancelled = true
+      window.removeEventListener('focus', onFocus)
+    }
+  }, [])
+
+  useEffect(() => {
     if (screen !== 'settings') return undefined
     let cancelled = false
     void (async () => {
@@ -397,6 +420,7 @@ export default function CompanionPage({
         if (cancelled) return
         const next = cloneSettings(value)
         setPhoneSettings(next)
+        setReplyStyle(normalizeCompanionReplyStyle(next.companion_reply_style))
         installAppModelSettings(next)
       } catch (reason) {
         if (!cancelled) {
@@ -498,11 +522,14 @@ export default function CompanionPage({
   async function persistPhoneSettings() {
     if (!phoneSettings) return
     const submitted = cloneSettings(phoneSettings)
+    setReplyStyle(normalizeCompanionReplyStyle(submitted.companion_reply_style))
+    setPhoneSettings(submitted)
     try {
       await invokeCommand('save_settings_cmd', { newSettings: submitted })
       const refreshed = await invokeCommand<AppSettings>('get_settings')
       const next = cloneSettings(refreshed)
       setPhoneSettings(next)
+      setReplyStyle(normalizeCompanionReplyStyle(next.companion_reply_style))
       installAppModelSettings(next)
       applyUiFonts({
         uiFont: next.ui_font,
@@ -567,7 +594,7 @@ export default function CompanionPage({
   const settingsOpen = screen === 'settings'
 
   return (
-    <main ref={chatRef} className="companion-chat" data-testid="companion-chat">
+    <main ref={chatRef} className="companion-chat" data-testid="companion-chat" data-reply={replyStyle}>
       <div className="companion-chat-stage" inert={settingsOpen ? true : undefined}>
       <div
         ref={parentRef}
@@ -973,8 +1000,9 @@ function CompanionChatEntryArticle({
   const user = companionChatIsUser(entry.role)
   const bubble = companionChatIsBubble(entry.role)
   const processOnly = companionEntryIsProcessOnly(entry)
-  const entryProcess = companionEntryHasProcess(entry)
-    ? processFromCompanionEntry(entry)
+  const timed = withThinkingDuration(entry, companionChatTimestampMs(previous?.timestamp) || undefined)
+  const entryProcess = companionEntryHasProcess(timed)
+    ? processFromCompanionEntry(timed)
     : null
   const plain = companionChatPlainText(entry)
   const errorContext = { provider, model }

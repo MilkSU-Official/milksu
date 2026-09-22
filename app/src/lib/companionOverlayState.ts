@@ -18,9 +18,9 @@ export const COMPANION_PET_HEIGHT = 160
 export const COMPANION_PET_BUBBLE_MAX_HEIGHT = 48
 /** Room above the 160px sprite: one own-height lift plus max bubble plus a top inset. */
 export const COMPANION_PET_BUBBLE_LIFT = 104
-/** iPhone 17 handset matches build/iphone17-compare/iphone17-mirror.png (288 × 604). */
-export const COMPANION_CHAT_WIDTH = 288
-export const COMPANION_CHAT_HEIGHT = 604
+/** iPhone 17 screen is 402 × 874 pt. One step up from 288, nearest integers: 320 × 696. */
+export const COMPANION_CHAT_WIDTH = 320
+export const COMPANION_CHAT_HEIGHT = 696
 export const COMPANION_PHONE_WIDTH = COMPANION_CHAT_WIDTH
 export const COMPANION_PHONE_HEIGHT = COMPANION_CHAT_HEIGHT
 export const COMPANION_UNIT_GAP = 0

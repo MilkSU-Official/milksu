@@ -152,6 +152,7 @@ func ProjectSettings(settings config.AppSettings) map[string]any {
 		"companion_float_enabled":    boolPtr(settings.CompanionFloatEnabled, true),
 		"companion_skin_id":          settings.CompanionSkinID,
 		"companion_teaching":         settings.CompanionTeaching,
+		"companion_reply_style":      config.CompanionReplyStyle(settings),
 		"preferred_external_editor":  settings.PreferredExternalEditor,
 		"ui_font":                    settings.UiFont,
 		"conversation_font":          settings.ConversationFont,
@@ -233,6 +234,8 @@ func ApplySettingsPatch(current config.AppSettings, patch map[string]any) (confi
 			next.CompanionSkinID = strings.TrimSpace(stringValue(value))
 		case "companion_teaching":
 			next.CompanionTeaching = strings.TrimSpace(stringValue(value))
+		case "companion_reply_style":
+			next.CompanionReplyStyle = config.NormalizeCompanionReplyStyle(stringValue(value))
 		case "preferred_external_editor":
 			next.PreferredExternalEditor = strings.TrimSpace(stringValue(value))
 		case "ui_font":

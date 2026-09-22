@@ -292,6 +292,15 @@ func TestNormalizeCompanionSettingsDefaults(t *testing.T) {
 	if settings.CompanionTeaching != CompanionTeachingAskMe {
 		t.Fatalf("teaching default: %q", settings.CompanionTeaching)
 	}
+	if settings.CompanionReplyStyle != "markdown" {
+		t.Fatalf("reply style default: %q", settings.CompanionReplyStyle)
+	}
+	if got := NormalizeCompanionReplyStyle("chat"); got != "chat" {
+		t.Fatalf("chat reply style: %q", got)
+	}
+	if got := NormalizeCompanionReplyStyle("nope"); got != "markdown" {
+		t.Fatalf("unknown reply style: %q", got)
+	}
 	if settings.CompanionProactivity.TaskEvents == nil || !*settings.CompanionProactivity.TaskEvents {
 		t.Fatal("task events should default on")
 	}

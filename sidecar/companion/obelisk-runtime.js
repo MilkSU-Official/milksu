@@ -124,6 +124,7 @@ export function searchCompanionIndex(query, {
   path = process.env.MILKSU_COMPANION_INDEX_PATH,
   limit = 8,
   sessionId = "",
+  excludeSessionId = "",
 } = {}) {
   const text = safeFtsQuery(query);
   if (!path || !text) return [];
@@ -132,29 +133,32 @@ export function searchCompanionIndex(query, {
   try {
     database.exec("PRAGMA busy_timeout=250");
     const bounded = Math.min(50, Math.max(1, Number(limit) || 8));
-    const rows = sessionId
-      ? database.prepare(`
+    const scoped = String(sessionId ?? "").trim();
+    const excluded = scoped ? "" : String(excludeSessionId ?? "").trim();
+    const where = [
+      "messages_fts MATCH ?",
+      "COALESCE(m.is_meta, 0) = 0",
+    ];
+    const params = [text];
+    if (scoped) {
+      where.push("m.session_id = ?");
+      params.push(scoped);
+    } else if (excluded) {
+      where.push("m.session_id != ?");
+      params.push(excluded);
+    }
+    params.push(bounded);
+    const rows = database.prepare(`
           SELECT m.session_id AS sessionId,
                  COALESCE(s.title, m.session_id) AS title,
                  substr(COALESCE(m.text, ''), 1, 280) AS snippet
           FROM messages_fts mf
           JOIN messages m ON m.uuid = mf.uuid
           LEFT JOIN sessions s ON s.id = m.session_id
-          WHERE messages_fts MATCH ? AND m.session_id = ? AND COALESCE(m.is_meta, 0) = 0
+          WHERE ${where.join(" AND ")}
           ORDER BY rank
           LIMIT ?
-        `).all(text, sessionId, bounded)
-      : database.prepare(`
-          SELECT m.session_id AS sessionId,
-                 COALESCE(s.title, m.session_id) AS title,
-                 substr(COALESCE(m.text, ''), 1, 280) AS snippet
-          FROM messages_fts mf
-          JOIN messages m ON m.uuid = mf.uuid
-          LEFT JOIN sessions s ON s.id = m.session_id
-          WHERE messages_fts MATCH ? AND COALESCE(m.is_meta, 0) = 0
-          ORDER BY rank
-          LIMIT ?
-        `).all(text, bounded);
+        `).all(...params);
     const seen = new Set();
     const hits = [];
     for (const row of rows) {
@@ -220,6 +224,7 @@ export async function queryCompanionMemory(params = {}, options = {}) {
       path: options.path,
       limit: params.limit,
       sessionId: params.scope === "session" ? params.sessionId : "",
+      excludeSessionId: params.scope === "session" ? "" : params.excludeSessionId,
     });
     return { written: false, results };
   } catch (error) {

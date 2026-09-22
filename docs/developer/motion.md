@@ -43,9 +43,9 @@
 | Toast | 从下进、同方向出；退出时先标记 `leaving` 再卸载 | `appToast.ts` + `toaster.tsx` |
 | 侧栏拖宽、右栏拖宽 | 拖动中不参与过渡（拖动时加 `is-resizing` 关掉 transition），松手后夹回 | `ContextSidebar.tsx`、`ContextRail.tsx` |
 | 思考像素加载、标签呼吸、流式光标、任务环、桌宠角色循环 | 常驻循环，仅 `opacity` / `transform` | `agent-conversation.css`、`index.css` |
-| 桌宠角色显隐、说话气泡、手机开合 | 开合是竖向合页：`clip-path: inset()` 把手机从上、下收到中线一条亮缝，缝再淡出；打开是同一条路倒放。角色停在手机底部，下半截让开或盖回去。合页播完清掉 `clip-path`，免得磨砂层的 `backdrop-filter` 被祖先裁切空掉。关对话时壳先保持 288×604；合页 260ms 后渲染器换成贴在底部的角色，再留一小段绘制时间才缩窗口。气泡：`scale` + `opacity` | `index.css`；壳在 `companion-shell.cjs` 推迟 `setBounds`；角色让位由 `CompanionPetWindow` 短持 |
+| 桌宠角色显隐、说话气泡、手机开合 | 开合是竖向合页：`clip-path: inset()` 把手机从上、下收到中线一条亮缝，缝再淡出；打开是同一条路倒放。角色停在手机底部，下半截让开或盖回去。合页播完清掉 `clip-path`，免得磨砂层的 `backdrop-filter` 被祖先裁切空掉。关对话时壳先保持 320×696；合页 260ms 后渲染器换成贴在底部的角色，再留一小段绘制时间才缩窗口。气泡：`scale` + `opacity` | `index.css`；壳在 `companion-shell.cjs` 推迟 `setBounds`；角色让位由 `CompanionPetWindow` 短持 |
 | 桌宠手机状态岛 | 状态栏中间的实心黑胶囊。点开后固定盒子用 `clip-path: inset()` 向下展开，同时交叉淡入展开文案。只过渡 `clip-path` 和 `opacity`，`--motion-slow` + `--ease-drawer`。`prefers-reduced-motion` 直接跳到终态。不加 `backdrop-filter`，`clip-path` 只在这座黑胶囊上，不加在磨砂层 | `CompanionPhoneStatusBar`、`index.css` |
-| 桌宠手机消息 / 确认卡 / 附件条 | 文档流列表：新行 `opacity` + `translateY(4px)` 入场，离开对称淡出；刷新时用指纹把 pending / live-stream / process 接到持久 id，避免重播入场；同列气泡 FLIP 滑到新位置。确认 / 记忆 / 错误条同路淡入 | `companionChatMotion.ts`、`CompanionPage`、`index.css` |
+| 桌宠手机消息 / 确认卡 / 附件条 | 文档流列表：新的历史行 `opacity` + `translateY(4px)` 入场，离开对称淡出；刷新时用指纹把 pending / live-stream 接到持久 id，避免重播入场。正在回复的行不入场、不离场，长高时也不做 FLIP。回合之外，同列气泡才滑到新位置。确认 / 记忆 / 错误条同路淡入 | `companionChatMotion.ts`、`CompanionPage`、`index.css` |
 | 桌宠过程披露、设置页、换肤 | 过程展开淡入（关闭即卸，避免折叠正文留在 DOM）。名字胶囊打开设置，整页从右侧 `translateX` 推入再弹出；手机设置是一块玻璃上的内缩分组列表。皮肤 `img` 重挂淡入 | `CompanionTurnProcessView`、`index.css` |
 | 桌宠按下 | 角色本体、名字胶囊、玻璃图标与附件芯片 `scale(0.97)`；右键菜单行（若渲染）`--pressed-row` | `index.css`；发送 / 加号走 `button.tsx` |
 

@@ -139,6 +139,7 @@ func (r *Runtime) Send(prompt string, attachments []codingattachment.Attachment)
 		"semanticMemories":    r.semanticPayload(),
 		"episodicRecalls":     []any{},
 		"memorySearchEnabled": r.memorySearchEnabled(),
+		"replyStyle":          config.CompanionReplyStyle(r.resolvedSettings()),
 	}
 	if len(attachments) > 0 {
 		command["attachments"] = attachments
@@ -407,6 +408,7 @@ func (r *Runtime) resetCompanionSession() error {
 		"model":               selection.Model,
 		"source":              selection.Source,
 		"memorySearchEnabled": r.memorySearchEnabled(),
+		"replyStyle":          config.CompanionReplyStyle(settings),
 	}
 	if custom != nil {
 		create["customProvider"] = custom
@@ -582,6 +584,7 @@ func (r *Runtime) startLocked() error {
 		"model":               selection.Model,
 		"source":              selection.Source,
 		"memorySearchEnabled": r.memorySearchEnabled(),
+		"replyStyle":          config.CompanionReplyStyle(settings),
 	}
 	if custom != nil {
 		create["customProvider"] = custom

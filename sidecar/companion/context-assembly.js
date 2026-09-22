@@ -1,7 +1,19 @@
 // Companion context assembly (issue #128 D2 / D4).
 //
-// The `context` extension replaces the entire message array each turn.
-// Stable segments stay first so provider prompt cache can still hit.
+// Pi keeps this session's transcript and compacts it. The `context` hook only
+// clones messages for the provider request (pi-coding-agent 0.84.1
+// runner.emitContext + agent-loop transformContext); it does not write them
+// back onto the session. Obelisk is long-term memory beside that transcript,
+// not a second copy and not a dump of every note:
+// - approved semantic memories
+// - episodic hits already limited by the search API for this user message
+// Board run-state stays on companion_board.
+// Do not cut the transcript by turn count or time gap.
+//
+// session_before_compact { cancel: true } aborts both manual compact and
+// _runAutoCompaction in agent-session.js. Nothing in that path still requires
+// cancel, so this module does not cancel Pi compaction.
+// Stable memory stays ahead of the transcript so a provider prompt cache can hit.
 
 export const COMPANION_CUSTOM_TYPES = Object.freeze({
   semantic: "companion.semantic",
@@ -18,6 +30,9 @@ export const ASSEMBLY_SEGMENTS = Object.freeze([
   "user",
 ]);
 
+// semantic / episodic bound Obelisk text already retrieved for this turn.
+// recent and board are not a transcript window or a board preload: Pi compaction
+// owns the session, and run-state stays on companion_board.
 export const ASSEMBLY_BUDGETS = Object.freeze({
   system: 4_000,
   semantic: 8_000,
@@ -238,45 +253,42 @@ function renderMemory(memory) {
 }
 
 function renderEpisodic(item) {
-  const sessionId = String(item?.sessionId ?? "").trim();
+  const title = String(item?.title ?? "").trim();
   const snippet = String(item?.snippet ?? item?.text ?? "").trim();
-  if (sessionId && snippet) return `[${sessionId}] ${snippet}`;
-  return snippet || sessionId;
+  const sessionId = String(item?.sessionId ?? "").trim();
+  const lines = [];
+  if (title) lines.push(title);
+  if (snippet && snippet !== title) lines.push(snippet);
+  if (!title && !snippet && sessionId) lines.push(sessionId);
+  if (sessionId) lines.push(`conversationId: ${sessionId}`);
+  return lines.join("\n");
 }
 
-function renderBoard(snapshot) {
-  if (typeof snapshot === "string") return snapshot;
-  try {
-    return JSON.stringify(snapshot ?? { sessions: [], todos: [] });
-  } catch {
-    return "{\"sessions\":[],\"todos\":[]}";
+export function formatBoardForModel(value) {
+  const snapshot = value && typeof value === "object" && value.board && typeof value.board === "object"
+    ? value.board
+    : value;
+  if (!snapshot || typeof snapshot !== "object") return "";
+  const sessions = Array.isArray(snapshot.sessions) ? snapshot.sessions : null;
+  const todos = Array.isArray(snapshot.todos) ? snapshot.todos : null;
+  if (!sessions && !todos) return "";
+  const lines = [];
+  for (const session of sessions ?? []) {
+    const title = String(session?.title ?? "").trim();
+    const id = String(session?.id ?? "").trim();
+    const status = String(session?.status ?? session?.state ?? "").trim();
+    const head = [title, status].filter(Boolean).join(" · ");
+    if (head) lines.push(head);
+    else if (id) lines.push(id);
+    if (id) lines.push(`conversationId: ${id}`);
   }
-}
-
-function truncateBoardSnapshot(snapshot, limit) {
-  if (typeof snapshot === "string") {
-    return { text: truncateToTokens(snapshot, limit), truncated: estimateTokens(snapshot) > limit };
+  for (const todo of todos ?? []) {
+    const title = String(todo?.title ?? "").trim();
+    const id = String(todo?.id ?? "").trim();
+    if (title) lines.push(title);
+    if (id) lines.push(`id: ${id}`);
   }
-  const sessions = Array.isArray(snapshot?.sessions) ? [...snapshot.sessions] : [];
-  const todos = Array.isArray(snapshot?.todos) ? [...snapshot.todos] : [];
-  const next = { ...(snapshot && typeof snapshot === "object" ? snapshot : {}), sessions, todos };
-  let text = renderBoard(next);
-  if (estimateTokens(text) <= limit) {
-    return { text, truncated: false, snapshot: next };
-  }
-  while ((sessions.length > 0 || todos.length > 0) && estimateTokens(text) > limit) {
-    if (sessions.length >= todos.length && sessions.length > 0) sessions.shift();
-    else if (todos.length > 0) todos.shift();
-    else break;
-    next.sessions = sessions;
-    next.todos = todos;
-    next.truncated = true;
-    text = renderBoard(next);
-  }
-  if (estimateTokens(text) > limit) {
-    text = truncateToTokens(text, limit);
-  }
-  return { text, truncated: true, snapshot: next };
+  return lines.length ? lines.join("\n") : "empty";
 }
 
 export function composeSystemPrompt({ base = "", persona = "" } = {}) {
@@ -299,30 +311,22 @@ export function assembleCompanionMessages({
   episodicRecalls = [],
   currentUserMessage,
 } = {}) {
-  const recent = stripCompanionCustomMessages(recentMessages);
-  const semantic = trimListByTokens(
-    Array.isArray(semanticMemories) ? semanticMemories : [],
-    ASSEMBLY_BUDGETS.semantic,
-    renderMemory,
-  );
-  const recentBudgeted = [];
-  let recentTokens = 0;
-  for (let index = recent.length - 1; index >= 0; index -= 1) {
-    const message = recent[index];
-    const tokens = messageTokens(message);
-    if (recentTokens + tokens > ASSEMBLY_BUDGETS.recent && recentBudgeted.length > 0) {
-      break;
-    }
-    recentBudgeted.unshift(message);
-    recentTokens += tokens;
-  }
-
-  const board = truncateBoardSnapshot(boardSnapshot, ASSEMBLY_BUDGETS.board);
+  // Pi's own messages, including compaction summaries. No turn-count or time-gap cut.
+  const transcript = stripCompanionCustomMessages(recentMessages);
   const episodic = trimListByTokens(
     Array.isArray(episodicRecalls) ? episodicRecalls : [],
     ASSEMBLY_BUDGETS.episodic,
     renderEpisodic,
   );
+  const semantic = trimListByTokens(
+    Array.isArray(semanticMemories) ? semanticMemories : [],
+    ASSEMBLY_BUDGETS.semantic,
+    renderMemory,
+  );
+  let recentTokens = 0;
+  for (const message of transcript) {
+    recentTokens += messageTokens(message);
+  }
 
   const messages = [];
   const segments = [];
@@ -338,43 +342,47 @@ export function assembleCompanionMessages({
     segments.push({ id: "semantic", tokens: 0, truncated: false });
   }
 
-  messages.push(...recentBudgeted);
-  segments.push({
-    id: "recent",
-    tokens: recentTokens,
-    truncated: recentBudgeted.length < recent.length,
-  });
-
-  messages.push(createCustomMessage(COMPANION_CUSTOM_TYPES.board, board.text, {
-    truncated: board.truncated,
-  }));
-  segments.push({
-    id: "board",
-    tokens: estimateTokens(board.text),
-    truncated: board.truncated,
-  });
-
   if (episodic.items.length > 0) {
     const text = episodic.items.map(item => item.text).join("\n\n");
     messages.push(createCustomMessage(COMPANION_CUSTOM_TYPES.episodic, text, {
       count: episodic.items.length,
       truncated: episodic.truncated,
     }));
-    segments.push({ id: "episodic", tokens: episodic.tokens, truncated: episodic.truncated });
-  } else {
-    segments.push({ id: "episodic", tokens: 0, truncated: false });
   }
+
+  messages.push(...transcript);
+  segments.push({
+    id: "recent",
+    tokens: recentTokens,
+    truncated: false,
+  });
+
+  // Board stays on companion_board. A greeting should not arrive with the task board already open.
+  segments.push({
+    id: "board",
+    tokens: 0,
+    truncated: false,
+    injected: false,
+    available: boardSnapshot != null,
+  });
+  segments.push({
+    id: "episodic",
+    tokens: episodic.tokens,
+    truncated: episodic.truncated,
+    injected: episodic.items.length > 0,
+    available: episodic.items.length > 0,
+  });
 
   let user = currentUserMessage;
   if (!user) {
-    for (let index = recentBudgeted.length - 1; index >= 0; index -= 1) {
-      if (recentBudgeted[index]?.role === "user") {
-        user = recentBudgeted[index];
+    for (let index = transcript.length - 1; index >= 0; index -= 1) {
+      if (transcript[index]?.role === "user") {
+        user = transcript[index];
         break;
       }
     }
   }
-  if (user && !recentBudgeted.includes(user) && !messages.includes(user)) {
+  if (user && !transcript.includes(user) && !messages.includes(user)) {
     messages.push(user);
   }
   segments.push({
@@ -390,8 +398,4 @@ export function assembleCompanionMessages({
       message.role === "custom" ? message.customType : message.role
     )),
   };
-}
-
-export function handleSessionBeforeCompact() {
-  return { cancel: true };
 }

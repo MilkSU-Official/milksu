@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Button, SettingsGhostPicker, SettingsRow, SettingsSection, Switch } from '@/components/ui'
+import { cn } from '@/lib/cn'
 import { invokeCommand } from '@/desktop'
 import SearchableModelPicker from '@/components/SearchableModelPicker'
 import ModelVendorIcon from '@/components/ModelVendorIcon'
@@ -17,6 +18,7 @@ import { useT, useUiLocale } from '@/hooks/useUiLocale'
 import type { SearchableModelGroup } from '@/lib/modelPickerSearch'
 import {
   companionSettingsSource,
+  normalizeCompanionReplyStyle,
   type AppSettings,
   type CompanionShellStatus,
   type CompanionSkinImportResult,
@@ -24,6 +26,30 @@ import {
   type CompanionSkinSummary,
   type CompanionTeaching,
 } from '@/types'
+
+function ReplyStyleThumb({ kind }: { kind: 'markdown' | 'chat' }) {
+  if (kind === 'chat') {
+    return (
+      <span className="pointer-events-none flex h-16 w-[88px] flex-col justify-center gap-1 rounded-md bg-muted/50 px-1.5" aria-hidden="true">
+        <span className="h-2.5 w-10 rounded-md bg-foreground/15" />
+        <span className="inline-flex h-2.5 w-8 items-center justify-center gap-0.5 rounded-md bg-foreground/15">
+          <span className="size-1 rounded-full bg-foreground/50" />
+          <span className="size-1 rounded-full bg-foreground/50" />
+          <span className="size-1 rounded-full bg-foreground/50" />
+        </span>
+        <span className="h-2.5 w-12 rounded-md bg-foreground/15" />
+      </span>
+    )
+  }
+  return (
+    <span className="pointer-events-none flex h-16 w-[88px] flex-col justify-center gap-1 rounded-md bg-muted/50 px-1.5" aria-hidden="true">
+      <span className="h-1 w-full rounded-sm bg-foreground/25" />
+      <span className="h-1 w-full rounded-sm bg-foreground/20" />
+      <span className="h-1 w-4/5 rounded-sm bg-foreground/20" />
+      <span className="h-1 w-full rounded-sm bg-foreground/15" />
+    </span>
+  )
+}
 
 function skinLabel(skin: CompanionSkinSummary, locale: string) {
   return locale === 'en' ? skin.name.en : skin.name.zh
@@ -157,6 +183,40 @@ export default function CompanionSettingsPanel({
             />
           )}
         />
+      </SettingsSection>
+      <SettingsSection title={t('回复', 'Replies')}>
+        <SettingsRow
+          label={t('回复样式', 'Reply style')}
+          stack="always"
+          divider={false}
+        >
+          <div role="radiogroup" aria-label={t('回复样式', 'Reply style')} className="mt-2 flex gap-3">
+            {([
+              ['markdown', t('Markdown', 'Markdown')],
+              ['chat', t('对话', 'Chat')],
+            ] as const).map(([value, label]) => {
+              const selected = normalizeCompanionReplyStyle(settings.companion_reply_style) === value
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  className={cn(
+                    'rounded-md p-1 text-left',
+                    selected && 'ring-2 ring-emphasis ring-offset-2 ring-offset-card',
+                  )}
+                  onClick={() => patch({ companion_reply_style: value })}
+                >
+                  <ReplyStyleThumb kind={value} />
+                  <span className="mt-1 block text-center text-[length:var(--text-caption)] leading-[var(--text-caption--line-height)] text-muted-foreground">
+                    {label}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </SettingsRow>
       </SettingsSection>
       <SettingsSection title={t('主动性', 'Proactivity')}>
         <SettingsRow

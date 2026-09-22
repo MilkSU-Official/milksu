@@ -14,6 +14,8 @@ import {
 import {
   companionTurnHasProcess,
   emptyCompanionTurnProcess,
+  finiteThinkingDurationMs,
+  stampMeasuredThinkingDuration,
   type CompanionProcessTool,
   type CompanionTurnProcess,
 } from '@/lib/companionTurnProcess'
@@ -151,6 +153,7 @@ export function useCompanion() {
   const completeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const liveProcessRef = useRef(liveProcess)
   liveProcessRef.current = liveProcess
+  const measuredThinking = useRef<CompanionTurnProcess | null>(null)
 
   const clearComplete = useCallback(() => {
     if (completeTimer.current) {
@@ -191,7 +194,9 @@ export function useCompanion() {
       cursor: null,
       before: true,
     })
-    setEntries((page.entries ?? []).map(companionChatHydrateEntry).filter(companionChatIsVisibleEntry))
+    const hydrated = (page.entries ?? []).map(companionChatHydrateEntry).filter(companionChatIsVisibleEntry)
+    setEntries(stampMeasuredThinkingDuration(hydrated, measuredThinking.current))
+    measuredThinking.current = null
     setPrevCursor(page.prevCursor ?? null)
     setHasMore(Boolean(page.hasMore))
     // Transcript now owns settled thinking/tools; drop the live snapshot.
@@ -221,7 +226,11 @@ export function useCompanion() {
   const applyLiveEvent = useCallback((payload: CompanionEnginePayload) => {
     const type = String(payload.type ?? '')
     if (type === 'assistant.thinking_started') {
-      setLiveProcess(current => ({ ...current, thinkingRunning: true }))
+      setLiveProcess(current => ({
+        ...current,
+        thinkingRunning: true,
+        thinkingStartedAt: Date.now(),
+      }))
       return
     }
     if (type === 'assistant.thinking_delta' && payload.text) {
@@ -231,16 +240,26 @@ export function useCompanion() {
         ...current,
         thinking: `${current.thinking}${delta}`,
         thinkingRunning: true,
+        thinkingStartedAt: current.thinkingStartedAt ?? Date.now(),
       }))
       return
     }
     if (type === 'assistant.thinking_completed') {
-      setLiveProcess(current => ({
-        ...current,
-        thinking: companionToolUserText(payload.text, current.thinking),
-        thinkingRunning: false,
-        thinkingDurationMs: payload.durationMs ?? current.thinkingDurationMs,
-      }))
+      setLiveProcess(current => {
+        const segment = finiteThinkingDurationMs(payload.durationMs)
+          ?? (current.thinkingStartedAt != null
+            ? Math.max(0, Date.now() - current.thinkingStartedAt)
+            : undefined)
+        const base = current.thinkingRunning ? (current.thinkingDurationMs ?? 0) : 0
+        const total = base + (segment ?? 0)
+        return {
+          ...current,
+          thinking: companionToolUserText(payload.text, current.thinking),
+          thinkingRunning: false,
+          thinkingStartedAt: undefined,
+          thinkingDurationMs: total > 0 ? total : current.thinkingDurationMs,
+        }
+      })
       return
     }
     if (type === 'assistant.delta' && payload.text) {
@@ -364,7 +383,8 @@ export function useCompanion() {
         }
         if (payload.type === 'assistant.settled') {
           const snapshot = liveProcessRef.current
-          setSettledProcess(companionTurnHasProcess(snapshot) ? snapshot : null)
+          measuredThinking.current = companionTurnHasProcess(snapshot) ? snapshot : null
+          setSettledProcess(measuredThinking.current)
           setLiveProcess(emptyCompanionTurnProcess())
           setBusy(false)
           setConfirm(null)

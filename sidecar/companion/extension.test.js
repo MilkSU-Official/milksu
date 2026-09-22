@@ -13,13 +13,9 @@ function collectHandlers(factory) {
   return handlers;
 }
 
-test("companion extension cancels Pi compaction", async () => {
+test("companion extension leaves compaction to Pi", async () => {
   const handlers = collectHandlers(createCompanionExtension());
-  const result = await handlers.get("session_before_compact")({
-    type: "session_before_compact",
-    reason: "threshold",
-  });
-  assert.deepEqual(result, { cancel: true });
+  assert.equal(handlers.has("session_before_compact"), false);
 });
 
 test("companion extension replaces context with contracted order", async () => {
@@ -42,9 +38,8 @@ test("companion extension replaces context with contracted order", async () => {
   ));
   assert.deepEqual(order, [
     COMPANION_CUSTOM_TYPES.semantic,
-    "user",
-    COMPANION_CUSTOM_TYPES.board,
     COMPANION_CUSTOM_TYPES.episodic,
+    "user",
   ]);
 });
 

@@ -14,6 +14,7 @@ import { createCompanionHostBroker } from "./host-broker.js";
 import { queryCompanionMemory, scheduleCompanionIndexRefresh } from "./obelisk-index.js";
 import { companionProviderEnvironment } from "./companion-model-env.js";
 import { companionSystemPrompt } from "./system-prompt.js";
+import { reviewCompanionDraft, rewriteLastAssistantReply } from "./reply-review.js";
 import {
   companionAssistantTurnError,
   repairCompanionToolHistory,
@@ -42,6 +43,10 @@ let semanticMemories = [];
 let episodicRecalls = [];
 let persona = "";
 let memorySearchEnabled = true;
+let replyStyle = "markdown";
+let heldReply = "";
+let captureReply = false;
+let turnGate = null;
 
 /** Same as main Pi: host replies and abort must not wait behind session.prompt. */
 export function companionCommandRunsImmediately(action) {
@@ -181,7 +186,7 @@ async function createCompanionSession(command) {
         getSemanticMemories: () => semanticMemories,
         getEpisodicRecalls: () => episodicRecalls,
         getPersona: () => persona,
-        getSystemPrompt: () => companionSystemPrompt(uiLocale),
+        getSystemPrompt: () => companionSystemPrompt(uiLocale, replyStyle),
       }),
       // Same Pi hardening as the main coding bridge: bash timeout bound + tool_result clip.
       createHangGuardExtension(),
@@ -203,8 +208,10 @@ async function createCompanionSession(command) {
     customTools: tools,
   }));
   await session.bindExtensions({ mode: "print" });
+  // Same as Coding: Pi owns auto-compaction. Cancelling it left the companion
+  // with a hand-cut window instead of Pi's transcript. See extension.js.
   if (typeof session.setAutoCompactionEnabled === "function") {
-    session.setAutoCompactionEnabled(false);
+    session.setAutoCompactionEnabled(true);
   }
   await applyCompanionModel(command);
   flushCompanionSessionFile();
@@ -273,6 +280,10 @@ function subscribeCompanion() {
           durationMs: startedAt === undefined ? undefined : Math.max(0, Date.now() - startedAt),
         });
       } else if (update.type === "text_delta") {
+        if (captureReply) {
+          heldReply += String(update.delta ?? "");
+          return;
+        }
         emit("text_delta", { delta: update.delta ?? "" });
       }
       return;
@@ -308,14 +319,19 @@ function subscribeCompanion() {
     }
     if (event.type === "agent_end") {
       if (turnAborted) {
+        captureReply = false;
+        heldReply = "";
         repairCompanionSessionHistory("companion tool interrupted by abort");
         persistCompanionAbortedTurn();
+        flushCompanionSessionFile();
+        emit("turn_settled", { aborted: true });
+        openReplyCapture();
       } else {
         const error = companionAssistantTurnError(session.messages);
         if (error) emit("error", { error });
+        // The visible reply waits for the review pass in sendPrompt.
+        openReplyCapture();
       }
-      flushCompanionSessionFile();
-      emit("turn_settled", {});
       if (memorySearchEnabled) scheduleCompanionIndexRefresh();
       return;
     }
@@ -433,6 +449,77 @@ async function abortCompanionTurn() {
   emit("turn_settled", { aborted: true });
 }
 
+function applyReplyStyle(command) {
+  const value = String(command?.replyStyle ?? "").trim();
+  if (value === "chat" || value === "markdown") replyStyle = value;
+}
+
+function armReplyCapture() {
+  heldReply = "";
+  captureReply = true;
+  let resolve = () => {};
+  const done = new Promise((resolveDone) => {
+    resolve = resolveDone;
+  });
+  const gate = { done, resolve, opened: false };
+  turnGate = gate;
+  return gate;
+}
+
+function openReplyCapture() {
+  const gate = turnGate;
+  if (!gate || gate.opened) return;
+  gate.opened = true;
+  gate.resolve();
+}
+
+async function retrieveCompanionTurnMemory(prompt) {
+  if (!memorySearchEnabled) {
+    episodicRecalls = [];
+    return;
+  }
+  // searchCompanionIndex defaults to 8 hits and caps at 50. Do not pass another limit.
+  // Skip this companion session so Obelisk does not paste the live transcript back in.
+  const found = await queryCompanionMemory(
+    { action: "search", query: prompt, excludeSessionId: COMPANION_SESSION_ID },
+    { memorySearchEnabled },
+  );
+  episodicRecalls = Array.isArray(found?.results) ? found.results : [];
+}
+
+async function completeCompanionReview(context) {
+  const model = session?.model;
+  const runtime = session?.modelRuntime;
+  if (!model || typeof runtime?.completeSimple !== "function") {
+    throw new Error("companion model is not ready");
+  }
+  try {
+    return await runtime.completeSimple(model, context, { reasoning: "low" });
+  } catch {
+    return runtime.completeSimple(model, context);
+  }
+}
+
+async function publishReviewedReply(userText) {
+  const draft = heldReply;
+  heldReply = "";
+  captureReply = false;
+  if (turnAborted || !String(draft).trim()) return;
+  const reviewed = await reviewCompanionDraft({
+    draft,
+    userText,
+    locale: uiLocale,
+    complete: completeCompanionReview,
+  });
+  if (turnAborted) return;
+  rewriteLastAssistantReply([
+    session?.messages,
+    session?.agent?.state?.messages,
+    session?.sessionManager?.getEntries?.(),
+  ], reviewed);
+  emit("text_delta", { delta: reviewed });
+}
+
 async function sendPrompt(command) {
   if (!session) throw new Error("companion session is not ready");
   turnAborted = false;
@@ -453,7 +540,9 @@ async function sendPrompt(command) {
   // used to sit behind this await and every host tool deadlocked until
   // timeout — that aborted the loop mid-turn.
   promptQueue = promptQueue.then(async () => {
+    const gate = armReplyCapture();
     try {
+      await retrieveCompanionTurnMemory(prepared.prompt);
       const pending = session.prompt(prepared.prompt, {
         expandPromptTemplates: false,
         ...(prepared.images.length ? { images: prepared.images } : {}),
@@ -463,9 +552,20 @@ async function sendPrompt(command) {
       queueMicrotask(() => {
         flushCompanionSessionFile();
       });
-      await pending;
+      try {
+        await pending;
+      } finally {
+        openReplyCapture();
+      }
+      await gate.done;
+      if (turnAborted) return;
+      await publishReviewedReply(prepared.prompt);
       flushCompanionSessionFile();
+      emit("turn_settled", {});
     } catch (error) {
+      openReplyCapture();
+      captureReply = false;
+      heldReply = "";
       flushCompanionSessionFile();
       if (turnAborted || isCompanionAbortError(error)) {
         repairCompanionSessionHistory("companion tool interrupted by abort");
@@ -474,6 +574,7 @@ async function sendPrompt(command) {
         return;
       }
       emit("error", { error: error instanceof Error ? error.message : String(error) });
+      emit("turn_settled", {});
     }
   });
 }
@@ -488,6 +589,7 @@ async function handleCommand(command) {
   switch (command.action) {
     case "create_session":
       applyCompanionLocale(command);
+      applyReplyStyle(command);
       if (command.memorySearchEnabled === false) memorySearchEnabled = false;
       if (command.memorySearchEnabled === true) memorySearchEnabled = true;
       await createCompanionSession(command);
@@ -498,6 +600,7 @@ async function handleCommand(command) {
       return;
     case "send_message":
       applyCompanionLocale(command);
+      applyReplyStyle(command);
       await createCompanionSession(command);
       if (!subscribed) {
         subscribeCompanion();
@@ -513,6 +616,7 @@ async function handleCommand(command) {
       return;
     case "update_context":
       applyCompanionLocale(command);
+      applyReplyStyle(command);
       if (command.boardSnapshot) boardSnapshot = command.boardSnapshot;
       if (Array.isArray(command.semanticMemories)) semanticMemories = command.semanticMemories;
       if (Array.isArray(command.episodicRecalls)) episodicRecalls = command.episodicRecalls;

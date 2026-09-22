@@ -1,5 +1,6 @@
 import { Type } from "typebox";
 import { defineTool } from "@earendil-works/pi-coding-agent";
+import { formatBoardForModel } from "./context-assembly.js";
 
 export const COMPANION_TOOL_NAMES = Object.freeze([
   "companion_board",
@@ -83,8 +84,9 @@ export function createCompanionTools(requestHost, options = {}) {
     label: "Companion board",
     description: "Read the live task board, or maintain user-intent todos. "
       + "Session run state is owned by MilkSU and cannot be written here. "
-      + "Use list to see every conversation and todo. Use upsert_todo / close_todo "
-      + "only for the user's own intended work items.",
+      + "Call list when the user asks what is running, what is next, or which conversation to continue. "
+      + "A greeting does not need a board read. "
+      + "Use upsert_todo / close_todo only for the user's own intended work items.",
     parameters: Type.Object({
       action: Type.Union([
         Type.Literal("list"),
@@ -98,7 +100,15 @@ export function createCompanionTools(requestHost, options = {}) {
       note: Type.Optional(Type.String()),
       reason: Type.Optional(Type.String()),
     }),
-    execute: async (_toolCallId, params) => runHostTool(requestHost, "board", params),
+    execute: async (_toolCallId, params) => {
+      const result = await runHostTool(requestHost, "board", params);
+      const text = formatBoardForModel(result.details);
+      if (!text) return result;
+      return {
+        content: [{ type: "text", text }],
+        details: result.details,
+      };
+    },
   });
 
   const dispatch = defineTool({

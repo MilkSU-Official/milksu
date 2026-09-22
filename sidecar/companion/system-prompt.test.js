@@ -29,4 +29,23 @@ test("companion default prompt follows the UI locale", () => {
   assert.doesNotMatch(english, /你是 MilkSU 桌宠/);
   assert.doesNotMatch(english, /this is not/i);
   assert.doesNotMatch(english, /we don't block/i);
+  assert.doesNotMatch(chinese, /三个用户回合/);
+  assert.doesNotMatch(english, /three user turns/);
+  assert.match(chinese, /不要展开旧任务/);
+  assert.match(english, /Do not recap old work/);
+  assert.match(chinese, /不要等用户来要这些记忆/);
+  assert.match(english, /Do not wait for the user to ask/);
+  assert.doesNotMatch(chinese, /短消息/);
+  assert.match(chinese, /对话标题/);
+  assert.match(english, /conversation titles/);
+  assert.doesNotMatch(english, /short messages/);
+});
+
+test("chat rhythm is prompt text only in chat mode", () => {
+  const chinese = companionSystemPrompt("zh", "chat");
+  const english = companionSystemPrompt("en", "chat");
+  assert.match(chinese, /短消息/);
+  assert.match(english, /short messages/);
+  assert.match(companionSystemPrompt("zh", "markdown"), /对话标题/);
+  assert.doesNotMatch(companionSystemPrompt("zh", "markdown"), /短消息/);
 });
