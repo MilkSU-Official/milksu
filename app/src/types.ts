@@ -488,6 +488,7 @@ export interface CompanionApprovedMemory {
   id: string
   title: string
   markdown: string
+  evidence?: string
   sourceSessionIds?: string[]
   at?: string
 }

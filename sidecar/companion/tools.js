@@ -155,9 +155,7 @@ export function createCompanionTools(requestHost, options = {}) {
   const memory = defineTool({
     name: "companion_memory",
     label: "Companion memory",
-    description: "Search or recall session evidence, or propose a durable memory. "
-      + "search and recall are read-only. propose_memory only creates a pending "
-      + "proposal; it does not write a durable memory. forget archives an approved memory.",
+    description: "Search or recall a session excerpt. Read-only.",
     parameters: Type.Object({
       action: Type.Union([
         Type.Literal("search"),

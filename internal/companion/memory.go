@@ -2,6 +2,7 @@ package companion
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -173,6 +174,7 @@ func (m *Memory) Commit(userText string, items []MemoryCommit) map[string]any {
 			}
 			current.Title = title
 			current.Markdown = markdown
+			current.Evidence = evidence
 			m.approved[id] = current
 			written++
 		case "create":
@@ -181,6 +183,7 @@ func (m *Memory) Commit(userText string, items []MemoryCommit) map[string]any {
 				ID:       id,
 				Title:    title,
 				Markdown: markdown,
+				Evidence: evidence,
 				At:       time.Now().UTC().Format(time.RFC3339Nano),
 			}
 			written++
@@ -212,20 +215,10 @@ func approvedPayload(approved map[string]ApprovedMemory, forgotten map[string]bo
 	return payload
 }
 
-func (m *Memory) Propose(proposal MemoryProposal) (map[string]any, error) {
-	if strings.TrimSpace(proposal.Title) == "" || strings.TrimSpace(proposal.Markdown) == "" {
-		return nil, fmt.Errorf("propose_memory requires title and markdown")
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	id := newPrefixedID("mem")
-	proposal.ID = id
-	proposal.Pending = true
-	m.pending[id] = proposal
-	return map[string]any{
-		"written":  false,
-		"proposal": proposal,
-	}, nil
+func (m *Memory) Propose(MemoryProposal) (map[string]any, error) {
+	// Durable memory is written by the extract path. A model proposal must not
+	// open an approval card or fail the turn.
+	return map[string]any{"written": false}, nil
 }
 
 func (m *Memory) Forget(memoryID string) (map[string]any, error) {
@@ -298,6 +291,12 @@ func (m *Memory) approvedLocked() []ApprovedMemory {
 		}
 		result = append(result, memory)
 	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].At == result[j].At {
+			return result[i].ID < result[j].ID
+		}
+		return result[i].At < result[j].At
+	})
 	return result
 }
 

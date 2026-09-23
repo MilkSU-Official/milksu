@@ -88,6 +88,7 @@ type ApprovedMemory struct {
 	ID               string   `json:"id"`
 	Title            string   `json:"title"`
 	Markdown         string   `json:"markdown"`
+	Evidence         string   `json:"evidence,omitempty"`
 	SourceSessionIDs []string `json:"sourceSessionIds,omitempty"`
 	At               string   `json:"at,omitempty"`
 }

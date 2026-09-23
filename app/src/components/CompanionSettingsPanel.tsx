@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
-import { Button, SettingsGhostPicker, SettingsRow, SettingsSection, Switch } from '@/components/ui'
+import { Button, Input, SettingsGhostPicker, SettingsRow, SettingsSection, Switch } from '@/components/ui'
 import { cn } from '@/lib/cn'
 import { invokeCommand, listenEvent } from '@/desktop'
 import SearchableModelPicker from '@/components/SearchableModelPicker'
 import ModelVendorIcon from '@/components/ModelVendorIcon'
 import { encodePickerSelection, parsePickerSelection } from '@/modelCatalog'
 import { toastError } from '@/lib/appToast'
+import { filterCompanionMemories, sortCompanionMemoriesNewestFirst } from '@/lib/companionMemory'
 import {
   applyUiFonts,
   normalizeUiFontPreset,
@@ -87,6 +88,7 @@ export default function CompanionSettingsPanel({
   ])
   const [busy, setBusy] = useState<'import' | 'remove' | null>(null)
   const [memories, setMemories] = useState<CompanionApprovedMemory[]>([])
+  const [memoryQuery, setMemoryQuery] = useState('')
   const [forgetting, setForgetting] = useState('')
 
   useEffect(() => {
@@ -95,9 +97,8 @@ export default function CompanionSettingsPanel({
       void invokeCommand<CompanionMemorySnapshot>('get_companion_memory')
         .then(value => {
           if (stop) return
-          const rows = Array.isArray(value?.approved) ? [...value.approved] : []
-          rows.sort((left, right) => String(right.at ?? '').localeCompare(String(left.at ?? '')))
-          setMemories(rows)
+          const rows = Array.isArray(value?.approved) ? value.approved : []
+          setMemories(sortCompanionMemoriesNewestFirst(rows))
         })
         .catch(() => undefined)
     }
@@ -141,6 +142,7 @@ export default function CompanionSettingsPanel({
   const memoryIdleMinutes = normalizeCompanionMemoryExtractIdleMinutes(
     settings.companion_memory_extract_idle_minutes,
   )
+  const visibleMemories = filterCompanionMemories(memories, memoryQuery)
 
   function patch(next: Partial<AppSettings>) {
     Object.assign(settings!, next)
@@ -387,11 +389,27 @@ export default function CompanionSettingsPanel({
             )}
           />
         ) : null}
-        {memories.map((item, index) => (
+        {memories.length > 0 ? (
+          <SettingsRow
+            label={t('检索', 'Search')}
+            stack={rowStack}
+            divider={visibleMemories.length > 0}
+            trailing={(
+              <Input
+                value={memoryQuery}
+                aria-label={t('检索', 'Search')}
+                className="h-7 w-36 px-2 text-[13px]"
+                onChange={event => setMemoryQuery(event.target.value)}
+              />
+            )}
+          />
+        ) : null}
+        {visibleMemories.map((item, index) => (
           <SettingsRow
             key={item.id}
+            align="start"
             stack={rowStack}
-            divider={index < memories.length - 1}
+            divider={index < visibleMemories.length - 1}
             trailing={(
               <Button
                 variant="outline"
@@ -406,6 +424,11 @@ export default function CompanionSettingsPanel({
             <p className="min-w-0 break-words text-[length:var(--text-label)] leading-[var(--text-label--line-height)]">
               {item.markdown || item.title}
             </p>
+            {item.evidence ? (
+              <p className="mt-0.5 min-w-0 break-words text-[length:var(--text-caption)] leading-[var(--text-caption--line-height)] text-muted-foreground">
+                {item.evidence}
+              </p>
+            ) : null}
           </SettingsRow>
         ))}
       </SettingsSection>
