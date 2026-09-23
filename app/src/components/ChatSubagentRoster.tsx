@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { UserRound } from 'lucide-react'
 import AgentPixelLoader from '@/components/AgentPixelLoader'
 import {
   Dialog,
@@ -7,7 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui'
-import { formatSubagentYield } from '@/lib/subagentRoster'
+import { subagentRecordText } from '@/lib/subagentRoster'
 import { useT } from '@/hooks/useUiLocale'
 import type { SubagentTask } from '@/types'
 
@@ -19,7 +20,10 @@ export default function ChatSubagentRoster({
   onOpen?: (task: SubagentTask) => void
 }) {
   const t = useT()
-  const [openTask, setOpenTask] = useState<SubagentTask | null>(null)
+  const [openId, setOpenId] = useState<string | null>(null)
+  const recordRef = useRef<HTMLDivElement>(null)
+  const stickToEnd = useRef(true)
+  const openTask = openId ? tasks.find(task => task.id === openId) ?? null : null
 
   function durationLabel(durationMs?: number) {
     if (durationMs === undefined) return ''
@@ -34,9 +38,17 @@ export default function ChatSubagentRoster({
     return t('进行中', 'Running')
   }
 
-  function bodyText(task: SubagentTask) {
-    return task.transcript || task.summary || formatSubagentYield(task.yield)
-  }
+  const record = openTask ? (subagentRecordText(openTask) || statusLabel(openTask)) : ''
+
+  useEffect(() => {
+    if (openId && !tasks.some(task => task.id === openId)) setOpenId(null)
+  }, [openId, tasks])
+
+  useEffect(() => {
+    const node = recordRef.current
+    if (!node || !stickToEnd.current) return
+    node.scrollTop = node.scrollHeight
+  }, [record])
 
   if (!tasks.length) return null
 
@@ -49,15 +61,13 @@ export default function ChatSubagentRoster({
           className="tool-activity-entry__summary agent-chip w-full text-left"
           data-subagent-status={task.status}
           onClick={() => {
-            setOpenTask(task)
+            stickToEnd.current = true
+            setOpenId(task.id)
             onOpen?.(task)
           }}
         >
           <span className="agent-chip__icon" aria-hidden="true">
-            <svg className="agent-chip__glyph" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="8" r="3" />
-              <path d="M5 19a7 7 0 0 1 14 0" />
-            </svg>
+            <UserRound className="agent-chip__glyph size-3.5" />
           </span>
           <strong>{task.role}</strong>
           <span className="min-w-0 truncate text-caption text-muted-foreground">{task.summary || statusLabel(task)}</span>
@@ -75,7 +85,7 @@ export default function ChatSubagentRoster({
           </span>
         </button>
       ))}
-      <Dialog open={Boolean(openTask)} onOpenChange={open => { if (!open) setOpenTask(null) }}>
+      <Dialog open={Boolean(openTask)} onOpenChange={open => { if (!open) setOpenId(null) }}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>{openTask?.role || t('子代理', 'Subagent')}</DialogTitle>
@@ -83,9 +93,17 @@ export default function ChatSubagentRoster({
               {t('查看这个子代理的记录', 'View this subagent transcript')}
             </DialogDescription>
           </DialogHeader>
-          <div className="max-h-[min(24rem,calc(100vh-12rem))] overflow-y-auto px-1 py-2">
+          <div
+            ref={recordRef}
+            className="max-h-[min(24rem,calc(100vh-12rem))] overflow-y-auto px-1 py-2"
+            onScroll={() => {
+              const node = recordRef.current
+              if (!node) return
+              stickToEnd.current = node.scrollHeight - node.scrollTop - node.clientHeight < 48
+            }}
+          >
             <pre className="whitespace-pre-wrap break-words font-sans text-label">
-              {openTask ? (bodyText(openTask) || statusLabel(openTask)) : ''}
+              {record}
             </pre>
           </div>
         </DialogContent>

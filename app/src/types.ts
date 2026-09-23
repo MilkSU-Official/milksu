@@ -172,6 +172,8 @@ export interface SubagentTask {
   toolCallId?: string
   summary?: string
   transcript?: string
+  // Open record. The row keeps the previous summary until the timeline is free.
+  liveTranscript?: string
 }
 
 export interface CodingGoalState {

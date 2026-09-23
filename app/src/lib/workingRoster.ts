@@ -1,5 +1,5 @@
 import { isBackgroundDshJob } from '@/lib/dshHostSurface'
-import { formatSubagentYield } from '@/lib/subagentRoster'
+import { subagentRecordText } from '@/lib/subagentRoster'
 import type { Conversation, SubagentTask } from '@/types'
 
 export type WorkingItemKind = 'subagent' | 'child' | 'job'
@@ -77,7 +77,7 @@ export function workingItemsForConversation(
       kind: 'subagent',
       conversationId: child?.id,
       role: task.role,
-      detail: task.summary || task.transcript || formatSubagentYield(task.yield),
+      detail: subagentRecordText(task),
       stoppable: kernel === 'dsh',
     }
   })

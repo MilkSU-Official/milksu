@@ -57,11 +57,11 @@ describe('subagent roster helpers', () => {
     })).toBe(true)
     const held = projectSubagentBackfill(previous, incoming, true)
     expect(held.held).toBe(true)
-    expect(held.tasks[0]).toMatchObject({ status: 'succeeded', summary: '先看目录' })
+    expect(held.tasks[0]).toMatchObject({ status: 'succeeded', summary: '先看目录', liveTranscript: 'diff' })
     expect(held.tasks[0].transcript).toBeUndefined()
     const released = projectSubagentBackfill(previous, incoming, false)
     expect(released.held).toBe(false)
-    expect(released.tasks[0]).toMatchObject({ summary: '改完了', transcript: 'diff' })
+    expect(released.tasks[0]).toMatchObject({ summary: '改完了', transcript: 'diff', liveTranscript: 'diff' })
   })
 
   it('formats yield as field lines', () => {
