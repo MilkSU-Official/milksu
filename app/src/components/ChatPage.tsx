@@ -462,6 +462,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
   const [railQuery, setRailQuery] = useState('')
   const artifactPanel = useRef<CodingArtifactPreviewPanelHandle | null>(null)
   const [requestedArtifactPath, setRequestedArtifactPath] = useState('')
+  const [imageGalleryRefreshToken, setImageGalleryRefreshToken] = useState(0)
   const [, setEnvironmentLoading] = useState(false)
   const [environmentError, setEnvironmentError] = useState('')
   const [browserPanelError, setBrowserPanelError] = useState('')
@@ -2310,6 +2311,49 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     }).then(stop => {
       stopWorkspaceReveal = stop
     })
+    let stopImageGenEvents: (() => void) | undefined
+    void listenEvent<{
+      sessionId?: string
+      type?: string
+      toolName?: string
+      text?: string
+      error?: string
+    }>('engine-event', event => {
+      const payload = event.payload
+      if (payload?.sessionId && payload.sessionId !== conversationRef.current?.id) return
+      if (payload?.type !== 'tool.completed' || payload.toolName !== 'milksu_imagegen') return
+      const failure = String(payload.error ?? '').trim()
+      if (failure) {
+        // Failure bubble is projected by useConversations; clear a stale Images
+        // preview path so the rail does not keep spinning on a missing file.
+        setRequestedArtifactPath('')
+        setImageGalleryRefreshToken(token => token + 1)
+        void refreshEnvironment()
+        return
+      }
+      let outputPath = ''
+      try {
+        const receipt = JSON.parse(String(payload.text ?? '')) as {
+          output?: { path?: string }
+          status?: string
+        }
+        outputPath = String(receipt?.output?.path ?? '').trim()
+      } catch {
+        outputPath = ''
+      }
+      if (outputPath) {
+        setRequestedArtifactPath(outputPath)
+        if (!dockSurfaceRef.current) {
+          setContextPanel('images')
+          setEnvironmentOpen(true)
+          setRailTabs(tabs => tabs.includes('images') ? tabs : [...tabs, 'images'])
+        }
+      }
+      setImageGalleryRefreshToken(token => token + 1)
+      void refreshEnvironment()
+    }).then(stop => {
+      stopImageGenEvents = stop
+    })
     if (typeof ResizeObserver !== 'undefined') {
       codingBrowserResizeObserver.current = new ResizeObserver(() => {
         lastCodingBrowserViewport.current = ''
@@ -2327,6 +2371,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     return () => {
       stopBrowserReady?.()
       stopWorkspaceReveal?.()
+      stopImageGenEvents?.()
       void hideCodingBrowserViewport()
       window.removeEventListener('focus', refreshComputerUseAfterSettings)
       codingBrowserResizeObserver.current?.disconnect()
@@ -3367,7 +3412,12 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
                   workspacePath={workspacePath}
                   environment={codingEnvironment}
                   requestedPath={requestedArtifactPath}
+                  refreshToken={imageGalleryRefreshToken}
                   onSelect={path => setRequestedArtifactPath(path)}
+                  onRefresh={() => {
+                    setImageGalleryRefreshToken(token => token + 1)
+                    void refreshEnvironment()
+                  }}
                 />
               ) : contextPanel === 'browser' ? (
                 <section className="coding-browser-panel flex h-full min-h-0 flex-col">

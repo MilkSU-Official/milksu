@@ -3470,6 +3470,30 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
             },
           )
           messages.splice(0, messages.length, ...nextMessages)
+          // ImageGen failures must leave a recoverable assistant bubble. Otherwise the
+          // Images rail can sit on a missing preview while the error stays buried in
+          // a collapsed tool group.
+          if (
+            type === 'tool.completed'
+            && toolName === 'milksu_imagegen'
+            && String(error ?? '').trim()
+          ) {
+            const detail = redactProviderCredentials(String(error).trim()).slice(0, 800)
+            const bubble = t(
+              `生图失败：${detail}`,
+              `ImageGen failed: ${detail}`,
+            )
+            const lastMessage = messages.at(-1)
+            if (lastMessage?.role !== 'assistant' || lastMessage.content !== bubble) {
+              messages.push({
+                id: crypto.randomUUID(),
+                role: 'assistant',
+                content: bubble,
+                timestamp: Date.now(),
+                status: 'done',
+              })
+            }
+          }
         } else if (type === 'engine.error') {
           const erroredQueue = s.messageQueues.get(sessionId)
           if (erroredQueue?.steering.length) {

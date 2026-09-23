@@ -396,6 +396,21 @@ describe('activity labels', () => {
     expect(chatActivityEntrySummary(entries[0]!)).toBe('交付图片 assets/hero.png')
   })
 
+  it('summarizes ImageGen provider failures without pretending delivery', () => {
+    const entries = buildChatActivityEntries([
+      message('image-start', 'tool', '生成图片 · assets/miss.png · 1792x1024 · hd', {
+        toolName: 'milksu_imagegen',
+        toolCallId: 'image-fail',
+        status: 'running',
+      }),
+      message('image-result', 'tool', 'MilkSU ImageGen failed (400) for google/imagen-4.0-generate-001: invalid size. Retry with size 1024x1024.', {
+        toolName: 'milksu_imagegen',
+        toolCallId: 'image-fail',
+      }),
+    ])
+    expect(chatActivityEntrySummary(entries[0]!)).toBe('生图失败')
+  })
+
   it('pairs tool start and result events into one expandable row', () => {
     const entries = buildChatActivityEntries([
       message('ls-start', 'tool', '{}', { toolName: 'ls', status: 'running' }),

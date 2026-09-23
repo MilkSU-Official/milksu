@@ -13,8 +13,11 @@ const maxReferenceBytes = 8 * 1024 * 1024;
 const maxOutputBytes = 8 * 1024 * 1024;
 const maxResponseBytes = 12 * 1024 * 1024;
 const requestTimeoutMilliseconds = 180_000;
-const supportedSizes = new Set(["1024x1024", "1536x1024", "1024x1536"]);
-const supportedQualities = new Set(["low", "medium", "high"]);
+
+/** Canonical GPT-Image / Grok Imagine sizes used by MilkSU tooling. */
+const canonicalSizes = new Set(["1024x1024", "1536x1024", "1024x1536"]);
+const canonicalQualities = new Set(["low", "medium", "high"]);
+
 const outputCostUSD = {
   "1024x1024": { low: 0.006, medium: 0.053, high: 0.211 },
   "1536x1024": { low: 0.005, medium: 0.041, high: 0.165 },
@@ -30,6 +33,55 @@ const editCapableModels = new Set([
   "xai/grok-imagine-image",
   "xai/grok-imagine-image-2.0",
 ]);
+
+/**
+ * Request-shape profiles for OpenAI-compatible Images relays.
+ * Domestic / Imagen / FLUX relays often reject GPT-Image-only fields
+ * (quality low|medium|high, background, moderation, output_format).
+ */
+const sizeAliasToCanonical = new Map([
+  ["1024x1024", "1024x1024"],
+  ["1536x1024", "1536x1024"],
+  ["1024x1536", "1024x1536"],
+  ["1792x1024", "1536x1024"],
+  ["1024x1792", "1024x1536"],
+  ["2048x2048", "1024x1024"],
+  ["256x256", "1024x1024"],
+  ["512x512", "1024x1024"],
+  ["auto", "1024x1024"],
+]);
+
+const qualityAliasToCanonical = new Map([
+  ["low", "low"],
+  ["medium", "medium"],
+  ["high", "high"],
+  ["auto", "medium"],
+  ["standard", "medium"],
+  ["hd", "high"],
+]);
+
+/**
+ * @typedef {"gpt-image" | "compat-minimal"} ImageGenRequestProfile
+ */
+
+/**
+ * @param {string} model
+ * @returns {ImageGenRequestProfile}
+ */
+export function imageGenRequestProfile(model = resolveImageGenModel()) {
+  const id = String(model ?? "").trim().toLowerCase();
+  if (
+    id.includes("gpt-image")
+    || id.includes("grok-imagine")
+    || id.startsWith("openai/")
+  ) {
+    return "gpt-image";
+  }
+  // Imagen, FLUX, Ideogram, Recraft, and other OpenAI-compatible relays:
+  // send only prompt/model/n/size/response_format so size/quality mismatches
+  // do not discard the call as an opaque provider Error.
+  return "compat-minimal";
+}
 
 export function resolveImageGenModel(env = process.env) {
   return String(env.MILKSU_IMAGEGEN_MODEL ?? "").trim()
@@ -105,6 +157,41 @@ export function imageGenOutputEstimate(size, quality) {
   return outputCostUSD[size]?.[quality];
 }
 
+/**
+ * Map provider / DALL·E / domestic size and quality aliases onto MilkSU canonical values.
+ * @returns {{ size: string, quality: string, sizeMappedFrom?: string, qualityMappedFrom?: string }}
+ */
+export function normalizeImageGenSizeQuality(rawSize, rawQuality) {
+  const sizeRaw = String(rawSize ?? "").trim().toLowerCase() || "1024x1024";
+  const qualityRaw = String(rawQuality ?? "").trim().toLowerCase() || "low";
+  const size = sizeAliasToCanonical.get(sizeRaw)
+    || (canonicalSizes.has(sizeRaw) ? sizeRaw : "");
+  const quality = qualityAliasToCanonical.get(qualityRaw)
+    || (canonicalQualities.has(qualityRaw) ? qualityRaw : "");
+  if (!size) {
+    throw imageGenFailureError(
+      "unsupported_size",
+      `MilkSU ImageGen rejected unsupported size ${rawSize}. `
+        + "Use 1024x1024, 1536x1024, or 1024x1536 (DALL·E 1792x1024 maps to 1536x1024).",
+      { size: String(rawSize ?? ""), retryable: true },
+    );
+  }
+  if (!quality) {
+    throw imageGenFailureError(
+      "unsupported_quality",
+      `MilkSU ImageGen rejected unsupported quality ${rawQuality}. `
+        + "Use low, medium, or high (hd maps to high, standard maps to medium).",
+      { quality: String(rawQuality ?? ""), retryable: true },
+    );
+  }
+  return {
+    size,
+    quality,
+    ...(sizeRaw !== size ? { sizeMappedFrom: String(rawSize ?? "") } : {}),
+    ...(qualityRaw !== quality ? { qualityMappedFrom: String(rawQuality ?? "") } : {}),
+  };
+}
+
 export function formatImageGenApprovalInput(
   params,
   baseURL = resolveImageGenBaseURLValue(),
@@ -112,8 +199,15 @@ export function formatImageGenApprovalInput(
   provider = resolveImageGenProvider(),
 ) {
   const mode = params?.mode === "edit" ? "参考图编辑" : "文本生成";
-  const size = supportedSizes.has(params?.size) ? params.size : "1024x1024";
-  const quality = supportedQualities.has(params?.quality) ? params.quality : "low";
+  let size = "1024x1024";
+  let quality = "low";
+  try {
+    const normalized = normalizeImageGenSizeQuality(params?.size, params?.quality);
+    size = normalized.size;
+    quality = normalized.quality;
+  } catch {
+    // Keep defaults for the approval card when the model passed a bad size.
+  }
   const endpoint = endpointFor(params?.mode, normalizeImageGenBaseURL(baseURL));
   const estimate = imageGenOutputEstimate(size, quality);
   return [
@@ -171,32 +265,117 @@ export async function authorizeImageGenToolCall({
       };
 }
 
+/**
+ * Structured ImageGen failure. Message stays user- and model-readable;
+ * `code` / `retryable` travel in the Error for tests and UI recovery.
+ */
+export function imageGenFailureError(code, message, extras = {}) {
+  const error = new Error(String(message ?? "").trim() || "MilkSU ImageGen failed");
+  error.name = "MilkSUImageGenError";
+  error.code = String(code ?? "imagegen_failed");
+  error.retryable = extras.retryable !== false;
+  if (extras.size !== undefined) error.size = extras.size;
+  if (extras.quality !== undefined) error.quality = extras.quality;
+  if (extras.status !== undefined) error.status = extras.status;
+  return error;
+}
+
 function validateParams(params) {
   const mode = params?.mode === "edit" ? "edit" : "generate";
   const prompt = String(params?.prompt ?? "").trim();
   const outputPath = String(params?.outputPath ?? "").trim();
   const referencePath = String(params?.referencePath ?? "").trim();
-  const size = params?.size || "1024x1024";
-  const quality = params?.quality || "low";
   if (!prompt || prompt.length > 32_000) {
-    throw new Error("MilkSU ImageGen requires a prompt of 1-32000 characters");
+    throw imageGenFailureError(
+      "invalid_prompt",
+      "MilkSU ImageGen requires a prompt of 1-32000 characters",
+      { retryable: true },
+    );
   }
   if (!outputPath || extname(outputPath).toLowerCase() !== ".png") {
-    throw new Error("MilkSU ImageGen outputPath must name a new .png file");
+    throw imageGenFailureError(
+      "invalid_output_path",
+      "MilkSU ImageGen outputPath must name a new .png file",
+      { retryable: true },
+    );
   }
-  if (!supportedSizes.has(size)) {
-    throw new Error(`MilkSU ImageGen rejected unsupported size ${size}`);
-  }
-  if (!supportedQualities.has(quality)) {
-    throw new Error(`MilkSU ImageGen rejected unsupported quality ${quality}`);
-  }
+  const normalized = normalizeImageGenSizeQuality(params?.size, params?.quality);
   if (mode === "edit" && !referencePath) {
-    throw new Error("MilkSU ImageGen edit mode requires one workspace referencePath");
+    throw imageGenFailureError(
+      "missing_reference",
+      "MilkSU ImageGen edit mode requires one workspace referencePath",
+      { retryable: true },
+    );
   }
   if (mode === "generate" && referencePath) {
-    throw new Error("MilkSU ImageGen generate mode does not accept referencePath");
+    throw imageGenFailureError(
+      "unexpected_reference",
+      "MilkSU ImageGen generate mode does not accept referencePath",
+      { retryable: true },
+    );
   }
-  return { mode, prompt, outputPath, referencePath, size, quality };
+  return {
+    mode,
+    prompt,
+    outputPath,
+    referencePath,
+    size: normalized.size,
+    quality: normalized.quality,
+    sizeMappedFrom: normalized.sizeMappedFrom,
+    qualityMappedFrom: normalized.qualityMappedFrom,
+  };
+}
+
+/**
+ * Build the JSON / FormData body for the selected model profile.
+ * GPT-Image keeps quality / output_format / background / moderation;
+ * compat-minimal relays only get fields they commonly accept.
+ */
+export function buildImageGenRequestBody(params, {
+  model,
+  profile = imageGenRequestProfile(model),
+  reference,
+} = {}) {
+  const selectedModel = String(model ?? "").trim() || codingImageGenModel;
+  if (params.mode === "edit") {
+    const body = new FormData();
+    body.append("model", selectedModel);
+    body.append("prompt", params.prompt);
+    body.append("n", "1");
+    body.append("size", params.size);
+    if (profile === "gpt-image") {
+      body.append("quality", params.quality);
+      body.append("output_format", "png");
+      body.append("background", "opaque");
+      body.append("moderation", "auto");
+    } else {
+      body.append("response_format", "b64_json");
+    }
+    body.append(
+      "image[]",
+      new Blob([reference.data], { type: reference.mediaType }),
+      basename(reference.path),
+    );
+    return { body, headers: {} };
+  }
+  const payload = {
+    model: selectedModel,
+    prompt: params.prompt,
+    n: 1,
+    size: params.size,
+  };
+  if (profile === "gpt-image") {
+    payload.quality = params.quality;
+    payload.output_format = "png";
+    payload.background = "opaque";
+    payload.moderation = "auto";
+  } else {
+    payload.response_format = "b64_json";
+  }
+  return {
+    body: JSON.stringify(payload),
+    headers: { "Content-Type": "application/json" },
+  };
 }
 
 function referenceMimeType(data) {
@@ -228,12 +407,20 @@ function pngDimensions(data) {
     )
     || data.subarray(12, 16).toString("ascii") !== "IHDR"
   ) {
-    throw new Error("MilkSU ImageGen Provider returned an invalid PNG");
+    throw imageGenFailureError(
+      "invalid_png",
+      "MilkSU ImageGen Provider returned an invalid PNG",
+      { retryable: true },
+    );
   }
   const width = data.readUInt32BE(16);
   const height = data.readUInt32BE(20);
   if (!width || !height || width > 3840 || height > 3840) {
-    throw new Error("MilkSU ImageGen Provider returned invalid PNG dimensions");
+    throw imageGenFailureError(
+      "invalid_png_dimensions",
+      "MilkSU ImageGen Provider returned invalid PNG dimensions",
+      { retryable: true },
+    );
   }
   return { width, height };
 }
@@ -267,7 +454,11 @@ function projectedUsage(value) {
 async function readBoundedResponse(response, limit) {
   const declared = Number(response.headers.get("content-length") || 0);
   if (Number.isFinite(declared) && declared > limit) {
-    throw new Error("MilkSU ImageGen Provider response exceeded the safe size limit");
+    throw imageGenFailureError(
+      "response_too_large",
+      "MilkSU ImageGen Provider response exceeded the safe size limit",
+      { retryable: true },
+    );
   }
   if (!response.body) return Buffer.alloc(0);
   const reader = response.body.getReader();
@@ -279,7 +470,11 @@ async function readBoundedResponse(response, limit) {
     total += value.byteLength;
     if (total > limit) {
       await reader.cancel();
-      throw new Error("MilkSU ImageGen Provider response exceeded the safe size limit");
+      throw imageGenFailureError(
+        "response_too_large",
+        "MilkSU ImageGen Provider response exceeded the safe size limit",
+        { retryable: true },
+      );
     }
     chunks.push(Buffer.from(value));
   }
@@ -295,7 +490,21 @@ function redactProviderMessage(value, apiKey) {
   return message.slice(0, 800);
 }
 
-function providerFailure(status, data, apiKey) {
+function providerFailureHint(message) {
+  const text = String(message ?? "").toLowerCase();
+  if (/size|dimension|resolution|1792|1536|1024x|width|height/.test(text)) {
+    return " Retry with size 1024x1024, 1536x1024, or 1024x1536.";
+  }
+  if (/quality|hd|standard/.test(text)) {
+    return " Retry with quality low, medium, or high.";
+  }
+  if (/unknown parameter|unsupported|invalid.*(?:field|param|argument)|extra inputs/.test(text)) {
+    return " This ImageGen model may reject GPT-Image-only fields; MilkSU will omit them on the next call for non-GPT-Image models.";
+  }
+  return " Adjust size or quality, or switch the ImageGen model in Settings → Models, then retry.";
+}
+
+function providerFailure(status, data, apiKey, model) {
   let decoded;
   try {
     decoded = JSON.parse(data.toString("utf8"));
@@ -307,10 +516,15 @@ function providerFailure(status, data, apiKey) {
     apiKey,
   );
   const code = redactProviderMessage(decoded?.error?.code || "", apiKey);
-  return new Error(
-    `MilkSU ImageGen Provider rejected the request (${status})`
+  const hint = providerFailureHint(message || code);
+  return imageGenFailureError(
+    code || "provider_rejected",
+    `MilkSU ImageGen failed (${status})`
+      + (model ? ` for ${model}` : "")
       + (code ? ` [${code}]` : "")
-      + (message ? `: ${message}` : ""),
+      + (message ? `: ${message}` : "")
+      + `.${hint}`,
+    { status, retryable: true },
   );
 }
 
@@ -329,11 +543,19 @@ async function writeNewFile(path, displayPath, data) {
     await link(temporary, path);
   } catch (error) {
     if (error?.code === "EEXIST") {
-      throw new Error(
+      throw imageGenFailureError(
+        "output_exists",
         `MilkSU ImageGen will not overwrite existing output: ${displayPath}`,
+        { retryable: true },
       );
     }
-    throw error;
+    throw imageGenFailureError(
+      "write_failed",
+      `MilkSU ImageGen could not write output ${displayPath}: ${
+        redactProviderMessage(error?.message || error, "")
+      }`,
+      { retryable: true },
+    );
   } finally {
     await file?.close().catch(() => {});
     await unlink(temporary).catch(() => {});
@@ -359,6 +581,7 @@ export function createImageGenTool(
 ) {
   const selectedModel = String(model ?? "").trim() || codingImageGenModel;
   const selectedProvider = String(provider ?? "").trim() || "tokenflux";
+  const requestProfile = imageGenRequestProfile(selectedModel);
   return defineTool({
     name: codingImageGenToolName,
     label: "Generate or edit a project image",
@@ -367,7 +590,8 @@ export function createImageGenTool(
       + "approval because it uses a credentialed network request with Provider cost. The "
       + "Provider credential never enters tool input or output. outputPath must be a new "
       + "workspace .png file and is never overwritten. This tool is independent of the chat "
-      + "model selected in the composer.",
+      + "model selected in the composer. Preferred sizes: 1024x1024, 1536x1024, 1024x1536; "
+      + "quality: low, medium, or high.",
     parameters: Type.Object({
       mode: Type.Union([
         Type.Literal("generate"),
@@ -384,33 +608,35 @@ export function createImageGenTool(
         maxLength: 1024,
         description: "One workspace PNG/JPEG/WebP used only in edit mode.",
       })),
-      size: Type.Optional(Type.Union([
-        Type.Literal("1024x1024"),
-        Type.Literal("1536x1024"),
-        Type.Literal("1024x1536"),
-      ])),
-      quality: Type.Optional(Type.Union([
-        Type.Literal("low"),
-        Type.Literal("medium"),
-        Type.Literal("high"),
-      ])),
+      // Accept string aliases (DALL·E 1792x1024, hd, standard). Normalization
+      // happens in execute so TypeBox does not discard the call before mapping.
+      size: Type.Optional(Type.String({ minLength: 1, maxLength: 32 })),
+      quality: Type.Optional(Type.String({ minLength: 1, maxLength: 32 })),
     }),
     execute: async (_toolCallId, rawParams, signal) => {
       const params = validateParams(rawParams);
       if (!String(apiKey ?? "").trim()) {
-        throw new Error(
+        throw imageGenFailureError(
+          "not_configured",
           "ImageGen is unavailable: choose an ImageGen model in Settings > Models "
             + "and enable an account or personal TokenFlux key",
+          { retryable: false },
         );
       }
       if (params.mode === "edit" && !imageGenSupportsEdit(selectedModel)) {
-        throw new Error(
+        throw imageGenFailureError(
+          "edit_unsupported",
           `MilkSU ImageGen model ${selectedModel} does not support reference edits; `
             + "switch to GPT Image or Grok Imagine, or use generate mode",
+          { retryable: true },
         );
       }
       if (typeof ensureRead !== "function" || typeof ensureMutation !== "function") {
-        throw new Error("MilkSU ImageGen workspace policy is unavailable");
+        throw imageGenFailureError(
+          "policy_unavailable",
+          "MilkSU ImageGen workspace policy is unavailable",
+          { retryable: false },
+        );
       }
       const requestedOutput = isAbsolute(params.outputPath)
         ? params.outputPath
@@ -420,8 +646,10 @@ export function createImageGenTool(
       const outputParent = await ensureMutation(dirname(output), true);
       try {
         await lstat(output);
-        throw new Error(
+        throw imageGenFailureError(
+          "output_exists",
           `MilkSU ImageGen will not overwrite existing output: ${outputRelative}`,
+          { retryable: true },
         );
       } catch (error) {
         if (error?.code !== "ENOENT") throw error;
@@ -435,12 +663,20 @@ export function createImageGenTool(
         const referencePath = await ensureRead(requestedReference);
         const metadata = await lstat(referencePath);
         if (!metadata.isFile() || metadata.size <= 0 || metadata.size > maxReferenceBytes) {
-          throw new Error("MilkSU ImageGen reference must be a regular image up to 8 MiB");
+          throw imageGenFailureError(
+            "invalid_reference",
+            "MilkSU ImageGen reference must be a regular image up to 8 MiB",
+            { retryable: true },
+          );
         }
         const data = await readFile(referencePath);
         const mediaType = referenceMimeType(data);
         if (!mediaType) {
-          throw new Error("MilkSU ImageGen reference must be PNG, JPEG, or WebP");
+          throw imageGenFailureError(
+            "invalid_reference_type",
+            "MilkSU ImageGen reference must be PNG, JPEG, or WebP",
+            { retryable: true },
+          );
         }
         reference = {
           path: referencePath,
@@ -452,72 +688,65 @@ export function createImageGenTool(
 
       const base = normalizeImageGenBaseURL(baseURL);
       const endpoint = endpointFor(params.mode, base);
-      let body;
-      let headers = {
+      const built = buildImageGenRequestBody(params, {
+        model: selectedModel,
+        profile: requestProfile,
+        reference,
+      });
+      const headers = {
         Authorization: `Bearer ${apiKey}`,
+        ...built.headers,
       };
-      if (params.mode === "edit") {
-        body = new FormData();
-        body.append("model", selectedModel);
-        body.append("prompt", params.prompt);
-        body.append("n", "1");
-        body.append("size", params.size);
-        body.append("quality", params.quality);
-        body.append("output_format", "png");
-        body.append("background", "opaque");
-        body.append("moderation", "auto");
-        body.append(
-          "image[]",
-          new Blob([reference.data], { type: reference.mediaType }),
-          basename(reference.path),
-        );
-      } else {
-        headers = { ...headers, "Content-Type": "application/json" };
-        body = JSON.stringify({
-          model: selectedModel,
-          prompt: params.prompt,
-          n: 1,
-          size: params.size,
-          quality: params.quality,
-          output_format: "png",
-          background: "opaque",
-          moderation: "auto",
-        });
-      }
 
       let response;
       try {
         response = await fetchImpl(endpoint, {
           method: "POST",
           headers,
-          body,
+          body: built.body,
           redirect: "error",
           signal: combinedSignal(signal),
         });
       } catch (error) {
         if (signal?.aborted) {
-          throw new Error("MilkSU ImageGen request was cancelled");
+          throw imageGenFailureError(
+            "cancelled",
+            "MilkSU ImageGen request was cancelled",
+            { retryable: true },
+          );
         }
         if (error?.name === "TimeoutError") {
-          throw new Error("MilkSU ImageGen request timed out after 180 seconds");
+          throw imageGenFailureError(
+            "timeout",
+            "MilkSU ImageGen request timed out after 180 seconds",
+            { retryable: true },
+          );
         }
-        throw new Error(
+        throw imageGenFailureError(
+          "network",
           `MilkSU ImageGen network request failed: ${
             redactProviderMessage(error?.message || error, apiKey)
-          }`,
+          }. Check the network, then retry.`,
+          { retryable: true },
         );
       }
       const responseData = await readBoundedResponse(
         response,
         response.ok ? maxResponseBytes : 64 * 1024,
       );
-      if (!response.ok) throw providerFailure(response.status, responseData, apiKey);
+      if (!response.ok) {
+        throw providerFailure(response.status, responseData, apiKey, selectedModel);
+      }
 
       let decoded;
       try {
         decoded = JSON.parse(responseData.toString("utf8"));
       } catch {
-        throw new Error("MilkSU ImageGen Provider returned invalid JSON");
+        throw imageGenFailureError(
+          "invalid_json",
+          "MilkSU ImageGen Provider returned invalid JSON",
+          { retryable: true },
+        );
       }
       const encoded = decoded?.data?.[0]?.b64_json;
       if (
@@ -526,11 +755,19 @@ export function createImageGenTool(
         || encoded.length > Math.ceil(maxOutputBytes * 4 / 3) + 8
         || !/^[A-Za-z0-9+/]+={0,2}$/.test(encoded)
       ) {
-        throw new Error("MilkSU ImageGen Provider returned invalid image data");
+        throw imageGenFailureError(
+          "invalid_image_data",
+          "MilkSU ImageGen Provider returned invalid image data",
+          { retryable: true },
+        );
       }
       const image = Buffer.from(encoded, "base64");
       if (!image.length || image.length > maxOutputBytes) {
-        throw new Error("MilkSU ImageGen output exceeds the 8 MiB preview limit");
+        throw imageGenFailureError(
+          "output_too_large",
+          "MilkSU ImageGen output exceeds the 8 MiB preview limit",
+          { retryable: true },
+        );
       }
       const dimensions = pngDimensions(image);
       await mkdir(outputParent, { recursive: true, mode: 0o700 });
@@ -560,6 +797,11 @@ export function createImageGenTool(
         request: {
           size: params.size,
           quality: params.quality,
+          profile: requestProfile,
+          ...(params.sizeMappedFrom ? { sizeMappedFrom: params.sizeMappedFrom } : {}),
+          ...(params.qualityMappedFrom
+            ? { qualityMappedFrom: params.qualityMappedFrom }
+            : {}),
         },
         usage: projectedUsage(decoded?.usage),
         cost: {

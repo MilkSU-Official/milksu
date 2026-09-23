@@ -323,7 +323,77 @@ test("ImageGen redacts Provider failures and leaves no partial output", async t 
   } catch (error) {
     message = error.message;
   }
-  assert.match(message, /Provider rejected the request \(429\)/);
+  assert.match(message, /MilkSU ImageGen failed \(429\)/);
   assert.doesNotMatch(message, new RegExp(secret));
   await assert.rejects(readFile(joinPath(workspace, "failed.png")), /ENOENT/);
+});
+
+test("ImageGen maps DALL·E size aliases before contacting the Provider", async t => {
+  const workspace = await fixture(t);
+  let body;
+  const tool = createImageGenTool(workspace, {
+    ...workspacePolicy(workspace),
+    apiKey: "test-imagegen-key",
+    model: "openai/gpt-image-2",
+    fetchImpl: async (_url, options) => {
+      body = JSON.parse(String(options.body));
+      return response({ data: [{ b64_json: validPNG.toString("base64") }] });
+    },
+  });
+  await tool.execute("generate", {
+    mode: "generate",
+    prompt: "Map DALL-E landscape size",
+    outputPath: "mapped.png",
+    size: "1792x1024",
+    quality: "hd",
+  });
+  assert.equal(body.size, "1536x1024");
+  assert.equal(body.quality, "high");
+});
+
+test("ImageGen omits GPT-Image-only fields for Imagen-style models", async t => {
+  const workspace = await fixture(t);
+  let body;
+  const tool = createImageGenTool(workspace, {
+    ...workspacePolicy(workspace),
+    apiKey: "test-imagegen-key",
+    model: "google/imagen-4.0-generate-001",
+    fetchImpl: async (_url, options) => {
+      body = JSON.parse(String(options.body));
+      return response({ data: [{ b64_json: validPNG.toString("base64") }] });
+    },
+  });
+  await tool.execute("generate", {
+    mode: "generate",
+    prompt: "Compat-minimal body",
+    outputPath: "imagen.png",
+    size: "1024x1024",
+    quality: "low",
+  });
+  assert.equal(body.model, "google/imagen-4.0-generate-001");
+  assert.equal(body.size, "1024x1024");
+  assert.equal(body.response_format, "b64_json");
+  assert.equal(body.quality, undefined);
+  assert.equal(body.output_format, undefined);
+  assert.equal(body.background, undefined);
+  assert.equal(body.moderation, undefined);
+});
+
+test("ImageGen size alias helper maps domestic and DALL·E values", async () => {
+  const {
+    normalizeImageGenSizeQuality,
+    imageGenRequestProfile,
+  } = await import("./bridge-imagegen.js");
+  assert.deepEqual(normalizeImageGenSizeQuality("1792x1024", "hd"), {
+    size: "1536x1024",
+    quality: "high",
+    sizeMappedFrom: "1792x1024",
+    qualityMappedFrom: "hd",
+  });
+  assert.equal(imageGenRequestProfile("google/imagen-4.0-generate-001"), "compat-minimal");
+  assert.equal(imageGenRequestProfile("openai/gpt-image-2"), "gpt-image");
+  assert.throws(
+    () => normalizeImageGenSizeQuality("999x999", "low"),
+    /unsupported size/,
+  );
 });

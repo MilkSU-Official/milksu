@@ -702,6 +702,12 @@ export function chatActivityEntrySummary(messageOrEntry: Message | ChatActivityE
   if (name === 'prepare_computer_use_driver') return subject || t('准备 Computer Use Driver', 'Prepare Computer Use Driver')
   if (name === 'milksu_archify') return t('处理架构图', 'Working on architecture diagram')
   if (name === 'milksu_imagegen') {
+    const resultText = isEntry
+      ? String(messageOrEntry.result?.content ?? '')
+      : String(message.content ?? '')
+    if (/MilkSU ImageGen failed|MilkSU ImageGen Provider rejected|MilkSU ImageGen rejected|ImageGen is unavailable/i.test(resultText)) {
+      return t('生图失败', 'ImageGen failed')
+    }
     let outputPath = ''
     if (isEntry && messageOrEntry.result?.content) {
       try {
