@@ -80,7 +80,7 @@ function isStoredOrAgentChinese(line: string): boolean {
   const text = line.trim()
   if (/\bkeywords\s*:/.test(text)) return true
   if (/\bprompt\s*:/.test(text)) return true
-  if (/用户当前请求：|本轮是画图|本轮通过 Playwright|本轮使用已锁定/.test(text)) return true
+  if (/用户当前请求：|本轮是画图|本轮在画图页|本轮通过 Playwright|本轮使用已锁定/.test(text)) return true
   if (/===\s*['`]/.test(text) || /!==\s*['`]/.test(text)) return true
   if (/\bvalue:\s*['`]/.test(text) || /model-value=/.test(text) || /defaultValue=/.test(text)) return true
   if (/\bstatus:\s*['`]/.test(text)) return true
