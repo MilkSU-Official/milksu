@@ -125,6 +125,31 @@ const settingsNavIcons = {
   plugins: Puzzle,
 } as const
 
+function SidebarPlusButton({
+  label,
+  className,
+  testId,
+  onClick,
+}: {
+  label: string
+  className?: string
+  testId?: string
+  onClick: (event: MouseEvent<HTMLButtonElement>) => void
+}) {
+  return (
+    <button
+      type="button"
+      className={`agent-sidebar__icon app-no-drag flex size-8 shrink-0 items-center justify-center rounded-[8px]${className ? ` ${className}` : ''}`}
+      data-testid={testId}
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+    >
+      <Plus className="size-4" />
+    </button>
+  )
+}
+
 export default function ContextSidebar({
   activeSection,
   activeConversationId,
@@ -844,16 +869,11 @@ export default function ContextSidebar({
               {t('会话', 'Chats')}
             </div>
             {collapsed ? null : (
-              <button
-                type="button"
-                className="agent-sidebar__icon app-no-drag flex size-8 shrink-0 items-center justify-center rounded-[8px]"
-                data-testid="coding-new-task-button"
-                aria-label={t('新会话', 'New chat')}
-                title={t('新会话', 'New chat')}
-                onClick={onNew}
-              >
-                <Plus className="size-4" />
-              </button>
+              <SidebarPlusButton
+                testId="coding-new-task-button"
+                label={t('新会话', 'New chat')}
+                onClick={() => onNew?.()}
+              />
             )}
           </div>
 
@@ -886,19 +906,15 @@ export default function ContextSidebar({
                           </span>
                           <span className="agent-sidebar__copy ml-1.5 min-w-0 flex-1 truncate text-control font-medium text-muted-foreground">{group.name}</span>
                           {group.path ? (
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              className="coding-project-new-session agent-sidebar__copy shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
-                              aria-label={t(`在 ${group.name} 中新建会话`, `New chat in ${group.name}`)}
-                              title={t(`在 ${group.name} 中新建会话`, `New chat in ${group.name}`)}
+                            <SidebarPlusButton
+                              className="coding-project-new-session opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                              label={t(`在 ${group.name} 中新建会话`, `New chat in ${group.name}`)}
                               onClick={event => {
+                                event.preventDefault()
                                 event.stopPropagation()
                                 if (group.path) onNewProjectSession?.(group.path)
                               }}
-                            >
-                              <Plus className="size-3.5" />
-                            </Button>
+                            />
                           ) : null}
                         </summary>
                         <div className="mt-0.5 space-y-0.5">
@@ -919,19 +935,15 @@ export default function ContextSidebar({
                         <Clock className="size-4" />
                       </span>
                       <span className="agent-sidebar__copy ml-1.5 min-w-0 flex-1 truncate text-control font-medium text-muted-foreground">{temporaryGroup.name}</span>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="coding-project-new-session agent-sidebar__copy shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
-                        aria-label={t('新建会话', 'New chat')}
-                        title={t('新建会话', 'New chat')}
+                      <SidebarPlusButton
+                        className="coding-project-new-session opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                        label={t('新建会话', 'New chat')}
                         onClick={event => {
+                          event.preventDefault()
                           event.stopPropagation()
                           onNew?.()
                         }}
-                      >
-                        <Plus className="size-3.5" />
-                      </Button>
+                      />
                     </summary>
                     <div className="mt-0.5 space-y-0.5">
                       {temporaryGroup.conversations.map(conversation => conversationRow(conversation))}

@@ -54,7 +54,6 @@ import { buildCTFDomainTaskContext, buildCVEDomainTaskContext, type DomainTaskCo
 import { labBriefing } from '@/lib/researchBriefing'
 import {
   conversationWorkspaceHome,
-  isHomeConversation,
   rememberItemChatAnchor,
   rememberWorkspaceConversation,
   selectAnchoredDomainConversationId,
@@ -644,17 +643,6 @@ export default function App() {
     itemChatAnchors.current = rememberItemChatAnchor(itemChatAnchors.current, conversations.active)
   }
 
-  function restoreCodingWorkspace() {
-    const restored = conversations.conversations.find(conversation => (
-      conversation.id === lastCodingConversationId.current && isHomeConversation(conversation)
-    ))
-    if (restored) {
-      conversations.activeId = restored.id
-      return
-    }
-    conversations.resumePendingHome('chat')
-  }
-
   function restoreCTFWorkspaceResumePoint() {
     const next = selectCTFResumePoint(
       conversations.conversations,
@@ -696,16 +684,15 @@ export default function App() {
       openDomainCatalog(value)
       return
     }
-    rememberActiveConversation()
     if (value === 'chat') {
-      restoreCodingWorkspace()
-      setSection(value)
+      newConversation()
       return
     }
     if (value === 'image') {
       newImageConversation()
       return
     }
+    rememberActiveConversation()
     if (value === 'companion') {
       // Sidebar footer opens the phone. SHOW_PET would close it again.
       void invokeCommand('show_companion_chat_window')
