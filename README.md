@@ -1,7 +1,5 @@
 <p align="center">
   <img src="app/src/assets/milksu-logo.png" width="112" alt="MilkSU">
-  <br>
-  <sub>原图由画师创作。后来的 logo 在此基础上用即梦做了调整。看板娘的图都是基于画师原图的二次创作。</sub>
 </p>
 
 <h1 align="center">MilkSU</h1>
@@ -129,7 +127,7 @@ npm run desktop:start
 
 ## 鸣谢
 
-应用图标由 **奶噗** 绘制。
+应用图标原图由 **奶噗** 绘制。后来的 logo 在此基础上用即梦做了调整。看板娘的图都是基于画师原图的二次创作。
 
 <p align="center">
   <a href="https://github.com/HikaruQwQ"><img src="https://github.com/HikaruQwQ.png?size=96" width="72" height="72" alt="HikaruQwQ"></a>
