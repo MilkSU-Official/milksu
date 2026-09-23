@@ -320,7 +320,7 @@ function createCompanionShell(options) {
 
   function iconPath() {
     const packaged = resourcesPath ? path.join(resourcesPath, 'appicon.png') : ''
-    const repo = repositoryRoot ? path.join(repositoryRoot, 'build', 'appicon.png') : ''
+    const repo = repositoryRoot ? path.join(repositoryRoot, 'app', 'src', 'assets', 'milksu-logo.png') : ''
     if (isPackaged && packaged) return packaged
     return repo || packaged
   }

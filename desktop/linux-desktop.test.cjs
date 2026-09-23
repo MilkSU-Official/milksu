@@ -71,6 +71,6 @@ test('Linux window icon uses packaged icon.png or the brand asset', () => {
   )
   assert.equal(
     linuxWindowIconPath({ platform: 'linux', isPackaged: false, repositoryRoot: '/repo' }),
-    path.join('/repo', 'build', 'appicon.png'),
+    path.join('/repo', 'app', 'src', 'assets', 'milksu-logo.png'),
   )
 })

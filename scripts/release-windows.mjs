@@ -162,7 +162,7 @@ const builderConfig = {
   directories: { output: outputDirectory },
   artifactName: 'MilkSU-Windows-x64-${version}-Setup.${ext}',
   win: {
-    icon: join(repositoryRoot, 'build', 'appicon.png'),
+    icon: join(repositoryRoot, channelConfig.iconRelative),
     target: [{ target: 'nsis', arch: ['x64'] }],
   },
   nsis: {

@@ -135,7 +135,7 @@ for (const file of [
 const linuxIconDir = join(stagingDirectory, 'linux-icons')
 const linuxIcon256 = join(linuxIconDir, '256x256.png')
 await writeLinuxIconSet({
-  sourcePng: await readFile(join(repositoryRoot, 'build', 'appicon.png')),
+  sourcePng: await readFile(join(repositoryRoot, channelConfig.iconRelative)),
   outputDirectory: linuxIconDir,
 })
 

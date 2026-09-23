@@ -70,7 +70,7 @@ function linuxWindowIconPath({
 } = {}) {
   if (platform !== 'linux') return ''
   if (isPackaged) return path.join(String(resourcesPath || ''), 'icon.png')
-  if (repositoryRoot) return path.join(repositoryRoot, 'build', 'appicon.png')
+  if (repositoryRoot) return path.join(repositoryRoot, 'app', 'src', 'assets', 'milksu-logo.png')
   return ''
 }
 

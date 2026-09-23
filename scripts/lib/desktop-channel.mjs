@@ -7,6 +7,8 @@ export const STABLE_APP_ID = 'com.milksu.app'
 export const BETA_APP_ID = 'com.milksu.app.beta'
 export const STABLE_PRODUCT_NAME = 'MilkSU'
 export const BETA_PRODUCT_NAME = 'MilkSU Beta'
+/** White-haired companion plate. The blue-haired originals stay at build/appicon.png. */
+export const STABLE_ICON_RELATIVE = 'app/src/assets/milksu-logo.png'
 
 /** @typedef {'stable' | 'beta'} DesktopChannel */
 
@@ -29,7 +31,7 @@ export const DESKTOP_CHANNELS = {
     productName: STABLE_PRODUCT_NAME,
     appId: STABLE_APP_ID,
     outputAppName: 'MilkSU.app',
-    iconRelative: 'build/appicon.png',
+    iconRelative: STABLE_ICON_RELATIVE,
     userDataDirName: STABLE_APP_ID,
     visibleBadge: '',
     accountProtocolScheme: 'milksu',

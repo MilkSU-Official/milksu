@@ -11,6 +11,7 @@ import { promisify } from 'node:util'
 import { writeReleaseUploadMetadata } from './lib/release-upload-metadata.mjs'
 import { ensureOwnerWritable } from './lib/bundle-owner-writable.mjs'
 import { assertShipItCanClearQuarantine } from './lib/shipit-quarantine-ready.mjs'
+import { desktopChannelConfig } from './lib/desktop-channel.mjs'
 import {
   DMG_WINDOW_HEIGHT,
   DMG_WINDOW_WIDTH,
@@ -217,7 +218,7 @@ await writeFile(dmgBuilderConfigPath, `${JSON.stringify({
   productName: 'MilkSU',
   directories: { output: releaseDirectory },
   mac: {
-    icon: join(repositoryRoot, 'build', 'appicon.png'),
+    icon: join(repositoryRoot, desktopChannelConfig('stable').iconRelative),
     identity: null,
   },
   dmg: {

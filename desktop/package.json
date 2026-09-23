@@ -71,7 +71,7 @@
     ],
     "extraResources": [
       {
-        "from": "../build/appicon.png",
+        "from": "../app/src/assets/milksu-logo.png",
         "to": "appicon.png"
       },
       {
@@ -85,7 +85,7 @@
     ],
     "mac": {
       "category": "public.app-category.developer-tools",
-      "icon": "../build/appicon.png",
+      "icon": "../app/src/assets/milksu-logo.png",
       "extendInfo": {
         "NSScreenCaptureUsageDescription": "MilkSU 使用屏幕录制读取你明确选择的外部 App 窗口，供 Coding Agent 的 Computer Use 完成可见操作。"
       },

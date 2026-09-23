@@ -1,5 +1,5 @@
 /**
- * Derive MilkSU Beta app icon from the real Stable brand asset (build/appicon.png).
+ * Derive MilkSU Beta app icon from the stable brand plate (app/src/assets/milksu-logo.png).
  * Pure JS PNG decode/composite/encode — no Homebrew Python/Pillow, no silent copy fallback.
  *
  * Output lives under ignored build/desktop/ so generation never dirties git status.
@@ -8,6 +8,7 @@
 import { promises as fs } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { desktopChannelConfig } from './lib/desktop-channel.mjs'
 import {
   compositeRgba,
   decodePngRgba,
@@ -15,18 +16,19 @@ import {
 } from './lib/png-rgba.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-export const SOURCE_ICON_RELATIVE = 'build/appicon.png'
+export const SOURCE_ICON_RELATIVE = desktopChannelConfig('stable').iconRelative
 export const OUTPUT_ICON_RELATIVE = 'build/desktop/appicon-beta.png'
 
 /**
- * Compact lower-right capsule badge region (Dock-readable, ~12% width).
- * Kept small so the brand character is not covered.
+ * Compact lower-right capsule. Inset so the whole capsule stays inside the
+ * rounded icon corner (see ICON_CORNER_RADIUS_RATIO) and still clears the
+ * character's skirt.
  */
 export const BETA_BADGE_REGION = {
-  x0: 1024 - 168,
-  y0: 1024 - 108,
-  x1: 1024 - 28,
-  y1: 1024 - 36,
+  x0: 809,
+  y0: 895,
+  x1: 949,
+  y1: 967,
 }
 
 /**

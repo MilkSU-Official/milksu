@@ -56,8 +56,9 @@ test('renderBetaAppIcon keeps 1024 brand pixels outside badge and changes badge 
 test('generateBetaAppIconFiles writes sips-readable 1024 PNG distinct from brand asset', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'milksu-beta-icon-'))
   try {
-    await mkdir(join(dir, 'build'), { recursive: true })
-    await copyFile(brandIcon, join(dir, SOURCE_ICON_RELATIVE))
+    const sourceCopy = join(dir, SOURCE_ICON_RELATIVE)
+    await mkdir(dirname(sourceCopy), { recursive: true })
+    await copyFile(brandIcon, sourceCopy)
     const outPath = await generateBetaAppIconFiles(dir)
     assert.equal(outPath, join(dir, OUTPUT_ICON_RELATIVE))
     const { stdout } = await execFileAsync('/usr/bin/sips', ['-g', 'pixelWidth', '-g', 'pixelHeight', outPath])

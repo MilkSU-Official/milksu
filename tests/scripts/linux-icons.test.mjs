@@ -53,8 +53,8 @@ test('writeLinuxIconSet emits hicolor sizes GNOME can look up, not 1024-only', a
   }
 })
 
-test('brand appicon downscales to a 48px hicolor tile', async () => {
-  const sourcePng = await readFile(join(repoRoot, 'build', 'appicon.png'))
+test('brand logo downscales to a rounded 48px hicolor tile', async () => {
+  const sourcePng = await readFile(join(repoRoot, 'app', 'src', 'assets', 'milksu-logo.png'))
   const dir = await mkdtemp(join(tmpdir(), 'milksu-linux-brand-icons-'))
   try {
     const written = await writeLinuxIconSet({ sourcePng, outputDirectory: dir })
@@ -67,6 +67,9 @@ test('brand appicon downscales to a 48px hicolor tile', async () => {
       if (decoded.pixels[i] > 8) opaque += 1
     }
     assert.ok(opaque > 48 * 48 * 0.2, 'downscaled brand icon should keep visible pixels')
+    assert.equal(decoded.pixels[3], 0, 'top-left corner stays transparent after downscale')
+    const mid = (24 * 48 + 24) * 4 + 3
+    assert.ok(decoded.pixels[mid] > 200, 'tile center stays opaque')
   } finally {
     await rm(dir, { recursive: true, force: true })
   }
