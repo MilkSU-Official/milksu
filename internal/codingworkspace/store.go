@@ -233,3 +233,8 @@ func isGeneratedScratchWorkspace(path string) bool {
 	normalized := filepath.ToSlash(path)
 	return generatedScratchWorkspace.MatchString(normalized)
 }
+
+// IsGeneratedScratchWorkspace reports a MilkSU temporary task directory.
+func IsGeneratedScratchWorkspace(path string) bool {
+	return isGeneratedScratchWorkspace(path)
+}

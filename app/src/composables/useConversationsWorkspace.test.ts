@@ -65,6 +65,15 @@ describe('useConversations workspace home isolation', () => {
     ))).toBe(true)
   })
 
+  it('does not bind a project onto a draw chat', async () => {
+    const { useConversations } = await import('@/composables/useConversations')
+    const conversations = useConversations()
+    conversations.startNew({ workspaceHome: 'image' })
+    conversations.setWorkspace('/Users/me/code/milksu')
+    expect(conversations.workspacePath).toBe('')
+    expect(invokeCommand.mock.calls.some(call => call[0] === 'remember_coding_project')).toBe(false)
+  })
+
   it('does not apply Home project memory to a domain pending chat on load', async () => {
     const { useConversations } = await import('@/composables/useConversations')
     const conversations = useConversations()

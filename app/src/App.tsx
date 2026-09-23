@@ -52,6 +52,7 @@ import { cn } from '@/lib/cn'
 import { readWorkspaceViewState, writeWorkspaceViewState } from '@/lib/workspaceViewState'
 import { buildCTFDomainTaskContext, buildCVEDomainTaskContext, type DomainTaskContext } from '@/lib/domainTaskContext'
 import { labBriefing } from '@/lib/researchBriefing'
+import { isGeneratedScratchWorkspace } from '@/lib/codingConversationGroups'
 import {
   conversationWorkspaceHome,
   rememberItemChatAnchor,
@@ -274,6 +275,7 @@ export default function App() {
     activeId: conversations.activeId,
     active: conversations.active,
     workspacePath: conversations.workspacePath,
+    pendingWorkspaceHome: conversations.pendingWorkspaceHome,
     running: conversations.activeRunning,
     aborting: conversations.activeAborting,
     abortStalled: conversations.activeAbortStalled,
@@ -300,6 +302,18 @@ export default function App() {
     engineNotice: conversations.engineNotice,
     engineNoticeRepeat: conversations.engineNoticeRepeat,
   }
+  useEffect(() => {
+    if (section !== 'image' || conv.running || !conv.active) return
+    if (conversationWorkspaceHome(conv.active) !== 'image') return
+    const path = conv.active.workspacePath?.trim() ?? ''
+    if (!path || isGeneratedScratchWorkspace(path)) return
+    conversations.clearWorkspace()
+  }, [
+    section,
+    conv.running,
+    conv.active,
+    conversations,
+  ])
   const trackedVulnerabilities = vulnerabilityDashboard.tracked
   const toolBudgetPrompt = useMemo(() => {
     for (const conversation of conversations.conversations) {
@@ -783,11 +797,13 @@ export default function App() {
   }, [conversations.conversations])
 
   async function chooseAgentWorkspace() {
+    if (sectionRef.current === 'image') return
     const workspacePath = await invokeCommand<string>('choose_agent_workspace')
     if (workspacePath) conversations.setWorkspace(workspacePath)
   }
 
   async function chooseAgentWorkspaceForNewTask() {
+    if (sectionRef.current === 'image') return
     const workspacePath = await invokeCommand<string>('choose_agent_workspace')
     if (!workspacePath) return
     newConversation()
@@ -795,6 +811,7 @@ export default function App() {
   }
 
   function selectCodingWorkspace(path: string) {
+    if (sectionRef.current === 'image') return
     const next = path.trim()
     if (!next) return
     if (conversations.active?.messages.length) newConversation()

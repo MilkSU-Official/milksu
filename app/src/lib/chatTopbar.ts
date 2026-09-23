@@ -43,6 +43,6 @@ export function chatTopbarPresentation(input: ChatTopbarInput) {
 
   return {
     title: input.conversationTitle || t('新编码任务', 'New coding task'),
-    subtitle: workspaceLabel || t(`临时工作区 · ${input.codingPolicyLabel}`, `Temporary workspace · ${input.codingPolicyLabel}`),
+    subtitle: workspaceLabel,
   }
 }
