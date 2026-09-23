@@ -50,7 +50,7 @@ export default function WorkspaceTopBar({
                 <WorkspaceTopBarTitle title={title} />
                 {badge}
               </div>
-              {subtitle ? (
+              {subtitle != null ? (
                 <p
                   className="workspace-topbar__subtitle mt-1 truncate text-caption text-muted-foreground"
                   data-workspace-topbar-subtitle

@@ -174,6 +174,12 @@ test("ImageGen is exposed only when its isolated Provider credential is configur
     "allowed",
   );
   assert.equal(draw.imageDraw, true);
+  for (const name of ["milksu_imagegen", "bash", "web_search", "web_fetch"]) {
+    assert.equal(draw.activeTools.includes(name), true, name);
+    assert.equal(available.activeTools.includes(name), true, name);
+  }
+  assert.equal(draw.customTools.some(tool => tool.name === "milksu_imagegen"), true);
+  assert.equal(available.customTools.some(tool => tool.name === "milksu_imagegen"), true);
 });
 
 test("Plan and Read-only enforce a read-only tool allowlist", async () => {

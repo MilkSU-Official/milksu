@@ -1353,6 +1353,9 @@ func (a *App) ForkConversation(conversationID, role string, occurrence int) (str
 }
 
 func (a *App) resolveConversationWorkspace(conversationID, requested string) (string, error) {
+	if a.imageHomeConversation(conversationID) {
+		return a.resolveImageHomeWorkspace(conversationID, requested)
+	}
 	requested = strings.TrimSpace(requested)
 	if requested != "" || strings.HasPrefix(conversationID, "ctf_") {
 		if requested != "" {
@@ -1418,6 +1421,51 @@ func (a *App) resolveConversationWorkspace(conversationID, requested string) (st
 	stored.WorkspacePath = workspace
 	if err := a.conversations.Save(stored); err != nil {
 		return "", fmt.Errorf("save Coding artifact workspace: %w", err)
+	}
+	return workspace, nil
+}
+
+func (a *App) imageHomeConversation(conversationID string) bool {
+	if a == nil || a.conversations == nil {
+		return false
+	}
+	stored, err := a.conversations.Get(conversationID)
+	if err != nil {
+		return false
+	}
+	return stored.WorkspaceHome == "image"
+}
+
+// Draw sessions keep code, search, and git tools, but they do not keep a
+// project checkout. A previously chosen repository is replaced by the
+// temporary task directory.
+func (a *App) resolveImageHomeWorkspace(conversationID, requested string) (string, error) {
+	requested = strings.TrimSpace(requested)
+	stored, err := a.conversations.Get(conversationID)
+	if err != nil {
+		return "", fmt.Errorf("read image conversation workspace: %w", err)
+	}
+	if codingworkspace.IsGeneratedScratchWorkspace(requested) {
+		if err := a.rememberConversationWorkspace(conversationID, requested); err != nil {
+			return "", err
+		}
+		return requested, nil
+	}
+	if codingworkspace.IsGeneratedScratchWorkspace(stored.WorkspacePath) {
+		return strings.TrimSpace(stored.WorkspacePath), nil
+	}
+	workspace, err := userartifact.Workspace(
+		filepath.Join(a.dataDirectory, "agent-workspaces"),
+		userartifact.KindCoding,
+		conversationID,
+		"无项目任务",
+	)
+	if err != nil {
+		return "", err
+	}
+	stored.WorkspacePath = workspace
+	if err := a.conversations.Save(stored); err != nil {
+		return "", fmt.Errorf("save image conversation workspace: %w", err)
 	}
 	return workspace, nil
 }

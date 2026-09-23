@@ -1924,7 +1924,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
       : prompt
     setStagedComposerPrompt(null)
     const scopedPrompt = drawTurn
-      ? `本轮是画图。调用一次 milksu_imagegen，把下面的用户原文当作 prompt，使用已经配置的生图模型，写到工作区里一个新的 .png 路径。不要覆盖已有文件，不要改代码，不要改用对话模型画图。对话里会直接显示这张图。用户只是要图时不要再写路径、哈希、尺寸或模型；只有还需要用文字回答时才写文字。\n\n${submittedPrompt}`
+      ? `本轮在画图页。需要出图时调用 milksu_imagegen，把下面的用户原文当作 prompt，使用已经配置的生图模型，写到工作区里一个新的 .png 路径。不要覆盖已有文件，不要改用对话模型画图。搜索、Git 和代码工具都在，用户要检索、改文件、加水印或处理图片时用它们。对话里会直接显示生成的图。用户只是要图时不要再写路径、哈希、尺寸或模型；只有还需要用文字回答时才写文字。\n\n${submittedPrompt}`
       : scopeToken === 'browser-use'
       ? `本轮通过 Playwright MCP 官方扩展请求连接真实用户浏览器；首次调用时等我在 Chrome/Edge 里选择并批准准确标签页。只操作扩展返回的标签页，不要改用 MilkSU 内置浏览器或 Computer Use。\n\n${submittedPrompt}`
       : scopeToken === 'computer-use'
@@ -3125,15 +3125,17 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
                   <section className="border-b border-border px-4 py-4">
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-caption font-medium text-muted-foreground">{t('工作区', 'Workspace')}</p>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        disabled={running}
-                        onClick={chooseWorkspaceFromCurrentTask}
-                      >
-                        {workspaceLocked ? t('新任务使用其他目录', 'Use another folder for a new task') : t('更换', 'Change')}
-                      </Button>
+                      {imageHome ? null : (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          disabled={running}
+                          onClick={chooseWorkspaceFromCurrentTask}
+                        >
+                          {workspaceLocked ? t('新任务使用其他目录', 'Use another folder for a new task') : t('更换', 'Change')}
+                        </Button>
+                      )}
                     </div>
                     <div className="mt-3 flex items-start gap-3">
                       <FolderOpen className="mt-0.5 size-4 shrink-0 text-primary" />

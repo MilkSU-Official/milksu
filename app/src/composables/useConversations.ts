@@ -1969,7 +1969,7 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
 
   function setWorkspace(path: string) {
     const normalized = path.trim()
-    if (!normalized) return
+    if (!normalized || currentWorkspaceHome() === 'image') return
     if (!s.activeId) {
       s.pendingWorkspacePath = normalized
       s.pendingMCPServers = []
@@ -1989,11 +1989,14 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
 
   function clearWorkspace() {
     if (!s.activeId) {
+      if (!s.pendingWorkspacePath && s.pendingMCPServers.length === 0 && !s.pendingMCPConfigDigest) return
       s.pendingWorkspacePath = ''
       s.pendingMCPServers = []
       s.pendingMCPConfigDigest = ''
       return
     }
+    const current = s.conversations.find(item => item.id === s.activeId)
+    if (!current?.workspacePath && !(current?.mcpServers?.length) && !current?.mcpConfigDigest) return
     update(s.activeId, conversation => ({
       ...conversation,
       workspacePath: undefined,

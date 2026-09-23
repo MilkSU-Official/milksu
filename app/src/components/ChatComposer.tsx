@@ -995,9 +995,11 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
   }
 
   const workspaceFixed = Boolean(workspaceLocked || ctfSession)
-  const showWorkspaceChip = ctfSession
-    ? Boolean(workspacePath?.trim() || workspaceName?.trim())
-    : Boolean(workspaceName?.trim() || !workspaceLocked)
+  const showWorkspaceChip = imageHome
+    ? false
+    : ctfSession
+      ? Boolean(workspacePath?.trim() || workspaceName?.trim())
+      : Boolean(workspaceName?.trim() || !workspaceLocked)
   const workspaceChipLabel = workspaceName?.trim() || t('选择项目', 'Choose a project')
   const hasSelectedWorkspace = Boolean(workspacePath?.trim())
   const workspaceChipTitle = workspacePath || workspaceChipLabel
@@ -1774,7 +1776,7 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
   const showImageAdd = !imageHome && addMenuHit(imageAddLabel, imageModelLabel ?? '')
   const showFileAdd = addMenuHit(fileAddLabel)
   const showMentionAdd = addMenuHit(mentionAddLabel)
-  const showProjectAdd = !workspaceFixed && addMenuHit(projectAddLabel)
+  const showProjectAdd = !imageHome && !workspaceFixed && addMenuHit(projectAddLabel)
   const showGoalAdd = addMenuHit(goalAddLabel, goalAddDetail)
   const showMultitaskAdd = addMenuHit(multitaskAddLabel, multitaskAddDetail)
   const showPlanAdd = addMenuHit(planCopy.label, planCopy.description)

@@ -26,13 +26,13 @@ describe('chatTopbarPresentation', () => {
     })
   })
 
-  it('keeps empty Coding tasks explicit about temporary workspace policy', () => {
+  it('leaves a temporary Coding task without a policy subtitle', () => {
     expect(chatTopbarPresentation({
       ctfSession: false,
       codingPolicyLabel: 'Go · 完全访问',
     })).toEqual({
       title: '新编码任务',
-      subtitle: '临时工作区 · Go · 完全访问',
+      subtitle: '',
     })
   })
 
@@ -44,7 +44,7 @@ describe('chatTopbarPresentation', () => {
       codingPolicyLabel: 'Go · 项目自动',
     })).toEqual({
       title: '检查登录回调',
-      subtitle: '临时工作区 · Go · 项目自动',
+      subtitle: '',
     })
   })
 
@@ -56,7 +56,7 @@ describe('chatTopbarPresentation', () => {
       codingPolicyLabel: 'Go · 项目自动',
     })).toEqual({
       title: '整理一段临时文本',
-      subtitle: '临时工作区 · Go · 项目自动',
+      subtitle: '',
     })
   })
 

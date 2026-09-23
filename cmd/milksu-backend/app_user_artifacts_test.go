@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/MilkSU-Official/milksu/internal/appdata"
+	"github.com/MilkSU-Official/milksu/internal/codingworkspace"
 	"github.com/MilkSU-Official/milksu/internal/conversation"
 	"github.com/MilkSU-Official/milksu/internal/engine"
 	"github.com/MilkSU-Official/milksu/internal/userartifact"
@@ -213,6 +214,47 @@ func TestResolveConversationWorkspacePrefersTheBoundSessionDirectory(t *testing.
 	}
 	if workspace != repository {
 		t.Fatalf("bound session workspace was ignored: got %q", workspace)
+	}
+}
+
+func TestResolveImageConversationWorkspaceDropsProjectBinding(t *testing.T) {
+	dataDirectory := filepath.Join(t.TempDir(), "appdata")
+	t.Setenv(appdata.DirectoryOverrideEnv, dataDirectory)
+	conversations, err := conversation.NewStore()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := conversations.Save(conversation.StoredConversation{
+		ID:            "draw-bound",
+		Title:         "画一个奶牛猫",
+		WorkspaceHome: "image",
+		WorkspacePath: filepath.Join(t.TempDir(), "milksu"),
+		Messages:      []conversation.StoredMessage{},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	repository := filepath.Join(t.TempDir(), "requested-repo")
+	supervisor := engine.NewSupervisor(nil)
+	supervisor.BindSessionWorkspace("draw-bound", repository)
+	app := &App{
+		dataDirectory:     dataDirectory,
+		artifactDirectory: filepath.Join(t.TempDir(), "Documents", "MilkSU"),
+		conversations:     conversations,
+		engines:           supervisor,
+	}
+	workspace, err := app.resolveConversationWorkspace("draw-bound", repository)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if workspace == repository || !codingworkspace.IsGeneratedScratchWorkspace(workspace) {
+		t.Fatalf("image workspace = %q, want a temporary task directory", workspace)
+	}
+	again, err := app.resolveConversationWorkspace("draw-bound", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again != workspace {
+		t.Fatalf("image workspace changed from %q to %q", workspace, again)
 	}
 }
 
