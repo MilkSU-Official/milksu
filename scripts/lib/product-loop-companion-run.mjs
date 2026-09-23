@@ -12,7 +12,6 @@ const { writeCompanionSkinFixture } = createRequire(import.meta.url)('../../desk
 import {
   companionDefaultSkinVisible,
   companionFuzzAppPrompts,
-  companionFuzzMemoryPrompts,
   companionImportedSkinVisible,
   companionPetSurfaceUsesCustomSkin,
   companionSkinEntryVisible,
@@ -50,6 +49,26 @@ import {
   transcriptCancelledAfter,
 } from './product-loop-companion-core.mjs'
 import { describeCustomRelay, firstUseRelayName, resolveCompanionModelRoute } from './product-loop-first-use.mjs'
+import {
+  approvedMemoryCount,
+  ariaLabelsOf,
+  chooseSettingsPicker,
+  companionMemoryPreferencePrompt,
+  forgetCompanionMemoryIds,
+  judgeExtractOptions,
+  judgeIdleMinutesLabel,
+  judgeMemorySearchRow,
+  memoryErrorText,
+  memorySectionPrecedesPrivacy,
+  memoryTranscriptAnomaly,
+  pollCompanionMemoryExtract,
+  pollCompanionMemoryWrite,
+  productLoopMemoryMarker,
+  readSettingsHeadings,
+  readSettingsPickerOptions,
+  visibleTranscriptText,
+  withCompanionMemoryExtract,
+} from './product-loop-memory.mjs'
 import {
   clickAria,
   clickLabeled,
@@ -386,22 +405,98 @@ export async function runCompanionArchive(driver) {
 export async function runCompanionMemory(driver, options = {}) {
   const started = await recoverCompanionSidecar(driver)
   if (!started.ok) return fail(started.reason)
-  const prompts = companionFuzzMemoryPrompts()
-  let memory = { pending: [], approved: [] }
-  for (const prompt of prompts) {
+  const marker = productLoopMemoryMarker('plmem')
+  const prompt = companionMemoryPreferencePrompt(marker)
+  return withCompanionMemoryExtract(driver, 'turn', async () => {
+    let before
+    try {
+      before = await driver.getCompanionMemory()
+    } catch (error) {
+      return fail(`读不到记忆：${memoryErrorText(error)}`)
+    }
     const sent = await sendCompanionOrRecover(driver, prompt)
     if (!sent.ok) return fail(sent.error || '看板娘记忆发不出')
-    await driver.waitForCompanionTurn(options.taskTimeoutMs || 180_000)
-    memory = await driver.getCompanionMemory()
-    const pending = Array.isArray(memory?.pending) ? memory.pending : []
-    const approved = Array.isArray(memory?.approved) ? memory.approved : []
-    if (pending.length || approved.length) {
-      const clean = companionTranscriptClean(await driver.listCompanionTranscript(40))
-      if (!clean.ok) return fail(clean.reason)
-      return pass(`记忆里有 ${pending.length} 条待批准、${approved.length} 条已留下`)
+    const turn = await driver.waitForCompanionTurn(Math.min(options.taskTimeoutMs || 120_000, 120_000))
+    if (turn?.sidecarStopped) return fail('看板娘 sidecar 停了，记忆没有写完')
+    if (turn?.timeout) return fail(turn.error || '看板娘回合超时，记忆没有写完')
+    if (turn?.failed) return fail(turn.error || '看板娘回合报错，记忆没有写完')
+    const judged = await pollCompanionMemoryWrite(
+      () => driver.getCompanionMemory(),
+      before,
+      { userText: prompt, marker },
+      { timeoutMs: 60_000 },
+    )
+    if (!judged.ok) return fail(judged.reason || '看板娘没有直接写下这条记忆')
+    const transcript = await driver.listCompanionTranscript(40).catch(() => null)
+    const clean = companionTranscriptClean(transcript)
+    if (!clean.ok) return fail(clean.reason)
+    const anomaly = memoryTranscriptAnomaly(visibleTranscriptText(transcript))
+    if (anomaly) return fail(`抄本出现了 ${anomaly}`)
+    const forgotten = await forgetCompanionMemoryIds(driver, judged.ids)
+    if (!forgotten.ok) return fail(forgotten.reason)
+    return pass(`直接写下记忆 ${judged.ids.join(',')}，依据里有原话标记，忘掉后没有再出现`)
+  })
+}
+
+export async function runCompanionMemorySettings(driver) {
+  const opened = await openCompanionSettings(driver)
+  if (!opened.ok) return fail(opened.detail)
+  let before
+  try {
+    before = await driver.invoke('GetSettings', [])
+  } catch (error) {
+    return fail(`读不到设置：${memoryErrorText(error)}`)
+  }
+  const previousMode = String(before?.companion_memory_extract ?? before?.CompanionMemoryExtract ?? '').trim() || 'turn'
+  const previousIdle = before?.companion_memory_extract_idle_minutes ?? before?.CompanionMemoryExtractIdleMinutes ?? 10
+  let mutated = false
+  try {
+    const order = memorySectionPrecedesPrivacy(await readSettingsHeadings(driver))
+    if (!order.ok) return fail(order.reason)
+    const menu = await readSettingsPickerOptions(driver, ['提取', 'Extract'])
+    if (!menu.ok) return fail(menu.reason)
+    const options = judgeExtractOptions(menu.options)
+    if (!options.ok) return fail(options.reason)
+    if (!snapshotHas(await pageSnapshot(driver), ['情景检索', 'Episodic search'])) {
+      return fail('隐私里没有情景检索')
+    }
+    const idle = await chooseSettingsPicker(driver, ['提取', 'Extract'], ['闲置后', 'After idle'])
+    if (!idle.ok) return fail(idle.reason)
+    mutated = true
+    const idleSaved = await pollCompanionMemoryExtract(driver, 'idle')
+    if (!idleSaved.ok) return fail(idleSaved.reason)
+    const idleLabel = await driver.cdp.callFunction(`function() {
+      const button = document.querySelector('button[aria-label="闲置"], button[aria-label="Idle"]')
+      return button ? (button.textContent || '').replace(/\\s+/g, ' ').trim() : ''
+    }`)
+    const minutes = judgeIdleMinutesLabel(idleLabel)
+    if (!minutes.ok) return fail(minutes.reason)
+    const off = await chooseSettingsPicker(driver, ['提取', 'Extract'], ['关闭', 'Off'])
+    if (!off.ok) return fail(off.reason)
+    const offSaved = await pollCompanionMemoryExtract(driver, 'off')
+    if (!offSaved.ok) return fail(offSaved.reason)
+    const idleGone = await driver.cdp.evaluate(`Boolean(document.querySelector('button[aria-label="闲置"], button[aria-label="Idle"]'))`)
+    if (idleGone) return fail('关闭提取之后闲置还在')
+    let memory = { approved: [] }
+    try {
+      memory = await driver.getCompanionMemory()
+    } catch (error) {
+      return fail(`读不到记忆：${memoryErrorText(error)}`)
+    }
+    const search = judgeMemorySearchRow(await ariaLabelsOf(driver), approvedMemoryCount(memory))
+    if (!search.ok) return fail(search.reason)
+    return pass(`记忆在隐私前面。闲置后是 ${minutes.minutes} 分钟，关闭后闲置消失。${search.visible ? '有记忆时检索在。' : '没有记忆时不显示检索。'}`)
+  } finally {
+    if (mutated) {
+      const latest = await driver.invoke('GetSettings', []).catch(() => before)
+      const base = latest && typeof latest === 'object' ? latest : before
+      await driver.invoke('SaveSettingsCmd', [{
+        ...base,
+        companion_memory_extract: previousMode,
+        companion_memory_extract_idle_minutes: previousIdle,
+      }]).catch(() => {})
     }
   }
-  return fail('看板娘记忆没有提出待批准或已留下的条目')
 }
 
 export async function runCompanionDispatchConfirm(driver, options = {}) {

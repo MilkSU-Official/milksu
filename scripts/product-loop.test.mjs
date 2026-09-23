@@ -107,6 +107,30 @@ import {
   transcriptHasPrompt,
 } from './lib/product-loop-companion.mjs'
 import {
+  buildDshPromptBlocks,
+  companionMemoryPreferencePrompt,
+  companionSystemPrompt,
+  createMemoryExtractController,
+  cveLearningNote,
+  domainMemoryFileKind,
+  judgeCompanionMemoryForgotten,
+  judgeCompanionMemoryWrite,
+  judgeExtractOptions,
+  judgeIdleMinutesLabel,
+  judgeLearningRound,
+  judgeMemorySearchRow,
+  memoryExtractInstructions,
+  memorySectionPrecedesPrivacy,
+  memoryTranscriptAnomaly,
+  memoryTurnIgnored,
+  normalizeMemoryExtract,
+  normalizeMemoryExtractIdleMinutes,
+  parseMemoryExtractResult,
+  PRODUCT_LOOP_CVE_ID,
+  userPromptCarriesMemoryBlock,
+  withUserMemoryMessages,
+} from './lib/product-loop-memory.mjs'
+import {
   assistantTextAfterPrompt,
   companionCoreFactInSnippet,
   companionCoreLiveSteps,
@@ -137,9 +161,16 @@ test('catalog keeps product regression away from evalsuite', () => {
     'settings-rest',
   ])
   assert.equal(CASE_RUN_ORDER[0], 'login-gate')
-  assert.equal(MODULES.coding.cases.length, 33)
-  assert.equal(MODULES.companion.cases.length, 22)
-  assert.equal(MODULES.workspaces.cases.length, 33)
+  assert.equal(MODULES.coding.cases.length, 34)
+  assert.equal(MODULES.companion.cases.length, 23)
+  assert.equal(MODULES.workspaces.cases.length, 34)
+  assert.equal(CASES['companion-memory'].needsCredential, true)
+  assert.equal(CASES['companion-memory-settings'].needsCredential, false)
+  assert.equal(CASES['coding-user-memory'].needsCredential, true)
+  assert.equal(CASES['workspace-cve-learning'].needsCredential, false)
+  assert.equal(typeof PRODUCT_LOOP_RUNNERS['coding-user-memory'], 'function')
+  assert.equal(typeof PRODUCT_LOOP_RUNNERS['companion-memory-settings'], 'function')
+  assert.equal(typeof PRODUCT_LOOP_RUNNERS['workspace-cve-learning'], 'function')
   assert.equal(MODULES['desktop-surface'].cases.length, 9)
   assert.equal(MODULES['account-shell'].cases.length, 4)
   assert.equal(MODULES['settings-rest'].cases.length, 13)
@@ -1217,4 +1248,216 @@ test('companion core reply wait outlasts a running tool', () => {
     ],
   })
   assert.equal(after.deadline, 200_000 + 60_000)
+})
+
+test('user memory write judge rejects pending, paraphrase, secrets, and resurrection', () => {
+  const prompt = companionMemoryPreferencePrompt('plmemtest')
+  assert.equal(prompt.includes('批准'), false)
+  assert.equal(prompt.includes('已记下'), false)
+  const before = { pending: [{ id: 'old-pending', markdown: '旧的' }], approved: [] }
+  const pending = judgeCompanionMemoryWrite(before, {
+    pending: [...before.pending, { id: 'new-pending', markdown: prompt, evidence: prompt }],
+    approved: [],
+  }, { userText: prompt, marker: 'plmemtest' })
+  assert.equal(pending.ok, false)
+  assert.equal(pending.fatal, true)
+  const paraphrase = judgeCompanionMemoryWrite(before, {
+    pending: before.pending,
+    approved: [{ id: 'm1', markdown: '用户希望被这样称呼', evidence: '用户希望被这样称呼' }],
+  }, { userText: prompt, marker: 'plmemtest' })
+  assert.equal(paraphrase.ok, false)
+  assert.equal(paraphrase.fatal, true)
+  assert.equal(judgeCompanionMemoryWrite(
+    { pending: [], approved: [] },
+    { pending: [], approved: [{ id: 'm2', title: '分支', markdown: '仓库 main 分支不许改', evidence: '仓库 main 分支不许改' }] },
+    { userText: '仓库 main 分支不许改', marker: '仓库 main' },
+  ).ok, false)
+  assert.equal(judgeCompanionMemoryWrite(
+    { pending: [], approved: [] },
+    { pending: [], approved: [{ id: 'm3', markdown: '留着 flag{demo-flag}', evidence: '留着 flag{demo-flag}' }] },
+    { userText: '留着 flag{demo-flag}', marker: 'flag{demo-flag}' },
+  ).ok, false)
+  const written = judgeCompanionMemoryWrite(before, {
+    pending: before.pending,
+    approved: [{ id: 'm4', title: '称呼', markdown: '称呼固定是 plmemtest', evidence: '我的称呼固定是 plmemtest' }],
+  }, { userText: prompt, marker: 'plmemtest' })
+  assert.equal(written.ok, true)
+  assert.deepEqual(written.ids, ['m4'])
+  assert.equal(judgeCompanionMemoryForgotten({ approved: [] }, 'm4').ok, true)
+  assert.equal(judgeCompanionMemoryForgotten({ approved: [{ id: 'm4' }], pending: [] }, 'm4').ok, false)
+  assert.equal(judgeCompanionMemoryWrite(
+    { pending: [], approved: [] },
+    { pending: [], approved: [] },
+    { userText: '你好', marker: '你好' },
+  ).ok, true)
+  assert.match(judgeCompanionMemoryWrite(
+    { pending: [], approved: [] },
+    { pending: [], approved: [{ id: 'g', markdown: '打过招呼', evidence: '你好' }] },
+    { userText: '你好', marker: '你好' },
+  ).reason, /打招呼/)
+  assert.equal(memoryTurnIgnored({ sessionId: 'milksu_text_projection_1', userText: prompt }), true)
+  assert.equal(memoryTurnIgnored({ sessionId: 'milksu_model_probe_1', userText: prompt }), true)
+  assert.equal(memoryTurnIgnored({
+    sessionId: 'conv',
+    userText: '看板娘转达 / Companion relay:\n我的称呼固定是 plmemtest',
+  }), true)
+  assert.equal(memoryTurnIgnored({ sessionId: 'conv', userText: prompt }), false)
+  assert.equal(judgeCompanionMemoryWrite(
+    { pending: [], approved: [] },
+    { pending: [], approved: [{ id: 'm4', markdown: '称呼固定是 plmemtest', evidence: '我的称呼固定是 plmemtest' }] },
+    { userText: prompt, marker: 'plmemtest', sessionId: 'milksu_model_probe_1' },
+  ).ok, false)
+})
+
+test('memory extract keeps a contiguous quote and does not ask for approval', () => {
+  const userText = '我的称呼固定是 plmemtest'
+  const dropped = parseMemoryExtractResult(JSON.stringify({
+    items: [
+      { action: 'create', title: '称呼', markdown: '叫用户 plmemtest', evidence: '不是原话' },
+      { action: 'update', existingId: 'missing', title: '称呼', markdown: '叫用户 plmemtest', evidence: userText },
+    ],
+  }), { userText, memories: [], maxItems: 1 })
+  assert.equal(dropped.length, 0)
+  const kept = parseMemoryExtractResult(JSON.stringify({
+    items: [
+      { action: 'create', title: '称呼', markdown: '称呼固定是 plmemtest', evidence: '称呼固定是 plmemtest' },
+      { action: 'create', title: '另一条', markdown: '还有', evidence: userText },
+    ],
+  }), { userText, maxItems: 1 })
+  assert.equal(kept.length, 1)
+  assert.equal(kept[0].evidence, '称呼固定是 plmemtest')
+  const updated = parseMemoryExtractResult(JSON.stringify({
+    items: [{ action: 'update', existingId: 'm1', title: '称呼', markdown: '改口了', evidence: userText }],
+  }), { userText, memories: [{ id: 'm1', markdown: '旧的' }], maxItems: 1 })
+  assert.equal(updated[0].action, 'update')
+  assert.equal(normalizeMemoryExtract('daily'), 'turn')
+  assert.equal(normalizeMemoryExtract('off'), 'off')
+  assert.equal(normalizeMemoryExtractIdleMinutes(7), 10)
+  assert.equal(normalizeMemoryExtractIdleMinutes(15), 15)
+  const instructions = memoryExtractInstructions('zh', 1)
+  assert.equal(/批准|propose_memory/.test(instructions), false)
+  assert.match(instructions, /连续抄下来/)
+  assert.match(instructions, /仓库/)
+  const prompt = companionSystemPrompt('zh')
+  assert.match(prompt, /长期记忆一直在/)
+  assert.equal(/批准过的长期记忆|propose_memory/.test(prompt), false)
+})
+
+test('memory extract controller waits out idle, retries once, and drops when off', async () => {
+  const calls = []
+  let timer = null
+  let failures = 0
+  const controller = createMemoryExtractController({
+    extract: async (job) => {
+      calls.push(job.stretch.map(row => row.user).join('|'))
+      if (failures < 1) {
+        failures += 1
+        throw new Error('extract failed')
+      }
+      return { committed: true }
+    },
+    setTimer: (fn, ms) => {
+      timer = { fn, ms }
+      return 1
+    },
+    clearTimer: () => {
+      timer = null
+    },
+    now: () => 0,
+  })
+  controller.configure({ mode: 'idle', idleMinutes: 10 })
+  await controller.finishTurn({ userText: '我的称呼固定是 plmemtest', assistantText: '好' })
+  assert.equal(calls.length, 0)
+  assert.equal(timer.ms, 10 * 60 * 1000)
+  controller.beginTurn()
+  assert.equal(timer, null)
+  controller.configure({ mode: 'off' })
+  await controller.finishTurn({ userText: '关掉了', assistantText: '好' })
+  assert.equal(calls.length, 0)
+  controller.configure({ mode: 'turn' })
+  await controller.finishTurn({ userText: '第一句', assistantText: '好' })
+  assert.deepEqual(calls, ['第一句'])
+  await controller.finishTurn({ userText: '第二句', assistantText: '好' })
+  assert.deepEqual(calls, ['第一句', '第一句', '第二句'])
+})
+
+test('memory extract does not keep retrying the same failed stretch', async () => {
+  const calls = []
+  const controller = createMemoryExtractController({
+    extract: async (job) => {
+      calls.push(job.stretch.map(row => row.user).join('|'))
+      throw new Error('extract failed')
+    },
+    setTimer: () => 1,
+    clearTimer: () => {},
+  })
+  controller.configure({ mode: 'turn' })
+  await controller.finishTurn({ userText: '第一句', assistantText: '好' })
+  await controller.finishTurn({ userText: '第二句', assistantText: '好' })
+  await controller.finishTurn({ userText: '第三句', assistantText: '好' })
+  assert.deepEqual(calls, ['第一句', '第一句', '第二句', '第二句', '第三句'])
+})
+
+test('DSH prompt blocks and Pi user messages do not carry the memory prefix', async () => {
+  const prompt = '我的称呼固定是 plmemtest'
+  const blocks = await buildDshPromptBlocks({ prompt })
+  assert.equal(blocks[0].text, prompt)
+  assert.equal(userPromptCarriesMemoryBlock(blocks), false)
+  const messages = withUserMemoryMessages(
+    [{ role: 'user', content: [{ type: 'text', text: prompt }] }],
+    [{ id: '1', title: '称呼', markdown: '称呼固定是 plmemtest' }],
+    { locale: 'zh' },
+  )
+  assert.equal(messages[0].role, 'custom')
+  assert.equal(messages[0].customType, 'milksu.user-memory')
+  assert.equal(messages[0].display, false)
+  assert.match(messages[0].content[0].text, /^用户记忆\n/)
+  assert.equal(userPromptCarriesMemoryBlock(messages), false)
+  assert.equal(userPromptCarriesMemoryBlock([{ type: 'text', text: '用户记忆\n称呼固定是 plmemtest' }]), true)
+})
+
+test('memory settings and CVE learning file judges', () => {
+  assert.equal(memorySectionPrecedesPrivacy(['教学', '记忆', '隐私', '外观']).ok, true)
+  assert.equal(memorySectionPrecedesPrivacy(['Privacy', 'Memory']).ok, false)
+  assert.equal(memorySectionPrecedesPrivacy(['记忆']).ok, false)
+  assert.equal(judgeExtractOptions(['关闭', '每轮结束', '闲置后']).ok, true)
+  assert.equal(judgeExtractOptions(['关闭', '每轮结束', '闲置后', '每天']).ok, false)
+  assert.equal(judgeExtractOptions(['Off', 'Each turn']).ok, false)
+  assert.equal(judgeIdleMinutesLabel('10 分钟').ok, true)
+  assert.equal(judgeIdleMinutesLabel('10 min').minutes, 10)
+  assert.equal(judgeIdleMinutesLabel('7 分钟').ok, false)
+  assert.equal(judgeMemorySearchRow(['提取'], 0).ok, true)
+  assert.equal(judgeMemorySearchRow(['提取', '检索'], 0).ok, false)
+  assert.equal(judgeMemorySearchRow(['Search'], 2).ok, true)
+  assert.equal(domainMemoryFileKind('lab/TASK.md'), 'not-memory')
+  assert.equal(domainMemoryFileKind('LEARNING.md'), 'domain')
+  assert.equal(domainMemoryFileKind('MEMORY.md'), 'domain')
+  const note = cveLearningNote('pllearntest')
+  assert.equal(note.includes('sk-'), false)
+  assert.equal(PRODUCT_LOOP_CVE_ID, 'CVE-2099-4242')
+  const secret = `sk-${'abcdefghijklmnopqrstuv'}`
+  assert.equal(judgeLearningRound({ phase: 'saved', exists: true, text: `${note}\n${secret}`, note }).ok, false)
+  assert.equal(judgeLearningRound({
+    phase: 'saved',
+    exists: true,
+    text: `Bearer ${'a'.repeat(16)}\n${note}`,
+    note,
+  }).ok, false)
+  assert.equal(judgeLearningRound({ phase: 'saved', exists: true, text: `flag{demo}\n${note}`, note }).ok, false)
+  assert.equal(judgeLearningRound({ phase: 'saved', exists: false, text: '', note }).reason, '记下了但 LEARNING.md 没有写出来')
+  assert.equal(judgeLearningRound({
+    phase: 'saved',
+    exists: true,
+    text: `# ${PRODUCT_LOOP_CVE_ID}\n\n${note}\n`,
+    note,
+  }).ok, true)
+  assert.equal(judgeLearningRound({ phase: 'forgotten', exists: true, text: note, note, remaining: 0 }).ok, false)
+  assert.equal(judgeLearningRound({ phase: 'forgotten', exists: false, text: '', note, remaining: 0 }).ok, true)
+  assert.equal(judgeLearningRound({ phase: 'forgotten', exists: true, text: '另一条复盘', note, remaining: 1 }).ok, true)
+  assert.match(memoryTranscriptAnomaly('已记下这条'), /已记下/)
+  assert.equal(memoryTranscriptAnomaly('Request aborted'), 'Request aborted')
+  assert.equal(memoryTranscriptAnomaly('这一轮已取消。'), '')
+  assert.equal(memoryTranscriptAnomaly('companion-host-3'), 'companion-host 请求号')
+  assert.equal(memoryTranscriptAnomaly('[object Object]'), '[object Object]')
+  assert.equal(memoryTranscriptAnomaly('{"companion_float_enabled":true}'), '设置 JSON')
 })
