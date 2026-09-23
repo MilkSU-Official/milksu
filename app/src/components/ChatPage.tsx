@@ -2959,6 +2959,32 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
             <span className="hidden" aria-hidden="true" />
           </WindowFileDrop>
 
+          {/* 窗口往回挪了 ⇒ 给一条回到最新的路（读者一旦往回看就没有它的话，会被困在历史里）。 */}
+
+          {transcriptWindowShift > 0 ? (
+
+            <button
+
+              type="button"
+
+              className="chat-composer__jump-latest"
+
+              aria-label={t('回到最新', 'Jump to latest')}
+
+              title={t('回到最新', 'Jump to latest')}
+
+              data-testid="transcript-window-latest"
+
+              onClick={() => { setTranscriptWindowShift(0); void scrollChatToBottom(true) }}
+
+            >
+
+              {t('回到最新', 'Latest')}
+
+            </button>
+
+          ) : null}
+
           <ChatComposer
             // 按会话重挂载：输入框内部有多处"上一个会话"的 ref，若不重挂载，切换时
             // 它们会互相滞后，把草稿记到别的会话名下（已在装机版复现串稿）。
