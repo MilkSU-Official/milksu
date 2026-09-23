@@ -25,8 +25,8 @@ describe('workspace navigation', () => {
     expect(isDomainWorkspace('chat')).toBe(false)
     expect(isDomainWorkspace('image')).toBe(false)
     expect(isDomainWorkspace('ctf')).toBe(true)
-    expect(WORKSPACE_SIDEBAR_ITEMS.map(item => item.id)).toEqual(['chat', 'ctf', 'vuln', 'lab', 'image'])
-    expect(WORKSPACE_SIDEBAR_ITEMS[0].label()).toBe('主页')
+    expect(WORKSPACE_SIDEBAR_ITEMS.map(item => item.id)).toEqual(['chat', 'image', 'ctf', 'vuln', 'lab'])
+    expect(WORKSPACE_SIDEBAR_ITEMS[0].label()).toBe('新聊天')
     expect(WORKSPACE_SIDEBAR_ITEMS.find(item => item.id === 'image')?.label()).toBe('画图')
   })
 

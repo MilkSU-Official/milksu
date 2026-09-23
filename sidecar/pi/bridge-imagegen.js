@@ -247,8 +247,12 @@ export async function authorizeImageGenToolCall({
   conversationId,
   event,
   approvalBroker,
+  authorizedByDraw = false,
 }) {
   if (event?.toolName !== codingImageGenToolName) return undefined;
+  // The Draw page send is the authorization for this generation.
+  // Coding chat still shows the per-call card.
+  if (authorizedByDraw === true) return undefined;
   const approved = await approvalBroker.request({
     conversationId,
     toolName: codingImageGenToolName,
@@ -642,13 +646,14 @@ export function createImageGenTool(
     name: codingImageGenToolName,
     label: "Generate or edit a project image",
     description: "Generate one PNG from a text prompt or edit one workspace image with the "
-      + `configured ImageGen model (${selectedModel}). Every call pauses for separate user `
-      + "approval because it uses a credentialed network request with Provider cost. The "
-      + "Provider credential never enters tool input or output. outputPath must be a new "
-      + "workspace .png path and is never overwritten. Providers that return JPEG are saved "
-      + "as .jpg next to that name. This tool is independent of the chat "
-      + "model selected in the composer. Preferred sizes: 1024x1024, 1536x1024, 1024x1536; "
-      + "quality: low, medium, or high.",
+      + `configured ImageGen model (${selectedModel}). On a Coding chat the call still waits `
+      + "for approval. On the Draw page the send already approved it; call the tool and do not "
+      + "ask again. The Provider credential never enters tool input or output. outputPath must "
+      + "be a new workspace .png path and is never overwritten. Providers that return JPEG are "
+      + "saved as .jpg next to that name. A successful image is shown in the chat. Do not repeat "
+      + "the path, hash, dimensions, byte size, or model; write text only when the user still "
+      + "needs words. This tool is independent of the chat model selected in the composer. "
+      + "Preferred sizes: 1024x1024, 1536x1024, 1024x1536; quality: low, medium, or high.",
     parameters: Type.Object({
       mode: Type.Union([
         Type.Literal("generate"),

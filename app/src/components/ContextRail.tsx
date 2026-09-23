@@ -148,7 +148,7 @@ const contextRailCss = `
   display: flex;
   min-height: 2.5rem;
   align-items: center;
-  padding: 0.25rem calc(0.5rem + var(--shell-window-control-safe-right)) 0.25rem 0.35rem;
+  padding: 0.25rem calc(var(--shell-window-control-safe-right) + var(--shell-chrome-end-inset) + var(--shell-chrome-end-span)) 0.25rem 0.35rem;
   background: transparent;
   pointer-events: none;
 }

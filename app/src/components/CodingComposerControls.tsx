@@ -24,7 +24,6 @@ import {
   useLiveModelCatalog,
 } from '@/modelCatalog'
 import { dshAcpSupportsModel } from '@/lib/dshModels'
-import { IMAGEGEN_MODEL_OFF } from '@/lib/imageGenCatalog'
 import type { SearchableModelGroup } from '@/lib/modelPickerSearch'
 import ModelVendorIcon from '@/components/ModelVendorIcon'
 import ComposerAgentMenu from '@/components/ComposerAgentMenu'
@@ -297,12 +296,12 @@ export default function CodingComposerControls({
                 : t('当前对话固定使用所选模型', 'This conversation is pinned to the selected model')}
             trigger={(
               <span className="inline-flex min-w-0 items-center gap-1.5">
-                <ModelVendorIcon model={imageHome ? imageModelLabel : triggerModelText()} className="opacity-90" />
-                <span className="min-w-0 truncate">{imageHome ? imageModelLabel : compactModelLabel}</span>
+                <ModelVendorIcon model={imageHome ? (imageModelLabel || t('生图模型', 'Image model')) : triggerModelText()} className="opacity-90" />
+                <span className="min-w-0 truncate">{imageHome ? (imageModelLabel || t('生图模型', 'Image model')) : compactModelLabel}</span>
               </span>
             )}
             leading={imageHome
-              ? [{ value: IMAGEGEN_MODEL_OFF, label: t('关闭', 'Off'), model: '' }]
+              ? []
               : [{
                   value: 'auto',
                   label: automaticModelLabel,

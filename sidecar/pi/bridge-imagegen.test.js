@@ -118,6 +118,30 @@ test("ImageGen approval remains a separate boundary in every Coding mode", async
   });
 });
 
+test("Draw page send authorizes ImageGen without a tool card", async () => {
+  let requests = 0;
+  const decision = await authorizeImageGenToolCall({
+    conversationId: "conversation-imagegen",
+    event: {
+      toolName: codingImageGenToolName,
+      input: {
+        mode: "generate",
+        prompt: "画个牛奶猫",
+        outputPath: "milk-cat.png",
+      },
+    },
+    approvalBroker: {
+      request: async () => {
+        requests += 1;
+        return false;
+      },
+    },
+    authorizedByDraw: true,
+  });
+  assert.equal(decision, undefined);
+  assert.equal(requests, 0);
+});
+
 test("ImageGen rejects credentialed and non-loopback insecure Provider URLs", () => {
   assert.throws(
     () => normalizeImageGenBaseURL("https://user:secret@api.openai.com/v1"),

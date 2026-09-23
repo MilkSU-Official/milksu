@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ImageIcon, LoaderCircle } from 'lucide-react'
+import { useCodingImageFileActions } from '@/components/CodingImageFileActions'
 import { Button, Input } from '@/components/ui'
 import { hasDesktopRuntime, invokeCommand } from '@/desktop'
 import { useT } from '@/hooks/useUiLocale'
@@ -60,6 +61,7 @@ export default function CodingImageGalleryPanel({
   onSelect?: (path: string) => void
 }) {
   const t = useT()
+  const imageActions = useCodingImageFileActions(workspacePath)
   const desktopRuntime = hasDesktopRuntime()
   const untracked = useMemo(() => {
     const paths = new Set<string>()
@@ -222,7 +224,10 @@ export default function CodingImageGalleryPanel({
       {paths.length ? (
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="shrink-0 border-b border-border">
-            <div className="flex max-h-52 min-h-28 items-center justify-center p-3">
+            <div
+              className="flex max-h-52 min-h-28 items-center justify-center p-3"
+              onContextMenu={event => imageActions.openMenu(event, activePath)}
+            >
               {activeThumb?.url ? (
                 <img
                   src={activeThumb.url}
@@ -237,9 +242,15 @@ export default function CodingImageGalleryPanel({
                 <LoaderCircle className="size-4 animate-spin text-muted-foreground" />
               )}
             </div>
-            <p className="truncate px-3 pb-2 text-center text-caption text-muted-foreground" title={activePath}>
+            <p className="truncate px-3 pb-1 text-center text-caption text-muted-foreground" title={activePath}>
               {folder ? `${folder}/` : ''}{imageBaseName(activePath)}
             </p>
+            <div className="px-3 pb-2">
+              {imageActions.buttons(activePath)}
+              {imageActions.notice ? (
+                <p className="mt-1 text-caption text-destructive">{imageActions.notice}</p>
+              ) : null}
+            </div>
           </div>
           <div className="min-h-0 flex-1 overflow-auto">
             <div className="grid grid-cols-2 gap-2 p-3">
@@ -259,6 +270,10 @@ export default function CodingImageGalleryPanel({
                     aria-label={path}
                     title={path}
                     onClick={() => selectImage(path)}
+                    onContextMenu={event => {
+                      selectImage(path)
+                      imageActions.openMenu(event, path)
+                    }}
                   >
                     <span className="relative aspect-square w-full bg-muted/40">
                       {thumb?.url ? (
@@ -285,6 +300,7 @@ export default function CodingImageGalleryPanel({
           <LoaderCircle className="size-4 animate-spin text-muted-foreground" />
         </div>
       ) : null}
+      {imageActions.menuNode}
     </section>
   )
 }

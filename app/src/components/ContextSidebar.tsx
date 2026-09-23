@@ -37,14 +37,12 @@ import {
   Gauge,
   GitFork,
   Globe2,
-  House,
+  SquarePen,
   ImageIcon,
   Star,
   LogOut,
-  SquarePen,
   Moon,
-  PanelLeftClose,
-  PanelLeftOpen,
+  PanelLeft,
   Pencil,
   Pin,
   PinOff,
@@ -105,7 +103,7 @@ function conversationMenuPosition(x: number, y: number) {
 }
 
 const workspaceNavIcons = {
-  chat: House,
+  chat: SquarePen,
   ctf: Flag,
   vuln: Bug,
   lab: FlaskConical,
@@ -249,8 +247,9 @@ export default function ContextSidebar({
   const runningConversationIds = new Set(runningIdsProp ?? [])
   // 待决策直接从 conversations 里算（它本来就拿到了 messages）——少一层 prop 管线，也不用 App 另传。
   const needsDecisionConversationIds = new Set(needsDecisionConversationIdsFrom(conversations))
-  const projectGroups = codingGroups.filter(group => !group.temporary)
+  const projectGroups = codingGroups.filter(group => !group.temporary && !group.flat)
   const temporaryGroup = codingGroups.find(group => group.temporary) ?? null
+  const flatChats = codingGroups.filter(group => group.flat).flatMap(group => group.conversations)
   const avatarSource = accountStatus.user?.avatarUrl || profileAvatar
   const workspaceName = accountStatus.user?.displayName
     || accountStatus.user?.githubLogin
@@ -274,6 +273,17 @@ export default function ContextSidebar({
       : t('夜间', 'Dark')
   const sidebarStyle = { width: `${collapsed ? COLLAPSED_WIDTH : expandedWidth}px` }
   const innerStyle = { width: `${expandedWidth}px` }
+
+  useEffect(() => {
+    const root = document.documentElement
+    root.style.setProperty('--shell-sidebar-width', `${collapsed ? COLLAPSED_WIDTH : expandedWidth}px`)
+    if (collapsed) root.style.setProperty('--shell-chrome-controls-span', '5.75rem')
+    else root.style.removeProperty('--shell-chrome-controls-span')
+    return () => {
+      root.style.removeProperty('--shell-sidebar-width')
+      root.style.removeProperty('--shell-chrome-controls-span')
+    }
+  }, [collapsed, expandedWidth])
 
   function selectConversation(id: string) {
     setUnreadConversationIds(current => {
@@ -665,7 +675,50 @@ export default function ContextSidebar({
     )
   }
 
+  const sidebarToggleLabel = collapsed
+    ? t('展开侧栏', 'Expand sidebar')
+    : t('收起侧栏', 'Collapse sidebar')
+
   return (
+    <>
+    <div className="shell-window-controls" data-sidebar-collapsed={collapsed ? 'true' : 'false'}>
+      <button
+        type="button"
+        className="shell-chrome-icon app-no-drag"
+        aria-label={t('搜索任务', 'Search tasks')}
+        title={t('搜索任务', 'Search tasks')}
+        onClick={() => onOpenCommandPanel?.()}
+      >
+        <Search className="size-4" />
+      </button>
+      <button
+        type="button"
+        className="shell-chrome-icon app-no-drag"
+        data-testid={collapsed ? 'coding-history-expand' : 'coding-history-toggle'}
+        aria-label={sidebarToggleLabel}
+        title={sidebarToggleLabel}
+        aria-expanded={!collapsed}
+        onClick={() => {
+          if (activeSection === 'settings') return
+          if (collapsed) onExpand?.()
+          else collapseSidebar()
+        }}
+      >
+        <PanelLeft className="size-4" />
+      </button>
+      {collapsed ? (
+        <button
+          type="button"
+          className="shell-chrome-icon app-no-drag"
+          data-testid="coding-new-task-button"
+          aria-label={t('新会话', 'New chat')}
+          title={t('新会话', 'New chat')}
+          onClick={onNew}
+        >
+          <Plus className="size-4" />
+        </button>
+      ) : null}
+    </div>
     <div
       className={`agent-sidebar app-no-drag relative flex h-full min-h-0 shrink-0 overflow-hidden${resizing ? ' is-resizing' : ''}`}
       data-sidebar-collapsed={collapsed ? 'true' : 'false'}
@@ -686,7 +739,10 @@ export default function ContextSidebar({
         />
       ) : null}
       <div className="agent-sidebar__inner flex min-h-0 shrink-0 flex-col" style={innerStyle}>
-        <div className="agent-sidebar__drag app-drag" aria-hidden="true" />
+        <div className="agent-sidebar__drag" aria-hidden="true">
+          <div className="agent-sidebar__drag-gap" />
+          <div className="agent-sidebar__drag-region app-drag" />
+        </div>
         <div className="agent-sidebar__head relative mb-2.5 h-10 shrink-0">
           {activeSection === 'settings' ? (
             <button
@@ -707,7 +763,7 @@ export default function ContextSidebar({
             ref={workspaceButton}
             type="button"
             data-workspace-trigger
-            className="agent-sidebar__workspace app-no-drag absolute left-2 top-1 right-11 flex h-8 items-center rounded-[8px] px-2 text-left"
+            className="agent-sidebar__workspace app-no-drag absolute inset-x-2 top-1 flex h-8 items-center rounded-[8px] px-2 text-left"
             aria-label={t('账户与工作区', 'Account and workspace')}
             aria-expanded={workspaceOpen}
             aria-hidden={collapsed}
@@ -730,31 +786,6 @@ export default function ContextSidebar({
               {workspaceName}
             </span>
             <ChevronDown className="agent-sidebar__copy ml-1 size-4 shrink-0 text-muted-foreground" />
-          </button>
-          <button
-            type="button"
-            className="agent-sidebar__icon app-no-drag absolute right-2 top-1 flex size-8 items-center justify-center rounded-[8px]"
-            data-testid="coding-history-toggle"
-            aria-label={t('收起侧栏', 'Collapse sidebar')}
-            title={t('收起侧栏', 'Collapse sidebar')}
-            aria-expanded={!collapsed}
-            aria-hidden={collapsed}
-            tabIndex={collapsed ? -1 : 0}
-            onClick={collapseSidebar}
-          >
-            <PanelLeftClose className="size-4" />
-          </button>
-          <button
-            type="button"
-            className="agent-sidebar__expand app-no-drag absolute left-2 top-0.5 flex size-9 items-center justify-center rounded-[8px]"
-            data-testid="coding-history-expand"
-            aria-label={t('展开侧栏', 'Expand sidebar')}
-            title={t('展开侧栏', 'Expand sidebar')}
-            aria-hidden={!collapsed}
-            tabIndex={collapsed ? 0 : -1}
-            onClick={onExpand}
-          >
-            <PanelLeftOpen className="size-4" />
           </button>
           </>
           )}
@@ -786,19 +817,6 @@ export default function ContextSidebar({
         ) : (
         <>
         <nav className="flex flex-col gap-px" aria-label={t('工作区', 'Workspaces')}>
-          <button
-            type="button"
-            className="agent-sidebar-row app-no-drag mx-2 flex h-8 items-center rounded-[8px] px-2 text-left"
-            data-testid="coding-new-task-button"
-            onClick={onNew}
-          >
-            <span className="flex size-5 shrink-0 items-center justify-center">
-              <SquarePen className="size-4" />
-            </span>
-            <span className="agent-sidebar__copy ml-1.5 min-w-0 flex-1 truncate text-control font-medium">
-              {t('新会话', 'New chat')}
-            </span>
-          </button>
           {WORKSPACE_SIDEBAR_ITEMS.map(item => {
             const Icon = workspaceNavIcons[item.id]
             return (
@@ -821,23 +839,32 @@ export default function ContextSidebar({
         </nav>
 
         <div className="agent-sidebar__chats mt-3 min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
-          <div className="agent-sidebar-search relative mx-2 mb-1 h-8">
-            <div className="agent-sidebar__copy absolute inset-0 flex items-center gap-1.5 px-2 text-body font-medium text-muted-foreground">
+          <div className="mx-2 mb-1 flex h-8 items-center gap-1">
+            <div className="agent-sidebar__copy min-w-0 flex-1 truncate px-2 text-body font-medium text-muted-foreground">
               {t('会话', 'Chats')}
             </div>
-            <button
-              type="button"
-              className="agent-sidebar__icon absolute right-0 top-0 z-10 flex size-8 items-center justify-center rounded-[8px]"
-              aria-label={t('搜索任务', 'Search tasks')}
-              onClick={() => onOpenCommandPanel?.()}
-            >
-              <Search className="size-3.5" />
-            </button>
+            {collapsed ? null : (
+              <button
+                type="button"
+                className="agent-sidebar__icon app-no-drag flex size-8 shrink-0 items-center justify-center rounded-[8px]"
+                data-testid="coding-new-task-button"
+                aria-label={t('新会话', 'New chat')}
+                title={t('新会话', 'New chat')}
+                onClick={onNew}
+              >
+                <Plus className="size-4" />
+              </button>
+            )}
           </div>
 
           <div ref={conversationList} className="coding-conversation-list pb-3" data-plugin-surface="workspace-list">
-            {projectGroups.length || temporaryGroup ? (
+            {flatChats.length || projectGroups.length || temporaryGroup ? (
               <div className="flex flex-col">
+                {flatChats.length ? (
+                  <div className="space-y-0.5">
+                    {flatChats.map(conversation => conversationRow(conversation))}
+                  </div>
+                ) : null}
                 {projectGroups.length ? (
                   <div className="space-y-0.5">
                     {projectGroups.map(group => (
@@ -1129,6 +1156,7 @@ export default function ContextSidebar({
 
       <style>{contextSidebarCss}</style>
     </div>
+    </>
   )
 }
 
@@ -1150,15 +1178,23 @@ const contextSidebarCss = `
 }
 .agent-sidebar__resize:hover,
 .agent-sidebar.is-resizing .agent-sidebar__resize { background: var(--hover-2); }
-.agent-sidebar__drag { height: var(--shell-title-safe-top); flex-shrink: 0; }
+.agent-sidebar__drag {
+  display: flex;
+  height: var(--shell-title-safe-top);
+  flex-shrink: 0;
+  min-width: 0;
+}
+.agent-sidebar__drag-gap {
+  width: calc(var(--shell-chrome-controls-left) + var(--shell-chrome-controls-span));
+  flex: none;
+}
+.agent-sidebar__drag-region { flex: 1 1 auto; min-width: 0; }
 .agent-sidebar__inner { padding-bottom: 0.75rem; }
 .agent-sidebar__workspace,
 .agent-sidebar__icon,
-.agent-sidebar__expand,
 .agent-sidebar-row { cursor: pointer; }
 .agent-sidebar__workspace:hover,
 .agent-sidebar__icon:hover,
-.agent-sidebar__expand:hover,
 .agent-sidebar-row:hover { background: var(--hover-2); }
 .agent-sidebar-row.is-current,
 .agent-sidebar-row[aria-current='page'] { background: var(--hover-2); }
@@ -1171,7 +1207,6 @@ const contextSidebarCss = `
 @media (prefers-reduced-motion: no-preference) {
   .agent-sidebar__workspace,
   .agent-sidebar__icon,
-  .agent-sidebar__expand,
   .agent-sidebar-row,
   .agent-sidebar-item {
     transition: background-color var(--motion-fast) ease, box-shadow var(--motion-fast) ease;
@@ -1179,7 +1214,6 @@ const contextSidebarCss = `
 
   .agent-sidebar__workspace:hover:active,
   .agent-sidebar__icon:hover:active,
-  .agent-sidebar__expand:hover:active,
   .agent-sidebar-row:hover:active,
   .agent-sidebar .agent-sidebar-item:hover:active {
     background: var(--pressed-row);
@@ -1367,8 +1401,7 @@ const contextSidebarCss = `
   gap: 0.25rem;
 }
 .agent-sidebar[data-sidebar-collapsed='true'] .agent-sidebar__foot .agent-sidebar__copy { display: none; }
-.agent-sidebar[data-sidebar-collapsed='false'] .agent-sidebar__expand { pointer-events: none; opacity: 0; }
-.agent-sidebar[data-sidebar-collapsed='true'] .agent-sidebar__expand { pointer-events: auto; opacity: 1; }
+.agent-sidebar[data-sidebar-collapsed='true'] .agent-sidebar__head { display: none; }
 .user-menu-item {
   display: flex;
   width: 100%;

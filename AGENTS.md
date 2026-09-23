@@ -308,7 +308,7 @@ React -> Electron Preload / Desktop RPC -> Application Service -> Domain / Runti
   溢出部分留给 `read` + offset。不要把完整的命令、HTTP 或文件正文塞进 `content`。
 - `workspace-auto` 会自动运行隔离的 `milksu-playwright`。
   Ask 卡可以为可授予的工具给出整段对话的允许。
-  ImageGen、外部账户授权和破坏性删除仍然逐次确认；
+  ImageGen、外部账户授权和破坏性删除仍然逐次确认；画图页发出提示词就是这一次生图的授权，不再弹出工具批准卡。
   危险的大目录删除在执行前先测量、再判定、再记录。
 
 ## 发行口径

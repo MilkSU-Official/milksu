@@ -465,6 +465,9 @@ interface DesktopAppBindings {
     workspacePath: string,
     relativePath: string,
   ): Promise<CodingArtifactPreview>
+  CopyCodingImage(workspacePath: string, relativePath: string): Promise<void>
+  SaveCodingImage(workspacePath: string, relativePath: string): Promise<void>
+  RevealCodingImage(workspacePath: string, relativePath: string): Promise<void>
   StartCodingBrowser(
     conversationId: string,
     initialUrl: string,
@@ -1141,6 +1144,21 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         ) as Promise<T>
       case 'get_coding_artifact_preview':
         return app.GetCodingArtifactPreview(
+          args?.workspacePath as string,
+          args?.relativePath as string,
+        ) as Promise<T>
+      case 'copy_coding_image':
+        return app.CopyCodingImage(
+          args?.workspacePath as string,
+          args?.relativePath as string,
+        ) as Promise<T>
+      case 'save_coding_image':
+        return app.SaveCodingImage(
+          args?.workspacePath as string,
+          args?.relativePath as string,
+        ) as Promise<T>
+      case 'reveal_coding_image':
+        return app.RevealCodingImage(
           args?.workspacePath as string,
           args?.relativePath as string,
         ) as Promise<T>

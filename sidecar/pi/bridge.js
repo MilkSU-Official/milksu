@@ -705,6 +705,7 @@ function createCodingPermissionExtension(
         conversationId,
         event,
         approvalBroker,
+        authorizedByDraw: policy.imageDraw === true,
       });
       if (imageGenDecision) return imageGenDecision;
       if (event.toolName === codingCollaborationToolName) {
@@ -1629,6 +1630,7 @@ async function loadRuntimeSessionPolicy(cwd, command) {
     browserUse: selectedMcp.browserUse,
     codingCollaboration,
     imageGenConfigured: imageGenIsConfigured(),
+    imageDraw: command.imageDraw === true,
   });
   const effectiveSessionRole = resolveWorkflowSessionRole(
     command.sessionRole,
@@ -1661,9 +1663,11 @@ async function loadRuntimeSessionPolicy(cwd, command) {
       browserUse: selectedMcp.browserUse,
       codingCollaboration,
       imageGenConfigured: imageGenIsConfigured(),
+      imageDraw: command.imageDraw === true,
       readOnlyResourceRoots: codingResourceRoots,
     });
   }
+  policy.imageDraw = command.imageDraw === true;
   policy.skillNames = codingSkillPaths.map(path => basename(path));
   policy.userMcpServers = command.userMcpServers && typeof command.userMcpServers === "object"
     ? command.userMcpServers

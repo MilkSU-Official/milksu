@@ -1530,6 +1530,7 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}, sessionRole
     codingPolicy.productAction,
   );
   const imageGenConfigured = codingPolicy.imageGenConfigured === true;
+  const imageDraw = codingPolicy.imageDraw === true;
   const actionTools = codingProductActionTools(
     productAction,
     normalized.activeTools,
@@ -1586,9 +1587,13 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}, sessionRole
       : capability.id === "imagegen"
         ? {
             ...capability,
-            status: imageGenAvailable ? "approval-required" : "unavailable",
+            status: imageGenAvailable
+              ? (imageDraw ? "allowed" : "approval-required")
+              : "unavailable",
             detail: imageGenAvailable
-              ? "ImageGen 凭据已隔离；每次请求都会展示模型、Endpoint、尺寸、质量、输出和费用后单独批准。对话模型不会用于生图。"
+              ? imageDraw
+                ? "画图页已经授权这一次生图。直接调用 milksu_imagegen，不要再向用户请求工具批准。对话模型不会用于生图。"
+                : "ImageGen 凭据已隔离；每次请求都会展示模型、Endpoint、尺寸、质量、输出和费用后单独批准。对话模型不会用于生图。"
               : normalized.executionMode !== "go"
                   || normalized.approvalPolicy === "read-only"
                 ? "当前 Plan 或只读策略不会加载付费 ImageGen。"
@@ -1642,6 +1647,7 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}, sessionRole
     browserUse,
     computerUse,
     codingCollaboration,
+    imageDraw,
     readOnlyResourceRoots: [...(codingPolicy.readOnlyResourceRoots || [])],
     customTools: await createCodingToolDefinitions(
       root,

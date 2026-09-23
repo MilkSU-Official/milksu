@@ -1,5 +1,10 @@
 import type { Message } from '@/types'
 import { codingAskToolName } from '@/lib/agentAsk'
+import {
+  captionBesideGeneratedImages,
+  imageOutputFromToolMessage,
+  imageOutputsFromToolMessages,
+} from '@/lib/imageReply'
 import { t } from '@/lib/uiLocale'
 
 export interface ChatMessageBlock {
@@ -30,9 +35,15 @@ export interface ChatProcessFoldBlock {
   blocks: Array<ChatMessageBlock | ChatActivityBlock>
 }
 
+export interface ChatImageBlock {
+  kind: 'image'
+  id: string
+  path: string
+}
+
 export type ChatTurnBlock = ChatMessageBlock | ChatActivityBlock
 
-export type ChatTranscriptBlock = ChatTurnBlock | ChatProcessFoldBlock
+export type ChatTranscriptBlock = ChatTurnBlock | ChatProcessFoldBlock | ChatImageBlock
 
 const commandTools = new Set([
   'bash',
@@ -74,6 +85,22 @@ function messageBlock(message: Message): ChatMessageBlock {
     id: `message:${message.id}`,
     message,
   }
+}
+
+function imageBlock(id: string, path: string): ChatImageBlock {
+  return {
+    kind: 'image',
+    id: `image:${id}:${path}`,
+    path,
+  }
+}
+
+function assistantBesideImages(message: Message, paths: string[]): Message | null {
+  if (!paths.length) return message
+  const caption = captionBesideGeneratedImages(message.content, paths)
+  if (caption === message.content) return message
+  const next = { ...message, content: caption }
+  return isBlankAssistantMessage(next) ? null : next
 }
 
 function activityBlock(messages: Message[], running: boolean): ChatActivityBlock {
@@ -300,9 +327,15 @@ export function buildChatTranscript(
 ): ChatTranscriptBlock[] {
   const blocks: ChatTranscriptBlock[] = []
   let toolSegment: Message[] = []
+  let turnImages: string[] = []
 
   const flush = () => {
+    const images = imageOutputsFromToolMessages(toolSegment)
     flushToolSegment(blocks, toolSegment, conversationRunning)
+    for (const image of images) {
+      blocks.push(imageBlock(image.id, image.path))
+      turnImages.push(image.path)
+    }
     toolSegment = []
   }
 
@@ -316,9 +349,17 @@ export function buildChatTranscript(
     }
 
     flush()
-    if (message.role === 'user' || message.role === 'assistant' || isApproval(message)) {
+    if (message.role === 'user') {
+      turnImages = []
       blocks.push(messageBlock(message))
+      continue
     }
+    if (message.role === 'assistant') {
+      const shown = assistantBesideImages(message, turnImages)
+      if (shown) blocks.push(messageBlock(shown))
+      continue
+    }
+    if (isApproval(message)) blocks.push(messageBlock(message))
   }
   flush()
 
@@ -358,6 +399,7 @@ export function hasEmptyVisibleReply(messages: Message[], running: boolean) {
   if (lastUser < 0) return false
   const after = messages.slice(lastUser + 1)
   if (!after.length) return false
+  if (after.some(item => imageOutputFromToolMessage(item))) return false
   if (after.some(item => item.role === 'assistant' && String(item.content ?? '').trim())) {
     return false
   }
@@ -366,9 +408,12 @@ export function hasEmptyVisibleReply(messages: Message[], running: boolean) {
   ))
 }
 
-function isFoldableTurnBlock(block: ChatTurnBlock) {
-  // Finished tool groups fold into 过程. Thinking stays in the open thread,
-  // including after it completes, so each burst between tools remains visible.
+type OpenTurnBlock = ChatTurnBlock | ChatImageBlock
+
+function isFoldableTurnBlock(block: OpenTurnBlock) {
+  // Finished tool groups fold into 过程. The generated picture stays in the
+  // thread. Thinking stays open too, including after it completes.
+  if (block.kind === 'image') return false
   if (block.kind === 'activity') return !block.running
   return false
 }
@@ -457,7 +502,7 @@ export function processFoldSummary(blocks: readonly ChatTurnBlock[]): string {
 
 function flushFoldableTurn(
   output: ChatTranscriptBlock[],
-  foldables: ChatTurnBlock[],
+  foldables: OpenTurnBlock[],
 ) {
   if (!foldables.length) return
   const hasActivity = foldables.some(block => block.kind === 'activity')
@@ -465,20 +510,22 @@ function flushFoldableTurn(
     output.push({
       kind: 'process',
       id: `process:${foldables[0]!.id}`,
-      blocks: foldables.slice(),
+      blocks: foldables.filter((block): block is ChatTurnBlock => block.kind !== 'image'),
     })
     return
   }
-  const merged = mergeProcessThinking(foldables)
+  const merged = mergeProcessThinking(
+    foldables.filter((block): block is ChatTurnBlock => block.kind !== 'image'),
+  )
   if (merged) output.push(messageBlock(merged))
 }
 
 // Finished tool groups go into 过程. Assistant text and thinking stay in the
 // open thread, so intermediate reasoning remains visible between tool groups.
 // A still-running tool group stays outside the fold as work-in-progress.
-function foldTurnProcess(turn: ChatTurnBlock[]): ChatTranscriptBlock[] {
+function foldTurnProcess(turn: OpenTurnBlock[]): ChatTranscriptBlock[] {
   const output: ChatTranscriptBlock[] = []
-  let foldables: ChatTurnBlock[] = []
+  let foldables: OpenTurnBlock[] = []
   for (const block of turn) {
     if (isFoldableTurnBlock(block)) {
       foldables.push(block)
@@ -497,19 +544,24 @@ export function foldChatTranscriptProcess(blocks: ChatTranscriptBlock[]): ChatTr
   let index = 0
   while (index < blocks.length) {
     const block = blocks[index]!
+    if (block.kind === 'image' || block.kind === 'process') {
+      next.push(block)
+      index += 1
+      continue
+    }
     if (block.kind !== 'message' || block.message.role !== 'user') {
-      if (block.kind === 'process') next.push(block)
-      else next.push(...foldTurnProcess([block]))
+      next.push(...foldTurnProcess([block]))
       index += 1
       continue
     }
     next.push(block)
     index += 1
-    const turn: ChatTurnBlock[] = []
+    const turn: OpenTurnBlock[] = []
     while (index < blocks.length) {
       const item = blocks[index]!
       if (item.kind === 'message' && item.message.role === 'user') break
       if (item.kind === 'process') turn.push(...item.blocks)
+      else if (item.kind === 'image') turn.push(item)
       else turn.push(item)
       index += 1
     }
@@ -533,6 +585,10 @@ export function chatTranscriptBlockMemoRefs(
   const refs: unknown[] = [sharedKey]
   if (block.kind === 'message') {
     refs.push(block.message)
+    return refs
+  }
+  if (block.kind === 'image') {
+    refs.push(block.path)
     return refs
   }
   if (block.kind === 'activity') {

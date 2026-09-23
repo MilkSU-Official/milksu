@@ -37,8 +37,7 @@ import {
   LoaderCircle,
   MousePointer2,
   Minimize2,
-  PanelRightClose,
-  PanelRightOpen,
+  PanelRight,
   Plus,
   RefreshCw,
   Search,
@@ -64,6 +63,7 @@ import ChatComposer, { type ChatComposerHandle } from '@/components/ChatComposer
 import { ChatEdgeFade } from '@/components/ChatEdgeFade'
 import { ConversationQuoteMenu, selectedTextIn } from '@/components/ConversationQuoteMenu'
 import WorkingTray from '@/components/WorkingTray'
+import ChatGeneratedImage from '@/components/ChatGeneratedImage'
 import ChatMessageItem from '@/components/ChatMessageItem'
 import CodingArtifactPreviewPanel, {
   type CodingArtifactPreviewPanelHandle,
@@ -191,7 +191,7 @@ import {
   composerRunPhase,
   parentHasActiveTurnResidue,
 } from '@/lib/composerRunState'
-import { imageGenModelLabel } from '@/lib/imageGenCatalog'
+import { imageGenModelLabel, isImageGenModelID } from '@/lib/imageGenCatalog'
 import {
   encodeComposerModelKey,
   imageGenComposerGroups,
@@ -729,24 +729,36 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
       selectedComputerUseTargetKey,
     )
   ), [scopedComputerUseTargets, selectedComputerUseTargetKey])
+  const imageGroups = useMemo(() => imageGenComposerGroups(settings), [settings])
+  const imageModelKey = imageGenSettingsKey(settings)
+  const imageModelId = settings?.imagegen_model && isImageGenModelID(settings.imagegen_model)
+    ? settings.imagegen_model
+    : ''
+  const imageModelLabel = imageModelId ? imageGenModelLabel(imageModelId) : ''
+  const imageGenConfigured = Boolean(
+    settings?.imagegen_provider
+    && imageModelId
+    && (
+      (settings.imagegen_source === 'account' && settings.relay?.enabled && settings.relay.has_key)
+      || (
+        settings.imagegen_source !== 'account'
+        && settings.providers?.[settings.imagegen_provider]?.enabled
+        && settings.providers[settings.imagegen_provider].has_api_key
+      )
+    ),
+  )
+  const imageDrawNotice = !imageGenConfigured
+    ? t('先选择生图模型。', 'Choose an image model first.')
+    : effectiveExecutionMode !== 'go' || effectiveApprovalPolicy === 'read-only'
+      ? t('当前模式不会生图。', 'This mode does not generate images.')
+      : ''
   const codingCapabilities = useMemo(() => {
     const capabilities = conversation?.agentCapabilities?.length
       ? conversation.agentCapabilities
       : previewCodingCapabilities(
           effectiveExecutionMode,
           effectiveApprovalPolicy,
-          Boolean(
-            settings?.imagegen_provider
-            && settings?.imagegen_model
-            && (
-              (settings.imagegen_source === 'account' && settings.relay?.enabled && settings.relay.has_key)
-              || (
-                settings.imagegen_source !== 'account'
-                && settings.providers?.[settings.imagegen_provider]?.enabled
-                && settings.providers[settings.imagegen_provider].has_api_key
-              )
-            ),
-          ),
+          imageGenConfigured,
         )
     if (!computerUseStatus) return capabilities
     const target = computerUseStatus.target
@@ -780,7 +792,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     conversation?.agentCapabilities,
     effectiveExecutionMode,
     effectiveApprovalPolicy,
-    settings,
+    imageGenConfigured,
     computerUseStatus,
     computerUseReadyForCurrentTask,
     selectedComputerUseTarget,
@@ -858,13 +870,8 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     if (!shouldRememberCodingProject(workspacePath)) return ''
     return codingWorkspaceLabel(workspacePath, homeDirectory)
   }, [workspacePath, homeDirectory])
-  const imageGroups = useMemo(() => imageGenComposerGroups(settings), [settings])
-  const imageModelKey = imageGenSettingsKey(settings)
-  const imageModelLabel = settings?.imagegen_model
-    ? imageGenModelLabel(settings.imagegen_model)
-    : t('关闭', 'Off')
   const codingEmptyHeading = useMemo(() => {
-    if (imageHome) return t('画什么', 'What should we draw')
+    if (imageHome) return t('我们画什么', 'What should we draw')
     const name = selectedCodingProjectName || workspaceName
     if (name && name !== '~' && name !== t('无项目任务', 'No project') && !isGenericWorkspaceLabel(name)) {
       return t(`我们在 ${name} 中构建什么`, `What should we build in ${name}`)
@@ -965,6 +972,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     if (pendingAskMessage(conversation?.messages)) return false
     const last = chatTranscript.at(-1)
     if (!last) return true
+    if (last.kind === 'image') return true
     if (last.kind === 'activity') return !last.running
     if (last.kind === 'process') {
       const inner = last.blocks.at(-1)
@@ -1906,6 +1914,8 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
       void showComputerUseScope()
       return
     }
+    const drawTurn = imageHome || scopeToken === 'image'
+    if (drawTurn && imageDrawNotice) return
     const stagedPrompt = stagedComposerPrompt
     const submittedPrompt = stagedPrompt
       && stagedPrompt.conversationId === conversation?.id
@@ -1913,9 +1923,8 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
       ? `${stagedPrompt.prompt}\n\n用户当前请求：${prompt}`
       : prompt
     setStagedComposerPrompt(null)
-    const drawTurn = imageHome || scopeToken === 'image'
     const scopedPrompt = drawTurn
-      ? `本轮是画图。调用一次 milksu_imagegen，把下面的用户原文当作 prompt，使用已经配置的生图模型，写到工作区里一个新的 .png 路径。不要覆盖已有文件，不要改代码，不要改用对话模型画图。\n\n${submittedPrompt}`
+      ? `本轮是画图。调用一次 milksu_imagegen，把下面的用户原文当作 prompt，使用已经配置的生图模型，写到工作区里一个新的 .png 路径。不要覆盖已有文件，不要改代码，不要改用对话模型画图。对话里会直接显示这张图。用户只是要图时不要再写路径、哈希、尺寸或模型；只有还需要用文字回答时才写文字。\n\n${submittedPrompt}`
       : scopeToken === 'browser-use'
       ? `本轮通过 Playwright MCP 官方扩展请求连接真实用户浏览器；首次调用时等我在 Chrome/Edge 里选择并批准准确标签页。只操作扩展返回的标签页，不要改用 MilkSU 内置浏览器或 Computer Use。\n\n${submittedPrompt}`
       : scopeToken === 'computer-use'
@@ -2616,6 +2625,31 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
       data-agent-conversation
       data-testid={dockSurface ? 'coding-agent-dock-surface' : undefined}
     >
+      {!dockSurface ? (
+        <div className="shell-window-controls shell-window-controls--end">
+          <button
+            type="button"
+            className="shell-chrome-icon app-no-drag"
+            data-testid="coding-rail-terminal"
+            aria-label={terminalOpen ? t('关闭底部终端', 'Close bottom terminal') : t('打开底部终端', 'Open bottom terminal')}
+            title={terminalOpen ? t('关闭底部终端', 'Close bottom terminal') : t('打开底部终端', 'Open bottom terminal')}
+            onClick={toggleTerminalPanel}
+          >
+            <SquareTerminal className="size-4" />
+          </button>
+          <button
+            type="button"
+            className="shell-chrome-icon app-no-drag"
+            data-testid="coding-rail-toggle"
+            aria-label={environmentOpen ? t('关闭右侧栏', 'Close right rail') : t('打开右侧栏', 'Open right rail')}
+            title={environmentOpen ? t('关闭右侧栏', 'Close right rail') : t('打开右侧栏', 'Open right rail')}
+            aria-pressed={environmentOpen}
+            onClick={toggleManualContextSidebar}
+          >
+            <PanelRight className="size-4" />
+          </button>
+        </div>
+      ) : null}
       <div className="coding-workspace relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <main className="chat-main relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-editor">
           {!dockSurface ? (
@@ -2625,44 +2659,18 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
               title={topbarPresentation.title}
               subtitle={topbarPresentation.subtitle}
               hideIdentity={codingDraftIdle}
-              actions={(
-                <>
-                  {restorable ? (
-                    <button
-                      type="button"
-                      className="agent-chrome-icon"
-                      aria-label={t('还原小窗', 'Restore window')}
-                      title={t('还原小窗', 'Restore window')}
-                      onClick={() => onRestore?.()}
-                    >
-                      <Minimize2 className="size-4" />
-                    </button>
-                  ) : null}
-                  {!environmentOpen ? (
-                    <>
-                      <button
-                        type="button"
-                        className="agent-chrome-icon"
-                        aria-label={terminalOpen ? t('关闭底部终端', 'Close bottom terminal') : t('打开底部终端', 'Open bottom terminal')}
-                        title={terminalOpen ? t('关闭底部终端', 'Close bottom terminal') : t('打开底部终端', 'Open bottom terminal')}
-                        onClick={toggleTerminalPanel}
-                      >
-                        <SquareTerminal className="size-4" />
-                      </button>
-                      <button
-                        type="button"
-                        className="agent-chrome-icon"
-                        data-testid="coding-rail-toggle"
-                        aria-label={t('打开右侧栏', 'Open right rail')}
-                        title={t('打开右侧栏', 'Open right rail')}
-                        onClick={toggleManualContextSidebar}
-                      >
-                        <PanelRightOpen className="size-4" />
-                      </button>
-                    </>
-                  ) : null}
-                </>
-              )}
+              windowCaptionEdge={!environmentOpen}
+              actions={restorable ? (
+                <button
+                  type="button"
+                  className="agent-chrome-icon app-no-drag"
+                  aria-label={t('还原小窗', 'Restore window')}
+                  title={t('还原小窗', 'Restore window')}
+                  onClick={() => onRestore?.()}
+                >
+                  <Minimize2 className="size-4" />
+                </button>
+              ) : undefined}
             />
             </div>
           ) : null}
@@ -2760,6 +2768,12 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
                       onEditUser={(messageId, content) => onEditUser?.(messageId, content)}
                       onRewindContext={() => onRewindContext?.()}
                       onBranchAssistant={branchFromAssistantMessage}
+                    />
+                  ) : item.kind === 'image' ? (
+                    <ChatGeneratedImage
+                      key={item.id}
+                      workspacePath={workspacePath}
+                      path={item.path}
                     />
                   ) : item.kind === 'activity' ? (
                     <ChatActivityGroup
@@ -2971,6 +2985,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
             imageHome={imageHome}
             imageModelKey={imageModelKey}
             imageModelLabel={imageModelLabel}
+            imageDrawNotice={imageDrawNotice}
             imageGroups={imageGroups}
             onChangeImageModel={onChangeImageModel}
             availableSkills={activeSkills}
@@ -3018,7 +3033,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
             data-testid="single-right-context-rail"
             onWidthChange={persistContextRailWidth}
             header={(
-              <div className="app-drag flex w-full min-w-0 items-center gap-0.5">
+              <div className="app-drag flex min-w-0 flex-1 items-center gap-0.5">
                 {!transientComputerUsePanel ? (
                   <>
                     <Popover open={railMenuOpen} onOpenChange={open => { setRailMenuOpen(open); if (!open) setRailQuery('') }}>
@@ -3095,28 +3110,6 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
                     <span className="truncate">{contextPanelTitle}</span>
                   </div>
                 )}
-                <div className="app-no-drag flex items-center">
-                  <button
-                    type="button"
-                    className="agent-chrome-icon"
-                    data-testid="coding-rail-terminal"
-                    aria-label={terminalOpen ? t('关闭底部终端', 'Close bottom terminal') : t('打开底部终端', 'Open bottom terminal')}
-                    title={terminalOpen ? t('关闭底部终端', 'Close bottom terminal') : t('打开底部终端', 'Open bottom terminal')}
-                    onClick={toggleTerminalPanel}
-                  >
-                    <SquareTerminal className="size-4" />
-                  </button>
-                  <button
-                    type="button"
-                    className="agent-chrome-icon"
-                    data-testid="coding-rail-toggle"
-                    aria-label={t('关闭右侧栏', 'Close right rail')}
-                    title={t('关闭右侧栏', 'Close right rail')}
-                    onClick={toggleManualContextSidebar}
-                  >
-                    <PanelRightClose className="size-4" />
-                  </button>
-                </div>
               </div>
             )}
           >

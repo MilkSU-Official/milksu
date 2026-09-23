@@ -593,6 +593,7 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
   imageHome?: boolean
   imageModelKey?: string
   imageModelLabel?: string
+  imageDrawNotice?: string
   imageGroups?: import('@/lib/modelPickerSearch').SearchableModelGroup[]
   onChangeImageModel?: (value: string) => void
   onSend?: (text: string, visibleText?: string, attachments?: CodingAttachment[], scopeToken?: ComposerScopeToken) => void
@@ -626,7 +627,7 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
     thinkingLevels, thinkingLevel, kernel, kernelLocked, multitask, planModeActive, dshCommands,
     dshCommandsError, busySend, contextUsage, workspaceReady,
     workspaceLocked, workspaceName, workspacePath, gitRepository, gitBranch, gitBranches,
-    browserUseReady, computerUseReady, imageHome, imageModelKey, imageModelLabel, imageGroups, availableSkills, importedSkills, selectedMcpServers,
+    browserUseReady, computerUseReady, imageHome, imageModelKey, imageModelLabel, imageDrawNotice, imageGroups, availableSkills, importedSkills, selectedMcpServers,
     mcpCatalog, mcpConfigDigest, conversationKey, queuedGuidance,
     queuedGuidanceAwaitingTool: queuedGuidanceAwaitingToolProp,
     queuedGuidanceStalled, abortStalled: abortStalledProp,
@@ -1524,6 +1525,10 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
         ? t('Browser Use 需要已选项目，并使用 Go 权限。', 'Browser Use needs a selected project and Go permissions.')
         : t('请先在右栏锁定一个外部 App 窗口。', 'Lock an external app window in the right rail first.'))
       props.onRunSlashCommand?.(activeScopeToken)
+      return
+    }
+    if ((imageHome || activeScopeToken === 'image') && imageDrawNotice) {
+      setAttachmentError(imageDrawNotice)
       return
     }
     clearComposerInput()

@@ -609,18 +609,6 @@ export default function App() {
     newConversation()
   }
 
-  function restoreImageWorkspace() {
-    const restored = conversations.conversations.find(conversation => (
-      conversation.id === lastImageConversationId.current
-      && conversationWorkspaceHome(conversation) === 'image'
-    ))
-    if (restored) {
-      conversations.activeId = restored.id
-      return
-    }
-    conversations.resumePendingHome('image')
-  }
-
   async function setImageGenModel(value: string) {
     const current = settings
     if (!current) return
@@ -715,8 +703,7 @@ export default function App() {
       return
     }
     if (value === 'image') {
-      restoreImageWorkspace()
-      setSection(value)
+      newImageConversation()
       return
     }
     if (value === 'companion') {
