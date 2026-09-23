@@ -348,7 +348,7 @@ struct AccountView: View {
 
 struct CloudChatMessage: Identifiable {
   let id: String
-  let role: String
+  let role: String // user | assistant | thinking | usage
   var content: String
 }
 
@@ -357,6 +357,7 @@ struct CloudChatView: View {
   let session: MilkSUCloudSession
 
   @State private var messages: [CloudChatMessage] = []
+  @State private var navTitle: String = ""
   @State private var draft = ""
   @State private var errorText = ""
   @State private var busy = false
@@ -401,9 +402,10 @@ struct CloudChatView: View {
 
       composer
     }
-    .navigationTitle(session.title.isEmpty ? L10n.cloudCoding : session.title)
+    .navigationTitle(navTitle.isEmpty ? (session.title.isEmpty ? L10n.cloudCoding : session.title) : navTitle)
     .navigationBarTitleDisplayMode(.inline)
     .task {
+      await hydrateTranscript()
       subscribeTask?.cancel()
       subscribeTask = Task { await runSubscribeLoop() }
     }
@@ -458,11 +460,35 @@ struct CloudChatView: View {
     MilkSUCloudAgentClient(accessToken: { auth.accessToken })
   }
 
+  private func hydrateTranscript() async {
+    do {
+      let detail = try await client.getSession(sessionId: session.id)
+      if !detail.title.isEmpty {
+        navTitle = detail.title
+      }
+      guard let raw = detail.transcriptJson,
+            let data = raw.data(using: .utf8),
+            let rows = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return }
+      let hydrated: [CloudChatMessage] = rows.compactMap { row in
+        let role = String(row["role"] as? String ?? "")
+        let content = String(row["content"] as? String ?? "")
+        guard (role == "user" || role == "assistant"), !content.isEmpty else { return nil }
+        return CloudChatMessage(id: UUID().uuidString, role: role, content: content)
+      }
+      if !hydrated.isEmpty {
+        messages = hydrated
+      }
+    } catch {
+      // Keep empty canvas; Subscribe still works for new turns.
+    }
+  }
+
   private func send() async {
     let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !text.isEmpty else { return }
     busy = true
     defer { busy = false }
+    messages.removeAll { $0.role == "thinking" || $0.role == "usage" }
     messages.append(CloudChatMessage(id: UUID().uuidString, role: "user", content: text))
     draft = ""
     do {
@@ -498,13 +524,38 @@ struct CloudChatView: View {
   @MainActor
   private func apply(event: MilkSUCloudSessionEvent) {
     switch event.type {
+    case "assistant.thinking_delta":
+      let text = event.text
+      guard !text.isEmpty else { return }
+      if let last = messages.last, last.role == "thinking" {
+        messages[messages.count - 1].content = text
+      } else {
+        messages.append(CloudChatMessage(id: event.id, role: "thinking", content: text))
+      }
     case "assistant.delta":
+      messages.removeAll { $0.role == "thinking" }
       let text = event.text
       guard !text.isEmpty else { return }
       if let last = messages.last, last.role == "assistant" {
         messages[messages.count - 1].content += text
       } else {
         messages.append(CloudChatMessage(id: event.id, role: "assistant", content: text))
+      }
+    case "turn.settled":
+      messages.removeAll { $0.role == "thinking" || $0.role == "usage" }
+      if let data = event.jsonPayload.data(using: .utf8),
+         let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+         let usage = obj["usage"] as? [String: Any] {
+        let input = Int(usage["input_tokens"] as? Double ?? Double(usage["input_tokens"] as? Int ?? 0))
+        let output = Int(usage["output_tokens"] as? Double ?? Double(usage["output_tokens"] as? Int ?? 0))
+        let sandbox = Int(usage["sandbox_seconds"] as? Double ?? Double(usage["sandbox_seconds"] as? Int ?? 0))
+        var parts = ["in \(input)", "out \(output)"]
+        if sandbox > 0 { parts.append("sandbox \(sandbox)s") }
+        messages.append(CloudChatMessage(
+          id: event.id,
+          role: "usage",
+          content: "\(L10n.usageLine)：\(parts.joined(separator: " · "))",
+        ))
       }
     default:
       break
@@ -516,25 +567,38 @@ struct MessageBubble: View {
   let message: CloudChatMessage
 
   private var isUser: Bool { message.role == "user" }
+  private var isMeta: Bool { message.role == "thinking" || message.role == "usage" }
 
   var body: some View {
-    HStack {
-      if isUser { Spacer(minLength: 48) }
-      VStack(alignment: isUser ? .trailing : .leading, spacing: 4) {
-        Text(isUser ? L10n.you : L10n.assistant)
-          .font(.caption2.weight(.medium))
-          .foregroundStyle(.secondary)
-        Text(message.content)
-          .font(.body)
-          .foregroundStyle(isUser ? Color.white : MilkSUTheme.ink)
-          .padding(.horizontal, 14)
-          .padding(.vertical, 10)
-          .background(
-            isUser ? MilkSUTheme.bubbleUser : MilkSUTheme.bubbleAssistant,
-            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
-          )
+    if isMeta {
+      HStack {
+        Image(systemName: message.role == "thinking" ? "ellipsis.circle" : "chart.bar")
+          .font(.caption)
+        Text(message.role == "thinking" ? "\(L10n.thinking)· \(message.content)" : message.content)
+          .font(.caption)
       }
-      if !isUser { Spacer(minLength: 48) }
+      .foregroundStyle(.secondary)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .padding(.horizontal, 4)
+    } else {
+      HStack {
+        if isUser { Spacer(minLength: 48) }
+        VStack(alignment: isUser ? .trailing : .leading, spacing: 4) {
+          Text(isUser ? L10n.you : L10n.assistant)
+            .font(.caption2.weight(.medium))
+            .foregroundStyle(.secondary)
+          Text(message.content)
+            .font(.body)
+            .foregroundStyle(isUser ? Color.white : MilkSUTheme.ink)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(
+              isUser ? MilkSUTheme.bubbleUser : MilkSUTheme.bubbleAssistant,
+              in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+            )
+        }
+        if !isUser { Spacer(minLength: 48) }
+      }
     }
   }
 }

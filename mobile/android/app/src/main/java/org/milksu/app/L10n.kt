@@ -34,6 +34,8 @@ object L10n {
   )
   val you get() = t("你", "You")
   val assistant get() = "MilkSU"
+  val thinking get() = t("思考中", "Thinking")
+  val usageLine get() = t("本回合用量（估算）", "Turn usage (estimate)")
   val signedInAs get() = t("已登录", "Signed in")
   val refresh get() = t("刷新", "Refresh")
   val back get() = t("返回", "Back")

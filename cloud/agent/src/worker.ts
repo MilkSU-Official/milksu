@@ -156,10 +156,64 @@ function chunkText(text: string, size = 48): string[] {
   return parts
 }
 
+function publicSession(row: SessionRow, opts?: { includeTranscript?: boolean }): Json {
+  const out: Json = {
+    id: row.id,
+    title: row.title,
+    kernel: row.kernel,
+    model: row.model,
+    status: row.status,
+    created_at_ms: row.created_at_ms,
+    updated_at_ms: row.updated_at_ms,
+  }
+  if (opts?.includeTranscript) {
+    out.transcript_json = row.transcript_json || '[]'
+  }
+  return out
+}
+
+type TranscriptLine = { role: string; content: string }
+
+function readTranscript(row: SessionRow): TranscriptLine[] {
+  try {
+    const parsed = JSON.parse(row.transcript_json || '[]')
+    if (!Array.isArray(parsed)) return []
+    return parsed
+      .filter((item): item is TranscriptLine => (
+        item
+        && typeof item === 'object'
+        && typeof (item as TranscriptLine).role === 'string'
+        && typeof (item as TranscriptLine).content === 'string'
+      ))
+      .map(item => ({ role: item.role, content: item.content }))
+  } catch {
+    return []
+  }
+}
+
+function appendTranscript(row: SessionRow, role: string, content: string): void {
+  const lines = readTranscript(row)
+  lines.push({ role, content })
+  // Keep transcript bounded for memory / D1 row size.
+  const capped = lines.length > 200 ? lines.slice(lines.length - 200) : lines
+  row.transcript_json = JSON.stringify(capped)
+  if (!row.title.trim() && role === 'user' && content.trim()) {
+    row.title = content.trim().slice(0, 48)
+  }
+}
+
 async function enqueueStubTurn(env: Env, row: SessionRow, turnId: string, userText: string) {
   const reply = userText.trim()
-    ? '云沙箱尚未绑定：已收到你的消息，部署 Sandbox 后会在这里跑 Pi/DSH。 / Cloud sandbox is not bound yet; your message was accepted.'
-    : '云沙箱尚未绑定。 / Cloud sandbox is not bound yet.'
+    ? (
+      '已收到。当前 Worker 未绑定 Cloudflare Sandbox：协议与抄本已写入，'
+      + '部署 Sandbox 后这里会跑钉版 Pi/DSH。 / '
+      + 'Received. Cloudflare Sandbox is not bound yet; protocol and transcript are saved. '
+      + 'Pi/DSH will run here after Sandbox deploy.'
+    )
+    : (
+      '云沙箱尚未绑定。发一条消息可验证 Subscribe 与抄本落盘。 / '
+      + 'Cloud sandbox is not bound yet. Send a message to verify Subscribe and transcript persistence.'
+    )
   await enqueueEvent(env, row, 'assistant.thinking_delta', turnId, {
     text: 'Preparing cloud turn…',
   })
@@ -178,6 +232,7 @@ async function enqueueStubTurn(env: Env, row: SessionRow, turnId: string, userTe
     disclaimer: '根据 models.dev 估算，方便统计，不是账单',
   })
   await enqueueEvent(env, row, 'assistant.settled', turnId, {})
+  appendTranscript(row, 'assistant', reply)
 }
 
 function json(data: Json, status = 200): Response {
@@ -216,18 +271,6 @@ async function assertAccount(env: Env, token: string): Promise<AccountOwner | nu
     return accountOwnerFromPayload(payload)
   } catch {
     return null
-  }
-}
-
-function publicSession(row: SessionRow): Json {
-  return {
-    id: row.id,
-    title: row.title,
-    kernel: row.kernel,
-    model: row.model,
-    status: row.status,
-    created_at_ms: row.created_at_ms,
-    updated_at_ms: row.updated_at_ms,
   }
 }
 
@@ -274,9 +317,10 @@ export default {
       }
       case 'CreateSession': {
         const now = Date.now()
+        const title = String(body.title || '').trim()
         const row: SessionRow = {
           id: crypto.randomUUID(),
-          title: String(body.title || ''),
+          title,
           kernel: String(body.kernel || 'pi'),
           model: String(body.model || ''),
           status: 'ready',
@@ -295,7 +339,7 @@ export default {
         if (!row || row.owner_token_hash !== ownerKey) {
           return json({ code: 'not_found', message: 'Session not found' }, 404)
         }
-        return json(publicSession(row))
+        return json(publicSession(row, { includeTranscript: true }))
       }
       case 'DeleteSession': {
         const id = String(body.session_id || '')
@@ -316,6 +360,9 @@ export default {
           return json({ code: 'not_found', message: 'Session not found' }, 404)
         }
         const turnId = crypto.randomUUID()
+        if (text.trim()) {
+          appendTranscript(row, 'user', text.trim())
+        }
         // Mature CF Sandbox path when Durable Object binding is present
         // (https://developers.cloudflare.com/sandbox/get-started/ + exec stdin).
         if (env.Sandbox) {
@@ -344,10 +391,10 @@ export default {
               }),
               timeout: 120_000,
             })
-            let sawStdout = false
+            let assistantText = ''
             for await (const event of parseSSEStream(stream)) {
               if (event.type === 'stdout' && typeof event.data === 'string' && event.data) {
-                sawStdout = true
+                assistantText += event.data
                 await enqueueEvent(env, row, 'assistant.delta', turnId, { text: event.data })
               } else if (event.type === 'stderr' && typeof event.data === 'string' && event.data.trim()) {
                 await enqueueEvent(env, row, 'assistant.delta', turnId, {
@@ -357,16 +404,15 @@ export default {
                 throw new Error(String(event.error || 'Sandbox exec failed'))
               }
             }
-            if (!sawStdout) {
-              await enqueueEvent(env, row, 'assistant.delta', turnId, {
-                text: 'Sandbox finished with empty stdout; Pi/DSH bridge not attached yet.',
-              })
+            if (!assistantText) {
+              assistantText = 'Sandbox finished with empty stdout; Pi/DSH bridge not attached yet.'
+              await enqueueEvent(env, row, 'assistant.delta', turnId, { text: assistantText })
             }
             const sandboxSeconds = Math.max(1, Math.ceil((Date.now() - startedAt) / 1000))
             await enqueueEvent(env, row, 'turn.settled', turnId, {
               usage: {
                 input_tokens: Math.max(1, Math.ceil(text.length / 4)),
-                output_tokens: 32,
+                output_tokens: Math.max(1, Math.ceil(assistantText.length / 4)),
                 cache_read_tokens: 0,
                 model_cost_est_usd: 0,
                 sandbox_cost_est_usd: 0,
@@ -375,10 +421,13 @@ export default {
               disclaimer: '根据 models.dev 估算，方便统计，不是账单',
             })
             await enqueueEvent(env, row, 'assistant.settled', turnId, {})
+            appendTranscript(row, 'assistant', assistantText)
             row.status = 'ready'
             await saveSession(env, row)
             return json({ turn_id: turnId })
           } catch (error) {
+            row.status = 'ready'
+            await saveSession(env, row)
             return json({
               code: 'unavailable',
               message: error instanceof Error ? error.message : 'Sandbox start failed',

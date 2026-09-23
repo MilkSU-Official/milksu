@@ -23,6 +23,8 @@ enum L10n {
   static var usageDisclaimer: String { t("根据 models.dev 估算，方便统计，不是账单", "Estimates from models.dev are for stats only, not a bill") }
   static var you: String { t("你", "You") }
   static var assistant: String { "MilkSU" }
+  static var thinking: String { t("思考中", "Thinking") }
+  static var usageLine: String { t("本回合用量（估算）", "Turn usage (estimate)") }
   static var signedInAs: String { t("已登录", "Signed in") }
   static var kernelPi: String { "Pi" }
   static var refresh: String { t("刷新", "Refresh") }

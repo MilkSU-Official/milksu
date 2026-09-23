@@ -44,6 +44,13 @@ class MilkSUCloudAgentClient(
     )
   }
 
+  fun getSession(sessionId: String): JSONObject {
+    return call(
+      "GetSession",
+      JSONObject().put("session_id", sessionId),
+    )
+  }
+
   fun sendTurn(sessionId: String, text: String): String {
     val body = call(
       "SendTurn",

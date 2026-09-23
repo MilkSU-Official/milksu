@@ -568,6 +568,7 @@ fun CloudChatScreen(
   var error by remember { mutableStateOf("") }
   var busy by remember { mutableStateOf(false) }
   var afterEventId by remember { mutableStateOf("") }
+  var navTitle by remember { mutableStateOf(session.optString("title")) }
   val scope = rememberCoroutineScope()
   val listState = rememberLazyListState()
   val client = remember(accessToken) {
@@ -575,6 +576,86 @@ fun CloudChatScreen(
   }
   val dark = isSystemInDarkTheme()
   val assistantBubble = if (dark) MilkSUColors.BubbleAssistantDark else MilkSUColors.BubbleAssistant
+
+  fun applyEvent(event: JSONObject) {
+    val id = event.optString("id").ifBlank { UUID.randomUUID().toString() }
+    val type = event.optString("type")
+    val payload = event.optString("json_payload")
+    val parsed = try {
+      JSONObject(payload.ifBlank { "{}" })
+    } catch (_: Exception) {
+      JSONObject()
+    }
+    val text = parsed.optString("text")
+    when (type) {
+      "assistant.thinking_delta" -> {
+        if (text.isEmpty()) return
+        val last = messages.lastOrNull()
+        if (last?.role == "thinking") {
+          messages[messages.lastIndex] = last.copy(content = text)
+        } else {
+          messages.add(ChatLine(id = id, role = "thinking", content = text))
+        }
+      }
+      "assistant.delta" -> {
+        messages.removeAll { it.role == "thinking" }
+        if (text.isEmpty()) return
+        val last = messages.lastOrNull()
+        if (last?.role == "assistant") {
+          messages[messages.lastIndex] = last.copy(content = last.content + text)
+        } else {
+          messages.add(ChatLine(id = id, role = "assistant", content = text))
+        }
+      }
+      "turn.settled" -> {
+        messages.removeAll { it.role == "thinking" || it.role == "usage" }
+        val usage = parsed.optJSONObject("usage") ?: return
+        val input = usage.optInt("input_tokens")
+        val output = usage.optInt("output_tokens")
+        val sandbox = usage.optInt("sandbox_seconds")
+        val parts = buildList {
+          add("in $input")
+          add("out $output")
+          if (sandbox > 0) add("sandbox ${sandbox}s")
+        }
+        messages.add(
+          ChatLine(
+            id = id,
+            role = "usage",
+            content = "${L10n.usageLine}：${parts.joinToString(" · ")}",
+          ),
+        )
+      }
+    }
+  }
+
+  LaunchedEffect(sessionId, accessToken) {
+    try {
+      val detail = withContext(Dispatchers.IO) { client.getSession(sessionId) }
+      val title = detail.optString("title")
+      if (title.isNotBlank()) navTitle = title
+      val raw = detail.optString("transcript_json")
+      if (raw.isNotBlank()) {
+        val arr = org.json.JSONArray(raw)
+        val hydrated = buildList {
+          for (i in 0 until arr.length()) {
+            val row = arr.optJSONObject(i) ?: continue
+            val role = row.optString("role")
+            val content = row.optString("content")
+            if ((role == "user" || role == "assistant") && content.isNotBlank()) {
+              add(ChatLine(id = UUID.randomUUID().toString(), role = role, content = content))
+            }
+          }
+        }
+        if (hydrated.isNotEmpty()) {
+          messages.clear()
+          messages.addAll(hydrated)
+        }
+      }
+    } catch (_: Exception) {
+      // Empty canvas; live Subscribe still works.
+    }
+  }
 
   DisposableEffect(sessionId, accessToken) {
     var cursor = afterEventId
@@ -587,29 +668,7 @@ fun CloudChatScreen(
               cursor = id
               scope.launch(Dispatchers.Main) { afterEventId = id }
             }
-            val type = event.optString("type")
-            val payload = event.optString("json_payload")
-            val text = try {
-              JSONObject(payload.ifBlank { "{}" }).optString("text")
-            } catch (_: Exception) {
-              ""
-            }
-            if (type == "assistant.delta" && text.isNotEmpty()) {
-              scope.launch(Dispatchers.Main) {
-                val last = messages.lastOrNull()
-                if (last?.role == "assistant") {
-                  messages[messages.lastIndex] = last.copy(content = last.content + text)
-                } else {
-                  messages.add(
-                    ChatLine(
-                      id = id.ifBlank { UUID.randomUUID().toString() },
-                      role = "assistant",
-                      content = text,
-                    ),
-                  )
-                }
-              }
-            }
+            scope.launch(Dispatchers.Main) { applyEvent(event) }
           }
         } catch (ex: Exception) {
           if (!isActive) return@launch
@@ -637,7 +696,7 @@ fun CloudChatScreen(
       TopAppBar(
         title = {
           Text(
-            session.optString("title").ifBlank { L10n.cloudCoding },
+            navTitle.ifBlank { L10n.cloudCoding },
             maxLines = 1,
             fontWeight = FontWeight.SemiBold,
           )
@@ -694,6 +753,7 @@ fun CloudChatScreen(
           val text = draft.trim()
           if (text.isEmpty()) return@ComposerBar
           busy = true
+          messages.removeAll { it.role == "thinking" || it.role == "usage" }
           messages.add(ChatLine(id = UUID.randomUUID().toString(), role = "user", content = text))
           draft = ""
           scope.launch {
@@ -714,6 +774,15 @@ fun CloudChatScreen(
 
 @Composable
 private fun MessageBubble(line: ChatLine, assistantBubble: Color) {
+  if (line.role == "thinking" || line.role == "usage") {
+    Text(
+      if (line.role == "thinking") "${L10n.thinking} · ${line.content}" else line.content,
+      style = MaterialTheme.typography.labelMedium,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+      modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+    )
+    return
+  }
   val isUser = line.role == "user"
   Row(
     modifier = Modifier.fillMaxWidth(),

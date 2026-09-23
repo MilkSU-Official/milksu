@@ -23,6 +23,21 @@ struct MilkSUCloudSession: Decodable, Identifiable, Hashable {
   let kernel: String
   let model: String
   let status: String
+  let transcriptJson: String?
+
+  enum CodingKeys: String, CodingKey {
+    case id, title, kernel, model, status
+    case transcriptJson = "transcript_json"
+  }
+
+  init(id: String, title: String, kernel: String, model: String, status: String, transcriptJson: String? = nil) {
+    self.id = id
+    self.title = title
+    self.kernel = kernel
+    self.model = model
+    self.status = status
+    self.transcriptJson = transcriptJson
+  }
 }
 
 struct MilkSUCloudSessionEvent: Identifiable {
@@ -72,6 +87,14 @@ final class MilkSUCloudAgentClient {
       "model": model,
       "title": title,
       "credential_id": "",
+    ]) as [String: Any]
+    let data = try JSONSerialization.data(withJSONObject: body)
+    return try JSONDecoder().decode(MilkSUCloudSession.self, from: data)
+  }
+
+  func getSession(sessionId: String) async throws -> MilkSUCloudSession {
+    let body = try await call(method: "GetSession", body: [
+      "session_id": sessionId,
     ]) as [String: Any]
     let data = try JSONSerialization.data(withJSONObject: body)
     return try JSONDecoder().decode(MilkSUCloudSession.self, from: data)

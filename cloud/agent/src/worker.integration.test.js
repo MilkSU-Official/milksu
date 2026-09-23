@@ -159,3 +159,30 @@ test('account.id subject is preferred over githubLogin', async () => {
     globalThis.fetch = previous
   }
 })
+
+test('SendTurn persists transcript and GetSession returns it', async () => {
+  const previous = globalThis.fetch
+  globalThis.fetch = accountFetch('hunter')
+  try {
+    const created = await call('CreateSession', { title: '' }, 'tok')
+    const sessionId = String(created.json.id)
+    const turn = await call('SendTurn', { session_id: sessionId, text: 'hello cloud' }, 'tok')
+    assert.equal(turn.status, 200)
+    assert.ok(turn.json.turn_id)
+
+    const got = await call('GetSession', { session_id: sessionId }, 'tok')
+    assert.equal(got.status, 200)
+    assert.equal(got.json.title, 'hello cloud')
+    const transcript = JSON.parse(String(got.json.transcript_json || '[]'))
+    assert.equal(transcript.length, 2)
+    assert.equal(transcript[0].role, 'user')
+    assert.equal(transcript[0].content, 'hello cloud')
+    assert.equal(transcript[1].role, 'assistant')
+    assert.match(String(transcript[1].content), /Sandbox|沙箱/)
+    // ListSessions stays lean (no transcript_json).
+    const listed = await call('ListSessions', {}, 'tok')
+    assert.equal(listed.json.sessions[0].transcript_json, undefined)
+  } finally {
+    globalThis.fetch = previous
+  }
+})

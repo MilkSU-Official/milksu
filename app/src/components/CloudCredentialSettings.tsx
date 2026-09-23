@@ -45,7 +45,26 @@ export default function CloudCredentialSettings() {
       setOpen(false)
       toast(t('已保存到云端（仅服务端持有）', 'Saved to cloud (server-held only)'))
     } catch (error) {
-      toastError(error, t('保存云端凭据失败', 'Failed to save cloud credential'))
+      const message = error instanceof Error ? error.message : String(error ?? '')
+      if (/D1 not bound/i.test(message)) {
+        toastError(
+          null,
+          t(
+            '云存储未部署（D1），暂时不能保存自带 Key',
+            'Cloud storage (D1) is not deployed; cannot save own keys yet',
+          ),
+        )
+      } else if (/CREDENTIAL_KEK/i.test(message)) {
+        toastError(
+          null,
+          t(
+            '云端加密密钥未配置，暂时不能保存自带 Key',
+            'Cloud encryption key is not configured; cannot save own keys yet',
+          ),
+        )
+      } else {
+        toastError(error, t('保存云端凭据失败', 'Failed to save cloud credential'))
+      }
     } finally {
       setBusy(false)
     }

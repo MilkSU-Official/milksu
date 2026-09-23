@@ -12,6 +12,8 @@ export interface CloudSession {
   kernel: string
   model: string
   status: string
+  /** Present on GetSession — JSON array of {role, content}. */
+  transcript_json?: string
 }
 
 export type CloudAgentCall = (method: string, body: unknown) => Promise<unknown>
@@ -92,6 +94,10 @@ export class CloudAgentClient {
       title: input.title ?? '',
       credential_id: input.credentialId ?? '',
     }) as Promise<CloudSession>
+  }
+
+  async getSession(sessionId: string): Promise<CloudSession> {
+    return this.call('GetSession', { session_id: sessionId }) as Promise<CloudSession>
   }
 
   async migrateCopy(input: {

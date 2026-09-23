@@ -48,7 +48,7 @@ import {
   X,
 } from 'lucide-react'
 import { invokeCommand, listenEvent } from '@/desktop'
-import { toastError } from '@/lib/appToast'
+import { toast, toastError } from '@/lib/appToast'
 import { isAskMessage } from '@/lib/agentAsk'
 import { nextChatAutoScrollPinned } from '@/lib/chatAutoScroll'
 import { applyChatEdgeChrome } from '@/lib/chatEdgeFade'
@@ -2897,6 +2897,11 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
                     return conversation.id
                   },
                 })
+                toast(
+                  host === 'cloud'
+                    ? t('已切换到云', 'Switched to cloud')
+                    : t('已切换到本地', 'Switched to local'),
+                )
               } catch (error) {
                 toastError(
                   error,
