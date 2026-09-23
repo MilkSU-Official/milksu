@@ -108,6 +108,43 @@ func TestCommitWritesQuotedMemoryWithoutPending(t *testing.T) {
 	if current[0].At != approved[0].At {
 		t.Fatal("update should keep the original timestamp")
 	}
+	if memory.Revision() < 2 {
+		t.Fatalf("revision: %d", memory.Revision())
+	}
+}
+
+func TestCommitDoesNotRestoreAForgottenMemory(t *testing.T) {
+	memory := NewMemory(nil, nil)
+	created := memory.Commit("以后都用中文回复我", []MemoryCommit{{
+		Action:   "create",
+		Title:    "回复语言",
+		Markdown: "回复保持简体中文",
+		Evidence: "以后都用中文回复我",
+	}})
+	approved := memory.ApprovedForAssembly()
+	if len(approved) != 1 {
+		t.Fatalf("approved: %#v", approved)
+	}
+	createdRevision, _ := created["revision"].(uint64)
+	if _, err := memory.Forget(approved[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	if memory.Revision() <= createdRevision {
+		t.Fatal("forget should advance the memory revision")
+	}
+	updated := memory.Commit("英文也可以", []MemoryCommit{{
+		Action:     "update",
+		ExistingID: approved[0].ID,
+		Title:      "回复语言",
+		Markdown:   "回复可以用英文",
+		Evidence:   "英文也可以",
+	}})
+	if updated["count"] != 0 || len(memory.ApprovedForAssembly()) != 0 {
+		t.Fatalf("forgotten memory was written back: %#v", updated)
+	}
+	if !memory.Forgotten(approved[0].ID) {
+		t.Fatal("forgotten id should stay forgotten")
+	}
 }
 
 func TestSearchEmptyQueryDoesNotWrite(t *testing.T) {

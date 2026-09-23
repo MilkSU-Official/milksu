@@ -16,6 +16,7 @@ import { companionProviderEnvironment } from "./companion-model-env.js";
 import { companionSystemPrompt } from "./system-prompt.js";
 import { reviewCompanionDraft, rewriteLastAssistantReply } from "./reply-review.js";
 import {
+  applySemanticMemorySnapshot,
   createMemoryExtractController,
   extractCompanionMemories,
 } from "./memory-extract.js";
@@ -44,12 +45,16 @@ let promptQueue = Promise.resolve();
 let turnAborted = false;
 let boardSnapshot = { sessions: [], todos: [] };
 let semanticMemories = [];
+let semanticMemoryRevision = -1;
 let episodicRecalls = [];
 let persona = "";
 let memorySearchEnabled = true;
 let replyStyle = "markdown";
 const memoryExtract = createMemoryExtractController({
   extract: job => runMemoryExtract(job),
+  // One quiet-period timer. clearTimeout drops a wait that has not fired.
+  // The controller drops a callback that already reached the queue when a
+  // newer wait, a new turn, or an in-flight extract supersedes it.
   setTimer: (fn, ms) => setTimeout(() => {
     promptQueue = promptQueue.then(() => fn());
   }, ms),
@@ -512,6 +517,16 @@ async function completeCompanionReview(context) {
   }
 }
 
+function applySemanticMemories(memories, revision) {
+  const next = applySemanticMemorySnapshot(
+    { memories: semanticMemories, revision: semanticMemoryRevision },
+    memories,
+    revision,
+  );
+  semanticMemories = next.memories;
+  semanticMemoryRevision = next.revision;
+}
+
 function applyMemoryExtract(command) {
   if (command?.memoryExtract == null && command?.memoryExtractIdleMinutes == null) return;
   memoryExtract.configure({
@@ -520,10 +535,15 @@ function applyMemoryExtract(command) {
   });
 }
 
+function memoryExtractIsStale(job) {
+  return typeof job?.stale === "function" && job.stale();
+}
+
 async function runMemoryExtract(job) {
+  if (memoryExtractIsStale(job)) return { committed: false };
   const stretch = Array.isArray(job?.stretch) ? job.stretch : [];
   const userText = stretch.map(item => String(item?.user ?? "").trim()).filter(Boolean).join("\n");
-  if (!userText) return;
+  if (!userText) return { committed: true };
   const assistantText = stretch.map(item => String(item?.assistant ?? "").trim()).filter(Boolean).join("\n");
   const items = await extractCompanionMemories({
     userText,
@@ -533,13 +553,15 @@ async function runMemoryExtract(job) {
     maxItems: job?.maxItems,
     complete: completeCompanionReview,
   });
-  if (!items.length) return;
+  if (memoryExtractIsStale(job)) return { committed: false };
+  if (!items.length) return { committed: true };
   const result = await requestHost("memory", {
     action: "commit",
     userText,
     items,
   });
-  if (Array.isArray(result?.approved)) semanticMemories = result.approved;
+  applySemanticMemories(result?.approved, result?.revision);
+  return { committed: true };
 }
 
 async function publishReviewedReply(userText) {
@@ -663,7 +685,9 @@ async function handleCommand(command) {
         subscribed = true;
       }
       if (command.boardSnapshot) boardSnapshot = command.boardSnapshot;
-      if (Array.isArray(command.semanticMemories)) semanticMemories = command.semanticMemories;
+      if (Array.isArray(command.semanticMemories)) {
+        applySemanticMemories(command.semanticMemories, command.memoryRevision);
+      }
       if (Array.isArray(command.episodicRecalls)) episodicRecalls = command.episodicRecalls;
       if (typeof command.persona === "string") persona = command.persona;
       if (command.memorySearchEnabled === false) memorySearchEnabled = false;
@@ -675,7 +699,9 @@ async function handleCommand(command) {
       applyCompanionLocale(command);
       applyReplyStyle(command);
       if (command.boardSnapshot) boardSnapshot = command.boardSnapshot;
-      if (Array.isArray(command.semanticMemories)) semanticMemories = command.semanticMemories;
+      if (Array.isArray(command.semanticMemories)) {
+        applySemanticMemories(command.semanticMemories, command.memoryRevision);
+      }
       if (Array.isArray(command.episodicRecalls)) episodicRecalls = command.episodicRecalls;
       if (typeof command.persona === "string") persona = command.persona;
       if (command.memorySearchEnabled === false) memorySearchEnabled = false;

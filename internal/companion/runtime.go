@@ -44,6 +44,8 @@ type persistedState struct {
 
 type Runtime struct {
 	mu               sync.Mutex
+	persistMu        sync.Mutex
+	writeMu          sync.Mutex
 	agentDir         string
 	statePath        string
 	sidecarDirectory string
@@ -66,6 +68,9 @@ type Runtime struct {
 	sidecarGen atomic.Uint64
 	stale      atomic.Bool
 	inFlight   atomic.Bool
+	// persistHook runs after a state snapshot and before the file write,
+	// while persistMu is held. Tests use it to interleave a forget.
+	persistHook func()
 }
 
 type parkedConfirm struct {
@@ -128,6 +133,7 @@ func (r *Runtime) Send(prompt string, attachments []codingattachment.Attachment)
 	}
 	r.refreshBoard()
 	selection := r.selection()
+	revision, memories := r.memoryView()
 	command := map[string]any{
 		"action":                   "send_message",
 		"prompt":                   prompt,
@@ -136,7 +142,8 @@ func (r *Runtime) Send(prompt string, attachments []codingattachment.Attachment)
 		"model":                    selection.Model,
 		"source":                   selection.Source,
 		"boardSnapshot":            r.board.Snapshot(),
-		"semanticMemories":         r.semanticPayload(),
+		"semanticMemories":         memories,
+		"memoryRevision":           revision,
 		"episodicRecalls":          []any{},
 		"memorySearchEnabled":      r.memorySearchEnabled(),
 		"memoryExtract":            config.CompanionMemoryExtract(r.resolvedSettings()),
@@ -667,6 +674,8 @@ func (r *Runtime) write(value any) error {
 	if stdin == nil {
 		return fmt.Errorf("companion sidecar is not running")
 	}
+	r.writeMu.Lock()
+	defer r.writeMu.Unlock()
 	err := writeJSON(stdin, value)
 	if sidecarWriteLost(err) {
 		r.mu.Lock()
@@ -943,8 +952,11 @@ func (r *Runtime) refreshBoard() {
 	r.board.ReplaceSessions(active)
 }
 
-func (r *Runtime) semanticPayload() []map[string]string {
-	approved := r.memory.ApprovedForAssembly()
+func (r *Runtime) memoryView() (uint64, []map[string]string) {
+	if r == nil || r.memory == nil {
+		return 0, []map[string]string{}
+	}
+	revision, approved := r.memory.SnapshotApproved()
 	payload := make([]map[string]string, 0, len(approved))
 	for _, memory := range approved {
 		payload = append(payload, map[string]string{
@@ -953,7 +965,7 @@ func (r *Runtime) semanticPayload() []map[string]string {
 			"markdown": memory.Markdown,
 		})
 	}
-	return payload
+	return revision, payload
 }
 
 func (r *Runtime) dispatchEnabled() bool {
@@ -973,9 +985,11 @@ func (r *Runtime) SyncLiveContext() {
 		return
 	}
 	settings := r.resolvedSettings()
+	revision, memories := r.memoryView()
 	_ = r.write(map[string]any{
 		"action":                   "update_context",
-		"semanticMemories":         r.semanticPayload(),
+		"semanticMemories":         memories,
+		"memoryRevision":           revision,
 		"memoryExtract":            config.CompanionMemoryExtract(settings),
 		"memoryExtractIdleMinutes": config.CompanionMemoryExtractIdleMinutes(settings),
 		"memorySearchEnabled":      r.memorySearchEnabled(),
@@ -1033,25 +1047,46 @@ func (r *Runtime) loadState() {
 }
 
 func (r *Runtime) persistState() {
-	if strings.TrimSpace(r.statePath) == "" {
+	if r == nil || strings.TrimSpace(r.statePath) == "" {
 		return
 	}
+	r.persistMu.Lock()
+	defer r.persistMu.Unlock()
 	if err := os.MkdirAll(filepath.Dir(r.statePath), 0o700); err != nil {
 		return
 	}
-	pending, approved, forgotten := r.memory.Persist()
-	state := persistedState{
-		Todos:      r.board.Snapshot().Todos,
-		Pending:    pending,
-		Approved:   approved,
-		Forgotten:  forgotten,
-		Deliveries: r.dispatcher.Deliveries(),
+	for {
+		revision := r.memory.Revision()
+		pending, approved, forgotten := r.memory.Persist()
+		if r.persistHook != nil {
+			hook := r.persistHook
+			r.persistHook = nil
+			hook()
+		}
+		if r.memory.Revision() != revision {
+			continue
+		}
+		state := persistedState{
+			Todos:      r.board.Snapshot().Todos,
+			Pending:    pending,
+			Approved:   approved,
+			Forgotten:  forgotten,
+			Deliveries: r.dispatcher.Deliveries(),
+		}
+		data, err := json.MarshalIndent(state, "", "  ")
+		if err != nil {
+			return
+		}
+		if r.memory.Revision() != revision {
+			continue
+		}
+		if err := os.WriteFile(r.statePath, data, 0o600); err != nil {
+			return
+		}
+		if r.memory.Revision() == revision {
+			return
+		}
 	}
-	data, err := json.MarshalIndent(state, "", "  ")
-	if err != nil {
-		return
-	}
-	_ = os.WriteFile(r.statePath, data, 0o600)
 }
 
 func writeJSON(writer io.Writer, value any) error {

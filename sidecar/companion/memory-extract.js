@@ -136,13 +136,33 @@ export async function extractCompanionMemories({
   });
 }
 
-export function createMemoryExtractController({ extract, setTimer, clearTimer } = {}) {
+export function applySemanticMemorySnapshot(state, memories, revision) {
+  const currentRevision = Number.isFinite(state?.revision) ? state.revision : -1;
+  const currentMemories = Array.isArray(state?.memories) ? state.memories : [];
+  if (!Array.isArray(memories)) {
+    return { memories: currentMemories, revision: currentRevision, applied: false };
+  }
+  const nextRevision = Number(revision);
+  if (!Number.isFinite(nextRevision)) {
+    return { memories: currentMemories, revision: currentRevision, applied: false };
+  }
+  if (nextRevision < currentRevision) {
+    return { memories: currentMemories, revision: currentRevision, applied: false };
+  }
+  return { memories, revision: nextRevision, applied: true };
+}
+
+export function createMemoryExtractController({ extract, setTimer, clearTimer, now } = {}) {
   let mode = "turn";
   let idleMs = 10 * 60 * 1000;
   let stretch = [];
   let retry = null;
   let timer = null;
   let generation = 0;
+  let draining = false;
+  let arming = false;
+  let lastIdleStart = 0;
+  const clock = typeof now === "function" ? now : () => Date.now();
 
   function cancelTimer() {
     generation += 1;
@@ -151,28 +171,77 @@ export function createMemoryExtractController({ extract, setTimer, clearTimer } 
   }
 
   function armIdle() {
-    cancelTimer();
-    if (mode !== "idle" || stretch.length === 0 || typeof setTimer !== "function") return;
-    const ticket = generation;
-    timer = setTimer(async () => {
-      if (ticket !== generation) return;
-      timer = null;
-      const batch = stretch;
-      stretch = [];
-      const failed = retry;
-      retry = null;
-      if (failed) await run(failed, true);
-      await run({ stretch: batch, maxItems: MEMORY_EXTRACT_IDLE_LIMIT }, false);
-    }, idleMs);
+    if (arming) return;
+    arming = true;
+    try {
+      cancelTimer();
+      if (mode !== "idle" || stretch.length === 0 || typeof setTimer !== "function") return;
+      const ticket = generation;
+      timer = setTimer(() => {
+        if (ticket !== generation) return;
+        timer = null;
+        return drainIdle(ticket);
+      }, idleMs);
+    } finally {
+      arming = false;
+    }
   }
 
-  async function run(job, isRetry) {
-    if (!job?.stretch?.length || typeof extract !== "function") return;
+  function isStale(ticket) {
+    return ticket !== generation || mode === "off";
+  }
+
+  async function run(job, isRetry, ticket) {
+    if (!job?.stretch?.length || typeof extract !== "function") return "empty";
     try {
-      await extract(job);
+      const result = await extract({
+        ...job,
+        stale: () => isStale(ticket),
+      });
+      if (result && result.committed === false) return "stale";
+      return "ok";
     } catch {
-      if (!isRetry) retry = job;
+      if (!isRetry && !isStale(ticket)) retry = job;
+      return "error";
     }
+  }
+
+  async function drainIdle(ticket) {
+    if (isStale(ticket) || mode !== "idle" || draining) return;
+    const started = clock();
+    if (lastIdleStart !== 0 && started - lastIdleStart < idleMs) {
+      if (timer == null) armIdle();
+      return;
+    }
+    draining = true;
+    lastIdleStart = started;
+    const failed = retry;
+    retry = null;
+    const batch = stretch.splice(0, stretch.length);
+    const turns = [...(failed?.stretch ?? []), ...batch];
+    let status = "empty";
+    try {
+      if (turns.length) {
+        status = await run({
+          stretch: turns,
+          maxItems: MEMORY_EXTRACT_IDLE_LIMIT,
+        }, true, ticket);
+      }
+    } finally {
+      draining = false;
+    }
+    if (mode === "idle" && (status === "stale" || (status === "error" && ticket !== generation))) {
+      stretch = [...turns, ...stretch];
+      if (timer == null) armIdle();
+      return;
+    }
+    if (status === "error" && mode === "idle") {
+      const again = failed ? batch : turns;
+      if (again.length) {
+        retry = { stretch: again, maxItems: MEMORY_EXTRACT_IDLE_LIMIT };
+      }
+    }
+    if (mode === "idle" && stretch.length && timer == null) armIdle();
   }
 
   return {
@@ -188,6 +257,7 @@ export function createMemoryExtractController({ extract, setTimer, clearTimer } 
       idleMs = nextIdleMs;
       if (mode !== "idle") {
         cancelTimer();
+        lastIdleStart = 0;
         if (modeChanged) stretch = [];
       } else if (idleChanged && stretch.length) {
         armIdle();
@@ -215,10 +285,12 @@ export function createMemoryExtractController({ extract, setTimer, clearTimer } 
       }
       const turn = { user, assistant: String(assistantText ?? "").trim() };
       if (mode === "turn") {
+        const ticket = generation;
         const failed = retry;
         retry = null;
-        if (failed) await run(failed, true);
-        await run({ stretch: [turn], maxItems: MEMORY_EXTRACT_TURN_LIMIT }, false);
+        if (failed) await run(failed, true, ticket);
+        if (ticket !== generation || mode !== "turn") return;
+        await run({ stretch: [turn], maxItems: MEMORY_EXTRACT_TURN_LIMIT }, false, ticket);
         return;
       }
       stretch.push(turn);

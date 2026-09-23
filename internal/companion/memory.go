@@ -16,6 +16,10 @@ type Memory struct {
 	pending   map[string]MemoryProposal
 	approved  map[string]ApprovedMemory
 	forgotten map[string]bool
+	// revision increments whenever approved or forgotten memory changes.
+	// Publishers send it with the snapshot so a slower writer cannot
+	// put an older list back over a newer forget or commit.
+	revision uint64
 }
 
 func NewMemory(searcher SessionSearcher, catalog Catalog) *Memory {
@@ -182,9 +186,13 @@ func (m *Memory) Commit(userText string, items []MemoryCommit) map[string]any {
 			written++
 		}
 	}
+	if written > 0 {
+		m.bumpLocked()
+	}
 	return map[string]any{
 		"written":  true,
 		"count":    written,
+		"revision": m.revision,
 		"approved": approvedPayload(m.approved, m.forgotten),
 	}
 }
@@ -230,9 +238,11 @@ func (m *Memory) Forget(memoryID string) (map[string]any, error) {
 	delete(m.pending, memoryID)
 	delete(m.approved, memoryID)
 	m.forgotten[memoryID] = true
+	m.bumpLocked()
 	return map[string]any{
 		"forgotten": memoryID,
 		"written":   false,
+		"revision":  m.revision,
 	}, nil
 }
 
@@ -255,12 +265,32 @@ func (m *Memory) Approve(memoryID string) (ApprovedMemory, error) {
 	}
 	delete(m.pending, memoryID)
 	m.approved[memoryID] = approved
+	m.bumpLocked()
 	return approved, nil
 }
 
 func (m *Memory) ApprovedForAssembly() []ApprovedMemory {
+	_, approved := m.SnapshotApproved()
+	return approved
+}
+
+func (m *Memory) Revision() uint64 {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	return m.revision
+}
+
+func (m *Memory) SnapshotApproved() (uint64, []ApprovedMemory) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.revision, m.approvedLocked()
+}
+
+func (m *Memory) bumpLocked() {
+	m.revision++
+}
+
+func (m *Memory) approvedLocked() []ApprovedMemory {
 	result := make([]ApprovedMemory, 0, len(m.approved))
 	for _, memory := range m.approved {
 		if m.forgotten[memory.ID] {
