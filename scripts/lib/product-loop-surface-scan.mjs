@@ -41,6 +41,8 @@ const LEAK_RULES = [
   { id: 'companion-host', re: /companion-host-\d+/i },
   { id: 'unknown-host', re: /unknown companion host request/i },
   { id: 'no-api-key-debug', re: /No API key for \S+/i },
+  { id: 'model-not-found', re: /Model "[^"]+" not found\. Use --list-models/i },
+  { id: 'subagent-discovery', re: /Cannot read properties of undefined \(reading 'state'\)/ },
   { id: 'session-not-ready', re: /companion session is not ready|companion prompt is required|companion model not found|companion provider and model are required/i },
   { id: 'stack-frame', re: /\bat (?:Object|Module|async |[A-Za-z.]+ \()/ },
   { id: 'stack-path', re: /\bat [^\n]*(?:\/Users\/|\/home\/|C:\\Users\\)/ },

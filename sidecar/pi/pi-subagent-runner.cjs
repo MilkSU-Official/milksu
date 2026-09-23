@@ -411,9 +411,16 @@ function writeRuntimeModelConfig(
           contextWindow: require("./known-context-window.cjs").registeredContextWindow(
             selection.model,
             0,
-            require("./known-context-window.cjs").contextWindowOverride(selection.provider, selection.model),
+            require("./known-context-window.cjs").contextWindowOverride(
+              selection.provider,
+              selection.model,
+              environment,
+            ),
           ),
-          maxTokens: 32768,
+          maxTokens: require("./known-context-window.cjs").registeredMaxTokens(
+            selection.model,
+            0,
+          ),
           compat: {
             supportsDeveloperRole: false,
             supportsReasoningEffort: Boolean(selection.thinkingLevel),

@@ -38,10 +38,10 @@ index 0877ee7..6d34111 100644
      const userAgentsSkillsDir = join(homeDir, ".agents", "skills");
      let currentDir = canonicalizePath(resolvePath(cwd));
 diff --git a/node_modules/@earendil-works/pi-coding-agent/dist/utils/shell.js b/node_modules/@earendil-works/pi-coding-agent/dist/utils/shell.js
-index 19605cc..6f1155c 100644
+index 19605cc..840c942 100644
 --- a/node_modules/@earendil-works/pi-coding-agent/dist/utils/shell.js
 +++ b/node_modules/@earendil-works/pi-coding-agent/dist/utils/shell.js
-@@ -119,10 +119,35 @@ export function getShellEnv() {
+@@ -119,10 +119,44 @@ export function getShellEnv() {
      const pathEntries = currentPath.split(delimiter).filter(Boolean);
      const hasBinDir = pathEntries.includes(binDir);
      const updatedPath = hasBinDir ? currentPath : [binDir, currentPath].filter(Boolean).join(delimiter);
@@ -63,15 +63,24 @@ index 19605cc..6f1155c 100644
 +            "GROQ_BASE_URL",
 +            "KOURICHAT_API_KEY",
 +            "KOURICHAT_BASE_URL",
++            "MILKSU_CUSTOM_PROVIDER_KEY",
++            "MILKSU_CUSTOM_PROVIDER_URL",
++            "MILKSU_IMAGEGEN_API_KEY",
 +            "MILKSU_RELAY_KEY",
 +            "MILKSU_RELAY_URL",
 +            "MISTRAL_API_KEY",
 +            "MISTRAL_BASE_URL",
 +            "OPENAI_API_KEY",
 +            "OPENAI_BASE_URL",
++            "TOKENFLUX_API_KEY",
++            "TOKENFLUX_BASE_URL",
 +            "MILKSU_PI_SUBAGENT_RUNTIME",
 +        ]) {
 +            delete environment[name];
++        }
++        for (const name of Object.keys(environment)) {
++            if (name.startsWith("MILKSU_SUBAGENT_KEY_"))
++                delete environment[name];
 +        }
 +    }
 +    return environment;

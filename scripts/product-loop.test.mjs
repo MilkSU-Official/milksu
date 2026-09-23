@@ -47,6 +47,7 @@ import {
   surfaceAllowKinds,
 } from './lib/product-loop-surface-scan.mjs'
 import { isNewConversationCanvas, turnBroken } from './lib/product-loop-session.mjs'
+import { assessSubagentTurn, SUBAGENT_MARKER, subagentEvidenceText } from './lib/product-loop-coding.mjs'
 import {
   applyProductLoopLocalEnv,
   describeProductLoopLocalEnv,
@@ -137,7 +138,7 @@ test('catalog keeps product regression away from evalsuite', () => {
     'settings-rest',
   ])
   assert.equal(CASE_RUN_ORDER[0], 'login-gate')
-  assert.equal(MODULES.coding.cases.length, 33)
+  assert.equal(MODULES.coding.cases.length, 34)
   assert.equal(MODULES.companion.cases.length, 22)
   assert.equal(MODULES.workspaces.cases.length, 33)
   assert.equal(MODULES['desktop-surface'].cases.length, 9)
@@ -1109,6 +1110,99 @@ test('surface scanner fails leaks and unexpected error chrome, not expected form
   }, { caseId: 'login-gate' })
   assert.equal(sessionLeak.fail, true)
   assert.equal(sessionLeak.hits.some(item => item.kind === 'session-not-ready'), true)
+})
+
+test('Pi subagent turn fails closed on the child model error and passes only with the marker file', () => {
+  const modelError = 'Model "tokenflux/deepseek/deepseek-flash" not found. Use --list-models to see available models.'
+  const rejected = assessSubagentTurn({
+    toolNames: ['subagent'],
+    transcript: `Background task failed: **delegate**\n${modelError}`,
+    fileText: '',
+  })
+  assert.equal(rejected.result, 'FAIL')
+  assert.match(rejected.detail, /不认父会话模型/)
+  assert.match(rejected.detail, /tokenflux\/deepseek\/deepseek-flash/)
+  assert.equal(rejected.detail.includes('sk-'), false)
+
+  const crash = assessSubagentTurn({
+    toolNames: ['subagent'],
+    transcript: "Cannot read properties of undefined (reading 'state')",
+    fileText: SUBAGENT_MARKER,
+  })
+  assert.equal(crash.result, 'FAIL')
+  assert.match(crash.detail, /发现崩溃/)
+
+  const parentWroteIt = assessSubagentTurn({
+    toolNames: ['write'],
+    transcript: '',
+    fileText: SUBAGENT_MARKER,
+  })
+  assert.equal(parentWroteIt.result, 'FAIL')
+  assert.match(parentWroteIt.detail, /没有调用 subagent/)
+
+  const otherFailure = assessSubagentTurn({
+    toolNames: ['subagent'],
+    transcript: 'Background task failed: workspace was not writable',
+    fileText: '',
+    timeout: true,
+  })
+  assert.equal(otherFailure.result, 'FAIL')
+  assert.match(otherFailure.detail, /workspace was not writable/)
+
+  const lateFile = assessSubagentTurn({
+    toolNames: ['subagent'],
+    transcript: '',
+    fileText: SUBAGENT_MARKER,
+    timeout: true,
+  })
+  assert.equal(lateFile.result, 'FAIL')
+  assert.match(lateFile.detail, /父回合超时/)
+
+  const passed = assessSubagentTurn({
+    toolNames: ['subagent'],
+    transcript: subagentEvidenceText({
+      type: 'tool.result',
+      toolName: 'subagent',
+      content: 'worker finished',
+      apiKey: 'sk-live-must-not-appear',
+    }),
+    fileText: `${SUBAGENT_MARKER}\n`,
+  })
+  assert.equal(passed.result, 'PASS')
+  assert.equal(passed.detail.includes('sk-live'), false)
+  assert.equal(subagentEvidenceText({ apiKey: 'sk-live-must-not-appear', content: 'ok' }).includes('sk-live'), false)
+
+  const visible = scanProductLoopSurface({
+    surface: 'main',
+    locale: 'zh-CN',
+    text: modelError,
+    findings: [{ kind: 'alert', text: modelError }],
+  }, { caseId: 'coding-pi-subagent' })
+  assert.equal(visible.fail, true)
+  assert.equal(visible.hits.some(item => item.kind === 'model-not-found'), true)
+  const upgraded = applySurfaceScan({
+    id: 'coding-pi-subagent',
+    result: 'PASS',
+    detail: '后台子代理沿用当前会话模型写出了 SUBAGENT.txt',
+  }, visible, { caseId: 'coding-pi-subagent' })
+  assert.equal(upgraded.result, 'FAIL')
+  assert.match(upgraded.detail, /Model "tokenflux\/deepseek\/deepseek-flash" not found/)
+  const skipped = applySurfaceScan({
+    id: 'coding-pi-subagent',
+    result: 'SKIP',
+    expectedMiss: true,
+    detail: '这台机器没有模型凭据',
+  }, visible, { caseId: 'coding-pi-subagent', expectedMiss: true })
+  assert.equal(skipped.result, 'FAIL')
+  assert.match(skipped.detail, /表面异常/)
+
+  const discovery = scanProductLoopSurface({
+    surface: 'main',
+    locale: 'zh-CN',
+    findings: [{ kind: 'alert', text: "Cannot read properties of undefined (reading 'state')" }],
+  }, { caseId: 'coding-pi-subagent' })
+  assert.equal(discovery.fail, true)
+  assert.equal(discovery.hits.some(item => item.kind === 'subagent-discovery'), true)
 })
 
 test('surface scanner upgrades PASS and expectedMiss SKIP, never greenwashes a leak', () => {

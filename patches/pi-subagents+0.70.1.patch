@@ -1,5 +1,5 @@
 diff --git a/node_modules/pi-subagents/src/agents/agents.js b/node_modules/pi-subagents/src/agents/agents.js
-index c39baa3..c88e504 100644
+index c39baa3..99fd744 100644
 --- a/node_modules/pi-subagents/src/agents/agents.js
 +++ b/node_modules/pi-subagents/src/agents/agents.js
 @@ -2103,7 +2103,9 @@ function resolveNearestProjectChainDirs(cwd) {
@@ -60,6 +60,15 @@ index c39baa3..c88e504 100644
      return {
          cwd: effectiveCwd,
          ...(preferredModelProvider !== undefined ? { preferredModelProvider } : {}),
+@@ -2351,7 +2356,7 @@ function buildAgentDiscoverySources(cwd, preferredModelProvider) {
+         userDirNew,
+         userChainDir,
+         projectAgentDirs,
+-        projectCandidateDirs: projectCandidateDirs.filter((dir) => !isExcluded(dir)),
++        projectCandidateDirs: milksuBundledOnly ? [] : projectCandidateDirs.filter((dir) => !isExcluded(dir)),
+         projectAgentsDir,
+         projectChainDirs,
+         projectChainDir,
 @@ -2573,6 +2578,7 @@ export function discoverAgentSnapshot(cwd, scope, preferredModelProvider, option
  }
  function discoverAgentsUncached(cwd, scope, preferredModelProvider) {

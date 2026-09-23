@@ -405,6 +405,7 @@ export function projectSubagentRosterStart(input, context = {}) {
 }
 
 export function projectSubagentRosterEnd(tasks, result, context = {}) {
+  if (result?.details?.mode === "management") return Array.isArray(tasks) ? tasks : [];
   const receipt = isAsyncSubagentReceipt(result);
   if (receipt && !context.isError) {
     const list = Array.isArray(tasks) && tasks.length
@@ -468,6 +469,12 @@ export function projectSubagentYields(raw, context = {}) {
 }
 
 export function projectSubagentToolResult(event, context = {}) {
+  if (event?.details?.mode === "management") {
+    return {
+      content: event?.content,
+      details: event?.details,
+    };
+  }
   if (isAsyncSubagentReceipt(event)) {
     return {
       content: event?.content,

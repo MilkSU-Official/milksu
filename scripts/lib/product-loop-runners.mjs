@@ -22,6 +22,7 @@ import {
   runCodingPiHandoff,
   runCodingPiShell,
   runCodingPiSteer,
+  runCodingPiSubagent,
   runCodingPiStop,
   runComposerGit,
   runComposerModel,
@@ -127,6 +128,7 @@ import { applySurfaceScan, inspectProductLoopSurfaces, mergeSurfaceScans } from 
 
 export const PRODUCT_LOOP_RUNNERS = {
   'coding-pi-files': (driver, options) => runCodingPiFiles(driver, options),
+  'coding-pi-subagent': (driver, options) => runCodingPiSubagent(driver, options),
   'coding-pi-shell': (driver, options) => runCodingPiShell(driver, options),
   'coding-pi-edit': (driver, options) => runCodingPiEdit(driver, options),
   'coding-pi-compact': (driver, options) => runCodingPiCompact(driver, options),

@@ -20,6 +20,7 @@ export const CASES = {
   'login-skip-local': item('login-skip-local', '暂不登录进首页', 'first-use', true),
 
   'coding-pi-files': item('coding-pi-files', 'Pi 写文件', 'coding', true),
+  'coding-pi-subagent': item('coding-pi-subagent', 'Pi 后台子代理', 'coding', true),
   'coding-pi-shell': item('coding-pi-shell', 'Pi 跑命令', 'coding', true),
   'coding-pi-edit': item('coding-pi-edit', 'Pi 改文件', 'coding', true),
   'coding-pi-compact': item('coding-pi-compact', 'Pi 整理上下文', 'coding', true),
@@ -162,9 +163,9 @@ export const MODULES = {
     needsDesktop: true,
     needsCredential: true,
     isolated: true,
-    detail: 'Pi 与 DSH 日常开发：写文件、改文件、跑命令、插话、排队、停止、整理上下文、选择卡、计划、目标、并行，以及会话壳和输入栏。',
+    detail: 'Pi 与 DSH 日常开发：写文件、后台子代理、改文件、跑命令、插话、排队、停止、整理上下文、选择卡、计划、目标、并行，以及会话壳和输入栏。',
     cases: [
-      'coding-pi-files', 'coding-pi-shell', 'coding-pi-edit', 'coding-pi-compact', 'coding-pi-steer', 'coding-pi-stop', 'coding-pi-ask', 'coding-pi-ask-continue', 'coding-cite', 'coding-attach', 'coding-pi-handoff',
+      'coding-pi-files', 'coding-pi-subagent', 'coding-pi-shell', 'coding-pi-edit', 'coding-pi-compact', 'coding-pi-steer', 'coding-pi-stop', 'coding-pi-ask', 'coding-pi-ask-continue', 'coding-cite', 'coding-attach', 'coding-pi-handoff',
       'coding-dsh-files', 'coding-dsh-shell', 'coding-dsh-queue', 'coding-dsh-plan', 'coding-dsh-goal', 'coding-dsh-multitask', 'coding-dsh-stop', 'coding-dsh-compact',
       'session-new', 'session-pin', 'session-rename', 'session-fork', 'session-archive', 'session-delete', 'session-command-panel',
       'composer-model', 'composer-runtime', 'composer-git', 'composer-plus', 'rail-open', 'terminal-open', 'session-context-menu',

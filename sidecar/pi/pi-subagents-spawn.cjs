@@ -3,29 +3,17 @@
 const { existsSync } = require("node:fs");
 const { tmpdir } = require("node:os");
 const { join } = require("node:path");
+const {
+  applyChildModelEnvironment,
+  childProcessDeniedEnvNames,
+  childShellDeniedEnvNames,
+} = require("./pi-subagent-model-registry.cjs");
 
 // Same names the Pi shell copy drops when MILKSU_PI_SUBAGENT_RUNTIME=1.
-// External CLI children never receive these. The Pi runner process keeps them
-// so the model API can authenticate; only its shell copy is stripped.
-const providerEnvNames = Object.freeze([
-  "ANTHROPIC_API_KEY",
-  "ANTHROPIC_BASE_URL",
-  "DEEPSEEK_API_KEY",
-  "DEEPSEEK_BASE_URL",
-  "GEMINI_API_KEY",
-  "GOOGLE_API_KEY",
-  "GOOGLE_BASE_URL",
-  "GROQ_API_KEY",
-  "GROQ_BASE_URL",
-  "KOURICHAT_API_KEY",
-  "KOURICHAT_BASE_URL",
-  "MILKSU_RELAY_KEY",
-  "MILKSU_RELAY_URL",
-  "MISTRAL_API_KEY",
-  "MISTRAL_BASE_URL",
-  "OPENAI_API_KEY",
-  "OPENAI_BASE_URL",
-]);
+// External CLI children never receive these. The Pi runner process keeps the
+// provider keys so the model API can authenticate; only its shell copy is
+// stripped. Image generation is not that API, so its key is dropped from both.
+const providerEnvNames = childShellDeniedEnvNames;
 
 function quoted(value) {
   return JSON.stringify(String(value));
@@ -56,6 +44,9 @@ function environmentCopy(env) {
 
 function stripProviderEnv(env) {
   for (const name of providerEnvNames) delete env[name];
+  for (const name of Object.keys(env)) {
+    if (name.startsWith("MILKSU_SUBAGENT_KEY_")) delete env[name];
+  }
   delete env.MILKSU_PI_SUBAGENT_RUNTIME;
 }
 
@@ -81,6 +72,9 @@ function guardSubagentSpawn({
   }
   nextEnv.MILKSU_PI_SUBAGENT_RUNTIME = "1";
   nextEnv.MILKSU_PI_NO_PROJECT_RESOURCE_DISCOVERY = "1";
+  for (const name of childProcessDeniedEnvNames) delete nextEnv[name];
+  const withModels = applyChildModelEnvironment(nextEnv, nextCwd);
+  Object.assign(nextEnv, withModels);
   if (platform !== "darwin") {
     return {
       command,
@@ -118,5 +112,6 @@ function guardSubagentSpawn({
 module.exports = {
   guardSubagentSpawn,
   providerEnvNames,
+  stripProviderEnv,
   writeSandboxProfile,
 };

@@ -167,6 +167,12 @@ import {
 import piWebResearchExtension from "./bridge-web-research.js";
 import currentProviderRuntime from "./current-provider-runtime.cjs";
 import {
+  apiKeyEnvFor,
+  forgetSessionProviders,
+  publicProvider,
+  rememberSessionProviders,
+} from "./pi-subagent-model-registry.cjs";
+import {
   createModelSourceRouteProvider,
   modelSourceFailureMessage,
   normalizeModelSourceOrder,
@@ -1146,6 +1152,80 @@ function normalizeCommandModelSourceOrder(value) {
   return [...new Set(source.filter(id => id === "account" || id === "personal"))];
 }
 
+function childProviderSecrets(provider, turnProvider, envName) {
+  if (!String(envName ?? "").startsWith("MILKSU_SUBAGENT_KEY_")) return {};
+  const key = String(turnProvider?.key ?? "");
+  if (!key || String(turnProvider?.id ?? "").trim() !== String(provider ?? "").trim()) return {};
+  return { [envName]: key };
+}
+
+function rememberChildModelRegistry({
+  conversationId,
+  provider,
+  model,
+  thinking,
+  turnProvider,
+  definition,
+  account,
+  sources,
+  effectiveProvider,
+}) {
+  const providers = [];
+  const secrets = {};
+  if (definition) {
+    const envName = apiKeyEnvFor(provider, process.env, turnProvider);
+    Object.assign(secrets, childProviderSecrets(provider, turnProvider, envName));
+    const shaped = withProviderThinkingProfile(definition, model, thinking);
+    const published = publicProvider(provider, shaped, envName);
+    if (published) providers.push(published);
+  }
+  if (account?.model) {
+    const published = publicProvider("milksu-account", {
+      name: "MilkSU 账户分配模型",
+      baseUrl: relayUrl,
+      api: account.model.api || "openai-completions",
+      models: [withModelThinkingProfile({
+        id: account.id,
+        name: account.model.name || account.id,
+        reasoning: account.model.reasoning,
+        thinkingLevelMap: account.model.thinkingLevelMap,
+        input: account.model.input,
+        cost: account.model.cost,
+        contextWindow: account.model.contextWindow,
+        maxTokens: account.model.maxTokens,
+        compat: account.model.compat,
+      }, thinking)],
+    }, "MILKSU_RELAY_KEY");
+    if (published) providers.push(published);
+  }
+  // milksu-route is an in-process stream. The child keeps that provider id
+  // and the first source's transport, so the inherited model string resolves.
+  // It does not replay the parent's live source failover.
+  if (effectiveProvider === "milksu-route" && sources?.[0]?.model) {
+    const source = sources[0].model;
+    const sourceEnv = apiKeyEnvFor(source.provider, process.env, turnProvider);
+    const baseUrl = source.baseUrl || (source.provider === "milksu-account" ? relayUrl : definition?.baseUrl);
+    const published = baseUrl ? publicProvider("milksu-route", {
+      name: "MilkSU 模型来源",
+      baseUrl,
+      api: source.api || definition?.api || "openai-completions",
+      models: [{
+        id: model,
+        name: source.name || model,
+        reasoning: source.reasoning,
+        thinkingLevelMap: source.thinkingLevelMap,
+        input: source.input,
+        cost: source.cost,
+        contextWindow: source.contextWindow,
+        maxTokens: source.maxTokens,
+        compat: source.compat,
+      }],
+    }, sourceEnv || apiKeyEnvFor(provider, process.env, turnProvider)) : undefined;
+    if (published) providers.push(published);
+  }
+  rememberSessionProviders(conversationId, providers, secrets);
+}
+
 function configureRuntimeModel(
   session,
   provider,
@@ -1234,6 +1314,17 @@ function configureRuntimeModel(
       });
     }
     emit(conversationId, "model_source_selected", { source: sources[0].id });
+    rememberChildModelRegistry({
+      conversationId,
+      provider,
+      model,
+      thinking,
+      turnProvider,
+      definition,
+      account,
+      sources,
+      effectiveProvider: sources[0].model.provider,
+    });
     return { provider: sources[0].model.provider, model: sources[0].model.id };
   }
 
@@ -1254,6 +1345,17 @@ function configureRuntimeModel(
     },
     onFallback: fallback => emit(conversationId, "model_source_fallback", fallback),
   }));
+  rememberChildModelRegistry({
+    conversationId,
+    provider,
+    model,
+    thinking,
+    turnProvider,
+    definition,
+    account,
+    sources,
+    effectiveProvider: "milksu-route",
+  });
   return { provider: "milksu-route", model };
 }
 
@@ -2028,6 +2130,7 @@ async function sendMessage(command) {
     sessionPolicyControllers.delete(conversationId);
     sessionModelSources.delete(conversationId);
     sessionConfiguredProviders.delete(conversationId);
+    forgetSessionProviders(conversationId);
     existing = undefined;
   }
   const session = existing ?? await createSession(command);
@@ -2254,6 +2357,7 @@ async function destroySession(command) {
   sessionPolicyControllers.delete(conversationId);
   sessionModelSources.delete(conversationId);
   sessionConfiguredProviders.delete(conversationId);
+  forgetSessionProviders(conversationId);
   sessionSubagentTasks.delete(conversationId);
   backgroundTaskControllers.delete(conversationId);
   promptQueues.delete(conversationId);
