@@ -204,22 +204,22 @@ flowchart TB
 
 闲置计时只有看板娘 sidecar 里的那一个。Coding 和 DSH 的新回合会把它清掉，未提取的那段留到下一次安静时间。应用关掉时不补跑。
 
-提取指令同时丢掉题目技法、Flag、CVE 结论和实验室观察。那些不是这个人的偏好。
+提取会留下这个人做 CTF、CVE、实验室时的习惯和要求。改口就更新同一条。某一道题、某一个 CVE 或某一次实验室作业的结论和 Flag 留在对应作业里。
 
 ## 领域记忆
 
-L4 不另做一套提取。模型结论不会自动写进来。每一域只用已经存在的用户确认记录，在工作区被解析时写成一份先验文件。下一次会话读文件，不把整份领域记忆塞进用户长期记忆那条自定义消息。
+L4 不另做一套提取。模型结论不会自动写进来。旧题结论和这个 CVE 上保存过的学习，在工作区被解析时写成一份先验文件。个人做题习惯走 L2，可以改口，不写成不可修改的证据。
 
 ```text
-CTF     用户显式保存训练记忆
-        ctf/memory.sqlite3 + ctf/memories/*.md
-        准备题目工作区时按分类召回最多 5 条，排除本题，写成 MEMORY.md
-CVE     RecordLearning 记在这个 CVE 的作业投影上
-        解析研究工作区时写成 LEARNING.md；没有记录就删掉文件
-        记下一条时，若工作区已经存在，立刻重写
-实验室  作业要求在 lab-jobs/<id>.json
-        解析作业工作区时写成 TASK.md
-        结果仍在 report.md
+个人习惯  做 CTF、CVE、实验室时一直成立的习惯和要求
+          写入 L2。可以改口更新，可以忘掉。不是证据账本。
+CTF       用户显式保存的旧题结论
+          ctf/memory.sqlite3 + ctf/memories/*.md
+          准备题目工作区时按分类召回最多 5 条，排除本题，写成 MEMORY.md
+CVE       RecordLearning 记在这个 CVE 的作业投影上
+          解析研究工作区时写成 LEARNING.md；没有记录就删掉文件
+实验室    作业要求留在 lab-jobs/<id>.json，结果留在 report.md
+          不另写一份记忆文件
 ```
 
 ```mermaid
@@ -238,18 +238,14 @@ flowchart TB
     cveFile["研究工作区 LEARNING.md"]
   end
 
-  subgraph lab["实验室"]
-    labSave["用户保存的作业要求"]
-    labStore["lab-jobs/id.json"]
-    labRecall["解析作业工作区"]
-    labFile["作业工作区 TASK.md"]
-    labResult["report.md 仍是这次作业的结果"]
+  subgraph person["个人"]
+    habit["做题习惯和要求"]
+    l2habit["L2 长期记忆<br/>可更新、可忘掉"]
   end
 
   ctfSave --> ctfStore --> ctfRecall --> ctfFile
   cveSave --> cveStore --> cveRecall --> cveFile
-  labSave --> labStore --> labRecall --> labFile
-  labRecall --> labResult
+  habit --> l2habit
 ```
 
 | 时刻 | 动作 | 落点 |
@@ -259,11 +255,13 @@ flowchart TB
 | CVE 记下学习 | `RecordLearning` 写角色事实。不创建研究目录。 | 漏洞作业投影 |
 | CVE 工作区被解析 | 按 CVE id 读已保存的学习记录。有则重写文件，没有则删除。工作区不在产物目录里就不写。 | 研究工作区 `LEARNING.md` |
 | CVE 又记下一条，工作区已经存在 | 同一份文件重写。工作区还没有就只留在投影里。 | `LEARNING.md` |
-| 实验室作业工作区被解析 | 读当前作业的标题、范围和要求并重写。作业不在就不写。要求改了，下一次解析跟上。 | 作业工作区 `TASK.md` |
-| 下一次 Pi 研究回合 | CVE 角色被告知 `LEARNING.md` 是先验；实验室角色被告知 `TASK.md` 是作业要求。都不是已确认发现。 | 只在工作区文件里 |
-| 看板娘提取 | 不把这些写成 L2。 | 不写 |
+| 用户说出一直成立的做题习惯 | 同一条用户记忆提取。对得上原句就写入或更新。不必先证明它不可更改。 | L2 |
+| 下一次 Pi 回合，包括下一道 CTF | 请求里带上 L2。解题工作区同时能读到 `MEMORY.md`。 | 习惯在 L2，旧题结论在 `MEMORY.md` |
+| 看板娘提取 | 习惯写入 L2。某一道作业的结论不写入。 | L2 |
 
-CTF 的 `MEMORY.md` 仍是可疑先验，采用前要用当前题面重新验证。归档训练记忆后，下一次准备不再召回它。CVE 没有跨 CVE 召回。实验室没有跨作业的技法库；作业要求就是这一次的先验，观察留在 `report.md` 和会话抄本。渲染器里的 CVE 研究草稿不是这份文件。DSH 不另加一条领域提示，文件仍在工作区里。写文件失败不挡住打开工作区。
+个人习惯不走 CTF 训练记忆那套验证等级、贡献归属和不可覆盖文件。那套只服务旧题结论：保存时要有题目投影上的证据，召回到下一道同分类题时写成 `MEMORY.md`，采用前用本题材料核对。归档后不再召回。它不并进 L2，因为一条旧题结论不是这个人的习惯。
+
+CVE 没有跨 CVE 召回。实验室不另写记忆文件，作业要求留在作业上，观察留在 `report.md` 和会话抄本。渲染器里的 CVE 研究草稿不是 `LEARNING.md`。DSH 不另加一条领域提示，文件仍在工作区里。写文件失败不挡住打开工作区。
 
 ## 六层与依赖
 

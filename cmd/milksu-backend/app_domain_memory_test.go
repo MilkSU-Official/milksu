@@ -9,7 +9,6 @@ import (
 
 	"github.com/MilkSU-Official/milksu/internal/appdata"
 	"github.com/MilkSU-Official/milksu/internal/conversation"
-	"github.com/MilkSU-Official/milksu/internal/lab"
 	"github.com/MilkSU-Official/milksu/internal/securityruntime"
 	"github.com/MilkSU-Official/milksu/internal/vuln"
 )
@@ -18,10 +17,6 @@ func TestDomainMemoryLandsInTheArtifactWorkspace(t *testing.T) {
 	dataDirectory := filepath.Join(t.TempDir(), "appdata")
 	t.Setenv(appdata.DirectoryOverrideEnv, dataDirectory)
 	conversations, err := conversation.NewStore()
-	if err != nil {
-		t.Fatal(err)
-	}
-	labJobs, err := lab.NewStore()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +34,6 @@ func TestDomainMemoryLandsInTheArtifactWorkspace(t *testing.T) {
 		dataDirectory:     dataDirectory,
 		artifactDirectory: artifactDirectory,
 		conversations:     conversations,
-		labJobs:           labJobs,
 		vulnJobs:          vulnJobs,
 	}
 	secret := "sk-abcdefghijklmnopqrstuv"
@@ -121,14 +115,6 @@ func TestDomainMemoryLandsInTheArtifactWorkspace(t *testing.T) {
 		t.Fatalf("stale learning file remained: %v", err)
 	}
 
-	if err := labJobs.Save(lab.Job{
-		ID:      "job-one",
-		Title:   "本机练习机",
-		Scope:   "local",
-		Request: "只看本机进程",
-	}); err != nil {
-		t.Fatal(err)
-	}
 	if err := conversations.Save(conversation.StoredConversation{
 		ID:    "lab-job-job-one",
 		Title: "本机练习机",
@@ -136,7 +122,6 @@ func TestDomainMemoryLandsInTheArtifactWorkspace(t *testing.T) {
 			"kind":    "lab",
 			"jobId":   "job-one",
 			"title":   "本机练习机",
-			"scope":   "local",
 			"request": "只看本机进程",
 		},
 		Messages: []conversation.StoredMessage{},
@@ -147,32 +132,11 @@ func TestDomainMemoryLandsInTheArtifactWorkspace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	task := readFileString(t, filepath.Join(labWorkspace, lab.JobContextFileName))
-	if !strings.Contains(task, "只看本机进程") || !strings.Contains(task, "范围：本机") {
-		t.Fatalf("lab task: %s", task)
-	}
-	if err := labJobs.Save(lab.Job{
-		ID:      "job-one",
-		Title:   "本机练习机",
-		Scope:   "local",
-		Request: "改看本机端口",
-	}); err != nil {
+	if _, err := os.Stat(filepath.Join(labWorkspace, "report.md")); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := app.resolveConversationWorkspace("lab-job-job-one", labWorkspace); err != nil {
-		t.Fatal(err)
-	}
-	task = readFileString(t, filepath.Join(labWorkspace, lab.JobContextFileName))
-	if !strings.Contains(task, "改看本机端口") {
-		t.Fatalf("lab task was not refreshed: %s", task)
-	}
-
-	outside := t.TempDir()
-	if _, err := app.resolveConversationWorkspace("lab-job-job-one", outside); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := os.Stat(filepath.Join(outside, lab.JobContextFileName)); !os.IsNotExist(err) {
-		t.Fatalf("job context was written outside the artifact workspace: %v", err)
+	if _, err := os.Stat(filepath.Join(labWorkspace, "TASK.md")); !os.IsNotExist(err) {
+		t.Fatalf("lab job request was copied into a memory file: %v", err)
 	}
 }
 

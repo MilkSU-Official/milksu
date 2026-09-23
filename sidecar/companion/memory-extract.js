@@ -20,9 +20,10 @@ export function memoryExtractInstructions(locale, maxItems) {
   if (locale === "en") {
     return [
       "Extract durable user memory from this stretch.",
-      "Keep only a stable preference, a form of address, or a standing personal constraint.",
+      "Keep a stable preference, a form of address, a standing personal constraint, or a habit or requirement for how this person wants CTF, CVE, or Lab work done.",
+      "A habit can be updated when the user changes it.",
       "Do not keep repository, project, or branch rules. Those stay with the project.",
-      "Do not keep challenge techniques, flags, CVE findings, or lab observations. Those stay with that CTF, CVE, or Lab job.",
+      "Do not keep a conclusion about one challenge, one CVE, or one lab job, and do not keep flags. Those stay with that job.",
       "Write each conclusion as an affirmative sentence.",
       "evidence must be a contiguous quote copied from the user text.",
       "If the stretch is a greeting, small talk, or task coordination, return no items.",
@@ -34,9 +35,10 @@ export function memoryExtractInstructions(locale, maxItems) {
   }
   return [
     "从这一段对话里提取可以长期记住的用户事实。",
-    "只保留稳定偏好、称呼或针对这个人的长期约束。",
+    "只保留稳定偏好、称呼、针对这个人的长期约束，以及这个人做 CTF、CVE、实验室时的习惯和要求。",
+    "习惯和要求可以改口更新。",
     "不要记录仓库、项目或分支的规矩，那些留在项目里。",
-    "不要记录题目技法、Flag、CVE 结论或实验室观察，那些留在对应的 CTF、CVE 或实验室作业里。",
+    "不要记录某一道题、某一个 CVE 或某一次实验室作业上的结论，也不要记录 Flag。那些留在对应作业里。",
     "结论写成肯定句。",
     "evidence 必须是用户原话里连续抄下来的一段。",
     "打招呼、闲聊或纯编排就返回空列表。",

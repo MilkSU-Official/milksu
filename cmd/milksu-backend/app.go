@@ -1434,14 +1434,11 @@ func (a *App) refreshDomainWorkspace(conversationID, workspace string) {
 		return
 	}
 	kind, _ := stored.DomainTaskContext["kind"].(string)
-	switch kind {
-	case "cve":
-		cveID, _ := stored.DomainTaskContext["cveId"].(string)
-		a.writeCVELearningFile(workspace, cveID)
-	case "lab":
-		jobID, _ := stored.DomainTaskContext["jobId"].(string)
-		a.writeLabJobFile(workspace, jobID)
+	if kind != "cve" {
+		return
 	}
+	cveID, _ := stored.DomainTaskContext["cveId"].(string)
+	a.writeCVELearningFile(workspace, cveID)
 }
 
 func (a *App) writeCVELearningFile(workspace, cveID string) {
@@ -1455,23 +1452,6 @@ func (a *App) writeCVELearningFile(workspace, cveID string) {
 	}
 	if err := vuln.WriteLearningContext(workspace, cveID, records); err != nil {
 		a.noteDomainMemory("cve learning was not written")
-	}
-}
-
-func (a *App) writeLabJobFile(workspace, jobID string) {
-	if a == nil || a.labJobs == nil {
-		return
-	}
-	jobID = strings.TrimSpace(jobID)
-	if jobID == "" {
-		return
-	}
-	job, err := a.labJobs.Get(jobID)
-	if err != nil {
-		return
-	}
-	if err := lab.WriteJobContext(workspace, job); err != nil {
-		a.noteDomainMemory("lab job context was not written")
 	}
 }
 

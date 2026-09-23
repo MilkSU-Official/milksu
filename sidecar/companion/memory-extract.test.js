@@ -15,11 +15,17 @@ test("extract instructions leave repository rules in the project", () => {
   assert.match(memoryExtractInstructions("en", 1), /repository/);
 });
 
-test("extract instructions leave domain findings on the job", () => {
-  assert.match(memoryExtractInstructions("zh", 1), /CVE/);
-  assert.match(memoryExtractInstructions("zh", 1), /实验室/);
-  assert.match(memoryExtractInstructions("en", 1), /CVE findings/);
-  assert.match(memoryExtractInstructions("en", 1), /Lab job/);
+test("extract instructions keep personal domain habits and leave one job's conclusion", () => {
+  const zh = memoryExtractInstructions("zh", 1);
+  const en = memoryExtractInstructions("en", 1);
+  assert.match(zh, /习惯和要求/);
+  assert.match(zh, /可以改口更新/);
+  assert.match(zh, /某一道题/);
+  assert.doesNotMatch(zh, /不可修改|必须再验证/);
+  assert.match(en, /habit or requirement/);
+  assert.match(en, /can be updated/);
+  assert.match(en, /one challenge/);
+  assert.doesNotMatch(en, /tamper|must be verified/);
 });
 
 test("extract timing defaults to each turn and ten idle minutes", () => {
