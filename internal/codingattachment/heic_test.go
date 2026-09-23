@@ -3,6 +3,7 @@ package codingattachment
 import (
 	"encoding/base64"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -128,5 +129,29 @@ func TestUnconvertibleHEICFailsLoudlyWithoutProducingAnAttachment(t *testing.T) 
 		if !strings.HasPrefix(entry.Name(), ".") {
 			t.Fatalf("a failed HEIC import left something behind: %s", entry.Name())
 		}
+	}
+}
+
+// 从**文件选择器**那条路（Import）导入 HEIC 时也必须被看见：以前只有 ImportPayloads 会转，
+// 选择器进来的 HEIC 会原样落库、发不出去。这条钉住"要么转成功、要么明确报错"。
+func TestImportingAHeicThroughTheFilePickerFailsLoudly(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "IMG_from_picker.heic")
+	// 只造一个 HEIC 的文件头：能被 LooksLikeHEIC 认出来，但 sips 必然转不了 ⇒ 必须报错。
+	payload := append([]byte{0, 0, 0, 0x18}, []byte("ftypheic")...)
+	payload = append(payload, []byte("milksu-test-not-a-real-heic")...)
+	if err := os.WriteFile(path, payload, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	store, err := NewStore(filepath.Join(dir, "library"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, importErr := store.Import([]string{path})
+	if importErr == nil {
+		t.Fatal("a HEIC that cannot be converted must fail loudly, not land in the library untouched")
+	}
+	if !strings.Contains(importErr.Error(), "HEIC") {
+		t.Fatalf("the error must name the format so the reader knows which file: %v", importErr)
 	}
 }
