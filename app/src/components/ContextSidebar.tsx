@@ -685,15 +685,6 @@ export default function ContextSidebar({
       <button
         type="button"
         className="shell-chrome-icon app-no-drag"
-        aria-label={t('搜索任务', 'Search tasks')}
-        title={t('搜索任务', 'Search tasks')}
-        onClick={() => onOpenCommandPanel?.()}
-      >
-        <Search className="size-4" />
-      </button>
-      <button
-        type="button"
-        className="shell-chrome-icon app-no-drag"
         data-testid={collapsed ? 'coding-history-expand' : 'coding-history-toggle'}
         aria-label={sidebarToggleLabel}
         title={sidebarToggleLabel}
@@ -705,6 +696,15 @@ export default function ContextSidebar({
         }}
       >
         <PanelLeft className="size-4" />
+      </button>
+      <button
+        type="button"
+        className="shell-chrome-icon app-no-drag"
+        aria-label={t('搜索任务', 'Search tasks')}
+        title={t('搜索任务', 'Search tasks')}
+        onClick={() => onOpenCommandPanel?.()}
+      >
+        <Search className="size-4" />
       </button>
       {collapsed ? (
         <button
@@ -1188,7 +1188,10 @@ const contextSidebarCss = `
   width: calc(var(--shell-chrome-controls-left) + var(--shell-chrome-controls-span));
   flex: none;
 }
-.agent-sidebar__drag-region { flex: 1 1 auto; min-width: 0; }
+.agent-sidebar__drag-region {
+  width: max(0px, calc(var(--shell-sidebar-width) - var(--shell-chrome-controls-left) - var(--shell-chrome-controls-span)));
+  flex: none;
+}
 .agent-sidebar__inner { padding-bottom: 0.75rem; }
 .agent-sidebar__workspace,
 .agent-sidebar__icon,
