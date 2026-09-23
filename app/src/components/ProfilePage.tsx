@@ -641,6 +641,14 @@ export default function ProfilePage({
                     <p className="detail-foot">
                       {t(`输入 ${compactNumber(selectedCodingDay.inputTokens, t)} · 输出 ${compactNumber(selectedCodingDay.outputTokens, t)} · 缓存读取 ${compactNumber(selectedCodingDay.cacheReadTokens, t)} · 金额按 models.dev 价目估算，不是账单`, `Input ${compactNumber(selectedCodingDay.inputTokens, t)} · output ${compactNumber(selectedCodingDay.outputTokens, t)} · cache read ${compactNumber(selectedCodingDay.cacheReadTokens, t)} · USD from models.dev rates; not a bill`)}
                     </p>
+                    {state.codingUsage.hosts && state.codingUsage.hosts.length > 0 ? (
+                      <p className="detail-foot">
+                        {t(
+                          `本地模型约 ${formatUsdEstimate(state.codingUsage.localModelCostEstUsd ?? 0, t)} · 云模型约 ${formatUsdEstimate(state.codingUsage.cloudModelCostEstUsd ?? 0, t)} · 云沙箱约 ${formatUsdEstimate(state.codingUsage.cloudSandboxCostEstUsd ?? 0, t)}（仅估算，方便统计）`,
+                          `Local model ~${formatUsdEstimate(state.codingUsage.localModelCostEstUsd ?? 0, t)} · cloud model ~${formatUsdEstimate(state.codingUsage.cloudModelCostEstUsd ?? 0, t)} · cloud sandbox ~${formatUsdEstimate(state.codingUsage.cloudSandboxCostEstUsd ?? 0, t)} (estimates only)`,
+                        )}
+                      </p>
+                    ) : null}
                   </section>
                   <section className="detail-column" aria-labelledby="coding-tools-heading">
                     <h3 id="coding-tools-heading">{t('工具活动', 'Tool activity')}</h3>

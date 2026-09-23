@@ -197,6 +197,10 @@ export interface Conversation {
   workspacePath?: string
   /** Agent runtime pinned for this conversation. Missing records are Pi. */
   kernel?: import('@/lib/agentKernel').AgentKernel
+  /** Where turns execute: local desktop or MilkSU cloud. Missing = local. */
+  host?: import('@/lib/conversationHost').ConversationHost
+  /** Cloud session id when host is cloud (Connect CreateSession / MigrateCopy). */
+  cloudSessionId?: string
   /** DSH child session spawned from Multitask; hidden from the sidebar. */
   parentConversationId?: string
   /** DSH only: new sends while the parent is running become child sessions. */

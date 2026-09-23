@@ -1,0 +1,32 @@
+# Connect codegen for MilkSU Cloud Agent
+# (https://connectrpc.com/docs/web/generating-code/ + Swift/Kotlin guides).
+# Run from cloud/agent: `npx buf generate` (needs network for remote plugins).
+version: v2
+managed:
+  enabled: true
+plugins:
+  # TypeScript messages + Connect stubs (Connect-ES)
+  - remote: buf.build/bufbuild/es:v2.2.3
+    out: gen/es
+    opt: target=ts
+  - remote: buf.build/connectrpc/es:v2.0.1
+    out: gen/es
+    opt: target=ts
+  # Swift messages + Connect client
+  - remote: buf.build/apple/swift:v1.28.2
+    out: gen/swift
+    opt: Visibility=Public
+  - remote: buf.build/connectrpc/swift:v1.0.2
+    out: gen/swift
+    opt:
+      - Visibility=Public
+      - GenerateAsyncMethods=true
+  # Kotlin/Android lite + Connect-Kotlin
+  - remote: buf.build/protocolbuffers/java:v29.3
+    out: gen/kotlin
+    opt: lite
+  - remote: buf.build/protocolbuffers/kotlin:v29.3
+    out: gen/kotlin
+    opt: lite
+  - remote: buf.build/connectrpc/kotlin:v0.7.2
+    out: gen/kotlin

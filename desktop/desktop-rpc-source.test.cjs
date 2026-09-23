@@ -62,6 +62,9 @@ test('Electron-owned renderer methods remain handled before Go dispatch', () => 
     'GetAccountStatus',
     'StartAccountLogin',
     'LogoutAccount',
+    'CloudAgentInvoke',
+    'CloudAgentSubscribe',
+    'CloudAgentUnsubscribe',
     'GetUpdateStatus',
     'CheckForUpdates',
     'DownloadUpdate',
@@ -72,6 +75,8 @@ test('Electron-owned renderer methods remain handled before Go dispatch', () => 
   for (const method of electronMethods) {
     assert.match(ipcSource, new RegExp(`method === '${method}'`, 'u'))
   }
+  assert.match(ipcSource, /afterEventId/u)
+  assert.match(ipcSource, /Cloud Agent long-poll|after_event_id|Worker Subscribe is a Connect long-poll/u)
 })
 
 test('InstallUpdate lets quitAndInstall own the quit and does not call app.quit', () => {

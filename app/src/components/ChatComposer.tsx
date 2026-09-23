@@ -65,7 +65,9 @@ import {
 } from 'lucide-react'
 import AkLoadingMark from '@/components/AkLoadingMark'
 import CodingComposerControls from '@/components/CodingComposerControls'
+import ComposerHostSwitch from '@/components/ComposerHostSwitch'
 import ContextUsageMeter from '@/components/ContextUsageMeter'
+import { normalizeConversationHost } from '@/lib/conversationHost'
 import { invokeCommand } from '@/desktop'
 import { toastError } from '@/lib/appToast'
 import { COMMAND_PANEL_SLASH_EVENT } from '@/lib/commandPanel'
@@ -598,6 +600,10 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
   onChangeThinkingLevel?: (level: ModelThinkingLevel) => void
   onChangeKernel?: (value: 'pi' | 'dsh') => void
   onMigrateKernel?: (value: 'pi' | 'dsh') => void
+  conversationHost?: import('@/lib/conversationHost').ConversationHost
+  conversationStarted?: boolean
+  conversationHostMigrating?: boolean
+  onChangeConversationHost?: (host: import('@/lib/conversationHost').ConversationHost) => void
   onShowPermissions?: () => void
   onConsumeGoal?: () => void
   onStartGoal?: () => void
@@ -1934,6 +1940,15 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
                 onChangeThinkingLevel={level => props.onChangeThinkingLevel?.(level)}
                 onChangeKernel={requestKernelChange}
                 onShowPermissions={() => props.onShowPermissions?.()}
+                hostSwitch={(
+                  <ComposerHostSwitch
+                    host={normalizeConversationHost(props.conversationHost)}
+                    disabled={parentTurnActive}
+                    hasStarted={props.conversationStarted === true}
+                    migrating={props.conversationHostMigrating === true}
+                    onChangeHost={next => props.onChangeConversationHost?.(next)}
+                  />
+                )}
                 leading={(
                   <DropdownMenu onOpenChange={open => {
                     setAddMenuQuery('')

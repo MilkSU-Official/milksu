@@ -472,6 +472,10 @@ export function normalizeConversation(raw: Record<string, unknown>): Conversatio
       ? Number(raw.pinnedOrder)
       : undefined,
     kernel: normalizeAgentKernel(raw.kernel),
+    host: raw.host === 'cloud' ? 'cloud' : 'local',
+    cloudSessionId: typeof raw.cloudSessionId === 'string' && raw.cloudSessionId.trim()
+      ? raw.cloudSessionId.trim()
+      : undefined,
     parentConversationId: typeof raw.parentConversationId === 'string'
       && raw.parentConversationId.trim()
       ? raw.parentConversationId.trim()
@@ -964,6 +968,7 @@ type ConversationsState = {
   defaultKernel: AgentKernel
   busySend: BusySendPolicy
   pendingKernel: AgentKernel
+  pendingHost: import('@/lib/conversationHost').ConversationHost
   pendingModelMode: 'auto' | 'manual' | undefined
   pendingModelProvider: string | undefined
   pendingModelId: string | undefined
@@ -991,6 +996,7 @@ type ConversationsState = {
 type ParkedPendingCanvas = {
   workspacePath: string
   kernel: AgentKernel
+  host: import('@/lib/conversationHost').ConversationHost
   modelMode: ConversationsState['pendingModelMode']
   modelProvider: string | undefined
   modelId: string | undefined
@@ -1012,6 +1018,7 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
     defaultKernel: FACTORY_DEFAULT_KERNEL,
     busySend: FACTORY_DEFAULT_BUSY_SEND,
     pendingKernel: FACTORY_DEFAULT_KERNEL,
+    pendingHost: 'local',
     pendingModelMode: undefined,
     pendingModelProvider: undefined,
     pendingModelId: undefined,
@@ -1050,6 +1057,8 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
     set busySend(value) { store.setState({ busySend: value }) },
     get pendingKernel() { return store.getState().pendingKernel },
     set pendingKernel(value) { store.setState({ pendingKernel: value }) },
+    get pendingHost() { return store.getState().pendingHost },
+    set pendingHost(value) { store.setState({ pendingHost: value }) },
     get pendingModelMode() { return store.getState().pendingModelMode },
     set pendingModelMode(value) { store.setState({ pendingModelMode: value }) },
     get pendingModelProvider() { return store.getState().pendingModelProvider },
@@ -1259,6 +1268,7 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
   const activeTurnPolicies = new Set<string>()
   const titleGenerationAttemptedIds = new Set<string>()
   let disposeEvents: (() => void) | undefined
+  let disposeCloudEvents: (() => void) | undefined
   let disposeConversationList: (() => void) | undefined
   let unknownSessionReloadAt = 0
 
@@ -1497,6 +1507,36 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
     const conversation = s.conversations.find(item => item.id === conversationId)
     if (!conversation) throw new Error('Coding conversation is unavailable')
     await invokeCommand('save_conversation', { conversation })
+    if (conversation.host === 'cloud') {
+      const { desktopCloudAgentClient } = await import('@/lib/cloud/cloudAgentClient')
+      const client = desktopCloudAgentClient()
+      let cloudSessionId = conversation.cloudSessionId?.trim() || ''
+      if (!cloudSessionId) {
+        const created = await client.createSession({
+          kernel: normalizeAgentKernel(conversation.kernel) === 'dsh' ? 'dsh' : 'pi',
+          model: conversation.modelId ?? '',
+          title: conversation.title ?? '',
+        })
+        cloudSessionId = created.id
+        update(conversationId, current => ({ ...current, cloudSessionId, host: 'cloud' }))
+        await invokeCommand('save_conversation', {
+          conversation: {
+            ...conversation,
+            cloudSessionId,
+            host: 'cloud',
+          },
+        })
+      }
+      await client.sendTurn({
+        sessionId: cloudSessionId,
+        text: dispatch.prompt,
+        attachmentIds: (dispatch.attachments ?? []).map(item => item.id),
+      })
+      await invokeCommand('cloud_agent_subscribe', {
+        sessionId: cloudSessionId,
+      }).catch(() => undefined)
+      return
+    }
     await invokeCommand('send_message', {
       conversationId,
       prompt: dispatch.prompt,
@@ -1807,6 +1847,7 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
     return {
       workspacePath: s.pendingWorkspacePath,
       kernel: s.pendingKernel,
+      host: s.pendingHost,
       modelMode: s.pendingModelMode,
       modelProvider: s.pendingModelProvider,
       modelId: s.pendingModelId,
@@ -1825,6 +1866,7 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
     s.pendingWorkspaceHome = home
     s.pendingWorkspacePath = next.workspacePath
     s.pendingKernel = next.kernel
+    s.pendingHost = next.host
     s.pendingModelMode = next.modelMode
     s.pendingModelProvider = next.modelProvider
     s.pendingModelId = next.modelId
@@ -1847,6 +1889,7 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
     s.pendingWorkspaceHome = home
     s.pendingWorkspacePath = inheritWorkspace
     s.pendingKernel = s.defaultKernel
+    s.pendingHost = 'local'
     s.pendingModelMode = undefined
     s.pendingModelProvider = undefined
     s.pendingModelId = undefined
@@ -1937,6 +1980,7 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
         ? workspaceOverride
         : s.pendingWorkspacePath || undefined,
       kernel: s.pendingKernel,
+      host: s.pendingHost === 'cloud' ? 'cloud' : 'local',
       modelMode: s.pendingModelMode,
       modelProvider: s.pendingModelProvider,
       modelId: s.pendingModelId,
@@ -2108,6 +2152,21 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
     const current = s.conversations.find(item => item.id === s.activeId)
     if (current && conversationKernelLocked(current.messages)) return
     update(s.activeId, conversation => ({ ...conversation, kernel: next }))
+  }
+
+  function setHost(host: import('@/lib/conversationHost').ConversationHost, cloudSessionId?: string) {
+    const next = host === 'cloud' ? 'cloud' as const : 'local' as const
+    if (!s.activeId) {
+      s.pendingHost = next
+      return
+    }
+    update(s.activeId, conversation => ({
+      ...conversation,
+      host: next,
+      cloudSessionId: next === 'cloud'
+        ? (cloudSessionId?.trim() || conversation.cloudSessionId)
+        : undefined,
+    }))
   }
 
   function setModelSelection(
@@ -2345,6 +2404,7 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
         workspacePath: s.pendingWorkspacePath || undefined,
         workspaceHome: s.pendingWorkspaceHome === 'chat' ? undefined : s.pendingWorkspaceHome,
         kernel: s.pendingKernel,
+        host: s.pendingHost === 'cloud' ? 'cloud' : 'local',
         modelMode: s.pendingModelMode,
         modelProvider: s.pendingModelProvider,
         modelId: s.pendingModelId,
@@ -2952,8 +3012,117 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
   async function listen() {
     disposeConversationList?.()
     disposeEvents?.()
+    disposeCloudEvents?.()
     disposeConversationList = await listenEvent('conversations-changed', () => {
       void load()
+    })
+    disposeCloudEvents = await listenEvent<{
+      sessionId?: string
+      event?: {
+        id?: string
+        type?: string
+        turn_id?: string
+        json_payload?: string
+      }
+      error?: string
+    }>('cloud-agent-event', envelope => {
+      const sessionId = String(envelope.payload?.sessionId ?? '').trim()
+      if (!sessionId) return
+      const conversation = s.conversations.find(item => item.cloudSessionId === sessionId)
+      if (!conversation) return
+      if (envelope.payload?.error) {
+        finishRun(conversation.id)
+        update(conversation.id, current => ({
+          ...current,
+          messages: [...current.messages, {
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: String(envelope.payload.error),
+            timestamp: Date.now(),
+            status: 'done',
+          }],
+        }))
+        return
+      }
+      const event = envelope.payload?.event
+      const type = String(event?.type ?? '')
+      let text = ''
+      let usagePayload: {
+        usage?: {
+          input_tokens?: number
+          output_tokens?: number
+          cache_read_tokens?: number
+          cache_write_tokens?: number
+          reasoning_tokens?: number
+          model_cost_est_usd?: number
+          sandbox_cost_est_usd?: number
+          sandbox_seconds?: number
+        }
+      } = {}
+      try {
+        const parsed = JSON.parse(String(event?.json_payload ?? '{}')) as {
+          text?: string
+          usage?: {
+            input_tokens?: number
+            output_tokens?: number
+            cache_read_tokens?: number
+            cache_write_tokens?: number
+            reasoning_tokens?: number
+            model_cost_est_usd?: number
+            sandbox_cost_est_usd?: number
+            sandbox_seconds?: number
+          }
+        }
+        text = typeof parsed.text === 'string' ? parsed.text : ''
+        usagePayload = parsed
+      } catch {
+        text = ''
+      }
+      if (type === 'assistant.delta' && text) {
+        update(conversation.id, current => {
+          const messages = [...current.messages]
+          const last = messages.at(-1)
+          if (last?.role === 'assistant' && last.status === 'running') {
+            messages[messages.length - 1] = { ...last, content: last.content + text }
+          } else {
+            messages.push({
+              id: crypto.randomUUID(),
+              role: 'assistant',
+              content: text,
+              timestamp: Date.now(),
+              status: 'running',
+            })
+          }
+          return { ...current, messages }
+        })
+      } else if (type === 'turn.settled') {
+        const usage = usagePayload.usage ?? {}
+        void invokeCommand('record_cloud_usage_turn', {
+          conversationId: conversation.id,
+          turnId: String(event?.turn_id ?? event?.id ?? ''),
+          kernel: normalizeAgentKernel(conversation.kernel),
+          model: conversation.modelId ?? '',
+          source: conversation.modelSourcePreference === 'personal' ? 'personal' : 'account',
+          inputTokens: Number(usage.input_tokens ?? 0),
+          outputTokens: Number(usage.output_tokens ?? 0),
+          cacheReadTokens: Number(usage.cache_read_tokens ?? 0),
+          cacheWriteTokens: Number(usage.cache_write_tokens ?? 0),
+          reasoningTokens: Number(usage.reasoning_tokens ?? 0),
+          sandboxSeconds: Number(usage.sandbox_seconds ?? 0),
+          modelCostEstUsd: Number(usage.model_cost_est_usd ?? 0),
+          sandboxCostEstUsd: Number(usage.sandbox_cost_est_usd ?? 0),
+        }).catch(() => undefined)
+      } else if (type === 'assistant.settled' || type === 'assistant.completed') {
+        finishRun(conversation.id)
+        update(conversation.id, current => {
+          const messages = [...current.messages]
+          const last = messages.at(-1)
+          if (last?.role === 'assistant' && last.status === 'running') {
+            messages[messages.length - 1] = { ...last, status: 'done' }
+          }
+          return { ...current, messages }
+        })
+      }
     })
     disposeEvents = await listenEvent<AgentEvent>('engine-event', event => {
       const {
@@ -3567,6 +3736,8 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
     stopWatchActiveId()
     disposeEvents?.()
     disposeEvents = undefined
+    disposeCloudEvents?.()
+    disposeCloudEvents = undefined
     disposeConversationList?.()
     disposeConversationList = undefined
     activeTurnPolicies.clear()
@@ -3612,6 +3783,7 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
     get conversationActionError() { return s.conversationActionError },
     get pendingComposerDraft() { return s.pendingComposerDraft },
     get pendingWorkspaceHome() { return s.pendingWorkspaceHome },
+    get pendingHost() { return s.pendingHost },
     get activeSessionReady() { return activeSessionReady() },
     get activeResumed() { return activeResumed() },
     get activeCompacting() { return activeCompacting() },
@@ -3651,6 +3823,7 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
     abortWorkingItem,
     abortWorkingAll,
     setKernel,
+    setHost,
     setModelSelection,
     setThinkingLevel,
     setModelSourcePreference,

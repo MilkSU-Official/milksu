@@ -324,6 +324,7 @@ func desktopAppMethods(app *App) map[string]desktopAppMethod {
 		"RemoveQueuedMessage":                  rendererDesktopMethod(app.RemoveQueuedMessage),
 		"TestAgentModel":                       rendererDesktopMethod(app.TestAgentModel),
 		"GetCodingUsageSnapshot":               rendererDesktopMethod(app.GetCodingUsageSnapshot),
+		"RecordCloudUsageTurn":                 rendererDesktopMethod(app.RecordCloudUsageTurn),
 		"ImportNSSCTFChallenge":                rendererDesktopMethod(app.ImportNSSCTFChallenge),
 		"SyncNSSCTFCatalog":                    rendererDesktopMethod(app.SyncNSSCTFCatalog),
 		"GetNSSCTFTrainingDashboard":           rendererDesktopMethod(app.GetNSSCTFTrainingDashboard),

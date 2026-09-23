@@ -55,6 +55,13 @@ const {
 const { pluginFrameScriptHeaders, rendererHeaders } = require('./renderer-protocol.cjs')
 const { UpdateManager } = require('./update-manager.cjs')
 const {
+  CloudAgentClient,
+  defaultCloudAgentBaseUrl,
+} = require('./cloud-agent-client.cjs')
+
+/** sessionId -> AbortController for Connect Subscribe streams. */
+const cloudSubscribeControllers = new Map()
+const {
   attachBrowserView,
   detachBrowserView,
 } = require('./browser-view-attachment.cjs')
@@ -1037,6 +1044,82 @@ ipcMain.handle('milksu:invoke', async (event, request) => {
     if (!accountSession) return { configured: false, state: 'unconfigured', authenticated: false }
     await clearAccountLoginClaim(os.tmpdir(), process.pid)
     return accountSession.logout()
+  }
+  if (method === 'CloudAgentInvoke') {
+    // Connect unary proxy: Bearer from AccountSession stays in Electron main.
+    if (!accountSession) throw new Error('内测账户尚未就绪')
+    const payload = Array.isArray(request?.args) ? request.args[0] : request?.args
+    const rpcMethod = String(payload?.method ?? '').trim()
+    const body = payload?.body && typeof payload.body === 'object' ? payload.body : {}
+    const token = await accountSession.activeAccessToken()
+    if (!token) throw new Error('请先登录 MilkSU 账户')
+    const client = new CloudAgentClient({
+      baseUrl: defaultCloudAgentBaseUrl(),
+      getAccessToken: async () => token,
+    })
+    return client.call(rpcMethod, body)
+  }
+  if (method === 'CloudAgentSubscribe') {
+    if (!accountSession) throw new Error('内测账户尚未就绪')
+    const payload = Array.isArray(request?.args) ? request.args[0] : request?.args
+    const sessionId = String(payload?.sessionId ?? '').trim()
+    if (!sessionId) throw new Error('sessionId required')
+    const token = await accountSession.activeAccessToken()
+    if (!token) throw new Error('请先登录 MilkSU 账户')
+    const previous = cloudSubscribeControllers.get(sessionId)
+    if (previous) previous.abort()
+    const controller = new AbortController()
+    cloudSubscribeControllers.set(sessionId, controller)
+    const client = new CloudAgentClient({
+      baseUrl: defaultCloudAgentBaseUrl(),
+      getAccessToken: async () => token,
+    })
+    // Worker Subscribe is a Connect long-poll window; resume with after_event_id
+    // until the renderer unsubscribes (same shape as Connect-ES reconnect).
+    void (async () => {
+      let afterEventId = String(payload?.afterEventId ?? '')
+      while (!controller.signal.aborted) {
+        try {
+          await client.subscribe(sessionId, {
+            afterEventId,
+            signal: controller.signal,
+            onEvent: event => {
+              const id = typeof event?.id === 'string' ? event.id.trim() : ''
+              if (id) afterEventId = id
+              emitRendererEvent('cloud-agent-event', {
+                sessionId,
+                event,
+              })
+            },
+          })
+        } catch (error) {
+          if (controller.signal.aborted) return
+          emitRendererEvent('cloud-agent-event', {
+            sessionId,
+            error: String(error?.message || error || 'Subscribe failed'),
+          })
+          await new Promise(resolve => setTimeout(resolve, 750))
+          continue
+        }
+        if (controller.signal.aborted) return
+        await new Promise(resolve => setTimeout(resolve, 100))
+      }
+    })().finally(() => {
+      if (cloudSubscribeControllers.get(sessionId) === controller) {
+        cloudSubscribeControllers.delete(sessionId)
+      }
+    })
+    return { ok: true, sessionId }
+  }
+  if (method === 'CloudAgentUnsubscribe') {
+    const payload = Array.isArray(request?.args) ? request.args[0] : request?.args
+    const sessionId = String(payload?.sessionId ?? '').trim()
+    const controller = cloudSubscribeControllers.get(sessionId)
+    if (controller) {
+      controller.abort()
+      cloudSubscribeControllers.delete(sessionId)
+    }
+    return { ok: true }
   }
   if (method === 'GetUpdateStatus') {
     return updateManager?.view() ?? {

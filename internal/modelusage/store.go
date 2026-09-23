@@ -17,9 +17,10 @@ import (
 const (
 	// SupportedDatabaseVersion is the numbered migration version recorded for
 	// the local Coding Agent usage ledger.
-	SupportedDatabaseVersion = 1
+	SupportedDatabaseVersion = 2
 
 	usageV1MigrationName = "create Coding Agent usage ledger"
+	usageV2MigrationName = "add usage_turns host ledger"
 	maximumTextRunes     = 512
 	maximumTokenCount    = int64(1_000_000_000_000)
 )
@@ -93,18 +94,31 @@ type Day struct {
 }
 
 type Snapshot struct {
-	From         string `json:"from"`
-	To           string `json:"to"`
-	ActiveDays   int    `json:"activeDays"`
-	ModelCalls   int    `json:"modelCalls"`
-	ToolCalls    int    `json:"toolCalls"`
-	InputTokens  int64  `json:"inputTokens"`
-	OutputTokens int64  `json:"outputTokens"`
-	CacheRead    int64  `json:"cacheReadTokens"`
-	CacheWrite   int64  `json:"cacheWriteTokens"`
-	Reasoning    int64  `json:"reasoningTokens"`
-	TotalTokens  int64  `json:"totalTokens"`
-	Days         []Day  `json:"days"`
+	From                string          `json:"from"`
+	To                  string          `json:"to"`
+	ActiveDays          int             `json:"activeDays"`
+	ModelCalls          int             `json:"modelCalls"`
+	ToolCalls           int             `json:"toolCalls"`
+	InputTokens         int64           `json:"inputTokens"`
+	OutputTokens        int64           `json:"outputTokens"`
+	CacheRead           int64           `json:"cacheReadTokens"`
+	CacheWrite          int64           `json:"cacheWriteTokens"`
+	Reasoning           int64           `json:"reasoningTokens"`
+	TotalTokens         int64           `json:"totalTokens"`
+	LocalModelCostEst   float64         `json:"localModelCostEstUsd"`
+	CloudModelCostEst   float64         `json:"cloudModelCostEstUsd"`
+	CloudSandboxCostEst float64         `json:"cloudSandboxCostEstUsd"`
+	Days                []Day           `json:"days"`
+	Hosts               []HostBreakdown `json:"hosts"`
+}
+
+// HostBreakdown aggregates usage_turns by local|cloud for display-only estimates.
+type HostBreakdown struct {
+	Host              string  `json:"host"`
+	Turns             int     `json:"turns"`
+	ModelCostEstUSD   float64 `json:"modelCostEstUsd"`
+	SandboxCostEstUSD float64 `json:"sandboxCostEstUsd"`
+	SandboxSeconds    int64   `json:"sandboxSeconds"`
 }
 
 type Store struct {
@@ -122,11 +136,18 @@ func NewStore(path string) (*Store, error) {
 	}
 	migrator, err := sqlitemigrate.Open(
 		path,
-		[]sqlitemigrate.Migration{{
-			Version: 1,
-			Name:    usageV1MigrationName,
-			Up:      usageV1Up,
-		}},
+		[]sqlitemigrate.Migration{
+			{
+				Version: 1,
+				Name:    usageV1MigrationName,
+				Up:      usageV1Up,
+			},
+			{
+				Version: 2,
+				Name:    usageV2MigrationName,
+				Up:      usageV2Up,
+			},
+		},
 		sqlitemigrate.WithPragmas([]string{"PRAGMA journal_mode = WAL"}),
 	)
 	if err != nil {
@@ -178,6 +199,134 @@ func usageV1Up(ctx context.Context, tx *sql.Tx) error {
 		}
 	}
 	return nil
+}
+
+func usageV2Up(ctx context.Context, tx *sql.Tx) error {
+	statements := []string{
+		`CREATE TABLE IF NOT EXISTS usage_turns (
+			id TEXT PRIMARY KEY,
+			conversation_id TEXT NOT NULL,
+			host TEXT NOT NULL CHECK(host IN ('local', 'cloud')),
+			kernel TEXT NOT NULL,
+			model TEXT NOT NULL,
+			source TEXT NOT NULL,
+			occurred_at_ms INTEGER NOT NULL,
+			input_tokens INTEGER NOT NULL,
+			output_tokens INTEGER NOT NULL,
+			cache_read_tokens INTEGER NOT NULL,
+			cache_write_tokens INTEGER NOT NULL,
+			reasoning_tokens INTEGER NOT NULL,
+			total_tokens INTEGER NOT NULL,
+			model_cost_est_usd REAL NOT NULL,
+			sandbox_seconds INTEGER NOT NULL,
+			sandbox_cost_est_usd REAL NOT NULL
+		)`,
+		`CREATE INDEX IF NOT EXISTS usage_turns_occurred_at
+			ON usage_turns(occurred_at_ms, host)`,
+		`CREATE INDEX IF NOT EXISTS usage_turns_conversation
+			ON usage_turns(conversation_id, occurred_at_ms)`,
+	}
+	for _, statement := range statements {
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
+			return fmt.Errorf("create usage_turns schema: %w", err)
+		}
+	}
+	return nil
+}
+
+// Turn is one settled Coding turn for local|cloud usage display (models.dev estimate, not a bill).
+type Turn struct {
+	ID                string
+	ConversationID    string
+	Host              string // local | cloud
+	Kernel            string
+	Model             string
+	Source            string
+	OccurredAt        time.Time
+	InputTokens       int64
+	OutputTokens      int64
+	CacheRead         int64
+	CacheWrite        int64
+	Reasoning         int64
+	TotalTokens       int64
+	ModelCostEstUSD   float64
+	SandboxSeconds    int64
+	SandboxCostEstUSD float64
+}
+
+func (s *Store) RecordTurn(ctx context.Context, turn Turn) error {
+	host := strings.TrimSpace(turn.Host)
+	if host != "local" && host != "cloud" {
+		return fmt.Errorf("usage turn host must be local or cloud")
+	}
+	id := strings.TrimSpace(turn.ID)
+	if id == "" {
+		return fmt.Errorf("usage turn id required")
+	}
+	conversationID := strings.TrimSpace(turn.ConversationID)
+	if conversationID == "" {
+		return fmt.Errorf("usage turn conversation id required")
+	}
+	occurred := turn.OccurredAt
+	if occurred.IsZero() {
+		occurred = time.Now().UTC()
+	}
+	_, err := s.db.ExecContext(ctx, `INSERT OR IGNORE INTO usage_turns (
+		id, conversation_id, host, kernel, model, source, occurred_at_ms,
+		input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
+		reasoning_tokens, total_tokens, model_cost_est_usd, sandbox_seconds, sandbox_cost_est_usd
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		id,
+		conversationID,
+		host,
+		strings.TrimSpace(turn.Kernel),
+		strings.TrimSpace(turn.Model),
+		strings.TrimSpace(turn.Source),
+		occurred.UTC().UnixMilli(),
+		turn.InputTokens,
+		turn.OutputTokens,
+		turn.CacheRead,
+		turn.CacheWrite,
+		turn.Reasoning,
+		turn.TotalTokens,
+		turn.ModelCostEstUSD,
+		turn.SandboxSeconds,
+		turn.SandboxCostEstUSD,
+	)
+	if err != nil {
+		return fmt.Errorf("insert usage turn: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) SumModelTokensSince(ctx context.Context, conversationID string, sinceMs int64) (input, output, cacheRead, cacheWrite, reasoning, total int64, model, source string, err error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT provider, model, source, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, reasoning_tokens, total_tokens
+		FROM usage_events
+		WHERE conversation_id = ? AND kind = 'model' AND occurred_at_ms >= ?
+		ORDER BY occurred_at_ms ASC`, conversationID, sinceMs)
+	if err != nil {
+		return 0, 0, 0, 0, 0, 0, "", "", err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var provider, m, src string
+		var in, out, cr, cw, reason, tot int64
+		if scanErr := rows.Scan(&provider, &m, &src, &in, &out, &cr, &cw, &reason, &tot); scanErr != nil {
+			return 0, 0, 0, 0, 0, 0, "", "", scanErr
+		}
+		input += in
+		output += out
+		cacheRead += cr
+		cacheWrite += cw
+		reasoning += reason
+		total += tot
+		if m != "" {
+			model = m
+			source = src
+		}
+		_ = provider
+	}
+	return input, output, cacheRead, cacheWrite, reasoning, total, model, source, rows.Err()
 }
 
 func (s *Store) Record(ctx context.Context, record Record) error {
@@ -442,7 +591,51 @@ func (s *Store) Snapshot(ctx context.Context, now time.Time) (Snapshot, error) {
 		day.toolIndex = nil
 	}
 	snapshot.ActiveDays = len(snapshot.Days)
+	if err := s.attachHostBreakdown(ctx, &snapshot, from.UTC().UnixMilli(), tomorrow.UTC().UnixMilli()); err != nil {
+		return Snapshot{}, err
+	}
 	return snapshot, nil
+}
+
+func (s *Store) attachHostBreakdown(ctx context.Context, snapshot *Snapshot, fromMs, toMs int64) error {
+	rows, err := s.db.QueryContext(ctx, `SELECT host,
+		COUNT(*),
+		COALESCE(SUM(model_cost_est_usd), 0),
+		COALESCE(SUM(sandbox_cost_est_usd), 0),
+		COALESCE(SUM(sandbox_seconds), 0)
+		FROM usage_turns
+		WHERE occurred_at_ms >= ? AND occurred_at_ms < ?
+		GROUP BY host
+		ORDER BY host ASC`, fromMs, toMs)
+	if err != nil {
+		// usage_turns may be empty on fresh DBs; treat missing table as no host rows.
+		if strings.Contains(err.Error(), "no such table") {
+			snapshot.Hosts = []HostBreakdown{}
+			return nil
+		}
+		return fmt.Errorf("query usage turns by host: %w", err)
+	}
+	defer rows.Close()
+	hosts := make([]HostBreakdown, 0, 2)
+	for rows.Next() {
+		var row HostBreakdown
+		if scanErr := rows.Scan(&row.Host, &row.Turns, &row.ModelCostEstUSD, &row.SandboxCostEstUSD, &row.SandboxSeconds); scanErr != nil {
+			return fmt.Errorf("scan usage turns by host: %w", scanErr)
+		}
+		switch row.Host {
+		case "local":
+			snapshot.LocalModelCostEst = row.ModelCostEstUSD
+		case "cloud":
+			snapshot.CloudModelCostEst = row.ModelCostEstUSD
+			snapshot.CloudSandboxCostEst = row.SandboxCostEstUSD
+		}
+		hosts = append(hosts, row)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate usage turns by host: %w", err)
+	}
+	snapshot.Hosts = hosts
+	return nil
 }
 
 func (s *Store) Close() error {

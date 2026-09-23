@@ -124,6 +124,7 @@ export default function CodingComposerControls({
   accessory,
   status,
   context,
+  hostSwitch,
   onChangeApprovalPolicy,
   onChangeModel,
   onChangeThinkingLevel,
@@ -146,6 +147,8 @@ export default function CodingComposerControls({
   accessory?: ReactNode
   status?: ReactNode
   context?: ReactNode
+  /** Local | cloud host chip (capsule-exterior bottom-left, after approval). */
+  hostSwitch?: ReactNode
   onChangeApprovalPolicy?: (value: string) => void
   onChangeModel?: (value: string) => void
   onChangeThinkingLevel?: (level: ModelThinkingLevel) => void
@@ -268,6 +271,7 @@ export default function CodingComposerControls({
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          {hostSwitch}
           {context}
           {status}
           {footerEnd ? <span className="chat-composer__meta-end">{footerEnd}</span> : null}

@@ -102,11 +102,11 @@ func TestStoreUsesNumberedMigrationAndRejectsInvalidRecords(t *testing.T) {
 		name    string
 	)
 	if err := store.db.QueryRow(
-		`SELECT version, name FROM schema_migrations`,
+		`SELECT version, name FROM schema_migrations ORDER BY version DESC LIMIT 1`,
 	).Scan(&version, &name); err != nil {
 		t.Fatal(err)
 	}
-	if version != SupportedDatabaseVersion || name != usageV1MigrationName {
+	if version != SupportedDatabaseVersion || name != usageV2MigrationName {
 		t.Fatalf("unexpected migration history: %d %q", version, name)
 	}
 
@@ -150,5 +150,45 @@ func TestStoreSchemaContainsNoPromptOrOutputColumns(t *testing.T) {
 		if _, exists := columns[forbidden]; exists {
 			t.Fatalf("usage ledger unexpectedly contains %q column", forbidden)
 		}
+	}
+}
+
+func TestStoreAggregatesUsageTurnsByHost(t *testing.T) {
+	store, err := NewStore(filepath.Join(t.TempDir(), "model-usage.sqlite3"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	location := time.FixedZone("Asia/Singapore", 8*60*60)
+	now := time.Date(2026, time.September, 22, 12, 0, 0, 0, location)
+	if err := store.RecordTurn(context.Background(), Turn{
+		ID: "turn-local", ConversationID: "c1", Host: "local", Kernel: "pi",
+		Model: "openai/gpt-5.6", Source: "account", OccurredAt: now.Add(-time.Hour),
+		InputTokens: 10, OutputTokens: 5, TotalTokens: 15, ModelCostEstUSD: 0.01,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.RecordTurn(context.Background(), Turn{
+		ID: "turn-cloud", ConversationID: "c2", Host: "cloud", Kernel: "dsh",
+		Model: "openai/gpt-5.6", Source: "account", OccurredAt: now.Add(-30 * time.Minute),
+		InputTokens: 20, OutputTokens: 8, TotalTokens: 28, ModelCostEstUSD: 0.02,
+		SandboxSeconds: 12, SandboxCostEstUSD: 0.003,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	snapshot, err := store.Snapshot(context.Background(), now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.LocalModelCostEst != 0.01 {
+		t.Fatalf("local model est = %v", snapshot.LocalModelCostEst)
+	}
+	if snapshot.CloudModelCostEst != 0.02 || snapshot.CloudSandboxCostEst != 0.003 {
+		t.Fatalf("cloud est = %#v", snapshot)
+	}
+	if len(snapshot.Hosts) != 2 {
+		t.Fatalf("hosts = %#v", snapshot.Hosts)
 	}
 }

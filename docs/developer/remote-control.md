@@ -8,6 +8,9 @@
 > 尚未实现。跟踪 issue：[#131](https://github.com/MilkSU-Official/milksu/issues/131)。
 > 没有代码、安装包或真机回执之前，不得写成已发行。
 > 产品 UI 只写在仓库根目录 `AGENTS.md`，本页不复述 token 或原语数字。
+>
+> **与 [云 Agent](cloud-agent.md) / [#153](https://github.com/MilkSU-Official/milksu/issues/153) 的分界：**  
+> 云 Agent 先做（登录 → 云沙箱执行）。本页是手机连**本机**的二阶段，不阻塞云 Agent。
 
 ## 用户要看见什么
 

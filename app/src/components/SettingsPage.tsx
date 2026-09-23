@@ -121,6 +121,7 @@ import {
 import { resolveModelContextWindow } from '@/lib/knownContextWindow'
 import type { ResolvedThemeMode } from '@/lib/themeMode'
 import { useT } from '@/hooks/useUiLocale'
+import CloudCredentialSettings from '@/components/CloudCredentialSettings'
 import {
   normalizeSettingsCategory,
   settingsCategoryLabel,
@@ -976,6 +977,8 @@ export default function SettingsPage({
                     )}
                   />
                 </SettingsSection>
+
+                <CloudCredentialSettings />
 
                 <SettingsSection
                   title={t('模型服务', 'Model services')}

@@ -192,6 +192,10 @@ interface DesktopAppBindings {
   GetAccountStatus(): Promise<AccountStatus>
   StartAccountLogin(): Promise<AccountStatus>
   LogoutAccount(): Promise<AccountStatus>
+  /** Electron-main Connect proxy; Bearer never reaches the renderer. */
+  CloudAgentInvoke(request: { method: string; body?: unknown }): Promise<unknown>
+  CloudAgentSubscribe(request: { sessionId: string; afterEventId?: string }): Promise<{ ok: boolean; sessionId: string }>
+  CloudAgentUnsubscribe(request: { sessionId: string }): Promise<{ ok: boolean }>
   GetUpdateStatus(): Promise<UpdateStatus>
   CheckForUpdates(): Promise<UpdateStatus>
   DownloadUpdate(): Promise<UpdateStatus>
@@ -515,6 +519,21 @@ interface DesktopAppBindings {
   ): Promise<void>
   TestAgentModel(settings: AppSettings): Promise<ModelProbeResult>
   GetCodingUsageSnapshot(): Promise<CodingUsageSnapshot>
+  RecordCloudUsageTurn(request: {
+    conversationId: string
+    turnId?: string
+    kernel?: string
+    model?: string
+    source?: string
+    inputTokens?: number
+    outputTokens?: number
+    cacheReadTokens?: number
+    cacheWriteTokens?: number
+    reasoningTokens?: number
+    sandboxSeconds?: number
+    modelCostEstUsd?: number
+    sandboxCostEstUsd?: number
+  }): Promise<void>
   ImportNSSCTFChallenge(rawURL: string): Promise<NSSCTFChallenge>
   SyncNSSCTFCatalog(rawURL: string): Promise<NSSCTFCatalogSyncResult>
   GetNSSCTFTrainingDashboard(): Promise<NSSCTFTrainingDashboard>
@@ -667,6 +686,20 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.StartAccountLogin() as Promise<T>
       case 'logout_account':
         return app.LogoutAccount() as Promise<T>
+      case 'cloud_agent_invoke':
+        return app.CloudAgentInvoke({
+          method: String(args?.method ?? ''),
+          body: args?.body,
+        }) as Promise<T>
+      case 'cloud_agent_subscribe':
+        return app.CloudAgentSubscribe({
+          sessionId: String(args?.sessionId ?? ''),
+          afterEventId: String(args?.afterEventId ?? ''),
+        }) as Promise<T>
+      case 'cloud_agent_unsubscribe':
+        return app.CloudAgentUnsubscribe({
+          sessionId: String(args?.sessionId ?? ''),
+        }) as Promise<T>
       case 'get_update_status':
         return app.GetUpdateStatus() as Promise<T>
       case 'check_for_updates':
@@ -683,6 +716,22 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.GetModelCatalog() as Promise<T>
       case 'get_coding_usage_snapshot':
         return app.GetCodingUsageSnapshot() as Promise<T>
+      case 'record_cloud_usage_turn':
+        return app.RecordCloudUsageTurn({
+          conversationId: String(args?.conversationId ?? ''),
+          turnId: String(args?.turnId ?? ''),
+          kernel: String(args?.kernel ?? ''),
+          model: String(args?.model ?? ''),
+          source: String(args?.source ?? ''),
+          inputTokens: Number(args?.inputTokens ?? 0),
+          outputTokens: Number(args?.outputTokens ?? 0),
+          cacheReadTokens: Number(args?.cacheReadTokens ?? 0),
+          cacheWriteTokens: Number(args?.cacheWriteTokens ?? 0),
+          reasoningTokens: Number(args?.reasoningTokens ?? 0),
+          sandboxSeconds: Number(args?.sandboxSeconds ?? 0),
+          modelCostEstUsd: Number(args?.modelCostEstUsd ?? 0),
+          sandboxCostEstUsd: Number(args?.sandboxCostEstUsd ?? 0),
+        }) as Promise<T>
       case 'save_settings_cmd':
         return app.SaveSettingsCmd(args?.newSettings as AppSettings) as Promise<T>
       case 'list_plugins':

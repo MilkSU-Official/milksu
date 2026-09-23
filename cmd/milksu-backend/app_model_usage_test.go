@@ -67,3 +67,45 @@ func TestRecordCodingUsageRejectsCTFRoleAndMissingToolIDs(t *testing.T) {
 		}
 	}
 }
+
+func TestRecordCloudUsageTurnWritesHostLedger(t *testing.T) {
+	store, err := modelusage.NewStore(filepath.Join(t.TempDir(), "usage", "cloud-turn.sqlite3"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	app := &App{modelUsage: store}
+
+	if err := app.RecordCloudUsageTurn(RecordCloudUsageTurnRequest{
+		ConversationID: "conv-cloud-1",
+		TurnID:         "turn-1",
+		Kernel:         "pi",
+		Model:          "deepseek/deepseek-flash",
+		Source:         "account",
+		InputTokens:    100,
+		OutputTokens:   40,
+		SandboxSeconds: 20,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	snapshot, err := app.GetCodingUsageSnapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.CloudModelCostEst <= 0 {
+		t.Fatalf("expected cloud model estimate > 0, got %#v", snapshot)
+	}
+	if snapshot.CloudSandboxCostEst <= 0 {
+		t.Fatalf("expected cloud sandbox estimate > 0, got %#v", snapshot)
+	}
+	found := false
+	for _, host := range snapshot.Hosts {
+		if host.Host == "cloud" && host.Turns >= 1 && host.SandboxSeconds >= 20 {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("missing cloud host breakdown: %#v", snapshot.Hosts)
+	}
+}
