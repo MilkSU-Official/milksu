@@ -23,6 +23,7 @@ import {
   Search,
 } from 'lucide-react'
 import CollectionPicker from '@/components/CollectionPicker'
+import CveLearningNote from '@/components/CveLearningNote'
 import CollectionViewFilter from '@/components/CollectionViewFilter'
 import ConversationDock from '@/components/ConversationDock'
 import RelatedCvePanel from '@/components/RelatedCvePanel'
@@ -325,6 +326,13 @@ export default function VulnPage({
   }, [conversations])
 
   const selectedItem = tracked.find(item => item.id === selectedId) ?? null
+  const learningProjection = selectedItem ? dashboard.runtimeProjectionFor : null
+  const learningMatches = Boolean(
+    selectedItem
+    && learningProjection?.target?.name?.trim().toUpperCase() === selectedItem.id.toUpperCase(),
+  )
+  const learningJobId = learningMatches ? learningProjection?.job?.id : undefined
+  const learningRecords = learningMatches ? learningProjection?.learning ?? [] : []
   const stripLease = toStripLease(envLease, cveBoundPackage
     ? { name: cveBoundPackage.name, provider: cveBoundPackage.provider }
     : undefined)
@@ -933,6 +941,19 @@ export default function VulnPage({
                       refreshKey={running ? 'run' : conversation?.messages.length}
                     />
                   </SettingsSection>
+                  <CveLearningNote
+                    key={selectedItem.id}
+                    cveId={selectedItem.id}
+                    title={selectedItem.title}
+                    summary={selectedItem.summary}
+                    referenceHrefs={selectedItem.references.map(reference => reference.href)}
+                    jobId={learningJobId}
+                    records={learningRecords}
+                    onSaved={projection => {
+                      const name = projection.target?.name?.trim().toUpperCase()
+                      if (name) dashboard.setRuntimeProjection(name, projection)
+                    }}
+                  />
                   <SettingsSection title={t('报告', 'Report')}>
                     <ResearchReportPanel
                       className="px-4 py-3 text-body leading-6"

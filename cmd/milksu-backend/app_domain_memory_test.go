@@ -44,12 +44,16 @@ func TestDomainMemoryLandsInTheArtifactWorkspace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := app.RecordVulnLearning(projection.Job.ID, vuln.LearningRecordRequest{
+	recorded, err := app.RecordVulnLearning(projection.Job.ID, vuln.LearningRecordRequest{
 		Kind:    "reflection",
 		Concept: "公告",
 		Content: "用户确认公告已核对，密钥是 " + secret,
-	}); err != nil {
+	})
+	if err != nil {
 		t.Fatal(err)
+	}
+	if len(recorded.Learning) != 1 {
+		t.Fatalf("learning record missing: %+v", recorded.Learning)
 	}
 	if found := findNamedFile(t, artifactDirectory, vuln.LearningContextFileName); found != "" {
 		t.Fatalf("learning file was created before the workspace: %s", found)
@@ -76,16 +80,40 @@ func TestDomainMemoryLandsInTheArtifactWorkspace(t *testing.T) {
 		t.Fatalf("learning file: %s", learning)
 	}
 
-	if _, err := app.RecordVulnLearning(projection.Job.ID, vuln.LearningRecordRequest{
+	second, err := app.RecordVulnLearning(projection.Job.ID, vuln.LearningRecordRequest{
 		Kind:    "variant",
 		Concept: "补丁",
 		Content: "用户确认补丁版本已记下。",
-	}); err != nil {
+	})
+	if err != nil {
 		t.Fatal(err)
 	}
 	learning = readFileString(t, learningPath)
 	if !strings.Contains(learning, "补丁版本已记下") {
 		t.Fatalf("learning file was not refreshed: %s", learning)
+	}
+
+	if _, err := app.ForgetVulnLearning(projection.Job.ID, recorded.Learning[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	learning = readFileString(t, learningPath)
+	if strings.Contains(learning, "公告已核对") || !strings.Contains(learning, "补丁版本已记下") {
+		t.Fatalf("forgotten learning remained in the file: %s", learning)
+	}
+	patchID := ""
+	for _, record := range second.Learning {
+		if record.ID != recorded.Learning[0].ID {
+			patchID = record.ID
+		}
+	}
+	if patchID == "" {
+		t.Fatal("patch learning id missing")
+	}
+	if _, err := app.ForgetVulnLearning(projection.Job.ID, patchID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(learningPath); !os.IsNotExist(err) {
+		t.Fatalf("learning file remained after the last note was forgotten: %v", err)
 	}
 
 	emptyID := "cve-research-cve-2021-44228"

@@ -387,6 +387,7 @@ func desktopAppMethods(app *App) map[string]desktopAppMethod {
 		"GetVulnerabilityPracticeStatus":       rendererDesktopMethod(app.GetVulnerabilityPracticeStatus),
 		"StopVulnerabilityPractice":            rendererDesktopMethod(app.StopVulnerabilityPractice),
 		"RecordVulnLearning":                   rendererDesktopMethod(app.RecordVulnLearning),
+		"ForgetVulnLearning":                   rendererDesktopMethod(app.ForgetVulnLearning),
 		"RecordVulnAssetVerification":          rendererDesktopMethod(app.RecordVulnAssetVerification),
 		"CancelVulnJob":                        rendererDesktopMethod(app.CancelVulnJob),
 		"GetEvalBoard":                         rendererDesktopMethod(app.GetEvalBoard),

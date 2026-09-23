@@ -216,7 +216,8 @@ L4 不另做一套提取。模型结论不会自动写进来。旧题结论和�
 CTF       用户显式保存的旧题结论
           ctf/memory.sqlite3 + ctf/memories/*.md
           准备题目工作区时按分类召回最多 5 条，排除本题，写成 MEMORY.md
-CVE       RecordLearning 记在这个 CVE 的作业投影上
+CVE       档案页记下一条复盘，或忘掉一条
+          RecordLearning / ForgetLearning 记在这个 CVE 的作业投影上
           解析研究工作区时写成 LEARNING.md；没有记录就删掉文件
 实验室    作业要求留在 lab-jobs/<id>.json，结果留在 report.md
           不另写一份记忆文件
@@ -232,7 +233,7 @@ flowchart TB
   end
 
   subgraph cve["CVE"]
-    cveSave["RecordLearning<br/>复盘 / 独立步骤 / 变体"]
+    cveSave["档案页记下或忘掉一条复盘"]
     cveStore["该 CVE 作业投影上的 learning 事实"]
     cveRecall["解析研究工作区，或刚记下一条且工作区已在"]
     cveFile["研究工作区 LEARNING.md"]
@@ -252,16 +253,17 @@ flowchart TB
 | --- | --- | --- |
 | CTF 用户保存训练记忆 | `SaveFromProjection`。要有证据，脱敏 Flag 和密钥。一题一条。 | `ctf/memory.sqlite3` 与 `ctf/memories/*.md` |
 | CTF 准备 Agent 工作区 | 同分类召回，排除本题，最多 5 条。 | 题目工作区 `MEMORY.md` |
-| CVE 记下学习 | `RecordLearning` 写角色事实。不创建研究目录。 | 漏洞作业投影 |
-| CVE 工作区被解析 | 按 CVE id 读已保存的学习记录。有则重写文件，没有则删除。工作区不在产物目录里就不写。 | 研究工作区 `LEARNING.md` |
-| CVE 又记下一条，工作区已经存在 | 同一份文件重写。工作区还没有就只留在投影里。 | `LEARNING.md` |
+| CVE 档案页记下一条复盘 | 没有追踪作业就先建。`RecordLearning` 写角色事实。不创建研究目录。 | 漏洞作业投影 |
+| CVE 档案页忘掉一条 | 再记一条忘掉事实，投影里不再列出。工作区已经在就重写文件，一条不剩就删除。 | 同一份投影和 `LEARNING.md` |
+| CVE 工作区被解析 | 按 CVE id 读还留着的学习记录。有则重写文件，没有则删除。工作区不在产物目录里就不写。 | 研究工作区 `LEARNING.md` |
+| CVE 又记下或忘掉一条，工作区已经存在 | 同一份文件重写。工作区还没有就只留在投影里。 | `LEARNING.md` |
 | 用户说出一直成立的做题习惯 | 同一条用户记忆提取。对得上原句就写入或更新。不必先证明它不可更改。 | L2 |
 | 下一次 Pi 回合，包括下一道 CTF | 请求里带上 L2。解题工作区同时能读到 `MEMORY.md`。 | 习惯在 L2，旧题结论在 `MEMORY.md` |
 | 看板娘提取 | 习惯写入 L2。某一道作业的结论不写入。 | L2 |
 
 个人习惯不走 CTF 训练记忆那套验证等级、贡献归属和不可覆盖文件。那套只服务旧题结论：保存时要有题目投影上的证据，召回到下一道同分类题时写成 `MEMORY.md`，采用前用本题材料核对。归档后不再召回。它不并进 L2，因为一条旧题结论不是这个人的习惯。
 
-CVE 没有跨 CVE 召回。实验室不另写记忆文件，作业要求留在作业上，观察留在 `report.md` 和会话抄本。渲染器里的 CVE 研究草稿不是 `LEARNING.md`。DSH 不另加一条领域提示，文件仍在工作区里。写文件失败不挡住打开工作区。
+CVE 档案页可以记下一条复盘，也可以忘掉。没有跨 CVE 召回。没有记录时删掉 `LEARNING.md`。实验室不另写记忆文件，作业要求留在作业上，观察留在 `report.md` 和会话抄本。渲染器里的 CVE 研究草稿不是 `LEARNING.md`。DSH 不另加一条领域提示，文件仍在工作区里。写文件失败不挡住打开工作区。
 
 ## 六层与依赖
 

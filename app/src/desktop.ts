@@ -610,6 +610,7 @@ interface DesktopAppBindings {
   ProbeEnvLease(request: import('@/envbroker').EnvOwnerRequest): Promise<string>
   OpenDockerDesktop(): Promise<void>
   RecordVulnLearning(id: string, request: VulnLearningRecordRequest): Promise<VulnProjection>
+  ForgetVulnLearning(id: string, learningId: string): Promise<VulnProjection>
   RecordVulnAssetVerification(id: string, request: VulnAssetVerificationRequest): Promise<VulnProjection>
   CancelVulnJob(id: string): Promise<void>
 }
@@ -1457,6 +1458,8 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.OpenDockerDesktop() as Promise<T>
       case 'record_vuln_learning':
         return app.RecordVulnLearning(args?.id as string, args?.request as VulnLearningRecordRequest) as Promise<T>
+      case 'forget_vuln_learning':
+        return app.ForgetVulnLearning(args?.id as string, args?.learningId as string) as Promise<T>
       case 'record_vuln_asset_verification':
         return app.RecordVulnAssetVerification(args?.id as string, args?.request as VulnAssetVerificationRequest) as Promise<T>
       case 'cancel_vuln_job':

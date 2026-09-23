@@ -480,6 +480,44 @@ func (s *Service) RecordLearning(ctx context.Context, jobID string, request Lear
 	return s.GetJob(ctx, jobID)
 }
 
+func (s *Service) ForgetLearning(ctx context.Context, jobID, learningID string) (Projection, error) {
+	learningID = strings.TrimSpace(learningID)
+	if learningID == "" {
+		return Projection{}, fmt.Errorf("learning record id is required")
+	}
+	core, err := s.runtime.GetJob(ctx, jobID)
+	if err != nil {
+		return Projection{}, err
+	}
+	if core.Job.Role != PackageID {
+		return Projection{}, fmt.Errorf("job is not a vulnerability research workspace")
+	}
+	current, err := Project(core)
+	if err != nil {
+		return Projection{}, err
+	}
+	found := false
+	for _, record := range current.Learning {
+		if record.ID == learningID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return Projection{}, fmt.Errorf("learning record was not found")
+	}
+	fact, err := marshalRoleFact(FactLearningForgotten, struct {
+		ID string `json:"id"`
+	}{ID: learningID}, nil, nil)
+	if err != nil {
+		return Projection{}, err
+	}
+	if err := s.runtime.CommitRoleFact(ctx, securityruntime.EventScope{JobID: jobID}, fact); err != nil {
+		return Projection{}, err
+	}
+	return s.GetJob(ctx, jobID)
+}
+
 func (s *Service) RecordAssetVerification(ctx context.Context, jobID string, request AssetVerificationRequest) (Projection, error) {
 	core, err := s.runtime.GetJob(ctx, jobID)
 	if err != nil {

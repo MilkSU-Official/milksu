@@ -2339,6 +2339,15 @@ func (a *App) RecordVulnLearning(id string, request vuln.LearningRecordRequest) 
 	return projection, nil
 }
 
+func (a *App) ForgetVulnLearning(id, learningID string) (vuln.Projection, error) {
+	projection, err := a.vulnJobs.ForgetLearning(a.commandContext(), id, learningID)
+	if err != nil {
+		return projection, err
+	}
+	a.refreshCVELearningFile(projection.Target.Name)
+	return projection, nil
+}
+
 func (a *App) RecordVulnAssetVerification(id string, request vuln.AssetVerificationRequest) (vuln.Projection, error) {
 	return a.vulnJobs.RecordAssetVerification(a.commandContext(), id, request)
 }
