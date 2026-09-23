@@ -2,27 +2,25 @@
 
 Cloud Coding client for MilkSU accounts.
 
+## UI
+
+Material 3 原生壳：
+
+- **底部 NavigationBar 2 项**：会话 / 我的
+- 登录：品牌大标题 + 主按钮（Chrome Custom Tabs PKCE）
+- 会话：`LargeTopAppBar` + 圆角 `Surface` 行 + FAB 新对话 + 下拉刷新
+- 对话：气泡 + 圆角 `OutlinedTextField` 胶囊输入 + `FilledIconButton` 发送
+- 主题：冷色画布 / 墨色 primary（`MilkSUTheme`）；文案中英（`L10n`）
+
 ## Layout
 
-- `app/src/main/java/org/milksu/app/MilkSUApp.kt` — Connect-JSON unary + Subscribe envelope client.
-- `AccountAuth.kt` — PKCE + Chrome Custom Tabs + EncryptedSharedPreferences.
-- `MainActivity.kt` — Sign-in, session list, chat with Subscribe reconnect loop.
-- `AndroidManifest.xml` — `INTERNET` + `milksu://auth/callback` intent-filter.
+- `L10n.kt` / `MilkSUTheme.kt` — 文案与色板
+- `MilkSUApp.kt` — Connect-JSON + Subscribe 信封客户端
+- `AccountAuth.kt` — PKCE + EncryptedSharedPreferences
+- `MainActivity.kt` — 登录 / Tab / 列表 / 对话
+- `AndroidManifest.xml` — `INTERNET` + `milksu://auth/callback`
 - Prefer Connect-Kotlin stubs from `cloud/agent/proto` when `npm run generate` lands in CI.
-
-## Auth
-
-- Callback: `milksu://auth/callback` (same as desktop `AccountSession`)
-- Access token in `EncryptedSharedPreferences` (AES256-GCM); never log it.
-- One-shot migrate from the earlier plaintext `milksu.account` prefs.
-
-## First vertical slice
-
-1. Sign in (PKCE).
-2. `ListSessions` / `CreateSession`.
-3. Open a session → `SendTurn` + `Subscribe` (long-poll resume via `after_event_id`).
-4. Usage disclaimer: estimates from models.dev are for stats only, not a bill.
 
 ## Build
 
-Gradle skeleton: root `settings.gradle.kts` + `app/build.gradle.kts` (Compose Material3 + security-crypto). Open `mobile/android` in Android Studio to sync.
+Open `mobile/android` in Android Studio to sync（Compose Material3 + icons-extended + security-crypto）.
