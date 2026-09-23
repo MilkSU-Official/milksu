@@ -29,6 +29,7 @@ import {
   ExternalLink,
   FileDiff,
   FileImage,
+  ImageIcon,
   Flag,
   FolderOpen,
   GitBranch,
@@ -36,8 +37,7 @@ import {
   LoaderCircle,
   MousePointer2,
   Minimize2,
-  PanelRightClose,
-  PanelRightOpen,
+  PanelRight,
   Plus,
   RefreshCw,
   Search,
@@ -63,10 +63,12 @@ import ChatComposer, { type ChatComposerHandle } from '@/components/ChatComposer
 import { ChatEdgeFade } from '@/components/ChatEdgeFade'
 import { ConversationQuoteMenu, selectedTextIn } from '@/components/ConversationQuoteMenu'
 import WorkingTray from '@/components/WorkingTray'
+import ChatGeneratedImage from '@/components/ChatGeneratedImage'
 import ChatMessageItem from '@/components/ChatMessageItem'
 import CodingArtifactPreviewPanel, {
   type CodingArtifactPreviewPanelHandle,
 } from '@/components/CodingArtifactPreviewPanel'
+import CodingImageGalleryPanel from '@/components/CodingImageGalleryPanel'
 import CodingChangesPanel from '@/components/CodingChangesPanel'
 import CodingComputerUsePanel from '@/components/CodingComputerUsePanel'
 import CodingComputerUsePermissionDialog from '@/components/CodingComputerUsePermissionDialog'
@@ -190,8 +192,11 @@ import {
   composerRunPhase,
   parentHasActiveTurnResidue,
 } from '@/lib/composerRunState'
+import { imageGenModelLabel, isImageGenModelID } from '@/lib/imageGenCatalog'
 import {
   encodeComposerModelKey,
+  imageGenComposerGroups,
+  imageGenSettingsKey,
   modelServiceSourceLabel,
   parseComposerModelKey,
   providerModelLabel,
@@ -209,6 +214,7 @@ const contextPanelValues = [
   'environment',
   'changes',
   'artifacts',
+  'images',
   'browser',
   'browser-use',
   'computer-use',
@@ -262,7 +268,7 @@ export type ChatPageProps = {
     text: string,
     visibleText?: string,
     attachments?: CodingAttachment[],
-    scopeToken?: 'browser-use' | 'computer-use',
+    scopeToken?: 'browser-use' | 'computer-use' | 'image',
     productAction?: CodingProductActionRequest,
   ) => void
   onCtfAction?: (action: CTFChatAction) => void
@@ -279,6 +285,8 @@ export type ChatPageProps = {
   onChangeKernel?: (kernel: 'pi' | 'dsh') => void
   onMigrateKernel?: (kernel: 'pi' | 'dsh') => void
   onChangeModelSource?: (preference: 'auto' | 'account' | 'personal') => void
+  imageHome?: boolean
+  onChangeImageModel?: (value: string) => void
   onChangeCodingPolicy?: (
     executionMode: CodingExecutionMode,
     approvalPolicy: CodingApprovalPolicy,
@@ -358,6 +366,8 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
   onChangeKernel,
   onMigrateKernel,
   onChangeModelSource,
+  imageHome = false,
+  onChangeImageModel,
   onChangeCodingPolicy,
   onChangeMcpServers,
   onRespondApproval,
@@ -460,6 +470,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
   const [railQuery, setRailQuery] = useState('')
   const artifactPanel = useRef<CodingArtifactPreviewPanelHandle | null>(null)
   const [requestedArtifactPath, setRequestedArtifactPath] = useState('')
+  const [imageGalleryRefreshToken, setImageGalleryRefreshToken] = useState(0)
   const [, setEnvironmentLoading] = useState(false)
   const [environmentError, setEnvironmentError] = useState('')
   const [browserPanelError, setBrowserPanelError] = useState('')
@@ -719,16 +730,36 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
       selectedComputerUseTargetKey,
     )
   ), [scopedComputerUseTargets, selectedComputerUseTargetKey])
+  const imageGroups = useMemo(() => imageGenComposerGroups(settings), [settings])
+  const imageModelKey = imageGenSettingsKey(settings)
+  const imageModelId = settings?.imagegen_model && isImageGenModelID(settings.imagegen_model)
+    ? settings.imagegen_model
+    : ''
+  const imageModelLabel = imageModelId ? imageGenModelLabel(imageModelId) : ''
+  const imageGenConfigured = Boolean(
+    settings?.imagegen_provider
+    && imageModelId
+    && (
+      (settings.imagegen_source === 'account' && settings.relay?.enabled && settings.relay.has_key)
+      || (
+        settings.imagegen_source !== 'account'
+        && settings.providers?.[settings.imagegen_provider]?.enabled
+        && settings.providers[settings.imagegen_provider].has_api_key
+      )
+    ),
+  )
+  const imageDrawNotice = !imageGenConfigured
+    ? t('先选择生图模型。', 'Choose an image model first.')
+    : effectiveExecutionMode !== 'go' || effectiveApprovalPolicy === 'read-only'
+      ? t('当前模式不会生图。', 'This mode does not generate images.')
+      : ''
   const codingCapabilities = useMemo(() => {
     const capabilities = conversation?.agentCapabilities?.length
       ? conversation.agentCapabilities
       : previewCodingCapabilities(
           effectiveExecutionMode,
           effectiveApprovalPolicy,
-          Boolean(
-            settings?.providers?.openai?.enabled
-            && settings.providers.openai.has_api_key,
-          ),
+          imageGenConfigured,
         )
     if (!computerUseStatus) return capabilities
     const target = computerUseStatus.target
@@ -762,7 +793,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     conversation?.agentCapabilities,
     effectiveExecutionMode,
     effectiveApprovalPolicy,
-    settings,
+    imageGenConfigured,
     computerUseStatus,
     computerUseReadyForCurrentTask,
     selectedComputerUseTarget,
@@ -841,12 +872,13 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     return codingWorkspaceLabel(workspacePath, homeDirectory)
   }, [workspacePath, homeDirectory])
   const codingEmptyHeading = useMemo(() => {
+    if (imageHome) return t('我们画什么', 'What should we draw')
     const name = selectedCodingProjectName || workspaceName
     if (name && name !== '~' && name !== t('无项目任务', 'No project') && !isGenericWorkspaceLabel(name)) {
       return t(`我们在 ${name} 中构建什么`, `What should we build in ${name}`)
     }
     return t('我们要构建什么', 'What should we build')
-  }, [selectedCodingProjectName, workspaceName, t])
+  }, [imageHome, selectedCodingProjectName, workspaceName, t])
   const terminalConversationId = conversation?.id || LOCAL_CODING_SHELL_ID
   const terminalWorkspacePath = workspacePath || homeDirectory
   const codingBrowserEvidencePath = useMemo(() => {
@@ -941,6 +973,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     if (pendingAskMessage(conversation?.messages)) return false
     const last = chatTranscript.at(-1)
     if (!last) return true
+    if (last.kind === 'image') return true
     if (last.kind === 'activity') return !last.running
     if (last.kind === 'process') {
       const inner = last.blocks.at(-1)
@@ -959,6 +992,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     environment: ctfSession ? t('解题环境', 'Challenge environment') : t('环境信息', 'Environment'),
     changes: t('变更', 'Changes'),
     artifacts: t('产物', 'Artifacts'),
+    images: t('图片', 'Images'),
     browser: t('浏览器', 'Browser'),
     'browser-use': 'Browser Use',
     'computer-use': 'Computer Use',
@@ -1370,7 +1404,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
       void showComputerUseScope()
       return
     }
-    if (panel === 'browser' || panel === 'artifacts' || panel === 'changes' || panel === 'environment') {
+    if (panel === 'browser' || panel === 'artifacts' || panel === 'images' || panel === 'changes' || panel === 'environment') {
       setContextPanel(panel)
       setEnvironmentOpen(true)
     }
@@ -1796,6 +1830,10 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
       await artifactPanel.current?.refresh()
       return
     }
+    if (panel === 'images') {
+      await refreshEnvironment()
+      return
+    }
     if (['browser', 'computer-use'].includes(panel)) {
       await refreshBrowserPanel()
       return
@@ -1865,7 +1903,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     prompt: string,
     visibleText?: string,
     attachments?: CodingAttachment[],
-    scopeToken?: 'browser-use' | 'computer-use',
+    scopeToken?: 'browser-use' | 'computer-use' | 'image',
     productAction?: CodingProductActionRequest,
   ) {
     setGoalMode(false)
@@ -1877,6 +1915,8 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
       void showComputerUseScope()
       return
     }
+    const drawTurn = imageHome || scopeToken === 'image'
+    if (drawTurn && imageDrawNotice) return
     const stagedPrompt = stagedComposerPrompt
     const submittedPrompt = stagedPrompt
       && stagedPrompt.conversationId === conversation?.id
@@ -1884,7 +1924,9 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
       ? `${stagedPrompt.prompt}\n\n用户当前请求：${prompt}`
       : prompt
     setStagedComposerPrompt(null)
-    const scopedPrompt = scopeToken === 'browser-use'
+    const scopedPrompt = drawTurn
+      ? `本轮是画图。调用一次 milksu_imagegen，把下面的用户原文当作 prompt，使用已经配置的生图模型，写到工作区里一个新的 .png 路径。不要覆盖已有文件，不要改代码，不要改用对话模型画图。对话里会直接显示这张图。用户只是要图时不要再写路径、哈希、尺寸或模型；只有还需要用文字回答时才写文字。\n\n${submittedPrompt}`
+      : scopeToken === 'browser-use'
       ? `本轮通过 Playwright MCP 官方扩展请求连接真实用户浏览器；首次调用时等我在 Chrome/Edge 里选择并批准准确标签页。只操作扩展返回的标签页，不要改用 MilkSU 内置浏览器或 Computer Use。\n\n${submittedPrompt}`
       : scopeToken === 'computer-use'
         ? `本轮使用已锁定的可见 App 窗口完成请求；若尚未接入准确窗口，先停下让我选择。\n\n${submittedPrompt}`
@@ -2271,6 +2313,12 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
       void showComputerUseScope(pendingReveal.preferEmulator)
     }
     window.addEventListener('focus', refreshComputerUseAfterSettings)
+    function refreshOpenImageList() {
+      if (environmentOpenRef.current && contextPanelRef.current === 'images') {
+        void refreshEnvironment()
+      }
+    }
+    window.addEventListener('focus', refreshOpenImageList)
     let stopBrowserReady: (() => void) | undefined
     let stopWorkspaceReveal: (() => void) | undefined
     void listenEvent<CodingBrowserStatus>('coding-browser.ready', event => {
@@ -2295,6 +2343,49 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     }).then(stop => {
       stopWorkspaceReveal = stop
     })
+    let stopImageGenEvents: (() => void) | undefined
+    void listenEvent<{
+      sessionId?: string
+      type?: string
+      toolName?: string
+      text?: string
+      error?: string
+    }>('engine-event', event => {
+      const payload = event.payload
+      if (payload?.sessionId && payload.sessionId !== conversationRef.current?.id) return
+      if (payload?.type !== 'tool.completed' || payload.toolName !== 'milksu_imagegen') return
+      const failure = String(payload.error ?? '').trim()
+      if (failure) {
+        // Failure bubble is projected by useConversations; drop the preview path
+        // so the rail does not keep a missing file selected.
+        setRequestedArtifactPath('')
+        setImageGalleryRefreshToken(token => token + 1)
+        void refreshEnvironment()
+        return
+      }
+      let outputPath = ''
+      try {
+        const receipt = JSON.parse(String(payload.text ?? '')) as {
+          output?: { path?: string }
+          status?: string
+        }
+        outputPath = String(receipt?.output?.path ?? '').trim()
+      } catch {
+        outputPath = ''
+      }
+      if (outputPath) {
+        setRequestedArtifactPath(outputPath)
+        if (!dockSurfaceRef.current) {
+          setContextPanel('images')
+          setEnvironmentOpen(true)
+          setRailTabs(tabs => tabs.includes('images') ? tabs : [...tabs, 'images'])
+        }
+      }
+      setImageGalleryRefreshToken(token => token + 1)
+      void refreshEnvironment()
+    }).then(stop => {
+      stopImageGenEvents = stop
+    })
     if (typeof ResizeObserver !== 'undefined') {
       codingBrowserResizeObserver.current = new ResizeObserver(() => {
         lastCodingBrowserViewport.current = ''
@@ -2312,8 +2403,10 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     return () => {
       stopBrowserReady?.()
       stopWorkspaceReveal?.()
+      stopImageGenEvents?.()
       void hideCodingBrowserViewport()
       window.removeEventListener('focus', refreshComputerUseAfterSettings)
+      window.removeEventListener('focus', refreshOpenImageList)
       codingBrowserResizeObserver.current?.disconnect()
       window.clearInterval(statusTimer)
       if (transcriptRefillTimer.current) window.clearTimeout(transcriptRefillTimer.current)
@@ -2468,7 +2561,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     if (['browser', 'browser-use', 'computer-use'].includes(contextPanel) && environmentOpen) {
       void refreshBrowserPanel()
     }
-    if (['artifacts', 'changes'].includes(contextPanel) && environmentOpen) void refreshEnvironment()
+    if (['artifacts', 'images', 'changes'].includes(contextPanel) && environmentOpen) void refreshEnvironment()
     if (contextPanel === 'browser' && environmentOpen) {
       void ensureCodingBrowser().then(() => {
         requestAnimationFrame(() => void syncCodingBrowserViewport())
@@ -2502,6 +2595,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     if (panel === 'environment') return <Activity className="size-3.5 shrink-0" />
     if (panel === 'changes') return <FileDiff className="size-3.5 shrink-0" />
     if (panel === 'artifacts') return <FileImage className="size-3.5 shrink-0" />
+    if (panel === 'images') return <ImageIcon className="size-3.5 shrink-0" />
     if (panel === 'browser' || panel === 'browser-use') return <Globe2 className="size-3.5 shrink-0" />
     if (panel === 'computer-use') return <MousePointer2 className="size-3.5 shrink-0" />
     if (panel === 'collaboration') return <Wrench className="size-3.5 shrink-0" />
@@ -2511,6 +2605,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     { id: 'environment', label: ctfSession ? t('解题环境', 'Challenge environment') : t('环境信息', 'Environment') },
     { id: 'changes', label: t('变更', 'Changes') },
     { id: 'artifacts', label: t('产物', 'Artifacts') },
+    { id: 'images', label: t('图片', 'Images') },
     { id: 'browser', label: t('浏览器', 'Browser') },
     ...(ctfSession ? [
       { id: 'collaboration' as const, label: t('Agent 协作', 'Agent collaboration') },
@@ -2531,6 +2626,31 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
       data-agent-conversation
       data-testid={dockSurface ? 'coding-agent-dock-surface' : undefined}
     >
+      {!dockSurface ? (
+        <div className="shell-window-controls shell-window-controls--end">
+          <button
+            type="button"
+            className="shell-chrome-icon app-no-drag"
+            data-testid="coding-rail-terminal"
+            aria-label={terminalOpen ? t('关闭底部终端', 'Close bottom terminal') : t('打开底部终端', 'Open bottom terminal')}
+            title={terminalOpen ? t('关闭底部终端', 'Close bottom terminal') : t('打开底部终端', 'Open bottom terminal')}
+            onClick={toggleTerminalPanel}
+          >
+            <SquareTerminal className="size-4" />
+          </button>
+          <button
+            type="button"
+            className="shell-chrome-icon app-no-drag"
+            data-testid="coding-rail-toggle"
+            aria-label={environmentOpen ? t('关闭右侧栏', 'Close right rail') : t('打开右侧栏', 'Open right rail')}
+            title={environmentOpen ? t('关闭右侧栏', 'Close right rail') : t('打开右侧栏', 'Open right rail')}
+            aria-pressed={environmentOpen}
+            onClick={toggleManualContextSidebar}
+          >
+            <PanelRight className="size-4" />
+          </button>
+        </div>
+      ) : null}
       <div className="coding-workspace relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <main className="chat-main relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-editor">
           {!dockSurface ? (
@@ -2540,44 +2660,18 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
               title={topbarPresentation.title}
               subtitle={topbarPresentation.subtitle}
               hideIdentity={codingDraftIdle}
-              actions={(
-                <>
-                  {restorable ? (
-                    <button
-                      type="button"
-                      className="agent-chrome-icon"
-                      aria-label={t('还原小窗', 'Restore window')}
-                      title={t('还原小窗', 'Restore window')}
-                      onClick={() => onRestore?.()}
-                    >
-                      <Minimize2 className="size-4" />
-                    </button>
-                  ) : null}
-                  {!environmentOpen ? (
-                    <>
-                      <button
-                        type="button"
-                        className="agent-chrome-icon"
-                        aria-label={terminalOpen ? t('关闭底部终端', 'Close bottom terminal') : t('打开底部终端', 'Open bottom terminal')}
-                        title={terminalOpen ? t('关闭底部终端', 'Close bottom terminal') : t('打开底部终端', 'Open bottom terminal')}
-                        onClick={toggleTerminalPanel}
-                      >
-                        <SquareTerminal className="size-4" />
-                      </button>
-                      <button
-                        type="button"
-                        className="agent-chrome-icon"
-                        data-testid="coding-rail-toggle"
-                        aria-label={t('打开右侧栏', 'Open right rail')}
-                        title={t('打开右侧栏', 'Open right rail')}
-                        onClick={toggleManualContextSidebar}
-                      >
-                        <PanelRightOpen className="size-4" />
-                      </button>
-                    </>
-                  ) : null}
-                </>
-              )}
+              windowCaptionEdge={!environmentOpen}
+              actions={restorable ? (
+                <button
+                  type="button"
+                  className="agent-chrome-icon app-no-drag"
+                  aria-label={t('还原小窗', 'Restore window')}
+                  title={t('还原小窗', 'Restore window')}
+                  onClick={() => onRestore?.()}
+                >
+                  <Minimize2 className="size-4" />
+                </button>
+              ) : undefined}
             />
             </div>
           ) : null}
@@ -2676,6 +2770,12 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
                       onRewindContext={() => onRewindContext?.()}
                       onBranchAssistant={branchFromAssistantMessage}
                       onOpenSubagent={task => composer.current?.appendQuote(subagentCitationText(task))}
+                    />
+                  ) : item.kind === 'image' ? (
+                    <ChatGeneratedImage
+                      key={item.id}
+                      workspacePath={workspacePath}
+                      path={item.path}
                     />
                   ) : item.kind === 'activity' ? (
                     <ChatActivityGroup
@@ -2893,6 +2993,12 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
             gitBranches={gitBranches}
             browserUseReady={browserUseReadyForCurrentTask}
             computerUseReady={externalAppUseReadyForCurrentTask}
+            imageHome={imageHome}
+            imageModelKey={imageModelKey}
+            imageModelLabel={imageModelLabel}
+            imageDrawNotice={imageDrawNotice}
+            imageGroups={imageGroups}
+            onChangeImageModel={onChangeImageModel}
             availableSkills={activeSkills}
             importedSkills={enabledUserSkills}
             selectedMcpServers={selectedMCPServers}
@@ -2938,7 +3044,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
             data-testid="single-right-context-rail"
             onWidthChange={persistContextRailWidth}
             header={(
-              <div className="app-drag flex w-full min-w-0 items-center gap-0.5">
+              <div className="app-drag flex min-w-0 flex-1 items-center gap-0.5">
                 {!transientComputerUsePanel ? (
                   <>
                     <Popover open={railMenuOpen} onOpenChange={open => { setRailMenuOpen(open); if (!open) setRailQuery('') }}>
@@ -3015,28 +3121,6 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
                     <span className="truncate">{contextPanelTitle}</span>
                   </div>
                 )}
-                <div className="app-no-drag flex items-center">
-                  <button
-                    type="button"
-                    className="agent-chrome-icon"
-                    data-testid="coding-rail-terminal"
-                    aria-label={terminalOpen ? t('关闭底部终端', 'Close bottom terminal') : t('打开底部终端', 'Open bottom terminal')}
-                    title={terminalOpen ? t('关闭底部终端', 'Close bottom terminal') : t('打开底部终端', 'Open bottom terminal')}
-                    onClick={toggleTerminalPanel}
-                  >
-                    <SquareTerminal className="size-4" />
-                  </button>
-                  <button
-                    type="button"
-                    className="agent-chrome-icon"
-                    data-testid="coding-rail-toggle"
-                    aria-label={t('关闭右侧栏', 'Close right rail')}
-                    title={t('关闭右侧栏', 'Close right rail')}
-                    onClick={toggleManualContextSidebar}
-                  >
-                    <PanelRightClose className="size-4" />
-                  </button>
-                </div>
               </div>
             )}
           >
@@ -3354,6 +3438,14 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
                   environment={codingEnvironment}
                   requestedPath={requestedArtifactPath}
                   onPreviewed={recordArtifactPreview}
+                />
+              ) : contextPanel === 'images' ? (
+                <CodingImageGalleryPanel
+                  workspacePath={workspacePath}
+                  environment={codingEnvironment}
+                  requestedPath={requestedArtifactPath}
+                  refreshToken={imageGalleryRefreshToken}
+                  onSelect={path => setRequestedArtifactPath(path)}
                 />
               ) : contextPanel === 'browser' ? (
                 <section className="coding-browser-panel flex h-full min-h-0 flex-col">

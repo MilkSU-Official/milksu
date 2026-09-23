@@ -1,5 +1,7 @@
 import { createStore, useStore } from '@/lib/reactStore'
 import { invokeCommand } from '@/desktop'
+import { IMAGEGEN_MODEL_OFF, imageGenModelLabel, imageGenTransport, isImageGenModelID } from '@/lib/imageGenCatalog'
+import type { SearchableModelGroup } from '@/lib/modelPickerSearch'
 import { t } from '@/lib/uiLocale'
 import {
   PRESET_DEEPSEEK_SERVICE_ID,
@@ -7,6 +9,7 @@ import {
   customProviderInfo,
   providerModelLabel as fallbackModelLabel,
   type AppSettings,
+  type ModelCatalogItem,
   type ModelCatalogSnapshot,
   type ProviderConfig,
   type ProviderInfo,
@@ -76,30 +79,34 @@ export function tokenfluxCallableModels(
   const personalOn = providerReady(settings.providers ?? {}, 'tokenflux')
   if (!accountOn && !personalOn) return []
 
+  const imageIDs = new Set((catalog.image_models ?? []).map(model => model.id))
+  const models = catalog.models.filter(model => !imageIDs.has(model.id))
+  if (models.length === 0) return []
+
   const accountIDs = new Set(
     (catalog.account_model_ids ?? [])
       .map(id => String(id ?? '').trim())
-      .filter(Boolean),
+      .filter(id => id && !imageIDs.has(id)),
   )
 
-  if (accountOn && personalOn) return catalog.models
+  if (accountOn && personalOn) return models
 
   if (accountOn) {
     if (catalog.credential_source === 'merged' && accountIDs.size > 0) {
-      return catalog.models.filter(model => accountIDs.has(model.id))
+      return models.filter(model => accountIDs.has(model.id))
     }
     if (catalog.credential_source === 'account' || catalog.credential_source === 'merged') {
-      return catalog.models
+      return models
     }
     return []
   }
 
   if (catalog.credential_source === 'merged' && accountIDs.size > 0) {
-    const personal = catalog.models.filter(model => !accountIDs.has(model.id))
-    return personal.length > 0 ? personal : catalog.models
+    const personal = models.filter(model => !accountIDs.has(model.id))
+    return personal.length > 0 ? personal : models
   }
   if (catalog.credential_source === 'personal' || catalog.credential_source === 'merged') {
-    return catalog.models
+    return models
   }
   return []
 }
@@ -134,32 +141,159 @@ function catalogModelsForTokenfluxSource(
   if (source === 'account' && !accountOn) return []
   if (source === 'personal' && !personalOn) return []
 
+  const imageIDs = new Set((catalog.image_models ?? []).map(model => model.id))
+  const models = catalog.models.filter(model => !imageIDs.has(model.id))
+  if (models.length === 0) return []
   const accountIDs = new Set(
     (catalog.account_model_ids ?? [])
+      .map(id => String(id ?? '').trim())
+      .filter(id => id && !imageIDs.has(id)),
+  )
+
+  if (source === 'account') {
+    if (catalog.credential_source === 'merged' && accountIDs.size > 0) {
+      return models.filter(model => accountIDs.has(model.id))
+    }
+    if (catalog.credential_source === 'account' || catalog.credential_source === 'merged') {
+      return models
+    }
+    // Account route on but catalog only has personal metadata — still list all
+    // known TokenFlux chat models so the account row is usable.
+    return models
+  }
+
+  if (catalog.credential_source === 'merged' && accountIDs.size > 0) {
+    const personal = models.filter(model => !accountIDs.has(model.id))
+    return personal.length > 0 ? personal : models
+  }
+  if (catalog.credential_source === 'personal' || catalog.credential_source === 'merged') {
+    return models
+  }
+  return models
+}
+
+/** Image routes from the same TokenFlux refresh, split by which key can call them. */
+export function imageModelsForTokenfluxSource(
+  source: 'account' | 'personal',
+  settings: {
+    providers?: Record<string, ProviderConfig>
+    relay?: RelayConfig | null
+  },
+): ModelCatalogItem[] {
+  const catalog = catalogState().current
+  if (!catalog || catalog.provider !== 'tokenflux') return []
+  if (catalog.source !== 'remote' && catalog.source !== 'cache') return []
+  if (
+    catalog.credential_source !== 'account'
+    && catalog.credential_source !== 'personal'
+    && catalog.credential_source !== 'merged'
+  ) {
+    return []
+  }
+  const images = catalog.image_models ?? []
+  if (images.length === 0) return []
+  const accountOn = accountRouteReady(settings.relay)
+  const personalOn = providerReady(settings.providers ?? {}, 'tokenflux')
+  if (source === 'account' && !accountOn) return []
+  if (source === 'personal' && !personalOn) return []
+
+  const accountIDs = new Set(
+    (catalog.account_image_model_ids ?? [])
       .map(id => String(id ?? '').trim())
       .filter(Boolean),
   )
 
   if (source === 'account') {
     if (catalog.credential_source === 'merged' && accountIDs.size > 0) {
-      return catalog.models.filter(model => accountIDs.has(model.id))
+      return images.filter(model => accountIDs.has(model.id))
     }
     if (catalog.credential_source === 'account' || catalog.credential_source === 'merged') {
-      return catalog.models
+      return images
     }
-    // Account route on but catalog only has personal metadata — still list all
-    // known TokenFlux models so the account row is usable.
-    return catalog.models
+    return images
   }
 
   if (catalog.credential_source === 'merged' && accountIDs.size > 0) {
-    const personal = catalog.models.filter(model => !accountIDs.has(model.id))
-    return personal.length > 0 ? personal : catalog.models
+    const personal = images.filter(model => !accountIDs.has(model.id))
+    return personal.length > 0 ? personal : images
   }
-  if (catalog.credential_source === 'personal' || catalog.credential_source === 'merged') {
-    return catalog.models
+  return images
+}
+
+/** Composer and settings groups for image routes only. Chat models stay out. */
+export function imageGenComposerGroups(settings: {
+  providers?: Record<string, ProviderConfig>
+  relay?: RelayConfig | null
+} | null | undefined): SearchableModelGroup[] {
+  if (!settings) return []
+  const groups: SearchableModelGroup[] = []
+  const pushTokenflux = (source: 'account' | 'personal', key: string, label: string) => {
+    const models = imageModelsForTokenfluxSource(source, settings)
+    if (models.length === 0) return
+    groups.push({
+      key,
+      label,
+      models: models.map(model => ({
+        value: encodePickerSelection('tokenflux', model.id, source),
+        label: imageGenModelLabel(model.id, model.name),
+        model: model.id,
+      })),
+    })
   }
-  return catalog.models
+  pushTokenflux('account', 'imagegen-account-tokenflux', t('MilkSU 账户', 'MilkSU account'))
+  pushTokenflux('personal', 'imagegen-personal-tokenflux', t('TokenFlux 中转站', 'TokenFlux relay'))
+  for (const [id, config] of Object.entries(settings.providers ?? {})) {
+    if (!config?.custom || !config.enabled || !config.has_api_key) continue
+    const info = customProviderInfo(id, config)
+    if (!info) continue
+    const models = (config.models ?? []).map(model => String(model ?? '').trim()).filter(isImageGenModelID)
+    if (models.length === 0) continue
+    groups.push({
+      key: `imagegen-service-${id}`,
+      label: info.name,
+      models: models.map(model => ({
+        value: encodePickerSelection(id, model, 'service'),
+        label: imageGenModelLabel(model),
+        model,
+      })),
+    })
+  }
+  return groups
+}
+
+export function imageGenSettingsKey(settings: {
+  imagegen_provider?: string
+  imagegen_model?: string
+  imagegen_source?: string
+} | null | undefined): string {
+  const provider = String(settings?.imagegen_provider ?? '').trim()
+  const model = String(settings?.imagegen_model ?? '').trim()
+  if (!provider || !model || !isImageGenModelID(model)) return IMAGEGEN_MODEL_OFF
+  const source = settings?.imagegen_source === 'account'
+    || settings?.imagegen_source === 'personal'
+    || settings?.imagegen_source === 'service'
+    ? settings.imagegen_source
+    : 'account'
+  return encodePickerSelection(provider, model, source)
+}
+
+export function imageGenSettingsFromKey(value: string): {
+  imagegen_provider: string
+  imagegen_model: string
+  imagegen_source: '' | 'account' | 'personal' | 'service'
+} {
+  if (!value || value === IMAGEGEN_MODEL_OFF) {
+    return { imagegen_provider: '', imagegen_model: '', imagegen_source: '' }
+  }
+  const selection = parsePickerSelection(value)
+  if (!selection || !isImageGenModelID(selection.model)) {
+    return { imagegen_provider: '', imagegen_model: '', imagegen_source: '' }
+  }
+  return {
+    imagegen_provider: selection.providerId,
+    imagegen_model: selection.model,
+    imagegen_source: selection.source,
+  }
 }
 
 function withTokenfluxModels(
@@ -483,20 +617,44 @@ export function installModelCatalog(snapshot?: ModelCatalogSnapshot | null) {
   }
   if (!snapshot || snapshot.provider !== 'tokenflux' || !Array.isArray(snapshot.models)) return
   const seen = new Set<string>()
-  const models = snapshot.models.filter(model => {
-    const id = String(model.id ?? '').trim()
-    if (!id || seen.has(id)) return false
+  const models: ModelCatalogItem[] = []
+  const images: ModelCatalogItem[] = []
+  const seenImage = new Set<string>()
+  const takeImage = (model: ModelCatalogItem) => {
+    const id = String(model?.id ?? '').trim()
+    if (!id || !isImageGenModelID(id) || seenImage.has(id)) return
+    seenImage.add(id)
+    images.push({
+      ...model,
+      id,
+      image_transport: model.image_transport || imageGenTransport(id),
+    })
+  }
+  for (const model of snapshot.image_models ?? []) takeImage(model)
+  for (const model of snapshot.models) {
+    const id = String(model?.id ?? '').trim()
+    if (!id || seen.has(id)) continue
     seen.add(id)
-    return true
-  })
-  if (!models.length) return
+    if (isImageGenModelID(id)) {
+      takeImage({ ...model, id })
+      continue
+    }
+    models.push({ ...model, id })
+  }
+  if (!models.length && !images.length) return
+  const accountChatIDs = Array.isArray(snapshot.account_model_ids)
+    ? snapshot.account_model_ids.map(id => String(id ?? '').trim()).filter(id => id && !seenImage.has(id))
+    : undefined
+  const accountImageIDs = (snapshot.account_image_model_ids ?? [])
+    .map(id => String(id ?? '').trim())
+    .filter((id, index, all) => id && all.indexOf(id) === index)
   modelCatalogStore.setState({
     current: {
       ...snapshot,
       models,
-      account_model_ids: Array.isArray(snapshot.account_model_ids)
-        ? snapshot.account_model_ids.map(id => String(id ?? '').trim()).filter(Boolean)
-        : undefined,
+      image_models: images,
+      account_model_ids: accountChatIDs,
+      account_image_model_ids: accountImageIDs.length > 0 ? accountImageIDs : snapshot.account_image_model_ids,
     },
   })
 }

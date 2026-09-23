@@ -14,6 +14,8 @@ export interface CodingConversationGroup {
   path: string | null
   paths: string[]
   temporary: boolean
+  /** Draw chats sit directly under the sidebar header. No second folder. */
+  flat?: boolean
   conversations: Conversation[]
   lastActiveAt: number
 }
@@ -163,6 +165,26 @@ export function groupWorkspaceConversations(
       conversationsForWorkspaceHome(conversations, 'chat'),
       query,
     )
+  }
+  if (home === 'image') {
+    const normalizedQuery = query.trim().toLocaleLowerCase()
+    const matching = conversationsForWorkspaceHome(conversations, 'image')
+      .filter(conversation => (
+        !normalizedQuery
+        || conversation.title.toLocaleLowerCase().includes(normalizedQuery)
+      ))
+      .sort(newestFirst)
+    if (!matching.length) return []
+    return [{
+      key: 'image',
+      name: '',
+      path: null,
+      paths: [],
+      temporary: false,
+      flat: true,
+      conversations: matching,
+      lastActiveAt: Math.max(...matching.map(conversationActivityAt)),
+    }]
   }
   const scoped = conversationsForWorkspaceHome(conversations, home)
   const normalizedQuery = query.trim().toLocaleLowerCase()

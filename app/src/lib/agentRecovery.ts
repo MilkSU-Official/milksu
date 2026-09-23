@@ -24,6 +24,16 @@ const contextWindowFailure = new RegExp(
   `(?:${t('上下文过长', 'Context is too long')}|${t('上下文已满', 'Context is full')}|${t('自动整理上下文失败', 'Automatic context compaction failed')}|${t('正在自动整理', 'Compacting automatically')}|context window|context length|maximum context|token limit|too many tokens|tokens exceeded|context_length_exceeded|overflow recovery failed)`,
   'i',
 )
+// ImageGen field / provider failures surface as an assistant bubble so the reader
+// can retry instead of staring at an infinite Images preview spinner.
+const imageGenFailure = new RegExp(
+  `(?:${t('生图失败', 'ImageGen failed')}|MilkSU ImageGen failed|MilkSU ImageGen Provider rejected|MilkSU ImageGen rejected unsupported|ImageGen is unavailable)`,
+  'i',
+)
+
+export function isImageGenFailureText(value: string) {
+  return imageGenFailure.test(String(value ?? ''))
+}
 
 export function recoverableAgentFailureId(
   messages: Message[],
@@ -37,6 +47,7 @@ export function recoverableAgentFailureId(
     || runtimeStoppedFailure.test(latest.content)
     || interruptionFailure.test(latest.content)
     || contextWindowFailure.test(latest.content)
+    || imageGenFailure.test(latest.content)
     ? latest.id
     : ''
 }

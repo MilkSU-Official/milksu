@@ -39,6 +39,7 @@ export interface CodingEnvironmentSnapshot {
   capturedAt: string
   git: CodingGitStatus
   artifacts?: string[]
+  images?: string[]
 }
 
 export interface CodingRecentProject {

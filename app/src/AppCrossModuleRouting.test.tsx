@@ -672,7 +672,7 @@ describe('App cross-module routing', () => {
     expect(hoisted.conversations?.send).not.toHaveBeenCalled()
   })
 
-  it('restores the last Coding conversation when navigating back to Coding', async () => {
+  it('starts a new Coding conversation instead of reopening the last one', async () => {
     const { host } = await mountApp()
 
     host.querySelector<HTMLButtonElement>('[aria-label="open CTF in coding"]')?.click()
@@ -683,8 +683,8 @@ describe('App cross-module routing', () => {
     await flushAsyncComponents()
 
     expect(host.querySelector('[aria-label="mock Chat page"]')).not.toBeNull()
-    expect(hoisted.conversations?.startNew).not.toHaveBeenCalled()
-    expect(hoisted.conversations?.activeId).toBe('coding-existing')
+    expect(hoisted.conversations?.startNew).toHaveBeenCalledTimes(1)
+    expect(hoisted.conversations?.activeId).toBeNull()
     expect(host.querySelector('[data-chat-ctf-session]')?.textContent).toBe('false')
   })
 
@@ -696,7 +696,6 @@ describe('App cross-module routing', () => {
     host.querySelector<HTMLButtonElement>('[aria-label="open linked coding conversation"]')?.click()
     await flushAsyncComponents()
 
-    expect(host.querySelector('[data-chat-conversation]')?.textContent).toBe('coding-existing')
     expect(hoisted.conversations?.activeId).toBe('coding-existing')
   })
 })

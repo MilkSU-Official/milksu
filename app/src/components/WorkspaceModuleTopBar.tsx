@@ -11,6 +11,7 @@ export default function WorkspaceModuleTopBar({
   actions,
   filters,
   metrics,
+  windowCaptionEdge,
 }: {
   module: 'coding' | 'ctf' | 'cve' | 'lab'
   title?: string
@@ -21,6 +22,7 @@ export default function WorkspaceModuleTopBar({
   actions?: ReactNode
   filters?: ReactNode
   metrics?: ReactNode
+  windowCaptionEdge?: boolean
 }) {
   const fallbackTitle = { coding: 'Coding', ctf: 'CTF', cve: 'CVE', lab: 'LAB' }[module]
   const resolvedTitle = title?.trim() || fallbackTitle
@@ -36,6 +38,7 @@ export default function WorkspaceModuleTopBar({
       actions={actions}
       filters={filters}
       metrics={metrics}
+      windowCaptionEdge={windowCaptionEdge}
     />
   )
 }

@@ -196,6 +196,7 @@ func desktopAppMethods(app *App) map[string]desktopAppMethod {
 	return map[string]desktopAppMethod{
 		"GetSettings":                          rendererDesktopMethod(app.GetSettings),
 		"GetModelCatalog":                      rendererDesktopMethod(app.GetModelCatalog),
+		"GetImageGenCatalog":                   rendererDesktopMethod(app.GetImageGenCatalog),
 		"SaveSettingsCmd":                      rendererDesktopMethod(app.SaveSettingsCmd),
 		"ListPlugins":                          rendererDesktopMethod(app.ListPlugins),
 		"ListPetPluginPackages":                electronHostDesktopMethod(app.ListPetPluginPackages),
@@ -292,6 +293,9 @@ func desktopAppMethods(app *App) map[string]desktopAppMethod {
 		"PrepareCodingPullRequest":             rendererDesktopMethod(app.PrepareCodingPullRequest),
 		"PublishCodingPullRequest":             rendererDesktopMethod(app.PublishCodingPullRequest),
 		"GetCodingArtifactPreview":             rendererDesktopMethod(app.GetCodingArtifactPreview),
+		"CopyCodingImage":                      rendererDesktopMethod(app.CopyCodingImage),
+		"SaveCodingImage":                      rendererDesktopMethod(app.SaveCodingImage),
+		"RevealCodingImage":                    rendererDesktopMethod(app.RevealCodingImage),
 		"StartCodingBrowser":                   rendererDesktopMethod(app.StartCodingBrowser),
 		"EnsureCodingBrowser":                  rendererDesktopMethod(app.EnsureCodingBrowser),
 		"GetCodingBrowserStatus":               rendererDesktopMethod(app.GetCodingBrowserStatus),

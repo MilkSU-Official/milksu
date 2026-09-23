@@ -1439,6 +1439,7 @@ func (s *Supervisor) SendMessage(
 		attachments,
 		nil,
 		-1,
+		false,
 		settings,
 		modelSourcePreference...,
 	)
@@ -1476,6 +1477,7 @@ func (s *Supervisor) SendMessageWithProductAction(
 		attachments,
 		productAction,
 		-1,
+		false,
 		settings,
 		modelSourcePreference...,
 	)
@@ -1496,6 +1498,7 @@ func (s *Supervisor) SendMessageWithBranch(
 	attachments []codingattachment.Attachment,
 	productAction *CodingProductActionDescriptor,
 	branchFromUserOccurrence int,
+	imageDraw bool,
 	settings config.AppSettings,
 	modelSourcePreference ...string,
 ) error {
@@ -1514,6 +1517,7 @@ func (s *Supervisor) SendMessageWithBranch(
 		attachments,
 		productAction,
 		branchFromUserOccurrence,
+		imageDraw,
 		settings,
 		modelSourcePreference...,
 	)
@@ -1534,6 +1538,7 @@ func (s *Supervisor) sendMessage(
 	attachments []codingattachment.Attachment,
 	productAction *CodingProductActionDescriptor,
 	branchFromUserOccurrence int,
+	imageDraw bool,
 	settings config.AppSettings,
 	modelSourcePreference ...string,
 ) error {
@@ -1634,6 +1639,7 @@ func (s *Supervisor) sendMessage(
 		"sessionRole":     strings.TrimSpace(sessionRole),
 		"executionMode":   codingPolicy.ExecutionMode,
 		"approvalPolicy":  codingPolicy.ApprovalPolicy,
+		"imageDraw":       imageDraw,
 		"mcpServers":      mcpServers,
 		"mcpConfigDigest": strings.TrimSpace(mcpConfigDigest),
 		"disabledSkills":  mergeDisabledSkills(settings.DisabledSkills, resourceRuntime.HideFactorySkills),
@@ -3863,6 +3869,7 @@ func engineEnvironment(settings config.AppSettings) []string {
 			environment = append(environment, "MILKSU_MODEL_SOURCE_FALLBACK=1")
 		}
 	}
+	environment = appendImageGenEnvironment(environment, settings)
 	return environment
 }
 

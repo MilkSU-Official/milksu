@@ -212,6 +212,20 @@ func (a *App) handleCodingWorkspaceAction(conversationID, action, input string) 
 			"workspace": snapshot.WorkspaceName,
 			"artifacts": snapshot.Artifacts,
 		})
+	case "list_images":
+		workspace, err := a.workspaceForConversation(conversationID)
+		if err != nil {
+			return "", err
+		}
+		snapshot, err := codingenv.Inspect(a.commandContext(), workspace)
+		if err != nil {
+			return "", err
+		}
+		a.revealCodingWorkspace(conversationID, "images", "", "", "")
+		return encodeWorkspaceResult(map[string]any{
+			"workspace": snapshot.WorkspaceName,
+			"images":    snapshot.Images,
+		})
 	case "preview_artifact":
 		workspace, err := a.workspaceForConversation(conversationID)
 		if err != nil {
@@ -239,7 +253,7 @@ func (a *App) handleCodingWorkspaceAction(conversationID, action, input string) 
 		if panel == "" {
 			panel = "browser"
 		}
-		if panel != "browser" && panel != "artifacts" && panel != "changes" &&
+		if panel != "browser" && panel != "artifacts" && panel != "images" && panel != "changes" &&
 			panel != "environment" && panel != "computer-use" {
 			return "", fmt.Errorf("unknown Coding panel")
 		}

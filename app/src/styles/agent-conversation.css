@@ -572,6 +572,56 @@
   font-size: 0.8rem;
 }
 
+[data-agent-conversation] .agent-generated-image {
+  display: block;
+  width: min(100%, 32rem);
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--muted);
+  color: inherit;
+  cursor: zoom-in;
+}
+
+[data-agent-conversation] .agent-generated-image--pending {
+  min-height: 12rem;
+  cursor: default;
+}
+
+[data-agent-conversation] .agent-generated-image img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 32rem;
+  object-fit: contain;
+}
+
+[data-agent-conversation] .agent-generated-image__status {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 0.8rem;
+}
+
+.coding-image-menu button {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.5rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.coding-image-menu button:hover,
+.coding-image-menu button:focus-visible {
+  background: var(--hover-2);
+  outline: 0;
+}
+
 [data-agent-conversation] .agent-attachment-thumb {
   display: block;
   max-width: 12rem;

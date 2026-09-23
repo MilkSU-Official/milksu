@@ -131,6 +131,29 @@ describe('agent recovery', () => {
     expect(prompt).toContain('最小、可验证')
   })
 
+  it('offers retry after an ImageGen provider or size failure', () => {
+    expect(recoverableAgentFailureId([
+      { id: 'u', role: 'user', content: '画一张图', timestamp: 1, status: 'done' },
+      {
+        id: 'a',
+        role: 'assistant',
+        content: '生图失败：MilkSU ImageGen failed (400) for google/imagen-4.0-generate-001: invalid size. Retry with size 1024x1024.',
+        timestamp: 2,
+        status: 'done',
+      },
+    ], false)).toBe('a')
+    expect(recoverableAgentFailureId([
+      { id: 'u', role: 'user', content: '画一张图', timestamp: 1, status: 'done' },
+      {
+        id: 'a',
+        role: 'assistant',
+        content: 'ImageGen failed: MilkSU ImageGen rejected unsupported size 999x999',
+        timestamp: 2,
+        status: 'done',
+      },
+    ], false)).toBe('a')
+  })
+
   it('asks only for a short visible reply after a thinking-only final', () => {
     const prompt = emptyVisibleReplyRecoveryPrompt()
     expect(prompt).toContain('没有产生用户可见正文')

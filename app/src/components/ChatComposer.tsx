@@ -38,6 +38,7 @@ import {
   FolderOpen,
   Globe2,
   Layers2,
+  ImageIcon,
   Lightbulb,
   LoaderCircle,
   MessageSquarePlus,
@@ -128,7 +129,7 @@ import {
 import { shouldShowMultitaskCapsule } from '@/lib/composerMultitask'
 import { useT } from '@/hooks/useUiLocale'
 
-type ComposerScopeToken = 'browser-use' | 'computer-use'
+type ComposerScopeToken = 'browser-use' | 'computer-use' | 'image'
 type LucideIcon = ComponentType<{ className?: string }>
 
 interface ComposerSkillOption {
@@ -589,6 +590,12 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
   queuedGuidanceAwaitingTool?: boolean
   queuedGuidanceStalled?: boolean
   abortStalled?: boolean
+  imageHome?: boolean
+  imageModelKey?: string
+  imageModelLabel?: string
+  imageDrawNotice?: string
+  imageGroups?: import('@/lib/modelPickerSearch').SearchableModelGroup[]
+  onChangeImageModel?: (value: string) => void
   onSend?: (text: string, visibleText?: string, attachments?: CodingAttachment[], scopeToken?: ComposerScopeToken) => void
   onAbort?: () => void
   onOpenChanges?: (path?: string) => void
@@ -620,7 +627,7 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
     thinkingLevels, thinkingLevel, kernel, kernelLocked, multitask, planModeActive, dshCommands,
     dshCommandsError, busySend, contextUsage, workspaceReady,
     workspaceLocked, workspaceName, workspacePath, gitRepository, gitBranch, gitBranches,
-    browserUseReady, computerUseReady, availableSkills, importedSkills, selectedMcpServers,
+    browserUseReady, computerUseReady, imageHome, imageModelKey, imageModelLabel, imageDrawNotice, imageGroups, availableSkills, importedSkills, selectedMcpServers,
     mcpCatalog, mcpConfigDigest, conversationKey, queuedGuidance,
     queuedGuidanceAwaitingTool: queuedGuidanceAwaitingToolProp,
     queuedGuidanceStalled, abortStalled: abortStalledProp,
@@ -1376,7 +1383,9 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
 
   function insertScopeToken(value: ComposerScopeToken) {
     removeScopeToken(false)
-    const label = value === 'browser-use' ? 'Browser Use' : 'Computer Use'
+    const label = value === 'image'
+      ? (imageModelLabel ? t(`画图 · ${imageModelLabel}`, `Draw · ${imageModelLabel}`) : t('画图', 'Draw'))
+      : value === 'browser-use' ? 'Browser Use' : 'Computer Use'
     const token = createInlineToken(
       'data-composer-scope-token', value, label, label,
       t(`移除 /${value}`, `Remove /${value}`),
@@ -1516,6 +1525,10 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
         ? t('Browser Use 需要已选项目，并使用 Go 权限。', 'Browser Use needs a selected project and Go permissions.')
         : t('请先在右栏锁定一个外部 App 窗口。', 'Lock an external app window in the right rail first.'))
       props.onRunSlashCommand?.(activeScopeToken)
+      return
+    }
+    if ((imageHome || activeScopeToken === 'image') && imageDrawNotice) {
+      setAttachmentError(imageDrawNotice)
       return
     }
     clearComposerInput()
@@ -1743,6 +1756,7 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
     if (!query) return true
     return `${label} ${detail}`.toLowerCase().includes(query)
   }
+  const imageAddLabel = t('画图', 'Draw')
   const fileAddLabel = t('本机文件或图片', 'Local files or images')
   const mentionAddLabel = t('提及文件', 'Mention a file')
   const projectAddLabel = t('项目目录', 'Project folder')
@@ -1755,6 +1769,7 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
   const computerUseDetail = t('选择一个外部 App 窗口加入本轮输入', 'Choose an external app window for this turn')
   const projectMcpLabel = t('项目 MCP', 'Project MCP')
   const projectMcpDetail = selectedMcpDescription || t('查看当前项目的 MCP 服务', 'View MCP servers for this project')
+  const showImageAdd = !imageHome && addMenuHit(imageAddLabel, imageModelLabel ?? '')
   const showFileAdd = addMenuHit(fileAddLabel)
   const showMentionAdd = addMenuHit(mentionAddLabel)
   const showProjectAdd = !workspaceFixed && addMenuHit(projectAddLabel)
@@ -1774,7 +1789,7 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
         : t('审阅信息不完整', 'Review details incomplete'),
   ))
   const showProjectMcp = addMenuHit(projectMcpLabel, projectMcpDetail)
-  const showAddSection = showFileAdd || showMentionAdd || showProjectAdd || showGoalAdd || showMultitaskAdd || showPlanAdd
+  const showAddSection = showImageAdd || showFileAdd || showMentionAdd || showProjectAdd || showGoalAdd || showMultitaskAdd || showPlanAdd
   const showBrowseSection = showBrowserAdd || showBrowserUseAdd || showComputerUseAdd
   const showSkillSection = visibleSkillOptions.length > 0
   const showMcpSection = visibleMcpServers.length > 0 || showProjectMcp
@@ -1903,7 +1918,13 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
               aria-controls={slashMenuOpen ? 'coding-slash-command-menu' : undefined}
               aria-expanded={slashMenuOpen}
               aria-activedescendant={slashMenuOpen && activeSlashCommand ? `coding-slash-command-${activeSlashCommand.id}` : undefined}
-              data-placeholder={goalMode ? t('写下一个可持续目标，MilkSU 会持续推进并保留恢复点', 'Write a lasting goal. MilkSU will keep working toward it and keep recovery points.') : ctfSession ? t('告诉 Agent 你的观察、假设或下一步想法', 'Tell the agent your observations, hypotheses, or next idea') : t('描述你想让 MilkSU 完成的任务', 'Describe the task you want MilkSU to complete')}
+              data-placeholder={imageHome
+                ? t('描述要画的图', 'Describe the image')
+                : goalMode
+                  ? t('写下一个可持续目标，MilkSU 会持续推进并保留恢复点', 'Write a lasting goal. MilkSU will keep working toward it and keep recovery points.')
+                  : ctfSession
+                    ? t('告诉 Agent 你的观察、假设或下一步想法', 'Tell the agent your observations, hypotheses, or next idea')
+                    : t('描述你想让 MilkSU 完成的任务', 'Describe the task you want MilkSU to complete')}
               onCompositionStart={() => { setComposing(true); composingRef.current = true }}
               onCompositionEnd={handleCompositionEnd}
               onBeforeInput={rememberComposerSnapshot}
@@ -1932,6 +1953,11 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
                 onChangeThinkingLevel={level => props.onChangeThinkingLevel?.(level)}
                 onChangeKernel={requestKernelChange}
                 onShowPermissions={() => props.onShowPermissions?.()}
+                imageHome={imageHome}
+                imageModelKey={imageModelKey}
+                imageModelLabel={imageModelLabel}
+                imageGroups={imageGroups}
+                onChangeImageModel={props.onChangeImageModel}
                 leading={(
                   <DropdownMenu onOpenChange={open => {
                     setAddMenuQuery('')
@@ -1969,6 +1995,22 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
                           }}
                         />
                       </div>
+                      {showImageAdd ? (
+                      <DropdownMenuItem
+                        className="composer-add-option"
+                        onSelect={() => {
+                          if (scopeToken === 'image') removeScopeToken()
+                          else insertScopeToken('image')
+                        }}
+                      >
+                        <ImageIcon className="size-4 shrink-0" />
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-label font-medium">{imageAddLabel}</span>
+                          {imageModelLabel ? <span className="block truncate text-caption text-muted-foreground">{imageModelLabel}</span> : null}
+                        </span>
+                        {scopeToken === 'image' ? <Check className="size-4 shrink-0 text-primary" /> : null}
+                      </DropdownMenuItem>
+                      ) : null}
                       {showFileAdd ? (
                       <DropdownMenuItem className="composer-add-option app-no-drag cursor-pointer" onPointerDown={event => startCodingAttachmentChooser(event.nativeEvent)} onSelect={() => startCodingAttachmentChooser()}>
                         <Paperclip className="size-4 shrink-0" />

@@ -66,7 +66,7 @@ test("ImageGen approval shows the exact paid scope without any credential", () =
     "https://api.openai.com/v1",
   );
   assert.match(summary, /ImageGen 参考图编辑/);
-  assert.match(summary, new RegExp(codingImageGenModel));
+  assert.match(summary, new RegExp(codingImageGenModel.replace("/", "\\/")));
   assert.match(summary, /https:\/\/api\.openai\.com\/v1\/images\/edits/);
   assert.match(summary, /assets\/edited\.png/);
   assert.match(summary, /assets\/source\.png/);
@@ -116,6 +116,30 @@ test("ImageGen approval remains a separate boundary in every Coding mode", async
     block: true,
     reason: "MilkSU user denied this ImageGen request",
   });
+});
+
+test("Draw page send authorizes ImageGen without a tool card", async () => {
+  let requests = 0;
+  const decision = await authorizeImageGenToolCall({
+    conversationId: "conversation-imagegen",
+    event: {
+      toolName: codingImageGenToolName,
+      input: {
+        mode: "generate",
+        prompt: "画个牛奶猫",
+        outputPath: "milk-cat.png",
+      },
+    },
+    approvalBroker: {
+      request: async () => {
+        requests += 1;
+        return false;
+      },
+    },
+    authorizedByDraw: true,
+  });
+  assert.equal(decision, undefined);
+  assert.equal(requests, 0);
 });
 
 test("ImageGen rejects credentialed and non-loopback insecure Provider URLs", () => {
@@ -323,7 +347,133 @@ test("ImageGen redacts Provider failures and leaves no partial output", async t 
   } catch (error) {
     message = error.message;
   }
-  assert.match(message, /Provider rejected the request \(429\)/);
+  assert.match(message, /MilkSU ImageGen failed \(429\)/);
   assert.doesNotMatch(message, new RegExp(secret));
   await assert.rejects(readFile(joinPath(workspace, "failed.png")), /ENOENT/);
+});
+
+test("ImageGen maps DALL·E size aliases before contacting the Provider", async t => {
+  const workspace = await fixture(t);
+  let body;
+  const tool = createImageGenTool(workspace, {
+    ...workspacePolicy(workspace),
+    apiKey: "test-imagegen-key",
+    model: "openai/gpt-image-2",
+    fetchImpl: async (_url, options) => {
+      body = JSON.parse(String(options.body));
+      return response({ data: [{ b64_json: validPNG.toString("base64") }] });
+    },
+  });
+  await tool.execute("generate", {
+    mode: "generate",
+    prompt: "Map DALL-E landscape size",
+    outputPath: "mapped.png",
+    size: "1792x1024",
+    quality: "hd",
+  });
+  assert.equal(body.size, "1536x1024");
+  assert.equal(body.quality, "high");
+});
+
+test("ImageGen omits GPT-Image-only fields for generic image routes", async t => {
+  const workspace = await fixture(t);
+  let body;
+  const tool = createImageGenTool(workspace, {
+    ...workspacePolicy(workspace),
+    apiKey: "test-imagegen-key",
+    model: "future-lab-image/example",
+    fetchImpl: async (_url, options) => {
+      body = JSON.parse(String(options.body));
+      return response({ data: [{ b64_json: validPNG.toString("base64") }] });
+    },
+  });
+  await tool.execute("generate", {
+    mode: "generate",
+    prompt: "Compat-minimal body",
+    outputPath: "imagen.png",
+    size: "1024x1024",
+    quality: "low",
+  });
+  assert.equal(body.model, "future-lab-image/example");
+  assert.equal(body.size, "1024x1024");
+  assert.equal(body.response_format, "b64_json");
+  assert.equal(body.quality, undefined);
+  assert.equal(body.output_format, undefined);
+  assert.equal(body.background, undefined);
+  assert.equal(body.moderation, undefined);
+});
+
+test("ImageGen saves a JPEG response as .jpg", async t => {
+  const workspace = await fixture(t);
+  const jpeg = Buffer.from(
+    "ffd8ffe000104a46494600010100000100010000ffdb004300080606070605080707070909080a0c140d0c0b0b0c1912130f141d1a1f1e1d1a1c1c20242e2720222c231c1c2837292c30313434341f27393d38323c2e333432ffdb0043010909090c0b0c180d0d1832211c213232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232ffc00011080001000103011100021101031101ffc40014000100000000000000000000000000000008ffc40014100100000000000000000000000000000000ffda000c03010002110311003f00bf8000ffd9",
+    "hex",
+  );
+  const tool = createImageGenTool(workspace, {
+    ...workspacePolicy(workspace),
+    apiKey: "test-imagegen-key",
+    model: "x-ai-image/grok-imagine-image-2.0",
+    fetchImpl: async () => response({
+      data: [{ b64_json: jpeg.toString("base64"), mime_type: "image/jpeg" }],
+    }),
+  });
+  const result = await tool.execute("generate", {
+    mode: "generate",
+    prompt: "jpeg provider",
+    outputPath: "triangle.png",
+  });
+  const receipt = JSON.parse(result.content[0].text);
+  assert.equal(receipt.output.path, "triangle.jpg");
+  assert.equal(receipt.output.mediaType, "image/jpeg");
+  assert.equal(receipt.output.width, 1);
+  assert.equal(receipt.output.height, 1);
+});
+
+test("ImageGen calls Gemini generateContent for google-image and Images API without GPT fields for x-ai-image", async () => {
+  const { buildImageGenRequestBody, imageGenRequestProfile } = await import("./bridge-imagegen.js");
+  const google = buildImageGenRequestBody({
+    mode: "generate",
+    prompt: "a blue circle",
+    size: "1024x1024",
+    quality: "low",
+  }, { model: "google-image/gemini-3.1-flash-image" });
+  const googleBody = JSON.parse(google.body);
+  assert.equal(imageGenRequestProfile("google-image/nano-banana-2"), "gemini");
+  assert.equal(googleBody.generationConfig.responseModalities[1], "IMAGE");
+  assert.equal(googleBody.contents[0].parts[0].text, "a blue circle");
+  assert.equal(googleBody.quality, undefined);
+
+  const grok = JSON.parse(buildImageGenRequestBody({
+    mode: "generate",
+    prompt: "a green triangle",
+    size: "1024x1024",
+    quality: "low",
+  }, { model: "x-ai-image/grok-imagine-image-2.0" }).body);
+  assert.equal(grok.model, "x-ai-image/grok-imagine-image-2.0");
+  assert.equal(grok.response_format, "b64_json");
+  assert.equal(grok.size, undefined);
+  assert.equal(grok.quality, undefined);
+  assert.equal(grok.output_format, undefined);
+});
+
+test("ImageGen size alias helper maps domestic and DALL·E values", async () => {
+  const {
+    normalizeImageGenSizeQuality,
+    imageGenRequestProfile,
+  } = await import("./bridge-imagegen.js");
+  assert.deepEqual(normalizeImageGenSizeQuality("1792x1024", "hd"), {
+    size: "1536x1024",
+    quality: "high",
+    sizeMappedFrom: "1792x1024",
+    qualityMappedFrom: "hd",
+  });
+  assert.equal(imageGenRequestProfile("google-image/nano-banana-2"), "gemini");
+  assert.equal(imageGenRequestProfile("google-image/gemini-3.1-flash-image"), "gemini");
+  assert.equal(imageGenRequestProfile("openai-image/gpt-image-2"), "gpt-image");
+  assert.equal(imageGenRequestProfile("x-ai-image/grok-imagine-image-2.0"), "images-minimal");
+  assert.equal(imageGenRequestProfile("future-lab-image/example"), "images-minimal");
+  assert.throws(
+    () => normalizeImageGenSizeQuality("999x999", "low"),
+    /unsupported size/,
+  );
 });

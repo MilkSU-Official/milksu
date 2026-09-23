@@ -44,12 +44,14 @@ describe('workspaceSessionRouting', () => {
       ctfConversationId: null,
       vulnConversationId: null,
       labConversationId: null,
+      imageConversationId: null,
     })
     expect(afterCoding).toEqual({
       codingConversationId: 'coding-older',
       ctfConversationId: null,
       vulnConversationId: null,
       labConversationId: null,
+      imageConversationId: null,
     })
 
     const afterCTF = rememberWorkspaceConversation(ctfRecent, afterCoding)
@@ -58,6 +60,7 @@ describe('workspaceSessionRouting', () => {
       ctfConversationId: 'ctf-recent',
       vulnConversationId: null,
       labConversationId: null,
+      imageConversationId: null,
     })
   })
 

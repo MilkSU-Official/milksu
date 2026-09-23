@@ -43,7 +43,7 @@ export type CodingAgentSendArgs = [
   text: string,
   visibleText?: string,
   attachments?: CodingAttachment[],
-  scopeToken?: 'browser-use' | 'computer-use',
+  scopeToken?: 'browser-use' | 'computer-use' | 'image',
   productAction?: CodingProductActionRequest,
 ]
 

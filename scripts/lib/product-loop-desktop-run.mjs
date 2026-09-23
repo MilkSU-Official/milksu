@@ -171,7 +171,7 @@ async function attachFixturePage(url, timeoutMs = 8_000) {
 
 async function ensureBrowserConversation(driver, title, workspace) {
   await leaveSettings(driver)
-  await openWorkspace(driver, ['主页', 'Home'])
+  await openWorkspace(driver, ['新聊天', 'New chat'])
   const conversation = await driver.createConversation({
     title,
     workspacePath: workspace,

@@ -67,7 +67,7 @@ describe('Coding policy presentation', () => {
   it('does not advertise ImageGen when OpenAI is not configured', () => {
     const capabilities = previewCodingCapabilities('go', 'workspace-auto', false)
     expect(capabilities.find(item => item.id === 'imagegen')?.status).toBe('unavailable')
-    expect(capabilities.find(item => item.id === 'imagegen')?.detail).toContain('配置 OpenAI')
+    expect(capabilities.find(item => item.id === 'imagegen')?.detail).toContain('生图模型')
   })
 
   it('describes the selected external Computer Use app and immutable window scope', () => {

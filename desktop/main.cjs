@@ -11,6 +11,7 @@ const path = require('node:path')
 const {
   app,
   BrowserWindow,
+  clipboard,
   desktopCapturer,
   dialog,
   ipcMain,
@@ -65,7 +66,7 @@ const {
   shouldRelaunchAfterScreenRecordingGrant,
 } = require('./computer-use-permissions.cjs')
 const { requestMacOSScreenPermission } = require('./macos-screen-permission.cjs')
-const { openLocalPath, revealLocalPath } = require('./local-path.cjs')
+const { copyImageFile, openLocalPath, revealLocalPath } = require('./local-path.cjs')
 const {
   applyLinuxChromiumFlags,
   linuxUserAgent,
@@ -824,6 +825,13 @@ async function handleHostRequest(method, payload = {}) {
       await revealLocalPath(payload.path, {
         stat: target => fs.stat(target),
         showItemInFolder: target => shell.showItemInFolder(target),
+      })
+      return null
+    case 'clipboard.writeImage':
+      await copyImageFile(payload.path, {
+        stat: target => fs.stat(target),
+        readImage: target => nativeImage.createFromPath(target),
+        writeImage: image => clipboard.writeImage(image),
       })
       return null
     case 'window.show':

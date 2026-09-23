@@ -150,7 +150,13 @@ type AppSettings struct {
 	CompanionProactivity     CompanionProactivity `json:"companion_proactivity,omitempty"`
 	CompanionTeaching        string               `json:"companion_teaching,omitempty"`
 	// CompanionReplyStyle is markdown (full-width assistant text) or chat (bubbles).
-	CompanionReplyStyle     string `json:"companion_reply_style,omitempty"`
+	CompanionReplyStyle string `json:"companion_reply_style,omitempty"`
+	// ImageGenProvider / ImageGenModel / ImageGenSource select the paid image
+	// tool route. They are independent of active_provider / active_model (chat),
+	// companion_*, and worker_*. Empty means milksu_imagegen stays unavailable.
+	ImageGenProvider        string `json:"imagegen_provider,omitempty"`
+	ImageGenModel           string `json:"imagegen_model,omitempty"`
+	ImageGenSource          string `json:"imagegen_source,omitempty"`
 	PreferredExternalEditor string `json:"preferred_external_editor,omitempty"`
 	// UiFont and ConversationFont are preset ids from app/src/lib/uiFonts.ts.
 	// UiFontSize and ConversationFontSize are concrete px strings such as "13".
@@ -982,6 +988,7 @@ func withDefaults(value AppSettings) AppSettings {
 	value.EnabledOptionalSkills = normalizeEnabledOptionalSkills(value.EnabledOptionalSkills)
 	value = normalizeWorkerModel(value)
 	value = normalizeCompanionSettings(value)
+	value = normalizeImageGenSettings(value)
 	value.PreferredExternalEditor = externaleditor.Normalize(value.PreferredExternalEditor)
 	value.UiFont = NormalizeUiFont(value.UiFont)
 	value.ConversationFont = NormalizeUiFont(value.ConversationFont)

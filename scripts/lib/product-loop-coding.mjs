@@ -187,7 +187,7 @@ async function home(driver) {
   await leaveSettings(driver)
   await expandSidebar(driver)
   await dismissOverlays(driver)
-  return openWorkspace(driver, ['主页', 'Home'])
+  return openWorkspace(driver, ['新聊天', 'New chat'])
 }
 
 async function clearBlockingOverlays(driver) {

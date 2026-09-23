@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  imageModelsForTokenfluxSource,
   installAppModelSettings,
   installCustomProviderSettings,
   installModelCatalog,
@@ -46,6 +47,64 @@ describe('runtime model catalog', () => {
     expect(tokenflux?.models).toEqual(['grok-4.5', 'x-ai/grok-4.6', 'openai/gpt-5.6-sol'])
     expect(tokenflux?.visionModels).toEqual(['grok-4.5', 'x-ai/grok-4.6', 'openai/gpt-5.6-sol'])
     expect(providerModelLabel('tokenflux', 'x-ai/grok-4.6')).toBe('TokenFlux · Grok 4.6')
+  })
+
+  it('keeps -image routes out of the chat picker and on the image picker', () => {
+    installModelCatalog({
+      provider: 'tokenflux',
+      source: 'remote',
+      credential_source: 'personal',
+      refreshed_at: '2026-09-23T00:00:00Z',
+      models: [
+        {
+          id: 'openai/gpt-5.6', name: 'GPT-5.6',
+          context_window: 1050000, max_tokens: 128000, input: ['text', 'image'],
+        },
+        {
+          id: 'openai-image/gpt-image-2', name: 'GPT Image 2',
+          context_window: 0, max_tokens: 0, input: ['text', 'image'],
+        },
+        {
+          id: 'x-ai/grok-4.7', name: 'Grok 4.7',
+          context_window: 500000, max_tokens: 500000, input: ['text', 'image'],
+        },
+      ],
+      image_models: [
+        {
+          id: 'google-image/nano-banana-2', name: 'google-image/nano-banana-2',
+          context_window: 0, max_tokens: 0, input: ['text'],
+        },
+      ],
+    })
+    installAppModelSettings({
+      providers: {
+        tokenflux: {
+          api_key: '',
+          has_api_key: true,
+          enabled: true,
+          base_url: 'https://tokenflux.dev/v1',
+        },
+      },
+      relay: { enabled: false, url: 'https://tokenflux.dev/v1', key: '', has_key: false },
+    })
+    const { providers } = useModelCatalog()
+    const tokenflux = providers.find(provider => provider.id === 'tokenflux')
+    expect(tokenflux?.models).toEqual(['openai/gpt-5.6', 'x-ai/grok-4.7'])
+    expect(imageModelsForTokenfluxSource('personal', {
+      providers: {
+        tokenflux: { api_key: '', has_api_key: true, enabled: true },
+      },
+      relay: { enabled: false, url: 'https://tokenflux.dev/v1', has_key: false },
+    }).map(model => model.id)).toEqual([
+      'google-image/nano-banana-2',
+      'openai-image/gpt-image-2',
+    ])
+    expect(imageModelsForTokenfluxSource('account', {
+      providers: {
+        tokenflux: { api_key: '', has_api_key: true, enabled: true },
+      },
+      relay: { enabled: false, url: 'https://tokenflux.dev/v1', has_key: false },
+    })).toEqual([])
   })
 
   it('adds persisted and locally edited custom relays to model pickers', () => {
