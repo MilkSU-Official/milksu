@@ -31,7 +31,7 @@ func DiscoverImages(workspace string, changes []GitChange, scanRoots []string) [
 	paths := make([]string, 0, maxGalleryImages)
 	for _, change := range changes {
 		path := filepath.ToSlash(strings.TrimSpace(change.Path))
-		if path == "" || !isGalleryImagePath(path) || isMilkSUInternalPath(path) {
+		if path == "" || !isGalleryImagePath(path) || isMilkSUInternalPath(path) || isGalleryNoisePath(path) {
 			continue
 		}
 		if _, exists := seen[path]; exists {
@@ -45,7 +45,9 @@ func DiscoverImages(workspace string, changes []GitChange, scanRoots []string) [
 	}
 
 	roots := append([]string{}, scanRoots...)
-	for _, preferred := range []string{"assets", "images", "generated", "out", "dist", "."} {
+	// dist and a full-tree walk bury generated pictures under build output.
+	// Git image changes still surface a new file wherever it was written.
+	for _, preferred := range []string{"generated", "images", "assets"} {
 		roots = append(roots, preferred)
 	}
 
@@ -79,6 +81,16 @@ func isGalleryImagePath(path string) bool {
 	ext := strings.ToLower(filepath.Ext(path))
 	_, ok := imageGalleryExtensions[ext]
 	return ok
+}
+
+func isGalleryNoisePath(path string) bool {
+	for _, segment := range strings.Split(filepath.ToSlash(path), "/") {
+		switch segment {
+		case "dist", "build", "coverage", "node_modules", ".next", "target":
+			return true
+		}
+	}
+	return false
 }
 
 type imageScan struct {
@@ -141,7 +153,7 @@ func (s *imageScan) record(path string, modified time.Time) {
 	if modified.Before(s.notBefore) {
 		return
 	}
-	if !isGalleryImagePath(path) || isMilkSUInternalPath(path) {
+	if !isGalleryImagePath(path) || isMilkSUInternalPath(path) || isGalleryNoisePath(path) {
 		return
 	}
 	if _, exists := s.seen[path]; exists {
@@ -172,7 +184,7 @@ func (s *imageScan) walk(directory string, depth int) {
 		}
 		s.budget--
 		name := entry.Name()
-		if name == ".git" || name == "node_modules" || name == ".milksu" {
+		if name == ".git" || name == "node_modules" || name == ".milksu" || isGalleryNoisePath(name) {
 			continue
 		}
 		info, infoErr := entry.Info()

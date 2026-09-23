@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/MilkSU-Official/milksu/internal/config"
+	"github.com/MilkSU-Official/milksu/internal/imagegencatalog"
 )
 
 const (
@@ -42,6 +43,8 @@ type Model struct {
 	ContextWindow int      `json:"context_window"`
 	MaxTokens     int      `json:"max_tokens"`
 	Input         []string `json:"input"`
+	// ImageTransport is set for ids whose prefix ends in "-image". Empty means chat.
+	ImageTransport string `json:"image_transport,omitempty"`
 }
 
 type Snapshot struct {
@@ -52,9 +55,15 @@ type Snapshot struct {
 	Source           string  `json:"source"`
 	CredentialSource string  `json:"credential_source"`
 	KeyShape         string  `json:"key_shape,omitempty"`
-	// AccountModelIDs lists models visible to the account TokenFlux key only.
+	// AccountModelIDs lists chat models visible to the account TokenFlux key only.
 	// Used so dual-source routing can skip the account path for personal-only models.
 	AccountModelIDs []string `json:"account_model_ids,omitempty"`
+	// ImageModels are ids whose composite-key prefix ends in "-image".
+	// They are not chat models and must not appear in Models.
+	ImageModels []Model `json:"image_models,omitempty"`
+	// AccountImageModelIDs lists image routes visible to the account key when
+	// the snapshot merges account and personal catalogs.
+	AccountImageModelIDs []string `json:"account_image_model_ids,omitempty"`
 }
 
 type Options struct {
@@ -143,43 +152,48 @@ func applyKnownContextWindows(models []Model, settings config.AppSettings) {
 func (s *Service) Refresh(ctx context.Context) (Snapshot, error) {
 	candidates := catalogCandidates(s.settings(), s.publicCatalogURL)
 	var (
-		failures       []error
-		merged         []Model
-		accountIDs     []string
-		sources        []string
-		shapes         []string
-		usedCredential bool
+		failures        []error
+		merged          []Model
+		mergedImage     []Model
+		accountIDs      []string
+		accountImageIDs []string
+		sources         []string
+		shapes          []string
+		usedCredential  bool
 	)
 	for _, candidate := range candidates {
 		// Public fallback is only used when no credentialed catalog succeeded.
 		if candidate.credentialSource == CredentialSourcePublic && usedCredential {
 			continue
 		}
-		models, err := s.fetch(ctx, candidate)
+		chat, image, err := s.fetch(ctx, candidate)
 		if err != nil {
 			failures = append(failures, err)
 			continue
 		}
-		shape := detectKeyShape(models)
+		shape := detectKeyShape(append(cloneModels(chat), image...))
 		if candidate.credentialSource == CredentialSourceAccount ||
 			candidate.credentialSource == CredentialSourcePersonal {
 			usedCredential = true
 			sources = append(sources, candidate.credentialSource)
 			shapes = append(shapes, shape)
 			if candidate.credentialSource == CredentialSourceAccount {
-				accountIDs = modelIDs(models)
+				accountIDs = modelIDs(chat)
+				accountImageIDs = modelIDs(image)
 			}
-			merged = mergeModels(merged, models)
+			merged = mergeModels(merged, chat)
+			mergedImage = mergeModels(mergedImage, image)
 			// Keep collecting credentialed catalogs so the picker shows every
 			// model either the account or personal TokenFlux key can call.
 			continue
 		}
 		// Public or other unauthenticated catalog: use only when nothing else worked.
-		if len(merged) == 0 {
+		if len(merged) == 0 && len(mergedImage) == 0 {
 			next := Snapshot{
 				Schema:           catalogSchema,
 				Provider:         ProviderTokenFlux,
-				Models:           models,
+				Models:           chat,
+				ImageModels:      image,
 				RefreshedAt:      s.now().UTC().Format(time.RFC3339),
 				Source:           "remote",
 				CredentialSource: candidate.credentialSource,
@@ -191,16 +205,18 @@ func (s *Service) Refresh(ctx context.Context) (Snapshot, error) {
 			return cloneSnapshot(next), nil
 		}
 	}
-	if len(merged) > 0 {
+	if len(merged) > 0 || len(mergedImage) > 0 {
 		next := Snapshot{
-			Schema:           catalogSchema,
-			Provider:         ProviderTokenFlux,
-			Models:           merged,
-			RefreshedAt:      s.now().UTC().Format(time.RFC3339),
-			Source:           "remote",
-			CredentialSource: mergeCredentialSources(sources),
-			KeyShape:         mergeKeyShapes(shapes),
-			AccountModelIDs:  accountIDs,
+			Schema:               catalogSchema,
+			Provider:             ProviderTokenFlux,
+			Models:               merged,
+			ImageModels:          mergedImage,
+			RefreshedAt:          s.now().UTC().Format(time.RFC3339),
+			Source:               "remote",
+			CredentialSource:     mergeCredentialSources(sources),
+			KeyShape:             mergeKeyShapes(shapes),
+			AccountModelIDs:      accountIDs,
+			AccountImageModelIDs: accountImageIDs,
 		}
 		if err := s.persist(next); err != nil {
 			return s.Snapshot(), err
@@ -270,14 +286,14 @@ func catalogCandidates(settings config.AppSettings, publicURL string) []catalogC
 	return result
 }
 
-func (s *Service) fetch(ctx context.Context, candidate catalogCandidate) ([]Model, error) {
+func (s *Service) fetch(ctx context.Context, candidate catalogCandidate) ([]Model, []Model, error) {
 	parsed, err := url.Parse(candidate.url)
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
-		return nil, errors.New("model catalog endpoint is invalid")
+		return nil, nil, errors.New("model catalog endpoint is invalid")
 	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, parsed.String(), nil)
 	if err != nil {
-		return nil, fmt.Errorf("create model catalog request: %w", err)
+		return nil, nil, fmt.Errorf("create model catalog request: %w", err)
 	}
 	request.Header.Set("Accept", "application/json")
 	request.Header.Set("User-Agent", "MilkSU/model-catalog")
@@ -286,28 +302,31 @@ func (s *Service) fetch(ctx context.Context, candidate catalogCandidate) ([]Mode
 	}
 	response, err := s.client.Do(request)
 	if err != nil {
-		return nil, errors.New("model catalog request failed")
+		return nil, nil, errors.New("model catalog request failed")
 	}
 	defer response.Body.Close()
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 4<<10))
-		return nil, fmt.Errorf("model catalog returned HTTP %d", response.StatusCode)
+		return nil, nil, fmt.Errorf("model catalog returned HTTP %d", response.StatusCode)
 	}
 	var payload tokenFluxResponse
 	decoder := json.NewDecoder(io.LimitReader(response.Body, maxCatalogResponseBytes))
 	if err := decoder.Decode(&payload); err != nil {
-		return nil, errors.New("model catalog returned invalid JSON")
+		return nil, nil, errors.New("model catalog returned invalid JSON")
 	}
 	models := normalizeModels(payload.Data)
-	if len(models) == 0 {
-		return nil, errors.New("model catalog did not contain usable chat models")
+	annotateImageTransports(models)
+	chat, image := splitImageTransports(models)
+	if len(chat) == 0 && len(image) == 0 {
+		return nil, nil, errors.New("model catalog did not contain usable models")
 	}
-	return models, nil
+	return chat, image, nil
 }
 
 type catalogModelRaw struct {
 	ID            string `json:"id"`
 	Name          string `json:"name"`
+	DisplayName   string `json:"display_name"`
 	Type          string `json:"type"`
 	ContextLength int    `json:"context_length"`
 	ContextWindow int    `json:"context_window"`
@@ -352,6 +371,9 @@ func normalizeModels(values []catalogModelRaw) []Model {
 		}
 		name := strings.TrimSpace(value.Name)
 		if name == "" {
+			name = strings.TrimSpace(value.DisplayName)
+		}
+		if name == "" {
 			name = id
 		}
 		seen[id] = true
@@ -369,6 +391,26 @@ func normalizeModels(values []catalogModelRaw) []Model {
 		return result[left].ID < result[right].ID
 	})
 	return result
+}
+
+func annotateImageTransports(models []Model) {
+	for index := range models {
+		models[index].ImageTransport = imagegencatalog.Transport(models[index].ID)
+	}
+}
+
+// splitImageTransports separates models whose prefix ends in "-image".
+func splitImageTransports(models []Model) (chat []Model, image []Model) {
+	chat = make([]Model, 0, len(models))
+	image = make([]Model, 0)
+	for _, model := range models {
+		if strings.TrimSpace(model.ImageTransport) == "" {
+			chat = append(chat, model)
+			continue
+		}
+		image = append(image, model)
+	}
+	return chat, image
 }
 
 func normalizeInput(values []string) []string {
@@ -558,18 +600,51 @@ func readSnapshot(path string) (Snapshot, error) {
 	if err := json.Unmarshal(data, &value); err != nil {
 		return Snapshot{}, err
 	}
+	combined := append(append([]Model{}, value.Models...), value.ImageModels...)
+	annotateImageTransports(combined)
+	value.Models, value.ImageModels = splitImageTransports(combined)
+	value.AccountModelIDs, value.AccountImageModelIDs = splitImageIDLists(
+		value.AccountModelIDs,
+		value.AccountImageModelIDs,
+	)
 	if value.Schema != catalogSchema ||
 		value.Provider != ProviderTokenFlux ||
-		len(value.Models) == 0 ||
+		(len(value.Models) == 0 && len(value.ImageModels) == 0) ||
 		!validCredentialSource(value.CredentialSource) {
 		return Snapshot{}, errors.New("cached model catalog is incomplete")
 	}
 	if value.KeyShape == "" {
-		value.KeyShape = detectKeyShape(value.Models)
+		value.KeyShape = detectKeyShape(append(cloneModels(value.Models), value.ImageModels...))
 	}
 	value.Models = cloneModels(value.Models)
+	value.ImageModels = cloneModels(value.ImageModels)
 	value.AccountModelIDs = append([]string(nil), value.AccountModelIDs...)
+	value.AccountImageModelIDs = append([]string(nil), value.AccountImageModelIDs...)
 	return value, nil
+}
+
+func splitImageIDLists(chatIDs, imageIDs []string) ([]string, []string) {
+	chat := make([]string, 0, len(chatIDs))
+	image := append([]string{}, imageIDs...)
+	seen := map[string]bool{}
+	for _, id := range image {
+		seen[strings.TrimSpace(id)] = true
+	}
+	for _, id := range chatIDs {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		if imagegencatalog.IsImageModelID(id) {
+			if !seen[id] {
+				image = append(image, id)
+				seen[id] = true
+			}
+			continue
+		}
+		chat = append(chat, id)
+	}
+	return chat, image
 }
 
 func writeSnapshot(path string, value Snapshot) error {
@@ -642,7 +717,9 @@ func CatalogsEquivalent(left, right Snapshot) bool {
 		left.CredentialSource != right.CredentialSource ||
 		left.KeyShape != right.KeyShape ||
 		len(left.Models) != len(right.Models) ||
-		len(left.AccountModelIDs) != len(right.AccountModelIDs) {
+		len(left.ImageModels) != len(right.ImageModels) ||
+		len(left.AccountModelIDs) != len(right.AccountModelIDs) ||
+		len(left.AccountImageModelIDs) != len(right.AccountImageModelIDs) {
 		return false
 	}
 	for index := range left.AccountModelIDs {
@@ -650,14 +727,27 @@ func CatalogsEquivalent(left, right Snapshot) bool {
 			return false
 		}
 	}
-	for index := range left.Models {
-		if left.Models[index].ID != right.Models[index].ID ||
-			left.Models[index].Name != right.Models[index].Name ||
-			left.Models[index].ContextWindow != right.Models[index].ContextWindow ||
-			left.Models[index].MaxTokens != right.Models[index].MaxTokens {
+	for index := range left.AccountImageModelIDs {
+		if left.AccountImageModelIDs[index] != right.AccountImageModelIDs[index] {
 			return false
 		}
-		if strings.Join(left.Models[index].Input, ",") != strings.Join(right.Models[index].Input, ",") {
+	}
+	if !modelsEquivalent(left.Models, right.Models) || !modelsEquivalent(left.ImageModels, right.ImageModels) {
+		return false
+	}
+	return true
+}
+
+func modelsEquivalent(left, right []Model) bool {
+	for index := range left {
+		if left[index].ID != right[index].ID ||
+			left[index].Name != right[index].Name ||
+			left[index].ContextWindow != right[index].ContextWindow ||
+			left[index].MaxTokens != right[index].MaxTokens ||
+			left[index].ImageTransport != right[index].ImageTransport {
+			return false
+		}
+		if strings.Join(left[index].Input, ",") != strings.Join(right[index].Input, ",") {
 			return false
 		}
 	}
@@ -666,7 +756,9 @@ func CatalogsEquivalent(left, right Snapshot) bool {
 
 func cloneSnapshot(value Snapshot) Snapshot {
 	value.Models = cloneModels(value.Models)
+	value.ImageModels = cloneModels(value.ImageModels)
 	value.AccountModelIDs = append([]string(nil), value.AccountModelIDs...)
+	value.AccountImageModelIDs = append([]string(nil), value.AccountImageModelIDs...)
 	return value
 }
 

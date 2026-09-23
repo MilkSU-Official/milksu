@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ImageIcon, LoaderCircle, RefreshCw } from 'lucide-react'
-import { Button } from '@/components/ui'
+import { ImageIcon, LoaderCircle } from 'lucide-react'
+import { Button, Input } from '@/components/ui'
 import { hasDesktopRuntime, invokeCommand } from '@/desktop'
 import { useT } from '@/hooks/useUiLocale'
 import { cn } from '@/lib/cn'
@@ -9,8 +9,40 @@ import type {
   CodingEnvironmentSnapshot,
 } from '@/codingEnvironmentTypes'
 
+const thumbConcurrency = 3
+
+type ImageSource = 'generated' | 'project'
+
 function isImagePath(path: string): boolean {
   return /\.(png|jpe?g|gif|webp)$/i.test(path)
+}
+
+function normalizePath(path: string): string {
+  return path.replaceAll('\\', '/')
+}
+
+function imageBaseName(path: string): string {
+  const normalized = normalizePath(path)
+  const slash = normalized.lastIndexOf('/')
+  return slash >= 0 ? normalized.slice(slash + 1) : normalized
+}
+
+function imageFolder(path: string): string {
+  const normalized = normalizePath(path)
+  const slash = normalized.lastIndexOf('/')
+  return slash >= 0 ? normalized.slice(0, slash) : ''
+}
+
+function imageSource(path: string, untracked: ReadonlySet<string>): ImageSource {
+  const normalized = normalizePath(path)
+  if (/(^|\/)generated(\/|$)/.test(normalized)) return 'generated'
+  if (untracked.has(normalized)) return 'generated'
+  return 'project'
+}
+
+type Thumb = {
+  url?: string
+  failed?: boolean
 }
 
 export default function CodingImageGalleryPanel({
@@ -19,7 +51,6 @@ export default function CodingImageGalleryPanel({
   requestedPath,
   refreshToken,
   onSelect,
-  onRefresh,
 }: {
   workspacePath: string
   environment: CodingEnvironmentSnapshot | null
@@ -27,138 +58,231 @@ export default function CodingImageGalleryPanel({
   /** Bumped when ImageGen finishes writing so the gallery reloads without a tab switch. */
   refreshToken?: number
   onSelect?: (path: string) => void
-  onRefresh?: () => void
 }) {
   const t = useT()
   const desktopRuntime = hasDesktopRuntime()
-  const paths = useMemo(() => {
-    const fromImages = (environment?.images ?? []).filter(isImagePath)
-    if (fromImages.length) return fromImages
-    return (environment?.artifacts ?? []).filter(isImagePath)
-  }, [environment])
-  const pathsKey = paths.join('\0')
+  const untracked = useMemo(() => {
+    const paths = new Set<string>()
+    for (const change of environment?.git?.changes ?? []) {
+      if (change.untracked) paths.add(normalizePath(change.path))
+    }
+    return paths
+  }, [environment?.git?.changes])
+  const entries = useMemo(() => (
+    (environment?.images ?? [])
+      .map(path => normalizePath(path))
+      .filter(isImagePath)
+      .map(path => ({ path, source: imageSource(path, untracked) }))
+  ), [environment?.images, untracked])
+  const generated = useMemo(() => entries.filter(entry => entry.source === 'generated'), [entries])
+  const project = useMemo(() => entries.filter(entry => entry.source === 'project'), [entries])
+  const [kind, setKind] = useState<ImageSource>('generated')
+  const [query, setQuery] = useState('')
+
+  useEffect(() => {
+    setQuery('')
+  }, [workspacePath])
+
+  useEffect(() => {
+    if (entries.length === 0) setQuery('')
+  }, [entries.length])
+  const requested = normalizePath(String(requestedPath ?? '').trim())
+  const visible = useMemo(() => {
+    const source = kind === 'generated'
+      ? (generated.length ? generated : project)
+      : (project.length ? project : generated)
+    const needle = query.trim().toLocaleLowerCase()
+    if (!needle) return source
+    return source.filter(entry => entry.path.toLocaleLowerCase().includes(needle))
+  }, [generated, project, kind, query])
+  const paths = useMemo(() => visible.map(entry => entry.path), [visible])
+  const loadPaths = useMemo(() => {
+    const next = entries.map(entry => entry.path)
+    if (requested && isImagePath(requested) && !next.includes(requested)) next.unshift(requested)
+    return next
+  }, [entries, requested])
+  const loadPathsKey = loadPaths.join('\0')
   const [activePath, setActivePath] = useState('')
-  const [preview, setPreview] = useState<CodingArtifactPreview | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const loadGeneration = useRef(0)
+  const [thumbs, setThumbs] = useState<Record<string, Thumb>>({})
   const activePathRef = useRef('')
 
   useEffect(() => {
     activePathRef.current = activePath
   }, [activePath])
 
-  async function loadPreview(path: string) {
-    if (!desktopRuntime || !workspacePath) return
-    const relative = path.trim()
-    if (!relative || !isImagePath(relative)) return
-    const generation = ++loadGeneration.current
-    setLoading(true)
-    setError('')
-    setActivePath(relative)
-    onSelect?.(relative)
-    try {
-      const next = await invokeCommand<CodingArtifactPreview>('get_coding_artifact_preview', {
-        workspacePath,
-        relativePath: relative,
-      })
-      if (generation !== loadGeneration.current) return
-      setPreview(next)
-    } catch (cause) {
-      if (generation !== loadGeneration.current) return
-      setPreview(null)
-      setError(cause instanceof Error
-        ? cause.message
-        : t('暂时无法预览这张图片。', 'This image cannot be previewed right now.'))
-    } finally {
-      if (generation === loadGeneration.current) setLoading(false)
-    }
-  }
-
-  // Prefer an explicit reveal path; otherwise keep the active image or open the newest.
   useEffect(() => {
-    const next = String(requestedPath ?? '').trim()
-    if (next && isImagePath(next)) {
-      void loadPreview(next)
+    if (requested && imageSource(requested, untracked) === 'generated') setKind('generated')
+  }, [requested, untracked])
+
+  useEffect(() => {
+    if (generated.length === 0 && project.length > 0) setKind('project')
+  }, [generated.length, project.length])
+
+  useEffect(() => {
+    const next = requested && isImagePath(requested) ? requested : ''
+    if (next && (paths.includes(next) || !paths.length)) {
+      setActivePath(next)
       return
     }
     if (!paths.length) {
-      setPreview(null)
       setActivePath('')
-      setError('')
       return
     }
     if (activePathRef.current && paths.includes(activePathRef.current)) return
-    void loadPreview(paths[0]!)
-    // pathsKey captures list membership; loadPreview reads latest workspace/runtime.
+    setActivePath(paths[0]!)
+  }, [requested, paths])
+
+  useEffect(() => {
+    if (!desktopRuntime || !workspacePath || !loadPaths.length) return
+    let cancelled = false
+    setThumbs(current => {
+      const kept: Record<string, Thumb> = {}
+      for (const path of loadPaths) {
+        const existing = current[path]
+        if (existing) kept[path] = existing
+      }
+      return kept
+    })
+    const queue = [...loadPaths]
+    async function worker() {
+      for (;;) {
+        const path = queue.shift()
+        if (!path || cancelled) return
+        try {
+          const preview = await invokeCommand<CodingArtifactPreview>('get_coding_artifact_preview', {
+            workspacePath,
+            relativePath: path,
+          })
+          if (cancelled) return
+          const url = preview.kind === 'image' ? preview.dataUrl : ''
+          setThumbs(current => ({
+            ...current,
+            [path]: url ? { url } : { failed: true },
+          }))
+        } catch {
+          if (cancelled) return
+          setThumbs(current => ({ ...current, [path]: { failed: true } }))
+        }
+      }
+    }
+    void Promise.all(Array.from(
+      { length: Math.min(thumbConcurrency, loadPaths.length) },
+      () => worker(),
+    ))
+    return () => {
+      cancelled = true
+    }
+    // loadPathsKey captures membership; worker reads the latest workspace.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [requestedPath, workspacePath, pathsKey, refreshToken])
+  }, [desktopRuntime, workspacePath, loadPathsKey, refreshToken])
+
+  function selectImage(path: string) {
+    setActivePath(path)
+    onSelect?.(path)
+  }
+
+  const activeThumb = activePath ? thumbs[activePath] : undefined
+  const showKinds = generated.length > 0 && project.length > 0
+  const folder = activePath ? imageFolder(activePath) : ''
 
   return (
-    <section className="flex h-full min-h-0 flex-col gap-3 p-3" data-testid="coding-image-gallery">
-      <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
-        <ImageIcon className="size-3.5 shrink-0" />
-        <span className="min-w-0 flex-1 truncate">
-          {paths.length
-            ? t(`${paths.length} 张项目图片`, `${paths.length} project images`)
-            : t('项目图片', 'Project images')}
-        </span>
-        {onRefresh ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-7 shrink-0"
-            aria-label={t('刷新图片', 'Refresh images')}
-            title={t('刷新图片', 'Refresh images')}
-            onClick={() => onRefresh()}
-          >
-            <RefreshCw className={cn('size-3.5', loading ? 'animate-spin' : undefined)} />
-          </Button>
+    <section className="flex h-full min-h-0 flex-col" data-testid="coding-image-gallery">
+      <div className="flex shrink-0 flex-col gap-2 border-b border-border px-2 py-1">
+        <div className="flex items-center gap-1">
+          <Input
+            value={query}
+            className="h-7 min-w-0 flex-1"
+            placeholder={t('搜索', 'Search')}
+            aria-label={t('搜索图片', 'Search images')}
+            onChange={event => setQuery(event.target.value)}
+          />
+        </div>
+        {entries.length && showKinds ? (
+            <div className="flex gap-1">
+              {([
+                ['generated', t('生成', 'Generated'), generated.length],
+                ['project', t('项目', 'Project'), project.length],
+              ] as const).map(([value, label, count]) => (
+                <Button
+                  key={value}
+                  type="button"
+                  size="sm"
+                  variant={kind === value ? 'default' : 'outline'}
+                  className="h-7 rounded-md px-2.5"
+                  aria-pressed={kind === value}
+                  onClick={() => setKind(value)}
+                >
+                  {`${label} ${count}`}
+                </Button>
+              ))}
+            </div>
         ) : null}
       </div>
 
-      {!workspacePath ? (
-        <p className="text-caption text-muted-foreground">{t('选择项目', 'Choose a project')}</p>
-      ) : !paths.length ? (
-        <p className="text-caption text-muted-foreground" />
-      ) : (
-        <div className="grid grid-cols-2 gap-2 overflow-y-auto pr-0.5">
-          {paths.map(path => {
-            const active = activePath === path
-            return (
-              <button
-                key={path}
-                type="button"
-                className={cn(
-                  'flex flex-col overflow-hidden rounded-md border text-left transition-[background-color,border-color] duration-[var(--motion-fast)]',
-                  active ? 'border-primary bg-accent' : 'border-border bg-card/40 hover:bg-accent/60',
-                )}
-                aria-pressed={active}
-                aria-label={path}
-                onClick={() => { void loadPreview(path) }}
-              >
-                <span className="truncate px-2 py-1.5 text-[11px] text-muted-foreground">{path}</span>
-              </button>
-            )
-          })}
+      {paths.length ? (
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className="shrink-0 border-b border-border">
+            <div className="flex max-h-52 min-h-28 items-center justify-center p-3">
+              {activeThumb?.url ? (
+                <img
+                  src={activeThumb.url}
+                  alt={imageBaseName(activePath)}
+                  className="max-h-44 max-w-full object-contain"
+                />
+              ) : activeThumb?.failed ? (
+                <p className="px-3 text-center text-caption text-destructive">
+                  {t('暂时无法预览这张图片。', 'This image cannot be previewed right now.')}
+                </p>
+              ) : (
+                <LoaderCircle className="size-4 animate-spin text-muted-foreground" />
+              )}
+            </div>
+            <p className="truncate px-3 pb-2 text-center text-caption text-muted-foreground" title={activePath}>
+              {folder ? `${folder}/` : ''}{imageBaseName(activePath)}
+            </p>
+          </div>
+          <div className="min-h-0 flex-1 overflow-auto">
+            <div className="grid grid-cols-2 gap-2 p-3">
+              {paths.map(path => {
+                const thumb = thumbs[path]
+                const active = activePath === path
+                return (
+                  <button
+                    key={path}
+                    type="button"
+                    className={cn(
+                      'flex min-w-0 flex-col overflow-hidden rounded-md border bg-muted/30 text-left',
+                      'transition-[border-color,transform] duration-[120ms] ease-[var(--ease-out)] active:scale-[0.97]',
+                      active ? 'border-primary' : 'border-border',
+                    )}
+                    aria-pressed={active}
+                    aria-label={path}
+                    title={path}
+                    onClick={() => selectImage(path)}
+                  >
+                    <span className="relative aspect-square w-full bg-muted/40">
+                      {thumb?.url ? (
+                        <img src={thumb.url} alt="" className="size-full object-cover" />
+                      ) : (
+                        <span className="flex size-full items-center justify-center text-muted-foreground">
+                          {thumb?.failed
+                            ? <ImageIcon className="size-3.5" />
+                            : <LoaderCircle className="size-3.5 animate-spin" />}
+                        </span>
+                      )}
+                    </span>
+                    <span className="truncate px-1.5 py-1 text-[11px] text-muted-foreground">{imageBaseName(path)}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
         </div>
-      )}
-
-      {loading ? (
-        <div className="flex items-center gap-2 text-caption text-muted-foreground">
-          <LoaderCircle className="size-3.5 animate-spin" />
-          {t('加载预览', 'Loading preview')}
-        </div>
-      ) : null}
-      {error ? <p className="text-caption text-destructive">{error}</p> : null}
-      {preview?.kind === 'image' && preview.dataUrl ? (
-        <div className="min-h-0 flex-1 overflow-auto rounded-md border border-border bg-muted/20 p-2">
-          <img
-            src={preview.dataUrl}
-            alt={preview.relativePath}
-            className="mx-auto max-h-full max-w-full object-contain"
-          />
+      ) : entries.length > 0 && query.trim() ? (
+        <p className="px-3 py-3 text-caption text-muted-foreground">{t('没有匹配项', 'No matches')}</p>
+      ) : workspacePath && environment == null ? (
+        <div className="flex min-h-0 flex-1 items-center justify-center">
+          <LoaderCircle className="size-4 animate-spin text-muted-foreground" />
         </div>
       ) : null}
     </section>

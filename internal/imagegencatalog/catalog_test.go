@@ -2,50 +2,57 @@ package imagegencatalog
 
 import "testing"
 
-func TestBuiltinKeepsChatModelsOut(t *testing.T) {
-	snapshot := Builtin()
-	if snapshot.Schema != Schema {
-		t.Fatalf("schema = %q", snapshot.Schema)
+func TestIsImageModelIDUsesPrefixSuffix(t *testing.T) {
+	image := []string{
+		"openai-image/gpt-image-2",
+		"openai-image/gpt-image-2.5-flare",
+		"google-image/nano-banana-2",
+		"google-image/gemini-3.1-flash-image",
+		"x-ai-image/grok-imagine-image-2.0",
+		"future-lab-image/some-new-model",
 	}
-	if len(snapshot.Models) < 3 {
-		t.Fatalf("expected curated image models, got %d", len(snapshot.Models))
-	}
-	chatLike := map[string]struct{}{
-		"deepseek/deepseek-flash": {},
-		"gpt-5.6":                 {},
-		"claude-opus-5":           {},
-		"grok-4.6":                {},
-	}
-	seen := map[string]struct{}{}
-	for _, model := range snapshot.Models {
-		if model.ID == "" || model.Name == "" || model.Platform == "" {
-			t.Fatalf("incomplete model: %#v", model)
-		}
-		if _, duplicate := seen[model.ID]; duplicate {
-			t.Fatalf("duplicate image model id %q", model.ID)
-		}
-		seen[model.ID] = struct{}{}
-		if _, bad := chatLike[model.ID]; bad {
-			t.Fatalf("chat model leaked into ImageGen catalog: %q", model.ID)
-		}
-	}
-	for _, id := range []string{
+	chat := []string{
+		"openai/gpt-5.6",
 		"openai/gpt-image-2",
-		"xai/grok-imagine-image",
-		"google/imagen-4.0-generate-001",
-	} {
-		if !KnownID(id) {
-			t.Fatalf("expected TokenFlux-routable image model %q", id)
+		"google/gemini-3.8-flash-tiered",
+		"x-ai/grok-4.7",
+		"deepseek/deepseek-flash",
+		"alibaba/qwen3.7-max",
+		"grok-imagine-image-2.0",
+		"",
+	}
+	for _, id := range image {
+		if !IsImageModelID(id) {
+			t.Fatalf("expected image route %q", id)
+		}
+	}
+	for _, id := range chat {
+		if IsImageModelID(id) {
+			t.Fatalf("chat id classified as image: %q", id)
 		}
 	}
 }
 
-func TestLookup(t *testing.T) {
-	model, ok := Lookup(" openai/gpt-image-2 ")
-	if !ok || model.Name != "GPT Image 2" || !model.SupportsEdit {
-		t.Fatalf("lookup = %#v ok=%v", model, ok)
+func TestTransportFollowsTheImagePrefix(t *testing.T) {
+	if got := Transport("openai-image/gpt-image-2"); got != TransportGPTImage {
+		t.Fatalf("gpt = %q", got)
 	}
-	if _, ok := Lookup("deepseek/deepseek-flash"); ok {
-		t.Fatal("chat model must not resolve in ImageGen catalog")
+	if got := Transport("x-ai-image/grok-imagine-image-2.0"); got != TransportImages {
+		t.Fatalf("grok = %q", got)
+	}
+	if got := Transport("google-image/nano-banana-2"); got != TransportGemini {
+		t.Fatalf("google = %q", got)
+	}
+	if got := Transport("google-image/gemini-3.1-flash-image"); got != TransportGemini {
+		t.Fatalf("gemini = %q", got)
+	}
+	if got := Transport("future-lab-image/example"); got != TransportImages {
+		t.Fatalf("other image group = %q", got)
+	}
+	if got := Transport("openai/gpt-image-2"); got != "" {
+		t.Fatalf("chat prefix = %q", got)
+	}
+	if got := Transport("x-ai/grok-4.7"); got != "" {
+		t.Fatalf("grok chat = %q", got)
 	}
 }

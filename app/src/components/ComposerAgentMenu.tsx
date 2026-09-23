@@ -26,6 +26,7 @@ export default function ComposerAgentMenu({
   thinkingLevels = [],
   thinkingLevel,
   contextLabel,
+  showRuntime = true,
   onChangeModel,
   onChangeKernel,
   onChangeThinkingLevel,
@@ -43,6 +44,7 @@ export default function ComposerAgentMenu({
   thinkingLevels?: ModelThinkingLevel[]
   thinkingLevel?: ModelThinkingLevel
   contextLabel?: string
+  showRuntime?: boolean
   onChangeModel?: (value: string) => void
   onChangeKernel?: (value: 'pi' | 'dsh') => void
   onChangeThinkingLevel?: (level: ModelThinkingLevel) => void
@@ -130,7 +132,7 @@ export default function ComposerAgentMenu({
               <span className="max-w-[7rem] shrink-0 truncate text-caption text-muted-foreground">{contextLabel}</span>
             </div>
           ) : null}
-          {row('runtime', t('运行时', 'Runtime'), runtimeLabel)}
+          {showRuntime ? row('runtime', t('运行时', 'Runtime'), runtimeLabel) : null}
           {pane ? (
             <div
               className={cn(

@@ -1,6 +1,6 @@
 import { t } from '@/lib/uiLocale'
 
-export type WorkspaceSection = 'ctf' | 'vuln' | 'lab' | 'chat' | 'companion'
+export type WorkspaceSection = 'ctf' | 'vuln' | 'lab' | 'chat' | 'image' | 'companion'
 export type CTFWorkspaceSection = 'catalog'
 export type AppSection = WorkspaceSection | 'profile' | 'settings'
 
@@ -26,7 +26,7 @@ export function ctfContextItemLabel(id: CTFWorkspaceSection) {
 }
 
 export function showsCodingHistory(section: WorkspaceSection) {
-  return section === 'chat' || section === 'ctf' || section === 'vuln' || section === 'lab'
+  return section === 'chat' || section === 'image' || section === 'ctf' || section === 'vuln' || section === 'lab'
 }
 
 export function isDomainWorkspace(section: AppSection) {
@@ -38,6 +38,7 @@ export const WORKSPACE_SIDEBAR_ITEMS = [
   { id: 'ctf', label: () => 'CTF' },
   { id: 'vuln', label: () => 'CVE' },
   { id: 'lab', label: () => 'Lab' },
+  { id: 'image', label: () => t('画图', 'Draw') },
 ] as const satisfies ReadonlyArray<{
   id: Exclude<WorkspaceSection, 'companion'>
   label: () => string

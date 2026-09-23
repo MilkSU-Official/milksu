@@ -38,6 +38,7 @@ import {
   GitFork,
   Globe2,
   House,
+  ImageIcon,
   Star,
   LogOut,
   SquarePen,
@@ -108,6 +109,7 @@ const workspaceNavIcons = {
   ctf: Flag,
   vuln: Bug,
   lab: FlaskConical,
+  image: ImageIcon,
 } as const
 
 const settingsNavIcons = {
@@ -239,7 +241,7 @@ export default function ContextSidebar({
       : updateButtonLabel
 
   const workspaceHome: WorkspaceSection = (
-    activeSection === 'ctf' || activeSection === 'vuln' || activeSection === 'lab'
+    activeSection === 'ctf' || activeSection === 'vuln' || activeSection === 'lab' || activeSection === 'image'
       ? activeSection
       : 'chat'
   )

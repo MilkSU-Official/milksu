@@ -9,8 +9,6 @@ import (
 const (
 	// DefaultImageGenProvider is the TokenFlux relay used for account / personal ImageGen.
 	DefaultImageGenProvider = "tokenflux"
-	// DefaultImageGenModel is the factory ImageGen pick (OpenAI GPT Image via TokenFlux routing).
-	DefaultImageGenModel = "openai/gpt-image-2"
 	// DefaultImageGenSource prefers the MilkSU account TokenFlux quota.
 	DefaultImageGenSource = ModelSourceAccount
 	// DefaultTokenFluxImageGenBaseURL is the only TokenFlux product base URL for Images API calls.
@@ -41,8 +39,12 @@ func normalizeImageGenSettings(value AppSettings) AppSettings {
 	if provider == "" {
 		provider = DefaultImageGenProvider
 	}
-	if model == "" {
-		model = DefaultImageGenModel
+	// Image groups are the composite-key prefixes ending in "-image".
+	if model == "" || !imagegencatalog.IsImageModelID(model) {
+		value.ImageGenProvider = ""
+		value.ImageGenModel = ""
+		value.ImageGenSource = ""
+		return value
 	}
 	if source != ModelSourceAccount && source != ModelSourcePersonal && source != "service" {
 		if provider == "tokenflux" {
@@ -50,13 +52,6 @@ func normalizeImageGenSettings(value AppSettings) AppSettings {
 		} else {
 			source = "service"
 		}
-	}
-
-	// Reject chat-looking ids that are not in the ImageGen catalog when the
-	// provider is TokenFlux. Custom relays may advertise other OpenAI-compatible
-	// image ids, so only enforce the curated list for tokenflux.
-	if provider == "tokenflux" && !imagegencatalog.KnownID(model) {
-		model = DefaultImageGenModel
 	}
 
 	value.ImageGenProvider = provider

@@ -191,8 +191,11 @@ import {
   composerRunPhase,
   parentHasActiveTurnResidue,
 } from '@/lib/composerRunState'
+import { imageGenModelLabel } from '@/lib/imageGenCatalog'
 import {
   encodeComposerModelKey,
+  imageGenComposerGroups,
+  imageGenSettingsKey,
   modelServiceSourceLabel,
   parseComposerModelKey,
   providerModelLabel,
@@ -264,7 +267,7 @@ export type ChatPageProps = {
     text: string,
     visibleText?: string,
     attachments?: CodingAttachment[],
-    scopeToken?: 'browser-use' | 'computer-use',
+    scopeToken?: 'browser-use' | 'computer-use' | 'image',
     productAction?: CodingProductActionRequest,
   ) => void
   onCtfAction?: (action: CTFChatAction) => void
@@ -281,6 +284,8 @@ export type ChatPageProps = {
   onChangeKernel?: (kernel: 'pi' | 'dsh') => void
   onMigrateKernel?: (kernel: 'pi' | 'dsh') => void
   onChangeModelSource?: (preference: 'auto' | 'account' | 'personal') => void
+  imageHome?: boolean
+  onChangeImageModel?: (value: string) => void
   onChangeCodingPolicy?: (
     executionMode: CodingExecutionMode,
     approvalPolicy: CodingApprovalPolicy,
@@ -360,6 +365,8 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
   onChangeKernel,
   onMigrateKernel,
   onChangeModelSource,
+  imageHome = false,
+  onChangeImageModel,
   onChangeCodingPolicy,
   onChangeMcpServers,
   onRespondApproval,
@@ -851,13 +858,19 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     if (!shouldRememberCodingProject(workspacePath)) return ''
     return codingWorkspaceLabel(workspacePath, homeDirectory)
   }, [workspacePath, homeDirectory])
+  const imageGroups = useMemo(() => imageGenComposerGroups(settings), [settings])
+  const imageModelKey = imageGenSettingsKey(settings)
+  const imageModelLabel = settings?.imagegen_model
+    ? imageGenModelLabel(settings.imagegen_model)
+    : t('关闭', 'Off')
   const codingEmptyHeading = useMemo(() => {
+    if (imageHome) return t('画什么', 'What should we draw')
     const name = selectedCodingProjectName || workspaceName
     if (name && name !== '~' && name !== t('无项目任务', 'No project') && !isGenericWorkspaceLabel(name)) {
       return t(`我们在 ${name} 中构建什么`, `What should we build in ${name}`)
     }
     return t('我们要构建什么', 'What should we build')
-  }, [selectedCodingProjectName, workspaceName, t])
+  }, [imageHome, selectedCodingProjectName, workspaceName, t])
   const terminalConversationId = conversation?.id || LOCAL_CODING_SHELL_ID
   const terminalWorkspacePath = workspacePath || homeDirectory
   const codingBrowserEvidencePath = useMemo(() => {
@@ -1881,7 +1894,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     prompt: string,
     visibleText?: string,
     attachments?: CodingAttachment[],
-    scopeToken?: 'browser-use' | 'computer-use',
+    scopeToken?: 'browser-use' | 'computer-use' | 'image',
     productAction?: CodingProductActionRequest,
   ) {
     setGoalMode(false)
@@ -1900,7 +1913,10 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
       ? `${stagedPrompt.prompt}\n\n用户当前请求：${prompt}`
       : prompt
     setStagedComposerPrompt(null)
-    const scopedPrompt = scopeToken === 'browser-use'
+    const drawTurn = imageHome || scopeToken === 'image'
+    const scopedPrompt = drawTurn
+      ? `本轮是画图。调用一次 milksu_imagegen，把下面的用户原文当作 prompt，使用已经配置的生图模型，写到工作区里一个新的 .png 路径。不要覆盖已有文件，不要改代码，不要改用对话模型画图。\n\n${submittedPrompt}`
+      : scopeToken === 'browser-use'
       ? `本轮通过 Playwright MCP 官方扩展请求连接真实用户浏览器；首次调用时等我在 Chrome/Edge 里选择并批准准确标签页。只操作扩展返回的标签页，不要改用 MilkSU 内置浏览器或 Computer Use。\n\n${submittedPrompt}`
       : scopeToken === 'computer-use'
         ? `本轮使用已锁定的可见 App 窗口完成请求；若尚未接入准确窗口，先停下让我选择。\n\n${submittedPrompt}`
@@ -2287,6 +2303,12 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
       void showComputerUseScope(pendingReveal.preferEmulator)
     }
     window.addEventListener('focus', refreshComputerUseAfterSettings)
+    function refreshOpenImageList() {
+      if (environmentOpenRef.current && contextPanelRef.current === 'images') {
+        void refreshEnvironment()
+      }
+    }
+    window.addEventListener('focus', refreshOpenImageList)
     let stopBrowserReady: (() => void) | undefined
     let stopWorkspaceReveal: (() => void) | undefined
     void listenEvent<CodingBrowserStatus>('coding-browser.ready', event => {
@@ -2324,8 +2346,8 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
       if (payload?.type !== 'tool.completed' || payload.toolName !== 'milksu_imagegen') return
       const failure = String(payload.error ?? '').trim()
       if (failure) {
-        // Failure bubble is projected by useConversations; clear a stale Images
-        // preview path so the rail does not keep spinning on a missing file.
+        // Failure bubble is projected by useConversations; drop the preview path
+        // so the rail does not keep a missing file selected.
         setRequestedArtifactPath('')
         setImageGalleryRefreshToken(token => token + 1)
         void refreshEnvironment()
@@ -2374,6 +2396,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
       stopImageGenEvents?.()
       void hideCodingBrowserViewport()
       window.removeEventListener('focus', refreshComputerUseAfterSettings)
+      window.removeEventListener('focus', refreshOpenImageList)
       codingBrowserResizeObserver.current?.disconnect()
       window.clearInterval(statusTimer)
       if (transcriptRefillTimer.current) window.clearTimeout(transcriptRefillTimer.current)
@@ -2945,6 +2968,11 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
             gitBranches={gitBranches}
             browserUseReady={browserUseReadyForCurrentTask}
             computerUseReady={externalAppUseReadyForCurrentTask}
+            imageHome={imageHome}
+            imageModelKey={imageModelKey}
+            imageModelLabel={imageModelLabel}
+            imageGroups={imageGroups}
+            onChangeImageModel={onChangeImageModel}
             availableSkills={activeSkills}
             importedSkills={enabledUserSkills}
             selectedMcpServers={selectedMCPServers}
@@ -3414,10 +3442,6 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
                   requestedPath={requestedArtifactPath}
                   refreshToken={imageGalleryRefreshToken}
                   onSelect={path => setRequestedArtifactPath(path)}
-                  onRefresh={() => {
-                    setImageGalleryRefreshToken(token => token + 1)
-                    void refreshEnvironment()
-                  }}
                 />
               ) : contextPanel === 'browser' ? (
                 <section className="coding-browser-panel flex h-full min-h-0 flex-col">

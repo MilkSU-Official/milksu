@@ -5,8 +5,8 @@ import { defineTool } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 
 export const codingImageGenToolName = "milksu_imagegen";
-/** @deprecated Prefer resolveImageGenModel(); kept for older tests. */
-export const codingImageGenModel = "openai/gpt-image-2";
+/** Unset-env fallback for tests. Product calls use MILKSU_IMAGEGEN_MODEL from the live catalog. */
+export const codingImageGenModel = "openai-image/gpt-image-2";
 
 const defaultBaseURL = "https://tokenflux.dev/v1";
 const maxReferenceBytes = 8 * 1024 * 1024;
@@ -23,16 +23,6 @@ const outputCostUSD = {
   "1536x1024": { low: 0.005, medium: 0.041, high: 0.165 },
   "1024x1536": { low: 0.005, medium: 0.041, high: 0.165 },
 };
-
-/** Curated ImageGen ids that accept /v1/images/edits. Chat models stay out. */
-const editCapableModels = new Set([
-  "openai/gpt-image-2",
-  "openai/gpt-image-1",
-  "gpt-image-2",
-  "gpt-image-1",
-  "xai/grok-imagine-image",
-  "xai/grok-imagine-image-2.0",
-]);
 
 /**
  * Request-shape profiles for OpenAI-compatible Images relays.
@@ -61,26 +51,23 @@ const qualityAliasToCanonical = new Map([
 ]);
 
 /**
- * @typedef {"gpt-image" | "compat-minimal"} ImageGenRequestProfile
+ * @typedef {"gpt-image" | "images-minimal" | "gemini"} ImageGenRequestProfile
  */
 
 /**
+ * Request shape for a model whose prefix ends in -image.
+ * google-image uses Gemini generateContent. gpt-image uses the GPT Image
+ * body. x-ai-image / grok-imagine and other -image routes use the small
+ * Images API body.
  * @param {string} model
  * @returns {ImageGenRequestProfile}
  */
 export function imageGenRequestProfile(model = resolveImageGenModel()) {
   const id = String(model ?? "").trim().toLowerCase();
-  if (
-    id.includes("gpt-image")
-    || id.includes("grok-imagine")
-    || id.startsWith("openai/")
-  ) {
-    return "gpt-image";
-  }
-  // Imagen, FLUX, Ideogram, Recraft, and other OpenAI-compatible relays:
-  // send only prompt/model/n/size/response_format so size/quality mismatches
-  // do not discard the call as an opaque provider Error.
-  return "compat-minimal";
+  const vendor = id.split("/")[0] || "";
+  if (vendor === "google-image") return "gemini";
+  if (id.includes("gpt-image")) return "gpt-image";
+  return "images-minimal";
 }
 
 export function resolveImageGenModel(env = process.env) {
@@ -112,7 +99,8 @@ export function imageGenIsConfigured(env = process.env) {
 }
 
 export function imageGenSupportsEdit(model = resolveImageGenModel()) {
-  return editCapableModels.has(String(model ?? "").trim());
+  const id = String(model ?? "").trim().toLowerCase();
+  return id.includes("gpt-image") || id.includes("grok-imagine");
 }
 
 function isLoopbackHost(hostname) {
@@ -145,7 +133,12 @@ export function normalizeImageGenBaseURL(value = resolveImageGenBaseURLValue()) 
   return url;
 }
 
-function endpointFor(mode, baseURL) {
+function endpointFor(mode, baseURL, profile, model) {
+  if (profile === "gemini") {
+    const base = new URL(baseURL);
+    const encoded = String(model ?? "").split("/").map(encodeURIComponent).join("/");
+    return new URL(`${base.protocol}//${base.host}/v1beta/models/${encoded}:generateContent`);
+  }
   const endpoint = new URL(baseURL);
   endpoint.pathname = `${endpoint.pathname}/images/${
     mode === "edit" ? "edits" : "generations"
@@ -208,7 +201,12 @@ export function formatImageGenApprovalInput(
   } catch {
     // Keep defaults for the approval card when the model passed a bad size.
   }
-  const endpoint = endpointFor(params?.mode, normalizeImageGenBaseURL(baseURL));
+  const endpoint = endpointFor(
+    params?.mode,
+    normalizeImageGenBaseURL(baseURL),
+    imageGenRequestProfile(model),
+    model,
+  );
   const estimate = imageGenOutputEstimate(size, quality);
   return [
     `ImageGen ${mode}`,
@@ -337,6 +335,16 @@ export function buildImageGenRequestBody(params, {
   reference,
 } = {}) {
   const selectedModel = String(model ?? "").trim() || codingImageGenModel;
+  if (profile === "gemini") {
+    const parts = [{ text: params.prompt }];
+    return {
+      body: JSON.stringify({
+        contents: [{ role: "user", parts }],
+        generationConfig: { responseModalities: ["TEXT", "IMAGE"] },
+      }),
+      headers: { "Content-Type": "application/json" },
+    };
+  }
   if (params.mode === "edit") {
     const body = new FormData();
     body.append("model", selectedModel);
@@ -362,20 +370,47 @@ export function buildImageGenRequestBody(params, {
     model: selectedModel,
     prompt: params.prompt,
     n: 1,
-    size: params.size,
   };
   if (profile === "gpt-image") {
+    payload.size = params.size;
     payload.quality = params.quality;
     payload.output_format = "png";
     payload.background = "opaque";
     payload.moderation = "auto";
+  } else if (String(selectedModel).toLowerCase().includes("grok-imagine")) {
+    // x-ai-image accepts model/prompt/response_format. GPT-Image size and
+    // quality fields are what made this group return 502.
+    payload.response_format = "b64_json";
   } else {
+    payload.size = params.size;
     payload.response_format = "b64_json";
   }
   return {
     body: JSON.stringify(payload),
     headers: { "Content-Type": "application/json" },
   };
+}
+
+export function imageBytesFromProvider(decoded) {
+  const direct = decoded?.data?.[0]?.b64_json;
+  if (typeof direct === "string" && direct) {
+    return {
+      encoded: direct,
+      declaredMime: String(decoded.data[0].mime_type || decoded.data[0].mimeType || ""),
+    };
+  }
+  const parts = decoded?.candidates?.[0]?.content?.parts;
+  if (!Array.isArray(parts)) return null;
+  for (const part of parts) {
+    const inline = part?.inlineData || part?.inline_data;
+    if (typeof inline?.data === "string" && inline.data) {
+      return {
+        encoded: inline.data,
+        declaredMime: String(inline.mimeType || inline.mime_type || ""),
+      };
+    }
+  }
+  return null;
 }
 
 function referenceMimeType(data) {
@@ -399,30 +434,51 @@ function referenceMimeType(data) {
   return "";
 }
 
-function pngDimensions(data) {
-  if (
-    data.length < 24
-    || !data.subarray(0, 8).equals(
-      Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
-    )
-    || data.subarray(12, 16).toString("ascii") !== "IHDR"
-  ) {
-    throw imageGenFailureError(
-      "invalid_png",
-      "MilkSU ImageGen Provider returned an invalid PNG",
-      { retryable: true },
-    );
+function jpegDimensions(data) {
+  if (data.length < 4 || data[0] !== 0xff || data[1] !== 0xd8) return null;
+  let offset = 2;
+  while (offset + 8 < data.length) {
+    if (data[offset] !== 0xff) {
+      offset += 1;
+      continue;
+    }
+    const marker = data[offset + 1];
+    if (marker === 0xd8 || marker === 0x01) {
+      offset += 2;
+      continue;
+    }
+    if (marker === 0xd9 || marker === 0xda) break;
+    const length = data.readUInt16BE(offset + 2);
+    if (length < 2 || offset + 2 + length > data.length) break;
+    const startOfFrame = (marker >= 0xc0 && marker <= 0xc3)
+      || (marker >= 0xc5 && marker <= 0xc7)
+      || (marker >= 0xc9 && marker <= 0xcb);
+    if (startOfFrame) {
+      return {
+        height: data.readUInt16BE(offset + 5),
+        width: data.readUInt16BE(offset + 7),
+      };
+    }
+    offset += 2 + length;
   }
-  const width = data.readUInt32BE(16);
-  const height = data.readUInt32BE(20);
-  if (!width || !height || width > 3840 || height > 3840) {
-    throw imageGenFailureError(
-      "invalid_png_dimensions",
-      "MilkSU ImageGen Provider returned invalid PNG dimensions",
-      { retryable: true },
-    );
+  return null;
+}
+
+function imageInfo(data) {
+  const mediaType = referenceMimeType(data);
+  let dimensions = null;
+  if (mediaType === "image/png") {
+    if (data.length >= 24 && data.subarray(12, 16).toString("ascii") === "IHDR") {
+      dimensions = { width: data.readUInt32BE(16), height: data.readUInt32BE(20) };
+    }
+  } else if (mediaType === "image/jpeg") {
+    dimensions = jpegDimensions(data);
   }
-  return { width, height };
+  if (!mediaType || !dimensions?.width || !dimensions?.height || dimensions.width > 8192 || dimensions.height > 8192) {
+    return null;
+  }
+  const ext = mediaType === "image/png" ? ".png" : mediaType === "image/jpeg" ? ".jpg" : ".webp";
+  return { mediaType, ext, width: dimensions.width, height: dimensions.height };
 }
 
 function boundedInteger(value) {
@@ -589,7 +645,8 @@ export function createImageGenTool(
       + `configured ImageGen model (${selectedModel}). Every call pauses for separate user `
       + "approval because it uses a credentialed network request with Provider cost. The "
       + "Provider credential never enters tool input or output. outputPath must be a new "
-      + "workspace .png file and is never overwritten. This tool is independent of the chat "
+      + "workspace .png path and is never overwritten. Providers that return JPEG are saved "
+      + "as .jpg next to that name. This tool is independent of the chat "
       + "model selected in the composer. Preferred sizes: 1024x1024, 1536x1024, 1024x1536; "
       + "quality: low, medium, or high.",
     parameters: Type.Object({
@@ -643,7 +700,7 @@ export function createImageGenTool(
         : resolve(workspace, params.outputPath);
       const output = await ensureMutation(requestedOutput);
       const outputRelative = relative(workspace, output).replaceAll("\\", "/");
-      const outputParent = await ensureMutation(dirname(output), true);
+      await ensureMutation(dirname(output), true);
       try {
         await lstat(output);
         throw imageGenFailureError(
@@ -687,7 +744,7 @@ export function createImageGenTool(
       }
 
       const base = normalizeImageGenBaseURL(baseURL);
-      const endpoint = endpointFor(params.mode, base);
+      const endpoint = endpointFor(params.mode, base, requestProfile, selectedModel);
       const built = buildImageGenRequestBody(params, {
         model: selectedModel,
         profile: requestProfile,
@@ -748,10 +805,10 @@ export function createImageGenTool(
           { retryable: true },
         );
       }
-      const encoded = decoded?.data?.[0]?.b64_json;
+      const extracted = imageBytesFromProvider(decoded);
+      const encoded = extracted?.encoded ?? "";
       if (
-        typeof encoded !== "string"
-        || !encoded
+        !encoded
         || encoded.length > Math.ceil(maxOutputBytes * 4 / 3) + 8
         || !/^[A-Za-z0-9+/]+={0,2}$/.test(encoded)
       ) {
@@ -769,9 +826,23 @@ export function createImageGenTool(
           { retryable: true },
         );
       }
-      const dimensions = pngDimensions(image);
-      await mkdir(outputParent, { recursive: true, mode: 0o700 });
-      await writeNewFile(output, outputRelative, image);
+      const info = imageInfo(image);
+      if (!info) {
+        throw imageGenFailureError(
+          "invalid_image",
+          "MilkSU ImageGen Provider returned an image MilkSU cannot preview",
+          { retryable: true },
+        );
+      }
+      let finalOutput = output;
+      let finalRelative = outputRelative;
+      if (extname(output).toLowerCase() !== info.ext) {
+        const redirected = output.replace(/\.[^.]+$/, info.ext);
+        finalOutput = await ensureMutation(redirected);
+        finalRelative = relative(workspace, finalOutput).replaceAll("\\", "/");
+      }
+      await mkdir(dirname(finalOutput), { recursive: true, mode: 0o700 });
+      await writeNewFile(finalOutput, finalRelative, image);
 
       const estimate = imageGenOutputEstimate(params.size, params.quality);
       const receipt = {
@@ -787,11 +858,11 @@ export function createImageGenTool(
           referenceBytes: reference?.data.length,
         },
         output: {
-          path: outputRelative,
-          mediaType: "image/png",
+          path: finalRelative,
+          mediaType: info.mediaType,
           bytes: image.length,
-          width: dimensions.width,
-          height: dimensions.height,
+          width: info.width,
+          height: info.height,
           sha256: createHash("sha256").update(image).digest("hex"),
         },
         request: {

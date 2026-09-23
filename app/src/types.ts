@@ -2,6 +2,7 @@ import { defaultAgentKernel, defaultBusySend, type BusySendPolicy } from '@/lib/
 import { normalizePreferredExternalEditor } from '@/lib/externalEditor'
 import { normalizeUiEmphasisPreset, type UiEmphasisPreset } from '@/lib/uiEmphasis'
 import { normalizeUiFontPreset, normalizeUiFontSize, type UiFontPreset, type UiFontSize } from '@/lib/uiFonts'
+import { isImageGenModelID } from '@/lib/imageGenCatalog'
 import { normalizeModelContextWindows } from '@/lib/knownContextWindow'
 import { normalizeModelThinkingSettings } from '@/lib/modelThinking'
 import type { ContextComposition } from '@/lib/sessionTurnStatus'
@@ -232,7 +233,7 @@ export interface Conversation {
   ctfMode?: 'coach' | 'copilot' | 'delegate'
   ctfRole?: 'solver' | 'tool-builder' | 'strategist'
   /** When set, the chat lives in this sidebar home even without a bound challenge/CVE/lab job. */
-  workspaceHome?: 'chat' | 'ctf' | 'vuln' | 'lab'
+  workspaceHome?: 'chat' | 'image' | 'ctf' | 'vuln' | 'lab'
   /** Structured CTF/CVE domain snapshot for the shared Coding/Pi panel. */
   domainTaskContext?: import('@/lib/domainTaskContext').DomainTaskContext
   /** Last occupancy shown on the composer ring; restored when the conversation is opened. */
@@ -315,6 +316,8 @@ export interface ModelCatalogItem {
   context_window: number
   max_tokens: number
   input: string[]
+  /** gpt-image, images-minimal, or gemini. Empty on chat models. */
+  image_transport?: string
 }
 
 export interface ModelCatalogSnapshot {
@@ -327,6 +330,10 @@ export interface ModelCatalogSnapshot {
   key_shape?: 'single' | 'composite' | 'mixed' | 'unknown'
   /** Model ids visible to the account key only when both account and personal catalogs are merged. */
   account_model_ids?: string[]
+  /** Image routes from the same refresh. Prefix ends with `-image`. */
+  image_models?: ModelCatalogItem[]
+  /** Image route ids visible to the account key when account and personal catalogs are merged. */
+  account_image_model_ids?: string[]
 }
 
 export type ModelSource = 'account' | 'personal'
@@ -698,8 +705,11 @@ function normalizeImageGenSelection(value: AppSettings): Pick<
   if (!provider && !model) {
     return { imagegen_provider: '', imagegen_model: '', imagegen_source: '' }
   }
+  if (!model || !isImageGenModelID(model)) {
+    return { imagegen_provider: '', imagegen_model: '', imagegen_source: '' }
+  }
   const resolvedProvider = provider || 'tokenflux'
-  const resolvedModel = model || 'openai/gpt-image-2'
+  const resolvedModel = model
   const source = value.imagegen_source === 'account'
     || value.imagegen_source === 'personal'
     || value.imagegen_source === 'service'

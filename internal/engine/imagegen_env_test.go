@@ -10,7 +10,7 @@ import (
 func TestResolveImageGenCredentialAccount(t *testing.T) {
 	settings := config.AppSettings{
 		ImageGenProvider: "tokenflux",
-		ImageGenModel:    "openai/gpt-image-2",
+		ImageGenModel:    "openai-image/gpt-image-2",
 		ImageGenSource:   "account",
 		Relay: &config.RelayConfig{
 			Enabled: true,
@@ -30,7 +30,7 @@ func TestResolveImageGenCredentialAccount(t *testing.T) {
 	if credential.APIKey != "account-imagegen-key" {
 		t.Fatalf("api key = %q, want account key", credential.APIKey)
 	}
-	if credential.Model != "openai/gpt-image-2" {
+	if credential.Model != "openai-image/gpt-image-2" {
 		t.Fatalf("model = %q", credential.Model)
 	}
 	if credential.Model == settings.ActiveModel {
@@ -54,7 +54,7 @@ func TestAppendImageGenEnvironmentIsolatesRoute(t *testing.T) {
 	baseURL := "https://tokenflux.dev/v1"
 	settings := config.AppSettings{
 		ImageGenProvider: "tokenflux",
-		ImageGenModel:    "xai/grok-imagine-image",
+		ImageGenModel:    "x-ai-image/grok-imagine-image-2.0",
 		ImageGenSource:   "personal",
 		Providers: map[string]config.ProviderConfig{
 			"tokenflux": {
@@ -66,7 +66,7 @@ func TestAppendImageGenEnvironmentIsolatesRoute(t *testing.T) {
 	}
 	env := appendImageGenEnvironment(nil, settings)
 	joined := strings.Join(env, "\n")
-	if !strings.Contains(joined, "MILKSU_IMAGEGEN_MODEL=xai/grok-imagine-image") {
+	if !strings.Contains(joined, "MILKSU_IMAGEGEN_MODEL=x-ai-image/grok-imagine-image-2.0") {
 		t.Fatalf("missing model env: %v", env)
 	}
 	if !strings.Contains(joined, "MILKSU_IMAGEGEN_API_KEY=personal-imagegen") {

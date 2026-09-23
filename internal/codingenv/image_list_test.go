@@ -27,6 +27,25 @@ func TestDiscoverImagesFindsRecentPNG(t *testing.T) {
 	}
 }
 
+func TestDiscoverImagesSkipsBuildOutput(t *testing.T) {
+	workspace := t.TempDir()
+	dist := filepath.Join(workspace, "app", "dist", "assets")
+	if err := os.MkdirAll(dist, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dist, "icon-a1b2c3.png")
+	if err := os.WriteFile(path, []byte("png"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	if err := os.Chtimes(path, now, now); err != nil {
+		t.Fatal(err)
+	}
+	if paths := DiscoverImages(workspace, nil, []string{"."}); len(paths) != 0 {
+		t.Fatalf("build output leaked into the gallery: %#v", paths)
+	}
+}
+
 func TestDiscoverImagesSkipsNonImages(t *testing.T) {
 	workspace := t.TempDir()
 	if err := os.WriteFile(filepath.Join(workspace, "notes.md"), []byte("# hi"), 0o600); err != nil {

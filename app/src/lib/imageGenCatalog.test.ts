@@ -1,18 +1,36 @@
 import { describe, expect, it } from 'vitest'
 import {
-  BUILTIN_IMAGEGEN_MODELS,
-  isImageGenModelID,
   imageGenModelLabel,
+  imageGenSupportsEdit,
+  imageGenTransport,
+  isImageGenModelID,
 } from '@/lib/imageGenCatalog'
 
 describe('imageGenCatalog', () => {
-  it('keeps chat models out of the ImageGen list', () => {
-    expect(BUILTIN_IMAGEGEN_MODELS.length).toBeGreaterThanOrEqual(3)
-    expect(isImageGenModelID('openai/gpt-image-2')).toBe(true)
-    expect(isImageGenModelID('xai/grok-imagine-image')).toBe(true)
-    expect(isImageGenModelID('google/imagen-4.0-generate-001')).toBe(true)
+  it('classifies image routes by the -image prefix', () => {
+    expect(isImageGenModelID('openai-image/gpt-image-2')).toBe(true)
+    expect(isImageGenModelID('openai-image/gpt-image-2.5-sunburst')).toBe(true)
+    expect(isImageGenModelID('google-image/nano-banana-2')).toBe(true)
+    expect(isImageGenModelID('x-ai-image/grok-imagine-image-2.0')).toBe(true)
+    expect(isImageGenModelID('future-lab-image/new-model')).toBe(true)
+
+    expect(isImageGenModelID('openai/gpt-5.6')).toBe(false)
+    expect(isImageGenModelID('openai/gpt-image-2')).toBe(false)
+    expect(isImageGenModelID('google/gemini-3.8-flash-tiered')).toBe(false)
+    expect(isImageGenModelID('x-ai/grok-4.7')).toBe(false)
     expect(isImageGenModelID('deepseek/deepseek-flash')).toBe(false)
-    expect(isImageGenModelID('gpt-5.6')).toBe(false)
-    expect(imageGenModelLabel('openai/gpt-image-2')).toContain('GPT Image 2')
+    expect(isImageGenModelID('grok-imagine-image-2.0')).toBe(false)
+
+    expect(imageGenTransport('openai-image/gpt-image-2')).toBe('gpt-image')
+    expect(imageGenTransport('x-ai-image/grok-imagine-image-2.0')).toBe('images-minimal')
+    expect(imageGenTransport('google-image/nano-banana-2')).toBe('gemini')
+    expect(imageGenTransport('google-image/gemini-3.1-flash-image')).toBe('gemini')
+    expect(imageGenTransport('openai/gpt-image-2')).toBe('')
+
+    expect(imageGenSupportsEdit('openai-image/gpt-image-2')).toBe(true)
+    expect(imageGenSupportsEdit('x-ai-image/grok-imagine-image-2.0')).toBe(true)
+    expect(imageGenSupportsEdit('google-image/nano-banana-2')).toBe(false)
+    expect(imageGenModelLabel('openai-image/gpt-image-2', 'GPT Image 2')).toBe('GPT Image 2')
+    expect(imageGenModelLabel('google-image/nano-banana-2')).toBe('google-image/nano-banana-2')
   })
 })

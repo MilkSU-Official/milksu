@@ -56,6 +56,7 @@ import {
 } from '@/types'
 import {
   encodePickerSelection,
+  imageModelsForTokenfluxSource,
   installAppModelSettings,
   loadModelCatalog,
   parsePickerSelection,
@@ -64,7 +65,6 @@ import {
   type PickerServiceGroup,
 } from '@/modelCatalog'
 import {
-  BUILTIN_IMAGEGEN_MODELS,
   IMAGEGEN_MODEL_OFF,
   imageGenModelLabel as formatImageGenModelLabel,
   isImageGenModelID,
@@ -985,7 +985,6 @@ export default function SettingsPage({
                   />
                   <SettingsRow
                     label={t('生图模型', 'Image generation')}
-                    description={t('仅用于对话内生图，与默认对话模型分开', 'Only for in-chat ImageGen; separate from the default chat model')}
                     divider={false}
                     trailing={(
                       <SearchableModelPicker
@@ -1990,42 +1989,39 @@ function createSettingsStore(
   function imageGenPickerGroups(): SearchableModelGroup[] {
     const working = s.working
     if (!working) return []
-    const models = BUILTIN_IMAGEGEN_MODELS.map(model => model.id)
     const groups: SearchableModelGroup[] = []
-    const accountOn = Boolean(working.relay?.enabled && working.relay.has_key)
-    const personalOn = Boolean(
-      working.providers.tokenflux?.enabled
-      && working.providers.tokenflux.has_api_key,
+    const pushTokenflux = (source: 'account' | 'personal', key: string, label: string) => {
+      const models = imageModelsForTokenfluxSource(source, working)
+      if (models.length === 0) return
+      groups.push({
+        key,
+        label,
+        models: models.map(model => ({
+          value: encodePickerSelection('tokenflux', model.id, source),
+          label: formatImageGenModelLabel(model.id, model.name),
+          model: model.id,
+        })),
+      })
+    }
+    pushTokenflux(
+      'account',
+      'imagegen-account-tokenflux',
+      t('MilkSU 账户', 'MilkSU account'),
     )
-    if (accountOn) {
-      groups.push({
-        key: 'imagegen-account-tokenflux',
-        label: t('MilkSU 账户 · 生图', 'MilkSU account · ImageGen'),
-        models: models.map(model => ({
-          value: encodePickerSelection('tokenflux', model, 'account'),
-          label: formatImageGenModelLabel(model),
-          model,
-        })),
-      })
-    }
-    if (personalOn) {
-      groups.push({
-        key: 'imagegen-personal-tokenflux',
-        label: t('TokenFlux · 生图', 'TokenFlux · ImageGen'),
-        models: models.map(model => ({
-          value: encodePickerSelection('tokenflux', model, 'personal'),
-          label: formatImageGenModelLabel(model),
-          model,
-        })),
-      })
-    }
+    pushTokenflux(
+      'personal',
+      'imagegen-personal-tokenflux',
+      t('TokenFlux 中转站', 'TokenFlux relay'),
+    )
     for (const [id, config] of Object.entries(working.providers)) {
       if (!config?.custom || !config.enabled || !config.has_api_key) continue
       const info = customProviderInfo(id, config)
       if (!info) continue
+      const models = (config.models ?? []).map(model => String(model ?? '').trim()).filter(isImageGenModelID)
+      if (models.length === 0) continue
       groups.push({
         key: `imagegen-service-${id}`,
-        label: t(`${info.name} · 生图`, `${info.name} · ImageGen`),
+        label: info.name,
         models: models.map(model => ({
           value: encodePickerSelection(id, model, 'service'),
           label: formatImageGenModelLabel(model),
@@ -2069,7 +2065,9 @@ function createSettingsStore(
     if (!s.working?.imagegen_provider || !s.working.imagegen_model) {
       return t('关闭', 'Off')
     }
-    return formatImageGenModelLabel(s.working.imagegen_model)
+    const id = s.working.imagegen_model
+    const named = modelCatalogStore.getState().current?.image_models?.find(model => model.id === id)
+    return formatImageGenModelLabel(id, named?.name)
   }
 
 

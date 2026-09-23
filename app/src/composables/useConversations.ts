@@ -108,7 +108,7 @@ import type {
 
 const BROWSER_USE_MCP_SERVER = 'milksu-playwright-user'
 const DEFAULT_CODING_CONVERSATION_TITLE = t('新编码任务', 'New coding task')
-type ComposerScopeToken = 'browser-use' | 'computer-use'
+type ComposerScopeToken = 'browser-use' | 'computer-use' | 'image'
 
 export function rewindVisibleMessages(messages: Message[]): Message[] | null {
   const users = messages.filter(message => (
@@ -533,7 +533,7 @@ export function normalizeConversation(raw: Record<string, unknown>): Conversatio
     ctfRole: ['solver', 'tool-builder', 'strategist'].includes(String(raw.ctfRole))
       ? raw.ctfRole as Conversation['ctfRole']
       : undefined,
-    workspaceHome: ['chat', 'ctf', 'vuln', 'lab'].includes(String(raw.workspaceHome))
+    workspaceHome: ['chat', 'image', 'ctf', 'vuln', 'lab'].includes(String(raw.workspaceHome))
       ? raw.workspaceHome as Conversation['workspaceHome']
       : undefined,
     domainTaskContext: normalizeDomainTaskContext(raw.domainTaskContext),
@@ -1846,7 +1846,7 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
     s.activeId = null
     s.pendingWorkspaceHome = home
     s.pendingWorkspacePath = inheritWorkspace
-    s.pendingKernel = s.defaultKernel
+    s.pendingKernel = home === 'image' ? 'pi' : s.defaultKernel
     s.pendingModelMode = undefined
     s.pendingModelProvider = undefined
     s.pendingModelId = undefined
@@ -1953,6 +1953,8 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
       mcpConfigDigest: s.pendingMCPServers.length
         ? s.pendingMCPConfigDigest
         : undefined,
+      workspaceHome: options.workspaceHome
+        ?? (s.pendingWorkspaceHome === 'chat' ? undefined : s.pendingWorkspaceHome),
       domainTaskContext: options.domainTaskContext,
       ctfJobId: clearsCTFContext ? undefined : options.ctfJobId,
       ctfMode: clearsCTFContext ? undefined : options.ctfMode,

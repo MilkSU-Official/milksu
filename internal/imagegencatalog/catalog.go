@@ -1,127 +1,101 @@
-// Package imagegencatalog holds the curated ImageGen model list.
+// Package imagegencatalog classifies ImageGen model ids.
 //
-// Chat / Coding models live in modelcatalog and must never appear here.
-// ImageGen models are OpenAI-compatible Images API ids that TokenFlux (or a
-// personal OpenAI-compatible relay) can route. MilkSU always calls
-// /v1/images/generations or /v1/images/edits; it does not speak each vendor's
-// native image protocol.
+// TokenFlux composite keys use an admin-chosen prefix. MilkSU image groups
+// use a prefix ending in "-image" (openai-image/, google-image/, x-ai-image/).
+// Chat groups keep the prefix without that suffix (openai/, google/, x-ai/).
 package imagegencatalog
 
 import "strings"
 
-const Schema = "milksu-imagegen-catalog/v1"
+const (
+	Schema = "milksu-imagegen-catalog/v1"
+	// TransportGPTImage is the OpenAI Images API with GPT Image fields.
+	TransportGPTImage = "gpt-image"
+	// TransportImages is the OpenAI Images API without GPT Image-only fields.
+	// x-ai-image / grok-imagine uses this shape.
+	TransportImages = "images-minimal"
+	// TransportGemini is Gemini generateContent. google-image does not accept
+	// the OpenAI Images API.
+	TransportGemini = "gemini"
+)
 
-// Model is one curated image-generation entry shown only in the ImageGen picker.
+// Model is one image route projected from the live catalog for Settings and RPC.
 type Model struct {
 	ID       string `json:"id"`
 	Name     string `json:"name"`
 	Vendor   string `json:"vendor"`
 	Platform string `json:"platform"`
-	// SupportsEdit is true when /v1/images/edits is expected to work for this id.
+	// SupportsEdit is a request-shape hint, not an allowlist. The Images API
+	// does not say which ids accept /v1/images/edits; GPT Image and Grok Imagine
+	// ids do. Other image routes stay generate-only until a call proves otherwise.
 	SupportsEdit bool `json:"supports_edit"`
 }
 
-// Snapshot is the public ImageGen catalog payload for Settings and Desktop RPC.
+// Snapshot is the ImageGen slice of the current model catalog.
 type Snapshot struct {
 	Schema string  `json:"schema"`
 	Models []Model `json:"models"`
 }
 
-// Builtin is the product ImageGen catalog. Keep chat models out of this list.
-func Builtin() Snapshot {
-	return Snapshot{
-		Schema: Schema,
-		Models: []Model{
-			{
-				ID:           "openai/gpt-image-2",
-				Name:         "GPT Image 2",
-				Vendor:       "openai",
-				Platform:     "OpenAI",
-				SupportsEdit: true,
-			},
-			{
-				ID:           "openai/gpt-image-1",
-				Name:         "GPT Image 1",
-				Vendor:       "openai",
-				Platform:     "OpenAI",
-				SupportsEdit: true,
-			},
-			{
-				ID:           "xai/grok-imagine-image",
-				Name:         "Grok Imagine",
-				Vendor:       "xai",
-				Platform:     "xAI",
-				SupportsEdit: true,
-			},
-			{
-				ID:           "xai/grok-imagine-image-2.0",
-				Name:         "Grok Imagine 2.0",
-				Vendor:       "xai",
-				Platform:     "xAI",
-				SupportsEdit: true,
-			},
-			{
-				ID:           "google/imagen-4.0-generate-001",
-				Name:         "Imagen 4",
-				Vendor:       "google",
-				Platform:     "Google",
-				SupportsEdit: false,
-			},
-			{
-				ID:           "google/imagen-3.0-generate-002",
-				Name:         "Imagen 3",
-				Vendor:       "google",
-				Platform:     "Google",
-				SupportsEdit: false,
-			},
-			{
-				ID:           "black-forest-labs/flux-2-pro",
-				Name:         "FLUX.2 Pro",
-				Vendor:       "black-forest-labs",
-				Platform:     "Black Forest Labs",
-				SupportsEdit: false,
-			},
-			{
-				ID:           "black-forest-labs/flux-schnell",
-				Name:         "FLUX Schnell",
-				Vendor:       "black-forest-labs",
-				Platform:     "Black Forest Labs",
-				SupportsEdit: false,
-			},
-			{
-				ID:           "ideogram-ai/ideogram-v3",
-				Name:         "Ideogram V3",
-				Vendor:       "ideogram",
-				Platform:     "Ideogram",
-				SupportsEdit: false,
-			},
-			{
-				ID:           "recraft-ai/recraft-v3",
-				Name:         "Recraft V3",
-				Vendor:       "recraft",
-				Platform:     "Recraft",
-				SupportsEdit: false,
-			},
-		},
+// IsImageModelID reports whether the composite-key prefix ends in "-image".
+func IsImageModelID(id string) bool {
+	id = strings.TrimSpace(id)
+	slash := strings.IndexByte(id, '/')
+	if slash <= len("-image") || slash >= len(id)-1 {
+		return false
+	}
+	if strings.ContainsAny(id, " \t\r\n\x00") {
+		return false
+	}
+	vendor := id[:slash]
+	return strings.HasSuffix(vendor, "-image") && len(vendor) > len("-image")
+}
+
+// Transport is how to call an image id. Empty means the id is not an image route.
+// google-image uses Gemini generateContent. gpt-image ids use the GPT Image
+// request body. Other -image routes, including grok-imagine, use the small
+// Images API body.
+func Transport(id string) string {
+	if !IsImageModelID(id) {
+		return ""
+	}
+	lower := strings.ToLower(strings.TrimSpace(id))
+	vendor := lower
+	if slash := strings.IndexByte(lower, '/'); slash > 0 {
+		vendor = lower[:slash]
+	}
+	switch {
+	case vendor == "google-image":
+		return TransportGemini
+	case strings.Contains(lower, "gpt-image"):
+		return TransportGPTImage
+	default:
+		return TransportImages
 	}
 }
 
-// Lookup returns a curated model by id (case-sensitive after trim).
-func Lookup(id string) (Model, bool) {
-	needle := strings.TrimSpace(id)
-	if needle == "" {
-		return Model{}, false
+// Describe projects one live catalog entry. Name falls back to the id.
+func Describe(id, name string) Model {
+	id = strings.TrimSpace(id)
+	name = strings.TrimSpace(name)
+	if name == "" || name == id {
+		name = id
 	}
-	for _, model := range Builtin().Models {
-		if model.ID == needle {
-			return model, true
-		}
+	vendor := id
+	if slash := strings.IndexByte(id, '/'); slash > 0 {
+		vendor = id[:slash]
 	}
-	return Model{}, false
+	return Model{
+		ID:           id,
+		Name:         name,
+		Vendor:       vendor,
+		Platform:     vendor,
+		SupportsEdit: SupportsEdit(id),
+	}
 }
 
-// KnownID reports whether id is in the curated ImageGen catalog.
-func KnownID(id string) bool {
-	_, ok := Lookup(id)
-	return ok
+// SupportsEdit reports whether this id is a GPT Image or Grok Imagine route.
+func SupportsEdit(id string) bool {
+	lower := strings.ToLower(strings.TrimSpace(id))
+	return strings.Contains(lower, "gpt-image") || strings.Contains(lower, "grok-imagine")
 }

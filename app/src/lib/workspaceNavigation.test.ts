@@ -21,10 +21,13 @@ describe('workspace navigation', () => {
     expect(showsCodingHistory('ctf')).toBe(true)
     expect(showsCodingHistory('vuln')).toBe(true)
     expect(showsCodingHistory('lab')).toBe(true)
+    expect(showsCodingHistory('image')).toBe(true)
     expect(isDomainWorkspace('chat')).toBe(false)
+    expect(isDomainWorkspace('image')).toBe(false)
     expect(isDomainWorkspace('ctf')).toBe(true)
-    expect(WORKSPACE_SIDEBAR_ITEMS.map(item => item.id)).toEqual(['chat', 'ctf', 'vuln', 'lab'])
+    expect(WORKSPACE_SIDEBAR_ITEMS.map(item => item.id)).toEqual(['chat', 'ctf', 'vuln', 'lab', 'image'])
     expect(WORKSPACE_SIDEBAR_ITEMS[0].label()).toBe('主页')
+    expect(WORKSPACE_SIDEBAR_ITEMS.find(item => item.id === 'image')?.label()).toBe('画图')
   })
 
   it('keeps the laboratory as a peer rail, not a CTF catalog row', () => {
