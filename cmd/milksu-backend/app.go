@@ -1359,6 +1359,7 @@ func (a *App) resolveConversationWorkspace(conversationID, requested string) (st
 			if err := a.rememberConversationWorkspace(conversationID, requested); err != nil {
 				return "", err
 			}
+			a.refreshDomainWorkspace(conversationID, requested)
 		}
 		return requested, nil
 	}
@@ -1373,6 +1374,7 @@ func (a *App) resolveConversationWorkspace(conversationID, requested string) (st
 		return "", fmt.Errorf("read Coding conversation for artifact workspace: %w", err)
 	}
 	if storedPath := strings.TrimSpace(stored.WorkspacePath); storedPath != "" {
+		a.refreshDomainWorkspace(conversationID, storedPath)
 		return storedPath, nil
 	}
 	kind := userartifact.KindCoding
@@ -1419,7 +1421,95 @@ func (a *App) resolveConversationWorkspace(conversationID, requested string) (st
 	if err := a.conversations.Save(stored); err != nil {
 		return "", fmt.Errorf("save Coding artifact workspace: %w", err)
 	}
+	a.refreshDomainWorkspace(conversationID, workspace)
 	return workspace, nil
+}
+
+func (a *App) refreshDomainWorkspace(conversationID, workspace string) {
+	if a == nil || a.conversations == nil || !pathWithin(a.artifactDirectory, workspace) {
+		return
+	}
+	stored, err := a.conversations.Get(conversationID)
+	if err != nil || stored.DomainTaskContext == nil {
+		return
+	}
+	kind, _ := stored.DomainTaskContext["kind"].(string)
+	switch kind {
+	case "cve":
+		cveID, _ := stored.DomainTaskContext["cveId"].(string)
+		a.writeCVELearningFile(workspace, cveID)
+	case "lab":
+		jobID, _ := stored.DomainTaskContext["jobId"].(string)
+		a.writeLabJobFile(workspace, jobID)
+	}
+}
+
+func (a *App) writeCVELearningFile(workspace, cveID string) {
+	if a == nil || a.vulnJobs == nil {
+		return
+	}
+	records, err := a.vulnJobs.LearningByCVE(a.commandContext(), cveID)
+	if err != nil {
+		a.noteDomainMemory("cve learning was not written")
+		return
+	}
+	if err := vuln.WriteLearningContext(workspace, cveID, records); err != nil {
+		a.noteDomainMemory("cve learning was not written")
+	}
+}
+
+func (a *App) writeLabJobFile(workspace, jobID string) {
+	if a == nil || a.labJobs == nil {
+		return
+	}
+	jobID = strings.TrimSpace(jobID)
+	if jobID == "" {
+		return
+	}
+	job, err := a.labJobs.Get(jobID)
+	if err != nil {
+		return
+	}
+	if err := lab.WriteJobContext(workspace, job); err != nil {
+		a.noteDomainMemory("lab job context was not written")
+	}
+}
+
+func (a *App) refreshCVELearningFile(cveID string) {
+	if a == nil || a.vulnJobs == nil || strings.TrimSpace(a.artifactDirectory) == "" {
+		return
+	}
+	cveID = strings.ToUpper(strings.TrimSpace(cveID))
+	section, err := userartifact.Section(a.artifactDirectory, userartifact.KindCVE)
+	if err != nil {
+		a.noteDomainMemory("cve learning was not written")
+		return
+	}
+	workspace := filepath.Join(section, cveID)
+	info, err := os.Stat(workspace)
+	if err != nil || !info.IsDir() {
+		return
+	}
+	a.writeCVELearningFile(workspace, cveID)
+}
+
+func (a *App) noteDomainMemory(message string) {
+	if a != nil && a.diagnostics != nil {
+		a.diagnostics.Record("domain-memory", "warning", message)
+	}
+}
+
+func pathWithin(root, target string) bool {
+	root = strings.TrimSpace(root)
+	target = strings.TrimSpace(target)
+	if root == "" || target == "" {
+		return false
+	}
+	relative, err := filepath.Rel(root, target)
+	if err != nil {
+		return false
+	}
+	return relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))
 }
 
 func (a *App) boundConversationWorkspace(conversationID string) string {
@@ -2261,7 +2351,12 @@ func (a *App) fetchAndPersistVulnerabilityFeed(
 }
 
 func (a *App) RecordVulnLearning(id string, request vuln.LearningRecordRequest) (vuln.Projection, error) {
-	return a.vulnJobs.RecordLearning(a.commandContext(), id, request)
+	projection, err := a.vulnJobs.RecordLearning(a.commandContext(), id, request)
+	if err != nil {
+		return projection, err
+	}
+	a.refreshCVELearningFile(projection.Target.Name)
+	return projection, nil
 }
 
 func (a *App) RecordVulnAssetVerification(id string, request vuln.AssetVerificationRequest) (vuln.Projection, error) {

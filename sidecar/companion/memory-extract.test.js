@@ -15,6 +15,13 @@ test("extract instructions leave repository rules in the project", () => {
   assert.match(memoryExtractInstructions("en", 1), /repository/);
 });
 
+test("extract instructions leave domain findings on the job", () => {
+  assert.match(memoryExtractInstructions("zh", 1), /CVE/);
+  assert.match(memoryExtractInstructions("zh", 1), /实验室/);
+  assert.match(memoryExtractInstructions("en", 1), /CVE findings/);
+  assert.match(memoryExtractInstructions("en", 1), /Lab job/);
+});
+
 test("extract timing defaults to each turn and ten idle minutes", () => {
   assert.equal(normalizeMemoryExtract(""), "turn");
   assert.equal(normalizeMemoryExtract("daily"), "turn");

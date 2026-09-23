@@ -127,14 +127,14 @@ Beta 是独立 Bundle ID 与 userData，只用于明确要求的自举。Stable 
 
 ## 用户记忆
 
-用户记忆和会话抄本、题目训练记忆是三条线。长期结论只有一份，原文索引只有一份，仓库规矩留在项目里。
+用户是谁、说过什么、这道题或这个作业留下什么，是四条线。长期结论只有一份，原文索引只有一份，仓库规矩留在项目里。领域结论留在对应作业里，不进用户长期记忆。
 
 ```text
 L1 会话抄本     Pi / DSH / 看板娘 jsonl。Pi 自己压缩。不写出跨会话结论。
-L2 用户长期记忆  companion/state.json 的 approved。全应用一份。
+L2 用户长期记忆  companion/state.json 的 approved。全应用一份。只记这个人。
 L3 情景原文     companion/obelisk.sqlite。只存其他会话的原文，不存结论。
+L4 领域记忆     按 CTF、CVE、实验室分开。不进 L2，也不进 L3。
 旁路            session-index/obelisk.sqlite 只在归档、恢复、删除时重写，不进模型。
-旁路            CTF 训练记忆只在显式保存题目投影时写入，不进 L2。
 ```
 
 ```mermaid
@@ -203,6 +203,67 @@ flowchart TB
 | 设置里忘掉 | 从 L2 删除，并推给正在跑的 Pi。 | L2 |
 
 闲置计时只有看板娘 sidecar 里的那一个。Coding 和 DSH 的新回合会把它清掉，未提取的那段留到下一次安静时间。应用关掉时不补跑。
+
+提取指令同时丢掉题目技法、Flag、CVE 结论和实验室观察。那些不是这个人的偏好。
+
+## 领域记忆
+
+L4 不另做一套提取。模型结论不会自动写进来。每一域只用已经存在的用户确认记录，在工作区被解析时写成一份先验文件。下一次会话读文件，不把整份领域记忆塞进用户长期记忆那条自定义消息。
+
+```text
+CTF     用户显式保存训练记忆
+        ctf/memory.sqlite3 + ctf/memories/*.md
+        准备题目工作区时按分类召回最多 5 条，排除本题，写成 MEMORY.md
+CVE     RecordLearning 记在这个 CVE 的作业投影上
+        解析研究工作区时写成 LEARNING.md；没有记录就删掉文件
+        记下一条时，若工作区已经存在，立刻重写
+实验室  作业要求在 lab-jobs/<id>.json
+        解析作业工作区时写成 TASK.md
+        结果仍在 report.md
+```
+
+```mermaid
+flowchart TB
+  subgraph ctf["CTF"]
+    ctfSave["用户保存训练记忆"]
+    ctfStore["ctf/memory.sqlite3<br/>ctf/memories/*.md"]
+    ctfRecall["PrepareCTFAgentWorkspace<br/>RecallForChallenge"]
+    ctfFile["题目工作区 MEMORY.md"]
+  end
+
+  subgraph cve["CVE"]
+    cveSave["RecordLearning<br/>复盘 / 独立步骤 / 变体"]
+    cveStore["该 CVE 作业投影上的 learning 事实"]
+    cveRecall["解析研究工作区，或刚记下一条且工作区已在"]
+    cveFile["研究工作区 LEARNING.md"]
+  end
+
+  subgraph lab["实验室"]
+    labSave["用户保存的作业要求"]
+    labStore["lab-jobs/id.json"]
+    labRecall["解析作业工作区"]
+    labFile["作业工作区 TASK.md"]
+    labResult["report.md 仍是这次作业的结果"]
+  end
+
+  ctfSave --> ctfStore --> ctfRecall --> ctfFile
+  cveSave --> cveStore --> cveRecall --> cveFile
+  labSave --> labStore --> labRecall --> labFile
+  labRecall --> labResult
+```
+
+| 时刻 | 动作 | 落点 |
+| --- | --- | --- |
+| CTF 用户保存训练记忆 | `SaveFromProjection`。要有证据，脱敏 Flag 和密钥。一题一条。 | `ctf/memory.sqlite3` 与 `ctf/memories/*.md` |
+| CTF 准备 Agent 工作区 | 同分类召回，排除本题，最多 5 条。 | 题目工作区 `MEMORY.md` |
+| CVE 记下学习 | `RecordLearning` 写角色事实。不创建研究目录。 | 漏洞作业投影 |
+| CVE 工作区被解析 | 按 CVE id 读已保存的学习记录。有则重写文件，没有则删除。工作区不在产物目录里就不写。 | 研究工作区 `LEARNING.md` |
+| CVE 又记下一条，工作区已经存在 | 同一份文件重写。工作区还没有就只留在投影里。 | `LEARNING.md` |
+| 实验室作业工作区被解析 | 读当前作业的标题、范围和要求并重写。作业不在就不写。要求改了，下一次解析跟上。 | 作业工作区 `TASK.md` |
+| 下一次 Pi 研究回合 | CVE 角色被告知 `LEARNING.md` 是先验；实验室角色被告知 `TASK.md` 是作业要求。都不是已确认发现。 | 只在工作区文件里 |
+| 看板娘提取 | 不把这些写成 L2。 | 不写 |
+
+CTF 的 `MEMORY.md` 仍是可疑先验，采用前要用当前题面重新验证。归档训练记忆后，下一次准备不再召回它。CVE 没有跨 CVE 召回。实验室没有跨作业的技法库；作业要求就是这一次的先验，观察留在 `report.md` 和会话抄本。渲染器里的 CVE 研究草稿不是这份文件。DSH 不另加一条领域提示，文件仍在工作区里。写文件失败不挡住打开工作区。
 
 ## 六层与依赖
 

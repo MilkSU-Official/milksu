@@ -539,6 +539,35 @@ func (s *Service) GetJob(ctx context.Context, jobID string) (Projection, error) 
 	return Project(core)
 }
 
+// LearningByCVE returns learning the user already saved on the tracking job
+// for this CVE. It does not create a job. No matching job returns nil.
+func (s *Service) LearningByCVE(ctx context.Context, cveID string) ([]LearningRecord, error) {
+	if err := s.checkOpen(); err != nil {
+		return nil, err
+	}
+	cveID = strings.ToUpper(strings.TrimSpace(cveID))
+	if !cveIDPattern.MatchString(cveID) {
+		return nil, nil
+	}
+	values, err := s.runtime.ListJobs(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, value := range values {
+		if value.Role != PackageID {
+			continue
+		}
+		projection, projectionErr := s.GetJob(ctx, value.ID)
+		if projectionErr != nil {
+			return nil, projectionErr
+		}
+		if strings.EqualFold(projection.Target.Name, cveID) && projection.Target.Fixture == "cve-tracking" {
+			return projection.Learning, nil
+		}
+	}
+	return nil, nil
+}
+
 func (s *Service) CancelJob(ctx context.Context, jobID string) error {
 	core, err := s.runtime.GetJob(ctx, jobID)
 	if err != nil {

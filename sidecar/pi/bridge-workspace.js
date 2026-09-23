@@ -92,6 +92,16 @@ export function researchReportGuidance(sessionRole = "", uiLocale) {
       chinese
         ? "只记录公开来源里出现的 CVE ID，不要编造。"
         : "Only record CVE IDs found in public sources; do not invent them.",
+      chinese
+        ? "若有 LEARNING.md，那是用户在这个 CVE 上保存的学习记录，是先验，不是证明；不要覆盖它。"
+        : "If LEARNING.md is present, it is learning the user saved on this CVE. It is prior, not proof. Do not overwrite it.",
+    );
+  }
+  if (sessionRole === "lab-job") {
+    lines.push(
+      chinese
+        ? "TASK.md 是用户给这次作业的要求，不是已确认的发现；不要覆盖它。"
+        : "TASK.md is the user's request for this job, not a confirmed finding. Do not overwrite it.",
     );
   }
   return lines.join(" ");
