@@ -285,7 +285,9 @@ function CompanionPhoneIsland({
     setTracked(island)
     if (island === 'none') setExpanded(false)
   }
-  if (island === 'none') return null
+  if (island === 'none') {
+    return <span className="companion-island companion-island-rest" aria-hidden="true" />
+  }
 
   const elapsed = formatCompanionThinkElapsed(
     thinkStartedAt == null ? 0 : Math.max(0, now - thinkStartedAt),

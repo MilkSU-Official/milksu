@@ -115,7 +115,11 @@ import {
   companionCoreSeedConversations,
   COMPANION_CORE_MINSIZE_ID,
   COMPANION_CORE_PRINT_ID,
+  companionGenerationStarted,
+  companionPromptHasReply,
+  companionToolsStillOpen,
   judgeCompanionCoreReply,
+  nextCompanionReplyDeadline,
   transcriptCancelledAfter,
 } from './lib/product-loop-companion-core.mjs'
 
@@ -1160,4 +1164,57 @@ test('surface scanner upgrades PASS and expectedMiss SKIP, never greenwashes a l
   assert.match(html, /表面异常/)
   assert.match(html, /No API key for/)
   assert.ok(!html.includes('sk-'))
+})
+
+test('companion stop waits until the model has started, and a leftover settle is not this reply', () => {
+  assert.equal(companionGenerationStarted([
+    { type: 'user.message' },
+    { type: 'assistant.thinking_started' },
+    { type: 'assistant.settled', aborted: true },
+  ]), false)
+  assert.equal(companionGenerationStarted([{ type: 'assistant.thinking_delta', text: '先看文件' }]), true)
+  assert.equal(companionGenerationStarted([{ type: 'assistant.delta', text: 'WinError' }]), true)
+  assert.equal(companionGenerationStarted([{ payload: { type: 'tool.started', toolName: 'read' } }]), true)
+  const pending = {
+    entries: [
+      { role: 'user', text: '先读 click 仓库' },
+      { role: 'assistant', text: '这一轮已取消。' },
+      { role: 'user', text: '刚才 notepad 那个继续。' },
+    ],
+  }
+  assert.equal(companionPromptHasReply(pending, '刚才 notepad 那个继续'), false)
+  assert.equal(companionPromptHasReply({
+    entries: [
+      ...pending.entries,
+      { role: 'assistant', text: 'edit_files 里是 WinError 87。' },
+    ],
+  }, '刚才 notepad 那个继续'), true)
+})
+
+test('companion core reply wait outlasts a running tool', () => {
+  const startedAt = 1_000
+  const idle = nextCompanionReplyDeadline({ startedAt, now: 1_000, events: [] })
+  assert.equal(idle.deadline, startedAt + 180_000)
+  assert.equal(companionToolsStillOpen([{ type: 'tool.started', toolCallId: 'a' }]), true)
+  assert.equal(companionToolsStillOpen([
+    { type: 'tool.started', toolCallId: 'a' },
+    { type: 'tool.completed', toolCallId: 'a' },
+  ]), false)
+  const running = nextCompanionReplyDeadline({
+    startedAt,
+    now: 5_000,
+    events: [{ type: 'tool.started', toolCallId: 'bash-1', toolName: 'bash' }],
+  })
+  assert.equal(running.toolSeenAt, 5_000)
+  assert.equal(running.deadline, 5_000 + 600_000 + 60_000)
+  const after = nextCompanionReplyDeadline({
+    startedAt,
+    now: 200_000,
+    toolSeenAt: 5_000,
+    events: [
+      { type: 'tool.started', toolCallId: 'bash-1' },
+      { type: 'tool.completed', toolCallId: 'bash-1' },
+    ],
+  })
+  assert.equal(after.deadline, 200_000 + 60_000)
 })

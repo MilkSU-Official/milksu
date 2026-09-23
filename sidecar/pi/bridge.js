@@ -121,6 +121,7 @@ import {
   validateSubagentInput,
 } from "./bridge-collaboration.js";
 import { readAsyncSubagentSnapshot } from "./pi-subagents-status.js";
+import { terminateConversationSubagents } from "./pi-subagents-stop.js";
 import {
   authorizeImageGenToolCall,
   codingImageGenToolName,
@@ -380,6 +381,33 @@ function stopSubagentPoll(conversationId) {
   const timer = subagentPollers.get(conversationId);
   if (timer) clearInterval(timer);
   subagentPollers.delete(conversationId);
+}
+
+async function haltConversationSubagents(conversationId) {
+  const tasks = sessionSubagentTasks.get(conversationId) ?? [];
+  const workspace = sessionPolicies.get(conversationId)?.workspace;
+  const outcomes = await terminateConversationSubagents(tasks, workspace);
+  const skipped = outcomes.some(outcome => outcome.action === "skipped");
+  if (!skipped) stopSubagentPoll(conversationId);
+  const byId = new Map(outcomes.map(outcome => [outcome.id, outcome.action]));
+  let changed = false;
+  const next = tasks.map((task) => {
+    const action = byId.get(task.id);
+    if (!action || action === "skipped") return task;
+    if (task.status !== "running" && task.status !== "start") return task;
+    changed = true;
+    if (action === "absent") {
+      const snapshot = readAsyncSubagentSnapshot(task.asyncDir, workspace);
+      return {
+        ...task,
+        status: snapshot?.status === "succeeded" ? "succeeded" : "failed",
+        summary: snapshot?.summary || task.summary,
+        transcript: snapshot?.transcript || task.transcript,
+      };
+    }
+    return { ...task, status: "failed" };
+  });
+  if (changed) emitSubagentTasks(conversationId, next);
 }
 
 function subagentStillLive(tasks) {
@@ -1988,8 +2016,8 @@ async function sendMessage(command) {
         )
     )
   ) {
+    await haltConversationSubagents(conversationId);
     await disposeAgentSession(existing, "reload");
-    stopSubagentPoll(conversationId);
     sessions.delete(conversationId);
     sessionPolicies.delete(conversationId);
     sessionPolicyControllers.delete(conversationId);
@@ -2113,7 +2141,9 @@ async function abortSession(command) {
   workspaceActionBroker.cancelConversation(conversationId, "turn aborted");
   pendingWorkspaceCompaction.delete(conversationId);
   const session = sessions.get(conversationId);
+  const halted = haltConversationSubagents(conversationId);
   if (!session) {
+    await halted;
     emit(conversationId, "turn_settled");
     return;
   }
@@ -2126,6 +2156,7 @@ async function abortSession(command) {
   } catch {
     // Nothing was compacting, or Pi already settled it.
   }
+  await halted;
   await session.abort();
   // Do not synthesize empty message_done (it became a blank assistant bubble).
   // If Pi already emitted agent_settled, a second turn_settled is harmless in
@@ -2211,8 +2242,8 @@ async function destroySession(command) {
   sessionTurnContracts.delete(conversationId);
   reasoningOnlyRecovered.delete(conversationId);
   reasoningOnlyPreviousTools.delete(conversationId);
+  await haltConversationSubagents(conversationId);
   await disposeAgentSession(session);
-  stopSubagentPoll(conversationId);
   sessions.delete(conversationId);
   sessionPolicies.delete(conversationId);
   sessionPolicyControllers.delete(conversationId);
@@ -2720,6 +2751,9 @@ async function disposeAllSessions() {
   sessionTurnContracts.clear();
   reasoningOnlyRecovered.clear();
   reasoningOnlyPreviousTools.clear();
+  await Promise.all(
+    [...sessionSubagentTasks.keys()].map(conversationId => haltConversationSubagents(conversationId)),
+  );
   await Promise.all(
     [...sessions.values()].map(session => disposeAgentSession(session)),
   );

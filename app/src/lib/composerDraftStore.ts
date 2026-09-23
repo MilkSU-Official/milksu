@@ -29,6 +29,77 @@ const STORAGE_KEY = 'milksu.composer-drafts.v1'
 const MAX_DRAFT_ENTRIES = 50
 const MAX_DRAFT_BYTES = 256 * 1024
 
+// 每次按键都同步落盘会让输入卡顿：一次写入要序列化整张表并写一次 localStorage，agent
+// 流式输出时界面频繁重绘、主线程被占，更明显（真机实测：十几个字打了 980 次写盘）。
+// 所以内存**立刻**更新（见 write/clear），而落盘按下面这个窗口合并；不能等的时机
+// （清空、发送、切换会话、失焦、卸载）直接调 flushComposerDraftsNow。
+const FLUSH_DEBOUNCE_MS = 200
+// 一直打字也不能永远不落盘：超过这个时间必须写一次。
+const FLUSH_MAX_WAIT_MS = 1000
+let flushTimer: ReturnType<typeof setTimeout> | null = null
+let flushDeadline = 0
+
+/** 立刻落盘：给“不能等”的时机用（清空、发送、切换会话、失焦、卸载、pagehide）。 */
+export function flushComposerDraftsNow() {
+  if (flushTimer !== null) {
+    clearTimeout(flushTimer)
+    flushTimer = null
+  }
+  flushDeadline = 0
+  persist()
+}
+
+function scheduleFlush() {
+  const now = Date.now()
+  if (flushDeadline === 0) flushDeadline = now + FLUSH_MAX_WAIT_MS
+  if (flushTimer !== null) clearTimeout(flushTimer)
+  const wait = Math.max(0, Math.min(FLUSH_DEBOUNCE_MS, flushDeadline - now))
+  flushTimer = setTimeout(() => {
+    flushTimer = null
+    flushDeadline = 0
+    persist()
+  }, wait)
+}
+
+/**
+ * 内容签名：只认“内容”本身，不认对象引用。
+ *
+ * 组件那条 effect 会在每次重绘时跑（依赖里有每次新建的值），真机实测草稿表被打点写了
+ * 980 次（用户只打了十几个字）。所以写入前比较签名：内容没变就既不写内存、也不排落盘。
+ */
+function draftSignature(draft: {
+  html: string
+  text: string
+  attachments: readonly { id?: string; name?: string }[]
+}) {
+  const attachments = draft.attachments
+    .map(entry => `${String(entry?.id ?? '')}:${String(entry?.name ?? '')}`)
+    .join(',')
+  return `${draft.text}\u0000${draft.html}\u0000${attachments}`
+}
+
+const lastSignature = new Map<string, string>()
+const draftListeners = new Set<() => void>()
+
+function notifyComposerDrafts() {
+  for (const listener of draftListeners) listener()
+}
+
+export function subscribeComposerDrafts(listener: () => void) {
+  draftListeners.add(listener)
+  return () => {
+    draftListeners.delete(listener)
+  }
+}
+
+export function composerDraftPending(conversationId?: string | null) {
+  const draft = drafts.get(String(conversationId ?? '').trim())
+  if (!draft) return false
+  if (String(draft.text ?? '').trim()) return true
+  if (draft.attachments.length > 0) return true
+  return !isBlankComposerMarkup(draft.html)
+}
+
 function storage(): Storage | null {
   try {
     if (typeof window === 'undefined') return null
@@ -92,7 +163,7 @@ function prune() {
   for (const [key, value] of kept) drafts.set(key, value)
 }
 
-function flush() {
+function persist() {
   const store = storage()
   if (!store) return
   try {
@@ -163,9 +234,16 @@ export function writeComposerDraft(key: string, draft: StoredComposerDraft) {
       if (isBlankComposerMarkup(html)) html = String(stored.html ?? '')
     }
   }
+  const signature = draftSignature({ html, text, attachments })
+  if (lastSignature.get(normalized) === signature) {
+    // 内容一模一样：这一次是界面重绘，不是编辑。不写内存、不排落盘。
+    return
+  }
+  lastSignature.set(normalized, signature)
   drafts.set(normalized, { html, text, attachments, at: Date.now() })
   draftOrder.set(normalized, ++draftSeq)
-  flush()
+  scheduleFlush()
+  notifyComposerDrafts()
 }
 
 export function clearComposerDraft(key: string) {
@@ -173,10 +251,16 @@ export function clearComposerDraft(key: string) {
   if (!normalized) return
   drafts.delete(normalized)
   draftOrder.delete(normalized)
-  flush()
+  lastSignature.delete(normalized)
+  // 清空是“不能等”的意图（发送后、用户主动删掉最后一格）：立刻落盘，
+  // 否则重启后旧草稿会从存储里复活。
+  flushComposerDraftsNow()
+  notifyComposerDrafts()
 }
 
 export function resetComposerDrafts() {
   drafts.clear()
-  flush()
+  lastSignature.clear()
+  flushComposerDraftsNow()
+  notifyComposerDrafts()
 }

@@ -84,6 +84,41 @@ export function normalizeSubagentTasks(value: unknown): SubagentTask[] {
   })
 }
 
+export function shouldHoldSubagentBackfill(input: {
+  running: boolean
+  aborting: boolean
+  queued: boolean
+  composing: boolean
+}): boolean {
+  return input.running || input.aborting || input.queued || input.composing
+}
+
+export function projectSubagentBackfill(
+  previous: readonly SubagentTask[],
+  incoming: readonly SubagentTask[],
+  hold: boolean,
+): { tasks: SubagentTask[]; held: boolean } {
+  if (!hold) return { tasks: incoming.map(task => ({ ...task })), held: false }
+  const prior = new Map(previous.map(task => [task.id, task]))
+  let held = false
+  const tasks = incoming.map((task) => {
+    const old = prior.get(task.id)
+    if (!old) {
+      if (task.summary || task.transcript) held = true
+      return { ...task, summary: undefined, transcript: undefined }
+    }
+    if ((task.summary ?? '') !== (old.summary ?? '') || (task.transcript ?? '') !== (old.transcript ?? '')) {
+      held = true
+    }
+    return {
+      ...task,
+      summary: old.summary,
+      transcript: old.transcript,
+    }
+  })
+  return { tasks, held }
+}
+
 export function subagentTasksForActivity(
   tasks: readonly SubagentTask[] | undefined,
   messages: readonly Message[],

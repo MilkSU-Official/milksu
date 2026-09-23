@@ -17,18 +17,12 @@ export default function CompanionTurnProcessView({
   defaultOpen?: boolean
 }) {
   const t = useT()
-  const [open, setOpen] = useState(defaultOpen || process.thinkingRunning || process.tools.some(tool => tool.running))
+  const [open, setOpen] = useState(defaultOpen)
   const [now, setNow] = useState(0)
   const thinkingRows = process.thinking
     .split(/\n+/)
     .map(line => line.trim())
     .filter(Boolean)
-
-  useEffect(() => {
-    if (process.thinkingRunning || process.tools.some(tool => tool.running)) {
-      setOpen(true)
-    }
-  }, [process.thinkingRunning, process.tools])
 
   useEffect(() => {
     if (!process.thinkingRunning || process.thinkingStartedAt == null) return undefined

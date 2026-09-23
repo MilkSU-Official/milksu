@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { isComposingKey } from '@/lib/imeComposition'
+import AgentDecisionMark from '@/components/AgentDecisionMark'
+import { needsDecisionConversationIds as needsDecisionConversationIdsFrom } from '@/lib/needsDecision'
 import AgentPixelLoader from '@/components/AgentPixelLoader'
 import profileAvatar from '@/assets/ctf-learner-avatar.png'
 import { invokeCommand } from '@/desktop'
@@ -243,6 +245,8 @@ export default function ContextSidebar({
   )
   const codingGroups = groupWorkspaceConversations(conversations, workspaceHome)
   const runningConversationIds = new Set(runningIdsProp ?? [])
+  // 待决策直接从 conversations 里算（它本来就拿到了 messages）——少一层 prop 管线，也不用 App 另传。
+  const needsDecisionConversationIds = new Set(needsDecisionConversationIdsFrom(conversations))
   const projectGroups = codingGroups.filter(group => !group.temporary)
   const temporaryGroup = codingGroups.find(group => group.temporary) ?? null
   const avatarSource = accountStatus.user?.avatarUrl || profileAvatar
@@ -621,7 +625,10 @@ export default function ContextSidebar({
             }}
           >
             <span className="coding-session-status">
-              {runningConversationIds.has(conversation.id) ? (
+              {needsDecisionConversationIds.has(conversation.id) ? (
+                // 待决策优先于运行中：它同时在跑、又在等人拍板时，读者最需要知道的是“轮到我”。
+                <AgentDecisionMark />
+              ) : runningConversationIds.has(conversation.id) ? (
                 <AgentPixelLoader label={t('运行中', 'Running')} running compact />
               ) : unreadConversationIds.has(conversation.id) ? (
                 <span className="coding-session-complete size-1.5 rounded-full bg-primary" aria-label={t('有新消息', 'New messages')} />

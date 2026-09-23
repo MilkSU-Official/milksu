@@ -8,6 +8,7 @@ import {
   companionTurnHasProcess,
   emptyCompanionTurnProcess,
   processFromCompanionEntry,
+  resolveCompanionLiveStream,
   stampMeasuredThinkingDuration,
 } from './companionTurnProcess'
 
@@ -107,5 +108,52 @@ describe('companionTurnProcess', () => {
     })
     expect(entries[0]?.thinkingDurationMs).toBe(6400)
     expect(companionProcessSummary(processFromCompanionEntry(entries[0]!))).toBe('想了 6.4s')
+  })
+
+  it('drops a reviewed draft once the reply is in the transcript, and does not park it under the next question', () => {
+    const user = {
+      id: 'u1',
+      type: 'message',
+      timestamp: '2026-09-23T01:09:00.000Z',
+      role: 'user',
+      text: 'obelisk呢',
+    }
+    const streaming = resolveCompanionLiveStream([user], '有两个 obelisk，草稿。', {
+      held: '',
+      anchorUserId: '',
+    })
+    expect(streaming.text).toBe('有两个 obelisk，草稿。')
+    expect(streaming.anchorUserId).toBe('u1')
+    const landed = resolveCompanionLiveStream([
+      user,
+      {
+        id: 'a1',
+        type: 'message',
+        timestamp: '2026-09-23T01:09:20.000Z',
+        role: 'assistant',
+        text: '有两个 obelisk，不是一个。',
+      },
+    ], '', streaming)
+    expect(landed.text).toBe('')
+    const next = resolveCompanionLiveStream([
+      user,
+      {
+        id: 'a1',
+        type: 'message',
+        timestamp: '2026-09-23T01:09:20.000Z',
+        role: 'assistant',
+        text: '有两个 obelisk，不是一个。',
+      },
+      {
+        id: 'u2',
+        type: 'message',
+        timestamp: '2026-09-23T01:10:00.000Z',
+        role: 'user',
+        text: '再看一眼',
+      },
+    ], '', streaming)
+    expect(next.text).toBe('')
+    const waiting = resolveCompanionLiveStream([user], '', streaming)
+    expect(waiting.text).toBe('有两个 obelisk，草稿。')
   })
 })

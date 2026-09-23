@@ -217,6 +217,57 @@ export function companionThinkingLabel(process: CompanionTurnProcess, liveElapse
   return thinkingSummary(duration)
 }
 
+export type CompanionLiveStreamState = {
+  held: string
+  anchorUserId: string
+}
+
+/**
+ * The phone keeps the in-flight draft after the transcript has the reviewed
+ * reply, because those strings differ. The draft then stays under the next
+ * user line, so the new question renders above the previous answer.
+ * Drop it once that turn has an assistant reply, or once a newer user line exists.
+ */
+export function resolveCompanionLiveStream(
+  entries: CompanionTranscriptEntry[],
+  streaming: string,
+  state: CompanionLiveStreamState,
+): { text: string; held: string; anchorUserId: string } {
+  const live = String(streaming ?? '')
+  const held = state.held
+  const anchorUserId = state.anchorUserId
+  let lastUserIndex = -1
+  entries.forEach((entry, index) => {
+    if (entry.role === 'user') lastUserIndex = index
+  })
+  const lastUser = lastUserIndex >= 0 ? entries[lastUserIndex] : undefined
+  const anchorForLive = lastUser?.id || anchorUserId
+  const landedAfter = (anchorId: string) => {
+    const anchorIndex = anchorId
+      ? entries.findIndex(entry => entry.id === anchorId)
+      : lastUserIndex
+    const after = anchorIndex >= 0 ? entries.slice(anchorIndex + 1) : []
+    return after.some(entry => (
+      entry.role === 'assistant'
+      && !companionEntryIsProcessOnly(entry)
+      && Boolean(companionChatPlainText(entry) || String(entry.error ?? '').trim())
+    ))
+  }
+  if (live.trim()) {
+    if (landedAfter(anchorForLive)) return { text: '', held: '', anchorUserId: '' }
+    return {
+      text: live,
+      held: live,
+      anchorUserId: anchorForLive,
+    }
+  }
+  if (!held.trim()) return { text: '', held: '', anchorUserId: '' }
+  const landed = landedAfter(anchorUserId || lastUser?.id || '')
+  const sameTurn = Boolean(lastUser && lastUser.id === anchorUserId)
+  if (landed || !sameTurn) return { text: '', held: '', anchorUserId: '' }
+  return { text: held, held, anchorUserId }
+}
+
 export function companionProcessSummary(process: CompanionTurnProcess, liveElapsedMs?: number) {
   const parts: string[] = []
   if (process.thinking.trim() || process.thinkingRunning) {

@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   formatSubagentYield,
   normalizeSubagentTasks,
+  projectSubagentBackfill,
+  shouldHoldSubagentBackfill,
   subagentTasksForActivity,
 } from './subagentRoster'
 import type { Message, SubagentTask } from '@/types'
@@ -38,6 +40,28 @@ describe('subagent roster helpers', () => {
     expect(subagentTasksForActivity(tasks, [tool('t1')]).map(task => task.id)).toEqual(['call-1'])
     expect(subagentTasksForActivity(tasks, [tool('t2', { toolName: 'bash' })])).toEqual([])
     expect(subagentTasksForActivity([], [tool('t1')])).toEqual([])
+  })
+
+  it('holds subagent text while the parent turn, queue, or draft is busy', () => {
+    const previous: SubagentTask[] = [
+      { id: 'run-1', role: 'worker', status: 'running', summary: '先看目录' },
+    ]
+    const incoming: SubagentTask[] = [
+      { id: 'run-1', role: 'worker', status: 'succeeded', summary: '改完了', transcript: 'diff' },
+    ]
+    expect(shouldHoldSubagentBackfill({
+      running: true,
+      aborting: false,
+      queued: false,
+      composing: false,
+    })).toBe(true)
+    const held = projectSubagentBackfill(previous, incoming, true)
+    expect(held.held).toBe(true)
+    expect(held.tasks[0]).toMatchObject({ status: 'succeeded', summary: '先看目录' })
+    expect(held.tasks[0].transcript).toBeUndefined()
+    const released = projectSubagentBackfill(previous, incoming, false)
+    expect(released.held).toBe(false)
+    expect(released.tasks[0]).toMatchObject({ summary: '改完了', transcript: 'diff' })
   })
 
   it('formats yield as field lines', () => {

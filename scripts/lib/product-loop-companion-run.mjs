@@ -42,7 +42,11 @@ import {
   companionCoreLiveSteps,
   companionCoreProjects,
   companionCoreSeedConversations,
+  companionGenerationStarted,
+  companionPromptHasReply,
+  companionToolsStillOpen,
   judgeCompanionCoreReply,
+  nextCompanionReplyDeadline,
   transcriptCancelledAfter,
 } from './product-loop-companion-core.mjs'
 import { describeCustomRelay, firstUseRelayName, resolveCompanionModelRoute } from './product-loop-first-use.mjs'
@@ -105,8 +109,14 @@ async function sendCompanionOrRecover(driver, prompt) {
   }
 }
 
-async function recoverCompanionSidecar(driver) {
-  await driver.abortCompanionTurn().catch(() => {})
+async function recoverCompanionSidecar(driver, options = {}) {
+  // An idle AbortCompanionTurn still emits assistant.settled aborted. That
+  // event can arrive after the next Send and cancel the first reply. Manual
+  // chat never aborts before the first line, so the core prelude skips it.
+  // Callers that are tearing down a turn already in flight still abort.
+  if (options.abort !== false) {
+    await driver.abortCompanionTurn().catch(() => {})
+  }
   await driver.stopCompanion().catch(() => {})
   await delay(300)
   let lastError = ''
@@ -116,7 +126,7 @@ async function recoverCompanionSidecar(driver) {
       const ready = companionIsReady(started)
       if (ready.ok) {
         await ensureCompanionChatVisible(driver)
-        await driver.drainCompanionEvents()
+        await driver.drainCompanionEventsFromSurfaces().catch(() => [])
         return { ok: true, started }
       }
       lastError = ready.reason
@@ -867,6 +877,60 @@ async function pressCompanionStop(timeoutMs = 25_000) {
   return { ok: false }
 }
 
+async function waitForCompanionGeneration(driver, timeoutMs) {
+  const started = Date.now()
+  const events = []
+  while (Date.now() - started < timeoutMs) {
+    const batch = await driver.drainCompanionEventsFromSurfaces().catch(() => [])
+    if (Array.isArray(batch) && batch.length) events.push(...batch)
+    if (companionGenerationStarted(events)) return { ok: true, events }
+    await delay(200)
+  }
+  return { ok: false, events, reason: '模型还没开始回复' }
+}
+
+async function waitForCompanionReply(driver, timeoutMs, needle) {
+  const started = Date.now()
+  let toolSeenAt = 0
+  let turn = { timeout: true, events: [] }
+  const events = []
+  while (true) {
+    const now = Date.now()
+    const plan = nextCompanionReplyDeadline({
+      startedAt: started,
+      now,
+      events,
+      toolSeenAt,
+    })
+    toolSeenAt = plan.toolSeenAt
+    if (now >= plan.deadline) {
+      return {
+        ...turn,
+        events,
+        timeout: true,
+        toolsOpen: companionToolsStillOpen(events),
+      }
+    }
+    const slice = Math.min(plan.deadline - now, 20_000)
+    const next = await driver.waitForCompanionTurn(slice)
+    if (Array.isArray(next?.events) && next.events.length) events.push(...next.events)
+    turn = { ...next, events }
+    if (next?.sidecarStopped) return turn
+    if (next?.failed && !companionTurnSettled(events)) return turn
+    if (!next?.timeout) {
+      // The same assistant.settled is copied onto every window. A leftover
+      // from the previous turn must not finish this wait: the runner would
+      // then abort the reply that is just starting.
+      const page = await driver.listCompanionTranscript(160).catch(() => null)
+      if (!companionPromptHasReply(page, needle)) {
+        await delay(200)
+        continue
+      }
+      return turn
+    }
+  }
+}
+
 async function waitForCompanionCancel(driver, needle, timeoutMs) {
   const started = Date.now()
   let last = { ok: false, reason: '停止后没有「这一轮已取消。」' }
@@ -901,8 +965,8 @@ export async function runCompanionCore(driver, options = {}) {
       return fail(`主窗口抄本没写上：${missing.map(row => row.title).join('、')}`)
     }
     await driver.invoke('ArchiveCompanionTranscript', []).catch(() => {})
-    await driver.drainCompanionEvents()
-    const started = await recoverCompanionSidecar(driver)
+    await driver.drainCompanionEventsFromSurfaces().catch(() => [])
+    const started = await recoverCompanionSidecar(driver, { abort: false })
     if (!started.ok) return fail(started.reason)
     const before = {
       click: companionCoreGitSnapshot(projects.click),
@@ -913,32 +977,38 @@ export async function runCompanionCore(driver, options = {}) {
     const timeoutMs = options.taskTimeoutMs || 180_000
     let stops = 0
     for (const step of steps) {
+      process.stdout.write(`COMPANION-CORE ${step.id}\n`)
       if (step.kind === 'archive') {
         await driver.archiveConversation(step.conversationId)
         const still = (await driver.listConversations()).some(item => storedConversationId(item) === step.conversationId)
         if (still) return fail(`${step.id}：归档后还在活动列表`)
         continue
       }
+      await driver.drainCompanionEventsFromSurfaces().catch(() => [])
       if (step.kind === 'stop') {
         const sent = await sendCompanionOrRecover(driver, step.prompt)
         if (!sent.ok) return fail(`${step.id} 发不出：${sent.error}`)
-        const pressed = await pressCompanionStop(25_000)
+        const generating = await waitForCompanionGeneration(driver, 120_000)
+        if (!generating.ok) return fail(`${step.id}：${generating.reason}`)
+        const pressed = await pressCompanionStop(15_000)
         if (!pressed.ok) return fail(`${step.id}：停止按钮没有出现`)
         const cancelled = await waitForCompanionCancel(driver, step.prompt.slice(0, 16), 20_000)
         if (!cancelled.ok) return fail(`${step.id}：${cancelled.reason}`)
         const clean = companionTranscriptClean(await driver.listCompanionTranscript(120))
         if (!clean.ok) return fail(`${step.id}：${clean.reason}`)
         stops += 1
-        await driver.drainCompanionEvents()
+        await driver.drainCompanionEventsFromSurfaces().catch(() => [])
         continue
       }
       const sent = await sendCompanionOrRecover(driver, step.prompt)
       if (!sent.ok) return fail(`${step.id} 发不出：${sent.error}`)
-      const turn = await driver.waitForCompanionTurn(timeoutMs)
+      const turn = await waitForCompanionReply(driver, timeoutMs, step.needle || step.prompt)
       if (turn.sidecarStopped || companionTurnParked(turn.events)) {
         return fail(`${step.id}：sidecar 停了`)
       }
-      if (turn.timeout) return fail(`${step.id}：超时`)
+      if (turn.timeout) {
+        return fail(`${step.id}：超时${turn.toolsOpen ? '（工具还在跑）' : ''}`)
+      }
       if (companionContinueBlocked(turn.error)) return fail(`${step.id}：${turn.error}`)
       if (companionTurnErrored(turn.events) && !companionTurnSettled(turn.events)) {
         return fail(`${step.id}：${turn.error || '回合失败'}`)
