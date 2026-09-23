@@ -44,6 +44,8 @@ type persistedState struct {
 
 type Runtime struct {
 	mu               sync.Mutex
+	persistMu        sync.Mutex
+	writeMu          sync.Mutex
 	agentDir         string
 	statePath        string
 	sidecarDirectory string
@@ -66,6 +68,10 @@ type Runtime struct {
 	sidecarGen atomic.Uint64
 	stale      atomic.Bool
 	inFlight   atomic.Bool
+	// persistHook runs after a state snapshot and before the file write,
+	// while persistMu is held. Tests use it to interleave a forget.
+	persistHook        func()
+	memoryViewListener func(uint64, []map[string]string)
 }
 
 type parkedConfirm struct {
@@ -128,18 +134,22 @@ func (r *Runtime) Send(prompt string, attachments []codingattachment.Attachment)
 	}
 	r.refreshBoard()
 	selection := r.selection()
+	revision, memories := r.memoryView()
 	command := map[string]any{
-		"action":              "send_message",
-		"prompt":              prompt,
-		"locale":              config.ResolvedUserInterfaceLocale(r.resolvedSettings()),
-		"provider":            selection.Provider,
-		"model":               selection.Model,
-		"source":              selection.Source,
-		"boardSnapshot":       r.board.Snapshot(),
-		"semanticMemories":    r.semanticPayload(),
-		"episodicRecalls":     []any{},
-		"memorySearchEnabled": r.memorySearchEnabled(),
-		"replyStyle":          config.CompanionReplyStyle(r.resolvedSettings()),
+		"action":                   "send_message",
+		"prompt":                   prompt,
+		"locale":                   config.ResolvedUserInterfaceLocale(r.resolvedSettings()),
+		"provider":                 selection.Provider,
+		"model":                    selection.Model,
+		"source":                   selection.Source,
+		"boardSnapshot":            r.board.Snapshot(),
+		"semanticMemories":         memories,
+		"memoryRevision":           revision,
+		"episodicRecalls":          []any{},
+		"memorySearchEnabled":      r.memorySearchEnabled(),
+		"memoryExtract":            config.CompanionMemoryExtract(r.resolvedSettings()),
+		"memoryExtractIdleMinutes": config.CompanionMemoryExtractIdleMinutes(r.resolvedSettings()),
+		"replyStyle":               config.CompanionReplyStyle(r.resolvedSettings()),
 	}
 	if len(attachments) > 0 {
 		command["attachments"] = attachments
@@ -402,13 +412,15 @@ func (r *Runtime) resetCompanionSession() error {
 	// fresh-jsonl reset. Send and startLocked still refuse that key.
 	custom, _ := engine.CompanionTurnAuth(settings)
 	create := map[string]any{
-		"action":              "create_session",
-		"locale":              config.ResolvedUserInterfaceLocale(settings),
-		"provider":            selection.Provider,
-		"model":               selection.Model,
-		"source":              selection.Source,
-		"memorySearchEnabled": r.memorySearchEnabled(),
-		"replyStyle":          config.CompanionReplyStyle(settings),
+		"action":                   "create_session",
+		"locale":                   config.ResolvedUserInterfaceLocale(settings),
+		"provider":                 selection.Provider,
+		"model":                    selection.Model,
+		"source":                   selection.Source,
+		"memorySearchEnabled":      r.memorySearchEnabled(),
+		"memoryExtract":            config.CompanionMemoryExtract(settings),
+		"memoryExtractIdleMinutes": config.CompanionMemoryExtractIdleMinutes(settings),
+		"replyStyle":               config.CompanionReplyStyle(settings),
 	}
 	if custom != nil {
 		create["customProvider"] = custom
@@ -452,6 +464,8 @@ func (r *Runtime) ForgetMemory(id string) error {
 		return err
 	}
 	r.persistState()
+	r.emitEvent(engine.Event{Type: "companion.memory"})
+	r.SyncLiveContext()
 	return nil
 }
 
@@ -578,13 +592,15 @@ func (r *Runtime) startLocked() error {
 	go r.readEvents(stdout, gen)
 	selection := r.selection()
 	create := map[string]any{
-		"action":              "create_session",
-		"locale":              config.ResolvedUserInterfaceLocale(settings),
-		"provider":            selection.Provider,
-		"model":               selection.Model,
-		"source":              selection.Source,
-		"memorySearchEnabled": r.memorySearchEnabled(),
-		"replyStyle":          config.CompanionReplyStyle(settings),
+		"action":                   "create_session",
+		"locale":                   config.ResolvedUserInterfaceLocale(settings),
+		"provider":                 selection.Provider,
+		"model":                    selection.Model,
+		"source":                   selection.Source,
+		"memorySearchEnabled":      r.memorySearchEnabled(),
+		"memoryExtract":            config.CompanionMemoryExtract(settings),
+		"memoryExtractIdleMinutes": config.CompanionMemoryExtractIdleMinutes(settings),
+		"replyStyle":               config.CompanionReplyStyle(settings),
 	}
 	if custom != nil {
 		create["customProvider"] = custom
@@ -663,6 +679,8 @@ func (r *Runtime) write(value any) error {
 	if stdin == nil {
 		return fmt.Errorf("companion sidecar is not running")
 	}
+	r.writeMu.Lock()
+	defer r.writeMu.Unlock()
 	err := writeJSON(stdin, value)
 	if sidecarWriteLost(err) {
 		r.mu.Lock()
@@ -906,8 +924,17 @@ func (r *Runtime) handleHost(action string, input map[string]any) (any, error) {
 			return map[string]any{"written": false, "results": []MemoryHit{}}, nil
 		}
 		result, err := r.memory.Handle(input)
+		if err != nil {
+			return result, err
+		}
 		r.persistState()
-		return result, err
+		if strings.TrimSpace(stringValue(input["action"])) == "commit" {
+			if payload, ok := result.(map[string]any); ok && intValue(payload["count"]) > 0 {
+				r.emitEvent(engine.Event{Type: "companion.memory"})
+				r.SyncLiveContext()
+			}
+		}
+		return result, nil
 	case "app":
 		_, result, err := r.appHost("", input)
 		if outcome, ok := result.(AppOutcome); ok && err == nil {
@@ -930,16 +957,20 @@ func (r *Runtime) refreshBoard() {
 	r.board.ReplaceSessions(active)
 }
 
-func (r *Runtime) semanticPayload() []map[string]string {
-	approved := r.memory.ApprovedForAssembly()
+func (r *Runtime) memoryView() (uint64, []map[string]string) {
+	if r == nil || r.memory == nil {
+		return 0, []map[string]string{}
+	}
+	revision, approved := r.memory.SnapshotApproved()
 	payload := make([]map[string]string, 0, len(approved))
 	for _, memory := range approved {
 		payload = append(payload, map[string]string{
+			"id":       memory.ID,
 			"title":    memory.Title,
 			"markdown": memory.Markdown,
 		})
 	}
-	return payload
+	return revision, payload
 }
 
 func (r *Runtime) dispatchEnabled() bool {
@@ -949,6 +980,94 @@ func (r *Runtime) dispatchEnabled() bool {
 
 func (r *Runtime) memorySearchEnabled() bool {
 	return config.CompanionMemoryEnabled(r.resolvedSettings())
+}
+
+// SyncLiveContext tells a running sidecar the current extract timing and
+// approved memories. Settings changes and forgets use it so the next quiet
+// period follows the saved choice without waiting for a new message.
+func (r *Runtime) SetMemoryViewListener(listener func(uint64, []map[string]string)) {
+	if r == nil {
+		return
+	}
+	r.mu.Lock()
+	r.memoryViewListener = listener
+	r.mu.Unlock()
+}
+
+func (r *Runtime) PublishedMemory() (uint64, []map[string]string) {
+	if r == nil {
+		return 0, []map[string]string{}
+	}
+	return r.memoryView()
+}
+
+func (r *Runtime) sidecarAlive() bool {
+	if r == nil {
+		return false
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.ready && r.stdin != nil
+}
+
+// NoteExternalTurn feeds a Coding, CTF, CVE, lab, or DSH turn into the same
+// extract controller the companion uses. A missing sidecar is started only
+// when a finished turn still needs extraction. Failure stays off the chat.
+func (r *Runtime) NoteExternalTurn(phase, userText, assistantText string, aborted bool) {
+	if r == nil {
+		return
+	}
+	phase = strings.TrimSpace(phase)
+	if phase == "begin" {
+		if !r.sidecarAlive() {
+			return
+		}
+		_ = r.write(map[string]any{"action": "note_turn", "phase": "begin"})
+		return
+	}
+	if phase != "finish" {
+		return
+	}
+	if r.sidecarAlive() && r.memorySearchEnabled() {
+		_ = r.write(map[string]any{"action": "refresh_index"})
+	}
+	if config.CompanionMemoryExtract(r.resolvedSettings()) == "off" {
+		return
+	}
+	if _, err := r.Ensure(); err != nil {
+		return
+	}
+	_ = r.write(map[string]any{
+		"action":        "note_turn",
+		"phase":         "finish",
+		"userText":      userText,
+		"assistantText": assistantText,
+		"aborted":       aborted,
+	})
+}
+
+func (r *Runtime) SyncLiveContext() {
+	if r == nil {
+		return
+	}
+	settings := r.resolvedSettings()
+	revision, memories := r.memoryView()
+	_ = r.write(map[string]any{
+		"action":                   "update_context",
+		"semanticMemories":         memories,
+		"memoryRevision":           revision,
+		"memoryExtract":            config.CompanionMemoryExtract(settings),
+		"memoryExtractIdleMinutes": config.CompanionMemoryExtractIdleMinutes(settings),
+		"memorySearchEnabled":      r.memorySearchEnabled(),
+		"locale":                   config.ResolvedUserInterfaceLocale(settings),
+		"replyStyle":               config.CompanionReplyStyle(settings),
+	})
+	r.mu.Lock()
+	listener := r.memoryViewListener
+	r.mu.Unlock()
+	if listener != nil {
+		listener(revision, memories)
+	}
 }
 
 func (r *Runtime) resolvedSettings() config.AppSettings {
@@ -1000,25 +1119,46 @@ func (r *Runtime) loadState() {
 }
 
 func (r *Runtime) persistState() {
-	if strings.TrimSpace(r.statePath) == "" {
+	if r == nil || strings.TrimSpace(r.statePath) == "" {
 		return
 	}
+	r.persistMu.Lock()
+	defer r.persistMu.Unlock()
 	if err := os.MkdirAll(filepath.Dir(r.statePath), 0o700); err != nil {
 		return
 	}
-	pending, approved, forgotten := r.memory.Persist()
-	state := persistedState{
-		Todos:      r.board.Snapshot().Todos,
-		Pending:    pending,
-		Approved:   approved,
-		Forgotten:  forgotten,
-		Deliveries: r.dispatcher.Deliveries(),
+	for {
+		revision := r.memory.Revision()
+		pending, approved, forgotten := r.memory.Persist()
+		if r.persistHook != nil {
+			hook := r.persistHook
+			r.persistHook = nil
+			hook()
+		}
+		if r.memory.Revision() != revision {
+			continue
+		}
+		state := persistedState{
+			Todos:      r.board.Snapshot().Todos,
+			Pending:    pending,
+			Approved:   approved,
+			Forgotten:  forgotten,
+			Deliveries: r.dispatcher.Deliveries(),
+		}
+		data, err := json.MarshalIndent(state, "", "  ")
+		if err != nil {
+			return
+		}
+		if r.memory.Revision() != revision {
+			continue
+		}
+		if err := os.WriteFile(r.statePath, data, 0o600); err != nil {
+			return
+		}
+		if r.memory.Revision() == revision {
+			return
+		}
 	}
-	data, err := json.MarshalIndent(state, "", "  ")
-	if err != nil {
-		return
-	}
-	_ = os.WriteFile(r.statePath, data, 0o600)
 }
 
 func writeJSON(writer io.Writer, value any) error {

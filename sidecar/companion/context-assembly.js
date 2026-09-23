@@ -252,6 +252,80 @@ function renderMemory(memory) {
   return title || body;
 }
 
+function memoryFactKey(memory) {
+  const markdown = String(memory?.markdown ?? memory?.text ?? "").trim().replace(/\s+/g, " ");
+  const title = String(memory?.title ?? "").trim().replace(/\s+/g, " ");
+  return (markdown || title).toLowerCase();
+}
+
+function prepareSemanticMemories(memories) {
+  const rows = (Array.isArray(memories) ? memories : []).filter(item => item && typeof item === "object");
+  const sorted = [...rows].sort((left, right) => {
+    const at = String(left?.at ?? "").localeCompare(String(right?.at ?? ""));
+    if (at !== 0) return at;
+    return String(left?.id ?? "").localeCompare(String(right?.id ?? ""));
+  });
+  const seen = new Set();
+  const unique = [];
+  for (let index = sorted.length - 1; index >= 0; index -= 1) {
+    const key = memoryFactKey(sorted[index]);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    unique.push(sorted[index]);
+  }
+  unique.reverse();
+  return unique;
+}
+
+function clipText(text, maxChars) {
+  const value = String(text ?? "");
+  if (maxChars < 1) return "";
+  if (value.length <= maxChars) return value;
+  return value.slice(0, maxChars);
+}
+
+function packSemanticTexts(texts) {
+  const items = texts.filter(Boolean).map(text => ({ text }));
+  return {
+    items,
+    tokens: estimateTokens(items.map(item => item.text).join("\n\n")),
+    truncated: false,
+  };
+}
+
+// Fit every durable memory into the semantic budget by shortening each one.
+// Identical conclusions collapse. A memory is omitted only when it has no text.
+export function compressSemanticMemories(memories, budget) {
+  const limit = Number(budget);
+  const forms = prepareSemanticMemories(memories).map(memory => {
+    const full = renderMemory(memory).trim();
+    return { full, compact: full.replace(/\s+/g, " ").trim() };
+  }).filter(item => item.full);
+  if (!forms.length || !Number.isFinite(limit) || limit <= 0) {
+    return { items: [], tokens: 0, truncated: false };
+  }
+  const full = packSemanticTexts(forms.map(item => item.full));
+  if (full.tokens <= limit) return full;
+  const compact = packSemanticTexts(forms.map(item => item.compact));
+  if (compact.tokens <= limit) return { ...compact, truncated: true };
+  const blocks = forms.map(item => item.compact);
+  let lo = 1;
+  let hi = blocks.reduce((max, line) => Math.max(max, line.length), 1);
+  let best = null;
+  while (lo <= hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    const candidate = packSemanticTexts(blocks.map(line => clipText(line, mid)));
+    if (candidate.tokens <= limit && candidate.items.length === blocks.length) {
+      best = candidate;
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
+  }
+  if (best) return { ...best, truncated: true };
+  return { ...packSemanticTexts(blocks.map(line => clipText(line, 1))), truncated: true };
+}
+
 function renderEpisodic(item) {
   const title = String(item?.title ?? "").trim();
   const snippet = String(item?.snippet ?? item?.text ?? "").trim();
@@ -318,11 +392,12 @@ export function assembleCompanionMessages({
     ASSEMBLY_BUDGETS.episodic,
     renderEpisodic,
   );
-  const semantic = trimListByTokens(
-    Array.isArray(semanticMemories) ? semanticMemories : [],
-    ASSEMBLY_BUDGETS.semantic,
-    renderMemory,
-  );
+  let semantic;
+  try {
+    semantic = compressSemanticMemories(semanticMemories, ASSEMBLY_BUDGETS.semantic);
+  } catch {
+    semantic = { items: [], tokens: 0, truncated: false };
+  }
   let recentTokens = 0;
   for (const message of transcript) {
     recentTokens += messageTokens(message);

@@ -93,6 +93,9 @@ export function researchReportGuidance(sessionRole = "", uiLocale) {
       chinese
         ? "只记录公开来源里出现的 CVE ID，不要编造。"
         : "Only record CVE IDs found in public sources; do not invent them.",
+      chinese
+        ? "若有 LEARNING.md，那是用户在这个 CVE 上保存的学习记录，是这次作业的先验，不是复现证明。"
+        : "If LEARNING.md is present, it is learning the user saved on this CVE. It is prior for this job, not proof of reproduction.",
     );
   }
   return lines.join(" ");

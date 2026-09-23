@@ -102,6 +102,27 @@ func TestCVETrackingWorkspaceRecordsUserConfirmedLearning(t *testing.T) {
 	if reused.Job.ID != projection.Job.ID || len(reused.Learning) != 1 {
 		t.Fatalf("tracking workspace was not reused: first=%s reused=%s learning=%d", projection.Job.ID, reused.Job.ID, len(reused.Learning))
 	}
+
+	kept, err := service.RecordLearning(context.Background(), projection.Job.ID, LearningRecordRequest{
+		Kind:    "reflection",
+		Content: "补丁版本另记一条。",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(kept.Learning) != 2 {
+		t.Fatalf("second learning record missing: %+v", kept.Learning)
+	}
+	forgotten, err := service.ForgetLearning(context.Background(), projection.Job.ID, projection.Learning[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(forgotten.Learning) != 1 || forgotten.Learning[0].Content != "补丁版本另记一条。" || forgotten.HumanOutcome.ReflectionCount != 1 {
+		t.Fatalf("forgotten learning still projected: %+v", forgotten.Learning)
+	}
+	if _, err := service.ForgetLearning(context.Background(), projection.Job.ID, projection.Learning[0].ID); err == nil {
+		t.Fatal("forgetting the same record again should fail")
+	}
 }
 
 func TestCVETrackingWorkspaceRecordsAssetVerification(t *testing.T) {

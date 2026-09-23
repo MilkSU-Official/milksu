@@ -21,6 +21,7 @@ const (
 	FactReproductionRecorded      = "reproduction.recorded"
 	FactRootCauseRecorded         = "root_cause.recorded"
 	FactLearningRecorded          = "learning.recorded"
+	FactLearningForgotten         = "learning.forgotten"
 	FactAssetVerificationRecorded = "asset_verification.recorded"
 )
 

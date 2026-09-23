@@ -326,7 +326,6 @@ export default function CompanionPage({
   )
   const layoutEpoch = [
     companion.confirm ? 'confirm' : '',
-    String((companion.memory.pending ?? []).length),
     chatError || attachError || (needsNewChat ? 'new' : ''),
     String(companion.attachments.length),
   ].join(':')
@@ -776,32 +775,19 @@ export default function CompanionPage({
         </header>
       </div>
       <div ref={footerRef} className="companion-chat-footer">
-      {(companion.memory.pending ?? []).length || companion.confirm ? (
+      {companion.confirm ? (
         <div className="companion-chat-dock">
-          {(companion.memory.pending ?? []).map(item => (
-            <div key={item.id} className="companion-chat-memory">
-              <p>{item.title}</p>
-              <Button size="sm" className="h-7" onClick={() => void companion.approveMemory(item.id)}>
-                {t('批准', 'Approve')}
+          <div className="companion-chat-confirm">
+            <p>{companionConfirmLine(companion.confirm, t)}</p>
+            <div className="companion-chat-confirm-actions">
+              <Button size="sm" variant="outline" className="h-7" onClick={() => void companion.resolveConfirm(false)}>
+                {t('取消', 'Cancel')}
               </Button>
-              <Button size="sm" variant="outline" className="h-7" onClick={() => void companion.forgetMemory(item.id)}>
-                {t('忘掉', 'Forget')}
+              <Button size="sm" className="h-7" onClick={() => void companion.resolveConfirm(true)}>
+                {t('确认', 'Confirm')}
               </Button>
             </div>
-          ))}
-          {companion.confirm ? (
-            <div className="companion-chat-confirm">
-              <p>{companionConfirmLine(companion.confirm, t)}</p>
-              <div className="companion-chat-confirm-actions">
-                <Button size="sm" variant="outline" className="h-7" onClick={() => void companion.resolveConfirm(false)}>
-                  {t('取消', 'Cancel')}
-                </Button>
-                <Button size="sm" className="h-7" onClick={() => void companion.resolveConfirm(true)}>
-                  {t('确认', 'Confirm')}
-                </Button>
-              </div>
-            </div>
-          ) : null}
+          </div>
         </div>
       ) : null}
       <div className="companion-chat-composer">

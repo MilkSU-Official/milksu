@@ -129,7 +129,8 @@ func TestPrepareAgentWorkspaceExportsVerifiedMaterialsAndPreservesNotes(t *testi
 		!strings.Contains(string(instructions), "Shell 不继承模型 API Key") ||
 		!strings.Contains(string(instructions), "Pi Agent Harness 的原生工具语义") ||
 		!strings.Contains(string(instructions), "ctf_request_endpoint") ||
-		!strings.Contains(string(instructions), "不要直接向 NSSCTF") {
+		!strings.Contains(string(instructions), "不要直接向 NSSCTF") ||
+		!strings.Contains(string(instructions), "换题仍然成立的习惯") {
 		t.Fatalf("workspace instructions are incomplete: %s", instructions)
 	}
 	task, err := os.ReadFile(filepath.Join(handoff.WorkspacePath, "TASK.md"))

@@ -2,9 +2,13 @@ package companion
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
+	"time"
 )
+
+const memoryCommitLimit = 3
 
 type Memory struct {
 	mu        sync.Mutex
@@ -13,6 +17,10 @@ type Memory struct {
 	pending   map[string]MemoryProposal
 	approved  map[string]ApprovedMemory
 	forgotten map[string]bool
+	// revision increments whenever approved or forgotten memory changes.
+	// Publishers send it with the snapshot so a slower writer cannot
+	// put an older list back over a newer forget or commit.
+	revision uint64
 }
 
 func NewMemory(searcher SessionSearcher, catalog Catalog) *Memory {
@@ -45,6 +53,8 @@ func (m *Memory) Handle(input map[string]any) (any, error) {
 			Markdown:         strings.TrimSpace(stringValue(input["markdown"])),
 			SourceSessionIDs: stringSlice(input["sourceSessionIds"]),
 		})
+	case "commit":
+		return m.Commit(strings.TrimSpace(stringValue(input["userText"])), commitItems(input["items"])), nil
 	case "forget":
 		return m.Forget(strings.TrimSpace(stringValue(input["memoryId"])))
 	default:
@@ -110,20 +120,105 @@ func (m *Memory) Recall(sessionID, cursor string) (map[string]any, error) {
 	}, nil
 }
 
-func (m *Memory) Propose(proposal MemoryProposal) (map[string]any, error) {
-	if strings.TrimSpace(proposal.Title) == "" || strings.TrimSpace(proposal.Markdown) == "" {
-		return nil, fmt.Errorf("propose_memory requires title and markdown")
+type MemoryCommit struct {
+	Action     string
+	ExistingID string
+	Title      string
+	Markdown   string
+	Evidence   string
+}
+
+func commitItems(value any) []MemoryCommit {
+	rows, ok := value.([]any)
+	if !ok {
+		return nil
 	}
+	items := make([]MemoryCommit, 0, len(rows))
+	for _, row := range rows {
+		item, ok := row.(map[string]any)
+		if !ok {
+			continue
+		}
+		items = append(items, MemoryCommit{
+			Action:     strings.TrimSpace(stringValue(item["action"])),
+			ExistingID: strings.TrimSpace(stringValue(item["existingId"])),
+			Title:      strings.TrimSpace(stringValue(item["title"])),
+			Markdown:   strings.TrimSpace(stringValue(item["markdown"])),
+			Evidence:   strings.TrimSpace(stringValue(item["evidence"])),
+		})
+	}
+	return items
+}
+
+func (m *Memory) Commit(userText string, items []MemoryCommit) map[string]any {
+	userText = strings.TrimSpace(userText)
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	id := newPrefixedID("mem")
-	proposal.ID = id
-	proposal.Pending = true
-	m.pending[id] = proposal
+	written := 0
+	for _, item := range items {
+		if written >= memoryCommitLimit {
+			break
+		}
+		title := strings.TrimSpace(item.Title)
+		markdown := strings.TrimSpace(item.Markdown)
+		evidence := strings.TrimSpace(item.Evidence)
+		if title == "" || markdown == "" || evidence == "" || userText == "" || !strings.Contains(userText, evidence) {
+			continue
+		}
+		switch strings.TrimSpace(item.Action) {
+		case "update":
+			id := strings.TrimSpace(item.ExistingID)
+			current, ok := m.approved[id]
+			if !ok || m.forgotten[id] {
+				continue
+			}
+			current.Title = title
+			current.Markdown = markdown
+			current.Evidence = evidence
+			m.approved[id] = current
+			written++
+		case "create":
+			id := newPrefixedID("mem")
+			m.approved[id] = ApprovedMemory{
+				ID:       id,
+				Title:    title,
+				Markdown: markdown,
+				Evidence: evidence,
+				At:       time.Now().UTC().Format(time.RFC3339Nano),
+			}
+			written++
+		}
+	}
+	if written > 0 {
+		m.bumpLocked()
+	}
 	return map[string]any{
-		"written":  false,
-		"proposal": proposal,
-	}, nil
+		"written":  true,
+		"count":    written,
+		"revision": m.revision,
+		"approved": approvedPayload(m.approved, m.forgotten),
+	}
+}
+
+func approvedPayload(approved map[string]ApprovedMemory, forgotten map[string]bool) []map[string]string {
+	payload := make([]map[string]string, 0, len(approved))
+	for _, memory := range approved {
+		if forgotten[memory.ID] {
+			continue
+		}
+		payload = append(payload, map[string]string{
+			"id":       memory.ID,
+			"title":    memory.Title,
+			"markdown": memory.Markdown,
+		})
+	}
+	return payload
+}
+
+func (m *Memory) Propose(MemoryProposal) (map[string]any, error) {
+	// Durable memory is written by the extract path. A model proposal must not
+	// open an approval card or fail the turn.
+	return map[string]any{"written": false}, nil
 }
 
 func (m *Memory) Forget(memoryID string) (map[string]any, error) {
@@ -136,9 +231,11 @@ func (m *Memory) Forget(memoryID string) (map[string]any, error) {
 	delete(m.pending, memoryID)
 	delete(m.approved, memoryID)
 	m.forgotten[memoryID] = true
+	m.bumpLocked()
 	return map[string]any{
 		"forgotten": memoryID,
 		"written":   false,
+		"revision":  m.revision,
 	}, nil
 }
 
@@ -161,12 +258,32 @@ func (m *Memory) Approve(memoryID string) (ApprovedMemory, error) {
 	}
 	delete(m.pending, memoryID)
 	m.approved[memoryID] = approved
+	m.bumpLocked()
 	return approved, nil
 }
 
 func (m *Memory) ApprovedForAssembly() []ApprovedMemory {
+	_, approved := m.SnapshotApproved()
+	return approved
+}
+
+func (m *Memory) Revision() uint64 {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	return m.revision
+}
+
+func (m *Memory) SnapshotApproved() (uint64, []ApprovedMemory) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.revision, m.approvedLocked()
+}
+
+func (m *Memory) bumpLocked() {
+	m.revision++
+}
+
+func (m *Memory) approvedLocked() []ApprovedMemory {
 	result := make([]ApprovedMemory, 0, len(m.approved))
 	for _, memory := range m.approved {
 		if m.forgotten[memory.ID] {
@@ -174,6 +291,12 @@ func (m *Memory) ApprovedForAssembly() []ApprovedMemory {
 		}
 		result = append(result, memory)
 	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].At == result[j].At {
+			return result[i].ID < result[j].ID
+		}
+		return result[i].At < result[j].At
+	})
 	return result
 }
 

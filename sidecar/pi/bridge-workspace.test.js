@@ -85,6 +85,11 @@ test("research report guidance tells the model to edit report.md", () => {
   assert.doesNotMatch(researchReportGuidance("lab-job"), /related\.md/);
   assert.match(researchReportGuidance("cve-research"), /related\.md/);
   assert.match(researchReportGuidance("cve-research"), /不要编造/);
+  assert.match(researchReportGuidance("cve-research"), /LEARNING\.md/);
+  assert.match(researchReportGuidance("cve-research", "en"), /prior for this job/);
+  assert.doesNotMatch(researchReportGuidance("lab-job"), /TASK\.md/);
+  assert.doesNotMatch(researchReportGuidance("lab-job"), /LEARNING\.md/);
+  assert.doesNotMatch(researchReportGuidance(), /LEARNING\.md/);
 });
 
 test("the model lists and locks Computer Use windows without a forced picker", () => {
