@@ -1284,8 +1284,10 @@ func (a *App) SendMessage(
 	}
 	settings.RuntimeThinkingLevel = strings.TrimSpace(thinkingLevel)
 	kernel := engine.KernelPi
+	imageDraw := false
 	if stored, err := a.conversations.Get(conversationID); err == nil {
 		kernel = engine.NormalizeKernel(stored.Kernel)
+		imageDraw = stored.WorkspaceHome == "image"
 	}
 	codingBrowser, err := resolveInteractiveCodingBrowser(
 		kernel,
@@ -1340,6 +1342,7 @@ func (a *App) SendMessage(
 		attachments,
 		productAction,
 		branchFromUserOccurrence,
+		imageDraw,
 		settings,
 		modelSourcePreference,
 	)

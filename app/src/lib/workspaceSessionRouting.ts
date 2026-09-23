@@ -9,7 +9,7 @@ export function isCTFConversation(conversation: Conversation | null | undefined)
   return Boolean(conversation?.ctfJobId)
 }
 
-export type WorkspaceHome = 'chat' | 'ctf' | 'vuln' | 'lab'
+export type WorkspaceHome = 'chat' | 'image' | 'ctf' | 'vuln' | 'lab'
 
 export function conversationWorkspaceHome(
   conversation: Conversation | null | undefined,
@@ -19,7 +19,7 @@ export function conversationWorkspaceHome(
   if (kind === 'cve') return 'vuln'
   if (kind === 'lab') return 'lab'
   const home = conversation?.workspaceHome
-  if (home === 'ctf' || home === 'vuln' || home === 'lab' || home === 'chat') return home
+  if (home === 'ctf' || home === 'vuln' || home === 'lab' || home === 'chat' || home === 'image') return home
   return 'chat'
 }
 
@@ -128,6 +128,7 @@ export interface WorkspaceConversationMemory {
   ctfConversationId: string | null
   vulnConversationId: string | null
   labConversationId: string | null
+  imageConversationId: string | null
 }
 
 export function rememberWorkspaceConversation(
@@ -139,10 +140,12 @@ export function rememberWorkspaceConversation(
     ctfConversationId: remembered.ctfConversationId,
     vulnConversationId: remembered.vulnConversationId,
     labConversationId: remembered.labConversationId,
+    imageConversationId: remembered.imageConversationId ?? null,
   }
   if (!conversation) return next
   const home = conversationWorkspaceHome(conversation)
   if (home === 'chat') next.codingConversationId = conversation.id
+  if (home === 'image') next.imageConversationId = conversation.id
   if (home === 'ctf') next.ctfConversationId = conversation.id
   if (home === 'vuln') next.vulnConversationId = conversation.id
   if (home === 'lab') next.labConversationId = conversation.id

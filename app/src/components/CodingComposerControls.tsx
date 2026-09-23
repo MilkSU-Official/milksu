@@ -129,6 +129,11 @@ export default function CodingComposerControls({
   onChangeThinkingLevel,
   onChangeKernel,
   onShowPermissions,
+  imageHome = false,
+  imageModelKey = '',
+  imageModelLabel = '',
+  imageGroups = [],
+  onChangeImageModel,
 }: {
   running: boolean
   ctfSession: boolean
@@ -151,6 +156,11 @@ export default function CodingComposerControls({
   onChangeThinkingLevel?: (level: ModelThinkingLevel) => void
   onChangeKernel?: (value: 'pi' | 'dsh') => void
   onShowPermissions?: () => void
+  imageHome?: boolean
+  imageModelKey?: string
+  imageModelLabel?: string
+  imageGroups?: readonly SearchableModelGroup[]
+  onChangeImageModel?: (value: string) => void
 }) {
   const t = useT()
   const catalog = useLiveModelCatalog()
@@ -274,31 +284,36 @@ export default function CodingComposerControls({
       </div>
       <div className="chat-composer__primary-trail app-no-drag">
           <ComposerAgentMenu
-            modelKey={modelKey}
-            modelLabel={compactModelLabel}
+            modelKey={imageHome ? imageModelKey : modelKey}
+            modelLabel={imageHome ? imageModelLabel : compactModelLabel}
             disabled={running}
             triggerClassName="composer-control composer-model min-w-0 border-0 bg-transparent px-2.5 shadow-none"
-            ariaLabel={t('选择本任务模型', 'Choose a model for this task')}
-            title={modelKey === 'auto'
-              ? t('使用 MilkSU 默认模型；你可以仅为当前对话覆盖', 'Use the MilkSU default model. You can override it for this conversation only.')
-              : t('当前对话固定使用所选模型', 'This conversation is pinned to the selected model')}
+            ariaLabel={imageHome ? t('生图模型', 'Image generation') : t('选择本任务模型', 'Choose a model for this task')}
+            title={imageHome
+              ? t('生图模型', 'Image generation')
+              : modelKey === 'auto'
+                ? t('使用 MilkSU 默认模型；你可以仅为当前对话覆盖', 'Use the MilkSU default model. You can override it for this conversation only.')
+                : t('当前对话固定使用所选模型', 'This conversation is pinned to the selected model')}
             trigger={(
               <span className="inline-flex min-w-0 items-center gap-1.5">
-                <ModelVendorIcon model={triggerModelText()} className="opacity-90" />
-                <span className="min-w-0 truncate">{compactModelLabel}</span>
+                <ModelVendorIcon model={imageHome ? (imageModelLabel || t('生图模型', 'Image model')) : triggerModelText()} className="opacity-90" />
+                <span className="min-w-0 truncate">{imageHome ? (imageModelLabel || t('生图模型', 'Image model')) : compactModelLabel}</span>
               </span>
             )}
-            leading={[{
-              value: 'auto',
-              label: automaticModelLabel,
-              model: automaticModelLabel,
-            }]}
-            groups={modelGroups}
+            leading={imageHome
+              ? []
+              : [{
+                  value: 'auto',
+                  label: automaticModelLabel,
+                  model: automaticModelLabel,
+                }]}
+            groups={imageHome ? imageGroups : modelGroups}
             kernel={kernel}
-            thinkingLevels={thinkingLevels}
+            thinkingLevels={imageHome ? [] : thinkingLevels}
             thinkingLevel={thinkingLevel}
-            contextLabel={contextLabel}
-            onChangeModel={changeModel}
+            contextLabel={imageHome ? undefined : contextLabel}
+            showRuntime={!imageHome}
+            onChangeModel={imageHome ? onChangeImageModel : changeModel}
             onChangeKernel={onChangeKernel}
             onChangeThinkingLevel={onChangeThinkingLevel}
           />

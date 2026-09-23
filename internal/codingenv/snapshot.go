@@ -68,6 +68,7 @@ type Snapshot struct {
 	CapturedAt    string    `json:"capturedAt"`
 	Git           GitStatus `json:"git"`
 	Artifacts     []string  `json:"artifacts"`
+	Images        []string  `json:"images,omitempty"`
 }
 
 func Inspect(ctx context.Context, workspace string) (Snapshot, error) {
@@ -84,6 +85,7 @@ func Inspect(ctx context.Context, workspace string) (Snapshot, error) {
 	if err != nil {
 		snapshot.Git.Problem = "Git is not installed or unavailable."
 		snapshot.Artifacts = DiscoverArtifacts(resolved, nil, []string{"."})
+		snapshot.Images = DiscoverImages(resolved, nil, []string{"."})
 		return snapshot, nil
 	}
 	snapshot.Git.Available = true
@@ -102,6 +104,7 @@ func Inspect(ctx context.Context, workspace string) (Snapshot, error) {
 			// A workspace outside Git still holds the task's deliverables, so
 			// discovery scans it rather than reporting nothing at all.
 			snapshot.Artifacts = DiscoverArtifacts(resolved, nil, []string{"."})
+			snapshot.Images = DiscoverImages(resolved, nil, []string{"."})
 			return snapshot, nil
 		}
 		snapshot.Git.Problem = boundedProblem(statusErr)
@@ -128,6 +131,7 @@ func Inspect(ctx context.Context, workspace string) (Snapshot, error) {
 		snapshot.Git.Changes, snapshot.Git.ChangesTruncated, ignoredRoots = parsePorcelainChanges(fileOutput)
 	}
 	snapshot.Artifacts = DiscoverArtifacts(resolved, snapshot.Git.Changes, ignoredRoots)
+	snapshot.Images = DiscoverImages(resolved, snapshot.Git.Changes, ignoredRoots)
 
 	if head, headErr := runGit(ctx, gitPath, resolved, "rev-parse", "--short=12", "HEAD"); headErr == nil {
 		snapshot.Git.Head = strings.TrimSpace(head)

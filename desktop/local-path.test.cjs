@@ -4,7 +4,7 @@ const assert = require('node:assert/strict')
 const path = require('node:path')
 const test = require('node:test')
 
-const { openLocalPath, revealLocalPath } = require('./local-path.cjs')
+const { copyImageFile, openLocalPath, revealLocalPath } = require('./local-path.cjs')
 
 test('openLocalPath opens an existing absolute directory without rewriting it', async () => {
   const target = path.resolve('产物 directory')
@@ -104,5 +104,47 @@ test('openLocalPath rejects special files and surfaces shell failures', async ()
       openPath: async () => 'no application is associated',
     }),
     /open local path: no application is associated/u,
+  )
+})
+
+test('copyImageFile writes a real file image and rejects everything else', async () => {
+  const target = path.resolve('milk-cat.png')
+  const written = []
+  const image = { isEmpty: () => false }
+  await copyImageFile(target, {
+    stat: async () => ({ isDirectory: () => false, isFile: () => true }),
+    readImage: async value => {
+      assert.equal(value, target)
+      return image
+    },
+    writeImage: async value => {
+      written.push(value)
+    },
+  })
+  assert.deepEqual(written, [image])
+
+  await assert.rejects(
+    copyImageFile('relative.png', {
+      stat: async () => ({ isDirectory: () => false, isFile: () => true }),
+      readImage: async () => image,
+      writeImage: async () => {},
+    }),
+    /must be absolute/u,
+  )
+  await assert.rejects(
+    copyImageFile(target, {
+      stat: async () => ({ isDirectory: () => true, isFile: () => false }),
+      readImage: async () => image,
+      writeImage: async () => {},
+    }),
+    /not a file/u,
+  )
+  await assert.rejects(
+    copyImageFile(target, {
+      stat: async () => ({ isDirectory: () => false, isFile: () => true }),
+      readImage: async () => ({ isEmpty: () => true }),
+      writeImage: async () => {},
+    }),
+    /image is empty/u,
   )
 })

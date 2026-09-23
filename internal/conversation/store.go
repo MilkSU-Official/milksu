@@ -69,10 +69,12 @@ type StoredGoal struct {
 }
 
 type StoredConversation struct {
-	ID                   string              `json:"id"`
-	Title                string              `json:"title"`
-	CreatedAt            uint64              `json:"createdAt"`
-	WorkspacePath        string              `json:"workspacePath,omitempty"`
+	ID            string `json:"id"`
+	Title         string `json:"title"`
+	CreatedAt     uint64 `json:"createdAt"`
+	WorkspacePath string `json:"workspacePath,omitempty"`
+	// WorkspaceHome is the sidebar the conversation belongs to. Empty is Coding.
+	WorkspaceHome        string              `json:"workspaceHome,omitempty"`
 	Kernel               string              `json:"kernel,omitempty"`
 	ParentConversationID string              `json:"parentConversationId,omitempty"`
 	Multitask            bool                `json:"multitask,omitempty"`

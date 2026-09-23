@@ -237,6 +237,19 @@ describe('Coding conversation groups', () => {
     expect(groupWorkspaceConversations(mixed, 'lab').map(group => group.name)).toEqual(['Juice Shop'])
   })
 
+  it('lists draw chats in one flat group under the sidebar header', () => {
+    const groups = groupWorkspaceConversations([
+      conversation('draw', '打招呼开启对话', 10, { workspaceHome: 'image' }),
+      conversation('code', '写代码', 20, { workspaceHome: 'chat' }),
+    ], 'image')
+    expect(groups).toEqual([expect.objectContaining({
+      key: 'image',
+      name: '',
+      flat: true,
+    })])
+    expect(groups[0]?.conversations.map(item => item.id)).toEqual(['draw'])
+  })
+
   it('keeps unbound CTF chats in a Chats group instead of a bound challenge', () => {
     const groups = groupWorkspaceConversations([
       conversation('loose', '整理题库', 90, { workspaceHome: 'ctf' }),

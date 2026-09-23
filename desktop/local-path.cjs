@@ -34,4 +34,17 @@ async function revealLocalPath(target, { stat, showItemInFolder }) {
   await showItemInFolder(resolved)
 }
 
-module.exports = { openLocalPath, revealLocalPath }
+async function copyImageFile(target, { stat, readImage, writeImage }) {
+  const resolved = await resolveLocalPath(target, stat)
+  const metadata = await stat(resolved)
+  if (!metadata.isFile()) {
+    throw new Error('local path is not a file')
+  }
+  const image = await readImage(resolved)
+  if (!image || (typeof image.isEmpty === 'function' && image.isEmpty())) {
+    throw new Error('image is empty')
+  }
+  await writeImage(image)
+}
+
+module.exports = { openLocalPath, revealLocalPath, copyImageFile }

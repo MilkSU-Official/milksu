@@ -3,6 +3,7 @@ import { Badge, Button, Input } from '@/components/ui'
 import { FileImage, LoaderCircle, Search } from 'lucide-react'
 import { hasDesktopRuntime, invokeCommand } from '@/desktop'
 import MarkdownContent from '@/components/MarkdownContent'
+import { useCodingImageFileActions } from '@/components/CodingImageFileActions'
 import { redactProviderCredentials } from '@/lib/redaction'
 import {
   artifactKindLabel,
@@ -38,6 +39,7 @@ const CodingArtifactPreviewPanel = forwardRef<CodingArtifactPreviewPanelHandle, 
   onPreviewed,
 }, ref) {
   const t = useT()
+  const imageActions = useCodingImageFileActions(workspacePath)
   const [relativePath, setRelativePath] = useState('')
   const [preview, setPreview] = useState<CodingArtifactPreview | null>(null)
   const [loading, setLoading] = useState(false)
@@ -275,12 +277,23 @@ const CodingArtifactPreviewPanel = forwardRef<CodingArtifactPreviewPanelHandle, 
               </pre>
             </div>
           ) : (
-            <div className="flex min-h-[28rem] flex-1 items-center justify-center overflow-auto bg-black/20 p-4">
-              <img
-                src={preview.dataUrl}
-                alt={redactProviderCredentials(preview.relativePath)}
-                className="max-h-full max-w-full object-contain"
-              />
+            <div
+              className="flex min-h-0 flex-1 flex-col overflow-auto"
+              onContextMenu={event => imageActions.openMenu(event, preview.relativePath)}
+            >
+              <div className="flex min-h-[28rem] flex-1 items-center justify-center bg-black/20 p-4">
+                <img
+                  src={preview.dataUrl}
+                  alt={redactProviderCredentials(preview.relativePath)}
+                  className="max-h-full max-w-full object-contain"
+                />
+              </div>
+              <div className="px-4 pb-3">
+                {imageActions.buttons(preview.relativePath)}
+                {imageActions.notice ? (
+                  <p className="mt-1 text-caption text-destructive">{imageActions.notice}</p>
+                ) : null}
+              </div>
             </div>
           )}
         </>
@@ -289,6 +302,7 @@ const CodingArtifactPreviewPanel = forwardRef<CodingArtifactPreviewPanelHandle, 
           <FileImage className="size-7 text-muted-foreground" />
         </div>
       ) : null}
+      {imageActions.menuNode}
     </section>
   )
 })

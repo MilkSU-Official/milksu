@@ -54,7 +54,6 @@ import { buildCTFDomainTaskContext, buildCVEDomainTaskContext, type DomainTaskCo
 import { labBriefing } from '@/lib/researchBriefing'
 import {
   conversationWorkspaceHome,
-  isHomeConversation,
   rememberItemChatAnchor,
   rememberWorkspaceConversation,
   selectAnchoredDomainConversationId,
@@ -73,7 +72,7 @@ import { FACTORY_DEFAULT_KERNEL } from '@/lib/agentKernel'
 import { companionPawState, type CompanionPawState } from '@/lib/companionOverlayState'
 import { withAppSettingsDefaults, type AccountStatus, type AppSettings, type CompanionShellStatus, type CTFChatAction, type UpdateStatus } from '@/types'
 import type { ModelCatalogSnapshot } from '@/types'
-import { installAppModelSettings, installModelCatalog, loadModelCatalog } from '@/modelCatalog'
+import { imageGenSettingsFromKey, installAppModelSettings, installModelCatalog, loadModelCatalog } from '@/modelCatalog'
 import { toolBudgetToolName } from '@/lib/toolBudget'
 import type {
   ActivePluginTheme,
@@ -91,7 +90,7 @@ const VulnPage = lazy(() => import('@/components/VulnPage'))
 const LabPage = lazy(() => import('@/components/LabPage'))
 const CompanionPetWindow = lazy(() => import('@/components/CompanionPetWindow'))
 
-type Section = 'chat' | 'ctf' | 'vuln' | 'lab' | 'companion' | 'profile' | 'settings'
+type Section = 'chat' | 'image' | 'ctf' | 'vuln' | 'lab' | 'companion' | 'profile' | 'settings'
 type DomainHome = 'ctf' | 'vuln' | 'lab'
 
 function readRendererSurface() {
@@ -225,6 +224,7 @@ export default function App() {
   const lastCodingConversationId = useRef<string | null>(null)
   const lastCTFConversationId = useRef<string | null>(null)
   const lastLabConversationId = useRef<string | null>(null)
+  const lastImageConversationId = useRef<string | null>(null)
   const activeVulnerabilityCodingConversationId = useRef<string | null>(null)
   const itemChatAnchors = useRef<Record<string, string>>({})
   const [domainChatMaximized, setDomainChatMaximizedState] = useState({ ctf: false, vuln: false, lab: false })
@@ -425,7 +425,7 @@ export default function App() {
       : section === 'lab'
         ? domainChatMaximized.lab
         : false
-  const workspaceSurfaceVisible = section === 'chat' || section === 'ctf' || section === 'vuln' || section === 'lab'
+  const workspaceSurfaceVisible = section === 'chat' || section === 'image' || section === 'ctf' || section === 'vuln' || section === 'lab'
   const domainDockOpen = section === 'ctf'
     ? domainChatDockOpen.ctf
     : section === 'vuln'
@@ -589,12 +589,38 @@ export default function App() {
     setSection('chat')
   }
 
+  function newImageConversation() {
+    rememberActiveConversation()
+    conversations.startNew({ workspaceHome: 'image' })
+    lastImageConversationId.current = null
+    setSection('image')
+  }
+
   function newWorkspaceConversation() {
+    if (sectionRef.current === 'image') {
+      newImageConversation()
+      return
+    }
     if (isDomainWorkspace(sectionRef.current)) {
       createDossierConversation()
       return
     }
     newConversation()
+  }
+
+  async function setImageGenModel(value: string) {
+    const current = settings
+    if (!current) return
+    const next = withAppSettingsDefaults({
+      ...current,
+      ...imageGenSettingsFromKey(value),
+    })
+    applySettings(next)
+    try {
+      await invokeCommand('save_settings_cmd', { newSettings: next })
+    } catch {
+      await loadSettings()
+    }
   }
 
   function openHistoryConversation(conversationId: string) {
@@ -607,23 +633,14 @@ export default function App() {
       ctfConversationId: lastCTFConversationId.current,
       vulnConversationId: activeVulnerabilityCodingConversationId.current,
       labConversationId: lastLabConversationId.current,
+      imageConversationId: lastImageConversationId.current,
     })
     lastCodingConversationId.current = remembered.codingConversationId
     lastCTFConversationId.current = remembered.ctfConversationId
     activeVulnerabilityCodingConversationId.current = remembered.vulnConversationId
     lastLabConversationId.current = remembered.labConversationId
+    lastImageConversationId.current = remembered.imageConversationId
     itemChatAnchors.current = rememberItemChatAnchor(itemChatAnchors.current, conversations.active)
-  }
-
-  function restoreCodingWorkspace() {
-    const restored = conversations.conversations.find(conversation => (
-      conversation.id === lastCodingConversationId.current && isHomeConversation(conversation)
-    ))
-    if (restored) {
-      conversations.activeId = restored.id
-      return
-    }
-    conversations.resumePendingHome('chat')
   }
 
   function restoreCTFWorkspaceResumePoint() {
@@ -667,12 +684,15 @@ export default function App() {
       openDomainCatalog(value)
       return
     }
-    rememberActiveConversation()
     if (value === 'chat') {
-      restoreCodingWorkspace()
-      setSection(value)
+      newConversation()
       return
     }
+    if (value === 'image') {
+      newImageConversation()
+      return
+    }
+    rememberActiveConversation()
     if (value === 'companion') {
       // Sidebar footer opens the phone. SHOW_PET would close it again.
       void invokeCommand('show_companion_chat_window')
@@ -738,8 +758,8 @@ export default function App() {
     rememberActiveConversation()
     const home = conversationWorkspaceHome(target)
     setCodingConversationDrawerOpen(true)
-    if (home === 'chat') {
-      setSection('chat')
+    if (home === 'chat' || home === 'image') {
+      setSection(home)
       return
     }
     setSection(home)
@@ -1815,10 +1835,10 @@ export default function App() {
                 />
               </div>
             ) : null}
-            {section === 'chat' || section === 'settings' || section === 'profile' || dossierChatMaximized ? (
+            {section === 'chat' || section === 'image' || section === 'settings' || section === 'profile' || dossierChatMaximized ? (
               <div
                 className="relative flex min-h-0 min-w-0 flex-1"
-                style={{ display: section === 'chat' || dossierChatMaximized ? undefined : 'none' }}
+                style={{ display: section === 'chat' || section === 'image' || dossierChatMaximized ? undefined : 'none' }}
               >
               <ChatPage
                 className="min-h-0 min-w-0 flex-1 bg-surface-editor"
@@ -1843,6 +1863,8 @@ export default function App() {
                 modelMode={conv.modelMode}
                 modelProvider={conv.modelProvider}
                 modelId={conv.modelId}
+                imageHome={section === 'image'}
+                onChangeImageModel={value => { void setImageGenModel(value) }}
                 thinkingLevel={conv.thinkingLevel}
                 modelSourcePreference={conv.modelSourcePreference}
                 executionMode={conv.executionMode}

@@ -40,6 +40,8 @@ function collectEnvSecrets(environment = process.env) {
     environment.MILKSU_RELAY_KEY,
     environment.TOKENFLUX_API_KEY,
     environment.OPENAI_API_KEY,
+    environment.MILKSU_IMAGEGEN_API_KEY,
+    environment.MILKSU_CUSTOM_PROVIDER_KEY,
   ].filter(value => String(value ?? "").trim().length >= 8);
 }
 

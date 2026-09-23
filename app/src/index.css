@@ -536,6 +536,15 @@ body {
   padding: 1.5rem;
 }
 
+.profile-page.page-scroll {
+  padding-left: calc(1.5rem + var(--shell-chrome-overhang, 0px));
+}
+
+header.settings-page-header {
+  margin-left: var(--shell-chrome-overhang, 0px);
+  padding-left: 1.25rem;
+}
+
 .page-column {
   width: 100%;
   min-width: 0;
@@ -861,18 +870,35 @@ input[type='range']:not(:disabled) {
  * layout via titlebar-area env. Do not apply the mac spacer on Windows.
  */
 :root {
-  --shell-title-safe-top: 0.5rem;
+  --shell-title-safe-top: 2.5rem;
   --shell-traffic-light-safe-left: 0px;
   --shell-window-control-safe-right: 0px;
+  --shell-chrome-controls-top: 8px;
+  --shell-chrome-controls-height: 1.75rem;
+  --shell-chrome-controls-left: 0.5rem;
+  --shell-chrome-controls-span: 3.75rem;
+  --shell-chrome-end-inset: 0.35rem;
+  --shell-chrome-end-span: 3.75rem;
+  --shell-sidebar-width: 16.5rem;
+  --shell-chrome-overhang: max(
+    0px,
+    calc(var(--shell-chrome-controls-left) + var(--shell-chrome-controls-span) - var(--shell-sidebar-width))
+  );
 }
 
 :root[data-host-platform='darwin'] {
-  --shell-title-safe-top: 2.1rem;
+  --shell-title-safe-top: 2.5rem;
   --shell-traffic-light-safe-left: 4.75rem;
+  --shell-chrome-controls-top: 8px;
+  --shell-chrome-controls-height: 1.75rem;
+  --shell-chrome-controls-left: var(--shell-traffic-light-safe-left);
 }
 
 :root[data-host-platform='win32'] {
-  --shell-title-safe-top: 0.5rem;
+  --shell-title-safe-top: env(titlebar-area-height, 2.25rem);
+  --shell-chrome-controls-top: env(titlebar-area-y, 0px);
+  --shell-chrome-controls-height: env(titlebar-area-height, 2.25rem);
+  --shell-chrome-controls-left: 0.35rem;
   --shell-window-control-safe-right: max(
     8.75rem,
     calc(100vw - env(titlebar-area-x, 100vw) - env(titlebar-area-width, 0px))
@@ -880,12 +906,71 @@ input[type='range']:not(:disabled) {
 }
 
 :root[data-host-platform='linux'] {
-  --shell-title-safe-top: max(0.5rem, min(2.1rem, env(titlebar-area-x, 0px)));
+  --shell-title-safe-top: max(2.25rem, env(titlebar-area-height, 2.25rem));
   --shell-traffic-light-safe-left: env(titlebar-area-x, 0px);
+  --shell-chrome-controls-top: env(titlebar-area-y, 0px);
+  --shell-chrome-controls-height: env(titlebar-area-height, 2.25rem);
+  --shell-chrome-controls-left: max(0.35rem, env(titlebar-area-x, 0px));
   --shell-window-control-safe-right: max(
     0px,
     calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw))
   );
+}
+
+/*
+ * Caption-row controls stay on one horizontal line: search and the sidebar
+ * toggle to the right of the macOS traffic lights, terminal and the right rail
+ * at the opposite end. Collapsing either sidebar does not move them. Windows
+ * and Linux keep these controls in the native caption band, clear of the
+ * system buttons.
+ *
+ * Electron unions every -webkit-app-region: drag border box and only punches
+ * holes for no-drag descendants. These buttons are not inside those drag
+ * boxes, so each drag region has to stop short of this row.
+ */
+.shell-window-controls {
+  position: fixed;
+  z-index: 40;
+  top: var(--shell-chrome-controls-top);
+  left: var(--shell-chrome-controls-left);
+  display: flex;
+  align-items: center;
+  height: var(--shell-chrome-controls-height);
+  gap: 0.125rem;
+  pointer-events: auto;
+  -webkit-app-region: no-drag;
+}
+
+.shell-window-controls--end {
+  right: calc(var(--shell-window-control-safe-right) + var(--shell-chrome-end-inset));
+  left: auto;
+}
+
+.shell-chrome-icon {
+  display: grid;
+  width: 1.75rem;
+  height: 1.75rem;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--foreground);
+  cursor: pointer;
+}
+
+.shell-chrome-icon:hover,
+.shell-chrome-icon:focus-visible {
+  background: var(--hover-2);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .shell-chrome-icon {
+    transition: background-color var(--motion-fast) ease;
+  }
+
+  .shell-chrome-icon:hover:active {
+    background: var(--pressed-row);
+  }
 }
 
 .shell-traffic-light-safe-x {

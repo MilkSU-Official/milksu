@@ -162,6 +162,18 @@ test("ImageGen is exposed only when its isolated Provider credential is configur
     available.capabilities.find(value => value.id === "imagegen").detail,
     /每次请求/,
   );
+
+  const draw = await loadSessionPolicy(workspace, "", {
+    executionMode: "go",
+    approvalPolicy: "workspace-auto",
+    imageGenConfigured: true,
+    imageDraw: true,
+  });
+  assert.equal(
+    draw.capabilities.find(value => value.id === "imagegen").status,
+    "allowed",
+  );
+  assert.equal(draw.imageDraw, true);
 });
 
 test("Plan and Read-only enforce a read-only tool allowlist", async () => {

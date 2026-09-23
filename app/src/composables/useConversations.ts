@@ -108,7 +108,7 @@ import type {
 
 const BROWSER_USE_MCP_SERVER = 'milksu-playwright-user'
 const DEFAULT_CODING_CONVERSATION_TITLE = t('新编码任务', 'New coding task')
-type ComposerScopeToken = 'browser-use' | 'computer-use'
+type ComposerScopeToken = 'browser-use' | 'computer-use' | 'image'
 
 export function rewindVisibleMessages(messages: Message[]): Message[] | null {
   const users = messages.filter(message => (
@@ -533,7 +533,7 @@ export function normalizeConversation(raw: Record<string, unknown>): Conversatio
     ctfRole: ['solver', 'tool-builder', 'strategist'].includes(String(raw.ctfRole))
       ? raw.ctfRole as Conversation['ctfRole']
       : undefined,
-    workspaceHome: ['chat', 'ctf', 'vuln', 'lab'].includes(String(raw.workspaceHome))
+    workspaceHome: ['chat', 'image', 'ctf', 'vuln', 'lab'].includes(String(raw.workspaceHome))
       ? raw.workspaceHome as Conversation['workspaceHome']
       : undefined,
     domainTaskContext: normalizeDomainTaskContext(raw.domainTaskContext),
@@ -1846,7 +1846,7 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
     s.activeId = null
     s.pendingWorkspaceHome = home
     s.pendingWorkspacePath = inheritWorkspace
-    s.pendingKernel = s.defaultKernel
+    s.pendingKernel = home === 'image' ? 'pi' : s.defaultKernel
     s.pendingModelMode = undefined
     s.pendingModelProvider = undefined
     s.pendingModelId = undefined
@@ -1953,6 +1953,8 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
       mcpConfigDigest: s.pendingMCPServers.length
         ? s.pendingMCPConfigDigest
         : undefined,
+      workspaceHome: options.workspaceHome
+        ?? (s.pendingWorkspaceHome === 'chat' ? undefined : s.pendingWorkspaceHome),
       domainTaskContext: options.domainTaskContext,
       ctfJobId: clearsCTFContext ? undefined : options.ctfJobId,
       ctfMode: clearsCTFContext ? undefined : options.ctfMode,
@@ -3470,6 +3472,30 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
             },
           )
           messages.splice(0, messages.length, ...nextMessages)
+          // ImageGen failures must leave a recoverable assistant bubble. Otherwise the
+          // Images rail can sit on a missing preview while the error stays buried in
+          // a collapsed tool group.
+          if (
+            type === 'tool.completed'
+            && toolName === 'milksu_imagegen'
+            && String(error ?? '').trim()
+          ) {
+            const detail = redactProviderCredentials(String(error).trim()).slice(0, 800)
+            const bubble = t(
+              `生图失败：${detail}`,
+              `ImageGen failed: ${detail}`,
+            )
+            const lastMessage = messages.at(-1)
+            if (lastMessage?.role !== 'assistant' || lastMessage.content !== bubble) {
+              messages.push({
+                id: crypto.randomUUID(),
+                role: 'assistant',
+                content: bubble,
+                timestamp: Date.now(),
+                status: 'done',
+              })
+            }
+          }
         } else if (type === 'engine.error') {
           const erroredQueue = s.messageQueues.get(sessionId)
           if (erroredQueue?.steering.length) {

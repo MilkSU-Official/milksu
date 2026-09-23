@@ -11,6 +11,7 @@ export default function WorkspaceTopBar({
   actions,
   filters,
   metrics,
+  windowCaptionEdge = false,
 }: {
   module?: 'coding' | 'ctf' | 'cve' | 'lab'
   title: string
@@ -21,17 +22,19 @@ export default function WorkspaceTopBar({
   actions?: ReactNode
   filters?: ReactNode
   metrics?: ReactNode
+  windowCaptionEdge?: boolean
 }) {
   const moduleKey = module ?? title.trim().toLowerCase()
 
   return (
     <header
-      className="workspace-topbar shell-window-control-safe-x app-drag pl-6 py-4"
+      className="workspace-topbar shell-window-control-safe-x app-drag py-4"
       data-module-topbar
       data-workspace-topbar
       data-plugin-surface="workspace-topbar"
       data-workspace-module={moduleKey}
       data-workspace-topbar-idle={hideIdentity ? '' : undefined}
+      data-window-caption-edge={windowCaptionEdge ? '' : undefined}
     >
       <div className="flex min-w-0 items-center justify-between gap-4">
         <div className="flex min-w-0 items-center gap-3">
@@ -96,10 +99,17 @@ const workspaceTopBarCss = `
   z-index: var(--z-sticky);
   isolation: isolate;
   margin: 0;
+  margin-left: var(--shell-chrome-overhang, 0px);
+  padding-left: 1.5rem;
   border: 0;
   background: transparent;
   color: inherit;
   overflow: visible;
+}
+
+.workspace-topbar[data-window-caption-edge] {
+  margin-right: calc(var(--shell-window-control-safe-right) + var(--shell-chrome-end-inset) + var(--shell-chrome-end-span));
+  padding-right: var(--shell-window-control-gutter, 1.5rem);
 }
 
 .workspace-topbar[data-workspace-topbar-idle] {

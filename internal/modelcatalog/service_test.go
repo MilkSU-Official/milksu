@@ -95,7 +95,9 @@ func TestRefreshMergesAccountAndPersonalCatalogs(t *testing.T) {
 	var requested []string
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		auth := request.Header.Get("Authorization")
-		requested = append(requested, auth)
+		if request.Method == http.MethodGet && strings.HasSuffix(request.URL.Path, "/models") {
+			requested = append(requested, auth)
+		}
 		writer.Header().Set("Content-Type", "application/json")
 		switch auth {
 		case "Bearer account-secret":
@@ -267,6 +269,31 @@ func TestNormalizeModelsDoesNotMarkModelsTextOnly(t *testing.T) {
 	}
 	if inputs["x-ai/grok-4.6"] != "text,image" {
 		t.Fatalf("x-ai/grok-4.6 capability = %q, want text,image", inputs["x-ai/grok-4.6"])
+	}
+}
+
+func TestAnnotateImageTransportsUsesPrefixSuffix(t *testing.T) {
+	models := []Model{
+		{ID: "openai/gpt-5.6", Name: "GPT-5.6"},
+		{ID: "openai-image/gpt-image-2", Name: "GPT Image 2"},
+		{ID: "google-image/nano-banana-2"},
+		{ID: "x-ai/grok-4.7", Name: "Grok 4.7"},
+		{ID: "x-ai-image/grok-imagine-image-2.0", Name: "Grok Imagine 2.0"},
+		{ID: "deepseek/deepseek-flash"},
+	}
+	annotateImageTransports(models)
+	chat, image := splitImageTransports(models)
+	if len(chat) != 3 {
+		t.Fatalf("chat = %#v", chat)
+	}
+	got := map[string]string{}
+	for _, model := range image {
+		got[model.ID] = model.ImageTransport
+	}
+	if got["openai-image/gpt-image-2"] != "gpt-image" ||
+		got["google-image/nano-banana-2"] != "gemini" ||
+		got["x-ai-image/grok-imagine-image-2.0"] != "images-minimal" {
+		t.Fatalf("image = %#v", got)
 	}
 }
 

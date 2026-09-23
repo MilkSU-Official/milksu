@@ -7,6 +7,7 @@ export const codingWorkspaceToolName = "milksu_workspace";
 export const codingWorkspaceReadActions = Object.freeze([
   "list_browser_tabs",
   "list_artifacts",
+  "list_images",
   "preview_artifact",
   "show_panel",
   "list_status",
@@ -253,6 +254,7 @@ export function createCodingWorkspaceExtension(
           Type.Literal("close_browser_tab"),
           Type.Literal("close_all_browser_tabs"),
           Type.Literal("list_artifacts"),
+          Type.Literal("list_images"),
           Type.Literal("preview_artifact"),
           Type.Literal("reveal_artifacts"),
           Type.Literal("show_panel"),
@@ -281,6 +283,7 @@ export function createCodingWorkspaceExtension(
         panel: Type.Optional(Type.Union([
           Type.Literal("browser"),
           Type.Literal("artifacts"),
+          Type.Literal("images"),
           Type.Literal("changes"),
           Type.Literal("environment"),
           Type.Literal("computer-use"),

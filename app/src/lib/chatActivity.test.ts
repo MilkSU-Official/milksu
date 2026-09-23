@@ -396,6 +396,63 @@ describe('activity labels', () => {
     expect(chatActivityEntrySummary(entries[0]!)).toBe('交付图片 assets/hero.png')
   })
 
+  it('shows a generated image in the thread and drops the delivery note', () => {
+    const receipt = [
+      '已生成完成。',
+      '• 文件： /Users/example/milk-cat.png',
+      '• 模型： openai-image/gpt-image-2',
+      '• 规格： PNG, 1254×1254, 2,091,405 字节',
+      '• SHA-256： 5040047063855dec7c41620279e5a8f34b5dc4651c02c697893e5f7d958f881e',
+      '工作区内是新建的 .png ，未覆盖任何已有文件，也未改动代码。',
+    ].join('\n')
+    const transcript = buildChatTranscript([
+      message('u1', 'user', '画个牛奶猫'),
+      message('image-result', 'tool', JSON.stringify({
+        status: 'completed',
+        output: { path: 'milk-cat.png' },
+      }), { toolName: 'milksu_imagegen' }),
+      message('a1', 'assistant', receipt),
+    ], false)
+    expect(transcript.some(block => block.kind === 'image' && block.path === 'milk-cat.png')).toBe(true)
+    expect(transcript.some(block => block.kind === 'message' && block.message.content.includes('SHA-256'))).toBe(false)
+    expect(transcript.some(block => block.kind === 'message' && block.message.role === 'assistant')).toBe(false)
+  })
+
+  it('keeps a real caption under the image and leaves text-only replies alone', () => {
+    const withCaption = buildChatTranscript([
+      message('u1', 'user', '画个小猫'),
+      message('image-result', 'tool', JSON.stringify({
+        status: 'completed',
+        output: { path: 'cat.png' },
+      }), { toolName: 'milksu_imagegen' }),
+      message('a1', 'assistant', '猫戴着一顶牛奶帽。'),
+    ], false)
+    const caption = withCaption.find(block => block.kind === 'message' && block.message.role === 'assistant')
+    expect(caption && caption.kind === 'message' && caption.message.content).toBe('猫戴着一顶牛奶帽。')
+
+    const textOnly = buildChatTranscript([
+      message('u1', 'user', '这是什么'),
+      message('a1', 'assistant', '这是一只猫。'),
+    ], false)
+    expect(textOnly.some(block => block.kind === 'image')).toBe(false)
+    expect(textOnly.some(block => block.kind === 'message' && block.message.content === '这是一只猫。')).toBe(true)
+  })
+
+  it('summarizes ImageGen provider failures without pretending delivery', () => {
+    const entries = buildChatActivityEntries([
+      message('image-start', 'tool', '生成图片 · assets/miss.png · 1792x1024 · hd', {
+        toolName: 'milksu_imagegen',
+        toolCallId: 'image-fail',
+        status: 'running',
+      }),
+      message('image-result', 'tool', 'MilkSU ImageGen failed (400) for google/imagen-4.0-generate-001: invalid size. Retry with size 1024x1024.', {
+        toolName: 'milksu_imagegen',
+        toolCallId: 'image-fail',
+      }),
+    ])
+    expect(chatActivityEntrySummary(entries[0]!)).toBe('生图失败')
+  })
+
   it('pairs tool start and result events into one expandable row', () => {
     const entries = buildChatActivityEntries([
       message('ls-start', 'tool', '{}', { toolName: 'ls', status: 'running' }),
@@ -628,6 +685,13 @@ describe('applyCodingToolEvent', () => {
       message('u1', 'user', '下一步做什么'),
       retained!,
     ], true)).toBe(false)
+    expect(hasEmptyVisibleReply([
+      message('u1', 'user', '画个小猫'),
+      message('image-result', 'tool', JSON.stringify({
+        status: 'completed',
+        output: { path: 'cat.png' },
+      }), { toolName: 'milksu_imagegen' }),
+    ], false)).toBe(false)
   })
 
   it('keeps a thinking-only assistant row visible', () => {
