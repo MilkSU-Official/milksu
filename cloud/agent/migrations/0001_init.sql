@@ -1,6 +1,8 @@
 -- MilkSU Cloud Agent D1 schema (bound as env.DB in milksu-admin deploy).
 -- Sessions default to in-memory Map until this binding exists.
 
+-- owner_token_hash stores SHA-256 of a stable account subject
+-- (id:<account.id> or github:<githubLogin>), not the access token.
 CREATE TABLE IF NOT EXISTS cloud_sessions (
   id TEXT PRIMARY KEY NOT NULL,
   owner_token_hash TEXT NOT NULL,

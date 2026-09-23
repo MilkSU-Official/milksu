@@ -8,17 +8,22 @@ describe('migrateConversationHost', () => {
       direction: 'local_to_cloud',
       sourceSessionId: 's1',
       messageCount: 0,
+      activateTarget: async () => {},
       deleteSource: async () => {},
     })).rejects.toThrow(/flip host without migrate/)
   })
 
-  it('copy then finalize then delete for local_to_cloud', async () => {
-    const deleted: string[] = []
+  it('copy then finalize then activate then delete for local_to_cloud', async () => {
+    const order: string[] = []
     const call = vi.fn(async (method: string) => {
+      order.push(method)
       if (method === 'MigrateCopy') {
         return { target_session_id: 'cloud-1', ok: true, error: '' }
       }
-      return { ok: true, error: '' }
+      if (method === 'MigrateFinalize') {
+        return { ok: true, error: '' }
+      }
+      return {}
     })
     const result = await migrateConversationHost({
       direction: 'local_to_cloud',
@@ -26,22 +31,48 @@ describe('migrateConversationHost', () => {
       messageCount: 2,
       transcriptJson: '[]',
       client: new CloudAgentClient({ call }),
-      deleteSource: async id => { deleted.push(id) },
+      activateTarget: async id => { order.push(`activate:${id}`) },
+      deleteSource: async id => { order.push(`delete:${id}`) },
     })
     expect(result.targetSessionId).toBe('cloud-1')
-    expect(deleted).toEqual(['local-1'])
-    expect(call).toHaveBeenCalledWith('MigrateCopy', expect.objectContaining({
-      source_session_id: 'local-1',
-      direction: 'local_to_cloud',
-    }))
-    expect(call).toHaveBeenCalledWith('MigrateFinalize', expect.objectContaining({
-      target_session_id: 'cloud-1',
-    }))
+    expect(order).toEqual([
+      'MigrateCopy',
+      'MigrateFinalize',
+      'activate:cloud-1',
+      'delete:local-1',
+    ])
   })
 
-  it('creates local then DeleteSession for cloud_to_local', async () => {
-    const deleted: string[] = []
+  it('does not activate or delete source when finalize fails; cleans migrating target', async () => {
+    const order: string[] = []
     const call = vi.fn(async (method: string) => {
+      order.push(method)
+      if (method === 'MigrateCopy') {
+        return { target_session_id: 'cloud-orphan', ok: true, error: '' }
+      }
+      if (method === 'MigrateFinalize') {
+        return { ok: false, error: 'finalize boom' }
+      }
+      if (method === 'DeleteSession') return {}
+      throw new Error(`unexpected ${method}`)
+    })
+    await expect(migrateConversationHost({
+      direction: 'local_to_cloud',
+      sourceSessionId: 'local-1',
+      messageCount: 2,
+      transcriptJson: '[]',
+      client: new CloudAgentClient({ call }),
+      activateTarget: async () => { order.push('activate') },
+      deleteSource: async () => { order.push('delete') },
+    })).rejects.toThrow(/finalize boom/)
+    expect(order).toEqual(['MigrateCopy', 'MigrateFinalize', 'DeleteSession'])
+    expect(call).toHaveBeenCalledWith('DeleteSession', { session_id: 'cloud-orphan' })
+  })
+
+  it('creates local then DeleteSession then activate for cloud_to_local', async () => {
+    const order: string[] = []
+    const call = vi.fn(async (method: string) => {
+      order.push(method)
       if (method === 'DeleteSession') return {}
       throw new Error(`unexpected ${method}`)
     })
@@ -51,11 +82,19 @@ describe('migrateConversationHost', () => {
       messageCount: 3,
       transcriptJson: '[{"role":"user"}]',
       client: new CloudAgentClient({ call }),
-      deleteSource: async id => { deleted.push(id) },
-      createLocalFromTranscript: async () => 'local-new',
+      activateTarget: async id => { order.push(`activate:${id}`) },
+      deleteSource: async id => { order.push(`delete:${id}`) },
+      createLocalFromTranscript: async () => {
+        order.push('createLocal')
+        return 'local-new'
+      },
     })
     expect(result.targetSessionId).toBe('local-new')
-    expect(deleted).toEqual(['cloud-src'])
-    expect(call).toHaveBeenCalledWith('DeleteSession', { session_id: 'cloud-src' })
+    expect(order).toEqual([
+      'createLocal',
+      'DeleteSession',
+      'activate:local-new',
+      'delete:cloud-src',
+    ])
   })
 })

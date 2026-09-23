@@ -38,6 +38,11 @@ export function memoryDelete(id: string): void {
   memory.delete(id)
 }
 
+/** Test helper: drop in-memory sessions between integration cases. */
+export function memoryClear(): void {
+  memory.clear()
+}
+
 export function memoryList(ownerTokenHash: string): SessionRow[] {
   return [...memory.values()].filter(row => row.owner_token_hash === ownerTokenHash)
 }

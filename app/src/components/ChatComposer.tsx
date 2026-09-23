@@ -598,6 +598,7 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
   onMigrateKernel?: (value: 'pi' | 'dsh') => void
   conversationHost?: import('@/lib/conversationHost').ConversationHost
   conversationStarted?: boolean
+  conversationHostMigrating?: boolean
   onChangeConversationHost?: (host: import('@/lib/conversationHost').ConversationHost) => void
   onShowPermissions?: () => void
   onConsumeGoal?: () => void
@@ -1935,6 +1936,7 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
                     host={normalizeConversationHost(props.conversationHost)}
                     disabled={parentTurnActive}
                     hasStarted={props.conversationStarted === true}
+                    migrating={props.conversationHostMigrating === true}
                     onChangeHost={next => props.onChangeConversationHost?.(next)}
                   />
                 )}

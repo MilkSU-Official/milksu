@@ -7,9 +7,14 @@ import {
 
 /**
  * Copy-then-delete host migration (docs/developer/cloud-agent.md).
- * Local→cloud uses CloudAgentClient.MigrateCopy then Finalize.
- * Cloud→local creates the local target first, then DeleteSession on the cloud source.
- * Product path uses desktopCloudAgentClient (token in Electron main).
+ *
+ * Order (fail-safe):
+ * 1. Create / verify target (MigrateCopy+Finalize or createLocal)
+ * 2. activateTarget — UI flips host only here
+ * 3. deleteSource — archive / retire source only after activate succeeds
+ *
+ * On any failure before step 2, source is untouched and host must not flip.
+ * If Finalize fails after MigrateCopy, the migrating cloud target is deleted.
  */
 export async function migrateConversationHost(input: {
   direction: 'local_to_cloud' | 'cloud_to_local'
@@ -19,7 +24,12 @@ export async function migrateConversationHost(input: {
   transcriptJson?: string
   /** Optional override for tests; product code omits this. */
   client?: CloudAgentClient
-  /** Called only after target is verified; deletes or archives the source. */
+  /**
+   * Called after the target is verified and before source retirement.
+   * Product UI flips host / selects the target conversation here — never earlier.
+   */
+  activateTarget: (targetSessionId: string) => Promise<void>
+  /** Called only after activateTarget; deletes or archives the source. */
   deleteSource: (sourceSessionId: string) => Promise<void>
   /** Cloud→local: create local conversation from transcript; return new id. */
   createLocalFromTranscript?: (transcriptJson: string) => Promise<string>
@@ -38,16 +48,28 @@ export async function migrateConversationHost(input: {
     if (!copied.ok || !copied.target_session_id) {
       throw new Error(copied.error || 'Cloud migrate copy failed')
     }
-    const finalized = await client.migrateFinalize({
-      sourceSessionId: input.sourceSessionId,
-      targetSessionId: copied.target_session_id,
-      direction: 'local_to_cloud',
-    })
-    if (!finalized.ok) {
-      throw new Error(finalized.error || 'Cloud migrate finalize failed')
+    const targetId = copied.target_session_id
+    try {
+      const finalized = await client.migrateFinalize({
+        sourceSessionId: input.sourceSessionId,
+        targetSessionId: targetId,
+        direction: 'local_to_cloud',
+      })
+      if (!finalized.ok) {
+        throw new Error(finalized.error || 'Cloud migrate finalize failed')
+      }
+    } catch (error) {
+      // Drop the migrating cloud row so a failed migrate does not leave orphans.
+      try {
+        await client.deleteSession(targetId)
+      } catch {
+        // Best-effort cleanup; surface the original finalize error.
+      }
+      throw error
     }
+    await input.activateTarget(targetId)
     await input.deleteSource(input.sourceSessionId)
-    return { targetSessionId: copied.target_session_id }
+    return { targetSessionId: targetId }
   }
 
   const createLocal = input.createLocalFromTranscript
@@ -60,6 +82,7 @@ export async function migrateConversationHost(input: {
   if (input.sourceSessionId.trim()) {
     await client.deleteSession(input.sourceSessionId)
   }
+  await input.activateTarget(targetSessionId)
   await input.deleteSource(input.sourceSessionId)
   return { targetSessionId }
 }

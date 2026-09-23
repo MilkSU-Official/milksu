@@ -19,6 +19,13 @@ npm run generate   # buf generate → gen/{es,swift,kotlin}; needs network
 # npm run dev   # 需要 wrangler 登录与绑定
 ```
 
+`npm test` 在无 CF 账号时也能跑：`account-owner` 单元测、Connect 信封、
+AES-GCM 合同，以及 `worker.integration.test.js`（内存会话 + stub `/v1/account`）：
+
+- 同一 `githubLogin` / `account.id` 换 Bearer 仍能列出会话（不绑 accessToken hash）
+- `MigrateCopy` → `migrating` → `MigrateFinalize` → `ready`
+- `UpsertCredential` 无 D1 / 无 KEK 时 503，不返回假 id
+
 ## 还未接线（需 milksu-admin / CF 凭据）
 
 - 解开 `wrangler.toml` 里 containers / Durable Object / migrations（官方 Sandbox 形状已写好）

@@ -134,10 +134,12 @@ Cloud API
 | --- | --- | --- |
 | 1 用量 + Connect 契约 | 骨架已进仓 | `internal/modelpricing`、`usage_turns`、`RecordCloudUsageTurn`（云 `turn.settled`→本机账本）、`cloud/agent/proto`、Worker stub |
 | 2–3 CF Pi/DSH | 骨架 | `sandbox/Dockerfile` + `package-pins.json`（钉 Pi 0.84.1 / DSH 0.1.6-alpha.1）；`migrations/0001_init.sql`；需 milksu-admin 解开 wrangler containers/DO/D1 |
-| 4 左下切换 + 先拷后删 | UI + Desktop RPC | `ComposerHostSwitch`、`migrateConversationHost`、`desktop/cloud-agent-client.cjs`（`CloudAgentInvoke`，Bearer 只在 Electron main）；云宿主 `SendTurn` 走同一代理 |
+| 4 左下切换 + 先拷后删 | UI + Desktop RPC | `ComposerHostSwitch`（迁移中禁用）、`migrateConversationHost`（先 activateTarget 再 deleteSource；Finalize 失败删 migrating 目标）、`desktop/cloud-agent-client.cjs`（`CloudAgentInvoke`，Bearer 只在 Electron main）；云宿主 `SendTurn` 走同一代理 |
 | 5 原生双端 | Connect-JSON + Subscribe | `mobile/ios`、`mobile/android`：PKCE、`Info.plist` / `AndroidManifest` deep link、列表 + 对话、`SendTurn` / `Subscribe` 长轮询重连 |
-| 云端 BYOK | 设置入口 | `CloudCredentialSettings` → `UpsertCredential`；Worker AES-GCM（`CREDENTIAL_KEK`）+ D1；无 KEK 时拒绝存盘；明文成功后清空 |
+| 云端 BYOK | 设置入口 | `CloudCredentialSettings` → `UpsertCredential`；Worker AES-GCM（`CREDENTIAL_KEK`）+ **必须有 D1**；无 KEK 或无 D1 时 503，不返回假 id；明文成功后清空 |
+| 会话归属 | Worker | `owner_token_hash` = SHA-256(账户主体)：优先 `account.id`，否则 `github:<login>`；**不**绑 accessToken，换 token 不丢会话 |
 | Subscribe 流 | 已落地 | Worker `application/connect+json` 长轮询窗口 + `after_event_id`；桌面 main 自动重连；stub `SendTurn` 发 thinking / chunked delta / `turn.settled` |
+| 本地可测 | `cloud/agent` | `npm test`：归属 / 迁移状态机 / BYOK 拒存，无需 CF 登录 |
 
 桌面渲染进程**不得**持有账户 Bearer；云 unary / Subscribe 一律走 Electron main。
 空画布可用 `pendingHost`；已开回合迁移成功后写入 `cloudSessionId`。

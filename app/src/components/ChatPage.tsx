@@ -379,6 +379,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
   const modelCatalogSnapshot = catalog.snapshot
 
   const [goalMode, setGoalMode] = useState(false)
+  const [hostMigrating, setHostMigrating] = useState(false)
   const [stagedComposerPrompt, setStagedComposerPrompt] = useState<{
     conversationId: string
     prompt: string
@@ -2846,6 +2847,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
             kernelLocked={Boolean(conversation?.messages.some(message => message.role === 'user' && message.status !== 'queued'))}
             conversationHost={conversation?.host ?? conversations.pendingHost ?? 'local'}
             conversationStarted={Boolean(conversation?.messages?.length)}
+            conversationHostMigrating={hostMigrating}
             onChangeConversationHost={async host => {
               if (!conversation?.id) {
                 conversations.setHost(host)
@@ -2855,41 +2857,53 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
                 conversations.setHost(host)
                 return
               }
+              if (hostMigrating) return
+              const direction = host === 'cloud' ? 'local_to_cloud' as const : 'cloud_to_local' as const
+              const sourceSessionId = direction === 'cloud_to_local'
+                ? (conversation.cloudSessionId ?? '')
+                : conversation.id
+              if (direction === 'cloud_to_local' && !sourceSessionId) {
+                conversations.setHost('local')
+                return
+              }
+              setHostMigrating(true)
               try {
                 const { migrateConversationHost } = await import('@/lib/cloud/migrateConversationHost')
-                const direction = host === 'cloud' ? 'local_to_cloud' as const : 'cloud_to_local' as const
-                const sourceSessionId = direction === 'cloud_to_local'
-                  ? (conversation.cloudSessionId ?? '')
-                  : conversation.id
-                if (direction === 'cloud_to_local' && !sourceSessionId) {
-                  conversations.setHost('local')
-                  return
-                }
                 await migrateConversationHost({
                   direction,
                   sourceSessionId,
                   messageCount: conversation.messages.length,
                   transcriptJson: JSON.stringify(conversation.messages),
-                  deleteSource: async () => {
-                    // In-place host flip: keep the conversation row; engine session
-                    // cleanup lands with full cloud list sync.
+                  // Flip host only after target is verified — never inside createLocal.
+                  activateTarget: async targetSessionId => {
+                    if (direction === 'local_to_cloud') {
+                      conversations.setHost('cloud', targetSessionId)
+                    } else {
+                      conversations.setHost('local')
+                    }
+                  },
+                  deleteSource: async id => {
+                    if (direction === 'local_to_cloud') {
+                      // In-place flip: same sidebar row becomes the cloud target.
+                      // Retire local engine work; do not archive the active row.
+                      await conversations.abort(id)
+                      return
+                    }
+                    // Cloud source already deleted via DeleteSession in migrate helper.
+                    void id
                   },
                   createLocalFromTranscript: async () => {
-                    conversations.setHost('local')
+                    // Keep the same conversation id; host flips in activateTarget only.
                     return conversation.id
                   },
-                }).then(result => {
-                  if (host === 'cloud') {
-                    conversations.setHost('cloud', result.targetSessionId)
-                  } else {
-                    conversations.setHost('local')
-                  }
                 })
               } catch (error) {
                 toastError(
                   error,
                   t('切换本地/云失败', 'Failed to switch local/cloud'),
                 )
+              } finally {
+                setHostMigrating(false)
               }
             }}
             planModeActive={conversation?.planMode?.active === true}

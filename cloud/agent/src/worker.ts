@@ -15,7 +15,8 @@
  * deployable without codegen on every laptop.
  */
 
-import { encryptCredentialSecret } from './credential-crypto'
+import { accountOwnerFromPayload, type AccountOwner } from './account-owner.ts'
+import { encryptCredentialSecret } from './credential-crypto.ts'
 import {
   d1AppendEvent,
   d1DeleteSession,
@@ -28,10 +29,11 @@ import {
   memorySet,
   type SessionEventRow,
   type SessionRow,
-} from './session-store'
+} from './session-store.ts'
 
-// Re-export when Sandbox Durable Object is bound (CF Sandbox get-started).
-export { Sandbox } from '@cloudflare/sandbox'
+// Sandbox Durable Object class is re-exported from ./index.ts (wrangler main)
+// so unit/integration tests can import this module without resolving
+// @cloudflare/sandbox.
 
 export interface Env {
   DB?: D1Database
@@ -68,14 +70,14 @@ async function saveSession(env: Env, row: SessionRow): Promise<void> {
   if (env.DB) await d1SaveSession(env.DB, row)
 }
 
-async function listOwnerSessions(env: Env, tokenHash: string): Promise<SessionRow[]> {
-  if (env.DB) return d1ListSessions(env.DB, tokenHash)
-  return memoryList(tokenHash)
+async function listOwnerSessions(env: Env, ownerKey: string): Promise<SessionRow[]> {
+  if (env.DB) return d1ListSessions(env.DB, ownerKey)
+  return memoryList(ownerKey)
 }
 
-async function removeSession(env: Env, id: string, tokenHash: string): Promise<void> {
+async function removeSession(env: Env, id: string, ownerKey: string): Promise<void> {
   memoryDelete(id)
-  if (env.DB) await d1DeleteSession(env.DB, id, tokenHash)
+  if (env.DB) await d1DeleteSession(env.DB, id, ownerKey)
 }
 
 function encodeEnvelope(message: Json, flags = 0): Uint8Array {
@@ -198,21 +200,22 @@ function bearer(request: Request): string | null {
   return m ? m[1].trim() : null
 }
 
-async function hashToken(token: string): Promise<string> {
-  const data = new TextEncoder().encode(token)
-  const digest = await crypto.subtle.digest('SHA-256', data)
-  return [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, '0')).join('')
-}
-
-async function assertAccount(env: Env, token: string): Promise<boolean> {
+/**
+ * Resolve a stable account owner from /v1/account.
+ * Ownership keys are derived from account.id / githubLogin — never from the
+ * access token — so refresh does not orphan cloud sessions or BYOK rows.
+ */
+async function assertAccount(env: Env, token: string): Promise<AccountOwner | null> {
   const base = (env.ACCOUNT_API_URL || 'https://accounts.milksu.org').replace(/\/$/, '')
   try {
     const res = await fetch(`${base}/v1/account`, {
       headers: { authorization: `Bearer ${token}` },
     })
-    return res.ok
+    if (!res.ok) return null
+    const payload = await res.json().catch(() => null)
+    return accountOwnerFromPayload(payload)
   } catch {
-    return false
+    return null
   }
 }
 
@@ -244,10 +247,12 @@ export default {
     }
 
     const token = bearer(request)
-    if (!token || !(await assertAccount(env, token))) {
+    const owner = token ? await assertAccount(env, token) : null
+    if (!owner) {
       return unauthorized()
     }
-    const tokenHash = await hashToken(token)
+    // ownerKey is SHA-256(account subject); column name stays owner_token_hash.
+    const ownerKey = owner.ownerKey
 
     const prefix = '/milksu.cloud.v1.CloudSessionService/'
     if (!url.pathname.startsWith(prefix)) {
@@ -264,7 +269,7 @@ export default {
 
     switch (method) {
       case 'ListSessions': {
-        const list = (await listOwnerSessions(env, tokenHash)).map(publicSession)
+        const list = (await listOwnerSessions(env, ownerKey)).map(publicSession)
         return json({ sessions: list })
       }
       case 'CreateSession': {
@@ -278,7 +283,7 @@ export default {
           created_at_ms: now,
           updated_at_ms: now,
           transcript_json: '[]',
-          owner_token_hash: tokenHash,
+          owner_token_hash: ownerKey,
           events: [],
         }
         await saveSession(env, row)
@@ -287,7 +292,7 @@ export default {
       case 'GetSession': {
         const id = String(body.session_id || '')
         const row = await loadSession(env, id)
-        if (!row || row.owner_token_hash !== tokenHash) {
+        if (!row || row.owner_token_hash !== ownerKey) {
           return json({ code: 'not_found', message: 'Session not found' }, 404)
         }
         return json(publicSession(row))
@@ -295,8 +300,8 @@ export default {
       case 'DeleteSession': {
         const id = String(body.session_id || '')
         const row = await loadSession(env, id)
-        if (row && row.owner_token_hash === tokenHash) {
-          await removeSession(env, id, tokenHash)
+        if (row && row.owner_token_hash === ownerKey) {
+          await removeSession(env, id, ownerKey)
         }
         return json({})
       }
@@ -307,7 +312,7 @@ export default {
           return json({ code: 'invalid_argument', message: 'session_id required' }, 400)
         }
         const row = await loadSession(env, sessionId)
-        if (!row || row.owner_token_hash !== tokenHash) {
+        if (!row || row.owner_token_hash !== ownerKey) {
           return json({ code: 'not_found', message: 'Session not found' }, 404)
         }
         const turnId = crypto.randomUUID()
@@ -392,7 +397,7 @@ export default {
       case 'AbortTurn': {
         const sessionId = String(body.session_id || '').trim()
         const row = await loadSession(env, sessionId)
-        if (!row || row.owner_token_hash !== tokenHash) {
+        if (!row || row.owner_token_hash !== ownerKey) {
           return json({ code: 'not_found', message: 'Session not found' }, 404)
         }
         row.status = 'ready'
@@ -404,7 +409,7 @@ export default {
       case 'Subscribe': {
         const sessionId = String(body.session_id || '').trim()
         const row = await loadSession(env, sessionId)
-        if (!row || row.owner_token_hash !== tokenHash) {
+        if (!row || row.owner_token_hash !== ownerKey) {
           return json({ code: 'not_found', message: 'Session not found' }, 404)
         }
         let cursor = 0
@@ -436,7 +441,7 @@ export default {
                     live = fresh
                   }
                 }
-                if (!live || live.owner_token_hash !== tokenHash) break
+                if (!live || live.owner_token_hash !== ownerKey) break
                 while (cursor < live.events.length) {
                   const event = live.events[cursor]
                   cursor += 1
@@ -481,14 +486,14 @@ export default {
         const now = Date.now()
         const row: SessionRow = {
           id: crypto.randomUUID(),
-          title: 'Migrated',
-          kernel: 'pi',
-          model: '',
+          title: String(body.title || 'Migrated'),
+          kernel: String(body.kernel || 'pi'),
+          model: String(body.model || ''),
           status: 'migrating',
           created_at_ms: now,
           updated_at_ms: now,
           transcript_json: String(body.transcript_json || '[]'),
-          owner_token_hash: tokenHash,
+          owner_token_hash: ownerKey,
           events: [],
         }
         await saveSession(env, row)
@@ -501,8 +506,11 @@ export default {
       case 'MigrateFinalize': {
         const id = String(body.target_session_id || '')
         const row = await loadSession(env, id)
-        if (!row || row.owner_token_hash !== tokenHash) {
+        if (!row || row.owner_token_hash !== ownerKey) {
           return json({ ok: false, error: 'target session not found' })
+        }
+        if (row.status !== 'migrating' && row.status !== 'ready') {
+          return json({ ok: false, error: `cannot finalize status=${row.status}` })
         }
         row.status = 'ready'
         row.updated_at_ms = Date.now()
@@ -514,16 +522,23 @@ export default {
         if (!apiKey) {
           return json({ code: 'invalid_argument', message: 'api_key required' }, 400)
         }
-        const id = String(body.id || crypto.randomUUID())
-        const label = String(body.label || '')
-        const baseUrl = String(body.base_url || '')
-        // Encrypt when CREDENTIAL_KEK is bound; never echo api_key back.
+        // Durable BYOK requires both KEK and D1. Never return a fake success id
+        // when ciphertext would be discarded.
         if (!env.CREDENTIAL_KEK) {
           return json({
             code: 'failed_precondition',
             message: 'CREDENTIAL_KEK not bound; refuse to store cloud credentials',
           }, 503)
         }
+        if (!env.DB) {
+          return json({
+            code: 'failed_precondition',
+            message: 'D1 not bound; refuse to store cloud credentials without durable storage',
+          }, 503)
+        }
+        const id = String(body.id || crypto.randomUUID())
+        const label = String(body.label || '')
+        const baseUrl = String(body.base_url || '')
         let sealed: { iv_b64: string; ciphertext_b64: string }
         try {
           sealed = await encryptCredentialSecret(env.CREDENTIAL_KEK, apiKey)
@@ -533,33 +548,29 @@ export default {
             message: error instanceof Error ? error.message : 'encrypt failed',
           }, 500)
         }
-        if (env.DB) {
-          const now = Date.now()
-          await env.DB.prepare(
-            `INSERT INTO cloud_credentials
-              (id, owner_token_hash, label, base_url, iv_b64, ciphertext_b64, created_at_ms, updated_at_ms)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-             ON CONFLICT(id) DO UPDATE SET
-               label=excluded.label,
-               base_url=excluded.base_url,
-               iv_b64=excluded.iv_b64,
-               ciphertext_b64=excluded.ciphertext_b64,
-               updated_at_ms=excluded.updated_at_ms
-             WHERE owner_token_hash=?`,
-          ).bind(
-            id,
-            tokenHash,
-            label,
-            baseUrl,
-            sealed.iv_b64,
-            sealed.ciphertext_b64,
-            now,
-            now,
-            tokenHash,
-          ).run()
-        }
-        // Without D1 the ciphertext is discarded after this response — deploy
-        // must bind DB before BYOK is durable. Still never return plaintext.
+        const now = Date.now()
+        await env.DB.prepare(
+          `INSERT INTO cloud_credentials
+            (id, owner_token_hash, label, base_url, iv_b64, ciphertext_b64, created_at_ms, updated_at_ms)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET
+             label=excluded.label,
+             base_url=excluded.base_url,
+             iv_b64=excluded.iv_b64,
+             ciphertext_b64=excluded.ciphertext_b64,
+             updated_at_ms=excluded.updated_at_ms
+           WHERE owner_token_hash=?`,
+        ).bind(
+          id,
+          ownerKey,
+          label,
+          baseUrl,
+          sealed.iv_b64,
+          sealed.ciphertext_b64,
+          now,
+          now,
+          ownerKey,
+        ).run()
         return json({ id })
       }
       case 'DeleteCredential': {
@@ -567,7 +578,7 @@ export default {
         if (env.DB && id) {
           await env.DB.prepare(
             'DELETE FROM cloud_credentials WHERE id = ? AND owner_token_hash = ?',
-          ).bind(id, tokenHash).run()
+          ).bind(id, ownerKey).run()
         }
         return json({})
       }
