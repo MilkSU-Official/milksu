@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/MilkSU-Official/milksu/internal/securityruntime"
 )
@@ -19,6 +20,7 @@ func Project(core securityruntime.JobProjection) (Projection, error) {
 	var rootCause *RootCause
 	hypotheses := make([]Hypothesis, 0)
 	learning := make([]LearningRecord, 0)
+	forgotten := make(map[string]struct{})
 	assetVerifications := make([]AssetVerification, 0)
 	for _, fact := range core.RoleFacts {
 		if fact.PackageID != PackageID || fact.SchemaVersion != SchemaVersion {
@@ -72,6 +74,14 @@ func Project(core securityruntime.JobProjection) (Projection, error) {
 				return Projection{}, fmt.Errorf("invalid vulnerability learning fact")
 			}
 			learning = append(learning, value)
+		case FactLearningForgotten:
+			var value struct {
+				ID string `json:"id"`
+			}
+			if err := json.Unmarshal(fact.Data, &value); err != nil || strings.TrimSpace(value.ID) == "" {
+				return Projection{}, fmt.Errorf("invalid forgotten vulnerability learning fact")
+			}
+			forgotten[strings.TrimSpace(value.ID)] = struct{}{}
 		case FactAssetVerificationRecorded:
 			var value AssetVerification
 			if err := json.Unmarshal(fact.Data, &value); err != nil || value.ID == "" || value.Status == "" {
@@ -112,6 +122,17 @@ func Project(core securityruntime.JobProjection) (Projection, error) {
 			experiment.ArtifactIDs = append(experiment.ArtifactIDs, artifactIDsByAction[action.ID]...)
 		}
 		experiments = append(experiments, experiment)
+	}
+
+	if len(forgotten) > 0 {
+		kept := make([]LearningRecord, 0, len(learning))
+		for _, record := range learning {
+			if _, skip := forgotten[record.ID]; skip {
+				continue
+			}
+			kept = append(kept, record)
+		}
+		learning = kept
 	}
 
 	humanOutcome := HumanOutcomeView{

@@ -154,10 +154,14 @@ type AppSettings struct {
 	// ImageGenProvider / ImageGenModel / ImageGenSource select the paid image
 	// tool route. They are independent of active_provider / active_model (chat),
 	// companion_*, and worker_*. Empty means milksu_imagegen stays unavailable.
-	ImageGenProvider        string `json:"imagegen_provider,omitempty"`
-	ImageGenModel           string `json:"imagegen_model,omitempty"`
-	ImageGenSource          string `json:"imagegen_source,omitempty"`
-	PreferredExternalEditor string `json:"preferred_external_editor,omitempty"`
+	ImageGenProvider string `json:"imagegen_provider,omitempty"`
+	ImageGenModel    string `json:"imagegen_model,omitempty"`
+	ImageGenSource   string `json:"imagegen_source,omitempty"`
+	// CompanionMemoryExtract is off, turn (after each reply), or idle.
+	CompanionMemoryExtract string `json:"companion_memory_extract,omitempty"`
+	// CompanionMemoryExtractIdleMinutes is 5, 10, 15, 30, or 60.
+	CompanionMemoryExtractIdleMinutes int    `json:"companion_memory_extract_idle_minutes,omitempty"`
+	PreferredExternalEditor           string `json:"preferred_external_editor,omitempty"`
 	// UiFont and ConversationFont are preset ids from app/src/lib/uiFonts.ts.
 	// UiFontSize and ConversationFontSize are concrete px strings such as "13".
 	UiFont               string `json:"ui_font,omitempty"`
@@ -1256,6 +1260,8 @@ func normalizeCompanionSettings(value AppSettings) AppSettings {
 	value.CompanionProactivity = normalizeCompanionProactivity(value.CompanionProactivity)
 	value.CompanionTeaching = NormalizeCompanionTeaching(value.CompanionTeaching)
 	value.CompanionReplyStyle = NormalizeCompanionReplyStyle(value.CompanionReplyStyle)
+	value.CompanionMemoryExtract = NormalizeCompanionMemoryExtract(value.CompanionMemoryExtract)
+	value.CompanionMemoryExtractIdleMinutes = NormalizeCompanionMemoryExtractIdleMinutes(value.CompanionMemoryExtractIdleMinutes)
 	return value
 }
 
@@ -1317,6 +1323,34 @@ func CompanionDispatchEnabled(settings AppSettings) bool {
 func CompanionMemoryEnabled(settings AppSettings) bool {
 	settings = normalizeCompanionSettings(settings)
 	return settings.CompanionMemoryEnabled == nil || *settings.CompanionMemoryEnabled
+}
+
+func NormalizeCompanionMemoryExtract(value string) string {
+	switch strings.TrimSpace(value) {
+	case "off", "idle":
+		return strings.TrimSpace(value)
+	default:
+		return "turn"
+	}
+}
+
+func NormalizeCompanionMemoryExtractIdleMinutes(value int) int {
+	switch value {
+	case 5, 10, 15, 30, 60:
+		return value
+	default:
+		return 10
+	}
+}
+
+func CompanionMemoryExtract(settings AppSettings) string {
+	settings = normalizeCompanionSettings(settings)
+	return settings.CompanionMemoryExtract
+}
+
+func CompanionMemoryExtractIdleMinutes(settings AppSettings) int {
+	settings = normalizeCompanionSettings(settings)
+	return settings.CompanionMemoryExtractIdleMinutes
 }
 
 func NormalizeCompanionReplyStyle(value string) string {

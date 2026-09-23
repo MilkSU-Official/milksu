@@ -16,6 +16,11 @@ import { companionProviderEnvironment } from "./companion-model-env.js";
 import { companionSystemPrompt } from "./system-prompt.js";
 import { reviewCompanionDraft, rewriteLastAssistantReply } from "./reply-review.js";
 import {
+  applySemanticMemorySnapshot,
+  createMemoryExtractController,
+  extractCompanionMemories,
+} from "./memory-extract.js";
+import {
   companionAssistantTurnError,
   repairCompanionToolHistory,
   stampCompanionAbortedTurn,
@@ -40,10 +45,21 @@ let promptQueue = Promise.resolve();
 let turnAborted = false;
 let boardSnapshot = { sessions: [], todos: [] };
 let semanticMemories = [];
+let semanticMemoryRevision = -1;
 let episodicRecalls = [];
 let persona = "";
 let memorySearchEnabled = true;
 let replyStyle = "markdown";
+const memoryExtract = createMemoryExtractController({
+  extract: job => runMemoryExtract(job),
+  // One quiet-period timer. clearTimeout drops a wait that has not fired.
+  // The controller drops a callback that already reached the queue when a
+  // newer wait, a new turn, or an in-flight extract supersedes it.
+  setTimer: (fn, ms) => setTimeout(() => {
+    promptQueue = promptQueue.then(() => fn());
+  }, ms),
+  clearTimer: handle => clearTimeout(handle),
+});
 let heldReply = "";
 let captureReply = false;
 let turnGate = null;
@@ -501,11 +517,58 @@ async function completeCompanionReview(context) {
   }
 }
 
+function applySemanticMemories(memories, revision) {
+  const next = applySemanticMemorySnapshot(
+    { memories: semanticMemories, revision: semanticMemoryRevision },
+    memories,
+    revision,
+  );
+  semanticMemories = next.memories;
+  semanticMemoryRevision = next.revision;
+}
+
+function applyMemoryExtract(command) {
+  if (command?.memoryExtract == null && command?.memoryExtractIdleMinutes == null) return;
+  memoryExtract.configure({
+    mode: command.memoryExtract,
+    idleMinutes: command.memoryExtractIdleMinutes,
+  });
+}
+
+function memoryExtractIsStale(job) {
+  return typeof job?.stale === "function" && job.stale();
+}
+
+async function runMemoryExtract(job) {
+  if (memoryExtractIsStale(job)) return { committed: false };
+  const stretch = Array.isArray(job?.stretch) ? job.stretch : [];
+  const userText = stretch.map(item => String(item?.user ?? "").trim()).filter(Boolean).join("\n");
+  if (!userText) return { committed: true };
+  const assistantText = stretch.map(item => String(item?.assistant ?? "").trim()).filter(Boolean).join("\n");
+  const items = await extractCompanionMemories({
+    userText,
+    assistantText,
+    memories: semanticMemories,
+    locale: uiLocale,
+    maxItems: job?.maxItems,
+    complete: completeCompanionReview,
+  });
+  if (memoryExtractIsStale(job)) return { committed: false };
+  if (!items.length) return { committed: true };
+  const result = await requestHost("memory", {
+    action: "commit",
+    userText,
+    items,
+  });
+  applySemanticMemories(result?.approved, result?.revision);
+  return { committed: true };
+}
+
 async function publishReviewedReply(userText) {
   const draft = heldReply;
   heldReply = "";
   captureReply = false;
-  if (turnAborted || !String(draft).trim()) return;
+  if (turnAborted || !String(draft).trim()) return "";
   const reviewed = await reviewCompanionDraft({
     draft,
     userText,
@@ -513,13 +576,14 @@ async function publishReviewedReply(userText) {
     replyStyle,
     complete: completeCompanionReview,
   });
-  if (turnAborted) return;
+  if (turnAborted) return "";
   rewriteLastAssistantReply([
     session?.messages,
     session?.agent?.state?.messages,
     session?.sessionManager?.getEntries?.(),
   ], reviewed);
   if (replyStyle !== "chat") emit("text_delta", { delta: reviewed });
+  return reviewed;
 }
 
 async function sendPrompt(command) {
@@ -543,6 +607,7 @@ async function sendPrompt(command) {
   // timeout — that aborted the loop mid-turn.
   promptQueue = promptQueue.then(async () => {
     const gate = armReplyCapture();
+    memoryExtract.beginTurn();
     try {
       await retrieveCompanionTurnMemory(prepared.prompt);
       const pending = session.prompt(prepared.prompt, {
@@ -560,10 +625,18 @@ async function sendPrompt(command) {
         openReplyCapture();
       }
       await gate.done;
-      if (turnAborted) return;
-      await publishReviewedReply(prepared.prompt);
+      if (turnAborted) {
+        await memoryExtract.finishTurn({ aborted: true });
+        return;
+      }
+      const assistantText = await publishReviewedReply(prepared.prompt);
       flushCompanionSessionFile();
       emit("turn_settled", {});
+      await memoryExtract.finishTurn({
+        userText: prepared.prompt,
+        assistantText,
+        aborted: turnAborted,
+      });
     } catch (error) {
       openReplyCapture();
       captureReply = false;
@@ -573,10 +646,12 @@ async function sendPrompt(command) {
         repairCompanionSessionHistory("companion tool interrupted by abort");
         persistCompanionAbortedTurn();
         flushCompanionSessionFile();
+        await memoryExtract.finishTurn({ aborted: true });
         return;
       }
       emit("error", { error: error instanceof Error ? error.message : String(error) });
       emit("turn_settled", {});
+      await memoryExtract.finishTurn({ aborted: true });
     }
   });
 }
@@ -594,6 +669,7 @@ async function handleCommand(command) {
       applyReplyStyle(command);
       if (command.memorySearchEnabled === false) memorySearchEnabled = false;
       if (command.memorySearchEnabled === true) memorySearchEnabled = true;
+      applyMemoryExtract(command);
       await createCompanionSession(command);
       if (!subscribed) {
         subscribeCompanion();
@@ -609,20 +685,51 @@ async function handleCommand(command) {
         subscribed = true;
       }
       if (command.boardSnapshot) boardSnapshot = command.boardSnapshot;
-      if (Array.isArray(command.semanticMemories)) semanticMemories = command.semanticMemories;
+      if (Array.isArray(command.semanticMemories)) {
+        applySemanticMemories(command.semanticMemories, command.memoryRevision);
+      }
       if (Array.isArray(command.episodicRecalls)) episodicRecalls = command.episodicRecalls;
       if (typeof command.persona === "string") persona = command.persona;
       if (command.memorySearchEnabled === false) memorySearchEnabled = false;
       if (command.memorySearchEnabled === true) memorySearchEnabled = true;
+      applyMemoryExtract(command);
       await sendPrompt(command);
+      return;
+    case "note_turn":
+      if (command.phase === "begin") {
+        memoryExtract.beginTurn();
+        return;
+      }
+      {
+        const job = {
+          userText: command.userText,
+          assistantText: command.assistantText,
+          aborted: command.aborted === true,
+        };
+        promptQueue = promptQueue.then(async () => {
+          try {
+            await memoryExtract.finishTurn(job);
+          } finally {
+            if (memorySearchEnabled) scheduleCompanionIndexRefresh();
+          }
+        });
+      }
+      return;
+    case "refresh_index":
+      if (memorySearchEnabled) scheduleCompanionIndexRefresh();
       return;
     case "update_context":
       applyCompanionLocale(command);
       applyReplyStyle(command);
       if (command.boardSnapshot) boardSnapshot = command.boardSnapshot;
-      if (Array.isArray(command.semanticMemories)) semanticMemories = command.semanticMemories;
+      if (Array.isArray(command.semanticMemories)) {
+        applySemanticMemories(command.semanticMemories, command.memoryRevision);
+      }
       if (Array.isArray(command.episodicRecalls)) episodicRecalls = command.episodicRecalls;
       if (typeof command.persona === "string") persona = command.persona;
+      if (command.memorySearchEnabled === false) memorySearchEnabled = false;
+      if (command.memorySearchEnabled === true) memorySearchEnabled = true;
+      applyMemoryExtract(command);
       emit("context_updated", {});
       return;
     case "companion_host_response":

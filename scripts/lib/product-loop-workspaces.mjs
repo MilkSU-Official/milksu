@@ -2,13 +2,26 @@
  * CTF / CVE / Lab workspace cases. Official Desktop RPC + product buttons.
  */
 
+import { access, readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { delay } from './desktop-gui-driver.mjs'
+import {
+  cveLearningNote,
+  cveResearchConversationId,
+  judgeLearningRound,
+  learningContents,
+  learningIdForNote,
+  memoryErrorText,
+  PRODUCT_LOOP_CVE_ID,
+  productLoopMemoryMarker,
+} from './product-loop-memory.mjs'
 import {
   clickAria,
   clickLabeled,
   dismissOverlays,
   expectLabels,
   fail,
+  fillAria,
   isNewConversationCanvas,
   leaveSettings,
   openSettingsCategory,
@@ -526,6 +539,154 @@ export async function runWorkspaceLabStatus(driver) {
   return pass(status.sdkRoot || status.studioFound
     ? '这台电脑已经能看到 Android 环境'
     : 'Lab 环境状态读到了，本机还没装齐')
+}
+
+async function openCveDossierRow(driver, cveId) {
+  await showCveCatalog(driver)
+  await fillAria(driver, ['搜索 CVE', 'Search CVE'], cveId).catch(() => false)
+  await delay(300)
+  return driver.cdp.callFunction(`function(cveId) {
+    const rows = Array.from(document.querySelectorAll('[data-testid="catalog-row"]'))
+    const row = rows.find(node => (node.textContent || '').includes(cveId))
+    const button = row?.querySelector('[data-testid="open-item"]')
+    if (!button) return false
+    button.click()
+    return true
+  }`, [cveId])
+}
+
+async function readLearningFile(path) {
+  try {
+    await access(path)
+  } catch (error) {
+    if (error?.code === 'ENOENT') return { exists: false, text: '', readError: '' }
+    return { exists: false, text: '', readError: error instanceof Error ? error.message : String(error) }
+  }
+  try {
+    return { exists: true, text: await readFile(path, 'utf8'), readError: '' }
+  } catch (error) {
+    return { exists: false, text: '', readError: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+export async function runWorkspaceCveLearning(driver) {
+  const cveId = PRODUCT_LOOP_CVE_ID
+  const marker = productLoopMemoryMarker('pllearn')
+  const note = cveLearningNote(marker)
+  let jobId = ''
+  let learningId = ''
+  try {
+    let projection
+    try {
+      projection = await driver.invoke('EnsureVulnTrackingWorkspace', [{
+        cveId,
+        title: 'product-loop CVE learning',
+        summary: 'product-loop 档案复盘',
+      }])
+    } catch (error) {
+      return fail(`建不起 CVE 跟踪：${memoryErrorText(error)}`)
+    }
+    jobId = jobIdOf(projection)
+    if (!jobId) return fail('EnsureVulnTrackingWorkspace 没有留下任务 id')
+    const nav = await openDomain(driver, ['CVE'])
+    if (!nav.ok) return fail(nav.detail)
+    if (!await openCveDossierRow(driver, cveId)) return fail(`列表里点不开 ${cveId}`)
+    await delay(400)
+    if (!snapshotHas(await pageSnapshot(driver), ['学习记录', 'Learning', '报告', 'Report'])) {
+      return fail('档案上没有学习记录')
+    }
+    const empty = await driver.cdp.evaluate(`(() => {
+      const area = document.querySelector('textarea[aria-label="学习记录"], textarea[aria-label="Learning"]')
+      const button = Array.from(document.querySelectorAll('button')).find(node => {
+        const text = (node.textContent || '').trim()
+        return text === '记下' || text === 'Save'
+      })
+      return { area: Boolean(area), disabled: button ? Boolean(button.disabled) : null }
+    })()`)
+    if (!empty?.area) return fail('档案上没有学习记录输入框')
+    if (empty.disabled == null) return fail('档案上没有记下')
+    if (!empty.disabled) return fail('空着的时候记下不是关的')
+    let workspaceError = ''
+    const workspace = await waitFor(async () => {
+      try {
+        const path = await driver.invoke('EnsureCodingArtifactWorkspace', [cveResearchConversationId(cveId)])
+        return typeof path === 'string' && path.trim() ? path.trim() : null
+      } catch (error) {
+        workspaceError = memoryErrorText(error)
+        return null
+      }
+    }, 8_000)
+    if (!workspace) return fail(workspaceError ? `研究工作区没建起来：${workspaceError}` : '研究工作区没有路径')
+    const learningPath = join(workspace, 'LEARNING.md')
+    if (!await fillAria(driver, ['学习记录', 'Learning'], note)) return fail('学习记录打不进字')
+    await delay(200)
+    const armed = await driver.cdp.evaluate(`(() => {
+      const button = Array.from(document.querySelectorAll('button')).find(node => {
+        const text = (node.textContent || '').trim()
+        return text === '记下' || text === 'Save'
+      })
+      return button ? !button.disabled : false
+    })()`)
+    if (!armed) return fail('写下复盘之后记下仍然是关的')
+    if (!await clickLabeled(driver, ['记下', 'Save'])) return fail('点不了记下')
+    const saved = await waitFor(async () => {
+      const job = await driver.invoke('GetVulnJob', [jobId]).catch(() => null)
+      return learningContents(job).some(text => text.includes(marker)) ? job : null
+    }, 8_000)
+    if (!saved) return fail('记下之后任务里没有这条复盘')
+    learningId = learningIdForNote(saved, marker)
+    const written = judgeLearningRound({
+      phase: 'saved',
+      note,
+      ...(await readLearningFile(learningPath)),
+    })
+    if (!written.ok) return fail(written.reason)
+    const forgot = await driver.cdp.callFunction(`function(marker) {
+      const buttons = Array.from(document.querySelectorAll('button')).filter(node => {
+        const text = (node.textContent || '').trim()
+        return text === '忘掉' || text === 'Forget'
+      })
+      let best = null
+      for (const button of buttons) {
+        let parent = button.parentElement
+        for (let depth = 0; depth < 8 && parent; depth += 1) {
+          const text = parent.textContent || ''
+          if (text.includes(marker) && (!best || text.length < best.length)) {
+            best = { button, length: text.length }
+            break
+          }
+          parent = parent.parentElement
+        }
+      }
+      if (!best) return 'missing'
+      if (best.button.disabled) return 'disabled'
+      best.button.click()
+      return 'clicked'
+    }`, [marker])
+    if (forgot === 'disabled') return fail('忘掉是关的，档案没有挂上任务')
+    if (forgot !== 'clicked') return fail('档案上点不到这条复盘的忘掉')
+    const cleared = await waitFor(async () => {
+      const job = await driver.invoke('GetVulnJob', [jobId]).catch(() => null)
+      if (!job) return null
+      return learningContents(job).some(text => text.includes(marker)) ? null : job
+    }, 8_000)
+    if (!cleared) return fail('忘掉之后任务里还有这条复盘')
+    const remaining = learningContents(cleared).length
+    const removed = judgeLearningRound({
+      phase: 'forgotten',
+      note,
+      remaining,
+      ...(await readLearningFile(learningPath)),
+    })
+    if (!removed.ok) return fail(removed.reason)
+    if (snapshotHas(await pageSnapshot(driver), [marker])) return fail('忘掉之后页面上还看得到这条复盘')
+    learningId = ''
+    return pass(`档案记下并忘掉了 ${cveId} 的复盘，LEARNING.md 跟着变了`)
+  } finally {
+    if (jobId && learningId) {
+      await driver.invoke('ForgetVulnLearning', [jobId, learningId]).catch(() => {})
+    }
+  }
 }
 
 export async function runWorkspaceLabDocker(driver) {

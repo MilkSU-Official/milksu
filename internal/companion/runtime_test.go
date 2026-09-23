@@ -254,6 +254,124 @@ type nopWriteCloser struct {
 
 func (nopWriteCloser) Close() error { return nil }
 
+func TestPersistDoesNotWriteBackAMemoryForgottenDuringSnapshot(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "companion-state.json")
+	runtime := NewRuntime(RuntimeOptions{StatePath: path})
+	if _, err := runtime.handleHost("memory", map[string]any{
+		"action":   "commit",
+		"userText": "以后都用中文回复我",
+		"items": []any{map[string]any{
+			"action":   "create",
+			"title":    "回复语言",
+			"markdown": "回复保持简体中文",
+			"evidence": "以后都用中文回复我",
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	approved := runtime.MemorySnapshot().Approved
+	if len(approved) != 1 {
+		t.Fatalf("approved: %#v", approved)
+	}
+	id := approved[0].ID
+	runtime.persistHook = func() {
+		if _, err := runtime.memory.Forget(id); err != nil {
+			t.Errorf("forget: %v", err)
+		}
+	}
+	if _, err := runtime.handleHost("memory", map[string]any{
+		"action":   "commit",
+		"userText": "叫我 Milk",
+		"items": []any{map[string]any{
+			"action":   "create",
+			"title":    "称呼",
+			"markdown": "称呼用户 Milk",
+			"evidence": "叫我 Milk",
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	reloaded := NewRuntime(RuntimeOptions{StatePath: path})
+	for _, row := range reloaded.MemorySnapshot().Approved {
+		if row.ID == id {
+			t.Fatal("stale snapshot wrote a forgotten memory back")
+		}
+	}
+	if !reloaded.memory.Forgotten(id) {
+		t.Fatal("forgotten id was dropped from the state file")
+	}
+	kept := false
+	for _, row := range reloaded.MemorySnapshot().Approved {
+		if row.Markdown == "称呼用户 Milk" {
+			kept = true
+		}
+	}
+	if !kept {
+		t.Fatal("the commit that raced the forget should stay stored")
+	}
+}
+
+func TestNoteExternalTurnWritesTheSharedExtract(t *testing.T) {
+	reader, writer := io.Pipe()
+	var mu sync.Mutex
+	var writes []map[string]any
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		scanner := bufio.NewScanner(reader)
+		for scanner.Scan() {
+			var raw map[string]any
+			if json.Unmarshal(scanner.Bytes(), &raw) != nil {
+				continue
+			}
+			mu.Lock()
+			writes = append(writes, raw)
+			mu.Unlock()
+		}
+	}()
+	runtime := NewRuntime(RuntimeOptions{})
+	runtime.NoteExternalTurn("begin", "以后都用中文", "", false)
+	runtime.ready = true
+	runtime.stdin = writer
+	runtime.command = &exec.Cmd{}
+	runtime.NoteExternalTurn("begin", "", "", false)
+	runtime.NoteExternalTurn("finish", "以后都用中文回复我", "好", false)
+	_ = writer.Close()
+	<-done
+	mu.Lock()
+	defer mu.Unlock()
+	if len(writes) != 3 {
+		t.Fatalf("writes = %#v", writes)
+	}
+	if writes[0]["action"] != "note_turn" || writes[0]["phase"] != "begin" {
+		t.Fatalf("begin = %#v", writes[0])
+	}
+	if writes[1]["action"] != "refresh_index" {
+		t.Fatalf("refresh = %#v", writes[1])
+	}
+	if writes[2]["action"] != "note_turn" || writes[2]["userText"] != "以后都用中文回复我" {
+		t.Fatalf("finish = %#v", writes[2])
+	}
+}
+
+func TestNoteExternalTurnStaysQuietWhenExtractIsOff(t *testing.T) {
+	runtime := NewRuntime(RuntimeOptions{
+		Settings: func() config.AppSettings {
+			settings := config.DefaultSettings()
+			settings.CompanionMemoryExtract = "off"
+			enabled := false
+			settings.CompanionMemoryEnabled = &enabled
+			return settings
+		},
+	})
+	runtime.start = func(config.AppSettings, string, string) (*exec.Cmd, io.WriteCloser, io.ReadCloser, error) {
+		t.Fatal("extract off must not start a sidecar")
+		return nil, nil, nil, errors.New("started")
+	}
+	runtime.NoteExternalTurn("finish", "以后都用中文回复我", "", false)
+}
+
 func statusOf(runtime *Runtime, id string) string {
 	for _, session := range runtime.BoardSnapshot().Sessions {
 		if session.ID == id {

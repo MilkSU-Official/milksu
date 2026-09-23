@@ -217,6 +217,26 @@ func (s *storeSpeaker) appendRelay(conversationID, text string) (string, bool, e
 	return entryID, true, nil
 }
 
+func (a *App) wireUserMemory() {
+	if a == nil || a.engines == nil || a.companion == nil {
+		return
+	}
+	a.engines.SetUserMemoryHandler(func(turn engine.UserMemoryTurn) {
+		id := strings.TrimSpace(turn.SessionID)
+		if strings.HasPrefix(id, "milksu_text_projection_") || strings.HasPrefix(id, "milksu_model_probe_") {
+			return
+		}
+		a.companion.NoteExternalTurn(turn.Phase, turn.UserText, turn.AssistantText, turn.Aborted)
+	})
+	a.engines.SetUserMemorySnapshot(func() engine.UserMemorySnapshot {
+		revision, memories := a.companion.PublishedMemory()
+		return engine.UserMemorySnapshot{Revision: revision, Memories: memories}
+	})
+	a.companion.SetMemoryViewListener(func(revision uint64, memories []map[string]string) {
+		a.engines.BroadcastUserMemory(memories, revision)
+	})
+}
+
 func (a *App) EnsureCompanion() (companion.Status, error) {
 	if a == nil || a.companion == nil {
 		return companion.Status{}, fmt.Errorf("companion runtime is not configured")

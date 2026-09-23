@@ -54,13 +54,6 @@ export function companionFuzzAppPrompts() {
   ]
 }
 
-export function companionFuzzMemoryPrompts() {
-  return [
-    '记一件事：我正在做 product-loop 看板娘稳定性手测。先提出来等我批准，不要直接当成已批准。',
-    '如果还没提出记忆，请再提一条标题带 product-loop 的待批准记忆。',
-  ]
-}
-
 export function companionTranscriptClean(page) {
   const entries = asList(pick(page, 'entries', 'Entries'))
   for (const entry of entries) {

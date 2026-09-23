@@ -6,7 +6,17 @@ import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { spawn } from 'node:child_process'
 import { classifyTurnEvents, delay, repositoryRoot } from './desktop-gui-driver.mjs'
-import { conversationMovedToArchive } from './product-loop-companion.mjs'
+import { companionIsReady, conversationMovedToArchive } from './product-loop-companion.mjs'
+import {
+  codingUserMemoryPrompt,
+  forgetCompanionMemoryIds,
+  memoryErrorText,
+  memoryTranscriptAnomaly,
+  pollCompanionMemoryWrite,
+  productLoopMemoryMarker,
+  visibleTranscriptText,
+  withCompanionMemoryExtract,
+} from './product-loop-memory.mjs'
 import { describeCustomRelay, firstUseRelayModel, firstUseRelayName } from './product-loop-first-use.mjs'
 import {
   clickAria,
@@ -1257,4 +1267,60 @@ export async function runSessionContextMenu(driver) {
     '会话右键能看到完整动作',
     '会话右键菜单没出来',
   )
+}
+
+export async function runCodingUserMemory(driver, options = {}) {
+  await home(driver)
+  const marker = productLoopMemoryMarker('plmem')
+  const prompt = codingUserMemoryPrompt(marker)
+  return withCompanionMemoryExtract(driver, 'turn', async () => {
+    let started
+    try {
+      started = await driver.ensureCompanion()
+    } catch (error) {
+      return fail(`看板娘没起来，Coding 回合写不进记忆：${memoryErrorText(error)}`)
+    }
+    const ready = companionIsReady(started)
+    if (!ready.ok) return fail(`${ready.reason}；Coding 回合写不进记忆`)
+    let before
+    try {
+      before = await driver.getCompanionMemory()
+    } catch (error) {
+      return fail(`读不到记忆：${memoryErrorText(error)}`)
+    }
+    return runWorkspaceTurn(driver, {
+      ...options,
+      prefix: 'product-loop-user-memory',
+      title: 'product-loop coding-user-memory',
+      kernel: 'pi',
+      prompt,
+      timeoutMs: Math.min(options.taskTimeoutMs || 120_000, 120_000),
+      async check({ conversation, turn }) {
+        const broken = turnBroken(turn)
+        if (broken) return fail(`写记忆的回合没完成：${broken}`)
+        const judged = await pollCompanionMemoryWrite(
+          () => driver.getCompanionMemory(),
+          before,
+          { userText: prompt, marker, sessionId: conversation.id },
+          { timeoutMs: 60_000 },
+        )
+        if (!judged.ok) return fail(judged.reason || 'Coding 回合没有直接写下这条记忆')
+        const listed = await driver.listConversations().catch(() => [])
+        const saved = (Array.isArray(listed) ? listed : []).find(row => conversationIdOf(row) === conversation.id)
+        const hay = [
+          visibleTranscriptText(conversationMessages(saved)),
+          visibleTranscriptText(turn?.events),
+        ].join('\n')
+        if (/propose_memory/.test(hay)) return fail('对话里出现了 propose_memory')
+        const anomaly = memoryTranscriptAnomaly(hay)
+        if (anomaly) return fail(`对话里出现了 ${anomaly}`)
+        const snap = await pageSnapshot(driver)
+        const surface = memoryTranscriptAnomaly(`${snap?.text || ''}\n${(snap?.aria || []).join('\n')}`)
+        if (surface) return fail(`页面上出现了 ${surface}`)
+        const forgotten = await forgetCompanionMemoryIds(driver, judged.ids)
+        if (!forgotten.ok) return fail(forgotten.reason)
+        return pass(`Coding 回合直接写下记忆 ${judged.ids.join(',')}，对话里没有记下或批准，忘掉后没有再出现`)
+      },
+    })
+  })
 }

@@ -387,6 +387,8 @@ export interface AppSettings {
   imagegen_provider?: string
   imagegen_model?: string
   imagegen_source?: 'account' | 'personal' | 'service' | ''
+  companion_memory_extract?: CompanionMemoryExtract
+  companion_memory_extract_idle_minutes?: number
   preferred_external_editor?: string
   ui_font?: UiFontPreset
   conversation_font?: UiFontPreset
@@ -501,7 +503,29 @@ export interface CompanionApprovedMemory {
   id: string
   title: string
   markdown: string
+  evidence?: string
   sourceSessionIds?: string[]
+  at?: string
+}
+
+export type CompanionMemoryExtract = 'off' | 'turn' | 'idle'
+
+export const COMPANION_MEMORY_EXTRACT_IDLE_MINUTES = [5, 10, 15, 30, 60] as const
+
+export function normalizeCompanionMemoryExtract(value: unknown): CompanionMemoryExtract {
+  switch (String(value ?? '').trim()) {
+    case 'off':
+      return 'off'
+    case 'idle':
+      return 'idle'
+    default:
+      return 'turn'
+  }
+}
+
+export function normalizeCompanionMemoryExtractIdleMinutes(value: unknown): number {
+  const minutes = Number(value)
+  return (COMPANION_MEMORY_EXTRACT_IDLE_MINUTES as readonly number[]).includes(minutes) ? minutes : 10
 }
 
 export interface CompanionMemorySnapshot {
@@ -769,6 +793,8 @@ function normalizeCompanionSelection(value: AppSettings): Pick<
   | 'companion_proactivity'
   | 'companion_teaching'
   | 'companion_reply_style'
+  | 'companion_memory_extract'
+  | 'companion_memory_extract_idle_minutes'
 > {
   const provider = String(value.companion_provider ?? '').trim()
   const model = String(value.companion_model ?? '').trim()
@@ -798,6 +824,10 @@ function normalizeCompanionSelection(value: AppSettings): Pick<
     },
     companion_teaching: normalizeCompanionTeaching(value.companion_teaching),
     companion_reply_style: normalizeCompanionReplyStyle(value.companion_reply_style),
+    companion_memory_extract: normalizeCompanionMemoryExtract(value.companion_memory_extract),
+    companion_memory_extract_idle_minutes: normalizeCompanionMemoryExtractIdleMinutes(
+      value.companion_memory_extract_idle_minutes,
+    ),
   }
 }
 

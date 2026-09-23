@@ -33,6 +33,7 @@ import {
   dshShouldAutoAllowPermission,
 } from "./permission.js";
 import { writeCodingBrowserDescriptor } from "../pi/bridge-mcp.js";
+import { isCompanionRelay, tracksUserMemory } from "../pi/user-memory.js";
 import {
   askOtherChoiceId,
   codingAskToolName,
@@ -718,7 +719,10 @@ function projectSessionUpdate(conversationId, update) {
     if (text) {
       finishThinking(conversationId);
       const record = sessions.get(conversationId);
-      if (record) record.sawVisibleText = true;
+      if (record) {
+        record.sawVisibleText = true;
+        record.replyText = `${record.replyText ?? ""}${text}`;
+      }
       emit(conversationId, "text_delta", { delta: text });
     }
     return;
@@ -868,6 +872,7 @@ async function sendMessage(command) {
     }
   }
   const rawPrompt = String(command.prompt ?? "").trim();
+  const rememberTurn = tracksUserMemory(conversationId) && !isCompanionRelay(rawPrompt);
   const slash = parseSlashLine(rawPrompt);
   if (slash) {
     await executeSessionCommand({
@@ -878,61 +883,77 @@ async function sendMessage(command) {
     return;
   }
   emit(conversationId, "turn_started");
+  if (rememberTurn) emit(conversationId, "user_memory_turn", { phase: "begin" });
   record.sawVisibleText = false;
+  record.replyText = "";
   record.reasoningOnlyRecovered = false;
   const prompt = await buildDshPromptBlocks(command, {
     imagePrompts: acpImagePrompts && record.imageCapable,
   });
+  let memorySettled = false;
+  const finishMemory = (aborted) => {
+    if (!rememberTurn || memorySettled) return;
+    memorySettled = true;
+    emit(conversationId, "user_memory_turn", {
+      phase: "finish",
+      aborted: aborted === true,
+      userText: aborted ? "" : rawPrompt,
+      assistantText: aborted ? "" : String(record.replyText ?? ""),
+    });
+  };
   try {
     await client.request("session/prompt", {
       sessionId: record.acpSessionId,
       prompt,
     });
+    if (record.aborted) {
+      finishThinking(conversationId);
+      return;
+    }
+    if (
+      shouldRecoverReasoningOnlyTurn({
+        stopReason: "stop",
+        text: record.sawVisibleText ? "yes" : "",
+        thinking: record.thinkingText,
+        hasToolCall: false,
+      })
+      && !record.reasoningOnlyRecovered
+    ) {
+      record.reasoningOnlyRecovered = true;
+      logReasoningOnlyFinal({
+        kernel: "dsh",
+        stopReason: "stop",
+        reasoningChars: String(record.thinkingText ?? "").length,
+        contentChars: 0,
+        toolCallCount: 0,
+      });
+      try {
+        await client.request("session/prompt", {
+          sessionId: record.acpSessionId,
+          prompt: [{ type: "text", text: reasoningOnlyRecoveryPrompt(record.uiLocale) }],
+        });
+      } catch (error) {
+        if (!record.aborted) throw error;
+      }
+    }
+    if (record.aborted) {
+      finishThinking(conversationId);
+      return;
+    }
+    finishThinking(conversationId);
+    emit(conversationId, "message_done");
+    emit(conversationId, "turn_settled");
+    finishMemory(false);
+    void refreshHostSubagents(conversationId);
   } catch (error) {
     if (record.aborted) {
       finishThinking(conversationId);
       return;
     }
     throw error;
+  } finally {
+    finishMemory(true);
   }
-  if (record.aborted) {
-    finishThinking(conversationId);
-    return;
-  }
-  if (
-    shouldRecoverReasoningOnlyTurn({
-      stopReason: "stop",
-      text: record.sawVisibleText ? "yes" : "",
-      thinking: record.thinkingText,
-      hasToolCall: false,
-    })
-    && !record.reasoningOnlyRecovered
-  ) {
-    record.reasoningOnlyRecovered = true;
-    logReasoningOnlyFinal({
-      kernel: "dsh",
-      stopReason: "stop",
-      reasoningChars: String(record.thinkingText ?? "").length,
-      contentChars: 0,
-      toolCallCount: 0,
-    });
-    try {
-      await client.request("session/prompt", {
-        sessionId: record.acpSessionId,
-        prompt: [{ type: "text", text: reasoningOnlyRecoveryPrompt(record.uiLocale) }],
-      });
-    } catch (error) {
-      if (!record.aborted) throw error;
-    }
-  }
-  if (record.aborted) {
-    finishThinking(conversationId);
-    return;
-  }
-  finishThinking(conversationId);
-  emit(conversationId, "message_done");
-  emit(conversationId, "turn_settled");
-  void refreshHostSubagents(conversationId);
 }
 
 async function abortSession(command) {
@@ -976,6 +997,9 @@ async function abortSession(command) {
     }
   }
   emit(conversationId || null, "turn_settled", { aborted: true });
+  if (tracksUserMemory(conversationId)) {
+    emit(conversationId, "user_memory_turn", { phase: "finish", aborted: true });
+  }
 }
 
 async function runCompact(conversationId) {

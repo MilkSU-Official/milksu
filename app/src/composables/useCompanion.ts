@@ -367,6 +367,10 @@ export function useCompanion() {
           })
           return
         }
+        if (payload.type === 'companion.memory') {
+          void refreshMemory()
+          return
+        }
         if (payload.type === 'assistant.settled') {
           const snapshot = liveProcessRef.current
           measuredThinking.current = companionTurnHasProcess(snapshot) ? snapshot : null

@@ -307,6 +307,24 @@ func TestNormalizeCompanionSettingsDefaults(t *testing.T) {
 	if settings.CompanionProactivity.IdleChat == nil || *settings.CompanionProactivity.IdleChat {
 		t.Fatal("idle chat should default off")
 	}
+	if settings.CompanionMemoryExtract != "turn" {
+		t.Fatalf("memory extract default: %q", settings.CompanionMemoryExtract)
+	}
+	if settings.CompanionMemoryExtractIdleMinutes != 10 {
+		t.Fatalf("memory extract idle default: %d", settings.CompanionMemoryExtractIdleMinutes)
+	}
+	if got := NormalizeCompanionMemoryExtract("weekly"); got != "turn" {
+		t.Fatalf("unknown memory extract: %q", got)
+	}
+	if got := NormalizeCompanionMemoryExtract("off"); got != "off" {
+		t.Fatalf("off memory extract: %q", got)
+	}
+	if got := NormalizeCompanionMemoryExtractIdleMinutes(15); got != 15 {
+		t.Fatalf("idle minutes: %d", got)
+	}
+	if got := NormalizeCompanionMemoryExtractIdleMinutes(7); got != 10 {
+		t.Fatalf("unknown idle minutes: %d", got)
+	}
 	if settings.CompanionSkinID != DefaultCompanionSkinID {
 		t.Fatalf("skin default: %q", settings.CompanionSkinID)
 	}

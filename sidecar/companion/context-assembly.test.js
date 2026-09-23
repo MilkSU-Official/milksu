@@ -6,6 +6,7 @@ import {
   COMPANION_CUSTOM_TYPES,
   assembleCompanionMessages,
   composeSystemPrompt,
+  compressSemanticMemories,
   estimateTokens,
   formatBoardForModel,
   stripCompanionCustomMessages,
@@ -48,6 +49,35 @@ test("assembly order keeps stable segments before volatile ones", () => {
     ["semantic", "recent", "board", "episodic", "user"],
   );
   assert.ok(ASSEMBLY_SEGMENTS.includes("system"));
+});
+
+test("semantic compression keeps every fact when the budget is tight", () => {
+  const older = "语言\n" + "用中文回复。".repeat(40);
+  const newer = "称呼\n" + "叫用户 Milk。".repeat(40);
+  const compressed = compressSemanticMemories([
+    { id: "mem_b", title: "称呼", markdown: "叫用户 Milk。".repeat(40), at: "2026-09-23T00:00:00Z" },
+    { id: "mem_a", title: "语言", markdown: "用中文回复。".repeat(40), at: "2026-09-01T00:00:00Z" },
+    { id: "mem_c", title: "语言", markdown: "用中文回复。".repeat(40), at: "2026-09-02T00:00:00Z" },
+  ], 30);
+  assert.equal(compressed.items.length, 2);
+  const text = compressed.items.map(item => item.text).join("\n");
+  assert.match(text, /语言/);
+  assert.match(text, /称呼/);
+  assert.ok(text.indexOf("语言") < text.indexOf("称呼"));
+  assert.equal(compressed.truncated, true);
+  assert.ok(compressed.tokens <= 30);
+  const assembled = assembleCompanionMessages({
+    semanticMemories: [
+      { id: "mem_a", title: "语言", markdown: older, at: "2026-09-01T00:00:00Z" },
+      { id: "mem_b", title: "称呼", markdown: newer, at: "2026-09-23T00:00:00Z" },
+    ],
+    recentMessages: [userMessage("hi")],
+    boardSnapshot: { sessions: [], todos: [] },
+  });
+  const semantic = assembled.messages.find(message => message.customType === COMPANION_CUSTOM_TYPES.semantic);
+  assert.match(semantic.content[0].text, /语言/);
+  assert.match(semantic.content[0].text, /称呼/);
+  assert.doesNotThrow(() => compressSemanticMemories(null, 0));
 });
 
 test("reassembly strips previously injected companion custom messages", () => {

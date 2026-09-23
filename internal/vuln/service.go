@@ -480,6 +480,44 @@ func (s *Service) RecordLearning(ctx context.Context, jobID string, request Lear
 	return s.GetJob(ctx, jobID)
 }
 
+func (s *Service) ForgetLearning(ctx context.Context, jobID, learningID string) (Projection, error) {
+	learningID = strings.TrimSpace(learningID)
+	if learningID == "" {
+		return Projection{}, fmt.Errorf("learning record id is required")
+	}
+	core, err := s.runtime.GetJob(ctx, jobID)
+	if err != nil {
+		return Projection{}, err
+	}
+	if core.Job.Role != PackageID {
+		return Projection{}, fmt.Errorf("job is not a vulnerability research workspace")
+	}
+	current, err := Project(core)
+	if err != nil {
+		return Projection{}, err
+	}
+	found := false
+	for _, record := range current.Learning {
+		if record.ID == learningID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return Projection{}, fmt.Errorf("learning record was not found")
+	}
+	fact, err := marshalRoleFact(FactLearningForgotten, struct {
+		ID string `json:"id"`
+	}{ID: learningID}, nil, nil)
+	if err != nil {
+		return Projection{}, err
+	}
+	if err := s.runtime.CommitRoleFact(ctx, securityruntime.EventScope{JobID: jobID}, fact); err != nil {
+		return Projection{}, err
+	}
+	return s.GetJob(ctx, jobID)
+}
+
 func (s *Service) RecordAssetVerification(ctx context.Context, jobID string, request AssetVerificationRequest) (Projection, error) {
 	core, err := s.runtime.GetJob(ctx, jobID)
 	if err != nil {
@@ -537,6 +575,35 @@ func (s *Service) GetJob(ctx context.Context, jobID string) (Projection, error) 
 		return Projection{}, err
 	}
 	return Project(core)
+}
+
+// LearningByCVE returns learning the user already saved on the tracking job
+// for this CVE. It does not create a job. No matching job returns nil.
+func (s *Service) LearningByCVE(ctx context.Context, cveID string) ([]LearningRecord, error) {
+	if err := s.checkOpen(); err != nil {
+		return nil, err
+	}
+	cveID = strings.ToUpper(strings.TrimSpace(cveID))
+	if !cveIDPattern.MatchString(cveID) {
+		return nil, nil
+	}
+	values, err := s.runtime.ListJobs(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, value := range values {
+		if value.Role != PackageID {
+			continue
+		}
+		projection, projectionErr := s.GetJob(ctx, value.ID)
+		if projectionErr != nil {
+			return nil, projectionErr
+		}
+		if strings.EqualFold(projection.Target.Name, cveID) && projection.Target.Fixture == "cve-tracking" {
+			return projection.Learning, nil
+		}
+	}
+	return nil, nil
 }
 
 func (s *Service) CancelJob(ctx context.Context, jobID string) error {

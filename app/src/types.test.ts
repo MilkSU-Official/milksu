@@ -273,6 +273,8 @@ describe('model provider catalog', () => {
     expect(settings.companion_skin_id).toBe('default')
     expect(settings.companion_teaching).toBe('ask_me')
     expect(settings.companion_reply_style).toBe('markdown')
+    expect(settings.companion_memory_extract).toBe('turn')
+    expect(settings.companion_memory_extract_idle_minutes).toBe(10)
     expect(settings.companion_proactivity?.task_events).toBe(true)
     expect(settings.companion_proactivity?.idle_chat).toBe(false)
   })
