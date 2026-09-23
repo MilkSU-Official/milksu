@@ -417,6 +417,26 @@ type bridgeEvent struct {
 	Usage              *ModelUsage              `json:"usage"`
 	ContextComposition *ContextComposition      `json:"contextComposition"`
 	ForkedSessionID    string                   `json:"forkedSessionId"`
+	Phase              string                   `json:"phase"`
+	UserText           string                   `json:"userText"`
+	AssistantText      string                   `json:"assistantText"`
+}
+
+// UserMemoryTurn is one ordinary-session signal for the shared user-memory
+// extract. Prompt text stays on this path and is not copied onto a chat event.
+type UserMemoryTurn struct {
+	SessionID     string
+	Phase         string
+	UserText      string
+	AssistantText string
+	Aborted       bool
+}
+
+// UserMemorySnapshot is the durable preference list a Pi turn may inject.
+// Evidence quotes stay out of the model prompt.
+type UserMemorySnapshot struct {
+	Revision uint64
+	Memories []map[string]string
 }
 
 type childProcess struct {
@@ -560,6 +580,8 @@ type Supervisor struct {
 	backgroundTasks     map[string][]BackgroundTask
 	securityTools       []securitytools.RuntimeTool
 	agentResources      func() AgentResourceRuntime
+	userMemory          func(UserMemoryTurn)
+	userMemorySnapshot  func() UserMemorySnapshot
 	workspaceAction     WorkspaceActionHandler
 	codingBrowserLookup CodingBrowserLookup
 	emit                func(Event)
@@ -1341,6 +1363,75 @@ func (s *Supervisor) SetAgentResourceResolver(resolve func() AgentResourceRuntim
 	s.agentResources = resolve
 }
 
+func (s *Supervisor) SetUserMemoryHandler(handler func(UserMemoryTurn)) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.userMemory = handler
+}
+
+func (s *Supervisor) SetUserMemorySnapshot(snapshot func() UserMemorySnapshot) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.userMemorySnapshot = snapshot
+}
+
+func (s *Supervisor) BroadcastUserMemory(memories []map[string]string, revision uint64) {
+	if s == nil {
+		return
+	}
+	command := map[string]any{
+		"action":         "update_user_memory",
+		"userMemories":   memories,
+		"memoryRevision": revision,
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	seen := map[*childProcess]struct{}{}
+	write := func(proc *childProcess) {
+		if proc == nil || proc.stdin == nil || proc.kernel != KernelPi {
+			return
+		}
+		if _, ok := seen[proc]; ok {
+			return
+		}
+		seen[proc] = struct{}{}
+		_ = writeCommand(proc.stdin, command)
+	}
+	write(s.process)
+	for _, proc := range s.parked {
+		write(proc)
+	}
+	for _, proc := range s.retiring {
+		write(proc)
+	}
+}
+
+func (s *Supervisor) forwardUserMemoryTurn(raw bridgeEvent) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	handler := s.userMemory
+	s.mu.Unlock()
+	if handler == nil {
+		return
+	}
+	turn := UserMemoryTurn{
+		SessionID:     raw.ID,
+		Phase:         raw.Phase,
+		UserText:      raw.UserText,
+		AssistantText: raw.AssistantText,
+		Aborted:       raw.Aborted,
+	}
+	go handler(turn)
+}
+
 func mergeDisabledSkills(user, hideFactory []string) []string {
 	seen := map[string]struct{}{}
 	result := make([]string, 0, len(user)+len(hideFactory))
@@ -1623,6 +1714,10 @@ func (s *Supervisor) sendMessage(
 	if s.agentResources != nil {
 		resourceRuntime = s.agentResources()
 	}
+	var memorySnapshot UserMemorySnapshot
+	if s.userMemorySnapshot != nil {
+		memorySnapshot = s.userMemorySnapshot()
+	}
 	command := map[string]any{
 		"action":          "send_message",
 		"conversationId":  sessionID,
@@ -1642,6 +1737,8 @@ func (s *Supervisor) sendMessage(
 			settings,
 			preference,
 		),
+		"userMemories":   memorySnapshot.Memories,
+		"memoryRevision": memorySnapshot.Revision,
 	}
 	if customProvider := customProviderTurnPayload(settings); customProvider != nil {
 		command["customProvider"] = customProvider
@@ -3191,6 +3288,10 @@ func (s *Supervisor) readEvents(kernel string, process *childProcess, stdout io.
 			// worktree. Answer it off the reader so one slow host action does
 			// not stall every other session sharing this Sidecar.
 			go s.handleWorkspaceAction(raw)
+			continue
+		}
+		if raw.Type == "user_memory_turn" {
+			s.forwardUserMemoryTurn(raw)
 			continue
 		}
 		event := normalizeBridgeEvent(raw, kernel)

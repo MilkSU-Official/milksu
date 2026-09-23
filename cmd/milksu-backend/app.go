@@ -336,6 +336,7 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 		App:     &companionAppControl{app: application},
 		Emit:    application.emitCompanionEvent,
 	})
+	application.wireUserMemory()
 	application.modelUsage, err = modelusage.NewStore(
 		filepath.Join(dataDirectory, "usage", "model-usage.sqlite3"),
 	)

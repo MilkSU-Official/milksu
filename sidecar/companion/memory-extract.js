@@ -20,7 +20,8 @@ export function memoryExtractInstructions(locale, maxItems) {
   if (locale === "en") {
     return [
       "Extract durable user memory from this stretch.",
-      "Keep only a stable preference, a form of address, or a standing constraint.",
+      "Keep only a stable preference, a form of address, or a standing personal constraint.",
+      "Do not keep repository, project, or branch rules. Those stay with the project.",
       "Write each conclusion as an affirmative sentence.",
       "evidence must be a contiguous quote copied from the user text.",
       "If the stretch is a greeting, small talk, or task coordination, return no items.",
@@ -32,7 +33,8 @@ export function memoryExtractInstructions(locale, maxItems) {
   }
   return [
     "从这一段对话里提取可以长期记住的用户事实。",
-    "只保留稳定偏好、称呼或长期约束。",
+    "只保留稳定偏好、称呼或针对这个人的长期约束。",
+    "不要记录仓库、项目或分支的规矩，那些留在项目里。",
     "结论写成肯定句。",
     "evidence 必须是用户原话里连续抄下来的一段。",
     "打招呼、闲聊或纯编排就返回空列表。",

@@ -28,6 +28,13 @@ import {
   stopPiBackgroundTask,
 } from "./reviewed-ts/extensions.js";
 import { dropSendAfterAbort } from "./bridge-abort.js";
+import {
+  applyUserMemorySnapshot,
+  isCompanionRelay,
+  lastAssistantText,
+  tracksUserMemory,
+  withUserMemoryMessages,
+} from "./user-memory.js";
 import { enqueueConversationPrompt } from "./bridge-conversation-prompt.js";
 import {
   createToolRepeatGuard,
@@ -198,6 +205,8 @@ const configuredModelSourceOrder = normalizeModelSourceOrder(
 const modelSourceFallbackEnabled = process.env.MILKSU_MODEL_SOURCE_FALLBACK === "1";
 
 const sessions = new Map();
+let userMemories = [];
+let userMemoryRevision = -1;
 const sessionPolicies = new Map();
 const sessionPolicyControllers = new Map();
 const backgroundTaskControllers = new Map();
@@ -262,6 +271,22 @@ function queueTextDelta(conversationId, delta) {
   );
   if (textDeltaTimer !== null) return;
   textDeltaTimer = setTimeout(flushTextDeltas, TEXT_DELTA_FLUSH_MS);
+}
+
+function applyUserMemories(command) {
+  const next = applyUserMemorySnapshot(
+    { memories: userMemories, revision: userMemoryRevision },
+    command?.userMemories,
+    command?.memoryRevision,
+  );
+  if (!next.applied) return;
+  userMemories = next.memories;
+  userMemoryRevision = next.revision;
+}
+
+function noteUserMemory(conversationId, phase, extra = {}) {
+  if (!tracksUserMemory(conversationId)) return;
+  emit(conversationId, "user_memory_turn", { phase, ...extra });
 }
 
 function emit(conversationId, type, data = {}) {
@@ -577,6 +602,7 @@ function createCodingPermissionExtension(
   getPolicy,
   getTurnContract,
   registerController,
+  getUserMemories,
 ) {
   return (pi) => {
     const repeatGuard = createToolRepeatGuard();
@@ -587,10 +613,16 @@ function createCodingPermissionExtension(
       repeatGuard.reset();
     });
     pi.on("context", async (event) => {
-      const messages = filterCodingTurnContractMessages(
+      const contracted = filterCodingTurnContractMessages(
         event.messages,
         getTurnContract(),
       );
+      const memories = tracksUserMemory(conversationId) && typeof getUserMemories === "function"
+        ? getUserMemories()
+        : [];
+      const messages = withUserMemoryMessages(contracted, memories, {
+        locale: getPolicy()?.uiLocale,
+      });
       if (
         messages.length === event.messages.length
         && messages.every((message, index) => message === event.messages[index])
@@ -1485,6 +1517,7 @@ function createMilkSUResourceLoader(
         getPolicy,
         () => sessionTurnContracts.get(conversationId),
         registerPolicyController,
+        () => userMemories,
       ),
       createReviewedLspExtension(
         piLspExtension,
@@ -1868,6 +1901,7 @@ async function createSession(command) {
 async function sendMessage(command) {
   const conversationId = command.conversationId;
   if (!conversationId) throw new Error("conversationId is required");
+  applyUserMemories(command);
   applyWorkerModelOverride(command.workerModel);
   // abort_session is handled immediately. send_message setup stays on the
   // stdin command queue; the prompt itself is per-conversation so another
@@ -1998,7 +2032,11 @@ async function sendMessage(command) {
     emitContextComposition(conversationId);
   }
 
+  const rememberTurn = tracksUserMemory(conversationId) && !isCompanionRelay(command.prompt);
   enqueueConversationPrompt(promptQueues, conversationId, async () => {
+    if (rememberTurn) noteUserMemory(conversationId, "begin");
+    let settled = false;
+    try {
     if (abortedSessions.delete(conversationId)) {
       try {
         await session.abort();
@@ -2053,6 +2091,17 @@ async function sendMessage(command) {
       prepared.images.length ? { images: prepared.images } : undefined,
     ));
     await compactIfContextNearLimit(conversationId, session);
+    if (abortedSessions.has(conversationId)) return;
+    settled = true;
+    if (rememberTurn) {
+      noteUserMemory(conversationId, "finish", {
+        userText: String(command.prompt ?? ""),
+        assistantText: lastAssistantText(session),
+      });
+    }
+    } finally {
+      if (rememberTurn && !settled) noteUserMemory(conversationId, "finish", { aborted: true });
+    }
   }, (error) => {
     if (abortedSessions.delete(conversationId)) return;
     emit(conversationId, "error", { error: describeError(error) });
@@ -2081,6 +2130,9 @@ async function abortSession(command) {
     // Nothing was compacting, or Pi already settled it.
   }
   await session.abort();
+  if (tracksUserMemory(conversationId)) {
+    noteUserMemory(conversationId, "finish", { aborted: true });
+  }
   // Do not synthesize empty message_done (it became a blank assistant bubble).
   // If Pi already emitted agent_settled, a second turn_settled is harmless in
   // the UI (finishRun is idempotent). If abort raced past agent_settled, this
@@ -2536,6 +2588,9 @@ async function handleCommand(command) {
       break;
     case "send_message":
       await sendMessage(command);
+      break;
+    case "update_user_memory":
+      applyUserMemories(command);
       break;
     case "steer_message":
       await steerSession(sessions, command);

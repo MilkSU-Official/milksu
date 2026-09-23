@@ -70,7 +70,8 @@ type Runtime struct {
 	inFlight   atomic.Bool
 	// persistHook runs after a state snapshot and before the file write,
 	// while persistMu is held. Tests use it to interleave a forget.
-	persistHook func()
+	persistHook        func()
+	memoryViewListener func(uint64, []map[string]string)
 }
 
 type parkedConfirm struct {
@@ -411,13 +412,15 @@ func (r *Runtime) resetCompanionSession() error {
 	// fresh-jsonl reset. Send and startLocked still refuse that key.
 	custom, _ := engine.CompanionTurnAuth(settings)
 	create := map[string]any{
-		"action":              "create_session",
-		"locale":              config.ResolvedUserInterfaceLocale(settings),
-		"provider":            selection.Provider,
-		"model":               selection.Model,
-		"source":              selection.Source,
-		"memorySearchEnabled": r.memorySearchEnabled(),
-		"replyStyle":          config.CompanionReplyStyle(settings),
+		"action":                   "create_session",
+		"locale":                   config.ResolvedUserInterfaceLocale(settings),
+		"provider":                 selection.Provider,
+		"model":                    selection.Model,
+		"source":                   selection.Source,
+		"memorySearchEnabled":      r.memorySearchEnabled(),
+		"memoryExtract":            config.CompanionMemoryExtract(settings),
+		"memoryExtractIdleMinutes": config.CompanionMemoryExtractIdleMinutes(settings),
+		"replyStyle":               config.CompanionReplyStyle(settings),
 	}
 	if custom != nil {
 		create["customProvider"] = custom
@@ -589,13 +592,15 @@ func (r *Runtime) startLocked() error {
 	go r.readEvents(stdout, gen)
 	selection := r.selection()
 	create := map[string]any{
-		"action":              "create_session",
-		"locale":              config.ResolvedUserInterfaceLocale(settings),
-		"provider":            selection.Provider,
-		"model":               selection.Model,
-		"source":              selection.Source,
-		"memorySearchEnabled": r.memorySearchEnabled(),
-		"replyStyle":          config.CompanionReplyStyle(settings),
+		"action":                   "create_session",
+		"locale":                   config.ResolvedUserInterfaceLocale(settings),
+		"provider":                 selection.Provider,
+		"model":                    selection.Model,
+		"source":                   selection.Source,
+		"memorySearchEnabled":      r.memorySearchEnabled(),
+		"memoryExtract":            config.CompanionMemoryExtract(settings),
+		"memoryExtractIdleMinutes": config.CompanionMemoryExtractIdleMinutes(settings),
+		"replyStyle":               config.CompanionReplyStyle(settings),
 	}
 	if custom != nil {
 		create["customProvider"] = custom
@@ -980,6 +985,67 @@ func (r *Runtime) memorySearchEnabled() bool {
 // SyncLiveContext tells a running sidecar the current extract timing and
 // approved memories. Settings changes and forgets use it so the next quiet
 // period follows the saved choice without waiting for a new message.
+func (r *Runtime) SetMemoryViewListener(listener func(uint64, []map[string]string)) {
+	if r == nil {
+		return
+	}
+	r.mu.Lock()
+	r.memoryViewListener = listener
+	r.mu.Unlock()
+}
+
+func (r *Runtime) PublishedMemory() (uint64, []map[string]string) {
+	if r == nil {
+		return 0, []map[string]string{}
+	}
+	return r.memoryView()
+}
+
+func (r *Runtime) sidecarAlive() bool {
+	if r == nil {
+		return false
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.ready && r.stdin != nil
+}
+
+// NoteExternalTurn feeds a Coding, CTF, CVE, lab, or DSH turn into the same
+// extract controller the companion uses. A missing sidecar is started only
+// when a finished turn still needs extraction. Failure stays off the chat.
+func (r *Runtime) NoteExternalTurn(phase, userText, assistantText string, aborted bool) {
+	if r == nil {
+		return
+	}
+	phase = strings.TrimSpace(phase)
+	if phase == "begin" {
+		if !r.sidecarAlive() {
+			return
+		}
+		_ = r.write(map[string]any{"action": "note_turn", "phase": "begin"})
+		return
+	}
+	if phase != "finish" {
+		return
+	}
+	if r.sidecarAlive() && r.memorySearchEnabled() {
+		_ = r.write(map[string]any{"action": "refresh_index"})
+	}
+	if config.CompanionMemoryExtract(r.resolvedSettings()) == "off" {
+		return
+	}
+	if _, err := r.Ensure(); err != nil {
+		return
+	}
+	_ = r.write(map[string]any{
+		"action":        "note_turn",
+		"phase":         "finish",
+		"userText":      userText,
+		"assistantText": assistantText,
+		"aborted":       aborted,
+	})
+}
+
 func (r *Runtime) SyncLiveContext() {
 	if r == nil {
 		return
@@ -996,6 +1062,12 @@ func (r *Runtime) SyncLiveContext() {
 		"locale":                   config.ResolvedUserInterfaceLocale(settings),
 		"replyStyle":               config.CompanionReplyStyle(settings),
 	})
+	r.mu.Lock()
+	listener := r.memoryViewListener
+	r.mu.Unlock()
+	if listener != nil {
+		listener(revision, memories)
+	}
 }
 
 func (r *Runtime) resolvedSettings() config.AppSettings {

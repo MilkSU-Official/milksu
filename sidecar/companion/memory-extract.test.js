@@ -6,8 +6,14 @@ import {
   extractCompanionMemories,
   normalizeMemoryExtract,
   normalizeMemoryExtractIdleMinutes,
+  memoryExtractInstructions,
   parseMemoryExtractResult,
 } from "./memory-extract.js";
+
+test("extract instructions leave repository rules in the project", () => {
+  assert.match(memoryExtractInstructions("zh", 1), /仓库/);
+  assert.match(memoryExtractInstructions("en", 1), /repository/);
+});
 
 test("extract timing defaults to each turn and ten idle minutes", () => {
   assert.equal(normalizeMemoryExtract(""), "turn");

@@ -125,6 +125,85 @@ Renderer 只经 `window.milksu.invoke`。Electron 不拥有 CTF/CVE 事实，Go 
 
 Beta 是独立 Bundle ID 与 userData，只用于明确要求的自举。Stable Computer Use 排除自身。
 
+## 用户记忆
+
+用户记忆和会话抄本、题目训练记忆是三条线。长期结论只有一份，原文索引只有一份，仓库规矩留在项目里。
+
+```text
+L1 会话抄本     Pi / DSH / 看板娘 jsonl。Pi 自己压缩。不写出跨会话结论。
+L2 用户长期记忆  companion/state.json 的 approved。全应用一份。
+L3 情景原文     companion/obelisk.sqlite。只存其他会话的原文，不存结论。
+旁路            session-index/obelisk.sqlite 只在归档、恢复、删除时重写，不进模型。
+旁路            CTF 训练记忆只在显式保存题目投影时写入，不进 L2。
+```
+
+```mermaid
+flowchart TB
+  subgraph sources["谁产出"]
+    piTurn["Pi 回合结束<br/>Coding / CTF / CVE / 实验室"]
+    dshTurn["DSH 回合结束"]
+    petTurn["看板娘回合结束"]
+  end
+
+  subgraph gate["什么时候交给提取"]
+    begin["回合开始 note_turn begin<br/>清掉闲置计时"]
+    finish["回复上屏后 note_turn finish<br/>带用户原话和助手回复"]
+  end
+
+  subgraph producer["同一条提取"]
+    mode{"设置 → 看板娘「记忆」"}
+    off["关闭：丢掉这一段"]
+    turn["每轮结束：最多 1 条"]
+    idle["闲置后：计时重置<br/>到点一批最多 3 条"]
+    model["看板娘当前模型旁路完成<br/>不进对话，不弹批准"]
+  end
+
+  subgraph store["存到哪里"]
+    l2["L2 approved<br/>id / 结论 / 依据原句 / 时间"]
+    l3["L3 Obelisk 原文索引"]
+  end
+
+  subgraph readers["谁来读"]
+    petRead["看板娘每轮：L2 压缩后全部 + L3 按当前这句话最多 8 条"]
+    piRead["Pi 每轮：只注入 L2，不注入 L3"]
+    dshRead["DSH 不把 L2 写进用户消息"]
+    settings["设置「记忆」：检索结论或原句，显示依据，可忘掉"]
+  end
+
+  piTurn --> begin
+  dshTurn --> begin
+  petTurn --> begin
+  begin --> finish
+  finish --> mode
+  mode --> off
+  mode --> turn
+  mode --> idle
+  turn --> model
+  idle --> model
+  model --> l2
+  finish --> l3
+  l2 --> petRead
+  l2 --> piRead
+  l2 --> settings
+  l3 --> petRead
+```
+
+探针会话和看板娘转达不进入提取。仓库、项目和分支的规矩也不写入 L2。
+
+触发按时间顺序：
+
+| 时刻 | 动作 | 落点 |
+| --- | --- | --- |
+| 用户发送，回合开始 | Pi / DSH 发出 `user_memory_turn begin`。看板娘 sidecar 已在跑时，清掉闲置计时。看板娘自己的回合直接清。 | 不写盘 |
+| 回复已经上屏，回合结束 | Pi / DSH 发出 `finish`，带用户原话。Go 不把这段画进对话。看板娘 sidecar 不在就先拉起，再用看板娘当前模型提取。失败不打断对话，下一次合格时机重试一次。 | 候选还在内存 |
+| 提取结果对得上用户原句 | `Commit` 写入或更新同一条。改口保留原来的时间。版本加一，旧快照不能把刚忘掉的写回去。 | L2 `companion/state.json` |
+| 同一时刻，情景检索开着 | 刷新有变化的会话原文。看板娘下一次检索前也会再刷新。结论不写进这里。 | L3 `companion/obelisk.sqlite` |
+| 下一次 Pi 模型请求 | `context` 钩子把 L2 压进请求副本，不写回抄本。装不下就缩短每一条，不整条丢掉。 | 只在这一次请求里 |
+| 下一次看板娘模型请求 | 同一份 L2，再加上按当前这句话搜到的 L3 摘录。看板娘自己的会话不参与这次检索。 | 只在这一次请求里 |
+| 设置里忘掉 | 从 L2 删除，并推给正在跑的 Pi。 | L2 |
+
+闲置计时只有看板娘 sidecar 里的那一个。Coding 和 DSH 的新回合会把它清掉，未提取的那段留到下一次安静时间。应用关掉时不补跑。
+
 ## 六层与依赖
 
 ```text

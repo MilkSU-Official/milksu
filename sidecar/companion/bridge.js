@@ -695,6 +695,29 @@ async function handleCommand(command) {
       applyMemoryExtract(command);
       await sendPrompt(command);
       return;
+    case "note_turn":
+      if (command.phase === "begin") {
+        memoryExtract.beginTurn();
+        return;
+      }
+      {
+        const job = {
+          userText: command.userText,
+          assistantText: command.assistantText,
+          aborted: command.aborted === true,
+        };
+        promptQueue = promptQueue.then(async () => {
+          try {
+            await memoryExtract.finishTurn(job);
+          } finally {
+            if (memorySearchEnabled) scheduleCompanionIndexRefresh();
+          }
+        });
+      }
+      return;
+    case "refresh_index":
+      if (memorySearchEnabled) scheduleCompanionIndexRefresh();
+      return;
     case "update_context":
       applyCompanionLocale(command);
       applyReplyStyle(command);
