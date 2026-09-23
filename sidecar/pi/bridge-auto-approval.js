@@ -37,6 +37,10 @@ export function codingCollaborationRequiresApproval(approvalPolicy) {
   return normalizedApprovalPolicy(approvalPolicy) === "ask";
 }
 
+export function subagentCallRequiresApproval(externalCli, approvalPolicy) {
+  return externalCli === true || codingCollaborationRequiresApproval(approvalPolicy);
+}
+
 export function resolveCodingMcpServer(input, policy = {}) {
   const explicit = String(input?.server ?? input?.connect ?? "").trim();
   if (explicit) return explicit;

@@ -26,7 +26,11 @@ import {
   withoutBlankAssistantMessages,
 } from '@/lib/chatActivity'
 import { redactProviderCredentials } from '@/lib/redaction'
-import { normalizeSubagentTasks } from '@/lib/subagentRoster'
+import {
+  normalizeSubagentTasks,
+  projectSubagentBackfill,
+  shouldHoldSubagentBackfill,
+} from '@/lib/subagentRoster'
 import { explainModelCallFailure } from '@/lib/tokenFluxError'
 import {
   assistantForkPoint,
@@ -34,6 +38,7 @@ import {
   handoffVisibleMessages,
   parseSessionHandoffResult,
 } from '@/lib/conversationActions'
+import { piMultitaskModelHint } from '@/lib/composerMultitask'
 import { t } from '@/lib/uiLocale'
 import { toast } from '@/lib/appToast'
 import {
@@ -59,7 +64,12 @@ import {
 import { normalizeDomainTaskContext } from '@/lib/domainTaskContext'
 import { shouldRememberCodingProject } from '@/lib/codingProjectMemory'
 import { conversationWorkspaceHome, type WorkspaceHome } from '@/lib/workspaceSessionRouting'
-import { clearComposerDraft, composerDraftKey } from '@/lib/composerDraftStore'
+import {
+  clearComposerDraft,
+  composerDraftKey,
+  composerDraftPending,
+  subscribeComposerDrafts,
+} from '@/lib/composerDraftStore'
 import { clearComposerQuotes } from '@/lib/composerQuoteStore'
 import {
   isBackgroundWorkingTool,
@@ -1096,6 +1106,39 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
     set pendingComposerDraft(value) { store.setState({ pendingComposerDraft: value }) },
   }
   const parkedPendingByHome: Partial<Record<WorkspaceHome, ParkedPendingCanvas>> = {}
+  const heldSubagentSnapshots = new Map<string, SubagentTask[]>()
+
+  function subagentBackfillHeld(sessionId: string) {
+    const queue = s.messageQueues.get(sessionId)
+    return shouldHoldSubagentBackfill({
+      running: s.runningIds.has(sessionId),
+      aborting: s.abortingIds.has(sessionId),
+      queued: Boolean(queue?.steering.length || queue?.followUp.length),
+      composing: composerDraftPending(sessionId),
+    })
+  }
+
+  function releaseHeldSubagentBackfill() {
+    const released: string[] = []
+    let next = s.conversations
+    for (const [sessionId, tasks] of heldSubagentSnapshots) {
+      if (subagentBackfillHeld(sessionId)) continue
+      heldSubagentSnapshots.delete(sessionId)
+      released.push(sessionId)
+      next = next.map(conversation => (
+        conversation.id === sessionId
+          ? { ...conversation, subagentTasks: tasks }
+          : conversation
+      ))
+    }
+    if (!released.length) return
+    s.conversations = next
+    for (const sessionId of released) reconcileParentRun(sessionId)
+  }
+
+  const stopDraftWatch = subscribeComposerDrafts(() => {
+    releaseHeldSubagentBackfill()
+  })
   const pendingDshGoals = new Map<string, string>()
 
   // A short-lived engine status line (idle reclaim, blocked deletions and friends). It is
@@ -1946,9 +1989,7 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
         : s.pendingModelSourcePreference,
       executionMode: s.pendingExecutionMode,
       approvalPolicy: s.pendingApprovalPolicy,
-      multitask: normalizeAgentKernel(s.pendingKernel) === 'dsh' && s.pendingMultitask
-        ? true
-        : undefined,
+      multitask: s.pendingMultitask ? true : undefined,
       mcpServers: s.pendingMCPServers.length ? s.pendingMCPServers : undefined,
       mcpConfigDigest: s.pendingMCPServers.length
         ? s.pendingMCPConfigDigest
@@ -2092,12 +2133,11 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
   function setMultitask(enabled: boolean) {
     const next = enabled === true
     if (!s.activeId) {
-      if (normalizeAgentKernel(s.pendingKernel) !== 'dsh') return
       s.pendingMultitask = next
       return
     }
     const current = s.conversations.find(item => item.id === s.activeId)
-    if (!current || normalizeAgentKernel(current.kernel) !== 'dsh') return
+    if (!current) return
     update(s.activeId, conversation => ({
       ...conversation,
       multitask: next ? true : undefined,
@@ -2359,9 +2399,7 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
           : s.pendingModelSourcePreference,
         executionMode: s.pendingExecutionMode,
         approvalPolicy: s.pendingApprovalPolicy,
-        multitask: normalizeAgentKernel(s.pendingKernel) === 'dsh' && s.pendingMultitask
-          ? true
-          : undefined,
+        multitask: s.pendingMultitask ? true : undefined,
         mcpServers: s.pendingMCPServers.length ? s.pendingMCPServers : undefined,
         mcpConfigDigest: s.pendingMCPServers.length
           ? s.pendingMCPConfigDigest
@@ -2392,12 +2430,19 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
       return true
     }
 
+    const modelPrompt = (value: string) => {
+      const conversation = s.conversations.find(item => item.id === conversationId)
+      const kernel = normalizeAgentKernel(conversation?.kernel ?? activeKernel)
+      if (answeringAsk || kernel !== 'pi' || !conversation?.multitask) return value
+      return `${value}\n\n${piMultitaskModelHint(t)}`
+    }
+
     if (steering) {
       try {
         const queueNext = activeKernel === 'dsh' && s.busySend === 'queue'
         await invokeCommand(queueNext ? 'queue_dsh_message' : 'steer_message', {
           conversationId,
-          prompt,
+          prompt: modelPrompt(prompt),
         })
         const currentQueue = s.messageQueues.get(conversationId)
           ?? { steering: [], followUp: [] }
@@ -2458,7 +2503,7 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
       }
       if (conversation) await invokeCommand('save_conversation', { conversation })
       const dispatch: RuntimeTurnDispatch = {
-        prompt: outboundPrompt,
+        prompt: modelPrompt(outboundPrompt),
         attachments,
         scopeToken,
         productAction,
@@ -3172,12 +3217,22 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
         return
       }
       if (type === 'runtime.subagent_tasks') {
+        const incoming = normalizeSubagentTasks(subagentTasks)
+        const hold = subagentBackfillHeld(sessionId)
+        if (hold) heldSubagentSnapshots.set(sessionId, incoming)
+        else heldSubagentSnapshots.delete(sessionId)
         const liveBefore = liveWorkingCountFor(sessionId)
-        s.conversations = s.conversations.map(conversation => (
-          conversation.id === sessionId
-            ? { ...conversation, subagentTasks: normalizeSubagentTasks(subagentTasks) }
-            : conversation
-        ))
+        s.conversations = s.conversations.map(conversation => {
+          if (conversation.id !== sessionId) return conversation
+          return {
+            ...conversation,
+            subagentTasks: projectSubagentBackfill(
+              conversation.subagentTasks ?? [],
+              incoming,
+              hold,
+            ).tasks,
+          }
+        })
         const liveAfter = liveWorkingCountFor(sessionId)
         reconcileParentRun(sessionId, {
           workingJustEmptied: liveBefore > 0 && liveAfter === 0,
@@ -3228,7 +3283,7 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
           ))
         }
       }
-      s.conversations = s.conversations.map(conversation => {
+      const mapped = s.conversations.map(conversation => {
         if (conversation.id !== sessionId) return conversation
         const messages = [...conversation.messages]
         const last = messages.at(-1)
@@ -3587,12 +3642,24 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
         }
         return { ...conversation, messages }
       })
+      const released = heldSubagentSnapshots.get(sessionId)
+      if (released && !subagentBackfillHeld(sessionId)) {
+        heldSubagentSnapshots.delete(sessionId)
+        s.conversations = mapped.map(conversation => (
+          conversation.id === sessionId
+            ? { ...conversation, subagentTasks: released }
+            : conversation
+        ))
+      } else {
+        s.conversations = mapped
+      }
       scheduleSave(sessionId)
       reconcileParentRun(sessionId)
     })
   }
 
   function dispose() {
+    stopDraftWatch()
     stopWatchActiveId()
     disposeEvents?.()
     disposeEvents = undefined

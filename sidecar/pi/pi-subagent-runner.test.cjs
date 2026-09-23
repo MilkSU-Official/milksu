@@ -5,6 +5,7 @@ const { spawnSync } = require("node:child_process");
 const { createHash } = require("node:crypto");
 const { createServer } = require("node:http");
 const {
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -158,21 +159,11 @@ test("launcher removes ambient Node options before runner startup", {
   assert.equal(result.stdout, "launcher-ok");
 });
 
-test("bundled subagent heartbeats keep an absolute execution limit", () => {
-  const source = readFileSync(
-    join(repositoryRoot, "node_modules/pi-sub-agent/extensions/index.ts"),
-    "utf8",
+test("the retired pi-sub-agent package is not the product path", () => {
+  assert.equal(
+    existsSync(join(repositoryRoot, "node_modules/pi-sub-agent/extensions/index.ts")),
+    false,
   );
-  assert.match(
-    source,
-    /MILKSU_SUBAGENT_HEARTBEAT_INTERVAL_MS = 30_000/,
-  );
-  assert.match(
-    source,
-    /MILKSU_SUBAGENT_EXECUTION_LIMIT_MS = 10 \* 60_000/,
-  );
-  assert.match(source, /\(\) => abort\("timeout"\)/);
-  assert.match(source, /Subagent exceeded the 10 minute execution limit/);
 });
 
 test("runner admits only the exact bundled role prompt from its temporary root", () => {
@@ -324,6 +315,8 @@ test("runner configures TokenFlux and rejects the removed KouriChat provider", (
     config.providers.tokenflux.models[0].id,
     "deepseek/deepseek-v4-flash",
   );
+  assert.equal(config.providers.tokenflux.models[0].contextWindow, 1_000_000);
+  assert.equal(config.providers.tokenflux.models[0].maxTokens, 384_000);
   assert.equal(
     writeRuntimeModelConfig(
       agentDirectory,
@@ -339,6 +332,9 @@ test("Pi subagent shell drops provider credentials without changing ordinary Pi"
   const markerName = "MILKSU_PI_SUBAGENT_RUNTIME";
   const previousProvider = process.env[providerName];
   const previousMarker = process.env[markerName];
+  const previousTokenflux = process.env.TOKENFLUX_API_KEY;
+  const previousTurnKey = process.env.MILKSU_SUBAGENT_KEY_TEAM;
+  const previousImageKey = process.env.MILKSU_IMAGEGEN_API_KEY;
   const sentinel = "sentinel-never-log";
   try {
     process.env[providerName] = sentinel;
@@ -352,14 +348,26 @@ test("Pi subagent shell drops provider credentials without changing ordinary Pi"
     assert.equal(getShellEnv()[providerName], sentinel);
 
     process.env[markerName] = "1";
+    process.env.TOKENFLUX_API_KEY = sentinel;
+    process.env.MILKSU_SUBAGENT_KEY_TEAM = sentinel;
+    process.env.MILKSU_IMAGEGEN_API_KEY = sentinel;
     const isolated = getShellEnv();
     assert.equal(providerName in isolated, false);
     assert.equal(markerName in isolated, false);
+    assert.equal("TOKENFLUX_API_KEY" in isolated, false);
+    assert.equal("MILKSU_SUBAGENT_KEY_TEAM" in isolated, false);
+    assert.equal("MILKSU_IMAGEGEN_API_KEY" in isolated, false);
   } finally {
     if (previousProvider === undefined) delete process.env[providerName];
     else process.env[providerName] = previousProvider;
     if (previousMarker === undefined) delete process.env[markerName];
     else process.env[markerName] = previousMarker;
+    if (previousTokenflux === undefined) delete process.env.TOKENFLUX_API_KEY;
+    else process.env.TOKENFLUX_API_KEY = previousTokenflux;
+    if (previousTurnKey === undefined) delete process.env.MILKSU_SUBAGENT_KEY_TEAM;
+    else process.env.MILKSU_SUBAGENT_KEY_TEAM = previousTurnKey;
+    if (previousImageKey === undefined) delete process.env.MILKSU_IMAGEGEN_API_KEY;
+    else process.env.MILKSU_IMAGEGEN_API_KEY = previousImageKey;
   }
 });
 

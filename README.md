@@ -170,7 +170,7 @@ MilkSU 的 Agent 循环、记忆分层、视觉和界面行为分别建立在这
 
 | 项目 | 在 MilkSU 中做什么 | 许可 |
 | --- | --- | --- |
-| [Pi](https://github.com/earendil-works/pi) | 通用 Agent 会话、上下文压缩和工具循环。当前固定 `@earendil-works/pi-coding-agent` 0.84.1 | MIT |
+| [Pi](https://github.com/earendil-works/pi) | 通用 Agent 会话、上下文压缩和工具循环。当前固定 `@earendil-works/pi-coding-agent` 0.87.0。后台子代理来自 `pi-subagents` 0.70.1 | MIT |
 | [Obelisk](https://github.com/tommy0103/obelisk) | 本地会话记忆与学习记录的分层参考。MilkSU 以 AGPL-3.0-only 发布，以便嵌入该组件 | AGPL-3.0 |
 | [ak-ui](https://github.com/YunYouJun/ak-ui) | 少量界面彩蛋（列表筛选、连接状态、顶栏模块字标）。不把 `@yunyoujun/ak-ui` 写进 app 依赖 | MIT |
 | [Beautiful UI](https://www.beautifului.dev/) | 已发安装包仍有其材料残留。新 UI / 重构以仓库根目录 `AGENTS.md` 为准（React + shadcn）。不引入其 React 运行时或付费图标 | MIT |

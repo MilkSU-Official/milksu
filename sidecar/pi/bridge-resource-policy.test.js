@@ -101,7 +101,7 @@ test("loaded extension names come from registered tools", () => {
       "pi-goal",
       "pi-background-tasks",
       "pi-mcp-adapter",
-      "pi-sub-agent",
+      "pi-subagents",
     ],
     errors: [{ path: "broken-extension", error: "failed to load" }],
   });

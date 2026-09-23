@@ -8,4 +8,3 @@ export {
   spawnTask as spawnPiBackgroundTask,
   stopTask as stopPiBackgroundTask,
 } from "pi-better-background-tasks/src/runtime.ts";
-export { default as piSubAgentExtension } from "pi-sub-agent/extensions/index.ts";

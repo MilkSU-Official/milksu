@@ -21,20 +21,26 @@ export default function WorkingTray({
   conversations,
   onStopOne,
   onStopAll,
+  onOpenItem,
 }: {
   items: readonly WorkingItem[]
   conversations: readonly Conversation[]
   onStopOne?: (item: WorkingItem) => void
   onStopAll?: () => void
+  onOpenItem?: (item: WorkingItem) => void
 }) {
   const t = useT()
   const root = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState(false)
   const [viewingId, setViewingId] = useState('')
-  const [viewingItem, setViewingItem] = useState<WorkingItem | null>(null)
+  const [viewingItemId, setViewingItemId] = useState('')
+  const recordRef = useRef<HTMLDivElement>(null)
+  const stickToEnd = useRef(true)
   const live = useMemo(() => liveWorkingItems(items), [items])
   const viewing = conversations.find(item => item.id === viewingId) ?? null
+  const viewingItem = items.find(item => item.id === viewingItemId) ?? null
   const viewingOpen = Boolean(viewing || viewingItem)
+  const record = viewingItem?.detail || viewingItem?.title || ''
   const capsuleLabel = workingCapsuleCopy(live.length, t)
 
   useEffect(() => {
@@ -46,6 +52,12 @@ export default function WorkingTray({
     return () => document.removeEventListener('pointerdown', onPointerDown)
   }, [open])
 
+  useEffect(() => {
+    const node = recordRef.current
+    if (!node || !stickToEnd.current) return
+    node.scrollTop = node.scrollHeight
+  }, [record, viewing?.messages?.length])
+
   if (!live.length) return null
 
   function statusLabel(item: WorkingItem) {
@@ -55,8 +67,10 @@ export default function WorkingTray({
   }
 
   function openItem(item: WorkingItem) {
-    setViewingItem(item)
+    stickToEnd.current = true
+    setViewingItemId(item.id)
     setViewingId(item.conversationId ?? '')
+    if (item.kind === 'subagent') onOpenItem?.(item)
   }
 
   return (
@@ -140,7 +154,7 @@ export default function WorkingTray({
         onOpenChange={next => {
           if (!next) {
             setViewingId('')
-            setViewingItem(null)
+            setViewingItemId('')
           }
         }}
       >
@@ -151,7 +165,15 @@ export default function WorkingTray({
               {t('查看这个子代理正在跑的对话', 'View this subagent conversation')}
             </DialogDescription>
           </DialogHeader>
-          <div className="max-h-[min(24rem,calc(100vh-12rem))] space-y-3 overflow-y-auto px-1 py-2">
+          <div
+            ref={recordRef}
+            className="max-h-[min(24rem,calc(100vh-12rem))] space-y-3 overflow-y-auto px-1 py-2"
+            onScroll={() => {
+              const node = recordRef.current
+              if (!node) return
+              stickToEnd.current = node.scrollHeight - node.scrollTop - node.clientHeight < 48
+            }}
+          >
             {(viewing?.messages ?? []).length ? (viewing?.messages ?? []).map(message => (
               <div key={message.id} className="rounded-md border border-border bg-card px-3 py-2">
                 <p className="mb-1 text-label text-muted-foreground">
@@ -171,7 +193,7 @@ export default function WorkingTray({
                   {viewingItem ? statusLabel(viewingItem) : t('子代理', 'Subagent')}
                 </p>
                 <pre className="whitespace-pre-wrap break-words font-sans text-label">
-                  {viewingItem?.detail || viewingItem?.title || ''}
+                  {record}
                 </pre>
               </div>
             )}

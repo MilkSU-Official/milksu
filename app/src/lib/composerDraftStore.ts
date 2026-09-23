@@ -79,6 +79,26 @@ function draftSignature(draft: {
 }
 
 const lastSignature = new Map<string, string>()
+const draftListeners = new Set<() => void>()
+
+function notifyComposerDrafts() {
+  for (const listener of draftListeners) listener()
+}
+
+export function subscribeComposerDrafts(listener: () => void) {
+  draftListeners.add(listener)
+  return () => {
+    draftListeners.delete(listener)
+  }
+}
+
+export function composerDraftPending(conversationId?: string | null) {
+  const draft = drafts.get(String(conversationId ?? '').trim())
+  if (!draft) return false
+  if (String(draft.text ?? '').trim()) return true
+  if (draft.attachments.length > 0) return true
+  return !isBlankComposerMarkup(draft.html)
+}
 
 function storage(): Storage | null {
   try {
@@ -223,6 +243,7 @@ export function writeComposerDraft(key: string, draft: StoredComposerDraft) {
   drafts.set(normalized, { html, text, attachments, at: Date.now() })
   draftOrder.set(normalized, ++draftSeq)
   scheduleFlush()
+  notifyComposerDrafts()
 }
 
 export function clearComposerDraft(key: string) {
@@ -234,10 +255,12 @@ export function clearComposerDraft(key: string) {
   // 清空是“不能等”的意图（发送后、用户主动删掉最后一格）：立刻落盘，
   // 否则重启后旧草稿会从存储里复活。
   flushComposerDraftsNow()
+  notifyComposerDrafts()
 }
 
 export function resetComposerDrafts() {
   drafts.clear()
   lastSignature.clear()
   flushComposerDraftsNow()
+  notifyComposerDrafts()
 }

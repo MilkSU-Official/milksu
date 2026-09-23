@@ -6,6 +6,7 @@ import {
   codingMcpOperationRequiresApproval,
   mcpConversationGrantKey,
   resolveCodingMcpServer,
+  subagentCallRequiresApproval,
 } from "./bridge-auto-approval.js";
 
 test("Project Auto approves only reviewed local capability servers", () => {
@@ -97,6 +98,10 @@ test("Request Approval asks per operation while Full Access runs local MCP tools
   assert.equal(codingCollaborationRequiresApproval("ask"), true);
   assert.equal(codingMcpOperationRequiresApproval(operation, "ask"), true);
   assert.equal(codingCollaborationRequiresApproval("full-auto"), false);
+  assert.equal(subagentCallRequiresApproval(false, "workspace-auto"), false);
+  assert.equal(subagentCallRequiresApproval(true, "workspace-auto"), true);
+  assert.equal(subagentCallRequiresApproval(true, "full-auto"), true);
+  assert.equal(subagentCallRequiresApproval(false, "ask"), true);
   assert.equal(codingMcpOperationRequiresApproval(operation, "full-auto"), false);
 });
 

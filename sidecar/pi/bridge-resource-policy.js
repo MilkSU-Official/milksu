@@ -142,7 +142,7 @@ export function describeLoadedExtensions(resourceLoader) {
       return ["pi-background-tasks"];
     }
     if (tools.has("mcp")) return ["pi-mcp-adapter"];
-    if (tools.has("subagent")) return ["pi-sub-agent"];
+    if (tools.has("subagent")) return ["pi-subagents"];
     return [];
   });
   return {

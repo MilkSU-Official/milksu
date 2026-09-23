@@ -10,7 +10,7 @@ describe('shouldShowMultitaskCapsule', () => {
   it('hides on Pi, off, or missing flag', () => {
     expect(shouldShowMultitaskCapsule({ kernel: 'dsh', multitask: false })).toBe(false)
     expect(shouldShowMultitaskCapsule({ kernel: 'dsh' })).toBe(false)
-    expect(shouldShowMultitaskCapsule({ kernel: 'pi', multitask: true })).toBe(false)
+    expect(shouldShowMultitaskCapsule({ kernel: 'pi', multitask: true })).toBe(true)
     expect(shouldShowMultitaskCapsule({ kernel: '', multitask: true })).toBe(false)
   })
 })

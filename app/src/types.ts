@@ -170,6 +170,10 @@ export interface SubagentTask {
   exitCode?: number
   yield?: SubagentYield
   toolCallId?: string
+  summary?: string
+  transcript?: string
+  // Open record. The row keeps the previous summary until the timeline is free.
+  liveTranscript?: string
 }
 
 export interface CodingGoalState {
@@ -200,7 +204,7 @@ export interface Conversation {
   kernel?: import('@/lib/agentKernel').AgentKernel
   /** DSH child session spawned from Multitask; hidden from the sidebar. */
   parentConversationId?: string
-  /** DSH only: new sends while the parent is running become child sessions. */
+  /** New sends while the parent is running stay on this conversation. */
   multitask?: boolean
   modelMode?: 'auto' | 'manual'
   modelProvider?: string

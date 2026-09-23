@@ -7,6 +7,7 @@ import {
   createSubagentYieldExtension,
   formatSubagentToolInput,
   formatSubagentYieldLines,
+  isAsyncSubagentReceipt,
   normalizeSubagentYield,
   projectSubagentRosterEnd,
   projectSubagentRosterStart,
@@ -83,7 +84,7 @@ test("read-only roles reject writer worktree paths in files and findings", async
       files: ["writer-1/a.ts"],
       findings: [{ path: "writer-1/src.ts", note: "edited" }],
     }), {
-      role: "planner",
+      role: "researcher",
       worktrees: [{ id: "writer-1", path: writer }],
     }),
     /Read-only subagent yield cannot include writer worktree paths/,
@@ -202,6 +203,44 @@ test("roster start appears and end becomes succeeded or failed", () => {
   }, { durationMs: 40, isError: true, toolCallId: "call-1" });
   assert.equal(failed[0].status, "failed");
   assert.equal(failed[0].exitCode, 2);
+});
+
+test("management results keep the package text and do not open a failed roster row", () => {
+  const result = {
+    content: [{ type: "text", text: "Executable agents:\n- scout" }],
+    details: { mode: "management", results: [] },
+    input: { action: "list" },
+  };
+  const wrapped = projectSubagentToolResult(result, { workspace: "/work" });
+  assert.equal(wrapped.details.mode, "management");
+  assert.equal(wrapped.details.yield, undefined);
+  assert.equal(wrapped.content[0].text, "Executable agents:\n- scout");
+  assert.deepEqual(projectSubagentRosterEnd([], wrapped, { toolCallId: "call-list" }), []);
+});
+
+test("an async receipt stays running and is not rewritten as a failed yield", () => {
+  const started = projectSubagentRosterStart({
+    agent: "scout",
+    task: "map the module",
+  }, { toolCallId: "call-async" });
+  const result = {
+    content: [{
+      type: "text",
+      text: "Async: scout [run-1]\n\nThe async run is detached and running in the background.",
+    }],
+    details: {
+      mode: "single",
+      runId: "run-1",
+      asyncDir: "/tmp/milksu-run",
+    },
+  };
+  assert.equal(isAsyncSubagentReceipt(result)?.runId, "run-1");
+  const running = projectSubagentRosterEnd(started, result, { toolCallId: "call-async" });
+  assert.equal(running[0].status, "running");
+  assert.equal(running[0].asyncDir, "/tmp/milksu-run");
+  const wrapped = projectSubagentToolResult(result, { workspace: "/work" });
+  assert.equal(wrapped.details.asyncDir, "/tmp/milksu-run");
+  assert.equal(wrapped.details.yield, undefined);
 });
 
 test("normalize falls back to session workspace then dot when Pi omits location", () => {

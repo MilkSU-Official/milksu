@@ -47,6 +47,19 @@ export const CODING_FILE_PROMPT = [
   '完成标准：工作区必须出现 NOTES.md，且你实际调用了文件类工具（列出/写入/读取），不要只用纯文本假装写过。',
 ].join('\n')
 
+export const SUBAGENT_MARKER = 'SUBAGENT-LOOP-OK'
+
+const SUBAGENT_PROMPT = [
+  '必须调用名为 subagent 的工具，而且只调用这一次。不要自己用 write、edit 或 bash 创建文件。',
+  '参数这样填：agent 是 worker，async 是 true。不要传 model。',
+  'task 只写这一句：在当前工作区新建 SUBAGENT.txt，内容只有一行 SUBAGENT-LOOP-OK，写完就停。',
+  '发出这次工具调用后，用一句话说明已经派出去，然后结束你的回合。',
+].join('\n')
+
+const SUBAGENT_MODEL_NOT_FOUND = /Model "[^"]+" not found\. Use --list-models/i
+const SUBAGENT_DISCOVERY_CRASH = /Cannot read properties of undefined \(reading 'state'\)/
+const SECRET_FIELD = /api[-_ ]?key|token|secret|password|authorization/i
+
 const SHELL_PROMPT = [
   '在当前工作区用 shell 写一个 DATE.txt，内容是今天的日期和一行 hello-product-loop。',
   '不要只在回复里假装写过。写完再读回来。',
@@ -121,6 +134,104 @@ async function waitForPendingAsk(driver, conversationId, timeoutMs = 90_000) {
 
 function collectToolNames(events) {
   return [...new Set((events ?? []).map(event => String(event?.toolName ?? event?.name ?? event?.title ?? '')).filter(Boolean))]
+}
+
+function scrubEvidence(value) {
+  return String(value ?? '')
+    .replace(/\b(?:sk[-_]|tfk_|gsk_|aiza)[a-z0-9._-]{8,}/gi, '[REDACTED]')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 240)
+}
+
+function pushEvidence(value, out, depth) {
+  if (depth > 5 || out.length > 120) return
+  if (typeof value === 'string') {
+    const text = value.trim()
+    if (text && text.length <= 4000) out.push(text)
+    return
+  }
+  if (!value || typeof value !== 'object') return
+  const entries = Array.isArray(value) ? value.entries() : Object.entries(value)
+  for (const [key, child] of entries) {
+    if (typeof key === 'string' && SECRET_FIELD.test(key)) continue
+    pushEvidence(child, out, depth + 1)
+  }
+}
+
+export function subagentEvidenceText(value) {
+  const out = []
+  pushEvidence(value, out, 0)
+  return out.join('\n')
+}
+
+export function assessSubagentTurn({
+  toolNames = [],
+  transcript = '',
+  fileText = '',
+  timeout = false,
+} = {}) {
+  const blob = [transcript, ...(toolNames || [])].join('\n')
+  const modelError = blob.match(SUBAGENT_MODEL_NOT_FOUND)?.[0]
+  if (modelError) return fail(`子代理不认父会话模型：${scrubEvidence(modelError)}`)
+  const crash = blob.match(SUBAGENT_DISCOVERY_CRASH)?.[0]
+  if (crash) return fail(`子代理发现崩溃：${scrubEvidence(crash)}`)
+  const used = (toolNames || []).some(name => /subagent/i.test(name))
+  const wrote = String(fileText ?? '').includes(SUBAGENT_MARKER)
+  if (!used) {
+    return fail(`没有调用 subagent。tools=${(toolNames || []).join(',') || 'none'} timeout=${Boolean(timeout)}`)
+  }
+  if (!wrote) {
+    const childFailure = blob.match(/Background task failed:[^\n]{0,180}/)?.[0]
+    return fail(childFailure
+      ? `SUBAGENT.txt 没有 ${SUBAGENT_MARKER}。${scrubEvidence(childFailure)}`
+      : `SUBAGENT.txt 没有 ${SUBAGENT_MARKER}。timeout=${Boolean(timeout)}`)
+  }
+  if (timeout) return fail('父回合超时，标记文件在，但回合没有正常结束')
+  return pass('后台子代理沿用当前会话模型写出了 SUBAGENT.txt')
+}
+
+async function readText(path) {
+  try {
+    return await readFile(path, 'utf8')
+  } catch {
+    return ''
+  }
+}
+
+async function waitForSubagentEvidence(driver, conversation, workspace, turn, toolNames) {
+  const names = new Set(toolNames)
+  const chunks = [String(turn?.error ?? ''), subagentEvidenceText(turn?.events)]
+  const deadline = Date.now() + 90_000
+  let fileText = ''
+  while (Date.now() < deadline) {
+    const batch = await driver.drainEvents(conversation.id).catch(() => [])
+    for (const name of collectToolNames(batch)) names.add(name)
+    chunks.push(subagentEvidenceText(batch))
+    const listed = await driver.listConversations().catch(() => [])
+    const saved = listed.find(row => conversationIdOf(row) === conversation.id)
+    chunks.push(subagentEvidenceText(conversationMessages(saved)))
+    fileText = await readText(join(workspace, 'SUBAGENT.txt'))
+    const preview = assessSubagentTurn({
+      toolNames: [...names],
+      transcript: chunks.join('\n'),
+      fileText,
+      timeout: false,
+    })
+    if (/不认父会话模型|发现崩溃/.test(preview.detail)) {
+      return { toolNames: [...names], transcript: chunks.join('\n'), fileText, timeout: false }
+    }
+    if (preview.result === 'PASS') {
+      return { toolNames: [...names], transcript: chunks.join('\n'), fileText, timeout: Boolean(turn?.timeout) }
+    }
+    await delay(500)
+  }
+  return {
+    toolNames: [...names],
+    transcript: chunks.join('\n'),
+    fileText,
+    timeout: Boolean(turn?.timeout),
+  }
 }
 
 function runGitInit(cwd) {
@@ -309,6 +420,22 @@ export async function runCodingPiFiles(driver, options = {}) {
       const notes = await fileExists(join(workspace, 'NOTES.md'))
       const ok = notes && toolNames.some(name => FILE_TOOL_PATTERN.test(name)) && !turn.timeout
       return ok ? pass('Pi 写出 NOTES.md，并且用了文件工具') : fail(`NOTES.md=${notes} tools=${toolNames.join(',')} timeout=${Boolean(turn.timeout)}`)
+    },
+  })
+}
+
+export async function runCodingPiSubagent(driver, options = {}) {
+  await home(driver)
+  return runWorkspaceTurn(driver, {
+    ...options,
+    prefix: 'product-loop-pi-subagent',
+    title: 'product-loop coding-pi-subagent',
+    kernel: 'pi',
+    prompt: SUBAGENT_PROMPT,
+    allowBroken: true,
+    async check({ conversation, workspace, turn, toolNames }) {
+      const evidence = await waitForSubagentEvidence(driver, conversation, workspace, turn, toolNames)
+      return assessSubagentTurn(evidence)
     },
   })
 }

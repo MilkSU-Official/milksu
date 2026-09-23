@@ -1,5 +1,6 @@
-import { useMemo, useRef } from 'react'
+import { useMemo, useRef, type SyntheticEvent } from 'react'
 import AgentPixelLoader from '@/components/AgentPixelLoader'
+import ChatSubagentRoster from '@/components/ChatSubagentRoster'
 import ChatWorkFold from '@/components/ChatWorkFold'
 import {
   buildChatActivityEntries,
@@ -9,6 +10,7 @@ import {
   type ChatActivityEntry,
 } from '@/lib/chatActivity'
 import { agentToolChip } from '@/lib/agentConversation'
+import { subagentTasksForActivity } from '@/lib/subagentRoster'
 import type { ChatFoldModel } from '@/lib/chatWorkStatus'
 import { useT } from '@/hooks/useUiLocale'
 import type { SubagentTask } from '@/types'
@@ -19,9 +21,10 @@ export default function ChatActivityGroup({
   open,
   openEntryIds,
   revealCompleted = false,
-  subagentTasks: _subagentTasks = [],
+  subagentTasks = [],
   onToggleGroup,
   onToggleEntry,
+  onOpenSubagent,
 }: {
   activity: ChatActivityBlock
   model?: ChatFoldModel
@@ -31,6 +34,7 @@ export default function ChatActivityGroup({
   subagentTasks?: readonly SubagentTask[]
   onToggleGroup?: (open: boolean) => void
   onToggleEntry?: (entryId: string, open: boolean) => void
+  onOpenSubagent?: (task: SubagentTask) => void
 }) {
   const t = useT()
   const entryDetails = useRef(new Map<string, HTMLDetailsElement>())
@@ -40,6 +44,10 @@ export default function ChatActivityGroup({
       .filter(entry => entry.toolName !== 'subagent')
     return revealCompleted ? entries : visibleChatActivityEntries(entries, openEntryIds)
   }, [activity.messages, revealCompleted, openEntryIds])
+  const roster = useMemo(
+    () => subagentTasksForActivity(subagentTasks, activity.messages),
+    [activity.messages, subagentTasks],
+  )
 
   function setEntryDetails(entryId: string, element: HTMLDetailsElement | null) {
     if (element) entryDetails.current.set(entryId, element)
@@ -53,7 +61,7 @@ export default function ChatActivityGroup({
     })
   }
 
-  function toggleEntry(entryId: string, event: React.SyntheticEvent<HTMLDetailsElement>) {
+  function toggleEntry(entryId: string, event: SyntheticEvent<HTMLDetailsElement>) {
     const nextOpen = detailsToggleOpen({
       target: event.target,
       currentTarget: event.currentTarget,
@@ -74,9 +82,11 @@ export default function ChatActivityGroup({
     return t(`${Math.round(durationMs / 1000)} 秒`, `${Math.round(durationMs / 1000)} s`)
   }
 
-  if (!toolEntries.length) return null
+  if (!toolEntries.length && !roster.length) return null
 
   const entries = (
+    <div className="tool-activity" data-activity-open={open ? 'true' : 'false'}>
+      {toolEntries.length ? (
         <div className="tool-activity__entries">
           {toolEntries.map(entry => {
             const chipValue = chip(entry)
@@ -143,15 +153,12 @@ export default function ChatActivityGroup({
             )
           })}
         </div>
+      ) : null}
+      <ChatSubagentRoster tasks={roster} onOpen={onOpenSubagent} />
+    </div>
   )
 
-  if (revealCompleted || !model) {
-    return (
-      <div className="tool-activity" data-activity-open={open ? 'true' : 'false'}>
-        {entries}
-      </div>
-    )
-  }
+  if (revealCompleted || !model) return entries
 
   return (
     <ChatWorkFold
@@ -159,9 +166,7 @@ export default function ChatActivityGroup({
       open={open}
       onToggle={next => onToggleGroup?.(next)}
     >
-      <div className="tool-activity" data-activity-open={open ? 'true' : 'false'}>
-        {entries}
-      </div>
+      {entries}
     </ChatWorkFold>
   )
 }

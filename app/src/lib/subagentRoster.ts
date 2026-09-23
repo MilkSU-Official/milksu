@@ -7,6 +7,25 @@ const rosterStatuses = new Set<SubagentTaskStatus>([
   'failed',
 ])
 
+function boundedText(value: unknown, limit: number) {
+  const text = String(value ?? '').trim()
+  if (!text) return undefined
+  return text.length > limit ? text.slice(text.length - limit) : text
+}
+
+export function subagentCitationText(task: {
+  role?: string
+  id?: string
+  summary?: string
+  transcript?: string
+  liveTranscript?: string
+}, limit = 2000) {
+  const title = `${String(task.role ?? '').trim()} ${String(task.id ?? '').trim()}`.trim()
+  const body = String(task.liveTranscript || task.transcript || task.summary || '').trim()
+  const clipped = body.length > limit ? body.slice(0, limit) : body
+  return clipped ? `${title}\n${clipped}` : title
+}
+
 function exactObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
@@ -60,8 +79,64 @@ export function normalizeSubagentTasks(value: unknown): SubagentTask[] {
         : undefined,
       exitCode: Number.isSafeInteger(exitCode) ? exitCode : undefined,
       yield: normalizeYield(entry.yield),
+      summary: boundedText(entry.summary, 240),
+      transcript: boundedText(entry.transcript, 8000),
     }]
   })
+}
+
+export function shouldHoldSubagentBackfill(input: {
+  running: boolean
+  aborting: boolean
+  queued: boolean
+  composing: boolean
+}): boolean {
+  return input.running || input.aborting || input.queued || input.composing
+}
+
+function liveTranscriptOf(task: SubagentTask) {
+  return task.transcript || task.summary || undefined
+}
+
+function withLiveTranscript(task: SubagentTask): SubagentTask {
+  return { ...task, liveTranscript: liveTranscriptOf(task) }
+}
+
+export function subagentRecordText(task: {
+  liveTranscript?: string
+  transcript?: string
+  summary?: string
+  yield?: SubagentYield
+}) {
+  return task.liveTranscript || task.transcript || task.summary || formatSubagentYield(task.yield)
+}
+
+export function projectSubagentBackfill(
+  previous: readonly SubagentTask[],
+  incoming: readonly SubagentTask[],
+  hold: boolean,
+): { tasks: SubagentTask[]; held: boolean } {
+  if (!hold) return { tasks: incoming.map(withLiveTranscript), held: false }
+  const prior = new Map(previous.map(task => [task.id, task]))
+  let held = false
+  const tasks = incoming.map((task) => {
+    const liveTranscript = liveTranscriptOf(task)
+    const old = prior.get(task.id)
+    if (!old) {
+      if (task.summary || task.transcript) held = true
+      return { ...task, summary: undefined, transcript: undefined, liveTranscript }
+    }
+    if ((task.summary ?? '') !== (old.summary ?? '') || (task.transcript ?? '') !== (old.transcript ?? '')) {
+      held = true
+    }
+    return {
+      ...task,
+      summary: old.summary,
+      transcript: old.transcript,
+      liveTranscript,
+    }
+  })
+  return { tasks, held }
 }
 
 export function subagentTasksForActivity(

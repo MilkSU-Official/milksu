@@ -4,6 +4,7 @@ import {
   SessionManager,
 } from "@earendil-works/pi-coding-agent";
 import { existsSync } from "node:fs";
+import piSubagentsExtension from "pi-subagents";
 import { createInterface } from "node:readline";
 import { basename, dirname, join, resolve } from "node:path";
 import { readFile, rm, unlink } from "node:fs/promises";
@@ -22,7 +23,6 @@ import {
   piBackgroundTasksExtension,
   piGoalExtension,
   piLspExtension,
-  piSubAgentExtension,
   readPiBackgroundTaskLog,
   spawnPiBackgroundTask,
   stopPiBackgroundTask,
@@ -40,8 +40,8 @@ import {
 } from "./bridge-policy.js";
 import { createApprovalBroker } from "./bridge-approval.js";
 import {
-  codingCollaborationRequiresApproval,
   codingMcpOperationRequiresApproval,
+  subagentCallRequiresApproval,
   mcpConversationGrantKey,
   resolveCodingMcpServer,
 } from "./bridge-auto-approval.js";
@@ -120,6 +120,8 @@ import {
   normalizeCodingCollaboration,
   validateSubagentInput,
 } from "./bridge-collaboration.js";
+import { readAsyncSubagentSnapshot } from "./pi-subagents-status.js";
+import { terminateConversationSubagents } from "./pi-subagents-stop.js";
 import {
   authorizeImageGenToolCall,
   codingImageGenToolName,
@@ -164,6 +166,12 @@ import {
 } from "./bridge-destructive-delete.js";
 import piWebResearchExtension from "./bridge-web-research.js";
 import currentProviderRuntime from "./current-provider-runtime.cjs";
+import {
+  apiKeyEnvFor,
+  forgetSessionProviders,
+  publicProvider,
+  rememberSessionProviders,
+} from "./pi-subagent-model-registry.cjs";
 import {
   createModelSourceRouteProvider,
   modelSourceFailureMessage,
@@ -355,6 +363,8 @@ function createReviewedBackgroundTasksExtension(conversationId) {
   };
 }
 
+const subagentPollers = new Map();
+
 function emitSubagentTasks(conversationId, tasks) {
   const next = Array.isArray(tasks) ? tasks : [];
   if (next.length) sessionSubagentTasks.set(conversationId, next);
@@ -368,8 +378,89 @@ function emitSubagentTasks(conversationId, tasks) {
       durationMs: task.durationMs,
       exitCode: task.exitCode,
       yield: task.yield,
+      summary: task.summary,
+      transcript: task.transcript,
     })),
   });
+}
+
+function stopSubagentPoll(conversationId) {
+  const timer = subagentPollers.get(conversationId);
+  if (timer) clearInterval(timer);
+  subagentPollers.delete(conversationId);
+}
+
+async function haltConversationSubagents(conversationId) {
+  const tasks = sessionSubagentTasks.get(conversationId) ?? [];
+  const workspace = sessionPolicies.get(conversationId)?.workspace;
+  const outcomes = await terminateConversationSubagents(tasks, workspace);
+  const skipped = outcomes.some(outcome => outcome.action === "skipped");
+  if (!skipped) stopSubagentPoll(conversationId);
+  const byId = new Map(outcomes.map(outcome => [outcome.id, outcome.action]));
+  let changed = false;
+  const next = tasks.map((task) => {
+    const action = byId.get(task.id);
+    if (!action || action === "skipped") return task;
+    if (task.status !== "running" && task.status !== "start") return task;
+    changed = true;
+    if (action === "absent") {
+      const snapshot = readAsyncSubagentSnapshot(task.asyncDir, workspace);
+      return {
+        ...task,
+        status: snapshot?.status === "succeeded" ? "succeeded" : "failed",
+        summary: snapshot?.summary || task.summary,
+        transcript: snapshot?.transcript || task.transcript,
+      };
+    }
+    return { ...task, status: "failed" };
+  });
+  if (changed) emitSubagentTasks(conversationId, next);
+}
+
+function subagentStillLive(tasks) {
+  return tasks.some(task => (
+    task.asyncDir
+    && (task.status === "running" || task.status === "start")
+  ));
+}
+
+function refreshSubagentTasks(conversationId) {
+  const current = sessionSubagentTasks.get(conversationId) ?? [];
+  if (!current.length) {
+    stopSubagentPoll(conversationId);
+    return;
+  }
+  const workspace = sessionPolicies.get(conversationId)?.workspace;
+  let changed = false;
+  const next = current.map((task) => {
+    if (!task.asyncDir || (task.status !== "running" && task.status !== "start")) {
+      return task;
+    }
+    const snapshot = readAsyncSubagentSnapshot(task.asyncDir, workspace);
+    if (!snapshot) return task;
+    if (
+      snapshot.status !== task.status
+      || snapshot.summary !== task.summary
+      || snapshot.transcript !== task.transcript
+    ) {
+      changed = true;
+    }
+    return {
+      ...task,
+      status: snapshot.status,
+      summary: snapshot.summary || task.summary,
+      transcript: snapshot.transcript || task.transcript,
+    };
+  });
+  if (!subagentStillLive(next)) stopSubagentPoll(conversationId);
+  if (changed) emitSubagentTasks(conversationId, next);
+}
+
+function ensureSubagentPoll(conversationId) {
+  if (subagentPollers.has(conversationId)) return;
+  const timer = setInterval(() => refreshSubagentTasks(conversationId), 1000);
+  timer.unref?.();
+  subagentPollers.set(conversationId, timer);
 }
 
 function emitGoalState(conversationId, session) {
@@ -709,8 +800,9 @@ function createCodingPermissionExtension(
       });
       if (imageGenDecision) return imageGenDecision;
       if (event.toolName === codingCollaborationToolName) {
+        let subagentRequest;
         try {
-          validateSubagentInput(
+          subagentRequest = validateSubagentInput(
             event.input,
             policy.codingCollaboration,
             policy.workspace,
@@ -721,7 +813,10 @@ function createCodingPermissionExtension(
             reason: error instanceof Error ? error.message : String(error),
           };
         }
-        if (codingCollaborationRequiresApproval(policy.approvalPolicy)) {
+        if (subagentCallRequiresApproval(
+          subagentRequest.externalCli,
+          policy.approvalPolicy,
+        )) {
           const approved = await approvalBroker.request({
             conversationId,
             toolName: codingCollaborationToolName,
@@ -1057,6 +1152,80 @@ function normalizeCommandModelSourceOrder(value) {
   return [...new Set(source.filter(id => id === "account" || id === "personal"))];
 }
 
+function childProviderSecrets(provider, turnProvider, envName) {
+  if (!String(envName ?? "").startsWith("MILKSU_SUBAGENT_KEY_")) return {};
+  const key = String(turnProvider?.key ?? "");
+  if (!key || String(turnProvider?.id ?? "").trim() !== String(provider ?? "").trim()) return {};
+  return { [envName]: key };
+}
+
+function rememberChildModelRegistry({
+  conversationId,
+  provider,
+  model,
+  thinking,
+  turnProvider,
+  definition,
+  account,
+  sources,
+  effectiveProvider,
+}) {
+  const providers = [];
+  const secrets = {};
+  if (definition) {
+    const envName = apiKeyEnvFor(provider, process.env, turnProvider);
+    Object.assign(secrets, childProviderSecrets(provider, turnProvider, envName));
+    const shaped = withProviderThinkingProfile(definition, model, thinking);
+    const published = publicProvider(provider, shaped, envName);
+    if (published) providers.push(published);
+  }
+  if (account?.model) {
+    const published = publicProvider("milksu-account", {
+      name: "MilkSU 账户分配模型",
+      baseUrl: relayUrl,
+      api: account.model.api || "openai-completions",
+      models: [withModelThinkingProfile({
+        id: account.id,
+        name: account.model.name || account.id,
+        reasoning: account.model.reasoning,
+        thinkingLevelMap: account.model.thinkingLevelMap,
+        input: account.model.input,
+        cost: account.model.cost,
+        contextWindow: account.model.contextWindow,
+        maxTokens: account.model.maxTokens,
+        compat: account.model.compat,
+      }, thinking)],
+    }, "MILKSU_RELAY_KEY");
+    if (published) providers.push(published);
+  }
+  // milksu-route is an in-process stream. The child keeps that provider id
+  // and the first source's transport, so the inherited model string resolves.
+  // It does not replay the parent's live source failover.
+  if (effectiveProvider === "milksu-route" && sources?.[0]?.model) {
+    const source = sources[0].model;
+    const sourceEnv = apiKeyEnvFor(source.provider, process.env, turnProvider);
+    const baseUrl = source.baseUrl || (source.provider === "milksu-account" ? relayUrl : definition?.baseUrl);
+    const published = baseUrl ? publicProvider("milksu-route", {
+      name: "MilkSU 模型来源",
+      baseUrl,
+      api: source.api || definition?.api || "openai-completions",
+      models: [{
+        id: model,
+        name: source.name || model,
+        reasoning: source.reasoning,
+        thinkingLevelMap: source.thinkingLevelMap,
+        input: source.input,
+        cost: source.cost,
+        contextWindow: source.contextWindow,
+        maxTokens: source.maxTokens,
+        compat: source.compat,
+      }],
+    }, sourceEnv || apiKeyEnvFor(provider, process.env, turnProvider)) : undefined;
+    if (published) providers.push(published);
+  }
+  rememberSessionProviders(conversationId, providers, secrets);
+}
+
 function configureRuntimeModel(
   session,
   provider,
@@ -1145,6 +1314,17 @@ function configureRuntimeModel(
       });
     }
     emit(conversationId, "model_source_selected", { source: sources[0].id });
+    rememberChildModelRegistry({
+      conversationId,
+      provider,
+      model,
+      thinking,
+      turnProvider,
+      definition,
+      account,
+      sources,
+      effectiveProvider: sources[0].model.provider,
+    });
     return { provider: sources[0].model.provider, model: sources[0].model.id };
   }
 
@@ -1165,6 +1345,17 @@ function configureRuntimeModel(
     },
     onFallback: fallback => emit(conversationId, "model_source_fallback", fallback),
   }));
+  rememberChildModelRegistry({
+    conversationId,
+    provider,
+    model,
+    thinking,
+    turnProvider,
+    definition,
+    account,
+    sources,
+    effectiveProvider: "milksu-route",
+  });
   return { provider: "milksu-route", model };
 }
 
@@ -1371,16 +1562,20 @@ function subscribeSession(
           collaboration: policy?.codingCollaboration,
           worktrees: policy?.codingCollaboration?.worktrees,
         });
+        const projected = projectSubagentRosterEnd(owned, wrapped, {
+          toolCallId: event.toolCallId,
+          durationMs: startedAt === undefined
+            ? undefined
+            : Math.max(0, Date.now() - startedAt),
+          isError: event.isError,
+        });
         emitSubagentTasks(conversationId, [
           ...others,
-          ...projectSubagentRosterEnd(owned, wrapped, {
-            toolCallId: event.toolCallId,
-            durationMs: startedAt === undefined
-              ? undefined
-              : Math.max(0, Date.now() - startedAt),
-            isError: event.isError,
-          }),
+          ...projected,
         ]);
+        if (subagentStillLive(sessionSubagentTasks.get(conversationId) ?? [])) {
+          ensureSubagentPoll(conversationId);
+        }
       }
       for (const usage of projectToolModelUsage(event.result, {
         conversationId,
@@ -1521,7 +1716,7 @@ function createMilkSUResourceLoader(
         request => workspaceActionBroker.request(request),
       ),
       createComputerUseToolExtension(getPolicy),
-      piSubAgentExtension,
+      piSubagentsExtension,
       createSubagentYieldExtension(() => {
         const policy = getPolicy?.();
         return {
@@ -1688,43 +1883,23 @@ async function loadRuntimeSessionPolicy(cwd, command) {
   };
 }
 
-function configureSubagentRuntime(cwd, collaboration) {
-  const launcher = join(bridgeDirectory, "pi-subagent-launcher.sh");
-  const runner = join(bridgeDirectory, "pi-subagent-runner.cjs");
-  const packagedCLI = join(bridgeDirectory, "pi-subagent-cli.cjs");
-  const developmentCLI = join(
-    sidecarResourceDirectory,
-    "node_modules",
-    "@earendil-works",
-    "pi-coding-agent",
-    "dist",
-    "cli.js",
-  );
-  const packagedAgents = join(bridgeDirectory, "subagents", "agents");
-  const developmentAgents = join(
-    sidecarResourceDirectory,
-    "node_modules",
-    "pi-sub-agent",
-    "extensions",
-    "agents",
-  );
-  const cli = existsSync(packagedCLI) ? packagedCLI : developmentCLI;
-  const agents = existsSync(packagedAgents) ? packagedAgents : developmentAgents;
-  for (const [label, path] of [
-    ["launcher", launcher],
-    ["runner", runner],
-    ["Pi CLI", cli],
-    ["agent prompts", agents],
-  ]) {
-    if (!existsSync(path)) {
-      throw new Error(`MilkSU subagent ${label} is unavailable: ${path}`);
-    }
+function configureSubagentRuntime() {
+  const packagedRoot = join(bridgeDirectory, "node_modules", "pi-subagents");
+  const developmentRoot = join(sidecarResourceDirectory, "node_modules", "pi-subagents");
+  const root = existsSync(join(packagedRoot, "package.json"))
+    ? packagedRoot
+    : developmentRoot;
+  if (!existsSync(join(root, "package.json"))) {
+    throw new Error(`MilkSU subagent package is unavailable: ${root}`);
   }
-  process.env.MILKSU_PI_SUBAGENT_LAUNCHER = launcher;
-  process.env.MILKSU_PI_SUBAGENT_RUNNER = runner;
-  process.env.MILKSU_PI_SUBAGENT_CLI = cli;
-  process.env.MILKSU_PI_SUBAGENT_AGENTS_DIR = agents;
+  const guard = join(bridgeDirectory, "pi-subagents-spawn.cjs");
+  if (!existsSync(guard)) {
+    throw new Error(`MilkSU subagent spawn guard is unavailable: ${guard}`);
+  }
+  process.env.MILKSU_PI_SUBAGENTS_ROOT = root;
+  process.env.MILKSU_PI_SUBAGENT_SPAWN_GUARD = guard;
   process.env.MILKSU_PI_SUBAGENT_BUNDLED_ONLY = "1";
+  delete process.env.PI_SUBAGENT_EXTRA_AGENT_DIRS;
 }
 
 async function createSession(command) {
@@ -1757,7 +1932,7 @@ async function createSession(command) {
     securityTools,
   } = await loadRuntimeSessionPolicy(cwd, command);
   applyCodingResourcePolicy();
-  configureSubagentRuntime(cwd, sessionPolicy.codingCollaboration);
+  configureSubagentRuntime();
   sessionPolicies.set(conversationId, sessionPolicy);
   if (mcpConfig) {
     await ensureMcpMetadataCache(agentDir);
@@ -1948,12 +2123,14 @@ async function sendMessage(command) {
         )
     )
   ) {
+    await haltConversationSubagents(conversationId);
     await disposeAgentSession(existing, "reload");
     sessions.delete(conversationId);
     sessionPolicies.delete(conversationId);
     sessionPolicyControllers.delete(conversationId);
     sessionModelSources.delete(conversationId);
     sessionConfiguredProviders.delete(conversationId);
+    forgetSessionProviders(conversationId);
     existing = undefined;
   }
   const session = existing ?? await createSession(command);
@@ -2072,7 +2249,9 @@ async function abortSession(command) {
   workspaceActionBroker.cancelConversation(conversationId, "turn aborted");
   pendingWorkspaceCompaction.delete(conversationId);
   const session = sessions.get(conversationId);
+  const halted = haltConversationSubagents(conversationId);
   if (!session) {
+    await halted;
     emit(conversationId, "turn_settled");
     return;
   }
@@ -2085,6 +2264,7 @@ async function abortSession(command) {
   } catch {
     // Nothing was compacting, or Pi already settled it.
   }
+  await halted;
   await session.abort();
   // Do not synthesize empty message_done (it became a blank assistant bubble).
   // If Pi already emitted agent_settled, a second turn_settled is harmless in
@@ -2170,12 +2350,14 @@ async function destroySession(command) {
   sessionTurnContracts.delete(conversationId);
   reasoningOnlyRecovered.delete(conversationId);
   reasoningOnlyPreviousTools.delete(conversationId);
+  await haltConversationSubagents(conversationId);
   await disposeAgentSession(session);
   sessions.delete(conversationId);
   sessionPolicies.delete(conversationId);
   sessionPolicyControllers.delete(conversationId);
   sessionModelSources.delete(conversationId);
   sessionConfiguredProviders.delete(conversationId);
+  forgetSessionProviders(conversationId);
   sessionSubagentTasks.delete(conversationId);
   backgroundTaskControllers.delete(conversationId);
   promptQueues.delete(conversationId);
@@ -2679,8 +2861,12 @@ async function disposeAllSessions() {
   reasoningOnlyRecovered.clear();
   reasoningOnlyPreviousTools.clear();
   await Promise.all(
+    [...sessionSubagentTasks.keys()].map(conversationId => haltConversationSubagents(conversationId)),
+  );
+  await Promise.all(
     [...sessions.values()].map(session => disposeAgentSession(session)),
   );
+  for (const conversationId of subagentPollers.keys()) stopSubagentPoll(conversationId);
   sessions.clear();
   sessionCreateCommands.clear();
   backgroundTaskControllers.clear();

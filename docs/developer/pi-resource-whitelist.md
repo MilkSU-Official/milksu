@@ -38,6 +38,7 @@ The goal is not the raw number of installed packages. The acceptance metric is a
 | `pi-mcp-adapter` | `2.17.0` | Normal Coding opt-in | Reviewed project MCP servers and first-party adapters | Exact npm pin; MIT; digest selection, sandbox, environment filtering and per-call desktop approval |
 | `@playwright/mcp` | `0.0.78` | Normal Coding, explicit sandbox Browser or Browser Use | Dedicated-profile Browser control or extension-mode access to one user-approved real tab | Exact npm pin; Apache-2.0; the two modes have separate Scope/profile semantics; transient descriptor or extension pairing; no ambient whole-profile authority |
 | `@napi-rs/system-ocr` | `1.1.0` | Normal Coding attachments | Local text extraction for images when the selected model has no vision | Exact npm pin; MIT; local-only fallback and explicit degradation disclosure |
+| `pi-subagents` | `0.70.1` | Coding, CTF, CVE, and Lab | Detached background subagents. The Pi 0.87.0 kernel does not provide this | Exact npm pin; MIT. Peers `@earendil-works/pi-agent-core` and `@earendil-works/chord` are pinned at 0.87.0 because the extension imports them. Builtin roles only. Workflow JavaScript, Gist share, `~/.pi` / project `.pi` / `~/.agents` discovery, and tmux/Herdr panes stay off. External CLI launches always ask. Companion does not load this package |
 
 The packaged Sidecar smoke test asserts both sides of the boundary. The
 `ready.extensions` list is derived from the tools and flags actually registered
@@ -75,7 +76,7 @@ the Sidecar manifest.
 | Resource | Decision |
 | --- | --- |
 | Pi plan-mode example/package | Preferred source for the Agent-side plan lifecycle. MilkSU's UI may project the plan, but must not grow a second planning engine. Integrate only after its embedded/non-TUI events map cleanly to the desktop composer. |
-| `pi-sub-agent` | Preferred multi-agent candidate. It already supplies isolated subprocess contexts, single/parallel/chain modes, bounded output, abort propagation, role presets, and recursion prevention. Activation still requires a packaged `pi` executable, parent-tool narrowing, budget projection, and visible desktop status. Do not build a competing subagent runner. |
+| `pi-sub-agent` | Retired. Background subagents come from pinned `pi-subagents`. Do not restore the nine MilkSU role prompts or a second runner. |
 | `tomsej/pi-ext` permissions | Preferred rule-matching/reference implementation for safe/read-only modes. Pi itself explicitly has no built-in permission boundary, so MilkSU must retain its OS sandbox and credential isolation. The extension's TUI confirmation cannot silently stand in for the missing desktop approval protocol. |
 | `tomsej/pi-ext` Session Snap / Query / Handoff | Preferred candidates for archive, recall, and fresh-session handoff. Reuse their session semantics where possible; MilkSU supplies repository-grouped navigation and desktop persistence. |
 | `tomsej/pi-ext` Code Review / Tool Pills / `pi-sem` | Preferred candidates for review workflow, compact tool rendering, and semantic change inspection. Evaluate measured context cost before enabling semantic tools by default. |
@@ -93,7 +94,7 @@ Pi's official documentation states that Pi runs with the launching process's fil
 | Pi SessionManager, context compaction, model/tool loop | Keep upstream-owned | Remove MilkSU behavior that duplicates Pi lifecycle decisions |
 | `milksu_progress` | Thin projection only | Replace its planning semantics with the selected Pi plan/task package; keep only the bounded Desktop RPC event schema |
 | Coding permission matcher | Reduce/replace | Reuse a reviewed permission package's matching rules where embedding permits; retain MilkSU sandbox, credential boundary, and desktop approval transport |
-| Agent-side subtask orchestration | Do not build | Integrate `pi-sub-agent` after packaged-runtime and budget tests |
+| Agent-side subtask orchestration | Pinned `pi-subagents` | MilkSU only gates cuts, credentials, approval, and the desktop roster |
 | Session archive/query/handoff | Do not build | Evaluate Session Snap / Query / Handoff and adapt only desktop navigation/state |
 | Code review and semantic diff | Do not build from scratch | Evaluate Code Review / Tool Pills / `pi-sem`; MilkSU owns file/diff presentation in the right panel |
 | Architecture diagrams, LSP, retry | Keep pinned external resources | Keep the reviewed `gopls` package gate and thin LSP review adapter, expand language fixtures, and avoid feature forks |

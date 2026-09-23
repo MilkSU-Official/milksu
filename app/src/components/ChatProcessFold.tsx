@@ -29,6 +29,7 @@ export default function ChatProcessFold({
   onEditUser,
   onRewindContext,
   onBranchAssistant,
+  onOpenSubagent,
 }: {
   process: ChatProcessFoldBlock
   model: ChatFoldModel
@@ -48,6 +49,7 @@ export default function ChatProcessFold({
   onEditUser?: (messageId: string, content: string) => void
   onRewindContext?: () => void
   onBranchAssistant?: (messageId: string) => void
+  onOpenSubagent?: (task: SubagentTask) => void
 }) {
   const foldedThinking = useMemo(() => mergeProcessThinking(process.blocks), [process.blocks])
   const visibleBlocks = useMemo(() => (
@@ -76,6 +78,7 @@ export default function ChatProcessFold({
               revealCompleted
               onToggleGroup={open => onToggleGroup?.(item.id, open)}
               onToggleEntry={(entryId, open) => onToggleEntry?.(item.id, entryId, open)}
+              onOpenSubagent={onOpenSubagent}
             />
           ) : (
             <ChatMessageItem

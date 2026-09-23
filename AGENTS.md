@@ -206,7 +206,7 @@ MilkSU 是 Electron/Chromium 桌面 App，配一个受管 Go Runtime 和 Agent S
 TokenFlux 的 API 流量必须走 `https://tokenflux.dev/v1`。
 产品代码、配置、测试默认值和文档里都不得出现 `tokenflux.ai` 域名。
 
-- 当前有两个已接入的 Agent 内核：Pi（`@earendil-works/pi-coding-agent`，工作树钉 0.84.1）
+- 当前有两个已接入的 Agent 内核：Pi（`@earendil-works/pi-coding-agent`，工作树钉 0.87.0）
   和 DeepSeek Harness（`@deepseek-ai/dsh`，走 ACP，工作树钉 0.1.6-alpha.1）。
   新对话二选一，出厂默认 Pi；设置 → 模型的「默认运行时」只决定新对话，不改写已有会话。
   DSH 是可选内核，不是 UI 参考：不要复刻它的 `dsh web` 皮肤。

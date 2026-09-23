@@ -63,7 +63,6 @@ test("reviewed TypeScript extensions load as JavaScript outside node_modules", a
   assert.equal(typeof loaded.piGoalExtension, "function");
   assert.equal(typeof loaded.piLspExtension, "function");
   assert.equal(typeof loaded.piBackgroundTasksExtension, "function");
-  assert.equal(typeof loaded.piSubAgentExtension, "function");
   assert.equal(typeof loaded.readPiBackgroundTaskLog, "function");
   assert.equal(typeof loaded.listPiBackgroundTaskMetas, "function");
   assert.equal(typeof loaded.spawnPiBackgroundTask, "function");

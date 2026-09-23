@@ -27,7 +27,7 @@
 | --- | --- |
 | 许可证 | `AGPL-3.0-only`。Obelisk 兼容、尚未 vendored。 |
 | Linux | 共用 x64 DEB + tarball。GNOME Portal Computer Use。无 Secret Service / 本地 OCR。见 [Linux 合同](linux-platform-support.md)。 |
-| Agent | Pi 拥有 Session / Compaction / Tool Loop。新对话可选 DSH（工作树钉 `0.1.6-alpha.1`）；出厂默认运行时 Pi，设置项只改新对话。短会话整理上下文不再失败；接到新会话铺原文或 harness 摘要。DSH 打 TokenFlux 保留厂商前缀。子 Agent 默认主工作区。DSH Multitask 用 ACP 子会话并行；模型自己拉起的 DSH `subagent` 也投影到 Working 胶囊。Pi 子代理阻塞。Working 是投影。产品回归 `npm run test:product-loop`，文字报告之外写带每项截图的正式 HTML。不扫描用户句子做意图路由。 |
+| Agent | Pi 拥有 Session / Compaction / Tool Loop。新对话可选 DSH（工作树钉 `0.1.6-alpha.1`）；出厂默认运行时 Pi，设置项只改新对话。工作树 Pi 钉 0.87.0。短会话整理上下文不再失败；接到新会话铺原文或 harness 摘要。DSH 打 TokenFlux 保留厂商前缀。子 Agent 默认主工作区。DSH Multitask 用 ACP 子会话并行；Pi Multitask 把消息留在主对话，后台子代理来自 `pi-subagents` 0.70.1。Working 是投影。产品回归 `npm run test:product-loop`，文字报告之外写带每项截图的正式 HTML。不扫描用户句子做意图路由。 |
 | 宿主 | 会话目录、凭据隔离、桌面授权、Judge、危险删除确认。 |
 | 模型与附件 | 账户与本机目录共用；附件原图进当前回合。 |
 | 发行 | 干净 `main` 验证一次；三端云端打包。OTA 走私有 R2，侧栏进度框下载后由用户点安装并重启。macOS DMG 引导图为 Retina @2x。GitHub Release 只上安装包。 |

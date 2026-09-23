@@ -18,14 +18,12 @@ const reviewedPackages = [
   "@narumitw/pi-lsp",
   "pi-better-background-tasks",
   "pi-mcp-adapter",
-  "pi-sub-agent",
 ];
 
 const reviewedPatches = [
   "@narumitw+pi-lsp+0.29.0.patch",
   "pi-better-background-tasks+0.1.10.patch",
   "pi-mcp-adapter+2.17.0.patch",
-  "pi-sub-agent+0.1.5.patch",
 ];
 
 function packageJSON(name) {
