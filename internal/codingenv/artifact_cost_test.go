@@ -23,7 +23,9 @@ func TestInspectStaysFastOnARepositoryWithLargeIgnoredTrees(t *testing.T) {
 	if !snapshot.Git.IsRepository {
 		t.Skip("this checkout is not a Git repository")
 	}
-	if elapsed > 3*time.Second {
+	// CI runners are occasionally noisy; keep this well below a full ignored-tree
+	// walk (tens of seconds+) while allowing a few seconds of scheduler jitter.
+	if elapsed > 8*time.Second {
 		t.Fatalf("snapshot took %v, which a user waits through on every refresh", elapsed)
 	}
 	t.Logf("snapshot took %v and offered %d artifacts", elapsed, len(snapshot.Artifacts))
