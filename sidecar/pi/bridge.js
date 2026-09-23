@@ -196,6 +196,10 @@ import {
   projectToolModelUsage,
 } from "./bridge-usage-view.js";
 import { assistantFailureText } from "./bridge-model-failure.js";
+import {
+  createThinkingRepetitionGuard,
+  THINKING_REPEAT_NOTICE,
+} from "./bridge-thinking-repetition.js";
 import { projectSessionContextComposition } from "./bridge-context-composition.js";
 import { withTokenFluxModelCompat } from "./tokenflux-model-compat.js";
 
@@ -220,6 +224,8 @@ let userMemoryRevision = -1;
 const sessionPolicies = new Map();
 const sessionPolicyControllers = new Map();
 const backgroundTaskControllers = new Map();
+// 思考复读护栏（reasoning 那一层，工具护栏管不到）。
+const thinkingRepetition = createThinkingRepetitionGuard();
 const promptQueues = new Map();
 const compactionRuns = new Map();
 const compactionRequestIds = new Map();
@@ -1498,10 +1504,23 @@ function subscribeSession(
         if (!thinkingStartedAt.has(conversationId)) {
           thinkingStartedAt.set(conversationId, Date.now());
         }
+        thinkingRepetition.reset(conversationId);
         emit(conversationId, "thinking_start", {});
       } else if (update.type === "thinking_delta") {
         thinkingStreamed = true;
         emit(conversationId, "thinking_delta", { delta: update.delta ?? "" });
+
+        // 思考复读：连续 N 行一模一样时告诉读者（可见，绝不静默）。事件名复用已有的 guard.alarm，
+        // 载荷与 attachment.held 同形状（成对双语），前端按界面语言选一句。
+        const repeat = thinkingRepetition.push(conversationId, update.delta ?? "");
+        if (repeat) {
+          emit(conversationId, "guard.alarm", {
+            toolName: "",
+            reason: `thinking repeated ${repeat.run} lines: ${repeat.line}`,
+            notice: THINKING_REPEAT_NOTICE.notice,
+            noticeEnglish: THINKING_REPEAT_NOTICE.noticeEnglish,
+          });
+        }
       } else if (update.type === "thinking_end") {
         thinkingStreamed = true;
         const startedAt = thinkingStartedAt.get(conversationId);
@@ -1529,6 +1548,9 @@ function subscribeSession(
       const failure = assistantFailureText(event.message);
       if (failure) {
         emit(conversationId, "error", { error: failure });
+        // 先把自己标成“已中止”，再中止：否则中止引发的异常会走下面那条笼统错误回调，
+        // 读者会看到**两条**错误（一条具体、一条笼统）——一条就够。
+        abortedSessions.add(conversationId);
         // 光报告不够：pi 会把失败当一步继续跑 ⇒ 同一轮反复重试、还烧额度（真事）。
         void session.abort().catch(() => undefined);
       }

@@ -3684,7 +3684,7 @@ func normalizeBridgeEvent(raw bridgeEvent, kernels ...string) Event {
 		event.Type = "approval.requested"
 	// Passed through verbatim: the renderer switches on these exact names, while the
 	// default arm would prefix them with engine.raw. and they could never match.
-	case "destructive.blocked", "agent.delivery":
+	case "destructive.blocked", "agent.delivery", "guard.alarm", "attachment.held":
 		event.Type = raw.Type
 	case "approval_resolved":
 		event.Type = "approval.resolved"
