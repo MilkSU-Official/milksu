@@ -143,6 +143,7 @@ export function companionChatIsVisibleEntry(entry: {
   text?: string
   thinking?: string
   tools?: string[]
+  components?: { kind?: string; detail?: string }[]
   attachments?: CodingAttachment[]
 }): boolean {
   const role = String(entry.role ?? '').trim()
@@ -150,7 +151,11 @@ export function companionChatIsVisibleEntry(entry: {
   if (role && role !== 'user' && role !== 'assistant') return false
   const plain = companionChatUserFacingText(entry.text ?? '', Boolean(entry.attachments?.length))
   if (companionLooksLikeDebugPayload(plain)) {
-    return Boolean(String(entry.thinking ?? '').trim() || (entry.tools?.length ?? 0) > 0)
+    return Boolean(
+      String(entry.thinking ?? '').trim()
+      || (entry.tools?.length ?? 0) > 0
+      || (entry.components?.length ?? 0) > 0,
+    )
   }
   return true
 }

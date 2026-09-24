@@ -614,11 +614,20 @@ async function sendPrompt(command) {
       }));
   turnIntentLine = intent?.bucket ? companionIntentLine(intent, locale) : "";
   if (intent?.bucket) {
+    const source = intent.source === "model" ? "model" : "jev";
     emit("intent.recorded", {
       bucket: intent.bucket,
-      source: intent.source === "model" ? "model" : "jev",
+      source,
       text: turnIntentLine,
     });
+    persistCompanionMessages([{
+      role: "custom",
+      customType: "companion.intent",
+      content: [{ type: "text", text: turnIntentLine }],
+      display: false,
+      details: { bucket: intent.bucket, source, text: turnIntentLine },
+      timestamp: new Date().toISOString(),
+    }]);
   }
   if (command?.hostNotice !== true) {
     emit("user_message", {

@@ -7,6 +7,7 @@ import { rm } from 'node:fs/promises'
 import { classifyTurnEvents, delay } from './desktop-gui-driver.mjs'
 import {
   resolveCompanionModelRoute,
+  signInProductLoopIfGated,
   startFirstUseDesktop,
 } from './product-loop-first-use.mjs'
 import { keepExclusiveMilkSUWindow } from './product-loop-windows.mjs'
@@ -548,13 +549,18 @@ export async function ensureIsolatedProductSession(session = {}, options = {}) {
     await expandSidebar(session.driver).catch(() => {})
     await dismissOverlays(session.driver).catch(() => {})
     await leaveSettings(session.driver).catch(() => {})
-    const gate = await enterHomepageSkipLocal(session.driver)
-    if (!gate.ok) return { ...session, ok: false, detail: gate.detail }
+    const signed = await signInProductLoopIfGated(session.driver)
+    if (!signed.ok) return { ...session, ok: false, detail: signed.detail }
+    if (!signed.signedIn) {
+      const gate = await enterHomepageSkipLocal(session.driver)
+      if (!gate.ok) return { ...session, ok: false, detail: gate.detail }
+    }
     return {
       ...session,
       ok: true,
       reused: true,
-      sourcesReady: session.sourcesReady || await sourcesReady(session.driver),
+      accountReady: session.accountReady || signed.signedIn,
+      sourcesReady: session.sourcesReady || signed.signedIn || await sourcesReady(session.driver),
     }
   }
   const instanceId = session.instanceId || `plmod-${process.pid}-${Date.now().toString(36)}`
@@ -572,15 +578,22 @@ export async function ensureIsolatedProductSession(session = {}, options = {}) {
       detail: launch.driver?.gaps?.join(' ') || '没附着独立产品窗口',
     }
   }
-  const gate = await enterHomepageSkipLocal(launch.driver)
-  if (!gate.ok) {
-    return { driver: launch.driver, instanceId, ok: false, sourcesReady: false, detail: gate.detail }
+  const signed = await signInProductLoopIfGated(launch.driver)
+  if (!signed.ok) {
+    return { driver: launch.driver, instanceId, ok: false, sourcesReady: false, detail: signed.detail }
+  }
+  if (!signed.signedIn) {
+    const gate = await enterHomepageSkipLocal(launch.driver)
+    if (!gate.ok) {
+      return { driver: launch.driver, instanceId, ok: false, sourcesReady: false, detail: gate.detail }
+    }
   }
   return {
     driver: launch.driver,
     instanceId,
     ok: true,
     reused: false,
-    sourcesReady: await sourcesReady(launch.driver),
+    accountReady: signed.signedIn,
+    sourcesReady: signed.signedIn || await sourcesReady(launch.driver),
   }
 }

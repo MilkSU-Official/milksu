@@ -28,7 +28,7 @@ import {
   applyProductLoopLocalEnv,
   describeProductLoopLocalEnv,
 } from './lib/product-loop-local-env.mjs'
-import { enableAccountRoute, enablePersonalRelayRoute, installProductLoopJev, probeAccountRoute, runFirstUse, saveCustomRelay } from './lib/product-loop-first-use.mjs'
+import { enableAccountRoute, enablePersonalRelayRoute, installProductLoopJev, markProductLoopAccountRequired, probeAccountRoute, runFirstUse, saveCustomRelay } from './lib/product-loop-first-use.mjs'
 import {
   captureProductLoopEvidenceBundle,
   printProductLoopReport,
@@ -250,6 +250,7 @@ async function main() {
           accountReady: outcome.accountReady === true,
           ok: Boolean(outcome.driver),
         }
+        markProductLoopAccountRequired(session.accountReady === true)
         options.intentFallbackSeen = (outcome.steps ?? []).some(step => (
           step.id === 'login-intent-fallback' && step.result === 'PASS'
         ))

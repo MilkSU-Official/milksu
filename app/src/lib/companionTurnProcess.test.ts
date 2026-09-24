@@ -21,11 +21,15 @@ describe('companionTurnProcess', () => {
     })).toBe(false)
     expect(companionTurnHasProcess({
       ...emptyCompanionTurnProcess(),
-      thinking: '先看板。',
+      components: [{ id: 'thinking', kind: 'thinking', title: '', detail: '先看板。', running: false }],
     })).toBe(true)
     expect(companionTurnHasProcess({
       ...emptyCompanionTurnProcess(),
-      tools: [{ id: '1', name: 'companion_board', detail: 'list', running: false }],
+      components: [{ id: '1', kind: 'tool', title: 'companion_board', detail: 'list', running: false }],
+    })).toBe(true)
+    expect(companionTurnHasProcess({
+      ...emptyCompanionTurnProcess(),
+      components: [{ id: 'intent:chat', kind: 'intent', title: '', detail: '意图识别：闲聊。由主模型判定。', running: false }],
     })).toBe(true)
   })
 
@@ -62,7 +66,12 @@ describe('companionTurnProcess', () => {
       role: 'assistant',
       thinking: '先看板。',
       tools: ['companion_dispatch'],
-    }).tools.map(tool => tool.name)).toEqual(['companion_dispatch'])
+      components: [{ kind: 'intent', detail: '意图识别：闲聊。由主模型判定。' }],
+    }).components.map(component => component.kind === 'tool' ? component.title : component.kind)).toEqual([
+      'intent',
+      'thinking',
+      'companion_dispatch',
+    ])
   })
 
   it('shows thinking seconds from the previous transcript line', () => {
@@ -85,7 +94,7 @@ describe('companionTurnProcess', () => {
       },
     ])
     const process = rows.find(row => row.kind === 'process')
-    expect(process?.kind === 'process' ? process.process.thinkingDurationMs : 0).toBe(12000)
+    expect(process?.kind === 'process' ? process.process.components.find(item => item.kind === 'thinking')?.durationMs : 0).toBe(12000)
     expect(process?.kind === 'process' ? companionProcessSummary(process.process) : '').toBe('想了 12.0s')
     applyUiLocale('en')
     expect(process?.kind === 'process' ? companionThinkingLabel(process.process) : '').toBe('Thought 12.0s')
@@ -122,7 +131,7 @@ describe('companionTurnProcess', () => {
     ])
     const processes = rows.filter(row => row.kind === 'process')
     expect(processes).toHaveLength(1)
-    expect(processes[0]?.kind === 'process' ? processes[0].process.tools.map(tool => tool.name) : []).toEqual([
+    expect(processes[0]?.kind === 'process' ? processes[0].process.components.filter(item => item.kind === 'tool').map(item => item.title) : []).toEqual([
       'companion_board',
       'companion_dispatch',
     ])
@@ -141,8 +150,14 @@ describe('companionTurnProcess', () => {
       },
     ], {
       ...emptyCompanionTurnProcess(),
-      thinking: '先看一眼。',
-      thinkingDurationMs: 6400,
+      components: [{
+        id: 'thinking',
+        kind: 'thinking',
+        title: '',
+        detail: '先看一眼。',
+        running: false,
+        durationMs: 6400,
+      }],
     })
     expect(entries[0]?.thinkingDurationMs).toBe(6400)
     expect(companionProcessSummary(processFromCompanionEntry(entries[0]!))).toBe('想了 6.4s')
@@ -193,5 +208,33 @@ describe('companionTurnProcess', () => {
     expect(next.text).toBe('')
     const waiting = resolveCompanionLiveStream([user], '', streaming)
     expect(waiting.text).toBe('有两个 obelisk，草稿。')
+  })
+
+  it('keeps an intent component in the fold when the turn has no tools', () => {
+    const rows = buildCompanionDisplayRows([
+      {
+        id: 'u1',
+        type: 'message',
+        timestamp: '2026-09-25T00:00:00.000Z',
+        role: 'user',
+        text: '今天过得怎么样',
+      },
+      {
+        id: 'a1',
+        type: 'message',
+        timestamp: '2026-09-25T00:00:02.000Z',
+        role: 'assistant',
+        text: '还不错。',
+        components: [{ kind: 'intent', detail: '意图识别：闲聊。由主模型判定。' }],
+      },
+    ])
+    const process = rows.find(row => row.kind === 'process')
+    expect(process?.kind === 'process' ? process.process.components.map(item => item.detail) : []).toEqual([
+      '意图识别：闲聊。由主模型判定。',
+    ])
+    expect(rows.filter(row => row.kind === 'entry').map(row => row.kind === 'entry' ? row.entry.text : '')).toEqual([
+      '今天过得怎么样',
+      '还不错。',
+    ])
   })
 })

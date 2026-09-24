@@ -19,14 +19,22 @@ type TranscriptCursor struct {
 }
 
 type TranscriptEntry struct {
-	ID        string   `json:"id"`
-	Type      string   `json:"type"`
-	Timestamp string   `json:"timestamp"`
-	Role      string   `json:"role,omitempty"`
-	Text      string   `json:"text,omitempty"`
-	Thinking  string   `json:"thinking,omitempty"`
-	Tools     []string `json:"tools,omitempty"`
-	Error     string   `json:"error,omitempty"`
+	ID         string                `json:"id"`
+	Type       string                `json:"type"`
+	Timestamp  string                `json:"timestamp"`
+	Role       string                `json:"role,omitempty"`
+	Text       string                `json:"text,omitempty"`
+	Thinking   string                `json:"thinking,omitempty"`
+	Tools      []string              `json:"tools,omitempty"`
+	Components []TranscriptComponent `json:"components,omitempty"`
+	Error      string                `json:"error,omitempty"`
+}
+
+type TranscriptComponent struct {
+	ID     string `json:"id,omitempty"`
+	Kind   string `json:"kind"`
+	Title  string `json:"title,omitempty"`
+	Detail string `json:"detail,omitempty"`
 }
 
 type TranscriptPage struct {
@@ -218,6 +226,7 @@ func readTranscriptForward(file *os.File, size int64, limit int, cursor *Transcr
 		page.NextCursor = last
 		page.PrevCursor = last
 	}
+	page.Entries = foldTranscriptComponents(page.Entries)
 	return page, nil
 }
 
@@ -283,6 +292,7 @@ func readTranscriptTail(file *os.File, size int64, limit int, before *Transcript
 	for _, item := range decoded {
 		page.Entries = append(page.Entries, item.entry)
 	}
+	page.Entries = foldTranscriptComponents(page.Entries)
 	if len(decoded) > 0 {
 		first := decoded[0].cursor
 		last := decoded[len(decoded)-1].cursor
@@ -342,6 +352,11 @@ func decodeTranscriptLine(line []byte) (TranscriptEntry, bool) {
 		Timestamp: strings.TrimSpace(stringValue(raw["timestamp"])),
 	}
 	if message, ok := raw["message"].(map[string]any); ok {
+		if component, ok := companionIntentComponent(message); ok {
+			entry.Type = "component"
+			entry.Components = []TranscriptComponent{component}
+			return entry, true
+		}
 		if shown, ok := message["display"].(bool); ok && !shown {
 			return TranscriptEntry{}, false
 		}
@@ -405,6 +420,46 @@ func decodeTranscriptLine(line []byte) (TranscriptEntry, bool) {
 		return TranscriptEntry{}, false
 	}
 	return entry, true
+}
+
+func companionIntentComponent(message map[string]any) (TranscriptComponent, bool) {
+	if strings.TrimSpace(stringValue(message["customType"])) != "companion.intent" {
+		return TranscriptComponent{}, false
+	}
+	detail := strings.TrimSpace(extractMessageText(message["content"]))
+	if detail == "" {
+		if details, ok := message["details"].(map[string]any); ok {
+			detail = strings.TrimSpace(stringValue(details["text"]))
+		}
+	}
+	if detail == "" {
+		return TranscriptComponent{}, false
+	}
+	return TranscriptComponent{
+		ID:     "intent",
+		Kind:   "intent",
+		Detail: detail,
+	}, true
+}
+
+func foldTranscriptComponents(entries []TranscriptEntry) []TranscriptEntry {
+	if len(entries) == 0 {
+		return entries
+	}
+	pending := make([]TranscriptComponent, 0)
+	folded := make([]TranscriptEntry, 0, len(entries))
+	for _, entry := range entries {
+		if entry.Type == "component" {
+			pending = append(pending, entry.Components...)
+			continue
+		}
+		if entry.Role == "assistant" && len(pending) > 0 {
+			entry.Components = append(append([]TranscriptComponent{}, pending...), entry.Components...)
+			pending = nil
+		}
+		folded = append(folded, entry)
+	}
+	return folded
 }
 
 func transcriptRoleVisible(role string) bool {

@@ -19,6 +19,7 @@ export const COMPANION_CUSTOM_TYPES = Object.freeze({
   semantic: "companion.semantic",
   board: "companion.board",
   episodic: "companion.episodic",
+  intent: "companion.intent",
 });
 
 export const ASSEMBLY_SEGMENTS = Object.freeze([

@@ -15,9 +15,10 @@ import {
 import {
   companionTurnHasProcess,
   emptyCompanionTurnProcess,
+  patchProcessComponent,
+  processComponent,
   finiteThinkingDurationMs,
   stampMeasuredThinkingDuration,
-  type CompanionProcessTool,
   type CompanionTurnProcess,
 } from '@/lib/companionTurnProcess'
 import { COMPANION_COMPLETE_HOLD_MS } from '@/lib/companionPetMotion'
@@ -94,17 +95,6 @@ export function companionToolUserText(value: unknown, fallback = ''): string {
     return companionToolUserText((value as { text: string }).text, fallback)
   }
   return fallback
-}
-
-function upsertTool(
-  tools: CompanionProcessTool[],
-  next: CompanionProcessTool,
-): CompanionProcessTool[] {
-  const index = tools.findIndex(item => item.id === next.id)
-  if (index < 0) return [...tools, next]
-  const copy = tools.slice()
-  copy[index] = { ...copy[index], ...next }
-  return copy
 }
 
 export function useCompanion() {
@@ -218,39 +208,54 @@ export function useCompanion() {
   const applyLiveEvent = useCallback((payload: CompanionEnginePayload) => {
     const type = String(payload.type ?? '')
     if (type === 'assistant.thinking_started') {
-      setLiveProcess(current => ({
-        ...current,
-        thinkingRunning: true,
-        thinkingStartedAt: Date.now(),
-      }))
+      setLiveProcess(current => {
+        const thinking = processComponent(current, 'thinking')
+        return patchProcessComponent(current, {
+          id: 'thinking',
+          kind: 'thinking',
+          title: '',
+          detail: thinking?.detail ?? '',
+          running: true,
+          startedAt: Date.now(),
+          durationMs: thinking?.durationMs,
+        })
+      })
       return
     }
     if (type === 'assistant.thinking_delta' && payload.text) {
       const delta = companionToolUserText(payload.text)
       if (!delta) return
-      setLiveProcess(current => ({
-        ...current,
-        thinking: `${current.thinking}${delta}`,
-        thinkingRunning: true,
-        thinkingStartedAt: current.thinkingStartedAt ?? Date.now(),
-      }))
+      setLiveProcess(current => {
+        const thinking = processComponent(current, 'thinking')
+        return patchProcessComponent(current, {
+          id: 'thinking',
+          kind: 'thinking',
+          title: '',
+          detail: `${thinking?.detail ?? ''}${delta}`,
+          running: true,
+          startedAt: thinking?.startedAt ?? Date.now(),
+          durationMs: thinking?.durationMs,
+        })
+      })
       return
     }
     if (type === 'assistant.thinking_completed') {
       setLiveProcess(current => {
+        const thinking = processComponent(current, 'thinking')
         const segment = finiteThinkingDurationMs(payload.durationMs)
-          ?? (current.thinkingStartedAt != null
-            ? Math.max(0, Date.now() - current.thinkingStartedAt)
+          ?? (thinking?.startedAt != null
+            ? Math.max(0, Date.now() - thinking.startedAt)
             : undefined)
-        const base = current.thinkingRunning ? (current.thinkingDurationMs ?? 0) : 0
+        const base = thinking?.running ? (thinking.durationMs ?? 0) : 0
         const total = base + (segment ?? 0)
-        return {
-          ...current,
-          thinking: companionToolUserText(payload.text, current.thinking),
-          thinkingRunning: false,
-          thinkingStartedAt: undefined,
-          thinkingDurationMs: total > 0 ? total : current.thinkingDurationMs,
-        }
+        return patchProcessComponent(current, {
+          id: 'thinking',
+          kind: 'thinking',
+          title: '',
+          detail: companionToolUserText(payload.text, thinking?.detail ?? ''),
+          running: false,
+          durationMs: total > 0 ? total : thinking?.durationMs,
+        })
       })
       return
     }
@@ -263,30 +268,25 @@ export function useCompanion() {
     }
     if (type === 'intent.recorded') {
       const text = String(payload.text || '').trim()
-      setLiveProcess(current => ({
-        ...current,
-        thinkingRunning: false,
-        tools: upsertTool(current.tools, {
-          id: `intent:${payload.bucket || 'route'}`,
-          name: 'Intent',
-          detail: text,
-          running: false,
-        }),
+      if (!text) return
+      setLiveProcess(current => patchProcessComponent(current, {
+        id: `intent:${payload.bucket || 'route'}`,
+        kind: 'intent',
+        title: '',
+        detail: text,
+        running: false,
       }))
       return
     }
     if (type === 'tool.started') {
       const id = String(payload.toolCallId || payload.toolName || `tool:${Date.now()}`)
       const name = String(payload.toolName || 'tool')
-      setLiveProcess(current => ({
-        ...current,
-        thinkingRunning: false,
-        tools: upsertTool(current.tools, {
-          id,
-          name,
-          detail: companionToolUserText(payload.text, name),
-          running: true,
-        }),
+      setLiveProcess(current => patchProcessComponent(current, {
+        id,
+        kind: 'tool',
+        title: name,
+        detail: companionToolUserText(payload.text, name),
+        running: true,
       }))
       return
     }
@@ -296,15 +296,13 @@ export function useCompanion() {
       const detail = companionToolUserText(payload.text, name)
       const rawError = companionToolUserText(payload.error)
       const errorText = rawError ? explainCompanionError(rawError) || rawError : ''
-      setLiveProcess(current => ({
-        ...current,
-        tools: upsertTool(current.tools, {
-          id: id || `tool:${current.tools.length}`,
-          name,
-          detail: errorText || detail,
-          running: false,
-          error: errorText || undefined,
-        }),
+      setLiveProcess(current => patchProcessComponent(current, {
+        id: id || `tool:${current.components.length}`,
+        kind: 'tool',
+        title: name,
+        detail: errorText || detail,
+        running: false,
+        error: errorText || undefined,
       }))
     }
   }, [])

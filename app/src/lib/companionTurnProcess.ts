@@ -1,4 +1,4 @@
-import type { CompanionTranscriptEntry } from '@/types'
+import type { CompanionTranscriptComponent, CompanionTranscriptEntry } from '@/types'
 import { formatDemoElapsed, thinkingSummary } from '@/lib/agentConversation'
 import { companionChatPlainText } from '@/lib/companionUserError'
 import { t } from '@/lib/uiLocale'
@@ -6,43 +6,85 @@ import { t } from '@/lib/uiLocale'
 /** Ignore gaps that are not one model step. The phone transcript has no separate thinking clock. */
 const MAX_THINKING_GAP_MS = 30 * 60 * 1000
 
-export interface CompanionProcessTool {
+/** One harness piece inside a turn fold. Kind is open so a new component still renders. */
+export interface CompanionProcessComponent {
   id: string
-  name: string
+  kind: string
+  title: string
   detail: string
   running: boolean
   error?: string
+  startedAt?: number
+  durationMs?: number
 }
 
 export interface CompanionTurnProcess {
-  thinking: string
-  thinkingRunning: boolean
-  thinkingStartedAt?: number
-  thinkingDurationMs?: number
-  tools: CompanionProcessTool[]
+  components: CompanionProcessComponent[]
   reply: string
 }
 
 export function emptyCompanionTurnProcess(): CompanionTurnProcess {
   return {
-    thinking: '',
-    thinkingRunning: false,
-    tools: [],
+    components: [],
     reply: '',
   }
 }
 
-export function companionTurnHasProcess(process: CompanionTurnProcess | null | undefined) {
-  if (!process) return false
+export function upsertProcessComponent(
+  components: CompanionProcessComponent[],
+  next: CompanionProcessComponent,
+): CompanionProcessComponent[] {
+  const index = components.findIndex(item => item.id === next.id)
+  if (index < 0) return [...components, next]
+  const copy = components.slice()
+  copy[index] = { ...copy[index], ...next }
+  return copy
+}
+
+export function patchProcessComponent(
+  process: CompanionTurnProcess,
+  next: CompanionProcessComponent,
+): CompanionTurnProcess {
+  return {
+    ...process,
+    components: upsertProcessComponent(process.components, next),
+  }
+}
+
+export function processComponent(
+  process: CompanionTurnProcess | null | undefined,
+  kind: string,
+): CompanionProcessComponent | undefined {
+  return process?.components.find(item => item.kind === kind)
+}
+
+export function processComponents(
+  process: CompanionTurnProcess | null | undefined,
+  kind: string,
+): CompanionProcessComponent[] {
+  return process?.components.filter(item => item.kind === kind) ?? []
+}
+
+function componentHasBody(component: CompanionProcessComponent) {
   return Boolean(
-    process.thinking.trim()
-    || process.thinkingRunning
-    || process.tools.length,
+    component.running
+    || component.title.trim()
+    || component.detail.trim()
+    || component.error?.trim(),
   )
 }
 
+export function companionTurnHasProcess(process: CompanionTurnProcess | null | undefined) {
+  if (!process) return false
+  return process.components.some(componentHasBody)
+}
+
 export function companionEntryHasProcess(entry: CompanionTranscriptEntry) {
-  return Boolean(String(entry.thinking ?? '').trim() || (entry.tools?.length ?? 0) > 0)
+  return Boolean(
+    String(entry.thinking ?? '').trim()
+    || (entry.tools?.length ?? 0) > 0
+    || (entry.components?.length ?? 0) > 0,
+  )
 }
 
 export function companionEntryIsProcessOnly(entry: CompanionTranscriptEntry) {
@@ -100,13 +142,14 @@ export function stampMeasuredThinkingDuration(
   entries: CompanionTranscriptEntry[],
   measured: CompanionTurnProcess | null | undefined,
 ): CompanionTranscriptEntry[] {
-  const duration = finiteThinkingDurationMs(measured?.thinkingDurationMs)
-  const thinking = String(measured?.thinking ?? '').trim()
-  if (duration === undefined || !thinking) return entries
+  const thinking = processComponent(measured, 'thinking')
+  const duration = finiteThinkingDurationMs(thinking?.durationMs)
+  const text = String(thinking?.detail ?? '').trim()
+  if (duration === undefined || !text) return entries
   let index = -1
   for (let cursor = entries.length - 1; cursor >= 0; cursor -= 1) {
     const entry = entries[cursor]
-    if (entry?.role === 'assistant' && String(entry.thinking ?? '').trim() === thinking) {
+    if (entry?.role === 'assistant' && String(entry.thinking ?? '').trim() === text) {
       index = cursor
       break
     }
@@ -118,36 +161,79 @@ export function stampMeasuredThinkingDuration(
   ))
 }
 
-export function processFromCompanionEntry(entry: CompanionTranscriptEntry): CompanionTurnProcess {
+function componentFromTranscript(
+  entryId: string,
+  component: CompanionTranscriptComponent,
+  index: number,
+): CompanionProcessComponent | null {
+  const kind = String(component.kind ?? '').trim()
+  const detail = String(component.detail ?? '').trim()
+  const title = String(component.title ?? '').trim()
+  if (!kind || (!detail && !title)) return null
   return {
-    thinking: String(entry.thinking ?? '').trim(),
-    thinkingRunning: false,
-    thinkingDurationMs: finiteThinkingDurationMs(entry.thinkingDurationMs),
-    tools: (entry.tools ?? []).map((name, index) => ({
+    id: String(component.id ?? '').trim() || `${entryId}:${kind}:${index}`,
+    kind,
+    title,
+    detail,
+    running: false,
+  }
+}
+
+export function processFromCompanionEntry(entry: CompanionTranscriptEntry): CompanionTurnProcess {
+  const components: CompanionProcessComponent[] = []
+  ;(entry.components ?? []).forEach((component, index) => {
+    const next = componentFromTranscript(entry.id, component, index)
+    if (next) components.push(next)
+  })
+  const thinking = String(entry.thinking ?? '').trim()
+  if (thinking) {
+    components.push({
+      id: `${entry.id}:thinking`,
+      kind: 'thinking',
+      title: '',
+      detail: thinking,
+      running: false,
+      durationMs: finiteThinkingDurationMs(entry.thinkingDurationMs),
+    })
+  }
+  ;(entry.tools ?? []).forEach((name, index) => {
+    components.push({
       id: `${entry.id}:tool:${index}:${name}`,
-      name,
+      kind: 'tool',
+      title: name,
       detail: name,
       running: false,
-    })),
-    reply: '',
-  }
+    })
+  })
+  return { components, reply: '' }
 }
 
 export function mergeCompanionProcess(
   left: CompanionTurnProcess,
   right: CompanionTurnProcess,
 ): CompanionTurnProcess {
-  const thinking = [left.thinking.trim(), right.thinking.trim()].filter(Boolean).join('\n\n')
-  const tools = [...left.tools]
-  for (const tool of right.tools) {
-    if (tools.some(item => item.id === tool.id)) continue
-    tools.push(tool)
+  const components = [...left.components]
+  for (const next of right.components) {
+    if (next.kind === 'thinking') {
+      const index = components.findIndex(item => item.kind === 'thinking')
+      if (index >= 0) {
+        const current = components[index]!
+        const duration = (current.durationMs ?? 0) + (next.durationMs ?? 0)
+        components[index] = {
+          ...current,
+          detail: [current.detail.trim(), next.detail.trim()].filter(Boolean).join('\n\n'),
+          running: current.running || next.running,
+          durationMs: duration > 0 ? duration : undefined,
+          startedAt: current.startedAt ?? next.startedAt,
+        }
+        continue
+      }
+    }
+    if (components.some(item => item.id === next.id)) continue
+    components.push(next)
   }
   return {
-    thinking,
-    thinkingRunning: left.thinkingRunning || right.thinkingRunning,
-    thinkingDurationMs: (left.thinkingDurationMs ?? 0) + (right.thinkingDurationMs ?? 0) || undefined,
-    tools,
+    components,
     reply: right.reply || left.reply,
   }
 }
@@ -201,7 +287,8 @@ export function buildCompanionDisplayRows(
 }
 
 export function companionThinkingLabel(process: CompanionTurnProcess, liveElapsedMs?: number) {
-  if (process.thinkingRunning) {
+  const thinking = processComponent(process, 'thinking')
+  if (thinking?.running) {
     const elapsed = liveElapsedMs !== undefined && liveElapsedMs >= 500
       ? formatDemoElapsed(liveElapsedMs)
       : ''
@@ -209,7 +296,7 @@ export function companionThinkingLabel(process: CompanionTurnProcess, liveElapse
       ? t(`正在思考 ${elapsed}`, `Thinking ${elapsed}`)
       : t('正在思考', 'Thinking')
   }
-  const duration = finiteThinkingDurationMs(process.thinkingDurationMs)
+  const duration = finiteThinkingDurationMs(thinking?.durationMs)
   if (duration === undefined) return t('想了', 'Thought')
   return thinkingSummary(duration)
 }
@@ -267,11 +354,16 @@ export function resolveCompanionLiveStream(
 
 export function companionProcessSummary(process: CompanionTurnProcess, liveElapsedMs?: number) {
   const parts: string[] = []
-  if (process.thinking.trim() || process.thinkingRunning) {
+  const thinking = processComponent(process, 'thinking')
+  if (thinking && (thinking.detail.trim() || thinking.running)) {
     parts.push(companionThinkingLabel(process, liveElapsedMs))
   }
-  if (process.tools.length) {
-    parts.push(t(`${process.tools.length} 个工具`, `${process.tools.length} tools`))
+  const tools = processComponents(process, 'tool')
+  if (tools.length) {
+    parts.push(t(`${tools.length} 个工具`, `${tools.length} tools`))
+  }
+  if (!parts.length && process.components.some(item => item.kind !== 'thinking' && item.kind !== 'tool')) {
+    parts.push(t('过程', 'Process'))
   }
   return parts.join(' · ')
 }

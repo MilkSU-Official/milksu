@@ -158,6 +158,7 @@ test('catalog keeps product regression away from evalsuite', () => {
     'first-use',
     'coding',
     'companion',
+    'intent',
     'workspaces',
     'desktop-surface',
     'account-shell',
@@ -166,9 +167,9 @@ test('catalog keeps product regression away from evalsuite', () => {
   assert.equal(CASE_RUN_ORDER[0], 'login-gate')
   assert.equal(MODULES.coding.cases.length, 35)
   assert.equal(MODULES.companion.cases.length, 23)
-  assert.equal(MODULES.intent.default, false)
+  assert.equal(MODULES.intent.default, true)
   assert.equal(MODULES.intent.cases.length, 17)
-  assert.equal(DEFAULT_MODULES.includes('intent'), false)
+  assert.equal(DEFAULT_MODULES.includes('intent'), true)
   assert.equal(typeof PRODUCT_LOOP_RUNNERS['intent-account-issued'], 'function')
   assert.equal(typeof PRODUCT_LOOP_RUNNERS['intent-settings-blank'], 'function')
   assert.equal(typeof PRODUCT_LOOP_RUNNERS['intent-settings-reject'], 'function')
@@ -1051,6 +1052,16 @@ test('first-use cannot PASS on login-gate and login-skip-local alone', () => {
   assert.equal(firstUseAccountReady(accountDropped), false)
   assert.equal(dropped.accountReady, false)
   assert.equal(dropped.sourcesReady, false)
+  const fileLoopMissed = [
+    { id: 'login-gate', result: 'PASS' },
+    { id: 'account-model-fileloop', result: 'FAIL' },
+    { id: 'relay-model-fileloop', result: 'PASS' },
+    { id: 'login-intent-issued', result: 'PASS' },
+  ]
+  const stayed = firstUseSessionHandoff(null, 'plfu-stayed', fileLoopMissed, true)
+  assert.equal(firstUseAccountReady(fileLoopMissed), true)
+  assert.equal(stayed.accountReady, true)
+  assert.equal(stayed.sourcesReady, true)
 })
 
 test('empty CUSTOM_RELAY_MODELS on official TokenFlux uses the catalog id', () => {

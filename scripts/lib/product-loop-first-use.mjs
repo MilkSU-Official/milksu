@@ -28,9 +28,20 @@ export const FIRST_USE_LOGIN_WAIT_MS = 90_000
 
 /** null = unknown; false after上手 rejected every product-loop Key. */
 let productLoopPersonalRelayUsable = null
+/** True after the account file loop passed and sign-in came back. Later routes must not switch to a personal key. */
+let productLoopAccountRequired = false
 
 export function resetProductLoopPersonalRelayGate() {
   productLoopPersonalRelayUsable = null
+  productLoopAccountRequired = false
+}
+
+export function markProductLoopAccountRequired(required) {
+  productLoopAccountRequired = required === true
+}
+
+export function isProductLoopAccountRequired() {
+  return productLoopAccountRequired === true
 }
 
 export function markProductLoopPersonalRelayUsable(ok) {
@@ -94,6 +105,26 @@ export async function signInProductLoopAccount(driver) {
     filled = await fillAccountPasswordForm(driver, username, password)
   }
   if (filled !== 'submitted') throw new Error(String(filled))
+}
+
+export async function signInProductLoopIfGated(driver) {
+  const username = String(process.env.MILKSU_LOOP_USER || '')
+  const password = String(process.env.MILKSU_LOOP_PASSWORD || '')
+  if (!username || !password || !driver) return { ok: true, signedIn: false }
+  const snapshot = await snapshotLoginPage(driver).catch(() => ({}))
+  if (!inspectLoginPage(snapshot).gate) return { ok: true, signedIn: false }
+  await signInProductLoopAccount(driver)
+  const restored = await waitFor(async () => {
+    if (!driver.cdpAlive()) return { dead: true }
+    const status = await accountStatus(driver).catch(() => null)
+    return accountSessionReady(status) ? status : null
+  }, 90_000, 2_000).catch(() => null)
+  if (!restored || restored.dead) {
+    return { ok: false, signedIn: false, detail: '登录页提交了，账户没有变成已登录' }
+  }
+  await enableAccountRoute(driver)
+  markProductLoopAccountRequired(true)
+  return { ok: true, signedIn: true }
 }
 
 export function accountSessionReady(status) {
@@ -268,8 +299,7 @@ export function firstUseSourcesReady(steps = []) {
 }
 
 export function firstUseAccountReady(steps = []) {
-  return steps.some(step => step.id === 'account-model-fileloop' && step.result === 'PASS')
-    && steps.some(step => step.id === 'login-intent-issued' && step.result === 'PASS')
+  return steps.some(step => step.id === 'login-intent-issued' && step.result === 'PASS')
 }
 
 export function firstUseModuleResult(steps = []) {
@@ -840,7 +870,7 @@ export async function runFirstUse(options = {}) {
         const status = await safeAccountStatus(launch.driver)
         return accountSessionReady(status) ? status : null
       }, loginWaitMs, 2_000).catch(() => null)
-      accountBack = Boolean(restored && !restored.dead && accountFileloopOk)
+      accountBack = Boolean(restored && !restored.dead)
       if (accountBack) {
         await enableAccountRoute(launch.driver).catch(() => {})
       }
@@ -855,6 +885,7 @@ export async function runFirstUse(options = {}) {
       await record('login-intent-issued', 'FAIL', githubOk ? '再登录没跑到，意图识别钥匙没核' : 'GitHub 没登录，意图识别钥匙没核')
     }
     if (launch?.driver?.cdpAlive() && accountBack) {
+      markProductLoopAccountRequired(true)
       process.stdout.write('FIRST-USE 后面的用例继续用已登录的账户模型和意图识别钥匙\n')
     } else if (launch?.driver?.cdpAlive() && accountFileloopOk) {
       process.stdout.write('FIRST-USE 账户模型已验证，再登录没回来，后面不改用个人 Key\n')
@@ -953,6 +984,13 @@ export async function resolveCompanionModelRoute(driver) {
       source: 'account',
       model: account.model,
       detail: account.detail,
+    }
+  }
+  if (isProductLoopAccountRequired()) {
+    return {
+      ok: false,
+      source: 'account',
+      detail: account.detail || '账户模型已验证，不再改用个人 Key',
     }
   }
   const personal = await enablePersonalRelayRoute(driver).catch(() => ({ ok: false, detail: '' }))

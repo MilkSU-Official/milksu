@@ -328,6 +328,8 @@ React -> Electron Preload / Desktop RPC -> Application Service -> Domain / Runti
 - 用仓库里 canonical 的脚本，不要另造平行 runner。
 - 改完对话、引擎、DSH 或隔离浏览器之后，跑 `docs/developer/product-regression-loop.md`
   里的产品回归套件（`npm run test:product-loop`）。
+  跑的 agent 先读该页「监督者」一节：一项一落地就看结果，`FAIL` 当时复查；
+  网络、模型、Key 或会让后面全失败的代码问题要停掉进程，代码问题修好再重跑。
   那不是 Settings → 评测，不是 NYU safe-static，也不是拿 `test:dsh-complete-loop` 当主入口。
 - Pull Request 上由 `.github/workflows/pr-checks.yml` 跑 Sidecar、Go 和 renderer 三组套件。
   CI 绿不替代产品回归，产品回归也不替代安装包上的真机验收。

@@ -142,6 +142,34 @@ func TestTranscriptHidesToolResultsAndSettingsJSON(t *testing.T) {
 	}
 }
 
+func TestTranscriptFoldsIntentOntoTheAssistant(t *testing.T) {
+	dir := t.TempDir()
+	lines := []string{
+		`{"type":"session","id":"companion","timestamp":"2026-01-01T00:00:00Z"}`,
+		`{"type":"message","id":"u1","timestamp":"2026-01-01T00:00:01Z","message":{"role":"user","content":[{"type":"text","text":"今天过得怎么样"}]}}`,
+		`{"type":"message","id":"i1","timestamp":"2026-01-01T00:00:02Z","message":{"role":"custom","customType":"companion.intent","display":false,"content":[{"type":"text","text":"意图识别：闲聊。由主模型判定。"}]}}`,
+		`{"type":"message","id":"a1","timestamp":"2026-01-01T00:00:03Z","message":{"role":"assistant","content":[{"type":"text","text":"还不错。"}]}}`,
+	}
+	path := writeCompanionJSONL(t, dir, lines)
+	page, err := ReadTranscriptPage(path, 20, nil, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Entries) != 2 {
+		t.Fatalf("entries: %#v", page.Entries)
+	}
+	assistant := page.Entries[1]
+	if assistant.Text != "还不错。" {
+		t.Fatalf("reply: %#v", assistant)
+	}
+	if strings.Contains(assistant.Text, "意图识别") {
+		t.Fatalf("intent leaked into reply text: %#v", assistant)
+	}
+	if len(assistant.Components) != 1 || assistant.Components[0].Kind != "intent" || assistant.Components[0].Detail != "意图识别：闲聊。由主模型判定。" {
+		t.Fatalf("intent component: %#v", assistant.Components)
+	}
+}
+
 func TestArchiveAndDeleteCompanionSegment(t *testing.T) {
 	dir := t.TempDir()
 	path := writeCompanionJSONL(t, dir, []string{

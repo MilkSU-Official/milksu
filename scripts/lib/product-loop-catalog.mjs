@@ -219,11 +219,11 @@ export const MODULES = {
     id: 'intent',
     title: '意图识别',
     from: 'companion and coding turns',
-    default: false,
+    default: true,
     needsDesktop: true,
     needsCredential: true,
     isolated: true,
-    detail: '意图识别专题。账户登录后发下钥匙，设置里没有也不能写入；折叠记录的来源是 Jev。闲聊、深入思考、长任务；追问不另派；做完、待批、真报错直接通知；两条通知合成一条；工具失败后还盯着；卡住才判断说不说；记忆留或丢；开口时不和用户的话串在一起。未登录时来源是主模型。不进默认全量回归。',
+    detail: '意图识别。账户登录后发下钥匙，设置里没有也不能写入；折叠记录的来源是 Jev。闲聊、深入思考、长任务；追问不另派；做完、待批、真报错直接通知；两条通知合成一条；工具失败后还盯着；卡住才判断说不说；记忆留或丢；开口时不和用户的话串在一起。未登录时来源是主模型。',
     cases: [
       'intent-account-issued', 'intent-settings-blank', 'intent-settings-reject',
       'intent-chat', 'intent-deep', 'intent-long', 'intent-status',
