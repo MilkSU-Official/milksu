@@ -102,7 +102,7 @@ func TestTranscriptHidesToolResultsAndSettingsJSON(t *testing.T) {
 		`{"type":"message","id":"tr1","timestamp":"2026-01-01T00:00:02Z","message":{"role":"toolResult","content":[{"type":"text","text":"{\"ok\":true,\"settings\":{\"companion_float_enabled\":true,\"relay\":{\"url\":\"https://tokenflux.dev/v1\"}}}"}]}}`,
 		`{"type":"message","id":"a1","timestamp":"2026-01-01T00:00:03Z","message":{"role":"assistant","content":[{"type":"thinking","thinking":"先读设置。"},{"type":"toolCall","name":"companion_app","text":"{\"action\":\"get_settings\"}"},{"type":"text","text":"界面语言是简体中文。"}]}}`,
 		`{"type":"message","id":"u2","timestamp":"2026-01-01T00:00:04Z","message":{"role":"user","content":[{"type":"text","text":"看板列一下当前会话标题"}]}}`,
-		`{"type":"message","id":"a2","timestamp":"2026-01-01T00:00:05Z","message":{"role":"assistant","content":[{"type":"text","text":"Request aborted"}],"stopReason":"error","errorMessage":"Request aborted"}}`,
+		`{"type":"message","id":"a2","timestamp":"2026-01-01T00:00:05Z","message":{"role":"assistant","content":[{"type":"text","text":"Request was aborted"}],"stopReason":"error","errorMessage":"Request was aborted"}}`,
 		`{"type":"message","id":"board","timestamp":"2026-01-01T00:00:06Z","message":{"role":"custom","display":false,"content":[{"type":"text","text":"{\"sessions\":[]}" }]}}`,
 	}
 	path := writeCompanionJSONL(t, dir, lines)
@@ -125,7 +125,7 @@ func TestTranscriptHidesToolResultsAndSettingsJSON(t *testing.T) {
 	if page.Entries[2].Text != "看板列一下当前会话标题" {
 		t.Fatalf("board prompt: %#v", page.Entries[2])
 	}
-	if page.Entries[3].Text != "" || !strings.Contains(page.Entries[3].Error, "Request aborted") {
+	if page.Entries[3].Text != "" || !strings.Contains(page.Entries[3].Error, "Request was aborted") {
 		t.Fatalf("abort must move English harness text into error: %#v", page.Entries[3])
 	}
 	localizeCompanionTranscriptAbort(&page, "zh")

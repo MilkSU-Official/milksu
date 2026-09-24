@@ -47,7 +47,7 @@ import {
   Wrench,
   X,
 } from 'lucide-react'
-import { invokeCommand, listenEvent } from '@/desktop'
+import { codingEnvironmentMissing, invokeCommand, listenEvent } from '@/desktop'
 import { toastError } from '@/lib/appToast'
 import { isAskMessage } from '@/lib/agentAsk'
 import { nextChatAutoScrollPinned } from '@/lib/chatAutoScroll'
@@ -1787,8 +1787,8 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     } catch (reason) {
       setCodingEnvironment(null)
       codingEnvironmentRef.current = null
-      errors.push(reason instanceof Error
-        ? reason.message
+      errors.push(codingEnvironmentMissing(reason)
+        ? t('这个目录已经不在了。', 'This directory is no longer there.')
         : t('暂时无法读取项目环境。', 'The project environment cannot be read right now.'))
     } finally {
       setEnvironmentLoading(false)

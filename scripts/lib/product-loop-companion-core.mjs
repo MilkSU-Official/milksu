@@ -435,7 +435,7 @@ export function transcriptCancelledAfter(page, needle) {
     chunks.push(String(entry?.error ?? entry?.Error ?? ''))
   }
   const hay = chunks.join('\n')
-  if (/Request aborted|AbortError/i.test(hay) && !/这一轮已取消|This turn was cancelled/i.test(hay)) {
+  if (/Request (?:was )?aborted|AbortError/i.test(hay) && !/这一轮已取消|This turn was cancelled/i.test(hay)) {
     return { ok: false, reason: '停止后抄本是未翻译的 Request aborted' }
   }
   if (/这一轮已取消|This turn was cancelled/i.test(hay)) {

@@ -591,6 +591,8 @@ export async function runWorkspaceCveLearning(driver) {
     const nav = await openDomain(driver, ['CVE'])
     if (!nav.ok) return fail(nav.detail)
     if (!await openCveDossierRow(driver, cveId)) return fail(`列表里点不开 ${cveId}`)
+    await dismissOverlays(driver)
+    await clickAria(driver, ['关闭对话', 'Close chat'], '[data-testid="conversation-dock"]').catch(() => false)
     await delay(400)
     if (!snapshotHas(await pageSnapshot(driver), ['学习记录', 'Learning', '报告', 'Report'])) {
       return fail('档案上没有学习记录')

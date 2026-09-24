@@ -6,6 +6,7 @@ installBrokenPipeGuards()
 const { execFileSync, spawn } = require('node:child_process')
 const os = require('node:os')
 const { randomUUID } = require('node:crypto')
+const { existsSync } = require('node:fs')
 const { promises: fs } = require('node:fs')
 const path = require('node:path')
 const {
@@ -47,6 +48,7 @@ const {
   accountModelAuthorizationRefreshRequired,
   clearAccountLoginClaim,
   desktopProtocolClientRegistration,
+  firstProtocolClientScript,
   loadAccountConfig,
   publicOAuthError,
   readAccountLoginClaim,
@@ -216,9 +218,16 @@ function accountDialogText(locale, zh, en) {
 
 function forwardAccountCallback(decision, callback) {
   try {
+    const claimedExec = decision.execPath && existsSync(decision.execPath)
+      ? decision.execPath
+      : ''
+    const execPath = claimedExec || process.execPath
+    const argv = claimedExec && decision.script
+      ? [execPath, decision.script]
+      : process.argv
     const plan = accountCallbackForwardPlan({
-      execPath: process.execPath,
-      argv: process.argv,
+      execPath,
+      argv,
       instanceId: decision.instanceId,
       callback,
     })
@@ -1033,6 +1042,8 @@ ipcMain.handle('milksu:invoke', async (event, request) => {
     await writeAccountLoginClaim(os.tmpdir(), {
       instanceId: process.env.MILKSU_INSTANCE_ID || '',
       pid: process.pid,
+      execPath: process.execPath,
+      script: firstProtocolClientScript(process.argv, process.execPath),
     })
     try {
       return await accountSession.startLogin()

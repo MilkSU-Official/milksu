@@ -8,6 +8,7 @@ import {
   companionChatVisibleText,
   companionHostToolFailure,
   companionLooksLikeDebugPayload,
+  companionCredentialMissing,
   companionMissingApiKey,
   companionSidecarDown,
   companionTurnCancelled,
@@ -109,6 +110,7 @@ describe('explainCompanionError', () => {
   it('maps request abort to cancelled copy without harness English', () => {
     applyUiLocale('zh')
     expect(explainCompanionError('Request aborted')).toBe('这一轮已取消。')
+    expect(explainCompanionError('Request was aborted')).toBe('这一轮已取消。')
     expect(explainCompanionError('AbortError: The operation was aborted')).toBe('这一轮已取消。')
     expect(explainCompanionError('Error: request aborted')).toBe('这一轮已取消。')
     expect(explainCompanionError('Request aborted')).not.toMatch(/Request aborted|AbortError/i)
@@ -154,6 +156,8 @@ describe('explainCompanionError', () => {
     expect(explainCompanionError('companion credential missing')).toBe(
       '看板娘这个来源还没有密钥。请重新登录，或改选一个已有密钥的模型。',
     )
+    expect(companionCredentialMissing('companion credential missing')).toBe(true)
+    expect(companionCredentialMissing('No API key for tokenflux/deepseek/deepseek-flash')).toBe(false)
     expect(explainCompanionError('companion credential withdrawn')).not.toMatch(
       /sidecar is not running|tokenflux|https?:\/\//i,
     )

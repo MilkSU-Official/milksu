@@ -6,6 +6,7 @@ import {
   companionChatPlainText,
   companionHostToolFailure,
   companionLooksLikeDebugPayload,
+  companionCredentialMissing,
   companionMissingApiKey,
   companionSidecarDown,
   companionTurnCancelled,
@@ -38,6 +39,10 @@ import type {
 } from '@/types'
 
 const emptyBoard: CompanionBoardSnapshot = { sessions: [], todos: [] }
+
+function companionStartupQuiet(reason: unknown): boolean {
+  return companionMissingApiKey(reason) || companionCredentialMissing(reason) || companionSidecarDown(reason)
+}
 const emptyMemory: CompanionMemorySnapshot = { pending: [], approved: [] }
 
 interface CompanionConfirm {
@@ -307,7 +312,7 @@ export function useCompanion() {
         setShell(await invokeCommand<CompanionShellStatus>('get_companion_shell_status'))
       } catch (reason) {
         const raw = desktopErrorMessage(reason)
-        if (!cancelled && !companionMissingApiKey(raw) && !companionSidecarDown(raw)) {
+        if (!cancelled && !companionStartupQuiet(raw)) {
           setError(explainCompanionError(raw))
         }
       }
@@ -319,7 +324,7 @@ export function useCompanion() {
         } catch (reason) {
           if (ensured && !cancelled) {
             const raw = desktopErrorMessage(reason)
-            if (!companionMissingApiKey(raw) && !companionSidecarDown(raw)) {
+            if (!companionStartupQuiet(raw)) {
               setError(explainCompanionError(raw))
             }
           }

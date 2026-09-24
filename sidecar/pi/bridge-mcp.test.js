@@ -18,6 +18,7 @@ import {
   codingBrowserDescriptorFile,
   computerUseRuntimeRoot,
   computerUseSocket,
+  playwrightProcessSocketRoot,
 } from "../hostpath.js";
 import {
   browserUseMcpServerName,
@@ -350,7 +351,7 @@ test("builds the first-party Playwright server from a strict loopback descriptor
     if (process.platform === "win32") {
       assert.equal(builtIn.server.env.PWTEST_SOCKETS_DIR, undefined);
     } else {
-      assert.equal(builtIn.server.env.PWTEST_SOCKETS_DIR, dirname(descriptorFile));
+      assert.equal(builtIn.server.env.PWTEST_SOCKETS_DIR, playwrightProcessSocketRoot());
     }
     assert.equal(builtIn.server.env.DEEPSEEK_API_KEY, undefined);
   }

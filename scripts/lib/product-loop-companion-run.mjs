@@ -367,11 +367,11 @@ export async function runCompanionPetDrag(driver) {
   } finally {
     session.close()
   }
-  // Drive MoveCompanionPet from the main-window Desktop RPC (same shell path
-  // the pet body uses). In-page CDP + pointer events do not move the OS cursor.
-  await driver.invoke('MoveCompanionPet', [{ drag: 'begin' }])
-  await driver.invoke('MoveCompanionPet', [{ dx: 48, dy: 24 }])
-  await driver.invoke('MoveCompanionPet', [{ drag: 'end' }])
+  // The pet starts in the work-area corner. begin/end follows the OS cursor
+  // and then clamps, so a positive delta is snapped back to that corner.
+  // A negative delta is the shell move the body drag uses once the pointer
+  // has actually left the origin.
+  await driver.invoke('MoveCompanionPet', [{ dx: -80, dy: -48 }])
   const after = await waitFor(async () => {
     const next = await driver.getCompanionShellStatus()
     if (next?.petBounds && (next.petBounds.x !== origin.x || next.petBounds.y !== origin.y)) return next

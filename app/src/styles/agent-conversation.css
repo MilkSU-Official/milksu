@@ -298,11 +298,11 @@
   [data-agent-conversation] .agent-process__swap-enter {
     background-image: linear-gradient(
       90deg,
-      color-mix(in srgb, var(--muted-foreground) 70%, transparent) 0%,
-      color-mix(in srgb, var(--muted-foreground) 70%, transparent) 35%,
+      var(--muted-foreground) 0%,
+      var(--muted-foreground) 42%,
       var(--foreground) 50%,
-      color-mix(in srgb, var(--muted-foreground) 70%, transparent) 65%,
-      color-mix(in srgb, var(--muted-foreground) 70%, transparent) 100%
+      var(--muted-foreground) 58%,
+      var(--muted-foreground) 100%
     );
     background-size: 200% 100%;
     background-repeat: no-repeat;
@@ -471,7 +471,6 @@
 
 [data-agent-conversation] .agent-pixel-loader__label--run {
   color: var(--foreground);
-  animation: agent-label-breathe 1.4s ease-in-out infinite;
 }
 
 [data-agent-conversation] .agent-pixel-loader__elapsed {
@@ -492,16 +491,6 @@
   }
   62% {
     opacity: 0.15;
-  }
-}
-
-@keyframes agent-label-breathe {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.55;
   }
 }
 
@@ -532,13 +521,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .agent-pixel__cell,
-  [data-agent-conversation] .agent-pixel-loader__label--run {
+  .agent-pixel__cell {
     animation: none;
-  }
-
-  [data-agent-conversation] .agent-pixel-loader__label--run {
-    color: var(--muted-foreground);
   }
 
   [data-agent-conversation] .agent-stream-caret {

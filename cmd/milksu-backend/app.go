@@ -1330,7 +1330,7 @@ func (a *App) SendMessage(
 	}
 	a.engines.SetSecurityTools(applySecurityToolOverlays(a.agentResources, a.securityTools.RuntimeTools(a.commandContext())))
 	a.engines.BindSessionKernel(conversationID, kernel)
-	return a.engines.SendMessageWithBranch(
+	if err := a.engines.SendMessageWithBranch(
 		conversationID,
 		prompt,
 		workspacePath,
@@ -1348,7 +1348,81 @@ func (a *App) SendMessage(
 		imageDraw,
 		settings,
 		modelSourcePreference,
-	)
+	); err != nil {
+		return err
+	}
+	a.rememberSentAttachments(conversationID, prompt, attachments)
+	return nil
+}
+
+func storedAttachments(attachments []codingattachment.Attachment) []conversation.StoredAttachment {
+	stored := make([]conversation.StoredAttachment, 0, len(attachments))
+	for _, item := range attachments {
+		id := strings.TrimSpace(item.ID)
+		name := strings.TrimSpace(item.Name)
+		if id == "" || name == "" {
+			continue
+		}
+		stored = append(stored, conversation.StoredAttachment{
+			ID:        id,
+			Name:      name,
+			MediaType: strings.TrimSpace(item.MediaType),
+			Size:      item.Size,
+			SHA256:    strings.TrimSpace(item.SHA256),
+		})
+	}
+	return stored
+}
+
+func sameAttachmentSet(saved, incoming []conversation.StoredAttachment) bool {
+	if len(saved) != len(incoming) {
+		return false
+	}
+	for index, item := range incoming {
+		if saved[index].ID != item.ID || saved[index].Name != item.Name {
+			return false
+		}
+	}
+	return true
+}
+
+// rememberSentAttachments writes the files from this send onto the stored user
+// message. The composer does this before the RPC; a direct SendMessage does not.
+func (a *App) rememberSentAttachments(conversationID, prompt string, attachments []codingattachment.Attachment) {
+	if a == nil || a.conversations == nil {
+		return
+	}
+	incoming := storedAttachments(attachments)
+	if len(incoming) == 0 {
+		return
+	}
+	stored, err := a.conversations.Get(conversationID)
+	if err != nil {
+		return
+	}
+	prompt = strings.TrimSpace(prompt)
+	for index := len(stored.Messages) - 1; index >= 0; index-- {
+		message := stored.Messages[index]
+		if message.Role != "user" || strings.TrimSpace(message.Content) != prompt {
+			continue
+		}
+		if sameAttachmentSet(message.Attachments, incoming) {
+			return
+		}
+		if len(message.Attachments) == 0 {
+			stored.Messages[index].Attachments = incoming
+			_ = a.conversations.Save(stored)
+		}
+		return
+	}
+	stored.Messages = append(stored.Messages, conversation.StoredMessage{
+		ID:          fmt.Sprintf("att-%d", time.Now().UnixNano()),
+		Role:        "user",
+		Content:     prompt,
+		Timestamp:   uint64(time.Now().UnixMilli()),
+		Attachments: incoming,
+	})
+	_ = a.conversations.Save(stored)
 }
 
 func (a *App) ForkConversation(conversationID, role string, occurrence int) (string, error) {

@@ -146,6 +146,7 @@ function sandboxProfile({
   readableFiles = [],
   runtimeDirectory,
   temporaryDirectory,
+  modelDirectory,
   writable,
 }) {
   const readableRoots = [
@@ -153,6 +154,7 @@ function sandboxProfile({
     ...(cwd === mainWorkspace ? [] : [join(mainWorkspace, ".git")]),
     runtimeDirectory,
     temporaryDirectory,
+    ...(modelDirectory ? [modelDirectory] : []),
     "/System",
     "/usr",
     "/bin",
@@ -446,21 +448,24 @@ function run(argumentsList = process.argv.slice(2), environment = process.env) {
     join(environment.TMPDIR || tmpdir(), "milksu-pi-subagent-"),
   );
   const agentDirectory = join(temporaryDirectory, "agent");
+  let wroteRuntimeConfig = false;
   try {
-    writeRuntimeModelConfig(
+    wroteRuntimeConfig = Boolean(writeRuntimeModelConfig(
       agentDirectory,
       resolvedArguments,
       environment,
-    );
+    ));
   } catch (error) {
     rmSync(temporaryDirectory, { recursive: true, force: true });
     throw error;
   }
+  const inheritedModelDirectory = String(environment.PI_CODING_AGENT_DIR ?? "").trim();
+  const modelDirectory = wroteRuntimeConfig ? agentDirectory : (inheritedModelDirectory || agentDirectory);
   const childEnvironment = {
     ...environment,
     HOME: temporaryDirectory,
     TMPDIR: temporaryDirectory,
-    PI_CODING_AGENT_DIR: agentDirectory,
+    PI_CODING_AGENT_DIR: modelDirectory,
     PI_CODING_AGENT_SESSION_DIR: join(temporaryDirectory, "sessions"),
     MILKSU_PI_NO_PROJECT_RESOURCE_DISCOVERY: "1",
     MILKSU_PI_SUBAGENT_RUNTIME: "1",
@@ -480,6 +485,7 @@ function run(argumentsList = process.argv.slice(2), environment = process.env) {
           readableFiles,
           runtimeDirectory: policy.runtimeDirectory,
           temporaryDirectory,
+          modelDirectory,
           writable: policy.effectful,
         }),
         process.execPath,

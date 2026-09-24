@@ -471,9 +471,11 @@ export async function fillAria(driver, labels, value) {
     if (!node) return false
     const proto = node.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype
     const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set
+    const tracker = node._valueTracker
+    if (tracker && typeof tracker.setValue === 'function') tracker.setValue('')
     if (setter) setter.call(node, value)
     else node.value = value
-    node.dispatchEvent(new Event('input', { bubbles: true }))
+    node.dispatchEvent(new InputEvent('input', { bubbles: true, data: value, inputType: 'insertText' }))
     node.dispatchEvent(new Event('change', { bubbles: true }))
     return true
   }`, [labels, value])

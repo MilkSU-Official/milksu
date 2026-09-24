@@ -96,6 +96,22 @@ test("read-only roles may use main and receive no workspace write grant", () => 
   );
 });
 
+test("the child can read a model registry that lives outside the workspace", () => {
+  const value = fixture("worker");
+  const policy = prepareRunnerPolicy(value.environment, value.workspace);
+  const modelDirectory = join(tmpdir(), "milksu-subagent-models");
+  const profile = sandboxProfile({
+    cwd: policy.cwd,
+    mainWorkspace: policy.mainWorkspace,
+    runtimeDirectory: policy.runtimeDirectory,
+    temporaryDirectory: join(value.workspace, "temporary"),
+    modelDirectory,
+    writable: true,
+  });
+  const readRule = profile.split("\n").find(line => line.startsWith("(allow file-read*"));
+  assert.equal(readRule.includes(JSON.stringify(modelDirectory)), true);
+});
+
 test("writer profile allows source but denies Git metadata writes", () => {
   const value = fixture("worker");
   const policy = prepareRunnerPolicy(value.environment, value.worktree);

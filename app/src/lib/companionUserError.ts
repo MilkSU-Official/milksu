@@ -91,6 +91,10 @@ export function companionMissingApiKey(reason: unknown): boolean {
   return MISSING_API_KEY.test(String(reason ?? ''))
 }
 
+export function companionCredentialMissing(reason: unknown): boolean {
+  return CREDENTIAL_MISSING.test(String(reason ?? ''))
+}
+
 export function companionSidecarDown(reason: unknown): boolean {
   return SIDECAR_DOWN.test(String(reason ?? ''))
 }
@@ -109,7 +113,7 @@ export function companionHostToolFailure(reason: unknown): boolean {
  * recover teardown, user stop). Distinct from host-tool timeout.
  */
 export function companionTurnCancelled(reason: unknown): boolean {
-  return /abort\s*error|request aborted|this operation was aborted|the operation was aborted|operation was aborted|这一轮已取消|This turn was cancelled/i
+  return /abort\s*error|request (?:was )?aborted|this operation was aborted|the operation was aborted|operation was aborted|这一轮已取消|This turn was cancelled/i
     .test(String(reason ?? ''))
 }
 

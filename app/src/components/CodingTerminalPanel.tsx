@@ -10,6 +10,7 @@ import {
   X,
 } from 'lucide-react'
 import {
+  codingEnvironmentMissing,
   hasDesktopRuntime,
   invokeCommand,
   listenEvent,
@@ -84,7 +85,12 @@ export default function CodingTerminalPanel({
   }
 
   function errorMessage(reason: unknown, fallback: string) {
-    return redactProviderCredentials(reason instanceof Error ? reason.message : fallback)
+    if (codingEnvironmentMissing(reason)) {
+      return t('这个目录已经不在了。', 'This directory is no longer there.')
+    }
+    const message = redactProviderCredentials(reason instanceof Error ? reason.message : '')
+    if (!message || /Error invoking remote method|\/Users\//.test(message)) return fallback
+    return message
   }
 
   function rememberTerminal(session: CodingTerminalSession) {

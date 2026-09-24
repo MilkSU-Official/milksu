@@ -73,9 +73,14 @@ function desktopProtocolClientRegistration({
   execPath = '',
   argv = [],
   instanceId = '',
+  platform = '',
 } = {}) {
   const scheme = new URL(accountRedirectURL(channel)).protocol.replace(/:$/u, '')
   if (isPackaged) return { scheme, register: true }
+  // Launch Services binds milksu:// to the bundle id. Unpackaged Electron is
+  // always com.github.electron, so the callback opens some other checkout's
+  // Electron.app and shows its default page.
+  if ((platform || process.platform) === 'darwin') return { scheme, register: false }
   const isolated = /^[A-Za-z0-9_.-]{1,64}$/u.test(String(instanceId ?? '').trim())
   if ((!defaultApp && !isolated) || !execPath) return { scheme, register: false }
   const script = firstProtocolClientScript(argv, execPath)
@@ -545,6 +550,13 @@ function accountLoginClaimPath(directory) {
   return path.join(String(directory ?? ''), 'milksu-pending-account-login.json')
 }
 
+function safeClaimPath(value) {
+  const text = String(value ?? '').trim()
+  if (!text || text.length > 512 || text.includes('\0') || /[\r\n]/u.test(text)) return ''
+  if (!path.isAbsolute(text) || text.includes('://')) return ''
+  return text
+}
+
 function routeAccountCallback({ hasPendingLogin = false, claim = null, selfPid = 0 } = {}) {
   if (hasPendingLogin) return { action: 'accept' }
   const pid = Number(claim?.pid)
@@ -553,6 +565,8 @@ function routeAccountCallback({ hasPendingLogin = false, claim = null, selfPid =
       action: 'forward',
       instanceId: String(claim.instanceId ?? ''),
       pid,
+      execPath: safeClaimPath(claim.execPath),
+      script: safeClaimPath(claim.script),
     }
   }
   return { action: 'ignore' }
@@ -583,11 +597,18 @@ function publicOAuthError(message) {
   return text
 }
 
-async function writeAccountLoginClaim(directory, { instanceId = '', pid = process.pid } = {}) {
+async function writeAccountLoginClaim(directory, {
+  instanceId = '',
+  pid = process.pid,
+  execPath = '',
+  script = '',
+} = {}) {
   const file = accountLoginClaimPath(directory)
   const body = JSON.stringify({
     instanceId: String(instanceId ?? ''),
     pid: Number(pid),
+    execPath: safeClaimPath(execPath),
+    script: safeClaimPath(script),
     at: Date.now(),
   })
   const temporary = `${file}.${process.pid}.tmp`
@@ -603,6 +624,8 @@ async function readAccountLoginClaim(directory) {
     return {
       instanceId: String(parsed.instanceId ?? ''),
       pid,
+      execPath: safeClaimPath(parsed.execPath),
+      script: safeClaimPath(parsed.script),
     }
   } catch {
     return null
@@ -622,6 +645,7 @@ module.exports = {
   accountModelAuthorizationRefreshRequired,
   accountRedirectURL,
   accountCallbackForwardPlan,
+  firstProtocolClientScript,
   accountLoginClaimPath,
   clearAccountLoginClaim,
   desktopProtocolClientRegistration,

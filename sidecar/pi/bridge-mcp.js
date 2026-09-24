@@ -14,6 +14,7 @@ import {
   codingBrowserDescriptorFile,
   computerUseRuntimeRoot,
   computerUseSocket,
+  playwrightProcessSocketRoot,
 } from "../hostpath.js";
 import { sandboxProfile } from "./bridge-policy.js";
 import {
@@ -942,9 +943,16 @@ export async function createFirstPartyPlaywrightMcpServer(
   // directory under a short, conversation-derived name. Windows uses named
   // pipes and does not need PWTEST_SOCKETS_DIR.
   const descriptorFile = codingBrowserDescriptorFile(keySource);
-  const socketRoot = dirname(descriptorFile);
-  await mkdir(socketRoot, { recursive: true, mode: 0o700 });
-  await restrictPrivateMode(socketRoot);
+  const descriptorDir = dirname(descriptorFile);
+  await mkdir(descriptorDir, { recursive: true, mode: 0o700 });
+  await restrictPrivateMode(descriptorDir);
+  // Playwright appends its own domain directory under PWTEST_SOCKETS_DIR.
+  // dirname(descriptorFile) already sits under os.tmpdir() and overflows
+  // Darwin's 104-byte sun_path once that extra segment is added.
+  const socketRoot = playwrightProcessSocketRoot() || descriptorDir;
+  if (socketRoot !== descriptorDir) {
+    await mkdir(socketRoot, { recursive: true, mode: 0o700 });
+  }
   const env = {
     MILKSU_PLAYWRIGHT_MCP_CLI: playwrightMcpCliPath,
     MILKSU_CODING_BROWSER_DESCRIPTOR_FILE: descriptorFile,

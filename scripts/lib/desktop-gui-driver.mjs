@@ -86,14 +86,16 @@ export function eventToolName(event) {
   ).trim()
 }
 
+function eventErrorText(event) {
+  const nested = event?.payload && typeof event.payload === 'object' ? event.payload : null
+  return String(event?.error ?? event?.Error ?? nested?.error ?? '').trim()
+}
+
 export function classifyTurnEvents(events) {
   const rows = events ?? []
   const types = rows.map(event => eventTypeOf(event))
-  const errorTexts = rows.map(event => {
-    const nested = event?.payload && typeof event.payload === 'object' ? event.payload : null
-    return String(event?.error ?? event?.Error ?? nested?.error ?? event?.text ?? event?.Text ?? '')
-  })
-  const error = errorTexts.find(text => text.trim()) || ''
+  const errorTexts = rows.map(event => eventErrorText(event))
+  const error = errorTexts.find(text => text) || ''
   const sidecarStopped = types.some(type => type === 'engine.sidecar_stopped')
   const hostTimedOut = errorTexts.some(text => companionHostToolError(text))
   // Host board/dispatch timeouts stay inside Pi's loop. Do not abort the wait

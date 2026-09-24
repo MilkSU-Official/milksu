@@ -72,6 +72,7 @@ test('registers unpackaged protocol clients with the Electron executable and app
     defaultApp: true,
     execPath: 'C:\\electron\\electron.exe',
     argv: ['C:\\electron\\electron.exe', 'C:\\milksu\\desktop'],
+    platform: 'win32',
   })
   assert.deepEqual(unpackaged, {
     scheme: 'milksu',
@@ -89,6 +90,7 @@ test('registers unpackaged protocol clients with the Electron executable and app
     defaultApp: true,
     execPath: 'C:\\electron\\electron.exe',
     argv: ['C:\\electron\\electron.exe'],
+    platform: 'win32',
   }), { scheme: 'milksu', register: false })
   assert.deepEqual(desktopProtocolClientRegistration({
     channel: 'stable',
@@ -97,12 +99,22 @@ test('registers unpackaged protocol clients with the Electron executable and app
     execPath: '/repo/node_modules/electron/dist/Electron',
     argv: ['/repo/node_modules/electron/dist/Electron', '/repo/desktop'],
     instanceId: 'plfu-1',
+    platform: 'linux',
   }), {
     scheme: 'milksu',
     register: true,
     execPath: '/repo/node_modules/electron/dist/Electron',
     args: [path.resolve('/repo/desktop')],
   })
+  assert.deepEqual(desktopProtocolClientRegistration({
+    channel: 'stable',
+    isPackaged: false,
+    defaultApp: true,
+    execPath: '/repo/node_modules/electron/dist/Electron',
+    argv: ['/repo/node_modules/electron/dist/Electron', '/repo/desktop'],
+    instanceId: 'plfu-1',
+    platform: 'darwin',
+  }), { scheme: 'milksu', register: false })
 })
 
 test('keeps Stable and Beta OAuth callbacks on separate protocol handlers', async () => {
@@ -441,7 +453,7 @@ test('oauth callback stays with the instance that started login', () => {
     hasPendingLogin: false,
     claim: { instanceId: 'loop-1', pid: 42 },
     selfPid: 7,
-  }), { action: 'forward', instanceId: 'loop-1', pid: 42 })
+  }), { action: 'forward', instanceId: 'loop-1', pid: 42, execPath: '', script: '' })
   assert.deepEqual(routeAccountCallback({
     hasPendingLogin: false,
     claim: { instanceId: '', pid: 7 },
@@ -455,7 +467,30 @@ test('login claim records the instance and not an oauth code', async () => {
   await writeAccountLoginClaim(dir, { instanceId: 'loop-1', pid: 42 })
   const raw = await fs.readFile(accountLoginClaimPath(dir), 'utf8')
   assert.doesNotMatch(raw, /code|token|verifier|secret/iu)
-  assert.deepEqual(await readAccountLoginClaim(dir), { instanceId: 'loop-1', pid: 42 })
+  assert.deepEqual(await readAccountLoginClaim(dir), {
+    instanceId: 'loop-1',
+    pid: 42,
+    execPath: '',
+    script: '',
+  })
+  await writeAccountLoginClaim(dir, {
+    instanceId: 'loop-1',
+    pid: 42,
+    execPath: '/Applications/Electron.app/Contents/MacOS/Electron',
+    script: '/opt/milksu/desktop/main.cjs',
+  })
+  const recorded = await readAccountLoginClaim(dir)
+  assert.equal(recorded.execPath, '/Applications/Electron.app/Contents/MacOS/Electron')
+  assert.equal(recorded.script, '/opt/milksu/desktop/main.cjs')
+  await writeAccountLoginClaim(dir, {
+    instanceId: 'loop-1',
+    pid: 42,
+    execPath: 'relative/electron',
+    script: 'https://evil.example/main.cjs',
+  })
+  const rejected = await readAccountLoginClaim(dir)
+  assert.equal(rejected.execPath, '')
+  assert.equal(rejected.script, '')
 })
 
 test('callback forward plan keeps the code out of the environment', () => {

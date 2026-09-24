@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { desktopErrorMessage, invokeCommand } from './desktop'
+import { codingEnvironmentMissing, desktopErrorMessage, invokeCommand } from './desktop'
 import {
   buildDiagnosticText,
   debugLogEntries,
@@ -20,6 +20,10 @@ describe('desktop command adapter', () => {
     expect(desktopErrorMessage(
       new Error("Error invoking remote method 'milksu:invoke': Error: PI model verification failed: exit status 1"),
     )).toBe('PI model verification failed: exit status 1')
+    expect(codingEnvironmentMissing(
+      "Error invoking remote method 'milksu:invoke': Error: resolve Coding workspace links: lstat /tmp/gone: no such file or directory",
+    )).toBe(true)
+    expect(codingEnvironmentMissing('PI model verification failed: exit status 1')).toBe(false)
   })
 
   it('records each RPC invocation once in the local debug snapshot', async () => {

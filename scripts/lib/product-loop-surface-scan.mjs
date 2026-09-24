@@ -56,7 +56,7 @@ const SETTINGS_JSON = /companion_float_enabled|tokenflux\.dev\/v1/i
 const JSONISH = /[{[]/
 const SETTINGS_ENVELOPE = /"ok"\s*:|"settings"\s*:|"relay"\s*:/
 
-const LOCALIZED_MISSING_KEY = /当前模型没有可用的 API Key|No API key is available for the current model|当前没有可用的账户或个人模型来源|No account or personal model source is available|当前模型没有可用凭据|No credentials are available for the current model/
+const LOCALIZED_MISSING_KEY = /当前模型没有可用的 API Key|No API key is available for the current model|当前没有可用的账户或个人模型来源|No account or personal model source is available|当前模型没有可用凭据|No credentials are available for the current model|看板娘这个来源还没有密钥|This Companion source has no key/
 const LOCALIZED_QUOTA = /余额不足|额度已用完|quota is exhausted|account balance is insufficient|insufficient quota/
 const LOCALIZED_CANCELLED = /这一轮已取消。?|本轮已停止。?|This turn was cancelled\.?|This turn was stopped\.?/
 const LOCALIZED_EMPTY_REPLY = /这一轮没有回复|This turn did not produce a reply/

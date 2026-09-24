@@ -659,6 +659,11 @@ export function desktopErrorMessage(reason: unknown) {
   return message.trim()
 }
 
+/** A gone workspace must not paint Go/Electron paths into the environment rail. */
+export function codingEnvironmentMissing(reason: unknown) {
+  return /no such file or directory|\bENOENT\b|not a directory/i.test(desktopErrorMessage(reason))
+}
+
 export async function invokeCommand<T = unknown>(command: string, args?: CommandArgs): Promise<T> {
   recordRpcCall(command)
   const app = getDesktopApp()

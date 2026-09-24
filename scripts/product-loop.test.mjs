@@ -1044,6 +1044,22 @@ test('surface scanner fails leaks and unexpected error chrome, not expected form
   }, { caseId: 'coding-pi-files' })
   assert.equal(mappedOnCoding.fail, true)
 
+  const sourceMissingOnLogin = scanProductLoopSurface({
+    surface: 'companion',
+    locale: 'zh-CN',
+    text: '看板娘这个来源还没有密钥。请重新登录，或改选一个已有密钥的模型。',
+    findings: [{ kind: 'companion-bubble', text: '看板娘这个来源还没有密钥。请重新登录，或改选一个已有密钥的模型。' }],
+  }, { caseId: 'login-gate' })
+  assert.equal(sourceMissingOnLogin.fail, false)
+
+  const sourceMissingOnCoding = scanProductLoopSurface({
+    surface: 'companion',
+    locale: 'zh-CN',
+    text: '看板娘这个来源还没有密钥。请重新登录，或改选一个已有密钥的模型。',
+    findings: [{ kind: 'companion-bubble', text: '看板娘这个来源还没有密钥。请重新登录，或改选一个已有密钥的模型。' }],
+  }, { caseId: 'coding-pi-files' })
+  assert.equal(sourceMissingOnCoding.fail, true)
+
   const settingsDump = scanProductLoopSurface({
     surface: 'companion',
     locale: 'zh-CN',
