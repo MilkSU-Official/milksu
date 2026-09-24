@@ -53,14 +53,21 @@ func TestChoiceReadsSelectedOption(t *testing.T) {
 	}))
 	defer server.Close()
 	client := &Client{Endpoint: server.URL, Key: "sk-or-test", HTTP: server.Client()}
-	choice, err := client.Choice(context.Background(), "去仓库里改登录", []string{"闲聊", "深入思考", "长任务"})
+	choice, err := client.Choice(context.Background(), "去仓库里改登录", "分成一档。", map[string]string{
+		"chat": "短问",
+		"long": "改仓库",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if choice != "长任务" {
 		t.Fatalf("choice = %s", choice)
 	}
-	if !strings.Contains(gotBody, "typesafe/jev-1.13") || strings.Contains(gotBody, "sk-or-test") {
+	if !strings.Contains(gotBody, "typesafe/jev-1.13") ||
+		!strings.Contains(gotBody, `"instructions":"分成一档。"`) ||
+		!strings.Contains(gotBody, `"criteria"`) ||
+		strings.Contains(gotBody, `"options"`) ||
+		strings.Contains(gotBody, "sk-or-test") {
 		t.Fatalf("body = %s", gotBody)
 	}
 }

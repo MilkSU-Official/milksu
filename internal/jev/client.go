@@ -101,8 +101,9 @@ func (c *Client) Noul(ctx context.Context, state any, instructions string) (floa
 }
 
 type choiceQuestion struct {
-	Type    string   `json:"type"`
-	Options []string `json:"options"`
+	Type         string            `json:"type"`
+	Instructions string            `json:"instructions"`
+	Criteria     map[string]string `json:"criteria"`
 }
 
 type choiceRequest struct {
@@ -120,19 +121,33 @@ type choiceResponse struct {
 	Answers map[string]choiceAnswer `json:"answers"`
 }
 
-// Choice asks one three-way question. The result is the selected option.
-func (c *Client) Choice(ctx context.Context, state any, options []string) (string, error) {
+// Choice asks one question whose answer is one of the criteria keys.
+// Decisions API rejects a bare options list; each option needs a criterion.
+func (c *Client) Choice(ctx context.Context, state any, instructions string, criteria map[string]string) (string, error) {
 	if c == nil || strings.TrimSpace(c.Key) == "" {
 		return "", fmt.Errorf("jev key is not configured")
 	}
-	if len(options) < 2 {
+	instructions = strings.TrimSpace(instructions)
+	if instructions == "" {
+		return "", fmt.Errorf("jev question is required")
+	}
+	cleaned := make(map[string]string, len(criteria))
+	for key, text := range criteria {
+		key = strings.TrimSpace(key)
+		text = strings.TrimSpace(text)
+		if key == "" || text == "" {
+			continue
+		}
+		cleaned[key] = text
+	}
+	if len(cleaned) < 2 {
 		return "", fmt.Errorf("jev choice needs options")
 	}
 	payload, err := json.Marshal(choiceRequest{
 		Model: DefaultModel,
 		State: state,
 		Questions: map[string]choiceQuestion{
-			"route": {Type: "choice", Options: options},
+			"route": {Type: "choice", Instructions: instructions, Criteria: cleaned},
 		},
 	})
 	if err != nil {

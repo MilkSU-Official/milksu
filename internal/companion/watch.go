@@ -179,11 +179,18 @@ func (r *Runtime) routeDecision(prompt string) map[string]any {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
-	choice, err := (&jev.Client{Key: settings.Jev.APIKey}).Choice(ctx, strings.TrimSpace(prompt), []string{"闲聊", "深入思考", "长任务"})
+	choice, err := (&jev.Client{Key: settings.Jev.APIKey}).Choice(ctx, strings.TrimSpace(prompt),
+		"把这条用户消息分成且只分成一档。",
+		map[string]string{
+			"chat": "打招呼、闲谈或一句话就能回完的短问，不改文件，也不开新会话。",
+			"deep": "需要想清楚再用几句答完的问题，仍然停在这一轮，不改仓库、不派新会话。",
+			"long": "要在仓库里改文件、跑命令或做完才算结束的活，应该派到新的编码会话。",
+		},
+	)
 	if err != nil {
 		return nil
 	}
-	bucket := map[string]string{"闲聊": "chat", "深入思考": "deep", "长任务": "long"}[strings.TrimSpace(choice)]
+	bucket := map[string]string{"chat": "chat", "deep": "deep", "long": "long"}[strings.TrimSpace(choice)]
 	if bucket == "" {
 		return nil
 	}
