@@ -197,6 +197,8 @@ test("registers the active custom OpenAI-compatible relay only from runtime envi
   assert.equal(definition.baseUrl, "https://relay.invalid/v1");
   assert.equal(definition.apiKey, "secret-key");
   assert.equal(definition.models[0].id, "vendor/model:preview");
+  assert.equal(definition.api, "openai-completions");
+  assert.equal(definition.models[0].reasoning, false);
   assert.deepEqual(definition.models[0].input, ["text", "image"]);
   assert.equal(
     currentProviderDefinition("custom-relay-other", "model", {
@@ -239,6 +241,109 @@ test("the conversation's own relay resolves even when the process was spawned fo
   // Never borrow another relay's credentials.
   assert.notEqual(definition.apiKey, "other-relay-secret");
   assert.notEqual(definition.baseUrl, "https://other.invalid/v1");
+});
+
+test("an Anthropic relay path uses Messages and keeps Claude thinking", () => {
+  const definition = currentProviderDefinition(
+    "custom-relay-axon",
+    "claude-sonnet-5",
+    {},
+    {
+      id: "custom-relay-axon",
+      name: "Axon",
+      key: "relay-secret",
+      baseUrl: "http://relay.example:8090/anthropic/v1",
+    },
+  );
+  assert.equal(definition.api, "anthropic-messages");
+  assert.equal(definition.baseUrl, "http://relay.example:8090/anthropic");
+  assert.equal(definition.models[0].reasoning, true);
+  assert.equal(definition.models[0].compat.forceAdaptiveThinking, true);
+});
+
+test("an OpenAI-compatible relay keeps the upstream thinking field for that model family", () => {
+  const deepseek = currentProviderDefinition("custom-relay-ds", "deepseek-v4-flash", {}, {
+    id: "custom-relay-ds",
+    name: "Relay",
+    key: "relay-secret",
+    baseUrl: "https://relay.example/v1",
+  });
+  assert.equal(deepseek.api, "openai-completions");
+  assert.equal(deepseek.models[0].compat.thinkingFormat, "deepseek");
+  assert.equal(deepseek.models[0].compat.requiresReasoningContentOnAssistantMessages, true);
+
+  const qwen = currentProviderDefinition("custom-relay-qwen", "qwen3.8-max", {}, {
+    id: "custom-relay-qwen",
+    name: "Relay",
+    key: "relay-secret",
+    baseUrl: "https://relay.example/v1",
+  });
+  assert.equal(qwen.models[0].compat.thinkingFormat, "qwen");
+
+  const glm = currentProviderDefinition("custom-relay-glm", "glm-4.6", {}, {
+    id: "custom-relay-glm",
+    name: "Relay",
+    key: "relay-secret",
+    baseUrl: "https://relay.example/v1",
+  });
+  assert.equal(glm.models[0].compat.thinkingFormat, "zai");
+
+  const kimi = currentProviderDefinition("custom-relay-kimi", "kimi-k2.6", {}, {
+    id: "custom-relay-kimi",
+    name: "Relay",
+    key: "relay-secret",
+    baseUrl: "https://relay.example/v1",
+  });
+  assert.equal(kimi.models[0].compat.thinkingFormat, "deepseek");
+  assert.equal(kimi.models[0].compat.requiresReasoningContentOnAssistantMessages, true);
+
+  const minimax = currentProviderDefinition("custom-relay-mm", "MiniMax-M3", {}, {
+    id: "custom-relay-mm",
+    name: "Relay",
+    key: "relay-secret",
+    baseUrl: "https://api.minimax.chat/v1",
+  });
+  assert.equal(minimax.models[0].compat.thinkingFormat, "deepseek");
+
+  const doubao = currentProviderDefinition("custom-relay-doubao", "doubao-seed-2.0-pro", {}, {
+    id: "custom-relay-doubao",
+    name: "Relay",
+    key: "relay-secret",
+    baseUrl: "https://ark.cn-beijing.volces.com/api/v3",
+  });
+  assert.equal(doubao.models[0].compat.thinkingFormat, "deepseek");
+});
+
+test("official Anthropic and Gemini hosts use their own protocols", () => {
+  const anthropic = currentProviderDefinition("custom-relay-anthropic", "claude-sonnet-4-6", {}, {
+    id: "custom-relay-anthropic",
+    name: "Anthropic",
+    key: "relay-secret",
+    baseUrl: "https://api.anthropic.com",
+  });
+  assert.equal(anthropic.api, "anthropic-messages");
+  assert.equal(anthropic.models[0].reasoning, true);
+
+  const gemini = currentProviderDefinition("custom-relay-gemini", "gemini-3.1-pro", {}, {
+    id: "custom-relay-gemini",
+    name: "Gemini",
+    key: "relay-secret",
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+  });
+  assert.equal(gemini.api, "google-generative-ai");
+  assert.equal(gemini.models[0].reasoning, true);
+});
+
+test("OpenRouter uses one reasoning field for every model family", () => {
+  const claude = currentProviderDefinition("custom-relay-or", "anthropic/claude-sonnet-4-6", {}, {
+    id: "custom-relay-or",
+    name: "OpenRouter",
+    key: "relay-secret",
+    baseUrl: "https://openrouter.ai/api/v1",
+  });
+  assert.equal(claude.api, "openai-completions");
+  assert.equal(claude.models[0].compat.thinkingFormat, "openrouter");
+  assert.equal(claude.models[0].compat.requiresReasoningContentOnAssistantMessages, false);
 });
 
 test("a turn payload for a different provider never overrides the requested provider", () => {

@@ -2,6 +2,11 @@
 
 const fs = require("node:fs");
 const {
+  customRelayApi,
+  customRelayModelShape,
+  normalizeCustomRelayBaseUrl,
+} = require("./custom-relay-transport.cjs");
+const {
   contextWindowOverride,
   registeredContextWindow,
   registeredMaxTokens,
@@ -190,15 +195,17 @@ function providerRuntimeFor(provider) {
 
 function customRelayDefinition({ name, baseUrl, apiKey }, provider, model, environment) {
   if (!baseUrl || !apiKey || !model) return undefined;
+  const api = customRelayApi(baseUrl);
+  const shape = customRelayModelShape(api, model, baseUrl);
   return {
     name: String(name ?? provider).trim() || provider,
-    baseUrl,
+    baseUrl: normalizeCustomRelayBaseUrl(baseUrl, api),
     apiKey,
-    api: "openai-completions",
+    api,
     models: [{
       id: model,
       name: model,
-      reasoning: false,
+      reasoning: shape.reasoning,
       input: modelInput(),
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
       contextWindow: registeredContextWindow(
@@ -207,11 +214,7 @@ function customRelayDefinition({ name, baseUrl, apiKey }, provider, model, envir
         contextWindowOverride(provider, model, environment),
       ),
       maxTokens: registeredMaxTokens(model, 0),
-      compat: {
-        supportsDeveloperRole: false,
-        supportsReasoningEffort: false,
-        maxTokensField: "max_tokens",
-      },
+      ...(shape.compat ? { compat: shape.compat } : {}),
     }],
   };
 }

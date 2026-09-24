@@ -364,8 +364,9 @@ function writeRuntimeModelConfig(
     environment.MILKSU_CUSTOM_PROVIDER_ID ?? "",
   ).trim() === selection.provider;
   if (customProvider) {
+    const endpoint = String(environment.MILKSU_CUSTOM_PROVIDER_URL ?? "").trim();
     runtime = {
-      api: "openai-completions",
+      api: require("./custom-relay-transport.cjs").customRelayApi(endpoint),
       apiKey: "MILKSU_CUSTOM_PROVIDER_KEY",
       baseUrl: "MILKSU_CUSTOM_PROVIDER_URL",
     };
@@ -391,18 +392,27 @@ function writeRuntimeModelConfig(
   if (!/^https?:\/\/[^\s]+$/u.test(baseUrl)) {
     throw new Error("MilkSU subagent runtime rejected an invalid provider endpoint");
   }
+  const transport = require("./custom-relay-transport.cjs");
+  const publishedBaseUrl = customProvider
+    ? transport.normalizeCustomRelayBaseUrl(baseUrl, runtime.api)
+    : baseUrl;
+  const relayShape = customProvider
+    ? transport.customRelayModelShape(runtime.api, selection.model, baseUrl)
+    : null;
   const path = join(agentDirectory, "models.json");
   mkdirSync(agentDirectory, { recursive: true, mode: 0o700 });
   const models = {
     providers: {
       [selection.provider]: {
-        baseUrl,
+        baseUrl: publishedBaseUrl,
         api: runtime.api,
         apiKey: `$${runtime.apiKey}`,
         models: [{
           id: selection.model,
           name: selection.model,
-          reasoning: Boolean(selection.thinkingLevel),
+          reasoning: relayShape
+            ? relayShape.reasoning
+            : Boolean(selection.thinkingLevel),
           thinkingLevelMap: selection.thinkingLevel
             ? {
                 [selection.thinkingLevel]: selection.thinkingLevel === "off"
@@ -423,7 +433,7 @@ function writeRuntimeModelConfig(
             selection.model,
             0,
           ),
-          compat: {
+          compat: relayShape?.compat ?? {
             supportsDeveloperRole: false,
             supportsReasoningEffort: Boolean(selection.thinkingLevel),
             maxTokensField: "max_tokens",
