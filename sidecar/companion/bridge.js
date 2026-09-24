@@ -25,7 +25,7 @@ import {
   repairCompanionToolHistory,
   stampCompanionAbortedTurn,
 } from "./turn-error.js";
-import { prepareCompanionPrompt } from "./attachments.js";
+import { companionIntentLine, companionModelPrompt, prepareCompanionPrompt } from "./attachments.js";
 import { withTokenFluxModelCompat } from "../pi/tokenflux-model-compat.js";
 import { createHangGuardExtension } from "../pi/bridge-hang-guard.js";
 import { createToolResultBoundExtension } from "../pi/bridge-tool-result-bound.js";
@@ -596,10 +596,21 @@ async function sendPrompt(command) {
   }
   // So the phone UI can show the user bubble immediately when Send comes from
   // Desktop RPC / product-loop (not only the in-phone optimistic path).
-  emit("user_message", {
-    text: prepared.prompt,
-    hasAttachments: prepared.images.length > 0,
-  });
+  const locale = command?.locale === "en" ? "en" : "zh";
+  const modelPrompt = companionModelPrompt(prepared.prompt, command?.intent, locale);
+  if (command?.intent?.bucket) {
+    emit("intent.recorded", {
+      bucket: command.intent.bucket,
+      source: command.intent.source === "model" ? "model" : "jev",
+      text: companionIntentLine(command.intent, locale),
+    });
+  }
+  if (command?.hostNotice !== true) {
+    emit("user_message", {
+      text: prepared.prompt,
+      hasAttachments: prepared.images.length > 0,
+    });
+  }
   // Do not await session.prompt on the stdin command queue. Main Coding Pi
   // detaches the prompt so workspace_action_response and abort_session can
   // run while the agent loop is in flight. Companion host replies / abort
@@ -610,7 +621,7 @@ async function sendPrompt(command) {
     memoryExtract.beginTurn();
     try {
       await retrieveCompanionTurnMemory(prepared.prompt);
-      const pending = session.prompt(prepared.prompt, {
+      const pending = session.prompt(modelPrompt, {
         expandPromptTemplates: false,
         ...(prepared.images.length ? { images: prepared.images } : {}),
       });
@@ -737,6 +748,14 @@ async function handleCommand(command) {
       return;
     case "abort":
       await abortCompanionTurn();
+      return;
+    case "host_notice":
+      await createCompanionSession(command);
+      if (!subscribed) {
+        subscribeCompanion();
+        subscribed = true;
+      }
+      await sendPrompt({ ...command, hostNotice: true });
       return;
     case "shutdown":
       flushCompanionSessionFile();

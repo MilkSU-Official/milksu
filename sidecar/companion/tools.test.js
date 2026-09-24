@@ -65,7 +65,7 @@ test("dispatch host request does not time out while waiting for confirmation", a
   assert.match(dispatch.description, /immediately/i);
   assert.match(dispatch.description, /speak_many/);
   assert.match(dispatch.description, /confirm button/i);
-  assert.match(dispatch.description, /subagent/);
+  assert.doesNotMatch(dispatch.description, /subagent/);
   assert.match(dispatch.description, /Working/);
   assert.match(dispatch.description, /create_conversation|steer/i);
   const result = await dispatch.execute("1", {

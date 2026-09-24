@@ -2,6 +2,7 @@ package companion
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -40,6 +41,7 @@ type persistedState struct {
 	Approved   []ApprovedMemory          `json:"approved"`
 	Forgotten  []string                  `json:"forgotten"`
 	Deliveries map[string]DispatchResult `json:"deliveries"`
+	Watches    map[string]watchedSession `json:"watches,omitempty"`
 }
 
 type Runtime struct {
@@ -60,6 +62,9 @@ type Runtime struct {
 	apps       AppControl
 
 	pendingConfirms map[string]parkedConfirm
+	watchMu         sync.Mutex
+	watches         map[string]watchedSession
+	pendingNotice   string
 
 	command    *exec.Cmd
 	stdin      io.WriteCloser
@@ -101,6 +106,7 @@ func NewRuntime(options RuntimeOptions) *Runtime {
 	runtime.dispatcher = NewDispatcher(options.Catalog, options.Speaker, board, runtime.dispatchEnabled)
 	runtime.dispatcher.SetControl(options.Control)
 	runtime.pendingConfirms = map[string]parkedConfirm{}
+	runtime.watches = map[string]watchedSession{}
 	runtime.loadState()
 	return runtime
 }
@@ -150,6 +156,9 @@ func (r *Runtime) Send(prompt string, attachments []codingattachment.Attachment)
 		"memoryExtract":            config.CompanionMemoryExtract(r.resolvedSettings()),
 		"memoryExtractIdleMinutes": config.CompanionMemoryExtractIdleMinutes(r.resolvedSettings()),
 		"replyStyle":               config.CompanionReplyStyle(r.resolvedSettings()),
+	}
+	if intent := r.routeIntent(prompt); intent != nil {
+		command["intent"] = intent
 	}
 	if len(attachments) > 0 {
 		command["attachments"] = attachments
@@ -358,6 +367,7 @@ func (r *Runtime) ObserveEngineEvent(event engine.Event) {
 	case "engine.stopped", "session.destroyed":
 		r.board.SetSessionStatus(sessionID, "idle", "")
 	}
+	r.noteWatchedEvent(event)
 }
 
 func (r *Runtime) Transcript(limit int, cursor *TranscriptCursor, before bool) (TranscriptPage, error) {
@@ -809,6 +819,7 @@ func (r *Runtime) respondHost(requestID string, result any, err error) {
 
 func (r *Runtime) dispatchHost(requestID string, input map[string]any) (bool, any, error) {
 	result, err := r.dispatcher.Handle(input)
+	r.noteDispatch(stringValue(input["action"]), input, result)
 	r.persistState()
 	if err != nil {
 		return false, result, err
@@ -922,6 +933,11 @@ func (r *Runtime) handleHost(action string, input map[string]any) (any, error) {
 	case "memory":
 		if strings.TrimSpace(stringValue(input["action"])) == "search" && !r.memorySearchEnabled() {
 			return map[string]any{"written": false, "results": []MemoryHit{}}, nil
+		}
+		if strings.TrimSpace(stringValue(input["action"])) == "commit" {
+			ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+			input = filterCommitInput(ctx, r.jevJudge(), input)
+			cancel()
 		}
 		result, err := r.memory.Handle(input)
 		if err != nil {
@@ -1084,6 +1100,7 @@ func (r *Runtime) selection() config.CompanionModelSelection {
 func (r *Runtime) emitEvent(event engine.Event) {
 	if event.Type == "assistant.settled" {
 		r.setInFlight(false)
+		r.flushNotice()
 	}
 	if r.emit == nil {
 		return
@@ -1116,6 +1133,16 @@ func (r *Runtime) loadState() {
 	r.board.ReplaceTodos(state.Todos)
 	r.memory.Replace(state.Pending, state.Approved, state.Forgotten)
 	r.dispatcher.ReplaceDeliveries(state.Deliveries)
+	r.watchMu.Lock()
+	r.watches = map[string]watchedSession{}
+	for id, item := range state.Watches {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		r.watches[id] = item
+	}
+	r.watchMu.Unlock()
 }
 
 func (r *Runtime) persistState() {
@@ -1144,6 +1171,7 @@ func (r *Runtime) persistState() {
 			Approved:   approved,
 			Forgotten:  forgotten,
 			Deliveries: r.dispatcher.Deliveries(),
+			Watches:    r.watchSnapshot(),
 		}
 		data, err := json.MarshalIndent(state, "", "  ")
 		if err != nil {

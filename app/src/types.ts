@@ -389,6 +389,12 @@ export interface AppSettings {
   imagegen_source?: 'account' | 'personal' | 'service' | ''
   companion_memory_extract?: CompanionMemoryExtract
   companion_memory_extract_idle_minutes?: number
+  jev?: {
+    api_key?: string
+    has_api_key?: boolean
+    remove_api_key?: boolean
+    session_only?: boolean
+  }
   preferred_external_editor?: string
   ui_font?: UiFontPreset
   conversation_font?: UiFontPreset

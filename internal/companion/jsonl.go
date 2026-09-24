@@ -350,6 +350,9 @@ func decodeTranscriptLine(line []byte) (TranscriptEntry, bool) {
 			return TranscriptEntry{}, false
 		}
 		entry.Text = extractMessageText(message["content"])
+		if entry.Role == "user" && isHostNoticeText(entry.Text) {
+			return TranscriptEntry{}, false
+		}
 		entry.Thinking = extractMessageThinking(message["content"])
 		entry.Tools = extractMessageTools(message["content"])
 		if errText := strings.TrimSpace(stringValue(message["errorMessage"])); errText != "" {

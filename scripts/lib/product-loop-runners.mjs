@@ -4,6 +4,19 @@
 
 import { runProfileEdit, runProfileOpen, runProfileTabs, runUpdateChrome } from './product-loop-account.mjs'
 import {
+  runIntentApproval,
+  runIntentChat,
+  runIntentDeep,
+  runIntentDone,
+  runIntentError,
+  runIntentFallbackRecord,
+  runIntentLong,
+  runIntentMemory,
+  runIntentOtherSilent,
+  runIntentSettingsBlank,
+  runIntentStall,
+} from './product-loop-intent.mjs'
+import {
   runCodingDshCompact,
   runCodingDshFiles,
   runCodingDshGoal,
@@ -188,6 +201,17 @@ export const PRODUCT_LOOP_RUNNERS = {
   'companion-hide': driver => runCompanionHide(driver),
   'companion-show': driver => runCompanionShow(driver),
   'companion-dock-park': driver => runCompanionDockPark(driver),
+  'intent-settings-blank': driver => runIntentSettingsBlank(driver),
+  'intent-chat': driver => runIntentChat(driver),
+  'intent-deep': driver => runIntentDeep(driver),
+  'intent-long': driver => runIntentLong(driver),
+  'intent-done': driver => runIntentDone(driver),
+  'intent-approval': driver => runIntentApproval(driver),
+  'intent-error': driver => runIntentError(driver),
+  'intent-stall': driver => runIntentStall(driver),
+  'intent-memory': driver => runIntentMemory(driver),
+  'intent-other-silent': driver => runIntentOtherSilent(driver),
+  'intent-fallback-record': driver => runIntentFallbackRecord(driver),
   'workspace-ctf-open': driver => runWorkspaceCtfOpen(driver),
   'workspace-ctf-sync': driver => runWorkspaceCtfSync(driver),
   'workspace-ctf-search': driver => runWorkspaceCtfSearch(driver),

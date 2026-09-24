@@ -116,7 +116,7 @@ export function createCompanionTools(requestHost, options = {}) {
     label: "Companion dispatch",
     description: "Relay a user instruction into another MilkSU conversation. "
       + "Prefer this for research and long execution instead of running that work in the companion itself. "
-      + "For investigation, tell the target conversation to use its subagent into Working, then discuss results after Working returns. "
+      + "For investigation, dispatch into a suitable conversation, then discuss Working results after that conversation returns. "
       + "For landing or packaging work, create_conversation or steer an existing conversation. "
       + "Call this tool immediately. Do not ask the user to confirm in chat first. "
       + "speak requires conversationId and a unique idempotencyKey. "

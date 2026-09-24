@@ -5,7 +5,7 @@ import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { companionVisiblePrompt, prepareCompanionPrompt } from "./attachments.js";
+import { companionIntentLine, companionModelPrompt, companionVisiblePrompt, prepareCompanionPrompt } from "./attachments.js";
 
 async function fixture(name, content, mediaType = "text/plain") {
   const root = await mkdtemp(join(tmpdir(), "milksu-companion-attachments-"));
@@ -18,6 +18,15 @@ async function fixture(name, content, mediaType = "text/plain") {
     attachment: { id: sha256, sha256, name, mediaType, size: data.length },
   };
 }
+
+test("intent line is for the model and names who decided", () => {
+  const intent = { bucket: "deep", source: "jev" };
+  assert.equal(companionIntentLine(intent, "zh"), "意图识别：深入思考。由Jev判定。");
+  assert.equal(companionModelPrompt("帮我看下", intent, "zh"), "意图识别：深入思考。由Jev判定。\n帮我看下");
+  assert.equal(companionVisiblePrompt("帮我看下"), "帮我看下");
+  assert.match(companionIntentLine({ bucket: "chat", source: "model" }, "en"), /conversation model/);
+  assert.equal(companionIntentLine({ bucket: "nope" }, "zh"), "");
+});
 
 test("visible prompt keeps user text and asks the model to look when the field is empty", () => {
   assert.equal(companionVisiblePrompt("看这张图", [{ name: "a.png" }]), "看这张图");
