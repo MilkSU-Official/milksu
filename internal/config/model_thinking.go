@@ -170,6 +170,9 @@ func builtInModelThinking(model string) (ModelThinkingConfig, bool) {
 		return profile([]string{"low", "medium", "high"}, "high")
 	}
 
+	if strings.Contains(id, "gpt-6-luna") || strings.Contains(id, "gpt-6-sol") {
+		return profile([]string{"off", "low", "medium", "high", "xhigh", "max"}, "medium")
+	}
 	if strings.Contains(id, "gpt-6") {
 		return profile([]string{"low", "medium", "high", "xhigh", "max"}, "medium")
 	}

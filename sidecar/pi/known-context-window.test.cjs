@@ -33,7 +33,7 @@ test("resolves known series and keeps explicit catalog windows", () => {
   assert.equal(resolveModelContextWindow("anthropic/claude-opus-4-6", 128_000), 1_000_000);
   assert.equal(resolveModelContextWindow("deepseek-flash", 0), 1_000_000);
   assert.equal(resolveModelContextWindow("deepseek/deepseek-v4-pro", 0), 1_000_000);
-  assert.equal(resolveModelMaxTokens("deepseek-flash", 32_768), 384_000);
+  assert.equal(resolveModelMaxTokens("deepseek-flash", 32_768), 393_216);
   assert.equal(registeredMaxTokens("x-ai/grok-4.6", 16_384), 500_000);
   assert.equal(resolveModelContextWindow("custom-128k", 128_000), 128_000);
   assert.equal(resolveModelContextWindow("custom-unknown", 0), 0);

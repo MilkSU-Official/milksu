@@ -689,8 +689,8 @@ func fallbackSnapshot() Snapshot {
 		{ID: "openai/gpt-5.6-sol", Name: "GPT-5.6 Sol", ContextWindow: 1_050_000, MaxTokens: 128_000, Input: []string{"text", "image"}},
 		{ID: "anthropic/claude-fable-5-1", Name: "Claude Fable 5.1", ContextWindow: 1_000_000, MaxTokens: 128_000, Input: []string{"text", "image"}},
 		{ID: "anthropic/claude-sonnet-4.6", Name: "Claude Sonnet 4.6", ContextWindow: 1_000_000, MaxTokens: 128_000, Input: []string{"text", "image"}},
-		{ID: "deepseek/deepseek-flash", Name: "DeepSeek V4.1 Flash", ContextWindow: 1_000_000, MaxTokens: 384_000, Input: []string{"text", "image"}},
-		{ID: "deepseek/deepseek-v4-flash", Name: "DeepSeek V4 Flash", ContextWindow: 1_000_000, MaxTokens: 384_000, Input: []string{"text", "image"}},
+		{ID: "deepseek/deepseek-flash", Name: "DeepSeek V4.1 Flash", ContextWindow: 1_000_000, MaxTokens: 393_216, Input: []string{"text", "image"}},
+		{ID: "deepseek/deepseek-v4-flash", Name: "DeepSeek V4 Flash", ContextWindow: 1_000_000, MaxTokens: 393_216, Input: []string{"text", "image"}},
 		{ID: "google/gemini-3.8-flash", Name: "Gemini 3.8 Flash", ContextWindow: 1_048_576, MaxTokens: 65_536, Input: []string{"text", "image"}},
 		{ID: "qwen/qwen3.8-flash", Name: "Qwen3.8 Flash", ContextWindow: 1_000_000, MaxTokens: 131_072, Input: []string{"text", "image"}},
 	}

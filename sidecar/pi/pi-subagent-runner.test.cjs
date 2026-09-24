@@ -332,7 +332,7 @@ test("runner configures TokenFlux and rejects the removed KouriChat provider", (
     "deepseek/deepseek-v4-flash",
   );
   assert.equal(config.providers.tokenflux.models[0].contextWindow, 1_000_000);
-  assert.equal(config.providers.tokenflux.models[0].maxTokens, 384_000);
+  assert.equal(config.providers.tokenflux.models[0].maxTokens, 393_216);
   assert.equal(
     writeRuntimeModelConfig(
       agentDirectory,

@@ -70,7 +70,7 @@ test("child registry resolves the parent TokenFlux id and keeps the key out of t
     const model = config.providers.tokenflux.models.find(item => item.id === "deepseek/deepseek-flash");
     assert.ok(model);
     assert.equal(model.contextWindow, 1_000_000);
-    assert.equal(model.maxTokens, 384_000);
+    assert.equal(model.maxTokens, 393_216);
 
     process.env.PI_CODING_AGENT_DIR = childEnv.PI_CODING_AGENT_DIR;
     process.env.PI_OFFLINE = "1";

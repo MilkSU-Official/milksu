@@ -63,7 +63,7 @@ func TestResolveModelContextWindowPrefersCatalogUnlessPlaceholder(t *testing.T) 
 	if got := resolveModelContextWindow("claude-sonnet-4.5", 128_000); got != 1_000_000 {
 		t.Fatalf("Claude Sonnet 4.5 window = %d", got)
 	}
-	if got := resolveModelMaxTokens("deepseek-flash", 32_768); got != 384_000 {
+	if got := resolveModelMaxTokens("deepseek-flash", 32_768); got != 393_216 {
 		t.Fatalf("DeepSeek output placeholder = %d", got)
 	}
 	if got := resolveModelMaxTokens("x-ai/grok-4.6", 0); got != 500_000 {

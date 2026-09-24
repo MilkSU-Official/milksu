@@ -6,7 +6,7 @@ import "strings"
 // in sync with sidecar/pi/known-context-window.cjs and
 // app/src/lib/knownContextWindow.ts. Specific series must precede broader
 // family presets so an omitted or placeholder catalog value stays safe.
-// Checked against models.dev official labs on 2026-09-22.
+// Checked against models.dev official labs on 2026-09-25.
 
 const (
 	placeholderContextWindow = 128_000
@@ -68,19 +68,21 @@ var knownModelLimits = []knownLimit{
 	{key: "claude-haiku-4.5", window: 200_000, maxTokens: 64_000},
 	{key: "claude-haiku-4-5", window: 200_000, maxTokens: 64_000},
 	{key: "claude-", window: 200_000, maxTokens: 64_000},
-	{key: "deepseek-v4-flash", window: 1_000_000, maxTokens: 384_000},
-	{key: "deepseek-v4", window: 1_000_000, maxTokens: 384_000},
-	{key: "deepseek-flash", window: 1_000_000, maxTokens: 384_000},
-	{key: "deepseek-", window: 1_000_000, maxTokens: 384_000},
-	{key: "gemini-3.1-flash-image", window: 65_536, maxTokens: 65_536},
-	{key: "gemini-3.1-flash-lite-image", window: 65_536, maxTokens: 65_536},
+	{key: "deepseek-v4-flash", window: 1_000_000, maxTokens: 393_216},
+	{key: "deepseek-v4", window: 1_000_000, maxTokens: 393_216},
+	{key: "deepseek-flash", window: 1_000_000, maxTokens: 393_216},
+	{key: "deepseek-", window: 1_000_000, maxTokens: 393_216},
+	{key: "gemini-3.1-flash-image-preview", window: 65_536, maxTokens: 65_536},
+	{key: "gemini-3.1-flash-image", window: 131_072, maxTokens: 32_768},
+	{key: "gemini-3.1-flash-lite-image", window: 65_536, maxTokens: 4_096},
 	{key: "gemini-3.1-flash-live", window: 131_072, maxTokens: 65_536},
-	{key: "gemini-3-pro-image", window: 131_072, maxTokens: 32_768},
+	{key: "gemini-3-pro-image-preview", window: 131_072, maxTokens: 32_768},
+	{key: "gemini-3-pro-image", window: 65_536, maxTokens: 32_768},
 	{key: "gemini-3", window: 1_048_576, maxTokens: 65_536},
 	{key: "gemini-2.5", window: 1_048_576, maxTokens: 65_536},
 	{key: "gemini-", window: 1_048_576, maxTokens: 65_536},
 	{key: "qwen3.8", window: 1_000_000, maxTokens: 131_072},
-	{key: "qwen3.7", window: 1_000_000, maxTokens: 65_536},
+	{key: "qwen3.7", window: 1_000_000, maxTokens: 131_072},
 	{key: "qwen3.6-plus", window: 1_000_000, maxTokens: 65_536},
 	{key: "qwen3.6-flash", window: 1_000_000, maxTokens: 65_536},
 	{key: "qwen3.6-27b", window: 262_144, maxTokens: 65_536},

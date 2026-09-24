@@ -60,7 +60,7 @@ describe('knownContextWindow', () => {
   })
 
   it('fills known output limits instead of 8k/16k/32k placeholders', () => {
-    expect(resolveModelMaxTokens('deepseek-flash', 32_768)).toBe(384_000)
+    expect(resolveModelMaxTokens('deepseek-flash', 32_768)).toBe(393_216)
     expect(resolveModelMaxTokens('x-ai/grok-4.6', 16_384)).toBe(500_000)
     expect(resolveModelMaxTokens('openai/gpt-5.6-sol', 0)).toBe(128_000)
     expect(resolveModelMaxTokens('custom-unknown', 8_192)).toBe(8_192)
