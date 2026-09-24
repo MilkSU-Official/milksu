@@ -834,7 +834,7 @@ test('product-loop local env holds secrets off process.env', async () => {
   resetProductLoopLocalSecrets()
 })
 
-test('product-loop keeps the OpenRouter decision key off process.env', async () => {
+test('product-loop does not accept a local OpenRouter key', async () => {
   resetProductLoopLocalSecrets()
   const secret = 'sk-or-v1-loop-not-for-receipt'
   const root = await mkdtemp(join(tmpdir(), 'milksu-loop-jev-'))
@@ -844,7 +844,8 @@ test('product-loop keeps the OpenRouter decision key off process.env', async () 
   const env = {}
   const applied = await applyProductLoopLocalEnv(env, { path })
   assert.equal(env.OPENROUTER_API_KEY, undefined)
-  assert.equal(productLoopLocalSecret('OPENROUTER_API_KEY'), secret)
+  assert.equal(productLoopLocalSecret('OPENROUTER_API_KEY'), '')
+  assert.deepEqual(applied.unknown, ['OPENROUTER_API_KEY'])
   assert.equal(JSON.stringify(describeProductLoopLocalEnv({ ...applied, env })).includes(secret), false)
   resetProductLoopLocalSecrets()
 })

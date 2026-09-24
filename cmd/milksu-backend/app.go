@@ -748,6 +748,38 @@ func tokenfluxAliasRank(id string) int {
 	return 1
 }
 
+// SetAccountIntentCredential is called only by the Electron main process after
+// login pulls GET /v1/account/intent-credential. The renderer cannot set it.
+func (a *App) SetAccountIntentCredential(credential string) error {
+	changed, err := a.settings.SetManagedJevCredential(credential)
+	if err != nil {
+		return err
+	}
+	if !changed {
+		return nil
+	}
+	a.rotateEngineCredentials("account intent credential synced")
+	if a.companion != nil {
+		a.companion.MarkStale()
+	}
+	return nil
+}
+
+func (a *App) ClearAccountIntentCredential() error {
+	changed, err := a.settings.ClearManagedJevCredential()
+	if err != nil {
+		return err
+	}
+	if !changed {
+		return nil
+	}
+	a.rotateEngineCredentials("account intent credential cleared")
+	if a.companion != nil {
+		a.companion.MarkStale()
+	}
+	return nil
+}
+
 func (a *App) ClearAccountModelCredential() error {
 	changed, err := a.settings.ClearManagedAccountRelay()
 	if err != nil {

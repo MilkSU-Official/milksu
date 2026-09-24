@@ -44,6 +44,7 @@ const {
   AccountSession,
   accountCallbackForwardPlan,
   accountCallbackFromArgv,
+  accountIntentAuthorizationAction,
   accountModelAuthorizationAction,
   accountModelAuthorizationRefreshRequired,
   clearAccountLoginClaim,
@@ -308,9 +309,49 @@ let screenRecordingRelaunchArm = null
 // immediately after the main-process pre-load sync (same startup window).
 let lastAccountModelSync = null
 let accountModelSyncInflight = null
+let lastAccountIntentSync = null
+let accountIntentSyncInflight = null
 const ACCOUNT_MODEL_SYNC_DEDUP_MS = 15_000
 
+async function syncAccountIntentAuthorization(status) {
+  if (!backend || !accountSession) return false
+  const action = accountIntentAuthorizationAction(status)
+  if (
+    action === 'refresh'
+    && lastAccountIntentSync?.action === 'refresh'
+    && Date.now() - lastAccountIntentSync.at < ACCOUNT_MODEL_SYNC_DEDUP_MS
+  ) {
+    return true
+  }
+  if (action === 'refresh' && accountIntentSyncInflight) return accountIntentSyncInflight
+  if (action === 'refresh') {
+    accountIntentSyncInflight = (async () => {
+      try {
+        const credential = await accountSession.intentCredential()
+        if (credential?.apiKey) {
+          await backend.invokeFromElectronHost('SetAccountIntentCredential', [credential.apiKey])
+          lastAccountIntentSync = { action: 'refresh', at: Date.now() }
+          return true
+        }
+        await backend.invokeFromElectronHost('ClearAccountIntentCredential', [])
+        lastAccountIntentSync = { action: 'clear', at: Date.now() }
+        return false
+      } catch {
+        return false
+      } finally {
+        accountIntentSyncInflight = null
+      }
+    })()
+    return accountIntentSyncInflight
+  }
+  if (action === 'preserve') return false
+  await backend.invokeFromElectronHost('ClearAccountIntentCredential', [])
+  lastAccountIntentSync = { action: 'clear', at: Date.now() }
+  return false
+}
+
 async function syncAccountModelAuthorization(status) {
+  await syncAccountIntentAuthorization(status)
   if (!backend || !accountSession) return false
   const started = Date.now()
   const action = accountModelAuthorizationAction(status)

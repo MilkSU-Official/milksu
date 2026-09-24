@@ -64,6 +64,7 @@ type Runtime struct {
 	pendingConfirms map[string]parkedConfirm
 	watchMu         sync.Mutex
 	watches         map[string]watchedSession
+	stallTimers     map[string]*time.Timer
 	pendingNotice   string
 
 	command    *exec.Cmd

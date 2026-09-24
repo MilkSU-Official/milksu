@@ -517,6 +517,55 @@ func TestManagedAccountRelayPersistsOnlyInCredentialStore(t *testing.T) {
 	}
 }
 
+func TestManagedJevCredentialPersistsOnlyInCredentialStore(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	secrets := fakeSecretStore{}
+	store, err := newStore(path, secrets)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const credential = "account-issued-intent-key"
+	changed, err := store.SetManagedJevCredential(credential)
+	if err != nil || !changed {
+		t.Fatalf("first managed intent update: changed=%v err=%v", changed, err)
+	}
+	changed, err = store.SetManagedJevCredential(credential)
+	if err != nil || changed {
+		t.Fatalf("identical managed intent update was not idempotent: changed=%v err=%v", changed, err)
+	}
+	public := store.Get()
+	if public.Jev == nil || public.Jev.APIKey != "" || !public.Jev.HasAPIKey || public.Jev.SessionOnly {
+		t.Fatalf("managed intent credential leaked: %#v", public.Jev)
+	}
+	resolved := store.GetResolved()
+	if resolved.Jev == nil || resolved.Jev.APIKey != credential {
+		t.Fatalf("managed intent credential was not resolved: %#v", resolved.Jev)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), credential) {
+		t.Fatal("managed intent credential leaked into settings.json")
+	}
+	replay := store.Get()
+	replay.Jev.APIKey = "renderer-pasted-intent-key"
+	replay.Jev.RemoveAPIKey = true
+	if err := store.Save(replay); err != nil {
+		t.Fatal(err)
+	}
+	if store.GetResolved().Jev == nil || store.GetResolved().Jev.APIKey != credential {
+		t.Fatal("renderer settings save replaced the account intent key")
+	}
+	cleared, err := store.ClearManagedJevCredential()
+	if err != nil || !cleared {
+		t.Fatalf("managed intent clear failed: changed=%v err=%v", cleared, err)
+	}
+	if store.Get().Jev != nil && store.Get().Jev.HasAPIKey {
+		t.Fatal("managed intent credential was not cleared")
+	}
+}
+
 func TestStorePersistsCustomRelayMetadataAndKeepsCredentialPrivate(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "settings.json")
 	secrets := fakeSecretStore{}

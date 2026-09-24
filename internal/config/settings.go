@@ -427,6 +427,47 @@ func (s *Store) SetManagedAccountRelay(baseURL, credential string) (bool, error)
 	return true, nil
 }
 
+// SetManagedJevCredential stores the account-issued intent key. The renderer
+// never sends this value; only the Electron main process does, after login.
+func (s *Store) SetManagedJevCredential(credential string) (bool, error) {
+	credential = strings.TrimSpace(credential)
+	if err := validateSecretInput(credential); err != nil {
+		return false, fmt.Errorf("intent credential: %w", err)
+	}
+	if credential == "" {
+		return false, fmt.Errorf("intent credential is required")
+	}
+	current := s.Get()
+	resolved := s.GetResolved()
+	if current.Jev != nil && current.Jev.HasAPIKey && !current.Jev.SessionOnly &&
+		resolved.Jev != nil && resolved.Jev.APIKey == credential {
+		return false, nil
+	}
+	if current.Jev == nil {
+		current.Jev = &JevConfig{}
+	}
+	current.Jev.APIKey = credential
+	current.Jev.SessionOnly = false
+	current.Jev.RemoveAPIKey = false
+	if err := s.save(current, true); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func (s *Store) ClearManagedJevCredential() (bool, error) {
+	current := s.Get()
+	if current.Jev == nil || !current.Jev.HasAPIKey {
+		return false, nil
+	}
+	current.Jev.RemoveAPIKey = true
+	current.Jev.APIKey = ""
+	if err := s.save(current, true); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 func (s *Store) ClearManagedAccountRelay() (bool, error) {
 	current := s.Get()
 	if current.Relay == nil || (!current.Relay.HasKey && !current.Relay.Enabled) {
@@ -449,6 +490,10 @@ func (s *Store) SetRuntimeModelCatalogPath(path string) {
 }
 
 func (s *Store) Save(value AppSettings) error {
+	return s.save(value, false)
+}
+
+func (s *Store) save(value AppSettings, allowJevCredential bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -594,6 +639,11 @@ func (s *Store) Save(value AppSettings) error {
 		value.NSSCTFArena.HasToken = secrets[nssctfArenaSecretAccount] != ""
 	}
 
+	if value.Jev != nil && !allowJevCredential {
+		value.Jev.APIKey = ""
+		value.Jev.RemoveAPIKey = false
+		value.Jev.SessionOnly = false
+	}
 	if value.Jev != nil {
 		value.Jev.APIKey = strings.TrimSpace(value.Jev.APIKey)
 		if err := validateSecretInput(value.Jev.APIKey); err != nil {

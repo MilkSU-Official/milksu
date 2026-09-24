@@ -22,7 +22,6 @@ export const DEEPSEEK_OFFICIAL_MODEL = 'deepseek-flash'
 export const PRODUCT_LOOP_LOCAL_SECRET_KEYS = Object.freeze([
   'DEEPSEEK_API_KEY',
   'TOKENFLUX_API_KEY',
-  'OPENROUTER_API_KEY',
 ])
 
 export const PRODUCT_LOOP_LOCAL_PUBLIC_KEYS = Object.freeze([

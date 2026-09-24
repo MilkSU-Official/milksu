@@ -11,10 +11,14 @@ import (
 )
 
 type watchedSession struct {
-	Title string `json:"title"`
-	Task  string `json:"task"`
-	Live  bool   `json:"live"`
+	Title       string    `json:"title"`
+	Task        string    `json:"task"`
+	Live        bool      `json:"live"`
+	ProgressAt  time.Time `json:"progressAt,omitempty"`
+	StallSpoken bool      `json:"stallSpoken,omitempty"`
 }
+
+const stallQuiet = 45 * time.Second
 
 func (r *Runtime) noteDispatch(action string, input map[string]any, result any) {
 	if r == nil {
@@ -91,6 +95,7 @@ func (r *Runtime) dropWatch(id string) {
 	}
 	r.watchMu.Lock()
 	delete(r.watches, id)
+	r.stopStallTimerLocked(id)
 	r.watchMu.Unlock()
 	r.persistState()
 }
@@ -113,7 +118,10 @@ func (r *Runtime) noteWatchedEvent(event engine.Event) {
 		r.watchMu.Lock()
 		if current, still := r.watches[id]; still {
 			current.Live = true
+			current.ProgressAt = time.Now()
+			current.StallSpoken = false
 			r.watches[id] = current
+			r.armStallTimerLocked(id)
 		}
 		r.watchMu.Unlock()
 		return
@@ -144,6 +152,7 @@ func (r *Runtime) noteWatchedEvent(event engine.Event) {
 	}
 	if kind == "settled" || kind == "error" {
 		delete(r.watches, id)
+		r.stopStallTimerLocked(id)
 	}
 	r.watchMu.Unlock()
 	if kind == "settled" || kind == "error" {
@@ -286,4 +295,40 @@ func filterCommitInput(ctx context.Context, judge NoulJudge, input map[string]an
 	}
 	next["items"] = raw
 	return next
+}
+
+func (r *Runtime) armStallTimerLocked(id string) {
+	if r.stallTimers == nil {
+		r.stallTimers = map[string]*time.Timer{}
+	}
+	if timer := r.stallTimers[id]; timer != nil {
+		timer.Stop()
+	}
+	r.stallTimers[id] = time.AfterFunc(stallQuiet, func() {
+		r.fireStall(id)
+	})
+}
+
+func (r *Runtime) stopStallTimerLocked(id string) {
+	if timer := r.stallTimers[id]; timer != nil {
+		timer.Stop()
+	}
+	delete(r.stallTimers, id)
+}
+
+func (r *Runtime) fireStall(id string) {
+	r.watchMu.Lock()
+	item, ok := r.watches[id]
+	if !ok || !item.Live || item.StallSpoken || time.Since(item.ProgressAt) < stallQuiet {
+		r.watchMu.Unlock()
+		return
+	}
+	item.StallSpoken = true
+	r.watches[id] = item
+	delete(r.stallTimers, id)
+	r.watchMu.Unlock()
+	if !r.taskEventsEnabled() {
+		return
+	}
+	r.maybeSpeak(id, item.Title, "stall", item.Task)
 }

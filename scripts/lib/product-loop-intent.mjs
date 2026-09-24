@@ -7,7 +7,6 @@ import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { eventTypeOf } from './desktop-gui-driver.mjs'
-import { productLoopLocalSecret } from './product-loop-local-env.mjs'
 import { resolveCompanionModelRoute } from './product-loop-first-use.mjs'
 import {
   companionTurnErrored,
@@ -402,36 +401,21 @@ export async function runIntentNoticeWaits(driver) {
   return pass('通知和用户的问题按顺序各走了一轮')
 }
 
-async function setJevConnected(driver, connected) {
-  const current = await driver.invoke('GetSettings', [])
-  const settings = current && typeof current === 'object' ? current : {}
-  if (!connected) {
-    await driver.invoke('SaveSettingsCmd', [{ ...settings, jev: { remove_api_key: true } }])
-    return
-  }
-  const key = productLoopLocalSecret('OPENROUTER_API_KEY')
-  if (!key) return
-  const latest = await driver.invoke('GetSettings', [])
-  const base = latest && typeof latest === 'object' ? latest : settings
-  await driver.invoke('SaveSettingsCmd', [{ ...base, jev: { api_key: key, session_only: true } }])
-}
-
 export async function runIntentFallbackRecord(driver) {
-  const marker = `intent-fallback-${Date.now().toString(36)}`
-  await setJevConnected(driver, false)
-  try {
-    const result = await companionAsk(driver, `${marker} 今天过得怎么样？用一句话回我就行。`)
-    if (result.blocked) return result.blocked
-    const broken = turnFailed(result.turn)
-    if (broken) return fail(`主模型兜底${broken}`)
-    if (userSawIntentLine(result.page)) return fail('分类结果写进了用户发出的那句话')
-    if (!result.intent.text) return fail('没有意图识别记录')
-    if (!/主模型|conversation model/.test(result.intent.text)) {
-      return fail(`记录没有标明主模型：${result.intent.text}`)
-    }
-    if (/\bJev\b/.test(result.intent.text)) return fail(`没接上仍写成了 Jev：${result.intent.text}`)
-    return pass(result.intent.text)
-  } finally {
-    await setJevConnected(driver, true).catch(() => {})
+  const current = await driver.invoke('GetSettings', [])
+  if (current?.jev?.has_api_key) {
+    return skip('账户已经发下钥匙。没接上要在未发放的账户上测，不在设置里摘钥匙。')
   }
+  const marker = `intent-fallback-${Date.now().toString(36)}`
+  const result = await companionAsk(driver, `${marker} 今天过得怎么样？用一句话回我就行。`)
+  if (result.blocked) return result.blocked
+  const broken = turnFailed(result.turn)
+  if (broken) return fail(`主模型兜底${broken}`)
+  if (userSawIntentLine(result.page)) return fail('分类结果写进了用户发出的那句话')
+  if (!result.intent.text) return fail('没有意图识别记录')
+  if (!/主模型|conversation model/.test(result.intent.text)) {
+    return fail(`记录没有标明主模型：${result.intent.text}`)
+  }
+  if (/\bJev\b/.test(result.intent.text)) return fail(`没接上仍写成了 Jev：${result.intent.text}`)
+  return pass(result.intent.text)
 }

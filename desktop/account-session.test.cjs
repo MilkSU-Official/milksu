@@ -10,6 +10,7 @@ const {
   accountCallbackForwardPlan,
   accountCallbackFromArgv,
   accountLoginClaimPath,
+  accountIntentAuthorizationAction,
   accountModelAuthorizationAction,
   accountModelAuthorizationRefreshRequired,
   accountRedirectURL,
@@ -32,6 +33,9 @@ test('preserves account model authorization during transient account status fail
   assert.equal(accountModelAuthorizationAction({ state: 'active', tokenFluxLinked: true }), 'refresh')
   assert.equal(accountModelAuthorizationAction({ state: 'active', tokenFluxLinked: false }), 'clear')
   assert.equal(accountModelAuthorizationAction({ state: 'signed_out', authenticated: false }), 'clear')
+  assert.equal(accountIntentAuthorizationAction({ state: 'active', tokenFluxLinked: false }), 'refresh')
+  assert.equal(accountIntentAuthorizationAction({ provisional: true, state: 'active' }), 'preserve')
+  assert.equal(accountIntentAuthorizationAction({ state: 'signed_out' }), 'clear')
 })
 
 test('refreshes account authorization only after a pre-Sidecar SendMessage rejection', () => {
@@ -420,6 +424,34 @@ test('retrieves the assigned TokenFlux credential only through the main-process 
     baseUrl: 'https://tokenflux.dev/v1',
     apiKey: 'assigned-provider-secret',
     models: ['grok-4.5', 'grok-4.6'],
+  })
+})
+
+test('retrieves the account intent credential only through the main-process account session', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'milksu-intent-credential-'))
+  await fs.writeFile(path.join(root, 'account-session.json'), JSON.stringify({
+    accessToken: 'account-session-secret',
+    expiresAt: Date.now() + 600_000,
+  }), { mode: 0o600 })
+  const config = await loadAccountConfig({ env: {
+    MILKSU_ACCOUNT_API_URL: 'https://account.example',
+  } })
+  const fetchImpl = async (url, options = {}) => {
+    assert.equal(url, 'https://account.example/v1/account/intent-credential')
+    assert.equal(new Headers(options.headers).get('authorization'), 'Bearer account-session-secret')
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ credential: {
+        baseUrl: 'https://openrouter.ai/api/alpha',
+        apiKey: 'account-issued-intent-key',
+      } }),
+    }
+  }
+  const session = new AccountSession({ config, userDataPath: root, openExternal: async () => {}, fetchImpl })
+  assert.deepEqual(await session.intentCredential(), {
+    baseUrl: 'https://openrouter.ai/api/alpha',
+    apiKey: 'account-issued-intent-key',
   })
 })
 

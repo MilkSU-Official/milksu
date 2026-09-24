@@ -1145,19 +1145,15 @@ async function closeRelayEditor(driver) {
 }
 
 export async function installProductLoopJev(driver) {
-  const key = productLoopLocalSecret('OPENROUTER_API_KEY')
-  if (!key) return { ok: false, detail: '没有 OPENROUTER_API_KEY，意图识别打不到 Jev' }
-  const current = await driver.invoke('GetSettings', [])
-  const settings = current && typeof current === 'object' ? current : {}
-  await driver.invoke('SaveSettingsCmd', [{
-    ...settings,
-    jev: { api_key: key, session_only: true },
-  }])
+  await driver.invoke('GetAccountStatus', []).catch(() => null)
   const after = await driver.invoke('GetSettings', [])
-  if (!after?.jev?.has_api_key) return { ok: false, detail: '意图识别钥匙没有留在这次会话里' }
-  const snap = JSON.stringify(after)
-  if (snap.includes(key)) return { ok: false, detail: '设置回执里出现了意图识别钥匙' }
-  return { ok: true, detail: '意图识别已接上 Jev（回执不写 Key）' }
+  if (String(after?.jev?.api_key ?? '').trim()) {
+    return { ok: false, detail: '设置回执里出现了意图识别钥匙' }
+  }
+  if (!after?.jev?.has_api_key) {
+    return { ok: false, detail: '登录后账户没有发下意图识别钥匙。产品不在设置里填钥匙。' }
+  }
+  return { ok: true, detail: '登录后账户发下了意图识别钥匙' }
 }
 
 export async function saveCustomRelay(driver) {
