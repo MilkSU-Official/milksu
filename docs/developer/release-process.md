@@ -5,9 +5,31 @@
 本流程的原则是：同一 source commit 的全仓测试只跑一次，三端 workflow 只重复无法跨平台替代的
 原生构建和安装包验收。
 
+## 0. 先跑产品回归
+
+发版从端到端开始。在待发代码上跑：
+
+```bash
+npm run test:product-loop -- --gui --suite all
+```
+
+监督者规则见 [产品回归循环](product-regression-loop.md)。产品回归回执不是 GitHub Release，也不代替下面的 `release:verify`。
+
+## 0.5 看 FAIL，有必要就修，再重跑失败项
+
+整次跑完后先看 FAIL 项。判断是不是要修产品：要修就查原因并改掉，然后只重跑含这些 FAIL 的套件，例如：
+
+```bash
+npm run test:product-loop -- --gui --suite first-use,coding-pi
+```
+
+套件名以 `--list` 和回执为准。重跑仍失败就再查再改，直到这些失败项通过。不必为了发版去改一次无关的失败。修完之前不升版本号、不提交发版提交、不推送、不 `release:dispatch`。
+
+失败项通过之后，才做发版提交（版本号，以及这一步必须改齐的事实），推到 `main`，再走后面的步骤。
+
 ## 1. 冻结发行源
 
-先把版本号和待发代码提交并推送到 `main`，确保 tracked working tree 干净。根目录与
+失败项通过之后，把版本号和待发代码提交并推送到 `main`，确保 tracked working tree 干净。根目录与
 `desktop/package.json` 的版本必须相同。任意已登录 `gh` 的机器都可以发这一轮，不要求本机有
 Developer ID 或 Apple 公证环境。
 

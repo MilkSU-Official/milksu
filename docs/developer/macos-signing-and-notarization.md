@@ -34,7 +34,7 @@ staple 与 Gatekeeper 验证。签名资产只存在 Personal Vault 和 GitHub S
 
 ## 构建一次正式候选包（默认云端）
 
-1. 按[三端打包与发版流程](release-process.md)把准确版本提交并推送到 `main`，运行一次
+1. 按[三端打包与发版流程](release-process.md)：产品回归跑完，FAIL 项该修的修好并重跑通过之后，才把准确版本提交并推送到 `main`，运行一次
    `npm run release:verify` 生成绑定完整 commit 的本地回执。任意有 `gh` 的机器都可以。
 2. `npm run release:dispatch ...` 同时分发 macOS / Windows / Linux。macOS 走 GitHub-hosted
    标准 runner；`macos-release` environment 在 `main` 上立即注入证书与公证密钥，无需 Approve。
