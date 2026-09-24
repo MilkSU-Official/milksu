@@ -1,17 +1,20 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { ArrowUp, ChevronLeft, FileText, Plus, Square, X } from 'lucide-react'
+import { useCodingImageFileActions } from '@/components/CodingImageFileActions'
 import ProgressiveBlur from 'react-progressive-blur'
 import companionIdle from '@/assets/companion/idle.png'
 import CompanionTurnProcessView from '@/components/CompanionTurnProcessView'
+import { ConversationQuoteMenu, selectionQuotePoint } from '@/components/ConversationQuoteMenu'
 import CompanionPhoneStatusBar from '@/components/CompanionPhoneStatusBar'
 import CompanionSettingsPanel from '@/components/CompanionSettingsPanel'
 import MarkdownContent from '@/components/MarkdownContent'
-import { Button, Textarea } from '@/components/ui'
+import { Button } from '@/components/ui'
 import { useCompanion } from '@/composables/useCompanion'
 import { desktopErrorMessage, hasDesktopRuntime, invokeCommand, listenEvent } from '@/desktop'
 import { useT, useUiLocale } from '@/hooks/useUiLocale'
 import { toastError } from '@/lib/appToast'
 import { companionChatPieces, type CompanionChatPiece } from '@/lib/companionChatPieces'
+import { promptFromInlineParts } from '@/lib/composerQuote'
 import {
   companionChatContinuesRun,
   companionChatEndsRun,
@@ -26,6 +29,7 @@ import { cn } from '@/lib/cn'
 import {
   companionChatIsVisibleEntry,
   companionChatNeedsNewConversation,
+  companionChatImageFile,
   companionChatPlainText,
   companionMissingApiKey,
   companionTurnCancelled,
@@ -125,10 +129,28 @@ function cloneSettings(value: AppSettings): AppSettings {
   return JSON.parse(JSON.stringify(withAppSettingsDefaults(value))) as AppSettings
 }
 
-function fitComposer(node: HTMLTextAreaElement | null) {
+function fitComposer(node: HTMLElement | null) {
   if (!node) return
   node.style.height = '0px'
   node.style.height = `${Math.min(Math.max(node.scrollHeight, 22), 72)}px`
+}
+
+function companionComposerParts(root: HTMLElement | null): Array<{ text: string } | { quote: string }> {
+  if (!root) return []
+  const parts: Array<{ text: string } | { quote: string }> = []
+  root.childNodes.forEach(node => {
+    if (node instanceof HTMLElement && node.dataset.companionQuote) {
+      parts.push({ quote: node.dataset.companionQuote })
+      return
+    }
+    const text = node.textContent ?? ''
+    if (text) parts.push({ text })
+  })
+  return parts
+}
+
+function companionComposerPrompt(root: HTMLElement | null) {
+  return promptFromInlineParts(companionComposerParts(root))
 }
 
 function attachmentKey(attachment: CodingAttachment) {
@@ -198,7 +220,7 @@ export default function CompanionPage({
   const titleRef = useRef<HTMLButtonElement>(null)
   const settingsRef = useRef<HTMLDivElement>(null)
   const settingsHeadRef = useRef<HTMLElement>(null)
-  const inputRef = useRef<HTMLTextAreaElement>(null)
+  const inputRef = useRef<HTMLDivElement>(null)
   const stickToEnd = useRef(true)
   const [screen, setScreen] = useState<CompanionPhoneScreen>('chat')
   const [phoneSettings, setPhoneSettings] = useState<AppSettings | null>(null)
@@ -207,8 +229,99 @@ export default function CompanionPage({
   const [petName, setPetName] = useState('Milk')
   const [thumbs, setThumbs] = useState<Record<string, string>>({})
   const [attachError, setAttachError] = useState('')
+  const [quoteSelection, setQuoteSelection] = useState<ReturnType<typeof selectionQuotePoint>>(null)
+  const [composerTick, setComposerTick] = useState(0)
   const [previewPulse, setPreviewPulse] = useState(false)
   const choosing = useRef(false)
+
+  useEffect(() => {
+    function onSelectionChange() {
+      const log = parentRef.current
+      if (!log) return
+      const next = selectionQuotePoint(log)
+      setQuoteSelection(current => {
+        if (!next && !current) return current
+        if (next && current && next.text === current.text && next.left === current.left && next.top === current.top) {
+          return current
+        }
+        return next
+      })
+    }
+    document.addEventListener('selectionchange', onSelectionChange)
+    return () => document.removeEventListener('selectionchange', onSelectionChange)
+  }, [])
+
+  function syncComposer() {
+    const editor = inputRef.current
+    fitComposer(editor)
+    const plain = companionComposerParts(editor).filter(part => 'text' in part).map(part => part.text).join('')
+    if (plain !== companion.draft) companion.setDraft(plain)
+    setComposerTick(tick => tick + 1)
+  }
+
+  function insertQuote(text: string) {
+    const value = text.trim()
+    const editor = inputRef.current
+    if (!value || !editor) return
+    editor.focus()
+    const chip = document.createElement('span')
+    chip.className = 'companion-quote-token'
+    chip.contentEditable = 'false'
+    chip.dataset.companionQuote = value
+    const label = document.createElement('span')
+    label.className = 'companion-quote-token-text'
+    label.textContent = value.replace(/\s+/g, ' ')
+    const remove = document.createElement('button')
+    remove.type = 'button'
+    remove.dataset.quoteRemove = 'true'
+    remove.setAttribute('aria-label', t('移除引用', 'Remove quote'))
+    remove.textContent = '×'
+    chip.append(label, remove)
+    const selection = window.getSelection()
+    const range = selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null
+    const inside = range && editor.contains(range.commonAncestorContainer)
+    if (range && inside) {
+      range.deleteContents()
+      range.insertNode(chip)
+      range.setStartAfter(chip)
+      range.collapse(true)
+      selection?.removeAllRanges()
+      selection?.addRange(range)
+    } else {
+      editor.append(chip)
+    }
+    setQuoteSelection(null)
+    window.getSelection()?.removeAllRanges()
+    const caret = document.createRange()
+    caret.setStartAfter(chip)
+    caret.collapse(true)
+    const next = window.getSelection()
+    next?.removeAllRanges()
+    next?.addRange(caret)
+    syncComposer()
+  }
+
+  function sendCompanion() {
+    if (companion.busy) {
+      void companion.abort()
+      return
+    }
+    const editor = inputRef.current
+    const prompt = companionComposerPrompt(editor)
+    if (editor) editor.replaceChildren()
+    fitComposer(editor)
+    setComposerTick(tick => tick + 1)
+    void companion.send(prompt)
+  }
+
+  useEffect(() => {
+    const editor = inputRef.current
+    if (!editor || editor.querySelector('[data-companion-quote]')) return
+    const plain = editor.textContent ?? ''
+    if (plain === companion.draft) return
+    editor.textContent = companion.draft
+    fitComposer(editor)
+  }, [companion.draft])
   const previewChat = import.meta.env.DEV && !hasDesktopRuntime()
   const modelCatalog = useLiveModelCatalog(() => ({
     providers: phoneSettings?.providers ?? {},
@@ -274,7 +387,7 @@ export default function CompanionPage({
         fingerprint: companionChatRowFingerprint({
           kind: 'entry',
           role: entry.role,
-          text: companionChatPlainText(entry) || entry.error || '',
+          text: companionChatPlainText(entry) || entry.attachments?.map(item => item.name).join(',') || entry.error || '',
           processOnly: false,
         }),
         kind: 'entry',
@@ -629,12 +742,24 @@ export default function CompanionPage({
       <div
         ref={parentRef}
         className="companion-chat-log companion-chat-log-flow"
+        onMouseUp={() => setQuoteSelection(selectionQuotePoint(parentRef.current))}
         onScroll={event => {
           const node = event.currentTarget
           stickToEnd.current = node.scrollHeight - node.scrollTop - node.clientHeight < 48
           if (node.scrollTop < 48 && companion.hasMore) void companion.loadOlder()
         }}
       >
+        {quoteSelection ? (
+          <ConversationQuoteMenu
+            text={quoteSelection.text}
+            left={quoteSelection.left}
+            top={quoteSelection.top}
+            width={quoteSelection.width}
+            height={quoteSelection.height}
+            onAdd={insertQuote}
+            onDismiss={() => setQuoteSelection(null)}
+          />
+        ) : null}
         {renderRows.map(row => {
           const motion = listMotion.motionFor(row.key)
           const rowProps = {
@@ -875,33 +1000,49 @@ export default function CompanionPage({
               void importFiles([...event.dataTransfer.files])
             }}
           >
-            <Textarea
+            <div
               ref={inputRef}
-              className="companion-chat-input min-h-0 max-h-[72px] flex-1 resize-none border-0 bg-transparent px-0 py-1 shadow-none focus-visible:border-transparent"
-              value={companion.draft}
-              placeholder={t('发消息', 'Message')}
-              onChange={event => companion.setDraft(event.target.value)}
+              className="companion-chat-input"
+              contentEditable={!companion.busy}
+              role="textbox"
+              aria-multiline="true"
+              aria-label={t('看板娘输入', 'Companion message')}
+              data-placeholder={t('发消息', 'Message')}
+              data-composer-tick={composerTick}
+              onInput={() => syncComposer()}
+              onClick={event => {
+                const remove = (event.target as HTMLElement).closest?.('[data-quote-remove]')
+                if (!remove) return
+                remove.closest('[data-companion-quote]')?.remove()
+                syncComposer()
+              }}
               onPaste={event => {
                 const files = [...event.clipboardData.files]
-                if (!files.length) return
+                if (files.length) {
+                  event.preventDefault()
+                  void importFiles(files)
+                  return
+                }
+                const text = event.clipboardData.getData('text/plain')
+                if (!text) return
                 event.preventDefault()
-                void importFiles(files)
+                document.execCommand('insertText', false, text)
+                syncComposer()
               }}
               onKeyDown={event => {
                 if (isComposingKey(event.nativeEvent)) return
                 if (event.key === 'Enter' && !event.shiftKey) {
                   event.preventDefault()
-                  void companion.send()
+                  sendCompanion()
                 }
               }}
-              aria-label={t('看板娘输入', 'Companion message')}
             />
             <Button
               type="button"
               variant={companion.busy ? 'destructive' : 'brand'}
               size="icon"
               className="companion-chat-send"
-              disabled={!companion.busy && (!companion.draft.trim() && !companion.attachments.length)}
+              disabled={!companion.busy && !companionComposerPrompt(inputRef.current) && !companion.attachments.length}
               aria-label={companion.busy ? t('停止', 'Stop') : t('发送', 'Send')}
               title={companion.busy ? t('停止当前回合', 'Stop this turn') : t('发送', 'Send')}
               onClick={() => {
@@ -909,7 +1050,7 @@ export default function CompanionPage({
                   void companion.abort()
                   return
                 }
-                void companion.send()
+                sendCompanion()
               }}
             >
               {companion.busy
@@ -1057,6 +1198,73 @@ function CompanionChatPieceView({
   )
 }
 
+function CompanionPhoneImage({
+  text,
+  attachment,
+  src,
+}: {
+  text: string
+  attachment: CodingAttachment
+  src: string
+}) {
+  const t = useT()
+  const file = companionChatImageFile(text, attachment)
+  const imageActions = useCodingImageFileActions(file?.workspacePath ?? '')
+  const lightbox = useRef<HTMLDialogElement | null>(null)
+  const relative = file?.relativePath ?? ''
+
+  function openLightbox() {
+    lightbox.current?.showModal()
+  }
+
+  function closeLightbox() {
+    lightbox.current?.close()
+  }
+
+  return (
+    <div className="companion-chat-generated-wrap">
+      <button
+        type="button"
+        className="companion-chat-generated"
+        aria-label={t(`查看 ${attachment.name}`, `View ${attachment.name}`)}
+        onClick={openLightbox}
+        onContextMenu={event => {
+          if (!relative) return
+          imageActions.openMenu(event, relative)
+        }}
+      >
+        <img src={src} alt={attachment.name} />
+      </button>
+      {relative ? imageActions.buttons(relative, 'mt-1') : null}
+      {imageActions.notice ? (
+        <p className="text-caption text-destructive">{imageActions.notice}</p>
+      ) : null}
+      {imageActions.menuNode}
+      <dialog
+        ref={lightbox}
+        className="agent-attachment-lightbox"
+        aria-label={t('图片预览', 'Image preview')}
+        onClick={event => {
+          if (event.target === event.currentTarget) closeLightbox()
+        }}
+        onCancel={event => {
+          event.preventDefault()
+          closeLightbox()
+        }}
+      >
+        <header className="agent-attachment-lightbox__bar">
+          <p className="truncate">{attachment.name}</p>
+          <button type="button" aria-label={t('关闭', 'Close')} onClick={closeLightbox}>
+            <X className="size-4" />
+          </button>
+        </header>
+        <img src={src} alt={attachment.name} />
+        {relative ? <div className="px-3 pb-3">{imageActions.buttons(relative, '')}</div> : null}
+      </dialog>
+    </div>
+  )
+}
+
 function CompanionChatEntryArticle({
   rowProps,
   entry,
@@ -1162,20 +1370,24 @@ function CompanionChatEntryArticle({
               {sent.map(attachment => {
                 const key = attachmentKey(attachment)
                 const thumb = thumbs[key]
+                if (isImageAttachment(attachment) && thumb) {
+                  return (
+                    <CompanionPhoneImage
+                      key={key}
+                      text={entry.text ?? ''}
+                      attachment={attachment}
+                      src={thumb}
+                    />
+                  )
+                }
                 return (
                   <span
                     key={key}
                     className="companion-chat-bubble-file"
                     title={`${attachment.name}${attachment.size ? ` · ${formatAttachmentSize(attachment.size)}` : ''}`}
                   >
-                    {isImageAttachment(attachment) && thumb ? (
-                      <img src={thumb} alt={attachment.name} />
-                    ) : (
-                      <>
-                        <FileText className="size-3.5 shrink-0" />
-                        <span className="min-w-0 truncate">{attachment.name}</span>
-                      </>
-                    )}
+                    <FileText className="size-3.5 shrink-0" />
+                    <span className="min-w-0 truncate">{attachment.name}</span>
                   </span>
                 )
               })}
@@ -1194,20 +1406,24 @@ function CompanionChatEntryArticle({
               {sent.map(attachment => {
                 const key = attachmentKey(attachment)
                 const thumb = thumbs[key]
+                if (isImageAttachment(attachment) && thumb) {
+                  return (
+                    <CompanionPhoneImage
+                      key={key}
+                      text={entry.text ?? ''}
+                      attachment={attachment}
+                      src={thumb}
+                    />
+                  )
+                }
                 return (
                   <span
                     key={key}
                     className="companion-chat-bubble-file"
                     title={`${attachment.name}${attachment.size ? ` · ${formatAttachmentSize(attachment.size)}` : ''}`}
                   >
-                    {isImageAttachment(attachment) && thumb ? (
-                      <img src={thumb} alt={attachment.name} />
-                    ) : (
-                      <>
-                        <FileText className="size-3.5 shrink-0" />
-                        <span className="min-w-0 truncate">{attachment.name}</span>
-                      </>
-                    )}
+                    <FileText className="size-3.5 shrink-0" />
+                    <span className="min-w-0 truncate">{attachment.name}</span>
                   </span>
                 )
               })}

@@ -89,6 +89,7 @@ export function companionEntryHasProcess(entry: CompanionTranscriptEntry) {
 
 export function companionEntryIsProcessOnly(entry: CompanionTranscriptEntry) {
   if (entry.role !== 'assistant') return false
+  if (entry.attachments?.length) return false
   const error = String(entry.error ?? '').trim()
   if (error && !/companion model returned no text|这一轮没有回复|did not produce a reply/i.test(error)) {
     return false

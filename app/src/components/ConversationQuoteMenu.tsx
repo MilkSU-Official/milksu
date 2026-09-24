@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Quote } from 'lucide-react'
 import { useT } from '@/hooks/useUiLocale'
 
@@ -24,38 +25,70 @@ export function selectedTextIn(container: HTMLElement | null): string {
   return text
 }
 
+/** Where the quote chip should sit: centered above the selection, inside the window. */
+export function selectionQuotePoint(container: HTMLElement | null): {
+  text: string
+  left: number
+  top: number
+  width: number
+  height: number
+} | null {
+  const text = selectedTextIn(container)
+  if (!text || typeof window === 'undefined') return null
+  const selection = window.getSelection()
+  if (!selection || selection.rangeCount === 0) return null
+  const range = selection.getRangeAt(0)
+  const rect = typeof range.getBoundingClientRect === 'function'
+    ? range.getBoundingClientRect()
+    : { left: 0, top: 0, width: 0, height: 0 }
+  return {
+    text,
+    left: rect.left,
+    top: rect.top,
+    width: rect.width,
+    height: rect.height,
+  }
+}
+
 /**
  * A small right-click menu offering to quote the selection. It is only ever rendered when there is
  * a selection, and it adds nothing by itself: the caller decides where the quote goes.
  */
 export function ConversationQuoteMenu({
   text,
-  x,
-  y,
+  left,
+  top,
+  width = 0,
+  height = 0,
   onAdd,
   onDismiss,
 }: {
   text: string
-  x: number
-  y: number
+  left: number
+  top: number
+  width?: number
+  height?: number
   onAdd: (text: string) => void
   onDismiss: () => void
 }) {
   const t = useT()
   const menu = useRef<HTMLDivElement | null>(null)
-  // A right click near the right or bottom edge would otherwise open the menu off-screen.
-  const [position, setPosition] = useState({ left: x, top: y })
+  const [position, setPosition] = useState({ left, top: Math.max(8, top - 36) })
 
   useLayoutEffect(() => {
     const element = menu.current
     if (!element) return
     const margin = 8
-    const { width, height } = element.getBoundingClientRect()
+    const box = element.getBoundingClientRect()
+    const center = left + width / 2
+    const above = top - box.height - 6
+    const below = top + height + 6
+    const nextTop = above >= margin ? above : Math.min(below, window.innerHeight - box.height - margin)
     setPosition({
-      left: Math.max(margin, Math.min(x, window.innerWidth - width - margin)),
-      top: Math.max(margin, Math.min(y, window.innerHeight - height - margin)),
+      left: Math.max(margin, Math.min(center - box.width / 2, window.innerWidth - box.width - margin)),
+      top: Math.max(margin, nextTop),
     })
-  }, [x, y])
+  }, [left, top, width, height])
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -74,26 +107,28 @@ export function ConversationQuoteMenu({
     }
   }, [onDismiss])
 
-  return (
+  const chip = (
     <div
       ref={menu}
       data-testid="conversation-quote-menu"
       role="menu"
       aria-label={t('引用这段内容', 'Quote this text')}
-      className="fixed z-50 min-w-32 overflow-hidden rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md"
+      className="pointer-events-auto fixed z-[80] w-max"
       style={{ left: position.left, top: position.top }}
-      onContextMenu={event => event.preventDefault()}
     >
       <button
         type="button"
         role="menuitem"
         data-testid="conversation-quote-add"
-        className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-control hover:bg-accent hover:text-accent-foreground"
+        className="inline-flex w-max items-center gap-1 rounded-full border border-border bg-popover px-2 py-0.5 text-xs font-medium text-popover-foreground shadow-md hover:bg-accent"
+        onMouseDown={event => event.preventDefault()}
         onClick={() => onAdd(text)}
       >
-        <Quote className="size-3.5 shrink-0" aria-hidden="true" />
-        {t('加入对话', 'Add to conversation')}
+        <Quote className="size-3 shrink-0" aria-hidden="true" />
+        {t('加入对话', 'Add to Chat')}
       </button>
     </div>
   )
+  if (typeof document === 'undefined') return chip
+  return createPortal(chip, document.body)
 }

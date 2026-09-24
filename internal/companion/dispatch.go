@@ -2,8 +2,12 @@ package companion
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/google/uuid"
 )
 
 type Dispatcher struct {
@@ -459,6 +463,8 @@ func SpeakRoute(registered, busy bool, kernel string) string {
 
 func normalizeConversationKind(value string) string {
 	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "image", "draw":
+		return "image"
 	case "ctf":
 		return "ctf"
 	case "cve":
@@ -468,4 +474,61 @@ func normalizeConversationKind(value string) string {
 	default:
 		return "coding"
 	}
+}
+
+// DispatchedSession is the host-owned record for a conversation the companion
+// opens. The model supplies a kind, title, and optional project path. The host
+// assigns the id and the fields a turn needs to start and to show up in the sidebar.
+type DispatchedSession struct {
+	ID             string
+	Title          string
+	Kind           string
+	Workspace      string
+	WorkspaceHome  string
+	Kernel         string
+	ExecutionMode  string
+	ApprovalPolicy string
+}
+
+func PlanDispatchedSession(kind, title, workspace, kernel string) DispatchedSession {
+	kind = normalizeConversationKind(kind)
+	title = strings.TrimSpace(title)
+	if title == "" {
+		title = kind
+	}
+	kernel = strings.TrimSpace(kernel)
+	if kernel == "" {
+		kernel = "pi"
+	}
+	session := DispatchedSession{
+		ID:             uuid.NewString(),
+		Title:          title,
+		Kind:           kind,
+		Kernel:         kernel,
+		ExecutionMode:  "go",
+		ApprovalPolicy: "workspace-auto",
+	}
+	if kind == "image" {
+		session.WorkspaceHome = "image"
+		return session
+	}
+	session.Workspace = acceptedDispatchWorkspace(workspace)
+	return session
+}
+
+func acceptedDispatchWorkspace(path string) string {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return ""
+	}
+	cleaned := filepath.Clean(path)
+	tempRoot := filepath.Clean(os.TempDir())
+	if cleaned == tempRoot || strings.HasPrefix(cleaned, tempRoot+string(os.PathSeparator)) {
+		return ""
+	}
+	info, err := os.Stat(cleaned)
+	if err != nil || !info.IsDir() {
+		return ""
+	}
+	return cleaned
 }

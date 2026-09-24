@@ -52,6 +52,21 @@ describe('companionTurnProcess', () => {
       error: 'companion model returned no text',
     })).toBe(true)
     expect(companionEntryIsProcessOnly({
+      id: 'pic',
+      type: 'message',
+      timestamp: '2026-09-21T00:00:00.000Z',
+      role: 'assistant',
+      text: '[MilkSU attachments]\n- girl.png',
+      components: [{ kind: 'memory', detail: '记忆：没有归档。' }],
+      attachments: [{
+        id: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+        name: 'girl.png',
+        mediaType: 'image/png',
+        size: 0,
+        sha256: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+      }],
+    })).toBe(false)
+    expect(companionEntryIsProcessOnly({
       id: 'a2',
       type: 'message',
       timestamp: '2026-09-21T00:00:00.000Z',

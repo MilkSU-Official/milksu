@@ -32,6 +32,7 @@ type RuntimeOptions struct {
 	Searcher         SessionSearcher
 	App              AppControl
 	Emit             func(engine.Event)
+	ImportImages     func([]string) ([]codingattachment.Attachment, error)
 	Start            func(config.AppSettings, string, string) (*exec.Cmd, io.WriteCloser, io.ReadCloser, error)
 }
 
@@ -66,6 +67,8 @@ type Runtime struct {
 	watches         map[string]watchedSession
 	stallTimers     map[string]*time.Timer
 	pendingNotice   string
+	pendingImages   []codingattachment.Attachment
+	importImages    func([]string) ([]codingattachment.Attachment, error)
 
 	command    *exec.Cmd
 	stdin      io.WriteCloser
@@ -100,6 +103,7 @@ func NewRuntime(options RuntimeOptions) *Runtime {
 		board:            board,
 		memory:           memory,
 		apps:             options.App,
+		importImages:     options.ImportImages,
 	}
 	if runtime.start == nil {
 		runtime.start = engine.OpenCompanionSidecar

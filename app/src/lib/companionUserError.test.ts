@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   companionAccountModelAlignedNotice,
   companionChatAttachmentsFromText,
+  companionChatImageFile,
   companionChatIsVisibleEntry,
   companionChatNeedsNewConversation,
   companionChatPlainText,
@@ -256,6 +257,24 @@ describe('companionChatVisibleText', () => {
       type: 'message',
       text: '看这张图\n\n[MilkSU attachments]\n- notes.md (text/plain, 12 B, sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, 只读路径: /x)\n不要编造没给出的内容。',
     })).toBe('看这张图')
+    expect(companionChatVisibleText({
+      type: 'message',
+      role: 'assistant',
+      text: '[MilkSU attachments]\n- bounty-hunter-hacker-girl.png (image/png, 2.6 MiB, sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb, 只读路径: /tmp/bounty-hunter-hacker-girl.png)\n这些是用户提供的证据。用 read 或其他合适的工具查看，不要编造内容。',
+    })).toBe('')
+    expect(companionChatImageFile(
+      '[MilkSU attachments]\n- bounty-hunter-hacker-girl.png (image/png, 2.6 MiB, sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb, 只读路径: /Users/milksu/Library/Application Support/pics/bounty-hunter-hacker-girl.png)\n',
+      {
+        id: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+        name: 'bounty-hunter-hacker-girl.png',
+        mediaType: 'image/png',
+        size: 0,
+        sha256: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+      },
+    )).toEqual({
+      workspacePath: '/Users/milksu/Library/Application Support/pics',
+      relativePath: 'bounty-hunter-hacker-girl.png',
+    })
     expect(companionChatVisibleText({
       type: 'message',
       text: '附件：image.png\n\n[MilkSU attachments]\n- image.png (image/png, 1.0 KiB, sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb, 只读路径: /x)',

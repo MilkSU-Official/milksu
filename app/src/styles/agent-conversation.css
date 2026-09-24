@@ -629,7 +629,7 @@
   padding: 0.45rem 0.6rem;
 }
 
-[data-agent-conversation] .agent-attachment-lightbox {
+.agent-attachment-lightbox {
   inset: 0;
   max-width: min(48rem, calc(100vw - 2rem));
   max-height: calc(100vh - 3rem);
@@ -642,11 +642,11 @@
   color: var(--popover-foreground);
 }
 
-[data-agent-conversation] .agent-attachment-lightbox::backdrop {
+.agent-attachment-lightbox::backdrop {
   background: color-mix(in oklab, var(--foreground) 32%, transparent);
 }
 
-[data-agent-conversation] .agent-attachment-lightbox__bar {
+.agent-attachment-lightbox__bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -655,14 +655,14 @@
   border-bottom: 1px solid var(--border);
 }
 
-[data-agent-conversation] .agent-attachment-lightbox__bar p {
+.agent-attachment-lightbox__bar p {
   min-width: 0;
   margin: 0;
   font-size: 0.85rem;
   font-weight: 600;
 }
 
-[data-agent-conversation] .agent-attachment-lightbox__bar button {
+.agent-attachment-lightbox__bar button {
   display: grid;
   flex: none;
   width: 2rem;
@@ -674,11 +674,11 @@
   color: inherit;
 }
 
-[data-agent-conversation] .agent-attachment-lightbox__bar button:hover {
+.agent-attachment-lightbox__bar button:hover {
   background: var(--hover-2);
 }
 
-[data-agent-conversation] .agent-attachment-lightbox img {
+.agent-attachment-lightbox img {
   display: block;
   max-width: 100%;
   max-height: calc(100vh - 8rem);
@@ -687,7 +687,7 @@
   object-fit: contain;
 }
 
-[data-agent-conversation] .agent-attachment-lightbox__empty {
+.agent-attachment-lightbox__empty {
   margin: 0;
   padding: 1.25rem 0.85rem 1.5rem;
   color: var(--muted-foreground);

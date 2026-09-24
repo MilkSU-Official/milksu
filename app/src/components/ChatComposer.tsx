@@ -8,7 +8,6 @@ import {
   useState,
   type ComponentType,
 } from 'react'
-import { ComposerQuoteList } from '@/components/ComposerQuoteList'
 import {
   Button,
   Dialog,
@@ -501,6 +500,31 @@ const COMPOSER_STYLES = `
   line-height: 1;
 }
 .chat-composer__input .chat-composer__inline-token-remove:hover { background: var(--btn-ghost-hover); color: var(--foreground); }
+.chat-composer__input .chat-composer__quote-token {
+  max-width: 16rem;
+  min-height: 0;
+  height: 22px;
+  margin: 0 1px;
+  vertical-align: middle;
+  gap: 0.15rem;
+  border-color: color-mix(in srgb, #2563eb 42%, var(--border));
+  background: color-mix(in srgb, #2563eb 14%, transparent);
+  padding: 0 0.15rem 0 0.4rem;
+  color: #2563eb;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 22px;
+}
+:root[data-theme='dark'] .chat-composer__input .chat-composer__quote-token {
+  border-color: color-mix(in srgb, #7cb3ff 46%, var(--border));
+  background: color-mix(in srgb, #7cb3ff 16%, transparent);
+  color: #7cb3ff;
+}
+.chat-composer__input .chat-composer__quote-token > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .composer-attachment-thumb {
   position: relative;
   width: 4.5rem;
@@ -646,6 +670,7 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
   const quotesRef = useRef<ComposerQuote[]>([])
   const composerFrame = useRef<HTMLDivElement | null>(null)
   const messageEditor = useRef<HTMLDivElement | null>(null)
+  const composerCaret = useRef<Range | null>(null)
   const [pendingAttachments, setPendingAttachments] = useState<CodingAttachment[]>([])
   const pendingAttachmentsRef = useRef<CodingAttachment[]>([])
   const importCodingFilesRef = useRef<(files: File[]) => void>(() => {})
@@ -694,6 +719,7 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
   function editorNodeText(node: Node): string {
     if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? ''
     if (!(node instanceof HTMLElement)) return ''
+    if (node.dataset.composerQuote) return ''
     if (node.dataset.composerScopeToken || node.dataset.composerSkillToken) return '\uFFFC'
     if (node.tagName === 'BR') return '\n'
     const text = [...node.childNodes].map(editorNodeText).join('')
@@ -778,8 +804,12 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
     if (switched && previous) flushComposerDraftsNow()
     if (switched || hydratedComposerKey.current !== key) {
       applyStoredComposerDraft(key ? readComposerDraft(key) : undefined)
-      // Quotes come back with the draft, so switching away and back does not lose them.
-      applyQuotes(key ? readComposerQuotes(key) ?? [] : [])
+      const storedQuotes = key ? readComposerQuotes(key) ?? [] : []
+      const present = new Set(quotesInEditor().map(quote => quote.text))
+      for (const quote of storedQuotes) {
+        if (!present.has(quote.text)) insertQuoteToken(quote.text, false)
+      }
+      syncQuotesFromEditor()
       hydratedComposerKey.current = key
     }
     previousConversationKey.current = conversationKey
@@ -1274,15 +1304,25 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
   useLayoutEffect(() => {
     const editor = messageEditor.current
     if (!editor) return
-    const text = editor.innerText.replace(/\n$/u, '')
+    const text = [...editor.childNodes].map(node => (
+      node instanceof HTMLElement && node.dataset.composerQuote ? '' : (node.textContent ?? '')
+    )).join('').replace(/\u00a0/g, ' ').replace(/\n$/u, '')
     let stacked = text.includes('\n')
     if (!stacked && text.trim()) {
       const range = document.createRange()
-      range.selectNodeContents(editor)
       const tops = new Set<number>()
-      for (const rect of range.getClientRects()) {
-        if (rect.width < 1 || rect.height < 1) continue
-        tops.add(Math.round(rect.top))
+      const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT)
+      let current = walker.nextNode()
+      while (current) {
+        const parent = current.parentElement
+        if (!parent?.closest('[data-composer-quote]') && current.textContent?.trim()) {
+          range.selectNodeContents(current)
+          for (const rect of range.getClientRects()) {
+            if (rect.width < 1 || rect.height < 1) continue
+            tops.add(Math.round(rect.top))
+          }
+        }
+        current = walker.nextNode()
       }
       stacked = tops.size > 1
     }
@@ -1485,8 +1525,9 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
     const textValue = readComposerText()
     setDraft(textValue)
     const attachments = [...pendingAttachments]
+    const pendingQuotes = quotesInEditor()
     const text = textValue.trim() || (attachments.length ? t('请检查这些附件并完成我接下来需要处理的任务。', 'Please review these attachments and complete the task I need next.') : '')
-    if (!text) return
+    if (!text && !pendingQuotes.length) return
     if (kernel === 'dsh') {
       const decision = dshSlashDecision({
         kernel: 'dsh',
@@ -1516,7 +1557,6 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
       : text
     // Quoted material travels as an explicitly labelled block of *material*, and any directive
     // (`/goal`, `/skill:`) is still built from the reader's own text only.
-    const pendingQuotes = quotesRef.current
     const prompt = buildQuotedPrompt(pendingQuotes, basePrompt)
     const visiblePrompt = buildQuotedVisibleText(pendingQuotes, baseVisiblePrompt)
     const activeScopeToken = scopeToken ?? undefined
@@ -1690,19 +1730,75 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
     }, 0)
   }
 
+  function rememberComposerCaret() {
+    const editor = messageEditor.current
+    const selection = window.getSelection()
+    if (!editor || !selection?.rangeCount) return
+    const range = selection.getRangeAt(0)
+    if (!editor.contains(range.commonAncestorContainer)) return
+    composerCaret.current = range.cloneRange()
+  }
+
+  function quotesInEditor(): ComposerQuote[] {
+    const editor = messageEditor.current
+    if (!editor) return []
+    return [...editor.querySelectorAll<HTMLElement>('[data-composer-quote]')]
+      .map((node, index) => ({ id: `quote-${index}`, text: node.dataset.composerQuote ?? '' }))
+      .filter(quote => quote.text.trim())
+  }
+
+  function syncQuotesFromEditor() {
+    applyQuotes(quotesInEditor())
+  }
+
+  function insertQuoteToken(value: string, focus: boolean) {
+    const editor = messageEditor.current
+    if (!value || !editor) return
+    if (quotesInEditor().some(quote => quote.text === value)) return
+    rememberComposerSnapshot()
+    const token = document.createElement('span')
+    token.className = 'chat-composer__inline-token chat-composer__quote-token'
+    token.dataset.composerQuote = value
+    token.contentEditable = 'false'
+    const label = document.createElement('span')
+    label.textContent = value.replace(/\s+/g, ' ')
+    token.append(label)
+    const remove = document.createElement('button')
+    remove.type = 'button'
+    remove.className = 'chat-composer__inline-token-remove'
+    remove.setAttribute('aria-label', t('移除这条引用', 'Remove this quote'))
+    remove.textContent = '×'
+    remove.addEventListener('mousedown', event => event.preventDefault())
+    remove.addEventListener('click', () => {
+      token.remove()
+      syncQuotesFromEditor()
+      setDraft(readComposerText())
+    })
+    token.append(remove)
+    const saved = composerCaret.current
+    const range = saved && editor.contains(saved.commonAncestorContainer) ? saved.cloneRange() : document.createRange()
+    if (!saved || !editor.contains(range.commonAncestorContainer)) {
+      range.selectNodeContents(editor)
+      range.collapse(false)
+    } else {
+      range.collapse(false)
+    }
+    range.insertNode(token)
+    const spacer = document.createTextNode('\u00a0')
+    token.after(spacer)
+    if (focus) {
+      editor.focus()
+      setCaretAfter(spacer)
+    }
+    syncQuotesFromEditor()
+    setDraft(readComposerText())
+  }
+
   /**
-   * Add one quoted passage. Selecting the same passage twice is still one quote: the reader picked it
-   * once, and a duplicate chip would only be noise.
+   * Add one quoted passage at the caret. Selecting the same passage twice is still one quote.
    */
   function appendQuote(text: string) {
-    const value = String(text ?? '').trim()
-    if (!value) return
-    const current = quotesRef.current
-    if (current.some(quote => quote.text === value)) return
-    applyQuotes([
-      ...current,
-      { id: `quote-${Date.now()}-${current.length}`, text: value, sourceLabel: t('引用', 'Quote') },
-    ])
+    insertQuoteToken(String(text ?? '').trim(), true)
   }
 
   function appendDraftText(text: string) {
@@ -1865,18 +1961,10 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
 
           <form
             className="chat-composer__island"
-            data-shape={inputStacked || pendingAttachments.length > 0 || quotes.length > 0 ? 'stack' : 'bar'}
+            data-shape={inputStacked || pendingAttachments.length > 0 ? 'stack' : 'bar'}
             onSubmit={event => { event.preventDefault(); submit() }}
           >
             <div className="chat-composer__pill" aria-hidden="true" />
-            {quotes.length ? (
-              <div className="chat-composer__island-span">
-                <ComposerQuoteList
-                  quotes={quotes}
-                  onRemove={id => applyQuotes(quotesRef.current.filter(quote => quote.id !== id))}
-                />
-              </div>
-            ) : null}
             {pendingAttachments.length ? (
               <div className="chat-composer__island-span flex flex-wrap gap-2 px-1 pb-1" aria-label={t('待发送附件', 'Attachments to send')}>
                 {pendingAttachments.map(attachment => {
@@ -1933,8 +2021,8 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
               onKeyDown={handleComposerKeyDown}
               onInput={() => syncComposerInput()}
               onBlur={() => flushComposerDraftsNow()}
-              onKeyUp={detectSlashQuery}
-              onClick={detectSlashQuery}
+              onKeyUp={() => { rememberComposerCaret(); detectSlashQuery() }}
+              onClick={() => { rememberComposerCaret(); detectSlashQuery() }}
               onPaste={handleComposerPaste}
               onDrop={handleComposerDrop}
             />
@@ -2256,7 +2344,7 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
                         {aborting ? <LoaderCircle className="size-3.5 animate-spin" /> : <Square className="size-3.5 fill-current" />}
                       </Button>
                     ) : null}
-                    {!compacting && (allowFollowupSend || kernel === 'dsh' || draft.trim() || pendingAttachments.length) ? (
+                    {!compacting && (allowFollowupSend || kernel === 'dsh' || draft.trim() || quotes.length > 0 || pendingAttachments.length) ? (
                       <Button
                         type="submit"
                         variant="brand"
@@ -2264,7 +2352,7 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
                         className="chat-composer__send"
                         disabled={
                           attachmentImporting
-                          || (!draft.trim() && !pendingAttachments.length)
+                          || (!draft.trim() && !quotes.length && !pendingAttachments.length)
                         }
                         aria-label={parentTurnActive && kernel === 'pi' ? t('发送引导', 'Send steering') : t('发送', 'Send')}
                         title={parentTurnActive && kernel === 'pi' ? sendSteeringTitle : t('发送', 'Send')}

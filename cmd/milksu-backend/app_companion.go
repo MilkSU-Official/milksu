@@ -13,6 +13,7 @@ import (
 )
 
 type conversationCatalog struct {
+	app   *App
 	store *conversation.Store
 }
 
@@ -70,26 +71,30 @@ func (c *conversationCatalog) Create(ref companion.ConversationRef) (companion.C
 	if c == nil || c.store == nil {
 		return companion.ConversationRef{}, fmt.Errorf("conversation store is not configured")
 	}
-	id := strings.TrimSpace(ref.ID)
-	if id == "" {
-		id = "cmp_" + strings.ReplaceAll(fmt.Sprintf("%d", time.Now().UnixNano()), " ", "")
+	kernel := ""
+	if c.app != nil && c.app.settings != nil {
+		kernel = c.app.settings.Get().DefaultKernel
 	}
-	kind := strings.TrimSpace(ref.Kind)
-	if kind == "" {
-		kind = "coding"
-	}
+	planned := companion.PlanDispatchedSession(ref.Kind, ref.Title, ref.Workspace, kernel)
 	stored := conversation.StoredConversation{
-		ID:            id,
-		Title:         firstNonEmpty(ref.Title, kind),
-		CreatedAt:     uint64(time.Now().UnixMilli()),
-		WorkspacePath: ref.Workspace,
-		Kernel:        conversation.NormalizeKernel(ref.Kernel),
-		Messages:      []conversation.StoredMessage{},
+		ID:             planned.ID,
+		Title:          planned.Title,
+		CreatedAt:      uint64(time.Now().UnixMilli()),
+		WorkspacePath:  planned.Workspace,
+		WorkspaceHome:  planned.WorkspaceHome,
+		Kernel:         conversation.NormalizeKernel(planned.Kernel),
+		ExecutionMode:  planned.ExecutionMode,
+		ApprovalPolicy: planned.ApprovalPolicy,
+		Messages:       []conversation.StoredMessage{},
 	}
-	if kind != "coding" {
-		stored.DomainTaskContext = map[string]any{"kind": kind}
+	if planned.Kind == "cve" || planned.Kind == "lab" || planned.Kind == "ctf" {
+		stored.DomainTaskContext = map[string]any{"kind": planned.Kind}
 	}
-	if err := c.store.Save(stored); err != nil {
+	if c.app != nil {
+		if err := c.app.SaveConversation(stored); err != nil {
+			return companion.ConversationRef{}, err
+		}
+	} else if err := c.store.Save(stored); err != nil {
 		return companion.ConversationRef{}, err
 	}
 	return conversationRef(stored, false), nil
@@ -97,6 +102,9 @@ func (c *conversationCatalog) Create(ref companion.ConversationRef) (companion.C
 
 func conversationRef(stored conversation.StoredConversation, archived bool) companion.ConversationRef {
 	kind := "coding"
+	if stored.WorkspaceHome == "image" {
+		kind = "image"
+	}
 	if stored.DomainTaskContext != nil {
 		if value, _ := stored.DomainTaskContext["kind"].(string); strings.TrimSpace(value) != "" {
 			kind = value
@@ -117,6 +125,7 @@ func conversationRef(stored conversation.StoredConversation, archived bool) comp
 }
 
 type storeSpeaker struct {
+	app     *App
 	store   *conversation.Store
 	engines *engine.Supervisor
 }
@@ -161,6 +170,9 @@ func (s *storeSpeaker) DeliverSpeak(conversationID, text string) (string, bool, 
 	route := companion.SpeakRoute(registered, busy, s.kernelOf(conversationID))
 	switch route {
 	case companion.SpeakRouteSave:
+		if s.app != nil {
+			return s.startCold(conversationID, text)
+		}
 		return s.appendRelay(conversationID, text)
 	case companion.SpeakRouteSend:
 		if err := s.engines.SendRegisteredMessage(conversationID, prompt); err != nil {
@@ -197,6 +209,52 @@ func (s *storeSpeaker) DeliverSteer(conversationID, text string) (string, bool, 
 
 func (s *storeSpeaker) ackID(route, conversationID string) string {
 	return "cmp_ack_" + route + "_" + conversationID
+}
+
+func (s *storeSpeaker) startCold(conversationID, text string) (string, bool, error) {
+	stored, err := s.store.Get(conversationID)
+	if err != nil {
+		return "", false, err
+	}
+	prompt := companion.RelayPrefix + text
+	entryID := "cmp_entry_" + fmt.Sprintf("%d", time.Now().UnixNano())
+	stored.Messages = append(stored.Messages, conversation.StoredMessage{
+		ID:        entryID,
+		Role:      "user",
+		Content:   prompt,
+		Timestamp: uint64(time.Now().UnixMilli()),
+	})
+	if err := s.app.SaveConversation(stored); err != nil {
+		return "", false, err
+	}
+	executionMode := strings.TrimSpace(stored.ExecutionMode)
+	if executionMode == "" {
+		executionMode = "go"
+	}
+	approvalPolicy := strings.TrimSpace(stored.ApprovalPolicy)
+	if approvalPolicy == "" {
+		approvalPolicy = "workspace-auto"
+	}
+	if err := s.app.SendMessage(
+		conversationID,
+		prompt,
+		stored.WorkspacePath,
+		stored.ModelMode,
+		stored.ModelProvider,
+		stored.ModelID,
+		stored.ThinkingLevel,
+		"auto",
+		executionMode,
+		approvalPolicy,
+		stored.MCPConfigDigest,
+		stored.MCPServers,
+		nil,
+		nil,
+		0,
+	); err != nil {
+		return "", false, err
+	}
+	return entryID, true, nil
 }
 
 func (s *storeSpeaker) appendRelay(conversationID, text string) (string, bool, error) {

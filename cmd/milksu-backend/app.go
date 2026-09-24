@@ -327,14 +327,16 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 		AgentDir:  filepath.Join(dataDirectory, "agent-home", "companion"),
 		StatePath: filepath.Join(dataDirectory, "companion", "state.json"),
 		Settings:  application.settings.GetResolved,
-		Catalog:   &conversationCatalog{store: application.conversations},
+		Catalog:   &conversationCatalog{app: application, store: application.conversations},
 		Speaker: &storeSpeaker{
+			app:     application,
 			store:   application.conversations,
 			engines: application.engines,
 		},
 		Control: &supervisorControl{engines: application.engines},
-		App:     &companionAppControl{app: application},
-		Emit:    application.emitCompanionEvent,
+		App:          &companionAppControl{app: application},
+		Emit:         application.emitCompanionEvent,
+		ImportImages: application.codingFiles.Import,
 	})
 	application.wireUserMemory()
 	application.modelUsage, err = modelusage.NewStore(

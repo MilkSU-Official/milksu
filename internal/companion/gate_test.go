@@ -3,6 +3,8 @@ package companion
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -61,7 +63,7 @@ func TestQueuedNoticesMergeWhileSpeaking(t *testing.T) {
 
 func TestFailedNoticeStaysQueued(t *testing.T) {
 	runtime := &Runtime{}
-	runtime.writeNotice(hostNoticePrompt("登录修复", "settled", "zh"))
+	runtime.writeNotice(hostNoticePrompt("登录修复", "settled", "zh"), nil)
 	if runtime.inFlight.Load() {
 		t.Fatal("a failed notice must not leave the companion busy")
 	}
@@ -83,6 +85,28 @@ func TestHostNoticesMergeIntoOne(t *testing.T) {
 	again := mergeHostNotice(merged, second)
 	if again != merged {
 		t.Fatal("the same title and kind should not be appended twice")
+	}
+}
+
+func TestImageReceiptStaysInsideTheWorkspace(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "star.png"), []byte("png"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	receipt := `{"status":"completed","output":{"path":"star.png"}}`
+	paths := imageReceiptPaths("milksu_imagegen", receipt)
+	if len(paths) != 1 || paths[0] != "star.png" {
+		t.Fatalf("paths: %#v", paths)
+	}
+	full, ok := resolveWatchedImage(dir, paths[0])
+	if !ok || full != filepath.Join(dir, "star.png") {
+		t.Fatalf("resolved: %q %v", full, ok)
+	}
+	if _, ok := resolveWatchedImage(dir, "../star.png"); ok {
+		t.Fatal("escaped path should be dropped")
+	}
+	if imageReceiptPaths("bash", receipt) != nil {
+		t.Fatal("only imagegen receipts are pictures")
 	}
 }
 

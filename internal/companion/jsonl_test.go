@@ -1,6 +1,7 @@
 package companion
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -224,5 +225,77 @@ func TestArchiveAndDeleteCompanionSegment(t *testing.T) {
 	}
 	if err := DeleteCompanionArchive(dir, "../escape.jsonl"); err == nil {
 		t.Fatal("path escape must fail")
+	}
+}
+
+func TestTranscriptShowsImageHandoffAndHidesBareNotice(t *testing.T) {
+	dir := t.TempDir()
+	notice := hostNoticePrefix + "\n牛奶星水母猫\nsettled\n用一两句告诉用户。"
+	withImage := notice + "\n\n[MilkSU attachments]\n- star.png (image/png, 1.0 KiB, sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb, 只读路径: /x)\n"
+	bare, err := json.Marshal(map[string]any{
+		"type": "message", "id": "n1", "timestamp": "2026-01-01T00:00:01Z",
+		"message": map[string]any{"role": "user", "content": []any{map[string]any{"type": "text", "text": notice}}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	handed, err := json.Marshal(map[string]any{
+		"type": "message", "id": "n2", "timestamp": "2026-01-01T00:00:02Z",
+		"message": map[string]any{"role": "user", "content": []any{map[string]any{"type": "text", "text": withImage}}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := []string{
+		`{"type":"session","id":"companion","timestamp":"2026-01-01T00:00:00Z"}`,
+		string(bare),
+		string(handed),
+	}
+	path := writeCompanionJSONL(t, dir, lines)
+	page, err := ReadTranscriptPage(path, 10, nil, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Entries) != 1 {
+		t.Fatalf("entries: %#v", page.Entries)
+	}
+	if page.Entries[0].Role != "assistant" || !strings.Contains(page.Entries[0].Text, "[MilkSU attachments]") {
+		t.Fatalf("image handoff: %#v", page.Entries[0])
+	}
+	if strings.Contains(page.Entries[0].Text, hostNoticePrefix) {
+		t.Fatalf("notice marker leaked: %#v", page.Entries[0])
+	}
+}
+
+func TestTranscriptTailKeepsImageLineLongerThanChunk(t *testing.T) {
+	dir := t.TempDir()
+	padding := strings.Repeat("A", 80*1024)
+	notice := hostNoticePrefix + "\n赏金猎人黑客少女\nsettled\n用一两句告诉用户。\n\n[MilkSU attachments]\n- girl.png (image/png, 2.6 MiB, sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb, 只读路径: /x)\n" + padding
+	handed, err := json.Marshal(map[string]any{
+		"type": "message", "id": "img", "timestamp": "2026-01-01T00:00:02Z",
+		"message": map[string]any{"role": "user", "content": []any{map[string]any{"type": "text", "text": notice}}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := []string{
+		`{"type":"session","id":"companion","timestamp":"2026-01-01T00:00:00Z"}`,
+		`{"type":"message","id":"u1","timestamp":"2026-01-01T00:00:01Z","message":{"role":"user","content":[{"type":"text","text":"画一张"}]}}`,
+		string(handed),
+		`{"type":"message","id":"a1","timestamp":"2026-01-01T00:00:03Z","message":{"role":"assistant","content":[{"type":"text","text":"画好了"}]}}`,
+	}
+	path := writeCompanionJSONL(t, dir, lines)
+	page, err := ReadTranscriptPage(path, 10, nil, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Entries) != 3 {
+		t.Fatalf("entries: %#v", page.Entries)
+	}
+	if page.Entries[1].Role != "assistant" || !strings.Contains(page.Entries[1].Text, "girl.png") {
+		t.Fatalf("long image line was dropped: %#v", page.Entries[1])
+	}
+	if page.Entries[2].Text != "画好了" {
+		t.Fatalf("reply: %#v", page.Entries[2])
 	}
 }

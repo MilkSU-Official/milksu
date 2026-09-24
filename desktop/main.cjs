@@ -1030,6 +1030,20 @@ function createWindow() {
   mainWindow.webContents.on('will-navigate', (event, url) => {
     if (!url.startsWith(`${APP_ORIGIN}/`)) event.preventDefault()
   })
+  mainWindow.webContents.on('context-menu', (_event, params) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return
+    const selected = String(params?.selectionText ?? '').trim()
+    if (!params?.isEditable && !selected) return
+    const flags = params?.editFlags ?? {}
+    const menu = Menu.buildFromTemplate([
+      { role: 'cut', enabled: Boolean(flags.canCut) },
+      { role: 'copy', enabled: Boolean(flags.canCopy) },
+      { role: 'paste', enabled: Boolean(flags.canPaste) },
+      { type: 'separator' },
+      { role: 'selectAll', enabled: Boolean(flags.canSelectAll) },
+    ])
+    menu.popup({ window: mainWindow })
+  })
   installRendererReloadGuard(mainWindow.webContents)
   mainWindow.once('ready-to-show', () => {
     if (!mainWindow || mainWindow.isDestroyed()) return

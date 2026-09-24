@@ -553,8 +553,8 @@ export function useCompanion() {
     }
   }, [applyLiveEvent, clearComplete, flashComplete, loadTail, refreshArchives, refreshBoard, refreshMemory])
 
-  const send = useCallback(async () => {
-    const prompt = draft.trim()
+  const send = useCallback(async (override?: string) => {
+    const prompt = String(override ?? draft).trim()
     const pending = [...attachments]
     if ((!prompt && !pending.length) || busy) return
     const outgoingId = `pending:${Date.now()}`

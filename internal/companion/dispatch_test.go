@@ -2,8 +2,12 @@ package companion
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/google/uuid"
 )
 
 type fakeCatalog struct {
@@ -254,6 +258,32 @@ func TestConfirmedStopAndSteerUseSessionControl(t *testing.T) {
 	}
 	if len(control.aborted) != 1 || control.aborted[0] != "live" {
 		t.Fatalf("abort: %#v", control.aborted)
+	}
+}
+
+func TestPlanDispatchedSessionOwnsTheRecord(t *testing.T) {
+	tempDir := t.TempDir()
+	image := PlanDispatchedSession("image", "画一只猫", filepath.Join(tempDir, "nope"), "pi")
+	if image.WorkspaceHome != "image" || image.Workspace != "" {
+		t.Fatalf("image session %#v", image)
+	}
+	if image.ExecutionMode != "go" || image.ApprovalPolicy != "workspace-auto" {
+		t.Fatalf("policy %#v", image)
+	}
+	if _, err := uuid.Parse(image.ID); err != nil || strings.HasPrefix(image.ID, "cmp_") {
+		t.Fatalf("id %s", image.ID)
+	}
+	coding := PlanDispatchedSession("coding", "", filepath.Join(tempDir, "missing"), "")
+	if coding.Kind != "coding" || coding.Workspace != "" || coding.Kernel != "pi" || coding.Title != "coding" {
+		t.Fatalf("coding %#v", coding)
+	}
+	project, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	kept := PlanDispatchedSession("coding", "改登录", project, "dsh")
+	if kept.Workspace != project || kept.Kernel != "dsh" {
+		t.Fatalf("project %#v", kept)
 	}
 }
 

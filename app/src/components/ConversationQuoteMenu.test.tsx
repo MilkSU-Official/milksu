@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { selectedTextIn } from '@/components/ConversationQuoteMenu'
+import { selectedTextIn, selectionQuotePoint } from '@/components/ConversationQuoteMenu'
 
 let transcript: HTMLDivElement
 
@@ -42,5 +42,13 @@ describe('selectedTextIn', () => {
     select(outside.firstChild!, 0, 3)
     expect(selectedTextIn(transcript)).toBe('')
     outside.remove()
+  })
+
+  it('anchors the quote chip to a selection inside the transcript', () => {
+    const inside = transcript.querySelector('p')!.firstChild!
+    select(inside, 0, 3)
+    expect(selectionQuotePoint(transcript)?.text).toBe('助手说')
+    window.getSelection()!.removeAllRanges()
+    expect(selectionQuotePoint(transcript)).toBeNull()
   })
 })

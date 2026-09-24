@@ -240,6 +240,7 @@ func readTranscriptTail(file *os.File, size int64, limit int, before *Transcript
 	}
 	chunk := int64(64 * 1024)
 	var collected []scannedLine
+	var carry []byte
 	remaining := end
 	for remaining > 0 && len(collected) <= limit+1 {
 		readSize := chunk
@@ -251,14 +252,16 @@ func readTranscriptTail(file *os.File, size int64, limit int, before *Transcript
 		if _, err := file.ReadAt(buf, remaining); err != nil && err != io.EOF {
 			return TranscriptPage{}, err
 		}
-		lines := splitLines(buf, remaining)
-		collected = append(lines, collected...)
-		if remaining > 0 && len(buf) > 0 && buf[0] != '\n' {
-			// Incomplete first line belongs to the previous chunk; drop it.
-			if len(collected) > 0 && collected[0].offset == remaining {
-				collected = collected[1:]
-			}
+		combined := append(buf, carry...)
+		lines := splitLines(combined, remaining)
+		if remaining > 0 && len(lines) > 0 {
+			// The first piece still continues into the unread prefix.
+			carry = append([]byte(nil), lines[0].raw...)
+			lines = lines[1:]
+		} else {
+			carry = nil
 		}
+		collected = append(lines, collected...)
 	}
 	decoded := make([]scannedEntry, 0, len(collected))
 	for _, line := range collected {
@@ -366,7 +369,12 @@ func decodeTranscriptLine(line []byte) (TranscriptEntry, bool) {
 		}
 		entry.Text = extractMessageText(message["content"])
 		if entry.Role == "user" && isHostNoticeText(entry.Text) {
-			return TranscriptEntry{}, false
+			block := companionImageHandoffText(entry.Text)
+			if block == "" {
+				return TranscriptEntry{}, false
+			}
+			entry.Role = "assistant"
+			entry.Text = block
 		}
 		entry.Thinking = extractMessageThinking(message["content"])
 		entry.Tools = extractMessageTools(message["content"])

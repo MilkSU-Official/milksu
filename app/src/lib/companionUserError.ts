@@ -11,7 +11,7 @@ const MODEL_ROUTE_MISSING = /companion provider and model are required|companion
 const MISSING_API_KEY = /no API key is configured|No API key for|当前模型没有可用的 API Key|No API key is available for the current model|当前模型没有可用凭据|No credentials are available for the current model/i
 const PROMPT_REQUIRED = /companion prompt is required/i
 const UNKNOWN_ACTION = /unknown companion action/i
-const ATTACHMENT_BLOCK = /\n\n\[MilkSU attachments\][\s\S]*$/u
+const ATTACHMENT_BLOCK = /(?:^|\n{2,})\[MilkSU attachments\][\s\S]*$/u
 const ATTACHMENT_ROW = /^- (.+?) \(([^,]+), [^,]+, sha256:([a-f0-9]{64}),/gmu
 const ATTACHMENT_LABEL = /^(附件：|Attachments:)/u
 
@@ -167,6 +167,28 @@ export function companionChatIsVisibleEntry(entry: {
 export function companionChatNeedsNewConversation(reason: unknown): boolean {
   return /role ['"]tool['"].*tool_calls|工具记录断了|tool history is broken|这段对话没法继续了|This chat can't continue/i
     .test(String(reason ?? ''))
+}
+
+export function companionChatImageFile(
+  text: string,
+  attachment: Pick<CodingAttachment, 'name' | 'sha256'>,
+): { workspacePath: string; relativePath: string } | null {
+  const block = String(text ?? '').split('[MilkSU attachments]')[1]
+  if (!block) return null
+  const name = String(attachment.name ?? '').trim()
+  const sha = String(attachment.sha256 ?? '').trim().toLowerCase()
+  for (const line of block.split('\n')) {
+    if (name && !line.includes(name) && sha && !line.toLowerCase().includes(sha)) continue
+    if (sha && !line.toLowerCase().includes(sha)) continue
+    const match = line.match(/(?:只读路径|read-only path):\s*(.+?)\)?\s*$/i)
+    const absolute = String(match?.[1] ?? '').trim().replace(/[),.;]+$/u, '')
+    const slash = Math.max(absolute.lastIndexOf('/'), absolute.lastIndexOf('\\'))
+    if (slash <= 0) continue
+    const relativePath = absolute.slice(slash + 1)
+    if (!relativePath || (name && relativePath !== name)) continue
+    return { workspacePath: absolute.slice(0, slash), relativePath }
+  }
+  return null
 }
 
 export function companionChatAttachmentsFromText(text: string): CodingAttachment[] {

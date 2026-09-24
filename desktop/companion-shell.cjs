@@ -811,6 +811,23 @@ function createCompanionShell(options) {
     return dispatch(COMPANION_OVERLAY_ACTIONS.CLICK_PET, { motion: payload.motion !== false })
   }
 
+  function bindPhoneTextMenu(target) {
+    const contents = target?.webContents
+    if (!contents || typeof contents.on !== 'function' || !Menu || typeof Menu.buildFromTemplate !== 'function') return
+    contents.on('context-menu', (_event, params) => {
+      if (!chatOpenFlag || !target || target.isDestroyed?.()) return
+      const flags = params?.editFlags ?? {}
+      const menu = Menu.buildFromTemplate([
+        { role: 'cut', enabled: Boolean(flags.canCut) },
+        { role: 'copy', enabled: Boolean(flags.canCopy) },
+        { role: 'paste', enabled: Boolean(flags.canPaste) },
+        { type: 'separator' },
+        { role: 'selectAll', enabled: Boolean(flags.canSelectAll) },
+      ])
+      if (menu && typeof menu.popup === 'function') menu.popup({ window: target })
+    })
+  }
+
   function popupCompanionMenu(payload = {}) {
     if (!Menu || typeof Menu.buildFromTemplate !== 'function') return status()
     const menu = Menu.buildFromTemplate(actionMenu({ includeQuit: true }))
@@ -941,6 +958,7 @@ function createCompanionShell(options) {
     }
     lockCompanionTitle(float)
     bindOverlayWindowEvents(float)
+    bindPhoneTextMenu(float)
     keepOverlayAboveApps(float)
     applyPointerPassthrough()
     float.loadURL(`${APP_ORIGIN}/index.html?surface=companion`)

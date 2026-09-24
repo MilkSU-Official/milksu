@@ -61,6 +61,26 @@ export function buildQuotedPrompt(
 }
 
 /**
+ * The companion composer walks its field in order: ordinary text, then a quote chip the reader
+ * dropped at the caret. Each chip becomes a Markdown blockquote in that same place.
+ */
+export function promptFromInlineParts(
+  parts: readonly ({ text: string } | { quote: string })[],
+): string {
+  const chunks: string[] = []
+  for (const part of parts ?? []) {
+    if ('quote' in part) {
+      const lines = String(part.quote ?? '').replace(/\r\n?/g, '\n').split('\n').map(line => `> ${line}`)
+      if (lines.some(line => line.trim() !== '>')) chunks.push(`\n${lines.join('\n')}\n`)
+      continue
+    }
+    const text = String(part.text ?? '')
+    if (text) chunks.push(text)
+  }
+  return chunks.join('').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim()
+}
+
+/**
  * The text the transcript stores and shows. A Markdown blockquote keeps the quote visibly separate
  * from the question without leaking the internal markers into the reader's own message.
  */

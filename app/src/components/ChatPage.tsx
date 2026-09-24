@@ -61,7 +61,7 @@ import ChatProcessFold from '@/components/ChatProcessFold'
 import WindowFileDrop from '@/components/WindowFileDrop'
 import ChatComposer, { type ChatComposerHandle } from '@/components/ChatComposer'
 import { ChatEdgeFade } from '@/components/ChatEdgeFade'
-import { ConversationQuoteMenu, selectedTextIn } from '@/components/ConversationQuoteMenu'
+import { ConversationQuoteMenu, selectionQuotePoint } from '@/components/ConversationQuoteMenu'
 import WorkingTray from '@/components/WorkingTray'
 import ChatGeneratedImage from '@/components/ChatGeneratedImage'
 import ChatMessageItem from '@/components/ChatMessageItem'
@@ -397,19 +397,35 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
   } | null>(null)
   const composer = useRef<ChatComposerHandle | null>(null)
   // The right-click menu only exists while the reader has text selected in the transcript.
-  const [quoteSelection, setQuoteSelection] = useState<{ text: string; x: number; y: number } | null>(null)
+  const [quoteSelection, setQuoteSelection] = useState<{
+    text: string
+    left: number
+    top: number
+    width: number
+    height: number
+  } | null>(null)
+  const quoteThreadRef = useRef<HTMLDivElement | null>(null)
 
-  function openQuoteMenu(event: {
-    currentTarget: HTMLDivElement
-    clientX: number
-    clientY: number
-    preventDefault: () => void
-  }) {
-    const text = selectedTextIn(event.currentTarget)
-    if (!text) return
-    event.preventDefault()
-    setQuoteSelection({ text, x: event.clientX, y: event.clientY })
+  function refreshQuoteSelection() {
+    setQuoteSelection(selectionQuotePoint(quoteThreadRef.current))
   }
+
+  useEffect(() => {
+    function onSelectionChange() {
+      const thread = quoteThreadRef.current
+      if (!thread) return
+      const next = selectionQuotePoint(thread)
+      setQuoteSelection(current => {
+        if (!next && !current) return current
+        if (next && current && next.text === current.text && next.left === current.left && next.top === current.top) {
+          return current
+        }
+        return next
+      })
+    }
+    document.addEventListener('selectionchange', onSelectionChange)
+    return () => document.removeEventListener('selectionchange', onSelectionChange)
+  }, [])
   const scrollArea = useRef<HTMLDivElement | null>(null)
   const chatColumnRef = useRef<HTMLDivElement | null>(null)
   const topChromeRef = useRef<HTMLDivElement | null>(null)
@@ -2732,14 +2748,18 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
               </div>
             ) : null}
               <div
+                ref={quoteThreadRef}
                 className={cn('agent-thread min-w-0', dockSurface ? 'agent-thread--dock' : '')}
-                onContextMenu={openQuoteMenu}
+                onMouseUp={refreshQuoteSelection}
+                onKeyUp={refreshQuoteSelection}
               >
                 {quoteSelection ? (
                   <ConversationQuoteMenu
                     text={quoteSelection.text}
-                    x={quoteSelection.x}
-                    y={quoteSelection.y}
+                    left={quoteSelection.left}
+                    top={quoteSelection.top}
+                    width={quoteSelection.width}
+                    height={quoteSelection.height}
                     onAdd={text => {
                       composer.current?.appendQuote(text)
                       setQuoteSelection(null)

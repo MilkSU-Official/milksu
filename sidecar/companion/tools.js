@@ -118,6 +118,11 @@ export function createCompanionTools(requestHost, options = {}) {
       + "Prefer this for research and long execution instead of running that work in the companion itself. "
       + "For investigation, dispatch into a suitable conversation, then discuss Working results after that conversation returns. "
       + "For landing or packaging work, create_conversation or steer an existing conversation. "
+      + "To draw a picture, create_conversation with kind image and put the picture request in firstMessage. "
+      + "The host opens a draw-page session, assigns its id, kernel, execution mode, and approval policy, and runs milksu_imagegen there. "
+      + "kind coding opens a normal conversation. ImageGen there still asks approval for each paid image. "
+      + "Do not invent a conversation id, kernel, or execution fields. Do not draw with write or SVG. "
+      + "workspacePath is only an existing project directory for kind coding. "
       + "Call this tool immediately. Do not ask the user to confirm in chat first. "
       + "speak requires conversationId and a unique idempotencyKey. "
       + "mode queue is the default. "
@@ -139,7 +144,10 @@ export function createCompanionTools(requestHost, options = {}) {
         Type.Literal("queue"),
         Type.Literal("steer"),
       ])),
-      kind: Type.Optional(Type.String()),
+      kind: Type.Optional(Type.Union([
+        Type.Literal("coding"),
+        Type.Literal("image"),
+      ])),
       workspacePath: Type.Optional(Type.String()),
       title: Type.Optional(Type.String()),
       firstMessage: Type.Optional(Type.String()),

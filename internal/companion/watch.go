@@ -2,9 +2,13 @@ package companion
 
 import (
 	"context"
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/MilkSU-Official/milksu/internal/codingattachment"
 	"github.com/MilkSU-Official/milksu/internal/config"
 	"github.com/MilkSU-Official/milksu/internal/engine"
 	"github.com/MilkSU-Official/milksu/internal/jev"
@@ -16,6 +20,7 @@ type watchedSession struct {
 	Live        bool      `json:"live"`
 	ProgressAt  time.Time `json:"progressAt,omitempty"`
 	StallSpoken bool      `json:"stallSpoken,omitempty"`
+	Images      []string  `json:"images,omitempty"`
 }
 
 const stallQuiet = 45 * time.Second
@@ -113,6 +118,19 @@ func (r *Runtime) noteWatchedEvent(event engine.Event) {
 	}
 	kind := ""
 	switch event.Type {
+	case "tool.completed":
+		paths := r.imagePathsFromTool(id, event)
+		if len(paths) == 0 {
+			return
+		}
+		r.watchMu.Lock()
+		if current, still := r.watches[id]; still {
+			current.Live = true
+			current.Images = appendUniquePaths(current.Images, paths...)
+			r.watches[id] = current
+		}
+		r.watchMu.Unlock()
+		return
 	case "assistant.delta", "tool.started", "tool.progress":
 		item.Live = true
 		r.watchMu.Lock()
@@ -163,7 +181,8 @@ func (r *Runtime) noteWatchedEvent(event engine.Event) {
 	}
 	title := item.Title
 	task := item.Task
-	go r.maybeSpeak(id, title, kind, task)
+	images := append([]string(nil), item.Images...)
+	go r.maybeSpeak(id, title, kind, task, images)
 }
 
 func (r *Runtime) taskEventsEnabled() bool {
@@ -208,33 +227,40 @@ func (r *Runtime) jevJudge() NoulJudge {
 	}
 }
 
-func (r *Runtime) maybeSpeak(id, title, kind, task string) {
+func (r *Runtime) maybeSpeak(id, title, kind, task string, images []string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
 	if !shouldSpeak(ctx, r.jevJudge(), title, kind, task) {
 		return
 	}
 	locale := config.ResolvedUserInterfaceLocale(r.resolvedSettings())
-	r.queueNotice(hostNoticePrompt(title, kind, locale))
+	r.queueNotice(hostNoticePrompt(title, kind, locale), r.importWatchedImages(images))
 	_ = id
 }
 
-func (r *Runtime) queueNotice(prompt string) {
+func (r *Runtime) queueNotice(prompt string, images ...[]codingattachment.Attachment) {
 	prompt = strings.TrimSpace(prompt)
 	if r == nil || prompt == "" {
 		return
 	}
+	var attached []codingattachment.Attachment
+	if len(images) > 0 {
+		attached = images[0]
+	}
 	r.watchMu.Lock()
 	r.pendingNotice = mergeHostNotice(r.pendingNotice, prompt)
+	r.pendingImages = mergeNoticeImages(r.pendingImages, attached)
 	if r.inFlight.Load() {
 		r.watchMu.Unlock()
 		return
 	}
 	merged := r.pendingNotice
+	mergedImages := r.pendingImages
 	r.pendingNotice = ""
+	r.pendingImages = nil
 	r.inFlight.Store(true)
 	r.watchMu.Unlock()
-	r.writeNotice(merged)
+	r.writeNotice(merged, mergedImages)
 }
 
 func (r *Runtime) flushNotice() {
@@ -243,23 +269,33 @@ func (r *Runtime) flushNotice() {
 	}
 	r.watchMu.Lock()
 	prompt := r.pendingNotice
+	images := r.pendingImages
 	r.pendingNotice = ""
+	r.pendingImages = nil
 	if strings.TrimSpace(prompt) == "" || r.inFlight.Load() {
 		if strings.TrimSpace(prompt) != "" {
 			r.pendingNotice = mergeHostNotice(r.pendingNotice, prompt)
+			r.pendingImages = mergeNoticeImages(images, r.pendingImages)
 		}
 		r.watchMu.Unlock()
 		return
 	}
 	r.inFlight.Store(true)
 	r.watchMu.Unlock()
-	r.writeNotice(prompt)
+	r.writeNotice(prompt, images)
 }
 
-func (r *Runtime) writeNotice(prompt string) {
-	if err := r.write(map[string]any{"action": "host_notice", "prompt": prompt}); err != nil {
+func (r *Runtime) writeNotice(prompt string, images []codingattachment.Attachment) {
+	command := map[string]any{"action": "host_notice", "prompt": prompt}
+	if len(images) > 0 {
+		locale := config.ResolvedUserInterfaceLocale(r.resolvedSettings())
+		command["prompt"] = prompt + "\n" + imageHandoffLine(locale)
+		command["attachments"] = images
+	}
+	if err := r.write(command); err != nil {
 		r.watchMu.Lock()
 		r.pendingNotice = mergeHostNotice(prompt, r.pendingNotice)
+		r.pendingImages = mergeNoticeImages(images, r.pendingImages)
 		r.inFlight.Store(false)
 		r.watchMu.Unlock()
 	}
@@ -272,6 +308,116 @@ func (r *Runtime) markSpeaking() {
 	r.watchMu.Lock()
 	r.inFlight.Store(true)
 	r.watchMu.Unlock()
+}
+
+func (r *Runtime) imagePathsFromTool(id string, event engine.Event) []string {
+	relative := imageReceiptPaths(event.ToolName, event.Text)
+	if len(relative) == 0 || r == nil || r.catalog == nil {
+		return nil
+	}
+	ref, err := r.catalog.Lookup(id)
+	if err != nil {
+		return nil
+	}
+	var paths []string
+	for _, rel := range relative {
+		if full, ok := resolveWatchedImage(ref.Workspace, rel); ok {
+			paths = append(paths, full)
+		}
+	}
+	return paths
+}
+
+func (r *Runtime) importWatchedImages(paths []string) []codingattachment.Attachment {
+	if r == nil || r.importImages == nil || len(paths) == 0 {
+		return nil
+	}
+	if len(paths) > codingattachment.MaxCount {
+		paths = paths[:codingattachment.MaxCount]
+	}
+	imported, err := r.importImages(paths)
+	if err != nil || len(imported) == 0 {
+		return nil
+	}
+	return imported
+}
+
+func imageReceiptPaths(toolName, text string) []string {
+	if !strings.EqualFold(strings.TrimSpace(toolName), "milksu_imagegen") {
+		return nil
+	}
+	start := strings.Index(text, "{")
+	if start < 0 {
+		return nil
+	}
+	var row struct {
+		Status string `json:"status"`
+		Output struct {
+			Path string `json:"path"`
+		} `json:"output"`
+	}
+	if json.Unmarshal([]byte(text[start:]), &row) != nil || row.Status != "completed" {
+		return nil
+	}
+	path := strings.TrimSpace(strings.ReplaceAll(row.Output.Path, "\\", "/"))
+	if path == "" || strings.HasPrefix(path, "/") || filepath.IsAbs(path) || strings.Contains(path, "..") {
+		return nil
+	}
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".png", ".jpg", ".jpeg", ".webp", ".gif":
+		return []string{path}
+	default:
+		return nil
+	}
+}
+
+func resolveWatchedImage(workspace, rel string) (string, bool) {
+	workspace = filepath.Clean(strings.TrimSpace(workspace))
+	if workspace == "" || workspace == "." {
+		return "", false
+	}
+	full := filepath.Clean(filepath.Join(workspace, filepath.FromSlash(rel)))
+	prefix := workspace + string(os.PathSeparator)
+	if full != workspace && !strings.HasPrefix(full, prefix) {
+		return "", false
+	}
+	info, err := os.Lstat(full)
+	if err != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+		return "", false
+	}
+	return full, true
+}
+
+func appendUniquePaths(current []string, extra ...string) []string {
+	seen := map[string]bool{}
+	for _, path := range current {
+		seen[path] = true
+	}
+	for _, path := range extra {
+		if path == "" || seen[path] {
+			continue
+		}
+		seen[path] = true
+		current = append(current, path)
+	}
+	return current
+}
+
+func mergeNoticeImages(current, extra []codingattachment.Attachment) []codingattachment.Attachment {
+	seen := map[string]bool{}
+	merged := make([]codingattachment.Attachment, 0, len(current)+len(extra))
+	for _, item := range append(append([]codingattachment.Attachment{}, current...), extra...) {
+		key := item.SHA256 + ":" + item.Name
+		if item.SHA256 == "" || seen[key] {
+			continue
+		}
+		seen[key] = true
+		merged = append(merged, item)
+		if len(merged) >= codingattachment.MaxCount {
+			break
+		}
+	}
+	return merged
 }
 
 func filterCommitInput(ctx context.Context, judge NoulJudge, input map[string]any) map[string]any {
@@ -337,5 +483,5 @@ func (r *Runtime) fireStall(id string) {
 	if !r.taskEventsEnabled() {
 		return
 	}
-	r.maybeSpeak(id, item.Title, "stall", item.Task)
+	r.maybeSpeak(id, item.Title, "stall", item.Task, nil)
 }

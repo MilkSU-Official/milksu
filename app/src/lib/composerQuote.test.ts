@@ -4,6 +4,7 @@ import {
   QUOTE_BLOCK_OPEN,
   buildQuotedPrompt,
   buildQuotedVisibleText,
+  promptFromInlineParts,
   quoteBlockLines,
   splitQuotedPrompt,
   type ComposerQuote,
@@ -77,5 +78,15 @@ describe('composer quotes', () => {
     const prompt = buildQuotedPrompt([quote('只引用了这一段')], '')
     expect(prompt).toContain(QUOTE_BLOCK_OPEN)
     expect(prompt).toContain('> 只引用了这一段')
+  })
+
+  it('keeps an inline quote where the caret was', () => {
+    const prompt = promptFromInlineParts([
+      { text: '画她' },
+      { quote: '夹克挂椅背' },
+      { text: '，坐在家里' },
+    ])
+    expect(prompt.indexOf('画她')).toBeLessThan(prompt.indexOf('> 夹克挂椅背'))
+    expect(prompt.indexOf('> 夹克挂椅背')).toBeLessThan(prompt.indexOf('坐在家里'))
   })
 })

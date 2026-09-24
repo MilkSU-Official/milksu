@@ -2287,6 +2287,33 @@ button.companion-chat-title {
   padding: 5px 8px;
 }
 
+.companion-chat-generated-wrap {
+  display: flex;
+  max-width: 100%;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.companion-chat-generated {
+  display: block;
+  width: min(100%, 16rem);
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  cursor: zoom-in;
+}
+
+.companion-chat-generated img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 16rem;
+  object-fit: contain;
+}
+
 .companion-chat-bubble-file img {
   display: block;
   width: auto;
@@ -2649,21 +2676,63 @@ button.companion-chat-title {
 }
 
 .companion-chat-input {
-  min-height: 0;
+  min-height: 22px;
   max-height: 72px;
   flex: 1;
-  resize: none;
+  overflow: auto;
   border: 0;
+  outline: none;
   background: transparent;
   padding: 5px 0;
   box-shadow: none;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   color: var(--companion-bubble-incoming-fg);
   font-size: var(--text-body);
   line-height: var(--text-body--line-height);
 }
 
-.companion-chat-input::placeholder {
+.companion-chat-input:empty::before {
+  content: attr(data-placeholder);
   color: var(--companion-stamp);
+  pointer-events: none;
+}
+
+.companion-quote-token {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 2px;
+  margin: 0 2px;
+  padding: 0 4px 0 6px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--companion-bubble-outgoing) 16%, transparent);
+  color: var(--companion-bubble-outgoing);
+  font-size: 0.8125rem;
+  line-height: 1.35rem;
+  vertical-align: baseline;
+  user-select: none;
+}
+
+.companion-quote-token-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 12rem;
+}
+
+.companion-quote-token button {
+  display: inline-flex;
+  width: 14px;
+  height: 14px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
 }
 
 .companion-chat-input:focus-visible {

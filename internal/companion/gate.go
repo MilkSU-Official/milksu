@@ -94,6 +94,22 @@ func hostNoticePrompt(title, kind, locale string) string {
 	return hostNoticePrefix + "\n" + title + "\n" + kind + "\n" + line
 }
 
+func imageHandoffLine(locale string) string {
+	if strings.TrimSpace(locale) == "en" {
+		return "The attached pictures are this turn's result. Use these, and do not look for a different file."
+	}
+	return "附上的图片就是这次的结果。用这几张，不要再去找别的文件。"
+}
+
 func isHostNoticeText(text string) bool {
 	return strings.HasPrefix(strings.TrimSpace(text), hostNoticePrefix)
+}
+
+func companionImageHandoffText(text string) string {
+	marker := "[MilkSU attachments]"
+	index := strings.Index(text, marker)
+	if index < 0 {
+		return ""
+	}
+	return strings.TrimSpace(text[index:])
 }
