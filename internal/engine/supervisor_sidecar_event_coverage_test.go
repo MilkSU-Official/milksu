@@ -60,14 +60,35 @@ func TestEverySidecarEventNameIsClaimedByTheEngine(t *testing.T) {
 		t.Fatal("no sidecar event names were found: the scan is broken, not the engine")
 	}
 
-	source, err := os.ReadFile(filepath.Join("supervisor.go"))
+	// “被认领”的口径是**两条**，缺一条就会误报：
+	//   ① 引擎改名表里的 `case "<name>":`；
+	//   ② 引擎里对该事件名的**显式特例分支**，形如 `raw.Type == "<name>"` ⇒ 它可能不经过改名表，
+	//      但同样被消费（真事：`user_memory_turn` 由 supervisor.go 的
+	//      `if raw.Type == "user_memory_turn" { s.forwardUserMemoryTurn(raw); continue }`
+	//      直接派发给 userMemory 处理器 ⇒ 不是静默丢弃 ✗；只认 ① 会把它误报成缺失 ✓）。
+	claimed := map[string]bool{}
+	engineSources, err := filepath.Glob(filepath.Join("*.go"))
 	if err != nil {
-		t.Fatalf("read supervisor.go: %v", err)
+		t.Fatalf("glob engine sources: %v", err)
 	}
 	casePattern := regexp.MustCompile(`case "([a-z0-9_.]+)":`)
-	claimed := map[string]bool{}
-	for _, match := range casePattern.FindAllStringSubmatch(string(source), -1) {
-		claimed[match[1]] = true
+	specialCasePattern := regexp.MustCompile(`raw\.Type\s*==\s*"([a-z0-9_.]+)"`)
+	for _, name := range engineSources {
+		// 测试文件本身**不参与**扫描：它里面写着这些模式（自匹配会把口径弄脏）。
+		if strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		source, err := os.ReadFile(name)
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		body := string(source)
+		for _, match := range casePattern.FindAllStringSubmatch(body, -1) {
+			claimed[match[1]] = true
+		}
+		for _, match := range specialCasePattern.FindAllStringSubmatch(body, -1) {
+			claimed[match[1]] = true
+		}
 	}
 
 	// 引擎可以直接透传“已经是最终名”的事件（侧车对这类用点号命名，如 agent.delivery）✓，
@@ -96,5 +117,44 @@ func TestEverySidecarEventNameIsClaimedByTheEngine(t *testing.T) {
 				"they are dropped silently:\n  %s",
 			strings.Join(missing, "\n  "),
 		)
+	}
+}
+
+// 自证：上面那条测试的“认领口径”真的把**显式特例分支**算进去了 ✓，而且**没有**变成“永远通过” ✗。
+//
+// 两件事都要钉：① 引擎里那条 `raw.Type == "user_memory_turn"` 被判为已认领 ✓；
+// ② 一个明显没人认领的合成事件名**仍然会被报出来** ✓（否则整条测试就成了哑巴 ✓）。
+func TestSidecarEventClaimScanRecognisesExplicitSpecialCases(t *testing.T) {
+	// 口径的复刻（与上面同源：改名表 case + 显式特例分支 raw.Type == "…"）。
+	claimed := map[string]bool{}
+	engineSources, err := filepath.Glob(filepath.Join("*.go"))
+	if err != nil {
+		t.Fatalf("glob engine sources: %v", err)
+	}
+	casePattern := regexp.MustCompile(`case "([a-z0-9_.]+)":`)
+	specialCasePattern := regexp.MustCompile(`raw\.Type\s*==\s*"([a-z0-9_.]+)"`)
+	for _, name := range engineSources {
+		if strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		source, err := os.ReadFile(name)
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		body := string(source)
+		for _, match := range casePattern.FindAllStringSubmatch(body, -1) {
+			claimed[match[1]] = true
+		}
+		for _, match := range specialCasePattern.FindAllStringSubmatch(body, -1) {
+			claimed[match[1]] = true
+		}
+	}
+	// ① 显式特例分支被识别到（这正是之前误报的那个名字 ✓）。
+	if !claimed["user_memory_turn"] {
+		t.Fatal("the explicit special-case branch (raw.Type == \"user_memory_turn\") was not recognised")
+	}
+	// ② 扫描不是哑巴：合成一个绝不可能被认领的名字，必须判为“未认领”。
+	if claimed["definitely_not_a_real_sidecar_event"] {
+		t.Fatal("the scan claims an event name that no engine code mentions: the check is vacuous")
 	}
 }
