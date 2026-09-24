@@ -11,6 +11,7 @@ export function createCompanionExtension({
   getEpisodicRecalls,
   getPersona,
   getSystemPrompt,
+  getIntentLine,
 } = {}) {
   return (pi) => {
     // Pi 0.84.1 compacts this session itself. session_before_compact
@@ -23,7 +24,16 @@ export function createCompanionExtension({
         base: typeof getSystemPrompt === "function" ? getSystemPrompt() : "",
         persona: typeof getPersona === "function" ? getPersona() : "",
       });
-      return { systemPrompt: composed.text };
+      const line = typeof getIntentLine === "function" ? String(getIntentLine() ?? "").trim() : "";
+      const result = { systemPrompt: composed.text };
+      if (!line) return result;
+      result.message = {
+        customType: "companion.intent",
+        content: line,
+        display: false,
+        details: { scope: "current-turn" },
+      };
+      return result;
     });
 
     pi.on("context", (event) => {

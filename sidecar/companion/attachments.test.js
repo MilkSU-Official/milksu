@@ -5,7 +5,14 @@ import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { companionIntentLine, companionModelPrompt, companionVisiblePrompt, prepareCompanionPrompt } from "./attachments.js";
+import {
+  classifyCompanionIntent,
+  companionIntentBucketFromModel,
+  companionIntentLine,
+  companionModelPrompt,
+  companionVisiblePrompt,
+  prepareCompanionPrompt,
+} from "./attachments.js";
 
 async function fixture(name, content, mediaType = "text/plain") {
   const root = await mkdtemp(join(tmpdir(), "milksu-companion-attachments-"));
@@ -26,6 +33,18 @@ test("intent line is for the model and names who decided", () => {
   assert.equal(companionVisiblePrompt("帮我看下"), "帮我看下");
   assert.match(companionIntentLine({ bucket: "chat", source: "model" }, "en"), /conversation model/);
   assert.equal(companionIntentLine({ bucket: "nope" }, "zh"), "");
+});
+
+test("model fallback keeps one bucket and drops an empty reply", async () => {
+  assert.equal(companionIntentBucketFromModel("深入思考"), "deep");
+  assert.equal(companionIntentBucketFromModel("long task"), "long");
+  assert.equal(companionIntentBucketFromModel("随便"), "");
+  const classified = await classifyCompanionIntent("帮我看看这段", {
+    complete: async () => ({ content: [{ type: "text", text: "闲聊" }] }),
+    readText: () => "闲聊",
+  });
+  assert.deepEqual(classified, { bucket: "chat", source: "model" });
+  assert.equal(await classifyCompanionIntent("帮我看看", { complete: async () => { throw new Error("down"); } }), null);
 });
 
 test("visible prompt keeps user text and asks the model to look when the field is empty", () => {

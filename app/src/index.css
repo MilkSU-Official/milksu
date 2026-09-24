@@ -2354,8 +2354,33 @@ button.companion-chat-title {
   gap: 4px 8px;
 }
 
+.companion-chat-process-live {
+  margin: 2px 0 0;
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+}
+
 .companion-chat-process-tool.is-running {
   color: var(--foreground);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .companion-chat-process-activity {
+    background-image: linear-gradient(
+      90deg,
+      var(--muted-foreground) 0%,
+      var(--muted-foreground) 42%,
+      var(--foreground) 50%,
+      var(--muted-foreground) 58%,
+      var(--muted-foreground) 100%
+    );
+    background-size: 200% 100%;
+    background-repeat: no-repeat;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: agent-activity-sweep 1.6s linear infinite;
+  }
 }
 
 .companion-chat-process-tool.is-error {

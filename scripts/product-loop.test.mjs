@@ -834,6 +834,21 @@ test('product-loop local env holds secrets off process.env', async () => {
   resetProductLoopLocalSecrets()
 })
 
+test('product-loop keeps the OpenRouter decision key off process.env', async () => {
+  resetProductLoopLocalSecrets()
+  const secret = 'sk-or-v1-loop-not-for-receipt'
+  const root = await mkdtemp(join(tmpdir(), 'milksu-loop-jev-'))
+  const path = join(root, 'docs', 'developer', 'product-loop.local.env')
+  await mkdir(join(root, 'docs', 'developer'), { recursive: true })
+  await writeFile(path, `OPENROUTER_API_KEY=${secret}\n`)
+  const env = {}
+  const applied = await applyProductLoopLocalEnv(env, { path })
+  assert.equal(env.OPENROUTER_API_KEY, undefined)
+  assert.equal(productLoopLocalSecret('OPENROUTER_API_KEY'), secret)
+  assert.equal(JSON.stringify(describeProductLoopLocalEnv({ ...applied, env })).includes(secret), false)
+  resetProductLoopLocalSecrets()
+})
+
 test('first-use helpers inspect the login page and keep keys out of relay descriptions', () => {
   const page = inspectLoginPage({
     ariaLabel: '登录 MilkSU',

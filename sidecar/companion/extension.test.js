@@ -13,6 +13,16 @@ function collectHandlers(factory) {
   return handlers;
 }
 
+test("intent line is a hidden turn message, not a user row", async () => {
+  const handlers = collectHandlers(createCompanionExtension({
+    getIntentLine: () => "意图识别：闲聊。由主模型判定。",
+  }));
+  const result = await handlers.get("before_agent_start")();
+  assert.equal(result.message.display, false);
+  assert.equal(result.message.customType, "companion.intent");
+  assert.equal(result.message.content, "意图识别：闲聊。由主模型判定。");
+});
+
 test("companion extension leaves compaction to Pi", async () => {
   const handlers = collectHandlers(createCompanionExtension());
   assert.equal(handlers.has("session_before_compact"), false);

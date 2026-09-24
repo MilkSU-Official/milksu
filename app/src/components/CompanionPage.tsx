@@ -37,12 +37,10 @@ import {
   type CompanionChatMotionKind,
 } from '@/lib/companionChatMotion'
 import {
-  companionEntryHasProcess,
+  buildCompanionDisplayRows,
   companionEntryIsProcessOnly,
   companionTurnHasProcess,
   resolveCompanionLiveStream,
-  processFromCompanionEntry,
-  withThinkingDuration,
   type CompanionTurnProcess,
 } from '@/lib/companionTurnProcess'
 import { isComposingKey } from '@/lib/imeComposition'
@@ -259,19 +257,29 @@ export default function CompanionPage({
         kind: 'older',
       })
     }
-    transcript.forEach((entry, index) => {
-      if (!companionChatIsVisibleEntry(entry)) return
+    buildCompanionDisplayRows(transcript.filter(companionChatIsVisibleEntry)).forEach(row => {
+      if (row.kind === 'process') {
+        rows.push({
+          key: row.id,
+          fingerprint: companionChatRowFingerprint({ kind: 'live-settled' }),
+          kind: 'live-settled',
+          process: row.process,
+        })
+        return
+      }
+      const entry = row.entry
+      const index = transcript.findIndex(item => item.id === entry.id)
       rows.push({
         key: entry.id,
         fingerprint: companionChatRowFingerprint({
           kind: 'entry',
           role: entry.role,
           text: companionChatPlainText(entry) || entry.error || '',
-          processOnly: companionEntryIsProcessOnly(entry),
+          processOnly: false,
         }),
         kind: 'entry',
         entry,
-        index,
+        index: index >= 0 ? index : undefined,
       })
     })
     if (liveWorking) {
@@ -294,7 +302,8 @@ export default function CompanionPage({
         stream: streamText,
       })
     }
-    if (companion.settledProcess && !companion.busy && !liveWorking) {
+    const transcriptAlreadyHasProcess = rows.some(row => row.kind === 'live-settled')
+    if (companion.settledProcess && !companion.busy && !liveWorking && !transcriptAlreadyHasProcess) {
       rows.push({
         key: 'live:settled',
         fingerprint: companionChatRowFingerprint({ kind: 'live-settled' }),
@@ -1106,10 +1115,6 @@ function CompanionChatEntryArticle({
   const user = companionChatIsUser(entry.role)
   const bubble = companionChatIsBubble(entry.role)
   const processOnly = companionEntryIsProcessOnly(entry)
-  const timed = withThinkingDuration(entry, companionChatTimestampMs(previous?.timestamp) || undefined)
-  const entryProcess = companionEntryHasProcess(timed)
-    ? processFromCompanionEntry(timed)
-    : null
   const plain = companionChatPlainText(entry)
   const errorContext = { provider, model }
   const abortSource = entry.error || entry.text
@@ -1136,20 +1141,6 @@ function CompanionChatEntryArticle({
     && !entry.error
     && !showEmptyReply
     && !companionTurnCancelled(abortSource)
-  if (processOnly) {
-    return (
-      <article
-        {...rowProps}
-        className="companion-chat-row companion-chat-row-assistant companion-chat-row-start"
-      >
-        <CompanionTurnProcessView
-          process={entryProcess!}
-          foldable
-          defaultOpen={false}
-        />
-      </article>
-    )
-  }
   if (!visibleBody && !sent.length) return null
   return (
     <article
@@ -1164,13 +1155,6 @@ function CompanionChatEntryArticle({
       )}
     >
       {showDivider && stamp ? <p className="companion-chat-time">{stamp}</p> : null}
-      {entryProcess && entry.role === 'assistant' ? (
-        <CompanionTurnProcessView
-          process={entryProcess}
-          foldable
-          defaultOpen={false}
-        />
-      ) : null}
       {chatBody ? (
         <div className="companion-chat-stack">
           {sent.length ? (

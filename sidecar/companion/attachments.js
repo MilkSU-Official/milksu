@@ -40,6 +40,42 @@ export function companionModelPrompt(visible, intent, locale = "zh") {
   return `${line}\n${text}`;
 }
 
+export function companionIntentBucketFromModel(text) {
+  const raw = String(text ?? "");
+  if (/长任务|long task/i.test(raw)) return "long";
+  if (/深入思考|deep thinking/i.test(raw)) return "deep";
+  if (/闲聊|\bchat\b/i.test(raw)) return "chat";
+  return "";
+}
+
+export async function classifyCompanionIntent(prompt, { locale = "zh", complete, readText } = {}) {
+  const asked = String(prompt ?? "").trim();
+  if (!asked || typeof complete !== "function") return null;
+  const language = locale === "en" ? "en" : "zh";
+  const body = language === "en"
+    ? `Classify the user message as exactly one label: chat, deep thinking, or long task.\n\n${asked}`
+    : `把用户这句话分成且只分成一档：闲聊、深入思考、长任务。只回档名。\n\n${asked}`;
+  let message;
+  try {
+    message = await complete({
+      systemPrompt: language === "en"
+        ? "Reply with one label only."
+        : "只回复一个档名。",
+      messages: [{
+        role: "user",
+        content: [{ type: "text", text: body }],
+        timestamp: Date.now(),
+      }],
+    });
+  } catch {
+    return null;
+  }
+  const text = typeof readText === "function" ? readText(message) : "";
+  const bucket = companionIntentBucketFromModel(text);
+  if (!bucket) return null;
+  return { bucket, source: "model" };
+}
+
 export async function prepareCompanionPrompt(command) {
   const locale = command?.locale === "en" ? "en" : "zh";
   const attachments = Array.isArray(command?.attachments) ? command.attachments : [];

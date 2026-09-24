@@ -28,7 +28,7 @@ import {
   applyProductLoopLocalEnv,
   describeProductLoopLocalEnv,
 } from './lib/product-loop-local-env.mjs'
-import { enablePersonalRelayRoute, runFirstUse, saveCustomRelay } from './lib/product-loop-first-use.mjs'
+import { enablePersonalRelayRoute, installProductLoopJev, runFirstUse, saveCustomRelay } from './lib/product-loop-first-use.mjs'
 import {
   captureProductLoopEvidenceBundle,
   printProductLoopReport,
@@ -37,7 +37,7 @@ import {
 } from './lib/product-loop-report.mjs'
 import { adoptEvidence, applySurfaceScan, inspectProductLoopSurfaces } from './lib/product-loop-surface-scan.mjs'
 import { runProductLoopCase } from './lib/product-loop-runners.mjs'
-import { ensureIsolatedProductSession, flushProductLoopCleanup } from './lib/product-loop-session.mjs'
+import { ensureIsolatedProductSession, flushProductLoopCleanup, flushProductLoopWorkspaces } from './lib/product-loop-session.mjs'
 import { keepExclusiveMilkSUWindow } from './lib/product-loop-windows.mjs'
 
 const resultPath = join(repositoryRoot, 'build', 'test-results', 'product-loop.json')
@@ -185,6 +185,11 @@ async function main() {
     } else {
       await enablePersonalRelayRoute(session.driver).catch(() => {})
     }
+    if (!session.jevReady) {
+      const jev = await installProductLoopJev(session.driver)
+      session.jevReady = jev.ok === true
+      if (!jev.ok) receipt.humanReview.push(jev.detail)
+    }
     return true
   }
 
@@ -263,6 +268,7 @@ async function main() {
     }
   } finally {
     await flushProductLoopCleanup()
+    await flushProductLoopWorkspaces()
     if (session.driver) await session.driver.close()
   }
 

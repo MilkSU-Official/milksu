@@ -140,9 +140,7 @@ export function mergeCompanionProcess(
   const thinking = [left.thinking.trim(), right.thinking.trim()].filter(Boolean).join('\n\n')
   const tools = [...left.tools]
   for (const tool of right.tools) {
-    if (tools.some(item => item.id === tool.id || (item.name === tool.name && item.detail === tool.detail))) {
-      continue
-    }
+    if (tools.some(item => item.id === tool.id)) continue
     tools.push(tool)
   }
   return {
@@ -164,17 +162,21 @@ export function buildCompanionDisplayRows(
   const rows: CompanionDisplayRow[] = []
   let pending = emptyCompanionTurnProcess()
   let pendingId = ''
+  let turnEntries: CompanionDisplayRow[] = []
 
-  const flushPending = (foldable: boolean) => {
-    if (!companionTurnHasProcess(pending)) return
-    rows.push({
-      kind: 'process',
-      id: pendingId || `process:${rows.length}`,
-      process: pending,
-      foldable,
-    })
+  const flushTurn = () => {
+    if (companionTurnHasProcess(pending)) {
+      rows.push({
+        kind: 'process',
+        id: pendingId || `process:${rows.length}`,
+        process: pending,
+        foldable: true,
+      })
+    }
+    rows.push(...turnEntries)
     pending = emptyCompanionTurnProcess()
     pendingId = ''
+    turnEntries = []
   }
 
   let previousAt: number | undefined
@@ -182,24 +184,19 @@ export function buildCompanionDisplayRows(
     const entry = withThinkingDuration(raw, previousAt)
     const at = transcriptInstantMs(entry.timestamp)
     if (at !== undefined) previousAt = at
-    if (companionEntryIsProcessOnly(entry)) {
-      if (!pendingId) pendingId = `process:${entry.id}`
-      pending = mergeCompanionProcess(pending, processFromCompanionEntry(entry))
-      continue
-    }
-    if (entry.role === 'assistant' && companionEntryHasProcess(entry)) {
-      if (!pendingId) pendingId = `process:${entry.id}`
-      pending = mergeCompanionProcess(pending, processFromCompanionEntry(entry))
-      flushPending(true)
+    if (entry.role === 'user') {
+      flushTurn()
       rows.push({ kind: 'entry', entry })
       continue
     }
-    if (entry.role === 'user') {
-      flushPending(true)
+    if (companionEntryIsProcessOnly(entry) || (entry.role === 'assistant' && companionEntryHasProcess(entry))) {
+      if (!pendingId) pendingId = `process:${entry.id}`
+      pending = mergeCompanionProcess(pending, processFromCompanionEntry(entry))
     }
-    rows.push({ kind: 'entry', entry })
+    if (companionEntryIsProcessOnly(entry)) continue
+    turnEntries.push({ kind: 'entry', entry })
   }
-  flushPending(true)
+  flushTurn()
   return rows
 }
 

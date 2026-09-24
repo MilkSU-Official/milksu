@@ -600,6 +600,8 @@ export async function runWorkspaceCveLearning(driver) {
     const empty = await driver.cdp.evaluate(`(() => {
       const area = document.querySelector('textarea[aria-label="学习记录"], textarea[aria-label="Learning"]')
       const button = Array.from(document.querySelectorAll('button')).find(node => {
+        const box = node.getBoundingClientRect()
+        if (box.width < 1 || box.height < 1) return false
         const text = (node.textContent || '').trim()
         return text === '记下' || text === 'Save'
       })
@@ -624,6 +626,8 @@ export async function runWorkspaceCveLearning(driver) {
     await delay(200)
     const armed = await driver.cdp.evaluate(`(() => {
       const button = Array.from(document.querySelectorAll('button')).find(node => {
+        const box = node.getBoundingClientRect()
+        if (box.width < 1 || box.height < 1) return false
         const text = (node.textContent || '').trim()
         return text === '记下' || text === 'Save'
       })

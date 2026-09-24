@@ -33,10 +33,18 @@ export default function CompanionTurnProcessView({
 
   if (!companionTurnHasProcess(process)) return null
 
+  const live = process.thinkingRunning || process.tools.some(tool => tool.running)
+
   const liveElapsed = process.thinkingRunning && process.thinkingStartedAt != null
     ? Math.max(0, now - process.thinkingStartedAt)
     : undefined
   const summary = companionProcessSummary(process, liveElapsed)
+  const runningTool = process.tools.find(tool => tool.running)
+  const liveLabel = runningTool
+    ? (runningTool.detail && runningTool.detail !== runningTool.name && !companionLooksLikeDebugPayload(runningTool.detail)
+      ? `${runningTool.name} ${runningTool.detail}`
+      : runningTool.name)
+    : ''
 
   return (
     <div className="companion-chat-process">
@@ -47,13 +55,16 @@ export default function CompanionTurnProcessView({
           aria-expanded={open}
           onClick={() => setOpen(current => !current)}
         >
-          <span>{summary || t('过程', 'Process')}</span>
+          <span className={live ? 'companion-chat-process-activity' : undefined}>{summary || t('过程', 'Process')}</span>
         </button>
       ) : (
         <p className="companion-chat-process-summary companion-chat-process-summary-static">
-          <span>{summary || (process.thinkingRunning ? t('正在思考', 'Thinking') : t('过程', 'Process'))}</span>
+          <span className={live ? 'companion-chat-process-activity' : undefined}>{summary || (process.thinkingRunning ? t('正在思考', 'Thinking') : t('过程', 'Process'))}</span>
         </p>
       )}
+      {liveLabel ? (
+        <p className="companion-chat-process-live companion-chat-process-activity">{liveLabel}</p>
+      ) : null}
       {(!foldable || open) ? (
         <div className="companion-chat-process-body">
           {thinkingRows.map((row, index) => (
@@ -67,7 +78,7 @@ export default function CompanionTurnProcessView({
               key={tool.id}
               className={`companion-chat-process-tool${tool.running ? ' is-running' : ''}${tool.error ? ' is-error' : ''}`}
             >
-              <span className="companion-chat-process-tool-name">{tool.name}</span>
+              <span className={`companion-chat-process-tool-name${tool.running ? ' companion-chat-process-activity' : ''}`}>{tool.name}</span>
               {tool.detail && tool.detail !== tool.name && !companionLooksLikeDebugPayload(tool.detail) ? (
                 <span className="companion-chat-process-tool-detail">{tool.detail}</span>
               ) : null}

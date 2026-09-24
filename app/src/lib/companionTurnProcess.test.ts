@@ -92,6 +92,44 @@ describe('companionTurnProcess', () => {
     applyUiLocale('zh')
   })
 
+  it('keeps one process summary for every assistant segment in the same turn', () => {
+    applyUiLocale('zh')
+    const rows = buildCompanionDisplayRows([
+      {
+        id: 'u1',
+        type: 'message',
+        timestamp: '2026-09-22T06:00:36.399Z',
+        role: 'user',
+        text: '在吗',
+      },
+      {
+        id: 'a1',
+        type: 'message',
+        timestamp: '2026-09-22T06:00:40.399Z',
+        role: 'assistant',
+        thinking: '先看。',
+        tools: ['companion_board'],
+      },
+      {
+        id: 'a2',
+        type: 'message',
+        timestamp: '2026-09-22T06:00:48.399Z',
+        role: 'assistant',
+        thinking: '再答。',
+        tools: ['companion_dispatch'],
+        text: '在。',
+      },
+    ])
+    const processes = rows.filter(row => row.kind === 'process')
+    expect(processes).toHaveLength(1)
+    expect(processes[0]?.kind === 'process' ? processes[0].process.tools.map(tool => tool.name) : []).toEqual([
+      'companion_board',
+      'companion_dispatch',
+    ])
+    expect(processes[0]?.kind === 'process' ? companionProcessSummary(processes[0].process) : '').toBe('想了 12.0s · 2 个工具')
+    expect(rows.filter(row => row.kind === 'entry')).toHaveLength(2)
+  })
+
   it('keeps the measured thinking duration when the transcript line matches', () => {
     const entries = stampMeasuredThinkingDuration([
       {

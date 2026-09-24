@@ -14,7 +14,7 @@ import { createCompanionHostBroker } from "./host-broker.js";
 import { queryCompanionMemory, scheduleCompanionIndexRefresh } from "./obelisk-index.js";
 import { companionProviderEnvironment } from "./companion-model-env.js";
 import { companionSystemPrompt } from "./system-prompt.js";
-import { reviewCompanionDraft, rewriteLastAssistantReply } from "./reply-review.js";
+import { assistantVisibleText, reviewCompanionDraft, rewriteLastAssistantReply } from "./reply-review.js";
 import {
   applySemanticMemorySnapshot,
   createMemoryExtractController,
@@ -25,7 +25,11 @@ import {
   repairCompanionToolHistory,
   stampCompanionAbortedTurn,
 } from "./turn-error.js";
-import { companionIntentLine, companionModelPrompt, prepareCompanionPrompt } from "./attachments.js";
+import {
+  classifyCompanionIntent,
+  companionIntentLine,
+  prepareCompanionPrompt,
+} from "./attachments.js";
 import { withTokenFluxModelCompat } from "../pi/tokenflux-model-compat.js";
 import { createHangGuardExtension } from "../pi/bridge-hang-guard.js";
 import { createToolResultBoundExtension } from "../pi/bridge-tool-result-bound.js";
@@ -50,6 +54,7 @@ let episodicRecalls = [];
 let persona = "";
 let memorySearchEnabled = true;
 let replyStyle = "markdown";
+let turnIntentLine = "";
 const memoryExtract = createMemoryExtractController({
   extract: job => runMemoryExtract(job),
   // One quiet-period timer. clearTimeout drops a wait that has not fired.
@@ -203,6 +208,7 @@ async function createCompanionSession(command) {
         getEpisodicRecalls: () => episodicRecalls,
         getPersona: () => persona,
         getSystemPrompt: () => companionSystemPrompt(uiLocale, replyStyle),
+        getIntentLine: () => turnIntentLine,
       }),
       // Same Pi hardening as the main coding bridge: bash timeout bound + tool_result clip.
       createHangGuardExtension(),
@@ -597,12 +603,21 @@ async function sendPrompt(command) {
   // So the phone UI can show the user bubble immediately when Send comes from
   // Desktop RPC / product-loop (not only the in-phone optimistic path).
   const locale = command?.locale === "en" ? "en" : "zh";
-  const modelPrompt = companionModelPrompt(prepared.prompt, command?.intent, locale);
-  if (command?.intent?.bucket) {
+  const intent = command?.hostNotice === true
+    ? null
+    : (command?.intent?.bucket
+      ? command.intent
+      : await classifyCompanionIntent(prepared.prompt, {
+        locale,
+        complete: context => completeCompanionReview(context),
+        readText: assistantVisibleText,
+      }));
+  turnIntentLine = intent?.bucket ? companionIntentLine(intent, locale) : "";
+  if (intent?.bucket) {
     emit("intent.recorded", {
-      bucket: command.intent.bucket,
-      source: command.intent.source === "model" ? "model" : "jev",
-      text: companionIntentLine(command.intent, locale),
+      bucket: intent.bucket,
+      source: intent.source === "model" ? "model" : "jev",
+      text: turnIntentLine,
     });
   }
   if (command?.hostNotice !== true) {
@@ -621,7 +636,7 @@ async function sendPrompt(command) {
     memoryExtract.beginTurn();
     try {
       await retrieveCompanionTurnMemory(prepared.prompt);
-      const pending = session.prompt(modelPrompt, {
+      const pending = session.prompt(prepared.prompt, {
         expandPromptTemplates: false,
         ...(prepared.images.length ? { images: prepared.images } : {}),
       });
@@ -633,6 +648,7 @@ async function sendPrompt(command) {
       try {
         await pending;
       } finally {
+        turnIntentLine = "";
         openReplyCapture();
       }
       await gate.done;
@@ -649,6 +665,7 @@ async function sendPrompt(command) {
         aborted: turnAborted,
       });
     } catch (error) {
+      turnIntentLine = "";
       openReplyCapture();
       captureReply = false;
       heldReply = "";

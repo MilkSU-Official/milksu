@@ -28,6 +28,7 @@ export function turnBroken(turn) {
 }
 
 const pendingWorkspaceReleases = []
+const pendingWorkspaceDirs = []
 
 export function deferProductLoopCleanup(job) {
   if (typeof job === 'function') pendingWorkspaceReleases.push(job)
@@ -37,6 +38,13 @@ export async function flushProductLoopCleanup() {
   const jobs = pendingWorkspaceReleases.splice(0)
   for (const job of jobs) {
     await job().catch(() => {})
+  }
+}
+
+export async function flushProductLoopWorkspaces() {
+  const dirs = pendingWorkspaceDirs.splice(0)
+  for (const workspace of dirs) {
+    await rm(workspace, { recursive: true, force: true }).catch(() => {})
   }
 }
 
@@ -51,8 +59,8 @@ export async function releaseProductLoopWorkspace(driver, conversation, workspac
       await driver.deleteConversation(id).catch(() => {})
       await delay(250)
     }
-    if (workspace) await rm(workspace, { recursive: true, force: true }).catch(() => {})
   })
+  if (workspace) pendingWorkspaceDirs.push(workspace)
 }
 
 function visibleRootScript() {
@@ -476,6 +484,7 @@ export async function fillAria(driver, labels, value) {
     if (setter) setter.call(node, value)
     else node.value = value
     node.dispatchEvent(new InputEvent('input', { bubbles: true, data: value, inputType: 'insertText' }))
+    node.dispatchEvent(new Event('input', { bubbles: true }))
     node.dispatchEvent(new Event('change', { bubbles: true }))
     return true
   }`, [labels, value])
