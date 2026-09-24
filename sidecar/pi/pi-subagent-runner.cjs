@@ -366,7 +366,10 @@ function writeRuntimeModelConfig(
   if (customProvider) {
     const endpoint = String(environment.MILKSU_CUSTOM_PROVIDER_URL ?? "").trim();
     runtime = {
-      api: require("./custom-relay-transport.cjs").customRelayApi(endpoint),
+      api: require("./custom-relay-transport.cjs").customRelayApi(
+        endpoint,
+        environment.MILKSU_CUSTOM_PROVIDER_API,
+      ),
       apiKey: "MILKSU_CUSTOM_PROVIDER_KEY",
       baseUrl: "MILKSU_CUSTOM_PROVIDER_URL",
     };

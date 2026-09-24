@@ -23,7 +23,15 @@ function hostOf(baseUrl) {
   }
 }
 
-function customRelayApi(baseUrl) {
+const RELAY_APIS = new Set([
+  "openai-completions",
+  "anthropic-messages",
+  "google-generative-ai",
+]);
+
+function customRelayApi(baseUrl, explicit) {
+  const chosen = String(explicit ?? "").trim();
+  if (RELAY_APIS.has(chosen)) return chosen;
   const host = hostOf(baseUrl);
   if (host === "api.anthropic.com" || host.endsWith(".anthropic.com")) return "anthropic-messages";
   if (host === "generativelanguage.googleapis.com") return "google-generative-ai";

@@ -4,6 +4,7 @@ import {
   AlertCircle,
   Check,
   LogOut,
+  ChevronDown,
   Plus,
   Trash2,
 } from 'lucide-react'
@@ -19,6 +20,11 @@ import {
   DialogHeader,
   DialogTitle,
   Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   SettingsGhostPicker,
   SettingsRow,
   SettingsSection,
@@ -103,6 +109,15 @@ import ExternalEditorIcon from '@/components/ExternalEditorIcon'
 import { buildDiagnosticText, isDebugMode, setDebugMode } from '@/lib/debugMode'
 import { explainModelVerificationFailure } from '@/lib/tokenFluxError'
 import { applyUiLocale, normalizeUiLocale, t } from '@/lib/uiLocale'
+import {
+  CATALOG_MODEL_PROVIDERS,
+  MODEL_PROVIDER_API_LABELS,
+  MODEL_PROVIDER_APIS,
+  catalogModelProvider,
+  providerSlug,
+  validProviderSlug,
+  type ModelProviderApi,
+} from '@/lib/modelProviderCatalog'
 import {
   applyUiEmphasis,
   normalizeUiEmphasisPreset,
@@ -190,7 +205,8 @@ function EmphasisSwatchPicker({
 }
 
 type SettingsNotice = { tone: 'ok' | 'error'; text: string }
-type PendingCustomRelay = { id: string; config: ProviderConfig }
+type PendingCustomRelay = { id: string; config: ProviderConfig; fresh?: boolean }
+type ProviderEditorMode = 'catalog' | 'custom'
 
 type SettingsState = {
   category: NormalizedSettingsCategory
@@ -217,6 +233,7 @@ type SettingsState = {
   buildTrackingCopying: boolean
   notice: SettingsNotice | null
   editingProviderID: string | null
+  providerEditorMode: ProviderEditorMode
   customModelInput: string
   pendingCustomRelay: PendingCustomRelay | null
   accountStatusProp: AccountStatus | undefined
@@ -393,10 +410,11 @@ export default function SettingsPage({
   const accountRoute = store.accountRoute()
   const modelServiceRows = store.modelServiceRows()
   const editingProviderInfo = store.editingProviderInfo()
-  const editingProviderModel = store.editingProviderModel()
-  const editingProviderModels = store.editingProviderModels()
   const editingProvider = store.editingProvider()
   const providerEditorOpen = store.providerEditorOpen()
+  const editingProviderID = store.editingProviderID()
+  const providerEditorMode = store.providerEditorMode()
+  const providerEditorFresh = store.providerEditorFresh()
   const computerUsePermissionsReady = store.computerUsePermissionsReady()
   const browserUseDescription = store.browserUseDescription()
   const browserBridgeConnected = store.browserBridgeConnected()
@@ -1012,52 +1030,146 @@ export default function SettingsPage({
                   />
                 </SettingsSection>
 
-                <SettingsSection
-                  title={t('模型服务', 'Model services')}
-                  actions={(
-                    <Button
-                      variant="outline"
-                      size="icon-sm"
-                      aria-label={t('新增模型服务', 'Add a model service')}
-                      title={t('新增自定义中转站', 'Add a custom relay')}
-                      onClick={() => store.addModelService()}
-                    >
-                      <Plus className="size-4" />
-                    </Button>
-                  )}
-                >
-                  {modelServiceRows.map((row, index) => (
-                    <SettingsRow
-                      key={row.key}
-                      label={row.source === 'account' ? t('MilkSU 账户', 'MilkSU account') : store.providerServiceName(row.provider)}
-                      description={row.source === 'account'
-                        ? t('登录后由管理员分配的 TokenFlux 配额', 'TokenFlux quota assigned by an admin after sign-in')
-                        : row.provider.id === 'tokenflux'
-                          ? t('你自己的 TokenFlux API Key', 'Your own TokenFlux API key')
-                          : store.providerModelsText(row.provider)}
-                      divider={index < modelServiceRows.length - 1}
-                      trailing={(
-                        <>
-                          <span className="text-xs text-muted-foreground">{store.serviceStatus(row)}</span>
-                          {row.source === 'personal' ? (
+                <SettingsSection title={t('模型提供商', 'Model providers')}>
+                  {modelServiceRows.map((row, index) => {
+                    const catalog = row.source === 'personal' && row.provider ? catalogModelProvider(providerSlug(row.provider.id)) : undefined
+                    const inlineCatalog = Boolean(catalog && row.provider && editingProvider?.custom && editingProviderID === row.provider.id && !providerEditorFresh)
+                    const protocolHint = editingProvider?.api === 'anthropic-messages'
+                      ? t('请填写兼容 Anthropic Messages 协议的 API 地址。', 'Enter an API address that speaks Anthropic Messages.')
+                      : editingProvider?.api === 'google-generative-ai'
+                        ? t('请填写兼容 Gemini 协议的 API 地址。', 'Enter an API address that speaks Gemini.')
+                        : t('请填写兼容 OpenAI Chat Completions 协议的 API 地址。', 'Enter an API address that speaks OpenAI Chat Completions.')
+                    const usingCatalogModels = Boolean(catalog && editingProvider?.models?.join('\n') === catalog.models.join('\n'))
+                    return (
+                      <div key={row.key}>
+                        <SettingsRow
+                          label={row.source === 'account' ? t('MilkSU 账户', 'MilkSU account') : store.providerServiceName(row.provider)}
+                          description={row.source === 'account'
+                            ? t('登录后由管理员分配的 TokenFlux 配额', 'TokenFlux quota assigned by an admin after sign-in')
+                            : row.provider.id === 'tokenflux'
+                              ? t('你自己的 TokenFlux API Key', 'Your own TokenFlux API key')
+                              : store.providerModelsText(row.provider)}
+                          divider={index < modelServiceRows.length - 1 || inlineCatalog}
+                          trailing={(
                             <>
-                              <Button variant="ghost" size="sm" onClick={() => store.openProviderEditor(row.provider.id)}>
-                                {t('编辑', 'Edit')}
-                              </Button>
-                              <Button variant="ghost" size="sm" className="text-destructive" onClick={() => store.removeModelService(row.provider.id)}>
-                                {t('删除', 'Delete')}
-                              </Button>
+                              <span className="text-xs text-muted-foreground">{store.serviceStatus(row)}</span>
+                              {row.source === 'personal' ? (
+                                <>
+                                  <Button variant="ghost" size="sm" onClick={() => store.openProviderEditor(row.provider.id)}>
+                                    {t('编辑', 'Edit')}
+                                  </Button>
+                                  <Button variant="ghost" size="sm" className="text-destructive" onClick={() => store.removeModelService(row.provider.id)}>
+                                    {t('删除', 'Delete')}
+                                  </Button>
+                                </>
+                              ) : null}
+                              <Switch
+                                checked={row.source === 'account' ? Boolean(accountRoute?.enabled) : Boolean(store.providerConfig(row.provider.id)?.enabled)}
+                                aria-label={row.source === 'account'
+                                  ? t('启用 MilkSU 账户', 'Enable MilkSU account')
+                                  : t(`启用${store.providerServiceName(row.provider)}`, `Enable ${store.providerServiceName(row.provider)}`)}
+                                onCheckedChange={value => store.setModelServiceEnabled(row, Boolean(value))}
+                              />
                             </>
-                          ) : null}
-                          <Switch
-                            checked={row.source === 'account' ? Boolean(accountRoute?.enabled) : Boolean(store.providerConfig(row.provider.id)?.enabled)}
-                            aria-label={t(`启用${row.source === 'account' ? t('MilkSU 账户', 'MilkSU account') : store.providerServiceName(row.provider)}`, `Enable ${row.source === 'account' ? t('MilkSU 账户', 'MilkSU account') : store.providerServiceName(row.provider)}`)}
-                            onCheckedChange={value => store.setModelServiceEnabled(row, Boolean(value))}
-                          />
-                        </>
-                      )}
-                    />
-                  ))}
+                          )}
+                        />
+                        {inlineCatalog && editingProvider ? (
+                          <div className="grid gap-3 border-b border-border px-4 py-3">
+                            <label className="grid gap-1">
+                              <span className="text-[length:var(--text-label)]">{t('API 密钥', 'API key')}</span>
+                              <Input
+                                value={editingProvider.api_key}
+                                type="password"
+                                autoComplete="off"
+                                placeholder={t('输入 API 密钥', 'Enter an API key')}
+                                aria-label={t('API 密钥', 'API key')}
+                                onChange={event => {
+                                  store.patchEditingProvider(config => {
+                                    config.api_key = event.target.value
+                                    if (event.target.value) config.session_only = false
+                                  })
+                                }}
+                              />
+                            </label>
+                            <details className="rounded-md border border-border px-3 py-2">
+                              <summary className="flex cursor-pointer list-none items-center gap-2 text-[length:var(--text-label)]">
+                                <ChevronDown className="size-3.5" />
+                                {t('自定义设置', 'Custom settings')}
+                              </summary>
+                              <div className="mt-3 grid gap-3">
+                                <label className="grid gap-1">
+                                  <span className="text-[length:var(--text-label)]">{t('API 地址', 'API address')}</span>
+                                  <Input
+                                    value={editingProvider.base_url ?? ''}
+                                    type="url"
+                                    autoComplete="url"
+                                    aria-label={t('API 地址', 'API address')}
+                                    onChange={event => { store.patchEditingProvider(config => { config.base_url = event.target.value.trim() }) }}
+                                  />
+                                  <span className="text-caption text-muted-foreground">{protocolHint}</span>
+                                </label>
+                                <div className="grid gap-2">
+                                  <div>
+                                    <div className="text-[length:var(--text-label)]">{t('模型目录', 'Model catalog')}</div>
+                                    <div className="text-caption text-muted-foreground">
+                                      {usingCatalogModels
+                                        ? t('正在使用适配器默认模型', 'Using the adapter default models')
+                                        : t('已改成这份模型目录', 'Using this model catalog')}
+                                    </div>
+                                  </div>
+                                  {(editingProvider.models ?? []).map(model => (
+                                    <div key={model} className="flex items-center gap-2">
+                                      <Input
+                                        value={model}
+                                        readOnly
+                                        aria-label={t(`模型 ${model}`, `Model ${model}`)}
+                                        className="font-mono"
+                                      />
+                                      <Input value={model} readOnly aria-label={t(`模型显示名 ${model}`, `Model display name ${model}`)} />
+                                      <Button type="button" variant="ghost" size="icon-sm" aria-label={t(`移除模型 ${model}`, `Remove model ${model}`)} onClick={() => store.removeCustomRelayModel(model)}>
+                                        <Trash2 className="size-3.5" />
+                                      </Button>
+                                    </div>
+                                  ))}
+                                  <div className="flex gap-2">
+                                    <Input
+                                      value={customModelInput}
+                                      autoComplete="off"
+                                      placeholder={t('模型 ID', 'Model ID')}
+                                      aria-label={t('模型 ID', 'Model ID')}
+                                      onChange={event => { store.setCustomModelInput(event.target.value) }}
+                                      onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); store.addCustomRelayModel() } }}
+                                    />
+                                    <Button type="button" variant="outline" size="sm" onClick={() => store.addCustomRelayModel()}>
+                                      {t('添加模型', 'Add model')}
+                                    </Button>
+                                  </div>
+                                </div>
+                              </div>
+                            </details>
+                            {notice ? <p className={`text-caption ${notice.tone === 'error' ? 'text-destructive' : 'text-primary'}`}>{notice.text}</p> : null}
+                            <div className="flex justify-end gap-2">
+                              <Button variant="outline" size="sm" disabled={saving || verifying} onClick={() => store.setProviderEditorOpen(false)}>
+                                {t('取消', 'Cancel')}
+                              </Button>
+                              <Button size="sm" disabled={saving || verifying} onClick={() => void store.saveProviderEditor(false)}>
+                                {verifying ? t('正在保存', 'Saving') : t('保存', 'Save')}
+                              </Button>
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    )
+                  })}
+                  <button
+                    type="button"
+                    className="flex h-10 w-full items-center justify-center gap-2 border-t border-dashed border-border text-[length:var(--text-label)] text-muted-foreground hover:bg-muted/40"
+                    aria-label={t('添加模型提供商', 'Add a model provider')}
+                    onClick={() => store.addModelService()}
+                  >
+                    <Plus className="size-3.5" />
+                    {t('添加模型提供商', 'Add a model provider')}
+                  </button>
                 </SettingsSection>
 
                 <SettingsSection title={t('模型能力', 'Model capabilities')}>
@@ -1132,7 +1244,7 @@ export default function SettingsPage({
                   ) : null}
                   <SettingsRow
                     label={t('上下文窗口', 'Context window')}
-                    description={t('目录会自动填充，中转站可覆盖。', 'Filled from the catalog. Override it for relays.')}
+                    description={t('目录会自动填充，模型提供商可覆盖。', 'Filled from the catalog. A model provider can override it.')}
                     divider={false}
                     trailing={(
                       <>
@@ -1174,51 +1286,148 @@ export default function SettingsPage({
                 <Dialog open={providerEditorOpen} onOpenChange={open => { store.setProviderEditorOpen(open) }}>
                   <DialogContent className="provider-editor-dialog sm:max-w-xl">
                     <DialogHeader>
-                      <DialogTitle>{t(`编辑 ${editingProviderInfo ? store.providerServiceName(editingProviderInfo) : t('模型服务', 'model service')}`, `Edit ${editingProviderInfo ? store.providerServiceName(editingProviderInfo) : t('模型服务', 'model service')}`)}</DialogTitle>
-                      <DialogDescription className="sr-only">{t('配置这个模型服务的接口地址、凭据和可用模型。', 'Configure this model service endpoint, credentials, and available models.')}</DialogDescription>
+                      <DialogTitle>{editingProvider?.custom
+                        ? (providerEditorFresh ? t('添加模型提供商', 'Add a model provider') : t('编辑模型提供商', 'Edit model provider'))
+                        : t('TokenFlux', 'TokenFlux')}</DialogTitle>
+                      <DialogDescription>
+                        {editingProvider?.custom
+                          ? (providerEditorMode === 'catalog'
+                            ? t('从内置目录中选择 OpenAI、Anthropic、Kimi 等提供商，填入其 API 密钥即可使用。', 'Pick a provider such as OpenAI, Anthropic, or Kimi from the built-in catalog and enter its API key.')
+                            : t('连接中转站、自部署服务或其他兼容 OpenAI / Anthropic 协议的接口。需填写 API 地址、协议和模型。', 'Connect a relay, a self-hosted service, or another OpenAI / Anthropic compatible endpoint. Enter the API address, protocol, and models.'))
+                          : t('你自己的 TokenFlux API Key。', 'Your own TokenFlux API key.')}
+                      </DialogDescription>
                     </DialogHeader>
                     {editingProvider && editingProviderInfo ? (
                       <div className="grid gap-4">
-                        <label className="provider-editor-field">
-                          <span>{t('API 端点', 'API endpoint')}</span>
-                          <Input
-                            value={editingProvider.base_url ?? editingProviderInfo.defaultBaseUrl}
-                            type="url"
-                            autoComplete="url"
-                            placeholder={editingProviderInfo.defaultBaseUrl || 'https://example.com/v1'}
-                            aria-label={t('API 端点', 'API endpoint')}
-                              onChange={event => { store.patchEditingProvider(config => { config.base_url = event.target.value.trim() }) }}
-                              onBlur={() => void store.save()}
-                          />
-                        </label>
+                        {editingProvider.custom && providerEditorFresh ? (
+                          <div className="flex gap-1 rounded-md bg-muted/40 p-1">
+                            <Button type="button" size="sm" variant={providerEditorMode === 'catalog' ? 'default' : 'ghost'} className="flex-1" onClick={() => store.setProviderEditorMode('catalog')}>
+                              {t('第三方模型提供商', 'Third-party model providers')}
+                            </Button>
+                            <Button type="button" size="sm" variant={providerEditorMode === 'custom' ? 'default' : 'ghost'} className="flex-1" onClick={() => store.setProviderEditorMode('custom')}>
+                              {t('自定义模型 API', 'Custom model API')}
+                            </Button>
+                          </div>
+                        ) : null}
+                        {editingProvider.custom && providerEditorMode === 'catalog' ? (
+                          <label className="provider-editor-field">
+                            <span>{t('提供商', 'Provider')}</span>
+                            <Select
+                              value={providerSlug(editingProviderInfo.id)}
+                              disabled={!providerEditorFresh}
+                              onValueChange={value => store.selectCatalogProvider(value)}
+                            >
+                              <SelectTrigger aria-label={t('提供商', 'Provider')}>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {CATALOG_MODEL_PROVIDERS.map(item => (
+                                  <SelectItem key={item.id} value={item.id}>{item.id}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </label>
+                        ) : null}
+                        {editingProvider.custom && providerEditorMode === 'custom' ? (
+                          <>
+                            <label className="provider-editor-field items-start">
+                              <span className="pt-1.5">Provider ID</span>
+                              <span className="grid gap-1">
+                                <Input
+                                  value={providerSlug(editingProviderInfo.id)}
+                                  autoComplete="off"
+                                  placeholder="acme-gateway"
+                                  readOnly={!providerEditorFresh}
+                                  aria-label="Provider ID"
+                                  onChange={event => store.setFreshProviderSlug(event.target.value)}
+                                />
+                                <span className="text-caption text-muted-foreground">{t('以小写字母开头的标识，在请求中唯一标识该提供商，并用于派生凭据名。', 'A lowercase id that uniquely names this provider on requests and derives its credential name.')}</span>
+                              </span>
+                            </label>
+                            <label className="provider-editor-field">
+                              <span>{t('显示名称', 'Display name')}</span>
+                              <Input
+                                value={editingProvider.name ?? ''}
+                                autoComplete="off"
+                                placeholder={t('显示名称', 'Display name')}
+                                aria-label={t('显示名称', 'Display name')}
+                                onChange={event => { store.patchEditingProvider(config => { config.name = event.target.value }) }}
+                              />
+                            </label>
+                            <label className="provider-editor-field">
+                              <span>{t('API 地址', 'API address')}</span>
+                              <Input
+                                value={editingProvider.base_url ?? ''}
+                                type="url"
+                                autoComplete="url"
+                                placeholder="https://gateway.example/v1"
+                                aria-label={t('API 地址', 'API address')}
+                                onChange={event => { store.patchEditingProvider(config => { config.base_url = event.target.value.trim() }) }}
+                              />
+                            </label>
+                            <label className="provider-editor-field">
+                              <span>{t('API 协议', 'API protocol')}</span>
+                              <Select
+                                value={editingProvider.api || 'openai-completions'}
+                                onValueChange={value => { store.patchEditingProvider(config => { config.api = value as ModelProviderApi }) }}
+                              >
+                                <SelectTrigger aria-label={t('API 协议', 'API protocol')}>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {MODEL_PROVIDER_APIS.map(api => (
+                                    <SelectItem key={api} value={api}>{MODEL_PROVIDER_API_LABELS[api]}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </label>
+                          </>
+                        ) : null}
                         {editingProvider.custom ? (
                           <label className="provider-editor-field">
-                            <span>{t('自定义名字', 'Custom name')}</span>
+                            <span>{t('API 密钥', 'API key')}</span>
                             <Input
-                              value={editingProvider.name ?? ''}
+                              value={editingProvider.api_key}
+                              type="password"
                               autoComplete="off"
-                              placeholder={t('例如：我的中转站', 'e.g. My relay')}
-                              aria-label={t('中转站名称', 'Relay name')}
-                              onChange={event => { store.patchEditingProvider(config => { config.name = event.target.value }) }}
-                              onBlur={() => void store.save()}
+                              placeholder={t('输入 API 密钥', 'Enter an API key')}
+                              aria-label={t('API 密钥', 'API key')}
+                              onChange={event => {
+                                store.patchEditingProvider(config => {
+                                  config.api_key = event.target.value
+                                  if (event.target.value) config.session_only = false
+                                })
+                              }}
                             />
                           </label>
                         ) : (
                           <label className="provider-editor-field">
-                            <span>{t('名称', 'Name')}</span>
-                            <Input value={store.providerServiceName(editingProviderInfo)} readOnly aria-label={t('名称', 'Name')} />
+                            <span>{t('API 密钥', 'API key')}</span>
+                            <Input
+                              value={editingProvider.api_key}
+                              type="password"
+                              autoComplete="off"
+                              placeholder={editingProviderInfo.placeholder}
+                              aria-label={t('API 密钥', 'API key')}
+                              onChange={event => {
+                                store.patchEditingProvider(config => {
+                                  config.api_key = event.target.value
+                                  if (event.target.value) config.session_only = false
+                                })
+                              }}
+                            />
                           </label>
                         )}
-                        {editingProvider.custom ? (
+                        {editingProvider.custom && providerEditorMode === 'custom' ? (
                           <div className="provider-editor-field items-start">
-                            <span className="pt-2">{t('模型 / 前缀', 'Models / prefixes')}</span>
+                            <span className="pt-2">{t('模型', 'Models')}</span>
                             <div className="min-w-0">
                               <div className="flex gap-2">
                                 <Input
                                   value={customModelInput}
                                   autoComplete="off"
                                   placeholder={t('例如：grok-4.5 或 openai/gpt-5', 'e.g. grok-4.5 or openai/gpt-5')}
-                                  aria-label={t('模型 ID 或关键词前缀', 'Model ID or keyword prefix')}
+                                  aria-label={t('模型 ID', 'Model ID')}
                                   onChange={event => { store.setCustomModelInput(event.target.value) }}
                                   onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); store.addCustomRelayModel() } }}
                                 />
@@ -1239,66 +1448,61 @@ export default function SettingsPage({
                             </div>
                           </div>
                         ) : null}
-                        <label className="provider-editor-field">
-                          <span>API Key</span>
-                          <Input
-                            value={editingProvider.api_key}
-                            type="password"
-                            autoComplete="off"
-                            placeholder={editingProviderInfo.placeholder}
-                            aria-label="API Key"
-                              onChange={event => {
-                              store.patchEditingProvider(config => {
-                                config.api_key = event.target.value
-                                if (event.target.value) config.session_only = false
-                              })
-                            }}
-                            onBlur={() => void store.save()}
-                          />
-                        </label>
-                        {!editingProvider.custom ? (
-                          <label className="provider-editor-field items-start">
-                            <span className="pt-2">{t('可用模型', 'Available models')}</span>
-                            <div className="min-w-0">
-                              <SearchableModelPicker
-                                value={editingProviderModels.length
-                                  ? store.modelSelectionKey(editingProviderInfo.id, editingProviderModel || editingProviderModels[0] || '')
-                                  : ''}
-                                disabled={!editingProviderModels.length}
-                                triggerClassName="h-7 min-w-72 px-2"
-                                ariaLabel={t('可用模型', 'Available models')}
-                                align="start"
-                                trigger={(
-                                  <span className="min-w-0 truncate">
-                                    {editingProviderModels.length
-                                      ? store.modelDisplayLabel(editingProviderInfo.id, editingProviderModel || editingProviderModels[0] || '')
-                                      : ''}
-                                  </span>
-                                )}
-                                groups={[{
-                                  key: editingProviderInfo.id,
-                                  label: store.providerServiceName(editingProviderInfo),
-                                  models: editingProviderModels.map(model => ({
-                                    value: store.modelSelectionKey(editingProviderInfo.id, model),
-                                    label: store.modelDisplayLabel(editingProviderInfo.id, model),
-                                    model,
-                                  })),
-                                }]}
-                                onChange={value => {
-                                  const selection = store.parseModelSelectionKey(String(value ?? ''))
-                                  if (!selection) return
-                                  store.setEditingProviderModel(selection[1])
-                                }}
-                              />
+                        {editingProvider.custom && providerEditorMode === 'catalog' ? (
+                          <details className="rounded-md border border-border px-3 py-2">
+                            <summary className="flex cursor-pointer list-none items-center gap-2 text-[length:var(--text-label)]">
+                              <ChevronDown className="size-3.5" />
+                              {t('自定义设置', 'Custom settings')}
+                            </summary>
+                            <div className="mt-3 grid gap-3">
+                              <label className="provider-editor-field">
+                                <span>{t('API 地址', 'API address')}</span>
+                                <Input value={editingProvider.base_url ?? ''} readOnly aria-label={t('API 地址', 'API address')} />
+                              </label>
+                              <label className="provider-editor-field">
+                                <span>{t('API 协议', 'API protocol')}</span>
+                                <Input value={MODEL_PROVIDER_API_LABELS[editingProvider.api || 'openai-completions']} readOnly aria-label={t('API 协议', 'API protocol')} />
+                              </label>
+                              <div className="provider-editor-field items-start">
+                                <span className="pt-2">{t('模型', 'Models')}</span>
+                                <div className="min-w-0">
+                                  <div className="flex gap-2">
+                                    <Input
+                                      value={customModelInput}
+                                      autoComplete="off"
+                                      placeholder={t('例如：grok-4.5', 'e.g. grok-4.5')}
+                                      aria-label={t('模型 ID', 'Model ID')}
+                                      onChange={event => { store.setCustomModelInput(event.target.value) }}
+                                      onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); store.addCustomRelayModel() } }}
+                                    />
+                                    <Button variant="outline" size="sm" onClick={() => store.addCustomRelayModel()}>{t('添加', 'Add')}</Button>
+                                  </div>
+                                  {editingProvider.models?.length ? (
+                                    <div className="mt-2 flex flex-wrap gap-2">
+                                      {editingProvider.models.map(model => (
+                                        <span key={model} className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/30 px-2.5 py-1 font-mono text-caption">
+                                          {model}
+                                          <button type="button" className="text-muted-foreground hover:text-destructive" aria-label={t(`移除模型 ${model}`, `Remove model ${model}`)} onClick={() => store.removeCustomRelayModel(model)}>
+                                            <Trash2 className="size-3.5" />
+                                          </button>
+                                        </span>
+                                      ))}
+                                    </div>
+                                  ) : null}
+                                </div>
+                              </div>
                             </div>
-                          </label>
+                          </details>
                         ) : null}
                         {notice ? <p className={`text-caption ${notice.tone === 'error' ? 'text-destructive' : 'text-primary'}`}>{notice.text}</p> : null}
                       </div>
                     ) : null}
                     <DialogFooter>
-                      <Button variant="outline" size="sm" disabled={saving || verifying} onClick={() => void store.saveProviderEditor(false)}>
-                        {verifying ? t('正在测试', 'Testing') : t('测试连接', 'Test connection')}
+                      <Button variant="outline" size="sm" disabled={saving || verifying} onClick={() => store.setProviderEditorOpen(false)}>
+                        {t('取消', 'Cancel')}
+                      </Button>
+                      <Button size="sm" disabled={saving || verifying} onClick={() => void store.saveProviderEditor(false)}>
+                        {verifying ? t('正在保存', 'Saving') : t('保存', 'Save')}
                       </Button>
                     </DialogFooter>
                   </DialogContent>
@@ -1399,6 +1603,7 @@ function createSettingsStore(
     buildTrackingCopying: false,
     notice: null,
     editingProviderID: null,
+    providerEditorMode: 'catalog',
     customModelInput: '',
     pendingCustomRelay: null,
     accountStatusProp: undefined,
@@ -1463,6 +1668,8 @@ function createSettingsStore(
     set notice(value) { store.setState({ notice: value }); },
     get editingProviderID() { return store.getState().editingProviderID },
     set editingProviderID(value) { store.setState({ editingProviderID: value }); },
+    get providerEditorMode() { return store.getState().providerEditorMode },
+    set providerEditorMode(value) { store.setState({ providerEditorMode: value }); },
     get customModelInput() { return store.getState().customModelInput },
     set customModelInput(value) { store.setState({ customModelInput: value }); },
     get pendingCustomRelay() { return store.getState().pendingCustomRelay },
@@ -2281,29 +2488,112 @@ function createSettingsStore(
     return `custom-relay-${random}`
   }
 
+  function catalogDraft(entry: typeof CATALOG_MODEL_PROVIDERS[number], apiKey = ''): ProviderConfig {
+    return {
+      api_key: apiKey,
+      has_api_key: false,
+      base_url: entry.baseUrl,
+      enabled: true,
+      custom: true,
+      name: entry.name,
+      models: [...entry.models],
+      api: entry.api,
+    }
+  }
+
   function addModelService() {
     if (!s.working) return
     const count = Object.values(s.working.providers).filter(item => item.custom).length
     if (count >= 8) {
-      s.notice = { tone: 'error', text: t('最多可以添加 8 个自定义中转站。', 'You can add up to 8 custom relays.') }
+      s.notice = { tone: 'error', text: t('最多可以添加 8 个模型提供商。', 'You can add up to 8 model providers.') }
+      return
+    }
+    const entry = CATALOG_MODEL_PROVIDERS.find(item => !s.working?.providers[`custom-relay-${item.id}`])
+    if (entry) {
+      const id = `custom-relay-${entry.id}`
+      s.pendingCustomRelay = { id, fresh: true, config: catalogDraft(entry) }
+      s.providerEditorMode = 'catalog'
+      s.editingProviderID = id
+    } else {
+      const id = customRelayID()
+      s.pendingCustomRelay = {
+        id,
+        fresh: true,
+        config: {
+          api_key: '',
+          has_api_key: false,
+          base_url: '',
+          enabled: true,
+          custom: true,
+          name: '',
+          models: [],
+          api: 'openai-completions',
+        },
+      }
+      s.providerEditorMode = 'custom'
+      s.editingProviderID = id
+    }
+    s.customModelInput = ''
+    s.notice = null
+  }
+
+  function setProviderEditorMode(mode: ProviderEditorMode) {
+    const pending = s.pendingCustomRelay
+    if (!pending?.fresh) return
+    if (mode === s.providerEditorMode) return
+    const apiKey = pending.config.api_key
+    if (mode === 'catalog') {
+      const entry = CATALOG_MODEL_PROVIDERS.find(item => !s.working?.providers[`custom-relay-${item.id}`])
+      if (!entry) {
+        s.notice = { tone: 'error', text: t('目录里的提供商都已经添加过了。', 'Every catalog provider is already added.') }
+        return
+      }
+      const id = `custom-relay-${entry.id}`
+      s.pendingCustomRelay = { id, fresh: true, config: catalogDraft(entry, apiKey) }
+      s.providerEditorMode = 'catalog'
+      s.editingProviderID = id
       return
     }
     const id = customRelayID()
     s.pendingCustomRelay = {
       id,
+      fresh: true,
       config: {
-        api_key: '',
+        api_key: apiKey,
         has_api_key: false,
         base_url: '',
         enabled: true,
         custom: true,
-        name: t('我的中转站', 'My relay'),
+        name: '',
         models: [],
+        api: 'openai-completions',
       },
     }
+    s.providerEditorMode = 'custom'
     s.editingProviderID = id
     s.customModelInput = ''
+  }
+
+  function selectCatalogProvider(catalogId: string) {
+    const pending = s.pendingCustomRelay
+    const entry = catalogModelProvider(catalogId)
+    if (!pending?.fresh || !entry) return
+    const id = `custom-relay-${entry.id}`
+    if (s.working?.providers[id]) {
+      s.notice = { tone: 'error', text: t('这个提供商已经添加过了。', 'This provider is already added.') }
+      return
+    }
     s.notice = null
+    s.pendingCustomRelay = { id, fresh: true, config: catalogDraft(entry, pending.config.api_key) }
+    s.editingProviderID = id
+  }
+
+  function setFreshProviderSlug(slug: string) {
+    const pending = s.pendingCustomRelay
+    if (!pending?.fresh) return
+    const id = `custom-relay-${slug.trim().toLowerCase()}`
+    s.pendingCustomRelay = { ...pending, id }
+    s.editingProviderID = id
   }
 
   function tokenfluxCatalogModels(): string[] {
@@ -2377,7 +2667,7 @@ function createSettingsStore(
       return
     }
     if (models.length >= 32) {
-      store.setState({ notice: { tone: 'error', text: t('每个中转站最多可以添加 32 个模型。', 'Each relay can have up to 32 models.') } })
+      store.setState({ notice: { tone: 'error', text: t('每个提供商最多可以添加 32 个模型。', 'Each provider can have up to 32 models.') } })
       return
     }
     if (pendingCustomRelay?.id === editingProviderID) {
@@ -2498,7 +2788,21 @@ function createSettingsStore(
   }
   const editingProviderModels = () => editingProviderInfo()?.models ?? []
   function providerEditorOpen() {
-    return Boolean(s.editingProviderID)
+    if (!s.editingProviderID) return false
+    if (s.providerEditorMode === 'catalog' && !s.pendingCustomRelay?.fresh) return false
+    return true
+  }
+
+  function editingProviderID() {
+    return s.editingProviderID
+  }
+
+  function providerEditorMode() {
+    return s.providerEditorMode
+  }
+
+  function providerEditorFresh() {
+    return Boolean(s.pendingCustomRelay?.fresh)
   }
 
   function setProviderEditorOpen(value: boolean) {
@@ -2573,6 +2877,18 @@ function createSettingsStore(
 
   function openProviderEditor(id: string) {
     ensureProviderConfig(id)
+    const config = s.working?.providers[id]
+    if (config?.custom) {
+      const slug = providerSlug(id)
+      s.pendingCustomRelay = {
+        id,
+        fresh: false,
+        config: { ...config, models: [...(config.models ?? [])] },
+      }
+      s.providerEditorMode = catalogModelProvider(slug) ? 'catalog' : 'custom'
+    } else {
+      s.pendingCustomRelay = null
+    }
     s.editingProviderID = id
     s.customModelInput = ''
     s.notice = null
@@ -3002,15 +3318,15 @@ function createSettingsStore(
     ))
     if (incompleteCustomProvider) {
       if (!incompleteCustomProvider.name?.trim()) {
-        s.notice = { tone: 'error', text: t('请填写中转站名称。', 'Enter a relay name.') }
+        s.notice = { tone: 'error', text: t('请填写显示名称。', 'Enter a display name.') }
         return false
       }
       if (!incompleteCustomProvider.base_url?.trim()) {
-        s.notice = { tone: 'error', text: t('请填写 API 端点（Base URL）。', 'Enter an API endpoint (base URL).') }
+        s.notice = { tone: 'error', text: t('请填写 API 地址。', 'Enter an API address.') }
         return false
       }
       if (!(incompleteCustomProvider.models ?? []).length) {
-        s.notice = { tone: 'error', text: t('请至少添加一个模型 ID 或关键词前缀。', 'Add at least one model ID or keyword prefix.') }
+        s.notice = { tone: 'error', text: t('请至少添加一个模型。', 'Add at least one model.') }
         return false
       }
     }
@@ -3085,6 +3401,14 @@ function createSettingsStore(
     const editingID = s.editingProviderID
     const pending = s.pendingCustomRelay?.id === editingID ? s.pendingCustomRelay : null
     if (pending) {
+      if (!validProviderSlug(providerSlug(pending.id))) {
+        s.notice = { tone: 'error', text: t('Provider ID 要以小写字母开头，只能包含小写字母、数字和连字符。', 'Provider ID must start with a lowercase letter and use only lowercase letters, digits, and hyphens.') }
+        return
+      }
+      if (pending.fresh && s.working.providers[pending.id]) {
+        s.notice = { tone: 'error', text: t('这个提供商已经添加过了。', 'This provider is already added.') }
+        return
+      }
       s.working.providers[pending.id] = pending.config
     }
     const editing = s.working.providers[editingID]
@@ -3107,7 +3431,7 @@ function createSettingsStore(
       s.pendingCustomRelay = null
       return
     }
-    if (pending) {
+    if (pending?.fresh) {
       delete s.working.providers[pending.id]
       s.pendingCustomRelay = pending
     }
@@ -3276,6 +3600,9 @@ function createSettingsStore(
     exportLocalDiagnostics,
     availablePickerModelLabel,
     addModelService,
+    setProviderEditorMode,
+    selectCatalogProvider,
+    setFreshProviderSlug,
     providerServiceName,
     accountModelsText,
     providerModelsText,
@@ -3328,6 +3655,9 @@ function createSettingsStore(
     editingProviderModel,
     editingProviderModels,
     providerEditorOpen,
+    editingProviderID,
+    providerEditorMode,
+    providerEditorFresh,
     computerUsePermissionsReady,
     browserUseDescription,
     browserBridgeConnected,

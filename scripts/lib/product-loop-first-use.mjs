@@ -1029,8 +1029,8 @@ async function openRelayEditor(driver) {
   }`), 1_200).catch(() => false)
   if (editorOpen) return { ok: true }
 
-  const openedEditor = await waitFor(() => clickMatching(driver, ['新增模型服务', 'Add a model service']), 8_000)
-  if (!openedEditor) return { ok: false, detail: '找不到新增模型服务' }
+  const openedEditor = await waitFor(() => clickMatching(driver, ['添加模型提供商', 'Add a model provider', '新增模型服务', 'Add a model service']), 8_000)
+  if (!openedEditor) return { ok: false, detail: '找不到添加模型提供商' }
   await delay(400)
   return { ok: true }
 }
@@ -1059,12 +1059,17 @@ function relayEditorScript() {
       })
     }
     const dialog = document.querySelector('[role="dialog"]')
-    if (!dialog) return { ok: false, detail: '中转站对话框没打开' }
-    if (fields.baseUrl && !setInput(byAria(['API 端点', 'API endpoint']), fields.baseUrl)) {
-      return { ok: false, detail: '找不到 API 端点' }
+    if (!dialog) return { ok: false, detail: '模型提供商对话框没打开' }
+    if (fields.openCustom) {
+      const customTab = Array.from(dialog.querySelectorAll('button')).find(item => /自定义模型 API|Custom model API/.test(item.textContent || ''))
+      if (customTab) customTab.click()
+      return { ok: true, switched: true }
     }
-    if (fields.name && !setInput(byAria(['中转站名称', 'Relay name']), fields.name)) {
-      return { ok: false, detail: '找不到中转站名称' }
+    if (fields.baseUrl && !setInput(byAria(['API 地址', 'API address', 'API 端点', 'API endpoint']), fields.baseUrl)) {
+      return { ok: false, detail: '找不到 API 地址' }
+    }
+    if (fields.name && !setInput(byAria(['显示名称', 'Display name', '中转站名称', 'Relay name']), fields.name)) {
+      return { ok: false, detail: '找不到显示名称' }
     }
     if (fields.removeModels) {
       for (const button of Array.from(dialog.querySelectorAll('button[aria-label]'))) {
@@ -1072,11 +1077,11 @@ function relayEditorScript() {
         if (/^移除模型 |^Remove model /.test(label)) button.click()
       }
     }
-    if (fields.model && !setInput(byAria(['模型 ID 或关键词前缀', 'Model ID or keyword prefix']), fields.model)) {
+    if (fields.model && !setInput(byAria(['模型 ID', 'Model ID', '模型 ID 或关键词前缀', 'Model ID or keyword prefix']), fields.model)) {
       return { ok: false, detail: '找不到模型输入' }
     }
-    if (fields.apiKey && !setInput(byAria(['API Key']), fields.apiKey)) {
-      return { ok: false, detail: '找不到 API Key 密码框' }
+    if (fields.apiKey && !setInput(byAria(['API 密钥', 'API key', 'API Key']), fields.apiKey)) {
+      return { ok: false, detail: '找不到 API 密钥' }
     }
     if (fields.addModel) {
       const add = Array.from(dialog.querySelectorAll('button')).find(item => /^(添加|Add)$/.test((item.textContent || '').trim()))
@@ -1084,8 +1089,8 @@ function relayEditorScript() {
       add.click()
     }
     if (fields.test) {
-      const test = Array.from(dialog.querySelectorAll('button')).find(item => /测试连接|Test connection|正在测试|Testing/.test(item.textContent || ''))
-      if (!test) return { ok: false, detail: '找不到测试连接' }
+      const test = Array.from(dialog.querySelectorAll('button')).find(item => /^(保存|Save|正在保存|Saving|测试连接|Test connection|正在测试|Testing)$/.test((item.textContent || '').trim()))
+      if (!test) return { ok: false, detail: '找不到保存' }
       test.click()
     }
     return { ok: true }
@@ -1093,6 +1098,8 @@ function relayEditorScript() {
 }
 
 async function applyRelayEditorFields(driver, fields, apiKey) {
+  await driver.cdp.callFunction(relayEditorScript(), [{ openCustom: true }])
+  await delay(300)
   const prepared = await driver.cdp.callFunction(relayEditorScript(), [{
     name: fields.name,
     baseUrl: fields.baseUrl,

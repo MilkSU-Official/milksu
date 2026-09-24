@@ -288,6 +288,8 @@ export interface ProviderConfig {
   custom?: boolean
   name?: string
   models?: string[]
+  /** Pi wire protocol. Empty keeps the endpoint inference. */
+  api?: 'openai-completions' | 'anthropic-messages' | 'google-generative-ai' | ''
 }
 
 export interface RelayConfig {

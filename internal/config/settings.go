@@ -46,6 +46,7 @@ type ProviderConfig struct {
 	Custom       bool     `json:"custom,omitempty"`
 	Name         string   `json:"name,omitempty"`
 	Models       []string `json:"models,omitempty"`
+	API          string   `json:"api,omitempty"`
 }
 
 type NSSCTFArenaConfig struct {
@@ -1720,6 +1721,11 @@ func validateCustomProviders(value AppSettings) error {
 		}
 		if len(provider.Models) > 32 {
 			return fmt.Errorf("custom relay %s may contain at most 32 models", id)
+		}
+		switch strings.TrimSpace(provider.API) {
+		case "", "openai-completions", "anthropic-messages", "google-generative-ai":
+		default:
+			return fmt.Errorf("custom relay %s protocol %q is not supported", id, provider.API)
 		}
 		for _, model := range provider.Models {
 			if len([]rune(model)) > 256 || strings.ContainsAny(model, "\x00\r\n") {

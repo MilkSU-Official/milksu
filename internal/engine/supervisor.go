@@ -3923,6 +3923,7 @@ func customProviderPayloadFor(settings config.AppSettings, name string) map[stri
 		"name":    strings.TrimSpace(provider.Name),
 		"key":     key,
 		"baseUrl": strings.TrimSpace(*provider.BaseURL),
+		"api":     strings.TrimSpace(provider.API),
 	}
 }
 
@@ -3950,6 +3951,7 @@ func engineEnvironment(settings config.AppSettings) []string {
 			"MILKSU_CUSTOM_PROVIDER_NAME="+strings.TrimSpace(activeProvider.Name),
 			"MILKSU_CUSTOM_PROVIDER_KEY="+activeProvider.APIKey,
 			"MILKSU_CUSTOM_PROVIDER_URL="+strings.TrimSpace(*activeProvider.BaseURL),
+			"MILKSU_CUSTOM_PROVIDER_API="+strings.TrimSpace(activeProvider.API),
 		)
 	}
 	if key, supported := providerAPIKeyEnvironment(settings.ActiveProvider); supported {

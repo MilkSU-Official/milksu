@@ -193,9 +193,9 @@ function providerRuntimeFor(provider) {
   return providerRuntime[provider];
 }
 
-function customRelayDefinition({ name, baseUrl, apiKey }, provider, model, environment) {
+function customRelayDefinition({ name, baseUrl, apiKey, api: explicitApi }, provider, model, environment) {
   if (!baseUrl || !apiKey || !model) return undefined;
-  const api = customRelayApi(baseUrl);
+  const api = customRelayApi(baseUrl, explicitApi);
   const shape = customRelayModelShape(api, model, baseUrl);
   return {
     name: String(name ?? provider).trim() || provider,
@@ -247,6 +247,7 @@ function currentProviderDefinition(
       name: String(turnProvider.name ?? provider).trim() || provider,
       baseUrl: String(turnProvider.baseUrl ?? "").trim(),
       apiKey: String(turnProvider.key ?? "").trim(),
+      api: String(turnProvider.api ?? "").trim(),
     }, provider, model, environment);
     if (fromTurn) return fromTurn;
   }
@@ -259,6 +260,7 @@ function currentProviderDefinition(
         || provider,
       baseUrl: String(environment.MILKSU_CUSTOM_PROVIDER_URL ?? "").trim(),
       apiKey: String(environment.MILKSU_CUSTOM_PROVIDER_KEY ?? "").trim(),
+      api: String(environment.MILKSU_CUSTOM_PROVIDER_API ?? "").trim(),
     }, provider, model, environment);
   }
   const runtime = providerRuntimeFor(provider);

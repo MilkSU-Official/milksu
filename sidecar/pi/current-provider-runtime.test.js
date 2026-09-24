@@ -243,6 +243,23 @@ test("the conversation's own relay resolves even when the process was spawned fo
   assert.notEqual(definition.baseUrl, "https://other.invalid/v1");
 });
 
+test("an explicit protocol overrides the endpoint guess", () => {
+  const definition = currentProviderDefinition(
+    "custom-relay-gateway",
+    "claude-sonnet-5",
+    {},
+    {
+      id: "custom-relay-gateway",
+      name: "Gateway",
+      key: "relay-secret",
+      baseUrl: "https://gateway.example/v1",
+      api: "anthropic-messages",
+    },
+  );
+  assert.equal(definition.api, "anthropic-messages");
+  assert.equal(definition.baseUrl, "https://gateway.example");
+});
+
 test("an Anthropic relay path uses Messages and keeps Claude thinking", () => {
   const definition = currentProviderDefinition(
     "custom-relay-axon",
