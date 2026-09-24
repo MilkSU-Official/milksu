@@ -31,6 +31,12 @@ test("companion default prompt follows the UI locale", () => {
   assert.doesNotMatch(english, /we don't block/i);
   assert.doesNotMatch(chinese, /三个用户回合/);
   assert.doesNotMatch(english, /three user turns/);
+  assert.match(chinese, /决策是长任务时，以这一档为准/);
+  assert.match(chinese, /先用 read、bash、grep、find、ls/);
+  assert.match(chinese, /没有现成对话时也派发/);
+  assert.doesNotMatch(chinese, /没有合适的对话/);
+  assert.match(english, /that decision wins/);
+  assert.match(english, /Dispatch even when no conversation exists yet/);
   assert.match(chinese, /不要展开旧任务/);
   assert.match(english, /Do not recap old work/);
   assert.match(chinese, /不要等用户来要这些记忆/);
