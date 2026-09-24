@@ -73,6 +73,7 @@ async function reopenAccountLoginGate(driver) {
   })()`).catch(() => {})
   await delay(1_500)
   if (!await driver.ensureAttached()) return false
+  await driver.ensureProductLoopEventHook().catch(() => false)
   const gate = await waitFor(async () => {
     if (!driver?.cdpAlive()) return null
     const snapshot = inspectLoginPage(await snapshotLoginPage(driver))

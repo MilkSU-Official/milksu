@@ -561,29 +561,36 @@ export class GuiDriver {
         this.cdp.close()
         return false
       }
-      await this.cdp.evaluate(`(() => {
-        const loop = window.__milksuProductLoop || (window.__milksuProductLoop = { events: [], companionEvents: [] });
-        loop.companionEvents = loop.companionEvents || [];
-        if (!loop.engineBound) {
-          window.milksu.onEvent('engine-event', value => {
-            loop.events.push(value);
-          });
-          loop.engineBound = true;
-        }
-        if (!loop.companionBound) {
-          window.milksu.onEvent('companion-event', value => {
-            loop.companionEvents.push(value);
-          });
-          loop.companionBound = true;
-        }
-        return true;
-      })()`)
+      await this.ensureProductLoopEventHook()
       return true
     } catch (error) {
       this.gaps.push(error instanceof Error ? error.message : 'CDP WebSocket failed')
       this.cdp?.close()
       return false
     }
+  }
+
+  async ensureProductLoopEventHook() {
+    if (!this.cdpAlive()) return false
+    return this.cdp.evaluate(`(() => {
+      if (!window.milksu || typeof window.milksu.onEvent !== 'function') return false
+      const loop = window.__milksuProductLoop || (window.__milksuProductLoop = { events: [], companionEvents: [] });
+      loop.events = loop.events || [];
+      loop.companionEvents = loop.companionEvents || [];
+      if (!loop.engineBound) {
+        window.milksu.onEvent('engine-event', value => {
+          loop.events.push(value);
+        });
+        loop.engineBound = true;
+      }
+      if (!loop.companionBound) {
+        window.milksu.onEvent('companion-event', value => {
+          loop.companionEvents.push(value);
+        });
+        loop.companionBound = true;
+      }
+      return true;
+    })()`)
   }
 
   cdpAlive() {
@@ -643,6 +650,7 @@ export class GuiDriver {
     if (!await this.ensureAttached()) {
       throw new Error('CDP WebSocket closed')
     }
+    await this.ensureProductLoopEventHook().catch(() => false)
     let raw
     try {
       raw = await run()
@@ -651,6 +659,7 @@ export class GuiDriver {
       if (!/CDP WebSocket closed|CDP Runtime\.evaluate timed out/i.test(text)) throw error
       this.cdp.closed = true
       if (!await this.ensureAttached()) throw error
+      await this.ensureProductLoopEventHook().catch(() => false)
       raw = await run()
     }
     return Array.isArray(raw) ? raw : []
@@ -843,6 +852,7 @@ export class GuiDriver {
     if (!await this.ensureAttached()) {
       throw new Error('CDP WebSocket closed')
     }
+    await this.ensureProductLoopEventHook().catch(() => false)
     let raw
     try {
       raw = await run()
@@ -851,6 +861,7 @@ export class GuiDriver {
       if (!/CDP WebSocket closed|CDP Runtime\.evaluate timed out/i.test(text)) throw error
       this.cdp.closed = true
       if (!await this.ensureAttached()) throw error
+      await this.ensureProductLoopEventHook().catch(() => false)
       raw = await run()
     }
     const events = Array.isArray(raw) ? raw : []
