@@ -371,6 +371,8 @@ export interface AppSettings {
   disabled_skills?: string[]
   /** 读者在设置里标记为「agent 不可改写」的绝对路径（默认空；只拦写，不拦读）。 */
   protected_folders?: string[]
+  /** 受限文件夹保护的**总开关**（后端设置；缺省 = 开）。关掉后列出的路径不再受保护。 */
+  protected_folders_enabled?: boolean
   enabled_optional_skills?: string[]
   worker_provider?: string
   worker_model?: string
@@ -691,6 +693,7 @@ export function withAppSettingsDefaults(value: AppSettings): AppSettings {
       .map(name => String(name).trim())
       .filter(name => /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/.test(name)))],
     // 受限文件夹：只收绝对路径（相对路径在 agent 的 shell 里没有确定含义），去空、去重。
+    protected_folders_enabled: value.protected_folders_enabled !== false,
     protected_folders: [...new Set((value.protected_folders ?? [])
       .map(path => String(path).trim().replace(/\/+$/, ''))
       .filter(path => path.startsWith('/') && path !== '/'))],

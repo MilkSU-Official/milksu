@@ -32,6 +32,7 @@ const COLLAPSED_BODY_LINES = 15
 
 export default function ChatMessageItem({
   message,
+  protectedFolders,
   recoverable,
   recoveryContext,
   canRewind,
@@ -56,6 +57,8 @@ export default function ChatMessageItem({
   thinkingDefaultOpen?: boolean
   thinkingFoldKey?: string
   onRespondApproval?: (requestId: string, approved: boolean, scope?: 'once' | 'conversation', choice?: string) => void
+  /** 受限文件夹的**生效列表**（总开关关掉时为空）—— 由持有设置的那一层算好传进来。 */
+  protectedFolders?: string[]
   onRetry?: () => void
   onEditUser?: (messageId: string, content: string) => void
   onRewindContext?: () => void
@@ -392,7 +395,7 @@ export default function ChatMessageItem({
   const approvalVerification = destructiveAssessment ?? assessApprovalRequest({
     content: message.content ?? '',
     approvalInput: message.approvalInput ?? '',
-  })
+  }, [], { effectiveProtectedFolders: protectedFolders })
   const approvalIsDestructive = (
     /(^|\s)(rm|find|unlink|shred)\b/.test(`${approvalCommand}\n${message.approvalInput ?? ''}`)
     || /\bxargs\b/.test(`${approvalCommand}\n${message.approvalInput ?? ''}`)
@@ -410,7 +413,7 @@ export default function ChatMessageItem({
       const base = assessApprovalRequest({
         content: approvalCommand,
         approvalInput: message.approvalInput ?? '',
-      })
+      }, [], { effectiveProtectedFolders: protectedFolders })
       if (!approvalCommand) {
         if (!cancelled) {
           setDestructiveAssessment(base)
@@ -434,7 +437,7 @@ export default function ChatMessageItem({
       setDestructiveAssessment(assessApprovalRequest({
         content: approvalCommand,
         approvalInput: message.approvalInput ?? '',
-      }, facts))
+      }, facts, { effectiveProtectedFolders: protectedFolders }))
       setMeasuredFacts(facts)
     })()
     return () => {

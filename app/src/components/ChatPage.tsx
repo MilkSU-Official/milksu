@@ -52,7 +52,7 @@ import { toastError } from '@/lib/appToast'
 import { isAskMessage } from '@/lib/agentAsk'
 import { nextChatAutoScrollPinned } from '@/lib/chatAutoScroll'
 import { applyChatEdgeChrome } from '@/lib/chatEdgeFade'
-import { assessApprovalRequest } from '@/lib/destructiveTarget'
+import { assessApprovalRequest, effectiveProtectedFolders } from '@/lib/destructiveTarget'
 import { isGeneratedScratchWorkspace } from '@/lib/codingConversationGroups'
 import AgentPixelLoader from '@/components/AgentPixelLoader'
 import AkLoadingMark from '@/components/AkLoadingMark'
@@ -423,7 +423,11 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
   const approvalAssessed = useMemo(() => assessApprovalRequest({
     content: pendingApprovalMessage?.content ?? '',
     approvalInput: pendingApprovalMessage?.approvalInput ?? '',
-  }), [pendingApprovalMessage?.approvalInput, pendingApprovalMessage?.content])
+  }, [], { effectiveProtectedFolders: effectiveProtectedFolders(settings ?? undefined) }), [
+    pendingApprovalMessage?.approvalInput,
+    pendingApprovalMessage?.content,
+    settings,
+  ])
   const approvalBarIsDestructive = useMemo(() => {
     const command = `${pendingApprovalMessage?.content ?? ''}\n${pendingApprovalMessage?.approvalInput ?? ''}`
     return /(^|\s)(rm|find|unlink|shred)\b/.test(command)
@@ -2792,6 +2796,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
                   ) : (
                     <ChatMessageItem
                       key={item.id}
+                      protectedFolders={effectiveProtectedFolders(settings ?? undefined)}
                       message={item.message}
                       recoverable={item.message.id === recoverableFailureId}
                       recoveryContext={ctfSession ? 'ctf' : 'coding'}

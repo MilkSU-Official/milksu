@@ -102,7 +102,6 @@ import ExternalEditorIcon from '@/components/ExternalEditorIcon'
 import { buildDiagnosticText, isDebugMode, setDebugMode } from '@/lib/debugMode'
 import { explainModelVerificationFailure } from '@/lib/tokenFluxError'
 import { applyUiLocale, normalizeUiLocale, t } from '@/lib/uiLocale'
-import { readProtectProjectPaths, writeProtectProjectPaths } from '@/lib/approvalGuardsPreference'
 import {
   applyUiEmphasis,
   normalizeUiEmphasisPreset,
@@ -335,8 +334,6 @@ export default function SettingsPage({
   const buildTracking = state.buildTracking
   const buildTrackingCopying = state.buildTrackingCopying
   const notice = state.notice
-  // 审批护栏的本机偏好：默认开启（与以前行为一致），关掉后可以批准删除自己项目里的文件。
-  const [protectProjectPaths, setProtectProjectPaths] = useState(() => readProtectProjectPaths())
   // 受限文件夹的输入框（添加后即写进设置并落盘）。
   const [newProtectedFolder, setNewProtectedFolder] = useState('')
 
@@ -632,19 +629,22 @@ export default function SettingsPage({
                   />
                 ))}
                   <SettingsRow
-                    label={t('同时保护我的项目目录', 'Also protect my own project folders')}
+                    label={t('启用受限文件夹保护', 'Enable protected folders')}
                     description={t(
-                      '默认开启。开启时，你自己的项目目录在删除审批里属于「受保护」，只能拒绝。关掉后你可以批准删除自己项目里的文件；系统目录（用户主目录、~/Library、Documents、Desktop、runtime-data、构建缓存等）永远受保护，不受这个开关影响。',
-                      'On by default. While on, your own project folders count as protected in a delete approval, so it can only be denied. Turn it off to approve deleting files inside your own projects; system locations (your home directory, ~/Library, Documents, Desktop, runtime-data, build caches) stay protected either way.',
+                      '总开关。关掉后，上面列出的路径不再受保护（写入不被拦截、删除审批里也不算受保护）；系统目录（用户主目录、~/Library、Documents、Desktop、runtime-data、构建缓存等）始终受保护，与本开关无关。',
+                      'The master switch. Turn it off and the folders listed above stop being protected — writes are not blocked and a delete approval no longer counts them; system locations (your home directory, ~/Library, Documents, Desktop, runtime-data, build caches) stay protected regardless of this switch.',
                     )}
                     trailing={(
                       <Switch
-                        checked={protectProjectPaths}
-                        aria-label={t('同时保护我的项目目录', 'Also protect my own project folders')}
+                        checked={working.protected_folders_enabled !== false}
+                        aria-label={t('启用受限文件夹保护', 'Enable protected folders')}
                         onCheckedChange={value => {
+                          // 写入**后端设置**（与列表同一份、同一条链下发到侧车）——不再用 localStorage。
                           const next = Boolean(value)
-                          setProtectProjectPaths(next)
-                          writeProtectProjectPaths(next)
+                          store.patchWorking(draft => {
+                            draft.protected_folders_enabled = next
+                          })
+                          void store.save()
                         }}
                       />
                     )}

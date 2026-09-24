@@ -1412,6 +1412,17 @@ func (s *Supervisor) BroadcastUserMemory(memories []map[string]string, revision 
 	}
 }
 
+// effectiveProtectedFolders is the single decision both halves share. The master switch
+// decides whether the reader's list is enforced at all, and this is the only value the
+// sidecar ever sees: when the switch is off it is handed an empty list rather than a second
+// flag, so the sidecar's existing reader cannot end up disagreeing with the renderer.
+func effectiveProtectedFolders(settings config.AppSettings) []string {
+	if !config.ProtectedFoldersEnabled(settings) {
+		return []string{}
+	}
+	return settings.ProtectedFolders
+}
+
 func (s *Supervisor) forwardUserMemoryTurn(raw bridgeEvent) {
 	if s == nil {
 		return
@@ -1734,7 +1745,7 @@ func (s *Supervisor) sendMessage(
 		"sessionRole":      strings.TrimSpace(sessionRole),
 		"executionMode":    codingPolicy.ExecutionMode,
 		"approvalPolicy":   codingPolicy.ApprovalPolicy,
-		"protectedFolders": settings.ProtectedFolders,
+		"protectedFolders": effectiveProtectedFolders(settings),
 		"mcpServers":       mcpServers,
 		"mcpConfigDigest":  strings.TrimSpace(mcpConfigDigest),
 		"disabledSkills":   mergeDisabledSkills(settings.DisabledSkills, resourceRuntime.HideFactorySkills),

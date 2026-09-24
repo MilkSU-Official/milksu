@@ -4,6 +4,7 @@ import {
 
   assessApprovalRequest,
   assessDestructiveRequest,
+  effectiveProtectedFolders,
   parseDestructiveTargets,
   protectedMatch,
 } from './destructiveTarget'
@@ -62,9 +63,10 @@ describe('protected rules and user data', () => {
       protected: true,
       rule: '/private/tmp/milksu-*',
     })
-    expect(protectedMatch('/private/tmp/project-backup-2026')).toEqual({
+    // 受限文件夹不是产品里写死的规则：**只有读者列出的那条路径**才受保护。
+    expect(protectedMatch('/tmp/example-project/out', { effectiveFolders: ['/tmp/example-project/out'] })).toEqual({
       protected: true,
-      rule: '/private/tmp/project-backup-*',
+      rule: '/tmp/example-project/out',
     })
   })
 
@@ -75,22 +77,43 @@ describe('protected rules and user data', () => {
     expect(protectedMatch('/Users/me/Documents/report.pdf').protected).toBe(true)
   })
 
-  // 读者被卡住的现场：自己的项目目录（含 record/trainer 段）也进了受保护清单，于是审批只能拒绝。
-  // 设置里关掉「项目目录保护」后必须能批准，而系统级保护不受这个偏好影响。
-  it('lets the reader approve their own project paths once the project protection is off', () => {
-    writeProtectProjectPaths(false)
-    try {
-      const own = assessDestructiveRequest(`rm -rf ${testHome}/record/out`, [])
-      expect(own.protections).not.toContain('项目记录与训练数据')
+  // 读者列出的路径进了保护清单 ⇒ 审批只能拒绝；总开关关掉（= 空列表）⇒ 可以批准。
+  // 系统级保护与这个开关无关，一条都不许松。
+  it('lets the reader approve their own listed paths once the master switch is off', () => {
+    const listed = ['/tmp/example-project/out']
+    // 开：列出的路径受保护（规则名就是那条路径本身）。
+    const on = assessDestructiveRequest('rm -rf /tmp/example-project/out', [], '/', {
+      effectiveProtectedFolders: listed,
+    })
+    expect(on.protections).toContain('/tmp/example-project/out')
+    // 关：同一个路径不再受保护。
+    const off = assessDestructiveRequest('rm -rf /tmp/example-project/out', [], '/', {
+      effectiveProtectedFolders: [],
+    })
+    expect(off.protections).not.toContain('/tmp/example-project/out')
 
-      // 系统级保护与这个偏好无关：关掉后照样拦。
-      const documents = assessDestructiveRequest(`rm -rf ${testHome}/Documents/report.pdf`, [])
-      expect(documents.protections).toContain('~/Documents')
-      const caches = assessDestructiveRequest('rm -rf /private/tmp/milksu-restore-check-XYZ', [])
-      expect(caches.protections).toContain('/private/tmp/milksu-*')
-    } finally {
-      writeProtectProjectPaths(true)
-    }
+    // 系统级保护与这个开关无关：关掉后照样拦。
+    const documents = assessDestructiveRequest(`rm -rf ${testHome}/Documents/report.pdf`, [], '/', {
+      effectiveProtectedFolders: [],
+    })
+    expect(documents.protections).toContain('~/Documents')
+    const caches = assessDestructiveRequest('rm -rf /private/tmp/milksu-restore-check-XYZ', [], '/', {
+      effectiveProtectedFolders: [],
+    })
+    expect(caches.protections).toContain('/private/tmp/milksu-*')
+  })
+
+  // 跨层一致性：渲染层的"生效列表"与下发给侧车的列表是**同一个口径**（关掉 ⇒ 空列表）。
+  it('hands the same effective list to both halves', () => {
+    const settings = { protected_folders: ['/tmp/example-project/out'] }
+    expect(effectiveProtectedFolders(settings)).toEqual(['/tmp/example-project/out'])
+    expect(effectiveProtectedFolders({ ...settings, protected_folders_enabled: true }))
+      .toEqual(['/tmp/example-project/out'])
+    // 关掉 ⇒ 空列表 ⇒ 与引擎侧 effectiveProtectedFolders(settings) 下发的结果一致。
+    expect(effectiveProtectedFolders({ ...settings, protected_folders_enabled: false })).toEqual([])
+    expect(protectedMatch('/tmp/example-project/out', {
+      effectiveFolders: effectiveProtectedFolders({ ...settings, protected_folders_enabled: false }),
+    }).protected).toBe(false)
   })
 })
 
@@ -373,22 +396,23 @@ describe("evidence: prose and structured input agree on the target", () => {
 describe('project protection is optional', () => {
   // 默认（没有第二个参数）必须与以前完全一致：这条按路径段匹配 record/trainer，
   // 读者自己的项目/记录目录都会命中，所以它必须先被锁死。
-  it('keeps protecting project record paths by default', () => {
-    expect(protectedMatch('/private/tmp/project-backup-2026')).toEqual({
+  it('protects exactly the folders the reader listed', () => {
+    const listed = ['/tmp/example-project/out', '/tmp/example-backup']
+    expect(protectedMatch('/tmp/example-project/out', { effectiveFolders: listed })).toEqual({
       protected: true,
-      rule: '/private/tmp/project-backup-*',
+      rule: '/tmp/example-project/out',
     })
-    expect(protectedMatch(`${testHome}/trainer/out`)).toEqual({
-      protected: true,
-      rule: '项目记录与训练数据',
-    })
-    // 显式传 true 与不传等价
-    expect(protectedMatch('/private/tmp/project-backup-2026', { protectProjectPaths: true }).protected).toBe(true)
+    // 目录**下面**的东西同样受保护（规则名仍是那条路径）。
+    expect(protectedMatch('/tmp/example-project/out/report.bin', { effectiveFolders: listed }).rule)
+      .toBe('/tmp/example-project/out')
+    // 没列出来的路径 ⇒ 不受保护：产品里不再有任何写死的项目特征。
+    expect(protectedMatch('/tmp/example-project/other', { effectiveFolders: listed }).protected).toBe(false)
+    expect(protectedMatch('/tmp/example-project/out').protected).toBe(false)
   })
 
-  it('lets the reader approve their own project paths when it is off', () => {
-    expect(protectedMatch('/private/tmp/project-backup-2026', { protectProjectPaths: false }).protected).toBe(false)
-    expect(protectedMatch(`${testHome}/trainer/out`, { protectProjectPaths: false }).protected).toBe(false)
+  it('lets the reader approve their own listed paths when the switch is off', () => {
+    expect(protectedMatch('/tmp/example-project/out', { effectiveFolders: [] }).protected).toBe(false)
+    expect(protectedMatch('/tmp/example-project-out/report.bin', { effectiveFolders: [] }).protected).toBe(false)
   })
 
   it('never relaxes the system-level protection', () => {

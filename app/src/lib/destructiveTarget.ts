@@ -9,7 +9,6 @@
  * backend as measurements and merged in `describeDestructiveRequest`.
  */
 
-import { readProtectProjectPaths } from '@/lib/approvalGuardsPreference'
 
 export type DestructiveTargetKind = 'file' | 'directory-tree' | 'glob' | 'unknown'
 
@@ -93,13 +92,32 @@ const ALWAYS_PROTECTED_RULES: { rule: string; test: (path: string) => boolean }[
   },
 ]
 
-// 可开关：只保护"我们自己的项目目录"这一类。默认开（行为与以前完全一致），
-// 关掉之后读者才能批准删除自己的项目文件（真机：读者自己项目里的审批只能拒绝，工作被卡住）。
-// 注意这组按**路径段**匹配 record/trainer：读者自己的项目/记录目录都落在这里，所以它必须落在这一组。
-const PROJECT_PROTECTED_RULES: { rule: string; test: (path: string) => boolean }[] = [
-  { rule: '/private/tmp/project-backup-*', test: p => /^\/private\/tmp\/project-backup-/.test(p) },
-  { rule: '项目记录与训练数据', test: p => /(^|\/)(record|trainer)(\/|$)/i.test(p) },
-]
+// 受限文件夹：保护对象**完全来自读者在设置里列出的绝对路径** —— 产品里不含任何写死的
+// 项目名或项目特征（"不是所有人都有某个目录"）。这里只把列表翻译成规则：
+// 每条规则的名字就是那条路径本身，命中判定是"该路径本身、或它下面的任何东西"。
+/**
+ * 前端版的"生效列表"：与 Go 侧 `effectiveProtectedFolders`（关掉 ⇒ 下发空数组）**同一口径**。
+ * 总开关缺省为开（`!== false`）；关掉时返回空列表 ⇒ 两半都表现为"没有受限文件夹"。
+ */
+export function effectiveProtectedFolders(settings?: {
+  protected_folders?: string[]
+  protected_folders_enabled?: boolean
+}): string[] {
+  if (settings?.protected_folders_enabled === false) return []
+  return settings?.protected_folders ?? []
+}
+
+export function projectProtectedRules(
+  folders?: readonly string[],
+): { rule: string; test: (path: string) => boolean }[] {
+  return (folders ?? [])
+    .map(folder => String(folder ?? '').trim().replace(/\/+$/, ''))
+    .filter(folder => folder.startsWith('/') && folder !== '/')
+    .map(folder => ({
+      rule: folder,
+      test: (path: string) => path === folder || path.startsWith(`${folder}/`),
+    }))
+}
 
 /** Split a shell-ish command into simple tokens, honouring quotes. */
 function tokenize(command: string): string[] {
@@ -389,11 +407,12 @@ export interface ApprovalAssessment extends DestructiveAssessment {
 export function assessApprovalRequest(
   input: { content?: string; approvalInput?: string },
   facts: DestructiveFacts[] = [],
+  options?: { effectiveProtectedFolders?: readonly string[] },
 ): ApprovalAssessment {
   const structured = parseApprovalInput(input.approvalInput)
   if (!structured) {
     // Older or unexpected requests: fall back to the text, but say so.
-    const fallback = assessDestructiveRequest(String(input.content ?? ''), facts)
+    const fallback = assessDestructiveRequest(String(input.content ?? ''), facts, '/', options)
     return {
       ...fallback,
       unverified: true,
@@ -404,14 +423,14 @@ export function assessApprovalRequest(
     ? `rm -rf ${structured.paths.map(path => JSON.stringify(path)).join(' ')}`
     : ''
   const first = structured.command
-    ? assessDestructiveRequest(structured.command, facts)
+    ? assessDestructiveRequest(structured.command, facts, '/', options)
     : undefined
   if (first && !first.undetermined && first.targets.length) return first
   if (fromPaths) {
-    const fromTargets = assessDestructiveRequest(fromPaths, facts)
+    const fromTargets = assessDestructiveRequest(fromPaths, facts, '/', options)
     if (!fromTargets.undetermined && fromTargets.targets.length) return fromTargets
   }
-  return first ?? assessDestructiveRequest(String(input.content ?? ''), facts)
+  return first ?? assessDestructiveRequest(String(input.content ?? ''), facts, '/', options)
 }
 
 /**
@@ -420,12 +439,14 @@ export function assessApprovalRequest(
  */
 export function protectedMatch(
   path: string | undefined,
-  options?: { protectProjectPaths?: boolean },
+  options?: { effectiveFolders?: readonly string[] },
 ): ProtectedMatch {
   if (!path) return { protected: false }
-  const protectProjectPaths = options?.protectProjectPaths !== false
-  const rules = protectProjectPaths
-    ? [...ALWAYS_PROTECTED_RULES, ...PROJECT_PROTECTED_RULES]
+  // **只有一个判断来源**：调用方给的是"已经算好的生效列表"——总开关关掉时它就是空列表，
+  // 所以渲染层与引擎侧（关掉⇒下发空数组）天然同一个口径，不会出现两边说法不一致。
+  const folders = options?.effectiveFolders ?? []
+  const rules = folders.length
+    ? [...ALWAYS_PROTECTED_RULES, ...projectProtectedRules(folders)]
     : ALWAYS_PROTECTED_RULES
   for (const entry of rules) {
     if (entry.test(path)) return { protected: true, rule: entry.rule }
@@ -537,6 +558,7 @@ export function assessDestructiveRequest(
   command: string,
   facts: DestructiveFacts[] = [],
   cwd = '/',
+  options?: { effectiveProtectedFolders?: readonly string[] },
 ): DestructiveAssessment {
   const targets = parseDestructiveTargets(normalizeAssessmentInput(command), cwd)
     // The parser expands substitutions to judge the outer command; a target that still
@@ -572,7 +594,7 @@ export function assessDestructiveRequest(
   targets.forEach((target, index) => {
     // 项目目录保护是读者本机的选择：设置里关掉后，他自己项目里的删除申请
     // 就可以被批准；系统级保护不接受这个偏好（见 protectedMatch）。
-    const match = protectedMatch(target.path, { protectProjectPaths: readProtectProjectPaths() })
+    const match = protectedMatch(target.path, { effectiveFolders: options?.effectiveProtectedFolders })
     if (match.protected && match.rule) protections.push(match.rule)
     if (touchesUserData(target.path)) touchesUserDataFlag = true
     const fact = facts[index]
