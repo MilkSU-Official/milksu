@@ -128,7 +128,7 @@ v1 使用严格 SemVer。插件会声明最低宿主版本和必需能力；条�
 
 - 当前代码、测试和真实平台回执仍是实现事实；
 - 正式发行状态由[当前开发目标](./current-objectives.md)和[文档与事实状态](./document-status.md)维护；
-- 运行结构和安全边界分别以[当前系统与分层](../architecture/current-system.md)和[安全能力边界](./security-agent-boundary.md)为准；
+- 运行结构以[当前系统与分层](../architecture/current-system.md)为准；
 - 官方插件 ID、内置收录、发布节奏和支持范围由维护者依照现有贡献与发行流程决定。
 
 如果本指南与上述文档或当前实现不一致，应以上述事实入口为准，并欢迎提交文档修正。

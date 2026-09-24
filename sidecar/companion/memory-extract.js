@@ -70,6 +70,24 @@ function parseJSONObject(text) {
   }
 }
 
+export function companionMemoryLine(items, locale = "zh") {
+  const rows = Array.isArray(items) ? items : [];
+  const created = rows.filter(item => item?.action === "create").map(item => String(item.title ?? "").trim()).filter(Boolean);
+  const updated = rows.filter(item => item?.action === "update").map(item => String(item.title ?? "").trim()).filter(Boolean);
+  if (locale === "en") {
+    if (!created.length && !updated.length) return "Memory: nothing kept.";
+    const parts = [];
+    if (created.length) parts.push(`kept ${created.join(", ")}`);
+    if (updated.length) parts.push(`updated ${updated.join(", ")}`);
+    return `Memory: ${parts.join("; ")}.`;
+  }
+  if (!created.length && !updated.length) return "记忆：没有归档。";
+  const parts = [];
+  if (created.length) parts.push(`记下了${created.join("、")}`);
+  if (updated.length) parts.push(`更新了${updated.join("、")}`);
+  return `记忆：${parts.join("，")}。`;
+}
+
 export function parseMemoryExtractResult(text, { userText = "", memories = [], maxItems = 1 } = {}) {
   const parsed = parseJSONObject(text);
   const rows = Array.isArray(parsed?.items) ? parsed.items : [];
@@ -295,9 +313,8 @@ export function createMemoryExtractController({ extract, setTimer, clearTimer, n
         const failed = retry;
         retry = null;
         if (failed) await run(failed, true, ticket);
-        if (ticket !== generation || mode !== "turn") return;
-        await run({ stretch: [turn], maxItems: MEMORY_EXTRACT_TURN_LIMIT }, false, ticket);
-        return;
+        if (ticket !== generation || mode !== "turn") return null;
+        return run({ stretch: [turn], maxItems: MEMORY_EXTRACT_TURN_LIMIT }, false, ticket);
       }
       stretch.push(turn);
       armIdle();

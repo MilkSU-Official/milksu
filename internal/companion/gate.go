@@ -34,7 +34,7 @@ func keepMemoryItem(ctx context.Context, judge NoulJudge, userText string, item 
 	return yes >= jevYesThreshold
 }
 
-func speaksWithoutIntent(kind string) bool {
+func speaksWithoutDecision(kind string) bool {
 	switch strings.TrimSpace(kind) {
 	case "settled", "completed", "needs_approval", "error":
 		return true
@@ -44,7 +44,7 @@ func speaksWithoutIntent(kind string) bool {
 }
 
 func shouldSpeak(ctx context.Context, judge NoulJudge, title, kind, task string) bool {
-	if speaksWithoutIntent(kind) {
+	if speaksWithoutDecision(kind) {
 		return true
 	}
 	if strings.TrimSpace(kind) != "stall" {

@@ -29,7 +29,7 @@ describe('companionTurnProcess', () => {
     })).toBe(true)
     expect(companionTurnHasProcess({
       ...emptyCompanionTurnProcess(),
-      components: [{ id: 'intent:chat', kind: 'intent', title: '', detail: '意图识别：闲聊。由主模型判定。', running: false }],
+      components: [{ id: 'decision:chat', kind: 'decision', title: '', detail: '决策：闲聊。由主模型判定。', running: false }],
     })).toBe(true)
   })
 
@@ -66,9 +66,9 @@ describe('companionTurnProcess', () => {
       role: 'assistant',
       thinking: '先看板。',
       tools: ['companion_dispatch'],
-      components: [{ kind: 'intent', detail: '意图识别：闲聊。由主模型判定。' }],
+      components: [{ kind: 'decision', detail: '决策：闲聊。由主模型判定。' }],
     }).components.map(component => component.kind === 'tool' ? component.title : component.kind)).toEqual([
-      'intent',
+      'decision',
       'thinking',
       'companion_dispatch',
     ])
@@ -225,16 +225,46 @@ describe('companionTurnProcess', () => {
         timestamp: '2026-09-25T00:00:02.000Z',
         role: 'assistant',
         text: '还不错。',
-        components: [{ kind: 'intent', detail: '意图识别：闲聊。由主模型判定。' }],
+        components: [{ kind: 'decision', detail: '决策：闲聊。由主模型判定。' }],
       },
     ])
     const process = rows.find(row => row.kind === 'process')
     expect(process?.kind === 'process' ? process.process.components.map(item => item.detail) : []).toEqual([
-      '意图识别：闲聊。由主模型判定。',
+      '决策：闲聊。由主模型判定。',
     ])
     expect(rows.filter(row => row.kind === 'entry').map(row => row.kind === 'entry' ? row.entry.text : '')).toEqual([
       '今天过得怎么样',
       '还不错。',
+    ])
+  })
+
+  it('puts the memory record after tools', () => {
+    const rows = buildCompanionDisplayRows([
+      {
+        id: 'u1',
+        type: 'message',
+        timestamp: '2026-09-25T00:00:00.000Z',
+        role: 'user',
+        text: '以后叫我 Milk',
+      },
+      {
+        id: 'a1',
+        type: 'message',
+        timestamp: '2026-09-25T00:00:02.000Z',
+        role: 'assistant',
+        text: '好。',
+        tools: ['bash'],
+        components: [
+          { kind: 'decision', detail: '决策：闲聊。由主模型判定。' },
+          { kind: 'memory', detail: '记忆：记下了称呼。' },
+        ],
+      },
+    ])
+    const process = rows.find(row => row.kind === 'process')
+    expect(process?.kind === 'process' ? process.process.components.map(item => item.kind === 'tool' ? item.title : item.detail) : []).toEqual([
+      '决策：闲聊。由主模型判定。',
+      'bash',
+      '记忆：记下了称呼。',
     ])
   })
 })

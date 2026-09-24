@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   applySemanticMemorySnapshot,
+  companionMemoryLine,
   createMemoryExtractController,
   extractCompanionMemories,
   normalizeMemoryExtract,
@@ -9,6 +10,12 @@ import {
   memoryExtractInstructions,
   parseMemoryExtractResult,
 } from "./memory-extract.js";
+
+test("memory line names what was kept and sits as the archive result", () => {
+  assert.equal(companionMemoryLine([], "zh"), "记忆：没有归档。");
+  assert.equal(companionMemoryLine([{ action: "create", title: "称呼" }], "zh"), "记忆：记下了称呼。");
+  assert.equal(companionMemoryLine([{ action: "update", title: "称呼" }], "en"), "Memory: updated 称呼.");
+});
 
 test("extract instructions leave repository rules in the project", () => {
   assert.match(memoryExtractInstructions("zh", 1), /仓库/);

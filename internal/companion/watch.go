@@ -172,7 +172,7 @@ func (r *Runtime) taskEventsEnabled() bool {
 	return flag == nil || *flag
 }
 
-func (r *Runtime) routeIntent(prompt string) map[string]any {
+func (r *Runtime) routeDecision(prompt string) map[string]any {
 	settings := r.resolvedSettings()
 	if settings.Jev == nil || strings.TrimSpace(settings.Jev.APIKey) == "" {
 		return nil

@@ -266,12 +266,12 @@ export function useCompanion() {
       }))
       return
     }
-    if (type === 'intent.recorded') {
+    if (type === 'decision.recorded') {
       const text = String(payload.text || '').trim()
       if (!text) return
       setLiveProcess(current => patchProcessComponent(current, {
-        id: `intent:${payload.bucket || 'route'}`,
-        kind: 'intent',
+        id: `decision:${payload.bucket || 'route'}`,
+        kind: 'decision',
         title: '',
         detail: text,
         running: false,
@@ -354,7 +354,7 @@ export function useCompanion() {
           || payload.type === 'tool.started'
           || payload.type === 'tool.progress'
           || payload.type === 'tool.completed'
-          || payload.type === 'intent.recorded'
+          || payload.type === 'decision.recorded'
         ) {
           applyLiveEvent(payload)
           return
@@ -387,6 +387,33 @@ export function useCompanion() {
           return
         }
         if (payload.type === 'companion.memory') {
+          void refreshMemory()
+          return
+        }
+        if (payload.type === 'memory.recorded') {
+          const text = String(payload.text || '').trim()
+          if (!text) return
+          setEntries(current => {
+            let index = -1
+            for (let cursor = current.length - 1; cursor >= 0; cursor -= 1) {
+              if (current[cursor]?.role === 'assistant') {
+                index = cursor
+                break
+              }
+            }
+            if (index < 0) return current
+            const entry = current[index]
+            if (!entry) return current
+            if ((entry.components ?? []).some(item => item.kind === 'memory' && item.detail === text)) {
+              return current
+            }
+            const next = current.slice()
+            next[index] = {
+              ...entry,
+              components: [...(entry.components ?? []), { id: 'memory', kind: 'memory', detail: text }],
+            }
+            return next
+          })
           void refreshMemory()
           return
         }

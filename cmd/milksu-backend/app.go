@@ -748,9 +748,9 @@ func tokenfluxAliasRank(id string) int {
 	return 1
 }
 
-// SetAccountIntentCredential is called only by the Electron main process after
-// login pulls GET /v1/account/intent-credential. The renderer cannot set it.
-func (a *App) SetAccountIntentCredential(credential string) error {
+// SetAccountDecisionCredential is called only by the Electron main process after
+// login pulls GET /v1/account/decision-credential. The renderer cannot set it.
+func (a *App) SetAccountDecisionCredential(credential string) error {
 	changed, err := a.settings.SetManagedJevCredential(credential)
 	if err != nil {
 		return err
@@ -758,14 +758,14 @@ func (a *App) SetAccountIntentCredential(credential string) error {
 	if !changed {
 		return nil
 	}
-	a.rotateEngineCredentials("account intent credential synced")
+	a.rotateEngineCredentials("account decision credential synced")
 	if a.companion != nil {
 		a.companion.MarkStale()
 	}
 	return nil
 }
 
-func (a *App) ClearAccountIntentCredential() error {
+func (a *App) ClearAccountDecisionCredential() error {
 	changed, err := a.settings.ClearManagedJevCredential()
 	if err != nil {
 		return err
@@ -773,7 +773,7 @@ func (a *App) ClearAccountIntentCredential() error {
 	if !changed {
 		return nil
 	}
-	a.rotateEngineCredentials("account intent credential cleared")
+	a.rotateEngineCredentials("account decision credential cleared")
 	if a.companion != nil {
 		a.companion.MarkStale()
 	}

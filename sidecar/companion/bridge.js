@@ -18,6 +18,7 @@ import { assistantVisibleText, reviewCompanionDraft, rewriteLastAssistantReply }
 import {
   applySemanticMemorySnapshot,
   createMemoryExtractController,
+  companionMemoryLine,
   extractCompanionMemories,
 } from "./memory-extract.js";
 import {
@@ -26,8 +27,8 @@ import {
   stampCompanionAbortedTurn,
 } from "./turn-error.js";
 import {
-  classifyCompanionIntent,
-  companionIntentLine,
+  classifyCompanionDecision,
+  companionDecisionLine,
   prepareCompanionPrompt,
 } from "./attachments.js";
 import { withTokenFluxModelCompat } from "../pi/tokenflux-model-compat.js";
@@ -54,7 +55,7 @@ let episodicRecalls = [];
 let persona = "";
 let memorySearchEnabled = true;
 let replyStyle = "markdown";
-let turnIntentLine = "";
+let turnDecisionLine = "";
 const memoryExtract = createMemoryExtractController({
   extract: job => runMemoryExtract(job),
   // One quiet-period timer. clearTimeout drops a wait that has not fired.
@@ -208,7 +209,7 @@ async function createCompanionSession(command) {
         getEpisodicRecalls: () => episodicRecalls,
         getPersona: () => persona,
         getSystemPrompt: () => companionSystemPrompt(uiLocale, replyStyle),
-        getIntentLine: () => turnIntentLine,
+        getDecisionLine: () => turnDecisionLine,
       }),
       // Same Pi hardening as the main coding bridge: bash timeout bound + tool_result clip.
       createHangGuardExtension(),
@@ -559,15 +560,33 @@ async function runMemoryExtract(job) {
     maxItems: job?.maxItems,
     complete: completeCompanionReview,
   });
-  if (memoryExtractIsStale(job)) return { committed: false };
-  if (!items.length) return { committed: true };
+  if (memoryExtractIsStale(job)) return { committed: false, items: [] };
+  if (!items.length) {
+    recordMemoryComponent([]);
+    return { committed: true, items: [] };
+  }
   const result = await requestHost("memory", {
     action: "commit",
     userText,
     items,
   });
   applySemanticMemories(result?.approved, result?.revision);
-  return { committed: true };
+  recordMemoryComponent(items);
+  return { committed: true, items };
+}
+
+function recordMemoryComponent(items) {
+  const text = companionMemoryLine(items, uiLocale);
+  if (!text) return;
+  persistCompanionMessages([{
+    role: "custom",
+    customType: "companion.memory",
+    content: [{ type: "text", text }],
+    display: false,
+    details: { text },
+    timestamp: new Date().toISOString(),
+  }]);
+  emit("memory.recorded", { text });
 }
 
 async function publishReviewedReply(userText) {
@@ -603,29 +622,29 @@ async function sendPrompt(command) {
   // So the phone UI can show the user bubble immediately when Send comes from
   // Desktop RPC / product-loop (not only the in-phone optimistic path).
   const locale = command?.locale === "en" ? "en" : "zh";
-  const intent = command?.hostNotice === true
+  const decision = command?.hostNotice === true
     ? null
-    : (command?.intent?.bucket
-      ? command.intent
-      : await classifyCompanionIntent(prepared.prompt, {
+    : (command?.decision?.bucket
+      ? command.decision
+      : await classifyCompanionDecision(prepared.prompt, {
         locale,
         complete: context => completeCompanionReview(context),
         readText: assistantVisibleText,
       }));
-  turnIntentLine = intent?.bucket ? companionIntentLine(intent, locale) : "";
-  if (intent?.bucket) {
-    const source = intent.source === "model" ? "model" : "jev";
-    emit("intent.recorded", {
-      bucket: intent.bucket,
+  turnDecisionLine = decision?.bucket ? companionDecisionLine(decision, locale) : "";
+  if (decision?.bucket) {
+    const source = decision.source === "model" ? "model" : "jev";
+    emit("decision.recorded", {
+      bucket: decision.bucket,
       source,
-      text: turnIntentLine,
+      text: turnDecisionLine,
     });
     persistCompanionMessages([{
       role: "custom",
-      customType: "companion.intent",
-      content: [{ type: "text", text: turnIntentLine }],
+      customType: "companion.decision",
+      content: [{ type: "text", text: turnDecisionLine }],
       display: false,
-      details: { bucket: intent.bucket, source, text: turnIntentLine },
+      details: { bucket: decision.bucket, source, text: turnDecisionLine },
       timestamp: new Date().toISOString(),
     }]);
   }
@@ -657,7 +676,7 @@ async function sendPrompt(command) {
       try {
         await pending;
       } finally {
-        turnIntentLine = "";
+        turnDecisionLine = "";
         openReplyCapture();
       }
       await gate.done;
@@ -674,7 +693,7 @@ async function sendPrompt(command) {
         aborted: turnAborted,
       });
     } catch (error) {
-      turnIntentLine = "";
+      turnDecisionLine = "";
       openReplyCapture();
       captureReply = false;
       heldReply = "";

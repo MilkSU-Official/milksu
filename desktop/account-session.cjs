@@ -7,7 +7,7 @@ const path = require('node:path')
 const MAX_AVATAR_BYTES = 1024 * 1024
 const GITHUB_AVATAR_HOST = 'avatars.githubusercontent.com'
 const TOKENFLUX_BASE_URL = 'https://tokenflux.dev/v1'
-const INTENT_BASE_URL = 'https://openrouter.ai/api/alpha'
+const DECISION_BASE_URL = 'https://openrouter.ai/api/alpha'
 // Startup often calls status()/modelCredential() twice (main pre-load + renderer).
 // Short TTL + in-flight dedupe avoids a second network round-trip without stale login UX.
 const STATUS_CACHE_TTL_MS = 15_000
@@ -156,8 +156,8 @@ class AccountSession {
     this.statusInflight = null
     this.credentialCache = null
     this.credentialInflight = null
-    this.intentCache = null
-    this.intentInflight = null
+    this.decisionCache = null
+    this.decisionInflight = null
     this.avatarFillInflight = new Map()
   }
 
@@ -166,8 +166,8 @@ class AccountSession {
     this.statusInflight = null
     this.credentialCache = null
     this.credentialInflight = null
-    this.intentCache = null
-    this.intentInflight = null
+    this.decisionCache = null
+    this.decisionInflight = null
   }
 
   cachedAvatarDataURL(rawURL) {
@@ -486,36 +486,36 @@ class AccountSession {
     }
   }
 
-  async intentCredential() {
-    if (this.intentCache && Date.now() - this.intentCache.at < CREDENTIAL_CACHE_TTL_MS) {
-      return this.intentCache.value
+  async decisionCredential() {
+    if (this.decisionCache && Date.now() - this.decisionCache.at < CREDENTIAL_CACHE_TTL_MS) {
+      return this.decisionCache.value
     }
-    if (this.intentInflight) return this.intentInflight
-    this.intentInflight = this.loadIntentCredential()
+    if (this.decisionInflight) return this.decisionInflight
+    this.decisionInflight = this.loadDecisionCredential()
       .then(value => {
-        this.intentCache = { value, at: Date.now() }
+        this.decisionCache = { value, at: Date.now() }
         return value
       })
       .finally(() => {
-        this.intentInflight = null
+        this.decisionInflight = null
       })
-    return this.intentInflight
+    return this.decisionInflight
   }
 
-  async loadIntentCredential() {
+  async loadDecisionCredential() {
     if (!this.config.configured) return null
     const session = await this.activeSession()
     if (!session) return null
-    const response = await this.fetch(`${this.config.apiUrl}/v1/account/intent-credential`, {
+    const response = await this.fetch(`${this.config.apiUrl}/v1/account/decision-credential`, {
       headers: { authorization: `Bearer ${session.accessToken}` },
     })
     if (response.status === 404) return null
-    if (!response.ok) throw new Error('账户意图识别凭据同步失败')
+    if (!response.ok) throw new Error('账户决策凭据同步失败')
     const payload = await response.json().catch(() => ({}))
     const credential = payload?.credential
     const apiKey = String(credential?.apiKey ?? '').trim()
     const baseUrl = String(credential?.baseUrl ?? '').replace(/\/+$/u, '')
-    if (baseUrl !== INTENT_BASE_URL || !apiKey) throw new Error('账户意图识别凭据无效')
+    if (baseUrl !== DECISION_BASE_URL || !apiKey) throw new Error('账户决策凭据无效')
     return { baseUrl, apiKey }
   }
 

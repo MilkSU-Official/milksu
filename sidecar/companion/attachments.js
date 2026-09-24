@@ -19,7 +19,7 @@ const INTENT_LABELS = {
   long: { zh: "长任务", en: "long task" },
 };
 
-export function companionIntentLine(intent, locale = "zh") {
+export function companionDecisionLine(intent, locale = "zh") {
   const bucket = String(intent?.bucket ?? "").trim();
   const label = INTENT_LABELS[bucket];
   if (!label) return "";
@@ -28,19 +28,19 @@ export function companionIntentLine(intent, locale = "zh") {
     : "Jev";
   const name = locale === "en" ? label.en : label.zh;
   return locale === "en"
-    ? `Intent: ${name}. Decided by ${who}.`
-    : `意图识别：${name}。由${who}判定。`;
+    ? `Decision: ${name}. Decided by ${who}.`
+    : `决策：${name}。由${who}判定。`;
 }
 
 export function companionModelPrompt(visible, intent, locale = "zh") {
-  const line = companionIntentLine(intent, locale);
+  const line = companionDecisionLine(intent, locale);
   const text = String(visible ?? "").trim();
   if (!line) return text;
   if (!text) return line;
   return `${line}\n${text}`;
 }
 
-export function companionIntentBucketFromModel(text) {
+export function companionDecisionBucketFromModel(text) {
   const raw = String(text ?? "");
   if (/长任务|long task/i.test(raw)) return "long";
   if (/深入思考|deep thinking/i.test(raw)) return "deep";
@@ -48,7 +48,7 @@ export function companionIntentBucketFromModel(text) {
   return "";
 }
 
-export async function classifyCompanionIntent(prompt, { locale = "zh", complete, readText } = {}) {
+export async function classifyCompanionDecision(prompt, { locale = "zh", complete, readText } = {}) {
   const asked = String(prompt ?? "").trim();
   if (!asked || typeof complete !== "function") return null;
   const language = locale === "en" ? "en" : "zh";
@@ -71,7 +71,7 @@ export async function classifyCompanionIntent(prompt, { locale = "zh", complete,
     return null;
   }
   const text = typeof readText === "function" ? readText(message) : "";
-  const bucket = companionIntentBucketFromModel(text);
+  const bucket = companionDecisionBucketFromModel(text);
   if (!bucket) return null;
   return { bucket, source: "model" };
 }

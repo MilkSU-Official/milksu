@@ -1,5 +1,5 @@
 /**
- * Intent topic. Each case drives the companion and reads the fold, the
+ * Decisions topic. Each case drives the companion and reads the fold, the
  * transcript, and whether a conversation was dispatched.
  */
 
@@ -30,20 +30,20 @@ import {
   snapshotHas,
 } from './product-loop-session.mjs'
 
-const KEY_LEAK = ['Jev API', 'jev api', 'OpenRouter API Key', '意图识别钥匙', 'Intent API key']
+const KEY_LEAK = ['Jev API', 'jev api', 'OpenRouter API Key', '决策钥匙', 'Decision key']
 const TURN_MS = 180_000
 
 export async function runIntentSettingsBlank(driver) {
   const opened = await openSettingsCategory(driver, ['看板娘', 'Companion'])
   if (!opened.ok) return fail(opened.detail || '打不开看板娘设置')
   const snap = await pageSnapshot(driver)
-  if (snapshotHas(snap, KEY_LEAK)) return fail('设置里还能看见意图识别钥匙')
+  if (snapshotHas(snap, KEY_LEAK)) return fail('设置里还能看见决策钥匙')
   await leaveSettings(driver).catch(() => {})
-  return pass('设置里没有意图识别钥匙')
+  return pass('设置里没有决策钥匙')
 }
 
 function intentOf(events) {
-  const rows = (events || []).filter(event => eventTypeOf(event) === 'intent.recorded')
+  const rows = (events || []).filter(event => eventTypeOf(event) === 'decision.recorded')
   const last = rows[rows.length - 1] || null
   return {
     bucket: String(last?.bucket ?? last?.Bucket ?? ''),
@@ -59,12 +59,12 @@ export function describeAccountIntentGrant(status, settings) {
     problems.push('账户未登录')
   }
   const jev = settings?.jev
-  if (String(jev?.api_key ?? '').trim()) problems.push('设置回执里出现了意图识别钥匙')
+  if (String(jev?.api_key ?? '').trim()) problems.push('设置回执里出现了决策钥匙')
   if (jev?.session_only === true) problems.push('钥匙是这次会话手填的，不是账户下发')
-  if (!jev?.has_api_key) problems.push('登录后账户没有发下意图识别钥匙')
+  if (!jev?.has_api_key) problems.push('登录后账户没有发下决策钥匙')
   return {
     ok: problems.length === 0,
-    detail: problems.length ? problems.join('；') : '登录后账户发下了意图识别钥匙',
+    detail: problems.length ? problems.join('；') : '登录后账户发下了决策钥匙',
   }
 }
 
@@ -123,7 +123,7 @@ async function companionAsk(driver, prompt, options = {}) {
 }
 
 function userSawIntentLine(page) {
-  return /意图识别：|Intent:/.test(visibleTranscriptText(page))
+  return /决策：|Decision:/.test(visibleTranscriptText(page))
 }
 
 function cloudFoldProblem(intent) {
@@ -137,7 +137,7 @@ function cloudFoldProblem(intent) {
 
 function modelFoldProblem(intent) {
   const text = String(intent?.text ?? '')
-  if (!text) return '没有意图识别记录'
+  if (!text) return '没有决策记录'
   if (intent?.source !== 'model') return `来源不是主模型：${intent?.source || '空'} ${text}`
   if (!/主模型|conversation model/.test(text)) return `记录没有标明主模型：${text}`
   if (/\bJev\b/.test(text)) return `没接上仍写成了 Jev：${text}`
@@ -390,7 +390,7 @@ export async function runIntentMemory(driver) {
   const surface = judgeIntentSurface(kept, {})
   if (surface) return surface
   const text = `${kept.intent.text}\n${dropped.intent.text}\n${visibleTranscriptText(dropped.page)}`
-  if (!/意图识别|记忆/.test(text)) return fail('记录里没有这次记忆判断')
+  if (!/决策|记忆/.test(text)) return fail('记录里没有这次记忆判断')
   const forgotten = await forgetCompanionMemoryIds(driver, judged.ids)
   if (!forgotten.ok) return fail(forgotten.reason)
   return pass(`称呼 ${marker} 留下了，碎片没有留下`)
@@ -460,10 +460,10 @@ export async function runIntentSettingsReject(driver) {
   }
   const after = await driver.invoke('GetSettings', [])
   const snap = JSON.stringify(after ?? {})
-  if (snap.includes(marker)) return fail('设置回执里出现了手填的意图识别钥匙')
+  if (snap.includes(marker)) return fail('设置回执里出现了手填的决策钥匙')
   if (after?.jev?.session_only === true) return fail('手填钥匙留成了本次会话')
   if (before?.jev?.has_api_key && !after?.jev?.has_api_key) return fail('手填把账户发下的钥匙清掉了')
-  return pass('设置里写不进意图识别钥匙')
+  return pass('设置里写不进决策钥匙')
 }
 
 async function poll(driver, ready, timeoutMs) {
@@ -497,7 +497,7 @@ export async function runLoggedOutIntentFallback(driver) {
 async function runDisconnectedFallback(driver) {
   await driver.invoke('LogoutAccount', []).catch(() => {})
   const cleared = await poll(driver, grant => !grant.ok, 20_000)
-  if (cleared.ok) return fail('退出登录后意图识别钥匙还在')
+  if (cleared.ok) return fail('退出登录后决策钥匙还在')
   const result = await runLoggedOutIntentFallback(driver)
   const { signInProductLoopAccount } = await import('./product-loop-first-use.mjs')
   await signInProductLoopAccount(driver).catch(() => {})

@@ -158,7 +158,7 @@ test('catalog keeps product regression away from evalsuite', () => {
     'first-use',
     'coding',
     'companion',
-    'intent',
+    'decisions',
     'workspaces',
     'desktop-surface',
     'account-shell',
@@ -167,9 +167,9 @@ test('catalog keeps product regression away from evalsuite', () => {
   assert.equal(CASE_RUN_ORDER[0], 'login-gate')
   assert.equal(MODULES.coding.cases.length, 35)
   assert.equal(MODULES.companion.cases.length, 23)
-  assert.equal(MODULES.intent.default, true)
-  assert.equal(MODULES.intent.cases.length, 17)
-  assert.equal(DEFAULT_MODULES.includes('intent'), true)
+  assert.equal(MODULES.decisions.default, true)
+  assert.equal(MODULES.decisions.cases.length, 17)
+  assert.equal(DEFAULT_MODULES.includes('decisions'), true)
   assert.equal(typeof PRODUCT_LOOP_RUNNERS['intent-account-issued'], 'function')
   assert.equal(typeof PRODUCT_LOOP_RUNNERS['intent-settings-blank'], 'function')
   assert.equal(typeof PRODUCT_LOOP_RUNNERS['intent-settings-reject'], 'function')

@@ -181,9 +181,12 @@ function componentFromTranscript(
 
 export function processFromCompanionEntry(entry: CompanionTranscriptEntry): CompanionTurnProcess {
   const components: CompanionProcessComponent[] = []
+  const memory: CompanionProcessComponent[] = []
   ;(entry.components ?? []).forEach((component, index) => {
     const next = componentFromTranscript(entry.id, component, index)
-    if (next) components.push(next)
+    if (!next) return
+    if (next.kind === 'memory') memory.push(next)
+    else components.push(next)
   })
   const thinking = String(entry.thinking ?? '').trim()
   if (thinking) {
@@ -205,6 +208,7 @@ export function processFromCompanionEntry(entry: CompanionTranscriptEntry): Comp
       running: false,
     })
   })
+  components.push(...memory)
   return { components, reply: '' }
 }
 

@@ -147,7 +147,7 @@ func TestTranscriptFoldsIntentOntoTheAssistant(t *testing.T) {
 	lines := []string{
 		`{"type":"session","id":"companion","timestamp":"2026-01-01T00:00:00Z"}`,
 		`{"type":"message","id":"u1","timestamp":"2026-01-01T00:00:01Z","message":{"role":"user","content":[{"type":"text","text":"今天过得怎么样"}]}}`,
-		`{"type":"message","id":"i1","timestamp":"2026-01-01T00:00:02Z","message":{"role":"custom","customType":"companion.intent","display":false,"content":[{"type":"text","text":"意图识别：闲聊。由主模型判定。"}]}}`,
+		`{"type":"message","id":"i1","timestamp":"2026-01-01T00:00:02Z","message":{"role":"custom","customType":"companion.decision","display":false,"content":[{"type":"text","text":"决策：闲聊。由主模型判定。"}]}}`,
 		`{"type":"message","id":"a1","timestamp":"2026-01-01T00:00:03Z","message":{"role":"assistant","content":[{"type":"text","text":"还不错。"}]}}`,
 	}
 	path := writeCompanionJSONL(t, dir, lines)
@@ -162,11 +162,36 @@ func TestTranscriptFoldsIntentOntoTheAssistant(t *testing.T) {
 	if assistant.Text != "还不错。" {
 		t.Fatalf("reply: %#v", assistant)
 	}
-	if strings.Contains(assistant.Text, "意图识别") {
+	if strings.Contains(assistant.Text, "决策") {
 		t.Fatalf("intent leaked into reply text: %#v", assistant)
 	}
-	if len(assistant.Components) != 1 || assistant.Components[0].Kind != "intent" || assistant.Components[0].Detail != "意图识别：闲聊。由主模型判定。" {
+	if len(assistant.Components) != 1 || assistant.Components[0].Kind != "decision" || assistant.Components[0].Detail != "决策：闲聊。由主模型判定。" {
 		t.Fatalf("intent component: %#v", assistant.Components)
+	}
+}
+
+func TestTranscriptFoldsMemoryAfterTheReply(t *testing.T) {
+	dir := t.TempDir()
+	lines := []string{
+		`{"type":"session","id":"companion","timestamp":"2026-01-01T00:00:00Z"}`,
+		`{"type":"message","id":"u1","timestamp":"2026-01-01T00:00:01Z","message":{"role":"user","content":[{"type":"text","text":"以后叫我 Milk"}]}}`,
+		`{"type":"message","id":"a1","timestamp":"2026-01-01T00:00:02Z","message":{"role":"assistant","content":[{"type":"toolCall","name":"bash"},{"type":"text","text":"好。"}]}}`,
+		`{"type":"message","id":"m1","timestamp":"2026-01-01T00:00:03Z","message":{"role":"custom","customType":"companion.memory","display":false,"content":[{"type":"text","text":"记忆：记下了称呼。"}]}}`,
+	}
+	path := writeCompanionJSONL(t, dir, lines)
+	page, err := ReadTranscriptPage(path, 20, nil, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Entries) != 2 {
+		t.Fatalf("entries: %#v", page.Entries)
+	}
+	assistant := page.Entries[1]
+	if assistant.Text != "好。" || strings.Contains(assistant.Text, "记忆") {
+		t.Fatalf("reply: %#v", assistant)
+	}
+	if len(assistant.Components) != 1 || assistant.Components[0].Kind != "memory" || assistant.Components[0].Detail != "记忆：记下了称呼。" {
+		t.Fatalf("memory component: %#v", assistant.Components)
 	}
 }
 

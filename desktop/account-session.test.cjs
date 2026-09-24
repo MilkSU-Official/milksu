@@ -427,8 +427,8 @@ test('retrieves the assigned TokenFlux credential only through the main-process 
   })
 })
 
-test('retrieves the account intent credential only through the main-process account session', async () => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'milksu-intent-credential-'))
+test('retrieves the account decision credential only through the main-process account session', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'milksu-decision-credential-'))
   await fs.writeFile(path.join(root, 'account-session.json'), JSON.stringify({
     accessToken: 'account-session-secret',
     expiresAt: Date.now() + 600_000,
@@ -437,7 +437,7 @@ test('retrieves the account intent credential only through the main-process acco
     MILKSU_ACCOUNT_API_URL: 'https://account.example',
   } })
   const fetchImpl = async (url, options = {}) => {
-    assert.equal(url, 'https://account.example/v1/account/intent-credential')
+    assert.equal(url, 'https://account.example/v1/account/decision-credential')
     assert.equal(new Headers(options.headers).get('authorization'), 'Bearer account-session-secret')
     return {
       ok: true,
@@ -449,7 +449,7 @@ test('retrieves the account intent credential only through the main-process acco
     }
   }
   const session = new AccountSession({ config, userDataPath: root, openExternal: async () => {}, fetchImpl })
-  assert.deepEqual(await session.intentCredential(), {
+  assert.deepEqual(await session.decisionCredential(), {
     baseUrl: 'https://openrouter.ai/api/alpha',
     apiKey: 'account-issued-intent-key',
   })

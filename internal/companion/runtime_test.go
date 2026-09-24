@@ -395,11 +395,11 @@ func TestConfirmedSteerArmsTheWatch(t *testing.T) {
 
 func TestMapCompanionIntentRecordedReachesThePhone(t *testing.T) {
 	event := mapCompanionEvent(map[string]any{
-		"type":   "intent.recorded",
-		"text":   "意图识别：闲聊。由Jev判定。",
+		"type":   "decision.recorded",
+		"text":   "决策：闲聊。由Jev判定。",
 		"bucket": "chat",
 	})
-	if event.Type != "intent.recorded" {
+	if event.Type != "decision.recorded" {
 		t.Fatalf("type %q", event.Type)
 	}
 	if event.Text == "" || event.Bucket != "chat" {

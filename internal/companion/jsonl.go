@@ -352,7 +352,7 @@ func decodeTranscriptLine(line []byte) (TranscriptEntry, bool) {
 		Timestamp: strings.TrimSpace(stringValue(raw["timestamp"])),
 	}
 	if message, ok := raw["message"].(map[string]any); ok {
-		if component, ok := companionIntentComponent(message); ok {
+		if component, ok := companionProcessComponent(message); ok {
 			entry.Type = "component"
 			entry.Components = []TranscriptComponent{component}
 			return entry, true
@@ -422,8 +422,14 @@ func decodeTranscriptLine(line []byte) (TranscriptEntry, bool) {
 	return entry, true
 }
 
-func companionIntentComponent(message map[string]any) (TranscriptComponent, bool) {
-	if strings.TrimSpace(stringValue(message["customType"])) != "companion.intent" {
+func companionProcessComponent(message map[string]any) (TranscriptComponent, bool) {
+	kind := ""
+	switch strings.TrimSpace(stringValue(message["customType"])) {
+	case "companion.decision":
+		kind = "decision"
+	case "companion.memory":
+		kind = "memory"
+	default:
 		return TranscriptComponent{}, false
 	}
 	detail := strings.TrimSpace(extractMessageText(message["content"]))
@@ -436,8 +442,8 @@ func companionIntentComponent(message map[string]any) (TranscriptComponent, bool
 		return TranscriptComponent{}, false
 	}
 	return TranscriptComponent{
-		ID:     "intent",
-		Kind:   "intent",
+		ID:     kind,
+		Kind:   kind,
 		Detail: detail,
 	}, true
 }
@@ -458,6 +464,16 @@ func foldTranscriptComponents(entries []TranscriptEntry) []TranscriptEntry {
 			pending = nil
 		}
 		folded = append(folded, entry)
+	}
+	if len(pending) == 0 {
+		return folded
+	}
+	for index := len(folded) - 1; index >= 0; index-- {
+		if folded[index].Role != "assistant" {
+			continue
+		}
+		folded[index].Components = append(folded[index].Components, pending...)
+		break
 	}
 	return folded
 }

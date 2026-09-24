@@ -6,9 +6,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import {
-  classifyCompanionIntent,
-  companionIntentBucketFromModel,
-  companionIntentLine,
+  classifyCompanionDecision,
+  companionDecisionBucketFromModel,
+  companionDecisionLine,
   companionModelPrompt,
   companionVisiblePrompt,
   prepareCompanionPrompt,
@@ -28,23 +28,23 @@ async function fixture(name, content, mediaType = "text/plain") {
 
 test("intent line is for the model and names who decided", () => {
   const intent = { bucket: "deep", source: "jev" };
-  assert.equal(companionIntentLine(intent, "zh"), "意图识别：深入思考。由Jev判定。");
-  assert.equal(companionModelPrompt("帮我看下", intent, "zh"), "意图识别：深入思考。由Jev判定。\n帮我看下");
+  assert.equal(companionDecisionLine(intent, "zh"), "决策：深入思考。由Jev判定。");
+  assert.equal(companionModelPrompt("帮我看下", intent, "zh"), "决策：深入思考。由Jev判定。\n帮我看下");
   assert.equal(companionVisiblePrompt("帮我看下"), "帮我看下");
-  assert.match(companionIntentLine({ bucket: "chat", source: "model" }, "en"), /conversation model/);
-  assert.equal(companionIntentLine({ bucket: "nope" }, "zh"), "");
+  assert.match(companionDecisionLine({ bucket: "chat", source: "model" }, "en"), /conversation model/);
+  assert.equal(companionDecisionLine({ bucket: "nope" }, "zh"), "");
 });
 
 test("model fallback keeps one bucket and drops an empty reply", async () => {
-  assert.equal(companionIntentBucketFromModel("深入思考"), "deep");
-  assert.equal(companionIntentBucketFromModel("long task"), "long");
-  assert.equal(companionIntentBucketFromModel("随便"), "");
-  const classified = await classifyCompanionIntent("帮我看看这段", {
+  assert.equal(companionDecisionBucketFromModel("深入思考"), "deep");
+  assert.equal(companionDecisionBucketFromModel("long task"), "long");
+  assert.equal(companionDecisionBucketFromModel("随便"), "");
+  const classified = await classifyCompanionDecision("帮我看看这段", {
     complete: async () => ({ content: [{ type: "text", text: "闲聊" }] }),
     readText: () => "闲聊",
   });
   assert.deepEqual(classified, { bucket: "chat", source: "model" });
-  assert.equal(await classifyCompanionIntent("帮我看看", { complete: async () => { throw new Error("down"); } }), null);
+  assert.equal(await classifyCompanionDecision("帮我看看", { complete: async () => { throw new Error("down"); } }), null);
 });
 
 test("visible prompt keeps user text and asks the model to look when the field is empty", () => {

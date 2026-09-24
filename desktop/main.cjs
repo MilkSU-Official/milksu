@@ -315,17 +315,17 @@ let screenRecordingRelaunchArm = null
 // immediately after the main-process pre-load sync (same startup window).
 let lastAccountModelSync = null
 let accountModelSyncInflight = null
-let lastAccountIntentSync = null
+let lastAccountDecisionSync = null
 let accountIntentSyncInflight = null
 const ACCOUNT_MODEL_SYNC_DEDUP_MS = 15_000
 
-async function syncAccountIntentAuthorization(status) {
+async function syncAccountDecisionAuthorization(status) {
   if (!backend || !accountSession) return false
   const action = accountIntentAuthorizationAction(status)
   if (
     action === 'refresh'
-    && lastAccountIntentSync?.action === 'refresh'
-    && Date.now() - lastAccountIntentSync.at < ACCOUNT_MODEL_SYNC_DEDUP_MS
+    && lastAccountDecisionSync?.action === 'refresh'
+    && Date.now() - lastAccountDecisionSync.at < ACCOUNT_MODEL_SYNC_DEDUP_MS
   ) {
     return true
   }
@@ -333,14 +333,14 @@ async function syncAccountIntentAuthorization(status) {
   if (action === 'refresh') {
     accountIntentSyncInflight = (async () => {
       try {
-        const credential = await accountSession.intentCredential()
+        const credential = await accountSession.decisionCredential()
         if (credential?.apiKey) {
-          await backend.invokeFromElectronHost('SetAccountIntentCredential', [credential.apiKey])
-          lastAccountIntentSync = { action: 'refresh', at: Date.now() }
+          await backend.invokeFromElectronHost('SetAccountDecisionCredential', [credential.apiKey])
+          lastAccountDecisionSync = { action: 'refresh', at: Date.now() }
           return true
         }
-        await backend.invokeFromElectronHost('ClearAccountIntentCredential', [])
-        lastAccountIntentSync = { action: 'clear', at: Date.now() }
+        await backend.invokeFromElectronHost('ClearAccountDecisionCredential', [])
+        lastAccountDecisionSync = { action: 'clear', at: Date.now() }
         return false
       } catch {
         return false
@@ -351,13 +351,13 @@ async function syncAccountIntentAuthorization(status) {
     return accountIntentSyncInflight
   }
   if (action === 'preserve') return false
-  await backend.invokeFromElectronHost('ClearAccountIntentCredential', [])
-  lastAccountIntentSync = { action: 'clear', at: Date.now() }
+  await backend.invokeFromElectronHost('ClearAccountDecisionCredential', [])
+  lastAccountDecisionSync = { action: 'clear', at: Date.now() }
   return false
 }
 
 async function syncAccountModelAuthorization(status) {
-  await syncAccountIntentAuthorization(status)
+  await syncAccountDecisionAuthorization(status)
   if (!backend || !accountSession) return false
   const started = Date.now()
   const action = accountModelAuthorizationAction(status)

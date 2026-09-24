@@ -882,11 +882,11 @@ export async function runFirstUse(options = {}) {
         issued.ok ? issued.detail : `再登录后${issued.detail}`,
       )
     } else if (!steps.some(step => step.id === 'login-intent-issued')) {
-      await record('login-intent-issued', 'FAIL', githubOk ? '再登录没跑到，意图识别钥匙没核' : 'GitHub 没登录，意图识别钥匙没核')
+      await record('login-intent-issued', 'FAIL', githubOk ? '再登录没跑到，决策钥匙没核' : 'GitHub 没登录，决策钥匙没核')
     }
     if (launch?.driver?.cdpAlive() && accountBack) {
       markProductLoopAccountRequired(true)
-      process.stdout.write('FIRST-USE 后面的用例继续用已登录的账户模型和意图识别钥匙\n')
+      process.stdout.write('FIRST-USE 后面的用例继续用已登录的账户模型和决策钥匙\n')
     } else if (launch?.driver?.cdpAlive() && accountFileloopOk) {
       process.stdout.write('FIRST-USE 账户模型已验证，再登录没回来，后面不改用个人 Key\n')
     } else if (launch?.driver?.cdpAlive()) {

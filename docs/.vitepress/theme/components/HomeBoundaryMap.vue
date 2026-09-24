@@ -57,7 +57,7 @@ const roles = [
           <h1>MilkSU：一站式网络安全 AI 学习客户端</h1>
           <p>人与安全 Agent 共同学习、实验、验证与复盘的桌面客户端。</p>
         </div>
-        <a class="deep-link" href="/developer/security-agent-boundary">架构与能力边界 <span>→</span></a>
+        <a class="deep-link" href="/architecture/current-system">当前系统 <span>→</span></a>
       </header>
 
       <div class="boundary-board">

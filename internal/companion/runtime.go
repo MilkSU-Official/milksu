@@ -159,8 +159,8 @@ func (r *Runtime) Send(prompt string, attachments []codingattachment.Attachment)
 		"replyStyle":               config.CompanionReplyStyle(r.resolvedSettings()),
 	}
 	r.markSpeaking()
-	if intent := r.routeIntent(prompt); intent != nil {
-		command["intent"] = intent
+	if intent := r.routeDecision(prompt); intent != nil {
+		command["decision"] = intent
 	}
 	if len(attachments) > 0 {
 		command["attachments"] = attachments
@@ -1261,10 +1261,14 @@ func mapCompanionEvent(raw map[string]any) engine.Event {
 		if content := strings.TrimSpace(stringValue(raw["text"])); content != "" {
 			event.Text = content
 		}
-	case "intent.recorded":
-		event.Type = "intent.recorded"
+	case "decision.recorded":
+		event.Type = "decision.recorded"
 		event.Text = strings.TrimSpace(stringValue(raw["text"]))
 		event.Bucket = strings.TrimSpace(stringValue(raw["bucket"]))
+		event.Done = true
+	case "memory.recorded":
+		event.Type = "memory.recorded"
+		event.Text = strings.TrimSpace(stringValue(raw["text"]))
 		event.Done = true
 	case "turn_settled":
 		event.Type = "assistant.settled"

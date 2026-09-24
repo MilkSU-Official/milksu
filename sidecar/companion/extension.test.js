@@ -16,11 +16,11 @@ function collectHandlers(factory) {
 test("intent line stays on the system prompt, not a transcript row", async () => {
   const handlers = collectHandlers(createCompanionExtension({
     getSystemPrompt: () => "You are the MilkSU companion.",
-    getIntentLine: () => "意图识别：闲聊。由主模型判定。",
+    getDecisionLine: () => "决策：闲聊。由主模型判定。",
   }));
   const result = await handlers.get("before_agent_start")();
   assert.equal(result.message, undefined);
-  assert.match(result.systemPrompt, /意图识别：闲聊。由主模型判定。/);
+  assert.match(result.systemPrompt, /决策：闲聊。由主模型判定。/);
   assert.match(result.systemPrompt, /You are the MilkSU companion\./);
 });
 

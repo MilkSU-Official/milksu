@@ -11,7 +11,7 @@ export function createCompanionExtension({
   getEpisodicRecalls,
   getPersona,
   getSystemPrompt,
-  getIntentLine,
+  getDecisionLine,
 } = {}) {
   return (pi) => {
     // Pi 0.84.1 compacts this session itself. session_before_compact
@@ -24,7 +24,7 @@ export function createCompanionExtension({
         base: typeof getSystemPrompt === "function" ? getSystemPrompt() : "",
         persona: typeof getPersona === "function" ? getPersona() : "",
       });
-      const line = typeof getIntentLine === "function" ? String(getIntentLine() ?? "").trim() : "";
+      const line = typeof getDecisionLine === "function" ? String(getDecisionLine() ?? "").trim() : "";
       // Keep the fold on the system prompt. A turn message is written into the
       // session the user reads, even when display is false.
       const text = line ? [composed.text, line].filter(Boolean).join("\n\n") : composed.text;

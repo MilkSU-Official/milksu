@@ -87,17 +87,17 @@ test('InstallUpdate lets quitAndInstall own the quit and does not call app.quit'
 
 test('account credential synchronization uses only the Electron host source', () => {
   const syncSource = sourceBetween(
-    'async function syncAccountIntentAuthorization',
+    'async function syncAccountDecisionAuthorization',
     'function resourcesPath',
   )
 
   assert.match(
     syncSource,
-    /backend\.invokeFromElectronHost\(\s*'SetAccountIntentCredential'/u,
+    /backend\.invokeFromElectronHost\(\s*'SetAccountDecisionCredential'/u,
   )
   assert.match(
     syncSource,
-    /backend\.invokeFromElectronHost\('ClearAccountIntentCredential', \[\]\)/u,
+    /backend\.invokeFromElectronHost\('ClearAccountDecisionCredential', \[\]\)/u,
   )
   assert.match(
     syncSource,

@@ -100,10 +100,10 @@ func TestDesktopAppMethodsMatchRendererBindings(t *testing.T) {
 		t.Fatalf("renderer desktop method registry drift\n got: %v\nwant: %v", gotRenderer, wantRenderer)
 	}
 	wantElectronHost := []string{
-		"ClearAccountIntentCredential",
+		"ClearAccountDecisionCredential",
 		"ClearAccountModelCredential",
 		"ListPetPluginPackages",
-		"SetAccountIntentCredential",
+		"SetAccountDecisionCredential",
 		"SetAccountModelCredential",
 	}
 	if !reflect.DeepEqual(gotElectronHost, wantElectronHost) {

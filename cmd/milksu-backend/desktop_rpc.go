@@ -431,8 +431,8 @@ func desktopAppMethods(app *App) map[string]desktopAppMethod {
 
 		"SetAccountModelCredential":    electronHostDesktopMethod(app.SetAccountModelCredential),
 		"ClearAccountModelCredential":  electronHostDesktopMethod(app.ClearAccountModelCredential),
-		"SetAccountIntentCredential":   electronHostDesktopMethod(app.SetAccountIntentCredential),
-		"ClearAccountIntentCredential": electronHostDesktopMethod(app.ClearAccountIntentCredential),
+		"SetAccountDecisionCredential":   electronHostDesktopMethod(app.SetAccountDecisionCredential),
+		"ClearAccountDecisionCredential": electronHostDesktopMethod(app.ClearAccountDecisionCredential),
 	}
 }
 
