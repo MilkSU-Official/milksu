@@ -209,14 +209,16 @@ func (r *Runtime) queueNotice(prompt string) {
 		return
 	}
 	r.watchMu.Lock()
+	r.pendingNotice = mergeHostNotice(r.pendingNotice, prompt)
 	if r.inFlight.Load() {
-		r.pendingNotice = prompt
 		r.watchMu.Unlock()
 		return
 	}
+	merged := r.pendingNotice
 	r.pendingNotice = ""
+	r.inFlight.Store(true)
 	r.watchMu.Unlock()
-	r.deliverNotice(prompt)
+	r.writeNotice(merged)
 }
 
 func (r *Runtime) flushNotice() {
@@ -226,25 +228,32 @@ func (r *Runtime) flushNotice() {
 	r.watchMu.Lock()
 	prompt := r.pendingNotice
 	r.pendingNotice = ""
-	r.watchMu.Unlock()
 	if strings.TrimSpace(prompt) == "" || r.inFlight.Load() {
 		if strings.TrimSpace(prompt) != "" {
-			r.watchMu.Lock()
-			if r.pendingNotice == "" {
-				r.pendingNotice = prompt
-			}
-			r.watchMu.Unlock()
+			r.pendingNotice = mergeHostNotice(r.pendingNotice, prompt)
 		}
+		r.watchMu.Unlock()
 		return
 	}
-	r.deliverNotice(prompt)
+	r.inFlight.Store(true)
+	r.watchMu.Unlock()
+	r.writeNotice(prompt)
 }
 
-func (r *Runtime) deliverNotice(prompt string) {
-	r.setInFlight(true)
+func (r *Runtime) writeNotice(prompt string) {
 	if err := r.write(map[string]any{"action": "host_notice", "prompt": prompt}); err != nil {
 		r.setInFlight(false)
+		r.flushNotice()
 	}
+}
+
+func (r *Runtime) markSpeaking() {
+	if r == nil {
+		return
+	}
+	r.watchMu.Lock()
+	r.inFlight.Store(true)
+	r.watchMu.Unlock()
 }
 
 func filterCommitInput(ctx context.Context, judge NoulJudge, input map[string]any) map[string]any {

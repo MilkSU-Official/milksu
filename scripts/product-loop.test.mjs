@@ -165,7 +165,7 @@ test('catalog keeps product regression away from evalsuite', () => {
   assert.equal(MODULES.coding.cases.length, 35)
   assert.equal(MODULES.companion.cases.length, 23)
   assert.equal(MODULES.intent.default, false)
-  assert.equal(MODULES.intent.cases.length, 11)
+  assert.equal(MODULES.intent.cases.length, 15)
   assert.equal(DEFAULT_MODULES.includes('intent'), false)
   assert.equal(typeof PRODUCT_LOOP_RUNNERS['intent-settings-blank'], 'function')
   assert.equal(typeof PRODUCT_LOOP_RUNNERS['intent-fallback-record'], 'function')

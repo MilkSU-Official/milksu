@@ -64,6 +64,7 @@ interface CompanionEnginePayload {
   requestId?: string
   toolName?: string
   toolCallId?: string
+  bucket?: string
   durationMs?: number
   done?: boolean
   aborted?: boolean

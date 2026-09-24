@@ -64,6 +64,26 @@ func shouldSpeak(ctx context.Context, judge NoulJudge, title, kind, task string)
 	return yes >= jevYesThreshold
 }
 
+func mergeHostNotice(current, next string) string {
+	current = strings.TrimSpace(current)
+	next = strings.TrimSpace(next)
+	if current == "" || current == next {
+		return next
+	}
+	if next == "" {
+		return current
+	}
+	lines := strings.Split(next, "\n")
+	extra := next
+	if len(lines) >= 3 && lines[0] == hostNoticePrefix {
+		extra = lines[1] + "\n" + lines[2]
+	}
+	if strings.Contains(current, extra) {
+		return current
+	}
+	return current + "\n" + extra
+}
+
 func hostNoticePrompt(title, kind, locale string) string {
 	title = strings.TrimSpace(title)
 	kind = strings.TrimSpace(kind)

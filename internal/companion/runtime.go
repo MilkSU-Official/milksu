@@ -157,6 +157,7 @@ func (r *Runtime) Send(prompt string, attachments []codingattachment.Attachment)
 		"memoryExtractIdleMinutes": config.CompanionMemoryExtractIdleMinutes(r.resolvedSettings()),
 		"replyStyle":               config.CompanionReplyStyle(r.resolvedSettings()),
 	}
+	r.markSpeaking()
 	if intent := r.routeIntent(prompt); intent != nil {
 		command["intent"] = intent
 	}
@@ -167,9 +168,10 @@ func (r *Runtime) Send(prompt string, attachments []codingattachment.Attachment)
 		command["customProvider"] = custom
 	}
 	if err := r.writeEnsured(command); err != nil {
+		r.setInFlight(false)
+		r.flushNotice()
 		return err
 	}
-	r.setInFlight(true)
 	return nil
 }
 

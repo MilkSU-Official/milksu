@@ -3,6 +3,7 @@ package companion
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -45,6 +46,32 @@ func TestShouldSpeakFollowsEventKind(t *testing.T) {
 	down := func(context.Context, any, string) (float64, error) { return 0, errors.New("down") }
 	if shouldSpeak(context.Background(), down, "登录", "stall", "查一下") {
 		t.Fatal("a failed stall judge should stay quiet")
+	}
+}
+
+func TestQueuedNoticesMergeWhileSpeaking(t *testing.T) {
+	runtime := &Runtime{}
+	runtime.setInFlight(true)
+	runtime.queueNotice(hostNoticePrompt("甲", "settled", "zh"))
+	runtime.queueNotice(hostNoticePrompt("乙", "error", "zh"))
+	if !strings.Contains(runtime.pendingNotice, "甲") || !strings.Contains(runtime.pendingNotice, "乙") {
+		t.Fatalf("in-flight notices were overwritten: %q", runtime.pendingNotice)
+	}
+}
+
+func TestHostNoticesMergeIntoOne(t *testing.T) {
+	first := hostNoticePrompt("登录修复", "settled", "zh")
+	second := hostNoticePrompt("依赖升级", "needs_approval", "zh")
+	merged := mergeHostNotice(first, second)
+	if !strings.Contains(merged, "登录修复") || !strings.Contains(merged, "依赖升级") {
+		t.Fatal("both titles should stay in one notice")
+	}
+	if strings.Count(merged, hostNoticePrefix) != 1 {
+		t.Fatal("merged notice should keep a single marker")
+	}
+	again := mergeHostNotice(merged, second)
+	if again != merged {
+		t.Fatal("the same title and kind should not be appended twice")
 	}
 }
 
