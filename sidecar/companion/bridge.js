@@ -750,12 +750,17 @@ async function handleCommand(command) {
       await abortCompanionTurn();
       return;
     case "host_notice":
-      await createCompanionSession(command);
-      if (!subscribed) {
-        subscribeCompanion();
-        subscribed = true;
+      try {
+        await createCompanionSession(command);
+        if (!subscribed) {
+          subscribeCompanion();
+          subscribed = true;
+        }
+        await sendPrompt({ ...command, hostNotice: true });
+      } catch (error) {
+        emit("error", { error: error instanceof Error ? error.message : String(error) });
+        emit("turn_settled", {});
       }
-      await sendPrompt({ ...command, hostNotice: true });
       return;
     case "shutdown":
       flushCompanionSessionFile();

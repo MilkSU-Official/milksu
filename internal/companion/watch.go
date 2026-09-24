@@ -242,8 +242,10 @@ func (r *Runtime) flushNotice() {
 
 func (r *Runtime) writeNotice(prompt string) {
 	if err := r.write(map[string]any{"action": "host_notice", "prompt": prompt}); err != nil {
-		r.setInFlight(false)
-		r.flushNotice()
+		r.watchMu.Lock()
+		r.pendingNotice = mergeHostNotice(prompt, r.pendingNotice)
+		r.inFlight.Store(false)
+		r.watchMu.Unlock()
 	}
 }
 

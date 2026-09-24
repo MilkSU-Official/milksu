@@ -118,6 +118,24 @@ func TestCommitWritesQuotedMemoryWithoutPending(t *testing.T) {
 	}
 }
 
+func TestCommitRedactsSecretsBeforeTheyAreStored(t *testing.T) {
+	memory := NewMemory(nil, nil)
+	quote := "我的钥匙是 sk-abcdefghijklmnopqrstuvwxyz"
+	memory.Commit(quote, []MemoryCommit{{
+		Action:   "create",
+		Title:    "钥匙",
+		Markdown: quote,
+		Evidence: quote,
+	}})
+	approved := memory.ApprovedForAssembly()
+	if len(approved) != 1 {
+		t.Fatalf("approved: %#v", approved)
+	}
+	if strings.Contains(approved[0].Markdown, "sk-") || strings.Contains(approved[0].Evidence, "sk-") {
+		t.Fatalf("secret stored: %#v", approved[0])
+	}
+}
+
 func TestCommitDoesNotRestoreAForgottenMemory(t *testing.T) {
 	memory := NewMemory(nil, nil)
 	created := memory.Commit("以后都用中文回复我", []MemoryCommit{{

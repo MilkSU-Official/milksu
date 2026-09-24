@@ -350,9 +350,10 @@ func (d *Dispatcher) Stop(req StopRequest) DispatchResult {
 		return d.recordFailure(req.IdempotencyKey, ref, "", err.Error())
 	}
 	result := DispatchResult{
-		Accepted:    true,
-		Delivered:   true,
-		TargetTitle: ref.Title,
+		Accepted:       true,
+		Delivered:      true,
+		TargetTitle:    ref.Title,
+		ConversationID: ref.ID,
 	}
 	d.store(req.IdempotencyKey, result)
 	return result

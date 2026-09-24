@@ -372,6 +372,27 @@ func TestNoteExternalTurnStaysQuietWhenExtractIsOff(t *testing.T) {
 	runtime.NoteExternalTurn("finish", "以后都用中文回复我", "", false)
 }
 
+func TestConfirmedSteerArmsTheWatch(t *testing.T) {
+	runtime := &Runtime{}
+	runtime.dispatcher = NewDispatcher(&fakeCatalog{refs: map[string]ConversationRef{
+		"c1": {ID: "c1", Title: "登录"},
+	}}, &fakeSpeaker{produced: true}, NewBoard(), func() bool { return true })
+	runtime.parkConfirm("req-1", map[string]any{
+		"action":          "speak",
+		"conversationId":  "c1",
+		"text":            "继续",
+		"idempotencyKey":  "k1",
+		"mode":            "steer",
+	}, "登录")
+	result, err := runtime.ConfirmDispatch("steer", "c1", "继续", "k1", "steer", "req-1", true)
+	if err != nil || !result.Delivered {
+		t.Fatalf("confirm: %v %#v", err, result)
+	}
+	if _, ok := runtime.watchSnapshot()["c1"]; !ok {
+		t.Fatal("confirmed steer should arm the watch")
+	}
+}
+
 func TestMapCompanionIntentRecordedReachesThePhone(t *testing.T) {
 	event := mapCompanionEvent(map[string]any{
 		"type":   "intent.recorded",

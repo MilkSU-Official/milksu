@@ -92,10 +92,9 @@ export function resolveImageGenProvider(env = process.env) {
 }
 
 export function imageGenIsConfigured(env = process.env) {
-  return Boolean(
-    String(env.MILKSU_IMAGEGEN_CONFIGURED ?? "").trim() === "1"
-    || resolveImageGenAPIKey(env),
-  ) && Boolean(resolveImageGenModel(env));
+  return String(env.MILKSU_IMAGEGEN_CONFIGURED ?? "").trim() === "1"
+    && Boolean(String(env.MILKSU_IMAGEGEN_API_KEY ?? "").trim())
+    && Boolean(resolveImageGenModel(env));
 }
 
 export function imageGenSupportsEdit(model = resolveImageGenModel()) {

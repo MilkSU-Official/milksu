@@ -520,6 +520,7 @@ func (r *Runtime) ConfirmDispatch(action, conversationID, text, idempotencyKey, 
 		if pending.requestID != "" {
 			r.respondHost(pending.requestID, raw, nil)
 		}
+		r.noteDispatch("speak_many", pending.input, raw)
 		if batch, ok := raw.(SpeakManyResult); ok && batch.Error != "" {
 			return DispatchResult{Accepted: batch.Accepted, Error: batch.Error, TargetTitle: pending.title}, nil
 		}
@@ -560,6 +561,14 @@ func (r *Runtime) ConfirmDispatch(action, conversationID, text, idempotencyKey, 
 	default:
 		return DispatchResult{}, fmt.Errorf("unknown companion confirm action %q", action)
 	}
+	if pending.input == nil {
+		pending.input = map[string]any{}
+	}
+	pending.input["action"] = resolvedAction
+	if strings.TrimSpace(stringValue(pending.input["conversationId"])) == "" {
+		pending.input["conversationId"] = conversationID
+	}
+	r.noteDispatch(resolvedAction, pending.input, result)
 	r.persistState()
 	if pending.requestID != "" {
 		r.respondHost(pending.requestID, result, nil)

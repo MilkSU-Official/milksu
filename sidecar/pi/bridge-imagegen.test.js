@@ -9,9 +9,27 @@ import {
   codingImageGenModel,
   createImageGenTool,
   formatImageGenApprovalInput,
+  imageGenIsConfigured,
   imageGenOutputEstimate,
   normalizeImageGenBaseURL,
 } from "./bridge-imagegen.js";
+
+test("image gen stays off until settings mark it configured", () => {
+  assert.equal(imageGenIsConfigured({
+    OPENAI_API_KEY: "sk-chat-key",
+    OPENAI_IMAGE_MODEL: "openai-image/gpt-image-2",
+  }), false);
+  assert.equal(imageGenIsConfigured({
+    MILKSU_IMAGEGEN_CONFIGURED: "1",
+    OPENAI_API_KEY: "sk-chat-key",
+    MILKSU_IMAGEGEN_MODEL: "openai-image/gpt-image-2",
+  }), false);
+  assert.equal(imageGenIsConfigured({
+    MILKSU_IMAGEGEN_CONFIGURED: "1",
+    MILKSU_IMAGEGEN_API_KEY: "sk-image-key",
+    MILKSU_IMAGEGEN_MODEL: "openai-image/gpt-image-2",
+  }), true);
+});
 
 const validPNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",

@@ -59,6 +59,17 @@ func TestQueuedNoticesMergeWhileSpeaking(t *testing.T) {
 	}
 }
 
+func TestFailedNoticeStaysQueued(t *testing.T) {
+	runtime := &Runtime{}
+	runtime.writeNotice(hostNoticePrompt("登录修复", "settled", "zh"))
+	if runtime.inFlight.Load() {
+		t.Fatal("a failed notice must not leave the companion busy")
+	}
+	if !strings.Contains(runtime.pendingNotice, "登录修复") {
+		t.Fatalf("notice was dropped: %q", runtime.pendingNotice)
+	}
+}
+
 func TestHostNoticesMergeIntoOne(t *testing.T) {
 	first := hostNoticePrompt("登录修复", "settled", "zh")
 	second := hostNoticePrompt("依赖升级", "needs_approval", "zh")

@@ -2,11 +2,25 @@ package companion
 
 import (
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
 	"time"
 )
+
+var (
+	memorySecretKeyPattern    = regexp.MustCompile(`\bsk-[A-Za-z0-9_-]{12,}\b`)
+	memorySecretBearerPattern = regexp.MustCompile(`(?i)\bBearer\s+[A-Za-z0-9._~+/=-]{12,}`)
+	memorySecretFlagPattern   = regexp.MustCompile(`(?i)\b(?:flag|nssctf|ctf)\{[^}\r\n]{1,512}\}`)
+)
+
+func redactMemoryText(value string) string {
+	value = memorySecretFlagPattern.ReplaceAllString(value, "[redacted]")
+	value = memorySecretKeyPattern.ReplaceAllString(value, "[redacted]")
+	value = memorySecretBearerPattern.ReplaceAllString(value, "[redacted]")
+	return value
+}
 
 const memoryCommitLimit = 3
 
@@ -163,6 +177,12 @@ func (m *Memory) Commit(userText string, items []MemoryCommit) map[string]any {
 		markdown := strings.TrimSpace(item.Markdown)
 		evidence := strings.TrimSpace(item.Evidence)
 		if title == "" || markdown == "" || evidence == "" || userText == "" || !strings.Contains(userText, evidence) {
+			continue
+		}
+		title = redactMemoryText(title)
+		markdown = redactMemoryText(markdown)
+		evidence = redactMemoryText(evidence)
+		if title == "" || markdown == "" || evidence == "" {
 			continue
 		}
 		switch strings.TrimSpace(item.Action) {
