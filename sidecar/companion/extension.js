@@ -25,15 +25,10 @@ export function createCompanionExtension({
         persona: typeof getPersona === "function" ? getPersona() : "",
       });
       const line = typeof getIntentLine === "function" ? String(getIntentLine() ?? "").trim() : "";
-      const result = { systemPrompt: composed.text };
-      if (!line) return result;
-      result.message = {
-        customType: "companion.intent",
-        content: line,
-        display: false,
-        details: { scope: "current-turn" },
-      };
-      return result;
+      // Keep the fold on the system prompt. A turn message is written into the
+      // session the user reads, even when display is false.
+      const text = line ? [composed.text, line].filter(Boolean).join("\n\n") : composed.text;
+      return { systemPrompt: text };
     });
 
     pi.on("context", (event) => {

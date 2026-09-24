@@ -28,7 +28,7 @@ import {
   applyProductLoopLocalEnv,
   describeProductLoopLocalEnv,
 } from './lib/product-loop-local-env.mjs'
-import { enablePersonalRelayRoute, installProductLoopJev, runFirstUse, saveCustomRelay } from './lib/product-loop-first-use.mjs'
+import { enableAccountRoute, enablePersonalRelayRoute, installProductLoopJev, probeAccountRoute, runFirstUse, saveCustomRelay } from './lib/product-loop-first-use.mjs'
 import {
   captureProductLoopEvidenceBundle,
   printProductLoopReport,
@@ -185,11 +185,21 @@ async function main() {
       receipt.gaps.push(session.detail || session.driver?.gaps?.join(' ') || '没附着独立产品窗口')
       return false
     }
-    if (!session.sourcesReady) {
-      const relay = await saveCustomRelay(session.driver)
-      session.sourcesReady = relay.ok === true
-      if (!relay.ok) receipt.humanReview.push(relay.detail || '中转站没配上')
-    } else {
+    if (!session.sourcesReady && !session.sourceAttempted) {
+      session.sourceAttempted = true
+      const account = await probeAccountRoute(session.driver)
+      if (account.ok) {
+        await enableAccountRoute(session.driver)
+        session.sourcesReady = true
+        session.accountReady = true
+      } else {
+        const relay = await saveCustomRelay(session.driver)
+        session.sourcesReady = relay.ok === true
+        if (!relay.ok) receipt.humanReview.push(account.detail || relay.detail || '模型来源没配上')
+      }
+    } else if (session.accountReady) {
+      await enableAccountRoute(session.driver).catch(() => {})
+    } else if (session.sourcesReady) {
       await enablePersonalRelayRoute(session.driver).catch(() => {})
     }
     if (!session.jevReady) {
@@ -237,6 +247,7 @@ async function main() {
           driver: outcome.driver || null,
           instanceId: outcome.instanceId || '',
           sourcesReady: outcome.sourcesReady === true,
+          accountReady: outcome.accountReady === true,
           ok: Boolean(outcome.driver),
         }
         options.intentFallbackSeen = (outcome.steps ?? []).some(step => (

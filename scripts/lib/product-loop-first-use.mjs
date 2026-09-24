@@ -46,6 +46,59 @@ export const FIRST_USE_FILE_PROMPT = [
   '完成标准：工作区必须出现 NOTES.md，且你实际调用了文件类工具（列出/写入/读取），不要只用纯文本假装写过。',
 ].join('\n')
 
+async function fillAccountPasswordForm(driver, username, password) {
+  return driver.cdp.evaluate(`(() => {
+    const setValue = (id, value) => {
+      const field = document.getElementById(id)
+      if (!field) return false
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
+      setter.call(field, value)
+      field.dispatchEvent(new Event('input', { bubbles: true }))
+      return true
+    }
+    if (!setValue('account-username', ${JSON.stringify(username)})) return 'missing-username'
+    if (!setValue('account-password', ${JSON.stringify(password)})) return 'missing-password'
+    const form = document.getElementById('account-password').form
+    if (!form) return 'missing-form'
+    form.requestSubmit()
+    return 'submitted'
+  })()`)
+}
+
+async function reopenAccountLoginGate(driver) {
+  await driver.cdp.evaluate(`(() => {
+    try { window.sessionStorage?.removeItem('milksu.account.continue-local') } catch {}
+    try { window.localStorage?.removeItem('milksu.account.continue-local') } catch {}
+    location.reload()
+  })()`).catch(() => {})
+  await delay(1_500)
+  if (!await driver.ensureAttached()) return false
+  const gate = await waitFor(async () => {
+    if (!driver?.cdpAlive()) return null
+    const snapshot = inspectLoginPage(await snapshotLoginPage(driver))
+    return snapshot.gate ? true : null
+  }, 30_000, 1_000).catch(() => null)
+  return Boolean(gate)
+}
+
+export async function signInProductLoopAccount(driver) {
+  const username = String(process.env.MILKSU_LOOP_USER || '')
+  const password = String(process.env.MILKSU_LOOP_PASSWORD || '')
+  if (!username || !password) throw new Error('这一次登录没有用户名或密码')
+  if (!await driver.ensureAttached()) throw new Error('CDP WebSocket closed')
+  let filled = await fillAccountPasswordForm(driver, username, password)
+  if (filled === 'missing-username' || filled === 'missing-password' || filled === 'missing-form') {
+    const opened = await reopenAccountLoginGate(driver)
+    if (!opened) throw new Error(String(filled))
+    filled = await fillAccountPasswordForm(driver, username, password)
+  }
+  if (filled !== 'submitted') throw new Error(String(filled))
+}
+
+export function accountSessionReady(status) {
+  return status?.state === 'active' && status?.authenticated === true && status?.mustChangePassword !== true
+}
+
 export function inspectLoginPage(snapshot = {}) {
   const text = String(snapshot.text ?? '')
   const label = String(snapshot.ariaLabel ?? '')
@@ -99,10 +152,9 @@ export function describeCustomRelay(settings, idOrName) {
 }
 
 /**
- * Point homepage + companion at the product-loop personal TokenFlux/custom relay.
- * Companion defaults to account TokenFlux; after「暂不登录」or when GitHub quota is
- * missing that shows "No API key for tokenflux/…". Product-loop.local.env keys are
- * typed into Settings as a personal relay — use that for the rest of the walk.
+ * Point homepage + companion at the product-loop personal relay.
+ * Only for the logged-out slice. Once the account is back, later cases stay
+ * on the account model so the issued intent key is what gets exercised.
  */
 export function isProductLoopPersonalRelayUsable() {
   return productLoopPersonalRelayUsable === true
@@ -185,7 +237,10 @@ export function classifyAccountFileLoop(input = {}) {
   if (/无效|无权|401|拒绝|rejected|invalid|unauthorized/i.test(detail)) {
     return { result: 'FAIL', expectedMiss: false }
   }
-  if (!linked || /额度|quota|未连接|没有可用|unavailable|insufficient/i.test(detail)) {
+  if (/spawn guard|model verification failed|PI model verification/i.test(detail)) {
+    return { result: 'FAIL', expectedMiss: false }
+  }
+  if (!linked || /额度|quota|未连接|没有可用的模型|insufficient/i.test(detail)) {
     return { result: 'SKIP', expectedMiss: true }
   }
   return { result: 'FAIL', expectedMiss: false }
@@ -211,6 +266,11 @@ export function firstUseSourcesReady(steps = []) {
     || steps.some(step => step.id === 'settings-custom-relay' && step.result === 'PASS')
 }
 
+export function firstUseAccountReady(steps = []) {
+  return steps.some(step => step.id === 'account-model-fileloop' && step.result === 'PASS')
+    && steps.some(step => step.id === 'login-intent-issued' && step.result === 'PASS')
+}
+
 export function firstUseModuleResult(steps = []) {
   const failed = steps.filter(step => step.result === 'FAIL' || step.result === 'BLOCKED')
   const required = ['login-gate', 'login-skip-local']
@@ -224,7 +284,11 @@ export function firstUseSessionHandoff(launch, instanceId, steps, keepOpen) {
   return {
     driver: shouldKeepLaunch(launch, steps, keepOpen) ? launch?.driver ?? null : null,
     instanceId: instanceId || '',
-    sourcesReady: firstUseSourcesReady(steps),
+    sourcesReady: firstUseAccountReady(steps) || (
+      !steps.some(step => step.id === 'account-model-fileloop' && step.result === 'PASS')
+      && firstUseSourcesReady(steps)
+    ),
+    accountReady: firstUseAccountReady(steps),
   }
 }
 
@@ -638,9 +702,9 @@ export async function runFirstUse(options = {}) {
       const gateA = await expectLoginGate(launch.driver)
       await record('login-gate', gateA.ok ? 'PASS' : 'FAIL', gateA.ok ? '看见登录页和两条入口' : gateA.detail)
       if (gateA.ok) {
-        process.stdout.write('FIRST-USE login-github-active 请在系统浏览器完成 GitHub 授权\n')
+        process.stdout.write('FIRST-USE login-github-active 用本地环境里的用户名密码登录\n')
         try {
-          await launch.driver.invoke('StartAccountLogin', [])
+          await signInProductLoopAccount(launch.driver)
         } catch (error) {
           await record('login-github-active', 'FAIL', redactProcessText(error instanceof Error ? error.message : error, 200))
           await record('account-model-fileloop', 'SKIP', 'GitHub 登录没发出去，账户模型没跑')
@@ -652,7 +716,7 @@ export async function runFirstUse(options = {}) {
               if (!launch.driver?.cdpAlive()) return { dead: true }
               const status = await safeAccountStatus(launch.driver)
               if (!launch.driver?.cdpAlive() && !status) return { dead: true }
-              return status?.state === 'active' && status?.authenticated ? status : null
+              return accountSessionReady(status) ? status : null
             }, loginWaitMs, 2_000)
           } catch (error) {
             await record(
@@ -663,19 +727,12 @@ export async function runFirstUse(options = {}) {
             await record('account-model-fileloop', 'SKIP', 'GitHub 登录期间窗口断了，账户模型没跑')
           }
           if (active?.dead) {
-            await record('login-github-active', 'FAIL', 'StartAccountLogin 之后窗口 CDP 断开')
+            await record('login-github-active', 'FAIL', '用户名密码登录之后窗口 CDP 断开')
             await record('account-model-fileloop', 'SKIP', 'GitHub 登录期间窗口断了，账户模型没跑')
           } else if (active && !active.dead) {
             await record('login-github-active', 'PASS', '账户变成已登录')
             await enableAccountRoute(launch.driver).catch(() => {})
             await delay(1_500)
-            if (launch.driver?.cdpAlive()) {
-              try {
-                await recordCustomRelay(launch.driver)
-              } catch (error) {
-                notes.push(redactProcessText(error instanceof Error ? error.message : error, 180))
-              }
-            }
             if (launch.driver?.cdpAlive()) {
               try {
                 let loop = await runFileLoop(launch.driver, {
@@ -725,7 +782,7 @@ export async function runFirstUse(options = {}) {
             await record(
               'login-github-active',
               'FAIL',
-              `StartAccountLogin 已发出但超时仍是 ${status?.state || 'unknown'}。不能因为本机已有 Key 改成跳过。`,
+              `用户名密码已提交但超时仍是 ${status?.state || 'unknown'}。不能因为本机已有 Key 改成跳过。`,
             )
             await record('account-model-fileloop', 'SKIP', 'GitHub 未登录，账户模型没跑')
           }
@@ -773,15 +830,17 @@ export async function runFirstUse(options = {}) {
     }
 
     const accountFileloopOk = steps.some(step => step.id === 'account-model-fileloop' && step.result === 'PASS')
+    let accountBack = false
     if (githubOk && launch?.driver?.cdpAlive()) {
       process.stdout.write('FIRST-USE 暂不登录之后再登录，后面继续用账户模型\n')
-      await launch.driver.invoke('StartAccountLogin', []).catch(() => {})
+      await signInProductLoopAccount(launch.driver).catch(() => {})
       const restored = await waitFor(async () => {
         if (!launch.driver?.cdpAlive()) return { dead: true }
         const status = await safeAccountStatus(launch.driver)
-        return status?.state === 'active' && status?.authenticated ? status : null
+        return accountSessionReady(status) ? status : null
       }, loginWaitMs, 2_000).catch(() => null)
-      if (restored && !restored.dead && accountFileloopOk) {
+      accountBack = Boolean(restored && !restored.dead && accountFileloopOk)
+      if (accountBack) {
         await enableAccountRoute(launch.driver).catch(() => {})
       }
       const { readAccountIntentGrant } = await import('./product-loop-intent.mjs')
@@ -794,15 +853,16 @@ export async function runFirstUse(options = {}) {
     } else if (!steps.some(step => step.id === 'login-intent-issued')) {
       await record('login-intent-issued', 'FAIL', githubOk ? '再登录没跑到，意图识别钥匙没核' : 'GitHub 没登录，意图识别钥匙没核')
     }
-    if (launch?.driver?.cdpAlive()) {
+    if (launch?.driver?.cdpAlive() && accountBack) {
+      process.stdout.write('FIRST-USE 后面的用例继续用已登录的账户模型和意图识别钥匙\n')
+    } else if (launch?.driver?.cdpAlive() && accountFileloopOk) {
+      process.stdout.write('FIRST-USE 账户模型已验证，再登录没回来，后面不改用个人 Key\n')
+    } else if (launch?.driver?.cdpAlive()) {
       const personal = await enablePersonalRelayRoute(launch.driver)
       if (personal.ok) {
         process.stdout.write(`FIRST-USE ${personal.detail}\n`)
       } else if (isProductLoopPersonalRelayUsable()) {
         process.stdout.write('FIRST-USE 个人中转站已验证，保持个人来源\n')
-      } else if (accountFileloopOk) {
-        await enableAccountRoute(launch.driver)
-        process.stdout.write('FIRST-USE 个人中转站不可用，看板娘与主页改用已验证的账户模型\n')
       }
     }
     return finish(steps, notes, firstUseSessionHandoff(launch, instanceId, steps, options.keepOpen))
@@ -884,16 +944,6 @@ export async function probeAccountRoute(driver) {
 }
 
 export async function resolveCompanionModelRoute(driver) {
-  const personal = await enablePersonalRelayRoute(driver).catch(() => ({ ok: false, detail: '' }))
-  if (personal.ok) {
-    return {
-      ok: true,
-      source: 'personal',
-      id: personal.id,
-      model: personal.model,
-      detail: personal.detail,
-    }
-  }
   const account = await probeAccountRoute(driver)
   if (account.ok) {
     await enableAccountRoute(driver)
@@ -904,7 +954,17 @@ export async function resolveCompanionModelRoute(driver) {
       detail: account.detail,
     }
   }
-  const detail = [personal.detail, account.detail].filter(Boolean).join('；')
+  const personal = await enablePersonalRelayRoute(driver).catch(() => ({ ok: false, detail: '' }))
+  if (personal.ok) {
+    return {
+      ok: true,
+      source: 'personal',
+      id: personal.id,
+      model: personal.model,
+      detail: personal.detail,
+    }
+  }
+  const detail = [account.detail, personal.detail].filter(Boolean).join('；')
     || '没有可用的个人中转站，也没有已验证的账户模型'
   return { ok: false, source: 'none', detail }
 }

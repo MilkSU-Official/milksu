@@ -499,7 +499,8 @@ async function runDisconnectedFallback(driver) {
   const cleared = await poll(driver, grant => !grant.ok, 20_000)
   if (cleared.ok) return fail('退出登录后意图识别钥匙还在')
   const result = await runLoggedOutIntentFallback(driver)
-  await driver.invoke('StartAccountLogin', []).catch(() => {})
+  const { signInProductLoopAccount } = await import('./product-loop-first-use.mjs')
+  await signInProductLoopAccount(driver).catch(() => {})
   const restored = await poll(driver, grant => grant.ok, 90_000)
   if (!restored.ok) {
     return fail(`${result.detail || '主模型兜底'}。再登录后账户钥匙没有回来：${restored.detail}`)

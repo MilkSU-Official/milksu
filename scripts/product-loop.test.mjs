@@ -66,6 +66,7 @@ import {
   classifyCustomRelaySave,
   describeCustomRelay,
   FIRST_USE_RELAY_ID,
+  firstUseAccountReady,
   firstUseHasCredentialPath,
   firstUseModuleResult,
   firstUseSessionHandoff,
@@ -924,6 +925,15 @@ test('first-use helpers inspect the login page and keep keys out of relay descri
     classifyAccountFileLoop({ notes: false, usedFiles: false, tokenFluxLinked: true, detail: '401 invalid key' }).result,
     'FAIL',
   )
+  assert.equal(
+    classifyAccountFileLoop({
+      notes: false,
+      usedFiles: false,
+      tokenFluxLinked: true,
+      detail: 'PI model verification failed: MilkSU subagent spawn guard is unavailable',
+    }).result,
+    'FAIL',
+  )
   assert.equal(classifyCustomRelaySave('DEEPSEEK_API_KEY 模型凭据无效或无权访问。').result, 'FAIL')
   const noKey = classifyCustomRelaySave('没有已存中转站，也没有 TOKENFLUX_API_KEY / DEEPSEEK_API_KEY')
   assert.equal(noKey.expectedMiss, true)
@@ -1017,7 +1027,30 @@ test('first-use cannot PASS on login-gate and login-skip-local alone', () => {
   const handoff = firstUseSessionHandoff(null, 'plfu-dead-cdp', verifiedRelayOnly, true)
   assert.equal(handoff.instanceId, 'plfu-dead-cdp')
   assert.equal(handoff.sourcesReady, true)
+  assert.equal(handoff.accountReady, false)
   assert.equal(handoff.driver, null)
+  const accountBack = [
+    { id: 'login-gate', result: 'PASS' },
+    { id: 'login-skip-local', result: 'PASS' },
+    { id: 'account-model-fileloop', result: 'PASS' },
+    { id: 'relay-model-fileloop', result: 'PASS' },
+    { id: 'login-intent-issued', result: 'PASS' },
+  ]
+  assert.equal(firstUseAccountReady(accountBack), true)
+  const accountHandoff = firstUseSessionHandoff(null, 'plfu-account', accountBack, true)
+  assert.equal(accountHandoff.accountReady, true)
+  assert.equal(accountHandoff.sourcesReady, true)
+  const accountDropped = [
+    { id: 'login-gate', result: 'PASS' },
+    { id: 'login-skip-local', result: 'PASS' },
+    { id: 'account-model-fileloop', result: 'PASS' },
+    { id: 'relay-model-fileloop', result: 'PASS' },
+    { id: 'login-intent-issued', result: 'FAIL' },
+  ]
+  const dropped = firstUseSessionHandoff(null, 'plfu-dropped', accountDropped, true)
+  assert.equal(firstUseAccountReady(accountDropped), false)
+  assert.equal(dropped.accountReady, false)
+  assert.equal(dropped.sourcesReady, false)
 })
 
 test('empty CUSTOM_RELAY_MODELS on official TokenFlux uses the catalog id', () => {

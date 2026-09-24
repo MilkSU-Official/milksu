@@ -13,14 +13,15 @@ function collectHandlers(factory) {
   return handlers;
 }
 
-test("intent line is a hidden turn message, not a user row", async () => {
+test("intent line stays on the system prompt, not a transcript row", async () => {
   const handlers = collectHandlers(createCompanionExtension({
+    getSystemPrompt: () => "You are the MilkSU companion.",
     getIntentLine: () => "意图识别：闲聊。由主模型判定。",
   }));
   const result = await handlers.get("before_agent_start")();
-  assert.equal(result.message.display, false);
-  assert.equal(result.message.customType, "companion.intent");
-  assert.equal(result.message.content, "意图识别：闲聊。由主模型判定。");
+  assert.equal(result.message, undefined);
+  assert.match(result.systemPrompt, /意图识别：闲聊。由主模型判定。/);
+  assert.match(result.systemPrompt, /You are the MilkSU companion\./);
 });
 
 test("companion extension leaves compaction to Pi", async () => {
