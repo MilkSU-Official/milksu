@@ -1283,6 +1283,16 @@ html.companion-chat-surface #app {
   --companion-stamp: #8e8e93;
   --companion-fade-end: 104px;
   --companion-log-pad: 148px;
+  --agent-code-radius: 10px;
+  --agent-hairline: rgb(255 255 255 / 14%);
+  --agent-float-shadow: 0 1px 2px rgb(0 0 0 / 28%);
+  --agent-code-surface: #111318;
+  --agent-code-inset: #0e1014;
+  --agent-code-kw: #8bb4ff;
+  --agent-code-str: #7dcea0;
+  --agent-code-num: #e0a15a;
+  --agent-code-fn: #e8eaef;
+  --agent-code-dim: #8b909a;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -1310,6 +1320,15 @@ html.companion-chat-surface #app {
   --companion-phone-group: rgb(244 246 248 / 94%);
   --companion-phone-group-line: rgb(0 0 0 / 8%);
   --companion-phone-settings-tint: rgb(242 242 247 / 72%);
+  --agent-hairline: rgb(0 0 0 / 10%);
+  --agent-float-shadow: 0 1px 2px rgb(16 18 22 / 5%), 0 12px 32px rgb(16 18 22 / 8%);
+  --agent-code-surface: #f4f6f8;
+  --agent-code-inset: #e8eaed;
+  --agent-code-kw: #2f6fec;
+  --agent-code-str: #1f7a4d;
+  --agent-code-num: #a35b10;
+  --agent-code-fn: #17191b;
+  --agent-code-dim: #8a8d86;
 }
 
 .companion-chat-stage {
@@ -2095,33 +2114,93 @@ button.companion-chat-title {
   text-decoration-color: color-mix(in srgb, currentColor 55%, transparent);
 }
 
-.companion-chat-bubble .markdown-content code {
-  border-color: color-mix(in srgb, currentColor 22%, transparent);
-  background: color-mix(in srgb, currentColor 14%, transparent);
-  color: inherit;
+.companion-chat-bubble:has(.agent-code) {
+  width: 100%;
+  max-width: 100%;
 }
 
-.companion-chat-bubble .markdown-content .agent-code {
-  border-color: color-mix(in srgb, currentColor 22%, transparent);
-  background: color-mix(in srgb, currentColor 10%, transparent);
-  box-shadow: none;
+.companion-chat .markdown-content code {
+  border-color: var(--agent-hairline);
+  background: var(--agent-code-inset);
+  color: var(--agent-code-fn);
 }
 
-.companion-chat-bubble .markdown-content .agent-code__bar {
-  border-bottom-color: color-mix(in srgb, currentColor 18%, transparent);
+.companion-chat .markdown-content .agent-code {
+  border: 1px solid var(--agent-hairline);
+  border-radius: var(--agent-code-radius);
+  background: var(--agent-code-surface);
+  box-shadow: var(--agent-float-shadow);
 }
 
-.companion-chat-bubble .markdown-content .agent-code__lang,
-.companion-chat-bubble .markdown-content .agent-code__copy,
-.companion-chat-bubble .markdown-content .agent-code__body,
-.companion-chat-bubble .markdown-content pre,
+.companion-chat .markdown-content .agent-code__bar {
+  border-bottom-color: var(--agent-hairline);
+}
+
+.companion-chat .markdown-content .agent-code__lang,
+.companion-chat .markdown-content .agent-code__copy {
+  color: var(--agent-code-dim);
+}
+
+.companion-chat .markdown-content .agent-code__line {
+  display: flex;
+  min-width: 0;
+}
+
+.companion-chat .markdown-content .agent-code__n {
+  width: 1.7rem;
+  flex-shrink: 0;
+  border-right: 1px solid var(--agent-hairline);
+  padding-right: 0.4rem;
+  color: var(--agent-code-dim);
+  font-size: 0.62rem;
+  line-height: 1.7;
+  text-align: right;
+  user-select: none;
+}
+
+.companion-chat .markdown-content .agent-code__src {
+  min-width: 0;
+  padding: 0 0.55rem;
+  color: var(--agent-code-fn);
+  font-size: 0.68rem;
+  line-height: 1.7;
+  white-space: pre;
+}
+
+.companion-chat .markdown-content .agent-code__body,
+.companion-chat .markdown-content .agent-code pre {
+  background: var(--agent-code-inset);
+  color: var(--agent-code-fn);
+}
+
+.companion-chat .markdown-content .agent-code__body .hljs-keyword,
+.companion-chat .markdown-content .agent-code__body .hljs-built_in,
+.companion-chat .markdown-content .agent-code__body .hljs-type {
+  color: var(--agent-code-kw);
+}
+
+.companion-chat .markdown-content .agent-code__body .hljs-string,
+.companion-chat .markdown-content .agent-code__body .hljs-attr {
+  color: var(--agent-code-str);
+}
+
+.companion-chat .markdown-content .agent-code__body .hljs-number {
+  color: var(--agent-code-num);
+}
+
+.companion-chat .markdown-content .agent-code__body .hljs-title,
+.companion-chat .markdown-content .agent-code__body .hljs-function,
+.companion-chat .markdown-content .agent-code__body .hljs-title.function_ {
+  color: var(--agent-code-fn);
+}
+
+.companion-chat .markdown-content .agent-code__body .hljs-comment,
+.companion-chat .markdown-content .agent-code__body .hljs-punctuation {
+  color: var(--agent-code-dim);
+}
+
 .companion-chat-bubble .markdown-content blockquote {
   color: inherit;
-}
-
-.companion-chat-bubble .markdown-content .agent-code__body,
-.companion-chat-bubble .markdown-content pre {
-  background: color-mix(in srgb, currentColor 8%, transparent);
 }
 
 .companion-chat-bubble .markdown-content th,
@@ -2185,7 +2264,7 @@ button.companion-chat-title {
   color: inherit;
 }
 
-.companion-chat-note .markdown-content :is(p, li, h1, h2, h3, h4, code, pre) {
+.companion-chat-note .markdown-content :is(p, li, h1, h2, h3, h4) {
   color: inherit;
 }
 
