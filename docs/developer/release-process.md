@@ -123,7 +123,7 @@ npm run release:github -- \
 
 1. 核对本地 `release:verify` 回执与当前 HEAD/版本；
 2. 收集版本化安装包：`MilkSU-macOS-arm64-<version>.dmg`、`MilkSU-Windows-x64-<version>-Setup.exe`、`MilkSU-Linux-x64-<version>.deb`；
-3. 用同一 source commit 创建或更新 `v<version>` **prerelease** 页面并上传安装包与 `SHA256SUMS-<version>.txt`；
+3. 用同一 source commit 创建或更新正式的 `v<version>` 页面并上传安装包与 `SHA256SUMS-<version>.txt`；
 4. 清理旧的无版本号 macOS 资产名（若仍存在）。
 
 ## 5. 私有 R2 / Admin OTA（正式打包默认上传）
@@ -137,7 +137,7 @@ SHA256SUMS），不上 OTA ZIP。维护者仍可在 Admin「版本」页暂停�
 
 ## 6. 发行记录
 
-只使用 conclusion 为 success 且 source commit 与回执一致的产物。GitHub prerelease 只附加
+只使用 conclusion 为 success 且 source commit 与回执一致的产物。GitHub Release 只附加
 DMG、EXE、DEB（加 SHA256SUMS），不附加 OTA ZIP。
 
 ## 7. 必做：回写并推送版本事实

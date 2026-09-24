@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Create (or refresh) the GitHub prerelease page for the verified source commit.
+ * Create (or refresh) the GitHub Release page for the verified source commit.
  *
  * A bare `git tag` is not enough for QQ / installer distribution — this step
  * creates the Releases page and attaches DMG / EXE / DEB (+ SHA256SUMS).
@@ -177,7 +177,7 @@ async function main() {
       '--repo', repository,
       '--title', title,
       '--notes', notes,
-      '--prerelease',
+      '--latest',
     ])
   } else {
     await run('gh', [
@@ -186,7 +186,7 @@ async function main() {
       '--target', commit,
       '--title', title,
       '--notes', notes,
-      '--prerelease',
+      '--latest',
     ])
   }
 

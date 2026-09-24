@@ -43,7 +43,7 @@ Do not claim Windows signing unless the workflow had a configured Windows code-s
 2. Record run IDs, artifact names, sizes, SHA-256 values, tracking metadata, and platform-specific verification results without credentials.
 3. Locally verify the macOS DMG with `codesign`, `spctl`, and `xcrun stapler`; rely on the native Windows workflow for first-launch acceptance unless a real Windows machine is available.
 4. Create immutable tag `v<version>` at the release source commit only after required builds pass.
-5. Create a GitHub prerelease for internal testers. Upload DMG, EXE, DEB and x64 tar.gz; never upload the OTA ZIP.
+5. Create a full GitHub Release. Upload DMG, EXE, DEB and x64 tar.gz; never upload the OTA ZIP. Do not mark it as a prerelease.
 6. Official packaging always uploads OTA objects to private R2 and publishes that platform/arch Admin current pointer. Do not overwrite immutable R2 objects. An administrator can still pause a published version.
 7. Verify the GitHub tag, Release assets, R2/Admin receipt, and checksums before reporting completion.
 
