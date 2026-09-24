@@ -1,5 +1,5 @@
 import { createStore, useStore, useStoreRuntime } from '@/lib/reactStore'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   AlertCircle,
   Check,
@@ -65,6 +65,7 @@ import {
   encodePickerSelection,
   imageModelsForTokenfluxSource,
   installAppModelSettings,
+  listedAccountModels,
   loadModelCatalog,
   parsePickerSelection,
   useModelCatalog as readModelCatalog,
@@ -114,6 +115,7 @@ import {
   MODEL_PROVIDER_API_LABELS,
   MODEL_PROVIDER_APIS,
   catalogModelProvider,
+  catalogProviderIcon,
   providerSlug,
   validProviderSlug,
   type ModelProviderApi,
@@ -316,7 +318,8 @@ export default function SettingsPage({
   }
 
   const store = useStoreRuntime(() => createSettingsStore(callbacks))
-  useStore(modelCatalogStore)
+  const modelCatalog = useStore(modelCatalogStore)
+  const [accountModelsOpen, setAccountModelsOpen] = useState(false)
   const state = store.store.getState()
 
   useEffect(() => {
@@ -1053,6 +1056,11 @@ export default function SettingsPage({
                           trailing={(
                             <>
                               <span className="text-xs text-muted-foreground">{store.serviceStatus(row)}</span>
+                              {row.source === 'account' ? (
+                                <Button variant="ghost" size="sm" onClick={() => setAccountModelsOpen(open => !open)}>
+                                  {t('编辑', 'Edit')}
+                                </Button>
+                              ) : null}
                               {row.source === 'personal' ? (
                                 <>
                                   <Button variant="ghost" size="sm" onClick={() => store.openProviderEditor(row.provider.id)}>
@@ -1073,6 +1081,24 @@ export default function SettingsPage({
                             </>
                           )}
                         />
+                        {row.source === 'account' && accountModelsOpen ? (
+                          <div className="grid gap-2 border-b border-border px-4 py-3">
+                            <div className="text-[length:var(--text-label)]">{t('模型目录', 'Model catalog')}</div>
+                            {listedAccountModels(modelCatalog.current).map(model => (
+                              <div key={model.id} className="flex items-center justify-between gap-3">
+                                <span className="min-w-0">
+                                  <span className="block truncate text-[length:var(--text-label)]">{model.name}</span>
+                                  <span className="block truncate font-mono text-caption text-muted-foreground">{model.id}</span>
+                                </span>
+                                <Switch
+                                  checked={!(working?.disabled_account_models ?? []).includes(model.id)}
+                                  aria-label={t(`启用 ${model.name}`, `Enable ${model.name}`)}
+                                  onCheckedChange={value => store.setAccountModelEnabled(model.id, Boolean(value))}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
                         {inlineCatalog && editingProvider ? (
                           <div className="grid gap-3 border-b border-border px-4 py-3">
                             <label className="grid gap-1">
@@ -1322,7 +1348,12 @@ export default function SettingsPage({
                               </SelectTrigger>
                               <SelectContent>
                                 {CATALOG_MODEL_PROVIDERS.map(item => (
-                                  <SelectItem key={item.id} value={item.id}>{item.id}</SelectItem>
+                                  <SelectItem key={item.id} value={item.id}>
+                                    <span className="inline-flex items-center gap-2">
+                                      <ModelVendorIcon icon={catalogProviderIcon(item.id)} label={item.name} />
+                                      {item.id}
+                                    </span>
+                                  </SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
@@ -2917,6 +2948,16 @@ function createSettingsStore(
     return false
   }
 
+  function setAccountModelEnabled(id: string, enabled: boolean) {
+    patchWorking(working => {
+      const next = new Set(working.disabled_account_models ?? [])
+      if (enabled) next.delete(id)
+      else next.add(id)
+      working.disabled_account_models = [...next]
+    })
+    persist()
+  }
+
   function setEditingProviderModel(value: string) {
     const editingID = s.editingProviderID
     if (!editingID || !value) return
@@ -3611,6 +3652,7 @@ function createSettingsStore(
     removeModelService,
     providerConfig,
     setModelServiceEnabled,
+    setAccountModelEnabled,
     resetModelThinkingOverride,
     setModelThinkingEnabled,
     toggleModelThinkingLevel,

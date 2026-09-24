@@ -18,6 +18,13 @@ import minimaxSvg from '@lobehub/icons-static-svg/icons/minimax.svg?raw'
 import cohereSvg from '@lobehub/icons-static-svg/icons/cohere.svg?raw'
 import perplexitySvg from '@lobehub/icons-static-svg/icons/perplexity.svg?raw'
 import groqSvg from '@lobehub/icons-static-svg/icons/groq.svg?raw'
+import basetenSvg from '@lobehub/icons-static-svg/icons/baseten.svg?raw'
+import cerebrasSvg from '@lobehub/icons-static-svg/icons/cerebras.svg?raw'
+import huggingfaceSvg from '@lobehub/icons-static-svg/icons/huggingface.svg?raw'
+import nvidiaSvg from '@lobehub/icons-static-svg/icons/nvidia.svg?raw'
+import openrouterSvg from '@lobehub/icons-static-svg/icons/openrouter.svg?raw'
+import togetherSvg from '@lobehub/icons-static-svg/icons/together.svg?raw'
+import zaiSvg from '@lobehub/icons-static-svg/icons/zai.svg?raw'
 import { cn } from '@/lib/cn'
 
 const LOBE_ICON_SVG: Record<string, string> = {
@@ -35,25 +42,35 @@ const LOBE_ICON_SVG: Record<string, string> = {
   cohere: cohereSvg,
   perplexity: perplexitySvg,
   groq: groqSvg,
+  baseten: basetenSvg,
+  cerebras: cerebrasSvg,
+  huggingface: huggingfaceSvg,
+  nvidia: nvidiaSvg,
+  openrouter: openrouterSvg,
+  together: togetherSvg,
+  zai: zaiSvg,
 }
 
 export default function ModelVendorIcon({
   model = '',
   label = '',
   vendor,
+  icon,
   size = 'sm',
   className,
 }: {
   model?: string
   label?: string
   vendor?: ModelVendorId
+  /** LobeHub file stem, used when the row is a provider id rather than a model id. */
+  icon?: string
   size?: 'sm' | 'md'
   className?: string
 }) {
   const resolved = vendor ?? resolveModelVendor(model, label)
-  const title = modelVendorLabel(resolved)
+  const title = label || modelVendorLabel(resolved)
   const sizeClass = size === 'md' ? 'size-4' : 'size-3.5'
-  const lobeStem = modelVendorLobeIcon(resolved)
+  const lobeStem = icon || modelVendorLobeIcon(resolved)
   const svgMarkup = lobeStem
     ? (LOBE_ICON_SVG[lobeStem] ?? '').replace(/<title>[\s\S]*?<\/title>/i, '')
     : ''

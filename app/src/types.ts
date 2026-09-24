@@ -374,6 +374,8 @@ export interface AppSettings {
   nssctf_arena?: NSSCTFArenaConfig
   locale?: 'en' | 'zh'
   disabled_skills?: string[]
+  /** Account catalog ids the user turned off. Missing ids stay enabled. */
+  disabled_account_models?: string[]
   enabled_optional_skills?: string[]
   worker_provider?: string
   worker_model?: string
@@ -474,6 +476,13 @@ export interface CompanionTranscriptCursor {
   lineLength: number
 }
 
+export interface CompanionTranscriptComponent {
+  id?: string
+  kind: string
+  title?: string
+  detail?: string
+}
+
 export interface CompanionTranscriptEntry {
   id: string
   type: string
@@ -482,6 +491,7 @@ export interface CompanionTranscriptEntry {
   text?: string
   thinking?: string
   tools?: string[]
+  components?: CompanionTranscriptComponent[]
   thinkingDurationMs?: number
   error?: string
   attachments?: CodingAttachment[]
@@ -696,6 +706,9 @@ export function withAppSettingsDefaults(value: AppSettings): AppSettings {
     ui_font_size: normalizeUiFontSize(value.ui_font_size),
     conversation_font_size: normalizeUiFontSize(value.conversation_font_size),
     ui_emphasis: normalizeUiEmphasisPreset(value.ui_emphasis),
+    disabled_account_models: [...new Set((value.disabled_account_models ?? [])
+      .map(id => String(id).trim())
+      .filter(id => id.length > 0 && id.length <= 256))].slice(0, 256),
     disabled_skills: [...new Set((value.disabled_skills ?? [])
       .map(name => String(name).trim())
       .filter(name => /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/.test(name)))],

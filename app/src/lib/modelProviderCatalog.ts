@@ -44,6 +44,24 @@ export const CATALOG_MODEL_PROVIDERS: CatalogModelProvider[] = [
   { id: 'zai-coding-cn', name: 'Z.AI Coding CN', api: 'openai-completions', baseUrl: 'https://open.bigmodel.cn/api/coding/paas/v4', models: ['glm-5.3'] },
 ]
 
+const CATALOG_PROVIDER_ICONS: Record<string, string> = {
+  anthropic: 'claude',
+  google: 'gemini',
+  xai: 'grok',
+  moonshotai: 'kimi',
+  'moonshotai-cn': 'kimi',
+  'kimi-coding': 'kimi',
+  minimax: 'minimax',
+  'minimax-cn': 'minimax',
+  zai: 'zai',
+  'zai-coding-cn': 'zai',
+}
+
+/** LobeHub icon stem for a catalog provider. Same package as model row icons. */
+export function catalogProviderIcon(id: string): string {
+  return CATALOG_PROVIDER_ICONS[id] ?? id
+}
+
 export function catalogModelProvider(id: string): CatalogModelProvider | undefined {
   return CATALOG_MODEL_PROVIDERS.find(item => item.id === id)
 }

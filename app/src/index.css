@@ -685,6 +685,10 @@ header.settings-page-header {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--ring) 28%, transparent);
 }
 
+[data-slot="dialog-overlay"] {
+  background-color: color-mix(in srgb, var(--background) 12%, transparent);
+}
+
 [data-slot="dialog-content"],
 [data-slot="popover-content"],
 [data-slot="dropdown-menu-content"],

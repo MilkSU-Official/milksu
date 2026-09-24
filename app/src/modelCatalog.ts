@@ -22,6 +22,7 @@ export const modelCatalogStore = createStore({
   configuredRelay: undefined as RelayConfig | null | undefined,
 })
 let configuredContextWindows: AppSettings['model_context_windows']
+let disabledAccountModels = new Set<string>()
 
 function catalogState() {
   return modelCatalogStore.getState()
@@ -151,15 +152,18 @@ function catalogModelsForTokenfluxSource(
   )
 
   if (source === 'account') {
+    let accountModels = models
     if (catalog.credential_source === 'merged' && accountIDs.size > 0) {
-      return models.filter(model => accountIDs.has(model.id))
+      accountModels = models.filter(model => accountIDs.has(model.id))
+    } else if (
+      catalog.credential_source !== 'account'
+      && catalog.credential_source !== 'merged'
+      && accountIDs.size === 0
+    ) {
+      accountModels = models
     }
-    if (catalog.credential_source === 'account' || catalog.credential_source === 'merged') {
-      return models
-    }
-    // Account route on but catalog only has personal metadata — still list all
-    // known TokenFlux chat models so the account row is usable.
-    return models
+    if (disabledAccountModels.size === 0) return accountModels
+    return accountModels.filter(model => !disabledAccountModels.has(model.id))
   }
 
   if (catalog.credential_source === 'merged' && accountIDs.size > 0) {
@@ -664,12 +668,27 @@ export function installCustomProviderSettings(settings?: Record<string, Provider
 }
 
 /** Keep Coding and Settings pickers aligned with saved (or draft) settings. */
-export function installAppModelSettings(settings?: Pick<AppSettings, 'providers' | 'relay' | 'model_context_windows'> | null) {
+export function installAppModelSettings(settings?: Pick<AppSettings, 'providers' | 'relay' | 'model_context_windows' | 'disabled_account_models'> | null) {
   modelCatalogStore.setState({
     configuredCustomProviders: settings?.providers ?? {},
     configuredRelay: settings?.relay,
   })
   configuredContextWindows = settings?.model_context_windows
+  disabledAccountModels = new Set(
+    (settings?.disabled_account_models ?? []).map(id => String(id ?? '').trim()).filter(Boolean),
+  )
+}
+
+/** Account catalog rows for the settings editor. Disabled models stay listed. */
+export function listedAccountModels(catalog?: ModelCatalogSnapshot | null): Array<{ id: string; name: string }> {
+  if (!catalog || catalog.provider !== 'tokenflux') return []
+  const imageIDs = new Set((catalog.image_models ?? []).map(model => model.id))
+  const models = catalog.models.filter(model => model.id && !imageIDs.has(model.id))
+  const accountIDs = new Set(
+    (catalog.account_model_ids ?? []).map(id => String(id ?? '').trim()).filter(id => id && !imageIDs.has(id)),
+  )
+  const rows = accountIDs.size > 0 ? models.filter(model => accountIDs.has(model.id)) : models
+  return rows.map(model => ({ id: model.id, name: model.name || model.id }))
 }
 
 export function installedModelContextWindows() {

@@ -291,6 +291,26 @@ describe('runtime model catalog', () => {
     ])
     expect(pickerGroups.find(group => group.key === 'tokenflux:account')?.models)
       .toEqual(['grok-4.5'])
+
+    installAppModelSettings({
+      providers: {
+        tokenflux: {
+          api_key: '',
+          has_api_key: true,
+          enabled: false,
+          base_url: 'https://tokenflux.dev/v1',
+        },
+      },
+      relay: {
+        enabled: true,
+        url: 'https://tokenflux.dev/v1',
+        key: '',
+        has_key: true,
+      },
+      disabled_account_models: ['grok-4.5'],
+    })
+    expect(useModelCatalog().pickerGroups.find(group => group.key === 'tokenflux:account')?.models ?? [])
+      .toEqual([])
   })
 
   it('splits account and personal TokenFlux into separate flat picker groups', () => {

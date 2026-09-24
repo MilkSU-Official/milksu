@@ -92,7 +92,6 @@ export default function CommandPanel({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton={false}
-        overlayClassName="bg-black/20"
         data-command-panel=""
         data-testid="command-panel"
         className="top-[16%] w-[min(40rem,calc(100vw-2rem))] max-w-none translate-y-0 gap-0 overflow-hidden rounded-[12px] border border-border bg-popover p-0 shadow-xl"

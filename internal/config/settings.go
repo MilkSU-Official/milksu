@@ -147,6 +147,7 @@ type AppSettings struct {
 	NSSCTFArena              *NSSCTFArenaConfig   `json:"nssctf_arena,omitempty"`
 	Locale                   *string              `json:"locale,omitempty"`
 	DisabledSkills           []string             `json:"disabled_skills"`
+	DisabledAccountModels    []string             `json:"disabled_account_models,omitempty"`
 	EnabledOptionalSkills    []string             `json:"enabled_optional_skills,omitempty"`
 	WorkerProvider           string               `json:"worker_provider,omitempty"`
 	WorkerModel              string               `json:"worker_model,omitempty"`
@@ -1112,6 +1113,7 @@ func withDefaults(value AppSettings) AppSettings {
 		value.ModelRouting.AutoFallback = boolPointer(false)
 	}
 	value.DisabledSkills = normalizeDisabledSkills(value.DisabledSkills)
+	value.DisabledAccountModels = normalizeDisabledAccountModels(value.DisabledAccountModels)
 	value.EnabledOptionalSkills = normalizeEnabledOptionalSkills(value.EnabledOptionalSkills)
 	value = normalizeWorkerModel(value)
 	value = normalizeCompanionSettings(value)
@@ -1193,6 +1195,29 @@ func normalizeModelSourceOrder(value []string) []string {
 		if !seen[source] {
 			result = append(result, source)
 		}
+	}
+	return result
+}
+
+func normalizeDisabledAccountModels(value []string) []string {
+	if len(value) == 0 {
+		return nil
+	}
+	result := make([]string, 0, len(value))
+	seen := make(map[string]bool, len(value))
+	for _, id := range value {
+		id = strings.TrimSpace(id)
+		if id == "" || len(id) > 256 || seen[id] || strings.ContainsAny(id, "\x00\r\n") {
+			continue
+		}
+		seen[id] = true
+		result = append(result, id)
+		if len(result) == 256 {
+			break
+		}
+	}
+	if len(result) == 0 {
+		return nil
 	}
 	return result
 }
@@ -1499,6 +1524,7 @@ func clone(value AppSettings) AppSettings {
 	copy := value
 	copy.ModelRouting.SourceOrder = append([]string(nil), value.ModelRouting.SourceOrder...)
 	copy.DisabledSkills = append([]string(nil), value.DisabledSkills...)
+	copy.DisabledAccountModels = append([]string(nil), value.DisabledAccountModels...)
 	copy.EnabledOptionalSkills = append([]string(nil), value.EnabledOptionalSkills...)
 	copy.RemovedPresetServices = append([]string(nil), value.RemovedPresetServices...)
 	if value.SecurityTools != nil {
