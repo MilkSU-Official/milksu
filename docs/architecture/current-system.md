@@ -59,7 +59,7 @@ Pi 拥有会话、压缩和工具循环。桌面 GUI 把外部动作变成可见
 | --- | --- | --- |
 | 桌面壳 | packaged | `desktop/main.cjs` + Preload allowlist。macOS `hiddenInset`；Windows/Linux 画布色 overlay，系统按钮右上。macOS DMG 安装引导图为 1x + @2x HiDPI TIFF。看板娘悬浮窗是独立透明窗，只有角色本体和圆角手机对话两种互斥形态（默认工作区右下）；角色窗只包住精灵，拖动由壳跟着系统光标走，可以跨到另一块显示器，松手后夹进离窗口中心最近的工作区。点角色或侧栏页脚打开手机并收起角色，关掉对话角色再出现。侧栏页脚的星标在看板娘、手机、隐藏三种状态下分别是普通、选中和变淡；隐藏时点星标直接打开手机，关上后角色回来。开合是竖向合页，关对话时窗口先保持手机尺寸再缩回角色；主窗口可以和其中一种形态同时开着；叠层低于系统输入法，右键菜单夹在显示器工作区内；右键、菜单栏、Dock / 托盘是同一组动作，应用菜单不放看板娘。窗口标题是「看板娘」。看板娘开着时菜单栏 / 托盘就有图标；关掉主窗口后 Dock / 任务栏仍保留 MilkSU。Wayland 不能自己贴悬浮窗坐标，仍开手机对话。角色皮肤合同见 [看板娘皮肤设计合同](/developer/companion-skin)；设置 → 看板娘可以导入文件夹或选用已启用的 `app.pet` 插件皮肤。 |
 | Renderer | packaged | React + shadcn：CTF / CVE / 实验室 / Coding / 设置 / Composer / 右栏 / Bottom Dock。入口 `main.tsx`。 |
-| 账户与模型 | packaged | GitHub PKCE；TokenFlux Key 只进 Go Credential Store，请求 `https://tokenflux.dev/v1`。账户目录优先，可安全回退个人来源。 |
+| 账户与模型 | packaged | GitHub PKCE，以及用户名密码。密码只在账户服务存摘要；桌面主进程换会话后丢弃明文。TokenFlux Key 只进 Go Credential Store，请求 `https://tokenflux.dev/v1`。账户目录优先，可安全回退个人来源。 |
 | OTA | implemented | 已登录 Stable 轮询 Admin latest；侧栏打开进度框下载，下完后用户点安装并重启；macOS/Windows 走 electron-updater，Linux dpkg/tarball。GitHub Release 不上 OTA ZIP。 |
 | Go Runtime | implemented | JSONL RPC。Sidecar 停靠保活；凭据轮换惰性、撤回立即停。退出登录、清掉账户密钥或撤回仍在使用的密钥会立刻停掉看板娘 sidecar，不让它继续用启动时注入的密钥。Pi `bash` 缺省 600 秒。 |
 | 插件 | packaged | `milksu.plugin/v1`：签名包、发布者信任、六个主题表面。 |

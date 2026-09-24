@@ -83,8 +83,9 @@ export function selectForeignMilkSUHosts(rows, options = {}) {
   return rows
     .filter(row => {
       if (keepPids.has(row.pid)) return false
+      if (/milksu(?:-beta)?:\/\//i.test(row.command)) return false
       const kind = classifyMilkSUHostCommand(row.command, repoRoot)
-      return kind === 'unpackaged-repo' || kind === 'packaged-repo'
+      return kind === 'unpackaged-repo' || kind === 'packaged-repo' || kind === 'packaged-stable'
     })
     .map(row => ({
       ...row,
@@ -217,6 +218,36 @@ async function listProcessRows() {
   return parsePsTable(stdout)
 }
 
+export async function claimProductLoopProtocol(options = {}) {
+  if (process.platform !== 'darwin') return { ok: true, detail: '' }
+  const repoRoot = options.repoRoot || repositoryRoot
+  const keeper = `${repoRoot}/build/bin/MilkSU.app`
+  const binary = `${keeper}/Contents/MacOS/MilkSU`
+  const lsregister = '/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister'
+  let dump = ''
+  try {
+    const listed = await execFileAsync(lsregister, ['-dump'], { encoding: 'utf8', timeout: 20_000, maxBuffer: 32 * 1024 * 1024 })
+    dump = listed.stdout
+  } catch {
+    return { ok: false, detail: '读不到协议登记' }
+  }
+  const paths = new Set()
+  for (const line of dump.split('\n')) {
+    const match = line.match(/path:\s+(\/.*MilkSU\.app)\s+\(/)
+    if (match) paths.add(match[1])
+  }
+  for (const appPath of paths) {
+    if (appPath === keeper) continue
+    await execFileAsync(lsregister, ['-u', appPath], { timeout: 10_000 }).catch(() => {})
+  }
+  await execFileAsync(lsregister, ['-f', keeper], { timeout: 10_000 }).catch(() => {})
+  await execFileAsync(binary, [], {
+    env: { ...process.env, MILKSU_REGISTER_PROTOCOL: '1' },
+    timeout: 20_000,
+  }).catch(() => {})
+  return { ok: true, detail: 'milksu 协议交给仓库测试包' }
+}
+
 export async function listMilkSUHostProcesses(options = {}) {
   const rows = await listProcessRows().catch(() => [])
   const portPids = await pidsListeningOnPorts(keepPortsFrom(options))
@@ -331,4 +362,33 @@ export async function keepExclusiveMilkSUWindow(options = {}) {
     process.stdout.write(`WINDOW ${result.detail}\n`)
   }
   return result
+}
+
+export function startProductLoopHostWatch(options = {}) {
+  const intervalMs = Number(options.intervalMs || 4_000)
+  const state = { anomaly: '' }
+  const timer = setInterval(() => {
+    const watchOptions = typeof options.getOptions === 'function' ? options.getOptions() : options
+    listMilkSUHostProcesses(watchOptions)
+      .then(async listed => {
+        if (!listed.foreign.length || !listed.keepPids?.size) return
+        const detail = `多开了 ${listed.foreign.length} 扇 MilkSU（${kindLabels(listed.foreign).join('、')}）`
+        process.stdout.write(`WATCH ${detail}\n`)
+        await keepExclusiveMilkSUWindow({ ...watchOptions, log: true })
+        const after = await listMilkSUHostProcesses(watchOptions)
+        if (after.foreign.length) state.anomaly = `还开着 ${after.foreign.length} 扇 MilkSU（${kindLabels(after.foreign).join('、')}）`
+      })
+      .catch(() => {})
+  }, intervalMs)
+  if (typeof timer.unref === 'function') timer.unref()
+  return {
+    stop() {
+      clearInterval(timer)
+    },
+    take() {
+      const detail = state.anomaly
+      state.anomaly = ''
+      return detail
+    },
+  }
 }

@@ -8,6 +8,7 @@ import CodingToolBudgetDialog from '@/components/CodingToolBudgetDialog'
 import { useConversations } from '@/stores/conversationsStore'
 import { useLabJobs } from '@/stores/labJobsStore'
 import { invokeCommand, listenEvent } from '@/desktop'
+import { accountPasswordMessage } from '@/lib/accountPassword'
 import { toast } from '@/lib/appToast'
 import { companionAccountModelAlignedNotice } from '@/lib/companionUserError'
 import type { CTFAgentWorkspaceHandoff } from '@/ctfTypes'
@@ -424,10 +425,11 @@ export default function App() {
     && settings.model_verification.model === defaultTaskModel?.model,
   )
   const arenaReady = Boolean(settings?.nssctf_arena?.has_token)
+  const mustChangePassword = accountStatus.state === 'active' && accountStatus.mustChangePassword === true
   const showAccountGate = (
     accountLoaded
     && accountStatus.configured
-    && accountStatus.state !== 'active'
+    && (accountStatus.state !== 'active' || mustChangePassword)
     && !continueWithoutAccount
   )
   const activeCTFConversation = Boolean(conv.active?.ctfJobId)
@@ -548,6 +550,34 @@ export default function App() {
       }
       accountStatusRef.current = next
       setAccountStatus(next)
+    } finally {
+      setAccountLoginBusy(false)
+    }
+  }
+
+  async function startPasswordLogin(username: string, password: string) {
+    setAccountLoginBusy(true)
+    setAccountLoginError('')
+    try {
+      const next = await invokeCommand<AccountStatus>('start_account_password_login', { username, password })
+      accountStatusRef.current = next
+      setAccountStatus(next)
+    } catch (reason) {
+      setAccountLoginError(accountPasswordMessage(reason, t))
+    } finally {
+      setAccountLoginBusy(false)
+    }
+  }
+
+  async function changeAccountPassword(currentPassword: string, newPassword: string) {
+    setAccountLoginBusy(true)
+    setAccountLoginError('')
+    try {
+      const next = await invokeCommand<AccountStatus>('change_account_password', { currentPassword, newPassword })
+      accountStatusRef.current = next
+      setAccountStatus(next)
+    } catch (reason) {
+      setAccountLoginError(accountPasswordMessage(reason, t))
     } finally {
       setAccountLoginBusy(false)
     }
@@ -1653,6 +1683,8 @@ export default function App() {
           busy={accountLoginBusy}
           error={accountLoginError}
           onLogin={startAccountLogin}
+          onPasswordLogin={startPasswordLogin}
+          onChangePassword={changeAccountPassword}
           onContinueLocal={useLocalAccountMode}
         />
       </Suspense>
@@ -1760,6 +1792,10 @@ export default function App() {
               onSettingsChange={applySettings}
               onAccountLogin={startAccountLogin}
               onAccountLogout={logoutAccount}
+              onAccountStatusChange={next => {
+                accountStatusRef.current = next
+                setAccountStatus(next)
+              }}
               onSecurityToolCodingHandoff={startSecurityToolCodingSetup}
               onConversationsChanged={conversations.load}
             />

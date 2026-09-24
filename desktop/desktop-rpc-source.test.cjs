@@ -61,6 +61,9 @@ test('Electron-owned renderer methods remain handled before Go dispatch', () => 
     'GetBuildTracking',
     'GetAccountStatus',
     'StartAccountLogin',
+    'StartAccountPasswordLogin',
+    'ChangeAccountPassword',
+    'SetAccountPassword',
     'LogoutAccount',
     'GetUpdateStatus',
     'CheckForUpdates',
@@ -111,6 +114,10 @@ test('account credential synchronization uses only the Electron host source', ()
 test('oauth callback is routed to the instance that started login', () => {
   assert.match(mainSource, /routeAccountCallback\(/u)
   assert.match(mainSource, /writeAccountLoginClaim\(/u)
+  const forward = sourceBetween('function forwardAccountCallback', 'async function showAccountLoginNotice')
+  assert.match(forward, /writeAccountCallbackHandoff\(/u)
+  assert.doesNotMatch(forward, /spawn\(/u)
+  assert.match(mainSource, /exitIfForeignAccountCallback/u)
   const openURL = sourceBetween("app.on('open-url'", "app.on('second-instance'")
   assert.match(openURL, /deliverAccountCallback\(/u)
   assert.doesNotMatch(openURL, /console\.(?:log|info|debug|error)\(/u)

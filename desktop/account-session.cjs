@@ -1,7 +1,7 @@
 'use strict'
 
 const crypto = require('node:crypto')
-const { promises: fs } = require('node:fs')
+const { promises: fs, readFileSync, writeFileSync, renameSync } = require('node:fs')
 const path = require('node:path')
 
 const MAX_AVATAR_BYTES = 1024 * 1024
@@ -408,9 +408,12 @@ class AccountSession {
       state: 'active',
       user: {
         githubLogin: String(payload.account.githubLogin ?? ''),
-        displayName: String(payload.account.displayName ?? payload.account.githubLogin ?? ''),
+        displayName: String(payload.account.displayName ?? payload.account.username ?? payload.account.githubLogin ?? ''),
         avatarUrl,
+        username: String(payload.account.username ?? ''),
       },
+      hasPassword: payload.account.hasPassword === true,
+      mustChangePassword: payload.account.mustChangePassword === true,
       tokenFluxLinked: payload.account.tokenFluxLinked === true,
     }
     console.info(
@@ -527,6 +530,59 @@ class AccountSession {
     return String(session?.accessToken ?? '')
   }
 
+  async passwordRequest(path, body) {
+    const session = path === '/v1/auth/password' ? null : await this.activeSession()
+    const headers = { 'content-type': 'application/json' }
+    if (session?.accessToken) headers.authorization = `Bearer ${session.accessToken}`
+    const response = await this.fetch(`${this.config.apiUrl}${path}`, {
+      method: path.endsWith('/password') && body.currentPassword ? 'PATCH' : 'POST',
+      headers,
+      body: JSON.stringify(body),
+    })
+    const payload = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      const error = new Error(`account_password:${payload.error || 'invalid_credentials'}`)
+      throw error
+    }
+    return payload
+  }
+
+  async startPasswordLogin(username, password) {
+    if (!this.config.configured) throw new Error('内测账户尚未配置')
+    const payload = await this.passwordRequest('/v1/auth/password', { username, password })
+    const session = {
+      accessToken: String(payload.accessToken ?? ''),
+      expiresAt: Date.parse(String(payload.expiresAt ?? '')),
+    }
+    if (!session.accessToken || !Number.isFinite(session.expiresAt)) {
+      throw new Error('account_password:invalid_credentials')
+    }
+    await this.writeSession(session)
+    this.pending = null
+    const status = await this.loadStatus()
+    this.rememberStatus(status)
+    this.onChanged(status)
+    return status
+  }
+
+  async changeAccountPassword(currentPassword, newPassword) {
+    await this.passwordRequest('/v1/account/password', { currentPassword, newPassword })
+    this.clearNetworkCaches()
+    const status = await this.loadStatus()
+    this.rememberStatus(status)
+    this.onChanged(status)
+    return status
+  }
+
+  async setAccountPassword(username, password) {
+    await this.passwordRequest('/v1/account/password', { username, password })
+    this.clearNetworkCaches()
+    const status = await this.loadStatus()
+    this.rememberStatus(status)
+    this.onChanged(status)
+    return status
+  }
+
   async startLogin() {
     if (!this.config.configured) throw new Error('内测账户尚未配置')
     const verifier = base64url(crypto.randomBytes(48))
@@ -595,6 +651,34 @@ function accountLoginClaimPath(directory) {
   return path.join(String(directory ?? ''), 'milksu-pending-account-login.json')
 }
 
+function accountCallbackHandoffPath(directory, pid) {
+  const id = Number(pid)
+  if (!Number.isInteger(id) || id <= 0) return ''
+  return path.join(String(directory ?? ''), `milksu-account-callback-${id}`)
+}
+
+function writeAccountCallbackHandoff(directory, pid, callback) {
+  const file = accountCallbackHandoffPath(directory, pid)
+  const text = String(callback ?? '').trim()
+  if (!file || !text || text.length > 2048) return false
+  const temporary = `${file}.${process.pid}.tmp`
+  writeFileSync(temporary, text, { mode: 0o600 })
+  renameSync(temporary, file)
+  return true
+}
+
+function readAccountCallbackHandoff(directory, pid) {
+  const file = accountCallbackHandoffPath(directory, pid)
+  if (!file) return ''
+  try {
+    const text = readFileSync(file, 'utf8').trim()
+    fs.unlink(file).catch(() => {})
+    return text
+  } catch {
+    return ''
+  }
+}
+
 function safeClaimPath(value) {
   const text = String(value ?? '').trim()
   if (!text || text.length > 512 || text.includes('\0') || /[\r\n]/u.test(text)) return ''
@@ -612,6 +696,7 @@ function routeAccountCallback({ hasPendingLogin = false, claim = null, selfPid =
       pid,
       execPath: safeClaimPath(claim.execPath),
       script: safeClaimPath(claim.script),
+      appPath: safeClaimPath(claim.appPath),
     }
   }
   return { action: 'ignore' }
@@ -620,18 +705,22 @@ function routeAccountCallback({ hasPendingLogin = false, claim = null, selfPid =
 function accountCallbackForwardPlan({
   execPath = '',
   argv = [],
+  appPath = '',
   instanceId = '',
   callback = '',
 } = {}) {
-  const script = firstProtocolClientScript(argv, execPath)
+  const resolvedExec = safeClaimPath(execPath)
+  const script = firstProtocolClientScript(argv, resolvedExec || execPath)
+  const resolvedApp = safeClaimPath(appPath)
   const args = []
   if (script) args.push(script)
+  else if (resolvedApp) args.push(resolvedApp)
   if (callback) args.push(callback)
   const id = String(instanceId ?? '').trim()
   const envPatch = {
     MILKSU_INSTANCE_ID: /^[A-Za-z0-9_.-]{1,64}$/u.test(id) ? id : '',
   }
-  return { args, envPatch }
+  return { execPath: resolvedExec, args, cwd: script ? '' : resolvedApp, envPatch }
 }
 
 function publicOAuthError(message) {
@@ -647,6 +736,7 @@ async function writeAccountLoginClaim(directory, {
   pid = process.pid,
   execPath = '',
   script = '',
+  appPath = '',
 } = {}) {
   const file = accountLoginClaimPath(directory)
   const body = JSON.stringify({
@@ -654,6 +744,7 @@ async function writeAccountLoginClaim(directory, {
     pid: Number(pid),
     execPath: safeClaimPath(execPath),
     script: safeClaimPath(script),
+    appPath: safeClaimPath(appPath),
     at: Date.now(),
   })
   const temporary = `${file}.${process.pid}.tmp`
@@ -661,17 +752,30 @@ async function writeAccountLoginClaim(directory, {
   await fs.rename(temporary, file)
 }
 
+function accountLoginClaimFromJSON(raw) {
+  const parsed = JSON.parse(raw)
+  const pid = Number(parsed?.pid)
+  if (!Number.isInteger(pid) || pid <= 0) return null
+  return {
+    instanceId: String(parsed.instanceId ?? ''),
+    pid,
+    execPath: safeClaimPath(parsed.execPath),
+    script: safeClaimPath(parsed.script),
+    appPath: safeClaimPath(parsed.appPath),
+  }
+}
+
+function readAccountLoginClaimSync(directory) {
+  try {
+    return accountLoginClaimFromJSON(readFileSync(accountLoginClaimPath(directory), 'utf8'))
+  } catch {
+    return null
+  }
+}
+
 async function readAccountLoginClaim(directory) {
   try {
-    const parsed = JSON.parse(await fs.readFile(accountLoginClaimPath(directory), 'utf8'))
-    const pid = Number(parsed?.pid)
-    if (!Number.isInteger(pid) || pid <= 0) return null
-    return {
-      instanceId: String(parsed.instanceId ?? ''),
-      pid,
-      execPath: safeClaimPath(parsed.execPath),
-      script: safeClaimPath(parsed.script),
-    }
+    return accountLoginClaimFromJSON(await fs.readFile(accountLoginClaimPath(directory), 'utf8'))
   } catch {
     return null
   }
@@ -691,6 +795,9 @@ module.exports = {
   accountModelAuthorizationRefreshRequired,
   accountRedirectURL,
   accountCallbackForwardPlan,
+  accountCallbackHandoffPath,
+  readAccountCallbackHandoff,
+  writeAccountCallbackHandoff,
   firstProtocolClientScript,
   accountLoginClaimPath,
   clearAccountLoginClaim,
@@ -698,6 +805,7 @@ module.exports = {
   loadAccountConfig,
   publicOAuthError,
   readAccountLoginClaim,
+  readAccountLoginClaimSync,
   routeAccountCallback,
   writeAccountLoginClaim,
 }

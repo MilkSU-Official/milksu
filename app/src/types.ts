@@ -17,7 +17,10 @@ export interface AccountStatus {
     githubLogin: string
     displayName: string
     avatarUrl: string
+    username?: string
   }
+  hasPassword?: boolean
+  mustChangePassword?: boolean
   tokenFluxLinked?: boolean
   /** Main-process local bootstrap before /v1/account confirms; UI should not treat as final. */
   provisional?: boolean

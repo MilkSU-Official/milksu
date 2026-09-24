@@ -554,7 +554,7 @@ test('exclusive window classification keeps only MilkSU hosts', () => {
     '55 44 /Applications/Calculator.app/Contents/MacOS/Calculator',
   ].join('\n'))
   const foreign = selectForeignMilkSUHosts(rows, { repoRoot: repo, keepPids: new Set([44]) })
-  assert.deepEqual(foreign.map(row => row.pid), [66])
+  assert.deepEqual(foreign.map(row => row.pid), [22, 66])
   const helperRows = parsePsTable([
     '11 1 /Applications/Cursor.app/Contents/MacOS/Cursor',
     '22 1 /Applications/MilkSU.app/Contents/MacOS/MilkSU',
@@ -566,12 +566,12 @@ test('exclusive window classification keeps only MilkSU hosts', () => {
   assert.equal(keptByHelperPort.has(46), true)
   assert.equal(keptByHelperPort.has(44), true)
   assert.equal(keptByHelperPort.has(90), true)
-  assert.equal(selectForeignMilkSUHosts(helperRows, { repoRoot: repo, keepPids: keptByHelperPort }).map(row => row.pid).join(','), '')
+  assert.equal(selectForeignMilkSUHosts(helperRows, { repoRoot: repo, keepPids: keptByHelperPort }).map(row => row.pid).join(','), '22')
   const keptByPort = mergeKeepPids(new Set([9]), new Set([44]), rows)
   assert.equal(keptByPort.has(44), true)
   assert.equal(keptByPort.has(9), true)
   const stillForeign = selectForeignMilkSUHosts(rows, { repoRoot: repo, keepPids: keptByPort })
-  assert.deepEqual(stillForeign.map(row => row.pid), [66])
+  assert.deepEqual(stillForeign.map(row => row.pid), [22, 66])
   assert.equal(describeExclusiveWindows({ closed: 2, remaining: 1, closedKinds: ['日常安装包', '残留 Electron'] }), '窗口关掉 2 扇（日常安装包、残留 Electron），只留测试窗')
   assert.equal(describeExclusiveWindows({ closed: 0, remaining: 1 }), '窗口只留测试窗')
 })

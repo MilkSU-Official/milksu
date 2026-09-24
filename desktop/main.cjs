@@ -43,6 +43,8 @@ const { loadBuildTrackingView } = require('./build-tracking-view.cjs')
 const {
   AccountSession,
   accountCallbackForwardPlan,
+  readAccountCallbackHandoff,
+  writeAccountCallbackHandoff,
   accountCallbackFromArgv,
   accountIntentAuthorizationAction,
   accountModelAuthorizationAction,
@@ -53,6 +55,7 @@ const {
   loadAccountConfig,
   publicOAuthError,
   readAccountLoginClaim,
+  readAccountLoginClaimSync,
   routeAccountCallback,
   writeAccountLoginClaim,
 } = require('./account-session.cjs')
@@ -150,11 +153,6 @@ function findFreePort() {
   return port
 }
 
-const devToolsPort = findFreePort()
-app.commandLine.appendSwitch('remote-debugging-address', '127.0.0.1')
-app.commandLine.appendSwitch('remote-debugging-port', String(devToolsPort))
-applyLinuxChromiumFlags(app.commandLine)
-
 // Stable keeps Electron natural userData (existing installs / TCC continuity).
 // Beta always pins a distinct Application Support directory by appId so it can
 // coexist with Stable without MILKSU_INSTANCE_ID and without sharing runtime data.
@@ -175,7 +173,7 @@ const channelIsolation = applyChannelIsolation(desktopIdentity, {
   instanceId: process.env.MILKSU_INSTANCE_ID,
 })
 if (!app.requestSingleInstanceLock()) {
-  app.quit()
+  app.exit(0)
 }
 
 let mainWindow
@@ -184,6 +182,26 @@ let browserShell
 let accountSession
 let updateManager
 let pendingAccountCallback = accountCallbackFromArgv(process.argv, desktopChannel)
+
+function exitIfForeignAccountCallback() {
+  if (!pendingAccountCallback) return
+  const claim = readAccountLoginClaimSync(os.tmpdir())
+  const decision = routeAccountCallback({
+    hasPendingLogin: false,
+    claim,
+    selfPid: process.pid,
+  })
+  if (decision.action !== 'forward' || !processAlive(decision.pid)) return
+  if (!forwardAccountCallback(decision, pendingAccountCallback)) return
+  if (process.platform === 'darwin') app.dock?.hide()
+  app.exit(0)
+}
+exitIfForeignAccountCallback()
+
+const devToolsPort = findFreePort()
+app.commandLine.appendSwitch('remote-debugging-address', '127.0.0.1')
+app.commandLine.appendSwitch('remote-debugging-port', String(devToolsPort))
+applyLinuxChromiumFlags(app.commandLine)
 
 function focusMainWindow() {
   if (companionShell) companionShell.revealFromTaskbar()
@@ -219,32 +237,20 @@ function accountDialogText(locale, zh, en) {
 
 function forwardAccountCallback(decision, callback) {
   try {
-    const claimedExec = decision.execPath && existsSync(decision.execPath)
-      ? decision.execPath
-      : ''
-    const execPath = claimedExec || process.execPath
-    const argv = claimedExec && decision.script
-      ? [execPath, decision.script]
-      : process.argv
-    const plan = accountCallbackForwardPlan({
-      execPath,
-      argv,
-      instanceId: decision.instanceId,
-      callback,
-    })
-    const env = { ...process.env }
-    if (plan.envPatch.MILKSU_INSTANCE_ID) env.MILKSU_INSTANCE_ID = plan.envPatch.MILKSU_INSTANCE_ID
-    else delete env.MILKSU_INSTANCE_ID
-    const child = spawn(process.execPath, plan.args, {
-      detached: true,
-      stdio: 'ignore',
-      env,
-    })
-    child.unref()
-    return true
+    return writeAccountCallbackHandoff(os.tmpdir(), decision.pid, callback)
   } catch {
     return false
   }
+}
+
+function watchForwardedAccountCallback() {
+  const timer = setInterval(() => {
+    const callback = readAccountCallbackHandoff(os.tmpdir(), process.pid)
+    if (!callback) return
+    clearInterval(timer)
+    void deliverAccountCallback(callback)
+  }, 200)
+  if (typeof timer.unref === 'function') timer.unref()
 }
 
 async function showAccountLoginNotice(kind, detail = '') {
@@ -297,10 +303,10 @@ async function deliverAccountCallback(rawURL) {
     return
   }
   if (decision.action === 'forward' && processAlive(decision.pid) && forwardAccountCallback(decision, callback)) {
-    await showAccountLoginNotice('other-window')
-    return
+    return 'forwarded'
   }
   await showAccountLoginNotice('retry')
+  return 'retry'
 }
 let quitting = false
 let relaunchScheduled = false
@@ -1085,13 +1091,30 @@ ipcMain.handle('milksu:invoke', async (event, request) => {
       pid: process.pid,
       execPath: process.execPath,
       script: firstProtocolClientScript(process.argv, process.execPath),
+      appPath: app.isPackaged ? '' : app.getAppPath(),
     })
+    watchForwardedAccountCallback()
     try {
       return await accountSession.startLogin()
     } catch (error) {
       await clearAccountLoginClaim(os.tmpdir(), process.pid)
       throw error
     }
+  }
+  if (method === 'StartAccountPasswordLogin') {
+    if (!accountSession) throw new Error('内测账户尚未就绪')
+    const payload = Array.isArray(request?.args) ? request.args[0] : request?.args
+    return accountSession.startPasswordLogin(payload?.username, payload?.password)
+  }
+  if (method === 'ChangeAccountPassword') {
+    if (!accountSession) throw new Error('内测账户尚未就绪')
+    const payload = Array.isArray(request?.args) ? request.args[0] : request?.args
+    return accountSession.changeAccountPassword(payload?.currentPassword, payload?.newPassword)
+  }
+  if (method === 'SetAccountPassword') {
+    if (!accountSession) throw new Error('内测账户尚未就绪')
+    const payload = Array.isArray(request?.args) ? request.args[0] : request?.args
+    return accountSession.setAccountPassword(payload?.username, payload?.password)
   }
   if (method === 'LogoutAccount') {
     if (!accountSession) return { configured: false, state: 'unconfigured', authenticated: false }
@@ -1167,6 +1190,12 @@ app.on('second-instance', (_event, argv = []) => {
 
 app.whenReady().then(async () => {
   startupLog('app.whenReady')
+  if (process.env.MILKSU_REGISTER_PROTOCOL === '1' && app.isPackaged) {
+    app.setAsDefaultProtocolClient('milksu')
+    if (process.platform === 'darwin') app.dock?.hide()
+    app.exit(0)
+    return
+  }
   if (process.platform === 'win32' && typeof app.setAppUserModelId === 'function') {
     app.setAppUserModelId(desktopIdentity.appId)
   }
@@ -1229,7 +1258,12 @@ app.whenReady().then(async () => {
   if (pendingAccountCallback) {
     const callback = pendingAccountCallback
     pendingAccountCallback = ''
-    await startupTime('account.handleCallback', () => deliverAccountCallback(callback))
+    const handed = await startupTime('account.handleCallback', () => deliverAccountCallback(callback))
+    if (handed === 'forwarded') {
+      if (process.platform === 'darwin') app.dock?.hide()
+      app.exit(0)
+      return
+    }
   }
   const upstreamEndpoint = await waitForDevTools()
   createWindow()

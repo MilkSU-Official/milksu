@@ -191,6 +191,9 @@ export interface VulnerabilityPracticeRun {
 interface DesktopAppBindings {
   GetAccountStatus(): Promise<AccountStatus>
   StartAccountLogin(): Promise<AccountStatus>
+  StartAccountPasswordLogin(payload: { username: string, password: string }): Promise<AccountStatus>
+  ChangeAccountPassword(payload: { currentPassword: string, newPassword: string }): Promise<AccountStatus>
+  SetAccountPassword(payload: { username: string, password: string }): Promise<AccountStatus>
   LogoutAccount(): Promise<AccountStatus>
   GetUpdateStatus(): Promise<UpdateStatus>
   CheckForUpdates(): Promise<UpdateStatus>
@@ -675,6 +678,12 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.GetAccountStatus() as Promise<T>
       case 'start_account_login':
         return app.StartAccountLogin() as Promise<T>
+      case 'start_account_password_login':
+        return app.StartAccountPasswordLogin(args as { username: string, password: string }) as Promise<T>
+      case 'change_account_password':
+        return app.ChangeAccountPassword(args as { currentPassword: string, newPassword: string }) as Promise<T>
+      case 'set_account_password':
+        return app.SetAccountPassword(args as { username: string, password: string }) as Promise<T>
       case 'logout_account':
         return app.LogoutAccount() as Promise<T>
       case 'get_update_status':

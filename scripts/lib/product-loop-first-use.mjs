@@ -579,10 +579,12 @@ export async function runFirstUse(options = {}) {
     }
     await closeLaunch()
     launch = await startFirstUseDesktop({ instanceId, timeoutMs: desktopReadyMs })
+    options.onDriver?.(launch?.driver)
     if (!launch.attached || !launch.driver?.cdpAlive()) {
       await closeLaunch()
       await delay(800)
       launch = await startFirstUseDesktop({ instanceId, timeoutMs: desktopReadyMs })
+      options.onDriver?.(launch?.driver)
     }
     if (!launch.attached || !launch.driver?.cdpAlive()) {
       return { ok: false, detail: launch.driver?.gaps?.join(' ') || '启动 B 没附着独立窗口' }
@@ -621,10 +623,12 @@ export async function runFirstUse(options = {}) {
 
   try {
     launch = await startFirstUseDesktop({ instanceId, timeoutMs: desktopReadyMs })
+    options.onDriver?.(launch?.driver)
     if (!launch.attached || !launch.driver?.cdpAlive()) {
       await closeLaunch()
       await delay(800)
       launch = await startFirstUseDesktop({ instanceId, timeoutMs: desktopReadyMs })
+      options.onDriver?.(launch?.driver)
     }
     if (!launch.attached || !launch.driver?.cdpAlive()) {
       await record('login-gate', 'FAIL', launch.driver?.gaps?.join(' ') || '没附着独立产品窗口')

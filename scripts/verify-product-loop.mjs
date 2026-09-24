@@ -38,7 +38,7 @@ import {
 import { adoptEvidence, applySurfaceScan, inspectProductLoopSurfaces } from './lib/product-loop-surface-scan.mjs'
 import { runProductLoopCase } from './lib/product-loop-runners.mjs'
 import { ensureIsolatedProductSession, flushProductLoopCleanup, flushProductLoopWorkspaces } from './lib/product-loop-session.mjs'
-import { keepExclusiveMilkSUWindow } from './lib/product-loop-windows.mjs'
+import { claimProductLoopProtocol, keepExclusiveMilkSUWindow, startProductLoopHostWatch } from './lib/product-loop-windows.mjs'
 
 const resultPath = join(repositoryRoot, 'build', 'test-results', 'product-loop.json')
 
@@ -118,6 +118,9 @@ async function main() {
   receipt.localEnv = describeProductLoopLocalEnv({ ...localEnv, env: process.env })
   const requestedCases = options.cases ?? []
   let session = { driver: null, instanceId: '', sourcesReady: false, ok: false }
+  const hostWatch = startProductLoopHostWatch({
+    getOptions: () => ({ driver: session.driver }),
+  })
 
   async function attachEvidence(id, record) {
     const driver = session.driver
@@ -136,6 +139,10 @@ async function main() {
 
   async function recordCase(id, outcome) {
     const item = CASES[id]
+    const hostAnomaly = hostWatch.take()
+    if (hostAnomaly && outcome.result === 'PASS') {
+      outcome = { ...outcome, result: 'FAIL', detail: `${hostAnomaly}。${outcome.detail || ''}` }
+    }
     const record = {
       id,
       title: item?.title || id,
@@ -206,6 +213,8 @@ async function main() {
   }
 
   try {
+    const protocol = await claimProductLoopProtocol()
+    if (protocol.detail) process.stdout.write(`PROTOCOL ${protocol.detail}\n`)
     const claim = await keepExclusiveMilkSUWindow({ log: true })
     if (claim.closed) receipt.humanReview.push(claim.detail)
     for (const group of groupCasesByModule(requestedCases)) {
@@ -218,6 +227,9 @@ async function main() {
         const outcome = await runFirstUse({
           ...options,
           keepOpen: true,
+          onDriver: driver => {
+            if (driver) session = { ...session, driver, ok: true }
+          },
           onStep: async (id, driver, extra = {}) => captureProductLoopEvidenceBundle(driver, id, extra),
         })
         if (outcome.notes?.length) receipt.humanReview.push(...outcome.notes)
@@ -270,6 +282,7 @@ async function main() {
       await recordCase(id, { result: 'FAIL', detail: message })
     }
   } finally {
+    hostWatch.stop()
     await flushProductLoopCleanup()
     await flushProductLoopWorkspaces()
     if (session.driver) await session.driver.close()

@@ -25,6 +25,7 @@ import {
   Switch,
   Textarea,
 } from '@/components/ui'
+import { AccountCredentialSettings } from '@/components/AccountCredentialSettings'
 import { desktopErrorMessage, hasDesktopRuntime, invokeCommand, isMissingDesktopRuntime, listenEvent } from '@/desktop'
 import type {
   BrowserUseRuntime,
@@ -264,6 +265,7 @@ export default function SettingsPage({
   onSettingsChange,
   onAccountLogin,
   onAccountLogout,
+  onAccountStatusChange,
   onSecurityToolCodingHandoff,
   onConversationsChanged,
 }: {
@@ -276,6 +278,7 @@ export default function SettingsPage({
   onSettingsChange?: (value: AppSettings) => void
   onAccountLogin?: () => void
   onAccountLogout?: () => void
+  onAccountStatusChange?: (status: AccountStatus) => void
   onSecurityToolCodingHandoff?: (handoff: BuiltinConfigHandoff) => void
   onConversationsChanged?: () => void
 }) {
@@ -428,7 +431,7 @@ export default function SettingsPage({
                   <SettingsRow
                     label={t('GitHub 账户', 'GitHub account')}
                     description={account.state === 'active'
-                      ? `@${account.user?.githubLogin || 'GitHub'} · ${t('内测用户', 'beta user')}`
+                      ? `${account.user?.username ? account.user.username : `@${account.user?.githubLogin || 'GitHub'}`} · ${t('内测用户', 'beta user')}`
                       : ''}
                     trailing={(
                       <div className="flex items-center gap-3">
@@ -444,6 +447,10 @@ export default function SettingsPage({
                         ) : null}
                       </div>
                     )}
+                  />
+                  <AccountCredentialSettings
+                    account={account}
+                    onChanged={next => onAccountStatusChange?.(next)}
                   />
                 </SettingsSection>
 

@@ -485,7 +485,7 @@ test('oauth callback stays with the instance that started login', () => {
     hasPendingLogin: false,
     claim: { instanceId: 'loop-1', pid: 42 },
     selfPid: 7,
-  }), { action: 'forward', instanceId: 'loop-1', pid: 42, execPath: '', script: '' })
+  }), { action: 'forward', instanceId: 'loop-1', pid: 42, execPath: '', script: '', appPath: '' })
   assert.deepEqual(routeAccountCallback({
     hasPendingLogin: false,
     claim: { instanceId: '', pid: 7 },
@@ -504,6 +504,7 @@ test('login claim records the instance and not an oauth code', async () => {
     pid: 42,
     execPath: '',
     script: '',
+    appPath: '',
   })
   await writeAccountLoginClaim(dir, {
     instanceId: 'loop-1',
@@ -533,6 +534,8 @@ test('callback forward plan keeps the code out of the environment', () => {
     instanceId: 'loop-1',
     callback,
   })
+  assert.equal(plan.execPath, '/usr/bin/electron')
+  assert.equal(plan.cwd, '')
   assert.equal(plan.envPatch.MILKSU_INSTANCE_ID, 'loop-1')
   assert.equal(Object.values(plan.envPatch).join(' ').includes('one-time'), false)
   assert.equal(plan.args.at(-1), callback)
@@ -543,6 +546,16 @@ test('callback forward plan keeps the code out of the environment', () => {
     callback,
   })
   assert.equal(daily.envPatch.MILKSU_INSTANCE_ID, '')
+  const dev = accountCallbackForwardPlan({
+    execPath: '/Applications/Electron.app/Contents/MacOS/Electron',
+    argv: ['/Applications/Electron.app/Contents/MacOS/Electron'],
+    appPath: '/opt/milksu/desktop',
+    instanceId: 'loop-1',
+    callback,
+  })
+  assert.equal(dev.cwd, '/opt/milksu/desktop')
+  assert.equal(dev.args[0], '/opt/milksu/desktop')
+  assert.equal(dev.args.at(-1), callback)
 })
 
 test('public oauth errors do not echo codes or callback urls', () => {
