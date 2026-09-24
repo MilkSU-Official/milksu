@@ -356,6 +356,7 @@ export function useCompanion() {
           || payload.type === 'tool.started'
           || payload.type === 'tool.progress'
           || payload.type === 'tool.completed'
+          || payload.type === 'intent.recorded'
         ) {
           applyLiveEvent(payload)
           return

@@ -1251,6 +1251,11 @@ func mapCompanionEvent(raw map[string]any) engine.Event {
 		if content := strings.TrimSpace(stringValue(raw["text"])); content != "" {
 			event.Text = content
 		}
+	case "intent.recorded":
+		event.Type = "intent.recorded"
+		event.Text = strings.TrimSpace(stringValue(raw["text"]))
+		event.Bucket = strings.TrimSpace(stringValue(raw["bucket"]))
+		event.Done = true
 	case "turn_settled":
 		event.Type = "assistant.settled"
 		event.Done = true
