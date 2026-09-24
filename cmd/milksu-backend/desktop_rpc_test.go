@@ -27,6 +27,9 @@ func TestDesktopAppMethodsMatchRendererBindings(t *testing.T) {
 	electronMethods := map[string]bool{
 		"GetAccountStatus":               true,
 		"StartAccountLogin":              true,
+		"StartAccountPasswordLogin":      true,
+		"ChangeAccountPassword":          true,
+		"SetAccountPassword":             true,
 		"LogoutAccount":                  true,
 		"GetUpdateStatus":                true,
 		"CheckForUpdates":                true,
