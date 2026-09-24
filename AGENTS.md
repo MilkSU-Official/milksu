@@ -318,7 +318,9 @@ React -> Electron Preload / Desktop RPC -> Application Service -> Domain / Runti
 - 可下载的最新版本只写在 `README.md`。不要在本文件、`current-objectives.md`、
   `current-system.md`、`document-status.md` 或任何其他文档里写「当前最新版是 VERSION_OR_COMMIT」。
   历史 changelog 条目可以点名它所描述的那个 tag。
-- 发完 GitHub Release 之后，更新 README 的徽章、下载链接和当前状态。
+- 发完 GitHub Release 之后，更新 README 的徽章、下载链接和当前状态，
+  并按 [三端打包与发版流程](docs/developer/release-process.md) §7 核对鸣谢、开源组件、截图和开篇介绍。
+  README 保持产品介绍，不要改成项目日志或设计文档。
   其他 Current 文档记录那个 tag 发了什么、代码现在怎么工作。
 - 升版本号、空 tag、本地脏包或更新的 `main` 都不算新的发行，
   直到 README 按一次有回执的 GitHub Release 更新为止。

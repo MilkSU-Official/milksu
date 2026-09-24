@@ -52,7 +52,7 @@ Windows 安装器仍未代码签名。
 ## 完成线
 
 1. 改对话、引擎、DSH 或隔离浏览器后跑产品回归。失败先修。
-2. 用户要求发版时：先跑 `npm run test:product-loop -- --gui --suite all`。看 FAIL 项，有必要就查、修，再重跑失败套件。这些失败项通过之后才对照 models.dev（[发版流程](release-process.md) §1.5）→ 升版本号并推送 → 干净的 `main` 跑 `release:verify` → 新的三端回执。不挪已发出的 tag。
+2. 用户要求发版时：先跑 `npm run test:product-loop -- --gui --suite all`。看 FAIL 项，有必要就查、修，再重跑失败套件。这些失败项通过之后才对照 models.dev（[发版流程](release-process.md) §1.5）→ 升版本号并推送 → 干净的 `main` 跑 `release:verify` → 新的三端回执。不挪已发出的 tag。Release 页创建成功后，按发版流程 §7 回写 README（版本、鸣谢、开源组件、截图和开篇介绍）。
 
 | 优先级 | 事项 | 完成标准 |
 | --- | --- | --- |
