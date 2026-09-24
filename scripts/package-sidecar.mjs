@@ -771,6 +771,34 @@ function bridgeBundleBanner(subagentsRoot = false) {
   return lines.join('\n')
 }
 
+function piSubagentsCjsPlugin() {
+  return {
+    name: 'pi-subagents-cjs',
+    setup(build) {
+      build.onLoad({ filter: /[/\\]pi-subagents[/\\]index\.js$/ }, async (args) => {
+        const source = await readFile(args.path, 'utf8')
+        if (!source.includes('await import(')) return null
+        return {
+          contents: [
+            'import { HERDR_PI_MODE_ENV } from "./src/runs/shared/herdr-pi-protocol.js";',
+            'import herdrPiBridge from "./src/extension/herdr-pi-bridge.js";',
+            'import subagentExtension from "./src/extension/index.js";',
+            'const registerExtension = process.env[HERDR_PI_MODE_ENV] === "1"',
+            '  ? herdrPiBridge',
+            '  : process.env.PI_SUBAGENT_CHILD === "1"',
+            '    ? undefined',
+            '    : subagentExtension;',
+            'export default function registerSubagentExtension(pi) {',
+            '  registerExtension?.(pi);',
+            '}',
+          ].join('\n'),
+          loader: 'js',
+        }
+      })
+    },
+  }
+}
+
 async function bundleBridge(entry, outfile, options = {}) {
   await build({
     entryPoints: [join(repositoryRoot, entry)],
@@ -784,6 +812,7 @@ async function bundleBridge(entry, outfile, options = {}) {
     define: { 'import.meta.url': '__import_meta_url' },
     legalComments: 'eof',
     logLevel: 'info',
+    plugins: [piSubagentsCjsPlugin()],
   })
 }
 
