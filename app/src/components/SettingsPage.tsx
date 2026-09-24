@@ -632,10 +632,10 @@ export default function SettingsPage({
                   />
                 ))}
                   <SettingsRow
-                    label={t('同时保护我的项目目录（maiRecord 等）', 'Also protect my own project folders (maiRecord, …)')}
+                    label={t('同时保护我的项目目录', 'Also protect my own project folders')}
                     description={t(
-                      '默认开启。开启时，你自己的项目目录（maiRecord 等）在删除审批里属于「受保护」，只能拒绝。关掉后你可以批准删除自己项目里的文件；系统目录（用户主目录、~/Library、Documents、Desktop、runtime-data、构建缓存等）永远受保护，不受这个开关影响。',
-                      'On by default. While on, your own project folders (maiRecord, …) count as protected in a delete approval, so it can only be denied. Turn it off to approve deleting files inside your own projects; system locations (your home directory, ~/Library, Documents, Desktop, runtime-data, build caches) stay protected either way.',
+                      '默认开启。开启时，你自己的项目目录在删除审批里属于「受保护」，只能拒绝。关掉后你可以批准删除自己项目里的文件；系统目录（用户主目录、~/Library、Documents、Desktop、runtime-data、构建缓存等）永远受保护，不受这个开关影响。',
+                      'On by default. While on, your own project folders count as protected in a delete approval, so it can only be denied. Turn it off to approve deleting files inside your own projects; system locations (your home directory, ~/Library, Documents, Desktop, runtime-data, build caches) stay protected either way.',
                     )}
                     trailing={(
                       <Switch

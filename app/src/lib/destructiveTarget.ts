@@ -94,11 +94,11 @@ const ALWAYS_PROTECTED_RULES: { rule: string; test: (path: string) => boolean }[
 ]
 
 // 可开关：只保护"我们自己的项目目录"这一类。默认开（行为与以前完全一致），
-// 关掉之后读者才能批准删除自己的项目文件（真机：maiRecord 项目里审批只能拒绝，工作被卡住）。
-// 注意 maiRecord 规则自带 record，任何含 mairecord 的路径都会命中，所以它必须落在这一组。
+// 关掉之后读者才能批准删除自己的项目文件（真机：读者自己项目里的审批只能拒绝，工作被卡住）。
+// 注意这组按**路径段**匹配 record/trainer：读者自己的项目/记录目录都落在这里，所以它必须落在这一组。
 const PROJECT_PROTECTED_RULES: { rule: string; test: (path: string) => boolean }[] = [
-  { rule: '/private/tmp/mairecord-*', test: p => /^\/private\/tmp\/mairecord-/.test(p) },
-  { rule: 'maiRecord 记录', test: p => /mairecord/i.test(p) && /(record|trainer)/i.test(p) },
+  { rule: '/private/tmp/project-backup-*', test: p => /^\/private\/tmp\/project-backup-/.test(p) },
+  { rule: '项目记录与训练数据', test: p => /(^|\/)(record|trainer)(\/|$)/i.test(p) },
 ]
 
 /** Split a shell-ish command into simple tokens, honouring quotes. */
@@ -416,7 +416,7 @@ export function assessApprovalRequest(
 
 /**
  * 命中哪条保护。`protectProjectPaths`（默认 true = 与以前完全一致）为 false 时，
- * **只**跳过"可开关"那一组（maiRecord 这类项目目录），系统级判定一律照旧。
+ * **只**跳过"可开关"那一组（读者自己的项目目录），系统级判定一律照旧。
  */
 export function protectedMatch(
   path: string | undefined,
@@ -570,7 +570,7 @@ export function assessDestructiveRequest(
   let undetermined = targets.some(target => target.kind === 'unknown')
 
   targets.forEach((target, index) => {
-    // 项目目录保护（maiRecord 等）是读者本机的选择：设置里关掉后，他自己项目里的删除申请
+    // 项目目录保护是读者本机的选择：设置里关掉后，他自己项目里的删除申请
     // 就可以被批准；系统级保护不接受这个偏好（见 protectedMatch）。
     const match = protectedMatch(target.path, { protectProjectPaths: readProtectProjectPaths() })
     if (match.protected && match.rule) protections.push(match.rule)

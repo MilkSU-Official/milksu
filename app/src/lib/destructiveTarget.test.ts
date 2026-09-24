@@ -62,9 +62,9 @@ describe('protected rules and user data', () => {
       protected: true,
       rule: '/private/tmp/milksu-*',
     })
-    expect(protectedMatch('/private/tmp/mairecord-backup')).toEqual({
+    expect(protectedMatch('/private/tmp/project-backup-2026')).toEqual({
       protected: true,
-      rule: '/private/tmp/mairecord-*',
+      rule: '/private/tmp/project-backup-*',
     })
   })
 
@@ -75,13 +75,13 @@ describe('protected rules and user data', () => {
     expect(protectedMatch('/Users/me/Documents/report.pdf').protected).toBe(true)
   })
 
-  // 读者被卡住的现场：自己的项目目录（maiRecord 等）也进了受保护清单，于是审批只能拒绝。
+  // 读者被卡住的现场：自己的项目目录（含 record/trainer 段）也进了受保护清单，于是审批只能拒绝。
   // 设置里关掉「项目目录保护」后必须能批准，而系统级保护不受这个偏好影响。
   it('lets the reader approve their own project paths once the project protection is off', () => {
     writeProtectProjectPaths(false)
     try {
-      const own = assessDestructiveRequest(`rm -rf ${testHome}/mairecord-trainer/out`, [])
-      expect(own.protections).not.toContain('maiRecord 记录')
+      const own = assessDestructiveRequest(`rm -rf ${testHome}/record/out`, [])
+      expect(own.protections).not.toContain('项目记录与训练数据')
 
       // 系统级保护与这个偏好无关：关掉后照样拦。
       const documents = assessDestructiveRequest(`rm -rf ${testHome}/Documents/report.pdf`, [])
@@ -371,24 +371,24 @@ describe("evidence: prose and structured input agree on the target", () => {
 
 // "同时保护我的项目目录"关掉之后：自己的项目文件可以批准删除，系统级保护一条都不许松。
 describe('project protection is optional', () => {
-  // 默认（没有第二个参数）必须与以前完全一致：maiRecord 那条老规则自带 record，
-  // 任何含 mairecord 的路径都会命中，所以它必须先被锁死。
-  it('keeps protecting maiRecord project paths by default', () => {
-    expect(protectedMatch('/private/tmp/mairecord-backup')).toEqual({
+  // 默认（没有第二个参数）必须与以前完全一致：这条按路径段匹配 record/trainer，
+  // 读者自己的项目/记录目录都会命中，所以它必须先被锁死。
+  it('keeps protecting project record paths by default', () => {
+    expect(protectedMatch('/private/tmp/project-backup-2026')).toEqual({
       protected: true,
-      rule: '/private/tmp/mairecord-*',
+      rule: '/private/tmp/project-backup-*',
     })
-    expect(protectedMatch(`${testHome}/mairecord-trainer/x`)).toEqual({
+    expect(protectedMatch(`${testHome}/trainer/out`)).toEqual({
       protected: true,
-      rule: 'maiRecord 记录',
+      rule: '项目记录与训练数据',
     })
     // 显式传 true 与不传等价
-    expect(protectedMatch('/private/tmp/mairecord-backup', { protectProjectPaths: true }).protected).toBe(true)
+    expect(protectedMatch('/private/tmp/project-backup-2026', { protectProjectPaths: true }).protected).toBe(true)
   })
 
   it('lets the reader approve their own project paths when it is off', () => {
-    expect(protectedMatch('/private/tmp/mairecord-backup', { protectProjectPaths: false }).protected).toBe(false)
-    expect(protectedMatch(`${testHome}/mairecord-trainer/x`, { protectProjectPaths: false }).protected).toBe(false)
+    expect(protectedMatch('/private/tmp/project-backup-2026', { protectProjectPaths: false }).protected).toBe(false)
+    expect(protectedMatch(`${testHome}/trainer/out`, { protectProjectPaths: false }).protected).toBe(false)
   })
 
   it('never relaxes the system-level protection', () => {
