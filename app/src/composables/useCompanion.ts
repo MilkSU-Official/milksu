@@ -64,6 +64,7 @@ interface CompanionEnginePayload {
   requestId?: string
   toolName?: string
   toolCallId?: string
+  bucket?: string
   durationMs?: number
   done?: boolean
   aborted?: boolean
@@ -260,6 +261,20 @@ export function useCompanion() {
       }))
       return
     }
+    if (type === 'intent.recorded') {
+      const text = String(payload.text || '').trim()
+      setLiveProcess(current => ({
+        ...current,
+        thinkingRunning: false,
+        tools: upsertTool(current.tools, {
+          id: `intent:${payload.bucket || 'route'}`,
+          name: 'Intent',
+          detail: text,
+          running: false,
+        }),
+      }))
+      return
+    }
     if (type === 'tool.started') {
       const id = String(payload.toolCallId || payload.toolName || `tool:${Date.now()}`)
       const name = String(payload.toolName || 'tool')
@@ -341,6 +356,7 @@ export function useCompanion() {
           || payload.type === 'tool.started'
           || payload.type === 'tool.progress'
           || payload.type === 'tool.completed'
+          || payload.type === 'intent.recorded'
         ) {
           applyLiveEvent(payload)
           return

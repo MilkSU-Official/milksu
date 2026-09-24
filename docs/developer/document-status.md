@@ -42,6 +42,7 @@
 | [Linux 安装与桌面合同](linux-platform-support.md) | Target / Designed | 共用 x64 DEB + 通用 tarball；ARM 只测不发；GNOME Portal Computer Use；ISSUE #19 已关闭 | 不把未发版安装面写成 GitHub Latest；不按 arch×distro 发 8 份包 |
 | [看板娘皮肤设计合同](companion-skin.md) | Current / Authoring | 看板娘运动、必交帧、帽顶叠层，以及设置里的文件夹 / 插件换装 | 不复述产品 chrome |
 | [远程控制](remote-control.md) | Target / Designed | 手机连本机 MilkSU 的准入与已对齐决策（E2E、盲中继、iOS 先） | 不写成已实现；不复述产品 chrome；不安排当前完成线优先级 |
+| [看板娘盯住自己派出的会话](companion-watched-agents.md) | Target / Designed | 意图识别走 OpenRouter Jev，没接上则另打一次主模型；每人一把钥匙静默下发，桌面直连 | 不写成已验收；不覆盖 issue #117 的另外三条；不复述产品 chrome |
 | [动效](motion.md) | Current / Implementation | 动效 token 的落点、动效面清单、运行时量法、刻意不动的地方和未做候选 | 不复述 `AGENTS.md` 的动效条款与数值 |
 | 仓库根目录 `AGENTS.md` | Current / Canonical | 仓库协作约束与产品 UI 设计语言 | 其他文档只指向它，不复制层级、token 或原语表 |
 | 本文件 | Current / Living | 事实优先级、文档职责、生命周期和维护规则 | 不复制实现细节或测试日志 |

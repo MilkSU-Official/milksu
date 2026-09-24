@@ -51,6 +51,7 @@ type BoardSnapshot struct {
 type DispatchResult struct {
 	Accepted          bool   `json:"accepted"`
 	Delivered         bool   `json:"delivered"`
+	ConversationID    string `json:"conversationId,omitempty"`
 	TargetTitle       string `json:"targetTitle,omitempty"`
 	EntryID           string `json:"entryId,omitempty"`
 	Error             string `json:"error,omitempty"`

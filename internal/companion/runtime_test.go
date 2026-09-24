@@ -372,6 +372,20 @@ func TestNoteExternalTurnStaysQuietWhenExtractIsOff(t *testing.T) {
 	runtime.NoteExternalTurn("finish", "以后都用中文回复我", "", false)
 }
 
+func TestMapCompanionIntentRecordedReachesThePhone(t *testing.T) {
+	event := mapCompanionEvent(map[string]any{
+		"type":   "intent.recorded",
+		"text":   "意图识别：闲聊。由Jev判定。",
+		"bucket": "chat",
+	})
+	if event.Type != "intent.recorded" {
+		t.Fatalf("type %q", event.Type)
+	}
+	if event.Text == "" || event.Bucket != "chat" {
+		t.Fatalf("text %q bucket %q", event.Text, event.Bucket)
+	}
+}
+
 func statusOf(runtime *Runtime, id string) string {
 	for _, session := range runtime.BoardSnapshot().Sessions {
 		if session.ID == id {

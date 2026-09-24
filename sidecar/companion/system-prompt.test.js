@@ -8,7 +8,7 @@ test("companion default prompt follows the UI locale", () => {
   assert.match(chinese, /你是 MilkSU 看板娘/);
   assert.match(chinese, /companion_board/);
   assert.match(chinese, /companion_dispatch/);
-  assert.match(chinese, /subagent/);
+  assert.doesNotMatch(chinese, /subagent/);
   assert.match(chinese, /Working/);
   assert.match(chinese, /编排/);
   assert.match(chinese, /companion_app/);
@@ -21,7 +21,7 @@ test("companion default prompt follows the UI locale", () => {
   assert.match(english, /You are the MilkSU Companion/);
   assert.match(english, /companion_board/);
   assert.match(english, /companion_dispatch/);
-  assert.match(english, /subagent/);
+  assert.doesNotMatch(english, /subagent/);
   assert.match(english, /Working/);
   assert.match(english, /orchestrat/i);
   assert.match(english, /companion_app/);

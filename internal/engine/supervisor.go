@@ -124,6 +124,7 @@ type Event struct {
 	Type               string                   `json:"type"`
 	Timestamp          string                   `json:"timestamp"`
 	Text               string                   `json:"text,omitempty"`
+	Bucket             string                   `json:"bucket,omitempty"`
 	ToolName           string                   `json:"toolName,omitempty"`
 	ToolCallID         string                   `json:"toolCallId,omitempty"`
 	DurationMS         int64                    `json:"durationMs,omitempty"`

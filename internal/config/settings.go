@@ -20,6 +20,7 @@ import (
 const (
 	relaySecretAccount       = "relay"
 	nssctfArenaSecretAccount = "nssctf-agent-arena"
+	jevSecretAccount         = "jev"
 	providerAccountPrefix    = "provider:"
 	tokenFluxAccountURL      = "https://tokenflux.dev/v1"
 	presetDeepSeekServiceID  = "custom-relay-deepseek"
@@ -107,6 +108,15 @@ const (
 
 // CompanionProactivity is the D8 factory policy. Task events default on;
 // teaching, scheduled broadcast, and idle chat default off.
+// JevConfig holds the Decision API credential. The key never stays in the
+// settings file or in the copy sent to the renderer.
+type JevConfig struct {
+	APIKey       string `json:"api_key,omitempty"`
+	HasAPIKey    bool   `json:"has_api_key,omitempty"`
+	RemoveAPIKey bool   `json:"remove_api_key,omitempty"`
+	SessionOnly  bool   `json:"session_only,omitempty"`
+}
+
 type CompanionProactivity struct {
 	TaskEvents         *bool `json:"task_events,omitempty"`
 	TeachingHints      *bool `json:"teaching_hints,omitempty"`
@@ -160,8 +170,11 @@ type AppSettings struct {
 	// CompanionMemoryExtract is off, turn (after each reply), or idle.
 	CompanionMemoryExtract string `json:"companion_memory_extract,omitempty"`
 	// CompanionMemoryExtractIdleMinutes is 5, 10, 15, 30, or 60.
-	CompanionMemoryExtractIdleMinutes int    `json:"companion_memory_extract_idle_minutes,omitempty"`
-	PreferredExternalEditor           string `json:"preferred_external_editor,omitempty"`
+	CompanionMemoryExtractIdleMinutes int `json:"companion_memory_extract_idle_minutes,omitempty"`
+	// Jev is the decision API key for memory gating and companion speech timing.
+	// APIKey is stripped before the settings file is written.
+	Jev                     *JevConfig `json:"jev,omitempty"`
+	PreferredExternalEditor string     `json:"preferred_external_editor,omitempty"`
 	// UiFont and ConversationFont are preset ids from app/src/lib/uiFonts.ts.
 	// UiFontSize and ConversationFontSize are concrete px strings such as "13".
 	UiFont               string `json:"ui_font,omitempty"`
@@ -377,6 +390,9 @@ func (s *Store) hydrateSecrets(value AppSettings, replaceKeys bool) AppSettings 
 	if value.NSSCTFArena != nil && (replaceKeys || strings.TrimSpace(value.NSSCTFArena.Token) == "") {
 		value.NSSCTFArena.Token = s.secretValues[nssctfArenaSecretAccount]
 	}
+	if value.Jev != nil && (replaceKeys || strings.TrimSpace(value.Jev.APIKey) == "") {
+		value.Jev.APIKey = s.secretValues[jevSecretAccount]
+	}
 	value.RuntimeModelCatalogPath = s.runtimeModelCatalogPath
 	return value
 }
@@ -576,6 +592,37 @@ func (s *Store) Save(value AppSettings) error {
 		value.NSSCTFArena.Token = ""
 		value.NSSCTFArena.RemoveToken = false
 		value.NSSCTFArena.HasToken = secrets[nssctfArenaSecretAccount] != ""
+	}
+
+	if value.Jev != nil {
+		value.Jev.APIKey = strings.TrimSpace(value.Jev.APIKey)
+		if err := validateSecretInput(value.Jev.APIKey); err != nil {
+			return fmt.Errorf("jev credential: %w", err)
+		}
+		switch {
+		case value.Jev.RemoveAPIKey:
+			if err := deleteSecretIfPresent(s.secretStore, jevSecretAccount); err != nil {
+				return fmt.Errorf("remove jev credential: %w", err)
+			}
+			delete(secrets, jevSecretAccount)
+			value.Jev.SessionOnly = false
+		case value.Jev.APIKey != "":
+			if value.Jev.SessionOnly {
+				secrets[jevSecretAccount] = value.Jev.APIKey
+			} else if err := s.secretStore.Set(jevSecretAccount, value.Jev.APIKey); err != nil {
+				if secrets[jevSecretAccount] == "" {
+					secrets[jevSecretAccount] = value.Jev.APIKey
+					value.Jev.SessionOnly = true
+				}
+				persistenceErrors = append(persistenceErrors, fmt.Errorf("store jev credential: %w", err))
+			} else {
+				secrets[jevSecretAccount] = value.Jev.APIKey
+				value.Jev.SessionOnly = false
+			}
+		}
+		value.Jev.APIKey = ""
+		value.Jev.RemoveAPIKey = false
+		value.Jev.HasAPIKey = secrets[jevSecretAccount] != ""
 	}
 
 	if err := persistSettings(s.path, value); err != nil {
@@ -867,6 +914,31 @@ func (s *Store) load() error {
 		value.NSSCTFArena.Token = ""
 		value.NSSCTFArena.RemoveToken = false
 		value.NSSCTFArena.HasToken = s.secretValues[nssctfArenaSecretAccount] != ""
+	}
+
+	if value.Jev != nil {
+		value.Jev.APIKey = strings.TrimSpace(value.Jev.APIKey)
+		if value.Jev.APIKey != "" {
+			if err := validateSecretInput(value.Jev.APIKey); err != nil {
+				return fmt.Errorf("migrate jev credential: %w", err)
+			}
+			if err := s.secretStore.Set(jevSecretAccount, value.Jev.APIKey); err != nil {
+				return fmt.Errorf("migrate jev credential: %w", err)
+			}
+			s.secretValues[jevSecretAccount] = value.Jev.APIKey
+			migrated = true
+		} else if value.Jev.HasAPIKey {
+			secret, err := s.secretStore.Get(jevSecretAccount)
+			if err != nil && !errors.Is(err, errSecretNotFound) {
+				return fmt.Errorf("read jev credential: %w", err)
+			}
+			if err == nil {
+				s.secretValues[jevSecretAccount] = secret
+			}
+		}
+		value.Jev.APIKey = ""
+		value.Jev.RemoveAPIKey = false
+		value.Jev.HasAPIKey = s.secretValues[jevSecretAccount] != ""
 	}
 
 	s.settings = value
@@ -1412,6 +1484,10 @@ func clone(value AppSettings) AppSettings {
 	if value.NSSCTFArena != nil {
 		arena := *value.NSSCTFArena
 		copy.NSSCTFArena = &arena
+	}
+	if value.Jev != nil {
+		jevConfig := *value.Jev
+		copy.Jev = &jevConfig
 	}
 	if value.Locale != nil {
 		locale := *value.Locale

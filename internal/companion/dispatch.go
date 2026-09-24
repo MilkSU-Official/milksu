@@ -142,10 +142,11 @@ func (d *Dispatcher) Speak(req SpeakRequest) DispatchResult {
 			return d.recordFailure(req.IdempotencyKey, ref, entryID, "target conversation did not receive a user entry")
 		}
 		result := DispatchResult{
-			Accepted:    true,
-			Delivered:   true,
-			TargetTitle: ref.Title,
-			EntryID:     entryID,
+			Accepted:       true,
+			Delivered:      true,
+			ConversationID: ref.ID,
+			TargetTitle:    ref.Title,
+			EntryID:        entryID,
 		}
 		d.store(req.IdempotencyKey, result)
 		return result
@@ -161,10 +162,11 @@ func (d *Dispatcher) Speak(req SpeakRequest) DispatchResult {
 		return d.recordFailure(req.IdempotencyKey, ref, entryID, "target conversation did not receive a user entry")
 	}
 	result := DispatchResult{
-		Accepted:    true,
-		Delivered:   true,
-		TargetTitle: ref.Title,
-		EntryID:     entryID,
+		Accepted:       true,
+		Delivered:      true,
+		ConversationID: ref.ID,
+		TargetTitle:    ref.Title,
+		EntryID:        entryID,
 	}
 	d.store(req.IdempotencyKey, result)
 	return result
@@ -289,10 +291,11 @@ func (d *Dispatcher) CreateConversation(req CreateRequest) DispatchResult {
 		return d.fail(req.IdempotencyKey, title, err.Error())
 	}
 	result := DispatchResult{
-		Accepted:    true,
-		Delivered:   true,
-		TargetTitle: ref.Title,
-		EntryID:     ref.ID,
+		Accepted:       true,
+		Delivered:      true,
+		ConversationID: ref.ID,
+		TargetTitle:    ref.Title,
+		EntryID:        ref.ID,
 	}
 	if req.FirstMessage != "" && d.speaker != nil {
 		entryID, produced, speakErr := d.speaker.DeliverSpeak(ref.ID, req.FirstMessage)
