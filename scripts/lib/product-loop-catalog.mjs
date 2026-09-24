@@ -18,6 +18,8 @@ export const CASES = {
   'settings-custom-relay': item('settings-custom-relay', '设置自定义中转站', 'first-use', true),
   'relay-model-fileloop': item('relay-model-fileloop', '中转站文件循环', 'first-use', true),
   'login-skip-local': item('login-skip-local', '暂不登录进首页', 'first-use', true),
+  'login-intent-fallback': item('login-intent-fallback', '未登录走主模型', 'first-use', true),
+  'login-intent-issued': item('login-intent-issued', '登录后发下意图识别钥匙', 'first-use'),
 
   'coding-pi-files': item('coding-pi-files', 'Pi 写文件', 'coding', true),
   'coding-pi-subagent': item('coding-pi-subagent', 'Pi 后台子代理', 'coding', true),
@@ -79,7 +81,9 @@ export const CASES = {
   'companion-show': item('companion-show', '显示看板娘', 'companion'),
   'companion-dock-park': item('companion-dock-park', '关掉主窗口留桌面栏', 'companion'),
 
+  'intent-account-issued': item('intent-account-issued', '账户发下意图识别钥匙', 'intent'),
   'intent-settings-blank': item('intent-settings-blank', '设置里没有钥匙', 'intent'),
+  'intent-settings-reject': item('intent-settings-reject', '设置里写不进钥匙', 'intent'),
   'intent-chat': item('intent-chat', '闲聊直接回', 'intent', true),
   'intent-deep': item('intent-deep', '深入思考仍在这一轮', 'intent', true),
   'intent-long': item('intent-long', '长任务派出去', 'intent', true),
@@ -172,7 +176,10 @@ export const MODULES = {
     needsCredential: true,
     isolated: true,
     detail: '独立窗口冷启动两次：先看见登录页，走 GitHub / 账户模型 / 设置里填中转站，再开一次点暂不登录。',
-    cases: ['login-gate', 'login-github-active', 'account-model-fileloop', 'settings-custom-relay', 'relay-model-fileloop', 'login-skip-local'],
+    cases: [
+      'login-gate', 'login-github-active', 'account-model-fileloop', 'settings-custom-relay',
+      'relay-model-fileloop', 'login-skip-local', 'login-intent-fallback', 'login-intent-issued',
+    ],
   },
   coding: {
     id: 'coding',
@@ -216,9 +223,10 @@ export const MODULES = {
     needsDesktop: true,
     needsCredential: true,
     isolated: true,
-    detail: '意图识别专题。闲聊、深入思考、长任务；追问不另派；做完、待批、真报错直接通知；两条通知合成一条；工具失败后还盯着；卡住才判断说不说；记忆留或丢；开口时不和用户的话串在一起；折叠记录与主模型兜底。不进默认全量回归。',
+    detail: '意图识别专题。账户登录后发下钥匙，设置里没有也不能写入；折叠记录的来源是 Jev。闲聊、深入思考、长任务；追问不另派；做完、待批、真报错直接通知；两条通知合成一条；工具失败后还盯着；卡住才判断说不说；记忆留或丢；开口时不和用户的话串在一起。未登录时来源是主模型。不进默认全量回归。',
     cases: [
-      'intent-settings-blank', 'intent-chat', 'intent-deep', 'intent-long', 'intent-status',
+      'intent-account-issued', 'intent-settings-blank', 'intent-settings-reject',
+      'intent-chat', 'intent-deep', 'intent-long', 'intent-status',
       'intent-done', 'intent-notices-merge', 'intent-approval', 'intent-error', 'intent-tool-continues',
       'intent-stall', 'intent-memory', 'intent-other-silent', 'intent-notice-waits', 'intent-fallback-record',
     ],
@@ -238,7 +246,7 @@ export const MODULES = {
       'workspace-cve-open', 'workspace-cve-search', 'workspace-cve-severity', 'workspace-cve-sync', 'workspace-cve-list',
       'workspace-cve-public-search', 'workspace-cve-start-job', 'workspace-cve-open-item', 'workspace-cve-dossier', 'workspace-cve-learning', 'workspace-cve-repro', 'workspace-cve-jobs',
       'workspace-lab-open', 'workspace-lab-packages', 'workspace-lab-cards', 'workspace-lab-start',
-      'workspace-lab-start-job', 'workspace-lab-jobs', 'workspace-lab-empty', 'workspace-lab-create',
+      'workspace-lab-empty', 'workspace-lab-jobs', 'workspace-lab-create', 'workspace-lab-start-job',
       'workspace-lab-settings', 'workspace-lab-status', 'workspace-lab-docker',
     ],
   },

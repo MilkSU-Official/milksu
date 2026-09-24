@@ -35,6 +35,7 @@ import {
   parseSuiteList,
   finalizeProductLoopResult,
 } from './lib/product-loop-catalog.mjs'
+import { describeAccountIntentGrant } from './lib/product-loop-intent.mjs'
 import { PRODUCT_LOOP_RUNNERS } from './lib/product-loop-runners.mjs'
 import { buildProductLoopReport, evidenceSurfacesForCase, formatFormalProductLoopReport, formatProductLoopReport, normalizeScreenshot } from './lib/product-loop-report.mjs'
 import {
@@ -165,9 +166,11 @@ test('catalog keeps product regression away from evalsuite', () => {
   assert.equal(MODULES.coding.cases.length, 35)
   assert.equal(MODULES.companion.cases.length, 23)
   assert.equal(MODULES.intent.default, false)
-  assert.equal(MODULES.intent.cases.length, 15)
+  assert.equal(MODULES.intent.cases.length, 17)
   assert.equal(DEFAULT_MODULES.includes('intent'), false)
+  assert.equal(typeof PRODUCT_LOOP_RUNNERS['intent-account-issued'], 'function')
   assert.equal(typeof PRODUCT_LOOP_RUNNERS['intent-settings-blank'], 'function')
+  assert.equal(typeof PRODUCT_LOOP_RUNNERS['intent-settings-reject'], 'function')
   assert.equal(typeof PRODUCT_LOOP_RUNNERS['intent-fallback-record'], 'function')
   assert.equal(MODULES.workspaces.cases.length, 34)
   assert.equal(CASES['companion-memory'].needsCredential, true)
@@ -834,6 +837,27 @@ test('product-loop local env holds secrets off process.env', async () => {
   resetProductLoopLocalSecrets()
 })
 
+test('account intent grant requires login, a managed key, and no public secret', () => {
+  const loggedIn = { state: 'active', authenticated: true }
+  assert.equal(describeAccountIntentGrant(loggedIn, {
+    jev: { has_api_key: true, session_only: false },
+  }).ok, true)
+  assert.equal(describeAccountIntentGrant({ state: 'signed_out', authenticated: false }, {
+    jev: { has_api_key: true },
+  }).ok, false)
+  assert.equal(describeAccountIntentGrant(loggedIn, {
+    jev: { has_api_key: true, session_only: true },
+  }).ok, false)
+  assert.equal(describeAccountIntentGrant(loggedIn, {
+    jev: { has_api_key: true, api_key: 'sk-or-not-for-receipt' },
+  }).ok, false)
+  assert.equal(describeAccountIntentGrant(loggedIn, { jev: { has_api_key: false } }).ok, false)
+  const leaked = describeAccountIntentGrant(loggedIn, {
+    jev: { has_api_key: true, api_key: 'sk-or-not-for-receipt' },
+  })
+  assert.equal(JSON.stringify(leaked).includes('sk-or-not-for-receipt'), false)
+})
+
 test('product-loop does not accept a local OpenRouter key', async () => {
   resetProductLoopLocalSecrets()
   const secret = 'sk-or-v1-loop-not-for-receipt'
@@ -906,7 +930,10 @@ test('first-use helpers inspect the login page and keep keys out of relay descri
   assert.equal(noKey.result, 'FAIL')
   assert.notEqual(noKey.result, 'PASS')
   assert.equal(classifyCustomRelaySave('打不开设置').result, 'FAIL')
-  assert.equal(classifyComputerUseUnavailable({ available: false, problem: '打包的 Cua Driver 不可用。' }).expectedMiss, true)
+  const missingDriver = classifyComputerUseUnavailable({ available: false, problem: '打包的 Cua Driver 不可用。' })
+  assert.equal(missingDriver.expectedMiss, true)
+  assert.equal(missingDriver.result, 'SKIP')
+  assert.notEqual(missingDriver.result, 'PASS')
   assert.equal(classifyComputerUseUnavailable({ available: false, authorized: false, problem: '缺辅助功能' }).result, 'FAIL')
 })
 

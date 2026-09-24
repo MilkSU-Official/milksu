@@ -47,9 +47,31 @@ function intentOf(events) {
   const last = rows[rows.length - 1] || null
   return {
     bucket: String(last?.bucket ?? last?.Bucket ?? ''),
+    source: String(last?.source ?? last?.Source ?? ''),
     text: String(last?.text ?? last?.Text ?? ''),
     count: rows.length,
   }
+}
+
+export function describeAccountIntentGrant(status, settings) {
+  const problems = []
+  if (!status || status.state !== 'active' || status.authenticated !== true) {
+    problems.push('账户未登录')
+  }
+  const jev = settings?.jev
+  if (String(jev?.api_key ?? '').trim()) problems.push('设置回执里出现了意图识别钥匙')
+  if (jev?.session_only === true) problems.push('钥匙是这次会话手填的，不是账户下发')
+  if (!jev?.has_api_key) problems.push('登录后账户没有发下意图识别钥匙')
+  return {
+    ok: problems.length === 0,
+    detail: problems.length ? problems.join('；') : '登录后账户发下了意图识别钥匙',
+  }
+}
+
+export async function readAccountIntentGrant(driver) {
+  const status = await driver.invoke('GetAccountStatus', []).catch(() => null)
+  const settings = await driver.invoke('GetSettings', []).catch(() => null)
+  return describeAccountIntentGrant(status, settings)
 }
 
 function conversationIdOf(row) {
@@ -71,6 +93,10 @@ function confirmIds(events) {
 }
 
 async function companionAsk(driver, prompt, options = {}) {
+  if (options.grant !== false) {
+    const grant = await readAccountIntentGrant(driver)
+    if (!grant.ok) return { blocked: fail(grant.detail) }
+  }
   const route = await resolveCompanionModelRoute(driver)
   if (!route.ok) {
     return { blocked: fail(`${route.detail}；source=${route.source || 'none'}`) }
@@ -103,8 +129,18 @@ function userSawIntentLine(page) {
 function cloudFoldProblem(intent) {
   const text = String(intent?.text ?? '')
   if (!text) return '没有折叠记录'
+  if (intent?.source !== 'jev') return `来源不是 Jev：${intent?.source || '空'} ${text}`
   if (/主模型|conversation model/.test(text)) return `走了主模型兜底，不是云端：${text}`
   if (!/\bJev\b/.test(text)) return `折叠没有写明云端判定：${text}`
+  return ''
+}
+
+function modelFoldProblem(intent) {
+  const text = String(intent?.text ?? '')
+  if (!text) return '没有意图识别记录'
+  if (intent?.source !== 'model') return `来源不是主模型：${intent?.source || '空'} ${text}`
+  if (!/主模型|conversation model/.test(text)) return `记录没有标明主模型：${text}`
+  if (/\bJev\b/.test(text)) return `没接上仍写成了 Jev：${text}`
   return ''
 }
 
@@ -113,10 +149,8 @@ function judgeIntentSurface(result, { bucket, cloud = true } = {}) {
   if (bucket && result.intent.bucket !== bucket) {
     return fail(`折叠记录不是${bucket}：${result.intent.text || '没有记录'}`)
   }
-  if (cloud) {
-    const why = cloudFoldProblem(result.intent)
-    if (why) return fail(why)
-  }
+  const why = cloud ? cloudFoldProblem(result.intent) : modelFoldProblem(result.intent)
+  if (why) return fail(why)
   return null
 }
 
@@ -353,6 +387,8 @@ export async function runIntentMemory(driver) {
   const after = await driver.getCompanionMemory().catch(() => null)
   const hay = JSON.stringify(after ?? {})
   if (hay.includes(fragment)) return fail('一次性碎片被留下了')
+  const surface = judgeIntentSurface(kept, {})
+  if (surface) return surface
   const text = `${kept.intent.text}\n${dropped.intent.text}\n${visibleTranscriptText(dropped.page)}`
   if (!/意图识别|记忆/.test(text)) return fail('记录里没有这次记忆判断')
   const forgotten = await forgetCompanionMemoryIds(driver, judged.ids)
@@ -401,21 +437,84 @@ export async function runIntentNoticeWaits(driver) {
   return pass('通知和用户的问题按顺序各走了一轮')
 }
 
-export async function runIntentFallbackRecord(driver) {
-  const current = await driver.invoke('GetSettings', [])
-  if (current?.jev?.has_api_key) {
-    return skip('账户已经发下钥匙。没接上要在未发放的账户上测，不在设置里摘钥匙。')
+export async function runIntentAccountIssued(driver) {
+  const grant = await readAccountIntentGrant(driver)
+  if (!grant.ok) return fail(grant.detail)
+  const blank = await runIntentSettingsBlank(driver)
+  if (blank.result !== 'PASS') return blank
+  return pass(grant.detail)
+}
+
+export async function runIntentSettingsReject(driver) {
+  const before = await driver.invoke('GetSettings', [])
+  const marker = 'product-loop-rejected-intent-key'
+  try {
+    await driver.invoke('SaveSettingsCmd', [{
+      ...before,
+      jev: { api_key: marker, session_only: true },
+    }])
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error)
+    if (detail.includes(marker)) return fail('拒绝手填钥匙时把钥匙写进了错误')
+    return fail(`手填钥匙时设置保存失败：${detail}`)
   }
+  const after = await driver.invoke('GetSettings', [])
+  const snap = JSON.stringify(after ?? {})
+  if (snap.includes(marker)) return fail('设置回执里出现了手填的意图识别钥匙')
+  if (after?.jev?.session_only === true) return fail('手填钥匙留成了本次会话')
+  if (before?.jev?.has_api_key && !after?.jev?.has_api_key) return fail('手填把账户发下的钥匙清掉了')
+  return pass('设置里写不进意图识别钥匙')
+}
+
+async function poll(driver, ready, timeoutMs) {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    const grant = await readAccountIntentGrant(driver)
+    if (ready(grant)) return grant
+    await new Promise(resolve => setTimeout(resolve, 1000))
+  }
+  return readAccountIntentGrant(driver)
+}
+
+export async function runLoggedOutIntentFallback(driver) {
+  let grant = await readAccountIntentGrant(driver)
+  if (grant.ok) grant = await poll(driver, row => !row.ok, 15_000)
+  if (grant.ok) return fail('还登录着，并且账户钥匙还在。主模型兜底要在退出登录之后测。')
   const marker = `intent-fallback-${Date.now().toString(36)}`
-  const result = await companionAsk(driver, `${marker} 今天过得怎么样？用一句话回我就行。`)
+  const result = await companionAsk(
+    driver,
+    `${marker} 今天过得怎么样？用一句话回我就行。`,
+    { grant: false },
+  )
   if (result.blocked) return result.blocked
   const broken = turnFailed(result.turn)
   if (broken) return fail(`主模型兜底${broken}`)
-  if (userSawIntentLine(result.page)) return fail('分类结果写进了用户发出的那句话')
-  if (!result.intent.text) return fail('没有意图识别记录')
-  if (!/主模型|conversation model/.test(result.intent.text)) {
-    return fail(`记录没有标明主模型：${result.intent.text}`)
-  }
-  if (/\bJev\b/.test(result.intent.text)) return fail(`没接上仍写成了 Jev：${result.intent.text}`)
+  const surface = judgeIntentSurface(result, { cloud: false })
+  if (surface) return surface
   return pass(result.intent.text)
+}
+
+async function runDisconnectedFallback(driver) {
+  await driver.invoke('LogoutAccount', []).catch(() => {})
+  const cleared = await poll(driver, grant => !grant.ok, 20_000)
+  if (cleared.ok) return fail('退出登录后意图识别钥匙还在')
+  const result = await runLoggedOutIntentFallback(driver)
+  await driver.invoke('StartAccountLogin', []).catch(() => {})
+  const restored = await poll(driver, grant => grant.ok, 90_000)
+  if (!restored.ok) {
+    return fail(`${result.detail || '主模型兜底'}。再登录后账户钥匙没有回来：${restored.detail}`)
+  }
+  if (result.result !== 'PASS') return result
+  return pass(`${result.detail}。再登录后账户钥匙还在。`)
+}
+
+export async function runIntentFallbackRecord(driver, options = {}) {
+  if (options.intentFallbackSeen) {
+    const grant = await readAccountIntentGrant(driver)
+    if (!grant.ok) return fail(`未登录窗口已看过主模型，登录后钥匙没回来：${grant.detail}`)
+    return pass('未登录窗口已标明主模型。登录后账户钥匙还在。')
+  }
+  const grant = await readAccountIntentGrant(driver)
+  if (grant.ok) return runDisconnectedFallback(driver)
+  return runLoggedOutIntentFallback(driver)
 }

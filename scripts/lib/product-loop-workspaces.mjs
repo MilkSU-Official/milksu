@@ -114,7 +114,7 @@ export async function runWorkspaceCtfList(driver) {
   }
   const total = Number(catalog?.total ?? catalog?.Total ?? 0)
   const snap = await pageSnapshot(driver)
-  if (total > 0 || snapshotHas(snap, ['catalog-row']) || /#/.test(snap.text || '')) {
+  if (total > 0 || snapshotHas(snap, ['catalog-row'])) {
     return pass(total > 0 ? `CTF 题库 ${total} 题` : 'CTF 列表已经画出来')
   }
   if (snapshotHas(snap, ['没有匹配题目', 'No matching challenges', '同步', 'Sync'])) {
@@ -308,10 +308,6 @@ export async function runWorkspaceCvePublicSearch(driver) {
 export async function runWorkspaceCveOpenItem(driver) {
   const nav = await openDomain(driver, ['CVE'])
   if (!nav.ok) return fail(nav.detail)
-  const snap = await pageSnapshot(driver)
-  if (snapshotHas(snap, ['CVE-2024', '开始复现', 'Start reproduction'])) {
-    return pass('已经打开了一条 CVE 对话')
-  }
   await showCveCatalog(driver)
   const opened = await clickTestId(driver, 'open-item')
   await delay(400)
@@ -487,10 +483,15 @@ export async function runWorkspaceLabEmpty(driver) {
   await delay(250)
   const snap = await pageSnapshot(driver)
   if (snapshotHas(snap, ['还没有自定义任务', 'No custom jobs', '看题目包', 'Browse packages'])) {
-    return pass('空任务时能回到题目包')
+    const back = await clickLabeled(driver, ['看题目包', 'Browse packages', '题目包', 'Packages'])
+    if (!back) return fail('空任务上看不到回到题目包')
+    await delay(300)
+    return snapshotHas(await pageSnapshot(driver), ['题目包', 'Packages'])
+      ? pass('空任务时回到了题目包')
+      : fail('点了回到题目包，题目包没出现')
   }
   return snapshotHas(snap, ['自定义任务', 'Custom jobs'])
-    ? pass('已经有自定义任务')
+    ? fail('已经有自定义任务，空任务这条没测到')
     : fail('自定义任务空态不成立')
 }
 

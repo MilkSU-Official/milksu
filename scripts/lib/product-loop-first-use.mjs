@@ -41,7 +41,7 @@ const FILE_TOOL_PATTERN = /(read|write|edit|apply_patch|glob|grep|ls|list_dir|re
 export const FIRST_USE_FILE_PROMPT = [
   '你在当前工作区里做一次真实的文件循环，不要只聊天回复。',
   '1. 先列出工作区根目录和已有文件，确认这是一个临时仓库。',
-  '2. 新建 NOTES.md，写入：你看到了哪些文件、各自一两句说明，以及今天的日期。',
+  '2. 新建 NOTES.md，写入：你看到了哪些文件、各自一两句说明、今天的日期，以及单独一行 PRODUCT-LOOP-NOTES。',
   '3. 再把 NOTES.md 读回来，核对自己刚写的内容，并在回复里引用其中一行。',
   '完成标准：工作区必须出现 NOTES.md，且你实际调用了文件类工具（列出/写入/读取），不要只用纯文本假装写过。',
 ].join('\n')
@@ -330,8 +330,7 @@ async function runFileLoop(driver, options) {
     const outcome = classifyTurnEvents(turn.events)
     let notes = false
     try {
-      await readFile(join(workspace, 'NOTES.md'))
-      notes = true
+      notes = (await readFile(join(workspace, 'NOTES.md'), 'utf8')).includes('PRODUCT-LOOP-NOTES')
     } catch {
       notes = false
     }
@@ -761,6 +760,14 @@ export async function runFirstUse(options = {}) {
       await record('relay-model-fileloop', 'FAIL', '上手流程没跑到这一步')
     }
 
+    if (launch?.driver?.cdpAlive() && steps.some(step => step.id === 'relay-model-fileloop' && step.result === 'PASS')) {
+      const { runLoggedOutIntentFallback } = await import('./product-loop-intent.mjs')
+      const fallback = await runLoggedOutIntentFallback(launch.driver)
+      await record('login-intent-fallback', fallback.result, fallback.detail)
+    } else if (!steps.some(step => step.id === 'login-intent-fallback')) {
+      await record('login-intent-fallback', 'FAIL', '个人模型没配上，未登录的主模型兜底没跑')
+    }
+
     const accountFileloopOk = steps.some(step => step.id === 'account-model-fileloop' && step.result === 'PASS')
     if (githubOk && launch?.driver?.cdpAlive()) {
       process.stdout.write('FIRST-USE 暂不登录之后再登录，后面继续用账户模型\n')
@@ -773,6 +780,15 @@ export async function runFirstUse(options = {}) {
       if (restored && !restored.dead && accountFileloopOk) {
         await enableAccountRoute(launch.driver).catch(() => {})
       }
+      const { readAccountIntentGrant } = await import('./product-loop-intent.mjs')
+      const issued = await readAccountIntentGrant(launch.driver)
+      await record(
+        'login-intent-issued',
+        issued.ok ? 'PASS' : 'FAIL',
+        issued.ok ? issued.detail : `再登录后${issued.detail}`,
+      )
+    } else if (!steps.some(step => step.id === 'login-intent-issued')) {
+      await record('login-intent-issued', 'FAIL', githubOk ? '再登录没跑到，意图识别钥匙没核' : 'GitHub 没登录，意图识别钥匙没核')
     }
     if (launch?.driver?.cdpAlive()) {
       const personal = await enablePersonalRelayRoute(launch.driver)
@@ -1145,15 +1161,8 @@ async function closeRelayEditor(driver) {
 }
 
 export async function installProductLoopJev(driver) {
-  await driver.invoke('GetAccountStatus', []).catch(() => null)
-  const after = await driver.invoke('GetSettings', [])
-  if (String(after?.jev?.api_key ?? '').trim()) {
-    return { ok: false, detail: '设置回执里出现了意图识别钥匙' }
-  }
-  if (!after?.jev?.has_api_key) {
-    return { ok: false, detail: '登录后账户没有发下意图识别钥匙。产品不在设置里填钥匙。' }
-  }
-  return { ok: true, detail: '登录后账户发下了意图识别钥匙' }
+  const { readAccountIntentGrant } = await import('./product-loop-intent.mjs')
+  return readAccountIntentGrant(driver)
 }
 
 export async function saveCustomRelay(driver) {

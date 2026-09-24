@@ -4,6 +4,7 @@
 
 import { runProfileEdit, runProfileOpen, runProfileTabs, runUpdateChrome } from './product-loop-account.mjs'
 import {
+  runIntentAccountIssued,
   runIntentApproval,
   runIntentChat,
   runIntentDeep,
@@ -16,6 +17,7 @@ import {
   runIntentNoticesMerge,
   runIntentOtherSilent,
   runIntentSettingsBlank,
+  runIntentSettingsReject,
   runIntentStall,
   runIntentStatus,
   runIntentToolContinues,
@@ -205,7 +207,9 @@ export const PRODUCT_LOOP_RUNNERS = {
   'companion-hide': driver => runCompanionHide(driver),
   'companion-show': driver => runCompanionShow(driver),
   'companion-dock-park': driver => runCompanionDockPark(driver),
+  'intent-account-issued': driver => runIntentAccountIssued(driver),
   'intent-settings-blank': driver => runIntentSettingsBlank(driver),
+  'intent-settings-reject': driver => runIntentSettingsReject(driver),
   'intent-chat': driver => runIntentChat(driver),
   'intent-deep': driver => runIntentDeep(driver),
   'intent-long': driver => runIntentLong(driver),

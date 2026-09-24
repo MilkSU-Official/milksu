@@ -16,7 +16,7 @@ import {
   usedIsolatedBrowserTools,
 } from './product-loop-desktop-surface.mjs'
 import { firstUseRelayModel } from './product-loop-first-use.mjs'
-import { dismissOverlays, fail, leaveSettings, openConversation, openWorkspace, overlayBlocking, pageSnapshot, pass, snapshotHas } from './product-loop-session.mjs'
+import { dismissOverlays, fail, leaveSettings, openConversation, openWorkspace, overlayBlocking, pageSnapshot, pass, skip, snapshotHas } from './product-loop-session.mjs'
 
 const COMPUTER_PROMPT = [
   '当前权限档是 workspace-auto。请用 Computer Use 观察本机已经打开的「计算器」窗口。',
@@ -197,9 +197,10 @@ export function classifyComputerUseUnavailable(status = {}) {
   if (status?.available === true) return { result: 'CONTINUE', detail: '' }
   if (/打包的 Cua Driver 不可用|packaged Cua Driver/i.test(problem)) {
     return {
-      result: 'PASS',
+      result: 'SKIP',
       expectedMiss: true,
-      detail: `独立窗口没有打包的 Cua Driver，产品正确拒绝。${problem}`,
+      skipKind: 'environment',
+      detail: `独立窗口没有打包的 Cua Driver，观察没跑。${problem}`,
     }
   }
   return {
@@ -211,7 +212,9 @@ export function classifyComputerUseUnavailable(status = {}) {
 export async function runDesktopCuObserve(driver, options = {}) {
   const status = await driver.invoke('GetCodingComputerUseStatus', []).catch(() => ({}))
   const classified = classifyComputerUseUnavailable(status)
-  if (classified.result === 'PASS') return pass(classified.detail)
+  if (classified.result === 'SKIP') {
+    return skip(classified.detail, { expectedMiss: true, skipKind: classified.skipKind || 'environment' })
+  }
   if (classified.result === 'FAIL') return fail(classified.detail)
   const picked = pickComputerUseTarget(await driver.listComputerUseTargets())
   if (!picked.available) {

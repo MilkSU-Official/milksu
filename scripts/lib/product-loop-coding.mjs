@@ -52,7 +52,7 @@ const ASK_PATTERN = /(milksu_ask|ask_user|选择卡)/i
 export const CODING_FILE_PROMPT = [
   '你在当前工作区里做一次真实的文件循环，不要只聊天回复。',
   '1. 先列出工作区根目录和已有文件，确认这是一个临时仓库。',
-  '2. 新建 NOTES.md，写入：你看到了哪些文件、各自一两句说明，以及今天的日期。',
+  '2. 新建 NOTES.md，写入：你看到了哪些文件、各自一两句说明、今天的日期，以及单独一行 PRODUCT-LOOP-NOTES。',
   '3. 再把 NOTES.md 读回来，核对自己刚写的内容，并在回复里引用其中一行。',
   '完成标准：工作区必须出现 NOTES.md，且你实际调用了文件类工具（列出/写入/读取），不要只用纯文本假装写过。',
 ].join('\n')
@@ -427,9 +427,9 @@ export async function runCodingPiFiles(driver, options = {}) {
     kernel: 'pi',
     prompt: CODING_FILE_PROMPT,
     async check({ workspace, turn, toolNames }) {
-      const notes = await fileExists(join(workspace, 'NOTES.md'))
+      const notes = await fileHas(join(workspace, 'NOTES.md'), 'PRODUCT-LOOP-NOTES')
       const ok = notes && toolNames.some(name => FILE_TOOL_PATTERN.test(name)) && !turn.timeout
-      return ok ? pass('Pi 写出 NOTES.md，并且用了文件工具') : fail(`NOTES.md=${notes} tools=${toolNames.join(',')} timeout=${Boolean(turn.timeout)}`)
+      return ok ? pass('Pi 写出带标记的 NOTES.md，并且用了文件工具') : fail(`NOTES.md=${notes} tools=${toolNames.join(',')} timeout=${Boolean(turn.timeout)}`)
     },
   })
 }
@@ -459,10 +459,10 @@ export async function runCodingPiShell(driver, options = {}) {
     kernel: 'pi',
     prompt: SHELL_PROMPT,
     async check({ workspace, turn, toolNames }) {
-      const wrote = await fileExists(join(workspace, 'DATE.txt'))
+      const wrote = await fileHas(join(workspace, 'DATE.txt'), 'hello-product-loop')
       const used = toolNames.some(name => SHELL_TOOL_PATTERN.test(name))
       const ok = wrote && used && !turn.timeout
-      return ok ? pass('Pi 用命令写出 DATE.txt') : fail(`DATE.txt=${wrote} shell=${used} timeout=${Boolean(turn.timeout)}`)
+      return ok ? pass('Pi 用命令写出带标记的 DATE.txt') : fail(`DATE.txt=${wrote} shell=${used} timeout=${Boolean(turn.timeout)}`)
     },
   })
 }
@@ -496,12 +496,16 @@ export async function runCodingPiCompact(driver, options = {}) {
     async check({ conversation, turn }) {
       const broken = turnBroken(turn)
       if (broken) return fail(`写文件回合没完成，没法整理上下文：${broken}`)
+      let compacted
       try {
-        await driver.invoke('CompactCodingSession', [conversation.id])
+        compacted = await driver.invoke('CompactCodingSession', [conversation.id])
       } catch (error) {
         return fail(`整理上下文没发出去：${error instanceof Error ? error.message : error}`)
       }
-      return pass('Pi 回合后整理上下文已经发出')
+      const summary = String(compacted?.summary ?? compacted?.surfaceText ?? '').trim()
+      const tokens = Number(compacted?.tokensBefore)
+      if (!summary && !Number.isFinite(tokens)) return fail('整理上下文没有回执')
+      return pass(summary ? 'Pi 回合后整理上下文有摘要' : `Pi 回合后整理上下文有回执 tokensBefore=${tokens}`)
     },
   })
 }
@@ -784,9 +788,9 @@ export async function runCodingDshFiles(driver, options = {}) {
     kernel: 'dsh',
     prompt: CODING_FILE_PROMPT,
     async check({ workspace, turn, toolNames }) {
-      const notes = await fileExists(join(workspace, 'NOTES.md'))
+      const notes = await fileHas(join(workspace, 'NOTES.md'), 'PRODUCT-LOOP-NOTES')
       const ok = notes && toolNames.some(name => FILE_TOOL_PATTERN.test(name)) && !turn.timeout
-      return ok ? pass('DSH 写出 NOTES.md，并且用了文件工具') : fail(`NOTES.md=${notes} tools=${toolNames.join(',')} timeout=${Boolean(turn.timeout)}`)
+      return ok ? pass('DSH 写出带标记的 NOTES.md，并且用了文件工具') : fail(`NOTES.md=${notes} tools=${toolNames.join(',')} timeout=${Boolean(turn.timeout)}`)
     },
   })
 }
@@ -800,10 +804,10 @@ export async function runCodingDshShell(driver, options = {}) {
     kernel: 'dsh',
     prompt: SHELL_PROMPT,
     async check({ workspace, turn, toolNames }) {
-      const wrote = await fileExists(join(workspace, 'DATE.txt'))
+      const wrote = await fileHas(join(workspace, 'DATE.txt'), 'hello-product-loop')
       const used = toolNames.some(name => SHELL_TOOL_PATTERN.test(name) || FILE_TOOL_PATTERN.test(name))
       const ok = wrote && used && !turn.timeout
-      return ok ? pass('DSH 写出 DATE.txt') : fail(`DATE.txt=${wrote} tools=${used} timeout=${Boolean(turn.timeout)}`)
+      return ok ? pass('DSH 写出带标记的 DATE.txt') : fail(`DATE.txt=${wrote} tools=${used} timeout=${Boolean(turn.timeout)}`)
     },
   })
 }
@@ -982,12 +986,16 @@ export async function runCodingDshCompact(driver, options = {}) {
     async check({ conversation, turn }) {
       const broken = turnBroken(turn)
       if (broken) return fail(`写文件回合没完成，没法整理上下文：${broken}`)
+      let compacted
       try {
-        await driver.invoke('CompactCodingSession', [conversation.id])
+        compacted = await driver.invoke('CompactCodingSession', [conversation.id])
       } catch (error) {
         return fail(`DSH 整理上下文没发出去：${error instanceof Error ? error.message : error}`)
       }
-      return pass('DSH 回合后整理上下文已经发出')
+      const summary = String(compacted?.summary ?? compacted?.surfaceText ?? '').trim()
+      const tokens = Number(compacted?.tokensBefore)
+      if (!summary && !Number.isFinite(tokens)) return fail('DSH 整理上下文没有回执')
+      return pass(summary ? 'DSH 回合后整理上下文有摘要' : `DSH 回合后整理上下文有回执 tokensBefore=${tokens}`)
     },
   })
 }

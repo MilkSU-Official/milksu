@@ -227,6 +227,9 @@ async function main() {
           sourcesReady: outcome.sourcesReady === true,
           ok: Boolean(outcome.driver),
         }
+        options.intentFallbackSeen = (outcome.steps ?? []).some(step => (
+          step.id === 'login-intent-fallback' && step.result === 'PASS'
+        ))
         const produced = new Set((outcome.steps ?? []).map(step => step.id))
         for (const item of group.cases) {
           const step = (outcome.steps ?? []).find(row => row.id === item.id)

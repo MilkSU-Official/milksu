@@ -544,33 +544,39 @@ export async function runCompanionDispatchConfirm(driver, options = {}) {
 export async function runCompanionModelSwitch(driver, options = {}) {
   const { route, blocked } = await requireCompanionModelRoute(driver)
   if (blocked) return blocked
-  if (route.source === 'account' || route.account) {
-    return skip('当前只有已验证的账户模型，换个人模型没得换', { source: 'account' })
-  }
   const settings = await driver.invoke('GetSettings', [])
   const current = String(settings?.companion_model ?? settings?.CompanionModel ?? '')
   const relay = describeCustomRelay(settings, firstUseRelayName())
-  const candidates = [...new Set(relay.models.filter(Boolean))]
+  let candidates = [...new Set(relay.models.filter(Boolean))]
+  let provider = relay.id
+  let source = 'personal'
+  if (route.source === 'account' || route.account) {
+    const catalog = await driver.invoke('GetModelCatalog', []).catch(() => ({}))
+    const accountIds = Array.isArray(catalog?.account_model_ids) ? catalog.account_model_ids : []
+    candidates = [...new Set(accountIds.map(id => String(id).trim()).filter(Boolean))]
+    provider = 'tokenflux'
+    source = 'account'
+  }
   const next = candidates.find(id => id && id !== current)
   if (!next) {
     return candidates.length
-      ? skip(`个人中转站只有一台模型 ${current || candidates[0]}，换模型没得测`, { source: 'personal' })
+      ? skip(`当前来源只有一台模型 ${current || candidates[0]}，换模型没得测`, { source })
       : fail('找不到另一台看板娘模型可换')
   }
   try {
     await driver.invoke('SaveSettingsCmd', [{
       ...settings,
       companion_model: next,
-      companion_provider: relay.id,
-      companion_source: 'personal',
+      companion_provider: provider,
+      companion_source: source,
     }])
     await driver.stopCompanion().catch(() => {})
     const started = await driver.ensureCompanion()
     const ready = companionIsReady(started)
     if (!ready.ok) return fail(ready.reason)
     const model = String(started?.model ?? started?.Model ?? '')
-    if (model && model !== next && !model.includes(next.split('/').pop() || next)) {
-      return fail(`换模型后看板娘仍是 ${model}，要的是 ${next}`)
+    if (!model || (model !== next && !model.includes(next.split('/').pop() || next))) {
+      return fail(`换模型后看板娘仍是 ${model || '空'}，要的是 ${next}`)
     }
     await ensureCompanionChatVisible(driver)
     await driver.sendCompanionMessage('短回一句 MODEL-SWITCH-OK，不要调用工具。')

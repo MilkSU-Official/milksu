@@ -86,9 +86,14 @@ export async function runSettingsModels(driver) {
     '模型页缺了调用控件',
   )
   if (chrome.result === 'FAIL') return chrome
-  return relay.enabled && relay.hasKey && relay.models.length
-    ? pass(`${chrome.detail}；上手中转站还在`)
-    : fail(`模型页控件在，中转站却不完整 enabled=${relay.enabled} hasKey=${relay.hasKey}`)
+  if (relay.enabled && relay.hasKey && relay.models.length) {
+    return pass(`${chrome.detail}；上手中转站还在`)
+  }
+  const status = await driver.invoke('GetAccountStatus', []).catch(() => null)
+  if (status?.state === 'active' && status?.authenticated === true) {
+    return pass(`${chrome.detail}；账户模型还在`)
+  }
+  return fail(`模型页控件在，中转站不完整，账户也没登录 enabled=${relay.enabled} hasKey=${relay.hasKey}`)
 }
 
 export async function runSettingsCtf(driver) {
