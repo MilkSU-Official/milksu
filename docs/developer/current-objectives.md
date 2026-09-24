@@ -24,16 +24,18 @@
 
 ## 已发行
 
-最近一次正式包装源 `2fa97b3d`（`26.922.2`）。更早的 tag 见 [GitHub Releases](https://github.com/MilkSU-Official/milksu/releases)。
+最近一次正式包装源 `7946fb85`（`26.925.1`）。更早的 tag 见 [GitHub Releases](https://github.com/MilkSU-Official/milksu/releases)。
 
-发行页：<https://github.com/MilkSU-Official/milksu/releases/tag/v26.922.2>
+发行页：<https://github.com/MilkSU-Official/milksu/releases/tag/v26.925.1>
+
+这一版有用户名密码登录，设置里按厂商目录或自定义接口添加模型，账户模型可以逐个开关。看板娘按闲聊、深入思考、长任务分流。对话可以生图。文件可以拖进窗口。过长消息默认折起。侧栏标出等你拍板的对话。
 
 | 平台 | Workflow | 安装包 | 大小 | SHA-256 |
 | --- | --- | --- | ---: | --- |
-| macOS ARM64 | `35719595545` | `MilkSU-macOS-arm64-26.922.2.dmg` | 335,767,350 B | `a05546387ccded76b2858ae5c7ef6172fbca9bafc7df08252cdbf1c22ed8205c` |
-| Windows x64 | `35719599395` | `MilkSU-Windows-x64-26.922.2-Setup.exe` | 267,318,961 B | `7b93104543121b2d0fcd28b0e7915f1010a1bf3d4f4e84004c2c9f413f6dc7b5` |
-| Linux x64 DEB | `35719603250` | `MilkSU-Linux-x64-26.922.2.deb` | 241,440,852 B | `561b908749cca1979b3e9d22b1db2024fe9081c974d227d2dd226f5ffd4777fe` |
-| Linux x64 tarball | `35719603250` | `MilkSU-Linux-x64-26.922.2.tar.gz` | 295,198,785 B | `4216d02a746602047d34ae5a2e838a7728e8be995ceab51696bc70cf3a536125` |
+| macOS ARM64 | `36038843267` | `MilkSU-macOS-arm64-26.925.1.dmg` | 506,421,628 B | `3166f26f453f71b708f9029659deb6bd5dea61ede13aee67c770b1f3470ef588` |
+| Windows x64 | `36038847791` | `MilkSU-Windows-x64-26.925.1-Setup.exe` | 391,848,954 B | `abd413b385749664039a754567c387b9245d687f33658375a2c346f95a8f8414` |
+| Linux x64 DEB | `36038852337` | `MilkSU-Linux-x64-26.925.1.deb` | 376,246,440 B | `f0535e908ebaa193fe13cf02c4c0c4f4587d719e06b5e42bdcf94e1578997ab3` |
+| Linux x64 tarball | `36038852337` | `MilkSU-Linux-x64-26.925.1.tar.gz` | 456,356,193 B | `f7e643ef294ed3d1c11daccebfd0e2adb00c22e30ee77d87645d0127cd46a507` |
 
 Windows 安装器仍未代码签名。
 
@@ -45,7 +47,7 @@ Windows 安装器仍未代码签名。
 - 新对话继承项目 `milksu` 还没有。
 - 宽作业用 `recon-authorized-target` Skill，不造 typed sweep。Computer Use 选窗器仍是可选人工面。
 - DSH `bash` 没有 MilkSU 侧超时上界。
-- 决策（Jev，没接上则当前对话模型）和记忆归档结果进看板娘过程折叠。账户发钥匙，设置里不填。issue #117 的另外几问、#155、#156 还没接到这一层。
+- issue #117 的另外几问、#155、#156 还没接到决策这一层。
 
 ## 完成线
 
