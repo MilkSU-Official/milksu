@@ -23,7 +23,7 @@ export function AccountCredentialSettings({
   const [saved, setSaved] = useState('')
   if (account.state !== 'active') return null
 
-  async function setPassword() {
+  async function savePassword() {
     setError('')
     setSaved('')
     if (accountUsernameProblem(username)) {
@@ -90,7 +90,7 @@ export function AccountCredentialSettings({
             <Input id="settings-account-username" className="h-7" autoComplete="username" value={username} onChange={event => setUsername(event.target.value)} />
             <Label htmlFor="settings-account-password" className="sr-only">{t('密码', 'Password')}</Label>
             <Input id="settings-account-password" className="h-7" type="password" autoComplete="new-password" placeholder={t('密码', 'Password')} value={password} onChange={event => setPassword(event.target.value)} />
-            <Button type="button" size="sm" className="w-fit" disabled={busy} onClick={() => void setPassword()}>
+            <Button type="button" size="sm" className="w-fit" disabled={busy} onClick={() => void savePassword()}>
               {t('设置', 'Set')}
             </Button>
           </div>
