@@ -1265,6 +1265,7 @@ func mapCompanionEvent(raw map[string]any) engine.Event {
 		event.Type = "decision.recorded"
 		event.Text = strings.TrimSpace(stringValue(raw["text"]))
 		event.Bucket = strings.TrimSpace(stringValue(raw["bucket"]))
+		event.Source = strings.TrimSpace(stringValue(raw["source"]))
 		event.Done = true
 	case "memory.recorded":
 		event.Type = "memory.recorded"

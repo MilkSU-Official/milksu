@@ -378,11 +378,11 @@ func TestConfirmedSteerArmsTheWatch(t *testing.T) {
 		"c1": {ID: "c1", Title: "登录"},
 	}}, &fakeSpeaker{produced: true}, NewBoard(), func() bool { return true })
 	runtime.parkConfirm("req-1", map[string]any{
-		"action":          "speak",
-		"conversationId":  "c1",
-		"text":            "继续",
-		"idempotencyKey":  "k1",
-		"mode":            "steer",
+		"action":         "speak",
+		"conversationId": "c1",
+		"text":           "继续",
+		"idempotencyKey": "k1",
+		"mode":           "steer",
 	}, "登录")
 	result, err := runtime.ConfirmDispatch("steer", "c1", "继续", "k1", "steer", "req-1", true)
 	if err != nil || !result.Delivered {
@@ -398,12 +398,13 @@ func TestMapCompanionIntentRecordedReachesThePhone(t *testing.T) {
 		"type":   "decision.recorded",
 		"text":   "决策：闲聊。由Jev判定。",
 		"bucket": "chat",
+		"source": "jev",
 	})
 	if event.Type != "decision.recorded" {
 		t.Fatalf("type %q", event.Type)
 	}
-	if event.Text == "" || event.Bucket != "chat" {
-		t.Fatalf("text %q bucket %q", event.Text, event.Bucket)
+	if event.Text == "" || event.Bucket != "chat" || event.Source != "jev" {
+		t.Fatalf("text %q bucket %q source %q", event.Text, event.Bucket, event.Source)
 	}
 }
 
