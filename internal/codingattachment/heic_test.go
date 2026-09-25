@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -153,5 +154,19 @@ func TestImportingAHeicThroughTheFilePickerFailsLoudly(t *testing.T) {
 	}
 	if !strings.Contains(importErr.Error(), "HEIC") {
 		t.Fatalf("the error must name the format so the reader knows which file: %v", importErr)
+	}
+}
+
+// 非 macOS 上没有 sips：必须明确报错（说明是哪张、为什么），而不是去试跑一个注定失败的子进程。
+func TestConvertHEICToPNGWithoutSipsExplainsThePlatform(t *testing.T) {
+	if runtime.GOOS == "darwin" {
+		t.Skip("macOS 自带 sips，这条只钉别的平台的行为")
+	}
+	_, err := ConvertHEICToPNG([]byte("ftypheic-padding-padding"), nil)
+	if err == nil {
+		t.Fatal("without sips the conversion must fail, not silently succeed")
+	}
+	if !strings.Contains(err.Error(), "sips") {
+		t.Fatalf("the error must name the missing tool, got %q", err.Error())
 	}
 }

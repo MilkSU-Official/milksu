@@ -102,7 +102,9 @@ const HEIC_SCAN_LIMIT = 256 * 1024
 
 function heicSize(buffer) {
   const probe = buffer.toString("latin1", 0, Math.min(buffer.length, 32))
-  if (!/ftyp(heic|heix|hevc|hevx|mif1|msf1|avif)/.test(probe)) return null
+  // 品牌清单与 internal/codingattachment/heic.go 的 heicBrands 对齐（heim/heis/hevm/hevs 是
+  // HEIF 变体品牌）；avif 只在这里量尺寸，不自动转换（转换归 Go 侧，本轮不动）。
+  if (!/ftyp(heic|heix|hevc|hevx|heim|heis|hevm|hevs|mif1|msf1|avif)/.test(probe)) return null
   const window = buffer.subarray(0, Math.min(buffer.length, HEIC_SCAN_LIMIT))
   let best = null
   let at = -1

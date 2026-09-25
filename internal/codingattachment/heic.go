@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -79,6 +80,11 @@ func PNGPixelSize(data []byte) (int, int, bool) {
 func ConvertHEICToPNG(data []byte, run func(sourcePath, targetPath string) error) ([]byte, error) {
 	if len(data) == 0 {
 		return nil, errors.New("empty image data")
+	}
+	if run == nil && runtime.GOOS != "darwin" {
+		// sips 只在 macOS 上随系统提供；别的平台没有等价的无损容器转换 ⇒
+		// 明确报错（哪张、为什么），不静默丢弃，也不发一张坏图。
+		return nil, fmt.Errorf("本机系统是 %s，没有 sips：HEIC/HEIF 照片只在 macOS 上支持导入", runtime.GOOS)
 	}
 	directory, err := os.MkdirTemp("", "milksu-heic-")
 	if err != nil {

@@ -184,13 +184,9 @@ func readSource(sourcePath string) (Attachment, []byte, error) {
 	}
 
 	// 选择器进来的文件同样要准备（HEIC ⇒ PNG），否则它会原样落库、发不出去。
-
 	name, mediaType, data, prepErr := prepareImportedData(name, "", data)
-
 	if prepErr != nil {
-
 		return Attachment{}, nil, prepErr
-
 	}
 
 	attachment, err := attachmentFromData(name, mediaType, data)
