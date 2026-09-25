@@ -2659,11 +2659,19 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
       .filter(item => item.role === 'user' && item.status !== 'queued')
       .length - 1
     if (s.runningIds.has(conversation.id)) finishRun(conversation.id)
+    const original = conversation.messages[index]
     update(conversation.id, current => ({
       ...current,
       messages: current.messages.slice(0, index),
     }))
-    return send(content, content, [], undefined, undefined, Math.max(0, occurrence))
+    return send(
+      content,
+      content,
+      original.attachments ?? [],
+      undefined,
+      undefined,
+      Math.max(0, occurrence),
+    )
   }
 
   async function branchFromAssistant(messageId: string) {
