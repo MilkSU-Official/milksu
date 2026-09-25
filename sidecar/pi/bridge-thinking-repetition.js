@@ -18,16 +18,16 @@ export const THINKING_REPEAT_NOTICE = {
 
 /**
  * 每个会话一份护栏：吃 thinking 增量，**按行**切段，连续 N 行完全相同即命中一次。
- * 只记内容、不改内容：命中后把事实交给调用方去告诉读者（绝不静默）。
+ * 只记内容、不改内容：命中后把事实（含最近行取样）交给调用方，由决策层复核后再告诉读者。
  */
-export function createThinkingRepetitionGuard({ threshold = THINKING_REPEAT_LINES } = {}) {
+export function createThinkingRepetitionGuard({ threshold = THINKING_REPEAT_LINES, sampleSize = 12 } = {}) {
   const states = new Map();
 
   function stateFor(conversationId) {
     const key = String(conversationId ?? "");
     let state = states.get(key);
     if (!state) {
-      state = { buffer: "", previous: "", run: 0, fired: false };
+      state = { buffer: "", previous: "", run: 0, fired: false, recent: [] };
       states.set(key, state);
     }
     return state;
@@ -39,7 +39,9 @@ export function createThinkingRepetitionGuard({ threshold = THINKING_REPEAT_LINE
       states.delete(String(conversationId ?? ""));
     },
     /**
-     * 喂一个 thinking 增量。返回 null 或 { line, run }（同一会话每个"思考步"只报一次）。
+     * 喂一个 thinking 增量。返回 null 或 { line, run, sample }：
+     * sample 是最近至多 sampleSize 行非空行（旧→新），交给决策层判断「是真卡住还是合法重复」。
+     * 同一会话每个"思考步"只报一次。
      */
     push(conversationId, delta) {
       const state = stateFor(conversationId);
@@ -49,6 +51,8 @@ export function createThinkingRepetitionGuard({ threshold = THINKING_REPEAT_LINE
         const line = state.buffer.slice(0, index).trim();
         state.buffer = state.buffer.slice(index + 1);
         if (!line) continue;
+        state.recent.push(line);
+        if (state.recent.length > sampleSize) state.recent.shift();
         if (line === state.previous) {
           state.run += 1;
         } else {
@@ -57,7 +61,7 @@ export function createThinkingRepetitionGuard({ threshold = THINKING_REPEAT_LINE
         }
         if (!state.fired && state.run >= threshold) {
           state.fired = true;
-          hit = { line, run: state.run };
+          hit = { line, run: state.run, sample: state.recent.slice() };
         }
       }
       return hit;

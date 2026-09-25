@@ -31,6 +31,7 @@ import (
 	"github.com/MilkSU-Official/milksu/internal/engine"
 	"github.com/MilkSU-Official/milksu/internal/envbroker"
 	"github.com/MilkSU-Official/milksu/internal/evalsuite"
+	"github.com/MilkSU-Official/milksu/internal/jev"
 	"github.com/MilkSU-Official/milksu/internal/lab"
 	"github.com/MilkSU-Official/milksu/internal/modelcatalog"
 	"github.com/MilkSU-Official/milksu/internal/modelusage"
@@ -202,6 +203,14 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 	application.engines = engine.NewSupervisor(application.emitEngineEvent)
 	application.engines.SetWorkspaceActionHandler(application.handleCodingWorkspaceAction)
 	application.engines.SetCodingBrowserLookup(application.lookupCodingBrowserDescriptor)
+	// 复读示警的决策判官：key 从设置读，没配就当没接线（引擎 fail-open 原样放行）。
+	application.engines.SetGuardJudge(func(ctx context.Context, state any, instructions string) (float64, error) {
+		settings := application.settings.Get()
+		if settings.Jev == nil || strings.TrimSpace(settings.Jev.APIKey) == "" {
+			return 0, errors.New("decision credential not configured")
+		}
+		return (&jev.Client{Key: settings.Jev.APIKey}).Noul(ctx, state, instructions)
+	})
 	application.engines.SetAgentResourceResolver(func() engine.AgentResourceRuntime {
 		runtime := application.agentResources.Runtime()
 		servers := make(map[string]any, len(runtime.MCPServers))

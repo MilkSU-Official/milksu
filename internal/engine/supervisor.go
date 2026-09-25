@@ -21,6 +21,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"context"
+
 	"github.com/MilkSU-Official/milksu/internal/codingattachment"
 	"github.com/MilkSU-Official/milksu/internal/config"
 	"github.com/MilkSU-Official/milksu/internal/hostpath"
@@ -422,6 +424,8 @@ type bridgeEvent struct {
 	Phase              string                   `json:"phase"`
 	UserText           string                   `json:"userText"`
 	AssistantText      string                   `json:"assistantText"`
+	RepeatLine         string                   `json:"repeatLine"`
+	Sample             []string                 `json:"sample"`
 }
 
 // UserMemoryTurn is one ordinary-session signal for the shared user-memory
@@ -586,6 +590,7 @@ type Supervisor struct {
 	userMemorySnapshot  func() UserMemorySnapshot
 	workspaceAction     WorkspaceActionHandler
 	codingBrowserLookup CodingBrowserLookup
+	guardJudge          GuardJudge
 	emit                func(Event)
 	sidecarDirectory    string
 }
@@ -611,6 +616,18 @@ func (s *Supervisor) SetCodingBrowserLookup(lookup CodingBrowserLookup) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.codingBrowserLookup = lookup
+}
+
+// GuardJudge asks the decision layer one yes/no question about a guard.alarm
+// payload. The yes probability gates whether the alarm reaches the reader.
+type GuardJudge func(ctx context.Context, state any, instructions string) (float64, error)
+
+// SetGuardJudge wires the decision layer into the guard.alarm pipeline. A nil
+// judge keeps the sidecar's verdict as-is (no decision credential configured).
+func (s *Supervisor) SetGuardJudge(judge GuardJudge) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.guardJudge = judge
 }
 
 // BindSessionKernel pins a conversation to Pi or DeepSeek Harness. The first
@@ -3302,6 +3319,13 @@ func (s *Supervisor) readEvents(kernel string, process *childProcess, stdout io.
 			s.forwardUserMemoryTurn(raw)
 			continue
 		}
+		if raw.Type == "guard.alarm" {
+			// 示警先过决策层复核再转发：粗判据（连续 N 行相同）会把合法重复
+			//（表格、日志、进度行）也报上来，决策层读 sample 把这类误报压掉。
+			// 复核走 goroutine，不挡事件流；凭据没配时 gateGuardAlarm 会原样放行。
+			go s.gateGuardAlarm(raw, kernel)
+			continue
+		}
 		event := normalizeBridgeEvent(raw, kernel)
 		s.observeRuntimeEvent(event)
 		s.observeTurnLifecycle(raw, event)
@@ -3744,6 +3768,51 @@ func normalizeBridgeEvent(raw bridgeEvent, kernels ...string) Event {
 		event.Type = "engine.raw." + raw.Type
 	}
 	return event
+}
+
+// guardJudgeTimeout bounds one decision-layer roundtrip. The alarm is advisory,
+// so a slow answer is worse than no answer: on timeout the raw verdict forwards.
+const guardJudgeTimeout = 6 * time.Second
+
+// guardStuckNoulThreshold mirrors the companion gate (gate.go): at 0.5 the
+// decision layer cannot tell stuck from healthy, so only a clear "yes" suppresses
+// nothing — at or above this the alarm forwards, below it the repetition is
+// judged legitimate (tables, logs, progress lines) and stays silent.
+const guardStuckNoulThreshold = 0.5
+
+const guardStuckInstructions = "侧车护栏报了一段 Agent 思考连续多行重复。sample 是最近的思考行（旧到新），repeatLine 是重复的那行。判断：模型是否陷入了没有实质进展的复读（原地打转、空话循环）。结构化输出（表格、日志、进度行、diff 标记）的合法重复不算。"
+
+// gateGuardAlarm re-judges a sidecar guard.alarm through the decision layer
+// before it reaches the reader. Fail-open everywhere: no judge wired, judge
+// error, or timeout all forward the alarm — this notice never blocks an action,
+// so a false positive costs less than a swallowed one.
+func (s *Supervisor) gateGuardAlarm(raw bridgeEvent, kernel string) {
+	s.mu.Lock()
+	judge := s.guardJudge
+	s.mu.Unlock()
+	forward := func() {
+		event := normalizeBridgeEvent(raw, kernel)
+		s.observeRuntimeEvent(event)
+		s.observeTurnLifecycle(raw, event)
+		s.emitEvent(event)
+	}
+	if judge == nil {
+		forward()
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), guardJudgeTimeout)
+	defer cancel()
+	yes, err := judge(ctx, map[string]any{
+		"repeatLine": raw.RepeatLine,
+		"reason":     raw.Reason,
+		"sample":     raw.Sample,
+	}, guardStuckInstructions)
+	if err != nil || yes >= guardStuckNoulThreshold {
+		forward()
+		return
+	}
+	// 决策层确认是合法重复（表格、日志、进度行）⇒ 不打扰读者。这是**只压误报**的方向：
+	// 决策层说"没卡住"会吞掉示警，所以阈值从宽、超时/出错一律放行。
 }
 
 func (s *Supervisor) handleWorkspaceAction(raw bridgeEvent) {

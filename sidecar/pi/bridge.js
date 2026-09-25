@@ -1510,13 +1510,16 @@ function subscribeSession(
         thinkingStreamed = true;
         emit(conversationId, "thinking_delta", { delta: update.delta ?? "" });
 
-        // 思考复读：连续 N 行一模一样时告诉读者（可见，绝不静默）。事件名用 guard.alarm
-        //（本件首次发出；引擎把它列进透传名单，前端按此名分支），载荷成对双语，前端按界面语言选一句。
+        // 思考复读：连续 N 行一模一样时**先报给决策层复核**（引擎侧 gateGuardAlarm），
+        // 由它区分真卡住与合法重复（表格、日志、进度行），复核通过才到读者眼前。
+        // 事件名用 guard.alarm（引擎透传名单里有此名），载荷成对双语，前端按界面语言选一句。
         const repeat = thinkingRepetition.push(conversationId, update.delta ?? "");
         if (repeat) {
           emit(conversationId, "guard.alarm", {
             toolName: "",
             reason: `thinking repeated ${repeat.run} lines: ${repeat.line}`,
+            repeatLine: repeat.line,
+            sample: repeat.sample,
             notice: THINKING_REPEAT_NOTICE.notice,
             noticeEnglish: THINKING_REPEAT_NOTICE.noticeEnglish,
           });

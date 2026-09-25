@@ -21,6 +21,9 @@ test("a repeated line fires the guard after the threshold, and only once", () =>
   assert.ok(hit, "eight identical lines must fire");
   assert.equal(hit.run, THINKING_REPEAT_LINES);
   assert.equal(hit.line, "(unchanged)");
+  // 命中必须带取样：决策层靠它区分真卡住与合法重复，没有 sample 就没法复核。
+  assert.ok(Array.isArray(hit.sample), "a hit must carry the recent-line sample for the decision layer");
+  assert.equal(hit.sample.at(-1), "(unchanged)");
   // 只报一次：同一会话的同一个思考步不该刷屏。
   assert.equal(guard.push("conversation-1", "(unchanged)\n"), null);
 });
@@ -42,7 +45,8 @@ test("deltas that arrive mid line are buffered, not treated as separate lines", 
   assert.ok(hit, "split deltas of one repeated line must still fire");
 });
 
-// ③ 无静默路径：命中后必须有可见提示 —— 侧车必须把成对双语的 notice 挂在**已有事件名**上。
+// ③ 无静默路径：命中后必须把成对双语的 notice 和复核用 sample 一起挂在事件上；
+// 引擎侧 gateGuardAlarm 用 sample 问决策层，复核通过读者才看得到提示。
 test("the sidecar answers a repeat with a visible notice, never silently", () => {
   const bridge = readFileSync(new URL("./bridge.js", import.meta.url), "utf8");
   assert.ok(bridge.includes("thinkingRepetition.push("), "the delta outlet must feed the guard");
@@ -50,6 +54,7 @@ test("the sidecar answers a repeat with a visible notice, never silently", () =>
   assert.ok(outlet.includes('emit(conversationId, "guard.alarm"'), "a hit must emit guard.alarm");
   assert.ok(outlet.includes("THINKING_REPEAT_NOTICE.notice"));
   assert.ok(outlet.includes("THINKING_REPEAT_NOTICE.noticeEnglish"));
+  assert.ok(outlet.includes("sample: repeat.sample"), "the payload must carry the sample for the decision layer");
   assert.ok(THINKING_REPEAT_NOTICE.notice.length > 0 && THINKING_REPEAT_NOTICE.noticeEnglish.length > 0);
 });
 
