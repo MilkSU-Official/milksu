@@ -1,5 +1,4 @@
 export const SIDEBAR_WIDTH_KEY = 'milksu.sidebar-width.v1'
-export const COLLAPSED_SIDEBAR_WIDTH = 52
 export const MIN_SIDEBAR_WIDTH = 224
 export const DEFAULT_SIDEBAR_WIDTH = 264
 export const MAX_SIDEBAR_WIDTH = 420

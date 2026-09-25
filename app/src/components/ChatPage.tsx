@@ -262,7 +262,6 @@ export type ChatPageProps = {
   mcpConfigDigest?: string
   ensureConversation: (title?: string) => string
   pendingComposerDraft?: { prompt: string; visibleText: string } | null
-  conversationDrawerOpen?: boolean
   engineNotice?: string
   engineNoticeRepeat?: number
   restorable?: boolean
@@ -310,7 +309,6 @@ export type ChatPageProps = {
   onReturnLab?: () => void
   onSwitchCtfAgent?: (role: 'solver' | 'tool-builder' | 'strategist') => void
   onConsumePendingDraft?: () => void
-  onToggleConversationDrawer?: () => void
   onExpand?: () => void
   onRestore?: () => void
 }

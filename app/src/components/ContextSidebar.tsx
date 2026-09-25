@@ -74,7 +74,6 @@ import {
 } from '@/lib/settingsNavigation'
 import type { ThemeMode } from '@/lib/themeMode'
 import {
-  COLLAPSED_SIDEBAR_WIDTH,
   MAX_SIDEBAR_WIDTH,
   MIN_SIDEBAR_WIDTH,
   clampSidebarWidth,
@@ -86,7 +85,6 @@ import { updateControlVisible } from '@/lib/updateRestart'
 import { updateStatusMessage } from '@/lib/updateStatus'
 import type { AccountStatus, BuildTracking, Conversation, UpdateStatus } from '@/types'
 
-const COLLAPSED_WIDTH = COLLAPSED_SIDEBAR_WIDTH
 const PINNED_GROUP_KEY = 'pinned'
 const CONVERSATION_MENU_WIDTH = 176
 const CONVERSATION_MENU_HEIGHT = 320
@@ -296,12 +294,13 @@ export default function ContextSidebar({
     : themeMode === 'light'
       ? t('日间', 'Light')
       : t('夜间', 'Dark')
-  const sidebarStyle = { width: `${collapsed ? COLLAPSED_WIDTH : expandedWidth}px` }
+  const sidebarStyle = { width: collapsed ? '0px' : `${expandedWidth}px` }
   const innerStyle = { width: `${expandedWidth}px` }
 
   useEffect(() => {
     const root = document.documentElement
-    root.style.setProperty('--shell-sidebar-width', `${collapsed ? COLLAPSED_WIDTH : expandedWidth}px`)
+    // 隐藏时整条侧栏收到 0 宽，内容区顶栏靠 --shell-chrome-overhang 避开浮动的标题栏按钮。
+    root.style.setProperty('--shell-sidebar-width', collapsed ? '0px' : `${expandedWidth}px`)
     if (collapsed) root.style.setProperty('--shell-chrome-controls-span', '5.75rem')
     else root.style.removeProperty('--shell-chrome-controls-span')
     return () => {
@@ -534,6 +533,7 @@ export default function ContextSidebar({
     if (collapsed) {
       closeWorkspaceMenu()
       closeConversationMenu()
+      closeConversationAction()
     }
   }, [collapsed])
 
@@ -750,19 +750,20 @@ export default function ContextSidebar({
       data-shell-traffic-safe
       data-testid="coding-context-drawer"
       style={sidebarStyle}
+      aria-hidden={collapsed}
     >
       {!collapsed ? (
-        <div
-          className="agent-sidebar__resize app-no-drag"
-          role="separator"
-          aria-orientation="vertical"
-          aria-label={t('调整侧栏宽度', 'Resize the sidebar')}
-          aria-valuemin={MIN_SIDEBAR_WIDTH}
-          aria-valuenow={expandedWidth}
-          aria-valuemax={MAX_SIDEBAR_WIDTH}
-          onPointerDown={startResize}
-        />
-      ) : null}
+      <>
+      <div
+        className="agent-sidebar__resize app-no-drag"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label={t('调整侧栏宽度', 'Resize the sidebar')}
+        aria-valuemin={MIN_SIDEBAR_WIDTH}
+        aria-valuenow={expandedWidth}
+        aria-valuemax={MAX_SIDEBAR_WIDTH}
+        onPointerDown={startResize}
+      />
       <div className="agent-sidebar__inner flex min-h-0 shrink-0 flex-col" style={innerStyle}>
         <div className="agent-sidebar__drag" aria-hidden="true">
           <div className="agent-sidebar__drag-gap" />
@@ -1165,6 +1166,8 @@ export default function ContextSidebar({
           document.body,
         )
         : null}
+      </>
+      ) : null}
 
       <style>{contextSidebarCss}</style>
     </div>
@@ -1342,13 +1345,6 @@ const contextSidebarCss = `
   justify-content: center;
   transform: translateY(-50%);
 }
-.agent-sidebar[data-sidebar-collapsed='true'] .agent-sidebar__copy,
-.agent-sidebar[data-sidebar-collapsed='true'] .agent-sidebar__workspace,
-.agent-sidebar[data-sidebar-collapsed='true'] .agent-sidebar__icon,
-.agent-sidebar[data-sidebar-collapsed='true'] .agent-sidebar__chats {
-  pointer-events: none;
-  opacity: 0;
-}
 .agent-sidebar__foot {
   display: flex;
   min-height: 2rem;
@@ -1405,18 +1401,6 @@ const contextSidebarCss = `
 }
 .agent-sidebar__update:hover { background: var(--hover-2); }
 .agent-sidebar__update:disabled { cursor: default; opacity: 0.8; }
-.agent-sidebar[data-sidebar-collapsed='true'] .agent-sidebar__foot {
-  align-self: flex-start;
-  width: 52px;
-  margin: 0.5rem 0 0.75rem;
-  padding: 0;
-  border-top: 0;
-  justify-content: center;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-.agent-sidebar[data-sidebar-collapsed='true'] .agent-sidebar__foot .agent-sidebar__copy { display: none; }
-.agent-sidebar[data-sidebar-collapsed='true'] .agent-sidebar__head { display: none; }
 .user-menu-item {
   display: flex;
   width: 100%;

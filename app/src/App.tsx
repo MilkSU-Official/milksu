@@ -594,10 +594,6 @@ export default function App() {
     setSection('ctf')
   }
 
-  function toggleCodingConversationDrawer() {
-    setCodingConversationDrawerOpen(open => !open)
-  }
-
   function useLocalAccountMode() {
     setAccountLoginError('')
     setContinueWithoutAccount(true)
@@ -1928,7 +1924,6 @@ export default function App() {
                 pendingComposerDraft={conv.pendingComposerDraft}
                 engineNotice={conv.engineNotice}
                 engineNoticeRepeat={conv.engineNoticeRepeat}
-                conversationDrawerOpen={codingConversationDrawerOpen}
                 restorable={dossierChatMaximized}
                 onSend={conversations.send}
                 onConsumePendingDraft={() => conversations.consumeComposerDraft()}
@@ -1963,7 +1958,6 @@ export default function App() {
                 onReturnLab={returnToLabWorkspace}
                 onRestore={restoreDossierChat}
                 onSwitchCtfAgent={switchCTFAgent}
-                onToggleConversationDrawer={toggleCodingConversationDrawer}
               />
               </div>
             ) : null}

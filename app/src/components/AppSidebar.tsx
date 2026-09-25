@@ -82,9 +82,10 @@ export default function AppSidebar({
   onOpenCommandPanel?: () => void
 }) {
   const t = useT()
+  const sidebarHidden = activeSection !== 'settings' && codingContextOpen === false
   return (
     <aside
-      className="workspace-navigation-shell relative z-30 flex h-full min-h-0 shrink-0 text-sidebar-foreground"
+      className={`workspace-navigation-shell relative z-30 flex h-full min-h-0 shrink-0 text-sidebar-foreground${sidebarHidden ? ' workspace-navigation-shell--hidden' : ''}`}
       data-testid="stable-app-sidebar"
       aria-label={activeSection === 'settings' ? t('设置分类', 'Settings categories') : t('工作区导航', 'Workspace navigation')}
     >
@@ -130,6 +131,10 @@ export default function AppSidebar({
 .workspace-navigation-shell {
   border-right: 1px solid var(--border);
   background: var(--sidebar);
+}
+.workspace-navigation-shell--hidden {
+  border-right: 0;
+  background: transparent;
 }
 `}</style>
     </aside>
