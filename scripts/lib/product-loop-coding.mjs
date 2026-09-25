@@ -1087,6 +1087,170 @@ export async function runSessionDelete(driver) {
   return still ? fail('删除后会话还在活动列表') : pass('会话已经删掉')
 }
 
+// 长会话翻阅：转写区滑动窗口的端到端验收。
+// 期望值与 app/src/lib/transcriptWindow.ts 的 TRANSCRIPT_WINDOW_CAP / CHUNK 对齐（400 / 120）。
+const TRANSCRIPT_WINDOW_CAP = 400
+const TRANSCRIPT_WINDOW_CHUNK = 120
+const TRANSCRIPT_FIXTURE_MESSAGES = 1200
+
+function transcriptWindowFixtureMessages(count) {
+  const base = Date.now() - count * 60_000
+  const messages = []
+  for (let index = 0; index < count; index += 1) {
+    const seq = String(index + 1).padStart(4, '0')
+    const role = index % 2 === 0 ? 'user' : 'assistant'
+    const content = role === 'user'
+      ? `第 ${index + 1} 条用户消息 LOOP-MSG-${seq}：继续。`
+      : [
+          `第 ${index + 1} 条助手回复 LOOP-MSG-${seq}。`,
+          '这是 product-loop 直接写下的回归填充，用来撑起转写区段落高度，不需要模型参与。',
+          '窗口滑动时，锚定段落应该保持视口位置不动。',
+        ].join('\n\n')
+    messages.push({
+      id: `loop-msg-${seq}`,
+      role,
+      content,
+      timestamp: base + index * 60_000,
+      status: 'done',
+    })
+  }
+  return messages
+}
+
+async function readTranscriptWindowState(driver, anchorId = '') {
+  return driver.cdp.callFunction(`function(anchorId) {
+    const area = document.querySelector('.chat-edge-scroll')
+    if (!area) return null
+    const blocks = Array.from(document.querySelectorAll('[data-transcript-block]'))
+    if (!blocks.length) return null
+    const containerTop = area.getBoundingClientRect().top
+    const anchor = anchorId
+      ? blocks.find(node => node.dataset.transcriptBlock === anchorId)
+      : null
+    const latest = Array.from(document.querySelectorAll('button')).find(node => {
+      const box = node.getBoundingClientRect()
+      return box.width > 1 && box.height > 1 && /回到最新|Latest/.test(node.textContent || '')
+    })
+    return {
+      count: blocks.length,
+      firstId: blocks[0]?.dataset.transcriptBlock ?? '',
+      lastId: blocks[blocks.length - 1]?.dataset.transcriptBlock ?? '',
+      anchorTop: anchor ? anchor.getBoundingClientRect().top - containerTop : null,
+      remaining: Math.round(area.scrollHeight - area.scrollTop - area.clientHeight),
+      hasLatestButton: Boolean(latest),
+      text: document.body ? document.body.innerText : '',
+    }
+  }`, [anchorId])
+}
+
+async function scrollTranscriptToTop(driver) {
+  return driver.cdp.callFunction(`function() {
+    const area = document.querySelector('.chat-edge-scroll')
+    if (!area) return false
+    area.scrollTop = 0
+    return true
+  }`)
+}
+
+function transcriptWindowFail(state, reason) {
+  return fail(`${reason}（count=${state?.count} first=${state?.firstId} last=${state?.lastId} anchor=${state?.anchorTop}）`)
+}
+
+export async function runSessionTranscriptWindow(driver) {
+  const opened = await home(driver)
+  if (!opened.ok) return fail(opened.detail)
+  const workspace = await prepareWorkspace('product-loop-transcript-window')
+  const prefix = `product-loop-transcript-${Date.now().toString(36)}`
+  const title = `${prefix} 长会话翻阅`
+  let conversation = null
+  try {
+    // 一次性写入带消息的会话：createConversation 先存空消息，再补存不会广播
+    // conversations-changed，前端内存里仍是空会话。直接保存完整对象，让前端收到通知。
+    conversation = {
+      id: prefix,
+      title,
+      createdAt: Date.now(),
+      workspacePath: workspace,
+      kernel: 'pi',
+      executionMode: 'go',
+      approvalPolicy: 'workspace-auto',
+      messages: transcriptWindowFixtureMessages(TRANSCRIPT_FIXTURE_MESSAGES),
+    }
+    await driver.invoke('SaveConversation', [conversation])
+    driver.createdConversationIds.add(conversation.id)
+    if (!await openConversation(driver, title)) return fail('打不开长会话 fixture')
+    const initial = await waitFor(async () => {
+      const state = await readTranscriptWindowState(driver).catch(() => null)
+      return state && state.count > 0 ? state : null
+    }, 15_000)
+    if (!initial) return fail('长会话打开后转写区没有挂载任何段落')
+    // 钉底打开：窗口贴尾只挂 cap 段，最早的消息不在 DOM 里，也不显示「回到最新」。
+    if (initial.count !== TRANSCRIPT_WINDOW_CAP) {
+      return transcriptWindowFail(initial, `贴尾窗口挂载 ${initial.count} 段，应为 ${TRANSCRIPT_WINDOW_CAP}`)
+    }
+    if (initial.firstId !== 'message:loop-msg-0801' || initial.lastId !== 'message:loop-msg-1200') {
+      return transcriptWindowFail(initial, '贴尾窗口区间不对')
+    }
+    if (initial.hasLatestButton) return fail('钉底时不该显示「回到最新」')
+    if (!initial.text.includes('LOOP-MSG-1200') || initial.text.includes('LOOP-MSG-0001')) {
+      return fail('贴尾窗口内容不对：最后一条不可见，或最早一条泄漏进 DOM')
+    }
+
+    // 翻到顶：哨兵驱动窗口整体向头部滑一格，挂载量不变，锚定段落保持视口位置。
+    // 锚定验收看的是「滑动前第一个可见段」（0801）自己：它应留在原视口偏移处。
+    await scrollTranscriptToTop(driver)
+    const slid = await waitFor(async () => {
+      const state = await readTranscriptWindowState(driver, 'message:loop-msg-0801').catch(() => null)
+      return state && state.firstId !== initial.firstId ? state : null
+    }, 10_000)
+    if (!slid) return fail('翻到顶部后哨兵没有触发窗口滑动')
+    const expectedFirst = `message:loop-msg-${String(TRANSCRIPT_FIXTURE_MESSAGES - TRANSCRIPT_WINDOW_CAP - TRANSCRIPT_WINDOW_CHUNK + 1).padStart(4, '0')}`
+    if (slid.count !== TRANSCRIPT_WINDOW_CAP || slid.firstId !== expectedFirst) {
+      return transcriptWindowFail(slid, `上滑一格后窗口区间不对，应为 ${expectedFirst} 开头`)
+    }
+    if (slid.anchorTop === null || slid.anchorTop < -2 || slid.anchorTop > 200) {
+      return transcriptWindowFail(slid, '上滑后锚定段落没有保持视口位置')
+    }
+    if (slid.text.includes('LOOP-MSG-1200') || !slid.text.includes('LOOP-MSG-0681')) {
+      return fail('上滑一格后挂载内容不对：应能看到 0681，看不到 1200')
+    }
+    if (!slid.hasLatestButton) return fail('取消钉底后没有显示「回到最新」')
+
+    // 再翻一次：窗口继续向头部滑；这次滑动前第一个可见段是 0681，
+    // 它应回到与上一次滑动锚点相同的视口偏移（两次都是在 scrollTop=0 时捕获的）。
+    await scrollTranscriptToTop(driver)
+    const slidAgain = await waitFor(async () => {
+      const state = await readTranscriptWindowState(driver, 'message:loop-msg-0681').catch(() => null)
+      return state && state.firstId !== slid.firstId ? state : null
+    }, 10_000)
+    if (!slidAgain) return fail('第二次上滑没有触发窗口滑动')
+    const expectedFirstAgain = `message:loop-msg-${String(TRANSCRIPT_FIXTURE_MESSAGES - TRANSCRIPT_WINDOW_CAP - 2 * TRANSCRIPT_WINDOW_CHUNK + 1).padStart(4, '0')}`
+    if (slidAgain.count !== TRANSCRIPT_WINDOW_CAP || slidAgain.firstId !== expectedFirstAgain) {
+      return transcriptWindowFail(slidAgain, `第二次上滑后窗口区间不对，应为 ${expectedFirstAgain} 开头`)
+    }
+    if (slidAgain.anchorTop === null || Math.abs(slidAgain.anchorTop - slid.anchorTop) > 2) {
+      return transcriptWindowFail(slidAgain, '第二次上滑后锚定段落没有回到相同视口偏移')
+    }
+
+    // 点「回到最新」：回到贴尾窗口，恢复钉底，按钮消失。
+    if (!await clickLabeled(driver, ['回到最新', 'Latest'])) return fail('点不到「回到最新」')
+    const latest = await waitFor(async () => {
+      const state = await readTranscriptWindowState(driver).catch(() => null)
+      return state && !state.hasLatestButton && state.lastId === 'message:loop-msg-1200' ? state : null
+    }, 10_000)
+    if (!latest) return fail('「回到最新」没有回到贴尾窗口')
+    if (latest.firstId !== 'message:loop-msg-0801' || latest.remaining > 8) {
+      return transcriptWindowFail(latest, '回到最新后窗口或滚动位置不对')
+    }
+    if (!latest.text.includes('LOOP-MSG-1200') || latest.text.includes('LOOP-MSG-0001')) {
+      return fail('回到最新后内容不对')
+    }
+    return pass('长会话只挂 400 段，哨兵滑窗锚定不动，「回到最新」回贴尾')
+  } finally {
+    await releaseProductLoopWorkspace(driver, conversation, workspace)
+  }
+}
+
 export async function runSessionCommandPanel(driver) {
   await home(driver)
   const clicked = await clickLabeled(driver, ['搜索任务', 'Search tasks'])

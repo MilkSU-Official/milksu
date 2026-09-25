@@ -165,7 +165,7 @@ test('catalog keeps product regression away from evalsuite', () => {
     'settings-rest',
   ])
   assert.equal(CASE_RUN_ORDER[0], 'login-gate')
-  assert.equal(MODULES.coding.cases.length, 35)
+  assert.equal(MODULES.coding.cases.length, 36)
   assert.equal(MODULES.companion.cases.length, 23)
   assert.equal(MODULES.decisions.default, true)
   assert.equal(MODULES.decisions.cases.length, 17)

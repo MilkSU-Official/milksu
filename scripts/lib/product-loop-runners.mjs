@@ -57,6 +57,7 @@ import {
   runSessionNew,
   runSessionPin,
   runSessionRename,
+  runSessionTranscriptWindow,
   runTerminalOpen,
 } from './product-loop-coding.mjs'
 import {
@@ -176,6 +177,7 @@ export const PRODUCT_LOOP_RUNNERS = {
   'session-fork': driver => runSessionFork(driver),
   'session-archive': driver => runSessionArchive(driver),
   'session-delete': driver => runSessionDelete(driver),
+  'session-transcript-window': driver => runSessionTranscriptWindow(driver),
   'session-command-panel': driver => runSessionCommandPanel(driver),
   'composer-model': driver => runComposerModel(driver),
   'composer-runtime': driver => runComposerRuntime(driver),
