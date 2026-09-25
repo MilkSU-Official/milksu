@@ -24,7 +24,11 @@ export function approvalBarIsDestructive({
   )
 }
 
-/** 能不能给"允许"入口：破坏性且评估不允许 ⇒ **只能拒绝** ✓（原：`!destructive || canAllow`）。 */
+/**
+ * 该不该显示「范围未核验」提示（原：`approvalUnverified`）。
+ * 注意：它**不**控制「允许」按钮——按钮始终渲染，读者仍可放行；
+ * 为 false 时只是说这条提示条要亮出来（破坏性且评估没通过 ⇒ 读者该多看一眼再拍板）。
+ */
 export function approvalCanAllow(destructive: boolean, canAllow: boolean): boolean {
   return !destructive || canAllow
 }

@@ -18,12 +18,12 @@ describe('approval bar', () => {
     expect(approvalBarIsDestructive({ content: 'cat list.txt | xargs rm' })).toBe(true)
   })
 
-  // (b) 破坏性且评估不允许 ⇒ **只能拒绝**（不给"允许"入口）。
-  it('does not offer allow for a destructive request the assessment refuses', () => {
+  // (b) 破坏性且评估不允许 ⇒ 显示「范围未核验」提示（允许按钮仍在，读者可放行）。
+  it('flags a destructive request the assessment refuses as unverified', () => {
     const destructive = approvalBarIsDestructive({ content: 'rm -rf /' })
     expect(destructive).toBe(true)
     expect(approvalCanAllow(destructive, false)).toBe(false)
-    // 非破坏性 ⇒ 照常允许入口。
+    // 非破坏性 ⇒ 不亮提示。
     expect(approvalCanAllow(false, false)).toBe(true)
   })
 
