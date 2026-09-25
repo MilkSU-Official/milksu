@@ -34,8 +34,8 @@ staple 与 Gatekeeper 验证。签名资产只存在 Personal Vault 和 GitHub S
 
 ## 构建一次正式候选包（默认云端）
 
-1. 按[三端打包与发版流程](release-process.md)：产品回归跑完，FAIL 项该修的修好并重跑通过之后，才把准确版本提交并推送到 `main`，运行一次
-   `npm run release:verify` 生成绑定完整 commit 的本地回执。任意有 `gh` 的机器都可以。
+1. 按[三端打包与发版流程](release-process.md)：产品回归跑完，FAIL 项该修的修好并重跑通过之后，才把准确版本提交并推送到 `main`。然后运行一次
+   `npm run release:verify`，生成绑定完整 commit 的本地回执。任意有 `gh` 的机器都可以。
 2. `npm run release:dispatch ...` 同时分发 macOS / Windows / Linux。macOS 走 GitHub-hosted
    标准 runner；`macos-release` environment 在 `main` 上立即注入证书与公证密钥，无需 Approve。
 3. `npm run release:collect -- --wait` 把三端安装包拉到 `build/release/github/`。
@@ -54,7 +54,7 @@ Stable；不要构建 Beta，除非用户明确要求自举。
 
 正式 `release:dispatch` 同一轮会生成 updater 载荷并上传。CI 使用 rclone 的 Cloudflare S3 provider
 把各端产物和元数据上传到 `releases/stable/{platform}/{arch}/<version>/`，再逐个下载到临时目录复核
-SHA-256。只有回读一致时，CI 才调用 Admin 的窄 internal API 创建或幂等更新该平台记录，并把它设为
+SHA-256。只有回读一致时，CI 才调用 Admin 的窄 internal API，创建或幂等更新该平台记录，把它设为
 current pointer。发布只改变 D1 的 current pointer；R2 对象保持不可变。维护者仍可在 Admin **版本**
 页暂停分发。
 

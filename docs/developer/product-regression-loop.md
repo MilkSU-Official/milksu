@@ -55,7 +55,7 @@ SKIP 不算整次通过。`expectedMiss` 只能是 SKIP 或 FAIL。只过登录�
 
 回执：`build/test-results/product-loop.json`。正式报告：`build/test-results/product-loop-report/index.html`（拆 fixture 之前截图）。`--gui` 测完删掉 fixture 会话。不要把回执或截图提交。
 
-不要为回归构建 Beta，不要把协调器挂进设置或启动，不要在 CI 默认跑 `--gui --suite all`，不要把这次回执写成发版完成。发版时先跑整次，再按 FAIL 项决定要不要修并重跑失败套件，通过之后才升版本、推送和分发，见 [三端打包与发版](release-process.md) §0 和 §0.5。
+不要为回归构建 Beta，不要把协调器挂进设置或启动，不要在 CI 默认跑 `--gui --suite all`，不要把这次回执写成发版完成。发版时先跑整次，再按 FAIL 项决定要不要修并重跑失败套件。通过之后才升版本、推送和分发。见 [三端打包与发版](release-process.md) §0 和 §0.5。
 
 ## 输入
 

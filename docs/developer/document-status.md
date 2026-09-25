@@ -18,6 +18,7 @@
 | [看板娘皮肤](companion-skin.md) | 外部作者要交的帧和换装 |
 | [插件使用说明](plugin-user-guide.md)、[插件框架](plugin-framework.md) | 外部作者。CI 看 `docs/developer/plugin-**` |
 | [动效](motion.md) | 动效落在哪些表面。数值在 `AGENTS.md` |
+| [中文写作规范](writing-guide.md) | 判例和 grep 自检。规矩在 `AGENTS.md`「中文写作规范」 |
 | [PI 资源白名单](pi-resource-whitelist.md) | 打包进 sidecar 的固定资源 |
 | [远程控制](remote-control.md) | 未实现。手机连本机的准入，不是当前完成线 |
 | `AGENTS.md` | 协作约束和产品 UI。其他文档不复制 |

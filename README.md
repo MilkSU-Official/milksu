@@ -27,7 +27,7 @@
 
 ![MilkSU Coding 工作台](docs/media/readme-coding.png)
 
-MilkSU 把 Coding、CTF、CVE 和实验室放进同一个桌面。界面是 React + shadcn。Agent 读项目、改文件、跑测试；也可以对着一道题、一个 CVE 或一次实验室作业，把题面、材料、过程和产物留在同一条可回看的任务里。
+MilkSU 把 Coding、CTF、CVE 和实验室放进同一个桌面。界面是 React + shadcn。Agent 读项目、改文件、跑测试。对着一道题、一个 CVE 或一次实验室作业，题面、材料、过程和产物都留在同一条可回看的任务里。
 
 它不是只有输入框的聊天客户端。项目文件、内置浏览器、你选定的真实浏览器标签页、外部桌面应用，都可以成为当前任务的一部分。你可以随时看、补一句、接管或停掉。新对话默认用 Pi，也可以选 DeepSeek Harness。已登录后侧栏「更新」会打开进度框；下完并校验后，再点安装并重启。
 
@@ -100,7 +100,7 @@ Linux 只发两份包：Ubuntu / Debian 用 `.deb`，Omarchy / Arch / NixOS 用�
 # Ubuntu / Debian
 sudo apt install ./MilkSU-Linux-x64-26.925.1.deb
 
-# Omarchy / Arch：用仓库 packaging/linux/PKGBUILD.in，填版本与 sha256 后
+# Omarchy / Arch：用仓库 `packaging/linux/PKGBUILD.in`，填版本与 sha256 后
 makepkg -si
 
 # NixOS：解压同一 tar.gz

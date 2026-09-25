@@ -106,6 +106,17 @@ React 组件、hooks 和前端 lib 文案里每一条用户可见的中文串，
 
 看板娘的英文是 Companion。它以前叫「桌宠」。开发、测试和搜旧记录时，桌宠就是看板娘。代码标识、测试 id、目录和插件槽位仍是 companion / `app.pet`。
 
+## 中文写作规范
+
+PR 正文、文档、代码注释、提交信息用中文写作时遵守 [中文写作规范](docs/developer/writing-guide.md)。规矩四条：
+
+1. 去除 AI 腔：禁止「不是 X，而是 Y」对比句、排比、过渡套话、强调词、结论式收尾、欧化长句和破折号。
+2. 全角标点，直引号换「」；中文与英文、数字之间留空格。
+3. 写事实和现场，不写评价和修辞。
+4. 长文写完跑一次规范里的 grep 自检，命中即改。
+
+PR 正文另受 `.github/PULL_REQUEST_TEMPLATE.md` 的结构约束。
+
 ## 产品 UI 设计语言
 
 本节是唯一的产品 UI 语言。其他文档指向这里，不得复制层级表、token 名或原语数字。
@@ -113,7 +124,6 @@ React 组件、hooks 和前端 lib 文案里每一条用户可见的中文串，
 新 UI 和每一次重构都用 **React + [shadcn/ui](https://ui.shadcn.com/)（New York、zinc）**。
 不新开 Vue 页面，不加 Felinic。不跟 DeepSeek Harness 的 web GUI。
 不要把 Beautiful UI 夜间玻璃、战术 / 游戏感 chrome 和 ak-ui 混在同一个表面上。
-所有 UI 功能先联网搜索成熟实现作为参考，并套进本节已有的 React + shadcn、token 和动效规则；不要手搓一次性的控件、图标或布局，除非用户明确确认要手搓。
 所有 UI 功能先联网搜索成熟实现作为参考，并套进本节已有的 React + shadcn、token 和动效规则；不要手搓一次性的控件、图标或布局，除非用户明确确认要手搓。
 
 MilkSU 仍然自己持有：双语 `t('中文', 'English')`、空控件留白、三端窗口框、
@@ -155,9 +165,9 @@ CTF / CVE / 实验室领域 chrome，以及桌面授权。
 在选定的新表面或重构表面上跟着 React + shadcn 走，这就是本语言，不是一次性决定。
 不要反过来问要不要改回 Vue、Felinic、Beautiful UI 或 DeepSeek Harness web GUI。
 
-如果是用户（不是 Agent）把布局、颜色、间距、排版或组件选择改到了别的方向
-（工作树、贴的截图、后续指令，或者他们在 App 里自己改的），
-既不要悄悄回滚到本节，也不要悄悄改写本节去迁就那一次改动。用中文问：
+如果是用户（不是 Agent）把布局、颜色、间距、排版或组件选择改到了别的方向，
+既不要悄悄回滚到本节，也不要悄悄改写本节去迁就那一次改动。「别的方向」指工作树、贴的截图、后续指令，
+或者他们在 App 里自己改的。用中文问：
 
 1. 更新设计语言（本节和共享 CSS / token），让后面的页面都跟新规则；还是
 2. 保持本语言，把那次改动当成一次性，去对齐或隔离它。
@@ -230,8 +240,8 @@ TokenFlux 的 API 流量必须走 `https://tokenflux.dev/v1`。
 最后才写最小的 MilkSU 自有实现。记录清楚前一级为什么不够。
 「成熟」要求源码可查、许可证兼容、权限有界、有维护的发布，以及针对该用例的证据；光靠流行度不够。
 上游组件已经拥有某项能力时，不要再长出第二套通用 Coding Agent harness。
-当选定的 Agent Harness 已经暴露了可评审的会话 API、生命周期钩子、扩展点、工具、压缩机制、
-运行时上下文机制或其他对应原语时，通过那个原语接入并保留该 harness 的语义，
+Agent Harness 暴露了可评审的会话 API、生命周期钩子、扩展点、工具、压缩机制
+或其他对应原语时，通过那个原语接入并保留该 harness 的语义。
 不要用 MilkSU 自有的 prompt 路由、正则、并行状态机或第二套 harness 去重造那个行为。
 MilkSU 只补 harness 不拥有的那部分：产品 UI、桌面授权、持久化和 Evidence 投影；
 在准入一个替代机制之前，先把具体的 harness 缺口写清楚。
@@ -241,8 +251,8 @@ Pi 会话：Skill 目录只留 `name` + 说明何时使用的 `description`，�
 只走 slash 的 Skill 用 `disable-model-invocation`，重量级可选工具先 `registerTool`、
 再通过 harness 激活（Pi Dynamic Tool Loading 或一个 typed 产品动作）。
 DSH 会话用 DSH 自己的 Skill 与工具披露，不要把 Pi 的目录格式照搬过去。
-两种情况下都不要加一个 MilkSU 自有的注入器去扫描用户文本、把 Skill 正文或工具说明贴进系统提示词，
-或者靠猜来决定什么时候注入上下文；也不要维护一个「在每个 harness 上看起来都一样」的披露适配层。
+两种情况下都不要加 MilkSU 自有的注入器：不扫描用户文本，不把 Skill 正文或工具说明贴进系统提示词，
+不靠猜决定什么时候注入上下文。也不要维护一个「在每个 harness 上看起来都一样」的披露适配层。
 
 ## 不可谈判的边界
 
@@ -284,12 +294,11 @@ React -> Electron Preload / Desktop RPC -> Application Service -> Domain / Runti
   Pi 会话跟 Pi 的披露，DSH 会话跟 DSH 的披露。
 - 不要用关键词或正则扫描用户文本来决定跑哪个工具、开哪个标签页、开哪一页或走哪种审批。
   模型看得懂自然语言。GUI 一键操作发的是 typed 产品动作。
-  隔离浏览器之所以启动，是因为用户打开了右栏，或者模型调用了 typed 的 `milksu_workspace`
-  浏览器动作（`EnsureCodingBrowser`），不是因为提示词里出现了「打开浏览器」，
-  也不是因为发过一句 Go 的问候语。
+  隔离浏览器启动只有两个原因：用户打开了右栏，或模型调用了 typed 的 `milksu_workspace`
+  浏览器动作（`EnsureCodingBrowser`）。提示词里出现「打开浏览器」不算，发过一句 Go 的问候语也不算。
 - `milksu_workspace` 是 typed 的产品 UI 工具。它可以列出、聚焦或关闭隔离浏览器标签页，
   列出或预览产物，打开环境、diff、终端或后台任务表面。
-  Coding、CTF、CVE 和实验室共用这个表面；领域工具和 Judge 叠在 Coding 循环之上，而不是取代它。
+  Coding、CTF、CVE 和实验室共用这个表面；领域工具和 Judge 叠在 Coding 循环之上，不取代它。
   它不得修改设置、凭据、审批策略，也不得附着到用户自己的 Chrome。
 - `milksu_ask` 是 typed 的产品 UI 工具，用来出对话选择卡。
   用户需要在 2–6 个具体选项里挑一个时模型调用它；对话里显示一个问题加若干可选行，
@@ -310,7 +319,7 @@ React -> Electron Preload / Desktop RPC -> Application Service -> Domain / Runti
   溢出部分留给 `read` + offset。不要把完整的命令、HTTP 或文件正文塞进 `content`。
 - `workspace-auto` 会自动运行隔离的 `milksu-playwright`。
   Ask 卡可以为可授予的工具给出整段对话的允许。
-  ImageGen、外部账户授权和破坏性删除仍然逐次确认；画图页发出提示词就是这一次生图的授权，不再弹出工具批准卡。
+  ImageGen、外部账户授权和破坏性删除仍然逐次确认。画图页发出提示词就是这一次生图的授权，不再弹出工具批准卡。
   危险的大目录删除在执行前先测量、再判定、再记录。
 
 ## 发行口径
@@ -343,7 +352,7 @@ React -> Electron Preload / Desktop RPC -> Application Service -> Domain / Runti
 - 按 `docs/developer/product-code-admission.md` 的要求，
   把 smoke、fixture、benchmark 和验收协调器放在生产启动路径、Desktop RPC 和 renderer 入口之外。
 - 不要写 UI 单元测试。挂载一个组件去断言 class 名、token、文案、slot 或者「它渲染出了 X」
-  是没有意义的：jsdom 不会把产品画出来，而 `?raw` / `readFileSync` 那种源码字符串契约
+  是没有意义的：jsdom 不会把产品画出来。`?raw` / `readFileSync` 那种源码字符串契约
   只是把 chrome 冻住。不要新增或扩展 `*VisualContract*`、`*StyleContract*`、
   列表 chrome / 顶栏 / LIVE 芯片挂载测试，或者锁 CSS 和 class 名的模板 grep 测试。
   一次 UI 改动如果弄坏了这类既有测试，删掉那条断言或那个文件，不要为了让 CI 变绿去改快照。

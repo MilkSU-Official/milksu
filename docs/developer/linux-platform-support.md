@@ -11,7 +11,7 @@
 
 ## 决策
 
-1. “支持四个发行版”表示普通用户能从对应安装面装上 MilkSU，并在真实桌面跑通 Coding / CTF / CVE / 实验室的 Pi 工作循环。它不表示四个环境具有同等 Computer Use、Browser Use、本地 OCR 或 Secret Service，也不表示要发 8 个 arch×distro 安装包。
+1. “支持四个发行版”表示普通用户能从对应安装面装上 MilkSU，并在真实桌面跑通 Coding / CTF / CVE / 实验室的 Pi 工作循环。它不表示四个环境的 Computer Use、Browser Use、本地 OCR、Secret Service 等价。也不表示要按 arch×distro 发 8 个安装包。
 2. GitHub Release 的 Linux 安装包最多 4 个，默认只发 2 个能跨发行版使用的包：
    - 一份 `.deb`：Ubuntu 24.04 与 Debian 13 共用；
    - 一份 `.tar.gz`：Omarchy / Arch 用仓库里的 PKGBUILD 安装，NixOS 用仓库 flake 包装同一目录。
@@ -31,7 +31,7 @@ Linux 产物是 Ubuntu/Debian 共用 x64 `.deb` 与 Omarchy/Arch/Nix 共用 x64 
 - Browser Use 查找 Chrome / Chromium / Edge、PATH、snap、Nix 与桌面入口。
 - Provider Credential 仍由本地 `credentials.db` 承载；Linux Secret Service 没有接入。
 
-本机 Apple Silicon QEMU 上的 Ubuntu 24.04 ARM64 GNOME Wayland 已看到：应用窗口、hicolor 图标（不再落到齿轮）、隔离浏览器，以及装上 Chromium 后的 Browser Use 可执行文件探测。换入本切片 Go/Sidecar 后，用户点允许桌面共享：会话 `ready`，坐标点击成功，打字写入系统设置搜索框（`milksu-portal`），停止后 Portal session 与 socket 消失、Mutter 可再 CreateSession。锁屏会抑制 RemoteDesktop。Screenshot 接口在该 virtio-gpu 上返回 code 2，画面改从已授权 ScreenCast 流取出。
+本机 Apple Silicon QEMU 上的 Ubuntu 24.04 ARM64 GNOME Wayland 已看到：应用窗口、hicolor 图标（不再落到齿轮）、隔离浏览器，以及装上 Chromium 后的 Browser Use 可执行文件探测。换入本切片 Go/Sidecar 后，用户点允许桌面共享，会话 `ready`。坐标点击成功，打字写入系统设置搜索框（`milksu-portal`）。停止后 Portal session 与 socket 消失，Mutter 可再 CreateSession。锁屏会抑制 RemoteDesktop。Screenshot 接口在该 virtio-gpu 上返回 code 2，画面改从已授权 ScreenCast 流取出。
 
 Debian 13 ARM64 Hyprland 0.55.2（trixie-backports，virtio-gpu）：tarball 应用在 `ozone-platform=wayland` 下启动，Hyprland `hyprctl clients` 可见 class `milksu`。Computer Use 为 unavailable，文案写明 Hyprland 暂不可用、不走 xinput。Hyprland 上 `ready-to-show` 可能不触发，Linux 会在 5 秒后 `show()`。这是试验回执，不是可下载安装包。
 
@@ -72,8 +72,8 @@ GNOME Portal 只承诺显示器级输入，产品文案必须写明，不得冒�
 
 同一 source commit、同一 `linux/amd64` staging。最多 4 个 Linux 文件，默认这 2 个安装包：
 
-1. `MilkSU-Linux-x64-<version>.deb` — Ubuntu / Debian
-2. `MilkSU-Linux-x64-<version>.tar.gz` — Omarchy / Arch / NixOS / 通用目录
+1. `MilkSU-Linux-x64-<version>.deb`：Ubuntu / Debian
+2. `MilkSU-Linux-x64-<version>.tar.gz`：Omarchy / Arch / NixOS / 通用目录
 
 可选随附、不单独算产品包：`PKGBUILD`、`milksu.desktop`。
 
