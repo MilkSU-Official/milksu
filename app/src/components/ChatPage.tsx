@@ -1,4 +1,9 @@
 import {
+  approvalHintVisible,
+  approvalSubmitAllowed,
+  approvalTimeoutOutcome,
+} from '@/lib/approvalBar'
+import {
   forwardRef,
   lazy,
   Suspense,
@@ -441,30 +446,55 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     content: pendingApprovalMessage?.content ?? '',
     approvalInput: pendingApprovalMessage?.approvalInput ?? '',
   }), [pendingApprovalMessage?.approvalInput, pendingApprovalMessage?.content])
-  const approvalBarIsDestructive = useMemo(() => {
-    const command = `${pendingApprovalMessage?.content ?? ''}\n${pendingApprovalMessage?.approvalInput ?? ''}`
-    return /(^|\s)(rm|find|unlink|shred)\b/.test(command)
-      || /\bxargs\b/.test(command)
-      || approvalAssessed.targets.some(target => target.kind !== 'unknown')
-  }, [approvalAssessed.targets, pendingApprovalMessage?.approvalInput, pendingApprovalMessage?.content])
-  const approvalUnverified = approvalBarIsDestructive && !approvalAssessed.canAllow
   const [approvalSubmitting, setApprovalSubmitting] = useState(false)
   const [approvalError, setApprovalError] = useState('')
+  // 决策层风险分：只影响「范围未核验」提示的显隐，不改变审批条本身（三档批准策略照旧由人拍板）。
+  // null = 没配凭据或调用失败 ⇒ approvalHintVisible 退回纯本地判定。
+  const [approvalRisk, setApprovalRisk] = useState<number | null>(null)
+  const approvalRequestId = pendingApprovalMessage?.approvalRequestId ?? ''
+  useEffect(() => {
+    setApprovalRisk(null)
+    const command = `${pendingApprovalMessage?.content ?? ''}\n${pendingApprovalMessage?.approvalInput ?? ''}`.trim()
+    if (!approvalRequestId || !command || !settings?.jev?.has_api_key) return undefined
+    let stale = false
+    void invokeCommand<number>('judge_approval_risk', { command })
+      .then(score => {
+        if (!stale) setApprovalRisk(Number.isFinite(score) ? score : null)
+      })
+      .catch(() => {
+        if (!stale) setApprovalRisk(null)
+      })
+    return () => {
+      stale = true
+    }
+  }, [approvalRequestId, pendingApprovalMessage?.content, pendingApprovalMessage?.approvalInput, settings?.jev?.has_api_key])
+  const approvalHint = useMemo(() => approvalHintVisible({
+    content: pendingApprovalMessage?.content,
+    approvalInput: pendingApprovalMessage?.approvalInput,
+    targetKinds: approvalAssessed.targets.map(target => target.kind),
+    canAllow: approvalAssessed.canAllow,
+    risk: approvalRisk,
+  }), [approvalAssessed.targets, approvalAssessed.canAllow, approvalRisk, pendingApprovalMessage?.approvalInput, pendingApprovalMessage?.content])
   const approvalSummary = String(pendingApprovalMessage?.toolName ?? pendingApprovalMessage?.content ?? '')
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 80)
 
   function submitApproval(approved: boolean) {
-    if (!pendingApprovalMessage?.approvalRequestId || approvalSubmitting) return
+    if (!approvalSubmitAllowed({
+      hasRequestId: Boolean(pendingApprovalMessage?.approvalRequestId),
+      submitting: approvalSubmitting,
+    })) return
     setApprovalSubmitting(true)
     setApprovalError('')
-    onRespondApproval?.(pendingApprovalMessage.approvalRequestId, approved, 'once')
+    onRespondApproval?.(pendingApprovalMessage?.approvalRequestId ?? '', approved, 'once')
     window.setTimeout(() => {
       setApprovalSubmitting(current => {
-        if (!current) return current
-        setApprovalError(t('审批未确认，请重试。', 'The decision was not confirmed. Try again.'))
-        return false
+        const outcome = approvalTimeoutOutcome(current)
+        if (outcome.unconfirmed) {
+          setApprovalError(t('审批未确认，请重试。', 'The decision was not confirmed. Try again.'))
+        }
+        return outcome.submitting
       })
     }, APPROVAL_CONFIRM_TIMEOUT_MS)
   }
@@ -2772,7 +2802,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
                   </span>
                 ) : approvalError ? (
                   <span className="shrink-0 text-caption text-destructive">{approvalError}</span>
-                ) : approvalUnverified ? (
+                ) : approvalHint ? (
                   <span className="shrink-0 text-caption font-medium text-destructive" data-testid="approval-bar-gate">
                     {t('范围未核验，仍可确认', 'Unverified scope; you can still confirm')}
                   </span>
