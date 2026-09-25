@@ -106,3 +106,21 @@ func TestDSHProductIpcStaysBoundedWhenTMPDIRIsProductWorkspaceTmp(t *testing.T) 
 		t.Fatalf("socket followed product TMPDIR %q: %q", long, path)
 	}
 }
+
+// 根路径长到装不下一个 socket 时（例如带中文的工作区），最后兜底的名字也必须落在 103 字节以内——
+// 以前的兜底只把名字换成哈希，根一长照样超。
+func TestComputerUseSocketStaysUnderTheLimitForAnOverlongRoot(t *testing.T) {
+	long := filepath.Join(strings.Repeat("中文目录", 12), "workspace")
+	path := unixComputerUseSocket(long, "computer_session_for_the_limit")
+	if len(path) > unixSocketMaxBytes {
+		t.Fatalf("socket path is %d bytes, over the %d limit: %s", len(path), unixSocketMaxBytes, path)
+	}
+	if !strings.HasSuffix(path, ".sock") {
+		t.Fatalf("socket path must not be truncated: %s", path)
+	}
+	overflow := unixSocketOverflowRoot() + string(os.PathSeparator)
+	temp := os.TempDir() + string(os.PathSeparator)
+	if !strings.HasPrefix(path, overflow) && !strings.HasPrefix(path, temp) {
+		t.Fatalf("fallback socket must land under the overflow or platform temp root: %s", path)
+	}
+}

@@ -62,7 +62,18 @@ export function computerUseSocket(
   if (platform === "win32") {
     return `\\\\.\\pipe\\milksu-computer-use-${sessionId}`;
   }
-  return unixComputerUseSocket(ephemeralRoot(env, platform), sessionId);
+  // A long temporary root (for example a workspace path with non-ASCII characters) cannot
+  // hold a socket at all, however short the name is: sun_path is a byte limit on the whole
+  // path. Fall back to the overflow root instead of shipping a path that cannot be bound.
+  for (const candidateRoot of [
+    ephemeralRoot(env, platform),
+    unixSocketOverflowRoot(env, platform),
+  ]) {
+    const path = unixComputerUseSocket(candidateRoot, sessionId);
+    if (path && Buffer.byteLength(path) <= unixSocketMaxBytes) return path;
+  }
+  const digest = createHash("sha256").update(sessionId).digest("hex").slice(0, 16);
+  return join(unixSocketOverflowRoot(env, platform), `mcu-${digest}.sock`);
 }
 
 export function dshProductIpc(
@@ -123,10 +134,10 @@ export function unixComputerUseSocket(root, sessionId) {
   const suffix = sessionId.startsWith("computer_")
     ? sessionId.slice("computer_".length)
     : sessionId;
-  const candidate = join(root, `mcu-${suffix}.sock`);
-  if (Buffer.byteLength(candidate) <= unixSocketMaxBytes) {
-    return candidate;
-  }
   const digest = createHash("sha256").update(sessionId).digest("hex").slice(0, 16);
-  return join(root, `mcu-${digest}.sock`);
+  for (const name of [`mcu-${suffix}.sock`, `mcu-${digest}.sock`, `${digest}.sock`]) {
+    const candidate = join(root, name);
+    if (Buffer.byteLength(candidate) <= unixSocketMaxBytes) return candidate;
+  }
+  return "";
 }

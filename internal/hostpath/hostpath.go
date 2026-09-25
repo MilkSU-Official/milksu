@@ -55,7 +55,17 @@ func unixComputerUseSocket(root, sessionID string) string {
 		return candidate
 	}
 	sum := sha256.Sum256([]byte(sessionID))
-	return filepath.Join(root, "mcu-"+hex.EncodeToString(sum[:8])+".sock")
+	// 最后兜底也必须判长度：sun_path 是整个路径的**字节**上限，根一长（例如带中文的工作区），
+	// 光把名字换成哈希仍然会超 ⇒ 依次退到 overflow 根与平台临时根（都不硬编码 /tmp），
+	// 名字保持哈希形式（mcu-<16hex>.sock），不在任何一级截断。
+	digest := "mcu-" + hex.EncodeToString(sum[:8]) + ".sock"
+	for _, candidateRoot := range []string{root, unixSocketOverflowRoot(), os.TempDir()} {
+		candidate := filepath.Join(candidateRoot, digest)
+		if len(candidate) <= unixSocketMaxBytes {
+			return candidate
+		}
+	}
+	return filepath.Join(os.TempDir(), digest)
 }
 
 // DSHProductIpc is the private product-MCP / host-plugin endpoint for a
