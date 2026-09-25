@@ -161,11 +161,27 @@ test("derived roots cover the coding trees when the host passes none", () => {
   assert.ok(scratch.some(root => root.label === "runtime-data"))
   assert.ok(scratch.some(root => root.label === "coding-workspaces"))
 
+  // 读者反馈：PR 会话因为这点事情连文档都写不了（它写的是 ~/MilkSU/Coding/PR提交准备）。
+  // 所以不再把整个 ~/MilkSU/Coding 封起来：那里放的是读者自己的项目、工作副本与文档。
   const project = derivedProtectedRoots({
     workspace: "/Users/me/MilkSU/Coding/milksu-src",
     userHome: "/Users/me",
   })
-  assert.deepEqual(project, [{ path: "/Users/me/MilkSU/Coding", label: "coding-workspaces" }])
+  assert.deepEqual(project, [], "读者的项目目录不得再被当成受保护根")
+  assert.ok(
+    !project.some(root => root.path === "/Users/me/MilkSU/Coding"),
+    "整棵 ~/MilkSU/Coding 不得再被封死（否则文档也写不了）",
+  )
+
+  // 但真正的协作沙箱仍受保护：别的会话的工作区不能互相写坏。
+  const collab = derivedProtectedRoots({
+    workspace: "/Users/me/collab/agent-workspaces/Coding/task-bbbbbbbb",
+    userHome: "/Users/me",
+  })
+  assert.ok(
+    collab.some(root => root.label === "coding-workspaces"),
+    "真沙箱必须仍然受保护",
+  )
 });
 
 test("the data directory is derived from the collaboration root the host sets", () => {

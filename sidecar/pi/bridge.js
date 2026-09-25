@@ -35,6 +35,8 @@ import {
   mergeProtectedRoots,
   parseProtectedRoots,
   protectedCommandViolation,
+  protectedBlockEscalates,
+  protectedEscalationNotice,
   protectedWriteViolation,
 } from "./bridge-protected-paths.js";
 import {
@@ -569,8 +571,9 @@ function protectedAlarmNotice(violation, locale) {
         + "要允许写入，请先在设置里把它移除。";
   }
   return String(locale ?? "") === "en"
-    ? `Blocked: the agent tried to write a protected path (rule: ${label}). The turn was stopped and the attempt was logged.`
-    : `已拦截：Agent 试图写入受保护路径（命中规则：${label}）。本轮已停止，并已记入审计。`;
+    ? `Blocked: the agent tried to write a protected path (rule: ${label}). Nothing was written; the attempt was logged.`
+    : `已拦截：Agent 试图写入受保护路径（命中规则：${label}）。这次写入没有发生，已记入审计；`
+      + "若它继续换写法试，本轮会被停止。";
 }
 const workspaceActionBroker = createWorkspaceActionBroker(emit);
 const pendingWorkspaceCompaction = new Set();
@@ -773,11 +776,15 @@ function createCodingPermissionExtension(
 ) {
   return (pi) => {
     const repeatGuard = createToolRepeatGuard();
+    // 本轮已经拒绝了几次「写入受限目录」。普通拒绝不停止回合，反复试才停。
+    let protectedWriteAttempts = 0;
     registerController({
       setActiveTools: names => pi.setActiveTools(names),
     });
     pi.on("before_agent_start", () => {
       repeatGuard.reset();
+      // 新的一轮从零开始：拒绝次数只属于同一轮。
+      protectedWriteAttempts = 0;
     });
     pi.on("context", async (event) => {
       const contracted = filterCodingTurnContractMessages(
@@ -807,15 +814,27 @@ function createCodingPermissionExtension(
       // runs after it.
       const protectedViolation = protectedViolationFor(event, policy);
       if (protectedViolation) {
+        protectedWriteAttempts += 1;
+        const escalates = protectedBlockEscalates(protectedWriteAttempts);
         const reason = `MilkSU blocked a write to a protected path (${protectedViolation.label}): `
           + protectedViolation.path;
         emit(conversationId, "guard.alarm", {
           toolName: event.toolName,
           reason,
-          notice: protectedAlarmNotice(protectedViolation, policy.uiLocale),
+          notice: escalates
+            ? protectedEscalationNotice(protectedViolation, protectedWriteAttempts, "zh")
+            : protectedAlarmNotice(protectedViolation, "zh"),
+          noticeEnglish: escalates
+            ? protectedEscalationNotice(protectedViolation, protectedWriteAttempts, "en")
+            : protectedAlarmNotice(protectedViolation, "en"),
+          // 渲染层据此把它当"受限文件夹被拦"处理（而不是普通工具失败）。
+          protectedPath: true,
+          // 这一轮是否被停掉。今天这里恒为 true（命中即停轮）；等第 4 项（首次只拒、
+          // 第 3 次才停）落地后，这里要改成随升级判定取值 ✗。
+          turnStopped: escalates,
         });
-        abortedSessions.add(conversationId);
-        return { block: true, terminate: true, reason };
+        if (escalates) abortedSessions.add(conversationId);
+        return { block: true, terminate: escalates, reason };
       }
       if (codingTurnContractBlocksTool(getTurnContract())) {
         return {
@@ -1937,6 +1956,11 @@ async function loadRuntimeSessionPolicy(cwd, command) {
     },
   );
   let policy = await loadSessionPolicy(cwd, command.sessionRole, {
+    // 读者的受限文件夹必须随策略存下来：写入守卫读的是存进 sessionPolicies 的那份
+    // 策略，不是原始 command。少了这一行，列表就永远不会到守卫手上。
+    protectedFolders: Array.isArray(command.protectedFolders)
+      ? [...new Set(command.protectedFolders.map(v => String(v ?? '').trim()).filter(Boolean))]
+      : [],
     executionMode: command.executionMode,
     approvalPolicy: command.approvalPolicy,
     productAction,
@@ -1970,6 +1994,10 @@ async function loadRuntimeSessionPolicy(cwd, command) {
   );
   if (codingResourceRoots.length) {
     policy = await loadSessionPolicy(cwd, command.sessionRole, {
+      // 第二处会**整个替换** policy ⇒ 同一份列表必须再带一次，否则在这一步又丢。
+      protectedFolders: Array.isArray(command.protectedFolders)
+        ? [...new Set(command.protectedFolders.map(v => String(v ?? '').trim()).filter(Boolean))]
+        : [],
       executionMode: command.executionMode,
       approvalPolicy: command.approvalPolicy,
       productAction,

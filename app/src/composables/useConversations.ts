@@ -470,10 +470,27 @@ function normalizeLastContextUsage(raw: unknown): Conversation['lastContextUsage
   }
 }
 
+/** 落盘的「被拦过」记录（横幅 + 侧栏红叉靠它，重启后仍要显示）。
+ *  形状不对 / 两条都空 ⇒ undefined（当作没有），别把半个对象塞进界面。 */
+function normalizeAgentProblem(value: unknown): Conversation['agentProblem'] {
+  if (!value || typeof value !== 'object') return undefined
+  const raw = value as Record<string, unknown>
+  const notice = typeof raw.notice === 'string' ? raw.notice.trim() : ''
+  const noticeEnglish = typeof raw.noticeEnglish === 'string' ? raw.noticeEnglish.trim() : ''
+  if (!notice && !noticeEnglish) return undefined
+  const at = Number(raw.at)
+  return {
+    notice: notice || undefined,
+    noticeEnglish: noticeEnglish || undefined,
+    at: Number.isFinite(at) ? at : undefined,
+  }
+}
+
 export function normalizeConversation(raw: Record<string, unknown>): Conversation {
   const messages = (raw.messages as Record<string, unknown>[] | undefined) ?? []
   return {
     id: String(raw.id ?? ''),
+    agentProblem: normalizeAgentProblem(raw.agentProblem),
     title: String(raw.title ?? t('未命名对话', 'Untitled conversation')),
     createdAt: Number(raw.createdAt ?? 0),
     workspacePath: typeof raw.workspacePath === 'string' ? raw.workspacePath : undefined,
@@ -969,6 +986,8 @@ export function projectCodingRunFinished(
 type ConversationsState = {
   conversations: Conversation[]
   activeId: string | null
+  /** 「这个对话遇到了问题」的常驻状态（含落盘那份的同形映射）。 */
+  problemTurns: Record<string, ProblemTurn>
   pendingWorkspacePath: string
   pendingWorkspaceHome: WorkspaceHome
   defaultKernel: AgentKernel
@@ -1013,10 +1032,18 @@ type ParkedPendingCanvas = {
   mcpConfigDigest: string
 }
 
+/** 「这个对话遇到了问题」的常驻状态：内存与落盘同形，界面据此显示顶部横幅与红叉。 */
+export interface ProblemTurn {
+  notice: string
+  noticeEnglish: string
+  at: number
+}
+
 export function createConversationsRuntime(options?: { live?: boolean }) {
   const store = createStore<ConversationsState>({
     conversations: [],
     activeId: null,
+    problemTurns: {},
     pendingWorkspacePath: '',
     pendingWorkspaceHome: 'chat',
     defaultKernel: FACTORY_DEFAULT_KERNEL,
@@ -1050,6 +1077,8 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
     set conversations(value) { store.setState({ conversations: value }) },
     get activeId() { return store.getState().activeId },
     set activeId(value) { store.setState({ activeId: value }) },
+    get problemTurns() { return store.getState().problemTurns },
+    set problemTurns(value) { store.setState({ problemTurns: value }) },
     get pendingWorkspacePath() { return store.getState().pendingWorkspacePath },
     set pendingWorkspacePath(value) { store.setState({ pendingWorkspacePath: value }) },
     get pendingWorkspaceHome() { return store.getState().pendingWorkspaceHome },
@@ -1145,6 +1174,92 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
   // deliberately not part of any conversation's messages.
   // How many times the current notice was repeated, so a burst is one line with a count
   // instead of a screenful of identical lines.
+  // ——— 「受限文件夹」被拦的常驻状态（读者要的是：重启后仍然在，直到开新一回合或点「知道了」）———
+  function markProblemTurn(conversationId: string, notice: string, noticeEnglish: string) {
+    const id = String(conversationId ?? '').trim()
+    if (!id) return
+    const zh = String(notice ?? '').trim()
+    const en = String(noticeEnglish ?? '').trim()
+    if (!zh && !en) return
+    const at = Date.now()
+    const current = store.getState().problemTurns
+    if (current[id] && current[id].notice === (zh || en) && current[id].noticeEnglish === (en || zh)) return
+    store.setState({ problemTurns: { ...current, [id]: { notice: zh || en, noticeEnglish: en || zh, at } } })
+    // 落盘：只在内存里记账的话，重启后横幅与红叉都会不见了（读者反馈的原话：
+    // 「原本被拦过的对话再去删除也不显示这个横幅了」）。
+    const list = store.getState().conversations
+    const index = list.findIndex(item => item.id === id)
+    if (index < 0) return
+    const next = list.slice()
+    next[index] = { ...list[index], agentProblem: { notice: zh || en, noticeEnglish: en || zh, at } }
+    store.setState({ conversations: next })
+  }
+
+  function clearProblemTurn(conversationId: string) {
+    const id = String(conversationId ?? '').trim()
+    if (!id) return
+    const current = store.getState().problemTurns
+    if (current[id]) {
+      const next = { ...current }
+      delete next[id]
+      store.setState({ problemTurns: next })
+    }
+    dropStoredProblemTurn(id)
+  }
+
+  function dismissProblemTurn(conversationId?: string) {
+    const id = String(conversationId ?? store.getState().activeId ?? '').trim()
+    if (!id) return
+    clearProblemTurn(id)
+    // 读者点了「知道了」⇒ 连落盘那份一起清（否则重启又冒出来）。
+    dropStoredProblemTurn(id)
+    void invokeCommand('clear_conversation_problem', { conversationId: id }).catch(() => {})
+  }
+
+  /** 把记录里的 agentProblem 就地抹掉（本地立刻一致，随后列表刷新再对齐）。 */
+  function dropStoredProblemTurn(id: string) {
+    const key = String(id ?? '').trim()
+    if (!key) return
+    const list = store.getState().conversations
+    if (!list.some(item => item.id === key && item.agentProblem)) return
+    store.setState({ conversations: list.map(item => {
+      if (item.id !== key || !item.agentProblem) return item
+      return { ...item, agentProblem: undefined }
+    }) })
+  }
+
+  /** 落盘那份（重启后仍然在）⇒ 转成与内存同形的 ProblemTurn。 */
+  function storedProblemTurn(record: Conversation | undefined): ProblemTurn | null {
+    const problem = record?.agentProblem
+    if (!problem) return null
+    const notice = String(problem.notice ?? '').trim()
+    const noticeEnglish = String(problem.noticeEnglish ?? '').trim()
+    if (!notice && !noticeEnglish) return null
+    return { notice: notice || noticeEnglish, noticeEnglish: noticeEnglish || notice, at: Number(problem.at ?? 0) }
+  }
+
+  function problemTurnFor(id: string): ProblemTurn | null {
+    const key = String(id ?? '').trim()
+    if (!key) return null
+    const memory = store.getState().problemTurns[key]
+    if (memory) return memory
+    return storedProblemTurn(store.getState().conversations.find(item => item.id === key))
+  }
+
+  const activeProblemTurn = () => (store.getState().activeId ? problemTurnFor(String(store.getState().activeId)) : null)
+
+  function conversationHasProblem(id: string) {
+    return Boolean(problemTurnFor(id))
+  }
+
+  const problemConversationIds = () => {
+    const ids = new Set(Object.keys(store.getState().problemTurns))
+    for (const item of store.getState().conversations) {
+      if (storedProblemTurn(item)) ids.add(item.id)
+    }
+    return ids
+  }
+
   function pushEngineNotice(text: string) {
     const notice = String(text ?? '').trim()
     if (!notice) return
@@ -3682,6 +3797,12 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
     get conversations() { return s.conversations },
     set conversations(value) { s.conversations = value },
     get activeId() { return s.activeId },
+    conversationHasProblem,
+    markProblemTurn,
+    clearProblemTurn,
+    dismissProblemTurn,
+    get activeProblemTurn() { return activeProblemTurn() },
+    get problemConversationIds() { return problemConversationIds() },
     set activeId(value) { s.activeId = value },
     get active() { return active() },
     get workspacePath() { return workspacePath() },

@@ -261,6 +261,7 @@ interface DesktopAppBindings {
   RevealUserArtifactDirectory(): Promise<void>
   GetStartupRecoveryStatus(): Promise<StartupRecoveryStatus>
   ListConversations(): Promise<unknown>
+  ClearConversationProblem(conversationId: string): Promise<unknown>
   ListArchivedConversations(): Promise<unknown>
   SaveConversation(conversation: unknown): Promise<void>
   EnsureCodingArtifactWorkspace(conversationId: string): Promise<string>
@@ -749,6 +750,8 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.GetStartupRecoveryStatus() as Promise<T>
       case 'list_conversations':
         return app.ListConversations() as Promise<T>
+      case 'clear_conversation_problem':
+        return app.ClearConversationProblem(args?.conversationId as string) as Promise<T>
       case 'list_archived_conversations':
         return app.ListArchivedConversations() as Promise<T>
       case 'save_conversation':

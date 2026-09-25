@@ -12,6 +12,7 @@ export default function AppSidebar({
   activeConversationId,
   conversations,
   runningConversationIds,
+  problemConversationIds,
   conversationActionError,
   ctfSection,
   codingContextOpen,
@@ -49,6 +50,8 @@ export default function AppSidebar({
   activeConversationId: string | null
   conversations: Conversation[]
   runningConversationIds?: string[]
+  /** 「上一轮被强制终止」的对话（侧栏红叉）。 */
+  problemConversationIds?: Set<string>
   conversationActionError?: string
   ctfSection: CTFWorkspaceSection
   codingContextOpen?: boolean
@@ -93,6 +96,7 @@ export default function AppSidebar({
         activeConversationId={activeConversationId}
         conversations={conversations}
         runningConversationIds={runningConversationIds}
+        problemConversationIds={problemConversationIds}
         actionError={conversationActionError}
         ctfSection={ctfSection}
         accountStatus={accountStatus}

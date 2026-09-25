@@ -155,6 +155,7 @@ export default function ContextSidebar({
   activeConversationId,
   conversations,
   runningConversationIds: runningIdsProp,
+  problemConversationIds: problemIdsProp,
   actionError,
   ctfSection: _ctfSection,
   accountStatus,
@@ -191,6 +192,8 @@ export default function ContextSidebar({
   activeConversationId: string | null
   conversations: Conversation[]
   runningConversationIds?: string[]
+  /** 「上一轮被强制终止」的对话（侧栏红叉）；同样由持有 runtime 的那一层传进来。 */
+  problemConversationIds?: Set<string>
   actionError?: string
   ctfSection: CTFWorkspaceSection
   accountStatus: AccountStatus
@@ -270,6 +273,7 @@ export default function ContextSidebar({
   )
   const codingGroups = groupWorkspaceConversations(conversations, workspaceHome)
   const runningConversationIds = new Set(runningIdsProp ?? [])
+  const problemConversationIds = new Set(problemIdsProp ?? [])
   // 待决策直接从 conversations 里算（它本来就拿到了 messages）——少一层 prop 管线，也不用 App 另传。
   const needsDecisionConversationIds = new Set(needsDecisionConversationIdsFrom(conversations))
   const projectGroups = codingGroups.filter(group => !group.temporary && !group.flat)
@@ -662,7 +666,10 @@ export default function ContextSidebar({
             }}
           >
             <span className="coding-session-status">
-              {needsDecisionConversationIds.has(conversation.id) ? (
+              {problemConversationIds.has(conversation.id) ? (
+                // 只要被拦就亮（读者口径：不分单次拒绝 / 停轮）—— 优先于待决策与运行中。
+                <AgentDecisionMark variant="problem" />
+              ) : needsDecisionConversationIds.has(conversation.id) ? (
                 // 待决策优先于运行中：它同时在跑、又在等人拍板时，读者最需要知道的是“轮到我”。
                 <AgentDecisionMark />
               ) : runningConversationIds.has(conversation.id) ? (

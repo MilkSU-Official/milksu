@@ -287,6 +287,7 @@ export default function App() {
     compactionError: conversations.activeCompactionError,
     turnStatus: conversations.activeTurnStatus,
     runningIds: conversations.runningConversationIds,
+    problemConversationIds: conversations.problemConversationIds,
     actionError: conversations.conversationActionError,
     kernel: conversations.selectedKernel,
     modelMode: conversations.selectedModelMode,
@@ -1702,6 +1703,7 @@ export default function App() {
           activeConversationId={conv.activeId}
           conversations={conv.rows}
           runningConversationIds={conv.runningIds}
+          problemConversationIds={conv.problemConversationIds}
           conversationActionError={conv.actionError}
           accountStatus={accountStatus}
           ctfSection={ctfSection}

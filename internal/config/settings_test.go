@@ -1016,3 +1016,18 @@ func TestStoreRecordsAndClearsAModelFailure(t *testing.T) {
 		t.Fatalf("clearing an unknown model must not change anything: %#v", failures)
 	}
 }
+
+// 读者的紧急开关：缺省必须是「保护生效」（绝不静默失守），只有显式 true 才整套关闭。
+func TestAgentProtectionDisabledDefaultsOff(t *testing.T) {
+	if AgentProtectionDisabled(AppSettings{}) {
+		t.Fatal("缺省（nil）必须是保护生效 —— 静默失守比拦得住更糟")
+	}
+	off := false
+	if AgentProtectionDisabled(AppSettings{AgentProtectionDisabled: &off}) {
+		t.Fatal("显式 false 也必须是保护生效")
+	}
+	on := true
+	if !AgentProtectionDisabled(AppSettings{AgentProtectionDisabled: &on}) {
+		t.Fatal("显式 true 才关闭整套保护")
+	}
+}

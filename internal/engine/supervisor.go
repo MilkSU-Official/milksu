@@ -142,6 +142,7 @@ type Event struct {
 	Grantable          bool                     `json:"grantable,omitempty"`
 	Justification      *ApprovalJustification   `json:"justification,omitempty"`
 	Notice             string                   `json:"notice,omitempty"`
+	NoticeEnglish      string                   `json:"noticeEnglish,omitempty"`
 	Choice             string                   `json:"choice,omitempty"`
 	BackgroundTasks    []BackgroundTask         `json:"backgroundTasks,omitempty"`
 	SubagentTasks      []SubagentTask           `json:"subagentTasks,omitempty"`
@@ -396,6 +397,7 @@ type bridgeEvent struct {
 	Approved           *bool                    `json:"approved"`
 	Grantable          bool                     `json:"grantable"`
 	Notice             string                   `json:"notice"`
+	NoticeEnglish      string                   `json:"noticeEnglish"`
 	Justification      *ApprovalJustification   `json:"justification"`
 	Choice             string                   `json:"choice"`
 	Tasks              []BackgroundTask         `json:"tasks"`
@@ -3639,6 +3641,20 @@ func normalizeBridgeEvent(raw bridgeEvent, kernels ...string) Event {
 		event.Reason = raw.Reason
 	case "turn_started":
 		event.Type = "assistant.started"
+	case "guard.alarm":
+		// 守卫示警（受保护路径被拦、思考陷入重复）：渲染层按这个名字分支 ⇒ 必须原样透传，
+		// 否则它落到 default 被改成 engine.raw.guard.alarm ✗ ⇒ 读者拦截后什么都看不到。
+		event.Type = "guard.alarm"
+		event.Notice = raw.Notice
+		event.NoticeEnglish = raw.NoticeEnglish
+	case "attachment.held":
+		// 附件没发出去的原因必须到读者眼前（同一类静默丢失）。
+		event.Type = "attachment.held"
+		event.Notice = raw.Notice
+		event.NoticeEnglish = raw.NoticeEnglish
+	case "turn.heartbeat":
+		// 回合心跳：渲染层据此判定"卡住/仍在跑"。
+		event.Type = "turn.heartbeat"
 	case "goal_state":
 		event.Type = "session.goal_updated"
 	case "queue_update":

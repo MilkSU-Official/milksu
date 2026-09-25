@@ -3,6 +3,7 @@ package engine
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -108,6 +109,14 @@ func sidecarEnvironment(settings config.AppSettings) ([]string, error) {
 	if dataDirectory, err := appdata.Directory(); err == nil {
 		environment = mergeSidecarEnvironment(environment, codingtools.SidecarEnvironment(dataDirectory))
 	}
+	if agentProtectionDisabledFor(settings) {
+		// 紧急关闭：内置项（含 App 本体）也不再下发，并把这个事实明确告诉侧车，
+		// 否则侧车会自己派生根（derivedProtectedRoots）而继续拦人。
+		environment = append(environment, protectedDisabledEnvironment+"=1")
+	} else if roots := protectedRootsVariable(); roots != "" {
+		environment = append(environment, roots)
+	}
+
 	return environment, nil
 }
 
@@ -515,4 +524,118 @@ func resolveAgentWorkspace(value string) (string, error) {
 		return "", fmt.Errorf("Agent workspace is not a directory: %s", resolved)
 	}
 	return filepath.Clean(resolved), nil
+}
+
+// —— B1：beta 渠道豁免的叶子件（纯函数，便于用假路径断言 ✓）——
+// protectedRoot is one absolute path an agent may never write to, with the label the audit
+// log uses. The list is passed to the sidecar at spawn because that is where the tools run.
+type protectedRoot struct {
+	Path  string `json:"path"`
+	Label string `json:"label"`
+}
+
+func appBundleRoot() string {
+	executable, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	directory := filepath.Dir(executable)
+	for range 6 {
+		if strings.HasSuffix(directory, ".app") {
+			return directory
+		}
+		parent := filepath.Dir(directory)
+		if parent == directory {
+			break
+		}
+		directory = parent
+	}
+	return ""
+}
+
+// bundleWritableByAgent 报告当前渠道是否允许 agent 更新 App 本体本身。
+// 只有 beta 测试渠道放行：那里的包本来就是这个 agent 一天装五六次的东西，
+// 让读者每次手动替换是多余的。stable 渠道照旧保护；数据位置不受本开关影响。
+func bundleWritableByAgent() bool {
+	return strings.EqualFold(strings.TrimSpace(os.Getenv("MILKSU_CHANNEL")), "beta")
+}
+
+// appBundleRoot walks up from the running executable to the packaging root. Empty in
+// development, where the project root covers the source tree instead.
+// appBundleProtectedRoot 决定“这个包本体要不要当受保护路径”。
+// 拆成纯函数（路径传入）是为了能真测：测试二进制不在 .app 里，appBundleRoot() 永远为空，
+// 直接在 protectedRootsVariable 上断言会得到一条永远为真的假守卫。
+func appBundleProtectedRoot(bundle string) (protectedRoot, bool) {
+	if strings.TrimSpace(bundle) == "" || bundleWritableByAgent() {
+		return protectedRoot{}, false
+	}
+	return protectedRoot{Path: bundle, Label: "app-bundle"}, true
+}
+
+// —— B2：读者的「紧急关闭」两条叶子通道（环境变量 / 数据目录标记文件）+ 合并设置开关 ——
+const (
+	protectedDisabledEnvironment = "MILKSU_PROTECTED_DISABLED"
+	protectionDisabledMarker     = "agent-protection-off"
+)
+
+// protectedRootsVariable renders MILKSU_PROTECTED_ROOTS. Empty when nothing could be
+// resolved, so the sidecar falls back to its own derived roots instead of failing to start.
+// agentProtectionDisabled 报告读者的「紧急关闭」是否生效。
+// 只在两处读：环境变量（进程级）与数据目录下的标记文件（读者自己就能建，界面坏掉也行）。
+func agentProtectionDisabled() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv(protectedDisabledEnvironment))) {
+	case "1", "true", "yes", "on":
+		return true
+	}
+	directory, err := appdata.Directory()
+	if err != nil || directory == "" {
+		return false
+	}
+	info, err := os.Stat(filepath.Join(directory, protectionDisabledMarker))
+	return err == nil && !info.IsDir()
+}
+
+// agentProtectionDisabledFor 合并读者的两条关闭通道：设置界面里的紧急开关，以及不依赖界面
+// 的环境变量 / 标记文件（界面坏掉时用）。任一条生效即整套保护关闭。
+func agentProtectionDisabledFor(settings config.AppSettings) bool {
+	return agentProtectionDisabled() || config.AgentProtectionDisabled(settings)
+}
+
+// —— B3：把受保护根下发给侧车（运行时数据 / 会话记录 / App 本体 / 源码）——
+const (
+	protectedRootsEnvironment = "MILKSU_PROTECTED_ROOTS"
+)
+
+func protectedRootsVariable() string {
+	if agentProtectionDisabled() {
+		return ""
+	}
+	roots := make([]protectedRoot, 0, 4)
+	if dataDirectory, err := appdata.Directory(); err == nil && dataDirectory != "" {
+		// Covers settings.json, conversations/**, credentials.db and the scratch workspaces.
+		roots = append(roots, protectedRoot{Path: dataDirectory, Label: "runtime-data"})
+		if runtimeHome, err := sidecarRuntimeHome(); err == nil && runtimeHome != "" {
+			roots = append(roots, protectedRoot{
+				Path:  filepath.Join(runtimeHome, "pi", "sessions"),
+				Label: "pi-sessions",
+			})
+		}
+	}
+	// 测试渠道例外：beta 的包本体就是 agent 反复安装的产物（读者要求：不要在装机这一步
+	// 每次都卡住它）。正式渠道以及下面所有数据位置（runtime-data / pi-sessions）
+	// **任何渠道**都照旧保护。
+	if root, ok := appBundleProtectedRoot(appBundleRoot()); ok {
+		roots = append(roots, root)
+	}
+	if projectRoot, err := findProjectRoot(); err == nil && projectRoot != "" {
+		roots = append(roots, protectedRoot{Path: projectRoot, Label: "app-sources"})
+	}
+	if len(roots) == 0 {
+		return ""
+	}
+	encoded, err := json.Marshal(roots)
+	if err != nil {
+		return ""
+	}
+	return protectedRootsEnvironment + "=" + string(encoded)
 }

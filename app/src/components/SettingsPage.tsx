@@ -631,8 +631,8 @@ export default function SettingsPage({
                   <SettingsRow
                     label={t('启用受限文件夹保护', 'Enable protected folders')}
                     description={t(
-                      '总开关。关掉后，上面列出的路径不再受保护（写入不被拦截、删除审批里也不算受保护）；系统目录（用户主目录、~/Library、Documents、Desktop、runtime-data、构建缓存等）始终受保护，与本开关无关。',
-                      'The master switch. Turn it off and the folders listed above stop being protected — writes are not blocked and a delete approval no longer counts them; system locations (your home directory, ~/Library, Documents, Desktop, runtime-data, build caches) stay protected regardless of this switch.',
+                      '总开关。关掉后，上面列出的路径不再受保护（写入不被拦截、删除审批里也不算受保护）；MilkSU 内置保护的位置（你的用户主目录、~/Library、Documents、Desktop、runtime-data、构建缓存等）始终受保护，与本开关无关——要连这些一起关，用下面的「紧急」。',
+                      'The master switch. Turn it off and the folders listed above stop being protected — writes are not blocked and a delete approval no longer counts them; MilkSU’s built-in protected locations (your home directory, ~/Library, Documents, Desktop, runtime-data, build caches) stay protected regardless of this switch. To drop those too, use “Emergency” below.',
                     )}
                     trailing={(
                       <Switch
@@ -652,6 +652,26 @@ export default function SettingsPage({
                   />
                 </SettingsSection>
                 <SettingsSection title={t('本地数据', 'Local data')}>
+                  <SettingsRow
+                    label={t('紧急：完全关闭防护（含 MilkSU 应用目录）', 'Emergency: turn off all protection (including MilkSU’s own app folder)')}
+                    description={t(
+                      '应急用。打开后整套受限保护失效：上面列出的路径、MilkSU 内置保护的位置（你的用户主目录、~/Library、Documents、Desktop、runtime-data、构建缓存等），以及 MilkSU 自己的应用目录（应用本体与数据）都不再拦截。只在「救不回来」时打开，事后请关掉。',
+                      'For emergencies. When on, every protected location stops being blocked: the folders above, MilkSU’s built-in protected locations (your home directory, ~/Library, Documents, Desktop, runtime-data, build caches …), and MilkSU’s own app folder (the app bundle and its data). Turn it on only to recover, then turn it back off.',
+                    )}
+                    trailing={(
+                      <Switch
+                        checked={working.agent_protection_disabled === true}
+                        aria-label={t('紧急：完全关闭防护（含 MilkSU 应用目录）', 'Emergency: turn off all protection (including MilkSU’s own app folder)')}
+                        onCheckedChange={value => {
+                          // 写入**后端设置**（与总开关同一份、同一条链下发到侧车）——不用 localStorage。
+                          const next = value === true
+                          store.patchWorking(draft => {
+                            draft.agent_protection_disabled = next
+                          })
+                        }}
+                      />
+                    )}
+                  />
                   <SettingsRow
                     label={t('数据目录', 'Data folder')}
                     description={localDataLoading

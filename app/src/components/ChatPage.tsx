@@ -385,6 +385,8 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
 }: ChatPageProps, ref) {
   const t = useT()
   const conversations = useConversations()
+  // 「这个对话遇到了问题」：被守卫拦过 ⇒ 顶部常驻横幅（开新一回合或点「知道了」才消失）。
+  const activeProblemTurn = conversations.activeProblemTurn
   const dockSurface = surface === 'dock'
   const catalog = useLiveModelCatalog()
   const pickerGroups = catalog.pickerGroups
@@ -2694,6 +2696,20 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
             className="chat-edge-scroll absolute inset-0 overflow-x-hidden overflow-y-auto"
             onScroll={handleChatScroll}
           >
+            {activeProblemTurn ? (
+              <div className="problem-bar" role="status" data-testid="problem-bar">
+                <span className="problem-bar-text">{activeProblemTurn.notice}</span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  data-testid="dismiss-problem-bar"
+                  onClick={() => conversations.dismissProblemTurn()}
+                >
+                  t('知道了', 'Got it')
+                </Button>
+              </div>
+            ) : null}
             {engineNotice ? (
               <div
                 className="mx-auto mb-2 w-[72%] rounded-xl border border-border/70 bg-muted/50 px-3 py-1.5 text-caption text-muted-foreground"

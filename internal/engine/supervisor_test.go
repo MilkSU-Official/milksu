@@ -3549,3 +3549,32 @@ func TestNormalizeBridgeEventPassesStatusNoticesThrough(t *testing.T) {
 		t.Fatalf("type = %q, want engine.raw.something_new", unknown.Type)
 	}
 }
+
+// 受保护路径被拦时的示警：事件名必须原样（渲染层按 guard.alarm 分支），中英两句都要活着到
+// 渲染层 —— 否则它落到 default 被改名成 engine.raw.guard.alarm，读者在拦截之后什么都看不到。
+// attachment.held（附件没发出去的原因）与 turn.heartbeat（渲染层据此判定卡住）是同类静默丢失。
+func TestNormalizeProtectedFolderNoticesKeepTheirOwnEventNames(t *testing.T) {
+	cases := []struct {
+		rawType  string
+		notices  bool
+		wantName string
+	}{
+		{rawType: "guard.alarm", notices: true, wantName: "guard.alarm"},
+		{rawType: "attachment.held", notices: true, wantName: "attachment.held"},
+		{rawType: "turn.heartbeat", notices: false, wantName: "turn.heartbeat"},
+	}
+	for _, row := range cases {
+		raw := bridgeEvent{Type: row.rawType, ID: "session-1"}
+		if row.notices {
+			raw.Notice = "已拦截：…"
+			raw.NoticeEnglish = "Blocked: …"
+		}
+		event := normalizeBridgeEvent(raw)
+		if event.Type != row.wantName {
+			t.Fatalf("%s 必须原样保住名字，实际 %q（改名 = 渲染层永远匹配不上）", row.rawType, event.Type)
+		}
+		if row.notices && (event.Notice != raw.Notice || event.NoticeEnglish != raw.NoticeEnglish) {
+			t.Fatalf("%s 的中英两句都要活着: %+v", row.rawType, event)
+		}
+	}
+}

@@ -143,7 +143,11 @@ type AppSettings struct {
 	// means enabled, so an older settings file keeps the previous behaviour. When it is false
 	// the listed folders protect nothing: the sidecar is handed an empty list and the delete
 	// approval ignores them, while the system rules stay in force.
-	ProtectedFoldersEnabled  *bool                `json:"protected_folders_enabled,omitempty"`
+	ProtectedFoldersEnabled *bool `json:"protected_folders_enabled,omitempty"`
+	// AgentProtectionDisabled 是读者的**紧急开关**：为 true 时整套受限保护失效，
+	// **连内置项**（App 本体、运行数据、会话记录）也不再保护。缺省（nil）= 关（即保护生效）。
+	// 读者原话：怕出问题「连救都救不了」——所以设置界面里必须点得到，不该逼他去输命令。
+	AgentProtectionDisabled  *bool                `json:"agent_protection_disabled,omitempty"`
 	DisabledSkills           []string             `json:"disabled_skills"`
 	EnabledOptionalSkills    []string             `json:"enabled_optional_skills,omitempty"`
 	WorkerProvider           string               `json:"worker_provider,omitempty"`
@@ -1326,6 +1330,11 @@ func ResolveCompanionModel(settings AppSettings) CompanionModelSelection {
 
 func ProtectedFoldersEnabled(settings AppSettings) bool {
 	return settings.ProtectedFoldersEnabled == nil || *settings.ProtectedFoldersEnabled
+}
+
+// AgentProtectionDisabled reports the reader's emergency switch. Default false: protection is on.
+func AgentProtectionDisabled(settings AppSettings) bool {
+	return settings.AgentProtectionDisabled != nil && *settings.AgentProtectionDisabled
 }
 
 func CompanionDispatchEnabled(settings AppSettings) bool {

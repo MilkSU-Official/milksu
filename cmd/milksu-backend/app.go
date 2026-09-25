@@ -1047,6 +1047,62 @@ func (a *App) SaveConversation(value conversation.StoredConversation) error {
 	return nil
 }
 
+// rememberAgentProblem writes the guard alarm onto the conversation record so the banner and
+// the sidebar cross survive a restart. Missing record: stay silent rather than panic.
+func (a *App) rememberAgentProblem(id, notice, noticeEnglish string) {
+	if a == nil || a.conversations == nil {
+		return
+	}
+	sessionID := strings.TrimSpace(id)
+	notice = strings.TrimSpace(notice)
+	noticeEnglish = strings.TrimSpace(noticeEnglish)
+	if sessionID == "" || (notice == "" && noticeEnglish == "") {
+		return
+	}
+	value, err := a.conversations.Get(sessionID)
+	if err != nil {
+		// The turn may not have been saved yet: there is nothing to write onto.
+		return
+	}
+	value.AgentProblem = &conversation.StoredAgentProblem{
+		Notice:        notice,
+		NoticeEnglish: noticeEnglish,
+		At:            uint64(time.Now().UnixMilli()),
+	}
+	if err := a.conversations.Save(value); err != nil {
+		log.Printf("[guard] could not persist agent problem session=%s: %v", sessionID, err)
+		return
+	}
+	a.notifyConversationsChanged()
+}
+
+// forgetAgentProblem clears the stored alarm: the reader pressed "got it", or a new turn began.
+func (a *App) forgetAgentProblem(id string) {
+	if a == nil || a.conversations == nil {
+		return
+	}
+	sessionID := strings.TrimSpace(id)
+	if sessionID == "" {
+		return
+	}
+	value, err := a.conversations.Get(sessionID)
+	if err != nil || value.AgentProblem == nil {
+		return
+	}
+	value.AgentProblem = nil
+	if err := a.conversations.Save(value); err != nil {
+		log.Printf("[guard] could not clear agent problem session=%s: %v", sessionID, err)
+		return
+	}
+	a.notifyConversationsChanged()
+}
+
+// ClearConversationProblem is the banner's "got it" coming from the renderer.
+func (a *App) ClearConversationProblem(id string) error {
+	a.forgetAgentProblem(id)
+	return nil
+}
+
 func (a *App) notifyConversationsChanged() {
 	if a == nil || a.ctx == nil {
 		return
@@ -2419,6 +2475,20 @@ func (a *App) emitEngineEvent(event engine.Event) {
 			"error",
 			fmt.Sprintf("%s: %s", event.Type, event.Error),
 		)
+	} else if event.Type == "assistant.started" {
+		// 读者口径：开了新一回合，上一轮的拦截记录就该消失。
+		a.forgetAgentProblem(event.SessionID)
+	} else if event.Type == "guard.alarm" {
+		// 受保护路径被拦：留日志与审计，并把这件事**落盘**（只在内存里记账的话，重启后
+		// 横幅与红叉都不见了 —— 读者原话：「原本被拦过的对话再去删除也不显示这个横幅了」）。
+		log.Printf(
+			"[guard] alarm session=%s tool=%s reason=%q",
+			event.SessionID,
+			event.ToolName,
+			event.Reason,
+		)
+		a.diagnostics.Record("coding-engine", "warning", "agent guard alarm: "+event.Reason)
+		a.rememberAgentProblem(event.SessionID, event.Notice, event.NoticeEnglish)
 	} else if event.Type == "engine.started" ||
 		event.Type == "engine.stopped" ||
 		event.Type == "engine.sidecar_stopped" {

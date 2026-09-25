@@ -1963,3 +1963,32 @@
   z-index: 2 !important;
   pointer-events: none !important;
 }
+
+/* 「这个对话遇到了问题」常驻横幅（读者口径）：实色底、绝不自动消失 —— 开新一回合或点「知道了」才消失。 */
+.problem-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #991b1b;
+  border-radius: 0.375rem;
+  background: #7f1d1d;
+  color: #ffffff;
+}
+
+.problem-bar-text {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+/* 侧栏红叉（variant="problem"）：只要被拦就亮（读者口径：不分单次拒绝 / 停轮）。
+   注：#dc2626 为硬编码 —— 本分支无主题 token（--color-danger / --color-red / --danger / --color-destructive 均无匹配）。 */
+.agent-pixel--problem .agent-pixel__cell--problem {
+  background: #dc2626;
+}
+
+.agent-pixel--problem {
+  color: #dc2626;
+}

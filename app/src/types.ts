@@ -191,6 +191,8 @@ export interface CodingGoalState {
 }
 
 export interface Conversation {
+  /** 被守卫拦过：重启后仍要显示横幅与红叉（后端落盘那份的同形映射）。 */
+  agentProblem?: { notice?: string; noticeEnglish?: string; at?: number }
   id: string
   title: string
   createdAt: number
@@ -373,6 +375,8 @@ export interface AppSettings {
   protected_folders?: string[]
   /** 受限文件夹保护的**总开关**（后端设置；缺省 = 开）。关掉后列出的路径不再受保护。 */
   protected_folders_enabled?: boolean
+  /** 读者的**紧急开关**：显式 true 才整套关闭（含 MilkSU 应用目录）；缺省/false ⇒ 保护生效 ✓。 */
+  agent_protection_disabled?: boolean
   enabled_optional_skills?: string[]
   worker_provider?: string
   worker_model?: string
@@ -694,6 +698,8 @@ export function withAppSettingsDefaults(value: AppSettings): AppSettings {
       .filter(name => /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/.test(name)))],
     // 受限文件夹：只收绝对路径（相对路径在 agent 的 shell 里没有确定含义），去空、去重。
     protected_folders_enabled: value.protected_folders_enabled !== false,
+    // 紧急开关：只有显式 true 才算关 —— `!== true` 那种写法会把缺省算成"关"，反了 ✗。
+    agent_protection_disabled: value.agent_protection_disabled === true,
     protected_folders: [...new Set((value.protected_folders ?? [])
       .map(path => String(path).trim().replace(/\/+$/, ''))
       .filter(path => path.startsWith('/') && path !== '/'))],
