@@ -429,8 +429,8 @@ func desktopAppMethods(app *App) map[string]desktopAppMethod {
 		"OpenDockerDesktop":                    rendererDesktopMethod(app.OpenDockerDesktop),
 		"OpenAndroidStudioSetup":               rendererDesktopMethod(app.OpenAndroidStudioSetup),
 
-		"SetAccountModelCredential":    electronHostDesktopMethod(app.SetAccountModelCredential),
-		"ClearAccountModelCredential":  electronHostDesktopMethod(app.ClearAccountModelCredential),
+		"SetAccountModelCredential":      electronHostDesktopMethod(app.SetAccountModelCredential),
+		"ClearAccountModelCredential":    electronHostDesktopMethod(app.ClearAccountModelCredential),
 		"SetAccountDecisionCredential":   electronHostDesktopMethod(app.SetAccountDecisionCredential),
 		"ClearAccountDecisionCredential": electronHostDesktopMethod(app.ClearAccountDecisionCredential),
 	}
