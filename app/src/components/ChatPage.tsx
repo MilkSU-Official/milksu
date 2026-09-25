@@ -436,6 +436,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
   const chatColumnRef = useRef<HTMLDivElement | null>(null)
   const topChromeRef = useRef<HTMLDivElement | null>(null)
   const bottomChromeRef = useRef<HTMLDivElement | null>(null)
+  const bottomFrostRef = useRef<HTMLDivElement | null>(null)
   const APPROVAL_CONFIRM_TIMEOUT_MS = 3000
   const pendingApprovalMessage = conversation?.messages.find(message => (
     message.approvalState === 'pending'
@@ -2334,9 +2335,11 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     const column = chatColumnRef.current
     if (!column || emptyCanvas) return undefined
     const apply = () => {
+      const bottom = bottomChromeRef.current?.offsetHeight ?? 0
       applyChatEdgeChrome(column, {
         top: dockSurface ? 0 : (topChromeRef.current?.offsetHeight ?? 0),
-        bottom: bottomChromeRef.current?.offsetHeight ?? 0,
+        bottom,
+        frostBottom: bottomFrostRef.current?.offsetHeight ?? bottom,
       })
     }
     apply()
@@ -2350,10 +2353,15 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     }
     const observer = new ResizeObserver(apply)
     const watch = bottomChromeRef.current
+    const frostWatch = bottomFrostRef.current
     if (topChromeRef.current) observer.observe(topChromeRef.current)
     if (watch) {
       observer.observe(watch)
       for (const child of watch.children) observer.observe(child)
+    }
+    if (frostWatch) {
+      observer.observe(frostWatch)
+      for (const child of frostWatch.children) observer.observe(child)
     }
     const mutations = typeof MutationObserver === 'undefined' || !watch
       ? null
@@ -3022,6 +3030,9 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
             }}
           />
 
+          {/* 磨砂玻璃只盖输入栏这一截：状态胶囊（第 N/N 步、代码变更、进行中）
+              浮在玻璃上方，出现与否不改变玻璃带高度。滚动停靠仍按整个 dock 量。 */}
+          <div ref={bottomFrostRef}>
           {/* 整窗拖拽加附件（监听在 window 上 ⇒ 拖到窗口任意处都生效；遮罩 fixed inset-0）。
               文件交给 composer 现成的 importCodingFiles（经 ref）⇒ 上限/体积/报错都由它负责。 */}
           <WindowFileDrop
@@ -3132,6 +3143,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
             onControlGoal={controlComposerGoal}
             onChangeMcpServers={(servers, digest) => onChangeMcpServers?.(servers, digest)}
           />
+          </div>
           </div>
           </div>
         </main>
