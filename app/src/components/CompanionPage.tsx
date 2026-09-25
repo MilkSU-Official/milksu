@@ -59,7 +59,7 @@ import {
   loadModelCatalog,
   useLiveModelCatalog,
 } from '@/modelCatalog'
-import { applyUiFonts } from '@/lib/uiFonts'
+import { applyConversationFontSize } from '@/lib/uiFonts'
 import type { SearchableModelGroup } from '@/lib/modelPickerSearch'
 import {
   normalizeCompanionReplyStyle,
@@ -674,12 +674,7 @@ export default function CompanionPage({
       setPhoneSettings(next)
       setReplyStyle(normalizeCompanionReplyStyle(next.companion_reply_style))
       installAppModelSettings(next)
-      applyUiFonts({
-        uiFont: next.ui_font,
-        conversationFont: next.conversation_font,
-        uiFontSize: next.ui_font_size,
-        conversationFontSize: next.conversation_font_size,
-      })
+      applyConversationFontSize(next.conversation_font_size)
     } catch (reason) {
       toastError(reason, t('设置未保存', 'Settings were not saved'))
       try {

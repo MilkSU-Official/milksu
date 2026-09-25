@@ -1,7 +1,7 @@
 import { defaultAgentKernel, defaultBusySend, type BusySendPolicy } from '@/lib/agentKernel'
 import { normalizePreferredExternalEditor } from '@/lib/externalEditor'
 import { normalizeUiEmphasisPreset, type UiEmphasisPreset } from '@/lib/uiEmphasis'
-import { normalizeUiFontPreset, normalizeUiFontSize, type UiFontPreset, type UiFontSize } from '@/lib/uiFonts'
+import { normalizeUiFontSize, type UiFontSize } from '@/lib/uiFonts'
 import { isImageGenModelID } from '@/lib/imageGenCatalog'
 import { normalizeModelContextWindows } from '@/lib/knownContextWindow'
 import { normalizeModelThinkingSettings } from '@/lib/modelThinking'
@@ -403,9 +403,6 @@ export interface AppSettings {
     session_only?: boolean
   }
   preferred_external_editor?: string
-  ui_font?: UiFontPreset
-  conversation_font?: UiFontPreset
-  ui_font_size?: UiFontSize
   conversation_font_size?: UiFontSize
   ui_emphasis?: UiEmphasisPreset
   security_tools?: Record<string, { enabled: boolean }>
@@ -701,9 +698,6 @@ export function withAppSettingsDefaults(value: AppSettings): AppSettings {
     busy_send: defaultBusySend(value.busy_send),
     model_routing: normalizeModelRouting(value.model_routing),
     preferred_external_editor: normalizePreferredExternalEditor(value.preferred_external_editor),
-    ui_font: normalizeUiFontPreset(value.ui_font),
-    conversation_font: normalizeUiFontPreset(value.conversation_font),
-    ui_font_size: normalizeUiFontSize(value.ui_font_size),
     conversation_font_size: normalizeUiFontSize(value.conversation_font_size),
     ui_emphasis: normalizeUiEmphasisPreset(value.ui_emphasis),
     disabled_account_models: [...new Set((value.disabled_account_models ?? [])

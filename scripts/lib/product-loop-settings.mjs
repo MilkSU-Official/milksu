@@ -52,8 +52,8 @@ export async function runSettingsGeneral(driver) {
   if (error) return error
   const chrome = await expectLabels(
     driver,
-    ['界面语言', 'Interface language', '强调色', 'Accent color', '界面字体', 'Interface font', '数据目录', 'Data folder', '调试模式', 'Debug mode'],
-    '通用页有语言、强调色、字体、数据和调试',
+    ['界面语言', 'Interface language', '强调色', 'Accent color', '对话字号', 'Conversation size', '数据目录', 'Data folder', '调试模式', 'Debug mode'],
+    '通用页有语言、强调色、字号、数据和调试',
     '通用页缺了常用控件',
   )
   if (chrome.result === 'FAIL') return chrome

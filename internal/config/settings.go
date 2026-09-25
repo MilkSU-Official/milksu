@@ -177,11 +177,7 @@ type AppSettings struct {
 	// APIKey is stripped before the settings file is written.
 	Jev                     *JevConfig `json:"jev,omitempty"`
 	PreferredExternalEditor string     `json:"preferred_external_editor,omitempty"`
-	// UiFont and ConversationFont are preset ids from app/src/lib/uiFonts.ts.
-	// UiFontSize and ConversationFontSize are concrete px strings such as "13".
-	UiFont               string `json:"ui_font,omitempty"`
-	ConversationFont     string `json:"conversation_font,omitempty"`
-	UiFontSize           string `json:"ui_font_size,omitempty"`
+	// ConversationFontSize is a concrete px string such as "14".
 	ConversationFontSize string `json:"conversation_font_size,omitempty"`
 	// UiEmphasis is a preset id from app/src/lib/uiEmphasis.ts (default / blue / violet / …).
 	UiEmphasis            string                                    `json:"ui_emphasis,omitempty"`
@@ -218,44 +214,17 @@ func NormalizeBusySend(value string) string {
 	}
 }
 
-func NormalizeUiFont(value string) string {
-	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "inter":
-		return "inter"
-	case "noto-sc", "noto", "noto-sans-sc":
-		return "noto-sc"
-	case "ibm-plex", "ibm", "ibm-plex-sans":
-		return "ibm-plex"
-	case "source-sans", "source", "source-sans-3":
-		return "source-sans"
-	case "geist":
-		return "geist"
-	case "nunito-sans", "nunito":
-		return "nunito-sans"
-	case "noto-serif-sc", "noto-serif":
-		return "noto-serif-sc"
-	case "zcool-xiaowei", "xiaowei":
-		return "zcool-xiaowei"
-	case "zcool-qingke", "qingke", "huangyou":
-		return "zcool-qingke"
-	case "system", "system-ui":
-		return "system"
-	default:
-		return "product"
-	}
-}
-
 const (
-	factoryUiFontSizePx = 13
-	minUiFontSizePx     = 11
-	maxUiFontSizePx     = 18
+	factoryConversationFontSizePx = 14
+	minUiFontSizePx               = 11
+	maxUiFontSizePx               = 18
 )
 
 func NormalizeUiFontSize(value string) string {
 	raw := strings.TrimSpace(strings.TrimSuffix(strings.ToLower(strings.TrimSpace(value)), "px"))
 	n, err := strconv.Atoi(raw)
 	if err != nil || n < minUiFontSizePx || n > maxUiFontSizePx {
-		return strconv.Itoa(factoryUiFontSizePx)
+		return strconv.Itoa(factoryConversationFontSizePx)
 	}
 	return strconv.Itoa(n)
 }
@@ -1119,9 +1088,6 @@ func withDefaults(value AppSettings) AppSettings {
 	value = normalizeCompanionSettings(value)
 	value = normalizeImageGenSettings(value)
 	value.PreferredExternalEditor = externaleditor.Normalize(value.PreferredExternalEditor)
-	value.UiFont = NormalizeUiFont(value.UiFont)
-	value.ConversationFont = NormalizeUiFont(value.ConversationFont)
-	value.UiFontSize = NormalizeUiFontSize(value.UiFontSize)
 	value.ConversationFontSize = NormalizeUiFontSize(value.ConversationFontSize)
 	value.UiEmphasis = NormalizeUiEmphasis(value.UiEmphasis)
 	value.SecurityTools = normalizeSecurityToolPreferences(value.SecurityTools)

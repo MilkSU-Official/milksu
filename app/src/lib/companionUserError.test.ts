@@ -209,7 +209,7 @@ describe('companion debug payload', () => {
       '{"ok":true,"settings":{"companion_float_enabled":true,"relay":{"url":"https://tokenflux.dev/v1"}}}',
     )).toBe(true)
     expect(companionLooksLikeDebugPayload(
-      '{enabled:true,url:"https://tokenflux.dev/v1",companion_float_enabled:true,ui_font:""}',
+      '{enabled:true,url:"https://tokenflux.dev/v1",companion_float_enabled:true,conversation_font_size:""}',
     )).toBe(true)
     expect(companionLooksLikeDebugPayload('看板列一下当前会话标题')).toBe(false)
     expect(companionLooksLikeDebugPayload('读一下不含密钥的设置摘要')).toBe(false)

@@ -45,7 +45,7 @@ import type { VulnerabilityIntel } from '@/vulnerabilityIntel'
 import { executeVulnerabilityCodingHandoff } from '@/lib/vulnerabilityCodingHandoff'
 import { debugLog } from '@/lib/debugMode'
 import { applyUiLocale } from '@/lib/uiLocale'
-import { applyUiFonts } from '@/lib/uiFonts'
+import { applyConversationFontSize } from '@/lib/uiFonts'
 import { applyUiEmphasis } from '@/lib/uiEmphasis'
 import { useT } from '@/hooks/useUiLocale'
 import { useStore, useStoreRuntime } from '@/lib/reactStore'
@@ -506,12 +506,7 @@ export default function App() {
     setSettings(normalized)
     installAppModelSettings(normalized)
     applyUiLocale(normalized.locale)
-    applyUiFonts({
-      uiFont: normalized.ui_font,
-      conversationFont: normalized.conversation_font,
-      uiFontSize: normalized.ui_font_size,
-      conversationFontSize: normalized.conversation_font_size,
-    })
+    applyConversationFontSize(normalized.conversation_font_size)
     applyUiEmphasis({ preset: normalized.ui_emphasis })
     conversations.setDefaultKernel(normalized.default_kernel ?? FACTORY_DEFAULT_KERNEL)
     conversations.setBusySend(normalized.busy_send ?? 'interrupt')

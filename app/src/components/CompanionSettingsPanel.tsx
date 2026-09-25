@@ -4,16 +4,13 @@ import { cn } from '@/lib/cn'
 import { invokeCommand, listenEvent } from '@/desktop'
 import SearchableModelPicker from '@/components/SearchableModelPicker'
 import ModelVendorIcon from '@/components/ModelVendorIcon'
+import ConversationSizeInput from '@/components/ConversationSizeInput'
 import { encodePickerSelection, parsePickerSelection } from '@/modelCatalog'
 import { toastError } from '@/lib/appToast'
 import { filterCompanionMemories, sortCompanionMemoriesNewestFirst } from '@/lib/companionMemory'
 import {
-  applyUiFonts,
-  normalizeUiFontPreset,
+  applyConversationFontSize,
   normalizeUiFontSize,
-  UI_FONT_PRESET_IDS,
-  UI_FONT_SIZE_IDS,
-  uiFontPresetLabel,
 } from '@/lib/uiFonts'
 import { useT, useUiLocale } from '@/hooks/useUiLocale'
 import type { SearchableModelGroup } from '@/lib/modelPickerSearch'
@@ -448,42 +445,15 @@ export default function CompanionSettingsPanel({
       </SettingsSection>
       <SettingsSection title={t('外观', 'Appearance')}>
         <SettingsRow
-          label={t('对话字体', 'Conversation font')}
-          stack={rowStack}
-          trailing={(
-            <SettingsGhostPicker
-              value={normalizeUiFontPreset(settings.conversation_font)}
-              ariaLabel={t('对话字体', 'Conversation font')}
-              menuClassName={pickerMenuClassName}
-              wide
-              options={UI_FONT_PRESET_IDS.map(id => ({
-                value: id,
-                label: uiFontPresetLabel(id),
-              }))}
-              onChange={value => {
-                const conversationFont = normalizeUiFontPreset(value)
-                patch({ conversation_font: conversationFont })
-                applyUiFonts({ conversationFont })
-              }}
-            />
-          )}
-        />
-        <SettingsRow
           label={t('对话字号', 'Conversation size')}
           stack={rowStack}
           trailing={(
-            <SettingsGhostPicker
+            <ConversationSizeInput
               value={normalizeUiFontSize(settings.conversation_font_size)}
               ariaLabel={t('对话字号', 'Conversation size')}
-              menuClassName={pickerMenuClassName}
-              options={UI_FONT_SIZE_IDS.map(id => ({
-                value: id,
-                label: id,
-              }))}
-              onChange={value => {
-                const conversationFontSize = normalizeUiFontSize(value)
-                patch({ conversation_font_size: conversationFontSize })
-                applyUiFonts({ conversationFontSize })
+              onCommit={size => {
+                patch({ conversation_font_size: size })
+                applyConversationFontSize(size)
               }}
             />
           )}

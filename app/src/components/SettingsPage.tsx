@@ -89,6 +89,7 @@ import PluginSettingsPanel from '@/components/PluginSettingsPanel'
 import ModelVendorIcon from '@/components/ModelVendorIcon'
 import ArchivedConversationsSettings from '@/components/ArchivedConversationsSettings'
 import ConnectionLiveStatus from '@/components/ConnectionLiveStatus'
+import ConversationSizeInput from '@/components/ConversationSizeInput'
 import type { VulnerabilityDashboard } from '@/composables/useVulnerabilityDashboard'
 import {
   allCodingSkills,
@@ -128,12 +129,8 @@ import {
   type UiEmphasisPreset,
 } from '@/lib/uiEmphasis'
 import {
-  applyUiFonts,
-  normalizeUiFontPreset,
+  applyConversationFontSize,
   normalizeUiFontSize,
-  UI_FONT_PRESET_IDS,
-  UI_FONT_SIZE_IDS,
-  uiFontPresetLabel,
 } from '@/lib/uiFonts'
 import {
   builtInModelThinking,
@@ -475,7 +472,7 @@ export default function SettingsPage({
                   />
                 </SettingsSection>
 
-                <SettingsSection title={t('应用', 'App')}>
+                <SettingsSection title={t('外观', 'Appearance')}>
                   <SettingsRow
                     label={t('界面语言', 'Interface language')}
                     trailing={(
@@ -499,64 +496,15 @@ export default function SettingsPage({
                       />
                     )}
                   />
-                </SettingsSection>
-                <SettingsSection title={t('字体', 'Fonts')}>
-                  <SettingsRow
-                    label={t('界面字体', 'Interface font')}
-                    trailing={(
-                      <SettingsGhostPicker
-                        value={normalizeUiFontPreset(working.ui_font)}
-                        ariaLabel={t('界面字体', 'Interface font')}
-                        wide
-                        options={UI_FONT_PRESET_IDS.map(id => ({
-                          value: id,
-                          label: uiFontPresetLabel(id),
-                        }))}
-                        onChange={value => void store.changeUiFont(value)}
-                      />
-                    )}
-                  />
-                  <SettingsRow
-                    label={t('界面字号', 'Interface size')}
-                    trailing={(
-                      <SettingsGhostPicker
-                        value={normalizeUiFontSize(working.ui_font_size)}
-                        ariaLabel={t('界面字号', 'Interface size')}
-                        options={UI_FONT_SIZE_IDS.map(id => ({
-                          value: id,
-                          label: id,
-                        }))}
-                        onChange={value => void store.changeUiFontSize(value)}
-                      />
-                    )}
-                  />
-                  <SettingsRow
-                    label={t('对话字体', 'Conversation font')}
-                    trailing={(
-                      <SettingsGhostPicker
-                        value={normalizeUiFontPreset(working.conversation_font)}
-                        ariaLabel={t('对话字体', 'Conversation font')}
-                        wide
-                        options={UI_FONT_PRESET_IDS.map(id => ({
-                          value: id,
-                          label: uiFontPresetLabel(id),
-                        }))}
-                        onChange={value => void store.changeConversationFont(value)}
-                      />
-                    )}
-                  />
                   <SettingsRow
                     label={t('对话字号', 'Conversation size')}
+                    description={t('界面与对话都用系统默认字体。', 'Interface and conversation text use the system font.')}
                     divider={false}
                     trailing={(
-                      <SettingsGhostPicker
+                      <ConversationSizeInput
                         value={normalizeUiFontSize(working.conversation_font_size)}
                         ariaLabel={t('对话字号', 'Conversation size')}
-                        options={UI_FONT_SIZE_IDS.map(id => ({
-                          value: id,
-                          label: id,
-                        }))}
-                        onChange={value => void store.changeConversationFontSize(value)}
+                        onCommit={size => void store.changeConversationFontSize(size)}
                       />
                     )}
                   />
@@ -1811,12 +1759,7 @@ function createSettingsStore(
       ensureAccountRoute()
       alignDefaultModelToEnabledServices()
       applyUiLocale(s.working.locale)
-      applyUiFonts({
-        uiFont: s.working.ui_font,
-        conversationFont: s.working.conversation_font,
-        uiFontSize: s.working.ui_font_size,
-        conversationFontSize: s.working.conversation_font_size,
-      })
+      applyConversationFontSize(s.working.conversation_font_size)
       applyUiEmphasis({ preset: s.working.ui_emphasis })
     }
   }
@@ -3495,31 +3438,10 @@ function createSettingsStore(
     await save()
   }
 
-  async function changeUiFont(value: unknown) {
-    const uiFont = normalizeUiFontPreset(value)
-    patchWorking(working => { working.ui_font = uiFont })
-    applyUiFonts({ uiFont })
-    await save()
-  }
-
-  async function changeConversationFont(value: unknown) {
-    const conversationFont = normalizeUiFontPreset(value)
-    patchWorking(working => { working.conversation_font = conversationFont })
-    applyUiFonts({ conversationFont })
-    await save()
-  }
-
-  async function changeUiFontSize(value: unknown) {
-    const uiFontSize = normalizeUiFontSize(value)
-    patchWorking(working => { working.ui_font_size = uiFontSize })
-    applyUiFonts({ uiFontSize })
-    await save()
-  }
-
   async function changeConversationFontSize(value: unknown) {
     const conversationFontSize = normalizeUiFontSize(value)
     patchWorking(working => { working.conversation_font_size = conversationFontSize })
-    applyUiFonts({ conversationFontSize })
+    applyConversationFontSize(conversationFontSize)
     await save()
   }
 
@@ -3602,9 +3524,6 @@ function createSettingsStore(
     setCustomModelInput,
     selectCategory,
     changeLocale,
-    changeUiFont,
-    changeConversationFont,
-    changeUiFontSize,
     changeConversationFontSize,
     changeUiEmphasis,
     formatBytes,

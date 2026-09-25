@@ -4,48 +4,14 @@
 @source ".";
 
 :root {
-  --font-stack-cjk: "Noto Sans SC Variable", "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", sans-serif;
-  --font-stack-product: "Inter Variable", var(--font-stack-cjk);
-  --font-stack-inter: "Inter Variable", var(--font-stack-cjk);
-  --font-stack-noto-sc: var(--font-stack-cjk);
-  --font-stack-ibm-plex: "IBM Plex Sans Variable", var(--font-stack-cjk);
-  --font-stack-source-sans: "Source Sans 3 Variable", var(--font-stack-cjk);
-  --font-stack-geist: "Geist Variable", var(--font-stack-cjk);
-  --font-stack-nunito-sans: "Nunito Sans Variable", var(--font-stack-cjk);
-  --font-stack-noto-serif-sc: "Noto Serif SC Variable", "Noto Serif SC", "Songti SC", "SimSun", serif;
-  --font-stack-zcool-xiaowei: "ZCOOL XiaoWei", var(--font-stack-cjk);
-  --font-stack-zcool-qingke: "ZCOOL QingKe HuangYou", var(--font-stack-cjk);
   --font-stack-system: system-ui, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", sans-serif;
-  --font-sans: var(--font-stack-product);
-  --font-conversation: var(--font-stack-product);
+  --font-sans: var(--font-stack-system);
+  --font-conversation: var(--font-stack-system);
   --font-display: var(--font-sans);
-  --ui-font-size: 13px;
-  --conversation-font-size: 13px;
+  --ui-font-size: 14px;
+  --conversation-font-size: 14px;
   font-family: var(--font-sans);
 }
-
-html[data-ui-font='product'] { --font-sans: var(--font-stack-product); }
-html[data-ui-font='inter'] { --font-sans: var(--font-stack-inter); }
-html[data-ui-font='noto-sc'] { --font-sans: var(--font-stack-noto-sc); }
-html[data-ui-font='ibm-plex'] { --font-sans: var(--font-stack-ibm-plex); }
-html[data-ui-font='source-sans'] { --font-sans: var(--font-stack-source-sans); }
-html[data-ui-font='geist'] { --font-sans: var(--font-stack-geist); }
-html[data-ui-font='nunito-sans'] { --font-sans: var(--font-stack-nunito-sans); }
-html[data-ui-font='noto-serif-sc'] { --font-sans: var(--font-stack-noto-serif-sc); }
-html[data-ui-font='zcool-xiaowei'] { --font-sans: var(--font-stack-zcool-xiaowei); }
-html[data-ui-font='zcool-qingke'] { --font-sans: var(--font-stack-zcool-qingke); }
-html[data-ui-font='system'] { --font-sans: var(--font-stack-system); }
-html[data-conversation-font='product'] { --font-conversation: var(--font-stack-product); }
-html[data-conversation-font='inter'] { --font-conversation: var(--font-stack-inter); }
-html[data-conversation-font='noto-sc'] { --font-conversation: var(--font-stack-noto-sc); }
-html[data-conversation-font='ibm-plex'] { --font-conversation: var(--font-stack-ibm-plex); }
-html[data-conversation-font='source-sans'] { --font-conversation: var(--font-stack-source-sans); }
-html[data-conversation-font='geist'] { --font-conversation: var(--font-stack-geist); }
-html[data-conversation-font='nunito-sans'] { --font-conversation: var(--font-stack-nunito-sans); }
-html[data-conversation-font='noto-serif-sc'] { --font-conversation: var(--font-stack-noto-serif-sc); }
-html[data-conversation-font='zcool-xiaowei'] { --font-conversation: var(--font-stack-zcool-xiaowei); }
-html[data-conversation-font='zcool-qingke'] { --font-conversation: var(--font-stack-zcool-qingke); }
-html[data-conversation-font='system'] { --font-conversation: var(--font-stack-system); }
 
 :root {
   color-scheme: dark;

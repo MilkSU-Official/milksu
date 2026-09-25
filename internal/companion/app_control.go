@@ -154,9 +154,6 @@ func ProjectSettings(settings config.AppSettings) map[string]any {
 		"companion_teaching":         settings.CompanionTeaching,
 		"companion_reply_style":      config.CompanionReplyStyle(settings),
 		"preferred_external_editor":  settings.PreferredExternalEditor,
-		"ui_font":                    settings.UiFont,
-		"conversation_font":          settings.ConversationFont,
-		"ui_font_size":               settings.UiFontSize,
 		"conversation_font_size":     settings.ConversationFontSize,
 		"ui_emphasis":                settings.UiEmphasis,
 	}
@@ -238,12 +235,6 @@ func ApplySettingsPatch(current config.AppSettings, patch map[string]any) (confi
 			next.CompanionReplyStyle = config.NormalizeCompanionReplyStyle(stringValue(value))
 		case "preferred_external_editor":
 			next.PreferredExternalEditor = strings.TrimSpace(stringValue(value))
-		case "ui_font":
-			next.UiFont = strings.TrimSpace(stringValue(value))
-		case "conversation_font":
-			next.ConversationFont = strings.TrimSpace(stringValue(value))
-		case "ui_font_size":
-			next.UiFontSize = strings.TrimSpace(stringValue(value))
 		case "conversation_font_size":
 			next.ConversationFontSize = strings.TrimSpace(stringValue(value))
 		case "ui_emphasis":
