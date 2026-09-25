@@ -918,7 +918,8 @@
   margin-inline: -3px;
   border-radius: 8px;
   padding: 0 3px;
-  font-size: 0.78125rem;
+  color: var(--muted-foreground);
+  font-size: var(--conversation-font-size);
   cursor: pointer;
   list-style: none;
 }
@@ -990,7 +991,7 @@
 
 [data-agent-conversation] .agent-chip strong {
   flex-shrink: 0;
-  color: var(--foreground);
+  color: inherit;
   font-weight: 550;
 }
 
@@ -1007,9 +1008,9 @@
   background: color-mix(in srgb, var(--muted) 80%, var(--card));
   box-shadow: 0 0 0 1px var(--agent-hairline);
   padding: 0 0.4rem;
-  color: var(--foreground);
+  color: var(--muted-foreground);
   font-family: var(--font-mono, ui-monospace, Menlo, Monaco, Consolas, monospace);
-  font-size: 0.71875rem;
+  font-size: 0.75rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
