@@ -115,7 +115,12 @@ func TestComputerUseSocketStaysUnderTheLimitForAnOverlongRoot(t *testing.T) {
 	if len(path) > unixSocketMaxBytes {
 		t.Fatalf("socket path is %d bytes, over the %d limit: %s", len(path), unixSocketMaxBytes, path)
 	}
-	if !strings.HasPrefix(path, "/tmp/") && !strings.Contains(path, "mcu-") {
-		t.Fatalf("unexpected fallback socket path: %s", path)
+	if !strings.HasSuffix(path, ".sock") {
+		t.Fatalf("socket path must not be truncated: %s", path)
+	}
+	overflow := unixSocketOverflowRoot() + string(os.PathSeparator)
+	temp := os.TempDir() + string(os.PathSeparator)
+	if !strings.HasPrefix(path, overflow) && !strings.HasPrefix(path, temp) {
+		t.Fatalf("fallback socket must land under the overflow or platform temp root: %s", path)
 	}
 }

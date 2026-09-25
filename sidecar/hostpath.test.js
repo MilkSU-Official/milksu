@@ -107,11 +107,11 @@ test("Computer Use unix sockets hash the session id when the root is long", () =
 });
 
 // 中文长路径（一个汉字 3 字节 UTF-8 ⇒ 同样的字符长度更容易撞上 103 字节的 sun_path 上限）。
-// 本机真实出现过 ~/MilkSU/Coding/**中文目录**/**中文目录** 这种根 ✓ ⇒ 这条把"实现不会因此崩、
-// 也不会截断"钉住（**回归保护** ✓：实现本来就对 ✓，不是新修 ✗）。
+// 本机真实出现过 ~/MilkSU/Coding/**中文目录**/**中文目录** 这种根：以前的兜底只在原根里换哈希名，
+// 根一长照样绑不上 ⇒ 这条把"溢出时退到可绑定的根、且不截断"钉住（本次修复的回归保护）。
 test('a long non-ASCII root still yields a bindable socket, never a truncated path', () => {
-  // 用 linux 分支注入根（那里认 XDG_RUNTIME_DIR ✓），构造一个远超 103 字节的中文根。
-  const chineseRoot = join('/tmp', '中文目录'.repeat(10)); // 40 个字符 ⇒ 120 字节
+  // 用 linux 分支注入根（那里认 XDG_RUNTIME_DIR），构造一个远超 103 字节的中文根。
+  const chineseRoot = join(tmpdir(), '中文目录'.repeat(10)); // 40 个字符 ⇒ 120 字节
   assert.ok(Buffer.byteLength(chineseRoot) > 103, 'the fixture must exceed the byte limit');
   assert.ok(Buffer.byteLength(chineseRoot) !== chineseRoot.length, 'the fixture must be non-ASCII');
 
@@ -129,7 +129,7 @@ test('a long non-ASCII root still yields a bindable socket, never a truncated pa
 
 // 同一个会话 ⇒ 每次都得到同一个路径（确定性 ✓，缓存/复用才可靠）。
 test('the same conversation always gets the same socket path', () => {
-  const env = { ...process.env, XDG_RUNTIME_DIR: join('/tmp', '中文目录'.repeat(10)) };
+  const env = { ...process.env, XDG_RUNTIME_DIR: join(tmpdir(), '中文目录'.repeat(10)) };
   assert.equal(
     computerUseSocket('conversation-1', env, 'linux'),
     computerUseSocket('conversation-1', env, 'linux'),
