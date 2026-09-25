@@ -57,12 +57,15 @@ test("the sidecar answers a repeat with a visible notice, never silently", () =>
 test("the name the sidecar emits is the name the renderer consumes", () => {
   const app = readFileSync(new URL("../../app/src/composables/useConversations.ts", import.meta.url), "utf8");
   assert.ok(app.includes("if (type === 'guard.alarm')"), "the renderer must have a guard.alarm branch");
-  const branch = app.slice(app.indexOf("if (type === 'guard.alarm')"), app.indexOf("if (type === 'attachment.held')"));
+  const branchStart = app.indexOf("if (type === 'guard.alarm')");
+  const branchEnd = app.indexOf("} else if", branchStart);
+  const branch = app.slice(branchStart, branchEnd === -1 ? undefined : branchEnd);
   assert.ok(branch.includes("noticeEnglish"), "the renderer must read the paired English notice");
   assert.ok(branch.includes("pushEngineNotice("), "the renderer must show it, not swallow it");
-  // 旧的 guard.alarm 调用点（受保护路径）也要成对，别让同一事件名有两种载荷形状。
+  // 全仓库唯一的发出点就是本件这一处；若将来新增发出点，每个载荷都必须成对双语，
+  // 别让同一事件名有两种载荷形状。
   const bridge = readFileSync(new URL("./bridge.js", import.meta.url), "utf8");
-  const payloads = bridge.split('"guard.alarm"').slice(1);
+  const payloads = bridge.split('emit(conversationId, "guard.alarm"').slice(1);
   for (const payload of payloads) {
     const head = payload.slice(0, 400);
     assert.ok(head.includes("noticeEnglish"), `every guard.alarm payload must be paired: ${head.slice(0, 120)}`);

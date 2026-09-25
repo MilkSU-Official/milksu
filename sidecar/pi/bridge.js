@@ -1510,8 +1510,8 @@ function subscribeSession(
         thinkingStreamed = true;
         emit(conversationId, "thinking_delta", { delta: update.delta ?? "" });
 
-        // 思考复读：连续 N 行一模一样时告诉读者（可见，绝不静默）。事件名复用已有的 guard.alarm，
-        // 载荷与 attachment.held 同形状（成对双语），前端按界面语言选一句。
+        // 思考复读：连续 N 行一模一样时告诉读者（可见，绝不静默）。事件名用 guard.alarm
+        //（本件首次发出；引擎把它列进透传名单，前端按此名分支），载荷成对双语，前端按界面语言选一句。
         const repeat = thinkingRepetition.push(conversationId, update.delta ?? "");
         if (repeat) {
           emit(conversationId, "guard.alarm", {
