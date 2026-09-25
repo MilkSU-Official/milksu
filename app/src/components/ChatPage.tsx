@@ -2,7 +2,6 @@ import {
   forwardRef,
   lazy,
   Suspense,
-  useCallback,
   useEffect,
   useImperativeHandle,
   useLayoutEffect,
@@ -23,6 +22,7 @@ import {
 } from '@/components/ui'
 import {
   Activity,
+  ArrowDown,
   ArrowLeft,
   ArrowRight,
   CircleDot,
@@ -53,6 +53,12 @@ import { isAskMessage } from '@/lib/agentAsk'
 import { nextChatAutoScrollPinned } from '@/lib/chatAutoScroll'
 import { applyChatEdgeChrome } from '@/lib/chatEdgeFade'
 import { assessApprovalRequest } from '@/lib/destructiveTarget'
+import {
+  computeTranscriptWindow,
+  slideTranscriptStart,
+  tailTranscriptStart,
+  TRANSCRIPT_WINDOW_CAP,
+} from '@/lib/transcriptWindow'
 import { isGeneratedScratchWorkspace } from '@/lib/codingConversationGroups'
 import AgentPixelLoader from '@/components/AgentPixelLoader'
 import AkLoadingMark from '@/components/AkLoadingMark'
@@ -223,9 +229,6 @@ const contextPanelValues = [
 ] as const
 type ContextPanel = typeof contextPanelValues[number]
 
-const TRANSCRIPT_INITIAL_BLOCKS = 60
-const TRANSCRIPT_REFILL_CHUNK = 150
-const TRANSCRIPT_TOP_REFILL_CHUNK = 300
 const emptyActivityExpansion = createChatActivityExpansionState()
 
 export type ChatPageProps = {
@@ -537,7 +540,10 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     () => new Map<string, ChatActivityExpansionState>(),
   )
   const [activityExpansionRev, setActivityExpansionRev] = useState(0)
-  const [mountedTranscriptBlocks, setMountedTranscriptBlocks] = useState(0)
+  // 转写区滑动窗口：钉底时窗口贴尾，读者上翻后由 transcriptWindowStart 决定挂载哪一段。
+  const [transcriptWindowStart, setTranscriptWindowStart] = useState(0)
+  // chatAutoScrollPinned 的 state 镜像，只在钉底状态翻转时更新，供 UI 响应。
+  const [chatAutoScrollPinnedState, setChatAutoScrollPinnedState] = useState(true)
 
   const conversationRef = useRef(conversation)
   const workspacePathRef = useRef(workspacePath)
@@ -558,13 +564,12 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
   const mcpServersRef = useRef(mcpServers)
   const mcpConfigDigestRef = useRef(mcpConfigDigest)
   const chatTranscriptLengthRef = useRef(0)
-  const mountedTranscriptBlocksRef = useRef(0)
-  const lastConversationIdForTranscript = useRef('')
+  const transcriptWindowStartRef = useRef(0)
+  const transcriptAnchorRef = useRef<{ id: string; offset: number } | null>(null)
+  const transcriptTopSentinelRef = useRef<HTMLDivElement | null>(null)
+  const transcriptBottomSentinelRef = useRef<HTMLDivElement | null>(null)
   const codingBrowserResizeObserver = useRef<ResizeObserver | null>(null)
   const lastCodingBrowserViewport = useRef('')
-  const transcriptRefillTimer = useRef(0)
-  const transcriptInteractionUntil = useRef(0)
-  const pendingTranscriptRestore = useRef<{ height: number; top: number } | null>(null)
   const ctfProjectionRef = useRef(ctfProjection)
 
   conversationRef.current = conversation
@@ -587,7 +592,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
   mcpConfigDigestRef.current = mcpConfigDigest
   ctfProjectionRef.current = ctfProjection
   codingEnvironmentRef.current = codingEnvironment
-  mountedTranscriptBlocksRef.current = mountedTranscriptBlocks
+  transcriptWindowStartRef.current = transcriptWindowStart
 
   const terminalDockStyle = useMemo<CSSProperties>(() => ({ height: `${terminalHeight}px` }), [terminalHeight])
   const automaticModel = useMemo(() => {
@@ -1031,20 +1036,31 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
       ? t(`${workshopState.toolCount} 个本题工具已保存在工作区`, `${workshopState.toolCount} challenge tools saved in the workspace`)
       : t('当前没有工具请求', 'No tool requests')
   }, [workshopState, t])
-  const visibleTranscript = useMemo(() => {
-    if (chatTranscript.length <= mountedTranscriptBlocks) return chatTranscript
-    return chatTranscript.slice(chatTranscript.length - mountedTranscriptBlocks)
-  }, [chatTranscript, mountedTranscriptBlocks])
-  const hiddenTranscriptBlocks = Math.max(0, chatTranscript.length - visibleTranscript.length)
+  // 钉底时窗口永远贴尾（新输出总是可见）；翻上去之后由 transcriptWindowStart 决定挂载区间。
+  const transcriptStart = chatAutoScrollPinnedState
+    ? tailTranscriptStart(chatTranscript.length)
+    : transcriptWindowStart
+  const transcriptWindow = computeTranscriptWindow(chatTranscript.length, transcriptStart)
+  const visibleTranscript = useMemo(
+    () => chatTranscript.slice(transcriptWindow.start, transcriptWindow.end),
+    [chatTranscript, transcriptWindow.start, transcriptWindow.end],
+  )
+  const hasEarlierTranscript = transcriptWindow.hiddenBefore > 0
+  const hasLaterTranscript = transcriptWindow.hiddenAfter > 0
 
   async function revealTranscriptMessage(messageId: string) {
     const index = chatTranscript.findIndex(block => block.kind === 'message' && block.message.id === messageId)
     if (index < 0) return false
-    const needed = chatTranscript.length - index
-    if (needed > mountedTranscriptBlocks) {
-      setMountedTranscriptBlocks(needed)
-      await new Promise<void>(resolve => { queueMicrotask(resolve) })
-    }
+    // 目标段落在窗口外时，把窗口整体挪到以目标为中点附近的位置。
+    chatAutoScrollPinned.current = false
+    setChatAutoScrollPinnedState(false)
+    const start = Math.max(
+      0,
+      Math.min(index - Math.floor(TRANSCRIPT_WINDOW_CAP / 2), tailTranscriptStart(chatTranscript.length)),
+    )
+    transcriptWindowStartRef.current = start
+    setTranscriptWindowStart(start)
+    await new Promise<void>(resolve => { queueMicrotask(resolve) })
     return true
   }
 
@@ -2163,69 +2179,64 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     onSend?.(prompt, action.visibleText, undefined, undefined, { kind })
   }
 
-  function noteTranscriptInteraction() {
-    transcriptInteractionUntil.current = Date.now() + 250
-  }
-
-  function restoreTranscriptScroll(beforeHeight: number, beforeTop: number) {
+  // 窗口滑动前记住第一个可见段，滑动后由 useLayoutEffect 按元素把它顶回原位，
+  // 替代旧的高度差补偿（高度差在长内容里误差会累积）。
+  function captureTranscriptAnchor() {
     const element = scrollArea.current
     if (!element) return
-    if (chatAutoScrollPinned.current) {
-      element.scrollTop = element.scrollHeight
-    } else {
-      element.scrollTop = beforeTop + Math.max(0, element.scrollHeight - beforeHeight)
+    const containerTop = element.getBoundingClientRect().top
+    const blocks = element.querySelectorAll<HTMLElement>('[data-transcript-block]')
+    for (const block of blocks) {
+      const rect = block.getBoundingClientRect()
+      if (rect.bottom <= containerTop + 1) continue
+      transcriptAnchorRef.current = {
+        id: block.dataset.transcriptBlock ?? '',
+        offset: rect.top - containerTop,
+      }
+      return
     }
-    lastChatScrollTop.current = element.scrollTop
+    transcriptAnchorRef.current = null
   }
 
-  const scheduleTranscriptRefill = useCallback((delay = 64) => {
-    if (transcriptRefillTimer.current) return
-    if (mountedTranscriptBlocksRef.current >= chatTranscriptLengthRef.current) return
-    transcriptRefillTimer.current = window.setTimeout(() => {
-      transcriptRefillTimer.current = 0
-      if (mountedTranscriptBlocksRef.current >= chatTranscriptLengthRef.current) return
-      if (Date.now() < transcriptInteractionUntil.current) {
-        scheduleTranscriptRefill(160)
-        return
-      }
-      const element = scrollArea.current
-      pendingTranscriptRestore.current = {
-        height: element?.scrollHeight ?? 0,
-        top: element?.scrollTop ?? 0,
-      }
-      setMountedTranscriptBlocks(current => Math.min(
-        chatTranscriptLengthRef.current,
-        current + TRANSCRIPT_REFILL_CHUNK,
-      ))
-      scheduleTranscriptRefill(64)
-    }, delay)
-  }, [])
+  function slideTranscript(direction: 'earlier' | 'later') {
+    if (chatAutoScrollPinned.current) return
+    const next = slideTranscriptStart(
+      transcriptWindowStartRef.current,
+      direction,
+      chatTranscriptLengthRef.current,
+    )
+    if (next === transcriptWindowStartRef.current) return
+    captureTranscriptAnchor()
+    transcriptWindowStartRef.current = next
+    setTranscriptWindowStart(next)
+  }
 
-  function mountEarlierTranscriptBlocks(count: number) {
-    const element = scrollArea.current
-    pendingTranscriptRestore.current = {
-      height: element?.scrollHeight ?? 0,
-      top: element?.scrollTop ?? 0,
-    }
-    setMountedTranscriptBlocks(current => Math.min(
-      chatTranscript.length,
-      current + count,
-    ))
+  function jumpToLatestTranscript() {
+    chatAutoScrollPinned.current = true
+    setChatAutoScrollPinnedState(true)
+    const tail = tailTranscriptStart(chatTranscriptLengthRef.current)
+    transcriptWindowStartRef.current = tail
+    setTranscriptWindowStart(tail)
+    void scrollChatToBottom(true)
   }
 
   function handleChatScroll() {
     const element = scrollArea.current
     if (!element) return
-    noteTranscriptInteraction()
-    if (element.scrollTop <= 8 && hiddenTranscriptBlocks > 0) {
-      mountEarlierTranscriptBlocks(TRANSCRIPT_TOP_REFILL_CHUNK)
-    }
-    chatAutoScrollPinned.current = nextChatAutoScrollPinned(
+    const nextPinned = nextChatAutoScrollPinned(
       lastChatScrollTop.current,
       element.scrollTop,
       element.clientHeight,
       element.scrollHeight,
     )
+    if (chatAutoScrollPinned.current && !nextPinned) {
+      // 刚从底部翻上来：把贴尾窗口固化成当前窗口，挂载区间保持连续。
+      const tail = tailTranscriptStart(chatTranscriptLengthRef.current)
+      transcriptWindowStartRef.current = tail
+      setTranscriptWindowStart(tail)
+      setChatAutoScrollPinnedState(false)
+    }
+    chatAutoScrollPinned.current = nextPinned
     lastChatScrollTop.current = element.scrollTop
   }
 
@@ -2275,12 +2286,21 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     else void closeCodingBrowserTab(tabId)
   }
 
+  // 窗口滑动后按元素锚定补偿滚动位置：第一个可见段保持视口位置不动。
   useLayoutEffect(() => {
-    const pending = pendingTranscriptRestore.current
-    if (!pending) return
-    pendingTranscriptRestore.current = null
-    restoreTranscriptScroll(pending.height, pending.top)
-  }, [mountedTranscriptBlocks, visibleTranscript.length])
+    const anchor = transcriptAnchorRef.current
+    if (!anchor) return
+    transcriptAnchorRef.current = null
+    const element = scrollArea.current
+    if (!element || !anchor.id) return
+    const target = element.querySelector<HTMLElement>(
+      `[data-transcript-block="${CSS.escape(anchor.id)}"]`,
+    )
+    if (!target) return
+    const containerTop = element.getBoundingClientRect().top
+    element.scrollTop += target.getBoundingClientRect().top - containerTop - anchor.offset
+    lastChatScrollTop.current = element.scrollTop
+  })
 
   useLayoutEffect(() => {
     const column = chatColumnRef.current
@@ -2425,7 +2445,6 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
       window.removeEventListener('focus', refreshOpenImageList)
       codingBrowserResizeObserver.current?.disconnect()
       window.clearInterval(statusTimer)
-      if (transcriptRefillTimer.current) window.clearTimeout(transcriptRefillTimer.current)
     }
     // Mount-only listeners; live values are read from refs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2476,23 +2495,6 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     return () => window.clearInterval(clock)
   }, [waitingForModel, compacting, running])
 
-  const previousTranscriptLength = useRef(0)
-  useEffect(() => {
-    const conversationId = conversation?.id ?? ''
-    const length = chatTranscript.length
-    if (lastConversationIdForTranscript.current !== conversationId) {
-      lastConversationIdForTranscript.current = conversationId
-      previousTranscriptLength.current = length
-      setMountedTranscriptBlocks(Math.min(length, TRANSCRIPT_INITIAL_BLOCKS))
-    } else {
-      const delta = Math.max(0, length - previousTranscriptLength.current)
-      previousTranscriptLength.current = length
-      setMountedTranscriptBlocks(current => Math.min(length, current + delta))
-    }
-    chatTranscriptLengthRef.current = length
-    scheduleTranscriptRefill()
-  }, [conversation?.id, chatTranscript.length, scheduleTranscriptRefill])
-
   useEffect(() => {
     if (environmentOpen && contextPanel === 'browser') {
       void syncCodingBrowserViewport()
@@ -2504,6 +2506,41 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
   useEffect(() => {
     void scrollChatToBottom()
   }, [conversation?.messages.length, conversation?.id, ctfSession, vulnerabilitySession])
+
+  // 跟随输出：只要用户没有往上翻（chatAutoScrollPinned），内容高度一变就贴底。
+  // 流式增量、过程折叠变化、图片载入都不一定改 messages.length，靠 ResizeObserver 全覆盖。
+  useEffect(() => {
+    if (emptyCanvas) return undefined
+    const element = scrollArea.current
+    const thread = element?.querySelector('.agent-thread')
+    if (!element || !thread) return undefined
+    const observer = new ResizeObserver(() => {
+      if (!chatAutoScrollPinned.current) return
+      element.scrollTop = element.scrollHeight
+      lastChatScrollTop.current = element.scrollTop
+    })
+    observer.observe(thread)
+    return () => observer.disconnect()
+  }, [emptyCanvas])
+
+  // 哨兵：接近窗口上/下缘 800px 内时把窗口整体滑动一格，挂载量保持恒定。
+  // 取消钉底时重建 observer，让已相交的哨兵立刻补一次触发。
+  useEffect(() => {
+    if (emptyCanvas) return undefined
+    const element = scrollArea.current
+    if (!element) return undefined
+    const observer = new IntersectionObserver(entries => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue
+        if (entry.target === transcriptTopSentinelRef.current) slideTranscript('earlier')
+        else if (entry.target === transcriptBottomSentinelRef.current) slideTranscript('later')
+      }
+    }, { root: element, rootMargin: '800px 0px' })
+    if (transcriptTopSentinelRef.current) observer.observe(transcriptTopSentinelRef.current)
+    if (transcriptBottomSentinelRef.current) observer.observe(transcriptBottomSentinelRef.current)
+    return () => observer.disconnect()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [emptyCanvas, hasEarlierTranscript, hasLaterTranscript, chatAutoScrollPinnedState])
 
   const skipDomainPanelReset = useRef(true)
   useEffect(() => {
@@ -2548,6 +2585,9 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     setComputerUsePermissionRequesting(null)
     setComputerUsePermissionError('')
     chatAutoScrollPinned.current = true
+    setChatAutoScrollPinnedState(true)
+    transcriptWindowStartRef.current = 0
+    setTranscriptWindowStart(0)
     lastChatScrollTop.current = 0
     void scrollChatToBottom(true)
     if (conversation?.id && !running) void refreshBrowserPanel()
@@ -2767,10 +2807,14 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
                     onDismiss={() => setQuoteSelection(null)}
                   />
                 ) : null}
+                {hasEarlierTranscript ? (
+                  <div ref={transcriptTopSentinelRef} className="h-px w-full" aria-hidden />
+                ) : null}
                 {visibleTranscript.map(item => (
-                  item.kind === 'process' ? (
+                  // 无样式 wrapper：子段的 mb-7 margin 照常塌陷，布局不变；key 和锚定 id 都挂在它上面。
+                  <div key={item.id} data-transcript-block={item.id}>
+                  {item.kind === 'process' ? (
                     <ChatProcessFold
-                      key={item.id}
                       process={item}
                       model={chatFoldModel(chatTranscript, item.id, running)}
                       recoverableFailureId={recoverableFailureId}
@@ -2793,13 +2837,11 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
                     />
                   ) : item.kind === 'image' ? (
                     <ChatGeneratedImage
-                      key={item.id}
                       workspacePath={workspacePath}
                       path={item.path}
                     />
                   ) : item.kind === 'activity' ? (
                     <ChatActivityGroup
-                      key={item.id}
                       activity={item}
                       model={chatFoldModel(chatTranscript, item.id, running)}
                       open={chatActivityGroupIsOpen(item.id)}
@@ -2811,7 +2853,6 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
                     />
                   ) : (
                     <ChatMessageItem
-                      key={item.id}
                       message={item.message}
                       recoverable={item.message.id === recoverableFailureId}
                       recoveryContext={ctfSession ? 'ctf' : 'coding'}
@@ -2826,8 +2867,12 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
                       onRewindContext={() => onRewindContext?.()}
                       onBranchAssistant={branchFromAssistantMessage}
                     />
-                  )
+                  )}
+                  </div>
                 ))}
+                {hasLaterTranscript ? (
+                  <div ref={transcriptBottomSentinelRef} className="h-px w-full" aria-hidden />
+                ) : null}
                 {emptyVisibleReply && !waitingForModel ? (
                   <article className="agent-turn mb-7 min-w-0 w-full">
                     <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -2852,6 +2897,19 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
                 ) : null}
               </div>
           </div>
+          {!chatAutoScrollPinnedState ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="absolute right-4 z-20 rounded-full shadow-sm"
+              style={{ bottom: 'calc(var(--chat-edge-bottom, 0px) + 0.75rem)' }}
+              onClick={jumpToLatestTranscript}
+            >
+              <ArrowDown className="size-3.5" />
+              {t('回到最新', 'Latest')}
+            </Button>
+          ) : null}
           <ChatEdgeFade showTop={!dockSurface} />
           </>
           ) : (
