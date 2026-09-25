@@ -5,6 +5,11 @@ pre-commit:
     gofmt:
       glob: '*.go'
       run: |
+        export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/local/go/bin:/usr/bin:/c/Program Files/Go/bin:/c/Go/bin:$PATH"
+        if ! command -v gofmt >/dev/null 2>&1; then
+          echo 'gofmt not found. Please install Go or ensure gofmt is in PATH.' >&2
+          exit 1
+        fi
         unformatted=$(gofmt -l {staged_files})
         if [ -n "$unformatted" ]; then
           echo "$unformatted"
@@ -13,4 +18,6 @@ pre-commit:
         fi
     go-test:
       glob: '*.go'
-      run: ./scripts/go-test-staged.sh {staged_files}
+      run: |
+        export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/local/go/bin:/usr/bin:/c/Program Files/Go/bin:/c/Go/bin:$PATH"
+        ./scripts/go-test-staged.sh {staged_files}
