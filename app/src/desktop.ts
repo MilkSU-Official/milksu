@@ -201,8 +201,8 @@ interface DesktopAppBindings {
   CancelUpdate(): Promise<UpdateStatus>
   InstallUpdate(): Promise<boolean>
   GetSettings(): Promise<AppSettings>
-  /** 0..1 danger score from the decision layer; rejects when no credential is configured. */
-  JudgeApprovalRisk(command: string): Promise<number>
+  /** 0..1 danger score from the decision layer; rejects when neither the decision credential nor the session model is reachable. */
+  JudgeApprovalRisk(command: string, conversationId: string): Promise<number>
   GetModelCatalog(): Promise<ModelCatalogSnapshot>
   GetImageGenCatalog(): Promise<import('@/lib/imageGenCatalog').ImageGenCatalogSnapshot>
   SaveSettingsCmd(settings: AppSettings): Promise<void>
@@ -701,7 +701,10 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
       case 'get_settings':
         return app.GetSettings() as Promise<T>
       case 'judge_approval_risk':
-        return app.JudgeApprovalRisk((args as { command: string }).command) as Promise<T>
+        return app.JudgeApprovalRisk(
+          (args as { command: string }).command,
+          (args as { conversationId?: string }).conversationId ?? '',
+        ) as Promise<T>
       case 'get_model_catalog':
         return app.GetModelCatalog() as Promise<T>
       case 'get_imagegen_catalog':

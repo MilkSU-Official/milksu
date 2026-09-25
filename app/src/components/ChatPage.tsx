@@ -450,15 +450,17 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
   const [approvalSubmitting, setApprovalSubmitting] = useState(false)
   const [approvalError, setApprovalError] = useState('')
   // 决策层风险分：只影响「范围未核验」提示的显隐，不改变审批条本身（三档批准策略照旧由人拍板）。
-  // null = 没配凭据或调用失败 ⇒ approvalHintVisible 退回纯本地判定。
+  // 没配决策凭据时后端会回退到这条会话的主模型；都不可用时调用失败，
+  // null ⇒ approvalHintVisible 退回纯本地判定。
   const [approvalRisk, setApprovalRisk] = useState<number | null>(null)
   const approvalRequestId = pendingApprovalMessage?.approvalRequestId ?? ''
   useEffect(() => {
     setApprovalRisk(null)
     const command = `${pendingApprovalMessage?.content ?? ''}\n${pendingApprovalMessage?.approvalInput ?? ''}`.trim()
-    if (!approvalRequestId || !command || !settings?.jev?.has_api_key) return undefined
+    const conversationId = conversation?.id ?? ''
+    if (!approvalRequestId || !command || !conversationId) return undefined
     let stale = false
-    void invokeCommand<number>('judge_approval_risk', { command })
+    void invokeCommand<number>('judge_approval_risk', { command, conversationId })
       .then(score => {
         if (!stale) setApprovalRisk(Number.isFinite(score) ? score : null)
       })
@@ -468,7 +470,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     return () => {
       stale = true
     }
-  }, [approvalRequestId, pendingApprovalMessage?.content, pendingApprovalMessage?.approvalInput, settings?.jev?.has_api_key])
+  }, [approvalRequestId, conversation?.id, pendingApprovalMessage?.content, pendingApprovalMessage?.approvalInput])
   const approvalHint = useMemo(() => approvalHintVisible({
     content: pendingApprovalMessage?.content,
     approvalInput: pendingApprovalMessage?.approvalInput,

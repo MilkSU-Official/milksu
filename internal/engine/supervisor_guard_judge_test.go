@@ -38,7 +38,7 @@ func TestGateGuardAlarmForwardsUnlessDecisionConfirmsLegitimate(t *testing.T) {
 			})
 			if !tc.noJudge {
 				yes := tc.yes
-				s.SetGuardJudge(func(context.Context, any, string) (float64, error) {
+				s.SetGuardJudge(func(context.Context, string, any, string) (float64, error) {
 					return yes, tc.err
 				})
 			}
@@ -70,8 +70,10 @@ func TestGateGuardAlarmForwardsUnlessDecisionConfirmsLegitimate(t *testing.T) {
 // 那复核就没有意义了。
 func TestGateGuardAlarmHandsSampleToJudge(t *testing.T) {
 	var gotState any
+	var gotSession string
 	s := NewSupervisor(func(Event) {})
-	s.SetGuardJudge(func(_ context.Context, state any, _ string) (float64, error) {
+	s.SetGuardJudge(func(_ context.Context, sessionID string, state any, _ string) (float64, error) {
+		gotSession = sessionID
 		gotState = state
 		return 0.9, nil
 	})
@@ -82,6 +84,9 @@ func TestGateGuardAlarmHandsSampleToJudge(t *testing.T) {
 		Sample:     []string{"a", "b"},
 	}
 	s.gateGuardAlarm(raw, KernelPi)
+	if gotSession != "session-1" {
+		t.Fatalf("judge must see the alarming session, got %q", gotSession)
+	}
 	payload, ok := gotState.(map[string]any)
 	if !ok {
 		t.Fatalf("judge state must be a map, got %T", gotState)
@@ -97,7 +102,7 @@ func TestGateGuardAlarmHandsSampleToJudge(t *testing.T) {
 // 判官挂起（决策端卡住）不许拖死示警：超时后必须放行。
 func TestGateGuardAlarmTimeoutForwards(t *testing.T) {
 	s := NewSupervisor(func(Event) {})
-	s.SetGuardJudge(func(ctx context.Context, _ any, _ string) (float64, error) {
+	s.SetGuardJudge(func(ctx context.Context, _ string, _ any, _ string) (float64, error) {
 		<-ctx.Done()
 		return 0, ctx.Err()
 	})

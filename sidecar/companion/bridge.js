@@ -31,6 +31,7 @@ import {
   companionDecisionLine,
   prepareCompanionPrompt,
 } from "./attachments.js";
+import { answerDecisionQuery } from "../decision/query.js";
 import { withTokenFluxModelCompat } from "../pi/tokenflux-model-compat.js";
 import { createHangGuardExtension } from "../pi/bridge-hang-guard.js";
 import { createToolResultBoundExtension } from "../pi/bridge-tool-result-bound.js";
@@ -524,6 +525,14 @@ async function completeCompanionReview(context) {
   }
 }
 
+async function handleDecisionQuery(command) {
+  await answerDecisionQuery(command, {
+    emitEvent: (type, data) => emit(type, data),
+    complete: context => completeCompanionReview(context),
+    readText: assistantVisibleText,
+  });
+}
+
 function applySemanticMemories(memories, revision) {
   const next = applySemanticMemorySnapshot(
     { memories: semanticMemories, revision: semanticMemoryRevision },
@@ -773,6 +782,11 @@ async function handleCommand(command) {
       return;
     case "refresh_index":
       if (memorySearchEnabled) scheduleCompanionIndexRefresh();
+      return;
+    case "decision_query":
+      // 决策层主模型兜底：后端问这条会话的主模型一个轻量问题，不另开
+      // 内核、不在当轮顺口识别，答案原样回给后端解析。
+      void handleDecisionQuery(command);
       return;
     case "update_context":
       applyCompanionLocale(command);

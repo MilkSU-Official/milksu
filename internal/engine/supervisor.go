@@ -382,6 +382,7 @@ type bridgeEvent struct {
 	ID                 string                   `json:"id"`
 	Delta              string                   `json:"delta"`
 	Content            string                   `json:"content"`
+	Text               string                   `json:"text"`
 	Error              string                   `json:"error"`
 	ToolName           string                   `json:"toolName"`
 	ToolCallID         string                   `json:"toolCallId"`
@@ -591,8 +592,26 @@ type Supervisor struct {
 	workspaceAction     WorkspaceActionHandler
 	codingBrowserLookup CodingBrowserLookup
 	guardJudge          GuardJudge
-	emit                func(Event)
-	sidecarDirectory    string
+	// decisionPending 是 decision_query 问答通道：QuerySessionModel 写入
+	// 侧车命令，decision_answer 事件按查询 id 唤醒等待方。进程退出时把它
+	// 自己那批等待以错误收尾，等待方照常 fail-open。
+	decisionPending  map[string]decisionWait
+	decisionSeq      atomic.Uint64
+	emit             func(Event)
+	sidecarDirectory string
+}
+
+// decisionAnswer 是侧车 decision_query 的一次回答。
+type decisionAnswer struct {
+	text string
+	err  error
+}
+
+// decisionWait 登记一次等待中的侧车问答，proc 用来在进程退出时只收尾
+// 这辆侧车自己的查询。
+type decisionWait struct {
+	ch   chan decisionAnswer
+	proc *childProcess
 }
 
 type AgentResourceRuntime struct {
@@ -620,7 +639,8 @@ func (s *Supervisor) SetCodingBrowserLookup(lookup CodingBrowserLookup) {
 
 // GuardJudge asks the decision layer one yes/no question about a guard.alarm
 // payload. The yes probability gates whether the alarm reaches the reader.
-type GuardJudge func(ctx context.Context, state any, instructions string) (float64, error)
+// sessionID 让判官能把主模型兜底问到出警的那条会话上。
+type GuardJudge func(ctx context.Context, sessionID string, state any, instructions string) (float64, error)
 
 // SetGuardJudge wires the decision layer into the guard.alarm pipeline. A nil
 // judge keeps the sidecar's verdict as-is (no decision credential configured).
@@ -628,6 +648,81 @@ func (s *Supervisor) SetGuardJudge(judge GuardJudge) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.guardJudge = judge
+}
+
+// QuerySessionModel 问一条会话所在侧车的主模型一个轻量问题（决策层兜底
+// 通道）。completeSimple 不在当轮顺口识别，答案只回给调用方解析。
+func (s *Supervisor) QuerySessionModel(ctx context.Context, sessionID, systemPrompt, prompt string) (string, error) {
+	id := fmt.Sprintf("dq-%d", s.decisionSeq.Add(1))
+	ch := make(chan decisionAnswer, 1)
+	s.mu.Lock()
+	if s.decisionPending == nil {
+		s.decisionPending = map[string]decisionWait{}
+	}
+	proc := s.processForSessionLocked(sessionID)
+	if proc == nil || proc.stdin == nil {
+		s.mu.Unlock()
+		return "", s.sidecarMissingError(sessionID)
+	}
+	s.decisionPending[id] = decisionWait{ch: ch, proc: proc}
+	err := writeCommand(proc.stdin, map[string]any{
+		"action":         "decision_query",
+		"id":             id,
+		"conversationId": sessionID,
+		"systemPrompt":   systemPrompt,
+		"prompt":         prompt,
+	})
+	s.mu.Unlock()
+	if err != nil {
+		s.removeDecisionPending(id)
+		return "", err
+	}
+	select {
+	case answer := <-ch:
+		return answer.text, answer.err
+	case <-ctx.Done():
+		s.removeDecisionPending(id)
+		return "", ctx.Err()
+	}
+}
+
+func (s *Supervisor) removeDecisionPending(id string) {
+	s.mu.Lock()
+	delete(s.decisionPending, id)
+	s.mu.Unlock()
+}
+
+// resolveDecisionAnswer 把侧车回的 decision_answer 交给等待方；无人等待
+// （已超时）就丢弃。
+func (s *Supervisor) resolveDecisionAnswer(raw bridgeEvent) {
+	s.mu.Lock()
+	wait := s.decisionPending[raw.ID]
+	delete(s.decisionPending, raw.ID)
+	s.mu.Unlock()
+	if wait.ch == nil {
+		return
+	}
+	if msg := strings.TrimSpace(raw.Error); msg != "" {
+		wait.ch <- decisionAnswer{err: errors.New(msg)}
+		return
+	}
+	wait.ch <- decisionAnswer{text: raw.Text}
+}
+
+// failDecisionPending 在侧车进程退出时把这辆车的等待全部以错误收尾，
+// 等待方按各自语义 fail-open。
+func (s *Supervisor) failDecisionPending(process *childProcess) {
+	s.mu.Lock()
+	kept := map[string]decisionWait{}
+	for id, wait := range s.decisionPending {
+		if wait.proc == process {
+			wait.ch <- decisionAnswer{err: errors.New("sidecar stopped")}
+			continue
+		}
+		kept[id] = wait
+	}
+	s.decisionPending = kept
+	s.mu.Unlock()
 }
 
 // BindSessionKernel pins a conversation to Pi or DeepSeek Harness. The first
@@ -3326,6 +3421,10 @@ func (s *Supervisor) readEvents(kernel string, process *childProcess, stdout io.
 			go s.gateGuardAlarm(raw, kernel)
 			continue
 		}
+		if raw.Type == "decision_answer" {
+			s.resolveDecisionAnswer(raw)
+			continue
+		}
 		event := normalizeBridgeEvent(raw, kernel)
 		s.observeRuntimeEvent(event)
 		s.observeTurnLifecycle(raw, event)
@@ -3333,6 +3432,7 @@ func (s *Supervisor) readEvents(kernel string, process *childProcess, stdout io.
 	}
 
 	waitError := process.command.Wait()
+	s.failDecisionPending(process)
 	s.mu.Lock()
 	if len(s.retiring) > 0 {
 		kept := s.retiring[:0]
@@ -3802,7 +3902,7 @@ func (s *Supervisor) gateGuardAlarm(raw bridgeEvent, kernel string) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), guardJudgeTimeout)
 	defer cancel()
-	yes, err := judge(ctx, map[string]any{
+	yes, err := judge(ctx, raw.ID, map[string]any{
 		"repeatLine": raw.RepeatLine,
 		"reason":     raw.Reason,
 		"sample":     raw.Sample,
