@@ -135,7 +135,11 @@ export function chatWorkTotalsLabel(entries: readonly ChatActivityEntry[], think
 export function chatLiveActionLabel(entry: ChatActivityEntry) {
   const name = entry.toolName.trim().toLowerCase()
   const pill = agentToolChip(entry).pill.trim()
-  if (name === 'bash' || name === 'shell') return t('正在等命令', 'Waiting for the command')
+  if (name === 'bash' || name === 'shell') return t('正在运行命令', 'Running a command')
+  if (name === 'background' || name === 'bg_task') return t('正在管理后台任务', 'Managing a background task')
+  if (name === 'background_output' || name === 'bg_status') return t('正在查看后台任务', 'Checking a background task')
+  if (name === 'milksu_progress') return t('正在更新计划', 'Updating the plan')
+  if (name === 'milksu_workspace') return t('正在操作 MilkSU', 'Operating MilkSU')
   if (name === 'read') {
     return pill ? t(`正在读 ${pill}`, `Reading ${pill}`) : t('正在读文件', 'Reading a file')
   }
@@ -232,7 +236,6 @@ export function chatFoldModel(
   let liveLabel = ''
   if (live) {
     if (runningEntry) liveLabel = chatLiveActionLabel(runningEntry)
-    else if (thinkingRunning) liveLabel = t('正在思考', 'Thinking')
     else if (replying) liveLabel = t('正在回复', 'Replying')
   }
   return {

@@ -11,7 +11,7 @@ import {
   Undo2,
   X,
 } from 'lucide-react'
-import AgentPixelLoader from '@/components/AgentPixelLoader'
+import AgentLiveStatus from '@/components/AgentLiveStatus'
 import MarkdownContent from '@/components/MarkdownContent'
 import { formatDemoElapsed, messageSourceChips } from '@/lib/agentConversation'
 import { redactProviderCredentials } from '@/lib/redaction'
@@ -675,12 +675,7 @@ export default function ChatMessageItem({
             aria-expanded={thinkOpen}
             onClick={toggleThink}
           >
-            <AgentPixelLoader
-              label={thinkingLabel}
-              elapsed={thinkingElapsed}
-              running={thinkingRunning}
-            />
-            {thinkingRunning ? <span className="agent-think__pulse" aria-hidden="true" /> : null}
+            <AgentLiveStatus label={thinkingLabel} elapsed={thinkingElapsed} />
             {thinkingRunning && quietSeconds >= 3 ? (
               <span className="agent-think__quiet">
                 {t(`最近 ${quietSeconds}s 前有输出`, `Last output ${quietSeconds}s ago`)}
@@ -790,10 +785,9 @@ export default function ChatMessageItem({
           ) : null}
           {replyTicking && !message.content?.trim() ? (
             <p className="chat-model-loading">
-              <AgentPixelLoader
+              <AgentLiveStatus
                 label={t('正在回复', 'Replying')}
                 elapsed={replyElapsed}
-                running
               />
             </p>
           ) : null}

@@ -45,16 +45,6 @@ export type ChatTurnBlock = ChatMessageBlock | ChatActivityBlock
 
 export type ChatTranscriptBlock = ChatTurnBlock | ChatProcessFoldBlock | ChatImageBlock
 
-const commandTools = new Set([
-  'bash',
-  'background',
-  'background_output',
-  'bg_task',
-  'bg_status',
-])
-const mutationTools = new Set(['edit', 'write', 'lsp_fix'])
-const searchTools = new Set(['find', 'grep', 'ls', 'read'])
-const imageGenTools = new Set(['milksu_imagegen'])
 
 function isApproval(message: Message) {
   return Boolean(message.approvalRequestId)
@@ -499,13 +489,6 @@ export function processFoldStepCount(blocks: readonly ChatTurnBlock[]): number {
   return count
 }
 
-export function processFoldSummary(blocks: readonly ChatTurnBlock[]): string {
-  const messages = blocks.flatMap(block => (
-    block.kind === 'activity' ? block.messages : []
-  ))
-  if (!messages.length) return ''
-  return chatActivitySummary(messages)
-}
 
 function flushFoldableTurn(
   output: ChatTranscriptBlock[],
@@ -579,9 +562,6 @@ export function foldChatTranscriptProcess(blocks: ChatTranscriptBlock[]): ChatTr
   return next
 }
 
-function entryCount(entries: ChatActivityEntry[], tools: Set<string>) {
-  return entries.filter(entry => tools.has(entry.toolName)).length
-}
 
 // Stable v-memo references for one transcript block. A streaming turn only
 // replaces the message objects it touches, so keying on those references (not
@@ -612,32 +592,6 @@ export function chatTranscriptBlockMemoRefs(
   return refs
 }
 
-export function chatActivitySummary(messages: Message[]) {
-  const entries = buildChatActivityEntries(messages)
-  if (!entries.length) return t('正在思考', 'Thinking')
-
-  const architectureCount = entries.filter(entry => entry.toolName === 'milksu_archify').length
-  if (architectureCount) return t('处理架构图', 'Working on architecture diagram')
-  const worktreeCount = entries.filter(entry => entry.toolName === 'milksu_worktree').length
-  if (worktreeCount) return t('准备了隔离工作树', 'Prepared the isolated worktree')
-  const imageGenCount = entryCount(entries, imageGenTools)
-  if (imageGenCount) return imageGenCount > 1 ? t('处理了多张图片', 'Processed multiple images') : t('生成或编辑了图片', 'Generated or edited an image')
-
-  const mutations = entryCount(entries, mutationTools)
-  const commands = entryCount(entries, commandTools)
-  const searches = entryCount(entries, searchTools)
-  const parts: string[] = []
-
-  if (mutations) parts.push(t('编辑了文件', 'Edited files'))
-  if (commands) parts.push(commands > 1 ? t('运行了多个命令', 'Ran multiple commands') : t('运行了命令', 'Ran a command'))
-  if (!parts.length && searches) parts.push(t('读取并检索了项目', 'Read and searched the project'))
-  if (!parts.length) {
-    const toolName = entries[0]?.toolName ?? t('工具', 'tool')
-    parts.push(entries.length > 1 ? t('使用了多个工具', 'Used multiple tools') : t(`使用了 ${toolName}`, `Used ${toolName}`))
-  }
-
-  return parts.join('')
-}
 
 export function visibleChatActivityEntries(
   entries: ChatActivityEntry[],
@@ -701,90 +655,4 @@ export function buildChatActivityEntries(messages: Message[]): ChatActivityEntry
   }
 
   return entries
-}
-
-function compactLine(value: string, limit = 112) {
-  const line = value
-    .split(/\r?\n/)
-    .map(part => part.trim())
-    .find(Boolean)
-    ?.replace(/^[-*#>\s]+/, '')
-    .replace(/`/g, '')
-    ?? ''
-  if (line.length <= limit) return line
-  return `${line.slice(0, Math.max(0, limit - 1)).trimEnd()}…`
-}
-
-function usefulToolSubject(value: string) {
-  const subject = compactLine(value)
-  if (!subject || subject === '{}' || subject === '[]') return ''
-  if (/^[{[]/.test(subject)) return ''
-  return subject
-}
-
-function isChatActivityEntry(value: Message | ChatActivityEntry): value is ChatActivityEntry {
-  return 'request' in value || 'result' in value
-}
-
-export function chatActivityEntrySummary(messageOrEntry: Message | ChatActivityEntry) {
-  const isEntry = isChatActivityEntry(messageOrEntry)
-  const message: Message | undefined = isEntry
-    ? messageOrEntry.request ?? messageOrEntry.result
-    : messageOrEntry
-  if (!message) return t('使用工具', 'Using a tool')
-
-  const firstLine = compactLine(message.content)
-  if (message.role === 'assistant') return firstLine || t('整理下一步', 'Planning next step')
-
-  const name = isEntry
-    ? messageOrEntry.toolName
-    : String(message.toolName ?? 'tool').toLowerCase()
-  const writtenPath = name === 'write'
-    ? message.content.match(/Successfully wrote \d+ bytes to ([^\r\n]+)/)?.[1]
-    : undefined
-  const subject = writtenPath ?? usefulToolSubject(message.content)
-  const suffix = subject ? ` ${subject}` : ''
-  if (name === 'bash') {
-    return subject && (!isEntry || subject.startsWith('$'))
-      ? t(`运行 ${subject}`, `Run ${subject}`)
-      : t('运行命令', 'Run command')
-  }
-  if (name === 'background' || name === 'bg_task') return t(`管理后台任务${suffix}`, `Manage background task${suffix}`)
-  if (name === 'background_output' || name === 'bg_status') return t(`检查后台任务${suffix}`, `Check background task${suffix}`)
-  if (name === 'read') return t(`读取${suffix || '文件'}`, `Read${suffix || ' file'}`)
-  if (name === 'write') return t(`写入${suffix || '文件'}`, `Write${suffix || ' file'}`)
-  if (name === 'edit') return t(`编辑${suffix || '文件'}`, `Edit${suffix || ' file'}`)
-  if (name === 'ls') return t(`查看${suffix || '目录'}`, `List${suffix || ' directory'}`)
-  if (name === 'find') return t(`查找${suffix || '文件'}`, `Find${suffix || ' file'}`)
-  if (name === 'grep') return t(`搜索${suffix || '内容'}`, `Search${suffix || ' content'}`)
-  if (name === 'milksu_worktree') return t('创建隔离工作树并复制项目文件', 'Creating the isolated worktree and copying project files')
-  if (name === 'milksu_progress') return t('更新任务进度', 'Update task progress')
-  if (name === 'milksu_workspace') return subject || t('操作 MilkSU', 'Operate MilkSU')
-  if (name === 'env_status') return t('查看环境', 'Check environment')
-  if (name === 'env_start') return t('启动环境', 'Start environment')
-  if (name === 'env_reset') return t('重置环境', 'Reset environment')
-  if (name === 'env_stop') return t('停止环境', 'Stop environment')
-  if (name === 'prepare_computer_use_driver') return subject || t('准备 Computer Use Driver', 'Prepare Computer Use Driver')
-  if (name === 'milksu_archify') return t('处理架构图', 'Working on architecture diagram')
-  if (name === 'milksu_imagegen') {
-    const resultText = isEntry
-      ? String(messageOrEntry.result?.content ?? '')
-      : String(message.content ?? '')
-    if (/MilkSU ImageGen failed|MilkSU ImageGen Provider rejected|MilkSU ImageGen rejected|ImageGen is unavailable/i.test(resultText)) {
-      return t('生图失败', 'ImageGen failed')
-    }
-    let outputPath = ''
-    if (isEntry && messageOrEntry.result?.content) {
-      try {
-        outputPath = String(JSON.parse(messageOrEntry.result.content)?.output?.path ?? '')
-      } catch {
-        // Fall back to the bounded tool-start summary.
-      }
-    }
-    return outputPath
-      ? t(`交付图片 ${outputPath}`, `Delivered image ${outputPath}`)
-      : subject || t('处理图片', 'Process image')
-  }
-  const toolLabel = message.toolName ?? t('工具', 'tool')
-  return subject ? `${toolLabel} · ${subject}` : message.toolName ?? t('使用工具', 'Using a tool')
 }

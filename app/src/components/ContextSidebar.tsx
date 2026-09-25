@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { isComposingKey } from '@/lib/imeComposition'
 import AgentDecisionMark from '@/components/AgentDecisionMark'
 import { needsDecisionConversationIds as needsDecisionConversationIdsFrom } from '@/lib/needsDecision'
-import AgentPixelLoader from '@/components/AgentPixelLoader'
+import AgentLiveStatus from '@/components/AgentLiveStatus'
 import profileAvatar from '@/assets/ctf-learner-avatar.png'
 import { invokeCommand } from '@/desktop'
 import {
@@ -666,7 +666,7 @@ export default function ContextSidebar({
                 // 待决策优先于运行中：它同时在跑、又在等人拍板时，读者最需要知道的是“轮到我”。
                 <AgentDecisionMark />
               ) : runningConversationIds.has(conversation.id) ? (
-                <AgentPixelLoader label={t('运行中', 'Running')} running compact />
+                <AgentLiveStatus label={t('运行中', 'Running')} compact />
               ) : unreadConversationIds.has(conversation.id) ? (
                 <span className="coding-session-complete size-1.5 rounded-full bg-primary" aria-label={t('有新消息', 'New messages')} />
               ) : null}

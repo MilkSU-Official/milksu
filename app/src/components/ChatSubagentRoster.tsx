@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { UserRound } from 'lucide-react'
-import AgentPixelLoader from '@/components/AgentPixelLoader'
+import AgentLiveStatus from '@/components/AgentLiveStatus'
 import {
   Dialog,
   DialogContent,
@@ -77,9 +77,8 @@ export default function ChatSubagentRoster({
           <span className="agent-chip__meta shrink-0 text-caption tabular-nums text-muted-foreground">
             {task.durationMs !== undefined ? <span>{durationLabel(task.durationMs)}</span> : null}
             {task.status === 'start' || task.status === 'running' ? (
-              <AgentPixelLoader
+              <AgentLiveStatus
                 label={t('子任务进行中', 'Subtask running')}
-                running
               />
             ) : null}
           </span>

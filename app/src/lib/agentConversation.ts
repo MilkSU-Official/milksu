@@ -39,25 +39,132 @@ function basename(path: string) {
   return parts.at(-1) || trimmed
 }
 
+export type AgentToolIconKind =
+  | 'terminal'
+  | 'file'
+  | 'edit'
+  | 'folder'
+  | 'search'
+  | 'plan'
+  | 'image'
+  | 'layout'
+  | 'worktree'
+  | 'workspace'
+  | 'server'
+  | 'monitor'
+  | 'tool'
+
+const terminalToolNames = new Set([
+  'bash',
+  'background',
+  'background_output',
+  'bg_task',
+  'bg_status',
+])
+const backgroundPollToolNames = new Set(['background_output', 'bg_status'])
+const noPillToolNames = new Set([
+  'bash',
+  'background',
+  'background_output',
+  'bg_task',
+  'bg_status',
+  'milksu_progress',
+  'milksu_workspace',
+  'milksu_worktree',
+  'milksu_archify',
+  'env_status',
+  'env_start',
+  'env_reset',
+  'env_stop',
+  'prepare_computer_use_driver',
+])
+
+// Row label = 动作 | 对象. The action column is always localized; the subject
+// column is a distilled target (file name, cleaned search pattern), never the
+// raw command or model-authored text. Raw input stays in the expanded detail.
+export function toolActionLabel(name: string): string {
+  switch (name) {
+    case 'bash':
+      return t('运行命令', 'Run command')
+    case 'background':
+    case 'bg_task':
+      return t('后台任务', 'Background task')
+    case 'background_output':
+    case 'bg_status':
+      return t('查看后台', 'Check background')
+    case 'read':
+      return t('读取', 'Read')
+    case 'write':
+      return t('写入', 'Write')
+    case 'edit':
+      return t('编辑', 'Edit')
+    case 'lsp_fix':
+      return t('修复代码', 'Fix code')
+    case 'ls':
+      return t('查看目录', 'List directory')
+    case 'find':
+      return t('查找', 'Find')
+    case 'grep':
+      return t('搜索', 'Search')
+    case 'milksu_progress':
+      return t('更新计划', 'Update plan')
+    case 'milksu_workspace':
+      return t('操作 MilkSU', 'Operate MilkSU')
+    case 'milksu_worktree':
+      return t('隔离工作树', 'Isolated worktree')
+    case 'milksu_imagegen':
+      return t('生成图片', 'Generate image')
+    case 'milksu_archify':
+      return t('架构图', 'Architecture diagram')
+    case 'env_status':
+      return t('查看环境', 'Check environment')
+    case 'env_start':
+      return t('启动环境', 'Start environment')
+    case 'env_reset':
+      return t('重置环境', 'Reset environment')
+    case 'env_stop':
+      return t('停止环境', 'Stop environment')
+    case 'prepare_computer_use_driver':
+      return t('Computer Use', 'Computer Use')
+    default:
+      return name
+  }
+}
+
+export function agentToolIconKind(name: string): AgentToolIconKind {
+  if (terminalToolNames.has(name)) return 'terminal'
+  if (name === 'read') return 'file'
+  if (name === 'edit' || name === 'write' || name === 'lsp_fix') return 'edit'
+  if (name === 'ls' || name === 'find') return 'folder'
+  if (name === 'grep') return 'search'
+  if (name === 'milksu_progress') return 'plan'
+  if (name === 'milksu_imagegen') return 'image'
+  if (name === 'milksu_archify') return 'layout'
+  if (name === 'milksu_worktree') return 'worktree'
+  if (name === 'milksu_workspace') return 'workspace'
+  if (name.startsWith('env_')) return 'server'
+  if (name === 'prepare_computer_use_driver') return 'monitor'
+  return 'tool'
+}
+
+function truncatePill(value: string) {
+  return value.length > 64 ? `${value.slice(0, 63).trimEnd()}…` : value
+}
+
+// Grep patterns read better without regex escapes: `attachment\.held` shows as
+// `attachment.held`. Alternation stays intact, the row just carries keywords.
+function cleanSearchPattern(value: string) {
+  return truncatePill(
+    value
+      .replace(/\\(.)/g, '$1')
+      .replace(/\s+/g, ' ')
+      .trim(),
+  )
+}
+
 export function agentToolChip(entry: ChatActivityEntry): AgentToolChip {
   const name = entry.toolName
-  const verb = name === 'read'
-    ? 'Read'
-    : name === 'edit'
-      ? 'Edit'
-      : name === 'write'
-        ? 'Write'
-        : name === 'grep'
-          ? 'Grep'
-          : name === 'find'
-            ? 'Find'
-            : name === 'ls'
-              ? 'ls'
-              : name === 'bash'
-                ? 'bash'
-                : name === 'milksu_progress'
-                  ? 'Plan'
-                  : name
+  const verb = toolActionLabel(name)
   const source = firstLine(entry.request?.content || entry.result?.content || '')
     .replace(/^\$\s+/, '')
   const mutation = source.match(/^(.*?)\s+\+(\d+)\s+[-−](\d+)\s*$/)
@@ -77,12 +184,31 @@ export function agentToolChip(entry: ChatActivityEntry): AgentToolChip {
       add: Number(added[2]),
     }
   }
+  // The command itself stays in the expanded detail: a scan of the process
+  // list only needs the action, not the exact command line.
+  if (noPillToolNames.has(name)) {
+    if (name === 'bg_task' || name === 'background') {
+      const taskName = source.split(' · ')[1]?.trim()
+      return { verb, pill: taskName ? truncatePill(taskName) : '' }
+    }
+    if (backgroundPollToolNames.has(name)) {
+      const taskId = source.split(' · ')[1]?.trim()
+      return { verb, pill: taskId ? truncatePill(taskId) : '' }
+    }
+    return { verb, pill: '' }
+  }
+  if (name === 'milksu_imagegen') {
+    const outputPath = source.split(' · ')[1]?.trim()
+    return { verb, pill: outputPath ? basename(outputPath) : '' }
+  }
   const path = source.split(' · ')[0]?.trim() || source
+  if (name === 'grep') {
+    return { verb, pill: path ? cleanSearchPattern(path) : '' }
+  }
   const rawPill = name === 'read' || name === 'edit' || name === 'write' || name === 'ls'
     ? basename(path)
     : path
-  const pill = rawPill.length > 64 ? `${rawPill.slice(0, 63).trimEnd()}…` : rawPill
-  return { verb, pill }
+  return { verb, pill: truncatePill(rawPill) }
 }
 
 /** Beautiful UI Loading State timer: tenths of a second, then minutes. */

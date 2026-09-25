@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { agentFileDiffChips, agentToolChip, formatDemoElapsed, messageSourceChips, parseDiffPreview, thinkingSummary } from './agentConversation'
+import { agentFileDiffChips, agentToolChip, agentToolIconKind, formatDemoElapsed, messageSourceChips, parseDiffPreview, thinkingSummary } from './agentConversation'
 import type { ChatActivityEntry } from './chatActivity'
 
 function entry(toolName: string, content: string): ChatActivityEntry {
@@ -21,21 +21,36 @@ function entry(toolName: string, content: string): ChatActivityEntry {
 describe('agent conversation chips', () => {
   it('turns edit stats into a file pill', () => {
     expect(agentToolChip(entry('edit', 'src/greet.ts +12 -4'))).toEqual({
-      verb: 'Edit',
+      verb: '编辑',
       pill: 'greet.ts',
       add: 12,
       del: 4,
     })
   })
 
-  it('uses the command as the bash pill', () => {
-    expect(agentToolChip(entry('bash', '$ npm test')).pill).toBe('npm test')
+  it('keeps the bash command out of the row label', () => {
+    expect(agentToolChip(entry('bash', '$ npm test'))).toEqual({
+      verb: '运行命令',
+      pill: '',
+    })
   })
 
-  it('labels progress tools as Plan and truncates long pills', () => {
+  it('labels progress tools without leaking the model text', () => {
     const chip = agentToolChip(entry('milksu_progress', '只调查仓库根目录与 README 开头，确认项目定位，不修改任何文件。'))
-    expect(chip.verb).toBe('Plan')
-    expect(chip.pill.length).toBeLessThanOrEqual(64)
+    expect(chip.verb).toBe('更新计划')
+    expect(chip.pill).toBe('')
+  })
+
+  it('cleans grep escapes and keeps the pattern as the subject', () => {
+    expect(agentToolChip(entry('grep', 'attachment\\.held|heldAttachments · src')).pill)
+      .toBe('attachment.held|heldAttachments')
+  })
+
+  it('maps tool names to icon kinds', () => {
+    expect(agentToolIconKind('bash')).toBe('terminal')
+    expect(agentToolIconKind('grep')).toBe('search')
+    expect(agentToolIconKind('read')).toBe('file')
+    expect(agentToolIconKind('milksu_progress')).toBe('plan')
   })
 
   it('only lifts https markdown links into source chips', () => {

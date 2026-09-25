@@ -56,11 +56,9 @@ export default function ChatWorkFold({
 
   const totals = chatFoldElapsedLabel(model, now || Date.now())
   const running = model.thinkingRunning || Boolean(model.liveLabel)
-  const statusLabel = model.thinkingRunning
-    ? t('思考中', 'Thinking')
-    : model.liveLabel
-      ? t('进行中', 'Running')
-      : t('过程', 'Process')
+  const statusLabel = model.liveLabel
+    ? t('进行中', 'Running')
+    : t('过程', 'Process')
 
   return (
     <div className="agent-process mb-7">

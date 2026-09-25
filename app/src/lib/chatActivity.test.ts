@@ -7,8 +7,6 @@ import {
   visibleChatActivityEntries,
   buildChatTranscript,
   chatTranscriptBlockMemoRefs,
-  chatActivityEntrySummary,
-  chatActivitySummary,
   detailsToggleOpen,
   hasEmptyVisibleReply,
   latestFinishedThinkingId,
@@ -16,7 +14,6 @@ import {
   retainAssistantAfterEmptyCompletion,
   thinkingStaysOpen,
   processFoldStepCount,
-  processFoldSummary,
   settleRunningToolMessages,
   withoutBlankAssistantMessages,
 } from '@/lib/chatActivity'
@@ -121,8 +118,6 @@ describe('buildChatTranscript', () => {
     })
     expect(transcript[2]?.kind === 'message' && transcript[2].message.id).toBe('a3')
     expect(transcript[1]?.kind === 'process' && processFoldStepCount(transcript[1].blocks)).toBe(2)
-    expect(transcript[1]?.kind === 'process' && processFoldSummary(transcript[1].blocks))
-      .toBe('运行了命令')
   })
 
   it('collapses a work stretch without body text into one process fold', () => {
@@ -369,36 +364,7 @@ describe('buildChatTranscript', () => {
 })
 
 describe('activity labels', () => {
-  it('uses a Codex-like aggregate summary', () => {
-    expect(chatActivitySummary([
-      message('write', 'tool', 'src/app.ts', { toolName: 'write' }),
-      message('bash-1', 'tool', 'npm test', { toolName: 'bash' }),
-      message('bash-2', 'tool', 'npm run build', { toolName: 'bash' }),
-    ])).toBe('编辑了文件运行了多个命令')
-  })
-
-  it('summarizes a process fold from its tool group, not step count', () => {
-    const transcript = buildChatTranscript([
-      message('u1', 'user', '完成任务'),
-      message('t1', 'tool', '/repo', { toolName: 'read' }),
-      message('t2', 'tool', 'src/app.ts', { toolName: 'grep' }),
-      message('a1', 'assistant', '看完了。'),
-    ], false)
-    const process = transcript.find(block => block.kind === 'process')
-    expect(process?.kind === 'process' && processFoldSummary(process.blocks))
-      .toBe('读取并检索了项目')
-  })
-
-  it('summarizes individual rows without exposing their full output', () => {
-    expect(chatActivityEntrySummary(
-      message('bash', 'tool', 'npm test\n\nhundreds of lines', { toolName: 'bash' }),
-    )).toBe('运行 npm test')
-    expect(chatActivityEntrySummary(
-      message('assistant', 'assistant', '接下来检查构建结果。\n更多推理'),
-    )).toBe('接下来检查构建结果。')
-  })
-
-  it('summarizes ImageGen as a delivered project asset', () => {
+  it('pairs an ImageGen start and result into one delivered row', () => {
     const entries = buildChatActivityEntries([
       message('image-start', 'tool', '生成图片 · assets/hero.png · 1024x1024 · low', {
         toolName: 'milksu_imagegen',
@@ -413,10 +379,13 @@ describe('activity labels', () => {
         toolCallId: 'image-call',
       }),
     ])
-    expect(chatActivitySummary([
-      message('image-result', 'tool', '{}', { toolName: 'milksu_imagegen' }),
-    ])).toBe('生成或编辑了图片')
-    expect(chatActivityEntrySummary(entries[0]!)).toBe('交付图片 assets/hero.png')
+    expect(entries).toHaveLength(1)
+    expect(entries[0]).toMatchObject({
+      toolName: 'milksu_imagegen',
+      request: { id: 'image-start' },
+      result: { id: 'image-result' },
+      running: false,
+    })
   })
 
   it('shows a generated image in the thread and drops the delivery note', () => {
@@ -461,21 +430,6 @@ describe('activity labels', () => {
     expect(textOnly.some(block => block.kind === 'message' && block.message.content === '这是一只猫。')).toBe(true)
   })
 
-  it('summarizes ImageGen provider failures without pretending delivery', () => {
-    const entries = buildChatActivityEntries([
-      message('image-start', 'tool', '生成图片 · assets/miss.png · 1792x1024 · hd', {
-        toolName: 'milksu_imagegen',
-        toolCallId: 'image-fail',
-        status: 'running',
-      }),
-      message('image-result', 'tool', 'MilkSU ImageGen failed (400) for google/imagen-4.0-generate-001: invalid size. Retry with size 1024x1024.', {
-        toolName: 'milksu_imagegen',
-        toolCallId: 'image-fail',
-      }),
-    ])
-    expect(chatActivityEntrySummary(entries[0]!)).toBe('生图失败')
-  })
-
   it('pairs tool start and result events into one expandable row', () => {
     const entries = buildChatActivityEntries([
       message('ls-start', 'tool', '{}', { toolName: 'ls', status: 'running' }),
@@ -506,18 +460,6 @@ describe('activity labels', () => {
       durationMs: 1250,
       running: false,
     })
-    expect(chatActivityEntrySummary(entries[0]!)).toBe('查看目录')
-    expect(chatActivityEntrySummary(entries[1]!)).toBe('运行 $ npm test')
-    expect(chatActivityEntrySummary(
-      message('write-result', 'tool', 'Successfully wrote 12 bytes to src/app.ts', {
-        toolName: 'write',
-      }),
-    )).toBe('写入 src/app.ts')
-    expect(chatActivityEntrySummary(
-      message('background', 'tool', 'spawn · Vite · npm run dev', {
-        toolName: 'bg_task',
-      }),
-    )).toBe('管理后台任务 spawn · Vite · npm run dev')
   })
 
   it('pairs concurrent calls by Pi tool call id instead of tool name order', () => {

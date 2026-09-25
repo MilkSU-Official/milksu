@@ -1,5 +1,21 @@
 import { useMemo, useRef, type SyntheticEvent } from 'react'
-import AgentPixelLoader from '@/components/AgentPixelLoader'
+import {
+  AppWindow,
+  FileText,
+  Folder,
+  FolderTree,
+  Image,
+  LayoutDashboard,
+  Lightbulb,
+  Monitor,
+  PenLine,
+  Search,
+  Server,
+  Terminal,
+  Wrench,
+  type LucideIcon,
+} from 'lucide-react'
+import AgentLiveStatus from '@/components/AgentLiveStatus'
 import ChatSubagentRoster from '@/components/ChatSubagentRoster'
 import ChatWorkFold from '@/components/ChatWorkFold'
 import {
@@ -9,11 +25,27 @@ import {
   type ChatActivityBlock,
   type ChatActivityEntry,
 } from '@/lib/chatActivity'
-import { agentToolChip } from '@/lib/agentConversation'
+import { agentToolChip, agentToolIconKind } from '@/lib/agentConversation'
 import { subagentTasksForActivity } from '@/lib/subagentRoster'
 import type { ChatFoldModel } from '@/lib/chatWorkStatus'
 import { useT } from '@/hooks/useUiLocale'
 import type { SubagentTask } from '@/types'
+
+const TOOL_ICONS: Record<ReturnType<typeof agentToolIconKind>, LucideIcon> = {
+  terminal: Terminal,
+  file: FileText,
+  edit: PenLine,
+  folder: Folder,
+  search: Search,
+  plan: Lightbulb,
+  image: Image,
+  layout: LayoutDashboard,
+  worktree: FolderTree,
+  workspace: AppWindow,
+  server: Server,
+  monitor: Monitor,
+  tool: Wrench,
+}
 
 export default function ChatActivityGroup({
   activity,
@@ -90,6 +122,7 @@ export default function ChatActivityGroup({
         <div className="tool-activity__entries">
           {toolEntries.map(entry => {
             const chipValue = chip(entry)
+            const Icon = TOOL_ICONS[agentToolIconKind(entry.toolName)]
             return (
               <details
                 key={entry.id}
@@ -100,18 +133,7 @@ export default function ChatActivityGroup({
               >
                 <summary className="tool-activity-entry__summary agent-chip">
                   <span className="agent-chip__icon" aria-hidden="true">
-                    <svg className="agent-chip__glyph" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      {chipValue.verb === 'Edit' || chipValue.verb === 'Write' ? (
-                        <path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z" />
-                      ) : chipValue.verb === 'bash' ? (
-                        <path d="M4 17l6-5-6-5M12 19h8" />
-                      ) : (
-                        <g>
-                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                          <path d="M14 2v6h6" />
-                        </g>
-                      )}
-                    </svg>
+                    <Icon className="agent-chip__glyph" size={13} strokeWidth={2} />
                     <svg className="agent-chip__chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M6 9l6 6 6-6" />
                     </svg>
@@ -127,9 +149,8 @@ export default function ChatActivityGroup({
                   <span className="agent-chip__meta shrink-0 text-caption tabular-nums text-muted-foreground">
                     {entry.durationMs !== undefined ? <span>{durationLabel(entry.durationMs)}</span> : null}
                     {entry.running ? (
-                      <AgentPixelLoader
+                      <AgentLiveStatus
                         label={t('工具进行中', 'Tool running')}
-                        running
                       />
                     ) : null}
                   </span>

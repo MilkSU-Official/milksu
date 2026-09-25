@@ -7,7 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui'
-import AgentPixelLoader from '@/components/AgentPixelLoader'
+import AgentLiveStatus from '@/components/AgentLiveStatus'
 import { useT } from '@/hooks/useUiLocale'
 import {
   liveWorkingItems,
@@ -144,7 +144,7 @@ export default function WorkingTray({
           aria-label={capsuleLabel}
           onClick={() => setOpen(current => !current)}
         >
-          <AgentPixelLoader compact running />
+          <AgentLiveStatus compact />
           <span>{capsuleLabel}</span>
         </button>
       </div>

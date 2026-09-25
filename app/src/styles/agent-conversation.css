@@ -132,18 +132,35 @@
   filter: none;
 }
 
+/*
+ * 悬停动作行不占布局：hidden 状态下它若留在流内，每条消息底下会白留一行
+ * 33px 死空档。绝对定位挂到回合底缘，只活在悬停/聚焦时，且不拦截下面的点击。
+ */
+[data-agent-conversation] .agent-turn {
+  position: relative;
+}
+
 [data-agent-conversation] .agent-turn-actions {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  left: 0;
   display: flex;
   flex-wrap: wrap;
   gap: 0.7rem;
   margin-top: 0.35rem;
   opacity: 0;
+  pointer-events: none;
 }
 
 [data-agent-conversation] .agent-turn:hover .agent-turn-actions,
 [data-agent-conversation] .agent-turn:focus-within .agent-turn-actions,
 [data-agent-conversation] .agent-turn-actions--visible {
   opacity: 1;
+}
+
+[data-agent-conversation] .agent-turn-actions button {
+  pointer-events: auto;
 }
 
 [data-agent-conversation] .agent-turn--user .agent-turn-actions {
@@ -451,14 +468,56 @@
   margin-bottom: 0;
 }
 
-.agent-pixel-loader {
+.agent-live {
   display: inline-flex;
   align-items: center;
-  gap: 0.55rem;
+  gap: 0.45rem;
 }
 
-.agent-pixel-loader--compact {
+.agent-live--compact {
   gap: 0;
+}
+
+.agent-live__dot {
+  flex-shrink: 0;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: var(--agent-accent, var(--emphasis));
+}
+
+.agent-live--compact .agent-live__dot {
+  width: 0.4rem;
+  height: 0.4rem;
+}
+
+.agent-live__label {
+  color: var(--foreground);
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.agent-live__elapsed {
+  color: var(--muted-foreground);
+  font-family: var(--font-mono, ui-monospace, Menlo, monospace);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .agent-live__dot {
+    animation: agent-live-pulse 1.6s ease-in-out infinite;
+  }
+}
+
+@keyframes agent-live-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
 }
 
 .agent-pixel {
@@ -474,48 +533,16 @@
   border-radius: 1px;
   background: var(--foreground);
   opacity: 0.15;
-  animation: agent-pixel-on 650ms ease-in-out infinite;
 }
 
 .agent-pixel--decision .agent-pixel__cell {
   background: var(--warning);
   opacity: 1;
-  animation: none;
 }
 
 .agent-pixel__cell--hole {
   width: 4px;
   height: 4px;
-}
-
-[data-agent-conversation] .agent-pixel-loader__label {
-  font-size: 0.8rem;
-  font-weight: 500;
-}
-
-[data-agent-conversation] .agent-pixel-loader__label--run {
-  color: var(--foreground);
-}
-
-[data-agent-conversation] .agent-pixel-loader__elapsed {
-  color: var(--muted-foreground);
-  font-family: var(--font-mono, ui-monospace, Menlo, monospace);
-  font-size: 0.75rem;
-  font-variant-numeric: tabular-nums;
-}
-
-@keyframes agent-pixel-on {
-  0%,
-  100% {
-    opacity: 0.15;
-  }
-  18%,
-  42% {
-    opacity: 1;
-  }
-  62% {
-    opacity: 0.15;
-  }
 }
 
 [data-agent-conversation] .agent-stream-caret {
@@ -545,10 +572,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .agent-pixel__cell {
-    animation: none;
-  }
-
   [data-agent-conversation] .agent-stream-caret {
     animation: none;
   }
@@ -1857,34 +1880,11 @@
   color: var(--foreground);
 }
 
-/* Liveness indicator: compositor-only (opacity + transform), no JS re-render. */
-[data-agent-conversation] .agent-think__pulse {
-  width: 6px;
-  height: 6px;
-  flex-shrink: 0;
-  border-radius: 9999px;
-  background: currentColor;
-  opacity: 0.35;
-  animation: agent-think-pulse 1.6s ease-in-out infinite;
-}
-
 [data-agent-conversation] .agent-think__quiet {
   flex-shrink: 0;
   color: var(--muted-foreground);
   font-size: 0.72rem;
   font-variant-numeric: tabular-nums;
-}
-
-@keyframes agent-think-pulse {
-  0%,
-  100% {
-    opacity: 0.25;
-    transform: scale(0.8);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1);
-  }
 }
 
 /*
@@ -1896,7 +1896,7 @@
 .chat-column {
   --chat-edge-top: 0px;
   --chat-edge-bottom: 0px;
-  --chat-edge-feather: 28px;
+  --chat-edge-feather: 10px;
 }
 
 .chat-column__top {

@@ -9,9 +9,9 @@ const DECISION_RING_CENTER = 4
  *
  * 形态：**3×3 像素点阵、中心留空** ⇒ 8 个小方格雷成一圈、**琥珀色**。
  *
- * 尺寸复用 `AgentPixelLoader` 的网格（`.agent-pixel` = `repeat(3, 4px)` + `gap: 1.5px`；
- * `.agent-pixel__cell` = 4×4 + `border-radius: 1px`）。修饰类只改颜色：用现成的 `--warning`，
- * 并关掉运行中那条 650ms 逐格闪烁。中心空位占住一格，环的尺寸和 loader 一致。
+ * 尺寸来自共享网格类（`.agent-pixel` = `repeat(3, 4px)` + `gap: 1.5px`；
+ * `.agent-pixel__cell` = 4×4 + `border-radius: 1px`）。修饰类只改颜色：用现成的 `--warning`。
+ * 中心空位占住一格，环的尺寸不变。
  * 无障碍：`role="status"` + 双语 `aria-label`（这是状态，不是按钮）。
  */
 export default function AgentDecisionMark({ label }: { label?: string }) {

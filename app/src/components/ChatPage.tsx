@@ -60,7 +60,7 @@ import {
   TRANSCRIPT_WINDOW_CAP,
 } from '@/lib/transcriptWindow'
 import { isGeneratedScratchWorkspace } from '@/lib/codingConversationGroups'
-import AgentPixelLoader from '@/components/AgentPixelLoader'
+import AgentLiveStatus from '@/components/AgentLiveStatus'
 import AkLoadingMark from '@/components/AkLoadingMark'
 import ChatActivityGroup from '@/components/ChatActivityGroup'
 import ChatProcessFold from '@/components/ChatProcessFold'
@@ -2886,10 +2886,9 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
                 ) : null}
                 {waitingForModel && !compacting ? (
                   <p className="chat-model-loading">
-                    <AgentPixelLoader
+                    <AgentLiveStatus
                       label={t('模型回复中', 'Model is replying')}
                       elapsed={waitingElapsed}
-                      running
                     />
                   </p>
                 ) : null}
@@ -2941,9 +2940,8 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
               data-testid="context-compaction-status"
               role="status"
             >
-              <AgentPixelLoader
+              <AgentLiveStatus
                 label={t('正在整理上下文', 'Compacting context')}
-                running
               />
             </p>
           ) : compactionError ? (

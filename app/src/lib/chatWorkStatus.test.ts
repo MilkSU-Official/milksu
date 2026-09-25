@@ -94,7 +94,7 @@ describe('chatWorkStatus', () => {
     expect(model.liveLabel).toBe('')
   })
 
-  it('switches the live line to thinking when the tools have already finished', () => {
+  it('leaves the live line silent while the model is thinking', () => {
     applyUiLocale('zh')
     const transcript = buildChatTranscript([
       message('u1', 'user', '继续'),
@@ -108,7 +108,7 @@ describe('chatWorkStatus', () => {
     ], true)
     const process = transcript.find(block => block.kind === 'process')
     const model = chatFoldModel(transcript, process?.id ?? '', true)
-    expect(model.liveLabel).toBe('正在思考')
+    expect(model.liveLabel).toBe('')
     expect(chatWorkTotalsLabel(model.entries, model.thinkingMs)).toBe('1 个文件 · 1 次检索')
   })
 })
