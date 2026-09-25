@@ -94,9 +94,11 @@ import {
 } from "./bridge-browser-policy.js";
 import { isComputerUseMcpToolName } from "./bridge-computer-use-routing.js";
 import { disposeAgentSession } from "./bridge-session-lifecycle.js";
+import { answerDecisionQuery } from "../decision/query.js";
 import {
   forkFromMessage,
   lastForkPoint,
+  messageText,
   navigateFromUserMessage,
   rewindLastExploration,
 } from "./bridge-session-tree.js";
@@ -2803,10 +2805,32 @@ async function controlBackgroundTask(command) {
   }
 }
 
+async function handleDecisionQuery(command) {
+  const conversationId = String(command?.conversationId ?? "").trim();
+  const target = conversationId ? sessions.get(conversationId) : null;
+  if (!target?.model || typeof target?.modelRuntime?.completeSimple !== "function") {
+    emit(conversationId || null, "decision_answer", {
+      id: String(command?.id ?? "").trim(),
+      error: "session model is not ready",
+    });
+    return;
+  }
+  await answerDecisionQuery(command, {
+    emitEvent: (type, data) => emit(conversationId || null, type, data),
+    complete: context => target.modelRuntime.completeSimple(target.model, context, { reasoning: "low" }),
+    readText: messageText,
+  });
+}
+
 async function handleCommand(command) {
   switch (command.action) {
     case "create_session":
       await createSession(command);
+      break;
+    case "decision_query":
+      // 决策层主模型兜底：后端问这条会话的主模型一个轻量问题，不另开
+      // 内核、不在当轮顺口识别，答案原样回给后端解析。
+      void handleDecisionQuery(command);
       break;
     case "send_message":
       await sendMessage(command);

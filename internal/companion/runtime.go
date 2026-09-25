@@ -77,6 +77,11 @@ type Runtime struct {
 	sidecarGen atomic.Uint64
 	stale      atomic.Bool
 	inFlight   atomic.Bool
+	// decisionPending 是 decision_query 问答通道：queryModel 写命令进侧车，
+	// decision_answer 事件按查询 id 唤醒等待方；侧车退出时整批以错误收尾，
+	// 等待方按各自语义 fail-open。
+	decisionPending map[string]decisionWait
+	decisionSeq     atomic.Uint64
 	// persistHook runs after a state snapshot and before the file write,
 	// while persistMu is held. Tests use it to interleave a forget.
 	persistHook        func()
@@ -734,6 +739,86 @@ func (r *Runtime) writeEnsured(value any) error {
 	return r.write(value)
 }
 
+// decisionAnswer 是侧车 decision_query 的一次回答。
+type decisionAnswer struct {
+	text string
+	err  error
+}
+
+type decisionWait struct {
+	ch chan decisionAnswer
+}
+
+// queryModel 问看板娘侧车的主模型一个轻量问题（决策层兜底通道）。
+// completeSimple 不在当轮顺口识别，答案只回给调用方解析。决策层包只认
+// Completer 签名，这里把 Runtime 的问答通道适配进去。
+func (r *Runtime) queryModel(ctx context.Context, systemPrompt, prompt string) (string, error) {
+	id := fmt.Sprintf("dq-%d", r.decisionSeq.Add(1))
+	ch := make(chan decisionAnswer, 1)
+	r.mu.Lock()
+	if r.decisionPending == nil {
+		r.decisionPending = map[string]decisionWait{}
+	}
+	r.decisionPending[id] = decisionWait{ch: ch}
+	stdin := r.stdin
+	r.mu.Unlock()
+	if stdin == nil {
+		r.removeDecisionPending(id)
+		return "", fmt.Errorf("companion sidecar is not running")
+	}
+	if err := r.writeEnsured(map[string]any{
+		"action":       "decision_query",
+		"id":           id,
+		"systemPrompt": systemPrompt,
+		"prompt":       prompt,
+	}); err != nil {
+		r.removeDecisionPending(id)
+		return "", err
+	}
+	select {
+	case answer := <-ch:
+		return answer.text, answer.err
+	case <-ctx.Done():
+		r.removeDecisionPending(id)
+		return "", ctx.Err()
+	}
+}
+
+func (r *Runtime) removeDecisionPending(id string) {
+	r.mu.Lock()
+	delete(r.decisionPending, id)
+	r.mu.Unlock()
+}
+
+// resolveDecisionAnswer 把侧车回的 decision_answer 交给等待方；无人等待
+// （已超时）就丢弃。
+func (r *Runtime) resolveDecisionAnswer(raw map[string]any) {
+	id := strings.TrimSpace(stringValue(raw["id"]))
+	r.mu.Lock()
+	wait := r.decisionPending[id]
+	delete(r.decisionPending, id)
+	r.mu.Unlock()
+	if wait.ch == nil {
+		return
+	}
+	if msg := strings.TrimSpace(stringValue(raw["error"])); msg != "" {
+		wait.ch <- decisionAnswer{err: errors.New(msg)}
+		return
+	}
+	wait.ch <- decisionAnswer{text: strings.TrimSpace(stringValue(raw["text"]))}
+}
+
+// failDecisionPending 在侧车退出时把等待中的问答全部以错误收尾。
+func (r *Runtime) failDecisionPending() {
+	r.mu.Lock()
+	pending := r.decisionPending
+	r.decisionPending = map[string]decisionWait{}
+	r.mu.Unlock()
+	for _, wait := range pending {
+		wait.ch <- decisionAnswer{err: errors.New("companion sidecar stopped")}
+	}
+}
+
 func (r *Runtime) readEvents(stdout io.ReadCloser, gen uint64) {
 	defer stdout.Close()
 	scanner := bufio.NewScanner(stdout)
@@ -748,6 +833,10 @@ func (r *Runtime) readEvents(stdout io.ReadCloser, gen uint64) {
 		eventType := strings.TrimSpace(stringValue(raw["type"]))
 		if eventType == "companion_host" {
 			go r.answerHost(raw)
+			continue
+		}
+		if eventType == "decision_answer" {
+			r.resolveDecisionAnswer(raw)
 			continue
 		}
 		if eventType == "ready" {
@@ -781,6 +870,7 @@ func (r *Runtime) readEvents(stdout io.ReadCloser, gen uint64) {
 	r.inFlight.Store(false)
 	pending := r.takeAllParkedLocked()
 	r.mu.Unlock()
+	r.failDecisionPending()
 	r.finishParked(pending, "companion sidecar stopped")
 }
 
@@ -952,7 +1042,7 @@ func (r *Runtime) handleHost(action string, input map[string]any) (any, error) {
 		}
 		if strings.TrimSpace(stringValue(input["action"])) == "commit" {
 			ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
-			input = filterCommitInput(ctx, r.jevJudge(), input)
+			input = filterCommitInput(ctx, r.noulJudge(), input)
 			cancel()
 		}
 		result, err := r.memory.Handle(input)

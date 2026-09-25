@@ -1,6 +1,6 @@
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 
-function messageText(message) {
+export function messageText(message) {
   const content = message?.content;
   if (typeof content === "string") return content;
   if (!Array.isArray(content)) return "";

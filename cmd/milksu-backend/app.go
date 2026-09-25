@@ -28,10 +28,10 @@ import (
 	"github.com/MilkSU-Official/milksu/internal/conversation"
 	"github.com/MilkSU-Official/milksu/internal/ctf"
 	"github.com/MilkSU-Official/milksu/internal/ctfshow"
+	"github.com/MilkSU-Official/milksu/internal/decision"
 	"github.com/MilkSU-Official/milksu/internal/engine"
 	"github.com/MilkSU-Official/milksu/internal/envbroker"
 	"github.com/MilkSU-Official/milksu/internal/evalsuite"
-	"github.com/MilkSU-Official/milksu/internal/jev"
 	"github.com/MilkSU-Official/milksu/internal/lab"
 	"github.com/MilkSU-Official/milksu/internal/modelcatalog"
 	"github.com/MilkSU-Official/milksu/internal/modelusage"
@@ -203,13 +203,11 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 	application.engines = engine.NewSupervisor(application.emitEngineEvent)
 	application.engines.SetWorkspaceActionHandler(application.handleCodingWorkspaceAction)
 	application.engines.SetCodingBrowserLookup(application.lookupCodingBrowserDescriptor)
-	// 复读示警的决策判官：key 从设置读，没配就当没接线（引擎 fail-open 原样放行）。
-	application.engines.SetGuardJudge(func(ctx context.Context, state any, instructions string) (float64, error) {
-		settings := application.settings.Get()
-		if settings.Jev == nil || strings.TrimSpace(settings.Jev.APIKey) == "" {
-			return 0, errors.New("decision credential not configured")
-		}
-		return (&jev.Client{Key: settings.Jev.APIKey}).Noul(ctx, state, instructions)
+	// 复读示警的决策判官：全局决策层（Jev 优先、出警会话的主模型兜底），
+	// 两边都不通引擎 fail-open 原样放行。
+	application.engines.SetGuardJudge(func(ctx context.Context, sessionID string, state any, instructions string) (float64, error) {
+		yes, _, err := application.decisionLayerForSession(sessionID).Noul(ctx, state, instructions)
+		return yes, err
 	})
 	application.engines.SetAgentResourceResolver(func() engine.AgentResourceRuntime {
 		runtime := application.agentResources.Runtime()
@@ -495,25 +493,40 @@ func (a *App) GetSettings() config.AppSettings {
 	return a.settings.Get()
 }
 
+// decisionLayerForSession 拼一条会话的全局决策层：凭据从设置读，主模型
+// 兜底问到这条会话自己的侧车上（decision_query 问答通道）。
+func (a *App) decisionLayerForSession(sessionID string) *decision.Layer {
+	return &decision.Layer{
+		Key: func() string {
+			settings := a.settings.Get()
+			if settings.Jev == nil {
+				return ""
+			}
+			return settings.Jev.APIKey
+		},
+		Complete: func(ctx context.Context, systemPrompt, prompt string) (string, error) {
+			return a.engines.QuerySessionModel(ctx, sessionID, systemPrompt, prompt)
+		},
+	}
+}
+
 // JudgeApprovalRisk asks the decision layer for a 0..1 danger score of one
 // shell command (issue #117 scenario 2: millisecond risk scoring so the
 // approval bar can light its hint when the local regex misses dd/mkfs-style
-// commands, and drop the find-style false positive). No configured decision
-// credential is an ordinary error: the renderer then keeps the local verdict.
-func (a *App) JudgeApprovalRisk(command string) (float64, error) {
+// commands, and drop the find-style false positive). Any decision-layer
+// failure — no credential and no reachable session model — is an ordinary
+// error: the renderer then keeps the local verdict.
+func (a *App) JudgeApprovalRisk(command string, conversationID string) (float64, error) {
 	command = strings.TrimSpace(command)
 	if command == "" {
 		return 0, errors.New("command is required")
 	}
-	settings := a.settings.Get()
-	if settings.Jev == nil || strings.TrimSpace(settings.Jev.APIKey) == "" {
-		return 0, errors.New("decision credential not configured")
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
 	defer cancel()
-	return (&jev.Client{Key: settings.Jev.APIKey}).Noul(ctx, map[string]any{
+	score, _, err := a.decisionLayerForSession(conversationID).Noul(ctx, map[string]any{
 		"command": command,
 	}, "用户即将在自己的工作区执行这条 shell 命令。判断它是否可能破坏或泄露用户数据：不可逆删除/覆盖、向外部发送凭据或文件、修改系统关键配置。只读探查（ls、find、cat、grep、git status 等）一律不算高危。")
+	return score, err
 }
 
 // SetAccountModelCredential is called only by the Electron main process after

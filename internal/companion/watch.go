@@ -10,8 +10,8 @@ import (
 
 	"github.com/MilkSU-Official/milksu/internal/codingattachment"
 	"github.com/MilkSU-Official/milksu/internal/config"
+	"github.com/MilkSU-Official/milksu/internal/decision"
 	"github.com/MilkSU-Official/milksu/internal/engine"
-	"github.com/MilkSU-Official/milksu/internal/jev"
 )
 
 type watchedSession struct {
@@ -191,14 +191,26 @@ func (r *Runtime) taskEventsEnabled() bool {
 	return flag == nil || *flag
 }
 
-func (r *Runtime) routeDecision(prompt string) map[string]any {
-	settings := r.resolvedSettings()
-	if settings.Jev == nil || strings.TrimSpace(settings.Jev.APIKey) == "" {
-		return nil
+// decisionLayer 是这条 Runtime 的全局决策层：凭据从设置读，主模型兜底
+// 走看板娘侧车的 decision_query 问答通道。分档、记忆闸、开口闸都引用这
+// 一个 Layer，不各自实现兜底。
+func (r *Runtime) decisionLayer() *decision.Layer {
+	return &decision.Layer{
+		Key: func() string {
+			settings := r.resolvedSettings()
+			if settings.Jev == nil {
+				return ""
+			}
+			return settings.Jev.APIKey
+		},
+		Complete: r.queryModel,
 	}
+}
+
+func (r *Runtime) routeDecision(prompt string) map[string]any {
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
-	choice, err := (&jev.Client{Key: settings.Jev.APIKey}).Choice(ctx, strings.TrimSpace(prompt),
+	choice, source, err := r.decisionLayer().Choice(ctx, map[string]any{"prompt": strings.TrimSpace(prompt)},
 		"把这条用户消息分成且只分成一档。",
 		map[string]string{
 			"chat": "打招呼、闲谈或一句话就能回完的短问，不改文件，也不开新会话。",
@@ -213,24 +225,33 @@ func (r *Runtime) routeDecision(prompt string) map[string]any {
 	if bucket == "" {
 		return nil
 	}
-	return map[string]any{"bucket": bucket, "source": "jev"}
+	return map[string]any{"bucket": bucket, "source": string(source)}
 }
 
-func (r *Runtime) jevJudge() NoulJudge {
+// noulJudge 把全局决策层适配成闸函数的形状；决策层内部完成
+// Jev→主模型兜底，错误原样上交，闸按 fail-open 处理。凭据和侧车都不在
+// （什么也问不了）时返回 nil，闸按「没接线」照旧放行——和以前的
+// 未配凭据行为一致。
+func (r *Runtime) noulJudge() NoulJudge {
+	layer := r.decisionLayer()
 	settings := r.resolvedSettings()
-	if settings.Jev == nil || strings.TrimSpace(settings.Jev.APIKey) == "" {
+	hasKey := settings.Jev != nil && strings.TrimSpace(settings.Jev.APIKey) != ""
+	r.mu.Lock()
+	askable := r.stdin != nil
+	r.mu.Unlock()
+	if !hasKey && !askable {
 		return nil
 	}
-	client := &jev.Client{Key: settings.Jev.APIKey}
 	return func(ctx context.Context, state any, instructions string) (float64, error) {
-		return client.Noul(ctx, state, instructions)
+		yes, _, err := layer.Noul(ctx, state, instructions)
+		return yes, err
 	}
 }
 
 func (r *Runtime) maybeSpeak(id, title, kind, task string, images []string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
-	if !shouldSpeak(ctx, r.jevJudge(), title, kind, task) {
+	if !shouldSpeak(ctx, r.noulJudge(), title, kind, task) {
 		return
 	}
 	locale := config.ResolvedUserInterfaceLocale(r.resolvedSettings())

@@ -24,7 +24,7 @@ func TestKeepMemoryItemDropsFragments(t *testing.T) {
 		t.Fatal("a failed judge should not keep the item")
 	}
 	if !keepMemoryItem(context.Background(), nil, "改一下", item) {
-		t.Fatal("no judge should keep the item until a fallback exists")
+		t.Fatal("a nil judge means the wiring chose not to ask; keep the item")
 	}
 }
 
