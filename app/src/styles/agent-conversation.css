@@ -333,7 +333,7 @@
     color: transparent;
     animation:
       agent-activity-enter var(--motion-base) var(--ease-out) both,
-      agent-activity-sweep 1.6s linear infinite;
+      agent-activity-sweep 1.6s linear infinite alternate;
   }
 
   [data-agent-conversation] .agent-process__swap-leave {
@@ -352,8 +352,10 @@
 }
 
 @keyframes agent-activity-sweep {
+  /* Stay inside 0–100% so the 200%-wide gradient always covers the text;
+     outside that range the transparent text loses its background and vanishes. */
   from { background-position: 100% 0; }
-  to { background-position: -100% 0; }
+  to { background-position: 0% 0; }
 }
 
 @keyframes agent-activity-enter {

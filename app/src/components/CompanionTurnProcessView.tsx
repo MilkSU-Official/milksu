@@ -48,10 +48,6 @@ export default function CompanionTurnProcessView({
   const liveLabel = runningTool
     ? (componentDetail(runningTool) ? `${runningTool.title} ${componentDetail(runningTool)}` : runningTool.title)
     : ''
-  const latestComponent = [...process.components].reverse().find(component => component.kind === 'tool' || component.kind === 'thinking')
-  const latestLabel = liveLabel || (latestComponent
-    ? (componentDetail(latestComponent) ? `${latestComponent.title} ${componentDetail(latestComponent)}` : latestComponent.title)
-    : '')
   const statusLabel = live
     ? t('进行中', 'Running')
     : thinking?.running
@@ -86,8 +82,8 @@ export default function CompanionTurnProcessView({
           <span className={live ? 'companion-chat-process-activity' : undefined}>{summary || (thinking?.running ? t('正在思考', 'Thinking') : t('过程', 'Process'))}</span>
         </p>
       )}
-      {latestLabel ? (
-        <p className="companion-chat-process-live companion-chat-process-activity">{latestLabel}</p>
+      {liveLabel ? (
+        <p className="companion-chat-process-live companion-chat-process-activity">{liveLabel}</p>
       ) : null}
       {(!foldable || open) ? (
         <div className="companion-chat-process-body">

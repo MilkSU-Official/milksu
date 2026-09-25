@@ -25,7 +25,6 @@ export interface ChatFoldModel {
   thinkingRunning: boolean
   thinkingStartedAt?: number
   liveLabel: string
-  latestLabel: string
 }
 
 function toolMessages(block: ChatTranscriptBlock): Message[] {
@@ -174,13 +173,11 @@ export function chatFoldModel(
   const index = blocks.findIndex(block => block.id === blockId)
   const own = index >= 0 ? toolMessages(blocks[index]!) : []
   const ownEntries = buildChatActivityEntries(own)
-  const emptyLatest = ownEntries.length ? chatLiveActionLabel(ownEntries[ownEntries.length - 1]!) : ''
   const empty = {
     entries: ownEntries,
     thinkingMs: ownThinkingMs(index >= 0 ? blocks[index] : undefined),
     thinkingRunning: false,
     liveLabel: '',
-    latestLabel: emptyLatest,
   }
   if (index < 0) return empty
   const { start, end } = turnBounds(blocks, index)
@@ -238,15 +235,12 @@ export function chatFoldModel(
     else if (thinkingRunning) liveLabel = t('正在思考', 'Thinking')
     else if (replying) liveLabel = t('正在回复', 'Replying')
   }
-  const lastEntry = entries.length ? entries[entries.length - 1] : undefined
-  const latestLabel = liveLabel || (lastEntry ? chatLiveActionLabel(lastEntry) : '')
   return {
     entries,
     thinkingMs,
     thinkingRunning: live && thinkingRunning,
     thinkingStartedAt: live ? thinkingStartedAt : undefined,
     liveLabel,
-    latestLabel,
   }
 }
 

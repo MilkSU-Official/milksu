@@ -87,9 +87,7 @@ export default function ChatWorkFold({
         </summary>
         <div className="agent-process__body">{children}</div>
       </details>
-      {model.liveLabel || model.latestLabel ? (
-        <ChatActivitySwap label={model.liveLabel || model.latestLabel} />
-      ) : null}
+      {model.liveLabel ? <ChatActivitySwap label={model.liveLabel} /> : null}
     </div>
   )
 }

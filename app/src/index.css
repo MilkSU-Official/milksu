@@ -2512,7 +2512,7 @@ button.companion-chat-title {
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
-    animation: agent-activity-sweep 1.6s linear infinite;
+    animation: agent-activity-sweep 1.6s linear infinite alternate;
   }
 }
 
