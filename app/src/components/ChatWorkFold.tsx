@@ -55,6 +55,12 @@ export default function ChatWorkFold({
   }, [model.thinkingRunning, model.thinkingStartedAt])
 
   const totals = chatFoldElapsedLabel(model, now || Date.now())
+  const running = model.thinkingRunning || Boolean(model.liveLabel)
+  const statusLabel = model.thinkingRunning
+    ? t('思考中', 'Thinking')
+    : model.liveLabel
+      ? t('进行中', 'Running')
+      : t('过程', 'Process')
 
   return (
     <div className="agent-process mb-7">
@@ -71,11 +77,19 @@ export default function ChatWorkFold({
         }}
       >
         <summary className="agent-process__summary">
-          <span className="agent-process__totals">{totals || t('过程', 'Process')}</span>
+          <span
+            className="agent-process__status-dot"
+            data-running={running ? 'true' : 'false'}
+            aria-hidden="true"
+          />
+          <span className="agent-process__status">{statusLabel}</span>
+          {totals ? <span className="agent-process__totals">{totals}</span> : null}
         </summary>
         <div className="agent-process__body">{children}</div>
       </details>
-      {model.liveLabel ? <ChatActivitySwap label={model.liveLabel} /> : null}
+      {model.liveLabel || model.latestLabel ? (
+        <ChatActivitySwap label={model.liveLabel || model.latestLabel} />
+      ) : null}
     </div>
   )
 }

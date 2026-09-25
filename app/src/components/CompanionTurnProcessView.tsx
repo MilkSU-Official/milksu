@@ -18,7 +18,7 @@ function componentDetail(component: CompanionProcessComponent) {
 
 export default function CompanionTurnProcessView({
   process,
-  foldable = false,
+  foldable = true,
   defaultOpen = false,
 }: {
   process: CompanionTurnProcess
@@ -48,6 +48,15 @@ export default function CompanionTurnProcessView({
   const liveLabel = runningTool
     ? (componentDetail(runningTool) ? `${runningTool.title} ${componentDetail(runningTool)}` : runningTool.title)
     : ''
+  const latestComponent = [...process.components].reverse().find(component => component.kind === 'tool' || component.kind === 'thinking')
+  const latestLabel = liveLabel || (latestComponent
+    ? (componentDetail(latestComponent) ? `${latestComponent.title} ${componentDetail(latestComponent)}` : latestComponent.title)
+    : '')
+  const statusLabel = live
+    ? t('进行中', 'Running')
+    : thinking?.running
+      ? t('思考中', 'Thinking')
+      : t('过程', 'Process')
 
   return (
     <div className="companion-chat-process">
@@ -58,15 +67,27 @@ export default function CompanionTurnProcessView({
           aria-expanded={open}
           onClick={() => setOpen(current => !current)}
         >
+          <span
+            className="companion-chat-process-status-dot"
+            data-running={live ? 'true' : 'false'}
+            aria-hidden="true"
+          />
+          <span className="companion-chat-process-status">{statusLabel}</span>
           <span className={live ? 'companion-chat-process-activity' : undefined}>{summary || t('过程', 'Process')}</span>
         </button>
       ) : (
         <p className="companion-chat-process-summary companion-chat-process-summary-static">
+          <span
+            className="companion-chat-process-status-dot"
+            data-running={live ? 'true' : 'false'}
+            aria-hidden="true"
+          />
+          <span className="companion-chat-process-status">{statusLabel}</span>
           <span className={live ? 'companion-chat-process-activity' : undefined}>{summary || (thinking?.running ? t('正在思考', 'Thinking') : t('过程', 'Process'))}</span>
         </p>
       )}
-      {liveLabel ? (
-        <p className="companion-chat-process-live companion-chat-process-activity">{liveLabel}</p>
+      {latestLabel ? (
+        <p className="companion-chat-process-live companion-chat-process-activity">{latestLabel}</p>
       ) : null}
       {(!foldable || open) ? (
         <div className="companion-chat-process-body">

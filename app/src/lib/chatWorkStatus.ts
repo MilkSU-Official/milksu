@@ -25,6 +25,7 @@ export interface ChatFoldModel {
   thinkingRunning: boolean
   thinkingStartedAt?: number
   liveLabel: string
+  latestLabel: string
 }
 
 function toolMessages(block: ChatTranscriptBlock): Message[] {
@@ -149,6 +150,21 @@ export function chatLiveActionLabel(entry: ChatActivityEntry) {
   return t(`正在调用 ${verb}`, `Running ${verb}`)
 }
 
+function ownThinkingMs(block: ChatTranscriptBlock | undefined): number {
+  if (!block) return 0
+  const thoughts: Message[] = []
+  if (block.kind === 'message') thoughts.push(block.message)
+  if (block.kind === 'process') {
+    for (const inner of block.blocks) {
+      if (inner.kind === 'message') thoughts.push(inner.message)
+    }
+  }
+  return thoughts.reduce(
+    (sum, message) => sum + Math.max(0, message.thinkingDurationMs ?? 0),
+    0,
+  )
+}
+
 export function chatFoldModel(
   blocks: readonly ChatTranscriptBlock[],
   blockId: string,
@@ -157,11 +173,14 @@ export function chatFoldModel(
 ): ChatFoldModel {
   const index = blocks.findIndex(block => block.id === blockId)
   const own = index >= 0 ? toolMessages(blocks[index]!) : []
+  const ownEntries = buildChatActivityEntries(own)
+  const emptyLatest = ownEntries.length ? chatLiveActionLabel(ownEntries[ownEntries.length - 1]!) : ''
   const empty = {
-    entries: buildChatActivityEntries(own),
-    thinkingMs: 0,
+    entries: ownEntries,
+    thinkingMs: ownThinkingMs(index >= 0 ? blocks[index] : undefined),
     thinkingRunning: false,
     liveLabel: '',
+    latestLabel: emptyLatest,
   }
   if (index < 0) return empty
   const { start, end } = turnBounds(blocks, index)
@@ -183,14 +202,7 @@ export function chatFoldModel(
   let thinkingRunning = false
   let thinkingStartedAt: number | undefined
   let replying = false
-  for (let cursor = start; cursor < end; cursor += 1) {
-    const block = blocks[cursor]!
-    if (block.kind === 'activity' || block.kind === 'process') {
-      messages.push(...toolMessages(block))
-      continue
-    }
-    if (block.kind !== 'message' || block.message.role !== 'assistant') continue
-    const message = block.message
+  const accumulateThinking = (message: Message) => {
     if (message.thinkingStatus === 'running') {
       thinkingRunning = true
       const started = Number(message.timestamp)
@@ -198,7 +210,25 @@ export function chatFoldModel(
     } else if (String(message.thinking ?? '').trim() || message.thinkingDurationMs) {
       thinkingMs += Math.max(0, message.thinkingDurationMs ?? 0)
     }
-    if (message.status === 'running' && String(message.content ?? '').trim()) replying = true
+  }
+  for (let cursor = start; cursor < end; cursor += 1) {
+    const block = blocks[cursor]!
+    if (block.kind === 'activity' || block.kind === 'process') {
+      messages.push(...toolMessages(block))
+      // Finished thinking now folds into 过程 blocks, so its time has to be
+      // picked up from the nested message blocks as well.
+      if (block.kind === 'process') {
+        for (const inner of block.blocks) {
+          if (inner.kind === 'message' && inner.message.role === 'assistant') {
+            accumulateThinking(inner.message)
+          }
+        }
+      }
+      continue
+    }
+    if (block.kind !== 'message' || block.message.role !== 'assistant') continue
+    accumulateThinking(block.message)
+    if (block.message.status === 'running' && String(block.message.content ?? '').trim()) replying = true
   }
   const entries = buildChatActivityEntries(messages)
   const runningEntry = [...entries].reverse().find(entry => entry.running)
@@ -208,12 +238,15 @@ export function chatFoldModel(
     else if (thinkingRunning) liveLabel = t('正在思考', 'Thinking')
     else if (replying) liveLabel = t('正在回复', 'Replying')
   }
+  const lastEntry = entries.length ? entries[entries.length - 1] : undefined
+  const latestLabel = liveLabel || (lastEntry ? chatLiveActionLabel(lastEntry) : '')
   return {
     entries,
     thinkingMs,
     thinkingRunning: live && thinkingRunning,
     thinkingStartedAt: live ? thinkingStartedAt : undefined,
     liveLabel,
+    latestLabel,
   }
 }
 

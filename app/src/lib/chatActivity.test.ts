@@ -78,7 +78,7 @@ describe('buildChatTranscript', () => {
     ])
   })
 
-  it('keeps finished thinking in the open thread once a tool group exists', () => {
+  it('folds finished thinking into the process overview around tool work', () => {
     const transcript = buildChatTranscript([
       message('u1', 'user', '完成任务'),
       message('a1', 'assistant', '', {
@@ -102,27 +102,51 @@ describe('buildChatTranscript', () => {
 
     expect(transcript.map(block => block.kind)).toEqual([
       'message',
-      'message',
-      'message',
       'process',
       'message',
     ])
-    expect(transcript[1]?.kind === 'message' && transcript[1].message).toMatchObject({
+    expect(transcript[1]?.kind === 'process' && transcript[1].blocks.map(item => item.kind))
+      .toEqual(['message', 'message', 'activity'])
+    expect(transcript[1]?.kind === 'process' && transcript[1].blocks[0]?.kind === 'message'
+      && transcript[1].blocks[0].message).toMatchObject({
       id: 'a1',
       thinking: '先看仓库。',
       thinkingDurationMs: 800,
     })
-    expect(transcript[2]?.kind === 'message' && transcript[2].message).toMatchObject({
+    expect(transcript[1]?.kind === 'process' && transcript[1].blocks[1]?.kind === 'message'
+      && transcript[1].blocks[1].message).toMatchObject({
       id: 'a2',
       thinking: '再跑测试。',
       thinkingDurationMs: 500,
     })
-    expect(transcript[3]?.kind === 'process' && transcript[3].blocks.map(item => item.kind))
-      .toEqual(['activity'])
-    expect(transcript[4]?.kind === 'message' && transcript[4].message.id).toBe('a3')
-    expect(transcript[3]?.kind === 'process' && processFoldStepCount(transcript[3].blocks)).toBe(2)
-    expect(transcript[3]?.kind === 'process' && processFoldSummary(transcript[3].blocks))
+    expect(transcript[2]?.kind === 'message' && transcript[2].message.id).toBe('a3')
+    expect(transcript[1]?.kind === 'process' && processFoldStepCount(transcript[1].blocks)).toBe(2)
+    expect(transcript[1]?.kind === 'process' && processFoldSummary(transcript[1].blocks))
       .toBe('运行了命令')
+  })
+
+  it('collapses a work stretch without body text into one process fold', () => {
+    const transcript = buildChatTranscript([
+      message('u1', 'user', '排查问题'),
+      message('t1', 'tool', '/repo', { toolName: 'read' }),
+      message('a1', 'assistant', '', {
+        thinking: '再看测试。',
+        thinkingStatus: 'done',
+        thinkingDurationMs: 900,
+      }),
+      message('t2', 'tool', 'npm test', { toolName: 'bash' }),
+      message('a2', 'assistant', '', {
+        thinking: '还在想。',
+        thinkingStatus: 'done',
+        thinkingDurationMs: 2500,
+      }),
+      message('t3', 'tool', 'src/app.ts', { toolName: 'grep' }),
+      message('a3', 'assistant', '查完了。'),
+    ], false)
+
+    expect(transcript.map(block => block.kind)).toEqual(['message', 'process', 'message'])
+    expect(transcript[1]?.kind === 'process' && transcript[1].blocks.map(item => item.kind))
+      .toEqual(['activity', 'message', 'activity', 'message', 'activity'])
   })
 
   it('keeps each finished thinking row when no tools have started', () => {
@@ -153,16 +177,15 @@ describe('buildChatTranscript', () => {
     })
   })
 
-  it('keeps only the latest finished thinking open once the next result lands', () => {
+  it('keeps only the latest open-thread thinking row expanded', () => {
     const transcript = buildChatTranscript([
       message('u1', 'user', '完成任务'),
       message('a1', 'assistant', '', {
         thinking: '先看仓库。',
         thinkingStatus: 'done',
       }),
-      message('t1', 'tool', '/repo', { toolName: 'read' }),
       message('a2', 'assistant', '', {
-        thinking: '再跑测试。',
+        thinking: '再看测试。',
         thinkingStatus: 'done',
       }),
       message('a3', 'assistant', '', {

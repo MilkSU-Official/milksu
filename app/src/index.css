@@ -2428,13 +2428,36 @@ button.companion-chat-title {
   gap: 6px;
   max-width: 100%;
   margin: 0;
-  padding: 0;
+  padding: 4px 8px;
   border: 0;
-  background: transparent;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--muted) 50%, transparent);
   color: var(--muted-foreground);
   font-size: var(--text-caption);
   line-height: var(--text-caption--line-height);
   cursor: pointer;
+}
+
+.companion-chat-process-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--muted-foreground);
+  flex-shrink: 0;
+}
+
+.companion-chat-process-status-dot[data-running='true'] {
+  background: var(--emphasis);
+}
+
+.companion-chat-process-status {
+  flex-shrink: 0;
+  color: var(--foreground);
+  font-weight: 500;
+}
+
+.companion-chat-process-summary:hover {
+  background: color-mix(in srgb, var(--muted) 80%, transparent);
 }
 
 .companion-chat-process-summary-static {

@@ -226,17 +226,39 @@
 }
 
 [data-agent-conversation] .agent-process__summary {
-  display: flex;
+  display: inline-flex;
   width: fit-content;
   max-width: 100%;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.45rem;
   list-style: none;
   border-radius: var(--agent-control-radius);
-  padding: 0.15rem 0.35rem 0.15rem 0;
+  padding: 0.25rem 0.5rem 0.25rem 0.35rem;
   color: var(--muted-foreground);
   font-size: 0.8rem;
   cursor: pointer;
+  background: color-mix(in srgb, var(--muted) 50%, transparent);
+}
+
+[data-agent-conversation] .agent-process__status-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: var(--muted-foreground);
+}
+
+[data-agent-conversation] .agent-process__status-dot[data-running='true'] {
+  background: var(--agent-accent);
+}
+
+[data-agent-conversation] .agent-process__status {
+  flex-shrink: 0;
+  color: var(--foreground);
+  font-weight: 500;
+}
+
+[data-agent-conversation] .agent-process__summary:hover {
+  background: color-mix(in srgb, var(--muted) 80%, transparent);
 }
 
 [data-agent-conversation] .agent-process__summary::-webkit-details-marker {

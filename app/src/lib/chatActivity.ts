@@ -411,10 +411,17 @@ export function hasEmptyVisibleReply(messages: Message[], running: boolean) {
 type OpenTurnBlock = ChatTurnBlock | ChatImageBlock
 
 function isFoldableTurnBlock(block: OpenTurnBlock) {
-  // Finished tool groups fold into 过程. The generated picture stays in the
-  // thread. Thinking stays open too, including after it completes.
+  // Finished tool groups fold into 过程, and finished thinking folds in with
+  // them, so a work stretch without body text collapses into one overview
+  // instead of one fold per step. The generated picture stays in the thread.
+  // Running thinking and assistant text stay open too.
   if (block.kind === 'image') return false
   if (block.kind === 'activity') return !block.running
+  if (block.kind === 'message') {
+    return block.message.role === 'assistant'
+      && block.message.thinkingStatus !== 'running'
+      && isThinkingOnlyAssistant(block.message)
+  }
   return false
 }
 
@@ -514,14 +521,16 @@ function flushFoldableTurn(
     })
     return
   }
-  const merged = mergeProcessThinking(
-    foldables.filter((block): block is ChatTurnBlock => block.kind !== 'image'),
-  )
-  if (merged) output.push(messageBlock(merged))
+  // A thinking-only stretch without tool work stays in the open thread, one
+  // row per burst.
+  for (const block of foldables) {
+    if (block.kind === 'message') output.push(block)
+  }
 }
 
-// Finished tool groups go into 过程. Assistant text and thinking stay in the
-// open thread, so intermediate reasoning remains visible between tool groups.
+// Finished tool groups go into 过程, and finished thinking folds in with the
+// surrounding tool work, so a stretch without body text collapses into one
+// overview. Assistant text stays in the open thread between folds.
 // A still-running tool group stays outside the fold as work-in-progress.
 function foldTurnProcess(turn: OpenTurnBlock[]): ChatTranscriptBlock[] {
   const output: ChatTranscriptBlock[] = []
