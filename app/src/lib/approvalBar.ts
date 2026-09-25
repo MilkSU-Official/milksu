@@ -16,12 +16,20 @@ export function approvalBarIsDestructive({
   approvalInput?: string
   targetKinds?: string[]
 }): boolean {
-  const command = `${content ?? ''}\n${approvalInput ?? ''}`
-  return (
-    /(^|\s)(rm|find|unlink|shred)\b/.test(command)
-    || /\bxargs\b/.test(command)
+  return approvalKeywordDestructive(content, approvalInput)
     || targetKinds.some(kind => kind !== 'unknown')
-  )
+}
+
+/** 只有关键词正则那一段，且区分**硬删除**动词与**软命中**（find 只读，典型误报来源）。 */
+function approvalKeywordDestructive(content?: string, approvalInput?: string): boolean {
+  return approvalHardKeywordDestructive(content, approvalInput)
+    || /(^|\s)find\b/.test(`${content ?? ''}\n${approvalInput ?? ''}`)
+}
+
+/** 真删除/传递动词：rm、unlink、shred、xargs。决策层低风险分**无权**收掉这些命中。 */
+function approvalHardKeywordDestructive(content?: string, approvalInput?: string): boolean {
+  const command = `${content ?? ''}\n${approvalInput ?? ''}`
+  return /(^|\s)(rm|unlink|shred)\b/.test(command) || /\bxargs\b/.test(command)
 }
 
 /**
@@ -31,6 +39,47 @@ export function approvalBarIsDestructive({
  */
 export function approvalCanAllow(destructive: boolean, canAllow: boolean): boolean {
   return !destructive || canAllow
+}
+
+/** 决策层判高危的阈值（Noul >= 0.5 ⇒ 正则漏掉的 dd/mkfs 也亮提示）。 */
+export const APPROVAL_RISK_HIGH = 0.5
+/** 决策层判安全的阈值（Noul <= 0.2 且本地只是关键词误报 ⇒ 收掉提示；实测目标不动）。 */
+export const APPROVAL_RISK_LOW = 0.2
+
+/**
+ * 「范围未核验」提示的最终裁决 = 本地判定 + 决策层风险分（issue #117 场景二）。
+ *
+ * 决策层只影响**提示显隐**，不改变审批条本身——人在三档批准策略下照样拍板：
+ *   - 请求批准：每次弹条，提示更准（漏报的高危命令补上，find 类误报收掉）；
+ *   - 替我审批：被拦下来弹条的那部分（删除卡、外部账户等）同一套裁决；
+ *   - 完全访问：没有条可挂，决策层不介入（也不该给完全访问添摩擦）。
+ *
+ * 方向是**对称收窄**：risk 为 null（没配凭据/调用失败）⇒ 退回纯本地判定，行为与本 PR 之前一致。
+ */
+export function approvalHintVisible({
+  content,
+  approvalInput,
+  targetKinds = [],
+  canAllow,
+  risk,
+}: {
+  content?: string
+  approvalInput?: string
+  targetKinds?: string[]
+  canAllow: boolean
+  /** 决策层 0..1 风险分；null = 不可用。 */
+  risk?: number | null
+}): boolean {
+  const hasConcreteTarget = targetKinds.some(kind => kind !== 'unknown')
+  if (risk != null) {
+    if (risk >= APPROVAL_RISK_HIGH) return true
+    // 低风险只收**软命中误报**（find 这类只读词）；硬删除动词（rm/unlink/shred/xargs）
+    // 和实测目标（kind 不是 unknown）都是更高置信度的事实，决策层无权抹掉。
+    if (risk <= APPROVAL_RISK_LOW && !hasConcreteTarget && !approvalHardKeywordDestructive(content, approvalInput)) {
+      return false
+    }
+  }
+  return approvalBarIsDestructive({ content, approvalInput, targetKinds }) && !canAllow
 }
 
 /**

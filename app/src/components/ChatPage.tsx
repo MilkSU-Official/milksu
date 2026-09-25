@@ -1,6 +1,5 @@
 import {
-  approvalBarIsDestructive as approvalBarIsDestructiveFor,
-  approvalCanAllow as approvalCanAllowFrom,
+  approvalHintVisible,
   approvalSubmitAllowed,
   approvalTimeoutOutcome,
 } from '@/lib/approvalBar'
@@ -447,14 +446,35 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     content: pendingApprovalMessage?.content ?? '',
     approvalInput: pendingApprovalMessage?.approvalInput ?? '',
   }), [pendingApprovalMessage?.approvalInput, pendingApprovalMessage?.content])
-  const approvalBarIsDestructive = useMemo(() => approvalBarIsDestructiveFor({
+  const [approvalSubmitting, setApprovalSubmitting] = useState(false)
+  const [approvalError, setApprovalError] = useState('')
+  // 决策层风险分：只影响「范围未核验」提示的显隐，不改变审批条本身（三档批准策略照旧由人拍板）。
+  // null = 没配凭据或调用失败 ⇒ approvalHintVisible 退回纯本地判定。
+  const [approvalRisk, setApprovalRisk] = useState<number | null>(null)
+  const approvalRequestId = pendingApprovalMessage?.approvalRequestId ?? ''
+  useEffect(() => {
+    setApprovalRisk(null)
+    const command = `${pendingApprovalMessage?.content ?? ''}\n${pendingApprovalMessage?.approvalInput ?? ''}`.trim()
+    if (!approvalRequestId || !command || !settings?.jev?.has_api_key) return undefined
+    let stale = false
+    void invokeCommand<number>('judge_approval_risk', { command })
+      .then(score => {
+        if (!stale) setApprovalRisk(Number.isFinite(score) ? score : null)
+      })
+      .catch(() => {
+        if (!stale) setApprovalRisk(null)
+      })
+    return () => {
+      stale = true
+    }
+  }, [approvalRequestId, pendingApprovalMessage?.content, pendingApprovalMessage?.approvalInput, settings?.jev?.has_api_key])
+  const approvalHint = useMemo(() => approvalHintVisible({
     content: pendingApprovalMessage?.content,
     approvalInput: pendingApprovalMessage?.approvalInput,
     targetKinds: approvalAssessed.targets.map(target => target.kind),
-  }), [approvalAssessed.targets, pendingApprovalMessage?.approvalInput, pendingApprovalMessage?.content])
-  const approvalCanAllow = approvalCanAllowFrom(approvalBarIsDestructive, approvalAssessed.canAllow)
-  const [approvalSubmitting, setApprovalSubmitting] = useState(false)
-  const [approvalError, setApprovalError] = useState('')
+    canAllow: approvalAssessed.canAllow,
+    risk: approvalRisk,
+  }), [approvalAssessed.targets, approvalAssessed.canAllow, approvalRisk, pendingApprovalMessage?.approvalInput, pendingApprovalMessage?.content])
   const approvalSummary = String(pendingApprovalMessage?.toolName ?? pendingApprovalMessage?.content ?? '')
     .replace(/\s+/g, ' ')
     .trim()
@@ -2782,7 +2802,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
                   </span>
                 ) : approvalError ? (
                   <span className="shrink-0 text-caption text-destructive">{approvalError}</span>
-                ) : !approvalCanAllow ? (
+                ) : approvalHint ? (
                   <span className="shrink-0 text-caption font-medium text-destructive" data-testid="approval-bar-gate">
                     {t('范围未核验，仍可确认', 'Unverified scope; you can still confirm')}
                   </span>

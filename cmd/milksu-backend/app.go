@@ -31,6 +31,7 @@ import (
 	"github.com/MilkSU-Official/milksu/internal/engine"
 	"github.com/MilkSU-Official/milksu/internal/envbroker"
 	"github.com/MilkSU-Official/milksu/internal/evalsuite"
+	"github.com/MilkSU-Official/milksu/internal/jev"
 	"github.com/MilkSU-Official/milksu/internal/lab"
 	"github.com/MilkSU-Official/milksu/internal/modelcatalog"
 	"github.com/MilkSU-Official/milksu/internal/modelusage"
@@ -484,6 +485,27 @@ func (a *App) Shutdown(_ context.Context) {
 
 func (a *App) GetSettings() config.AppSettings {
 	return a.settings.Get()
+}
+
+// JudgeApprovalRisk asks the decision layer for a 0..1 danger score of one
+// shell command (issue #117 scenario 2: millisecond risk scoring so the
+// approval bar can light its hint when the local regex misses dd/mkfs-style
+// commands, and drop the find-style false positive). No configured decision
+// credential is an ordinary error: the renderer then keeps the local verdict.
+func (a *App) JudgeApprovalRisk(command string) (float64, error) {
+	command = strings.TrimSpace(command)
+	if command == "" {
+		return 0, errors.New("command is required")
+	}
+	settings := a.settings.Get()
+	if settings.Jev == nil || strings.TrimSpace(settings.Jev.APIKey) == "" {
+		return 0, errors.New("decision credential not configured")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
+	defer cancel()
+	return (&jev.Client{Key: settings.Jev.APIKey}).Noul(ctx, map[string]any{
+		"command": command,
+	}, "用户即将在自己的工作区执行这条 shell 命令。判断它是否可能破坏或泄露用户数据：不可逆删除/覆盖、向外部发送凭据或文件、修改系统关键配置。只读探查（ls、find、cat、grep、git status 等）一律不算高危。")
 }
 
 // SetAccountModelCredential is called only by the Electron main process after
