@@ -17,6 +17,7 @@
     "plugins:test": "node scripts/plugin-tools.mjs test",
     "plugins:dev": "node scripts/plugin-tools.mjs dev",
     "test:plugin-author": "node scripts/test-plugin-author-flow.mjs",
+    "prepare": "lefthook install",
     "postinstall": "patch-package && node sidecar/pi/prepare-reviewed-ts.mjs",
     "sidecar:build": "node scripts/package-sidecar.mjs build",
     "sidecar:smoke": "node scripts/package-sidecar.mjs smoke",
@@ -58,6 +59,7 @@
   },
   "devDependencies": {
     "esbuild": "0.28.1",
+    "lefthook": "^2.1.14",
     "patch-package": "8.0.1",
     "postcss": "8.5.25",
     "vitepress": "^1.6.4"

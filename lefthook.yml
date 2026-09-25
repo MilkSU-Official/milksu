@@ -1,0 +1,16 @@
+# Local pre-commit hooks: gofmt check and tests for changed Go packages.
+# lefthook installs these into .git/hooks on `npm install` (via `prepare`).
+pre-commit:
+  commands:
+    gofmt:
+      glob: '*.go'
+      run: |
+        unformatted=$(gofmt -l {staged_files})
+        if [ -n "$unformatted" ]; then
+          echo "$unformatted"
+          echo 'Staged Go files are not gofmt-clean.'
+          exit 1
+        fi
+    go-test:
+      glob: '*.go'
+      run: ./scripts/go-test-staged.sh {staged_files}

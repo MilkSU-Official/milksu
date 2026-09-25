@@ -121,6 +121,8 @@ npm --prefix app install
 npm run desktop:start
 ```
 
+`npm install` 会自动安装 lefthook 的 pre-commit hook。提交前它会检查 staged 的 Go 文件是否经过 `gofmt` 格式化，并对改动包运行 `go test`。
+
 提交前跑与改动对应的测试：`go test ./...`、`npm run test:sidecar`、`npm --prefix app run test`。
 
 开发入口：[当前开发目标](docs/developer/current-objectives.md)、[当前系统](docs/architecture/current-system.md)。
