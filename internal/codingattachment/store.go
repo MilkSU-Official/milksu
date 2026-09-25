@@ -66,6 +66,23 @@ func NewStore(root string) (*Store, error) {
 	return &Store{root: root}, nil
 }
 
+// prepareImportedData 是**所有入口**共用的“导入前准备”：把 iPhone 的 HEIC 照片换成 PNG
+// （只换容器，像素尺寸不变；磁盘上那张原图不动，库里只存一份副本）。
+//
+// 两条入口都要走它：文件选择器（Store.Import）与把字节交进来的那条（Store.ImportPayloads）——
+// 以前只有后者转，读者从选择器添加 HEIC 时会原样落库、发不出去。
+func prepareImportedData(name, mediaType string, data []byte) (string, string, []byte, error) {
+	if !LooksLikeHEIC(data) && !IsHEIFMediaType(mediaType) {
+		return name, mediaType, data, nil
+	}
+	converted, convertErr := ConvertHEICToPNG(data, nil)
+	if convertErr != nil {
+		// 诚实告知是哪张、为什么——不静默丢弃，也不偷偷发一张坏图。
+		return name, mediaType, data, fmt.Errorf("附件 %q 是 HEIC/HEIF 照片，无法在本机转成 PNG：%v", name, convertErr)
+	}
+	return PNGNameFor(name), "image/png", converted, nil
+}
+
 func (s *Store) Import(paths []string) ([]Attachment, error) {
 	if len(paths) > MaxCount {
 		return nil, fmt.Errorf("一次最多添加 %d 个附件", MaxCount)
@@ -103,7 +120,15 @@ func (s *Store) ImportPayloads(payloads []ImportPayload) ([]Attachment, error) {
 		if err != nil {
 			return nil, fmt.Errorf("附件 %q 的数据无效", payload.Name)
 		}
-		attachment, err := attachmentFromData(payload.Name, payload.MediaType, data)
+		name := payload.Name
+		mediaType := payload.MediaType
+		// 所有入口共用同一套准备（HEIC ⇒ PNG），见 prepareImportedData——
+		// 以前只有这条入口会转，从文件选择器进来的 HEIC 会原样落库。
+		name, mediaType, data, prepErr := prepareImportedData(name, payload.MediaType, data)
+		if prepErr != nil {
+			return nil, prepErr
+		}
+		attachment, err := attachmentFromData(name, mediaType, data)
 		if err != nil {
 			return nil, err
 		}
@@ -158,7 +183,13 @@ func readSource(sourcePath string) (Attachment, []byte, error) {
 		return Attachment{}, nil, fmt.Errorf("附件 %q 在读取时发生变化或大小无效", name)
 	}
 
-	attachment, err := attachmentFromData(name, "", data)
+	// 选择器进来的文件同样要准备（HEIC ⇒ PNG），否则它会原样落库、发不出去。
+	name, mediaType, data, prepErr := prepareImportedData(name, "", data)
+	if prepErr != nil {
+		return Attachment{}, nil, prepErr
+	}
+
+	attachment, err := attachmentFromData(name, mediaType, data)
 	return attachment, data, err
 }
 
