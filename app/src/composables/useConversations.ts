@@ -3597,6 +3597,17 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
               })
             }
           }
+        } else if (type === 'session.model_source_unavailable') {
+          const payload = event.payload as unknown as { notice?: string; message?: string }
+          const text = String(payload?.notice ?? payload?.message ?? '').trim()
+          if (text) pushEngineNotice(text)
+        } else if (type === 'guard.alarm') {
+          // 引擎的守卫示警（本条 PR 由思考复读护栏首次发出；以后别的守卫复用此名时，
+          // 载荷必须保持同一形状）：引擎给中英两句，这里按界面语言选一句 ⇒ 读者看得见（绝不静默吞掉）。
+          const payload = event.payload as unknown as { notice?: string; noticeEnglish?: string }
+          const chinese = String(payload?.notice ?? '').trim()
+          const english = String(payload?.noticeEnglish ?? '').trim()
+          if (chinese || english) pushEngineNotice(t(chinese || english, english || chinese))
         } else if (type === 'engine.error') {
           const erroredQueue = s.messageQueues.get(sessionId)
           if (erroredQueue?.steering.length) {
