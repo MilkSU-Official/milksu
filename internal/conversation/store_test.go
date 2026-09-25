@@ -109,6 +109,35 @@ func TestStoreGetReturnsTheSavedConversation(t *testing.T) {
 	}
 }
 
+func TestStoreSaveDoesNotReviveArchivedConversation(t *testing.T) {
+	store := &Store{directory: t.TempDir()}
+	value := StoredConversation{
+		ID:        "conversation-archive",
+		Title:     "已归档",
+		CreatedAt: 42,
+		Messages: []StoredMessage{{
+			ID: "message-1", Role: "user", Content: "保留上下文", Timestamp: 43,
+		}},
+	}
+	if err := store.Save(value); err != nil {
+		t.Fatalf("save conversation: %v", err)
+	}
+	if err := store.Archive(value.ID); err != nil {
+		t.Fatalf("archive conversation: %v", err)
+	}
+	value.Title = "应该被拒绝"
+	if err := store.Save(value); err == nil {
+		t.Fatal("expected save of archived conversation to fail")
+	}
+	active, err := store.List()
+	if err != nil || len(active) != 0 {
+		t.Fatalf("archived conversation revived: %#v, %v", active, err)
+	}
+	if err := store.Archive(value.ID); err != nil {
+		t.Fatalf("archive again: %v", err)
+	}
+}
+
 func TestStoreArchivesRestoresAndPermanentlyDeletesConversation(t *testing.T) {
 	store := &Store{directory: t.TempDir()}
 	want := StoredConversation{

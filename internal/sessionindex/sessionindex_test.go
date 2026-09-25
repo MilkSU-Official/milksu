@@ -142,6 +142,57 @@ func TestRefreshMilkSUConversationsIndexesSessionsToolsAndRedactsSecrets(t *test
 	}
 }
 
+func TestRefreshMilkSUConversationsLeavesUnrelatedSessionsInPlace(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "session-index", "obelisk.sqlite")
+	store, err := NewStore(path)
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+	store.Now = fixedNow
+	if _, err := store.RefreshMilkSUConversations(context.Background(), []conversation.StoredConversation{{
+		ID:        "keep",
+		Title:     "Keep",
+		CreatedAt: 1,
+		Messages: []conversation.StoredMessage{{
+			ID: "keep-1", Role: "user", Content: "keep this", Timestamp: 2,
+		}},
+	}, {
+		ID:        "drop",
+		Title:     "Drop",
+		CreatedAt: 3,
+		Messages: []conversation.StoredMessage{{
+			ID: "drop-1", Role: "user", Content: "drop this", Timestamp: 4,
+		}},
+	}}); err != nil {
+		t.Fatalf("seed refresh: %v", err)
+	}
+	if _, err := store.RefreshMilkSUConversations(context.Background(), []conversation.StoredConversation{{
+		ID:        "keep",
+		Title:     "Keep updated",
+		CreatedAt: 1,
+		Messages: []conversation.StoredMessage{{
+			ID: "keep-1", Role: "user", Content: "keep this", Timestamp: 2,
+		}},
+	}}); err != nil {
+		t.Fatalf("incremental refresh: %v", err)
+	}
+	if err := store.RemoveMilkSUConversation(context.Background(), "keep"); err != nil {
+		t.Fatalf("remove indexed conversation: %v", err)
+	}
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("open session index: %v", err)
+	}
+	defer db.Close()
+	var count int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM sessions WHERE id LIKE 'milksu:%'`).Scan(&count); err != nil {
+		t.Fatalf("count sessions: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("session count = %d, want 0", count)
+	}
+}
+
 func TestSearchFindsMilkSUIndexedHistory(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "session-index", "obelisk.sqlite")
 	store, err := NewStore(path)

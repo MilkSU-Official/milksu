@@ -178,7 +178,7 @@ type semanticEdgeDraft struct {
 	Confidence float64 `json:"confidence"`
 }
 
-func (s Store) BuildGraphContext(ctx context.Context, request GraphRequest, input GraphInput) (GraphContext, error) {
+func (s *Store) BuildGraphContext(ctx context.Context, request GraphRequest, input GraphInput) (GraphContext, error) {
 	request.Query = normalizeSpace(request.Query)
 	if request.Query == "" {
 		return GraphContext{}, fmt.Errorf("history graph query is required")

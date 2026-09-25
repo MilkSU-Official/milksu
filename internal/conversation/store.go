@@ -2,11 +2,13 @@ package conversation
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/MilkSU-Official/milksu/internal/appdata"
@@ -131,6 +133,7 @@ type StoredContextUsageCategory struct {
 
 type Store struct {
 	directory string
+	mu        sync.Mutex
 }
 
 func NewStore() (*Store, error) {
@@ -195,50 +198,56 @@ func (s *Store) archivedDirectory() string {
 }
 
 func (s *Store) Get(id string) (StoredConversation, error) {
-	if !validID.MatchString(id) {
-		return StoredConversation{}, fmt.Errorf("invalid conversation id")
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.getFromDirectory(s.directory, id)
+}
+
+func (s *Store) GetAny(id string) (StoredConversation, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	value, err := s.getFromDirectory(s.directory, id)
+	if err == nil {
+		return value, nil
 	}
-	data, err := os.ReadFile(filepath.Join(s.directory, id+".json"))
-	if err != nil {
-		return StoredConversation{}, fmt.Errorf("read conversation: %w", err)
+	archived, archivedErr := s.getFromDirectory(s.archivedDirectory(), id)
+	if archivedErr == nil {
+		return archived, nil
 	}
-	var value StoredConversation
-	if err := json.Unmarshal(data, &value); err != nil {
-		return StoredConversation{}, fmt.Errorf("decode conversation: %w", err)
-	}
-	if value.ID != id {
-		return StoredConversation{}, fmt.Errorf("conversation id does not match stored record")
-	}
-	value.Kernel = NormalizeKernel(value.Kernel)
-	return value, nil
+	return StoredConversation{}, err
 }
 
 func (s *Store) Save(value StoredConversation) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if !validID.MatchString(value.ID) {
 		return fmt.Errorf("invalid conversation id")
 	}
-	value.Kernel = NormalizeKernel(value.Kernel)
-	data, err := json.MarshalIndent(value, "", "  ")
-	if err != nil {
-		return fmt.Errorf("encode conversation: %w", err)
+	if _, err := os.Stat(filepath.Join(s.archivedDirectory(), value.ID+".json")); err == nil {
+		return fmt.Errorf("conversation is archived")
+	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("inspect archived conversation: %w", err)
 	}
-	path := filepath.Join(s.directory, value.ID+".json")
-	if err := os.WriteFile(path, data, 0o600); err != nil {
-		return fmt.Errorf("write conversation: %w", err)
-	}
-	if err := os.Chmod(path, 0o600); err != nil {
-		return fmt.Errorf("tighten conversation permissions: %w", err)
-	}
-	return nil
+	value.ArchivedAt = 0
+	return s.writeToDirectory(s.directory, value)
 }
 
 func (s *Store) Delete(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.deleteFromDirectory(s.directory, id)
 }
 
 // Archive and Restore move the record with a single rename so a conversation is
 // never listed in both places: the stamp is rewritten only after the move lands.
 func (s *Store) Archive(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, err := os.Stat(filepath.Join(s.archivedDirectory(), id+".json")); err == nil {
+		return s.stamp(s.archivedDirectory(), id, uint64(time.Now().UnixMilli()))
+	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("inspect archived conversation: %w", err)
+	}
 	if err := s.move(s.directory, s.archivedDirectory(), id); err != nil {
 		return err
 	}
@@ -246,6 +255,13 @@ func (s *Store) Archive(id string) error {
 }
 
 func (s *Store) Restore(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, err := os.Stat(filepath.Join(s.directory, id+".json")); err == nil {
+		return s.stamp(s.directory, id, 0)
+	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("inspect conversation: %w", err)
+	}
 	if err := s.move(s.archivedDirectory(), s.directory, id); err != nil {
 		return err
 	}
@@ -275,6 +291,8 @@ func (s *Store) stamp(directory, id string, archivedAt uint64) error {
 }
 
 func (s *Store) DeleteArchived(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.deleteFromDirectory(s.archivedDirectory(), id)
 }
 

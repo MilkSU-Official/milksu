@@ -996,6 +996,7 @@ type ConversationsState = {
   turnStatusById: Map<string, SessionTurnSnapshot>
   conversationActionError: string
   pendingComposerDraft: PendingComposerDraft | null
+  conversationActionIds: Set<string>
 }
 
 type ParkedPendingCanvas = {
@@ -1044,6 +1045,7 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
     turnStatusById: new Map<string, SessionTurnSnapshot>(),
     conversationActionError: '',
     pendingComposerDraft: null,
+    conversationActionIds: new Set<string>(),
   })
   const s = {
     get conversations() { return store.getState().conversations },
@@ -1104,6 +1106,8 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
     set conversationActionError(value) { store.setState({ conversationActionError: value }) },
     get pendingComposerDraft() { return store.getState().pendingComposerDraft },
     set pendingComposerDraft(value) { store.setState({ pendingComposerDraft: value }) },
+    get conversationActionIds() { return store.getState().conversationActionIds },
+    set conversationActionIds(value) { store.setState({ conversationActionIds: value }) },
   }
   const parkedPendingByHome: Partial<Record<WorkspaceHome, ParkedPendingCanvas>> = {}
   const heldSubagentSnapshots = new Map<string, SubagentTask[]>()
@@ -1306,6 +1310,7 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
   let unknownSessionReloadAt = 0
 
   function persist(conversation: Conversation) {
+    if (s.conversationActionIds.has(conversation.id)) return Promise.resolve()
     return invokeCommand('save_conversation', { conversation }).catch(console.error)
   }
 
@@ -1360,6 +1365,7 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
     if (existingTimer) window.clearTimeout(existingTimer)
     const timer = window.setTimeout(() => {
       saveTimers.delete(conversationId)
+      if (s.conversationActionIds.has(conversationId)) return
       const conversation = s.conversations.find(item => item.id === conversationId)
       if (conversation) persist(conversation)
     }, 400)
@@ -1372,6 +1378,7 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
     for (const timer of saveTimers.values()) window.clearTimeout(timer)
     saveTimers.clear()
     await Promise.all([...ids].map(async id => {
+      if (s.conversationActionIds.has(id)) return
       const conversation = s.conversations.find(item => item.id === id)
       if (!conversation) return
       await invokeCommand('save_conversation', { conversation })
@@ -1643,7 +1650,27 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
     clearComposerQuotes(key)
   }
 
+  function beginConversationAction(id: string) {
+    if (s.conversationActionIds.has(id)) return false
+    const nextIds = new Set(s.conversationActionIds)
+    nextIds.add(id)
+    s.conversationActionIds = nextIds
+    const existingTimer = saveTimers.get(id)
+    if (existingTimer) {
+      window.clearTimeout(existingTimer)
+      saveTimers.delete(id)
+    }
+    return true
+  }
+
+  function endConversationAction(id: string) {
+    const remaining = new Set(s.conversationActionIds)
+    remaining.delete(id)
+    s.conversationActionIds = remaining
+  }
+
   async function archive(id: string) {
+    if (!beginConversationAction(id)) return
     discardComposerMemory(id)
     await abortChildSessions(id)
     await runConversationAction(t('归档', 'Archive'), 'archive_conversation', id)
@@ -1651,6 +1678,7 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
   }
 
   async function remove(id: string) {
+    if (!beginConversationAction(id)) return
     discardComposerMemory(id)
     await abortChildSessions(id)
     await runConversationAction(t('删除', 'Delete'), 'delete_conversation', id)
@@ -1733,15 +1761,22 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
   }
 
   async function runConversationAction(action: string, command: string, id: string) {
+    const snapshot = s.conversations.find(item => item.id === id)
+    const wasActive = s.activeId === id
+    discard(id)
     s.conversationActionError = ''
     try {
       await invokeCommand(command, { id })
     } catch (cause) {
       const causeText = cause instanceof Error ? cause.message : String(cause)
       s.conversationActionError = t(`${action}失败：${causeText}`, `${action} failed: ${causeText}`)
-      return
+      if (snapshot && !s.conversations.some(item => item.id === id)) {
+        s.conversations = [snapshot, ...s.conversations]
+        if (wasActive && !s.activeId) s.activeId = id
+      }
+    } finally {
+      endConversationAction(id)
     }
-    discard(id)
   }
 
   function discard(id: string) {

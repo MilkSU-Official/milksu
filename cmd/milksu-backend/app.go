@@ -333,7 +333,7 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 			store:   application.conversations,
 			engines: application.engines,
 		},
-		Control: &supervisorControl{engines: application.engines},
+		Control:      &supervisorControl{engines: application.engines},
 		App:          &companionAppControl{app: application},
 		Emit:         application.emitCompanionEvent,
 		ImportImages: application.codingFiles.Import,
@@ -1068,11 +1068,17 @@ func (a *App) ListConversations() ([]conversation.StoredConversation, error) {
 
 func (a *App) SaveConversation(value conversation.StoredConversation) error {
 	value.Kernel = conversation.NormalizeKernel(value.Kernel)
-	existing, existedErr := a.conversations.Get(value.ID)
+	existing, existedErr := a.conversations.GetAny(value.ID)
+	if existedErr == nil && existing.ArchivedAt != 0 {
+		return nil
+	}
 	if existedErr == nil && conversation.HasStarted(existing) {
 		value.Kernel = conversation.NormalizeKernel(existing.Kernel)
 	}
 	if err := a.conversations.Save(value); err != nil {
+		if strings.Contains(err.Error(), "conversation is archived") {
+			return nil
+		}
 		return err
 	}
 	if existedErr != nil {
@@ -1102,36 +1108,57 @@ func (a *App) ArchiveConversation(id string) error {
 	if err := a.conversations.Archive(id); err != nil {
 		return err
 	}
-	return a.refreshConversationIndex()
+	a.notifyConversationsChanged()
+	a.dropIndexedConversation(id)
+	return nil
 }
 
 func (a *App) RestoreConversation(id string) error {
 	if err := a.conversations.Restore(id); err != nil {
 		return err
 	}
-	return a.refreshConversationIndex()
+	a.notifyConversationsChanged()
+	go a.refreshConversationIndexInBackground()
+	return nil
 }
 
 func (a *App) DeleteArchivedConversation(id string) error {
-	a.engines.DestroySession(id)
+	if a.engines != nil {
+		a.engines.DestroySession(id)
+	}
 	if err := a.stopConversationResources(id); err != nil {
 		return err
 	}
 	if err := a.conversations.DeleteArchived(id); err != nil {
 		return err
 	}
-	return a.refreshConversationIndex()
+	a.notifyConversationsChanged()
+	a.dropIndexedConversation(id)
+	return nil
 }
 
 func (a *App) DeleteConversation(id string) error {
-	a.engines.DestroySession(id)
+	if a.engines != nil {
+		a.engines.DestroySession(id)
+	}
 	if err := a.stopConversationResources(id); err != nil {
 		return err
 	}
 	if err := a.conversations.Delete(id); err != nil {
 		return err
 	}
-	return a.refreshConversationIndex()
+	a.notifyConversationsChanged()
+	a.dropIndexedConversation(id)
+	return nil
+}
+
+func (a *App) dropIndexedConversation(id string) {
+	if a == nil || a.sessionIndex == nil {
+		return
+	}
+	go func() {
+		_ = a.sessionIndex.RemoveMilkSUConversation(a.commandContext(), id)
+	}()
 }
 
 func (a *App) refreshConversationIndex() error {
@@ -1142,6 +1169,13 @@ func (a *App) refreshConversationIndex() error {
 	}
 	a.notifyConversationsChanged()
 	return nil
+}
+
+func (a *App) refreshConversationIndexInBackground() {
+	if a == nil || a.sessionIndex == nil {
+		return
+	}
+	_, _ = a.refreshSessionIndex()
 }
 
 func (a *App) stopConversationResources(id string) error {

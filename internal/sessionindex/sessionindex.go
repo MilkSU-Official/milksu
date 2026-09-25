@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 	"unicode/utf8"
@@ -27,11 +28,14 @@ const (
 	FactBoundary = "Obelisk 结果只是历史线索；CTF Judge/Evidence、CVE source snapshots、Coding tests/commits/screenshots 才能成为 MilkSU 正式档案。"
 
 	sourcePrefix = "milksu"
+
+	sessionIndexBusyTimeoutMS = 5000
 )
 
 type Store struct {
 	Path string
 	Now  func() time.Time
+	mu   sync.Mutex
 }
 
 type RefreshResult struct {
@@ -108,22 +112,18 @@ func NewStore(path string) (*Store, error) {
 	return store, nil
 }
 
-func (s Store) Ensure(ctx context.Context) error {
+func (s *Store) Ensure(ctx context.Context) error {
 	if strings.TrimSpace(s.Path) == "" {
 		return fmt.Errorf("session index path is required")
 	}
 	if err := os.MkdirAll(filepath.Dir(s.Path), 0o700); err != nil {
 		return fmt.Errorf("create session index directory: %w", err)
 	}
-	db, err := sql.Open("sqlite", s.Path)
+	db, err := openWritable(s.Path)
 	if err != nil {
 		return fmt.Errorf("open session index: %w", err)
 	}
 	defer db.Close()
-	db.SetMaxOpenConns(1)
-	if _, err := db.ExecContext(ctx, `PRAGMA foreign_keys = ON`); err != nil {
-		return fmt.Errorf("configure session index: %w", err)
-	}
 	for _, statement := range schemaStatements {
 		if _, err := db.ExecContext(ctx, statement); err != nil {
 			return fmt.Errorf("initialize session index schema: %w", err)
@@ -135,7 +135,7 @@ func (s Store) Ensure(ctx context.Context) error {
 	return nil
 }
 
-func (s Store) Status(ctx context.Context) (Status, error) {
+func (s *Store) Status(ctx context.Context) (Status, error) {
 	now := s.now()
 	status := Status{
 		Mode:         "milksu-obelisk-core",
@@ -180,16 +180,17 @@ func (s Store) Status(ctx context.Context) (Status, error) {
 	return status, nil
 }
 
-func (s Store) RefreshMilkSUConversations(ctx context.Context, values []conversation.StoredConversation) (RefreshResult, error) {
+func (s *Store) RefreshMilkSUConversations(ctx context.Context, values []conversation.StoredConversation) (RefreshResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if err := s.Ensure(ctx); err != nil {
 		return RefreshResult{}, err
 	}
-	db, err := sql.Open("sqlite", s.Path)
+	db, err := openWritable(s.Path)
 	if err != nil {
 		return RefreshResult{}, fmt.Errorf("open session index for refresh: %w", err)
 	}
 	defer db.Close()
-	db.SetMaxOpenConns(1)
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -197,13 +198,29 @@ func (s Store) RefreshMilkSUConversations(ctx context.Context, values []conversa
 	}
 	defer tx.Rollback()
 
-	for _, statement := range []string{
+	keepIDs := make([]any, 0, len(values))
+	keepPlaceholders := make([]string, 0, len(values))
+	for _, value := range values {
+		keepIDs = append(keepIDs, "milksu:"+value.ID)
+		keepPlaceholders = append(keepPlaceholders, "?")
+	}
+	clearStatements := []string{
 		`DELETE FROM tool_results WHERE session_id LIKE 'milksu:%'`,
 		`DELETE FROM tool_calls WHERE session_id LIKE 'milksu:%'`,
 		`DELETE FROM messages WHERE session_id LIKE 'milksu:%'`,
 		`DELETE FROM sessions WHERE id LIKE 'milksu:%'`,
-	} {
-		if _, err := tx.ExecContext(ctx, statement); err != nil {
+	}
+	if len(keepIDs) > 0 {
+		keepList := strings.Join(keepPlaceholders, ", ")
+		clearStatements = []string{
+			`DELETE FROM tool_results WHERE session_id LIKE 'milksu:%' AND session_id NOT IN (` + keepList + `)`,
+			`DELETE FROM tool_calls WHERE session_id LIKE 'milksu:%' AND session_id NOT IN (` + keepList + `)`,
+			`DELETE FROM messages WHERE session_id LIKE 'milksu:%' AND session_id NOT IN (` + keepList + `)`,
+			`DELETE FROM sessions WHERE id LIKE 'milksu:%' AND id NOT IN (` + keepList + `)`,
+		}
+	}
+	for _, statement := range clearStatements {
+		if _, err := tx.ExecContext(ctx, statement, keepIDs...); err != nil {
 			return RefreshResult{}, fmt.Errorf("clear MilkSU session index: %w", err)
 		}
 	}
@@ -215,72 +232,13 @@ func (s Store) RefreshMilkSUConversations(ctx context.Context, values []conversa
 		Source:    sourcePrefix,
 	}
 	for _, value := range values {
-		sessionID := "milksu:" + value.ID
-		source := sessionSource(value)
-		project := projectName(value.WorkspacePath)
-		startedAt := timestampToRFC3339(value.CreatedAt)
-		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO sessions(
-				id, title, project, project_path, started_at, ended_at, git_branch,
-				version, message_count, jsonl_path, source
-			) VALUES (?, ?, ?, ?, ?, '', '', '', ?, '', ?)
-		`, sessionID, fallback(value.Title, "MilkSU 会话"), project, value.WorkspacePath, startedAt,
-			len(value.Messages), source); err != nil {
-			return RefreshResult{}, fmt.Errorf("insert indexed session: %w", err)
+		sessionResult, err := upsertIndexedConversation(ctx, tx, value)
+		if err != nil {
+			return RefreshResult{}, err
 		}
-		result.SessionCount++
-		for _, message := range value.Messages {
-			messageID := "milksu:" + value.ID + ":" + message.ID
-			text := truncateIndexedText(RedactSnippet(message.Content))
-			skill := ""
-			if message.ToolName != nil {
-				skill = *message.ToolName
-			}
-			if _, err := tx.ExecContext(ctx, `
-				INSERT INTO messages(
-					uuid, session_id, type, parent_uuid, timestamp, role, text,
-					content_type, is_meta, visibility, model, is_sidechain, agent_id,
-					input_tokens, output_tokens, cwd, skill, turn_duration_ms, source
-				) VALUES (?, ?, ?, '', ?, ?, ?, 'text/plain', 0, 'visible', ?, 0, '', NULL, NULL, ?, ?, ?, ?)
-			`, messageID, sessionID, message.Role, timestampToRFC3339(message.Timestamp),
-				message.Role, text, value.ModelID, value.WorkspacePath, skill, durationMS(message), source); err != nil {
-				return RefreshResult{}, fmt.Errorf("insert indexed message: %w", err)
-			}
-			result.MessageCount++
-			if message.ToolName == nil {
-				continue
-			}
-			toolID := "milksu:" + value.ID + ":tool:" + message.ID
-			if message.ToolCallID != nil && strings.TrimSpace(*message.ToolCallID) != "" {
-				toolID = "milksu:" + value.ID + ":tool:" + *message.ToolCallID
-			}
-			inputJSON := "{}"
-			if message.ApprovalInput != nil && strings.TrimSpace(*message.ApprovalInput) != "" {
-				encoded, err := json.Marshal(map[string]string{
-					"approvalInput": truncateIndexedText(RedactSnippet(*message.ApprovalInput)),
-				})
-				if err == nil {
-					inputJSON = string(encoded)
-				}
-			}
-			if _, err := tx.ExecContext(ctx, `
-				INSERT OR REPLACE INTO tool_calls(
-					id, message_uuid, session_id, name, presentation, input_json, file_path
-				) VALUES (?, ?, ?, ?, 'default', ?, '')
-			`, toolID, messageID, sessionID, *message.ToolName, inputJSON); err != nil {
-				return RefreshResult{}, fmt.Errorf("insert indexed tool call: %w", err)
-			}
-			result.ToolCallCount++
-			if message.Role == "tool" {
-				if _, err := tx.ExecContext(ctx, `
-					INSERT OR REPLACE INTO tool_results(
-						tool_use_id, message_uuid, session_id, content, file_path, is_error
-					) VALUES (?, ?, ?, ?, '', ?)
-				`, toolID, messageID, sessionID, text, boolToInt(message.Status != nil && *message.Status == "error")); err != nil {
-					return RefreshResult{}, fmt.Errorf("insert indexed tool result: %w", err)
-				}
-			}
-		}
+		result.SessionCount += sessionResult.SessionCount
+		result.MessageCount += sessionResult.MessageCount
+		result.ToolCallCount += sessionResult.ToolCallCount
 	}
 	if _, err := tx.ExecContext(ctx, `
 		INSERT INTO index_state(jsonl_path, mtime, lines_processed, cursor)
@@ -298,7 +256,34 @@ func (s Store) RefreshMilkSUConversations(ctx context.Context, values []conversa
 	return result, nil
 }
 
-func (s Store) Search(ctx context.Context, request SearchRequest) (SearchResponse, error) {
+func (s *Store) RemoveMilkSUConversation(ctx context.Context, id string) error {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return fmt.Errorf("conversation id is required")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.Ensure(ctx); err != nil {
+		return err
+	}
+	db, err := openWritable(s.Path)
+	if err != nil {
+		return fmt.Errorf("open session index for remove: %w", err)
+	}
+	defer db.Close()
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin session index remove: %w", err)
+	}
+	defer tx.Rollback()
+	if err := deleteIndexedConversation(ctx, tx, id); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func (s *Store) Search(ctx context.Context, request SearchRequest) (SearchResponse, error) {
 	now := s.now()
 	query := normalizeSpace(request.Query)
 	if query == "" {
@@ -351,19 +336,39 @@ func (s Store) Search(ctx context.Context, request SearchRequest) (SearchRespons
 	return response, nil
 }
 
-func (s Store) now() time.Time {
+func (s *Store) now() time.Time {
 	if s.Now != nil {
 		return s.Now().UTC()
 	}
 	return time.Now().UTC()
 }
 
-func (s Store) populateCounts(ctx context.Context, db *sql.DB, status *Status) {
+func (s *Store) populateCounts(ctx context.Context, db *sql.DB, status *Status) {
 	status.SessionCount = countTable(ctx, db, "sessions")
 	status.MessageCount = countTable(ctx, db, "messages")
 	status.ToolCallCount = countTable(ctx, db, "tool_calls")
 	status.MemoryCount = countTable(ctx, db, "memories")
 	status.Sources = sourceCounts(ctx, db)
+}
+
+func openWritable(path string) (*sql.DB, error) {
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		return nil, err
+	}
+	db.SetMaxOpenConns(1)
+	for _, statement := range []string{
+		`PRAGMA busy_timeout = ` + fmt.Sprintf("%d", sessionIndexBusyTimeoutMS),
+		`PRAGMA journal_mode = WAL`,
+		`PRAGMA synchronous = NORMAL`,
+		`PRAGMA foreign_keys = ON`,
+	} {
+		if _, err := db.Exec(statement); err != nil {
+			db.Close()
+			return nil, err
+		}
+	}
+	return db, nil
 }
 
 func openReadOnly(path string) (*sql.DB, error) {
@@ -377,7 +382,100 @@ func openReadOnly(path string) (*sql.DB, error) {
 		return nil, err
 	}
 	db.SetMaxOpenConns(1)
+	if _, err := db.Exec(`PRAGMA busy_timeout = ` + fmt.Sprintf("%d", sessionIndexBusyTimeoutMS)); err != nil {
+		db.Close()
+		return nil, err
+	}
 	return db, nil
+}
+
+func upsertIndexedConversation(ctx context.Context, tx *sql.Tx, value conversation.StoredConversation) (RefreshResult, error) {
+	var result RefreshResult
+	sessionID := "milksu:" + value.ID
+	source := sessionSource(value)
+	project := projectName(value.WorkspacePath)
+	startedAt := timestampToRFC3339(value.CreatedAt)
+	if err := deleteIndexedConversation(ctx, tx, value.ID); err != nil {
+		return RefreshResult{}, err
+	}
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO sessions(
+			id, title, project, project_path, started_at, ended_at, git_branch,
+			version, message_count, jsonl_path, source
+		) VALUES (?, ?, ?, ?, ?, '', '', '', ?, '', ?)
+	`, sessionID, fallback(value.Title, "MilkSU 会话"), project, value.WorkspacePath, startedAt,
+		len(value.Messages), source); err != nil {
+		return RefreshResult{}, fmt.Errorf("insert indexed session: %w", err)
+	}
+	result.SessionCount++
+	for _, message := range value.Messages {
+		messageID := "milksu:" + value.ID + ":" + message.ID
+		text := truncateIndexedText(RedactSnippet(message.Content))
+		skill := ""
+		if message.ToolName != nil {
+			skill = *message.ToolName
+		}
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO messages(
+				uuid, session_id, type, parent_uuid, timestamp, role, text,
+				content_type, is_meta, visibility, model, is_sidechain, agent_id,
+				input_tokens, output_tokens, cwd, skill, turn_duration_ms, source
+			) VALUES (?, ?, ?, '', ?, ?, ?, 'text/plain', 0, 'visible', ?, 0, '', NULL, NULL, ?, ?, ?, ?)
+		`, messageID, sessionID, message.Role, timestampToRFC3339(message.Timestamp),
+			message.Role, text, value.ModelID, value.WorkspacePath, skill, durationMS(message), source); err != nil {
+			return RefreshResult{}, fmt.Errorf("insert indexed message: %w", err)
+		}
+		result.MessageCount++
+		if message.ToolName == nil {
+			continue
+		}
+		toolID := "milksu:" + value.ID + ":tool:" + message.ID
+		if message.ToolCallID != nil && strings.TrimSpace(*message.ToolCallID) != "" {
+			toolID = "milksu:" + value.ID + ":tool:" + *message.ToolCallID
+		}
+		inputJSON := "{}"
+		if message.ApprovalInput != nil && strings.TrimSpace(*message.ApprovalInput) != "" {
+			encoded, err := json.Marshal(map[string]string{
+				"approvalInput": truncateIndexedText(RedactSnippet(*message.ApprovalInput)),
+			})
+			if err == nil {
+				inputJSON = string(encoded)
+			}
+		}
+		if _, err := tx.ExecContext(ctx, `
+			INSERT OR REPLACE INTO tool_calls(
+				id, message_uuid, session_id, name, presentation, input_json, file_path
+			) VALUES (?, ?, ?, ?, 'default', ?, '')
+		`, toolID, messageID, sessionID, *message.ToolName, inputJSON); err != nil {
+			return RefreshResult{}, fmt.Errorf("insert indexed tool call: %w", err)
+		}
+		result.ToolCallCount++
+		if message.Role == "tool" {
+			if _, err := tx.ExecContext(ctx, `
+				INSERT OR REPLACE INTO tool_results(
+					tool_use_id, message_uuid, session_id, content, file_path, is_error
+				) VALUES (?, ?, ?, ?, '', ?)
+			`, toolID, messageID, sessionID, text, boolToInt(message.Status != nil && *message.Status == "error")); err != nil {
+				return RefreshResult{}, fmt.Errorf("insert indexed tool result: %w", err)
+			}
+		}
+	}
+	return result, nil
+}
+
+func deleteIndexedConversation(ctx context.Context, tx *sql.Tx, id string) error {
+	sessionID := "milksu:" + id
+	for _, statement := range []string{
+		`DELETE FROM tool_results WHERE session_id = ?`,
+		`DELETE FROM tool_calls WHERE session_id = ?`,
+		`DELETE FROM messages WHERE session_id = ?`,
+		`DELETE FROM sessions WHERE id = ?`,
+	} {
+		if _, err := tx.ExecContext(ctx, statement, sessionID); err != nil {
+			return fmt.Errorf("delete indexed conversation: %w", err)
+		}
+	}
+	return nil
 }
 
 func tableExists(ctx context.Context, db *sql.DB, name string) bool {
