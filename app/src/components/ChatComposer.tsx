@@ -295,6 +295,7 @@ const COMPOSER_STYLES = `
 .chat-composer__pill {
   grid-column: 1 / -1;
   grid-row: 1;
+  align-self: stretch;
   z-index: 0;
   min-height: 40px;
   border-radius: 999px;
