@@ -3549,3 +3549,95 @@ func TestNormalizeBridgeEventPassesStatusNoticesThrough(t *testing.T) {
 		t.Fatalf("type = %q, want engine.raw.something_new", unknown.Type)
 	}
 }
+
+func TestSendMessageHonorsCapabilitySwitches(t *testing.T) {
+	descriptor := &CodingBrowserDescriptor{
+		SessionID:   "browser_switchcheck1",
+		CDPEndpoint: "http://127.0.0.1:9222",
+	}
+	mcpServers := []string{
+		"milksu-playwright",
+		"milksu-playwright-user",
+		"milksu-computer-use",
+		"user-server",
+	}
+
+	send := func(t *testing.T, settings config.AppSettings) map[string]any {
+		t.Helper()
+		reader, writer, err := os.Pipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer reader.Close()
+		defer writer.Close()
+		workspace, err := resolveAgentWorkspace(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		supervisor := NewSupervisor(nil)
+		supervisor.process = &childProcess{
+			stdin:     writer,
+			workspace: workspace,
+		}
+		defer func() {
+			supervisor.mu.Lock()
+			supervisor.process = nil
+			supervisor.sessions = make(map[string]struct{})
+			supervisor.mu.Unlock()
+		}()
+		if err := supervisor.SendMessage(
+			"session-capability-switches",
+			"check the switches",
+			workspace,
+			"",
+			"go",
+			"workspace-auto",
+			mcpServers,
+			"",
+			descriptor,
+			nil,
+			nil,
+			nil,
+			settings,
+		); err != nil {
+			t.Fatal(err)
+		}
+		line, err := bufio.NewReader(reader).ReadBytes('\n')
+		if err != nil {
+			t.Fatal(err)
+		}
+		var command map[string]any
+		if err := json.Unmarshal(line, &command); err != nil {
+			t.Fatal(err)
+		}
+		return command
+	}
+
+	t.Run("switches off strip descriptors and reserved MCP servers", func(t *testing.T) {
+		off := false
+		settings := modelSelectionSettings()
+		settings.ComputerUseEnabled = &off
+		settings.BrowserUseEnabled = &off
+		settings.CodingBrowserEnabled = &off
+		command := send(t, settings)
+		if _, exists := command["codingBrowser"]; exists {
+			t.Fatalf("disabled coding browser still attached: %#v", command)
+		}
+		servers, _ := command["mcpServers"].([]any)
+		if len(servers) != 1 || servers[0] != "user-server" {
+			t.Fatalf("reserved MCP servers not stripped: %#v", command["mcpServers"])
+		}
+	})
+
+	t.Run("switches on keep descriptors and MCP servers", func(t *testing.T) {
+		settings := modelSelectionSettings()
+		command := send(t, settings)
+		if _, exists := command["codingBrowser"]; !exists {
+			t.Fatalf("enabled coding browser lost from command: %#v", command)
+		}
+		servers, _ := command["mcpServers"].([]any)
+		if len(servers) != len(mcpServers) {
+			t.Fatalf("default switches must keep every MCP server: %#v", command["mcpServers"])
+		}
+	})
+}

@@ -508,6 +508,7 @@ body {
 
 header.settings-page-header {
   margin-left: var(--shell-chrome-overhang, 0px);
+  margin-right: var(--shell-chrome-overhang, 0px);
   padding-left: 1.25rem;
 }
 

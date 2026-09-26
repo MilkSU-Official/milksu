@@ -152,7 +152,7 @@ export const CASES = {
   'profile-tabs': item('profile-tabs', '资料页 CTF/CVE/Coding', 'account-shell'),
   update: item('update', '客户端更新', 'account-shell'),
 
-  'settings-nav': item('settings-nav', '十七个设置分类', 'settings-rest'),
+  'settings-nav': item('settings-nav', '十六个设置分类', 'settings-rest'),
   'settings-account': item('settings-account', '设置账号', 'settings-rest'),
   'settings-appearance': item('settings-appearance', '设置外观', 'settings-rest'),
   'settings-general': item('settings-general', '通用', 'settings-rest'),
@@ -166,7 +166,7 @@ export const CASES = {
   'settings-mcp': item('settings-mcp', 'MCP', 'settings-rest'),
   'settings-chats': item('settings-chats', '归档聊天', 'settings-rest'),
   'settings-memory': item('settings-memory', '记忆', 'settings-rest'),
-  'settings-browser': item('settings-browser', '浏览器', 'settings-rest'),
+  'settings-browser': item('settings-browser', '外部浏览器管理', 'settings-rest'),
   'settings-eval': item('settings-eval', '评测', 'settings-rest'),
   'settings-companion': item('settings-companion', '设置看板娘', 'settings-rest'),
   'settings-plugins': item('settings-plugins', '插件', 'settings-rest'),

@@ -486,6 +486,7 @@ interface DesktopAppBindings {
   ): Promise<CodingBrowserStatus>
   EnsureCodingBrowser(conversationId: string): Promise<CodingBrowserStatus>
   GetCodingBrowserStatus(conversationId: string): Promise<CodingBrowserStatus>
+  GetCodingBrowserOverview(): Promise<CodingBrowserStatus[]>
   SetCodingBrowserViewport(
     conversationId: string,
     x: number,
@@ -1215,6 +1216,8 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.GetCodingBrowserStatus(
           args?.conversationId as string,
         ) as Promise<T>
+      case 'get_coding_browser_overview':
+        return app.GetCodingBrowserOverview() as Promise<T>
       case 'set_coding_browser_viewport':
         return app.SetCodingBrowserViewport(
           args?.conversationId as string,

@@ -366,6 +366,10 @@ export interface AppSettings {
   active_model: string
   default_kernel?: import('@/lib/agentKernel').AgentKernel
   busy_send?: BusySendPolicy
+  /** 权限与操控的总开关：缺省视为开启。 */
+  computer_use_enabled?: boolean
+  browser_use_enabled?: boolean
+  coding_browser_enabled?: boolean
   model_verification?: ModelVerification
   /** The most recent real failure per model, for the picker's red mark. Never a disable list. */
   model_failures?: Array<{ provider: string; model: string; reason?: string; at?: string }>

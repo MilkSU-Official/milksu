@@ -1059,3 +1059,24 @@ func TestStoreRecordsAndClearsAModelFailure(t *testing.T) {
 		t.Fatalf("clearing an unknown model must not change anything: %#v", failures)
 	}
 }
+
+func TestCapabilitySwitchesDefaultToEnabled(t *testing.T) {
+	settings := AppSettings{}
+	if !ComputerUseAllowed(settings) || !BrowserUseAllowed(settings) || !CodingBrowserAllowed(settings) {
+		t.Fatal("nil capability switches must default to enabled")
+	}
+	off := false
+	settings.ComputerUseEnabled = &off
+	settings.BrowserUseEnabled = &off
+	settings.CodingBrowserEnabled = &off
+	if ComputerUseAllowed(settings) || BrowserUseAllowed(settings) || CodingBrowserAllowed(settings) {
+		t.Fatal("explicit false capability switches must disable")
+	}
+	on := true
+	settings.ComputerUseEnabled = &on
+	settings.BrowserUseEnabled = &on
+	settings.CodingBrowserEnabled = &on
+	if !ComputerUseAllowed(settings) || !BrowserUseAllowed(settings) || !CodingBrowserAllowed(settings) {
+		t.Fatal("explicit true capability switches must enable")
+	}
+}
