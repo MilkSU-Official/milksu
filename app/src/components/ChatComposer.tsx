@@ -2201,7 +2201,7 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
                       {visibleSkillOptions.map(skill => {
                         const Icon = skill.icon
                         return (
-                          <DropdownMenuItem key={skill.name} className="composer-add-option" disabled={!workspaceReady} onSelect={() => insertSkillToken(skill.name)}>
+                          <DropdownMenuItem key={skill.name} className="composer-add-option" onSelect={() => insertSkillToken(skill.name)}>
                             <Icon className="size-4 shrink-0" />
                             <span className="min-w-0 flex-1">
                               <span className="block text-label font-medium">{skill.label}</span>
