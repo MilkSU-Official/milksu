@@ -16,7 +16,8 @@ import {
   formatAskToolInput,
   normalizeAskOptions,
 } from "./bridge-ask.js";
-import { contextWindowOverride, registeredContextWindow, registeredMaxTokens } from "./known-context-window.cjs";
+import { contextWindowOverride, registeredContextWindow, registeredMaxTokens, knownMaxTokens } from "./known-context-window.cjs";
+import { resolveMaxOutput, contextUsageWindowPayload } from "./context-window-payload.js";
 import {
   createMcpAdapter,
   listPiBackgroundTaskMetas,
@@ -349,12 +350,30 @@ function emitContextComposition(conversationId) {
   if (!session) return;
   try {
     const stored = sessionContextUsage.get(id);
+    const windowTokens = session.model?.contextWindow ?? stored?.contextWindow;
     const composition = projectSessionContextComposition(session, {
       billedPromptTokens: billedPromptTokensFor(id),
-      contextWindow: session.model?.contextWindow ?? stored?.contextWindow,
+      contextWindow: windowTokens,
     });
     if (!composition) return;
-    emit(id, "context_composition", { contextComposition: composition });
+    // The usage panel needs the real input budget, not the whole window: a request
+    // must also leave room for the model's answer. Same source as the compaction
+    // threshold, and omitted entirely when unknown so the UI keeps its old shape.
+    const maxOutput = resolveMaxOutput({
+      // session.model is often empty for a milksu-route session, so also ask the
+      // per-conversation model source the usage events already rely on.
+      modelIds: [
+        session.model?.id,
+        session.model?.modelId,
+        session.model?.name,
+        sessionModelSources.get(id),
+      ],
+      sessionMaxTokens: session.model?.maxTokens,
+      lookupMaxTokens: knownMaxTokens,
+    });
+    emit(id, "context_composition", {
+      contextComposition: { ...composition, ...contextUsageWindowPayload(windowTokens, maxOutput) },
+    });
   } catch (error) {
     console.error("MilkSU could not project context composition", error);
   }
@@ -2530,9 +2549,23 @@ async function compactIfContextNearLimit(conversationId, session) {
   }
   if (session.isCompacting) return;
   const stored = sessionContextUsage.get(conversationId);
+  // 阈值按模型算：拿得到 maxOutput 才传；拿不到 ⇒ 传无效值 ⇒ 自动保持 0.80（不回归）。
+  const windowMaxOutput = resolveMaxOutput({
+    // Same fallback as the context_composition payload: a milksu-route session
+    // often has no session.model, but the per-conversation model source is set.
+    modelIds: [
+      session.model?.id,
+      session.model?.modelId,
+      session.model?.name,
+      sessionModelSources.get(conversationId),
+    ],
+    sessionMaxTokens: session.model?.maxTokens,
+    lookupMaxTokens: knownMaxTokens,
+  });
   const snapshot = contextUsageSnapshot(
     stored,
     session.model?.contextWindow || stored?.contextWindow,
+    { maxOutput: windowMaxOutput },
   );
   const forced = pendingWorkspaceCompaction.has(conversationId);
   if (!snapshot.shouldCompact && !forced) return;
