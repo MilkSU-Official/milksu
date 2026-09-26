@@ -5,6 +5,7 @@
  */
 
 import { t } from '@/lib/uiLocale'
+import { resolveModelMaxOutput } from '@/lib/knownContextWindow'
 
 export interface SessionTurnUsage {
   inputTokens: number
@@ -56,6 +57,10 @@ export interface ContextCompositionCategory {
 export interface ContextComposition {
   estimatedTokens: number
   contextWindow?: number
+  /** Largest output the model can produce; the request must leave room for it. */
+  maxOutput?: number
+  /** Window minus maxOutput = the real input budget. Falls back to the window when unknown. */
+  usableWindow?: number
   categories: ContextCompositionCategory[]
 }
 
@@ -179,6 +184,8 @@ export function compositionFromStoredUsage(raw: unknown): ContextComposition | u
     ?? normalizeContextComposition({
       estimatedTokens: value.estimatedTokens,
       contextWindow: value.contextWindow,
+      maxOutput: value.maxOutput,
+      usableWindow: value.usableWindow,
       categories: value.categories,
     })
 }
@@ -206,9 +213,13 @@ export function normalizeContextComposition(raw: unknown): ContextComposition | 
     || categories.reduce((sum, item) => sum + item.tokens, 0)
   if (estimatedTokens <= 0 && categories.length === 0) return undefined
   const contextWindow = nonNegativeInt(value.contextWindow)
+  const maxOutput = nonNegativeInt(value.maxOutput)
+  const usableWindow = nonNegativeInt(value.usableWindow)
   return {
     estimatedTokens,
     contextWindow: contextWindow || undefined,
+    maxOutput: maxOutput || undefined,
+    usableWindow: usableWindow || undefined,
     categories,
   }
 }
@@ -436,6 +447,16 @@ export interface ContextUsagePresentation {
   cachePercent?: number
   /** True when last usage is near the window. */
   nearLimit: boolean
+  /** Input budget left after the model's own answer is reserved (window − maxOutput). */
+  usableTokens?: number
+  /** Share of usableTokens in use; may exceed 100 when the request cannot fit. */
+  budgetPercent?: number
+  /** True when last usage no longer fits the usable input budget. */
+  overBudget?: boolean
+  /** Short label marking where the usable input budget ends, e.g. "可用上限 616K". */
+  budgetLabel?: string
+  /** Full explanation for hover: why the budget is smaller than the window. */
+  budgetHint?: string
   inputLabel: string
   outputLabel: string
   windowLabel: string
@@ -471,7 +492,7 @@ export function formatHitRate(cacheReadTokens: number, promptTokens: number): st
 export function contextOccupancyShares(
   uncachedTokens: number,
   cacheReadTokens: number,
-  windowTokens: number,
+  windowTokens: number | undefined,
 ): { percent: number, uncachedPercent: number, cachePercent: number } | undefined {
   const window = nonNegativeInt(windowTokens)
   if (!window) return undefined
@@ -550,6 +571,15 @@ export function presentContextUsage(
   const input = usage ? usage.inputTokens + usage.cacheReadTokens : 0
   const output = usage?.outputTokens ?? 0
   const window = snapshot.contextWindow || composition?.contextWindow
+  // Prefer the budget the sidecar computed. Fall back to the same table the
+  // context window comes from, because a milksu-route session can arrive with no
+  // budget at all — which is exactly how the marker stayed invisible in β.135-138.
+  const maxOutput = composition?.maxOutput ?? resolveModelMaxOutput(usage?.model)
+  // The window (the 1M the reader knows) stays the displayed denominator. Part of
+  // it is reserved for the model's own answer, so the panel also reports where the
+  // usable input budget ends instead of silently shrinking the window.
+  const usableTokens = composition?.usableWindow
+    ?? (maxOutput && window && maxOutput < window ? window - maxOutput : undefined)
   const occupied = composition?.estimatedTokens ?? input
   const inputLabel = usage ? formatTokenCount(input) : formatCompositionTokenCount(occupied)
   const outputLabel = usage ? formatTokenCount(output) : '—'
@@ -567,6 +597,26 @@ export function presentContextUsage(
     : undefined
   const compositionPercent = composition && window && window > 0
     ? Math.min(100, Math.round((occupied / window) * 100))
+    : undefined
+  // Share of the usable input budget. Deliberately not capped: over 100% means the
+  // request no longer fits, which is the warning the reader needs to see.
+  const budgetPercent = usableTokens && usableTokens > 0
+    ? Math.round((occupied / usableTokens) * 100)
+    : undefined
+  const overBudget = usableTokens !== undefined && occupied > usableTokens
+  const usableLabel = usableTokens
+    ? (composition ? formatCompositionTokenCount(usableTokens) : formatTokenCount(usableTokens))
+    : undefined
+  const budgetLabel = usableLabel ? `${t('可用上限', 'Usable')} ${usableLabel}` : undefined
+  // Shown on hover only: the short label stays clean, the reason stays available.
+  const maxOutputLabel = maxOutput
+    ? (composition ? formatCompositionTokenCount(maxOutput) : formatTokenCount(maxOutput))
+    : undefined
+  const budgetHint = usableLabel && maxOutputLabel && windowLabel
+    ? t(
+      `窗口 ${windowLabel} = 输入 ${usableLabel} + 回答预留 ${maxOutputLabel}。超过 ${usableLabel} 后余量不足，长回答可能装不下、对话中断；建议先整理上下文。`,
+      `Window ${windowLabel} = ${usableLabel} input + ${maxOutputLabel} reserved for the answer. Past ${usableLabel} too little room is left: a long reply may not fit and the conversation can stop — compact first.`,
+    )
     : undefined
   const percent = compositionPercent ?? occupancy?.percent
   const nearLimit = (percent ?? 0) >= 80
@@ -618,6 +668,11 @@ export function presentContextUsage(
     tokenRatioLabel,
     estimatedTokens: composition?.estimatedTokens,
     windowTokens: window,
+    usableTokens,
+    budgetPercent,
+    overBudget,
+    budgetLabel,
+    budgetHint,
   }
 }
 

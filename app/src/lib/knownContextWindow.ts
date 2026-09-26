@@ -157,6 +157,19 @@ export function resolveModelContextWindow(
   return catalogValue
 }
 
+/**
+ * Largest output the model can produce, read from the same table the context
+ * window comes from. The usage panel needs it to mark the usable input budget
+ * (window − maxOutput) even when the sidecar sends no budget of its own.
+ * Unknown models return undefined: callers must never invent a number.
+ */
+export function resolveModelMaxOutput(id: string | undefined, catalogMax?: number): number | undefined {
+  const catalog = Number(catalogMax)
+  if (Number.isFinite(catalog) && catalog > 0) return Math.floor(catalog)
+  const known = lookupKnownLimit(String(id ?? ''))?.[2] ?? 0
+  return known > 0 ? known : undefined
+}
+
 export function formatContextWindowSize(tokens?: number) {
   const value = Math.floor(Number(tokens) || 0)
   if (value <= 0) return ''
