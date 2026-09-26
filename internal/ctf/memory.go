@@ -88,6 +88,7 @@ type TrainingMemoryEvidenceLink struct {
 
 type MemoryStore struct {
 	database  *sql.DB
+	path      string
 	directory string
 }
 
@@ -128,7 +129,7 @@ func NewMemoryStore(databasePath, directory string) (*MemoryStore, error) {
 		migrator.Close()
 		return nil, err
 	}
-	return &MemoryStore{database: migrator.DB(), directory: directory}, nil
+	return &MemoryStore{database: migrator.DB(), path: databasePath, directory: directory}, nil
 }
 
 // ctfMemoryV1Up creates the complete current schema. Pre-release databases
@@ -222,6 +223,28 @@ func (s *MemoryStore) Close() error {
 		return nil
 	}
 	return s.database.Close()
+}
+
+// Path returns the sqlite database file holding the training memories.
+func (s *MemoryStore) Path() string {
+	if s == nil {
+		return ""
+	}
+	return s.path
+}
+
+// Count reports active (non-archived) and archived training memories.
+func (s *MemoryStore) Count(ctx context.Context) (active, archived int64, err error) {
+	if s == nil || s.database == nil {
+		return 0, 0, fmt.Errorf("CTF memory store is unavailable")
+	}
+	if err := s.database.QueryRowContext(ctx, `SELECT COUNT(*) FROM ctf_memories WHERE archived_at IS NULL`).Scan(&active); err != nil {
+		return 0, 0, fmt.Errorf("count active CTF memories: %w", err)
+	}
+	if err := s.database.QueryRowContext(ctx, `SELECT COUNT(*) FROM ctf_memories WHERE archived_at IS NOT NULL`).Scan(&archived); err != nil {
+		return 0, 0, fmt.Errorf("count archived CTF memories: %w", err)
+	}
+	return active, archived, nil
 }
 
 func (s *MemoryStore) SaveFromProjection(

@@ -33,6 +33,9 @@ import {
   type CompanionStatus,
   type CompanionTranscriptCursor,
   type CompanionTranscriptPage,
+  type CTFMemoryOverview,
+  type SessionIndexRefreshResult,
+  type SessionIndexStatusPayload,
 } from './types'
 import type {
   CTFArtifactPreview,
@@ -310,6 +313,9 @@ interface DesktopAppBindings {
   GetCompanionMemory(): Promise<CompanionMemorySnapshot>
   ApproveCompanionMemory(id: string): Promise<CompanionApprovedMemory>
   ForgetCompanionMemory(id: string): Promise<void>
+  GetSessionIndexStatus(): Promise<SessionIndexStatusPayload>
+  RefreshSessionIndex(): Promise<SessionIndexRefreshResult>
+  GetCTFMemoryOverview(): Promise<CTFMemoryOverview>
   ConfirmCompanionDispatch(
     action: string,
     conversationId: string,
@@ -856,6 +862,12 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.DeleteCompanionArchive(args?.name as string) as Promise<T>
       case 'get_companion_memory':
         return app.GetCompanionMemory() as Promise<T>
+      case 'get_session_index_status':
+        return app.GetSessionIndexStatus() as Promise<T>
+      case 'refresh_session_index':
+        return app.RefreshSessionIndex() as Promise<T>
+      case 'get_ctf_memory_overview':
+        return app.GetCTFMemoryOverview() as Promise<T>
       case 'approve_companion_memory':
         return app.ApproveCompanionMemory(args?.id as string) as Promise<T>
       case 'forget_companion_memory':

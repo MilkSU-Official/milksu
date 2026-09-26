@@ -220,7 +220,7 @@ export default function SecurityToolsSettingsPreview() {
     'CTF',
     'CVE',
     'Coding',
-    t('浏览器控制', 'Browser control'),
+    t('浏览器', 'Browser'),
     t('安全工具', 'Security tools'),
   ]
 

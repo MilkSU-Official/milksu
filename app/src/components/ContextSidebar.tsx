@@ -29,8 +29,10 @@ import {
   ChevronDown,
   ChevronLeft,
   Copy,
+  Cpu,
   Flag,
   FlaskConical,
+  Brain,
   Folder,
   FolderOpen,
   Gauge,
@@ -38,6 +40,8 @@ import {
   Globe2,
   SquarePen,
   ImageIcon,
+  Palette,
+  ShieldCheck,
   Star,
   LogOut,
   Moon,
@@ -68,7 +72,7 @@ import {
   type WorkspaceSection,
 } from '@/lib/workspaceNavigation'
 import {
-  SETTINGS_SIDEBAR_ITEMS,
+  SETTINGS_SIDEBAR_GROUPS,
   type NormalizedSettingsCategory,
 } from '@/lib/settingsNavigation'
 import type { ThemeMode } from '@/lib/themeMode'
@@ -108,14 +112,19 @@ const workspaceNavIcons = {
 } as const
 
 const settingsNavIcons = {
+  account: UserRound,
+  appearance: Palette,
   general: Settings,
+  permissions: ShieldCheck,
   apikeys: Box,
+  runtime: Cpu,
   ctf: Flag,
   cve: Bug,
   lab: FlaskConical,
   skills: BookMarked,
   mcp: Plug,
   chats: Archive,
+  memory: Brain,
   browser: Globe2,
   eval: Gauge,
   companion: Star,
@@ -876,26 +885,35 @@ export default function ContextSidebar({
 
         {activeSection === 'settings' ? (
         <nav className="flex min-h-0 flex-1 flex-col gap-px overflow-y-auto" aria-label={t('设置分类', 'Settings categories')}>
-          {SETTINGS_SIDEBAR_ITEMS.map(item => {
-            const Icon = settingsNavIcons[item.value]
-            const current = settingsCategory === item.value
-            return (
-              <button
-                key={item.value}
-                type="button"
-                className={`agent-sidebar-row app-no-drag mx-2 flex h-8 items-center rounded-[8px] px-2 text-left${current ? ' is-current' : ''}`}
-                aria-current={current ? 'page' : undefined}
-                onClick={() => onSelectSettingsCategory?.(item.value)}
-              >
-                <span className="flex size-5 shrink-0 items-center justify-center">
-                  <Icon className="size-4" />
-                </span>
-                <span className="agent-sidebar__copy ml-1.5 min-w-0 flex-1 truncate text-control font-medium">
-                  {item.label()}
-                </span>
-              </button>
-            )
-          })}
+          {SETTINGS_SIDEBAR_GROUPS.map((group, groupIndex) => (
+            <div key={group.id} className={groupIndex > 0 ? 'mt-3' : ''}>
+              {group.label ? (
+                <div className="agent-sidebar__copy mx-2 mb-1 flex h-6 items-center px-2 text-caption font-medium text-muted-foreground">
+                  {group.label()}
+                </div>
+              ) : null}
+              {group.items.map(item => {
+                const Icon = settingsNavIcons[item.value]
+                const current = settingsCategory === item.value
+                return (
+                  <button
+                    key={item.value}
+                    type="button"
+                    className={`agent-sidebar-row app-no-drag mx-2 flex h-8 items-center rounded-[8px] px-2 text-left${current ? ' is-current' : ''}`}
+                    aria-current={current ? 'page' : undefined}
+                    onClick={() => onSelectSettingsCategory?.(item.value)}
+                  >
+                    <span className="flex size-5 shrink-0 items-center justify-center">
+                      <Icon className="size-4" />
+                    </span>
+                    <span className="agent-sidebar__copy ml-1.5 min-w-0 flex-1 truncate text-control font-medium">
+                      {item.label()}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          ))}
         </nav>
         ) : (
         <>

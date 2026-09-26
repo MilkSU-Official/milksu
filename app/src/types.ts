@@ -551,6 +551,45 @@ export interface CompanionMemorySnapshot {
   approved: CompanionApprovedMemory[]
 }
 
+export interface SessionIndexSourceCount {
+  source: string
+  count: number
+}
+
+/** Obelisk session index view for the Memory settings page. */
+export interface SessionIndexStatusPayload {
+  available?: boolean
+  mode?: string
+  indexPath?: string
+  checkedAt?: string
+  readOnly?: boolean
+  reason?: string
+  sessionCount?: number
+  messageCount?: number
+  toolCallCount?: number
+  memoryCount?: number
+  sources?: SessionIndexSourceCount[]
+  factBoundary?: string
+  bytes?: number
+}
+
+export interface SessionIndexRefreshResult {
+  indexedAt?: string
+  indexPath?: string
+  source?: string
+  sessionCount?: number
+  messageCount?: number
+  toolCallCount?: number
+}
+
+/** Per-challenge CTF memory store overview for the Memory settings page. */
+export interface CTFMemoryOverview {
+  path?: string
+  bytes?: number
+  activeCount?: number
+  archivedCount?: number
+}
+
 export interface CompanionDispatchResult {
   accepted: boolean
   delivered: boolean
