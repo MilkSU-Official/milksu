@@ -49,20 +49,28 @@ describe('useConversations workspace home isolation', () => {
     conversations.startNew()
     await Promise.resolve()
     await Promise.resolve()
-    expect(conversations.workspacePath).toBe('/Users/me/code/home-app')
+    expect(conversations.workspacePath).toBe('')
     expect(conversations.workspacePath).not.toBe('/Users/me/code/ctf-picked')
+    expect(conversations.workspacePath).not.toBe('/Users/me/code/home-app')
   })
 
-  it('keeps the last Home project on a Home new chat', async () => {
+  it('starts a Home new chat without the last Home project', async () => {
     const { useConversations } = await import('@/composables/useConversations')
     const conversations = useConversations()
     conversations.setWorkspace('/Users/me/code/home-app')
-    conversations.startNew()
-    expect(conversations.workspacePath).toBe('/Users/me/code/home-app')
     expect(invokeCommand.mock.calls.some(call => (
       call[0] === 'remember_coding_project'
       && (call[1] as { path?: string })?.path === '/Users/me/code/home-app'
     ))).toBe(true)
+    conversations.startNew()
+    expect(conversations.workspacePath).toBe('')
+  })
+
+  it('does not pre-fill the remembered Home project on load', async () => {
+    const { useConversations } = await import('@/composables/useConversations')
+    const conversations = useConversations()
+    await conversations.load()
+    expect(conversations.workspacePath).toBe('')
   })
 
   it('does not bind a project onto a draw chat', async () => {
