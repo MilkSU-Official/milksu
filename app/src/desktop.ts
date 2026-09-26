@@ -285,6 +285,7 @@ interface DesktopAppBindings {
     modelId: string,
   ): Promise<string>
   ChooseAgentWorkspace(): Promise<string>
+  CreateAgentWorkspace(parent: string, name: string): Promise<string>
   GetCodingProjectMemory(): Promise<CodingProjectMemory>
   RememberCodingProject(path: string): Promise<CodingProjectMemory>
   ForgetCodingProject(path: string): Promise<CodingProjectMemory>
@@ -803,6 +804,11 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         ) as Promise<T>
       case 'choose_agent_workspace':
         return app.ChooseAgentWorkspace() as Promise<T>
+      case 'create_agent_workspace':
+        return app.CreateAgentWorkspace(
+          args?.parent as string,
+          args?.name as string,
+        ) as Promise<T>
       case 'get_coding_project_memory':
         return app.GetCodingProjectMemory() as Promise<T>
       case 'remember_coding_project':

@@ -70,6 +70,7 @@ import { invokeCommand } from '@/desktop'
 import { toastError } from '@/lib/appToast'
 import { COMMAND_PANEL_SLASH_EVENT } from '@/lib/commandPanel'
 import ComposerBranchMenu from '@/components/ComposerBranchMenu'
+import ComposerWorkspaceMenu from '@/components/ComposerWorkspaceMenu'
 import { composerAtAttachTrigger } from '@/lib/composerAtAttach'
 import {
   captureComposerSnapshot,
@@ -2300,10 +2301,22 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
                   <>
                     <div className={`chat-composer__workspace${workspaceFixed ? ' chat-composer__workspace--locked' : ''}`}>
                       {!workspaceFixed ? (
-                        <button type="button" className={`chat-composer__chip chat-composer__chip--workspace${!hasSelectedWorkspace ? ' chat-composer__chip--workspace-empty' : ''}${hasSelectedWorkspace ? ' chat-composer__chip--workspace-split' : ''}`} disabled={parentTurnActive} aria-label={hasSelectedWorkspace ? t(`会话目录：${workspaceChipLabel}`, `Session folder: ${workspaceChipLabel}`) : t('选择项目', 'Choose a project')} title={workspaceChipTitle} onClick={() => props.onChooseWorkspace?.()}>
-                          <FolderOpen className="size-3.5 shrink-0" />
-                          <span className="chat-composer__chip__label">{workspaceChipLabel}</span>
-                        </button>
+                        <ComposerWorkspaceMenu
+                          workspaceName={workspaceName}
+                          workspacePath={workspacePath}
+                          homeDirectory={props.homeDirectory}
+                          recentProjects={props.recentProjects}
+                          disabled={parentTurnActive}
+                          split={hasSelectedWorkspace}
+                          empty={!hasSelectedWorkspace}
+                          chipLabel={workspaceChipLabel}
+                          chipTitle={workspaceChipTitle}
+                          ariaLabel={hasSelectedWorkspace ? t(`会话目录：${workspaceChipLabel}`, `Session folder: ${workspaceChipLabel}`) : t('选择项目', 'Choose a project')}
+                          onChooseWorkspace={() => props.onChooseWorkspace?.()}
+                          onSelectWorkspace={props.onSelectWorkspace}
+                          onForgetWorkspace={props.onForgetWorkspace}
+                          onClearWorkspace={props.onClearWorkspace}
+                        />
                       ) : (
                         <span className="chat-composer__chip chat-composer__chip--workspace" aria-label={t(`会话目录：${workspaceChipLabel}`, `Session folder: ${workspaceChipLabel}`)} title={workspaceChipTitle}>
                           <FolderOpen className="size-3.5 shrink-0" />
