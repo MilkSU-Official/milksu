@@ -1092,16 +1092,17 @@ test('killProcessGroup is a no-op for an already-exited child', () => {
 })
 
 test('surface scanner fails leaks and unexpected error chrome, not expected form or confirm copy', () => {
+  const packagedAppPath = process.platform === 'win32'
+    ? '/repo/milksu/build/bin/MilkSU.exe'
+    : '/repo/milksu/build/bin/MilkSU.app'
   const packagedLaunch = resolveProductLoopLaunchPlan({
-    MILKSU_APP_PATH: '/repo/milksu/build/bin/MilkSU.app',
+    MILKSU_APP_PATH: packagedAppPath,
   }, '/repo/milksu')
   assert.equal(packagedLaunch.mode, 'packaged')
   assert.equal(packagedLaunch.buildRuntime, false)
   const expectedExecutable = process.platform === 'darwin'
     ? '/repo/milksu/build/bin/MilkSU.app/Contents/MacOS/MilkSU'
-    : process.platform === 'win32'
-      ? '/repo/milksu/build/bin/MilkSU.exe'
-      : '/repo/milksu/build/bin/MilkSU.app'
+    : packagedAppPath
   assert.equal(packagedLaunch.executable, expectedExecutable)
   assert.equal(resolveProductLoopLaunchPlan({}, '/repo/milksu').mode, 'desktop-start')
 
