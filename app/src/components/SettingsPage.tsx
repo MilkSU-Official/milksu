@@ -85,6 +85,7 @@ import SettingsMCPPanel from '@/components/SettingsMCPPanel'
 import EvalSettingsPanel from '@/components/EvalSettingsPanel'
 import LabSettingsPanel from '@/components/LabSettingsPanel'
 import CompanionSettingsPanel from '@/components/CompanionSettingsPanel'
+import MemorySettingsPanel from '@/components/MemorySettingsPanel'
 import PluginSettingsPanel from '@/components/PluginSettingsPanel'
 import ModelVendorIcon from '@/components/ModelVendorIcon'
 import ArchivedConversationsSettings from '@/components/ArchivedConversationsSettings'
@@ -443,72 +444,73 @@ export default function SettingsPage({
               </Alert>
             ) : null}
 
-            {working && category === 'general' ? (
+            {working && category === 'account' ? (
+              <SettingsSection title={t('账户', 'Account')}>
+                <SettingsRow
+                  label={t('GitHub 账户', 'GitHub account')}
+                  description={account.state === 'active'
+                    ? `${account.user?.username ? account.user.username : `@${account.user?.githubLogin || 'GitHub'}`} · ${t('内测用户', 'beta user')}`
+                    : ''}
+                  trailing={(
+                    <div className="flex items-center gap-3">
+                      <Badge variant={account.state === 'active' ? 'secondary' : 'outline'}>{accountStateLabel}</Badge>
+                      {account.state === 'active' ? (
+                        <Button variant="ghost" size="sm" onClick={onAccountLogout}>
+                          <LogOut className="size-4" />{t('退出', 'Sign out')}
+                        </Button>
+                      ) : account.configured ? (
+                        <Button variant="outline" size="sm" onClick={onAccountLogin}>
+                          <GitHubIcon className="size-4" />{t('GitHub 登录', 'GitHub sign-in')}
+                        </Button>
+                      ) : null}
+                    </div>
+                  )}
+                />
+                <AccountCredentialSettings
+                  account={account}
+                  onChanged={next => onAccountStatusChange?.(next)}
+                />
+              </SettingsSection>
+            ) : working && category === 'appearance' ? (
+              <SettingsSection title={t('外观', 'Appearance')}>
+                <SettingsRow
+                  label={t('界面语言', 'Interface language')}
+                  trailing={(
+                    <SettingsGhostPicker
+                      value={working.locale ?? 'zh'}
+                      ariaLabel={t('界面语言', 'Interface language')}
+                      options={[
+                        { value: 'zh', label: t('简体中文', 'Simplified Chinese') },
+                        { value: 'en', label: 'English' },
+                      ]}
+                      onChange={value => void store.changeLocale(value)}
+                    />
+                  )}
+                />
+                <SettingsRow
+                  label={t('强调色', 'Accent color')}
+                  trailing={(
+                    <EmphasisSwatchPicker
+                      value={normalizeUiEmphasisPreset(working.ui_emphasis)}
+                      onChange={value => void store.changeUiEmphasis(value)}
+                    />
+                  )}
+                />
+                <SettingsRow
+                  label={t('对话字号', 'Conversation size')}
+                  description={t('界面与对话都用系统默认字体。', 'Interface and conversation text use the system font.')}
+                  divider={false}
+                  trailing={(
+                    <ConversationSizeInput
+                      value={normalizeUiFontSize(working.conversation_font_size)}
+                      ariaLabel={t('对话字号', 'Conversation size')}
+                      onCommit={size => void store.changeConversationFontSize(size)}
+                    />
+                  )}
+                />
+              </SettingsSection>
+            ) : working && category === 'general' ? (
               <>
-                <SettingsSection title={t('账户', 'Account')}>
-                  <SettingsRow
-                    label={t('GitHub 账户', 'GitHub account')}
-                    description={account.state === 'active'
-                      ? `${account.user?.username ? account.user.username : `@${account.user?.githubLogin || 'GitHub'}`} · ${t('内测用户', 'beta user')}`
-                      : ''}
-                    trailing={(
-                      <div className="flex items-center gap-3">
-                        <Badge variant={account.state === 'active' ? 'secondary' : 'outline'}>{accountStateLabel}</Badge>
-                        {account.state === 'active' ? (
-                          <Button variant="ghost" size="sm" onClick={onAccountLogout}>
-                            <LogOut className="size-4" />{t('退出', 'Sign out')}
-                          </Button>
-                        ) : account.configured ? (
-                          <Button variant="outline" size="sm" onClick={onAccountLogin}>
-                            <GitHubIcon className="size-4" />{t('GitHub 登录', 'GitHub sign-in')}
-                          </Button>
-                        ) : null}
-                      </div>
-                    )}
-                  />
-                  <AccountCredentialSettings
-                    account={account}
-                    onChanged={next => onAccountStatusChange?.(next)}
-                  />
-                </SettingsSection>
-
-                <SettingsSection title={t('外观', 'Appearance')}>
-                  <SettingsRow
-                    label={t('界面语言', 'Interface language')}
-                    trailing={(
-                      <SettingsGhostPicker
-                        value={working.locale ?? 'zh'}
-                        ariaLabel={t('界面语言', 'Interface language')}
-                        options={[
-                          { value: 'zh', label: t('简体中文', 'Simplified Chinese') },
-                          { value: 'en', label: 'English' },
-                        ]}
-                        onChange={value => void store.changeLocale(value)}
-                      />
-                    )}
-                  />
-                  <SettingsRow
-                    label={t('强调色', 'Accent color')}
-                    trailing={(
-                      <EmphasisSwatchPicker
-                        value={normalizeUiEmphasisPreset(working.ui_emphasis)}
-                        onChange={value => void store.changeUiEmphasis(value)}
-                      />
-                    )}
-                  />
-                  <SettingsRow
-                    label={t('对话字号', 'Conversation size')}
-                    description={t('界面与对话都用系统默认字体。', 'Interface and conversation text use the system font.')}
-                    divider={false}
-                    trailing={(
-                      <ConversationSizeInput
-                        value={normalizeUiFontSize(working.conversation_font_size)}
-                        ariaLabel={t('对话字号', 'Conversation size')}
-                        onCommit={size => void store.changeConversationFontSize(size)}
-                      />
-                    )}
-                  />
-                </SettingsSection>
                 <SettingsSection title={t('编辑器', 'Editor')}>
                   <SettingsRow
                     label={t('打开文件', 'Open files')}
@@ -755,6 +757,116 @@ export default function SettingsPage({
               <SettingsMCPPanel onCodingHandoff={handoff => onSecurityToolCodingHandoff?.(handoff)} />
             ) : category === 'chats' ? (
               <ArchivedConversationsSettings onChanged={onConversationsChanged} />
+            ) : category === 'permissions' ? (
+              <SettingsSection
+                title="Computer Use"
+                actions={(
+                  <>
+                    <Button variant="outline" size="sm" disabled={computerUseLoading} onClick={() => void store.refreshComputerUseStatus()}>
+                      {t('重新检测', 'Recheck')}
+                    </Button>
+                    {computerUseStatus && computerUsePermissionsReady ? (
+                      <Button variant="outline" size="sm" disabled={computerUseRestarting} onClick={() => void store.relaunchDesktopApp()}>
+                        {t('重新打开 MilkSU', 'Reopen MilkSU')}
+                      </Button>
+                    ) : null}
+                  </>
+                )}
+              >
+                {computerUseStatus && !computerUseStatus.available ? (
+                  <SettingsRow
+                    label={t('状态', 'Status')}
+                    description={computerUseStatus.problem || ''}
+                    divider={false}
+                    trailing={<ConnectionLiveStatus live={false} />}
+                  />
+                ) : computerUseStatus?.signing?.signature === 'linux-portal' ? (
+                  <SettingsRow
+                    label={t('桌面共享', 'Desktop sharing')}
+                    description={t('启动任务时 GNOME 会弹出授权。截屏、按坐标点击和打字是整桌面级，不是单个窗口。', 'GNOME prompts for sharing when you start a task. Screenshot, coordinate clicks and typing are display-level, not a single window.')}
+                    divider={false}
+                    trailing={<ConnectionLiveStatus live={true} />}
+                  />
+                ) : computerUseStatus ? (
+                  <>
+                    <SettingsRow
+                      label={t('辅助功能', 'Accessibility')}
+                      trailing={(
+                        <div className="flex items-center gap-2">
+                          <ConnectionLiveStatus live={Boolean(computerUseStatus.permissions.accessibility)} />
+                          {!computerUseStatus.permissions.accessibility ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={!computerUseStatus.available || Boolean(computerUseRequesting)}
+                              onClick={() => void store.requestComputerUsePermission('accessibility')}
+                            >
+                              {t('打开辅助功能设置', 'Open Accessibility settings')}
+                            </Button>
+                          ) : null}
+                        </div>
+                      )}
+                    />
+                    <SettingsRow
+                      label={t('屏幕录制', 'Screen Recording')}
+                      divider={false}
+                      trailing={(
+                        <div className="flex items-center gap-2">
+                          <ConnectionLiveStatus live={Boolean(computerUseStatus.permissions.screenRecording)} />
+                          {!computerUseStatus.permissions.screenRecording ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={!computerUseStatus.available || Boolean(computerUseRequesting)}
+                              onClick={() => void store.requestComputerUsePermission('screen-recording')}
+                            >
+                              {t('打开屏幕录制设置', 'Open Screen Recording settings')}
+                            </Button>
+                          ) : null}
+                        </div>
+                      )}
+                    />
+                  </>
+                ) : null}
+              </SettingsSection>
+            ) : working && category === 'runtime' ? (
+              <>
+                <SettingsSection title={t('内核', 'Kernel')}>
+                  <SettingsRow
+                    label={t('默认运行时', 'Default runtime')}
+                    description={t('只决定新对话，已有会话保留各自的内核。', 'Applies to new conversations. Existing conversations keep their kernel.')}
+                    divider={false}
+                    trailing={(
+                      <SettingsGhostPicker
+                        value={working?.default_kernel === 'dsh' ? 'dsh' : 'pi'}
+                        ariaLabel={t('默认运行时', 'Default runtime')}
+                        options={[
+                          { value: 'pi', label: 'Pi' },
+                          { value: 'dsh', label: 'DSH' },
+                        ]}
+                        onChange={store.setDefaultKernel}
+                      />
+                    )}
+                  />
+                </SettingsSection>
+                <SettingsSection title="DeepSeek Harness">
+                  <SettingsRow
+                    label={t('忙碌时发送', 'Busy send')}
+                    divider={false}
+                    trailing={(
+                      <SettingsGhostPicker
+                        value={working?.busy_send === 'queue' ? 'queue' : 'interrupt'}
+                        ariaLabel={t('忙碌时发送', 'Busy send')}
+                        options={[
+                          { value: 'interrupt', label: t('插话', 'Interrupt') },
+                          { value: 'queue', label: t('排队', 'Queue') },
+                        ]}
+                        onChange={store.setBusySend}
+                      />
+                    )}
+                  />
+                </SettingsSection>
+              </>
             ) : working && category === 'browser' ? (
               <>
                 <SettingsSection title="Browser Use">
@@ -774,110 +886,6 @@ export default function SettingsPage({
                       </div>
                     )}
                   />
-                </SettingsSection>
-
-                <SettingsSection title={t('CTF 站点', 'CTF sites')}>
-                  <SettingsRow
-                    label={t('连接', 'Connection')}
-                    trailing={(
-                      <div className="flex items-center gap-2">
-                        <ConnectionLiveStatus live={browserBridgeConnected} />
-                        <Button variant="outline" size="sm" disabled={browserBridgeLoading} onClick={() => void store.refreshBrowserBridgeStatus()}>
-                          {t('检测', 'Check')}
-                        </Button>
-                      </div>
-                    )}
-                  />
-                  <SettingsRow
-                    label={t('本地扩展', 'Local extension')}
-                    trailing={(
-                      <Button variant="outline" size="sm" disabled={browserSetupBusy || !browserExtensionReady} onClick={() => void store.prepareBrowserExtension()}>
-                        {t('安装', 'Install')}
-                      </Button>
-                    )}
-                  />
-                  <SettingsRow
-                    label={t('配对码', 'Pairing code')}
-                    description={browserBridgeStatus?.bridge.pairingCode || ''}
-                    divider={false}
-                    trailing={(
-                      <Button variant="outline" size="sm" disabled={!browserPairingReady} onClick={() => void store.copyBrowserPairingCode()}>
-                        {t('复制', 'Copy')}
-                      </Button>
-                    )}
-                  />
-                </SettingsSection>
-
-                <SettingsSection
-                  title="Computer Use"
-                  actions={(
-                    <>
-                      <Button variant="outline" size="sm" disabled={computerUseLoading} onClick={() => void store.refreshComputerUseStatus()}>
-                        {t('重新检测', 'Recheck')}
-                      </Button>
-                      {computerUseStatus && computerUsePermissionsReady ? (
-                        <Button variant="outline" size="sm" disabled={computerUseRestarting} onClick={() => void store.relaunchDesktopApp()}>
-                          {t('重新打开 MilkSU', 'Reopen MilkSU')}
-                        </Button>
-                      ) : null}
-                    </>
-                  )}
-                >
-                  {computerUseStatus && !computerUseStatus.available ? (
-                    <SettingsRow
-                      label={t('状态', 'Status')}
-                      description={computerUseStatus.problem || ''}
-                      divider={false}
-                      trailing={<ConnectionLiveStatus live={false} />}
-                    />
-                  ) : computerUseStatus?.signing?.signature === 'linux-portal' ? (
-                    <SettingsRow
-                      label={t('桌面共享', 'Desktop sharing')}
-                      description={t('启动任务时 GNOME 会弹出授权。截屏、按坐标点击和打字是整桌面级，不是单个窗口。', 'GNOME prompts for sharing when you start a task. Screenshot, coordinate clicks and typing are display-level, not a single window.')}
-                      divider={false}
-                      trailing={<ConnectionLiveStatus live={true} />}
-                    />
-                  ) : computerUseStatus ? (
-                    <>
-                      <SettingsRow
-                        label={t('辅助功能', 'Accessibility')}
-                        trailing={(
-                          <div className="flex items-center gap-2">
-                            <ConnectionLiveStatus live={Boolean(computerUseStatus.permissions.accessibility)} />
-                            {!computerUseStatus.permissions.accessibility ? (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                disabled={!computerUseStatus.available || Boolean(computerUseRequesting)}
-                                onClick={() => void store.requestComputerUsePermission('accessibility')}
-                              >
-                                {t('打开辅助功能设置', 'Open Accessibility settings')}
-                              </Button>
-                            ) : null}
-                          </div>
-                        )}
-                      />
-                      <SettingsRow
-                        label={t('屏幕录制', 'Screen Recording')}
-                        divider={false}
-                        trailing={(
-                          <div className="flex items-center gap-2">
-                            <ConnectionLiveStatus live={Boolean(computerUseStatus.permissions.screenRecording)} />
-                            {!computerUseStatus.permissions.screenRecording ? (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                disabled={!computerUseStatus.available || Boolean(computerUseRequesting)}
-                                onClick={() => void store.requestComputerUsePermission('screen-recording')}
-                              >
-                                {t('打开屏幕录制设置', 'Open Screen Recording settings')}
-                              </Button>
-                            ) : null}
-                          </div>
-                        )}
-                      />
-                    </>
-                  ) : null}
                 </SettingsSection>
               </>
             ) : working && category === 'apikeys' ? (
@@ -908,35 +916,6 @@ export default function SettingsPage({
                         }] : undefined}
                         groups={searchablePickerGroups}
                         onChange={value => store.setDefaultModelKey(value)}
-                      />
-                    )}
-                  />
-                  <SettingsRow
-                    label={t('默认运行时', 'Default runtime')}
-                    trailing={(
-                      <SettingsGhostPicker
-                        value={working?.default_kernel === 'dsh' ? 'dsh' : 'pi'}
-                        ariaLabel={t('默认运行时', 'Default runtime')}
-                        options={[
-                          { value: 'pi', label: 'Pi' },
-                          { value: 'dsh', label: 'DSH' },
-                        ]}
-                        onChange={store.setDefaultKernel}
-                      />
-                    )}
-                  />
-                  <SettingsRow
-                    label={t('忙碌时发送', 'Busy send')}
-                    description={t('仅 DeepSeek Harness', 'DeepSeek Harness only')}
-                    trailing={(
-                      <SettingsGhostPicker
-                        value={working?.busy_send === 'queue' ? 'queue' : 'interrupt'}
-                        ariaLabel={t('忙碌时发送', 'Busy send')}
-                        options={[
-                          { value: 'interrupt', label: t('插话', 'Interrupt') },
-                          { value: 'queue', label: t('排队', 'Queue') },
-                        ]}
-                        onChange={store.setBusySend}
                       />
                     )}
                   />
@@ -1526,10 +1505,30 @@ export default function SettingsPage({
                       </div>
                     )}
                   />
+                  <SettingsRow
+                    label={t('本地扩展', 'Local extension')}
+                    trailing={(
+                      <Button variant="outline" size="sm" disabled={browserSetupBusy || !browserExtensionReady} onClick={() => void store.prepareBrowserExtension()}>
+                        {t('安装', 'Install')}
+                      </Button>
+                    )}
+                  />
+                  <SettingsRow
+                    label={t('配对码', 'Pairing code')}
+                    description={browserBridgeStatus?.bridge.pairingCode || ''}
+                    divider={false}
+                    trailing={(
+                      <Button variant="outline" size="sm" disabled={!browserPairingReady} onClick={() => void store.copyBrowserPairingCode()}>
+                        {t('复制', 'Copy')}
+                      </Button>
+                    )}
+                  />
                 </SettingsSection>
               </>
             ) : working && category === 'lab' ? (
               <LabSettingsPanel settings={working} onPersist={() => void store.save()} />
+            ) : working && category === 'memory' ? (
+              <MemorySettingsPanel settings={working} onPersist={() => void store.save()} />
             ) : working && category === 'companion' ? (
               <CompanionSettingsPanel
                 settings={working}
@@ -1692,20 +1691,6 @@ function createSettingsStore(
 
 
   let unlistenCodingToolSetup: (() => void) | undefined
-
-  const settingsCategories = () => [
-    { value: 'general' as const, label: t('通用', 'General') },
-    { value: 'apikeys' as const, label: t('模型', 'Models') },
-    { value: 'ctf' as const, label: 'CTF' },
-    { value: 'cve' as const, label: 'CVE' },
-    { value: 'lab' as const, label: 'Lab' },
-    { value: 'skills' as const, label: 'Skills' },
-    { value: 'mcp' as const, label: 'MCP' },
-    { value: 'chats' as const, label: t('归档聊天', 'Archived chats') },
-    { value: 'browser' as const, label: t('浏览器控制', 'Browser') },
-    { value: 'eval' as const, label: t('评测', 'Eval') },
-    { value: 'plugins' as const, label: t('插件', 'Plugins') },
-  ]
 
   const serviceCatalog = readModelCatalog(() => ({
     providers: s.working?.providers ?? {},
@@ -3422,7 +3407,7 @@ function createSettingsStore(
   }
 
   function refreshComputerUseAfterSettings() {
-    if (s.category !== 'browser' || computerUsePermissionsReady()) return
+    if (s.category !== 'permissions' || computerUsePermissionsReady()) return
     void refreshComputerUseStatus({ silent: true })
   }
 
@@ -3624,7 +3609,6 @@ function createSettingsStore(
     browserBridgeConnected,
     browserPairingReady,
     browserExtensionReady,
-    settingsCategories,
   }
 
   return {

@@ -59,7 +59,6 @@ import {
   judgeIdleMinutesLabel,
   judgeMemorySearchRow,
   memoryErrorText,
-  memorySectionPrecedesPrivacy,
   memoryTranscriptAnomaly,
   pollCompanionMemoryExtract,
   pollCompanionMemoryWrite,
@@ -439,7 +438,7 @@ export async function runCompanionMemory(driver, options = {}) {
 }
 
 export async function runCompanionMemorySettings(driver) {
-  const opened = await openCompanionSettings(driver)
+  const opened = await openSettingsCategory(driver, ['记忆', 'Memory'])
   if (!opened.ok) return fail(opened.detail)
   let before
   try {
@@ -451,14 +450,22 @@ export async function runCompanionMemorySettings(driver) {
   const previousIdle = before?.companion_memory_extract_idle_minutes ?? before?.CompanionMemoryExtractIdleMinutes ?? 10
   let mutated = false
   try {
-    const order = memorySectionPrecedesPrivacy(await readSettingsHeadings(driver))
-    if (!order.ok) return fail(order.reason)
+    const headings = await readSettingsHeadings(driver)
+    const rows = headings.map(text => String(text ?? '').trim()).filter(Boolean)
+    const longTerm = rows.findIndex(text => text === '长期记忆' || text === 'Long-term memory')
+    const index = rows.findIndex(text => text === '会话索引' || text === 'Session index')
+    if (longTerm < 0 || index < 0) {
+      return fail(`记忆页缺了长期记忆或会话索引：${rows.join(' / ') || '空'}`)
+    }
+    if (longTerm > index) {
+      return fail(`长期记忆排在会话索引后面：${rows.join(' / ')}`)
+    }
     const menu = await readSettingsPickerOptions(driver, ['提取', 'Extract'])
     if (!menu.ok) return fail(menu.reason)
     const options = judgeExtractOptions(menu.options)
     if (!options.ok) return fail(options.reason)
-    if (!snapshotHas(await pageSnapshot(driver), ['情景检索', 'Episodic search'])) {
-      return fail('隐私里没有情景检索')
+    if (!snapshotHas(await pageSnapshot(driver), ['记忆检索', 'Memory retrieval'])) {
+      return fail('长期记忆里没有记忆检索')
     }
     const idle = await chooseSettingsPicker(driver, ['提取', 'Extract'], ['闲置后', 'After idle'])
     if (!idle.ok) return fail(idle.reason)
@@ -485,7 +492,7 @@ export async function runCompanionMemorySettings(driver) {
     }
     const search = judgeMemorySearchRow(await ariaLabelsOf(driver), approvedMemoryCount(memory))
     if (!search.ok) return fail(search.reason)
-    return pass(`记忆在隐私前面。闲置后是 ${minutes.minutes} 分钟，关闭后闲置消失。${search.visible ? '有记忆时检索在。' : '没有记忆时不显示检索。'}`)
+    return pass(`长期记忆在会话索引前面。闲置后是 ${minutes.minutes} 分钟，关闭后闲置消失。${search.visible ? '有记忆时检索在。' : '没有记忆时不显示检索。'}`)
   } finally {
     if (mutated) {
       const latest = await driver.invoke('GetSettings', []).catch(() => before)

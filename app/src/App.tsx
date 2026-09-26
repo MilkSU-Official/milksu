@@ -1825,7 +1825,7 @@ export default function App() {
                   ensureConversation={conversations.ensureConversation}
                   chatMaximized={dossierChatMaximized}
                   chatDockOpen={domainDockOpen}
-                  onOpenSettings={(category?: 'apikeys' | 'browser') => openSettings(category ?? 'apikeys')}
+                  onOpenSettings={(category?: 'apikeys' | 'ctf') => openSettings(category ?? 'apikeys')}
                   onStartCodingAgent={startCTFAgent}
                   onOpenCodingConversation={openHistoryConversation}
                   onCtfAction={runCTFChatAction}

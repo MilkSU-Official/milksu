@@ -253,19 +253,6 @@ export function rawCompanionMemoryExtract(settings) {
   return String(settings?.companion_memory_extract ?? settings?.CompanionMemoryExtract ?? '').trim()
 }
 
-export function memorySectionPrecedesPrivacy(headings) {
-  const rows = (headings ?? []).map(text => String(text ?? '').trim()).filter(Boolean)
-  const memory = rows.findIndex(text => text === '记忆' || text === 'Memory')
-  const privacy = rows.findIndex(text => text === '隐私' || text === 'Privacy')
-  if (memory < 0 || privacy < 0) {
-    return { ok: false, reason: `设置里没有记忆或隐私：${rows.join(' / ') || '空'}` }
-  }
-  if (memory > privacy) {
-    return { ok: false, reason: `记忆排在隐私后面：${rows.join(' / ')}` }
-  }
-  return { ok: true, reason: '' }
-}
-
 export function judgeExtractOptions(options) {
   const labels = (options ?? []).map(text => String(text ?? '').replace(/\s+/g, ' ').trim()).filter(Boolean)
   for (const pair of EXTRACT_REQUIRED) {

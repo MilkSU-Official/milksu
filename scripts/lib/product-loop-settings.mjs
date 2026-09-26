@@ -15,18 +15,23 @@ import {
 } from './product-loop-session.mjs'
 
 const CATEGORIES = [
+  ['账号', 'Account'],
+  ['外观', 'Appearance'],
   ['通用', 'General'],
+  ['权限与操控', 'Permissions'],
   ['模型', 'Models'],
+  ['运行时', 'Runtime'],
+  ['浏览器', 'Browser'],
+  ['归档聊天', 'Archived chats'],
+  ['记忆', 'Memory'],
   ['CTF'],
   ['CVE'],
   ['Lab'],
   ['Skills'],
   ['MCP'],
-  ['归档聊天', 'Archived chats'],
-  ['浏览器控制', 'Browser'],
-  ['评测', 'Eval'],
-  ['看板娘', 'Companion'],
   ['插件', 'Plugins'],
+  ['看板娘', 'Companion'],
+  ['评测', 'Eval'],
 ]
 
 async function openOrFail(driver, labels) {
@@ -44,17 +49,23 @@ export async function runSettingsNav(driver) {
   }
   return missing.length
     ? fail(`设置侧栏缺了 ${missing.join('、')}`)
-    : pass('十二个设置分类都能点开')
+    : pass('十七个设置分类都能点开')
 }
 
-export async function runSettingsGeneral(driver) {
-  const error = await openOrFail(driver, ['通用', 'General'])
+export async function runSettingsAccount(driver) {
+  const error = await openOrFail(driver, ['账号', 'Account'])
+  if (error) return error
+  return expectLabels(driver, ['GitHub 账户', 'GitHub account'], '账号页在', '账号页没打开')
+}
+
+export async function runSettingsAppearance(driver) {
+  const error = await openOrFail(driver, ['外观', 'Appearance'])
   if (error) return error
   const chrome = await expectLabels(
     driver,
-    ['界面语言', 'Interface language', '强调色', 'Accent color', '对话字号', 'Conversation size', '数据目录', 'Data folder', '调试模式', 'Debug mode'],
-    '通用页有语言、强调色、字号、数据和调试',
-    '通用页缺了常用控件',
+    ['界面语言', 'Interface language', '强调色', 'Accent color', '对话字号', 'Conversation size'],
+    '外观页有语言、强调色、字号',
+    '外观页缺了常用控件',
   )
   if (chrome.result === 'FAIL') return chrome
   const before = await driver.invoke('GetSettings', [])
@@ -69,8 +80,41 @@ export async function runSettingsGeneral(driver) {
   await clickLabeled(driver, restore).catch(() => false)
   await delay(200)
   return stored === next
-    ? pass(`通用强调色改完即存，已从 ${current || 'default'} 换成 ${next}`)
+    ? pass(`外观强调色改完即存，已从 ${current || 'default'} 换成 ${next}`)
     : fail(`强调色没有存下来 want=${next} got=${stored}`)
+}
+
+export async function runSettingsGeneral(driver) {
+  const error = await openOrFail(driver, ['通用', 'General'])
+  if (error) return error
+  return expectLabels(
+    driver,
+    ['打开文件', 'Open files', '数据目录', 'Data folder', '调试模式', 'Debug mode'],
+    '通用页有编辑器、文件、数据和调试',
+    '通用页缺了常用控件',
+  )
+}
+
+export async function runSettingsPermissions(driver) {
+  const error = await openOrFail(driver, ['权限与操控', 'Permissions'])
+  if (error) return error
+  return expectLabels(
+    driver,
+    ['Computer Use', '辅助功能', 'Accessibility', '屏幕录制', 'Screen Recording'],
+    '权限与操控页有 Computer Use',
+    '权限与操控页缺了控件',
+  )
+}
+
+export async function runSettingsRuntime(driver) {
+  const error = await openOrFail(driver, ['运行时', 'Runtime'])
+  if (error) return error
+  return expectLabels(
+    driver,
+    ['默认运行时', 'Default runtime', '忙碌时发送', 'Busy send', '内核', 'Kernel', 'DeepSeek Harness'],
+    '运行时页有默认运行时和忙碌时发送',
+    '运行时页缺了控件',
+  )
 }
 
 export async function runSettingsModels(driver) {
@@ -81,8 +125,8 @@ export async function runSettingsModels(driver) {
   if (relay.baseURL.includes('tokenflux.ai')) return fail('官方 TokenFlux 不能用 tokenflux.ai')
   const chrome = await expectLabels(
     driver,
-    ['默认运行时', 'Default runtime', '默认模型', 'Default model', '忙碌时发送', 'Send while busy', '模型服务', 'Model services'],
-    '模型页有默认运行时、默认模型和忙碌时发送',
+    ['默认模型', 'Default model', '模型服务', 'Model services'],
+    '模型页有默认模型和模型服务',
     '模型页缺了调用控件',
   )
   if (chrome.result === 'FAIL') return chrome
@@ -99,7 +143,7 @@ export async function runSettingsModels(driver) {
 export async function runSettingsCtf(driver) {
   const error = await openOrFail(driver, ['CTF'])
   if (error) return error
-  return expectLabels(driver, ['NSSCTF', 'Arena', '题目浏览器扩展', 'Challenge browser extension'], 'CTF 设置看得到 Arena 和扩展', 'CTF 设置缺了 Arena 或扩展')
+  return expectLabels(driver, ['NSSCTF', 'Arena', '题目浏览器扩展', 'Challenge browser extension', '配对码', 'Pairing code'], 'CTF 设置看得到 Arena 和扩展', 'CTF 设置缺了 Arena 或扩展')
 }
 
 export async function runSettingsCve(driver) {
@@ -132,14 +176,25 @@ export async function runSettingsChats(driver) {
   return expectLabels(driver, ['归档聊天', 'Archived chats'], '归档聊天页在', '归档聊天页没打开')
 }
 
-export async function runSettingsBrowser(driver) {
-  const error = await openOrFail(driver, ['浏览器控制', 'Browser'])
+export async function runSettingsMemory(driver) {
+  const error = await openOrFail(driver, ['记忆', 'Memory'])
   if (error) return error
   return expectLabels(
     driver,
-    ['Browser Use', 'Computer Use', '辅助功能', 'Accessibility', '屏幕录制', 'Screen Recording', 'CTF 站点', 'CTF sites'],
-    '浏览器控制页有 Browser Use、Computer Use 和 CTF 站点',
-    '浏览器控制页缺了控件',
+    ['长期记忆', 'Long-term memory', '记忆检索', 'Memory retrieval', '会话索引', 'Session index', 'CTF 记忆', 'CTF memory'],
+    '记忆页有长期记忆、会话索引和 CTF 记忆',
+    '记忆页缺了控件',
+  )
+}
+
+export async function runSettingsBrowser(driver) {
+  const error = await openOrFail(driver, ['浏览器', 'Browser'])
+  if (error) return error
+  return expectLabels(
+    driver,
+    ['Browser Use', '真实浏览器', 'Your browser'],
+    '浏览器页有 Browser Use',
+    '浏览器页缺了控件',
   )
 }
 

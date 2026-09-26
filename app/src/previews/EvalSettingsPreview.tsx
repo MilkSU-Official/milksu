@@ -123,7 +123,7 @@ export default function EvalSettingsPreview() {
     { value: 'cve', label: 'CVE', icon: Bug },
     { value: 'coding', label: 'Coding', icon: Box },
     { value: 'chats', label: t('归档聊天', 'Archived chats'), icon: Box },
-    { value: 'browser', label: t('浏览器控制', 'Browser control'), icon: Box },
+    { value: 'browser', label: t('浏览器', 'Browser'), icon: Box },
     { value: 'security-tools', label: t('安全工具', 'Security tools'), icon: Box },
     { value: 'eval', label: t('评测', 'Eval'), icon: Gauge },
   ] as const

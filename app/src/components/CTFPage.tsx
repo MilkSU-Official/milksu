@@ -189,7 +189,7 @@ export default function CTFPage({
   ensureConversation?: (title?: string) => string
   chatMaximized?: boolean
   chatDockOpen?: boolean
-  onOpenSettings?: (category?: 'apikeys' | 'browser') => void
+  onOpenSettings?: (category?: 'apikeys' | 'ctf') => void
   onStartCodingAgent?: (handoff: CTFAgentWorkspaceHandoff) => void
   onOpenCodingConversation?: (id: string) => void
   onSend?: (...args: CodingAgentSendArgs) => void
@@ -1207,7 +1207,7 @@ export default function CTFPage({
           challengeTitle={activeProjection?.challenge.title}
           browserStatus={isWebWorkspace ? (activeBrowserReady ? 'live' : 'off') : ''}
           onReturnCatalog={showProblems}
-          onOpenBrowserSettings={() => onOpenSettings?.('browser')}
+          onOpenBrowserSettings={() => onOpenSettings?.('ctf')}
           onRefreshBridge={() => { void webBridge.refresh() }}
         />
       ) : (
@@ -1306,7 +1306,7 @@ export default function CTFPage({
                   className="app-no-drag shrink-0"
                   data-connection-live-action
                   aria-label={t('浏览器连接设置', 'Browser connection settings')}
-                  onClick={() => onOpenSettings?.('browser')}
+                  onClick={() => onOpenSettings?.('ctf')}
                 >
                   <span className="connection-live-action__label">
                     <Cable className="size-4" />
@@ -1483,7 +1483,7 @@ export default function CTFPage({
               onSyncNssctf={() => { void syncCatalog() }}
               onRefreshJudge={() => { activeBank === 'ctfshow' ? void ctfshow.open() : void webBridge.refresh() }}
               onOpenSettings={() => onOpenSettings?.()}
-              onOpenBrowserSettings={() => onOpenSettings?.('browser')}
+              onOpenBrowserSettings={() => onOpenSettings?.('ctf')}
               onOpenConversation={onOpenCodingConversation}
               onUpdateManualStatus={updateManualStatus}
               onChangeDaily={() => { void refreshDailyChallenge(true) }}

@@ -123,7 +123,6 @@ import {
   judgeLearningRound,
   judgeMemorySearchRow,
   memoryExtractInstructions,
-  memorySectionPrecedesPrivacy,
   memoryTranscriptAnomaly,
   memoryTurnIgnored,
   normalizeMemoryExtract,
@@ -185,7 +184,7 @@ test('catalog keeps product regression away from evalsuite', () => {
   assert.equal(typeof PRODUCT_LOOP_RUNNERS['workspace-cve-learning'], 'function')
   assert.equal(MODULES['desktop-surface'].cases.length, 9)
   assert.equal(MODULES['account-shell'].cases.length, 4)
-  assert.equal(MODULES['settings-rest'].cases.length, 13)
+  assert.equal(MODULES['settings-rest'].cases.length, 18)
   assert.equal(orderSuites(['coding-pi-files', 'companion-ready'])[0], 'coding-pi-files')
   assert.equal(SUITES.companion.needsDesktop, true)
   assert.equal(SUITES.companion.needsCredential, true)
@@ -1620,9 +1619,6 @@ test('DSH prompt blocks and Pi user messages do not carry the memory prefix', as
 })
 
 test('memory settings and CVE learning file judges', () => {
-  assert.equal(memorySectionPrecedesPrivacy(['教学', '记忆', '隐私', '外观']).ok, true)
-  assert.equal(memorySectionPrecedesPrivacy(['Privacy', 'Memory']).ok, false)
-  assert.equal(memorySectionPrecedesPrivacy(['记忆']).ok, false)
   assert.equal(judgeExtractOptions(['关闭', '每轮结束', '闲置后']).ok, true)
   assert.equal(judgeExtractOptions(['关闭', '每轮结束', '闲置后', '每天']).ok, false)
   assert.equal(judgeExtractOptions(['Off', 'Each turn']).ok, false)
