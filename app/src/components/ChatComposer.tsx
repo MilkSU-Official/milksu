@@ -203,8 +203,8 @@ const COMPOSER_STYLES = `
   align-items: center;
   gap: 0.35rem;
   border: 0;
-  border-radius: 8px;
-  padding-inline: 8px;
+  border-radius: 999px;
+  padding-inline: 10px;
   font-size: 13px;
   line-height: 20px;
   font-weight: 500;
@@ -802,7 +802,12 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
   function applyStoredComposerDraft(stored?: StoredComposerDraft) {
     pendingAttachmentsRef.current = stored?.attachments ?? []
     applyComposerHtml(stored?.html ?? '')
-    setDraft(stored?.text ?? '')
+    // 旧版本把 Skill 和画图选择存成正文里的 inline token。现在这两者改成胶囊状态，
+    // 恢复草稿时清掉这些遗留节点，避免正文里挂着一颗失效的令牌。
+    messageEditor.current
+      ?.querySelectorAll('[data-composer-skill-token], [data-composer-scope-token="image"]')
+      .forEach(node => node.remove())
+    setDraft(readComposerText())
     setPendingAttachments(stored?.attachments ?? [])
   }
 
@@ -1302,10 +1307,15 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
     } else {
       persistComposerDraft()
     }
+    // browser-use / computer-use 仍以 inline token 形式挂在正文里（本轮输入的素材），
+    // 状态跟着 DOM 走；image 和 Skill 是胶囊状态（见下方 status 槽），不从 DOM 推导。
     const token = messageEditor.current?.querySelector<HTMLElement>('[data-composer-scope-token]')
     const tokenValue = token?.dataset.composerScopeToken
-    setScopeToken(tokenValue === 'browser-use' || tokenValue === 'computer-use' ? tokenValue : null)
-    setSkillToken(messageEditor.current?.querySelector<HTMLElement>('[data-composer-skill-token]')?.dataset.composerSkillToken ?? null)
+    setScopeToken(current => (
+      tokenValue === 'browser-use' || tokenValue === 'computer-use'
+        ? tokenValue
+        : current === 'image' ? 'image' : null
+    ))
     if (composingRef.current) return
     setSlashMenuDismissed(false)
     detectSlashQuery()
@@ -1435,9 +1445,14 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
 
   function insertScopeToken(value: ComposerScopeToken) {
     removeScopeToken(false)
-    const label = value === 'image'
-      ? (imageModelLabel ? t(`画图 · ${imageModelLabel}`, `Draw · ${imageModelLabel}`) : t('画图', 'Draw'))
-      : value === 'browser-use' ? 'Browser Use' : 'Computer Use'
+    if (value === 'image') {
+      // 画图只是一个模式选择：像目标、计划一样用输入栏上方的安静胶囊呈现，
+      // 不在正文里插 inline token。
+      setScopeToken('image')
+      void focusMessageInput()
+      return
+    }
+    const label = value === 'browser-use' ? 'Browser Use' : 'Computer Use'
     const token = createInlineToken(
       'data-composer-scope-token', value, label, label,
       t(`移除 /${value}`, `Remove /${value}`),
@@ -1454,16 +1469,10 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
 
   function insertSkillToken(name: string) {
     removeSkillToken(false)
-    const option = skillOption(name)
-    const label = option?.label ?? name
-    const token = createInlineToken(
-      'data-composer-skill-token', name, `Skill · ${label}`,
-      t(`${label} Skill 已加入`, `${label} Skill added`),
-      t(`移除 ${label} Skill`, `Remove ${label} Skill`),
-      () => removeSkillToken(),
-    )
-    if (!insertInlineToken(token)) return
+    // Skill 是提示词级选择：像目标、计划一样用输入栏上方的安静胶囊呈现，
+    // 不在正文里插 inline token，也不带 Skill 前缀。
     setSkillToken(name)
+    void focusMessageInput()
   }
 
   function clearComposerInput() {
@@ -2298,6 +2307,30 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
                       <button type="button" className="chat-composer__chip chat-composer__chip--plan" aria-label={planCopy.chipTitle} title={planCopy.chipTitle} onClick={() => props.onChangeExecutionMode?.('go')}>
                         <Lightbulb className="size-3.5 shrink-0" />
                         <span className="chat-composer__chip__label">{planCopy.chip}</span>
+                      </button>
+                    ) : null}
+                    {skillToken ? (
+                      <button
+                        type="button"
+                        className="chat-composer__chip chat-composer__chip--plan"
+                        aria-label={t(`已选 ${skillOption(skillToken)?.label ?? skillToken}`, `${skillOption(skillToken)?.label ?? skillToken} selected`)}
+                        title={t('点击移除', 'Click to remove')}
+                        onClick={() => removeSkillToken()}
+                      >
+                        <LibraryBig className="size-3.5 shrink-0" />
+                        <span className="chat-composer__chip__label">{skillOption(skillToken)?.label ?? skillToken}</span>
+                      </button>
+                    ) : null}
+                    {scopeToken === 'image' ? (
+                      <button
+                        type="button"
+                        className="chat-composer__chip chat-composer__chip--plan"
+                        aria-label={t('画图已开启', 'Draw is on')}
+                        title={t('点击移除', 'Click to remove')}
+                        onClick={() => removeScopeToken()}
+                      >
+                        <ImageIcon className="size-3.5 shrink-0" />
+                        <span className="chat-composer__chip__label">{t('画图', 'Draw')}</span>
                       </button>
                     ) : null}
                     {showProgressSummary ? (
