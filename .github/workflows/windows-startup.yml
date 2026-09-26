@@ -78,6 +78,6 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $env:MILKSU_TEST_CUA_DRIVER = (Resolve-Path 'build/sidecar-cache/cua-windows-0.27.0/r/cua-driver.exe').Path
+          $env:MILKSU_TEST_CUA_DRIVER = (Resolve-Path 'build/sidecar-cache/cua-windows-0.29.1/r/cua-driver.exe').Path
           go test ./internal/computercap -count=1
           node --test sidecar/computer-use/computer-use-proxy.test.js
