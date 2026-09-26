@@ -250,6 +250,7 @@ func desktopAppMethods(app *App) map[string]desktopAppMethod {
 		"RestoreLabJob":                        rendererDesktopMethod(app.RestoreLabJob),
 		"GenerateConversationTitle":            rendererDesktopMethod(app.GenerateConversationTitle),
 		"ChooseAgentWorkspace":                 rendererDesktopMethod(app.ChooseAgentWorkspace),
+		"CreateAgentWorkspace":                 rendererDesktopMethod(app.CreateAgentWorkspace),
 		"GetCodingProjectMemory":               rendererDesktopMethod(app.GetCodingProjectMemory),
 		"RememberCodingProject":                rendererDesktopMethod(app.RememberCodingProject),
 		"ForgetCodingProject":                  rendererDesktopMethod(app.ForgetCodingProject),
