@@ -27,5 +27,6 @@ npm run test:product-loop -- --gui --suite first-use
 | `CUSTOM_RELAY_MODELS` | 可以不填。官方 TokenFlux 空着就用目录里的 `deepseek/deepseek-flash`，不用猜前缀。第三方中转站才需要自己写 ID |
 | `CUSTOM_RELAY_NAME` | 设置里显示的中转站名字 |
 | `ACCOUNT_HAS_QUOTA` | 登录后管理员有没有开账户额度：`yes` / `no` |
+| `MILKSU_LOOP_USER` / `MILKSU_LOOP_PASSWORD` | 账户用户名密码，登录门用例填表用。不填时 `login-github-active` FAIL，`account-model-fileloop` SKIP，决策套件里依赖账户钥匙的用例连带 FAIL |
 
 不要把 Key 写在本页。用例和顺序在 `scripts/lib/product-loop-catalog.mjs`，怎么跑见 [产品回归循环](product-regression-loop.md)。

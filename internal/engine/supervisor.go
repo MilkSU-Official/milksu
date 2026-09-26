@@ -1765,16 +1765,22 @@ func (s *Supervisor) sendMessage(
 	if err != nil {
 		return err
 	}
-	if codingPolicy.ExecutionMode != "go" {
+	if codingPolicy.ExecutionMode != "go" || !config.CodingBrowserAllowed(settings) {
 		codingBrowser = nil
+		mcpServers = removeMCPServer(mcpServers, codingBrowserMCPServerName)
 	}
 	computerUse, err = normalizeComputerUseDescriptor(computerUse)
 	if err != nil {
 		computerUse = nil
 	}
 	if codingPolicy.ExecutionMode != "go" ||
-		codingPolicy.ApprovalPolicy == "read-only" {
+		codingPolicy.ApprovalPolicy == "read-only" ||
+		!config.ComputerUseAllowed(settings) {
 		computerUse = nil
+		mcpServers = removeMCPServer(mcpServers, computerUseMCPServerName)
+	}
+	if !config.BrowserUseAllowed(settings) {
+		mcpServers = removeMCPServer(mcpServers, browserUseMCPServerName)
 	}
 	purposeProbe := false
 	s.probeMu.Lock()
@@ -2146,6 +2152,33 @@ func normalizeCodingBrowserDescriptor(
 		SessionID:   sessionID,
 		CDPEndpoint: endpoint,
 	}, nil
+}
+
+// Reserved built-in MCP server names mirrored from the Sidecar
+// (sidecar/pi/bridge-browser-policy.js and the computer-use proxy). The
+// capability switches in 设置 → 权限与操控 strip them from turn commands.
+const (
+	codingBrowserMCPServerName = "milksu-playwright"
+	browserUseMCPServerName    = "milksu-playwright-user"
+	computerUseMCPServerName   = "milksu-computer-use"
+)
+
+func removeMCPServer(names []string, blocked ...string) []string {
+	if len(names) == 0 || len(blocked) == 0 {
+		return names
+	}
+	deny := make(map[string]struct{}, len(blocked))
+	for _, name := range blocked {
+		deny[name] = struct{}{}
+	}
+	kept := make([]string, 0, len(names))
+	for _, name := range names {
+		if _, hit := deny[name]; hit {
+			continue
+		}
+		kept = append(kept, name)
+	}
+	return kept
 }
 
 func (s *Supervisor) AbortMessage(sessionID string, extra ...string) error {

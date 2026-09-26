@@ -9,6 +9,7 @@ import (
 
 	"github.com/MilkSU-Official/milksu/internal/browsercap"
 	"github.com/MilkSU-Official/milksu/internal/codingevidence"
+	"github.com/MilkSU-Official/milksu/internal/config"
 	"github.com/MilkSU-Official/milksu/internal/engine"
 )
 
@@ -25,6 +26,9 @@ func (a *App) StartCodingBrowser(
 ) (browsercap.CodingBrowserStatus, error) {
 	if a.browserBridge == nil {
 		return browsercap.CodingBrowserStatus{}, fmt.Errorf("浏览器服务不可用")
+	}
+	if !config.CodingBrowserAllowed(a.settings.Get()) {
+		return browsercap.CodingBrowserStatus{}, fmt.Errorf("内置浏览器已在设置 → 权限与操控中停用")
 	}
 	initialURL = strings.TrimSpace(initialURL)
 	startContext, cancel := context.WithTimeout(
@@ -49,6 +53,9 @@ func (a *App) lookupCodingBrowserDescriptor(
 	conversationID string,
 ) (*engine.CodingBrowserDescriptor, bool) {
 	if a.browserBridge == nil {
+		return nil, false
+	}
+	if !config.CodingBrowserAllowed(a.settings.Get()) {
 		return nil, false
 	}
 	descriptor, enabled := a.browserBridge.CodingDescriptor(conversationID)
@@ -95,6 +102,9 @@ func (a *App) EnsureCodingBrowser(
 ) (browsercap.CodingBrowserStatus, error) {
 	if a.browserBridge == nil {
 		return browsercap.CodingBrowserStatus{}, fmt.Errorf("浏览器服务不可用")
+	}
+	if !config.CodingBrowserAllowed(a.settings.Get()) {
+		return browsercap.CodingBrowserStatus{}, fmt.Errorf("内置浏览器已在设置 → 权限与操控中停用")
 	}
 	if descriptor, enabled := a.browserBridge.CodingDescriptor(conversationID); enabled && descriptor.SessionID != "" {
 		statusContext, cancel := context.WithTimeout(
@@ -211,6 +221,15 @@ func (a *App) GetCodingBrowserStatus(
 	)
 	defer cancel()
 	return a.browserBridge.CodingStatus(statusContext, conversationID)
+}
+
+// GetCodingBrowserOverview feeds 设置 → 权限与操控 → 浏览器管理: every
+// conversation-owned isolated browser session, cheapest fields only.
+func (a *App) GetCodingBrowserOverview() ([]browsercap.CodingBrowserStatus, error) {
+	if a.browserBridge == nil {
+		return nil, fmt.Errorf("浏览器服务不可用")
+	}
+	return a.browserBridge.CodingSessions(), nil
 }
 
 func (a *App) StopCodingBrowser(

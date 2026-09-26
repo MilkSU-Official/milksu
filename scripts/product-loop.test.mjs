@@ -8,6 +8,7 @@ import { EventEmitter } from 'node:events'
 import { CdpSession, classifyTurnEvents, eventSessionId, eventToolName, eventTypeOf, GuiDriver, isCompanionChatSurface, isCompanionPetSurface, isCompanionSurface, isMainProductSurface, isMilkSUPage, isProductLoopFixtureConversation, killProcessGroup, resolveProductLoopLaunchPlan, stripDesktopCredentialEnv } from './lib/desktop-gui-driver.mjs'
 import {
   classifyMilkSUHostCommand,
+  detectCallerMilkSUPid,
   describeExclusiveWindows,
   mergeKeepPids,
   parsePsTable,
@@ -546,6 +547,12 @@ test('exclusive window classification keeps only MilkSU hosts', () => {
     classifyMilkSUHostCommand(`${repo}/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron ${repo}/desktop`, repo),
     'unpackaged-repo',
   )
+  const callerRows = [
+    { pid: process.pid, ppid: 901, command: '/usr/bin/node milksu-sidecar' },
+    { pid: 901, ppid: 902, command: '/usr/bin/node milksu-sidecar' },
+    { pid: 902, ppid: 1, command: `${repo}/build/bin/MilkSU.app/Contents/MacOS/MilkSU` },
+  ]
+  assert.equal(detectCallerMilkSUPid(callerRows, repo), 902)
   const rows = parsePsTable([
     '11 1 /Applications/Cursor.app/Contents/MacOS/Cursor',
     '22 1 /Applications/MilkSU.app/Contents/MacOS/MilkSU',

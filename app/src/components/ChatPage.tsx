@@ -766,12 +766,14 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     && computerUseStatus.conversationId === conversation?.id,
   )
   const computerUseReadyForCurrentTask = Boolean(
-    computerUseStatus?.enabled
+    settings?.computer_use_enabled !== false
+    && computerUseStatus?.enabled
     && computerUseOwnedByCurrentTask,
   )
   const scopedComputerUseTargets = computerUseTargets
   const browserUseReadyForCurrentTask = Boolean(
-    workspacePath
+    settings?.browser_use_enabled !== false
+    && workspacePath
     && effectiveExecutionMode === 'go'
     && effectiveApprovalPolicy !== 'read-only',
   )
@@ -1451,6 +1453,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
   }
 
   function revealBuiltInBrowser() {
+    if (settings?.coding_browser_enabled === false) return
     setContextPanel('browser')
     setEnvironmentOpen(true)
     void ensureCodingBrowser()

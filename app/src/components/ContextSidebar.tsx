@@ -38,7 +38,6 @@ import {
   FolderPlus,
   Gauge,
   GitFork,
-  Globe2,
   SquarePen,
   ImageIcon,
   Palette,
@@ -130,7 +129,6 @@ const settingsNavIcons = {
   mcp: Plug,
   chats: Archive,
   memory: Brain,
-  browser: Globe2,
   eval: Gauge,
   companion: Star,
   plugins: Puzzle,
@@ -160,6 +158,49 @@ function SidebarPlusButton({
     >
       {icon ?? <Plus className="size-4" />}
     </button>
+  )
+}
+
+// Module scope on purpose: defined inside ContextSidebar this component would
+// get a new type every parent render, and React would unmount and remount the
+// whole section (losing focus and re-mounting every conversation row).
+function ConversationSection({
+  id,
+  label,
+  plus,
+  children,
+}: {
+  id: string
+  label: string
+  plus?: ReactNode
+  children: ReactNode
+}) {
+  const [open, setOpen] = useState(() => readSidebarSectionOpen(id))
+  function toggle() {
+    setOpen(current => {
+      writeSidebarSectionOpen(id, !current)
+      return !current
+    })
+  }
+  return (
+    <>
+      <div className="group mx-2 mb-1 flex h-8 items-center gap-1">
+        <button
+          type="button"
+          className="flex h-8 min-w-0 flex-1 items-center gap-0.5 rounded-[8px] px-2 text-left"
+          aria-expanded={open}
+          aria-controls={`sidebar-section-${id}`}
+          onClick={toggle}
+        >
+          <span className="agent-sidebar__copy truncate text-body font-medium text-muted-foreground">{label}</span>
+          <ChevronDown className={`agent-sidebar__copy size-4 shrink-0 text-muted-foreground transition-transform duration-200${open ? '' : ' -rotate-90'}`} aria-hidden="true" />
+        </button>
+        {plus}
+      </div>
+      {open ? (
+        <div id={`sidebar-section-${id}`}>{children}</div>
+      ) : null}
+    </>
   )
 }
 
@@ -737,46 +778,6 @@ export default function ContextSidebar({
       </div>
     )
   }
-
-function ConversationSection({
-  id,
-  label,
-  plus,
-  children,
-}: {
-  id: string
-  label: string
-  plus?: ReactNode
-  children: ReactNode
-}) {
-  const [open, setOpen] = useState(() => readSidebarSectionOpen(id))
-  function toggle() {
-    setOpen(current => {
-      writeSidebarSectionOpen(id, !current)
-      return !current
-    })
-  }
-  return (
-    <>
-      <div className="group mx-2 mb-1 flex h-8 items-center gap-1">
-        <button
-          type="button"
-          className="flex h-8 min-w-0 flex-1 items-center gap-0.5 rounded-[8px] px-2 text-left"
-          aria-expanded={open}
-          aria-controls={`sidebar-section-${id}`}
-          onClick={toggle}
-        >
-          <span className="agent-sidebar__copy truncate text-body font-medium text-muted-foreground">{label}</span>
-          <ChevronDown className={`agent-sidebar__copy size-4 shrink-0 text-muted-foreground transition-transform duration-200${open ? '' : ' -rotate-90'}`} aria-hidden="true" />
-        </button>
-        {plus}
-      </div>
-      {open ? (
-        <div id={`sidebar-section-${id}`}>{children}</div>
-      ) : null}
-    </>
-  )
-}
 
   function projectGroupFolder(group: CodingConversationGroup) {
     return (

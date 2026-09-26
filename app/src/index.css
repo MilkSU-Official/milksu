@@ -63,10 +63,10 @@
   --text-display: calc(var(--ui-font-size) * 24 / 13);
   --text-display--line-height: calc(var(--ui-font-size) * 29.6 / 13);
 
-  --background: rgb(24 24 24 / 0.90);
-  --background-chrome: rgb(20 20 20 / 0.82);
+  --background: rgb(16 16 18 / 0.94);
+  --background-chrome: rgb(16 16 18 / 0.88);
   --foreground: #f0f0f0;
-  --card: rgb(24 24 24 / 0.90);
+  --card: rgb(30 30 34 / 0.92);
   --card-foreground: #f0f0f0;
   --popover: #141414;
   --popover-foreground: #f0f0f0;
@@ -95,7 +95,7 @@
   --ring: #d0d0d0;
   --hover: #2a2a2a;
   --hover-2: #333333;
-  --sidebar: rgb(20 20 20 / 0.78);
+  --sidebar: rgb(32 32 35 / 0.86);
   --sidebar-foreground: #f0f0f0;
   --sidebar-border: #2b2b2b;
   --sidebar-accent: #2a2a2a;
@@ -126,16 +126,16 @@
   --focus-panel: rgb(240 240 240 / 0.06);
   --focus-panel-strong: rgb(240 240 240 / 0.1);
   --grid-line: rgb(240 240 240 / 0.06);
-  --surface-wash: rgb(24 24 24 / 0.90);
-  --surface-wash-spot: rgb(28 28 28 / 0.88);
-  --surface-read: rgb(24 24 24 / 0.90);
-  --surface-clear: rgb(28 28 28 / 0.88);
-  --surface-clear-strong: rgb(28 28 28 / 0.92);
+  --surface-wash: rgb(30 30 34 / 0.92);
+  --surface-wash-spot: rgb(34 34 38 / 0.90);
+  --surface-read: rgb(16 16 18 / 0.94);
+  --surface-clear: rgb(34 34 38 / 0.90);
+  --surface-clear-strong: rgb(34 34 38 / 0.94);
   --surface-overlay: #141414;
   --surface-blur: none;
   --surface-specular: none;
   --surface-glass-shadow: 0 12px 40px rgb(0 0 0 / 0.45);
-  --surface-raised: rgb(28 28 28 / 0.94);
+  --surface-raised: rgb(38 38 42 / 0.95);
   --surface-sunken: rgb(20 20 20 / 0.86);
 
   --overlay-hover-light: var(--hover);
@@ -205,7 +205,7 @@
 
   --page-stack-width: 64rem;
   --page-card-radius: 8px;
-  --settings-field-fill: rgb(28 28 28 / 0.88);
+  --settings-field-fill: rgb(34 34 38 / 0.90);
   --settings-field-fill-hover: #2a2a2a;
 }
 
@@ -508,6 +508,7 @@ body {
 
 header.settings-page-header {
   margin-left: var(--shell-chrome-overhang, 0px);
+  margin-right: var(--shell-chrome-overhang, 0px);
   padding-left: 1.25rem;
 }
 

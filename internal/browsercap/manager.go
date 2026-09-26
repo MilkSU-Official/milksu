@@ -18,6 +18,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -696,6 +697,34 @@ func (m *Manager) codingSessionIDs() []string {
 			result = append(result, sessionID)
 		}
 	}
+	return result
+}
+
+// CodingSessions lists every conversation-owned browser session for the
+// settings overview. It stays cheap on purpose: no CDP round-trips, so tabs
+// and pages are not filled in.
+func (m *Manager) CodingSessions() []CodingBrowserStatus {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	result := make([]CodingBrowserStatus, 0, len(m.sessions))
+	for sessionID, session := range m.sessions {
+		if session.conversationID == "" {
+			continue
+		}
+		result = append(result, CodingBrowserStatus{
+			Enabled:        true,
+			ConversationID: session.conversationID,
+			SessionID:      sessionID,
+			Phase:          session.public.Phase,
+			InitialURL:     session.public.InitialURL,
+			ProfileLabel:   session.public.ProfileLabel,
+			StartedAt:      session.public.StartedAt,
+			BrowserBinary:  session.public.BrowserBinary,
+		})
+	}
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].StartedAt.Before(result[j].StartedAt)
+	})
 	return result
 }
 

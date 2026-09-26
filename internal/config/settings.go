@@ -138,8 +138,17 @@ type AppSettings struct {
 	// Existing conversations keep the kernel persisted on that row.
 	DefaultKernel string `json:"default_kernel,omitempty"`
 	// BusySend is the DSH parent-turn send policy: interrupt (followup) or queue (inbox).
-	BusySend      string             `json:"busy_send,omitempty"`
-	ModelVerified *ModelVerification `json:"model_verification,omitempty"`
+	BusySend string `json:"busy_send,omitempty"`
+	// ComputerUseEnabled gates desktop computer_use (AX-driven control of a
+	// user-locked window). Nil means enabled.
+	ComputerUseEnabled *bool `json:"computer_use_enabled,omitempty"`
+	// BrowserUseEnabled gates attaching the user's real browser tab (Browser Use).
+	// Nil means enabled.
+	BrowserUseEnabled *bool `json:"browser_use_enabled,omitempty"`
+	// CodingBrowserEnabled gates the isolated per-conversation coding browser.
+	// Nil means enabled.
+	CodingBrowserEnabled *bool              `json:"coding_browser_enabled,omitempty"`
+	ModelVerified        *ModelVerification `json:"model_verification,omitempty"`
 	// ModelFailures holds the most recent real failure per model, for the picker's red mark.
 	ModelFailures            []ModelFailureRecord `json:"model_failures,omitempty"`
 	ModelRouting             ModelRoutingConfig   `json:"model_routing"`
@@ -251,6 +260,24 @@ func ResolvedUserInterfaceLocale(settings AppSettings) string {
 		return "en"
 	}
 	return "zh"
+}
+
+// ComputerUseAllowed reports whether sessions may drive the desktop
+// computer_use tool. The master switch lives in 设置 → 权限与操控.
+func ComputerUseAllowed(settings AppSettings) bool {
+	return settings.ComputerUseEnabled == nil || *settings.ComputerUseEnabled
+}
+
+// BrowserUseAllowed reports whether turns may attach the user's real browser
+// tab through the Browser Use MCP server.
+func BrowserUseAllowed(settings AppSettings) bool {
+	return settings.BrowserUseEnabled == nil || *settings.BrowserUseEnabled
+}
+
+// CodingBrowserAllowed reports whether sessions may start or reuse the
+// isolated per-conversation coding browser.
+func CodingBrowserAllowed(settings AppSettings) bool {
+	return settings.CodingBrowserEnabled == nil || *settings.CodingBrowserEnabled
 }
 
 func NormalizeDefaultKernel(value string) string {

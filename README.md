@@ -9,14 +9,14 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/MilkSU-Official/milksu/releases/tag/v26.925.2"><img src="https://img.shields.io/badge/latest_release-26.925.2-f3f0e8?style=flat-square&labelColor=20211f" alt="Latest GitHub Release 26.925.2"></a>
+  <a href="https://github.com/MilkSU-Official/milksu/releases/tag/v26.927.1"><img src="https://img.shields.io/badge/latest_release-26.927.1-f3f0e8?style=flat-square&labelColor=20211f" alt="Latest GitHub Release 26.927.1"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue?style=flat-square&labelColor=20211f" alt="AGPL-3.0-only"></a>
   <img src="https://img.shields.io/badge/platform-macOS_Windows_Linux-f3f0e8?style=flat-square&labelColor=20211f" alt="macOS, Windows and Linux">
   <img src="https://img.shields.io/badge/desktop-Electron_%2B_React_%2B_Go-f3f0e8?style=flat-square&labelColor=20211f" alt="Electron, React and Go">
 </p>
 
 <p align="center">
-  <a href="https://github.com/MilkSU-Official/milksu/releases/tag/v26.925.2">下载 26.925.2</a>
+  <a href="https://github.com/MilkSU-Official/milksu/releases/tag/v26.927.1">下载 26.927.1</a>
   ·
   <a href="https://github.com/MilkSU-Official/milksu/releases">全部发行</a>
   ·
@@ -85,7 +85,7 @@ MilkSU 把 Coding、CTF、CVE 和实验室放进同一个桌面。界面是 Reac
 
 ## 安装
 
-当前安装包是 **[26.925.2](https://github.com/MilkSU-Official/milksu/releases/tag/v26.925.2)**：macOS ARM64 DMG（Developer ID 签名并公证，安装引导图为 Retina @2x）、Windows x64 EXE、Linux x64 `.deb` 与 `.tar.gz`。这一版看板娘手机里能看到生成的图，可以复制、下载和在访达中显示。选中对话文字加入输入框时，引用出现在光标处，可以单独删除。手机形态改用系统右键菜单，只有小人时仍是看板娘菜单；主界面选中文字或在输入框里右键，可以剪切、复制、粘贴。Windows 安装器尚未代码签名，可能被 SmartScreen 拦住。已登录后侧栏「更新」打开进度框下载，下完后点安装并重启。
+当前安装包是 **[26.927.1](https://github.com/MilkSU-Official/milksu/releases/tag/v26.927.1)**：macOS ARM64 DMG（Developer ID 签名并公证，安装引导图为 Retina @2x）、Windows x64 EXE、Linux x64 `.deb` 与 `.tar.gz`。这一版深色模式重排了明暗层级：侧栏变浅、页面变深，对话卡片、输入栏和用户气泡在深底上更跳，设置页和对话页同一底色。设置页按用途重组出运行时和记忆分类；侧栏会话组可以折叠，首页会话分成项目、任务两组；新会话不再自动带上最近项目。工作过程合并成一条可展开的折叠概览，长对话翻阅走视口感知滑动窗口。选中对话文字加入输入框时，引用出现在光标处，可以单独删除。Windows 安装器尚未代码签名，可能被 SmartScreen 拦住。已登录后侧栏「更新」打开进度框下载，下完后点安装并重启。
 
 | 系统 | 安装包 | Computer Use | Browser Use |
 | --- | --- | --- | --- |
@@ -98,7 +98,7 @@ Linux 只发两份包：Ubuntu / Debian 用 `.deb`，Omarchy / Arch / NixOS 用�
 
 ```bash
 # Ubuntu / Debian
-sudo apt install ./MilkSU-Linux-x64-26.925.2.deb
+sudo apt install ./MilkSU-Linux-x64-26.927.1.deb
 
 # Omarchy / Arch：用仓库 `packaging/linux/PKGBUILD.in`，填版本与 sha256 后
 makepkg -si
@@ -162,7 +162,7 @@ npm run desktop:start
 | [薄荷布丁（SkyAerope）](https://github.com/SkyAerope) | 自定义中转站保存与 MilkSU 账户行、设置里的数据库兼容行（PR #7） |
 | [AsabaLazy（Aeko233）](https://github.com/Aeko233)、[Luo](https://github.com/luo) | CTF 收藏/全部视图改走本地目录（PR #8）；Windows 源码换行测试（PR #9）；应用级本地调试模式（PR #10） |
 | [shiluoshiro](https://github.com/shiluoshiro) | 设置页切换分类时清掉上一分类提示（PR #25） |
-| [メタトロン（MetatronPrototype）](https://github.com/MetatronPrototype) | bash 调用注入默认超时上界，非活跃工作区的 Sidecar 停靠保活（PR #80）；凭据变更改为惰性替换 Sidecar，停止与运行态跟住引擎真相（PR #83）；会话草稿隔离、计划收起、资料页失败重试与钉选排序（PR #97）；回收停止事件限定到当时会话、流式文本按批合并（PR #98）；破坏性删除先测量再判定再记录（PR #105） |
+| [メタトロン（MetatronPrototype）](https://github.com/MetatronPrototype) | bash 调用注入默认超时上界，非活跃工作区的 Sidecar 停靠保活（PR #80）；凭据变更改为惰性替换 Sidecar，停止与运行态跟住引擎真相（PR #83）；会话草稿隔离、计划收起、资料页失败重试与钉选排序（PR #97）；回收停止事件限定到当时会话、流式文本按批合并（PR #98）；破坏性删除先测量再判定再记录（PR #105）；HEIC 照片按文件头量尺寸发送（PR #137）、中文根路径的 socket 字节上限（PR #138）；模型失败必须让读者看见、思考复读时提醒（PR #155）；审批条判定抽成可测纯模块（PR #156） |
 
 问题和产品建议可以提到 [GitHub Issues](https://github.com/MilkSU-Official/milksu/issues)，或发到 [milksu@proton.me](mailto:milksu@proton.me)。
 

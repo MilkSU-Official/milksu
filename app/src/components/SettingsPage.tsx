@@ -1,8 +1,9 @@
 import { createStore, useStore, useStoreRuntime } from '@/lib/reactStore'
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   AlertCircle,
   Check,
+  ChevronLeft,
   LogOut,
   ChevronDown,
   Moon,
@@ -38,6 +39,7 @@ import { AccountCredentialSettings } from '@/components/AccountCredentialSetting
 import { desktopErrorMessage, hasDesktopRuntime, invokeCommand, isMissingDesktopRuntime, listenEvent } from '@/desktop'
 import type {
   BrowserUseRuntime,
+  CodingBrowserStatus,
   CodingComputerUsePermission,
   CodingComputerUseStatus,
 } from '@/codingEnvironmentTypes'
@@ -89,7 +91,7 @@ import SettingsMCPPanel from '@/components/SettingsMCPPanel'
 import EvalSettingsPanel from '@/components/EvalSettingsPanel'
 import LabSettingsPanel from '@/components/LabSettingsPanel'
 import CompanionSettingsPanel from '@/components/CompanionSettingsPanel'
-import MemorySettingsPanel from '@/components/MemorySettingsPanel'
+import MemorySettingsPanel, { MemoryEntriesPanel } from '@/components/MemorySettingsPanel'
 import PluginSettingsPanel from '@/components/PluginSettingsPanel'
 import ModelVendorIcon from '@/components/ModelVendorIcon'
 import ArchivedConversationsSettings from '@/components/ArchivedConversationsSettings'
@@ -261,12 +263,12 @@ function ThemeModeCards({
 function ThemeModePreview({ mode, className }: { mode: 'light' | 'dark'; className?: string }) {
   const dark = mode === 'dark'
   return (
-    <div className={`flex ${className ?? ''}`} style={{ background: dark ? '#181818' : '#f4f6f8' }}>
-      <div className="h-full w-1/4" style={{ background: dark ? '#101010' : '#e9edf1' }} />
+    <div className={`flex ${className ?? ''}`} style={{ background: dark ? '#101012' : '#f4f6f8' }}>
+      <div className="h-full w-1/4" style={{ background: dark ? '#202023' : '#e9edf1' }} />
       <div className="flex min-w-0 flex-1 flex-col gap-1.5 p-2">
         <div className="h-2 w-3/4 rounded-sm" style={{ background: dark ? '#2a2a2a' : '#ffffff' }} />
-        <div className="h-2 w-full rounded-sm" style={{ background: dark ? '#242424' : '#eef1f4' }} />
-        <div className="h-2 w-5/6 rounded-sm" style={{ background: dark ? '#242424' : '#eef1f4' }} />
+        <div className="h-2 w-full rounded-sm" style={{ background: dark ? '#26262a' : '#eef1f4' }} />
+        <div className="h-2 w-5/6 rounded-sm" style={{ background: dark ? '#26262a' : '#eef1f4' }} />
       </div>
     </div>
   )
@@ -390,6 +392,11 @@ export default function SettingsPage({
   const store = useStoreRuntime(() => createSettingsStore(callbacks))
   const modelCatalog = useStore(modelCatalogStore)
   const [accountModelsOpen, setAccountModelsOpen] = useState(false)
+  // 二级页：权限与操控的管理页（电脑应用、外部浏览器、内置浏览器）和记忆条目页。
+  const [managementView, setManagementView] = useState<'computer-use' | 'external-browser' | 'coding-browser' | 'memory-entries' | null>(null)
+  const [codingBrowserOverview, setCodingBrowserOverview] = useState<CodingBrowserStatus[] | null>(null)
+  const [codingBrowserOverviewLoading, setCodingBrowserOverviewLoading] = useState(false)
+  const [codingBrowserStopping, setCodingBrowserStopping] = useState('')
   const state = store.store.getState()
 
   useEffect(() => {
@@ -405,6 +412,48 @@ export default function SettingsPage({
   }, [store, accountStatus])
 
   const category = state.category
+
+  // 切走所属分类时收起对应的二级页。
+  useEffect(() => {
+    setManagementView(view => {
+      if (!view) return view
+      if (view === 'memory-entries') return category === 'memory' ? view : null
+      return category === 'permissions' ? view : null
+    })
+  }, [category])
+
+  const refreshCodingBrowserOverview = useCallback(() => {
+    setCodingBrowserOverviewLoading(true)
+    void invokeCommand<CodingBrowserStatus[]>('get_coding_browser_overview')
+      .then(value => {
+        setCodingBrowserOverview(Array.isArray(value) ? value : [])
+      })
+      .catch(() => setCodingBrowserOverview([]))
+      .finally(() => setCodingBrowserOverviewLoading(false))
+  }, [])
+
+  // 进入内置浏览器管理页时拉一次概览。
+  useEffect(() => {
+    if (managementView !== 'coding-browser') return
+    refreshCodingBrowserOverview()
+  }, [managementView, refreshCodingBrowserOverview])
+
+  function stopCodingBrowserSession(conversationId: string) {
+    if (!conversationId || codingBrowserStopping) return
+    setCodingBrowserStopping(conversationId)
+    void invokeCommand('stop_coding_browser', { conversationId })
+      .catch(() => undefined)
+      .finally(() => {
+        setCodingBrowserStopping('')
+        refreshCodingBrowserOverview()
+      })
+  }
+
+  function revealCodingBrowserEvidence(conversationId: string) {
+    if (!conversationId) return
+    void invokeCommand('reveal_coding_browser_evidence', { conversationId }).catch(() => undefined)
+  }
+
   const working = state.working
   const saving = state.saving
   const verifying = state.verifying
@@ -495,17 +544,35 @@ export default function SettingsPage({
   const browserExtensionReady = store.browserExtensionReady()
   const dashboard = vulnerabilityDashboard
 
+  const managementTitles = {
+    'computer-use': t('电脑应用', 'Computer use'),
+    'external-browser': t('外部浏览器', 'External browser'),
+    'coding-browser': t('浏览器', 'Browser'),
+    'memory-entries': t('已记住的事情', 'Remembered'),
+  } as const
+
   return (
     <main className="settings-page flex min-w-0 flex-1 flex-col bg-background">
-      <header className="app-drag settings-page-header shell-window-control-safe-x flex h-14 shrink-0 items-center border-b border-border bg-background px-5 text-foreground">
-        <p className="text-lg font-semibold tracking-[-0.02em]">
-          {settingsCategoryLabel(category)}
-        </p>
-      </header>
-
       <div className="settings-layout flex min-h-0 flex-1">
         <div className="page-scroll min-w-0 flex-1">
           <div className="page-column page-stack" data-plugin-surface="workspace-list">
+            <div className="app-drag settings-page-title shell-window-control-safe-x flex items-center gap-1 py-2 text-foreground">
+              {managementView ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="app-no-drag -ml-2 h-8 gap-1 px-2"
+                  onClick={() => setManagementView(null)}
+                >
+                  <ChevronLeft className="size-4" />
+                  {t('返回', 'Back')}
+                </Button>
+              ) : null}
+              <h1 className="text-lg font-semibold tracking-[-0.02em]">
+                {managementView ? managementTitles[managementView] : settingsCategoryLabel(category)}
+              </h1>
+            </div>
             {notice ? (
               <Alert
                 variant={notice.tone === 'error' ? 'destructive' : 'default'}
@@ -516,7 +583,113 @@ export default function SettingsPage({
               </Alert>
             ) : null}
 
-            {working && category === 'account' ? (
+            {managementView === 'memory-entries' ? (
+              <MemoryEntriesPanel />
+            ) : managementView === 'computer-use' ? (
+              <SettingsSection
+                title={t('状态', 'Status')}
+                actions={(
+                  <>
+                    <Button variant="outline" size="sm" disabled={computerUseLoading} onClick={() => void store.refreshComputerUseStatus()}>
+                      {t('重新检测', 'Recheck')}
+                    </Button>
+                    {computerUseStatus && computerUsePermissionsReady ? (
+                      <Button variant="outline" size="sm" disabled={computerUseRestarting} onClick={() => void store.relaunchDesktopApp()}>
+                        {t('重新打开 MilkSU', 'Reopen MilkSU')}
+                      </Button>
+                    ) : null}
+                  </>
+                )}
+              >
+                <SettingsRow
+                  label={t('桌面操控驱动', 'Desktop driver')}
+                  description={computerUseStatus && !computerUseStatus.available
+                    ? (computerUseStatus.problem || '')
+                    : (computerUseStatus?.driverVersion ? `${t('版本', 'Version')} ${computerUseStatus.driverVersion}` : '')}
+                  trailing={<ConnectionLiveStatus live={Boolean(computerUseStatus?.available)} />}
+                />
+                <SettingsRow
+                  label={t('应用签名', 'App signature')}
+                  description={computerUseStatus?.signing?.signature === 'linux-portal'
+                    ? t('Linux 门户，启动任务时 GNOME 弹出授权。', 'Linux portal; GNOME prompts when a task starts.')
+                    : computerUseStatus?.signing?.stableIdentity
+                      ? t('Developer ID 签名。', 'Developer ID signed.')
+                      : `${t('临时签名（adhoc）。', 'Ad-hoc signature.')}${computerUseStatus?.signing?.problem ? ` ${computerUseStatus.signing.problem}` : ''}`}
+                  divider={false}
+                />
+              </SettingsSection>
+            ) : managementView === 'external-browser' ? (
+              <SettingsSection title="Browser Use">
+                <SettingsRow
+                  label={t('真实浏览器', 'Your browser')}
+                  description={browserUseDescription}
+                  trailing={(
+                    <div className="flex items-center gap-2">
+                      <ConnectionLiveStatus live={Boolean(browserUseRuntime?.found)} />
+                      <Button variant="outline" size="sm" disabled={browserUseRuntimeLoading} onClick={() => void store.refreshBrowserUseRuntime()}>
+                        {t('检测', 'Check')}
+                      </Button>
+                      <Button variant="outline" size="sm" disabled={browserUseOpening || !browserUseRuntime?.found} onClick={() => void store.openPlaywrightBrowserExtension()}>
+                        {t('安装扩展', 'Install extension')}
+                      </Button>
+                    </div>
+                  )}
+                />
+                <SettingsRow
+                  label={t('扩展目录', 'Extension folder')}
+                  description={t('手动安装或排查时打开扩展所在位置。', 'Open the extension folder for manual install or troubleshooting.')}
+                  divider={false}
+                  trailing={(
+                    <Button variant="outline" size="sm" onClick={() => void invokeCommand('reveal_browser_extension').catch(() => undefined)}>
+                      {t('打开', 'Open')}
+                    </Button>
+                  )}
+                />
+              </SettingsSection>
+            ) : managementView === 'coding-browser' ? (
+              <SettingsSection
+                title={t('运行状态', 'Running')}
+                actions={(
+                  <Button variant="outline" size="sm" disabled={codingBrowserOverviewLoading} onClick={refreshCodingBrowserOverview}>
+                    {t('刷新', 'Refresh')}
+                  </Button>
+                )}
+              >
+                {codingBrowserOverview && codingBrowserOverview.length > 0 ? (
+                  codingBrowserOverview.map((session, index) => (
+                    <SettingsRow
+                      key={session.sessionId || session.conversationId}
+                      label={`${t('会话', 'Session')} ${session.conversationId.slice(0, 8)}`}
+                      description={[session.phase, session.initialUrl].filter(Boolean).join(' · ')}
+                      divider={index < codingBrowserOverview.length - 1}
+                      trailing={(
+                        <div className="flex items-center gap-2">
+                          <Button variant="outline" size="sm" onClick={() => revealCodingBrowserEvidence(session.conversationId)}>
+                            {t('证据', 'Evidence')}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={codingBrowserStopping === session.conversationId}
+                            onClick={() => stopCodingBrowserSession(session.conversationId)}
+                          >
+                            {t('停止', 'Stop')}
+                          </Button>
+                        </div>
+                      )}
+                    />
+                  ))
+                ) : (
+                  <SettingsRow
+                    label={t('没有正在运行的隔离浏览器', 'No isolated browser is running')}
+                    description={codingBrowserOverview === null
+                      ? t('正在读取…', 'Loading…')
+                      : t('会话右侧打开浏览器后会出现在这里。', 'Browsers opened in the conversation rail appear here.')}
+                    divider={false}
+                  />
+                )}
+              </SettingsSection>
+            ) : working && category === 'account' ? (
               <SettingsSection title={t('账户', 'Account')}>
                 <SettingsRow
                   label={t('GitHub 账户', 'GitHub account')}
@@ -841,73 +1014,142 @@ export default function SettingsPage({
             ) : category === 'chats' ? (
               <ArchivedConversationsSettings onChanged={onConversationsChanged} />
             ) : category === 'permissions' ? (
-              <SettingsSection
-                title={t('权限', 'Permissions')}
-                actions={(
-                  <>
-                    <Button variant="outline" size="sm" disabled={computerUseLoading} onClick={() => void store.refreshComputerUseStatus()}>
-                      {t('重新检测', 'Recheck')}
-                    </Button>
-                    {computerUseStatus && computerUsePermissionsReady ? (
-                      <Button variant="outline" size="sm" disabled={computerUseRestarting} onClick={() => void store.relaunchDesktopApp()}>
-                        {t('重新打开 MilkSU', 'Reopen MilkSU')}
+              <>
+                <SettingsSection
+                  title={t('权限', 'Permissions')}
+                  actions={(
+                    <>
+                      <Button variant="outline" size="sm" disabled={computerUseLoading} onClick={() => void store.refreshComputerUseStatus()}>
+                        {t('重新检测', 'Recheck')}
                       </Button>
-                    ) : null}
-                  </>
-                )}
-              >
-                {computerUseStatus && !computerUseStatus.available ? (
-                  <SettingsRow
-                    label={t('状态', 'Status')}
-                    description={computerUseStatus.problem || ''}
-                    divider={false}
-                    trailing={<ConnectionLiveStatus live={false} />}
-                  />
-                ) : computerUseStatus?.signing?.signature === 'linux-portal' ? (
-                  <SettingsRow
-                    label={t('桌面共享', 'Desktop sharing')}
-                    description={t('启动任务时 GNOME 会弹出授权。截屏、按坐标点击和打字是整桌面级，不是单个窗口。', 'GNOME prompts for sharing when you start a task. Screenshot, coordinate clicks and typing are display-level, not a single window.')}
-                    divider={false}
-                    trailing={<ConnectionLiveStatus live={true} />}
-                  />
-                ) : computerUseStatus ? (
-                  <>
-                    <SettingsRow
-                      label={t('辅助功能', 'Accessibility')}
-                      description={t('用于支持不抢前台的桌面操控、界面读取与键盘输入。', 'Used for background desktop control, UI reading and keyboard input.')}
-                      trailing={computerUseStatus.permissions.accessibility ? (
-                        <Badge variant="secondary">{t('已授权', 'Authorized')}</Badge>
-                      ) : (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={!computerUseStatus.available || Boolean(computerUseRequesting)}
-                          onClick={() => void store.requestComputerUsePermission('accessibility')}
-                        >
-                          {t('授权', 'Authorize')}
+                      {computerUseStatus && computerUsePermissionsReady ? (
+                        <Button variant="outline" size="sm" disabled={computerUseRestarting} onClick={() => void store.relaunchDesktopApp()}>
+                          {t('重新打开 MilkSU', 'Reopen MilkSU')}
                         </Button>
-                      )}
-                    />
+                      ) : null}
+                    </>
+                  )}
+                >
+                  {computerUseStatus && !computerUseStatus.available ? (
                     <SettingsRow
-                      label={t('屏幕录制', 'Screen Recording')}
-                      description={t('用于支持应用预览、屏幕截图和视觉上下文。', 'Used for app previews, screenshots and visual context.')}
+                      label={t('状态', 'Status')}
+                      description={computerUseStatus.problem || ''}
                       divider={false}
-                      trailing={computerUseStatus.permissions.screenRecording ? (
-                        <Badge variant="secondary">{t('已授权', 'Authorized')}</Badge>
-                      ) : (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={!computerUseStatus.available || Boolean(computerUseRequesting)}
-                          onClick={() => void store.requestComputerUsePermission('screen-recording')}
-                        >
-                          {t('授权', 'Authorize')}
-                        </Button>
-                      )}
+                      trailing={<ConnectionLiveStatus live={false} />}
                     />
+                  ) : computerUseStatus?.signing?.signature === 'linux-portal' ? (
+                    <SettingsRow
+                      label={t('桌面共享', 'Desktop sharing')}
+                      description={t('启动任务时 GNOME 会弹出授权。截屏、按坐标点击和打字是整桌面级，不是单个窗口。', 'GNOME prompts for sharing when you start a task. Screenshot, coordinate clicks and typing are display-level, not a single window.')}
+                      divider={false}
+                      trailing={<ConnectionLiveStatus live={true} />}
+                    />
+                  ) : computerUseStatus ? (
+                    <>
+                      <SettingsRow
+                        label={t('辅助功能', 'Accessibility')}
+                        description={t('用于支持不抢前台的桌面操控、界面读取与键盘输入。', 'Used for background desktop control, UI reading and keyboard input.')}
+                        trailing={computerUseStatus.permissions.accessibility ? (
+                          <Badge variant="secondary">{t('已授权', 'Authorized')}</Badge>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={!computerUseStatus.available || Boolean(computerUseRequesting)}
+                            onClick={() => void store.requestComputerUsePermission('accessibility')}
+                          >
+                            {t('授权', 'Authorize')}
+                          </Button>
+                        )}
+                      />
+                      <SettingsRow
+                        label={t('屏幕录制', 'Screen Recording')}
+                        description={t('用于支持应用预览、屏幕截图和视觉上下文。', 'Used for app previews, screenshots and visual context.')}
+                        divider={false}
+                        trailing={computerUseStatus.permissions.screenRecording ? (
+                          <Badge variant="secondary">{t('已授权', 'Authorized')}</Badge>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={!computerUseStatus.available || Boolean(computerUseRequesting)}
+                            onClick={() => void store.requestComputerUsePermission('screen-recording')}
+                          >
+                            {t('授权', 'Authorize')}
+                          </Button>
+                        )}
+                      />
+                    </>
+                  ) : null}
+                </SettingsSection>
+                {working ? (
+                  <>
+                    <SettingsSection title={t('自动操控', 'Automation')}>
+                      <SettingsRow
+                        label={t('电脑应用', 'Computer use')}
+                        description={t('开启后，Agent 可以读取并操作你授权的窗口。', 'When on, the agent can read and drive the window you authorize.')}
+                        trailing={(
+                          <div className="flex items-center gap-2">
+                            <Button variant="outline" size="sm" onClick={() => setManagementView('computer-use')}>
+                              {t('管理', 'Manage')}
+                            </Button>
+                            <Switch
+                              checked={working.computer_use_enabled !== false}
+                              onCheckedChange={checked => {
+                                store.patchWorking(value => { value.computer_use_enabled = checked })
+                                void store.save()
+                              }}
+                              aria-label={t('电脑应用', 'Computer use')}
+                            />
+                          </div>
+                        )}
+                      />
+                      <SettingsRow
+                        label={t('外部浏览器', 'External browser')}
+                        description={t('开启并安装浏览器扩展后，Agent 可以操作你的真实浏览器标签页。', 'With the extension installed, the agent can drive your real browser tabs.')}
+                        divider={false}
+                        trailing={(
+                          <div className="flex items-center gap-2">
+                            <Button variant="outline" size="sm" onClick={() => setManagementView('external-browser')}>
+                              {t('管理', 'Manage')}
+                            </Button>
+                            <Switch
+                              checked={working.browser_use_enabled !== false}
+                              onCheckedChange={checked => {
+                                store.patchWorking(value => { value.browser_use_enabled = checked })
+                                void store.save()
+                              }}
+                              aria-label={t('外部浏览器', 'External browser')}
+                            />
+                          </div>
+                        )}
+                      />
+                    </SettingsSection>
+                    <SettingsSection title={t('浏览器', 'Browser')}>
+                      <SettingsRow
+                        label={t('浏览器', 'Browser')}
+                        description={t('管理会话右侧的隔离浏览器。', 'Manage the isolated browser in the conversation rail.')}
+                        divider={false}
+                        trailing={(
+                          <div className="flex items-center gap-2">
+                            <Button variant="outline" size="sm" onClick={() => setManagementView('coding-browser')}>
+                              {t('管理', 'Manage')}
+                            </Button>
+                            <Switch
+                              checked={working.coding_browser_enabled !== false}
+                              onCheckedChange={checked => {
+                                store.patchWorking(value => { value.coding_browser_enabled = checked })
+                                void store.save()
+                              }}
+                              aria-label={t('浏览器', 'Browser')}
+                            />
+                          </div>
+                        )}
+                      />
+                    </SettingsSection>
                   </>
                 ) : null}
-              </SettingsSection>
+              </>
             ) : working && category === 'runtime' ? (
               <>
                 <SettingsSection title={t('内核', 'Kernel')}>
@@ -942,27 +1184,6 @@ export default function SettingsPage({
                         ]}
                         onChange={store.setBusySend}
                       />
-                    )}
-                  />
-                </SettingsSection>
-              </>
-            ) : working && category === 'browser' ? (
-              <>
-                <SettingsSection title="Browser Use">
-                  <SettingsRow
-                    label={t('真实浏览器', 'Your browser')}
-                    description={browserUseDescription}
-                    divider={false}
-                    trailing={(
-                      <div className="flex items-center gap-2">
-                        <ConnectionLiveStatus live={Boolean(browserUseRuntime?.found)} />
-                        <Button variant="outline" size="sm" disabled={browserUseRuntimeLoading} onClick={() => void store.refreshBrowserUseRuntime()}>
-                          {t('检测', 'Check')}
-                        </Button>
-                        <Button variant="outline" size="sm" disabled={browserUseOpening || !browserUseRuntime?.found} onClick={() => void store.openPlaywrightBrowserExtension()}>
-                          {t('安装扩展', 'Install extension')}
-                        </Button>
-                      </div>
                     )}
                   />
                 </SettingsSection>
@@ -1607,7 +1828,7 @@ export default function SettingsPage({
             ) : working && category === 'lab' ? (
               <LabSettingsPanel settings={working} onPersist={() => void store.save()} />
             ) : working && category === 'memory' ? (
-              <MemorySettingsPanel settings={working} onPersist={() => void store.save()} />
+              <MemorySettingsPanel settings={working} onPersist={() => void store.save()} onOpenEntries={() => setManagementView('memory-entries')} />
             ) : working && category === 'companion' ? (
               <CompanionSettingsPanel
                 settings={working}
@@ -3700,7 +3921,7 @@ function createSettingsStore(
 }
 
 const settingsPageCss = `
-.settings-page-header {
+.settings-page-title {
   --shell-window-control-gutter: 1.25rem;
 }
 .settings-page .settings-notice {

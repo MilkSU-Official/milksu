@@ -7,7 +7,6 @@ export type SettingsCategory =
   | 'permissions'
   | 'apikeys'
   | 'runtime'
-  | 'browser'
   | 'chats'
   | 'memory'
   | 'ctf'
@@ -51,7 +50,6 @@ export const SETTINGS_SIDEBAR_GROUPS: readonly SettingsSidebarGroup[] = [
       { value: 'permissions', label: () => t('权限与操控', 'Permissions') },
       { value: 'apikeys', label: () => t('模型', 'Models') },
       { value: 'runtime', label: () => t('运行时', 'Runtime') },
-      { value: 'browser', label: () => t('浏览器', 'Browser') },
       { value: 'chats', label: () => t('归档聊天', 'Archived chats') },
       { value: 'memory', label: () => t('记忆', 'Memory') },
     ],

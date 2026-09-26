@@ -22,9 +22,24 @@
 
 产品回归：`npm run test:product-loop`。见 [产品回归循环](product-regression-loop.md)。
 
+## 26.927.1 发行回执（tag v26.927.1 → `92d6a97b`，2026-09-27）
+
+本版能力记录：深色模式明度阶调整（侧栏与页面背景对调，对话内卡片、胶囊再提亮一档）；
+AGENTS.md 设计语言补「明度阶」「强调面」两条；测试修复（Node 26 下 jsdom localStorage 垫片、
+product-loop 外部浏览器「管理」按钮匹配）；对照 models.dev 刷新钉死的模型事实。
+tag 与分发 source `a654c4d5` 之间只差测试与文档提交，无未打进安装包的产品代码。
+
+| 平台 | workflow | 文件名 | 大小（字节） | SHA-256 |
+| --- | --- | --- | ---: | --- |
+| macOS | build-macos | MilkSU-macOS-arm64-26.927.1.dmg | 506,801,799 | 8354f41b0d5159200bc680707778d409de1824999585e0ee964298d57a7dd612 |
+| Windows | build-windows | MilkSU-Windows-x64-26.927.1-Setup.exe | 391,898,080 | 80fc49eec99bcb7146fe854cf0ab6815fea1121e948db03bd67bb8566f3587a2 |
+| Linux | build-linux | MilkSU-Linux-x64-26.927.1.deb | 376,293,012 | 6d84fbf1dd20f96069f03029ee0518745eed841d0a6aadd4247c65ba4fe0c815 |
+| Linux | build-linux | MilkSU-Linux-x64-26.927.1.tar.gz | 456,422,578 | 51f6ca7f3016150ea588bc54a605afbf69d491c68da365db94967bb4ac14b0e0 |
+
 ## 未打进最近安装包
 
-工作树里已有、最近一次正式包装（版本见 README）没有的，以代码为准。发下一版前仍缺的验收：
+工作树里已有、最近一次正式包装（版本见 README）没有的，以代码为准。tag `92d6a97b`
+之后只有 README 与新截图文档提交，没有未打进安装包的产品代码。发下一版前仍缺的验收：
 
 - Windows Computer Use 整段崩溃尚未真机验收。Windows / Linux 窗口铬尚未真机验收。
 - 新会话不再默认继承最近项目（#169 改向），这条新行为还没有真机验收。

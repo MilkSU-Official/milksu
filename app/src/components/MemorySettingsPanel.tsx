@@ -35,14 +35,14 @@ function formatBytes(value: number) {
 export default function MemorySettingsPanel({
   settings,
   onPersist,
+  onOpenEntries,
 }: {
   settings: AppSettings | null
   onPersist: () => void
+  onOpenEntries: () => void
 }) {
   const t = useT()
   const [memories, setMemories] = useState<CompanionApprovedMemory[]>([])
-  const [memoryQuery, setMemoryQuery] = useState('')
-  const [forgetting, setForgetting] = useState('')
   const [indexStatus, setIndexStatus] = useState<SessionIndexStatusPayload | null>(null)
   const [indexRefreshing, setIndexRefreshing] = useState(false)
   const [ctfOverview, setCtfOverview] = useState<CTFMemoryOverview | null>(null)
@@ -94,23 +94,10 @@ export default function MemorySettingsPanel({
   const memoryIdleMinutes = normalizeCompanionMemoryExtractIdleMinutes(
     settings.companion_memory_extract_idle_minutes,
   )
-  const visibleMemories = filterCompanionMemories(memories, memoryQuery)
 
   function patch(next: Partial<AppSettings>) {
     Object.assign(settings!, next)
     onPersist()
-  }
-
-  async function forgetMemory(id: string) {
-    setForgetting(id)
-    try {
-      await invokeCommand('forget_companion_memory', { id })
-      setMemories(current => current.filter(item => item.id !== id))
-    } catch (reason) {
-      toastError(reason, t('没能忘掉这条记忆', 'Could not forget this memory'))
-    } finally {
-      setForgetting('')
-    }
   }
 
   async function refreshIndex() {
@@ -198,44 +185,16 @@ export default function MemorySettingsPanel({
         ) : null}
         {memories.length > 0 ? (
           <SettingsRow
-            label={t('检索', 'Search')}
-            divider={visibleMemories.length > 0}
+            label={t('已记住的事情', 'Remembered')}
+            description={t(`${memories.length} 条`, `${memories.length} entries`)}
+            divider={false}
             trailing={(
-              <Input
-                value={memoryQuery}
-                aria-label={t('检索', 'Search')}
-                className="h-7 w-36 px-2 text-[13px]"
-                onChange={event => setMemoryQuery(event.target.value)}
-              />
+              <Button variant="outline" size="sm" onClick={onOpenEntries}>
+                {t('管理', 'Manage')}
+              </Button>
             )}
           />
         ) : null}
-        {visibleMemories.map((item, index) => (
-          <SettingsRow
-            key={item.id}
-            align="start"
-            divider={index < visibleMemories.length - 1}
-            trailing={(
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={forgetting === item.id}
-                onClick={() => void forgetMemory(item.id)}
-              >
-                {t('忘掉', 'Forget')}
-              </Button>
-            )}
-          >
-            <p className="min-w-0 break-words text-[length:var(--text-label)] leading-[var(--text-label--line-height)]">
-              {item.markdown || item.title}
-            </p>
-            {item.evidence ? (
-              <p className="mt-0.5 min-w-0 break-words text-[length:var(--text-caption)] leading-[var(--text-caption--line-height)] text-muted-foreground">
-                {item.evidence}
-              </p>
-            ) : null}
-          </SettingsRow>
-        ))}
       </SettingsSection>
       <SettingsSection title={t('会话索引', 'Session index')}>
         <SettingsRow
@@ -263,5 +222,97 @@ export default function MemorySettingsPanel({
         />
       </SettingsSection>
     </>
+  )
+}
+
+/**
+ * 长期记忆条目的二级页：检索与逐条忘掉。条目多时不挤占记忆主页的设置项。
+ */
+export function MemoryEntriesPanel() {
+  const t = useT()
+  const [memories, setMemories] = useState<CompanionApprovedMemory[]>([])
+  const [memoryQuery, setMemoryQuery] = useState('')
+  const [forgetting, setForgetting] = useState('')
+
+  useEffect(() => {
+    let stop = false
+    const loadMemories = () => {
+      void invokeCommand<CompanionMemorySnapshot>('get_companion_memory')
+        .then(value => {
+          if (stop) return
+          const rows = Array.isArray(value?.approved) ? value.approved : []
+          setMemories(sortCompanionMemoriesNewestFirst(rows))
+        })
+        .catch(() => undefined)
+    }
+    loadMemories()
+    let unlisten: (() => void) | undefined
+    void listenEvent<{ type?: string }>('companion-event', event => {
+      if (event.payload?.type === 'companion.memory') loadMemories()
+    }).then(dispose => {
+      if (stop) dispose()
+      else unlisten = dispose
+    })
+    return () => {
+      stop = true
+      unlisten?.()
+    }
+  }, [])
+
+  const visibleMemories = filterCompanionMemories(memories, memoryQuery)
+
+  async function forgetMemory(id: string) {
+    setForgetting(id)
+    try {
+      await invokeCommand('forget_companion_memory', { id })
+      setMemories(current => current.filter(item => item.id !== id))
+    } catch (reason) {
+      toastError(reason, t('没能忘掉这条记忆', 'Could not forget this memory'))
+    } finally {
+      setForgetting('')
+    }
+  }
+
+  return (
+    <SettingsSection title={t('已记住的事情', 'Remembered')}>
+      <SettingsRow
+        label={t('检索', 'Search')}
+        divider={visibleMemories.length > 0}
+        trailing={(
+          <Input
+            value={memoryQuery}
+            aria-label={t('检索', 'Search')}
+            className="h-7 w-36 px-2 text-[13px]"
+            onChange={event => setMemoryQuery(event.target.value)}
+          />
+        )}
+      />
+      {visibleMemories.map((item, index) => (
+        <SettingsRow
+          key={item.id}
+          align="start"
+          divider={index < visibleMemories.length - 1}
+          trailing={(
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={forgetting === item.id}
+              onClick={() => void forgetMemory(item.id)}
+            >
+              {t('忘掉', 'Forget')}
+            </Button>
+          )}
+        >
+          <p className="min-w-0 break-words text-[length:var(--text-label)] leading-[var(--text-label--line-height)]">
+            {item.markdown || item.title}
+          </p>
+          {item.evidence ? (
+            <p className="mt-0.5 min-w-0 break-words text-[length:var(--text-caption)] leading-[var(--text-caption--line-height)] text-muted-foreground">
+              {item.evidence}
+            </p>
+          ) : null}
+        </SettingsRow>
+      ))}
+    </SettingsSection>
   )
 }

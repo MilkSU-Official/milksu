@@ -302,7 +302,7 @@ const COMPOSER_STYLES = `
   z-index: 0;
   min-height: 40px;
   border-radius: 999px;
-  background: #1c1c1c;
+  background: #26262a;
   box-shadow: 0 0 0 1px rgb(240 240 240 / 0.14);
   pointer-events: none;
 }

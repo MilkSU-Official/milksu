@@ -301,6 +301,7 @@ func desktopAppMethods(app *App) map[string]desktopAppMethod {
 		"StartCodingBrowser":                   rendererDesktopMethod(app.StartCodingBrowser),
 		"EnsureCodingBrowser":                  rendererDesktopMethod(app.EnsureCodingBrowser),
 		"GetCodingBrowserStatus":               rendererDesktopMethod(app.GetCodingBrowserStatus),
+		"GetCodingBrowserOverview":             rendererDesktopMethod(app.GetCodingBrowserOverview),
 		"SetCodingBrowserViewport":             rendererDesktopMethod(app.SetCodingBrowserViewport),
 		"NavigateCodingBrowser":                rendererDesktopMethod(app.NavigateCodingBrowser),
 		"CodingBrowserGoBack":                  rendererDesktopMethod(app.CodingBrowserGoBack),
