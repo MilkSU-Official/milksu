@@ -1,6 +1,6 @@
 import { createStore, nextTick } from '@/lib/reactStore'
 import { invokeCommand, listenEvent } from '@/desktop'
-import type { CodingCompactionResult, CodingProjectMemory } from '@/codingEnvironmentTypes'
+import type { CodingCompactionResult } from '@/codingEnvironmentTypes'
 import {
   applyCodingContinuityEvent,
   armCompactionErrorDismiss,
@@ -1411,30 +1411,12 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
       if (snapshot) next.set(conversation.id, snapshot)
     }
     s.turnStatusById = next
-    await applyRememberedHomeProjectIfIdle()
   }
 
   function currentWorkspaceHome(): WorkspaceHome {
     return active()
       ? conversationWorkspaceHome(active())
       : s.pendingWorkspaceHome
-  }
-
-  async function applyRememberedHomeProjectIfIdle() {
-    if (s.activeId || s.pendingWorkspaceHome !== 'chat' || s.pendingWorkspacePath) return
-    try {
-      const memory = await invokeCommand<CodingProjectMemory>('get_coding_project_memory')
-      const last = memory.recents?.[0]?.path || memory.lastWorkspacePath || ''
-      if (
-        s.activeId
-        || s.pendingWorkspaceHome !== 'chat'
-        || s.pendingWorkspacePath
-        || !shouldRememberCodingProject(last)
-      ) return
-      s.pendingWorkspacePath = last
-    } catch {
-      if (!s.pendingWorkspacePath) s.pendingWorkspacePath = ''
-    }
   }
 
   function update(id: string, updater: (conversation: Conversation) => Conversation) {
@@ -1920,10 +1902,12 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
     parkedPendingByHome[s.pendingWorkspaceHome] = snapshotPendingCanvas()
   }
 
-  function applyFreshPending(home: WorkspaceHome, inheritWorkspace = '') {
+  // 新会话一律不带项目：任务 ＋ 和「新聊天」开出来的是无项目画布，
+  // 要在哪个项目里开工走显式入口（项目文件夹 ＋、项目组头选目录、交接指定工作区）。
+  function applyFreshPending(home: WorkspaceHome) {
     s.activeId = null
     s.pendingWorkspaceHome = home
-    s.pendingWorkspacePath = inheritWorkspace
+    s.pendingWorkspacePath = ''
     s.pendingKernel = home === 'image' ? 'pi' : s.defaultKernel
     s.pendingModelMode = undefined
     s.pendingModelProvider = undefined
@@ -1938,18 +1922,13 @@ export function createConversationsRuntime(options?: { live?: boolean }) {
     s.pendingComposerDraft = null
     clearComposerDraft(composerDraftKey(null, home))
     delete parkedPendingByHome[home]
-    if (home === 'chat' && !inheritWorkspace) void applyRememberedHomeProjectIfIdle()
   }
 
   function startNew(options: { workspaceHome?: WorkspaceHome } = {}) {
     const nextHome = options.workspaceHome ?? 'chat'
     const previousHome = currentWorkspaceHome()
-    const currentWorkspace = active()?.workspacePath || s.pendingWorkspacePath
-    const inheritHomeProject = nextHome === 'chat'
-      && previousHome === 'chat'
-      && shouldRememberCodingProject(currentWorkspace)
     if (!s.activeId && previousHome !== nextHome) parkCurrentPending()
-    applyFreshPending(nextHome, inheritHomeProject ? String(currentWorkspace) : '')
+    applyFreshPending(nextHome)
   }
 
   function resumePendingHome(home: WorkspaceHome) {
