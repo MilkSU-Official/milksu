@@ -1,11 +1,14 @@
 import { createStore, useStore, useStoreRuntime } from '@/lib/reactStore'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   AlertCircle,
   Check,
   LogOut,
   ChevronDown,
+  Moon,
   Plus,
+  Sun,
+  SunMoon,
   Trash2,
 } from 'lucide-react'
 import {
@@ -78,6 +81,7 @@ import {
   isImageGenModelID,
 } from '@/lib/imageGenCatalog'
 import { GitHubIcon } from '@/components/GitHubIcon'
+import type { ThemeMode } from '@/lib/themeMode'
 import SearchableModelPicker from '@/components/SearchableModelPicker'
 import { annotateModelFailures, type SearchableModelGroup } from '@/lib/modelPickerSearch'
 import VulnerabilityIntelSettingsPanel from '@/components/VulnerabilityIntelSettingsPanel'
@@ -204,6 +208,70 @@ function EmphasisSwatchPicker({
   )
 }
 
+function ThemeModeCards({
+  value,
+  onChange,
+}: {
+  value: ThemeMode
+  onChange: (mode: ThemeMode) => void
+}) {
+  const modes: { mode: ThemeMode; label: string; icon: ReactNode }[] = [
+    { mode: 'light', label: t('浅色', 'Light'), icon: <Sun className="size-3.5" /> },
+    { mode: 'system', label: t('跟随系统', 'System'), icon: <SunMoon className="size-3.5" /> },
+    { mode: 'dark', label: t('深色', 'Dark'), icon: <Moon className="size-3.5" /> },
+  ]
+  return (
+    <div role="radiogroup" aria-label={t('界面主题', 'Interface theme')} className="flex gap-3 px-1">
+      {modes.map(({ mode, label, icon }) => {
+        const selected = value === mode
+        return (
+          <button
+            key={mode}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            onClick={() => onChange(mode)}
+            className={`min-w-0 flex-1 max-w-56 text-left ${selected ? '' : 'opacity-80 hover:opacity-100'}`}
+          >
+            <div
+              className={`relative h-24 overflow-hidden rounded-lg border transition-shadow ${
+                selected ? 'border-transparent ring-2 ring-[color:var(--ring)]' : 'border-border'
+              }`}
+            >
+              {mode === 'system' ? (
+                <>
+                  <ThemeModePreview mode="light" className="absolute inset-y-0 left-0 w-1/2" />
+                  <ThemeModePreview mode="dark" className="absolute inset-y-0 right-0 w-1/2" />
+                </>
+              ) : (
+                <ThemeModePreview mode={mode} className="absolute inset-0" />
+              )}
+            </div>
+            <div className="mt-1.5 flex items-center justify-center gap-1.5 text-[13px] text-muted-foreground">
+              {icon}
+              {label}
+            </div>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function ThemeModePreview({ mode, className }: { mode: 'light' | 'dark'; className?: string }) {
+  const dark = mode === 'dark'
+  return (
+    <div className={`flex ${className ?? ''}`} style={{ background: dark ? '#181818' : '#f4f6f8' }}>
+      <div className="h-full w-1/4" style={{ background: dark ? '#101010' : '#e9edf1' }} />
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5 p-2">
+        <div className="h-2 w-3/4 rounded-sm" style={{ background: dark ? '#2a2a2a' : '#ffffff' }} />
+        <div className="h-2 w-full rounded-sm" style={{ background: dark ? '#242424' : '#eef1f4' }} />
+        <div className="h-2 w-5/6 rounded-sm" style={{ background: dark ? '#242424' : '#eef1f4' }} />
+      </div>
+    </div>
+  )
+}
+
 type SettingsNotice = { tone: 'ok' | 'error'; text: string }
 type PendingCustomRelay = { id: string; config: ProviderConfig; fresh?: boolean }
 type ProviderEditorMode = 'catalog' | 'custom'
@@ -279,6 +347,8 @@ export default function SettingsPage({
   accountStatus,
   vulnerabilityDashboard,
   resolvedTheme,
+  themeMode,
+  onThemeModeChange,
   onSettingsChange,
   onAccountLogin,
   onAccountLogout,
@@ -291,6 +361,8 @@ export default function SettingsPage({
   accountStatus?: AccountStatus
   vulnerabilityDashboard?: VulnerabilityDashboard
   resolvedTheme: ResolvedThemeMode
+  themeMode: ThemeMode
+  onThemeModeChange?: (mode: ThemeMode) => void
   onClose?: () => void
   onSettingsChange?: (value: AppSettings) => void
   onAccountLogin?: () => void
@@ -472,43 +544,54 @@ export default function SettingsPage({
                 />
               </SettingsSection>
             ) : working && category === 'appearance' ? (
-              <SettingsSection title={t('外观', 'Appearance')}>
-                <SettingsRow
-                  label={t('界面语言', 'Interface language')}
-                  trailing={(
-                    <SettingsGhostPicker
-                      value={working.locale ?? 'zh'}
-                      ariaLabel={t('界面语言', 'Interface language')}
-                      options={[
-                        { value: 'zh', label: t('简体中文', 'Simplified Chinese') },
-                        { value: 'en', label: 'English' },
-                      ]}
-                      onChange={value => void store.changeLocale(value)}
-                    />
-                  )}
-                />
-                <SettingsRow
-                  label={t('强调色', 'Accent color')}
-                  trailing={(
-                    <EmphasisSwatchPicker
-                      value={normalizeUiEmphasisPreset(working.ui_emphasis)}
-                      onChange={value => void store.changeUiEmphasis(value)}
-                    />
-                  )}
-                />
-                <SettingsRow
-                  label={t('对话字号', 'Conversation size')}
-                  description={t('界面与对话都用系统默认字体。', 'Interface and conversation text use the system font.')}
-                  divider={false}
-                  trailing={(
-                    <ConversationSizeInput
-                      value={normalizeUiFontSize(working.conversation_font_size)}
-                      ariaLabel={t('对话字号', 'Conversation size')}
-                      onCommit={size => void store.changeConversationFontSize(size)}
-                    />
-                  )}
-                />
-              </SettingsSection>
+              <>
+                <section className="space-y-2">
+                  <div className="flex min-h-6 items-center px-1">
+                    <h2 className="text-xs font-medium text-muted-foreground">{t('界面主题', 'Interface theme')}</h2>
+                  </div>
+                  <ThemeModeCards value={themeMode} onChange={mode => onThemeModeChange?.(mode)} />
+                </section>
+                <SettingsSection title={t('字体和语言', 'Font & language')}>
+                  <SettingsRow
+                    label={t('界面语言', 'Interface language')}
+                    trailing={(
+                      <SettingsGhostPicker
+                        value={working.locale ?? 'zh'}
+                        ariaLabel={t('界面语言', 'Interface language')}
+                        options={[
+                          { value: 'zh', label: t('简体中文', 'Simplified Chinese') },
+                          { value: 'en', label: 'English' },
+                        ]}
+                        onChange={value => void store.changeLocale(value)}
+                      />
+                    )}
+                  />
+                  <SettingsRow
+                    label={t('对话字号', 'Conversation size')}
+                    description={t('界面与对话都用系统默认字体。', 'Interface and conversation text use the system font.')}
+                    divider={false}
+                    trailing={(
+                      <ConversationSizeInput
+                        value={normalizeUiFontSize(working.conversation_font_size)}
+                        ariaLabel={t('对话字号', 'Conversation size')}
+                        onCommit={size => void store.changeConversationFontSize(size)}
+                      />
+                    )}
+                  />
+                </SettingsSection>
+                <SettingsSection>
+                  <SettingsRow
+                    label={t('强调色', 'Accent color')}
+                    divider={false}
+                    trailing={(
+                      <EmphasisSwatchPicker
+                        value={normalizeUiEmphasisPreset(working.ui_emphasis)}
+                        onChange={value => void store.changeUiEmphasis(value)}
+                      />
+                    )}
+                  />
+                </SettingsSection>
+              </>
             ) : working && category === 'general' ? (
               <>
                 <SettingsSection title={t('编辑器', 'Editor')}>
@@ -759,7 +842,7 @@ export default function SettingsPage({
               <ArchivedConversationsSettings onChanged={onConversationsChanged} />
             ) : category === 'permissions' ? (
               <SettingsSection
-                title="Computer Use"
+                title={t('权限', 'Permissions')}
                 actions={(
                   <>
                     <Button variant="outline" size="sm" disabled={computerUseLoading} onClick={() => void store.refreshComputerUseStatus()}>
@@ -791,39 +874,35 @@ export default function SettingsPage({
                   <>
                     <SettingsRow
                       label={t('辅助功能', 'Accessibility')}
-                      trailing={(
-                        <div className="flex items-center gap-2">
-                          <ConnectionLiveStatus live={Boolean(computerUseStatus.permissions.accessibility)} />
-                          {!computerUseStatus.permissions.accessibility ? (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              disabled={!computerUseStatus.available || Boolean(computerUseRequesting)}
-                              onClick={() => void store.requestComputerUsePermission('accessibility')}
-                            >
-                              {t('打开辅助功能设置', 'Open Accessibility settings')}
-                            </Button>
-                          ) : null}
-                        </div>
+                      description={t('用于支持不抢前台的桌面操控、界面读取与键盘输入。', 'Used for background desktop control, UI reading and keyboard input.')}
+                      trailing={computerUseStatus.permissions.accessibility ? (
+                        <Badge variant="secondary">{t('已授权', 'Authorized')}</Badge>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={!computerUseStatus.available || Boolean(computerUseRequesting)}
+                          onClick={() => void store.requestComputerUsePermission('accessibility')}
+                        >
+                          {t('授权', 'Authorize')}
+                        </Button>
                       )}
                     />
                     <SettingsRow
                       label={t('屏幕录制', 'Screen Recording')}
+                      description={t('用于支持应用预览、屏幕截图和视觉上下文。', 'Used for app previews, screenshots and visual context.')}
                       divider={false}
-                      trailing={(
-                        <div className="flex items-center gap-2">
-                          <ConnectionLiveStatus live={Boolean(computerUseStatus.permissions.screenRecording)} />
-                          {!computerUseStatus.permissions.screenRecording ? (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              disabled={!computerUseStatus.available || Boolean(computerUseRequesting)}
-                              onClick={() => void store.requestComputerUsePermission('screen-recording')}
-                            >
-                              {t('打开屏幕录制设置', 'Open Screen Recording settings')}
-                            </Button>
-                          ) : null}
-                        </div>
+                      trailing={computerUseStatus.permissions.screenRecording ? (
+                        <Badge variant="secondary">{t('已授权', 'Authorized')}</Badge>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={!computerUseStatus.available || Boolean(computerUseRequesting)}
+                          onClick={() => void store.requestComputerUsePermission('screen-recording')}
+                        >
+                          {t('授权', 'Authorize')}
+                        </Button>
                       )}
                     />
                   </>

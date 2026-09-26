@@ -8,6 +8,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  Input,
   SettingsRow,
   SettingsSection,
 } from '@/components/ui'
@@ -22,6 +23,7 @@ export default function ArchivedConversationsSettings({
 }) {
   const t = useT()
   const [conversations, setConversations] = useState<Conversation[]>([])
+  const [query, setQuery] = useState('')
   const [error, setError] = useState('')
   const [confirmation, setConfirmation] = useState<{ action: 'restore' | 'delete'; conversation: Conversation } | null>(null)
 
@@ -68,17 +70,32 @@ export default function ArchivedConversationsSettings({
     void load()
   }, [])
 
+  const trimmedQuery = query.trim().toLowerCase()
+  const visibleConversations = trimmedQuery
+    ? conversations.filter(conversation => conversation.title.toLowerCase().includes(trimmedQuery))
+    : conversations
+
   return (
     <div className="contents">
       {error ? <p className="text-body text-destructive">{error}</p> : null}
       {conversations.length ? (
-        <SettingsSection aria-label={t('归档聊天', 'Archived chats')}>
-          {conversations.map((conversation, index) => (
+        <>
+          <div className="px-1">
+            <Input
+              value={query}
+              aria-label={t('搜索归档聊天', 'Search archived chats')}
+              placeholder={t('搜索归档聊天', 'Search archived chats')}
+              className="h-8"
+              onChange={event => setQuery(event.target.value)}
+            />
+          </div>
+          <SettingsSection aria-label={t('归档聊天', 'Archived chats')}>
+            {visibleConversations.map((conversation, index) => (
             <SettingsRow
               key={conversation.id}
               label={conversation.title}
               description={archivedTime(conversation.archivedAt)}
-              divider={index < conversations.length - 1}
+              divider={index < visibleConversations.length - 1}
               trailing={(
                 <div className="flex items-center gap-1">
                   <Button variant="ghost" size="sm" onClick={() => setConfirmation({ action: 'restore', conversation })}>
@@ -99,7 +116,13 @@ export default function ArchivedConversationsSettings({
               )}
             />
           ))}
-        </SettingsSection>
+          </SettingsSection>
+          {trimmedQuery && !visibleConversations.length ? (
+            <p className="px-1 text-[length:var(--text-caption)] leading-[var(--text-caption--line-height)] text-muted-foreground">
+              {t('没有匹配的归档聊天。', 'No archived chats match.')}
+            </p>
+          ) : null}
+        </>
       ) : null}
 
       <Dialog open={Boolean(confirmation)} onOpenChange={open => { if (!open) setConfirmation(null) }}>

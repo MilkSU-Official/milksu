@@ -63,8 +63,8 @@ export async function runSettingsAppearance(driver) {
   if (error) return error
   const chrome = await expectLabels(
     driver,
-    ['界面语言', 'Interface language', '强调色', 'Accent color', '对话字号', 'Conversation size'],
-    '外观页有语言、强调色、字号',
+    ['界面主题', 'Interface theme', '界面语言', 'Interface language', '强调色', 'Accent color', '对话字号', 'Conversation size'],
+    '外观页有主题、语言、强调色、字号',
     '外观页缺了常用控件',
   )
   if (chrome.result === 'FAIL') return chrome
@@ -100,8 +100,8 @@ export async function runSettingsPermissions(driver) {
   if (error) return error
   return expectLabels(
     driver,
-    ['Computer Use', '辅助功能', 'Accessibility', '屏幕录制', 'Screen Recording'],
-    '权限与操控页有 Computer Use',
+    ['权限', 'Permissions', '辅助功能', 'Accessibility', '屏幕录制', 'Screen Recording'],
+    '权限与操控页有权限分组',
     '权限与操控页缺了控件',
   )
 }

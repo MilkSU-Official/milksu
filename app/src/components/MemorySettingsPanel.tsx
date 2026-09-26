@@ -162,6 +162,7 @@ export default function MemorySettingsPanel({
         />
         <SettingsRow
           label={t('提取', 'Extract')}
+          description={t('从会话上下文里提取只记你这个人的长期记忆。', 'Extracts person-level long-term memory from conversation context.')}
           divider={memoryExtract === 'idle' || memories.length > 0}
           trailing={(
             <SettingsGhostPicker

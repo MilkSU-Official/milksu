@@ -113,6 +113,7 @@ export default function SecurityToolsProductionPreview() {
       <SettingsPage
         settings={settings}
         resolvedTheme={theme}
+        themeMode={theme}
         initialCategory="mcp"
         onSettingsChange={setSettings}
       />

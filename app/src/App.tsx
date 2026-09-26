@@ -17,6 +17,7 @@ import { syncWindowChrome } from '@/lib/hostPlatform'
 import {
   applyThemeMode,
   nextThemeMode,
+  normalizeThemeMode,
   publishThemeSync,
   readThemeMode,
   resolveThemeMode,
@@ -1163,7 +1164,11 @@ export default function App() {
   }
 
   function toggleThemeMode() {
-    const next = nextThemeMode(themeModeRef.current)
+    changeThemeMode(nextThemeMode(themeModeRef.current))
+  }
+
+  function changeThemeMode(mode: ThemeMode) {
+    const next = normalizeThemeMode(mode)
     themeModeRef.current = next
     setThemeMode(next)
     applyCurrentTheme()
@@ -1776,6 +1781,8 @@ export default function App() {
               accountStatus={accountStatus}
               vulnerabilityDashboard={vulnerabilityDashboard}
               resolvedTheme={resolvedTheme}
+              themeMode={themeMode}
+              onThemeModeChange={changeThemeMode}
               onClose={async () => {
                 await loadSettings()
                 setSection(settingsReturnTargetRef.current)
