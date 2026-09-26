@@ -9,14 +9,14 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/MilkSU-Official/milksu/releases/tag/v26.925.1"><img src="https://img.shields.io/badge/latest_release-26.925.1-f3f0e8?style=flat-square&labelColor=20211f" alt="Latest GitHub Release 26.925.1"></a>
+  <a href="https://github.com/MilkSU-Official/milksu/releases/tag/v26.925.2"><img src="https://img.shields.io/badge/latest_release-26.925.2-f3f0e8?style=flat-square&labelColor=20211f" alt="Latest GitHub Release 26.925.2"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue?style=flat-square&labelColor=20211f" alt="AGPL-3.0-only"></a>
   <img src="https://img.shields.io/badge/platform-macOS_Windows_Linux-f3f0e8?style=flat-square&labelColor=20211f" alt="macOS, Windows and Linux">
   <img src="https://img.shields.io/badge/desktop-Electron_%2B_React_%2B_Go-f3f0e8?style=flat-square&labelColor=20211f" alt="Electron, React and Go">
 </p>
 
 <p align="center">
-  <a href="https://github.com/MilkSU-Official/milksu/releases/tag/v26.925.1">下载 26.925.1</a>
+  <a href="https://github.com/MilkSU-Official/milksu/releases/tag/v26.925.2">下载 26.925.2</a>
   ·
   <a href="https://github.com/MilkSU-Official/milksu/releases">全部发行</a>
   ·
@@ -85,7 +85,7 @@ MilkSU 把 Coding、CTF、CVE 和实验室放进同一个桌面。界面是 Reac
 
 ## 安装
 
-当前安装包是 **[26.925.1](https://github.com/MilkSU-Official/milksu/releases/tag/v26.925.1)**：macOS ARM64 DMG（Developer ID 签名并公证，安装引导图为 Retina @2x）、Windows x64 EXE、Linux x64 `.deb` 与 `.tar.gz`。这一版可以用用户名密码登录，设置里按厂商目录或自定义接口添加模型。看板娘按闲聊、深入思考、长任务分流。对话可以生图，文件可以拖进窗口。Windows 安装器尚未代码签名，可能被 SmartScreen 拦住。已登录后侧栏「更新」打开进度框下载，下完后点安装并重启。
+当前安装包是 **[26.925.2](https://github.com/MilkSU-Official/milksu/releases/tag/v26.925.2)**：macOS ARM64 DMG（Developer ID 签名并公证，安装引导图为 Retina @2x）、Windows x64 EXE、Linux x64 `.deb` 与 `.tar.gz`。这一版看板娘手机里能看到生成的图，可以复制、下载和在访达中显示。选中对话文字加入输入框时，引用出现在光标处，可以单独删除。手机形态改用系统右键菜单，只有小人时仍是看板娘菜单；主界面选中文字或在输入框里右键，可以剪切、复制、粘贴。Windows 安装器尚未代码签名，可能被 SmartScreen 拦住。已登录后侧栏「更新」打开进度框下载，下完后点安装并重启。
 
 | 系统 | 安装包 | Computer Use | Browser Use |
 | --- | --- | --- | --- |
@@ -98,7 +98,7 @@ Linux 只发两份包：Ubuntu / Debian 用 `.deb`，Omarchy / Arch / NixOS 用�
 
 ```bash
 # Ubuntu / Debian
-sudo apt install ./MilkSU-Linux-x64-26.925.1.deb
+sudo apt install ./MilkSU-Linux-x64-26.925.2.deb
 
 # Omarchy / Arch：用仓库 `packaging/linux/PKGBUILD.in`，填版本与 sha256 后
 makepkg -si

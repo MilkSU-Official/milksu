@@ -22,29 +22,12 @@
 
 产品回归：`npm run test:product-loop`。见 [产品回归循环](product-regression-loop.md)。
 
-## 已发行
+## 未打进最近安装包
 
-最近一次正式包装源 `7946fb85`（`26.925.1`）。更早的 tag 见 [GitHub Releases](https://github.com/MilkSU-Official/milksu/releases)。
-
-发行页：<https://github.com/MilkSU-Official/milksu/releases/tag/v26.925.1>
-
-这一版有用户名密码登录，设置里按厂商目录或自定义接口添加模型，账户模型可以逐个开关。看板娘按闲聊、深入思考、长任务分流。对话可以生图。文件可以拖进窗口。过长消息默认折起。侧栏标出等你拍板的对话。
-
-| 平台 | Workflow | 安装包 | 大小 | SHA-256 |
-| --- | --- | --- | ---: | --- |
-| macOS ARM64 | `36038843267` | `MilkSU-macOS-arm64-26.925.1.dmg` | 506,421,628 B | `3166f26f453f71b708f9029659deb6bd5dea61ede13aee67c770b1f3470ef588` |
-| Windows x64 | `36038847791` | `MilkSU-Windows-x64-26.925.1-Setup.exe` | 391,848,954 B | `abd413b385749664039a754567c387b9245d687f33658375a2c346f95a8f8414` |
-| Linux x64 DEB | `36038852337` | `MilkSU-Linux-x64-26.925.1.deb` | 376,246,440 B | `f0535e908ebaa193fe13cf02c4c0c4f4587d719e06b5e42bdcf94e1578997ab3` |
-| Linux x64 tarball | `36038852337` | `MilkSU-Linux-x64-26.925.1.tar.gz` | 456,356,193 B | `f7e643ef294ed3d1c11daccebfd0e2adb00c22e30ee77d87645d0127cd46a507` |
-
-Windows 安装器仍未代码签名。
-
-## 未打进该安装包
-
-工作树里已有、上面那个 tag 没有的，以代码为准。发下一版前仍缺的验收：
+工作树里已有、最近一次正式包装（版本见 README）没有的，以代码为准。发下一版前仍缺的验收：
 
 - Windows Computer Use 整段崩溃尚未真机验收。Windows / Linux 窗口铬尚未真机验收。
-- 新对话继承项目 `milksu` 还没有。
+- 新会话不再默认继承最近项目（#169 改向），这条新行为还没有真机验收。
 - 宽作业用 `recon-authorized-target` Skill，不造 typed sweep。Computer Use 选窗器仍是可选人工面。
 - DSH `bash` 没有 MilkSU 侧超时上界。
 - issue #117 的另外几问、#155、#156 还没接到决策这一层。

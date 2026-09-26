@@ -331,7 +331,7 @@ React -> Electron Preload / Desktop RPC -> Application Service -> Domain / Runti
 - 发完 GitHub Release 之后，更新 README 的徽章、下载链接和当前状态，
   并按 [三端打包与发版流程](docs/developer/release-process.md) §7 核对鸣谢、开源组件、截图和开篇介绍。
   README 保持产品介绍，不要改成项目日志或设计文档。
-  其他 Current 文档记录那个 tag 发了什么、代码现在怎么工作。
+  其他 Current 文档只记录代码现在怎么工作，不记版本。
 - 升版本号、空 tag、本地脏包或更新的 `main` 都不算新的发行，
   直到 README 按一次有回执的 GitHub Release 更新为止。
 - GitHub 写操作只留在授权的 MilkSU 远端（`MilkSU-Official/milksu`），

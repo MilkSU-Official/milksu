@@ -8,7 +8,7 @@
 
 | 文档 | 为什么留 |
 | --- | --- |
-| [当前开发目标](current-objectives.md) | 阶段、上一版回执、还没打进安装包的缺口 |
+| [当前开发目标](current-objectives.md) | 阶段、还没打进安装包的缺口 |
 | [当前系统](../architecture/current-system.md) | 进程和数据边界。细节读代码 |
 | [产品代码准入](product-code-admission.md) | 新能力进生产依赖图之前的四道门 |
 | [产品回归循环](product-regression-loop.md) | 怎么跑 `npm run test:product-loop` |
