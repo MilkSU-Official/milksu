@@ -91,11 +91,13 @@ await listMilkSUHostProcesses({ allowSelfTermination: true })
 
 ## 测试验证
 
-运行测试脚本验证：
+运行产品回归测试验证：
+
 ```bash
-node scripts/test-caller-protection.mjs
-node scripts/test-self-protection.mjs
+npm run test:product-loop-catalog
 ```
+
+其中包含 `detectCallerMilkSUPid()` 的进程树单元测试。
 
 ## 影响范围
 

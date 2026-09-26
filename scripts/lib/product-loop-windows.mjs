@@ -82,7 +82,7 @@ export function descendantPids(rows, rootPids) {
  * When running `node scripts/verify-product-loop.mjs` inside MilkSU,
  * this prevents the script from killing its own parent process.
  */
-export function detectCallerMilkSUPid(rows) {
+export function detectCallerMilkSUPid(rows, repoRoot = repositoryRoot) {
   let currentPid = process.pid
   const visited = new Set()
   const byPid = new Map(rows.map(row => [row.pid, row]))
@@ -101,7 +101,7 @@ export function detectCallerMilkSUPid(rows) {
       continue
     }
 
-    const kind = classifyMilkSUHostCommand(row.command)
+    const kind = classifyMilkSUHostCommand(row.command, repoRoot)
     if (kind === 'packaged-stable' || kind === 'packaged-repo' || kind === 'unpackaged-repo') {
       return currentPid
     }
@@ -285,15 +285,14 @@ export async function claimProductLoopProtocol(options = {}) {
 export async function listMilkSUHostProcesses(options = {}) {
   const rows = await listProcessRows().catch(() => [])
   const portPids = await pidsListeningOnPorts(keepPortsFrom(options))
+  const processPids = keepPidsFrom(options, rows)
 
-  // Protect the MilkSU instance that spawned this script
-  const callerPid = detectCallerMilkSUPid(rows)
-  if (callerPid && !options.allowSelfTermination) {
-    portPids.add(callerPid)
-  }
+  // Protect the MilkSU instance that spawned this script.
+  const callerPid = detectCallerMilkSUPid(rows, options.repoRoot || repositoryRoot)
+  if (callerPid && !options.allowSelfTermination) processPids.add(callerPid)
 
   const keepPids = mergeKeepPids(
-    keepPidsFrom(options, rows),
+    processPids,
     portPids,
     rows,
     options.repoRoot || repositoryRoot,
