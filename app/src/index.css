@@ -70,9 +70,9 @@
   --card-foreground: #f0f0f0;
   --popover: #141414;
   --popover-foreground: #f0f0f0;
-  --overlay-glass: rgb(28 28 30 / 42%);
-  --overlay-glass-sheen: rgb(255 255 255 / 14%);
-  --overlay-glass-highlight: rgb(255 255 255 / 28%);
+  --overlay-glass: rgb(24 24 26 / 66%);
+  --overlay-glass-sheen: rgb(255 255 255 / 5%);
+  --overlay-glass-highlight: rgb(255 255 255 / 12%);
   --overlay-glass-fg: #f0f0f0;
   --primary: #f0f0f0;
   --primary-foreground: #141414;
