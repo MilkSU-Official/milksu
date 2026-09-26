@@ -318,7 +318,11 @@ test("bridge emits context_composition after ready, policy, usage, and compactio
   );
   assert.match(bridgeSource, /from "\.\/bridge-context-composition\.js"/);
   assert.match(bridgeSource, /function emitContextComposition\(/);
-  assert.match(bridgeSource, /emit\(id, "context_composition", \{ contextComposition: composition \}\)/);
+  // 发事件时一并带上可用输入上限（窗口 − 最大输出），面板据此画分界线。
+  assert.match(
+    bridgeSource,
+    /emit\(id, "context_composition", \{\s*contextComposition: \{ \.\.\.composition, \.\.\.contextUsageWindowPayload\(windowTokens, maxOutput\) \},\s*\}\);/,
+  );
   assert.match(
     bridgeSource,
     /emit\(conversationId, "ready", \{[\s\S]*?\}\);\s*emitContextComposition\(conversationId\);/,
