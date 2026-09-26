@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	DriverVersion           = "0.27.0"
+	DriverVersion           = "0.29.1"
 	linuxComputerUseProblem = "Computer Use 在当前 Linux 桌面上不可用。GNOME Wayland 可走系统桌面共享授权；Hyprland 仍不可用。不会走 xinput 摘键鼠。"
 	defaultHostBundleID     = "com.milksu.app"
 	hostBundleIDEnv         = "MILKSU_DESKTOP_APP_ID"

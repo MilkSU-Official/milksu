@@ -15,10 +15,10 @@ import { promisify } from 'node:util'
 
 const execFileAsync = promisify(execFile)
 const defaultRepositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const cuaDriverVersion = '0.27.0'
+const cuaDriverVersion = '0.29.1'
 const cuaDriverTag = `cua-driver-rs-v${cuaDriverVersion}`
 const sourceRepository = 'https://github.com/trycua/cua.git'
-const sourceCommit = '082de4344b731ae4738ddc6a6f13f21bb3c49a85'
+const sourceCommit = '7a8f66ad04e62fccb18cca9965f2964fcaee124e'
 const rustVersion = '1.97.1'
 const rustTarget = 'x86_64-pc-windows-msvc'
 const cargoWorkspaceRelativePath = join('libs', 'cua-driver', 'rust')
@@ -33,8 +33,8 @@ const windowsPlatformSourceRelativePath = join(
 const licenseRelativePath = 'LICENSE.md'
 // Upstream * text=auto checks out CRLF on Windows. Hash after LF normalization
 // so the pin matches the git blob, not the working-tree line endings.
-const expectedCargoLockSha256 = '1200667c238ea4b425e7ab0b1e3bfa1c49b93158ae90bd52a15d5e78c2871678'
-const expectedWindowsPlatformSourceSha256 = '509e8467489b4201c947779dced4af267bdd68bd1a588a6d249404ef948fc53f'
+const expectedCargoLockSha256 = '88533eff8c051a5ea9b6786465d0ab7a29b71411317207b04e1755b5e40299fe'
+const expectedWindowsPlatformSourceSha256 = '2d1b1e795bd063791eab6d99b0949510b1ab520d4df7b4c704c8eff4517640cb'
 const buildRecipe = 'cua-driver-windows-pinned-source-v2'
 
 async function exists(path) {

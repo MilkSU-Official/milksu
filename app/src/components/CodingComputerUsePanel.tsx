@@ -438,7 +438,7 @@ export default function CodingComputerUsePanel({
           </div>
 
           <p className="text-[11px] leading-4 text-muted-foreground">
-            {t(`${approvalGuidance} Driver ${status?.driverVersion || '0.27.0'} · prerelease。`, `${approvalGuidance} Driver ${status?.driverVersion || '0.27.0'} · prerelease.`)}
+            {t(`${approvalGuidance} Driver ${status?.driverVersion || '0.29.1'} · prerelease。`, `${approvalGuidance} Driver ${status?.driverVersion || '0.29.1'} · prerelease.`)}
           </p>
         </div>
       </details>
