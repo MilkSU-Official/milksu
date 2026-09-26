@@ -11,12 +11,21 @@ const METER_STYLES = `
 .context-usage-meter__cache { stroke: var(--muted-foreground); }
 .context-usage-meter__fresh { stroke: var(--foreground); }
 .context-usage-meter__track {
+  position: relative;
   display: flex;
   width: 100%;
   height: 0.375rem;
   overflow: hidden;
   border-radius: 8px;
   background: var(--hover-2, var(--muted));
+}
+.context-usage-meter__limit {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--foreground);
+  opacity: 0.7;
 }
 .context-usage-meter__seg { display: block; height: 100%; min-width: 0; }
 .context-usage-meter__seg--occupied { background: var(--primary, #4aabea); }
@@ -59,6 +68,9 @@ export default function ContextUsageMeter({
 }) {
   const t = useT()
   const [panelOpen, setPanelOpen] = useState(Boolean(defaultOpen))
+  // 原生 title 悬停在 Electron 里不弹（读者实测），所以自己画一个悬停提示：
+  // 鼠标移到“可用上限”那行或分界线上就弹，移开就收。
+  const [budgetHintVisible, setBudgetHintVisible] = useState(false)
   const radius = size === 'md' ? 9 : 7
   const stroke = size === 'md' ? 2.5 : 2
   const viewBox = useMemo(() => {
@@ -73,6 +85,11 @@ export default function ContextUsageMeter({
   const hasSplit = !hasCategories && (usage.cachePercent ?? 0) > 0 && (usage.uncachedPercent ?? 0) > 0
   const cacheOnly = !hasCategories && (usage.cachePercent ?? 0) > 0 && (usage.uncachedPercent ?? 0) <= 0
   const hasRing = usage.percent !== undefined
+  // Where the usable input budget ends inside the window: the marker the reader
+  // lines the bar up against instead of a denominator that hides the 1M window.
+  const limitPercent = usage.usableTokens && usage.windowTokens && usage.usableTokens < usage.windowTokens
+    ? (usage.usableTokens / usage.windowTokens) * 100
+    : undefined
   const used = usage.usedLabel?.trim()
   const ratio = usage.tokenRatioLabel?.trim()
   const triggerLabel = used && ratio ? `${used} ${ratio}` : used || ratio || usage.strip
@@ -212,7 +229,8 @@ export default function ContextUsageMeter({
             <p className="mt-1 text-caption text-muted-foreground">{t('整理中', 'Compacting')}</p>
           ) : null}
           {showOccupancyBar ? (
-            <div className="context-usage-meter__track mt-2">
+            <div className="relative mt-2">
+            <div className="context-usage-meter__track">
               {hasCategories ? (
                 categorySegments.map(segment => (
                   <span
@@ -227,7 +245,54 @@ export default function ContextUsageMeter({
                   style={{ width: `${occupancyBarPercent}%` }}
                 />
               )}
+              {limitPercent !== undefined ? (
+                <span
+                  className="context-usage-meter__limit"
+                  style={{ left: `${limitPercent}%` }}
+                  aria-hidden="true"
+                />
+              ) : null}
             </div>
+            {limitPercent !== undefined ? (
+              // 读者反馈：细线太难对准 ⇒ 触发区加宽（可见线仍是 2px）。
+              <span
+                className="absolute top-1/2 h-6 w-7 -translate-x-1/2 -translate-y-1/2 cursor-help"
+                style={{ left: `${limitPercent}%` }}
+                data-testid="context-usage-limit"
+                onMouseEnter={() => setBudgetHintVisible(true)}
+                onMouseLeave={() => setBudgetHintVisible(false)}
+              />
+            ) : null}
+            </div>
+          ) : null}
+          <div className="relative mt-1">
+            {usage.budgetLabel ? (
+              <p
+                className={`inline-block text-caption ${usage.overBudget ? 'text-warning' : 'text-muted-foreground'}`}
+                data-testid="context-usage-budget"
+                onMouseEnter={() => setBudgetHintVisible(true)}
+                onMouseLeave={() => setBudgetHintVisible(false)}
+              >
+                {usage.budgetLabel}
+              </p>
+            ) : null}
+            {budgetHintVisible && usage.budgetHint ? (
+              <div
+                className="absolute left-0 top-full z-50 mt-1 w-64 max-w-full rounded-md border border-border bg-popover p-2 text-caption text-popover-foreground shadow-md"
+                data-testid="context-usage-budget-hint"
+                role="tooltip"
+              >
+                {usage.budgetHint}
+              </div>
+            ) : null}
+          </div>
+          {usage.overBudget ? (
+            <p
+              className="mt-1 text-caption text-warning"
+              data-testid="context-usage-over-budget"
+            >
+              {t('已超出可用输入上限，建议整理上下文', 'Past the usable input budget — compact soon')}
+            </p>
           ) : null}
           {hasCategories ? (
             <ul className="mt-3 space-y-1.5">

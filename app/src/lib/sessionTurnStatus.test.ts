@@ -7,6 +7,7 @@ import {
   applySessionRunStarted,
   applySessionUsageAfterCompaction,
   applySessionUsageRecorded,
+  compositionFromStoredUsage,
   emptySessionTurnSnapshot,
   formatCompositionTokenCount,
   formatElapsedMs,
@@ -418,5 +419,134 @@ describe('sessionTurnStatus', () => {
     expect(formatCompositionTokenCount(35_700)).toBe('35.7K')
     expect(formatCompositionTokenCount(1_000_000)).toBe('1M')
     expect(formatCompositionTokenCount(1200)).toBe('1.2K')
+  })
+})
+
+describe('context usage against the usable input budget', () => {
+  function presentedFor(estimatedTokens: number, maxOutput?: number, usableWindow?: number) {
+    return presentContextUsage(
+      applySessionContextComposition(emptySessionTurnSnapshot(), {
+        estimatedTokens,
+        contextWindow: 1_000_000,
+        maxOutput,
+        usableWindow,
+        categories: [{ id: 'conversation', tokens: estimatedTokens }],
+      }),
+    )
+  }
+
+  it('keeps the window as the shown denominator, because the reader knows it as 1M', () => {
+    const presented = presentedFor(646_000, 384_000, 616_000)
+    expect(presented?.percent).toBe(65)
+    expect(presented?.tokenRatioLabel).toBe('~646K / 1M')
+    expect(presented?.categories?.[0]?.percent).toBe(65)
+  })
+
+  it('marks where the usable input budget ends and warns once the request no longer fits', () => {
+    const presented = presentedFor(646_000, 384_000, 616_000)
+    expect(presented?.usableTokens).toBe(616_000)
+    expect(presented?.budgetPercent).toBe(105)
+    expect(presented?.overBudget).toBe(true)
+    expect(presented?.budgetLabel).toContain('616K')
+  })
+
+  it('reads a freshly compacted conversation as well inside the budget', () => {
+    const presented = presentedFor(24_300, 384_000, 616_000)
+    expect(presented?.percent).toBe(2)
+    expect(presented?.budgetPercent).toBe(4)
+    expect(presented?.overBudget).toBe(false)
+  })
+
+  it('derives the budget from maxOutput alone when the sidecar omits usableWindow', () => {
+    const presented = presentedFor(646_000, 384_000)
+    expect(presented?.usableTokens).toBe(616_000)
+    expect(presented?.overBudget).toBe(true)
+  })
+
+  it('claims no budget when maxOutput is unknown, so nothing is faked', () => {
+    const presented = presentedFor(646_000)
+    expect(presented?.percent).toBe(65)
+    expect(presented?.usableTokens).toBeUndefined()
+    expect(presented?.budgetPercent).toBeUndefined()
+    expect(presented?.overBudget).toBe(false)
+    expect(presented?.budgetLabel).toBeUndefined()
+  })
+
+  it('keeps the short label clean and puts the reason in the hover hint', () => {
+    const presented = presentedFor(646_000, 384_000, 616_000)
+    // 平时只显示简版（读者要求），完整原因留给悬停。
+    expect(presented?.budgetLabel).toBe('可用上限 616K')
+    expect(presented?.budgetHint).toContain('616K')
+    expect(presented?.budgetHint).toContain('384K')
+    expect(presented?.budgetHint).toContain('1M')
+    // 读者两轮校准：既要说准后果，也不能写成"必然崩"（实测有越线后继续聊的情况）。
+    expect(presented?.budgetHint).toContain('可能')
+    expect(presented?.budgetHint).not.toContain('会过满')
+    expect(presented?.budgetHint).not.toContain('HTTP 400')
+    // 读者要求砍到三句：总窗口 / 输入与输出分配 / 越线的问题。
+    expect(presented?.budgetHint?.length ?? 0).toBeLessThan(80)
+  })
+
+  it('keeps the uncached/cache split on the window denominator', () => {
+    expect(contextOccupancyShares(100_000, 500_000, 1_000_000)?.percent).toBe(60)
+  })
+
+  it('keeps the budget when a reopened conversation is read from stored usage', () => {
+    const composition = compositionFromStoredUsage({
+      estimatedTokens: 646_000,
+      contextWindow: 1_000_000,
+      maxOutput: 384_000,
+      usableWindow: 616_000,
+      categories: [{ id: 'conversation', tokens: 629_000 }],
+    })
+    expect(composition?.maxOutput).toBe(384_000)
+    expect(composition?.usableWindow).toBe(616_000)
+    expect(presentContextUsage({
+      ...emptySessionTurnSnapshot(),
+      composition,
+      contextWindow: 1_000_000,
+    })?.overBudget).toBe(true)
+  })
+
+  it('falls back to the model table when the sidecar sends no budget at all', () => {
+    // milksu-route sessions arrive with no maxOutput/usableWindow, which is why the
+    // marker stayed invisible; the panel must derive the budget from the model id.
+    const state = applySessionUsageRecorded(
+      applySessionContextWindow(emptySessionTurnSnapshot(), 1_000_000),
+      {
+        inputTokens: 500,
+        outputTokens: 200,
+        cacheReadTokens: 645_500,
+        cacheWriteTokens: 0,
+        reasoningTokens: 0,
+        totalTokens: 646_000,
+        model: 'deepseek/deepseek-flash',
+      },
+    )
+    const presented = presentContextUsage(state)
+    // 官方模型表：deepseek-flash 最大输出 393216 ⇒ 可用输入 1,000,000 − 393,216 = 606,784。
+    expect(presented?.usableTokens).toBe(606_784)
+    expect(presented?.budgetPercent).toBe(106)
+    expect(presented?.overBudget).toBe(true)
+    expect(presented?.budgetLabel).toContain('607')
+  })
+
+  it('still claims no budget for a model the table does not know', () => {
+    const state = applySessionUsageRecorded(
+      applySessionContextWindow(emptySessionTurnSnapshot(), 1_000_000),
+      {
+        inputTokens: 500,
+        outputTokens: 200,
+        cacheReadTokens: 645_500,
+        cacheWriteTokens: 0,
+        reasoningTokens: 0,
+        totalTokens: 646_000,
+        model: 'totally-unknown-model-xyz',
+      },
+    )
+    const presented = presentContextUsage(state)
+    expect(presented?.usableTokens).toBeUndefined()
+    expect(presented?.budgetLabel).toBeUndefined()
+    expect(presented?.overBudget).toBe(false)
   })
 })
