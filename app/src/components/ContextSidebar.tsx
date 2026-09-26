@@ -31,7 +31,6 @@ import {
   Copy,
   Flag,
   FlaskConical,
-  Clock,
   Folder,
   FolderOpen,
   Gauge,
@@ -273,6 +272,15 @@ export default function ContextSidebar({
   const projectGroups = codingGroups.filter(group => !group.temporary && !group.flat)
   const temporaryGroup = codingGroups.find(group => group.temporary) ?? null
   const flatChats = codingGroups.filter(group => group.flat).flatMap(group => group.conversations)
+  // 聊天首页：无项目的直属会话平铺在「任务」组下，不再包一层「最近」文件夹。
+  const taskChats = workspaceHome === 'chat' ? (temporaryGroup?.conversations ?? []) : []
+  const newChatButton = (
+    <SidebarPlusButton
+      testId="coding-new-task-button"
+      label={t('新会话', 'New chat')}
+      onClick={() => onNew?.()}
+    />
+  )
   const avatarSource = accountStatus.user?.avatarUrl || profileAvatar
   const workspaceName = accountStatus.user?.displayName
     || accountStatus.user?.githubLogin
@@ -700,6 +708,55 @@ export default function ContextSidebar({
     )
   }
 
+  function conversationSectionHeader(label: string, plus?: ReactNode) {
+    return (
+      <div className="mx-2 mb-1 flex h-8 items-center gap-1">
+        <div className="agent-sidebar__copy min-w-0 flex-1 truncate px-2 text-body font-medium text-muted-foreground">
+          {label}
+        </div>
+        {plus}
+      </div>
+    )
+  }
+
+  function projectGroupFolder(group: CodingConversationGroup) {
+    return (
+      <details key={group.key} open className="coding-project-group">
+        <summary
+          className="agent-sidebar-row group mx-2 flex h-9 cursor-pointer list-none items-center rounded-[8px] px-2"
+          title={group.paths.length ? group.paths.join('\n') : group.name}
+          onClick={event => openSingleConversation(event, group)}
+        >
+          <span className="flex size-5 shrink-0 items-center justify-center text-muted-foreground">
+            {group.key === PINNED_GROUP_KEY ? (
+              <Pin className="size-4" />
+            ) : (
+              <>
+                <Folder className="folder-closed size-4" />
+                <FolderOpen className="folder-open size-4" />
+              </>
+            )}
+          </span>
+          <span className="agent-sidebar__copy ml-1.5 min-w-0 flex-1 truncate text-control font-medium text-muted-foreground">{group.name}</span>
+          {group.path ? (
+            <SidebarPlusButton
+              className="coding-project-new-session opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+              label={t(`在 ${group.name} 中新建会话`, `New chat in ${group.name}`)}
+              onClick={event => {
+                event.preventDefault()
+                event.stopPropagation()
+                if (group.path) onNewProjectSession?.(group.path)
+              }}
+            />
+          ) : null}
+        </summary>
+        <div className="mt-0.5 space-y-0.5">
+          {group.conversations.map(conversation => conversationRow(conversation, group.key))}
+        </div>
+      </details>
+    )
+  }
+
   const sidebarToggleLabel = collapsed
     ? t('展开侧栏', 'Expand sidebar')
     : t('收起侧栏', 'Collapse sidebar')
@@ -865,94 +922,46 @@ export default function ContextSidebar({
         </nav>
 
         <div className="agent-sidebar__chats mt-3 min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
-          <div className="mx-2 mb-1 flex h-8 items-center gap-1">
-            <div className="agent-sidebar__copy min-w-0 flex-1 truncate px-2 text-body font-medium text-muted-foreground">
-              {t('会话', 'Chats')}
-            </div>
-            {collapsed ? null : (
-              <SidebarPlusButton
-                testId="coding-new-task-button"
-                label={t('新会话', 'New chat')}
-                onClick={() => onNew?.()}
-              />
-            )}
-          </div>
-
           <div ref={conversationList} className="coding-conversation-list pb-3" data-plugin-surface="workspace-list">
-            {flatChats.length || projectGroups.length || temporaryGroup ? (
+            {workspaceHome === 'chat' ? (
+              // 聊天首页拆成两组：项目是会话文件夹（含钉选），任务是直属会话，不再套一层「最近」文件夹。
               <div className="flex flex-col">
-                {flatChats.length ? (
-                  <div className="space-y-0.5">
-                    {flatChats.map(conversation => conversationRow(conversation))}
-                  </div>
-                ) : null}
                 {projectGroups.length ? (
-                  <div className="space-y-0.5">
-                    {projectGroups.map(group => (
-                      <details key={group.key} open className="coding-project-group">
-                        <summary
-                          className="agent-sidebar-row group mx-2 flex h-9 cursor-pointer list-none items-center rounded-[8px] px-2"
-                          title={group.paths.length ? group.paths.join('\n') : group.name}
-                          onClick={event => openSingleConversation(event, group)}
-                        >
-                          <span className="flex size-5 shrink-0 items-center justify-center text-muted-foreground">
-                            {group.key === PINNED_GROUP_KEY ? (
-                              <Pin className="size-4" />
-                            ) : (
-                              <>
-                                <Folder className="folder-closed size-4" />
-                                <FolderOpen className="folder-open size-4" />
-                              </>
-                            )}
-                          </span>
-                          <span className="agent-sidebar__copy ml-1.5 min-w-0 flex-1 truncate text-control font-medium text-muted-foreground">{group.name}</span>
-                          {group.path ? (
-                            <SidebarPlusButton
-                              className="coding-project-new-session opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
-                              label={t(`在 ${group.name} 中新建会话`, `New chat in ${group.name}`)}
-                              onClick={event => {
-                                event.preventDefault()
-                                event.stopPropagation()
-                                if (group.path) onNewProjectSession?.(group.path)
-                              }}
-                            />
-                          ) : null}
-                        </summary>
-                        <div className="mt-0.5 space-y-0.5">
-                          {group.conversations.map(conversation => conversationRow(conversation, group.key))}
-                        </div>
-                      </details>
-                    ))}
+                  <>
+                    {conversationSectionHeader(t('项目', 'Projects'))}
+                    <div className="space-y-0.5">
+                      {projectGroups.map(group => projectGroupFolder(group))}
+                    </div>
+                  </>
+                ) : null}
+                <div className={projectGroups.length ? 'mt-2' : undefined}>
+                  {conversationSectionHeader(t('任务', 'Tasks'), newChatButton)}
+                  {taskChats.length ? (
+                    <div className="mt-0.5 space-y-0.5">
+                      {taskChats.map(conversation => conversationRow(conversation))}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            ) : (
+              <>
+                {conversationSectionHeader(workspaceHome === 'image' ? t('任务', 'Tasks') : t('会话', 'Chats'), newChatButton)}
+                {flatChats.length || projectGroups.length ? (
+                  <div className="flex flex-col">
+                    {flatChats.length ? (
+                      <div className="space-y-0.5">
+                        {flatChats.map(conversation => conversationRow(conversation))}
+                      </div>
+                    ) : null}
+                    {projectGroups.length ? (
+                      <div className="space-y-0.5">
+                        {projectGroups.map(group => projectGroupFolder(group))}
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
-                {temporaryGroup ? (
-                  <details open className="coding-temporary-group mt-2" data-testid="coding-temporary-group">
-                    <summary
-                      className="agent-sidebar-row group mx-2 flex h-9 cursor-pointer list-none items-center rounded-[8px] px-2"
-                      title={t('最近的会话', 'Recent chats')}
-                      onClick={event => openSingleConversation(event, temporaryGroup)}
-                    >
-                      <span className="flex size-5 shrink-0 items-center justify-center text-muted-foreground">
-                        <Clock className="size-4" />
-                      </span>
-                      <span className="agent-sidebar__copy ml-1.5 min-w-0 flex-1 truncate text-control font-medium text-muted-foreground">{temporaryGroup.name}</span>
-                      <SidebarPlusButton
-                        className="coding-project-new-session opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
-                        label={t('新建会话', 'New chat')}
-                        onClick={event => {
-                          event.preventDefault()
-                          event.stopPropagation()
-                          onNew?.()
-                        }}
-                      />
-                    </summary>
-                    <div className="mt-0.5 space-y-0.5">
-                      {temporaryGroup.conversations.map(conversation => conversationRow(conversation))}
-                    </div>
-                  </details>
-                ) : null}
-              </div>
-            ) : null}
+              </>
+            )}
           </div>
         </div>
         </>
@@ -1325,14 +1334,10 @@ const contextSidebarCss = `
   letter-spacing: var(--text-label--letter-spacing);
 }
 .coding-conversation-list { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
-.coding-project-group > summary,
-.coding-temporary-group > summary { list-style: none; }
-.coding-project-group > summary::-webkit-details-marker,
-.coding-temporary-group > summary::-webkit-details-marker { display: none; }
-.coding-project-group:not([open]) .folder-open,
-.coding-temporary-group:not([open]) .folder-open { display: none; }
-.coding-project-group[open] .folder-closed,
-.coding-temporary-group[open] .folder-closed { display: none; }
+.coding-project-group > summary { list-style: none; }
+.coding-project-group > summary::-webkit-details-marker { display: none; }
+.coding-project-group:not([open]) .folder-open { display: none; }
+.coding-project-group[open] .folder-closed { display: none; }
 .coding-project-child { display: flex; align-items: center; }
 .coding-session-status {
   position: absolute;
