@@ -20,7 +20,7 @@ npm run test:product-loop -- --gui --suite all
 整次跑完后先看 FAIL 项。判断是不是要修产品：要修就查原因并改掉，然后只重跑含这些 FAIL 的套件，例如：
 
 ```bash
-npm run test:product-loop -- --gui --suite first-use,coding-pi
+npm run test:product-loop -- --gui --suite first-use,coding
 ```
 
 套件名以 `--list` 和回执为准。重跑仍失败就再查再改，直到这些失败项通过。不必为了发版去改一次无关的失败。修完之前不升版本号、不提交发版提交、不推送、不 `release:dispatch`。
@@ -84,6 +84,8 @@ npm run release:dispatch -- \
   --release-notes "本次发行说明"
 ```
 
+自托管 runner 在这条命令上加 `--use-self-hosted`。
+
 macOS 签名 job 使用 `macos-release` environment 作为 Developer ID / Notary / R2 密钥库：只允许
 `main` 部署，没有 required reviewer，`release:dispatch` 后立即注入 secrets 并开跑。不要删除该
 environment，也不要把这些材料改放到仓库级 secrets。等待并拉取三端产物：
@@ -105,7 +107,6 @@ npm run release:dispatch -- --dry-run
 | Linux | GitHub Actions | 原生 Go 编译、关键 Sidecar 路由、DEB 结构、打包 Runtime 与 Xvfb 首次启动 |
 
 只有 GitHub-hosted macOS 无法公证时才允许本机例外：`npm run release:mac:local -- --allow-local`。
-自托管 runner 再加 `--use-self-hosted`。
 
 ## 4. 创建 GitHub Release 页（必做）
 
@@ -126,19 +127,24 @@ npm run release:github -- \
 3. 用同一 source commit 创建或更新正式的 `v<version>` 页面并上传安装包与 `SHA256SUMS-<version>.txt`；
 4. 清理旧的无版本号 macOS 资产名（若仍存在）。
 
+这条命令不收集 Linux 的 x64 tar.gz。现行做法是页面创建后手动补传：把 tar.gz 的 SHA-256 追加进
+`SHA256SUMS-<version>.txt`，再跑
+`gh release upload --clobber v<version> MilkSU-Linux-x64-<version>.tar.gz SHA256SUMS-<version>.txt`。
+这是已记录的流程缺口，改脚本时把 tar.gz 收进同一条命令。
+
 ## 5. 私有 R2 / Admin OTA（正式打包默认上传）
 
 `release:dispatch` 以及 macOS / Windows / Linux 正式打包脚本每次都生成 updater 载荷，上传到私有
 R2，并发布该平台 Admin current pointer。GitHub Release 仍只提供用户安装包（DMG、EXE、DEB、x64 tar.gz 与
 SHA256SUMS），不上 OTA ZIP。维护者仍可在 Admin「版本」页暂停分发。
 
-本机 `desktop:build` 验收包不上传 R2。Windows / Linux 的 R2 与 `RELEASE_PUBLISH_TOKEN` 使用
+本机 `desktop:build` 验收包不上传 R2。Windows / Linux 的 R2 与 `MILKSU_RELEASE_PUBLISH_TOKEN` 使用
 仓库 secrets，不要把 Apple 公证密钥注入这两端 runner。
 
 ## 6. 发行记录
 
 只使用 conclusion 为 success 且 source commit 与回执一致的产物。GitHub Release 只附加
-DMG、EXE、DEB（加 SHA256SUMS），不附加 OTA ZIP。
+DMG、EXE、DEB、x64 tar.gz 和 SHA256SUMS，不附加 OTA ZIP。
 
 ## 7. 必做：回写并推送版本事实
 

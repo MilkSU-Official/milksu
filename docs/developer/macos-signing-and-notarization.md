@@ -37,12 +37,12 @@ staple 与 Gatekeeper 验证。签名资产只存在 Personal Vault 和 GitHub S
 1. 按[三端打包与发版流程](release-process.md)：产品回归跑完，FAIL 项该修的修好并重跑通过之后，才把准确版本提交并推送到 `main`。然后运行一次
    `npm run release:verify`，生成绑定完整 commit 的本地回执。任意有 `gh` 的机器都可以。
 2. `npm run release:dispatch ...` 同时分发 macOS / Windows / Linux。macOS 走 GitHub-hosted
-   标准 runner；`macos-release` environment 在 `main` 上立即注入证书与公证密钥，无需 Approve。
+   标准 runner；`macos-release` environment 在 `main` 上立即注入证书与公证密钥，无需 Approve。自托管
+   runner 在这条命令上加 `--use-self-hosted`。
 3. `npm run release:collect -- --wait` 把三端安装包拉到 `build/release/github/`。
 
 本机 `release:mac:local` 暂时关闭。只有云端公证不可用时才加 `--allow-local`，从 Personal Vault
-读取 `.p12` / `.p8`。正式云端打包会同时生成 DMG 与 updater ZIP。自托管
-runner 再加 `--use-self-hosted`。
+读取 `.p12` / `.p8`。正式云端打包会同时生成 DMG 与 updater ZIP。
 
 产品 Go、app（React）、Sidecar、lint 和生产/文档构建已由 commit-bound 本地回执证明，macOS 打包路径不重复
 执行。OTA ZIP 与 release metadata 是正式打包的默认产物。

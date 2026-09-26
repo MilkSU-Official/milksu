@@ -296,7 +296,7 @@ React -> Electron Preload / Desktop RPC -> Application Service -> Domain / Runti
 - 不要用关键词或正则扫描用户文本来决定跑哪个工具、开哪个标签页、开哪一页或走哪种审批。
   模型看得懂自然语言。GUI 一键操作发的是 typed 产品动作。
   隔离浏览器启动只有两个原因：用户打开了右栏，或模型调用了 typed 的 `milksu_workspace`
-  浏览器动作（`EnsureCodingBrowser`）。提示词里出现「打开浏览器」不算，发过一句 Go 的问候语也不算。
+  浏览器动作（如 `open_browser_tab`）。提示词里出现「打开浏览器」不算，发过一句 Go 的问候语也不算。
 - `milksu_workspace` 是 typed 的产品 UI 工具。它可以列出、聚焦或关闭隔离浏览器标签页，
   列出或预览产物，打开环境、diff、终端或后台任务表面。
   Coding、CTF、CVE 和实验室共用这个表面；领域工具和 Judge 叠在 Coding 循环之上，不取代它。

@@ -23,7 +23,7 @@ Computer Use 缺权限或没开计算器记失败，不改走隔离浏览器。�
 npm run test:product-loop -- --list
 npm run test:product-loop -- --gui --suite first-use
 npm run test:product-loop -- --gui --suite all
-npm run test:product-loop -- --gui --suite coding-pi,workspace-ctf
+npm run test:product-loop -- --gui --suite coding,workspaces
 npm run test:product-loop-catalog
 ```
 
