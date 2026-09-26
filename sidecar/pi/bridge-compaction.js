@@ -15,7 +15,28 @@
 export const DEFAULT_COMPACTION_TIMEOUT_MS = 120_000;
 export const CONTEXT_COMPACTION_RATIO = 0.80;
 
-export function contextUsageSnapshot(usage, contextWindow) {
+/** 一步余量：实测一回合内上下文还会长 +87,000（修法单）。
+ *  **按窗口比例收敛**：取 min(88_000, 窗口×10%) —— 88_000 对小窗口过大（128K/8K 会算成 0.27），
+ *  与「小模型不得变早」冲突，故按窗口比例收敛，再由 [0.30, 0.80] 夹住。 */
+export const COMPACTION_HEADROOM_TOKENS = 88_000;
+export const COMPACTION_THRESHOLD_FLOOR = 0.30;
+
+/**
+ * 「何时该整理」= (窗口 − 最大输出 − 一步余量) / 窗口。
+ * 纯函数（不碰真实 .app 语境）⇒ 可被单测钉住，避免"永远为真/永远为假"的假守卫。
+ * 拿不到该模型的最大输出 ⇒ **保持旧行为 0.80**（绝不回归）；结果再夹到 [0.30, 0.80]。
+ */
+export function compactionThreshold(window, maxOutput, headroom = COMPACTION_HEADROOM_TOKENS) {
+  const size = Math.max(0, Number(window ?? 0))
+  const output = Number(maxOutput)
+  if (!(size > 0)) return CONTEXT_COMPACTION_RATIO
+  if (!Number.isFinite(output) || output <= 0) return CONTEXT_COMPACTION_RATIO
+  const step = Math.max(0, Math.min(Number(headroom ?? 0), size * 0.10))
+  const ratio = (size - Math.min(output, size) - step) / size
+  return Math.min(CONTEXT_COMPACTION_RATIO, Math.max(COMPACTION_THRESHOLD_FLOOR, ratio))
+}
+
+export function contextUsageSnapshot(usage, contextWindow, limits = {}) {
   const input = Math.max(0, Number(usage?.inputTokens ?? 0))
     + Math.max(0, Number(usage?.cacheReadTokens ?? 0));
   const window = Math.max(0, Number(contextWindow ?? 0));
@@ -24,7 +45,8 @@ export function contextUsageSnapshot(usage, contextWindow) {
     inputTokens: input,
     contextWindow: window,
     percent: window > 0 ? Math.min(100, Math.round(ratio * 100)) : 0,
-    shouldCompact: window > 0 && ratio >= CONTEXT_COMPACTION_RATIO,
+    threshold: compactionThreshold(window, limits?.maxOutput, limits?.headroom),
+    shouldCompact: window > 0 && ratio >= compactionThreshold(window, limits?.maxOutput, limits?.headroom),
   };
 }
 
