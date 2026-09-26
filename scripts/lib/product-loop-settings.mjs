@@ -178,11 +178,28 @@ export async function runSettingsChats(driver) {
 export async function runSettingsMemory(driver) {
   const error = await openOrFail(driver, ['记忆', 'Memory'])
   if (error) return error
-  return expectLabels(
+  const missing = await expectLabels(
     driver,
     ['长期记忆', 'Long-term memory', '记忆检索', 'Memory retrieval', '会话索引', 'Session index', 'CTF 记忆', 'CTF memory'],
     '记忆页有长期记忆、会话索引和 CTF 记忆',
     '记忆页缺了控件',
+  )
+  if (missing) return missing
+  // 有记忆条目时主页出现「管理」，点进去是检索与逐条忘掉的二级页。
+  const opened = await driver.cdp.callFunction(`function() {
+    const button = Array.from(document.querySelectorAll('button'))
+      .find(item => ['管理', 'Manage'].includes((item.textContent || '').trim()))
+    if (!button) return 'absent'
+    button.click()
+    return 'clicked'
+  }`)
+  if (opened !== 'clicked') return null
+  await delay(300)
+  return expectLabels(
+    driver,
+    ['已记住的事情', 'Remembered', '检索', 'Search'],
+    '记忆条目二级页有检索',
+    '记忆条目二级页缺了控件',
   )
 }
 

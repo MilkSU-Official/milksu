@@ -91,7 +91,7 @@ import SettingsMCPPanel from '@/components/SettingsMCPPanel'
 import EvalSettingsPanel from '@/components/EvalSettingsPanel'
 import LabSettingsPanel from '@/components/LabSettingsPanel'
 import CompanionSettingsPanel from '@/components/CompanionSettingsPanel'
-import MemorySettingsPanel from '@/components/MemorySettingsPanel'
+import MemorySettingsPanel, { MemoryEntriesPanel } from '@/components/MemorySettingsPanel'
 import PluginSettingsPanel from '@/components/PluginSettingsPanel'
 import ModelVendorIcon from '@/components/ModelVendorIcon'
 import ArchivedConversationsSettings from '@/components/ArchivedConversationsSettings'
@@ -392,8 +392,8 @@ export default function SettingsPage({
   const store = useStoreRuntime(() => createSettingsStore(callbacks))
   const modelCatalog = useStore(modelCatalogStore)
   const [accountModelsOpen, setAccountModelsOpen] = useState(false)
-  // 权限与操控 → 管理 打开的二级页：电脑应用、外部浏览器、内置浏览器。
-  const [managementView, setManagementView] = useState<'computer-use' | 'external-browser' | 'coding-browser' | null>(null)
+  // 二级页：权限与操控的管理页（电脑应用、外部浏览器、内置浏览器）和记忆条目页。
+  const [managementView, setManagementView] = useState<'computer-use' | 'external-browser' | 'coding-browser' | 'memory-entries' | null>(null)
   const [codingBrowserOverview, setCodingBrowserOverview] = useState<CodingBrowserStatus[] | null>(null)
   const [codingBrowserOverviewLoading, setCodingBrowserOverviewLoading] = useState(false)
   const [codingBrowserStopping, setCodingBrowserStopping] = useState('')
@@ -413,9 +413,13 @@ export default function SettingsPage({
 
   const category = state.category
 
-  // 离开权限与操控页时收起二级管理页。
+  // 切走所属分类时收起对应的二级页。
   useEffect(() => {
-    if (category !== 'permissions') setManagementView(null)
+    setManagementView(view => {
+      if (!view) return view
+      if (view === 'memory-entries') return category === 'memory' ? view : null
+      return category === 'permissions' ? view : null
+    })
   }, [category])
 
   const refreshCodingBrowserOverview = useCallback(() => {
@@ -544,6 +548,7 @@ export default function SettingsPage({
     'computer-use': t('电脑应用', 'Computer use'),
     'external-browser': t('外部浏览器', 'External browser'),
     'coding-browser': t('浏览器', 'Browser'),
+    'memory-entries': t('已记住的事情', 'Remembered'),
   } as const
 
   return (
@@ -579,7 +584,9 @@ export default function SettingsPage({
               </Alert>
             ) : null}
 
-            {managementView === 'computer-use' ? (
+            {managementView === 'memory-entries' ? (
+              <MemoryEntriesPanel />
+            ) : managementView === 'computer-use' ? (
               <SettingsSection
                 title={t('状态', 'Status')}
                 actions={(
@@ -1822,7 +1829,7 @@ export default function SettingsPage({
             ) : working && category === 'lab' ? (
               <LabSettingsPanel settings={working} onPersist={() => void store.save()} />
             ) : working && category === 'memory' ? (
-              <MemorySettingsPanel settings={working} onPersist={() => void store.save()} />
+              <MemorySettingsPanel settings={working} onPersist={() => void store.save()} onOpenEntries={() => setManagementView('memory-entries')} />
             ) : working && category === 'companion' ? (
               <CompanionSettingsPanel
                 settings={working}

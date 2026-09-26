@@ -289,7 +289,7 @@ export const MODULES = {
     needsDesktop: true,
     needsCredential: false,
     isolated: true,
-    detail: '十七个设置分类都能打开，并核对各页自己的控件：账号、外观、通用、权限与操控、模型、运行时、浏览器、归档聊天、记忆、CTF、CVE、Lab、Skills、MCP、插件、看板娘、评测。',
+    detail: '十六个设置分类都能打开，并核对各页自己的控件：账号、外观、通用、权限与操控、模型、运行时、归档聊天、记忆、CTF、CVE、Lab、Skills、MCP、插件、看板娘、评测。',
     cases: [
       'settings-nav', 'settings-account', 'settings-appearance', 'settings-general', 'settings-permissions',
       'settings-models', 'settings-runtime', 'settings-ctf', 'settings-cve', 'settings-lab',
