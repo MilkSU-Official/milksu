@@ -2,7 +2,12 @@ import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 
-const { tokenfluxBareModelID } = createRequire(import.meta.url)("../pi/tokenflux-model-id.cjs");
+// Static import so esbuild inlines this module into the packaged dsh-bridge.cjs.
+// A createRequire(import.meta.url) reference survives bundling and expects a
+// ../pi sibling file that the Sidecar package layout does not ship.
+import tokenfluxModelID from "../pi/tokenflux-model-id.cjs";
+
+const { tokenfluxBareModelID } = tokenfluxModelID;
 
 export const dshAcpProviderId = "deepseek-official";
 export const tokenfluxChatCompletionsURL = "https://tokenflux.dev/v1";
