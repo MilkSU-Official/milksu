@@ -56,7 +56,6 @@ export default function ComposerWorkspaceMenu({
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState('')
   const panelRef = useRef<HTMLDivElement | null>(null)
-  const flyoutRef = useRef<HTMLDivElement | null>(null)
 
   const selectedName = workspaceName?.trim() || ''
   const hasSelectedWorkspace = Boolean(workspacePath?.trim())
@@ -149,14 +148,20 @@ export default function ComposerWorkspaceMenu({
 
   // The flyout portals to document.body, so Radix sees its clicks and focus as
   // "outside" the popover and would dismiss the whole menu. Let it stay open.
+  // Match by DOM ancestor, not flyoutRef: on the flyout's first mount the
+  // autoFocus input fires focusin before the parent div's ref attaches
+  // (children commit first), so a ref check would miss that very first
+  // focusOutside and Radix would close the menu.
   function keepOpenInsideFlyout(event: Event) {
     const target = event.target
-    if (target instanceof Node && flyoutRef.current?.contains(target)) event.preventDefault()
+    if (target instanceof Element && target.closest('[data-workspace-flyout]')) {
+      event.preventDefault()
+    }
   }
 
   const flyout = sub && flyoutPos ? createPortal(
     <div
-      ref={flyoutRef}
+      data-workspace-flyout=""
       className="fixed z-50 w-64 rounded-md border border-border bg-popover p-1 text-popover-foreground"
       style={{ top: flyoutPos.top, left: flyoutPos.left }}
       onPointerDown={event => event.stopPropagation()}
