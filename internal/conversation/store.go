@@ -104,6 +104,9 @@ type StoredConversation struct {
 	Messages             []StoredMessage     `json:"messages"`
 }
 
+// StoredContextUsage is the usage snapshot kept with a conversation. MaxOutput and
+// UsableWindow describe the input budget (window − maxOutput) and must stay declared
+// here: undeclared fields never reach a reopened conversation's usage panel.
 type StoredContextUsage struct {
 	InputTokens             int64                        `json:"inputTokens"`
 	OutputTokens            int64                        `json:"outputTokens"`
@@ -123,6 +126,8 @@ type StoredContextUsage struct {
 	SessionTotalTokens      int64                        `json:"sessionTotalTokens,omitempty"`
 	SessionTurns            int64                        `json:"sessionTurns,omitempty"`
 	EstimatedTokens         int64                        `json:"estimatedTokens,omitempty"`
+	MaxOutput               int64                        `json:"maxOutput,omitempty"`
+	UsableWindow            int64                        `json:"usableWindow,omitempty"`
 	Categories              []StoredContextUsageCategory `json:"categories,omitempty"`
 }
 
