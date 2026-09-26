@@ -177,6 +177,9 @@ test("injects the selected app PID, exact visible window, session, and window sc
         ],
       };
     }
+    if (name === "get_window_state") {
+      return { snapshot_id: "s00000001", elements: [] };
+    }
     return { verified: true };
   });
 
@@ -244,6 +247,7 @@ test("injects the selected app PID, exact visible window, session, and window sc
         scope: "window",
         delivery_mode: "background",
         element_index: 7,
+        snapshot_id: "s00000001",
       },
     },
   ]);
@@ -254,6 +258,7 @@ test("injects the selected app PID, exact visible window, session, and window sc
     windowId: options.targetWindowId,
     title: "Codex",
   });
+  assert.deepEqual(result.delivery, { requested_mode: "background" });
   await executor.end();
   assert.deepEqual(calls.at(-1), {
     name: "end_session",
@@ -263,6 +268,132 @@ test("injects the selected app PID, exact visible window, session, and window sc
     executor.execute({ action: "observe" }),
     /session has ended/,
   );
+});
+
+test("element_token addresses the driver without a proxy snapshot id", async () => {
+  const calls = [];
+  const executor = createComputerUseExecutor(options, async (name, args) => {
+    calls.push({ name, args });
+    if (name === "list_windows") {
+      return {
+        windows: [{
+          pid: options.targetPid,
+          window_id: options.targetWindowId,
+          title: "Codex",
+          is_on_screen: true,
+        }],
+      };
+    }
+    if (name === "get_window_state") {
+      return { snapshot_id: "s00000002", elements: [] };
+    }
+    return { delivery: { mode: "background" }, route: "ax_action", effect: "confirmed" };
+  });
+  await executor.execute({ action: "observe", include_screenshot: false });
+  const result = await executor.execute({
+    action: "click",
+    element_token: "s00000002:3",
+  });
+  const click = calls.find(call => call.name === "click");
+  assert.deepEqual(click.args, {
+    pid: options.targetPid,
+    window_id: options.targetWindowId,
+    session: options.sessionId,
+    scope: "window",
+    delivery_mode: "background",
+    element_token: "s00000002:3",
+  });
+  assert.deepEqual(result.delivery, {
+    requested_mode: "background",
+    mode: "background",
+    route: "ax_action",
+    effect: "confirmed",
+  });
+  await executor.end();
+});
+
+test("element_index without an AX snapshot points the model at pixel addressing", async () => {
+  const executor = createComputerUseExecutor(options, async (name) => {
+    if (name === "list_windows") {
+      return {
+        windows: [{
+          pid: options.targetPid,
+          window_id: options.targetWindowId,
+          title: "Codex",
+          is_on_screen: true,
+        }],
+      };
+    }
+    if (name === "get_window_state") {
+      return { degraded_reason: "ax_window_unresolved", elements: [] };
+    }
+    return {};
+  });
+  await executor.execute({ action: "observe", include_screenshot: false });
+  await assert.rejects(
+    executor.execute({ action: "click", element_index: 4 }),
+    /AX addressing is unavailable.*x, y/s,
+  );
+  await executor.end();
+});
+
+test("driver refusals and escalation hints surface in the delivery summary", async () => {
+  const executor = createComputerUseExecutor(options, async (name) => {
+    if (name === "list_windows") {
+      return {
+        windows: [{
+          pid: options.targetPid,
+          window_id: options.targetWindowId,
+          title: "Codex",
+          is_on_screen: true,
+        }],
+      };
+    }
+    if (name === "get_window_state") {
+      return { snapshot_id: "s00000003", elements: [] };
+    }
+    if (name === "type_text") {
+      return {
+        delivery: { mode: "background" },
+        route: "synthetic_events",
+        effect: "unverifiable",
+        escalation: { reason: "delivery_failed", target: "foreground" },
+      };
+    }
+    return {
+      status: "refused",
+      refusal: { code: "background_unavailable", message: "post dropped" },
+    };
+  });
+  await executor.execute({ action: "observe", include_screenshot: false });
+  const typed = await executor.execute({
+    action: "type",
+    element_index: 1,
+    text: "hi",
+  });
+  assert.deepEqual(typed.delivery, {
+    requested_mode: "background",
+    mode: "background",
+    route: "synthetic_events",
+    effect: "unverifiable",
+    escalation: { reason: "delivery_failed", target: "foreground" },
+  });
+  await executor.execute({ action: "observe", include_screenshot: false });
+  const refused = await executor.execute({ action: "click", element_index: 1 });
+  assert.deepEqual(refused.delivery, {
+    requested_mode: "background",
+    refusal: "background_unavailable",
+    refusal_detail: "post dropped",
+  });
+  await executor.end();
+});
+
+test("tool description teaches the background-first ladder", () => {
+  assert.match(computerUseTool.description, /background-first/);
+  assert.match(computerUseTool.description, /element_token or element_index/);
+  assert.match(computerUseTool.description, /no cursor move and no focus steal/);
+  assert.match(computerUseTool.description, /x, y window-local pixels only when the target has no AX node/);
+  assert.doesNotMatch(computerUseTool.description, /one action consumes that snapshot\.$/);
 });
 
 test("exposes one MCP tool and preserves screenshots without writing files", async () => {

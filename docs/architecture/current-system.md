@@ -16,7 +16,7 @@ Electron 主窗口跑产品 renderer。右栏浏览器是同壳的会话隔离 `
 | --- | --- | --- |
 | 浏览器 | 会话隔离 `WebContentsView` | 不是用户 Chrome |
 | Browser Use | 用户选定的 Chrome/Edge 标签 | 不拿整个 Profile，不替代 Judge |
-| Computer Use | macOS/Windows 可见窗口；Linux 仅 GNOME Portal | 不替代另外两面。Hyprland/Xorg 不可用 |
+| Computer Use | macOS/Windows 可见窗口；Linux 仅 GNOME Portal | 动作后台 AX 优先，无 AX 节点走像素，前台只兜单个动作；不替代另外两面。Hyprland/Xorg 不可用 |
 
 面板折叠不停止 Session。
 

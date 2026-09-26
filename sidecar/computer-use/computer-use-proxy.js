@@ -37,9 +37,16 @@ const allowedInputFields = new Set([
 export const computerUseTool = {
   name: "computer_use",
   description:
-    "Observe or interact with the one visible App window locked for this task. "
-    + "List windows with milksu_workspace list_computer_use_windows; if several match, call milksu_ask; "
-    + "then lock_computer_use_window. Observe before each action; one action consumes that snapshot.",
+    "Observe or interact with the one visible App window locked for this task, background-first so the "
+    + "user's cursor and foreground app stay untouched. List windows with milksu_workspace "
+    + "list_computer_use_windows; if several match, call milksu_ask; then lock_computer_use_window. "
+    + "Observe before each action; one action consumes that snapshot. Act on the freshest observe "
+    + "snapshot: prefer element_token or element_index — the driver performs the AX action in the "
+    + "background with no cursor move and no focus steal. Use x, y window-local pixels only when the "
+    + "target has no AX node (canvas, video, custom-drawn surface). After each action, observe again to "
+    + "confirm the effect. Keep delivery_mode \"background\" unless the tool result reports the "
+    + "background route unavailable or unverifiable for that one action; then retry only that action "
+    + "with \"foreground\".",
   inputSchema: {
     type: "object",
     additionalProperties: false,
@@ -52,22 +59,32 @@ export const computerUseTool = {
       element_index: {
         type: "integer",
         minimum: 0,
-        description: "Fresh element_index from the latest observe result.",
+        description:
+          "Fresh element_index from the latest observe result of this window; the proxy attaches the "
+          + "snapshot id the driver requires. Prefer element_token.",
       },
       element_token: {
         type: "string",
         maxLength: 512,
-        description: "Fresh opaque element token from the latest observe result.",
+        description:
+          "Fresh opaque element token from the latest observe result; addresses one exact snapshot "
+          + "element on the background AX path (no cursor move, no focus steal).",
       },
       x: {
         type: "number",
         minimum: 0,
-        description: "Window-local screenshot X; use only when AX addressing is unavailable.",
+        description:
+          "Window-local screenshot X; pixel (CUA) path, use only when the target has no AX node "
+          + "(canvas, video, custom-drawn surface). Background delivery still avoids fronting when "
+          + "the platform supports it.",
       },
       y: {
         type: "number",
         minimum: 0,
-        description: "Window-local screenshot Y; use only when AX addressing is unavailable.",
+        description:
+          "Window-local screenshot Y; pixel (CUA) path, use only when the target has no AX node "
+          + "(canvas, video, custom-drawn surface). Background delivery still avoids fronting when "
+          + "the platform supports it.",
       },
       text: {
         type: "string",
@@ -105,7 +122,10 @@ export const computerUseTool = {
         type: "string",
         enum: [...allowedDeliveryModes],
         description:
-          "background by default; foreground briefly fronts only MilkSU and restores the prior app.",
+          "background by default: the driver performs the AX action or posts the event without "
+          + "fronting the target window — no cursor move, no focus steal. foreground briefly fronts "
+          + "the target window for that one action, then restores the previous frontmost app; use it "
+          + "only when the tool result reports the background route unavailable or unverifiable.",
       },
       delay_ms: {
         type: "integer",
@@ -402,10 +422,44 @@ function selectTargetWindow(result, targetPid, targetWindowId) {
   return target;
 }
 
+// Normalize the driver's delivery reporting so the model can walk the
+// background-first ladder: background AX -> background pixel -> foreground for
+// one action. Refusals carry a code (for example snapshot_id_required or
+// background_unavailable) instead of an exception.
+function summarizeDelivery(input, result) {
+  const summary = { requested_mode: input.delivery_mode };
+  if (!result || typeof result !== "object") return summary;
+  const delivery = typeof result.delivery === "object" ? result.delivery : undefined;
+  if (typeof delivery?.mode === "string") summary.mode = delivery.mode;
+  if (typeof result.route === "string") summary.route = result.route;
+  if (typeof result.effect === "string") summary.effect = result.effect;
+  if (result.status === "refused" &&
+      result.refusal && typeof result.refusal === "object") {
+    if (typeof result.refusal.code === "string") {
+      summary.refusal = result.refusal.code;
+    }
+    if (typeof result.refusal.message === "string") {
+      summary.refusal_detail = result.refusal.message.slice(0, 300);
+    }
+  }
+  if (result.escalation && typeof result.escalation === "object") {
+    summary.escalation = {
+      ...(typeof result.escalation.reason === "string"
+        ? { reason: result.escalation.reason }
+        : {}),
+      ...(typeof result.escalation.target === "string"
+        ? { target: result.escalation.target }
+        : {}),
+    };
+  }
+  return summary;
+}
+
 export function createComputerUseExecutor(options, runTool) {
   let sessionStarted = false;
   let ended = false;
   let observedWindowId;
+  let observedSnapshotId;
 
   async function ensureSession() {
     if (sessionStarted) return;
@@ -422,6 +476,37 @@ export function createComputerUseExecutor(options, runTool) {
       on_screen_only: true,
     });
     return selectTargetWindow(result, options.targetPid, options.targetWindowId);
+  }
+
+  // The driver refuses a bare element_index without its snapshot id. The proxy
+  // owns the observe -> act pairing, so it attaches the tracked snapshot id
+  // instead of exposing snapshot bookkeeping to the model.
+  function consumeObservation(action, windowId) {
+    if (observedWindowId !== Number(windowId)) {
+      throw new Error(
+        `computer_use requires a fresh observe of the selected target window before ${action}`,
+      );
+    }
+    const snapshotId = observedSnapshotId;
+    observedWindowId = undefined;
+    observedSnapshotId = undefined;
+    return snapshotId;
+  }
+
+  function addressForAction(address, snapshotId) {
+    if (address.element_token !== undefined || address.x !== undefined) {
+      return address;
+    }
+    if (address.element_index === undefined) {
+      return address;
+    }
+    if (typeof snapshotId !== "string" || snapshotId.length === 0) {
+      throw new Error(
+        "computer_use AX addressing is unavailable for this window; "
+        + "use x, y from the latest observe screenshot instead",
+      );
+    }
+    return { ...address, snapshot_id: snapshotId };
   }
 
   return {
@@ -449,81 +534,50 @@ export function createComputerUseExecutor(options, runTool) {
           };
           break;
         case "click":
-          if (observedWindowId !== Number(targetWindow.window_id)) {
-            throw new Error(
-              "computer_use requires a fresh observe of the selected target window before click",
-            );
-          }
-          observedWindowId = undefined;
-          tool = "click";
-          args = {
-            ...target,
-            scope: "window",
-            delivery_mode: input.delivery_mode,
-            ...optionalElementAddress(input),
-          };
-          break;
         case "type":
-          if (observedWindowId !== Number(targetWindow.window_id)) {
-            throw new Error(
-              "computer_use requires a fresh observe of the selected target window before type",
-            );
-          }
-          observedWindowId = undefined;
-          tool = "type_text";
-          args = {
-            ...target,
-            scope: "window",
-            text: input.text,
-            delay_ms: input.delay_ms,
-            delivery_mode: input.delivery_mode,
-            ...optionalElementAddress(input),
-          };
-          break;
         case "key":
-          if (observedWindowId !== Number(targetWindow.window_id)) {
-            throw new Error(
-              "computer_use requires a fresh observe of the selected target window before key",
-            );
-          }
-          observedWindowId = undefined;
-          tool = "press_key";
-          args = {
+        case "scroll": {
+          const snapshotId = consumeObservation(input.action, targetWindow.window_id);
+          const address = addressForAction(optionalElementAddress(input), snapshotId);
+          const common = {
             ...target,
             scope: "window",
-            key: input.key,
-            modifiers: input.modifiers,
             delivery_mode: input.delivery_mode,
-            ...optionalElementAddress(input),
+            ...address,
           };
-          break;
-        case "scroll":
-          if (observedWindowId !== Number(targetWindow.window_id)) {
-            throw new Error(
-              "computer_use requires a fresh observe of the selected target window before scroll",
-            );
+          if (input.action === "click") {
+            tool = "click";
+            args = common;
+          } else if (input.action === "type") {
+            tool = "type_text";
+            args = { ...common, text: input.text, delay_ms: input.delay_ms };
+          } else if (input.action === "key") {
+            tool = "press_key";
+            args = { ...common, key: input.key, modifiers: input.modifiers };
+          } else {
+            tool = "scroll";
+            args = {
+              ...common,
+              direction: input.direction,
+              amount: input.amount,
+              by: input.by,
+            };
           }
-          observedWindowId = undefined;
-          tool = "scroll";
-          args = {
-            ...target,
-            scope: "window",
-            direction: input.direction,
-            amount: input.amount,
-            by: input.by,
-            delivery_mode: input.delivery_mode,
-            ...optionalElementAddress(input),
-          };
           break;
+        }
         default:
           throw new Error("MilkSU Computer Use rejected an unknown action");
       }
       const result = await runTool(tool, args);
       if (input.action === "observe") {
         observedWindowId = Number(targetWindow.window_id);
+        observedSnapshotId = result && typeof result.snapshot_id === "string"
+          ? result.snapshot_id
+          : undefined;
       }
       return {
         result,
+        delivery: summarizeDelivery(input, result),
         action: input.action,
         driverTool: tool,
         target: {
@@ -645,6 +699,7 @@ function mcpToolResult(execution) {
     action: execution.action,
     driverTool: execution.driverTool,
     target: execution.target,
+    delivery: execution.delivery,
     output: structured,
   };
   return {

@@ -14,6 +14,8 @@ export function computerUseGuidance() {
     "List windows with milksu_workspace list_computer_use_windows.",
     "If several match, call milksu_ask; if one match is clear, lock_computer_use_window and continue.",
     "Do not ask the user to pick a window first.",
+    "Act on the freshest observe snapshot: prefer element_token or element_index; that path runs in the background without moving the cursor or fronting the window.",
+    "Use x, y pixels only when no AX node exists; retry one action with delivery_mode foreground only when the tool result reports the background route failed.",
   ].join(" ");
 }
 
