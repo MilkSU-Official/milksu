@@ -38,6 +38,7 @@ import {
   Globe2,
   Layers2,
   ImageIcon,
+  LibraryBig,
   Lightbulb,
   LoaderCircle,
   MessageSquarePlus,
@@ -144,6 +145,7 @@ const skillIcons: Record<string, LucideIcon> = {
   'integrate-api': Cable,
   'review-security': ShieldCheck,
   'create-technical-deliverables': FileText,
+  'deep-research': LibraryBig,
   archify: Route,
   'release-milksu': PackageCheck,
 }

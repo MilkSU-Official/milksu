@@ -38,6 +38,11 @@ export const CODING_SKILLS: readonly CodingSkillDefinition[] = [
     description: t('生成并校验当前系统架构图', 'Generate and validate the current system architecture diagram'),
   },
   {
+    name: 'deep-research',
+    label: t('深度研究', 'Deep research'),
+    description: t('围绕一个问题做多轮检索、溯源交叉验证，产出带来源的报告', 'Run multi-round retrieval with source tracing and cross-checks, then produce a cited report'),
+  },
+  {
     name: 'release-milksu',
     label: t('MilkSU 发布', 'MilkSU release'),
     description: t('仅在开发 MilkSU 时构建、追踪和验收 Beta', 'Build, track, and accept Beta only when developing MilkSU'),

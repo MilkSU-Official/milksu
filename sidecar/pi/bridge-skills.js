@@ -9,6 +9,7 @@ export const firstPartyCodingSkillNames = Object.freeze([
   "create-technical-deliverables",
   "release-milksu",
   "recon-authorized-target",
+  "deep-research",
 ]);
 
 export const optionalCodingSkillNames = Object.freeze([
