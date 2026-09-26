@@ -1,0 +1,4 @@
+interface:
+  display_name: "Recon Authorized Target"
+  short_description: "Inventory one user-authorized host, lab target, or CVE reproduction surface"
+  default_prompt: "Use $recon-authorized-target to inventory the authorized target selected for this conversation."

@@ -31,6 +31,7 @@ import {
   ArrowLeft,
   ArrowRight,
   CircleDot,
+  Compass,
   ExternalLink,
   FileDiff,
   FileImage,
@@ -39,6 +40,8 @@ import {
   FolderOpen,
   GitBranch,
   Globe2,
+  LibraryBig,
+  Lightbulb,
   LoaderCircle,
   MousePointer2,
   Minimize2,
@@ -3146,6 +3149,56 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
             onChangeMcpServers={(servers, digest) => onChangeMcpServers?.(servers, digest)}
           />
           </div>
+          {emptyCanvas && !imageHome && !ctfSession ? (
+            <div
+              className="agent-thread mt-5 flex flex-wrap items-center justify-center gap-2"
+              data-testid="empty-capability-chips"
+            >
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="rounded-full"
+                disabled={!workspacePath}
+                onClick={() => composer.current?.applySkill('deep-research')}
+              >
+                <LibraryBig className="size-3.5" />
+                {t('深度研究', 'Deep research')}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="rounded-full"
+                disabled={Boolean(imageDrawNotice)}
+                onClick={() => composer.current?.applyScope('image')}
+              >
+                <ImageIcon className="size-3.5" />
+                {t('画图', 'Draw')}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="rounded-full"
+                onClick={() => composer.current?.togglePlanning()}
+              >
+                <Lightbulb className="size-3.5" />
+                {t('计划模式', 'Plan mode')}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="rounded-full"
+                disabled={!workspacePath}
+                onClick={() => runSlashCommand('understand')}
+              >
+                <Compass className="size-3.5" />
+                {t('理解项目', 'Understand project')}
+              </Button>
+            </div>
+          ) : null}
           </div>
           </div>
         </main>

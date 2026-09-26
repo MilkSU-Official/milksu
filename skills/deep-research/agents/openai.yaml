@@ -1,0 +1,4 @@
+interface:
+  display_name: "Deep Research"
+  short_description: "Research an open question across multiple rounds of search with source-grounded citations"
+  default_prompt: "Use $deep-research to research this question and write a source-grounded report to the workspace."
