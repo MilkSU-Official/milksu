@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { Button, Popover, PopoverContent, PopoverTrigger } from '@/components/ui'
 import { Check, ChevronDown, ChevronRight } from 'lucide-react'
 import { SearchableModelList } from '@/components/SearchableModelPicker'
@@ -52,10 +53,10 @@ export default function ComposerAgentMenu({
   const t = useT()
   const [open, setOpen] = useState(false)
   const [pane, setPane] = useState<ComposerAgentPane | null>(null)
-  const [flyoutRight, setFlyoutRight] = useState(true)
-  const [flyoutAlignBottom, setFlyoutAlignBottom] = useState(false)
+  const [flyoutPos, setFlyoutPos] = useState<{ top: number | null; bottom: number | null; left: number } | null>(null)
   const [flyoutMaxH, setFlyoutMaxH] = useState(352)
   const panel = useRef<HTMLDivElement | null>(null)
+  const flyoutRef = useRef<HTMLDivElement | null>(null)
   const runtimeLabel = kernel === 'dsh' ? 'DSH' : 'Pi'
   const thinkingLabel = thinkingLevel ? MODEL_THINKING_LEVEL_LABELS[thinkingLevel] : ''
 
@@ -63,21 +64,35 @@ export default function ComposerAgentMenu({
     if (!open) setPane(null)
   }, [open])
 
+  // The flyout portals to document.body: nested inside the glass panel its
+  // backdrop-filter would lose the page backdrop and render almost clear.
   function openPane(next: ComposerAgentPane) {
     const rect = panel.current?.getBoundingClientRect()
+    if (!rect) return
     const layout = layoutComposerAgentFlyout(
-      rect ?? { top: 0, right: 0, bottom: 0 },
+      rect,
       { width: window.innerWidth, height: window.innerHeight },
       next,
     )
-    setFlyoutRight(layout.right)
-    setFlyoutAlignBottom(layout.alignBottom)
+    const width = next === 'model' ? 352 : next === 'runtime' ? 248 : 176
+    const gap = 10
+    let left = rect.right + gap
+    if (left + width > window.innerWidth - 8) left = rect.left - width - gap
+    setFlyoutPos({
+      top: layout.alignBottom ? null : rect.top,
+      bottom: layout.alignBottom ? window.innerHeight - rect.bottom : null,
+      left: Math.max(8, left),
+    })
     setFlyoutMaxH(layout.maxHeight)
     setPane(next)
   }
 
-  function row(id: ComposerAgentPane, label: string, value: string) {
-    const active = pane === id
+  function keepOpenInsideFlyout(event: Event) {
+    const target = event.target
+    if (target instanceof Node && flyoutRef.current?.contains(target)) event.preventDefault()
+  }
+
+  function row(id: ComposerAgentPane, label: string, value: string) {    const active = pane === id
     return (
       <button
         type="button"
@@ -118,6 +133,9 @@ export default function ComposerAgentMenu({
         side="top"
         sideOffset={8}
         onOpenAutoFocus={event => event.preventDefault()}
+        onInteractOutside={keepOpenInsideFlyout}
+        onFocusOutside={keepOpenInsideFlyout}
+        onPointerDownOutside={keepOpenInsideFlyout}
         className="w-[15.5rem] overflow-visible border-0 bg-transparent p-0 shadow-none"
       >
         <div
@@ -133,80 +151,88 @@ export default function ComposerAgentMenu({
             </div>
           ) : null}
           {showRuntime ? row('runtime', t('运行时', 'Runtime'), runtimeLabel) : null}
-          {pane ? (
-            <div
-              className={cn(
-                'absolute inset-y-0 z-50 flex transition-[opacity,scale] duration-[180ms] ease-[var(--ease-out)]',
-                'starting:scale-[0.96] starting:opacity-0 scale-100 opacity-100',
-                flyoutRight ? 'left-full -ml-1 origin-left pl-2.5' : 'right-full -mr-1 origin-right pr-2.5',
-                flyoutAlignBottom ? 'items-end' : 'items-start',
-              )}
-            >
-              {pane === 'model' ? (
-                <div
-                  className="flex w-[min(22rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-md border border-border bg-popover text-popover-foreground"
-                  style={{ maxHeight: flyoutMaxH }}
-                >
-                  <SearchableModelList
-                    value={modelKey}
-                    leading={leading}
-                    groups={groups}
-                    listClassName="max-h-none"
-                    onChange={value => {
-                      onChangeModel?.(value)
-                      setOpen(false)
-                    }}
-                  />
-                </div>
-              ) : pane === 'runtime' ? (
-                <div className="w-[15.5rem] rounded-md border border-border bg-popover p-1 text-popover-foreground">
-                  {(['pi', 'dsh'] as const).map(id => (
-                    <button
-                      key={id}
-                      type="button"
-                      disabled={disabled}
-                      className={cn(
-                        'flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-sm',
-                        kernel === id ? 'bg-accent' : 'hover:bg-accent',
-                      )}
-                      onClick={() => {
-                        onChangeKernel?.(id)
-                        setOpen(false)
-                      }}
-                    >
-                      <span className="min-w-0 flex-1 truncate">
-                        {id === 'dsh' ? t('DeepSeek Harness', 'DeepSeek Harness') : 'Pi'}
-                      </span>
-                      {kernel === id ? <Check className="size-3.5 shrink-0" /> : null}
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div
-                  className="w-[11rem] overflow-y-auto rounded-md border border-border bg-popover p-1 text-popover-foreground"
-                  style={{ maxHeight: flyoutMaxH }}
-                >
-                  {thinkingLevels.map(level => (
-                    <button
-                      key={level}
-                      type="button"
-                      disabled={disabled}
-                      className={cn(
-                        'flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-sm',
-                        level === thinkingLevel ? 'bg-accent' : 'hover:bg-accent',
-                      )}
-                      onClick={() => onChangeThinkingLevel?.(level)}
-                    >
-                      <span className="min-w-0 flex-1 truncate">{MODEL_THINKING_LEVEL_LABELS[level]}</span>
-                      {level === thinkingLevel ? <Check className="size-3.5 shrink-0" /> : null}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          ) : null}
         </div>
       </PopoverContent>
+      {/* The flyout portals to document.body, so Radix sees its clicks and
+          focus as "outside" the popover and would dismiss the whole menu. */}
+      {pane && flyoutPos ? createPortal(
+        <div
+          ref={flyoutRef}
+          className={cn(
+            'fixed z-50 flex transition-[opacity,scale] duration-[180ms] ease-[var(--ease-out)]',
+            'starting:scale-[0.96] starting:opacity-0 scale-100 opacity-100',
+          )}
+          style={{ top: flyoutPos.top ?? undefined, bottom: flyoutPos.bottom ?? undefined, left: flyoutPos.left }}
+          onPointerDown={event => event.stopPropagation()}
+          onPointerUp={event => event.stopPropagation()}
+          onClick={event => event.stopPropagation()}
+          onTouchStart={event => event.stopPropagation()}
+          onContextMenu={event => event.stopPropagation()}
+        >
+          {pane === 'model' ? (
+            <div
+              className="flex w-[min(22rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-md border border-border bg-popover text-popover-foreground"
+              style={{ maxHeight: flyoutMaxH }}
+            >
+              <SearchableModelList
+                value={modelKey}
+                leading={leading}
+                groups={groups}
+                listClassName="max-h-none"
+                onChange={value => {
+                  onChangeModel?.(value)
+                  setOpen(false)
+                }}
+              />
+            </div>
+          ) : pane === 'runtime' ? (
+            <div className="w-[15.5rem] rounded-md border border-border bg-popover p-1 text-popover-foreground">
+              {(['pi', 'dsh'] as const).map(id => (
+                <button
+                  key={id}
+                  type="button"
+                  disabled={disabled}
+                  className={cn(
+                    'flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-sm',
+                    kernel === id ? 'bg-accent' : 'hover:bg-accent',
+                  )}
+                  onClick={() => {
+                    onChangeKernel?.(id)
+                    setOpen(false)
+                  }}
+                >
+                  <span className="min-w-0 flex-1 truncate">
+                    {id === 'dsh' ? t('DeepSeek Harness', 'DeepSeek Harness') : 'Pi'}
+                  </span>
+                  {kernel === id ? <Check className="size-3.5 shrink-0" /> : null}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div
+              className="w-[11rem] overflow-y-auto rounded-md border border-border bg-popover p-1 text-popover-foreground"
+              style={{ maxHeight: flyoutMaxH }}
+            >
+              {thinkingLevels.map(level => (
+                <button
+                  key={level}
+                  type="button"
+                  disabled={disabled}
+                  className={cn(
+                    'flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-sm',
+                    level === thinkingLevel ? 'bg-accent' : 'hover:bg-accent',
+                  )}
+                  onClick={() => onChangeThinkingLevel?.(level)}
+                >
+                  <span className="min-w-0 flex-1 truncate">{MODEL_THINKING_LEVEL_LABELS[level]}</span>
+                  {level === thinkingLevel ? <Check className="size-3.5 shrink-0" /> : null}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>,
+        document.body,
+      ) : null}
     </Popover>
   )
 }
