@@ -84,6 +84,10 @@ import {
   readSidebarWidth,
   writeSidebarWidth,
 } from '@/lib/sidebarWidth'
+import {
+  readSidebarSectionOpen,
+  writeSidebarSectionOpen,
+} from '@/lib/sidebarSectionState'
 import { useT, useUiLocale } from '@/hooks/useUiLocale'
 import { updateControlVisible } from '@/lib/updateRestart'
 import { updateStatusMessage } from '@/lib/updateStatus'
@@ -734,16 +738,45 @@ export default function ContextSidebar({
     )
   }
 
-  function conversationSectionHeader(label: string, plus?: ReactNode) {
-    return (
+function ConversationSection({
+  id,
+  label,
+  plus,
+  children,
+}: {
+  id: string
+  label: string
+  plus?: ReactNode
+  children: ReactNode
+}) {
+  const [open, setOpen] = useState(() => readSidebarSectionOpen(id))
+  function toggle() {
+    setOpen(current => {
+      writeSidebarSectionOpen(id, !current)
+      return !current
+    })
+  }
+  return (
+    <>
       <div className="group mx-2 mb-1 flex h-8 items-center gap-1">
-        <div className="agent-sidebar__copy min-w-0 flex-1 truncate px-2 text-body font-medium text-muted-foreground">
-          {label}
-        </div>
+        <button
+          type="button"
+          className="flex h-8 min-w-0 flex-1 items-center gap-0.5 rounded-[8px] px-2 text-left"
+          aria-expanded={open}
+          aria-controls={`sidebar-section-${id}`}
+          onClick={toggle}
+        >
+          <span className="agent-sidebar__copy truncate text-body font-medium text-muted-foreground">{label}</span>
+          <ChevronDown className={`agent-sidebar__copy size-4 shrink-0 text-muted-foreground transition-transform duration-200${open ? '' : ' -rotate-90'}`} aria-hidden="true" />
+        </button>
         {plus}
       </div>
-    )
-  }
+      {open ? (
+        <div id={`sidebar-section-${id}`}>{children}</div>
+      ) : null}
+    </>
+  )
+}
 
   function projectGroupFolder(group: CodingConversationGroup) {
     return (
@@ -961,24 +994,29 @@ export default function ContextSidebar({
             {workspaceHome === 'chat' ? (
               // 聊天首页拆成两组：项目是会话文件夹（含钉选），任务是直属会话，不再套一层「最近」文件夹。
               <div className="flex flex-col">
-                {conversationSectionHeader(t('项目', 'Projects'), newProjectButton)}
-                {projectGroups.length ? (
-                  <div className="space-y-0.5">
-                    {projectGroups.map(group => projectGroupFolder(group))}
-                  </div>
-                ) : null}
-                <div className="mt-2">
-                  {conversationSectionHeader(t('任务', 'Tasks'), newChatButton)}
-                  {taskChats.length ? (
-                    <div className="mt-0.5 space-y-0.5">
-                      {taskChats.map(conversation => conversationRow(conversation))}
+                <ConversationSection id="projects" label={t('项目', 'Projects')} plus={newProjectButton}>
+                  {projectGroups.length ? (
+                    <div className="space-y-0.5">
+                      {projectGroups.map(group => projectGroupFolder(group))}
                     </div>
                   ) : null}
+                </ConversationSection>
+                <div className="mt-2">
+                  <ConversationSection id="tasks" label={t('任务', 'Tasks')} plus={newChatButton}>
+                    {taskChats.length ? (
+                      <div className="mt-0.5 space-y-0.5">
+                        {taskChats.map(conversation => conversationRow(conversation))}
+                      </div>
+                    ) : null}
+                  </ConversationSection>
                 </div>
               </div>
             ) : (
-              <>
-                {conversationSectionHeader(workspaceHome === 'image' ? t('任务', 'Tasks') : t('会话', 'Chats'), newChatButton)}
+              <ConversationSection
+                id={workspaceHome === 'image' ? 'image-tasks' : `home-${workspaceHome}`}
+                label={workspaceHome === 'image' ? t('任务', 'Tasks') : t('会话', 'Chats')}
+                plus={newChatButton}
+              >
                 {flatChats.length || projectGroups.length ? (
                   <div className="flex flex-col">
                     {flatChats.length ? (
@@ -993,7 +1031,7 @@ export default function ContextSidebar({
                     ) : null}
                   </div>
                 ) : null}
-              </>
+              </ConversationSection>
             )}
           </div>
         </div>
