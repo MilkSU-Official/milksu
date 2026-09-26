@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import {
   armAutoCompactionDeadline,
   clearAutoCompactionDeadline,
@@ -7,6 +8,7 @@ import {
   compactSummaryText,
   compactionInstructions,
   CONTEXT_COMPACTION_RATIO,
+  compactionThreshold,
   contextUsageSnapshot,
   DEFAULT_COMPACTION_TIMEOUT_MS,
   isNothingToCompactError,
@@ -330,4 +332,54 @@ test("the auto-compaction deadline defaults to the manual bound", () => {
   assert.equal(deadlines.has("conversation-7"), true);
   clearAutoCompactionDeadline(deadlines, "conversation-7");
   assert.ok(DEFAULT_COMPACTION_TIMEOUT_MS > 0);
+});
+
+// 第 2 笔：阈值按公式算（窗口 − 最大输出 − 一步余量）/ 窗口；未知输出 ⇒ 保持 0.80（不回归）。
+test("compactionThreshold: flash 减掉最大输出后 ≈0.55", () => {
+  const t = compactionThreshold(1_048_576, 384_000);
+  assert.ok(t > 0.54 && t < 0.56, `flash 阈值应 ≈0.55，得到 ${t}`);
+});
+
+test("compactionThreshold: 小窗口不被改早（夹回 0.80）", () => {
+  assert.equal(compactionThreshold(128 * 1024, 8_192), CONTEXT_COMPACTION_RATIO);
+});
+
+test("compactionThreshold: 未知最大输出 ⇒ 0.80（不回归）", () => {
+  assert.equal(compactionThreshold(1_048_576, undefined), CONTEXT_COMPACTION_RATIO);
+  assert.equal(compactionThreshold(1_048_576, 0), CONTEXT_COMPACTION_RATIO);
+  assert.equal(compactionThreshold(0, 384_000), CONTEXT_COMPACTION_RATIO);
+});
+
+test("compactionThreshold: 下限 0.30 生效", () => {
+  assert.equal(compactionThreshold(100_000, 95_000, 88_000), 0.30);
+});
+
+test("contextUsageSnapshot: 传入 maxOutput 时才用新阈值（默认仍是 0.80）", () => {
+  const usage = { inputTokens: 700_000 };
+  // 0.667 < 0.80 ⇒ 默认阈值下**不该**整理 ✓；给了 maxOutput（阈值 ≈0.55）⇒ 该整理 ✓
+  assert.equal(contextUsageSnapshot(usage, 1_048_576).shouldCompact, false);
+  assert.equal(contextUsageSnapshot(usage, 1_048_576, { maxOutput: 384_000 }).shouldCompact, true);
+});
+
+// 接线守卫：实际调用处必须把该模型的 maxOutput 传进快照（取不到才退回 0.80）。
+test("bridge.js 的压缩判定处把 maxOutput 传进 contextUsageSnapshot", () => {
+  const source = readFileSync(new URL("./bridge.js", import.meta.url), "utf8");
+  const start = source.indexOf("async function compactIfContextNearLimit(");
+  assert.ok(start > 0, "compactIfContextNearLimit 不见了（结构变了就更新这条测试）");
+  const body = source.slice(start, source.indexOf("\nasync function ", start + 1));
+  assert.match(body, /resolveMaxOutput\(/);
+  assert.match(body, /contextUsageSnapshot\([\s\S]*?\{\s*maxOutput:/);
+  // 读者机器上 session.model 是空的 ⇒ 必须带上每会话的模型来源，否则阈值永远退回 0.80。
+  assert.match(body, /sessionModelSources\.get\(/);
+});
+
+// 同一件事的面板侧：context_composition 载荷也要能算出 maxOutput/usableWindow。
+test("bridge.js 的上下文组合事件带上可用上限，并用同一套来源兜底", () => {
+  const source = readFileSync(new URL("./bridge.js", import.meta.url), "utf8");
+  const start = source.indexOf("function emitContextComposition(");
+  assert.ok(start > 0, "emitContextComposition 不见了（结构变了就更新这条测试）");
+  const body = source.slice(start, source.indexOf("\nfunction ", start + 1));
+  assert.match(body, /resolveMaxOutput\(/);
+  assert.match(body, /contextUsageWindowPayload\(/);
+  assert.match(body, /sessionModelSources\.get\(/);
 });

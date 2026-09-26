@@ -197,9 +197,14 @@ type ContextCompositionCategory struct {
 // ContextComposition is the estimated breakdown of what Pi assembled into
 // this turn's context. Prompt text, keys, paths and tool arguments never
 // cross this structure.
+// ContextComposition is what the engine re-encodes on the way to the UI. MaxOutput is
+// what the model reserves for its own answer and UsableWindow is window − maxOutput:
+// the input budget the usage panel measures against. Undeclared fields are dropped.
 type ContextComposition struct {
 	EstimatedTokens int64                        `json:"estimatedTokens"`
 	ContextWindow   int64                        `json:"contextWindow,omitempty"`
+	MaxOutput       int64                        `json:"maxOutput,omitempty"`
+	UsableWindow    int64                        `json:"usableWindow,omitempty"`
 	Categories      []ContextCompositionCategory `json:"categories,omitempty"`
 }
 

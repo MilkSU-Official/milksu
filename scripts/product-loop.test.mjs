@@ -8,6 +8,7 @@ import { EventEmitter } from 'node:events'
 import { CdpSession, classifyTurnEvents, eventSessionId, eventToolName, eventTypeOf, GuiDriver, isCompanionChatSurface, isCompanionPetSurface, isCompanionSurface, isMainProductSurface, isMilkSUPage, isProductLoopFixtureConversation, killProcessGroup, resolveProductLoopLaunchPlan, stripDesktopCredentialEnv } from './lib/desktop-gui-driver.mjs'
 import {
   classifyMilkSUHostCommand,
+  detectCallerMilkSUPid,
   describeExclusiveWindows,
   mergeKeepPids,
   parsePsTable,
@@ -546,6 +547,12 @@ test('exclusive window classification keeps only MilkSU hosts', () => {
     classifyMilkSUHostCommand(`${repo}/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron ${repo}/desktop`, repo),
     'unpackaged-repo',
   )
+  const callerRows = [
+    { pid: process.pid, ppid: 901, command: '/usr/bin/node milksu-sidecar' },
+    { pid: 901, ppid: 902, command: '/usr/bin/node milksu-sidecar' },
+    { pid: 902, ppid: 1, command: `${repo}/build/bin/MilkSU.app/Contents/MacOS/MilkSU` },
+  ]
+  assert.equal(detectCallerMilkSUPid(callerRows, repo), 902)
   const rows = parsePsTable([
     '11 1 /Applications/Cursor.app/Contents/MacOS/Cursor',
     '22 1 /Applications/MilkSU.app/Contents/MacOS/MilkSU',
@@ -1092,12 +1099,18 @@ test('killProcessGroup is a no-op for an already-exited child', () => {
 })
 
 test('surface scanner fails leaks and unexpected error chrome, not expected form or confirm copy', () => {
+  const packagedAppPath = process.platform === 'win32'
+    ? '/repo/milksu/build/bin/MilkSU.exe'
+    : '/repo/milksu/build/bin/MilkSU.app'
   const packagedLaunch = resolveProductLoopLaunchPlan({
-    MILKSU_APP_PATH: '/repo/milksu/build/bin/MilkSU.app',
+    MILKSU_APP_PATH: packagedAppPath,
   }, '/repo/milksu')
   assert.equal(packagedLaunch.mode, 'packaged')
   assert.equal(packagedLaunch.buildRuntime, false)
-  assert.match(packagedLaunch.executable, /MilkSU\.app\/Contents\/MacOS\/MilkSU$/)
+  const expectedExecutable = process.platform === 'darwin'
+    ? '/repo/milksu/build/bin/MilkSU.app/Contents/MacOS/MilkSU'
+    : packagedAppPath
+  assert.equal(packagedLaunch.executable, expectedExecutable)
   assert.equal(resolveProductLoopLaunchPlan({}, '/repo/milksu').mode, 'desktop-start')
 
   assert.equal(isSurfaceLeakText('No API key for tokenflux/deepseek/deepseek-flash'), true)
