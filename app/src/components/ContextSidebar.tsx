@@ -886,7 +886,7 @@ export default function ContextSidebar({
         {activeSection === 'settings' ? (
         <nav className="flex min-h-0 flex-1 flex-col gap-px overflow-y-auto" aria-label={t('设置分类', 'Settings categories')}>
           {SETTINGS_SIDEBAR_GROUPS.map((group, groupIndex) => (
-            <div key={group.id} className={groupIndex > 0 ? 'mt-3' : ''}>
+            <div key={group.id} className={`flex flex-col gap-px${groupIndex > 0 ? ' mt-3' : ''}`}>
               {group.label ? (
                 <div className="agent-sidebar__copy mx-2 mb-1 flex h-6 items-center px-2 text-caption font-medium text-muted-foreground">
                   {group.label()}
