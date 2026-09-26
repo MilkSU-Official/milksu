@@ -35,6 +35,7 @@ import {
   Brain,
   Folder,
   FolderOpen,
+  FolderPlus,
   Gauge,
   GitFork,
   Globe2,
@@ -135,11 +136,13 @@ function SidebarPlusButton({
   label,
   className,
   testId,
+  icon,
   onClick,
 }: {
   label: string
   className?: string
   testId?: string
+  icon?: ReactNode
   onClick: (event: MouseEvent<HTMLButtonElement>) => void
 }) {
   return (
@@ -151,7 +154,7 @@ function SidebarPlusButton({
       title={label}
       onClick={onClick}
     >
-      <Plus className="size-4" />
+      {icon ?? <Plus className="size-4" />}
     </button>
   )
 }
@@ -175,6 +178,7 @@ export default function ContextSidebar({
   onDeleteConversation,
   onDeleteConversationPermanently,
   onNewProjectSession,
+  onNewProject,
   onRenameConversation,
   onSetPinned,
   onMovePinned,
@@ -211,6 +215,7 @@ export default function ContextSidebar({
   onDeleteConversation?: (id: string) => void
   onDeleteConversationPermanently?: (id: string) => void
   onNewProjectSession?: (workspacePath: string) => void
+  onNewProject?: () => void
   onRenameConversation?: (id: string, title: string) => void
   onSetPinned?: (id: string, pinned: boolean) => void
   onMovePinned?: (id: string, direction: -1 | 1) => void
@@ -283,11 +288,23 @@ export default function ContextSidebar({
   const flatChats = codingGroups.filter(group => group.flat).flatMap(group => group.conversations)
   // 聊天首页：无项目的直属会话平铺在「任务」组下，不再包一层「最近」文件夹。
   const taskChats = workspaceHome === 'chat' ? (temporaryGroup?.conversations ?? []) : []
+  // 组头的 ＋ 悬停整行才显示，样式跟项目文件夹上的「新建会话」一致。
+  const headerActionClass = 'opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100'
   const newChatButton = (
     <SidebarPlusButton
+      className={headerActionClass}
       testId="coding-new-task-button"
       label={t('新会话', 'New chat')}
       onClick={() => onNew?.()}
+    />
+  )
+  const newProjectButton = (
+    <SidebarPlusButton
+      className={headerActionClass}
+      testId="coding-new-project-button"
+      label={t('新建项目', 'New project')}
+      icon={<FolderPlus className="size-4" />}
+      onClick={() => onNewProject?.()}
     />
   )
   const avatarSource = accountStatus.user?.avatarUrl || profileAvatar
@@ -719,7 +736,7 @@ export default function ContextSidebar({
 
   function conversationSectionHeader(label: string, plus?: ReactNode) {
     return (
-      <div className="mx-2 mb-1 flex h-8 items-center gap-1">
+      <div className="group mx-2 mb-1 flex h-8 items-center gap-1">
         <div className="agent-sidebar__copy min-w-0 flex-1 truncate px-2 text-body font-medium text-muted-foreground">
           {label}
         </div>
@@ -944,15 +961,13 @@ export default function ContextSidebar({
             {workspaceHome === 'chat' ? (
               // 聊天首页拆成两组：项目是会话文件夹（含钉选），任务是直属会话，不再套一层「最近」文件夹。
               <div className="flex flex-col">
+                {conversationSectionHeader(t('项目', 'Projects'), newProjectButton)}
                 {projectGroups.length ? (
-                  <>
-                    {conversationSectionHeader(t('项目', 'Projects'))}
-                    <div className="space-y-0.5">
-                      {projectGroups.map(group => projectGroupFolder(group))}
-                    </div>
-                  </>
+                  <div className="space-y-0.5">
+                    {projectGroups.map(group => projectGroupFolder(group))}
+                  </div>
                 ) : null}
-                <div className={projectGroups.length ? 'mt-2' : undefined}>
+                <div className="mt-2">
                   {conversationSectionHeader(t('任务', 'Tasks'), newChatButton)}
                   {taskChats.length ? (
                     <div className="mt-0.5 space-y-0.5">

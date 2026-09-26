@@ -33,6 +33,7 @@ export default function AppSidebar({
   onDeleteConversation,
   onDeleteConversationPermanently,
   onNewProjectSession,
+  onNewProject,
   onRenameConversation,
   onSetPinned,
   onMovePinned,
@@ -70,6 +71,7 @@ export default function AppSidebar({
   onDeleteConversation?: (id: string) => void
   onDeleteConversationPermanently?: (id: string) => void
   onNewProjectSession?: (workspacePath: string) => void
+  onNewProject?: () => void
   onRenameConversation?: (id: string, title: string) => void
   onSetPinned?: (id: string, pinned: boolean) => void
   onMovePinned?: (id: string, direction: -1 | 1) => void
@@ -110,6 +112,7 @@ export default function AppSidebar({
         onDeleteConversation={onDeleteConversation}
         onDeleteConversationPermanently={onDeleteConversationPermanently}
         onNewProjectSession={onNewProjectSession}
+        onNewProject={onNewProject}
         onRenameConversation={onRenameConversation}
         onSetPinned={onSetPinned}
         onMovePinned={onMovePinned}

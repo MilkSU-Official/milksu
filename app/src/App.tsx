@@ -1762,6 +1762,7 @@ export default function App() {
           onDeleteConversation={conversations.archive}
           onDeleteConversationPermanently={conversations.remove}
           onNewProjectSession={newCodingProjectSession}
+          onNewProject={chooseAgentWorkspaceForNewTask}
           onRenameConversation={conversations.rename}
           onSetPinned={conversations.setConversationPinned}
           onMovePinned={conversations.movePinnedConversation}
