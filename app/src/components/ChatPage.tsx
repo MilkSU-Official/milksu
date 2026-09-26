@@ -3159,23 +3159,23 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
                 variant="outline"
                 size="sm"
                 className="rounded-full"
-                disabled={!workspacePath}
                 onClick={() => composer.current?.applySkill('deep-research')}
               >
                 <LibraryBig className="size-3.5" />
                 {t('深度研究', 'Deep research')}
               </Button>
+              {imageGenConfigured ? (
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 className="rounded-full"
-                disabled={Boolean(imageDrawNotice)}
                 onClick={() => composer.current?.applyScope('image')}
               >
                 <ImageIcon className="size-3.5" />
                 {t('画图', 'Draw')}
               </Button>
+              ) : null}
               <Button
                 type="button"
                 variant="outline"
@@ -3186,17 +3186,18 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
                 <Lightbulb className="size-3.5" />
                 {t('计划模式', 'Plan mode')}
               </Button>
+              {workspacePath ? (
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 className="rounded-full"
-                disabled={!workspacePath}
                 onClick={() => runSlashCommand('understand')}
               >
                 <Compass className="size-3.5" />
                 {t('理解项目', 'Understand project')}
               </Button>
+              ) : null}
             </div>
           ) : null}
           </div>
