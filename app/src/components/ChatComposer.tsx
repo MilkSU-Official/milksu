@@ -203,8 +203,8 @@ const COMPOSER_STYLES = `
   align-items: center;
   gap: 0.35rem;
   border: 0;
-  border-radius: 8px;
-  padding-inline: 8px;
+  border-radius: 999px;
+  padding-inline: 10px;
   font-size: 13px;
   line-height: 20px;
   font-weight: 500;
