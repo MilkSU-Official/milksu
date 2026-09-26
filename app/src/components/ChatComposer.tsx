@@ -566,6 +566,12 @@ export type ChatComposerHandle = {
   appendDraftText: (text: string) => void
   /** Quote material the reader selected in the transcript, shown above the input. */
   appendQuote: (text: string) => void
+  /** Prime a reviewed skill token (same path as the plus-menu Skills row). */
+  applySkill: (name: string) => void
+  /** Prime a scope token such as the draw scope (same path as the plus-menu scope rows). */
+  applyScope: (scope: ComposerScopeToken) => void
+  /** Toggle planning mode (same path as the plus-menu plan row). */
+  togglePlanning: () => void
   openAddMenu: () => void
   focusMessageInput: () => Promise<void>
 }
@@ -1848,6 +1854,9 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
     pendingAttachmentCount: () => pendingAttachmentsRef.current.length,
     appendDraftText,
     appendQuote,
+    applySkill: (name) => { insertSkillToken(name); void focusMessageInput() },
+    applyScope: (scope) => { insertScopeToken(scope); void focusMessageInput() },
+    togglePlanning: () => { togglePlanningMode() },
     openAddMenu,
     focusMessageInput,
   }), [])
