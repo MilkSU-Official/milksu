@@ -1118,6 +1118,9 @@ func (a *App) SaveConversation(value conversation.StoredConversation) error {
 	if existedErr == nil && conversation.HasStarted(existing) {
 		value.Kernel = conversation.NormalizeKernel(existing.Kernel)
 	}
+	if existedErr == nil {
+		preserveSentAttachments(existing, &value)
+	}
 	if err := a.conversations.Save(value); err != nil {
 		if strings.Contains(err.Error(), "conversation is archived") {
 			return nil
@@ -1495,6 +1498,70 @@ func sameAttachmentSet(saved, incoming []conversation.StoredAttachment) bool {
 		}
 	}
 	return true
+}
+
+// preserveSentAttachments keeps the attachment record of a direct SendMessage
+// RPC turn alive across the composer's whole-list saves. The composer stores
+// the user message before sending; a direct RPC turn only gets its user
+// message from rememberSentAttachments, which the frontend list never carries,
+// so a plain overwrite would silently drop it. Metadata-only saves that carry
+// an empty message list keep it too. Edit-resend truncations are respected: a
+// dropped attachment message newer than every incoming message stays dropped.
+func preserveSentAttachments(existing conversation.StoredConversation, value *conversation.StoredConversation) {
+	if len(existing.Messages) == 0 {
+		return
+	}
+	keep := func(message conversation.StoredMessage) bool {
+		return message.Role == "user" && len(message.Attachments) > 0 && message.ID != ""
+	}
+	if len(value.Messages) == 0 {
+		// A metadata-only save carries the frontend's stale (empty) projection;
+		// dropping the remembered attachment message here loses the turn's files.
+		for _, message := range existing.Messages {
+			if keep(message) {
+				value.Messages = append(value.Messages, message)
+			}
+		}
+		return
+	}
+	incomingIDs := make(map[string]struct{}, len(value.Messages))
+	existingAttachments := make(map[string][]conversation.StoredAttachment)
+	var maxTimestamp uint64
+	for _, message := range value.Messages {
+		if message.ID != "" {
+			incomingIDs[message.ID] = struct{}{}
+		}
+		if message.Timestamp > maxTimestamp {
+			maxTimestamp = message.Timestamp
+		}
+	}
+	resurrected := false
+	for _, message := range existing.Messages {
+		if !keep(message) {
+			continue
+		}
+		if _, ok := incomingIDs[message.ID]; ok {
+			existingAttachments[message.ID] = message.Attachments
+			continue
+		}
+		if message.Timestamp > maxTimestamp {
+			continue
+		}
+		value.Messages = append(value.Messages, message)
+		resurrected = true
+	}
+	for index := range value.Messages {
+		attachments, ok := existingAttachments[value.Messages[index].ID]
+		if !ok || len(value.Messages[index].Attachments) > 0 {
+			continue
+		}
+		value.Messages[index].Attachments = attachments
+	}
+	if resurrected {
+		sort.SliceStable(value.Messages, func(i, j int) bool {
+			return value.Messages[i].Timestamp < value.Messages[j].Timestamp
+		})
+	}
 }
 
 // rememberSentAttachments writes the files from this send onto the stored user
