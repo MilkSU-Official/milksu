@@ -285,7 +285,7 @@ export default function VulnPage({
             product: '',
             affected: '',
             summary: '',
-          })
+          }, { select: false })
           dashboard.setRuntimeProjection(cveId, projection as never)
         } catch {
           // Keep going through the rest of the tracking jobs.
