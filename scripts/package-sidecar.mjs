@@ -15,7 +15,7 @@ import {
 } from 'node:fs/promises'
 import { createServer as createHttpServer } from 'node:http'
 import { createConnection, createServer as createNetServer } from 'node:net'
-import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { ensureOwnerWritable } from './lib/bundle-owner-writable.mjs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
@@ -150,6 +150,35 @@ function platformBinaryName(platform, name) {
   return platform.startsWith('windows/') ? `${name}.exe` : name
 }
 
+// package.json os/cpu fields use Node names: win32, not windows; x64, not amd64.
+function platformOsCpu(platform) {
+  const [goos, goarch] = platform.split('/')
+  return {
+    os: goos === 'windows' ? 'win32' : goos,
+    cpu: goarch === 'amd64' ? 'x64' : goarch,
+  }
+}
+
+// Mirrors npm's optional-dependency filtering: a negated entry always wins,
+// and a non-empty allow list must contain the target value.
+function platformValueMatches(list, value) {
+  if (!list) return true
+  const entries = Array.isArray(list) ? list : [list]
+  if (entries.some(entry => entry === `!${value}`)) return false
+  const allowed = entries.filter(entry => !entry.startsWith('!'))
+  return allowed.length === 0 || allowed.includes(value)
+}
+
+function packageSupportsPlatform(document, platform) {
+  const { os, cpu } = platformOsCpu(platform)
+  return platformValueMatches(document.os, os) && platformValueMatches(document.cpu, cpu)
+}
+
+function nodePtyPrebuildName(platform) {
+  const { os, cpu } = platformOsCpu(platform)
+  return `${os}-${cpu}`
+}
+
 function argument(name, fallback = undefined) {
   const prefix = `--${name}=`
   const inline = process.argv.find(value => value.startsWith(prefix))
@@ -257,6 +286,7 @@ function enqueueInstalledPackageRequests(queue, document, fromDirectory, include
 
 async function collectInstalledPackageClosure(rootPackages, options = {}) {
   const includePeerDependencies = options.includePeerDependencies === true
+  const platform = typeof options.platform === 'string' ? options.platform : ''
   const rootNodeModules = join(repositoryRoot, 'node_modules')
   const queue = rootPackages.map(name => ({
     name,
@@ -273,8 +303,15 @@ async function collectInstalledPackageClosure(rootPackages, options = {}) {
       request.optional,
     )
     if (!source || visited.has(source)) continue
-    visited.add(source)
     const document = JSON.parse(await readFile(join(source, 'package.json'), 'utf8'))
+    // npm skips optional dependencies whose os/cpu fields exclude the install
+    // platform. `npm ci` still lays down every platform variant recorded in the
+    // lockfile (esbuild ships 26), so packaging must filter them or the Sidecar
+    // carries every foreign binary. Required dependencies stay untouched.
+    if (request.optional && platform && !packageSupportsPlatform(document, platform)) {
+      continue
+    }
+    visited.add(source)
     const relativePath = relative(rootNodeModules, source)
     if (relativePath === '' || relativePath.startsWith('..')) {
       throw new Error(`package resolved outside repository node_modules: ${request.name}`)
@@ -670,6 +707,77 @@ async function sanitizePackagedNodeModules(root) {
   await walk(root)
 }
 
+// node-pty ships prebuilt binaries for every platform inside its npm tarball
+// (about 23 MB, mostly win32). npm cannot filter those at install time because
+// they are regular package files, so packaging keeps only the target platform's
+// prebuild. The bundled conpty sources are Windows-only and drop elsewhere.
+async function pruneNodePtyForeignArtifacts(root, platform) {
+  if (!platform) return
+  const keepPrebuild = nodePtyPrebuildName(platform)
+  const { os } = platformOsCpu(platform)
+  async function walk(directory) {
+    let entries = []
+    try {
+      entries = await readdir(directory, { withFileTypes: true })
+    } catch {
+      return
+    }
+    for (const entry of entries) {
+      if (!entry.isDirectory() || entry.isSymbolicLink()) continue
+      const path = join(directory, entry.name)
+      if (entry.name === 'prebuilds' && basename(directory) === 'node-pty') {
+        for (const prebuild of await readdir(path)) {
+          if (prebuild !== keepPrebuild) {
+            await rm(join(path, prebuild), { recursive: true, force: true })
+          }
+        }
+        continue
+      }
+      if (entry.name === 'conpty' && basename(directory) === 'third_party' && os !== 'win32') {
+        await rm(path, { recursive: true, force: true })
+        continue
+      }
+      await walk(path)
+    }
+  }
+  await walk(root)
+}
+
+// Recursive package copies bring each package's own node_modules along, so
+// foreign-platform optional binaries (esbuild ships 26) survive even when the
+// closure filter drops them from the copy list. Any installed package whose
+// os/cpu fields exclude the target platform cannot run there; npm would refuse
+// to install it for that platform, so it is lockfile residue and gets pruned.
+async function pruneForeignPlatformPackages(root, platform) {
+  if (!platform) return
+  async function walk(directory) {
+    let entries = []
+    try {
+      entries = await readdir(directory, { withFileTypes: true })
+    } catch {
+      return
+    }
+    const parentName = basename(directory)
+    const packageCandidate = parentName === 'node_modules' || parentName.startsWith('@')
+    for (const entry of entries) {
+      if (!entry.isDirectory() || entry.isSymbolicLink()) continue
+      const path = join(directory, entry.name)
+      if (packageCandidate) {
+        const manifest = await readFile(join(path, 'package.json'), 'utf8').catch(() => '')
+        if (manifest) {
+          const document = JSON.parse(manifest)
+          if (!packageSupportsPlatform(document, platform)) {
+            await rm(path, { recursive: true, force: true })
+            continue
+          }
+        }
+      }
+      await walk(path)
+    }
+  }
+  await walk(root)
+}
+
 async function assertPackagedSymlinksSafe(root) {
   async function walk(directory) {
     const entries = await readdir(directory, { withFileTypes: true })
@@ -700,7 +808,7 @@ async function assertPackagedSymlinksSafe(root) {
   await walk(root)
 }
 
-async function copyDshRuntime(output) {
+async function copyDshRuntime(output, platform = '') {
   const dshPackage = JSON.parse(
     await readFile(join(repositoryRoot, 'node_modules', '@deepseek-ai', 'dsh', 'package.json'), 'utf8'),
   )
@@ -713,6 +821,7 @@ async function copyDshRuntime(output) {
   const packages = minimalPackageCopySet(
     await collectInstalledPackageClosure(dshRuntimeRootPackages, {
       includePeerDependencies: true,
+      platform,
     }),
   )
   for (const name of dshRuntimeRootPackages) {
@@ -737,6 +846,8 @@ async function copyDshRuntime(output) {
     join(output, 'THIRD_PARTY-LICENSES', 'deepseek-harness-MIT.txt'),
   )
   await sanitizePackagedNodeModules(join(output, 'node_modules'))
+  await pruneNodePtyForeignArtifacts(join(output, 'node_modules'), platform)
+  await pruneForeignPlatformPackages(join(output, 'node_modules'), platform)
 }
 
 async function bundleDshHostPlugin(outfile) {
@@ -816,10 +927,11 @@ async function bundleBridge(entry, outfile, options = {}) {
   })
 }
 
-async function copyPiSubagentsRuntime(output) {
+async function copyPiSubagentsRuntime(output, platform = '') {
   const packages = minimalPackageCopySet(
     await collectInstalledPackageClosure(['pi-subagents'], {
       includePeerDependencies: true,
+      platform,
     }),
   )
   const root = packages.find(pkg => pkg.name === 'pi-subagents')
@@ -841,6 +953,8 @@ async function copyPiSubagentsRuntime(output) {
     await cp(pkg.source, destination, { recursive: true })
   }
   await sanitizePackagedNodeModules(join(output, 'node_modules'))
+  await pruneNodePtyForeignArtifacts(join(output, 'node_modules'), platform)
+  await pruneForeignPlatformPackages(join(output, 'node_modules'), platform)
 }
 
 function packagedDshCliEnv(output, workspace, dshHome) {
@@ -1438,6 +1552,7 @@ async function buildSidecar(platform) {
   const goplsOutput = join(lspRuntimeOutput, platformBinaryName(platform, 'gopls'))
   const lspRuntimePackages = await collectInstalledPackageClosure(
     lspRuntimeRootPackages.map(packageInfo => packageInfo.name),
+    { platform },
   )
   for (const expected of lspRuntimeRootPackages) {
     const source = await resolveInstalledPackage(expected.name, repositoryRoot)
@@ -1693,13 +1808,16 @@ async function buildSidecar(platform) {
       piSubagentCliOutput,
     ),
   ])
-  await copyDshRuntime(output)
-  await copyPiSubagentsRuntime(output)
+  await copyDshRuntime(output, platform)
+  await copyPiSubagentsRuntime(output, platform)
   await copyFile(
     join(repositoryRoot, 'sidecar', 'pi', 'pi-subagents-spawn.cjs'),
     join(output, 'pi-subagents-spawn.cjs'),
   )
   await sanitizePackagedNodeModules(join(output, 'node_modules'))
+  // Covers the LSP runtime and individually copied packages whose own nested
+  // node_modules still carry foreign-platform optional binaries.
+  await pruneForeignPlatformPackages(output, platform)
   await Promise.all([
     chmod(nodeOutput, 0o755),
     chmod(join(output, photonWasmFileName), 0o644),
@@ -3090,7 +3208,11 @@ function invokedAsPackagingScript() {
 export {
   collectInstalledPackageClosure,
   copyDshRuntime,
+  copyPiSubagentsRuntime,
+  currentPlatform,
   dshRuntimeRootPackages,
+  pruneForeignPlatformPackages,
+  pruneNodePtyForeignArtifacts,
 }
 
 if (invokedAsPackagingScript()) {
