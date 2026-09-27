@@ -244,6 +244,14 @@ test("board text for the model leads with the title", () => {
   assert.match(text, /跑测试\nid: todo-1/);
 });
 
+test("board text tells the model idle sessions still count as running threads", () => {
+  const text = formatBoardForModel({
+    sessions: [{ id: "abc123dead", title: "修登录", status: "idle" }],
+    todos: [],
+  });
+  assert.match(text, /idle = 进行中的对话/);
+});
+
 test("system prompt is budgeted independently of messages", () => {
   const composed = composeSystemPrompt({
     base: "You are the MilkSU companion.",

@@ -85,6 +85,8 @@ export function createCompanionTools(requestHost, options = {}) {
     description: "Read the live task board, or maintain user-intent todos. "
       + "Session run state is owned by MilkSU and cannot be written here. "
       + "Call list when the user asks what is running, what is next, or which conversation to continue. "
+      + "On the board idle means an open conversation with no turn executing right now; "
+      + "when the user asks what is running, answer with the titles of the open conversations, running or idle. "
       + "A greeting does not need a board read. "
       + "Use upsert_todo / close_todo only for the user's own intended work items.",
     parameters: Type.Object({

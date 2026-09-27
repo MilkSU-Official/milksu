@@ -358,6 +358,11 @@ export function formatBoardForModel(value) {
     else if (id) lines.push(id);
     if (id) lines.push(`conversationId: ${id}`);
   }
+  if ((sessions ?? []).length) {
+    // "在跑" 对用户是「进行中的议题」，不是「此刻有回合在跑」。没有这行，
+    // 模型会把一屏 idle 读成「没有在跑的会话」。
+    lines.push("idle = 进行中的对话，只是当前没有回合在跑；running = 有回合在跑。用户问哪些在跑时，idle 也算，用对话标题回答。");
+  }
   for (const todo of todos ?? []) {
     const title = String(todo?.title ?? "").trim();
     const id = String(todo?.id ?? "").trim();
