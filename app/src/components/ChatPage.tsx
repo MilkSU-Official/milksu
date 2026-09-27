@@ -2727,6 +2727,12 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
       data-testid={dockSurface ? 'coding-agent-dock-surface' : undefined}
     >
       {!dockSurface ? (
+        <div
+          className="chat-window-drag-region app-drag"
+          aria-hidden="true"
+        />
+      ) : null}
+      {!dockSurface ? (
         <div className="shell-window-controls shell-window-controls--end">
           <button
             type="button"
@@ -4001,6 +4007,11 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
 export default ChatPage
 
 const chatPageCss = `
+.chat-window-drag-region {
+  height: var(--shell-title-safe-top);
+  flex: none;
+}
+
 .chat-main {
   container-name: chat-main;
   container-type: inline-size;
