@@ -490,7 +490,14 @@ export async function runCompanionMemorySettings(driver) {
     } catch (error) {
       return fail(`读不到记忆：${memoryErrorText(error)}`)
     }
-    const search = judgeMemorySearchRow(await ariaLabelsOf(driver), approvedMemoryCount(memory))
+    // #176 起记忆条目收进「管理」二级页，检索框在二级页里；有记忆时先点进去再核对。
+    const memoryCount = approvedMemoryCount(memory)
+    if (memoryCount > 0) {
+      const openedEntries = await clickLabeled(driver, ['管理', 'Manage'])
+      if (!openedEntries) return fail('有记忆但记忆页没有管理入口')
+      await delay(300)
+    }
+    const search = judgeMemorySearchRow(await ariaLabelsOf(driver), memoryCount)
     if (!search.ok) return fail(search.reason)
     return pass(`长期记忆在会话索引前面。闲置后是 ${minutes.minutes} 分钟，关闭后闲置消失。${search.visible ? '有记忆时检索在。' : '没有记忆时不显示检索。'}`)
   } finally {
