@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { mkdtemp, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import test from 'node:test'
 import {
   collectInstalledPackageClosure,
@@ -14,70 +14,195 @@ import {
   resolvePhotonRuntime,
 } from './package-sidecar.mjs'
 
+async function createPackageFixture() {
+  const root = await mkdtemp(join(tmpdir(), 'milksu-package-fixture-'))
+  return { root, packageRoot: join(root, 'node_modules') }
+}
+
+async function writeFixturePackage(packageRoot, name, document, files = {}) {
+  const directory = join(packageRoot, ...name.split('/'))
+  await mkdir(directory, { recursive: true })
+  await writeFile(join(directory, 'package.json'), `${JSON.stringify(document)}\n`)
+  for (const [relativePath, contents] of Object.entries(files)) {
+    const path = join(directory, relativePath)
+    await mkdir(dirname(path), { recursive: true })
+    await writeFile(path, contents)
+  }
+  return directory
+}
+
+async function writePhotonFixture(packageRoot) {
+  await writeFixturePackage(packageRoot, '@earendil-works/pi-coding-agent', {
+    name: '@earendil-works/pi-coding-agent',
+    version: '0.87.0',
+  })
+  await writeFixturePackage(packageRoot, '@silvia-odwyer/photon-node', {
+    name: '@silvia-odwyer/photon-node',
+    version: '0.3.4',
+    license: 'Apache-2.0',
+  }, {
+    'photon_rs_bg.wasm': Buffer.from([0x00, 0x61, 0x73, 0x6d]),
+    'LICENSE.md': 'Apache License',
+  })
+}
+
+async function writeDshFixture(packageRoot) {
+  for (const name of dshRuntimeRootPackages) {
+    const document = {
+      name,
+      version: '0.1.6-alpha.1',
+      license: 'MIT',
+      type: 'module',
+    }
+    if (name === '@deepseek-ai/dsh') {
+      document.dependencies = { '@deepseek-ai/dsh-app-boot': '^0.1.6-alpha.1' }
+    }
+    await writeFixturePackage(packageRoot, name, document, {
+      ...(name === '@deepseek-ai/dsh' ? {
+        'lib/bin.js': 'process.exit(0)\n',
+        LICENSE: 'MIT License',
+      } : {}),
+    })
+  }
+  await writeFixturePackage(packageRoot, '@deepseek-ai/dsh-app-boot', {
+    name: '@deepseek-ai/dsh-app-boot',
+    version: '0.1.6-alpha.1',
+    license: 'MIT',
+    type: 'module',
+    exports: './index.mjs',
+    peerDependencies: {
+      '@deepseek-ai/cordis-plugin-group': '^1.0.2',
+      '@deepseek-ai/optional-peer-fixture': '^1.0.0',
+    },
+    peerDependenciesMeta: {
+      '@deepseek-ai/optional-peer-fixture': { optional: true },
+    },
+  }, { 'index.mjs': 'export const fixture = true\n' })
+  await writeFixturePackage(packageRoot, '@deepseek-ai/cordis-plugin-group', {
+    name: '@deepseek-ai/cordis-plugin-group',
+    version: '1.0.2',
+    license: 'MIT',
+  })
+  await writeFixturePackage(packageRoot, '@deepseek-ai/optional-peer-fixture', {
+    name: '@deepseek-ai/optional-peer-fixture',
+    version: '1.0.0',
+    license: 'MIT',
+  })
+}
+
+function esbuildPlatformPackage(platform) {
+  const [goos, goarch] = platform.split('/')
+  const os = goos === 'windows' ? 'win32' : goos
+  const cpu = goarch === 'amd64' ? 'x64' : goarch
+  return `@esbuild/${os}-${cpu}`
+}
+
 test('Pi inline image processing keeps a shippable Photon runtime', async () => {
-  // Pi resizes inline images with Photon. The bundled bridges load it from
-  // `path.dirname(process.execPath)`, so packaging copies the module from here.
-  // A renamed or dropped dependency would make every image read silently fail.
-  const photon = await resolvePhotonRuntime()
-  assert.equal(photon.version, '0.3.4')
-  assert.equal(photon.licenseName, 'Apache-2.0')
-  const wasm = await readFile(photon.wasm)
-  assert.ok(wasm.byteLength > 1_000_000, `unexpected Photon module size: ${wasm.byteLength}`)
-  assert.ok(
-    wasm.subarray(0, 4).equals(Buffer.from([0x00, 0x61, 0x73, 0x6d])),
-    'Photon module must start with the WebAssembly magic bytes',
-  )
-  assert.ok((await readFile(photon.license)).byteLength > 0, 'Photon license must ship with it')
+  const fixture = await createPackageFixture()
+  try {
+    await writePhotonFixture(fixture.packageRoot)
+    const photon = await resolvePhotonRuntime({ packageRoot: fixture.packageRoot })
+    assert.equal(photon.version, '0.3.4')
+    assert.equal(photon.licenseName, 'Apache-2.0')
+    assert.ok(
+      (await readFile(photon.wasm)).subarray(0, 4).equals(Buffer.from([0x00, 0x61, 0x73, 0x6d])),
+      'Photon module must start with the WebAssembly magic bytes',
+    )
+    assert.ok((await readFile(photon.license)).byteLength > 0, 'Photon license must ship with it')
+  } finally {
+    await rm(fixture.root, { recursive: true, force: true })
+  }
 })
 
 test('DSH packaged closure includes required app-boot peers', async () => {
-  const dependenciesOnly = await collectInstalledPackageClosure(['@deepseek-ai/dsh'])
-  assert.equal(
-    dependenciesOnly.some(pkg => pkg.name === '@deepseek-ai/cordis-plugin-group'),
-    false,
-    'dependency-only closure must not hide the missing peer that shipped in 26.912.3',
-  )
-
-  const packages = await collectInstalledPackageClosure(dshRuntimeRootPackages, {
-    includePeerDependencies: true,
-  })
-  for (const name of dshRuntimeRootPackages) {
-    assert.ok(
-      packages.some(pkg => pkg.name === name),
-      `${name} must stay in the runtime closure`,
+  const fixture = await createPackageFixture()
+  try {
+    await writeDshFixture(fixture.packageRoot)
+    const dependenciesOnly = await collectInstalledPackageClosure(['@deepseek-ai/dsh'], {
+      packageRoot: fixture.packageRoot,
+    })
+    assert.equal(
+      dependenciesOnly.some(pkg => pkg.name === '@deepseek-ai/cordis-plugin-group'),
+      false,
+      'dependency-only closure must not hide the missing peer that shipped in 26.912.3',
     )
+
+    const packages = await collectInstalledPackageClosure(dshRuntimeRootPackages, {
+      includePeerDependencies: true,
+      packageRoot: fixture.packageRoot,
+    })
+    for (const name of dshRuntimeRootPackages) {
+      assert.ok(
+        packages.some(pkg => pkg.name === name),
+        `${name} must stay in the runtime closure`,
+      )
+    }
+    assert.ok(
+      packages.some(pkg => pkg.name === '@deepseek-ai/cordis-plugin-group'),
+      'required peer @deepseek-ai/cordis-plugin-group must be copied into the Sidecar',
+    )
+    assert.ok(
+      packages.some(pkg => pkg.name === '@deepseek-ai/optional-peer-fixture'),
+      'installed optional peers must stay in the runtime closure',
+    )
+  } finally {
+    await rm(fixture.root, { recursive: true, force: true })
   }
-  assert.ok(
-    packages.some(pkg => pkg.name === '@deepseek-ai/cordis-plugin-group'),
-    'required peer @deepseek-ai/cordis-plugin-group must be copied into the Sidecar',
-  )
 })
 
 test('Pi closure ships only the target platform esbuild binary', async () => {
-  // `npm ci` lays down every platform variant the lockfile records, and the
-  // packaging closure used to copy all of them (26 esbuild binaries, ~284 MB).
-  // Filtering optionalDependencies by os/cpu must keep exactly the target one.
-  const unfiltered = await collectInstalledPackageClosure(['@earendil-works/pi-coding-agent'])
-  assert.ok(
-    unfiltered.filter(pkg => pkg.name.startsWith('@esbuild/')).length > 1,
-    'lockfile install must contain foreign esbuild binaries for this test to prove anything',
-  )
+  const fixture = await createPackageFixture()
+  try {
+    const platform = currentPlatform()
+    const variants = [
+      ['darwin', 'arm64'],
+      ['darwin', 'x64'],
+      ['linux', 'arm64'],
+      ['linux', 'x64'],
+      ['win32', 'arm64'],
+      ['win32', 'x64'],
+    ]
+    const optionalDependencies = Object.fromEntries(
+      variants.map(([os, cpu]) => [`@esbuild/${os}-${cpu}`, '0.28.2']),
+    )
+    await writeFixturePackage(fixture.packageRoot, '@earendil-works/pi-coding-agent', {
+      name: '@earendil-works/pi-coding-agent',
+      version: '0.87.0',
+      dependencies: { esbuild: '0.28.2' },
+    })
+    await writeFixturePackage(fixture.packageRoot, 'esbuild', {
+      name: 'esbuild',
+      version: '0.28.2',
+      optionalDependencies,
+    })
+    for (const [os, cpu] of variants) {
+      await writeFixturePackage(fixture.packageRoot, `@esbuild/${os}-${cpu}`, {
+        name: `@esbuild/${os}-${cpu}`,
+        version: '0.28.2',
+        os: [os],
+        cpu: [cpu],
+      })
+    }
 
-  const platform = currentPlatform()
-  const [goos, goarch] = platform.split('/')
-  const target = `@esbuild/${goos === 'windows' ? 'win32' : goos}-${goarch === 'amd64' ? 'x64' : goarch}`
-  const packages = await collectInstalledPackageClosure(['@earendil-works/pi-coding-agent'], { platform })
-  const esbuildBinaries = packages.filter(pkg => pkg.name.startsWith('@esbuild/'))
-  assert.deepEqual(
-    esbuildBinaries.map(pkg => pkg.name),
-    [target],
-    `filtered closure must keep only ${target}`,
-  )
-  assert.ok(packages.some(pkg => pkg.name === 'esbuild'), 'the esbuild driver package must stay')
-  assert.ok(
-    packages.some(pkg => pkg.name === '@earendil-works/pi-coding-agent'),
-    'the Pi runtime itself must stay',
-  )
+    const unfiltered = await collectInstalledPackageClosure(['@earendil-works/pi-coding-agent'], {
+      packageRoot: fixture.packageRoot,
+    })
+    assert.ok(unfiltered.filter(pkg => pkg.name.startsWith('@esbuild/')).length > 1)
+
+    const packages = await collectInstalledPackageClosure(['@earendil-works/pi-coding-agent'], {
+      packageRoot: fixture.packageRoot,
+      platform,
+    })
+    const esbuildBinaries = packages.filter(pkg => pkg.name.startsWith('@esbuild/'))
+    assert.deepEqual(esbuildBinaries.map(pkg => pkg.name), [esbuildPlatformPackage(platform)])
+    assert.ok(packages.some(pkg => pkg.name === 'esbuild'), 'the esbuild driver package must stay')
+    assert.ok(
+      packages.some(pkg => pkg.name === '@earendil-works/pi-coding-agent'),
+      'the Pi runtime itself must stay',
+    )
+  } finally {
+    await rm(fixture.root, { recursive: true, force: true })
+  }
 })
 
 test('node-pty prune keeps only the target prebuild and drops Windows conpty', async () => {
@@ -134,13 +259,16 @@ test('recursive package copies get foreign platform packages pruned', async () =
 })
 
 test('copied DSH runtime can import app-boot without the repository node_modules', async () => {
+  const fixture = await createPackageFixture()
   const output = await mkdtemp(join(tmpdir(), 'milksu-dsh-closure-'))
   try {
-    await copyDshRuntime(output, currentPlatform())
+    await writeDshFixture(fixture.packageRoot)
+    await copyDshRuntime(output, currentPlatform(), { packageRoot: fixture.packageRoot })
     await runIsolatedModuleImport(output, '@deepseek-ai/dsh-app-boot')
     await runIsolatedDshAcp(output)
   } finally {
     await rm(output, { recursive: true, force: true })
+    await rm(fixture.root, { recursive: true, force: true })
   }
 })
 

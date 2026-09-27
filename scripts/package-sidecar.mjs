@@ -32,6 +32,7 @@ import { buildWindowsCuaDriver } from './build-windows-cua-driver.mjs'
 
 const execFileAsync = promisify(execFile)
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+const repositoryPackageRoot = join(repositoryRoot, 'node_modules')
 const nodeVersion = '24.18.0'
 const archifyCommit = '7b49d0b715fd4ba48116bcdecd1ba3789a279613'
 const piVersion = '0.87.0'
@@ -216,16 +217,21 @@ async function exists(path) {
   }
 }
 
-async function resolveInstalledPackage(packageName, fromDirectory, optional = false) {
+async function resolveInstalledPackage(
+  packageName,
+  fromDirectory,
+  optional = false,
+  packageRoot = repositoryPackageRoot,
+) {
+  const packageRootDirectory = dirname(packageRoot)
   let current = resolve(fromDirectory)
   while (true) {
-    const relativeToRepository = relative(repositoryRoot, current)
-    if (relativeToRepository.startsWith('..') || isAbsolute(relativeToRepository)) break
+    const relativeToPackageRoot = relative(packageRootDirectory, current)
+    if (relativeToPackageRoot.startsWith('..') || isAbsolute(relativeToPackageRoot)) break
     const candidate = join(current, 'node_modules', ...packageName.split('/'))
     if (await exists(join(candidate, 'package.json'))) return candidate
-    const parent = dirname(current)
-    if (parent === current) break
-    current = parent
+    if (current === packageRootDirectory) break
+    current = dirname(current)
   }
   if (optional) return ''
   throw new Error(`installed package is missing: ${packageName}`)
@@ -236,9 +242,10 @@ async function resolveInstalledPackage(packageName, fromDirectory, optional = fa
  * Resolved from Pi's own directory so the nested install resolves too.
  * Exported for `package-sidecar-closure.test.mjs`.
  */
-export async function resolvePhotonRuntime() {
-  const piDirectory = join(repositoryRoot, 'node_modules', '@earendil-works', 'pi-coding-agent')
-  const directory = await resolveInstalledPackage(photonPackage, piDirectory, true)
+export async function resolvePhotonRuntime(options = {}) {
+  const packageRoot = options.packageRoot ?? repositoryPackageRoot
+  const piDirectory = join(packageRoot, '@earendil-works', 'pi-coding-agent')
+  const directory = await resolveInstalledPackage(photonPackage, piDirectory, true, packageRoot)
   if (!directory) {
     throw new Error(
       `packaged Sidecar requires ${photonPackage} for inline image reads, but it is not installed`,
@@ -287,10 +294,11 @@ function enqueueInstalledPackageRequests(queue, document, fromDirectory, include
 async function collectInstalledPackageClosure(rootPackages, options = {}) {
   const includePeerDependencies = options.includePeerDependencies === true
   const platform = typeof options.platform === 'string' ? options.platform : ''
-  const rootNodeModules = join(repositoryRoot, 'node_modules')
+  const rootNodeModules = options.packageRoot ?? repositoryPackageRoot
+  const packageRootDirectory = dirname(rootNodeModules)
   const queue = rootPackages.map(name => ({
     name,
-    fromDirectory: repositoryRoot,
+    fromDirectory: packageRootDirectory,
     optional: false,
   }))
   const visited = new Set()
@@ -301,6 +309,7 @@ async function collectInstalledPackageClosure(rootPackages, options = {}) {
       request.name,
       request.fromDirectory,
       request.optional,
+      rootNodeModules,
     )
     if (!source || visited.has(source)) continue
     const document = JSON.parse(await readFile(join(source, 'package.json'), 'utf8'))
@@ -314,7 +323,7 @@ async function collectInstalledPackageClosure(rootPackages, options = {}) {
     visited.add(source)
     const relativePath = relative(rootNodeModules, source)
     if (relativePath === '' || relativePath.startsWith('..')) {
-      throw new Error(`package resolved outside repository node_modules: ${request.name}`)
+      throw new Error(`package resolved outside package root: ${request.name}`)
     }
     packages.push({
       name: document.name,
@@ -808,20 +817,23 @@ async function assertPackagedSymlinksSafe(root) {
   await walk(root)
 }
 
-async function copyDshRuntime(output, platform = '') {
+async function copyDshRuntime(output, platform = '', options = {}) {
+  const packageRoot = options.packageRoot ?? repositoryPackageRoot
+  const dshDirectory = join(packageRoot, '@deepseek-ai', 'dsh')
   const dshPackage = JSON.parse(
-    await readFile(join(repositoryRoot, 'node_modules', '@deepseek-ai', 'dsh', 'package.json'), 'utf8'),
+    await readFile(join(dshDirectory, 'package.json'), 'utf8'),
   )
   if (dshPackage.name !== '@deepseek-ai/dsh' || dshPackage.version !== dshVersion) {
     throw new Error(`DeepSeek Harness package mismatch: expected @deepseek-ai/dsh@${dshVersion}`)
   }
-  if (!await exists(join(repositoryRoot, 'node_modules', '@deepseek-ai', 'dsh', 'LICENSE'))) {
+  if (!await exists(join(dshDirectory, 'LICENSE'))) {
     throw new Error('DeepSeek Harness LICENSE is missing')
   }
   const packages = minimalPackageCopySet(
     await collectInstalledPackageClosure(dshRuntimeRootPackages, {
       includePeerDependencies: true,
       platform,
+      packageRoot,
     }),
   )
   for (const name of dshRuntimeRootPackages) {
@@ -842,7 +854,7 @@ async function copyDshRuntime(output, platform = '') {
     await cp(pkg.source, destination, { recursive: true })
   }
   await copyFile(
-    join(repositoryRoot, 'node_modules', '@deepseek-ai', 'dsh', 'LICENSE'),
+    join(dshDirectory, 'LICENSE'),
     join(output, 'THIRD_PARTY-LICENSES', 'deepseek-harness-MIT.txt'),
   )
   await sanitizePackagedNodeModules(join(output, 'node_modules'))
