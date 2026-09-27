@@ -72,6 +72,28 @@ func TestFindChromePrefersNixAndDesktopEntriesOnLinux(t *testing.T) {
 	})
 }
 
+func TestFindChromeUsesPathAfterUserProfileCandidates(t *testing.T) {
+	got, err := findChromeWith("linux", func(name string) string {
+		if name == "HOME" {
+			return filepath.Join(t.TempDir(), "empty-home")
+		}
+		return ""
+	}, func(name string) (string, error) {
+		if name == "chromium" {
+			return "/opt/chromium/bin/chromium", nil
+		}
+		return "", errors.New("not on PATH")
+	}, func(string) bool {
+		return false
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "/opt/chromium/bin/chromium" {
+		t.Fatalf("got %q, want PATH executable", got)
+	}
+}
+
 func TestDesktopExecPathReadsFirstCommand(t *testing.T) {
 	got := desktopExecPath("[Desktop Entry]\nName=Chromium\nExec=/usr/bin/chromium --password-store=basic %U\n")
 	if got != "/usr/bin/chromium" {

@@ -431,9 +431,10 @@ test("builds Browser Use from the pinned Playwright extension mode", async () =>
 
 test("resolves Linux Chromium for Browser Use instead of macOS-only Chrome", async () => {
   const linux = browserUseExecutableCandidatesFor("linux", { HOME: "/home/milksu" });
-  assert.ok(linux.includes("/usr/bin/chromium"));
-  assert.ok(linux.includes("/snap/bin/chromium"));
-  assert.ok(linux.includes("/home/milksu/.nix-profile/bin/chromium"));
+  assert.deepEqual(linux, [
+    "/home/milksu/.nix-profile/bin/chromium",
+    "/home/milksu/.nix-profile/bin/google-chrome-stable",
+  ]);
   const workspace = await mkdtemp(join(tmpdir(), "milksu-browser-use-linux-"));
   const nixChrome = join(workspace, ".nix-profile", "bin", "chromium");
   await mkdir(dirname(nixChrome), { recursive: true });
@@ -444,6 +445,20 @@ test("resolves Linux Chromium for Browser Use instead of macOS-only Chrome", asy
     PATH: "/nonexistent",
   });
   assert.equal(found, nixChrome);
+});
+
+test("resolves a Linux Chromium supplied through PATH", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "milksu-browser-use-path-"));
+  const bin = join(workspace, "bin");
+  const chromium = join(bin, "chromium");
+  await mkdir(bin, { recursive: true });
+  await writeFile(chromium, "#!/bin/sh\n");
+  await chmod(chromium, 0o755);
+  const found = await resolveBrowserUseExecutable("linux", {
+    HOME: join(workspace, "empty-home"),
+    PATH: bin,
+  });
+  assert.equal(found, chromium);
 });
 
 test("keeps the Browser Use sentinel out of project MCP selection", () => {

@@ -92,24 +92,12 @@ export function browserUseExecutableCandidatesFor(platform, env = process.env) {
     ];
   }
   const home = String(env.HOME || "");
-  return [
-    "/usr/bin/google-chrome-stable",
-    "/usr/bin/google-chrome",
-    "/usr/bin/chromium",
-    "/usr/bin/chromium-browser",
-    "/usr/bin/microsoft-edge-stable",
-    "/usr/bin/microsoft-edge",
-    "/usr/bin/brave-browser",
-    "/snap/bin/chromium",
-    "/run/current-system/sw/bin/chromium",
-    "/run/current-system/sw/bin/google-chrome-stable",
-    ...(home
-      ? [
-        join(home, ".nix-profile", "bin", "chromium"),
-        join(home, ".nix-profile", "bin", "google-chrome-stable"),
-      ]
-      : []),
-  ];
+  return home
+    ? [
+      join(home, ".nix-profile", "bin", "chromium"),
+      join(home, ".nix-profile", "bin", "google-chrome-stable"),
+    ]
+    : [];
 }
 
 function browserUsePathNames(platform) {
