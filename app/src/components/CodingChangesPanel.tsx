@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Badge, Button } from '@/components/ui'
 import { FileDiff, LoaderCircle, RefreshCw } from 'lucide-react'
 import { desktopErrorMessage, hasDesktopRuntime, invokeCommand } from '@/desktop'
@@ -14,6 +14,9 @@ import type {
   CodingEnvironmentSnapshot,
   CodingGitChange,
 } from '@/codingEnvironmentTypes'
+
+const EMPTY_CHANGES: CodingGitChange[] = []
+const MAX_INLINE_DIFF_FILES = 40
 
 export default function CodingChangesPanel({
   workspacePath,
@@ -45,9 +48,16 @@ export default function CodingChangesPanel({
   const scrollRoot = useRef<HTMLElement | null>(null)
 
   const git = environment?.git
-  const changes = git?.changes ?? []
+  const changes = git?.changes ?? EMPTY_CHANGES
   const busy = Boolean(running)
-  const maxInlineDiffFiles = 40
+  const changesRef = useRef(changes)
+  const loadingPathsRef = useRef(loadingPaths)
+  const fileDiffsRef = useRef(fileDiffs)
+  const fileDiffErrorsRef = useRef(fileDiffErrors)
+  changesRef.current = changes
+  loadingPathsRef.current = loadingPaths
+  fileDiffsRef.current = fileDiffs
+  fileDiffErrorsRef.current = fileDiffErrors
   const editorId = normalizePreferredExternalEditor(preferredEditor)
   const editorLabel = externalEditorLabel(editorId)
   const openEditorAriaLabel = t(`用 ${editorLabel} 打开`, `Open with ${editorLabel}`)
@@ -56,8 +66,8 @@ export default function CodingChangesPanel({
     return `${change.indexStatus}${change.worktreeStatus}`
   }
 
-  async function loadFileDiff(change: CodingGitChange) {
-    if (!workspacePath || loadingPaths[change.path]) return
+  const loadFileDiff = useCallback(async (change: CodingGitChange) => {
+    if (!workspacePath || loadingPathsRef.current[change.path]) return
     setLoadingPaths(current => ({ ...current, [change.path]: true }))
     try {
       const snapshot = await invokeCommand<CodingDiffSnapshot>(
@@ -85,20 +95,21 @@ export default function CodingChangesPanel({
         return next
       })
     }
-  }
+  }, [workspacePath, t])
 
-  async function loadVisibleDiffs() {
-    if (!workspacePath || !changes.length) {
+  const loadVisibleDiffs = useCallback(async () => {
+    const currentChanges = changesRef.current
+    if (!workspacePath || !currentChanges.length) {
       setFileDiffs({})
       setFileDiffErrors({})
       return
     }
     setLoadingAll(true)
     setError('')
-    const targets = changes.slice(0, maxInlineDiffFiles)
+    const targets = currentChanges.slice(0, MAX_INLINE_DIFF_FILES)
     await Promise.all(targets.map(change => loadFileDiff(change)))
     setLoadingAll(false)
-  }
+  }, [loadFileDiff, workspacePath])
 
   function fileCardId(path: string) {
     return `coding-change-file:${path}`
@@ -131,7 +142,7 @@ export default function CodingChangesPanel({
     }
   }
 
-  async function scrollToPath(path: string) {
+  const scrollToPath = useCallback(async (path: string) => {
     if (!path) return
     setSelectedPath(path)
     await Promise.resolve()
@@ -142,7 +153,7 @@ export default function CodingChangesPanel({
     if (card && typeof card.scrollIntoView === 'function') {
       card.scrollIntoView({ block: 'start', behavior: 'smooth' })
     }
-  }
+  }, [])
 
   useEffect(() => {
     setSelectedPath('')
@@ -152,26 +163,29 @@ export default function CodingChangesPanel({
     setError('')
   }, [workspacePath])
 
-  const changeKey = useMemo(() => changes.map(change => `${change.path}:${change.indexStatus}${change.worktreeStatus}`).join('|'), [changes])
+  const changeKey = changes.map(change => `${change.path}:${change.indexStatus}${change.worktreeStatus}`).join('|')
 
   useEffect(() => {
-    if (selectedPath && !changes.some(change => change.path === selectedPath)) {
+    if (selectedPath && !changesRef.current.some(change => change.path === selectedPath)) {
       setSelectedPath('')
     }
+  }, [selectedPath, changeKey])
+
+  useEffect(() => {
     void loadVisibleDiffs()
-  }, [workspacePath, changeKey])
+  }, [workspacePath, changeKey, loadVisibleDiffs])
 
   useEffect(() => {
     if (!focusPath) return
-    const change = changes.find(item => item.path === focusPath)
+    const change = changesRef.current.find(item => item.path === focusPath)
     if (!change) return
     void (async () => {
-      if (!fileDiffs[focusPath] && !fileDiffErrors[focusPath]) {
+      if (!fileDiffsRef.current[focusPath] && !fileDiffErrorsRef.current[focusPath]) {
         await loadFileDiff(change)
       }
       await scrollToPath(focusPath)
     })()
-  }, [focusPath, changeKey])
+  }, [focusPath, changeKey, loadFileDiff, scrollToPath])
 
   return (
     <section className="coding-changes-panel flex min-h-full flex-col text-foreground">
@@ -231,7 +245,7 @@ export default function CodingChangesPanel({
               <LoaderCircle className="size-5 animate-spin text-primary" />
             </div>
           ) : null}
-          {changes.slice(0, maxInlineDiffFiles).map(change => {
+          {changes.slice(0, MAX_INLINE_DIFF_FILES).map(change => {
             const diff = fileDiffs[change.path]
             return (
               <article
@@ -320,9 +334,9 @@ export default function CodingChangesPanel({
               </article>
             )
           })}
-          {changes.length > maxInlineDiffFiles ? (
+          {changes.length > MAX_INLINE_DIFF_FILES ? (
             <p className="px-1 text-caption text-muted-foreground">
-              {t(`仅展开前 ${maxInlineDiffFiles} 个文件的 Diff。`, `Only the first ${maxInlineDiffFiles} file diffs are expanded.`)}
+              {t(`仅展开前 ${MAX_INLINE_DIFF_FILES} 个文件的 Diff。`, `Only the first ${MAX_INLINE_DIFF_FILES} file diffs are expanded.`)}
             </p>
           ) : !changes.length && !loadingAll ? (
             <div className="flex min-h-40 flex-col items-center justify-center text-center">

@@ -706,6 +706,8 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
   const [pendingMigrateKernel, setPendingMigrateKernel] = useState<'pi' | 'dsh' | null>(null)
   const [scopeToken, setScopeToken] = useState<ComposerScopeToken | null>(null)
   const pendingScopeSubmit = useRef<ComposerScopeToken | null>(null)
+  const commandPanelSlashHandlerRef = useRef<(event: Event) => void>(() => {})
+  const submitRef = useRef<() => void>(() => {})
   const [skillToken, setSkillToken] = useState<string | null>(null)
   const [goalPanelOpen, setGoalPanelOpen] = useState(false)
   const goalSlot = useRef<HTMLDivElement | null>(null)
@@ -1232,18 +1234,11 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
 
   useEffect(() => {
     function onCommandPanelSlash(event: Event) {
-      const id = String((event as CustomEvent<string>).detail ?? '')
-      const command = slashCommandCatalog.find(item => item.id === id)
-      if (!command || slashCommandDisabled(command.id)) return
-      chooseSlashCommand({
-        ...command,
-        description: command.description,
-        disabled: false,
-      })
+      commandPanelSlashHandlerRef.current(event)
     }
     window.addEventListener(COMMAND_PANEL_SLASH_EVENT, onCommandPanelSlash)
     return () => window.removeEventListener(COMMAND_PANEL_SLASH_EVENT, onCommandPanelSlash)
-  }, [composerBusy, compacting, workspaceReady, kernel, hasUnfinishedGoal, t])
+  }, [])
 
   function rememberComposerSnapshot() {
     if (applyingComposerHistory.current || composingRef.current) return
@@ -1609,6 +1604,17 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
     })
   }
 
+  commandPanelSlashHandlerRef.current = event => {
+    const id = String((event as CustomEvent<string>).detail ?? '')
+    const command = slashCommandCatalog.find(item => item.id === id)
+    if (!command || slashCommandDisabled(command.id)) return
+    chooseSlashCommand({
+      ...command,
+      description: command.description,
+      disabled: false,
+    })
+  }
+
   function chooseSlashCommand(command = activeSlashCommand) {
     if (!command || command.disabled) return
     setComposing(false)
@@ -1835,6 +1841,8 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
     syncComposerInput()
   }
 
+  submitRef.current = submit
+
   useEffect(() => {
     setSlashMenuDismissed(false)
     setActiveSlashCommandIndex(0)
@@ -1843,8 +1851,8 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
   useEffect(() => {
     if (!computerUseReady || parentTurnActive || pendingScopeSubmit.current !== 'computer-use' || scopeToken !== 'computer-use') return
     pendingScopeSubmit.current = null
-    queueMicrotask(() => submit())
-  }, [computerUseReady])
+    queueMicrotask(() => submitRef.current())
+  }, [computerUseReady, parentTurnActive, scopeToken])
 
   useEffect(() => {
     if (!slashCommands.length) {
