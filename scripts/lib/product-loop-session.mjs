@@ -399,6 +399,7 @@ export async function openSettingsCategory(driver, labels) {
 }
 
 export async function fillComposer(driver, text) {
+  // 像用户打字一样在末尾追加输入：全选替换会冲掉引用令牌这类 contenteditable=false 节点。
   return pageCall(driver, `function(text) {
     const composers = Array.from(document.querySelectorAll('.chat-composer'))
     const composer = composers.find(node => {
@@ -412,6 +413,7 @@ export async function fillComposer(driver, text) {
     const selection = window.getSelection()
     const range = document.createRange()
     range.selectNodeContents(editor)
+    range.collapse(false)
     selection.removeAllRanges()
     selection.addRange(range)
     document.execCommand('insertText', false, text)
