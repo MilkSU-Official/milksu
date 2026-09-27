@@ -101,6 +101,16 @@ func (s *Service) detectIDA(ctx context.Context) detection {
 }
 
 func (s *Service) detectCapa(ctx context.Context) detection {
+	return s.detectCapaFor(ctx, runtime.GOOS, runtime.GOARCH)
+}
+
+func (s *Service) detectCapaFor(ctx context.Context, goos, goarch string) detection {
+	if goos != "darwin" {
+		return detection{status: StatusUnavailable, statusLabel: "暂不支持", problem: "capa 当前仅支持 macOS arm64/amd64。"}
+	}
+	if goarch != "arm64" && goarch != "amd64" {
+		return detection{status: StatusUnavailable, statusLabel: "暂不支持", problem: "capa 当前仅支持 macOS arm64/amd64。"}
+	}
 	managed := filepath.Join(s.root, ToolCapa, capaVersion, "capa")
 	if regularExecutable(managed) {
 		return detection{status: StatusReady, statusLabel: "可用", version: capaVersion, command: managed, setupPossible: true}
@@ -111,9 +121,6 @@ func (s *Service) detectCapa(ctx context.Context) detection {
 			version = "本机 CLI"
 		}
 		return detection{status: StatusReady, statusLabel: "可用", version: version, command: command, setupPossible: true}
-	}
-	if runtime.GOOS != "darwin" || (runtime.GOARCH != "arm64" && runtime.GOARCH != "amd64") {
-		return detection{status: StatusUnavailable, statusLabel: "暂不支持", problem: "内置 capa 准备当前支持 macOS arm64/amd64。"}
 	}
 	return detection{status: StatusNeedsSetup, statusLabel: "可直接准备", version: capaVersion, action: "准备 capa", setupPossible: true}
 }

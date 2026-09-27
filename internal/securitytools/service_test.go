@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -30,7 +31,45 @@ func (testProbe) Output(context.Context, string, ...string) (string, error) {
 	return "", os.ErrNotExist
 }
 
+func TestCapaIsUnavailableOutsideSupportedMacOS(t *testing.T) {
+	service := NewService(t.TempDir(), &testSettings{value: config.DefaultSettings()}, nil)
+	service.probe = testProbe{}
+	for _, platform := range []struct {
+		goos   string
+		goarch string
+	}{
+		{goos: "linux", goarch: "amd64"},
+		{goos: "windows", goarch: "amd64"},
+		{goos: "darwin", goarch: "386"},
+	} {
+		detected := service.detectCapaFor(context.Background(), platform.goos, platform.goarch)
+		if detected.status != StatusUnavailable || detected.setupPossible {
+			t.Fatalf("%s/%s: unexpected detection: %#v", platform.goos, platform.goarch, detected)
+		}
+	}
+}
+
+func TestCapaManagedRuntimeIsReadyOnSupportedMacOS(t *testing.T) {
+	dataDirectory := t.TempDir()
+	command := filepath.Join(dataDirectory, "services", "security-tools", ToolCapa, capaVersion, "capa")
+	if err := os.MkdirAll(filepath.Dir(command), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(command, []byte("fixture"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	service := NewService(dataDirectory, &testSettings{value: config.DefaultSettings()}, nil)
+	service.probe = testProbe{}
+	detected := service.detectCapaFor(context.Background(), "darwin", "arm64")
+	if detected.status != StatusReady || detected.command != command {
+		t.Fatalf("unexpected detection: %#v", detected)
+	}
+}
+
 func TestReadyCapaEntersRuntimeCatalogAndCanBeDisabled(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("capa is only supported on macOS")
+	}
 	dataDirectory := t.TempDir()
 	command := filepath.Join(dataDirectory, "services", "security-tools", ToolCapa, capaVersion, "capa")
 	if err := os.MkdirAll(filepath.Dir(command), 0o700); err != nil {

@@ -57,7 +57,10 @@ test("normalizes the recomputed local catalog and builds lazy read-only IDA MCP"
     );
     assert.deepEqual(loaded.selected, ["milksu-ida-pro"]);
     const server = loaded.config.mcpServers["milksu-ida-pro"];
-    assert.equal(server.command, "/usr/bin/sandbox-exec");
+    assert.equal(
+      server.command,
+      process.platform === "darwin" ? "/usr/bin/sandbox-exec" : value.command,
+    );
     assert.equal(server.lifecycle, "lazy");
     assert.equal(server.directTools, false);
     assert.ok(server.args.includes("--profile"));
@@ -107,7 +110,20 @@ test("validates IDAUSR against the supervised user home instead of the isolated 
   }
 });
 
+test("rejects capa on platforms without sandbox-exec", async () => {
+  if (process.platform === "darwin") return;
+  await assert.rejects(
+    normalizeSecurityTools([{
+      id: "capa",
+      command: "/tmp/capa",
+      version: "v9.4.0",
+    }]),
+    /only on macOS/,
+  );
+});
+
 test("discloses capa through its own description instead of the system prompt", async () => {
+  if (process.platform !== "darwin") return;
   const registered = [];
   const listeners = new Map();
   createSecurityToolsExtension("/tmp/workspace", [{
