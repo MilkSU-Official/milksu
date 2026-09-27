@@ -224,7 +224,7 @@ func materializeCompose(dataDirectory string, owner Owner, item Package) (string
 	if len(data) == 0 {
 		return "", fmt.Errorf("package %s has no compose file", item.ID)
 	}
-	directory := filepath.Join(dataDirectory, "envbroker", "instances", sanitizeOwner(owner), item.ID)
+	directory := filepath.Join(dataDirectory, "services", "envbroker", "instances", sanitizeOwner(owner), item.ID)
 	if err := os.MkdirAll(directory, 0o700); err != nil {
 		return "", err
 	}

@@ -624,7 +624,7 @@ func persistPracticeRun(dataDirectory string, run *PracticeRun) error {
 	if safeCVE == "" {
 		safeCVE = "unknown"
 	}
-	root := filepath.Join(dataDirectory, "vuln", "practice-runs", safeCVE)
+	root := filepath.Join(dataDirectory, "domain", "vuln", "practice-runs", safeCVE)
 	if err := os.MkdirAll(root, 0o700); err != nil {
 		return fmt.Errorf("create vulnerability practice evidence directory: %w", err)
 	}

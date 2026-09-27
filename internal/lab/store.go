@@ -36,7 +36,7 @@ func NewStore() (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	directory := filepath.Join(base, "lab-jobs")
+	directory := filepath.Join(base, "stores", "lab-jobs")
 	if err := os.MkdirAll(directory, 0o700); err != nil {
 		return nil, fmt.Errorf("create lab job directory: %w", err)
 	}

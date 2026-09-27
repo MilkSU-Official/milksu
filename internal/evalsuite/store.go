@@ -25,7 +25,7 @@ func NewStore() (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	directory := filepath.Join(base, "evalsuite")
+	directory := filepath.Join(base, "domain", "evalsuite")
 	if err := os.MkdirAll(directory, 0o700); err != nil {
 		return nil, fmt.Errorf("create evalsuite directory: %w", err)
 	}

@@ -7,6 +7,8 @@
 
 const path = require('node:path')
 
+const { DESKTOP_USER_DATA_SEGMENT } = require('./home-root.cjs')
+
 const STABLE_APP_ID = 'com.milksu.app'
 const BETA_APP_ID = 'com.milksu.app.beta'
 const STABLE_PRODUCT_NAME = 'MilkSU'
@@ -78,6 +80,7 @@ function channelIdentity(channel) {
  *   appDataPath: string,
  *   naturalUserDataPath: string,
  *   instanceId?: string,
+ *   homeRoot?: string,
  * }} paths
  */
 function planChannelIsolation(identity, paths) {
@@ -100,6 +103,19 @@ function planChannelIsolation(identity, paths) {
     return {
       userData,
       isolatedInstance: true,
+      setName,
+      pinUserData: true,
+    }
+  }
+  // Stable non-isolated: pin userData into the unified MilkSU home root
+  // (<homeRoot>/desktop). Callers pass homeRoot only after the historical
+  // natural userData directory has been migrated (or when there is nothing
+  // to migrate); without it we keep the natural path unpinned.
+  const homeRoot = String(paths.homeRoot ?? '').trim()
+  if (homeRoot) {
+    return {
+      userData: path.join(homeRoot, DESKTOP_USER_DATA_SEGMENT),
+      isolatedInstance: false,
       setName,
       pinUserData: true,
     }
@@ -148,6 +164,7 @@ function applyChannelIsolationPlan(appLike, plan) {
  *     getPath: (name: string) => string,
  *   },
  *   instanceId?: string,
+ *   homeRoot?: string,
  * }} options
  */
 function applyChannelIsolation(identity, options) {
@@ -156,15 +173,17 @@ function applyChannelIsolation(identity, options) {
     appDataPath: appLike.getPath('appData'),
     naturalUserDataPath: appLike.getPath('userData'),
     instanceId: options.instanceId,
+    homeRoot: options.homeRoot,
   })
   return applyChannelIsolationPlan(appLike, plan)
 }
 
 /**
  * Browser profile path roots.
- * Stable keeps only the historical appData/com.milksu.app root
- * (plus explicit MILKSU_APPDATA_DIR). Beta uses its own appId root and,
- * like explicit isolated instances, may also allow current Electron userData.
+ * Stable keeps only the historical profile root — callers pass the unified
+ * home workspaces/browser root as historicalStableRoot (default:
+ * appData/com.milksu.app). Beta uses its own appId root and, like explicit
+ * isolated instances, may also allow current Electron userData.
  *
  * @param {{
  *   channel: string,

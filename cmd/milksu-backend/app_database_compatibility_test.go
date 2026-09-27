@@ -60,27 +60,27 @@ func TestDatabaseCompatDescriptors(t *testing.T) {
 	want := []appdata.DatabaseDescriptor{
 		{
 			LogicalName:  "EventStore",
-			RelativePath: "runtime/events.sqlite3",
+			RelativePath: "data/runtime/events.sqlite3",
 			Supported:    securityruntime.SupportedEventStoreDatabaseVersion,
 		},
 		{
 			LogicalName:  "CTF Memory",
-			RelativePath: "ctf/memory.sqlite3",
+			RelativePath: "data/domain/ctf/memory.sqlite3",
 			Supported:    ctf.SupportedCTFMemoryDatabaseVersion,
 		},
 		{
 			LogicalName:  "NSSCTF Catalog",
-			RelativePath: "nssctf/catalog.sqlite3",
+			RelativePath: "data/domain/nssctf/catalog.sqlite3",
 			Supported:    nssctf.SupportedNSSCTFCatalogDatabaseVersion,
 		},
 		{
 			LogicalName:  "CTFshow Catalog",
-			RelativePath: "ctfshow/catalog.sqlite3",
+			RelativePath: "data/domain/ctfshow/catalog.sqlite3",
 			Supported:    ctfshow.SupportedCTFshowCatalogDatabaseVersion,
 		},
 		{
 			LogicalName:  "Coding Agent Usage",
-			RelativePath: "usage/model-usage.sqlite3",
+			RelativePath: "data/stores/usage/model-usage.sqlite3",
 			Supported:    modelusage.SupportedDatabaseVersion,
 		},
 	}
@@ -96,7 +96,7 @@ func TestDatabaseCompatDescriptors(t *testing.T) {
 
 func TestGetLocalDataStatusIncludesDatabaseCompatibility(t *testing.T) {
 	dataDirectory := t.TempDir()
-	eventsPath := filepath.Join(dataDirectory, "runtime", "events.sqlite3")
+	eventsPath := filepath.Join(dataDirectory, "data", "runtime", "events.sqlite3")
 	if err := os.MkdirAll(filepath.Dir(eventsPath), 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -122,8 +122,8 @@ func TestGetLocalDataStatusIncludesDatabaseCompatibility(t *testing.T) {
 		t.Fatal(err)
 	}
 	memoryStore, err := ctf.NewMemoryStore(
-		filepath.Join(dataDirectory, "ctf", "memory.sqlite3"),
-		filepath.Join(dataDirectory, "ctf", "memories"),
+		filepath.Join(dataDirectory, "data", "domain", "ctf", "memory.sqlite3"),
+		filepath.Join(dataDirectory, "data", "domain", "ctf", "memories"),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -132,7 +132,7 @@ func TestGetLocalDataStatusIncludesDatabaseCompatibility(t *testing.T) {
 		t.Fatal(err)
 	}
 	nssctfCatalog, err := nssctf.NewCatalogService(
-		filepath.Join(dataDirectory, "nssctf", "catalog.sqlite3"),
+		filepath.Join(dataDirectory, "data", "domain", "nssctf", "catalog.sqlite3"),
 		nssctf.NewClient(nssctf.ClientOptions{}),
 	)
 	if err != nil {
@@ -142,7 +142,7 @@ func TestGetLocalDataStatusIncludesDatabaseCompatibility(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctfshowCatalog, err := ctfshow.NewCatalogService(
-		filepath.Join(dataDirectory, "ctfshow", "catalog.sqlite3"),
+		filepath.Join(dataDirectory, "data", "domain", "ctfshow", "catalog.sqlite3"),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -151,7 +151,7 @@ func TestGetLocalDataStatusIncludesDatabaseCompatibility(t *testing.T) {
 		t.Fatal(err)
 	}
 	usageStore, err := modelusage.NewStore(
-		filepath.Join(dataDirectory, "usage", "model-usage.sqlite3"),
+		filepath.Join(dataDirectory, "data", "stores", "usage", "model-usage.sqlite3"),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -160,7 +160,7 @@ func TestGetLocalDataStatusIncludesDatabaseCompatibility(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	app := &App{dataDirectory: dataDirectory}
+	app := &App{homeDirectory: dataDirectory, dataDirectory: filepath.Join(dataDirectory, "data")}
 	status, err := app.GetLocalDataStatus()
 	if err != nil {
 		t.Fatal(err)
@@ -171,7 +171,7 @@ func TestGetLocalDataStatusIncludesDatabaseCompatibility(t *testing.T) {
 
 	eventStore := status.Databases[0]
 	if eventStore.LogicalName != "EventStore" ||
-		eventStore.RelativePath != "runtime/events.sqlite3" ||
+		eventStore.RelativePath != "data/runtime/events.sqlite3" ||
 		eventStore.State != "compatible" {
 		t.Fatalf("unexpected EventStore status: %#v", eventStore)
 	}
@@ -189,7 +189,7 @@ func TestGetLocalDataStatusIncludesDatabaseCompatibility(t *testing.T) {
 
 	memory := status.Databases[1]
 	if memory.LogicalName != "CTF Memory" ||
-		memory.RelativePath != "ctf/memory.sqlite3" ||
+		memory.RelativePath != "data/domain/ctf/memory.sqlite3" ||
 		memory.State != "compatible" {
 		t.Fatalf("unexpected CTF Memory status: %#v", memory)
 	}
@@ -207,7 +207,7 @@ func TestGetLocalDataStatusIncludesDatabaseCompatibility(t *testing.T) {
 
 	nssctfStatus := status.Databases[2]
 	if nssctfStatus.LogicalName != "NSSCTF Catalog" ||
-		nssctfStatus.RelativePath != "nssctf/catalog.sqlite3" ||
+		nssctfStatus.RelativePath != "data/domain/nssctf/catalog.sqlite3" ||
 		nssctfStatus.State != "compatible" {
 		t.Fatalf("unexpected NSSCTF Catalog status: %#v", nssctfStatus)
 	}
@@ -225,7 +225,7 @@ func TestGetLocalDataStatusIncludesDatabaseCompatibility(t *testing.T) {
 
 	ctfshowStatus := status.Databases[3]
 	if ctfshowStatus.LogicalName != "CTFshow Catalog" ||
-		ctfshowStatus.RelativePath != "ctfshow/catalog.sqlite3" ||
+		ctfshowStatus.RelativePath != "data/domain/ctfshow/catalog.sqlite3" ||
 		ctfshowStatus.State != "compatible" {
 		t.Fatalf("unexpected CTFshow Catalog status: %#v", ctfshowStatus)
 	}
@@ -243,7 +243,7 @@ func TestGetLocalDataStatusIncludesDatabaseCompatibility(t *testing.T) {
 
 	usageStatus := status.Databases[4]
 	if usageStatus.LogicalName != "Coding Agent Usage" ||
-		usageStatus.RelativePath != "usage/model-usage.sqlite3" ||
+		usageStatus.RelativePath != "data/stores/usage/model-usage.sqlite3" ||
 		usageStatus.State != "compatible" {
 		t.Fatalf("unexpected Coding Agent Usage status: %#v", usageStatus)
 	}

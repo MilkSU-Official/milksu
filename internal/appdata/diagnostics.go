@@ -20,11 +20,11 @@ import (
 const DiagnosticsSchema = "milksu-diagnostics/v1"
 
 var diagnosticDatabasePaths = []string{
-	"credentials.db",
-	filepath.Join("ctf", "memory.sqlite3"),
-	filepath.Join("nssctf", "catalog.sqlite3"),
-	filepath.Join("ctfshow", "catalog.sqlite3"),
-	filepath.Join("runtime", "events.sqlite3"),
+	filepath.Join("config", "credentials.db"),
+	filepath.Join("data", "domain", "ctf", "memory.sqlite3"),
+	filepath.Join("data", "domain", "nssctf", "catalog.sqlite3"),
+	filepath.Join("data", "domain", "ctfshow", "catalog.sqlite3"),
+	filepath.Join("data", "runtime", "events.sqlite3"),
 }
 
 var (

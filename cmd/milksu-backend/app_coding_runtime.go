@@ -36,7 +36,7 @@ func (a *App) RefreshCodingBackgroundTasks(
 			"background task recovery failed",
 		)
 		_ = appdata.AppendEventLog(
-			a.dataDirectory,
+			a.homeDirectory,
 			appdata.PersistedBackgroundRecoveryFailed,
 		)
 	}

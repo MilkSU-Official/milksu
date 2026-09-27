@@ -41,11 +41,11 @@ func (a *App) GetPluginMCPConfig() PluginMCPConfig {
 	if err != nil || !regularPluginRuntimeFile(executable) {
 		return PluginMCPConfig{Args: []string{}, Configuration: map[string]any{}}
 	}
-	dataDirectory, err := appdata.Directory()
+	homeDirectory, err := appdata.Home()
 	if err != nil {
 		return PluginMCPConfig{Args: []string{}, Configuration: map[string]any{}}
 	}
-	dataDirectory, err = filepath.Abs(dataDirectory)
+	dataDirectory, err := filepath.Abs(homeDirectory)
 	if err != nil {
 		return PluginMCPConfig{Args: []string{}, Configuration: map[string]any{}}
 	}
@@ -225,7 +225,7 @@ func watchPluginMCPRegistry(ctx context.Context, dataDirectory string, server *m
 
 func pluginMCPMetadataRevision(dataDirectory string) string {
 	hash := sha256.New()
-	root := filepath.Join(dataDirectory, "plugins")
+	root := filepath.Join(dataDirectory, "services", "plugins")
 	for _, name := range []string{"state.json", "installed.json", "publishers.json"} {
 		_, _ = io.WriteString(hash, name+"\x00")
 		path := filepath.Join(root, name)

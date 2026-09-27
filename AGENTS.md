@@ -188,7 +188,13 @@ MilkSU 发 macOS、Windows 和 Linux。每一项新产品能力都要为这三�
   或者只存在于这份 checkout 里的二进制。
   Unix domain socket 撑爆 `sockaddr_un` 不是粘 `/tmp` 或 `/private/tmp` 的理由，
   应该在平台临时根目录下把文件名缩短。
-- 路径通过 Go / Electron 平台 API 和现有的 app-data / 文档目录 `MilkSU` 布局解析。
+- 所有 MilkSU 状态收在一个统一根下：默认 `~/.milksu/`（`MILKSU_HOME` 可覆盖，
+  `MILKSU_APPDATA_DIR` 是整个状态根的别名，不再是 data 目录）。根下分
+  `data/`（stores、agent、domain、services、companion、runtime）、`config/`、
+  `workspaces/`、`desktop/`（Electron userData）、`backups/`。
+  路径解析走 `internal/appdata`（Go）和 `desktop/home-root.cjs`（Electron），
+  两边共用同一套 env 语义；旧 app-data 布局由 appdata 的 home 迁移一次性搬进新根，
+  不建 symlink。用户交付物仍在文档目录 `MilkSU` 下，不进状态根。
   临时 / 运行时目录用 `os.TempDir()`、Node `os.tmpdir()`，Linux 用 `$XDG_RUNTIME_DIR`，
   统一走 `internal/hostpath` 和 `sidecar/hostpath.js`。Go、Sidecar 和测试都必须调那个 helper；
   测试不得把 `/private/tmp/milksu-...` 粘成期望的产品路径。

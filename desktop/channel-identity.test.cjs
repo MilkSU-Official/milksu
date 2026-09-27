@@ -156,6 +156,49 @@ test('applyChannelIsolation keeps stable natural userData unless instance isolat
   assert.deepEqual(appLike.names, [STABLE_PRODUCT_NAME])
 })
 
+test('applyChannelIsolation pins stable userData into the home root when provided', () => {
+  const natural = '/Users/x/Library/Application Support/MilkSU'
+  const paths = {
+    appData: '/Users/x/Library/Application Support',
+    userData: natural,
+  }
+  const appLike = {
+    names: [],
+    setName(name) { this.names.push(name) },
+    setPath(key, value) {
+      if (key === 'userData') paths.userData = value
+    },
+    getPath(key) {
+      if (key === 'appData') return paths.appData
+      if (key === 'userData') return paths.userData
+      throw new Error(`unexpected path ${key}`)
+    },
+  }
+
+  const homeRoot = '/Users/x/.milksu'
+  const stable = applyChannelIsolation(channelIdentity('stable'), {
+    app: appLike,
+    instanceId: '',
+    homeRoot,
+  })
+  assert.equal(stable.userData, path.join(homeRoot, 'desktop'))
+  assert.equal(stable.isolatedInstance, false)
+  assert.equal(paths.userData, stable.userData)
+  assert.deepEqual(appLike.names, [STABLE_PRODUCT_NAME])
+
+  // An isolated stable instance keeps the natural + suffix path even when a
+  // home root is around; isolation owns the whole state root separately.
+  paths.userData = natural
+  appLike.names = []
+  const isolated = applyChannelIsolation(channelIdentity('stable'), {
+    app: appLike,
+    instanceId: 'fork-a',
+    homeRoot,
+  })
+  assert.equal(isolated.userData, `${natural}-fork-a`)
+  assert.equal(isolated.isolatedInstance, true)
+})
+
 test('planChannelIsolation is pure and always plans productName for setName', () => {
   const beta = planChannelIsolation(channelIdentity('beta'), {
     appDataPath: '/app-data',
@@ -174,6 +217,16 @@ test('planChannelIsolation is pure and always plans productName for setName', ()
   assert.equal(stable.userData, '/natural')
   assert.equal(stable.pinUserData, false)
   assert.equal(stable.setName, STABLE_PRODUCT_NAME)
+
+  const stableHome = planChannelIsolation(channelIdentity('stable'), {
+    appDataPath: '/app-data',
+    naturalUserDataPath: '/natural',
+    instanceId: '',
+    homeRoot: '/home/.milksu',
+  })
+  assert.equal(stableHome.userData, path.join('/home/.milksu', 'desktop'))
+  assert.equal(stableHome.pinUserData, true)
+  assert.equal(stableHome.isolatedInstance, false)
   assert.notEqual(stable.setName, 'Electron')
   assert.notEqual(beta.setName, 'Electron')
 })

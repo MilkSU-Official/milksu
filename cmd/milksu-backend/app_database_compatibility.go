@@ -17,27 +17,27 @@ func databaseCompatDescriptors() []appdata.DatabaseDescriptor {
 	return []appdata.DatabaseDescriptor{
 		{
 			LogicalName:  "EventStore",
-			RelativePath: "runtime/events.sqlite3",
+			RelativePath: "data/runtime/events.sqlite3",
 			Supported:    securityruntime.SupportedEventStoreDatabaseVersion,
 		},
 		{
 			LogicalName:  "CTF Memory",
-			RelativePath: "ctf/memory.sqlite3",
+			RelativePath: "data/domain/ctf/memory.sqlite3",
 			Supported:    ctf.SupportedCTFMemoryDatabaseVersion,
 		},
 		{
 			LogicalName:  "NSSCTF Catalog",
-			RelativePath: "nssctf/catalog.sqlite3",
+			RelativePath: "data/domain/nssctf/catalog.sqlite3",
 			Supported:    nssctf.SupportedNSSCTFCatalogDatabaseVersion,
 		},
 		{
 			LogicalName:  "CTFshow Catalog",
-			RelativePath: "ctfshow/catalog.sqlite3",
+			RelativePath: "data/domain/ctfshow/catalog.sqlite3",
 			Supported:    ctfshow.SupportedCTFshowCatalogDatabaseVersion,
 		},
 		{
 			LogicalName:  "Coding Agent Usage",
-			RelativePath: "usage/model-usage.sqlite3",
+			RelativePath: "data/stores/usage/model-usage.sqlite3",
 			Supported:    modelusage.SupportedDatabaseVersion,
 		},
 	}

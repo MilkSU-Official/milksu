@@ -39,6 +39,10 @@ const {
   allowedProfilePath: resolveAllowedProfilePath,
   resolveRuntimeAppDataDir,
 } = require('./channel-identity.cjs')
+const {
+  resolveHomeRoot,
+  migrateStableUserDataIntoHome,
+} = require('./home-root.cjs')
 const { loadBuildTrackingView } = require('./build-tracking-view.cjs')
 const {
   AccountSession,
@@ -153,9 +157,11 @@ function findFreePort() {
   return port
 }
 
-// Stable keeps Electron natural userData (existing installs / TCC continuity).
-// Beta always pins a distinct Application Support directory by appId so it can
-// coexist with Stable without MILKSU_INSTANCE_ID and without sharing runtime data.
+// Stable pins Electron userData into the unified MilkSU home root
+// (<homeRoot>/desktop) after migrating the historical natural directory;
+// beta always pins a distinct Application Support directory by appId so it
+// can coexist with Stable without MILKSU_INSTANCE_ID and without sharing
+// runtime data.
 let appNameHint = ''
 try {
   // Packaged beta is named "MilkSU Beta"; package.json name is not channel-aware.
@@ -167,10 +173,22 @@ const desktopChannel = resolveDesktopChannel({
   desktopAppId: process.env.MILKSU_DESKTOP_APP_ID,
 })
 const desktopIdentity = channelIdentity(desktopChannel)
+const milksuHomeRoot = resolveHomeRoot(process.env)
+let stableHomeUserData = ''
+if (desktopIdentity.channel === 'stable' && !process.env.MILKSU_INSTANCE_ID) {
+  // Rename the historical natural userData into <homeRoot>/desktop. On
+  // failure (cross-device, permissions) keep the natural path unpinned so
+  // the install keeps working with its existing profile.
+  stableHomeUserData = migrateStableUserDataIntoHome({
+    homeRoot: milksuHomeRoot,
+    naturalUserDataPath: app.getPath('userData'),
+  }) ? milksuHomeRoot : ''
+}
 // Isolation plan owns a single app.setName side effect (Stable/Beta productName).
 const channelIsolation = applyChannelIsolation(desktopIdentity, {
   app,
   instanceId: process.env.MILKSU_INSTANCE_ID,
+  homeRoot: stableHomeUserData,
 })
 if (!app.requestSingleInstanceLock()) {
   app.exit(0)
@@ -543,13 +561,16 @@ class BrowserShell {
   }
 
   allowedProfilePath(profilePath) {
-    // Stable: historical appData/com.milksu.app (+ explicit MILKSU_APPDATA_DIR).
+    // Stable: unified home workspaces/browser root (+ explicit MILKSU_APPDATA_DIR).
     // Beta / isolated instance: also allow current Electron userData.
     const roots = browserProfileRoots({
       channel: desktopIdentity.channel,
       appDataPath: app.getPath('appData'),
       userDataPath: app.getPath('userData'),
       isolatedInstance: channelIsolation.isolatedInstance,
+      historicalStableRoot: desktopIdentity.channel === 'stable'
+        ? path.join(milksuHomeRoot, 'workspaces', 'browser')
+        : undefined,
       appDataOverride: process.env.MILKSU_APPDATA_DIR,
     })
     return resolveAllowedProfilePath(profilePath, roots)

@@ -51,7 +51,7 @@ func cacheAndroidAPK(ctx context.Context, fetcher apkFetcher, dataDirectory stri
 	if item.ApkURL == "" || item.ApkName == "" || item.ApkSHA256 == "" {
 		return "", fmt.Errorf("练习包没有钉死 APK")
 	}
-	directory := filepath.Join(dataDirectory, "envbroker", "cache")
+	directory := filepath.Join(dataDirectory, "services", "envbroker", "cache")
 	if err := os.MkdirAll(directory, 0o700); err != nil {
 		return "", err
 	}

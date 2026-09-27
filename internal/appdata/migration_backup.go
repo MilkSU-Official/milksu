@@ -80,10 +80,7 @@ func EnsurePreMigrationBackup(
 		PendingDatabaseCount: len(pending),
 		CredentialsIncluded:  false,
 	}
-	directory := filepath.Join(
-		filepath.Dir(root),
-		"."+filepath.Base(root)+migrationBackupDirectorySuffix,
-	)
+	directory := filepath.Join(root, "backups", "migration-backups")
 	if err := ensureMigrationBackupDirectory(directory); err != nil {
 		return result, err
 	}
@@ -273,7 +270,7 @@ func preflightDatabaseMigrations(
 func ensureMigrationBackupDirectory(directory string) error {
 	info, err := os.Lstat(directory)
 	if errors.Is(err, os.ErrNotExist) {
-		if err := os.Mkdir(directory, 0o700); err != nil {
+		if err := os.MkdirAll(directory, 0o700); err != nil {
 			return fmt.Errorf("create migration backup directory: %w", err)
 		}
 		return nil
@@ -406,7 +403,7 @@ func migrationBackupFingerprint(
 // neither opened nor included.
 func fingerprintBackupMetadata(digest hash.Hash, root string) error {
 	roots := append([]string(nil), backupRoots...)
-	roots = append(roots, "settings.json")
+	roots = append(roots, filepath.Join("config", "settings.json"))
 	type entry struct {
 		path    string
 		size    int64

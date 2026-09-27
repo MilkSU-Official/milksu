@@ -46,7 +46,7 @@ func preparedDriverPath(goos string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(root, preparedDriverDirName, driverExecutableName(goos)), nil
+	return filepath.Join(root, "services", preparedDriverDirName, driverExecutableName(goos)), nil
 }
 
 func (manager *Manager) preparedDriverCandidate() string {

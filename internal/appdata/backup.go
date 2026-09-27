@@ -29,25 +29,25 @@ const (
 
 var backupRoots = []string{
 	DataLayoutFile,
-	"conversations",
-	"ctf-workspaces",
-	filepath.Join("ctf", "memories"),
-	filepath.Join("agent-home", "attachments"),
-	filepath.Join("agent-home", "pi", "sessions"),
+	filepath.Join("data", "stores", "conversations"),
+	filepath.Join("workspaces", "ctf-workspaces"),
+	filepath.Join("data", "domain", "ctf", "memories"),
+	filepath.Join("data", "agent", "home", "attachments"),
+	filepath.Join("data", "agent", "home", "pi", "sessions"),
 }
 
 var backupDatabases = []string{
-	filepath.Join("ctf", "memory.sqlite3"),
-	filepath.Join("nssctf", "catalog.sqlite3"),
-	filepath.Join("ctfshow", "catalog.sqlite3"),
-	filepath.Join("runtime", "events.sqlite3"),
-	filepath.Join("usage", "model-usage.sqlite3"),
+	filepath.Join("data", "domain", "ctf", "memory.sqlite3"),
+	filepath.Join("data", "domain", "nssctf", "catalog.sqlite3"),
+	filepath.Join("data", "domain", "ctfshow", "catalog.sqlite3"),
+	filepath.Join("data", "runtime", "events.sqlite3"),
+	filepath.Join("data", "stores", "usage", "model-usage.sqlite3"),
 }
 
 var sensitiveBackupPaths = []string{
-	"credentials.db",
-	filepath.Join("browser", "bridge-pairing.json"),
-	filepath.Join("agent-home", "pi", "auth.json"),
+	filepath.Join("config", "credentials.db"),
+	filepath.Join("workspaces", "browser", "bridge-pairing.json"),
+	filepath.Join("data", "agent", "home", "pi", "auth.json"),
 }
 
 type DataStatus struct {
@@ -504,7 +504,7 @@ func addSanitizedSettings(
 	seen map[string]struct{},
 	manifest *BackupManifest,
 ) error {
-	const relativePath = "settings.json"
+	const relativePath = "config/settings.json"
 	path := filepath.Join(root, relativePath)
 	info, err := os.Lstat(path)
 	if errors.Is(err, os.ErrNotExist) {
@@ -635,6 +635,13 @@ func secureDestination(root, destination string) (string, error) {
 		return "", fmt.Errorf("compare backup destination: %w", err)
 	}
 	if relative == "." || (relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))) {
+		// The unified layout keeps migration safety backups and restore
+		// staging inside <root>/backups; every other in-root destination is
+		// rejected so a backup never nests inside the data it snapshots.
+		backups := filepath.Join("backups")
+		if relative == backups || strings.HasPrefix(relative, backups+string(filepath.Separator)) {
+			return destination, nil
+		}
 		return "", fmt.Errorf("backup destination must be outside the MilkSU data directory")
 	}
 	return destination, nil

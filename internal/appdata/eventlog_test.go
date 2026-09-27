@@ -146,11 +146,11 @@ func TestEventLogRejectsSymlink(t *testing.T) {
 func TestEventLogRejectsSymlinkedRuntimeDirectory(t *testing.T) {
 	root := t.TempDir()
 	outside := t.TempDir()
-	if err := os.Symlink(outside, filepath.Join(root, "runtime")); err != nil {
+	if err := os.Symlink(outside, filepath.Join(root, "data")); err != nil {
 		t.Fatal(err)
 	}
 	if err := AppendEventLog(root, PersistedAppInitialized); err == nil {
-		t.Fatal("expected a symlinked runtime directory to be rejected")
+		t.Fatal("expected a symlinked data directory to be rejected")
 	}
 	if _, err := os.Stat(filepath.Join(outside, "milksu.log")); !os.IsNotExist(err) {
 		t.Fatalf("event log escaped through runtime symlink: %v", err)

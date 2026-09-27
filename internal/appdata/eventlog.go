@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	eventLogRelativePath = "runtime/milksu.log"
+	eventLogRelativePath = "data/runtime/milksu.log"
 	// maxEventLogBytes bounds the active log file; at the cap it is rotated to
 	// milksu.log.1, keeping at most two files on disk.
 	maxEventLogBytes = 1024 * 1024
@@ -85,6 +85,9 @@ func AppendEventLog(root string, event PersistedEvent) error {
 	}
 	eventLogMu.Lock()
 	defer eventLogMu.Unlock()
+	if err := rejectSymlinkParents(root, eventLogRelativePath); err != nil {
+		return err
+	}
 	path := filepath.Join(root, eventLogRelativePath)
 	directory := filepath.Dir(path)
 	if err := ensureEventLogDirectory(directory); err != nil {
@@ -136,7 +139,7 @@ func AppendEventLog(root string, event PersistedEvent) error {
 }
 
 func ensureEventLogDirectory(directory string) error {
-	if err := os.Mkdir(directory, 0o700); err != nil && !errors.Is(err, os.ErrExist) {
+	if err := os.MkdirAll(directory, 0o700); err != nil {
 		return fmt.Errorf("create event log directory: %w", err)
 	}
 	info, err := os.Lstat(directory)

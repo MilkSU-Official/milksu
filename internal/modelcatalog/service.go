@@ -106,7 +106,7 @@ func New(
 		publicURL = publicTokenFluxCatalogURL
 	}
 	service := &Service{
-		cachePath:        filepath.Join(dataDirectory, "model-catalog", "tokenflux.json"),
+		cachePath:        filepath.Join(dataDirectory, "services", "model-catalog", "tokenflux.json"),
 		settings:         settings,
 		client:           client,
 		now:              now,

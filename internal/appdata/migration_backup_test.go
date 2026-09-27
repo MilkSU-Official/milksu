@@ -16,7 +16,7 @@ import (
 
 func TestEnsurePreMigrationBackupSkipsCurrentAndMissingDatabasesWithoutWriting(t *testing.T) {
 	root := t.TempDir()
-	currentPath := filepath.Join(root, "runtime", "events.sqlite3")
+	currentPath := filepath.Join(root, "data", "runtime", "events.sqlite3")
 	if err := os.MkdirAll(filepath.Dir(currentPath), 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -41,10 +41,10 @@ func TestEnsurePreMigrationBackupSkipsCurrentAndMissingDatabasesWithoutWriting(t
 
 func TestEnsurePreMigrationBackupCreatesCredentialFreeBackupAndReusesIt(t *testing.T) {
 	root := t.TempDir()
-	databasePath := filepath.Join(root, "ctf", "memory.sqlite3")
+	databasePath := filepath.Join(root, "data", "domain", "ctf", "memory.sqlite3")
 	createBackupDatabase(t, databasePath)
-	writeBackupFixture(t, filepath.Join(root, "settings.json"), `{"locale":"zh"}`)
-	credentialPath := filepath.Join(root, "credentials.db")
+	writeBackupFixture(t, filepath.Join(root, "config", "settings.json"), `{"locale":"zh"}`)
+	credentialPath := filepath.Join(root, "config", "credentials.db")
 	const syntheticOpaqueCredentialFixture = "synthetic-opaque-credential-fixture"
 	writeBackupFixture(t, credentialPath, syntheticOpaqueCredentialFixture)
 	beforeCredentialHash := fileSHA256(t, credentialPath)
@@ -85,7 +85,7 @@ func TestEnsurePreMigrationBackupCreatesCredentialFreeBackupAndReusesIt(t *testi
 		t.Fatalf("unexpected backup validation: %#v", validation)
 	}
 	names, manifest := readBackupArchive(t, result.Path)
-	if !slices.Contains(names, "data/ctf/memory.sqlite3") {
+	if !slices.Contains(names, "data/data/domain/ctf/memory.sqlite3") {
 		t.Fatalf("migration backup is missing the pending database: %#v", names)
 	}
 	if strings.Contains(strings.Join(names, "\n"), "credentials.db") ||
@@ -170,7 +170,7 @@ func TestEnsurePreMigrationBackupRejectsFutureOrMalformedHistoryBeforeWriting(t 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			root := t.TempDir()
-			path := filepath.Join(root, "runtime", "events.sqlite3")
+			path := filepath.Join(root, "data", "runtime", "events.sqlite3")
 			test.seed(t, path)
 			before := fileSHA256(t, path)
 			result, err := EnsurePreMigrationBackup(
@@ -198,8 +198,8 @@ func TestEnsurePreMigrationBackupRejectsFutureOrMalformedHistoryBeforeWriting(t 
 
 func TestEnsurePreMigrationBackupFailureLeavesNoPartialArchive(t *testing.T) {
 	root := t.TempDir()
-	createBackupDatabase(t, filepath.Join(root, "ctf", "memory.sqlite3"))
-	writeBackupFixture(t, filepath.Join(root, "settings.json"), `{not-json`)
+	createBackupDatabase(t, filepath.Join(root, "data", "domain", "ctf", "memory.sqlite3"))
+	writeBackupFixture(t, filepath.Join(root, "config", "settings.json"), `{not-json`)
 
 	result, err := EnsurePreMigrationBackup(
 		context.Background(),
@@ -222,7 +222,7 @@ func TestEnsurePreMigrationBackupRequiresCompleteBackupAllowlist(t *testing.T) {
 	root := t.TempDir()
 	result, err := EnsurePreMigrationBackup(context.Background(), root, []DatabaseDescriptor{{
 		LogicalName:  "EventStore",
-		RelativePath: "runtime/events.sqlite3",
+		RelativePath: "data/runtime/events.sqlite3",
 		Supported:    1,
 	}})
 	if err == nil || !strings.Contains(err.Error(), "missing database descriptors") {
@@ -235,7 +235,7 @@ func TestEnsurePreMigrationBackupRequiresCompleteBackupAllowlist(t *testing.T) {
 
 func TestEnsurePreMigrationBackupNeverAcceptsCredentialDatabase(t *testing.T) {
 	root := t.TempDir()
-	credentialPath := filepath.Join(root, "credentials.db")
+	credentialPath := filepath.Join(root, "config", "credentials.db")
 	writeBackupFixture(t, credentialPath, "synthetic-opaque-credential-fixture")
 	before := fileSHA256(t, credentialPath)
 	beforeInfo, err := os.Stat(credentialPath)
@@ -254,7 +254,7 @@ func TestEnsurePreMigrationBackupNeverAcceptsCredentialDatabase(t *testing.T) {
 
 	result, err := EnsurePreMigrationBackup(context.Background(), root, []DatabaseDescriptor{{
 		LogicalName:  "Credentials",
-		RelativePath: "credentials.db",
+		RelativePath: "config/credentials.db",
 		Supported:    1,
 	}})
 	if err == nil || !strings.Contains(err.Error(), "cannot participate") {
@@ -276,18 +276,15 @@ func TestEnsurePreMigrationBackupNeverAcceptsCredentialDatabase(t *testing.T) {
 }
 
 func migrationBackupDirectoryForTest(root string) string {
-	return filepath.Join(
-		filepath.Dir(root),
-		"."+filepath.Base(root)+migrationBackupDirectorySuffix,
-	)
+	return filepath.Join(root, "backups", "migration-backups")
 }
 
 func managedMigrationDescriptorsForTest() []DatabaseDescriptor {
 	return []DatabaseDescriptor{
-		{LogicalName: "EventStore", RelativePath: "runtime/events.sqlite3", Supported: 1},
-		{LogicalName: "CTF Memory", RelativePath: "ctf/memory.sqlite3", Supported: 1},
-		{LogicalName: "NSSCTF Catalog", RelativePath: "nssctf/catalog.sqlite3", Supported: 1},
-		{LogicalName: "CTFshow Catalog", RelativePath: "ctfshow/catalog.sqlite3", Supported: 1},
-		{LogicalName: "Coding Agent Usage", RelativePath: "usage/model-usage.sqlite3", Supported: 1},
+		{LogicalName: "EventStore", RelativePath: "data/runtime/events.sqlite3", Supported: 1},
+		{LogicalName: "CTF Memory", RelativePath: "data/domain/ctf/memory.sqlite3", Supported: 1},
+		{LogicalName: "NSSCTF Catalog", RelativePath: "data/domain/nssctf/catalog.sqlite3", Supported: 1},
+		{LogicalName: "CTFshow Catalog", RelativePath: "data/domain/ctfshow/catalog.sqlite3", Supported: 1},
+		{LogicalName: "Coding Agent Usage", RelativePath: "data/stores/usage/model-usage.sqlite3", Supported: 1},
 	}
 }

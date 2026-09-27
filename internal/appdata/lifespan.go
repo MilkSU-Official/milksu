@@ -80,7 +80,10 @@ func BeginLifespan(root string, pid int) (LifespanStart, LifespanHandle, error) 
 	if err != nil {
 		return LifespanStart{}, LifespanHandle{}, err
 	}
-	path := filepath.Join(root, LifespanFile)
+	path, err := lifespanPath(root, true)
+	if err != nil {
+		return LifespanStart{}, LifespanHandle{}, err
+	}
 	previous, readErr := readLifespanState(path)
 
 	start := LifespanStart{
@@ -142,7 +145,10 @@ func MarkCleanExit(root string, handle LifespanHandle) error {
 	if err != nil {
 		return err
 	}
-	path := filepath.Join(root, LifespanFile)
+	path, err := lifespanPath(root, false)
+	if err != nil {
+		return err
+	}
 	state, err := readLifespanState(path)
 	if err != nil {
 		return fmt.Errorf("read lifespan state for clean exit: %w", err)
@@ -176,7 +182,23 @@ func ReadLifespanState(root string) (LifespanState, error) {
 	if err != nil {
 		return LifespanState{}, err
 	}
-	return readLifespanState(filepath.Join(root, LifespanFile))
+	path, err := lifespanPath(root, false)
+	if err != nil {
+		return LifespanState{}, err
+	}
+	return readLifespanState(path)
+}
+
+// lifespanPath resolves the persisted lifespan marker inside the unified
+// state root. The marker lives at data/runtime/lifespan.json.
+func lifespanPath(root string, create bool) (string, error) {
+	directory := filepath.Join(root, "data", "runtime")
+	if create {
+		if err := os.MkdirAll(directory, 0o700); err != nil {
+			return "", fmt.Errorf("create lifespan directory: %w", err)
+		}
+	}
+	return filepath.Join(directory, LifespanFile), nil
 }
 
 func readLifespanState(path string) (LifespanState, error) {

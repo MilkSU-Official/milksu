@@ -351,7 +351,7 @@ func PersistFeedSnapshot(root string, download FeedSnapshotDownload) (FeedSnapsh
 	digest := hex.EncodeToString(sum[:])
 	sourceSlug := feedSnapshotSourceSlug(download.SourceName)
 	timestamp := feedSnapshotTimestamp(download.RetrievedAt, download.LastModified)
-	directory := filepath.Join(root, "vuln", "feed-snapshots", sourceSlug)
+	directory := filepath.Join(root, "domain", "vuln", "feed-snapshots", sourceSlug)
 	if err := os.MkdirAll(directory, 0o700); err != nil {
 		return FeedSnapshotDownload{}, fmt.Errorf("create vulnerability feed snapshot directory: %w", err)
 	}

@@ -276,8 +276,10 @@ func New(root string) (*Manager, error) {
 	return NewWithCodingHost(root, nil)
 }
 
+// NewWithCodingHost opens the browser capability manager at the isolated
+// browser profile root (<state root>/workspaces/browser). The caller owns the
+// root's placement; the manager does not re-anchor it.
 func NewWithCodingHost(root string, codingHost CodingHost) (*Manager, error) {
-	root = filepath.Join(root, "browser")
 	if err := os.MkdirAll(root, 0o700); err != nil {
 		return nil, fmt.Errorf("create browser capability root: %w", err)
 	}

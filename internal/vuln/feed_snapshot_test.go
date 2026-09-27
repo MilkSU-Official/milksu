@@ -25,7 +25,7 @@ func TestPersistFeedSnapshotStoresRawJSONWithAuditMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PersistFeedSnapshot() error = %v", err)
 	}
-	if !strings.HasPrefix(download.SnapshotPath, filepath.Join(root, "vuln", "feed-snapshots", "cisa-kev")) {
+	if !strings.HasPrefix(download.SnapshotPath, filepath.Join(root, "domain", "vuln", "feed-snapshots", "cisa-kev")) {
 		t.Fatalf("snapshot path escaped app data directory: %q", download.SnapshotPath)
 	}
 	if !strings.Contains(filepath.Base(download.SnapshotPath), "20260804T070809Z-") {

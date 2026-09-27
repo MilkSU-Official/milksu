@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/MilkSU-Official/milksu/internal/appdata"
 	"github.com/MilkSU-Official/milksu/internal/config"
 	"github.com/MilkSU-Official/milksu/internal/hostpath"
 )
@@ -2608,11 +2609,11 @@ func TestSidecarEnvironmentPinsFirstPartyPluginMCPLauncher(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runtimeHome, err := sidecarRuntimeHome()
+	homeRoot, err := appdata.Home()
 	if err != nil {
 		t.Fatal(err)
 	}
-	dataDirectory, err := filepath.EvalSymlinks(filepath.Dir(runtimeHome))
+	dataDirectory, err := filepath.EvalSymlinks(homeRoot)
 	if err != nil {
 		t.Fatal(err)
 	}

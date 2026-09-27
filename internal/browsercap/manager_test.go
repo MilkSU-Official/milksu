@@ -279,7 +279,7 @@ func TestCurrentTabBridgePairingSurvivesApplicationRestart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pairingPath := filepath.Join(root, "browser", "bridge-pairing.json")
+	pairingPath := filepath.Join(root, "bridge-pairing.json")
 	pairingStat, err := os.Stat(pairingPath)
 	if err != nil {
 		t.Fatal(err)

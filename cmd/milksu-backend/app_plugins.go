@@ -22,7 +22,7 @@ func newPluginRegistry(dataDirectory string) (*pluginruntime.Registry, error) {
 	}
 	options := pluginruntime.Options{
 		OfficialDirectory:  officialDirectory,
-		InstalledDirectory: filepath.Join(dataDirectory, "plugins", "installed"),
+		InstalledDirectory: filepath.Join(dataDirectory, "services", "plugins", "installed"),
 		DataDirectory:      dataDirectory,
 		DevelopmentMode:    pluginruntime.DevelopmentModeFromEnvironment(),
 		HostVersion:        pluginHostVersion(),

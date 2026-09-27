@@ -158,7 +158,7 @@ func TestLifespanFilePermissionsAndLayout(t *testing.T) {
 	if _, _, err := BeginLifespan(root, 9); err != nil {
 		t.Fatal(err)
 	}
-	info, err := os.Stat(filepath.Join(root, LifespanFile))
+	info, err := os.Stat(lifespanMarkerPath(root))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -167,7 +167,7 @@ func TestLifespanFilePermissionsAndLayout(t *testing.T) {
 	if runtime.GOOS != "windows" && info.Mode().Perm() != 0o600 {
 		t.Fatalf("lifespan file permissions = %o, want 600", info.Mode().Perm())
 	}
-	payload, err := os.ReadFile(filepath.Join(root, LifespanFile))
+	payload, err := os.ReadFile(lifespanMarkerPath(root))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -192,7 +192,10 @@ func TestLifespanRejectsSymlink(t *testing.T) {
 	if err := os.WriteFile(target, []byte(`{"schema":"milksu-lifespan/v1","lastExit":"clean"}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Symlink(target, filepath.Join(root, LifespanFile)); err != nil {
+	if err := os.MkdirAll(filepath.Dir(lifespanMarkerPath(root)), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, lifespanMarkerPath(root)); err != nil {
 		t.Fatal(err)
 	}
 	if _, _, err := BeginLifespan(root, 5); err == nil {
@@ -205,6 +208,9 @@ func TestLifespanRejectsSymlink(t *testing.T) {
 
 func TestLifespanRejectsCorruptOrForeignFile(t *testing.T) {
 	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Dir(lifespanMarkerPath(root)), 0o700); err != nil {
+		t.Fatal(err)
+	}
 	cases := map[string]string{
 		"corrupt.json":  `{"schema":`,
 		"foreign.json":  `{"schema":"other/v2","lastExit":"clean"}`,
@@ -215,7 +221,7 @@ func TestLifespanRejectsCorruptOrForeignFile(t *testing.T) {
 	for name, payload := range cases {
 		t.Run(name, func(t *testing.T) {
 			if err := os.WriteFile(
-				filepath.Join(root, LifespanFile),
+				lifespanMarkerPath(root),
 				[]byte(payload),
 				0o600,
 			); err != nil {
@@ -226,4 +232,8 @@ func TestLifespanRejectsCorruptOrForeignFile(t *testing.T) {
 			}
 		})
 	}
+}
+
+func lifespanMarkerPath(root string) string {
+	return filepath.Join(root, "data", "runtime", LifespanFile)
 }

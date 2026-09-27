@@ -9,7 +9,7 @@ import (
 
 func writeSnapshotFixture(t *testing.T, root string, name string) string {
 	t.Helper()
-	directory := filepath.Join(root, "vuln", "feed-snapshots", "nvd")
+	directory := filepath.Join(root, "domain", "vuln", "feed-snapshots", "nvd")
 	if err := os.MkdirAll(directory, 0o700); err != nil {
 		t.Fatalf("create snapshot directory: %v", err)
 	}
@@ -44,7 +44,7 @@ func TestResolveFeedSnapshotPathRejectsEscapeAndSymlink(t *testing.T) {
 		t.Fatalf("expected escaped path rejection, got %v", err)
 	}
 
-	directory := filepath.Join(root, "vuln", "feed-snapshots", "nvd")
+	directory := filepath.Join(root, "domain", "vuln", "feed-snapshots", "nvd")
 	if err := os.MkdirAll(directory, 0o700); err != nil {
 		t.Fatalf("create snapshot directory: %v", err)
 	}
@@ -69,7 +69,7 @@ func TestResolveFeedSnapshotPathRejectsRelativeNonJSONAndDirectory(t *testing.T)
 		!strings.Contains(err.Error(), "JSON") {
 		t.Fatalf("expected non-JSON rejection, got %v", err)
 	}
-	directory := filepath.Join(root, "vuln", "feed-snapshots", "nvd", "20260804T070809Z-directory.json")
+	directory := filepath.Join(root, "domain", "vuln", "feed-snapshots", "nvd", "20260804T070809Z-directory.json")
 	if err := os.MkdirAll(directory, 0o700); err != nil {
 		t.Fatalf("create directory fixture: %v", err)
 	}

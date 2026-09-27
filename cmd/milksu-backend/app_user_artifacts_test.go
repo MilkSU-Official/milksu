@@ -22,9 +22,10 @@ func TestResolveConversationWorkspaceSeparatesCodingAndCVEArtifacts(t *testing.T
 	}
 	artifactDirectory := filepath.Join(t.TempDir(), "Documents", "MilkSU")
 	app := &App{
-		dataDirectory:     dataDirectory,
-		artifactDirectory: artifactDirectory,
-		conversations:     conversations,
+		dataDirectory:       dataDirectory,
+		workspacesDirectory: filepath.Join(dataDirectory, "workspaces"),
+		artifactDirectory:   artifactDirectory,
+		conversations:       conversations,
 	}
 
 	for _, test := range []struct {
@@ -40,7 +41,7 @@ func TestResolveConversationWorkspaceSeparatesCodingAndCVEArtifacts(t *testing.T
 				ID: "coding-one", Title: "分析登录回调", Messages: []conversation.StoredMessage{},
 			},
 			wantSection: string(userartifact.KindCoding),
-			wantRoot:    filepath.Join(dataDirectory, "agent-workspaces"),
+			wantRoot:    filepath.Join(dataDirectory, "workspaces", "agent-workspaces"),
 		},
 		{
 			name: "cve",
@@ -237,10 +238,11 @@ func TestResolveImageConversationWorkspaceDropsProjectBinding(t *testing.T) {
 	supervisor := engine.NewSupervisor(nil)
 	supervisor.BindSessionWorkspace("draw-bound", repository)
 	app := &App{
-		dataDirectory:     dataDirectory,
-		artifactDirectory: filepath.Join(t.TempDir(), "Documents", "MilkSU"),
-		conversations:     conversations,
-		engines:           supervisor,
+		dataDirectory:       dataDirectory,
+		workspacesDirectory: filepath.Join(dataDirectory, "workspaces"),
+		artifactDirectory:   filepath.Join(t.TempDir(), "Documents", "MilkSU"),
+		conversations:       conversations,
+		engines:             supervisor,
 	}
 	workspace, err := app.resolveConversationWorkspace("draw-bound", repository)
 	if err != nil {

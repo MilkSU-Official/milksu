@@ -32,7 +32,7 @@ func (testProbe) Output(context.Context, string, ...string) (string, error) {
 
 func TestReadyCapaEntersRuntimeCatalogAndCanBeDisabled(t *testing.T) {
 	dataDirectory := t.TempDir()
-	command := filepath.Join(dataDirectory, "security-tools", ToolCapa, capaVersion, "capa")
+	command := filepath.Join(dataDirectory, "services", "security-tools", ToolCapa, capaVersion, "capa")
 	if err := os.MkdirAll(filepath.Dir(command), 0o700); err != nil {
 		t.Fatal(err)
 	}

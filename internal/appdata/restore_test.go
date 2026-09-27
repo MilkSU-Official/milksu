@@ -17,11 +17,11 @@ func TestBackupRestoreRoundTripPreservesCredentialsAndCreatesRollback(t *testing
 	)
 	writeBackupFixture(
 		t,
-		filepath.Join(backupRoot, "settings.json"),
+		filepath.Join(backupRoot, "config", "settings.json"),
 		`{"locale":"zh","providers":{"deepseek":{"api_key":"must-not-restore","has_api_key":true}}}`,
 	)
-	writeBackupFixture(t, filepath.Join(backupRoot, "conversations", "restored.json"), `{"id":"restored"}`)
-	writeBackupFixture(t, filepath.Join(backupRoot, "ctf-workspaces", "job", "notes.md"), "restored evidence")
+	writeBackupFixture(t, filepath.Join(backupRoot, "data", "stores", "conversations", "restored.json"), `{"id":"restored"}`)
+	writeBackupFixture(t, filepath.Join(backupRoot, "workspaces", "ctf-workspaces", "job", "notes.md"), "restored evidence")
 	archive := filepath.Join(t.TempDir(), "backup.zip")
 	if _, err := ExportBackup(context.Background(), backupRoot, archive); err != nil {
 		t.Fatal(err)
@@ -33,12 +33,12 @@ func TestBackupRestoreRoundTripPreservesCredentialsAndCreatesRollback(t *testing
 		filepath.Join(liveRoot, DataLayoutFile),
 		`{"schema":"milksu-data-layout/v1","version":1,"updatedAt":"2026-08-02T01:00:00Z"}`,
 	)
-	writeBackupFixture(t, filepath.Join(liveRoot, "settings.json"), `{"locale":"en"}`)
-	writeBackupFixture(t, filepath.Join(liveRoot, "conversations", "current.json"), `{"id":"current"}`)
-	writeBackupFixture(t, filepath.Join(liveRoot, "credentials.db"), "provider-secret")
-	writeBackupFixture(t, filepath.Join(liveRoot, "browser", "bridge-pairing.json"), "pairing-secret")
-	writeBackupFixture(t, filepath.Join(liveRoot, "agent-home", "pi", "auth.json"), "pi-secret")
-	writeBackupFixture(t, filepath.Join(liveRoot, "ctf", "memory.sqlite3-wal"), "stale-wal")
+	writeBackupFixture(t, filepath.Join(liveRoot, "config", "settings.json"), `{"locale":"en"}`)
+	writeBackupFixture(t, filepath.Join(liveRoot, "data", "stores", "conversations", "current.json"), `{"id":"current"}`)
+	writeBackupFixture(t, filepath.Join(liveRoot, "config", "credentials.db"), "provider-secret")
+	writeBackupFixture(t, filepath.Join(liveRoot, "workspaces", "browser", "bridge-pairing.json"), "pairing-secret")
+	writeBackupFixture(t, filepath.Join(liveRoot, "data", "agent", "home", "pi", "auth.json"), "pi-secret")
+	writeBackupFixture(t, filepath.Join(liveRoot, "data", "domain", "ctf", "memory.sqlite3-wal"), "stale-wal")
 
 	staged, err := StageBackupRestore(liveRoot, archive)
 	if err != nil {
@@ -54,18 +54,18 @@ func TestBackupRestoreRoundTripPreservesCredentialsAndCreatesRollback(t *testing
 	if !result.Applied || result.FileCount != staged.FileCount || result.RollbackPath == "" {
 		t.Fatalf("unexpected restore result: %#v", result)
 	}
-	assertBackupFixture(t, filepath.Join(liveRoot, "conversations", "restored.json"), `{"id":"restored"}`)
-	if _, err := os.Stat(filepath.Join(liveRoot, "conversations", "current.json")); !os.IsNotExist(err) {
+	assertBackupFixture(t, filepath.Join(liveRoot, "data", "stores", "conversations", "restored.json"), `{"id":"restored"}`)
+	if _, err := os.Stat(filepath.Join(liveRoot, "data", "stores", "conversations", "current.json")); !os.IsNotExist(err) {
 		t.Fatalf("current conversation was not replaced: %v", err)
 	}
-	assertBackupFixture(t, filepath.Join(liveRoot, "ctf-workspaces", "job", "notes.md"), "restored evidence")
-	assertBackupFixture(t, filepath.Join(liveRoot, "credentials.db"), "provider-secret")
-	assertBackupFixture(t, filepath.Join(liveRoot, "browser", "bridge-pairing.json"), "pairing-secret")
-	assertBackupFixture(t, filepath.Join(liveRoot, "agent-home", "pi", "auth.json"), "pi-secret")
-	if _, err := os.Stat(filepath.Join(liveRoot, "ctf", "memory.sqlite3-wal")); !os.IsNotExist(err) {
+	assertBackupFixture(t, filepath.Join(liveRoot, "workspaces", "ctf-workspaces", "job", "notes.md"), "restored evidence")
+	assertBackupFixture(t, filepath.Join(liveRoot, "config", "credentials.db"), "provider-secret")
+	assertBackupFixture(t, filepath.Join(liveRoot, "workspaces", "browser", "bridge-pairing.json"), "pairing-secret")
+	assertBackupFixture(t, filepath.Join(liveRoot, "data", "agent", "home", "pi", "auth.json"), "pi-secret")
+	if _, err := os.Stat(filepath.Join(liveRoot, "data", "domain", "ctf", "memory.sqlite3-wal")); !os.IsNotExist(err) {
 		t.Fatalf("stale SQLite WAL survived restore: %v", err)
 	}
-	settings, err := os.ReadFile(filepath.Join(liveRoot, "settings.json"))
+	settings, err := os.ReadFile(filepath.Join(liveRoot, "config", "settings.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,10 +74,10 @@ func TestBackupRestoreRoundTripPreservesCredentialsAndCreatesRollback(t *testing
 	}
 	assertBackupFixture(
 		t,
-		filepath.Join(result.RollbackPath, "conversations", "current.json"),
+		filepath.Join(result.RollbackPath, "data", "stores", "conversations", "current.json"),
 		`{"id":"current"}`,
 	)
-	assertBackupFixture(t, filepath.Join(result.RollbackPath, "ctf", "memory.sqlite3-wal"), "stale-wal")
+	assertBackupFixture(t, filepath.Join(result.RollbackPath, "data", "domain", "ctf", "memory.sqlite3-wal"), "stale-wal")
 	if _, err := os.Stat(filepath.Join(result.RollbackPath, "applied-backup.zip")); err != nil {
 		t.Fatalf("applied backup was not retained with rollback snapshot: %v", err)
 	}
@@ -91,7 +91,7 @@ func TestStageBackupRestoreRejectsFutureDataLayout(t *testing.T) {
 	writeBackupFixture(
 		t,
 		filepath.Join(backupRoot, DataLayoutFile),
-		`{"schema":"milksu-data-layout/v1","version":2,"updatedAt":"2026-08-02T00:00:00Z"}`,
+		`{"schema":"milksu-data-layout/v1","version":3,"updatedAt":"2026-08-02T00:00:00Z"}`,
 	)
 	writeBackupFixture(t, filepath.Join(backupRoot, "conversations", "one.json"), `{"id":"one"}`)
 	archive := filepath.Join(t.TempDir(), "future.zip")
@@ -117,12 +117,15 @@ func TestApplyPendingRestoreRecoversInterruptedTransactionFirst(t *testing.T) {
 		filepath.Join(root, DataLayoutFile),
 		`{"schema":"milksu-data-layout/v1","version":1,"updatedAt":"2026-08-02T00:00:00Z"}`,
 	)
-	writeBackupFixture(t, filepath.Join(root, "conversations", "original.json"), `{"id":"original"}`)
-	stageDirectory, err := os.MkdirTemp(filepath.Dir(root), ".milksu-restore-stage-*")
+	writeBackupFixture(t, filepath.Join(root, "data", "stores", "conversations", "original.json"), `{"id":"original"}`)
+	if err := os.MkdirAll(filepath.Join(root, "backups"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	stageDirectory, err := os.MkdirTemp(filepath.Join(root, "backups"), ".milksu-restore-stage-*")
 	if err != nil {
 		t.Fatal(err)
 	}
-	rollbackDirectory, err := os.MkdirTemp(filepath.Dir(root), ".milksu-restore-rollback-*")
+	rollbackDirectory, err := os.MkdirTemp(filepath.Join(root, "backups"), ".milksu-restore-rollback-*")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,19 +135,19 @@ func TestApplyPendingRestoreRecoversInterruptedTransactionFirst(t *testing.T) {
 		paths = append(paths, restoreTransactionPath{
 			Path:      filepath.ToSlash(relativePath),
 			HadTarget: statErr == nil,
-			Touched:   filepath.Clean(relativePath) == "conversations",
+			Touched:   filepath.Clean(relativePath) == filepath.Join("data", "stores", "conversations"),
 		})
 	}
-	if err := os.MkdirAll(filepath.Join(rollbackDirectory), 0o700); err != nil {
+	if err := os.MkdirAll(filepath.Join(rollbackDirectory, "data", "stores"), 0o700); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.Rename(
-		filepath.Join(root, "conversations"),
-		filepath.Join(rollbackDirectory, "conversations"),
+		filepath.Join(root, "data", "stores", "conversations"),
+		filepath.Join(rollbackDirectory, "data", "stores", "conversations"),
 	); err != nil {
 		t.Fatal(err)
 	}
-	writeBackupFixture(t, filepath.Join(root, "conversations", "partial.json"), `{"id":"partial"}`)
+	writeBackupFixture(t, filepath.Join(root, "data", "stores", "conversations", "partial.json"), `{"id":"partial"}`)
 	if err := writeRestoreTransaction(root, restoreTransaction{
 		Schema:            restoreTransactionSchema,
 		Phase:             "applying",
@@ -161,8 +164,8 @@ func TestApplyPendingRestoreRecoversInterruptedTransactionFirst(t *testing.T) {
 	if result.Applied || !result.RecoveredFirst {
 		t.Fatalf("unexpected recovery result: %#v", result)
 	}
-	assertBackupFixture(t, filepath.Join(root, "conversations", "original.json"), `{"id":"original"}`)
-	if _, err := os.Stat(filepath.Join(root, "conversations", "partial.json")); !os.IsNotExist(err) {
+	assertBackupFixture(t, filepath.Join(root, "data", "stores", "conversations", "original.json"), `{"id":"original"}`)
+	if _, err := os.Stat(filepath.Join(root, "data", "stores", "conversations", "partial.json")); !os.IsNotExist(err) {
 		t.Fatalf("partial restore survived recovery: %v", err)
 	}
 }
@@ -174,7 +177,7 @@ func TestApplyPendingRestoreRejectsSymlinkParentsWithoutTouchingExternalData(t *
 		filepath.Join(backupRoot, DataLayoutFile),
 		`{"schema":"milksu-data-layout/v1","version":1,"updatedAt":"2026-08-02T00:00:00Z"}`,
 	)
-	writeBackupFixture(t, filepath.Join(backupRoot, "ctf", "memories", "restored.json"), `{"id":"restored"}`)
+	writeBackupFixture(t, filepath.Join(backupRoot, "data", "domain", "ctf", "memories", "restored.json"), `{"id":"restored"}`)
 	archive := filepath.Join(t.TempDir(), "backup.zip")
 	if _, err := ExportBackup(context.Background(), backupRoot, archive); err != nil {
 		t.Fatal(err)
@@ -184,7 +187,7 @@ func TestApplyPendingRestoreRejectsSymlinkParentsWithoutTouchingExternalData(t *
 	writeBackupFixture(t, filepath.Join(root, DataLayoutFile), originalLayout)
 	external := t.TempDir()
 	writeBackupFixture(t, filepath.Join(external, "sentinel"), "keep")
-	if err := os.Symlink(external, filepath.Join(root, "ctf")); err != nil {
+	if err := os.Symlink(external, filepath.Join(root, "data")); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := StageBackupRestore(root, archive); err != nil {

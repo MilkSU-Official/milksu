@@ -31,7 +31,7 @@ func ResolveFeedSnapshotPath(root string, snapshotPath string) (string, error) {
 	if !filepath.IsAbs(snapshotPath) {
 		return "", fmt.Errorf("resolve CVE Feed snapshot: snapshot path must be absolute")
 	}
-	base := filepath.Join(root, "vuln", "feed-snapshots")
+	base := filepath.Join(root, "domain", "vuln", "feed-snapshots")
 	cleanBase := filepath.Clean(base)
 	cleanSnapshot := filepath.Clean(snapshotPath)
 	if filepath.Ext(cleanSnapshot) != ".json" {

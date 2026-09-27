@@ -47,7 +47,11 @@ func sidecarEnvironment(settings config.AppSettings) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("resolve first-party Plugin MCP command: %w", err)
 	}
-	pluginMCPAppData, err := filepath.EvalSymlinks(filepath.Dir(runtimeHome))
+	pluginMCPAppData, err := appdata.Home()
+	if err != nil {
+		return nil, fmt.Errorf("resolve first-party Plugin MCP data directory: %w", err)
+	}
+	pluginMCPAppData, err = filepath.EvalSymlinks(pluginMCPAppData)
 	if err != nil {
 		return nil, fmt.Errorf("resolve first-party Plugin MCP data directory: %w", err)
 	}
@@ -453,7 +457,7 @@ func regularFile(path string) bool {
 }
 
 func sidecarWorkspace() (string, error) {
-	directory, err := appdata.Ensure()
+	directory, err := appdata.WorkspacesDirectory()
 	if err != nil {
 		return "", err
 	}
@@ -475,7 +479,7 @@ func sidecarRuntimeHome() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	runtimeHome := filepath.Join(directory, "agent-home")
+	runtimeHome := filepath.Join(directory, "agent", "home")
 	if err := os.MkdirAll(runtimeHome, 0o700); err != nil {
 		return "", fmt.Errorf("create Sidecar runtime home: %w", err)
 	}

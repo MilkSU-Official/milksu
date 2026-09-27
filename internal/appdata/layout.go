@@ -11,9 +11,11 @@ import (
 )
 
 const (
-	DataLayoutFile           = "data-layout.json"
-	DataLayoutSchema         = "milksu-data-layout/v1"
-	CurrentDataLayoutVersion = 1
+	DataLayoutFile   = "data-layout.json"
+	DataLayoutSchema = "milksu-data-layout/v1"
+	// Version 2 is the unified ~/.milksu layout: the marker lives at the
+	// state root and every managed path is root-relative.
+	CurrentDataLayoutVersion = 2
 	maxDataLayoutBytes       = 16 * 1024
 )
 
@@ -81,6 +83,11 @@ func migrateDataLayout(directory string, fromVersion, toVersion int) error {
 		// Existing M3 data stores already run their own idempotent SQLite and
 		// file migrations. Version 1 records that legacy user data has crossed
 		// the application-level compatibility boundary without moving it.
+		return nil
+	case fromVersion == 1 && toVersion == 2:
+		// The unified ~/.milksu layout is established by migrateLegacyHome
+		// before the version-2 marker is written; a root that already carries
+		// a version-1 marker needs no further moves.
 		return nil
 	default:
 		return fmt.Errorf(

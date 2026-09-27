@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	restoreDirectoryName     = "restore"
+	restoreDirectoryName     = "backups/restore"
 	pendingRestoreName       = "pending.zip"
 	restoreTransactionName   = "transaction.json"
 	restoreResultName        = "last-result.json"
@@ -26,12 +26,12 @@ const (
 var restoreManagedPaths = func() []string {
 	values := []string{
 		DataLayoutFile,
-		"settings.json",
-		"conversations",
-		"ctf-workspaces",
-		filepath.Join("ctf", "memories"),
-		filepath.Join("agent-home", "attachments"),
-		filepath.Join("agent-home", "pi", "sessions"),
+		filepath.Join("config", "settings.json"),
+		filepath.Join("data", "stores", "conversations"),
+		filepath.Join("workspaces", "ctf-workspaces"),
+		filepath.Join("data", "domain", "ctf", "memories"),
+		filepath.Join("data", "agent", "home", "attachments"),
+		filepath.Join("data", "agent", "home", "pi", "sessions"),
 	}
 	for _, databasePath := range backupDatabases {
 		values = append(
@@ -46,11 +46,11 @@ var restoreManagedPaths = func() []string {
 }()
 
 var restoreManagedDirectoryPaths = []string{
-	"conversations",
-	"ctf-workspaces",
-	filepath.Join("ctf", "memories"),
-	filepath.Join("agent-home", "attachments"),
-	filepath.Join("agent-home", "pi", "sessions"),
+	filepath.Join("data", "stores", "conversations"),
+	filepath.Join("workspaces", "ctf-workspaces"),
+	filepath.Join("data", "domain", "ctf", "memories"),
+	filepath.Join("data", "agent", "home", "attachments"),
+	filepath.Join("data", "agent", "home", "pi", "sessions"),
 }
 
 type BackupRestoreStage struct {
@@ -189,7 +189,7 @@ func ApplyPendingRestore(root string) (BackupRestoreResult, error) {
 	if err := validateBackupDataLayout(pendingPath); err != nil {
 		return BackupRestoreResult{}, err
 	}
-	stageDirectory, err := os.MkdirTemp(filepath.Dir(root), ".milksu-restore-stage-*")
+	stageDirectory, err := os.MkdirTemp(filepath.Join(root, "backups"), ".milksu-restore-stage-*")
 	if err != nil {
 		return BackupRestoreResult{}, fmt.Errorf("create restore staging directory: %w", err)
 	}
@@ -200,7 +200,7 @@ func ApplyPendingRestore(root string) (BackupRestoreResult, error) {
 	if err := extractBackupData(pendingPath, stageDirectory); err != nil {
 		return BackupRestoreResult{}, err
 	}
-	rollbackDirectory, err := os.MkdirTemp(filepath.Dir(root), ".milksu-restore-rollback-*")
+	rollbackDirectory, err := os.MkdirTemp(filepath.Join(root, "backups"), ".milksu-restore-rollback-*")
 	if err != nil {
 		return BackupRestoreResult{}, fmt.Errorf("create restore rollback directory: %w", err)
 	}
@@ -563,7 +563,7 @@ func extractBackupData(path, destination string) error {
 
 func managedBackupPath(path string) bool {
 	path = filepath.Clean(path)
-	if path == DataLayoutFile || path == "settings.json" {
+	if path == DataLayoutFile || path == filepath.Join("config", "settings.json") {
 		return true
 	}
 	for _, databasePath := range backupDatabases {
@@ -598,7 +598,7 @@ func ensureRestoreDirectory(root string) (string, error) {
 		}
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return "", fmt.Errorf("inspect restore state directory: %w", err)
-	} else if err := os.Mkdir(path, 0o700); err != nil {
+	} else if err := os.MkdirAll(path, 0o700); err != nil {
 		return "", fmt.Errorf("create restore state directory: %w", err)
 	}
 	if err := os.Chmod(path, 0o700); err != nil {
@@ -703,7 +703,7 @@ func readRestoreTransaction(root string) (restoreTransaction, error) {
 
 func validateRestoreWorkDirectory(root, path, prefix string) (string, error) {
 	path = filepath.Clean(path)
-	parent := filepath.Clean(filepath.Dir(root))
+	parent := filepath.Join(root, "backups")
 	if filepath.Dir(path) != parent || !strings.HasPrefix(filepath.Base(path), prefix) {
 		return "", fmt.Errorf("restore work directory is outside the expected location")
 	}

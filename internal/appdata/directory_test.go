@@ -6,9 +6,10 @@ import (
 	"testing"
 )
 
-func TestDirectoryLivesUnderCurrentUserConfigDirectory(t *testing.T) {
+func TestDirectoryLivesUnderUnifiedHome(t *testing.T) {
 	t.Setenv(DirectoryOverrideEnv, "")
-	base, err := os.UserConfigDir()
+	t.Setenv(HomeOverrideEnv, "")
+	home, err := os.UserHomeDir()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -16,22 +17,25 @@ func TestDirectoryLivesUnderCurrentUserConfigDirectory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expected := filepath.Join(base, BundleIdentifier)
+	expected := filepath.Join(home, ".milksu", "data")
 	if directory != expected {
-		t.Fatalf("app data directory = %q, want user-owned path %q", directory, expected)
+		t.Fatalf("app data directory = %q, want unified home path %q", directory, expected)
 	}
 }
 
 func TestDirectoryCanUseExplicitIsolatedOverride(t *testing.T) {
 	override := filepath.Join(t.TempDir(), "milksu-appdata")
 	t.Setenv(DirectoryOverrideEnv, override)
+	t.Setenv(HomeOverrideEnv, "")
 
 	directory, err := Directory()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if directory != override {
-		t.Fatalf("app data directory = %q, want override %q", directory, override)
+	// The override names the whole state root, not the data directory.
+	expected := filepath.Join(override, "data")
+	if directory != expected {
+		t.Fatalf("app data directory = %q, want override data path %q", directory, expected)
 	}
 }
 

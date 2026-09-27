@@ -15,21 +15,24 @@ import (
 
 func TestExportDiagnosticsReportsHealthWithoutCopyingSecrets(t *testing.T) {
 	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "config"), 0o700); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.WriteFile(
-		filepath.Join(root, "settings.json"),
+		filepath.Join(root, "config", "settings.json"),
 		[]byte(`{"api_key":"must-not-leak"}`),
 		0o600,
 	); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(
-		filepath.Join(root, "credentials.db"),
+		filepath.Join(root, "config", "credentials.db"),
 		[]byte("credential-payload-must-not-leak"),
 		0o600,
 	); err != nil {
 		t.Fatal(err)
 	}
-	memoryPath := filepath.Join(root, "ctf", "memory.sqlite3")
+	memoryPath := filepath.Join(root, "data", "domain", "ctf", "memory.sqlite3")
 	if err := os.MkdirAll(filepath.Dir(memoryPath), 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -119,9 +122,9 @@ func TestExportDiagnosticsReportsHealthWithoutCopyingSecrets(t *testing.T) {
 	var credentialHealth, memoryHealth *DiagnosticDatabase
 	for index := range report.Databases {
 		switch report.Databases[index].Path {
-		case "credentials.db":
+		case "config/credentials.db":
 			credentialHealth = &report.Databases[index]
-		case "ctf/memory.sqlite3":
+		case "data/domain/ctf/memory.sqlite3":
 			memoryHealth = &report.Databases[index]
 		}
 	}
@@ -148,7 +151,7 @@ func TestExportDiagnosticsReportsHealthWithoutCopyingSecrets(t *testing.T) {
 
 func TestExportDiagnosticsDoesNotCopyRuntimeLogsOrRawToolOutput(t *testing.T) {
 	root := t.TempDir()
-	logPath := filepath.Join(root, "runtime", "milksu.log")
+	logPath := filepath.Join(root, "data", "runtime", "milksu.log")
 	if err := os.MkdirAll(filepath.Dir(logPath), 0o700); err != nil {
 		t.Fatal(err)
 	}

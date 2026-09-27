@@ -70,7 +70,7 @@ func NewService(send Sender, abort Aborter, emit func(BoardSnapshot)) (*Service,
 	if err != nil {
 		return nil, err
 	}
-	root := filepath.Join(base, "evalsuite", "runs")
+	root := filepath.Join(base, "domain", "evalsuite", "runs")
 	if err := os.MkdirAll(root, 0o700); err != nil {
 		return nil, fmt.Errorf("create eval run directory: %w", err)
 	}

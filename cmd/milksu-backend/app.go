@@ -46,44 +46,46 @@ import (
 
 // App is the thin L1 desktop adapter. Domain code must not depend on the desktop shell.
 type App struct {
-	ctx               context.Context
-	host              desktopHost
-	dataDirectory     string
-	artifactDirectory string
-	diagnostics       *appdata.DiagnosticRecorder
-	settings          *config.Store
-	conversations     *conversation.Store
-	labJobs           *lab.Store
-	envBroker         *envbroker.Service
-	codingFiles       *codingattachment.Store
-	codingCollab      *codingcollab.Manager
-	ctfMaterials      *localCTFMaterialStore
-	codingTerminals   *codingterminal.Manager
-	codingProjects    *codingworkspace.Store
-	codingPRs         *codingenv.PullRequestPublisher
-	computerUse       *computercap.Manager
-	engines           *engine.Supervisor
-	securityTools     *securitytools.Service
-	codingTools       *codingtools.Service
-	agentResources    *agentresources.Store
-	modelCatalog      *modelcatalog.Service
-	modelUsage        *modelusage.Store
-	pluginRegistry    *pluginruntime.Registry
-	nssctf            *nssctf.Client
-	nssctfCatalog     *nssctf.CatalogService
-	ctfshowCatalog    *ctfshow.CatalogService
-	nssctfArena       *nssctf.ArenaClient
-	browserBridge     *browsercap.Manager
-	jobs              *securityruntime.Service
-	ctfJobs           *ctf.Service
-	ctfAgent          *ctfAgentRecorder
-	ctfMemory         *ctf.MemoryStore
-	vulnJobs          *vuln.Service
-	sessionIndex      *sessionindex.Store
-	companion         *companion.Runtime
-	evalSuite         *evalsuite.Service
-	lifespanStart     appdata.LifespanStart
-	lifespanHandle    appdata.LifespanHandle
+	ctx                 context.Context
+	host                desktopHost
+	homeDirectory       string
+	dataDirectory       string
+	workspacesDirectory string
+	artifactDirectory   string
+	diagnostics         *appdata.DiagnosticRecorder
+	settings            *config.Store
+	conversations       *conversation.Store
+	labJobs             *lab.Store
+	envBroker           *envbroker.Service
+	codingFiles         *codingattachment.Store
+	codingCollab        *codingcollab.Manager
+	ctfMaterials        *localCTFMaterialStore
+	codingTerminals     *codingterminal.Manager
+	codingProjects      *codingworkspace.Store
+	codingPRs           *codingenv.PullRequestPublisher
+	computerUse         *computercap.Manager
+	engines             *engine.Supervisor
+	securityTools       *securitytools.Service
+	codingTools         *codingtools.Service
+	agentResources      *agentresources.Store
+	modelCatalog        *modelcatalog.Service
+	modelUsage          *modelusage.Store
+	pluginRegistry      *pluginruntime.Registry
+	nssctf              *nssctf.Client
+	nssctfCatalog       *nssctf.CatalogService
+	ctfshowCatalog      *ctfshow.CatalogService
+	nssctfArena         *nssctf.ArenaClient
+	browserBridge       *browsercap.Manager
+	jobs                *securityruntime.Service
+	ctfJobs             *ctf.Service
+	ctfAgent            *ctfAgentRecorder
+	ctfMemory           *ctf.MemoryStore
+	vulnJobs            *vuln.Service
+	sessionIndex        *sessionindex.Store
+	companion           *companion.Runtime
+	evalSuite           *evalsuite.Service
+	lifespanStart       appdata.LifespanStart
+	lifespanHandle      appdata.LifespanHandle
 }
 
 func newAppWithDesktopHost(host desktopHost) (*App, error) {
@@ -91,13 +93,21 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	restoreResult, err := appdata.ApplyPendingRestore(dataDirectory)
+	homeDirectory, err := appdata.Home()
+	if err != nil {
+		return nil, err
+	}
+	workspacesDirectory, err := appdata.WorkspacesDirectory()
+	if err != nil {
+		return nil, err
+	}
+	restoreResult, err := appdata.ApplyPendingRestore(homeDirectory)
 	if err != nil {
 		return nil, fmt.Errorf("apply pending local data restore: %w", err)
 	}
 	migrationBackup, err := appdata.EnsurePreMigrationBackup(
 		context.Background(),
-		dataDirectory,
+		homeDirectory,
 		databaseCompatDescriptors(),
 	)
 	if err != nil {
@@ -128,7 +138,7 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 		return nil, fmt.Errorf("create user artifact directory: %w", err)
 	}
 	codingFiles, err := codingattachment.NewStore(
-		filepath.Join(dataDirectory, "agent-home", "attachments"),
+		filepath.Join(dataDirectory, "agent", "home", "attachments"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("create Coding attachment store: %w", err)
@@ -145,18 +155,20 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 	}
 
 	application := &App{
-		host:              host,
-		dataDirectory:     dataDirectory,
-		artifactDirectory: artifactDirectory,
-		diagnostics:       appdata.NewDiagnosticRecorder(256),
-		settings:          settings,
-		conversations:     conversations,
-		labJobs:           labJobs,
-		envBroker:         envBroker,
-		codingFiles:       codingFiles,
-		codingProjects:    codingProjects,
-		codingCollab:      codingCollab,
-		ctfMaterials:      newLocalCTFMaterialStore(),
+		host:                host,
+		homeDirectory:       homeDirectory,
+		dataDirectory:       dataDirectory,
+		workspacesDirectory: workspacesDirectory,
+		artifactDirectory:   artifactDirectory,
+		diagnostics:         appdata.NewDiagnosticRecorder(256),
+		settings:            settings,
+		conversations:       conversations,
+		labJobs:             labJobs,
+		envBroker:           envBroker,
+		codingFiles:         codingFiles,
+		codingProjects:      codingProjects,
+		codingCollab:        codingCollab,
+		ctfMaterials:        newLocalCTFMaterialStore(),
 	}
 	application.pluginRegistry, err = newPluginRegistry(dataDirectory)
 	if err != nil {
@@ -187,18 +199,18 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 	}
 	if restoreResult.Applied {
 		application.diagnostics.Record("appdata", "info", "pending local data restore applied")
-		_ = appdata.AppendEventLog(dataDirectory, appdata.PersistedRestoreApplied)
+		_ = appdata.AppendEventLog(homeDirectory, appdata.PersistedRestoreApplied)
 	}
 	if restoreResult.RecoveredFirst {
 		application.diagnostics.Record("appdata", "warning", "interrupted local data restore recovered")
-		_ = appdata.AppendEventLog(dataDirectory, appdata.PersistedInterruptedRestoreRecovered)
+		_ = appdata.AppendEventLog(homeDirectory, appdata.PersistedInterruptedRestoreRecovered)
 	}
 	if migrationBackup.Created {
 		application.diagnostics.Record("appdata", "info", "pre-migration safety backup created")
-		_ = appdata.AppendEventLog(dataDirectory, appdata.PersistedMigrationBackupCreated)
+		_ = appdata.AppendEventLog(homeDirectory, appdata.PersistedMigrationBackupCreated)
 	} else if migrationBackup.Reused {
 		application.diagnostics.Record("appdata", "info", "existing pre-migration safety backup verified")
-		_ = appdata.AppendEventLog(dataDirectory, appdata.PersistedMigrationBackupVerified)
+		_ = appdata.AppendEventLog(homeDirectory, appdata.PersistedMigrationBackupVerified)
 	}
 	application.engines = engine.NewSupervisor(application.emitEngineEvent)
 	application.engines.SetWorkspaceActionHandler(application.handleCodingWorkspaceAction)
@@ -228,7 +240,7 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 	// When a desktop host is attached, permission probes/open must go through
 	// host systemPreferences rather than the Go runtime binary identity.
 	computerUseOptions := computercap.Options{
-		GrantDirectory: filepath.Join(dataDirectory, "computer-use", "task-authorizations"),
+		GrantDirectory: filepath.Join(dataDirectory, "services", "computer-use", "task-authorizations"),
 		TargetPID:      desktopComputerUseHostPID(),
 	}
 	if host != nil {
@@ -238,14 +250,14 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 	application.computerUse = computercap.New(computerUseOptions)
 	application.nssctf = nssctf.NewClient(nssctf.ClientOptions{})
 	application.nssctfCatalog, err = nssctf.NewCatalogService(
-		filepath.Join(dataDirectory, "nssctf", "catalog.sqlite3"),
+		filepath.Join(dataDirectory, "domain", "nssctf", "catalog.sqlite3"),
 		application.nssctf,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("create NSSCTF catalog: %w", err)
 	}
 	application.ctfshowCatalog, err = ctfshow.NewCatalogService(
-		filepath.Join(dataDirectory, "ctfshow", "catalog.sqlite3"),
+		filepath.Join(dataDirectory, "domain", "ctfshow", "catalog.sqlite3"),
 	)
 	if err != nil {
 		application.nssctfCatalog.Close()
@@ -253,9 +265,9 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 	}
 	application.nssctfArena = nssctf.NewArenaClient(nssctf.ArenaClientOptions{})
 	if codingHost := newElectronCodingHost(host); codingHost != nil {
-		application.browserBridge, err = browsercap.NewWithCodingHost(dataDirectory, codingHost)
+		application.browserBridge, err = browsercap.NewWithCodingHost(filepath.Join(workspacesDirectory, "browser"), codingHost)
 	} else {
-		application.browserBridge, err = browsercap.New(dataDirectory)
+		application.browserBridge, err = browsercap.New(filepath.Join(workspacesDirectory, "browser"))
 	}
 	if err != nil {
 		application.ctfshowCatalog.Close()
@@ -288,8 +300,8 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 		return nil, fmt.Errorf("create CTF role service: %w", err)
 	}
 	application.ctfMemory, err = ctf.NewMemoryStore(
-		filepath.Join(dataDirectory, "ctf", "memory.sqlite3"),
-		filepath.Join(dataDirectory, "ctf", "memories"),
+		filepath.Join(dataDirectory, "domain", "ctf", "memory.sqlite3"),
+		filepath.Join(dataDirectory, "domain", "ctf", "memories"),
 	)
 	if err != nil {
 		_ = application.ctfJobs.Close()
@@ -318,7 +330,7 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 		application.emitCodingTerminalEvent,
 	)
 	application.sessionIndex, err = sessionindex.NewStore(
-		filepath.Join(dataDirectory, "session-index", "obelisk.sqlite"),
+		filepath.Join(dataDirectory, "stores", "session-index", "obelisk.sqlite"),
 	)
 	if err != nil {
 		_ = application.vulnJobs.Close()
@@ -331,7 +343,7 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 		return nil, fmt.Errorf("create session index: %w", err)
 	}
 	application.companion = companion.NewRuntime(companion.RuntimeOptions{
-		AgentDir:  filepath.Join(dataDirectory, "agent-home", "companion"),
+		AgentDir:  filepath.Join(dataDirectory, "agent", "home", "companion"),
 		StatePath: filepath.Join(dataDirectory, "companion", "state.json"),
 		Settings:  application.settings.GetResolved,
 		Catalog:   &conversationCatalog{app: application, store: application.conversations},
@@ -347,7 +359,7 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 	})
 	application.wireUserMemory()
 	application.modelUsage, err = modelusage.NewStore(
-		filepath.Join(dataDirectory, "usage", "model-usage.sqlite3"),
+		filepath.Join(dataDirectory, "stores", "usage", "model-usage.sqlite3"),
 	)
 	if err != nil {
 		_ = application.vulnJobs.Close()
@@ -383,7 +395,7 @@ func (a *App) Startup(ctx context.Context) {
 	startupBegan := time.Now()
 	a.ctx = ctx
 	lifespanStart, lifespanHandle, lifespanErr := appdata.BeginLifespan(
-		a.dataDirectory,
+		a.homeDirectory,
 		os.Getpid(),
 	)
 	if lifespanErr != nil {
@@ -394,7 +406,7 @@ func (a *App) Startup(ctx context.Context) {
 			PreviousExit: appdata.LifespanExitNone,
 			StartedAt:    time.Now().UTC().Format(time.RFC3339Nano),
 		}
-		_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedLifespanUnavailable)
+		_ = appdata.AppendEventLog(a.homeDirectory, appdata.PersistedLifespanUnavailable)
 	} else {
 		a.lifespanStart = lifespanStart
 		a.lifespanHandle = lifespanHandle
@@ -405,7 +417,7 @@ func (a *App) Startup(ctx context.Context) {
 				lifespanStart.PreviousStartedAt,
 				lifespanStart.ConsecutiveAbnormalExits,
 			))
-			_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedPreviousExitAbnormal)
+			_ = appdata.AppendEventLog(a.homeDirectory, appdata.PersistedPreviousExitAbnormal)
 		case appdata.LifespanExitNone:
 			a.diagnostics.Record("appdata", "info", "first MilkSU run: no previous lifespan record")
 		default:
@@ -414,8 +426,8 @@ func (a *App) Startup(ctx context.Context) {
 	}
 	log.Printf("[startup] go.lifespan %dms", time.Since(startupBegan).Milliseconds())
 	a.diagnostics.Record("app", "info", "desktop runtime started")
-	_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedAppInitialized)
-	_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedDesktopRuntimeStarted)
+	_ = appdata.AppendEventLog(a.homeDirectory, appdata.PersistedAppInitialized)
+	_ = appdata.AppendEventLog(a.homeDirectory, appdata.PersistedDesktopRuntimeStarted)
 	go func() {
 		refreshContext, cancelRefresh := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
 		defer cancelRefresh()
@@ -433,21 +445,21 @@ func (a *App) Startup(ctx context.Context) {
 	recoverStarted := time.Now()
 	if err := a.jobs.Recover(ctx); err != nil {
 		a.diagnostics.Record("runtime", "error", "runtime job recovery failed")
-		_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedRuntimeRecoveryFailed)
+		_ = appdata.AppendEventLog(a.homeDirectory, appdata.PersistedRuntimeRecoveryFailed)
 		a.emitDesktopEvent("job-runtime-error", err.Error())
 	}
 	log.Printf("[startup] go.jobs.Recover %dms", time.Since(recoverStarted).Milliseconds())
 	ctfRecoverStarted := time.Now()
 	if err := a.ctfJobs.Recover(ctx); err != nil {
 		a.diagnostics.Record("ctf", "error", "CTF job recovery failed")
-		_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedCTFRecoveryFailed)
+		_ = appdata.AppendEventLog(a.homeDirectory, appdata.PersistedCTFRecoveryFailed)
 		a.emitDesktopEvent("job-runtime-error", err.Error())
 	}
 	log.Printf("[startup] go.ctfJobs.Recover %dms", time.Since(ctfRecoverStarted).Milliseconds())
 	vulnRecoverStarted := time.Now()
 	if err := a.vulnJobs.Recover(ctx); err != nil {
 		a.diagnostics.Record("vuln", "error", "vulnerability job recovery failed")
-		_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedVulnRecoveryFailed)
+		_ = appdata.AppendEventLog(a.homeDirectory, appdata.PersistedVulnRecoveryFailed)
 		a.emitDesktopEvent("job-runtime-error", err.Error())
 	}
 	log.Printf(
@@ -479,12 +491,12 @@ func (a *App) Shutdown(_ context.Context) {
 	_ = a.ctfshowCatalog.Close()
 	_ = a.nssctfCatalog.Close()
 	if a.lifespanHandle.Valid() {
-		if err := appdata.MarkCleanExit(a.dataDirectory, a.lifespanHandle); err != nil {
+		if err := appdata.MarkCleanExit(a.homeDirectory, a.lifespanHandle); err != nil {
 			a.diagnostics.Record("appdata", "error", "mark clean exit failed")
-			_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedCleanExitMarkerFailed)
+			_ = appdata.AppendEventLog(a.homeDirectory, appdata.PersistedCleanExitMarkerFailed)
 		} else {
 			a.diagnostics.Record("app", "info", "desktop runtime exited cleanly")
-			_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedDesktopRuntimeExited)
+			_ = appdata.AppendEventLog(a.homeDirectory, appdata.PersistedDesktopRuntimeExited)
 		}
 	}
 }
@@ -870,13 +882,13 @@ func (a *App) GetStartupRecoveryStatus() appdata.LifespanStart {
 }
 
 func (a *App) GetLocalDataStatus() (appdata.DataStatus, error) {
-	status, err := appdata.Inspect(a.dataDirectory)
+	status, err := appdata.Inspect(a.homeDirectory)
 	if err != nil {
 		return appdata.DataStatus{}, err
 	}
 	status.Databases = appdata.InspectDatabaseCompatibility(
 		a.commandContext(),
-		a.dataDirectory,
+		a.homeDirectory,
 		databaseCompatDescriptors(),
 	)
 	return status, nil
@@ -897,7 +909,7 @@ func (a *App) ExportLocalDataBackup() (appdata.BackupExport, error) {
 	if strings.TrimSpace(destination) == "" {
 		return appdata.BackupExport{Cancelled: true}, nil
 	}
-	return appdata.ExportBackup(a.commandContext(), a.dataDirectory, destination)
+	return appdata.ExportBackup(a.commandContext(), a.homeDirectory, destination)
 }
 
 func (a *App) ScheduleLocalDataRestore() (appdata.BackupRestoreStage, error) {
@@ -933,7 +945,7 @@ func (a *App) ScheduleLocalDataRestore() (appdata.BackupRestoreStage, error) {
 	if selection != confirmButton {
 		return appdata.BackupRestoreStage{Cancelled: true}, nil
 	}
-	return appdata.StageBackupRestore(a.dataDirectory, source)
+	return appdata.StageBackupRestore(a.homeDirectory, source)
 }
 
 func (a *App) ExportLocalDiagnostics() (appdata.DiagnosticExport, error) {
@@ -961,7 +973,7 @@ func (a *App) ExportLocalDiagnostics() (appdata.DiagnosticExport, error) {
 	}
 	return appdata.ExportDiagnostics(
 		a.commandContext(),
-		a.dataDirectory,
+		a.homeDirectory,
 		destination,
 		appdata.DiagnosticInput{
 			AppVersion: "0.1.0",
@@ -1637,7 +1649,7 @@ func (a *App) resolveConversationWorkspace(conversationID, requested string) (st
 	}
 	kind := userartifact.KindCoding
 	label := "无项目任务"
-	workspaceRoot := filepath.Join(a.dataDirectory, "agent-workspaces")
+	workspaceRoot := filepath.Join(a.workspacesDirectory, "agent-workspaces")
 	if domainKind, _ := stored.DomainTaskContext["kind"].(string); domainKind == "cve" {
 		kind = userartifact.KindCVE
 		workspaceRoot = a.artifactDirectory
@@ -1713,7 +1725,7 @@ func (a *App) resolveImageHomeWorkspace(conversationID, requested string) (strin
 		return strings.TrimSpace(stored.WorkspacePath), nil
 	}
 	workspace, err := userartifact.Workspace(
-		filepath.Join(a.dataDirectory, "agent-workspaces"),
+		filepath.Join(a.workspacesDirectory, "agent-workspaces"),
 		userartifact.KindCoding,
 		conversationID,
 		"无项目任务",
@@ -1829,6 +1841,11 @@ func (a *App) ctfWorkspaceRoot() string {
 	if strings.TrimSpace(a.artifactDirectory) != "" {
 		return filepath.Join(a.artifactDirectory, string(userartifact.KindCTF))
 	}
+	if strings.TrimSpace(a.workspacesDirectory) != "" {
+		return filepath.Join(a.workspacesDirectory, "ctf-workspaces")
+	}
+	// Tests construct App without the workspaces root; keep their workspaces
+	// inside the temporary data directory instead of a relative path.
 	return filepath.Join(a.dataDirectory, "ctf-workspaces")
 }
 
@@ -2678,14 +2695,14 @@ func (a *App) emitEngineEvent(event engine.Event) {
 	}
 	switch event.Type {
 	case "engine.started":
-		_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedSidecarStarted)
+		_ = appdata.AppendEventLog(a.homeDirectory, appdata.PersistedSidecarStarted)
 	case "engine.sidecar_stopped":
 		// One Sidecar process ended. Every ended process reports this, including the
 		// ones the Supervisor stopped on purpose; engine.stopped is the session-facing
 		// broadcast and would double count here.
-		_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedSidecarStopped)
+		_ = appdata.AppendEventLog(a.homeDirectory, appdata.PersistedSidecarStopped)
 	case "engine.protocol_error":
-		_ = appdata.AppendEventLog(a.dataDirectory, appdata.PersistedSidecarProtocolError)
+		_ = appdata.AppendEventLog(a.homeDirectory, appdata.PersistedSidecarProtocolError)
 	}
 	if a.companion != nil {
 		a.companion.ObserveEngineEvent(event)

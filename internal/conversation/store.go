@@ -146,7 +146,7 @@ func NewStore() (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	directory := filepath.Join(base, "conversations")
+	directory := filepath.Join(base, "stores", "conversations")
 	if err := os.MkdirAll(directory, 0o700); err != nil {
 		return nil, fmt.Errorf("create conversation directory: %w", err)
 	}

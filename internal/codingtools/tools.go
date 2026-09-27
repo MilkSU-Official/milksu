@@ -81,7 +81,7 @@ type Service struct {
 
 func NewService(dataDirectory string, emit func(SetupSnapshot)) *Service {
 	return &Service{
-		root:   filepath.Join(dataDirectory, "coding-tools"),
+		root:   filepath.Join(dataDirectory, "services", "coding-tools"),
 		probe:  systemProbe{},
 		emit:   emit,
 		setups: make(map[string]SetupSnapshot),
@@ -309,7 +309,7 @@ func ghidraRPCStateDir() string {
 	if err != nil {
 		return ""
 	}
-	path := filepath.Join(directory, "coding-tools", "ghidra-rpc-state")
+	path := filepath.Join(directory, "services", "coding-tools", "ghidra-rpc-state")
 	if err := os.MkdirAll(path, 0o700); err != nil {
 		return ""
 	}

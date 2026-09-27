@@ -34,8 +34,11 @@ func TestRestoredLegacyBackupIsProtectedBeforeAllDatabaseUpgrades(t *testing.T) 
 
 	liveRoot := t.TempDir()
 	writeDataLayoutFixture(t, liveRoot)
-	credentialPath := filepath.Join(liveRoot, "credentials.db")
+	credentialPath := filepath.Join(liveRoot, "config", "credentials.db")
 	const syntheticOpaqueCredentialFixture = "synthetic-opaque-credential-fixture"
+	if err := os.MkdirAll(filepath.Dir(credentialPath), 0o700); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.WriteFile(credentialPath, []byte(syntheticOpaqueCredentialFixture), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +139,7 @@ func createThenDowngradeAllDatabases(t *testing.T, root string) {
 
 func openAndCloseAllDatabases(t *testing.T, root string) {
 	t.Helper()
-	runtimeService, err := securityruntime.NewService(filepath.Join(root, "runtime"), nil)
+	runtimeService, err := securityruntime.NewService(filepath.Join(root, "data", "runtime"), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,8 +147,8 @@ func openAndCloseAllDatabases(t *testing.T, root string) {
 		t.Fatal(err)
 	}
 	memoryStore, err := ctf.NewMemoryStore(
-		filepath.Join(root, "ctf", "memory.sqlite3"),
-		filepath.Join(root, "ctf", "memories"),
+		filepath.Join(root, "data", "domain", "ctf", "memory.sqlite3"),
+		filepath.Join(root, "data", "domain", "ctf", "memories"),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -154,7 +157,7 @@ func openAndCloseAllDatabases(t *testing.T, root string) {
 		t.Fatal(err)
 	}
 	nssctfCatalog, err := nssctf.NewCatalogService(
-		filepath.Join(root, "nssctf", "catalog.sqlite3"),
+		filepath.Join(root, "data", "domain", "nssctf", "catalog.sqlite3"),
 		nssctf.NewClient(nssctf.ClientOptions{}),
 	)
 	if err != nil {
@@ -164,7 +167,7 @@ func openAndCloseAllDatabases(t *testing.T, root string) {
 		t.Fatal(err)
 	}
 	ctfshowCatalog, err := ctfshow.NewCatalogService(
-		filepath.Join(root, "ctfshow", "catalog.sqlite3"),
+		filepath.Join(root, "data", "domain", "ctfshow", "catalog.sqlite3"),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -173,7 +176,7 @@ func openAndCloseAllDatabases(t *testing.T, root string) {
 		t.Fatal(err)
 	}
 	usageStore, err := modelusage.NewStore(
-		filepath.Join(root, "usage", "model-usage.sqlite3"),
+		filepath.Join(root, "data", "stores", "usage", "model-usage.sqlite3"),
 	)
 	if err != nil {
 		t.Fatal(err)

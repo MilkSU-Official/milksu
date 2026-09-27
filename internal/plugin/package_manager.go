@@ -126,22 +126,22 @@ func defaultTrustStore() publisherTrustStore {
 }
 
 func (r *Registry) installedIndexPath() string {
-	return filepath.Join(r.options.DataDirectory, "plugins", "installed.json")
+	return filepath.Join(r.options.DataDirectory, "services", "plugins", "installed.json")
 }
 
 func (r *Registry) trustStorePath() string {
-	return filepath.Join(r.options.DataDirectory, "plugins", "publishers.json")
+	return filepath.Join(r.options.DataDirectory, "services", "plugins", "publishers.json")
 }
 
 func (r *Registry) stagingDirectory() string {
-	return filepath.Join(r.options.DataDirectory, "plugins", "staging")
+	return filepath.Join(r.options.DataDirectory, "services", "plugins", "staging")
 }
 
 func (r *Registry) resolveStorageSnapshot(relative string) (string, error) {
 	if !fs.ValidPath(relative) || strings.Contains(relative, `\`) {
 		return "", errors.New("plugin storage snapshot path is invalid")
 	}
-	root, err := filepath.Abs(filepath.Join(r.options.DataDirectory, "plugins", "rollback"))
+	root, err := filepath.Abs(filepath.Join(r.options.DataDirectory, "services", "plugins", "rollback"))
 	if err != nil {
 		return "", err
 	}

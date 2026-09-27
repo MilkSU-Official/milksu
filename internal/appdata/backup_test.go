@@ -19,7 +19,7 @@ func TestExportBackupIncludesUserStateAndExcludesCredentials(t *testing.T) {
 	root := t.TempDir()
 	writeBackupFixture(
 		t,
-		filepath.Join(root, "settings.json"),
+		filepath.Join(root, "config", "settings.json"),
 		`{"locale":"zh","providers":{"legacy":{"api_key":"legacy-provider-secret","has_api_key":true}}}`,
 	)
 	writeBackupFixture(
@@ -27,19 +27,19 @@ func TestExportBackupIncludesUserStateAndExcludesCredentials(t *testing.T) {
 		filepath.Join(root, DataLayoutFile),
 		`{"schema":"milksu-data-layout/v1","version":1,"updatedAt":"2026-08-02T00:00:00Z"}`,
 	)
-	writeBackupFixture(t, filepath.Join(root, "conversations", "one.json"), `{"id":"one"}`)
-	writeBackupFixture(t, filepath.Join(root, "ctf-workspaces", "job", "notes.md"), "evidence")
-	writeBackupFixture(t, filepath.Join(root, "credentials.db"), "provider-secret")
-	writeBackupFixture(t, filepath.Join(root, "browser", "bridge-pairing.json"), "bridge-secret")
-	writeBackupFixture(t, filepath.Join(root, "agent-home", "pi", "auth.json"), "pi-secret")
-	writeBackupFixture(t, filepath.Join(root, "agent-home", "pi", "sessions", "session.jsonl"), "resume")
+	writeBackupFixture(t, filepath.Join(root, "data", "stores", "conversations", "one.json"), `{"id":"one"}`)
+	writeBackupFixture(t, filepath.Join(root, "workspaces", "ctf-workspaces", "job", "notes.md"), "evidence")
+	writeBackupFixture(t, filepath.Join(root, "config", "credentials.db"), "provider-secret")
+	writeBackupFixture(t, filepath.Join(root, "workspaces", "browser", "bridge-pairing.json"), "bridge-secret")
+	writeBackupFixture(t, filepath.Join(root, "data", "agent", "home", "pi", "auth.json"), "pi-secret")
+	writeBackupFixture(t, filepath.Join(root, "data", "agent", "home", "pi", "sessions", "session.jsonl"), "resume")
 	if err := os.Symlink(
-		filepath.Join(root, "credentials.db"),
-		filepath.Join(root, "conversations", "credential-link"),
+		filepath.Join(root, "config", "credentials.db"),
+		filepath.Join(root, "data", "stores", "conversations", "credential-link"),
 	); err != nil {
 		t.Fatal(err)
 	}
-	createBackupDatabase(t, filepath.Join(root, "ctf", "memory.sqlite3"))
+	createBackupDatabase(t, filepath.Join(root, "data", "domain", "ctf", "memory.sqlite3"))
 
 	destination := filepath.Join(t.TempDir(), "MilkSU-backup.zip")
 	exported, err := ExportBackup(context.Background(), root, destination)
@@ -60,11 +60,11 @@ func TestExportBackupIncludesUserStateAndExcludesCredentials(t *testing.T) {
 	names, manifest := readBackupArchive(t, destination)
 	for _, required := range []string{
 		"data/data-layout.json",
-		"data/settings.json",
-		"data/conversations/one.json",
-		"data/ctf-workspaces/job/notes.md",
-		"data/ctf/memory.sqlite3",
-		"data/agent-home/pi/sessions/session.jsonl",
+		"data/config/settings.json",
+		"data/data/stores/conversations/one.json",
+		"data/workspaces/ctf-workspaces/job/notes.md",
+		"data/data/domain/ctf/memory.sqlite3",
+		"data/data/agent/home/pi/sessions/session.jsonl",
 		"manifest.json",
 	} {
 		if !slices.Contains(names, required) {
@@ -79,13 +79,13 @@ func TestExportBackupIncludesUserStateAndExcludesCredentials(t *testing.T) {
 	if manifest.CredentialsIncluded || manifest.Schema != BackupSchema {
 		t.Fatalf("unexpected manifest: %#v", manifest)
 	}
-	settings := readBackupEntry(t, destination, "data/settings.json")
+	settings := readBackupEntry(t, destination, "data/config/settings.json")
 	if strings.Contains(settings, "legacy-provider-secret") || strings.Contains(settings, `"api_key"`) {
 		t.Fatalf("backup leaked a settings credential: %s", settings)
 	}
 
 	extracted := filepath.Join(t.TempDir(), "memory.sqlite3")
-	extractBackupEntry(t, destination, "data/ctf/memory.sqlite3", extracted)
+	extractBackupEntry(t, destination, "data/data/domain/ctf/memory.sqlite3", extracted)
 	database, err := sql.Open("sqlite", extracted)
 	if err != nil {
 		t.Fatal(err)
@@ -102,7 +102,7 @@ func TestExportBackupIncludesUserStateAndExcludesCredentials(t *testing.T) {
 
 func TestExportBackupRejectsDestinationInsideDataDirectory(t *testing.T) {
 	root := t.TempDir()
-	writeBackupFixture(t, filepath.Join(root, "settings.json"), `{}`)
+	writeBackupFixture(t, filepath.Join(root, "config", "settings.json"), `{}`)
 	if _, err := ExportBackup(
 		context.Background(),
 		root,
@@ -127,7 +127,10 @@ func TestExportBackupNeverFollowsSensitiveSymlinkPaths(t *testing.T) {
 			`{"providers":{"synthetic":{"api_key":"synthetic-never-read"}}}`,
 		)
 		before := fileSHA256(t, external)
-		if err := os.Symlink(external, filepath.Join(root, "settings.json")); err != nil {
+		if err := os.MkdirAll(filepath.Join(root, "config"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(external, filepath.Join(root, "config", "settings.json")); err != nil {
 			t.Fatal(err)
 		}
 
@@ -136,7 +139,7 @@ func TestExportBackupNeverFollowsSensitiveSymlinkPaths(t *testing.T) {
 			t.Fatal(err)
 		}
 		names, _ := readBackupArchive(t, destination)
-		if slices.Contains(names, "data/settings.json") {
+		if slices.Contains(names, "data/config/settings.json") {
 			t.Fatalf("backup followed symlinked settings: %#v", names)
 		}
 		if after := fileSHA256(t, external); after != before {
@@ -155,7 +158,7 @@ func TestExportBackupNeverFollowsSensitiveSymlinkPaths(t *testing.T) {
 		databasePath := filepath.Join(external, "memory.sqlite3")
 		createBackupDatabase(t, databasePath)
 		before := fileSHA256(t, databasePath)
-		if err := os.Symlink(external, filepath.Join(root, "ctf")); err != nil {
+		if err := os.Symlink(external, filepath.Join(root, "data")); err != nil {
 			t.Fatal(err)
 		}
 
@@ -191,7 +194,7 @@ func TestExportBackupNeverFollowsSensitiveSymlinkPaths(t *testing.T) {
 
 func TestValidateBackupRejectsSensitiveAndTraversalPaths(t *testing.T) {
 	for name, archivePath := range map[string]string{
-		"sensitive": "data/credentials.db",
+		"sensitive": "data/config/credentials.db",
 		"traversal": "../escape",
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -206,9 +209,9 @@ func TestValidateBackupRejectsSensitiveAndTraversalPaths(t *testing.T) {
 				CreatedAt:           "2026-08-02T00:00:00Z",
 				CredentialsIncluded: false,
 			}
-			if archivePath == "data/credentials.db" {
+			if archivePath == "data/config/credentials.db" {
 				manifest.Files = []BackupFile{{
-					Path:   "credentials.db",
+					Path:   "config/credentials.db",
 					Bytes:  6,
 					SHA256: "2bb80d537b1da3e38bd30361aa855686bde0ba19f01b8ce86c19e1a0e11de7ae",
 				}}

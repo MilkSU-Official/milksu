@@ -33,7 +33,7 @@ func MaterializeOfficial(dataDirectory string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	parent := filepath.Join(dataDirectory, "plugins", "bundled")
+	parent := filepath.Join(dataDirectory, "services", "plugins", "bundled")
 	root := filepath.Join(parent, digest)
 	officialRoot := filepath.Join(root, "official")
 	if info, statErr := os.Lstat(root); statErr == nil {

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/MilkSU-Official/milksu/internal/appdata"
 	"github.com/MilkSU-Official/milksu/internal/config"
 )
 
@@ -55,7 +56,10 @@ func OpenCompanionSidecar(
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	dataDirectory := filepath.Dir(runtimeHome)
+	dataDirectory, err := appdata.Directory()
+	if err != nil {
+		return nil, nil, nil, err
+	}
 	indexPath := filepath.Join(dataDirectory, "companion", "obelisk.sqlite")
 	command.Env = mergeSidecarEnvironment(environment, []string{
 		"MILKSU_COMPANION_AGENT_DIR=" + agentDir,
@@ -63,7 +67,7 @@ func OpenCompanionSidecar(
 		"MILKSU_PI_SESSIONS_DIR=" + filepath.Join(runtimeHome, "pi", "sessions"),
 		"MILKSU_DSH_SESSIONS_DIR=" + filepath.Join(runtimeHome, "dsh", "sessions"),
 		"MILKSU_COMPANION_SESSIONS_DIR=" + filepath.Join(agentDir, "sessions"),
-		"MILKSU_CONVERSATIONS_DIR=" + filepath.Join(dataDirectory, "conversations"),
+		"MILKSU_CONVERSATIONS_DIR=" + filepath.Join(dataDirectory, "stores", "conversations"),
 	})
 	command.Stderr = os.Stderr
 	stdin, err := command.StdinPipe()

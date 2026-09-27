@@ -140,7 +140,7 @@ func NewStore(dataDirectory string, secrets secretKeeper) (*Store, error) {
 	if secrets == nil {
 		return nil, fmt.Errorf("agent resource secret store is required")
 	}
-	root := filepath.Join(dataDirectory, "agent-resources")
+	root := filepath.Join(dataDirectory, "agent", "resources")
 	if err := os.MkdirAll(filepath.Join(root, "skills"), 0o700); err != nil {
 		return nil, fmt.Errorf("create agent resource directory: %w", err)
 	}

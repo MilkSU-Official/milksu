@@ -578,7 +578,7 @@ func (r *Registry) SurfaceAsset(id string, slot SurfaceSlot, assetID string) ([]
 }
 
 func (r *Registry) pluginStorageDirectory(id string) string {
-	return filepath.Join(r.options.DataDirectory, "plugins", pluginStorageDir, id)
+	return filepath.Join(r.options.DataDirectory, "services", "plugins", pluginStorageDir, id)
 }
 
 func contributesSlot(manifest Manifest, slot string) bool {

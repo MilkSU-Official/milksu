@@ -27,7 +27,7 @@ type Service struct {
 
 func NewService(dataDirectory string, settings settingsStore, emit func(SetupSnapshot)) *Service {
 	return &Service{
-		root:     filepath.Join(dataDirectory, "security-tools"),
+		root:     filepath.Join(dataDirectory, "services", "security-tools"),
 		settings: settings,
 		probe:    systemProbe{},
 		emit:     emit,

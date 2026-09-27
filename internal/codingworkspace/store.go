@@ -50,10 +50,11 @@ func NewStore() (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := os.MkdirAll(base, 0o700); err != nil {
+	directory := filepath.Join(base, "stores")
+	if err := os.MkdirAll(directory, 0o700); err != nil {
 		return nil, fmt.Errorf("create coding project memory directory: %w", err)
 	}
-	return &Store{path: filepath.Join(base, memoryFileName)}, nil
+	return &Store{path: filepath.Join(directory, memoryFileName)}, nil
 }
 
 func (s *Store) Get() (Snapshot, error) {

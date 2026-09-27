@@ -54,7 +54,7 @@ func New(options Options) (*Registry, error) {
 	if strings.TrimSpace(options.DataDirectory) == "" {
 		return nil, errors.New("plugin data directory is required")
 	}
-	statePath := filepath.Join(options.DataDirectory, "plugins", pluginStateFile)
+	statePath := filepath.Join(options.DataDirectory, "services", "plugins", pluginStateFile)
 	state, err := readState(statePath)
 	if err != nil {
 		return nil, err
@@ -413,7 +413,7 @@ func (r *Registry) enabledRecord(id string) (*packageRecord, error) {
 }
 
 func (r *Registry) statePath() string {
-	return filepath.Join(r.options.DataDirectory, "plugins", pluginStateFile)
+	return filepath.Join(r.options.DataDirectory, "services", "plugins", pluginStateFile)
 }
 
 func (r *Registry) refreshStateLocked() error {

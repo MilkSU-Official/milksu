@@ -33,6 +33,7 @@
       "account-session.cjs",
       "cdp-proxy.cjs",
       "channel-identity.cjs",
+      "home-root.cjs",
       "build-tracking-view.cjs",
       "browser-view-attachment.cjs",
       "update-manager.cjs",

@@ -316,7 +316,10 @@ type Store struct {
 }
 
 func NewStore() (*Store, error) {
-	directory, err := appdata.Ensure()
+	if _, err := appdata.Ensure(); err != nil {
+		return nil, err
+	}
+	directory, err := appdata.ConfigDirectory()
 	if err != nil {
 		return nil, err
 	}
@@ -1026,10 +1029,6 @@ func withoutSessionCredentials(value AppSettings) AppSettings {
 		value.NSSCTFArena.SessionOnly = false
 	}
 	return value
-}
-
-func appDataDirectory() (string, error) {
-	return appdata.Directory()
 }
 
 func writePrivateFile(path string, data []byte) error {

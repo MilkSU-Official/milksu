@@ -15,7 +15,7 @@ import (
 
 func newCodingCollaborationManager(dataDirectory string) (*codingcollab.Manager, error) {
 	return codingcollab.New(
-		filepath.Join(dataDirectory, "agent-home", "coding-collaboration"),
+		filepath.Join(dataDirectory, "agent", "home", "coding-collaboration"),
 	)
 }
 

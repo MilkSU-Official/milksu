@@ -16,7 +16,7 @@ type Store struct {
 }
 
 func NewStore(dataDirectory string) (*Store, error) {
-	directory := filepath.Join(dataDirectory, "envbroker")
+	directory := filepath.Join(dataDirectory, "services", "envbroker")
 	if err := os.MkdirAll(directory, 0o700); err != nil {
 		return nil, fmt.Errorf("create envbroker directory: %w", err)
 	}
