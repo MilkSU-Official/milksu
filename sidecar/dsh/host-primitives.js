@@ -174,6 +174,7 @@ export function appendHostInbox(agent, text) {
   const prompt = String(text ?? "").trim();
   if (!prompt) throw new Error("prompt is required");
   inbox.append("next-turn", {
+    role: "user",
     content: [{ type: "text", text: prompt }],
     source: { kind: "user" },
   });
@@ -207,6 +208,7 @@ export function replaceHostInbox(agent, messageId, text) {
   const id = String(messageId ?? "").trim();
   if (!id) throw new Error("messageId is required");
   const replaced = inbox.replace(id, {
+    role: "user",
     content: [{ type: "text", text: prompt }],
     source: { kind: "user" },
   });

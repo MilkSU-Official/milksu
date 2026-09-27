@@ -128,11 +128,13 @@ test("goal create pause resume clear use ctx.goals", () => {
 
 test("inbox append list remove stay on next-turn", () => {
   const nextTurn = [];
+  const appended = [];
   const agent = {
     inbox: {
       get nextTurn() { return nextTurn; },
       nextStep: [],
       append(_target, message) {
+        appended.push(message);
         nextTurn.push({ id: `m${nextTurn.length + 1}`, content: message.content });
       },
       remove(id) {
@@ -144,6 +146,7 @@ test("inbox append list remove stay on next-turn", () => {
     },
   };
   appendHostInbox(agent, "next please");
+  assert.equal(appended[0].role, "user");
   assert.deepEqual(listHostInbox(agent).nextTurn, [{ id: "m1", text: "next please" }]);
   removeHostInbox(agent, "m1");
   assert.deepEqual(listHostInbox(agent).nextTurn, []);

@@ -191,6 +191,7 @@ test("host plugin followup uses Agent.followup and does not wait for idle", asyn
   });
   assert.deepEqual(queued, { queued: true });
   assert.equal(calls.length, 1);
+  assert.equal(calls[0].role, "user");
   assert.deepEqual(calls[0].content, [{ type: "text", text: "keep going" }]);
   assert.deepEqual(calls[0].source, { kind: "user" });
   await assert.rejects(

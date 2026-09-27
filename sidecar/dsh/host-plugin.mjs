@@ -60,7 +60,10 @@ export function followupHostAgent(agent, text) {
   // DSH Agent.followup queues a next-turn user message and wakes the driver.
   // Do not wait for ACP session/prompt: that call settles only after whenIdle,
   // which includes continuable children and would block the parent composer.
+  // role is required: DSH serializes queued entries into the API request as-is,
+  // and a role-less entry fails server-side with `messages[N]: missing field role`.
   agent.followup({
+    role: "user",
     content: [{ type: "text", text: prompt }],
     source: { kind: "user" },
   });
