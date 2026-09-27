@@ -38,6 +38,16 @@ export function syncWindowChrome(
   void invoke('SetTitleBarOverlay', [{ theme, mode: themeMode }]).catch(() => undefined)
 }
 
+export function toggleWindowMaximize(
+  input: HostPlatformSource | typeof globalThis = globalThis,
+) {
+  const source = asHostPlatformSource(input)
+  const platform = readHostPlatform(source)
+  const invoke = source.milksu?.invoke
+  if (platform !== 'linux' || typeof invoke !== 'function') return
+  void invoke('window.toggleMaximize', []).catch(() => undefined)
+}
+
 function safeDocumentRoot(): HTMLElement | null {
   if (typeof document === 'undefined') return null
   return document.documentElement

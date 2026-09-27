@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { applyHostPlatform, readHostPlatform, syncWindowChrome } from './hostPlatform'
+import { applyHostPlatform, readHostPlatform, syncWindowChrome, toggleWindowMaximize } from './hostPlatform'
 
 describe('hostPlatform', () => {
   beforeEach(() => {
@@ -29,5 +29,14 @@ describe('hostPlatform', () => {
     syncWindowChrome('dark', { milksu: { invoke } }, 'system')
     expect(invoke).toHaveBeenCalledWith('SetTitleBarOverlay', [{ theme: 'dark', mode: 'system' }])
     expect(() => syncWindowChrome('light', {})).not.toThrow()
+  })
+
+  it('toggles native maximize only on Linux', () => {
+    const invoke = vi.fn().mockResolvedValue(true)
+    toggleWindowMaximize({ milksu: { hostPlatform: 'linux', invoke } })
+    expect(invoke).toHaveBeenCalledWith('window.toggleMaximize', [])
+    toggleWindowMaximize({ milksu: { hostPlatform: 'win32', invoke } })
+    expect(invoke).toHaveBeenCalledTimes(1)
+    expect(() => toggleWindowMaximize({})).not.toThrow()
   })
 })

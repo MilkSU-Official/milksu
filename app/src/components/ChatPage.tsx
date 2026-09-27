@@ -57,6 +57,7 @@ import {
 } from 'lucide-react'
 import { codingEnvironmentMissing, invokeCommand, listenEvent } from '@/desktop'
 import { toastError } from '@/lib/appToast'
+import { toggleWindowMaximize } from '@/lib/hostPlatform'
 import { isAskMessage } from '@/lib/agentAsk'
 import { nextChatAutoScrollPinned } from '@/lib/chatAutoScroll'
 import { applyChatEdgeChrome } from '@/lib/chatEdgeFade'
@@ -2730,6 +2731,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
         <div
           className="chat-window-drag-region app-drag"
           aria-hidden="true"
+          onDoubleClick={() => toggleWindowMaximize()}
         />
       ) : null}
       {!dockSurface ? (
