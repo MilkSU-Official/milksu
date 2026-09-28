@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -318,4 +319,86 @@ func readDiagnosticReportForTest(t *testing.T, path string) DiagnosticReport {
 	}
 	t.Fatal("diagnostics.json is missing")
 	return DiagnosticReport{}
+}
+
+func TestExportDiagnosticsMergesAndBoundsRendererEvents(t *testing.T) {
+	root := t.TempDir()
+	destination := filepath.Join(t.TempDir(), "MilkSU-diagnostics.zip")
+	backendEvents := make([]DiagnosticEvent, 255)
+	for index := range backendEvents {
+		backendEvents[index] = DiagnosticEvent{
+			Category: "runtime",
+			Level:    "info",
+			Message:  "backend-event",
+		}
+	}
+	rendererEvents := []DiagnosticEvent{
+		{
+			Timestamp: "2026-09-27T15:04:05.000Z",
+			Category:  "anything",
+			Level:     "warning",
+			Message:   "rpc method=get_settings",
+		},
+		{
+			Timestamp: "2026-09-27T15:04:06.000Z",
+			Category:  "anything",
+			Level:     "warning",
+			Message:   "catalog-search status=ok count=2 durationMs=10",
+		},
+		{
+			Timestamp: "2026-09-27T15:04:07.000Z",
+			Category:  "anything",
+			Level:     "error",
+			Message:   "catalog-search status=ok path=/home/user/session-body tool_output=secret",
+		},
+		{
+			Timestamp: "2026-09-27T15:04:08.000Z",
+			Category:  "anything",
+			Level:     "error",
+			Message:   "rpc method=get_settings api_key=renderer-secret Bearer renderer-bearer",
+		},
+	}
+
+	exported, err := ExportDiagnostics(
+		context.Background(),
+		root,
+		destination,
+		DiagnosticInput{Events: backendEvents, RendererEvents: rendererEvents},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if exported.EventCount != 256 {
+		t.Fatalf("event count = %d, want 256", exported.EventCount)
+	}
+	if runtime.GOOS != "windows" {
+		info, err := os.Stat(destination)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.Mode().Perm() != 0o600 {
+			t.Fatalf("diagnostic archive permissions = %o, want 600", info.Mode().Perm())
+		}
+	}
+
+	report := readDiagnosticReportForTest(t, destination)
+	messages := make([]string, 0, len(report.RecentEvents))
+	for _, event := range report.RecentEvents {
+		messages = append(messages, event.Message)
+	}
+	payload := readDiagnosticArchiveBytes(t, destination)
+	if !slices.Contains(messages, "rpc method=get_settings") ||
+		!slices.Contains(messages, "catalog-search status=ok count=2 durationMs=10") {
+		t.Fatalf("renderer events were not merged: %#v", report.RecentEvents[len(report.RecentEvents)-4:])
+	}
+	for _, forbidden := range []string{
+		"/home/user/session-body",
+		"tool_output=secret",
+		"renderer-secret",
+		"renderer-bearer",
+	} {
+		if strings.Contains(payload, forbidden) {
+			t.Fatalf("renderer diagnostic leaked %q: %s", forbidden, payload)
+		}
+	}
 }

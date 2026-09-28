@@ -948,7 +948,7 @@ func (a *App) ScheduleLocalDataRestore() (appdata.BackupRestoreStage, error) {
 	return appdata.StageBackupRestore(a.homeDirectory, source)
 }
 
-func (a *App) ExportLocalDiagnostics() (appdata.DiagnosticExport, error) {
+func (a *App) ExportLocalDiagnostics(rendererEvents []appdata.DiagnosticEvent) (appdata.DiagnosticExport, error) {
 	if a.ctx == nil {
 		return appdata.DiagnosticExport{}, fmt.Errorf("desktop runtime is not ready")
 	}
@@ -992,8 +992,9 @@ func (a *App) ExportLocalDiagnostics() (appdata.DiagnosticExport, error) {
 				ConfiguredProvider: providers,
 				ArenaTokenPresent:  settings.NSSCTFArena != nil && settings.NSSCTFArena.HasToken,
 			},
-			Lifespan: a.lifespanStart,
-			Events:   a.diagnostics.Snapshot(),
+			Lifespan:       a.lifespanStart,
+			Events:         a.diagnostics.Snapshot(),
+			RendererEvents: rendererEvents,
 		},
 	)
 }

@@ -2,14 +2,10 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { codingEnvironmentMissing, desktopErrorMessage, invokeCommand } from './desktop'
-import {
-  buildDiagnosticText,
-  debugLogEntries,
-  setDebugMode,
-} from './lib/debugMode'
+import { rendererDiagnosticSnapshot, resetRendererDiagnostics } from './lib/rendererDiagnostics'
 
 afterEach(() => {
-  setDebugMode(false)
+  resetRendererDiagnostics()
   vi.restoreAllMocks()
   Reflect.deleteProperty(window, 'go')
   Reflect.deleteProperty(window, 'milksu')
@@ -26,8 +22,7 @@ describe('desktop command adapter', () => {
     expect(codingEnvironmentMissing('PI model verification failed: exit status 1')).toBe(false)
   })
 
-  it('records each RPC invocation once in the local debug snapshot', async () => {
-    setDebugMode(true)
+  it('records each RPC invocation once in the renderer diagnostic snapshot', async () => {
     const invoke = vi.fn(async () => undefined)
     Object.defineProperty(window, 'milksu', {
       configurable: true,
@@ -37,11 +32,32 @@ describe('desktop command adapter', () => {
     await invokeCommand('list_nssctf_catalog', { query: { page: 1 } })
     await invokeCommand('get_settings')
 
-    expect(debugLogEntries().map(entry => [entry.action, entry.detail])).toEqual([
-      ['rpc', 'list_nssctf_catalog'],
-      ['rpc', 'get_settings'],
+    expect(rendererDiagnosticSnapshot().map(entry => entry.message)).toEqual([
+      'rpc method=list_nssctf_catalog',
+      'rpc method=get_settings',
     ])
-    expect(buildDiagnosticText()).toContain('rpc calls: 2')
+  })
+
+  it('passes one renderer diagnostic snapshot to local diagnostics export', async () => {
+    const invoke = vi.fn(async (method: string) => method === 'ExportLocalDiagnostics'
+      ? { path: 'diagnostics.zip', bytes: 1, eventCount: 1 }
+      : undefined)
+    Object.defineProperty(window, 'milksu', {
+      configurable: true,
+      value: { invoke },
+    })
+
+    await invokeCommand('get_settings')
+    await invokeCommand('export_local_diagnostics')
+
+    expect(invoke).toHaveBeenCalledWith('ExportLocalDiagnostics', [expect.any(Array)])
+    const [, args] = invoke.mock.calls.find(([method]) => method === 'ExportLocalDiagnostics') ?? []
+    const [events] = args ?? []
+    expect(events).toEqual([
+      expect.objectContaining({ message: 'rpc method=get_settings' }),
+      expect.objectContaining({ message: 'rpc method=export_local_diagnostics' }),
+    ])
+    expect(Array.isArray(events)).toBe(true)
   })
 
   it('imports and previews renderer clipboard attachments through Desktop RPC', async () => {

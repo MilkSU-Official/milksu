@@ -115,7 +115,6 @@ import {
   normalizePreferredExternalEditor,
 } from '@/lib/externalEditor'
 import ExternalEditorIcon from '@/components/ExternalEditorIcon'
-import { buildDiagnosticText, isDebugMode, setDebugMode } from '@/lib/debugMode'
 import { explainModelVerificationFailure } from '@/lib/tokenFluxError'
 import { applyUiLocale, normalizeUiLocale, t } from '@/lib/uiLocale'
 import {
@@ -317,7 +316,6 @@ type SettingsState = {
   editingBuiltinSkill: string
   builtinSkillDocument: string
   builtinSkillCustomized: boolean
-  debugModeOn: boolean
 }
 
 type CodingToolSkillSnapshot = {
@@ -484,7 +482,6 @@ export default function SettingsPage({
   const userSkillError = state.userSkillError
   const editingBuiltinSkill = state.editingBuiltinSkill
   const builtinSkillDocument = state.builtinSkillDocument
-  const debugModeOn = state.debugModeOn
   const availablePickerGroups = store.availablePickerGroups()
   const account = store.account()
   const accountStateLabel = store.accountStateLabel()
@@ -826,7 +823,7 @@ export default function SettingsPage({
                   />
                   <SettingsRow
                     label={t('诊断', 'Diagnostics')}
-                    description={t('给排障用的日志包。', 'A log bundle for troubleshooting.')}
+                    description={t('导出桌面、运行时和界面层的脱敏事件。', 'Export redacted desktop, runtime, and interface events.')}
                     divider={Boolean(localData?.databases?.some(database => database.state !== 'compatible'))}
                     trailing={(
                       <Button variant="outline" size="sm" disabled={diagnosticExporting} onClick={() => void store.exportLocalDiagnostics()}>
@@ -870,27 +867,6 @@ export default function SettingsPage({
                       >
                         {t('复制', 'Copy')}
                       </Button>
-                    )}
-                  />
-                  <SettingsRow
-                    label={t('调试模式', 'Debug mode')}
-                    divider={false}
-                    trailing={(
-                      <div className="flex items-center gap-2">
-                        {debugModeOn ? (
-                          <Button variant="ghost" size="sm" onClick={() => void store.copyDebugDiagnostics()}>
-                            {t('复制诊断', 'Copy diagnostics')}
-                          </Button>
-                        ) : null}
-                        <Switch
-                          checked={debugModeOn}
-                          aria-label={t('开启调试模式', 'Turn on debug mode')}
-                          onCheckedChange={value => {
-                            store.setDebugModeOn(Boolean(value))
-                            setDebugMode(Boolean(value))
-                          }}
-                        />
-                      </div>
                     )}
                   />
                 </SettingsSection>
@@ -1895,7 +1871,6 @@ function createSettingsStore(
     editingBuiltinSkill: '',
     builtinSkillDocument: '',
     builtinSkillCustomized: false,
-    debugModeOn: isDebugMode(),
   })
   const s = {
     get category() { return store.getState().category },
@@ -1974,8 +1949,6 @@ function createSettingsStore(
     set builtinSkillDocument(value) { store.setState({ builtinSkillDocument: value }); },
     get builtinSkillCustomized() { return store.getState().builtinSkillCustomized },
     set builtinSkillCustomized(value) { store.setState({ builtinSkillCustomized: value }); },
-    get debugModeOn() { return store.getState().debugModeOn },
-    set debugModeOn(value) { store.setState({ debugModeOn: value }); }
   }
   function touchWorking() {
     const current = store.getState().working
@@ -3302,21 +3275,6 @@ function createSettingsStore(
     return lines.join('\n')
   }
 
-  async function copyDebugDiagnostics() {
-    const text = buildDiagnosticText()
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text)
-    } else {
-      const area = document.createElement('textarea')
-      area.value = text
-      document.body.append(area)
-      area.select()
-      document.execCommand('copy')
-      area.remove()
-    }
-    s.notice = { tone: 'ok', text: t('调试诊断已复制到剪贴板。', 'Debug diagnostics copied to the clipboard.') }
-  }
-
   async function copyBuildTracking() {
     if (!s.buildTracking) return
     s.buildTrackingCopying = true
@@ -3776,9 +3734,6 @@ function createSettingsStore(
   function setAccountStatusProp(value: AccountStatus | undefined) {
     store.setState({ accountStatusProp: value })
   }
-  function setDebugModeOn(value: boolean) {
-    store.setState({ debugModeOn: value })
-  }
   function setBuiltinSkillDocument(value: string) {
     store.setState({ builtinSkillDocument: value })
   }
@@ -3802,7 +3757,6 @@ function createSettingsStore(
     setWorkerModelKey,
     setImageGenModelKey,
     setProviderEditorOpen,
-    setDebugModeOn,
     setBuiltinSkillDocument,
     setThinkingModelKey,
     setWindowModelKey,
@@ -3815,7 +3769,6 @@ function createSettingsStore(
     databaseVersionText,
     formatBuildTrackingText,
     copyBuildTracking,
-    copyDebugDiagnostics,
     save,
     codingToolSkill,
     codingToolStatusLabel,

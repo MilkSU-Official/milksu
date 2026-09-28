@@ -111,11 +111,12 @@ type DiagnosticSettings struct {
 }
 
 type DiagnosticInput struct {
-	AppVersion string             `json:"appVersion"`
-	Runtime    DiagnosticRuntime  `json:"runtime"`
-	Settings   DiagnosticSettings `json:"settings"`
-	Lifespan   LifespanStart      `json:"lifespan"`
-	Events     []DiagnosticEvent  `json:"events,omitempty"`
+	AppVersion     string             `json:"appVersion"`
+	Runtime        DiagnosticRuntime  `json:"runtime"`
+	Settings       DiagnosticSettings `json:"settings"`
+	Lifespan       LifespanStart      `json:"lifespan"`
+	Events         []DiagnosticEvent  `json:"events,omitempty"`
+	RendererEvents []DiagnosticEvent  `json:"-"`
 }
 
 type DiagnosticDatabase struct {
@@ -188,7 +189,7 @@ func ExportDiagnostics(
 		Settings:     sanitizeDiagnosticSettings(input.Settings),
 		Lifespan:     sanitizeDiagnosticLifespan(input.Lifespan),
 		Databases:    inspectDiagnosticDatabases(ctx, root),
-		RecentEvents: sanitizeDiagnosticEvents(input.Events),
+		RecentEvents: sanitizeDiagnosticEvents(append(slices.Clone(input.Events), sanitizeRendererDiagnosticEvents(input.RendererEvents)...)),
 		Privacy: []string{
 			"不包含 API Key、Arena Token、浏览器配对令牌或 PI 认证文件",
 			"不包含会话正文、附件内容、模型回复或工具输入输出",
@@ -345,6 +346,103 @@ func sanitizeDiagnosticSettings(settings DiagnosticSettings) DiagnosticSettings 
 	slices.Sort(providers)
 	settings.ConfiguredProvider = slices.Compact(providers)
 	return settings
+}
+
+var rendererDiagnosticActions = map[string]struct{}{
+	"section-change":            {},
+	"catalog-load":              {},
+	"catalog-search":            {},
+	"full-catalog-load":         {},
+	"training-progress-refresh": {},
+	"catalog-sync":              {},
+	"dashboard-load":            {},
+	"rpc":                       {},
+}
+
+var (
+	rendererMethodPattern = regexp.MustCompile(`^[a-zA-Z0-9_]{1,80}$`)
+	rendererNumberPattern = regexp.MustCompile(`^[0-9]{1,10}$`)
+)
+
+var rendererDiagnosticKeys = map[string]struct{}{
+	"method":     {},
+	"section":    {},
+	"view":       {},
+	"status":     {},
+	"count":      {},
+	"page":       {},
+	"durationMs": {},
+	"errorKind":  {},
+}
+
+func sanitizeRendererDiagnosticEvents(events []DiagnosticEvent) []DiagnosticEvent {
+	if len(events) > 200 {
+		events = events[len(events)-200:]
+	}
+	result := make([]DiagnosticEvent, 0, len(events))
+	for _, event := range events {
+		timestamp, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(event.Timestamp))
+		if err != nil {
+			continue
+		}
+		parts := strings.Fields(event.Message)
+		if len(parts) == 0 {
+			continue
+		}
+		if _, ok := rendererDiagnosticActions[parts[0]]; !ok {
+			continue
+		}
+		level := "info"
+		for _, part := range parts[1:] {
+			key, value, ok := strings.Cut(part, "=")
+			if !ok || value == "" {
+				parts = nil
+				break
+			}
+			if _, ok := rendererDiagnosticKeys[key]; !ok || !validRendererDiagnosticValue(key, value) {
+				parts = nil
+				break
+			}
+			if key == "status" && value == "error" {
+				level = "error"
+			}
+		}
+		if len(parts) == 0 {
+			continue
+		}
+		category := "renderer"
+		if parts[0] == "rpc" {
+			category = "desktop-rpc"
+		} else if parts[0] != "section-change" {
+			category = "nssctf"
+		}
+		result = append(result, DiagnosticEvent{
+			Timestamp: timestamp.UTC().Format(time.RFC3339Nano),
+			Category:  category,
+			Level:     level,
+			Message:   strings.Join(parts, " "),
+		})
+	}
+	return result
+}
+
+func validRendererDiagnosticValue(key, value string) bool {
+	switch key {
+	case "method":
+		return rendererMethodPattern.MatchString(value)
+	case "section":
+		return value == "home" || value == "coding" || value == "ctf" || value == "vuln" || value == "lab" || value == "settings"
+	case "view":
+		return value == "all" || value == "collection"
+	case "status":
+		return value == "ok" || value == "error" || value == "cache-hit" || value == "local-hit" || value == "pending"
+	case "errorKind":
+		return value == "timeout" || value == "permission" || value == "network" || value == "invalid" || value == "unavailable" || value == "unknown"
+	case "count", "page", "durationMs":
+		return rendererNumberPattern.MatchString(value)
+	default:
+		return false
+	}
 }
 
 func sanitizeDiagnosticEvents(events []DiagnosticEvent) []DiagnosticEvent {

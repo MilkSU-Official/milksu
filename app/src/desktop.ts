@@ -1,4 +1,4 @@
-import { recordRpcCall } from '@/lib/debugMode'
+import { recordRendererRpc, rendererDiagnosticSnapshot, type RendererDiagnosticEvent } from '@/lib/rendererDiagnostics'
 import { companionPrefersUiMotion } from '@/lib/companionPetMotion'
 import {
   type AccountStatus,
@@ -264,7 +264,7 @@ interface DesktopAppBindings {
   GetBuildTracking(): Promise<BuildTracking>
   ExportLocalDataBackup(): Promise<LocalDataBackupExport>
   ScheduleLocalDataRestore(): Promise<LocalDataBackupRestore>
-  ExportLocalDiagnostics(): Promise<LocalDiagnosticExport>
+  ExportLocalDiagnostics(rendererEvents?: readonly RendererDiagnosticEvent[]): Promise<LocalDiagnosticExport>
   RevealLocalDataDirectory(): Promise<void>
   RevealUserArtifactDirectory(): Promise<void>
   GetStartupRecoveryStatus(): Promise<StartupRecoveryStatus>
@@ -678,7 +678,7 @@ export function codingEnvironmentMissing(reason: unknown) {
 }
 
 export async function invokeCommand<T = unknown>(command: string, args?: CommandArgs): Promise<T> {
-  recordRpcCall(command)
+  recordRendererRpc(command)
   const app = getDesktopApp()
   if (!app) {
     throw new Error(`MilkSU desktop runtime is unavailable for command: ${command}`)
@@ -769,7 +769,7 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
       case 'schedule_local_data_restore':
         return app.ScheduleLocalDataRestore() as Promise<T>
       case 'export_local_diagnostics':
-        return app.ExportLocalDiagnostics() as Promise<T>
+        return app.ExportLocalDiagnostics(rendererDiagnosticSnapshot()) as Promise<T>
       case 'reveal_local_data_directory':
         return app.RevealLocalDataDirectory() as Promise<T>
       case 'reveal_user_artifact_directory':

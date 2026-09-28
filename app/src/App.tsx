@@ -44,7 +44,7 @@ import {
 import type { CodingAgentSurfaceBind } from '@/lib/codingAgentSurface'
 import type { VulnerabilityIntel } from '@/vulnerabilityIntel'
 import { executeVulnerabilityCodingHandoff } from '@/lib/vulnerabilityCodingHandoff'
-import { debugLog } from '@/lib/debugMode'
+import { recordRendererSection } from '@/lib/rendererDiagnostics'
 import { applyUiLocale } from '@/lib/uiLocale'
 import { applyConversationFontSize } from '@/lib/uiFonts'
 import { applyUiEmphasis } from '@/lib/uiEmphasis'
@@ -715,7 +715,7 @@ export default function App() {
   }
 
   function navigateSection(value: Section) {
-    debugLog('section', value)
+    recordRendererSection(value)
     if (value === 'ctf' || value === 'vuln' || value === 'lab') {
       openDomainCatalog(value)
       return

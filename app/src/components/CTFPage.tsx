@@ -63,7 +63,7 @@ import {
   parseCTFDailyChallengeRecord,
 } from '@/lib/ctfDailyChallenge'
 import { ALL_COLLECTIONS_ID, createItemCollectionStore } from '@/lib/itemCollections'
-import { debugLog, updateDebugState } from '@/lib/debugMode'
+import { recordRendererDiagnostic } from '@/lib/rendererDiagnostics'
 import {
   ctfManualStatusFromJobStatus,
   ctfManualStatusLabel,
@@ -510,12 +510,12 @@ export default function CTFPage({
       pageSize: catalogPageSize,
       problemIds,
     })
-    debugLog('load-catalog', `page=${page} view=${collectionView}`, Date.now() - started)
-    updateDebugState({
-      view: collectionView,
-      selectedPlatformId: selectedProblem?.platformId ?? null,
-      collectionProblems: problemIds ? problemIds.length : 0,
-    })
+    recordRendererDiagnostic('catalog-load', {
+      page,
+      view: problemIds ? 'collection' : 'all',
+      status: result ? 'ok' : 'error',
+      count: result?.total ?? 0,
+    }, Date.now() - started)
     if (result) setCatalogPage(result.page)
   }
 
@@ -1073,8 +1073,7 @@ export default function CTFPage({
   useEffect(() => {
     if (activeBank !== 'nssctf' || screen !== 'challenge' || !mountedRef.current) return
     setSelectedProblem(null)
-    debugLog('switch-collection', `view=${collectionView}`)
-    updateDebugState({ view: collectionView, selectedPlatformId: null })
+    recordRendererDiagnostic('catalog-search', { view: 'collection', status: 'pending' })
     void loadPublicCatalog(1)
   }, [collectionView])
 

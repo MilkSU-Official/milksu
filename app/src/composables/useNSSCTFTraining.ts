@@ -1,11 +1,6 @@
 import { createStore } from '@/lib/reactStore'
 import { invokeCommand } from '@/desktop'
-import {
-  debugLog,
-  recordCacheHit,
-  recordLocalHit,
-  updateDebugState,
-} from '@/lib/debugMode'
+import { classifyRendererError, recordRendererDiagnostic, recordRendererError } from '@/lib/rendererDiagnostics'
 import type {
   NSSCTFCatalogQuery,
   NSSCTFCatalogSearchResult,
@@ -107,13 +102,10 @@ async function loadFullCatalog() {
       ts.fullCatalog = result
       rememberProgress(result)
       clearCatalogSearchCache()
-      updateDebugState({
-        fullCatalogReady: true,
-        fullCatalogProblems: result.problems.length,
-      })
-      debugLog('full-catalog-loaded', `${result.problems.length} problems`, Date.now() - started)
+      recordRendererDiagnostic('full-catalog-load', { status: 'ok', count: result.problems.length }, Date.now() - started)
       return result
-    } catch {
+    } catch (reason) {
+      recordRendererError('full-catalog-load', reason, {}, Date.now() - started)
       if (generation !== fullCatalogGeneration) {
         return fullCatalogLoad ?? ts.fullCatalog
       }
@@ -145,13 +137,10 @@ async function refreshTrainingProgressSnapshot() {
         completedProblemIds: result.completedProblemIds,
       }
     }
-    updateDebugState({
-      fullCatalogReady: Boolean(ts.fullCatalog),
-      fullCatalogProblems: ts.fullCatalog?.problems.length ?? result.problems.length,
-    })
-    debugLog('training-progress-refreshed', `${result.completedProblemIds.length} completed`, Date.now() - started)
+    recordRendererDiagnostic('training-progress-refresh', { status: 'ok', count: result.completedProblemIds.length }, Date.now() - started)
     return ts.trainingProgress
-  } catch {
+  } catch (reason) {
+    recordRendererError('training-progress-refresh', reason, {}, Date.now() - started)
     return ts.trainingProgress
   }
 }
@@ -183,11 +172,17 @@ function clearCatalogSearchCache() {
 export function useNSSCTFTraining() {
   async function load() {
     ts.dashboardLoading = true
+    const started = Date.now()
     try {
       ts.dashboard = await invokeCommand<NSSCTFTrainingDashboard>('get_nssctf_training_dashboard')
       ts.dashboardError = null
+      recordRendererDiagnostic('dashboard-load', {
+        status: 'ok',
+        count: ts.dashboard.recommendations.length,
+      }, Date.now() - started)
       return ts.dashboard
     } catch (reason) {
+      recordRendererError('dashboard-load', reason, {}, Date.now() - started)
       ts.dashboardError = reason instanceof Error ? reason.message : String(reason)
       return null
     } finally {
@@ -197,6 +192,7 @@ export function useNSSCTFTraining() {
 
   async function sync() {
     ts.dashboardSyncing = true
+    const started = Date.now()
     try {
       const result = await invokeCommand<NSSCTFCatalogSyncResult>('sync_nssctf_catalog', {
         url: CATALOG_URL,
@@ -206,8 +202,10 @@ export function useNSSCTFTraining() {
       void loadFullCatalog()
       await load()
       ts.dashboardError = null
+      recordRendererDiagnostic('catalog-sync', { status: 'ok', count: result.total }, Date.now() - started)
       return result
     } catch (reason) {
+      recordRendererError('catalog-sync', reason, {}, Date.now() - started)
       ts.dashboardError = reason instanceof Error ? reason.message : String(reason)
       return null
     } finally {
@@ -244,6 +242,7 @@ export function useNSSCTFCatalog() {
   let requestGeneration = 0
 
   async function search(query: NSSCTFCatalogQuery) {
+    const started = Date.now()
     const generation = ++requestGeneration
     const locallyServiceable = isLocalCatalogQuery(query)
     const full = locallyServiceable ? ts.fullCatalog : null
@@ -252,13 +251,7 @@ export function useNSSCTFCatalog() {
       s.result = next
       s.error = null
       s.loading = false
-      recordLocalHit()
-      updateDebugState({
-        fullCatalogReady: true,
-        fullCatalogProblems: full.problems.length,
-        collectionProblems: next.total,
-      })
-      debugLog('catalog-search', `local view=${query.problemIds ? 'collection' : 'all'} ${next.total} visible`)
+      recordRendererDiagnostic('catalog-search', { status: 'local-hit', view: query.problemIds ? 'collection' : 'all', count: next.total }, Date.now() - started)
       return next
     }
     const key = catalogSearchKey(query)
@@ -267,8 +260,7 @@ export function useNSSCTFCatalog() {
       s.result = withCurrentProgress(cached)
       s.error = null
       s.loading = false
-      recordCacheHit()
-      debugLog('catalog-search', 'cache hit')
+      recordRendererDiagnostic('catalog-search', { status: 'cache-hit' }, Date.now() - started)
       return s.result
     }
 
@@ -281,11 +273,17 @@ export function useNSSCTFCatalog() {
       if (generation !== requestGeneration) return s.result
       catalogSearchCache.set(key, next)
       s.result = withCurrentProgress(next)
+      recordRendererDiagnostic('catalog-search', {
+        status: 'ok',
+        view: query.problemIds ? 'collection' : 'all',
+        count: next.total,
+      }, Date.now() - started)
       s.error = null
       return s.result
     } catch (reason) {
+      recordRendererError('catalog-search', reason, {}, Date.now() - started)
       if (generation === requestGeneration) {
-        s.error = reason instanceof Error ? reason.message : String(reason)
+        s.error = classifyRendererError(reason)
       }
       return null
     } finally {

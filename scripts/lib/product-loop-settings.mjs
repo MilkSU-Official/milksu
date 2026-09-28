@@ -88,8 +88,8 @@ export async function runSettingsGeneral(driver) {
   if (error) return error
   return expectLabels(
     driver,
-    ['打开文件', 'Open files', '数据目录', 'Data folder', '调试模式', 'Debug mode'],
-    '通用页有编辑器、文件、数据和调试',
+    ['打开文件', 'Open files', '数据目录', 'Data folder', '诊断', 'Diagnostics', '导出', 'Export', '构建追踪', 'Build tracking'],
+    '通用页有编辑器、文件、数据、诊断和构建追踪',
     '通用页缺了常用控件',
   )
 }
