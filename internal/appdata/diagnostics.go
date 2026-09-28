@@ -156,11 +156,43 @@ type DiagnosticExport struct {
 	Cancelled   bool   `json:"cancelled,omitempty"`
 }
 
+type diagnosticIO struct {
+	mkdirAll   func(string, os.FileMode) error
+	createTemp func(string, string) (*os.File, error)
+	chmod      func(string, os.FileMode) error
+	sync       func(*os.File) error
+	close      func(*os.File) error
+	rename     func(string, string) error
+	stat       func(string) (os.FileInfo, error)
+}
+
+func systemDiagnosticIO() diagnosticIO {
+	return diagnosticIO{
+		mkdirAll:   os.MkdirAll,
+		createTemp: os.CreateTemp,
+		chmod:      os.Chmod,
+		sync:       (*os.File).Sync,
+		close:      (*os.File).Close,
+		rename:     os.Rename,
+		stat:       os.Stat,
+	}
+}
+
 func ExportDiagnostics(
 	ctx context.Context,
 	root,
 	destination string,
 	input DiagnosticInput,
+) (DiagnosticExport, error) {
+	return exportDiagnostics(ctx, root, destination, input, systemDiagnosticIO())
+}
+
+func exportDiagnostics(
+	ctx context.Context,
+	root,
+	destination string,
+	input DiagnosticInput,
+	ioOps diagnosticIO,
 ) (DiagnosticExport, error) {
 	root, err := secureRoot(root)
 	if err != nil {
@@ -170,7 +202,7 @@ func ExportDiagnostics(
 	if err != nil {
 		return DiagnosticExport{}, err
 	}
-	if err := os.MkdirAll(filepath.Dir(destination), 0o700); err != nil {
+	if err := ioOps.mkdirAll(filepath.Dir(destination), 0o700); err != nil {
 		return DiagnosticExport{}, fmt.Errorf("create diagnostic destination: %w", err)
 	}
 
@@ -202,14 +234,14 @@ func ExportDiagnostics(
 	}
 	payload = append(payload, '\n')
 
-	temporary, err := os.CreateTemp(filepath.Dir(destination), ".milksu-diagnostics-*.zip")
+	temporary, err := ioOps.createTemp(filepath.Dir(destination), ".milksu-diagnostics-*.zip")
 	if err != nil {
 		return DiagnosticExport{}, fmt.Errorf("create diagnostic archive: %w", err)
 	}
 	temporaryPath := temporary.Name()
 	defer os.Remove(temporaryPath)
-	if err := temporary.Chmod(0o600); err != nil {
-		temporary.Close()
+	if err := ioOps.chmod(temporary.Name(), 0o600); err != nil {
+		_ = ioOps.close(temporary)
 		return DiagnosticExport{}, fmt.Errorf("protect diagnostic archive: %w", err)
 	}
 
@@ -222,33 +254,33 @@ func ExportDiagnostics(
 	header.SetMode(0o600)
 	writer, err := archive.CreateHeader(header)
 	if err != nil {
-		archive.Close()
-		temporary.Close()
+		_ = archive.Close()
+		_ = ioOps.close(temporary)
 		return DiagnosticExport{}, fmt.Errorf("create diagnostic report: %w", err)
 	}
 	if _, err := writer.Write(payload); err != nil {
-		archive.Close()
-		temporary.Close()
+		_ = archive.Close()
+		_ = ioOps.close(temporary)
 		return DiagnosticExport{}, fmt.Errorf("write diagnostic report: %w", err)
 	}
 	if err := archive.Close(); err != nil {
-		temporary.Close()
+		_ = ioOps.close(temporary)
 		return DiagnosticExport{}, fmt.Errorf("finish diagnostic archive: %w", err)
 	}
-	if err := temporary.Sync(); err != nil {
-		temporary.Close()
+	if err := ioOps.sync(temporary); err != nil {
+		_ = ioOps.close(temporary)
 		return DiagnosticExport{}, fmt.Errorf("sync diagnostic archive: %w", err)
 	}
-	if err := temporary.Close(); err != nil {
+	if err := ioOps.close(temporary); err != nil {
 		return DiagnosticExport{}, fmt.Errorf("close diagnostic archive: %w", err)
 	}
-	if err := os.Rename(temporaryPath, destination); err != nil {
+	if err := ioOps.rename(temporaryPath, destination); err != nil {
 		return DiagnosticExport{}, fmt.Errorf("install diagnostic archive: %w", err)
 	}
-	if err := os.Chmod(destination, 0o600); err != nil {
+	if err := ioOps.chmod(destination, 0o600); err != nil {
 		return DiagnosticExport{}, fmt.Errorf("protect diagnostic archive: %w", err)
 	}
-	info, err := os.Stat(destination)
+	info, err := ioOps.stat(destination)
 	if err != nil {
 		return DiagnosticExport{}, fmt.Errorf("inspect diagnostic archive: %w", err)
 	}

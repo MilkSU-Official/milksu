@@ -55,7 +55,8 @@
     "spike:pi": "node spikes/engine-comparison/pi-spike.mjs",
     "spike:codex:protocol": "node spikes/engine-comparison/codex-spike.mjs --protocol-only",
     "spike:codex": "node spikes/engine-comparison/codex-spike.mjs",
-    "spike:dsh:live": "node sidecar/dsh/live-loop.mjs"
+    "spike:dsh:live": "node sidecar/dsh/live-loop.mjs",
+    "test:diagnostics-export-electron": "node scripts/test-diagnostics-export-electron.mjs"
   },
   "devDependencies": {
     "esbuild": "0.28.1",
