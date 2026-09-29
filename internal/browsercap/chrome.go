@@ -169,6 +169,17 @@ func chromeFixedCandidates(goos string, getenv func(string) string) []string {
 			return nil
 		}
 		return []string{
+			"/usr/bin/google-chrome-stable",
+			"/usr/bin/google-chrome",
+			"/usr/bin/chromium",
+			"/usr/bin/chromium-browser",
+			"/usr/bin/microsoft-edge-stable",
+			"/usr/bin/microsoft-edge",
+			"/usr/bin/brave-browser",
+			"/snap/bin/chromium",
+			"/run/current-system/sw/bin/chromium",
+			"/run/current-system/sw/bin/google-chrome-stable",
+			"/run/current-system/sw/bin/microsoft-edge",
 			filepath.Join(home, ".nix-profile", "bin", "chromium"),
 			filepath.Join(home, ".nix-profile", "bin", "google-chrome-stable"),
 		}

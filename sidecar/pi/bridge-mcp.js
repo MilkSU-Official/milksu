@@ -94,6 +94,17 @@ export function browserUseExecutableCandidatesFor(platform, env = process.env) {
   const home = String(env.HOME || "");
   return home
     ? [
+      "/usr/bin/google-chrome-stable",
+      "/usr/bin/google-chrome",
+      "/usr/bin/chromium",
+      "/usr/bin/chromium-browser",
+      "/usr/bin/microsoft-edge-stable",
+      "/usr/bin/microsoft-edge",
+      "/usr/bin/brave-browser",
+      "/snap/bin/chromium",
+      "/run/current-system/sw/bin/chromium",
+      "/run/current-system/sw/bin/google-chrome-stable",
+      "/run/current-system/sw/bin/microsoft-edge",
       join(home, ".nix-profile", "bin", "chromium"),
       join(home, ".nix-profile", "bin", "google-chrome-stable"),
     ]
@@ -981,10 +992,12 @@ export async function createFirstPartyPlaywrightMcpServer(
   };
 }
 
-export async function resolveBrowserUseExecutable(platform = process.platform, env = process.env) {
-  const found = await firstExistingRegularFile(
-    browserUseExecutableCandidatesFor(platform, env),
-  );
+export async function resolveBrowserUseExecutable(
+  platform = process.platform,
+  env = process.env,
+  probe = firstExistingRegularFile,
+) {
+  const found = await probe(browserUseExecutableCandidatesFor(platform, env));
   if (found) return found;
   for (const name of browserUsePathNames(platform)) {
     const fromPath = await lookupOnPath(name, env);

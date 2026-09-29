@@ -432,6 +432,17 @@ test("builds Browser Use from the pinned Playwright extension mode", async () =>
 test("resolves Linux Chromium for Browser Use instead of macOS-only Chrome", async () => {
   const linux = browserUseExecutableCandidatesFor("linux", { HOME: "/home/milksu" });
   assert.deepEqual(linux, [
+    "/usr/bin/google-chrome-stable",
+    "/usr/bin/google-chrome",
+    "/usr/bin/chromium",
+    "/usr/bin/chromium-browser",
+    "/usr/bin/microsoft-edge-stable",
+    "/usr/bin/microsoft-edge",
+    "/usr/bin/brave-browser",
+    "/snap/bin/chromium",
+    "/run/current-system/sw/bin/chromium",
+    "/run/current-system/sw/bin/google-chrome-stable",
+    "/run/current-system/sw/bin/microsoft-edge",
     "/home/milksu/.nix-profile/bin/chromium",
     "/home/milksu/.nix-profile/bin/google-chrome-stable",
   ]);
@@ -440,11 +451,17 @@ test("resolves Linux Chromium for Browser Use instead of macOS-only Chrome", asy
   await mkdir(dirname(nixChrome), { recursive: true });
   await writeFile(nixChrome, "#!/bin/sh\n");
   await chmod(nixChrome, 0o755);
-  const found = await resolveBrowserUseExecutable("linux", {
-    HOME: workspace,
-    PATH: "/nonexistent",
-  });
+  const found = await resolveBrowserUseExecutable(
+    "linux",
+    { HOME: workspace, PATH: "/nonexistent" },
+    async (candidates) => (candidates.includes(nixChrome) ? nixChrome : ""),
+  );
   assert.equal(found, nixChrome);
+});
+
+test("returns no Linux Chromium candidates without HOME", () => {
+  assert.deepEqual(browserUseExecutableCandidatesFor("linux", { HOME: "" }), []);
+  assert.deepEqual(browserUseExecutableCandidatesFor("linux", {}), []);
 });
 
 test("resolves a Linux Chromium supplied through PATH", async () => {
@@ -454,10 +471,11 @@ test("resolves a Linux Chromium supplied through PATH", async () => {
   await mkdir(bin, { recursive: true });
   await writeFile(chromium, "#!/bin/sh\n");
   await chmod(chromium, 0o755);
-  const found = await resolveBrowserUseExecutable("linux", {
-    HOME: join(workspace, "empty-home"),
-    PATH: bin,
-  });
+  const found = await resolveBrowserUseExecutable(
+    "linux",
+    { HOME: join(workspace, "empty-home"), PATH: bin },
+    async () => "",
+  );
   assert.equal(found, chromium);
 });
 

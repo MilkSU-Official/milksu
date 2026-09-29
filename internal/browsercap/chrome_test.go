@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -41,7 +42,9 @@ func TestFindChromePrefersNixAndDesktopEntriesOnLinux(t *testing.T) {
 			return ""
 		}, func(string) (string, error) {
 			return "", errors.New("not on PATH")
-		}, regularFile)
+		}, func(path string) bool {
+			return path == nixBin
+		})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -62,7 +65,9 @@ func TestFindChromePrefersNixAndDesktopEntriesOnLinux(t *testing.T) {
 			}
 		}, func(string) (string, error) {
 			return "", errors.New("not on PATH")
-		}, regularFile)
+		}, func(path string) bool {
+			return path == desktop || path == desktopExec
+		})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -70,6 +75,36 @@ func TestFindChromePrefersNixAndDesktopEntriesOnLinux(t *testing.T) {
 			t.Fatalf("got %q, want desktop Exec %q", got, desktopExec)
 		}
 	})
+}
+
+func TestChromeFixedCandidatesOnLinux(t *testing.T) {
+	if got := chromeFixedCandidates("linux", func(string) string { return "" }); len(got) != 0 {
+		t.Fatalf("got %v, want no candidates without HOME", got)
+	}
+	got := chromeFixedCandidates("linux", func(name string) string {
+		if name == "HOME" {
+			return "/home/milksu"
+		}
+		return ""
+	})
+	want := []string{
+		"/usr/bin/google-chrome-stable",
+		"/usr/bin/google-chrome",
+		"/usr/bin/chromium",
+		"/usr/bin/chromium-browser",
+		"/usr/bin/microsoft-edge-stable",
+		"/usr/bin/microsoft-edge",
+		"/usr/bin/brave-browser",
+		"/snap/bin/chromium",
+		"/run/current-system/sw/bin/chromium",
+		"/run/current-system/sw/bin/google-chrome-stable",
+		"/run/current-system/sw/bin/microsoft-edge",
+		"/home/milksu/.nix-profile/bin/chromium",
+		"/home/milksu/.nix-profile/bin/google-chrome-stable",
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
 }
 
 func TestFindChromeUsesPathAfterUserProfileCandidates(t *testing.T) {
