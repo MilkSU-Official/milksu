@@ -392,6 +392,8 @@ export default function SettingsPage({
   const store = useStoreRuntime(() => createSettingsStore(callbacks))
   const modelCatalog = useStore(modelCatalogStore)
   const [accountModelsOpen, setAccountModelsOpen] = useState(false)
+  const [linuxProtocol, setLinuxProtocol] = useState({ available: false, enabled: false })
+  const [linuxProtocolBusy, setLinuxProtocolBusy] = useState(false)
   // 二级页：权限与操控的管理页（电脑应用、外部浏览器、内置浏览器）和记忆条目页。
   const [managementView, setManagementView] = useState<'computer-use' | 'external-browser' | 'coding-browser' | 'memory-entries' | null>(null)
   const [codingBrowserOverview, setCodingBrowserOverview] = useState<CodingBrowserStatus[] | null>(null)
@@ -410,6 +412,14 @@ export default function SettingsPage({
   useEffect(() => {
     store.setAccountStatusProp(accountStatus)
   }, [store, accountStatus])
+
+  useEffect(() => {
+    let current = true
+    void invokeCommand<{ available: boolean; enabled: boolean }>('get_linux_development_protocol_status')
+      .then(status => { if (current) setLinuxProtocol(status) })
+      .catch(() => undefined)
+    return () => { current = false }
+  }, [])
 
   const category = state.category
 
@@ -711,6 +721,36 @@ export default function SettingsPage({
                     </div>
                   )}
                 />
+                {linuxProtocol.available ? (
+                  <SettingsRow
+                    label={t('系统登录回调', 'System sign-in callback')}
+                    description={t(
+                      '仅在本次开发会话中关联 milksu://，退出 MilkSU 后恢复原设置。',
+                      'Associate milksu:// for this development session only. The previous setting is restored when MilkSU exits.',
+                    )}
+                    trailing={(
+                      <Switch
+                        checked={linuxProtocol.enabled}
+                        disabled={linuxProtocolBusy}
+                        aria-label={t('关联系统登录回调', 'Associate system sign-in callback')}
+                        onCheckedChange={enabled => {
+                          setLinuxProtocolBusy(true)
+                          void invokeCommand<{ available: boolean; enabled: boolean }>(
+                            'set_linux_development_protocol',
+                            { enabled: Boolean(enabled) },
+                          ).then(setLinuxProtocol).catch(() => {
+                            setLinuxProtocol(current => ({ ...current, enabled: !enabled }))
+                            store.store.setState({ notice: {
+                              tone: 'error',
+                              text: t('无法关联系统登录回调。', 'Could not associate the system sign-in callback.'),
+                            } })
+                          }).finally(() => setLinuxProtocolBusy(false))
+                        }}
+                      />
+                    )}
+                    divider={false}
+                  />
+                ) : null}
                 <AccountCredentialSettings
                   account={account}
                   onChanged={next => onAccountStatusChange?.(next)}

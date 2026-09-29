@@ -192,6 +192,8 @@ export interface VulnerabilityPracticeRun {
 }
 
 interface DesktopAppBindings {
+  GetLinuxDevelopmentProtocolStatus(): Promise<{ available: boolean; enabled: boolean }>
+  SetLinuxDevelopmentProtocol(payload: { enabled: boolean }): Promise<{ available: boolean; enabled: boolean }>
   GetAccountStatus(): Promise<AccountStatus>
   StartAccountLogin(): Promise<AccountStatus>
   StartAccountPasswordLogin(payload: { username: string, password: string }): Promise<AccountStatus>
@@ -684,6 +686,10 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
     throw new Error(`MilkSU desktop runtime is unavailable for command: ${command}`)
   }
   switch (command) {
+      case 'get_linux_development_protocol_status':
+        return app.GetLinuxDevelopmentProtocolStatus() as Promise<T>
+      case 'set_linux_development_protocol':
+        return app.SetLinuxDevelopmentProtocol(args as { enabled: boolean }) as Promise<T>
       case 'get_account_status':
         return app.GetAccountStatus() as Promise<T>
       case 'start_account_login':

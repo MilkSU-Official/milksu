@@ -353,11 +353,13 @@ async function buildApp() {
 
 async function startDevelopment() {
   if (!process.argv.includes('--no-build')) await buildRuntime()
+  const accountApiUrl = desktopAccountConfigFromEnvironment(process.env).apiUrl
   await run('npm', ['--prefix', 'desktop', 'start'], {
     env: {
       ...process.env,
       MILKSU_CHANNEL: 'stable',
       MILKSU_DESKTOP_APP_ID: STABLE_APP_ID,
+      MILKSU_ACCOUNT_API_URL: accountApiUrl,
       MILKSU_PLUGIN_DEV: '1',
     },
   })
