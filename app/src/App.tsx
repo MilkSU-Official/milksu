@@ -264,6 +264,7 @@ export default function App() {
   const settingsReturnTargetRef = useRef(settingsReturnTarget)
   const codingConversationDrawerOpenRef = useRef(codingConversationDrawerOpen)
   const ctfSectionRef = useRef(ctfSection)
+  const selectSidebarConversationRef = useRef<(id: string) => void>(() => {})
   accountStatusRef.current = accountStatus
   updateStatusRef.current = updateStatus
   themeModeRef.current = themeMode
@@ -802,12 +803,14 @@ export default function App() {
     setDomainChatDockOpen(true, home)
   }
 
+  selectSidebarConversationRef.current = selectSidebarConversation
+
   useEffect(() => {
     let unlisten: (() => void) | undefined
     let cancelled = false
     void listenEvent<{ conversationId?: string }>('companion-focus', event => {
       const id = String(event.payload?.conversationId ?? '').trim()
-      if (id) selectSidebarConversation(id)
+      if (id) selectSidebarConversationRef.current(id)
     }).then(stop => {
       if (cancelled) stop()
       else unlisten = stop
@@ -816,7 +819,7 @@ export default function App() {
       cancelled = true
       unlisten?.()
     }
-  }, [conversations.conversations])
+  }, [])
 
   async function chooseAgentWorkspace() {
     if (sectionRef.current === 'image') return
@@ -1474,6 +1477,7 @@ export default function App() {
 
   useEffect(() => {
     const mountedAt = performance.now()
+    const pluginSurfaceProperties = documentPluginSurfaceProperties.current
     startupLog('renderer.onMounted')
     applyCurrentTheme()
     let systemThemeMedia: MediaQueryList | undefined
@@ -1616,7 +1620,7 @@ export default function App() {
       unlistenPluginTheme?.()
       unlistenCompanionModel?.()
       if (typeof document !== 'undefined') {
-        for (const property of documentPluginSurfaceProperties.current) document.documentElement.style.removeProperty(property)
+        for (const property of pluginSurfaceProperties) document.documentElement.style.removeProperty(property)
         document.documentElement.classList.remove('plugin-surface-overlay-menu-active')
       }
       if (systemThemeMedia && systemThemeListener) {

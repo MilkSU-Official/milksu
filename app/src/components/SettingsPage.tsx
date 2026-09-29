@@ -3088,7 +3088,7 @@ function createSettingsStore(
   const editingProviderModels = () => editingProviderInfo()?.models ?? []
   function providerEditorOpen() {
     if (!s.editingProviderID) return false
-    if (s.providerEditorMode === 'catalog' && !s.pendingCustomRelay?.fresh) return false
+    if (s.providerEditorMode === 'catalog' && s.pendingCustomRelay && !s.pendingCustomRelay.fresh) return false
     return true
   }
 

@@ -1,6 +1,7 @@
 'use strict'
 
 const { installBrokenPipeGuards, safeConsoleInfo } = require('./safe-console.cjs')
+const { parseURL } = require('./parse-url.cjs')
 installBrokenPipeGuards()
 
 const { execFileSync, spawn } = require('node:child_process')
@@ -9,14 +10,12 @@ const { randomUUID } = require('node:crypto')
 const { pathToFileURL } = require('node:url')
 const { promisify } = require('node:util')
 const execFileAsync = promisify(require('node:child_process').execFile)
-const { existsSync } = require('node:fs')
 const { promises: fs } = require('node:fs')
 const path = require('node:path')
 const {
   app,
   BrowserWindow,
   clipboard,
-  desktopCapturer,
   dialog,
   ipcMain,
   Menu,
@@ -49,7 +48,6 @@ const {
 const { loadBuildTrackingView } = require('./build-tracking-view.cjs')
 const {
   AccountSession,
-  accountCallbackForwardPlan,
   readAccountCallbackHandoff,
   writeAccountCallbackHandoff,
   accountCallbackFromArgv,
@@ -90,10 +88,7 @@ const {
   desktopBackendEnvironment,
   electronNodeEnvironment,
 } = require('./startup-environment.cjs')
-const {
-  installRendererReloadGuard,
-  productApplicationMenuTemplate,
-} = require('./renderer-reload.cjs')
+const { installRendererReloadGuard } = require('./renderer-reload.cjs')
 const { BackendRuntime } = require('./backend-runtime.cjs')
 const { createCompanionShell } = require('./companion-shell.cjs')
 const { createCompanionSkinHost } = require('./companion-skin-host.cjs')
@@ -432,11 +427,6 @@ async function syncAccountModelAuthorization(status) {
   return false
 }
 
-function resourcesPath(relative) {
-  if (app.isPackaged) return path.join(process.resourcesPath, relative)
-  return path.resolve(__dirname, '..', relative)
-}
-
 function backendExecutable() {
   const override = String(process.env.MILKSU_BACKEND_PATH ?? '').trim()
   if (override && path.isAbsolute(override)) return override
@@ -455,8 +445,8 @@ function rendererDirectory() {
 async function installRendererProtocol() {
   const root = await fs.realpath(rendererDirectory())
   protocol.handle('milksu', async request => {
-    const url = new URL(request.url)
-	if (url.host !== 'app') return new Response('not found', { status: 404 })
+    const url = parseURL(request.url)
+    if (!url || url.host !== 'app') return new Response('not found', { status: 404 })
     const pluginSettingsMatch = url.pathname.match(/^\/__plugin-settings\/([a-z][a-z0-9.-]{0,63})\.mjs$/)
     if (pluginSettingsMatch) {
       try {
@@ -490,7 +480,12 @@ async function installRendererProtocol() {
         return new Response('not found', { status: 404 })
       }
     }
-    let relative = decodeURIComponent(url.pathname).replace(/^\/+/, '')
+    let relative
+    try {
+      relative = decodeURIComponent(url.pathname).replace(/^\/+/, '')
+    } catch {
+      return new Response('not found', { status: 404 })
+    }
     if (!relative) relative = 'index.html'
     let candidate = path.resolve(root, relative)
     if (candidate !== root && !candidate.startsWith(`${root}${path.sep}`)) {
@@ -643,8 +638,8 @@ class BrowserShell {
     }
     let initialURL = null
     if (rawURL) {
-      initialURL = new URL(rawURL)
-      if (!['http:', 'https:'].includes(initialURL.protocol)) {
+      initialURL = parseURL(rawURL)
+      if (!initialURL || !['http:', 'https:'].includes(initialURL.protocol)) {
         throw new Error('invalid browser request')
       }
     }
@@ -731,8 +726,8 @@ class BrowserShell {
   }
 
   navigate(request) {
-    const url = new URL(String(request?.url ?? ''))
-    if (!['http:', 'https:'].includes(url.protocol)) throw new Error('invalid browser URL')
+    const url = parseURL(String(request?.url ?? ''))
+    if (!url || !['http:', 'https:'].includes(url.protocol)) throw new Error('invalid browser URL')
     return this.activeTab(this.get(request)).view.webContents.loadURL(url.toString())
   }
 
@@ -755,15 +750,15 @@ class BrowserShell {
     if (current.tabs.size >= MAX_BROWSER_TABS) {
       throw new Error(`最多打开 ${MAX_BROWSER_TABS} 个标签页`)
     }
+    const rawURL = String(request?.url ?? '').trim()
+    const url = rawURL ? parseURL(rawURL) : null
+    if (rawURL && (!url || !['http:', 'https:'].includes(url.protocol))) {
+      throw new Error('invalid browser URL')
+    }
     const tabId = `tab_${randomUUID()}`
     const view = this.createView(String(request.sessionId ?? ''), current.partition)
     this.window.contentView.addChildView(view)
-    const rawURL = String(request?.url ?? '').trim()
-    if (rawURL) {
-      const url = new URL(rawURL)
-      if (!['http:', 'https:'].includes(url.protocol)) throw new Error('invalid browser URL')
-      await view.webContents.loadURL(url.toString())
-    }
+    if (url) await view.webContents.loadURL(url.toString())
     const targetId = await this.identifyTarget(view)
     const tab = { view, targetId, attached: true }
     detachBrowserView(this.window.contentView, tab)
@@ -892,8 +887,8 @@ async function handleHostRequest(method, payload = {}) {
       return buttons[result.response] ?? ''
     }
     case 'shell.openExternal': {
-      const url = new URL(String(payload.url ?? ''))
-      if (!['http:', 'https:'].includes(url.protocol)) throw new Error('external URL is not allowed')
+      const url = parseURL(String(payload.url ?? ''))
+      if (!url || !['http:', 'https:'].includes(url.protocol)) throw new Error('external URL is not allowed')
       await shell.openExternal(url.toString())
       return null
     }
