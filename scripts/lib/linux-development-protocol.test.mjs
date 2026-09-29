@@ -46,10 +46,13 @@ test('temporarily associates the development launcher and restores the previous 
     assert.equal((await stat(launcherPath)).mode & 0o777, 0o700)
     assert.equal((await stat(path.join(state.applicationsDirectory, 'milksu-development.desktop'))).mode & 0o777, 0o755)
     assert.equal(state.refreshes.length, 1)
+    const statePath = path.join(state.applicationsDirectory, 'milksu-development-protocol.state.json')
+    assert.deepEqual(JSON.parse(await readFile(statePath, 'utf8')), { previousHandler: 'milksu.desktop' })
     await state.result.restore()
     assert.equal(state.refreshes.length, 2)
     assert.equal(state.current(), 'milksu.desktop')
     await assert.rejects(readFile(launcherPath))
+    await assert.rejects(readFile(statePath))
     assert.deepEqual(state.registrations.at(-1), ['milksu.desktop', 'x-scheme-handler/milksu'])
   } finally {
     await rm(state.root, { recursive: true, force: true })
@@ -124,6 +127,82 @@ test('clears a leftover auto-registered development handler on startup', async (
     assert.match(await readFile(mimeAppsPath, 'utf8'), /text\/plain=editor.desktop/u)
     await assert.rejects(readFile(desktopFile))
     await assert.rejects(readFile(launcherFile))
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('restores the previous handler recorded in the state file during stale cleanup', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'milksu-dev-protocol-stale-restore-'))
+  const applicationsDirectory = path.join(root, 'applications')
+  const configDirectory = path.join(root, 'config')
+  await mkdir(applicationsDirectory, { recursive: true })
+  await mkdir(configDirectory, { recursive: true })
+  const desktopFile = path.join(applicationsDirectory, 'milksu-development.desktop')
+  const launcherFile = path.join(applicationsDirectory, 'milksu-development-protocol')
+  const statePath = path.join(applicationsDirectory, 'milksu-development-protocol.state.json')
+  await writeFile(desktopFile, 'development handler')
+  await writeFile(launcherFile, 'development launcher')
+  await writeFile(statePath, `${JSON.stringify({ previousHandler: 'milksu.desktop' })}\n`)
+  const mimeAppsPath = path.join(configDirectory, 'mimeapps.list')
+  await writeFile(mimeAppsPath, [
+    '[Default Applications]',
+    'x-scheme-handler/milksu=milksu-development.desktop;',
+    '',
+  ].join('\n'))
+  let handler = 'milksu-development.desktop'
+  const registrations = []
+  try {
+    assert.equal(await clearStaleLinuxDevelopmentProtocol({
+      applicationsDirectory,
+      configDirectory,
+      currentHandler: async () => handler,
+      setDefaultHandler: async (desktopName, mimeType) => {
+        registrations.push([desktopName, mimeType])
+        handler = desktopName
+      },
+    }), true)
+    assert.deepEqual(registrations, [['milksu.desktop', 'x-scheme-handler/milksu']])
+    assert.equal(handler, 'milksu.desktop')
+    await assert.rejects(readFile(desktopFile))
+    await assert.rejects(readFile(launcherFile))
+    await assert.rejects(readFile(statePath))
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('logs and removes the development association when restoring the previous handler fails', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'milksu-dev-protocol-stale-restore-fail-'))
+  const applicationsDirectory = path.join(root, 'applications')
+  const configDirectory = path.join(root, 'config')
+  await mkdir(applicationsDirectory, { recursive: true })
+  await mkdir(configDirectory, { recursive: true })
+  const statePath = path.join(applicationsDirectory, 'milksu-development-protocol.state.json')
+  await writeFile(path.join(applicationsDirectory, 'milksu-development.desktop'), 'development handler')
+  await writeFile(statePath, `${JSON.stringify({ previousHandler: 'milksu.desktop' })}\n`)
+  const mimeAppsPath = path.join(configDirectory, 'mimeapps.list')
+  await writeFile(mimeAppsPath, [
+    '[Default Applications]',
+    'x-scheme-handler/milksu=milksu-development.desktop;',
+    '',
+  ].join('\n'))
+  const logs = []
+  try {
+    assert.equal(await clearStaleLinuxDevelopmentProtocol({
+      applicationsDirectory,
+      configDirectory,
+      currentHandler: async () => 'milksu-development.desktop',
+      setDefaultHandler: async () => {
+        throw new Error('xdg-mime timed out')
+      },
+      log: message => logs.push(message),
+    }), true)
+    assert.equal(logs.length, 1)
+    assert.match(logs[0], /failed to restore previous handler milksu\.desktop/u)
+    assert.match(logs[0], /xdg-mime timed out/u)
+    assert.doesNotMatch(await readFile(mimeAppsPath, 'utf8'), /x-scheme-handler\/milksu=/u)
+    await assert.rejects(readFile(statePath))
   } finally {
     await rm(root, { recursive: true, force: true })
   }

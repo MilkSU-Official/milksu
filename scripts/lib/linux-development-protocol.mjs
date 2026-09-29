@@ -3,6 +3,7 @@ import { join } from 'node:path'
 
 const PROTOCOL_DESKTOP_FILE = 'milksu-development.desktop'
 const PROTOCOL_LAUNCHER_FILE = 'milksu-development-protocol'
+const PROTOCOL_STATE_FILE = 'milksu-development-protocol.state.json'
 const MIME_TYPE = 'x-scheme-handler/milksu'
 
 function shellQuote(value) {
@@ -37,8 +38,31 @@ export function linuxDevelopmentProtocolFiles({ applicationsDirectory, appDirect
   return { launcherPath, desktopPath, launcher, desktopEntry, desktopFileName: PROTOCOL_DESKTOP_FILE }
 }
 
+// Threat model: this heuristic only picks which existing handler a dev opt-in may
+// temporarily replace and later restore; a spoofed milksu-look-alike name can never
+// receive the callback, because the dev launcher is installed only after the opt-in.
 function isMilkSUHandler(handler) {
   return /(?:^|[.-])milksu(?:[-.].*)?\.desktop$/iu.test(handler)
+}
+
+function protocolStatePath(applicationsDirectory) {
+  return join(applicationsDirectory, PROTOCOL_STATE_FILE)
+}
+
+async function writePreviousHandlerState(applicationsDirectory, previousHandler) {
+  await writeFile(protocolStatePath(applicationsDirectory), `${JSON.stringify({ previousHandler })}\n`, { mode: 0o600 })
+}
+
+async function readPreviousHandlerState(applicationsDirectory, log) {
+  try {
+    const parsed = JSON.parse(await readFile(protocolStatePath(applicationsDirectory), 'utf8'))
+    return typeof parsed?.previousHandler === 'string' ? parsed.previousHandler : ''
+  } catch (error) {
+    if (error?.code !== 'ENOENT') {
+      log(`linux-development-protocol: failed to read previous handler state, falling back to removing the association: ${error?.message ?? error}`)
+    }
+    return ''
+  }
 }
 
 async function removeDefaultAssociation(configDirectory) {
@@ -66,14 +90,28 @@ async function removeDefaultAssociation(configDirectory) {
   if (updated !== contents) await writeFile(mimeAppsPath, updated, 'utf8')
 }
 
-export async function clearStaleLinuxDevelopmentProtocol({ applicationsDirectory, configDirectory, currentHandler, refreshApplications = async () => {} }) {
+export async function clearStaleLinuxDevelopmentProtocol({ applicationsDirectory, configDirectory, currentHandler, setDefaultHandler, refreshApplications = async () => {}, log = () => {} }) {
   const current = String(await currentHandler()).trim()
   if (current === PROTOCOL_DESKTOP_FILE) {
-    await removeDefaultAssociation(configDirectory)
+    const previousHandler = await readPreviousHandlerState(applicationsDirectory, log)
+    let restored = false
+    if (previousHandler && typeof setDefaultHandler === 'function') {
+      try {
+        await removeDefaultAssociation(configDirectory)
+        await setDefaultHandler(previousHandler, MIME_TYPE)
+        restored = true
+      } catch (error) {
+        log(`linux-development-protocol: failed to restore previous handler ${previousHandler}, removing the development association instead: ${error?.message ?? error}`)
+      }
+    }
+    if (!restored) await removeDefaultAssociation(configDirectory)
     await unlink(join(applicationsDirectory, PROTOCOL_LAUNCHER_FILE)).catch(error => {
       if (error?.code !== 'ENOENT') throw error
     })
     await unlink(join(applicationsDirectory, PROTOCOL_DESKTOP_FILE)).catch(error => {
+      if (error?.code !== 'ENOENT') throw error
+    })
+    await unlink(protocolStatePath(applicationsDirectory)).catch(error => {
       if (error?.code !== 'ENOENT') throw error
     })
   }
@@ -91,6 +129,7 @@ export async function registerLinuxDevelopmentProtocol({
   currentHandler,
   setDefaultHandler,
   refreshApplications = async () => {},
+  log = () => {},
 }) {
   const configuredHandler = String(await currentHandler()).trim()
   const previousHandler = configuredHandler === PROTOCOL_DESKTOP_FILE ? '' : configuredHandler
@@ -107,12 +146,28 @@ export async function registerLinuxDevelopmentProtocol({
   await chmod(files.desktopPath, 0o755)
   try {
     await refreshApplications(applicationsDirectory)
+    // Persist the previous handler before switching the default, so a killed
+    // process can still be rolled back by the startup stale cleanup.
+    await writePreviousHandlerState(applicationsDirectory, previousHandler)
     await setDefaultHandler(files.desktopFileName, MIME_TYPE)
   } catch (error) {
     await unlink(files.launcherPath).catch(() => undefined)
     await unlink(files.desktopPath).catch(() => undefined)
+    await unlink(protocolStatePath(applicationsDirectory)).catch(() => undefined)
     await refreshApplications(applicationsDirectory).catch(() => undefined)
     throw error
+  }
+
+  // Re-check right after setting the default: a concurrent handler change
+  // (TOCTOU) must not go unnoticed, or restore() would roll back to the
+  // recorded previousHandler while the user already picked something else.
+  try {
+    const effective = String(await currentHandler()).trim()
+    if (effective !== files.desktopFileName) {
+      log(`linux-development-protocol: default handler after set is ${effective || '(empty)'}, expected ${files.desktopFileName}`)
+    }
+  } catch (error) {
+    log(`linux-development-protocol: failed to verify the default handler after set: ${error?.message ?? error}`)
   }
 
   let restored = false
@@ -131,6 +186,9 @@ export async function registerLinuxDevelopmentProtocol({
         if (error?.code !== 'ENOENT') throw error
       })
       await unlink(files.desktopPath).catch(error => {
+        if (error?.code !== 'ENOENT') throw error
+      })
+      await unlink(protocolStatePath(applicationsDirectory)).catch(error => {
         if (error?.code !== 'ENOENT') throw error
       })
       await refreshApplications(applicationsDirectory)

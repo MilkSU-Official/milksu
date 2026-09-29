@@ -1105,9 +1105,12 @@ async function linuxDevelopmentProtocolAction(enabled) {
   ).href)
   const dataHome = process.env.XDG_DATA_HOME || path.join(os.homedir(), '.local', 'share')
   const configHome = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config')
+  // Bound every xdg call: restore() runs inside before-quit, and a hung
+  // xdg-mime / update-desktop-database must not keep the app from exiting.
+  const xdgTimeout = { timeout: 10_000 }
   const currentHandler = async () => {
     try {
-      const { stdout } = await execFileAsync('xdg-mime', ['query', 'default', 'x-scheme-handler/milksu'])
+      const { stdout } = await execFileAsync('xdg-mime', ['query', 'default', 'x-scheme-handler/milksu'], xdgTimeout)
       return stdout
     } catch {
       return ''
@@ -1121,11 +1124,12 @@ async function linuxDevelopmentProtocolAction(enabled) {
     accountApiUrl: process.env.MILKSU_ACCOUNT_API_URL || '',
     currentHandler,
     setDefaultHandler: async (desktopFile, mimeType) => {
-      await execFileAsync('xdg-mime', ['default', desktopFile, mimeType])
+      await execFileAsync('xdg-mime', ['default', desktopFile, mimeType], xdgTimeout)
     },
     refreshApplications: async applicationsDirectory => {
-      await execFileAsync('update-desktop-database', [applicationsDirectory])
+      await execFileAsync('update-desktop-database', [applicationsDirectory], xdgTimeout)
     },
+    log: message => startupLog('linux-development-protocol', message),
   })
   if (!registration.registered) throw new Error('已有其他应用关联了 MilkSU 登录回调')
   linuxDevelopmentProtocol = registration
@@ -1290,9 +1294,10 @@ app.whenReady().then(async () => {
       ).href)
       const dataHome = process.env.XDG_DATA_HOME || path.join(os.homedir(), '.local', 'share')
       const configHome = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config')
+      const xdgTimeout = { timeout: 10_000 }
       const currentHandler = async () => {
         try {
-          const { stdout } = await execFileAsync('xdg-mime', ['query', 'default', 'x-scheme-handler/milksu'])
+          const { stdout } = await execFileAsync('xdg-mime', ['query', 'default', 'x-scheme-handler/milksu'], xdgTimeout)
           return stdout
         } catch {
           return ''
@@ -1302,9 +1307,13 @@ app.whenReady().then(async () => {
         applicationsDirectory: path.join(dataHome, 'applications'),
         configDirectory: configHome,
         currentHandler,
-        refreshApplications: async applicationsDirectory => {
-          await execFileAsync('update-desktop-database', [applicationsDirectory])
+        setDefaultHandler: async (desktopFile, mimeType) => {
+          await execFileAsync('xdg-mime', ['default', desktopFile, mimeType], xdgTimeout)
         },
+        refreshApplications: async applicationsDirectory => {
+          await execFileAsync('update-desktop-database', [applicationsDirectory], xdgTimeout)
+        },
+        log: message => startupLog('linux-development-protocol.stale-association-cleanup', message),
       })) startupLog('linux-development-protocol.stale-association-cleared')
     } catch (error) {
       startupLog('linux-development-protocol.stale-association-cleanup', String(error?.message ?? error))
@@ -1515,6 +1524,8 @@ app.on('before-quit', event => {
     event.preventDefault()
     const registration = linuxDevelopmentProtocol
     linuxDevelopmentProtocol = null
+    // restore() is bounded by the xdg timeouts above; a timed-out or failed
+    // restore is logged here and the quit proceeds instead of hanging.
     linuxDevelopmentProtocolCleanup = registration.restore().catch(error => {
       startupLog('linux-development-protocol.restore', String(error?.message ?? error))
     }).finally(() => app.quit())
