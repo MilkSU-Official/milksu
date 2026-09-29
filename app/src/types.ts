@@ -2,6 +2,7 @@ import { defaultAgentKernel, defaultBusySend, type BusySendPolicy } from '@/lib/
 import { normalizePreferredExternalEditor } from '@/lib/externalEditor'
 import { normalizeUiEmphasisPreset, type UiEmphasisPreset } from '@/lib/uiEmphasis'
 import { normalizeUiFontSize, type UiFontSize } from '@/lib/uiFonts'
+import { normalizeProjectFoldLimit } from '@/lib/projectFoldLimit'
 import { isImageGenModelID } from '@/lib/imageGenCatalog'
 import { normalizeModelContextWindows } from '@/lib/knownContextWindow'
 import { normalizeModelThinkingSettings } from '@/lib/modelThinking'
@@ -408,6 +409,7 @@ export interface AppSettings {
   }
   preferred_external_editor?: string
   conversation_font_size?: UiFontSize
+  sidebar_project_fold_limit?: number
   ui_emphasis?: UiEmphasisPreset
   security_tools?: Record<string, { enabled: boolean }>
   model_thinking?: Record<string, Record<string, ModelThinkingConfig>>
@@ -742,6 +744,7 @@ export function withAppSettingsDefaults(value: AppSettings): AppSettings {
     model_routing: normalizeModelRouting(value.model_routing),
     preferred_external_editor: normalizePreferredExternalEditor(value.preferred_external_editor),
     conversation_font_size: normalizeUiFontSize(value.conversation_font_size),
+    sidebar_project_fold_limit: normalizeProjectFoldLimit(value.sidebar_project_fold_limit),
     ui_emphasis: normalizeUiEmphasisPreset(value.ui_emphasis),
     disabled_account_models: [...new Set((value.disabled_account_models ?? [])
       .map(id => String(id).trim())

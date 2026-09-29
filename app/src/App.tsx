@@ -47,6 +47,7 @@ import { executeVulnerabilityCodingHandoff } from '@/lib/vulnerabilityCodingHand
 import { recordRendererSection } from '@/lib/rendererDiagnostics'
 import { applyUiLocale } from '@/lib/uiLocale'
 import { applyConversationFontSize } from '@/lib/uiFonts'
+import { applyProjectFoldLimit } from '@/lib/projectFoldLimit'
 import { applyUiEmphasis } from '@/lib/uiEmphasis'
 import { useT } from '@/hooks/useUiLocale'
 import { useStore, useStoreRuntime } from '@/lib/reactStore'
@@ -509,6 +510,7 @@ export default function App() {
     installAppModelSettings(normalized)
     applyUiLocale(normalized.locale)
     applyConversationFontSize(normalized.conversation_font_size)
+    applyProjectFoldLimit(normalized.sidebar_project_fold_limit)
     applyUiEmphasis({ preset: normalized.ui_emphasis })
     conversations.setDefaultKernel(normalized.default_kernel ?? FACTORY_DEFAULT_KERNEL)
     conversations.setBusySend(normalized.busy_send ?? 'interrupt')

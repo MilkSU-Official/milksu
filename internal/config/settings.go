@@ -188,6 +188,9 @@ type AppSettings struct {
 	PreferredExternalEditor string     `json:"preferred_external_editor,omitempty"`
 	// ConversationFontSize is a concrete px string such as "14".
 	ConversationFontSize string `json:"conversation_font_size,omitempty"`
+	// SidebarProjectFoldLimit is how many chats a project folder lists in the
+	// sidebar before the rest fold into a trailing "Show more" row.
+	SidebarProjectFoldLimit int `json:"sidebar_project_fold_limit,omitempty"`
 	// UiEmphasis is a preset id from app/src/lib/uiEmphasis.ts (default / blue / violet / …).
 	UiEmphasis            string                                    `json:"ui_emphasis,omitempty"`
 	SecurityTools         map[string]SecurityToolPreference         `json:"security_tools,omitempty"`
@@ -236,6 +239,19 @@ func NormalizeUiFontSize(value string) string {
 		return strconv.Itoa(factoryConversationFontSizePx)
 	}
 	return strconv.Itoa(n)
+}
+
+const (
+	factorySidebarProjectFoldLimit = 5
+	minSidebarProjectFoldLimit     = 1
+	maxSidebarProjectFoldLimit     = 20
+)
+
+func NormalizeSidebarProjectFoldLimit(value int) int {
+	if value < minSidebarProjectFoldLimit || value > maxSidebarProjectFoldLimit {
+		return factorySidebarProjectFoldLimit
+	}
+	return value
 }
 
 func NormalizeUiEmphasis(value string) string {
@@ -1115,6 +1131,7 @@ func withDefaults(value AppSettings) AppSettings {
 	value = normalizeImageGenSettings(value)
 	value.PreferredExternalEditor = externaleditor.Normalize(value.PreferredExternalEditor)
 	value.ConversationFontSize = NormalizeUiFontSize(value.ConversationFontSize)
+	value.SidebarProjectFoldLimit = NormalizeSidebarProjectFoldLimit(value.SidebarProjectFoldLimit)
 	value.UiEmphasis = NormalizeUiEmphasis(value.UiEmphasis)
 	value.SecurityTools = normalizeSecurityToolPreferences(value.SecurityTools)
 	value.ModelThinking = normalizeModelThinkingOverrides(value.ModelThinking, value.Providers)

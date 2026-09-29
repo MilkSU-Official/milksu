@@ -15,6 +15,7 @@ import { LabJobsProvider } from '@/stores/labJobsStore'
 import { applyHostPlatform, syncWindowChrome } from '@/lib/hostPlatform'
 import { applyUiEmphasis } from '@/lib/uiEmphasis'
 import { applyConversationFontSize, subscribeConversationFontSizeSync } from '@/lib/uiFonts'
+import { applyProjectFoldLimit, subscribeProjectFoldLimitSync } from '@/lib/projectFoldLimit'
 import { applyThemeMode, readThemeMode, resolveThemeMode, subscribeThemeSync } from '@/lib/themeMode'
 import './index.css'
 
@@ -29,6 +30,9 @@ subscribeThemeSync((mode, resolved) => {
 })
 subscribeConversationFontSizeSync(size => {
   applyConversationFontSize(size, { sync: false })
+})
+subscribeProjectFoldLimitSync(limit => {
+  applyProjectFoldLimit(limit, { sync: false })
 })
 document.documentElement.dataset.colorScheme = 'memoh'
 try {

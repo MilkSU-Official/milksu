@@ -64,6 +64,13 @@ describe('model provider catalog', () => {
     expect(settings.conversation_font_size).toBe('12')
   })
 
+  it('defaults and normalizes the sidebar project fold limit', () => {
+    expect(withAppSettingsDefaults({} as AppSettings).sidebar_project_fold_limit).toBe(5)
+    expect(withAppSettingsDefaults({ sidebar_project_fold_limit: 0 } as AppSettings).sidebar_project_fold_limit).toBe(5)
+    expect(withAppSettingsDefaults({ sidebar_project_fold_limit: 99 } as AppSettings).sidebar_project_fold_limit).toBe(5)
+    expect(withAppSettingsDefaults({ sidebar_project_fold_limit: 3 } as AppSettings).sidebar_project_fold_limit).toBe(3)
+  })
+
   it('normalizes ui_emphasis presets and aliases', () => {
     expect(withAppSettingsDefaults({ ui_emphasis: 'blue' } as AppSettings).ui_emphasis).toBe('blue')
     expect(withAppSettingsDefaults({ ui_emphasis: 'purple' } as AppSettings).ui_emphasis).toBe('violet')

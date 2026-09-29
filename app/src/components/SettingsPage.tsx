@@ -97,6 +97,7 @@ import ModelVendorIcon from '@/components/ModelVendorIcon'
 import ArchivedConversationsSettings from '@/components/ArchivedConversationsSettings'
 import ConnectionLiveStatus from '@/components/ConnectionLiveStatus'
 import ConversationSizeInput from '@/components/ConversationSizeInput'
+import ProjectFoldLimitInput from '@/components/ProjectFoldLimitInput'
 import type { VulnerabilityDashboard } from '@/composables/useVulnerabilityDashboard'
 import {
   allCodingSkills,
@@ -139,6 +140,10 @@ import {
   applyConversationFontSize,
   normalizeUiFontSize,
 } from '@/lib/uiFonts'
+import {
+  applyProjectFoldLimit,
+  normalizeProjectFoldLimit,
+} from '@/lib/projectFoldLimit'
 import {
   builtInModelThinking,
   MODEL_THINKING_LEVEL_LABELS,
@@ -783,12 +788,23 @@ export default function SettingsPage({
                   <SettingsRow
                     label={t('对话字号', 'Conversation size')}
                     description={t('界面与对话都用系统默认字体。', 'Interface and conversation text use the system font.')}
-                    divider={false}
                     trailing={(
                       <ConversationSizeInput
                         value={normalizeUiFontSize(working.conversation_font_size)}
                         ariaLabel={t('对话字号', 'Conversation size')}
                         onCommit={size => void store.changeConversationFontSize(size)}
+                      />
+                    )}
+                  />
+                  <SettingsRow
+                    label={t('项目默认显示会话数', 'Chats shown per project')}
+                    description={t('侧栏里每个项目文件夹先显示的会话条数（1–20），多出来的收进末尾的「展开」行。', 'How many chats each sidebar project folder lists first (1–20); the rest fold into a trailing “Show more” row.')}
+                    divider={false}
+                    trailing={(
+                      <ProjectFoldLimitInput
+                        value={normalizeProjectFoldLimit(working.sidebar_project_fold_limit)}
+                        ariaLabel={t('项目默认显示会话数', 'Chats shown per project')}
+                        onCommit={limit => void store.changeProjectFoldLimit(limit)}
                       />
                     )}
                   />
@@ -3732,6 +3748,13 @@ function createSettingsStore(
     await save()
   }
 
+  async function changeProjectFoldLimit(value: unknown) {
+    const limit = normalizeProjectFoldLimit(value)
+    patchWorking(working => { working.sidebar_project_fold_limit = limit })
+    applyProjectFoldLimit(limit)
+    await save()
+  }
+
   async function changeUiEmphasis(value: unknown) {
     const uiEmphasis = normalizeUiEmphasisPreset(value)
     patchWorking(working => { working.ui_emphasis = uiEmphasis })
@@ -3808,6 +3831,7 @@ function createSettingsStore(
     selectCategory,
     changeLocale,
     changeConversationFontSize,
+    changeProjectFoldLimit,
     changeUiEmphasis,
     formatBytes,
     databaseVersionText,

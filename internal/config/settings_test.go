@@ -121,6 +121,7 @@ func TestStorePersistsLocaleKernelAndActiveModel(t *testing.T) {
 	settings.DefaultKernel = "dsh"
 	settings.BusySend = "queue"
 	settings.ConversationFontSize = "12"
+	settings.SidebarProjectFoldLimit = 8
 	settings.ActiveProvider = presetDeepSeekServiceID
 	settings.ActiveModel = "deepseek-v4-pro"
 	if err := store.Save(settings); err != nil {
@@ -144,8 +145,24 @@ func TestStorePersistsLocaleKernelAndActiveModel(t *testing.T) {
 	if got.ConversationFontSize != "12" {
 		t.Fatalf("conversation font size did not persist: %q", got.ConversationFontSize)
 	}
+	if got.SidebarProjectFoldLimit != 8 {
+		t.Fatalf("sidebar project fold limit did not persist: %d", got.SidebarProjectFoldLimit)
+	}
 	if got.ActiveProvider != presetDeepSeekServiceID || got.ActiveModel != "deepseek-v4-pro" {
 		t.Fatalf("active model did not persist: %s/%s", got.ActiveProvider, got.ActiveModel)
+	}
+}
+
+func TestNormalizeSidebarProjectFoldLimit(t *testing.T) {
+	for _, value := range []int{0, -1, 21, 100} {
+		if got := NormalizeSidebarProjectFoldLimit(value); got != factorySidebarProjectFoldLimit {
+			t.Fatalf("%d: got %d, want factory %d", value, got, factorySidebarProjectFoldLimit)
+		}
+	}
+	for _, value := range []int{1, 3, 5, 20} {
+		if got := NormalizeSidebarProjectFoldLimit(value); got != value {
+			t.Fatalf("%d: got %d", value, got)
+		}
 	}
 }
 

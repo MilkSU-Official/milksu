@@ -87,15 +87,16 @@ import {
   readSidebarSectionOpen,
   writeSidebarSectionOpen,
 } from '@/lib/sidebarSectionState'
+import {
+  readStoredProjectFoldLimit,
+  subscribeProjectFoldLimitSync,
+} from '@/lib/projectFoldLimit'
 import { useT, useUiLocale } from '@/hooks/useUiLocale'
 import { updateControlVisible } from '@/lib/updateRestart'
 import { updateStatusMessage } from '@/lib/updateStatus'
 import type { AccountStatus, BuildTracking, Conversation, UpdateStatus } from '@/types'
 
 const PINNED_GROUP_KEY = 'pinned'
-// 项目文件夹里的会话超过这个数时先显示前几条，其余收进末尾的「展开」行。
-// 阈值对齐 Kimi Work 侧栏的实测行为：5 条全显示，7 条收起成 6 条加「展开」。
-const PROJECT_GROUP_VISIBLE_LIMIT = 6
 const CONVERSATION_MENU_WIDTH = 176
 const CONVERSATION_MENU_HEIGHT = 320
 
@@ -311,6 +312,9 @@ export default function ContextSidebar({
   const [now, setNow] = useState(() => Date.now())
   // 项目文件夹的展开态只在本次挂载内有效：刷新或重进后回到收起，跟 Kimi Work 一致。
   const [expandedProjectGroups, setExpandedProjectGroups] = useState<ReadonlySet<string>>(() => new Set())
+  // 折叠阈值来自设置 → 外观「项目默认显示会话数」，改动经 BroadcastChannel 实时生效。
+  const [projectFoldLimit, setProjectFoldLimit] = useState(() => readStoredProjectFoldLimit())
+  useEffect(() => subscribeProjectFoldLimitSync(setProjectFoldLimit), [])
 
   function toggleProjectGroupExpanded(key: string) {
     setExpandedProjectGroups(current => {
@@ -795,10 +799,10 @@ export default function ContextSidebar({
 
   function projectGroupFolder(group: CodingConversationGroup) {
     // 钉选组是用户亲手挑出来的，不参与折叠；只有普通项目文件夹超限时才收。
-    const foldable = group.key !== PINNED_GROUP_KEY && group.conversations.length > PROJECT_GROUP_VISIBLE_LIMIT
+    const foldable = group.key !== PINNED_GROUP_KEY && group.conversations.length > projectFoldLimit
     const expanded = expandedProjectGroups.has(group.key)
     const visibleConversations = foldable && !expanded
-      ? group.conversations.slice(0, PROJECT_GROUP_VISIBLE_LIMIT)
+      ? group.conversations.slice(0, projectFoldLimit)
       : group.conversations
     return (
       <details key={group.key} open className="coding-project-group">
