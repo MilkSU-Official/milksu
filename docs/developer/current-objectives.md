@@ -75,6 +75,8 @@ tag 与分发 source `a654c4d5` 之间只差测试与文档提交，无未打进
 之后只有 README 与本文档提交，没有未打进安装包的产品代码。发下一版前仍缺的验收：
 
 - Windows Computer Use 整段崩溃尚未真机验收。Windows / Linux 窗口铬尚未真机验收。
+- 本机安全工具 capa 当前仅支持 macOS arm64/amd64（PR #193 在途）；Linux / Windows 上设置页
+  显示「暂不支持」，不提供准备动作，也不提供「在 Coding 中配置」。
 - 新会话不再默认继承最近项目（#169 改向），这条新行为还没有真机验收。
 - 宽作业用 `recon-authorized-target` Skill，不造 typed sweep。Computer Use 选窗器仍是可选人工面。
 - DSH `bash` 没有 MilkSU 侧超时上界。

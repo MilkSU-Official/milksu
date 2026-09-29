@@ -42,10 +42,12 @@ func TestCapaIsUnavailableOutsideSupportedMacOS(t *testing.T) {
 		{goos: "windows", goarch: "amd64"},
 		{goos: "darwin", goarch: "386"},
 	} {
-		detected := service.detectCapaFor(context.Background(), platform.goos, platform.goarch)
-		if detected.status != StatusUnavailable || detected.setupPossible {
-			t.Fatalf("%s/%s: unexpected detection: %#v", platform.goos, platform.goarch, detected)
-		}
+		t.Run(platform.goos+"/"+platform.goarch, func(t *testing.T) {
+			detected := service.detectCapaFor(context.Background(), platform.goos, platform.goarch)
+			if detected.status != StatusUnavailable || detected.setupPossible {
+				t.Errorf("unexpected detection: %#v", detected)
+			}
+		})
 	}
 }
 
@@ -126,5 +128,16 @@ func TestCodingHandoffStagesActionableTaskWithoutStartingSetup(t *testing.T) {
 	}
 	if status.State != "idle" {
 		t.Fatalf("handoff unexpectedly started setup: %#v", status)
+	}
+}
+
+func TestCodingHandoffRejectsCapaOnUnsupportedPlatform(t *testing.T) {
+	if runtime.GOOS == "darwin" {
+		t.Skip("capa is supported on macOS")
+	}
+	service := NewService(t.TempDir(), &testSettings{value: config.DefaultSettings()}, nil)
+	service.probe = testProbe{}
+	if _, err := service.CodingHandoff(context.Background(), ToolCapa); err == nil {
+		t.Error("expected CodingHandoff to reject capa on an unsupported platform")
 	}
 }

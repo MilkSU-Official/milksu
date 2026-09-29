@@ -47,7 +47,7 @@ export async function normalizeSecurityTools(value) {
       throw new Error(`MilkSU rejected unsupported or duplicate security tool ${id}`);
     }
     if (id === "capa" && process.platform !== "darwin") {
-      throw new Error("MilkSU capa is currently supported only on macOS arm64/amd64");
+      throw new Error("MilkSU capa is currently supported only on macOS");
     }
     seen.add(id);
     const command = await regularCanonicalFile(raw.command, `${id} command`);

@@ -323,7 +323,7 @@ export default function SecurityToolsSettingsPanel({
                     <Wrench className="size-4" />{selectedTool.primaryAction || t('开始准备', 'Start setup')}
                   </Button>
                 ) : null}
-                {selectedTool.codingSupported && selectedTool.status !== 'ready' ? (
+                {selectedTool.codingSupported && selectedTool.status !== 'ready' && selectedTool.status !== 'unavailable' ? (
                   <Button variant="outline" disabled={actionBusy} onClick={() => void openCodingSetup()}>
                     <TerminalSquare className="size-4" />{t('在 Coding 中配置', 'Configure in Coding')}
                   </Button>

@@ -150,6 +150,16 @@ func (s *Service) CodingHandoff(ctx context.Context, id string) (CodingHandoff, 
 			break
 		}
 	}
+	if detected.status == StatusUnavailable {
+		reason := detected.problem
+		if reason == "" {
+			reason = name + " 在当前平台不可用。"
+		}
+		return CodingHandoff{}, fmt.Errorf(
+			"%s（%s is unavailable on this platform; no actionable Coding setup task can be offered）",
+			reason, name,
+		)
+	}
 	prompt := fmt.Sprintf(
 		"帮我准备 MilkSU 的 %s 本机能力。先检测当前系统和已有安装；优先采用 MilkSU 已审核的固定版本适配器，只使用官方来源与固定版本，不要修改项目业务代码。不要直接启动可能阻塞的 GUI；所有外部工具健康检查都必须是非交互式并带 15 秒超时。完成后运行最小健康检查，并告诉我 MilkSU 设置页还需要重新检测什么。当前检测结果：%s。",
 		name,
