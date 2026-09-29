@@ -4010,6 +4010,11 @@ export default ChatPage
 
 const chatPageCss = `
 .chat-window-drag-region {
+  display: none;
+}
+
+:root[data-host-platform='linux'] .chat-window-drag-region {
+  display: block;
   height: var(--shell-title-safe-top);
   flex: none;
 }

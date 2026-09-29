@@ -896,6 +896,7 @@ async function handleHostRequest(method, payload = {}) {
       mainWindow.focus()
       return null
     case 'window.toggleMaximize':
+      if (!mainWindow || mainWindow.isDestroyed()) return null
       if (mainWindow.isMaximized()) mainWindow.unmaximize()
       else mainWindow.maximize()
       return mainWindow.isMaximized()
