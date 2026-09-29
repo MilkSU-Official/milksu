@@ -1,6 +1,6 @@
 import { createStore } from '@/lib/reactStore'
 import { invokeCommand } from '@/desktop'
-import { classifyRendererError, recordRendererDiagnostic, recordRendererError } from '@/lib/rendererDiagnostics'
+import { recordRendererDiagnostic, recordRendererError } from '@/lib/rendererDiagnostics'
 import type {
   NSSCTFCatalogQuery,
   NSSCTFCatalogSearchResult,
@@ -281,9 +281,9 @@ export function useNSSCTFCatalog() {
       s.error = null
       return s.result
     } catch (reason) {
-      recordRendererError('catalog-search', reason, {}, Date.now() - started)
       if (generation === requestGeneration) {
-        s.error = classifyRendererError(reason)
+        s.error = reason instanceof Error ? reason.message : String(reason)
+        recordRendererError('catalog-search', reason, {}, Date.now() - started)
       }
       return null
     } finally {

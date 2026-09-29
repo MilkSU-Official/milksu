@@ -14,6 +14,7 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+	"time"
 )
 
 func TestExportDiagnosticsReportsHealthWithoutCopyingSecrets(t *testing.T) {
@@ -402,6 +403,91 @@ func TestExportDiagnosticsMergesAndBoundsRendererEvents(t *testing.T) {
 		if strings.Contains(payload, forbidden) {
 			t.Fatalf("renderer diagnostic leaked %q: %s", forbidden, payload)
 		}
+	}
+}
+
+func TestMergeDiagnosticEventsOrdersByTimestamp(t *testing.T) {
+	backend := []DiagnosticEvent{
+		{Timestamp: "2026-09-27T15:04:05.000Z", Message: "backend-early"},
+		{Timestamp: "2026-09-27T15:04:09.000Z", Message: "backend-late"},
+		{Timestamp: "", Message: "backend-no-timestamp"},
+	}
+	renderer := []DiagnosticEvent{
+		{Timestamp: "2026-09-27T15:04:07.000Z", Message: "renderer-middle"},
+		{Timestamp: "2026-09-27T15:04:11.000Z", Message: "renderer-last"},
+	}
+
+	merged := mergeDiagnosticEvents(backend, renderer)
+	messages := make([]string, 0, len(merged))
+	for _, event := range merged {
+		messages = append(messages, event.Message)
+	}
+	want := []string{
+		"backend-no-timestamp",
+		"backend-early",
+		"renderer-middle",
+		"backend-late",
+		"renderer-last",
+	}
+	if !slices.Equal(messages, want) {
+		t.Fatalf("merged order = %#v, want %#v", messages, want)
+	}
+	if backend[0].Message != "backend-early" || backend[2].Message != "backend-no-timestamp" {
+		t.Fatal("mergeDiagnosticEvents mutated backend input")
+	}
+}
+
+func TestExportDiagnosticsTruncationKeepsRecentEventsAcrossSources(t *testing.T) {
+	root := t.TempDir()
+	destination := filepath.Join(t.TempDir(), "MilkSU-diagnostics.zip")
+	rendererBase := time.Date(2026, 9, 27, 15, 4, 5, 0, time.UTC)
+	rendererEvents := make([]DiagnosticEvent, 0, 200)
+	for index := 0; index < 200; index++ {
+		rendererEvents = append(rendererEvents, DiagnosticEvent{
+			Timestamp: rendererBase.Add(time.Duration(index) * time.Second).Format(time.RFC3339Nano),
+			Message:   "rpc method=get_settings",
+		})
+	}
+	backendBase := time.Date(2026, 9, 28, 0, 0, 0, 0, time.UTC)
+	backendEvents := make([]DiagnosticEvent, 0, 100)
+	for index := 0; index < 100; index++ {
+		backendEvents = append(backendEvents, DiagnosticEvent{
+			Timestamp: backendBase.Add(time.Duration(index) * time.Second).Format(time.RFC3339Nano),
+			Category:  "runtime",
+			Level:     "info",
+			Message:   fmt.Sprintf("backend-event-%d", index),
+		})
+	}
+
+	exported, err := ExportDiagnostics(
+		context.Background(),
+		root,
+		destination,
+		DiagnosticInput{Events: backendEvents, RendererEvents: rendererEvents},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if exported.EventCount != 256 {
+		t.Fatalf("event count = %d, want 256", exported.EventCount)
+	}
+
+	report := readDiagnosticReportForTest(t, destination)
+	messages := make([]string, 0, len(report.RecentEvents))
+	for _, event := range report.RecentEvents {
+		messages = append(messages, event.Message)
+	}
+	if !slices.Contains(messages, "backend-event-0") || !slices.Contains(messages, "backend-event-99") {
+		t.Fatalf("timestamp merge squeezed out newer backend events: %#v", messages[:8])
+	}
+	rendererKept := 0
+	for _, message := range messages {
+		if message == "rpc method=get_settings" {
+			rendererKept++
+		}
+	}
+	if rendererKept != 156 {
+		t.Fatalf("kept renderer events = %d, want 156 after truncating the 44 oldest", rendererKept)
 	}
 }
 

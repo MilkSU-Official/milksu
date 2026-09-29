@@ -16,6 +16,8 @@ type RendererDiagnosticAction =
   | 'dashboard-load'
   | 'rpc'
 
+// 这份白名单与 internal/appdata/diagnostics.go 里的 rendererDiagnosticActions /
+// rendererDiagnosticKeys / validRendererDiagnosticValue 是两份手写拷贝，改动时必须两边同步。
 const MAX_EVENTS = 200
 const events: RendererDiagnosticEvent[] = []
 const allowedActions = new Set<RendererDiagnosticAction>([

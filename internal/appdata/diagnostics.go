@@ -221,7 +221,7 @@ func exportDiagnostics(
 		Settings:     sanitizeDiagnosticSettings(input.Settings),
 		Lifespan:     sanitizeDiagnosticLifespan(input.Lifespan),
 		Databases:    inspectDiagnosticDatabases(ctx, root),
-		RecentEvents: sanitizeDiagnosticEvents(append(slices.Clone(input.Events), sanitizeRendererDiagnosticEvents(input.RendererEvents)...)),
+		RecentEvents: sanitizeDiagnosticEvents(mergeDiagnosticEvents(input.Events, sanitizeRendererDiagnosticEvents(input.RendererEvents))),
 		Privacy: []string{
 			"不包含 API Key、Arena Token、浏览器配对令牌或 PI 认证文件",
 			"不包含会话正文、附件内容、模型回复或工具输入输出",
@@ -380,6 +380,8 @@ func sanitizeDiagnosticSettings(settings DiagnosticSettings) DiagnosticSettings 
 	return settings
 }
 
+// 这份 renderer 事件白名单与 app/src/lib/rendererDiagnostics.ts 里的
+// allowedActions / allowedKeys 是两份手写拷贝，改动时必须两边同步。
 var rendererDiagnosticActions = map[string]struct{}{
 	"section-change":            {},
 	"catalog-load":              {},
@@ -475,6 +477,28 @@ func validRendererDiagnosticValue(key, value string) bool {
 	default:
 		return false
 	}
+}
+
+// mergeDiagnosticEvents 按时间戳归并后端与 renderer 事件，再由 sanitizeDiagnosticEvents
+// 截断到上限，保证截断后保留的是两路合计最新的事件，避免 renderer 事件挤占后端配额。
+// 稳定排序让同刻事件保持后端在前、renderer 在后；时间戳无法解析的事件视为最旧，
+// 截断时最先被丢弃。
+func mergeDiagnosticEvents(backend, renderer []DiagnosticEvent) []DiagnosticEvent {
+	merged := make([]DiagnosticEvent, 0, len(backend)+len(renderer))
+	merged = append(merged, backend...)
+	merged = append(merged, renderer...)
+	slices.SortStableFunc(merged, func(a, b DiagnosticEvent) int {
+		return diagnosticEventTimestamp(a.Timestamp).Compare(diagnosticEventTimestamp(b.Timestamp))
+	})
+	return merged
+}
+
+func diagnosticEventTimestamp(value string) time.Time {
+	parsed, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(value))
+	if err != nil {
+		return time.Time{}
+	}
+	return parsed
 }
 
 func sanitizeDiagnosticEvents(events []DiagnosticEvent) []DiagnosticEvent {

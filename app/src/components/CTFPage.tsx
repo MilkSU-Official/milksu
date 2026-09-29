@@ -1073,7 +1073,10 @@ export default function CTFPage({
   useEffect(() => {
     if (activeBank !== 'nssctf' || screen !== 'challenge' || !mountedRef.current) return
     setSelectedProblem(null)
-    recordRendererDiagnostic('catalog-search', { view: 'collection', status: 'pending' })
+    recordRendererDiagnostic('catalog-load', {
+      view: collectionView === ALL_COLLECTIONS_ID ? 'all' : 'collection',
+      status: 'pending',
+    })
     void loadPublicCatalog(1)
   }, [collectionView])
 
