@@ -31,17 +31,27 @@ async function writeFixturePackage(packageRoot, name, document, files = {}) {
   return directory
 }
 
+// Placeholder Photon metadata on purpose, distinct from whatever production
+// ships: the assertions below can only pass when resolvePhotonRuntime reads
+// the installed package.json, and the oversized module keeps the minimum
+// size expectation for a shippable Photon artifact pinned.
+const photonFixtureVersion = '0.0.0-fixture.0'
+const photonFixtureLicense = 'Fixture-License-1.0'
+const photonFixtureWasmBytes = 1_100_000
+
 async function writePhotonFixture(packageRoot) {
   await writeFixturePackage(packageRoot, '@earendil-works/pi-coding-agent', {
     name: '@earendil-works/pi-coding-agent',
     version: '0.87.0',
   })
+  const wasm = Buffer.alloc(photonFixtureWasmBytes)
+  Buffer.from([0x00, 0x61, 0x73, 0x6d]).copy(wasm)
   await writeFixturePackage(packageRoot, '@silvia-odwyer/photon-node', {
     name: '@silvia-odwyer/photon-node',
-    version: '0.3.4',
-    license: 'Apache-2.0',
+    version: photonFixtureVersion,
+    license: photonFixtureLicense,
   }, {
-    'photon_rs_bg.wasm': Buffer.from([0x00, 0x61, 0x73, 0x6d]),
+    'photon_rs_bg.wasm': wasm,
     'LICENSE.md': 'Apache License',
   })
 }
@@ -59,7 +69,12 @@ async function writeDshFixture(packageRoot) {
     }
     await writeFixturePackage(packageRoot, name, document, {
       ...(name === '@deepseek-ai/dsh' ? {
-        'lib/bin.js': 'process.exit(0)\n',
+        // Mirror the real CLI entry just enough to keep the smoke honest:
+        // the packaged bin imports app-boot, and app-boot pulls in its
+        // required peer chain, so a closure that drops a peer still fails
+        // the isolated spawn with ERR_MODULE_NOT_FOUND (the 26.912.3
+        // accident) instead of exiting cleanly.
+        'lib/bin.js': "import '@deepseek-ai/dsh-app-boot'\nprocess.exit(0)\n",
         LICENSE: 'MIT License',
       } : {}),
     })
@@ -70,6 +85,10 @@ async function writeDshFixture(packageRoot) {
     license: 'MIT',
     type: 'module',
     exports: './index.mjs',
+    // Fabricated peer metadata, decoupled from the real dsh-app-boot
+    // manifest: upstream peer changes will not show up in this fixture.
+    // copyDshRuntime pins dshVersion against the installed production
+    // package, which partially mitigates that drift.
     peerDependencies: {
       '@deepseek-ai/cordis-plugin-group': '^1.0.2',
       '@deepseek-ai/optional-peer-fixture': '^1.0.0',
@@ -77,12 +96,15 @@ async function writeDshFixture(packageRoot) {
     peerDependenciesMeta: {
       '@deepseek-ai/optional-peer-fixture': { optional: true },
     },
-  }, { 'index.mjs': 'export const fixture = true\n' })
+  }, {
+    'index.mjs': "import '@deepseek-ai/cordis-plugin-group'\nexport const fixture = true\n",
+  })
   await writeFixturePackage(packageRoot, '@deepseek-ai/cordis-plugin-group', {
     name: '@deepseek-ai/cordis-plugin-group',
     version: '1.0.2',
     license: 'MIT',
-  })
+    type: 'module',
+  }, { 'index.js': 'export const fixture = true\n' })
   await writeFixturePackage(packageRoot, '@deepseek-ai/optional-peer-fixture', {
     name: '@deepseek-ai/optional-peer-fixture',
     version: '1.0.0',
@@ -102,10 +124,15 @@ test('Pi inline image processing keeps a shippable Photon runtime', async () => 
   try {
     await writePhotonFixture(fixture.packageRoot)
     const photon = await resolvePhotonRuntime({ packageRoot: fixture.packageRoot })
-    assert.equal(photon.version, '0.3.4')
-    assert.equal(photon.licenseName, 'Apache-2.0')
+    // The fixture metadata is a placeholder (see writePhotonFixture), so
+    // matching it proves the resolver read the installed package.json
+    // instead of returning whatever production happens to ship.
+    assert.equal(photon.version, photonFixtureVersion)
+    assert.equal(photon.licenseName, photonFixtureLicense)
+    const wasm = await readFile(photon.wasm)
+    assert.ok(wasm.byteLength > 1_000_000, `unexpected Photon module size: ${wasm.byteLength}`)
     assert.ok(
-      (await readFile(photon.wasm)).subarray(0, 4).equals(Buffer.from([0x00, 0x61, 0x73, 0x6d])),
+      wasm.subarray(0, 4).equals(Buffer.from([0x00, 0x61, 0x73, 0x6d])),
       'Photon module must start with the WebAssembly magic bytes',
     )
     assert.ok((await readFile(photon.license)).byteLength > 0, 'Photon license must ship with it')
