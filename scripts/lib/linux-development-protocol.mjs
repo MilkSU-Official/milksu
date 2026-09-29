@@ -1,3 +1,4 @@
+import { readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { chmod, mkdir, readFile, unlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
@@ -90,6 +91,33 @@ async function removeDefaultAssociation(configDirectory) {
   if (updated !== contents) await writeFile(mimeAppsPath, updated, 'utf8')
 }
 
+// Synchronous twin of removeDefaultAssociation, used only by restoreSync() on
+// the before-quit path, where the quit must not be intercepted for async work.
+function removeDefaultAssociationSync(configDirectory) {
+  const mimeAppsPath = join(configDirectory, 'mimeapps.list')
+  let contents
+  try {
+    contents = readFileSync(mimeAppsPath, 'utf8')
+  } catch (error) {
+    if (error?.code === 'ENOENT') return
+    throw error
+  }
+
+  const lines = contents.split(/(?<=\n)/u)
+  let section = ''
+  const updated = lines.filter(line => {
+    const trimmed = line.trim()
+    const sectionMatch = trimmed.match(/^\[([^\]]+)\]$/u)
+    if (sectionMatch) section = sectionMatch[1]
+    if (section !== 'Default Applications') return true
+    const equalsAt = trimmed.indexOf('=')
+    if (equalsAt < 0 || trimmed.slice(0, equalsAt).trim() !== MIME_TYPE) return true
+    return false
+  }).join('')
+
+  if (updated !== contents) writeFileSync(mimeAppsPath, updated, 'utf8')
+}
+
 export async function clearStaleLinuxDevelopmentProtocol({ applicationsDirectory, configDirectory, currentHandler, setDefaultHandler, refreshApplications = async () => {}, log = () => {} }) {
   const current = String(await currentHandler()).trim()
   if (current === PROTOCOL_DESKTOP_FILE) {
@@ -129,6 +157,9 @@ export async function registerLinuxDevelopmentProtocol({
   currentHandler,
   setDefaultHandler,
   refreshApplications = async () => {},
+  currentHandlerSync,
+  setDefaultHandlerSync,
+  refreshApplicationsSync,
   log = () => {},
 }) {
   const configuredHandler = String(await currentHandler()).trim()
@@ -192,6 +223,30 @@ export async function registerLinuxDevelopmentProtocol({
         if (error?.code !== 'ENOENT') throw error
       })
       await refreshApplications(applicationsDirectory)
+      restored = true
+    },
+    // before-quit must not preventDefault to wait for async work, so the quit
+    // path restores synchronously; every xdg call is still bounded by the
+    // caller-provided timeouts.
+    restoreSync() {
+      if (restored) return
+      if (typeof currentHandlerSync !== 'function' || typeof setDefaultHandlerSync !== 'function') {
+        log('linux-development-protocol: synchronous restore unavailable at quit; startup cleanup will roll back from the state file')
+        return
+      }
+      const current = String(currentHandlerSync()).trim()
+      if (current === files.desktopFileName) {
+        if (previousHandler) setDefaultHandlerSync(previousHandler, MIME_TYPE)
+        else removeDefaultAssociationSync(configDirectory)
+      }
+      for (const target of [files.launcherPath, files.desktopPath, protocolStatePath(applicationsDirectory)]) {
+        try {
+          unlinkSync(target)
+        } catch (error) {
+          if (error?.code !== 'ENOENT') throw error
+        }
+      }
+      if (typeof refreshApplicationsSync === 'function') refreshApplicationsSync()
       restored = true
     },
   }

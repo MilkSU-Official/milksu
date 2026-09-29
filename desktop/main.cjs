@@ -197,7 +197,6 @@ let backend
 let browserShell
 let accountSession
 let linuxDevelopmentProtocol = null
-let linuxDevelopmentProtocolCleanup = null
 let updateManager
 let pendingAccountCallback = accountCallbackFromArgv(process.argv, desktopChannel)
 
@@ -1100,8 +1099,8 @@ async function linuxDevelopmentProtocolAction(enabled) {
   ).href)
   const dataHome = process.env.XDG_DATA_HOME || path.join(os.homedir(), '.local', 'share')
   const configHome = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config')
-  // Bound every xdg call: restore() runs inside before-quit, and a hung
-  // xdg-mime / update-desktop-database must not keep the app from exiting.
+  // Bound every xdg call: restoreSync() runs inside before-quit, and a hung
+  // xdg-mime / update-desktop-database must not stall the quit path.
   const xdgTimeout = { timeout: 10_000 }
   const currentHandler = async () => {
     try {
@@ -1123,6 +1122,19 @@ async function linuxDevelopmentProtocolAction(enabled) {
     },
     refreshApplications: async applicationsDirectory => {
       await execFileAsync('update-desktop-database', [applicationsDirectory], xdgTimeout)
+    },
+    currentHandlerSync: () => {
+      try {
+        return execFileSync('xdg-mime', ['query', 'default', 'x-scheme-handler/milksu'], { ...xdgTimeout, encoding: 'utf8' })
+      } catch {
+        return ''
+      }
+    },
+    setDefaultHandlerSync: (desktopFile, mimeType) => {
+      execFileSync('xdg-mime', ['default', desktopFile, mimeType], xdgTimeout)
+    },
+    refreshApplicationsSync: applicationsDirectory => {
+      execFileSync('update-desktop-database', [applicationsDirectory], xdgTimeout)
     },
     log: message => startupLog('linux-development-protocol', message),
   })
@@ -1514,17 +1526,18 @@ app.on('window-all-closed', () => {
   app.quit()
 })
 
-app.on('before-quit', event => {
-  if (linuxDevelopmentProtocol && !linuxDevelopmentProtocolCleanup) {
-    event.preventDefault()
-    const registration = linuxDevelopmentProtocol
-    linuxDevelopmentProtocol = null
-    // restore() is bounded by the xdg timeouts above; a timed-out or failed
-    // restore is logged here and the quit proceeds instead of hanging.
-    linuxDevelopmentProtocolCleanup = registration.restore().catch(error => {
+app.on('before-quit', () => {
+  const registration = linuxDevelopmentProtocol
+  linuxDevelopmentProtocol = null
+  if (registration) {
+    // Cmd+Q must not be intercepted for async work; restore the protocol
+    // association synchronously. Every xdg call inside is bounded by the
+    // xdg timeouts, and a failed restore is logged while the quit proceeds.
+    try {
+      registration.restoreSync()
+    } catch (error) {
       startupLog('linux-development-protocol.restore', String(error?.message ?? error))
-    }).finally(() => app.quit())
-    return
+    }
   }
   if (quitting) return
   if (!relaunchScheduled) {

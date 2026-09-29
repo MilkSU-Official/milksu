@@ -25,6 +25,12 @@ async function fixture(previousHandler = '') {
       handler = desktopFile
     },
     refreshApplications: async directory => refreshes.push(directory),
+    currentHandlerSync: () => handler,
+    setDefaultHandlerSync: (desktopFile, mimeType) => {
+      registrations.push([desktopFile, mimeType])
+      handler = desktopFile
+    },
+    refreshApplicationsSync: directory => refreshes.push(directory),
   })
   return { root, applicationsDirectory, configDirectory, registrations, refreshes, result, current: () => handler }
 }
@@ -78,6 +84,44 @@ test('removes only its association when no handler existed before opt-in', async
     assert.match(contents, /text\/plain=editor\.desktop/u)
     assert.match(contents, /\[Added Associations\][\s\S]*x-scheme-handler\/milksu=other\.desktop/u)
     await assert.rejects(readFile(path.join(state.applicationsDirectory, 'milksu-development.desktop')))
+  } finally {
+    await rm(state.root, { recursive: true, force: true })
+  }
+})
+
+test('restoreSync rolls back the association on the quit path without async work', async () => {
+  const state = await fixture('milksu.desktop')
+  try {
+    assert.equal(state.result.registered, true)
+    const statePath = path.join(state.applicationsDirectory, 'milksu-development-protocol.state.json')
+    state.result.restoreSync()
+    assert.equal(state.current(), 'milksu.desktop')
+    assert.deepEqual(state.registrations.at(-1), ['milksu.desktop', 'x-scheme-handler/milksu'])
+    await assert.rejects(readFile(path.join(state.applicationsDirectory, 'milksu-development.desktop')))
+    await assert.rejects(readFile(path.join(state.applicationsDirectory, 'milksu-development-protocol')))
+    await assert.rejects(readFile(statePath))
+    // restore() after restoreSync() is a no-op and must not re-register.
+    await state.result.restore()
+    assert.equal(state.current(), 'milksu.desktop')
+  } finally {
+    await rm(state.root, { recursive: true, force: true })
+  }
+})
+
+test('restoreSync removes only its association when no handler existed before opt-in', async () => {
+  const state = await fixture()
+  try {
+    const mimeAppsPath = path.join(state.configDirectory, 'mimeapps.list')
+    await writeFile(mimeAppsPath, [
+      '[Default Applications]',
+      'x-scheme-handler/milksu=milksu-development.desktop;',
+      'text/plain=editor.desktop;',
+      '',
+    ].join('\n'))
+    state.result.restoreSync()
+    const contents = await readFile(mimeAppsPath, 'utf8')
+    assert.doesNotMatch(contents, /x-scheme-handler\/milksu=milksu-development\.desktop/u)
+    assert.match(contents, /text\/plain=editor\.desktop/u)
   } finally {
     await rm(state.root, { recursive: true, force: true })
   }
