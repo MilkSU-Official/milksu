@@ -1979,8 +1979,11 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
 
           <form
             className="chat-composer__island"
-            // 形态**固定 stack**：不再按折行数切换（那会让文字宽度随形态变化 ⇒ 无限振荡/跳动）。
-            data-shape="stack"
+            // 空输入是单行胶囊，一旦有文字或附件就增高为矩形并保持（#209 固定 stack 后
+            // 空态也占两行）。判定只看内容非空，不看折行数：折行数会随形态改变的宽度
+            // 反复变化，正是当初「每打一个字疯狂跳动」的振荡源；非空后形态不再回切，
+            // 打字过程中高度只动一次。
+            data-shape={draft.trim() || pendingAttachments.length ? 'stack' : 'bar'}
             onSubmit={event => { event.preventDefault(); submit() }}
           >
             <div className="chat-composer__pill" aria-hidden="true" />

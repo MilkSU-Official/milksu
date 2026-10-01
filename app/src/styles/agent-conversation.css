@@ -2033,13 +2033,21 @@
 .chat-edge-fade {
   position: absolute;
   right: 14%;
-  bottom: 0;
   left: 6%;
   z-index: 3;
-  height: calc(var(--chat-edge-frost-bottom) + var(--chat-edge-feather));
   pointer-events: none;
   background: transparent;
   overflow: visible;
+}
+
+.chat-edge-fade-top {
+  top: 0;
+  height: calc(var(--chat-edge-top) + var(--chat-edge-feather));
+}
+
+.chat-edge-fade-bottom {
+  bottom: 0;
+  height: calc(var(--chat-edge-frost-bottom, var(--chat-edge-bottom)) + var(--chat-edge-feather));
 }
 
 .chat-edge-fade-progressive {
