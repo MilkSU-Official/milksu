@@ -228,7 +228,8 @@ TokenFlux 的 API 流量必须走 `https://tokenflux.dev/v1`。
 产品代码、配置、测试默认值和文档里都不得出现 `tokenflux.ai` 域名。
 
 - 当前有两个已接入的 Agent 内核：Pi（`@earendil-works/pi-coding-agent`，工作树钉 0.87.0）
-  和 DeepSeek Harness（`@deepseek-ai/dsh`，走 ACP，工作树钉 0.1.6-alpha.1）。
+  和 DeepSeek Harness（`@deepseek-ai/dsh`，走 ACP，工作树钉 0.2.0-rc.2；多 provider 模型经官方
+  dsh-llm-pi-ai 适配器路由，TokenFlux 与各官方 Provider 由 `MILKSU_DSH_PI_AI_ROUTES` 合成）。
   新对话二选一，出厂默认 Pi；设置 → 模型的「默认运行时」只决定新对话，不改写已有会话。
   DSH 是可选内核，不是 UI 参考：不要复刻它的 `dsh web` 皮肤。
 - 内核拥有通用的模型会话、上下文压缩和工具循环。

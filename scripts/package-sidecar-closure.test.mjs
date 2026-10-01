@@ -60,12 +60,12 @@ async function writeDshFixture(packageRoot) {
   for (const name of dshRuntimeRootPackages) {
     const document = {
       name,
-      version: '0.1.6-alpha.1',
+      version: '0.2.0-rc.2',
       license: 'MIT',
       type: 'module',
     }
     if (name === '@deepseek-ai/dsh') {
-      document.dependencies = { '@deepseek-ai/dsh-app-boot': '^0.1.6-alpha.1' }
+      document.dependencies = { '@deepseek-ai/dsh-app-boot': '0.2.0-rc.2' }
     }
     await writeFixturePackage(packageRoot, name, document, {
       ...(name === '@deepseek-ai/dsh' ? {
@@ -81,7 +81,7 @@ async function writeDshFixture(packageRoot) {
   }
   await writeFixturePackage(packageRoot, '@deepseek-ai/dsh-app-boot', {
     name: '@deepseek-ai/dsh-app-boot',
-    version: '0.1.6-alpha.1',
+    version: '0.2.0-rc.2',
     license: 'MIT',
     type: 'module',
     exports: './index.mjs',

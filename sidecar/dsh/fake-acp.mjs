@@ -11,6 +11,18 @@ const v41 = JSON.stringify(["deepseek-official", "deepseek-flash"]);
 const v41Prefixed = JSON.stringify(["deepseek-official", "deepseek/deepseek-flash"]);
 const flash = JSON.stringify(["deepseek-official", "deepseek-v4-flash"]);
 const vision = JSON.stringify(["deepseek-official", "deepseek-v4-flash-vision-exp"]);
+const tokenfluxCatalog = {
+  id: "model",
+  currentValue: JSON.stringify(["tokenflux", "deepseek/deepseek-flash"]),
+  options: [{
+    group: "TokenFlux",
+    options: [
+      { value: JSON.stringify(["tokenflux", "deepseek/deepseek-flash"]), name: "deepseek/deepseek-flash" },
+      { value: JSON.stringify(["tokenflux", "x-ai/grok-4.6"]), name: "x-ai/grok-4.6" },
+      { value: JSON.stringify(["tokenflux", "openai/gpt-5.4"]), name: "openai/gpt-5.4" },
+    ],
+  }],
+};
 const catalog = [
   {
     id: "model",
@@ -36,6 +48,19 @@ const catalog = [
     ],
   },
 ];
+// A bridge spawned with a tokenflux route expects the routed group to exist;
+// expose both groups so model routing can be exercised end to end.
+const routedCatalog = [
+  {
+    id: "model",
+    currentValue: tokenfluxCatalog.currentValue,
+    options: [tokenfluxCatalog.options[0], catalog[0].options[0]],
+  },
+  catalog[1],
+];
+const activeCatalog = String(process.env.MILKSU_DSH_FAKE_ACP_ROUTES ?? "").trim() === "tokenflux"
+  ? routedCatalog
+  : catalog;
 
 function dump(extra = {}) {
   if (!dumpPath) return;
@@ -90,19 +115,19 @@ input.on("line", line => {
       resumed: true,
     };
     dump();
-    write({ jsonrpc: "2.0", id, result: { configOptions: catalog } });
+    write({ jsonrpc: "2.0", id, result: { configOptions: activeCatalog } });
     return;
   }
   if (method === "session/new") {
     const sessionId = `acp_${nextId++}`;
-    sessions.set(sessionId, { cwd: params?.cwd, configOptions: structuredClone(catalog) });
+    sessions.set(sessionId, { cwd: params?.cwd, configOptions: structuredClone(activeCatalog) });
     lastCreated = {
       cwd: params?.cwd,
       mcpServers: params?.mcpServers ?? [],
       sessionId,
     };
     dump();
-    write({ jsonrpc: "2.0", id, result: { sessionId, configOptions: catalog } });
+    write({ jsonrpc: "2.0", id, result: { sessionId, configOptions: activeCatalog } });
     return;
   }
   if (method === "session/set_config_option") {

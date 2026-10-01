@@ -104,13 +104,32 @@ function bridgeChildEnv() {
   const env = { ...process.env }
   if (trimEnv('DEEPSEEK_API_KEY')) {
     delete env.DEEPSEEK_BASE_URL
-    delete env.MILKSU_DSH_LLM_PROTOCOL
+    env.MILKSU_DSH_PI_AI_ROUTES = JSON.stringify({ deepseekOfficial: true })
     return env
   }
   if (trimEnv('TOKENFLUX_API_KEY')) {
-    env.DEEPSEEK_API_KEY = trimEnv('TOKENFLUX_API_KEY')
-    env.DEEPSEEK_BASE_URL = TOKENFLUX_BASE_URL
-    env.MILKSU_DSH_LLM_PROTOCOL = 'chat-completions'
+    delete env.DEEPSEEK_API_KEY
+    env.MILKSU_DSH_PI_AI_ROUTES = JSON.stringify({
+      deepseekOfficial: false,
+      providers: {
+        tokenflux: {
+          api: 'openai-completions',
+          baseURL: TOKENFLUX_BASE_URL,
+          apiKeyEnv: 'TOKENFLUX_API_KEY',
+          displayName: 'TokenFlux',
+          models: [
+            {
+              id: 'deepseek/deepseek-flash',
+              name: 'DeepSeek Flash',
+              contextWindow: 1000000,
+              maxTokens: 393216,
+              image: true,
+              reasoningEfforts: { low: 'low', high: 'high', max: 'max' },
+            },
+          ],
+        },
+      },
+    })
   }
   return env
 }

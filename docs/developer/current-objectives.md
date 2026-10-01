@@ -18,7 +18,7 @@
 
 内测迭代。不再按 M3/M4 排期。M3 product-loop 已在 `108e0e3`（2026-08-05）合并，只供追溯。
 
-出厂默认官方 DeepSeek Flash、运行时 Pi。新对话可选 Pi 或 DeepSeek Harness；设置里的默认运行时只改新对话。工作树 Pi 钉 0.87.0，DSH 钉 `0.1.6-alpha.1`。DSH 是内核，不是 UI。
+出厂默认官方 DeepSeek Flash、运行时 Pi。新对话可选 Pi 或 DeepSeek Harness；设置里的默认运行时只改新对话。工作树 Pi 钉 0.87.0，DSH 钉 `0.2.0-rc.2`。DSH 是内核，不是 UI。
 
 产品回归：`npm run test:product-loop`。见 [产品回归循环](product-regression-loop.md)。
 
@@ -83,6 +83,13 @@ tag 与分发 source `a654c4d5` 之间只差测试与文档提交，无未打进
 - 任务状况桌面通知（#210）当前只在 macOS / Windows 弹；Linux 返回 `unsupported`，
   设置页已注明「Linux 暂不支持桌面通知」。五类开关全默认关。
 - issue #117 的另外几问、#155、#156 还没接到决策这一层。
+- DSH 升到 `0.2.0-rc.2`（rc，尚无 stable）并经 dsh-llm-pi-ai 打开多 provider 模型：
+  TokenFlux 模型表从产品目录快照合成（思考档位沿用内置事实），各官方 Provider key
+  走 pi-ai 目录路由；官方 DeepSeek key 仍走 llm-deepseek（0.2 起 Anthropic Messages
+  专用，`MILKSU_DSH_LLM_PROTOCOL` 机制删除）。`dsh-experimental-computer-use-cua-driver-mcp`
+  0.2 缺版且产品路径无调用者，已从 sidecar 闭包移除。验收：官方 DeepSeek 路径
+  `test:dsh-complete-loop --gui` A/B/C 全 PASS；TokenFlux 多模型路径用户实测可用。
+  `test:product-loop` 本轮未跑。
 
 ## 完成线
 

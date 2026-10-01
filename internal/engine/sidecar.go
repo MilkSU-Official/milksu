@@ -27,7 +27,6 @@ const (
 	dshProfileEnvironment       = "MILKSU_DSH_PROFILE"
 	dshProductIpcEnvironment    = "MILKSU_DSH_IPC"
 	dshHostIpcEnvironment       = "MILKSU_DSH_HOST_IPC"
-	dshLLMProtocolEnvironment   = "MILKSU_DSH_LLM_PROTOCOL"
 	officialDeepSeekAPIRoot     = "https://api.deepseek.com"
 	tokenfluxChatCompletionsURL = "https://tokenflux.dev/v1"
 )
@@ -133,24 +132,59 @@ func withDSHSidecarEnvironment(environment []string) []string {
 }
 
 func withDSHProviderEnvironment(environment []string, settings config.AppSettings) []string {
-	connection, ok := dshDeepSeekConnection(settings)
-	if !ok {
-		return environment
+	routes := encodeDSHPIAIRoutes(settings)
+	var extra []string
+	if routes != "" {
+		extra = append(extra, dshPIAIRoutesEnvironment+"="+routes)
 	}
-	extra := []string{"DEEPSEEK_API_KEY=" + connection.Key}
-	if connection.BaseURL != "" {
-		extra = append(extra, "DEEPSEEK_BASE_URL="+connection.BaseURL)
+	// DSH 0.2 llm-deepseek speaks Anthropic Messages only and points at the
+	// official endpoint by default; an official key needs no base URL here.
+	if key := dshOfficialDeepSeekKey(settings); key != "" {
+		extra = append(extra, "DEEPSEEK_API_KEY="+key)
 	}
-	if connection.Protocol != "" {
-		extra = append(extra, dshLLMProtocolEnvironment+"="+connection.Protocol)
+	// The TokenFlux route authenticates through TOKENFLUX_API_KEY. The Pi
+	// path already injects it for the personal provider key; the relay key
+	// needs it here because the relay is DSH's fallback credential.
+	if key := dshTokenFluxKey(settings); key != "" && providerKeyEnvironmentValue(environment, "TOKENFLUX_API_KEY") == "" {
+		extra = append(extra, "TOKENFLUX_API_KEY="+key)
 	}
 	return mergeSidecarEnvironment(environment, extra)
 }
 
-type dshProviderConnection struct {
-	Key      string
-	BaseURL  string
-	Protocol string
+func providerKeyEnvironmentValue(environment []string, name string) string {
+	for _, entry := range environment {
+		value, found := strings.CutPrefix(entry, name+"=")
+		if found {
+			return value
+		}
+	}
+	return ""
+}
+
+// dshOfficialDeepSeekKey returns the official DeepSeek API key when the
+// llm-deepseek row can use it: the active provider, or the official DeepSeek
+// presets as fallbacks.
+func dshOfficialDeepSeekKey(settings config.AppSettings) string {
+	if !dshOfficialDeepSeekKeyActive(settings) {
+		return ""
+	}
+	return dshActiveDeepSeekKey(settings)
+}
+
+func dshActiveDeepSeekKey(settings config.AppSettings) string {
+	providerID := strings.TrimSpace(settings.ActiveProvider)
+	provider, exists := settings.Providers[providerID]
+	if exists && strings.TrimSpace(provider.APIKey) != "" {
+		return strings.TrimSpace(provider.APIKey)
+	}
+	for _, fallbackID := range []string{"deepseek", "custom-relay-deepseek"} {
+		fallback, found := settings.Providers[fallbackID]
+		key := strings.TrimSpace(fallback.APIKey)
+		if found && key != "" {
+			return key
+		}
+	}
+	return ""
 }
 
 func dshOfficialDeepSeekAPI(baseURL string) bool {
@@ -163,65 +197,6 @@ func dshOfficialDeepSeekAPI(baseURL string) bool {
 	default:
 		return false
 	}
-}
-
-func dshDeepSeekConnection(settings config.AppSettings) (dshProviderConnection, bool) {
-	providerID := strings.TrimSpace(settings.ActiveProvider)
-	provider, exists := settings.Providers[providerID]
-	key := ""
-	if exists {
-		key = strings.TrimSpace(provider.APIKey)
-	}
-	if key == "" {
-		for _, fallbackID := range []string{"deepseek", "custom-relay-deepseek"} {
-			fallback, found := settings.Providers[fallbackID]
-			fallbackKey := strings.TrimSpace(fallback.APIKey)
-			if !found || fallbackKey == "" {
-				continue
-			}
-			providerID = fallbackID
-			provider = fallback
-			key = fallbackKey
-			exists = true
-			break
-		}
-	}
-	if key == "" {
-		if relay := settings.Relay; relay != nil && relay.Enabled && strings.TrimSpace(relay.Key) != "" {
-			baseURL := strings.TrimSpace(relay.URL)
-			if baseURL == "" {
-				baseURL = tokenfluxChatCompletionsURL
-			}
-			return dshProviderConnection{
-				Key:      strings.TrimSpace(relay.Key),
-				BaseURL:  baseURL,
-				Protocol: "chat-completions",
-			}, true
-		}
-	}
-	if !exists || key == "" {
-		return dshProviderConnection{}, false
-	}
-	baseURL := ""
-	if provider.BaseURL != nil {
-		baseURL = strings.TrimSpace(*provider.BaseURL)
-	}
-	if providerID == "tokenflux" && baseURL == "" {
-		baseURL = tokenfluxChatCompletionsURL
-	}
-	if providerID == "deepseek" || providerID == "custom-relay-deepseek" || dshOfficialDeepSeekAPI(baseURL) {
-		// DSH 0.1.6 Messages default is https://api.deepseek.com/anthropic.
-		// Copying the Chat Completions root makes /v1/messages 404.
-		return dshProviderConnection{Key: key, Protocol: "messages"}, true
-	}
-	if providerID == "tokenflux" || provider.Custom {
-		return dshProviderConnection{
-			Key:      key,
-			BaseURL:  baseURL,
-			Protocol: "chat-completions",
-		}, true
-	}
-	return dshProviderConnection{}, false
 }
 
 func canonicalCurrentExecutable() (string, error) {

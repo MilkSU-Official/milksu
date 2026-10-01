@@ -172,8 +172,8 @@ export default function CodingComposerControls({
       value: encodeComposerModelKey(group.providerId, model, group.source),
       label: catalog.pickerModelLabel(group, model),
       model,
-      disabled: modelUnavailableOnDsh(model),
-      title: modelUnavailableOnDsh(model)
+      disabled: modelUnavailableOnDsh(model, group.providerId),
+      title: modelUnavailableOnDsh(model, group.providerId)
         ? t('DeepSeek Harness 不支持这个模型', 'DeepSeek Harness does not support this model')
         : undefined,
     })),
@@ -184,14 +184,18 @@ export default function CodingComposerControls({
     contextUsage?.windowTokens || resolveModelContextWindow(parsedModel.model || compactModelLabel),
   )
 
-  function modelUnavailableOnDsh(model: string) {
-    return kernel === 'dsh' && !dshAcpSupportsModel(model)
+  function modelUnavailableOnDsh(model: string, providerId: string) {
+    return kernel === 'dsh' && !dshAcpSupportsModel(model, providerId)
   }
 
   function changeModel(value: string) {
     const next = String(value ?? '')
     const parsed = parseComposerModelKey(next)
-    if (parsed.mode === 'manual' && parsed.model && modelUnavailableOnDsh(parsed.model)) {
+    if (
+      parsed.mode === 'manual'
+      && parsed.model
+      && modelUnavailableOnDsh(parsed.model, parsed.providerId ?? '')
+    ) {
       return
     }
     onChangeModel?.(next)

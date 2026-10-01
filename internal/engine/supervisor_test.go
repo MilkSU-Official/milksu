@@ -2484,11 +2484,12 @@ func TestWithDSHProviderEnvironmentMapsActiveCustomRelay(t *testing.T) {
 	if !containsEnvironmentEntry(environment, "DEEPSEEK_API_KEY=custom-relay-secret") {
 		t.Fatalf("expected official DeepSeek key in %#v", environment)
 	}
-	if !containsEnvironmentEntry(environment, "MILKSU_DSH_LLM_PROTOCOL=messages") {
-		t.Fatalf("expected Messages protocol in %#v", environment)
+	routes := decodeDSHPIAIRoutesForTest(t, environment)
+	if !routes.DeepSeekOfficial {
+		t.Fatalf("expected deepseekOfficial route signal, got %#v", routes)
 	}
 	if value := environmentValue(environment, "DEEPSEEK_BASE_URL"); value != "" {
-		t.Fatalf("official DeepSeek must not override DSH Messages root, got %q", value)
+		t.Fatalf("official DeepSeek must not override the DSH Messages root, got %q", value)
 	}
 	for _, entry := range environment {
 		if strings.Contains(entry, "official-disabled-secret") {
@@ -2510,12 +2511,24 @@ func TestWithDSHProviderEnvironmentOfficialDeepSeekOmitsChatCompletionsRoot(t *t
 	if !containsEnvironmentEntry(environment, "DEEPSEEK_API_KEY=official-deepseek-secret") {
 		t.Fatalf("expected official DeepSeek key in %#v", environment)
 	}
+	routes := decodeDSHPIAIRoutesForTest(t, environment)
+	if !routes.DeepSeekOfficial {
+		t.Fatalf("expected deepseekOfficial route signal, got %#v", routes)
+	}
 	if value := environmentValue(environment, "DEEPSEEK_BASE_URL"); value != "" {
 		t.Fatalf("official DeepSeek must not set DEEPSEEK_BASE_URL, got %q", value)
 	}
 }
 
 func TestWithDSHProviderEnvironmentMapsAccountTokenFluxRelay(t *testing.T) {
+	snapshotPath := filepath.Join(t.TempDir(), "tokenflux.json")
+	snapshot := `{"schema":"milksu-model-catalog/v1","provider":"tokenflux","source":"remote","models":[` +
+		`{"id":"deepseek/deepseek-flash","name":"DeepSeek Flash","context_window":1000000,"max_tokens":393216,"input":["text","image"]},` +
+		`{"id":"openai/gpt-5.4","name":"GPT-5.4","context_window":1050000,"max_tokens":128000,"input":["text"]},` +
+		`{"id":"x-ai/grok-4.6-image","name":"Grok Image","context_window":500000,"max_tokens":32768,"input":["text","image"],"image_transport":"openai-images"}]}`
+	if err := os.WriteFile(snapshotPath, []byte(snapshot), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	settings := config.DefaultSettings()
 	settings.ActiveProvider = "tokenflux"
 	settings.ActiveModel = "deepseek/deepseek-flash"
@@ -2525,16 +2538,39 @@ func TestWithDSHProviderEnvironmentMapsAccountTokenFluxRelay(t *testing.T) {
 		URL:     "https://tokenflux.dev/v1",
 		Key:     "account-tokenflux-secret",
 	}
+	settings.RuntimeModelCatalogPath = snapshotPath
 
 	environment := withDSHProviderEnvironment(engineEnvironment(settings), settings)
-	for _, expected := range []string{
-		"DEEPSEEK_API_KEY=account-tokenflux-secret",
-		"DEEPSEEK_BASE_URL=https://tokenflux.dev/v1",
-		"MILKSU_DSH_LLM_PROTOCOL=chat-completions",
-	} {
-		if !containsEnvironmentEntry(environment, expected) {
-			t.Fatalf("expected %q in DSH env when only the account TokenFlux relay has a key", expected)
-		}
+	if !containsEnvironmentEntry(environment, "TOKENFLUX_API_KEY=account-tokenflux-secret") {
+		t.Fatalf("expected relay TokenFlux key in %#v", environment)
+	}
+	if value := environmentValue(environment, "DEEPSEEK_API_KEY"); value != "" {
+		t.Fatalf("TokenFlux relay must not leak into DEEPSEEK_API_KEY, got %q", value)
+	}
+	routes := decodeDSHPIAIRoutesForTest(t, environment)
+	route, exists := routes.Providers["tokenflux"]
+	if !exists {
+		t.Fatalf("expected tokenflux route, got %#v", routes)
+	}
+	if route.API != "openai-completions" || route.BaseURL != "https://tokenflux.dev/v1" {
+		t.Fatalf("unexpected tokenflux route: %#v", route)
+	}
+	if route.APIKeyEnv != "TOKENFLUX_API_KEY" {
+		t.Fatalf("unexpected tokenflux key env: %q", route.APIKeyEnv)
+	}
+	if len(route.Models) != 2 {
+		t.Fatalf("expected chat models only, got %#v", route.Models)
+	}
+	flash := route.Models[0]
+	if flash.ID != "deepseek/deepseek-flash" || !flash.Image || flash.ContextWindow != 1000000 {
+		t.Fatalf("unexpected deepseek entry: %#v", flash)
+	}
+	if flash.ReasoningEfforts["low"] != "low" || flash.ReasoningEfforts["max"] != "max" {
+		t.Fatalf("expected DeepSeek thinking levels, got %#v", flash.ReasoningEfforts)
+	}
+	gpt := route.Models[1]
+	if gpt.ID != "openai/gpt-5.4" || gpt.Image {
+		t.Fatalf("unexpected gpt entry: %#v", gpt)
 	}
 }
 
@@ -2550,18 +2586,15 @@ func TestWithDSHProviderEnvironmentMapsActiveTokenFlux(t *testing.T) {
 	}
 
 	environment := withDSHProviderEnvironment(engineEnvironment(settings), settings)
-	for _, expected := range []string{
-		"DEEPSEEK_API_KEY=tokenflux-provider-secret",
-		"DEEPSEEK_BASE_URL=https://tokenflux.dev/v1",
-		"MILKSU_DSH_LLM_PROTOCOL=chat-completions",
-	} {
-		if !containsEnvironmentEntry(environment, expected) {
-			t.Fatalf("expected %q in %#v", expected, environment)
-		}
+	if !containsEnvironmentEntry(environment, "TOKENFLUX_API_KEY=tokenflux-provider-secret") {
+		t.Fatalf("expected provider TokenFlux key in %#v", environment)
+	}
+	if value := environmentValue(environment, "DEEPSEEK_API_KEY"); value != "" {
+		t.Fatalf("TokenFlux must not leak into DEEPSEEK_API_KEY, got %q", value)
 	}
 }
 
-func TestWithDSHProviderEnvironmentDoesNotMapUnrelatedOfficialProvider(t *testing.T) {
+func TestWithDSHProviderEnvironmentMountsCatalogProvidersWithKeys(t *testing.T) {
 	settings := config.DefaultSettings()
 	settings.ActiveProvider = "anthropic"
 	settings.ActiveModel = "claude-sonnet"
@@ -2571,9 +2604,30 @@ func TestWithDSHProviderEnvironmentDoesNotMapUnrelatedOfficialProvider(t *testin
 	}
 
 	environment := withDSHProviderEnvironment(engineEnvironment(settings), settings)
+	routes := decodeDSHPIAIRoutesForTest(t, environment)
+	route, exists := routes.Providers["anthropic"]
+	if !exists {
+		t.Fatalf("expected anthropic catalog route, got %#v", routes)
+	}
+	if route.APIKeyEnv != "ANTHROPIC_API_KEY" || route.API != "" || len(route.Models) != 0 {
+		t.Fatalf("unexpected anthropic catalog route: %#v", route)
+	}
 	if value := environmentValue(environment, "DEEPSEEK_API_KEY"); value != "" {
 		t.Fatalf("unrelated provider leaked into DEEPSEEK_API_KEY: %q", value)
 	}
+}
+
+func decodeDSHPIAIRoutesForTest(t *testing.T, environment []string) dshPIAIRoutes {
+	t.Helper()
+	value := environmentValue(environment, "MILKSU_DSH_PI_AI_ROUTES")
+	if value == "" {
+		t.Fatalf("MILKSU_DSH_PI_AI_ROUTES missing from %#v", environment)
+	}
+	var routes dshPIAIRoutes
+	if err := json.Unmarshal([]byte(value), &routes); err != nil {
+		t.Fatalf("decode MILKSU_DSH_PI_AI_ROUTES: %v", err)
+	}
+	return routes
 }
 
 func TestWithDSHSidecarEnvironmentPublishesBoundedUnixIpc(t *testing.T) {

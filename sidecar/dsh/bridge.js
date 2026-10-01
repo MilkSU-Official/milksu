@@ -20,9 +20,10 @@ import {
   resolveDshPackageDir,
   dshAcpModelOptionValue,
   dshModelDeclaresImageInput,
+  dshProviderRoute,
   dshReasoningOptionValue,
   dshRouteModel,
-  dshTalksToTokenFlux,
+  dshWireModel,
 } from "./session-config.js";
 import { syncDshSkillCatalog } from "./skill-catalog.js";
 import { createProductIpc } from "./product-ipc.js";
@@ -161,7 +162,8 @@ function sessionMcpServers(conversationId, command = {}) {
 async function applySessionOptions(record, command, configOptions) {
   if (!acp || !record) return configOptions;
   let options = Array.isArray(configOptions) ? configOptions : [];
-  const modelValue = dshAcpModelOptionValue(options, command?.model);
+  const provider = String(command?.provider ?? "").trim();
+  const modelValue = dshAcpModelOptionValue(options, command?.model, process.env, provider);
   if (modelValue) {
     const updated = await acp.request("session/set_config_option", {
       sessionId: record.acpSessionId,
@@ -179,8 +181,9 @@ async function applySessionOptions(record, command, configOptions) {
     });
     options = Array.isArray(updated?.configOptions) ? updated.configOptions : options;
   }
-  record.model = dshRouteModel(command?.model);
-  record.imageCapable = dshModelDeclaresImageInput(record.model);
+  record.provider = dshProviderRoute(provider);
+  record.model = dshWireModel(command?.model, process.env, provider) || dshRouteModel(command?.model);
+  record.imageCapable = dshModelDeclaresImageInput(command?.model, provider);
   record.configOptions = options;
   return options;
 }
@@ -197,8 +200,6 @@ function writeHostPatch() {
     dshAcpHostPatchYaml(plugin, {
       computerUse: resolveDshPackageDir(here, "@deepseek-ai/dsh-computer-use"),
       autoReview: resolveDshPackageDir(here, "@deepseek-ai/dsh-experimental-auto-review"),
-      protocol: String(process.env.MILKSU_DSH_LLM_PROTOCOL ?? "").trim(),
-      tokenflux: dshTalksToTokenFlux(),
     }),
     { encoding: "utf8", mode: 0o600 },
   );
@@ -864,7 +865,8 @@ async function sendMessage(command) {
     record.uiLocale = command.locale;
   }
   const client = await ensureAcp(record.cwd);
-  if (command.model && dshRouteModel(command.model) !== record.model) {
+  const nextModel = dshWireModel(command.model, process.env, String(command.provider ?? ""));
+  if (command.model && nextModel !== record.model) {
     try {
       await applySessionOptions(record, command, record.configOptions);
     } catch {
