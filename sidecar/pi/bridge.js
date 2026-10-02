@@ -2240,9 +2240,24 @@ function configureSubagentRuntime() {
   if (!existsSync(guard)) {
     throw new Error(`MilkSU subagent spawn guard is unavailable: ${guard}`);
   }
+  // The bundled bridge cannot honor import.meta.resolve, and argv[1] probing
+  // only sees the sidecar root manifest, so pi-subagents 0.74 fails to resolve
+  // the host SDK package for background children. Name the real package root
+  // explicitly for both the packaged and the development layout.
+  const piPackageCandidates = [
+    join(bridgeDirectory, "node_modules", "@earendil-works", "pi-coding-agent"),
+    join(sidecarResourceDirectory, "node_modules", "@earendil-works", "pi-coding-agent"),
+  ];
+  const piPackageRoot = piPackageCandidates.find(candidate => (
+    existsSync(join(candidate, "package.json"))
+  ));
+  if (!piPackageRoot) {
+    throw new Error("MilkSU subagent runtime requires the Pi SDK package next to the Sidecar");
+  }
   process.env.MILKSU_PI_SUBAGENTS_ROOT = root;
   process.env.MILKSU_PI_SUBAGENT_SPAWN_GUARD = guard;
   process.env.MILKSU_PI_SUBAGENT_BUNDLED_ONLY = "1";
+  process.env.PI_SUBAGENTS_PI_CODING_AGENT_PACKAGE_ROOT = piPackageRoot;
   delete process.env.PI_SUBAGENT_EXTRA_AGENT_DIRS;
 }
 

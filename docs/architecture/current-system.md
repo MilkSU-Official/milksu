@@ -8,7 +8,7 @@ React → Electron Preload / Desktop RPC → Go Application Service → Domain /
 
 Electron 主窗口跑产品 renderer。右栏浏览器是同壳的会话隔离 `WebContentsView`。Go 是受管 Runtime，不拥有 GUI，也不拥有通用模型循环。Pi 与 DeepSeek Harness 拥有会话、压缩和工具循环。MilkSU 持有桌面授权、凭据、领域事实和 Judge。
 
-两个内核：Pi `@earendil-works/pi-coding-agent` 0.87.0；DSH `@deepseek-ai/dsh` 0.2.0-rc.2（ACP）。新对话二选一，出厂 Pi。DSH 的 LLM 路由：官方 DeepSeek key 走 llm-deepseek（Anthropic Messages），TokenFlux 与已配 key 的官方 Provider 走 dsh-llm-pi-ai 适配器（Go 侧合成 `MILKSU_DSH_PI_AI_ROUTES` 注入，key 经既有 provider 环境变量）。
+两个内核：Pi `@earendil-works/pi-coding-agent` 1.0.0；DSH `@deepseek-ai/dsh` 0.2.0-rc.2（ACP）。新对话二选一，出厂 Pi。DSH 的 LLM 路由：官方 DeepSeek key 走 llm-deepseek（Anthropic Messages），TokenFlux 与已配 key 的官方 Provider 走 dsh-llm-pi-ai 适配器（Go 侧合成 `MILKSU_DSH_PI_AI_ROUTES` 注入，key 经既有 provider 环境变量）。
 
 ## 桌面执行表面
 

@@ -40,7 +40,7 @@ const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const repositoryPackageRoot = join(repositoryRoot, 'node_modules')
 const nodeVersion = '24.18.0'
 const archifyCommit = '7b49d0b715fd4ba48116bcdecd1ba3789a279613'
-const piVersion = '0.87.0'
+const piVersion = '1.0.0'
 const dshVersion = '0.2.0-rc.2'
 // Pi decodes and resizes inline images with Photon (Rust/WASM). The bundled
 // bridges inline Photon's JS glue, which loads the module from `__dirname` and
@@ -61,8 +61,8 @@ const piLspVersion = '0.29.0'
 const piGoalVersion = '0.43.0'
 const piBackgroundTasksVersion = '0.1.10'
 const piMcpAdapterVersion = '2.17.0'
-const piSubagentsVersion = '0.70.1'
-const piSubagentsIntegrity = 'sha512-cWNjguyrTfx6VmFzD+jCWIzJK3mBL5zjAhw5Z1E+5I3Iq5O2gCSmM0DphGDY6fh9w7eUewH1OR6Vsi/+Uje6oQ=='
+const piSubagentsVersion = '0.74.0'
+const piSubagentsIntegrity = 'sha512-7+67TCpQuYoW2kMu4Kmt4j90hiR8uX8ozg3F/eakApUU6PxK7NteO58ylOWPql7fh/uTIEfS00FT2LKVDTSicw=='
 const playwrightMcpVersion = '0.0.78'
 const playwrightVersion = '1.62.0-alpha-1783623505000'
 const playwrightSocketRoot = playwrightSocketRootFor()
@@ -893,6 +893,14 @@ function bridgeBundleBanner(subagentsRoot = false) {
       "}",
       "process.env.MILKSU_PI_SUBAGENT_BUNDLED_ONLY = '1';",
       "process.env.MILKSU_PI_SUBAGENT_SPAWN_GUARD = __milksuPath.join(__dirname, 'pi-subagents-spawn.cjs');",
+      "// pi-subagents resolves its host SDK package root at module load; the",
+      "// bundled bridge cannot honor import.meta.resolve and argv[1] probing",
+      "// only reaches the sidecar root manifest, which has no exports. Name the",
+      "// real package root before any module-level constant freezes it.",
+      "const __milksuPiPackageRoot = __milksuPath.join(__dirname, 'node_modules', '@earendil-works', 'pi-coding-agent');",
+      "if (__milksuFs.existsSync(__milksuPath.join(__milksuPiPackageRoot, 'package.json'))) {",
+      "  process.env.PI_SUBAGENTS_PI_CODING_AGENT_PACKAGE_ROOT = __milksuPiPackageRoot;",
+      "}",
     )
   }
   return lines.join('\n')
@@ -945,7 +953,7 @@ async function bundleBridge(entry, outfile, options = {}) {
 
 async function copyPiSubagentsRuntime(output, platform = '') {
   const packages = minimalPackageCopySet(
-    await collectInstalledPackageClosure(['pi-subagents'], {
+    await collectInstalledPackageClosure(['pi-subagents', '@earendil-works/chord'], {
       includePeerDependencies: true,
       platform,
     }),

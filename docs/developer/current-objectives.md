@@ -18,7 +18,7 @@
 
 内测迭代。不再按 M3/M4 排期。M3 product-loop 已在 `108e0e3`（2026-08-05）合并，只供追溯。
 
-出厂默认官方 DeepSeek Flash、运行时 Pi。新对话可选 Pi 或 DeepSeek Harness；设置里的默认运行时只改新对话。工作树 Pi 钉 0.87.0，DSH 钉 `0.2.0-rc.2`。DSH 是内核，不是 UI。
+出厂默认官方 DeepSeek Flash、运行时 Pi。新对话可选 Pi 或 DeepSeek Harness；设置里的默认运行时只改新对话。工作树 Pi 钉 `1.0.0`，DSH 钉 `0.2.0-rc.2`。DSH 是内核，不是 UI。
 
 产品回归：`npm run test:product-loop`。见 [产品回归循环](product-regression-loop.md)。
 

@@ -42,7 +42,7 @@ const photonFixtureWasmBytes = 1_100_000
 async function writePhotonFixture(packageRoot) {
   await writeFixturePackage(packageRoot, '@earendil-works/pi-coding-agent', {
     name: '@earendil-works/pi-coding-agent',
-    version: '0.87.0',
+    version: '1.0.0',
   })
   const wasm = Buffer.alloc(photonFixtureWasmBytes)
   Buffer.from([0x00, 0x61, 0x73, 0x6d]).copy(wasm)
@@ -194,7 +194,7 @@ test('Pi closure ships only the target platform esbuild binary', async () => {
     )
     await writeFixturePackage(fixture.packageRoot, '@earendil-works/pi-coding-agent', {
       name: '@earendil-works/pi-coding-agent',
-      version: '0.87.0',
+      version: '1.0.0',
       dependencies: { esbuild: '0.28.2' },
     })
     await writeFixturePackage(fixture.packageRoot, 'esbuild', {

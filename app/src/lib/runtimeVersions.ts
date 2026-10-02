@@ -27,7 +27,7 @@ export function installRuntimeVersions(value: unknown) {
 }
 
 export function useRuntimeVersions(): RuntimeVersions {
-  return useStore(runtimeVersionsStore)
+  return useStore(runtimeVersionsStore).current
 }
 
 /** Non-reactive read for one-off labels (row helpers, picker options). */

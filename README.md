@@ -199,7 +199,7 @@ MilkSU 建立在这些项目之上。第三方保留各自原许可，完整文�
 
 | 项目 | 在 MilkSU 中做什么 | 许可 |
 | --- | --- | --- |
-| [Pi](https://github.com/earendil-works/pi)（`@earendil-works/pi-coding-agent` 0.87.0，含 pi-ai、pi-tui） | 默认 Agent 内核：通用会话、上下文压缩和工具循环 | MIT |
+| [Pi](https://github.com/earendil-works/pi)（`@earendil-works/pi-coding-agent` 1.0.0，含 pi-ai、pi-tui） | 默认 Agent 内核：通用会话、上下文压缩和工具循环 | MIT |
 | Pi 扩展（pi-goal、pi-lsp、pi-mcp-adapter、pi-sub-agent、pi-better-background-tasks） | 目标、LSP、MCP 适配与后台子代理 | MIT |
 | [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（`@deepseek-ai/dsh` 0.2.0-rc.2，走 ACP） | 可选 Agent 运行时，新对话可在 Pi 与 DSH 之间选 | MIT |
 | [Obelisk](https://github.com/tommy0103/obelisk) | 本地会话记忆与学习记录的分层。companion sidecar 以上游 writer lease 写 `companion/obelisk.sqlite` 索引，Go 不直接写这个库 | AGPL-3.0 |
