@@ -78,6 +78,7 @@ import { companionPawState, type CompanionPawState } from '@/lib/companionOverla
 import { withAppSettingsDefaults, type AccountStatus, type AppSettings, type CompanionShellStatus, type CTFChatAction, type UpdateStatus } from '@/types'
 import type { ModelCatalogSnapshot } from '@/types'
 import { imageGenSettingsFromKey, installAppModelSettings, installModelCatalog, loadModelCatalog } from '@/modelCatalog'
+import { installRuntimeVersions } from '@/lib/runtimeVersions'
 import { toolBudgetToolName } from '@/lib/toolBudget'
 import type {
   ActivePluginTheme,
@@ -519,6 +520,7 @@ export default function App() {
     setSettings(normalized)
     taskNotifyRef.current = taskNotifySwitchFromSettings(normalized)
     installAppModelSettings(normalized)
+    installRuntimeVersions(normalized.runtime_versions)
     applyUiLocale(normalized.locale)
     applyConversationFontSize(normalized.conversation_font_size)
     applyProjectFoldLimit(normalized.sidebar_project_fold_limit)

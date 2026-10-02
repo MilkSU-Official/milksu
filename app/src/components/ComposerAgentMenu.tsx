@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Button, Popover, PopoverContent, PopoverTrigger } from '@/components/ui'
 import { Check, ChevronDown, ChevronRight } from 'lucide-react'
+import { runtimeVersion } from '@/lib/runtimeVersions'
 import { SearchableModelList } from '@/components/SearchableModelPicker'
 import type { SearchableModelGroup, SearchableModelOption } from '@/lib/modelPickerSearch'
 import {
@@ -203,6 +204,9 @@ export default function ComposerAgentMenu({
                 >
                   <span className="min-w-0 flex-1 truncate">
                     {id === 'dsh' ? t('DeepSeek Harness', 'DeepSeek Harness') : 'Pi'}
+                    {runtimeVersion(id) ? (
+                      <span className="ml-1.5 text-caption text-muted-foreground">{runtimeVersion(id)}</span>
+                    ) : null}
                   </span>
                   {kernel === id ? <Check className="size-3.5 shrink-0" /> : null}
                 </button>

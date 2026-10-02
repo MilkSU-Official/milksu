@@ -1,4 +1,5 @@
 import { createStore, useStore, useStoreRuntime } from '@/lib/reactStore'
+import { runtimeVersion } from '@/lib/runtimeVersions'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   AlertCircle,
@@ -1247,8 +1248,8 @@ export default function SettingsPage({
                         value={working?.default_kernel === 'dsh' ? 'dsh' : 'pi'}
                         ariaLabel={t('默认运行时', 'Default runtime')}
                         options={[
-                          { value: 'pi', label: 'Pi' },
-                          { value: 'dsh', label: 'DSH' },
+                          { value: 'pi', label: runtimeVersion('pi') ? `Pi ${runtimeVersion('pi')}` : 'Pi' },
+                          { value: 'dsh', label: runtimeVersion('dsh') ? `DSH ${runtimeVersion('dsh')}` : 'DSH' },
                         ]}
                         onChange={store.setDefaultKernel}
                       />

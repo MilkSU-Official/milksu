@@ -137,6 +137,10 @@ type AppSettings struct {
 	// DefaultKernel chooses Pi or DSH for a new conversation only.
 	// Existing conversations keep the kernel persisted on that row.
 	DefaultKernel string `json:"default_kernel,omitempty"`
+	// RuntimeVersions are the installed agent kernel package versions,
+	// injected on read for the runtime pickers. Public metadata, never
+	// persisted; Save drops the field before writing.
+	RuntimeVersions map[string]string `json:"runtime_versions,omitempty"`
 	// BusySend is the DSH parent-turn send policy: interrupt (followup) or queue (inbox).
 	BusySend string `json:"busy_send,omitempty"`
 	// ComputerUseEnabled gates desktop computer_use (AX-driven control of a
@@ -516,6 +520,9 @@ func (s *Store) save(value AppSettings, allowJevCredential bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	// RuntimeVersions is injected on read; a value echoed back by the
+	// renderer must not reach the settings document.
+	value.RuntimeVersions = nil
 	value = withDefaults(value)
 	if err := validateCustomProviders(value); err != nil {
 		return err

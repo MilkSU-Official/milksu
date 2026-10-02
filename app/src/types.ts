@@ -431,6 +431,8 @@ export interface AppSettings {
   active_provider: string
   active_model: string
   default_kernel?: import('@/lib/agentKernel').AgentKernel
+  /** Installed agent kernel package versions; injected by the backend, never persisted. */
+  runtime_versions?: Record<string, string>
   busy_send?: BusySendPolicy
   /** 权限与操控的总开关：缺省视为开启。 */
   computer_use_enabled?: boolean

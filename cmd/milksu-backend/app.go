@@ -55,6 +55,7 @@ type App struct {
 	artifactDirectory   string
 	diagnostics         *appdata.DiagnosticRecorder
 	settings            *config.Store
+	runtimeVersions     map[string]string
 	conversations       *conversation.Store
 	labJobs             *lab.Store
 	envBroker           *envbroker.Service
@@ -214,6 +215,9 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 		application.diagnostics.Record("appdata", "info", "existing pre-migration safety backup verified")
 		_ = appdata.AppendEventLog(homeDirectory, appdata.PersistedMigrationBackupVerified)
 	}
+	// The installed kernel package versions back the runtime pickers; read
+	// once at startup from the same Sidecar roots the runtime resolves.
+	application.runtimeVersions = engine.RuntimeVersions()
 	application.engines = engine.NewSupervisor(application.emitEngineEvent)
 	application.engines.SetWorkspaceActionHandler(application.handleCodingWorkspaceAction)
 	application.engines.SetCodingBrowserLookup(application.lookupCodingBrowserDescriptor)
@@ -527,7 +531,12 @@ func (a *App) Shutdown(_ context.Context) {
 }
 
 func (a *App) GetSettings() config.AppSettings {
-	return a.settings.Get()
+	settings := a.settings.Get()
+	// Injected public metadata; never persisted by Save.
+	if len(a.runtimeVersions) > 0 {
+		settings.RuntimeVersions = a.runtimeVersions
+	}
+	return settings
 }
 
 // decisionLayerForSession 拼一条会话的全局决策层：凭据从设置读，主模型
