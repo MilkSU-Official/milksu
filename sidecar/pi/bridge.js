@@ -217,6 +217,11 @@ import {
 } from "./bridge-thinking-repetition.js";
 import { projectSessionContextComposition } from "./bridge-context-composition.js";
 import { withTokenFluxModelCompat } from "./tokenflux-model-compat.js";
+import { isPiHarnessEnabled } from "./harness-adapter.js";
+import {
+  createHarnessBridgeSessionLayer,
+  MILKSU_HARNESS_SESSION_KIND,
+} from "./harness-bridge-session.js";
 
 const {
   currentProviderDefinition,
@@ -719,6 +724,77 @@ const workspaceActionBroker = createWorkspaceActionBroker(emit);
 const pendingWorkspaceCompaction = new Set();
 const sessionContextUsage = new Map();
 const backgroundEffectfulActions = new Set(["spawn", "watch", "stop", "clear"]);
+
+// ---------- MILKSU_PI_HARNESS 门开路径（PR-2 批次 B1） ----------
+//
+// 惰性构造：只在门开后的第一次 createSession 才建层；门关时下面所有 harness 分叉
+// 的条件都不成立，既有 SessionManager/AgentSession 路径逐字节原样执行。
+// 门开路径的实现与语义对照见 harness-bridge-session.js / harness-bridge-approval.js。
+let harnessBridgeLayer;
+
+function harnessLayer() {
+  if (!harnessBridgeLayer) {
+    harnessBridgeLayer = createHarnessBridgeSessionLayer({
+      emit,
+      queueTextDelta,
+      approvalBroker,
+      workspaceActionBroker,
+      formatToolInput,
+      formatMcpApprovalInput,
+      selectedMcpServer,
+      loadRuntimeSessionPolicy,
+      loadProjectInstructions,
+      applyUserMemories,
+      applyWorkerModelOverride,
+      dropSendAfterAbort,
+      describeError,
+      getUserMemories: () => userMemories,
+      thinkingRepetition,
+      noteUserMemory,
+      hasActiveResearchRun,
+      activeResearchRunContext,
+      researchSubagentBlockReason,
+      rememberChildModelRegistry,
+      haltConversationSubagents,
+      maps: {
+        sessions,
+        sessionPolicies,
+        sessionPolicyControllers,
+        sessionTurnContracts,
+        promptQueues,
+        compactionRuns,
+        compactionRequestIds,
+        pendingWorkspaceCompaction,
+        sessionContextUsage,
+        sessionModelSources,
+        sessionConfiguredProviders,
+        sessionCreateCommands,
+        abortedSessions,
+        suppressedQueueUpdates,
+        reasoningOnlyRecovered,
+        sessionSubagentTasks,
+        researchRunContexts,
+      },
+    });
+  }
+  return harnessBridgeLayer;
+}
+
+/** 门开路由：已是 harness 会话，或门开且尚无（旧引擎）会话。 */
+function harnessTurnRouted(conversationId) {
+  const id = String(conversationId ?? "").trim();
+  return sessions.get(id)?.kind === MILKSU_HARNESS_SESSION_KIND
+    || (isPiHarnessEnabled() && !sessions.has(id));
+}
+
+function harnessUnsupportedResult(command, type) {
+  const conversationId = String(command?.conversationId ?? "").trim();
+  const requestId = String(command?.requestId ?? "").trim();
+  emit(conversationId || null, type, {
+    requestId,
+    error: "MilkSU harness conversations do not support this operation yet (batch B2/D scope)",
+  });
+}
 
 function backgroundToolAction(toolName, input) {
   if (toolName !== "bg_task" && toolName !== "bg_status") return "";
@@ -2264,6 +2340,9 @@ function configureSubagentRuntime() {
 async function createSession(command) {
   const conversationId = command.conversationId;
   if (!conversationId) throw new Error("conversationId is required");
+  if (isPiHarnessEnabled()) {
+    return harnessLayer().createSession(command);
+  }
   applyWorkerModelOverride(command.workerModel);
 
   const existing = sessions.get(conversationId);
@@ -2419,6 +2498,9 @@ async function createSession(command) {
 async function sendMessage(command) {
   const conversationId = command.conversationId;
   if (!conversationId) throw new Error("conversationId is required");
+  if (harnessTurnRouted(conversationId)) {
+    return harnessLayer().sendMessage(command);
+  }
   applyUserMemories(command);
   applyWorkerModelOverride(command.workerModel);
   // abort_session is handled immediately. send_message setup stays on the
@@ -2635,6 +2717,9 @@ async function sendMessage(command) {
 async function abortSession(command) {
   const conversationId = command.conversationId;
   if (!conversationId) throw new Error("conversationId is required");
+  if (harnessTurnRouted(conversationId)) {
+    return harnessLayer().abortSession(command);
+  }
   abortedSessions.add(conversationId);
   approvalBroker.cancelConversation(conversationId, "turn aborted");
   workspaceActionBroker.cancelConversation(conversationId, "turn aborted");
@@ -2670,6 +2755,10 @@ async function abortSession(command) {
 async function forkSessionCommand(command) {
   const conversationId = String(command.conversationId ?? "").trim();
   const requestId = String(command.requestId ?? "").trim();
+  if (harnessTurnRouted(conversationId)) {
+    harnessUnsupportedResult(command, "session_forked");
+    return;
+  }
   try {
     if (!conversationId) throw new Error("conversationId is required");
     if (!requestId) throw new Error("requestId is required");
@@ -2695,6 +2784,9 @@ async function forkSessionCommand(command) {
 async function destroySession(command) {
   const conversationId = command.conversationId;
   if (!conversationId) throw new Error("conversationId is required");
+  if (harnessTurnRouted(conversationId)) {
+    return harnessLayer().destroySession(command);
+  }
 
   const session = sessions.get(conversationId);
   let sessionFile = session?.sessionFile;
@@ -2876,6 +2968,10 @@ async function compactIfContextNearLimit(conversationId, session) {
 async function rewindSessionCommand(command) {
   const conversationId = String(command.conversationId ?? "").trim();
   const requestId = String(command.requestId ?? "").trim();
+  if (harnessTurnRouted(conversationId)) {
+    harnessUnsupportedResult(command, "session_rewound");
+    return;
+  }
   try {
     if (!conversationId) throw new Error("conversationId is required");
     if (!requestId) throw new Error("requestId is required");
@@ -2899,6 +2995,10 @@ async function rewindSessionCommand(command) {
 async function handoffSessionCommand(command) {
   const conversationId = String(command.conversationId ?? "").trim();
   const requestId = String(command.requestId ?? "").trim();
+  if (harnessTurnRouted(conversationId)) {
+    harnessUnsupportedResult(command, "session_handoff");
+    return;
+  }
   try {
     if (!conversationId) throw new Error("conversationId is required");
     if (!requestId) throw new Error("requestId is required");
@@ -2944,6 +3044,9 @@ async function handoffSessionCommand(command) {
 async function compactSessionCommand(command) {
   const conversationId = String(command.conversationId ?? "").trim();
   const requestId = String(command.requestId ?? "").trim();
+  if (harnessTurnRouted(conversationId)) {
+    return harnessLayer().compactSessionCommand(command);
+  }
   try {
     if (!conversationId) throw new Error("conversationId is required");
     if (!requestId) throw new Error("requestId is required");
@@ -3366,6 +3469,10 @@ async function disposeAllSessions() {
   await Promise.all(
     [...sessions.values()].map(session => disposeAgentSession(session)),
   );
+  // 门开路径：所有会话落定后关闭 harness（停心跳 → 会话封存落盘 → 释放锁）。
+  // Go 宿主的 shutdownChildProcess 在 {action:"shutdown"} 后等进程退出（supervisor.go
+  // process.done ← command.Wait()，5s 兜底强杀），即 DECISIONS Q5-1 的 waitpid 硬保证。
+  await harnessBridgeLayer?.disposeAll();
   for (const conversationId of subagentPollers.keys()) stopSubagentPoll(conversationId);
   researchRunContexts.clear();
   sessions.clear();

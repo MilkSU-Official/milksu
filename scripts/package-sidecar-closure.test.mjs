@@ -6,6 +6,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import test from 'node:test'
 import {
+  bundleChatBridge,
   bundleHarnessAdapter,
   collectInstalledPackageClosure,
   copyDshRuntime,
@@ -218,6 +219,31 @@ test('harness adapter bundle inlines pi-durable exactly at the pinned version', 
       repositoryRoot, 'node_modules', '@earendil-works', 'pi-durable', 'node_modules', 'typebox', 'package.json',
     ))
     assert.ok(nestedTypebox.isFile(), 'pi-durable keeps its exact nested typebox 1.3.27')
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+// PR-2 批次 B1：主 bridge bundle 必须真的带上 Harness 运行核心接线（门 + 会话层 +
+// beforeTool 审批链 + pi-durable 本体），而不是只在源码里 import 了却没进分发物。
+test('chat bridge bundle inlines the batch B1 harness wiring', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'milksu-chat-bridge-bundle-'))
+  try {
+    const outfile = join(root, 'chat-bridge.cjs')
+    await bundleChatBridge(outfile)
+    const bundle = await readFile(outfile, 'utf8')
+    // 门：MILKSU_PI_HARNESS 常量 + 分叉。
+    assert.ok(bundle.includes('MILKSU_PI_HARNESS'), 'gate env name must ship')
+    assert.ok(bundle.includes('harnessTurnRouted'), 'routing forks must ship')
+    // 适配层与 pi-durable 本体（同批次 A 的内联标志）。
+    assert.ok(bundle.includes('milksu.conversation-index'), 'adapter alias doc must ship')
+    assert.ok(
+      bundle.includes('was interrupted and may have partially run'),
+      'pi-durable ToolTask must be inlined',
+    )
+    // 审批链移植（beforeTool 钩子）与压缩接线（pi.compaction 任务）。
+    assert.ok(bundle.includes('beforeTool'), 'beforeTool hook wiring must ship')
+    assert.ok(bundle.includes('pi.compaction'), 'compaction task must be inlined')
   } finally {
     await rm(root, { recursive: true, force: true })
   }

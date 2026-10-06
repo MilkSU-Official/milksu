@@ -31,7 +31,7 @@
 
 import { mkdir, readFile, stat, unlink, utimes, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { Harness, configure as configureConversationAgent, defineDocFamily } from "@earendil-works/pi-durable";
+import { Harness, configure as configureConversationAgent, defineDocFamily, watchEvents } from "@earendil-works/pi-durable";
 import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 
@@ -328,7 +328,11 @@ function createHandle({ harness, lock, agentDir, storagePath, context }) {
       return conversation.submit(submission, context);
     },
 
-    /** 每会话模型选择（Q8）：conversation.configure({model, thinkingLevel})。 */
+    /**
+     * 每会话 agent 配置（Q8 + B1）：pi-durable 的 AgentChange 子集。model/thinkingLevel 走
+     * 命名引用；tools 传 ToolRegistration[]（或 {remove}）——pi-durable 的 configure 按对象
+     * 的 .name 归档（agent.js applyChange），纯字符串会被误存成 undefined。
+     */
     async configureConversation(conversationId, change = {}) {
       const { conversation } = await ensureConversation(conversationId);
       const next = {};
@@ -338,6 +342,9 @@ function createHandle({ harness, lock, agentDir, storagePath, context }) {
         next.model = null;
       }
       if (change.thinkingLevel !== undefined) next.thinkingLevel = change.thinkingLevel;
+      if (change.tools !== undefined) next.tools = change.tools;
+      if (change.cwd !== undefined) next.cwd = change.cwd;
+      if (change.instructions !== undefined) next.instructions = change.instructions;
       if (Object.keys(next).length === 0) return;
       await conversation.configure(next, context);
     },
@@ -371,6 +378,59 @@ function createHandle({ harness, lock, agentDir, storagePath, context }) {
     async conversationViewState(conversationId) {
       const { conversation } = await ensureConversation(conversationId);
       return conversation.viewState(context);
+    },
+
+    /** 解析后的 agent（模型/扩展/工具面），ready 事件与工具过滤用。 */
+    async conversationAgent(conversationId) {
+      const { conversation } = await ensureConversation(conversationId);
+      return conversation.agent(context);
+    },
+
+    /** 撤回排队输入并中止该会话的普通任务（含非 background 的手动压缩）。 */
+    async abortConversation(conversationId, options = {}) {
+      const { conversation } = await ensureConversation(conversationId);
+      await conversation.abort(context, options);
+    },
+
+    /** 手动压缩（spec §8.7）：入队压缩任务并返回其 id；结果经 waitTask 收条。 */
+    async compactConversation(conversationId, instructions) {
+      const { conversation } = await ensureConversation(conversationId);
+      return conversation.compact(instructions, context);
+    },
+
+    /** 等一个任务终态（压缩收条等）。 */
+    waitTask(taskId) {
+      return harness.waitForTask(taskId, context);
+    },
+
+    /**
+     * watchEvents 订阅（spec §9.4）：一批一提交的 AgentEvent 流。返回 {snapshot, stop,
+     * closed}；listener 收到 readonly AgentEvent[]。溢出时上游以一份 snapshot 帧重放。
+     */
+    async watchConversationEvents(conversationId) {
+      const { conversation } = await ensureConversation(conversationId);
+      return watchEvents(harness, conversation.id, context);
+    },
+
+    /** docs["pi.inbox"] 的已提交快照（Q2：唯一排队真相；条目含文本）。 */
+    async conversationInbox(conversationId) {
+      const state = await this.conversationViewState(conversationId);
+      try {
+        const items = state?.value?.docs?.["pi.inbox"]?.items;
+        return Array.isArray(items) ? items : [];
+      } finally {
+        state?.dispose?.();
+      }
+    },
+
+    /** docs["pi.live"] 的已提交快照（run/generation/tools/compactions 展示面）。 */
+    async conversationLive(conversationId) {
+      const state = await this.conversationViewState(conversationId);
+      try {
+        return state?.value?.docs?.["pi.live"] ?? {};
+      } finally {
+        state?.dispose?.();
+      }
     },
 
     resume() {

@@ -964,6 +964,16 @@ export async function bundleHarnessAdapter(outfile) {
   await bundleBridge('sidecar/pi/harness-adapter.js', outfile)
 }
 
+/**
+ * Bundle the real chat bridge (bridge.js) the same way `sidecar:build` does.
+ * Exported for `package-sidecar-closure.test.mjs`, which asserts the batch B1
+ * harness wiring (gate + session layer + beforeTool approval chain) actually
+ * ships inside the Sidecar's main bundle.
+ */
+export async function bundleChatBridge(outfile) {
+  await bundleBridge('sidecar/pi/bridge.js', outfile)
+}
+
 async function copyPiSubagentsRuntime(output, platform = '') {
   const packages = minimalPackageCopySet(
     await collectInstalledPackageClosure(['pi-subagents', '@earendil-works/chord'], {
