@@ -62,6 +62,13 @@ import {
   MILKSU_MCP_EXTENSION,
   MILKSU_MCP_PROMPT_SNIPPET,
 } from "./harness-bridge-mcp.js";
+import {
+  createMilksuDailyToolsExtension,
+  createMilksuSecurityToolsExtension,
+  MILKSU_DAILY_TOOLS_EXTENSION,
+  MILKSU_SECURITY_TOOLS_EXTENSION,
+  securityToolsMountFingerprint,
+} from "./harness-bridge-daily-tools.js";
 import { answerDecisionQuery } from "../decision/query.js";
 import {
   isReasoningOnlyFinal,
@@ -159,6 +166,9 @@ export function createHarnessBridgeSessionLayer(context) {
     researchSubagentBlockReason,
     rememberChildModelRegistry,
     haltConversationSubagents,
+    // PR-2 批次 B2c：bridge.js 模块内的研究动作观测（milksu_workspace 的研究
+    // run 投影用；门关 bridge.js:2118 同一函数）。测试层可不注入。
+    observeResearchWorkspaceAction,
     maps: {
       sessions,
       sessionPolicies,
@@ -203,6 +213,9 @@ export function createHarnessBridgeSessionLayer(context) {
   // MilkSU conversationId → 已挂载 MCP 配置指纹（sendMessage 的 policy 刷新每回合
   // 都跑，配置不变不重做发现连接）。
   const sessionMcpFingerprints = new Map();
+  // B2c：capa 目录挂载指纹（command/args/version）。会话策略刷新时目录变化才按名
+  // 原位替换 milksu-security-tools（registry.install 的 replace-in-place 语义）。
+  let securityMountFingerprint = undefined;
   // reasoning-only recovery：恢复前的工具面（恢复回合无工具，结束后还原）。
   const reasoningOnlyPreviousTools = new Map();
   // 已告警过的缺失工具名（暂缓面只报一次，避免每次 send 刷屏）。
@@ -313,13 +326,42 @@ export function createHarnessBridgeSessionLayer(context) {
             String(ref?.modelId ?? ""),
           ),
         });
+        // PR-2 批次 B2b：MCP 挂载（单 "mcp" 代理工具）。配置按会话经 adopt() 注入
+        //（见 createSession）；未传 mcpConfig 的会话不 adopt、不连接、工具面也不含
+        // mcp（activeTools 由策略决定）。审批/隔离在审判链，对这里自动生效。
+        const mcpMount = createMilksuMcpExtension({
+          resolveConversation,
+          mcpConfigFor: alias => sessionMcpConfigs.get(alias),
+          environment,
+        });
+        // PR-2 批次 B2c：日常 UX 与产品面板面（ask/progress/web×2/workspace/
+        // imagegen/archify；定义与事件契约对照见 harness-bridge-daily-tools.js
+        // 文件头）。安装位在 milksu-core 前，审判链对其自动生效。
+        const dailyTools = await createMilksuDailyToolsExtension({
+          resolveConversation,
+          getPolicy: id => sessionPolicies.get(id),
+          approvalBroker,
+          workspaceActionBroker,
+          pendingWorkspaceCompaction,
+          inspectUsage: id => ({
+            usage: sessionContextUsage.get(id),
+            contextWindow: conversationRecord(id)?.model?.contextWindow
+              ?? sessionContextUsage.get(id)?.contextWindow,
+          }),
+          observeResearchAction: observeResearchWorkspaceAction,
+          researchSecrets: sessionProviderSecrets,
+          isResearchActive: hasActiveResearchRun,
+          workspace: process.cwd(),
+        });
         // B2b：milksu-prompt 段的提示贡献（tools/rules 段按 snippet/guideline 渲染）。
         // 编码工具来自上面的定义构造器；LSP/MCP 是钉版字符串（pi-lsp.ts:53/113、
-        // pi-mcp-adapter index.ts:2061——两个包的工具定义都不导出）。
+        // pi-mcp-adapter index.ts:2061——两个包的工具定义都不导出）；B2c 的 web
+        // 两件从收集到的门关定义带出 promptSnippet（bridge-web-research.js:358/427）。
         const promptSnippets = new Map([
           ...(codingTools.promptContributions?.snippets ?? []),
           ...Object.entries(LSP_PROMPT_CONTRIBUTIONS.snippets),
           ["mcp", MILKSU_MCP_PROMPT_SNIPPET],
+          ...(dailyTools.promptContributions?.snippets ?? []),
         ]);
         const promptGuidelines = new Map([
           ...(codingTools.promptContributions?.guidelines ?? []),
@@ -330,13 +372,18 @@ export function createHarnessBridgeSessionLayer(context) {
           promptSnippets,
           promptGuidelines,
         });
-        // PR-2 批次 B2b：MCP 挂载（单 "mcp" 代理工具）。配置按会话经 adopt() 注入
-        //（见 createSession）；未传 mcpConfig 的会话不 adopt、不连接、工具面也不含
-        // mcp（activeTools 由策略决定）。审批/隔离在审判链，对这里自动生效。
-        const mcpMount = createMilksuMcpExtension({
+        // PR-2 批次 B2c：安全工具面（capa_analyze）。openRuntime 时首个已登记策略
+        // 里带 capa 目录就挂真工具，否则挂空壳占位（保持挂载位稳定）；会话策略
+        // 刷新时按目录指纹原位替换（refreshSecurityToolsMount）。
+        const initialSecurityPolicy = [...sessionPolicies.values()]
+          .find(policy => securityToolsMountFingerprint(policy));
+        securityMountFingerprint = initialSecurityPolicy
+          ? securityToolsMountFingerprint(initialSecurityPolicy)
+          : "";
+        const securityToolsMount = createMilksuSecurityToolsExtension({
           resolveConversation,
-          mcpConfigFor: alias => sessionMcpConfigs.get(alias),
-          environment,
+          getPolicy: id => sessionPolicies.get(id),
+          policy: initialSecurityPolicy,
         });
         registry.install(promptSections);
         registry.install(codingTools);
@@ -351,6 +398,8 @@ export function createHarnessBridgeSessionLayer(context) {
           cwd: process.cwd(),
         }));
         registry.install(mcpMount.extension);
+        registry.install(dailyTools);
+        registry.install(securityToolsMount);
         registry.install(core);
         if (typeof installRegistryExtensions === "function") {
           await installRegistryExtensions(registry, { models: models.models });
@@ -387,6 +436,25 @@ export function createHarnessBridgeSessionLayer(context) {
       provider: sessionConfiguredProviders.get(alias),
       source: sessionModelSources.get(alias),
     });
+  }
+
+  /**
+   * B2c：capa 目录按会话策略对账挂载。目录指纹（command/args/version）变化时按名
+   * 原位替换 milksu-security-tools——注册面元数据（描述嵌版本号）随之刷新；
+   * execute 本身每次按会话策略重新解析定义，不受此处时序影响。runtime 未开时
+   * 由 openRuntime 的初始挂载负责（它总能看到首个已登记策略）。
+   */
+  function refreshSecurityToolsMount(alias, policy) {
+    void alias;
+    if (!runtime) return;
+    const fingerprint = securityToolsMountFingerprint(policy);
+    if (fingerprint === securityMountFingerprint) return;
+    securityMountFingerprint = fingerprint;
+    runtime.registry.install(createMilksuSecurityToolsExtension({
+      resolveConversation,
+      getPolicy: id => sessionPolicies.get(id),
+      policy,
+    }));
   }
 
   async function configureAgentTools(alias, names) {
@@ -1013,6 +1081,8 @@ export function createHarnessBridgeSessionLayer(context) {
       await mcpMount.adopt(alias, mcpConfig);
     }
     const { handle, registry } = await openRuntime();
+    // B2c：本会话带 capa 目录而挂载面还是空壳/旧目录时，按名原位替换。
+    refreshSecurityToolsMount(alias, sessionPolicy);
     const { conversation } = await handle.ensureConversation(alias, { agent: { cwd } });
     durableToAlias.set(conversation.id, alias);
     let record = conversations.get(alias);
@@ -1139,6 +1209,8 @@ export function createHarnessBridgeSessionLayer(context) {
         const { mcpMount } = await openRuntime();
         await mcpMount.adopt(alias, mcpConfig);
       }
+      // B2c：capa 目录指纹变化才原位替换安全工具挂载面。
+      refreshSecurityToolsMount(alias, sessionPolicy);
       const controller = sessionPolicyControllers.get(alias);
       if (!controller) {
         throw new Error("MilkSU Coding permission controller is unavailable");

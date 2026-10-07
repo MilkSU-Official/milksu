@@ -282,6 +282,52 @@ test('chat bridge bundle inlines the batch B2 tool-surface wiring', async () => 
   }
 })
 
+// PR-2 批次 B2c：日常 UX 与产品面板面挂载（ask/progress/web/workspace/
+// imagegen/archify/capa）必须真的进 bundle：新扩展名、各工具的门关定义/执行串（薄壳与复用构造器）、动态安全挂载与事件契约字段全部内联。
+test('chat bridge bundle inlines the batch B2c daily tool surfaces', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'milksu-chat-bridge-b2c-bundle-'))
+  try {
+    const outfile = join(root, 'chat-bridge.cjs')
+    await bundleChatBridge(outfile)
+    const bundle = await readFile(outfile, 'utf8')
+    // 扩展名（registry.install 的挂载目标；安全面是动态原位替换）。
+    assert.ok(bundle.includes('milksu-daily-tools'), 'the daily tools extension must ship')
+    assert.ok(bundle.includes('milksu-security-tools'), 'the security tools extension must ship')
+    // ask/progress 薄壳的门关定义串。
+    assert.ok(bundle.includes('Show a tappable choice card with 2-6 options'),
+      'the ask card description must ship')
+    assert.ok(bundle.includes('milksu_ask needs at least two options'),
+      'the ask validation must ship')
+    assert.ok(bundle.includes('Publish or update a short execution plan'),
+      'the progress description must ship')
+    assert.ok(bundle.includes('MilkSU progress accepts at most one in-progress step'),
+      'the progress validation must ship')
+    // web 研究：门关工厂（Jina 转发/解析）原样内联。
+    assert.ok(bundle.includes('lite.duckduckgo.com'), 'the web search backend must ship')
+    assert.ok(bundle.includes('Search the web for information'),
+      'the web prompt snippet must ship')
+    // workspace 面板：真 broker 的事件契约串。
+    assert.ok(bundle.includes('Coding workspace action timed out'),
+      'the workspace action broker must ship')
+    assert.ok(bundle.includes('Deep Research uses only the typed Research Browser source action'),
+      'the research browser isolation must ship')
+    // imagegen：回执 schema 与逐次审批面。
+    assert.ok(bundle.includes('milksu-imagegen-receipt/v1'), 'the imagegen receipt must ship')
+    assert.ok(bundle.includes('MilkSU user denied this ImageGen request'),
+      'the imagegen approval block must ship')
+    // archify：沙箱内执行的门关错误串。
+    assert.ok(bundle.includes('MilkSU packaged Archify resource is unavailable'),
+      'the archify resource gate must ship')
+    // capa：按会话解析与挂载面。
+    assert.ok(bundle.includes('MilkSU capa is not configured'),
+      'the capa per-session resolution must ship')
+    assert.ok(bundle.includes('capa analysis exceeded 120 seconds'),
+      'the capa sandbox runner must ship')
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
 // PR-2 批次 B2b：MCP 挂载（单 mcp 代理工具 + SDK 连接管理）与 Pi 默认系统提示段
 // 必须真的进 bundle：@modelcontextprotocol/client 无 externals 全量内联
 //（bridge.js → harness-bridge-session → harness-bridge-mcp / harness-bridge-tools

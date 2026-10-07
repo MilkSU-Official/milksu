@@ -795,16 +795,27 @@ export function createMilksuHangGuardHooks({
 // ---------- 工具面清单（对照断言/报告共用） ----------
 
 /**
- * 门开路径**已挂载**的工具名（B2 范围 + B2b 的 mcp）。工具面对照断言用：门关
- * activeTools 与本清单的交集应当全部出现在 ready.tools；差集即暂缓面（见交付
- * 报告对照总表）。mcp 的挂载还要求会话带 mcpConfig（策略派生见 bridge-policy
- * .js:1540-1561），无配置的会话不出现。
+ * 门开路径**已挂载**的工具名（B2 范围 + B2b 的 mcp + B2c 的日常面）。工具面对照
+ * 断言用：门关 activeTools 与本清单的交集应当全部出现在 ready.tools；差集即暂缓面
+ * （见交付报告对照总表）。mcp 的挂载还要求会话带 mcpConfig（策略派生见
+ * bridge-policy.js:1540-1561），milksu_imagegen 要求 imageGenConfigured，
+ * capa_analyze 要求会话安全目录（bridge.js:2412-2414 同款），无配置的会话不出现。
  */
 export const mountedHarnessToolNames = Object.freeze([
   ...portedCodingToolNames,
   "lsp_diagnostics",
   "lsp_fix",
   "mcp",
+  // PR-2 批次 B2c：日常 UX 与产品面板面（harness-bridge-daily-tools.js；capa 在
+  // milksu-security-tools，按会话目录动态挂载）。
+  "milksu_ask",
+  "milksu_progress",
+  "web_search",
+  "web_fetch",
+  "milksu_workspace",
+  "milksu_imagegen",
+  "milksu_archify",
+  "capa_analyze",
 ]);
 
 /** 供报告/测试引用的暂缓清单（门关 activeTools − mountedHarnessToolNames）。 */

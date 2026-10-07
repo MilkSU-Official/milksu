@@ -756,6 +756,9 @@ function harnessLayer() {
       researchSubagentBlockReason,
       rememberChildModelRegistry,
       haltConversationSubagents,
+      // PR-2 批次 B2c：milksu_workspace 的研究动作观测（门关 bridge.js:2118 同一
+      // 函数与同一份 researchRunContexts 状态）。
+      observeResearchWorkspaceAction,
       maps: {
         sessions,
         sessionPolicies,

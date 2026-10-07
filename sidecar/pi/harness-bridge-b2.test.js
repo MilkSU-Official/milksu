@@ -75,18 +75,27 @@ test("ready.tools mounts the full B2 surface in Go mode with the deferred set ex
     await layer.createSession({ ...goCommand, conversationId: "conv-surface" });
     const ready = (await waitForEvent(events, "ready"))[0];
     // 门关 activeTools（go 档）∩ 已挂载面 = ready.tools；差集即暂缓面。
+    // B2c 起 ask/progress/workspace/imagegen/archify/web 两件已挂载；剩余暂缓面
+    // 是 bg/goal（B2d）、computer_use 两件（B2d）。
     const expectedMounted = codingWorkspaceAutoToolNames
       .filter(name => ![
-        "bg_task", "bg_status", "milksu_progress", "milksu_ask", "milksu_workspace",
-        "prepare_computer_use_driver", "computer_use", "milksu_imagegen",
-        "milksu_archify", "web_search", "web_fetch", "goal_complete", "goal_blocked",
+        "bg_task", "bg_status",
+        "prepare_computer_use_driver", "computer_use",
+        "goal_complete", "goal_blocked",
+        // 本夹具未配置 ImageGen（imageGenConfigured=false）：门关同样不会把
+        // milksu_imagegen 放进 activeTools（bridge-policy.js:1539）。
+        "milksu_imagegen",
       ].includes(name));
     assert.deepEqual(ready.tools, expectedMounted,
       "gate-open offers every mounted tool in gate-closed order");
     assert.ok(ready.tools.includes("bash") && ready.tools.includes("lsp_fix"));
+    assert.ok(ready.tools.includes("milksu_ask") && ready.tools.includes("web_search"));
     assert.deepEqual(
       ready.extensions,
-      ["milksu-prompt", "milksu-coding-tools", "milksu-lsp", "milksu-skills", "milksu-mcp", "milksu-core"],
+      [
+        "milksu-prompt", "milksu-coding-tools", "milksu-lsp", "milksu-skills",
+        "milksu-mcp", "milksu-daily-tools", "milksu-security-tools", "milksu-core",
+      ],
       "the registry reports the mounted extensions",
     );
   });
@@ -102,8 +111,11 @@ test("plan mode keeps the read-only surface mounted", async () => {
     const ready = (await waitForEvent(events, "ready"))[0];
     assert.deepEqual(
       ready.tools,
-      ["read", "grep", "find", "ls", "lsp_diagnostics"],
-      "plan sessions expose the mounted read-only subset",
+      [
+        "read", "grep", "find", "ls", "milksu_progress", "milksu_ask",
+        "milksu_workspace", "lsp_diagnostics", "web_search", "web_fetch",
+      ],
+      "plan sessions expose the mounted read-only subset (B2c daily tools included)",
     );
     assert.equal(codingReadOnlyToolNames.includes("lsp_fix"), false);
   });

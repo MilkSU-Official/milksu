@@ -11,9 +11,14 @@ import { createApprovalBroker } from "./bridge-approval.js";
 import { dropSendAfterAbort } from "./bridge-abort.js";
 import { resolveCodingMcpServer } from "./bridge-auto-approval.js";
 import { loadSessionPolicy } from "./bridge-policy.js";
+import { normalizeSecurityTools } from "./bridge-security-tools.js";
 import { createThinkingRepetitionGuard } from "./bridge-thinking-repetition.js";
 import { createHarnessBridgeSessionLayer } from "./harness-bridge-session.js";
 import { MILKSU_MCP_EXTENSION } from "./harness-bridge-mcp.js";
+import {
+  MILKSU_DAILY_TOOLS_EXTENSION,
+  MILKSU_SECURITY_TOOLS_EXTENSION,
+} from "./harness-bridge-daily-tools.js";
 import {
   MILKSU_CODING_TOOLS_EXTENSION,
   MILKSU_LSP_EXTENSION,
@@ -74,9 +79,12 @@ export function makeTestBashTool({ workspace, onExecute, sleepMs = 0 } = {}) {
  *   agentDir / workspace      临时目录（必填）
  *   faux / models             makeFauxModels 的产物（必填）
  *   approvalBehavior          () => "approve" | "deny" | "manual"（manual=永不回包）
+ *   approvalChoice            () => 选卡回传的 choice（默认取第一项 id；
+ *                             "other:文本" 走 milksu_ask 的其它输入路径）
  *   onEvent                   每条 emit 事件的观察者
  *   extraTools                额外注入的工具（默认替换产品工具面）
- *   keepProductTools          true 保留 B2 产品挂载（coding/lsp/skills 扩展）
+ *   keepProductTools          true 保留 B2/B2c 产品挂载（coding/lsp/skills/mcp/
+ *                             daily/security 扩展）
  *   lspExtension              覆盖 milksu-lsp 的扩展（假 LSP 核心注入面）
  *   skillPaths                会话技能路径（milksu-skills section 渲染源）
  *   onToolExecute             工具执行观察者
@@ -90,6 +98,14 @@ export function makeTestBashTool({ workspace, onExecute, sleepMs = 0 } = {}) {
  *                             拒绝等需要真实漏斗路径的断言用）
  *   researchActive            hasActiveResearchRun 的返回（研究隔离 block 断言用）
  *   compactionPolicyOverrides () => ({keepRecentTokens, ...})
+ *   formatToolInput           覆盖工具输入格式化（B2c：ask/progress 的
+ *                             tool_call_start 事件契约断言用真分支）
+ *   workspaceActionBroker     覆盖工作区动作 broker（B2c：milksu_workspace 事件
+ *                             契约断言用真 createWorkspaceActionBroker）
+ *   securityTools             会话安全目录原始描述（B2c：capa 挂载断言用，经
+ *                             normalizeSecurityTools 规整后并进策略）
+ *   imageGenConfigured        imageGenConfigured 策略位（B2c：imagegen 断言用）
+ *   readOnlyResourceRoots     会话受审读根（B2c：archify 断言用）
  */
 export function buildTestLayer({
   agentDir,
@@ -97,6 +113,7 @@ export function buildTestLayer({
   faux,
   models,
   approvalBehavior = () => "approve",
+  approvalChoice = undefined,
   approvalScope = "",
   onEvent = undefined,
   extraTools = [],
@@ -112,6 +129,11 @@ export function buildTestLayer({
   lspExtension = undefined,
   extraActiveToolNames = [],
   compactionPolicyOverrides = undefined,
+  formatToolInput = undefined,
+  workspaceActionBroker = undefined,
+  securityTools = [],
+  imageGenConfigured = false,
+  readOnlyResourceRoots = [],
   heartbeatOptions = { heartbeatMs: 250, settleMs: 20, unrefHeartbeat: true },
 }) {
   const events = [];
@@ -127,10 +149,16 @@ export function buildTestLayer({
     if (type === "approval_requested") {
       const behavior = approvalBehavior();
       if (behavior === "manual") return;
+      // milksu_ask 的选卡请求必须带 choice 回传（bridge-approval.js respond 的
+      // choice 分支）；默认选第一项，approvalChoice 可覆盖（含 other: 前缀）。
+      const choice = record.toolName === "milksu_ask" && behavior !== "deny"
+        ? approvalChoice?.() ?? firstAskChoiceId(record)
+        : undefined;
       approvalBroker.respond({
         conversationId: record.id,
         requestId: record.requestId,
         approved: behavior !== "deny",
+        ...(choice !== undefined ? { choice } : {}),
         // grantKey 复用断言用：按会话档批准（bridge-approval.js:115-121 只在
         // scope==="conversation" 时记 grant）。
         ...(approvalScope && behavior !== "deny" ? { scope: approvalScope } : {}),
@@ -138,6 +166,14 @@ export function buildTestLayer({
     }
   };
   approvalBroker = createApprovalBroker(emit);
+  function firstAskChoiceId(record) {
+    try {
+      const options = JSON.parse(String(record.input ?? "{}"))?.options ?? [];
+      return String(options[0]?.id ?? "");
+    } catch {
+      return "";
+    }
+  }
   const maps = {
     sessions: new Map(),
     sessionPolicies: new Map(),
@@ -161,15 +197,15 @@ export function buildTestLayer({
     emit,
     queueTextDelta: (id, delta) => emit(id, "text_delta", { delta }),
     approvalBroker,
-    workspaceActionBroker: {
+    workspaceActionBroker: workspaceActionBroker ?? {
       request: async () => true,
       cancelConversation: () => undefined,
     },
-    formatToolInput: (toolName, args) => (
+    formatToolInput: formatToolInput ?? ((toolName, args) => (
       toolName === "bash" && args?.command !== undefined
         ? `$ ${args.command}`
         : JSON.stringify(args ?? {})
-    ),
+    )),
     // bridge.js:1348-1365 的同款实现（非浏览器分支）：MCP 审批卡面与 grantKey 解析
     // 都要真的读 input.server/input.tool 与 policy.mcpServers。
     formatMcpApprovalInput: (input, serverName) => {
@@ -197,9 +233,29 @@ export function buildTestLayer({
           mcpServers: mcpServerNames,
           projectMcpServers: mcpServerNames,
         } : {}),
+        // B2c：imagegen 的配置位与受审读根（bridge.js:2281/2267 的派生位）。
+        imageGenConfigured,
+        ...(readOnlyResourceRoots.length > 0
+          ? { readOnlyResourceRoots: [...readOnlyResourceRoots] }
+          : {}),
       });
       policy.uiLocale = command.locale === "en" ? "en" : "zh";
       policy.skillNames = skillPaths.map(path => basename(path));
+      // B2c：安全目录（bridge.js:2291-2298 的同款接线：policy.securityTools +
+      // capa_analyze 进 activeTools）与画图页免卡位（bridge.js:2285）。命令带的
+      // securityTools 优先（真桌面路径），层选项兜底——两会话不同目录的动态挂载
+      // 断言靠命令位。
+      const rawSecurityTools = Array.isArray(command.securityTools)
+        ? command.securityTools
+        : securityTools;
+      const normalizedSecurityTools = await normalizeSecurityTools(rawSecurityTools);
+      policy.securityTools = normalizedSecurityTools;
+      if (normalizedSecurityTools.some(tool => tool.id === "capa")) {
+        if (!policy.activeTools.includes("capa_analyze")) {
+          policy.activeTools.push("capa_analyze");
+        }
+      }
+      policy.imageDraw = command.imageDraw === true;
       // 测试注入的额外工具名并进 activeTools（如 outputLimits 断言用的 giant_dump）。
       for (const name of extraActiveToolNames) {
         if (!policy.activeTools.includes(name)) policy.activeTools.push(name);
@@ -209,7 +265,7 @@ export function buildTestLayer({
         effectiveSessionRole: "",
         codingSkillPaths: [...skillPaths],
         mcpConfig,
-        securityTools: [],
+        securityTools: normalizedSecurityTools,
       };
     }),
     loadProjectInstructions: async () => projectInstructions || undefined,
@@ -233,13 +289,15 @@ export function buildTestLayer({
     harnessRuntimeOptions: () => heartbeatOptions,
     installRegistryExtensions: registry => {
       // 默认卸掉产品工具面换测试注入；keepProductTools=true 保留 B2 的产品挂载
-      //（coding-tools/lsp/skills + B2b 的 mcp），milksu-core（审判链/压缩接线）
-      // 始终保留。
+      //（coding-tools/lsp/skills + B2b 的 mcp + B2c 的日常/安全面），milksu-core
+      //（审判链/压缩接线）始终保留。
       if (!keepProductTools) {
         registry.uninstall({ name: MILKSU_CODING_TOOLS_EXTENSION });
         registry.uninstall({ name: MILKSU_LSP_EXTENSION });
         registry.uninstall({ name: MILKSU_SKILLS_EXTENSION });
         registry.uninstall({ name: MILKSU_MCP_EXTENSION });
+        registry.uninstall({ name: MILKSU_DAILY_TOOLS_EXTENSION });
+        registry.uninstall({ name: MILKSU_SECURITY_TOOLS_EXTENSION });
       }
       if (lspExtension) {
         // 测试注入的 milksu-lsp（通常是带假 LSP 核心的同形扩展）；后装覆盖先装。
