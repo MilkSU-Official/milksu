@@ -1347,7 +1347,9 @@ async function resolveReviewedWorkspace(workspace) {
   return realpath(workspace);
 }
 
-async function createCodingToolDefinitions(
+// PR-2 批次 B2：门开路径（harness-bridge-tools.js）复用同一构造器，保证
+// read/bash/edit/write/grep/find/ls 与门关会话逐字节同源。只加 export，行为不变。
+export async function createCodingToolDefinitions(
   workspace,
   resourceReadRoots = [],
   productAction = undefined,

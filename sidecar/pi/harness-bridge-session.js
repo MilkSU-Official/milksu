@@ -35,7 +35,6 @@ import {
   section,
   ToolTask,
 } from "@earendil-works/pi-durable";
-import { CodingTools } from "@earendil-works/pi-durable/tools";
 import { NodeExecutionEnv } from "@earendil-works/pi-durable/env/node";
 import { openMilkSUHarness, resolveHarnessAgentDir } from "./harness-adapter.js";
 import {
@@ -47,6 +46,22 @@ import {
   createHarnessBeforeRequestFilter,
   createHarnessBeforeToolJudge,
 } from "./harness-bridge-approval.js";
+import {
+  createMilksuCodingToolsExtension,
+  createMilksuHangGuardHooks,
+  createMilksuLspExtension,
+  createMilksuSkillsExtension,
+  MILKSU_CODING_TOOLS_EXTENSION,
+  MILKSU_LSP_EXTENSION,
+  MILKSU_SKILLS_EXTENSION,
+} from "./harness-bridge-tools.js";
+import { answerDecisionQuery } from "../decision/query.js";
+import {
+  isReasoningOnlyFinal,
+  logReasoningOnlyFinal,
+  reasoningOnlyRecoveryPrompt,
+  summarizeReasoningOnlyFinal,
+} from "./bridge-reasoning-recovery.js";
 import { enqueueConversationPrompt } from "./bridge-conversation-prompt.js";
 import { preparePromptAttachments } from "./bridge-attachments.js";
 import { withTurnHeartbeat } from "./bridge-turn-heartbeat.js";
@@ -173,6 +188,12 @@ export function createHarnessBridgeSessionLayer(context) {
   const durableToAlias = new Map();
   // MilkSU conversationId → 会话记录（事件/状态/投影器）。
   const conversations = new Map();
+  // MilkSU conversationId → 会话技能路径清单（milksu-skills section 按会话渲染）。
+  const sessionSkillPaths = new Map();
+  // reasoning-only recovery：恢复前的工具面（恢复回合无工具，结束后还原）。
+  const reasoningOnlyPreviousTools = new Map();
+  // 已告警过的缺失工具名（暂缓面只报一次，避免每次 send 刷屏）。
+  const warnedMissingToolNames = new Set();
   // settings.compaction 的活快照：最近一次接线/提交的会话模型参数。
   let compactionSnapshot = undefined;
   let projectInstructionsText = "";
@@ -262,9 +283,31 @@ export function createHarnessBridgeSessionLayer(context) {
           hooks: [
             hook(ToolTask, { beforeTool: judge }),
             hook(GenerationTask, { beforeRequest: requestFilter }),
+            // PR-2 批次 B2：hang-guard 结果面（超时错误上的 iCloud 事后诊断）。
+            ...createMilksuHangGuardHooks({ environment }),
           ],
         });
-        registry.install(CodingTools);
+        // PR-2 批次 B2：工具面替换——撤 pi-durable 裸 CodingTools，按对照表挂载
+        // milksu-coding-tools / milksu-lsp / milksu-skills（语义对照见
+        // harness-bridge-tools.js 文件头与交付报告总表）。审判链在 milksu-core，
+        // 对这里挂载的一切工具自动生效。
+        registry.install(await createMilksuCodingToolsExtension({
+          workspace: process.cwd(),
+          resolveModel: ref => models.models.getModel(
+            String(ref?.provider ?? ""),
+            String(ref?.modelId ?? ""),
+          ),
+        }));
+        registry.install(createMilksuLspExtension({
+          resolveConversation,
+          getPolicy: id => sessionPolicies.get(id),
+          approvalBroker,
+        }));
+        registry.install(createMilksuSkillsExtension({
+          resolveConversation,
+          skillPathsFor: alias => sessionSkillPaths.get(alias),
+          cwd: process.cwd(),
+        }));
         registry.install(core);
         if (typeof installRegistryExtensions === "function") {
           await installRegistryExtensions(registry, { models: models.models });
@@ -303,18 +346,27 @@ export function createHarnessBridgeSessionLayer(context) {
     });
   }
 
-  function toolObjectsForNames(registry, names) {
+  async function configureAgentTools(alias, names) {
+    const { handle, registry } = await openRuntime();
     const byName = new Map(
       registry.snapshot().tools().map(entry => [entry.tool.name, entry.tool]),
     );
-    return [...new Set(names)]
-      .map(name => byName.get(String(name)))
-      .filter(Boolean);
-  }
-
-  async function configureAgentTools(alias, names) {
-    const { handle, registry } = await openRuntime();
-    const tools = toolObjectsForNames(registry, names);
+    const tools = [];
+    const missing = [];
+    for (const name of [...new Set(names ?? [])]) {
+      const tool = byName.get(String(name));
+      if (tool) tools.push(tool);
+      else missing.push(String(name));
+    }
+    // 暂缓面（B2 对照表的差集）只告警一次：门开路径还没挂载的域工具在这里显式
+    // 可见，而不是静默消失。
+    for (const name of missing) {
+      if (warnedMissingToolNames.has(name)) continue;
+      warnedMissingToolNames.add(name);
+      console.warn(
+        `MilkSU harness registry has no tool ${name}; the surface is deferred (see PR-2 B2 report)`,
+      );
+    }
     await handle.configureConversation(alias, { tools });
     const record = conversationRecord(alias);
     if (record) {
@@ -426,6 +478,8 @@ export function createHarnessBridgeSessionLayer(context) {
         contextWindow: resolved?.contextWindow,
         maxTokens: resolved?.maxTokens,
       };
+      // decision_query（B2 遗留接线）：记录 pi-ai 模型对象，供 models.completeSimple。
+      record.piModel = resolved;
       record.projector = makeProjector(alias);
     }
     emit(alias, "model_selected", {
@@ -582,6 +636,77 @@ export function createHarnessBridgeSessionLayer(context) {
     });
   }
 
+  // ---------- reasoning-only recovery（bridge-reasoning-recovery 的门开移植） ----------
+
+  function restoreReasoningOnlyTools(alias) {
+    const previous = reasoningOnlyPreviousTools.get(alias);
+    sessionTurnContracts.delete(alias);
+    if (previous) {
+      sessionPolicyControllers.get(alias)?.setActiveTools(previous);
+    }
+    reasoningOnlyPreviousTools.delete(alias);
+    // 还原是异步 configure：等它落盘，恢复流程的调用方（run_end）再继续。
+    return Promise.resolve(conversationRecord(alias)?.toolsConfiguring)
+      .then(() => undefined)
+      .catch(() => undefined);
+  }
+
+  async function harnessLastAssistantMessage(alias) {
+    try {
+      const { handle } = await openRuntime();
+      const page = await handle.conversationEntries(alias, { limit: 8 });
+      for (const entry of page?.items ?? []) {
+        const message = (entry.model ?? []).find(candidate => candidate?.role === "assistant");
+        if (message) return message;
+      }
+    } catch {
+      // 会话刚销毁：按无消息处理。
+    }
+    return undefined;
+  }
+
+  async function maybeRecoverReasoningOnlyTurn(alias) {
+    // 门关语义（bridge-reasoning-recovery.js:96-118）：
+    //   aborted → 只还原工具面；已恢复过 → 还原工具面（恢复回合收尾）；
+    //   末条 assistant 是 reasoning-only final → 标记已恢复、压无工具回合、投恢复
+    //   输入（旧 pi.sendMessage deliverAs:followUp + triggerTurn → submitInput）。
+    if (abortedSessions.has(alias)) {
+      await restoreReasoningOnlyTools(alias);
+      return;
+    }
+    if (reasoningOnlyRecovered.get(alias) === true) {
+      await restoreReasoningOnlyTools(alias);
+      return;
+    }
+    const last = await harnessLastAssistantMessage(alias);
+    if (!isReasoningOnlyFinal(last)) return;
+    reasoningOnlyRecovered.set(alias, true);
+    const tools = typeof sessions.get(alias)?.getActiveToolNames === "function"
+      ? sessions.get(alias).getActiveToolNames()
+      : [];
+    reasoningOnlyPreviousTools.set(alias, tools);
+    sessionTurnContracts.set(alias, { toolAccess: "none", reason: "text_projection" });
+    sessionPolicyControllers.get(alias)?.setActiveTools([]);
+    logReasoningOnlyFinal(summarizeReasoningOnlyFinal(last, {
+      provider: last.provider,
+      model: last.model,
+    }));
+    try {
+      const { handle } = await openRuntime();
+      // 无工具面配置先落盘，恢复回合的 prepare 读到的是 tools:[]。
+      await conversationRecord(alias)?.toolsConfiguring;
+      await handle.submitInput(alias, {
+        requestId: `milksu-recovery:${alias}:${randomUUID()}`,
+        content: reasoningOnlyRecoveryPrompt(sessionPolicies.get(alias)?.uiLocale),
+      });
+    } catch (error) {
+      // 恢复投递失败：还原工具面，让下一轮正常进行（不吞错误，上报）。
+      await restoreReasoningOnlyTools(alias);
+      reasoningOnlyRecovered.delete(alias);
+      emit(alias, "error", { error: describeError(error) });
+    }
+  }
+
   async function handleHarnessEvent(alias, event) {
     const record = conversationRecord(alias);
     if (!record) return;
@@ -610,6 +735,11 @@ export function createHarnessBridgeSessionLayer(context) {
       return;
     }
     if (event.type === "run_end") {
+      // reasoning-only recovery（B1 遗留接线，bridge-reasoning-recovery 移植）：上一
+      // 回合只有思考没有可见答复时，投一条恢复输入再开一轮（无工具）。顺序对齐门关
+      // （扩展 agent_end 先于公共 agent_settled 监听器），turn_settled 照常发——恢复
+      // 回合自己的 run_start/run_end 会再发一对。
+      await maybeRecoverReasoningOnlyTurn(alias);
       record.busy = false;
       record.pendingToolCalls = [];
       emit(alias, "turn_settled");
@@ -823,8 +953,11 @@ export function createHarnessBridgeSessionLayer(context) {
       command.locale === "en" ? "en" : "zh",
     );
     if (instructions) projectInstructionsText = instructions;
-    const { policy: sessionPolicy } = await loadRuntimeSessionPolicy(cwd, command);
+    const { policy: sessionPolicy, codingSkillPaths } = await loadRuntimeSessionPolicy(cwd, command);
     sessionPolicies.set(alias, sessionPolicy);
+    // 技能路径按会话登记：milksu-skills section 据此渲染目录（disabled 技能变化
+    // → 路径清单变化 → section 内容变化 → 位置型 pi.system 只重发差异）。
+    sessionSkillPaths.set(alias, Array.isArray(codingSkillPaths) ? codingSkillPaths : []);
     const { handle, registry } = await openRuntime();
     const { conversation } = await handle.ensureConversation(alias, { agent: { cwd } });
     durableToAlias.set(conversation.id, alias);
@@ -876,7 +1009,9 @@ export function createHarnessBridgeSessionLayer(context) {
       emit(alias, "ready", {
         workspace: cwd,
         tools: tools.map(tool => tool.name),
-        extensions: ["pi-durable-coding-tools", "milksu-core"],
+        // registry 实际安装的扩展名（B2 起：coding-tools/lsp/skills + core，测试注入
+        // 的扩展也会如实上报）。
+        extensions: registry.snapshot().installed().map(extension => extension.name),
         extensionErrors: [],
         skills: sessionPolicy.skillNames ?? [],
         executionMode: sessionPolicy.executionMode,
@@ -908,6 +1043,8 @@ export function createHarnessBridgeSessionLayer(context) {
     sessionModelSources.delete(alias);
     sessionConfiguredProviders.delete(alias);
     sessionCreateCommands.delete(alias);
+    sessionSkillPaths.delete(alias);
+    reasoningOnlyPreviousTools.delete(alias);
     promptQueues.delete(alias);
   }
 
@@ -930,8 +1067,9 @@ export function createHarnessBridgeSessionLayer(context) {
       // 旧路径对已存在会话每次 send_message 都重载 policy 并重接模型
       //（bridge.js:2518-2553）；durable 会话不重建（这正是 Harness 的意义），只刷新
       // policy/模型/工具面，观测事件对齐 policy_updated。
-      const { policy: sessionPolicy } = await loadRuntimeSessionPolicy(process.cwd(), command);
+      const { policy: sessionPolicy, codingSkillPaths } = await loadRuntimeSessionPolicy(process.cwd(), command);
       sessionPolicies.set(alias, sessionPolicy);
+      sessionSkillPaths.set(alias, Array.isArray(codingSkillPaths) ? codingSkillPaths : []);
       const controller = sessionPolicyControllers.get(alias);
       if (!controller) {
         throw new Error("MilkSU Coding permission controller is unavailable");
@@ -1104,6 +1242,7 @@ export function createHarnessBridgeSessionLayer(context) {
     compactionRequestIds.delete(alias);
     sessionTurnContracts.delete(alias);
     reasoningOnlyRecovered.delete(alias);
+    reasoningOnlyPreviousTools.delete(alias);
     await haltConversationSubagents(alias);
     try {
       await session?.abort();
@@ -1128,6 +1267,7 @@ export function createHarnessBridgeSessionLayer(context) {
     promptQueues.delete(alias);
     abortedSessions.delete(alias);
     sessionCreateCommands.delete(alias);
+    sessionSkillPaths.delete(alias);
     // pi-durable 1.0.0 没有删除 Conversation 的 API：durable 转录保留（deletePersisted
     // 对 Harness 会话无效，见报告）。别名登记保留，重开同 id 会继续同一会话。
     emit(alias, "session_destroyed");
@@ -1201,6 +1341,8 @@ export function createHarnessBridgeSessionLayer(context) {
     }
     conversations.clear();
     durableToAlias.clear();
+    sessionSkillPaths.clear();
+    reasoningOnlyPreviousTools.clear();
     const open = runtime;
     runtime = undefined;
     runtimeOpening = undefined;
@@ -1213,6 +1355,41 @@ export function createHarnessBridgeSessionLayer(context) {
     return sessions.get(String(conversationId ?? "").trim())?.kind === MILKSU_HARNESS_SESSION_KIND;
   }
 
+  // ---------- decision_query（B1 遗留接线：bridge.js handleDecisionQuery 的门开分支） ----------
+
+  /**
+   * 决策层主模型兜底（decision/query.js answerDecisionQuery）的门开实现：门关走
+   * session.modelRuntime.completeSimple（pi-coding-agent ModelRuntime），门开用同一
+   * 个 pi-ai Models 集合的 completeSimple（Q8 的 Models 面）+ 会话已解析的模型对象。
+   * 回答原样 decision_answer，模型未接线时与门关一样回显式 error。
+   */
+  async function decisionQuery(command) {
+    const alias = String(command?.conversationId ?? "").trim();
+    const record = conversations.get(alias);
+    const piModel = record?.piModel;
+    const complete = piModel
+      ? async context => {
+        const { models } = await openRuntime();
+        return models.models.completeSimple(piModel, context, { reasoning: "low" });
+      }
+      : undefined;
+    await answerDecisionQuery(command, {
+      emitEvent: (type, data) => emit(alias || null, type, data),
+      complete,
+      // bridge.js 的 messageText（bridge-session-tree.js）是同一形状的纯函数；
+      // 这里不 import SessionManager 一族，就地实现。
+      readText: message => {
+        const content = message?.content;
+        if (typeof content === "string") return content;
+        if (!Array.isArray(content)) return "";
+        return content
+          .filter(block => block?.type === "text")
+          .map(block => String(block.text ?? ""))
+          .join("");
+      },
+    });
+  }
+
   return {
     createSession,
     sendMessage,
@@ -1221,6 +1398,7 @@ export function createHarnessBridgeSessionLayer(context) {
     compactSessionCommand,
     disposeAll,
     isHarnessConversation,
+    decisionQuery,
     // 诊断/测试面。
     heartbeatState: () => runtime?.handle.heartbeatState(),
     lockState: () => runtime?.handle.lockState(),

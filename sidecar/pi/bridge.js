@@ -3231,6 +3231,12 @@ async function controlBackgroundTask(command) {
 async function handleDecisionQuery(command) {
   const conversationId = String(command?.conversationId ?? "").trim();
   const target = conversationId ? sessions.get(conversationId) : null;
+  // PR-2 批次 B2：harness 会话没有 pi-coding-agent 的 modelRuntime；决策问答改走
+  // pi-ai Models 面（harness-model-providers 的集合 + 会话已解析模型）。
+  if (target?.kind === MILKSU_HARNESS_SESSION_KIND) {
+    await harnessLayer().decisionQuery(command);
+    return;
+  }
   if (!target?.model || typeof target?.modelRuntime?.completeSimple !== "function") {
     emit(conversationId || null, "decision_answer", {
       id: String(command?.id ?? "").trim(),

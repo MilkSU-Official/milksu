@@ -249,6 +249,39 @@ test('chat bridge bundle inlines the batch B1 harness wiring', async () => {
   }
 })
 
+// PR-2 批次 B2：工具面挂载（coding 工具适配 + LSP 薄壳 + 技能目录 + hang-guard
+// afterTool）与遗留接线（decision_query 门开分支、reasoning-only recovery）必须真的
+// 进 bundle：pi-durable 的 defineTool/section 不外部化，reviewed-ts 的 pi-lsp 核心
+// 同样内联（bridge.js → harness-bridge-session → harness-bridge-tools 的静态链）。
+test('chat bridge bundle inlines the batch B2 tool-surface wiring', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'milksu-chat-bridge-b2-bundle-'))
+  try {
+    const outfile = join(root, 'chat-bridge.cjs')
+    await bundleChatBridge(outfile)
+    const bundle = await readFile(outfile, 'utf8')
+    // 工具面扩展名（registry.install 的挂载目标）。
+    assert.ok(bundle.includes('milksu-coding-tools'), 'coding tools extension must ship')
+    assert.ok(bundle.includes('milksu-lsp'), 'LSP extension must ship')
+    assert.ok(bundle.includes('milksu-skills'), 'skills extension must ship')
+    // B2 撤掉裸 CodingTools：bundle 里不再出现 pi-durable tools 聚合扩展的安装。
+    assert.ok(!bundle.includes('pi-durable-coding-tools'), 'the scaffold must be gone')
+    // LSP 受审链 + pi-lsp 可分离核心（reviewed-ts 内联标志）。
+    assert.ok(bundle.includes('lsp_fix'), 'the reviewed LSP fix tool must ship')
+    assert.ok(bundle.includes('MilkSU could not inspect the LSP fix preview'),
+      'the reviewed chain must ship')
+    assert.ok(bundle.includes('source.fixAll'), 'the pi-lsp core must be inlined')
+    // hang-guard 结果面 + 技能目录渲染（pi-coding-agent 的 skills 渲染器内联）。
+    assert.ok(bundle.includes('exceeded its'), 'hang-guard diagnostics must ship')
+    assert.ok(bundle.includes('<available_skills>'), 'the skills catalog renderer must ship')
+    // 遗留接线：decision_query 门开分支 + reasoning-only recovery。
+    assert.ok(bundle.includes('decisionQuery'), 'decision_query wiring must ship')
+    assert.ok(bundle.includes('milksu-reasoning-only-recovery') || bundle.includes('reasoningOnlyRecoveryPrompt'),
+      'the reasoning-only recovery must ship')
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
 test('Pi closure ships only the target platform esbuild binary', async () => {  const fixture = await createPackageFixture()
   try {
     const platform = currentPlatform()

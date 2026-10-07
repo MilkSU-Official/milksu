@@ -64,6 +64,21 @@ test("shutdown closes the harness after the sessions settle (dispose→close→w
   assert.ok(disposal > 0 && harnessClose > disposal, "harness close follows session disposal");
 });
 
+// PR-2 批次 B2：decision_query 的门开分叉在门关判定之前，harness 会话不再落进
+// pi-coding-agent 的 modelRuntime 分支。
+test("decision_query forks to the harness layer before the modelRuntime branch", () => {
+  const handler = bridgeSource.indexOf("async function handleDecisionQuery(command) {");
+  const harnessFork = bridgeSource.indexOf("await harnessLayer().decisionQuery(command);");
+  const legacyBranch = bridgeSource.indexOf(
+    "if (!target?.model || typeof target?.modelRuntime?.completeSimple !== \"function\") {",
+  );
+  assert.ok(handler > 0);
+  assert.ok(
+    harnessFork > handler && harnessFork < legacyBranch,
+    "the harness fork must run before the legacy modelRuntime check",
+  );
+});
+
 test("the harness session kind is distinct so the legacy path never adopts harness sessions", () => {
   assert.equal(MILKSU_HARNESS_SESSION_KIND, "milksu-harness");
   assert.ok(

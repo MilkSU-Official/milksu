@@ -4,14 +4,19 @@
 
 import { Type } from "typebox";
 import { defineExtension, defineTool } from "@earendil-works/pi-durable";
-import { CodingTools } from "@earendil-works/pi-durable/tools";
 import { fauxProvider } from "@earendil-works/pi-ai/providers/faux";
 import { createModels } from "@earendil-works/pi-ai/models";
+import { basename } from "node:path";
 import { createApprovalBroker } from "./bridge-approval.js";
 import { dropSendAfterAbort } from "./bridge-abort.js";
 import { loadSessionPolicy } from "./bridge-policy.js";
 import { createThinkingRepetitionGuard } from "./bridge-thinking-repetition.js";
 import { createHarnessBridgeSessionLayer } from "./harness-bridge-session.js";
+import {
+  MILKSU_CODING_TOOLS_EXTENSION,
+  MILKSU_LSP_EXTENSION,
+  MILKSU_SKILLS_EXTENSION,
+} from "./harness-bridge-tools.js";
 
 export const defaultFauxModelDefinitions = [
   {
@@ -68,6 +73,10 @@ export function makeTestBashTool({ workspace, onExecute, sleepMs = 0 } = {}) {
  *   faux / models             makeFauxModels 的产物（必填）
  *   approvalBehavior          () => "approve" | "deny" | "manual"（manual=永不回包）
  *   onEvent                   每条 emit 事件的观察者
+ *   extraTools                额外注入的工具（默认替换产品工具面）
+ *   keepProductTools          true 保留 B2 产品挂载（coding/lsp/skills 扩展）
+ *   lspExtension              覆盖 milksu-lsp 的扩展（假 LSP 核心注入面）
+ *   skillPaths                会话技能路径（milksu-skills section 渲染源）
  *   onToolExecute             工具执行观察者
  *   toolSleepMs               bash sleep 命令的睡眠时长
  *   environment               环境对象（默认空对象：无 relay/custom provider）
@@ -87,6 +96,10 @@ export function buildTestLayer({
   environment = {},
   userMemories = [],
   projectInstructions = "",
+  skillPaths = [],
+  keepProductTools = false,
+  lspExtension = undefined,
+  extraActiveToolNames = [],
   compactionPolicyOverrides = undefined,
   heartbeatOptions = { heartbeatMs: 250, settleMs: 20, unrefHeartbeat: true },
 }) {
@@ -151,11 +164,15 @@ export function buildTestLayer({
         approvalPolicy: command.approvalPolicy ?? "ask",
       });
       policy.uiLocale = command.locale === "en" ? "en" : "zh";
-      policy.skillNames = [];
+      policy.skillNames = skillPaths.map(path => basename(path));
+      // 测试注入的额外工具名并进 activeTools（如 outputLimits 断言用的 giant_dump）。
+      for (const name of extraActiveToolNames) {
+        if (!policy.activeTools.includes(name)) policy.activeTools.push(name);
+      }
       return {
         policy,
         effectiveSessionRole: "",
-        codingSkillPaths: [],
+        codingSkillPaths: [...skillPaths],
         mcpConfig: undefined,
         securityTools: [],
       };
@@ -180,7 +197,17 @@ export function buildTestLayer({
     resolveAgentDirectory: () => agentDir,
     harnessRuntimeOptions: () => heartbeatOptions,
     installRegistryExtensions: registry => {
-      registry.uninstall(CodingTools);
+      // 默认卸掉产品工具面换测试注入；keepProductTools=true 保留 B2 的产品挂载
+      //（coding-tools/lsp/skills），milksu-core（审判链/压缩接线）始终保留。
+      if (!keepProductTools) {
+        registry.uninstall({ name: MILKSU_CODING_TOOLS_EXTENSION });
+        registry.uninstall({ name: MILKSU_LSP_EXTENSION });
+        registry.uninstall({ name: MILKSU_SKILLS_EXTENSION });
+      }
+      if (lspExtension) {
+        // 测试注入的 milksu-lsp（通常是带假 LSP 核心的同形扩展）；后装覆盖先装。
+        registry.install(lspExtension);
+      }
       if (extraTools.length > 0) {
         registry.install(defineExtension({
           name: "milksu-test-tools",
