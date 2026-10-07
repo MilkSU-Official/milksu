@@ -282,6 +282,40 @@ test('chat bridge bundle inlines the batch B2 tool-surface wiring', async () => 
   }
 })
 
+// PR-2 批次 B2b：MCP 挂载（单 mcp 代理工具 + SDK 连接管理）与 Pi 默认系统提示段
+// 必须真的进 bundle：@modelcontextprotocol/client 无 externals 全量内联
+//（bridge.js → harness-bridge-session → harness-bridge-mcp / harness-bridge-tools
+// 的静态链），漏斗契约（namespaceProxyTools/auto 章）的挂载侧门禁同链在内。
+test('chat bridge bundle inlines the batch B2b MCP mount and prompt sections', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'milksu-chat-bridge-b2b-bundle-'))
+  try {
+    const outfile = join(root, 'chat-bridge.cjs')
+    await bundleChatBridge(outfile)
+    const bundle = await readFile(outfile, 'utf8')
+    // MCP 挂载扩展 + 单代理工具面。
+    assert.ok(bundle.includes('milksu-mcp'), 'the MCP extension must ship')
+    assert.ok(bundle.includes('MCP gateway'), 'the mcp proxy tool description must ship')
+    assert.ok(bundle.includes('namespaceProxyTools'), 'the #220 funnel guard must ship')
+    // 协议协商（versionNegotiation auto → SDK Client）与传输构造器全量内联。
+    assert.ok(bundle.includes('versionNegotiation'), 'auto protocol negotiation must ship')
+    assert.ok(bundle.includes('StdioClientTransport'), 'the stdio transport must be inlined')
+    assert.ok(
+      bundle.includes('StreamableHTTPClientTransport') || bundle.includes('StreamableHTTP'),
+      'the HTTP transport must be inlined',
+    )
+    // 输出护栏（50KB/2000 行契约的 MCP 侧移植）。
+    assert.ok(bundle.includes('MCP text output truncated'), 'the output guard must ship')
+    // B2b 补齐的 Pi 默认系统提示段。
+    assert.ok(bundle.includes('milksu-prompt'), 'the prompt sections extension must ship')
+    assert.ok(
+      bundle.includes('expert coding assistant operating inside pi'),
+      'the Pi default preamble must ship',
+    )
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
 test('Pi closure ships only the target platform esbuild binary', async () => {  const fixture = await createPackageFixture()
   try {
     const platform = currentPlatform()

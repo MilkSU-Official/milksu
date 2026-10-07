@@ -86,7 +86,7 @@ test("ready.tools mounts the full B2 surface in Go mode with the deferred set ex
     assert.ok(ready.tools.includes("bash") && ready.tools.includes("lsp_fix"));
     assert.deepEqual(
       ready.extensions,
-      ["milksu-coding-tools", "milksu-lsp", "milksu-skills", "milksu-core"],
+      ["milksu-prompt", "milksu-coding-tools", "milksu-lsp", "milksu-skills", "milksu-mcp", "milksu-core"],
       "the registry reports the mounted extensions",
     );
   });

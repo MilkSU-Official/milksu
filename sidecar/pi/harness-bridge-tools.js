@@ -28,6 +28,10 @@
 //     disabled 技能变化只改 section 内容 → pi-durable 位置型 pi.system 条目只重发
 //     差异（PREP §3.1；门关路径为此要整会话重建）。
 //
+//   milksu-prompt —— B2b 补齐的 Pi 默认系统提示段（preamble/tools/rules/docs），
+//     对齐 pi-coding-agent system-prompt.js:66-104 的段结构：无 AGENTS.md 时门关
+//     有这些默认段而门开此前缺失。cwd 段由 milksu-core 末位渲染（段序 skills 之后）。
+//
 //   hang-guard afterTool —— bridge-hang-guard 的 tool_result 面移植：超时错误结果上
 //     追加 iCloud dataless 诊断。超时注入（改参面）B1 已在审判链里
 //     （harness-bridge-approval 的 applyBashTimeout），这里只补结果侧诊断。
@@ -39,7 +43,13 @@
 //     与门关一致。
 
 import { defineExtension, defineTool, hook, section, ToolTask } from "@earendil-works/pi-durable";
-import { formatSkillsForPrompt, loadSkills } from "@earendil-works/pi-coding-agent";
+import {
+  formatSkillsForPrompt,
+  getDocsPath,
+  getExamplesPath,
+  getReadmePath,
+  loadSkills,
+} from "@earendil-works/pi-coding-agent";
 import { readFile, writeFile } from "node:fs/promises";
 import { Type } from "typebox";
 import { createCodingToolDefinitions } from "./bridge-policy.js";
@@ -69,6 +79,7 @@ import {
 export const MILKSU_CODING_TOOLS_EXTENSION = "milksu-coding-tools";
 export const MILKSU_LSP_EXTENSION = "milksu-lsp";
 export const MILKSU_SKILLS_EXTENSION = "milksu-skills";
+export const MILKSU_PROMPT_EXTENSION = "milksu-prompt";
 
 // 门关会话实际激活的编码工具全集（codingReadOnly/codingWorkspaceAuto 的并集，去掉
 // 门关也由扩展注册的域工具）。replay 声明：纯读工具 safe（重跑幂等）；写/命令默认
@@ -187,10 +198,23 @@ export async function createMilksuCodingToolsExtension({
   if (missing.length > 0) {
     throw new Error(`milksu coding tools unavailable: ${missing.join(", ")}`);
   }
-  return defineExtension({
+  const extension = defineExtension({
     name: MILKSU_CODING_TOOLS_EXTENSION,
     tools,
   });
+  // B2b：Pi 门关的 tools/rules 系统提示段按各工具的 promptSnippet/promptGuidelines
+  // 渲染（agent-session.js:1236-1254）。pi-durable 工具面不带这两个字段，这里把
+  // 同一批定义的贡献带出来供 milksu-prompt 的段渲染使用（非枚举属性，不进
+  // registry 的扩展形状）。
+  extension.promptContributions = {
+    snippets: new Map(definitions
+      .filter(definition => typeof definition.promptSnippet === "string" && definition.promptSnippet)
+      .map(definition => [definition.name, definition.promptSnippet])),
+    guidelines: new Map(definitions
+      .filter(definition => Array.isArray(definition.promptGuidelines) && definition.promptGuidelines.length > 0)
+      .map(definition => [definition.name, [...definition.promptGuidelines]])),
+  };
+  return extension;
 }
 
 // ---------- LSP（PREP §3.2 草图：受审逻辑内嵌进 execute） ----------
@@ -560,6 +584,148 @@ export function createMilksuSkillsExtension({
   });
 }
 
+// ---------- Pi 默认系统提示段（B2b 补齐：PREP §3.1 + system-prompt.js:66-104） ----------
+
+// Pi 默认 preamble（pi-coding-agent dist/core/system-prompt.js:81）。门关路径无
+// AGENTS.md（customPrompt 为空）时 Pi 用它；有 AGENTS.md 时 preamble=项目说明，
+// 且 tools/rules/docs 三段不再渲染（buildSystemPromptSections:76-94 的分支）。
+const PI_DEFAULT_PREAMBLE = "You are an expert coding assistant operating inside pi, a coding agent harness. You help users by reading files, executing commands, editing code, and writing new files.";
+
+// LSP 工具的提示贡献：@narumitw/pi-lsp 0.29.0 src/pi-lsp.ts:53-58/113-118 的
+// promptSnippet/promptGuidelines（工具定义不导出，钉版字符串）+ MilkSU 受审版的
+// 附加 guideline（bridge-lsp.js:70-75）。
+export const LSP_PROMPT_CONTRIBUTIONS = Object.freeze({
+  snippets: Object.freeze({
+    lsp_diagnostics: "Get diagnostics from configured LSP servers selected by file extension",
+    lsp_fix: "Apply configured LSP source fixes to a file",
+  }),
+  guidelines: Object.freeze({
+    lsp_diagnostics: Object.freeze([
+      "Use lsp_diagnostics when files need diagnostics from a configured LSP server.",
+      "Use the server parameter only when the user asks for a specific configured LSP server or multiple servers match the same extension.",
+      "If a configured server command is missing, report the configuration error and suggest installing the command or setting its PI_<SERVER>_LSP_COMMAND environment variable.",
+    ]),
+    lsp_fix: Object.freeze([
+      "Use lsp_fix for files handled by a configured LSP code-action server.",
+      "Use kind when the server needs a specific source action kind such as source.organizeImports.",
+      "Set write=true when the user asked to apply the fix. MilkSU computes a dry-run first, shows the exact Diff when approval is required, and aborts if the file changes before apply.",
+    ]),
+  }),
+});
+
+// buildRules（system-prompt.js:30-64）的移植：bash 兜底规则 + 各工具 guidelines +
+// 两条固定尾规则，去重后逐条 `- ` 渲染。
+function buildPromptRules(selectedToolNames, toolGuidelines) {
+  const rules = [];
+  const seen = new Set();
+  const addRule = rule => {
+    const normalized = String(rule ?? "").trim();
+    if (!normalized || seen.has(normalized)) return;
+    seen.add(normalized);
+    rules.push(normalized);
+  };
+  const hasBash = selectedToolNames.includes("bash");
+  const hasPowerShell = selectedToolNames.includes("powershell");
+  const hasGrep = selectedToolNames.includes("grep");
+  const hasFind = selectedToolNames.includes("find");
+  const hasLs = selectedToolNames.includes("ls");
+  if ((hasBash || hasPowerShell) && !hasGrep && !hasFind && !hasLs) {
+    if (hasBash && hasPowerShell) {
+      addRule("Use bash or PowerShell for file operations like listing, searching, and finding files");
+    } else if (hasPowerShell) {
+      addRule("Use PowerShell for file operations like listing, searching, and finding files");
+    } else {
+      addRule("Use bash for file operations like ls, rg, find");
+    }
+  }
+  for (const name of selectedToolNames) {
+    for (const rule of toolGuidelines.get(name) ?? []) addRule(rule);
+  }
+  addRule("Be concise in your responses");
+  addRule("Show file paths clearly when working with files");
+  return rules.map(rule => `- ${rule}`).join("\n");
+}
+
+// docs 段（system-prompt.js:86-93）：Pi 自身文档路径与查阅指引，逐字对齐门关默认。
+function piDocsSectionText() {
+  return `Pi documentation (read only when the user asks about pi itself, its SDK, extensions, themes, skills, or TUI):
+- Main documentation: ${getReadmePath()}
+- Additional docs: ${getDocsPath()}
+- Examples: ${getExamplesPath()} (extensions, custom tools, SDK)
+- When reading pi docs or examples, resolve docs/... under Additional docs and examples/... under Examples, not the current working directory
+- When asked about: extensions (docs/extensions.md, examples/extensions/), themes (docs/themes.md), skills (docs/skills.md), prompt templates (docs/prompt-templates.md), TUI components (docs/tui.md), keybindings (docs/keybindings.md), SDK integrations (docs/sdk.md), custom providers (docs/custom-provider.md), adding models (docs/models.md), pi packages (docs/packages.md), environment variables (docs/environment-variables.md), MCP servers (docs/mcp.md), codemode scripts and non-LLM models such as classifiers and image models (docs/codemode.md)
+- When working on pi topics, read the docs and examples, and follow .md cross-references before implementing
+- Always read pi .md files completely and follow links to related docs (e.g., tui.md for TUI API details)`;
+}
+
+/**
+ * B2b 补齐的 Pi 默认系统提示段扩展（安装位在 milksu-skills 之前，段次序 =
+ * preamble → tools → rules → docs → …skills（milksu-skills）→ cwd（milksu-core），
+ * 对齐 system-prompt.js:66-115 的段序）：
+ *
+ *   preamble —— 有项目说明（AGENTS.md）时即项目说明（替代 B2 的
+ *     milksu-project-instructions 段，同为无标签首段）；无项目说明时用 Pi 默认
+ *     preamble，并补渲染 tools/rules/docs。
+ *   tools —— 本次请求工具面里带 promptSnippet 的工具逐条 `- name: snippet`
+ *     + 尾行「还可能有其它自定义工具」（agent-session.js:1236-1244：无 snippet
+ *     的工具不列出）。
+ *   rules —— buildPromptRules（见上）。
+ *   docs —— piDocsSectionText（见上）。
+ *
+ * cwd 段在 milksu-core（最后一个扩展）里渲染，保证段序与门关一致（skills 之后）。
+ */
+export function createMilksuPromptSectionsExtension({
+  projectInstructionsFor,
+  promptSnippets,
+  promptGuidelines,
+  cwdFor = () => process.cwd(),
+} = {}) {
+  if (typeof projectInstructionsFor !== "function") {
+    throw new TypeError("createMilksuPromptSectionsExtension requires projectInstructionsFor");
+  }
+  const snippets = promptSnippets instanceof Map ? promptSnippets : new Map();
+  const guidelines = promptGuidelines instanceof Map ? promptGuidelines : new Map();
+  const preambleSection = section("preamble", () => (
+    String(projectInstructionsFor() ?? "").trim() || PI_DEFAULT_PREAMBLE
+  ), { tag: false });
+  const toolsSection = section("tools", (input) => {
+    // 有 customPrompt（项目说明）时 Pi 不渲染 tools/rules/docs（buildSystemPrompt
+    // Sections:76-94 的 else 分支只在无 customPrompt 时走）。
+    if (String(projectInstructionsFor() ?? "").trim()) return undefined;
+    const offered = Array.isArray(input.agent?.tools) ? input.agent.tools : [];
+    const visible = offered
+      .map(tool => tool?.name)
+      .filter(name => name && snippets.has(name));
+    const lines = visible.length > 0
+      ? visible.map(name => `- ${name}: ${snippets.get(name)}`).join("\n")
+      : "(none)";
+    return `${lines}\n\nIn addition to the tools above, you may have access to other custom tools depending on the project.`;
+  });
+  const rulesSection = section("rules", (input) => {
+    if (String(projectInstructionsFor() ?? "").trim()) return undefined;
+    const offered = Array.isArray(input.agent?.tools) ? input.agent.tools : [];
+    const names = offered.map(tool => String(tool?.name ?? "")).filter(Boolean);
+    const rendered = buildPromptRules(names, guidelines);
+    return rendered || undefined;
+  });
+  const docsSection = section("docs", () => {
+    if (String(projectInstructionsFor() ?? "").trim()) return undefined;
+    return piDocsSectionText();
+  });
+  return defineExtension({
+    name: MILKSU_PROMPT_EXTENSION,
+    sections: [preambleSection, toolsSection, rulesSection, docsSection],
+  });
+}
+
+/** cwd 段（system-prompt.js:105：反斜杠归一）。挂在 milksu-core（末位扩展）保证段序。 */
+export function milksuCwdSection(cwdFor = () => process.cwd()) {
+  return section("cwd", input => {
+    const agentCwd = String(input?.agent?.cwd ?? "").trim();
+    return (agentCwd || cwdFor()).replace(/\\/g, "/");
+  });
+}
+
 // ---------- hang-guard 结果面（afterTool） ----------
 
 /**
@@ -629,13 +795,16 @@ export function createMilksuHangGuardHooks({
 // ---------- 工具面清单（对照断言/报告共用） ----------
 
 /**
- * 门开路径**已挂载**的工具名（B2 范围）。工具面对照断言用：门关 activeTools 与本
- * 清单的交集应当全部出现在 ready.tools；差集即暂缓面（见交付报告对照总表）。
+ * 门开路径**已挂载**的工具名（B2 范围 + B2b 的 mcp）。工具面对照断言用：门关
+ * activeTools 与本清单的交集应当全部出现在 ready.tools；差集即暂缓面（见交付
+ * 报告对照总表）。mcp 的挂载还要求会话带 mcpConfig（策略派生见 bridge-policy
+ * .js:1540-1561），无配置的会话不出现。
  */
 export const mountedHarnessToolNames = Object.freeze([
   ...portedCodingToolNames,
   "lsp_diagnostics",
   "lsp_fix",
+  "mcp",
 ]);
 
 /** 供报告/测试引用的暂缓清单（门关 activeTools − mountedHarnessToolNames）。 */

@@ -9,9 +9,11 @@ import { createModels } from "@earendil-works/pi-ai/models";
 import { basename } from "node:path";
 import { createApprovalBroker } from "./bridge-approval.js";
 import { dropSendAfterAbort } from "./bridge-abort.js";
+import { resolveCodingMcpServer } from "./bridge-auto-approval.js";
 import { loadSessionPolicy } from "./bridge-policy.js";
 import { createThinkingRepetitionGuard } from "./bridge-thinking-repetition.js";
 import { createHarnessBridgeSessionLayer } from "./harness-bridge-session.js";
+import { MILKSU_MCP_EXTENSION } from "./harness-bridge-mcp.js";
 import {
   MILKSU_CODING_TOOLS_EXTENSION,
   MILKSU_LSP_EXTENSION,
@@ -82,6 +84,11 @@ export function makeTestBashTool({ workspace, onExecute, sleepMs = 0 } = {}) {
  *   environment               环境对象（默认空对象：无 relay/custom provider）
  *   userMemories              getUserMemories 的返回
  *   projectInstructions       项目说明文本（section 渲染）
+ *   mcpConfig                 会话 MCP 配置（B2b：loadRuntimeSessionPolicy 的
+ *                             mcpConfig 返回位；传了才挂载 mcp 工具）
+ *   policyLoader              覆盖 loadRuntimeSessionPolicy 整个实现（17 服务器
+ *                             拒绝等需要真实漏斗路径的断言用）
+ *   researchActive            hasActiveResearchRun 的返回（研究隔离 block 断言用）
  *   compactionPolicyOverrides () => ({keepRecentTokens, ...})
  */
 export function buildTestLayer({
@@ -90,12 +97,16 @@ export function buildTestLayer({
   faux,
   models,
   approvalBehavior = () => "approve",
+  approvalScope = "",
   onEvent = undefined,
   extraTools = [],
   toolSleepMs = 0,
   environment = {},
   userMemories = [],
   projectInstructions = "",
+  mcpConfig = undefined,
+  policyLoader = undefined,
+  researchActive = false,
   skillPaths = [],
   keepProductTools = false,
   lspExtension = undefined,
@@ -120,6 +131,9 @@ export function buildTestLayer({
         conversationId: record.id,
         requestId: record.requestId,
         approved: behavior !== "deny",
+        // grantKey 复用断言用：按会话档批准（bridge-approval.js:115-121 只在
+        // scope==="conversation" 时记 grant）。
+        ...(approvalScope && behavior !== "deny" ? { scope: approvalScope } : {}),
       });
     }
   };
@@ -156,12 +170,33 @@ export function buildTestLayer({
         ? `$ ${args.command}`
         : JSON.stringify(args ?? {})
     ),
-    formatMcpApprovalInput: () => "",
-    selectedMcpServer: () => "",
-    loadRuntimeSessionPolicy: async (cwd, command) => {
+    // bridge.js:1348-1365 的同款实现（非浏览器分支）：MCP 审批卡面与 grantKey 解析
+    // 都要真的读 input.server/input.tool 与 policy.mcpServers。
+    formatMcpApprovalInput: (input, serverName) => {
+      const tool = String(input?.tool ?? "").trim();
+      const action = String(input?.action ?? input?.connect ?? "").trim();
+      return [
+        `服务器 ${serverName}`,
+        tool ? `工具 ${tool}` : "",
+        action ? `操作 ${action}` : "",
+      ].filter(Boolean).join(" · ");
+    },
+    selectedMcpServer: (policy, input) => (
+      resolveCodingMcpServer(input, policy) || "已选择的 MCP 服务器"
+    ),
+    loadRuntimeSessionPolicy: policyLoader ?? (async (cwd, command) => {
+      const mcpServerNames = mcpConfig && typeof mcpConfig === "object"
+        ? Object.keys(mcpConfig.mcpServers ?? {})
+        : [];
       const policy = await loadSessionPolicy(cwd, "", {
         executionMode: command.executionMode === "plan" ? "plan" : "go",
         approvalPolicy: command.approvalPolicy ?? "ask",
+        // 门关的真实派生（bridge-policy.js:1540-1561）：go 档 + 非 read-only 且有
+        // 选中服务器时 activeTools 带 "mcp"。
+        ...(mcpServerNames.length > 0 ? {
+          mcpServers: mcpServerNames,
+          projectMcpServers: mcpServerNames,
+        } : {}),
       });
       policy.uiLocale = command.locale === "en" ? "en" : "zh";
       policy.skillNames = skillPaths.map(path => basename(path));
@@ -173,10 +208,10 @@ export function buildTestLayer({
         policy,
         effectiveSessionRole: "",
         codingSkillPaths: [...skillPaths],
-        mcpConfig: undefined,
+        mcpConfig,
         securityTools: [],
       };
-    },
+    }),
     loadProjectInstructions: async () => projectInstructions || undefined,
     applyUserMemories: () => undefined,
     applyWorkerModelOverride: () => undefined,
@@ -187,7 +222,7 @@ export function buildTestLayer({
     getUserMemories: () => userMemories,
     thinkingRepetition: createThinkingRepetitionGuard(),
     noteUserMemory: () => undefined,
-    hasActiveResearchRun: () => false,
+    hasActiveResearchRun: () => researchActive,
     activeResearchRunContext: () => undefined,
     researchSubagentBlockReason: () => "",
     rememberChildModelRegistry: () => undefined,
@@ -198,11 +233,13 @@ export function buildTestLayer({
     harnessRuntimeOptions: () => heartbeatOptions,
     installRegistryExtensions: registry => {
       // 默认卸掉产品工具面换测试注入；keepProductTools=true 保留 B2 的产品挂载
-      //（coding-tools/lsp/skills），milksu-core（审判链/压缩接线）始终保留。
+      //（coding-tools/lsp/skills + B2b 的 mcp），milksu-core（审判链/压缩接线）
+      // 始终保留。
       if (!keepProductTools) {
         registry.uninstall({ name: MILKSU_CODING_TOOLS_EXTENSION });
         registry.uninstall({ name: MILKSU_LSP_EXTENSION });
         registry.uninstall({ name: MILKSU_SKILLS_EXTENSION });
+        registry.uninstall({ name: MILKSU_MCP_EXTENSION });
       }
       if (lspExtension) {
         // 测试注入的 milksu-lsp（通常是带假 LSP 核心的同形扩展）；后装覆盖先装。

@@ -32,7 +32,6 @@ import {
   defineExtension,
   GenerationTask,
   hook,
-  section,
   ToolTask,
 } from "@earendil-works/pi-durable";
 import { NodeExecutionEnv } from "@earendil-works/pi-durable/env/node";
@@ -50,11 +49,19 @@ import {
   createMilksuCodingToolsExtension,
   createMilksuHangGuardHooks,
   createMilksuLspExtension,
+  createMilksuPromptSectionsExtension,
   createMilksuSkillsExtension,
+  LSP_PROMPT_CONTRIBUTIONS,
+  milksuCwdSection,
   MILKSU_CODING_TOOLS_EXTENSION,
   MILKSU_LSP_EXTENSION,
   MILKSU_SKILLS_EXTENSION,
 } from "./harness-bridge-tools.js";
+import {
+  createMilksuMcpExtension,
+  MILKSU_MCP_EXTENSION,
+  MILKSU_MCP_PROMPT_SNIPPET,
+} from "./harness-bridge-mcp.js";
 import { answerDecisionQuery } from "../decision/query.js";
 import {
   isReasoningOnlyFinal,
@@ -190,6 +197,12 @@ export function createHarnessBridgeSessionLayer(context) {
   const conversations = new Map();
   // MilkSU conversationId → 会话技能路径清单（milksu-skills section 按会话渲染）。
   const sessionSkillPaths = new Map();
+  // MilkSU conversationId → 会话 MCP 配置（B2b：loadRuntimeSessionPolicy 返回的
+  // mcpConfig 按会话登记；未传即不挂载——门关 `if (mcpConfig)` 同款门）。
+  const sessionMcpConfigs = new Map();
+  // MilkSU conversationId → 已挂载 MCP 配置指纹（sendMessage 的 policy 刷新每回合
+  // 都跑，配置不变不重做发现连接）。
+  const sessionMcpFingerprints = new Map();
   // reasoning-only recovery：恢复前的工具面（恢复回合无工具，结束后还原）。
   const reasoningOnlyPreviousTools = new Map();
   // 已告警过的缺失工具名（暂缓面只报一次，避免每次 send 刷屏）。
@@ -276,9 +289,11 @@ export function createHarnessBridgeSessionLayer(context) {
         const core = defineExtension({
           name: "milksu-core",
           sections: [
-            section("milksu-project-instructions", () => (
-              projectInstructionsText.trim() ? projectInstructionsText : undefined
-            ), { tag: false }),
+            // B2b：cwd 段（system-prompt.js:105）。milksu-core 是最后安装的扩展，
+            // 段序保持在 skills 之后，对齐门关默认段序；preamble/tools/rules/docs
+            // 段在 milksu-prompt（见上）。项目说明（AGENTS.md）现在作为
+            // milksu-prompt 的无标签 preamble 段渲染（Pi 的 customPrompt 语义）。
+            milksuCwdSection(),
           ],
           hooks: [
             hook(ToolTask, { beforeTool: judge }),
@@ -291,13 +306,40 @@ export function createHarnessBridgeSessionLayer(context) {
         // milksu-coding-tools / milksu-lsp / milksu-skills（语义对照见
         // harness-bridge-tools.js 文件头与交付报告总表）。审判链在 milksu-core，
         // 对这里挂载的一切工具自动生效。
-        registry.install(await createMilksuCodingToolsExtension({
+        const codingTools = await createMilksuCodingToolsExtension({
           workspace: process.cwd(),
           resolveModel: ref => models.models.getModel(
             String(ref?.provider ?? ""),
             String(ref?.modelId ?? ""),
           ),
-        }));
+        });
+        // B2b：milksu-prompt 段的提示贡献（tools/rules 段按 snippet/guideline 渲染）。
+        // 编码工具来自上面的定义构造器；LSP/MCP 是钉版字符串（pi-lsp.ts:53/113、
+        // pi-mcp-adapter index.ts:2061——两个包的工具定义都不导出）。
+        const promptSnippets = new Map([
+          ...(codingTools.promptContributions?.snippets ?? []),
+          ...Object.entries(LSP_PROMPT_CONTRIBUTIONS.snippets),
+          ["mcp", MILKSU_MCP_PROMPT_SNIPPET],
+        ]);
+        const promptGuidelines = new Map([
+          ...(codingTools.promptContributions?.guidelines ?? []),
+          ...Object.entries(LSP_PROMPT_CONTRIBUTIONS.guidelines),
+        ]);
+        const promptSections = createMilksuPromptSectionsExtension({
+          projectInstructionsFor: () => projectInstructionsText,
+          promptSnippets,
+          promptGuidelines,
+        });
+        // PR-2 批次 B2b：MCP 挂载（单 "mcp" 代理工具）。配置按会话经 adopt() 注入
+        //（见 createSession）；未传 mcpConfig 的会话不 adopt、不连接、工具面也不含
+        // mcp（activeTools 由策略决定）。审批/隔离在审判链，对这里自动生效。
+        const mcpMount = createMilksuMcpExtension({
+          resolveConversation,
+          mcpConfigFor: alias => sessionMcpConfigs.get(alias),
+          environment,
+        });
+        registry.install(promptSections);
+        registry.install(codingTools);
         registry.install(createMilksuLspExtension({
           resolveConversation,
           getPolicy: id => sessionPolicies.get(id),
@@ -308,6 +350,7 @@ export function createHarnessBridgeSessionLayer(context) {
           skillPathsFor: alias => sessionSkillPaths.get(alias),
           cwd: process.cwd(),
         }));
+        registry.install(mcpMount.extension);
         registry.install(core);
         if (typeof installRegistryExtensions === "function") {
           await installRegistryExtensions(registry, { models: models.models });
@@ -324,7 +367,7 @@ export function createHarnessBridgeSessionLayer(context) {
           env: ({ cwd }) => new NodeExecutionEnv({ cwd: cwd ?? process.cwd() }),
           ...harnessRuntimeOptions(),
         });
-        return { handle, models, registry };
+        return { handle, models, registry, mcpMount };
       })();
       runtimeOpening.catch(() => {
         runtimeOpening = undefined;
@@ -953,11 +996,22 @@ export function createHarnessBridgeSessionLayer(context) {
       command.locale === "en" ? "en" : "zh",
     );
     if (instructions) projectInstructionsText = instructions;
-    const { policy: sessionPolicy, codingSkillPaths } = await loadRuntimeSessionPolicy(cwd, command);
+    const { policy: sessionPolicy, codingSkillPaths, mcpConfig } = await loadRuntimeSessionPolicy(cwd, command);
     sessionPolicies.set(alias, sessionPolicy);
     // 技能路径按会话登记：milksu-skills section 据此渲染目录（disabled 技能变化
     // → 路径清单变化 → section 内容变化 → 位置型 pi.system 只重发差异）。
     sessionSkillPaths.set(alias, Array.isArray(codingSkillPaths) ? codingSkillPaths : []);
+    // B2b：MCP 配置按会话登记并做一次发现连接（连上→列目录→关 lazy 连接；目录
+    // 进程内缓存）。未传 mcpConfig 即不挂载——门关 createMilkSUResourceLoader 的
+    // `if (mcpConfig)` 同款门。发现失败只记 backoff，不阻断会话创建（adapter
+    // init.ts:357-380 同款语义）。
+    const mcpFingerprint = mcpConfig ? JSON.stringify(mcpConfig) : "";
+    if (sessionMcpFingerprints.get(alias) !== mcpFingerprint) {
+      sessionMcpConfigs.set(alias, mcpConfig);
+      sessionMcpFingerprints.set(alias, mcpFingerprint);
+      const { mcpMount } = await openRuntime();
+      await mcpMount.adopt(alias, mcpConfig);
+    }
     const { handle, registry } = await openRuntime();
     const { conversation } = await handle.ensureConversation(alias, { agent: { cwd } });
     durableToAlias.set(conversation.id, alias);
@@ -1044,6 +1098,13 @@ export function createHarnessBridgeSessionLayer(context) {
     sessionConfiguredProviders.delete(alias);
     sessionCreateCommands.delete(alias);
     sessionSkillPaths.delete(alias);
+    sessionMcpConfigs.delete(alias);
+    sessionMcpFingerprints.delete(alias);
+    try {
+      await runtime?.mcpMount?.close(alias);
+    } catch {
+      // 创建失败的清理不因 MCP 连接收尾失败而中断。
+    }
     reasoningOnlyPreviousTools.delete(alias);
     promptQueues.delete(alias);
   }
@@ -1067,9 +1128,17 @@ export function createHarnessBridgeSessionLayer(context) {
       // 旧路径对已存在会话每次 send_message 都重载 policy 并重接模型
       //（bridge.js:2518-2553）；durable 会话不重建（这正是 Harness 的意义），只刷新
       // policy/模型/工具面，观测事件对齐 policy_updated。
-      const { policy: sessionPolicy, codingSkillPaths } = await loadRuntimeSessionPolicy(process.cwd(), command);
+      const { policy: sessionPolicy, codingSkillPaths, mcpConfig } = await loadRuntimeSessionPolicy(process.cwd(), command);
       sessionPolicies.set(alias, sessionPolicy);
       sessionSkillPaths.set(alias, Array.isArray(codingSkillPaths) ? codingSkillPaths : []);
+      // B2b：MCP 配置指纹变化才重挂（每回合都重载 policy，配置没变不重做发现连接）。
+      const mcpFingerprint = mcpConfig ? JSON.stringify(mcpConfig) : "";
+      if (sessionMcpFingerprints.get(alias) !== mcpFingerprint) {
+        sessionMcpConfigs.set(alias, mcpConfig);
+        sessionMcpFingerprints.set(alias, mcpFingerprint);
+        const { mcpMount } = await openRuntime();
+        await mcpMount.adopt(alias, mcpConfig);
+      }
       const controller = sessionPolicyControllers.get(alias);
       if (!controller) {
         throw new Error("MilkSU Coding permission controller is unavailable");
@@ -1268,6 +1337,15 @@ export function createHarnessBridgeSessionLayer(context) {
     abortedSessions.delete(alias);
     sessionCreateCommands.delete(alias);
     sessionSkillPaths.delete(alias);
+    sessionMcpConfigs.delete(alias);
+    sessionMcpFingerprints.delete(alias);
+    // B2b：收掉本会话的 MCP 连接（lazy 服务器一般已关，这里兜底 idle 窗口内的
+    // 常驻连接与清扫定时器）。
+    try {
+      await runtime?.mcpMount?.close(alias);
+    } catch {
+      // 会话销毁不因 MCP 清理失败而中断。
+    }
     // pi-durable 1.0.0 没有删除 Conversation 的 API：durable 转录保留（deletePersisted
     // 对 Harness 会话无效，见报告）。别名登记保留，重开同 id 会继续同一会话。
     emit(alias, "session_destroyed");
@@ -1342,11 +1420,17 @@ export function createHarnessBridgeSessionLayer(context) {
     conversations.clear();
     durableToAlias.clear();
     sessionSkillPaths.clear();
+    sessionMcpConfigs.clear();
+    sessionMcpFingerprints.clear();
     reasoningOnlyPreviousTools.clear();
     const open = runtime;
     runtime = undefined;
     runtimeOpening = undefined;
     if (open) {
+      // B2b：先收 MCP 子进程与定时器，再关 Harness（handle.close 会落盘）。
+      if (open.mcpMount) {
+        await open.mcpMount.dispose().catch(() => undefined);
+      }
       await open.handle.close();
     }
   }
