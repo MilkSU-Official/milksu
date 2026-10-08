@@ -32,7 +32,7 @@ export function roleGuidanceForSession(sessionRole, uiLocale) {
 // Product tools keep their when-to-use in the tool description / Skill catalog.
 // This suffix only adds host facts Pi does not own: role, OS/cwd, and
 // surfaces that are actually on for this session.
-export function composeMilkSUWorkflowSystemPrompt(systemPrompt, {
+export function milkSUWorkflowSystemPromptSuffix({
   sessionRole = "",
   policy = {},
 } = {}) {
@@ -44,15 +44,20 @@ export function composeMilkSUWorkflowSystemPrompt(systemPrompt, {
     policy?.codingCollaboration,
     uiLocale,
   );
-  return `${systemPrompt ?? ""}`
-    + (roleGuidance ? `\n\n${roleGuidance}` : "")
-    + `\n\n${chinese ? "运行时上下文" : "Runtime context"}:\n${runtimeEnvironmentGuidance({
+  return (roleGuidance ? `${roleGuidance}\n\n` : "")
+    + `${chinese ? "运行时上下文" : "Runtime context"}:\n${runtimeEnvironmentGuidance({
       uiLocale,
     })}`
     + (workspaceIdentityGuidance
       ? `\n\n${chinese ? "工作区身份" : "Workspace identity"}:\n${workspaceIdentityGuidance}`
       : "")
-    + `
+    + `\n\n${quotedReferenceGuidance(uiLocale)}`;
+}
 
-${quotedReferenceGuidance(uiLocale)}`;
+export function composeMilkSUWorkflowSystemPrompt(systemPrompt, {
+  sessionRole = "",
+  policy = {},
+} = {}) {
+  const suffix = milkSUWorkflowSystemPromptSuffix({ sessionRole, policy });
+  return `${systemPrompt ?? ""}\n\n${suffix}`;
 }

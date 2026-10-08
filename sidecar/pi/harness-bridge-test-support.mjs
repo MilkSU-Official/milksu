@@ -26,6 +26,7 @@ import {
 } from "./harness-bridge-tools.js";
 import { MILKSU_SUBAGENTS_EXTENSION } from "./harness-bridge-subagents.js";
 import { MILKSU_SUBAGENTS_ASYNC_EXTENSION } from "./harness-bridge-subagents-async.js";
+import { MILKSU_BACKGROUND_TASKS_EXTENSION } from "./harness-bridge-background-tasks.js";
 
 export const defaultFauxModelDefinitions = [
   {
@@ -89,6 +90,9 @@ export function makeTestBashTool({ workspace, onExecute, sleepMs = 0 } = {}) {
  *                             daily/security 扩展）
  *   lspExtension              覆盖 milksu-lsp 的扩展（假 LSP 核心注入面）
  *   skillPaths                会话技能路径（milksu-skills section 渲染源）
+ *   sessionRole               会话角色（B2d：loadRuntimeSessionPolicy 桩的
+ *                             effectiveSessionRole 返回位，milksu-workflow
+ *                             section 的角色指引断言用）
  *   onToolExecute             工具执行观察者
  *   toolSleepMs               bash sleep 命令的睡眠时长
  *   environment               环境对象（默认空对象：无 relay/custom provider）
@@ -127,6 +131,7 @@ export function buildTestLayer({
   policyLoader = undefined,
   researchActive = false,
   skillPaths = [],
+  sessionRole = "",
   keepProductTools = false,
   lspExtension = undefined,
   extraActiveToolNames = [],
@@ -264,7 +269,7 @@ export function buildTestLayer({
       }
       return {
         policy,
-        effectiveSessionRole: "",
+        effectiveSessionRole: sessionRole,
         codingSkillPaths: [...skillPaths],
         mcpConfig,
         securityTools: normalizedSecurityTools,
@@ -303,6 +308,7 @@ export function buildTestLayer({
         registry.uninstall({ name: MILKSU_SECURITY_TOOLS_EXTENSION });
         registry.uninstall({ name: MILKSU_SUBAGENTS_EXTENSION });
         registry.uninstall({ name: MILKSU_SUBAGENTS_ASYNC_EXTENSION });
+        registry.uninstall({ name: MILKSU_BACKGROUND_TASKS_EXTENSION });
       }
       if (lspExtension) {
         // 测试注入的 milksu-lsp（通常是带假 LSP 核心的同形扩展）；后装覆盖先装。

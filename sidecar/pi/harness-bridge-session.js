@@ -53,6 +53,7 @@ import {
   createMilksuSkillsExtension,
   LSP_PROMPT_CONTRIBUTIONS,
   milksuCwdSection,
+  milksuWorkflowSection,
   MILKSU_CODING_TOOLS_EXTENSION,
   MILKSU_LSP_EXTENSION,
   MILKSU_SKILLS_EXTENSION,
@@ -97,6 +98,20 @@ import {
   createMilksuSubagentsAsyncExtension,
   expandHarnessSubagentAsyncToolNames,
 } from "./harness-bridge-subagents-async.js";
+import {
+  adoptSessionBackgroundTasks,
+  createMilksuBackgroundTasksExtension,
+  spawnHarnessBackgroundTask,
+  stopHarnessBackgroundTaskById,
+} from "./harness-bridge-background-tasks.js";
+import {
+  backgroundTaskMetasForSession,
+  projectBackgroundTaskMetas,
+} from "./bridge-background-view.js";
+import {
+  listPiBackgroundTaskMetas,
+  readPiBackgroundTaskLog,
+} from "./reviewed-ts/extensions.js";
 import { enqueueConversationPrompt } from "./bridge-conversation-prompt.js";
 import { preparePromptAttachments } from "./bridge-attachments.js";
 import { withTurnHeartbeat } from "./bridge-turn-heartbeat.js";
@@ -228,6 +243,9 @@ export function createHarnessBridgeSessionLayer(context) {
   const conversations = new Map();
   // MilkSU conversationId → 会话技能路径清单（milksu-skills section 按会话渲染）。
   const sessionSkillPaths = new Map();
+  // PR-2 批次 B2d：MilkSU conversationId → effectiveSessionRole（门关
+  // createSession 的同一位；milksu-workflow section 的角色指引按会话渲染）。
+  const sessionRoles = new Map();
   // MilkSU conversationId → 会话 MCP 配置（B2b：loadRuntimeSessionPolicy 返回的
   // mcpConfig 按会话登记；未传即不挂载——门关 `if (mcpConfig)` 同款门）。
   const sessionMcpConfigs = new Map();
@@ -336,6 +354,15 @@ export function createHarnessBridgeSessionLayer(context) {
             // 段在 milksu-prompt（见上）。项目说明（AGENTS.md）现在作为
             // milksu-prompt 的无标签 preamble 段渲染（Pi 的 customPrompt 语义）。
             milksuCwdSection(),
+            // PR-2 批次 B2d：workflow 后缀段（角色指引/运行时上下文/工作区身份/
+            // 引号引用）。门关由 before_agent_start 的
+            // composeMilkSUWorkflowSystemPrompt 拼在完整系统提示末尾（cwd 之后），
+            // 这里以同一段位渲染，保证段序与门关一致。
+            milksuWorkflowSection({
+              resolveConversation,
+              sessionRoleFor: alias => sessionRoles.get(alias) ?? "",
+              policyFor: alias => sessionPolicies.get(alias),
+            }),
           ],
           hooks: [
             hook(ToolTask, { beforeTool: judge }),
@@ -422,6 +449,15 @@ export function createHarnessBridgeSessionLayer(context) {
           subagentAsyncChildRegistry,
           () => runtime?.handle,
         );
+        // PR-2 批次 B2d：后台任务面（bg_task/bg_status，C2 anchor 模式重建；审批面
+        // spawn/watch/stop/clear 在审判链对挂上即生效）。安装位在 milksu-core 前。
+        const backgroundTasksMount = createMilksuBackgroundTasksExtension({
+          resolveConversation,
+          getPolicy: id => sessionPolicies.get(id),
+          getHarnessHandle: () => runtime?.handle,
+          emitTasksChanged: alias => emitHarnessBackgroundTasks(alias),
+          environment,
+        });
         // B2b：milksu-prompt 段的提示贡献（tools/rules 段按 snippet/guideline 渲染）。
         // 编码工具来自上面的定义构造器；LSP/MCP 是钉版字符串（pi-lsp.ts:53/113、
         // pi-mcp-adapter index.ts:2061——两个包的工具定义都不导出）；B2c 的 web
@@ -475,6 +511,7 @@ export function createHarnessBridgeSessionLayer(context) {
         registry.install(securityToolsMount);
         registry.install(subagentsExtension);
         registry.install(subagentsAsyncExtension);
+        registry.install(backgroundTasksMount);
         registry.install(core);
         if (typeof installRegistryExtensions === "function") {
           await installRegistryExtensions(registry, { models: models.models });
@@ -729,6 +766,26 @@ export function createHarnessBridgeSessionLayer(context) {
   function updateSubagentTasksForSession(conversationId, update) {
     const current = sessionSubagentTasks.get(conversationId) ?? [];
     emitSubagentTasksForSession(conversationId, update(current));
+  }
+
+  /**
+   * PR-2 批次 B2d：桌面 background_tasks 投影（bridge.js emitBackgroundTasks:409 的
+   * 门开同款）——读磁盘 meta 面（与门关同一目录约定），按会话过滤 + log tail 投影，
+   * redact 后原样 emit。bg 扩展的每次工具执行/anchor 终态都重发。
+   */
+  function emitHarnessBackgroundTasks(alias) {
+    try {
+      emit(alias, "background_tasks", {
+        tasks: redactResearchText(projectBackgroundTaskMetas(
+          backgroundTaskMetasForSession(listPiBackgroundTaskMetas(), alias),
+          Date.now(),
+          readPiBackgroundTaskLog,
+        ), environment, sessionProviderSecrets(alias)),
+      });
+    } catch (error) {
+      console.error("MilkSU could not project harness background tasks", error);
+      emit(alias, "background_tasks", { tasks: [] });
+    }
   }
 
   /**
@@ -1329,8 +1386,11 @@ export function createHarnessBridgeSessionLayer(context) {
       command.locale === "en" ? "en" : "zh",
     );
     if (instructions) projectInstructionsText = instructions;
-    const { policy: sessionPolicy, codingSkillPaths, mcpConfig } = await loadRuntimeSessionPolicy(cwd, command);
+    const { policy: sessionPolicy, effectiveSessionRole, codingSkillPaths, mcpConfig } = await loadRuntimeSessionPolicy(cwd, command);
     sessionPolicies.set(alias, sessionPolicy);
+    // PR-2 批次 B2d：角色按会话登记（milksu-workflow section 的角色指引渲染源；
+    // 门关 createSession 在 resource loader 上绑同一份 effectiveSessionRole）。
+    sessionRoles.set(alias, String(effectiveSessionRole ?? ""));
     // 技能路径按会话登记：milksu-skills section 据此渲染目录（disabled 技能变化
     // → 路径清单变化 → section 内容变化 → 位置型 pi.system 只重发差异）。
     sessionSkillPaths.set(alias, Array.isArray(codingSkillPaths) ? codingSkillPaths : []);
@@ -1398,6 +1458,13 @@ export function createHarnessBridgeSessionLayer(context) {
         childRegistry: subagentAsyncChildRegistry,
         updateSubagentTasks: updateSubagentTasksForSession,
       });
+      // PR-2 批次 B2d：按 durable 真相恢复后台任务面（有 anchor 即 resume 续跑，
+      // anchor 终态时完成通知原生唤醒本会话）+ 桌面投影重建。
+      await adoptSessionBackgroundTasks({
+        handle,
+        durableConversationId: record.durableId,
+        emitTasksChanged: () => emitHarnessBackgroundTasks(alias),
+      });
       const agent = await handle.conversationAgent(alias);
       record.agentTools = [...(agent?.tools ?? [])];
       record.stream = await subscribeHarnessEvents(alias);
@@ -1420,7 +1487,7 @@ export function createHarnessBridgeSessionLayer(context) {
       });
       await refreshCompositionMessages(alias);
       emitHarnessContextComposition(alias);
-      emit(alias, "background_tasks", { tasks: [] });
+      emitHarnessBackgroundTasks(alias);
       emit(alias, "goal_state", { goal: null });
       return sessionObject;
     } catch (error) {
@@ -1443,6 +1510,7 @@ export function createHarnessBridgeSessionLayer(context) {
     sessionConfiguredProviders.delete(alias);
     sessionCreateCommands.delete(alias);
     sessionSkillPaths.delete(alias);
+    sessionRoles.delete(alias);
     sessionMcpConfigs.delete(alias);
     sessionMcpFingerprints.delete(alias);
     // PR-2 批次 C1：创建失败的清理也收掉子代理 child 登记。
@@ -1476,8 +1544,10 @@ export function createHarnessBridgeSessionLayer(context) {
       // 旧路径对已存在会话每次 send_message 都重载 policy 并重接模型
       //（bridge.js:2518-2553）；durable 会话不重建（这正是 Harness 的意义），只刷新
       // policy/模型/工具面，观测事件对齐 policy_updated。
-      const { policy: sessionPolicy, codingSkillPaths, mcpConfig } = await loadRuntimeSessionPolicy(process.cwd(), command);
+      const { policy: sessionPolicy, effectiveSessionRole, codingSkillPaths, mcpConfig } = await loadRuntimeSessionPolicy(process.cwd(), command);
       sessionPolicies.set(alias, sessionPolicy);
+      // B2d：角色随 policy 刷新重登记（milksu-workflow section 下一回合生效）。
+      sessionRoles.set(alias, String(effectiveSessionRole ?? ""));
       sessionSkillPaths.set(alias, Array.isArray(codingSkillPaths) ? codingSkillPaths : []);
       // B2b：MCP 配置指纹变化才重挂（每回合都重载 policy，配置没变不重做发现连接）。
       const mcpFingerprint = mcpConfig ? JSON.stringify(mcpConfig) : "";
@@ -1707,6 +1777,7 @@ export function createHarnessBridgeSessionLayer(context) {
     abortedSessions.delete(alias);
     sessionCreateCommands.delete(alias);
     sessionSkillPaths.delete(alias);
+    sessionRoles.delete(alias);
     sessionMcpConfigs.delete(alias);
     sessionMcpFingerprints.delete(alias);
     // PR-2 批次 C2：终扫子代理注册表——halt 之后才落地的 anchor abort handler 侧效
@@ -1817,6 +1888,108 @@ export function createHarnessBridgeSessionLayer(context) {
   // ---------- decision_query（B1 遗留接线：bridge.js handleDecisionQuery 的门开分支） ----------
 
   /**
+   * PR-2 批次 B2d：桌面后台任务控制（bridge.js controlBackgroundTask:3145 的门开
+   * 分支）。list/stop 读写 bg anchor 的 durable 真相 + 磁盘 meta 投影；spawn 直接建
+   * anchor（callback:false——门关桌面 spawn 同款，用户在面板看输出，不打扰模型回合），
+   * 不再走 backgroundTaskControllers 的 pi 扩展回退面。事件形状与门关
+   * background_task_controlled 一致（requestId/tasks/error）。
+   */
+  async function controlBackgroundTask(command) {
+    const alias = String(command.conversationId ?? "").trim();
+    const requestId = String(command.requestId ?? "").trim();
+    const controlled = (extra = {}) => {
+      emit(alias || null, "background_task_controlled", {
+        requestId,
+        tasks: projectedTasksFor(alias),
+        ...extra,
+      });
+    };
+    const projectedTasksFor = (id) => {
+      try {
+        return redactResearchText(projectBackgroundTaskMetas(
+          backgroundTaskMetasForSession(listPiBackgroundTaskMetas(), id),
+          Date.now(),
+          readPiBackgroundTaskLog,
+        ), environment, sessionProviderSecrets(id));
+      } catch {
+        return [];
+      }
+    };
+    try {
+      if (!alias) throw new Error("conversationId is required");
+      if (!requestId) throw new Error("requestId is required");
+      const control = String(command.control ?? "").trim();
+      if (control === "list") {
+        controlled();
+        return;
+      }
+      if (control === "spawn") {
+        const commandText = String(command.command ?? "").trim();
+        if (!commandText) throw new Error("terminal command is required");
+        if (commandText.includes("\u0000")) {
+          throw new Error("terminal command contains an invalid null byte");
+        }
+        if (commandText.length > 16_000) {
+          throw new Error("terminal command must be at most 16000 characters");
+        }
+        const policy = sessionPolicies.get(alias);
+        if (
+          !policy
+          || policy.executionMode !== "go"
+          || policy.approvalPolicy === "read-only"
+        ) {
+          throw new Error(
+            `MilkSU Coding policy blocked terminal command: `
+            + `${policy?.executionMode ?? "unknown"}/${policy?.approvalPolicy ?? "unknown"}`,
+          );
+        }
+        const record = conversations.get(alias);
+        if (!record?.durableId) {
+          throw new Error(`Coding session is not ready: ${alias}`);
+        }
+        const { handle } = await openRuntime();
+        await spawnHarnessBackgroundTask({
+          handle,
+          durableConversationId: record.durableId,
+          alias,
+          commandText,
+          name: command.name,
+          cwd: policy.workspace,
+          environment,
+        });
+        controlled();
+        return;
+      }
+      if (control !== "stop") {
+        throw new Error(`unsupported background task control: ${control}`);
+      }
+      const taskId = String(command.taskId ?? "").trim();
+      if (!/^bg_[a-z0-9_]+$/i.test(taskId)) {
+        throw new Error("invalid background task id");
+      }
+      const record = conversations.get(alias);
+      if (!record?.durableId) {
+        throw new Error(`background task not found: ${taskId}`);
+      }
+      const { handle } = await openRuntime();
+      await stopHarnessBackgroundTaskById({
+        handle,
+        durableConversationId: record.durableId,
+        taskId,
+        environment,
+      });
+      emitHarnessBackgroundTasks(alias);
+      controlled();
+    } catch (error) {
+      emit(alias || null, "background_task_controlled", {
+        requestId,
+        error: describeError(error),
+        tasks: projectedTasksFor(alias),
+      });
+    }
+  }
+
+  /**
    * 决策层主模型兜底（decision/query.js answerDecisionQuery）的门开实现：门关走
    * session.modelRuntime.completeSimple（pi-coding-agent ModelRuntime），门开用同一
    * 个 pi-ai Models 集合的 completeSimple（Q8 的 Models 面）+ 会话已解析的模型对象。
@@ -1855,6 +2028,7 @@ export function createHarnessBridgeSessionLayer(context) {
     abortSession,
     destroySession,
     compactSessionCommand,
+    controlBackgroundTask,
     disposeAll,
     isHarnessConversation,
     decisionQuery,

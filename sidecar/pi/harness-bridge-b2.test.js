@@ -76,12 +76,12 @@ test("ready.tools mounts the full B2 surface in Go mode with the deferred set ex
     const ready = (await waitForEvent(events, "ready"))[0];
     // 门关 activeTools（go 档）∩ 已挂载面 = ready.tools；差集即暂缓面。
     // B2c 起 ask/progress/workspace/imagegen/archify/web 两件已挂载；C1 起 subagent
-    // 已挂载（harness-bridge-subagents）；剩余暂缓面是 bg/goal（B2d）、
-    // computer_use 两件（B2d）。
+    // 已挂载（harness-bridge-subagents）；B2d 起 bg 两件已挂载
+    //（harness-bridge-background-tasks，按 codingWorkspaceAutoToolNames 原位出现）；
+    // 剩余暂缓面是 goal（B2d）与 computer_use 两件（B2d）。
     const expectedMounted = [
       ...codingWorkspaceAutoToolNames
         .filter(name => ![
-          "bg_task", "bg_status",
           "prepare_computer_use_driver", "computer_use",
           "goal_complete", "goal_blocked",
           // 本夹具未配置 ImageGen（imageGenConfigured=false）：门关同样不会把
@@ -111,7 +111,9 @@ test("ready.tools mounts the full B2 surface in Go mode with the deferred set ex
         // PR-2 批次 C1：子代理·协作工具面（milksu-core 前安装）。
         "milksu-subagents",
         // PR-2 批次 C2：子代理·异步路面（anchor 任务定义随扩展注册）。
-        "milksu-subagents-async", "milksu-core",
+        "milksu-subagents-async",
+        // PR-2 批次 B2d：后台任务面（anchor 任务定义随扩展注册）。
+        "milksu-background-tasks", "milksu-core",
       ],
       "the registry reports the mounted extensions",
     );
@@ -129,12 +131,14 @@ test("plan mode keeps the read-only surface mounted", async () => {
     assert.deepEqual(
       ready.tools,
       [
-        "read", "grep", "find", "ls", "milksu_progress", "milksu_ask",
+        "read", "grep", "find", "ls", "bg_status", "milksu_progress", "milksu_ask",
         "milksu_workspace", "lsp_diagnostics", "web_search", "web_fetch",
       ],
-      "plan sessions expose the mounted read-only subset (B2c daily tools included)",
+      "plan sessions expose the mounted read-only subset (B2c daily tools + B2d bg_status included)",
     );
     assert.equal(codingReadOnlyToolNames.includes("lsp_fix"), false);
+    assert.equal(codingReadOnlyToolNames.includes("bg_task"), false,
+      "bg_task stays off the read-only surface (spawn/watch are effectful)");
   });
 });
 

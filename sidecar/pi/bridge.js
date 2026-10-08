@@ -3145,6 +3145,12 @@ async function removeQueuedMessageCommand(command) {
 async function controlBackgroundTask(command) {
   const conversationId = String(command.conversationId ?? "").trim();
   const requestId = String(command.requestId ?? "").trim();
+  // PR-2 批次 B2d：门开会话改走 harness 层的 anchor 实现（bg_task/bg_status 同一
+  // durable 真相）；不再落 backgroundTaskControllers 的 pi 扩展回退面。
+  if (harnessTurnRouted(conversationId)) {
+    await harnessLayer().controlBackgroundTask(command);
+    return;
+  }
   try {
     if (!conversationId) throw new Error("conversationId is required");
     if (!requestId) throw new Error("requestId is required");

@@ -730,17 +730,16 @@ test("mounted/deferred tool lists partition the gate-closed active surface", () 
   assert.deepEqual(
     [...mounted].filter(name => codingWorkspaceAutoToolNames.includes(name)).sort(),
     [
-      "bash", "edit", "find", "grep", "ls", "lsp_diagnostics", "lsp_fix",
-      "milksu_archify", "milksu_ask", "milksu_imagegen", "milksu_progress",
-      "milksu_workspace", "read", "web_fetch", "web_search", "write",
+      "bash", "bg_status", "bg_task", "edit", "find", "grep", "ls",
+      "lsp_diagnostics", "lsp_fix", "milksu_archify", "milksu_ask",
+      "milksu_imagegen", "milksu_progress", "milksu_workspace", "read",
+      "web_fetch", "web_search", "write",
     ],
   );
   const deferred = deferredHarnessToolNames(codingWorkspaceAutoToolNames);
-  // B2c 起日常面（ask/progress/workspace/imagegen/archify/web/capa）已挂载；
-  // 剩余暂缓面是 bg/goal（B2d）与 computer_use 两件（B2d）。
+  // B2c 起日常面（ask/progress/workspace/imagegen/archify/web/capa）已挂载；B2d 起
+  // bg 两件已挂载；剩余暂缓面是 goal 两件与 computer_use 两件。
   assert.deepEqual(deferred.sort(), [
-    "bg_status",
-    "bg_task",
     "computer_use",
     "goal_blocked",
     "goal_complete",
@@ -748,4 +747,5 @@ test("mounted/deferred tool lists partition the gate-closed active surface", () 
   ], "the deferred surface is explicit and enumerated");
   assert.equal(deferred.includes("bash"), false, "bash is mounted, not deferred");
   assert.equal(deferred.includes("milksu_ask"), false, "milksu_ask is mounted since B2c");
+  assert.equal(deferred.includes("bg_task"), false, "bg_task is mounted since B2d");
 });

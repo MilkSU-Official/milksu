@@ -75,6 +75,7 @@ import {
   selectLspFixRoute,
   LSP_DEFAULT_FILE_LIMIT,
 } from "./reviewed-ts/extensions.js";
+import { milkSUWorkflowSystemPromptSuffix } from "./bridge-workflow-prompt.js";
 
 export const MILKSU_CODING_TOOLS_EXTENSION = "milksu-coding-tools";
 export const MILKSU_LSP_EXTENSION = "milksu-lsp";
@@ -726,6 +727,36 @@ export function milksuCwdSection(cwdFor = () => process.cwd()) {
   });
 }
 
+/**
+ * B2d 补齐的 workflow 系统提示段：门关路径在 before_agent_start 用
+ * composeMilkSUWorkflowSystemPrompt（bridge.js:977）把「角色指引 + 运行时上下文 +
+ * 工作区身份 + 引号引用」拼到完整系统提示末尾（cwd 段之后）。门开路径以同一份后缀
+ * 构造器（milkSUWorkflowSystemPromptSuffix）按会话渲染为 untagged 段，挂在
+ * milksu-core 的 cwd 段之后——段序与门关一致（suffix 落在全部段末）。无策略/角色的
+ * 会话也渲染运行时上下文与引号引用（门关对所有会话都拼这段）。
+ */
+export function milksuWorkflowSection({
+  resolveConversation,
+  sessionRoleFor,
+  policyFor,
+} = {}) {
+  if (
+    typeof resolveConversation !== "function"
+    || typeof sessionRoleFor !== "function"
+    || typeof policyFor !== "function"
+  ) {
+    throw new TypeError("milksuWorkflowSection requires the session context");
+  }
+  return section("milksu-workflow", (input) => {
+    const alias = resolveConversation(input.conversationId);
+    const policy = policyFor(alias);
+    return milkSUWorkflowSystemPromptSuffix({
+      sessionRole: sessionRoleFor(alias),
+      policy: policy ?? {},
+    });
+  }, { tag: false });
+}
+
 // ---------- hang-guard 结果面（afterTool） ----------
 
 /**
@@ -826,6 +857,10 @@ export const mountedHarnessToolNames = Object.freeze([
   "subagent_async_status",
   "subagent_async_steer",
   "subagent_async_stop",
+  // PR-2 批次 B2d：后台任务面（harness-bridge-background-tasks.js；C2 anchor 模式
+  // 重建，审批面 spawn/watch/stop/clear 在审判链对挂上即生效）。
+  "bg_task",
+  "bg_status",
 ]);
 
 /** 供报告/测试引用的暂缓清单（门关 activeTools − mountedHarnessToolNames）。 */
