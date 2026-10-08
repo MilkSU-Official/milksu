@@ -75,17 +75,23 @@ test("ready.tools mounts the full B2 surface in Go mode with the deferred set ex
     await layer.createSession({ ...goCommand, conversationId: "conv-surface" });
     const ready = (await waitForEvent(events, "ready"))[0];
     // 门关 activeTools（go 档）∩ 已挂载面 = ready.tools；差集即暂缓面。
-    // B2c 起 ask/progress/workspace/imagegen/archify/web 两件已挂载；剩余暂缓面
-    // 是 bg/goal（B2d）、computer_use 两件（B2d）。
-    const expectedMounted = codingWorkspaceAutoToolNames
-      .filter(name => ![
-        "bg_task", "bg_status",
-        "prepare_computer_use_driver", "computer_use",
-        "goal_complete", "goal_blocked",
-        // 本夹具未配置 ImageGen（imageGenConfigured=false）：门关同样不会把
-        // milksu_imagegen 放进 activeTools（bridge-policy.js:1539）。
-        "milksu_imagegen",
-      ].includes(name));
+    // B2c 起 ask/progress/workspace/imagegen/archify/web 两件已挂载；C1 起 subagent
+    // 已挂载（harness-bridge-subagents）；剩余暂缓面是 bg/goal（B2d）、
+    // computer_use 两件（B2d）。
+    const expectedMounted = [
+      ...codingWorkspaceAutoToolNames
+        .filter(name => ![
+          "bg_task", "bg_status",
+          "prepare_computer_use_driver", "computer_use",
+          "goal_complete", "goal_blocked",
+          // 本夹具未配置 ImageGen（imageGenConfigured=false）：门关同样不会把
+          // milksu_imagegen 放进 activeTools（bridge-policy.js:1539）。
+          "milksu_imagegen",
+        ].includes(name)),
+      // PR-2 批次 C1：subagent 进门关 go 档 activeTools（bridge-policy.js:1562），
+      // 注册表已挂载 milksu-subagents，按 activeTools 次序排在最后。
+      "subagent",
+    ];
     assert.deepEqual(ready.tools, expectedMounted,
       "gate-open offers every mounted tool in gate-closed order");
     assert.ok(ready.tools.includes("bash") && ready.tools.includes("lsp_fix"));
@@ -94,7 +100,9 @@ test("ready.tools mounts the full B2 surface in Go mode with the deferred set ex
       ready.extensions,
       [
         "milksu-prompt", "milksu-coding-tools", "milksu-lsp", "milksu-skills",
-        "milksu-mcp", "milksu-daily-tools", "milksu-security-tools", "milksu-core",
+        "milksu-mcp", "milksu-daily-tools", "milksu-security-tools",
+        // PR-2 批次 C1：子代理·协作工具面（milksu-core 前安装）。
+        "milksu-subagents", "milksu-core",
       ],
       "the registry reports the mounted extensions",
     );

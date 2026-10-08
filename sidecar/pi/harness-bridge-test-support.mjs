@@ -24,6 +24,7 @@ import {
   MILKSU_LSP_EXTENSION,
   MILKSU_SKILLS_EXTENSION,
 } from "./harness-bridge-tools.js";
+import { MILKSU_SUBAGENTS_EXTENSION } from "./harness-bridge-subagents.js";
 
 export const defaultFauxModelDefinitions = [
   {
@@ -289,8 +290,8 @@ export function buildTestLayer({
     harnessRuntimeOptions: () => heartbeatOptions,
     installRegistryExtensions: registry => {
       // 默认卸掉产品工具面换测试注入；keepProductTools=true 保留 B2 的产品挂载
-      //（coding-tools/lsp/skills + B2b 的 mcp + B2c 的日常/安全面），milksu-core
-      //（审判链/压缩接线）始终保留。
+      //（coding-tools/lsp/skills + B2b 的 mcp + B2c 的日常/安全面 + C1 的
+      // milksu-subagents），milksu-core（审判链/压缩接线）始终保留。
       if (!keepProductTools) {
         registry.uninstall({ name: MILKSU_CODING_TOOLS_EXTENSION });
         registry.uninstall({ name: MILKSU_LSP_EXTENSION });
@@ -298,6 +299,7 @@ export function buildTestLayer({
         registry.uninstall({ name: MILKSU_MCP_EXTENSION });
         registry.uninstall({ name: MILKSU_DAILY_TOOLS_EXTENSION });
         registry.uninstall({ name: MILKSU_SECURITY_TOOLS_EXTENSION });
+        registry.uninstall({ name: MILKSU_SUBAGENTS_EXTENSION });
       }
       if (lspExtension) {
         // 测试注入的 milksu-lsp（通常是带假 LSP 核心的同形扩展）；后装覆盖先装。

@@ -328,6 +328,57 @@ test('chat bridge bundle inlines the batch B2c daily tool surfaces', async () =>
   }
 })
 
+// PR-2 批次 C1：子代理·协作工具路（milksu-subagents：builtin 角色 = 任务拥有的会
+// 话 + 外部 CLI 外部进程 + worktree 消费面）必须真的进 bundle：扩展名、公共底座
+// 的所有权索引/requestId 幂等串、角色广告目录、外部 CLI 守卫（preflight/allowlist/
+// 进程组终止）与审判链挂接面全部内联。
+test('chat bridge bundle inlines the batch C1 subagent tool surface', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'milksu-chat-bridge-c1-bundle-'))
+  try {
+    const outfile = join(root, 'chat-bridge.cjs')
+    await bundleChatBridge(outfile)
+    const bundle = await readFile(outfile, 'utf8')
+    // 子代理扩展（registry.install 的挂载目标；审批/校验挂上即生效）。
+    assert.ok(bundle.includes('milksu-subagents'), 'the subagents extension must ship')
+    // 公共底座：所有权索引 get-or-create + requestId 幂等（README 范例同款）。
+    assert.ok(bundle.includes('subagent:'), 'the idempotent requestId prefix must ship')
+    assert.ok(bundle.includes('ownerTaskId'), 'the ownership index scan must ship')
+    // 角色广告目录（门关 advertised_subagents 段的形状）。
+    assert.ok(
+      bundle.includes('The following file-defined subagents opted into discovery'),
+      'the advertised agent catalog must ship',
+    )
+    // 钉包角色定义根守卫（configureSubagentRuntime 的同款布局解析）。
+    assert.ok(
+      bundle.includes('MilkSU subagent package is unavailable'),
+      'the bundled agent root guard must ship',
+    )
+    // 外部 CLI 守卫面：preflight 解析/校验、环境 allowlist、进程组终止与超时语义。
+    assert.ok(
+      bundle.includes('External CLI binary'),
+      'the external CLI preflight resolver must ship',
+    )
+    assert.ok(
+      bundle.includes('help does not document required option'),
+      'the external CLI preflight validation must ship',
+    )
+    assert.ok(bundle.includes('CLAUDE_CODE_ENV_ALLOWLIST') || bundle.includes('CLAUDE_CONFIG_DIR'),
+      'the external CLI env allowlists must ship')
+    assert.ok(bundle.includes('Subagent timed out.'), 'the external CLI timeout must ship')
+    assert.ok(bundle.includes('Subagent stopped by user.'), 'the stop semantics must ship')
+    // 控制动作面与 C2 通告。
+    assert.ok(bundle.includes('Subagent catalog:'), 'the catalog action must ship')
+    assert.ok(
+      bundle.includes('does not carry the pi-subagents'),
+      'the deferred async-lane notice must ship',
+    )
+    // 子代理任务投影（渲染器不改：roster/child 会话登记 + destroy halt）。
+    assert.ok(bundle.includes('Harness subagent children:'), 'the children list must ship')
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
 // PR-2 批次 B2b：MCP 挂载（单 mcp 代理工具 + SDK 连接管理）与 Pi 默认系统提示段
 // 必须真的进 bundle：@modelcontextprotocol/client 无 externals 全量内联
 //（bridge.js → harness-bridge-session → harness-bridge-mcp / harness-bridge-tools

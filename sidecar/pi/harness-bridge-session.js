@@ -76,6 +76,21 @@ import {
   reasoningOnlyRecoveryPrompt,
   summarizeReasoningOnlyFinal,
 } from "./bridge-reasoning-recovery.js";
+import {
+  assignResearchSubagentTaskID,
+  projectResearchSubagentUpdates,
+  projectSubagentRosterEnd,
+  projectSubagentRosterStart,
+  projectSubagentTaskForRenderer,
+  projectSubagentToolResult,
+} from "./bridge-subagent-yield.js";
+import { codingCollaborationToolName } from "./bridge-collaboration.js";
+import {
+  createHarnessSubagentHalt,
+  createMilksuSubagentsExtension,
+  createSubagentChildRegistry,
+  MILKSU_SUBAGENTS_EXTENSION,
+} from "./harness-bridge-subagents.js";
 import { enqueueConversationPrompt } from "./bridge-conversation-prompt.js";
 import { preparePromptAttachments } from "./bridge-attachments.js";
 import { withTurnHeartbeat } from "./bridge-turn-heartbeat.js";
@@ -218,6 +233,11 @@ export function createHarnessBridgeSessionLayer(context) {
   let securityMountFingerprint = undefined;
   // reasoning-only recovery：恢复前的工具面（恢复回合无工具，结束后还原）。
   const reasoningOnlyPreviousTools = new Map();
+  // PR-2 批次 C1：subagent 工具调用的 args/起始时刻缓存（tool_execution_end 的
+  // roster 投影需要 args；pi-durable 的 end 事件不带）。
+  const subagentCallRecords = new Map();
+  // C1：子代理 child 注册表（控制动作/外部 CLI halt 的进程内状态）。
+  const subagentChildRegistry = createSubagentChildRegistry();
   // 已告警过的缺失工具名（暂缓面只报一次，避免每次 send 刷屏）。
   const warnedMissingToolNames = new Set();
   // settings.compaction 的活快照：最近一次接线/提交的会话模型参数。
@@ -353,6 +373,25 @@ export function createHarnessBridgeSessionLayer(context) {
           isResearchActive: hasActiveResearchRun,
           workspace: process.cwd(),
         });
+        // PR-2 批次 C1：子代理·协作工具面（milksu-subagents：builtin 角色 = 任务
+        // 拥有的会话 + 外部 CLI 外部进程 + worktree 消费面；审判链的 subagent 分支
+        // 对挂上即自动生效——校验/审批在 beforeTool，execute 只做执行）。安装位在
+        // milksu-core 前。
+        const subagentsExtension = createMilksuSubagentsExtension({
+          resolveConversation,
+          getPolicy: id => sessionPolicies.get(id),
+          getProjectInstructions: () => projectInstructionsText,
+          modelsCollection: () => models.models,
+          getHarnessHandle: () => runtime?.handle,
+          agentDirectory: () => resolveAgentDirectory(),
+          childRegistry: subagentChildRegistry,
+          updateSubagentTasks: updateSubagentTasksForSession,
+          environment,
+        });
+        const subagentHalt = createHarnessSubagentHalt(
+          subagentChildRegistry,
+          () => runtime?.handle,
+        );
         // B2b：milksu-prompt 段的提示贡献（tools/rules 段按 snippet/guideline 渲染）。
         // 编码工具来自上面的定义构造器；LSP/MCP 是钉版字符串（pi-lsp.ts:53/113、
         // pi-mcp-adapter index.ts:2061——两个包的工具定义都不导出）；B2c 的 web
@@ -362,10 +401,12 @@ export function createHarnessBridgeSessionLayer(context) {
           ...Object.entries(LSP_PROMPT_CONTRIBUTIONS.snippets),
           ["mcp", MILKSU_MCP_PROMPT_SNIPPET],
           ...(dailyTools.promptContributions?.snippets ?? []),
+          ...(subagentsExtension.promptContributions?.snippets ?? []),
         ]);
         const promptGuidelines = new Map([
           ...(codingTools.promptContributions?.guidelines ?? []),
           ...Object.entries(LSP_PROMPT_CONTRIBUTIONS.guidelines),
+          ...(subagentsExtension.promptContributions?.guidelines ?? []),
         ]);
         const promptSections = createMilksuPromptSectionsExtension({
           projectInstructionsFor: () => projectInstructionsText,
@@ -400,6 +441,7 @@ export function createHarnessBridgeSessionLayer(context) {
         registry.install(mcpMount.extension);
         registry.install(dailyTools);
         registry.install(securityToolsMount);
+        registry.install(subagentsExtension);
         registry.install(core);
         if (typeof installRegistryExtensions === "function") {
           await installRegistryExtensions(registry, { models: models.models });
@@ -416,7 +458,7 @@ export function createHarnessBridgeSessionLayer(context) {
           env: ({ cwd }) => new NodeExecutionEnv({ cwd: cwd ?? process.cwd() }),
           ...harnessRuntimeOptions(),
         });
-        return { handle, models, registry, mcpMount };
+        return { handle, models, registry, mcpMount, subagentHalt };
       })();
       runtimeOpening.catch(() => {
         runtimeOpening = undefined;
@@ -603,6 +645,110 @@ export function createHarnessBridgeSessionLayer(context) {
       level: profile.enabled ? profile.level : "off",
     });
     rememberHarnessChildRegistry({ command, selection, wiring });
+  }
+
+  // ---------- 子代理任务投影（PR-2 批次 C1；对照 bridge.js:581-712 的同款管线） ----------
+
+  function emitResearchTaskUpdatesForSession(conversationId, tasks) {
+    const contexts = researchRunContexts.get(conversationId);
+    if (!contexts) return;
+    for (const context of contexts.values()) {
+      const matched = [];
+      for (const task of Array.isArray(tasks) ? tasks : []) {
+        if (!assignResearchSubagentTaskID(task, context)) continue;
+        matched.push(task);
+      }
+      const updates = projectResearchSubagentUpdates(
+        matched,
+        new Set(),
+        new Set(),
+        environment,
+        sessionProviderSecrets(conversationId),
+      );
+      for (const update of updates) {
+        update.id = context.workerTaskIDs.get(update.id) ?? update.id;
+      }
+      if (updates.length) {
+        emit(conversationId, "research_tasks", {
+          researchRunId: context.runId,
+          researchTasks: updates,
+        });
+      }
+    }
+  }
+
+  function emitSubagentTasksForSession(conversationId, tasks) {
+    const next = Array.isArray(tasks) ? tasks : [];
+    if (next.length) sessionSubagentTasks.set(conversationId, next);
+    else sessionSubagentTasks.delete(conversationId);
+    const secrets = sessionProviderSecrets(conversationId);
+    emit(conversationId, "subagent_tasks", {
+      subagentTasks: next.map(task => projectSubagentTaskForRenderer(task, environment, secrets)),
+    });
+    emitResearchTaskUpdatesForSession(conversationId, next);
+  }
+
+  /** C1：execute 精确收尾用的更新面（bridge.js emitSubagentTasks 的 updater 形状）。 */
+  function updateSubagentTasksForSession(conversationId, update) {
+    const current = sessionSubagentTasks.get(conversationId) ?? [];
+    emitSubagentTasksForSession(conversationId, update(current));
+  }
+
+  /**
+   * tool_execution_end 的 subagent roster 兜底（对照 bridge.js:1960-1993）。execute
+   * 正常收尾时已通过 updateSubagentTasks 给出精确行（status 非 start）；这里只把
+   * 仍处 start 态的行（execute 抛错/中断的场景）按内容投影收尾——从
+   * docs["pi.live"].tools[callId] 读 details（事件本体不带）。注：本轮最后一个
+   * 工具的 end 事件与 endRun 同提交，live.tools 可能已被清场，details 读不到时
+   * 按 content 兜底投影。
+   */
+  async function finalizeSubagentRoster(alias, event) {
+    const policy = sessionPolicies.get(alias);
+    const current = sessionSubagentTasks.get(alias) ?? [];
+    const owned = current.filter(task => (
+      task.toolCallId === event.toolCallId
+      && (task.status === "start" || task.status === "running")
+    ));
+    if (!owned.length) return;
+    const others = current.filter(task => (
+      task.toolCallId !== event.toolCallId
+      || (task.status !== "start" && task.status !== "running")
+    ));
+    const record = subagentCallRecords.get(event.toolCallId);
+    subagentCallRecords.delete(event.toolCallId);
+    const message = (event?.entry?.model ?? [])
+      .find(candidate => candidate?.role === "toolResult");
+    let details = undefined;
+    try {
+      const { handle } = await openRuntime();
+      const live = await handle.conversationLive(alias);
+      const slot = (live?.tools ?? []).find(slot => slot.callId === event.toolCallId);
+      details = slot?.details;
+    } catch {
+      // live 读取失败按无 details 收尾（content 兜底投影）。
+    }
+    const wrapped = projectSubagentToolResult({
+      content: message?.content,
+      details,
+      input: record?.args,
+      isError: Boolean(message?.isError),
+    }, {
+      workspace: policy?.workspace,
+      collaboration: policy?.codingCollaboration,
+      worktrees: policy?.codingCollaboration?.worktrees,
+      secrets: sessionProviderSecrets(alias),
+      environment,
+    });
+    const projected = projectSubagentRosterEnd(owned, wrapped, {
+      toolCallId: event.toolCallId,
+      durationMs: record?.startedAt === undefined
+        ? undefined
+        : Math.max(0, Date.now() - record.startedAt),
+      isError: Boolean(message?.isError),
+      secrets: sessionProviderSecrets(alias),
+      environment,
+    });
+    emitSubagentTasksForSession(alias, [...others, ...projected]);
   }
 
   // ---------- 事件管线 ----------
@@ -864,9 +1010,33 @@ export function createHarnessBridgeSessionLayer(context) {
     }
     if (event.type === "tool_execution_start") {
       record.pendingToolCalls = [...record.pendingToolCalls, event.toolCallId];
+      // C1：subagent 开场 roster（对照 bridge.js:1916-1928）——task 行形状由共享的
+      // projectSubagentRosterStart 保证，渲染器零改动。
+      if (event.toolName === codingCollaborationToolName) {
+        const policy = sessionPolicies.get(alias);
+        subagentCallRecords.set(event.toolCallId, {
+          args: event.args,
+          startedAt: Date.now(),
+        });
+        emitSubagentTasksForSession(alias, [
+          ...(sessionSubagentTasks.get(alias) ?? []),
+          ...projectSubagentRosterStart(event.args, {
+            toolCallId: event.toolCallId,
+            workspace: policy?.workspace,
+            worktrees: policy?.codingCollaboration?.worktrees,
+          }),
+        ]);
+      }
     }
     if (event.type === "tool_execution_end") {
       record.pendingToolCalls = record.pendingToolCalls.filter(id => id !== event.toolCallId);
+      if (event.toolName === codingCollaborationToolName) {
+        try {
+          await finalizeSubagentRoster(alias, event);
+        } catch (error) {
+          console.error("MilkSU harness subagent roster projection failed", error);
+        }
+      }
     }
     if (event.type === "message_end") {
       const message = event?.entry?.model?.[0];
@@ -1170,6 +1340,8 @@ export function createHarnessBridgeSessionLayer(context) {
     sessionSkillPaths.delete(alias);
     sessionMcpConfigs.delete(alias);
     sessionMcpFingerprints.delete(alias);
+    // PR-2 批次 C1：创建失败的清理也收掉子代理 child 登记。
+    subagentChildRegistry.forget(alias);
     try {
       await runtime?.mcpMount?.close(alias);
     } catch {
@@ -1385,6 +1557,17 @@ export function createHarnessBridgeSessionLayer(context) {
     reasoningOnlyRecovered.delete(alias);
     reasoningOnlyPreviousTools.delete(alias);
     await haltConversationSubagents(alias);
+    // PR-2 批次 C1：门开路径的子代理停止面——外部 CLI 受管进程树杀 + harness child
+    // 显式 abort 兜底（abortConversation 的级联已覆盖普通所有权范围；background
+    // 边界的 child 在这里补刀）。上面注入的 haltConversationSubagents 继续负责门关
+    // 异步 run 目录的 pid 面（对 harness 任务行无 asyncDir，天然 no-op）。
+    try {
+      const open = runtime;
+      if (open?.subagentHalt) await open.subagentHalt(alias);
+    } catch (error) {
+      console.error("MilkSU harness subagent halt failed", error);
+    }
+    subagentCallRecords.clear();
     try {
       await session?.abort();
     } catch {
@@ -1558,6 +1741,13 @@ export function createHarnessBridgeSessionLayer(context) {
     // 诊断/测试面。
     heartbeatState: () => runtime?.handle.heartbeatState(),
     lockState: () => runtime?.handle.lockState(),
+    /** C1：子代理 child 登记快照（控制动作/halt 的同一份进程内状态）。 */
+    subagentChildren: alias => subagentChildRegistry.list(alias),
+    /** C1/C2：适配层 handle（子会话转录/视图的原始观察面）。 */
+    async harnessHandle() {
+      const open = await openRuntime();
+      return open.handle;
+    },
     async conversationAgent(alias) {
       const open = await openRuntime();
       return open.handle.conversationAgent(alias);

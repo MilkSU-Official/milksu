@@ -816,6 +816,9 @@ export const mountedHarnessToolNames = Object.freeze([
   "milksu_imagegen",
   "milksu_archify",
   "capa_analyze",
+  // PR-2 批次 C1：子代理·协作工具面（harness-bridge-subagents.js；审批/校验在
+  // 审判链的 subagent 分支，挂上即生效）。
+  "subagent",
 ]);
 
 /** 供报告/测试引用的暂缓清单（门关 activeTools − mountedHarnessToolNames）。 */
