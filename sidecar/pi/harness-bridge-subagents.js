@@ -46,7 +46,8 @@
 //      configureAgentTools 同款语义告警后不挂载。
 //   4. schedule.*/mission.*/watchdog.*/doctor/validate/refine.show/lane.status/
 //      children.list 之外的 pi-subagents 专属管理面在门开路径返回明确的
-//      management 通告（异步路面归 C2）。
+//      management 通告（C2 已交付异步单发路面 subagent_async 四件；编排面
+//      schedule/mission/watchdog/workflow 仍暂缓）。
 //
 // replay 声明：`subagent` 整体 replay:"safe"——builtin 路靠所有权索引 + requestId
 // 幂等；外部 CLI 路靠 run 目录 status.json 的 pid 收养（崩溃重跑发现活着的受管
@@ -181,6 +182,9 @@ export function readBundledAgentDefinitions(environment = process.env) {
       description: String(fields.description ?? "").trim(),
       tools: Object.freeze(commaList(fields.tools)),
       thinking: String(fields.thinking ?? "").trim(),
+      // C2 增量：frontmatter model 字段（门关 KNOWN_FIELDS 之一；钉包 builtin 定义
+      // 本身不带 model，maiRecord 形态的自定义定义用它——工具 arg 覆写优先）。
+      model: String(fields.model ?? "").trim(),
       systemPromptMode: String(fields.systemPromptMode ?? "append").trim(),
       inheritProjectContext: String(fields.inheritProjectContext ?? "true").trim() !== "false",
       acceptanceRole: String(fields.acceptanceRole ?? "").trim(),
@@ -1763,7 +1767,7 @@ function emitSubagentRosterEnd(api, request, outcome) {
     if (deferredManagementActions.has(action)) {
       return managementResult([
         `MilkSU Harness runtime does not carry the pi-subagents "${action}" surface.`,
-        "The detached async lane (schedules, missions, watchdog, workflows) migrates in batch C2.",
+        "The async single-child lane ships in batch C2 (subagent_async tools); schedules, missions, watchdog and workflow orchestration remain deferred.",
       ]);
     }
     return managementResult([`MilkSU blocked subagent action "${action}"`]);

@@ -91,6 +91,12 @@ import {
   createSubagentChildRegistry,
   MILKSU_SUBAGENTS_EXTENSION,
 } from "./harness-bridge-subagents.js";
+import {
+  adoptSessionAsyncSubagents,
+  createHarnessSubagentAsyncHalt,
+  createMilksuSubagentsAsyncExtension,
+  expandHarnessSubagentAsyncToolNames,
+} from "./harness-bridge-subagents-async.js";
 import { enqueueConversationPrompt } from "./bridge-conversation-prompt.js";
 import { preparePromptAttachments } from "./bridge-attachments.js";
 import { withTurnHeartbeat } from "./bridge-turn-heartbeat.js";
@@ -238,6 +244,9 @@ export function createHarnessBridgeSessionLayer(context) {
   const subagentCallRecords = new Map();
   // C1：子代理 child 注册表（控制动作/外部 CLI halt 的进程内状态）。
   const subagentChildRegistry = createSubagentChildRegistry();
+  // C2：异步路面专用的 child 注册表（与 C1 协作路面分账：children.list/status 只见
+  // 各自面的 child；异步面的控制工具读 durable 真相，registry 只服务 roster/halt）。
+  const subagentAsyncChildRegistry = createSubagentChildRegistry();
   // 已告警过的缺失工具名（暂缓面只报一次，避免每次 send 刷屏）。
   const warnedMissingToolNames = new Set();
   // settings.compaction 的活快照：最近一次接线/提交的会话模型参数。
@@ -392,6 +401,27 @@ export function createHarnessBridgeSessionLayer(context) {
           subagentChildRegistry,
           () => runtime?.handle,
         );
+        // PR-2 批次 C2：子代理·异步路面（milksu-subagents-async：background anchor
+        // 任务拥有的 child 会话 + spawn/status/steer/stop 四件 + 完成通知回投；
+        // anchor 任务定义随扩展注册——崩溃重开后 pending/running 的 anchor 由
+        // 调度器续跑，定义缺位会 orphan，故本扩展与 C1 一样常驻安装）。
+        const subagentsAsyncExtension = createMilksuSubagentsAsyncExtension({
+          resolveConversation,
+          getPolicy: id => sessionPolicies.get(id),
+          getProjectInstructions: () => projectInstructionsText,
+          modelsCollection: () => models.models,
+          getHarnessHandle: () => runtime?.handle,
+          childRegistry: subagentAsyncChildRegistry,
+          updateSubagentTasks: updateSubagentTasksForSession,
+          environment,
+          // C2：anchor 侧效（registry/roster）只投给活会话——destroy 后迟到的 abort
+          // handler 不再翻新已清场的进程内面（durable 真相不受影响）。
+          isSessionActive: alias => sessions.has(alias),
+        });
+        const subagentAsyncHalt = createHarnessSubagentAsyncHalt(
+          subagentAsyncChildRegistry,
+          () => runtime?.handle,
+        );
         // B2b：milksu-prompt 段的提示贡献（tools/rules 段按 snippet/guideline 渲染）。
         // 编码工具来自上面的定义构造器；LSP/MCP 是钉版字符串（pi-lsp.ts:53/113、
         // pi-mcp-adapter index.ts:2061——两个包的工具定义都不导出）；B2c 的 web
@@ -402,11 +432,13 @@ export function createHarnessBridgeSessionLayer(context) {
           ["mcp", MILKSU_MCP_PROMPT_SNIPPET],
           ...(dailyTools.promptContributions?.snippets ?? []),
           ...(subagentsExtension.promptContributions?.snippets ?? []),
+          ...(subagentsAsyncExtension.promptContributions?.snippets ?? []),
         ]);
         const promptGuidelines = new Map([
           ...(codingTools.promptContributions?.guidelines ?? []),
           ...Object.entries(LSP_PROMPT_CONTRIBUTIONS.guidelines),
           ...(subagentsExtension.promptContributions?.guidelines ?? []),
+          ...(subagentsAsyncExtension.promptContributions?.guidelines ?? []),
         ]);
         const promptSections = createMilksuPromptSectionsExtension({
           projectInstructionsFor: () => projectInstructionsText,
@@ -442,6 +474,7 @@ export function createHarnessBridgeSessionLayer(context) {
         registry.install(dailyTools);
         registry.install(securityToolsMount);
         registry.install(subagentsExtension);
+        registry.install(subagentsAsyncExtension);
         registry.install(core);
         if (typeof installRegistryExtensions === "function") {
           await installRegistryExtensions(registry, { models: models.models });
@@ -458,7 +491,7 @@ export function createHarnessBridgeSessionLayer(context) {
           env: ({ cwd }) => new NodeExecutionEnv({ cwd: cwd ?? process.cwd() }),
           ...harnessRuntimeOptions(),
         });
-        return { handle, models, registry, mcpMount, subagentHalt };
+        return { handle, models, registry, mcpMount, subagentHalt, subagentAsyncHalt };
       })();
       runtimeOpening.catch(() => {
         runtimeOpening = undefined;
@@ -501,12 +534,16 @@ export function createHarnessBridgeSessionLayer(context) {
 
   async function configureAgentTools(alias, names) {
     const { handle, registry } = await openRuntime();
+    // PR-2 批次 C2：policy.activeTools 含 subagent（subagentAvailable 派生）时一并
+    // 挂异步路面四件；受限清单（turn contract 的无工具回合等）不含 subagent 即
+    // 不扩——门关共享的 bridge-policy 派生面不动。
+    const requested = expandHarnessSubagentAsyncToolNames(names);
     const byName = new Map(
       registry.snapshot().tools().map(entry => [entry.tool.name, entry.tool]),
     );
     const tools = [];
     const missing = [];
-    for (const name of [...new Set(names ?? [])]) {
+    for (const name of [...new Set(requested ?? [])]) {
       const tool = byName.get(String(name));
       if (tool) tools.push(tool);
       else missing.push(String(name));
@@ -749,6 +786,36 @@ export function createHarnessBridgeSessionLayer(context) {
       environment,
     });
     emitSubagentTasksForSession(alias, [...others, ...projected]);
+  }
+
+  /**
+   * C2：subagent_async 的收尾兜底——只处理仍处 start 态的行（execute 抛错/中断：
+   * 校验/模型串解析失败等，对照 C1 finalizeSubagentRoster 的兜底场景）。正常路径
+   * 的行（async 收据 running / 前台终态 / anchor 终态）由 execute 与 anchor 的
+   * upsert 给出，不走这里。
+   */
+  async function finalizeAsyncSubagentRoster(alias, event) {
+    const current = sessionSubagentTasks.get(alias) ?? [];
+    const owned = current.filter(task => (
+      task.toolCallId === event.toolCallId && task.status === "start"
+    ));
+    if (!owned.length) return;
+    const others = current.filter(task => (
+      task.toolCallId !== event.toolCallId || task.status !== "start"
+    ));
+    const message = (event?.entry?.model ?? [])
+      .find(candidate => candidate?.role === "toolResult");
+    const content = Array.isArray(message?.content)
+      ? message.content
+        .filter(block => block?.type === "text")
+        .map(block => String(block?.text ?? ""))
+        .join("\n")
+        : String(message?.content ?? "");
+    const summary = (content || "Async subagent launch failed.").replace(/\s+/g, " ").slice(0, 240);
+    emitSubagentTasksForSession(alias, [
+      ...others,
+      ...owned.map(task => ({ ...task, status: "failed", exitCode: 1, summary })),
+    ]);
   }
 
   // ---------- 事件管线 ----------
@@ -1027,6 +1094,23 @@ export function createHarnessBridgeSessionLayer(context) {
           }),
         ]);
       }
+      // C2：subagent_async 开场 roster（同款共享行形状；execute 里的登记行带
+      // runId/conversationId，按 toolCallId upsert 覆盖此占位行）。
+      if (event.toolName === "subagent_async") {
+        const policy = sessionPolicies.get(alias);
+        subagentCallRecords.set(event.toolCallId, {
+          args: event.args,
+          startedAt: Date.now(),
+        });
+        emitSubagentTasksForSession(alias, [
+          ...(sessionSubagentTasks.get(alias) ?? []),
+          ...projectSubagentRosterStart(event.args, {
+            toolCallId: event.toolCallId,
+            workspace: policy?.workspace,
+            worktrees: policy?.codingCollaboration?.worktrees,
+          }),
+        ]);
+      }
     }
     if (event.type === "tool_execution_end") {
       record.pendingToolCalls = record.pendingToolCalls.filter(id => id !== event.toolCallId);
@@ -1035,6 +1119,17 @@ export function createHarnessBridgeSessionLayer(context) {
           await finalizeSubagentRoster(alias, event);
         } catch (error) {
           console.error("MilkSU harness subagent roster projection failed", error);
+        }
+      }
+      // C2：subagent_async 收尾 roster——async 收据/终态行由 execute/anchor 的
+      // upsert 覆盖；这里只把仍处 start 态的行（execute 抛错/中断的场景）按失败
+      // 收尾，避免悬挂的 start 行（对照 C1 finalizeSubagentRoster 的兜底语义，
+      // 但不重投影已收尾行——前台结果的 yield 重投影会造重复行）。
+      if (event.toolName === "subagent_async") {
+        try {
+          await finalizeAsyncSubagentRoster(alias, event);
+        } catch (error) {
+          console.error("MilkSU harness async subagent roster projection failed", error);
         }
       }
     }
@@ -1293,6 +1388,16 @@ export function createHarnessBridgeSessionLayer(context) {
       // 配置次序对齐旧 createSession：policy → 模型 → 工具面 → 事件订阅 → ready。
       await wireConversationModel(command);
       const tools = await configureAgentTools(alias, sessionPolicy.activeTools);
+      // PR-2 批次 C2：按 durable 真相重建异步路面进程内面——崩溃重开后飞行中的
+      // anchor run 恢复 running 行（调度器续跑 anchor，完成时按 toolCallId upsert
+      // 终态行），已终态的 run 恢复终态行。无 anchor 的会话为 no-op。
+      await adoptSessionAsyncSubagents({
+        handle,
+        durableConversationId: record.durableId,
+        alias,
+        childRegistry: subagentAsyncChildRegistry,
+        updateSubagentTasks: updateSubagentTasksForSession,
+      });
       const agent = await handle.conversationAgent(alias);
       record.agentTools = [...(agent?.tools ?? [])];
       record.stream = await subscribeHarnessEvents(alias);
@@ -1342,6 +1447,7 @@ export function createHarnessBridgeSessionLayer(context) {
     sessionMcpFingerprints.delete(alias);
     // PR-2 批次 C1：创建失败的清理也收掉子代理 child 登记。
     subagentChildRegistry.forget(alias);
+    subagentAsyncChildRegistry.forget(alias);
     try {
       await runtime?.mcpMount?.close(alias);
     } catch {
@@ -1567,6 +1673,15 @@ export function createHarnessBridgeSessionLayer(context) {
     } catch (error) {
       console.error("MilkSU harness subagent halt failed", error);
     }
+    // PR-2 批次 C2：异步路面收场——background anchor 不随父会话 abort 级联，这里
+    // 显式 abortTask（child 子树自底向上收场后 anchor 终态落盘；对应门关
+    // destroySession 杀 async runner 进程的面）。
+    try {
+      const open = runtime;
+      if (open?.subagentAsyncHalt) await open.subagentAsyncHalt(alias);
+    } catch (error) {
+      console.error("MilkSU harness async subagent halt failed", error);
+    }
     subagentCallRecords.clear();
     try {
       await session?.abort();
@@ -1594,6 +1709,11 @@ export function createHarnessBridgeSessionLayer(context) {
     sessionSkillPaths.delete(alias);
     sessionMcpConfigs.delete(alias);
     sessionMcpFingerprints.delete(alias);
+    // PR-2 批次 C2：终扫子代理注册表——halt 之后才落地的 anchor abort handler 侧效
+    //（registry/roster）可能在 halt 的 forget 之后再次登记；sessions 已删，此后
+    // isSessionActive=false 侧效自抑制，这里做最终清场。
+    subagentChildRegistry.forget(alias);
+    subagentAsyncChildRegistry.forget(alias);
     // B2b：收掉本会话的 MCP 连接（lazy 服务器一般已关，这里兜底 idle 窗口内的
     // 常驻连接与清扫定时器）。
     try {
@@ -1743,6 +1863,9 @@ export function createHarnessBridgeSessionLayer(context) {
     lockState: () => runtime?.handle.lockState(),
     /** C1：子代理 child 登记快照（控制动作/halt 的同一份进程内状态）。 */
     subagentChildren: alias => subagentChildRegistry.list(alias),
+    /** C2：异步路面 child 登记快照（anchor 级联 halt 的进程内状态；durable 真相
+     *  以 anchor 任务记录为准，此处为 roster/halt 优化面）。 */
+    subagentAsyncChildren: alias => subagentAsyncChildRegistry.list(alias),
     /** C1/C2：适配层 handle（子会话转录/视图的原始观察面）。 */
     async harnessHandle() {
       const open = await openRuntime();

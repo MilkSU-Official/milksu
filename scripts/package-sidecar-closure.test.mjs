@@ -379,6 +379,39 @@ test('chat bridge bundle inlines the batch C1 subagent tool surface', async () =
   }
 })
 
+// PR-2 批次 C2：子代理·异步路面（milksu-subagents-async：background anchor 任务
+// 拥有的 child 会话 + spawn/status/steer/stop 四件 + 完成通知回投）必须真的进
+// bundle：扩展名、anchor 任务 kind、工具名、requestId 幂等前缀、通知文案头、
+// background 边界与 abortTask 收场面全部内联。
+test('chat bridge bundle inlines the batch C2 async subagent surface', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'milksu-chat-bridge-c2-bundle-'))
+  try {
+    const outfile = join(root, 'chat-bridge.cjs')
+    await bundleChatBridge(outfile)
+    const bundle = await readFile(outfile, 'utf8')
+    // 异步路面扩展（registry.install 的挂载目标；anchor 任务定义随扩展注册）。
+    assert.ok(bundle.includes('milksu-subagents-async'), 'the async subagents extension must ship')
+    // anchor 任务 kind（scanTasks 按 kind 过滤的 durable 真相面）。
+    assert.ok(bundle.includes('milksu-subagent-anchor'), 'the anchor task kind must ship')
+    // 四件工具名。
+    for (const name of ['subagent_async', 'subagent_async_status', 'subagent_async_steer', 'subagent_async_stop']) {
+      assert.ok(bundle.includes(`"${name}"`), `the ${name} tool must ship`)
+    }
+    // requestId 幂等前缀（child 提交/完成通知/steer 投递）。
+    assert.ok(bundle.includes('subagent-async:'), 'the idempotent child requestId prefix must ship')
+    assert.ok(bundle.includes('subagent-async-notify:'), 'the idempotent notification requestId prefix must ship')
+    // 收据与完成通知的文案面（门关 formatAsyncStartedMessage/notify.js 的同形回投；
+    // 通知头是模板串，钉住前缀与收据指引的稳定字面量）。
+    assert.ok(bundle.includes('Background task '), 'the completion notification header prefix must ship')
+    assert.ok(bundle.includes('The async run is detached'), 'the async receipt guidance must ship')
+    // background anchor 边界 + stop/destroy 的 abortTask 收场面。
+    assert.ok(bundle.includes('background: true'), 'the background anchor boundary must ship')
+    assert.ok(bundle.includes('abortTask'), 'the stop/abort surface must ship')
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
 // PR-2 批次 B2b：MCP 挂载（单 mcp 代理工具 + SDK 连接管理）与 Pi 默认系统提示段
 // 必须真的进 bundle：@modelcontextprotocol/client 无 externals 全量内联
 //（bridge.js → harness-bridge-session → harness-bridge-mcp / harness-bridge-tools

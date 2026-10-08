@@ -819,6 +819,13 @@ export const mountedHarnessToolNames = Object.freeze([
   // PR-2 批次 C1：子代理·协作工具面（harness-bridge-subagents.js；审批/校验在
   // 审判链的 subagent 分支，挂上即生效）。
   "subagent",
+  // PR-2 批次 C2：子代理·异步路面（harness-bridge-subagents-async.js；门关
+  // activeTools 不含这四件——门开在 policy 含 subagent 时经
+  // expandHarnessSubagentAsyncToolNames 扩展挂载；审批/研究隔离在审判链同款分支）。
+  "subagent_async",
+  "subagent_async_status",
+  "subagent_async_steer",
+  "subagent_async_stop",
 ]);
 
 /** 供报告/测试引用的暂缓清单（门关 activeTools − mountedHarnessToolNames）。 */

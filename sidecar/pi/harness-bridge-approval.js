@@ -52,6 +52,10 @@ import {
 import { authorizeImageGenToolCall } from "./bridge-imagegen.js";
 import { codingCollaborationToolName, formatSubagentApproval, validateSubagentInput } from "./bridge-collaboration.js";
 import {
+  expandHarnessSubagentAsyncToolNames,
+  MILKSU_SUBAGENT_ASYNC_TOOL_NAMES,
+} from "./harness-bridge-subagents-async.js";
+import {
   browserUseMcpServerName,
   codingBrowserEvidenceFileBlockReason,
   codingBrowserMcpServerName,
@@ -67,6 +71,10 @@ import { toolBudgetPrompt, toolBudgetToolName } from "./bridge-tool-repeat.js";
 const approvalRequiredCodingTools = new Set(["bash", "edit", "write"]);
 // bridge.js:721-730 的后台任务效果判定拷贝（同上）。
 const backgroundEffectfulActions = new Set(["spawn", "watch", "stop", "clear"]);
+// PR-2 批次 C2：异步子代理路面的工具名与挂载扩展（纯常量/纯函数导入——扩展
+// 构造器仍不进判定链；门开在 policy 含 subagent 时经 expandHarnessSubagentAsyncToolNames
+// 把这四件并入挂载面，审判链的白名单/审批对它们同判）。
+const harnessSubagentAsyncToolNames = new Set(MILKSU_SUBAGENT_ASYNC_TOOL_NAMES);
 
 function backgroundToolAction(toolName, input) {
   if (toolName !== "bg_task" && toolName !== "bg_status") return "";
@@ -133,8 +141,10 @@ export function createHarnessBeforeToolJudge(context) {
         block: "MilkSU blocked Agent tools for this explicitly no-tools turn",
       };
     }
-    // bridge.js:954-960 —— activeTools 白名单 → block。
-    if (!policy.activeTools.includes(event.toolName)) {
+    // bridge.js:954-960 —— activeTools 白名单 → block。C2：门开的异步路面四件经
+    // expandHarnessSubagentAsyncToolNames 并入挂载面（policy.activeTools 的门关
+    // 派生面不含它们），白名单按同一扩展判定。
+    if (!expandHarnessSubagentAsyncToolNames(policy.activeTools).includes(event.toolName)) {
       return {
         block: `MilkSU Coding policy blocked ${event.toolName}: `
         + `${policy.executionMode}/${policy.approvalPolicy}`,
@@ -269,6 +279,72 @@ export function createHarnessBeforeToolJudge(context) {
             policy.codingCollaboration,
             policy.workspace,
           ), environment, providerSecrets(conversationId)),
+          input: truncateValue(JSON.stringify(redactResearchText(
+            event.input ?? {},
+            environment,
+            providerSecrets(conversationId),
+          ), null, 2), 16000),
+          grantKey: codingCollaborationToolName,
+        });
+        if (!approved) {
+          return { block: "MilkSU user denied subagent delegation" };
+        }
+      }
+    }
+    // PR-2 批次 C2 —— 异步子代理路面（subagent_async 四件）：与 C1 的 subagent 分支
+    // 同一套门关判定语义——校验（spawn 形状走 validateSubagentInput 共享契约；外部
+    // CLI 角色直拒指路 C1 工具，不弹无谓审批）+ 研究隔离 + ask 档逐次审批
+    //（grantKey 共用 subagent：门关单工具单 grant 的会话档复用语义）。
+    if (harnessSubagentAsyncToolNames.has(event.toolName)) {
+      const isSpawn = event.toolName === "subagent_async";
+      if (isSpawn) {
+        let asyncRequest;
+        try {
+          asyncRequest = validateSubagentInput(
+            event.input,
+            policy.codingCollaboration,
+            policy.workspace,
+          );
+        } catch (error) {
+          return {
+            block: error instanceof Error ? error.message : String(error),
+          };
+        }
+        if (asyncRequest.externalCli) {
+          return {
+            block: "MilkSU runs external CLI agents through the subagent tool (foreground); subagent_async spawns harness child conversations only",
+          };
+        }
+      }
+      const researchBlockReason = researchSubagentBlockReason(
+        conversationId,
+        // 控制三件按等价 action 形状过研究隔离（research 只放行 list/status/get）。
+        isSpawn ? event.input : { action: event.toolName === "subagent_async_status" ? "status" : "steer" },
+        event.toolCallId,
+      );
+      if (researchBlockReason) {
+        return { block: researchBlockReason };
+      }
+      if (
+        subagentCallRequiresApproval(
+          false,
+          policy.approvalPolicy,
+        )
+      ) {
+        const approved = await approvalBroker.request({
+          conversationId,
+          toolName: event.toolName,
+          content: redactResearchText(
+            isSpawn
+              ? formatSubagentApproval(
+                event.input,
+                policy.codingCollaboration,
+                policy.workspace,
+              )
+              : `${event.toolName} · ${String(event.input?.id ?? "").trim()}`,
+            environment,
+            providerSecrets(conversationId),
+          ),
           input: truncateValue(JSON.stringify(redactResearchText(
             event.input ?? {},
             environment,

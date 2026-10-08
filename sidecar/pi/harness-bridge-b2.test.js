@@ -91,6 +91,13 @@ test("ready.tools mounts the full B2 surface in Go mode with the deferred set ex
       // PR-2 批次 C1：subagent 进门关 go 档 activeTools（bridge-policy.js:1562），
       // 注册表已挂载 milksu-subagents，按 activeTools 次序排在最后。
       "subagent",
+      // PR-2 批次 C2：policy 含 subagent 时门开经 expandHarnessSubagentAsyncToolNames
+      // 并入异步路面四件（configureAgentTools 的扩展挂载；门关 activeTools 不含
+      // 它们——门开面更宽，如实上报）。
+      "subagent_async",
+      "subagent_async_status",
+      "subagent_async_steer",
+      "subagent_async_stop",
     ];
     assert.deepEqual(ready.tools, expectedMounted,
       "gate-open offers every mounted tool in gate-closed order");
@@ -102,7 +109,9 @@ test("ready.tools mounts the full B2 surface in Go mode with the deferred set ex
         "milksu-prompt", "milksu-coding-tools", "milksu-lsp", "milksu-skills",
         "milksu-mcp", "milksu-daily-tools", "milksu-security-tools",
         // PR-2 批次 C1：子代理·协作工具面（milksu-core 前安装）。
-        "milksu-subagents", "milksu-core",
+        "milksu-subagents",
+        // PR-2 批次 C2：子代理·异步路面（anchor 任务定义随扩展注册）。
+        "milksu-subagents-async", "milksu-core",
       ],
       "the registry reports the mounted extensions",
     );
