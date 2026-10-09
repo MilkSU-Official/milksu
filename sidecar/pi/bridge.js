@@ -222,6 +222,15 @@ import {
   createHarnessBridgeSessionLayer,
   MILKSU_HARNESS_SESSION_KIND,
 } from "./harness-bridge-session.js";
+// PR-2 批次 D1：旧 JSONL 归档查询/导出面（manifest 读取与门无关；按需导入的触发面
+// 留给 D2 接 UI，桥上先接查询与导出两个命令）。
+import { resolveHarnessAgentDir } from "./harness-adapter.js";
+import {
+  archivedSessionSummary,
+  exportLegacySessions,
+  findArchivedSession,
+  readArchiveManifest,
+} from "./harness-archive.js";
 
 const {
   currentProviderDefinition,
@@ -3260,6 +3269,66 @@ async function handleDecisionQuery(command) {
   });
 }
 
+// PR-2 批次 D1：旧 JSONL 归档的桥上查询/导出命令（Q1 归档保底 + 按需续命）。
+//
+// archive_query  →  emit "archive_status"：判断某 conversationId 是否归档旧会话、
+//                   是否已导入（门开时经 harness 层查别名；门关时 manifest 只读）。
+//                   D2 的 UI 触发面靠它决定「只读历史」还是「导入续聊」。
+// archive_export →  emit "archive_exported"：一次性全量归档（幂等，SHA-256 判等；
+//                   只读 <agentDir>/sessions 源，写入只在 <agentDir>/archive 下）。
+async function handleArchiveQuery(command) {
+  const conversationId = String(command?.conversationId ?? "").trim();
+  const requestId = String(command?.id ?? "").trim();
+  try {
+    let info;
+    if (isPiHarnessEnabled()) {
+      info = await harnessLayer().archivedConversationInfo(conversationId);
+    } else {
+      const manifest = await readArchiveManifest(resolveHarnessAgentDir());
+      const entry = findArchivedSession(manifest, conversationId);
+      info = { archived: Boolean(entry), imported: false, entry: entry ?? null };
+    }
+    emit(conversationId || null, "archive_status", {
+      id: requestId,
+      conversationId,
+      archived: info.archived === true,
+      imported: info.imported === true,
+      entry: archivedSessionSummary(info.entry),
+    });
+  } catch (error) {
+    emit(conversationId || null, "archive_status", {
+      id: requestId,
+      conversationId,
+      error: describeError(error),
+    });
+  }
+}
+
+async function handleArchiveExport(command) {
+  const conversationId = String(command?.conversationId ?? "").trim();
+  const requestId = String(command?.id ?? "").trim();
+  try {
+    const result = isPiHarnessEnabled()
+      ? await harnessLayer().exportLegacyArchive()
+      : await exportLegacySessions({ agentDir: resolveHarnessAgentDir() });
+    emit(conversationId || null, "archive_exported", {
+      id: requestId,
+      archiveDir: result.archiveDir,
+      sessionCount: result.manifest.sessions.length,
+      copiedCount: result.copied.length,
+      skippedCount: result.skipped.length,
+      versionedCount: result.versioned.length,
+      manifestWritten: result.manifestWritten === true,
+    });
+  } catch (error) {
+    emit(conversationId || null, "archive_exported", {
+      id: requestId,
+      conversationId,
+      error: describeError(error),
+    });
+  }
+}
+
 async function cancelResearchRunCommand(command) {
   const conversationId = String(command.conversationId ?? "").trim();
   const runId = String(command.runId ?? "").trim();
@@ -3320,6 +3389,14 @@ async function handleCommand(command) {
       // 决策层主模型兜底：后端问这条会话的主模型一个轻量问题，不另开
       // 内核、不在当轮顺口识别，答案原样回给后端解析。
       void handleDecisionQuery(command);
+      break;
+    case "archive_query":
+      // PR-2 批次 D1：归档会话查询面（判断 conversationId 是否归档旧会话）。
+      void handleArchiveQuery(command);
+      break;
+    case "archive_export":
+      // PR-2 批次 D1：一次性全量归档旧 JSONL（幂等；Q1 归档保底）。
+      void handleArchiveExport(command);
       break;
     case "send_message":
       await sendMessage(command);

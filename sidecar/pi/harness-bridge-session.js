@@ -119,6 +119,15 @@ import {
   readPiBackgroundTaskLog,
 } from "./reviewed-ts/extensions.js";
 import { enqueueConversationPrompt } from "./bridge-conversation-prompt.js";
+// PR-2 批次 D1：旧 JSONL 归档（导出器 + manifest 查询面 + 按需导入器；Q1 归档保底
+// + 按需续命）。转换映射与原子纪律见 harness-archive.js 文件头。
+import {
+  exportLegacySessions,
+  findArchivedSession,
+  importLegacySessionIntoHarness,
+  readArchiveManifest,
+  resolveHarnessArchiveDirectory,
+} from "./harness-archive.js";
 import { preparePromptAttachments } from "./bridge-attachments.js";
 import { withTurnHeartbeat } from "./bridge-turn-heartbeat.js";
 import { normalizeCodingTurnContract, withCodingTurnContract } from "./bridge-turn-contract.js";
@@ -2097,6 +2106,60 @@ export function createHarnessBridgeSessionLayer(context) {
     }
   }
 
+  // ---------- PR-2 批次 D1：旧 JSONL 归档面（导出器触发 + 查询面 + 按需导入器） ----------
+  //
+  // 触发面留给 D2 接 UI：桌面在门开路径打开「归档中的旧会话」要续聊时，先
+  // archivedConversationInfo 判断（bridge 侧 archive_query 命令），再
+  // importArchivedConversation 导入副本（D2 的 UI 触发点；导入后走既有 createSession
+  // 即可拿到会话对象/事件订阅/ready）。exportLegacyArchive 对应 bridge 侧
+  // archive_export 命令（Q1 的一次性全量归档；幂等，重复跑按 SHA-256 判等跳过）。
+
+  /** 归档查询面：conversationId 是否归档旧会话、是否已导入（别名已登记）。 */
+  async function archivedConversationInfo(alias) {
+    const id = String(alias ?? "").trim();
+    if (!id) throw new Error("conversationId is required");
+    const agentDir = resolveAgentDirectory();
+    const manifest = await readArchiveManifest(agentDir);
+    const entry = findArchivedSession(manifest, id);
+    if (!entry) return { archived: false, imported: false, entry: null };
+    // imported：已开会的 harness 会话直接可判；未见过的 id 才需要开 runtime 查别名。
+    const active = sessions.get(id);
+    if (active?.kind === MILKSU_HARNESS_SESSION_KIND) {
+      return { archived: true, imported: true, entry };
+    }
+    const { handle } = await openRuntime();
+    const conversation = await handle.conversation(id);
+    return { archived: true, imported: conversation !== undefined, entry };
+  }
+
+  /**
+   * 按需导入器（Q1 按需续命）：把归档旧会话按 leaf 路径转成 Harness Conversation
+   * 副本。导入只建 durable 会话与转录（含 pi.agent 的 §6-A 有效模型推导）；会话
+   * 对象/事件订阅由随后的 createSession 照常补齐（D2 触发面）。重导幂等。
+   */
+  async function importArchivedConversation(alias) {
+    const id = String(alias ?? "").trim();
+    if (!id) throw new Error("conversationId is required");
+    const agentDir = resolveAgentDirectory();
+    const manifest = await readArchiveManifest(agentDir);
+    const entry = findArchivedSession(manifest, id);
+    if (!entry) {
+      throw new Error(`conversation ${id} is not in the MilkSU archive`);
+    }
+    const { handle } = await openRuntime();
+    return importLegacySessionIntoHarness({
+      harness: handle.harness,
+      alias: id,
+      archiveDir: resolveHarnessArchiveDirectory(agentDir),
+      entry,
+    });
+  }
+
+  /** 一次性全量归档（Q1）：幂等；源目录只读，写入只在 <agentDir>/archive 下。 */
+  async function exportLegacyArchive() {
+    return exportLegacySessions({ agentDir: resolveAgentDirectory() });
+  }
+
   /**
    * 决策层主模型兜底（decision/query.js answerDecisionQuery）的门开实现：门关走
    * session.modelRuntime.completeSimple（pi-coding-agent ModelRuntime），门开用同一
@@ -2140,6 +2203,10 @@ export function createHarnessBridgeSessionLayer(context) {
     disposeAll,
     isHarnessConversation,
     decisionQuery,
+    // PR-2 批次 D1：旧 JSONL 归档面（触发面留给 D2 接 UI；见上「批次 D1」注释块）。
+    archivedConversationInfo,
+    importArchivedConversation,
+    exportLegacyArchive,
     // 诊断/测试面。
     heartbeatState: () => runtime?.handle.heartbeatState(),
     lockState: () => runtime?.handle.lockState(),

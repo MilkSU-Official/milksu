@@ -546,6 +546,52 @@ test('chat bridge bundle inlines the batch B2f computer-use window tools', async
   }
 })
 
+// PR-2 批次 D1：旧 JSONL 归档面（harness-archive：一次性全量导出器 + manifest 查询面 +
+// 按需导入器）必须真的进 bundle：归档 manifest 常量、milksu.custom 记账 kind、保底类
+// 型 customType 前缀、桥上两个命令与事件、导入拒绝文案、旧引擎上下文投影函数
+//（sessionEntryToContextMessages/convertToLlm——转换逐字节沿用旧引擎的构造保证）、压
+// 缩/分支摘要包装字面量（经旧引擎函数内联进 bundle）全部在内。
+test('chat bridge bundle inlines the batch D1 legacy archive surface', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'milksu-chat-bridge-d1-bundle-'))
+  try {
+    const outfile = join(root, 'chat-bridge.cjs')
+    await bundleChatBridge(outfile)
+    const bundle = await readFile(outfile, 'utf8')
+    // 归档 manifest（PREP §3.6：conversationId↔文件↔SHA-256↔分型条目数↔leaf 路径↔
+    // 废弃分支清单）。
+    assert.ok(bundle.includes('manifest.json'), 'the archive manifest file name must ship')
+    // milksu.custom 记账 kind（s7 验证的映射）+ 保底类型 customType 前缀。
+    assert.ok(bundle.includes('milksu.custom'), 'the milksu.custom bookkeeping kind must ship')
+    assert.ok(bundle.includes('milksu-legacy-'), 'the legacy fallback customType prefix must ship')
+    for (const marker of ['milksu-legacy-model-change', 'milksu-legacy-usage', 'milksu-legacy-context-edit', 'milksu-legacy-branch-summary']) {
+      assert.ok(bundle.includes(marker), `the ${marker} fallback type must ship`)
+    }
+    // 桥上命令与事件（查询面 + 一次性导出触发面）。
+    assert.ok(bundle.includes('archive_query'), 'the archive_query command must ship')
+    assert.ok(bundle.includes('archive_export'), 'the archive_export command must ship')
+    assert.ok(bundle.includes('archive_status'), 'the archive_status event must ship')
+    assert.ok(bundle.includes('archive_exported'), 'the archive_exported event must ship')
+    // 导入器的防御文案（SHA 不符拒导 / 未归档拒导）。
+    assert.ok(bundle.includes('refusing to import'), 'the corrupted-archive refusal must ship')
+    assert.ok(bundle.includes('is not in the MilkSU archive'), 'the not-archived refusal must ship')
+    // 旧引擎上下文投影函数（转换等价性由构造保证的根基）与压缩摘要包装字面量。
+    assert.ok(bundle.includes('sessionEntryToContextMessages'), 'the old-engine projection must ship')
+    assert.ok(bundle.includes('convertToLlm'), 'the old-engine LLM transform must ship')
+    assert.ok(
+      bundle.includes('The conversation history before this point was compacted into the following summary'),
+      'the compaction summary wrapper (byte-identical across engines, REHEARSAL §6-B) must ship',
+    )
+    assert.ok(
+      bundle.includes('The following is a summary of a branch that this conversation came back from'),
+      'the branch summary wrapper must ship',
+    )
+    // §6-A 有效模型推导的落点：别名家族（会话创建+登记同一 commit）。
+    assert.ok(bundle.includes('milksu.conversation-index'), 'the conversation alias family must ship')
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
 test('Pi closure ships only the target platform esbuild binary', async () => {  const fixture = await createPackageFixture()
   try {
     const platform = currentPlatform()

@@ -67,7 +67,9 @@ export function harnessLockPath(agentDir) {
 
 export const CONVERSATION_INDEX_DOC_KIND = "milksu.conversation-index";
 
-const ConversationIndex = defineDocFamily({
+// PR-2 批次 D1：ConversationIndex token 供 harness-archive 的导入器复用（别名登记
+// 与会话创建同一 commit 的原子纪律收口在同一份 token 上）。
+export const ConversationIndex = defineDocFamily({
   kind: CONVERSATION_INDEX_DOC_KIND,
   version: 1,
   scope: "session",
