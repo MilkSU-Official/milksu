@@ -78,12 +78,12 @@ test("ready.tools mounts the full B2 surface in Go mode with the deferred set ex
     // B2c 起 ask/progress/workspace/imagegen/archify/web 两件已挂载；C1 起 subagent
     // 已挂载（harness-bridge-subagents）；B2d 起 bg 两件已挂载
     //（harness-bridge-background-tasks，按 codingWorkspaceAutoToolNames 原位出现）；
-    // 剩余暂缓面是 goal（B2d）与 computer_use 两件（B2d）。
+    // B2e 起 goal 两件已挂载（harness-bridge-goal，coding 两清单本就含两件）；
+    // 剩余暂缓面是 computer_use 两件（下一票）。
     const expectedMounted = [
       ...codingWorkspaceAutoToolNames
         .filter(name => ![
           "prepare_computer_use_driver", "computer_use",
-          "goal_complete", "goal_blocked",
           // 本夹具未配置 ImageGen（imageGenConfigured=false）：门关同样不会把
           // milksu_imagegen 放进 activeTools（bridge-policy.js:1539）。
           "milksu_imagegen",
@@ -113,7 +113,9 @@ test("ready.tools mounts the full B2 surface in Go mode with the deferred set ex
         // PR-2 批次 C2：子代理·异步路面（anchor 任务定义随扩展注册）。
         "milksu-subagents-async",
         // PR-2 批次 B2d：后台任务面（anchor 任务定义随扩展注册）。
-        "milksu-background-tasks", "milksu-core",
+        "milksu-background-tasks",
+        // PR-2 批次 B2e：goal 自主续跑状态机（milksu-core 前安装）。
+        "milksu-goal", "milksu-core",
       ],
       "the registry reports the mounted extensions",
     );
@@ -133,8 +135,11 @@ test("plan mode keeps the read-only surface mounted", async () => {
       [
         "read", "grep", "find", "ls", "bg_status", "milksu_progress", "milksu_ask",
         "milksu_workspace", "lsp_diagnostics", "web_search", "web_fetch",
+        // PR-2 批次 B2e：goal 两件在 codingReadOnlyToolNames 本就包含
+        //（bridge-coding-policy.js:15），B2e 起已挂载（harness-bridge-goal）。
+        "goal_complete", "goal_blocked",
       ],
-      "plan sessions expose the mounted read-only subset (B2c daily tools + B2d bg_status included)",
+      "plan sessions expose the mounted read-only subset (B2c daily tools + B2d bg_status + B2e goal tools included)",
     );
     assert.equal(codingReadOnlyToolNames.includes("lsp_fix"), false);
     assert.equal(codingReadOnlyToolNames.includes("bg_task"), false,

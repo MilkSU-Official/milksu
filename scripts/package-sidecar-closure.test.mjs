@@ -446,6 +446,41 @@ test('chat bridge bundle inlines the batch B2b MCP mount and prompt sections', a
   }
 })
 
+// PR-2 批次 B2e：goal 自主续跑状态机（milksu-goal：goal_complete/goal_blocked 两件 +
+// milksu-goal 系统提示段 + tool_call 守卫 hook + Conversation Document 状态真相 +
+// run_end 观察门的 follow-up 续跑）必须真的进 bundle：扩展名、doc kind、工具名、
+// requestId 幂等前缀、守卫文案、状态机文案锚点全部内联。
+test('chat bridge bundle inlines the batch B2e goal continuation state machine', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'milksu-chat-bridge-b2e-bundle-'))
+  try {
+    const outfile = join(root, 'chat-bridge.cjs')
+    await bundleChatBridge(outfile)
+    const bundle = await readFile(outfile, 'utf8')
+    // 扩展名（registry.install 的挂载目标）+ 状态 Document kind（durable 真相面）。
+    assert.ok(bundle.includes('milksu-goal'), 'the goal extension must ship')
+    assert.ok(bundle.includes('milksu.goal-state'), 'the goal state document kind must ship')
+    // 工具两件。
+    for (const name of ['goal_complete', 'goal_blocked']) {
+      assert.ok(bundle.includes(`"${name}"`), `the ${name} tool must ship`)
+    }
+    // requestId 幂等前缀（goal 输入的 run 归属解析面）。
+    assert.ok(bundle.includes('goal-start:'), 'the goal start requestId prefix must ship')
+    assert.ok(bundle.includes('goal-continue:'), 'the continuation requestId prefix must ship')
+    assert.ok(bundle.includes('goal-budget-wrapup:'), 'the wrap-up requestId prefix must ship')
+    // 守卫文案（stale 块/预算收尾块/队列冻结块——pi-goal tool_call 事件同源）。
+    assert.ok(bundle.includes('Blocked stale /goal tool call'), 'the stale tool-call block must ship')
+    assert.ok(bundle.includes('only goal_complete is allowed during wrap-up'), 'the wrap-up tool block must ship')
+    // 状态机文案锚点（goal prompt / 续跑 prompt / 收尾 prompt——pi-goal prompts.ts 同源）。
+    assert.ok(bundle.includes('Goal mode is active.'), 'the goal prompt anchor must ship')
+    assert.ok(bundle.includes('Continue the active /goal until it is complete'), 'the continuation prompt anchor must ship')
+    assert.ok(bundle.includes('Budget exhaustion is not completion.'), 'the wrap-up prompt anchor must ship')
+    // milksu-goal 系统提示段（before_agent_start 的 buildGoalSystemPrompt 对应物）。
+    assert.ok(bundle.includes('milksu-goal'), 'the goal system prompt section key must ship')
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
 test('Pi closure ships only the target platform esbuild binary', async () => {  const fixture = await createPackageFixture()
   try {
     const platform = currentPlatform()

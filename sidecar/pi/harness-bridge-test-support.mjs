@@ -27,6 +27,7 @@ import {
 import { MILKSU_SUBAGENTS_EXTENSION } from "./harness-bridge-subagents.js";
 import { MILKSU_SUBAGENTS_ASYNC_EXTENSION } from "./harness-bridge-subagents-async.js";
 import { MILKSU_BACKGROUND_TASKS_EXTENSION } from "./harness-bridge-background-tasks.js";
+import { MILKSU_GOAL_EXTENSION } from "./harness-bridge-goal.js";
 
 export const defaultFauxModelDefinitions = [
   {
@@ -309,6 +310,8 @@ export function buildTestLayer({
         registry.uninstall({ name: MILKSU_SUBAGENTS_EXTENSION });
         registry.uninstall({ name: MILKSU_SUBAGENTS_ASYNC_EXTENSION });
         registry.uninstall({ name: MILKSU_BACKGROUND_TASKS_EXTENSION });
+        // B2e：goal 扩展默认卸掉（goal 测试用 keepProductTools 或显式注入）。
+        registry.uninstall({ name: MILKSU_GOAL_EXTENSION });
       }
       if (lspExtension) {
         // 测试注入的 milksu-lsp（通常是带假 LSP 核心的同形扩展）；后装覆盖先装。

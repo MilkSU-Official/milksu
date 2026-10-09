@@ -861,6 +861,11 @@ export const mountedHarnessToolNames = Object.freeze([
   // 重建，审批面 spawn/watch/stop/clear 在审判链对挂上即生效）。
   "bg_task",
   "bg_status",
+  // PR-2 批次 B2e：goal 自主续跑状态机（harness-bridge-goal.js；goal_complete/
+  // goal_blocked 挂 milksu-goal 扩展，门关 codingReadOnly/codingWorkspaceAuto 清单
+  // 本就含两件——read-only 类免审批卡）。after-first-goal 可见性由会话层过滤。
+  "goal_complete",
+  "goal_blocked",
 ]);
 
 /** 供报告/测试引用的暂缓清单（门关 activeTools − mountedHarnessToolNames）。 */

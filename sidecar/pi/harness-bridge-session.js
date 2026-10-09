@@ -108,6 +108,8 @@ import {
   backgroundTaskMetasForSession,
   projectBackgroundTaskMetas,
 } from "./bridge-background-view.js";
+// PR-2 批次 B2e：goal 自主续跑状态机（pi-goal 全量移植；见 harness-bridge-goal.js 文件头）。
+import { createHarnessGoalMachine } from "./harness-bridge-goal.js";
 import {
   listPiBackgroundTaskMetas,
   readPiBackgroundTaskLog,
@@ -267,6 +269,20 @@ export function createHarnessBridgeSessionLayer(context) {
   const subagentAsyncChildRegistry = createSubagentChildRegistry();
   // 已告警过的缺失工具名（暂缓面只报一次，避免每次 send 刷屏）。
   const warnedMissingToolNames = new Set();
+  // PR-2 批次 B2e：goal 自主续跑状态机（durable 真相在 Conversation Document；这里只
+  // 是 run 归属/收尾态的进程内面）。revealTools 接 after-first-goal 可见性解锁后的
+  // 工具面重配（configureAgentTools 经 filterAgentToolNames 过滤）。
+  const goalMachine = createHarnessGoalMachine({
+    emit,
+    resolveConversation,
+    getRuntime: () => runtime,
+    resolveAgentDirectory: () => resolveAgentDirectory(),
+    revealTools: alias => {
+      const controller = sessionPolicyControllers.get(alias);
+      const names = sessionPolicies.get(alias)?.activeTools;
+      if (controller && Array.isArray(names)) controller.setActiveTools(names);
+    },
+  });
   // settings.compaction 的活快照：最近一次接线/提交的会话模型参数。
   let compactionSnapshot = undefined;
   let projectInstructionsText = "";
@@ -458,6 +474,11 @@ export function createHarnessBridgeSessionLayer(context) {
           emitTasksChanged: alias => emitHarnessBackgroundTasks(alias),
           environment,
         });
+        // PR-2 批次 B2e：goal 状态机扩展（goal_complete/goal_blocked 两件 +
+        // milksu-goal 系统提示段 + tool_call 守卫 hook）。安装位在 milksu-core 前
+        //（beforeTool 先于审判链）；goal 工具按会话策略 activeTools 过滤挂载
+        //（codingReadOnly/codingWorkspaceAuto 清单本就含两件）。
+        const goalMount = goalMachine.extension;
         // B2b：milksu-prompt 段的提示贡献（tools/rules 段按 snippet/guideline 渲染）。
         // 编码工具来自上面的定义构造器；LSP/MCP 是钉版字符串（pi-lsp.ts:53/113、
         // pi-mcp-adapter index.ts:2061——两个包的工具定义都不导出）；B2c 的 web
@@ -469,12 +490,14 @@ export function createHarnessBridgeSessionLayer(context) {
           ...(dailyTools.promptContributions?.snippets ?? []),
           ...(subagentsExtension.promptContributions?.snippets ?? []),
           ...(subagentsAsyncExtension.promptContributions?.snippets ?? []),
+          ...(goalMount.promptContributions?.snippets ?? []),
         ]);
         const promptGuidelines = new Map([
           ...(codingTools.promptContributions?.guidelines ?? []),
           ...Object.entries(LSP_PROMPT_CONTRIBUTIONS.guidelines),
           ...(subagentsExtension.promptContributions?.guidelines ?? []),
           ...(subagentsAsyncExtension.promptContributions?.guidelines ?? []),
+          ...(goalMount.promptContributions?.guidelines ?? []),
         ]);
         const promptSections = createMilksuPromptSectionsExtension({
           projectInstructionsFor: () => projectInstructionsText,
@@ -512,6 +535,7 @@ export function createHarnessBridgeSessionLayer(context) {
         registry.install(subagentsExtension);
         registry.install(subagentsAsyncExtension);
         registry.install(backgroundTasksMount);
+        registry.install(goalMount);
         registry.install(core);
         if (typeof installRegistryExtensions === "function") {
           await installRegistryExtensions(registry, { models: models.models });
@@ -580,7 +604,11 @@ export function createHarnessBridgeSessionLayer(context) {
     );
     const tools = [];
     const missing = [];
-    for (const name of [...new Set(requested ?? [])]) {
+    const record = conversationRecord(alias);
+    // PR-2 批次 B2e：after-first-goal 可见性（pi-goal toolVisibility 设置）——goal
+    // 工具在首个 goal 激活前从挂载面摘除（pi-goal hideGoalToolsIfLocked）。
+    const effective = goalMachine.filterAgentToolNames(record?.durableId, requested);
+    for (const name of [...new Set(effective ?? [])]) {
       const tool = byName.get(String(name));
       if (tool) tools.push(tool);
       else missing.push(String(name));
@@ -595,7 +623,6 @@ export function createHarnessBridgeSessionLayer(context) {
       );
     }
     await handle.configureConversation(alias, { tools });
-    const record = conversationRecord(alias);
     if (record) {
       record.activeToolNames = tools.map(tool => tool.name);
       record.toolsConfiguring = undefined;
@@ -1091,6 +1118,13 @@ export function createHarnessBridgeSessionLayer(context) {
   async function handleHarnessEvent(alias, event) {
     const record = conversationRecord(alias);
     if (!record) return;
+    // PR-2 批次 B2e：goal 观察门的会话引用（handle/durableId/工具面/忙闲）。
+    const goalSessionRef = () => ({
+      handle: runtime?.handle,
+      durableId: record.durableId,
+      activeToolNames: [...record.activeToolNames],
+      isBusy: record.busy === true,
+    });
     if (event.type === "compaction_start") {
       record.compactionCount = (record.compactionCount ?? 0) + 1;
       emit(alias, "compaction_start", {
@@ -1112,7 +1146,22 @@ export function createHarnessBridgeSessionLayer(context) {
       record.repeatGuard.reset();
       record.busy = true;
       record.pendingToolCalls = [];
+      // PR-2 批次 B2e：goal run 观察门（输入归属/epoch 重置/工具面缺失暂停）。
+      try {
+        await goalMachine.handleRunStart(alias, goalSessionRef(alias), event);
+      } catch (error) {
+        console.error("MilkSU harness goal run_start gate failed", error);
+      }
       emit(alias, "turn_started");
+      return;
+    }
+    if (event.type === "turn_end") {
+      // PR-2 批次 B2e：pi-goal turn_end 的逐 turn 计数（automaticModelTurns）。
+      try {
+        await goalMachine.handleTurnEnd(alias, goalSessionRef(alias));
+      } catch (error) {
+        console.error("MilkSU harness goal turn_end gate failed", error);
+      }
       return;
     }
     if (event.type === "run_end") {
@@ -1120,10 +1169,19 @@ export function createHarnessBridgeSessionLayer(context) {
       // 回合只有思考没有可见答复时，投一条恢复输入再开一轮（无工具）。顺序对齐门关
       // （扩展 agent_end 先于公共 agent_settled 监听器），turn_settled 照常发——恢复
       // 回合自己的 run_start/run_end 会再发一对。
+      // PR-2 批次 B2e：goal run_end 观察门（守卫链+续跑投递）。goal 活着时抑制
+      // turn_settled（门关 bridge.js:1825-1831 的 goalKeepsSessionRunning 语义）。
+      let goalKeepsRunning = false;
+      try {
+        const outcome = await goalMachine.handleRunEnd(alias, goalSessionRef(alias));
+        goalKeepsRunning = Boolean(outcome?.keepsRunning);
+      } catch (error) {
+        console.error("MilkSU harness goal run_end gate failed", error);
+      }
       await maybeRecoverReasoningOnlyTurn(alias);
       record.busy = false;
       record.pendingToolCalls = [];
-      emit(alias, "turn_settled");
+      if (!goalKeepsRunning) emit(alias, "turn_settled");
       return;
     }
     if (event.type === "snapshot") {
@@ -1134,6 +1192,9 @@ export function createHarnessBridgeSessionLayer(context) {
     }
     if (event.type === "tool_execution_start") {
       record.pendingToolCalls = [...record.pendingToolCalls, event.toolCallId];
+      // PR-2 批次 B2e：pi-goal tool_call 的 markAgentToolAttempted（无进展守卫的
+      // toolAttempted 位）。
+      goalMachine.markToolAttempted(record.durableId);
       // C1：subagent 开场 roster（对照 bridge.js:1916-1928）——task 行形状由共享的
       // projectSubagentRosterStart 保证，渲染器零改动。
       if (event.toolName === codingCollaborationToolName) {
@@ -1193,11 +1254,18 @@ export function createHarnessBridgeSessionLayer(context) {
     if (event.type === "message_end") {
       const message = event?.entry?.model?.[0];
       const failure = message?.role === "assistant" ? assistantFailureText(message) : "";
+      // PR-2 批次 B2e：run 内 assistant 消息收集（终态分类与无进展指纹的输入）。
+      goalMachine.noteRunMessage(record.durableId, message);
       if (failure) {
         // pi-durable 的重试有界（settings.retry 默认 3 次），这里只上报不主动 abort
         //（旧路径 abort 是因为旧引擎无限重试烧额度；差异见报告）。
         emit(alias, "error", { error: failure });
       }
+    }
+    if (event.type === "task_failed" && event.kind === "pi.generation") {
+      // PR-2 批次 B2e：重试耗尽的 generation 失败（可能无 assistant 条目）——goal
+      // run_end 终态分类的兜底信号（pi-goal agent_end 的 error 分类对应物）。
+      goalMachine.noteGenerationFailure(record.durableId, event.message);
     }
 
     for (const projected of record.projector.project(event)) {
@@ -1488,7 +1556,14 @@ export function createHarnessBridgeSessionLayer(context) {
       await refreshCompositionMessages(alias);
       emitHarnessContextComposition(alias);
       emitHarnessBackgroundTasks(alias);
-      emit(alias, "goal_state", { goal: null });
+      // PR-2 批次 B2e：goal 状态按 Conversation Document 真相恢复（B1/B2d 的恒 null
+      // 投影收口）：队列冻结判定/queued 激活/预算与上限复查/pendingAction 派发/空闲
+      // 续跑重挂，最后按门关同形投影 goal_state（projectGoalStateData 共享纯函数）。
+      await goalMachine.adoptSessionGoal(alias, {
+        handle,
+        durableId: record.durableId,
+        isBusy: record.busy === true,
+      });
       return sessionObject;
     } catch (error) {
       await cleanupFailedCreate(alias);
@@ -1501,6 +1576,8 @@ export function createHarnessBridgeSessionLayer(context) {
     if (record?.stream) {
       await record.stream.stop().catch(() => undefined);
     }
+    // PR-2 批次 B2e：创建失败的 goal 进程内面一并清场。
+    goalMachine.forgetSessionGoal(record?.durableId);
     if (record?.durableId !== undefined) durableToAlias.delete(record.durableId);
     conversations.delete(alias);
     sessions.delete(alias);
@@ -1583,6 +1660,19 @@ export function createHarnessBridgeSessionLayer(context) {
       }
       emit(alias, "turn_settled");
       return;
+    }
+    // PR-2 批次 B2e：/goal 命令拦截（门关由 AgentSession 的扩展命令面消化，命令不
+    // 产生模型回合；门开在这里拦截后同样不投用户原文）。goal 输入由状态机自带
+    // requestId 幂等投递。非 /goal 命令照常走下面的 prompt 队列。
+    {
+      const goalRecord = conversationRecord(alias);
+      const { handle } = await openRuntime();
+      const goalCommand = await goalMachine.handleGoalCommand(alias, {
+        handle,
+        durableId: goalRecord?.durableId,
+        activeToolNames: [...(goalRecord?.activeToolNames ?? [])],
+      }, command.prompt ?? "");
+      if (goalCommand?.handled) return;
     }
     const rememberTurn = tracksUserMemory(alias) && !isCompanionRelay(command.prompt);
     enqueueConversationPrompt(promptQueues, alias, async () => {
@@ -1732,6 +1822,10 @@ export function createHarnessBridgeSessionLayer(context) {
     sessionTurnContracts.delete(alias);
     reasoningOnlyRecovered.delete(alias);
     reasoningOnlyPreviousTools.delete(alias);
+    // PR-2 批次 B2e：goal 进程内面清场（destroyed 标记让迟到的 aborted run_end 不翻
+    // 新 durable 真相——pi-goal session_shutdown 语义：active goal 原样保留，重开会话
+    // 按 Document 恢复续跑；排队 goal 输入经 abortConversation 撤回，不泄漏续跑）。
+    goalMachine.forgetSessionGoal(conversations.get(alias)?.durableId, { destroyed: true });
     await haltConversationSubagents(alias);
     // PR-2 批次 C1：门开路径的子代理停止面——外部 CLI 受管进程树杀 + harness child
     // 显式 abort 兜底（abortConversation 的级联已覆盖普通所有权范围；background
