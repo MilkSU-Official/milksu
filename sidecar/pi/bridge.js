@@ -217,15 +217,19 @@ import {
 } from "./bridge-thinking-repetition.js";
 import { projectSessionContextComposition } from "./bridge-context-composition.js";
 import { withTokenFluxModelCompat } from "./tokenflux-model-compat.js";
-import { isPiHarnessEnabled } from "./harness-adapter.js";
+import { isPiHarnessEnabled, resolveHarnessAgentDir } from "./harness-adapter.js";
+// PR-2 批次 D2（扳机翻转）：门判定 + CTF/CVE/实验室工作区排除的唯一收口点
+//（MILKSU_PI_HARNESS=0 显式关＝回退旧引擎；CTF/CVE 工作区无论门开关一律旧引擎）。
+import { harnessSessionEligible } from "./harness-bridge-flip.js";
 import {
   createHarnessBridgeSessionLayer,
   MILKSU_HARNESS_SESSION_KIND,
 } from "./harness-bridge-session.js";
 // PR-2 批次 D1：旧 JSONL 归档查询/导出面（manifest 读取与门无关；按需导入的触发面
-// 留给 D2 接 UI，桥上先接查询与导出两个命令）。
-import { resolveHarnessAgentDir } from "./harness-adapter.js";
+// 留给 D2 接 UI，桥上先接查询与导出两个命令）。D2 增量：archivedLegacySourcePath
+//（destroySession deletePersisted 的 manifest 触点，PREP §3.6 停用面收口）。
 import {
+  archivedLegacySourcePath,
   archivedSessionSummary,
   exportLegacySessions,
   findArchivedSession,
@@ -792,11 +796,20 @@ function harnessLayer() {
   return harnessBridgeLayer;
 }
 
-/** 门开路由：已是 harness 会话，或门开且尚无（旧引擎）会话。 */
-function harnessTurnRouted(conversationId) {
-  const id = String(conversationId ?? "").trim();
+/**
+ * 门开路由：已是 harness 会话，或门开（D2 扳机翻转后缺省开；MILKSU_PI_HARNESS=0 显式
+ * 关＝回退旧引擎）且尚无（旧引擎）会话。CTF/CVE/实验室工作区排除与门判定收口在
+ * harness-bridge-flip 的 harnessSessionEligible（唯一判定点，别处不散）：command 带
+ * sessionRole 时（send_message）含研究/CTF 角色排除；传字符串 id 的控制命令按
+ * 工作区类型与 ctf_ 前缀判定。
+ */
+function harnessTurnRouted(commandOrId) {
+  const command = commandOrId != null && typeof commandOrId === "object"
+    ? commandOrId
+    : { conversationId: commandOrId };
+  const id = String(command.conversationId ?? "").trim();
   return sessions.get(id)?.kind === MILKSU_HARNESS_SESSION_KIND
-    || (isPiHarnessEnabled() && !sessions.has(id));
+    || (harnessSessionEligible(command) && !sessions.has(id));
 }
 
 function harnessUnsupportedResult(command, type) {
@@ -2352,7 +2365,9 @@ function configureSubagentRuntime() {
 async function createSession(command) {
   const conversationId = command.conversationId;
   if (!conversationId) throw new Error("conversationId is required");
-  if (isPiHarnessEnabled()) {
+  // PR-2 批次 D2（扳机翻转）：门默认开 + CTF/CVE/实验室排除，判定收口在
+  // harness-bridge-flip（MILKSU_PI_HARNESS=0 显式关＝回退下面的旧引擎全功能路径）。
+  if (harnessSessionEligible(command)) {
     return harnessLayer().createSession(command);
   }
   applyWorkerModelOverride(command.workerModel);
@@ -2510,7 +2525,9 @@ async function createSession(command) {
 async function sendMessage(command) {
   const conversationId = command.conversationId;
   if (!conversationId) throw new Error("conversationId is required");
-  if (harnessTurnRouted(conversationId)) {
+  // D2：送完整 command 进路由判定（send_message 自带 sessionRole——CTF/CVE/实验室
+  // 角色在这里排除；不带的命令走 harnessTurnRouted 的字符串分支，按工作区判定）。
+  if (harnessTurnRouted(command)) {
     return harnessLayer().sendMessage(command);
   }
   applyUserMemories(command);
@@ -2802,6 +2819,13 @@ async function destroySession(command) {
 
   const session = sessions.get(conversationId);
   let sessionFile = session?.sessionFile;
+  // PR-2 批次 D2（PREP §3.6 停用面收口）：deletePersisted 的文件定位先读归档 manifest
+  //（一次 JSON 读，替代全目录扫描——翻转后旧会话的文件真相在 manifest）；未归档
+  //（未导出的新 JSONL）仍走下面的 SessionManager.list 兜底——门关回退与 CTF 工作
+  // 区路径行为不变。
+  if (!sessionFile && command.deletePersisted) {
+    sessionFile = await archivedLegacySourcePath(resolveHarnessAgentDir(), conversationId);
+  }
   if (!sessionFile && command.deletePersisted) {
     const cwd = process.cwd();
     const agentDir = process.env.MILKSU_PI_AGENT_DIR || join(cwd, ".milksu", "pi");

@@ -41,9 +41,14 @@
 //
 // 红线：绝不写 <agentDir>/sessions 下的旧 JSONL 源文件（导出只读源）；真实 runtime-data
 // 不碰（测试全用合成数据）。
+//
+// D2 增量（扳机翻转票）：归档源文件触点（archivedLegacySourceCandidates/Path、
+// deleteArchivedLegacySources——destroySession 的 PREP §3.6 停用面收口）与翻转首启的
+// 一次性导出触达点（runFlipArchiveExport，claim+completed 幂等；真实 66 会话的导出发生
+// 在用户装机首启）。
 
 import { createHash } from "node:crypto";
-import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, stat, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   AssistantEntry,
@@ -543,6 +548,19 @@ function legacyEntryDraft(entry, { newByOld, byId, latestCompaction, keptSystemI
       kind: entryKindForProjectedMessages(messages),
       model: messages,
     };
+    // D2 加固（真桥 E2E 暴露）：pi-durable 的 estimateContext（dist/harness/compaction.js
+    // 的 calculateContextTokens(message.usage)）对 assistant 消息直接读 usage——原生
+    // 引擎的 assistant 恒带 usage（生成时记），但旧 JSONL 里 stopReason=error/aborted
+    // 的 assistant 可能缺（真实数据面），缺 usage 会让续聊的 generation 任务在发请求
+    // 前就炸。缺则补零用量：纯记账字段不进模型请求内容；有 usage 的消息原样保留，
+    // D1 的逐字节等价面不受影响。
+    if (draft.kind === AssistantEntry.kind) {
+      for (const message of draft.model) {
+        if (message?.role === "assistant" && (message.usage === undefined || message.usage === null)) {
+          message.usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
+        }
+      }
+    }
     if (entry.type === "custom_message") {
       // customType/display/details 不进上下文（convertToLlm 丢掉），入 data 保真。
       draft.data = {
@@ -722,4 +740,156 @@ export async function importLegacySessionIntoHarness({
     return { conversationId: record.id, created: true, appended };
   }, context);
   return outcome;
+}
+
+// ---------- PR-2 批次 D2：destroySession 的归档源文件触点 + 翻转首启一次性导出 ----------
+
+/**
+ * 归档行 → 旧引擎源文件（<agentDir>/sessions 下）的候选路径。row.file 是 archive/
+ * sessions 下的归档副本名，源文件在 sessions 下同名；版本化行（<stem>.<sha8>.jsonl）
+ * 的现行源文件是去 SHA 后缀的原始名，一并给出（去重）。
+ */
+export function archivedLegacySourceCandidates(agentDir, row) {
+  const name = String(row?.file ?? "").split("/").pop() ?? "";
+  if (!name.endsWith(".jsonl")) return [];
+  const names = [name];
+  const versioned = /^(.+)\.[0-9a-f]{8}\.jsonl$/u.exec(name);
+  if (versioned) names.push(`${versioned[1]}.jsonl`);
+  const sessionsDirectory = resolveLegacySessionsDirectory(agentDir);
+  return [...new Set(names)].map(candidate => join(sessionsDirectory, candidate));
+}
+
+/**
+ * destroySession deletePersisted 的 manifest 触点（PREP §3.6 停用面收口）：给
+ * conversationId 找现行归档源文件（候选里首个存在的）；未归档返回 undefined，调用方
+ * 保留既有 SessionManager.list 兜底（未导出的 JSONL / 门关回退路径行为不变）。
+ */
+export async function archivedLegacySourcePath(agentDir, conversationId) {
+  const manifest = await readArchiveManifest(agentDir);
+  const entry = findArchivedSession(manifest, conversationId);
+  if (!entry) return undefined;
+  for (const candidate of archivedLegacySourceCandidates(agentDir, entry)) {
+    if (await stat(candidate).catch(() => undefined)) return candidate;
+  }
+  return undefined;
+}
+
+/**
+ * 删除归档会话的全部旧引擎源文件（harness 层 destroySession 的 deletePersisted 面；
+ * 门开会话销毁不再回旧路径，源文件删除收口在这里）。归档副本与 manifest 行**永不删**
+ * （Q1 归档保底、append-only 账本）；未归档的会话是 no-op（durable 转录本就不随销毁
+ * 物理删除——FLIP-REVIEW #8 用户已知悉的「删不掉是特性」）。
+ */
+export async function deleteArchivedLegacySources(agentDir, conversationId) {
+  const manifest = await readArchiveManifest(agentDir);
+  const id = String(conversationId ?? "").trim();
+  if (!manifest || !Array.isArray(manifest.sessions) || !id) return [];
+  const removed = [];
+  for (const row of manifest.sessions) {
+    if (row.conversationId !== id) continue;
+    for (const candidate of archivedLegacySourceCandidates(agentDir, row)) {
+      try {
+        await unlink(candidate);
+        removed.push(candidate);
+      } catch (error) {
+        if (error?.code !== "ENOENT") throw error;
+      }
+    }
+  }
+  return removed;
+}
+
+// ---------- 翻转首启的一次性导出（Q1 归档保底的触达点） ----------
+
+export const HARNESS_ARCHIVE_FLIP_EXPORT_FILE = "flip-export.json";
+const FLIP_EXPORT_FRESH_MS = 5 * 60 * 1000;
+
+async function readFlipExportState(archiveDir) {
+  try {
+    const parsed = JSON.parse(
+      await readFile(join(archiveDir, HARNESS_ARCHIVE_FLIP_EXPORT_FILE), "utf8"),
+    );
+    return parsed && typeof parsed === "object" ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * D2 扳机翻转的一次性触达点：门开的 harness 层首次构造时调用（真实 66 会话的导出
+ * 发生在用户装机首启，不在测试里）。幂等语义：
+ *   - 完成态（completed:true）→ 永不再跑（手动刷新仍走桥命令 archive_export）；
+ *   - claim 文件（wx 原子创建 + pid/时间戳）挡住并发 sidecar 同时导出写 manifest 的
+ *     竞态——持有 pid 存活且未超时 → 跳过；持有者已死或超时 → 偷取重跑（自愈）；
+ *   - 导出失败留下未完成 claim，下个启动周期自愈重试（exportLegacySessions 本身
+ *     SHA-256 幂等，重跑零风险）。
+ */
+export async function runFlipArchiveExport({
+  agentDir,
+  now = () => new Date().toISOString(),
+  exportFn = exportLegacySessions,
+  freshMs = FLIP_EXPORT_FRESH_MS,
+} = {}) {
+  if (!agentDir || typeof agentDir !== "string") {
+    throw new TypeError("runFlipArchiveExport requires agentDir");
+  }
+  const archiveDir = resolveHarnessArchiveDirectory(agentDir);
+  await mkdir(archiveDir, { recursive: true });
+  const statePath = join(archiveDir, HARNESS_ARCHIVE_FLIP_EXPORT_FILE);
+
+  let claimed = false;
+  for (let attempt = 0; attempt < 3 && !claimed; attempt += 1) {
+    try {
+      await writeFile(statePath, `${JSON.stringify({
+        pid: process.pid,
+        startedAt: now(),
+        freshMs,
+      })}\n`, { flag: "wx", mode: 0o600 });
+      claimed = true; // claim 到手
+    } catch (error) {
+      if (error?.code !== "EEXIST") throw error;
+      const state = await readFlipExportState(archiveDir);
+      if (state?.completed === true) {
+        return { ran: false, reason: "completed", exportedAt: state.exportedAt ?? null };
+      }
+      // 持有 pid 存活（kill 0 探测；EPERM = 进程存在但属别的用户，按活）且 claim 未
+      // 超时 → 跳过等它完成。
+      let holderAlive = false;
+      if (Number.isInteger(state?.pid) && state.pid > 0) {
+        try {
+          process.kill(state.pid, 0);
+          holderAlive = true;
+        } catch (probe) {
+          holderAlive = probe?.code === "EPERM";
+        }
+      }
+      const startedAt = Date.parse(state?.startedAt ?? "");
+      const fresh = Number.isFinite(startedAt) && Date.now() - startedAt < freshMs;
+      if (holderAlive && fresh) {
+        return { ran: false, reason: "in-progress", holder: state.pid };
+      }
+      // 废弃 claim（持有者死/超时/状态损坏）：偷取后重试。
+      await unlink(statePath).catch(() => undefined);
+    }
+  }
+  if (!claimed) {
+    // 三次都没抢到（对手一直在偷取窗口上竞争）：不盲跑——exportLegacySessions 幂等，
+    // 下个启动周期再试；本次按「被并发持有」跳过。
+    return { ran: false, reason: "contended" };
+  }
+
+  const result = await exportFn({ agentDir, now });
+  await writeFile(statePath, `${JSON.stringify({
+    completed: true,
+    exportedAt: now(),
+    sessionCount: result.manifest.sessions.length,
+  })}\n`, { mode: 0o600 });
+  return {
+    ran: true,
+    archiveDir: result.archiveDir,
+    sessionCount: result.manifest.sessions.length,
+    copiedCount: result.copied.length,
+    skippedCount: result.skipped.length,
+    versionedCount: result.versioned.length,
+  };
 }

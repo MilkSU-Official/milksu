@@ -3,11 +3,22 @@
 // 单点收口原则（PREP §5.1 缓解措施）：产品代码对 @earendil-works/pi-durable 的每个调用都
 // 经过本模块。上游 API 标着 Experimental（README:3），变了只改这一层。
 //
-// 启用门（默认关闭）：bridge.js 的 createSession → SessionManager 路径一行未改，默认行为
-// 零变化。后续批次翻开本开关后，语义是：值为 "1" 时 createSession 改走
-// openMilkSUHarness 的 Harness/Conversation 路径（同工作区单 sidecar 进程持有单 Harness，
-// 每条对话一条 Conversation，别名见下）；其余任何值（含未设置）维持现状。批次 B 翻门时
-// 必须同步补 UI/Go 两侧的排队与审批回归（Q2/Q3 口径见 DECISIONS-pi-harness.md）。
+// 启用门（PR-2 批次 D2 扳机翻转，FLIP-REVIEW-pi-harness.md 定稿）：
+//   缺省＝开——新编码会话默认走 openMilkSUHarness 的 Harness/Conversation 路径（同
+//   工作区单 sidecar 进程持有单 Harness，每条对话一条 Conversation，别名见下）；
+//   MILKSU_PI_HARNESS=0＝显式关——回退旧引擎（bridge.js 的 SessionManager/AgentSession
+//   全功能路径，测试实证 D2 交付报告）。与 bridge-hang-guard 的
+//   MILKSU_PI_HANG_GUARD !== "0" 同款「默认开、0 显式关」约定。
+//   CTF/CVE/实验室工作区的排除不在本门（它们门开关一律走旧引擎），判定与门收口在
+//   harness-bridge-flip.js 的 harnessSessionEligible（bridge.js 唯一调用点）。
+//
+// 存储目录按工作区隔离（PREP §5-R1 缓解措施的明文要求「存储路径按工作区隔离」）：
+// 宿主对每个工作区起独立 sidecar 进程（切换工作区时旧进程 park 保活至多 15 分钟空闲，
+// supervisor.go parkCurrentLocked/reapParkedLocked/sidecarIdleTimeout），而所有 sidecar
+// 共享同一个 MILKSU_PI_AGENT_DIR——若共用 harness/harness.sqlite，第二个工作区的进程
+// 会被 harness.lock 挡下（HarnessLockHeldError，D2 双进程实证见交付报告）。键 = 进程
+// 工作区 cwd 的 SHA-256 前 16 位（宿主 spawn 前 Abs+EvalSymlinks+Clean，canonical 且
+// 进程内不变；只含哈希不含路径原文）。
 //
 // MilkSU conversationId ↔ durable ConversationId：pi-durable 的会话 id 由 storage mint（数字
 // 序列，PREP §3.0/rehearsal s8），不能自选。这里用一份 session 级 Document 家族
@@ -29,6 +40,7 @@
 // 还在产出输出/事件」推断死亡——误判会触发审批循环重弹（R10）。心跳定时器默认持有事件循环
 // 引用（ref），即审批挂起时由心跳保活进程；测试可用 unref 心跳。
 
+import { createHash } from "node:crypto";
 import { mkdir, readFile, stat, unlink, utimes, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { Harness, configure as configureConversationAgent, defineDocFamily, watchEvents } from "@earendil-works/pi-durable";
@@ -39,9 +51,13 @@ import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 
 export const HARNESS_ENABLE_ENV = "MILKSU_PI_HARNESS";
 
-/** 批次 A 只暴露能力；除测试外没有调用方读取本开关（默认关闭，见文件头）。 */
+/**
+ * 扳机翻转后的门语义（D2）：缺省＝开；值为 "0"＝显式关（回退旧引擎）。
+ * 其它任何值（""、"1"、"true"、误拼等）都按开处理——回退开关只有 "0" 一个拼写，
+ * 与 MILKSU_PI_HANG_GUARD 的约定一致，避免「默认开的门被一个脏值悄悄关上」。
+ */
 export function isPiHarnessEnabled(environment = process.env) {
-  return String(environment[HARNESS_ENABLE_ENV] ?? "") === "1";
+  return String(environment[HARNESS_ENABLE_ENV] ?? "") !== "0";
 }
 
 // ---------- 路径 ----------
@@ -55,12 +71,22 @@ export function resolveHarnessAgentDir(environment = process.env, cwd = process.
   return String(environment.MILKSU_PI_AGENT_DIR ?? "").trim() || join(cwd, ".milksu", "pi");
 }
 
-export function harnessStoragePath(agentDir) {
-  return join(agentDir, HARNESS_STORAGE_DIRECTORY, HARNESS_STORAGE_FILE);
+/** 工作区存储键：进程 cwd 的 SHA-256 前 16 位（见文件头「存储目录按工作区隔离」）。 */
+export function harnessWorkspaceKey(cwd = process.cwd()) {
+  return `ws-${createHash("sha256").update(String(cwd ?? ""), "utf8").digest("hex").slice(0, 16)}`;
 }
 
-export function harnessLockPath(agentDir) {
-  return join(agentDir, HARNESS_STORAGE_DIRECTORY, HARNESS_LOCK_FILE);
+/** 每工作区一份存储目录：harness/<ws-key>/（harness.sqlite 与 harness.lock 同目录）。 */
+export function harnessStorageDirectory(agentDir, cwd = process.cwd()) {
+  return join(agentDir, HARNESS_STORAGE_DIRECTORY, harnessWorkspaceKey(cwd));
+}
+
+export function harnessStoragePath(agentDir, cwd = process.cwd()) {
+  return join(harnessStorageDirectory(agentDir, cwd), HARNESS_STORAGE_FILE);
+}
+
+export function harnessLockPath(agentDir, cwd = process.cwd()) {
+  return join(harnessStorageDirectory(agentDir, cwd), HARNESS_LOCK_FILE);
 }
 
 // ---------- conversationId 别名登记（session 级 Document 家族） ----------
@@ -474,8 +500,11 @@ export async function openMilkSUHarness(options = {}) {
   if (!options.registry) throw new TypeError("openMilkSUHarness requires a pi-durable registry");
   const agentDir = options.agentDir ?? resolveHarnessAgentDir();
   const context = options.context ?? BACKGROUND_CONTEXT;
-  const storageDirectory = join(agentDir, HARNESS_STORAGE_DIRECTORY);
-  const storagePath = harnessStoragePath(agentDir);
+  // D2：存储目录按工作区隔离（见文件头）。缺省取进程 cwd——与 harness-bridge-session
+  // 层传入的 process.cwd() 一致；测试可显式指定。
+  const workspace = options.workspace ?? process.cwd();
+  const storageDirectory = harnessStorageDirectory(agentDir, workspace);
+  const storagePath = harnessStoragePath(agentDir, workspace);
 
   const lock = await acquireHarnessLock(storageDirectory, {
     heartbeatMs: options.heartbeatMs,

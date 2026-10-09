@@ -144,6 +144,9 @@ export function buildTestLayer({
   imageGenConfigured = false,
   readOnlyResourceRoots = [],
   heartbeatOptions = { heartbeatMs: 250, settleMs: 20, unrefHeartbeat: true },
+  // D2：翻转首启一次性导出默认打桩（既有用例的文件面假设不被隐式改写）；传
+  // flipArchiveExport: null 走产品默认 runFlipArchiveExport 的真路径。
+  flipArchiveExport = () => Promise.resolve({ ran: false, reason: "test-disabled" }),
 }) {
   const events = [];
   let approvalBroker;
@@ -296,6 +299,10 @@ export function buildTestLayer({
     environment,
     resolveAgentDirectory: () => agentDir,
     harnessRuntimeOptions: () => heartbeatOptions,
+    // D2：翻转首启一次性导出的触达点（默认 no-op 桩；flipArchiveExport: null 走真路径）。
+    ...(flipArchiveExport === null
+      ? {}
+      : { flipArchiveExport }),
     installRegistryExtensions: registry => {
       // 默认卸掉产品工具面换测试注入；keepProductTools=true 保留 B2 的产品挂载
       //（coding-tools/lsp/skills + B2b 的 mcp + B2c 的日常/安全面 + C1 的

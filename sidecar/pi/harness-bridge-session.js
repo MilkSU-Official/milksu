@@ -121,12 +121,16 @@ import {
 import { enqueueConversationPrompt } from "./bridge-conversation-prompt.js";
 // PR-2 批次 D1：旧 JSONL 归档（导出器 + manifest 查询面 + 按需导入器；Q1 归档保底
 // + 按需续命）。转换映射与原子纪律见 harness-archive.js 文件头。
+// D2 增量：deleteArchivedLegacySources（destroy 的归档源删除）与 runFlipArchiveExport
+// （翻转首启一次性导出的触达点，层构造即起跑）。
 import {
+  deleteArchivedLegacySources,
   exportLegacySessions,
   findArchivedSession,
   importLegacySessionIntoHarness,
   readArchiveManifest,
   resolveHarnessArchiveDirectory,
+  runFlipArchiveExport,
 } from "./harness-archive.js";
 import { preparePromptAttachments } from "./bridge-attachments.js";
 import { withTurnHeartbeat } from "./bridge-turn-heartbeat.js";
@@ -246,12 +250,29 @@ export function createHarnessBridgeSessionLayer(context) {
     modelsCollection = () => createHarnessModels(),
     personalModelFor = () => undefined,
     compactionPolicyOverrides = undefined,
+    // PR-2 批次 D2：翻转首启一次性导出的触达点（层构造即起跑）。bridge.js 不传 →
+    // 产品默认 runFlipArchiveExport（首启导出真实发生）；测试脚手架注入 no-op 桩以
+    // 保持既有用例的文件面假设，D2 用例按需启用真路径。
+    flipArchiveExport = runFlipArchiveExport,
   } = context;
 
   // ---------- 运行时单例 ----------
 
   let runtime = undefined;
   let runtimeOpening = undefined;
+  // PR-2 批次 D2：翻转首启的一次性归档导出（Q1 归档保底）。层构造即起跑（fire-and-
+  // forget）；所有归档判定/导入/销毁路径 await archiveReady() 保证「先导出、后判归档」
+  // 的时序——防归档会话在 manifest 落地前被当新会话空开（shadow）。失败不阻断会话
+  // 创建（导不出 = 按未归档处理，如实回包）；下个启动周期 claim 自愈重试。测试脚手架
+  // 注入 no-op 桩时本行为关闭（D1 既有用例的文件面假设不被首启导出隐式改写）。
+  const flipExportOutcome = flipArchiveExport({ agentDir: resolveAgentDirectory() })
+    .catch(error => {
+      console.error("MilkSU flip archive export failed", error);
+      return { ran: false, reason: "failed" };
+    });
+  async function archiveReady() {
+    return flipExportOutcome;
+  }
   // durable ConversationId（数字）→ MilkSU conversationId（别名）。
   const durableToAlias = new Map();
   // MilkSU conversationId → 会话记录（事件/状态/投影器）。
@@ -1396,6 +1417,12 @@ export function createHarnessBridgeSessionLayer(context) {
     return {
       kind: MILKSU_HARNESS_SESSION_KIND,
       conversationId: alias,
+      // D2 修复（真桥 E2E 暴露）：bridge.js disposeAllSessions 对 sessions 里每个
+      // 会话跑共享的 disposeAgentSession（bridge-session-lifecycle.js），它会探测
+      // hasExtensionHandlers("session_shutdown")——B1 的 duck-typed 对象缺这个方法，
+      // 持有门开会话的 sidecar shutdown 会在这里抛 TypeError（shutdown failed）。
+      // Harness 会话没有 pi 扩展 runner；自身的收场在层内（destroySession/disposeAll）。
+      hasExtensionHandlers: () => false,
       get durableConversationId() {
         return record()?.durableId;
       },
@@ -1499,6 +1526,9 @@ export function createHarnessBridgeSessionLayer(context) {
     const { handle, registry } = await openRuntime();
     // B2c：本会话带 capa 目录而挂载面还是空壳/旧目录时，按名原位替换。
     refreshSecurityToolsMount(alias, sessionPolicy);
+    // PR-2 批次 D2：归档老会话的「继续聊」分流（Q1 按需续命）——命中归档且未导入时先
+    // 导入副本，ensureConversation 随后复用导入的 durable 会话（resumed 如实为 true）。
+    await importArchivedOnOpen(alias, handle);
     const { conversation } = await handle.ensureConversation(alias, { agent: { cwd } });
     durableToAlias.set(conversation.id, alias);
     let record = conversations.get(alias);
@@ -1909,6 +1939,17 @@ export function createHarnessBridgeSessionLayer(context) {
     } catch {
       // 会话销毁不因 MCP 清理失败而中断。
     }
+    // PR-2 批次 D2（PREP §3.6 停用面收口）：deletePersisted 对归档老会话删旧引擎源
+    // JSONL（manifest 触点；门开销毁不再回旧路径）。归档副本与 manifest 行永不删
+    // （Q1 保底）；durable 转录本就不随销毁物理删除（FLIP-REVIEW #8）。
+    if (command.deletePersisted === true) {
+      try {
+        await archiveReady();
+        await deleteArchivedLegacySources(resolveAgentDirectory(), alias);
+      } catch (error) {
+        console.error("MilkSU archived source deletion failed", error);
+      }
+    }
     // pi-durable 1.0.0 没有删除 Conversation 的 API：durable 转录保留（deletePersisted
     // 对 Harness 会话无效，见报告）。别名登记保留，重开同 id 会继续同一会话。
     emit(alias, "session_destroyed");
@@ -1975,6 +2016,10 @@ export function createHarnessBridgeSessionLayer(context) {
   // ---------- dispose ----------
 
   async function disposeAll() {
+    // D2：翻转首启导出若还在跑，先让它落定（它只写 archive 目录，不依赖 harness
+    // 句柄；不 settle 会在进程退出后留下半成品 claim——下个启动周期虽可自愈，但
+    // dispose 面不该主动留尾巴）。
+    await flipExportOutcome.catch(() => undefined);
     for (const record of [...conversations.values()]) {
       if (record.stream) {
         await record.stream.stop().catch(() => undefined);
@@ -2113,11 +2158,17 @@ export function createHarnessBridgeSessionLayer(context) {
   // importArchivedConversation 导入副本（D2 的 UI 触发点；导入后走既有 createSession
   // 即可拿到会话对象/事件订阅/ready）。exportLegacyArchive 对应 bridge 侧
   // archive_export 命令（Q1 的一次性全量归档；幂等，重复跑按 SHA-256 判等跳过）。
+  //
+  // D2 的桥侧等价面（渲染器零改动）：send_message/create_session 命中归档且未导入时，
+  // createSession 内先自动导入（importArchivedOnOpen，见 createSession）——桌面按既有
+  // 流程发消息即「继续聊」；只读历史不经 sidecar（桌面自渲染）。显式触发面
+  // importArchivedConversation 保留给装机票接 UI 按钮。
 
   /** 归档查询面：conversationId 是否归档旧会话、是否已导入（别名已登记）。 */
   async function archivedConversationInfo(alias) {
     const id = String(alias ?? "").trim();
     if (!id) throw new Error("conversationId is required");
+    await archiveReady();
     const agentDir = resolveAgentDirectory();
     const manifest = await readArchiveManifest(agentDir);
     const entry = findArchivedSession(manifest, id);
@@ -2140,6 +2191,7 @@ export function createHarnessBridgeSessionLayer(context) {
   async function importArchivedConversation(alias) {
     const id = String(alias ?? "").trim();
     if (!id) throw new Error("conversationId is required");
+    await archiveReady();
     const agentDir = resolveAgentDirectory();
     const manifest = await readArchiveManifest(agentDir);
     const entry = findArchivedSession(manifest, id);
@@ -2150,6 +2202,36 @@ export function createHarnessBridgeSessionLayer(context) {
     return importLegacySessionIntoHarness({
       harness: handle.harness,
       alias: id,
+      archiveDir: resolveHarnessArchiveDirectory(agentDir),
+      entry,
+    });
+  }
+
+  /**
+   * D2：createSession 的归档自动导入（「继续聊」的桥侧等价面）。conversationId 命中
+   * 归档且别名未登记 → 先按 leaf 路径导入副本（原子、幂等），随后 ensureConversation
+   * 复用导入的会话（created:false）；未归档/已导入均 no-op。导出未完成时先等
+   * archiveReady（时序见 flipExportOutcome 注释）。
+   *
+   * 失败路径的内联重试：翻转首启导出失败（ran:false, reason:"failed"）时，manifest
+   * 可能缺失——这里再跑一次 exportLegacySessions（SHA 幂等，秒级），防止把有旧
+   * JSONL 的会话空开成新会话（shadow）。仍失败则按未归档处理（如实回包，下个启动
+   * 周期自愈）。
+   */
+  async function importArchivedOnOpen(alias, handle) {
+    const flipOutcome = await archiveReady();
+    const agentDir = resolveAgentDirectory();
+    if (flipOutcome?.ran === false && flipOutcome?.reason === "failed") {
+      await exportLegacySessions({ agentDir }).catch(() => undefined);
+    }
+    const manifest = await readArchiveManifest(agentDir);
+    const entry = findArchivedSession(manifest, alias);
+    if (!entry) return;
+    const existing = await handle.conversation(alias);
+    if (existing !== undefined) return;
+    await importLegacySessionIntoHarness({
+      harness: handle.harness,
+      alias,
       archiveDir: resolveHarnessArchiveDirectory(agentDir),
       entry,
     });
@@ -2207,6 +2289,9 @@ export function createHarnessBridgeSessionLayer(context) {
     archivedConversationInfo,
     importArchivedConversation,
     exportLegacyArchive,
+    // PR-2 批次 D2：翻转首启导出的等待面（层构造即起跑；归档判定路径内部已等，
+    // 这里给测试/诊断显式等待用）。
+    archiveReady,
     // 诊断/测试面。
     heartbeatState: () => runtime?.handle.heartbeatState(),
     lockState: () => runtime?.handle.lockState(),

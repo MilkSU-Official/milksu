@@ -11,10 +11,13 @@ import {
   HARNESS_ENABLE_ENV,
   HARNESS_LOCK_FILE,
   HARNESS_LOCK_HELD_CODE,
+  HARNESS_STORAGE_FILE,
   HarnessLockHeldError,
   acquireHarnessLock,
   harnessLockPath,
+  harnessStorageDirectory,
   harnessStoragePath,
+  harnessWorkspaceKey,
   isPiHarnessEnabled,
   openMilkSUHarness,
   resolveHarnessAgentDir,
@@ -66,12 +69,15 @@ async function withTempAgentDir(run) {
   }
 }
 
-test("enable gate defaults to off and only accepts the explicit value", () => {
-  assert.equal(isPiHarnessEnabled(), false);
-  assert.equal(isPiHarnessEnabled({}), false);
-  assert.equal(isPiHarnessEnabled({ [HARNESS_ENABLE_ENV]: "" }), false);
+test("enable gate defaults to on after the D2 flip; only \"0\" turns it off", () => {
+  // D2 扳机翻转（FLIP-REVIEW 定稿）：缺省＝开；MILKSU_PI_HARNESS=0＝显式关（回退旧
+  // 引擎）。与 MILKSU_PI_HANG_GUARD !== "0" 同款「默认开、0 显式关」约定——其余任何
+  // 值（""、"true"、误拼）都按开处理，防默认开的门被脏值悄悄关上。
+  assert.equal(isPiHarnessEnabled(), true);
+  assert.equal(isPiHarnessEnabled({}), true);
+  assert.equal(isPiHarnessEnabled({ [HARNESS_ENABLE_ENV]: "" }), true);
   assert.equal(isPiHarnessEnabled({ [HARNESS_ENABLE_ENV]: "0" }), false);
-  assert.equal(isPiHarnessEnabled({ [HARNESS_ENABLE_ENV]: "true" }), false);
+  assert.equal(isPiHarnessEnabled({ [HARNESS_ENABLE_ENV]: "true" }), true);
   assert.equal(isPiHarnessEnabled({ [HARNESS_ENABLE_ENV]: "1" }), true);
 });
 
@@ -81,8 +87,85 @@ test("agentDir resolution mirrors the bridge convention", () => {
     "/tmp/agent-home/pi",
   );
   assert.equal(resolveHarnessAgentDir({}, "/ws"), join("/ws", ".milksu", "pi"));
-  assert.equal(harnessStoragePath("/agent"), join("/agent", "harness", "harness.sqlite"));
-  assert.equal(harnessLockPath("/agent"), join("/agent", "harness", HARNESS_LOCK_FILE));
+});
+
+test("storage directories are isolated per workspace (D2: parked-sidecar lock contention)", async () => {
+  await withTempAgentDir(async ({ agentDir }) => {
+    // 路径面：同 agentDir 不同工作区 → 不同子目录；同工作区 → 稳定同一键。
+    const wsA = join(agentDir, "..", "workspace-a");
+    const wsB = join(agentDir, "..", "workspace-b");
+    assert.equal(harnessStoragePath(agentDir, wsA), join(
+      harnessStorageDirectory(agentDir, wsA), HARNESS_STORAGE_FILE,
+    ));
+    assert.equal(harnessLockPath(agentDir, wsA), join(
+      harnessStorageDirectory(agentDir, wsA), HARNESS_LOCK_FILE,
+    ));
+    assert.notEqual(harnessStorageDirectory(agentDir, wsA), harnessStorageDirectory(agentDir, wsB));
+    assert.equal(harnessWorkspaceKey("/ws/proj"), harnessWorkspaceKey("/ws/proj"));
+    assert.notEqual(harnessWorkspaceKey("/ws/proj"), harnessWorkspaceKey("/ws/proj/"));
+    assert.match(harnessWorkspaceKey("/ws/proj"), /^ws-[0-9a-f]{16}$/u);
+  });
+});
+
+test("two workspaces share one agentDir without lock contention (parked-sidecar layout)", async () => {
+  // D2 的实据：宿主对所有 sidecar 共享同一个 MILKSU_PI_AGENT_DIR，且切换工作区时旧
+  // sidecar park 保活（至多 15 分钟空闲）——共享 harness/harness.sqlite 时第二个工作区
+  // 的进程会吃 HarnessLockHeldError（双进程实证见 D2 交付报告）。按工作区分子目录后
+  // 两个工作区并存；同一工作区的防双开语义原样保留。
+  await withTempAgentDir(async ({ agentDir }) => {
+    const { models } = makeFauxModels();
+    const registryA = createRegistry();
+    const handleA = await openMilkSUHarness({
+      agentDir,
+      workspace: "/ws/proj-a",
+      models,
+      registry: registryA,
+      heartbeatMs: 50,
+      settleMs: 5,
+      unrefHeartbeat: true,
+    });
+    try {
+      const handleB = await openMilkSUHarness({
+        agentDir,
+        workspace: "/ws/proj-b",
+        models,
+        registry: createRegistry(),
+        heartbeatMs: 50,
+        settleMs: 5,
+        unrefHeartbeat: true,
+      });
+      try {
+        assert.notEqual(handleA.storagePath, handleB.storagePath);
+        const conversationA = await handleA.ensureConversation("conv-shared-agent-dir");
+        const conversationB = await handleB.ensureConversation("conv-shared-agent-dir");
+        assert.ok(conversationA.conversation.id > 0);
+        assert.ok(conversationB.conversation.id > 0);
+        // 两个存储各自独立：A 的会话在 B 里查不到（别名的按工作区分域）。
+        assert.equal(await handleB.conversation("conv-shared-agent-id-b-miss"), undefined);
+        const lookupA = await handleA.conversation("conv-shared-agent-dir");
+        const lookupB = await handleB.conversation("conv-shared-agent-dir");
+        assert.ok(lookupA, "alias resolves in its own workspace storage");
+        assert.ok(lookupB, "same alias independently resolvable in the other storage");
+      } finally {
+        await handleB.close();
+      }
+      // 同一工作区仍是单进程独占：第二个句柄必须被锁拒绝（Q4/Q5 防双开不变）。
+      await assert.rejects(
+        () => openMilkSUHarness({
+          agentDir,
+          workspace: "/ws/proj-a",
+          models,
+          registry: createRegistry(),
+          heartbeatMs: 50,
+          settleMs: 5,
+          unrefHeartbeat: true,
+        }),
+        error => error instanceof HarnessLockHeldError,
+      );
+    } finally {
+      await handleA.close();
+    }
+  });
 });
 
 test("lock acquire/release and second-acquire rejection", async () => {
@@ -176,7 +259,7 @@ test("openMilkSUHarness: alias index is atomic and conversation() round-trips", 
       unrefHeartbeat: true,
     });
     try {
-      assert.ok(handle.storagePath.endsWith(join("harness", "harness.sqlite")));
+      assert.ok(handle.storagePath.endsWith(join("harness", harnessWorkspaceKey(), "harness.sqlite")));
 
       const missing = await handle.conversation("conv-adapter-1");
       assert.equal(missing, undefined);
@@ -294,7 +377,8 @@ test("configureConversation persists model and thinkingLevel per conversation", 
 test("openMilkSUHarness refuses to start on storage damage and releases the lock", async () => {
   await withTempAgentDir(async ({ agentDir }) => {
     const { models } = makeFauxModels();
-    const storageDir = join(agentDir, "harness");
+    const storageDir = harnessStorageDirectory(agentDir);
+    await mkdir(storageDir, { recursive: true });
     // 打开前自检：损坏的存储文件在 openNodeSqliteStorage/Harness.open 处 throw。
     await writeFile(harnessStoragePath(agentDir), "not a sqlite database at all");
     await assert.rejects(

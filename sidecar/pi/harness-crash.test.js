@@ -125,7 +125,11 @@ test("crash while inbox holds queued items: nothing is lost after reopen", async
 test("flock double-open: a second process cannot open the same harness storage", async () => {
   await withCrashRun(async root => {
     const agentDir = join(root, "agent");
-    // 子进程 before 阶段持有 harness（心跳活跃），父进程此刻对同一 agentDir 开第二个。
+    // D2（存储按工作区分目录）：场景子进程的工作区 = 其 cwd（sidecar/pi），父进程要
+    // 开「同一存储」必须显式对准同一 workspace 键——防双开语义按工作区一一对应，
+    // 跨工作区并存正是 D2 修的 parked-sidecar 锁冲突面（见 harness-adapter.test.js）。
+    const scenarioWorkspace = dirname(scenarioPath);
+    // 子进程 before 阶段持有 harness（心跳活跃），父进程此刻对同一存储开第二个。
     const before = spawnScenario([
       "--phase", "before",
       "--scenario", "s1",
@@ -137,6 +141,7 @@ test("flock double-open: a second process cannot open the same harness storage",
       await assert.rejects(
         () => openMilkSUHarness({
           agentDir,
+          workspace: scenarioWorkspace,
           models: makeFauxModels().models,
           registry: createRegistry(),
           heartbeatMs: 200,
@@ -154,6 +159,7 @@ test("flock double-open: a second process cannot open the same harness storage",
     // 持有者死后（waitpid 之后的等价面：pid 已死）→ 锁可被接管，重开成功。
     const handle = await openMilkSUHarness({
       agentDir,
+      workspace: scenarioWorkspace,
       models: makeFauxModels().models,
       registry: createRegistry(),
       heartbeatMs: 200,

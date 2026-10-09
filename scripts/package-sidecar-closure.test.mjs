@@ -592,6 +592,42 @@ test('chat bridge bundle inlines the batch D1 legacy archive surface', async () 
   }
 })
 
+// PR-2 批次 D2（扳机翻转）：翻转判定收口（harness-bridge-flip 的门+CTF/CVE 排除）、
+// per-workspace 存储键、翻转首启一次性导出（claim/completed 状态文件）、destroySession
+// 的归档源文件触点、createSession 的归档自动导入、以及两个真桥修复（goal 机的
+// noteGenerationFailure 导出、duck-typed 会话对象的 hasExtensionHandlers）必须真的进
+// bundle——这些是翻转日的必经路径，缺一件装机首启即断。
+test('chat bridge bundle inlines the batch D2 flip surface', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'milksu-chat-bridge-d2-bundle-'))
+  try {
+    const outfile = join(root, 'chat-bridge.cjs')
+    await bundleChatBridge(outfile)
+    const bundle = await readFile(outfile, 'utf8')
+    // 门翻转语义：缺省开、MILKSU_PI_HARNESS=0 显式关（回退开关文案钉死）。
+    assert.ok(bundle.includes('MILKSU_PI_HARNESS'), 'the flip gate env name must ship')
+    // 排除收口：CTF 工作区 schema 前缀、CTF 会话角色、研究角色、ctf_ 前缀。
+    assert.ok(bundle.includes('ctf-workspace.milksu.dev'), 'the CTF workspace schema prefix must ship')
+    assert.ok(bundle.includes('ctf_'), 'the ctf_ conversation prefix convention must ship')
+    for (const role of ['solver', 'strategist', 'tool-builder', 'cve-research', 'lab-job']) {
+      assert.ok(bundle.includes(role), `the ${role} exclusion role must ship`)
+    }
+    // per-workspace 存储键（parked-sidecar 锁冲突的修复面）。
+    assert.ok(bundle.includes('harnessWorkspaceKey'), 'the per-workspace storage key derivation must ship')
+    // 翻转首启一次性导出：claim/completed 状态文件名 + 导出失败的自愈文案。
+    assert.ok(bundle.includes('flip-export.json'), 'the flip export state file must ship')
+    assert.ok(bundle.includes('MilkSU flip archive export failed'), 'the flip export failure logging must ship')
+    // destroySession 的归档源文件触点 + createSession 的归档自动导入。
+    assert.ok(bundle.includes('archivedLegacySourcePath'), 'the manifest source-path touchpoint must ship')
+    assert.ok(bundle.includes('deleteArchivedLegacySources'), 'the archived source deletion must ship')
+    assert.ok(bundle.includes('importArchivedOnOpen'), 'the continue-chat auto import must ship')
+    // 真桥修复：goal 机的 generation 失败信号 + 会话对象的 shutdown 探测面。
+    assert.ok(bundle.includes('noteGenerationFailure'), 'the goal machine generation-failure signal must ship')
+    assert.ok(bundle.includes('hasExtensionHandlers'), 'the duck-typed shutdown probe must ship')
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
 test('Pi closure ships only the target platform esbuild binary', async () => {  const fixture = await createPackageFixture()
   try {
     const platform = currentPlatform()

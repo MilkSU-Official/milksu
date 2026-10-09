@@ -2589,6 +2589,10 @@ export function createHarnessGoalMachine(context) {
     handleTurnEnd,
     markToolAttempted,
     noteRunMessage,
+    // D2 修复（真桥 E2E 暴露）：harness-bridge-session.js 的 task_failed pi.generation
+    // 分支调用本方法，B2e 定义了却漏了导出——generation 重试耗尽时事件投影整条抛
+    // TypeError。翻转后这是必经路径，补上导出。
+    noteGenerationFailure,
     adoptSessionGoal,
     forgetSessionGoal,
     filterAgentToolNames,
