@@ -70,6 +70,10 @@ import {
   MILKSU_SECURITY_TOOLS_EXTENSION,
   securityToolsMountFingerprint,
 } from "./harness-bridge-daily-tools.js";
+import {
+  createMilksuComputerUseExtension,
+  MILKSU_COMPUTER_USE_EXTENSION,
+} from "./harness-bridge-computer-use.js";
 import { answerDecisionQuery } from "../decision/query.js";
 import {
   isReasoningOnlyFinal,
@@ -479,6 +483,15 @@ export function createHarnessBridgeSessionLayer(context) {
         //（beforeTool 先于审判链）；goal 工具按会话策略 activeTools 过滤挂载
         //（codingReadOnly/codingWorkspaceAuto 清单本就含两件）。
         const goalMount = goalMachine.extension;
+        // PR-2 批次 B2f：Computer Use 控窗两件（prepare_computer_use_driver /
+        // computer_use——门关工厂原样复用，executor 缓存按会话分槽；policy 门在
+        // execute 内逐字保真，plan 档工具面不配置）。安装位在 milksu-core 前，
+        // 审判链白名单对挂上即自动生效。
+        const computerUseMount = createMilksuComputerUseExtension({
+          resolveConversation,
+          getPolicy: id => sessionPolicies.get(id),
+          workspaceActionBroker,
+        });
         // B2b：milksu-prompt 段的提示贡献（tools/rules 段按 snippet/guideline 渲染）。
         // 编码工具来自上面的定义构造器；LSP/MCP 是钉版字符串（pi-lsp.ts:53/113、
         // pi-mcp-adapter index.ts:2061——两个包的工具定义都不导出）；B2c 的 web
@@ -536,6 +549,7 @@ export function createHarnessBridgeSessionLayer(context) {
         registry.install(subagentsAsyncExtension);
         registry.install(backgroundTasksMount);
         registry.install(goalMount);
+        registry.install(computerUseMount);
         registry.install(core);
         if (typeof installRegistryExtensions === "function") {
           await installRegistryExtensions(registry, { models: models.models });

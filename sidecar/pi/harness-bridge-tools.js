@@ -866,6 +866,11 @@ export const mountedHarnessToolNames = Object.freeze([
   // 本就含两件——read-only 类免审批卡）。after-first-goal 可见性由会话层过滤。
   "goal_complete",
   "goal_blocked",
+  // PR-2 批次 B2f：Computer Use 控窗两件（harness-bridge-computer-use.js；门关
+  // 工厂原样复用——policy 门在 execute 内逐字保真；go 档 activeTools 白名单天然
+  // 放行，plan 档工具面不配置）。
+  "prepare_computer_use_driver",
+  "computer_use",
 ]);
 
 /** 供报告/测试引用的暂缓清单（门关 activeTools − mountedHarnessToolNames）。 */

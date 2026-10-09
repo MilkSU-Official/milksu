@@ -79,11 +79,10 @@ test("ready.tools mounts the full B2 surface in Go mode with the deferred set ex
     // 已挂载（harness-bridge-subagents）；B2d 起 bg 两件已挂载
     //（harness-bridge-background-tasks，按 codingWorkspaceAutoToolNames 原位出现）；
     // B2e 起 goal 两件已挂载（harness-bridge-goal，coding 两清单本就含两件）；
-    // 剩余暂缓面是 computer_use 两件（下一票）。
+    // B2f 起控窗两件已挂载（harness-bridge-computer-use）——暂缓面清零。
     const expectedMounted = [
       ...codingWorkspaceAutoToolNames
         .filter(name => ![
-          "prepare_computer_use_driver", "computer_use",
           // 本夹具未配置 ImageGen（imageGenConfigured=false）：门关同样不会把
           // milksu_imagegen 放进 activeTools（bridge-policy.js:1539）。
           "milksu_imagegen",
@@ -115,7 +114,9 @@ test("ready.tools mounts the full B2 surface in Go mode with the deferred set ex
         // PR-2 批次 B2d：后台任务面（anchor 任务定义随扩展注册）。
         "milksu-background-tasks",
         // PR-2 批次 B2e：goal 自主续跑状态机（milksu-core 前安装）。
-        "milksu-goal", "milksu-core",
+        "milksu-goal",
+        // PR-2 批次 B2f：Computer Use 控窗两件（milksu-core 前安装）。
+        "milksu-computer-use", "milksu-core",
       ],
       "the registry reports the mounted extensions",
     );

@@ -28,6 +28,7 @@ import { MILKSU_SUBAGENTS_EXTENSION } from "./harness-bridge-subagents.js";
 import { MILKSU_SUBAGENTS_ASYNC_EXTENSION } from "./harness-bridge-subagents-async.js";
 import { MILKSU_BACKGROUND_TASKS_EXTENSION } from "./harness-bridge-background-tasks.js";
 import { MILKSU_GOAL_EXTENSION } from "./harness-bridge-goal.js";
+import { MILKSU_COMPUTER_USE_EXTENSION } from "./harness-bridge-computer-use.js";
 
 export const defaultFauxModelDefinitions = [
   {
@@ -298,8 +299,8 @@ export function buildTestLayer({
     installRegistryExtensions: registry => {
       // 默认卸掉产品工具面换测试注入；keepProductTools=true 保留 B2 的产品挂载
       //（coding-tools/lsp/skills + B2b 的 mcp + B2c 的日常/安全面 + C1 的
-      // milksu-subagents + C2 的 milksu-subagents-async），milksu-core（审判链/
-      // 压缩接线）始终保留。
+      // milksu-subagents + C2 的 milksu-subagents-async + B2f 的控窗两件），
+      // milksu-core（审判链/压缩接线）始终保留。
       if (!keepProductTools) {
         registry.uninstall({ name: MILKSU_CODING_TOOLS_EXTENSION });
         registry.uninstall({ name: MILKSU_LSP_EXTENSION });
@@ -312,6 +313,8 @@ export function buildTestLayer({
         registry.uninstall({ name: MILKSU_BACKGROUND_TASKS_EXTENSION });
         // B2e：goal 扩展默认卸掉（goal 测试用 keepProductTools 或显式注入）。
         registry.uninstall({ name: MILKSU_GOAL_EXTENSION });
+        // B2f：控窗两件默认卸掉（computer-use 测试用 keepProductTools 或显式注入）。
+        registry.uninstall({ name: MILKSU_COMPUTER_USE_EXTENSION });
       }
       if (lspExtension) {
         // 测试注入的 milksu-lsp（通常是带假 LSP 核心的同形扩展）；后装覆盖先装。

@@ -481,6 +481,71 @@ test('chat bridge bundle inlines the batch B2e goal continuation state machine',
   }
 })
 
+// PR-2 批次 B2f：Computer Use 控窗两件（milksu-computer-use：prepare_computer_use_
+// driver / computer_use——门关工厂原样复用，executor 按 descriptor 键单槽缓存）必须
+// 真的进 bundle：扩展名、两件工具名、policy 门文案、descriptor 门文案、driver
+// 解析守卫与 executor 的 observe→act 配对面全部内联。esbuild 默认把非 ASCII 转成
+// \uXXXX 转义，中文门文案按转义形式逐字断言。
+function esbuildEscaped(text) {
+  return [...text].map(character => {
+    const code = character.codePointAt(0);
+    if (code <= 0x7f) return character;
+    if (code > 0xffff) return `\\u{${code.toString(16)}}`;
+    return `\\u${code.toString(16).toUpperCase().padStart(4, '0')}`;
+  }).join('');
+}
+
+test('chat bridge bundle inlines the batch B2f computer-use window tools', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'milksu-chat-bridge-b2f-bundle-'))
+  try {
+    const outfile = join(root, 'chat-bridge.cjs')
+    await bundleChatBridge(outfile)
+    const bundle = await readFile(outfile, 'utf8')
+    // 扩展名（registry.install 的挂载目标）。
+    assert.ok(bundle.includes('milksu-computer-use'), 'the computer-use extension must ship')
+    // 工具两件。
+    for (const name of ['prepare_computer_use_driver', 'computer_use']) {
+      assert.ok(bundle.includes(`"${name}"`), `the ${name} tool must ship`)
+    }
+    // policy 门文案（prepare 的 prepare 档门 + computer_use 的 go 档门——按 esbuild
+    // 转义形式逐字）。
+    assert.ok(
+      bundle.includes(esbuildEscaped('Plan 或只读策略不能准备 Computer Use Driver。先查看 status。')),
+      'the driver prepare policy gate must ship',
+    )
+    assert.ok(
+      bundle.includes(esbuildEscaped('Plan 或只读策略不能操作桌面窗口。')),
+      'the computer_use policy gate must ship',
+    )
+    // descriptor 门文案（未锁窗时的指路——ASCII 前缀逐字）。
+    assert.ok(
+      bundle.includes('No window is locked. Call milksu_workspace list_computer_use_windows'),
+      'the lock-required gate must ship',
+    )
+    // driver 解析守卫（resolvePackagedComputerUseDriver 的失败面）。
+    assert.ok(
+      bundle.includes('MilkSU packaged Computer Use runtime is unavailable'),
+      'the packaged driver resolver must ship',
+    )
+    // executor 的 observe→act 配对面（快照消费与 AX addressing 注入）。
+    assert.ok(
+      bundle.includes('computer_use requires a fresh observe of the selected target window'),
+      'the observe pairing must ship',
+    )
+    assert.ok(
+      bundle.includes('use x, y from the latest observe screenshot instead'),
+      'the AX snapshot_id injection must ship',
+    )
+    // 目标窗口可见性守卫（list_windows 之后的选择面）。
+    assert.ok(
+      bundle.includes('MilkSU Computer Use target window is no longer visible'),
+      'the target window visibility guard must ship',
+    )
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
 test('Pi closure ships only the target platform esbuild binary', async () => {  const fixture = await createPackageFixture()
   try {
     const platform = currentPlatform()
