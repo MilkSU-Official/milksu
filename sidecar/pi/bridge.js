@@ -815,11 +815,20 @@ function harnessTurnRouted(commandOrId) {
 function harnessUnsupportedResult(command, type) {
   const conversationId = String(command?.conversationId ?? "").trim();
   const requestId = String(command?.requestId ?? "").trim();
+  const operation = HARNESS_UNSUPPORTED_OPERATION[type] ?? "this operation";
   emit(conversationId || null, type, {
     requestId,
-    error: "MilkSU harness conversations do not support this operation yet (batch B2/D scope)",
+    error: `Not supported for harness conversations yet: ${operation}`,
   });
 }
+
+// 事件流里的诊断文案（不经渲染器 UI 展示，fork/rewind 的 RPC 错误在渲染器侧
+// catch 后走本地克隆兜底）；不携带内部批次编号，按事件名给出可读的操作名。
+const HARNESS_UNSUPPORTED_OPERATION = {
+  session_forked: "fork",
+  session_rewound: "rewind",
+  session_handoff: "handoff",
+};
 
 function backgroundToolAction(toolName, input) {
   if (toolName !== "bg_task" && toolName !== "bg_status") return "";
