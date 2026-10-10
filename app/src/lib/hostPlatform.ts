@@ -48,6 +48,27 @@ export function toggleWindowMaximize(
   void invoke('window.toggleMaximize', []).catch(() => undefined)
 }
 
+export function attachWindowMaximizeDblClick(
+  target: EventTarget = globalThis,
+  source: HostPlatformSource | typeof globalThis = globalThis,
+): () => void {
+  if (typeof target?.addEventListener !== 'function') return () => {}
+
+  const onDoubleClick = (event: Event) => {
+    const el = event.target
+    if (!(el instanceof Element)) return
+    if (el.closest('.app-no-drag, button, input, select, textarea, a, [data-no-drag]')) return
+    if (el.closest('.app-drag')) {
+      toggleWindowMaximize(source)
+    }
+  }
+
+  target.addEventListener('dblclick', onDoubleClick)
+  return () => {
+    target.removeEventListener('dblclick', onDoubleClick)
+  }
+}
+
 function safeDocumentRoot(): HTMLElement | null {
   if (typeof document === 'undefined') return null
   return document.documentElement

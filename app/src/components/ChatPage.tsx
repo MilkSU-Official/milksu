@@ -59,7 +59,7 @@ import {
 } from 'lucide-react'
 import { codingEnvironmentMissing, invokeCommand, listenEvent } from '@/desktop'
 import { toastError } from '@/lib/appToast'
-import { toggleWindowMaximize } from '@/lib/hostPlatform'
+import WindowTopDragRegion from '@/components/WindowTopDragRegion'
 import { isAskMessage } from '@/lib/agentAsk'
 import { nextChatAutoScrollPinned } from '@/lib/chatAutoScroll'
 import { applyChatEdgeChrome } from '@/lib/chatEdgeChrome'
@@ -3008,11 +3008,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
       data-testid={dockSurface ? 'coding-agent-dock-surface' : undefined}
     >
       {!dockSurface ? (
-        <div
-          className="chat-window-drag-region app-drag"
-          aria-hidden="true"
-          onDoubleClick={() => toggleWindowMaximize()}
-        />
+        <WindowTopDragRegion />
       ) : null}
       {!dockSurface ? (
         <div className="shell-window-controls shell-window-controls--end">
@@ -4465,16 +4461,6 @@ const chatPageCss = `
   min-height: var(--shell-title-safe-top);
   padding-top: 0.25rem;
   padding-bottom: 0.25rem;
-}
-
-.chat-window-drag-region {
-  display: none;
-}
-
-:root[data-host-platform='linux'] .chat-window-drag-region {
-  display: block;
-  height: var(--shell-title-safe-top);
-  flex: none;
 }
 
 .chat-main {

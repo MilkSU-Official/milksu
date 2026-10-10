@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { Mail } from 'lucide-react'
 import { GitHubIcon } from '@/components/GitHubIcon'
 import { Alert, AlertDescription, Button, Input, Label } from '@/components/ui'
+import WindowTopDragRegion from '@/components/WindowTopDragRegion'
 import { useT } from '@/hooks/useUiLocale'
 import { accountPasswordProblem, accountUsernameProblem } from '@/lib/accountPassword'
 import type { AccountStatus } from '@/types'
@@ -71,13 +72,17 @@ export default function AccountLoginPage({
   }
 
   return (
-    <main className="flex min-h-screen min-w-0 justify-center bg-background text-foreground" aria-label={t('登录 MilkSU', 'Sign in to MilkSU')}>
-      <section className="flex min-w-0 w-full max-w-[440px] flex-col px-8 py-10 md:px-0 md:py-16">
-        <header className="flex items-center">
+    <main
+      className="relative flex min-h-screen min-w-0 flex-col items-center justify-start bg-background text-foreground app-drag select-none"
+      aria-label={t('登录 MilkSU', 'Sign in to MilkSU')}
+    >
+      <WindowTopDragRegion className="w-full" />
+      <section className="flex min-w-0 w-full max-w-[440px] flex-1 flex-col px-8 py-10 md:px-0 md:py-16">
+        <header className="flex items-center app-drag select-none">
           <BrandMark />
         </header>
 
-        <div className="my-auto w-full py-12">
+        <div className="app-no-drag select-text my-auto w-full py-12">
           <p className="text-sm text-muted-foreground">{t('内测访问', 'Private beta')}</p>
           <h1 className="mt-3 text-4xl font-semibold tracking-tight">
             {changing ? t('设置新密码', 'Set a new password') : t('登录', 'Sign in')}

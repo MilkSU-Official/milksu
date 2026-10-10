@@ -1684,7 +1684,7 @@ export default function App() {
 
   if (!accountLoaded) {
     return (
-      <div className="grid h-screen place-items-center bg-background text-xl font-semibold text-foreground">
+      <div className="app-drag select-none grid h-screen place-items-center bg-background text-xl font-semibold text-foreground">
         MilkSU
       </div>
     )
@@ -1692,7 +1692,7 @@ export default function App() {
 
   if (showAccountGate) {
     return (
-      <Suspense fallback={<div className="grid h-screen place-items-center bg-background text-xl font-semibold text-foreground">MilkSU</div>}>
+      <Suspense fallback={<div className="app-drag select-none grid h-screen place-items-center bg-background text-xl font-semibold text-foreground">MilkSU</div>}>
         <AccountLoginPage
           status={accountStatus}
           busy={accountLoginBusy}

@@ -28,7 +28,7 @@ export default function WorkspaceTopBar({
 
   return (
     <header
-      className="workspace-topbar shell-window-control-safe-x app-drag py-4"
+      className="workspace-topbar window-drag-header shell-window-control-safe-x app-drag py-4"
       data-module-topbar
       data-workspace-topbar
       data-plugin-surface="workspace-topbar"

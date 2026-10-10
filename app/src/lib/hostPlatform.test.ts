@@ -1,7 +1,13 @@
 // @vitest-environment jsdom
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { applyHostPlatform, readHostPlatform, syncWindowChrome, toggleWindowMaximize } from './hostPlatform'
+import {
+  applyHostPlatform,
+  attachWindowMaximizeDblClick,
+  readHostPlatform,
+  syncWindowChrome,
+  toggleWindowMaximize,
+} from './hostPlatform'
 
 describe('hostPlatform', () => {
   beforeEach(() => {
@@ -38,5 +44,62 @@ describe('hostPlatform', () => {
     toggleWindowMaximize({ milksu: { hostPlatform: 'win32', invoke } })
     expect(invoke).toHaveBeenCalledTimes(1)
     expect(() => toggleWindowMaximize({})).not.toThrow()
+  })
+
+  it('delegates double clicks from .app-drag to toggleWindowMaximize', () => {
+    const invoke = vi.fn().mockResolvedValue(true)
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const cleanup = attachWindowMaximizeDblClick(window, {
+      milksu: { hostPlatform: 'linux', invoke },
+    })
+
+    const dragArea = document.createElement('div')
+    dragArea.className = 'app-drag'
+    const button = document.createElement('button')
+    button.textContent = 'Action'
+    dragArea.appendChild(button)
+    const noDragSpan = document.createElement('span')
+    noDragSpan.className = 'app-no-drag'
+    dragArea.appendChild(noDragSpan)
+    const plainSpan = document.createElement('span')
+    plainSpan.textContent = 'Title'
+    dragArea.appendChild(plainSpan)
+
+    container.appendChild(dragArea)
+
+    // Double clicking plain element inside app-drag triggers maximize
+    plainSpan.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))
+    expect(invoke).toHaveBeenCalledTimes(1)
+
+    // Double clicking button inside app-drag does not trigger maximize
+    button.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))
+    expect(invoke).toHaveBeenCalledTimes(1)
+
+    // Double clicking app-no-drag does not trigger maximize
+    noDragSpan.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))
+    expect(invoke).toHaveBeenCalledTimes(1)
+
+    cleanup()
+    plainSpan.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))
+    expect(invoke).toHaveBeenCalledTimes(1)
+    container.remove()
+  })
+
+  it('triggers toggleWindowMaximize exactly once without duplicate dispatch', () => {
+    const invoke = vi.fn().mockResolvedValue(true)
+    const cleanup = attachWindowMaximizeDblClick(window, {
+      milksu: { hostPlatform: 'linux', invoke },
+    })
+
+    const dragRegion = document.createElement('div')
+    dragRegion.className = 'window-top-drag-region app-drag'
+    document.body.appendChild(dragRegion)
+
+    dragRegion.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))
+    expect(invoke).toHaveBeenCalledTimes(1)
+
+    cleanup()
+    dragRegion.remove()
   })
 })

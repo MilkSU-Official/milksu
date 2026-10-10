@@ -2,6 +2,7 @@ import { createStore, nextTick, useStoreRuntime } from '@/lib/reactStore'
 import { useEffect, useRef } from 'react'
 import { LockKeyhole, Pencil, RotateCw, UserRound } from 'lucide-react'
 import { Button } from '@/components/ui'
+import WindowTopDragRegion from '@/components/WindowTopDragRegion'
 import profileAvatar from '@/assets/ctf-learner-avatar.png'
 import { invokeCommand, listenEvent } from '@/desktop'
 import { isComposingKey } from '@/lib/imeComposition'
@@ -460,14 +461,15 @@ export default function ProfilePage({
 
   return (
     <main className="profile-page page-scroll min-w-0 flex-1 bg-background text-foreground" aria-label={t('个人资料', 'Profile')}>
+      <WindowTopDragRegion />
       <div className="page-column">
-        <header className="shell-window-control-safe-x flex items-center justify-between gap-5 pb-5">
+        <header className="window-drag-header shell-window-control-safe-x flex items-center justify-between gap-5 pb-5 app-drag">
           <div className="flex items-center gap-3">
             <UserRound className="size-6 text-primary" />
             <h1 className="text-2xl font-medium tracking-tight">{t('个人资料', 'Profile')}</h1>
             <span className="inline-flex items-center gap-1.5 text-caption text-success"><LockKeyhole className="size-3.5" />{t('仅自己可见', 'Only visible to you')}</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 app-no-drag">
             <Button variant="ghost" size="sm" disabled={state.loading} onClick={() => void runtime.load({ account: true })}><RotateCw className="size-4" />{t('刷新', 'Refresh')}</Button>
             <Button variant="outline" size="sm" onClick={() => runtime.startEditingProfile()}><Pencil className="size-4" />{t('编辑资料', 'Edit profile')}</Button>
           </div>

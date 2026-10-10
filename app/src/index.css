@@ -834,6 +834,35 @@ input[type='range']:not(:disabled) {
   -webkit-app-region: no-drag;
 }
 
+.window-top-drag-region {
+  display: none;
+}
+
+:root[data-host-platform='linux'] .window-top-drag-region {
+  display: block;
+  height: var(--shell-title-safe-top);
+  flex: none;
+}
+
+.window-drag-header {
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+:root[data-host-platform='linux'] .window-drag-header {
+  min-height: var(--shell-title-safe-top);
+}
+
+.window-drag-header button,
+.window-drag-header input,
+.window-drag-header select,
+.window-drag-header textarea,
+.window-drag-header a,
+.window-drag-header [data-no-drag] {
+  -webkit-app-region: no-drag;
+  user-select: auto;
+}
+
 /*
  * Shared window-chrome safe insets. macOS hiddenInset keeps traffic lights over
  * the sidebar. Windows and Linux hide the native caption and paint a canvas-colored

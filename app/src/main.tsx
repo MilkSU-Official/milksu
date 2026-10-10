@@ -5,7 +5,7 @@ import { createRoot } from 'react-dom/client'
 import App from './App'
 import { ConversationsProvider } from '@/stores/conversationsStore'
 import { LabJobsProvider } from '@/stores/labJobsStore'
-import { applyHostPlatform, syncWindowChrome } from '@/lib/hostPlatform'
+import { applyHostPlatform, attachWindowMaximizeDblClick, syncWindowChrome } from '@/lib/hostPlatform'
 import { applyUiEmphasis } from '@/lib/uiEmphasis'
 import { applyConversationFontSize, subscribeConversationFontSizeSync } from '@/lib/uiFonts'
 import { applyProjectFoldLimit, subscribeProjectFoldLimitSync } from '@/lib/projectFoldLimit'
@@ -14,6 +14,7 @@ import './index.css'
 
 const initialThemeMode = readThemeMode()
 applyHostPlatform()
+attachWindowMaximizeDblClick()
 applyThemeMode(initialThemeMode)
 syncWindowChrome(resolveThemeMode(initialThemeMode), globalThis, initialThemeMode)
 subscribeThemeSync((mode, resolved) => {
