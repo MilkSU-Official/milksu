@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
-import { mkdtemp, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, readdir, rm, writeFile, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import test from 'node:test'
 import {
+  bundleChatBridge,
+  bundleHarnessAdapter,
   collectInstalledPackageClosure,
   copyDshRuntime,
   currentPlatform,
@@ -177,8 +180,455 @@ test('DSH packaged closure includes required app-boot peers', async () => {
   }
 })
 
-test('Pi closure ships only the target platform esbuild binary', async () => {
-  const fixture = await createPackageFixture()
+// pi-durable Harness 地基（PR-2 批次 A）的打包闭环断言：适配层 bundle 必须真的内联
+// pi-durable 1.0.0 的代码（不是只在 package.json 里挂个依赖），node:sqlite 保持外部内建
+// 引用，且仓库把版本精确钉死（不用 ^，PREP §5.1 的缓解措施）。
+test('harness adapter bundle inlines pi-durable exactly at the pinned version', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'milksu-harness-adapter-bundle-'))
+  try {
+    const outfile = join(root, 'harness-adapter.cjs')
+    await bundleHarnessAdapter(outfile)
+    const bundle = await readFile(outfile, 'utf8')
+    assert.ok(bundle.length > 100_000, `unexpected adapter bundle size: ${bundle.length}`)
+    // pi-durable 标志性代码片段（dist 1.0.0）：内建 inbox 文档 kind、interrupted 错误文案。
+    assert.ok(bundle.includes('"pi.inbox"'), 'bundle must inline pi-durable InboxDoc')
+    assert.ok(
+      bundle.includes('was interrupted and may have partially run'),
+      'bundle must inline the pi-durable interrupted tool result',
+    )
+    // 适配层自身的别名登记文档 kind。
+    assert.ok(bundle.includes('milksu.conversation-index'), 'bundle must inline the adapter alias doc')
+    // node:sqlite 是内建模块：esbuild 保持外部引用，运行时由打包 Node 24 提供。
+    assert.ok(/require\(["']node:sqlite["']\)/.test(bundle), 'node:sqlite must stay an external builtin require')
+
+    // 钉版检查：package.json 精确 1.0.0（不带 ^），锁文件里已安装同一版本。
+    const repositoryRoot = join(dirname(fileURLToPath(import.meta.url)), '..')
+    const document = JSON.parse(await readFile(join(repositoryRoot, 'package.json'), 'utf8'))
+    assert.equal(
+      document.dependencies['@earendil-works/pi-durable'],
+      '1.0.0',
+      'pi-durable must be pinned exactly (no ^) per PREP §5.1',
+    )
+    const installed = JSON.parse(await readFile(
+      join(repositoryRoot, 'node_modules', '@earendil-works', 'pi-durable', 'package.json'),
+      'utf8',
+    ))
+    assert.equal(installed.version, '1.0.0')
+    // 安装树里 typebox 1.3.27（pi-durable 的精确依赖）以嵌套副本存在，不影响根部 1.1.38。
+    const nestedTypebox = await stat(join(
+      repositoryRoot, 'node_modules', '@earendil-works', 'pi-durable', 'node_modules', 'typebox', 'package.json',
+    ))
+    assert.ok(nestedTypebox.isFile(), 'pi-durable keeps its exact nested typebox 1.3.27')
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+// PR-2 批次 B1：主 bridge bundle 必须真的带上 Harness 运行核心接线（门 + 会话层 +
+// beforeTool 审批链 + pi-durable 本体），而不是只在源码里 import 了却没进分发物。
+test('chat bridge bundle inlines the batch B1 harness wiring', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'milksu-chat-bridge-bundle-'))
+  try {
+    const outfile = join(root, 'chat-bridge.cjs')
+    await bundleChatBridge(outfile)
+    const bundle = await readFile(outfile, 'utf8')
+    // 门：MILKSU_PI_HARNESS 常量 + 分叉。
+    assert.ok(bundle.includes('MILKSU_PI_HARNESS'), 'gate env name must ship')
+    assert.ok(bundle.includes('harnessTurnRouted'), 'routing forks must ship')
+    // 适配层与 pi-durable 本体（同批次 A 的内联标志）。
+    assert.ok(bundle.includes('milksu.conversation-index'), 'adapter alias doc must ship')
+    assert.ok(
+      bundle.includes('was interrupted and may have partially run'),
+      'pi-durable ToolTask must be inlined',
+    )
+    // 审批链移植（beforeTool 钩子）与压缩接线（pi.compaction 任务）。
+    assert.ok(bundle.includes('beforeTool'), 'beforeTool hook wiring must ship')
+    assert.ok(bundle.includes('pi.compaction'), 'compaction task must be inlined')
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+// PR-2 批次 B2：工具面挂载（coding 工具适配 + LSP 薄壳 + 技能目录 + hang-guard
+// afterTool）与遗留接线（decision_query 门开分支、reasoning-only recovery）必须真的
+// 进 bundle：pi-durable 的 defineTool/section 不外部化，reviewed-ts 的 pi-lsp 核心
+// 同样内联（bridge.js → harness-bridge-session → harness-bridge-tools 的静态链）。
+test('chat bridge bundle inlines the batch B2 tool-surface wiring', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'milksu-chat-bridge-b2-bundle-'))
+  try {
+    const outfile = join(root, 'chat-bridge.cjs')
+    await bundleChatBridge(outfile)
+    const bundle = await readFile(outfile, 'utf8')
+    // 工具面扩展名（registry.install 的挂载目标）。
+    assert.ok(bundle.includes('milksu-coding-tools'), 'coding tools extension must ship')
+    assert.ok(bundle.includes('milksu-lsp'), 'LSP extension must ship')
+    assert.ok(bundle.includes('milksu-skills'), 'skills extension must ship')
+    // B2 撤掉裸 CodingTools：bundle 里不再出现 pi-durable tools 聚合扩展的安装。
+    assert.ok(!bundle.includes('pi-durable-coding-tools'), 'the scaffold must be gone')
+    // LSP 受审链 + pi-lsp 可分离核心（reviewed-ts 内联标志）。
+    assert.ok(bundle.includes('lsp_fix'), 'the reviewed LSP fix tool must ship')
+    assert.ok(bundle.includes('MilkSU could not inspect the LSP fix preview'),
+      'the reviewed chain must ship')
+    assert.ok(bundle.includes('source.fixAll'), 'the pi-lsp core must be inlined')
+    // hang-guard 结果面 + 技能目录渲染（pi-coding-agent 的 skills 渲染器内联）。
+    assert.ok(bundle.includes('exceeded its'), 'hang-guard diagnostics must ship')
+    assert.ok(bundle.includes('<available_skills>'), 'the skills catalog renderer must ship')
+    // 遗留接线：decision_query 门开分支 + reasoning-only recovery。
+    assert.ok(bundle.includes('decisionQuery'), 'decision_query wiring must ship')
+    assert.ok(bundle.includes('milksu-reasoning-only-recovery') || bundle.includes('reasoningOnlyRecoveryPrompt'),
+      'the reasoning-only recovery must ship')
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+// PR-2 批次 B2c：日常 UX 与产品面板面挂载（ask/progress/web/workspace/
+// imagegen/archify/capa）必须真的进 bundle：新扩展名、各工具的门关定义/执行串（薄壳与复用构造器）、动态安全挂载与事件契约字段全部内联。
+test('chat bridge bundle inlines the batch B2c daily tool surfaces', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'milksu-chat-bridge-b2c-bundle-'))
+  try {
+    const outfile = join(root, 'chat-bridge.cjs')
+    await bundleChatBridge(outfile)
+    const bundle = await readFile(outfile, 'utf8')
+    // 扩展名（registry.install 的挂载目标；安全面是动态原位替换）。
+    assert.ok(bundle.includes('milksu-daily-tools'), 'the daily tools extension must ship')
+    assert.ok(bundle.includes('milksu-security-tools'), 'the security tools extension must ship')
+    // ask/progress 薄壳的门关定义串。
+    assert.ok(bundle.includes('Show a tappable choice card with 2-6 options'),
+      'the ask card description must ship')
+    assert.ok(bundle.includes('milksu_ask needs at least two options'),
+      'the ask validation must ship')
+    assert.ok(bundle.includes('Publish or update a short execution plan'),
+      'the progress description must ship')
+    assert.ok(bundle.includes('MilkSU progress accepts at most one in-progress step'),
+      'the progress validation must ship')
+    // web 研究：门关工厂（Jina 转发/解析）原样内联。
+    assert.ok(bundle.includes('lite.duckduckgo.com'), 'the web search backend must ship')
+    assert.ok(bundle.includes('Search the web for information'),
+      'the web prompt snippet must ship')
+    // workspace 面板：真 broker 的事件契约串。
+    assert.ok(bundle.includes('Coding workspace action timed out'),
+      'the workspace action broker must ship')
+    assert.ok(bundle.includes('Deep Research uses only the typed Research Browser source action'),
+      'the research browser isolation must ship')
+    // imagegen：回执 schema 与逐次审批面。
+    assert.ok(bundle.includes('milksu-imagegen-receipt/v1'), 'the imagegen receipt must ship')
+    assert.ok(bundle.includes('MilkSU user denied this ImageGen request'),
+      'the imagegen approval block must ship')
+    // archify：沙箱内执行的门关错误串。
+    assert.ok(bundle.includes('MilkSU packaged Archify resource is unavailable'),
+      'the archify resource gate must ship')
+    // capa：按会话解析与挂载面。
+    assert.ok(bundle.includes('MilkSU capa is not configured'),
+      'the capa per-session resolution must ship')
+    assert.ok(bundle.includes('capa analysis exceeded 120 seconds'),
+      'the capa sandbox runner must ship')
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+// PR-2 批次 C1：子代理·协作工具路（milksu-subagents：builtin 角色 = 任务拥有的会
+// 话 + 外部 CLI 外部进程 + worktree 消费面）必须真的进 bundle：扩展名、公共底座
+// 的所有权索引/requestId 幂等串、角色广告目录、外部 CLI 守卫（preflight/allowlist/
+// 进程组终止）与审判链挂接面全部内联。
+test('chat bridge bundle inlines the batch C1 subagent tool surface', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'milksu-chat-bridge-c1-bundle-'))
+  try {
+    const outfile = join(root, 'chat-bridge.cjs')
+    await bundleChatBridge(outfile)
+    const bundle = await readFile(outfile, 'utf8')
+    // 子代理扩展（registry.install 的挂载目标；审批/校验挂上即生效）。
+    assert.ok(bundle.includes('milksu-subagents'), 'the subagents extension must ship')
+    // 公共底座：所有权索引 get-or-create + requestId 幂等（README 范例同款）。
+    assert.ok(bundle.includes('subagent:'), 'the idempotent requestId prefix must ship')
+    assert.ok(bundle.includes('ownerTaskId'), 'the ownership index scan must ship')
+    // 角色广告目录（门关 advertised_subagents 段的形状）。
+    assert.ok(
+      bundle.includes('The following file-defined subagents opted into discovery'),
+      'the advertised agent catalog must ship',
+    )
+    // 钉包角色定义根守卫（configureSubagentRuntime 的同款布局解析）。
+    assert.ok(
+      bundle.includes('MilkSU subagent package is unavailable'),
+      'the bundled agent root guard must ship',
+    )
+    // 外部 CLI 守卫面：preflight 解析/校验、环境 allowlist、进程组终止与超时语义。
+    assert.ok(
+      bundle.includes('External CLI binary'),
+      'the external CLI preflight resolver must ship',
+    )
+    assert.ok(
+      bundle.includes('help does not document required option'),
+      'the external CLI preflight validation must ship',
+    )
+    assert.ok(bundle.includes('CLAUDE_CODE_ENV_ALLOWLIST') || bundle.includes('CLAUDE_CONFIG_DIR'),
+      'the external CLI env allowlists must ship')
+    assert.ok(bundle.includes('Subagent timed out.'), 'the external CLI timeout must ship')
+    assert.ok(bundle.includes('Subagent stopped by user.'), 'the stop semantics must ship')
+    // 控制动作面与 C2 通告。
+    assert.ok(bundle.includes('Subagent catalog:'), 'the catalog action must ship')
+    assert.ok(
+      bundle.includes('does not carry the pi-subagents'),
+      'the deferred async-lane notice must ship',
+    )
+    // 子代理任务投影（渲染器不改：roster/child 会话登记 + destroy halt）。
+    assert.ok(bundle.includes('Harness subagent children:'), 'the children list must ship')
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+// PR-2 批次 C2：子代理·异步路面（milksu-subagents-async：background anchor 任务
+// 拥有的 child 会话 + spawn/status/steer/stop 四件 + 完成通知回投）必须真的进
+// bundle：扩展名、anchor 任务 kind、工具名、requestId 幂等前缀、通知文案头、
+// background 边界与 abortTask 收场面全部内联。
+test('chat bridge bundle inlines the batch C2 async subagent surface', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'milksu-chat-bridge-c2-bundle-'))
+  try {
+    const outfile = join(root, 'chat-bridge.cjs')
+    await bundleChatBridge(outfile)
+    const bundle = await readFile(outfile, 'utf8')
+    // 异步路面扩展（registry.install 的挂载目标；anchor 任务定义随扩展注册）。
+    assert.ok(bundle.includes('milksu-subagents-async'), 'the async subagents extension must ship')
+    // anchor 任务 kind（scanTasks 按 kind 过滤的 durable 真相面）。
+    assert.ok(bundle.includes('milksu-subagent-anchor'), 'the anchor task kind must ship')
+    // 四件工具名。
+    for (const name of ['subagent_async', 'subagent_async_status', 'subagent_async_steer', 'subagent_async_stop']) {
+      assert.ok(bundle.includes(`"${name}"`), `the ${name} tool must ship`)
+    }
+    // requestId 幂等前缀（child 提交/完成通知/steer 投递）。
+    assert.ok(bundle.includes('subagent-async:'), 'the idempotent child requestId prefix must ship')
+    assert.ok(bundle.includes('subagent-async-notify:'), 'the idempotent notification requestId prefix must ship')
+    // 收据与完成通知的文案面（门关 formatAsyncStartedMessage/notify.js 的同形回投；
+    // 通知头是模板串，钉住前缀与收据指引的稳定字面量）。
+    assert.ok(bundle.includes('Background task '), 'the completion notification header prefix must ship')
+    assert.ok(bundle.includes('The async run is detached'), 'the async receipt guidance must ship')
+    // background anchor 边界 + stop/destroy 的 abortTask 收场面。
+    assert.ok(bundle.includes('background: true'), 'the background anchor boundary must ship')
+    assert.ok(bundle.includes('abortTask'), 'the stop/abort surface must ship')
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+// PR-2 批次 B2b：MCP 挂载（单 mcp 代理工具 + SDK 连接管理）与 Pi 默认系统提示段
+// 必须真的进 bundle：@modelcontextprotocol/client 无 externals 全量内联
+//（bridge.js → harness-bridge-session → harness-bridge-mcp / harness-bridge-tools
+// 的静态链），漏斗契约（namespaceProxyTools/auto 章）的挂载侧门禁同链在内。
+test('chat bridge bundle inlines the batch B2b MCP mount and prompt sections', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'milksu-chat-bridge-b2b-bundle-'))
+  try {
+    const outfile = join(root, 'chat-bridge.cjs')
+    await bundleChatBridge(outfile)
+    const bundle = await readFile(outfile, 'utf8')
+    // MCP 挂载扩展 + 单代理工具面。
+    assert.ok(bundle.includes('milksu-mcp'), 'the MCP extension must ship')
+    assert.ok(bundle.includes('MCP gateway'), 'the mcp proxy tool description must ship')
+    assert.ok(bundle.includes('namespaceProxyTools'), 'the #220 funnel guard must ship')
+    // 协议协商（versionNegotiation auto → SDK Client）与传输构造器全量内联。
+    assert.ok(bundle.includes('versionNegotiation'), 'auto protocol negotiation must ship')
+    assert.ok(bundle.includes('StdioClientTransport'), 'the stdio transport must be inlined')
+    assert.ok(
+      bundle.includes('StreamableHTTPClientTransport') || bundle.includes('StreamableHTTP'),
+      'the HTTP transport must be inlined',
+    )
+    // 输出护栏（50KB/2000 行契约的 MCP 侧移植）。
+    assert.ok(bundle.includes('MCP text output truncated'), 'the output guard must ship')
+    // B2b 补齐的 Pi 默认系统提示段。
+    assert.ok(bundle.includes('milksu-prompt'), 'the prompt sections extension must ship')
+    assert.ok(
+      bundle.includes('expert coding assistant operating inside pi'),
+      'the Pi default preamble must ship',
+    )
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+// PR-2 批次 B2e：goal 自主续跑状态机（milksu-goal：goal_complete/goal_blocked 两件 +
+// milksu-goal 系统提示段 + tool_call 守卫 hook + Conversation Document 状态真相 +
+// run_end 观察门的 follow-up 续跑）必须真的进 bundle：扩展名、doc kind、工具名、
+// requestId 幂等前缀、守卫文案、状态机文案锚点全部内联。
+test('chat bridge bundle inlines the batch B2e goal continuation state machine', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'milksu-chat-bridge-b2e-bundle-'))
+  try {
+    const outfile = join(root, 'chat-bridge.cjs')
+    await bundleChatBridge(outfile)
+    const bundle = await readFile(outfile, 'utf8')
+    // 扩展名（registry.install 的挂载目标）+ 状态 Document kind（durable 真相面）。
+    assert.ok(bundle.includes('milksu-goal'), 'the goal extension must ship')
+    assert.ok(bundle.includes('milksu.goal-state'), 'the goal state document kind must ship')
+    // 工具两件。
+    for (const name of ['goal_complete', 'goal_blocked']) {
+      assert.ok(bundle.includes(`"${name}"`), `the ${name} tool must ship`)
+    }
+    // requestId 幂等前缀（goal 输入的 run 归属解析面）。
+    assert.ok(bundle.includes('goal-start:'), 'the goal start requestId prefix must ship')
+    assert.ok(bundle.includes('goal-continue:'), 'the continuation requestId prefix must ship')
+    assert.ok(bundle.includes('goal-budget-wrapup:'), 'the wrap-up requestId prefix must ship')
+    // 守卫文案（stale 块/预算收尾块/队列冻结块——pi-goal tool_call 事件同源）。
+    assert.ok(bundle.includes('Blocked stale /goal tool call'), 'the stale tool-call block must ship')
+    assert.ok(bundle.includes('only goal_complete is allowed during wrap-up'), 'the wrap-up tool block must ship')
+    // 状态机文案锚点（goal prompt / 续跑 prompt / 收尾 prompt——pi-goal prompts.ts 同源）。
+    assert.ok(bundle.includes('Goal mode is active.'), 'the goal prompt anchor must ship')
+    assert.ok(bundle.includes('Continue the active /goal until it is complete'), 'the continuation prompt anchor must ship')
+    assert.ok(bundle.includes('Budget exhaustion is not completion.'), 'the wrap-up prompt anchor must ship')
+    // milksu-goal 系统提示段（before_agent_start 的 buildGoalSystemPrompt 对应物）。
+    assert.ok(bundle.includes('milksu-goal'), 'the goal system prompt section key must ship')
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+// PR-2 批次 B2f：Computer Use 控窗两件（milksu-computer-use：prepare_computer_use_
+// driver / computer_use——门关工厂原样复用，executor 按 descriptor 键单槽缓存）必须
+// 真的进 bundle：扩展名、两件工具名、policy 门文案、descriptor 门文案、driver
+// 解析守卫与 executor 的 observe→act 配对面全部内联。esbuild 默认把非 ASCII 转成
+// \uXXXX 转义，中文门文案按转义形式逐字断言。
+function esbuildEscaped(text) {
+  return [...text].map(character => {
+    const code = character.codePointAt(0);
+    if (code <= 0x7f) return character;
+    if (code > 0xffff) return `\\u{${code.toString(16)}}`;
+    return `\\u${code.toString(16).toUpperCase().padStart(4, '0')}`;
+  }).join('');
+}
+
+test('chat bridge bundle inlines the batch B2f computer-use window tools', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'milksu-chat-bridge-b2f-bundle-'))
+  try {
+    const outfile = join(root, 'chat-bridge.cjs')
+    await bundleChatBridge(outfile)
+    const bundle = await readFile(outfile, 'utf8')
+    // 扩展名（registry.install 的挂载目标）。
+    assert.ok(bundle.includes('milksu-computer-use'), 'the computer-use extension must ship')
+    // 工具两件。
+    for (const name of ['prepare_computer_use_driver', 'computer_use']) {
+      assert.ok(bundle.includes(`"${name}"`), `the ${name} tool must ship`)
+    }
+    // policy 门文案（prepare 的 prepare 档门 + computer_use 的 go 档门——按 esbuild
+    // 转义形式逐字）。
+    assert.ok(
+      bundle.includes(esbuildEscaped('Plan 或只读策略不能准备 Computer Use Driver。先查看 status。')),
+      'the driver prepare policy gate must ship',
+    )
+    assert.ok(
+      bundle.includes(esbuildEscaped('Plan 或只读策略不能操作桌面窗口。')),
+      'the computer_use policy gate must ship',
+    )
+    // descriptor 门文案（未锁窗时的指路——ASCII 前缀逐字）。
+    assert.ok(
+      bundle.includes('No window is locked. Call milksu_workspace list_computer_use_windows'),
+      'the lock-required gate must ship',
+    )
+    // driver 解析守卫（resolvePackagedComputerUseDriver 的失败面）。
+    assert.ok(
+      bundle.includes('MilkSU packaged Computer Use runtime is unavailable'),
+      'the packaged driver resolver must ship',
+    )
+    // executor 的 observe→act 配对面（快照消费与 AX addressing 注入）。
+    assert.ok(
+      bundle.includes('computer_use requires a fresh observe of the selected target window'),
+      'the observe pairing must ship',
+    )
+    assert.ok(
+      bundle.includes('use x, y from the latest observe screenshot instead'),
+      'the AX snapshot_id injection must ship',
+    )
+    // 目标窗口可见性守卫（list_windows 之后的选择面）。
+    assert.ok(
+      bundle.includes('MilkSU Computer Use target window is no longer visible'),
+      'the target window visibility guard must ship',
+    )
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+// PR-2 批次 D1：旧 JSONL 归档面（harness-archive：一次性全量导出器 + manifest 查询面 +
+// 按需导入器）必须真的进 bundle：归档 manifest 常量、milksu.custom 记账 kind、保底类
+// 型 customType 前缀、桥上两个命令与事件、导入拒绝文案、旧引擎上下文投影函数
+//（sessionEntryToContextMessages/convertToLlm——转换逐字节沿用旧引擎的构造保证）、压
+// 缩/分支摘要包装字面量（经旧引擎函数内联进 bundle）全部在内。
+test('chat bridge bundle inlines the batch D1 legacy archive surface', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'milksu-chat-bridge-d1-bundle-'))
+  try {
+    const outfile = join(root, 'chat-bridge.cjs')
+    await bundleChatBridge(outfile)
+    const bundle = await readFile(outfile, 'utf8')
+    // 归档 manifest（PREP §3.6：conversationId↔文件↔SHA-256↔分型条目数↔leaf 路径↔
+    // 废弃分支清单）。
+    assert.ok(bundle.includes('manifest.json'), 'the archive manifest file name must ship')
+    // milksu.custom 记账 kind（s7 验证的映射）+ 保底类型 customType 前缀。
+    assert.ok(bundle.includes('milksu.custom'), 'the milksu.custom bookkeeping kind must ship')
+    assert.ok(bundle.includes('milksu-legacy-'), 'the legacy fallback customType prefix must ship')
+    for (const marker of ['milksu-legacy-model-change', 'milksu-legacy-usage', 'milksu-legacy-context-edit', 'milksu-legacy-branch-summary']) {
+      assert.ok(bundle.includes(marker), `the ${marker} fallback type must ship`)
+    }
+    // 桥上命令与事件（查询面 + 一次性导出触发面）。
+    assert.ok(bundle.includes('archive_query'), 'the archive_query command must ship')
+    assert.ok(bundle.includes('archive_export'), 'the archive_export command must ship')
+    assert.ok(bundle.includes('archive_status'), 'the archive_status event must ship')
+    assert.ok(bundle.includes('archive_exported'), 'the archive_exported event must ship')
+    // 导入器的防御文案（SHA 不符拒导 / 未归档拒导）。
+    assert.ok(bundle.includes('refusing to import'), 'the corrupted-archive refusal must ship')
+    assert.ok(bundle.includes('is not in the MilkSU archive'), 'the not-archived refusal must ship')
+    // 旧引擎上下文投影函数（转换等价性由构造保证的根基）与压缩摘要包装字面量。
+    assert.ok(bundle.includes('sessionEntryToContextMessages'), 'the old-engine projection must ship')
+    assert.ok(bundle.includes('convertToLlm'), 'the old-engine LLM transform must ship')
+    assert.ok(
+      bundle.includes('The conversation history before this point was compacted into the following summary'),
+      'the compaction summary wrapper (byte-identical across engines, REHEARSAL §6-B) must ship',
+    )
+    assert.ok(
+      bundle.includes('The following is a summary of a branch that this conversation came back from'),
+      'the branch summary wrapper must ship',
+    )
+    // §6-A 有效模型推导的落点：别名家族（会话创建+登记同一 commit）。
+    assert.ok(bundle.includes('milksu.conversation-index'), 'the conversation alias family must ship')
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+// PR-2 批次 D2（扳机翻转）：翻转判定收口（harness-bridge-flip 的门+CTF/CVE 排除）、
+// per-workspace 存储键、翻转首启一次性导出（claim/completed 状态文件）、destroySession
+// 的归档源文件触点、createSession 的归档自动导入、以及两个真桥修复（goal 机的
+// noteGenerationFailure 导出、duck-typed 会话对象的 hasExtensionHandlers）必须真的进
+// bundle——这些是翻转日的必经路径，缺一件装机首启即断。
+test('chat bridge bundle inlines the batch D2 flip surface', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'milksu-chat-bridge-d2-bundle-'))
+  try {
+    const outfile = join(root, 'chat-bridge.cjs')
+    await bundleChatBridge(outfile)
+    const bundle = await readFile(outfile, 'utf8')
+    // 门翻转语义：缺省开、MILKSU_PI_HARNESS=0 显式关（回退开关文案钉死）。
+    assert.ok(bundle.includes('MILKSU_PI_HARNESS'), 'the flip gate env name must ship')
+    // 排除收口：CTF 工作区 schema 前缀、CTF 会话角色、研究角色、ctf_ 前缀。
+    assert.ok(bundle.includes('ctf-workspace.milksu.dev'), 'the CTF workspace schema prefix must ship')
+    assert.ok(bundle.includes('ctf_'), 'the ctf_ conversation prefix convention must ship')
+    for (const role of ['solver', 'strategist', 'tool-builder', 'cve-research', 'lab-job']) {
+      assert.ok(bundle.includes(role), `the ${role} exclusion role must ship`)
+    }
+    // per-workspace 存储键（parked-sidecar 锁冲突的修复面）。
+    assert.ok(bundle.includes('harnessWorkspaceKey'), 'the per-workspace storage key derivation must ship')
+    // 翻转首启一次性导出：claim/completed 状态文件名 + 导出失败的自愈文案。
+    assert.ok(bundle.includes('flip-export.json'), 'the flip export state file must ship')
+    assert.ok(bundle.includes('MilkSU flip archive export failed'), 'the flip export failure logging must ship')
+    // destroySession 的归档源文件触点 + createSession 的归档自动导入。
+    assert.ok(bundle.includes('archivedLegacySourcePath'), 'the manifest source-path touchpoint must ship')
+    assert.ok(bundle.includes('deleteArchivedLegacySources'), 'the archived source deletion must ship')
+    assert.ok(bundle.includes('importArchivedOnOpen'), 'the continue-chat auto import must ship')
+    // 真桥修复：goal 机的 generation 失败信号 + 会话对象的 shutdown 探测面。
+    assert.ok(bundle.includes('noteGenerationFailure'), 'the goal machine generation-failure signal must ship')
+    assert.ok(bundle.includes('hasExtensionHandlers'), 'the duck-typed shutdown probe must ship')
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('Pi closure ships only the target platform esbuild binary', async () => {  const fixture = await createPackageFixture()
   try {
     const platform = currentPlatform()
     const variants = [

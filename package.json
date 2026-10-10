@@ -76,6 +76,7 @@
     "@earendil-works/pi-agent-core": "1.0.0",
     "@earendil-works/pi-ai": "1.0.0",
     "@earendil-works/pi-coding-agent": "1.0.0",
+    "@earendil-works/pi-durable": "1.0.0",
     "@earendil-works/pi-tui": "1.0.0",
     "@napi-rs/system-ocr": "1.1.0",
     "@narumitw/pi-goal": "0.43.0",

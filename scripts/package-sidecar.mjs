@@ -41,6 +41,10 @@ const repositoryPackageRoot = join(repositoryRoot, 'node_modules')
 const nodeVersion = '24.18.0'
 const archifyCommit = '7b49d0b715fd4ba48116bcdecd1ba3789a279613'
 const piVersion = '1.0.0'
+// pi-durable Harness 地基（PR-2 批次 A）：精确钉版，不用 ^（PREP §5.1 缓解措施）。
+// 该包标着 Experimental（README:3 API changes without notice），锁死 1.0.0 让升级必须过
+// sidecar/pi/harness-adapter.js 这一层单点适配。
+const piDurableVersion = '1.0.0'
 const dshVersion = '0.2.0-rc.2'
 // Pi decodes and resizes inline images with Photon (Rust/WASM). The bundled
 // bridges inline Photon's JS glue, which loads the module from `__dirname` and
@@ -951,6 +955,25 @@ async function bundleBridge(entry, outfile, options = {}) {
   })
 }
 
+/**
+ * Bundle the pi-durable harness adapter standalone. Exported for
+ * `package-sidecar-closure.test.mjs`, which asserts the distribution closure
+ * actually contains pi-durable (PR-2 batch A) without a full Sidecar build.
+ */
+export async function bundleHarnessAdapter(outfile) {
+  await bundleBridge('sidecar/pi/harness-adapter.js', outfile)
+}
+
+/**
+ * Bundle the real chat bridge (bridge.js) the same way `sidecar:build` does.
+ * Exported for `package-sidecar-closure.test.mjs`, which asserts the batch B1
+ * harness wiring (gate + session layer + beforeTool approval chain) actually
+ * ships inside the Sidecar's main bundle.
+ */
+export async function bundleChatBridge(outfile) {
+  await bundleBridge('sidecar/pi/bridge.js', outfile)
+}
+
 async function copyPiSubagentsRuntime(output, platform = '') {
   const packages = minimalPackageCopySet(
     await collectInstalledPackageClosure(['pi-subagents', '@earendil-works/chord'], {
@@ -1475,6 +1498,11 @@ async function buildSidecar(platform) {
   const nodeOutput = join(output, platformBinaryName(platform, 'node'))
   const chatOutput = join(output, 'chat-bridge.cjs')
   const companionOutput = join(output, 'companion-bridge.cjs')
+  // pi-durable Harness 适配层（PR-2 批次 A）：独立 bundle 产物证明 pi-durable 进了分发闭
+  // 包；批次 B 翻开启用门后 bridge.js 直接 import 该模块，esbuild 会把它内联进
+  // chat-bridge.cjs（与其它 bridge-* 模块同一处理模式：bundle，不外部化；reviewed-ts 不涉
+  // 及——pi-durable 无补丁）。
+  const harnessAdapterOutput = join(output, 'harness-adapter.cjs')
   const dshOutput = join(output, 'dsh-bridge.cjs')
   const dshProductMcpOutput = join(output, 'product-mcp.cjs')
   const dshPlaywrightLazyMcpOutput = join(output, 'playwright-lazy-mcp.cjs')
@@ -1684,6 +1712,10 @@ async function buildSidecar(platform) {
       join(licenseOutput, 'pi-MIT.txt'),
     ),
     copyFile(
+      join(repositoryRoot, 'third_party', 'licenses', 'pi-durable-MIT.txt'),
+      join(licenseOutput, 'pi-durable-MIT.txt'),
+    ),
+    copyFile(
       join(repositoryRoot, 'third_party', 'licenses', 'narumitw-pi-extensions-MIT.txt'),
       join(licenseOutput, 'narumitw-pi-extensions-MIT.txt'),
     ),
@@ -1821,6 +1853,7 @@ async function buildSidecar(platform) {
       ),
     }, null, 2)}\n`, { mode: 0o600 }),
     bundleBridge('sidecar/pi/bridge.js', chatOutput, { subagentsRoot: true }),
+    bundleBridge('sidecar/pi/harness-adapter.js', harnessAdapterOutput),
     bundleBridge('sidecar/companion/bridge.js', companionOutput).then(async () => {
       await copyFile(
         join(repositoryRoot, 'third_party/obelisk/packages/core/src/schema.sql'),
@@ -1853,6 +1886,7 @@ async function buildSidecar(platform) {
     ...(cuaDriverOutput ? [chmod(cuaDriverOutput, 0o755)] : []),
     chmod(goplsOutput, 0o755),
     chmod(chatOutput, 0o644),
+    chmod(harnessAdapterOutput, 0o644),
     chmod(companionOutput, 0o644),
     chmod(join(output, 'obelisk-schema.sql'), 0o644),
     chmod(dshOutput, 0o644),
@@ -1891,6 +1925,20 @@ async function buildSidecar(platform) {
         licenseFile: `THIRD_PARTY-LICENSES/${photonLicenseFile}`,
         wasm: photonWasmFileName,
         wasmSha256: await sha256(join(output, photonWasmFileName)),
+      },
+      durable: {
+        package: '@earendil-works/pi-durable',
+        version: piDurableVersion,
+        license: 'MIT',
+        licenseFile: 'THIRD_PARTY-LICENSES/pi-durable-MIT.txt',
+        // 批次 A：适配层独立 bundle（bridge 未接线，启用门默认关）。批次 B 翻门后
+        // chat-bridge.cjs 内联同一模块，本条目继续证明分发闭包含 pi-durable。
+        engines: '>=22.19.0',
+        bundle: {
+          file: 'harness-adapter.cjs',
+          sha256: await sha256(harnessAdapterOutput),
+        },
+        experimental: true,
       },
     },
     dsh: {
@@ -2138,6 +2186,7 @@ async function smokeSidecar(platform) {
   for (const licensePath of [
     join(output, 'NODE-LICENSE'),
     join(output, 'THIRD_PARTY-LICENSES', 'pi-MIT.txt'),
+    join(output, 'THIRD_PARTY-LICENSES', 'pi-durable-MIT.txt'),
     join(output, 'THIRD_PARTY-LICENSES', 'narumitw-pi-extensions-MIT.txt'),
     join(output, 'THIRD_PARTY-LICENSES', 'pi-better-background-tasks-MIT.txt'),
     join(output, 'THIRD_PARTY-LICENSES', 'pi-mcp-adapter-MIT.txt'),
@@ -2155,6 +2204,7 @@ async function smokeSidecar(platform) {
     join(output, 'THIRD_PARTY-LICENSES', 'deepseek-harness-MIT.txt'),
     join(output, photonWasmFileName),
     join(output, 'companion-bridge.cjs'),
+    join(output, 'harness-adapter.cjs'),
     join(output, 'obelisk-schema.sql'),
     join(output, 'dsh-bridge.cjs'),
     join(output, 'product-mcp.cjs'),

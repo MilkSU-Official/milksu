@@ -217,6 +217,24 @@ import {
 } from "./bridge-thinking-repetition.js";
 import { projectSessionContextComposition } from "./bridge-context-composition.js";
 import { withTokenFluxModelCompat } from "./tokenflux-model-compat.js";
+import { isPiHarnessEnabled, resolveHarnessAgentDir } from "./harness-adapter.js";
+// PR-2 批次 D2（扳机翻转）：门判定 + CTF/CVE/实验室工作区排除的唯一收口点
+//（MILKSU_PI_HARNESS=0 显式关＝回退旧引擎；CTF/CVE 工作区无论门开关一律旧引擎）。
+import { harnessSessionEligible } from "./harness-bridge-flip.js";
+import {
+  createHarnessBridgeSessionLayer,
+  MILKSU_HARNESS_SESSION_KIND,
+} from "./harness-bridge-session.js";
+// PR-2 批次 D1：旧 JSONL 归档查询/导出面（manifest 读取与门无关；按需导入的触发面
+// 留给 D2 接 UI，桥上先接查询与导出两个命令）。D2 增量：archivedLegacySourcePath
+//（destroySession deletePersisted 的 manifest 触点，PREP §3.6 停用面收口）。
+import {
+  archivedLegacySourcePath,
+  archivedSessionSummary,
+  exportLegacySessions,
+  findArchivedSession,
+  readArchiveManifest,
+} from "./harness-archive.js";
 
 const {
   currentProviderDefinition,
@@ -719,6 +737,98 @@ const workspaceActionBroker = createWorkspaceActionBroker(emit);
 const pendingWorkspaceCompaction = new Set();
 const sessionContextUsage = new Map();
 const backgroundEffectfulActions = new Set(["spawn", "watch", "stop", "clear"]);
+
+// ---------- MILKSU_PI_HARNESS 门开路径（PR-2 批次 B1） ----------
+//
+// 惰性构造：只在门开后的第一次 createSession 才建层；门关时下面所有 harness 分叉
+// 的条件都不成立，既有 SessionManager/AgentSession 路径逐字节原样执行。
+// 门开路径的实现与语义对照见 harness-bridge-session.js / harness-bridge-approval.js。
+let harnessBridgeLayer;
+
+function harnessLayer() {
+  if (!harnessBridgeLayer) {
+    harnessBridgeLayer = createHarnessBridgeSessionLayer({
+      emit,
+      queueTextDelta,
+      approvalBroker,
+      workspaceActionBroker,
+      formatToolInput,
+      formatMcpApprovalInput,
+      selectedMcpServer,
+      loadRuntimeSessionPolicy,
+      loadProjectInstructions,
+      applyUserMemories,
+      applyWorkerModelOverride,
+      dropSendAfterAbort,
+      describeError,
+      getUserMemories: () => userMemories,
+      thinkingRepetition,
+      noteUserMemory,
+      hasActiveResearchRun,
+      activeResearchRunContext,
+      researchSubagentBlockReason,
+      rememberChildModelRegistry,
+      haltConversationSubagents,
+      // PR-2 批次 B2c：milksu_workspace 的研究动作观测（门关 bridge.js:2118 同一
+      // 函数与同一份 researchRunContexts 状态）。
+      observeResearchWorkspaceAction,
+      maps: {
+        sessions,
+        sessionPolicies,
+        sessionPolicyControllers,
+        sessionTurnContracts,
+        promptQueues,
+        compactionRuns,
+        compactionRequestIds,
+        pendingWorkspaceCompaction,
+        sessionContextUsage,
+        sessionModelSources,
+        sessionConfiguredProviders,
+        sessionCreateCommands,
+        abortedSessions,
+        suppressedQueueUpdates,
+        reasoningOnlyRecovered,
+        sessionSubagentTasks,
+        researchRunContexts,
+      },
+    });
+  }
+  return harnessBridgeLayer;
+}
+
+/**
+ * 门开路由：已是 harness 会话，或门开（D2 扳机翻转后缺省开；MILKSU_PI_HARNESS=0 显式
+ * 关＝回退旧引擎）且尚无（旧引擎）会话。CTF/CVE/实验室工作区排除与门判定收口在
+ * harness-bridge-flip 的 harnessSessionEligible（唯一判定点，别处不散）：command 带
+ * sessionRole 时（send_message）含研究/CTF 角色排除；传字符串 id 的控制命令按
+ * 工作区类型与 ctf_ 前缀判定。
+ */
+function harnessTurnRouted(commandOrId) {
+  const command = commandOrId != null && typeof commandOrId === "object"
+    ? commandOrId
+    : { conversationId: commandOrId };
+  const id = String(command.conversationId ?? "").trim();
+  return sessions.get(id)?.kind === MILKSU_HARNESS_SESSION_KIND
+    || (harnessSessionEligible(command) && !sessions.has(id));
+}
+
+function harnessUnsupportedResult(command, type) {
+  const conversationId = String(command?.conversationId ?? "").trim();
+  const requestId = String(command?.requestId ?? "").trim();
+  const operation = HARNESS_UNSUPPORTED_OPERATION[type] ?? "this operation";
+  emit(conversationId || null, type, {
+    requestId,
+    error: `Not supported for harness conversations yet: ${operation}`,
+  });
+}
+
+// 事件流里的诊断文案（不经渲染器 UI 展示，fork/rewind 的 RPC 错误在渲染器侧
+// catch 后走本地克隆兜底）；不携带内部批次编号，按事件名给出可读的操作名。
+const HARNESS_UNSUPPORTED_OPERATION = {
+  session_forked: "fork",
+  session_rewound: "rewind",
+  session_handoff: "handoff",
+};
 
 function backgroundToolAction(toolName, input) {
   if (toolName !== "bg_task" && toolName !== "bg_status") return "";
@@ -2264,6 +2374,11 @@ function configureSubagentRuntime() {
 async function createSession(command) {
   const conversationId = command.conversationId;
   if (!conversationId) throw new Error("conversationId is required");
+  // PR-2 批次 D2（扳机翻转）：门默认开 + CTF/CVE/实验室排除，判定收口在
+  // harness-bridge-flip（MILKSU_PI_HARNESS=0 显式关＝回退下面的旧引擎全功能路径）。
+  if (harnessSessionEligible(command)) {
+    return harnessLayer().createSession(command);
+  }
   applyWorkerModelOverride(command.workerModel);
 
   const existing = sessions.get(conversationId);
@@ -2419,6 +2534,11 @@ async function createSession(command) {
 async function sendMessage(command) {
   const conversationId = command.conversationId;
   if (!conversationId) throw new Error("conversationId is required");
+  // D2：送完整 command 进路由判定（send_message 自带 sessionRole——CTF/CVE/实验室
+  // 角色在这里排除；不带的命令走 harnessTurnRouted 的字符串分支，按工作区判定）。
+  if (harnessTurnRouted(command)) {
+    return harnessLayer().sendMessage(command);
+  }
   applyUserMemories(command);
   applyWorkerModelOverride(command.workerModel);
   // abort_session is handled immediately. send_message setup stays on the
@@ -2635,6 +2755,9 @@ async function sendMessage(command) {
 async function abortSession(command) {
   const conversationId = command.conversationId;
   if (!conversationId) throw new Error("conversationId is required");
+  if (harnessTurnRouted(conversationId)) {
+    return harnessLayer().abortSession(command);
+  }
   abortedSessions.add(conversationId);
   approvalBroker.cancelConversation(conversationId, "turn aborted");
   workspaceActionBroker.cancelConversation(conversationId, "turn aborted");
@@ -2670,6 +2793,10 @@ async function abortSession(command) {
 async function forkSessionCommand(command) {
   const conversationId = String(command.conversationId ?? "").trim();
   const requestId = String(command.requestId ?? "").trim();
+  if (harnessTurnRouted(conversationId)) {
+    harnessUnsupportedResult(command, "session_forked");
+    return;
+  }
   try {
     if (!conversationId) throw new Error("conversationId is required");
     if (!requestId) throw new Error("requestId is required");
@@ -2695,9 +2822,19 @@ async function forkSessionCommand(command) {
 async function destroySession(command) {
   const conversationId = command.conversationId;
   if (!conversationId) throw new Error("conversationId is required");
+  if (harnessTurnRouted(conversationId)) {
+    return harnessLayer().destroySession(command);
+  }
 
   const session = sessions.get(conversationId);
   let sessionFile = session?.sessionFile;
+  // PR-2 批次 D2（PREP §3.6 停用面收口）：deletePersisted 的文件定位先读归档 manifest
+  //（一次 JSON 读，替代全目录扫描——翻转后旧会话的文件真相在 manifest）；未归档
+  //（未导出的新 JSONL）仍走下面的 SessionManager.list 兜底——门关回退与 CTF 工作
+  // 区路径行为不变。
+  if (!sessionFile && command.deletePersisted) {
+    sessionFile = await archivedLegacySourcePath(resolveHarnessAgentDir(), conversationId);
+  }
   if (!sessionFile && command.deletePersisted) {
     const cwd = process.cwd();
     const agentDir = process.env.MILKSU_PI_AGENT_DIR || join(cwd, ".milksu", "pi");
@@ -2876,6 +3013,10 @@ async function compactIfContextNearLimit(conversationId, session) {
 async function rewindSessionCommand(command) {
   const conversationId = String(command.conversationId ?? "").trim();
   const requestId = String(command.requestId ?? "").trim();
+  if (harnessTurnRouted(conversationId)) {
+    harnessUnsupportedResult(command, "session_rewound");
+    return;
+  }
   try {
     if (!conversationId) throw new Error("conversationId is required");
     if (!requestId) throw new Error("requestId is required");
@@ -2899,6 +3040,10 @@ async function rewindSessionCommand(command) {
 async function handoffSessionCommand(command) {
   const conversationId = String(command.conversationId ?? "").trim();
   const requestId = String(command.requestId ?? "").trim();
+  if (harnessTurnRouted(conversationId)) {
+    harnessUnsupportedResult(command, "session_handoff");
+    return;
+  }
   try {
     if (!conversationId) throw new Error("conversationId is required");
     if (!requestId) throw new Error("requestId is required");
@@ -2944,6 +3089,9 @@ async function handoffSessionCommand(command) {
 async function compactSessionCommand(command) {
   const conversationId = String(command.conversationId ?? "").trim();
   const requestId = String(command.requestId ?? "").trim();
+  if (harnessTurnRouted(conversationId)) {
+    return harnessLayer().compactSessionCommand(command);
+  }
   try {
     if (!conversationId) throw new Error("conversationId is required");
     if (!requestId) throw new Error("requestId is required");
@@ -3039,6 +3187,12 @@ async function removeQueuedMessageCommand(command) {
 async function controlBackgroundTask(command) {
   const conversationId = String(command.conversationId ?? "").trim();
   const requestId = String(command.requestId ?? "").trim();
+  // PR-2 批次 B2d：门开会话改走 harness 层的 anchor 实现（bg_task/bg_status 同一
+  // durable 真相）；不再落 backgroundTaskControllers 的 pi 扩展回退面。
+  if (harnessTurnRouted(conversationId)) {
+    await harnessLayer().controlBackgroundTask(command);
+    return;
+  }
   try {
     if (!conversationId) throw new Error("conversationId is required");
     if (!requestId) throw new Error("requestId is required");
@@ -3128,6 +3282,12 @@ async function controlBackgroundTask(command) {
 async function handleDecisionQuery(command) {
   const conversationId = String(command?.conversationId ?? "").trim();
   const target = conversationId ? sessions.get(conversationId) : null;
+  // PR-2 批次 B2：harness 会话没有 pi-coding-agent 的 modelRuntime；决策问答改走
+  // pi-ai Models 面（harness-model-providers 的集合 + 会话已解析模型）。
+  if (target?.kind === MILKSU_HARNESS_SESSION_KIND) {
+    await harnessLayer().decisionQuery(command);
+    return;
+  }
   if (!target?.model || typeof target?.modelRuntime?.completeSimple !== "function") {
     emit(conversationId || null, "decision_answer", {
       id: String(command?.id ?? "").trim(),
@@ -3140,6 +3300,66 @@ async function handleDecisionQuery(command) {
     complete: context => target.modelRuntime.completeSimple(target.model, context, { reasoning: "low" }),
     readText: messageText,
   });
+}
+
+// PR-2 批次 D1：旧 JSONL 归档的桥上查询/导出命令（Q1 归档保底 + 按需续命）。
+//
+// archive_query  →  emit "archive_status"：判断某 conversationId 是否归档旧会话、
+//                   是否已导入（门开时经 harness 层查别名；门关时 manifest 只读）。
+//                   D2 的 UI 触发面靠它决定「只读历史」还是「导入续聊」。
+// archive_export →  emit "archive_exported"：一次性全量归档（幂等，SHA-256 判等；
+//                   只读 <agentDir>/sessions 源，写入只在 <agentDir>/archive 下）。
+async function handleArchiveQuery(command) {
+  const conversationId = String(command?.conversationId ?? "").trim();
+  const requestId = String(command?.id ?? "").trim();
+  try {
+    let info;
+    if (isPiHarnessEnabled()) {
+      info = await harnessLayer().archivedConversationInfo(conversationId);
+    } else {
+      const manifest = await readArchiveManifest(resolveHarnessAgentDir());
+      const entry = findArchivedSession(manifest, conversationId);
+      info = { archived: Boolean(entry), imported: false, entry: entry ?? null };
+    }
+    emit(conversationId || null, "archive_status", {
+      id: requestId,
+      conversationId,
+      archived: info.archived === true,
+      imported: info.imported === true,
+      entry: archivedSessionSummary(info.entry),
+    });
+  } catch (error) {
+    emit(conversationId || null, "archive_status", {
+      id: requestId,
+      conversationId,
+      error: describeError(error),
+    });
+  }
+}
+
+async function handleArchiveExport(command) {
+  const conversationId = String(command?.conversationId ?? "").trim();
+  const requestId = String(command?.id ?? "").trim();
+  try {
+    const result = isPiHarnessEnabled()
+      ? await harnessLayer().exportLegacyArchive()
+      : await exportLegacySessions({ agentDir: resolveHarnessAgentDir() });
+    emit(conversationId || null, "archive_exported", {
+      id: requestId,
+      archiveDir: result.archiveDir,
+      sessionCount: result.manifest.sessions.length,
+      copiedCount: result.copied.length,
+      skippedCount: result.skipped.length,
+      versionedCount: result.versioned.length,
+      manifestWritten: result.manifestWritten === true,
+    });
+  } catch (error) {
+    emit(conversationId || null, "archive_exported", {
+      id: requestId,
+      conversationId,
+      error: describeError(error),
+    });
+  }
 }
 
 async function cancelResearchRunCommand(command) {
@@ -3202,6 +3422,14 @@ async function handleCommand(command) {
       // 决策层主模型兜底：后端问这条会话的主模型一个轻量问题，不另开
       // 内核、不在当轮顺口识别，答案原样回给后端解析。
       void handleDecisionQuery(command);
+      break;
+    case "archive_query":
+      // PR-2 批次 D1：归档会话查询面（判断 conversationId 是否归档旧会话）。
+      void handleArchiveQuery(command);
+      break;
+    case "archive_export":
+      // PR-2 批次 D1：一次性全量归档旧 JSONL（幂等；Q1 归档保底）。
+      void handleArchiveExport(command);
       break;
     case "send_message":
       await sendMessage(command);
@@ -3366,6 +3594,10 @@ async function disposeAllSessions() {
   await Promise.all(
     [...sessions.values()].map(session => disposeAgentSession(session)),
   );
+  // 门开路径：所有会话落定后关闭 harness（停心跳 → 会话封存落盘 → 释放锁）。
+  // Go 宿主的 shutdownChildProcess 在 {action:"shutdown"} 后等进程退出（supervisor.go
+  // process.done ← command.Wait()，5s 兜底强杀），即 DECISIONS Q5-1 的 waitpid 硬保证。
+  await harnessBridgeLayer?.disposeAll();
   for (const conversationId of subagentPollers.keys()) stopSubagentPoll(conversationId);
   researchRunContexts.clear();
   sessions.clear();

@@ -10,6 +10,8 @@ function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
 }
 
+// PR-2 批次 B2：以下四个纯函数同时供门开路径的 milksu-lsp 扩展复用
+// （harness-bridge-tools.js）。只加 export，门关行为不变。
 function within(root, target) {
   const path = relative(root, target);
   return path === ""
@@ -21,7 +23,7 @@ function truncate(value, limit) {
   return `${value.slice(0, limit)}\n… MilkSU truncated this Diff …`;
 }
 
-async function reviewedFile(workspace, path) {
+export async function reviewedFile(workspace, path) {
   const root = await realpath(workspace);
   const target = await realpath(resolve(root, path));
   if (!within(root, target)) {
@@ -40,7 +42,7 @@ function textResult(text, details) {
   };
 }
 
-function reviewedDiff(path, before, after) {
+export function reviewedDiff(path, before, after) {
   return createTwoFilesPatch(
     `a/${path}`,
     `b/${path}`,
@@ -210,3 +212,7 @@ export function createReviewedLspExtension(piLspExtension, options) {
     piLspExtension(reviewedApi);
   };
 }
+
+// 门开路径（harness-bridge-tools.js）复用的纯函数出口；门关行为不变。
+export { sha256, truncate };
+
