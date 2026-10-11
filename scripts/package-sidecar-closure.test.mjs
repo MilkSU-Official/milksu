@@ -181,7 +181,7 @@ test('DSH packaged closure includes required app-boot peers', async () => {
 })
 
 // pi-durable Harness 地基（PR-2 批次 A）的打包闭环断言：适配层 bundle 必须真的内联
-// pi-durable 1.0.0 的代码（不是只在 package.json 里挂个依赖），node:sqlite 保持外部内建
+// pi-durable 1.1.0 的代码（不是只在 package.json 里挂个依赖），node:sqlite 保持外部内建
 // 引用，且仓库把版本精确钉死（不用 ^，PREP §5.1 的缓解措施）。
 test('harness adapter bundle inlines pi-durable exactly at the pinned version', async () => {
   const root = await mkdtemp(join(tmpdir(), 'milksu-harness-adapter-bundle-'))
@@ -190,7 +190,7 @@ test('harness adapter bundle inlines pi-durable exactly at the pinned version', 
     await bundleHarnessAdapter(outfile)
     const bundle = await readFile(outfile, 'utf8')
     assert.ok(bundle.length > 100_000, `unexpected adapter bundle size: ${bundle.length}`)
-    // pi-durable 标志性代码片段（dist 1.0.0）：内建 inbox 文档 kind、interrupted 错误文案。
+    // pi-durable 标志性代码片段（dist 1.1.0）：内建 inbox 文档 kind、interrupted 错误文案。
     assert.ok(bundle.includes('"pi.inbox"'), 'bundle must inline pi-durable InboxDoc')
     assert.ok(
       bundle.includes('was interrupted and may have partially run'),
@@ -201,19 +201,19 @@ test('harness adapter bundle inlines pi-durable exactly at the pinned version', 
     // node:sqlite 是内建模块：esbuild 保持外部引用，运行时由打包 Node 24 提供。
     assert.ok(/require\(["']node:sqlite["']\)/.test(bundle), 'node:sqlite must stay an external builtin require')
 
-    // 钉版检查：package.json 精确 1.0.0（不带 ^），锁文件里已安装同一版本。
+    // 钉版检查：package.json 精确 1.1.0（不带 ^），锁文件里已安装同一版本。
     const repositoryRoot = join(dirname(fileURLToPath(import.meta.url)), '..')
     const document = JSON.parse(await readFile(join(repositoryRoot, 'package.json'), 'utf8'))
     assert.equal(
       document.dependencies['@earendil-works/pi-durable'],
-      '1.0.0',
+      '1.1.0',
       'pi-durable must be pinned exactly (no ^) per PREP §5.1',
     )
     const installed = JSON.parse(await readFile(
       join(repositoryRoot, 'node_modules', '@earendil-works', 'pi-durable', 'package.json'),
       'utf8',
     ))
-    assert.equal(installed.version, '1.0.0')
+    assert.equal(installed.version, '1.1.0')
     // 安装树里 typebox 1.3.27（pi-durable 的精确依赖）以嵌套副本存在，不影响根部 1.1.38。
     const nestedTypebox = await stat(join(
       repositoryRoot, 'node_modules', '@earendil-works', 'pi-durable', 'node_modules', 'typebox', 'package.json',

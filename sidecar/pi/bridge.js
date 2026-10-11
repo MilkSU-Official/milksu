@@ -210,6 +210,9 @@ import {
   projectAssistantUsage,
   projectToolModelUsage,
 } from "./bridge-usage-view.js";
+// pi 1.1.0 起内核在 tool_execution_end 上带单调时钟的执行耗时；helper 做内核值优先、
+// 投影器 wall-clock 回退的融合（见 harness-events.js 的注释）。
+import { toolExecutionDurationMs } from "./harness-events.js";
 import { assistantFailureText } from "./bridge-model-failure.js";
 import {
   createThinkingRepetitionGuard,
@@ -2008,9 +2011,7 @@ function subscribeSession(
         toolResultForView = wrapped;
         const projected = projectSubagentRosterEnd(owned, wrapped, {
           toolCallId: event.toolCallId,
-          durationMs: startedAt === undefined
-            ? undefined
-            : Math.max(0, Date.now() - startedAt),
+          durationMs: toolExecutionDurationMs(event.durationMs, startedAt),
           isError: event.isError,
           secrets: sessionProviderSecrets(conversationId),
         });
@@ -2041,9 +2042,7 @@ function subscribeSession(
           process.env,
           sessionProviderSecrets(conversationId),
         ), maxToolEventOutputBytes),
-        durationMs: startedAt === undefined
-          ? undefined
-          : Math.max(0, Date.now() - startedAt),
+        durationMs: toolExecutionDurationMs(event.durationMs, startedAt),
         isError: event.isError,
         module: usageModule,
       });

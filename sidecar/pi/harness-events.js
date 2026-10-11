@@ -33,11 +33,25 @@
 //     docs["pi.inbox"] 投影，而不是从事件猜。
 //   - tool_call_start 的 content 用 JSON.stringify(args)：bridge 现状是 formatToolInput +
 //     redactResearchText（bridge.js:1288/1837）。批次 B 接线时换用同一套格式化与脱敏。
-//   - durationMs 由本投影器记录的 start 时刻计算；usage 的 provider/source 上下文由接线层
+//   - durationMs 优先用 pi.tool-result 消息里内核记录的单调时钟耗时（pi-durable 1.1.0 起，
+//     interrupted/aborted 的调用没有该字段；旧版本写入的 entry 也没有），缺省时回退本投影器
+//     记录的 start 时刻 wall-clock 差值；usage 的 provider/source 上下文由接线层
 //     补（options.provider/options.source 透传给 projectAssistantUsage）。
 
 import { projectAssistantMessageEnd } from "./bridge-message-view.js";
 import { projectAssistantUsage } from "./bridge-usage-view.js";
+
+/**
+ * 工具耗时融合（pi-durable/pi-coding-agent 1.1.0）：内核在执行现场用单调时钟记录
+ * execute() 的真实耗时，且随 entry 持久化（崩溃恢复/重载后仍在）；投影器的 wall-clock
+ * 差值含事件传播延迟且只活在内存里。内核值可用时优先，缺省（工具未跑、中断、旧记录）
+ * 回退 wall-clock 差值，两者都无则 undefined。
+ */
+export function toolExecutionDurationMs(recordedMs, startedAt) {
+  const recorded = Number(recordedMs);
+  if (Number.isFinite(recorded) && recorded >= 0) return recorded;
+  return startedAt === undefined ? undefined : Math.max(0, Date.now() - startedAt);
+}
 
 function toolResultContent(message) {
   if (!Array.isArray(message?.content)) return "";
@@ -142,7 +156,7 @@ export function createHarnessEventProjector(options = {}) {
         toolCallId: event.toolCallId,
         toolName: event.toolName,
         content: toolResultContent(message),
-        durationMs: startedAt === undefined ? undefined : Math.max(0, Date.now() - startedAt),
+        durationMs: toolExecutionDurationMs(message?.durationMs, startedAt),
         isError: Boolean(message?.isError),
         module,
       },

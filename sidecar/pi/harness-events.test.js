@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createHarnessEventProjector } from "./harness-events.js";
+import { createHarnessEventProjector, toolExecutionDurationMs } from "./harness-events.js";
 
 function assistantMessage(content, extra = {}) {
   return {
@@ -27,7 +27,7 @@ function assistantEntry(message) {
   return { id: 42, kind: "pi.assistant", model: [message] };
 }
 
-function toolResultEntry({ toolCallId, toolName, text, isError }) {
+function toolResultEntry({ toolCallId, toolName, text, isError, durationMs }) {
   return {
     id: 43,
     kind: "pi.tool-result",
@@ -37,6 +37,7 @@ function toolResultEntry({ toolCallId, toolName, text, isError }) {
       toolName,
       content: [{ type: "text", text }],
       isError: Boolean(isError),
+      ...(durationMs === undefined ? {} : { durationMs }),
       timestamp: 1790000000000,
     }],
   };
@@ -176,6 +177,40 @@ test("tool call families project to tool_call_start/progress/end", async () => {
   assert.equal(orphanEnd[0].type, "tool_call_end");
   assert.equal(orphanEnd[0].data.content, "");
   assert.equal(orphanEnd[0].data.isError, false);
+
+  // pi-durable 1.1.0：entry 的 toolResult 消息带内核记录的单调时钟耗时，优先于
+  // 投影器的 wall-clock 差值（不受事件传播延迟影响，且随转录持久化）。
+  projector.project({
+    type: "tool_execution_start",
+    toolCallId: "call-3",
+    toolName: "bash",
+    args: {},
+  });
+  const recordedEnd = projector.project({
+    type: "tool_execution_end",
+    toolCallId: "call-3",
+    toolName: "bash",
+    entry: toolResultEntry({
+      toolCallId: "call-3",
+      toolName: "bash",
+      text: "done",
+      isError: false,
+      durationMs: 4321,
+    }),
+  });
+  assert.equal(recordedEnd[0].data.durationMs, 4321, "recorded durationMs wins over wall-clock");
+});
+
+test("toolExecutionDurationMs prefers the kernel-recorded value and falls back to wall-clock", () => {
+  const startedAt = Date.now() - 250;
+  assert.equal(toolExecutionDurationMs(4321, startedAt), 4321, "kernel value wins when present");
+  const fallback = toolExecutionDurationMs(undefined, startedAt);
+  assert.ok(fallback >= 250 && fallback < 400, `wall-clock fallback, got ${fallback}`);
+  assert.ok(toolExecutionDurationMs(-1, startedAt) >= 250, "negative recorded value falls back");
+  const nanFallback = toolExecutionDurationMs(Number.NaN, startedAt);
+  assert.ok(nanFallback >= 250, `NaN falls back to wall-clock, got ${nanFallback}`);
+  assert.equal(toolExecutionDurationMs(undefined, undefined), undefined, "no kernel value and no start time");
+  assert.equal(toolExecutionDurationMs(0, undefined), 0, "zero is a valid recorded duration");
 });
 
 test("task_failed projects to an error event", () => {

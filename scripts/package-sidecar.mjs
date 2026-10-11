@@ -40,11 +40,11 @@ const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const repositoryPackageRoot = join(repositoryRoot, 'node_modules')
 const nodeVersion = '24.18.0'
 const archifyCommit = '7b49d0b715fd4ba48116bcdecd1ba3789a279613'
-const piVersion = '1.0.0'
+const piVersion = '1.1.0'
 // pi-durable Harness 地基（PR-2 批次 A）：精确钉版，不用 ^（PREP §5.1 缓解措施）。
-// 该包标着 Experimental（README:3 API changes without notice），锁死 1.0.0 让升级必须过
+// 该包标着 Experimental（README:3 API changes without notice），锁死版本让升级必须过
 // sidecar/pi/harness-adapter.js 这一层单点适配。
-const piDurableVersion = '1.0.0'
+const piDurableVersion = '1.1.0'
 const dshVersion = '0.2.0-rc.2'
 // Pi decodes and resizes inline images with Photon (Rust/WASM). The bundled
 // bridges inline Photon's JS glue, which loads the module from `__dirname` and
