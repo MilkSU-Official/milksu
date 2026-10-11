@@ -1943,27 +1943,38 @@
 
 [data-agent-conversation] .agent-code__body .hljs-keyword,
 [data-agent-conversation] .agent-code__body .hljs-built_in,
-[data-agent-conversation] .agent-code__body .hljs-type {
+[data-agent-conversation] .agent-code__body .hljs-type,
+.reverse-code .hljs-keyword,
+.reverse-code .hljs-built_in,
+.reverse-code .hljs-type {
   color: var(--agent-code-kw);
 }
 
 [data-agent-conversation] .agent-code__body .hljs-string,
-[data-agent-conversation] .agent-code__body .hljs-attr {
+[data-agent-conversation] .agent-code__body .hljs-attr,
+.reverse-code .hljs-string,
+.reverse-code .hljs-attr {
   color: var(--agent-code-str);
 }
 
-[data-agent-conversation] .agent-code__body .hljs-number {
+[data-agent-conversation] .agent-code__body .hljs-number,
+.reverse-code .hljs-number {
   color: var(--agent-code-num);
 }
 
 [data-agent-conversation] .agent-code__body .hljs-title,
 [data-agent-conversation] .agent-code__body .hljs-function,
-[data-agent-conversation] .agent-code__body .hljs-title.function_ {
+[data-agent-conversation] .agent-code__body .hljs-title.function_,
+.reverse-code .hljs-title,
+.reverse-code .hljs-function,
+.reverse-code .hljs-title.function_ {
   color: var(--agent-code-fn);
 }
 
 [data-agent-conversation] .agent-code__body .hljs-comment,
-[data-agent-conversation] .agent-code__body .hljs-punctuation {
+[data-agent-conversation] .agent-code__body .hljs-punctuation,
+.reverse-code .hljs-comment,
+.reverse-code .hljs-punctuation {
   color: var(--agent-code-dim);
 }
 

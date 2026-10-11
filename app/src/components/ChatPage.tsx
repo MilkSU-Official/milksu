@@ -47,6 +47,7 @@ import {
   LoaderCircle,
   MousePointer2,
   Minimize2,
+  PackageOpen,
   PanelRight,
   Plus,
   RefreshCw,
@@ -94,6 +95,7 @@ import CodingMCPReviewCard from '@/components/CodingMCPReviewCard'
 import DeepResearchStatusCard from '@/components/DeepResearchStatusCard'
 import MarkdownContent from '@/components/MarkdownContent'
 import ContextRail from '@/components/ContextRail'
+import ReverseArtifactsPanel from '@/components/ReverseArtifactsPanel'
 import WorkspaceModuleTopBar from '@/components/WorkspaceModuleTopBar'
 import type {
   CodingArtifactPreview,
@@ -127,6 +129,7 @@ import {
 import { buildChatActivityEntries, createChatTranscriptBuilder, hasEmptyVisibleReply, isContentOnlyMessageChange, latestFinishedThinkingId, type ChatTranscriptBlock } from '@/lib/chatActivity'
 import { createChatFoldEvaluator, type ChatFoldModel } from '@/lib/chatWorkStatus'
 import { agentFileDiffChips, formatDemoElapsed } from '@/lib/agentConversation'
+import { reaProxyToolName } from '@/lib/reverseArtifacts'
 import { latestCodingPlan } from '@/lib/codingPlan'
 import {
   chatActivityGroupOpen,
@@ -248,6 +251,7 @@ const contextPanelValues = [
   'computer-use',
   'collaboration',
   'evidence',
+  'reverse',
 ] as const
 type ContextPanel = typeof contextPanelValues[number]
 
@@ -2972,6 +2976,21 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ctfSession, conversation?.id, workspacePath, running])
 
+  // milksu-rea 工具流量首次出现时，把「逆向产物」标签加进右栏（每个会话一次，
+  // 不抢当前页焦点；用户手动关闭后本轮不再自动重开）。
+  const reverseTrafficConversation = useRef('')
+  useEffect(() => {
+    if (reverseTrafficConversation.current === conversation?.id) return
+    const hasReaTraffic = structuralMessages.some(
+      message => message.role === 'tool' && message.toolName === reaProxyToolName,
+    )
+    if (!hasReaTraffic) return
+    reverseTrafficConversation.current = conversation?.id ?? 'anonymous'
+    setRailTabs(tabs => tabs.includes('reverse') ? tabs : [...tabs, 'reverse'])
+    if (!environmentOpen) setEnvironmentOpen(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [structuralMessages, conversation?.id])
+
   function railPanelIcon(panel: ContextPanel) {
     if (panel === 'environment') return <Activity className="size-3.5 shrink-0" />
     if (panel === 'changes') return <FileDiff className="size-3.5 shrink-0" />
@@ -2980,6 +2999,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     if (panel === 'browser' || panel === 'browser-use') return <Globe2 className="size-3.5 shrink-0" />
     if (panel === 'computer-use') return <MousePointer2 className="size-3.5 shrink-0" />
     if (panel === 'collaboration') return <Wrench className="size-3.5 shrink-0" />
+    if (panel === 'reverse') return <PackageOpen className="size-3.5 shrink-0" />
     return <CircleDot className="size-3.5 shrink-0" />
   }
   const railCatalog: { id: ContextPanel; label: string }[] = [
@@ -2988,6 +3008,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     { id: 'artifacts', label: t('产物', 'Artifacts') },
     { id: 'images', label: t('图片', 'Images') },
     { id: 'browser', label: t('浏览器', 'Browser') },
+    { id: 'reverse', label: t('逆向产物', 'Reverse artifacts') },
     ...(ctfSession ? [
       { id: 'collaboration' as const, label: t('Agent 协作', 'Agent collaboration') },
       { id: 'evidence' as const, label: t('证据与 Judge', 'Evidence and Judge') },
@@ -4065,6 +4086,8 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
                   refreshToken={imageGalleryRefreshToken}
                   onSelect={path => setRequestedArtifactPath(path)}
                 />
+              ) : contextPanel === 'reverse' ? (
+                <ReverseArtifactsPanel messages={structuralMessages} />
               ) : contextPanel === 'browser' ? (
                 <section className="coding-browser-panel flex h-full min-h-0 flex-col">
                   {browserPanelError ? (

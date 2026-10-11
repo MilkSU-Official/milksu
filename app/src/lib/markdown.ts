@@ -2,6 +2,7 @@ import DOMPurify from 'dompurify'
 import MarkdownIt from 'markdown-it'
 import hljs from 'highlight.js/lib/core'
 import bash from 'highlight.js/lib/languages/bash'
+import c from 'highlight.js/lib/languages/c'
 import css from 'highlight.js/lib/languages/css'
 import go from 'highlight.js/lib/languages/go'
 import java from 'highlight.js/lib/languages/java'
@@ -16,6 +17,7 @@ import yaml from 'highlight.js/lib/languages/yaml'
 import { t } from '@/lib/uiLocale'
 
 hljs.registerLanguage('bash', bash)
+hljs.registerLanguage('c', c)
 hljs.registerLanguage('css', css)
 hljs.registerLanguage('go', go)
 hljs.registerLanguage('html', xml)
@@ -30,6 +32,10 @@ hljs.registerLanguage('xml', xml)
 hljs.registerLanguage('yaml', yaml)
 
 const LANG_ALIASES: Record<string, string> = {
+  c: 'c',
+  cpp: 'c',
+  h: 'c',
+  objc: 'c',
   js: 'javascript',
   jsx: 'javascript',
   mjs: 'javascript',

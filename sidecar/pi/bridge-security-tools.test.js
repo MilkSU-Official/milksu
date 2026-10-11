@@ -197,8 +197,11 @@ test("normalizes REA and builds the reviewed milksu-rea server", async () => {
   assert.ok(server.includeTools.includes("binary_session"));
   assert.ok(server.includeTools.includes("analyze_function"));
   assert.ok(server.includeTools.includes("export_evidence_bundle"));
-  assert.equal(server.includeTools.includes("record_unknown"), false);
-  assert.equal(server.includeTools.length, 12);
+  assert.ok(server.includeTools.includes("list_procedures"));
+  assert.ok(server.includeTools.includes("trace_call_path"));
+  assert.ok(server.includeTools.includes("list_unknowns"));
+  assert.equal(server.includeTools.includes("record_unknown"), true);
+  assert.equal(server.includeTools.length, 19);
   const flat = server.args.join(" ");
   assert.equal(flat.includes("npx"), false);
   assert.equal(flat.includes("latest"), false);

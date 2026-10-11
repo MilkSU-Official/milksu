@@ -1360,16 +1360,23 @@ async function createManagedReaMcpServer(workspace, securityTools) {
   const installDir = dirname(dirname(dirname(dirname(entry))));
   const includeTools = [
     "binary_session",
-    "analyze_javascript_application",
-    "inspect_artifact",
-    "inspect_managed_artifact",
-    "inspect_android_package",
     "open_binary",
     "close_binary",
     "binary_overview",
+    "list_procedures",
+    "search_procedures",
     "analyze_function",
     "inspect_analysis_view",
+    "analyze_javascript_application",
     "trace_application_feature",
+    "trace_feature",
+    "trace_call_path",
+    "inspect_artifact",
+    "inspect_managed_artifact",
+    "inspect_android_package",
+    "list_unknowns",
+    "record_unknown",
+    "update_unknown",
     "export_evidence_bundle",
   ];
   return {
