@@ -9,6 +9,7 @@ import {
   Circle,
   FileSearch,
   Network,
+  PackageOpen,
   RefreshCw,
   ScanSearch,
   TerminalSquare,
@@ -30,6 +31,7 @@ const iconFor = (id: string) => ({
   codeql: Braces,
   'burp-suite': Network,
   shannon: Bot,
+  rea: PackageOpen,
 }[id] ?? Wrench)
 
 export default function SecurityToolsSettingsPanel({

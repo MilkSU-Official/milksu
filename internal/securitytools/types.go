@@ -8,6 +8,7 @@ const (
 	ToolCodeQL  = "codeql"
 	ToolBurp    = "burp-suite"
 	ToolShannon = "shannon"
+	ToolRea     = "rea"
 )
 
 type Status string

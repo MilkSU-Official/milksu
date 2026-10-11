@@ -1,11 +1,11 @@
 import { spawn } from "node:child_process";
 import { lstat, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { Type } from "typebox";
 import { assertWorkspacePath, sandboxProfile } from "./bridge-policy.js";
 
-const supportedIds = new Set(["ida-pro", "capa"]);
+const supportedIds = new Set(["ida-pro", "capa", "rea"]);
 const outputLimit = 60_000;
 
 function within(root, target) {
@@ -33,7 +33,7 @@ function boundedText(value, label, limit = 240) {
 
 export async function normalizeSecurityTools(value) {
   if (value === undefined || value === null) return [];
-  if (!Array.isArray(value) || value.length > 4) {
+  if (!Array.isArray(value) || value.length > 6) {
     throw new Error("MilkSU rejected an invalid security tool catalog");
   }
   const result = [];
@@ -51,12 +51,28 @@ export async function normalizeSecurityTools(value) {
     }
     seen.add(id);
     const command = await regularCanonicalFile(raw.command, `${id} command`);
+    if (id === "rea") {
+      const nodeBinary = basename(command);
+      if (nodeBinary !== "node" && nodeBinary !== "node.exe") {
+        throw new Error("MilkSU REA must be launched by a Node.js binary, not a package runner");
+      }
+    }
     const capabilities = Array.isArray(raw.capabilities)
       ? raw.capabilities.map(value => boundedText(value, `${id} capability`, 120)).slice(0, 12)
       : [];
     const args = Array.isArray(raw.args)
       ? raw.args.map(value => boundedText(value, `${id} argument`, 500)).slice(0, 32)
       : [];
+    if (id === "rea") {
+      if (
+        args.length !== 2
+        || !args[0].endsWith("rea.mjs")
+        || !isAbsolute(args[0])
+        || args[1] !== "mcp"
+      ) {
+        throw new Error("MilkSU rejected an REA launch line outside the reviewed form");
+      }
+    }
     const normalized = {
       id,
       command,

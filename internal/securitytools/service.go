@@ -83,7 +83,7 @@ func (s *Service) SetupStatus(id string) (SetupSnapshot, error) {
 }
 
 func (s *Service) StartSetup(ctx context.Context, id string) (SetupSnapshot, error) {
-	if id != ToolIDA && id != ToolCapa {
+	if id != ToolIDA && id != ToolCapa && id != ToolRea {
 		return SetupSnapshot{}, fmt.Errorf("%s does not have a reviewed automatic setup", id)
 	}
 	if current, ok := s.setup(id); ok && current.State == "running" {
@@ -119,8 +119,8 @@ func (s *Service) Check(ctx context.Context, id string) (ToolSnapshot, error) {
 
 func (s *Service) RuntimeTools(ctx context.Context) []RuntimeTool {
 	preferences := s.settings.Get().SecurityTools
-	result := make([]RuntimeTool, 0, 2)
-	for _, item := range []definition{catalog[0], catalog[1]} {
+	result := make([]RuntimeTool, 0, 3)
+	for _, item := range []definition{catalog[0], catalog[1], reaCatalogEntry()} {
 		if preference, ok := preferences[item.id]; ok && !preference.Enabled {
 			continue
 		}
@@ -130,12 +130,22 @@ func (s *Service) RuntimeTools(ctx context.Context) []RuntimeTool {
 		}
 		result = append(result, RuntimeTool{
 			ID: item.id, Command: detected.command, Version: detected.version,
+			Args:        append([]string(nil), detected.args...),
 			ProfilePath: detected.profilePath, IDAPath: detected.idaPath,
 			UserIDAPath:  detected.userIDAPath,
 			Capabilities: append([]string(nil), item.capabilities...),
 		})
 	}
 	return result
+}
+
+func reaCatalogEntry() definition {
+	for _, item := range catalog {
+		if item.id == ToolRea {
+			return item
+		}
+	}
+	return catalog[0]
 }
 
 func (s *Service) CodingHandoff(ctx context.Context, id string) (CodingHandoff, error) {

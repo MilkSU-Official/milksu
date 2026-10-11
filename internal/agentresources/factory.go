@@ -8,7 +8,7 @@ import (
 
 func optionalCodingSkill(name string) bool {
 	switch strings.TrimSpace(name) {
-	case "ghidra-rpc", "jadx":
+	case "ghidra-rpc", "jadx", "reverse-engineer-anything":
 		return true
 	default:
 		return false

@@ -1226,6 +1226,7 @@ export async function loadCodingMcpConfig(
   const builtInComputerUse = await createFirstPartyComputerUseMcpServer(computerUse).catch(() => undefined);
   const builtInBrowserUse = await createFirstPartyBrowserUseMcpServer(workspace, browserUse);
   const builtInIDA = await createManagedIDAMcpServer(workspace, securityTools);
+  const builtInRea = await createManagedReaMcpServer(workspace, securityTools);
   const userNames = Object.keys(userServers).sort((left, right) => left.localeCompare(right));
   const builtInPlugins = includeFirstPartyPlugins
     ? await createFirstPartyPluginMcpServer()
@@ -1235,6 +1236,7 @@ export async function loadCodingMcpConfig(
     && !builtInComputerUse
     && !builtInBrowserUse
     && !builtInIDA
+    && !builtInRea
     && userNames.length === 0
     && !builtInPlugins
   ) {
@@ -1254,6 +1256,7 @@ export async function loadCodingMcpConfig(
     ...(builtInBrowserUse ? [browserUseMcpServerName] : []),
     ...(builtInComputerUse ? [computerUseMcpServerName] : []),
     ...(builtInIDA ? [builtInIDA.name] : []),
+    ...(builtInRea ? [builtInRea.name] : []),
     ...(builtInPlugins ? [builtInPlugins.name] : []),
   ].sort((left, right) => left.localeCompare(right));
   return {
@@ -1274,6 +1277,7 @@ export async function loadCodingMcpConfig(
         ? { [computerUseMcpServerName]: builtInComputerUse.server }
         : {}),
       ...(builtInIDA ? { [builtInIDA.name]: builtInIDA.server } : {}),
+      ...(builtInRea ? { [builtInRea.name]: builtInRea.server } : {}),
       ...(builtInPlugins ? { [builtInPlugins.name]: builtInPlugins.server } : {}),
     }),
   };
@@ -1334,6 +1338,57 @@ async function createManagedIDAMcpServer(workspace, securityTools) {
           ida.userIdaPath,
         ],
         extraWritableRoots: [ida.userIdaPath],
+      },
+    ),
+  };
+}
+
+// createManagedReaMcpServer hosts the pinned rea-agents stdio MCP for static
+// reverse engineering. The reviewed tool set stays small on purpose: REA's
+// full catalog is large and the first slice is static, workspace-local
+// artifact analysis. Runtime observation, process capture, and REA's own IDA
+// provider stay out of this surface; IDA keeps going through milksu-ida-pro.
+async function createManagedReaMcpServer(workspace, securityTools) {
+  const rea = securityTools.find(tool => tool.id === "rea");
+  if (!rea) return undefined;
+  const root = await resolveReviewedMcpWorkspace(workspace);
+  const name = "milksu-rea";
+  const entry = Array.isArray(rea.args) && rea.args.length === 2 ? rea.args[0] : "";
+  // entry is <install>/node_modules/rea-agents/scripts/rea.mjs; the install
+  // directory is four dirname hops up. Only that directory and the Node
+  // binary directory become readable roots; the user home stays out.
+  const installDir = dirname(dirname(dirname(dirname(entry))));
+  const includeTools = [
+    "binary_session",
+    "analyze_javascript_application",
+    "inspect_artifact",
+    "inspect_managed_artifact",
+    "inspect_android_package",
+    "open_binary",
+    "close_binary",
+    "binary_overview",
+    "analyze_function",
+    "inspect_analysis_view",
+    "trace_application_feature",
+    "export_evidence_bundle",
+  ];
+  return {
+    name,
+    server: sanitizeServerDefinition(
+      {
+        command: rea.command,
+        args: Array.isArray(rea.args) ? rea.args.map(value => String(value)) : [],
+        includeTools,
+      },
+      name,
+      root,
+      {
+        allowNetwork: false,
+        extraReadableRoots: [
+          installDir,
+          dirname(rea.command),
+        ],
+        extraWritableRoots: [],
       },
     ),
   };

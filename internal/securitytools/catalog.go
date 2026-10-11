@@ -48,4 +48,20 @@ var catalog = []definition{
 		schema:          []string{"本批次仅检测运行前提；Worker Adapter 尚未接入"},
 		codingSupported: true,
 	},
+	{
+		id: ToolRea, name: "REA", purpose: "静态逆向已发出的制品（原生 / Electron / .NET / APK）",
+		connection: "本机 stdio MCP", runtime: "工作区内静态分析",
+		capabilities: []string{
+			"打开二进制并读取概览",
+			"反编译函数与交叉引用",
+			"分析 Electron / JavaScript 应用图",
+			"检查制品清单与 .NET 程序集",
+			"导出带证据与未知项的 Bundle",
+		},
+		schema: []string{
+			"binary_session", "open_binary", "binary_overview", "analyze_function",
+			"analyze_javascript_application", "inspect_artifact", "export_evidence_bundle",
+		},
+		setupSupported: true, codingSupported: true,
+	},
 }

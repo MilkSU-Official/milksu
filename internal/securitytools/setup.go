@@ -72,6 +72,13 @@ func initialSetup(id string) SetupSnapshot {
 			{ID: "download", Label: "下载官方固定版本", Status: "pending"},
 			{ID: "verify", Label: "校验并运行首次检查", Status: "pending"},
 		}
+	case ToolRea:
+		summary = "正在准备 REA"
+		steps = []SetupStep{
+			{ID: "detect", Label: "检测 Node.js 与 npm", Status: "pending"},
+			{ID: "install", Label: "安装固定版本 rea-agents", Status: "pending"},
+			{ID: "verify", Label: "运行健康检查", Status: "pending"},
+		}
 	}
 	return SetupSnapshot{
 		ToolID: id, State: "running", Percent: 0,
@@ -86,6 +93,8 @@ func (s *Service) runSetup(ctx context.Context, id string) {
 		err = s.setupIDA(ctx)
 	case ToolCapa:
 		err = s.setupCapa(ctx)
+	case ToolRea:
+		err = s.setupRea(ctx)
 	}
 	if err != nil {
 		setup, _ := s.setup(id)
@@ -209,6 +218,71 @@ func (s *Service) setupCapa(ctx context.Context) error {
 	}
 	s.completeSetup(ToolCapa, "capa 已可由 Coding 自动调用")
 	return nil
+}
+
+func (s *Service) setupRea(ctx context.Context) error {
+	detected := s.detectRea(ctx)
+	if detected.status != StatusNeedsSetup || !detected.setupPossible {
+		return fmt.Errorf("%s", detected.problem)
+	}
+	nodePath, err := s.probe.LookPath("node")
+	if err != nil {
+		return fmt.Errorf("未检测到 Node.js")
+	}
+	npmPath, err := s.probe.LookPath("npm")
+	if err != nil {
+		return fmt.Errorf("未检测到 npm")
+	}
+	s.updateStep(ToolRea, "detect", "completed", 15, "Node 与 npm 已就绪")
+
+	root := reaInstallDir(s.root)
+	if err := os.MkdirAll(root, 0o700); err != nil {
+		return fmt.Errorf("创建 REA 目录: %w", err)
+	}
+	s.updateStep(ToolRea, "install", "running", 40, "正在安装 rea-agents "+reaVersion)
+	installArgs := []string{
+		"--prefix", root,
+		"--no-audit",
+		"--no-fund",
+		"--loglevel=error",
+		"install",
+		reaPackage + "@" + reaVersion,
+	}
+	if output, err := runNpm(ctx, 10*time.Minute, npmPath, installArgs...); err != nil {
+		detail := strings.TrimSpace(output)
+		if len(detail) > 400 {
+			detail = detail[len(detail)-400:]
+		}
+		if detail != "" {
+			return fmt.Errorf("安装 REA %s: %w: %s", reaVersion, err, detail)
+		}
+		return fmt.Errorf("安装 REA %s: %w", reaVersion, err)
+	}
+	entry := reaEntryScript(s.root)
+	if !regularFile(entry) {
+		return fmt.Errorf("安装完成但未找到 REA 启动脚本")
+	}
+	s.updateStep(ToolRea, "install", "completed", 85, "固定版本已安装")
+
+	s.updateStep(ToolRea, "verify", "running", 90, "正在运行 REA 版本检查")
+	versionOutput, err := runSetupCommand(ctx, 30*time.Second, nodePath, entry, "--version")
+	if err != nil {
+		return fmt.Errorf("REA 健康检查: %w", err)
+	}
+	if !strings.Contains(versionOutput, reaVersion) {
+		return fmt.Errorf("REA 健康检查返回了意外版本: %s", firstLine(versionOutput))
+	}
+	s.completeSetup(ToolRea, "REA 已可由 Coding 会话通过 milksu-rea 调用")
+	return nil
+}
+
+// runNpm invokes npm with a timeout. Windows resolves npm to npm.cmd, which
+// cannot be executed directly through os/exec and needs the cmd.exe wrapper.
+func runNpm(ctx context.Context, timeout time.Duration, npmPath string, args ...string) (string, error) {
+	if runtime.GOOS == "windows" {
+		return runSetupCommand(ctx, timeout, "cmd", append([]string{"/c", npmPath}, args...)...)
+	}
+	return runSetupCommand(ctx, timeout, npmPath, args...)
 }
 
 func capaAsset() (string, string, error) {

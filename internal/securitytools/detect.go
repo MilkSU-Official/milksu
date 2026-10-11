@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -16,6 +17,8 @@ const (
 	idaSourceRevision = "0b5f7ae4026d3c770b190ca93c0692d1b0ceab22"
 	idaMCPVersion     = "2.0.0"
 	capaVersion       = "v9.4.0"
+	reaVersion        = "6.1.0"
+	reaPackage        = "rea-agents"
 )
 
 type detection struct {
@@ -25,6 +28,7 @@ type detection struct {
 	problem       string
 	action        string
 	command       string
+	args          []string
 	profilePath   string
 	idaPath       string
 	userIDAPath   string
@@ -59,6 +63,8 @@ func (s *Service) detect(ctx context.Context, id string) detection {
 		return s.detectBurp(ctx)
 	case ToolShannon:
 		return s.detectShannon(ctx)
+	case ToolRea:
+		return s.detectRea(ctx)
 	default:
 		return detection{status: StatusUnavailable, statusLabel: "不可用", problem: "未知工具"}
 	}
@@ -166,6 +172,91 @@ func (s *Service) detectShannon(ctx context.Context) detection {
 	return detection{
 		status: StatusDetected, statusLabel: "前提已就绪", version: "Docker " + firstLine(version),
 		problem: "Docker 可用；Shannon Worker 与任务回执 Adapter 尚未进入本批生产链。",
+	}
+}
+
+// reaInstallDir is the pinned, version-scoped install location for the
+// rea-agents npm package. The layout mirrors capa: one directory per reviewed
+// version under the security-tools service root.
+func reaInstallDir(root string) string {
+	return filepath.Join(root, ToolRea, reaVersion)
+}
+
+func reaEntryScript(root string) string {
+	return filepath.Join(reaInstallDir(root), "node_modules", reaPackage, "scripts", "rea.mjs")
+}
+
+// nodeMeetsReaEngines implements the rea-agents engines constraint
+// (^22.19.0 || ^24.11.0 || >=26.0.0) from its package.json.
+func nodeMeetsReaEngines(major, minor int) bool {
+	if major == 22 {
+		return minor >= 19
+	}
+	if major == 24 {
+		return minor >= 11
+	}
+	return major >= 26
+}
+
+func parseNodeVersion(output string) (major, minor int, ok bool) {
+	value := strings.TrimPrefix(strings.TrimSpace(firstLine(output)), "v")
+	parts := strings.SplitN(value, ".", 3)
+	if len(parts) < 2 {
+		return 0, 0, false
+	}
+	major, errMajor := strconv.Atoi(parts[0])
+	minor, errMinor := strconv.Atoi(parts[1])
+	if errMajor != nil || errMinor != nil {
+		return 0, 0, false
+	}
+	return major, minor, true
+}
+
+func (s *Service) detectRea(ctx context.Context) detection {
+	nodePath, err := s.probe.LookPath("node")
+	if err != nil {
+		return detection{
+			status: StatusMissingApp, statusLabel: "需要 Node.js",
+			problem: "未检测到 Node.js。REA 需要 Node 22.19+、24.11+ 或 26+，请先安装 Node.js。",
+			action:  "安装 Node.js",
+		}
+	}
+	versionOutput, versionErr := s.probe.Output(ctx, nodePath, "--version")
+	major, minor, ok := parseNodeVersion(versionOutput)
+	if versionErr != nil || !ok {
+		return detection{
+			status: StatusMissingApp, statusLabel: "Node 版本无法确认",
+			problem: "无法读取 Node 版本；REA 需要 Node 22.19+、24.11+ 或 26+。",
+			action:  "检查 Node.js 安装",
+		}
+	}
+	if !nodeMeetsReaEngines(major, minor) {
+		return detection{
+			status: StatusMissingApp, statusLabel: "需要更高版本 Node.js",
+			problem: fmt.Sprintf(
+				"当前 Node %d.%d 不满足 REA %s 的运行要求（22.19+、24.11+ 或 26+）。",
+				major, minor, reaVersion,
+			),
+			action: "升级 Node.js",
+		}
+	}
+	entry := reaEntryScript(s.root)
+	if regularFile(entry) {
+		return detection{
+			status: StatusReady, statusLabel: "可用", version: reaVersion,
+			command: nodePath, args: []string{entry, "mcp"},
+			setupPossible: true,
+		}
+	}
+	if _, err := s.probe.LookPath("npm"); err != nil {
+		return detection{
+			status: StatusNeedsSetup, statusLabel: "需要 npm",
+			problem: fmt.Sprintf("Node %d.%d 已就绪；准备 REA 还需要随 Node 附带的 npm。", major, minor),
+		}
+	}
+	return detection{
+		status: StatusNeedsSetup, statusLabel: "可准备", version: reaVersion,
+		action: "准备 REA", setupPossible: true,
 	}
 }
 

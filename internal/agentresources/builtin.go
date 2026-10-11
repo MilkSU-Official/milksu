@@ -14,6 +14,7 @@ var builtinMCPNames = []string{
 	"codeql",
 	"burp-suite",
 	"shannon",
+	"rea",
 }
 
 var builtinSkillNames = []string{
@@ -26,6 +27,7 @@ var builtinSkillNames = []string{
 	"archify",
 	"ghidra-rpc",
 	"jadx",
+	"reverse-engineer-anything",
 }
 
 type builtinMCPRecord struct {
