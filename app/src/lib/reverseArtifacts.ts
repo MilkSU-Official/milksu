@@ -55,15 +55,27 @@ function underlyingReaTool(rawTool: string): string | undefined {
     : undefined
 }
 
+/**
+ * The global `mcp` proxy renders its calls as human-readable messages: a
+ * call marker line like "MCP tool · milksu-rea_analyze_function" followed by
+ * result text under the same toolCallId. Metadata answers (tool search,
+ * server listing) never carry a call marker, so matching the marker is the
+ * reliable discriminator between a real REA call and proxy housekeeping.
+ */
+const reaCallMarker = /^MCP tool · milksu[-_]rea_([a-z0-9_]+)/u
+
+function reaToolFromMarker(content: string): string | undefined {
+  const match = reaCallMarker.exec(content.trim())
+  return match ? underlyingReaTool(match[1] ?? '') ?? match[1] : undefined
+}
+
 /** True when a tool message belongs to the reviewed milksu-rea surface. */
 export function isReaToolMessage(message: Pick<Message, 'role' | 'toolName' | 'content'>): boolean {
   if (message.role !== 'tool') return false
   const toolName = message.toolName ?? ''
   if (reaProxyToolNames.includes(toolName)) return true
   if (toolName !== 'mcp') return false
-  const params = parseMaybeJson(message.content) as { tool?: unknown } | undefined
-  if (typeof params?.tool !== 'string') return false
-  return underlyingReaTool(params.tool) !== undefined
+  return reaToolFromMarker(message.content ?? '') !== undefined
 }
 
 export interface ReverseTarget {
@@ -189,12 +201,43 @@ function parseMaybeJson(text: string | undefined): unknown {
 }
 
 /**
+ * Rendered MCP results can trail extra prose ("structuredContent: {...}"),
+ * so a plain JSON.parse of the whole message fails. Extract the leading
+ * balanced JSON object before falling back to a truncation entry.
+ */
+function leadingJson(text: string): unknown {
+  const direct = parseMaybeJson(text)
+  if (direct !== undefined) return direct
+  const trimmed = text.trimStart()
+  if (!trimmed.startsWith('{')) return undefined
+  let depth = 0
+  let inString = false
+  let escaped = false
+  for (let index = 0; index < trimmed.length; index++) {
+    const char = trimmed[index]
+    if (inString) {
+      if (escaped) escaped = false
+      else if (char === '\\') escaped = true
+      else if (char === '"') inString = false
+      continue
+    }
+    if (char === '"') inString = true
+    else if (char === '{') depth++
+    else if (char === '}') {
+      depth--
+      if (depth === 0) return parseMaybeJson(trimmed.slice(0, index + 1))
+    }
+  }
+  return undefined
+}
+
+/**
  * MCP output can be truncated or suffixed by the adapter's output guard.
  * A payload only counts as parseable when the JSON round-trips and exposes
  * a `result` object; anything else degrades to a timeline entry.
  */
 function parseReaEnvelope(text: string | undefined): { result?: unknown; evidence?: Record<string, unknown>; evidenceId?: string } | undefined {
-  const parsed = parseMaybeJson(text)
+  const parsed = leadingJson(text ?? '')
   if (parsed == null || typeof parsed !== 'object' || Array.isArray(parsed)) return undefined
   const record = parsed as Record<string, unknown>
   const result = record.result
@@ -212,39 +255,48 @@ function collectReaCalls(messages: Message[]): ReaCall[] {
     if (message.role !== 'tool') continue
     const toolCallId = message.toolCallId ?? ''
     if (!toolCallId) continue
+    const toolName = message.toolName ?? ''
+    const content = message.content ?? ''
+    const timestamp = messageTimestamp(message)
     const existing = calls.get(toolCallId)
-    if (message.status === 'running') {
-      // Start payloads carry the underlying tool name; only they can prove a
-      // global `mcp` call belongs to the reviewed REA surface.
-      if (!isReaToolMessage(message)) continue
-      const timestamp = messageTimestamp(message)
-      const params = parseMaybeJson(message.content) as { tool?: unknown; args?: unknown } | undefined
-      const rawTool = typeof params?.tool === 'string' ? params.tool : undefined
+
+    // A call marker (or a per-server proxy name) opens the ledger entry.
+    if (!existing) {
+      const markerTool = toolName === 'mcp'
+        ? reaToolFromMarker(content)
+        : reaProxyToolNames.includes(toolName)
+          ? parseProxyStartTool(content)
+          : undefined
+      if (!markerTool) continue
       calls.set(toolCallId, {
         toolCallId,
-        tool: rawTool ? underlyingReaTool(rawTool) ?? rawTool.replace(/^milksu[-_]rea_?_?/, '') : existing?.tool,
-        argsText: params && typeof params.args === 'object' && params.args != null
-          ? JSON.stringify(params.args)
-          : existing?.argsText ?? message.content,
-        resultText: existing?.resultText,
-        isError: existing?.isError,
-        receivedAt: existing?.receivedAt ?? timestamp,
+        tool: markerTool,
+        argsText: undefined,
+        resultText: undefined,
+        isError: false,
+        receivedAt: timestamp,
       })
       continue
     }
-    // Results carry no tool name under the global proxy; a call only counts
-    // when its verified start (same toolCallId) is already in the ledger.
-    if (!existing) continue
-    calls.set(toolCallId, {
-      toolCallId,
-      tool: existing.tool,
-      argsText: existing.argsText,
-      resultText: message.content,
-      isError: existing.isError === true,
-      receivedAt: existing.receivedAt,
-    })
+
+    // Follow-up messages under the same call carry the result payload: a REA
+    // envelope at the head of the text, or a truncation notice when the
+    // original exceeded the output guard.
+    if (existing.resultText == null) {
+      calls.set(toolCallId, {
+        ...existing,
+        resultText: content,
+        isError: existing.isError,
+      })
+    }
   }
   return [...calls.values()].sort((left, right) => left.receivedAt - right.receivedAt)
+}
+
+function parseProxyStartTool(content: string): string | undefined {
+  const params = parseMaybeJson(content) as { tool?: unknown } | undefined
+  if (typeof params?.tool !== 'string') return undefined
+  return underlyingReaTool(params.tool)
 }
 
 function textOf(value: unknown): string | undefined {
@@ -562,9 +614,9 @@ export function deriveReverseSession(messages: Message[]): ReverseSession {
     const subject = evidence != null && typeof evidence.subject === 'object' && !Array.isArray(evidence.subject)
       ? (evidence.subject as Record<string, unknown>)
       : undefined
-    const args = parseMaybeJson(call.argsText) as { args?: unknown } | undefined
-    const argsRecord = args?.args != null && typeof args.args === 'object' && !Array.isArray(args.args)
-      ? args.args as Record<string, unknown>
+    const args = parseMaybeJson(call.argsText) as Record<string, unknown> | undefined
+    const argsRecord = args != null && typeof args === 'object' && !Array.isArray(args)
+      ? args
       : undefined
     session.evidence.push({
       toolCallId: call.toolCallId,

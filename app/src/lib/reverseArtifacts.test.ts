@@ -14,15 +14,16 @@ import type { Message } from '@/types'
  * returned by analyze_function on an IDA-backed session.
  */
 
-function startMessage(toolCallId: string, tool: string, args: Record<string, unknown> = {}): Message {
+function startMessage(toolCallId: string, tool: string, _args: Record<string, unknown> = {}): Message {
+  // 真实形态：全局 mcp 代理的调用标识行（渲染文本），参数不进消息流。
   return {
     id: `${toolCallId}-start`,
     role: 'tool',
-    content: JSON.stringify({ tool, args }),
+    content: `MCP tool · milksu-rea_${tool}`,
     timestamp: 1_000,
     toolName: 'mcp',
     toolCallId,
-    status: 'running',
+    status: 'done',
   }
 }
 
@@ -262,16 +263,67 @@ describe('deriveReverseSession', () => {
     expect(session.hasTraffic).toBe(false)
   })
 
-  it('accepts the global mcp proxy carrying a rea tool call', () => {
+  it('accepts the global mcp proxy carrying a rea call marker', () => {
     const message = {
       id: 'x',
       role: 'tool' as const,
-      content: JSON.stringify({ tool: 'milksu-rea_analyze_function', args: { procedure: '_main' } }),
+      content: 'MCP tool · milksu-rea_analyze_function',
       timestamp: 1,
       toolName: 'mcp',
       toolCallId: 'rea-global',
-      status: 'running' as const,
+      status: 'done' as const,
     }
     expect(isReaToolMessage(message)).toBe(true)
+  })
+
+  it('ignores mcp metadata answers like tool search and server listing', () => {
+    const search = {
+      id: 's',
+      role: 'tool' as const,
+      content: 'Found 8 tools matching "analyze_javascript_application":\n\nmilksu-rea_analyze_javascript_application\n  Reconstruct one local ASAR…',
+      timestamp: 1,
+      toolName: 'mcp',
+      toolCallId: 'meta-search',
+      status: 'done' as const,
+    }
+    const listing = {
+      id: 'l',
+      role: 'tool' as const,
+      content: 'milksu-rea (18 tools (lazy: tools from cache, not connected yet — mcp({ connect: "milksu-rea" }) to connect)):',
+      timestamp: 2,
+      toolName: 'mcp',
+      toolCallId: 'meta-list',
+      status: 'done' as const,
+    }
+    expect(isReaToolMessage(search)).toBe(false)
+    expect(isReaToolMessage(listing)).toBe(false)
+    const session = deriveReverseSession([search, listing])
+    expect(session.hasTraffic).toBe(false)
+  })
+
+  it('captures an export receipt from a real rendered mcp result', () => {
+    const session = deriveReverseSession([
+      {
+        id: 'e1',
+        role: 'tool',
+        content: 'MCP tool · milksu-rea_export_evidence_bundle',
+        timestamp: 1_000,
+        toolName: 'mcp',
+        toolCallId: 'export-call',
+        status: 'done',
+      },
+      {
+        id: 'e2',
+        role: 'tool',
+        content: '{"result":{"path":"/Users/dev/ws/rea-demo-evidence-bundle.zip","bytes":793779,"records":1,"unknowns":0}}\nstructuredContent:\n{\n  "result": {\n',
+        timestamp: 2_000,
+        toolName: 'mcp',
+        toolCallId: 'export-call',
+        status: 'done',
+      },
+    ])
+    expect(session.exports).toHaveLength(1)
+    expect(session.exports[0]?.records).toBe(1)
+    expect(session.evidence[0]?.evidenceId).toBeUndefined()
   })
 })
