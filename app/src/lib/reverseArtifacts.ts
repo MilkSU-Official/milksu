@@ -14,7 +14,11 @@ import type { Message } from '@/types'
  * ran instead of a second analysis pipeline.
  */
 
-export const reaProxyToolName = 'mcp__milksu-rea'
+/** pi-mcp-adapter namespaces the per-server proxy as mcp__<server> with
+ * dashes formatted to underscores (formatServerNamespace), so milksu-rea
+ * surfaces as mcp__milksu_rea. Accept both spellings defensively. */
+export const reaProxyToolNames = ['mcp__milksu_rea', 'mcp__milksu-rea']
+export const reaProxyToolName = 'mcp__milksu_rea'
 
 export interface ReverseTarget {
   path: string
@@ -159,7 +163,7 @@ function parseReaEnvelope(text: string | undefined): { result?: unknown; evidenc
 function collectReaCalls(messages: Message[]): ReaCall[] {
   const calls = new Map<string, ReaCall>()
   for (const message of messages) {
-    if (message.role !== 'tool' || message.toolName !== reaProxyToolName) continue
+    if (message.role !== 'tool' || !reaProxyToolNames.includes(message.toolName ?? '')) continue
     const toolCallId = message.toolCallId ?? ''
     if (!toolCallId) continue
     const existing = calls.get(toolCallId)

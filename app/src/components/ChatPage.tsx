@@ -129,7 +129,7 @@ import {
 import { buildChatActivityEntries, createChatTranscriptBuilder, hasEmptyVisibleReply, isContentOnlyMessageChange, latestFinishedThinkingId, type ChatTranscriptBlock } from '@/lib/chatActivity'
 import { createChatFoldEvaluator, type ChatFoldModel } from '@/lib/chatWorkStatus'
 import { agentFileDiffChips, formatDemoElapsed } from '@/lib/agentConversation'
-import { reaProxyToolName } from '@/lib/reverseArtifacts'
+import { reaProxyToolNames } from '@/lib/reverseArtifacts'
 import { latestCodingPlan } from '@/lib/codingPlan'
 import {
   chatActivityGroupOpen,
@@ -3005,7 +3005,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
   useEffect(() => {
     if (reverseTrafficConversation.current === conversation?.id) return
     const hasReaTraffic = structuralMessages.some(
-      message => message.role === 'tool' && message.toolName === reaProxyToolName,
+      message => message.role === 'tool' && reaProxyToolNames.includes(message.toolName ?? ''),
     )
     if (!hasReaTraffic) return
     reverseTrafficConversation.current = conversation?.id ?? 'anonymous'
