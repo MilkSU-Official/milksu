@@ -419,7 +419,7 @@ function sanitizeLocalDefinition(
   definition,
   serverName,
   workspace,
-  { extraReadableRoots = [], extraWritableRoots = [], allowNetwork = true } = {},
+  { extraReadableRoots = [], extraWritableRoots = [], allowNetwork = true, lifecycle = "lazy" } = {},
 ) {
   const command = String(definition.command ?? "").trim();
   if (!command || command.includes("\0")) {
@@ -458,7 +458,9 @@ function sanitizeLocalDefinition(
       ],
       env: {},
       cwd: workspace,
-      lifecycle: "lazy",
+      // eager 只经内部 options 传入（受控内置 server，如 milksu-rea）。
+      // 用户 definition 里的 lifecycle 一律落回 lazy。
+      lifecycle,
       directTools: false,
     };
   }
@@ -468,7 +470,7 @@ function sanitizeLocalDefinition(
     args,
     env: environmentAssignmentsToObject(childEnvironment),
     cwd: workspace,
-    lifecycle: "lazy",
+    lifecycle,
     directTools: false,
   };
 }
@@ -1396,6 +1398,7 @@ async function createManagedReaMcpServer(workspace, securityTools) {
           dirname(rea.command),
         ],
         extraWritableRoots: [],
+        lifecycle: "eager",
       },
     ),
   };
