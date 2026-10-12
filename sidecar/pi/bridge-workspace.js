@@ -8,6 +8,8 @@ export const codingWorkspaceToolName = "milksu_workspace";
 export const codingWorkspaceReadActions = Object.freeze([
   "list_browser_tabs",
   "list_artifacts",
+  "list_reverse_artifacts",
+  "preview_reverse_artifact",
   "list_images",
   "preview_artifact",
   "show_panel",
@@ -136,7 +138,8 @@ export function researchReportGuidance(sessionRole = "", uiLocale) {
 
 export function codingWorkspaceGuidance() {
   return [
-    "Use milksu_workspace for isolated browser tabs, MilkSU records, artifacts, environment, the bottom terminal, optional writer worktrees, or Computer Use windows.",
+    "Use milksu_workspace for browser tabs, records, artifacts, environment, terminal, worktrees, or Computer Use.",
+    "Reverse sessions: list_reverse_artifacts / preview_reverse_artifact expose this conversation's milksu-rea results.",
     "Open or focus a tab, then operate the page with Playwright.",
     "List Computer Use windows, call milksu_ask if several match, then lock_computer_use_window.",
     "Pick a typed action from the tool schema.",
@@ -204,6 +207,110 @@ export function formatCodingWorkspaceInput(input, { environment = process.env, s
       : "",
     Number.isFinite(Number(input?.writers)) ? `writers ${Number(input.writers)}` : "",
   ].filter(Boolean).join(" · ");
+}
+
+const REA_TOOL_PREFIX = "milksu-rea_";
+
+/**
+ * 从会话消息里收集 milksu-rea 的 MCP 调用产物。右栏「逆向产物」面板
+ * （reverseArtifacts.ts 的 collector）从同一份渲染文本收集；这里从
+ * bridge 侧的 transcript 收集，供 milksu_workspace 的 list /
+ * preview 动作把同一批产物交给模型。
+ */
+export function collectReverseArtifacts(messages = []) {
+  const calls = [];
+  const resultsByCallId = new Map();
+  for (const message of messages) {
+    if (message?.role === "assistant" && Array.isArray(message.content)) {
+      for (const block of message.content) {
+        if (block?.type !== "toolCall" || block.name !== "mcp") continue;
+        const toolName = String(block.arguments?.tool ?? "");
+        if (!toolName.startsWith(REA_TOOL_PREFIX)) continue;
+        calls.push({ callId: block.id, tool: toolName.slice(REA_TOOL_PREFIX.length), args: block.arguments?.args ?? {} });
+      }
+    } else if (message?.role === "toolResult" && message.toolName === "mcp") {
+      resultsByCallId.set(message.toolCallId, message);
+    }
+  }
+  return calls.map((call, index) => {
+    const result = resultsByCallId.get(call.callId);
+    const text = (result?.content ?? [])
+      .filter(block => block?.type === "text")
+      .map(block => block.text)
+      .join("\n");
+    return {
+      id: `rea-${index + 1}`,
+      tool: call.tool,
+      args: call.args,
+      status: result ? (result.isError ? "error" : "done") : "pending",
+      truncated: /truncated|Full text saved to/i.test(text),
+      savedPath: (text.match(/Full text saved to: (\S+)/) ?? [])[1] ?? null,
+      resultHead: text.slice(0, 400),
+      fullText: text,
+    };
+  });
+}
+
+/**
+ * 事件驱动的逆向产物收集：sidecar 的会话订阅在 message_end 时喂进来。
+ * session.messages 在会话恢复路径上不可靠（Pi 1.1.0 的存储分层），
+ * 事件流是当前 sidecar 生命周期内的可靠来源。
+ */
+export function updateReverseArtifactStore(store, message) {
+  if (!store || !message || typeof message !== "object") return;
+  if (message.role === "assistant" && Array.isArray(message.content)) {
+    for (const block of message.content) {
+      if (block?.type !== "toolCall" || block.name !== "mcp") continue;
+      const toolName = String(block.arguments?.tool ?? "");
+      if (!toolName.startsWith(REA_TOOL_PREFIX)) continue;
+      const existing = store.find(item => item.callId === block.id);
+      if (existing) continue;
+      store.push({ id: `rea-${store.length + 1}`, callId: block.id, tool: toolName.slice(REA_TOOL_PREFIX.length), args: block.arguments?.args ?? {}, status: "pending", truncated: false, savedPath: null, fullText: "" });
+    }
+  } else if (message.role === "toolResult" && message.toolName === "mcp") {
+    const artifact = store.find(item => item.callId === message.toolCallId);
+    if (!artifact) return;
+    const text = (message.content ?? [])
+      .filter(block => block?.type === "text")
+      .map(block => block.text)
+      .join("\n");
+    artifact.status = message.isError ? "error" : "done";
+    artifact.truncated = /truncated|Full text saved to/i.test(text);
+    artifact.savedPath = (text.match(/Full text saved to: (\S+)/) ?? [])[1] ?? null;
+    artifact.fullText = text;
+  }
+}
+
+export function listReverseArtifactsFromStore(store = []) {
+  return store.map(({ fullText, callId, ...rest }) => ({ ...rest, resultHead: fullText.slice(0, 400) }));
+}
+
+export function previewReverseArtifactFromStore(store = [], id = "") {
+  const artifact = store.find(item => item.id === String(id).trim());
+  if (!artifact) return null;
+  return {
+    id: artifact.id,
+    tool: artifact.tool,
+    args: artifact.args,
+    status: artifact.status,
+    truncated: artifact.truncated,
+    savedPath: artifact.savedPath,
+    content: artifact.fullText.slice(0, 16384),
+  };
+}
+
+export function previewReverseArtifact(artifacts = [], id = "") {
+  const artifact = artifacts.find(item => item.id === String(id).trim());
+  if (!artifact) return null;
+  return {
+    id: artifact.id,
+    tool: artifact.tool,
+    args: artifact.args,
+    status: artifact.status,
+    truncated: artifact.truncated,
+    savedPath: artifact.savedPath,
+    content: artifact.fullText.slice(0, 16384),
+  };
 }
 
 export function describeWorkspaceCompaction(usage, contextWindow) {
@@ -297,6 +404,7 @@ export function createCodingWorkspaceExtension(
   observeResearchAction,
   getResearchSecrets,
   isResearchActive,
+  getReverseArtifacts,
 ) {
   return (pi) => {
     pi.registerTool({
@@ -311,6 +419,8 @@ export function createCodingWorkspaceExtension(
           Type.Literal("close_browser_tab"),
           Type.Literal("close_all_browser_tabs"),
           Type.Literal("list_artifacts"),
+          Type.Literal("list_reverse_artifacts"),
+          Type.Literal("preview_reverse_artifact"),
           Type.Literal("list_images"),
           Type.Literal("preview_artifact"),
           Type.Literal("reveal_artifacts"),
@@ -414,6 +524,27 @@ export function createCodingWorkspaceExtension(
           isResearchActive?.() === true,
         );
         if (researchBrowserBlocked) throw new Error(researchBrowserBlocked);
+        if (action === "list_reverse_artifacts" || action === "preview_reverse_artifact") {
+          // 会话内数据，bridge 本地处理：与右栏「逆向产物」面板同源的
+          // milksu-rea 调用收集（事件驱动 store），模型用它列举与预览。
+          const artifacts = (typeof getReverseArtifacts === "function" ? getReverseArtifacts() : [])
+            ?? [];
+          if (action === "list_reverse_artifacts") {
+            return {
+              content: [{
+                type: "text",
+                text: JSON.stringify(artifacts.map(({ fullText, ...rest }) => rest)),
+              }],
+            };
+          }
+          const preview = previewReverseArtifactFromStore(artifacts, params.id ?? "");
+          if (!preview) {
+            throw new Error("Reverse artifact not found. Use list_reverse_artifacts to see ids.");
+          }
+          return {
+            content: [{ type: "text", text: JSON.stringify(preview) }],
+          };
+        }
         if (action === "compact_context") {
           const usage = inspectUsage?.(conversationId) ?? {};
           const report = describeWorkspaceCompaction(usage.usage, usage.contextWindow);

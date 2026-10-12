@@ -188,7 +188,9 @@ test("normalizes REA and builds the reviewed milksu-rea server", async () => {
   );
   assert.deepEqual(loaded.selected, ["milksu-rea"]);
   const server = loaded.config.mcpServers["milksu-rea"];
-  assert.equal(server.lifecycle, "lazy");
+  // milksu-rea 走 eager：会话创建即启动（lazy 在 bridge 进程内的 adapter
+  // 路径上存在不拉起且无超时的挂起问题，见 bridge-mcp.js 的注释）。
+  assert.equal(server.lifecycle, "eager");
   assert.equal(server.directTools, false);
   assert.equal(
     server.command,

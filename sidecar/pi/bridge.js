@@ -164,6 +164,7 @@ import {
   resolveWorkflowSessionRole,
   codingWorkspaceToolName,
   createCodingWorkspaceExtension,
+  updateReverseArtifactStore,
   createWorkspaceActionBroker,
   formatCodingWorkspaceInput,
   queueWorkspaceCompaction,
@@ -291,6 +292,7 @@ const sessionModelSources = new Map();
 const sessionConfiguredProviders = new Map();
 const abortedSessions = new Set();
 const sessionSubagentTasks = new Map();
+const reverseArtifactsByConversation = new Map();
 const sessionCreateCommands = new Map();
 function ignorePipeError(stream, label) {
   stream?.on("error", error => {
@@ -1819,6 +1821,11 @@ function subscribeSession(
   const toolStartedAt = new Map();
 
   session.subscribe((event) => {
+    if (event.type === "message_end") {
+      const store = reverseArtifactsByConversation.get(conversationId) ?? [];
+      updateReverseArtifactStore(store, event.message);
+      reverseArtifactsByConversation.set(conversationId, store);
+    }
     if (
       event.type === "compaction_start"
       || event.type === "compaction_end"
@@ -2172,6 +2179,7 @@ function createMilkSUResourceLoader(
         observeResearchWorkspaceAction,
         () => sessionProviderSecrets(conversationId),
         () => hasActiveResearchRun(conversationId),
+        () => reverseArtifactsByConversation.get(conversationId) ?? [],
       ),
       createEnvExtension(
         conversationId,
@@ -2543,6 +2551,7 @@ async function createSession(command) {
     sessionPolicyControllers.delete(conversationId);
     sessionModelSources.delete(conversationId);
     sessionConfiguredProviders.delete(conversationId);
+    reverseArtifactsByConversation.delete(conversationId);
     throw error;
   }
 }
@@ -2638,6 +2647,7 @@ async function sendMessage(command) {
     sessionPolicyControllers.delete(conversationId);
     sessionModelSources.delete(conversationId);
     sessionConfiguredProviders.delete(conversationId);
+    reverseArtifactsByConversation.delete(conversationId);
     forgetSessionProviders(conversationId);
     existing = undefined;
   }

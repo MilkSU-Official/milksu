@@ -17,6 +17,9 @@ import {
   describeWorkspaceCompaction,
   queueWorkspaceCompaction,
   runQueuedWorkspaceCompaction,
+  collectReverseArtifacts,
+  previewReverseArtifact,
+  updateReverseArtifactStore,
 } from "./bridge-workspace.js";
 
 test("workspace tool rejects unknown actions and plan mutations", () => {
@@ -393,4 +396,88 @@ test("compact_context queues Pi compaction below the 80 percent auto threshold",
   assert.match(result.content[0].text, /"threshold":80/);
   assert.equal(highPending.has("conversation-1"), true);
   assert.equal(await runQueuedWorkspaceCompaction(highPending, "conversation-1", async () => "ok"), "ok");
+});
+
+test("collectReverseArtifacts pairs milksu-rea mcp calls with their results", () => {
+  const messages = [
+    { role: "user", content: [{ type: "text", text: "analyze" }] },
+    {
+      role: "assistant",
+      content: [{ type: "toolCall", id: "call-1", name: "mcp", arguments: { tool: "milksu-rea_analyze_javascript_application", args: { input_path: "/tmp/demo" } } }],
+    },
+    {
+      role: "toolResult",
+      toolCallId: "call-1",
+      toolName: "mcp",
+      isError: false,
+      content: [{ type: "text", text: 'MCP text output truncated: original 74 lines.\nFull text saved to: /var/tmp/pi-mcp-output-1/output.txt\n{"result":{"input_path":"/tmp/demo"}}' }],
+    },
+    {
+      role: "assistant",
+      content: [{ type: "toolCall", id: "call-2", name: "mcp", arguments: { tool: "milksu-playwright_navigate", args: {} } }],
+    },
+    {
+      role: "toolResult",
+      toolCallId: "call-2",
+      toolName: "mcp",
+      isError: false,
+      content: [{ type: "text", text: "navigated" }],
+    },
+    {
+      role: "assistant",
+      content: [{ type: "toolCall", id: "call-3", name: "mcp", arguments: { tool: "milksu-rea_list_procedures", args: {} } }],
+    },
+  ];
+  const artifacts = collectReverseArtifacts(messages);
+  assert.equal(artifacts.length, 2);
+
+  assert.equal(artifacts[0].id, "rea-1");
+  assert.equal(artifacts[0].tool, "analyze_javascript_application");
+  assert.deepEqual(artifacts[0].args, { input_path: "/tmp/demo" });
+  assert.equal(artifacts[0].status, "done");
+  assert.equal(artifacts[0].truncated, true);
+  assert.equal(artifacts[0].savedPath, "/var/tmp/pi-mcp-output-1/output.txt");
+  assert.ok(artifacts[0].resultHead.includes("input_path"));
+
+  assert.equal(artifacts[1].id, "rea-2");
+  assert.equal(artifacts[1].tool, "list_procedures");
+  assert.equal(artifacts[1].status, "pending");
+
+  const preview = previewReverseArtifact(artifacts, "rea-1");
+  assert.equal(preview.tool, "analyze_javascript_application");
+  assert.ok(preview.content.includes("Full text saved to"));
+  assert.equal(previewReverseArtifact(artifacts, "rea-9"), null);
+});
+
+test("workspace extension serves reverse artifact actions locally from the event-fed store", async () => {
+  const store = [];
+  updateReverseArtifactStore(store, { role: "assistant", content: [{ type: "toolCall", id: "c1", name: "mcp", arguments: { tool: "milksu-rea_binary_overview", args: { session: "s" } } }] });
+  updateReverseArtifactStore(store, { role: "toolResult", toolCallId: "c1", toolName: "mcp", isError: false, content: [{ type: "text", text: '{"result":{"format":"elf"}}' }] });
+  const requests = [];
+  const extension = createCodingWorkspaceExtension(
+    "conversation-1",
+    () => ({ executionMode: "go", approvalPolicy: "workspace-auto" }),
+    request => { requests.push(request.action); return Promise.resolve("{}"); },
+    () => undefined,
+    () => ({}),
+    () => undefined,
+    () => [],
+    () => false,
+    () => store,
+  );
+  const registrations = [];
+  extension({ registerTool: tool => registrations.push(tool) });
+  const workspaceTool = registrations.find(tool => tool.name === "milksu_workspace");
+
+  const listResult = await workspaceTool.execute("t1", { action: "list_reverse_artifacts" });
+  const listed = JSON.parse(listResult.content[0].text);
+  assert.equal(listed.length, 1);
+  assert.equal(listed[0].tool, "binary_overview");
+  assert.equal(listed[0].status, "done");
+
+  const previewResult = await workspaceTool.execute("t2", { action: "preview_reverse_artifact", id: "rea-1" });
+  const preview = JSON.parse(previewResult.content[0].text);
+  assert.ok(preview.content.includes("elf"));
+  // 本地动作不应转发 broker
+  assert.equal(requests.length, 0);
 });
