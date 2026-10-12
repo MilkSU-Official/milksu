@@ -9,7 +9,7 @@ export function isCTFConversation(conversation: Conversation | null | undefined)
   return Boolean(conversation?.ctfJobId)
 }
 
-export type WorkspaceHome = 'chat' | 'image' | 'ctf' | 'vuln' | 'lab'
+export type WorkspaceHome = 'chat' | 'image' | 'ctf' | 'vuln' | 'lab' | 'reverse'
 
 export function conversationWorkspaceHome(
   conversation: Conversation | null | undefined,
@@ -19,7 +19,7 @@ export function conversationWorkspaceHome(
   if (kind === 'cve') return 'vuln'
   if (kind === 'lab') return 'lab'
   const home = conversation?.workspaceHome
-  if (home === 'ctf' || home === 'vuln' || home === 'lab' || home === 'chat' || home === 'image') return home
+  if (home === 'ctf' || home === 'vuln' || home === 'lab' || home === 'chat' || home === 'image' || home === 'reverse') return home
   return 'chat'
 }
 

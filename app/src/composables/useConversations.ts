@@ -583,7 +583,7 @@ export function normalizeConversation(raw: Record<string, unknown>): Conversatio
     ctfRole: ['solver', 'tool-builder', 'strategist'].includes(String(raw.ctfRole))
       ? raw.ctfRole as Conversation['ctfRole']
       : undefined,
-    workspaceHome: ['chat', 'image', 'ctf', 'vuln', 'lab'].includes(String(raw.workspaceHome))
+    workspaceHome: ['chat', 'image', 'ctf', 'vuln', 'lab', 'reverse'].includes(String(raw.workspaceHome))
       ? raw.workspaceHome as Conversation['workspaceHome']
       : undefined,
     domainTaskContext: normalizeDomainTaskContext(raw.domainTaskContext),

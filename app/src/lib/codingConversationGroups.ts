@@ -166,9 +166,9 @@ export function groupWorkspaceConversations(
       query,
     )
   }
-  if (home === 'image') {
+  if (home === 'image' || home === 'reverse') {
     const normalizedQuery = query.trim().toLocaleLowerCase()
-    const matching = conversationsForWorkspaceHome(conversations, 'image')
+    const matching = conversationsForWorkspaceHome(conversations, home)
       .filter(conversation => (
         !normalizedQuery
         || conversation.title.toLocaleLowerCase().includes(normalizedQuery)
@@ -176,7 +176,7 @@ export function groupWorkspaceConversations(
       .sort(newestFirst)
     if (!matching.length) return []
     return [{
-      key: 'image',
+      key: home,
       name: '',
       path: null,
       paths: [],

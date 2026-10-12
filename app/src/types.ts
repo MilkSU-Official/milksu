@@ -306,7 +306,7 @@ export interface Conversation {
   ctfMode?: 'coach' | 'copilot' | 'delegate'
   ctfRole?: 'solver' | 'tool-builder' | 'strategist'
   /** When set, the chat lives in this sidebar home even without a bound challenge/CVE/lab job. */
-  workspaceHome?: 'chat' | 'image' | 'ctf' | 'vuln' | 'lab'
+  workspaceHome?: 'chat' | 'image' | 'ctf' | 'vuln' | 'lab' | 'reverse'
   /** Structured CTF/CVE domain snapshot for the shared Coding/Pi panel. */
   domainTaskContext?: import('@/lib/domainTaskContext').DomainTaskContext
   /** Last occupancy shown on the composer ring; restored when the conversation is opened. */

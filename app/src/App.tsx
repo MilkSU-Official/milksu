@@ -648,9 +648,19 @@ export default function App() {
     setSection('image')
   }
 
+  function newReverseConversation() {
+    rememberActiveConversation()
+    conversations.startNew({ workspaceHome: 'reverse' })
+    setSection('reverse')
+  }
+
   function newWorkspaceConversation() {
     if (sectionRef.current === 'image') {
       newImageConversation()
+      return
+    }
+    if (sectionRef.current === 'reverse') {
+      newReverseConversation()
       return
     }
     if (isDomainWorkspace(sectionRef.current)) {
@@ -742,6 +752,10 @@ export default function App() {
     }
     if (value === 'image') {
       newImageConversation()
+      return
+    }
+    if (value === 'reverse') {
+      newReverseConversation()
       return
     }
     rememberActiveConversation()

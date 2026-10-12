@@ -355,7 +355,7 @@ export default function ContextSidebar({
       : updateButtonLabel
 
   const workspaceHome: WorkspaceSection = (
-    activeSection === 'ctf' || activeSection === 'vuln' || activeSection === 'lab' || activeSection === 'image'
+    activeSection === 'ctf' || activeSection === 'vuln' || activeSection === 'lab' || activeSection === 'image' || activeSection === 'reverse'
       ? activeSection
       : 'chat'
   )
