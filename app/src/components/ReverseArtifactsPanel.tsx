@@ -421,7 +421,7 @@ export default function ReverseArtifactsPanel({ messages }: { messages: Message[
 
       <section data-testid="reverse-evidence">
         <SectionHeader icon={<FileSearch className="size-3.5" />} title={t('证据', 'Evidence')} count={deferredSession.evidence.length} />
-        <div className="rounded-md bg-card px-1 py-1">
+        <div className={deferredSession.evidence.length > 0 ? 'rounded-md bg-card px-1 py-1' : 'hidden'}>
           {deferredSession.evidence.slice(0, 24).map((entry, index) => (
             <div
               key={entry.toolCallId}

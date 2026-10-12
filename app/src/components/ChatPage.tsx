@@ -2982,6 +2982,23 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ctfSession, conversation?.id, workspacePath, running])
 
+  // 逆向页与其他一级页面共用同一个 ChatPage 实例（display 切换不卸载），
+  // 逆向专属的右栏状态必须跟着 section 走，不泄漏到画图 / Coding 页。
+  useEffect(() => {
+    if (reverseHome) {
+      setRailTabs(tabs => tabs.includes('reverse') ? tabs : [...tabs, 'reverse'])
+      setContextPanel('reverse')
+      setEnvironmentOpen(true)
+      return
+    }
+    setRailTabs(tabs => {
+      if (!tabs.includes('reverse')) return tabs
+      const remaining = tabs.filter(tab => tab !== 'reverse')
+      return remaining.length > 0 ? remaining : ['environment']
+    })
+    setContextPanel(panel => (panel === 'reverse' ? 'environment' : panel))
+  }, [reverseHome])
+
   // milksu-rea 工具流量首次出现时，把「逆向产物」标签加进右栏（每个会话一次，
   // 不抢当前页焦点；用户手动关闭后本轮不再自动重开）。
   const reverseTrafficConversation = useRef('')
@@ -3069,7 +3086,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
             title={topbarPresentation.title}
             subtitle={topbarPresentation.subtitle}
             hideIdentity={codingDraftIdle}
-            windowCaptionEdge={!environmentOpen}
+            windowCaptionEdge
             actions={restorable ? (
               <button
                 type="button"
