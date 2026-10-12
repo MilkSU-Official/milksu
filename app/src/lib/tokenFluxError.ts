@@ -334,9 +334,23 @@ export function explainModelCallFailure(
   return t(`模型调用失败：${route} → ${explanation}`, `Model call failed: ${route} → ${explanation}`)
 }
 
+/**
+ * Heads-and-tails key hint so the user can eyeball which key was actually
+ * sent. Only the first 6 and last 4 characters survive; anything already
+ * masked passes through unchanged. Never renders a usable credential.
+ */
+export function maskKeyHint(key: string | null | undefined): string {
+  const value = String(key ?? '').trim()
+  if (!value) return ''
+  if (value.includes('\u2026') || value.includes('...')) return value
+  if (value.length <= 12) return value
+  return `${value.slice(0, 6)}\u2026${value.slice(-4)}`
+}
+
 export function explainModelVerificationFailure(
   value: unknown,
   provider?: string | null,
+  key?: string | null,
 ): string {
   const raw = compactErrorText(value)
   if (
@@ -356,8 +370,13 @@ export function explainModelVerificationFailure(
   ) {
     return t('无法连上模型服务，请检查网络后重试。', 'Could not reach the model service. Check the network, then try again.')
   }
+  const hint = maskKeyHint(key)
   if (String(provider ?? '').trim() === 'tokenflux') {
-    return t('模型验证失败。请到 TokenFlux 查看该 Key 的状态与额度。', 'Model verification failed. Check this key\'s status and quota on TokenFlux.')
+    return hint
+      ? t(`模型验证失败（Key ${hint}）。请到 TokenFlux 查看该 Key 的状态与额度。`, `Model verification failed (key ${hint}). Check this key\'s status and quota on TokenFlux.`)
+      : t('模型验证失败。请到 TokenFlux 查看该 Key 的状态与额度。', 'Model verification failed. Check this key\'s status and quota on TokenFlux.')
   }
-  return t('模型验证失败。请检查该服务的 Key 状态与额度。', 'Model verification failed. Check this service\'s key status and quota.')
+  return hint
+    ? t(`模型验证失败（Key ${hint}）。请检查该服务的 Key 状态与额度。`, `Model verification failed (key ${hint}). Check this service\'s key status and quota.`)
+    : t('模型验证失败。请检查该服务的 Key 状态与额度。', 'Model verification failed. Check this service\'s key status and quota.')
 }

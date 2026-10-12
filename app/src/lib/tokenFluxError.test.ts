@@ -5,6 +5,7 @@ import {
   explainModelServiceError,
   explainModelVerificationFailure,
   explainTokenFluxError,
+  maskKeyHint,
 } from './tokenFluxError'
 
 describe('explainTokenFluxError', () => {
@@ -190,5 +191,19 @@ describe('explainModelVerificationFailure', () => {
     expect(message).toContain('无法连上模型服务')
     expect(message).not.toContain('127.0.0.1')
     expect(message).not.toContain('[REDACTED]')
+  })
+})
+
+describe('maskKeyHint', () => {
+  it('shows head and tail only', () => {
+    expect(maskKeyHint('sk-b8a6a56a94b0421e94b80cd6e21ddd34')).toBe('sk-b8a\u2026dd34')
+  })
+  it('passes short and already-masked values through', () => {
+    expect(maskKeyHint('short')).toBe('short')
+    expect(maskKeyHint('sk-b8a6\u2026dd34')).toBe('sk-b8a6\u2026dd34')
+  })
+  it('returns empty for empty input', () => {
+    expect(maskKeyHint('')).toBe('')
+    expect(maskKeyHint(null)).toBe('')
   })
 })

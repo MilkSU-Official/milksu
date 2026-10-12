@@ -3731,9 +3731,14 @@ function createSettingsStore(
           }
         } catch (reason) {
           const raw = desktopErrorMessage(reason)
+          const failedKey = (
+            submitted.active_provider
+              ? submitted.providers[submitted.active_provider]?.api_key
+              : undefined
+          ) ?? null
           s.notice = {
             tone: 'error',
-            text: explainModelVerificationFailure(raw, submitted.active_provider),
+            text: explainModelVerificationFailure(raw, submitted.active_provider, failedKey),
           }
         } finally {
           s.verifying = false
