@@ -3660,7 +3660,15 @@ func (s *Supervisor) readEvents(kernel string, process *childProcess, stdout io.
 	for scanner.Scan() {
 		var raw bridgeEvent
 		if err := json.Unmarshal(scanner.Bytes(), &raw); err != nil {
-			s.emitEvent(Event{Engine: kernel, Type: "engine.protocol_error", Error: err.Error()})
+			// A non-JSON sidecar line usually carries the real failure (a
+			// provider SDK error printed to stdout). Quote it so the reader
+			// sees the cause instead of a bare JSON syntax error.
+			lineSample := scanner.Text()
+			if len(lineSample) > 400 {
+				lineSample = lineSample[:400]
+			}
+			s.emitEvent(Event{Engine: kernel, Type: "engine.protocol_error",
+				Error: fmt.Sprintf("%s: %s", err.Error(), lineSample)})
 			continue
 		}
 		if raw.Type == "workspace_action" {

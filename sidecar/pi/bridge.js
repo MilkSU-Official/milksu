@@ -1,3 +1,20 @@
+// stdout is the JSON-RPC channel to the Go supervisor; any console output
+// from bundled SDKs (for example the MCP client's capability warnings) would
+// be parsed as an event line and fail the whole stream. Send every console
+// method to stderr instead.
+for (const method of ["log", "info", "warn", "error", "debug"]) {
+  const original = console[method].bind(console);
+  console[method] = (...args) => {
+    try {
+      process.stderr.write(args.map(value => (
+        typeof value === "string" ? value : JSON.stringify(value)
+      )).join(" ") + "\n");
+    } catch {
+      original(...args);
+    }
+  };
+}
+
 import {
   createAgentSession,
   DefaultResourceLoader,
