@@ -19,6 +19,9 @@ test("installing uses a MilkSU-owned agent with the raised connect timeout", () 
     setDispatcher: agent => {
       seen.push({ kind: "set", agent });
     },
+    installFetch: () => {
+      seen.push({ kind: "install-fetch" });
+    },
   });
 
   assert.equal(result.installed, true);
@@ -26,6 +29,20 @@ test("installing uses a MilkSU-owned agent with the raised connect timeout", () 
   assert.deepEqual(seen[0], { connect: { timeout: DEFAULT_REQUEST_BUDGET.ttfbMaxMs } });
   assert.equal(seen[1].kind, "set");
   assert.equal(seen[1].agent, result.agent);
+  assert.deepEqual(seen[2], { kind: "install-fetch" });
+  assert.equal(result.fetchInstalled, true);
+});
+
+test("a failing fetch install does not lose the dispatcher install", () => {
+  const result = installRequestHttpDispatcher({
+    createAgent: () => ({ kind: "agent" }),
+    setDispatcher: () => {},
+    installFetch: () => {
+      throw new Error("install unavailable");
+    },
+  });
+  assert.equal(result.installed, true);
+  assert.equal(result.fetchInstalled, false);
 });
 
 test("a dispatcher that cannot be installed does not stop the sidecar", () => {
