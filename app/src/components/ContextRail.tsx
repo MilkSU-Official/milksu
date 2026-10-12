@@ -131,7 +131,10 @@ const contextRailCss = `
   top: 0;
   right: 0;
   left: 0;
-  z-index: 2;
+  /* 压过 chat-page__titlebar（window-drag-header，透明横跨窗口顶部，
+     z-10 容器内）。titlebar 透明但拦截点击：低于它时加号与页签的光标
+     不变、点击被判成拖窗。右栏 header 需在它之上接收点击。 */
+  z-index: 11;
   display: flex;
   min-height: 2.625rem;
   align-items: center;

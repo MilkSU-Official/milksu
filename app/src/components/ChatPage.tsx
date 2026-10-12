@@ -563,6 +563,10 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
   const [environmentOpen, setEnvironmentOpen] = useState(reverseHome)
   const [contextRailWidth, setContextRailWidth] = useState<number | null>(readCodingRailWidth())
   const [reverseRailWidth, setReverseRailWidth] = useState<number | null>(readReverseRailWidth())
+  // 顶栏让位用的右栏宽度：与 ContextRail 的 width 同源（逆向用自身默认值）。
+  const railVisibleWidthPx = environmentOpen
+    ? (reverseHome ? (reverseRailWidth ?? REVERSE_RAIL_DEFAULT_WIDTH) : (contextRailWidth ?? 0))
+    : 0;
   const [terminalOpen, setTerminalOpen] = useState(false)
   const [terminalHeight, setTerminalHeight] = useState(readCodingTerminalHeight())
   const [contextPanel, setContextPanel] = useState<ContextPanel>(reverseHome ? 'reverse' : 'environment')
@@ -3089,7 +3093,14 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
         </div>
       ) : null}
       {!dockSurface ? (
-        <div ref={topChromeRef} className="chat-page__titlebar" aria-label={topbarPresentation.title}>
+        <div
+          ref={topChromeRef}
+          className="chat-page__titlebar"
+          aria-label={topbarPresentation.title}
+          // 顶栏属于主列：右栏可见时把右栏宽度让出来。titlebar 透明但会拦截
+          // 点击，横跨右栏时加号与页签点不到；几何收缩后右栏 header 独占右栏顶部。
+          style={environmentOpen ? { marginRight: railVisibleWidthPx } : undefined}
+        >
           <WorkspaceModuleTopBar
             module={topbarModule}
             title={topbarPresentation.title}
