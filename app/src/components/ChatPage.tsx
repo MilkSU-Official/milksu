@@ -3698,7 +3698,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
             className="context-sidebar"
             size="wide"
             resizable
-            width={contextRailWidth}
+            width={contextRailWidth ?? (reverseHome ? 640 : null)}
             bodyMode={contextPanel === 'browser' ? 'viewport' : 'scroll'}
             aria-label={contextPanelTitle}
             data-testid="single-right-context-rail"

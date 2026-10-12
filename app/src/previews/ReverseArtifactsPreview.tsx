@@ -186,10 +186,10 @@ export default function ReverseArtifactsPreview() {
   const messages = useMemo(() => toolMessages(previewCalls), [])
   return (
     <div data-agent-conversation className="flex h-screen w-screen overflow-hidden bg-surface-editor p-6">
-      <div className="mr-6 hidden max-w-[260px] shrink-0 flex-col gap-2 self-center text-muted-foreground md:flex">
-        <h1 className="text-base font-medium text-foreground">MilkSU</h1>
-        <p className="text-[12.5px] leading-relaxed">
-          {t('逆向产物标签 · 预览（真实 REA 输出形状）', 'Reverse artifacts rail · preview (real REA output shapes)')}
+      <div className="mr-6 hidden w-[360px] shrink-0 flex-col justify-end gap-3 self-stretch pb-8 md:flex">
+        <h1 className="text-base font-medium text-foreground">{t('我们要逆向什么', 'What should we reverse')}</h1>
+        <p className="text-[12.5px] leading-relaxed text-muted-foreground">
+          {t('逆向工作台 · 对话列示意。真实 App 中这列是对话，右栏是逆向产物面板（640px 默认宽度，可拖宽）。本预览的右栏数据按真实 REA 输出形状构造。', 'Reverse workbench · conversation column placeholder. In the real app this column is the conversation and the rail is the reverse-artifacts panel (640px default, resizable). Rail data mirrors real REA output shapes.')}
         </p>
       </div>
       <ContextRail
@@ -198,7 +198,7 @@ export default function ReverseArtifactsPreview() {
             {t('逆向产物', 'Reverse artifacts')}
           </div>
         )}
-        width={520}
+        width={640}
       >
         <ReverseArtifactsPanel messages={messages} />
       </ContextRail>
