@@ -259,10 +259,6 @@ function applyJavaScriptAnalysis(session: ReverseSession, result: Record<string,
   const statistics = result.statistics != null && typeof result.statistics === 'object'
     ? result.statistics as Record<string, unknown>
     : undefined
-  const graph = result.graph != null && typeof result.graph === 'object'
-    ? result.graph as Record<string, unknown>
-    : undefined
-  const nodes = Array.isArray(graph?.nodes) ? graph!.nodes.length : undefined
   const path = textOf(result.input_path)
   if (path && (!session.target || session.target.path !== path)) {
     session.target = {
@@ -436,7 +432,7 @@ function evidenceSummary(operation: string, result: unknown, evidence?: Record<s
       return t('二进制概览', 'Binary overview') + (count != null ? ` · ${count}` : '')
     }
     case 'open_binary':
-      return t('打开目标', 'Opened target') + ' · ' + baseName(textOf(result.path) ?? '')
+      return t('打开目标', 'Opened target') + ' · ' + baseName(textOf(resultRecord?.path) ?? '')
     case 'close_binary':
       return t('关闭目标', 'Closed target')
     case 'analyze_javascript_application':

@@ -1233,6 +1233,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     artifacts: t('产物', 'Artifacts'),
     images: t('图片', 'Images'),
     browser: t('浏览器', 'Browser'),
+    reverse: t('逆向产物', 'Reverse artifacts'),
     'browser-use': 'Browser Use',
     'computer-use': 'Computer Use',
     collaboration: t('Agent 协作', 'Agent collaboration'),
