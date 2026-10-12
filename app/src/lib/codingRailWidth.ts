@@ -42,3 +42,27 @@ function defaultStorage(): Storage | null {
     return null
   }
 }
+
+export const REVERSE_RAIL_WIDTH_KEY = 'milksu.reverse.rail-width.v1'
+export const REVERSE_RAIL_DEFAULT_WIDTH = 640
+
+export function readReverseRailWidth(storage: Pick<Storage, 'getItem'> | null = defaultStorage()): number | null {
+  try {
+    return parseCodingRailWidth(storage?.getItem(REVERSE_RAIL_WIDTH_KEY) ?? null)
+  } catch {
+    return null
+  }
+}
+
+export function writeReverseRailWidth(
+  width: number,
+  storage: Pick<Storage, 'setItem'> | null = defaultStorage(),
+): number {
+  const next = clampCodingRailWidth(width)
+  try {
+    storage?.setItem(REVERSE_RAIL_WIDTH_KEY, String(next))
+  } catch {
+    // Private mode or quota: keep the in-memory width only.
+  }
+  return next
+}

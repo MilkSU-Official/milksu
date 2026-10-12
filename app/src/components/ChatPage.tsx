@@ -114,7 +114,13 @@ import {
   codingBrowserAddressFromStatus,
   codingBrowserViewportSyncKey,
 } from '@/lib/codingBrowserTabs'
-import { readCodingRailWidth, writeCodingRailWidth } from '@/lib/codingRailWidth'
+import {
+  readCodingRailWidth,
+  readReverseRailWidth,
+  REVERSE_RAIL_DEFAULT_WIDTH,
+  writeCodingRailWidth,
+  writeReverseRailWidth,
+} from '@/lib/codingRailWidth'
 import {
   clampCodingTerminalHeight,
   readCodingTerminalHeight,
@@ -556,6 +562,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
   const [workshopState, setWorkshopState] = useState<CTFToolWorkshopState | null>(null)
   const [environmentOpen, setEnvironmentOpen] = useState(reverseHome)
   const [contextRailWidth, setContextRailWidth] = useState<number | null>(readCodingRailWidth())
+  const [reverseRailWidth, setReverseRailWidth] = useState<number | null>(readReverseRailWidth())
   const [terminalOpen, setTerminalOpen] = useState(false)
   const [terminalHeight, setTerminalHeight] = useState(readCodingTerminalHeight())
   const [contextPanel, setContextPanel] = useState<ContextPanel>(reverseHome ? 'reverse' : 'environment')
@@ -1403,6 +1410,10 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
   }
 
   function persistContextRailWidth(width: number) {
+    if (reverseHome) {
+      setReverseRailWidth(writeReverseRailWidth(width))
+      return
+    }
     setContextRailWidth(writeCodingRailWidth(width))
   }
 
@@ -3698,7 +3709,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
             className="context-sidebar"
             size="wide"
             resizable
-            width={contextRailWidth ?? (reverseHome ? 640 : null)}
+            width={reverseHome ? (reverseRailWidth ?? REVERSE_RAIL_DEFAULT_WIDTH) : contextRailWidth}
             bodyMode={contextPanel === 'browser' ? 'viewport' : 'scroll'}
             aria-label={contextPanelTitle}
             data-testid="single-right-context-rail"
