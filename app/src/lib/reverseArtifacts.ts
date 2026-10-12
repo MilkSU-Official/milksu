@@ -14,11 +14,57 @@ import type { Message } from '@/types'
  * ran instead of a second analysis pipeline.
  */
 
-/** pi-mcp-adapter namespaces the per-server proxy as mcp__<server> with
- * dashes formatted to underscores (formatServerNamespace), so milksu-rea
- * surfaces as mcp__milksu_rea. Accept both spellings defensively. */
+/**
+ * REA calls surface through three proxy spellings, depending on the adapter
+ * mode: the global `mcp` tool (single proxy surface, arguments carry the
+ * underlying tool name), or a per-server `mcp__milksu_rea` proxy (server
+ * namespace formats dashes to underscores). A global `mcp` call only counts
+ * when its `tool` argument belongs to the reviewed REA allowlist; calls into
+ * other servers keep flowing past this panel.
+ */
 export const reaProxyToolNames = ['mcp__milksu_rea', 'mcp__milksu-rea']
-export const reaProxyToolName = 'mcp__milksu_rea'
+
+const reaToolAllowlist = new Set([
+  'binary_session',
+  'open_binary',
+  'close_binary',
+  'binary_overview',
+  'list_procedures',
+  'search_procedures',
+  'analyze_function',
+  'inspect_analysis_view',
+  'analyze_javascript_application',
+  'trace_application_feature',
+  'trace_feature',
+  'trace_call_path',
+  'inspect_artifact',
+  'inspect_managed_artifact',
+  'inspect_android_package',
+  'list_unknowns',
+  'record_unknown',
+  'update_unknown',
+  'export_evidence_bundle',
+])
+
+function underlyingReaTool(rawTool: string): string | undefined {
+  const stripped = rawTool
+    .replace(/^milksu[-_]rea_/, '')
+    .replace(/^milksu[-_]rea__/, '')
+  return reaToolAllowlist.has(rawTool) || reaToolAllowlist.has(stripped)
+    ? stripped || rawTool
+    : undefined
+}
+
+/** True when a tool message belongs to the reviewed milksu-rea surface. */
+export function isReaToolMessage(message: Pick<Message, 'role' | 'toolName' | 'content'>): boolean {
+  if (message.role !== 'tool') return false
+  const toolName = message.toolName ?? ''
+  if (reaProxyToolNames.includes(toolName)) return true
+  if (toolName !== 'mcp') return false
+  const params = parseMaybeJson(message.content) as { tool?: unknown } | undefined
+  if (typeof params?.tool !== 'string') return false
+  return underlyingReaTool(params.tool) !== undefined
+}
 
 export interface ReverseTarget {
   path: string
@@ -163,30 +209,39 @@ function parseReaEnvelope(text: string | undefined): { result?: unknown; evidenc
 function collectReaCalls(messages: Message[]): ReaCall[] {
   const calls = new Map<string, ReaCall>()
   for (const message of messages) {
-    if (message.role !== 'tool' || !reaProxyToolNames.includes(message.toolName ?? '')) continue
+    if (message.role !== 'tool') continue
     const toolCallId = message.toolCallId ?? ''
     if (!toolCallId) continue
     const existing = calls.get(toolCallId)
-    const timestamp = messageTimestamp(message)
     if (message.status === 'running') {
-      const params = parseMaybeJson(message.content) as { tool?: unknown } | undefined
+      // Start payloads carry the underlying tool name; only they can prove a
+      // global `mcp` call belongs to the reviewed REA surface.
+      if (!isReaToolMessage(message)) continue
+      const timestamp = messageTimestamp(message)
+      const params = parseMaybeJson(message.content) as { tool?: unknown; args?: unknown } | undefined
+      const rawTool = typeof params?.tool === 'string' ? params.tool : undefined
       calls.set(toolCallId, {
         toolCallId,
-        tool: typeof params?.tool === 'string' ? params.tool : existing?.tool,
-        argsText: existing?.argsText ?? message.content,
+        tool: rawTool ? underlyingReaTool(rawTool) ?? rawTool.replace(/^milksu[-_]rea_?_?/, '') : existing?.tool,
+        argsText: params && typeof params.args === 'object' && params.args != null
+          ? JSON.stringify(params.args)
+          : existing?.argsText ?? message.content,
         resultText: existing?.resultText,
         isError: existing?.isError,
         receivedAt: existing?.receivedAt ?? timestamp,
       })
       continue
     }
+    // Results carry no tool name under the global proxy; a call only counts
+    // when its verified start (same toolCallId) is already in the ledger.
+    if (!existing) continue
     calls.set(toolCallId, {
       toolCallId,
-      tool: existing?.tool,
-      argsText: existing?.argsText,
+      tool: existing.tool,
+      argsText: existing.argsText,
       resultText: message.content,
-      isError: existing?.isError === true,
-      receivedAt: existing?.receivedAt ?? timestamp,
+      isError: existing.isError === true,
+      receivedAt: existing.receivedAt,
     })
   }
   return [...calls.values()].sort((left, right) => left.receivedAt - right.receivedAt)
@@ -520,7 +575,7 @@ export function deriveReverseSession(messages: Message[]): ReverseSession {
       subject: textOf(subject?.name),
       summary: envelope
         ? evidenceSummary(operation, envelope.result, evidence)
-        : operation || reaProxyToolName,
+        : operation || 'mcp',
       parametersText: argsRecord ? JSON.stringify(argsRecord) : call.argsText,
       isError: call.isError === true,
       oversized: envelope == null,

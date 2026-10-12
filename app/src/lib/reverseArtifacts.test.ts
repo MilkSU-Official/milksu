@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   deriveReverseSession,
-  reaProxyToolName,
+  isReaToolMessage,
+  reaProxyToolNames,
   reaRunningLabel,
 } from '@/lib/reverseArtifacts'
 import type { Message } from '@/types'
@@ -19,7 +20,7 @@ function startMessage(toolCallId: string, tool: string, args: Record<string, unk
     role: 'tool',
     content: JSON.stringify({ tool, args }),
     timestamp: 1_000,
-    toolName: reaProxyToolName,
+    toolName: 'mcp',
     toolCallId,
     status: 'running',
   }
@@ -31,7 +32,7 @@ function endMessage(toolCallId: string, content: unknown, timestamp = 2_000): Me
     role: 'tool',
     content: typeof content === 'string' ? content : JSON.stringify(content),
     timestamp,
-    toolName: reaProxyToolName,
+    toolName: 'mcp',
     toolCallId,
     status: 'done',
   }
@@ -244,5 +245,33 @@ describe('deriveReverseSession', () => {
       { id: 'x', role: 'tool', content: '{"tool":"capa_analyze"}', timestamp: 1, toolName: 'capa_analyze', toolCallId: 'other', status: 'done' },
     ])
     expect(session.hasTraffic).toBe(false)
+  })
+
+  it('ignores global mcp calls into other servers', () => {
+    const message = {
+      id: 'x',
+      role: 'tool' as const,
+      content: JSON.stringify({ tool: 'some_other_server_tool', args: {} }),
+      timestamp: 1,
+      toolName: 'mcp',
+      toolCallId: 'other-server',
+      status: 'running' as const,
+    }
+    expect(isReaToolMessage(message)).toBe(false)
+    const session = deriveReverseSession([message])
+    expect(session.hasTraffic).toBe(false)
+  })
+
+  it('accepts the global mcp proxy carrying a rea tool call', () => {
+    const message = {
+      id: 'x',
+      role: 'tool' as const,
+      content: JSON.stringify({ tool: 'milksu-rea_analyze_function', args: { procedure: '_main' } }),
+      timestamp: 1,
+      toolName: 'mcp',
+      toolCallId: 'rea-global',
+      status: 'running' as const,
+    }
+    expect(isReaToolMessage(message)).toBe(true)
   })
 })

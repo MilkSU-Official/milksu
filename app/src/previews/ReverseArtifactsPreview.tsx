@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import ContextRail from '@/components/ContextRail'
 import ReverseArtifactsPanel from '@/components/ReverseArtifactsPanel'
 import { useT } from '@/hooks/useUiLocale'
-import { reaProxyToolName } from '@/lib/reverseArtifacts'
+import { reaProxyToolNames } from '@/lib/reverseArtifacts'
 import type { Message } from '@/types'
 
 /**
@@ -27,7 +27,7 @@ function toolMessages(calls: { tool: string; args: Record<string, unknown>; resu
       role: 'tool',
       content: JSON.stringify({ tool: call.tool, args: call.args }),
       timestamp: nextTime(),
-      toolName: reaProxyToolName,
+      toolName: reaProxyToolNames[0]!,
       toolCallId: `preview-${index}`,
       status: 'running',
     })
@@ -36,7 +36,7 @@ function toolMessages(calls: { tool: string; args: Record<string, unknown>; resu
       role: 'tool',
       content: typeof call.result === 'string' ? call.result : JSON.stringify(call.result),
       timestamp: nextTime(),
-      toolName: reaProxyToolName,
+      toolName: reaProxyToolNames[0]!,
       toolCallId: `preview-${index}`,
       status: 'done',
     })
