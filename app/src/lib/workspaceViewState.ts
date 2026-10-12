@@ -1,6 +1,6 @@
 export const WORKSPACE_VIEW_STATE_STORAGE_KEY = 'milksu.workspace-view-state'
 
-export type PersistedWorkspaceSection = 'chat' | 'image' | 'ctf' | 'vuln' | 'lab' | 'companion' | 'profile' | 'settings'
+export type PersistedWorkspaceSection = 'chat' | 'image' | 'ctf' | 'vuln' | 'lab' | 'reverse' | 'companion' | 'profile' | 'settings'
 export type PersistedCTFSection = 'catalog'
 
 export interface WorkspaceViewState {
@@ -12,7 +12,7 @@ export interface WorkspaceViewState {
   settingsReturnTarget: Exclude<PersistedWorkspaceSection, 'settings'>
 }
 
-const sections = new Set<PersistedWorkspaceSection>(['chat', 'image', 'ctf', 'vuln', 'lab', 'companion', 'profile', 'settings'])
+const sections = new Set<PersistedWorkspaceSection>(['chat', 'image', 'ctf', 'vuln', 'lab', 'reverse', 'companion', 'profile', 'settings'])
 const ctfSections = new Set<PersistedCTFSection>(['catalog'])
 const returnSections = new Set<Exclude<PersistedWorkspaceSection, 'settings'>>(['chat', 'image', 'ctf', 'vuln', 'lab', 'companion', 'profile'])
 // The settings category is not persisted: SettingsPage owns that state locally and

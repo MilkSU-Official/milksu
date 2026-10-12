@@ -96,7 +96,7 @@ const VulnPage = lazy(() => import('@/components/VulnPage'))
 const LabPage = lazy(() => import('@/components/LabPage'))
 const CompanionPetWindow = lazy(() => import('@/components/CompanionPetWindow'))
 
-type Section = 'chat' | 'image' | 'ctf' | 'vuln' | 'lab' | 'companion' | 'profile' | 'settings'
+type Section = 'chat' | 'image' | 'ctf' | 'vuln' | 'lab' | 'reverse' | 'companion' | 'profile' | 'settings'
 type DomainHome = 'ctf' | 'vuln' | 'lab'
 
 function readRendererSurface() {
@@ -455,7 +455,7 @@ export default function App() {
       : section === 'lab'
         ? domainChatMaximized.lab
         : false
-  const workspaceSurfaceVisible = section === 'chat' || section === 'image' || section === 'ctf' || section === 'vuln' || section === 'lab'
+  const workspaceSurfaceVisible = section === 'chat' || section === 'image' || section === 'ctf' || section === 'vuln' || section === 'lab' || section === 'reverse'
   const domainDockOpen = section === 'ctf'
     ? domainChatDockOpen.ctf
     : section === 'vuln'
@@ -1908,10 +1908,10 @@ export default function App() {
                 />
               </div>
             ) : null}
-            {section === 'chat' || section === 'image' || section === 'settings' || section === 'profile' || dossierChatMaximized ? (
+            {section === 'chat' || section === 'image' || section === 'reverse' || section === 'settings' || section === 'profile' || dossierChatMaximized ? (
               <div
                 className="relative flex min-h-0 min-w-0 flex-1"
-                style={{ display: section === 'chat' || section === 'image' || dossierChatMaximized ? undefined : 'none' }}
+                style={{ display: section === 'chat' || section === 'image' || section === 'reverse' || dossierChatMaximized ? undefined : 'none' }}
               >
               <ChatPage
                 className="min-h-0 min-w-0 flex-1 bg-surface-editor"
@@ -1939,6 +1939,7 @@ export default function App() {
                 modelProvider={conv.modelProvider}
                 modelId={conv.modelId}
                 imageHome={section === 'image'}
+                reverseHome={section === 'reverse'}
                 onChangeImageModel={value => { void setImageGenModel(value) }}
                 thinkingLevel={conv.thinkingLevel}
                 modelSourcePreference={conv.modelSourcePreference}

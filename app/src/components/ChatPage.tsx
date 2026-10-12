@@ -314,6 +314,7 @@ export type ChatPageProps = {
   onMigrateKernel?: (kernel: 'pi' | 'dsh') => void
   onChangeModelSource?: (preference: 'auto' | 'account' | 'personal') => void
   imageHome?: boolean
+  reverseHome?: boolean
   onChangeImageModel?: (value: string) => void
   onChangeCodingPolicy?: (
     executionMode: CodingExecutionMode,
@@ -414,6 +415,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
   onMigrateKernel,
   onChangeModelSource,
   imageHome = false,
+  reverseHome = false,
   onChangeImageModel,
   onChangeCodingPolicy,
   onChangeMcpServers,
@@ -552,12 +554,12 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
   const chatAutoScrollPinned = useRef(true)
   const lastChatScrollTop = useRef(0)
   const [workshopState, setWorkshopState] = useState<CTFToolWorkshopState | null>(null)
-  const [environmentOpen, setEnvironmentOpen] = useState(false)
+  const [environmentOpen, setEnvironmentOpen] = useState(reverseHome)
   const [contextRailWidth, setContextRailWidth] = useState<number | null>(readCodingRailWidth())
   const [terminalOpen, setTerminalOpen] = useState(false)
   const [terminalHeight, setTerminalHeight] = useState(readCodingTerminalHeight())
-  const [contextPanel, setContextPanel] = useState<ContextPanel>('environment')
-  const [railTabs, setRailTabs] = useState<ContextPanel[]>(['environment'])
+  const [contextPanel, setContextPanel] = useState<ContextPanel>(reverseHome ? 'reverse' : 'environment')
+  const [railTabs, setRailTabs] = useState<ContextPanel[]>(reverseHome ? ['reverse'] : ['environment'])
   const [railMenuOpen, setRailMenuOpen] = useState(false)
   const [railQuery, setRailQuery] = useState('')
   const artifactPanel = useRef<CodingArtifactPreviewPanelHandle | null>(null)
@@ -942,7 +944,9 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
       ? 'cve'
       : conversation?.domainTaskContext?.kind === 'lab'
         ? 'lab'
-        : 'coding'
+        : reverseHome
+          ? 'reverse'
+          : 'coding'
   const emptyCanvas = !(conversation?.messages.length)
   const codingDraftIdle = (
     !ctfSession
@@ -990,13 +994,14 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     return codingWorkspaceLabel(workspacePath, homeDirectory)
   }, [workspacePath, homeDirectory])
   const codingEmptyHeading = useMemo(() => {
+    if (reverseHome) return t('我们要逆向什么', 'What should we reverse')
     if (imageHome) return t('我们画什么', 'What should we draw')
     const name = selectedCodingProjectName || workspaceName
     if (name && name !== '~' && name !== t('无项目任务', 'No project') && !isGenericWorkspaceLabel(name)) {
       return t(`我们在 ${name} 中构建什么`, `What should we build in ${name}`)
     }
     return t('我们要构建什么', 'What should we build')
-  }, [imageHome, selectedCodingProjectName, workspaceName, t])
+  }, [imageHome, reverseHome, selectedCodingProjectName, workspaceName, t])
   const terminalConversationId = conversation?.id || LOCAL_CODING_SHELL_ID
   const terminalWorkspacePath = workspacePath || homeDirectory
   const codingBrowserEvidencePath = useMemo(() => {

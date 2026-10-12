@@ -13,7 +13,7 @@ export default function WorkspaceModuleTopBar({
   metrics,
   windowCaptionEdge,
 }: {
-  module: 'coding' | 'ctf' | 'cve' | 'lab'
+  module: 'coding' | 'ctf' | 'cve' | 'lab' | 'reverse'
   title?: string
   subtitle?: string
   hideIdentity?: boolean
@@ -24,7 +24,7 @@ export default function WorkspaceModuleTopBar({
   metrics?: ReactNode
   windowCaptionEdge?: boolean
 }) {
-  const fallbackTitle = { coding: 'Coding', ctf: 'CTF', cve: 'CVE', lab: 'LAB' }[module]
+  const fallbackTitle = { coding: 'Coding', ctf: 'CTF', cve: 'CVE', lab: 'LAB', reverse: 'Reverse' }[module]
   const resolvedTitle = title?.trim() || fallbackTitle
 
   return (

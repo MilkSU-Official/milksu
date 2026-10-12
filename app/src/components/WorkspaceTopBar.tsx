@@ -13,7 +13,7 @@ export default function WorkspaceTopBar({
   metrics,
   windowCaptionEdge = false,
 }: {
-  module?: 'coding' | 'ctf' | 'cve' | 'lab'
+  module?: 'coding' | 'ctf' | 'cve' | 'lab' | 'reverse'
   title: string
   subtitle?: string
   hideIdentity?: boolean
