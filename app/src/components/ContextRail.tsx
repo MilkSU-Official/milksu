@@ -133,9 +133,10 @@ const contextRailCss = `
   left: 0;
   z-index: 2;
   display: flex;
-  min-height: 2.5rem;
+  min-height: 2.625rem;
   align-items: center;
-  padding: 0.25rem calc(var(--shell-window-control-safe-right) + var(--shell-chrome-end-inset) + var(--shell-chrome-end-span)) 0.25rem 0.35rem;
+  /* 顶边留出窗口边缘热区：控件从 ~6px 起步，避免加号和页签压进系统 resize 带。 */
+  padding: 0.375rem calc(var(--shell-window-control-safe-right) + var(--shell-chrome-end-inset) + var(--shell-chrome-end-span)) 0.25rem 0.35rem;
   background: transparent;
   pointer-events: none;
 }

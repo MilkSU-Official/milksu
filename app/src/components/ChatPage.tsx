@@ -3713,14 +3713,14 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
             data-testid="single-right-context-rail"
             onWidthChange={persistContextRailWidth}
             header={(
-              <div className="app-drag flex min-w-0 flex-1 items-center gap-0.5">
+              <div className="flex min-w-0 flex-1 items-center gap-0.5">
                 {!transientComputerUsePanel ? (
                   <>
                     <Popover open={railMenuOpen} onOpenChange={open => { setRailMenuOpen(open); if (!open) setRailQuery('') }}>
                       <PopoverTrigger asChild>
                         <button
                           type="button"
-                          className="agent-chrome-icon app-no-drag"
+                          className="agent-chrome-icon"
                           aria-label={t('打开右侧页面', 'Open a right-rail page')}
                           title={t('打开右侧页面', 'Open a right-rail page')}
                         >
@@ -3779,6 +3779,10 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
                         )
                       })}
                     </div>
+                    {/* 页签行右侧的空白仍可拖动窗口；按钮与页签本身不再嵌套在拖拽区里，
+                        macOS hiddenInset 下嵌套 no-drag 的豁免在合成器层不可靠，
+                        会让加号和页签点不动。 */}
+                    <div className="app-drag h-8 min-w-6 flex-1" aria-hidden="true" />
                   </>
                 ) : (
                   <div className="app-no-drag flex min-w-0 flex-1 items-center gap-2 px-2 text-[14px] font-medium">
