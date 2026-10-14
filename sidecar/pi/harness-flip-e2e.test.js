@@ -8,8 +8,8 @@
 // 场景（工单 D2 验收点）：
 //   1. 缺省（不设 MILKSU_PI_HARNESS）：新会话走 Harness——ready/事件面 + durable 存储
 //      落盘 + 不写旧 JSONL；
-//   2. CTF 工作区（challenge.json）：一律旧引擎——JSONL 落盘 + 无 harness 存储；
-//   3. 研究角色（cve-research）/ ctf_ 前缀：旧引擎；
+//   2. 残留 CTF 工作区（challenge.json）：按 Coding 走 Harness；
+//   3. 研究角色（cve-research）/ 遗留 ctf_ 前缀：旧引擎；
 //   4. 回退（MILKSU_PI_HARNESS=0）：旧引擎全功能——普通回合 + 审批（ask 档真弹卡真
 //      批准真执行）+ MCP（真 stdio 夹具服务器真调用）+ 子代理（builtin 角色真 spawn）；
 //   5. 归档全链路：合成旧 JSONL → 首启翻转导出 → archive_query → 继续聊（自动导入 +
@@ -350,21 +350,19 @@ test("default env: new coding sessions run on the Harness engine", async () => {
   });
 });
 
-// ---------- 场景 2：CTF 工作区 → 一律旧引擎 ----------
+// ---------- 场景 2：残留 CTF 工作区按 Coding 走 Harness ----------
 
-test("CTF workspace sessions stay on the legacy engine regardless of the open gate", async () => {
+test("leftover CTF workspace sessions run on the Harness engine as coding", async () => {
   await withRoot(async ({ agentDir, server, root, spawnSidecar }) => {
     const workspace = await makeCtfWorkspace(root);
-    server.queue.push({ text: "legacy says hello" });
+    server.queue.push({ text: "harness says hello" });
     const bridge = spawnSidecar({ workspace, agentDir });
     try {
       await bridge.send(sendTurn("conv-ctf-ws", "ping"));
       await bridge.waitForEvent("ready", event => event.id === "conv-ctf-ws");
       await bridge.waitForEvent("turn_settled", event => event.id === "conv-ctf-ws");
-      // 引擎判定：旧 JSONL 落盘，无 harness 存储。
-      const jsonl = await legacyJsonlFor(agentDir, "conv-ctf-ws");
-      assert.ok(jsonl, "legacy engine writes the JSONL transcript");
-      assert.equal(await harnessStorageExists(agentDir, workspace), false, "no harness storage for a CTF workspace");
+      assert.ok(await harnessStorageExists(agentDir, workspace), "leftover CTF workspace uses harness storage");
+      assert.equal(await legacyJsonlFor(agentDir, "conv-ctf-ws"), undefined, "legacy JSONL is not written");
     } finally {
       await bridge.stop();
     }

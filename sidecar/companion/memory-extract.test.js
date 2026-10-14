@@ -27,11 +27,11 @@ test("extract instructions keep personal domain habits and leave one job's concl
   const en = memoryExtractInstructions("en", 1);
   assert.match(zh, /习惯和要求/);
   assert.match(zh, /可以改口更新/);
-  assert.match(zh, /某一道题/);
+  assert.match(zh, /某一个 CVE/);
   assert.doesNotMatch(zh, /不可修改|必须再验证/);
   assert.match(en, /habit or requirement/);
   assert.match(en, /can be updated/);
-  assert.match(en, /one challenge/);
+  assert.match(en, /one CVE/);
   assert.doesNotMatch(en, /tamper|must be verified/);
 });
 

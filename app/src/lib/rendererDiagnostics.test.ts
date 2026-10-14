@@ -37,7 +37,7 @@ describe('renderer diagnostics', () => {
   it('returns an immutable metadata-only snapshot', () => {
     recordRendererDiagnostic('catalog-load', {
       status: 'ok',
-      method: 'list_nssctf_catalog',
+      method: 'list_vuln_jobs',
       count: 3,
       page: 1,
       userInput: 'session body',
@@ -49,9 +49,9 @@ describe('renderer diagnostics', () => {
     expect(Object.isFrozen(snapshot)).toBe(true)
     expect(Object.isFrozen(snapshot[0])).toBe(true)
     expect(snapshot[0]).toMatchObject({
-      category: 'nssctf',
+      category: 'renderer',
       level: 'info',
-      message: 'catalog-load status=ok method=list_nssctf_catalog count=3 page=1 durationMs=12',
+      message: 'catalog-load status=ok method=list_vuln_jobs count=3 page=1 durationMs=12',
     })
     expect(JSON.stringify(snapshot)).not.toContain('session body')
     expect(JSON.stringify(snapshot)).not.toContain('example.test')

@@ -11,7 +11,7 @@
 
 ## 决策
 
-1. “支持四个发行版”表示普通用户能从对应安装面装上 MilkSU，并在真实桌面跑通 Coding / CTF / CVE / 实验室的 Pi 工作循环。它不表示四个环境的 Computer Use、Browser Use、本地 OCR、Secret Service 等价。也不表示要按 arch×distro 发 8 个安装包。
+1. “支持四个发行版”表示普通用户能从对应安装面装上 MilkSU，并在真实桌面跑通 Coding / CVE / 实验室的 Pi 工作循环。它不表示四个环境的 Computer Use、Browser Use、本地 OCR、Secret Service 等价。也不表示要按 arch×distro 发 8 个安装包。
 2. GitHub Release 的 Linux 安装包最多 4 个，默认只发 2 个能跨发行版使用的包：
    - 一份 `.deb`：Ubuntu 24.04 与 Debian 13 共用；
    - 一份 `.tar.gz`：Omarchy / Arch 用仓库里的 PKGBUILD 安装，NixOS 用仓库 flake 包装同一目录。
@@ -25,7 +25,7 @@
 
 ## 当前事实
 
-Linux 产物是 Ubuntu/Debian 共用 x64 `.deb` 与 Omarchy/Arch/Nix 共用 x64 `.tar.gz`。自动化验证了包结构、Node/Pi Sidecar、Go Runtime 和 Xvfb Electron 启动。GNOME Wayland Computer Use 走 XDG Desktop Portal；Hyprland / Xorg unavailable。发布脚本明确记录 `localOcr: false`；Linux 仍无 Secret Service。
+Linux 产物是 Ubuntu/Debian 共用 x64 `.deb` 与 Omarchy/Arch/Nix 共用 x64 `.tar.gz`。自动化验证了包结构、Node/Pi Sidecar、TypeScript Runtime、原生助手和 Xvfb Electron 启动。GNOME Wayland Computer Use 走 XDG Desktop Portal；Hyprland / Xorg unavailable。发布脚本明确记录 `localOcr: false`；Linux 仍无 Secret Service。
 
 - Sidecar 只有 `linux/amd64` Node runtime；Linux 没有已审阅的 `@napi-rs/system-ocr` 原生包。
 - Browser Use 查找 Chrome / Chromium / Edge / Brave、PATH、Nix 与桌面入口。

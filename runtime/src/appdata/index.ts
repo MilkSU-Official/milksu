@@ -1,0 +1,6 @@
+export { inspectData, inspectLocalDataStatus, exportBackup, validateBackup, type DataStatus, type BackupExport } from './backup.ts'
+export { stageBackupRestore, applyPendingRestore, type BackupRestoreResult, type BackupRestoreStage } from './restore.ts'
+export { beginLifespan, markCleanExit, readLifespanState, type LifespanStart, type LifespanHandle } from './lifespan.ts'
+export { exportDiagnostics, DiagnosticRecorder, type DiagnosticEvent, type DiagnosticExport, type DiagnosticInput } from './diagnostics.ts'
+export { inspectDatabaseCompatibilityAsync, type DatabaseDescriptor } from './compatibility.ts'
+export { ensureDataLayout } from './layout.ts'

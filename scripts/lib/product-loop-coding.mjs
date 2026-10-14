@@ -1,5 +1,5 @@
 /**
- * Homepage Coding: Pi / DSH daily turns and session chrome.
+ * Homepage Coding: Pi / Agent daily turns and session chrome.
  */
 
 import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
@@ -17,6 +17,7 @@ import {
   visibleTranscriptText,
   withCompanionMemoryExtract,
 } from './product-loop-memory.mjs'
+import { ensureProductLoopAgent } from './product-loop-agent.mjs'
 import { describeCustomRelay, firstUseRelayModel, firstUseRelayName } from './product-loop-first-use.mjs'
 import {
   clickAria,
@@ -309,6 +310,11 @@ async function home(driver) {
   await expandSidebar(driver)
   await dismissOverlays(driver)
   return openWorkspace(driver, ['新聊天', 'New chat'])
+}
+
+async function failIfAgentMissing(driver) {
+  const agent = await ensureProductLoopAgent(driver)
+  return agent.ok ? null : fail(agent.detail)
 }
 
 async function clearBlockingOverlays(driver) {
@@ -743,6 +749,8 @@ export async function runCodingAttach(driver, options = {}) {
 }
 
 export async function runCodingPiHandoff(driver) {
+  const missing = await failIfAgentMissing(driver)
+  if (missing) return missing
   await home(driver)
   const live = await startLiveSession(driver, {
     prefix: 'product-loop-pi-handoff',
@@ -770,7 +778,7 @@ export async function runCodingPiHandoff(driver) {
     const saved = listed.find(row => conversationIdOf(row) === sessionId)
     const kernel = String(saved?.kernel ?? saved?.Kernel ?? '')
     return kernel === 'dsh'
-      ? pass('整理后开出了新的 DSH 会话')
+      ? pass('整理后开出了新的 Agent 会话')
       : fail(`新会话 kernel=${kernel || '(empty)'}`)
   } catch (error) {
     return fail(`接到新会话失败：${error instanceof Error ? error.message : error}`)
@@ -780,6 +788,8 @@ export async function runCodingPiHandoff(driver) {
 }
 
 export async function runCodingDshFiles(driver, options = {}) {
+  const missing = await failIfAgentMissing(driver)
+  if (missing) return missing
   await home(driver)
   return runWorkspaceTurn(driver, {
     ...options,
@@ -790,12 +800,14 @@ export async function runCodingDshFiles(driver, options = {}) {
     async check({ workspace, turn, toolNames }) {
       const notes = await fileHas(join(workspace, 'NOTES.md'), 'PRODUCT-LOOP-NOTES')
       const ok = notes && toolNames.some(name => FILE_TOOL_PATTERN.test(name)) && !turn.timeout
-      return ok ? pass('DSH 写出带标记的 NOTES.md，并且用了文件工具') : fail(`NOTES.md=${notes} tools=${toolNames.join(',')} timeout=${Boolean(turn.timeout)}`)
+      return ok ? pass('Agent 写出带标记的 NOTES.md，并且用了文件工具') : fail(`NOTES.md=${notes} tools=${toolNames.join(',')} timeout=${Boolean(turn.timeout)}`)
     },
   })
 }
 
 export async function runCodingDshShell(driver, options = {}) {
+  const missing = await failIfAgentMissing(driver)
+  if (missing) return missing
   await home(driver)
   return runWorkspaceTurn(driver, {
     ...options,
@@ -807,12 +819,14 @@ export async function runCodingDshShell(driver, options = {}) {
       const wrote = await fileHas(join(workspace, 'DATE.txt'), 'hello-product-loop')
       const used = toolNames.some(name => SHELL_TOOL_PATTERN.test(name) || FILE_TOOL_PATTERN.test(name))
       const ok = wrote && used && !turn.timeout
-      return ok ? pass('DSH 写出带标记的 DATE.txt') : fail(`DATE.txt=${wrote} tools=${used} timeout=${Boolean(turn.timeout)}`)
+      return ok ? pass('Agent 写出带标记的 DATE.txt') : fail(`DATE.txt=${wrote} tools=${used} timeout=${Boolean(turn.timeout)}`)
     },
   })
 }
 
 export async function runCodingDshQueue(driver, options = {}) {
+  const missing = await failIfAgentMissing(driver)
+  if (missing) return missing
   await home(driver)
   return runWorkspaceTurn(driver, {
     ...options,
@@ -823,7 +837,7 @@ export async function runCodingDshQueue(driver, options = {}) {
     async afterSend(conversation) {
       const live = await waitForTurnStarted(driver, conversation.id, 25_000)
       if (live.failed) throw new Error(live.error || 'engine stopped')
-      if (!live.started) throw new Error('DSH 主回合还没开始，排队没有对象')
+      if (!live.started) throw new Error('Agent 主回合还没开始，排队没有对象')
       let lastError = ''
       for (let attempt = 0; attempt < 6; attempt += 1) {
         try {
@@ -835,17 +849,19 @@ export async function runCodingDshQueue(driver, options = {}) {
           await delay(700)
         }
       }
-      throw new Error(lastError || 'DeepSeek Harness session is not ready')
+      throw new Error(lastError || 'Agent session is not ready')
     },
     async check({ turn }) {
       const broken = turnBroken(turn)
       if (broken) return fail(`排队后回合异常结束：${broken}`)
-      return pass('DSH 忙碌时排队已经送达')
+      return pass('Agent 忙碌时排队已经送达')
     },
   })
 }
 
 export async function runCodingDshPlan(driver) {
+  const missing = await failIfAgentMissing(driver)
+  if (missing) return missing
   await home(driver)
   const live = await startLiveSession(driver, {
     prefix: 'product-loop-dsh-plan',
@@ -854,10 +870,10 @@ export async function runCodingDshPlan(driver) {
   })
   try {
     const broken = turnBroken(live.turn)
-    if (broken) return fail(`计划模式前 DSH 会话没起来：${broken}`)
+    if (broken) return fail(`计划模式前 Agent 会话没起来：${broken}`)
     const mode = await driver.invoke('SetDshPlanMode', [live.conversation.id, true])
     const active = mode?.active === true || mode?.Active === true || mode === true
-    return active ? pass('DSH 计划模式打开了') : fail(`计划模式回执 ${JSON.stringify(mode ?? {})}`)
+    return active ? pass('Agent 计划模式打开了') : fail(`计划模式回执 ${JSON.stringify(mode ?? {})}`)
   } catch (error) {
     return fail(`计划模式没打开：${error instanceof Error ? error.message : error}`)
   } finally {
@@ -866,6 +882,8 @@ export async function runCodingDshPlan(driver) {
 }
 
 export async function runCodingDshGoal(driver) {
+  const missing = await failIfAgentMissing(driver)
+  if (missing) return missing
   await home(driver)
   const live = await startLiveSession(driver, {
     prefix: 'product-loop-dsh-goal',
@@ -874,17 +892,19 @@ export async function runCodingDshGoal(driver) {
   })
   try {
     const broken = turnBroken(live.turn)
-    if (broken) return fail(`设目标前 DSH 会话没起来：${broken}`)
+    if (broken) return fail(`设目标前 Agent 会话没起来：${broken}`)
     await driver.invoke('ControlDshGoal', [live.conversation.id, 'create', 'product-loop 只确认目标控件能设上'])
-    return pass('DSH 目标已经设上')
+    return pass('Agent 目标已经设上')
   } catch (error) {
-    return fail(`DSH 目标没设上：${error instanceof Error ? error.message : error}`)
+    return fail(`Agent 目标没设上：${error instanceof Error ? error.message : error}`)
   } finally {
     await releaseProductLoopWorkspace(driver, live.conversation, live.workspace)
   }
 }
 
 export async function runCodingDshMultitask(driver, options = {}) {
+  const missing = await failIfAgentMissing(driver)
+  if (missing) return missing
   await home(driver)
   const workspace = await prepareWorkspace('product-loop-dsh-multitask')
   let parent = null
@@ -898,7 +918,7 @@ export async function runCodingDshMultitask(driver, options = {}) {
       approvalPolicy: 'workspace-auto',
       ...model,
     })
-    if (!await openConversation(driver, parent.title)) return fail('打不开 DSH 并行父会话')
+    if (!await openConversation(driver, parent.title)) return fail('打不开 Agent 并行父会话')
     await clearBlockingOverlays(driver)
     if (!await ensureDshMultitaskOn(driver)) return fail('父会话没有打开并行')
     await dismissOverlays(driver)
@@ -945,15 +965,17 @@ export async function runCodingDshMultitask(driver, options = {}) {
         }
       }
     }
-    if (!child) return fail('DSH 并行没有开出带父会话的 ACP 子会话')
+    if (!child) return fail('Agent 并行没有开出带父会话的子会话')
     driver.createdConversationIds.add(conversationIdOf(child))
-    return pass('DSH 并行开出了子会话')
+    return pass('Agent 并行开出了子会话')
   } finally {
     await releaseProductLoopWorkspace(driver, parent, workspace)
   }
 }
 
 export async function runCodingDshStop(driver, options = {}) {
+  const missing = await failIfAgentMissing(driver)
+  if (missing) return missing
   await home(driver)
   return runWorkspaceTurn(driver, {
     ...options,
@@ -966,16 +988,18 @@ export async function runCodingDshStop(driver, options = {}) {
       await driver.abortMessage(conversation.id)
     },
     async check({ turn }) {
-      if (turn.failed) return fail(`DSH 停止时 sidecar 停了：${turn.error || 'engine stopped'}`)
+      if (turn.failed) return fail(`Agent 停止时 sidecar 停了：${turn.error || 'engine stopped'}`)
       if (!turn.timeout || turnAborted(turn.events)) {
-        return pass('DSH 停止后回合结束了，或收到了中止回执')
+        return pass('Agent 停止后回合结束了，或收到了中止回执')
       }
-      return fail('DSH 停止之后回合既没结束也没有中止回执')
+      return fail('Agent 停止之后回合既没结束也没有中止回执')
     },
   })
 }
 
 export async function runCodingDshCompact(driver, options = {}) {
+  const missing = await failIfAgentMissing(driver)
+  if (missing) return missing
   await home(driver)
   return runWorkspaceTurn(driver, {
     ...options,
@@ -990,12 +1014,12 @@ export async function runCodingDshCompact(driver, options = {}) {
       try {
         compacted = await driver.invoke('CompactCodingSession', [conversation.id])
       } catch (error) {
-        return fail(`DSH 整理上下文没发出去：${error instanceof Error ? error.message : error}`)
+        return fail(`Agent 整理上下文没发出去：${error instanceof Error ? error.message : error}`)
       }
       const summary = String(compacted?.summary ?? compacted?.surfaceText ?? '').trim()
       const tokens = Number(compacted?.tokensBefore)
-      if (!summary && !Number.isFinite(tokens)) return fail('DSH 整理上下文没有回执')
-      return pass(summary ? 'DSH 回合后整理上下文有摘要' : `DSH 回合后整理上下文有回执 tokensBefore=${tokens}`)
+      if (!summary && !Number.isFinite(tokens)) return fail('Agent 整理上下文没有回执')
+      return pass(summary ? 'Agent 回合后整理上下文有摘要' : `Agent 回合后整理上下文有回执 tokensBefore=${tokens}`)
     },
   })
 }
@@ -1288,6 +1312,8 @@ export async function runComposerModel(driver) {
 }
 
 export async function runComposerRuntime(driver) {
+  const missing = await failIfAgentMissing(driver)
+  if (missing) return missing
   await home(driver)
   await clearBlockingOverlays(driver)
   await clickLabeled(driver, ['新会话', 'New chat']).catch(() => false)
@@ -1308,12 +1334,11 @@ export async function runComposerRuntime(driver) {
   }, 4_000)
   if (!runtimeReady) return fail('模型菜单里没有运行时')
   await delay(250)
-  return expectLabels(
-    driver,
-    ['Pi', 'DeepSeek Harness', 'DSH'],
-    '运行时飞出面板里看得见 Pi / DSH',
-    '运行时飞出面板没出来',
-  )
+  const snap = await pageSnapshot(driver)
+  const hasPi = snapshotHas(snap, ['Pi'])
+  const hasAgent = snapshotHas(snap, ['Agent'])
+  if (hasPi && hasAgent) return pass('运行时飞出面板里看得见 Pi 和 Agent')
+  return fail(`运行时飞出面板没出来 pi=${hasPi} agent=${hasAgent}`)
 }
 
 export async function runComposerGit(driver) {

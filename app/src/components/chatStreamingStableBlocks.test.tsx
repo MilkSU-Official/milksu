@@ -158,7 +158,7 @@ describe('流式增量不击穿未变折叠块的 memo', () => {
       await act(async () => {
         root.render(
           <ChatPage conversation={conv} settings={null} workspacePath="/tmp/probe" running aborting={false}
-            sessionReady resumed={false} compacting={false} ctfSession={false} ensureConversation={() => conv.id} />,
+            sessionReady resumed={false} compacting={false} ensureConversation={() => conv.id} />,
         )
         await new Promise(r => setTimeout(r, 0))
       })

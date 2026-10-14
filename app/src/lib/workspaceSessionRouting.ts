@@ -1,25 +1,15 @@
 import type { Conversation } from '@/types'
 
-export interface CTFResumePoint {
-  conversationId: string | null
-  jobId: string | null
-}
-
-export function isCTFConversation(conversation: Conversation | null | undefined) {
-  return Boolean(conversation?.ctfJobId)
-}
-
-export type WorkspaceHome = 'chat' | 'image' | 'ctf' | 'vuln' | 'lab' | 'reverse'
+export type WorkspaceHome = 'chat' | 'image' | 'vuln' | 'lab' | 'reverse'
 
 export function conversationWorkspaceHome(
   conversation: Conversation | null | undefined,
 ): WorkspaceHome {
   const kind = conversation?.domainTaskContext?.kind
-  if (kind === 'ctf' || conversation?.ctfJobId) return 'ctf'
   if (kind === 'cve') return 'vuln'
   if (kind === 'lab') return 'lab'
   const home = conversation?.workspaceHome
-  if (home === 'ctf' || home === 'vuln' || home === 'lab' || home === 'chat' || home === 'image' || home === 'reverse') return home
+  if (home === 'vuln' || home === 'lab' || home === 'chat' || home === 'image' || home === 'reverse') return home
   return 'chat'
 }
 
@@ -52,7 +42,7 @@ function newestConversation(conversations: Conversation[]) {
 }
 
 export function conversationDomainIdentity(
-  conversation: Pick<Conversation, 'domainTaskContext'> & Partial<Pick<Conversation, 'title' | 'ctfJobId'>>,
+  conversation: Pick<Conversation, 'domainTaskContext'> & Partial<Pick<Conversation, 'title'>>,
 ) {
   const context = conversation.domainTaskContext
   if (context?.kind === 'cve') {
@@ -63,12 +53,6 @@ export function conversationDomainIdentity(
     const jobId = context.jobId.trim()
     return jobId ? `lab:${jobId}` : null
   }
-  if (context?.kind === 'ctf') {
-    const jobId = context.jobId.trim()
-    return jobId ? `ctf:${jobId}` : null
-  }
-  const ctfJobId = String(conversation.ctfJobId ?? '').trim()
-  if (ctfJobId) return `ctf:${ctfJobId}`
   const legacyCveTitle = conversation.title
     ?.trim()
     .match(/^(CVE-\d{4}-\d{4,})\s+(?:研究接力|research handoff)$/iu)?.[1]
@@ -125,7 +109,6 @@ export function isHomeConversation(conversation: Conversation | null | undefined
 
 export interface WorkspaceConversationMemory {
   codingConversationId: string | null
-  ctfConversationId: string | null
   vulnConversationId: string | null
   labConversationId: string | null
   imageConversationId: string | null
@@ -137,7 +120,6 @@ export function rememberWorkspaceConversation(
 ): WorkspaceConversationMemory {
   const next: WorkspaceConversationMemory = {
     codingConversationId: remembered.codingConversationId,
-    ctfConversationId: remembered.ctfConversationId,
     vulnConversationId: remembered.vulnConversationId,
     labConversationId: remembered.labConversationId,
     imageConversationId: remembered.imageConversationId ?? null,
@@ -146,7 +128,6 @@ export function rememberWorkspaceConversation(
   const home = conversationWorkspaceHome(conversation)
   if (home === 'chat') next.codingConversationId = conversation.id
   if (home === 'image') next.imageConversationId = conversation.id
-  if (home === 'ctf') next.ctfConversationId = conversation.id
   if (home === 'vuln') next.vulnConversationId = conversation.id
   if (home === 'lab') next.labConversationId = conversation.id
   return next
@@ -189,23 +170,4 @@ export function selectCodingConversationId(
   if (remembered) return remembered.id
 
   return newestConversation(conversations.filter(isHomeConversation))?.id ?? null
-}
-
-export function selectCTFResumePoint(
-  conversations: Conversation[],
-  activeId: string | null,
-  rememberedCTFConversationId: string | null,
-): CTFResumePoint {
-  const active = conversations.find(conversation => conversation.id === activeId)
-  const activeCTF = isCTFConversation(active) ? active : null
-  const remembered = conversations.find(conversation => (
-    conversation.id === rememberedCTFConversationId && isCTFConversation(conversation)
-  ))
-  const next = activeCTF
-    ?? remembered
-    ?? newestConversation(conversations.filter(isCTFConversation))
-  return {
-    conversationId: next?.id ?? null,
-    jobId: next?.ctfJobId ?? null,
-  }
 }

@@ -259,6 +259,7 @@ export async function createMilksuDailyToolsExtension(context) {
     observeResearchAction,
     researchSecrets = () => [],
     isResearchActive = () => false,
+    getTraceId = () => "",
     workspace = process.cwd(),
   } = context;
 
@@ -323,6 +324,7 @@ export async function createMilksuDailyToolsExtension(context) {
         observeResearchAction,
         () => researchSecrets(alias),
         () => isResearchActive(alias),
+        () => getTraceId(alias),
       ),
     );
     const definition = definitions.find(

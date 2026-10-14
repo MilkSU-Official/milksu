@@ -16,7 +16,6 @@ describe('workspaceViewState', () => {
       section: 'chat',
       activeConversationId: 'conversation-1',
       codingHistoryOpen: false,
-      ctfSection: 'catalog',
       settingsReturnTarget: 'chat',
     }
 
@@ -41,8 +40,7 @@ describe('workspaceViewState', () => {
     expect(readWorkspaceViewState(storage)).toMatchObject({
       activeConversationId: null,
       codingHistoryOpen: true,
-      ctfSection: 'catalog',
-      settingsReturnTarget: 'ctf',
+      settingsReturnTarget: 'chat',
     })
   })
 
@@ -57,6 +55,21 @@ describe('workspaceViewState', () => {
       section: 'chat',
       settingsReturnTarget: 'chat',
     })
+  })
+
+  it('maps a retired CTF workspace to Coding', () => {
+    const storage = createMemoryStorage()
+    storage.setItem(WORKSPACE_VIEW_STATE_STORAGE_KEY, JSON.stringify({
+      version: 1,
+      section: 'ctf',
+      ctfSection: 'catalog',
+      settingsReturnTarget: 'ctf',
+    }))
+    expect(readWorkspaceViewState(storage)).toMatchObject({
+      section: 'chat',
+      settingsReturnTarget: 'chat',
+    })
+    expect(readWorkspaceViewState(storage)).not.toHaveProperty('ctfSection')
   })
 })
 

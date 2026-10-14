@@ -21,9 +21,6 @@ const DiagnosticsSchema = "milksu-diagnostics/v1"
 
 var diagnosticDatabasePaths = []string{
 	filepath.Join("config", "credentials.db"),
-	filepath.Join("data", "domain", "ctf", "memory.sqlite3"),
-	filepath.Join("data", "domain", "nssctf", "catalog.sqlite3"),
-	filepath.Join("data", "domain", "ctfshow", "catalog.sqlite3"),
 	filepath.Join("data", "runtime", "events.sqlite3"),
 	filepath.Join("data", "domain", "research", "research.sqlite3"),
 }
@@ -466,7 +463,7 @@ func validRendererDiagnosticValue(key, value string) bool {
 	case "method":
 		return rendererMethodPattern.MatchString(value)
 	case "section":
-		return value == "home" || value == "coding" || value == "ctf" || value == "vuln" || value == "lab" || value == "settings"
+		return value == "home" || value == "coding" || value == "vuln" || value == "lab" || value == "settings"
 	case "view":
 		return value == "all" || value == "collection"
 	case "status":

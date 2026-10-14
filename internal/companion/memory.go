@@ -12,7 +12,9 @@ import (
 var (
 	memorySecretKeyPattern    = regexp.MustCompile(`\bsk-[A-Za-z0-9_-]{12,}\b`)
 	memorySecretBearerPattern = regexp.MustCompile(`(?i)\bBearer\s+[A-Za-z0-9._~+/=-]{12,}`)
-	memorySecretFlagPattern   = regexp.MustCompile(`(?i)\b(?:flag|nssctf|ctf)\{[^}\r\n]{1,512}\}`)
+	// Flag-shaped secrets stay out of long-term memory. CVE / Lab transcripts
+	// can still contain them.
+	memorySecretFlagPattern = regexp.MustCompile(`(?i)\b(?:flag|nssctf|ctf)\{[^}\r\n]{1,512}\}`)
 )
 
 func redactMemoryText(value string) string {

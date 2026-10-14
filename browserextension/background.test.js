@@ -40,16 +40,11 @@ class MockWebSocket {
   }
 }
 
-test('session refresh sends a new hello without closing a healthy bridge', async () => {
+const ctfSurface = /nssctf|ctfshow|NSSCTF|CTFshow|\bCTF\b|\bflag\b|题面|submit_flag|fetch_attachment/i;
+
+async function loadBackground(storage) {
   MockWebSocket.instances = [];
   const runtimeListeners = [];
-  const storage = {
-    endpoint: 'http://127.0.0.1:50322',
-    token: 'a'.repeat(48),
-    pairingCode: 'paired',
-    bridgeSessions: { first: { updatedAt: '2026-08-02T00:00:00Z' } },
-    pendingResults: [],
-  };
   const chrome = {
     action: {
       setBadgeText: async () => {},
@@ -67,6 +62,9 @@ test('session refresh sends a new hello without closing a healthy bridge', async
           (Array.isArray(keys) ? keys : [keys]).map(key => [key, storage[key]]),
         ),
         set: async values => Object.assign(storage, values),
+        remove: async keys => {
+          for (const key of Array.isArray(keys) ? keys : [keys]) delete storage[key];
+        },
       },
     },
   };
@@ -86,6 +84,27 @@ test('session refresh sends a new hello without closing a healthy bridge', async
 
   vm.runInContext(source, context, { filename: 'browserextension/background.js' });
   await new Promise(resolve => setImmediate(resolve));
+  return { runtimeListeners, storage };
+}
+
+async function sendRuntimeMessage(listener, message) {
+  return new Promise((resolve, reject) => {
+    const keepChannelOpen = listener(message, {}, resolve);
+    if (keepChannelOpen !== true) {
+      reject(new Error('handler did not keep the response channel open'));
+    }
+  });
+}
+
+test('session refresh sends a new hello without closing a healthy bridge', async () => {
+  const storage = {
+    endpoint: 'http://127.0.0.1:50322',
+    token: 'a'.repeat(48),
+    pairingCode: 'paired',
+    bridgeSessions: { first: { updatedAt: '2026-08-02T00:00:00Z' } },
+    pendingResults: [],
+  };
+  const { runtimeListeners } = await loadBackground(storage);
   assert.equal(MockWebSocket.instances.length, 1);
   const socket = MockWebSocket.instances[0];
   await socket.emit('open');
@@ -95,17 +114,10 @@ test('session refresh sends a new hello without closing a healthy bridge', async
   });
 
   storage.bridgeSessions.second = { updatedAt: '2026-08-02T00:01:00Z' };
-  const reconnectListener = runtimeListeners.at(-1);
-  const response = await new Promise((resolve, reject) => {
-    const keepChannelOpen = reconnectListener(
-      { type: 'milksu.bridge.reconnect' },
-      {},
-      resolve,
-    );
-    if (keepChannelOpen !== true) {
-      reject(new Error('reconnect handler did not keep the response channel open'));
-    }
-  });
+  const response = await sendRuntimeMessage(
+    runtimeListeners.at(-1),
+    { type: 'milksu.bridge.reconnect' },
+  );
 
   assert.equal(response.connected, true);
   assert.equal(socket.closeCount, 0);
@@ -113,4 +125,39 @@ test('session refresh sends a new hello without closing a healthy bridge', async
     type: 'hello',
     bridgeSessionIds: ['first', 'second'],
   });
+});
+
+test('disconnect drops the current tab session and refreshes hello', async () => {
+  const storage = {
+    endpoint: 'http://127.0.0.1:50322',
+    token: 'a'.repeat(48),
+    pairingCode: 'paired',
+    bridgeSessions: {
+      keep: { tabId: 2, updatedAt: '2026-08-02T00:00:00Z' },
+      drop: { tabId: 7, updatedAt: '2026-08-02T00:01:00Z' },
+    },
+    pendingResults: [],
+  };
+  const { runtimeListeners } = await loadBackground(storage);
+  const socket = MockWebSocket.instances[0];
+  await socket.emit('open');
+
+  const response = await sendRuntimeMessage(
+    runtimeListeners.at(-1),
+    { type: 'milksu.bridge.disconnect', tabId: 7 },
+  );
+
+  assert.equal(response.connected, true);
+  assert.equal(response.sessionCount, 1);
+  assert.deepEqual(Object.keys(storage.bridgeSessions), ['keep']);
+  assert.equal(socket.closeCount, 0);
+  assert.deepEqual(socket.sent.at(-1), {
+    type: 'hello',
+    bridgeSessionIds: ['keep'],
+  });
+});
+
+test('background has no CTF command handlers', async () => {
+  const source = await fs.readFile('browserextension/background.js', 'utf8');
+  assert.doesNotMatch(source, ctfSurface);
 });

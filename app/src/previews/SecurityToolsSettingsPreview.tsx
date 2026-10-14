@@ -217,7 +217,6 @@ export default function SecurityToolsSettingsPreview() {
   const navLabels = [
     t('通用', 'General'),
     t('模型', 'Models'),
-    'CTF',
     'CVE',
     'Coding',
     t('浏览器', 'Browser'),
@@ -231,7 +230,6 @@ export default function SecurityToolsSettingsPreview() {
         accountStatus={accountStatus}
         activeConversationId={null}
         conversations={[]}
-        ctfSection="catalog"
         themeMode={themeMode}
         onToggleTheme={toggleTheme}
       />

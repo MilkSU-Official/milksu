@@ -367,7 +367,7 @@ async function main() {
     assert(startupState.lastExit === 'running', 'App did not record a running lifespan')
 		assert(
 			Number.isInteger(startupState.pid) && startupState.pid > 0,
-			'lifespan marker does not identify the Go Runtime process',
+			'lifespan marker does not identify the Runtime process',
 		)
 
     await delay(idleSampleDelayMs)
@@ -376,7 +376,7 @@ async function main() {
 		assert(rows.length > 0 && idleRSSKiB > 0, 'could not sample the App process tree RSS')
 		assert(
 			rows.some(row => row.pid === startupState.pid),
-			'Go Runtime lifespan PID is outside the Electron App process tree',
+			'Runtime lifespan PID is outside the Electron App process tree',
 		)
 
     child.kill('SIGTERM')

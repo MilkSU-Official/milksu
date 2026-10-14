@@ -36,7 +36,7 @@ func TestExportDiagnosticsReportsHealthWithoutCopyingSecrets(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	memoryPath := filepath.Join(root, "data", "domain", "ctf", "memory.sqlite3")
+	memoryPath := filepath.Join(root, "data", "runtime", "events.sqlite3")
 	if err := os.MkdirAll(filepath.Dir(memoryPath), 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -128,7 +128,7 @@ func TestExportDiagnosticsReportsHealthWithoutCopyingSecrets(t *testing.T) {
 		switch report.Databases[index].Path {
 		case "config/credentials.db":
 			credentialHealth = &report.Databases[index]
-		case "data/domain/ctf/memory.sqlite3":
+		case "data/runtime/events.sqlite3":
 			memoryHealth = &report.Databases[index]
 		}
 	}

@@ -1,2 +1,0 @@
-FROM scratch
-ENV FLAG=HTB{DOCKER_ENV}

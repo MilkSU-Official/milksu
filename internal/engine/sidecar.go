@@ -3,6 +3,7 @@ package engine
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -114,7 +115,7 @@ func sidecarEnvironment(settings config.AppSettings) ([]string, error) {
 	return environment, nil
 }
 
-func withDSHSidecarEnvironment(environment []string) []string {
+func withDSHSidecarEnvironment(environment []string, settings config.AppSettings) []string {
 	suffix := strconv.Itoa(os.Getpid())
 	extra := []string{
 		dshProfileEnvironment + "=acp",
@@ -128,7 +129,27 @@ func withDSHSidecarEnvironment(environment []string) []string {
 			extra = append(extra, dshHomeEnvironment+"="+dshHome)
 		}
 	}
+	if guest := config.NormalizeAcpGuest(settings.AcpGuest); guest != nil {
+		extra = append(extra, "MILKSU_DSH_COMMAND="+guest.Command)
+		if encoded := encodeAcpGuestArgs(guest.Args); encoded != "" {
+			extra = append(extra, "MILKSU_DSH_ACP_ARGS="+encoded)
+		}
+		for name, value := range guest.Env {
+			extra = append(extra, name+"="+value)
+		}
+	}
 	return mergeSidecarEnvironment(environment, extra)
+}
+
+func encodeAcpGuestArgs(args []string) string {
+	if len(args) == 0 {
+		return ""
+	}
+	encoded, err := json.Marshal(args)
+	if err != nil {
+		return strings.Join(args, " ")
+	}
+	return string(encoded)
 }
 
 func withDSHProviderEnvironment(environment []string, settings config.AppSettings) []string {
@@ -149,6 +170,26 @@ func withDSHProviderEnvironment(environment []string, settings config.AppSetting
 		extra = append(extra, "TOKENFLUX_API_KEY="+key)
 	}
 	return mergeSidecarEnvironment(environment, extra)
+}
+
+// SidecarProviderEnvironment is the credential and routing environment a
+// TypeScript Runtime merges into a sidecar spawn. It reuses engineEnvironment
+// and withDSHProviderEnvironment and drops the helper process base (HOME, PATH).
+func SidecarProviderEnvironment(settings config.AppSettings) []string {
+	environment := withDSHProviderEnvironment(engineEnvironment(settings), settings)
+	extra := make([]string, 0, len(environment))
+	for _, entry := range environment {
+		name, _, found := strings.Cut(entry, "=")
+		if !found {
+			continue
+		}
+		switch name {
+		case "HOME", "LANG", "LC_ALL", "PATH", "SHELL", "SSL_CERT_DIR", "SSL_CERT_FILE", "TMPDIR":
+			continue
+		}
+		extra = append(extra, entry)
+	}
+	return extra
 }
 
 func providerKeyEnvironmentValue(environment []string, name string) string {

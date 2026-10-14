@@ -1,11 +1,9 @@
 import { t } from '@/lib/uiLocale'
 
-export type WorkspaceSection = 'ctf' | 'vuln' | 'lab' | 'chat' | 'image' | 'companion' | 'reverse'
-export type CTFWorkspaceSection = 'catalog'
+export type WorkspaceSection = 'vuln' | 'lab' | 'chat' | 'image' | 'companion' | 'reverse'
 export type AppSection = WorkspaceSection | 'profile' | 'settings'
 
 export const WORKSPACE_RAIL_ITEMS = [
-  { id: 'ctf', label: 'CTF' },
   { id: 'vuln', label: 'CVE' },
   { id: 'lab', label: 'Lab' },
   { id: 'chat', label: 'Coding' },
@@ -14,30 +12,18 @@ export const WORKSPACE_RAIL_ITEMS = [
   label: string
 }>
 
-export const CTF_CONTEXT_ITEMS = [
-  { id: 'catalog' },
-] as const satisfies ReadonlyArray<{
-  id: CTFWorkspaceSection
-}>
-
-export function ctfContextItemLabel(id: CTFWorkspaceSection) {
-  if (id === 'catalog') return t('题库', 'Catalog')
-  return id
-}
-
 export function showsCodingHistory(section: WorkspaceSection) {
-  return section === 'chat' || section === 'image' || section === 'ctf' || section === 'vuln' || section === 'lab' || section === 'reverse'
+  return section === 'chat' || section === 'image' || section === 'vuln' || section === 'lab' || section === 'reverse'
 }
 
 export function isDomainWorkspace(section: AppSection) {
-  return section === 'ctf' || section === 'vuln' || section === 'lab'
+  return section === 'vuln' || section === 'lab'
 }
 
 export const WORKSPACE_SIDEBAR_ITEMS = [
   { id: 'chat', label: () => t('新聊天', 'New chat') },
   { id: 'image', label: () => t('画图', 'Draw') },
   { id: 'reverse', label: () => t('逆向', 'Reverse') },
-  { id: 'ctf', label: () => 'CTF' },
   { id: 'vuln', label: () => 'CVE' },
   { id: 'lab', label: () => 'Lab' },
 ] as const satisfies ReadonlyArray<{
@@ -51,7 +37,7 @@ export function workspaceContextLabel(section: WorkspaceSection) {
 
 export function settingsReturnSection(
   currentSection: AppSection,
-  fallback: Exclude<AppSection, 'settings'> = 'ctf',
+  fallback: Exclude<AppSection, 'settings'> = 'chat',
 ): Exclude<AppSection, 'settings'> {
   return currentSection === 'settings' ? fallback : currentSection
 }

@@ -27,6 +27,7 @@ import (
 	"github.com/MilkSU-Official/milksu/internal/config"
 	"github.com/MilkSU-Official/milksu/internal/hostpath"
 	"github.com/MilkSU-Official/milksu/internal/securitytools"
+	"github.com/google/uuid"
 )
 
 const eventSchemaVersion = 1
@@ -846,14 +847,14 @@ func (s *Supervisor) processForSessionLocked(sessionID string) *childProcess {
 
 func (s *Supervisor) sidecarMissingError(sessionID string) error {
 	if s.kernelForLocked(sessionID) == KernelDSH {
-		return fmt.Errorf("DeepSeek Harness sidecar is not running")
+		return fmt.Errorf("Agent is not running")
 	}
 	return fmt.Errorf("PI Sidecar is not running")
 }
 
 func (s *Supervisor) sessionMissingError(sessionID string) error {
 	if s.kernelForLocked(sessionID) == KernelDSH {
-		return fmt.Errorf("DeepSeek Harness session not found: %s", sessionID)
+		return fmt.Errorf("Agent session not found: %s", sessionID)
 	}
 	return fmt.Errorf("PI session not found: %s", sessionID)
 }
@@ -1767,6 +1768,7 @@ func (s *Supervisor) SendMessage(
 		-1,
 		false,
 		settings,
+		"",
 		modelSourcePreference...,
 	)
 }
@@ -1805,6 +1807,7 @@ func (s *Supervisor) SendMessageWithProductAction(
 		-1,
 		false,
 		settings,
+		"",
 		modelSourcePreference...,
 	)
 }
@@ -1826,6 +1829,7 @@ func (s *Supervisor) SendMessageWithBranch(
 	branchFromUserOccurrence int,
 	imageDraw bool,
 	settings config.AppSettings,
+	traceID string,
 	modelSourcePreference ...string,
 ) error {
 	return s.sendMessage(
@@ -1845,6 +1849,7 @@ func (s *Supervisor) SendMessageWithBranch(
 		branchFromUserOccurrence,
 		imageDraw,
 		settings,
+		traceID,
 		modelSourcePreference...,
 	)
 }
@@ -1866,6 +1871,7 @@ func (s *Supervisor) sendMessage(
 	branchFromUserOccurrence int,
 	imageDraw bool,
 	settings config.AppSettings,
+	traceID string,
 	modelSourcePreference ...string,
 ) error {
 	if strings.TrimSpace(sessionID) == "" {
@@ -1987,6 +1993,11 @@ func (s *Supervisor) sendMessage(
 		"userMemories":   memorySnapshot.Memories,
 		"memoryRevision": memorySnapshot.Revision,
 	}
+	id := strings.TrimSpace(traceID)
+	if id == "" {
+		id = "trc_" + uuid.NewString()
+	}
+	command["traceId"] = id
 	if customProvider := customProviderTurnPayload(settings); customProvider != nil {
 		command["customProvider"] = customProvider
 	}
@@ -3614,7 +3625,7 @@ func (s *Supervisor) ensureKernelProcessLocked(
 		return err
 	}
 	if kernel == KernelDSH {
-		command.Env = withDSHSidecarEnvironment(command.Env)
+		command.Env = withDSHSidecarEnvironment(command.Env, settings)
 		command.Env = withDSHProviderEnvironment(command.Env, settings)
 	}
 	stderr := newSidecarStderrBuffer()
@@ -3631,7 +3642,7 @@ func (s *Supervisor) ensureKernelProcessLocked(
 	}
 	label := "Pi sidecar"
 	if kernel == KernelDSH {
-		label = "DeepSeek Harness sidecar"
+		label = "Agent"
 	}
 	if err := command.Start(); err != nil {
 		stdin.Close()

@@ -242,6 +242,7 @@ export function createHarnessBridgeSessionLayer(context) {
       reasoningOnlyRecovered,
       sessionSubagentTasks,
       researchRunContexts,
+      sessionTraceIds = new Map(),
     },
     environment = process.env,
     resolveAgentDirectory = () => resolveHarnessAgentDir(environment),
@@ -457,6 +458,7 @@ export function createHarnessBridgeSessionLayer(context) {
           observeResearchAction: observeResearchWorkspaceAction,
           researchSecrets: sessionProviderSecrets,
           isResearchActive: hasActiveResearchRun,
+          getTraceId: id => sessionTraceIds.get(id) || activeResearchRunContext?.(id)?.traceId,
           workspace: process.cwd(),
         });
         // PR-2 批次 C1：子代理·协作工具面（milksu-subagents：builtin 角色 = 任务
@@ -473,6 +475,9 @@ export function createHarnessBridgeSessionLayer(context) {
           childRegistry: subagentChildRegistry,
           updateSubagentTasks: updateSubagentTasksForSession,
           environment,
+          researchTraceId: alias => (
+            activeResearchRunContext?.(alias)?.traceId || sessionTraceIds.get(alias)
+          ),
         });
         const subagentHalt = createHarnessSubagentHalt(
           subagentChildRegistry,
@@ -1920,6 +1925,7 @@ export function createHarnessBridgeSessionLayer(context) {
     forgetSessionProviders(alias);
     sessionSubagentTasks.delete(alias);
     researchRunContexts.delete(alias);
+    sessionTraceIds.delete(alias);
     promptQueues.delete(alias);
     abortedSessions.delete(alias);
     sessionCreateCommands.delete(alias);

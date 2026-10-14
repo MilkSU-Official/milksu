@@ -3,10 +3,9 @@ import { useEffect, useRef } from 'react'
 import { LockKeyhole, Pencil, RotateCw, UserRound } from 'lucide-react'
 import { Button } from '@/components/ui'
 import WindowTopDragRegion from '@/components/WindowTopDragRegion'
-import profileAvatar from '@/assets/ctf-learner-avatar.png'
+import profileAvatar from '@/assets/milksu-app-icon.png'
 import { invokeCommand, listenEvent } from '@/desktop'
 import { isComposingKey } from '@/lib/imeComposition'
-import type { CTFSummary } from '@/ctfTypes'
 import { providerModelLabel } from '@/modelCatalog'
 import {
   EMPTY_CODING_USAGE,
@@ -26,7 +25,6 @@ import {
 import {
   activityCalendar,
   buildPersonalProfileSnapshot,
-  ctfActivities,
   localDayKey,
   profileAvatarFileProblem,
   vulnActivities,
@@ -35,14 +33,13 @@ import {
 import { useT } from '@/hooks/useUiLocale'
 
 type Translate = (zh: string, en: string) => string
-type ProfileTab = 'ctf' | 'vuln' | 'coding'
+type ProfileTab = 'vuln' | 'coding'
 type SelectedDays = Record<ProfileTab, string>
 
 type ProfileState = {
   accountStatus: AccountStatus
   conversations: Conversation[]
   vulnerabilities: VulnerabilityIntel[]
-  ctfJobs: CTFSummary[]
   codingUsage: CodingUsageSnapshot
   activeTab: ProfileTab
   selectedDay: SelectedDays
@@ -56,13 +53,11 @@ type ProfileState = {
 }
 
 const tabs: Array<{ id: ProfileTab, label: string }> = [
-  { id: 'ctf', label: 'CTF' },
   { id: 'vuln', label: 'CVE' },
   { id: 'coding', label: 'Coding' },
 ]
 
 const moduleClass: Record<PersonalActivityModule, string> = {
-  ctf: 'ctf',
   vuln: 'vuln',
   coding: 'coding',
 }
@@ -149,16 +144,6 @@ function calendarCellTitle(day: string, value: number, activeTab: ProfileTab, t:
   return t(`${day} · ${value} 条真实记录`, `${day} · ${value} confirmed records`)
 }
 
-function ctfState(job: CTFSummary, t: Translate) {
-  if (job.verdict === 'pass') return t('Judge 已验证', 'Judge verified')
-  if (job.verdict === 'fail') return t('Judge 未通过', 'Judge failed')
-  if (job.pendingJudge) return t('等待 Judge', 'Waiting for Judge')
-  if (job.pendingSubmission) return t('等待提交', 'Waiting to submit')
-  if (job.status === 'running') return t('练习中', 'In practice')
-  if (job.status === 'failed') return t('任务已结束', 'Task ended')
-  return t('继续练习', 'Continue practice')
-}
-
 function aggregateLabels(values: string[], t: Translate) {
   const counts = new Map<string, number>()
   for (const raw of values) {
@@ -184,9 +169,7 @@ function rawDayCountsFrom(state: ProfileState) {
   if (state.activeTab === 'coding') {
     return Object.fromEntries(state.codingUsage.days.map(day => [day.date, day.totalTokens]))
   }
-  const records = state.activeTab === 'ctf'
-    ? ctfActivities(state.ctfJobs)
-    : vulnActivities(state.vulnerabilities, state.conversations)
+  const records = vulnActivities(state.vulnerabilities, state.conversations)
   const counts: Record<string, number> = {}
   for (const activity of records) {
     const day = localDayKey(activity.timestamp)
@@ -226,7 +209,6 @@ function monthLabelsFrom(calendar: ReturnType<typeof activityCalendar>, t: Trans
 function availableDaysFrom(state: ProfileState) {
   return {
     coding: state.codingUsage.days.map(day => day.date).sort(),
-    ctf: [...new Set(ctfActivities(state.ctfJobs).map(item => localDayKey(item.timestamp)))].sort(),
     vuln: [...new Set(vulnActivities(state.vulnerabilities, state.conversations).map(item => localDayKey(item.timestamp)))].sort(),
   }
 }
@@ -256,10 +238,9 @@ export default function ProfilePage({
       accountStatus,
       conversations,
       vulnerabilities,
-      ctfJobs: [],
       codingUsage: { ...EMPTY_CODING_USAGE },
       activeTab: 'coding',
-      selectedDay: { ctf: '', vuln: '', coding: '' },
+      selectedDay: { vuln: '', coding: '' },
       loading: false,
       error: '',
       editing: false,
@@ -298,18 +279,12 @@ export default function ProfilePage({
 
     async function load(options: { account?: boolean } = {}) {
       store.setState({ loading: true, error: '' })
-      const [ctfResult, usageResult, accountResult] = await Promise.allSettled([
-        invokeCommand<CTFSummary[]>('list_ctf_jobs'),
+      const [usageResult, accountResult] = await Promise.allSettled([
         invokeCommand<CodingUsageSnapshot>('get_coding_usage_snapshot'),
         options.account ? invokeCommand<AccountStatus>('get_account_status') : Promise.resolve(undefined),
       ])
       const failures: string[] = []
       const patch: Partial<ProfileState> = { loading: false }
-      if (ctfResult.status === 'fulfilled') {
-        patch.ctfJobs = ctfResult.value
-      } else {
-        failures.push(t('成长记录', 'progress'))
-      }
       if (usageResult.status === 'fulfilled') {
         patch.codingUsage = usageResult.value
         usageRetryAttempt = 0
@@ -382,7 +357,7 @@ export default function ProfilePage({
   }, [runtime, accountStatus, conversations, vulnerabilities])
 
   const state = runtime.store.getState()
-  const snapshot = buildPersonalProfileSnapshot(state.conversations, state.ctfJobs, state.vulnerabilities)
+  const snapshot = buildPersonalProfileSnapshot(state.conversations, state.vulnerabilities)
   const recentGrowth = snapshot.activities.filter(activity => activity.confirmed).slice(0, 6)
   const shownAvatar = state.customAvatar || state.accountStatus.user?.avatarUrl || profileAvatar
   const shownName = state.displayName || state.accountStatus.user?.displayName || 'MilkSU'
@@ -395,19 +370,12 @@ export default function ProfilePage({
   const availableDays = availableDaysFrom(state)
   const selectedDays: SelectedDays = {
     coding: resolveSelectedDay(state.selectedDay.coding, availableDays.coding),
-    ctf: resolveSelectedDay(state.selectedDay.ctf, availableDays.ctf),
     vuln: resolveSelectedDay(state.selectedDay.vuln, availableDays.vuln),
   }
   const currentDayKey = selectedDays[state.activeTab]
   const selectedCodingDay = state.codingUsage.days.find(day => day.date === selectedDays.coding)
-  const selectedCTFJobs = state.ctfJobs
-    .filter(job => localDayKey(Date.parse(job.updatedAt)) === selectedDays.ctf)
-    .sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt))
   const selectedVulnRecords = vulnActivities(state.vulnerabilities, state.conversations)
     .filter(item => localDayKey(item.timestamp) === selectedDays.vuln)
-  const ctfCategoryCounts = aggregateLabels(state.ctfJobs.map(job => job.category || t('未分类', 'Uncategorized')), t)
-  const ctfSourceCounts = aggregateLabels(state.ctfJobs.map(job => job.externalPlatform || t('本地练习', 'Local practice')), t)
-  const ctfVerifiedCount = state.ctfJobs.filter(job => job.verdict === 'pass').length
   const vulnStatusCounts = aggregateLabels(state.vulnerabilities.map(item => vulnerabilityStatusLabel(item.status)), t)
   const vulnReferenceCounts = aggregateLabels(
     state.vulnerabilities.flatMap(item => item.references.map(reference => referenceSource(reference, t))),
@@ -557,7 +525,7 @@ export default function ProfilePage({
                 <div>
                   <p className="text-caption text-muted-foreground">{t('过去一年', 'Past year')}</p>
                   <h2 id="profile-panel-heading" className="mt-1 text-2xl font-semibold">
-                    {state.activeTab === 'coding' ? t('Coding 活动与用量', 'Coding activity and usage') : state.activeTab === 'ctf' ? t('CTF 练习与验证', 'CTF practice and verification') : t('CVE 研究与来源', 'CVE research and sources')}
+                    {state.activeTab === 'coding' ? t('Coding 活动与用量', 'Coding activity and usage') : t('CVE 研究与来源', 'CVE research and sources')}
                   </h2>
                 </div>
               </div>
@@ -570,12 +538,6 @@ export default function ProfilePage({
                     <span><b>{state.codingUsage.activeDays}</b> {t('个用量日', 'usage days')}</span>
                     <span><b>{t(new Intl.NumberFormat('zh-CN').format(state.codingUsage.toolCalls), new Intl.NumberFormat('en').format(state.codingUsage.toolCalls))}</b> {t('次工具调用', 'tool calls')}</span>
                   </>
-                ) : state.activeTab === 'ctf' ? (
-                  <>
-                    <span><b>{state.ctfJobs.length}</b> {t('个练习任务', 'practice tasks')}</span>
-                    <span><b>{availableDays.ctf.length}</b> {t('个活跃日', 'active days')}</span>
-                    <span><b>{ctfVerifiedCount}</b> {t('个 Judge 通过', 'Judge passes')}</span>
-                  </>
                 ) : (
                   <>
                     <span><b>{state.vulnerabilities.length}</b> {t('个跟踪项', 'tracked items')}</span>
@@ -586,7 +548,7 @@ export default function ProfilePage({
               </div>
 
               <div className="calendar-heading mt-5 flex items-center justify-between gap-4">
-                <span>{state.activeTab === 'coding' ? t('每日 Token', 'Daily tokens') : state.activeTab === 'ctf' ? t('每日练习更新', 'Daily practice updates') : t('每日研究记录', 'Daily research records')}</span>
+                <span>{state.activeTab === 'coding' ? t('每日 Token', 'Daily tokens') : t('每日研究记录', 'Daily research records')}</span>
                 <span>{t('53 周', '53 weeks')}</span>
               </div>
               <div className="activity-scroll mt-3 overflow-x-auto pb-2">
@@ -663,44 +625,6 @@ export default function ProfilePage({
                 </div>
               ) : null}
 
-              {state.activeTab === 'ctf' && state.ctfJobs.length ? (
-                <div className="detail-grid mt-5">
-                  <section className="detail-column" aria-labelledby="ctf-records-heading">
-                    <h3 id="ctf-records-heading">{t(`${selectedDateLabel(selectedDays.ctf, t)} · 练习记录`, `${selectedDateLabel(selectedDays.ctf, t)} · practice records`)}</h3>
-                    {selectedCTFJobs.length ? (
-                      <ul className="detail-list">
-                        {selectedCTFJobs.map(job => (
-                          <li key={job.id}>
-                            <span>
-                              <b>{job.title}</b>
-                              <small>{job.category || t('未分类', 'Uncategorized')} · {ctfState(job, t)}</small>
-                            </span>
-                            <strong>{t(`${job.experimentCount} 次实验`, `${job.experimentCount} experiments`)}</strong>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : null}
-                  </section>
-                  <section className="detail-column" aria-labelledby="ctf-distribution-heading">
-                    <h3 id="ctf-distribution-heading">{t('题型与来源', 'Categories and sources')}</h3>
-                    <div className="compact-distributions">
-                      <div>
-                        <p>{t('题型', 'Category')}</p>
-                        {ctfCategoryCounts.slice(0, 4).map(item => (
-                          <span key={`category:${item.label}`}><b>{item.label}</b>{t(`${item.count} 题`, `${item.count} challenges`)}</span>
-                        ))}
-                      </div>
-                      <div>
-                        <p>{t('来源', 'Source')}</p>
-                        {ctfSourceCounts.slice(0, 4).map(item => (
-                          <span key={`source:${item.label}`}><b>{item.label}</b>{t(`${item.count} 题`, `${item.count} challenges`)}</span>
-                        ))}
-                      </div>
-                    </div>
-                  </section>
-                </div>
-              ) : null}
-
               {state.activeTab === 'vuln' && state.vulnerabilities.length ? (
                 <div className="detail-grid mt-5">
                   <section className="detail-column" aria-labelledby="vuln-records-heading">
@@ -751,7 +675,7 @@ export default function ProfilePage({
                   <li key={activity.id} className="relative border-b border-border py-4 pl-5 last:border-b-0">
                     <i className="growth-dot" aria-hidden="true" />
                     <div className="flex items-center justify-between gap-3">
-                      <span className={`growth-module ${moduleClass[activity.module]}`}>{activity.module === 'vuln' ? 'CVE' : activity.module === 'coding' ? 'Coding' : 'CTF'}</span>
+                      <span className={`growth-module ${moduleClass[activity.module]}`}>{activity.module === 'vuln' ? 'CVE' : 'Coding'}</span>
                       <time className="text-caption text-muted-foreground">{formatDate(activity.timestamp, t)}</time>
                     </div>
                     <h3 className="mt-3 text-body font-medium">{activity.title}</h3>
@@ -823,7 +747,6 @@ const profilePageCss = `
 .growth-list::before { content: ''; position: absolute; left: .25rem; top: 1.5rem; bottom: 1.5rem; width: 1px; background: var(--border); }
 .growth-dot { position: absolute; left: 0; top: 1.55rem; width: .55rem; height: .55rem; border-radius: 50%; background: var(--primary); box-shadow: 0 0 10px color-mix(in srgb, var(--primary) 45%, transparent); }
 .growth-module { min-width: 64px; border: 1px solid color-mix(in srgb, var(--primary) 28%, var(--profile-graphite-line)); border-radius: .3rem; background: color-mix(in srgb, var(--primary) 4%, var(--profile-graphite)); padding: .2rem .55rem; text-align: center; font-size: .75rem; color: var(--foreground); }
-.growth-module.ctf { border-color: color-mix(in srgb, var(--primary) 55%, var(--profile-graphite-line)); }
 .growth-module.vuln { border-color: color-mix(in srgb, var(--primary) 40%, var(--profile-graphite-line)); }
 @media (max-width: 900px) {
   .profile-summary { width: 100%; border-left: 0; border-top: 1px solid var(--border); padding-left: 0; padding-top: 1.25rem; }
@@ -832,7 +755,7 @@ const profilePageCss = `
   .detail-column:first-child { padding-right: .4rem; }
 }
 @media (max-width: 640px) {
-  .profile-tabs { grid-template-columns: repeat(3, 1fr); }
+  .profile-tabs { grid-template-columns: repeat(2, 1fr); }
   .profile-panel-body { padding-inline: 1rem; }
   .compact-distributions { grid-template-columns: 1fr; }
 }

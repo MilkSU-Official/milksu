@@ -309,11 +309,11 @@ test("wrapped edit: no-anchor calls still use native Pi replace", async () => {
   assert.match(result.body, /hi \$\{name\}/);
 });
 
-test("Coding and CTF edit tools share wrapEditToolDefinition", async () => {
+test("edit tools share wrapEditToolDefinition", async () => {
   const sourceText = await readFile(
     join(dirname(fileURLToPath(import.meta.url)), "bridge-policy.js"),
     "utf8",
   );
   const matches = sourceText.match(/wrapEditToolDefinition\(\s*createEditToolDefinition\(root\)/g);
-  assert.equal(matches?.length, 2);
+  assert.equal(matches?.length, 1);
 });

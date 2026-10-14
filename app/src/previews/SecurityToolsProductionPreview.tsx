@@ -84,7 +84,7 @@ Object.defineProperty(window, 'milksu', {
       if (method === 'GetBuildTracking') return { channel: 'stable', productName: 'MilkSU', appId: 'com.milksu.app', gitBranch: 'main', gitCommit: 'preview', dirty: false, buildTime: '', trackingId: 'preview', development: true }
       if (method === 'GetStartupRecoveryStatus') return { previousExit: 'clean', consecutiveAbnormalExits: 0, startedAt: new Date().toISOString() }
       if (method === 'GetCodingComputerUseStatus') return { available: true, enabled: false, phase: 'disabled', permissions: { accessibility: true, screenRecording: true } }
-      if (method === 'GetNSSCTFWebBridgeStatus') return { bridge: { active: true, connected: false }, pages: [] }
+      if (method === 'GetBrowserUseRuntime') return { found: true, name: 'Chrome' }
       throw new Error(`Preview does not implement ${method}`)
     },
     onEvent(event: string, callback: (value: unknown) => void) {
@@ -107,7 +107,6 @@ export default function SecurityToolsProductionPreview() {
         accountStatus={{ configured: false, authenticated: false, state: 'unconfigured' }}
         activeConversationId={null}
         conversations={[]}
-        ctfSection="catalog"
         themeMode={theme}
       />
       <SettingsPage

@@ -26,6 +26,23 @@ type Service struct {
 	mu    sync.Mutex
 }
 
+type traceIDContextKey struct{}
+
+func WithTraceID(ctx context.Context, traceID string) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithValue(ctx, traceIDContextKey{}, strings.TrimSpace(traceID))
+}
+
+func researchTraceIDFromContext(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	value, _ := ctx.Value(traceIDContextKey{}).(string)
+	return value
+}
+
 func NewService(store *Store) *Service {
 	return &Service{store: store}
 }
@@ -37,7 +54,7 @@ func (s *Service) Close() error {
 	return s.store.Close()
 }
 
-func (s *Service) Start(ctx context.Context, conversationID, query string) (Run, error) {
+func (s *Service) Start(ctx context.Context, conversationID, query string, traceID ...string) (Run, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	conversationID = strings.TrimSpace(conversationID)
@@ -58,6 +75,17 @@ func (s *Service) Start(ctx context.Context, conversationID, query string) (Run,
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		return Run{}, err
 	}
+	resolvedTraceID := ""
+	if len(traceID) > 0 {
+		resolvedTraceID = traceID[0]
+	}
+	if resolvedTraceID == "" {
+		resolvedTraceID = researchTraceIDFromContext(ctx)
+	}
+	resolvedTraceID = normalizeResearchTraceID(resolvedTraceID)
+	if resolvedTraceID == "" {
+		resolvedTraceID = newResearchTraceID()
+	}
 	now := time.Now().UTC()
 	run := Run{
 		ID:             "research_" + uuid.NewString(),
@@ -65,6 +93,7 @@ func (s *Service) Start(ctx context.Context, conversationID, query string) (Run,
 		Query:          query,
 		Status:         RunRunning,
 		Phase:          PhaseCollecting,
+		TraceID:        resolvedTraceID,
 		CreatedAt:      now,
 		UpdatedAt:      now,
 	}

@@ -10,7 +10,6 @@ const hoisted = vi.hoisted(() => ({
   conversations: null as ReturnType<typeof createMockConversations> | null,
   labJobs: null as ReturnType<typeof createMockLabJobs> | null,
   vulnDashboard: null as ReturnType<typeof createMockVulnDashboard> | null,
-  lastCTFInitialJobId: '',
   accountStatus: {
     configured: false,
     authenticated: false,
@@ -118,11 +117,6 @@ function createMockConversations() {
         existing.title = title
         existing.workspacePath = options.workspacePath?.trim() || undefined
         existing.domainTaskContext = options.domainTaskContext ?? existing.domainTaskContext
-        if (options.domainTaskContext?.kind === 'cve') {
-          existing.ctfJobId = undefined
-          existing.ctfMode = undefined
-          existing.ctfRole = undefined
-        }
         store.setState({
           activeId: id,
           workspacePath: existing.workspacePath ?? '',
@@ -145,10 +139,8 @@ function createMockConversations() {
     }),
     startWorkspaceTask: vi.fn(async (task: {
       title: string
-      jobId?: string
       conversationId?: string
       workspacePath?: string
-      role?: Conversation['ctfRole']
       domainTaskContext?: Conversation['domainTaskContext']
       autoSend?: boolean
       prompt?: string
@@ -156,14 +148,11 @@ function createMockConversations() {
     }) => {
       expect(task.autoSend === true).toBe(false)
       const rows = store.getState().conversations
-      const id = task.conversationId
-        || (task.jobId ? `ctf-${task.jobId}` : `coding-${rows.length + 1}`)
+      const id = task.conversationId || `coding-${rows.length + 1}`
       const existing = rows.find(conversation => conversation.id === id)
       if (existing) {
         existing.workspacePath = task.workspacePath?.trim() || undefined
         existing.domainTaskContext = task.domainTaskContext ?? existing.domainTaskContext
-        existing.ctfJobId = task.jobId ?? existing.ctfJobId
-        existing.ctfRole = task.role ?? existing.ctfRole
         store.setState({
           activeId: existing.id,
           workspacePath: existing.workspacePath ?? '',
@@ -175,8 +164,6 @@ function createMockConversations() {
         title: task.title,
         createdAt: Date.now(),
         workspacePath: task.workspacePath?.trim() || undefined,
-        ctfJobId: task.jobId,
-        ctfRole: task.role ?? (task.jobId ? 'solver' : undefined),
         domainTaskContext: task.domainTaskContext,
         messages: [],
       })
@@ -283,10 +270,6 @@ vi.mock('@/desktop', () => ({
           has_key: false,
         },
         model_verification: null,
-        nssctf_arena: {
-          token: '',
-          has_token: false,
-        },
       }
     }
     if (command === 'get_account_status') {
@@ -332,7 +315,6 @@ vi.mock('@/components/AppSidebar', () => ({
     return (
       <nav aria-label="mock sidebar">
         <span data-active-section={props.activeSection}>{String(props.activeSection)}</span>
-        <button aria-label="navigate CTF" onClick={() => props.onNavigate?.('ctf')}>CTF</button>
         <button aria-label="navigate CVE" onClick={() => props.onNavigate?.('vuln')}>CVE</button>
         <button aria-label="navigate Coding" onClick={() => props.onNavigate?.('chat')}>Coding</button>
         <button aria-label="open settings" onClick={() => props.onSettings?.()}>设置</button>
@@ -348,52 +330,6 @@ vi.mock('@/components/AccountLoginPage', () => ({
   default: function AccountLoginPage(props: { status?: AccountStatus }) {
     return (
       <section aria-label="mock account login gate">{String(props.status?.state ?? '')}</section>
-    )
-  },
-}))
-
-vi.mock('@/components/CTFPage', () => ({
-  default: function CTFPage(props: {
-    initialJobId?: string
-    ctfSection?: string
-    onStartCodingAgent?: (handoff: Record<string, unknown>) => void
-  }) {
-    hoisted.lastCTFInitialJobId = String(props.initialJobId ?? '')
-    return (
-      <section aria-label="mock CTF page">
-        <span data-ctf-initial-job={String(props.initialJobId ?? '')}>{String(props.initialJobId ?? 'none')}</span>
-        <span data-ctf-section={String(props.ctfSection)}>{String(props.ctfSection)}</span>
-        <button
-          aria-label="open CTF in coding"
-          onClick={() => props.onStartCodingAgent?.({
-            title: 'CTF · Web challenge',
-            prompt: 'solve with exact scope',
-            conversationId: 'ctf-job-1',
-            workspacePath: '/Users/milksu/Library/Application Support/MilkSU/ctf/job-1',
-            jobId: 'job-1',
-            role: 'solver',
-            policy: { mode: 'copilot' },
-            materials: [{ name: 'dist.zip' }],
-            domainTaskContext: {
-              kind: 'ctf',
-              jobId: 'job-1',
-              challengeId: 'ch-1',
-              challengeTitle: 'Web challenge',
-              role: 'solver',
-              roleLabel: '解题 Agent',
-              materialStatus: '已挂载 1 份材料：dist.zip',
-              materialCount: 1,
-              authorizedScope: 'source-1 · base → origin:https://base.example',
-              evidenceCount: 0,
-              artifactCount: 0,
-              judgeState: '尚无 Judge 回执',
-              liveProjection: true,
-            },
-          })}
-        >
-          在 Coding 中打开
-        </button>
-      </section>
     )
   },
 }))
@@ -436,20 +372,16 @@ vi.mock('@/components/VulnPage', () => ({
 vi.mock('@/components/ChatPage', () => ({
   default: function ChatPage(props: {
     conversation?: Conversation | null
-    ctfSession?: boolean
     vulnerabilitySession?: boolean
     pendingComposerDraft?: { visibleText?: string } | null
     onOpenConversation?: (id: string) => void
-    onReturnCtf?: () => void
   }) {
     return (
       <section aria-label="mock Chat page">
         <span data-chat-conversation={props.conversation?.id ?? ''}>{props.conversation?.id ?? 'none'}</span>
-        <span data-chat-ctf-session={String(Boolean(props.ctfSession))}>{String(Boolean(props.ctfSession))}</span>
         <span data-chat-vulnerability-session={String(Boolean(props.vulnerabilitySession))}>{String(Boolean(props.vulnerabilitySession))}</span>
         <span data-chat-draft={props.pendingComposerDraft?.visibleText ?? ''}>{props.pendingComposerDraft?.visibleText ?? ''}</span>
         <button aria-label="open linked coding conversation" onClick={() => props.onOpenConversation?.('coding-existing')}>打开关联 Coding</button>
-        <button aria-label="return CTF workspace" onClick={() => props.onReturnCtf?.()}>返回 CTF 工作台</button>
       </section>
     )
   },
@@ -547,7 +479,6 @@ beforeEach(() => {
   hoisted.conversations = createMockConversations()
   hoisted.labJobs = createMockLabJobs()
   hoisted.vulnDashboard = createMockVulnDashboard()
-  hoisted.lastCTFInitialJobId = ''
   hoisted.accountStatus = {
     configured: false,
     authenticated: false,
@@ -596,64 +527,8 @@ describe('App cross-module routing', () => {
     expect(hoisted.conversations?.send).not.toHaveBeenCalled()
   }, 30_000)
 
-  it('keeps a CTF Agent resume point across CVE navigation and returns to the CTF workspace', async () => {
+  it('does not inherit another workspace when CVE opens Coding', async () => {
     const { host } = await mountApp()
-
-    expect(host.querySelector('[aria-label="mock CTF page"]')).not.toBeNull()
-    host.querySelector<HTMLButtonElement>('[aria-label="open CTF in coding"]')?.click()
-    await flushAsyncComponents()
-
-    expect(host.querySelector('[aria-label="mock CTF page"]')).not.toBeNull()
-    expect(host.querySelector('[aria-label="mock Chat page"]')).toBeNull()
-    expect(hoisted.conversations?.activeId).toBe('ctf-job-1')
-    const opened = hoisted.conversations?.conversations.find(item => item.id === 'ctf-job-1')
-    expect(opened?.domainTaskContext).toMatchObject({
-      kind: 'ctf',
-      challengeId: 'ch-1',
-      authorizedScope: expect.stringContaining('source-1'),
-    })
-    expect(opened?.messages ?? []).toEqual([])
-    expect(hoisted.conversations?.pendingComposerDraft).toBeNull()
-    expect(hoisted.conversations?.send).not.toHaveBeenCalled()
-    expect(hoisted.conversations?.activeRunning).toBe(false)
-
-    host.querySelector<HTMLButtonElement>('[aria-label="navigate CVE"]')?.click()
-    await flushAsyncComponents()
-
-    expect(host.querySelector('[aria-label="mock CVE page"]')).not.toBeNull()
-    expect(hoisted.conversations?.conversations.some(item => item.id === 'ctf-job-1')).toBe(true)
-
-    host.querySelector<HTMLButtonElement>('[aria-label="navigate CTF"]')?.click()
-    await flushAsyncComponents()
-
-    expect(host.querySelector('[aria-label="mock CTF page"]')).not.toBeNull()
-    expect(host.querySelector('[data-ctf-initial-job]')?.textContent).toBe('none')
-    expect(hoisted.conversations?.conversations.some(item => item.id === 'ctf-job-1')).toBe(true)
-  })
-
-  it('returns from a CTF Agent chat to the workspace instead of reopening the chat surface', async () => {
-    const { host } = await mountApp()
-
-    host.querySelector<HTMLButtonElement>('[aria-label="open CTF in coding"]')?.click()
-    await flushAsyncComponents()
-    host.querySelector<HTMLButtonElement>('[aria-label="navigate Coding"]')?.click()
-    await flushAsyncComponents()
-    expect(host.querySelector('[aria-label="mock Chat page"]')).not.toBeNull()
-    host.querySelector<HTMLButtonElement>('[aria-label="return CTF workspace"]')?.click()
-    await flushAsyncComponents()
-
-    expect(host.querySelector('[aria-label="mock CTF page"]')).not.toBeNull()
-    expect(host.querySelector('[aria-label="mock Chat page"]')).toBeNull()
-    expect(host.querySelector('[data-ctf-initial-job]')?.textContent).toBe('job-1')
-    expect(hoisted.conversations?.activeId).toBe('ctf-job-1')
-  })
-
-  it('does not inherit a CTF workspace when CVE opens Coding', async () => {
-    const { host } = await mountApp()
-
-    host.querySelector<HTMLButtonElement>('[aria-label="open CTF in coding"]')?.click()
-    await flushAsyncComponents()
-    expect(hoisted.conversations?.workspacePath).toContain('/ctf/job-1')
 
     host.querySelector<HTMLButtonElement>('[aria-label="navigate CVE"]')?.click()
     await flushAsyncComponents()
@@ -664,7 +539,6 @@ describe('App cross-module routing', () => {
     const active = hoisted.conversations?.active
     expect(active?.id).toBe('cve-research-cve-2024-3400')
     expect(active?.workspacePath).toBeUndefined()
-    expect(active?.ctfJobId).toBeUndefined()
     expect(active?.domainTaskContext).toMatchObject({ kind: 'cve', cveId: 'CVE-2024-3400' })
     expect(host.querySelector('[aria-label="mock CVE page"]')).not.toBeNull()
     expect(host.querySelector('[aria-label="mock Chat page"]')).toBeNull()
@@ -675,17 +549,13 @@ describe('App cross-module routing', () => {
   it('starts a new Coding conversation instead of reopening the last one', async () => {
     const { host } = await mountApp()
 
-    host.querySelector<HTMLButtonElement>('[aria-label="open CTF in coding"]')?.click()
-    await flushAsyncComponents()
-    expect(hoisted.conversations?.activeId).toBe('ctf-job-1')
-
     host.querySelector<HTMLButtonElement>('[aria-label="navigate Coding"]')?.click()
     await flushAsyncComponents()
 
     expect(host.querySelector('[aria-label="mock Chat page"]')).not.toBeNull()
     expect(hoisted.conversations?.startNew).toHaveBeenCalledTimes(1)
     expect(hoisted.conversations?.activeId).toBeNull()
-    expect(host.querySelector('[data-chat-ctf-session]')?.textContent).toBe('false')
+    expect(host.querySelector('[data-chat-ctf-session]')).toBeNull()
   })
 
   it('routes an explicit linked Coding conversation through the existing conversation store', async () => {

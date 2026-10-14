@@ -64,7 +64,7 @@ func windowsLooksLikeNotepad(targets []Target) bool {
 			target.Name,
 			target.BundleID,
 			target.WindowTitle,
-			target.executablePath,
+			target.ExecutablePath,
 		}, "\n"))
 		if strings.Contains(haystack, "notepad") {
 			return true

@@ -12,7 +12,7 @@ export interface BackgroundTaskLineTask {
 import { needsDecisionConversationIds as needsDecisionConversationIdsFrom } from '@/lib/needsDecision'
 import AgentPixelLoader from '@/components/AgentPixelLoader'
 import { resolveSessionStatusMark } from '@/lib/sessionStatusMark'
-import profileAvatar from '@/assets/ctf-learner-avatar.png'
+import profileAvatar from '@/assets/milksu-app-icon.png'
 import { invokeCommand } from '@/desktop'
 import {
   Button,
@@ -41,12 +41,10 @@ import {
   ChevronLeft,
   Copy,
   Cpu,
-  Flag,
   FlaskConical,
   Folder,
   FolderOpen,
   FolderPlus,
-  Gauge,
   GitFork,
   ImageIcon,
   LogOut,
@@ -77,7 +75,6 @@ import {
 import {
   WORKSPACE_SIDEBAR_ITEMS,
   type AppSection,
-  type CTFWorkspaceSection,
   type WorkspaceSection,
 } from '@/lib/workspaceNavigation'
 import {
@@ -122,7 +119,6 @@ function conversationMenuPosition(x: number, y: number) {
 
 const workspaceNavIcons = {
   chat: SquarePen,
-  ctf: Flag,
   vuln: Bug,
   lab: FlaskConical,
   image: ImageIcon,
@@ -136,14 +132,12 @@ const settingsNavIcons = {
   permissions: ShieldCheck,
   apikeys: Box,
   runtime: Cpu,
-  ctf: Flag,
   cve: Bug,
   lab: FlaskConical,
   skills: BookMarked,
   mcp: Plug,
   chats: Archive,
   memory: Brain,
-  eval: Gauge,
   companion: Star,
   plugins: Puzzle,
 } as const
@@ -226,7 +220,6 @@ export default function ContextSidebar({
   problemConversationIds: problemIdsProp,
   backgroundTasks,
   actionError,
-  ctfSection: _ctfSection,
   accountStatus,
   themeMode,
   collapsed,
@@ -268,7 +261,6 @@ export default function ContextSidebar({
       不要在这里调 useConversations() 工厂：那会拿到**另一份新 store**，事实永远是空的。 */
   backgroundTasks?: Record<string, BackgroundTaskLineTask[]>
   actionError?: string
-  ctfSection: CTFWorkspaceSection
   accountStatus: AccountStatus
   themeMode: ThemeMode
   collapsed?: boolean
@@ -287,7 +279,6 @@ export default function ContextSidebar({
   onMovePinned?: (id: string, direction: -1 | 1) => void
   onReorderPinned?: (id: string, beforeId: string) => void
   onForkConversation?: (id: string) => void
-  onNavigateCtf?: (value: CTFWorkspaceSection) => void
   onNavigate?: (value: WorkspaceSection) => void
   onProfile?: () => void
   onSettings?: () => void
@@ -355,7 +346,7 @@ export default function ContextSidebar({
       : updateButtonLabel
 
   const workspaceHome: WorkspaceSection = (
-    activeSection === 'ctf' || activeSection === 'vuln' || activeSection === 'lab' || activeSection === 'image' || activeSection === 'reverse'
+    activeSection === 'vuln' || activeSection === 'lab' || activeSection === 'image' || activeSection === 'reverse'
       ? activeSection
       : 'chat'
   )

@@ -24,22 +24,22 @@ describe('item collections', () => {
   it('keeps one item in several collections and persists the aggregate view', () => {
     const store = createItemCollectionStore('test.collections')
 
-    store.toggle('nssctf:3347')
-    const reverse = store.create('逆向练习', 'nssctf:3347')
-    store.create('Web 专项', 'nssctf:1024')
+    store.toggle('cve:CVE-2024-3400')
+    const reverse = store.create('逆向练习', 'cve:CVE-2024-3400')
+    store.create('Web 专项', 'cve:CVE-2023-46604')
 
-    expect(store.collectionIdsFor('nssctf:3347')).toEqual([QUICK_COLLECTION_ID, reverse])
-    expect(store.itemKeysFor(ALL_COLLECTIONS_ID)).toEqual(['nssctf:3347', 'nssctf:1024'])
+    expect(store.collectionIdsFor('cve:CVE-2024-3400')).toEqual([QUICK_COLLECTION_ID, reverse])
+    expect(store.itemKeysFor(ALL_COLLECTIONS_ID)).toEqual(['cve:CVE-2024-3400', 'cve:CVE-2023-46604'])
     expect(store.uniqueItemCount).toBe(2)
 
     const reloaded = createItemCollectionStore('test.collections')
-    expect(reloaded.has('nssctf:3347', reverse)).toBe(true)
+    expect(reloaded.has('cve:CVE-2024-3400', reverse)).toBe(true)
     expect(reloaded.collections.map(item => item.name)).toEqual(['收藏', '逆向练习', 'Web 专项'])
   })
 
   it('removes custom folders without removing the built-in quick collection', () => {
     const store = createItemCollectionStore('test.collections')
-    const custom = store.create('稍后挑战', 'ctfshow:12')
+    const custom = store.create('稍后处理', 'lab:job-12')
 
     store.remove(custom)
     store.remove(QUICK_COLLECTION_ID)

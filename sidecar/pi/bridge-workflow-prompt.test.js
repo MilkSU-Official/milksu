@@ -18,7 +18,7 @@ test("workflow prompt keeps host facts and omits product-tool essays", () => {
   assert.match(prompt, /You are MilkSU/);
   assert.match(prompt, /运行时上下文/);
   assert.match(prompt, /工作区身份/);
-  assert.match(prompt, /可证伪的 CTF 假设/);
+  assert.match(prompt, /可证伪的假设/);
   assert.match(prompt, /思考、过程旁白、进度、答复/);
   assert.match(prompt, /引用：/);
   assert.doesNotMatch(prompt, /at most four subagent tasks/);
@@ -39,7 +39,7 @@ test("English UI locale keeps the MilkSU suffix in English", () => {
   });
   assert.match(prompt, /Runtime context:/);
   assert.match(prompt, /Workspace identity:/);
-  assert.match(prompt, /falsifiable CTF hypothesis/);
+  assert.match(prompt, /falsifiable hypothesis/);
   assert.match(prompt, /Quoted reference:/);
   assert.match(prompt, /thinking, progress asides, answers/);
   assert.doesNotMatch(prompt, /运行时上下文|工作区身份|引用：/);

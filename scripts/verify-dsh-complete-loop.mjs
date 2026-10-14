@@ -207,7 +207,7 @@ function approvalEvents(events) {
 }
 
 function isHarnessCrash(error) {
-  return /owner disposed|sidecar exit|DeepSeek Harness sidecar|DSH bridge exited/i.test(String(error ?? ''))
+  return /owner disposed|sidecar exit|Agent is not running|Agent stopped|Agent exit|DeepSeek Harness sidecar|DSH bridge exited/i.test(String(error ?? ''))
 }
 
 function classifyDangerousAction({ events, timeout, error, toolNames, canaryAlive }) {

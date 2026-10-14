@@ -13,7 +13,7 @@ export default function WorkspaceTopBar({
   metrics,
   windowCaptionEdge = false,
 }: {
-  module?: 'coding' | 'ctf' | 'cve' | 'lab' | 'reverse'
+  module?: 'coding' | 'cve' | 'lab' | 'reverse'
   title: string
   subtitle?: string
   hideIdentity?: boolean
@@ -136,7 +136,6 @@ const workspaceTopBarCss = `
   max-width: 100%;
 }
 
-.workspace-topbar[data-workspace-module="ctf"],
 .workspace-topbar[data-workspace-module="cve"],
 .workspace-topbar[data-workspace-module="lab"] {
   --module-topbar-title-size: 1.25rem;

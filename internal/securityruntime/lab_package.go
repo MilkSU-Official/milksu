@@ -169,6 +169,8 @@ func (p LabPackage) Validate() error {
 	if strings.TrimSpace(p.Metadata.Source.Revision) == "" || strings.TrimSpace(p.Metadata.Source.Image) == "" || strings.ContainsAny(p.Metadata.Source.Image, " \t\r\n@") || !validSHA256(p.Metadata.Source.Digest) {
 		return fmt.Errorf("pinned lab source revision, image, and sha256 digest are required")
 	}
+	// Lab package category (challenge-style or vulnerability lab). Not the
+	// retired CTF product module.
 	if p.Spec.Role != "ctf" && p.Spec.Role != "vuln" {
 		return fmt.Errorf("lab role must be ctf or vuln")
 	}

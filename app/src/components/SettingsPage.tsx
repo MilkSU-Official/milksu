@@ -1,4 +1,13 @@
 import { createStore, useStore, useStoreRuntime } from '@/lib/reactStore'
+import {
+  acpGuestConfigured,
+  acpGuestRuntimeLabel,
+  acpGuestUnavailableReason,
+  formatAcpGuestArgs,
+  formatAcpGuestEnv,
+  parseAcpGuestArgs,
+  parseAcpGuestEnv,
+} from '@/lib/acpGuest'
 import { runtimeVersion } from '@/lib/runtimeVersions'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import {
@@ -45,7 +54,6 @@ import type {
   CodingComputerUsePermission,
   CodingComputerUseStatus,
 } from '@/codingEnvironmentTypes'
-import type { NSSCTFWebBridgeStatus } from '@/nssctfWebTypes'
 import type {
   AppSettings,
   AccountStatus,
@@ -91,7 +99,6 @@ import SearchableModelPicker from '@/components/SearchableModelPicker'
 import { annotateModelFailures, type SearchableModelGroup } from '@/lib/modelPickerSearch'
 import VulnerabilityIntelSettingsPanel from '@/components/VulnerabilityIntelSettingsPanel'
 import SettingsMCPPanel from '@/components/SettingsMCPPanel'
-import EvalSettingsPanel from '@/components/EvalSettingsPanel'
 import LabSettingsPanel from '@/components/LabSettingsPanel'
 import CompanionSettingsPanel from '@/components/CompanionSettingsPanel'
 import MemorySettingsPanel, { MemoryEntriesPanel } from '@/components/MemorySettingsPanel'
@@ -295,8 +302,6 @@ type SettingsState = {
   computerUseLoading: boolean
   computerUseRequesting: CodingComputerUsePermission | null
   computerUseRestarting: boolean
-  browserBridgeLoading: boolean
-  browserSetupBusy: boolean
   browserUseOpening: boolean
   browserUseRuntimeLoading: boolean
   browserUseRuntime: BrowserUseRuntime | null
@@ -306,7 +311,6 @@ type SettingsState = {
   localData: LocalDataStatus | null
   userArtifacts: UserArtifactDirectoryStatus | null
   computerUseStatus: CodingComputerUseStatus | null
-  browserBridgeStatus: NSSCTFWebBridgeStatus | null
   buildTracking: BuildTracking | null
   buildTrackingCopying: boolean
   notice: SettingsNotice | null
@@ -478,8 +482,6 @@ export default function SettingsPage({
   const computerUseLoading = state.computerUseLoading
   const computerUseRequesting = state.computerUseRequesting
   const computerUseRestarting = state.computerUseRestarting
-  const browserBridgeLoading = state.browserBridgeLoading
-  const browserSetupBusy = state.browserSetupBusy
   const browserUseOpening = state.browserUseOpening
   const browserUseRuntimeLoading = state.browserUseRuntimeLoading
   const browserUseRuntime = state.browserUseRuntime
@@ -489,7 +491,6 @@ export default function SettingsPage({
   const localData = state.localData
   const userArtifacts = state.userArtifacts
   const computerUseStatus = state.computerUseStatus
-  const browserBridgeStatus = state.browserBridgeStatus
   const buildTracking = state.buildTracking
   const buildTrackingCopying = state.buildTrackingCopying
   const notice = state.notice
@@ -555,9 +556,6 @@ export default function SettingsPage({
   const providerEditorFresh = store.providerEditorFresh()
   const computerUsePermissionsReady = store.computerUsePermissionsReady()
   const browserUseDescription = store.browserUseDescription()
-  const browserBridgeConnected = store.browserBridgeConnected()
-  const browserPairingReady = store.browserPairingReady()
-  const browserExtensionReady = store.browserExtensionReady()
   const dashboard = vulnerabilityDashboard
 
   const managementTitles = {
@@ -1242,18 +1240,74 @@ export default function SettingsPage({
                     divider={false}
                     trailing={(
                       <SettingsGhostPicker
-                        value={working?.default_kernel === 'dsh' ? 'dsh' : 'pi'}
+                        value={working?.default_kernel === 'dsh' && acpGuestConfigured(working.acp_guest) ? 'dsh' : 'pi'}
                         ariaLabel={t('默认运行时', 'Default runtime')}
                         options={[
                           { value: 'pi', label: runtimeVersion('pi') ? `Pi ${runtimeVersion('pi')}` : 'Pi' },
-                          { value: 'dsh', label: runtimeVersion('dsh') ? `DSH ${runtimeVersion('dsh')}` : 'DSH' },
+                          ...(acpGuestConfigured(working.acp_guest)
+                            ? [{
+                                value: 'dsh',
+                                label: runtimeVersion('dsh')
+                                  ? `${acpGuestRuntimeLabel(t)} ${runtimeVersion('dsh')}`
+                                  : acpGuestRuntimeLabel(t),
+                              }]
+                            : []),
                         ]}
                         onChange={store.setDefaultKernel}
                       />
                     )}
                   />
                 </SettingsSection>
-                <SettingsSection title="DeepSeek Harness">
+                <SettingsSection title={acpGuestRuntimeLabel(t)}>
+                  <SettingsRow
+                    label={t('命令', 'Command')}
+                    description={t('通过 ACP 接入。填了命令才能在新对话里选这个 Agent。安装包不带这份命令。', 'Connects over ACP. A command is required before new chats can use this agent. The install does not ship the command.')}
+                    stack="always"
+                    trailing={(
+                      <Input
+                        className="settings-control w-full"
+                        value={working?.acp_guest?.command ?? ''}
+                        autoComplete="off"
+                        placeholder={t('可执行文件路径', 'Executable path')}
+                        aria-label={t('Agent 命令', 'Agent command')}
+                        onChange={event => store.setAcpGuestCommand(event.target.value)}
+                      />
+                    )}
+                  />
+                  <SettingsRow
+                    label={t('参数', 'Arguments')}
+                    description={t('可选。空格分隔，或 JSON 数组。', 'Optional. Space-separated, or a JSON array.')}
+                    stack="always"
+                    trailing={(
+                      <Input
+                        className="settings-control w-full"
+                        value={formatAcpGuestArgs(working?.acp_guest?.args)}
+                        autoComplete="off"
+                        placeholder="--profile acp"
+                        aria-label={t('Agent 参数', 'Agent arguments')}
+                        onChange={event => store.setAcpGuestArgs(event.target.value)}
+                      />
+                    )}
+                  />
+                  <SettingsRow
+                    label={t('环境变量', 'Environment')}
+                    description={t('可选。每行 KEY=VALUE。不要把 Provider API Key 填在这里。', 'Optional. One KEY=VALUE per line. Do not put a provider API key here.')}
+                    stack="always"
+                    trailing={(
+                      <Textarea
+                        className="settings-control min-h-20 w-full"
+                        value={formatAcpGuestEnv(working?.acp_guest?.env)}
+                        autoComplete="off"
+                        spellCheck={false}
+                        aria-label={t('Agent 环境变量', 'Agent environment variables')}
+                        onChange={event => store.setAcpGuestEnv(event.target.value)}
+                      />
+                    )}
+                  />
+                  <SettingsRow
+                    label={t('协议缺口', 'Protocol gaps')}
+                    description={`${acpGuestUnavailableReason('ask', t)} ${acpGuestUnavailableReason('durable-research', t)} ${acpGuestUnavailableReason('milksu-workspace', t)}`}
+                  />
                   <SettingsRow
                     label={t('忙碌时发送', 'Busy send')}
                     divider={false}
@@ -1849,65 +1903,6 @@ export default function SettingsPage({
                   </DialogContent>
                 </Dialog>
               </>
-            ) : working && category === 'ctf' ? (
-              <>
-                <SettingsSection title="NSSCTF Agent Arena">
-                  <SettingsRow
-                    label="Arena Token"
-                    description={working.nssctf_arena?.session_only ? t('仅本次运行可用', 'Only available in this run') : ''}
-                    trailing={(
-                      <Input
-                        className="settings-control"
-                        value={working.nssctf_arena?.token ?? ''}
-                        type="password"
-                        autoComplete="off"
-                        placeholder="Token"
-                        onChange={event => {
-                          store.patchWorking(value => {
-                            value.nssctf_arena = {
-                              token: event.target.value,
-                              has_token: value.nssctf_arena?.has_token ?? false,
-                              session_only: event.target.value ? false : value.nssctf_arena?.session_only,
-                            }
-                          })
-                        }}
-                        onBlur={() => void store.save()}
-                      />
-                    )}
-                  />
-                </SettingsSection>
-                <SettingsSection title={t('题目浏览器扩展', 'Challenge browser extension')}>
-                  <SettingsRow
-                    label={t('连接', 'Connection')}
-                    trailing={(
-                      <div className="flex items-center gap-2">
-                        <ConnectionLiveStatus live={browserBridgeConnected} />
-                        <Button variant="outline" size="sm" disabled={browserBridgeLoading} onClick={() => void store.refreshBrowserBridgeStatus()}>
-                          {t('检测', 'Check')}
-                        </Button>
-                      </div>
-                    )}
-                  />
-                  <SettingsRow
-                    label={t('本地扩展', 'Local extension')}
-                    trailing={(
-                      <Button variant="outline" size="sm" disabled={browserSetupBusy || !browserExtensionReady} onClick={() => void store.prepareBrowserExtension()}>
-                        {t('安装', 'Install')}
-                      </Button>
-                    )}
-                  />
-                  <SettingsRow
-                    label={t('配对码', 'Pairing code')}
-                    description={browserBridgeStatus?.bridge.pairingCode || ''}
-                    divider={false}
-                    trailing={(
-                      <Button variant="outline" size="sm" disabled={!browserPairingReady} onClick={() => void store.copyBrowserPairingCode()}>
-                        {t('复制', 'Copy')}
-                      </Button>
-                    )}
-                  />
-                </SettingsSection>
-              </>
             ) : working && category === 'lab' ? (
               <LabSettingsPanel settings={working} onPersist={() => void store.save()} />
             ) : working && category === 'memory' ? (
@@ -1922,8 +1917,6 @@ export default function SettingsPage({
               <PluginSettingsPanel theme={resolvedTheme} />
             ) : category === 'cve' && dashboard ? (
               <VulnerabilityIntelSettingsPanel dashboard={dashboard} />
-            ) : category === 'eval' ? (
-              <EvalSettingsPanel settings={working} />
             ) : null}
           </div>
         </div>
@@ -1948,8 +1941,6 @@ function createSettingsStore(
     computerUseLoading: false,
     computerUseRequesting: null,
     computerUseRestarting: false,
-    browserBridgeLoading: false,
-    browserSetupBusy: false,
     browserUseOpening: false,
     browserUseRuntimeLoading: false,
     browserUseRuntime: null,
@@ -1959,7 +1950,6 @@ function createSettingsStore(
     localData: null,
     userArtifacts: null,
     computerUseStatus: null,
-    browserBridgeStatus: null,
     buildTracking: null,
     buildTrackingCopying: false,
     notice: null,
@@ -1996,10 +1986,6 @@ function createSettingsStore(
     set computerUseRequesting(value) { store.setState({ computerUseRequesting: value }); },
     get computerUseRestarting() { return store.getState().computerUseRestarting },
     set computerUseRestarting(value) { store.setState({ computerUseRestarting: value }); },
-    get browserBridgeLoading() { return store.getState().browserBridgeLoading },
-    set browserBridgeLoading(value) { store.setState({ browserBridgeLoading: value }); },
-    get browserSetupBusy() { return store.getState().browserSetupBusy },
-    set browserSetupBusy(value) { store.setState({ browserSetupBusy: value }); },
     get browserUseOpening() { return store.getState().browserUseOpening },
     set browserUseOpening(value) { store.setState({ browserUseOpening: value }); },
     get browserUseRuntimeLoading() { return store.getState().browserUseRuntimeLoading },
@@ -2018,8 +2004,6 @@ function createSettingsStore(
     set userArtifacts(value) { store.setState({ userArtifacts: value }); },
     get computerUseStatus() { return store.getState().computerUseStatus },
     set computerUseStatus(value) { store.setState({ computerUseStatus: value }); },
-    get browserBridgeStatus() { return store.getState().browserBridgeStatus },
-    set browserBridgeStatus(value) { store.setState({ browserBridgeStatus: value }); },
     get buildTracking() { return store.getState().buildTracking },
     set buildTracking(value) { store.setState({ buildTracking: value }); },
     get buildTrackingCopying() { return store.getState().buildTrackingCopying },
@@ -2186,7 +2170,54 @@ function createSettingsStore(
 
   function setDefaultKernel(value: string) {
     patchWorking(working => {
-      working.default_kernel = value === 'dsh' ? 'dsh' : 'pi'
+      working.default_kernel = value === 'dsh' && acpGuestConfigured(working.acp_guest) ? 'dsh' : 'pi'
+    })
+    persist()
+  }
+
+  function setAcpGuestCommand(value: string) {
+    patchWorking(working => {
+      const command = String(value ?? '').trim()
+      if (!command) {
+        working.acp_guest = undefined
+        if (working.default_kernel === 'dsh') working.default_kernel = 'pi'
+        return
+      }
+      working.acp_guest = { ...working.acp_guest, command }
+    })
+    persist()
+  }
+
+  function setAcpGuestArgs(value: string) {
+    patchWorking(working => {
+      const command = String(working.acp_guest?.command ?? '').trim()
+      if (!command) {
+        working.acp_guest = undefined
+        return
+      }
+      const args = parseAcpGuestArgs(value)
+      working.acp_guest = {
+        command,
+        ...(args.length ? { args } : {}),
+        ...(working.acp_guest?.env ? { env: working.acp_guest.env } : {}),
+      }
+    })
+    persist()
+  }
+
+  function setAcpGuestEnv(value: string) {
+    patchWorking(working => {
+      const command = String(working.acp_guest?.command ?? '').trim()
+      if (!command) {
+        working.acp_guest = undefined
+        return
+      }
+      const env = parseAcpGuestEnv(value)
+      working.acp_guest = {
+        command,
+        ...(working.acp_guest?.args?.length ? { args: working.acp_guest.args } : {}),
+        ...(env ? { env } : {}),
+      }
     })
     persist()
   }
@@ -3486,43 +3517,6 @@ function createSettingsStore(
     }
   }
 
-  const browserBridgeConnected = () => Boolean(s.browserBridgeStatus?.bridge.connected)
-  const browserPairingReady = () => Boolean(s.browserBridgeStatus?.bridge.pairingCode)
-  const browserExtensionReady = () => Boolean(s.browserBridgeStatus?.bridge.extensionPath)
-
-  async function refreshBrowserBridgeStatus(options: { silent?: boolean } = {}) {
-    s.browserBridgeLoading = true
-    try {
-      s.browserBridgeStatus = await invokeCommand<NSSCTFWebBridgeStatus>('get_nssctf_web_bridge_status')
-      if (!options.silent) {
-        s.notice = { tone: 'ok', text: t('连接已重新检测。', 'Connection rechecked.') }
-      }
-    } catch (reason) {
-      s.browserBridgeStatus = null
-      if (!options.silent) {
-        s.notice = { tone: 'error', text: t(`无法检测连接：${String(reason)}`, `Could not check the connection: ${String(reason)}`) }
-      }
-    } finally {
-      s.browserBridgeLoading = false
-    }
-  }
-
-  async function prepareBrowserExtension() {
-    s.browserSetupBusy = true
-    try {
-      await invokeCommand('open_chrome_extension_manager')
-      await invokeCommand('reveal_browser_extension')
-      s.notice = {
-        tone: 'ok',
-        text: t('已打开扩展安装入口。', 'Opened the extension installer.'),
-      }
-    } catch (reason) {
-      s.notice = { tone: 'error', text: t(`无法打开浏览器扩展安装入口：${String(reason)}`, `Could not open the browser extension installer: ${String(reason)}`) }
-    } finally {
-      s.browserSetupBusy = false
-    }
-  }
-
   async function openPlaywrightBrowserExtension() {
     s.browserUseOpening = true
     try {
@@ -3535,17 +3529,6 @@ function createSettingsStore(
       s.notice = { tone: 'error', text: t(`无法打开扩展页面：${String(reason)}`, `Could not open the extension page: ${String(reason)}`) }
     } finally {
       s.browserUseOpening = false
-    }
-  }
-
-  async function copyBrowserPairingCode() {
-    const pairingCode = s.browserBridgeStatus?.bridge.pairingCode
-    if (!pairingCode) return
-    try {
-      await navigator.clipboard.writeText(pairingCode)
-      s.notice = { tone: 'ok', text: t('配对码已复制。', 'Pairing code copied.') }
-    } catch (reason) {
-      s.notice = { tone: 'error', text: t(`无法复制浏览器配对码：${String(reason)}`, `Could not copy the browser pairing code: ${String(reason)}`) }
     }
   }
 
@@ -3756,7 +3739,6 @@ function createSettingsStore(
       const sessionOnly = refreshed && (
         Object.values(refreshed.providers).some(item => item.session_only)
         || refreshed.relay?.session_only
-        || refreshed.nssctf_arena?.session_only
       )
       s.notice = { tone: 'error', text: sessionOnly
         ? t(`${desktopErrorMessage(reason)} 当前密钥仅保留在本次运行内，退出应用后需要重新输入。`, `${desktopErrorMessage(reason)} The current key stays in this session only and must be entered again after you quit.`)
@@ -3875,7 +3857,6 @@ function createSettingsStore(
     void loadBuildTracking()
     void refreshComputerUseStatus({ silent: true })
     void refreshBrowserUseRuntime({ silent: true })
-    void refreshBrowserBridgeStatus({ silent: true })
     window.addEventListener('focus', refreshComputerUseAfterSettings)
     void listenEvent<{ toolId: string; state: string }>('coding-tool-setup', () => {
       void loadCodingToolSkills()
@@ -3950,9 +3931,6 @@ function createSettingsStore(
     setUserSkillEnabled,
     refreshBrowserUseRuntime,
     openPlaywrightBrowserExtension,
-    refreshBrowserBridgeStatus,
-    prepareBrowserExtension,
-    copyBrowserPairingCode,
     refreshComputerUseStatus,
     requestComputerUsePermission,
     relaunchDesktopApp,
@@ -3993,6 +3971,9 @@ function createSettingsStore(
     databaseStateLabels,
     defaultModelKey,
     setDefaultKernel,
+    setAcpGuestCommand,
+    setAcpGuestArgs,
+    setAcpGuestEnv,
     setBusySend,
     defaultModelAvailable,
     availableModelCount,
@@ -4023,9 +4004,6 @@ function createSettingsStore(
     providerEditorFresh,
     computerUsePermissionsReady,
     browserUseDescription,
-    browserBridgeConnected,
-    browserPairingReady,
-    browserExtensionReady,
   }
 
   return {

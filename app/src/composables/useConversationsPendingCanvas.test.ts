@@ -43,9 +43,9 @@ describe('pending empty-canvas survives navigation', () => {
     conversations.setModelSelection('manual', 'deepseek', 'deepseek-flash')
     conversations.setThinkingLevel('high')
 
-    conversations.startNew({ workspaceHome: 'ctf' })
+    conversations.startNew({ workspaceHome: 'lab' })
     expect(conversations.activeId).toBeNull()
-    expect(conversations.pendingWorkspaceHome).toBe('ctf')
+    expect(conversations.pendingWorkspaceHome).toBe('lab')
     expect(conversations.selectedKernel).toBe('pi')
     expect(conversations.workspacePath).toBe('')
 
@@ -100,7 +100,7 @@ describe('pending empty-canvas survives navigation', () => {
     expect(conversations.activeId).toBeNull()
     expect(conversations.selectedMultitask).toBe(true)
 
-    conversations.startNew({ workspaceHome: 'ctf' })
+    conversations.startNew({ workspaceHome: 'lab' })
     expect(conversations.selectedMultitask).toBe(false)
 
     conversations.resumePendingHome('chat')

@@ -465,8 +465,6 @@ func normalizeConversationKind(value string) string {
 	switch strings.ToLower(strings.TrimSpace(value)) {
 	case "image", "draw":
 		return "image"
-	case "ctf":
-		return "ctf"
 	case "cve":
 		return "cve"
 	case "lab":

@@ -34,9 +34,9 @@ export const dshImageCapableModelIds = Object.freeze([
 ]);
 
 /**
- * The Go runtime composes MILKSU_DSH_PI_AI_ROUTES with the non-credential
+ * The TypeScript Runtime composes MILKSU_DSH_PI_AI_ROUTES with the non-credential
  * provider facts for this spawn: which providers the dsh-llm-pi-ai adapter
- * may route to, their endpoints, model tables, and thinking levels.
+ * may route to, their endpoints, model tables, thinking levels, and compat.
  */
 export function dshPIAIRoutes(env = process.env) {
   const raw = String(env?.[dshPIAIRoutesEnvironment] ?? "").trim();
@@ -236,6 +236,18 @@ function renderRoutedModelYaml(model, indent) {
   return rows;
 }
 
+function renderCompatYaml(compat, indent) {
+  if (!compat || typeof compat !== "object" || Array.isArray(compat)) return [];
+  const entries = Object.entries(compat).filter(([, value]) => value !== undefined);
+  if (entries.length === 0) return [];
+  const pad = " ".repeat(indent);
+  const rows = [`${pad}compat:`];
+  for (const [field, value] of entries) {
+    rows.push(`${pad}  ${field}: ${value === true ? "true" : value === false ? "false" : JSON.stringify(value)}`);
+  }
+  return rows;
+}
+
 function renderPIAIProviderYaml(name, route, indent) {
   const pad = " ".repeat(indent);
   const rows = [`${pad}${name}:`];
@@ -243,6 +255,7 @@ function renderPIAIProviderYaml(name, route, indent) {
   if (route.api) rows.push(`${pad}  api: ${route.api}`);
   if (route.baseURL) rows.push(`${pad}  baseURL: ${route.baseURL}`);
   rows.push(`${pad}  apiKeyEnv: ${route.apiKeyEnv}`);
+  rows.push(...renderCompatYaml(route.compat, indent + 2));
   if (Array.isArray(route.models) && route.models.length > 0) {
     rows.push(`${pad}  models:`);
     for (const model of route.models) {

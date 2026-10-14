@@ -41,7 +41,7 @@ func TestEnsurePreMigrationBackupSkipsCurrentAndMissingDatabasesWithoutWriting(t
 
 func TestEnsurePreMigrationBackupCreatesCredentialFreeBackupAndReusesIt(t *testing.T) {
 	root := t.TempDir()
-	databasePath := filepath.Join(root, "data", "domain", "ctf", "memory.sqlite3")
+	databasePath := filepath.Join(root, "data", "runtime", "events.sqlite3")
 	createBackupDatabase(t, databasePath)
 	writeBackupFixture(t, filepath.Join(root, "config", "settings.json"), `{"locale":"zh"}`)
 	credentialPath := filepath.Join(root, "config", "credentials.db")
@@ -85,7 +85,7 @@ func TestEnsurePreMigrationBackupCreatesCredentialFreeBackupAndReusesIt(t *testi
 		t.Fatalf("unexpected backup validation: %#v", validation)
 	}
 	names, manifest := readBackupArchive(t, result.Path)
-	if !slices.Contains(names, "data/data/domain/ctf/memory.sqlite3") {
+	if !slices.Contains(names, "data/data/runtime/events.sqlite3") {
 		t.Fatalf("migration backup is missing the pending database: %#v", names)
 	}
 	if strings.Contains(strings.Join(names, "\n"), "credentials.db") ||
@@ -198,7 +198,7 @@ func TestEnsurePreMigrationBackupRejectsFutureOrMalformedHistoryBeforeWriting(t 
 
 func TestEnsurePreMigrationBackupFailureLeavesNoPartialArchive(t *testing.T) {
 	root := t.TempDir()
-	createBackupDatabase(t, filepath.Join(root, "data", "domain", "ctf", "memory.sqlite3"))
+	createBackupDatabase(t, filepath.Join(root, "data", "runtime", "events.sqlite3"))
 	writeBackupFixture(t, filepath.Join(root, "config", "settings.json"), `{not-json`)
 
 	result, err := EnsurePreMigrationBackup(
@@ -282,9 +282,6 @@ func migrationBackupDirectoryForTest(root string) string {
 func managedMigrationDescriptorsForTest() []DatabaseDescriptor {
 	return []DatabaseDescriptor{
 		{LogicalName: "EventStore", RelativePath: "data/runtime/events.sqlite3", Supported: 1},
-		{LogicalName: "CTF Memory", RelativePath: "data/domain/ctf/memory.sqlite3", Supported: 1},
-		{LogicalName: "NSSCTF Catalog", RelativePath: "data/domain/nssctf/catalog.sqlite3", Supported: 1},
-		{LogicalName: "CTFshow Catalog", RelativePath: "data/domain/ctfshow/catalog.sqlite3", Supported: 1},
 		{LogicalName: "Coding Agent Usage", RelativePath: "data/stores/usage/model-usage.sqlite3", Supported: 1},
 		{LogicalName: "Research", RelativePath: "data/domain/research/research.sqlite3", Supported: 1},
 	}

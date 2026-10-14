@@ -1728,7 +1728,7 @@ func TestSendMessageIncludesComputerUseDescriptorOnlyForInteractiveCoding(t *tes
 
 	if err := supervisor.SendMessage(
 		"coding-computer-ctf",
-		"load desktop controls for CTF",
+		"load desktop controls for leftover solver",
 		workspace,
 		"solver",
 		"go",
@@ -1745,7 +1745,7 @@ func TestSendMessageIncludesComputerUseDescriptorOnlyForInteractiveCoding(t *tes
 	}
 	ctfCommand := readCommand()
 	if _, exists := ctfCommand["computerUse"]; !exists {
-		t.Fatalf("CTF solver unexpectedly dropped Computer Use: %#v", ctfCommand)
+		t.Fatalf("leftover solver unexpectedly dropped Computer Use: %#v", ctfCommand)
 	}
 }
 
@@ -2009,7 +2009,7 @@ func TestNormalizeCodingPolicyPreservesLegacyGoAndValidatesExplicitModes(t *test
 	}
 	ctfPolicy, err := normalizeCodingPolicy("go", "workspace-auto", "solver")
 	if err != nil || ctfPolicy.ExecutionMode != "go" || ctfPolicy.ApprovalPolicy != "workspace-auto" {
-		t.Fatalf("CTF session must keep Coding policy fields: %#v, %v", ctfPolicy, err)
+		t.Fatalf("leftover solver role must keep Coding policy fields: %#v, %v", ctfPolicy, err)
 	}
 }
 
@@ -2314,6 +2314,36 @@ func TestEngineEnvironmentIncludesEditableProviderBaseURL(t *testing.T) {
 		if !containsEnvironmentEntry(environment, expected) {
 			t.Fatalf("expected %q in %#v", expected, environment)
 		}
+	}
+}
+
+func TestSidecarProviderEnvironmentIncludesOfficialProviderKey(t *testing.T) {
+	t.Setenv("DEEPSEEK_API_KEY", "")
+	baseURL := "https://gateway.example.test/v1"
+	settings := config.DefaultSettings()
+	settings.Providers["deepseek"] = config.ProviderConfig{
+		APIKey:  "provider-secret",
+		BaseURL: &baseURL,
+		Enabled: true,
+	}
+
+	environment := SidecarProviderEnvironment(settings)
+	for _, expected := range []string{
+		"DEEPSEEK_API_KEY=provider-secret",
+		"DEEPSEEK_BASE_URL=https://gateway.example.test/v1",
+	} {
+		if !containsEnvironmentEntry(environment, expected) {
+			t.Fatalf("expected %q in %#v", expected, environment)
+		}
+	}
+	if value := environmentValue(environment, "HOME"); value != "" {
+		t.Fatalf("helper process HOME must not be exported, got %q", value)
+	}
+	if value := environmentValue(environment, "PATH"); value != "" {
+		t.Fatalf("helper process PATH must not be exported, got %q", value)
+	}
+	if environmentValue(environment, dshPIAIRoutesEnvironment) == "" {
+		t.Fatal("expected DSH pi-ai routes in sidecar provider environment")
 	}
 }
 
@@ -2630,9 +2660,35 @@ func decodeDSHPIAIRoutesForTest(t *testing.T, environment []string) dshPIAIRoute
 	return routes
 }
 
+func TestWithDSHSidecarEnvironmentInjectsAcpGuestCommand(t *testing.T) {
+	t.Setenv("MILKSU_APPDATA_DIR", t.TempDir())
+	settings := config.DefaultSettings()
+	settings.AcpGuest = &config.AcpGuestConfig{
+		Command: "/usr/bin/guest",
+		Args:    []string{"--profile", "acp"},
+		Env: map[string]string{
+			"FOO":               "bar",
+			"TOKENFLUX_API_KEY": "sk-test",
+		},
+	}
+	environment := withDSHSidecarEnvironment([]string{"PATH=/usr/bin"}, settings)
+	if environmentValue(environment, "MILKSU_DSH_COMMAND") != "/usr/bin/guest" {
+		t.Fatalf("guest command missing: %#v", environment)
+	}
+	if environmentValue(environment, "MILKSU_DSH_ACP_ARGS") != `["--profile","acp"]` {
+		t.Fatalf("guest args missing: %#v", environment)
+	}
+	if environmentValue(environment, "FOO") != "bar" {
+		t.Fatalf("guest env missing: %#v", environment)
+	}
+	if environmentValue(environment, "TOKENFLUX_API_KEY") != "" {
+		t.Fatal("provider key must not be copied into sidecar env")
+	}
+}
+
 func TestWithDSHSidecarEnvironmentPublishesBoundedUnixIpc(t *testing.T) {
 	t.Setenv("MILKSU_APPDATA_DIR", t.TempDir())
-	environment := withDSHSidecarEnvironment([]string{"PATH=/usr/bin"})
+	environment := withDSHSidecarEnvironment([]string{"PATH=/usr/bin"}, config.DefaultSettings())
 	product := environmentValue(environment, "MILKSU_DSH_IPC")
 	host := environmentValue(environment, "MILKSU_DSH_HOST_IPC")
 	if product == "" || host == "" {
@@ -3521,7 +3577,7 @@ func TestHandoffSessionReportsFailureWithoutAFork(t *testing.T) {
 		Type:      "session_handoff",
 		ID:        "session-handoff",
 		RequestID: requestID,
-		Error:     "DeepSeek Harness host IPC is not configured",
+		Error:     "Agent host IPC is not configured",
 	}))
 
 	select {

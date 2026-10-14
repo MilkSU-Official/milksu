@@ -27,9 +27,9 @@
 
 ![MilkSU Coding 工作台](docs/media/readme-coding.png)
 
-MilkSU 把 Coding、CTF、CVE 和实验室放进同一个桌面。界面是 React + shadcn。Agent 读项目、改文件、跑测试。对着一道题、一个 CVE 或一次实验室作业，题面、材料、过程和产物都留在同一条可回看的任务里。
+MilkSU 把 Coding、CVE 和实验室放进同一个桌面。界面是 React + shadcn。Agent 读项目、改文件、跑测试。对着一个 CVE 或一次实验室作业，材料、过程和产物都留在同一条可回看的任务里。
 
-它不是只有输入框的聊天客户端。项目文件、内置浏览器、你选定的真实浏览器标签页、外部桌面应用，都可以成为当前任务的一部分。你可以随时看、补一句、接管或停掉。新对话默认用 Pi，也可以选 DeepSeek Harness。已登录后侧栏「更新」会打开进度框；下完并校验后，再点安装并重启。
+项目文件、内置浏览器、你选定的真实浏览器标签页、外部桌面应用，都可以成为当前任务的一部分。你可以随时看、补一句、接管或停掉。新对话默认用 Pi；也可以接任何讲 ACP 的 Agent（自己填命令路径）。已登录后侧栏「更新」会打开进度框；下完并校验后，再点安装并重启。
 
 ## 能做什么
 
@@ -37,17 +37,13 @@ MilkSU 把 Coding、CTF、CVE 和实验室放进同一个桌面。界面是 Reac
 
 打开仓库，让 Agent 改代码、构建、测试、审阅。会话能改名、归档、恢复；回到 Coding 接着上次，不必每次从空白草稿开始。输入框旁有上下文用量；接近窗口约 80% 且空闲时会自动整理。整理上下文或接到新会话时，短会话不再报错；新会话铺上一会话原文或 harness 摘要。执行范围用 Plan / Go，以及只读、请求批准、替我审批、完全访问。
 
-### CTF
-
-浏览 NSSCTF、CTFshow，收藏题目，拿每日训练。点进详情再打开，为每道题单独工作区。材料、Evidence、候选、Judge 回执和复盘都留在题目里。解题对话在右下角可拖放小窗，和终端、Git、产物在一起。成功只由平台 Judge 或你本人确认。
-
 ### CVE
 
 按编号、产品或关键词搜索公开 CVE，加入个人研究列表。点进档案再复现：Agent 编辑 `report.md`，对话留在小窗。不以「复现成功 / 没复现上」当完成面。
 
 ### 实验室
 
-和 CTF / CVE / Coding 同级。可以给本地或远程地址开一次探测，也可以从题目包起本机 Docker 靶（Juice Shop / WebGoat / S2-045 / whoami）或安卓 MilkSU-Lab。Agent 把过程写进 `report.md`。
+和 CVE / Coding 同级。可以给本地或远程地址开一次探测，也可以从题目包起本机 Docker 靶（Juice Shop / WebGoat / S2-045 / whoami）或安卓 MilkSU-Lab。Agent 把过程写进 `report.md`。
 
 ### 画图
 
@@ -60,31 +56,27 @@ MilkSU 把 Coding、CTF、CVE 和实验室放进同一个桌面。界面是 Reac
 <table>
   <tr>
     <td width="50%">
-      <img src="docs/media/readme-ctf.png" alt="MilkSU CTF 题库与每日挑战">
-      <p align="center"><sub>CTF 题库与每日挑战</sub></p>
-    </td>
-    <td width="50%">
       <img src="docs/media/readme-cve.png" alt="MilkSU CVE 研究列表">
       <p align="center"><sub>CVE 列表与点进档案复现</sub></p>
     </td>
-  </tr>
-  <tr>
     <td width="50%">
       <img src="docs/media/readme-lab.png" alt="MilkSU 实验室题目包">
       <p align="center"><sub>实验室题目包与本机靶机</sub></p>
     </td>
+  </tr>
+  <tr>
     <td width="50%">
       <img src="docs/media/readme-settings.png" alt="MilkSU 设置中的 MCP 与本机安全工具">
       <p align="center"><sub>设置里的 MCP 与本机安全工具</sub></p>
     </td>
-  </tr>
-  <tr>
     <td width="50%">
       <img src="docs/media/readme-draw.jpg" alt="MilkSU 画图">
       <p align="center"><sub>画图：描述要画的内容</sub></p>
     </td>
-    <td width="50%">
-      <img src="docs/media/readme-companion.png" alt="MilkSU 看板娘">
+  </tr>
+  <tr>
+    <td colspan="2">
+      <img src="docs/media/readme-companion.png" alt="MilkSU 看板娘" width="50%">
       <p align="center"><sub>桌面看板娘</sub></p>
     </td>
   </tr>
@@ -140,6 +132,7 @@ MilkSU 面向个人学习、授权安全研究和本地开发。对目标的探�
 ```bash
 npm install
 npm --prefix app install
+npm --prefix desktop install
 npm run desktop:start
 ```
 
@@ -201,7 +194,7 @@ MilkSU 建立在这些项目之上。第三方保留各自原许可，完整文�
 | --- | --- | --- |
 | [Pi](https://github.com/earendil-works/pi)（`@earendil-works/pi-coding-agent` 1.0.0，含 pi-ai、pi-tui） | 默认 Agent 内核：通用会话、上下文压缩和工具循环 | MIT |
 | Pi 扩展（pi-goal、pi-lsp、pi-mcp-adapter、pi-sub-agent、pi-better-background-tasks） | 目标、LSP、MCP 适配与后台子代理 | MIT |
-| [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（`@deepseek-ai/dsh` 0.2.0-rc.2，走 ACP） | 可选 Agent 运行时，新对话可在 Pi 与 DSH 之间选 | MIT |
+| [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（`@deepseek-ai/dsh`，走 ACP） | 可作为 Agent 经 ACP 接入；用户自备命令路径，安装包默认不带 | MIT |
 | [Obelisk](https://github.com/tommy0103/obelisk) | 本地会话记忆与学习记录的分层。companion sidecar 以上游 writer lease 写 `companion/obelisk.sqlite` 索引，Go 不直接写这个库 | AGPL-3.0 |
 
 ### 桌面壳与界面

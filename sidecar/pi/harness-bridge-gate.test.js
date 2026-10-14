@@ -1,12 +1,12 @@
 // PR-2 批次 B1 门内分叉的源码契约（防回归：门必须真的在，且分叉只在收口点）。
 //
 // D2 扳机翻转后的契约更新（原「默认关、1 才开」的断言是翻转前的过时假设，本票按
-// FLIP-REVIEW 定稿翻转：缺省＝开、MILKSU_PI_HARNESS=0＝显式关、CTF/CVE/实验室工作区
-// 排除收口在 harness-bridge-flip）：
+// FLIP-REVIEW 定稿翻转：缺省＝开、MILKSU_PI_HARNESS=0＝显式关、排除收口在
+// harness-bridge-flip）：
 //   - 门关路径仍逐字节原样执行（MILKSU_PI_HARNESS=0 时 harnessSessionEligible 恒
 //     false，路由行为与翻转前的门关一致，全量 test:sidecar 门关回归兜底）；
-//   - createSession 的分叉判定读 harnessSessionEligible（带 CTF/CVE 排除），不再只读
-//     环境门——CTF/CVE 排除是 FLIP-REVIEW #3 用户已过目的行为要求，不是回归。
+//   - createSession 的分叉判定读 harnessSessionEligible（CVE / 实验室研究角色与
+//     遗留 ctf_ 会话 id），不再只读环境门。
 
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
@@ -45,14 +45,14 @@ test("createSession forks on the flip predicate before any legacy SessionManager
     fork > createSessionStart && fork < legacy,
     "the flip fork must run before the legacy path's first statement",
   );
-  // 既有 SessionManager 路径仍在（门关/CTF 排除时逐字节执行）。
+  // 既有 SessionManager 路径仍在（门关 / 排除面时逐字节执行）。
   assert.ok(bridgeSource.includes("createSessionManager(cwd, agentDir, conversationId)"));
   assert.ok(bridgeSource.includes("createAgentSession({"));
 });
 
 test("the routing commands fork before their legacy bodies", () => {
   for (const [name, marker] of [
-    // D2：sendMessage 送完整 command 进路由判定（sessionRole 的 CTF/CVE/研究排除面）。
+    // sendMessage 送完整 command 进路由判定（研究角色与遗留 solver 角色排除面）。
     ["sendMessage", "if (harnessTurnRouted(command)) {\n    return harnessLayer().sendMessage(command);"],
     ["abortSession", "if (harnessTurnRouted(conversationId)) {\n    return harnessLayer().abortSession(command);"],
     ["destroySession", "if (harnessTurnRouted(conversationId)) {\n    return harnessLayer().destroySession(command);"],
@@ -100,11 +100,11 @@ test("the harness session kind is distinct so the legacy path never adopts harne
   );
 });
 
-// D2 收口契约：CTF/CVE/实验室排除只允许出现在 harness-bridge-flip（bridge.js 不散落
-// 第二处判定——challenge.json/角色/ctf_ 前缀的读取都在收口模块里）。
-test("the CTF/CVE exclusion is single-sourced in harness-bridge-flip", () => {
+// 排除面只允许出现在 harness-bridge-flip（bridge.js 不散落第二处判定——
+// 角色 / 遗留 ctf_ 前缀的读取都在收口模块里）。isCtfWorkspace 恒 false。
+test("the exclusion surface is single-sourced in harness-bridge-flip", () => {
   assert.ok(bridgeSource.includes('import { harnessSessionEligible } from "./harness-bridge-flip.js";'));
-  assert.ok(!bridgeSource.includes("challenge.json"), "bridge.js must not re-implement the CTF workspace check");
+  assert.ok(!bridgeSource.includes("challenge.json"), "bridge.js must not re-implement leftover workspace checks");
   assert.equal(bridgeSource.indexOf("harnessSessionExcluded"), -1, "bridge.js only consumes the combined predicate");
   assert.equal(harnessSessionExcluded({ sessionRole: "solver" }), true);
   assert.equal(harnessSessionExcluded({ conversationId: "ctf_abc123" }), true);

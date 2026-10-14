@@ -112,10 +112,7 @@ export default function LabPage({
   compactedAt,
   compactionError,
   turnStatus,
-  ctfSession = false,
   vulnerabilitySession = false,
-  ctfMode,
-  ctfRole,
   modelMode,
   modelProvider,
   modelId,
@@ -536,10 +533,7 @@ export default function LabPage({
       compactedAt={compactedAt}
       compactionError={compactionError}
       turnStatus={turnStatus}
-      ctfSession={ctfSession}
       vulnerabilitySession={vulnerabilitySession}
-      ctfMode={ctfMode}
-      ctfRole={ctfRole}
       modelMode={modelMode}
       modelProvider={modelProvider}
       modelId={modelId}

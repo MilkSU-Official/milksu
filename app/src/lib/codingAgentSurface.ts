@@ -7,7 +7,6 @@ import type {
   CodingExecutionMode,
   CodingProductActionRequest,
   Conversation,
-  CTFChatAction,
 } from '@/types'
 
 export interface CodingAgentSurfaceBind {
@@ -23,10 +22,7 @@ export interface CodingAgentSurfaceBind {
   compactedAt?: number
   compactionError?: string
   turnStatus?: SessionTurnSnapshot
-  ctfSession: boolean
   vulnerabilitySession: boolean
-  ctfMode?: Conversation['ctfMode']
-  ctfRole?: Conversation['ctfRole']
   kernel?: Conversation['kernel']
   modelMode?: Conversation['modelMode']
   modelProvider?: string
@@ -51,7 +47,6 @@ export type CodingAgentSurfaceEmit = {
   send: CodingAgentSendArgs
   abort: []
   consumePendingDraft: []
-  ctfAction: [action: CTFChatAction]
   compactContext: []
   rewindContext: []
   handoffContext: []

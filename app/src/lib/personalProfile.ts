@@ -1,9 +1,8 @@
-import type { CTFSummary } from '@/ctfTypes'
 import type { Conversation } from '@/types'
 import type { VulnerabilityIntel } from '@/vulnerabilityIntel'
 import { t } from '@/lib/uiLocale'
 
-export type PersonalActivityModule = 'ctf' | 'vuln' | 'coding'
+export type PersonalActivityModule = 'vuln' | 'coding'
 
 export interface PersonalActivity {
   id: string
@@ -16,7 +15,7 @@ export interface PersonalActivity {
 
 export interface PersonalModuleSummary {
   module: PersonalActivityModule
-  label: 'CTF' | 'CVE' | 'Coding'
+  label: 'CVE' | 'Coding'
   count: number
   unit: string
   stage: string
@@ -92,21 +91,6 @@ export function codingActivities(conversations: Conversation[]) {
   })
 }
 
-export function ctfActivities(jobs: CTFSummary[]) {
-  return jobs.flatMap((job): PersonalActivity[] => {
-    const timestamp = validTimestamp(job.updatedAt)
-    if (!timestamp) return []
-    return [{
-      id: `ctf:${job.id}`,
-      module: 'ctf',
-      title: job.title,
-      detail: job.verdict === 'pass' ? t('答案已通过独立验证', 'Answer independently verified') : t('更新一次 CTF 练习记录', 'Updated a CTF practice record'),
-      timestamp,
-      confirmed: job.verdict === 'pass',
-    }]
-  })
-}
-
 export function vulnActivities(items: VulnerabilityIntel[], conversations: Conversation[]) {
   const tracked = new Map(items.map(item => [item.id.toUpperCase(), item]))
   return conversations.flatMap((conversation): PersonalActivity[] => {
@@ -152,17 +136,14 @@ function moduleSummary(
 
 export function buildPersonalProfileSnapshot(
   conversations: Conversation[],
-  ctfJobs: CTFSummary[],
   vulnerabilities: VulnerabilityIntel[],
   now = Date.now(),
 ): PersonalProfileSnapshot {
   const coding = codingActivities(conversations)
-  const ctf = ctfActivities(ctfJobs)
   const vuln = vulnActivities(vulnerabilities, conversations)
   const earliest = now - 365 * 24 * 60 * 60 * 1000
   const activities = [
     ...coding,
-    ...ctf,
     ...vuln,
   ]
     .filter(activity => activity.timestamp <= now && activity.timestamp >= earliest)
@@ -178,7 +159,6 @@ export function buildPersonalProfileSnapshot(
     activities,
     activeDays: Object.keys(dayCounts).length,
     modules: [
-      moduleSummary('ctf', 'CTF', t('题', 'challenges'), activities, ctfJobs.length, ctf[0]?.title ?? t('暂无记录', 'No records yet')),
       moduleSummary('vuln', 'CVE', t('项', 'items'), activities, vulnerabilities.length, vulnerabilities[0]?.id ?? t('暂无记录', 'No records yet')),
       moduleSummary('coding', 'Coding', t('次', 'sessions'), activities, coding.length, coding[0]?.title ?? t('暂无记录', 'No records yet')),
     ],

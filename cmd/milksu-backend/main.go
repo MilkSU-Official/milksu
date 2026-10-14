@@ -5,15 +5,13 @@ import (
 	"log"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/MilkSU-Official/milksu/internal/appdata"
 )
 
 const instanceIDEnv = "MILKSU_INSTANCE_ID"
 
-// The Chromium desktop shell owns windows, rendering and single-instance
-// behavior. This executable is the local, typed Go runtime it supervises.
+// Desktop 拉 TypeScript Runtime，Runtime 再拉本进程当原生助手。
 func main() {
 	log.SetOutput(os.Stderr)
 	if len(os.Args) > 1 && os.Args[1] == "plugin-mcp" {
@@ -22,24 +20,14 @@ func main() {
 		}
 		return
 	}
-	bootStarted := time.Now()
 	host := newDesktopRPC(os.Stdin, os.Stdout)
-	appConstructStarted := time.Now()
-	application, err := newAppWithDesktopHost(host)
-	if err != nil {
-		log.Fatal(err)
-	}
-	log.Printf("[startup] go.newApp %dms", time.Since(appConstructStarted).Milliseconds())
-	host.attach(application)
-	startupStarted := time.Now()
-	application.Startup(context.Background())
-	log.Printf("[startup] go.Startup %dms", time.Since(startupStarted).Milliseconds())
+	application := newNativeHelper(host)
+	host.attachHelper(application)
 	host.ready()
-	log.Printf("[startup] go.ready emitted total=%dms", time.Since(bootStarted).Milliseconds())
 	if err := host.serve(); err != nil {
 		log.Printf("desktop RPC stopped: %v", err)
 	}
-	application.Shutdown(context.Background())
+	application.helperShutdown()
 }
 
 func singleInstanceUniqueID() string {

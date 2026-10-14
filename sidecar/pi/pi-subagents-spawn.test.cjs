@@ -4,8 +4,10 @@ const assert = require("node:assert/strict");
 const { existsSync } = require("node:fs");
 const test = require("node:test");
 const {
+  applySpawnTraceEnv,
   guardSubagentSpawn,
   providerEnvNames,
+  withSpawnTraceId,
   writeSandboxProfile,
 } = require("./pi-subagents-spawn.cjs");
 
@@ -28,6 +30,38 @@ test("external CLI spawn drops provider credentials and skips the seatbelt", () 
     assert.equal(guarded.env[name], undefined);
   }
   assert.equal(env.OPENAI_API_KEY, "secret");
+});
+
+test("research context.traceId lands in worker env without mutating process.env", () => {
+  const previous = process.env.MILKSU_TRACE_ID;
+  const id = "trc_550e8400-e29b-41d4-a716-446655440000";
+  const context = { traceId: id };
+  const env = applySpawnTraceEnv({ PATH: "/bin" }, context.traceId);
+  assert.equal(env.MILKSU_TRACE_ID, id);
+  assert.equal(process.env.MILKSU_TRACE_ID, previous);
+
+  const guarded = guardSubagentSpawn({
+    command: process.execPath,
+    args: ["runner.js"],
+    env: { PATH: "/usr/bin" },
+    cwd: "/work",
+    externalCli: false,
+    platform: "linux",
+    traceId: id,
+  });
+  assert.equal(guarded.env.MILKSU_TRACE_ID, id);
+  assert.equal(process.env.MILKSU_TRACE_ID, previous);
+
+  const fromAls = withSpawnTraceId(id, () => guardSubagentSpawn({
+    command: process.execPath,
+    args: ["runner.js"],
+    env: { PATH: "/usr/bin" },
+    cwd: "/work",
+    externalCli: false,
+    platform: "linux",
+  }));
+  assert.equal(fromAls.env.MILKSU_TRACE_ID, id);
+  assert.equal(process.env.MILKSU_TRACE_ID, previous);
 });
 
 test("Pi runner keeps provider credentials and marks the shell copy", () => {

@@ -38,7 +38,6 @@ import {
   FileDiff,
   FileImage,
   ImageIcon,
-  Flag,
   FolderOpen,
   GitBranch,
   Globe2,
@@ -53,9 +52,7 @@ import {
   RefreshCw,
   Search,
   RotateCcw,
-  Route,
   SquareTerminal,
-  Wrench,
   X,
 } from 'lucide-react'
 import { codingEnvironmentMissing, invokeCommand, listenEvent } from '@/desktop'
@@ -93,7 +90,6 @@ import CodingComputerUsePanel from '@/components/CodingComputerUsePanel'
 import CodingComputerUsePermissionDialog from '@/components/CodingComputerUsePermissionDialog'
 import CodingMCPReviewCard from '@/components/CodingMCPReviewCard'
 import DeepResearchStatusCard from '@/components/DeepResearchStatusCard'
-import MarkdownContent from '@/components/MarkdownContent'
 import ContextRail from '@/components/ContextRail'
 import ReverseArtifactsPanel from '@/components/ReverseArtifactsPanel'
 import WorkspaceModuleTopBar from '@/components/WorkspaceModuleTopBar'
@@ -188,12 +184,7 @@ import {
 } from '@/lib/codingPolicy'
 import { codingContinuityPresentation } from '@/lib/codingContinuityPresentation'
 import { codingAskToolName, pendingAskMessage } from '@/lib/agentAsk'
-import type {
-  CTFAgentBudgetStatus,
-  CTFAgentRunCheckpoint,
-  CTFProjection,
-  CTFToolWorkshopState,
-} from '@/ctfTypes'
+import { acpGuestUnavailableReason } from '@/lib/acpGuest'
 import type {
   AppSettings,
   CodingApprovalPolicy,
@@ -201,7 +192,6 @@ import type {
   CodingExecutionMode,
   CodingProductActionRequest,
   Conversation,
-  CTFChatAction,
   Message,
   ModelThinkingLevel,
   SubagentTask,
@@ -255,8 +245,6 @@ const contextPanelValues = [
   'browser',
   'browser-use',
   'computer-use',
-  'collaboration',
-  'evidence',
   'reverse',
 ] as const
 type ContextPanel = typeof contextPanelValues[number]
@@ -278,10 +266,7 @@ export type ChatPageProps = {
   compactedAt?: number
   compactionError?: string
   turnStatus?: SessionTurnSnapshot
-  ctfSession: boolean
   vulnerabilitySession?: boolean
-  ctfMode?: 'coach' | 'copilot' | 'delegate'
-  ctfRole?: 'solver' | 'tool-builder' | 'strategist'
   kernel?: 'pi' | 'dsh'
   modelMode?: 'auto' | 'manual'
   modelId?: string
@@ -305,7 +290,6 @@ export type ChatPageProps = {
     scopeToken?: 'browser-use' | 'computer-use' | 'image',
     productAction?: CodingProductActionRequest,
   ) => void
-  onCtfAction?: (action: CTFChatAction) => void
   onAbort?: () => void
   onChooseWorkspace?: () => void
   onChooseWorkspaceForNewTask?: () => void
@@ -337,10 +321,8 @@ export type ChatPageProps = {
   onControlGoal?: (action: 'pause' | 'resume' | 'clear') => void
   onOpenSettings?: () => void
   onOpenConversation?: (conversationId: string) => void
-  onReturnCtf?: () => void
   onReturnVuln?: () => void
   onReturnLab?: () => void
-  onSwitchCtfAgent?: (role: 'solver' | 'tool-builder' | 'strategist') => void
   onConsumePendingDraft?: () => void
   onExpand?: () => void
   onRestore?: () => void
@@ -386,10 +368,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
   compactedAt,
   compactionError,
   turnStatus,
-  ctfSession,
   vulnerabilitySession,
-  ctfMode,
-  ctfRole,
   kernel,
   modelMode,
   modelProvider,
@@ -406,7 +385,6 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
   restorable,
   surface,
   onSend,
-  onCtfAction,
   onAbort,
   onChooseWorkspace,
   onChooseWorkspaceForNewTask,
@@ -433,7 +411,6 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
   onHandoffContext,
   onNewConversation,
   onControlGoal,
-  onSwitchCtfAgent,
   onConsumePendingDraft,
   onExpand,
   onRestore,
@@ -559,7 +536,6 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
   }, [pendingApprovalMessage?.approvalState])
   const chatAutoScrollPinned = useRef(true)
   const lastChatScrollTop = useRef(0)
-  const [workshopState, setWorkshopState] = useState<CTFToolWorkshopState | null>(null)
   const [environmentOpen, setEnvironmentOpen] = useState(reverseHome)
   const [contextRailWidth, setContextRailWidth] = useState<number | null>(readCodingRailWidth())
   const [reverseRailWidth, setReverseRailWidth] = useState<number | null>(readReverseRailWidth())
@@ -618,9 +594,6 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
   const codingEnvironmentRef = useRef<CodingEnvironmentSnapshot | null>(null)
   const [mcpConfig, setMcpConfig] = useState<CodingMCPConfigSnapshot | null>(null)
   const [mcpConfigLoading, setMcpConfigLoading] = useState(false)
-  const [ctfBudget, setCtfBudget] = useState<CTFAgentBudgetStatus | null>(null)
-  const [ctfCheckpoint, setCtfCheckpoint] = useState<CTFAgentRunCheckpoint | null>(null)
-  const [ctfProjection, setCtfProjection] = useState<CTFProjection | null>(null)
   const [userSkills, setUserSkills] = useState<AgentResourceSkill[]>([])
   const [projectMemory, setProjectMemory] = useState<CodingProjectMemory | null>(null)
   const [gitBranchError, setGitBranchError] = useState('')
@@ -639,7 +612,6 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
   const conversationRef = useRef(conversation)
   const workspacePathRef = useRef(workspacePath)
   const runningRef = useRef(running)
-  const ctfSessionRef = useRef(ctfSession)
   const environmentOpenRef = useRef(environmentOpen)
   const contextPanelRef = useRef(contextPanel)
   const codingBrowserStatusRef = useRef(codingBrowserStatus)
@@ -666,12 +638,10 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
   const transcriptBottomSentinelRef = useRef<HTMLDivElement | null>(null)
   const codingBrowserResizeObserver = useRef<ResizeObserver | null>(null)
   const lastCodingBrowserViewport = useRef('')
-  const ctfProjectionRef = useRef(ctfProjection)
 
   conversationRef.current = conversation
   workspacePathRef.current = workspacePath
   runningRef.current = running
-  ctfSessionRef.current = ctfSession
   environmentOpenRef.current = environmentOpen
   contextPanelRef.current = contextPanel
   codingBrowserStatusRef.current = codingBrowserStatus
@@ -686,7 +656,6 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
   computerUseLoadingRef.current = computerUseLoading
   mcpServersRef.current = mcpServers
   mcpConfigDigestRef.current = mcpConfigDigest
-  ctfProjectionRef.current = ctfProjection
   codingEnvironmentRef.current = codingEnvironment
   transcriptWindowStartRef.current = transcriptWindowStart
 
@@ -917,9 +886,31 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
             problem: computerUseStatus.problem,
           },
         )
-    return capabilities.map(capability => capability.id === 'computer-use'
+    const merged = capabilities.map(capability => capability.id === 'computer-use'
       ? { ...capability, ...computerUseCapability }
       : capability)
+    if (agentKernel !== 'dsh') return merged
+    return [
+      ...merged,
+      {
+        id: 'ask',
+        label: t('Ask 卡', 'Ask card'),
+        status: 'unavailable' as const,
+        detail: acpGuestUnavailableReason('ask', t),
+      },
+      {
+        id: 'durable-research',
+        label: t('Durable 研究', 'Durable research'),
+        status: 'unavailable' as const,
+        detail: acpGuestUnavailableReason('durable-research', t),
+      },
+      {
+        id: 'milksu-workspace',
+        label: 'milksu_workspace',
+        status: 'unavailable' as const,
+        detail: acpGuestUnavailableReason('milksu-workspace', t),
+      },
+    ]
   }, [
     conversation?.agentCapabilities,
     effectiveExecutionMode,
@@ -929,6 +920,8 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     computerUseReadyForCurrentTask,
     selectedComputerUseTarget,
     computerUseOwnedByCurrentTask,
+    agentKernel,
+    t,
   ])
   const codingPolicyLabel = useMemo(() => {
     const mode = effectiveExecutionMode === 'plan' ? 'Plan' : 'Go'
@@ -942,26 +935,21 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     return `${mode} · ${approval}`
   }, [effectiveExecutionMode, effectiveApprovalPolicy, t])
   const topbarPresentation = useMemo(() => chatTopbarPresentation({
-    ctfSession,
     vulnerabilitySession,
     conversationTitle: conversation?.title,
     workspacePath,
     codingPolicyLabel,
-    ctfMode,
-  }), [ctfSession, vulnerabilitySession, conversation?.title, workspacePath, codingPolicyLabel, ctfMode])
-  const topbarModule = ctfSession
-    ? 'ctf'
-    : vulnerabilitySession
-      ? 'cve'
-      : conversation?.domainTaskContext?.kind === 'lab'
-        ? 'lab'
-        : reverseHome
-          ? 'reverse'
-          : 'coding'
+  }), [vulnerabilitySession, conversation?.title, workspacePath, codingPolicyLabel])
+  const topbarModule = vulnerabilitySession
+    ? 'cve'
+    : conversation?.domainTaskContext?.kind === 'lab'
+      ? 'lab'
+      : reverseHome
+        ? 'reverse'
+        : 'coding'
   const emptyCanvas = !(conversation?.messages.length)
   const codingDraftIdle = (
-    !ctfSession
-    && !vulnerabilitySession
+    !vulnerabilitySession
     && emptyCanvas
   )
   const approvalMenuLabel = useMemo(() => (
@@ -995,7 +983,6 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
   const workspaceName = useMemo(() => {
     if (automaticScratchWorkspace) return t('无项目任务', 'No project')
     const context = conversation?.domainTaskContext
-    if (context?.kind === 'ctf' && context.challengeTitle.trim()) return context.challengeTitle.trim()
     if (context?.kind === 'cve' && context.cveId.trim()) return context.cveId.trim()
     if (context?.kind === 'lab' && context.title.trim()) return context.title.trim()
     return codingWorkspaceLabel(workspacePath, homeDirectory)
@@ -1154,7 +1141,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     recoverableFailureId ?? '',
     rewindableUserMessageId ?? '',
     rewindUnavailable ? 1 : 0,
-    ctfSession ? 'ctf' : 'coding',
+    'coding',
     agentKernel,
     activityExpansionRev,
     running ? 1 : 0,
@@ -1241,10 +1228,9 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     if (streamStale) return t('等待中…', 'Waiting…')
     return t('等待引擎响应…', 'Waiting for the engine…')
   })()
-  const latestJudge = ctfProjection?.judgeReceipts.at(-1)
   const contextPanelTitle = ({
-    domain: ctfSession ? t('CTF 领域上下文', 'CTF domain context') : vulnerabilitySession ? t('CVE 领域上下文', 'CVE domain context') : t('领域上下文', 'Domain context'),
-    environment: ctfSession ? t('解题环境', 'Challenge environment') : t('环境信息', 'Environment'),
+    domain: vulnerabilitySession ? t('CVE 领域上下文', 'CVE domain context') : t('领域上下文', 'Domain context'),
+    environment: t('环境信息', 'Environment'),
     changes: t('变更', 'Changes'),
     artifacts: t('产物', 'Artifacts'),
     images: t('图片', 'Images'),
@@ -1252,25 +1238,8 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     reverse: t('逆向产物', 'Reverse artifacts'),
     'browser-use': 'Browser Use',
     'computer-use': 'Computer Use',
-    collaboration: t('Agent 协作', 'Agent collaboration'),
-    evidence: t('证据与 Judge', 'Evidence and Judge'),
   })[contextPanel]
   const transientComputerUsePanel = contextPanel === 'browser-use' || contextPanel === 'computer-use'
-  const ctfRoleLabel = ctfRole === 'tool-builder'
-    ? t('Coding Agent 工具工坊', 'Coding Agent tool workshop')
-    : ctfRole === 'strategist'
-      ? t('策略 Agent 复盘', 'Strategy Agent debrief')
-      : t('CTF 解题会话', 'CTF solving session')
-  const workshopSummary = useMemo(() => {
-    if (!workshopState) return t('正在读取工具交接状态', 'Reading tool handoff status')
-    if (workshopState.pendingCount) return t(`${workshopState.pendingCount} 个工具请求待实现`, `${workshopState.pendingCount} tool requests pending`)
-    if (workshopState.readyCount) return t(`${workshopState.readyCount} 个工具已交付，等待解题 Agent 验收`, `${workshopState.readyCount} tools delivered, waiting for the solving agent to verify`)
-    if (workshopState.blockedCount) return t(`${workshopState.blockedCount} 个工具请求被阻塞`, `${workshopState.blockedCount} tool requests blocked`)
-    if (workshopState.unknownCount) return t(`${workshopState.unknownCount} 个请求缺少有效状态`, `${workshopState.unknownCount} requests are missing a valid status`)
-    return workshopState.toolCount
-      ? t(`${workshopState.toolCount} 个本题工具已保存在工作区`, `${workshopState.toolCount} challenge tools saved in the workspace`)
-      : t('当前没有工具请求', 'No tool requests')
-  }, [workshopState, t])
   // 钉底时窗口永远贴尾（新输出总是可见）；翻上去之后由 transcriptWindowStart 决定挂载区间。
   const transcriptStart = chatAutoScrollPinnedState
     ? tailTranscriptStart(chatTranscript.length)
@@ -2012,70 +1981,9 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     }
   }
 
-  async function loadWorkshopState() {
-    const jobId = conversationRef.current?.ctfJobId
-    if (!ctfSessionRef.current || !jobId || conversationRef.current?.ctfRole === 'strategist') {
-      setWorkshopState(null)
-      return
-    }
-    try {
-      setWorkshopState(await invokeCommand<CTFToolWorkshopState>(
-        'get_ctf_tool_workshop_state',
-        { id: jobId },
-      ))
-    } catch {
-      setWorkshopState(null)
-    }
-  }
-
-  async function loadCTFDomainProjection() {
-    if (!ctfSessionRef.current) {
-      setCtfProjection(null)
-      return
-    }
-    const jobId = conversationRef.current?.ctfJobId
-    if (!jobId) {
-      setCtfProjection(null)
-      return
-    }
-    try {
-      const projection = await invokeCommand<CTFProjection>('get_ctf_job', { id: jobId })
-      setCtfProjection(projection)
-      ctfProjectionRef.current = projection
-    } catch {
-      // Keep the last successful projection if a mid-turn read fails.
-    }
-  }
-
   async function refreshEnvironment() {
     setEnvironmentError('')
     const errors: string[] = []
-    if (ctfSessionRef.current) {
-      const jobId = conversationRef.current?.ctfJobId
-      if (!jobId) {
-        setCtfBudget(null)
-        setCtfCheckpoint(null)
-      } else {
-        setEnvironmentLoading(true)
-        const [budget, checkpoint] = await Promise.allSettled([
-          invokeCommand<CTFAgentBudgetStatus>('get_ctf_agent_budget_status', { id: jobId }),
-          invokeCommand<CTFAgentRunCheckpoint | null>('get_ctf_agent_run_checkpoint', { id: jobId }),
-        ])
-        await loadCTFDomainProjection()
-        setCtfBudget(budget.status === 'fulfilled' ? budget.value : null)
-        setCtfCheckpoint(checkpoint.status === 'fulfilled' ? checkpoint.value : null)
-        if (
-          [budget, checkpoint].every(result => result.status === 'rejected')
-          && !ctfProjectionRef.current
-        ) {
-          errors.push(t('暂时无法读取解题环境。', 'The challenge environment cannot be read right now.'))
-        }
-      }
-    } else {
-      setCtfBudget(null)
-      setCtfCheckpoint(null)
-      setCtfProjection(null)
-    }
     if (!workspacePathRef.current) {
       setCodingEnvironment(null)
       codingEnvironmentRef.current = null
@@ -2147,14 +2055,12 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     }
     await Promise.all([
       refreshEnvironment(),
-      loadWorkshopState(),
       refreshMCPConfig(),
     ])
   }
 
   function changeContextPanel(value: string) {
     if (!contextPanelValues.some(panel => panel === value)) return
-    if (value === 'collaboration' && !ctfSessionRef.current) return
     const panel = value as ContextPanel
     if (panel !== 'browser-use' && panel !== 'computer-use' && panel !== 'domain') {
       setRailTabs(tabs => tabs.includes(panel) ? tabs : [...tabs, panel])
@@ -2189,20 +2095,6 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     setArtifactPreviewEvidence({
       relativePath: preview.relativePath,
       kind: preview.kind,
-    })
-  }
-
-  function requestTool() {
-    onCtfAction?.({
-      kind: 'handoff',
-      prompt: '检查 notes.md 当前真正的阻塞点。如果确实需要一个可重复使用的辅助工具，请按 TOOLING.md 在 work/tool-requests/ 新建一个 status: pending 的最小请求，写清单一假设、输入输出契约、验收条件、fixture 和安全边界；这一步只写请求，不实现工具。若一次性命令已足够，请说明为什么不需要委托 Coding Agent。',
-    })
-  }
-
-  function verifyDeliveredTool() {
-    onCtfAction?.({
-      kind: 'handoff',
-      prompt: '读取 work/tool-requests/ 中最新的 ready 请求和对应的 work/tools/ 实现。不要相信交付声明本身：独立运行验收测试，用当前题目材料验证输出契约，把命令、关键输出、结论和限制写入 notes.md，再决定是否把工具用于下一步解题。',
     })
   }
 
@@ -2255,7 +2147,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
       .reverse()
       .find(message => message.role === 'user')
     onSend?.(
-      emptyVisibleReply ? emptyVisibleReplyRecoveryPrompt() : agentRecoveryPrompt(ctfSession),
+      emptyVisibleReply ? emptyVisibleReplyRecoveryPrompt() : agentRecoveryPrompt(),
       t('继续', 'Continue'),
       lastUserMessage?.attachments,
     )
@@ -2809,7 +2701,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
 
   useEffect(() => {
     void scrollChatToBottom()
-  }, [conversation?.messages.length, conversation?.id, ctfSession, vulnerabilitySession])
+  }, [conversation?.messages.length, conversation?.id, vulnerabilitySession])
 
   // 跟随输出：只要用户没有往上翻（chatAutoScrollPinned），内容高度一变就贴底。
   // 流式增量、过程折叠变化、图片载入都不一定改 messages.length，靠 ResizeObserver 全覆盖。
@@ -2899,7 +2791,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
       return
     }
     if (contextPanelRef.current === 'domain') setContextPanel('environment')
-  }, [ctfSession, vulnerabilitySession])
+  }, [vulnerabilitySession])
 
   useEffect(() => {
     const draft = pendingComposerDraft
@@ -2950,7 +2842,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
   useEffect(() => {
     void refreshMCPConfig()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ctfSession, workspacePath])
+  }, [workspacePath])
 
   useEffect(() => {
     if (!shouldRememberCodingProject(workspacePath)) return
@@ -2977,25 +2869,9 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
   }, [contextPanel, environmentOpen])
 
   useEffect(() => {
-    if (ctfSession && conversation?.ctfJobId) {
-      void loadCTFDomainProjection()
-      return
-    }
-    if (!ctfSession) setCtfProjection(null)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ctfSession, conversation?.ctfJobId])
-
-  useEffect(() => {
-    if (ctfSession && conversation?.ctfJobId && !running) {
-      void Promise.all([loadWorkshopState(), refreshEnvironment()])
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ctfSession, conversation?.ctfJobId, ctfRole, running])
-
-  useEffect(() => {
     if (!running) void refreshEnvironment()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ctfSession, conversation?.id, workspacePath, running])
+  }, [conversation?.id, workspacePath, running])
 
   // 逆向页与其他一级页面共用同一个 ChatPage 实例（display 切换不卸载），
   // 逆向专属的右栏状态必须跟着 section 走，不泄漏到画图 / Coding 页。
@@ -3034,21 +2910,16 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     if (panel === 'images') return <ImageIcon className="size-3.5 shrink-0" />
     if (panel === 'browser' || panel === 'browser-use') return <Globe2 className="size-3.5 shrink-0" />
     if (panel === 'computer-use') return <MousePointer2 className="size-3.5 shrink-0" />
-    if (panel === 'collaboration') return <Wrench className="size-3.5 shrink-0" />
     if (panel === 'reverse') return <PackageOpen className="size-3.5 shrink-0" />
     return <CircleDot className="size-3.5 shrink-0" />
   }
   const railCatalog: { id: ContextPanel; label: string }[] = [
-    { id: 'environment', label: ctfSession ? t('解题环境', 'Challenge environment') : t('环境信息', 'Environment') },
+    { id: 'environment', label: t('环境信息', 'Environment') },
     { id: 'changes', label: t('变更', 'Changes') },
     { id: 'artifacts', label: t('产物', 'Artifacts') },
     { id: 'images', label: t('图片', 'Images') },
     { id: 'browser', label: t('浏览器', 'Browser') },
     { id: 'reverse', label: t('逆向产物', 'Reverse artifacts') },
-    ...(ctfSession ? [
-      { id: 'collaboration' as const, label: t('Agent 协作', 'Agent collaboration') },
-      { id: 'evidence' as const, label: t('证据与 Judge', 'Evidence and Judge') },
-    ] : []),
   ]
   const railQueryText = railQuery.trim().toLocaleLowerCase()
   const railMenuItems = railCatalog.filter(item => !railQueryText || item.label.toLocaleLowerCase().includes(railQueryText))
@@ -3330,7 +3201,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
                       process={item}
                       model={chatFoldModels.get(item.id) ?? chatFoldEvaluator.modelFor(item.id, running)}
                       recoverableFailureId={recoverableFailureId}
-                      recoveryContext={ctfSession ? 'ctf' : 'coding'}
+                      recoveryContext="coding"
                       rewindableUserMessageId={rewindableUserMessageId}
                       rewindDisabled={rewindUnavailable}
                       kernel={agentKernel}
@@ -3367,7 +3238,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
                     <MemoChatMessageItem
                       message={item.message}
                       recoverable={item.message.id === recoverableFailureId}
-                      recoveryContext={ctfSession ? 'ctf' : 'coding'}
+                      recoveryContext="coding"
                       canRewind={item.message.id === rewindableUserMessageId}
                       rewindDisabled={rewindUnavailable}
                       kernel={agentKernel}
@@ -3582,7 +3453,6 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
             queuedGuidanceAwaitingTool={queuedGuidanceAwaitingTool}
             queuedGuidanceStalled={messageQueue?.stalled === true}
             abortStalled={abortStalled}
-            ctfSession={ctfSession}
             goalMode={goalMode}
             goal={activeGoal}
             executionMode={effectiveExecutionMode}
@@ -3657,7 +3527,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
             onControlGoal={controlComposerGoal}
             onChangeMcpServers={(servers, digest) => onChangeMcpServers?.(servers, digest)}
           />
-          {emptyCanvas && !imageHome && !ctfSession ? (
+          {emptyCanvas && !imageHome ? (
             <div
               className="agent-thread mt-5 flex flex-wrap items-center justify-center gap-2"
               data-testid="empty-capability-chips"
@@ -3918,34 +3788,6 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
                       </p>
                     )}
                   </section>
-
-                  {ctfSession ? (
-                    <section className="border-b border-border px-4 py-4">
-                      <p className="text-caption font-medium text-muted-foreground">{t('当前解题', 'Current challenge')}</p>
-                      <div className="mt-3 space-y-3 text-body">
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="text-muted-foreground">{t('角色', 'Role')}</span>
-                          <span>{ctfRoleLabel}</span>
-                        </div>
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="text-muted-foreground">{t('协作', 'Collaboration')}</span>
-                          <span>{ctfMode === 'coach' ? t('教练', 'Coach') : ctfMode === 'delegate' ? t('代理', 'Delegate') : t('搭档', 'Partner')}</span>
-                        </div>
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="text-muted-foreground">{t('阶段', 'Phase')}</span>
-                          <span>{ctfCheckpoint?.progress?.phase || ctfCheckpoint?.status || t('待启动', 'Not started')}</span>
-                        </div>
-                        {ctfBudget ? (
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="text-muted-foreground">{t('回合预算', 'Turn budget')}</span>
-                            <span className="font-mono text-caption">
-                              {ctfBudget.remainingTurns}/{ctfBudget.budget.maxTurns}
-                            </span>
-                          </div>
-                        ) : null}
-                      </div>
-                    </section>
-                  ) : null}
 
                   <section className="border-b border-border px-4 py-4">
                     <p className="text-caption font-medium text-muted-foreground">Agent</p>
@@ -4348,122 +4190,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
                     />
                   </section>
                 </>
-              ) : contextPanel === 'collaboration' ? (
-                <>
-                  <section className="border-b border-border px-4 py-4">
-                    <p className="text-caption font-medium text-muted-foreground">{t('当前角色', 'Current role')}</p>
-                    <div className="mt-3 grid gap-2">
-                      <Button
-                        variant={ctfRole === 'solver' ? 'secondary' : 'outline'}
-                        className="justify-start"
-                        onClick={() => onSwitchCtfAgent?.('solver')}
-                      >
-                        <Flag className="size-4" />
-                        {t('解题 Agent', 'Solving agent')}
-                      </Button>
-                      <Button
-                        variant={ctfRole === 'tool-builder' ? 'secondary' : 'outline'}
-                        className="justify-start"
-                        onClick={() => onSwitchCtfAgent?.('tool-builder')}
-                      >
-                        <Wrench className="size-4" />
-                        {t('Coding Agent 工具工坊', 'Coding Agent tool workshop')}
-                      </Button>
-                      <Button
-                        variant={ctfRole === 'strategist' ? 'secondary' : 'outline'}
-                        className="justify-start"
-                        onClick={() => onSwitchCtfAgent?.('strategist')}
-                      >
-                        <Route className="size-4" />
-                        {t('策略复盘', 'Strategy debrief')}
-                      </Button>
-                    </div>
-                    {ctfRole === 'strategist' ? (
-                      <div className="mt-3 rounded-lg bg-primary/5 px-3 py-3">
-                        <p className="text-body font-medium">{t('策略 Agent 复盘', 'Strategy Agent debrief')}</p>
-                        <p className="mt-1 text-caption leading-5 text-muted-foreground">
-                          {t('独立审阅题面、轨迹与证据；不执行命令，不修改解题笔记或候选。', 'Independently review the challenge, trajectory, and evidence. Do not run commands or change solving notes or candidates.')}
-                        </p>
-                        <Button
-                          variant="link"
-                          size="text"
-                          className="mt-2"
-                          onClick={() => onSwitchCtfAgent?.('solver')}
-                        >
-                          {t('复盘完成后返回验证', 'Return to verification after debrief')}
-                        </Button>
-                      </div>
-                    ) : null}
-                  </section>
-                  <section className="border-b border-border px-4 py-4">
-                    <p className="text-caption font-medium text-muted-foreground">{t('工具交接', 'Tool handoff')}</p>
-                    <p className="mt-2 text-body">{workshopSummary}</p>
-                    {workshopState?.latestRequest ? (
-                      <p
-                        className="mt-1 truncate text-caption text-muted-foreground"
-                        title={workshopState.latestRequest.relativePath}
-                      >
-                        {workshopState.latestRequest.title}
-                      </p>
-                    ) : null}
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      {ctfRole !== 'tool-builder' && workshopState?.readyCount ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={running}
-                          onClick={verifyDeliveredTool}
-                        >
-                          {t('验收工具', 'Verify tool')}
-                        </Button>
-                      ) : ctfRole !== 'tool-builder' && !workshopState?.pendingCount ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={running}
-                          onClick={requestTool}
-                        >
-                          {t('提出工具需求', 'Request a tool')}
-                        </Button>
-                      ) : null}
-                    </div>
-                  </section>
-                </>
-              ) : (
-                <section className="border-b border-border px-4 py-4">
-                  <p className="text-caption font-medium text-muted-foreground">{t('证据与 Judge', 'Evidence and Judge')}</p>
-                  <div className="mt-3 grid grid-cols-2 gap-3">
-                    <div>
-                      <p className="text-xl font-semibold">{ctfProjection?.evidence.length ?? 0}</p>
-                      <p className="text-caption text-muted-foreground">{t('证据', 'Evidence')}</p>
-                    </div>
-                    <div>
-                      <p className="text-xl font-semibold">{ctfProjection?.artifacts.length ?? 0}</p>
-                      <p className="text-caption text-muted-foreground">{t('制品', 'Artifacts')}</p>
-                    </div>
-                  </div>
-                  {latestJudge ? (
-                    <div className="mt-4 flex items-start gap-2">
-                      <CircleDot
-                        className={cn(
-                          'mt-0.5 size-4 shrink-0',
-                          latestJudge.correct ? 'text-primary' : 'text-muted-foreground',
-                        )}
-                      />
-                      <div>
-                        <p className="text-body font-medium">{latestJudge.platform} · {latestJudge.status}</p>
-                        <MarkdownContent
-                          className="mt-1 line-clamp-3 text-caption leading-5 text-muted-foreground"
-                          content={latestJudge.summary}
-                          compact
-                        />
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="mt-3 text-caption text-muted-foreground">{t('尚无外部 Judge 回执。', 'No external Judge receipts yet.')}</p>
-                  )}
-                </section>
-              )}
+              ) : null}
             </div>
           </ContextRail>
         ) : null}

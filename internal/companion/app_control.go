@@ -252,7 +252,7 @@ func ApplySettingsPatch(current config.AppSettings, patch map[string]any) (confi
 
 func credentialSetting(name string) bool {
 	switch strings.ToLower(strings.TrimSpace(name)) {
-	case "providers", "relay", "nssctf_arena", "api_key", "key", "token", "password", "secret":
+	case "providers", "relay", "api_key", "key", "token", "password", "secret":
 		return true
 	default:
 		folded := strings.ToLower(name)

@@ -20,8 +20,8 @@ export function roleGuidanceForSession(sessionRole, uiLocale) {
   }
   if (sessionRole === "solver") {
     return chinese
-      ? "一次只推进一个可证伪的 CTF 假设，并为学习者保留证据。"
-      : "Advance one falsifiable CTF hypothesis at a time and preserve evidence for the learner.";
+      ? "一次只推进一个可证伪的假设，并保留证据。"
+      : "Advance one falsifiable hypothesis at a time and preserve evidence.";
   }
   if (sessionRole === "cve-research" || sessionRole === "lab-job") {
     return researchReportGuidance(sessionRole, uiLocale);

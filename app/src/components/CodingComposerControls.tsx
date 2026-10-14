@@ -109,7 +109,6 @@ const CONTROL_STYLES = `
 
 export default function CodingComposerControls({
   running,
-  ctfSession,
   approvalPolicy,
   approvalLabel,
   modelKey,
@@ -136,7 +135,6 @@ export default function CodingComposerControls({
   onChangeImageModel,
 }: {
   running: boolean
-  ctfSession: boolean
   approvalPolicy: CodingApprovalPolicy
   approvalLabel: string
   modelKey: string
@@ -174,7 +172,7 @@ export default function CodingComposerControls({
       model,
       disabled: modelUnavailableOnDsh(model, group.providerId),
       title: modelUnavailableOnDsh(model, group.providerId)
-        ? t('DeepSeek Harness 不支持这个模型', 'DeepSeek Harness does not support this model')
+        ? t('这个 Agent 不支持这个模型', 'This agent does not support this model')
         : undefined,
     })),
   }))
@@ -208,8 +206,6 @@ export default function CodingComposerControls({
     const parsed = parseComposerModelKey(modelKey)
     return `${parsed.model ?? ''} ${compactModelLabel}`
   }
-
-  void ctfSession
 
   return (
     <div className="chat-composer__slots">

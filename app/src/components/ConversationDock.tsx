@@ -10,7 +10,6 @@ import type {
   CodingApprovalPolicy,
   CodingExecutionMode,
   Conversation,
-  CTFChatAction,
 } from '@/types'
 
 const DOCK_STYLES = `
@@ -145,10 +144,7 @@ const ConversationDock = forwardRef<ConversationDockHandle, {
   compactedAt?: number
   compactionError?: string
   turnStatus?: SessionTurnSnapshot
-  ctfSession?: boolean
   vulnerabilitySession?: boolean
-  ctfMode?: 'coach' | 'copilot' | 'delegate'
-  ctfRole?: 'solver' | 'tool-builder' | 'strategist'
   kernel?: 'pi' | 'dsh'
   modelMode?: 'auto' | 'manual'
   modelProvider?: string
@@ -166,7 +162,6 @@ const ConversationDock = forwardRef<ConversationDockHandle, {
   onClose?: () => void
   onSelect?: (id: string) => void
   onConsumePendingDraft?: () => void
-  onCtfAction?: (action: CTFChatAction) => void
   onCompactContext?: () => void
   onRewindContext?: () => void
   onHandoffContext?: () => void
@@ -202,10 +197,7 @@ const ConversationDock = forwardRef<ConversationDockHandle, {
   compactedAt,
   compactionError,
   turnStatus,
-  ctfSession = false,
   vulnerabilitySession = false,
-  ctfMode,
-  ctfRole,
   kernel,
   modelMode,
   modelProvider,
@@ -222,7 +214,6 @@ const ConversationDock = forwardRef<ConversationDockHandle, {
   onExpand,
   onClose,
   onConsumePendingDraft,
-  onCtfAction,
   onCompactContext,
   onRewindContext,
   onHandoffContext,
@@ -260,7 +251,6 @@ const ConversationDock = forwardRef<ConversationDockHandle, {
   topRef.current = top
   void conversations
 
-  const dockCtfSession = ctfSession || Boolean(conversation?.ctfJobId)
   const dockVulnerabilitySession = vulnerabilitySession || conversation?.domainTaskContext?.kind === 'cve'
 
   function maxWidth() {
@@ -470,10 +460,7 @@ const ConversationDock = forwardRef<ConversationDockHandle, {
               compactedAt={compactedAt}
               compactionError={compactionError}
               turnStatus={turnStatus}
-              ctfSession={dockCtfSession}
               vulnerabilitySession={dockVulnerabilitySession}
-              ctfMode={ctfMode}
-              ctfRole={ctfRole}
               kernel={kernel}
               modelMode={modelMode}
               modelProvider={modelProvider}
@@ -488,7 +475,6 @@ const ConversationDock = forwardRef<ConversationDockHandle, {
               onSend={onSend}
               onAbort={onAbort}
               onConsumePendingDraft={onConsumePendingDraft}
-              onCtfAction={onCtfAction}
               onCompactContext={onCompactContext}
               onRewindContext={onRewindContext}
               onHandoffContext={onHandoffContext}

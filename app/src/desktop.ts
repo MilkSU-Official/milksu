@@ -36,26 +36,9 @@ import {
   type CompanionStatus,
   type CompanionTranscriptCursor,
   type CompanionTranscriptPage,
-  type CTFMemoryOverview,
   type SessionIndexRefreshResult,
   type SessionIndexStatusPayload,
 } from './types'
-import type {
-  CTFArtifactPreview,
-  CTFAgentBudgetStatus,
-  CTFAgentRunCheckpoint,
-  CTFAgentReplay,
-  CTFAgentWorkspaceHandoff,
-  CTFChallengeRequest,
-  CTFEndpointRequestInput,
-  CTFLearningRecordRequest,
-  CTFMaterialRequest,
-  CTFProjection,
-  CTFSummary,
-  CTFToolWorkshopState,
-  CTFTrainingReportExport,
-  CTFTrainingMemory,
-} from './ctfTypes'
 import type {
   VulnAssetVerificationRequest,
   VulnLearningRecordRequest,
@@ -63,22 +46,6 @@ import type {
   VulnSummary,
   VulnTrackingWorkspaceRequest,
 } from './vulnTypes'
-import type { NSSCTFChallenge } from './nssctfTypes'
-import type { NSSCTFArenaSubmission, NSSCTFArenaWorkspace } from './nssctfArenaTypes'
-import type { NSSCTFWebBridgeStatus, NSSCTFWebSubmission } from './nssctfWebTypes'
-import type {
-  CTFShowCatalogStatus,
-  CTFShowChallengeWorkspace,
-  CTFShowWebSubmission,
-} from './ctfshowTypes'
-import type {
-  NSSCTFCatalogQuery,
-  NSSCTFCatalogSearchResult,
-  NSSCTFCatalogSyncResult,
-  NSSCTFDailyChallengeSelection,
-  NSSCTFTrainingDashboard,
-} from './nssctfTrainingTypes'
-import type { CTFTrainingPlatform } from './ctfPlatformTypes'
 import type {
   ActivePluginTheme,
   PluginBackgroundChoice,
@@ -116,7 +83,6 @@ import type {
   SecurityToolSetupSnapshot,
   SecurityToolSnapshot,
 } from './securityToolsTypes'
-import type { EvalBoardSnapshot, EvalModelRef } from './evalTypes'
 
 type CommandArgs = Record<string, unknown>
 type UnlistenFn = () => void
@@ -238,15 +204,6 @@ interface DesktopAppBindings {
   }>
   StartCodingToolSkillSetup(name: string): Promise<SecurityToolSetupSnapshot>
   GetCodingToolSkillSetup(name: string): Promise<SecurityToolSetupSnapshot>
-  GetEvalBoard(request: { models?: EvalModelRef[]; selected?: string }): Promise<EvalBoardSnapshot>
-  StartEvalRun(request: {
-    suite: string
-    provider: string
-    model: string
-    source?: string
-    models?: EvalModelRef[]
-  }): Promise<EvalBoardSnapshot>
-  StopEvalRun(): Promise<EvalBoardSnapshot>
   ListPlugins(): Promise<PluginDescriptor[]>
   SetPluginEnabled(id: string, enabled: boolean): Promise<PluginDescriptor[]>
   GetPluginSettingsScript(id: string): Promise<string>
@@ -303,7 +260,6 @@ interface DesktopAppBindings {
   GetCodingProjectMemory(): Promise<CodingProjectMemory>
   RememberCodingProject(path: string): Promise<CodingProjectMemory>
   ForgetCodingProject(path: string): Promise<CodingProjectMemory>
-  ChooseCTFMaterials(): Promise<CTFMaterialRequest[]>
   ChooseCodingAttachments(): Promise<CodingAttachment[]>
   ImportCodingAttachments(payloads: CodingAttachmentImport[]): Promise<CodingAttachment[]>
   PreviewCodingAttachment(attachment: CodingAttachment): Promise<CodingAttachmentPreview>
@@ -326,7 +282,6 @@ interface DesktopAppBindings {
   ForgetCompanionMemory(id: string): Promise<void>
   GetSessionIndexStatus(): Promise<SessionIndexStatusPayload>
   RefreshSessionIndex(): Promise<SessionIndexRefreshResult>
-  GetCTFMemoryOverview(): Promise<CTFMemoryOverview>
   ConfirmCompanionDispatch(
     action: string,
     conversationId: string,
@@ -382,6 +337,7 @@ interface DesktopAppBindings {
     attachments: CodingAttachment[],
     productAction?: CodingProductActionRequest,
     branchFromUserOccurrence?: number,
+    traceId?: string,
   ): Promise<void>
   ForkConversation(conversationId: string, role: string, occurrence: number): Promise<string>
   RewindCodingSession(conversationId: string): Promise<void>
@@ -544,69 +500,11 @@ interface DesktopAppBindings {
   ): Promise<void>
   TestAgentModel(settings: AppSettings): Promise<ModelProbeResult>
   GetCodingUsageSnapshot(): Promise<CodingUsageSnapshot>
-  ImportNSSCTFChallenge(rawURL: string): Promise<NSSCTFChallenge>
-  SyncNSSCTFCatalog(rawURL: string): Promise<NSSCTFCatalogSyncResult>
-  GetNSSCTFTrainingDashboard(): Promise<NSSCTFTrainingDashboard>
-  RecommendCTFDailyChallenge(
-    dateKey: string,
-    excludedProblemIds: number[],
-  ): Promise<NSSCTFDailyChallengeSelection>
-  ListNSSCTFCatalog(query: NSSCTFCatalogQuery): Promise<NSSCTFCatalogSearchResult>
-  GetCTFTrainingPlatforms(): Promise<CTFTrainingPlatform[]>
-  OpenNSSCTFChallenge(rawURL: string): Promise<void>
-  OpenCTFSourceURL(rawURL: string): Promise<void>
+  OpenSourceURL(rawURL: string): Promise<void>
   OpenChromeExtensionManager(): Promise<void>
   OpenPlaywrightBrowserExtension(): Promise<void>
   GetBrowserUseRuntime(): Promise<BrowserUseRuntime>
   RevealBrowserExtension(): Promise<void>
-  GetCTFShowCatalogStatus(): Promise<CTFShowCatalogStatus>
-  OpenCTFShowChallenges(rawURL: string): Promise<void>
-  ImportCTFShowChallenge(
-    problemId: number,
-    collaborationMode: string,
-    localMaterials: CTFMaterialRequest[],
-  ): Promise<CTFShowChallengeWorkspace>
-  SubmitCTFShowWebFlag(jobId: string, candidate: string): Promise<CTFShowWebSubmission>
-  GetNSSCTFWebBridgeStatus(): Promise<NSSCTFWebBridgeStatus>
-  ImportNSSCTFWebPageMaterial(problemId: number): Promise<CTFMaterialRequest>
-  ImportNSSCTFWebAttachment(problemId: number): Promise<CTFMaterialRequest>
-  SubmitNSSCTFWebFlag(jobId: string, candidate: string): Promise<NSSCTFWebSubmission>
-  GetNSSCTFArenaCurrent(): Promise<NSSCTFArenaWorkspace>
-  StartNSSCTFArena(): Promise<NSSCTFArenaWorkspace>
-  SubmitNSSCTFArenaFlag(jobId: string, attemptId: number, candidate: string): Promise<NSSCTFArenaSubmission>
-  AbandonNSSCTFArena(jobId: string, attemptId: number): Promise<NSSCTFArenaWorkspace>
-  OpenNSSCTFArena(): Promise<void>
-  StartCTFChallenge(request: CTFChallengeRequest): Promise<CTFProjection>
-  ListCTFJobs(): Promise<CTFSummary[]>
-  GetCTFJob(id: string): Promise<CTFProjection>
-  GetCTFArtifactPreview(id: string, artifactId: string): Promise<CTFArtifactPreview>
-  RequestCTFEndpoint(id: string, request: CTFEndpointRequestInput): Promise<CTFProjection>
-  ApproveCTFEndpoint(id: string, requestId: string): Promise<CTFProjection>
-  DenyCTFEndpoint(id: string, requestId: string): Promise<CTFProjection>
-  PrepareCTFAgentWorkspace(id: string): Promise<CTFAgentWorkspaceHandoff>
-  PrepareCTFToolBuilderWorkspace(id: string): Promise<CTFAgentWorkspaceHandoff>
-  PrepareCTFStrategistWorkspace(id: string): Promise<CTFAgentWorkspaceHandoff>
-  SaveCTFTrainingMemory(id: string): Promise<CTFTrainingMemory>
-  GetCTFMemoryContext(id: string): Promise<CTFTrainingMemory[]>
-  ArchiveCTFMemory(id: string, reason: string): Promise<void>
-  GetCTFToolWorkshopState(id: string): Promise<CTFToolWorkshopState>
-  GetCTFAgentBudgetStatus(id: string): Promise<CTFAgentBudgetStatus>
-  GetCTFAgentRunCheckpoint(id: string): Promise<CTFAgentRunCheckpoint | null>
-  GetCTFAgentReplay(id: string): Promise<CTFAgentReplay>
-  GenerateCTFTrainingReport(id: string): Promise<CTFTrainingReportExport>
-  CancelCTFJob(id: string): Promise<void>
-  RecordCTFLearning(id: string, request: CTFLearningRecordRequest): Promise<CTFProjection>
-  ReviewCTFSubmission(id: string, accepted: boolean, summary: string): Promise<CTFProjection>
-  PrepareCTFExternalSubmission(
-    id: string,
-    candidate: string,
-    explanation: string,
-  ): Promise<CTFProjection>
-  RecordCTFExternalVerdict(
-    id: string,
-    accepted: boolean,
-    summary: string,
-  ): Promise<CTFProjection>
   EnsureVulnTrackingWorkspace(request: VulnTrackingWorkspaceRequest): Promise<VulnProjection>
   ListVulnJobs(): Promise<VulnSummary[]>
   GetVulnJob(id: string): Promise<VulnProjection>
@@ -862,8 +760,6 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.RememberCodingProject(args?.path as string) as Promise<T>
       case 'forget_coding_project':
         return app.ForgetCodingProject(args?.path as string) as Promise<T>
-      case 'choose_ctf_materials':
-        return app.ChooseCTFMaterials() as Promise<T>
       case 'choose_coding_attachments':
         return app.ChooseCodingAttachments() as Promise<T>
       case 'import_coding_attachments':
@@ -907,8 +803,6 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.GetSessionIndexStatus() as Promise<T>
       case 'refresh_session_index':
         return app.RefreshSessionIndex() as Promise<T>
-      case 'get_ctf_memory_overview':
-        return app.GetCTFMemoryOverview() as Promise<T>
       case 'approve_companion_memory':
         return app.ApproveCompanionMemory(args?.id as string) as Promise<T>
       case 'forget_companion_memory':
@@ -1010,6 +904,7 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
           Number.isInteger(args?.branchFromUserOccurrence)
             ? Number(args?.branchFromUserOccurrence)
             : -1,
+          (args?.traceId as string) ?? '',
         ) as Promise<T>
       case 'fork_conversation':
         return app.ForkConversation(
@@ -1356,40 +1251,8 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.StartCodingToolSkillSetup(args?.name as string) as Promise<T>
       case 'get_coding_tool_skill_setup':
         return app.GetCodingToolSkillSetup(args?.name as string) as Promise<T>
-      case 'get_eval_board':
-        return app.GetEvalBoard({
-          models: args?.models as EvalModelRef[] | undefined,
-          selected: args?.selected as string | undefined,
-        }) as Promise<T>
-      case 'start_eval_run':
-        return app.StartEvalRun({
-          suite: args?.suite as string,
-          provider: args?.provider as string,
-          model: args?.model as string,
-          source: args?.source as string | undefined,
-          models: args?.models as EvalModelRef[] | undefined,
-        }) as Promise<T>
-      case 'stop_eval_run':
-        return app.StopEvalRun() as Promise<T>
-      case 'import_nssctf_challenge':
-        return app.ImportNSSCTFChallenge(args?.url as string) as Promise<T>
-      case 'sync_nssctf_catalog':
-        return app.SyncNSSCTFCatalog(args?.url as string) as Promise<T>
-      case 'get_nssctf_training_dashboard':
-        return app.GetNSSCTFTrainingDashboard() as Promise<T>
-      case 'recommend_ctf_daily_challenge':
-        return app.RecommendCTFDailyChallenge(
-          args?.dateKey as string,
-          (args?.excludedProblemIds as number[]) ?? [],
-        ) as Promise<T>
-      case 'list_nssctf_catalog':
-        return app.ListNSSCTFCatalog(args?.query as NSSCTFCatalogQuery) as Promise<T>
-      case 'get_ctf_training_platforms':
-        return app.GetCTFTrainingPlatforms() as Promise<T>
-      case 'open_nssctf_challenge':
-        return app.OpenNSSCTFChallenge(args?.url as string) as Promise<T>
-      case 'open_ctf_source_url':
-        return app.OpenCTFSourceURL(args?.url as string) as Promise<T>
+      case 'open_source_url':
+        return app.OpenSourceURL(args?.url as string) as Promise<T>
       case 'open_chrome_extension_manager':
         return app.OpenChromeExtensionManager() as Promise<T>
       case 'open_playwright_browser_extension':
@@ -1398,115 +1261,6 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.GetBrowserUseRuntime() as Promise<T>
       case 'reveal_browser_extension':
         return app.RevealBrowserExtension() as Promise<T>
-      case 'get_ctfshow_catalog_status':
-        return app.GetCTFShowCatalogStatus() as Promise<T>
-      case 'open_ctfshow_challenges':
-        return app.OpenCTFShowChallenges((args?.url as string) ?? '') as Promise<T>
-      case 'import_ctfshow_challenge':
-        return app.ImportCTFShowChallenge(
-          args?.problemId as number,
-          args?.collaborationMode as string,
-          (args?.localMaterials as CTFMaterialRequest[]) ?? [],
-        ) as Promise<T>
-      case 'submit_ctfshow_web_flag':
-        return app.SubmitCTFShowWebFlag(
-          args?.jobId as string,
-          args?.candidate as string,
-        ) as Promise<T>
-      case 'get_nssctf_web_bridge_status':
-        return app.GetNSSCTFWebBridgeStatus() as Promise<T>
-      case 'import_nssctf_web_page_material':
-        return app.ImportNSSCTFWebPageMaterial(args?.problemId as number) as Promise<T>
-      case 'import_nssctf_web_attachment':
-        return app.ImportNSSCTFWebAttachment(args?.problemId as number) as Promise<T>
-      case 'submit_nssctf_web_flag':
-        return app.SubmitNSSCTFWebFlag(
-          args?.jobId as string,
-          args?.candidate as string,
-        ) as Promise<T>
-      case 'get_nssctf_arena_current':
-        return app.GetNSSCTFArenaCurrent() as Promise<T>
-      case 'start_nssctf_arena':
-        return app.StartNSSCTFArena() as Promise<T>
-      case 'submit_nssctf_arena_flag':
-        return app.SubmitNSSCTFArenaFlag(
-          args?.jobId as string,
-          args?.attemptId as number,
-          args?.candidate as string,
-        ) as Promise<T>
-      case 'abandon_nssctf_arena':
-        return app.AbandonNSSCTFArena(args?.jobId as string, args?.attemptId as number) as Promise<T>
-      case 'open_nssctf_arena':
-        return app.OpenNSSCTFArena() as Promise<T>
-      case 'start_ctf_challenge':
-        return app.StartCTFChallenge(args?.request as CTFChallengeRequest) as Promise<T>
-      case 'list_ctf_jobs':
-        return app.ListCTFJobs() as Promise<T>
-      case 'get_ctf_job':
-        return app.GetCTFJob(args?.id as string) as Promise<T>
-      case 'get_ctf_artifact_preview':
-        return app.GetCTFArtifactPreview(
-          args?.id as string,
-          args?.artifactId as string,
-        ) as Promise<T>
-      case 'request_ctf_endpoint':
-        return app.RequestCTFEndpoint(
-          args?.id as string,
-          args?.request as CTFEndpointRequestInput,
-        ) as Promise<T>
-      case 'approve_ctf_endpoint':
-        return app.ApproveCTFEndpoint(
-          args?.id as string,
-          args?.requestId as string,
-        ) as Promise<T>
-      case 'deny_ctf_endpoint':
-        return app.DenyCTFEndpoint(
-          args?.id as string,
-          args?.requestId as string,
-        ) as Promise<T>
-      case 'prepare_ctf_agent_workspace':
-        return app.PrepareCTFAgentWorkspace(args?.id as string) as Promise<T>
-      case 'prepare_ctf_tool_builder_workspace':
-        return app.PrepareCTFToolBuilderWorkspace(args?.id as string) as Promise<T>
-      case 'prepare_ctf_strategist_workspace':
-        return app.PrepareCTFStrategistWorkspace(args?.id as string) as Promise<T>
-      case 'get_ctf_tool_workshop_state':
-        return app.GetCTFToolWorkshopState(args?.id as string) as Promise<T>
-      case 'save_ctf_training_memory':
-        return app.SaveCTFTrainingMemory(args?.id as string) as Promise<T>
-      case 'get_ctf_memory_context':
-        return app.GetCTFMemoryContext(args?.id as string) as Promise<T>
-      case 'archive_ctf_memory':
-        return app.ArchiveCTFMemory(
-          args?.id as string,
-          args?.reason as string,
-        ) as Promise<T>
-      case 'get_ctf_agent_budget_status':
-        return app.GetCTFAgentBudgetStatus(args?.id as string) as Promise<T>
-      case 'get_ctf_agent_run_checkpoint':
-        return app.GetCTFAgentRunCheckpoint(args?.id as string) as Promise<T>
-      case 'get_ctf_agent_replay':
-        return app.GetCTFAgentReplay(args?.id as string) as Promise<T>
-      case 'generate_ctf_training_report':
-        return app.GenerateCTFTrainingReport(args?.id as string) as Promise<T>
-      case 'cancel_ctf_job':
-        return app.CancelCTFJob(args?.id as string) as Promise<T>
-      case 'record_ctf_learning':
-        return app.RecordCTFLearning(args?.id as string, args?.request as CTFLearningRecordRequest) as Promise<T>
-      case 'review_ctf_submission':
-        return app.ReviewCTFSubmission(args?.id as string, args?.accepted as boolean, args?.summary as string) as Promise<T>
-      case 'prepare_ctf_external_submission':
-        return app.PrepareCTFExternalSubmission(
-          args?.id as string,
-          args?.candidate as string,
-          args?.explanation as string,
-        ) as Promise<T>
-      case 'record_ctf_external_verdict':
-        return app.RecordCTFExternalVerdict(
-          args?.id as string,
-          args?.accepted as boolean,
-          args?.summary as string,
-        ) as Promise<T>
       case 'ensure_vuln_tracking_workspace':
         return app.EnsureVulnTrackingWorkspace(args?.request as VulnTrackingWorkspaceRequest) as Promise<T>
       case 'list_vuln_jobs':

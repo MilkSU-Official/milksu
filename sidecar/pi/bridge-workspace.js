@@ -89,7 +89,7 @@ const workspacePanels = new Set([
   // this panel does not have to run first.
   "computer-use",
 ]);
-const workspaceRecordKinds = new Set(["conversation", "lab", "cve", "ctf"]);
+const workspaceRecordKinds = new Set(["conversation", "lab", "cve"]);
 
 export const researchSessionRoles = Object.freeze(["cve-research", "lab-job"]);
 
@@ -97,9 +97,9 @@ export function isResearchSessionRole(sessionRole = "") {
   return researchSessionRoles.includes(String(sessionRole ?? "").trim());
 }
 
-// CTF keeps solver/strategist/tool-builder. CVE and lab keep their research
-// roles so report.md guidance, workspace compact, and Pi length-followUp still
-// attach. Ordinary Coding stays empty.
+// Leftover solver/strategist/tool-builder roles still resolve when isCtf is
+// true. CVE and lab keep their research roles so report.md guidance, workspace
+// compact, and Pi length-followUp still attach. Ordinary Coding stays empty.
 export function resolveWorkflowSessionRole(sessionRole = "", isCtf = false) {
   const role = String(sessionRole ?? "").trim();
   if (isCtf) return role || "solver";
@@ -405,6 +405,7 @@ export function createCodingWorkspaceExtension(
   getResearchSecrets,
   isResearchActive,
   getReverseArtifacts,
+  getTraceId,
 ) {
   return (pi) => {
     pi.registerTool({
@@ -488,8 +489,7 @@ export function createCodingWorkspaceExtension(
         kind: Type.Optional(Type.Union([
           Type.Literal("conversation"),
           Type.Literal("lab"),
-          Type.Literal("cve"),
-          Type.Literal("ctf"),
+          Type.Literal("cve")
         ])),
         id: Type.Optional(Type.String({ maxLength: 128 })),
         ids: Type.Optional(Type.Array(Type.String({ maxLength: 128 }), { maxItems: 50 })),
@@ -560,7 +560,7 @@ export function createCodingWorkspaceExtension(
           : action === "lock_computer_use_window"
             ? computerUseLockTimeoutMs
             : undefined;
-        const actionInput = action.includes("research_")
+        let actionInput = action.includes("research_")
           ? Object.fromEntries(Object.entries(params).map(([key, value]) => {
             const operationalURL = key === "url"
               && (action === "open_research_browser_tab" || action === "record_research_source");
@@ -569,6 +569,10 @@ export function createCodingWorkspaceExtension(
               : value];
           }))
           : params;
+        if (action === "start_research_run") {
+          const traceId = String(getTraceId?.() ?? "").trim();
+          if (traceId) actionInput = { ...actionInput, traceId };
+        }
         const result = await requestAction({
           conversationId,
           action,

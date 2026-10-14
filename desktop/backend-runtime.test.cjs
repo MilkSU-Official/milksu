@@ -87,6 +87,30 @@ test('results from a previous generation are ignored', async () => {
   runtime.beginStop()
 })
 
+test('BackendRuntime talks JSONL with a node child process', async () => {
+  const { spawn } = require('node:child_process')
+  const runtime = new BackendRuntime({
+    spawnProcess: () => spawn(process.execPath, ['-e', `
+      const readline = require('node:readline')
+      process.stdout.write(JSON.stringify({ type: 'ready' }) + '\\n')
+      const lines = readline.createInterface({ input: process.stdin, crlfDelay: Infinity })
+      lines.on('line', (line) => {
+        let message
+        try { message = JSON.parse(line) } catch { return }
+        if (message.type === 'shutdown') process.exit(0)
+        if (message.type === 'invoke') {
+          process.stdout.write(JSON.stringify({ type: 'result', id: message.id, result: { method: message.method } }) + '\\n')
+        }
+      })
+    `], { stdio: ['pipe', 'pipe', 'pipe'] }),
+    hostHandler: async () => null,
+    eventHandler: () => {},
+  })
+  const result = await runtime.invoke('GetSettings', [])
+  assert.deepEqual(result, { method: 'GetSettings' })
+  await runtime.stop()
+})
+
 test('beginStop prevents recovery after exit', async () => {
   let spawned = 0
   const child = fakeChild()

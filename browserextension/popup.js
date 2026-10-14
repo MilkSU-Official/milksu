@@ -1,34 +1,61 @@
 const pairingInput = document.querySelector('#pairing');
 const status = document.querySelector('#status');
-const title = document.querySelector('#title');
-const description = document.querySelector('#description');
 const connectButton = document.querySelector('#connect');
+const disconnectButton = document.querySelector('#disconnect');
 const pairingSettings = document.querySelector('#pairing-settings');
 const connectionDot = document.querySelector('#connection-dot');
 const connectionLabel = document.querySelector('#connection-label');
+const tabMeta = document.querySelector('#tab-meta');
 
 chrome.storage.local.get(['pairingCode']).then(async ({ pairingCode = '' }) => {
   pairingInput.value = pairingCode;
   pairingSettings.open = !pairingCode;
+  await refreshTabMeta();
   await refreshBridgeStatus();
 });
+
+async function activeTab() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  return tab || null;
+}
+
+async function refreshTabMeta() {
+  const tab = await activeTab();
+  const title = (tab?.title || '').trim();
+  const url = tab?.url || '';
+  if (!url) {
+    tabMeta.textContent = '没有可连接的当前标签 / No active tab';
+    return tab;
+  }
+  tabMeta.textContent = [title, url].filter(Boolean).join('\n');
+  return tab;
+}
+
+async function sessionForTab(tabId) {
+  const { bridgeSessions = {} } = await chrome.storage.local.get(['bridgeSessions']);
+  return Object.entries(bridgeSessions).find(([, value]) => value.tabId === tabId) || null;
+}
 
 async function refreshBridgeStatus() {
   try {
     const bridge = await chrome.runtime.sendMessage({ type: 'milksu.bridge.status' });
     connectionDot.classList.toggle('online', Boolean(bridge?.connected));
     connectionLabel.textContent = bridge?.connected
-      ? 'MilkSU 在线'
+      ? 'MilkSU 在线 / Online'
       : bridge?.paired
-        ? '等待 MilkSU'
-        : '尚未配对';
+        ? '等待 MilkSU / Waiting'
+        : '尚未配对 / Not paired';
     if (!bridge?.connected && bridge?.paired && !status.textContent) {
       status.textContent = bridge.error || '启动 MilkSU 后会自动重连，不需要重新配对。';
     }
+    const tab = await activeTab();
+    const attached = tab?.id ? Boolean(await sessionForTab(tab.id)) : false;
+    disconnectButton.disabled = !attached;
     return bridge || null;
   } catch {
     connectionDot.classList.remove('online');
-    connectionLabel.textContent = '检查失败';
+    connectionLabel.textContent = '检查失败 / Check failed';
+    disconnectButton.disabled = true;
     return null;
   }
 }
@@ -36,7 +63,7 @@ async function refreshBridgeStatus() {
 function decodePairingCode(value) {
   const raw = value.trim();
   if (!raw) {
-    throw new Error('请先从 MilkSU 的“设置 → 浏览器与控制”复制并粘贴配对码');
+    throw new Error('请先从 MilkSU 设置复制并粘贴配对码 / Paste the pairing code from MilkSU settings');
   }
   try {
     const normalized = raw.replace(/-/g, '+').replace(/_/g, '/');
@@ -48,152 +75,52 @@ function decodePairingCode(value) {
     }
     return decoded;
   } catch {
-    throw new Error('配对码无效，请回到 MilkSU 的浏览器设置重新复制');
+    throw new Error('配对码无效，请回到 MilkSU 设置重新复制 / Pairing code is invalid');
   }
 }
 
-async function readNSSCTFPage(tabId) {
-  const [{ result }] = await chrome.scripting.executeScript({
-    target: { tabId },
-    func: () => {
-      const match = /^\/problem\/([1-9][0-9]*)\/?$/.exec(location.pathname);
-      if (location.origin !== 'https://www.nssctf.cn' || !match) {
-        throw new Error('当前标签页不是 NSSCTF 题目详情页');
-      }
-      const normalize = value => (value || '').replace(/\s+/g, ' ').trim();
-      const buttons = Array.from(document.querySelectorAll('button'));
-      const startButton = buttons.find(button => normalize(button.textContent).startsWith('开启环境'));
-      const startMatch = normalize(startButton?.textContent).match(/([0-9]+)/);
-      const loginButton = buttons.find(button => normalize(button.textContent) === '登录');
-      const heading = Array.from(document.querySelectorAll('h1,h2,h3,[role="tabpanel"]'))
-        .map(element => normalize(element.textContent))
-        .find(value => value && !value.startsWith('题目') && value.length <= 160);
-      return {
+async function readCurrentTab(tab) {
+  if (!tab?.id) throw new Error('没有可连接的当前标签页 / No active tab to connect');
+  let title = (tab.title || '').trim();
+  let url = tab.url || '';
+  let text = '';
+  try {
+    const [{ result }] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: () => ({
         title: document.title,
         url: location.href,
-        text: (document.body?.innerText || '').slice(0, 1000000),
-        nssctf: {
-          problemId: Number(match[1]),
-          title: heading || document.title.replace(/\s*-\s*NSSCTF\s*$/, ''),
-          category: '',
-          tags: [],
-          loggedIn: !loginButton,
-          canSubmit: Boolean(document.querySelector('input[placeholder="flag"]')),
-          needsStart: Boolean(startButton),
-          startCost: startMatch ? Number(startMatch[1]) : 0,
-          solved: (document.body?.innerText || '').includes('恭喜您通过了该题'),
-        },
-      };
-    },
-  });
-  return result;
-}
-
-async function readCTFShowCatalog(tabId) {
-  const [{ result }] = await chrome.scripting.executeScript({
-    target: { tabId },
-    world: 'MAIN',
-    func: async () => {
-      if (location.origin !== 'https://ctf.show') {
-        throw new Error('当前标签页不是 CTFshow');
-      }
-      const response = await fetch('/api/v1/challenges', {
-        credentials: 'include',
-        headers: { accept: 'application/json' },
-      });
-      const contentType = response.headers.get('content-type') || '';
-      if (!response.ok || !contentType.includes('application/json')) {
-        throw new Error('请先在当前标签页登录 CTFshow');
-      }
-      const rawPayload = await response.text();
-      if (!rawPayload.trim()) {
-        throw new Error('CTFshow 没有返回题库数据；请刷新页面或重新登录后再试');
-      }
-      let payload;
-      try {
-        payload = JSON.parse(rawPayload);
-      } catch {
-        throw new Error('CTFshow 题库接口格式已变化，当前适配器暂时无法读取');
-      }
-      if (payload?.success !== true || !Array.isArray(payload.data)) {
-        throw new Error(payload?.errors?.[0] || 'CTFshow 没有返回题库');
-      }
-      const problems = payload.data.map(challenge => ({
-        platformId: Number(challenge.id),
-        sourceUrl: `https://ctf.show/challenges#${Number(challenge.id)}`,
-        title: String(challenge.name || '').trim(),
-        category: String(challenge.category || '其他').trim(),
-        points: Number(challenge.value || 0),
-        solvedCount: Number(challenge.solves || 0),
-        tags: Array.isArray(challenge.tags)
-          ? challenge.tags
-            .map(tag => typeof tag === 'string' ? tag : tag?.value || tag?.name || '')
-            .filter(Boolean)
-          : [],
-      }));
-      return {
-        title: document.title || 'CTFshow',
-        url: location.href,
-        text: '',
-        ctfshow: {
-          loggedIn: true,
-          total: problems.length,
-          problems,
-        },
-      };
-    },
-  });
-  return result;
-}
-
-async function activeAdapter(tab) {
-  const url = new URL(tab.url || '');
-  if (url.origin === 'https://www.nssctf.cn' && /^\/problem\/[1-9][0-9]*\/?$/.test(url.pathname)) {
-    return {
-      adapter: 'nssctf-web-v1',
-      page: await readNSSCTFPage(tab.id),
-    };
-  }
-  if (url.origin === 'https://ctf.show') {
-    return {
-      adapter: 'ctfshow-catalog-v1',
-      page: await readCTFShowCatalog(tab.id),
-    };
-  }
-  throw new Error('请打开 NSSCTF 题目或 CTFshow 题库');
-}
-
-async function updatePopupCopy() {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  let origin = '';
-  try {
-    origin = new URL(tab?.url || '').origin;
+        text: (document.body?.innerText || '').slice(0, 1_000_000),
+      }),
+    });
+    if (result?.url) url = result.url;
+    if (String(result?.title || '').trim()) title = String(result.title).trim();
+    text = result?.text || '';
   } catch {
-    // Keep generic copy for browser-internal pages.
+    // Restricted pages expose only the tabs API title/URL.
   }
-  if (origin === 'https://ctf.show') {
-    title.textContent = '同步 CTFshow 题库';
-    description.textContent = '读取当前登录账号可见的题目目录，写入 MilkSU 本地 SQLite。';
-    connectButton.textContent = '同步到 MilkSU';
-  } else if (origin === 'https://www.nssctf.cn') {
-    title.textContent = '连接当前 NSSCTF 题目';
-    description.textContent = '读取当前题面并让 MilkSU 通过此标签页提交 Flag。';
-    connectButton.textContent = '连接这个题目';
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error('无法读取当前标签 / Cannot read this tab');
   }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new Error('只支持 http(s) 页面 / Only http(s) pages can be connected');
+  }
+  if (!title) title = parsed.hostname || url;
+  return { title, url, text };
 }
-
-void updatePopupCopy();
 
 connectButton.addEventListener('click', async () => {
   status.className = '';
-  status.textContent = '正在连接…';
+  status.textContent = '正在连接… / Connecting';
   try {
     const pairingCode = pairingInput.value.trim();
     const { endpoint, token } = decodePairingCode(pairingCode);
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.id) throw new Error('没有可连接的当前标签页');
-    const { adapter, page } = await activeAdapter(tab);
-    if (page.nssctf && !page.nssctf.loggedIn) throw new Error('当前 NSSCTF 标签页尚未登录');
+    const tab = await activeTab();
+    const page = await readCurrentTab(tab);
+    tabMeta.textContent = [page.title, page.url].filter(Boolean).join('\n');
 
     const stored = await chrome.storage.local.get(['bridgeSessions']);
     const sessions = stored.bridgeSessions || {};
@@ -201,9 +128,8 @@ connectButton.addEventListener('click', async () => {
     const bridgeSessionId = existing?.[0] || crypto.randomUUID();
     sessions[bridgeSessionId] = {
       tabId: tab.id,
-      adapter,
-      problemId: page.nssctf?.problemId,
       url: page.url,
+      title: page.title,
       updatedAt: new Date().toISOString(),
     };
     const boundedSessions = Object.fromEntries(
@@ -223,17 +149,17 @@ connectButton.addEventListener('click', async () => {
       headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
       body: JSON.stringify({
         bridgeSessionId,
-        adapter,
-        ...page,
+        title: page.title,
+        url: page.url,
+        text: page.text || '',
       }),
     });
     if (!response.ok) throw new Error(await response.text());
     await chrome.runtime.sendMessage({ type: 'milksu.bridge.reconnect' });
     pairingSettings.open = false;
     status.className = 'success';
-    status.textContent = adapter === 'ctfshow-catalog-v1'
-      ? `已同步 ${page.ctfshow.total} 道 CTFshow 题目。`
-      : `P${page.nssctf.problemId} 已连接；现在可回到 MilkSU 解题和提交。`;
+    status.textContent = '已连接当前标签 / Current tab connected';
+    disconnectButton.disabled = false;
     setTimeout(async () => {
       const bridge = await refreshBridgeStatus();
       if (!bridge?.paired) {
@@ -246,12 +172,34 @@ connectButton.addEventListener('click', async () => {
     }, 300);
   } catch (error) {
     const message = String(error?.message || error);
-    const pairingFailure = /配对码|pairing-code/i.test(message);
+    const pairingFailure = /配对码|pairing-code|Pairing code/i.test(message);
     if (pairingFailure) {
       pairingSettings.open = true;
       pairingInput.focus();
     }
     status.className = 'error';
-    status.textContent = `连接失败：${message}`;
+    status.textContent = `连接失败 / Connect failed: ${message}`;
+  }
+});
+
+disconnectButton.addEventListener('click', async () => {
+  status.className = '';
+  status.textContent = '正在断开… / Disconnecting';
+  try {
+    const tab = await activeTab();
+    if (!tab?.id) throw new Error('没有可断开的当前标签页 / No active tab to disconnect');
+    const attached = await sessionForTab(tab.id);
+    if (!attached) throw new Error('当前标签尚未连接 / This tab is not connected');
+    const response = await chrome.runtime.sendMessage({
+      type: 'milksu.bridge.disconnect',
+      tabId: tab.id,
+    });
+    if (response?.error) throw new Error(response.error);
+    status.className = 'success';
+    status.textContent = '已断开当前标签 / Current tab disconnected';
+    await refreshBridgeStatus();
+  } catch (error) {
+    status.className = 'error';
+    status.textContent = `断开失败 / Disconnect failed: ${String(error?.message || error)}`;
   }
 });

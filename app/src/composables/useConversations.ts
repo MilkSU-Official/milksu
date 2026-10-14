@@ -68,6 +68,7 @@ import {
 } from '@/lib/agentAsk'
 import { normalizeDomainTaskContext } from '@/lib/domainTaskContext'
 import { shouldRememberCodingProject } from '@/lib/codingProjectMemory'
+import { generateTraceId } from '@/lib/traceId'
 import { conversationWorkspaceHome, type WorkspaceHome } from '@/lib/workspaceSessionRouting'
 import {
   clearComposerDraft,
@@ -435,16 +436,11 @@ export function projectAgentTurnPolicy(
 }
 
 interface WorkspaceTask {
-  jobId: string
   conversationId: string
   title: string
   workspacePath: string
   prompt: string
   visibleText?: string
-  policy: {
-    mode: 'coach' | 'copilot' | 'delegate'
-  }
-  role: 'solver' | 'tool-builder' | 'strategist'
   domainTaskContext?: Conversation['domainTaskContext']
   /** When false/omitted, attach session only — never auto-start Pi or fill the composer. */
   autoSend?: boolean
@@ -576,14 +572,7 @@ export function normalizeConversation(raw: Record<string, unknown>): Conversatio
     dshJobs: normalizeDshJobs(raw.dshJobs),
     planMode: normalizePlanMode(raw.planMode),
     dshCommands: normalizeDshCommands(raw.dshCommands),
-    ctfJobId: typeof raw.ctfJobId === 'string' ? raw.ctfJobId : undefined,
-    ctfMode: ['coach', 'copilot', 'delegate'].includes(String(raw.ctfMode))
-      ? raw.ctfMode as Conversation['ctfMode']
-      : undefined,
-    ctfRole: ['solver', 'tool-builder', 'strategist'].includes(String(raw.ctfRole))
-      ? raw.ctfRole as Conversation['ctfRole']
-      : undefined,
-    workspaceHome: ['chat', 'image', 'ctf', 'vuln', 'lab', 'reverse'].includes(String(raw.workspaceHome))
+    workspaceHome: ['chat', 'image', 'vuln', 'lab', 'reverse'].includes(String(raw.workspaceHome))
       ? raw.workspaceHome as Conversation['workspaceHome']
       : undefined,
     domainTaskContext: normalizeDomainTaskContext(raw.domainTaskContext),
@@ -806,7 +795,7 @@ export function agentRuntimeErrorMessage(
     return t('当前会话没有工作区。', 'This conversation has no workspace.')
   }
   if (/CTF Agent directory scope/i.test(raw)) {
-    return t('CTF 会话不能扩大 Coding 目录权限。', 'A CTF session cannot expand Coding directory permissions.')
+    return t('当前会话不能扩大目录权限。', 'This conversation cannot expand directory permissions.')
   }
   if (new RegExp(`project access is (?:not|no longer) authorized|${t('目录权限', 'directory permission')}.*(?:${t('未授权', 'unauthorized')}|${t('已撤销', 'revoked')})`, 'i').test(raw)) {
     return t('当前会话没有这个目录的权限。', 'This conversation does not have access to that directory.')
@@ -2311,6 +2300,7 @@ export function createConversationsRuntime(options?: {
       attachments: dispatch.attachments,
       productAction: dispatch.productAction,
       branchFromUserOccurrence: dispatch.branchFromUserOccurrence,
+      traceId: generateTraceId(),
     })
   }
 
@@ -2716,16 +2706,11 @@ export function createConversationsRuntime(options?: {
       conversationId?: string
       workspacePath?: string
       workspaceHome?: Conversation['workspaceHome']
-      ctfJobId?: Conversation['ctfJobId']
-      ctfMode?: Conversation['ctfMode']
-      ctfRole?: Conversation['ctfRole']
     } = {},
   ) {
     const requestedId = String(options.conversationId ?? '').trim()
     const hasWorkspaceOverride = Object.prototype.hasOwnProperty.call(options, 'workspacePath')
     const workspaceOverride = String(options.workspacePath ?? '').trim() || undefined
-    const clearsCTFContext = options.domainTaskContext?.kind === 'cve'
-      || options.domainTaskContext?.kind === 'lab'
     if (requestedId) {
       const existing = s.conversations.find(item => item.id === requestedId)
       if (existing) {
@@ -2735,9 +2720,6 @@ export function createConversationsRuntime(options?: {
           title: title.trim().slice(0, 40) || conversation.title,
           workspacePath: hasWorkspaceOverride ? workspaceOverride : conversation.workspacePath,
           domainTaskContext: options.domainTaskContext ?? conversation.domainTaskContext,
-          ctfJobId: clearsCTFContext ? undefined : (options.ctfJobId ?? conversation.ctfJobId),
-          ctfMode: clearsCTFContext ? undefined : (options.ctfMode ?? conversation.ctfMode),
-          ctfRole: clearsCTFContext ? undefined : (options.ctfRole ?? conversation.ctfRole),
         }))
         return existing.id
       }
@@ -2777,9 +2759,6 @@ export function createConversationsRuntime(options?: {
       workspaceHome: options.workspaceHome
         ?? (s.pendingWorkspaceHome === 'chat' ? undefined : s.pendingWorkspaceHome),
       domainTaskContext: options.domainTaskContext,
-      ctfJobId: clearsCTFContext ? undefined : options.ctfJobId,
-      ctfMode: clearsCTFContext ? undefined : options.ctfMode,
-      ctfRole: clearsCTFContext ? undefined : options.ctfRole,
       messages: [],
     }
     s.conversations = [conversation, ...s.conversations]
@@ -3028,18 +3007,12 @@ export function createConversationsRuntime(options?: {
       if (
         existing.workspacePath !== task.workspacePath
         || existing.title !== task.title
-        || existing.ctfJobId !== task.jobId
-        || existing.ctfMode !== task.policy.mode
-        || existing.ctfRole !== task.role
         || task.domainTaskContext
       ) {
         update(existing.id, conversation => ({
           ...conversation,
           title: task.title,
           workspacePath: task.workspacePath,
-          ctfJobId: task.jobId,
-          ctfMode: task.policy.mode,
-          ctfRole: task.role,
           domainTaskContext: task.domainTaskContext ?? conversation.domainTaskContext,
         }))
       }
@@ -3055,9 +3028,6 @@ export function createConversationsRuntime(options?: {
       createdAt: Date.now(),
       workspacePath: task.workspacePath,
       kernel: s.pendingKernel,
-      ctfJobId: task.jobId,
-      ctfMode: task.policy.mode,
-      ctfRole: task.role,
       domainTaskContext: task.domainTaskContext,
       messages: [],
     }
@@ -3266,8 +3236,8 @@ export function createConversationsRuntime(options?: {
     try {
       let conversation = s.conversations.find(item => item.id === conversationId)
       if (conversation && !conversation.workspacePath) {
-        // Save the structured CTF/CVE context before the backend chooses the
-        // visible Coding or CVE artifact directory for this conversation.
+        // Save the structured CVE / Lab context before the backend chooses the
+        // visible artifact directory for this conversation.
         await invokeCommand('save_conversation', { conversation })
         const automaticWorkspace = await invokeCommand<string>(
           'ensure_coding_artifact_workspace',
@@ -3353,10 +3323,7 @@ export function createConversationsRuntime(options?: {
   async function generateConversationTitle(conversationId: string) {
     if (titleGenerationAttemptedIds.has(conversationId)) return
     const conversation = s.conversations.find(item => item.id === conversationId)
-    if (
-      !conversation
-      || conversation.ctfJobId
-    ) return
+    if (!conversation) return
     const firstMessage = conversation.messages.find(message => message.role === 'user')?.content.trim()
     if (!firstMessage) return
     const fallbackTitle = fallbackConversationTitle(firstMessage)
@@ -3712,6 +3679,7 @@ export function createConversationsRuntime(options?: {
         mcpServers: conversation.mcpServers ?? [],
         mcpConfigDigest: conversation.mcpConfigDigest ?? '',
         attachments: [],
+        traceId: generateTraceId(),
       })
     } catch (reason) {
       finishRun(conversationId)

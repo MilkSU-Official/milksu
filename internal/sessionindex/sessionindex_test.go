@@ -80,15 +80,14 @@ func TestRefreshMilkSUConversationsIndexesSessionsToolsAndRedactsSecrets(t *test
 			ApprovalInput: &approvalInput,
 		}},
 	}, {
-		ID:            "ctf-1",
-		Title:         "NSSCTF P3879",
+		ID:            "coding-legacy-1",
+		Title:         "旧工作区接力",
 		CreatedAt:     uint64(time.Date(2026, 8, 4, 8, 0, 0, 0, time.UTC).UnixMilli()),
 		WorkspacePath: "/Users/milksu/code/milksu",
-		CTFJobID:      "job-1",
 		Messages: []conversation.StoredMessage{{
 			ID:        "assistant-1",
 			Role:      "assistant",
-			Content:   "Judge 返回 correct=true",
+			Content:   "继续当前工作区里的验证步骤",
 			Timestamp: uint64(time.Date(2026, 8, 4, 8, 30, 0, 0, time.UTC).UnixMilli()),
 		}},
 	}, {
@@ -117,7 +116,7 @@ func TestRefreshMilkSUConversationsIndexesSessionsToolsAndRedactsSecrets(t *test
 	if status.SessionCount != 3 || status.MessageCount != 4 || status.ToolCallCount != 1 {
 		t.Fatalf("unexpected status counts: %#v", status)
 	}
-	if sources := sourceMap(status.Sources); sources["milksu-coding"] != 1 || sources["milksu-ctf"] != 1 || sources["milksu-cve"] != 1 {
+	if sources := sourceMap(status.Sources); sources["milksu-coding"] != 2 || sources["milksu-cve"] != 1 || sources["milksu-ctf"] != 0 {
 		t.Fatalf("unexpected sources: %#v", status.Sources)
 	}
 

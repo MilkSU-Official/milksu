@@ -68,7 +68,7 @@ type Target struct {
 	PID            int    `json:"pid"`
 	WindowID       int64  `json:"windowId"`
 	WindowTitle    string `json:"windowTitle,omitempty"`
-	executablePath string
+	ExecutablePath string `json:"executablePath,omitempty"`
 }
 
 type TargetSelection struct {
@@ -442,7 +442,7 @@ func (manager *Manager) Start(
 		return status, err
 	}
 	if manager.goos == "windows" &&
-		(strings.TrimSpace(target.executablePath) == "" || !filepath.IsAbs(target.executablePath)) {
+		(strings.TrimSpace(target.ExecutablePath) == "" || !filepath.IsAbs(target.ExecutablePath)) {
 		status := manager.statusLocked(permissions)
 		manager.mu.Unlock()
 		return status, fmt.Errorf("选择的 Windows App 缺少稳定的可执行文件身份")
@@ -1001,7 +1001,7 @@ func sessionManifestForTarget(target Target, goos string) string {
 		return sessionManifest(target.BundleID)
 	}
 	executable := strings.ReplaceAll(
-		filepath.Clean(strings.TrimSpace(target.executablePath)),
+		filepath.Clean(strings.TrimSpace(target.ExecutablePath)),
 		"'",
 		"''",
 	)
@@ -1108,8 +1108,8 @@ func filterValidTargets(targets []Target, hostBundleID string, hostPID int) []Ta
 			continue
 		}
 		if hostExecutable != "" &&
-			strings.TrimSpace(target.executablePath) != "" &&
-			strings.EqualFold(filepath.Clean(target.executablePath), filepath.Clean(hostExecutable)) {
+			strings.TrimSpace(target.ExecutablePath) != "" &&
+			strings.EqualFold(filepath.Clean(target.ExecutablePath), filepath.Clean(hostExecutable)) {
 			continue
 		}
 		key := fmt.Sprintf("%d/%d", target.PID, target.WindowID)

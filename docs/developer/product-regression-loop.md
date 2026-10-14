@@ -1,6 +1,6 @@
 # 产品回归循环
 
-> 改完对话、引擎、DSH 或隔离浏览器之后跑。不是 Settings「评测」，也不是 NYU 或模型刷分。
+> 改完对话、引擎、ACP 或隔离浏览器之后跑。
 >
 > 协调器：`scripts/verify-product-loop.mjs`。不进 App 启动。禁止 MilkSU Beta。
 > TokenFlux 只用 `https://tokenflux.dev/v1`。回执不写 Provider Key。
@@ -11,9 +11,7 @@
 | 入口 | 问什么 | 怎么跑 |
 | --- | --- | --- |
 | 产品回归 | 上手到设置，产品还成不成立 | `npm run test:product-loop` |
-| Settings → 评测 | Cybench / SEC-bench / AutoPen 分数 | 设置页，`internal/evalsuite` |
-| NYU safe-static | 窄域静态题，不是 CTF 成绩 | `cmd/nyu-ctf-bench-*` |
-| `test:dsh-complete-loop` | 单独的 DSH 桥 | 不是这套 |
+| `test:dsh-complete-loop` | 单独的 DSH / ACP 桥 | 不是这套 |
 
 Computer Use 缺权限或没开计算器记失败，不改走隔离浏览器。不把用户 Chrome 当 CU 目标。
 
@@ -23,6 +21,9 @@ Computer Use 缺权限或没开计算器记失败，不改走隔离浏览器。�
 npm run test:product-loop -- --list
 npm run test:product-loop -- --gui --suite first-use
 npm run test:product-loop -- --gui --suite all
+
+独立 worktree 先在根、`app/`、`desktop/` 各装一次依赖，再 `npm run desktop:build-dev`。
+`--gui` 默认带 `--no-build`；缺 renderer / helper 时会自己编一次。缺 Electron 会 FAIL，并把 `desktop:start` 的 stderr 写进原因。
 npm run test:product-loop -- --gui --suite coding,workspaces
 npm run test:product-loop-catalog
 ```

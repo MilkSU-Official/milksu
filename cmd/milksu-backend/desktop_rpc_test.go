@@ -107,9 +107,31 @@ func TestDesktopAppMethodsMatchRendererBindings(t *testing.T) {
 	wantElectronHost := []string{
 		"ClearAccountDecisionCredential",
 		"ClearAccountModelCredential",
+		"ClosePty",
+		"ComputerUseAccessibilityStatus",
+		"ComputerUseHostExecutable",
+		"ComputerUseLinuxDesktop",
+		"ComputerUseListWindows",
+		"ComputerUseRequestAccessibility",
+		"ComputerUseRequestScreenRecording",
+		"ComputerUseSigningStatus",
+		"ComputerUseStartPortal",
+		"ComputerUseStopPortal",
+		"DeleteManagedSecret",
+		"DeletePlatformSecret",
+		"DropResearchForConversation",
+		"ExportSidecarEnvironment",
+		"GetPlatformSecret",
 		"ListPetPluginPackages",
+		"LookupManagedSecret",
+		"OpenPty",
+		"PtyResize",
+		"PtyWrite",
+		"PutManagedSecret",
+		"RunLuaPlugin",
 		"SetAccountDecisionCredential",
 		"SetAccountModelCredential",
+		"SetPlatformSecret",
 	}
 	if !reflect.DeepEqual(gotElectronHost, wantElectronHost) {
 		t.Fatalf("Electron host method registry drift: got %v, want %v", gotElectronHost, wantElectronHost)
@@ -164,6 +186,18 @@ func TestInvokeAppMethodEnforcesSourceDomains(t *testing.T) {
 		method string
 		want   string
 	}{
+		{
+			name:   "renderer cannot export sidecar environment",
+			source: desktopRPCSourceRenderer,
+			method: "ExportSidecarEnvironment",
+			want:   "unavailable to renderer",
+		},
+		{
+			name:   "renderer cannot drop research",
+			source: desktopRPCSourceRenderer,
+			method: "DropResearchForConversation",
+			want:   "unavailable to renderer",
+		},
 		{
 			name:   "renderer cannot set account credential",
 			source: desktopRPCSourceRenderer,

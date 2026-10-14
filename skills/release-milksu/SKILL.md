@@ -33,7 +33,7 @@ Download only the DMG artifact for local inspection. Do not download the OTA ZIP
 
 ### Windows x64
 
-Use `Windows x64 release` on a native Windows runner. It must test, build the packaged runtimes and assisted NSIS installer, start the packaged App, and confirm that its Go Runtime starts. The installer must expose a conventional installation directory, Start menu and desktop shortcuts, an uninstall entry, and a finish-page launch action. Download only the EXE artifact.
+Use `Windows x64 release` on a native Windows runner. It must test, build the packaged runtimes and assisted NSIS installer, start the packaged App, and confirm that its TypeScript Runtime starts. The installer must expose a conventional installation directory, Start menu and desktop shortcuts, an uninstall entry, and a finish-page launch action. Download only the EXE artifact.
 
 Do not claim Windows signing unless the workflow had a configured Windows code-signing certificate and verified the resulting signature. Until then, label the EXE as an unsigned internal-test build and expect SmartScreen. Record unavailable platform capabilities in the release notes instead of silently implying parity.
 

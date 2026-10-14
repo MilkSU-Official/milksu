@@ -83,6 +83,7 @@ import {
   commandForPid,
   isOwnedSubagentCommand,
 } from "./pi-subagents-stop.js";
+import { applyTraceEnv } from "../trace-id.js";
 import { guardSubagentSpawn } from "./pi-subagents-spawn.cjs";
 
 const nodeRequire = createRequire(import.meta.url);
@@ -932,6 +933,7 @@ export async function runGuardedExternalCli({
   timeoutMs,
   abortSignal,
   onPid,
+  traceId,
 }) {
   mkdirSync(runDirectory, { recursive: true, mode: 0o700 });
   const stdoutPath = join(runDirectory, "external-0.stdout.log");
@@ -947,7 +949,7 @@ export async function runGuardedExternalCli({
     for (const directory of createdDirectories.reverse()) rmSync(directory, { recursive: true, force: true });
   };
   try {
-    const env = externalCliEnvironment(launch.allowlist, environment);
+    const env = applyTraceEnv(externalCliEnvironment(launch.allowlist, environment), traceId);
     preflight = preflightExternalCli(launch.command, launch.preflight, env, cwd);
     for (const directory of launch.temporaryDirectories ?? []) {
       // 只在真要 spawn 前清掉上次崩溃残留的 prompt 目录（收养路径不走这里）。
@@ -976,6 +978,7 @@ export async function runGuardedExternalCli({
       env,
       cwd,
       externalCli: true,
+      traceId,
     });
     child = spawnChildProcess(guarded.command, guarded.args, {
       cwd: guarded.cwd,
@@ -1354,6 +1357,7 @@ export function createMilksuSubagentsExtension(context) {
     updateSubagentTasks,
     environment = process.env,
     subagentTaskTimeoutMs = () => DEFAULT_SUBAGENT_TIMEOUT_MS,
+    researchTraceId = () => "",
   } = context;
   const definitions = readBundledAgentDefinitions(environment);
 
@@ -1583,6 +1587,7 @@ function emitSubagentRosterEnd(api, request, outcome) {
         timeoutMs: Math.max(0, Number(args.timeoutMs ?? subagentTaskTimeoutMs())),
         abortSignal: context?.abortSignal,
         onPid: pid => writeRunStatus(runDirectory, { pid, state: "running", agent: request.agent }),
+        traceId: researchTraceId?.(alias),
       });
       writeRunStatus(runDirectory, {
         pid: outcome.pid,

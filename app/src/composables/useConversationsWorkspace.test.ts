@@ -24,14 +24,12 @@ describe('useConversations workspace home isolation', () => {
     invokeCommand.mockClear()
   })
 
-  it('does not inject a Home project into CTF, CVE, or Lab new chats', async () => {
+  it('does not inject a Home project into CVE or Lab new chats', async () => {
     const { useConversations } = await import('@/composables/useConversations')
     const conversations = useConversations()
     conversations.setWorkspace('/Users/me/code/home-app')
     expect(conversations.workspacePath).toBe('/Users/me/code/home-app')
 
-    conversations.startNew({ workspaceHome: 'ctf' })
-    expect(conversations.workspacePath).toBe('')
     conversations.startNew({ workspaceHome: 'vuln' })
     expect(conversations.workspacePath).toBe('')
     conversations.startNew({ workspaceHome: 'lab' })
@@ -41,16 +39,16 @@ describe('useConversations workspace home isolation', () => {
   it('does not remember or reuse a project chosen in a domain chat on Home', async () => {
     const { useConversations } = await import('@/composables/useConversations')
     const conversations = useConversations()
-    conversations.startNew({ workspaceHome: 'ctf' })
-    conversations.setWorkspace('/Users/me/code/ctf-picked')
+    conversations.startNew({ workspaceHome: 'lab' })
+    conversations.setWorkspace('/Users/me/code/lab-picked')
     expect(invokeCommand.mock.calls.some(call => call[0] === 'remember_coding_project')).toBe(false)
-    expect(conversations.workspacePath).toBe('/Users/me/code/ctf-picked')
+    expect(conversations.workspacePath).toBe('/Users/me/code/lab-picked')
 
     conversations.startNew()
     await Promise.resolve()
     await Promise.resolve()
     expect(conversations.workspacePath).toBe('')
-    expect(conversations.workspacePath).not.toBe('/Users/me/code/ctf-picked')
+    expect(conversations.workspacePath).not.toBe('/Users/me/code/lab-picked')
     expect(conversations.workspacePath).not.toBe('/Users/me/code/home-app')
   })
 

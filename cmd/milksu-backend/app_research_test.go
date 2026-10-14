@@ -61,6 +61,9 @@ func TestResearchWorkspaceActionsRequirePersistedPiConversation(t *testing.T) {
 	if started.Run.ConversationID != "pi-conversation" || started.Run.Status != research.RunRunning {
 		t.Fatalf("unexpected Pi research run: %#v", started.Run)
 	}
+	if started.Run.TraceID == "" {
+		t.Fatalf("started research run missing TraceID: %#v", started.Run)
+	}
 	if _, err := app.handleCodingWorkspaceAction(
 		"pi-conversation",
 		"open_browser_tab ",
@@ -107,6 +110,55 @@ func TestResearchWorkspaceActionsRequirePersistedPiConversation(t *testing.T) {
 	snapshot, err := service.Get(context.Background(), "pi-conversation", started.Run.ID)
 	if err != nil || snapshot.Run.Status != research.RunInterrupted {
 		t.Fatalf("research run after Sidecar loss = %#v, %v", snapshot.Run, err)
+	}
+}
+
+func TestResearchWorkspaceStartPersistsSuppliedTraceID(t *testing.T) {
+	dataDirectory := t.TempDir()
+	t.Setenv(appdata.DirectoryOverrideEnv, dataDirectory)
+	conversations, err := conversation.NewStore()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := conversations.Save(conversation.StoredConversation{
+		ID: "pi-conversation", Kernel: conversation.KernelPi,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	researchStore, err := research.OpenStore(dataDirectory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := research.NewService(researchStore)
+	defer service.Close()
+	app := &App{
+		conversations: conversations,
+		engines:       engine.NewSupervisor(nil),
+		research:      service,
+	}
+	defer app.engines.Close()
+
+	const suppliedTraceID = "trc_550e8400-e29b-41d4-a716-446655440000"
+	result, err := app.handleCodingWorkspaceAction(
+		"pi-conversation",
+		"start_research_run",
+		`{"query":"Keep the supplied trace","traceId":"`+suppliedTraceID+`"}`,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var started struct {
+		Run research.Run `json:"run"`
+	}
+	if err := json.Unmarshal([]byte(result), &started); err != nil {
+		t.Fatal(err)
+	}
+	if started.Run.TraceID != suppliedTraceID {
+		t.Fatalf("workspace start TraceID = %q, want %q", started.Run.TraceID, suppliedTraceID)
+	}
+	stored, err := service.Get(context.Background(), "pi-conversation", started.Run.ID)
+	if err != nil || stored.Run.TraceID != suppliedTraceID {
+		t.Fatalf("persisted workspace TraceID = %#v, %v", stored.Run, err)
 	}
 }
 
@@ -540,6 +592,46 @@ func TestPermanentConversationDeletionRemovesResearchArtifacts(t *testing.T) {
 		if _, err := os.Stat(artifacts[id]); !os.IsNotExist(err) {
 			t.Fatalf("research artifact for %s still exists (stat error %v)", id, err)
 		}
+	}
+}
+
+func TestDropResearchForConversationLeavesConversationJSON(t *testing.T) {
+	dataDirectory := t.TempDir()
+	t.Setenv(appdata.DirectoryOverrideEnv, dataDirectory)
+	conversations, err := conversation.NewStore()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := conversations.Save(conversation.StoredConversation{
+		ID:     "keep-json",
+		Kernel: conversation.KernelPi,
+		Title:  "still here",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	researchStore, err := research.OpenStore(dataDirectory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := research.NewService(researchStore)
+	defer service.Close()
+	if _, err := service.Start(context.Background(), "keep-json", "Drop research only"); err != nil {
+		t.Fatal(err)
+	}
+	app := &App{conversations: conversations, research: service}
+	if err := app.DropResearchForConversation("keep-json"); err != nil {
+		t.Fatal(err)
+	}
+	stored, err := conversations.Get("keep-json")
+	if err != nil {
+		t.Fatalf("conversation JSON was deleted: %v", err)
+	}
+	if stored.Title != "still here" {
+		t.Fatalf("conversation title = %q", stored.Title)
+	}
+	runs, err := service.List(context.Background(), "keep-json")
+	if err != nil || len(runs) != 0 {
+		t.Fatalf("research runs after DropResearchForConversation = %#v, %v", runs, err)
 	}
 }
 

@@ -476,7 +476,7 @@ export async function startFirstUseDesktop(options = {}) {
     }
   } catch (error) {
     driver.gaps = driver.gaps || []
-    driver.gaps.push(redactProcessText(error instanceof Error ? error.message : error, 180))
+    driver.gaps.push(redactProcessText(error instanceof Error ? error.message : error, 400))
     return {
       driver,
       attached: false,

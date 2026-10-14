@@ -592,7 +592,7 @@ test('chat bridge bundle inlines the batch D1 legacy archive surface', async () 
   }
 })
 
-// PR-2 批次 D2（扳机翻转）：翻转判定收口（harness-bridge-flip 的门+CTF/CVE 排除）、
+// PR-2 批次 D2（扳机翻转）：翻转判定收口（harness-bridge-flip 的门 + 排除面）、
 // per-workspace 存储键、翻转首启一次性导出（claim/completed 状态文件）、destroySession
 // 的归档源文件触点、createSession 的归档自动导入、以及两个真桥修复（goal 机的
 // noteGenerationFailure 导出、duck-typed 会话对象的 hasExtensionHandlers）必须真的进
@@ -605,9 +605,8 @@ test('chat bridge bundle inlines the batch D2 flip surface', async () => {
     const bundle = await readFile(outfile, 'utf8')
     // 门翻转语义：缺省开、MILKSU_PI_HARNESS=0 显式关（回退开关文案钉死）。
     assert.ok(bundle.includes('MILKSU_PI_HARNESS'), 'the flip gate env name must ship')
-    // 排除收口：CTF 工作区 schema 前缀、CTF 会话角色、研究角色、ctf_ 前缀。
-    assert.ok(bundle.includes('ctf-workspace.milksu.dev'), 'the CTF workspace schema prefix must ship')
-    assert.ok(bundle.includes('ctf_'), 'the ctf_ conversation prefix convention must ship')
+    // 排除收口：残留 solver 会话角色、研究角色、遗留 ctf_ 会话 id 前缀。
+    assert.ok(bundle.includes('ctf_'), 'the leftover ctf_ conversation prefix convention must ship')
     for (const role of ['solver', 'strategist', 'tool-builder', 'cve-research', 'lab-job']) {
       assert.ok(bundle.includes(role), `the ${role} exclusion role must ship`)
     }

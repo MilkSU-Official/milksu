@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Button, Popover, PopoverContent, PopoverTrigger } from '@/components/ui'
 import { Check, ChevronDown, ChevronRight } from 'lucide-react'
+import { acpGuestRuntimeLabel, useAcpGuestConfigured } from '@/lib/acpGuest'
 import { runtimeVersion } from '@/lib/runtimeVersions'
 import { SearchableModelList } from '@/components/SearchableModelPicker'
 import type { SearchableModelGroup, SearchableModelOption } from '@/lib/modelPickerSearch'
@@ -52,13 +53,15 @@ export default function ComposerAgentMenu({
   onChangeThinkingLevel?: (level: ModelThinkingLevel) => void
 }) {
   const t = useT()
+  const acpAvailable = useAcpGuestConfigured()
   const [open, setOpen] = useState(false)
   const [pane, setPane] = useState<ComposerAgentPane | null>(null)
   const [flyoutPos, setFlyoutPos] = useState<{ top: number | null; bottom: number | null; left: number } | null>(null)
   const [flyoutMaxH, setFlyoutMaxH] = useState(352)
   const panel = useRef<HTMLDivElement | null>(null)
   const flyoutRef = useRef<HTMLDivElement | null>(null)
-  const runtimeLabel = kernel === 'dsh' ? 'DSH' : 'Pi'
+  const runtimeLabel = kernel === 'dsh' ? acpGuestRuntimeLabel(t) : 'Pi'
+  const runtimeOptions: Array<'pi' | 'dsh'> = acpAvailable || kernel === 'dsh' ? ['pi', 'dsh'] : ['pi']
   const thinkingLabel = thinkingLevel ? MODEL_THINKING_LEVEL_LABELS[thinkingLevel] : ''
 
   useEffect(() => {
@@ -188,22 +191,23 @@ export default function ComposerAgentMenu({
             </div>
           ) : pane === 'runtime' ? (
             <div className="w-[15.5rem] rounded-md border border-border bg-popover p-1 text-popover-foreground">
-              {(['pi', 'dsh'] as const).map(id => (
+              {runtimeOptions.map(id => (
                 <button
                   key={id}
                   type="button"
-                  disabled={disabled}
+                  disabled={disabled || (id === 'dsh' && !acpAvailable)}
                   className={cn(
                     'flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-sm',
                     kernel === id ? 'bg-accent' : 'hover:bg-accent',
                   )}
                   onClick={() => {
+                    if (id === 'dsh' && !acpAvailable) return
                     onChangeKernel?.(id)
                     setOpen(false)
                   }}
                 >
                   <span className="min-w-0 flex-1 truncate">
-                    {id === 'dsh' ? t('DeepSeek Harness', 'DeepSeek Harness') : 'Pi'}
+                    {id === 'dsh' ? acpGuestRuntimeLabel(t) : 'Pi'}
                     {runtimeVersion(id) ? (
                       <span className="ml-1.5 text-caption text-muted-foreground">{runtimeVersion(id)}</span>
                     ) : null}

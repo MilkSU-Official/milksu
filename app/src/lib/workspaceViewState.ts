@@ -1,37 +1,48 @@
 export const WORKSPACE_VIEW_STATE_STORAGE_KEY = 'milksu.workspace-view-state'
 
-export type PersistedWorkspaceSection = 'chat' | 'image' | 'ctf' | 'vuln' | 'lab' | 'reverse' | 'companion' | 'profile' | 'settings'
-export type PersistedCTFSection = 'catalog'
+export type PersistedWorkspaceSection = 'chat' | 'image' | 'vuln' | 'lab' | 'reverse' | 'companion' | 'profile' | 'settings'
 
 export interface WorkspaceViewState {
   version: 1
   section: PersistedWorkspaceSection
   activeConversationId: string | null
   codingHistoryOpen: boolean
-  ctfSection: PersistedCTFSection
   settingsReturnTarget: Exclude<PersistedWorkspaceSection, 'settings'>
 }
 
-const sections = new Set<PersistedWorkspaceSection>(['chat', 'image', 'ctf', 'vuln', 'lab', 'reverse', 'companion', 'profile', 'settings'])
-const ctfSections = new Set<PersistedCTFSection>(['catalog'])
-const returnSections = new Set<Exclude<PersistedWorkspaceSection, 'settings'>>(['chat', 'image', 'ctf', 'vuln', 'lab', 'companion', 'profile'])
+const sections = new Set<PersistedWorkspaceSection>(['chat', 'image', 'vuln', 'lab', 'reverse', 'companion', 'profile', 'settings'])
+const returnSections = new Set<Exclude<PersistedWorkspaceSection, 'settings'>>(['chat', 'image', 'vuln', 'lab', 'reverse', 'companion', 'profile'])
 // The settings category is not persisted: SettingsPage owns that state locally and
 // never reports the user's in-page navigation back, so a stored value would only
 // ever replay a programmatic entry point.
+
+function normalizePersistedSection(value: unknown): PersistedWorkspaceSection | null {
+  if (value === 'ctf' || value === 'companion') return 'chat'
+  if (typeof value === 'string' && sections.has(value as PersistedWorkspaceSection)) {
+    return value as PersistedWorkspaceSection
+  }
+  return null
+}
+
+function normalizeReturnTarget(value: unknown): Exclude<PersistedWorkspaceSection, 'settings'> {
+  if (value === 'ctf' || value === 'companion' || value === 'settings') return 'chat'
+  if (typeof value === 'string' && returnSections.has(value as Exclude<PersistedWorkspaceSection, 'settings'>)) {
+    return value as Exclude<PersistedWorkspaceSection, 'settings'>
+  }
+  return 'chat'
+}
 
 export function readWorkspaceViewState(
   storage: Storage | null = safeStorage(),
 ): WorkspaceViewState | null {
   if (!storage) return null
   try {
-    const value = JSON.parse(storage.getItem(WORKSPACE_VIEW_STATE_STORAGE_KEY) ?? '') as Partial<WorkspaceViewState>
-    if (value.version !== 1 || !sections.has(value.section as PersistedWorkspaceSection)) return null
-    const section = value.section === 'companion' ? 'chat' : value.section as PersistedWorkspaceSection
-    const settingsReturnTarget = value.settingsReturnTarget === 'companion'
-      ? 'chat'
-      : returnSections.has(value.settingsReturnTarget as Exclude<PersistedWorkspaceSection, 'settings'>)
-        ? value.settingsReturnTarget as Exclude<PersistedWorkspaceSection, 'settings'>
-        : 'ctf'
+    const value = JSON.parse(storage.getItem(WORKSPACE_VIEW_STATE_STORAGE_KEY) ?? '') as Partial<WorkspaceViewState> & {
+      ctfSection?: unknown
+    }
+    if (value.version !== 1) return null
+    const section = normalizePersistedSection(value.section)
+    if (!section) return null
     return {
       version: 1,
       section,
@@ -39,10 +50,7 @@ export function readWorkspaceViewState(
         ? value.activeConversationId
         : null,
       codingHistoryOpen: value.codingHistoryOpen !== false,
-      ctfSection: ctfSections.has(value.ctfSection as PersistedCTFSection)
-        ? value.ctfSection as PersistedCTFSection
-        : 'catalog',
-      settingsReturnTarget,
+      settingsReturnTarget: normalizeReturnTarget(value.settingsReturnTarget),
     }
   } catch {
     return null

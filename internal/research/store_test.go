@@ -277,6 +277,67 @@ func TestResearchV2DatabaseMigratesAndAcceptsLaunchingTasks(t *testing.T) {
 	}
 }
 
+func TestResearchV3DatabaseMigratesTraceIDColumn(t *testing.T) {
+	dataDirectory := t.TempDir()
+	databasePath := filepath.Join(dataDirectory, "domain", "research", "research.sqlite3")
+	migrator, err := sqlitemigrate.Open(databasePath, []sqlitemigrate.Migration{
+		{
+			Version: 1,
+			Name:    researchV1MigrationName,
+			Up:      researchV1Up,
+		},
+		{
+			Version: 2,
+			Name:    researchV2MigrationName,
+			Up:      researchV2Up,
+		},
+		{
+			Version: 3,
+			Name:    researchV3MigrationName,
+			Up:      researchV3Up,
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := migrator.Migrate(context.Background()); err != nil {
+		_ = migrator.Close()
+		t.Fatal(err)
+	}
+	_, err = migrator.DB().Exec(`INSERT INTO research_runs (
+		id, conversation_id, query, status, phase, report, created_at, updated_at
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		"run_from_v3", "conversation-v3", "old run", RunRunning, PhaseCollecting, "",
+		formatResearchTime(time.Now()), formatResearchTime(time.Now()),
+	)
+	if err != nil {
+		_ = migrator.Close()
+		t.Fatal(err)
+	}
+	if err := migrator.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	store, err := OpenStore(dataDirectory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	ctx := context.Background()
+	legacy, err := store.GetRun(ctx, "run_from_v3")
+	if err != nil || legacy.TraceID != "" {
+		t.Fatalf("migrated legacy run TraceID = %#v, %v; want empty", legacy, err)
+	}
+	service := NewService(store)
+	started, err := service.Start(ctx, "conversation-v3-new", "new run after v4")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !researchTraceIDPattern.MatchString(started.TraceID) {
+		t.Fatalf("new run TraceID = %q, want trc_ uuid", started.TraceID)
+	}
+}
+
 func TestResearchMigrationAcceptsExistingStopColumnWithoutHistory(t *testing.T) {
 	dataDirectory := t.TempDir()
 	store, err := OpenStore(dataDirectory)
@@ -298,6 +359,9 @@ func TestResearchMigrationAcceptsExistingStopColumnWithoutHistory(t *testing.T) 
 	defer store.Close()
 	if _, err := store.db.Exec(`SELECT worker_stop_unconfirmed FROM research_runs LIMIT 0`); err != nil {
 		t.Fatalf("Research stop column missing after history rebuild: %v", err)
+	}
+	if _, err := store.db.Exec(`SELECT trace_id FROM research_runs LIMIT 0`); err != nil {
+		t.Fatalf("Research trace id column missing after history rebuild: %v", err)
 	}
 }
 

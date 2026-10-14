@@ -19,6 +19,10 @@ import { desktopAccountConfigFromEnvironment } from './lib/desktop-account-confi
 import { inspectPackagedApp } from './lib/desktop-package-inspect.mjs'
 import { ensureOwnerWritable } from './lib/bundle-owner-writable.mjs'
 import { generateBetaAppIconFiles } from './generate-beta-appicon.mjs'
+import {
+  formatMissingDesktopDevArtifacts,
+  missingDesktopDevArtifacts,
+} from './lib/desktop-dev-artifacts.mjs'
 
 const execFileAsync = promisify(execFile)
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -79,6 +83,7 @@ async function ensureBetaIcon() {
 }
 
 async function buildRuntime() {
+  await run(managedNode, [join(root, 'scripts', 'build-runtime.mjs')])
   await run(managedNode, [join(root, 'scripts', 'build-plugins.mjs')])
   await run('npm', ['--prefix', 'app', 'run', 'build'])
   await mkdir(join(root, 'build', 'desktop'), { recursive: true })
@@ -130,11 +135,23 @@ async function writeBuilderConfig(trackingPath) {
       from: join(root, 'build', 'desktop', 'macos-screen-permission.node'),
       to: 'macos-screen-permission.node',
     },
-    {
-      from: trackingPath,
-      to: BUILD_TRACKING_RESOURCE,
-    },
   ]
+  if (!extraResources.some((item) => item?.to === 'runtime/main.cjs')) {
+    extraResources.push({
+      from: join(root, 'runtime', 'dist', 'main.cjs'),
+      to: 'runtime/main.cjs',
+    })
+  }
+  if (!extraResources.some((item) => item?.to === 'envbroker/packages')) {
+    extraResources.push({
+      from: join(root, 'runtime', 'src', 'envbroker', 'packages'),
+      to: 'envbroker/packages',
+    })
+  }
+  extraResources.push({
+    from: trackingPath,
+    to: BUILD_TRACKING_RESOURCE,
+  })
   const accountConfig = desktopAccountConfigFromEnvironment(process.env)
   if (accountConfig) {
     const accountConfigPath = join(root, 'build', 'desktop', `account-config.${channelConfig.channel}.json`)
@@ -353,6 +370,13 @@ async function buildApp() {
 
 async function startDevelopment() {
   if (!process.argv.includes('--no-build')) await buildRuntime()
+  else {
+    const missing = await missingDesktopDevArtifacts(root)
+    if (missing.length) {
+      process.stderr.write(`${formatMissingDesktopDevArtifacts(missing)}\n`)
+      process.exit(1)
+    }
+  }
   const accountApiUrl = desktopAccountConfigFromEnvironment(process.env).apiUrl
   await run('npm', ['--prefix', 'desktop', 'start'], {
     env: {
@@ -413,6 +437,8 @@ if (action === 'start') {
   await startBetaPackagedOnly()
 } else if (action === 'build') {
   await buildApp()
+} else if (action === 'build-dev') {
+  await buildRuntime()
 } else if (action === 'inspect') {
   const appPath = process.argv.find(v => v.startsWith('--app='))?.slice('--app='.length)
     || packagedAppPath(root, channel)

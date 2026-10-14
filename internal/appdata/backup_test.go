@@ -28,7 +28,6 @@ func TestExportBackupIncludesUserStateAndExcludesCredentials(t *testing.T) {
 		`{"schema":"milksu-data-layout/v1","version":1,"updatedAt":"2026-08-02T00:00:00Z"}`,
 	)
 	writeBackupFixture(t, filepath.Join(root, "data", "stores", "conversations", "one.json"), `{"id":"one"}`)
-	writeBackupFixture(t, filepath.Join(root, "workspaces", "ctf-workspaces", "job", "notes.md"), "evidence")
 	writeBackupFixture(t, filepath.Join(root, "config", "credentials.db"), "provider-secret")
 	writeBackupFixture(t, filepath.Join(root, "workspaces", "browser", "bridge-pairing.json"), "bridge-secret")
 	writeBackupFixture(t, filepath.Join(root, "data", "agent", "home", "pi", "auth.json"), "pi-secret")
@@ -39,14 +38,14 @@ func TestExportBackupIncludesUserStateAndExcludesCredentials(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	createBackupDatabase(t, filepath.Join(root, "data", "domain", "ctf", "memory.sqlite3"))
+	createBackupDatabase(t, filepath.Join(root, "data", "runtime", "events.sqlite3"))
 
 	destination := filepath.Join(t.TempDir(), "MilkSU-backup.zip")
 	exported, err := ExportBackup(context.Background(), root, destination)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if exported.CredentialsIncluded || exported.FileCount != 6 || exported.Bytes <= 0 {
+	if exported.CredentialsIncluded || exported.FileCount != 5 || exported.Bytes <= 0 {
 		t.Fatalf("unexpected export: %#v", exported)
 	}
 	validation, err := ValidateBackup(destination)
@@ -62,8 +61,7 @@ func TestExportBackupIncludesUserStateAndExcludesCredentials(t *testing.T) {
 		"data/data-layout.json",
 		"data/config/settings.json",
 		"data/data/stores/conversations/one.json",
-		"data/workspaces/ctf-workspaces/job/notes.md",
-		"data/data/domain/ctf/memory.sqlite3",
+		"data/data/runtime/events.sqlite3",
 		"data/data/agent/home/pi/sessions/session.jsonl",
 		"manifest.json",
 	} {
@@ -84,8 +82,8 @@ func TestExportBackupIncludesUserStateAndExcludesCredentials(t *testing.T) {
 		t.Fatalf("backup leaked a settings credential: %s", settings)
 	}
 
-	extracted := filepath.Join(t.TempDir(), "memory.sqlite3")
-	extractBackupEntry(t, destination, "data/data/domain/ctf/memory.sqlite3", extracted)
+	extracted := filepath.Join(t.TempDir(), "events.sqlite3")
+	extractBackupEntry(t, destination, "data/data/runtime/events.sqlite3", extracted)
 	database, err := sql.Open("sqlite", extracted)
 	if err != nil {
 		t.Fatal(err)

@@ -28,5 +28,6 @@ npm run test:product-loop -- --gui --suite first-use
 | `CUSTOM_RELAY_NAME` | 设置里显示的中转站名字 |
 | `ACCOUNT_HAS_QUOTA` | 登录后管理员有没有开账户额度：`yes` / `no` |
 | `MILKSU_LOOP_USER` / `MILKSU_LOOP_PASSWORD` | 账户用户名密码，登录门用例填表用。不填时 `login-github-active` FAIL，`account-model-fileloop` SKIP，决策套件里依赖账户钥匙的用例连带 FAIL |
+| `MILKSU_DSH_COMMAND` | 可选。全功能验收需要 Agent：设置 → 运行时填命令，或设这个变量给 product-loop。不填时用仓库 `node_modules/@deepseek-ai/dsh/lib/bin.js` |
 
-不要把 Key 写在本页。用例和顺序在 `scripts/lib/product-loop-catalog.mjs`，怎么跑见 [产品回归循环](product-regression-loop.md)。
+不要把 Key 写在本页，也不要写进 Agent 环境变量。用例和顺序在 `scripts/lib/product-loop-catalog.mjs`，怎么跑见 [产品回归循环](product-regression-loop.md)。

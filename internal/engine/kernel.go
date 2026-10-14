@@ -9,7 +9,7 @@ const (
 
 func NormalizeKernel(value string) string {
 	switch strings.ToLower(strings.TrimSpace(value)) {
-	case KernelDSH, "deepseek", "deepseek-harness":
+	case KernelDSH, "acp", "deepseek", "deepseek-harness":
 		return KernelDSH
 	default:
 		return KernelPi

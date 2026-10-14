@@ -34,7 +34,7 @@ export function listHostCommands(commands, agent) {
   if (!commands || typeof commands.list !== "function") {
     throw new Error(commandsUnavailableError);
   }
-  if (!agent) throw new Error("DeepSeek Harness session is not ready");
+  if (!agent) throw new Error("Agent session is not ready");
   return projectCommandDescriptors(commands.list(agent));
 }
 
@@ -44,7 +44,7 @@ export async function executeHostCommand(commands, agent, line, signal) {
   if (!commands || typeof commands.execute !== "function") {
     throw new Error(commandsUnavailableError);
   }
-  if (!agent) throw new Error("DeepSeek Harness session is not ready");
+  if (!agent) throw new Error("Agent session is not ready");
   const execution = await commands.execute(
     agent,
     parsed.line,
@@ -68,7 +68,7 @@ export function getHostPlanMode(planMode, agent) {
   if (!planMode || typeof planMode.get !== "function") {
     throw new Error(planModeUnavailableError);
   }
-  if (!agent) throw new Error("DeepSeek Harness session is not ready");
+  if (!agent) throw new Error("Agent session is not ready");
   const state = planMode.get(agent) ?? {};
   return {
     active: Boolean(state.active),
@@ -80,7 +80,7 @@ export function setHostPlanMode(planMode, agent, active) {
   if (!planMode || typeof planMode.set !== "function") {
     throw new Error(planModeUnavailableError);
   }
-  if (!agent) throw new Error("DeepSeek Harness session is not ready");
+  if (!agent) throw new Error("Agent session is not ready");
   const status = planMode.set(agent, active === true);
   const next = getHostPlanMode(planMode, agent);
   return { status, ...next };
@@ -114,13 +114,13 @@ export function getHostGoal(goals, agent) {
   if (!goals || typeof goals.get !== "function") {
     throw new Error(goalUnavailableError);
   }
-  if (!agent) throw new Error("DeepSeek Harness session is not ready");
+  if (!agent) throw new Error("Agent session is not ready");
   return { goal: projectHostGoal(goals.get(agent)) };
 }
 
 export function mutateHostGoal(goals, agent, action, objective) {
   if (!goals) throw new Error(goalUnavailableError);
-  if (!agent) throw new Error("DeepSeek Harness session is not ready");
+  if (!agent) throw new Error("Agent session is not ready");
   const current = typeof goals.get === "function" ? goals.get(agent) : undefined;
   if (action === "create") {
     const text = String(objective ?? "").trim();
@@ -236,7 +236,7 @@ export function listHostJobs(jobs, agent) {
   if (!jobs || typeof jobs.list !== "function") {
     throw new Error(jobsUnavailableError);
   }
-  if (!agent) throw new Error("DeepSeek Harness session is not ready");
+  if (!agent) throw new Error("Agent session is not ready");
   return {
     jobs: jobs.list(agent).map(projectHostJob).filter(Boolean),
   };
@@ -246,7 +246,7 @@ export function killHostJob(jobs, agent, jobId) {
   if (!jobs || typeof jobs.kill !== "function") {
     throw new Error(jobsUnavailableError);
   }
-  if (!agent) throw new Error("DeepSeek Harness session is not ready");
+  if (!agent) throw new Error("Agent session is not ready");
   const id = String(jobId ?? "").trim();
   if (!id) throw new Error("jobId is required");
   const status = jobs.kill(id, agent);
@@ -307,7 +307,7 @@ export function seedHandoffContext(agent, text) {
   const prompt = String(text ?? "").trim();
   if (!prompt) return { seeded: false };
   if (!agent?.session || typeof agent.session.append !== "function") {
-    throw new Error("DeepSeek Harness session cannot receive handoff context");
+    throw new Error("Agent session cannot receive handoff context");
   }
   agent.session.append("user/message", {
     id: `handoff_${Date.now()}`,

@@ -14,15 +14,6 @@ type SessionIndexStatusPayload struct {
 	Bytes int64 `json:"bytes"`
 }
 
-// CTFMemoryOverviewPayload summarizes the per-challenge CTF memory store for
-// the settings overview. Per-challenge recall stays in the CTF workspace.
-type CTFMemoryOverviewPayload struct {
-	Path          string `json:"path"`
-	Bytes         int64  `json:"bytes"`
-	ActiveCount   int64  `json:"activeCount"`
-	ArchivedCount int64  `json:"archivedCount"`
-}
-
 func fileBytes(path string) int64 {
 	info, err := os.Stat(path)
 	if err != nil || info.IsDir() {
@@ -47,21 +38,4 @@ func (a *App) RefreshSessionIndex() (sessionindex.RefreshResult, error) {
 		return sessionindex.RefreshResult{}, fmt.Errorf("application is not ready")
 	}
 	return a.refreshSessionIndex()
-}
-
-func (a *App) GetCTFMemoryOverview() (CTFMemoryOverviewPayload, error) {
-	if a == nil || a.ctfMemory == nil {
-		return CTFMemoryOverviewPayload{}, fmt.Errorf("CTF memory store is unavailable")
-	}
-	active, archived, err := a.ctfMemory.Count(a.commandContext())
-	if err != nil {
-		return CTFMemoryOverviewPayload{}, err
-	}
-	path := a.ctfMemory.Path()
-	return CTFMemoryOverviewPayload{
-		Path:          path,
-		Bytes:         fileBytes(path),
-		ActiveCount:   active,
-		ArchivedCount: archived,
-	}, nil
 }

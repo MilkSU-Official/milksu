@@ -24,9 +24,10 @@ describe('agentKernel', () => {
     expect(defaultAgentKernel('deepseek-harness')).toBe('dsh')
   })
 
-  it('accepts DeepSeek aliases', () => {
+  it('accepts DeepSeek aliases and ACP as the guest id', () => {
     expect(normalizeAgentKernel('dsh')).toBe('dsh')
     expect(normalizeAgentKernel('DeepSeek-Harness')).toBe('dsh')
+    expect(normalizeAgentKernel('acp')).toBe('dsh')
   })
 
   it('defaults busy-send to interrupt and accepts queue', () => {

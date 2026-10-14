@@ -5,6 +5,57 @@ import (
 	"testing"
 )
 
+func TestStartAssignsAndPersistsTraceID(t *testing.T) {
+	store, err := OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	service := NewService(store)
+	ctx := context.Background()
+
+	generated, err := service.Start(ctx, "conversation-trace-generated", "assign a trace id")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !researchTraceIDPattern.MatchString(generated.TraceID) {
+		t.Fatalf("generated TraceID = %q, want trc_ uuid", generated.TraceID)
+	}
+	storedGenerated, err := store.GetRun(ctx, generated.ID)
+	if err != nil || storedGenerated.TraceID != generated.TraceID {
+		t.Fatalf("persisted generated TraceID = %#v, %v", storedGenerated, err)
+	}
+
+	const supplied = "trc_550e8400-e29b-41d4-a716-446655440000"
+	fromArg, err := service.Start(ctx, "conversation-trace-arg", "keep the supplied id", supplied)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fromArg.TraceID != supplied {
+		t.Fatalf("Start(traceID) = %q, want %q", fromArg.TraceID, supplied)
+	}
+
+	fromContext, err := service.Start(
+		WithTraceID(ctx, supplied),
+		"conversation-trace-context",
+		"keep the context id",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fromContext.TraceID != supplied {
+		t.Fatalf("Start(context) = %q, want %q", fromContext.TraceID, supplied)
+	}
+
+	replaced, err := service.Start(ctx, "conversation-trace-junk", "ignore junk", "conversation-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if replaced.TraceID == "conversation-1" || !researchTraceIDPattern.MatchString(replaced.TraceID) {
+		t.Fatalf("Start(junk) = %q, want a generated trc_ uuid", replaced.TraceID)
+	}
+}
+
 func TestWorkerCompletionClaimsContinuationOnce(t *testing.T) {
 	store, err := OpenStore(t.TempDir())
 	if err != nil {

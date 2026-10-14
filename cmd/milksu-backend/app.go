@@ -26,17 +26,14 @@ import (
 	"github.com/MilkSU-Official/milksu/internal/computercap"
 	"github.com/MilkSU-Official/milksu/internal/config"
 	"github.com/MilkSU-Official/milksu/internal/conversation"
-	"github.com/MilkSU-Official/milksu/internal/ctf"
-	"github.com/MilkSU-Official/milksu/internal/ctfshow"
 	"github.com/MilkSU-Official/milksu/internal/decision"
 	"github.com/MilkSU-Official/milksu/internal/engine"
 	"github.com/MilkSU-Official/milksu/internal/envbroker"
-	"github.com/MilkSU-Official/milksu/internal/evalsuite"
 	"github.com/MilkSU-Official/milksu/internal/lab"
 	"github.com/MilkSU-Official/milksu/internal/modelcatalog"
 	"github.com/MilkSU-Official/milksu/internal/modelusage"
-	"github.com/MilkSU-Official/milksu/internal/nssctf"
 	pluginruntime "github.com/MilkSU-Official/milksu/internal/plugin"
+	"github.com/MilkSU-Official/milksu/internal/ptyhelper"
 	"github.com/MilkSU-Official/milksu/internal/research"
 	"github.com/MilkSU-Official/milksu/internal/securityruntime"
 	"github.com/MilkSU-Official/milksu/internal/securitytools"
@@ -61,11 +58,12 @@ type App struct {
 	envBroker           *envbroker.Service
 	codingFiles         *codingattachment.Store
 	codingCollab        *codingcollab.Manager
-	ctfMaterials        *localCTFMaterialStore
 	codingTerminals     *codingterminal.Manager
+	ptyPool             *ptyhelper.Pool
 	codingProjects      *codingworkspace.Store
 	codingPRs           *codingenv.PullRequestPublisher
 	computerUse         *computercap.Manager
+	portalServer        *computercap.PortalServer
 	engines             *engine.Supervisor
 	securityTools       *securitytools.Service
 	codingTools         *codingtools.Service
@@ -73,20 +71,12 @@ type App struct {
 	modelCatalog        *modelcatalog.Service
 	modelUsage          *modelusage.Store
 	pluginRegistry      *pluginruntime.Registry
-	nssctf              *nssctf.Client
-	nssctfCatalog       *nssctf.CatalogService
-	ctfshowCatalog      *ctfshow.CatalogService
-	nssctfArena         *nssctf.ArenaClient
 	browserBridge       *browsercap.Manager
 	jobs                *securityruntime.Service
-	ctfJobs             *ctf.Service
-	ctfAgent            *ctfAgentRecorder
-	ctfMemory           *ctf.MemoryStore
 	vulnJobs            *vuln.Service
 	research            *research.Service
 	sessionIndex        *sessionindex.Store
 	companion           *companion.Runtime
-	evalSuite           *evalsuite.Service
 	lifespanStart       appdata.LifespanStart
 	lifespanHandle      appdata.LifespanHandle
 }
@@ -171,7 +161,6 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 		codingFiles:         codingFiles,
 		codingProjects:      codingProjects,
 		codingCollab:        codingCollab,
-		ctfMaterials:        newLocalCTFMaterialStore(),
 	}
 	application.pluginRegistry, err = newPluginRegistry(dataDirectory)
 	if err != nil {
@@ -254,98 +243,36 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 		computerUseOptions.PermissionOpen = desktopComputerUsePermissionOpen(host)
 	}
 	application.computerUse = computercap.New(computerUseOptions)
-	application.nssctf = nssctf.NewClient(nssctf.ClientOptions{})
-	application.nssctfCatalog, err = nssctf.NewCatalogService(
-		filepath.Join(dataDirectory, "domain", "nssctf", "catalog.sqlite3"),
-		application.nssctf,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("create NSSCTF catalog: %w", err)
-	}
-	application.ctfshowCatalog, err = ctfshow.NewCatalogService(
-		filepath.Join(dataDirectory, "domain", "ctfshow", "catalog.sqlite3"),
-	)
-	if err != nil {
-		application.nssctfCatalog.Close()
-		return nil, fmt.Errorf("create CTFshow catalog: %w", err)
-	}
-	application.nssctfArena = nssctf.NewArenaClient(nssctf.ArenaClientOptions{})
 	if codingHost := newElectronCodingHost(host); codingHost != nil {
 		application.browserBridge, err = browsercap.NewWithCodingHost(filepath.Join(workspacesDirectory, "browser"), codingHost)
 	} else {
 		application.browserBridge, err = browsercap.New(filepath.Join(workspacesDirectory, "browser"))
 	}
 	if err != nil {
-		application.ctfshowCatalog.Close()
-		application.nssctfCatalog.Close()
 		return nil, fmt.Errorf("create browser bridge: %w", err)
 	}
-	application.browserBridge.SetCTFShowCatalogSink(
-		func(ctx context.Context, problems []ctfshow.CatalogProblem) error {
-			_, replaceErr := application.ctfshowCatalog.Replace(ctx, problems)
-			return replaceErr
-		},
-	)
 	application.jobs, err = securityruntime.NewService(filepath.Join(dataDirectory, "runtime"), application.emitJobEvent)
 	if err != nil {
 		application.browserBridge.Close()
-		application.ctfshowCatalog.Close()
-		application.nssctfCatalog.Close()
 		return nil, fmt.Errorf("create security job runtime: %w", err)
 	}
-	application.ctfJobs, err = ctf.NewService(application.jobs, ctf.ServiceOptions{
-		UILocale: func() string {
-			return config.ResolvedUserInterfaceLocale(application.settings.Get())
-		},
-	})
-	if err != nil {
-		_ = application.jobs.Close()
-		application.browserBridge.Close()
-		application.ctfshowCatalog.Close()
-		application.nssctfCatalog.Close()
-		return nil, fmt.Errorf("create CTF role service: %w", err)
-	}
-	application.ctfMemory, err = ctf.NewMemoryStore(
-		filepath.Join(dataDirectory, "domain", "ctf", "memory.sqlite3"),
-		filepath.Join(dataDirectory, "domain", "ctf", "memories"),
-	)
-	if err != nil {
-		_ = application.ctfJobs.Close()
-		_ = application.jobs.Close()
-		application.browserBridge.Close()
-		application.ctfshowCatalog.Close()
-		application.nssctfCatalog.Close()
-		return nil, fmt.Errorf("create CTF memory store: %w", err)
-	}
-	application.ctfAgent = newCTFAgentRecorder(
-		filepath.Join(artifactDirectory, string(userartifact.KindCTF)),
-		application.ctfJobs,
-		application.settings,
-	)
 	application.vulnJobs, err = vuln.NewService(application.jobs)
 	if err != nil {
-		_ = application.ctfMemory.Close()
-		_ = application.ctfJobs.Close()
 		_ = application.jobs.Close()
 		application.browserBridge.Close()
-		application.ctfshowCatalog.Close()
-		application.nssctfCatalog.Close()
 		return nil, fmt.Errorf("create vulnerability research role service: %w", err)
 	}
 	application.codingTerminals = codingterminal.NewManager(
 		application.emitCodingTerminalEvent,
 	)
+	application.ptyPool = ptyhelper.NewPool(application.emitPtyEvent)
 	application.sessionIndex, err = sessionindex.NewStore(
 		filepath.Join(dataDirectory, "stores", "session-index", "obelisk.sqlite"),
 	)
 	if err != nil {
 		_ = application.vulnJobs.Close()
-		_ = application.ctfMemory.Close()
-		_ = application.ctfJobs.Close()
 		_ = application.jobs.Close()
 		application.browserBridge.Close()
-		application.ctfshowCatalog.Close()
-		application.nssctfCatalog.Close()
 		return nil, fmt.Errorf("create session index: %w", err)
 	}
 	application.companion = companion.NewRuntime(companion.RuntimeOptions{
@@ -369,44 +296,19 @@ func newAppWithDesktopHost(host desktopHost) (*App, error) {
 	)
 	if err != nil {
 		_ = application.vulnJobs.Close()
-		_ = application.ctfMemory.Close()
-		_ = application.ctfJobs.Close()
 		_ = application.jobs.Close()
 		application.browserBridge.Close()
-		_ = application.ctfshowCatalog.Close()
-		_ = application.nssctfCatalog.Close()
 		return nil, fmt.Errorf("create Coding Agent usage ledger: %w", err)
 	}
 	researchStore, err := research.OpenStore(dataDirectory)
 	if err != nil {
 		_ = application.modelUsage.Close()
 		_ = application.vulnJobs.Close()
-		_ = application.ctfMemory.Close()
-		_ = application.ctfJobs.Close()
 		_ = application.jobs.Close()
 		application.browserBridge.Close()
-		_ = application.ctfshowCatalog.Close()
-		_ = application.nssctfCatalog.Close()
 		return nil, fmt.Errorf("create research store: %w", err)
 	}
 	application.research = research.NewService(researchStore)
-	application.evalSuite, err = evalsuite.NewService(
-		application.sendEvalTurn,
-		application.AbortMessage,
-		application.emitEvalProgress,
-	)
-	if err != nil {
-		_ = application.research.Close()
-		_ = application.modelUsage.Close()
-		_ = application.vulnJobs.Close()
-		_ = application.ctfMemory.Close()
-		_ = application.ctfJobs.Close()
-		_ = application.jobs.Close()
-		application.browserBridge.Close()
-		_ = application.ctfshowCatalog.Close()
-		_ = application.nssctfCatalog.Close()
-		return nil, fmt.Errorf("create eval suite: %w", err)
-	}
 	application.applyLabTooling()
 	return application, nil
 }
@@ -469,13 +371,6 @@ func (a *App) Startup(ctx context.Context) {
 		a.emitDesktopEvent("job-runtime-error", err.Error())
 	}
 	log.Printf("[startup] go.jobs.Recover %dms", time.Since(recoverStarted).Milliseconds())
-	ctfRecoverStarted := time.Now()
-	if err := a.ctfJobs.Recover(ctx); err != nil {
-		a.diagnostics.Record("ctf", "error", "CTF job recovery failed")
-		_ = appdata.AppendEventLog(a.homeDirectory, appdata.PersistedCTFRecoveryFailed)
-		a.emitDesktopEvent("job-runtime-error", err.Error())
-	}
-	log.Printf("[startup] go.ctfJobs.Recover %dms", time.Since(ctfRecoverStarted).Milliseconds())
 	vulnRecoverStarted := time.Now()
 	if err := a.vulnJobs.Recover(ctx); err != nil {
 		a.diagnostics.Record("vuln", "error", "vulnerability job recovery failed")
@@ -500,8 +395,6 @@ func (a *App) Shutdown(_ context.Context) {
 		_ = a.companion.Stop()
 	}
 	_ = a.vulnJobs.Close()
-	_ = a.ctfMemory.Close()
-	_ = a.ctfJobs.Close()
 	_ = a.jobs.Close()
 	a.engines.Close()
 	if a.research != nil {
@@ -516,9 +409,10 @@ func (a *App) Shutdown(_ context.Context) {
 	if a.codingTerminals != nil {
 		a.codingTerminals.Close()
 	}
+	if a.ptyPool != nil {
+		a.ptyPool.Close()
+	}
 	a.browserBridge.Close()
-	_ = a.ctfshowCatalog.Close()
-	_ = a.nssctfCatalog.Close()
 	if a.lifespanHandle.Valid() {
 		if err := appdata.MarkCleanExit(a.homeDirectory, a.lifespanHandle); err != nil {
 			a.diagnostics.Record("appdata", "error", "mark clean exit failed")
@@ -537,6 +431,15 @@ func (a *App) GetSettings() config.AppSettings {
 		settings.RuntimeVersions = a.runtimeVersions
 	}
 	return settings
+}
+
+// ExportSidecarEnvironment returns the provider credential environment for
+// spawning a sidecar. Electron host only; the renderer must not call this.
+func (a *App) ExportSidecarEnvironment() ([]string, error) {
+	if a == nil || a.settings == nil {
+		return nil, errors.New("desktop runtime is unavailable")
+	}
+	return engine.SidecarProviderEnvironment(a.settings.GetResolved()), nil
 }
 
 // decisionLayerForSession 拼一条会话的全局决策层：凭据从设置读，主模型
@@ -1024,7 +927,6 @@ func (a *App) ExportLocalDiagnostics(rendererEvents []appdata.DiagnosticEvent) (
 				RelayEnabled:       settings.Relay != nil && settings.Relay.Enabled,
 				ModelVerified:      settings.ModelVerified != nil,
 				ConfiguredProvider: providers,
-				ArenaTokenPresent:  settings.NSSCTFArena != nil && settings.NSSCTFArena.HasToken,
 			},
 			Lifespan:       a.lifespanStart,
 			Events:         a.diagnostics.Snapshot(),
@@ -1082,9 +984,6 @@ func (a *App) SaveSettingsCmd(settings config.AppSettings) error {
 				a.diagnostics.Record("model-catalog", "warning", "align account model selection after settings save failed")
 			}
 		}
-	}
-	if a.evalSuite != nil {
-		a.evalSuite.SetSettings(a.settings.GetResolved())
 	}
 	a.applyLabTooling()
 	return err
@@ -1148,8 +1047,7 @@ func hasSessionOnlyCredential(settings config.AppSettings) bool {
 			return true
 		}
 	}
-	return settings.Relay != nil && settings.Relay.SessionOnly ||
-		settings.NSSCTFArena != nil && settings.NSSCTFArena.SessionOnly
+	return settings.Relay != nil && settings.Relay.SessionOnly
 }
 
 func (a *App) ListConversations() ([]conversation.StoredConversation, error) {
@@ -1278,10 +1176,8 @@ func (a *App) DeleteArchivedConversation(id string) error {
 	if err := a.stopConversationResources(id); err != nil {
 		return err
 	}
-	if a.research != nil {
-		if err := a.research.DeleteConversation(a.commandContext(), id); err != nil {
-			return err
-		}
+	if err := a.DropResearchForConversation(id); err != nil {
+		return err
 	}
 	if err := a.conversations.DeleteArchived(id); err != nil {
 		return err
@@ -1298,10 +1194,8 @@ func (a *App) DeleteConversation(id string) error {
 	if err := a.stopConversationResources(id); err != nil {
 		return err
 	}
-	if a.research != nil {
-		if err := a.research.DeleteConversation(a.commandContext(), id); err != nil {
-			return err
-		}
+	if err := a.DropResearchForConversation(id); err != nil {
+		return err
 	}
 	if err := a.conversations.Delete(id); err != nil {
 		return err
@@ -1309,6 +1203,16 @@ func (a *App) DeleteConversation(id string) error {
 	a.notifyConversationsChanged()
 	a.dropIndexedConversation(id)
 	return nil
+}
+
+// DropResearchForConversation removes Deep Research runs for a conversation
+// and does not touch conversation JSON. Runtime DeleteConversation owns the
+// JSON file and then invokes this.
+func (a *App) DropResearchForConversation(id string) error {
+	if a == nil || a.research == nil {
+		return nil
+	}
+	return a.research.DeleteConversation(a.commandContext(), id)
 }
 
 func (a *App) dropIndexedConversation(id string) {
@@ -1401,30 +1305,6 @@ func normalizeAgentWorkspaceSelection(value string) (string, error) {
 	return filepath.Clean(resolved), nil
 }
 
-func (a *App) ChooseCTFMaterials() ([]ctf.MaterialRequest, error) {
-	if a.ctx == nil {
-		return nil, fmt.Errorf("desktop runtime is not ready")
-	}
-	paths, err := a.openFiles(desktopDialogOptions{
-		Title: "补充 CTF 图片或附件",
-		Filters: []desktopFileFilter{
-			{Name: "所有文件", Extensions: []string{"*"}},
-			{Name: "CTF 材料", Extensions: []string{"png", "jpg", "jpeg", "gif", "webp", "svg", "txt", "md", "json", "xml", "html", "js", "py", "c", "cpp", "h", "zip", "apk", "ipa", "gz", "tar", "7z", "rar", "pdf", "pcap", "pcapng", "bin", "elf", "exe"}},
-		},
-	})
-	if err != nil {
-		return nil, err
-	}
-	return a.localCTFMaterialStore().Import(paths)
-}
-
-func (a *App) localCTFMaterialStore() *localCTFMaterialStore {
-	if a.ctfMaterials == nil {
-		a.ctfMaterials = newLocalCTFMaterialStore()
-	}
-	return a.ctfMaterials
-}
-
 func (a *App) ChooseCodingAttachments() ([]codingattachment.Attachment, error) {
 	if a.ctx == nil {
 		return nil, fmt.Errorf("desktop runtime is not ready")
@@ -1473,6 +1353,7 @@ func (a *App) SendMessage(
 	attachments []codingattachment.Attachment,
 	productAction *engine.CodingProductActionDescriptor,
 	branchFromUserOccurrence int,
+	traceID string,
 ) error {
 	resolvedWorkspace, err := a.resolveConversationWorkspace(conversationID, workspacePath)
 	if err != nil {
@@ -1480,26 +1361,11 @@ func (a *App) SendMessage(
 	}
 	workspacePath = resolvedWorkspace
 	sessionRole := ""
-	if a.ctfAgent != nil {
-		if err := a.ctfAgent.AuthorizeTurn(a.commandContext(), conversationID, workspacePath); err != nil {
-			return err
-		}
-		switch {
-		case strings.HasPrefix(conversationID, "ctf_tool_"):
-			sessionRole = ctf.AgentWorkspaceRoleToolBuilder
-		case strings.HasPrefix(conversationID, "ctf_strategy_"):
-			sessionRole = ctf.AgentWorkspaceRoleStrategist
-		case strings.HasPrefix(conversationID, "ctf_"):
-			sessionRole = ctf.AgentWorkspaceRoleSolver
-		}
-	}
-	if sessionRole == "" {
-		if stored, err := a.conversations.Get(conversationID); err == nil && stored.DomainTaskContext != nil {
-			if kind, _ := stored.DomainTaskContext["kind"].(string); kind == "cve" {
-				sessionRole = "cve-research"
-			} else if kind == "lab" {
-				sessionRole = "lab-job"
-			}
+	if stored, err := a.conversations.Get(conversationID); err == nil && stored.DomainTaskContext != nil {
+		if kind, _ := stored.DomainTaskContext["kind"].(string); kind == "cve" {
+			sessionRole = "cve-research"
+		} else if kind == "lab" {
+			sessionRole = "lab-job"
 		}
 	}
 	settings, err := engine.ResolveTaskModel(
@@ -1574,6 +1440,7 @@ func (a *App) SendMessage(
 		branchFromUserOccurrence,
 		imageDraw,
 		settings,
+		traceID,
 		modelSourcePreference,
 	); err != nil {
 		return err
@@ -1725,7 +1592,7 @@ func (a *App) resolveConversationWorkspace(conversationID, requested string) (st
 		return a.resolveImageHomeWorkspace(conversationID, requested)
 	}
 	requested = strings.TrimSpace(requested)
-	if requested != "" || strings.HasPrefix(conversationID, "ctf_") {
+	if requested != "" {
 		if requested != "" {
 			if err := a.rememberConversationWorkspace(conversationID, requested); err != nil {
 				return "", err
@@ -1921,7 +1788,7 @@ func (a *App) rememberConversationWorkspace(conversationID, workspace string) er
 	}
 	conversationID = strings.TrimSpace(conversationID)
 	workspace = strings.TrimSpace(workspace)
-	if conversationID == "" || workspace == "" || strings.HasPrefix(conversationID, "ctf_") {
+	if conversationID == "" || workspace == "" {
 		return nil
 	}
 	stored, err := a.conversations.Get(conversationID)
@@ -1936,18 +1803,6 @@ func (a *App) rememberConversationWorkspace(conversationID, workspace string) er
 		return fmt.Errorf("save Coding conversation workspace: %w", err)
 	}
 	return nil
-}
-
-func (a *App) ctfWorkspaceRoot() string {
-	if strings.TrimSpace(a.artifactDirectory) != "" {
-		return filepath.Join(a.artifactDirectory, string(userartifact.KindCTF))
-	}
-	if strings.TrimSpace(a.workspacesDirectory) != "" {
-		return filepath.Join(a.workspacesDirectory, "ctf-workspaces")
-	}
-	// Tests construct App without the workspaces root; keep their workspaces
-	// inside the temporary data directory instead of a relative path.
-	return filepath.Join(a.dataDirectory, "ctf-workspaces")
 }
 
 func (a *App) AbortMessage(conversationID string) error {
@@ -2034,200 +1889,13 @@ func (a *App) TestAgentModel(submitted config.AppSettings) (engine.ModelProbeRes
 	return result, nil
 }
 
-func (a *App) ImportNSSCTFChallenge(rawURL string) (nssctf.Challenge, error) {
-	return a.nssctf.ImportChallenge(a.commandContext(), rawURL)
-}
-
-func (a *App) SyncNSSCTFCatalog(rawURL string) (nssctf.CatalogSyncResult, error) {
-	return a.nssctfCatalog.Sync(a.commandContext(), rawURL)
-}
-
-func (a *App) GetNSSCTFTrainingDashboard() (nssctf.TrainingDashboard, error) {
-	signals, err := a.trainingSignals()
-	if err != nil {
-		return nssctf.TrainingDashboard{}, err
-	}
-	return a.nssctfCatalog.Dashboard(a.commandContext(), signals)
-}
-
-func (a *App) trainingSignals() ([]nssctf.TrainingSignal, error) {
-	projections, err := a.trainingProjections()
-	if err != nil {
-		return nil, err
-	}
-	signals := make([]nssctf.TrainingSignal, 0, len(projections))
-	for _, projection := range projections {
-		if signal, eligible := realTrainingSignal(projection); eligible {
-			signals = append(signals, signal)
-		}
-	}
-	return signals, nil
-}
-
-func (a *App) trainingProjections() ([]ctf.Projection, error) {
-	summaries, err := a.ctfJobs.ListJobs(a.commandContext())
-	if err != nil {
-		return nil, err
-	}
-	projections := make([]ctf.Projection, 0, len(summaries))
-	for _, summary := range summaries {
-		projection, err := a.ctfJobs.GetJob(a.commandContext(), summary.ID)
-		if err != nil {
-			return nil, err
-		}
-		projections = append(projections, projection)
-	}
-	return projections, nil
-}
-
-func (a *App) ListNSSCTFCatalog(query nssctf.CatalogQuery) (nssctf.CatalogSearchResult, error) {
-	result, err := a.nssctfCatalog.Search(a.commandContext(), query)
-	if err != nil {
-		return nssctf.CatalogSearchResult{}, err
-	}
-	signals, err := a.trainingSignals()
-	if err != nil {
-		return nssctf.CatalogSearchResult{}, err
-	}
-	result.AttemptedProblemIDs, result.CompletedProblemIDs = catalogTrainingProgress(
-		result.Problems,
-		signals,
-	)
-	return result, nil
-}
-
-func catalogTrainingProgress(
-	problems []nssctf.CatalogProblem,
-	signals []nssctf.TrainingSignal,
-) ([]int, []int) {
-	progress := make(map[int]struct {
-		attempted bool
-		completed bool
-	}, len(signals))
-	for _, signal := range signals {
-		if signal.ProblemID <= 0 || !strings.HasPrefix(signal.Platform, "nssctf") {
-			continue
-		}
-		value := progress[signal.ProblemID]
-		value.attempted = true
-		value.completed = value.completed || signal.Succeeded
-		progress[signal.ProblemID] = value
-	}
-	attempted := make([]int, 0, len(problems))
-	completed := make([]int, 0, len(problems))
-	for _, problem := range problems {
-		value := progress[problem.PlatformID]
-		if value.attempted {
-			attempted = append(attempted, problem.PlatformID)
-		}
-		if value.completed {
-			completed = append(completed, problem.PlatformID)
-		}
-	}
-	return attempted, completed
-}
-
-func (a *App) GetCTFTrainingPlatforms() []ctf.TrainingPlatform {
-	return ctf.TrainingPlatforms()
-}
-
-func boundedRunes(value string, maximum int) string {
-	value = strings.TrimSpace(value)
-	runes := []rune(value)
-	if len(runes) <= maximum {
-		return value
-	}
-	return string(runes[:maximum])
-}
-
-func realTrainingSignal(projection ctf.Projection) (nssctf.TrainingSignal, bool) {
-	platform := strings.TrimSpace(projection.Challenge.ExternalPlatform)
-	if platform == "" {
-		return nssctf.TrainingSignal{}, false
-	}
-	problemID := 0
-	if _, value, err := nssctf.NormalizeProblemURL(projection.Challenge.Source.URI); err == nil {
-		problemID = value
-	}
-	state := nssctf.TrainingStateActive
-	if projection.Outcome != nil {
-		switch projection.Outcome.Status {
-		case securityruntime.OutcomeSucceeded:
-			state = nssctf.TrainingStateSucceeded
-		case securityruntime.OutcomeFailed:
-			state = nssctf.TrainingStateFailed
-		case securityruntime.OutcomeCancelled:
-			state = nssctf.TrainingStateCancelled
-		}
-	} else {
-		switch projection.Job.Status {
-		case securityruntime.JobSucceeded:
-			state = nssctf.TrainingStateSucceeded
-		case securityruntime.JobFailed:
-			state = nssctf.TrainingStateFailed
-		case securityruntime.JobCancelled:
-			state = nssctf.TrainingStateCancelled
-		}
-	}
-	succeeded := projection.Outcome != nil &&
-		projection.Outcome.Status == securityruntime.OutcomeSucceeded
-	verification := nssctf.TrainingVerificationUnverified
-	if succeeded {
-		verification = nssctf.TrainingVerificationUserConfirmed
-		for _, receipt := range projection.JudgeReceipts {
-			if receipt.Correct != nil &&
-				*receipt.Correct &&
-				strings.EqualFold(receipt.Platform, platform) {
-				verification = nssctf.TrainingVerificationPlatformJudge
-				break
-			}
-		}
-	}
-	actor := string(projection.HumanOutcome.Contribution.PrimaryActor)
-	assistance := string(projection.HumanOutcome.Contribution.Assistance)
-	if actor == "" || assistance == "" {
-		// A missing typed contribution is unknown evidence, not permission to
-		// infer user ability from the selected collaboration mode.
-		actor = nssctf.TrainingActorImported
-		assistance = nssctf.TrainingAssistanceDelegated
-	}
-	return nssctf.TrainingSignal{
-		ProblemID: problemID,
-		Platform:  platform,
-		Category:  projection.Challenge.Category,
-		Tags:      append([]string{}, projection.Challenge.KnowledgePoints...),
-		State:     state,
-		Succeeded: succeeded,
-		// A persisted CTF job is one learner attempt. Runtime/PI restarts inside
-		// the job are execution details and must not lower the learner's solve rate.
-		Attempts:          1,
-		Hints:             projection.HumanOutcome.HintCount,
-		IndependentSteps:  projection.HumanOutcome.IndependentSteps,
-		UserAssistedSteps: projection.HumanOutcome.Contribution.UserAssistedSteps,
-		Verification:      verification,
-		Actor:             actor,
-		Assistance:        assistance,
-	}, true
-}
-
-func (a *App) OpenNSSCTFChallenge(rawURL string) error {
-	normalized, _, err := nssctf.NormalizeProblemURL(rawURL)
-	if err != nil {
-		return err
-	}
-	if a.ctx == nil {
-		return fmt.Errorf("desktop runtime is not ready")
-	}
-	return a.openExternal(normalized)
-}
-
-func (a *App) OpenCTFSourceURL(rawURL string) error {
+func (a *App) OpenSourceURL(rawURL string) error {
 	parsed, err := url.Parse(strings.TrimSpace(rawURL))
 	if err != nil ||
 		(parsed.Scheme != "http" && parsed.Scheme != "https") ||
 		parsed.Host == "" ||
 		parsed.User != nil {
-		return fmt.Errorf("CTF source must be an http(s) URL without credentials")
+		return fmt.Errorf("source must be an http(s) URL without credentials")
 	}
 	if a.ctx == nil {
 		return fmt.Errorf("desktop runtime is not ready")
@@ -2285,360 +1953,6 @@ func (a *App) RevealBrowserExtension() error {
 		return fmt.Errorf("browser extension path is not a directory")
 	}
 	return a.openPath(extensionPath)
-}
-
-func (a *App) StartCTFChallenge(request ctf.ChallengeRequest) (ctf.Projection, error) {
-	resolved, cleanup, err := a.localCTFMaterialStore().Resolve(request)
-	if err != nil {
-		return ctf.Projection{}, err
-	}
-	projection, err := a.ctfJobs.StartChallenge(a.commandContext(), resolved)
-	if err != nil {
-		return ctf.Projection{}, err
-	}
-	cleanup()
-	return projection, nil
-}
-
-func (a *App) ListCTFJobs() ([]ctf.Summary, error) {
-	return a.ctfJobs.ListJobs(a.commandContext())
-}
-
-func (a *App) GetCTFJob(id string) (ctf.Projection, error) {
-	return a.ctfJobs.GetJob(a.commandContext(), id)
-}
-
-func (a *App) GetCTFArtifactPreview(id string, artifactID string) (ctf.ArtifactPreview, error) {
-	return a.ctfJobs.GetArtifactPreview(a.commandContext(), id, artifactID)
-}
-
-func (a *App) PrepareCTFAgentWorkspace(id string) (ctf.AgentWorkspaceHandoff, error) {
-	projection, err := a.ctfJobs.GetJob(a.commandContext(), id)
-	if err != nil {
-		return ctf.AgentWorkspaceHandoff{}, err
-	}
-	handoff, err := ctf.PrepareAgentWorkspace(
-		a.commandContext(),
-		a.ctfWorkspaceRoot(),
-		projection,
-		a.jobs,
-	)
-	if err != nil {
-		return ctf.AgentWorkspaceHandoff{}, err
-	}
-	if a.ctfMemory != nil {
-		if _, err := a.refreshCTFMemoryContext(projection, true); err != nil {
-			return ctf.AgentWorkspaceHandoff{}, err
-		}
-	}
-	if err := a.ctfAgent.Register(handoff); err != nil {
-		return ctf.AgentWorkspaceHandoff{}, err
-	}
-	return handoff, nil
-}
-
-func (a *App) SaveCTFTrainingMemory(id string) (ctf.TrainingMemory, error) {
-	if a.ctfMemory == nil {
-		return ctf.TrainingMemory{}, fmt.Errorf("CTF memory store is unavailable")
-	}
-	projection, err := a.ctfJobs.GetJob(a.commandContext(), id)
-	if err != nil {
-		return ctf.TrainingMemory{}, err
-	}
-	sourceSessionID := ""
-	if len(projection.AgentRuns) > 0 {
-		sourceSessionID = projection.AgentRuns[len(projection.AgentRuns)-1].SessionID
-	}
-	memory, err := a.ctfMemory.SaveFromProjection(
-		a.commandContext(),
-		projection,
-		sourceSessionID,
-		time.Now(),
-	)
-	if err != nil {
-		return ctf.TrainingMemory{}, err
-	}
-	if _, refreshErr := a.refreshCTFMemoryContext(projection, false); refreshErr != nil {
-		return ctf.TrainingMemory{}, refreshErr
-	}
-	return memory, nil
-}
-
-func (a *App) GetCTFMemoryContext(id string) ([]ctf.TrainingMemory, error) {
-	if a.ctfMemory == nil {
-		return nil, fmt.Errorf("CTF memory store is unavailable")
-	}
-	projection, err := a.ctfJobs.GetJob(a.commandContext(), id)
-	if err != nil {
-		return nil, err
-	}
-	return a.refreshCTFMemoryContext(projection, false)
-}
-
-func (a *App) refreshCTFMemoryContext(
-	projection ctf.Projection,
-	requireWorkspace bool,
-) ([]ctf.TrainingMemory, error) {
-	if a.ctfMemory == nil {
-		return nil, fmt.Errorf("CTF memory store is unavailable")
-	}
-	memories, err := a.ctfMemory.RecallForChallenge(
-		a.commandContext(),
-		ctf.TrainingMemoryRecallContext{
-			Category:        projection.Challenge.Category,
-			Title:           projection.Challenge.Title,
-			KnowledgePoints: projection.Challenge.KnowledgePoints,
-			SourceJobID:     projection.Job.ID,
-		},
-		5,
-	)
-	if err != nil {
-		return nil, err
-	}
-	memories = a.attributeCTFMemories(memories)
-	workspacePath, pathErr := ctf.AgentWorkspacePath(
-		a.ctfWorkspaceRoot(),
-		projection.Job.ID,
-	)
-	if pathErr != nil {
-		if requireWorkspace {
-			return nil, pathErr
-		}
-		return memories, nil
-	}
-	if _, statErr := os.Stat(filepath.Join(workspacePath, "challenge.json")); statErr != nil {
-		if requireWorkspace {
-			return nil, statErr
-		}
-		return memories, nil
-	}
-	if err := ctf.WriteAgentMemoryContext(workspacePath, memories); err != nil {
-		return nil, err
-	}
-	return memories, nil
-}
-
-// attributeCTFMemories derives contributor metadata from the append-only
-// source projection. It deliberately leaves the existing pre-release memory
-// table unchanged; missing source evidence remains conservatively imported.
-func (a *App) attributeCTFMemories(memories []ctf.TrainingMemory) []ctf.TrainingMemory {
-	result := append([]ctf.TrainingMemory{}, memories...)
-	for index := range result {
-		projection, err := a.ctfJobs.GetJob(
-			a.commandContext(),
-			result[index].SourceJobID,
-		)
-		if err != nil {
-			continue
-		}
-		contribution := projection.HumanOutcome.Contribution
-		if contribution.PrimaryActor != "" {
-			result[index].Actor = contribution.PrimaryActor
-		}
-		if contribution.Assistance != "" {
-			result[index].Assistance = contribution.Assistance
-		}
-	}
-	return result
-}
-
-func (a *App) ArchiveCTFMemory(id, reason string) error {
-	if a.ctfMemory == nil {
-		return fmt.Errorf("CTF memory store is unavailable")
-	}
-	return a.ctfMemory.Archive(a.commandContext(), id, reason, time.Now())
-}
-
-func (a *App) PrepareCTFToolBuilderWorkspace(id string) (ctf.AgentWorkspaceHandoff, error) {
-	if _, err := a.PrepareCTFAgentWorkspace(id); err != nil {
-		return ctf.AgentWorkspaceHandoff{}, err
-	}
-	workspacePath, err := ctf.AgentWorkspacePath(
-		a.ctfWorkspaceRoot(),
-		id,
-	)
-	if err != nil {
-		return ctf.AgentWorkspaceHandoff{}, err
-	}
-	handoff, err := ctf.LoadAgentToolBuilderHandoff(workspacePath)
-	if err != nil {
-		return ctf.AgentWorkspaceHandoff{}, err
-	}
-	if err := a.ctfAgent.Register(handoff); err != nil {
-		return ctf.AgentWorkspaceHandoff{}, err
-	}
-	return handoff, nil
-}
-
-func (a *App) PrepareCTFStrategistWorkspace(id string) (ctf.AgentWorkspaceHandoff, error) {
-	if _, err := a.PrepareCTFAgentWorkspace(id); err != nil {
-		return ctf.AgentWorkspaceHandoff{}, err
-	}
-	workspacePath, err := ctf.AgentWorkspacePath(
-		a.ctfWorkspaceRoot(),
-		id,
-	)
-	if err != nil {
-		return ctf.AgentWorkspaceHandoff{}, err
-	}
-	handoff, err := ctf.LoadAgentStrategistHandoff(workspacePath)
-	if err != nil {
-		return ctf.AgentWorkspaceHandoff{}, err
-	}
-	if err := a.ctfAgent.Register(handoff); err != nil {
-		return ctf.AgentWorkspaceHandoff{}, err
-	}
-	return handoff, nil
-}
-
-func (a *App) GetCTFToolWorkshopState(id string) (ctf.ToolWorkshopState, error) {
-	if _, err := a.ctfJobs.GetJob(a.commandContext(), id); err != nil {
-		return ctf.ToolWorkshopState{}, err
-	}
-	workspacePath, err := ctf.AgentWorkspacePath(
-		a.ctfWorkspaceRoot(),
-		id,
-	)
-	if err != nil {
-		return ctf.ToolWorkshopState{}, err
-	}
-	handoff, err := ctf.LoadAgentWorkspaceHandoff(workspacePath)
-	if err != nil {
-		return ctf.ToolWorkshopState{}, fmt.Errorf("load CTF Agent workspace: %w", err)
-	}
-	if handoff.JobID != id {
-		return ctf.ToolWorkshopState{}, fmt.Errorf("CTF Agent workspace does not match the requested job")
-	}
-	return ctf.ReadToolWorkshopState(workspacePath)
-}
-
-func (a *App) GetCTFAgentReplay(id string) (ctf.AgentReplay, error) {
-	if _, err := a.ctfJobs.GetJob(a.commandContext(), id); err != nil {
-		return ctf.AgentReplay{}, err
-	}
-	workspacePath, err := ctf.AgentWorkspacePath(
-		a.ctfWorkspaceRoot(),
-		id,
-	)
-	if err != nil {
-		return ctf.AgentReplay{}, err
-	}
-	handoff, err := ctf.LoadAgentWorkspaceHandoff(workspacePath)
-	if err != nil {
-		return ctf.AgentReplay{}, fmt.Errorf("load CTF Agent workspace: %w", err)
-	}
-	if handoff.JobID != id {
-		return ctf.AgentReplay{}, fmt.Errorf("CTF Agent workspace does not match the requested job")
-	}
-	return ctf.ReadAgentReplay(workspacePath)
-}
-
-func (a *App) GetCTFAgentBudgetStatus(id string) (ctf.AgentBudgetStatus, error) {
-	projection, err := a.ctfJobs.GetJob(a.commandContext(), id)
-	if err != nil {
-		return ctf.AgentBudgetStatus{}, err
-	}
-	return ctf.EvaluateAgentBudget(projection, time.Now()), nil
-}
-
-func (a *App) GetCTFAgentRunCheckpoint(id string) (*ctf.AgentRunCheckpoint, error) {
-	if _, err := a.ctfJobs.GetJob(a.commandContext(), id); err != nil {
-		return nil, err
-	}
-	workspacePath, err := ctf.AgentWorkspacePath(
-		a.ctfWorkspaceRoot(),
-		id,
-	)
-	if err != nil {
-		return nil, err
-	}
-	checkpoint, err := ctf.LoadAgentRunCheckpoint(workspacePath)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	if checkpoint.JobID != id {
-		return nil, fmt.Errorf("CTF Agent checkpoint does not match the requested job")
-	}
-	return &checkpoint, nil
-}
-
-func (a *App) GenerateCTFTrainingReport(id string) (ctf.TrainingReportExport, error) {
-	projection, err := a.ctfJobs.GetJob(a.commandContext(), id)
-	if err != nil {
-		return ctf.TrainingReportExport{}, err
-	}
-	handoff, err := a.PrepareCTFAgentWorkspace(id)
-	if err != nil {
-		return ctf.TrainingReportExport{}, err
-	}
-	refreshedRun, err := ctf.PersistAgentRunCheckpoint(
-		handoff.WorkspacePath,
-		handoff,
-		ctf.AgentRunSnapshot{
-			Status:                 handoff.Run.Status,
-			ExitReason:             handoff.Run.ExitReason,
-			Model:                  handoff.Run.Model,
-			LastToolFingerprint:    handoff.Run.LastToolFingerprint,
-			RepeatedToolUses:       handoff.Run.RepeatedToolUses,
-			LastFailureFingerprint: handoff.Run.LastFailureFingerprint,
-			RepeatedFailures:       handoff.Run.RepeatedFailures,
-			LastAssistantSummary:   handoff.Run.LastAssistantSummary,
-		},
-		time.Now().UTC(),
-	)
-	if err != nil {
-		return ctf.TrainingReportExport{}, err
-	}
-	handoff.Run = refreshedRun
-	replay, err := ctf.ReadAgentReplay(handoff.WorkspacePath)
-	if err != nil {
-		return ctf.TrainingReportExport{}, err
-	}
-	report, err := ctf.BuildTrainingReport(projection, handoff, replay, time.Now().UTC())
-	if err != nil {
-		return ctf.TrainingReportExport{}, err
-	}
-	return ctf.PersistTrainingReport(handoff.WorkspacePath, report)
-}
-
-func (a *App) CancelCTFJob(id string) error {
-	return a.ctfJobs.CancelJob(a.commandContext(), id)
-}
-
-func (a *App) RecordCTFLearning(id string, request ctf.LearningRecordRequest) (ctf.Projection, error) {
-	return a.ctfJobs.RecordLearning(a.commandContext(), id, request)
-}
-
-func (a *App) ReviewCTFSubmission(id string, accepted bool, summary string) (ctf.Projection, error) {
-	return a.ctfJobs.ReviewSubmission(a.commandContext(), id, accepted, summary)
-}
-
-func (a *App) PrepareCTFExternalSubmission(
-	id, candidate, explanation string,
-) (ctf.Projection, error) {
-	return a.ctfJobs.PrepareExternalSubmission(
-		a.commandContext(),
-		id,
-		candidate,
-		explanation,
-		0,
-	)
-}
-
-func (a *App) RecordCTFExternalVerdict(
-	id string,
-	accepted bool,
-	summary string,
-) (ctf.Projection, error) {
-	return a.ctfJobs.RecordExternalVerdict(
-		a.commandContext(),
-		id,
-		accepted,
-		summary,
-	)
 }
 
 func (a *App) EnsureVulnTrackingWorkspace(request vuln.TrackingWorkspaceRequest) (vuln.Projection, error) {
@@ -2855,9 +2169,6 @@ func (a *App) emitEngineEvent(event engine.Event) {
 	if a.companion != nil {
 		a.companion.ObserveEngineEvent(event)
 	}
-	if a.evalSuite != nil {
-		a.evalSuite.Observe(event)
-	}
 	usageChanged, usageErr := a.recordCodingUsage(event)
 	if usageErr != nil {
 		a.diagnostics.Record("coding-usage", "error", "Coding Agent usage recording failed")
@@ -2865,19 +2176,9 @@ func (a *App) emitEngineEvent(event engine.Event) {
 		a.emitDesktopEvent("model-usage-changed", struct{}{})
 	}
 	// Forward usage.recorded to the desktop too: Coding UI needs the last call's
-	// token counts for the composer strip / Agent rail. CTF Agent recording below
-	// still skips usage rows (accounting only).
+	// token counts for the composer strip / Agent rail.
 	if a.ctx != nil {
 		a.emitDesktopEvent("engine-event", event)
-	}
-	if event.Type != "usage.recorded" && a.ctfAgent != nil {
-		if err := a.ctfAgent.Record(a.commandContext(), event); err != nil && a.ctx != nil {
-			a.diagnostics.Record("ctf-agent", "error", "CTF Agent event recording failed")
-			if errors.Is(err, errCTFAgentLoopDetected) {
-				_ = a.engines.AbortMessage(event.SessionID)
-			}
-			a.emitDesktopEvent("job-runtime-error", err.Error())
-		}
 	}
 }
 

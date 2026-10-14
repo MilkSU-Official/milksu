@@ -7,9 +7,7 @@ import (
 	"time"
 
 	"github.com/MilkSU-Official/milksu/internal/conversation"
-	"github.com/MilkSU-Official/milksu/internal/ctf"
 	"github.com/MilkSU-Official/milksu/internal/lab"
-	"github.com/MilkSU-Official/milksu/internal/nssctf"
 	"github.com/MilkSU-Official/milksu/internal/vuln"
 	"github.com/google/uuid"
 )
@@ -82,13 +80,6 @@ func (a *App) listWorkspaceRecords(kind string, request codingWorkspaceRequest) 
 		}
 		records = append(records, listed...)
 	}
-	if kind == "" || kind == "ctf" {
-		listed, err := a.listCTFRecords(query, limit)
-		if err != nil {
-			return "", err
-		}
-		records = append(records, listed...)
-	}
 	if len(records) > limit {
 		records = records[:limit]
 	}
@@ -122,22 +113,6 @@ func (a *App) getWorkspaceRecord(kind string, request codingWorkspaceRequest) (s
 			return "", err
 		}
 		return encodeWorkspaceResult(map[string]any{"record": record})
-	case "ctf":
-		if a.ctfJobs == nil {
-			return "", fmt.Errorf("CTF jobs are unavailable")
-		}
-		projection, err := a.ctfJobs.GetJob(a.commandContext(), id)
-		if err != nil {
-			return "", err
-		}
-		return encodeWorkspaceResult(map[string]any{
-			"record": map[string]any{
-				"kind":   "ctf",
-				"id":     projection.Job.ID,
-				"title":  projection.Job.Title,
-				"status": projection.Job.Status,
-			},
-		})
 	default:
 		return "", fmt.Errorf("unknown workspace record kind")
 	}
@@ -199,8 +174,6 @@ func (a *App) createWorkspaceRecord(
 		return encodeWorkspaceResult(map[string]any{"record": record})
 	case "cve":
 		return a.createCVERecord(conversationID, request)
-	case "ctf":
-		return a.createCTFRecord(conversationID, request)
 	default:
 		return "", fmt.Errorf("unknown workspace record kind")
 	}
@@ -292,8 +265,6 @@ func (a *App) updateWorkspaceRecord(
 		}
 		a.emitWorkspaceRecordChanged("update", "cve", fmt.Sprint(record["id"]), nil, record, conversationID)
 		return encodeWorkspaceResult(map[string]any{"record": record})
-	case "ctf":
-		return "", fmt.Errorf("CTF records are updated through Evidence and Judge, not title fields")
 	default:
 		return "", fmt.Errorf("unknown workspace record kind")
 	}
@@ -391,34 +362,6 @@ func (a *App) searchWorkspaceRecords(kind string, request codingWorkspaceRequest
 			"sourceUrl":  snapshot.SourceURL,
 			"candidates": parseNVDCVECandidates(snapshot.Body, 10),
 		})
-	case "ctf":
-		if a.nssctfCatalog == nil {
-			return "", fmt.Errorf("CTF catalog is unavailable")
-		}
-		page, err := a.nssctfCatalog.Search(a.commandContext(), nssctf.CatalogQuery{
-			Query:    query,
-			Page:     1,
-			PageSize: 20,
-		})
-		if err != nil {
-			return "", err
-		}
-		candidates := make([]map[string]any, 0, len(page.Problems))
-		for _, problem := range page.Problems {
-			candidates = append(candidates, map[string]any{
-				"id":         fmt.Sprintf("P%d", problem.PlatformID),
-				"title":      problem.Title,
-				"category":   problem.Category,
-				"url":        problem.SourceURL,
-				"platformId": problem.PlatformID,
-			})
-		}
-		return encodeWorkspaceResult(map[string]any{
-			"kind":       "ctf",
-			"query":      query,
-			"source":     "nssctf-catalog",
-			"candidates": candidates,
-		})
 	case "conversation", "lab":
 		return a.listWorkspaceRecords(kind, request)
 	default:
@@ -469,71 +412,6 @@ func (a *App) createCVERecord(conversationID string, request codingWorkspaceRequ
 		"url":      strings.TrimSpace(request.URL),
 	}
 	a.emitWorkspaceRecordChanged("create", "cve", cveID, nil, record, conversationID)
-	return encodeWorkspaceResult(map[string]any{"record": record})
-}
-
-func (a *App) createCTFRecord(conversationID string, request codingWorkspaceRequest) (string, error) {
-	if a.ctfJobs == nil {
-		return "", fmt.Errorf("CTF jobs are unavailable")
-	}
-	title := clipWorkspaceTitle(request.Title)
-	statement := strings.TrimSpace(request.Statement)
-	sourceURI := strings.TrimSpace(request.URL)
-	category := strings.TrimSpace(request.Category)
-	sourceKind := strings.TrimSpace(request.SourceKind)
-	if sourceKind == "" {
-		if sourceURI != "" {
-			sourceKind = "url"
-		} else {
-			sourceKind = "text"
-		}
-	}
-	var knowledge []string
-	var externalPlatform string
-	var externalAttemptID int64
-	if sourceURI != "" && a.nssctf != nil {
-		if imported, err := a.nssctf.ImportChallenge(a.commandContext(), sourceURI); err == nil {
-			if title == "" {
-				title = imported.Title
-			}
-			if statement == "" {
-				statement = imported.Statement
-			}
-			if category == "" {
-				category = imported.Category
-			}
-			knowledge = append([]string{}, imported.Tags...)
-			externalPlatform = "nssctf-web"
-			externalAttemptID = int64(imported.PlatformID)
-			sourceURI = imported.SourceURL
-			sourceKind = "url"
-		}
-	}
-	if title == "" || statement == "" {
-		return "", fmt.Errorf("CTF records need title and statement, or an importable challenge URL")
-	}
-	projection, err := a.StartCTFChallenge(ctf.ChallengeRequest{
-		Title:             title,
-		Statement:         statement,
-		Category:          category,
-		CollaborationMode: "copilot",
-		DeferAgent:        true,
-		SourceKind:        sourceKind,
-		SourceURI:         sourceURI,
-		ExternalPlatform:  externalPlatform,
-		ExternalAttemptID: externalAttemptID,
-		KnowledgePoints:   knowledge,
-	})
-	if err != nil {
-		return "", err
-	}
-	record := map[string]any{
-		"kind":   "ctf",
-		"id":     projection.Job.ID,
-		"title":  projection.Job.Title,
-		"status": projection.Job.Status,
-	}
-	a.emitWorkspaceRecordChanged("create", "ctf", projection.Job.ID, nil, record, conversationID)
 	return encodeWorkspaceResult(map[string]any{"record": record})
 }
 
@@ -631,28 +509,6 @@ func (a *App) listCVERecords(query string, limit int) ([]map[string]any, error) 
 		if record["id"] == "" {
 			record["id"] = value.ID
 		}
-		if !recordMatchesQuery(record, query) {
-			continue
-		}
-		records = append(records, record)
-		if len(records) >= limit {
-			break
-		}
-	}
-	return records, nil
-}
-
-func (a *App) listCTFRecords(query string, limit int) ([]map[string]any, error) {
-	if a.ctfJobs == nil {
-		return nil, nil
-	}
-	jobs, err := a.ctfJobs.ListJobs(a.commandContext())
-	if err != nil {
-		return nil, err
-	}
-	records := make([]map[string]any, 0, len(jobs))
-	for _, job := range jobs {
-		record := ctfRecordFromSummary(job)
 		if !recordMatchesQuery(record, query) {
 			continue
 		}
@@ -792,7 +648,6 @@ func conversationRecord(value conversation.StoredConversation, archived bool) ma
 		"createdAt":      value.CreatedAt,
 		"archived":       archived,
 		"domainKind":     domainKind,
-		"ctfJobId":       value.CTFJobID,
 		"messageCount":   len(value.Messages),
 		"conversationId": value.ID,
 	}
@@ -809,16 +664,6 @@ func labRecord(value lab.Job, archived bool) map[string]any {
 		"updatedAt":      value.UpdatedAt,
 		"archived":       archived,
 		"conversationId": "lab-job-" + value.ID,
-	}
-}
-
-func ctfRecordFromSummary(value ctf.Summary) map[string]any {
-	return map[string]any{
-		"kind":     "ctf",
-		"id":       value.ID,
-		"title":    value.Title,
-		"category": value.Category,
-		"status":   value.Status,
 	}
 }
 
@@ -853,7 +698,7 @@ func recordMatchesQuery(record map[string]any, query string) bool {
 
 func normalizeWorkspaceRecordKind(value string) string {
 	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "conversation", "lab", "cve", "ctf":
+	case "conversation", "lab", "cve":
 		return strings.ToLower(strings.TrimSpace(value))
 	default:
 		return ""

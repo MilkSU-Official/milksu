@@ -160,6 +160,7 @@ const builderConfig = {
   },
   extraResources: [
     { from: join(repositoryRoot, 'app', 'dist'), to: 'renderer' },
+    { from: join(repositoryRoot, 'runtime', 'src', 'envbroker', 'packages'), to: 'envbroker/packages' },
     { from: backendPath, to: 'milksu-backend' },
     { from: sidecarPath, to: 'milksu-sidecar' },
     // electron-builder createFilter skips a source-root node_modules directory.
@@ -183,7 +184,7 @@ const builderConfig = {
     executableName: 'milksu',
     maintainer: 'MilkSU',
     synopsis: 'Personal security learning and research workspace',
-    description: 'MilkSU desktop workspace for Coding, CTF and CVE learning workflows.',
+    description: 'MilkSU desktop workspace for Coding, CVE and Lab workflows.',
   },
   deb: {
     // electron-builder default Recommends libappindicator3-1, which is Ubuntu-only.

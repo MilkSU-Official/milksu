@@ -18,7 +18,7 @@ export function defaultBusySend(value?: unknown): BusySendPolicy {
 
 export function normalizeAgentKernel(value: unknown): AgentKernel {
   const raw = String(value ?? '').trim().toLowerCase()
-  if (raw === 'dsh' || raw === 'deepseek' || raw === 'deepseek-harness') return 'dsh'
+  if (raw === 'dsh' || raw === 'acp' || raw === 'deepseek' || raw === 'deepseek-harness') return 'dsh'
   return 'pi'
 }
 

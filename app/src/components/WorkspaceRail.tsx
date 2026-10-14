@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import {
   Bug,
   Code2,
-  Flag,
   FlaskConical,
   LogOut,
   Moon,
@@ -11,7 +10,7 @@ import {
   SunMoon,
   UserRound,
 } from 'lucide-react'
-import profileAvatar from '@/assets/ctf-learner-avatar.png'
+import profileAvatar from '@/assets/milksu-app-icon.png'
 import { invokeCommand } from '@/desktop'
 import type { ThemeMode } from '@/lib/themeMode'
 import type { AccountStatus, BuildTracking } from '@/types'
@@ -19,7 +18,6 @@ import { WORKSPACE_RAIL_ITEMS, type AppSection, type WorkspaceSection } from '@/
 import { useT } from '@/hooks/useUiLocale'
 
 const icons = {
-  ctf: Flag,
   vuln: Bug,
   lab: FlaskConical,
   chat: Code2,

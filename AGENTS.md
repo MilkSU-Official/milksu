@@ -30,8 +30,8 @@ M3 product-loop 已在 2026-08-05 squash 合并进 `main`。从 `current-objecti
 - 设计新产品能力、公开 Desktop RPC API、持久化状态、Sidecar 资源或 feature flag 之前，
   以及检查该能力三端产品化的时候；
 - 新增用户可见页面或改动设计语言之前；
-- 实现 Agent Harness 行为、兼容/迁移逻辑、实验性产品表面，或实现一项已由 Pi、DSH
-  或其他已评审上游组件拥有的能力之前；
+- 实现 Agent Harness 行为、兼容/迁移逻辑、实验性产品表面，或实现一项已由 Pi、
+  经 ACP 接入的 Agent 或其他已评审上游组件拥有的能力之前；
 - 新增 smoke、fixture、benchmark、浏览器预览或发版验收基础设施之前；
 - 评审与交付收口时，判断一项已实现但未验证的能力是否应留在生产依赖图里。
 
@@ -43,7 +43,7 @@ M3 product-loop 已在 2026-08-05 squash 合并进 `main`。从 `current-objecti
 - 除非用户另有要求，用中文交流。
 - 代码、注释、文档、UI 文案和提交信息里不使用 emoji。
 - 当 Agent Harness 概念对产品决策，或对用户的面试与演示准备有实际帮助时，解释清楚。
-- 多个 agent 共用一份工作树时，**在 PR 分支上做审阅、提 commit、rebase 等任何改动之前，必须切独立 worktree**（`git worktree add .worktrees/<名> <分支>`，把 `.worktrees/` 加进 `.git/info/exclude`），不得在主工作树上切分支或 rebase——其他 agent 的未提交改动会被一起带走或挡在原地。临时补丁用 `git diff > 文件` 随身带，不用 stash（stash 栈是共享的，互相覆盖）。worktree 里跑前端测试前要单独 `npm install`（根和 `app/` 各一次）。
+- 多个 agent 共用一份工作树时，**在 PR 分支上做审阅、提 commit、rebase 等任何改动之前，必须切独立 worktree**（`git worktree add .worktrees/<名> <分支>`，把 `.worktrees/` 加进 `.git/info/exclude`），不得在主工作树上切分支或 rebase——其他 agent 的未提交改动会被一起带走或挡在原地。临时补丁用 `git diff > 文件` 随身带，不用 stash（stash 栈是共享的，互相覆盖）。worktree 里跑前端测试或 `desktop:start` 前要单独 `npm install`（根、`app/` 和 `desktop/` 各一次）。
 
 ## 模型事实（models.dev）
 
@@ -102,10 +102,12 @@ React 组件、hooks 和前端 lib 文案里每一条用户可见的中文串，
 `app/src/lib/uiLocale.ts` 的 `t('中文', 'English')` 包起来。
 新增或修改中文 UI 文案时，在同一次编辑里改掉英文参数。
 不要留下只有中文的控件、通知、空状态、aria-label、placeholder 或按钮。
-模块名 CTF、CVE、Lab 和 Coding 在两种语言下都保持产品名不变。
+模块名 CVE、Lab 和 Coding 在两种语言下都保持产品名不变。
 强制手段：`app/src/lib/uiLocaleCoverage.test.ts`。
 
 看板娘的英文是 Companion。它以前叫「桌宠」。开发、测试和搜旧记录时，桌宠就是看板娘。代码标识、测试 id、目录和插件槽位仍是 companion / `app.pet`。
+
+输入栏运行时选项是 Pi 和 Agent。其余 Agent 在设置里填命令，经 ACP 接入。ACP 只出现在设置说明里，不当产品名。不要给这条路径另起中文产品名。
 
 ## 中文写作规范
 
@@ -130,7 +132,7 @@ PR 正文另受 `.github/PULL_REQUEST_TEMPLATE.md` 的结构约束。
 所有 UI 功能先联网搜索成熟实现作为参考，并套进本节已有的 React + shadcn、token 和动效规则；不要手搓一次性的控件、图标或布局，除非用户明确确认要手搓。
 
 MilkSU 仍然自己持有：双语 `t('中文', 'English')`、空控件留白、三端窗口框、
-CTF / CVE / 实验室领域 chrome，以及桌面授权。
+CVE / 实验室领域 chrome，以及桌面授权。
 不要 vendor Beautiful UI 的 React 运行时、`globals.css` 或付费的 `@central-icons-react`。
 不要加 `@yunyoujun/ak-ui`。彩蛋（ak-ui 芯片、LIVE 花活）已推迟，重写页面时不要顺手加回来。
 不要把 DeepSeek Harness 商标当成 MilkSU 的产品名。
@@ -146,12 +148,11 @@ CTF / CVE / 实验室领域 chrome，以及桌面授权。
 | 列表 chrome | 筛选、历史、主操作 | shadcn Button / Input / Select / Badge。筛选是一排 `Button`（`outline` / 选中 `default`，`rounded-md` 或 `rounded-full`）。目录表格用画布色或卡片填充加普通的 caption 表头，不是等宽大写的「调度台」表头。分类 / 难度 / 严重度用 `Badge`。会话列表 chrome 和侧栏一致：悬停钉选 / 归档，右键出完整动作菜单，行上没有三点。命令面板筛选芯片用同一套「选中填充 / 未选中只有文字」的行。小节头用弱色小字标签，操作悬停整行才显示，不常驻占位。 |
 | 事实 | 卡片、表格、对话框、状态 | shadcn Card / Table / Dialog / Alert / Switch。设置跟 Cursor：一组 `SettingsSection` 列表，`SettingsRow` 是左边标签、右边一个紧凑控件。标签和控件共用 `--text-label`（13px），控件高 28px。改完即存，不要页面级的「保存」/「保存并验证」。厂商 / 应用标记（编辑器、模型）放在 Select 选项和收起的 trigger 里面，不是控件旁边的兄弟图标。不要嵌套卡片，不要 workbench 分栏，不要在一个分类里堆 ActionCard。审批、凭据和就地表单错误仍用 `Alert`。后台和短时失败用 toast（`Toaster`，同一套液态玻璃）。不要把 API Key 放进 toast。更新重启对话框就是同一套液态玻璃 Dialog：有回合在跑时先问要不要退出，然后一次确认就应用已下载的更新并重启。 |
 | 文案 | 用户可见字符串 | `t('中文', 'English')`；空控件留白 |
-| Agent 对话 | Coding / CTF / CVE / 实验室聊天 | chrome 用 shadcn。空的新对话把标题和输入栏居中放在列里；发出第一条消息之后输入栏固定在底部。空态在标题和输入栏下面放一条能力条：一排 `rounded-full` 的 outline 小按钮（深度研究、画图……），点击直接带上对应的 Skill 或范围。空态的引导内容只准是这种可执行动作，不加插画和教学文案。默认输入栏是一条左右圆头的不透明胶囊（浅色 `#f7f8fa`、夜间 `#26262a`，发丝边）：加号、首行、模型和发送在胶囊里。审批、项目和分支在胶囊外左下，用量环在这一行右侧。多行或附件时胶囊改成圆角矩形并增高，这三项仍在框外。加号菜单和设置里的下拉、上拉菜单是冷白底液态玻璃，选项行约 30px，不要把加号菜单做成半屏宽的大行。产品契约不变：常驻输入栏、忙时 Queue / Steer、过程与工具披露、`milksu_ask` 行（最后一行是 其他 / Other）、计划、代码块、真实 harness token。工作过程合并成单条折叠概览，进行中时最新动作在折叠头上扫光，完成即静止。展开里的过程行是双语动作加对象摘要，按工具类型配 13px 图标，字号对齐对话正文，文字用弱色。过长消息默认折起，点一下展开全文，折叠只影响渲染。选中对话正文会浮出一个贴边不出屏的「加入对话」菜单，引用落进输入栏上方的引用列表，可以单条移除；只有对话正文里的真实选区能被引用。输入栏模型芯片只出一级菜单：模型、推理强度（模型有档位时）、上下文大小（只读展示）、运行时。悬停或点击某一行都把第二块面板飞出来（向右，会被裁掉时向左）。二级面板 portal 到 body：嵌在玻璃浮层里会丢 `backdrop-filter`，几乎全透。飞出面板要留在窗口内：贴着第一块面板底部、靠近输入栏，并随列表滚动收缩。项目芯片是同一套二级菜单：最近项目飞出，可以用输入的名字新建项目，可以忘记项目。不要在输入栏上另留一个思考芯片。输入栏 Git 芯片打开一个紧凑的可搜索 popover：搜索框、限高滚动、当前项打勾，以及用输入的名字创建分支。不要把本地分支全量列出来。设置页的默认 / subagent 选择器仍是单个可搜索 popover。输入栏图片附件用缩略图；`@` 走现有的选文件 / 附件 RPC，不要另造工作区索引器。右栏是可调宽的 `ContextRail`：已打开的页面排成标签，加号打开紧凑的冷白底液态玻璃菜单（搜索框加短行）再开一个标签，不是一个下拉换掉整栏。栏头透明，内容滚进栏头时用和对话列一样的渐进磨砂。底部终端仍是普通面板。 |
+| Agent 对话 | Coding / CVE / 实验室聊天 | chrome 用 shadcn。空的新对话把标题和输入栏居中放在列里；发出第一条消息之后输入栏固定在底部。空态在标题和输入栏下面放一条能力条：一排 `rounded-full` 的 outline 小按钮（深度研究、画图……），点击直接带上对应的 Skill 或范围。空态的引导内容只准是这种可执行动作，不加插画和教学文案。默认输入栏是一条左右圆头的不透明胶囊（浅色 `#f7f8fa`、夜间 `#26262a`，发丝边）：加号、首行、模型和发送在胶囊里。审批、项目和分支在胶囊外左下，用量环在这一行右侧。多行或附件时胶囊改成圆角矩形并增高，这三项仍在框外。加号菜单和设置里的下拉、上拉菜单是冷白底液态玻璃，选项行约 30px，不要把加号菜单做成半屏宽的大行。产品契约不变：常驻输入栏、忙时 Queue / Steer、过程与工具披露、`milksu_ask` 行（最后一行是 其他 / Other）、计划、代码块、真实 harness token。工作过程合并成单条折叠概览，进行中时最新动作在折叠头上扫光，完成即静止。展开里的过程行是双语动作加对象摘要，按工具类型配 13px 图标，字号对齐对话正文，文字用弱色。过长消息默认折起，点一下展开全文，折叠只影响渲染。选中对话正文会浮出一个贴边不出屏的「加入对话」菜单，引用落进输入栏上方的引用列表，可以单条移除；只有对话正文里的真实选区能被引用。输入栏模型芯片只出一级菜单：模型、推理强度（模型有档位时）、上下文大小（只读展示）、运行时。悬停或点击某一行都把第二块面板飞出来（向右，会被裁掉时向左）。二级面板 portal 到 body：嵌在玻璃浮层里会丢 `backdrop-filter`，几乎全透。飞出面板要留在窗口内：贴着第一块面板底部、靠近输入栏，并随列表滚动收缩。项目芯片是同一套二级菜单：最近项目飞出，可以用输入的名字新建项目，可以忘记项目。不要在输入栏上另留一个思考芯片。输入栏 Git 芯片打开一个紧凑的可搜索 popover：搜索框、限高滚动、当前项打勾，以及用输入的名字创建分支。不要把本地分支全量列出来。设置页的默认 / subagent 选择器仍是单个可搜索 popover。输入栏图片附件用缩略图；`@` 走现有的选文件 / 附件 RPC，不要另造工作区索引器。右栏是可调宽的 `ContextRail`：已打开的页面排成标签，加号打开紧凑的冷白底液态玻璃菜单（搜索框加短行）再开一个标签，不是一个下拉换掉整栏。栏头透明，内容滚进栏头时用和对话列一样的渐进磨砂。底部终端仍是普通面板。 |
 
-首页聊天填满侧栏右边那一列。CTF / CVE / 实验室默认是一个可关闭的 dock（关闭就是 X 卸载）。
+首页聊天填满侧栏右边那一列。CVE / 实验室默认是一个可关闭的 dock（关闭就是 X 卸载）。
 最大化覆盖侧栏右边的全部区域，右栏仍在流内、贴着对话。
-不要叠 dock，不要把会话列表塞进 dock，也不要把 `MissionOperationPanel`、领域任务 chrome
-或者「返回 CTF」放进对话列。
+不要叠 dock，不要把会话列表塞进 dock，也不要把领域任务 chrome 放进对话列。
 
 共享样式在 `app/src/index.css`、`app/src/styles/agent-conversation.css` 和
 `app/src/components/ui`。不要为一个新表面加 Felinic、Vue SFC 或第二套 chrome 样式表。
@@ -223,30 +224,28 @@ MilkSU 发 macOS、Windows 和 Linux。每一项新产品能力都要为这三�
 
 ## 当前产品边界
 
-MilkSU 是 Electron/Chromium 桌面 App，配一个受管 Go Runtime 和 Agent Sidecar。
-产品 UI 是 React + shadcn。
+MilkSU 是 Electron/Chromium 桌面 App。产品 UI 是 React + shadcn。
+Desktop JSONL 进程是 TypeScript Runtime（`runtime/`），Go `milksu-backend` 当原生助手。
+见 [当前系统](docs/architecture/current-system.md)。
 
 TokenFlux 的 API 流量必须走 `https://tokenflux.dev/v1`。
 产品代码、配置、测试默认值和文档里都不得出现 `tokenflux.ai` 域名。
 
-- 当前有两个已接入的 Agent 内核：Pi（`@earendil-works/pi-coding-agent`，工作树钉 1.1.0）
-  和 DeepSeek Harness（`@deepseek-ai/dsh`，走 ACP，工作树钉 0.2.0-rc.2；多 provider 模型经官方
-  dsh-llm-pi-ai 适配器路由，TokenFlux 与各官方 Provider 由 `MILKSU_DSH_PI_AI_ROUTES` 合成）。
-  Pi 的 patch 在 `patches/@earendil-works+pi-coding-agent+1.1.0.patch`（子代理沙箱、资源发现门）。
-  新对话二选一，出厂默认 Pi；设置 → 模型的「默认运行时」只决定新对话，不改写已有会话。
-  DSH 是可选内核，不是 UI 参考：不要复刻它的 `dsh web` 皮肤。
-- 内核拥有通用的模型会话、上下文压缩和工具循环。
+- 嵌入内核只有 Pi（`@earendil-works/pi-coding-agent`，工作树钉 1.1.0）。
+  patch 在 `patches/@earendil-works+pi-coding-agent+1.1.0.patch`。
+  出厂默认 Pi。设置 → 模型的「默认运行时」只决定新对话。
+- 其余 Agent 在设置里填命令、参数、环境变量，经 ACP 接入。
+  协议没有的能力（Ask 卡、durable 研究、typed `milksu_workspace` 等）灰掉，
+  并写一句原因。安装包默认不带这份命令。不要复刻 DSH web 皮肤。
+- 内核拥有通用的模型会话、上下文压缩和工具循环。经 ACP 接入的 Agent 拥有自己的循环。
 - MilkSU 拥有桌面授权、工作区与凭据边界、事件投影和产品 UI。
 - MilkSU 以 AGPL-3.0-only 发布，以便嵌入 Obelisk 这类 AGPL 组件。
   宽松的 MIT/Apache/BSD 插件在保留其声明的前提下仍可使用。
   不要引入 GPL-2.0-only、SSPL 或专有内核。
-- CTF 领域拥有 Challenge、Evidence、Candidate、Judge 回执、Recovery、Memory 和学习事实。
-- CTF、CVE、实验室和 Coding 是同级工作区。今天发出来的东西是当前事实，不是天花板：
-  CVE 跟踪与复现报告、CTF 解题循环、实验室探测和 Coding Agent 都可能长成
-  初轮审计、披露草稿、二进制 / 源码接入和安全工作区 UI。
-- 缺一个表面不等于禁止。不要在能力存在之前先加解冻清单、冻结门禁或者
+- CVE、实验室和 Coding 是同级工作区。CTF 题库、Judge 循环和 NYU 评测台已移除，不要加回。
+- 缺一个表面不等于禁止。不要在能力存在之前先加解冻清单或者
   「不要做 PoC」这种产品身份。「不在这条发行线里」只表示它不是当前的交付宣称，不表示禁止选它做纵切。
-- NYU safe-static 是一项窄域开发者评测，不是 MilkSU 的 CTF 成绩。
+- 本文件控制在 300–500 行。产品 UI 语言只写在本文件；不要在其他文档复述层级表。
 
 套用上游优先的实现阶梯：先用现成的平台或内核能力，再用固定且可评审的 Skill、MCP server、
 插件、包或平台 CLI，再用一个许可证兼容的小规模 vendored 机制或成熟设计，
@@ -263,7 +262,7 @@ MilkSU 只补 harness 不拥有的那部分：产品 UI、桌面授权、持久�
 Pi 会话：Skill 目录只留 `name` + 说明何时使用的 `description`，正文用 `read` 或 `/skill:name` 载入，
 只走 slash 的 Skill 用 `disable-model-invocation`，重量级可选工具先 `registerTool`、
 再通过 harness 激活（Pi Dynamic Tool Loading 或一个 typed 产品动作）。
-DSH 会话用 DSH 自己的 Skill 与工具披露，不要把 Pi 的目录格式照搬过去。
+经 ACP 接入的 Agent 用它自己的 Skill 与工具披露，不要把 Pi 的目录格式照搬过去。
 两种情况下都不要加 MilkSU 自有的注入器：不扫描用户文本，不把 Skill 正文或工具说明贴进系统提示词，
 不靠猜决定什么时候注入上下文。也不要维护一个「在每个 harness 上看起来都一样」的披露适配层。
 
@@ -277,41 +276,39 @@ DSH 会话用 DSH 自己的 Skill 与工具披露，不要把 Pi 的目录格式
 - 完全访问和自动审批不绕过付费动作、外部账户授权、Scope 扩大、路径限定或不可逆的外部效果。
 - 对用户未授权的目标做安全动作需要可见、精确的授权。
   不要把任意目标清单、互联网网段扫描、凭据喷洒或隐蔽 / 规避做成产品功能。
-  已授权的 CTF 题目、用户选定的本地文件 / 仓库，以及用户授权的研究目标，
+  用户选定的本地文件 / 仓库，以及用户授权的研究目标，
   可以做分析、复现和 PoC 工作。
-- 模型可以提出 CTF 候选，但只有独立 Judge 或用户明确授权的结果才能确立成功。
-- 不要把部分 smoke 测试描述成完整的 Coding、CTF、Memory、NYU 或发版结果。
+- 不要把部分 smoke 测试描述成完整的 Coding、Memory 或发版结果。
 - Computer Use 自举验收必须用已安装的、Developer ID 签名的 Stable MilkSU 当操作者。
   绝不用本机重新构建的 ad-hoc Stable App 做 TCC 验收；MilkSU Beta 是受控目标，
   不会拿到操作者的辅助功能或屏幕录制授权。
 
 ## 架构方向
 
-目标依赖方向是：
-
 ```text
-React -> Electron Preload / Desktop RPC -> Application Service -> Domain / Runtime -> Infrastructure Adapter
+React -> Electron Preload / Desktop RPC -> TypeScript Runtime -> Pi sidecar | Agent | 原生助手
 ```
 
-不要单独开一个架构清理里程碑。当选定的产品纵切碰到 `CTFPage.tsx`、
-`cmd/milksu-backend/app.go`、`sidecar/pi/bridge-policy.js`、`internal/browsercap/manager.go`
-或 CTF Runner/Recovery 时，不要再往里加新职责，可行的话顺手把碰到的那份职责抽出来。
+一次用户发送带一个 `traceId`，贯穿 RPC、Runtime、sidecar、ACP 子进程。
+配置只有 `settings.json` + secret store；环境变量只认 `MILKSU_HOME`。
+会话只有一份投影。原生助手只留钥匙串 CGO、PTY、Lua 解释器、Computer Use 的 OS 探针。
 
-发行前的新代码直接实现干净的当前模型。不要为已放弃的发行前设计加迁移、双写、
-回退或兼容分支。现存可用 schema 的清理，推迟到产品纵切稳定之后的一次破坏性发行前合并。
+新职责写进 `runtime/`。不要把产品 RPC 加回 `cmd/milksu-backend/app.go`。
+发行前的新代码直接实现干净的当前模型。不要为已放弃的设计加迁移、双写或兼容分支。
+旧会话 `workspaceHome: "ctf"` 读成 Coding，不做双写。
 
 ## Agent 意图与产品 UI 工具
 
 - 渐进披露归当前内核所有，不归 MilkSU 的 prompt 路由。把「何时使用」写在 Skill 或工具的
   `description` 上；不要在系统提示词里重复成一篇 MUST 长文；不要把 Skill 正文贴进系统提示词。
-  Pi 会话跟 Pi 的披露，DSH 会话跟 DSH 的披露。
+  Pi 会话跟 Pi 的披露，经 ACP 接入的 Agent 跟它自己的披露。
 - 不要用关键词或正则扫描用户文本来决定跑哪个工具、开哪个标签页、开哪一页或走哪种审批。
   模型看得懂自然语言。GUI 一键操作发的是 typed 产品动作。
   隔离浏览器启动只有两个原因：用户打开了右栏，或模型调用了 typed 的 `milksu_workspace`
   浏览器动作（如 `open_browser_tab`）。提示词里出现「打开浏览器」不算，发过一句 Go 的问候语也不算。
 - `milksu_workspace` 是 typed 的产品 UI 工具。它可以列出、聚焦或关闭隔离浏览器标签页，
   列出或预览产物，打开环境、diff、终端或后台任务表面。
-  Coding、CTF、CVE 和实验室共用这个表面；领域工具和 Judge 叠在 Coding 循环之上，不取代它。
+  Coding、CVE 和实验室共用这个表面；领域工具叠在 Coding 循环之上，不取代它。
   它不得修改设置、凭据、审批策略，也不得附着到用户自己的 Chrome。
 - `milksu_ask` 是 typed 的产品 UI 工具，用来出对话选择卡。
   用户需要在 2–6 个具体选项里挑一个时模型调用它；对话里显示一个问题加若干可选行，
@@ -320,14 +317,14 @@ React -> Electron Preload / Desktop RPC -> Application Service -> Domain / Runti
   不要把那段文字当成排在 ask 后面的 steering。
   不要为「给我几个选项」去正则匹配提示词，也不要把它当成工具权限 HITL
   （拒绝 / 允许一次 / 始终允许）。
-- 不要从 CTF、CVE 或实验室会话里剥掉 Coding 能力。那些工作区保留完整的内核工具循环
+- 不要从 CVE 或实验室会话里剥掉 Coding 能力。那些工作区保留完整的内核工具循环
   （文件、Shell、后台任务、浏览器、LSP、compact、goal、subagent）外加领域扩展。
-  有界的题目工作区、未授权目标门禁和独立 Judge 保留。
-- 压缩归内核所有。Coding、CTF、CVE 和实验室会话都保持自动压缩开启，
+  未授权目标的审批仍在。
+- 压缩归内核所有。Coding、CVE 和实验室会话都保持自动压缩开启，
   不要按角色去跳过 `/compact`、`compact_session` 或 80% 空闲那条路径。
   Pi 的自动压缩和 `/compact` 走同一条路径：输入加缓存读取的 token 达到 `contextWindow` 约 80%
   且会话空闲时触发；不要等整个回合跑完，也不要再加第二个 MilkSU 摘要器。
-  DSH 用它自己的压缩，同样不要在客户端复刻第二套。
+  经 ACP 接入的 Agent 用它自己的压缩，不要在客户端复刻第二套。
 - 工具结果通过内核自己的 `tool_result` 上界进入模型上下文（Pi 约 50KB 或 2000 行），
   溢出部分留给 `read` + offset。不要把完整的命令、HTTP 或文件正文塞进 `content`。
 - `workspace-auto` 会自动运行隔离的 `milksu-playwright`。
@@ -352,14 +349,14 @@ React -> Electron Preload / Desktop RPC -> Application Service -> Domain / Runti
 ## 验证与交付
 
 - 用仓库里 canonical 的脚本，不要另造平行 runner。
-- 改完对话、引擎、DSH 或隔离浏览器之后，跑 `docs/developer/product-regression-loop.md`
+- 改完对话、引擎、ACP 或隔离浏览器之后，跑 `docs/developer/product-regression-loop.md`
   里的产品回归套件（`npm run test:product-loop`）。
   用户要求发版时，先跑 `npm run test:product-loop -- --gui --suite all`。
   看 FAIL 项，有必要就检查并修复，再重跑失败套件。这些失败项通过之后才升版本、推送和分发。
   见 `docs/developer/release-process.md` §0 和 §0.5。
   跑的 agent 先读该页「监督者」一节：一项一落地就看结果，`FAIL` 当时复查；
   网络、模型、Key 或会让后面全失败的代码问题要停掉进程，代码问题修好再重跑。
-  那不是 Settings → 评测，不是 NYU safe-static，也不是拿 `test:dsh-complete-loop` 当主入口。
+  那不是拿 `test:dsh-complete-loop` 当主入口。
 - Pull Request 上由 `.github/workflows/pr-checks.yml` 跑 Sidecar、Go 和 renderer 三组套件。
   CI 绿不替代产品回归，产品回归也不替代安装包上的真机验收。
 - 按 `docs/developer/product-code-admission.md` 的要求，

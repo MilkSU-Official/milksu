@@ -26,7 +26,6 @@ function renderSidebar(conversations: Conversation[]) {
       activeSection="chat"
       activeConversationId={null}
       conversations={conversations}
-      ctfSection="catalog"
       accountStatus={{ configured: false, authenticated: false, state: 'unconfigured' }}
       themeMode="system"
     />,

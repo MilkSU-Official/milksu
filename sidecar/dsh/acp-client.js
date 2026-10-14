@@ -26,7 +26,7 @@ export function createAcpClient(options = {}) {
   const env = options.env ?? process.env;
   const cwd = options.cwd || process.cwd();
   if (!command) {
-    throw new Error("DeepSeek Harness command is not configured");
+    throw new Error("Agent command is not configured");
   }
 
   const child = spawn(command, args, {
@@ -89,14 +89,14 @@ export function createAcpClient(options = {}) {
     if (closing && pending.size === 0) return;
     if (code === 0 && pending.size === 0) return;
     const reason = signal
-      ? `DeepSeek Harness sidecar signal ${signal}`
-      : `DeepSeek Harness sidecar exit ${code ?? "unknown"}`;
+      ? `Agent signal ${signal}`
+      : `Agent exit ${code ?? "unknown"}`;
     failAll(reason);
   });
 
   function request(method, params) {
     if (failed) {
-      return Promise.reject(new Error(lastFailure || "DeepSeek Harness sidecar stopped"));
+      return Promise.reject(new Error(lastFailure || "Agent stopped"));
     }
     const id = nextId++;
     const payload = { jsonrpc: "2.0", id, method, params };
@@ -104,7 +104,7 @@ export function createAcpClient(options = {}) {
       pending.set(id, { resolve, reject });
       if (!child.stdin) {
         pending.delete(id);
-        reject(new Error(lastFailure || "DeepSeek Harness sidecar is not running"));
+        reject(new Error(lastFailure || "Agent is not running"));
         return;
       }
       child.stdin.write(`${JSON.stringify(payload)}\n`, error => {

@@ -24,5 +24,5 @@ export function formatProcessFailure(reason, stderr = "") {
   if (tail && tail !== head) {
     return redactProcessText(`${head}: ${tail}`);
   }
-  return head || "DeepSeek Harness sidecar stopped";
+  return head || "Agent stopped";
 }

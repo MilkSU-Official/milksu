@@ -10,10 +10,7 @@ import (
 
 	"github.com/MilkSU-Official/milksu/internal/appdata"
 	"github.com/MilkSU-Official/milksu/internal/config"
-	"github.com/MilkSU-Official/milksu/internal/ctf"
-	"github.com/MilkSU-Official/milksu/internal/ctfshow"
 	"github.com/MilkSU-Official/milksu/internal/modelusage"
-	"github.com/MilkSU-Official/milksu/internal/nssctf"
 	"github.com/MilkSU-Official/milksu/internal/research"
 	"github.com/MilkSU-Official/milksu/internal/securityruntime"
 
@@ -33,33 +30,15 @@ func TestDatabaseCompatDescriptors(t *testing.T) {
 			securityruntime.SupportedEventStoreDatabaseVersion,
 		)
 	}
-	if ctf.SupportedCTFMemoryDatabaseVersion != 1 {
-		t.Fatalf(
-			"SupportedCTFMemoryDatabaseVersion = %d, want 1",
-			ctf.SupportedCTFMemoryDatabaseVersion,
-		)
-	}
-	if nssctf.SupportedNSSCTFCatalogDatabaseVersion != 1 {
-		t.Fatalf(
-			"SupportedNSSCTFCatalogDatabaseVersion = %d, want 1",
-			nssctf.SupportedNSSCTFCatalogDatabaseVersion,
-		)
-	}
-	if ctfshow.SupportedCTFshowCatalogDatabaseVersion != 1 {
-		t.Fatalf(
-			"SupportedCTFshowCatalogDatabaseVersion = %d, want 1",
-			ctfshow.SupportedCTFshowCatalogDatabaseVersion,
-		)
-	}
 	if modelusage.SupportedDatabaseVersion != 1 {
 		t.Fatalf(
 			"SupportedDatabaseVersion = %d, want 1",
 			modelusage.SupportedDatabaseVersion,
 		)
 	}
-	if research.SupportedDatabaseVersion != 3 {
+	if research.SupportedDatabaseVersion != 4 {
 		t.Fatalf(
-			"research.SupportedDatabaseVersion = %d, want 3",
+			"research.SupportedDatabaseVersion = %d, want 4",
 			research.SupportedDatabaseVersion,
 		)
 	}
@@ -69,21 +48,6 @@ func TestDatabaseCompatDescriptors(t *testing.T) {
 			LogicalName:  "EventStore",
 			RelativePath: "data/runtime/events.sqlite3",
 			Supported:    securityruntime.SupportedEventStoreDatabaseVersion,
-		},
-		{
-			LogicalName:  "CTF Memory",
-			RelativePath: "data/domain/ctf/memory.sqlite3",
-			Supported:    ctf.SupportedCTFMemoryDatabaseVersion,
-		},
-		{
-			LogicalName:  "NSSCTF Catalog",
-			RelativePath: "data/domain/nssctf/catalog.sqlite3",
-			Supported:    nssctf.SupportedNSSCTFCatalogDatabaseVersion,
-		},
-		{
-			LogicalName:  "CTFshow Catalog",
-			RelativePath: "data/domain/ctfshow/catalog.sqlite3",
-			Supported:    ctfshow.SupportedCTFshowCatalogDatabaseVersion,
 		},
 		{
 			LogicalName:  "Coding Agent Usage",
@@ -133,35 +97,6 @@ func TestGetLocalDataStatusIncludesDatabaseCompatibility(t *testing.T) {
 	if err := database.Close(); err != nil {
 		t.Fatal(err)
 	}
-	memoryStore, err := ctf.NewMemoryStore(
-		filepath.Join(dataDirectory, "data", "domain", "ctf", "memory.sqlite3"),
-		filepath.Join(dataDirectory, "data", "domain", "ctf", "memories"),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := memoryStore.Close(); err != nil {
-		t.Fatal(err)
-	}
-	nssctfCatalog, err := nssctf.NewCatalogService(
-		filepath.Join(dataDirectory, "data", "domain", "nssctf", "catalog.sqlite3"),
-		nssctf.NewClient(nssctf.ClientOptions{}),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := nssctfCatalog.Close(); err != nil {
-		t.Fatal(err)
-	}
-	ctfshowCatalog, err := ctfshow.NewCatalogService(
-		filepath.Join(dataDirectory, "data", "domain", "ctfshow", "catalog.sqlite3"),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := ctfshowCatalog.Close(); err != nil {
-		t.Fatal(err)
-	}
 	usageStore, err := modelusage.NewStore(
 		filepath.Join(dataDirectory, "data", "stores", "usage", "model-usage.sqlite3"),
 	)
@@ -184,8 +119,8 @@ func TestGetLocalDataStatusIncludesDatabaseCompatibility(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(status.Databases) != 6 {
-		t.Fatalf("databases count = %d, want 6: %#v", len(status.Databases), status.Databases)
+	if len(status.Databases) != 3 {
+		t.Fatalf("databases count = %d, want 3: %#v", len(status.Databases), status.Databases)
 	}
 
 	eventStore := status.Databases[0]
@@ -206,61 +141,7 @@ func TestGetLocalDataStatusIncludesDatabaseCompatibility(t *testing.T) {
 		)
 	}
 
-	memory := status.Databases[1]
-	if memory.LogicalName != "CTF Memory" ||
-		memory.RelativePath != "data/domain/ctf/memory.sqlite3" ||
-		memory.State != "compatible" {
-		t.Fatalf("unexpected CTF Memory status: %#v", memory)
-	}
-	if memory.Current == nil || *memory.Current != 1 {
-		t.Fatalf("CTF Memory current = %v, want 1", memory.Current)
-	}
-	if memory.Supported == nil ||
-		*memory.Supported != ctf.SupportedCTFMemoryDatabaseVersion {
-		t.Fatalf(
-			"CTF Memory supported = %v, want %d",
-			memory.Supported,
-			ctf.SupportedCTFMemoryDatabaseVersion,
-		)
-	}
-
-	nssctfStatus := status.Databases[2]
-	if nssctfStatus.LogicalName != "NSSCTF Catalog" ||
-		nssctfStatus.RelativePath != "data/domain/nssctf/catalog.sqlite3" ||
-		nssctfStatus.State != "compatible" {
-		t.Fatalf("unexpected NSSCTF Catalog status: %#v", nssctfStatus)
-	}
-	if nssctfStatus.Current == nil || *nssctfStatus.Current != 1 {
-		t.Fatalf("NSSCTF Catalog current = %v, want 1", nssctfStatus.Current)
-	}
-	if nssctfStatus.Supported == nil ||
-		*nssctfStatus.Supported != nssctf.SupportedNSSCTFCatalogDatabaseVersion {
-		t.Fatalf(
-			"NSSCTF Catalog supported = %v, want %d",
-			nssctfStatus.Supported,
-			nssctf.SupportedNSSCTFCatalogDatabaseVersion,
-		)
-	}
-
-	ctfshowStatus := status.Databases[3]
-	if ctfshowStatus.LogicalName != "CTFshow Catalog" ||
-		ctfshowStatus.RelativePath != "data/domain/ctfshow/catalog.sqlite3" ||
-		ctfshowStatus.State != "compatible" {
-		t.Fatalf("unexpected CTFshow Catalog status: %#v", ctfshowStatus)
-	}
-	if ctfshowStatus.Current == nil || *ctfshowStatus.Current != 1 {
-		t.Fatalf("CTFshow Catalog current = %v, want 1", ctfshowStatus.Current)
-	}
-	if ctfshowStatus.Supported == nil ||
-		*ctfshowStatus.Supported != ctfshow.SupportedCTFshowCatalogDatabaseVersion {
-		t.Fatalf(
-			"CTFshow Catalog supported = %v, want %d",
-			ctfshowStatus.Supported,
-			ctfshow.SupportedCTFshowCatalogDatabaseVersion,
-		)
-	}
-
-	usageStatus := status.Databases[4]
+	usageStatus := status.Databases[1]
 	if usageStatus.LogicalName != "Coding Agent Usage" ||
 		usageStatus.RelativePath != "data/stores/usage/model-usage.sqlite3" ||
 		usageStatus.State != "compatible" {
@@ -271,7 +152,7 @@ func TestGetLocalDataStatusIncludesDatabaseCompatibility(t *testing.T) {
 		t.Fatalf("unexpected Coding Agent Usage versions: %#v", usageStatus)
 	}
 
-	researchStatus := status.Databases[5]
+	researchStatus := status.Databases[2]
 	if researchStatus.LogicalName != "Research" ||
 		researchStatus.RelativePath != "data/domain/research/research.sqlite3" ||
 		researchStatus.State != "compatible" ||

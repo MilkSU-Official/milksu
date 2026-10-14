@@ -28,8 +28,6 @@ var restoreManagedPaths = func() []string {
 		DataLayoutFile,
 		filepath.Join("config", "settings.json"),
 		filepath.Join("data", "stores", "conversations"),
-		filepath.Join("workspaces", "ctf-workspaces"),
-		filepath.Join("data", "domain", "ctf", "memories"),
 		filepath.Join("data", "agent", "home", "attachments"),
 		filepath.Join("data", "agent", "home", "pi", "sessions"),
 		filepath.Join("data", "domain", "research", "artifacts"),
@@ -48,8 +46,6 @@ var restoreManagedPaths = func() []string {
 
 var restoreManagedDirectoryPaths = []string{
 	filepath.Join("data", "stores", "conversations"),
-	filepath.Join("workspaces", "ctf-workspaces"),
-	filepath.Join("data", "domain", "ctf", "memories"),
 	filepath.Join("data", "agent", "home", "attachments"),
 	filepath.Join("data", "agent", "home", "pi", "sessions"),
 	filepath.Join("data", "domain", "research", "artifacts"),

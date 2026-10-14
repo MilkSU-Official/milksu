@@ -48,7 +48,7 @@ export default function ChatMessageItem({
 }: {
   message: Message
   recoverable?: boolean
-  recoveryContext?: 'coding' | 'ctf'
+  recoveryContext?: 'coding'
   canRewind?: boolean
   rewindDisabled?: boolean
   kernel?: 'pi' | 'dsh'
@@ -271,9 +271,8 @@ export default function ChatMessageItem({
   }
 
   function recoveryHint() {
-    return recoveryContext === 'ctf'
-      ? t('从已保留的 notes、证据、Judge 回执和工具结果继续', 'Continue from saved notes, evidence, Judge receipts, and tool results')
-      : t('从已保留的工作区、Git 状态、工具结果和验证面板继续', 'Continue from the saved workspace, Git state, tool results, and verification panel')
+    void recoveryContext
+    return t('从已保留的工作区、Git 状态、工具结果和验证面板继续', 'Continue from the saved workspace, Git state, tool results, and verification panel')
   }
 
   function userMessageTime(timestamp: number) {
@@ -447,7 +446,7 @@ export default function ChatMessageItem({
     try {
       const url = new URL(href)
       if (url.protocol !== 'https:' && url.protocol !== 'http:') return
-      await invokeCommand('open_ctf_source_url', { url: url.toString() })
+      await invokeCommand('open_source_url', { url: url.toString() })
     } catch {
       return
     }

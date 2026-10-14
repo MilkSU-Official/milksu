@@ -1,4 +1,5 @@
-import { defaultAgentKernel, defaultBusySend, type BusySendPolicy } from '@/lib/agentKernel'
+import { defaultBusySend, type BusySendPolicy } from '@/lib/agentKernel'
+import { normalizeAcpGuest, selectableAgentKernel } from '@/lib/acpGuest'
 import { normalizePreferredExternalEditor } from '@/lib/externalEditor'
 import { normalizeUiEmphasisPreset, type UiEmphasisPreset } from '@/lib/uiEmphasis'
 import { normalizeUiFontSize, type UiFontSize } from '@/lib/uiFonts'
@@ -112,6 +113,7 @@ export interface ResearchRun {
   phase: ResearchPhase
   report?: string
   workerStopUnconfirmed?: boolean
+  traceId?: string
   createdAt: string
   updatedAt: string
 }
@@ -302,12 +304,9 @@ export interface Conversation {
   /** Live slash catalog from host commands.list. */
   dshCommands?: DshCommandDescriptor[]
   dshCommandsError?: string
-  ctfJobId?: string
-  ctfMode?: 'coach' | 'copilot' | 'delegate'
-  ctfRole?: 'solver' | 'tool-builder' | 'strategist'
-  /** When set, the chat lives in this sidebar home even without a bound challenge/CVE/lab job. */
-  workspaceHome?: 'chat' | 'image' | 'ctf' | 'vuln' | 'lab' | 'reverse'
-  /** Structured CTF/CVE domain snapshot for the shared Coding/Pi panel. */
+  /** When set, the chat lives in this sidebar home even without a bound CVE/lab job. */
+  workspaceHome?: 'chat' | 'image' | 'vuln' | 'lab' | 'reverse'
+  /** Structured CVE/Lab domain snapshot for the shared Coding/Pi panel. */
   domainTaskContext?: import('@/lib/domainTaskContext').DomainTaskContext
   /** Last occupancy shown on the composer ring; restored when the conversation is opened. */
   lastContextUsage?: ConversationContextUsage
@@ -338,12 +337,6 @@ export interface ConversationContextUsage {
   categories?: ContextComposition['categories']
 }
 
-export interface CTFChatAction {
-  kind: 'orient' | 'hint' | 'replan' | 'handoff'
-  prompt: string
-  level?: 1 | 2
-}
-
 export interface ProviderConfig {
   api_key: string
   has_api_key: boolean
@@ -365,13 +358,6 @@ export interface RelayConfig {
   has_key: boolean
   session_only?: boolean
   remove_key?: boolean
-}
-
-export interface NSSCTFArenaConfig {
-  token: string
-  has_token: boolean
-  session_only?: boolean
-  remove_token?: boolean
 }
 
 export interface ModelVerification {
@@ -431,6 +417,8 @@ export interface AppSettings {
   active_provider: string
   active_model: string
   default_kernel?: import('@/lib/agentKernel').AgentKernel
+  /** User-provided Agent command (ACP). Empty command means Pi only. */
+  acp_guest?: import('@/lib/acpGuest').AcpGuestConfig
   /** Installed agent kernel package versions; injected by the backend, never persisted. */
   runtime_versions?: Record<string, string>
   busy_send?: BusySendPolicy
@@ -443,7 +431,6 @@ export interface AppSettings {
   model_failures?: Array<{ provider: string; model: string; reason?: string; at?: string }>
   model_routing: ModelRoutingConfig
   relay?: RelayConfig
-  nssctf_arena?: NSSCTFArenaConfig
   locale?: 'en' | 'zh'
   disabled_skills?: string[]
   /** Account catalog ids the user turned off. Missing ids stay enabled. */
@@ -657,14 +644,6 @@ export interface SessionIndexRefreshResult {
   toolCallCount?: number
 }
 
-/** Per-challenge CTF memory store overview for the Memory settings page. */
-export interface CTFMemoryOverview {
-  path?: string
-  bytes?: number
-  activeCount?: number
-  archivedCount?: number
-}
-
 export interface CompanionDispatchResult {
   accepted: boolean
   delivered: boolean
@@ -808,7 +787,8 @@ export function withAppSettingsDefaults(value: AppSettings): AppSettings {
     ...value,
     active_provider: activeProvider,
     active_model: activeModel,
-    default_kernel: defaultAgentKernel(value.default_kernel),
+    acp_guest: normalizeAcpGuest(value.acp_guest),
+    default_kernel: selectableAgentKernel(value.default_kernel, normalizeAcpGuest(value.acp_guest)),
     busy_send: defaultBusySend(value.busy_send),
     model_routing: normalizeModelRouting(value.model_routing),
     preferred_external_editor: normalizePreferredExternalEditor(value.preferred_external_editor),

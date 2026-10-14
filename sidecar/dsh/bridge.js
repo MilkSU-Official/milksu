@@ -5,6 +5,7 @@ import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import { createAcpClient } from "./acp-client.js";
 import { resolveDshLaunch } from "./launch.js";
+import { applyTraceEnv, resolveTraceId, traceConsoleError } from "../trace-id.js";
 import {
   dshSessionMcpServers,
   milksuComputerUseMcpServer,
@@ -208,14 +209,14 @@ function writeHostPatch() {
 
 function callHost(method, params) {
   if (!hostIpcPath) {
-    return Promise.reject(new Error("DeepSeek Harness host IPC is not configured"));
+    return Promise.reject(new Error("Agent host IPC is not configured"));
   }
   return new Promise((resolve, reject) => {
     const socket = createConnection(hostIpcPath);
     const id = Date.now();
     const timer = setTimeout(() => {
       socket.destroy();
-      reject(new Error("DeepSeek Harness host IPC timed out"));
+      reject(new Error("Agent host IPC timed out"));
     }, 130_000);
     let buffer = "";
     socket.on("data", chunk => {
@@ -234,7 +235,7 @@ function callHost(method, params) {
         clearTimeout(timer);
         socket.end();
         if (message.error) {
-          reject(new Error(message.error.message || "DeepSeek Harness host failed"));
+          reject(new Error(message.error.message || "Agent host failed"));
           return;
         }
         resolve(message.result);
@@ -278,12 +279,12 @@ async function ensureAcp(cwd) {
     command: launch.command,
     args,
     cwd,
-    env: {
+    env: applyTraceEnv({
       ...process.env,
       MILKSU_DSH_HOST_IPC: hostIpcPath,
       ...(bundledSkills ? { DSH_BUNDLED_SKILL_DIR: bundledSkills } : {}),
       NODE_PATH: [...nodePaths, process.env.NODE_PATH].filter(Boolean).join(delimiter),
-    },
+    }, process.env.MILKSU_TRACE_ID),
     onFailure(message) {
       emit(null, "error", { error: message });
     },
@@ -490,7 +491,7 @@ async function listSessionCommands(command) {
   const requestId = String(command.requestId ?? "").trim();
   const record = sessionRecord(conversationId);
   try {
-    if (!record?.acpSessionId) throw new Error("DeepSeek Harness session is not ready");
+    if (!record?.acpSessionId) throw new Error("Agent session is not ready");
     const result = await callHost("list_commands", { sessionId: record.acpSessionId });
     emit(conversationId, "dsh_commands", {
       requestId,
@@ -510,7 +511,7 @@ async function executeSessionCommand(command) {
   const requestId = String(command.requestId ?? "").trim();
   const record = sessionRecord(conversationId);
   try {
-    if (!record?.acpSessionId) throw new Error("DeepSeek Harness session is not ready");
+    if (!record?.acpSessionId) throw new Error("Agent session is not ready");
     const result = await callHost("execute_command", {
       sessionId: record.acpSessionId,
       line: command.line,
@@ -532,7 +533,7 @@ async function setSessionPlanMode(command) {
   const requestId = String(command.requestId ?? "").trim();
   const record = sessionRecord(conversationId);
   try {
-    if (!record?.acpSessionId) throw new Error("DeepSeek Harness session is not ready");
+    if (!record?.acpSessionId) throw new Error("Agent session is not ready");
     const result = await callHost("set_plan", {
       sessionId: record.acpSessionId,
       active: command.active === true,
@@ -557,7 +558,7 @@ async function controlSessionGoal(command) {
   const requestId = String(command.requestId ?? "").trim();
   const record = sessionRecord(conversationId);
   try {
-    if (!record?.acpSessionId) throw new Error("DeepSeek Harness session is not ready");
+    if (!record?.acpSessionId) throw new Error("Agent session is not ready");
     const result = await callHost("control_goal", {
       sessionId: record.acpSessionId,
       action: command.goalAction,
@@ -577,7 +578,7 @@ async function queueParent(command) {
   if (!conversationId) throw new Error("conversationId is required");
   if (!prompt) throw new Error("prompt is required");
   const record = sessionRecord(conversationId);
-  if (!record?.acpSessionId) throw new Error("DeepSeek Harness session is not ready");
+  if (!record?.acpSessionId) throw new Error("Agent session is not ready");
   const inbox = await callHost("inbox_append", { sessionId: record.acpSessionId, prompt });
   emitInboxQueue(conversationId, inbox);
 }
@@ -587,7 +588,7 @@ async function removeQueuedParent(command) {
   const requestId = String(command.requestId ?? "").trim();
   const record = sessionRecord(conversationId);
   try {
-    if (!record?.acpSessionId) throw new Error("DeepSeek Harness session is not ready");
+    if (!record?.acpSessionId) throw new Error("Agent session is not ready");
     const inbox = await callHost("inbox_remove", {
       sessionId: record.acpSessionId,
       expected: command.expected,
@@ -604,7 +605,7 @@ async function killSessionJob(command) {
   const requestId = String(command.requestId ?? "").trim();
   const record = sessionRecord(conversationId);
   try {
-    if (!record?.acpSessionId) throw new Error("DeepSeek Harness session is not ready");
+    if (!record?.acpSessionId) throw new Error("Agent session is not ready");
     const result = await callHost("kill_job", {
       sessionId: record.acpSessionId,
       jobId: command.jobId,
@@ -852,6 +853,8 @@ async function createSession(command) {
 async function sendMessage(command) {
   const conversationId = String(command.conversationId ?? "").trim();
   if (!conversationId) throw new Error("conversationId is required");
+  const traceId = resolveTraceId(command);
+  if (traceId) process.env.MILKSU_TRACE_ID = traceId;
   if (!sessions.has(conversationId)) {
     await createSession(command);
   } else {
@@ -1007,7 +1010,7 @@ async function abortSession(command) {
 async function runCompact(conversationId) {
   const record = sessionRecord(conversationId);
   if (!acp || !record) {
-    throw new Error("DeepSeek Harness session is not running");
+    throw new Error("Agent session is not running");
   }
   return await callHost("compact", { sessionId: record.acpSessionId });
 }
@@ -1154,7 +1157,7 @@ async function followupParent(command) {
   if (!conversationId) throw new Error("conversationId is required");
   if (!prompt) throw new Error("prompt is required");
   const record = sessionRecord(conversationId);
-  if (!record?.acpSessionId) throw new Error("DeepSeek Harness session is not ready");
+  if (!record?.acpSessionId) throw new Error("Agent session is not ready");
   await callHost("followup", { sessionId: record.acpSessionId, prompt });
 }
 
@@ -1197,7 +1200,7 @@ async function handleCommand(command) {
     case "rewind_session":
       emit(command.conversationId ?? null, command.action === "rewind_session" ? "session_rewound" : "session_forked", {
         requestId: command.requestId,
-        error: "DeepSeek Harness does not support this session tree action",
+        error: "This agent does not support this session tree action",
       });
       break;
     case "workspace_action_response":
@@ -1212,7 +1215,7 @@ async function handleCommand(command) {
     case "relay_message": {
       const conversationId = String(command.conversationId ?? "").trim();
       if (!sessions.has(conversationId)) {
-        throw new Error("DeepSeek Harness session is not ready");
+        throw new Error("Agent session is not ready");
       }
       await sendMessage(command);
       break;
@@ -1282,6 +1285,7 @@ input.on("line", line => {
   }
   enqueueSessionCommand(command.conversationId, () => handleCommand(command))
     .catch(error => {
+      traceConsoleError(resolveTraceId(command), "MilkSU agent command failed", error);
       emit(command.conversationId ?? null, "error", { error: describeError(error) });
     });
 });

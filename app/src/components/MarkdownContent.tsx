@@ -222,7 +222,7 @@ export default function MarkdownContent({
       return
     }
     event.preventDefault()
-    await invokeCommand('open_ctf_source_url', { url: url.toString() })
+    await invokeCommand('open_source_url', { url: url.toString() })
   }
 
   return (

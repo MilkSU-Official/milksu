@@ -7,11 +7,43 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	lua "github.com/yuin/gopher-lua"
 )
 
 type luaExecutor struct{}
+
+// InvokeLua runs a Lua plugin entry through the sandboxed interpreter.
+// Package management stays in the TypeScript Runtime; this is the thin OS/Lua helper.
+func InvokeLua(directory, entry string, requestJSON []byte) ([]byte, error) {
+	var request runtimeInvocation
+	if err := json.Unmarshal(requestJSON, &request); err != nil {
+		return nil, fmt.Errorf("decode Lua plugin request: %w", err)
+	}
+	if strings.TrimSpace(directory) == "" || strings.TrimSpace(entry) == "" {
+		return nil, errors.New("Lua plugin directory and entry are required")
+	}
+	record := &packageRecord{
+		directory: directory,
+		manifest: Manifest{
+			ID:         request.PluginID,
+			APIVersion: request.APIVersion,
+			Runtime:    RuntimeSpec{Kind: RuntimeLua, Entry: entry},
+		},
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), pluginCallTimeout)
+	defer cancel()
+	result, err := (luaExecutor{}).Invoke(ctx, record, request)
+	if err != nil {
+		return nil, err
+	}
+	payload, err := json.Marshal(result)
+	if err != nil {
+		return nil, err
+	}
+	return payload, nil
+}
 
 func (luaExecutor) Invoke(ctx context.Context, record *packageRecord, request runtimeInvocation) (runtimeResult, error) {
 	entry, err := securePackageFile(record.directory, record.manifest.Runtime.Entry, maxEntryBytes)

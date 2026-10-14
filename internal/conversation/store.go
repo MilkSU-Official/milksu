@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -96,9 +97,6 @@ type StoredConversation struct {
 	// 上一轮出过事的记录（落盘）：顶部横幅与侧栏红叉据此在重启后仍然显示，
 	// 直到读者点「知道了」或该对话开新一回合。
 	AgentProblem      *StoredAgentProblem `json:"agentProblem,omitempty"`
-	CTFJobID          string              `json:"ctfJobId,omitempty"`
-	CTFMode           string              `json:"ctfMode,omitempty"`
-	CTFRole           string              `json:"ctfRole,omitempty"`
 	DomainTaskContext map[string]any      `json:"domainTaskContext,omitempty"`
 	LastContextUsage  *StoredContextUsage `json:"lastContextUsage,omitempty"`
 	ArchivedAt        uint64              `json:"archivedAt,omitempty"`
@@ -200,7 +198,7 @@ func (s *Store) listDirectory(directory string) ([]StoredConversation, error) {
 		}
 		var value StoredConversation
 		if json.Unmarshal(data, &value) == nil {
-			value.Kernel = NormalizeKernel(value.Kernel)
+			normalizeStoredConversation(&value)
 			values = append(values, value)
 		}
 	}
@@ -328,8 +326,26 @@ func (s *Store) getFromDirectory(directory, id string) (StoredConversation, erro
 	if value.ID != id {
 		return StoredConversation{}, fmt.Errorf("conversation id does not match stored record")
 	}
-	value.Kernel = NormalizeKernel(value.Kernel)
+	normalizeStoredConversation(&value)
 	return value, nil
+}
+
+func normalizeStoredConversation(value *StoredConversation) {
+	if value == nil {
+		return
+	}
+	value.Kernel = NormalizeKernel(value.Kernel)
+	// Leftover CTF records: workspaceHome ctf reads as Coding. Retired JSON
+	// fields (ctfJobId / ctfMode / ctfRole) are absent from this struct, so
+	// Unmarshal drops them and Save does not write them back.
+	if strings.EqualFold(strings.TrimSpace(value.WorkspaceHome), "ctf") {
+		value.WorkspaceHome = "chat"
+	}
+	if value.DomainTaskContext != nil {
+		if kind, _ := value.DomainTaskContext["kind"].(string); strings.EqualFold(strings.TrimSpace(kind), "ctf") {
+			value.DomainTaskContext = nil
+		}
+	}
 }
 
 func (s *Store) writeToDirectory(directory string, value StoredConversation) error {

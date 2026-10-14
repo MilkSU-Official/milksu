@@ -1870,7 +1870,8 @@ async function buildSidecar(platform) {
       piSubagentCliOutput,
     ),
   ])
-  await copyDshRuntime(output, platform)
+  // The Agent command is user-supplied. Do not ship @deepseek-ai/dsh in the
+  // default Sidecar closure. copyDshRuntime stays for optional local checks.
   await copyPiSubagentsRuntime(output, platform)
   await copyFile(
     join(repositoryRoot, 'sidecar', 'pi', 'pi-subagents-spawn.cjs'),
@@ -1942,12 +1943,9 @@ async function buildSidecar(platform) {
       },
     },
     dsh: {
-      package: '@deepseek-ai/dsh',
-      version: dshVersion,
-      license: 'MIT',
-      licenseFile: 'THIRD_PARTY-LICENSES/deepseek-harness-MIT.txt',
-      bin: 'node_modules/@deepseek-ai/dsh/lib/bin.js',
+      adapter: 'dsh-bridge.cjs',
       hostPlugin: 'host-plugin.mjs',
+      guest: 'acp',
     },
     skills: {
       firstParty: {
@@ -2201,7 +2199,6 @@ async function smokeSidecar(platform) {
     join(output, 'THIRD_PARTY-LICENSES', 'cua-MIT.txt'),
     join(output, 'THIRD_PARTY-LICENSES', 'gopher-lua-MIT.txt'),
     join(output, 'THIRD_PARTY-LICENSES', 'modelcontextprotocol-go-sdk-LICENSE.txt'),
-    join(output, 'THIRD_PARTY-LICENSES', 'deepseek-harness-MIT.txt'),
     join(output, photonWasmFileName),
     join(output, 'companion-bridge.cjs'),
     join(output, 'harness-adapter.cjs'),
@@ -2210,7 +2207,6 @@ async function smokeSidecar(platform) {
     join(output, 'product-mcp.cjs'),
     join(output, 'playwright-lazy-mcp.cjs'),
     join(output, 'host-plugin.mjs'),
-    join(output, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js'),
     join(output, 'node_modules', 'commander', 'package.json'),
     join(output, 'node_modules', 'js-yaml', 'package.json'),
     join(output, 'node_modules', 'node-addon-require-builtin', 'package.json'),
@@ -2280,11 +2276,9 @@ async function smokeSidecar(platform) {
     '--allow-fs-read=/usr/bin/env',
     '--allow-fs-read=/usr/bin/sandbox-exec',
   ]
-  const dshHome = join(workspace, 'dsh-home')
-  await mkdir(dshHome, { recursive: true, mode: 0o700 })
+  // Host plugin still ships with the adapter. Packaged DSH CLI / guest binary
+  // smoke stays off the default closure; The Agent command is user-supplied.
   await smokePackagedDshHostPlugin(node, output, workspace)
-  await smokePackagedDshCli(node, output, workspace, dshHome)
-  await smokePackagedDshBridge(node, output, workspace, dshHome)
   await smokePackagedCompanionBridge(node, output, workspace)
   await smokePackagedPhotonWasm(node, output, workspace)
   // 代理子进程会用**它自己**的临时根重算预期 socket 并比对传入值。hostpath 在 macOS 上
@@ -2492,7 +2486,6 @@ async function smokeSidecar(platform) {
     'goal_complete',
     'goal_blocked',
   ]
-  const ctfRequestedTools = [...coreExpectedTools, 'ctf_inspect']
   if (
     !ready
     || !expectedTools.every(tool => ready.tools?.includes(tool))
@@ -3013,82 +3006,6 @@ async function smokeSidecar(platform) {
     || nonGitResponses.some(value => value.type === 'error')
   ) {
     throw new Error(`unexpected packaged non-Git workspace response: ${nonGitRun.stdout}`)
-  }
-  const ctfWorkspace = join(workspace, 'ctf-coach')
-  await mkdir(join(ctfWorkspace, '.git'), { recursive: true, mode: 0o700 })
-  await writeFile(join(ctfWorkspace, 'challenge.json'), `${JSON.stringify({
-    schemaVersion: 'ctf-workspace.milksu.dev/v1alpha2',
-    source: {
-      scope: {
-        id: 'scope_packaged_ctf_coach',
-        source: 'sidecar-smoke:offline',
-        purpose: 'packaged CTF Coach smoke',
-        targets: [{ kind: 'directory', value: 'workspace' }],
-        grantedBy: 'local-user',
-        createdAt: new Date(Date.now() - 60_000).toISOString(),
-        expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-        revocable: true,
-      },
-    },
-    networkScopes: [],
-    policy: {
-      mode: 'coach',
-      allowedTools: ctfRequestedTools,
-      execution: {
-        workspaceOnly: true,
-        defaultCommandTimeoutSeconds: 120,
-        maxCommandTimeoutSeconds: 300,
-        maxToolEventOutputBytes: 60000,
-      },
-    },
-  }, null, 2)}\n`, { mode: 0o600 })
-  const ctfRuntimeArguments = [
-    '--permission',
-    `--allow-fs-read=${output}`,
-    `--allow-fs-read=${ctfWorkspace}`,
-    `--allow-fs-write=${ctfWorkspace}`,
-    '--allow-child-process',
-    '--allow-fs-read=/bin/bash',
-    '--allow-fs-read=/bin/sh',
-    '--allow-fs-read=/usr/bin/env',
-    '--allow-fs-read=/usr/bin/sandbox-exec',
-  ]
-  const ctfChatRun = await runWithInput(
-    node,
-    [...ctfRuntimeArguments, join(output, 'chat-bridge.cjs')],
-    [
-      JSON.stringify({
-        action: 'create_session',
-        conversationId: 'packaged-ctf-coach',
-        sessionRole: 'solver',
-        computerUse: {
-          sessionId: 'computer_must-not-enter-ctf',
-          socketPath:
-            computerUseSocket('computer_must-not-enter-ctf'),
-          targetBundleId: computerUsePackagedSmokeTarget.bundleId,
-          targetName: computerUsePackagedSmokeTarget.name,
-          targetPid: process.pid + computerUsePackagedSmokeTarget.pidOffset,
-          targetWindowId: computerUsePackagedSmokeTarget.windowId,
-        },
-      }),
-      '{"action":"destroy_session","conversationId":"packaged-ctf-coach"}',
-      '',
-    ].join('\n'),
-    { cwd: ctfWorkspace, env: { ...process.env, HOME: ctfWorkspace } },
-  )
-  const ctfChatResponses = ctfChatRun.stdout.trim().split('\n').map(line => JSON.parse(line))
-  const ctfReady = ctfChatResponses.find(value => value.type === 'ready')
-  const ctfSharedTools = [
-    'read', 'edit', 'write', 'grep', 'find', 'ls', 'bash',
-    'lsp_diagnostics', 'milksu_workspace',
-    'ctf_inspect', 'ctf_request_endpoint',
-  ]
-  if (
-    !ctfReady
-    || !ctfSharedTools.every(tool => ctfReady.tools?.includes(tool))
-    || !ctfChatResponses.some(value => value.type === 'session_destroyed')
-  ) {
-    throw new Error(`unexpected packaged CTF session response: ${ctfChatRun.stdout}`)
   }
   const bashProbe = await runWithInput(
     node,

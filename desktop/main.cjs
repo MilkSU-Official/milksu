@@ -445,6 +445,12 @@ function backendExecutable() {
     : path.resolve(__dirname, '..', 'build', 'desktop', binary)
 }
 
+function runtimeScript() {
+  return app.isPackaged
+    ? path.join(process.resourcesPath, 'runtime', 'main.cjs')
+    : path.resolve(__dirname, '..', 'runtime', 'dist', 'main.cjs')
+}
+
 function rendererDirectory() {
   return app.isPackaged
     ? path.join(process.resourcesPath, 'renderer')
@@ -525,6 +531,9 @@ function createDesktopBackend(executable, hostHandler, eventHandler) {
         appId: desktopIdentity.appId,
         hostPid: process.pid,
       })
+      env.ELECTRON_RUN_AS_NODE = '1'
+      env.MILKSU_NATIVE_HELPER = executable
+      if (!env.MILKSU_BACKEND_PATH) env.MILKSU_BACKEND_PATH = executable
       const runtimeAppDataDir = resolveRuntimeAppDataDir({
         channel: desktopIdentity.channel,
         isolatedInstance: channelIsolation.isolatedInstance,
@@ -535,7 +544,13 @@ function createDesktopBackend(executable, hostHandler, eventHandler) {
       if (!app.isPackaged && !env.MILKSU_FACTORY_SKILLS_DIR) {
         env.MILKSU_FACTORY_SKILLS_DIR = path.resolve(__dirname, '..', 'skills')
       }
-      const child = spawn(executable, [], {
+      if (!app.isPackaged && !env.MILKSU_ROOT) {
+        env.MILKSU_ROOT = path.resolve(__dirname, '..')
+      }
+      if (app.isPackaged && process.resourcesPath && !env.MILKSU_RESOURCES) {
+        env.MILKSU_RESOURCES = process.resourcesPath
+      }
+      const child = spawn(process.execPath, [runtimeScript()], {
         stdio: ['pipe', 'pipe', 'pipe'],
         env,
       })

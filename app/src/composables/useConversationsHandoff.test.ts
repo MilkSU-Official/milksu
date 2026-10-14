@@ -21,43 +21,34 @@ describe('useConversations domain handoff attach', () => {
     invokeCommand.mockClear()
   })
 
-  it('CTF startWorkspaceTask attaches domain context without send, running, or a canned draft', async () => {
+  it('CVE startWorkspaceTask attaches domain context without send, running, or a canned draft', async () => {
     const { useConversations } = await import('@/composables/useConversations')
     const conversations = useConversations()
     await conversations.startWorkspaceTask({
-      jobId: 'job-42',
-      conversationId: 'ctf-conversation-42',
-      title: 'CTF · Exact challenge',
-      workspacePath: '/tmp/ctf-job-42',
-      prompt: 'proposed solver prompt',
-      visibleText: '继续解决 Exact challenge',
-      policy: { mode: 'copilot' },
-      role: 'solver',
+      conversationId: 'cve-research-cve-2023-46604',
+      title: 'CVE-2023-46604 研究接力',
+      workspacePath: '',
+      prompt: 'proposed research prompt',
+      visibleText: '接手 CVE-2023-46604',
       domainTaskContext: {
-        kind: 'ctf',
-        jobId: 'job-42',
-        challengeId: 'ch-exact',
-        challengeTitle: 'Exact challenge',
-        role: 'solver',
-        roleLabel: '解题 Agent',
-        materialStatus: '已挂载 1 份材料：dist.zip',
-        materialCount: 1,
-        authorizedScope: 'source-1 · base → origin:https://base.example | net-1 · lab → origin:https://lab.example',
-        evidenceCount: 0,
-        artifactCount: 0,
-        judgeState: '尚无 Judge 回执',
-        liveProjection: true,
+        kind: 'cve',
+        cveId: 'CVE-2023-46604',
+        title: 'ActiveMQ',
+        sourceEvidenceState: 'NVD（imported）',
+        sourceEvidenceCount: 1,
+        assetMatchState: 'none',
+        assetCount: 0,
+        researchScope: '当前会话与用户所选项目/材料',
+        safetyBoundary: '沿用 Coding Agent 当前权限档',
+        roleLabel: 'CVE 研究接力',
       },
-      // autoSend omitted / false
     })
 
-    expect(conversations.activeId).toBe('ctf-conversation-42')
+    expect(conversations.activeId).toBe('cve-research-cve-2023-46604')
     const active = conversations.active
-    expect(active?.ctfJobId).toBe('job-42')
     expect(active?.domainTaskContext).toMatchObject({
-      kind: 'ctf',
-      challengeId: 'ch-exact',
-      authorizedScope: expect.stringContaining('source-1'),
+      kind: 'cve',
+      cveId: 'CVE-2023-46604',
     })
     expect(active?.messages ?? []).toEqual([])
     expect(conversations.activeRunning).toBe(false)
@@ -173,9 +164,6 @@ describe('useConversations domain handoff attach', () => {
       domainTaskContext: { kind: 'cve', cveId: 'CVE-2024-3400' },
     })
     expect(conversations.active?.workspacePath).toBeUndefined()
-    expect(conversations.active?.ctfJobId).toBeUndefined()
-    expect(conversations.active?.ctfMode).toBeUndefined()
-    expect(conversations.active?.ctfRole).toBeUndefined()
     expect(conversations.pendingComposerDraft?.visibleText).toBe('接手 CVE-2024-3400')
   })
 })

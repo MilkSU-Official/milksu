@@ -1,85 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
-  buildCTFDomainTaskContext,
   buildCVEDomainTaskContext,
-  formatAuthorizedScope,
-  mergeAuthorizedScopes,
+  normalizeDomainTaskContext,
   presentDomainTaskContext,
-  refreshCTFDomainTaskContext,
   sharedCodingSessionKind,
 } from './domainTaskContext'
 
 describe('domainTaskContext', () => {
-  it('describes an empty material projection without claiming the challenge has no attachment', () => {
-    const context = buildCTFDomainTaskContext({
-      jobId: 'job-empty',
-      challengeId: 'ch-empty',
-      challengeTitle: 'Attachment pending',
-      materials: [],
-    })
-    expect(context.materialStatus).toBe('无已挂载附件 / 无本地材料')
-  })
-
-  it('builds CTF structured context with exact scope, materials and judge state', () => {
-    const context = buildCTFDomainTaskContext({
-      jobId: 'job-1',
-      challengeId: 'ch-42',
-      challengeTitle: 'NSSCTF P3879',
-      role: 'solver',
-      materials: [{ name: 'dist.zip' }, { name: 'readme.md' }],
-      networkScopes: [{
-        id: 'scope-http-1',
-        purpose: 'challenge endpoint',
-        targets: [{ kind: 'origin', value: 'https://lab.example:8443' }],
-      }],
-      evidenceCount: 2,
-      artifactCount: 1,
-      judgeReceipts: [{ platform: 'NSSCTF', status: 'accepted', correct: true }],
-    })
-    expect(context.challengeId).toBe('ch-42')
-    expect(context.challengeTitle).toBe('NSSCTF P3879')
-    expect(context.materialStatus).toContain('dist.zip')
-    expect(context.authorizedScope).toContain('scope-http-1')
-    expect(context.authorizedScope).toContain('origin:https://lab.example:8443')
-    expect(context.judgeState).toContain('NSSCTF')
-    expect(context.judgeState).toContain('已验证正确')
-
-    const view = presentDomainTaskContext(context)
-    expect(view.materials).toEqual(['dist.zip', 'readme.md'])
-    expect(view.facts.map(item => item.label)).toEqual(['本次权限'])
-    expect(view.returnAriaLabel).toBe('返回 CTF 工作台')
-    expect(view.collapsedLabel).toBe('CTF · NSSCTF P3879')
-    expect(view.ownership).toBe('')
-  })
-
-  it('refreshes CTF panel from live domain projection without dropping handoff identity', () => {
-    const base = buildCTFDomainTaskContext({
-      jobId: 'job-1',
-      challengeId: 'ch-42',
-      challengeTitle: 'Old title',
-      materials: [],
-      networkScopes: [],
-    })
-    const refreshed = refreshCTFDomainTaskContext(base, {
-      challengeTitle: 'Live title',
-      materials: [{ name: 'flag.txt' }],
-      networkScopes: [{
-        id: 'scope-2',
-        purpose: 'ssh lab',
-        targets: [{ kind: 'ssh', value: 'user@10.0.0.3:22' }],
-      }],
-      evidenceCount: 4,
-      artifactCount: 2,
-      judgeReceipts: [{ platform: 'local', status: 'wrong', correct: false }],
-    })
-    expect(refreshed?.challengeId).toBe('ch-42')
-    expect(refreshed?.challengeTitle).toBe('Live title')
-    expect(refreshed?.materialStatus).toContain('flag.txt')
-    expect(refreshed?.authorizedScope).toContain('ssh:user@10.0.0.3:22')
-    expect(refreshed?.evidenceCount).toBe(4)
-    expect(refreshed?.judgeState).toContain('未通过')
-  })
-
   it('builds CVE structured context with source evidence, assets and safe research boundary', () => {
     const context = buildCVEDomainTaskContext({
       cveId: 'CVE-2023-46604',
@@ -122,9 +49,13 @@ describe('domainTaskContext', () => {
   })
 
   it('maps session flags onto one shared Coding/Pi surface', () => {
-    expect(sharedCodingSessionKind(true, false)).toBe('ctf')
-    expect(sharedCodingSessionKind(false, true)).toBe('cve')
-    expect(sharedCodingSessionKind(false, false)).toBe('coding')
+    expect(sharedCodingSessionKind(true)).toBe('cve')
+    expect(sharedCodingSessionKind(false)).toBe('coding')
+    expect(normalizeDomainTaskContext({
+      kind: 'ctf',
+      jobId: 'job-1',
+      challengeTitle: 'legacy',
+    })).toBeUndefined()
     expect(presentDomainTaskContext({
       kind: 'lab',
       jobId: 'job-2',
@@ -132,92 +63,5 @@ describe('domainTaskContext', () => {
       scope: 'local',
       request: '练 XSS',
     }).returnAriaLabel).toBe('返回实验室')
-  })
-
-  it('while Agent running=true, live projection still yields exact id/title/scope/materials/judge', () => {
-    // Simulates startCTFAgent → send with running=true before first paint:
-    // handoff snapshot only has jobId fallback until get_ctf_job returns.
-    const handoffSnapshot = buildCTFDomainTaskContext({
-      jobId: 'job-running',
-      challengeId: 'job-running',
-      challengeTitle: 'CTF · Pending title',
-      materials: [],
-      networkScopes: [],
-      evidenceCount: 0,
-      judgeReceipts: [],
-    })
-    const agentRunning = true
-    expect(agentRunning).toBe(true)
-
-    const projectionReturned = {
-      challengeId: 'ch-exact-42',
-      challengeTitle: 'Exact live challenge',
-      materials: [{ name: 'challenge.bin' }, { name: 'hint.txt' }],
-      // Base grant from challenge.source.scope must not be dropped when networkScopes also exist.
-      sourceScope: {
-        id: 'source-grant-base',
-        purpose: 'challenge origin',
-        targets: [{ kind: 'origin', value: 'https://challenge.example' }],
-      },
-      networkScopes: [{
-        id: 'scope-exact',
-        purpose: 'authorized lab',
-        targets: [{ kind: 'origin', value: 'https://live.lab:8443' }],
-      }],
-      evidenceCount: 5,
-      artifactCount: 2,
-      judgeReceipts: [{ platform: 'NSSCTF', status: 'accepted', correct: true }],
-    }
-    const merged = refreshCTFDomainTaskContext(handoffSnapshot, projectionReturned)
-    const view = presentDomainTaskContext(merged!)
-    const scopeText = view.facts.find(f => f.label === '本次权限')?.value ?? ''
-
-    expect(view.subtitle).toBe('ch-exact-42')
-    expect(view.title).toBe('Exact live challenge')
-    expect(view.materials).toContain('challenge.bin')
-    expect(scopeText).toContain('source-grant-base')
-    expect(scopeText).toContain('https://challenge.example')
-    expect(scopeText).toContain('scope-exact')
-    expect(scopeText).toContain('https://live.lab:8443')
-    expect(merged?.evidenceCount).toBe(5)
-    expect(merged?.judgeState).toContain('已验证正确')
-    // Must not remain stuck on handoff jobId-as-challengeId fallback.
-    expect(view.subtitle).not.toBe('job-running')
-    expect(scopeText).not.toBe('未授权 Scope')
-  })
-
-  it('merges challenge.source.scope with approved network scopes and drops revoked/duplicates', () => {
-    const scopes = mergeAuthorizedScopes(
-      {
-        id: 'source-1',
-        purpose: 'base challenge',
-        targets: [{ kind: 'origin', value: 'https://base.example' }],
-      },
-      [
-        {
-          id: 'source-1',
-          purpose: 'base challenge',
-          targets: [{ kind: 'origin', value: 'https://base.example' }],
-        },
-        {
-          id: 'net-revoked',
-          purpose: 'old endpoint',
-          revokedAt: '2026-01-01T00:00:00Z',
-          targets: [{ kind: 'origin', value: 'https://revoked.example' }],
-        },
-        {
-          id: 'net-active',
-          purpose: 'approved endpoint',
-          targets: [{ kind: 'origin', value: 'https://api.example' }],
-        },
-      ],
-    )
-    expect(scopes.map(scope => scope.id)).toEqual(['source-1', 'net-active'])
-    const text = formatAuthorizedScope(scopes)
-    expect(text).toContain('source-1')
-    expect(text).toContain('https://base.example')
-    expect(text).toContain('net-active')
-    expect(text).toContain('https://api.example')
-    expect(text).not.toContain('revoked.example')
   })
 })

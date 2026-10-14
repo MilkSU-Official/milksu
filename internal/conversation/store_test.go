@@ -198,7 +198,49 @@ func TestStoreGetRejectsAMismatchedStoredConversation(t *testing.T) {
 	}
 }
 
-func TestStorePreservesCTFLearningContext(t *testing.T) {
+func TestStoreIgnoresRetiredCTFFields(t *testing.T) {
+	store := &Store{directory: t.TempDir()}
+	path := filepath.Join(store.directory, "ctf_019fb283.json")
+	legacy := `{
+  "id": "ctf_019fb283",
+  "title": "old challenge",
+  "createdAt": 42,
+  "workspaceHome": "ctf",
+  "ctfJobId": "job-316",
+  "ctfMode": "coach",
+  "ctfRole": "solver",
+  "domainTaskContext": {"kind": "ctf", "challengeTitle": "P316"},
+  "messages": [{"id": "message-1", "role": "user", "content": "hello", "timestamp": 43}]
+}`
+	if err := os.WriteFile(path, []byte(legacy), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := store.Get("ctf_019fb283")
+	if err != nil {
+		t.Fatalf("read leftover conversation: %v", err)
+	}
+	if got.WorkspaceHome != "chat" {
+		t.Fatalf("workspaceHome: got %q", got.WorkspaceHome)
+	}
+	if got.DomainTaskContext != nil {
+		t.Fatalf("domainTaskContext: %#v", got.DomainTaskContext)
+	}
+	if err := store.Save(got); err != nil {
+		t.Fatalf("rewrite leftover conversation: %v", err)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(raw)
+	for _, key := range []string{"ctfJobId", "ctfMode", "ctfRole", `"kind": "ctf"`} {
+		if strings.Contains(text, key) {
+			t.Fatalf("rewritten record still contains %s: %s", key, text)
+		}
+	}
+}
+
+func TestStorePreservesToolAndApprovalFields(t *testing.T) {
 	store := &Store{directory: t.TempDir()}
 	toolName := "bash"
 	toolCallID := "call-1"
@@ -209,19 +251,17 @@ func TestStorePreservesCTFLearningContext(t *testing.T) {
 	approvalState := "approved"
 	approvalReason := "approved by user"
 	want := StoredConversation{
-		ID:             "ctf_019fb283",
-		Title:          "NSSCTF P316",
+		ID:             "conversation-tool",
+		Title:          "npm test",
 		CreatedAt:      42,
-		WorkspacePath:  "/tmp/milksu-ctf",
+		WorkspacePath:  "/workspace",
 		ExecutionMode:  "go",
 		ApprovalPolicy: "workspace-auto",
 		AgentCapabilities: []StoredCapability{{
 			ID: "workspace-write", Label: "工作区写入", Status: "allowed", Detail: "workspace only",
 		}},
-		CTFJobID: "job-316",
-		CTFMode:  "coach",
 		Messages: []StoredMessage{{
-			ID: "message-1", Role: "user", Content: "先帮我梳理题面", Timestamp: 43,
+			ID: "message-1", Role: "user", Content: "跑一下测试", Timestamp: 43,
 			Attachments: []StoredAttachment{{
 				ID:   "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 				Name: "evidence.png", MediaType: "image/png", Size: 42,
@@ -243,15 +283,15 @@ func TestStorePreservesCTFLearningContext(t *testing.T) {
 		}},
 	}
 	if err := store.Save(want); err != nil {
-		t.Fatalf("save CTF conversation: %v", err)
+		t.Fatalf("save conversation: %v", err)
 	}
 	got, err := store.List()
 	if err != nil {
-		t.Fatalf("list CTF conversations: %v", err)
+		t.Fatalf("list conversations: %v", err)
 	}
 	want.Kernel = KernelPi
 	if len(got) != 1 || !reflect.DeepEqual(got[0], want) {
-		t.Fatalf("CTF learning context did not round-trip: %#v", got)
+		t.Fatalf("tool fields did not round-trip: %#v", got)
 	}
 }
 

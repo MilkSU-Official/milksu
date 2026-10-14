@@ -58,19 +58,20 @@ var dataLayoutV2MigrationMap = map[string]string{
 	"security-tools": "data/services/security-tools", // internal/securitytools/service.go NewService
 	"computer-use":   "data/services/computer-use",   // internal/computercap/prepare.go preparedDriverPath
 
-	// Domain roles.
-	"ctf":       "data/domain/ctf",       // cmd/milksu-backend/app.go ctf.NewMemoryStore
-	"nssctf":    "data/domain/nssctf",    // cmd/milksu-backend/app.go nssctf.NewCatalogService
-	"ctfshow":   "data/domain/ctfshow",   // cmd/milksu-backend/app.go ctfshow.NewCatalogService
-	"vuln":      "data/domain/vuln",      // internal/vuln/feed.go, internal/vuln/practice.go
-	"evalsuite": "data/domain/evalsuite", // internal/evalsuite/store.go NewStore
+	// Domain roles. ctf / nssctf / ctfshow / evalsuite stay so existing
+	// version-1 roots still move once; the product no longer opens them.
+	"ctf":       "data/domain/ctf",
+	"nssctf":    "data/domain/nssctf",
+	"ctfshow":   "data/domain/ctfshow",
+	"vuln":      "data/domain/vuln", // internal/vuln/feed.go, internal/vuln/practice.go
+	"evalsuite": "data/domain/evalsuite",
 
 	// Workspaces and backups.
 	"agent-workspace":  "workspaces/agent-workspace",  // internal/engine/sidecar.go sidecarWorkspace
 	"agent-workspaces": "workspaces/agent-workspaces", // cmd/milksu-backend/app.go workspaceRoot
-	"ctf-workspaces":   "workspaces/ctf-workspaces",   // cmd/milksu-backend/app.go ctfWorkspaceRoot
-	"browser":          "workspaces/browser",          // cmd/milksu-backend/app.go browsercap.New
-	"restore":          "backups/restore",             // internal/appdata/restore.go restoreDirectoryName
+	"ctf-workspaces":   "workspaces/ctf-workspaces",
+	"browser":          "workspaces/browser", // cmd/milksu-backend/app.go browsercap.New
+	"restore":          "backups/restore",    // internal/appdata/restore.go restoreDirectoryName
 }
 
 // dataLayoutV2RootKeepNames lists root entries the version-2 migration never

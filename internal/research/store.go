@@ -18,15 +18,17 @@ import (
 )
 
 const (
-	SupportedDatabaseVersion = 3
+	SupportedDatabaseVersion = 4
 	maxSourceBytes           = 16 * 1024
 	researchV1MigrationName  = "create research store"
 	researchV2MigrationName  = "track unconfirmed worker stops"
 	researchV3MigrationName  = "track research worker launching state"
+	researchV4MigrationName  = "record research run trace id"
 	researchTimeLayout       = "2006-01-02T15:04:05.000000000Z07:00"
 )
 
 var researchRunIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.:-]{0,191}$`)
+var researchTraceIDPattern = regexp.MustCompile(`(?i)^trc_[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
 var researchTextURLPattern = regexp.MustCompile("(?i)https?://[^\\s<>\"'`]+")
 var researchTextQueryPattern = regexp.MustCompile(`(?i)([?&;])([^=&#;\s]+)=([^&#;\s]*)`)
 var researchTextURLAuthPattern = regexp.MustCompile(`(?i)(https?://[^/:?#\s]+:)[^@/?#\s]*@`)
@@ -58,6 +60,11 @@ func OpenStore(dataDirectory string) (*Store, error) {
 			Version: 3,
 			Name:    researchV3MigrationName,
 			Up:      researchV3Up,
+		},
+		{
+			Version: 4,
+			Name:    researchV4MigrationName,
+			Up:      researchV4Up,
 		},
 	}, sqlitemigrate.WithPragmas([]string{
 		"PRAGMA journal_mode = WAL",
@@ -208,6 +215,41 @@ func researchV3Up(ctx context.Context, tx *sql.Tx) error {
 	return nil
 }
 
+// researchV4Up 给 research_runs 加上 trace_id。旧行保持空字符串。
+func researchV4Up(ctx context.Context, tx *sql.Tx) error {
+	rows, err := tx.QueryContext(ctx, `PRAGMA table_info(research_runs)`)
+	if err != nil {
+		return fmt.Errorf("inspect research run schema: %w", err)
+	}
+	defer rows.Close()
+	columnExists := false
+	for rows.Next() {
+		var ordinal, notNull, primaryKey int
+		var name, columnType string
+		var defaultValue sql.NullString
+		if err := rows.Scan(&ordinal, &name, &columnType, &notNull, &defaultValue, &primaryKey); err != nil {
+			return fmt.Errorf("inspect research run schema: %w", err)
+		}
+		if name == "trace_id" {
+			columnExists = true
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("inspect research run schema: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return fmt.Errorf("close research run schema inspection: %w", err)
+	}
+	if columnExists {
+		return nil
+	}
+	if _, err := tx.ExecContext(ctx, `ALTER TABLE research_runs
+		ADD COLUMN trace_id TEXT NOT NULL DEFAULT ''`); err != nil {
+		return fmt.Errorf("add research run trace id: %w", err)
+	}
+	return nil
+}
+
 func (s *Store) Close() error {
 	if s == nil || s.db == nil {
 		return nil
@@ -257,8 +299,8 @@ func (s *Store) CreateRun(ctx context.Context, run Run) error {
 		return err
 	}
 	_, err = s.db.ExecContext(ctx, `INSERT INTO research_runs (
-		id, conversation_id, query, status, phase, report, created_at, updated_at
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		id, conversation_id, query, status, phase, report, created_at, updated_at, trace_id
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		run.ID,
 		run.ConversationID,
 		run.Query,
@@ -267,6 +309,7 @@ func (s *Store) CreateRun(ctx context.Context, run Run) error {
 		run.Report,
 		formatResearchTime(run.CreatedAt),
 		formatResearchTime(run.UpdatedAt),
+		run.TraceID,
 	)
 	if err != nil {
 		return fmt.Errorf("create research run: %w", err)
@@ -817,7 +860,7 @@ func (s *Store) InterruptRun(ctx context.Context, run Run) error {
 	return nil
 }
 
-const researchRunColumns = `id, conversation_id, query, status, phase, report, created_at, updated_at, worker_stop_unconfirmed`
+const researchRunColumns = `id, conversation_id, query, status, phase, report, created_at, updated_at, worker_stop_unconfirmed, trace_id`
 
 type researchRowScanner interface {
 	Scan(dest ...any) error
@@ -837,10 +880,12 @@ func scanRun(row researchRowScanner) (Run, error) {
 		&createdAt,
 		&updatedAt,
 		&workerStopUnconfirmed,
+		&run.TraceID,
 	); err != nil {
 		return Run{}, err
 	}
 	run.WorkerStopUnconfirmed = workerStopUnconfirmed != 0
+	run.TraceID = normalizeResearchTraceID(run.TraceID)
 	var err error
 	if run.CreatedAt, err = parseResearchTime(createdAt); err != nil {
 		return Run{}, fmt.Errorf("parse research run creation time: %w", err)
@@ -878,6 +923,7 @@ func normalizeRun(run Run, creating bool) (Run, error) {
 	run.Status = strings.TrimSpace(run.Status)
 	run.Phase = strings.TrimSpace(run.Phase)
 	run.Report = sanitizeResearchText(run.Report)
+	run.TraceID = normalizeResearchTraceID(run.TraceID)
 	if !researchRunIDPattern.MatchString(run.ID) {
 		return Run{}, fmt.Errorf("invalid research run id")
 	}
@@ -939,6 +985,18 @@ func validRunPhase(phase string) bool {
 	default:
 		return false
 	}
+}
+
+func normalizeResearchTraceID(value string) string {
+	value = strings.TrimSpace(value)
+	if researchTraceIDPattern.MatchString(value) {
+		return value
+	}
+	return ""
+}
+
+func newResearchTraceID() string {
+	return "trc_" + uuid.NewString()
 }
 
 func formatResearchTime(value time.Time) string {

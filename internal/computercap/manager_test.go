@@ -626,7 +626,7 @@ func TestFilterValidTargetsKeepsUserBrowsersForComputerUse(t *testing.T) {
 			BundleID:       "win32.helper",
 			PID:            108,
 			WindowID:       8,
-			executablePath: `C:\Program Files\Google\Chrome\Application\chrome.exe`,
+			ExecutablePath: `C:\Program Files\Google\Chrome\Application\chrome.exe`,
 		},
 	}
 
@@ -666,7 +666,7 @@ func lifecycleTarget(target Target) Target {
 	if err != nil {
 		panic(err)
 	}
-	target.executablePath = executable
+	target.ExecutablePath = executable
 	return target
 }
 
@@ -734,14 +734,14 @@ func TestWindowsStartAcceptsBrowserTargets(t *testing.T) {
 		BundleID:       "win32.chrome",
 		PID:            4242,
 		WindowID:       9001,
-		executablePath: filepath.Join(filepath.Dir(executable), "chrome.exe"),
+		ExecutablePath: filepath.Join(filepath.Dir(executable), "chrome.exe"),
 	}
 	notepad := Target{
 		Name:           "Notepad",
 		BundleID:       "win32.notepad",
 		PID:            4343,
 		WindowID:       9002,
-		executablePath: executable,
+		ExecutablePath: executable,
 	}
 	manager := New(Options{
 		BinaryPath:      os.Args[0],
@@ -792,7 +792,7 @@ func TestWindowsComputerUseUsesExecutablePolicyAndPrivatePipe(t *testing.T) {
 		PID:            4242,
 		WindowID:       9001,
 		WindowTitle:    "Probe",
-		executablePath: executable,
+		ExecutablePath: executable,
 	}
 	manager := New(Options{
 		BinaryPath:      os.Args[0],
@@ -844,7 +844,7 @@ func TestWindowsRealDriverOpensPrivatePipeWithoutElevation(t *testing.T) {
 		PID:            os.Getpid(),
 		WindowID:       9001,
 		WindowTitle:    "Isolated probe",
-		executablePath: executable,
+		ExecutablePath: executable,
 	}
 	manager := New(Options{
 		BinaryPath:      driver,

@@ -11,7 +11,7 @@ import type {
   StepRecord,
   Verdict,
 } from './runtimeTypes'
-import type { CTFScopeGrant } from './ctfTypes'
+import type { ScopeGrant } from '@/lib/scopeGrant'
 
 export interface VulnTarget {
   id: string
@@ -20,7 +20,7 @@ export interface VulnTarget {
   component: string
   fixture: string
   collaborationMode: string
-  scope: CTFScopeGrant
+  scope: ScopeGrant
   sourceArtifactId: string
   readmeArtifactId: string
   admittedAt: string

@@ -30,17 +30,12 @@ const (
 var backupRoots = []string{
 	DataLayoutFile,
 	filepath.Join("data", "stores", "conversations"),
-	filepath.Join("workspaces", "ctf-workspaces"),
-	filepath.Join("data", "domain", "ctf", "memories"),
 	filepath.Join("data", "agent", "home", "attachments"),
 	filepath.Join("data", "agent", "home", "pi", "sessions"),
 	filepath.Join("data", "domain", "research", "artifacts"),
 }
 
 var backupDatabases = []string{
-	filepath.Join("data", "domain", "ctf", "memory.sqlite3"),
-	filepath.Join("data", "domain", "nssctf", "catalog.sqlite3"),
-	filepath.Join("data", "domain", "ctfshow", "catalog.sqlite3"),
 	filepath.Join("data", "runtime", "events.sqlite3"),
 	filepath.Join("data", "stores", "usage", "model-usage.sqlite3"),
 	filepath.Join("data", "domain", "research", "research.sqlite3"),

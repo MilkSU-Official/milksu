@@ -43,6 +43,7 @@ type Run struct {
 	Phase                 string    `json:"phase"`
 	Report                string    `json:"report,omitempty"`
 	WorkerStopUnconfirmed bool      `json:"workerStopUnconfirmed,omitempty"`
+	TraceID               string    `json:"traceId"`
 	CreatedAt             time.Time `json:"createdAt"`
 	UpdatedAt             time.Time `json:"updatedAt"`
 }

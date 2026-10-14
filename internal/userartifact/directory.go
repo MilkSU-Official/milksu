@@ -17,7 +17,6 @@ type Kind string
 
 const (
 	KindCoding Kind = "Coding"
-	KindCTF    Kind = "CTF"
 	KindCVE    Kind = "CVE"
 	KindLab    Kind = "Lab"
 )
@@ -39,7 +38,6 @@ func Ensure(root string) (string, error) {
 	for _, directory := range []string{
 		validated,
 		filepath.Join(validated, string(KindCoding)),
-		filepath.Join(validated, string(KindCTF)),
 		filepath.Join(validated, string(KindCVE)),
 		filepath.Join(validated, string(KindLab)),
 	} {
@@ -135,7 +133,7 @@ func validateRoot(value string) (string, error) {
 }
 
 func validKind(kind Kind) bool {
-	return kind == KindCoding || kind == KindCTF || kind == KindCVE || kind == KindLab
+	return kind == KindCoding || kind == KindCVE || kind == KindLab
 }
 
 func ensureWithin(root, target string) error {

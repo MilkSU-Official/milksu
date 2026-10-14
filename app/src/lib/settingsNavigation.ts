@@ -9,14 +9,12 @@ export type SettingsCategory =
   | 'runtime'
   | 'chats'
   | 'memory'
-  | 'ctf'
   | 'cve'
   | 'lab'
   | 'skills'
   | 'mcp'
   | 'plugins'
   | 'companion'
-  | 'eval'
   | 'security-tools'
   | 'coding'
 
@@ -58,7 +56,6 @@ export const SETTINGS_SIDEBAR_GROUPS: readonly SettingsSidebarGroup[] = [
     id: 'workspaces',
     label: () => t('工作区', 'Workspaces'),
     items: [
-      { value: 'ctf', label: () => 'CTF' },
       { value: 'cve', label: () => 'CVE' },
       { value: 'lab', label: () => 'Lab' },
     ],
@@ -77,7 +74,6 @@ export const SETTINGS_SIDEBAR_GROUPS: readonly SettingsSidebarGroup[] = [
     label: null,
     items: [
       { value: 'companion', label: () => t('看板娘', 'Companion') },
-      { value: 'eval', label: () => t('评测', 'Eval') },
     ],
   },
 ]

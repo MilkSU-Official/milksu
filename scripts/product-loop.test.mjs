@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { EventEmitter } from 'node:events'
-import { CdpSession, classifyTurnEvents, eventSessionId, eventToolName, eventTypeOf, GuiDriver, isCompanionChatSurface, isCompanionPetSurface, isCompanionSurface, isMainProductSurface, isMilkSUPage, isProductLoopFixtureConversation, killProcessGroup, resolveProductLoopLaunchPlan, stripDesktopCredentialEnv } from './lib/desktop-gui-driver.mjs'
+import { CdpSession, captureChildOutput, classifyTurnEvents, desktopStartExitError, eventSessionId, eventToolName, eventTypeOf, GuiDriver, isCompanionChatSurface, isCompanionPetSurface, isCompanionSurface, isMainProductSurface, isMilkSUPage, isProductLoopFixtureConversation, killProcessGroup, resolveProductLoopLaunchPlan, stripDesktopCredentialEnv } from './lib/desktop-gui-driver.mjs'
+import { formatMissingDesktopDevArtifacts, missingDesktopDevArtifacts } from './lib/desktop-dev-artifacts.mjs'
 import {
   classifyMilkSUHostCommand,
   detectCallerMilkSUPid,
@@ -38,6 +39,7 @@ import {
 } from './lib/product-loop-catalog.mjs'
 import { describeAccountIntentGrant } from './lib/product-loop-intent.mjs'
 import { PRODUCT_LOOP_RUNNERS } from './lib/product-loop-runners.mjs'
+import { ensureProductLoopAgent, resolveProductLoopAgentCommand } from './lib/product-loop-agent.mjs'
 import { buildProductLoopReport, evidenceSurfacesForCase, formatFormalProductLoopReport, formatProductLoopReport, normalizeScreenshot } from './lib/product-loop-report.mjs'
 import {
   SURFACE_ALLOW,
@@ -174,18 +176,29 @@ test('catalog keeps product regression away from evalsuite', () => {
   assert.equal(typeof PRODUCT_LOOP_RUNNERS['intent-settings-blank'], 'function')
   assert.equal(typeof PRODUCT_LOOP_RUNNERS['intent-settings-reject'], 'function')
   assert.equal(typeof PRODUCT_LOOP_RUNNERS['intent-fallback-record'], 'function')
-  assert.equal(MODULES.workspaces.cases.length, 34)
+  assert.equal(MODULES.workspaces.cases.length, 23)
   assert.equal(CASES['companion-memory'].needsCredential, true)
   assert.equal(CASES['companion-memory-settings'].needsCredential, false)
   assert.equal(CASES['coding-user-memory'].needsCredential, true)
   assert.equal(CASES['workspace-cve-learning'].needsCredential, false)
   assert.equal(typeof PRODUCT_LOOP_RUNNERS['coding-pi-subagent'], 'function')
   assert.equal(typeof PRODUCT_LOOP_RUNNERS['coding-user-memory'], 'function')
+  assert.equal(CASES['coding-pi-handoff'].id, 'coding-pi-handoff')
+  assert.equal(CASES['coding-pi-handoff'].title, 'Pi 接到 Agent')
+  assert.equal(CASES['coding-dsh-files'].id, 'coding-dsh-files')
+  assert.equal(CASES['coding-dsh-files'].title, 'Agent 写文件')
+  assert.equal(CASES['coding-dsh-shell'].title, 'Agent 跑命令')
+  assert.equal(CASES['coding-dsh-queue'].title, 'Agent 排队')
+  assert.equal(CASES['coding-dsh-plan'].title, 'Agent 计划模式')
+  assert.equal(CASES['coding-dsh-goal'].title, 'Agent 目标')
+  assert.equal(CASES['coding-dsh-multitask'].title, 'Agent 并行会话')
+  assert.equal(CASES['coding-dsh-stop'].title, 'Agent 停止')
+  assert.equal(CASES['coding-dsh-compact'].title, 'Agent 整理上下文')
   assert.equal(typeof PRODUCT_LOOP_RUNNERS['companion-memory-settings'], 'function')
   assert.equal(typeof PRODUCT_LOOP_RUNNERS['workspace-cve-learning'], 'function')
   assert.equal(MODULES['desktop-surface'].cases.length, 9)
   assert.equal(MODULES['account-shell'].cases.length, 4)
-  assert.equal(MODULES['settings-rest'].cases.length, 18)
+  assert.equal(MODULES['settings-rest'].cases.length, 16)
   assert.equal(orderSuites(['coding-pi-files', 'companion-ready'])[0], 'coding-pi-files')
   assert.equal(SUITES.companion.needsDesktop, true)
   assert.equal(SUITES.companion.needsCredential, true)
@@ -239,8 +252,8 @@ test('companion core seeds issue transcripts when the case starts', () => {
 
 test('parseSuiteList accepts all and rejects unknown ids', () => {
   assert.deepEqual(parseSuiteList('all'), DEFAULT_SUITES)
-  assert.deepEqual(parseSuiteList('coding-dsh-files,workspace-ctf-open,coding-dsh-files'), ['coding-dsh-files', 'workspace-ctf-open'])
-  assert.deepEqual(expandSuiteSelection(['coding-dsh-files', 'workspace-ctf-open']), ['coding-dsh-files', 'workspace-ctf-open'])
+  assert.deepEqual(parseSuiteList('coding-dsh-files,workspace-cve-open,coding-dsh-files'), ['coding-dsh-files', 'workspace-cve-open'])
+  assert.deepEqual(expandSuiteSelection(['coding-dsh-files', 'workspace-cve-open']), ['coding-dsh-files', 'workspace-cve-open'])
   assert.throws(() => parseSuiteList('frontier'), /unknown product-loop suite/)
 })
 
@@ -347,7 +360,7 @@ test('product-loop report walks modules then cases then overall', () => {
 test('formal evidence only attaches the window that case actually used', () => {
   assert.deepEqual(evidenceSurfacesForCase('coding-pi-files'), ['main'])
   assert.deepEqual(evidenceSurfacesForCase('login-gate'), ['main'])
-  assert.deepEqual(evidenceSurfacesForCase('workspace-ctf-list'), ['main'])
+  assert.deepEqual(evidenceSurfacesForCase('workspace-cve-list'), ['main'])
   assert.deepEqual(evidenceSurfacesForCase('companion-page'), ['companion'])
   assert.deepEqual(evidenceSurfacesForCase('companion-settings-model'), ['main'])
   assert.deepEqual(evidenceSurfacesForCase('companion-hide'), ['main', 'companion'])
@@ -1098,7 +1111,7 @@ test('killProcessGroup is a no-op for an already-exited child', () => {
   assert.equal(killProcessGroup(child), false)
 })
 
-test('surface scanner fails leaks and unexpected error chrome, not expected form or confirm copy', () => {
+test('surface scanner fails leaks and unexpected error chrome, not expected form or confirm copy', async () => {
   const packagedAppPath = process.platform === 'win32'
     ? '/repo/milksu/build/bin/MilkSU.exe'
     : '/repo/milksu/build/bin/MilkSU.app'
@@ -1112,6 +1125,23 @@ test('surface scanner fails leaks and unexpected error chrome, not expected form
     : packagedAppPath
   assert.equal(packagedLaunch.executable, expectedExecutable)
   assert.equal(resolveProductLoopLaunchPlan({}, '/repo/milksu').mode, 'desktop-start')
+  assert.equal(
+    formatMissingDesktopDevArtifacts(['renderer', 'helper', 'electron']),
+    'desktop:start --no-build missing renderer, helper, electron; run npm --prefix desktop install; run npm run desktop:build-dev',
+  )
+  assert.equal(formatMissingDesktopDevArtifacts([]), '')
+  const emptyRoot = await mkdtemp(join(tmpdir(), 'milksu-dev-artifacts-'))
+  assert.deepEqual(await missingDesktopDevArtifacts(emptyRoot), ['runtime', 'renderer', 'helper', 'electron'])
+  const child = new EventEmitter()
+  child.exitCode = 1
+  child.stdout = new EventEmitter()
+  child.stderr = new EventEmitter()
+  const readOutput = captureChildOutput(child)
+  child.stderr.emit('data', 'desktop:start --no-build missing helper\n')
+  assert.equal(
+    desktopStartExitError(child, readOutput).message,
+    'desktop:start exited 1: desktop:start --no-build missing helper',
+  )
 
   assert.equal(isSurfaceLeakText('No API key for tokenflux/deepseek/deepseek-flash'), true)
   assert.equal(isSurfaceLeakText('Request aborted'), true)
@@ -1673,3 +1703,96 @@ test('memory settings and CVE learning file judges', () => {
   assert.equal(memoryTranscriptAnomaly('[object Object]'), '[object Object]')
   assert.equal(memoryTranscriptAnomaly('{"companion_float_enabled":true}'), '设置 JSON')
 })
+
+async function writeGuestBin(root, source, mode = 0o644) {
+  const dir = join(root, 'node_modules', '@deepseek-ai', 'dsh', 'lib')
+  const bin = join(dir, 'bin.js')
+  await mkdir(dir, { recursive: true })
+  await writeFile(bin, source)
+  await chmod(bin, mode)
+  return bin
+}
+
+test('resolveProductLoopAgentCommand prefers MILKSU_DSH_COMMAND', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'milksu-loop-agent-env-'))
+  await writeGuestBin(root, '#!/usr/bin/env node\n', 0o755)
+  const resolved = resolveProductLoopAgentCommand({
+    env: {
+      MILKSU_DSH_COMMAND: '/bin/echo',
+      MILKSU_DSH_ACP_ARGS: '--profile acp',
+    },
+    root,
+  })
+  assert.equal(resolved.command, '/bin/echo')
+  assert.deepEqual(resolved.args, ['--profile', 'acp'])
+  const jsonArgs = resolveProductLoopAgentCommand({
+    env: {
+      MILKSU_DSH_COMMAND: '/bin/echo',
+      MILKSU_DSH_ACP_ARGS: '["--profile","acp"]',
+    },
+    root,
+  })
+  assert.deepEqual(jsonArgs.args, ['--profile', 'acp'])
+  const defaultArgs = resolveProductLoopAgentCommand({
+    env: { MILKSU_DSH_COMMAND: '/bin/echo' },
+    root,
+  })
+  assert.deepEqual(defaultArgs.args, ['--profile', 'acp'])
+})
+
+test('resolveProductLoopAgentCommand returns null without env or bin.js', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'milksu-loop-agent-missing-'))
+  assert.equal(resolveProductLoopAgentCommand({ env: {}, root }), null)
+})
+
+test('resolveProductLoopAgentCommand uses checkout bin.js', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'milksu-loop-agent-bin-'))
+  const withShebang = await writeGuestBin(root, '#!/usr/bin/env node\n', 0o644)
+  assert.deepEqual(resolveProductLoopAgentCommand({ env: {}, root }), { command: withShebang })
+  const executable = await writeGuestBin(root, 'console.log(1)\n', 0o755)
+  assert.deepEqual(resolveProductLoopAgentCommand({ env: {}, root }), { command: executable })
+  const viaNode = await writeGuestBin(root, 'console.log(1)\n', 0o644)
+  assert.deepEqual(
+    resolveProductLoopAgentCommand({ env: {}, root, execPath: '/usr/bin/node' }),
+    { command: '/usr/bin/node', args: [viaNode, '--profile', 'acp'] },
+  )
+})
+
+test('ensureProductLoopAgent does not copy API_KEY-like env into acp_guest', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'milksu-loop-agent-key-'))
+  const saved = []
+  const driver = {
+    async invoke(method, args) {
+      if (method === 'GetSettings') {
+        return {
+          acp_guest: {
+            command: '',
+            env: { DEEPSEEK_API_KEY: 'sk-test', PATH: '/usr/bin' },
+          },
+        }
+      }
+      if (method === 'SaveSettingsCmd') {
+        saved.push(args[0])
+        return {}
+      }
+      throw new Error(`unexpected ${method}`)
+    },
+  }
+  const result = await ensureProductLoopAgent(driver, {
+    env: {
+      MILKSU_DSH_COMMAND: '/bin/echo',
+      DEEPSEEK_API_KEY: 'sk-test',
+      TOKENFLUX_API_KEY: 'sk-tokenflux',
+    },
+    root,
+  })
+  assert.equal(result.ok, true)
+  assert.equal(saved.length, 1)
+  assert.equal(saved[0].acp_guest.command, '/bin/echo')
+  assert.equal(saved[0].acp_guest.env, undefined)
+  const blob = JSON.stringify(saved[0].acp_guest)
+  assert.equal(blob.includes('sk-test'), false)
+  assert.equal(blob.includes('API_KEY'), false)
+  assert.equal(blob.includes('PATH'), false)
+})
+

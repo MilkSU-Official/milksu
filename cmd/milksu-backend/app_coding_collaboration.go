@@ -9,7 +9,6 @@ import (
 
 	"github.com/MilkSU-Official/milksu/internal/codingcollab"
 	"github.com/MilkSU-Official/milksu/internal/codingenv"
-	"github.com/MilkSU-Official/milksu/internal/ctf"
 	"github.com/MilkSU-Official/milksu/internal/engine"
 )
 
@@ -65,11 +64,6 @@ func (a *App) prepareAgentManagedCodingCollaboration(
 	}
 	if strings.TrimSpace(workspacePath) == "" {
 		return nil, fmt.Errorf("this task has no Git project to isolate")
-	}
-	// CTF challenge directories already isolate the task, so they never receive
-	// a second worktree around an already bounded workspace.
-	if ctf.IsAgentWorkspace(workspacePath) {
-		return nil, fmt.Errorf("the CTF challenge workspace is already isolated")
 	}
 	existing, err := a.resolveAgentManagedCodingCollaboration(conversationID, workspacePath)
 	if err != nil {

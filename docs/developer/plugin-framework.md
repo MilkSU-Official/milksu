@@ -74,10 +74,10 @@ Lua 与 TypeScript 每次隔离调用都依次执行 `initialize`、业务方法
 
 | 槽位 | 宿主范围 |
 | --- | --- |
-| `content-wallpaper` | AI 聊天画布与 CTF 题面 |
-| `workspace-list` | 题目、会话、设置等标准列表 |
+| `content-wallpaper` | AI 聊天画布 |
+| `workspace-list` | 会话、设置等标准列表 |
 | `control-button` | 宿主标准按钮；危险、禁用、焦点状态仍由核心覆盖 |
-| `workspace-topbar` | Coding/CTF/CVE 标题、筛选和操作区；不含原生标题栏或弹窗头 |
+| `workspace-topbar` | Coding / CVE / 实验室标题、筛选和操作区；不含原生标题栏或弹窗头 |
 | `overlay-menu` | Select、Dropdown、ContextMenu、Popover、HoverCard |
 | `chat-composer` | Composer 外壳、输入区和工具栏 |
 
@@ -85,7 +85,7 @@ Lua 与 TypeScript 每次隔离调用都依次执行 `initialize`、业务方法
 
 每个表面初始为 `inherit`，完全保持核心原色。`solid` 提供系统原始、纸白、石墨、纯黑、青蓝、信号金、冷灰和自定义色；宿主自动选择黑/白前景并要求至少 4.5:1 对比度。`image` 为每个槽位选择独立 PNG/JPEG/WebP，限制 16 MiB 与 8192×8192，固定 `cover center`，可调 0..0.6 可见度与 0..24 模糊。
 
-图片经 magic、解码头和尺寸检查后复制到插件 app-data。插件只得到资产句柄；渲染器通过受限 `milksu://app/__plugin-assets/...` 协议读取，不在活动主题里反复传 data URL。图片背景不参与命中测试，不改变按钮、输入、审批或 Judge 行为。
+图片经 magic、解码头和尺寸检查后复制到插件 app-data。插件只得到资产句柄；渲染器通过受限 `milksu://app/__plugin-assets/...` 协议读取，不在活动主题里反复传 data URL。图片背景不参与命中测试，不改变按钮、输入或审批行为。
 
 同一槽位的日间和夜间共用图片，但分别保存遮罩颜色与透明度。根 `data-theme`、组件库 `.dark`、全部遮罩和设置 iframe 在运行中同步；切换主题不重建 iframe、不丢失配置。每项可单独重置，也可恢复全部系统默认。
 

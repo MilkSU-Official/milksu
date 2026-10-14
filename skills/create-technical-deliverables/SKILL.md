@@ -17,7 +17,7 @@ Separate verified facts, model inference, commands, outputs, and open questions.
 
 For a README or runbook, include prerequisites, the shortest working path, meaningful failure recovery, and verification. For scripts, include safe defaults, bounded inputs, deterministic output, and a dry-run or test fixture when useful.
 
-For CTF work, include the reasoning, reproducible script or commands, candidate answer, and Judge or human validation status. A model-proposed flag is not success.
+For Lab work, include the reasoning, reproducible script or commands, observations, and verification status. A model-proposed flag-shaped string is not success.
 
 For CVE work, include affected product and versions, source evidence, impact reasoning, authorized reproduction status, and remediation or mitigation. Do not turn public vulnerability research into an unapproved external attack plan.
 

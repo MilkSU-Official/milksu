@@ -8,7 +8,7 @@
 //     bash（真执行 + ask 弹卡）、write/read（真落盘真读回）
 //   - outputLimits 裁剪：超限结果被引擎截到 50KB/2000 行契约内
 //   - LSP 受审链端到端（假 LSP 核心 + 真审判链）：ask 弹卡带 Diff、拒绝不落盘
-//   - 技能目录端到端：pi.system 条目带目录不带正文；CTF/研究负向路径
+//   - 技能目录端到端：pi.system 条目带目录不带正文；研究负向路径
 //   - decision_query：门开分支接 models.completeSimple（faux）
 //   - reasoning-only recovery：只思考不答复的回合自动补一轮
 //

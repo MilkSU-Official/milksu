@@ -60,7 +60,7 @@ test("disabled reviewed skills are absent without opening arbitrary paths", () =
   );
 });
 
-test("CTF roles can load the same reviewed Coding skills", () => {
+test("leftover solver roles can load the same reviewed Coding skills", () => {
   assert.deepEqual(
     reviewedCodingSkillPaths(repositoryRoot, "solver", []),
     reviewedCodingSkillPaths(repositoryRoot, "", []),

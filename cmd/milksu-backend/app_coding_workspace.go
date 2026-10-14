@@ -29,6 +29,7 @@ type codingWorkspaceRequest struct {
 	Category       string   `json:"category"`
 	Summary        string   `json:"summary"`
 	RunID          string   `json:"runId"`
+	TraceID        string   `json:"traceId"`
 	TaskPrompt     string   `json:"taskPrompt"`
 	Extract        string   `json:"extract"`
 	Claim          string   `json:"claim"`

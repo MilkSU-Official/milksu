@@ -20,11 +20,6 @@ function conversation(
 describe('Coding conversation groups', () => {
   const conversations = [
     conversation('milk-new', '修复设置页', 50, { workspacePath: '/Users/milksu/code/milksu/' }),
-    conversation('ctf-solver', 'CTF · 第五空间', 60, {
-      workspacePath: '/Users/milksu/Library/Application Support/MilkSU/ctf/1',
-      ctfJobId: 'job-1',
-      ctfRole: 'solver',
-    }),
     conversation('interview', '整理面试 Wiki', 40, {
       workspacePath: '/Users/milksu/code/milksu-interview',
     }),
@@ -34,7 +29,7 @@ describe('Coding conversation groups', () => {
     conversation('scratch', '试验一个脚本', 20),
   ]
 
-  it('groups regular Coding tasks by normalized workspace and excludes CTF-owned sessions', () => {
+  it('groups regular Coding tasks by normalized workspace', () => {
     const groups = groupCodingConversations(conversations)
 
     expect(groups.map(group => group.name)).toEqual([
@@ -43,8 +38,6 @@ describe('Coding conversation groups', () => {
       '最近',
     ])
     expect(groups[0].conversations.map(item => item.id)).toEqual(['milk-new', 'milk-old'])
-    expect(groups.flatMap(group => group.conversations).map(item => item.id))
-      .not.toContain('ctf-solver')
   })
 
   it('matches repository paths and task titles without leaking unrelated tasks', () => {
@@ -203,7 +196,7 @@ describe('Coding conversation groups', () => {
     expect(groups[0].conversations.map(item => item.id)).toEqual(['legacy-new'])
   })
 
-  it('partitions Home / CTF / CVE / Lab chats so each workspace list stays local', () => {
+  it('partitions Home / CVE / Lab chats so each workspace list stays local', () => {
     const cve = conversation('cve-1', 'CVE-2024-3400 复现', 70, {
       domainTaskContext: {
         kind: 'cve',
@@ -231,8 +224,6 @@ describe('Coding conversation groups', () => {
 
     expect(groupWorkspaceConversations(mixed, 'chat').flatMap(group => group.conversations).map(item => item.id))
       .toEqual(['milk-new', 'milk-old', 'interview', 'scratch'])
-    expect(groupWorkspaceConversations(mixed, 'ctf').map(group => group.conversations.map(item => item.id)))
-      .toEqual([['ctf-solver']])
     expect(groupWorkspaceConversations(mixed, 'vuln').map(group => group.name)).toEqual(['CVE-2024-3400'])
     expect(groupWorkspaceConversations(mixed, 'lab').map(group => group.name)).toEqual(['Juice Shop'])
   })
@@ -250,28 +241,21 @@ describe('Coding conversation groups', () => {
     expect(groups[0]?.conversations.map(item => item.id)).toEqual(['draw'])
   })
 
-  it('keeps unbound CTF chats in a Chats group instead of a bound challenge', () => {
+  it('keeps unbound Lab chats in a Chats group instead of a bound job', () => {
     const groups = groupWorkspaceConversations([
-      conversation('loose', '整理题库', 90, { workspaceHome: 'ctf' }),
-      conversation('bound', '诸神的三世链', 80, {
-        ctfJobId: 'job-gods',
+      conversation('loose', '整理环境', 90, { workspaceHome: 'lab' }),
+      conversation('bound', 'Juice Shop', 80, {
+        workspaceHome: 'lab',
         domainTaskContext: {
-          kind: 'ctf',
+          kind: 'lab',
           jobId: 'job-gods',
-          challengeId: 'gods',
-          challengeTitle: '诸神的三世链',
-          role: 'solver',
-          roleLabel: '解题 Agent',
-          materialStatus: '',
-          materialCount: 0,
-          authorizedScope: '',
-          evidenceCount: 0,
-          artifactCount: 0,
-          judgeState: '',
+          title: 'Juice Shop',
+          scope: 'local',
+          request: '',
         },
       }),
-    ], 'ctf')
-    expect(groups.map(group => group.name)).toEqual(['会话', '诸神的三世链'])
+    ], 'lab')
+    expect(groups.map(group => group.name)).toEqual(['会话', 'Juice Shop'])
     expect(groups.find(group => group.name === '会话')?.conversations.map(item => item.id))
       .toEqual(['loose'])
   })

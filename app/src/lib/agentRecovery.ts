@@ -63,24 +63,7 @@ export function emptyVisibleReplyRecoveryPrompt() {
   ].join(' ')
 }
 
-export function agentRecoveryPrompt(ctfSession: boolean) {
-  if (ctfSession) {
-    return [
-      t('从刚才的断点继续。', 'Continue from the last breakpoint.'),
-      t(
-        '先读取持久化的 notes.md、evidence/run.json、candidate-flags.txt 和最近一次已完成的工具结果；不要重复已经完成的步骤。',
-        'First read the persisted notes.md, evidence/run.json, candidate-flags.txt, and the latest completed tool result; do not repeat finished steps.',
-      ),
-      t(
-        '不要复用重启前的审批状态；需要扩大权限、Endpoint、应用窗口或外部发布时重新请求一次有意义确认。',
-        'Do not reuse approval state from before the restart; request a meaningful confirmation again before expanding permissions, an endpoint, an app window, or an external publish.',
-      ),
-      t(
-        '选择一个最小、可验证的下一步，尽快把新事实写回 notes.md。',
-        'Pick a small, verifiable next step and write new facts back to notes.md promptly.',
-      ),
-    ].join(' ')
-  }
+export function agentRecoveryPrompt() {
   return [
     t('从刚才的断点继续。', 'Continue from the last breakpoint.'),
     t(

@@ -65,11 +65,27 @@ func TestWithDefaults(t *testing.T) {
 	if got := NormalizeDefaultKernel("DSH"); got != "dsh" {
 		t.Fatalf("NormalizeDefaultKernel(DSH)=%q", got)
 	}
+	if got := NormalizeDefaultKernel("acp"); got != "dsh" {
+		t.Fatalf("NormalizeDefaultKernel(acp)=%q", got)
+	}
 	if got := NormalizeDefaultKernel(""); got != "pi" {
 		t.Fatalf("NormalizeDefaultKernel empty=%q", got)
 	}
 	if got := NormalizeDefaultKernel("pi"); got != "pi" {
 		t.Fatalf("NormalizeDefaultKernel(pi)=%q", got)
+	}
+	if got := withDefaults(AppSettings{DefaultKernel: "dsh"}); got.DefaultKernel != "pi" {
+		t.Fatalf("dsh without command must fall back to pi: %q", got.DefaultKernel)
+	}
+	stripped := NormalizeAcpGuest(&AcpGuestConfig{
+		Command: "/usr/bin/guest",
+		Env: map[string]string{
+			"PATH":              "/usr/bin",
+			"TOKENFLUX_API_KEY": "sk-test",
+		},
+	})
+	if stripped == nil || stripped.Env["PATH"] != "/usr/bin" || stripped.Env["TOKENFLUX_API_KEY"] != "" {
+		t.Fatalf("NormalizeAcpGuest must drop provider keys: %#v", stripped)
 	}
 	if settings.PreferredExternalEditor != "vscode" {
 		t.Fatalf("expected default VS Code editor, got %q", settings.PreferredExternalEditor)
@@ -119,6 +135,7 @@ func TestStorePersistsLocaleKernelAndActiveModel(t *testing.T) {
 	settings := store.Get()
 	settings.Locale = &locale
 	settings.DefaultKernel = "dsh"
+	settings.AcpGuest = &AcpGuestConfig{Command: "/usr/bin/guest", Args: []string{"--profile", "acp"}}
 	settings.BusySend = "queue"
 	settings.ConversationFontSize = "12"
 	settings.SidebarProjectFoldLimit = 8
@@ -138,6 +155,10 @@ func TestStorePersistsLocaleKernelAndActiveModel(t *testing.T) {
 	}
 	if got.DefaultKernel != "dsh" {
 		t.Fatalf("default kernel did not persist: %q", got.DefaultKernel)
+	}
+	if got.AcpGuest == nil || got.AcpGuest.Command != "/usr/bin/guest" ||
+		len(got.AcpGuest.Args) != 2 || got.AcpGuest.Args[0] != "--profile" {
+		t.Fatalf("acp guest did not persist: %#v", got.AcpGuest)
 	}
 	if got.BusySend != "queue" {
 		t.Fatalf("busy send did not persist: %q", got.BusySend)
@@ -681,7 +702,6 @@ func TestStoreKeepsSecretsOutOfSettingsAndPublicBoundary(t *testing.T) {
 	settings.ActiveModel = "deepseek-v4-flash"
 	settings.Providers["deepseek"] = ProviderConfig{APIKey: "provider-secret", Enabled: true}
 	settings.Relay = &RelayConfig{Enabled: true, URL: "https://tokenflux.dev/v1", Key: "relay-secret"}
-	settings.NSSCTFArena = &NSSCTFArenaConfig{Token: "nss_agent_arena-secret"}
 	if err := store.Save(settings); err != nil {
 		t.Fatal(err)
 	}
@@ -702,13 +722,9 @@ func TestStoreKeepsSecretsOutOfSettingsAndPublicBoundary(t *testing.T) {
 	if public.Relay.Key != "" || !public.Relay.HasKey {
 		t.Fatalf("public relay settings leaked or lost credential status: %#v", public.Relay)
 	}
-	if public.NSSCTFArena.Token != "" || !public.NSSCTFArena.HasToken {
-		t.Fatalf("public NSSCTF Arena settings leaked or lost token status: %#v", public.NSSCTFArena)
-	}
 	resolved := store.GetResolved()
 	if resolved.Providers["deepseek"].APIKey != "provider-secret" ||
-		resolved.Relay.Key != "relay-secret" ||
-		resolved.NSSCTFArena.Token != "nss_agent_arena-secret" {
+		resolved.Relay.Key != "relay-secret" {
 		t.Fatal("engine settings did not resolve stored credentials")
 	}
 }
@@ -953,35 +969,6 @@ func TestStoreRemovesCredentialOnlyWhenExplicitlyRequested(t *testing.T) {
 	}
 	if store.Get().Providers["openai"].HasAPIKey {
 		t.Fatal("removed credential still appears configured")
-	}
-}
-
-func TestStoreNormalizesAndExplicitlyRemovesArenaToken(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "settings.json")
-	secrets := fakeSecretStore{}
-	store, err := newStore(path, secrets)
-	if err != nil {
-		t.Fatal(err)
-	}
-	settings := DefaultSettings()
-	settings.NSSCTFArena = &NSSCTFArenaConfig{Token: "  nss_agent_arena-secret  "}
-	if err := store.Save(settings); err != nil {
-		t.Fatal(err)
-	}
-	if resolved := store.GetResolved().NSSCTFArena.Token; resolved != "nss_agent_arena-secret" {
-		t.Fatalf("Arena token was not normalized: %q", resolved)
-	}
-
-	public := store.Get()
-	public.NSSCTFArena.RemoveToken = true
-	if err := store.Save(public); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := secrets.Get(nssctfArenaSecretAccount); !errors.Is(err, errSecretNotFound) {
-		t.Fatalf("Arena token still exists: %v", err)
-	}
-	if store.Get().NSSCTFArena.HasToken {
-		t.Fatal("removed Arena token still appears configured")
 	}
 }
 

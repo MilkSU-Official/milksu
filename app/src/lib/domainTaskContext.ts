@@ -1,5 +1,5 @@
 /**
- * Shared Coding/Pi session domain-task context for CTF and CVE.
+ * Shared Coding/Pi session domain-task context for CVE and Lab.
  *
  * Domain modules remain the source of truth. This module only shapes a
  * structured handoff snapshot for the shared ChatPage panel — never a second
@@ -8,35 +8,12 @@
 
 import { t } from '@/lib/uiLocale'
 
-export type DomainTaskKind = 'ctf' | 'cve' | 'lab'
+export type DomainTaskKind = 'cve' | 'lab'
 
 export interface DomainTaskFact {
   label: string
   value: string
-  kind?: 'id' | 'title' | 'material' | 'scope' | 'evidence' | 'judge' | 'asset' | 'boundary' | 'role' | 'other'
-}
-
-/** Structured CTF snapshot carried on the conversation / handoff. */
-export interface CTFDomainTaskContext {
-  kind: 'ctf'
-  jobId: string
-  challengeId: string
-  challengeTitle: string
-  statement?: string
-  category?: string
-  objective?: string
-  originLabel?: string
-  materialNames?: string[]
-  role: 'solver' | 'tool-builder' | 'strategist'
-  roleLabel: string
-  materialStatus: string
-  materialCount: number
-  authorizedScope: string
-  evidenceCount: number
-  artifactCount: number
-  judgeState: string
-  /** When set, panel prefers live projection over this snapshot for counts/judge. */
-  liveProjection?: boolean
+  kind?: 'id' | 'title' | 'material' | 'scope' | 'evidence' | 'asset' | 'boundary' | 'other'
 }
 
 /** Structured CVE snapshot carried on the conversation / handoff. */
@@ -65,7 +42,7 @@ export interface LabDomainTaskContext {
   request: string
 }
 
-export type DomainTaskContext = CTFDomainTaskContext | CVEDomainTaskContext | LabDomainTaskContext
+export type DomainTaskContext = CVEDomainTaskContext | LabDomainTaskContext
 
 export interface DomainTaskContextPresentation {
   kind: DomainTaskKind
@@ -87,163 +64,8 @@ export interface DomainTaskContextPresentation {
 }
 
 export function domainTaskModuleLabel(kind: DomainTaskKind): string {
-  if (kind === 'ctf') return 'CTF'
   if (kind === 'lab') return t('实验室', 'Lab')
   return 'CVE'
-}
-
-export function ctfRoleLabel(role: CTFDomainTaskContext['role'] | undefined): string {
-  if (role === 'tool-builder') return t('Coding Agent 工具工坊', 'Coding Agent tool workshop')
-  if (role === 'strategist') return t('策略 Agent 复盘', 'Strategy Agent review')
-  return t('解题 Agent', 'Solver Agent')
-}
-
-export type DomainScopeGrant = {
-  id?: string
-  purpose?: string
-  revokedAt?: string
-  targets?: Array<{ kind?: string; value?: string }>
-}
-
-function domainScopeKey(scope: DomainScopeGrant): string {
-  const id = String(scope.id ?? '').trim()
-  if (id) return `id:${id}`
-  const targets = (scope.targets ?? [])
-    .map(target => `${String(target.kind ?? '').trim()}:${String(target.value ?? '').trim()}`)
-    .filter(Boolean)
-    .sort()
-    .join(',')
-  return `t:${targets}|p:${String(scope.purpose ?? '').trim()}`
-}
-
-/**
- * Merge challenge.source.scope (base grant) with approved live.networkScopes.
- * Deduplicate by id/targets; never include revoked grants (do not weaken safety).
- */
-export function mergeAuthorizedScopes(
-  sourceScope?: DomainScopeGrant | null,
-  networkScopes?: DomainScopeGrant[] | null,
-): DomainScopeGrant[] {
-  const merged: DomainScopeGrant[] = []
-  const seen = new Set<string>()
-  const push = (scope?: DomainScopeGrant | null) => {
-    if (!scope || typeof scope !== 'object') return
-    if (scope.revokedAt) return
-    const key = domainScopeKey(scope)
-    if (!key || key === 't:|p:' || seen.has(key)) return
-    seen.add(key)
-    merged.push(scope)
-  }
-  push(sourceScope)
-  for (const scope of networkScopes ?? []) push(scope)
-  return merged
-}
-
-export function formatAuthorizedScope(scopes: DomainScopeGrant[] | null | undefined): string {
-  const active = (scopes ?? []).filter(scope => !scope.revokedAt)
-  if (!active.length) return t('未授权 Scope', 'Unauthorized scope')
-  return active.map(scope => {
-    const targets = (scope.targets ?? [])
-      .map(target => `${target.kind || 'target'}:${target.value || '?'}`)
-      .join(', ')
-    const purpose = String(scope.purpose ?? '').trim()
-    const id = String(scope.id ?? '').trim()
-    const head = [id, purpose].filter(Boolean).join(' · ')
-    return targets ? `${head || 'scope'} → ${targets}` : (head || 'scope')
-  }).join(' | ')
-}
-
-export function formatMaterialStatus(
-  materials: Array<{ name?: string }> | null | undefined,
-  options: { attachmentExpected?: boolean; attachmentReady?: boolean } = {},
-): { status: string; count: number } {
-  const list = materials ?? []
-  const count = list.length
-  if (count > 0) {
-    const names = list.map(item => String(item.name ?? '').trim()).filter(Boolean).slice(0, 3)
-    const suffix = names.length
-      ? t(`：${names.join('、')}${count > 3 ? '…' : ''}`, `: ${names.join(', ')}${count > 3 ? '…' : ''}`)
-      : ''
-    return { status: t(`已挂载 ${count} 份材料${suffix}`, `Mounted ${count} materials${suffix}`), count }
-  }
-  if (options.attachmentExpected && !options.attachmentReady) {
-    return { status: t('题目有附件，但本机会话尚未挂载材料', 'This challenge has attachments, but they are not mounted in this local session'), count: 0 }
-  }
-  if (options.attachmentExpected && options.attachmentReady) {
-    return { status: t('附件已就绪', 'Attachments ready'), count: 0 }
-  }
-  return { status: t('无已挂载附件 / 无本地材料', 'No mounted attachments / no local materials'), count: 0 }
-}
-
-export function formatJudgeState(receipts: Array<{
-  platform?: string
-  status?: string
-  correct?: boolean
-  summary?: string
-}> | null | undefined): string {
-  const list = receipts ?? []
-  if (!list.length) return t('尚无 Judge 回执', 'No Judge receipt yet')
-  const latest = list[list.length - 1]
-  const platform = String(latest.platform ?? 'Judge').trim() || 'Judge'
-  const status = String(latest.status ?? '').trim() || (latest.correct ? 'correct' : 'pending')
-  const mark = latest.correct ? t('已验证正确', 'Verified correct') : t('未通过 / 未确认', 'Failed / unconfirmed')
-  return `${platform} · ${status} · ${mark}`
-}
-
-export function buildCTFDomainTaskContext(input: {
-  jobId: string
-  challengeId: string
-  challengeTitle: string
-  statement?: string
-  category?: string
-  objective?: string
-  originLabel?: string
-  role?: CTFDomainTaskContext['role']
-  materials?: Array<{ name?: string }>
-  /** Base grant from challenge.source.scope */
-  sourceScope?: DomainScopeGrant | null
-  /** Approved live network scopes (endpoint authorizations, etc.) */
-  networkScopes?: DomainScopeGrant[] | null
-  evidenceCount?: number
-  artifactCount?: number
-  judgeReceipts?: Array<{
-    platform?: string
-    status?: string
-    correct?: boolean
-    summary?: string
-  }>
-  attachmentExpected?: boolean
-  attachmentReady?: boolean
-}): CTFDomainTaskContext {
-  const role = input.role ?? 'solver'
-  const material = formatMaterialStatus(input.materials, {
-    attachmentExpected: input.attachmentExpected,
-    attachmentReady: input.attachmentReady,
-  })
-  return {
-    kind: 'ctf',
-    jobId: String(input.jobId ?? '').trim(),
-    challengeId: String(input.challengeId ?? '').trim() || String(input.jobId ?? '').trim(),
-    challengeTitle: String(input.challengeTitle ?? '').trim() || t('未命名题目', 'Untitled challenge'),
-    statement: String(input.statement ?? '').trim(),
-    category: String(input.category ?? '').trim(),
-    objective: String(input.objective ?? '').trim() || t('分析题目并形成可验证的候选答案', 'Analyze the challenge and form a verifiable candidate answer'),
-    originLabel: String(input.originLabel ?? '').trim(),
-    materialNames: (input.materials ?? [])
-      .map(item => String(item.name ?? '').trim())
-      .filter(Boolean),
-    role,
-    roleLabel: ctfRoleLabel(role),
-    materialStatus: material.status,
-    materialCount: material.count,
-    authorizedScope: formatAuthorizedScope(
-      mergeAuthorizedScopes(input.sourceScope, input.networkScopes),
-    ),
-    evidenceCount: Number(input.evidenceCount ?? 0) || 0,
-    artifactCount: Number(input.artifactCount ?? 0) || 0,
-    judgeState: formatJudgeState(input.judgeReceipts),
-    liveProjection: true,
-  }
 }
 
 export function buildCVEDomainTaskContext(input: {
@@ -301,53 +123,6 @@ export function buildCVEDomainTaskContext(input: {
   }
 }
 
-/** Merge live CTF projection facts into a handoff snapshot without inventing domain ownership. */
-export function refreshCTFDomainTaskContext(
-  base: CTFDomainTaskContext | null | undefined,
-  live?: {
-    challengeId?: string
-    challengeTitle?: string
-    materials?: Array<{ name?: string }>
-    /** challenge.source.scope from live projection */
-    sourceScope?: DomainScopeGrant | null
-    networkScopes?: DomainScopeGrant[] | null
-    evidenceCount?: number
-    artifactCount?: number
-    judgeReceipts?: Array<{
-      platform?: string
-      status?: string
-      correct?: boolean
-    }>
-  } | null,
-): CTFDomainTaskContext | null {
-  if (!base || base.kind !== 'ctf') return base ?? null
-  if (!live) return base
-  const material = live.materials
-    ? formatMaterialStatus(live.materials)
-    : { status: base.materialStatus, count: base.materialCount }
-  const hasLiveScopes = live.sourceScope !== undefined || live.networkScopes !== undefined
-  return {
-    ...base,
-    challengeId: String(live.challengeId ?? base.challengeId).trim() || base.challengeId,
-    challengeTitle: String(live.challengeTitle ?? base.challengeTitle).trim() || base.challengeTitle,
-    materialStatus: material.status,
-    materialCount: material.count,
-    materialNames: live.materials
-      ? live.materials.map(item => String(item.name ?? '').trim()).filter(Boolean)
-      : (base.materialNames ?? []),
-    authorizedScope: hasLiveScopes
-      ? formatAuthorizedScope(mergeAuthorizedScopes(
-          live.sourceScope ?? null,
-          live.networkScopes ?? [],
-        ))
-      : base.authorizedScope,
-    evidenceCount: typeof live.evidenceCount === 'number' ? live.evidenceCount : base.evidenceCount,
-    artifactCount: typeof live.artifactCount === 'number' ? live.artifactCount : base.artifactCount,
-    judgeState: live.judgeReceipts ? formatJudgeState(live.judgeReceipts) : base.judgeState,
-    liveProjection: true,
-  }
-}
-
 export function presentDomainTaskContext(
   context: DomainTaskContext,
 ): DomainTaskContextPresentation {
@@ -373,32 +148,6 @@ export function presentDomainTaskContext(
       facts: [
         { label: t('范围', 'Scope'), value: scopeLabel, kind: 'scope' },
         { label: t('要求', 'Request'), value: context.request || title, kind: 'other' },
-      ],
-    }
-  }
-
-  if (context.kind === 'ctf') {
-    const title = context.challengeTitle
-    const idLabel = context.challengeId || context.jobId
-    return {
-      kind: 'ctf',
-      moduleLabel: 'CTF',
-      title,
-      subtitle: idLabel,
-      ownership: '',
-      returnLabel: t('返回 CTF', 'Back to CTF'),
-      returnAriaLabel: t('返回 CTF 工作台', 'Back to CTF workspace'),
-      collapsedLabel: `CTF · ${title}`,
-      objectiveLabel: t('当前目标', 'Current goal'),
-      objective: context.objective || t('分析题目并形成可验证的候选答案', 'Analyze the challenge and form a verifiable candidate answer'),
-      briefLabel: t('任务简报', 'Task briefing'),
-      brief: context.statement || t('题面暂未带入，可返回 CTF 查看完整内容。', 'Challenge text was not brought in. Return to CTF for the full statement.'),
-      meta: [context.category, context.originLabel || idLabel]
-        .filter((value): value is string => Boolean(value)),
-      materials: context.materialNames ?? [],
-      detailsLabel: t('权限与来源', 'Permissions and sources'),
-      facts: [
-        { label: t('本次权限', 'This session’s permissions'), value: context.authorizedScope, kind: 'scope' },
       ],
     }
   }
@@ -429,10 +178,8 @@ export function presentDomainTaskContext(
 }
 
 export function sharedCodingSessionKind(
-  ctfSession: boolean,
   vulnerabilitySession: boolean,
 ): DomainTaskKind | 'coding' {
-  if (ctfSession) return 'ctf'
   if (vulnerabilitySession) return 'cve'
   return 'coding'
 }
@@ -440,9 +187,6 @@ export function sharedCodingSessionKind(
 export function isDomainTaskContext(value: unknown): value is DomainTaskContext {
   if (!value || typeof value !== 'object') return false
   const record = value as Record<string, unknown>
-  if (record.kind === 'ctf') {
-    return typeof record.jobId === 'string' && typeof record.challengeTitle === 'string'
-  }
   if (record.kind === 'cve') {
     return typeof record.cveId === 'string' && typeof record.researchScope === 'string'
   }
@@ -454,36 +198,6 @@ export function isDomainTaskContext(value: unknown): value is DomainTaskContext 
 
 export function normalizeDomainTaskContext(raw: unknown): DomainTaskContext | undefined {
   if (!isDomainTaskContext(raw)) return undefined
-  if (raw.kind === 'ctf') {
-    return {
-      kind: 'ctf',
-      jobId: String(raw.jobId ?? '').trim(),
-      challengeId: String(raw.challengeId ?? '').trim() || String(raw.jobId ?? '').trim(),
-      challengeTitle: String(raw.challengeTitle ?? '').trim() || t('未命名题目', 'Untitled challenge'),
-      statement: String(raw.statement ?? '').trim(),
-      category: String(raw.category ?? '').trim(),
-      objective: String(raw.objective ?? '').trim() || t('分析题目并形成可验证的候选答案', 'Analyze the challenge and form a verifiable candidate answer'),
-      originLabel: String(raw.originLabel ?? '').trim(),
-      materialNames: Array.isArray(raw.materialNames)
-        ? raw.materialNames.map(item => String(item).trim()).filter(Boolean)
-        : [],
-      role: ['solver', 'tool-builder', 'strategist'].includes(String(raw.role))
-        ? raw.role as CTFDomainTaskContext['role']
-        : 'solver',
-      roleLabel: String(raw.roleLabel ?? '').trim() || ctfRoleLabel(
-        ['solver', 'tool-builder', 'strategist'].includes(String(raw.role))
-          ? raw.role as CTFDomainTaskContext['role']
-          : 'solver',
-      ),
-      materialStatus: String(raw.materialStatus ?? '').trim() || t('无已挂载附件 / 无本地材料', 'No mounted attachments / no local materials'),
-      materialCount: Number(raw.materialCount ?? 0) || 0,
-      authorizedScope: String(raw.authorizedScope ?? '').trim() || t('未授权 Scope', 'Unauthorized scope'),
-      evidenceCount: Number(raw.evidenceCount ?? 0) || 0,
-      artifactCount: Number(raw.artifactCount ?? 0) || 0,
-      judgeState: String(raw.judgeState ?? '').trim() || t('尚无 Judge 回执', 'No Judge receipt yet'),
-      liveProjection: raw.liveProjection !== false,
-    }
-  }
   if (raw.kind === 'lab') {
     const legacy = raw as LabDomainTaskContext & { protocol?: string; address?: string }
     const request = String(legacy.request ?? '').trim()
@@ -496,6 +210,7 @@ export function normalizeDomainTaskContext(raw: unknown): DomainTaskContext | un
       request,
     }
   }
+  if (raw.kind !== 'cve') return undefined
   return {
     kind: 'cve',
     cveId: String(raw.cveId ?? '').trim(),

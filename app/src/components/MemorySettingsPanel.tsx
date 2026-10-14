@@ -12,7 +12,6 @@ import {
   type CompanionApprovedMemory,
   type CompanionMemoryExtract,
   type CompanionMemorySnapshot,
-  type CTFMemoryOverview,
   type SessionIndexStatusPayload,
 } from '@/types'
 
@@ -29,8 +28,7 @@ function formatBytes(value: number) {
 }
 
 /**
- * 记忆体系的总览与配置：全应用一份的长期记忆、Obelisk 会话索引、
- * CTF 每题记忆。题目级结论留在 CTF 工作区，不进长期记忆。
+ * 记忆体系的总览与配置：全应用一份的长期记忆、Obelisk 会话索引。
  */
 export default function MemorySettingsPanel({
   settings,
@@ -45,7 +43,6 @@ export default function MemorySettingsPanel({
   const [memories, setMemories] = useState<CompanionApprovedMemory[]>([])
   const [indexStatus, setIndexStatus] = useState<SessionIndexStatusPayload | null>(null)
   const [indexRefreshing, setIndexRefreshing] = useState(false)
-  const [ctfOverview, setCtfOverview] = useState<CTFMemoryOverview | null>(null)
 
   useEffect(() => {
     let stop = false
@@ -65,16 +62,8 @@ export default function MemorySettingsPanel({
         })
         .catch(() => undefined)
     }
-    const loadCtf = () => {
-      void invokeCommand<CTFMemoryOverview>('get_ctf_memory_overview')
-        .then(value => {
-          if (!stop) setCtfOverview(value)
-        })
-        .catch(() => undefined)
-    }
     loadMemories()
     loadIndex()
-    loadCtf()
     let unlisten: (() => void) | undefined
     void listenEvent<{ type?: string }>('companion-event', event => {
       if (event.payload?.type === 'companion.memory') loadMemories()
@@ -121,15 +110,6 @@ export default function MemorySettingsPanel({
           ? t(`${indexStatus.sessionCount} 个会话 · ${indexStatus.messageCount ?? 0} 条消息`, `${indexStatus.sessionCount} sessions · ${indexStatus.messageCount ?? 0} messages`)
           : '',
         indexStatus.reason,
-      ].filter(Boolean).join(' · ')
-    : ''
-  const ctfSummary = ctfOverview
-    ? [
-        ctfOverview.path,
-        ctfOverview.bytes ? formatBytes(ctfOverview.bytes) : '',
-        typeof ctfOverview.activeCount === 'number'
-          ? t(`${ctfOverview.activeCount} 条在记 · ${ctfOverview.archivedCount ?? 0} 条已归档`, `${ctfOverview.activeCount} active · ${ctfOverview.archivedCount ?? 0} archived`)
-          : '',
       ].filter(Boolean).join(' · ')
     : ''
 
@@ -213,13 +193,6 @@ export default function MemorySettingsPanel({
             divider={false}
           />
         ) : null}
-      </SettingsSection>
-      <SettingsSection title={t('CTF 记忆', 'CTF memory')}>
-        <SettingsRow
-          label={t('数据', 'Data')}
-          description={ctfSummary || t('每道题的解题结论留在 CTF 工作区。', 'Per-challenge conclusions stay in the CTF workspace.')}
-          divider={false}
-        />
       </SettingsSection>
     </>
   )

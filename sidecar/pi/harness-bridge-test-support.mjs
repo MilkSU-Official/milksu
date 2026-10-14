@@ -204,6 +204,7 @@ export function buildTestLayer({
     reasoningOnlyRecovered: new Map(),
     sessionSubagentTasks: new Map(),
     researchRunContexts: new Map(),
+    sessionTraceIds: new Map(),
   };
   const layer = createHarnessBridgeSessionLayer({
     emit,

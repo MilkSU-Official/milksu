@@ -21,7 +21,7 @@ func TestBackupRestoreRoundTripPreservesCredentialsAndCreatesRollback(t *testing
 		`{"locale":"zh","providers":{"deepseek":{"api_key":"must-not-restore","has_api_key":true}}}`,
 	)
 	writeBackupFixture(t, filepath.Join(backupRoot, "data", "stores", "conversations", "restored.json"), `{"id":"restored"}`)
-	writeBackupFixture(t, filepath.Join(backupRoot, "workspaces", "ctf-workspaces", "job", "notes.md"), "restored evidence")
+	writeBackupFixture(t, filepath.Join(backupRoot, "data", "agent", "home", "pi", "sessions", "session.jsonl"), "restored session")
 	createBackupDatabase(t, filepath.Join(backupRoot, "data", "domain", "research", "research.sqlite3"))
 	researchArtifact := filepath.Join(
 		backupRoot,
@@ -49,7 +49,7 @@ func TestBackupRestoreRoundTripPreservesCredentialsAndCreatesRollback(t *testing
 	writeBackupFixture(t, filepath.Join(liveRoot, "config", "credentials.db"), "provider-secret")
 	writeBackupFixture(t, filepath.Join(liveRoot, "workspaces", "browser", "bridge-pairing.json"), "pairing-secret")
 	writeBackupFixture(t, filepath.Join(liveRoot, "data", "agent", "home", "pi", "auth.json"), "pi-secret")
-	writeBackupFixture(t, filepath.Join(liveRoot, "data", "domain", "ctf", "memory.sqlite3-wal"), "stale-wal")
+	writeBackupFixture(t, filepath.Join(liveRoot, "data", "runtime", "events.sqlite3-wal"), "stale-wal")
 
 	staged, err := StageBackupRestore(liveRoot, archive)
 	if err != nil {
@@ -69,7 +69,7 @@ func TestBackupRestoreRoundTripPreservesCredentialsAndCreatesRollback(t *testing
 	if _, err := os.Stat(filepath.Join(liveRoot, "data", "stores", "conversations", "current.json")); !os.IsNotExist(err) {
 		t.Fatalf("current conversation was not replaced: %v", err)
 	}
-	assertBackupFixture(t, filepath.Join(liveRoot, "workspaces", "ctf-workspaces", "job", "notes.md"), "restored evidence")
+	assertBackupFixture(t, filepath.Join(liveRoot, "data", "agent", "home", "pi", "sessions", "session.jsonl"), "restored session")
 	assertBackupFixture(
 		t,
 		filepath.Join(liveRoot, "data", "domain", "research", "artifacts", "research_run_1", strings.Repeat("b", 64)),
@@ -81,7 +81,7 @@ func TestBackupRestoreRoundTripPreservesCredentialsAndCreatesRollback(t *testing
 	assertBackupFixture(t, filepath.Join(liveRoot, "config", "credentials.db"), "provider-secret")
 	assertBackupFixture(t, filepath.Join(liveRoot, "workspaces", "browser", "bridge-pairing.json"), "pairing-secret")
 	assertBackupFixture(t, filepath.Join(liveRoot, "data", "agent", "home", "pi", "auth.json"), "pi-secret")
-	if _, err := os.Stat(filepath.Join(liveRoot, "data", "domain", "ctf", "memory.sqlite3-wal")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(liveRoot, "data", "runtime", "events.sqlite3-wal")); !os.IsNotExist(err) {
 		t.Fatalf("stale SQLite WAL survived restore: %v", err)
 	}
 	settings, err := os.ReadFile(filepath.Join(liveRoot, "config", "settings.json"))
@@ -96,7 +96,7 @@ func TestBackupRestoreRoundTripPreservesCredentialsAndCreatesRollback(t *testing
 		filepath.Join(result.RollbackPath, "data", "stores", "conversations", "current.json"),
 		`{"id":"current"}`,
 	)
-	assertBackupFixture(t, filepath.Join(result.RollbackPath, "data", "domain", "ctf", "memory.sqlite3-wal"), "stale-wal")
+	assertBackupFixture(t, filepath.Join(result.RollbackPath, "data", "runtime", "events.sqlite3-wal"), "stale-wal")
 	if _, err := os.Stat(filepath.Join(result.RollbackPath, "applied-backup.zip")); err != nil {
 		t.Fatalf("applied backup was not retained with rollback snapshot: %v", err)
 	}
@@ -196,7 +196,7 @@ func TestApplyPendingRestoreRejectsSymlinkParentsWithoutTouchingExternalData(t *
 		filepath.Join(backupRoot, DataLayoutFile),
 		`{"schema":"milksu-data-layout/v1","version":1,"updatedAt":"2026-08-02T00:00:00Z"}`,
 	)
-	writeBackupFixture(t, filepath.Join(backupRoot, "data", "domain", "ctf", "memories", "restored.json"), `{"id":"restored"}`)
+	writeBackupFixture(t, filepath.Join(backupRoot, "data", "stores", "conversations", "restored.json"), `{"id":"restored"}`)
 	archive := filepath.Join(t.TempDir(), "backup.zip")
 	if _, err := ExportBackup(context.Background(), backupRoot, archive); err != nil {
 		t.Fatal(err)

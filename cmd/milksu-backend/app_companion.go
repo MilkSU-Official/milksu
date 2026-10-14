@@ -87,7 +87,7 @@ func (c *conversationCatalog) Create(ref companion.ConversationRef) (companion.C
 		ApprovalPolicy: planned.ApprovalPolicy,
 		Messages:       []conversation.StoredMessage{},
 	}
-	if planned.Kind == "cve" || planned.Kind == "lab" || planned.Kind == "ctf" {
+	if planned.Kind == "cve" || planned.Kind == "lab" {
 		stored.DomainTaskContext = map[string]any{"kind": planned.Kind}
 	}
 	if c.app != nil {
@@ -109,9 +109,6 @@ func conversationRef(stored conversation.StoredConversation, archived bool) comp
 		if value, _ := stored.DomainTaskContext["kind"].(string); strings.TrimSpace(value) != "" {
 			kind = value
 		}
-	}
-	if stored.CTFJobID != "" {
-		kind = "ctf"
 	}
 	return companion.ConversationRef{
 		ID:        stored.ID,
@@ -251,6 +248,7 @@ func (s *storeSpeaker) startCold(conversationID, text string) (string, bool, err
 		nil,
 		nil,
 		0,
+		"",
 	); err != nil {
 		return "", false, err
 	}

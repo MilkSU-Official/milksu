@@ -2,18 +2,10 @@ import { isGeneratedScratchWorkspace } from '@/lib/codingConversationGroups'
 import { t } from '@/lib/uiLocale'
 
 export interface ChatTopbarInput {
-  ctfSession: boolean
   vulnerabilitySession?: boolean
   conversationTitle?: string
   workspacePath?: string
   codingPolicyLabel: string
-  ctfMode?: 'coach' | 'copilot' | 'delegate'
-}
-
-function ctfModeLabel(mode: ChatTopbarInput['ctfMode']) {
-  if (mode === 'coach') return t('教练', 'Coach')
-  if (mode === 'delegate') return t('代理', 'Delegate')
-  return t('搭档', 'Copilot')
 }
 
 function workspaceBaseName(path?: string) {
@@ -25,12 +17,6 @@ export function chatTopbarPresentation(input: ChatTopbarInput) {
   const workspacePath = isGeneratedScratchWorkspace(input.workspacePath)
     ? ''
     : input.workspacePath
-  if (input.ctfSession) {
-    return {
-      title: 'CTF',
-      subtitle: `${input.conversationTitle || t('解题会话', 'Solving session')} · ${ctfModeLabel(input.ctfMode)}`,
-    }
-  }
 
   const workspaceLabel = workspacePath ? workspaceBaseName(workspacePath) : ''
 

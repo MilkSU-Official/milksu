@@ -64,6 +64,14 @@ func (r *desktopRPC) attach(app *App) {
 	r.appMethods = desktopAppMethods(app)
 }
 
+func (r *desktopRPC) attachHelper(app *App) {
+	if app == nil {
+		r.appMethods = nil
+		return
+	}
+	r.appMethods = desktopHelperMethods(app)
+}
+
 func (r *desktopRPC) ready() {
 	_ = r.write(desktopRPCMessage{Type: "ready"})
 }
@@ -188,6 +196,29 @@ func electronHostDesktopMethod(function any) desktopAppMethod {
 	return desktopAppMethod{function: function, source: desktopRPCSourceElectronHost}
 }
 
+// desktopHelperMethods 是原生助手入口实际对外的 electron_host 方法。
+func desktopHelperMethods(app *App) map[string]desktopAppMethod {
+	return map[string]desktopAppMethod{
+		"GetPlatformSecret":                 electronHostDesktopMethod(app.GetPlatformSecret),
+		"SetPlatformSecret":                 electronHostDesktopMethod(app.SetPlatformSecret),
+		"DeletePlatformSecret":              electronHostDesktopMethod(app.DeletePlatformSecret),
+		"OpenPty":                           electronHostDesktopMethod(app.OpenPty),
+		"PtyWrite":                          electronHostDesktopMethod(app.PtyWrite),
+		"PtyResize":                         electronHostDesktopMethod(app.PtyResize),
+		"ClosePty":                          electronHostDesktopMethod(app.ClosePty),
+		"RunLuaPlugin":                      electronHostDesktopMethod(app.RunLuaPlugin),
+		"ComputerUseAccessibilityStatus":    electronHostDesktopMethod(app.ComputerUseAccessibilityStatus),
+		"ComputerUseListWindows":            electronHostDesktopMethod(app.ComputerUseListWindows),
+		"ComputerUseRequestScreenRecording": electronHostDesktopMethod(app.ComputerUseRequestScreenRecording),
+		"ComputerUseRequestAccessibility":   electronHostDesktopMethod(app.ComputerUseRequestAccessibility),
+		"ComputerUseSigningStatus":          electronHostDesktopMethod(app.ComputerUseSigningStatus),
+		"ComputerUseHostExecutable":         electronHostDesktopMethod(app.ComputerUseHostExecutable),
+		"ComputerUseLinuxDesktop":           electronHostDesktopMethod(app.ComputerUseLinuxDesktop),
+		"ComputerUseStartPortal":            electronHostDesktopMethod(app.ComputerUseStartPortal),
+		"ComputerUseStopPortal":             electronHostDesktopMethod(app.ComputerUseStopPortal),
+	}
+}
+
 // desktopAppMethods is the complete production RPC surface. Keep renderer
 // methods aligned with DesktopAppBindings in app/src/desktop.ts. Credentials
 // are deliberately bound to the Electron host domain and are never renderer
@@ -201,6 +232,7 @@ func desktopAppMethods(app *App) map[string]desktopAppMethod {
 		"SaveSettingsCmd":                      rendererDesktopMethod(app.SaveSettingsCmd),
 		"ListPlugins":                          rendererDesktopMethod(app.ListPlugins),
 		"ListPetPluginPackages":                electronHostDesktopMethod(app.ListPetPluginPackages),
+		"RunLuaPlugin":                         electronHostDesktopMethod(app.RunLuaPlugin),
 		"SetPluginEnabled":                     rendererDesktopMethod(app.SetPluginEnabled),
 		"GetPluginSettingsScript":              rendererDesktopMethod(app.GetPluginSettingsScript),
 		"GetActivePluginTheme":                 rendererDesktopMethod(app.GetActivePluginTheme),
@@ -260,7 +292,6 @@ func desktopAppMethods(app *App) map[string]desktopAppMethod {
 		"GetCodingProjectMemory":               rendererDesktopMethod(app.GetCodingProjectMemory),
 		"RememberCodingProject":                rendererDesktopMethod(app.RememberCodingProject),
 		"ForgetCodingProject":                  rendererDesktopMethod(app.ForgetCodingProject),
-		"ChooseCTFMaterials":                   rendererDesktopMethod(app.ChooseCTFMaterials),
 		"ChooseCodingAttachments":              rendererDesktopMethod(app.ChooseCodingAttachments),
 		"ImportCodingAttachments":              rendererDesktopMethod(app.ImportCodingAttachments),
 		"PreviewCodingAttachment":              rendererDesktopMethod(app.PreviewCodingAttachment),
@@ -338,56 +369,12 @@ func desktopAppMethods(app *App) map[string]desktopAppMethod {
 		"RemoveQueuedMessage":                  rendererDesktopMethod(app.RemoveQueuedMessage),
 		"TestAgentModel":                       rendererDesktopMethod(app.TestAgentModel),
 		"GetCodingUsageSnapshot":               rendererDesktopMethod(app.GetCodingUsageSnapshot),
-		"ImportNSSCTFChallenge":                rendererDesktopMethod(app.ImportNSSCTFChallenge),
-		"SyncNSSCTFCatalog":                    rendererDesktopMethod(app.SyncNSSCTFCatalog),
-		"GetNSSCTFTrainingDashboard":           rendererDesktopMethod(app.GetNSSCTFTrainingDashboard),
-		"RecommendCTFDailyChallenge":           rendererDesktopMethod(app.RecommendCTFDailyChallenge),
-		"ListNSSCTFCatalog":                    rendererDesktopMethod(app.ListNSSCTFCatalog),
-		"GetCTFTrainingPlatforms":              rendererDesktopMethod(app.GetCTFTrainingPlatforms),
-		"OpenNSSCTFChallenge":                  rendererDesktopMethod(app.OpenNSSCTFChallenge),
-		"OpenCTFSourceURL":                     rendererDesktopMethod(app.OpenCTFSourceURL),
+		"OpenSourceURL":                        rendererDesktopMethod(app.OpenSourceURL),
 		"OpenChromeExtensionManager":           rendererDesktopMethod(app.OpenChromeExtensionManager),
 		"OpenPlaywrightBrowserExtension":       rendererDesktopMethod(app.OpenPlaywrightBrowserExtension),
 		"RevealBrowserExtension":               rendererDesktopMethod(app.RevealBrowserExtension),
-		"GetCTFShowCatalogStatus":              rendererDesktopMethod(app.GetCTFShowCatalogStatus),
-		"OpenCTFShowChallenges":                rendererDesktopMethod(app.OpenCTFShowChallenges),
-		"ImportCTFShowChallenge":               rendererDesktopMethod(app.ImportCTFShowChallenge),
-		"SubmitCTFShowWebFlag":                 rendererDesktopMethod(app.SubmitCTFShowWebFlag),
-		"GetNSSCTFWebBridgeStatus":             rendererDesktopMethod(app.GetNSSCTFWebBridgeStatus),
-		"ImportNSSCTFWebPageMaterial":          rendererDesktopMethod(app.ImportNSSCTFWebPageMaterial),
-		"ImportNSSCTFWebAttachment":            rendererDesktopMethod(app.ImportNSSCTFWebAttachment),
-		"SubmitNSSCTFWebFlag":                  rendererDesktopMethod(app.SubmitNSSCTFWebFlag),
-		"GetNSSCTFArenaCurrent":                rendererDesktopMethod(app.GetNSSCTFArenaCurrent),
-		"StartNSSCTFArena":                     rendererDesktopMethod(app.StartNSSCTFArena),
-		"SubmitNSSCTFArenaFlag":                rendererDesktopMethod(app.SubmitNSSCTFArenaFlag),
-		"AbandonNSSCTFArena":                   rendererDesktopMethod(app.AbandonNSSCTFArena),
-		"OpenNSSCTFArena":                      rendererDesktopMethod(app.OpenNSSCTFArena),
-		"StartCTFChallenge":                    rendererDesktopMethod(app.StartCTFChallenge),
-		"ListCTFJobs":                          rendererDesktopMethod(app.ListCTFJobs),
-		"GetCTFJob":                            rendererDesktopMethod(app.GetCTFJob),
-		"GetCTFArtifactPreview":                rendererDesktopMethod(app.GetCTFArtifactPreview),
-		"RequestCTFEndpoint":                   rendererDesktopMethod(app.RequestCTFEndpoint),
-		"ApproveCTFEndpoint":                   rendererDesktopMethod(app.ApproveCTFEndpoint),
-		"DenyCTFEndpoint":                      rendererDesktopMethod(app.DenyCTFEndpoint),
-		"PrepareCTFAgentWorkspace":             rendererDesktopMethod(app.PrepareCTFAgentWorkspace),
-		"PrepareCTFToolBuilderWorkspace":       rendererDesktopMethod(app.PrepareCTFToolBuilderWorkspace),
-		"PrepareCTFStrategistWorkspace":        rendererDesktopMethod(app.PrepareCTFStrategistWorkspace),
-		"SaveCTFTrainingMemory":                rendererDesktopMethod(app.SaveCTFTrainingMemory),
-		"GetCTFMemoryContext":                  rendererDesktopMethod(app.GetCTFMemoryContext),
-		"ArchiveCTFMemory":                     rendererDesktopMethod(app.ArchiveCTFMemory),
-		"GetCTFMemoryOverview":                 rendererDesktopMethod(app.GetCTFMemoryOverview),
 		"GetSessionIndexStatus":                rendererDesktopMethod(app.GetSessionIndexStatus),
 		"RefreshSessionIndex":                  rendererDesktopMethod(app.RefreshSessionIndex),
-		"GetCTFToolWorkshopState":              rendererDesktopMethod(app.GetCTFToolWorkshopState),
-		"GetCTFAgentBudgetStatus":              rendererDesktopMethod(app.GetCTFAgentBudgetStatus),
-		"GetCTFAgentRunCheckpoint":             rendererDesktopMethod(app.GetCTFAgentRunCheckpoint),
-		"GetCTFAgentReplay":                    rendererDesktopMethod(app.GetCTFAgentReplay),
-		"GenerateCTFTrainingReport":            rendererDesktopMethod(app.GenerateCTFTrainingReport),
-		"CancelCTFJob":                         rendererDesktopMethod(app.CancelCTFJob),
-		"RecordCTFLearning":                    rendererDesktopMethod(app.RecordCTFLearning),
-		"ReviewCTFSubmission":                  rendererDesktopMethod(app.ReviewCTFSubmission),
-		"PrepareCTFExternalSubmission":         rendererDesktopMethod(app.PrepareCTFExternalSubmission),
-		"RecordCTFExternalVerdict":             rendererDesktopMethod(app.RecordCTFExternalVerdict),
 		"EnsureVulnTrackingWorkspace":          rendererDesktopMethod(app.EnsureVulnTrackingWorkspace),
 		"ListVulnJobs":                         rendererDesktopMethod(app.ListVulnJobs),
 		"GetVulnJob":                           rendererDesktopMethod(app.GetVulnJob),
@@ -407,9 +394,6 @@ func desktopAppMethods(app *App) map[string]desktopAppMethod {
 		"ForgetVulnLearning":                   rendererDesktopMethod(app.ForgetVulnLearning),
 		"RecordVulnAssetVerification":          rendererDesktopMethod(app.RecordVulnAssetVerification),
 		"CancelVulnJob":                        rendererDesktopMethod(app.CancelVulnJob),
-		"GetEvalBoard":                         rendererDesktopMethod(app.GetEvalBoard),
-		"StartEvalRun":                         rendererDesktopMethod(app.StartEvalRun),
-		"StopEvalRun":                          rendererDesktopMethod(app.StopEvalRun),
 		"ListAgentResourceCatalog":             rendererDesktopMethod(app.ListAgentResourceCatalog),
 		"GetBuiltinSkillDocument":              rendererDesktopMethod(app.GetBuiltinSkillDocument),
 		"SetBuiltinSkillDocument":              rendererDesktopMethod(app.SetBuiltinSkillDocument),
@@ -442,10 +426,31 @@ func desktopAppMethods(app *App) map[string]desktopAppMethod {
 		"OpenDockerDesktop":                    rendererDesktopMethod(app.OpenDockerDesktop),
 		"OpenAndroidStudioSetup":               rendererDesktopMethod(app.OpenAndroidStudioSetup),
 
-		"SetAccountModelCredential":      electronHostDesktopMethod(app.SetAccountModelCredential),
-		"ClearAccountModelCredential":    electronHostDesktopMethod(app.ClearAccountModelCredential),
-		"SetAccountDecisionCredential":   electronHostDesktopMethod(app.SetAccountDecisionCredential),
-		"ClearAccountDecisionCredential": electronHostDesktopMethod(app.ClearAccountDecisionCredential),
+		"SetAccountModelCredential":         electronHostDesktopMethod(app.SetAccountModelCredential),
+		"ClearAccountModelCredential":       electronHostDesktopMethod(app.ClearAccountModelCredential),
+		"SetAccountDecisionCredential":      electronHostDesktopMethod(app.SetAccountDecisionCredential),
+		"ClearAccountDecisionCredential":    electronHostDesktopMethod(app.ClearAccountDecisionCredential),
+		"ExportSidecarEnvironment":          electronHostDesktopMethod(app.ExportSidecarEnvironment),
+		"DropResearchForConversation":       electronHostDesktopMethod(app.DropResearchForConversation),
+		"PutManagedSecret":                  electronHostDesktopMethod(app.PutManagedSecret),
+		"DeleteManagedSecret":               electronHostDesktopMethod(app.DeleteManagedSecret),
+		"LookupManagedSecret":               electronHostDesktopMethod(app.LookupManagedSecret),
+		"GetPlatformSecret":                 electronHostDesktopMethod(app.GetPlatformSecret),
+		"SetPlatformSecret":                 electronHostDesktopMethod(app.SetPlatformSecret),
+		"DeletePlatformSecret":              electronHostDesktopMethod(app.DeletePlatformSecret),
+		"ComputerUseAccessibilityStatus":    electronHostDesktopMethod(app.ComputerUseAccessibilityStatus),
+		"ComputerUseListWindows":            electronHostDesktopMethod(app.ComputerUseListWindows),
+		"ComputerUseRequestScreenRecording": electronHostDesktopMethod(app.ComputerUseRequestScreenRecording),
+		"ComputerUseRequestAccessibility":   electronHostDesktopMethod(app.ComputerUseRequestAccessibility),
+		"ComputerUseSigningStatus":          electronHostDesktopMethod(app.ComputerUseSigningStatus),
+		"ComputerUseHostExecutable":         electronHostDesktopMethod(app.ComputerUseHostExecutable),
+		"ComputerUseLinuxDesktop":           electronHostDesktopMethod(app.ComputerUseLinuxDesktop),
+		"ComputerUseStartPortal":            electronHostDesktopMethod(app.ComputerUseStartPortal),
+		"ComputerUseStopPortal":             electronHostDesktopMethod(app.ComputerUseStopPortal),
+		"OpenPty":                           electronHostDesktopMethod(app.OpenPty),
+		"PtyWrite":                          electronHostDesktopMethod(app.PtyWrite),
+		"PtyResize":                         electronHostDesktopMethod(app.PtyResize),
+		"ClosePty":                          electronHostDesktopMethod(app.ClosePty),
 	}
 }
 

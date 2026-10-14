@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"os/exec"
@@ -92,6 +93,18 @@ func findPluginProjectRoot() string {
 		}
 	}
 	return ""
+}
+
+func (a *App) RunLuaPlugin(directory, entry string, request json.RawMessage) (any, error) {
+	payload, err := pluginruntime.InvokeLua(directory, entry, request)
+	if err != nil {
+		return nil, err
+	}
+	var result any
+	if err := json.Unmarshal(payload, &result); err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 func (a *App) ListPlugins() []pluginruntime.Descriptor {

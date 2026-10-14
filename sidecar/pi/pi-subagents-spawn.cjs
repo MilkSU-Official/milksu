@@ -1,5 +1,6 @@
 "use strict";
 
+const { AsyncLocalStorage } = require("node:async_hooks");
 const { existsSync } = require("node:fs");
 const { tmpdir } = require("node:os");
 const { join } = require("node:path");
@@ -8,6 +9,9 @@ const {
   childProcessDeniedEnvNames,
   childShellDeniedEnvNames,
 } = require("./pi-subagent-model-registry.cjs");
+
+const TRACE_ID_PATTERN = /^trc_[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const spawnTrace = new AsyncLocalStorage();
 
 // Same names the Pi shell copy drops when MILKSU_PI_SUBAGENT_RUNTIME=1.
 // External CLI children never receive these. The Pi runner process keeps the
@@ -42,6 +46,24 @@ function environmentCopy(env) {
   return { ...(env && typeof env === "object" ? env : {}) };
 }
 
+function normalizeTraceId(value) {
+  const raw = String(value ?? "").trim();
+  return TRACE_ID_PATTERN.test(raw) ? raw : "";
+}
+
+function applySpawnTraceEnv(env, traceId) {
+  const next = environmentCopy(env);
+  const id = normalizeTraceId(traceId)
+    || normalizeTraceId(spawnTrace.getStore())
+    || normalizeTraceId(next.MILKSU_TRACE_ID);
+  if (id) next.MILKSU_TRACE_ID = id;
+  return next;
+}
+
+function withSpawnTraceId(traceId, fn) {
+  return spawnTrace.run(normalizeTraceId(traceId), fn);
+}
+
 function stripProviderEnv(env) {
   for (const name of providerEnvNames) delete env[name];
   for (const name of Object.keys(env)) {
@@ -57,8 +79,9 @@ function guardSubagentSpawn({
   cwd,
   externalCli = false,
   platform = process.platform,
+  traceId,
 } = {}) {
-  const nextEnv = environmentCopy(env);
+  const nextEnv = applySpawnTraceEnv(env, traceId);
   const nextArgs = Array.isArray(args) ? [...args] : [];
   const nextCwd = cwd;
   if (externalCli) {
@@ -66,7 +89,7 @@ function guardSubagentSpawn({
     return {
       command,
       args: nextArgs,
-      env: nextEnv,
+      env: applySpawnTraceEnv(nextEnv, traceId),
       cwd: nextCwd,
     };
   }
@@ -75,11 +98,12 @@ function guardSubagentSpawn({
   for (const name of childProcessDeniedEnvNames) delete nextEnv[name];
   const withModels = applyChildModelEnvironment(nextEnv, nextCwd);
   Object.assign(nextEnv, withModels);
+  const tracedEnv = applySpawnTraceEnv(nextEnv, traceId);
   if (platform !== "darwin") {
     return {
       command,
       args: nextArgs,
-      env: nextEnv,
+      env: tracedEnv,
       cwd: nextCwd,
     };
   }
@@ -87,14 +111,14 @@ function guardSubagentSpawn({
     return {
       command,
       args: nextArgs,
-      env: nextEnv,
+      env: tracedEnv,
       cwd: nextCwd,
     };
   }
   if (!existsSync("/usr/bin/sandbox-exec")) {
     throw new Error("MilkSU Pi subagent runner requires /usr/bin/sandbox-exec on macOS");
   }
-  const agentDirectory = String(nextEnv.MILKSU_PI_AGENT_DIR ?? "").trim()
+  const agentDirectory = String(tracedEnv.MILKSU_PI_AGENT_DIR ?? "").trim()
     || (nextCwd ? join(nextCwd, ".milksu", "pi") : "");
   const profile = writeSandboxProfile({
     cwd: String(nextCwd ?? ""),
@@ -104,7 +128,7 @@ function guardSubagentSpawn({
   return {
     command: "/usr/bin/sandbox-exec",
     args: ["-p", profile, command, ...nextArgs],
-    env: nextEnv,
+    env: tracedEnv,
     cwd: nextCwd,
   };
 }
@@ -114,4 +138,6 @@ module.exports = {
   providerEnvNames,
   stripProviderEnv,
   writeSandboxProfile,
+  withSpawnTraceId,
+  applySpawnTraceEnv,
 };

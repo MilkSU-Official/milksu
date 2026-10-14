@@ -19,6 +19,7 @@ import (
 	"github.com/MilkSU-Official/milksu/internal/codingattachment"
 	"github.com/MilkSU-Official/milksu/internal/config"
 	"github.com/MilkSU-Official/milksu/internal/engine"
+	"github.com/google/uuid"
 )
 
 type RuntimeOptions struct {
@@ -153,6 +154,7 @@ func (r *Runtime) Send(prompt string, attachments []codingattachment.Attachment)
 	revision, memories := r.memoryView()
 	command := map[string]any{
 		"action":                   "send_message",
+		"traceId":                  "trc_" + uuid.NewString(),
 		"prompt":                   prompt,
 		"locale":                   config.ResolvedUserInterfaceLocale(r.resolvedSettings()),
 		"provider":                 selection.Provider,
@@ -1132,7 +1134,7 @@ func (r *Runtime) sidecarAlive() bool {
 	return r.ready && r.stdin != nil
 }
 
-// NoteExternalTurn feeds a Coding, CTF, CVE, lab, or DSH turn into the same
+// NoteExternalTurn feeds a Coding, CVE, lab, or DSH turn into the same
 // extract controller the companion uses. A missing sidecar is started only
 // when a finished turn still needs extraction. Failure stays off the chat.
 func (r *Runtime) NoteExternalTurn(phase, userText, assistantText string, aborted bool) {

@@ -26,6 +26,7 @@ import {
   repairCompanionToolHistory,
   stampCompanionAbortedTurn,
 } from "./turn-error.js";
+import { resolveTraceId } from "../trace-id.js";
 import {
   classifyCompanionDecision,
   companionDecisionLine,
@@ -621,6 +622,8 @@ async function publishReviewedReply(userText) {
 }
 
 async function sendPrompt(command) {
+  const traceId = resolveTraceId(command);
+  if (traceId) process.env.MILKSU_TRACE_ID = traceId;
   if (!session) throw new Error("companion session is not ready");
   turnAborted = false;
   repairCompanionSessionHistory("companion tool interrupted before next turn");

@@ -155,7 +155,7 @@ func (a *App) handleResearchWorkspaceAction(
 	ctx := a.commandContext()
 	switch action {
 	case "start_research_run":
-		run, err := a.research.Start(ctx, conversationID, request.Query)
+		run, err := a.research.Start(ctx, conversationID, request.Query, request.TraceID)
 		if err != nil {
 			return "", err
 		}

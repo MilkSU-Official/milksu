@@ -5,19 +5,20 @@ import { dirname, join } from "node:path";
 import test from "node:test";
 import { resolveDshLaunch, resolveDshScript } from "./launch.js";
 
-test("packaged sidecar layout resolves dsh next to the bridge", () => {
+test("packaged sidecar layout still finds a nearby dsh script for diagnostics", () => {
   const root = mkdtempSync(join(tmpdir(), "milksu-dsh-launch-"));
   const bin = join(root, "node_modules", "@deepseek-ai", "dsh", "lib", "bin.js");
   mkdirSync(dirname(bin), { recursive: true });
   writeFileSync(bin, "export {}\n");
   assert.equal(resolveDshScript(root), bin);
-  const launch = resolveDshLaunch({
-    here: root,
-    execPath: "/usr/bin/node",
-    env: {},
-  });
-  assert.equal(launch.command, "/usr/bin/node");
-  assert.deepEqual(launch.args, [bin, "--profile", "acp"]);
+  assert.throws(
+    () => resolveDshLaunch({
+      here: root,
+      execPath: "/usr/bin/node",
+      env: {},
+    }),
+    /Agent command is not configured/,
+  );
 });
 
 test("explicit MILKSU_DSH_COMMAND wins over packaged layout", () => {
@@ -33,9 +34,21 @@ test("explicit MILKSU_DSH_COMMAND wins over packaged layout", () => {
   assert.deepEqual(launch.args, ["--profile", "acp"]);
 });
 
-test("missing packaged CLI fails closed", () => {
+test("missing guest command fails closed", () => {
   assert.throws(
     () => resolveDshLaunch({ here: join(tmpdir(), "missing-dsh"), env: {} }),
-    /not packaged next to the Sidecar/,
+    /Agent command is not configured/,
   );
+});
+
+test("JSON ACP args are accepted", () => {
+  const launch = resolveDshLaunch({
+    here: "/missing",
+    execPath: "/usr/bin/node",
+    env: {
+      MILKSU_DSH_COMMAND: "/bin/echo",
+      MILKSU_DSH_ACP_ARGS: '["--profile","acp"]',
+    },
+  });
+  assert.deepEqual(launch.args, ["--profile", "acp"]);
 });

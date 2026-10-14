@@ -10,6 +10,8 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import { companionHostToolError, parseCompanionConfirm } from './product-loop-companion.mjs'
+import { redactProcessText } from '../../sidecar/dsh/redact.js'
+import { missingDesktopDevArtifacts } from './desktop-dev-artifacts.mjs'
 
 const execFileAsync = promisify(execFile)
 
@@ -52,6 +54,27 @@ export function stripDesktopCredentialEnv(env = {}) {
 
 export function delay(ms) {
   return new Promise(resolveDelay => setTimeout(resolveDelay, ms))
+}
+
+export function captureChildOutput(child, limit = 8_192) {
+  const parts = []
+  const push = chunk => {
+    parts.push(String(chunk ?? ''))
+    const joined = parts.join('')
+    if (joined.length > limit * 2) {
+      parts.length = 0
+      parts.push(joined.slice(-limit))
+    }
+  }
+  child?.stdout?.on('data', push)
+  child?.stderr?.on('data', push)
+  return () => redactProcessText(parts.join('').replace(/\s+/g, ' ').trim(), 400)
+}
+
+export function desktopStartExitError(child, readOutput) {
+  const code = child?.exitCode
+  const output = typeof readOutput === 'function' ? readOutput() : ''
+  return new Error(output ? `desktop:start exited ${code}: ${output}` : `desktop:start exited ${code}`)
 }
 
 export function eventSessionId(event) {
@@ -463,6 +486,7 @@ export class GuiDriver {
     this.cdp = null
     this.target = null
     this.startedChild = null
+    this.readStartedChildOutput = null
     this.gaps = []
     this.createdConversationIds = new Set()
     this.preferredPort = options.preferredPort ?? null
@@ -482,10 +506,11 @@ export class GuiDriver {
         stdio: ['ignore', 'pipe', 'pipe'],
         detached: process.platform !== 'win32',
       })
+      this.readStartedChildOutput = captureChildOutput(this.startedChild)
       const deadline = Date.now() + timeoutMs
       while (Date.now() < deadline && !this.target) {
         if (this.startedChild.exitCode != null) {
-          throw new Error(`desktop:start exited ${this.startedChild.exitCode}`)
+          throw desktopStartExitError(this.startedChild, this.readStartedChildOutput)
         }
         await delay(1_000)
         this.target = await findDesktopCdpTarget({ port: this.preferredPort })
@@ -508,7 +533,11 @@ export class GuiDriver {
     if (!instanceId) throw new Error('startFresh requires MILKSU_INSTANCE_ID')
     this.instanceId = instanceId
     const launch = resolveProductLoopLaunchPlan(process.env, this.repositoryRoot)
-    const extraArgs = options.buildRuntime || launch.buildRuntime ? [] : ['--', '--no-build']
+    const missing = launch.mode === 'desktop-start'
+      ? await missingDesktopDevArtifacts(this.repositoryRoot)
+      : []
+    const needsCompile = missing.some(name => name === 'runtime' || name === 'renderer' || name === 'helper')
+    const extraArgs = options.buildRuntime || launch.buildRuntime || needsCompile ? [] : ['--', '--no-build']
     const childEnv = stripDesktopCredentialEnv({
       ...process.env,
       MILKSU_CHANNEL: 'stable',
@@ -528,10 +557,11 @@ export class GuiDriver {
         stdio: ['ignore', 'pipe', 'pipe'],
         detached: process.platform !== 'win32',
       })
+    this.readStartedChildOutput = captureChildOutput(this.startedChild)
     const deadline = Date.now() + Number(options.timeoutMs || 240_000)
     while (Date.now() < deadline && !this.target) {
       if (this.startedChild.exitCode != null) {
-        throw new Error(`desktop:start exited ${this.startedChild.exitCode}`)
+        throw desktopStartExitError(this.startedChild, this.readStartedChildOutput)
       }
       await delay(1_000)
       this.target = await findDesktopCdpTarget({ excludeKeys: before })

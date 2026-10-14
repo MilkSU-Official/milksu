@@ -25,7 +25,7 @@ const (
 	// FactBoundary is intentionally for internal API/agent semantics, not for
 	// ordinary UI copy. The product surface should say "相关历史", not explain
 	// epistemology to the user.
-	FactBoundary = "Obelisk 结果只是历史线索；CTF Judge/Evidence、CVE source snapshots、Coding tests/commits/screenshots 才能成为 MilkSU 正式档案。"
+	FactBoundary = "Obelisk 结果只是历史线索；CVE source snapshots、实验室 report、Coding tests/commits/screenshots 才能成为 MilkSU 正式档案。"
 
 	sourcePrefix = "milksu"
 
@@ -671,10 +671,8 @@ func requestSource(request SearchRequest) string {
 		return source
 	}
 	switch strings.ToLower(strings.TrimSpace(request.Module)) {
-	case "coding":
+	case "coding", "ctf":
 		return "milksu-coding"
-	case "ctf":
-		return "milksu-ctf"
 	case "cve", "vuln", "vulnerability":
 		return "milksu-cve"
 	default:
@@ -779,9 +777,6 @@ func projectName(workspacePath string) string {
 var cveIDPattern = regexp.MustCompile(`(?i)\bCVE-\d{4}-\d{4,}\b`)
 
 func sessionSource(value conversation.StoredConversation) string {
-	if strings.TrimSpace(value.CTFJobID) != "" {
-		return "milksu-ctf"
-	}
 	if cveIDPattern.MatchString(value.Title) {
 		return "milksu-cve"
 	}

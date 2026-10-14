@@ -120,7 +120,6 @@ async function renderChatPage(
         sessionReady
         resumed={false}
         compacting={options.compacting ?? false}
-        ctfSession={false}
         ensureConversation={() => conversation.id}
         onCompactContext={options.onCompactContext}
       />,

@@ -121,16 +121,6 @@ describe('agent recovery', () => {
     ], false)).toBe('')
   })
 
-  it('resumes CTF from persisted evidence without repeating completed work', () => {
-    const prompt = agentRecoveryPrompt(true)
-    expect(prompt).toContain('notes.md')
-    expect(prompt).toContain('最近一次已完成的工具结果')
-    expect(prompt).toContain('不要重复')
-    expect(prompt).toContain('不要复用重启前的审批状态')
-    expect(prompt).toContain('Endpoint')
-    expect(prompt).toContain('最小、可验证')
-  })
-
   it('offers retry after an ImageGen provider or size failure', () => {
     expect(recoverableAgentFailureId([
       { id: 'u', role: 'user', content: '画一张图', timestamp: 1, status: 'done' },
@@ -163,7 +153,7 @@ describe('agent recovery', () => {
   })
 
   it('resumes Coding work without reusing stale approvals after restart', () => {
-    const prompt = agentRecoveryPrompt(false)
+    const prompt = agentRecoveryPrompt()
     expect(prompt).toContain('当前工作区')
     expect(prompt).toContain('不要重复')
     expect(prompt).toContain('不要复用重启前的审批状态')

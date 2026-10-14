@@ -25,7 +25,7 @@ const (
 )
 
 // sqliteSecretStore is the M3 local credential store. It deliberately keeps
-// credentials outside settings.json and the NSSCTF catalog database. The app
+// credentials outside settings.json. The app
 // data directory is private to the current macOS user and the database is
 // chmod'd to 0600 after creation.
 //

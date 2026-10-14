@@ -33,7 +33,6 @@ const (
 	PersistedMigrationBackupCreated      PersistedEvent = "migration.backup_created"
 	PersistedMigrationBackupVerified     PersistedEvent = "migration.backup_verified"
 	PersistedRuntimeRecoveryFailed       PersistedEvent = "recovery.runtime_failed"
-	PersistedCTFRecoveryFailed           PersistedEvent = "recovery.ctf_failed"
 	PersistedVulnRecoveryFailed          PersistedEvent = "recovery.vuln_failed"
 	PersistedSidecarStarted              PersistedEvent = "sidecar.started"
 	PersistedSidecarStopped              PersistedEvent = "sidecar.stopped"
@@ -60,7 +59,6 @@ var persistedEventSpecs = map[PersistedEvent]persistedEventSpec{
 	PersistedMigrationBackupCreated:      {category: "appdata", level: "info"},
 	PersistedMigrationBackupVerified:     {category: "appdata", level: "info"},
 	PersistedRuntimeRecoveryFailed:       {category: "runtime", level: "error"},
-	PersistedCTFRecoveryFailed:           {category: "ctf", level: "error"},
 	PersistedVulnRecoveryFailed:          {category: "vuln", level: "error"},
 	PersistedSidecarStarted:              {category: "coding-engine", level: "info"},
 	PersistedSidecarStopped:              {category: "coding-engine", level: "info"},

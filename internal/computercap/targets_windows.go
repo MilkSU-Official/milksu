@@ -71,7 +71,7 @@ func platformTargets() ([]Target, error) {
 			PID:            int(pid),
 			WindowID:       int64(window),
 			WindowTitle:    title,
-			executablePath: executable,
+			ExecutablePath: executable,
 		})
 		return 1
 	})

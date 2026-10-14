@@ -3,7 +3,6 @@ package browsercap
 import (
 	"context"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -25,7 +24,6 @@ import (
 	"time"
 
 	"github.com/MilkSU-Official/milksu/browserextension"
-	"github.com/MilkSU-Official/milksu/internal/ctfshow"
 	"github.com/MilkSU-Official/milksu/internal/securitypolicy"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -162,17 +160,9 @@ type SharedPage struct {
 	Title           string                    `json:"title"`
 	URL             string                    `json:"url"`
 	Text            string                    `json:"text"`
-	NSSCTF          *NSSCTFPageState          `json:"nssctf,omitempty"`
-	CTFShow         *CTFShowCatalogState      `json:"ctfshow,omitempty"`
 	CapturedAt      time.Time                 `json:"capturedAt"`
 	Provenance      string                    `json:"provenance"`
 	Scope           securitypolicy.ScopeGrant `json:"scope"`
-}
-
-type CTFShowCatalogState struct {
-	LoggedIn bool                     `json:"loggedIn"`
-	Total    int                      `json:"total"`
-	Problems []ctfshow.CatalogProblem `json:"problems,omitempty"`
 }
 
 type BridgeInfo struct {
@@ -183,49 +173,6 @@ type BridgeInfo struct {
 	Active        bool   `json:"active"`
 	Connected     bool   `json:"connected"`
 	LastSeenAt    string `json:"lastSeenAt,omitempty"`
-}
-
-type NSSCTFPageState struct {
-	ProblemID  int      `json:"problemId"`
-	Title      string   `json:"title"`
-	Category   string   `json:"category,omitempty"`
-	Tags       []string `json:"tags"`
-	LoggedIn   bool     `json:"loggedIn"`
-	CanSubmit  bool     `json:"canSubmit"`
-	NeedsStart bool     `json:"needsStart"`
-	StartCost  int      `json:"startCost,omitempty"`
-	Solved     bool     `json:"solved"`
-}
-
-type NSSCTFBridgeCommand struct {
-	ID              string    `json:"id"`
-	Type            string    `json:"type"`
-	BridgeSessionID string    `json:"bridgeSessionId"`
-	ProblemID       int       `json:"problemId"`
-	Candidate       string    `json:"candidate"`
-	CreatedAt       time.Time `json:"createdAt"`
-	ExpiresAt       time.Time `json:"expiresAt"`
-}
-
-type NSSCTFAttachment struct {
-	CommandID  string    `json:"commandId"`
-	ProblemID  int       `json:"problemId"`
-	Name       string    `json:"name"`
-	MediaType  string    `json:"mediaType"`
-	DataBase64 string    `json:"dataBase64"`
-	SHA256     string    `json:"sha256"`
-	Size       int64     `json:"size"`
-	ReceivedAt time.Time `json:"receivedAt"`
-}
-
-type NSSCTFJudgeReceipt struct {
-	CommandID  string    `json:"commandId"`
-	ProblemID  int       `json:"problemId"`
-	Status     string    `json:"status"`
-	Correct    *bool     `json:"correct,omitempty"`
-	Message    string    `json:"message"`
-	URL        string    `json:"url"`
-	ReceivedAt time.Time `json:"receivedAt"`
 }
 
 type managedSession struct {
@@ -247,13 +194,8 @@ type bridgePairingState struct {
 }
 
 type bridgeCommandState struct {
-	command          NSSCTFBridgeCommand
-	judgeResult      NSSCTFJudgeReceipt
-	attachmentResult NSSCTFAttachment
-	ctfshowChallenge ctfshow.ChallengeCapture
-	ctfshowJudge     ctfshow.JudgeReceipt
-	err              error
-	done             chan struct{}
+	err  error
+	done chan struct{}
 }
 
 type Manager struct {
@@ -272,7 +214,6 @@ type Manager struct {
 	pairingPath    string
 	extensionPath  string
 	httpClient     *http.Client
-	ctfshowSink    func(context.Context, []ctfshow.CatalogProblem) error
 	codingHost     CodingHost
 }
 
@@ -959,38 +900,6 @@ func (m *Manager) SharedPages() []SharedPage {
 	return m.connectedPagesLocked(m.sharedPages)
 }
 
-func (m *Manager) NSSCTFPages() []SharedPage {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	result := make([]SharedPage, 0)
-	for _, page := range m.sharedPages {
-		if page.Adapter == "nssctf-web-v1" && page.NSSCTF != nil {
-			page.Connected = m.bridgeSessionConnectedLocked(page.BridgeSessionID)
-			result = append(result, page)
-		}
-	}
-	return result
-}
-
-func (m *Manager) CTFShowPages() []SharedPage {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	result := make([]SharedPage, 0)
-	for _, page := range m.sharedPages {
-		if page.Adapter == "ctfshow-catalog-v1" && page.CTFShow != nil {
-			page.Connected = m.bridgeSessionConnectedLocked(page.BridgeSessionID)
-			result = append(result, page)
-		}
-	}
-	return result
-}
-
-func (m *Manager) SetCTFShowCatalogSink(sink func(context.Context, []ctfshow.CatalogProblem) error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.ctfshowSink = sink
-}
-
 func (m *Manager) Close() {
 	m.mu.Lock()
 	sessions := make([]*managedSession, 0, len(m.sessions))
@@ -1246,13 +1155,11 @@ func (m *Manager) handleBridgeIngest(writer http.ResponseWriter, request *http.R
 		return
 	}
 	var input struct {
-		BridgeSessionID string               `json:"bridgeSessionId"`
-		Adapter         string               `json:"adapter"`
-		Title           string               `json:"title"`
-		URL             string               `json:"url"`
-		Text            string               `json:"text"`
-		NSSCTF          *NSSCTFPageState     `json:"nssctf"`
-		CTFShow         *CTFShowCatalogState `json:"ctfshow"`
+		BridgeSessionID string `json:"bridgeSessionId"`
+		Adapter         string `json:"adapter"`
+		Title           string `json:"title"`
+		URL             string `json:"url"`
+		Text            string `json:"text"`
 	}
 	decoder := json.NewDecoder(http.MaxBytesReader(writer, request.Body, maxPageTextBytes+4*1024*1024))
 	if err := decoder.Decode(&input); err != nil {
@@ -1264,21 +1171,7 @@ func (m *Manager) handleBridgeIngest(writer http.ResponseWriter, request *http.R
 		http.Error(writer, "shared page is missing a valid URL, title, or bounded text", http.StatusBadRequest)
 		return
 	}
-	switch input.Adapter {
-	case "":
-	case "nssctf-web-v1":
-		if !validBridgeSessionID(input.BridgeSessionID) ||
-			input.NSSCTF == nil || validateNSSCTFPage(input.URL, input.NSSCTF) != nil {
-			http.Error(writer, "invalid NSSCTF browser adapter state", http.StatusBadRequest)
-			return
-		}
-	case "ctfshow-catalog-v1":
-		if !validBridgeSessionID(input.BridgeSessionID) ||
-			validateCTFShowCatalog(input.URL, input.CTFShow) != nil {
-			http.Error(writer, "invalid CTFshow catalog adapter state", http.StatusBadRequest)
-			return
-		}
-	default:
+	if input.Adapter != "" {
 		http.Error(writer, "unsupported browser adapter", http.StatusBadRequest)
 		return
 	}
@@ -1287,25 +1180,9 @@ func (m *Manager) handleBridgeIngest(writer http.ResponseWriter, request *http.R
 		http.Error(writer, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if input.Adapter == "ctfshow-catalog-v1" {
-		m.mu.Lock()
-		sink := m.ctfshowSink
-		m.mu.Unlock()
-		if sink == nil {
-			http.Error(writer, "CTFshow catalog store is unavailable", http.StatusServiceUnavailable)
-			return
-		}
-		if err := sink(request.Context(), input.CTFShow.Problems); err != nil {
-			http.Error(writer, "store CTFshow catalog", http.StatusInternalServerError)
-			return
-		}
-		input.CTFShow.Total = len(input.CTFShow.Problems)
-		input.CTFShow.Problems = nil
-	}
 	page := SharedPage{
 		ID: "shared_" + uuid.NewString(), BridgeSessionID: input.BridgeSessionID, Adapter: input.Adapter,
 		Title: strings.TrimSpace(input.Title), URL: input.URL, Text: input.Text,
-		NSSCTF: input.NSSCTF, CTFShow: input.CTFShow,
 		CapturedAt: time.Now().UTC(), Provenance: "user-browser-extension:active-tab", Scope: grant,
 	}
 	m.mu.Lock()
@@ -1323,293 +1200,6 @@ func (m *Manager) handleBridgeIngest(writer http.ResponseWriter, request *http.R
 	m.mu.Unlock()
 	writer.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(writer).Encode(map[string]string{"id": page.ID})
-}
-
-func (m *Manager) SubmitNSSCTFFlag(ctx context.Context, pageID, candidate string) (NSSCTFJudgeReceipt, error) {
-	candidate = strings.TrimSpace(candidate)
-	if candidate == "" || len([]rune(candidate)) > 512 {
-		return NSSCTFJudgeReceipt{}, fmt.Errorf("NSSCTF submission candidate is required and must be at most 512 characters")
-	}
-
-	m.mu.Lock()
-	var page *SharedPage
-	for index := range m.sharedPages {
-		if m.sharedPages[index].ID == pageID {
-			value := m.sharedPages[index]
-			page = &value
-			break
-		}
-	}
-	if page == nil || page.Adapter != "nssctf-web-v1" || page.NSSCTF == nil || !validBridgeSessionID(page.BridgeSessionID) {
-		m.mu.Unlock()
-		return NSSCTFJudgeReceipt{}, fmt.Errorf("NSSCTF browser page is not connected")
-	}
-	if page.NSSCTF.NeedsStart || !page.NSSCTF.CanSubmit {
-		m.mu.Unlock()
-		return NSSCTFJudgeReceipt{}, fmt.Errorf(
-			"请先在 NSSCTF 由你本人确认开启 P%d，再用 MilkSU 扩展重新连接当前题目；MilkSU 不会自动花金币",
-			page.NSSCTF.ProblemID,
-		)
-	}
-	clients := m.clientsForSessionLocked(page.BridgeSessionID)
-	if len(clients) == 0 {
-		m.mu.Unlock()
-		return NSSCTFJudgeReceipt{}, fmt.Errorf("the paired NSSCTF tab is not connected")
-	}
-	now := time.Now().UTC()
-	command := NSSCTFBridgeCommand{
-		ID: "browser_command_" + uuid.NewString(), Type: "nssctf.submit_flag",
-		BridgeSessionID: page.BridgeSessionID, ProblemID: page.NSSCTF.ProblemID, Candidate: candidate,
-		CreatedAt: now, ExpiresAt: now.Add(30 * time.Second),
-	}
-	state := &bridgeCommandState{command: command, done: make(chan struct{})}
-	m.bridgeCommands[command.ID] = state
-	m.mu.Unlock()
-
-	envelope := map[string]any{"type": "command", "command": command}
-	delivered := false
-	for _, client := range clients {
-		client.writeMu.Lock()
-		err := client.connection.WriteJSON(envelope)
-		client.writeMu.Unlock()
-		if err == nil {
-			delivered = true
-		}
-	}
-	if !delivered {
-		m.mu.Lock()
-		delete(m.bridgeCommands, command.ID)
-		m.mu.Unlock()
-		return NSSCTFJudgeReceipt{}, fmt.Errorf("MilkSU browser extension did not accept the command")
-	}
-
-	select {
-	case <-ctx.Done():
-		m.mu.Lock()
-		delete(m.bridgeCommands, command.ID)
-		m.mu.Unlock()
-		return NSSCTFJudgeReceipt{}, ctx.Err()
-	case <-state.done:
-		m.mu.Lock()
-		result := state.judgeResult
-		delete(m.bridgeCommands, command.ID)
-		m.mu.Unlock()
-		return result, nil
-	}
-}
-
-func (m *Manager) FetchNSSCTFAttachment(
-	ctx context.Context,
-	pageID string,
-) (NSSCTFAttachment, error) {
-	m.mu.Lock()
-	var page *SharedPage
-	for index := range m.sharedPages {
-		if m.sharedPages[index].ID == pageID {
-			value := m.sharedPages[index]
-			page = &value
-			break
-		}
-	}
-	if page == nil || page.Adapter != "nssctf-web-v1" || page.NSSCTF == nil ||
-		!validBridgeSessionID(page.BridgeSessionID) {
-		m.mu.Unlock()
-		return NSSCTFAttachment{}, fmt.Errorf("NSSCTF browser page is not connected")
-	}
-	clients := m.clientsForSessionLocked(page.BridgeSessionID)
-	if len(clients) == 0 {
-		m.mu.Unlock()
-		return NSSCTFAttachment{}, fmt.Errorf("the paired NSSCTF tab is not connected")
-	}
-	now := time.Now().UTC()
-	command := NSSCTFBridgeCommand{
-		ID: "browser_command_" + uuid.NewString(), Type: "nssctf.fetch_attachment",
-		BridgeSessionID: page.BridgeSessionID, ProblemID: page.NSSCTF.ProblemID,
-		CreatedAt: now, ExpiresAt: now.Add(45 * time.Second),
-	}
-	state := &bridgeCommandState{command: command, done: make(chan struct{})}
-	m.bridgeCommands[command.ID] = state
-	m.mu.Unlock()
-
-	envelope := map[string]any{"type": "command", "command": command}
-	delivered := false
-	for _, client := range clients {
-		client.writeMu.Lock()
-		err := client.connection.WriteJSON(envelope)
-		client.writeMu.Unlock()
-		if err == nil {
-			delivered = true
-		}
-	}
-	if !delivered {
-		m.mu.Lock()
-		delete(m.bridgeCommands, command.ID)
-		m.mu.Unlock()
-		return NSSCTFAttachment{}, fmt.Errorf("MilkSU browser extension did not accept the attachment command")
-	}
-
-	select {
-	case <-ctx.Done():
-		m.mu.Lock()
-		delete(m.bridgeCommands, command.ID)
-		m.mu.Unlock()
-		return NSSCTFAttachment{}, ctx.Err()
-	case <-state.done:
-		m.mu.Lock()
-		result := state.attachmentResult
-		resultErr := state.err
-		delete(m.bridgeCommands, command.ID)
-		m.mu.Unlock()
-		if resultErr != nil {
-			return NSSCTFAttachment{}, resultErr
-		}
-		return result, nil
-	}
-}
-
-func (m *Manager) FetchCTFShowChallenge(
-	ctx context.Context,
-	pageID string,
-	problemID int,
-) (ctfshow.ChallengeCapture, error) {
-	if problemID <= 0 || problemID > 100_000_000 {
-		return ctfshow.ChallengeCapture{}, fmt.Errorf("invalid CTFshow challenge id")
-	}
-	m.mu.Lock()
-	var page *SharedPage
-	for index := range m.sharedPages {
-		if m.sharedPages[index].ID == pageID {
-			value := m.sharedPages[index]
-			page = &value
-			break
-		}
-	}
-	if page == nil || page.Adapter != "ctfshow-catalog-v1" ||
-		page.CTFShow == nil || !page.CTFShow.LoggedIn ||
-		!validBridgeSessionID(page.BridgeSessionID) {
-		m.mu.Unlock()
-		return ctfshow.ChallengeCapture{}, fmt.Errorf("CTFshow browser page is not connected")
-	}
-	clients := m.clientsForSessionLocked(page.BridgeSessionID)
-	if len(clients) == 0 {
-		m.mu.Unlock()
-		return ctfshow.ChallengeCapture{}, fmt.Errorf("the paired CTFshow tab is not connected")
-	}
-	now := time.Now().UTC()
-	command := NSSCTFBridgeCommand{
-		ID: "browser_command_" + uuid.NewString(), Type: "ctfshow.fetch_challenge",
-		BridgeSessionID: page.BridgeSessionID, ProblemID: problemID,
-		CreatedAt: now, ExpiresAt: now.Add(60 * time.Second),
-	}
-	state := &bridgeCommandState{command: command, done: make(chan struct{})}
-	m.bridgeCommands[command.ID] = state
-	m.mu.Unlock()
-
-	if !deliverBridgeCommand(clients, command) {
-		m.mu.Lock()
-		delete(m.bridgeCommands, command.ID)
-		m.mu.Unlock()
-		return ctfshow.ChallengeCapture{}, fmt.Errorf("MilkSU browser extension did not accept the CTFshow import command")
-	}
-
-	select {
-	case <-ctx.Done():
-		m.mu.Lock()
-		delete(m.bridgeCommands, command.ID)
-		m.mu.Unlock()
-		return ctfshow.ChallengeCapture{}, ctx.Err()
-	case <-state.done:
-		m.mu.Lock()
-		result := state.ctfshowChallenge
-		resultErr := state.err
-		delete(m.bridgeCommands, command.ID)
-		m.mu.Unlock()
-		if resultErr != nil {
-			return ctfshow.ChallengeCapture{}, resultErr
-		}
-		return result, nil
-	}
-}
-
-func (m *Manager) SubmitCTFShowFlag(
-	ctx context.Context,
-	pageID string,
-	problemID int,
-	candidate string,
-) (ctfshow.JudgeReceipt, error) {
-	candidate = strings.TrimSpace(candidate)
-	if problemID <= 0 || problemID > 100_000_000 ||
-		candidate == "" || len([]rune(candidate)) > 512 {
-		return ctfshow.JudgeReceipt{}, fmt.Errorf("invalid CTFshow submission")
-	}
-	m.mu.Lock()
-	var page *SharedPage
-	for index := range m.sharedPages {
-		if m.sharedPages[index].ID == pageID {
-			value := m.sharedPages[index]
-			page = &value
-			break
-		}
-	}
-	if page == nil || page.Adapter != "ctfshow-catalog-v1" ||
-		page.CTFShow == nil || !page.CTFShow.LoggedIn ||
-		!validBridgeSessionID(page.BridgeSessionID) {
-		m.mu.Unlock()
-		return ctfshow.JudgeReceipt{}, fmt.Errorf("CTFshow browser page is not connected")
-	}
-	clients := m.clientsForSessionLocked(page.BridgeSessionID)
-	if len(clients) == 0 {
-		m.mu.Unlock()
-		return ctfshow.JudgeReceipt{}, fmt.Errorf("the paired CTFshow tab is not connected")
-	}
-	now := time.Now().UTC()
-	command := NSSCTFBridgeCommand{
-		ID: "browser_command_" + uuid.NewString(), Type: "ctfshow.submit_flag",
-		BridgeSessionID: page.BridgeSessionID, ProblemID: problemID, Candidate: candidate,
-		CreatedAt: now, ExpiresAt: now.Add(30 * time.Second),
-	}
-	state := &bridgeCommandState{command: command, done: make(chan struct{})}
-	m.bridgeCommands[command.ID] = state
-	m.mu.Unlock()
-
-	if !deliverBridgeCommand(clients, command) {
-		m.mu.Lock()
-		delete(m.bridgeCommands, command.ID)
-		m.mu.Unlock()
-		return ctfshow.JudgeReceipt{}, fmt.Errorf("MilkSU browser extension did not accept the CTFshow submission")
-	}
-
-	select {
-	case <-ctx.Done():
-		m.mu.Lock()
-		delete(m.bridgeCommands, command.ID)
-		m.mu.Unlock()
-		return ctfshow.JudgeReceipt{}, ctx.Err()
-	case <-state.done:
-		m.mu.Lock()
-		result := state.ctfshowJudge
-		resultErr := state.err
-		delete(m.bridgeCommands, command.ID)
-		m.mu.Unlock()
-		if resultErr != nil {
-			return ctfshow.JudgeReceipt{}, resultErr
-		}
-		return result, nil
-	}
-}
-
-func deliverBridgeCommand(clients []*bridgeClient, command NSSCTFBridgeCommand) bool {
-	envelope := map[string]any{"type": "command", "command": command}
-	delivered := false
-	for _, client := range clients {
-		client.writeMu.Lock()
-		err := client.connection.WriteJSON(envelope)
-		client.writeMu.Unlock()
-		if err == nil {
-			delivered = true
-		}
-	}
-	return delivered
 }
 
 func (m *Manager) handleBridgeWebSocket(writer http.ResponseWriter, request *http.Request) {
@@ -1657,28 +1247,8 @@ func (m *Manager) handleBridgeWebSocket(writer http.ResponseWriter, request *htt
 
 	for {
 		var message struct {
-			Type             string                      `json:"type"`
-			CommandID        string                      `json:"commandId"`
-			BridgeSessionID  string                      `json:"bridgeSessionId"`
-			ProblemID        int                         `json:"problemId"`
-			Status           string                      `json:"status"`
-			Correct          *bool                       `json:"correct"`
-			Message          string                      `json:"message"`
-			URL              string                      `json:"url"`
-			Name             string                      `json:"name"`
-			MediaType        string                      `json:"mediaType"`
-			DataBase64       string                      `json:"dataBase64"`
-			SHA256           string                      `json:"sha256"`
-			Size             int64                       `json:"size"`
-			Title            string                      `json:"title"`
-			Category         string                      `json:"category"`
-			Statement        string                      `json:"statement"`
-			Points           int                         `json:"points"`
-			SolvedCount      int                         `json:"solvedCount"`
-			Tags             []string                    `json:"tags"`
-			Materials        []ctfshow.ChallengeMaterial `json:"materials"`
-			Warnings         []string                    `json:"warnings"`
-			BridgeSessionIDs []string                    `json:"bridgeSessionIds"`
+			Type             string   `json:"type"`
+			BridgeSessionIDs []string `json:"bridgeSessionIds"`
 		}
 		if err := connection.ReadJSON(&message); err != nil {
 			return
@@ -1711,287 +1281,9 @@ func (m *Manager) handleBridgeWebSocket(writer http.ResponseWriter, request *htt
 			client.writeMu.Unlock()
 			continue
 		}
-		if message.Type != "result" {
-			switch message.Type {
-			case "attachment_result":
-				m.recordAttachmentResult(
-					message.CommandID,
-					message.BridgeSessionID,
-					message.ProblemID,
-					message.Status,
-					message.Message,
-					message.Name,
-					message.MediaType,
-					message.DataBase64,
-					message.SHA256,
-					message.Size,
-				)
-			case "ctfshow_challenge_result":
-				m.recordCTFShowChallengeResult(
-					message.CommandID,
-					message.BridgeSessionID,
-					message.ProblemID,
-					message.Status,
-					message.Message,
-					message.Title,
-					message.Category,
-					message.Statement,
-					message.Points,
-					message.SolvedCount,
-					message.Tags,
-					message.Materials,
-					message.Warnings,
-				)
-			case "ctfshow_judge_result":
-				m.recordCTFShowJudgeResult(
-					message.CommandID,
-					message.BridgeSessionID,
-					message.ProblemID,
-					message.Status,
-					message.Correct,
-					message.Message,
-					message.URL,
-				)
-			}
-			continue
-		}
-		m.recordBridgeResult(message.CommandID, message.BridgeSessionID, message.ProblemID, message.Status, message.Correct, message.Message, message.URL)
+		// Unknown message types are ignored; the bridge only keeps pairing alive.
+		continue
 	}
-}
-
-func (m *Manager) recordBridgeResult(
-	commandID, bridgeSessionID string,
-	problemID int,
-	status string,
-	correct *bool,
-	message, rawURL string,
-) {
-	status = strings.ToLower(strings.TrimSpace(status))
-	message = strings.TrimSpace(message)
-	if len([]rune(message)) > 2000 {
-		message = string([]rune(message)[:2000])
-	}
-	if status != "accepted" && status != "rejected" && status != "ambiguous" && status != "error" {
-		return
-	}
-	if (status == "accepted" && (correct == nil || !*correct)) ||
-		(status == "rejected" && (correct == nil || *correct)) ||
-		((status == "ambiguous" || status == "error") && correct != nil) {
-		return
-	}
-	urlProblemID, err := nssctfProblemID(rawURL)
-	if err != nil || urlProblemID != problemID {
-		return
-	}
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	state := m.bridgeCommands[commandID]
-	if state == nil || state.judgeResult.CommandID != "" ||
-		state.command.Type != "nssctf.submit_flag" ||
-		state.command.BridgeSessionID != bridgeSessionID ||
-		state.command.ProblemID != problemID ||
-		time.Now().UTC().After(state.command.ExpiresAt) {
-		return
-	}
-	state.judgeResult = NSSCTFJudgeReceipt{
-		CommandID: commandID, ProblemID: problemID, Status: status, Correct: correct,
-		Message: message, URL: rawURL, ReceivedAt: time.Now().UTC(),
-	}
-	if status != "error" {
-		for index := range m.sharedPages {
-			page := &m.sharedPages[index]
-			if page.BridgeSessionID == bridgeSessionID && page.NSSCTF != nil && page.NSSCTF.ProblemID == problemID {
-				page.NSSCTF.NeedsStart = false
-				page.NSSCTF.CanSubmit = true
-			}
-		}
-		_ = m.persistSharedLocked()
-	}
-	close(state.done)
-}
-
-func (m *Manager) recordAttachmentResult(
-	commandID, bridgeSessionID string,
-	problemID int,
-	status, message, name, mediaType, dataBase64, digest string,
-	size int64,
-) {
-	status = strings.ToLower(strings.TrimSpace(status))
-	message = strings.TrimSpace(message)
-	if len([]rune(message)) > 1000 {
-		message = string([]rune(message)[:1000])
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	state := m.bridgeCommands[commandID]
-	if state == nil || state.attachmentResult.CommandID != "" || state.err != nil ||
-		state.command.Type != "nssctf.fetch_attachment" ||
-		state.command.BridgeSessionID != bridgeSessionID ||
-		state.command.ProblemID != problemID ||
-		time.Now().UTC().After(state.command.ExpiresAt) {
-		return
-	}
-	if status != "ready" {
-		if message == "" {
-			message = "NSSCTF attachment is not ready"
-		}
-		state.err = fmt.Errorf("%s", message)
-		close(state.done)
-		return
-	}
-	name = strings.TrimSpace(name)
-	mediaType = strings.TrimSpace(mediaType)
-	data, err := base64.StdEncoding.DecodeString(dataBase64)
-	if err != nil || len(data) == 0 || len(data) > 4<<20 ||
-		size != int64(len(data)) ||
-		!validAttachmentFileName(name) ||
-		!validAttachmentMediaType(mediaType) {
-		state.err = fmt.Errorf("NSSCTF attachment payload is invalid")
-		close(state.done)
-		return
-	}
-	calculated := sha256.Sum256(data)
-	if len(digest) != sha256.Size*2 || hex.EncodeToString(calculated[:]) != strings.ToLower(digest) {
-		state.err = fmt.Errorf("NSSCTF attachment digest mismatch")
-		close(state.done)
-		return
-	}
-	state.attachmentResult = NSSCTFAttachment{
-		CommandID: commandID, ProblemID: problemID, Name: name, MediaType: mediaType,
-		DataBase64: dataBase64, SHA256: strings.ToLower(digest), Size: size,
-		ReceivedAt: time.Now().UTC(),
-	}
-	close(state.done)
-}
-
-func (m *Manager) recordCTFShowChallengeResult(
-	commandID, bridgeSessionID string,
-	problemID int,
-	status, message, title, category, statement string,
-	points, solvedCount int,
-	tags []string,
-	materials []ctfshow.ChallengeMaterial,
-	warnings []string,
-) {
-	status = strings.ToLower(strings.TrimSpace(status))
-	message = strings.TrimSpace(message)
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	state := m.bridgeCommands[commandID]
-	if state == nil || state.ctfshowChallenge.CommandID != "" || state.err != nil ||
-		state.command.Type != "ctfshow.fetch_challenge" ||
-		state.command.BridgeSessionID != bridgeSessionID ||
-		state.command.ProblemID != problemID ||
-		time.Now().UTC().After(state.command.ExpiresAt) {
-		return
-	}
-	if status != "ready" {
-		if message == "" {
-			message = "CTFshow challenge is not ready"
-		}
-		state.err = fmt.Errorf("%s", truncateText(message, 1000))
-		close(state.done)
-		return
-	}
-	title = strings.TrimSpace(title)
-	category = strings.TrimSpace(category)
-	statement = strings.TrimSpace(statement)
-	if title == "" || len([]rune(title)) > 240 ||
-		category == "" || len([]rune(category)) > 80 ||
-		statement == "" || len([]rune(statement)) > 12_000 ||
-		points < 0 || points > 1_000_000 ||
-		solvedCount < 0 || solvedCount > 100_000_000 ||
-		len(materials) > 16 {
-		state.err = fmt.Errorf("CTFshow challenge payload is invalid")
-		close(state.done)
-		return
-	}
-	cleanTags := normalizeShortStrings(tags, 32, 80)
-	cleanWarnings := normalizeShortStrings(warnings, 16, 240)
-	totalBytes := 0
-	for index := range materials {
-		material := &materials[index]
-		material.Name = strings.TrimSpace(material.Name)
-		material.MediaType = strings.TrimSpace(material.MediaType)
-		data, err := base64.StdEncoding.DecodeString(material.DataBase64)
-		if err != nil || len(data) == 0 || len(data) > 4<<20 ||
-			material.Size != int64(len(data)) ||
-			!validAttachmentFileName(material.Name) ||
-			!validAttachmentMediaType(material.MediaType) {
-			state.err = fmt.Errorf("CTFshow attachment payload is invalid")
-			close(state.done)
-			return
-		}
-		totalBytes += len(data)
-		if totalBytes > 4<<20 {
-			state.err = fmt.Errorf("CTFshow attachments exceed the 4 MiB browser bridge limit")
-			close(state.done)
-			return
-		}
-		calculated := sha256.Sum256(data)
-		if len(material.SHA256) != sha256.Size*2 ||
-			hex.EncodeToString(calculated[:]) != strings.ToLower(material.SHA256) {
-			state.err = fmt.Errorf("CTFshow attachment digest mismatch")
-			close(state.done)
-			return
-		}
-		material.SHA256 = strings.ToLower(material.SHA256)
-		material.Provenance = fmt.Sprintf(
-			"user-browser-extension:ctfshow:%d:file:%s:sha256:%s",
-			problemID,
-			material.Name,
-			material.SHA256,
-		)
-	}
-	state.ctfshowChallenge = ctfshow.ChallengeCapture{
-		CommandID: commandID, PlatformID: problemID,
-		SourceURL: fmt.Sprintf("https://ctf.show/challenges#%d", problemID),
-		Title:     title, Category: category, Statement: statement,
-		Points: points, SolvedCount: solvedCount, Tags: cleanTags,
-		Materials: materials, Warnings: cleanWarnings, ReceivedAt: time.Now().UTC(),
-	}
-	close(state.done)
-}
-
-func (m *Manager) recordCTFShowJudgeResult(
-	commandID, bridgeSessionID string,
-	problemID int,
-	status string,
-	correct *bool,
-	message, rawURL string,
-) {
-	status = strings.ToLower(strings.TrimSpace(status))
-	message = truncateText(strings.TrimSpace(message), 2000)
-	if status != "accepted" && status != "rejected" &&
-		status != "ambiguous" && status != "error" {
-		return
-	}
-	if (status == "accepted" && (correct == nil || !*correct)) ||
-		(status == "rejected" && (correct == nil || *correct)) ||
-		((status == "ambiguous" || status == "error") && correct != nil) {
-		return
-	}
-	urlProblemID, err := ctfshowProblemID(rawURL)
-	if err != nil || urlProblemID != problemID {
-		return
-	}
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	state := m.bridgeCommands[commandID]
-	if state == nil || state.ctfshowJudge.CommandID != "" || state.err != nil ||
-		state.command.Type != "ctfshow.submit_flag" ||
-		state.command.BridgeSessionID != bridgeSessionID ||
-		state.command.ProblemID != problemID ||
-		time.Now().UTC().After(state.command.ExpiresAt) {
-		return
-	}
-	state.ctfshowJudge = ctfshow.JudgeReceipt{
-		CommandID: commandID, ProblemID: problemID, Status: status, Correct: correct,
-		Message: message, URL: rawURL, ReceivedAt: time.Now().UTC(),
-	}
-	close(state.done)
 }
 
 func normalizeShortStrings(values []string, maxItems, maxRunes int) []string {
@@ -2049,70 +1341,6 @@ func validAttachmentMediaType(mediaType string) bool {
 		}
 	}
 	return true
-}
-
-func validateNSSCTFPage(rawURL string, state *NSSCTFPageState) error {
-	id, err := nssctfProblemID(rawURL)
-	if err != nil || state == nil || state.ProblemID != id {
-		return fmt.Errorf("NSSCTF page state does not match its URL")
-	}
-	state.Title = strings.TrimSpace(state.Title)
-	if state.Title == "" || len([]rune(state.Title)) > 160 || state.StartCost < 0 || state.StartCost > 1_000_000 {
-		return fmt.Errorf("invalid NSSCTF page state")
-	}
-	if len(state.Tags) > 32 {
-		state.Tags = state.Tags[:32]
-	}
-	if state.Tags == nil {
-		state.Tags = []string{}
-	}
-	return nil
-}
-
-func validateCTFShowCatalog(rawURL string, state *CTFShowCatalogState) error {
-	parsed, err := url.Parse(strings.TrimSpace(rawURL))
-	if err != nil || parsed.Scheme != "https" || parsed.Hostname() != "ctf.show" ||
-		parsed.Port() != "" || parsed.User != nil || state == nil || !state.LoggedIn ||
-		len(state.Problems) == 0 || len(state.Problems) > 10_000 {
-		return fmt.Errorf("invalid CTFshow catalog state")
-	}
-	for _, problem := range state.Problems {
-		if problem.PlatformID <= 0 || strings.TrimSpace(problem.Title) == "" {
-			return fmt.Errorf("invalid CTFshow challenge")
-		}
-	}
-	return nil
-}
-
-func nssctfProblemID(rawURL string) (int, error) {
-	parsed, err := url.Parse(strings.TrimSpace(rawURL))
-	if err != nil || parsed.Scheme != "https" || parsed.Hostname() != "www.nssctf.cn" ||
-		parsed.Port() != "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
-		return 0, fmt.Errorf("NSSCTF page must use the canonical HTTPS origin")
-	}
-	parts := strings.Split(strings.Trim(parsed.EscapedPath(), "/"), "/")
-	if len(parts) != 2 || parts[0] != "problem" {
-		return 0, fmt.Errorf("NSSCTF page must be a problem detail page")
-	}
-	id, err := strconv.Atoi(parts[1])
-	if err != nil || id <= 0 {
-		return 0, fmt.Errorf("invalid NSSCTF problem id")
-	}
-	return id, nil
-}
-
-func ctfshowProblemID(rawURL string) (int, error) {
-	parsed, err := url.Parse(strings.TrimSpace(rawURL))
-	if err != nil || parsed.Scheme != "https" || parsed.Hostname() != "ctf.show" ||
-		parsed.Port() != "" || parsed.User != nil || parsed.RawQuery != "" ||
-		parsed.EscapedPath() != "/challenges" {
-		return 0, fmt.Errorf("CTFshow page must use the canonical HTTPS origin")
-	}
-	id, err := strconv.Atoi(strings.TrimSpace(parsed.Fragment))
-	if err != nil || id <= 0 || id > 100_000_000 {
-		return 0, fmt.Errorf("invalid CTFshow challenge id")
-	}
-	return id, nil
 }
 
 func validBridgeSessionID(value string) bool {

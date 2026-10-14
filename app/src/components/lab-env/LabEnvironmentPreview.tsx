@@ -261,7 +261,6 @@ export default function LabEnvironmentPreview() {
   }
 
   function navigate(value: WorkspaceSection) {
-    if (value === 'ctf') return
     setSection(value)
     if (value === 'lab') {
       setLabTab('packages')

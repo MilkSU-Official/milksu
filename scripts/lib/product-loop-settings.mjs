@@ -23,14 +23,12 @@ const CATEGORIES = [
   ['运行时', 'Runtime'],
   ['归档聊天', 'Archived chats'],
   ['记忆', 'Memory'],
-  ['CTF'],
   ['CVE'],
   ['Lab'],
   ['Skills'],
   ['MCP'],
   ['插件', 'Plugins'],
   ['看板娘', 'Companion'],
-  ['评测', 'Eval'],
 ]
 
 async function openOrFail(driver, labels) {
@@ -48,7 +46,7 @@ export async function runSettingsNav(driver) {
   }
   return missing.length
     ? fail(`设置侧栏缺了 ${missing.join('、')}`)
-    : pass('十六个设置分类都能点开')
+    : pass('十四个设置分类都能点开')
 }
 
 export async function runSettingsAccount(driver) {
@@ -110,7 +108,7 @@ export async function runSettingsRuntime(driver) {
   if (error) return error
   return expectLabels(
     driver,
-    ['默认运行时', 'Default runtime', '忙碌时发送', 'Busy send', '内核', 'Kernel', 'DeepSeek Harness'],
+    ['默认运行时', 'Default runtime', '忙碌时发送', 'Busy send', '内核', 'Kernel', 'Agent', '命令', 'Command'],
     '运行时页有默认运行时和忙碌时发送',
     '运行时页缺了控件',
   )
@@ -137,12 +135,6 @@ export async function runSettingsModels(driver) {
     return pass(`${chrome.detail}；账户模型还在`)
   }
   return fail(`模型页控件在，中转站不完整，账户也没登录 enabled=${relay.enabled} hasKey=${relay.hasKey}`)
-}
-
-export async function runSettingsCtf(driver) {
-  const error = await openOrFail(driver, ['CTF'])
-  if (error) return error
-  return expectLabels(driver, ['NSSCTF', 'Arena', '题目浏览器扩展', 'Challenge browser extension', '配对码', 'Pairing code'], 'CTF 设置看得到 Arena 和扩展', 'CTF 设置缺了 Arena 或扩展')
 }
 
 export async function runSettingsCve(driver) {
@@ -180,8 +172,8 @@ export async function runSettingsMemory(driver) {
   if (error) return error
   const missing = await expectLabels(
     driver,
-    ['长期记忆', 'Long-term memory', '记忆检索', 'Memory retrieval', '会话索引', 'Session index', 'CTF 记忆', 'CTF memory'],
-    '记忆页有长期记忆、会话索引和 CTF 记忆',
+    ['长期记忆', 'Long-term memory', '记忆检索', 'Memory retrieval', '会话索引', 'Session index'],
+    '记忆页有长期记忆和会话索引',
     '记忆页缺了控件',
   )
   if (missing) return missing
@@ -232,12 +224,6 @@ export async function runSettingsBrowser(driver) {
     '外部浏览器管理页有 Browser Use',
     '外部浏览器管理页缺了控件',
   )
-}
-
-export async function runSettingsEval(driver) {
-  const error = await openOrFail(driver, ['评测', 'Eval'])
-  if (error) return error
-  return expectLabels(driver, ['套件', 'Suites', '全部测一遍', 'Run all', '开始', 'Start'], '评测页有套件和开始', '评测页没打开')
 }
 
 export async function runSettingsCompanion(driver) {

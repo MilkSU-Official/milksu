@@ -544,14 +544,12 @@ describe('Coding approval conversation recovery', () => {
     expect(message).not.toContain('synthetic-secret-value')
   })
 
-  it('restores structured CTF domainTaskContext from persisted conversation state', () => {
+  it('drops persisted CTF domainTaskContext so the row reads as Coding', () => {
     const conversation = normalizeConversation({
       id: 'ctf-conversation-1',
       title: 'CTF · Web challenge',
       createdAt: 1,
-      ctfJobId: 'job-42',
-      ctfMode: 'copilot',
-      ctfRole: 'solver',
+      workspaceHome: 'ctf',
       domainTaskContext: {
         kind: 'ctf',
         jobId: 'job-42',
@@ -569,17 +567,8 @@ describe('Coding approval conversation recovery', () => {
       },
       messages: [],
     })
-    expect(conversation.ctfJobId).toBe('job-42')
-    expect(conversation.domainTaskContext).toMatchObject({
-      kind: 'ctf',
-      jobId: 'job-42',
-      challengeId: 'ch-exact',
-      challengeTitle: 'Exact live challenge',
-      authorizedScope: expect.stringContaining('source-1'),
-    })
-    expect(String(conversation.domainTaskContext && 'authorizedScope' in conversation.domainTaskContext
-      ? conversation.domainTaskContext.authorizedScope
-      : '')).toContain('net-1')
+    expect(conversation.workspaceHome).toBeUndefined()
+    expect(conversation.domainTaskContext).toBeUndefined()
   })
 
   it('restores last context occupancy from persisted conversation state', () => {

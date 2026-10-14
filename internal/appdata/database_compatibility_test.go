@@ -332,7 +332,7 @@ func TestInspectDatabaseCompatibilityNegativeSupported(t *testing.T) {
 
 func TestInspectDatabaseCompatibilityRemainingNotOpened(t *testing.T) {
 	root := t.TempDir()
-	path := filepath.Join(root, "ctf", "memory.sqlite3")
+	path := filepath.Join(root, "legacy", "old.sqlite3")
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -342,7 +342,7 @@ func TestInspectDatabaseCompatibilityRemainingNotOpened(t *testing.T) {
 	before := fileSHA256(t, path)
 
 	results := InspectDatabaseCompatibility(context.Background(), root, []DatabaseDescriptor{
-		{LogicalName: "CTF Memory", RelativePath: "ctf/memory.sqlite3", Supported: 0},
+		{LogicalName: "Legacy", RelativePath: "legacy/old.sqlite3", Supported: 0},
 	})
 	if len(results) != 1 {
 		t.Fatalf("result count = %d, want 1: %#v", len(results), results)
@@ -371,7 +371,7 @@ func TestInspectDatabaseCompatibilityOrderStable(t *testing.T) {
 	seedMigrationHistory(t, eventsPath, true, [][2]any{{1, "2024-01-01T00:00:00Z"}})
 
 	results := InspectDatabaseCompatibility(context.Background(), root, []DatabaseDescriptor{
-		{LogicalName: "Remaining", RelativePath: "ctf/memory.sqlite3", Supported: 0},
+		{LogicalName: "Remaining", RelativePath: "legacy/old.sqlite3", Supported: 0},
 		{LogicalName: "EventStore", RelativePath: "runtime/events.sqlite3", Supported: 1},
 		{LogicalName: "Absent", RelativePath: "absent/db.sqlite3", Supported: 1},
 		{LogicalName: "Traversal", RelativePath: "x/../y.db", Supported: 1},

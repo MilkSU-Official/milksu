@@ -31,6 +31,11 @@ const tokenfluxEnv = { MILKSU_DSH_PI_AI_ROUTES: JSON.stringify({
       baseURL: "https://tokenflux.dev/v1",
       apiKeyEnv: "TOKENFLUX_API_KEY",
       displayName: "TokenFlux",
+      compat: {
+        supportsDeveloperRole: false,
+        supportsReasoningEffort: false,
+        maxTokensField: "max_tokens",
+      },
       models: [
         {
           id: "deepseek/deepseek-flash",
@@ -117,6 +122,7 @@ test("host patch disables llm-deepseek and mounts llm-pi-ai for TokenFlux", () =
   assert.match(patch, /api: openai-completions/);
   assert.match(patch, /baseURL: https:\/\/tokenflux\.dev\/v1/);
   assert.match(patch, /apiKeyEnv: TOKENFLUX_API_KEY/);
+  assert.match(patch, /compat:\n {10}supportsDeveloperRole: false/);
   assert.match(patch, /id: "deepseek\/deepseek-flash"/);
   assert.match(patch, /inputModalities: \[text, image\]/);
   assert.match(patch, /reasoningEfforts:\n {14}low: low\n {14}high: high\n {14}max: max/);

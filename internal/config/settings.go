@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -18,13 +19,12 @@ import (
 )
 
 const (
-	relaySecretAccount       = "relay"
-	nssctfArenaSecretAccount = "nssctf-agent-arena"
-	jevSecretAccount         = "jev"
-	providerAccountPrefix    = "provider:"
-	tokenFluxAccountURL      = "https://tokenflux.dev/v1"
-	presetDeepSeekServiceID  = "custom-relay-deepseek"
-	presetDeepSeekBaseURL    = "https://api.deepseek.com"
+	relaySecretAccount      = "relay"
+	jevSecretAccount        = "jev"
+	providerAccountPrefix   = "provider:"
+	tokenFluxAccountURL     = "https://tokenflux.dev/v1"
+	presetDeepSeekServiceID = "custom-relay-deepseek"
+	presetDeepSeekBaseURL   = "https://api.deepseek.com"
 )
 
 type RelayConfig struct {
@@ -47,13 +47,6 @@ type ProviderConfig struct {
 	Name         string   `json:"name,omitempty"`
 	Models       []string `json:"models,omitempty"`
 	API          string   `json:"api,omitempty"`
-}
-
-type NSSCTFArenaConfig struct {
-	Token       string `json:"token,omitempty"`
-	HasToken    bool   `json:"has_token"`
-	SessionOnly bool   `json:"session_only,omitempty"`
-	RemoveToken bool   `json:"remove_token,omitempty"`
 }
 
 // ModelFailureRecord is one real, observed model failure: the model could not answer because the
@@ -134,9 +127,12 @@ type CompanionModelSelection struct {
 type AppSettings struct {
 	ActiveProvider string `json:"active_provider"`
 	ActiveModel    string `json:"active_model"`
-	// DefaultKernel chooses Pi or DSH for a new conversation only.
+	// DefaultKernel chooses Pi or an agent for a new conversation only.
 	// Existing conversations keep the kernel persisted on that row.
+	// The persisted id is still "dsh" for agents (including old DSH rows).
 	DefaultKernel string `json:"default_kernel,omitempty"`
+	// AcpGuest is the user-provided ACP command. Empty command means Pi only.
+	AcpGuest *AcpGuestConfig `json:"acp_guest,omitempty"`
 	// RuntimeVersions are the installed agent kernel package versions,
 	// injected on read for the runtime pickers. Public metadata, never
 	// persisted; Save drops the field before writing.
@@ -157,7 +153,6 @@ type AppSettings struct {
 	ModelFailures            []ModelFailureRecord `json:"model_failures,omitempty"`
 	ModelRouting             ModelRoutingConfig   `json:"model_routing"`
 	Relay                    *RelayConfig         `json:"relay,omitempty"`
-	NSSCTFArena              *NSSCTFArenaConfig   `json:"nssctf_arena,omitempty"`
 	Locale                   *string              `json:"locale,omitempty"`
 	DisabledSkills           []string             `json:"disabled_skills"`
 	DisabledAccountModels    []string             `json:"disabled_account_models,omitempty"`
@@ -302,13 +297,56 @@ func CodingBrowserAllowed(settings AppSettings) bool {
 	return settings.CodingBrowserEnabled == nil || *settings.CodingBrowserEnabled
 }
 
+type AcpGuestConfig struct {
+	Command string            `json:"command"`
+	Args    []string          `json:"args,omitempty"`
+	Env     map[string]string `json:"env,omitempty"`
+}
+
+var acpGuestProviderEnvName = regexp.MustCompile(`(?i)^(?:.*_(?:API_KEY|SECRET|TOKEN|PASSWORD)|API_KEY|TOKENFLUX_API_KEY|DEEPSEEK_API_KEY|OPENAI_API_KEY|ANTHROPIC_API_KEY|MILKSU_CUSTOM_PROVIDER_KEY|MILKSU_RELAY_KEY)$`)
+
 func NormalizeDefaultKernel(value string) string {
 	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "dsh", "deepseek", "deepseek-harness":
+	case "dsh", "acp", "deepseek", "deepseek-harness":
 		return "dsh"
 	default:
 		return "pi"
 	}
+}
+
+func NormalizeAcpGuest(value *AcpGuestConfig) *AcpGuestConfig {
+	if value == nil {
+		return nil
+	}
+	command := strings.TrimSpace(value.Command)
+	if command == "" {
+		return nil
+	}
+	args := make([]string, 0, len(value.Args))
+	for _, item := range value.Args {
+		if trimmed := strings.TrimSpace(item); trimmed != "" {
+			args = append(args, trimmed)
+		}
+	}
+	var env map[string]string
+	for key, raw := range value.Env {
+		name := strings.TrimSpace(key)
+		if name == "" || acpGuestProviderEnvName.MatchString(name) {
+			continue
+		}
+		if env == nil {
+			env = make(map[string]string)
+		}
+		env[name] = raw
+	}
+	normalized := &AcpGuestConfig{Command: command}
+	if len(args) > 0 {
+		normalized.Args = args
+	}
+	if len(env) > 0 {
+		normalized.Env = env
+	}
+	return normalized
 }
 
 func DefaultSettings() AppSettings {
@@ -409,9 +447,6 @@ func (s *Store) hydrateSecrets(value AppSettings, replaceKeys bool) AppSettings 
 		value.Relay = &relay
 	} else if value.Relay != nil && (replaceKeys || strings.TrimSpace(value.Relay.Key) == "") {
 		value.Relay.Key = s.secretValues[relaySecretAccount]
-	}
-	if value.NSSCTFArena != nil && (replaceKeys || strings.TrimSpace(value.NSSCTFArena.Token) == "") {
-		value.NSSCTFArena.Token = s.secretValues[nssctfArenaSecretAccount]
 	}
 	if value.Jev != nil && (replaceKeys || strings.TrimSpace(value.Jev.APIKey) == "") {
 		value.Jev.APIKey = s.secretValues[jevSecretAccount]
@@ -626,43 +661,6 @@ func (s *Store) save(value AppSettings, allowJevCredential bool) error {
 		value.Relay.Key = ""
 		value.Relay.RemoveKey = false
 		value.Relay.HasKey = secrets[relaySecretAccount] != ""
-	}
-
-	if value.NSSCTFArena != nil {
-		value.NSSCTFArena.Token = strings.TrimSpace(value.NSSCTFArena.Token)
-		if err := validateSecretInput(value.NSSCTFArena.Token); err != nil {
-			return fmt.Errorf("NSSCTF Agent Arena token: %w", err)
-		}
-		switch {
-		case value.NSSCTFArena.RemoveToken:
-			if err := deleteSecretIfPresent(s.secretStore, nssctfArenaSecretAccount); err != nil {
-				return fmt.Errorf("remove NSSCTF Agent Arena token: %w", err)
-			}
-			delete(secrets, nssctfArenaSecretAccount)
-			value.NSSCTFArena.SessionOnly = false
-		case value.NSSCTFArena.Token != "":
-			if len(value.NSSCTFArena.Token) > 1024 {
-				return fmt.Errorf("NSSCTF Agent Arena token must be at most 1024 characters")
-			}
-			if !strings.HasPrefix(value.NSSCTFArena.Token, "nss_agent_") {
-				return fmt.Errorf("NSSCTF Agent Arena token must start with nss_agent_")
-			}
-			if value.NSSCTFArena.SessionOnly {
-				secrets[nssctfArenaSecretAccount] = value.NSSCTFArena.Token
-			} else if err := s.secretStore.Set(nssctfArenaSecretAccount, value.NSSCTFArena.Token); err != nil {
-				if secrets[nssctfArenaSecretAccount] == "" {
-					secrets[nssctfArenaSecretAccount] = value.NSSCTFArena.Token
-					value.NSSCTFArena.SessionOnly = true
-				}
-				persistenceErrors = append(persistenceErrors, fmt.Errorf("store NSSCTF Agent Arena token: %w", err))
-			} else {
-				secrets[nssctfArenaSecretAccount] = value.NSSCTFArena.Token
-				value.NSSCTFArena.SessionOnly = false
-			}
-		}
-		value.NSSCTFArena.Token = ""
-		value.NSSCTFArena.RemoveToken = false
-		value.NSSCTFArena.HasToken = secrets[nssctfArenaSecretAccount] != ""
 	}
 
 	if value.Jev != nil && !allowJevCredential {
@@ -964,34 +962,6 @@ func (s *Store) load() error {
 		value.Relay.HasKey = s.secretValues[relaySecretAccount] != ""
 	}
 
-	if value.NSSCTFArena != nil {
-		value.NSSCTFArena.Token = strings.TrimSpace(value.NSSCTFArena.Token)
-		if value.NSSCTFArena.Token != "" {
-			if err := validateSecretInput(value.NSSCTFArena.Token); err != nil {
-				return fmt.Errorf("migrate NSSCTF Agent Arena token: %w", err)
-			}
-			if len(value.NSSCTFArena.Token) > 1024 || !strings.HasPrefix(value.NSSCTFArena.Token, "nss_agent_") {
-				return fmt.Errorf("migrate NSSCTF Agent Arena token: invalid token prefix")
-			}
-			if err := s.secretStore.Set(nssctfArenaSecretAccount, value.NSSCTFArena.Token); err != nil {
-				return fmt.Errorf("migrate NSSCTF Agent Arena token: %w", err)
-			}
-			s.secretValues[nssctfArenaSecretAccount] = value.NSSCTFArena.Token
-			migrated = true
-		} else if value.NSSCTFArena.HasToken {
-			secret, err := s.secretStore.Get(nssctfArenaSecretAccount)
-			if err != nil && !errors.Is(err, errSecretNotFound) {
-				return fmt.Errorf("read NSSCTF Agent Arena token: %w", err)
-			}
-			if err == nil {
-				s.secretValues[nssctfArenaSecretAccount] = secret
-			}
-		}
-		value.NSSCTFArena.Token = ""
-		value.NSSCTFArena.RemoveToken = false
-		value.NSSCTFArena.HasToken = s.secretValues[nssctfArenaSecretAccount] != ""
-	}
-
 	if value.Jev != nil {
 		value.Jev.APIKey = strings.TrimSpace(value.Jev.APIKey)
 		if value.Jev.APIKey != "" {
@@ -1049,10 +1019,6 @@ func withoutSessionCredentials(value AppSettings) AppSettings {
 		value.Relay.HasKey = false
 		value.Relay.SessionOnly = false
 	}
-	if value.NSSCTFArena != nil && value.NSSCTFArena.SessionOnly {
-		value.NSSCTFArena.HasToken = false
-		value.NSSCTFArena.SessionOnly = false
-	}
 	return value
 }
 
@@ -1093,7 +1059,11 @@ func withDefaults(value AppSettings) AppSettings {
 	if value.ActiveModel == "" {
 		value.ActiveModel = defaults.ActiveModel
 	}
+	value.AcpGuest = NormalizeAcpGuest(value.AcpGuest)
 	value.DefaultKernel = NormalizeDefaultKernel(value.DefaultKernel)
+	if value.DefaultKernel == "dsh" && value.AcpGuest == nil {
+		value.DefaultKernel = "pi"
+	}
 	value.BusySend = NormalizeBusySend(value.BusySend)
 	if value.Providers == nil {
 		value.Providers = make(map[string]ProviderConfig)
@@ -1576,10 +1546,6 @@ func clone(value AppSettings) AppSettings {
 	if value.Relay != nil {
 		relay := *value.Relay
 		copy.Relay = &relay
-	}
-	if value.NSSCTFArena != nil {
-		arena := *value.NSSCTFArena
-		copy.NSSCTFArena = &arena
 	}
 	if value.Jev != nil {
 		jevConfig := *value.Jev

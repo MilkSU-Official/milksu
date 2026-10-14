@@ -34,7 +34,7 @@ function ChatProcessFold({
   process: ChatProcessFoldBlock
   model: ChatFoldModel
   recoverableFailureId?: string | null
-  recoveryContext?: 'ctf' | 'coding'
+  recoveryContext?: 'coding'
   rewindableUserMessageId?: string
   rewindDisabled?: boolean
   kernel?: 'pi' | 'dsh'

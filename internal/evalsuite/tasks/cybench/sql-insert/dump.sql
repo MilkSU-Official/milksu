@@ -1,1 +1,0 @@
-INSERT INTO flags(value) VALUES ('HTB{SQL_INSERT}');

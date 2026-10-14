@@ -49,7 +49,7 @@ func TestRecordCodingUsagePersistsModelAndToolEvents(t *testing.T) {
 	}
 }
 
-func TestRecordCodingUsageRejectsCTFRoleAndMissingToolIDs(t *testing.T) {
+func TestRecordCodingUsageRejectsNonCodingModuleAndMissingToolIDs(t *testing.T) {
 	store, err := modelusage.NewStore(filepath.Join(t.TempDir(), "model-usage.sqlite3"))
 	if err != nil {
 		t.Fatal(err)
@@ -58,7 +58,7 @@ func TestRecordCodingUsageRejectsCTFRoleAndMissingToolIDs(t *testing.T) {
 	app := &App{modelUsage: store}
 
 	for _, event := range []engine.Event{
-		{SessionID: "ctf-1", Type: "tool.completed", Module: "ctf", ToolName: "read", ToolCallID: "tool-1"},
+		{SessionID: "other-1", Type: "tool.completed", Module: "other", ToolName: "read", ToolCallID: "tool-1"},
 		{SessionID: "coding-1", Type: "tool.completed", Module: "coding", ToolName: "read"},
 	} {
 		changed, err := app.recordCodingUsage(event)

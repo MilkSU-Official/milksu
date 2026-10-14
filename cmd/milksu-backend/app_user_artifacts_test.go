@@ -259,14 +259,3 @@ func TestResolveImageConversationWorkspaceDropsProjectBinding(t *testing.T) {
 		t.Fatalf("image workspace changed from %q to %q", workspace, again)
 	}
 }
-
-func TestCTFWorkspaceRootUsesVisibleArtifactsWhenConfigured(t *testing.T) {
-	app := &App{
-		dataDirectory:     filepath.Join(t.TempDir(), "appdata"),
-		artifactDirectory: filepath.Join(t.TempDir(), "Documents", "MilkSU"),
-	}
-	want := filepath.Join(app.artifactDirectory, string(userartifact.KindCTF))
-	if got := app.ctfWorkspaceRoot(); got != want {
-		t.Fatalf("ctfWorkspaceRoot() = %q, want %q", got, want)
-	}
-}

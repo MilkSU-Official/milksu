@@ -91,7 +91,7 @@ describe('sidebar conversation fork', () => {
       title: 'Empty chat',
       createdAt: 1,
       workspacePath: '/workspace/app',
-      workspaceHome: 'ctf',
+      workspaceHome: 'lab',
       kernel: 'pi',
       messages: [message('user', 'u1')],
     }]
@@ -105,7 +105,7 @@ describe('sidebar conversation fork', () => {
     const forked = conversations.conversations.find(item => item.id === forkedId)
     expect(forked?.title).toBe('Empty chat')
     expect(forked?.workspacePath).toBe('/workspace/app')
-    expect(forked?.workspaceHome).toBe('ctf')
+    expect(forked?.workspaceHome).toBe('lab')
     expect(forked?.messages).toEqual([])
   })
 })

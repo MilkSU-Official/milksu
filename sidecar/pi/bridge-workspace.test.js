@@ -316,6 +316,7 @@ test("research workspace actions are typed, Pi-side, and omit extract text from 
   });
   assert.equal(requested[0].action, "start_research_run");
   assert.doesNotMatch(requested[0].input.query, /synthetic-provider-secret/);
+  assert.equal(requested[0].input.traceId, undefined);
   assert.deepEqual(observed, [{
     conversationId: "conversation-1",
     action: "start_research_run",
@@ -352,6 +353,32 @@ test("research workspace actions are typed, Pi-side, and omit extract text from 
   });
   assert.match(activity, /record_research_source/);
   assert.doesNotMatch(activity, /synthetic-secret|example\.test/);
+});
+
+test("start_research_run injects the session trace id into the workspace request", async () => {
+  const requested = [];
+  const tools = [];
+  const id = "trc_550e8400-e29b-41d4-a716-446655440000";
+  const extension = createCodingWorkspaceExtension(
+    "conversation-1",
+    () => ({ executionMode: "go", approvalPolicy: "workspace-auto" }),
+    async request => {
+      requested.push(request);
+      return JSON.stringify({ run: { id: "research_run_1", traceId: id } });
+    },
+    undefined,
+    undefined,
+    undefined,
+    () => [],
+    () => false,
+    () => id,
+  );
+  extension({ registerTool(tool) { tools.push(tool); } });
+  await tools[0].execute("call-research", {
+    action: "start_research_run",
+    query: "Compare official release dates",
+  });
+  assert.equal(requested[0].input.traceId, id);
 });
 
 test("compact_context queues Pi compaction below the 80 percent auto threshold", async () => {

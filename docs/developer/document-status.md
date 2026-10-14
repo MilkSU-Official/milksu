@@ -1,6 +1,6 @@
 # 文档与事实状态
 
-> Current。2026-09-25。
+> Current。2026-10-14。
 
 冲突时以当前代码、测试和安装包回执为准，然后是 [当前开发目标](current-objectives.md)，然后是 [当前系统](../architecture/current-system.md)。历史文档里的「下一步」和旧里程碑不是任务。过期稿在 Git history，不留在 `docs/`。
 
@@ -25,8 +25,6 @@
 | [远程控制](remote-control.md) | 未实现。手机连本机的准入，不是当前完成线 |
 | `AGENTS.md` | 协作约束和产品 UI。其他文档不复制 |
 | [上手模板](product-loop.local.example.md) | 本机回归怎么填 Key。真值在 gitignore 的 env |
-
-六赛道回归的数据在 `ctf-six-track-regression-manifest.json`，由 `npm run test:ctf-six-track-regression` 校验。NYU safe-static 的命令在 `cmd/nyu-ctf-bench-*`，不是产品回归，也不是 CTF 成绩。
 
 ## 规则
 

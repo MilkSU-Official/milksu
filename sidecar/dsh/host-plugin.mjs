@@ -55,7 +55,7 @@ export function followupHostAgent(agent, text) {
   const prompt = String(text ?? "").trim();
   if (!prompt) throw new Error("prompt is required");
   if (!agent || typeof agent.followup !== "function") {
-    throw new Error("DeepSeek Harness followup is unavailable");
+    throw new Error("Agent followup is unavailable");
   }
   // DSH Agent.followup queues a next-turn user message and wakes the driver.
   // Do not wait for ACP session/prompt: that call settles only after whenIdle,
@@ -250,7 +250,7 @@ export async function dispatch(ctx, watchers, socket, message, pendingUserQuesti
     return { interrupted: ids };
   }
   const agent = typeof agents?.get === "function" ? agents.get(sessionId) : undefined;
-  if (!agent) throw new Error(`DeepSeek Harness session not found: ${sessionId}`);
+  if (!agent) throw new Error(`Agent session not found: ${sessionId}`);
   if (message.method === "set_approval") {
     const policy = String(message.params?.policy ?? "").trim();
     const presets = hostService(ctx, "permissionPresets");
@@ -317,7 +317,7 @@ export async function dispatch(ctx, watchers, socket, message, pendingUserQuesti
   }
   const compaction = hostService(ctx, "compaction");
   if (!compaction || typeof compaction.compactNow !== "function") {
-    throw new Error("DeepSeek Harness compaction is unavailable");
+    throw new Error("Agent compaction is unavailable");
   }
   const result = await compaction.compactNow(agent, AbortSignal.timeout(120_000));
   return projectCompactResult(result, agent.session);

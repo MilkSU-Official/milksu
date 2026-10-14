@@ -20,7 +20,7 @@ const (
 
 // OpenCompanionSidecar starts the independent companion process. It uses the
 // isolated agent workspace so Pi does not walk a user repository, and it is
-// never parked with Coding / CTF sidecars.
+// never parked with Coding sidecars.
 func OpenCompanionSidecar(
 	settings config.AppSettings,
 	sidecarDirectory,

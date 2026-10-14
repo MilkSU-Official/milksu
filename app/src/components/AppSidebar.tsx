@@ -2,7 +2,7 @@ import ContextSidebar from '@/components/ContextSidebar'
 import { useT } from '@/hooks/useUiLocale'
 import type { ThemeMode } from '@/lib/themeMode'
 import type { NormalizedSettingsCategory } from '@/lib/settingsNavigation'
-import type { AppSection, CTFWorkspaceSection, WorkspaceSection } from '@/lib/workspaceNavigation'
+import type { AppSection, WorkspaceSection } from '@/lib/workspaceNavigation'
 import type { CompanionPawState } from '@/lib/companionOverlayState'
 import type { AccountStatus, Conversation, UpdateStatus } from '@/types'
 
@@ -15,7 +15,6 @@ export default function AppSidebar({
   problemConversationIds,
   backgroundTasks,
   conversationActionError,
-  ctfSection,
   codingContextOpen,
   themeMode,
   updateStatus,
@@ -41,7 +40,6 @@ export default function AppSidebar({
   onMovePinned,
   onReorderPinned,
   onForkConversation,
-  onNavigateCtf,
   onOpenCodingContext,
   onCollapseCodingContext,
   onApplyUpdate,
@@ -56,7 +54,6 @@ export default function AppSidebar({
   problemConversationIds?: string[]
   backgroundTasks?: Record<string, { id?: string; name?: string; status?: string }[]>
   conversationActionError?: string
-  ctfSection: CTFWorkspaceSection
   codingContextOpen?: boolean
   themeMode: ThemeMode
   updateStatus?: UpdateStatus | null
@@ -82,7 +79,6 @@ export default function AppSidebar({
   onMovePinned?: (id: string, direction: -1 | 1) => void
   onReorderPinned?: (id: string, beforeId: string) => void
   onForkConversation?: (id: string) => void
-  onNavigateCtf?: (value: CTFWorkspaceSection) => void
   onOpenCodingContext?: () => void
   onCollapseCodingContext?: () => void
   onApplyUpdate?: () => void
@@ -104,7 +100,6 @@ export default function AppSidebar({
         problemConversationIds={problemConversationIds}
         backgroundTasks={backgroundTasks}
         actionError={conversationActionError}
-        ctfSection={ctfSection}
         accountStatus={accountStatus}
         themeMode={themeMode}
         updateStatus={updateStatus}
@@ -125,7 +120,6 @@ export default function AppSidebar({
         onMovePinned={onMovePinned}
         onReorderPinned={onReorderPinned}
         onForkConversation={onForkConversation}
-        onNavigateCtf={onNavigateCtf}
         onNavigate={onNavigate}
         onProfile={onProfile}
         onSettings={onSettings}

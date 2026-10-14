@@ -1,7 +1,8 @@
 # PI Resource Whitelist
 
-> 状态：**Living / Enforced**。打包清单、版本固定和 CTF 负向隔离以当前代码与 Sidecar Smoke
-> 为准；“已加载”不等于专项能力已经 Verified。
+> 状态：**Living / Enforced**。打包清单和版本固定以当前代码与 Sidecar Smoke
+> 为准；“已加载”不等于专项能力已经 Verified。CTF 已从产品面移除；`isCtfWorkspace`
+> 恒为 false。旧会话 id 前缀 `ctf_` 仍走 legacy engine，好打开旧记录。
 
 MilkSU disables PI ambient discovery for Extensions, Skills, prompts, themes, and context files.
 Packaged sessions still load only the reviewed resources below, plus user MCP servers and
@@ -19,17 +20,17 @@ Coding Harness adopts a strict **reuse-first** policy:
 1. If Pi core already owns the lifecycle, MilkSU calls Pi instead of reimplementing it.
 2. If a reviewed Pi package provides a general Coding capability, MilkSU pins and adapts it instead of shipping an interim clone.
 3. MilkSU-owned code is limited to desktop product boundaries that an extension cannot own safely: workspace/sandbox enforcement, credential isolation, explicit approval transport, Electron/Go RPC event-state projection, and user-data persistence.
-4. Product-specific invention is concentrated in the CTF Agent: role orchestration, evidence, Judge, recovery, training memory, and ability calibration.
+4. CVE / Lab domain facts stay MilkSU-owned. Do not restore the CTF Agent, Judge loop, or NYU eval bench.
 5. A planned Coding feature with a credible upstream candidate stays visibly `Planned` until that candidate is integrated or rejected with evidence. It must not accumulate a temporary bespoke harness meanwhile.
 
-The goal is not the raw number of installed packages. The acceptance metric is a smaller MilkSU-specific control plane, with each external capability pinned, licensed, scoped, and tested in both positive Coding and negative CTF-isolation paths.
+The goal is not the raw number of installed packages. The acceptance metric is a smaller MilkSU-specific control plane, with each external capability pinned, licensed, scoped, and tested on Coding, CVE, and Lab paths.
 
 ## Active resources
 
 | Resource | Version / revision | Session scope | Capability | Controls |
 | --- | --- | --- | --- | --- |
-| `milksu-workflow` | MilkSU source | Coding + CTF roles | Visible progress and role-specific execution guidance | First-party; `milksu_progress` has a bounded schema and no external effects |
-| `frontend-visual-qa` | MilkSU source | Normal Coding only | Tests, real preview and sandbox Browser evidence for frontend changes | First-party reviewed Skill; auto-invoked from its `description`; CTF sessions must not load it |
+| `milksu-workflow` | MilkSU source | Coding, CVE, and Lab | Visible progress and role-specific execution guidance | First-party; `milksu_progress` has a bounded schema and no external effects |
+| `frontend-visual-qa` | MilkSU source | Normal Coding only | Tests, real preview and sandbox Browser evidence for frontend changes | First-party reviewed Skill; auto-invoked from its `description` |
 | `deep-research-web` | MilkSU source | DSH Coding sessions | Single-turn web research with source-grounded citations and a workspace report | First-party reviewed Skill; DSH-only（durable 的 `deep-research` 是 Pi-only，见下表）; auto-invoked from its `description`; reuses the kernel's reviewed web tools instead of a second research harness; fetched content is data, quotes must be verbatim from read sources |
 | `product-design` | MilkSU source | Pi sessions (any role) | Visual goal, implementation, and rendered-result verification for a major UI or flow change | First-party reviewed Skill; auto-invoked from its `description` |
 | `integrate-api` | MilkSU source | Pi sessions (any role) | Connect an external API, SDK, OAuth, webhook, or hosted model against current official docs and a verified request | First-party reviewed Skill; auto-invoked from its `description` |
@@ -38,15 +39,15 @@ The goal is not the raw number of installed packages. The acceptance metric is a
 | `release-milksu` | MilkSU source | Pi sessions (any role) | Build, verify, or publish a MilkSU desktop release | First-party reviewed Skill; slash-only through `disable-model-invocation` |
 | `recon-authorized-target` | MilkSU source | Pi sessions (any role) | Inventory one user-authorized host, lab target, or CVE reproduction surface | First-party reviewed Skill; auto-invoked from its `description`; no typed sweep tool, no unauthorized targets |
 | `ghidra-rpc` / `jadx` | MilkSU source | Packaged; DSH Skill catalog | Binary reversing with Ghidra; APK / DEX / AAR decompilation to Java | First-party optional Skills; packaged into the Sidecar and published to the DSH catalog, not auto-loaded into Pi sessions |
-| `tt-a1i/archify` | `2.12.0` / `7b49d0b715fd4ba48116bcdecd1ba3789a279613` | Normal Coding only | Architecture, workflow, sequence, dataflow, and lifecycle diagrams | Pinned submodule; MIT; packaged commit check; CTF sessions must not load it |
+| `tt-a1i/archify` | `2.12.0` / `7b49d0b715fd4ba48116bcdecd1ba3789a279613` | Normal Coding only | Architecture, workflow, sequence, dataflow, and lifecycle diagrams | Pinned submodule; MIT; packaged commit check |
 | `@narumitw/pi-lsp` | `0.29.0` + reviewed MilkSU patch | Normal Coding only | `lsp_diagnostics` and reviewed `lsp_fix` through fixed language servers | Exact npm pin; MIT; MilkSU rejects multi-file/resource WorkspaceEdits that cannot be reviewed and applied atomically, forces a reviewed Go/Vue/TypeScript config, ignores repository commands, launches the real server with a non-secret environment, forces a dry-run before writes, validates the project path and hashes, shows a complete Diff in Ask, and verifies the applied text; TypeScript `5.3.0`, Vue `2.2.12` non-Hybrid mode, and TypeScript SDK `6.0.3` are bundled |
 | `diff` | `8.0.4` | Normal Coding LSP adapter | Unified Diff generation for reviewed `lsp_fix` | Exact npm pin; BSD-3-Clause; only formats the upstream Pi LSP dry-run result; license copied into the Sidecar manifest |
-| `@narumitw/pi-goal` | `0.43.0` | Normal Coding only | Pi-native goal lifecycle, alongside the desktop progress projection | Exact npm pin; MIT; CTF sessions keep MilkSU's recorder-owned progress and Judge semantics |
-| `pi-better-background-tasks` | `0.1.10` | Normal Coding only | Conversation-owned background processes, bounded logs and stop | Exact npm pin; MIT; visible lifecycle; CTF sessions must not load it |
+| `@narumitw/pi-goal` | `0.43.0` | Normal Coding only | Pi-native goal lifecycle, alongside the desktop progress projection | Exact npm pin; MIT |
+| `pi-better-background-tasks` | `0.1.10` | Normal Coding only | Conversation-owned background processes, bounded logs and stop | Exact npm pin; MIT; visible lifecycle |
 | `pi-mcp-adapter` | `5.0.0` | Normal Coding opt-in | Reviewed project MCP servers and first-party adapters | Exact npm pin; MIT; digest selection, sandbox, environment filtering and per-call desktop approval; every server pins `protocolVersion: "auto"` with legacy fallback, and the proxy-only tool surface keeps `namespaceProxyTools` and `scriptMode` off |
 | `@playwright/mcp` | `0.0.78` | Normal Coding, explicit sandbox Browser or Browser Use | Dedicated-profile Browser control or extension-mode access to one user-approved real tab | Exact npm pin; Apache-2.0; the two modes have separate Scope/profile semantics; transient descriptor or extension pairing; no ambient whole-profile authority |
 | `@napi-rs/system-ocr` | `1.1.0` | Normal Coding attachments | Local text extraction for images when the selected model has no vision | Exact npm pin; MIT; local-only fallback and explicit degradation disclosure |
-| `pi-subagents` | `0.74.0` | Coding, CTF, CVE, and Lab | Detached background subagents. The Pi kernel does not provide this | Exact npm pin; MIT. Peers `@earendil-works/pi-agent-core` and `@earendil-works/chord` are pinned with the kernel because the extension imports them. Builtin roles only. Workflow JavaScript, Gist share, `~/.pi` / project `.pi` / `~/.agents` discovery, and tmux/Herdr panes stay off. External CLI launches always ask. Companion does not load this package |
+| `pi-subagents` | `0.74.0` | Coding, CVE, and Lab | Detached background subagents. The Pi kernel does not provide this | Exact npm pin; MIT. Peers `@earendil-works/pi-agent-core` and `@earendil-works/chord` are pinned with the kernel because the extension imports them. Builtin roles only. Workflow JavaScript, Gist share, `~/.pi` / project `.pi` / `~/.agents` discovery, and tmux/Herdr panes stay off. External CLI launches always ask. Companion does not load this package |
 | `deep-research` | MilkSU source | Pi-selected conversations | Pi-model-owned research, parent claim verification, focused critic, and synthesis; MilkSU-owned run/source/citation/report persistence | First-party Skill; loaded only by Pi's reviewed path; excluded from the shared DSH catalog; reviewed `milksu_workspace` coordinator; workers tracked from Sidecar events; same-turn overlap unverified; no live/native verification implied |
 
 Deep Research uses Pi for the research and critic behavior, with MilkSU responsible for persistence; it is not a separate research runtime. During an active run, only Pi web tools and a managed Research Browser tab are available for retrieval; other MCP servers are blocked. Browser fallback uses the research-run-checked `open_research_browser_tab` action and reviewed Playwright MCP, only when normal `web_fetch` fails or returns unusable content. Each source opens in a fresh in-memory Chromium partition, without prior Browser history or cookies. The typed fallback rejects local/internal hosts and private DNS/IP results; Electron checks every request from a marked Research tab, including redirects, subresources, and inherited popups, then the Research-only loopback proxy connects to a validated numeric IP. Normal Browser tabs retain their existing localhost access. Research turns expose only read-only Playwright inspection tools. Public HTTP(S)/WebSocket origins are not restricted to a per-origin allowlist. It is not Browser Use or arbitrary Chrome. Resource presence and this documentation do not imply live/native research verification.
@@ -58,8 +59,8 @@ by the resource loader; it is not a hard-coded declaration:
 - a normal Pi Coding session exposes the reviewed Skills (including Pi-only Deep Research), Goal, background tasks and the reviewed MCP Adapter;
   bundled TypeScript/Vue/Go LSP diagnostics are available, and Playwright appears only after the
   user explicitly starts the Coding Browser;
-- a CTF session exposes none of these external resources and continues to use
-  MilkSU's dedicated CTF tools and recorder-owned retry semantics.
+- leftover conversation ids with the `ctf_` prefix still run on the legacy engine so old records can open;
+  `isCtfWorkspace` is always false, and there is no live CTF isolation policy.
 
 `pi-lsp` diagnostics and the reviewed TypeScript, Vue, and Go write-fix paths are **Verified**.
 MilkSU deliberately
@@ -93,8 +94,7 @@ the Sidecar manifest.
 | `tomsej/pi-ext` Code Review / Tool Pills / `pi-sem` | Preferred candidates for review workflow, compact tool rendering, and semantic change inspection. Evaluate measured context cost before enabling semantic tools by default. |
 | `tomsej/pi-ext` Ask User Question | Preferred structured clarification candidate once extension UI requests can round-trip through the Desktop RPC. |
 | `pi-chrome-devtools` | Do not load. It duplicates the explicit browser pairing boundary and would widen browser authority. |
-| IDA Pro/idalib, Burp, radare2, Ghidra, Semgrep MCP | Security pilot candidates, not active resources. Review and pin one upstream per tool, start read-only/minimal, separate read/write/execute/network effects, keep credentials out of context, retain a real Coding task and a denied over-scope receipt, then decide whether to promote it into CTF/CVE. |
-| Community CTF Skill packs | Do not bulk install. Select one category Skill only after a real failed trajectory establishes the need; review scripts and tool prerequisites before activation. |
+| IDA Pro/idalib, Burp, radare2, Ghidra, Semgrep MCP | Security pilot candidates, not active resources. Review and pin one upstream per tool, start read-only/minimal, separate read/write/execute/network effects, keep credentials out of context, retain a real Coding task and a denied over-scope receipt, then decide whether to promote it into CVE / Lab. |
 
 Pi's official documentation states that Pi runs with the launching process's filesystem, process, network, and credential authority unless it is sandboxed or containerized. Therefore the MilkSU OS sandbox is platform code, not a duplicate plugin feature. A community permission matcher can improve policy authoring, but cannot replace the enforcement layer.
 
@@ -109,14 +109,13 @@ Pi's official documentation states that Pi runs with the launching process's fil
 | Session archive/query/handoff | Do not build | Evaluate Session Snap / Query / Handoff and adapt only desktop navigation/state |
 | Code review and semantic diff | Do not build from scratch | Evaluate Code Review / Tool Pills / `pi-sem`; MilkSU owns file/diff presentation in the right panel |
 | Architecture diagrams, LSP, retry | Keep pinned external resources | Keep the reviewed `gopls` package gate and thin LSP review adapter, expand language fixtures, and avoid feature forks |
-| CTF recorder, Judge, evidence, role handoff, learning memory | Keep MilkSU-owned | This remains the product's primary innovation surface |
 
 ## Update procedure
 
 1. Review the exact source revision and license; never use a floating branch or unpinned package.
 2. Record session scope and whether the resource can read, write, execute, access the network, or load more resources.
 3. Keep ambient discovery disabled.
-4. Add a positive Coding smoke assertion, and a CTF assertion for whatever the domain policy adds or narrows.
+4. Add a positive Coding smoke assertion, and a CVE / Lab assertion for whatever the domain policy adds or narrows.
 5. Run `npm run sidecar:smoke`, `npm run test:sidecar`, the Go and app (React) regression suites,
    `npm run desktop:build`, and `npm run codesign:check` before publishing.
 6. Copy the direct dependency license into `THIRD_PARTY-LICENSES` and record its path in the Sidecar manifest.

@@ -10,10 +10,7 @@ import (
 	"testing"
 
 	"github.com/MilkSU-Official/milksu/internal/appdata"
-	"github.com/MilkSU-Official/milksu/internal/ctf"
-	"github.com/MilkSU-Official/milksu/internal/ctfshow"
 	"github.com/MilkSU-Official/milksu/internal/modelusage"
-	"github.com/MilkSU-Official/milksu/internal/nssctf"
 	"github.com/MilkSU-Official/milksu/internal/research"
 	"github.com/MilkSU-Official/milksu/internal/securityruntime"
 
@@ -73,7 +70,7 @@ func TestRestoredLegacyBackupIsProtectedBeforeAllDatabaseUpgrades(t *testing.T) 
 		t.Fatal(err)
 	}
 	if !migrationBackup.Required || !migrationBackup.Created ||
-		migrationBackup.PendingDatabaseCount != 6 ||
+		migrationBackup.PendingDatabaseCount != 3 ||
 		migrationBackup.CredentialsIncluded {
 		t.Fatalf("unexpected migration backup result: %#v", migrationBackup)
 	}
@@ -105,8 +102,8 @@ func TestRestoredLegacyBackupIsProtectedBeforeAllDatabaseUpgrades(t *testing.T) 
 		liveRoot,
 		databaseCompatDescriptors(),
 	)
-	if len(statuses) != 6 {
-		t.Fatalf("database status count = %d, want 6: %#v", len(statuses), statuses)
+	if len(statuses) != 3 {
+		t.Fatalf("database status count = %d, want 3: %#v", len(statuses), statuses)
 	}
 	for _, status := range statuses {
 		if status.State != "compatible" || status.Current == nil ||
@@ -145,35 +142,6 @@ func openAndCloseAllDatabases(t *testing.T, root string) {
 		t.Fatal(err)
 	}
 	if err := runtimeService.Close(); err != nil {
-		t.Fatal(err)
-	}
-	memoryStore, err := ctf.NewMemoryStore(
-		filepath.Join(root, "data", "domain", "ctf", "memory.sqlite3"),
-		filepath.Join(root, "data", "domain", "ctf", "memories"),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := memoryStore.Close(); err != nil {
-		t.Fatal(err)
-	}
-	nssctfCatalog, err := nssctf.NewCatalogService(
-		filepath.Join(root, "data", "domain", "nssctf", "catalog.sqlite3"),
-		nssctf.NewClient(nssctf.ClientOptions{}),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := nssctfCatalog.Close(); err != nil {
-		t.Fatal(err)
-	}
-	ctfshowCatalog, err := ctfshow.NewCatalogService(
-		filepath.Join(root, "data", "domain", "ctfshow", "catalog.sqlite3"),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := ctfshowCatalog.Close(); err != nil {
 		t.Fatal(err)
 	}
 	usageStore, err := modelusage.NewStore(

@@ -45,7 +45,6 @@ function baseProps(): ComponentProps<typeof AppSidebar> {
     activeSection: 'chat',
     activeConversationId: null,
     conversations: [TASK],
-    ctfSection: 'catalog',
     accountStatus: { configured: true, authenticated: true, state: 'active' },
     themeMode: 'light',
     codingContextOpen: true,

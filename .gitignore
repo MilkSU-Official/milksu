@@ -38,6 +38,8 @@ build/acceptance-shots/
 app/eval-settings-preview.html
 app/src/eval-settings-preview.ts
 app/src/previews/EvalSettingsPreview.vue
+.tmp-rewrite-plan.md
+
 # Product-loop local runbook and keys. Copy from the committed *.example.* files.
 docs/developer/product-loop.local.md
 docs/developer/product-loop.local.env

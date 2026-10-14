@@ -5,7 +5,6 @@ import {
   profileAvatarFileProblem,
   qualitativeStage,
 } from './personalProfile'
-import type { CTFSummary } from '@/ctfTypes'
 import type { Conversation } from '@/types'
 import type { VulnerabilityIntel } from '@/vulnerabilityIntel'
 
@@ -29,30 +28,17 @@ describe('personal profile projection', () => {
         { id: 't2', role: 'tool', content: 'tool result', timestamp: now - 100 },
       ],
     }]
-    const ctfJobs = [{ id: 'ctf-1', title: 'Baby RE', category: 'reverse', status: 'succeeded', experimentCount: 1, verdict: 'pass', pendingSubmission: false, pendingJudge: false, updatedAt: '2026-08-10T10:00:00+08:00' }] as CTFSummary[]
     const vulnerabilities = [{
       id: 'CVE-2026-1000', title: 'Android 反序列化', vendor: 'Test', product: 'Widget',
-      cvss: 8, epss: 10, severity: 'high', status: '研究中', assetCount: 0, updated: '本地资料',
+      cvss: 8, epss: 10, severity: 'high', status: '已验证', assetCount: 0, updated: '本地资料',
       kev: false, affected: '1.x', maturity: '研究中', summary: '测试条目', references: [], assets: [], timeline: [],
     }] as VulnerabilityIntel[]
 
-    const profile = buildPersonalProfileSnapshot(conversations, ctfJobs, vulnerabilities, now)
-    expect(profile.modules.map(item => item.count)).toEqual([1, 1, 1])
-    expect(profile.activities).toHaveLength(3)
-    expect(profile.activities.find(item => item.module === 'ctf')?.detail).toContain('独立验证')
-    expect(profile.activities.filter(item => item.confirmed).map(item => item.module)).toEqual(['coding', 'ctf'])
-    expect(profile.activeDays).toBe(2)
-  })
-
-  it('does not call an ended CTF task confirmed without a Judge pass', () => {
-    const ctfJobs = [{
-      id: 'ctf-ended', title: 'No receipt', category: 'web', status: 'succeeded', experimentCount: 1,
-      pendingSubmission: false, pendingJudge: false, updatedAt: '2026-08-10T10:00:00+08:00',
-    }] as CTFSummary[]
-
-    const profile = buildPersonalProfileSnapshot([], ctfJobs, [], now)
-    expect(profile.activities).toHaveLength(1)
-    expect(profile.activities[0]?.confirmed).toBe(false)
+    const profile = buildPersonalProfileSnapshot(conversations, vulnerabilities, now)
+    expect(profile.modules.map(item => item.count)).toEqual([1, 1])
+    expect(profile.activities).toHaveLength(2)
+    expect(profile.activities.filter(item => item.confirmed).map(item => item.module)).toEqual(['coding', 'vuln'])
+    expect(profile.activeDays).toBe(1)
   })
 
   it('uses honest qualitative stages and a 53-week activity grid', () => {

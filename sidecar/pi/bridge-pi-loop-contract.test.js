@@ -9,7 +9,7 @@ const bridgeSource = await readFile(
   "utf8",
 );
 
-test("Pi auto-compaction stays enabled for every session including CTF", () => {
+test("Pi auto-compaction stays enabled for every session", () => {
   assert.match(bridgeSource, /setAutoCompactionEnabled\(true\)/);
   assert.doesNotMatch(
     bridgeSource,
@@ -30,7 +30,7 @@ test("Pi auto-compaction stays enabled for every session including CTF", () => {
   );
 });
 
-test("reused Coding/CTF/CVE/lab sessions re-enable Pi auto-compaction", () => {
+test("reused Coding/CVE/lab sessions re-enable Pi auto-compaction", () => {
   assert.match(
     bridgeSource,
     /existing\.setAutoCompactionEnabled\(true\)/,
@@ -41,7 +41,7 @@ test("reused Coding/CTF/CVE/lab sessions re-enable Pi auto-compaction", () => {
   );
 });
 
-test("CTF/CVE/lab sessions keep Coding loop surfaces instead of role-gating them off", () => {
+test("CVE/lab sessions keep Coding loop surfaces instead of role-gating them off", () => {
   assert.doesNotMatch(
     bridgeSource,
     /if \(!sessionPolicy\.ctf\) \{\s*emitBackgroundTasks/,

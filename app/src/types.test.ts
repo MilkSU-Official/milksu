@@ -83,7 +83,24 @@ describe('model provider catalog', () => {
       active_model: 'deepseek-flash',
       default_kernel: 'deepseek-harness',
     } as AppSettings)
-    expect(settings.default_kernel).toBe('dsh')
+    expect(settings.default_kernel).toBe('pi')
+  })
+
+  it('keeps an agent default_kernel only when a command is set', () => {
+    const withoutCommand = withAppSettingsDefaults({
+      active_provider: 'custom-relay-deepseek',
+      active_model: 'deepseek-flash',
+      default_kernel: 'dsh',
+    } as AppSettings)
+    expect(withoutCommand.default_kernel).toBe('pi')
+    const withCommand = withAppSettingsDefaults({
+      active_provider: 'custom-relay-deepseek',
+      active_model: 'deepseek-flash',
+      default_kernel: 'acp',
+      acp_guest: { command: '/usr/bin/guest' },
+    } as AppSettings)
+    expect(withCommand.default_kernel).toBe('dsh')
+    expect(withCommand.acp_guest).toEqual({ command: '/usr/bin/guest' })
   })
 
   it('normalizes busy_send without rewriting other settings', () => {

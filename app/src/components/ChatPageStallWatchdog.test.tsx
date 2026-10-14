@@ -113,7 +113,6 @@ async function renderChatPage() {
       sessionReady
       resumed={false}
       compacting={false}
-      ctfSession={false}
       ensureConversation={() => conversation.id}
     />
   )

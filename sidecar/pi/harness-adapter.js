@@ -9,8 +9,8 @@
 //   MILKSU_PI_HARNESS=0＝显式关——回退旧引擎（bridge.js 的 SessionManager/AgentSession
 //   全功能路径，测试实证 D2 交付报告）。与 bridge-hang-guard 的
 //   MILKSU_PI_HANG_GUARD !== "0" 同款「默认开、0 显式关」约定。
-//   CTF/CVE/实验室工作区的排除不在本门（它们门开关一律走旧引擎），判定与门收口在
-//   harness-bridge-flip.js 的 harnessSessionEligible（bridge.js 唯一调用点）。
+//   CVE / 实验室研究角色与遗留 ctf_ 会话 id 的排除不在本门（它们门开关一律走旧引擎），
+//   判定与门收口在 harness-bridge-flip.js 的 harnessSessionEligible（bridge.js 唯一调用点）。
 //
 // 存储目录按工作区隔离（PREP §5-R1 缓解措施的明文要求「存储路径按工作区隔离」）：
 // 宿主对每个工作区起独立 sidecar 进程（切换工作区时旧进程 park 保活至多 15 分钟空闲，

@@ -26,7 +26,7 @@ export async function interruptHostSubagent(subagents, agents, parentSessionId, 
   const parent = String(parentSessionId ?? "").trim();
   const child = String(childId ?? "").trim();
   if (!parent || !child) throw new Error("sessionId and subagentId are required");
-  if (!subagents) throw new Error("DeepSeek Harness subagents are unavailable");
+  if (!subagents) throw new Error("Agent subagents are unavailable");
   if (typeof subagents.interruptByParent === "function") {
     subagents.interruptByParent(child, parent, "continuable");
   }

@@ -30,7 +30,7 @@
 | --- | --- | --- |
 | shadcn Button 全部变体（发送、停止、图标按钮…） | 按下 `scale(0.97)`；颜色变化走同一档时长 | `button.tsx` 基类；`link` / `link-static` / `link-draw` 变体显式关掉缩放 |
 | 输入栏芯片（模型、分支、工作区、加号） | 悬停改底色；按下缩放 | `ChatComposer.tsx` 的 `.chat-composer__chip` |
-| 侧栏会话行、项目行、CTF/CVE/Lab 导航、设置图标 | 悬停与选中改底色；按下加深底色（不缩放） | `ContextSidebar.tsx` 的 `.agent-sidebar-row` / `.agent-sidebar-item` |
+| 侧栏会话行、项目行、CVE / 实验室导航、设置图标 | 悬停与选中改底色；按下加深底色（不缩放） | `ContextSidebar.tsx` 的 `.agent-sidebar-row` / `.agent-sidebar-item` |
 | 工作区图标栏 | 悬停改底色 | `WorkspaceRail.tsx` 的 `.workspace-rail-item`（未加按下反馈） |
 | 工具行（`.agent-chip`） | 悬停与展开同一底色；按下即加深 | `agent-conversation.css` |
 | 工具/思考披露展开 | 高度用 `grid-template-rows` 过渡，箭头旋转 | `agent-conversation.css` |

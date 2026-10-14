@@ -38,10 +38,10 @@ declare global {
 const host = window.__MILKSU_PLUGIN_CONTEXT__
 const root = document.querySelector<HTMLElement>('#plugin-root')!
 const surfaces: Array<{ slot: SurfaceSlot; title: string; detail: string }> = [
-  { slot: 'content-wallpaper', title: '内容壁纸', detail: 'AI 聊天画布和 CTF 题面' },
-  { slot: 'workspace-list', title: '列表', detail: '题目、会话和设置列表' },
+  { slot: 'content-wallpaper', title: '内容壁纸', detail: 'AI 聊天画布' },
+  { slot: 'workspace-list', title: '列表', detail: '会话和设置列表' },
   { slot: 'control-button', title: '按钮', detail: '宿主标准按钮（危险与禁用状态除外）' },
-  { slot: 'workspace-topbar', title: '工作区顶部栏', detail: 'Coding / CTF / CVE 标题、筛选和操作区' },
+  { slot: 'workspace-topbar', title: '工作区顶部栏', detail: 'Coding / CVE / Lab 标题、筛选和操作区' },
   { slot: 'overlay-menu', title: '下拉菜单', detail: 'Select、Dropdown、ContextMenu 和 Popover' },
   { slot: 'chat-composer', title: 'Composer', detail: '输入外壳、输入区和工具栏' },
 ]

@@ -1,0 +1,12 @@
+{
+  "name": "@milksu/runtime",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "license": "AGPL-3.0-only",
+  "description": "TypeScript Runtime JSONL host. Electron spawns runtime/dist/main.cjs; Go milksu-backend is the native helper.",
+  "exports": {
+    ".": "./src/boot.ts",
+    "./trace": "./src/trace.ts"
+  }
+}
