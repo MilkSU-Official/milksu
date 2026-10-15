@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createConversationsRuntime } from '@/composables/useConversations'
 import { backgroundStripDigest } from '@/lib/backgroundStripDigest'
 
 type Handler = (event: { payload: unknown }) => void
@@ -33,8 +34,7 @@ function runningTask(name: string) {
 }
 
 async function loadRuntime() {
-  const { useConversations } = await import('@/composables/useConversations')
-  const conversations = useConversations()
+  const conversations = createConversationsRuntime()
   await conversations.load()
   await conversations.listen()
   conversations.activeId = 'conversation-1'

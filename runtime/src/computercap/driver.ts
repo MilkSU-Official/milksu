@@ -89,7 +89,8 @@ export async function inspectExecutable(path: string, os: string): Promise<boole
     const canonical = resolve(path)
     const info = await lstat(canonical)
     if (info.isSymbolicLink() || !info.isFile()) return false
-    if (os !== 'windows' && os !== 'win32' && (info.mode & 0o111) === 0) return false
+    const windows = process.platform === 'win32' || os === 'windows' || os === 'win32'
+    if (!windows && (info.mode & 0o111) === 0) return false
     return true
   } catch {
     return false

@@ -16,6 +16,7 @@ import {
   composeBytes,
   handleEnvWorkspaceAction,
   installAndroidLab,
+  lookPath,
   packageByID,
   packageForCVE,
   publicPackage,
@@ -49,8 +50,7 @@ async function withFakeDocker<T>(down: boolean, run: (home: string) => Promise<T
   const bin = join(home, 'bin')
   await mkdir(bin, { recursive: true, mode: 0o755 })
   const state = join(home, 'docker-state')
-  const script = `#!/usr/bin/env node
-const fs = require('node:fs')
+  const body = `const fs = require('node:fs')
 const args = process.argv.slice(2).join(' ')
 const state = process.env.FAKE_DOCKER_STATE
 if (args.includes('version')) {
@@ -77,12 +77,21 @@ if (args.includes('down')) {
 }
 process.exit(0)
 `
-  const docker = join(bin, 'docker')
-  await writeFile(docker, script, { mode: 0o755 })
-  await chmod(docker, 0o755)
-  const compose = join(bin, 'docker-compose')
-  await writeFile(compose, script, { mode: 0o755 })
-  await chmod(compose, 0o755)
+  const dockerJs = join(bin, 'docker.cjs')
+  await writeFile(dockerJs, body, { mode: 0o755 })
+  if (process.platform === 'win32') {
+    const cmd = `@echo off\r\n"${process.execPath}" "${dockerJs}" %*\r\n`
+    await writeFile(join(bin, 'docker.cmd'), cmd)
+    await writeFile(join(bin, 'docker-compose.cmd'), cmd)
+  } else {
+    const script = `#!/usr/bin/env node\n${body}`
+    const docker = join(bin, 'docker')
+    await writeFile(docker, script, { mode: 0o755 })
+    await chmod(docker, 0o755)
+    const compose = join(bin, 'docker-compose')
+    await writeFile(compose, script, { mode: 0o755 })
+    await chmod(compose, 0o755)
+  }
   const previousPath = process.env.PATH
   const previousState = process.env.FAKE_DOCKER_STATE
   const previousDown = process.env.FAKE_DOCKER_DOWN
@@ -240,6 +249,25 @@ test('public package omits compose and apk internals', () => {
   assert.equal('apkSHA256' in published, false)
   assert.equal('launcher' in published, false)
   assert.equal(published.id, 'android-lab')
+})
+
+test('lookPath finds docker.cmd via PATHEXT on Windows and docker on Unix', async () => {
+  const home = await tempHome()
+  const bin = join(home, 'bin')
+  await mkdir(bin, { recursive: true, mode: 0o755 })
+  const env = {
+    PATH: `${bin}${delimiter}${process.env.PATH ?? ''}`,
+    PATHEXT: process.env.PATHEXT ?? '.COM;.EXE;.BAT;.CMD',
+  }
+  if (process.platform === 'win32') {
+    await writeFile(join(bin, 'docker.cmd'), '@echo off\r\n')
+    assert.match(String(lookPath('docker', env)).toLowerCase(), /docker\.cmd$/)
+  } else {
+    const docker = join(bin, 'docker')
+    await writeFile(docker, '#!/bin/sh\n', { mode: 0o755 })
+    await chmod(docker, 0o755)
+    assert.equal(lookPath('docker', env), docker)
+  }
 })
 
 test('start/stop docker lease uses fake docker executable', async () => {

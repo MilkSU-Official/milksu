@@ -2,6 +2,7 @@
 // 「引擎重启」的两端接线：读者点按钮 ⇒ 后端重启命令真的发出；引擎重启事件 ⇒ 同 sidecar
 // 的其它会话被结算，而不是永远停在「正在跑」。重启只由读者触发，这里也钉住「不自动重启」。
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createConversationsRuntime } from '@/composables/useConversations'
 
 type EventHandler = (event: { payload: unknown }) => void
 
@@ -31,8 +32,7 @@ function emit(sessionId: string, payload: Record<string, unknown>) {
 }
 
 async function runtimeWithConversation() {
-  const { useConversations } = await import('@/composables/useConversations')
-  const conversations = useConversations()
+  const conversations = createConversationsRuntime()
   stored = [storedConversation('conversation-1', '卡住的会话')]
   await conversations.load()
   await conversations.listen()

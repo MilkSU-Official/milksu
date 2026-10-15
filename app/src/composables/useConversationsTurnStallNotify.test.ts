@@ -2,6 +2,7 @@
 // 停滞看门狗的系统通知：进入停滞态的**边沿**要发一条**独立的第四类 stalled**（模型疑似挂死，可重试或停止），
 // 而不是复用 needs-decision（那是“等你拍板”）。也要有自己的 stalled 开关（默认关）。
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createConversationsRuntime } from '@/composables/useConversations'
 
 type EventHandler = (event: { payload: unknown }) => void
 
@@ -48,8 +49,7 @@ describe('useConversations 停滞通知', () => {
   })
 
   async function runtimeWithStalledTurn() {
-    const { useConversations } = await import('@/composables/useConversations')
-    const conversations = useConversations()
+    const conversations = createConversationsRuntime()
     stored = [storedConversation('conversation-1', '卡住的会话')]
     await conversations.load()
     await conversations.listen()

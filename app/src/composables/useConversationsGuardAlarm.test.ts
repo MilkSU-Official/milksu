@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { invokeCommand } from '@/desktop'
-import { normalizeConversation } from '@/composables/useConversations'
+import { createConversationsRuntime, normalizeConversation } from '@/composables/useConversations'
 
 type Handler = (event: { payload: unknown }) => void
 const handlers = new Map<string, Handler>()
@@ -19,8 +19,7 @@ vi.mock('@/desktop', () => ({
 }))
 
 async function loadRuntime() {
-  const { useConversations } = await import('@/composables/useConversations')
-  const conversations = useConversations()
+  const conversations = createConversationsRuntime()
   await conversations.load()
   await conversations.listen()
   conversations.activeId = 'conversation-1'

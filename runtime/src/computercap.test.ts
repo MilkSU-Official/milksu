@@ -10,6 +10,7 @@ import './domains/computeruse.ts'
 import type { Engine } from './engine.ts'
 import { handleOwnedMethod, type HandlerContext } from './handlers.ts'
 import { LabJobStore } from './lab.ts'
+import { inspectExecutable } from './computercap/driver.ts'
 import type { Permissions, SigningStatus, Status, Target } from './computercap/index.ts'
 
 const FAKE_DRIVER = `const net = require('node:net')
@@ -115,6 +116,16 @@ async function openCtx(options: {
   }
   return { home, ctx, probeCalls }
 }
+
+test('inspectExecutable skips unix execute bits for windows os', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'milksu-inspect-exec-'))
+  const path = join(home, 'cua-driver.bin')
+  await writeFile(path, 'x')
+  assert.equal(await inspectExecutable(path, 'windows'), true)
+  if (process.platform !== 'win32') {
+    assert.equal(await inspectExecutable(path, 'darwin'), false)
+  }
+})
 
 test('window list is filtered and never opens a permission prompt', async () => {
   const { home, ctx, probeCalls } = await openCtx({})

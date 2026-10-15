@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createConversationsRuntime } from '@/composables/useConversations'
 
 type Handler = (event: { payload: unknown }) => void
 let refreshOverride: Array<{ id: string; name: string; kind: string; status: string; startedAt: number }> | null = null
@@ -25,8 +26,7 @@ function emitEngineEvent(payload: Record<string, unknown>) {
 }
 
 async function loadRuntime() {
-  const { useConversations } = await import('@/composables/useConversations')
-  const conversations = useConversations()
+  const conversations = createConversationsRuntime()
   await conversations.load()
   await conversations.listen()
   conversations.activeId = 'conversation-1'

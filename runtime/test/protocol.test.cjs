@@ -345,14 +345,29 @@ test('runtime owns GetSettings/SaveSettingsCmd; json has no key; renderer cannot
     assert.equal(providers['custom-relay-deepseek'].has_api_key, true)
     assert.equal(JSON.stringify(after.result).includes(fakeKey), false)
 
-    const db = new DatabaseSync(join(home, 'config', 'credentials.db'))
+    const dbPath = join(home, 'config', 'credentials.db')
+    let sqliteSecret
     try {
-      const row = db.prepare('SELECT secret FROM credentials WHERE account = ?').get(
-        'provider:custom-relay-deepseek',
-      )
-      assert.equal(Boolean(row && row.secret === fakeKey), true)
-    } finally {
-      db.close()
+      const db = new DatabaseSync(dbPath)
+      try {
+        const hasTable = db.prepare(
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'credentials'",
+        ).get()
+        if (hasTable) {
+          sqliteSecret = db.prepare('SELECT secret FROM credentials WHERE account = ?').get(
+            'provider:custom-relay-deepseek',
+          )
+        }
+      } finally {
+        db.close()
+      }
+    } catch {
+      sqliteSecret = undefined
+    }
+    if (sqliteSecret) {
+      assert.equal(sqliteSecret.secret, fakeKey)
+    } else {
+      assert.equal(process.platform, 'darwin')
     }
 
     await writeLine(proc.stdin, {

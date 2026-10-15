@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { mkdtemp, mkdir, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import readline from 'node:readline'
 import test from 'node:test'
 import { readPublicSettings, stripSecrets } from './settings.ts'
@@ -209,10 +209,14 @@ lines.on('line', (line) => {
 })
 
 test('resolveHomeRoot prefers MILKSU_HOME over MILKSU_APPDATA_DIR', () => {
+  const preferred = process.platform === 'win32' ? 'D:\\abs\\milksu-home' : '/abs/milksu-home'
+  const fallback = process.platform === 'win32' ? 'D:\\abs\\appdata' : '/abs/appdata'
+  const userHome = process.platform === 'win32' ? 'C:\\Users\\nobody' : '/Users/nobody'
   const home = resolveHomeRoot({
-    MILKSU_HOME: '/abs/milksu-home',
-    MILKSU_APPDATA_DIR: '/abs/appdata',
-    HOME: '/Users/nobody',
-  }, '/Users/nobody')
-  assert.equal(home, '/abs/milksu-home')
+    MILKSU_HOME: preferred,
+    MILKSU_APPDATA_DIR: fallback,
+    HOME: userHome,
+  }, userHome)
+  assert.equal(home, resolve(preferred))
+  assert.notEqual(home, resolve(fallback))
 })

@@ -32,8 +32,22 @@ function isExecutable(path: string): boolean {
   }
 }
 
+function executableNames(name: string, env: NodeJS.ProcessEnv): string[] {
+  if (process.platform !== 'win32') return [name]
+  if (/\.[A-Za-z0-9]{1,8}$/u.test(name)) return [name]
+  const pathext = String(env.PATHEXT ?? '.COM;.EXE;.BAT;.CMD')
+  const names: string[] = []
+  for (const raw of pathext.split(';')) {
+    const ext = raw.trim()
+    if (!ext) continue
+    names.push(`${name}${ext.startsWith('.') ? ext : `.${ext}`}`)
+  }
+  names.push(name)
+  return names
+}
+
 export function lookPath(name: string, env: NodeJS.ProcessEnv = process.env): string | undefined {
-  const names = process.platform === 'win32' && !name.endsWith('.exe') ? [`${name}.exe`, name] : [name]
+  const names = executableNames(name, env)
   for (const dir of String(env.PATH ?? '').split(delimiter)) {
     if (!dir) continue
     for (const file of names) {
@@ -72,10 +86,13 @@ function runSpawned(
   signal?: AbortSignal,
 ): Promise<CommandResult> {
   return new Promise((resolve) => {
+    const windowsScript = process.platform === 'win32' && /\.(cmd|bat)$/iu.test(executable)
     const child = spawn(executable, args, {
       cwd: directory || undefined,
       env: process.env,
       signal,
+      shell: windowsScript,
+      windowsHide: true,
     })
     const chunks: Buffer[] = []
     let lineBuffer = ''
