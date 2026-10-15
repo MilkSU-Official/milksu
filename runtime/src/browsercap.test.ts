@@ -261,7 +261,11 @@ test('matchCodingTab uses id or a unique query', () => {
   assert.throws(() => matchCodingTab(tabs, '', 'missing'))
 })
 
-test('findChrome prefers nix profile then desktop entries on linux', async () => {
+test('findChrome prefers nix profile then desktop entries on linux', async (t) => {
+  if (process.platform === 'win32') {
+    t.skip('linux chrome layout uses POSIX paths')
+    return
+  }
   const root = await tempHome()
   const nixBin = join(root, '.nix-profile', 'bin', 'chromium')
   await mkdir(join(root, '.nix-profile', 'bin'), { recursive: true })
@@ -286,7 +290,11 @@ test('findChrome prefers nix profile then desktop entries on linux', async () =>
   assert.equal(fromDesktop, desktopExec)
 })
 
-test('linux chrome candidates require HOME and PATH comes after profile paths', () => {
+test('linux chrome candidates require HOME and PATH comes after profile paths', (t) => {
+  if (process.platform === 'win32') {
+    t.skip('linux chrome layout uses POSIX paths')
+    return
+  }
   assert.deepEqual(chromeFixedCandidates('linux', {}), [])
   const got = chromeFixedCandidates('linux', { HOME: '/home/milksu' })
   assert.ok(got.includes('/usr/bin/chromium'))

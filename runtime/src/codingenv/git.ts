@@ -258,6 +258,14 @@ export function parseNumstat(output: string): { additions: number; deletions: nu
   return { additions, deletions }
 }
 
+export function gitDiffText(value: string): string {
+  const normalized = value.replaceAll('\r\n', '\n').replaceAll('\r', '\n')
+  const marker = 'diff --git '
+  const index = normalized.indexOf(marker)
+  if (index <= 0) return normalized
+  return normalized.slice(index)
+}
+
 export function boundedDiff(value: string): { text: string; truncated: boolean } {
   if (value.length <= MAX_DIFF_SECTION_BYTES) return { text: value, truncated: false }
   return {
@@ -392,8 +400,8 @@ export async function inspectDiff(
     pathspec,
   ], timeoutMs)
   if (!workingRun.ok) throw new Error(`read working tree diff: ${boundedProblem(workingRun.output || 'git diff failed')}`)
-  const staged = boundedDiff(stagedRun.output)
-  const workingTree = boundedDiff(workingRun.output)
+  const staged = boundedDiff(gitDiffText(stagedRun.output))
+  const workingTree = boundedDiff(gitDiffText(workingRun.output))
   return {
     workspace: resolved,
     path: toSlash(pathspec),

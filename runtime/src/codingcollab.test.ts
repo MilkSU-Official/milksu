@@ -37,6 +37,7 @@ async function newRepository(): Promise<string> {
   }
   const run = (...args: string[]) => execFileAsync('git', args, { cwd: repo, env })
   await run('-c', 'commit.gpgsign=false', 'init', '-q')
+  await run('config', 'core.autocrlf', 'false')
   await writeFile(join(repo, 'README.md'), 'hello\n')
   await run('-c', 'commit.gpgsign=false', 'add', 'README.md')
   await run(

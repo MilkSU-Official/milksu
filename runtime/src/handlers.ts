@@ -299,15 +299,17 @@ async function handoffOwnedSession(
   const stored = await ctx.conversations.get(conversationId)
   const current = normalizeKernel(stored.kernel)
   const target = normalizeKernel(kernel || stored.kernel)
+  const currentAgentId = current === 'dsh' ? String(stored.acpAgentId ?? '').trim() : ''
   const targetAgentId = target === 'dsh'
-    ? (String(acpAgentId ?? '').trim() || String(stored.acpAgentId ?? '').trim())
+    ? (String(acpAgentId ?? '').trim() || currentAgentId)
     : ''
+  const sameRuntime = target === current && targetAgentId === currentAgentId
   let receipt = {
     sessionId: '',
     summary: '',
     surfaceText: '',
   }
-  if (target === current) {
+  if (sameRuntime) {
     receipt = {
       summary: '',
       surfaceText: '',

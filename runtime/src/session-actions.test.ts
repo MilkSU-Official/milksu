@@ -230,6 +230,62 @@ test('HandoffCodingSession to another kernel falls back to stored text when side
   assert.match(String(receipt.summary), /keep going/)
 })
 
+test('HandoffCodingSession between named Agents mints a new conversation', async () => {
+  const calls: string[] = []
+  const engine = stubEngine({
+    handoffSession: async () => {
+      calls.push('handoff')
+      return { sessionId: 'should-not-use', summary: 'same sidecar', surfaceText: '' }
+    },
+  })
+  const ctx = await makeContext({ engine })
+  await ctx.conversations.save(conversation('source-named', {
+    kernel: 'dsh',
+    acpAgentId: 'agt_a',
+    messages: [
+      message('u1', 'user', { content: 'use codex' }),
+      message('a1', 'assistant', { content: 'ok' }),
+    ],
+  }))
+  const receipt = await handleOwnedMethod(ctx, 'renderer', 'HandoffCodingSession', [
+    'source-named',
+    'dsh',
+    'agt_b',
+  ]) as { sessionId: string; summary?: string }
+  assert.deepEqual(calls, [])
+  assert.match(String(receipt.sessionId), /^[0-9a-f-]{36}$/i)
+  const handed = await ctx.conversations.get(receipt.sessionId)
+  assert.equal(handed.kernel, 'dsh')
+  assert.equal(handed.acpAgentId, 'agt_b')
+  assert.match(String(receipt.summary), /use codex/)
+})
+
+test('HandoffCodingSession on the same Agent still forks the sidecar session', async () => {
+  const engine = stubEngine({
+    hasLiveSession: () => true,
+    handoffSession: async () => ({
+      sessionId: 'same-agent-fork',
+      summary: 'stay',
+      surfaceText: '',
+    }),
+  })
+  const ctx = await makeContext({ engine })
+  await ctx.conversations.save(conversation('source-same-agent', {
+    kernel: 'dsh',
+    acpAgentId: 'agt_a',
+    messages: [message('u1', 'user'), message('a1', 'assistant')],
+  }))
+  const receipt = await handleOwnedMethod(ctx, 'renderer', 'HandoffCodingSession', [
+    'source-same-agent',
+    'dsh',
+    'agt_a',
+  ]) as { sessionId: string }
+  assert.equal(receipt.sessionId, 'same-agent-fork')
+  const handed = await ctx.conversations.get('same-agent-fork')
+  assert.equal(handed.kernel, 'dsh')
+  assert.equal(handed.acpAgentId, 'agt_a')
+})
+
 test('HandoffCodingSession stores the target Agent id and clears it when returning to Pi', async () => {
   const ctx = await makeContext()
   await ctx.conversations.save(conversation('source-agent', {

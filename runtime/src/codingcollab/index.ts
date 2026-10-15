@@ -91,6 +91,15 @@ function resolveExistingDir(value: string): string {
   return realpathSync(absolute)
 }
 
+function sameResolvedDir(left: string, right: string): boolean {
+  const normalize = (value: string) => {
+    const slashed = value.replaceAll('\\', '/').replace(/\/+$/u, '')
+    return process.platform === 'win32' ? slashed.toLowerCase() : slashed
+  }
+  if (!left || !right) return false
+  return normalize(left) === normalize(right)
+}
+
 function validGitObjectID(value: string): boolean {
   if (value.length !== 40 && value.length !== 64) return false
   return /^[0-9a-f]+$/u.test(value)
@@ -123,7 +132,7 @@ export function normalizeCodingCollaborationDescriptor(
   } catch {
     throw new Error('Coding collaboration must belong to the current workspace')
   }
-  if (resolvedWorkspace !== workspace) {
+  if (!sameResolvedDir(resolvedWorkspace, workspace)) {
     throw new Error('Coding collaboration must belong to the current workspace')
   }
   if (!validGitObjectID(descriptor.baseHead)) {
@@ -154,7 +163,7 @@ export function normalizeCodingCollaborationDescriptor(
     if (
       worktrees[index].id !== expectedId
       || trim(worktrees[index].branch) !== expectedBranch
-      || resolvedPath !== expectedPath
+      || !sameResolvedDir(resolvedPath, expectedPath)
     ) {
       throw new Error(`invalid Coding collaboration boundary for ${expectedId}`)
     }
@@ -201,7 +210,7 @@ async function inspectRepository(workspace: string): Promise<{
   }
   root = resolveExistingDir(root)
   let projectPath = ''
-  if (root !== resolved) {
+  if (!sameResolvedDir(root, resolved)) {
     const rel = relative(root, resolved)
     if (!rel || rel.startsWith('..') || isAbsolute(rel)) {
       throw new Error('Coding workspace is outside its Git repository')
@@ -269,7 +278,7 @@ export async function lookupCodingCollaboration(
     throw new Error(`unsupported Coding collaboration schema version ${current.schemaVersion}`)
   }
   const resolvedWorkspace = resolveExistingDir(workspace)
-  if (resolvedWorkspace !== current.workspace) {
+  if (!sameResolvedDir(resolvedWorkspace, current.workspace)) {
     throw new Error('the active Coding collaboration belongs to a different repository')
   }
   return descriptorFromManifest(current)

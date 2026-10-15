@@ -9,6 +9,7 @@ import './domains/codingenv.ts'
 import type { Engine, RuntimeStatus } from './engine.ts'
 import { handleOwnedMethod, type HandlerContext } from './handlers.ts'
 import { LabJobStore } from './lab.ts'
+import { exactUnifiedDiffHunk, splitUnifiedDiffHunks } from './codingenv/git-actions.ts'
 import { lookPath, runHosted } from './codingenv/paths.ts'
 import {
   AttachmentStore,
@@ -55,6 +56,7 @@ async function initRepo(root: string): Promise<void> {
   await run(['config', 'user.email', 'codingenv@example.test'])
   await run(['config', 'user.name', 'Codingenv Test'])
   await run(['config', 'commit.gpgsign', 'false'])
+  await run(['config', 'core.autocrlf', 'false'])
 }
 
 async function stubCtx(home: string, engine?: Partial<Engine>): Promise<HandlerContext> {
@@ -173,6 +175,24 @@ test('ChooseAgentWorkspace uses host_request and normalizes the directory', asyn
   }
   const selected = await handleOwnedMethod(ctx, 'renderer', 'ChooseAgentWorkspace', [])
   assert.equal(selected, await realpath(project))
+})
+
+test('splitUnifiedDiffHunks ignores git stderr noise and CRLF', () => {
+  const hunk = [
+    'diff --git a/readme.md b/readme.md',
+    'index 1111111..2222222 100644',
+    '--- a/readme.md',
+    '+++ b/readme.md',
+    '@@ -1,1 +1,2 @@',
+    ' one',
+    '+two',
+    '',
+  ].join('\n')
+  const noisy = `warning: LF will be replaced by CRLF in readme.md\r\nThe file will have its original line endings in your working directory\r\n${hunk.replaceAll('\n', '\r\n')}`
+  const parts = splitUnifiedDiffHunks(noisy)
+  assert.equal(parts.length, 1)
+  assert.ok(parts[0]?.includes('+two'))
+  assert.equal(exactUnifiedDiffHunk(noisy, hunk), parts[0])
 })
 
 test('git inspect, commit, and hunk actions use a temporary repository', async (t) => {

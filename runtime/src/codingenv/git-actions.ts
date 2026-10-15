@@ -1,4 +1,4 @@
-import { inspectDiff, inspectEnvironment, runGit, type EnvironmentSnapshot } from './git.ts'
+import { gitDiffText, inspectDiff, inspectEnvironment, runGit, type EnvironmentSnapshot } from './git.ts'
 import { lookPath, MAX_DIFF_SECTION_BYTES, MAX_GIT_OUTPUT_BYTES, resolveGitPathspec, resolveWorkspace, runHosted } from './paths.ts'
 
 export const GIT_ACTION_STAGE = 'stage'
@@ -173,7 +173,7 @@ function gitActionMessage(action: string, snapshot: EnvironmentSnapshot): string
 
 export function splitUnifiedDiffHunks(value: string): string[] {
   if (!value || value.includes('…diff truncated by MilkSU')) return []
-  const lines = value.split(/(?<=\n)/)
+  const lines = gitDiffText(value).split(/(?<=\n)/)
   let firstHunk = -1
   for (let index = 0; index < lines.length; index += 1) {
     if (lines[index].startsWith('@@ ')) {
@@ -211,8 +211,9 @@ export function splitUnifiedDiffHunks(value: string): string[] {
 
 export function exactUnifiedDiffHunk(source: string, requested: string): string | null {
   if (!requested || requested.length > MAX_DIFF_SECTION_BYTES || requested.includes('\0')) return null
+  const wanted = gitDiffText(requested)
   for (const hunk of splitUnifiedDiffHunks(source)) {
-    if (hunk === requested) return hunk
+    if (hunk === wanted) return hunk
   }
   return null
 }

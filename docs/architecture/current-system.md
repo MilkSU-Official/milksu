@@ -16,7 +16,7 @@ Electron 主窗口跑产品 renderer。右栏浏览器是同壳的会话隔离 `
 
 一次用户发送生成一个 `traceId`，RPC、Runtime 日志、Pi sidecar、ACP 子进程、研究 worker 都带上。
 
-Pi / Agent sidecar 按内核 + 工作区路径各起一条进程，cwd 就是该工作区。ACP Agent 再按 Agent id 分开，同一工作区里两个命名 Agent 不共用进程。ACP 的 IPC 路径用工作区加 Agent id 的 hash，不用 Runtime 主进程 PID。DSH 的 `--patch`、`--profile acp` 和 `DSH_HOME` 只在命令是 DeepSeek Harness 时加上。Codex、Claude Code 和通用 ACP 不带这些参数。handoff 带目标 `acpAgentId`；切回 Pi 时清掉。删除会话发 `destroy_session`。该工作区没有剩下的会话时停掉这条 sidecar。闲置退出不广播 `engine.stopped`。sidecar、看板娘和插件 MCP 用 Desktop 的 Electron 产品二进制起进程时设 `ELECTRON_RUN_AS_NODE=1`。二进制文件名是 `node` 时不加这项。
+Pi / Agent sidecar 按内核 + 工作区路径各起一条进程，cwd 就是该工作区。ACP Agent 再按 Agent id 分开，同一工作区里两个命名 Agent 不共用进程。ACP 的 IPC 路径用工作区加 Agent id 的 hash，不用 Runtime 主进程 PID。DSH 的 `--patch`、`--profile acp` 和 `DSH_HOME` 只在命令是 DeepSeek Harness 时加上。Codex、Claude Code 和通用 ACP 不带这些参数。handoff 带目标 `acpAgentId`。同一内核且同一 Agent id 走 sidecar fork；换内核或换命名 Agent 则 compact 新会话。切回 Pi 时清掉 Agent id。删除会话发 `destroy_session`。该工作区没有剩下的会话时停掉这条 sidecar。闲置退出不广播 `engine.stopped`。sidecar、看板娘和插件 MCP 用 Desktop 的 Electron 产品二进制起进程时设 `ELECTRON_RUN_AS_NODE=1`。二进制文件名是 `node` 时不加这项。
 
 Agent sidecar 的 `MILKSU_DSH_PI_AI_ROUTES` 由 Runtime 合成。账户中转、个人 TokenFlux key、以及指向 `https://tokenflux.dev/v1` 的自定义中转都会挂上 `providers.tokenflux`。自定义中转还会用自己的 provider id 再挂一条同样的路由。模型表读 `data/services/model-catalog/tokenflux.json`，带思考档位。TokenFlux 路由带 `compat.supportsDeveloperRole: false`，pi-ai 发 `system`。官方 DeepSeek key 仍走 `llm-deepseek`。
 
