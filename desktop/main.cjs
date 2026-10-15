@@ -338,7 +338,7 @@ async function deliverAccountCallback(rawURL) {
 let quitting = false
 let relaunchScheduled = false
 let screenRecordingRelaunchArm = null
-// Avoid re-pushing the same account credential into Go on the renderer status RPC
+// Avoid re-pushing the same account credential into Runtime on the renderer status RPC
 // immediately after the main-process pre-load sync (same startup window).
 let lastAccountModelSync = null
 let accountModelSyncInflight = null
@@ -1459,7 +1459,7 @@ ipcMain.handle('milksu:invoke', async (event, request) => {
     const payload = Array.isArray(request?.args) ? request.args[0] : request?.args
     return linuxDevelopmentProtocolAction(payload?.enabled === true)
   }
-  // Packaging provenance is owned by the desktop shell, not Go domain logic.
+  // Packaging provenance is owned by the desktop shell, not Runtime domain logic.
   if (method === 'GetBuildTracking') return loadBuildTracking()
   // Task notifications are shell-owned too: the renderer only asks.
   // Dependency injection mirrors desktop/task-notify.cjs so the decision stays pure/testable.

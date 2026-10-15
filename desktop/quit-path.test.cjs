@@ -5,7 +5,7 @@ const { readFileSync } = require('node:fs')
 const { join } = require('node:path')
 const test = require('node:test')
 
-test('Cmd+Q does not intercept Electron quit to wait for Go teardown', () => {
+test('Cmd+Q does not intercept Electron quit to wait for Runtime teardown', () => {
   const source = readFileSync(join(__dirname, 'main.cjs'), 'utf8')
   const match = source.match(/app\.on\('before-quit',[\s\S]*?process\.on\('SIGTERM'/)
   assert.ok(match, 'missing before-quit handler')

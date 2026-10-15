@@ -2,7 +2,7 @@
 /**
  * Product-regression coordinator.
  * Observes the product through official Desktop RPC.
- * Not Settings → 评测. Not imported by App startup.
+ * Not imported by App startup.
  *
  *   npm run test:product-loop -- --list
  *   npm run test:product-loop -- --suite first-use

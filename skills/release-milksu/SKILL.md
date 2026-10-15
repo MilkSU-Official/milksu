@@ -22,7 +22,7 @@ Push the clean release commit to `main`, then dispatch **macOS, Windows and Linu
 
 ### macOS ARM64
 
-Use GitHub-hosted `macOS signed release` (`macos-15` standard runner). Do not restore or upload GitHub's remote Node/Go caches on a self-hosted path; reuse the runner's local tool and package caches instead. It must compile the App once, apply Developer ID signing and hardened runtime, notarize, staple, and verify Gatekeeper. Derive both deliverables from the same verified `.app`:
+Use GitHub-hosted `macOS signed release` (`macos-15` standard runner). Do not restore or upload GitHub's remote Node caches on a self-hosted path; reuse the runner's local tool and package caches instead. It must compile the App once, apply Developer ID signing and hardened runtime, notarize, staple, and verify Gatekeeper. Derive both deliverables from the same verified `.app`:
 
 - DMG: user installer and GitHub Release asset;
 - ZIP plus updater metadata: authenticated OTA payload uploaded directly from the runner to private R2.

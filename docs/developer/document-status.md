@@ -1,6 +1,6 @@
 # 文档与事实状态
 
-> Current。2026-10-14。
+> Current。2026-10-15。
 
 冲突时以当前代码、测试和安装包回执为准，然后是 [当前开发目标](current-objectives.md)，然后是 [当前系统](../architecture/current-system.md)。历史文档里的「下一步」和旧里程碑不是任务。过期稿在 Git history，不留在 `docs/`。
 

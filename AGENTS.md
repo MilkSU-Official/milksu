@@ -235,7 +235,9 @@ TokenFlux 的 API 流量必须走 `https://tokenflux.dev/v1`。
 - 嵌入内核只有 Pi（`@earendil-works/pi-coding-agent`，工作树钉 1.1.0）。
   patch 在 `patches/@earendil-works+pi-coding-agent+1.1.0.patch`。
   出厂默认 Pi。设置 → 模型的「默认运行时」只决定新对话。
-- 其余 Agent 在设置里填命令、参数、环境变量，经 ACP 接入。
+- 其余 Agent 在设置里添加多个并各自命名，填命令、参数、环境变量，经 ACP 接入。
+  同一工作区两个 Agent 不共用 sidecar，IPC 按工作区加 Agent id 分开。
+  DSH 的 `--patch` / `--profile acp` 只给 DeepSeek Harness。
   协议没有的能力（Ask 卡、durable 研究、typed `milksu_workspace` 等）灰掉，
   并写一句原因。安装包默认不带这份命令。不要复刻 DSH web 皮肤。
 - 内核拥有通用的模型会话、上下文压缩和工具循环。经 ACP 接入的 Agent 拥有自己的循环。
@@ -291,9 +293,10 @@ React -> Electron Preload / Desktop RPC -> TypeScript Runtime -> Pi sidecar | Ag
 ```
 
 一次用户发送带一个 `traceId`，贯穿 RPC、Runtime、sidecar、ACP 子进程。
-配置只有 `settings.json` + secret store；环境变量只认 `MILKSU_HOME`。
+配置只有 `settings.json` + secret store（`acp_agents`）；环境变量只认 `MILKSU_HOME`。
 会话只有一份投影。钥匙串、窗口列表走 `desktop/native` N-API；PTY 走 `node-pty`；
 Lua 走 fengari；Computer Use 权限走 Electron `hostCall`；Linux Portal 走 `dbus-next`。
+Darwin 钥匙串 service 按 `MILKSU_HOME` 隔离。三端打包经 `scripts/lib/desktop-native.mjs` 编 N-API、重建 `node-pty`。
 
 新职责写进 `runtime/`。不要引入 Go 助手进程。
 发行前的新代码直接实现干净的当前模型。不要为已放弃的设计加迁移、双写或兼容分支。
@@ -307,7 +310,7 @@ Lua 走 fengari；Computer Use 权限走 Electron `hostCall`；Linux Portal 走 
 - 不要用关键词或正则扫描用户文本来决定跑哪个工具、开哪个标签页、开哪一页或走哪种审批。
   模型看得懂自然语言。GUI 一键操作发的是 typed 产品动作。
   隔离浏览器启动只有两个原因：用户打开了右栏，或模型调用了 typed 的 `milksu_workspace`
-  浏览器动作（如 `open_browser_tab`）。提示词里出现「打开浏览器」不算，发过一句 Go 的问候语也不算。
+  浏览器动作（如 `open_browser_tab`）。提示词里出现「打开浏览器」不算，发过一句问候语也不算。
 - `milksu_workspace` 是 typed 的产品 UI 工具。它可以列出、聚焦或关闭隔离浏览器标签页，
   列出或预览产物，打开环境、diff、终端或后台任务表面。
   Coding、CVE 和实验室共用这个表面；领域工具叠在 Coding 循环之上，不取代它。

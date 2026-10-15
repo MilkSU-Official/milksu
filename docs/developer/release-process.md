@@ -103,8 +103,8 @@ npm run release:dispatch -- --dry-run
 | 平台 | 默认路径 | 保留的原生门禁 |
 | --- | --- | --- |
 | macOS | GitHub-hosted `macos-release.yml` | Stable 构建、Developer ID 签名、App/DMG 公证、staple、Gatekeeper、DMG 安装布局 |
-| Windows | GitHub Actions | N-API 编译、关键 Sidecar 路由、NSIS 结构、打包 Runtime 与首次启动 |
-| Linux | GitHub Actions | 关键 Sidecar 路由、DEB 结构、打包 Runtime 与 Xvfb 首次启动 |
+| Windows | GitHub Actions | N-API（node-gyp 编 `windows-windows.node`）、`node-pty` 按 Electron ABI 重建、关键 Sidecar 路由、NSIS 结构、打包 Runtime JSONL 与首次启动 |
+| Linux | GitHub Actions | `node-pty` 按 Electron ABI 重建、关键 Sidecar 路由、DEB 结构、打包 Runtime JSONL 与 Xvfb 首次启动 |
 
 只有 GitHub-hosted macOS 无法公证时才允许本机例外：`npm run release:mac:local -- --allow-local`。
 
