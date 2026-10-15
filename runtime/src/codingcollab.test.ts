@@ -17,6 +17,21 @@ import {
 
 const execFileAsync = promisify(execFile)
 
+function nativeDir(value: string): string {
+  const real = typeof realpathSync.native === 'function' ? realpathSync.native(value) : realpathSync(value)
+  if (real.startsWith('\\\\?\\UNC\\')) return `\\\\${real.slice(8)}`
+  if (real.startsWith('\\\\?\\')) return real.slice(4)
+  return real
+}
+
+function sameDir(left: string, right: string): boolean {
+  const normalize = (value: string) => {
+    const slashed = value.replaceAll('\\', '/').replace(/\/+$/u, '')
+    return process.platform === 'win32' ? slashed.toLowerCase() : slashed
+  }
+  return normalize(left) === normalize(right)
+}
+
 async function gitAvailable(): Promise<boolean> {
   try {
     await execFileAsync('git', ['--version'])
@@ -72,10 +87,12 @@ test('lookup is empty until prepare; prepare creates writer-1 under the collabor
   assert.equal(prepared.worktrees.length, 1)
   assert.equal(prepared.worktrees[0].id, collaborationWriterId(1))
   assert.equal(prepared.worktrees[0].branch, collaborationWriterBranch(conversationId, 1))
-  const root = realpathSync(codingCollaborationRoot(home))
+  const root = nativeDir(codingCollaborationRoot(home))
   const expectedPath = join(root, collaborationTaskKey(conversationId), 'writer-1')
-  assert.equal(prepared.worktrees[0].path, expectedPath)
-  assert.ok(prepared.worktrees[0].path.startsWith(root))
+  assert.ok(sameDir(prepared.worktrees[0].path, expectedPath), `${prepared.worktrees[0].path} vs ${expectedPath}`)
+  const writer = nativeDir(prepared.worktrees[0].path).replaceAll('\\', '/')
+  const rootSlash = root.replaceAll('\\', '/')
+  assert.ok(writer.toLowerCase().startsWith(`${rootSlash.toLowerCase()}/`))
 
   const lookedUp = await lookupCodingCollaboration(home, conversationId, repo)
   assert.ok(lookedUp)
