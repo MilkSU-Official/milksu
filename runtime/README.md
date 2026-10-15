@@ -22,7 +22,7 @@ JSONL：ready、invoke、result、event、host_request、host_response、shutdow
 
 | 能力 | 实现 |
 | --- | --- |
-| Darwin 凭据 | `macos-keychain.node`，service 名 `dev.milksu.app.credentials`；addon 不可用时回退 sqlite |
+| Darwin 凭据 | `macos-keychain.node`。默认 `~/.milksu` 用 service `dev.milksu.app.credentials`；其它 `MILKSU_HOME` 带 hash 后缀。addon 不可用时回退 sqlite |
 | 终端 PTY | `node-pty`（`NodePtyDriver`） |
 | Lua 插件 | fengari（base/string/table/math，`milksu.storage`） |
 | Computer Use 权限 | Electron `computerUse.permissions` / `openPermissions` |

@@ -563,12 +563,8 @@ header.settings-page-header {
 
 .plugin-wallpaper-active .chat-page,
 .plugin-wallpaper-active .chat-main,
-.plugin-wallpaper-active .ctf-page,
-.plugin-wallpaper-active .ctf-problem-surface,
 :root[data-theme='light'] .plugin-wallpaper-active .chat-page,
-:root[data-theme='light'] .plugin-wallpaper-active .chat-main,
-:root[data-theme='light'] .plugin-wallpaper-active .ctf-page,
-:root[data-theme='light'] .plugin-wallpaper-active .ctf-problem-surface {
+:root[data-theme='light'] .plugin-wallpaper-active .chat-main {
   background-color: transparent;
 }
 

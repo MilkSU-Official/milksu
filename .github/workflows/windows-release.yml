@@ -148,27 +148,45 @@ jobs:
           $packagedCuaVersion = (& $packagedCua --version).Trim()
           if ($packagedCuaVersion -ne 'cua-driver 0.29.1') { throw "unexpected packaged Cua Driver: $packagedCuaVersion" }
 
-          $backend = 'build/desktop/milksu-backend.exe'
-          $stdout = Join-Path $env:RUNNER_TEMP 'milksu-backend.stdout'
-          $stderr = Join-Path $env:RUNNER_TEMP 'milksu-backend.stderr'
-          $backendProcess = Start-Process -FilePath $backend -PassThru -NoNewWindow `
-            -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+          $appExe = (Resolve-Path 'build/electron/windows/stable/win-unpacked/MilkSU.exe').Path
+          $runtime = 'build/electron/windows/stable/win-unpacked/resources/runtime/main.cjs'
+          if (-not (Test-Path $runtime)) { throw "missing packaged runtime: $runtime" }
+          $stdout = Join-Path $env:RUNNER_TEMP 'milksu-runtime.stdout'
+          $stderr = Join-Path $env:RUNNER_TEMP 'milksu-runtime.stderr'
+          $runtimeHome = Join-Path $env:RUNNER_TEMP 'milksu-runtime-home'
+          New-Item -ItemType Directory -Force -Path $runtimeHome | Out-Null
+          $runtimeInfo = [System.Diagnostics.ProcessStartInfo]::new()
+          $runtimeInfo.FileName = $appExe
+          $runtimeInfo.ArgumentList.Add($runtime)
+          $runtimeInfo.UseShellExecute = $false
+          $runtimeInfo.RedirectStandardOutput = $true
+          $runtimeInfo.RedirectStandardError = $true
+          $runtimeInfo.Environment['ELECTRON_RUN_AS_NODE'] = '1'
+          $runtimeInfo.Environment['MILKSU_HOME'] = $runtimeHome
+          $runtimeProcess = [System.Diagnostics.Process]::new()
+          $runtimeProcess.StartInfo = $runtimeInfo
+          $runtimeOut = New-Object System.Text.StringBuilder
+          $runtimeErr = New-Object System.Text.StringBuilder
+          $runtimeProcess.OutputDataReceived += { if ($null -ne $EventArgs.Data) { [void]$runtimeOut.AppendLine($EventArgs.Data) } }
+          $runtimeProcess.ErrorDataReceived += { if ($null -ne $EventArgs.Data) { [void]$runtimeErr.AppendLine($EventArgs.Data) } }
+          if (-not $runtimeProcess.Start()) { throw 'packaged TypeScript runtime did not start' }
+          $runtimeProcess.BeginOutputReadLine()
+          $runtimeProcess.BeginErrorReadLine()
           try {
             $ready = $false
             for ($attempt = 0; $attempt -lt 30; $attempt++) {
               Start-Sleep -Milliseconds 500
-              if (Test-Path $stdout) {
-                $ready = (Get-Content $stdout -Raw) -match '"type"\s*:\s*"ready"'
-              }
+              $ready = $runtimeOut.ToString() -match '"type"\s*:\s*"ready"'
               if ($ready) { break }
-              if ($backendProcess.HasExited) { break }
+              if ($runtimeProcess.HasExited) { break }
             }
+            Set-Content -Path $stdout -Value $runtimeOut.ToString()
+            Set-Content -Path $stderr -Value $runtimeErr.ToString()
             if (-not $ready) {
-              $safeError = if (Test-Path $stderr) { Get-Content $stderr -Raw } else { '' }
-              throw "backend did not publish ready: $safeError"
+              throw "runtime did not publish ready: $($runtimeErr.ToString())"
             }
           } finally {
-            if (-not $backendProcess.HasExited) { Stop-Process -Id $backendProcess.Id -Force }
+            if (-not $runtimeProcess.HasExited) { Stop-Process -Id $runtimeProcess.Id -Force }
           }
 
           $appPath = (Resolve-Path 'build/electron/windows/stable/win-unpacked/MilkSU.exe').Path
@@ -240,7 +258,6 @@ jobs:
           if (-not $appProcess.Start()) { throw 'packaged MilkSU did not start' }
           try {
             $startupReady = $false
-            $backendChildren = @()
             $windowTitles = @()
             $deadline = [DateTime]::UtcNow.AddSeconds(60)
             while ([DateTime]::UtcNow -lt $deadline) {
@@ -249,21 +266,16 @@ jobs:
               if ($appProcess.HasExited) {
                 throw "packaged MilkSU exited during no-Git startup ($($appProcess.ExitCode))"
               }
-              $backendChildren = @(
-                Get-CimInstance Win32_Process -Filter "Name = 'milksu-backend.exe'" |
-                  Where-Object { $_.ParentProcessId -eq $appProcess.Id }
-              )
               $windowTitles = [MilkSUWinEnum]::VisibleTitles([int]$appProcess.Id)
               # Companion float is also titled 看板娘 / Companion; Win32 MainWindowTitle
               # often reports that overlay instead of the product window.
-              $windowReady = $windowTitles -contains 'MilkSU'
-              if ($windowReady -and $backendChildren.Count -gt 0) {
+              if ($windowTitles -contains 'MilkSU') {
                 $startupReady = $true
                 break
               }
             }
             if (-not $startupReady) {
-              throw "packaged MilkSU did not expose its main window and owned Go runtime within 60 seconds (titles=$($windowTitles -join ','), backend_count=$($backendChildren.Count))"
+              throw "packaged MilkSU did not expose its main window within 60 seconds (titles=$($windowTitles -join ','))"
             }
           } finally {
             $ownedChildProcesses = @(

@@ -28,6 +28,7 @@ import { SUPPORTED_DATABASE_VERSION } from '../modelusage/index.ts'
 import { SecurityToolsService } from '../securitytools/index.ts'
 import { SessionIndexStore, sessionIndexBytes } from '../sessionindex/index.ts'
 import { ensureUserArtifactDirectory, userArtifactDirectory } from '../userartifact/index.ts'
+import { DEVELOPMENT_HOST_VERSION } from '../plugin/types.ts'
 import { agentResourceStoreFor } from './resources.ts'
 
 type PlatformState = {
@@ -198,13 +199,13 @@ registerOwnedHandlers({
       .map(([name]) => name)
     const conversations = await ctx.conversations.list()
     return exportDiagnostics(ctx.home, destination, {
-      appVersion: '0.1.0',
+      appVersion: String(process.env.MILKSU_APP_VERSION ?? '').trim() || DEVELOPMENT_HOST_VERSION,
       runtime: {
         defaultEngine: String(settings?.default_kernel ?? 'pi'),
-        running: false,
+        running: ctx.engine.liveSessionCount() > 0,
         sessionCount: conversations.length,
         protocol: 'jsonl',
-        backgroundTaskCount: 0,
+        backgroundTaskCount: ctx.engine.backgroundTaskCount(),
       },
       settings: {
         activeProvider: String(settings?.active_provider ?? ''),

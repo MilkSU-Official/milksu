@@ -150,6 +150,22 @@ function encodeAcpAgentArgs(args: string[] | undefined): string {
   }
 }
 
+export function isDshAgentCommand(command: string, kind = ''): boolean {
+  const normalizedKind = String(kind ?? '').trim().toLowerCase()
+  if (normalizedKind === 'codex' || normalizedKind === 'claude-code') return false
+  const lower = String(command ?? '').trim().toLowerCase().replace(/\\/g, '/')
+  if (!lower) return false
+  if (lower.includes('@deepseek-ai/dsh')) return true
+  return /(?:^|\/)dsh(?:$|[./])/.test(lower)
+}
+
+function sidecarIpcSuffix(workspace: string, agentId = ''): string {
+  return createHash('sha256')
+    .update(sidecarWorkspaceKey('dsh', workspace, agentId))
+    .digest('hex')
+    .slice(0, 16)
+}
+
 const SIDECAR_PROVIDER_ENV_SKIP = new Set([
   'HOME',
   'LANG',
@@ -322,13 +338,9 @@ export function buildSidecarEnvironment(input: {
   if (env.MILKSU_APP_VERSION) next.MILKSU_APP_VERSION = env.MILKSU_APP_VERSION
 
   if (input.kernel === 'dsh') {
-    const suffix = String(process.pid)
-    next.MILKSU_DSH_PROFILE = 'acp'
+    const suffix = sidecarIpcSuffix(workspace, input.agentId ?? '')
     next.MILKSU_DSH_IPC = dshProductIpc(`p${suffix}`, env, process.platform)
     next.MILKSU_DSH_HOST_IPC = dshProductIpc(`h${suffix}`, env, process.platform)
-    const dshHome = join(runtimeHome, 'dsh')
-    mkdirSync(dshHome, { recursive: true, mode: 0o700 })
-    next.DSH_HOME = dshHome
     const resolved = resolveAcpAgent(input.settings, input.agentId)
     if (resolved?.agent.command) {
       next.MILKSU_DSH_COMMAND = resolved.agent.command
@@ -336,6 +348,14 @@ export function buildSidecarEnvironment(input: {
       if (encoded) next.MILKSU_DSH_ACP_ARGS = encoded
       for (const [name, value] of Object.entries(resolved.agent.env ?? {})) {
         next[name] = value
+      }
+      const named = (input.settings.acp_agents ?? []).find((item) => item.id === resolved.id)
+      if (isDshAgentCommand(resolved.agent.command, named?.kind)) {
+        next.MILKSU_DSH_PROFILE = 'acp'
+        next.MILKSU_ACP_APPLY_DSH_PATCH = '1'
+        const dshHome = join(runtimeHome, 'dsh')
+        mkdirSync(dshHome, { recursive: true, mode: 0o700 })
+        next.DSH_HOME = dshHome
       }
     }
   }

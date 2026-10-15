@@ -226,7 +226,34 @@ test('HandoffCodingSession to another kernel falls back to stored text when side
   assert.match(String(receipt.sessionId), /^[0-9a-f-]{36}$/i)
   const handed = await ctx.conversations.get(receipt.sessionId)
   assert.equal(handed.kernel, 'dsh')
+  assert.equal(handed.acpAgentId, undefined)
   assert.match(String(receipt.summary), /keep going/)
+})
+
+test('HandoffCodingSession stores the target Agent id and clears it when returning to Pi', async () => {
+  const ctx = await makeContext()
+  await ctx.conversations.save(conversation('source-agent', {
+    kernel: 'pi',
+    acpAgentId: 'agt_stale',
+    messages: [message('u1', 'user', { content: 'switch' })],
+  }))
+  const toAgent = await handleOwnedMethod(ctx, 'renderer', 'HandoffCodingSession', [
+    'source-agent',
+    'dsh',
+    'agt_codex',
+  ]) as { sessionId: string }
+  const agentSession = await ctx.conversations.get(toAgent.sessionId)
+  assert.equal(agentSession.kernel, 'dsh')
+  assert.equal(agentSession.acpAgentId, 'agt_codex')
+
+  const toPi = await handleOwnedMethod(ctx, 'renderer', 'HandoffCodingSession', [
+    toAgent.sessionId,
+    'pi',
+    'agt_ignored',
+  ]) as { sessionId: string }
+  const piSession = await ctx.conversations.get(toPi.sessionId)
+  assert.equal(piSession.kernel, 'pi')
+  assert.equal(piSession.acpAgentId, undefined)
 })
 
 test('GenerateConversationTitle writes the model title back to JSON', async () => {

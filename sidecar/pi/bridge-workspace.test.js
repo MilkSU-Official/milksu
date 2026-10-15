@@ -67,12 +67,10 @@ test("workspace tool rejects unknown actions and plan mutations", () => {
 });
 
 test("CVE and lab keep research session roles so the Coding Pi loop still applies", () => {
-  assert.equal(resolveWorkflowSessionRole("", false), "");
-  assert.equal(resolveWorkflowSessionRole("solver", true), "solver");
-  assert.equal(resolveWorkflowSessionRole("", true), "solver");
-  assert.equal(resolveWorkflowSessionRole("cve-research", false), "cve-research");
-  assert.equal(resolveWorkflowSessionRole("lab-job", false), "lab-job");
-  assert.equal(resolveWorkflowSessionRole("cve-research", true), "cve-research");
+  assert.equal(resolveWorkflowSessionRole(""), "");
+  assert.equal(resolveWorkflowSessionRole("solver"), "");
+  assert.equal(resolveWorkflowSessionRole("cve-research"), "cve-research");
+  assert.equal(resolveWorkflowSessionRole("lab-job"), "lab-job");
   assert.equal(isResearchSessionRole("cve-research"), true);
   assert.equal(isResearchSessionRole("lab-job"), true);
   assert.equal(isResearchSessionRole("solver"), false);

@@ -23,6 +23,7 @@ import { desktopAccountConfigFromEnvironment } from './lib/desktop-account-confi
 import { desktopChannelConfig } from './lib/desktop-channel.mjs'
 import { readLinuxPkgbuildTemplate, renderLinuxPkgbuild } from './lib/linux-packages.mjs'
 import { writeLinuxIconSet } from './lib/linux-icons.mjs'
+import { compileNativeAddons, nativeAddonResources } from './lib/desktop-native.mjs'
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const channelConfig = desktopChannelConfig('stable')
@@ -110,6 +111,7 @@ await run(process.execPath, [
   'build',
   `--platform=${platform}`,
 ])
+await compileNativeAddons(repositoryRoot)
 
 const files = Array.isArray(desktopPackage.build?.files)
   ? [...desktopPackage.build.files]
@@ -156,6 +158,7 @@ const builderConfig = {
     { from: join(repositoryRoot, 'runtime', 'src', 'envbroker', 'packages'), to: 'envbroker/packages' },
     { from: join(repositoryRoot, 'runtime', 'dist', 'main.cjs'), to: 'runtime/main.cjs' },
     { from: join(repositoryRoot, 'runtime', 'dist', 'plugin-mcp.cjs'), to: 'runtime/plugin-mcp.cjs' },
+    ...nativeAddonResources(repositoryRoot),
     { from: join(repositoryRoot, 'plugins', 'official'), to: 'plugins/official' },
     { from: sidecarPath, to: 'milksu-sidecar' },
     // electron-builder createFilter skips a source-root node_modules directory.
@@ -226,7 +229,7 @@ for (const required of [
   join(unpackedResources, 'milksu-sidecar', 'photon_rs_bg.wasm'),
   join(unpackedResources, 'milksu-sidecar', 'manifest.json'),
   join(unpackedResources, 'milksu-sidecar', 'node_modules', '@playwright', 'mcp', 'cli.js'),
-  join(unpackedResources, 'milksu-sidecar', 'node_modules', '@deepseek-ai', 'cordis-plugin-group'),
+  join(unpackedResources, 'node-pty', 'package.json'),
 ]) {
   if (!await exists(required)) {
     throw new Error(`Linux package is missing required runtime artifact: ${required}`)

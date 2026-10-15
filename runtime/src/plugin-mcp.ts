@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { existsSync, lstatSync, statSync } from 'node:fs'
 import { lstat, readFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { moduleDirectory } from './module-path.ts'
 import { findProjectRoot } from './sidecar.ts'
 import { dataDirectory, resolveHomeRoot } from './home.ts'
@@ -129,6 +130,17 @@ export function buildPluginMcpConfig(home: string): PluginMCPConfig {
   if (!script || !regularFile(script)) {
     return { available: false, args: [], configuration: {} }
   }
+  const env: Record<string, string> = {
+    MILKSU_HOME: home,
+    MILKSU_APPDATA_DIR: home,
+    MILKSU_APP_VERSION: hostVersion(),
+  }
+  const resources = String(process.env.MILKSU_RESOURCES ?? '').trim()
+  if (resources) env.MILKSU_RESOURCES = resources
+  const binary = command.replace(/\\/g, '/').split('/').pop() ?? ''
+  if (binary.replace(/\.exe$/i, '').toLowerCase() !== 'node') {
+    env.ELECTRON_RUN_AS_NODE = '1'
+  }
   return {
     available: true,
     command,
@@ -138,11 +150,7 @@ export function buildPluginMcpConfig(home: string): PluginMCPConfig {
         'milksu-plugins': {
           command,
           args,
-          env: {
-            MILKSU_HOME: home,
-            MILKSU_APPDATA_DIR: home,
-            MILKSU_APP_VERSION: hostVersion(),
-          },
+          env,
         },
       },
     },

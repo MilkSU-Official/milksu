@@ -1,3 +1,0 @@
-# lefthook is still installed by `prepare`. Product tests run in CI
-# (`runtime:test`, `test:sidecar`, renderer).
-pre-commit: {}

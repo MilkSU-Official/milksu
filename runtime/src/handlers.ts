@@ -203,7 +203,7 @@ export async function handleOwnedMethod(
       await rewindOwnedSession(ctx, arg(args, 0, ''))
       return null
     case 'HandoffCodingSession':
-      return handoffOwnedSession(ctx, arg(args, 0, ''), arg(args, 1, ''))
+      return handoffOwnedSession(ctx, arg(args, 0, ''), arg(args, 1, ''), arg(args, 2, ''))
     default:
       throw new Error(`unsupported desktop method ${JSON.stringify(method)}`)
   }
@@ -237,7 +237,11 @@ async function forkOwnedConversation(
   }
   if (!isValidConversationId(forkedId)) forkedId = newConversationId()
   await forkConversationRecord(ctx.conversations, conversationId, forkedId, role, occurrence)
-  ctx.engine.bindSessionKernel(forkedId, normalizeKernel(stored.kernel) as 'pi' | 'dsh')
+  ctx.engine.bindSessionKernel(
+    forkedId,
+    normalizeKernel(stored.kernel) as 'pi' | 'dsh',
+    stored.acpAgentId ?? '',
+  )
   ctx.emit('conversations-changed', {})
   return forkedId
 }
@@ -290,10 +294,14 @@ async function handoffOwnedSession(
   ctx: HandlerContext,
   conversationId: string,
   kernel: string,
+  acpAgentId = '',
 ): Promise<{ sessionId: string; summary?: string; surfaceText?: string }> {
   const stored = await ctx.conversations.get(conversationId)
   const current = normalizeKernel(stored.kernel)
   const target = normalizeKernel(kernel || stored.kernel)
+  const targetAgentId = target === 'dsh'
+    ? (String(acpAgentId ?? '').trim() || String(stored.acpAgentId ?? '').trim())
+    : ''
   let receipt = {
     sessionId: '',
     summary: '',
@@ -319,8 +327,8 @@ async function handoffOwnedSession(
     }
   }
   if (!receipt.sessionId) throw new Error('handoff ended without a forked session')
-  await saveHandoffConversation(ctx.conversations, stored, receipt, target)
-  ctx.engine.bindSessionKernel(receipt.sessionId, target as 'pi' | 'dsh')
+  await saveHandoffConversation(ctx.conversations, stored, receipt, target, targetAgentId)
+  ctx.engine.bindSessionKernel(receipt.sessionId, target as 'pi' | 'dsh', targetAgentId)
   ctx.emit('conversations-changed', {})
   return {
     sessionId: receipt.sessionId,

@@ -129,10 +129,10 @@ export function migrateAcpAgents(settings: PublicSettings): {
     : (agents.find((agent) => String(agent.command ?? '').trim())?.id ?? agents[0]?.id ?? '')
   extra.acp_agents = agents
   extra.default_acp_agent_id = defaultId || undefined
+  delete extra.acp_agent
   const selected = (defaultId ? agents.find((agent) => agent.id === defaultId) : undefined)
     ?? agents.find((agent) => String(agent.command ?? '').trim())
   const derived = normalizeAcpAgent(selected)
-  extra.acp_agent = derived
   return { agents, defaultId, derived }
 }
 

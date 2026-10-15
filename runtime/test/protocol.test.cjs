@@ -3,13 +3,38 @@
 const assert = require('node:assert/strict')
 const { spawn } = require('node:child_process')
 const { mkdir, mkdtemp, readFile, writeFile } = require('node:fs/promises')
+const { createHash } = require('node:crypto')
 const { DatabaseSync } = require('node:sqlite')
-const { tmpdir } = require('node:os')
-const { join } = require('node:path')
+const { homedir, tmpdir } = require('node:os')
+const { join, resolve } = require('node:path')
 const readline = require('node:readline')
 const test = require('node:test')
 
 const runtimeMain = join(__dirname, '..', 'dist', 'main.cjs')
+const KEYCHAIN_SERVICE = 'dev.milksu.app.credentials'
+
+function keychainServiceName(home) {
+  const resolved = resolve(home)
+  const product = resolve(join(homedir(), '.milksu'))
+  if (resolved === product) return KEYCHAIN_SERVICE
+  const sum = createHash('sha256').update(resolved).digest('hex').slice(0, 16)
+  return `${KEYCHAIN_SERVICE}.${sum}`
+}
+
+function loadKeychainAddon() {
+  const candidates = [
+    join(__dirname, '..', '..', 'build', 'desktop', 'macos-keychain.node'),
+    join(process.cwd(), 'build', 'desktop', 'macos-keychain.node'),
+  ]
+  for (const candidate of candidates) {
+    try {
+      return require(candidate)
+    } catch {
+      // Missing or unloadable addon is not fatal here.
+    }
+  }
+  return null
+}
 
 function writeLine(stream, value) {
   return new Promise((resolve, reject) => {
@@ -345,6 +370,7 @@ test('runtime owns GetSettings/SaveSettingsCmd; json has no key; renderer cannot
     assert.equal(providers['custom-relay-deepseek'].has_api_key, true)
     assert.equal(JSON.stringify(after.result).includes(fakeKey), false)
 
+    const account = 'provider:custom-relay-deepseek'
     const dbPath = join(home, 'config', 'credentials.db')
     let sqliteSecret
     try {
@@ -354,9 +380,7 @@ test('runtime owns GetSettings/SaveSettingsCmd; json has no key; renderer cannot
           "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'credentials'",
         ).get()
         if (hasTable) {
-          sqliteSecret = db.prepare('SELECT secret FROM credentials WHERE account = ?').get(
-            'provider:custom-relay-deepseek',
-          )
+          sqliteSecret = db.prepare('SELECT secret FROM credentials WHERE account = ?').get(account)
         }
       } finally {
         db.close()
@@ -367,7 +391,15 @@ test('runtime owns GetSettings/SaveSettingsCmd; json has no key; renderer cannot
     if (sqliteSecret) {
       assert.equal(sqliteSecret.secret, fakeKey)
     } else {
-      assert.equal(process.platform, 'darwin')
+      const addon = loadKeychainAddon()
+      assert.ok(addon, 'credential must land in sqlite or an isolated macOS Keychain service')
+      const service = keychainServiceName(home)
+      assert.notEqual(service, KEYCHAIN_SERVICE)
+      try {
+        assert.equal(addon.get(account, service), fakeKey)
+      } finally {
+        try { addon.delete(account, service) } catch { /* test cleanup */ }
+      }
     }
 
     await writeLine(proc.stdin, {

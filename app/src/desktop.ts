@@ -341,7 +341,7 @@ interface DesktopAppBindings {
   ): Promise<void>
   ForkConversation(conversationId: string, role: string, occurrence: number): Promise<string>
   RewindCodingSession(conversationId: string): Promise<void>
-  HandoffCodingSession(conversationId: string, kernel?: string): Promise<CodingSessionHandoffResult>
+  HandoffCodingSession(conversationId: string, kernel?: string, acpAgentId?: string): Promise<CodingSessionHandoffResult>
   AbortMessage(conversationId: string): Promise<void>
   AbortSubagent(conversationId: string, subagentId: string): Promise<void>
   RestartEngine(conversationId: string): Promise<void>
@@ -920,6 +920,7 @@ export async function invokeCommand<T = unknown>(command: string, args?: Command
         return app.HandoffCodingSession(
           args?.conversationId as string,
           (args?.kernel as string) ?? '',
+          (args?.acpAgentId as string) ?? '',
         ) as Promise<T>
       case 'restart_engine':
         return app.RestartEngine(args?.conversationId as string) as Promise<T>

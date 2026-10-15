@@ -229,11 +229,24 @@ static void throw_keychain_error(napi_env env, const char *operation, OSStatus s
   napi_throw_error(env, NULL, message);
 }
 
+static const char *resolve_service(
+  char *override,
+  size_t override_length,
+  size_t *length_out
+) {
+  if (override != NULL && override_length > 0) {
+    *length_out = override_length;
+    return override;
+  }
+  *length_out = sizeof(KEYCHAIN_SERVICE) - 1;
+  return KEYCHAIN_SERVICE;
+}
+
 static napi_value keychain_get(napi_env env, napi_callback_info info) {
-  size_t argc = 1;
-  napi_value argv[1];
+  size_t argc = 2;
+  napi_value argv[2];
   if (napi_get_cb_info(env, info, &argc, argv, NULL, NULL) != napi_ok || argc < 1) {
-    napi_throw_type_error(env, NULL, "get(account) requires an account");
+    napi_throw_type_error(env, NULL, "get(account[, service]) requires an account");
     return NULL;
   }
 
@@ -243,18 +256,31 @@ static napi_value keychain_get(napi_env env, napi_callback_info info) {
     napi_throw_type_error(env, NULL, "account must be a string");
     return NULL;
   }
+  size_t service_length = 0;
+  char *service_override = NULL;
+  if (argc >= 2) {
+    service_override = copy_utf8(env, argv[1], &service_length);
+    if (service_override == NULL) {
+      free(account);
+      napi_throw_type_error(env, NULL, "service must be a string");
+      return NULL;
+    }
+  }
+  size_t resolved_length = 0;
+  const char *service = resolve_service(service_override, service_length, &resolved_length);
 
   CFIndex secret_length = 0;
   void *secret = NULL;
   OSStatus status = milksu_keychain_copy(
-    KEYCHAIN_SERVICE,
-    (CFIndex)(sizeof(KEYCHAIN_SERVICE) - 1),
+    service,
+    (CFIndex)resolved_length,
     account,
     (CFIndex)account_length,
     &secret_length,
     &secret
   );
   free(account);
+  free(service_override);
   if (status == errSecItemNotFound) {
     napi_throw_error(env, NULL, "credential not found");
     return NULL;
@@ -280,10 +306,10 @@ static napi_value keychain_get(napi_env env, napi_callback_info info) {
 }
 
 static napi_value keychain_set(napi_env env, napi_callback_info info) {
-  size_t argc = 2;
-  napi_value argv[2];
+  size_t argc = 3;
+  napi_value argv[3];
   if (napi_get_cb_info(env, info, &argc, argv, NULL, NULL) != napi_ok || argc < 2) {
-    napi_throw_type_error(env, NULL, "set(account, secret) requires an account and secret");
+    napi_throw_type_error(env, NULL, "set(account, secret[, service]) requires an account and secret");
     return NULL;
   }
 
@@ -300,10 +326,23 @@ static napi_value keychain_set(napi_env env, napi_callback_info info) {
     napi_throw_type_error(env, NULL, "secret must be a string");
     return NULL;
   }
+  size_t service_length = 0;
+  char *service_override = NULL;
+  if (argc >= 3) {
+    service_override = copy_utf8(env, argv[2], &service_length);
+    if (service_override == NULL) {
+      free(account);
+      free(secret);
+      napi_throw_type_error(env, NULL, "service must be a string");
+      return NULL;
+    }
+  }
+  size_t resolved_length = 0;
+  const char *service = resolve_service(service_override, service_length, &resolved_length);
 
   OSStatus status = milksu_keychain_set(
-    KEYCHAIN_SERVICE,
-    (CFIndex)(sizeof(KEYCHAIN_SERVICE) - 1),
+    service,
+    (CFIndex)resolved_length,
     account,
     (CFIndex)account_length,
     secret,
@@ -311,6 +350,7 @@ static napi_value keychain_set(napi_env env, napi_callback_info info) {
   );
   free(account);
   free(secret);
+  free(service_override);
   if (status != errSecSuccess) {
     throw_keychain_error(env, "write", status);
     return NULL;
@@ -322,10 +362,10 @@ static napi_value keychain_set(napi_env env, napi_callback_info info) {
 }
 
 static napi_value keychain_delete(napi_env env, napi_callback_info info) {
-  size_t argc = 1;
-  napi_value argv[1];
+  size_t argc = 2;
+  napi_value argv[2];
   if (napi_get_cb_info(env, info, &argc, argv, NULL, NULL) != napi_ok || argc < 1) {
-    napi_throw_type_error(env, NULL, "delete(account) requires an account");
+    napi_throw_type_error(env, NULL, "delete(account[, service]) requires an account");
     return NULL;
   }
 
@@ -335,14 +375,27 @@ static napi_value keychain_delete(napi_env env, napi_callback_info info) {
     napi_throw_type_error(env, NULL, "account must be a string");
     return NULL;
   }
+  size_t service_length = 0;
+  char *service_override = NULL;
+  if (argc >= 2) {
+    service_override = copy_utf8(env, argv[1], &service_length);
+    if (service_override == NULL) {
+      free(account);
+      napi_throw_type_error(env, NULL, "service must be a string");
+      return NULL;
+    }
+  }
+  size_t resolved_length = 0;
+  const char *service = resolve_service(service_override, service_length, &resolved_length);
 
   OSStatus status = milksu_keychain_delete(
-    KEYCHAIN_SERVICE,
-    (CFIndex)(sizeof(KEYCHAIN_SERVICE) - 1),
+    service,
+    (CFIndex)resolved_length,
     account,
     (CFIndex)account_length
   );
   free(account);
+  free(service_override);
   if (status == errSecItemNotFound) {
     napi_throw_error(env, NULL, "credential not found");
     return NULL;

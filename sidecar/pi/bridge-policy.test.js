@@ -91,7 +91,6 @@ async function workspaceWithManifest(value) {
 test("Coding sessions expose Pi native file and shell tools without MilkSU workspace tools", async () => {
   const workspace = await mkdtemp(join(tmpdir(), "milksu-coding-policy-"));
   const policy = await loadSessionPolicy(workspace);
-  assert.equal(policy.ctf, false);
   assert.equal(policy.executionMode, "go");
   assert.equal(policy.approvalPolicy, "workspace-auto");
   assert.deepEqual(
@@ -1006,7 +1005,6 @@ test("tool-builder role uses Pi native file and shell tools", async () => {
   );
   await writeFile(join(workspace, "candidate-flags.txt"), "# solver-owned\n", "utf8");
   const policy = await loadSessionPolicy(workspace, "tool-builder");
-  assert.equal(policy.ctf, false);
   assert.equal(policy.activeTools.includes("bash"), true);
   assert.equal(policy.activeTools.includes("milksu_progress"), true);
   assert.equal(policy.activeTools.includes("milksu_ask"), true);
@@ -1048,7 +1046,6 @@ test("strategist can execute and still uses Pi file semantics", async () => {
   await writeFile(join(workspace, "candidate-flags.txt"), "# solver candidates\n", "utf8");
 
   const policy = await loadSessionPolicy(workspace, "strategist");
-  assert.equal(policy.ctf, false);
   assert.equal(policy.activeTools.includes("bash"), true);
   assert.equal(policy.activeTools.includes("edit"), true);
   assert.equal(policy.customTools.some(tool => tool.name === "bash"), true);

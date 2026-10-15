@@ -12,7 +12,7 @@
   <a href="https://github.com/MilkSU-Official/milksu/releases/tag/v26.927.3"><img src="https://img.shields.io/badge/latest_release-26.927.3-f3f0e8?style=flat-square&labelColor=20211f" alt="Latest GitHub Release 26.927.3"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue?style=flat-square&labelColor=20211f" alt="AGPL-3.0-only"></a>
   <img src="https://img.shields.io/badge/platform-macOS_Windows_Linux-f3f0e8?style=flat-square&labelColor=20211f" alt="macOS, Windows and Linux">
-  <img src="https://img.shields.io/badge/desktop-Electron_%2B_React_%2B_Go-f3f0e8?style=flat-square&labelColor=20211f" alt="Electron, React and Go">
+  <img src="https://img.shields.io/badge/desktop-Electron_%2B_React_%2B_TypeScript-f3f0e8?style=flat-square&labelColor=20211f" alt="Electron, React and TypeScript">
 </p>
 
 <p align="center">
@@ -136,7 +136,7 @@ npm --prefix desktop install
 npm run desktop:start
 ```
 
-`npm install` 会自动安装 lefthook 的 pre-commit hook。
+产品测试在 CI 里跑：`runtime:test`、`test:sidecar` 和 renderer 套件。
 
 提交前跑与改动对应的测试：`npm run runtime:test`、`npm run test:sidecar`、`npm --prefix app run test`。
 
@@ -192,10 +192,10 @@ MilkSU 建立在这些项目之上。第三方保留各自原许可，完整文�
 
 | 项目 | 在 MilkSU 中做什么 | 许可 |
 | --- | --- | --- |
-| [Pi](https://github.com/earendil-works/pi)（`@earendil-works/pi-coding-agent` 1.0.0，含 pi-ai、pi-tui） | 默认 Agent 内核：通用会话、上下文压缩和工具循环 | MIT |
+| [Pi](https://github.com/earendil-works/pi)（`@earendil-works/pi-coding-agent` 1.1.0，含 pi-ai、pi-tui） | 默认 Agent 内核：通用会话、上下文压缩和工具循环 | MIT |
 | Pi 扩展（pi-goal、pi-lsp、pi-mcp-adapter、pi-sub-agent、pi-better-background-tasks） | 目标、LSP、MCP 适配与后台子代理 | MIT |
 | [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（`@deepseek-ai/dsh`，走 ACP） | 可作为 Agent 经 ACP 接入；用户自备命令路径，安装包默认不带 | MIT |
-| [Obelisk](https://github.com/tommy0103/obelisk) | 本地会话记忆与学习记录的分层。companion sidecar 以上游 writer lease 写 `companion/obelisk.sqlite` 索引，Go 不直接写这个库 | AGPL-3.0 |
+| [Obelisk](https://github.com/tommy0103/obelisk) | 本地会话记忆与学习记录的分层。companion sidecar 以上游 writer lease 写 `companion/obelisk.sqlite` 索引 | AGPL-3.0 |
 
 ### 桌面壳与界面
 
@@ -210,7 +210,7 @@ MilkSU 建立在这些项目之上。第三方保留各自原许可，完整文�
 | markdown-it、highlight.js、DOMPurify | 对话正文的 Markdown 渲染、代码高亮与 HTML 消毒 | MIT、MPL-2.0 OR Apache-2.0 |
 | @tanstack/react-virtual | 长列表虚拟化（会话与消息） | MIT |
 | Archify | `milksu_archify` 界面布局工具 | MIT |
-| Vite、TypeScript、Vitest、oxlint、lefthook | 前端构建、类型、测试与提交门禁 | 各自许可，TypeScript 为 Apache-2.0 |
+| Vite、TypeScript、Vitest、oxlint | 前端构建、类型与测试 | 各自许可，TypeScript 为 Apache-2.0 |
 | VitePress | 文档站 | MIT |
 
 ### TypeScript Runtime 与桌面集成

@@ -83,7 +83,13 @@ export function rewindVisibleMessages(messages: StoredMessage[]): StoredMessage[
 
 export function cloneConversationRow(
   source: StoredConversation,
-  options: { id: string; title?: string; messages?: StoredMessage[]; kernel?: string },
+  options: {
+    id: string
+    title?: string
+    messages?: StoredMessage[]
+    kernel?: string
+    acpAgentId?: string | null
+  },
 ): StoredConversation {
   const title = String(options.title ?? source.title).trim().slice(0, 40) || source.title
   const cloned: StoredConversation = {
@@ -99,6 +105,11 @@ export function cloneConversationRow(
     parentConversationId: undefined,
     multitask: undefined,
     messages: (options.messages ?? []).map((item) => ({ ...item })),
+  }
+  if (options.acpAgentId !== undefined) {
+    const agentId = String(options.acpAgentId ?? '').trim()
+    if (agentId) cloned.acpAgentId = agentId
+    else delete cloned.acpAgentId
   }
   return cloned
 }
@@ -200,11 +211,14 @@ export async function saveHandoffConversation(
   source: StoredConversation,
   receipt: SessionHandoffResult,
   kernel: string,
+  acpAgentId?: string,
 ): Promise<StoredConversation> {
+  const target = normalizeKernel(kernel)
   const handed = cloneConversationRow(source, {
     id: receipt.sessionId,
     title: source.title,
-    kernel,
+    kernel: target,
+    acpAgentId: target === 'dsh' ? String(acpAgentId ?? '').trim() : '',
     messages: visibleHandoffMessages(source.messages, receipt),
   })
   await store.save(handed)

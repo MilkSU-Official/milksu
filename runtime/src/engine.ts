@@ -356,8 +356,10 @@ export class Engine {
     }
   }
 
-  bindSessionKernel(sessionId: string, kernel: SidecarKernel): void {
+  bindSessionKernel(sessionId: string, kernel: SidecarKernel, agentId = ''): void {
     this.sessionKernel.set(sessionId, kernel)
+    if (kernel === 'dsh' && agentId) this.sessionAgentIds.set(sessionId, agentId)
+    else this.sessionAgentIds.delete(sessionId)
   }
 
   kernelFor(sessionId: string, stored?: StoredConversation): SidecarKernel {
@@ -1043,7 +1045,7 @@ export class Engine {
       stored = undefined
     }
     const kernel = this.kernelFor(sessionId, stored)
-    await this.requireAgentCommand(kernel)
+    await this.requireAgentCommand(kernel, undefined, stored?.acpAgentId)
     if (!this.sessions.has(sessionId)) throw agentSessionMissingError(sessionId, kernel)
     return sessionId
   }
@@ -1226,6 +1228,20 @@ export class Engine {
   hasLiveSession(conversationId: string): boolean {
     const sessionId = asString(conversationId)
     return this.sessions.has(sessionId) && this.processFor(sessionId) !== null
+  }
+
+  liveSessionCount(): number {
+    let count = 0
+    for (const id of this.sessions.keys()) {
+      if (this.hasLiveSession(id)) count += 1
+    }
+    return count
+  }
+
+  backgroundTaskCount(): number {
+    let count = 0
+    for (const tasks of this.backgroundTasks.values()) count += tasks.length
+    return count
   }
 
   hasRegisteredSession(conversationId: string): boolean {

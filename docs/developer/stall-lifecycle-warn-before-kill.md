@@ -96,7 +96,7 @@ sidecar 新增事件 `turn.stall_warning`，载荷：
 
 读者点「重启引擎」时：
 
-1. 渲染层调 `restart_engine`，后端 `Supervisor.RestartEngine` 立刻杀掉服务该会话的
+1. 渲染层调 `restart_engine`，Runtime `Engine.restartEngine` 立刻杀掉服务该会话的
    sidecar 进程（不响应 abort 的进程只能杀掉），把它从轮换位和 parked 集合里摘掉，
    并忘掉它服务的会话，这样下一次派发会拉起一个全新的 sidecar。
 2. 本地结算当前回合：清 running、清停滞标记、清队列停滞；给这个会话写一条说明
@@ -121,7 +121,7 @@ sidecar 退出后，引擎给每个受影响会话发 `engine.restarted`（`done
   `engineRestart.test.js`（abort 判据真值表）、
   `useConversationsTurnStallNotify.test.js`（告警事件链路）。
 - 桌面：`node --test`（Electron 侧不涉及本次改动，仍跑一遍回归）。
-- Go：`supervisor_restart_engine_test.go`（重启杀进程 + 发 `engine.restarted`）。
+- Runtime：`runtime/src/session-actions.test.ts` 与引擎重启相关用例。
 - 类型：`app` 的 `tsc -b`。
 
 ## 5. 不做与遗留

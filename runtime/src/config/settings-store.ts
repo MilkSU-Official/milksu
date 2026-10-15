@@ -1,6 +1,6 @@
 import { chmod, mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import { migrateAcpAgents, stripSecrets, type AcpAgentConfig } from '../settings.ts'
+import { migrateAcpAgents, resolveAcpAgent, stripSecrets, type AcpAgentConfig } from '../settings.ts'
 import { configDirectory, credentialsDatabasePath, settingsPath } from '../home.ts'
 import {
   deleteSecretIfPresent,
@@ -527,7 +527,7 @@ export function withDefaults(value: AppSettings): AppSettings {
   if (!next.active_model) next.active_model = defaults.active_model
   migrateAcpAgent(next)
   next.default_kernel = normalizeDefaultKernel(next.default_kernel)
-  if (next.default_kernel === 'dsh' && !next.acp_agent) next.default_kernel = 'pi'
+  if (next.default_kernel === 'dsh' && !resolveAcpAgent(next)) next.default_kernel = 'pi'
   next.busy_send = normalizeBusySend(next.busy_send)
   if (!next.providers) next.providers = {}
   for (const [id, provider] of Object.entries(next.providers)) {
@@ -641,7 +641,11 @@ function validateCustomProviders(value: AppSettings): void {
 }
 
 function publicSettings(value: AppSettings): AppSettings {
-  return stripSecrets(clone(value)) as AppSettings
+  const next = stripSecrets(clone(value)) as AppSettings
+  const migrated = migrateAcpAgents(next)
+  if (migrated.derived) next.acp_agent = migrated.derived
+  else delete next.acp_agent
+  return next
 }
 
 function withoutSessionCredentials(value: AppSettings): AppSettings {
@@ -663,6 +667,9 @@ function withoutSessionCredentials(value: AppSettings): AppSettings {
 function stripPersistSecrets(value: AppSettings): AppSettings {
   const next = withoutSessionCredentials(value)
   delete next.runtime_versions
+  delete next.acp_agent
+  delete (next as AppSettings & Record<string, unknown>).acp_guest
+  delete (next as AppSettings & Record<string, unknown>).AcpGuest
   for (const provider of Object.values(next.providers ?? {})) {
     delete provider.api_key
     delete provider.remove_api_key
@@ -1104,7 +1111,7 @@ export class SettingsStore {
 
 async function createDefaultSecretStore(options: SettingsStoreOptions): Promise<SecretStore> {
   if (usesDarwinKeychain(options.platform)) {
-    const keychain = new DarwinKeychainSecretStore()
+    const keychain = new DarwinKeychainSecretStore(options.home)
     if (keychain.available()) return keychain
     logDarwinKeychainFallback()
   }

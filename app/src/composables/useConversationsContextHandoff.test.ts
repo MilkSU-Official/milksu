@@ -75,6 +75,7 @@ describe('conversation context handoff', () => {
     expect(desktop.invokeCommand).toHaveBeenCalledWith('handoff_coding_session', {
       conversationId: 'source-1',
       kernel: 'dsh',
+      acpAgentId: '',
     })
     expect(conversations.activeId).toBe('handed-session')
     const handed = conversations.conversations.find(item => item.id === 'handed-session')

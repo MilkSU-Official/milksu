@@ -913,7 +913,6 @@ async function loadCodingSessionPolicy(workspace, codingPolicy = {}, sessionRole
           : capability
   ));
   const result = {
-    ctf: false,
     ...normalized,
     activeTools,
     capabilities,

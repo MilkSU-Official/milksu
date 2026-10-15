@@ -157,7 +157,8 @@ test('GetSettings handler returns public copy without keys', async () => {
 
 test('darwin credentials stay out of settings.json; sqlite when keychain addon is missing', async () => {
   const home = await tempHome()
-  const keychain = new DarwinKeychainSecretStore()
+  const account = `provider:${PRESET_DEEPSEEK_SERVICE_ID}`
+  const keychain = new DarwinKeychainSecretStore(home)
   const store = await SettingsStore.open({ home, platform: 'darwin' })
   const settings = store.get()
   settings.providers = settings.providers ?? {}
@@ -169,11 +170,18 @@ test('darwin credentials stay out of settings.json; sqlite when keychain addon i
   await store.save(settings)
   const json = await readFile(join(home, 'config', 'settings.json'), 'utf8')
   assert.equal(json.includes(FAKE_KEY), false)
-  if (keychain.available()) return
+  if (keychain.available()) {
+    try {
+      assert.equal(await keychain.get(account), FAKE_KEY)
+    } finally {
+      try { await keychain.delete(account) } catch { /* test cleanup */ }
+    }
+    return
+  }
   const db = new DatabaseSync(join(home, 'config', 'credentials.db'))
   try {
     const row = db.prepare('SELECT secret FROM credentials WHERE account = ?').get(
-      `provider:${PRESET_DEEPSEEK_SERVICE_ID}`,
+      account,
     ) as { secret?: string } | undefined
     assert.equal(row?.secret, FAKE_KEY)
   } finally {
@@ -196,7 +204,7 @@ test('settings load migrates acp_guest to acp_agent', async () => {
   assert.equal(store.get().default_acp_agent_id, 'agt_legacy')
   assert.equal((store.get() as Record<string, unknown>).acp_guest, undefined)
   const json = await readFile(join(home, 'config', 'settings.json'), 'utf8')
-  assert.match(json, /"acp_agent"/)
+  assert.equal(json.includes('"acp_agent"'), false)
   assert.match(json, /"acp_agents"/)
   assert.equal(json.includes('acp_guest'), false)
 })

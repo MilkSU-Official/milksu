@@ -17,7 +17,6 @@
     "plugins:test": "node scripts/plugin-tools.mjs test",
     "plugins:dev": "node scripts/plugin-tools.mjs dev",
     "test:plugin-author": "node scripts/test-plugin-author-flow.mjs",
-    "prepare": "lefthook install",
     "postinstall": "patch-package && node sidecar/pi/prepare-reviewed-ts.mjs",
     "runtime:build": "node scripts/build-runtime.mjs",
     "runtime:test": "node scripts/build-runtime.mjs && node --test --experimental-strip-types --test-concurrency=1 \"runtime/src/*.test.ts\" \"runtime/src/**/*.test.ts\" \"runtime/test/*.cjs\"",
@@ -62,7 +61,6 @@
   },
   "devDependencies": {
     "esbuild": "0.28.1",
-    "lefthook": "^2.1.14",
     "patch-package": "8.0.1",
     "postcss": "8.5.25",
     "vitepress": "^1.6.4"

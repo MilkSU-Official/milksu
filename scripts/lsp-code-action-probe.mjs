@@ -28,7 +28,6 @@ async function main() {
     },
   };
   const policy = {
-    ctf: false,
     workspace: input.workspace,
     executionMode: "go",
     approvalPolicy: input.approvalPolicy ?? "workspace-auto",

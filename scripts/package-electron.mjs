@@ -1,5 +1,5 @@
 import { spawn, execFile } from 'node:child_process'
-import { chmod, cp, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
@@ -23,6 +23,10 @@ import {
   formatMissingDesktopDevArtifacts,
   missingDesktopDevArtifacts,
 } from './lib/desktop-dev-artifacts.mjs'
+import {
+  compileNativeAddons as compileDesktopNativeAddons,
+  nativeAddonResources as desktopNativeAddonResources,
+} from './lib/desktop-native.mjs'
 
 const execFileAsync = promisify(execFile)
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -82,130 +86,12 @@ async function ensureBetaIcon() {
   }
 }
 
-function nodeIncludeDir() {
-  return join(dirname(managedNode), '..', 'include', 'node')
-}
-
-async function compileDarwinAddon(outName, source, frameworks, weakFrameworks = []) {
-  const args = [
-    '-shared',
-    '-undefined', 'dynamic_lookup',
-    '-fobjc-arc',
-    '-fblocks',
-    '-I', nodeIncludeDir(),
-  ]
-  for (const name of frameworks) {
-    args.push('-framework', name)
-  }
-  for (const name of weakFrameworks) {
-    args.push('-weak_framework', name)
-  }
-  args.push('-o', join(root, 'build', 'desktop', outName), join(root, 'desktop', 'native', source))
-  await run('/usr/bin/clang', args)
-}
-
-async function rebuildNodePtyForElectron() {
-  const source = join(root, 'node_modules', 'node-pty')
-  const destDir = join(root, 'build', 'desktop', 'node_modules')
-  const dest = join(destDir, 'node-pty')
-  await mkdir(destDir, { recursive: true })
-  await rm(dest, { recursive: true, force: true })
-  await cp(source, dest, { recursive: true })
-  let ptyVersion = ''
-  try {
-    const ptyPackage = JSON.parse(await readFile(join(dest, 'package.json'), 'utf8'))
-    ptyVersion = String(ptyPackage.version ?? '').trim()
-  } catch {
-    ptyVersion = ''
-  }
-  await writeFile(
-    join(root, 'build', 'desktop', 'package.json'),
-    `${JSON.stringify({
-      name: 'milksu-desktop-native',
-      private: true,
-      dependencies: ptyVersion ? { 'node-pty': ptyVersion } : { 'node-pty': '*' },
-    }, null, 2)}\n`,
-  )
-  const rebuildCli = join(root, 'desktop', 'node_modules', '@electron', 'rebuild', 'lib', 'cli.js')
-  let electronVersion = ''
-  try {
-    const desktopPackage = JSON.parse(await readFile(join(root, 'desktop', 'package.json'), 'utf8'))
-    electronVersion = String(desktopPackage.devDependencies?.electron ?? '').trim()
-  } catch {
-    electronVersion = ''
-  }
-  try {
-    await stat(rebuildCli)
-  } catch {
-    return
-  }
-  if (!electronVersion) return
-  await run(managedNode, [
-    rebuildCli,
-    '--version', electronVersion,
-    '--module-dir', join(root, 'build', 'desktop'),
-    '--only', 'node-pty',
-    '--force',
-  ])
-}
-
 async function compileNativeAddons() {
-  await mkdir(join(root, 'build', 'desktop'), { recursive: true })
-  await rebuildNodePtyForElectron()
-  if (process.platform === 'darwin') {
-    await compileDarwinAddon(
-      'macos-screen-permission.node',
-      'macos-screen-permission.m',
-      ['CoreGraphics', 'Foundation'],
-      ['ScreenCaptureKit'],
-    )
-    await compileDarwinAddon(
-      'macos-keychain.node',
-      'macos-keychain.m',
-      ['Security', 'CoreFoundation'],
-    )
-    await compileDarwinAddon(
-      'macos-windows.node',
-      'macos-windows.m',
-      ['AppKit', 'CoreGraphics', 'Foundation'],
-    )
-  }
-  if (process.platform === 'win32') {
-    const out = join(root, 'build', 'desktop', 'windows-windows.node')
-    const source = join(root, 'desktop', 'native', 'windows-windows.c')
-    await run('clang', [
-      '-shared',
-      '-I', nodeIncludeDir(),
-      '-o', out,
-      source,
-      '-luser32',
-      '-lkernel32',
-    ])
-  }
+  await compileDesktopNativeAddons(root)
 }
 
 function nativeAddonResources() {
-  const extras = []
-  const names = []
-  if (process.platform === 'darwin') {
-    names.push(
-      'macos-screen-permission.node',
-      'macos-keychain.node',
-      'macos-windows.node',
-    )
-  }
-  if (process.platform === 'win32') names.push('windows-windows.node')
-  for (const name of names) {
-    extras.push({
-      from: join(root, 'build', 'desktop', name),
-      to: name,
-    })
-  }
-  extras.push({
-    from: join(root, 'build', 'desktop', 'node_modules', 'node-pty'),
-    to: 'node-pty',
-  })
-  return extras
+  return desktopNativeAddonResources(root)
 }
 
 async function buildRuntime() {

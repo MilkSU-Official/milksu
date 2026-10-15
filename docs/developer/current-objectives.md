@@ -32,7 +32,7 @@
 | 本 PR | TraceId | 一次发送一个 `trc_` id，经 `send_message`、engine 命令、Pi / ACP sidecar、看板娘 sidecar、研究 Run 表和 worker 环境。 |
 | 本 PR | Agent | 设置 → 运行时和输入栏运行时菜单都可以添加多个命名 Agent（Codex / Claude Code / ACP），各自填命令 / 参数 / 环境变量，经 ACP 接入。没有命令就不能在新对话里选这个 Agent。协议没有的 Ask / durable 研究 / `milksu_workspace` 在权限面板灰掉。默认 sidecar 闭包不再复制 `@deepseek-ai/dsh`。 |
 | 本 PR | TypeScript Runtime | Desktop 拉 `runtime/dist/main.cjs`。自家 renderer RPC 已在 Runtime。`SendMessage` 带记忆、thinking、customProvider、隔离浏览器、Computer Use 描述符、securityTools、workerModel 和 codingCollaboration lookup。Pi / Agent sidecar 按内核 + 工作区各一条，cwd 即工作区；删除会话发 `destroy_session`，工作区空闲后停进程。未打包 spawn 补 `ELECTRON_RUN_AS_NODE=1`。DSH TokenFlux 路由由 Runtime 合成 `MILKSU_DSH_PI_AI_ROUTES`，带 `compat.supportsDeveloperRole: false`。Browser Use 扩展从仓库根 / `MILKSU_RESOURCES` 查找。`SaveSettingsCmd` 广播 `settings-changed`。生产二进制和测试没有 Go：钥匙串 / 窗口列表走 `desktop/native` N-API，PTY 走 `node-pty`，Lua 走 fengari，插件 MCP 走 `@modelcontextprotocol/sdk`，Linux Portal 走 `dbus-next`，Computer Use 权限走 Electron `hostCall`。 |
-| 贯穿 | 配置与会话 | 一份 `settings.json` + secret store（含 `acp_agent`）；一份会话投影。环境变量只认 `MILKSU_HOME`。 |
+| 贯穿 | 配置与会话 | 一份 `settings.json` + secret store（含 `acp_agents`）；一份会话投影。环境变量只认 `MILKSU_HOME`。 Darwin 钥匙串 service 名按 home 隔离，测试不得写入产品钥匙串。 |
 
 React 壳不重写，碰到再收。已有能力除点名要砍的以外都留下。
 

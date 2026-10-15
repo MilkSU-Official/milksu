@@ -78,6 +78,13 @@ test("pins Plugin MCP command, arguments, data root, and child environment", asy
     const electronDescriptor = await createFirstPartyPluginMcpServer();
     assert.equal(electronDescriptor.server.env.ELECTRON_RUN_AS_NODE, "1");
     assert.equal(electronDescriptor.server.cwd, canonicalAppData);
+
+    const packaged = join(root, "MilkSU");
+    await writeFile(packaged, "#!/bin/sh\n");
+    await chmod(packaged, 0o755);
+    process.env.MILKSU_PLUGIN_MCP_COMMAND = packaged;
+    const packagedDescriptor = await createFirstPartyPluginMcpServer();
+    assert.equal(packagedDescriptor.server.env.ELECTRON_RUN_AS_NODE, "1");
   } finally {
     for (const [name, value] of saved) {
       if (value === undefined) delete process.env[name];

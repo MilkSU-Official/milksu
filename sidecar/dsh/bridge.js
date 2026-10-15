@@ -264,7 +264,11 @@ async function ensureAcp(cwd) {
     env: process.env,
   });
   const args = [...launch.args];
-  const patchPath = writeHostPatch();
+  const applyDshPatch = String(process.env.MILKSU_ACP_APPLY_DSH_PATCH ?? "").trim() === "1";
+  if (applyDshPatch && args.length === 0) {
+    args.push("--profile", "acp");
+  }
+  const patchPath = applyDshPatch ? writeHostPatch() : "";
   if (patchPath && !args.includes("--patch")) {
     args.push("--patch", patchPath);
   }

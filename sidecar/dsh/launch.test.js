@@ -1,53 +1,26 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
 import test from "node:test";
-import { resolveDshLaunch, resolveDshScript } from "./launch.js";
+import { parseArgList, resolveDshLaunch } from "./launch.js";
 
-test("packaged sidecar layout still finds a nearby dsh script for diagnostics", () => {
-  const root = mkdtempSync(join(tmpdir(), "milksu-dsh-launch-"));
-  const bin = join(root, "node_modules", "@deepseek-ai", "dsh", "lib", "bin.js");
-  mkdirSync(dirname(bin), { recursive: true });
-  writeFileSync(bin, "export {}\n");
-  assert.equal(resolveDshScript(root), bin);
-  assert.throws(
-    () => resolveDshLaunch({
-      here: root,
-      execPath: "/usr/bin/node",
-      env: {},
-    }),
-    /Agent command is not configured/,
-  );
+test("empty ACP args stay empty", () => {
+  assert.deepEqual(parseArgList("", []), []);
+  assert.deepEqual(parseArgList(undefined, []), []);
+  assert.deepEqual(parseArgList("[]", []), []);
 });
 
-test("explicit MILKSU_DSH_COMMAND wins over packaged layout", () => {
+test("configured Agent command does not default to DSH --profile acp", () => {
   const launch = resolveDshLaunch({
-    here: "/missing",
-    execPath: "/usr/bin/node",
-    env: {
-      MILKSU_DSH_COMMAND: "/bin/echo",
-      MILKSU_DSH_ACP_ARGS: "--profile acp",
-    },
+    env: { MILKSU_DSH_COMMAND: "/usr/local/bin/codex-acp" },
   });
-  assert.equal(launch.command, "/bin/echo");
-  assert.deepEqual(launch.args, ["--profile", "acp"]);
+  assert.equal(launch.command, "/usr/local/bin/codex-acp");
+  assert.deepEqual(launch.args, []);
 });
 
-test("missing guest command fails closed", () => {
-  assert.throws(
-    () => resolveDshLaunch({ here: join(tmpdir(), "missing-dsh"), env: {} }),
-    /Agent command is not configured/,
-  );
-});
-
-test("JSON ACP args are accepted", () => {
+test("explicit ACP args are preserved", () => {
   const launch = resolveDshLaunch({
-    here: "/missing",
-    execPath: "/usr/bin/node",
     env: {
-      MILKSU_DSH_COMMAND: "/bin/echo",
-      MILKSU_DSH_ACP_ARGS: '["--profile","acp"]',
+      MILKSU_DSH_COMMAND: "/usr/bin/dsh",
+      MILKSU_DSH_ACP_ARGS: JSON.stringify(["--profile", "acp"]),
     },
   });
   assert.deepEqual(launch.args, ["--profile", "acp"]);

@@ -131,35 +131,38 @@ jobs:
             exit 1
           fi
 
-          backend='build/desktop/milksu-backend'
-          "$backend" >"$RUNNER_TEMP/milksu-backend.stdout" 2>"$RUNNER_TEMP/milksu-backend.stderr" &
-          backend_pid=$!
-          trap 'kill $backend_pid 2>/dev/null || true' EXIT
+          app='build/electron/linux/stable/linux-unpacked/milksu'
+          runtime='build/electron/linux/stable/linux-unpacked/resources/runtime/main.cjs'
+          test -f "$runtime"
+          runtime_home="$RUNNER_TEMP/milksu-runtime-home"
+          mkdir -p "$runtime_home"
+          ELECTRON_RUN_AS_NODE=1 MILKSU_HOME="$runtime_home" "$app" "$runtime" \
+            >"$RUNNER_TEMP/milksu-runtime.stdout" 2>"$RUNNER_TEMP/milksu-runtime.stderr" &
+          runtime_pid=$!
+          trap 'kill $runtime_pid 2>/dev/null || true' EXIT
           for _ in $(seq 1 30); do
-            grep -q '"type"[[:space:]]*:[[:space:]]*"ready"' "$RUNNER_TEMP/milksu-backend.stdout" && break
-            kill -0 "$backend_pid"
+            grep -q '"type"[[:space:]]*:[[:space:]]*"ready"' "$RUNNER_TEMP/milksu-runtime.stdout" && break
+            kill -0 "$runtime_pid"
             sleep 0.5
           done
-          grep -q '"type"[[:space:]]*:[[:space:]]*"ready"' "$RUNNER_TEMP/milksu-backend.stdout"
-          kill "$backend_pid"
-          wait "$backend_pid" || true
+          grep -q '"type"[[:space:]]*:[[:space:]]*"ready"' "$RUNNER_TEMP/milksu-runtime.stdout"
+          kill "$runtime_pid"
+          wait "$runtime_pid" || true
           trap - EXIT
 
-          app='build/electron/linux/stable/linux-unpacked/milksu'
           MILKSU_INSTANCE_ID=linux-release-smoke xvfb-run -a "$app" --no-sandbox \
             >"$RUNNER_TEMP/milksu-app.stdout" 2>"$RUNNER_TEMP/milksu-app.stderr" &
           app_pid=$!
-          trap 'kill $app_pid 2>/dev/null || true; pkill -f milksu-backend 2>/dev/null || true' EXIT
+          trap 'kill $app_pid 2>/dev/null || true' EXIT
           sleep 12
           if ! kill -0 "$app_pid" 2>/dev/null; then
             cat "$RUNNER_TEMP/milksu-app.stdout" || true
             cat "$RUNNER_TEMP/milksu-app.stderr" >&2 || true
             exit 1
           fi
-          pgrep -f '/resources/milksu-backend' >/dev/null
+          test -f "$runtime"
           kill "$app_pid"
           wait "$app_pid" || true
-          pkill -f milksu-backend || true
           trap - EXIT
       - name: Install the deb on Debian 13
         run: |

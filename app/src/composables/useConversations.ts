@@ -797,9 +797,6 @@ export function agentRuntimeErrorMessage(
   if (new RegExp(`must have a primary workspace|${t('还没有工作区', 'no workspace yet')}`, 'i').test(raw)) {
     return t('当前会话没有工作区。', 'This conversation has no workspace.')
   }
-  if (/CTF Agent directory scope/i.test(raw)) {
-    return t('当前会话不能扩大目录权限。', 'This conversation cannot expand directory permissions.')
-  }
   if (new RegExp(`project access is (?:not|no longer) authorized|${t('目录权限', 'directory permission')}.*(?:${t('未授权', 'unauthorized')}|${t('已撤销', 'revoked')})`, 'i').test(raw)) {
     return t('当前会话没有这个目录的权限。', 'This conversation does not have access to that directory.')
   }
@@ -3619,6 +3616,9 @@ export function createConversationsRuntime(options?: {
         await invokeCommand('handoff_coding_session', {
           conversationId: conversation.id,
           kernel: targetKernel,
+          acpAgentId: targetKernel === 'dsh'
+            ? (String(agentId ?? '').trim() || conversation.acpAgentId || '')
+            : '',
         }),
       )
       if (!handedResult.sessionId) return

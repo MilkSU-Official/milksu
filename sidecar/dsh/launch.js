@@ -8,8 +8,7 @@ export function parseArgList(value, fallback) {
     try {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
-        const args = parsed.map(item => String(item ?? "").trim()).filter(Boolean);
-        if (args.length) return args;
+        return parsed.map(item => String(item ?? "").trim()).filter(Boolean);
       }
     } catch {
       // Fall through to whitespace split.
@@ -33,7 +32,7 @@ export function resolveDshScript(here) {
 export function resolveDshLaunch(options = {}) {
   const env = options.env ?? process.env;
   const configured = String(env.MILKSU_DSH_COMMAND ?? "").trim();
-  const extra = parseArgList(env.MILKSU_DSH_ACP_ARGS, ["--profile", "acp"]);
+  const extra = parseArgList(env.MILKSU_DSH_ACP_ARGS, []);
   if (configured) {
     return { command: configured, args: extra };
   }

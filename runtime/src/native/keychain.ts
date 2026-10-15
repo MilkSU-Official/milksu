@@ -1,3 +1,6 @@
+import { createHash } from 'node:crypto'
+import { homedir } from 'node:os'
+import { join, resolve } from 'node:path'
 import {
   SECRET_NOT_FOUND,
   SecretNotFoundError,
@@ -14,6 +17,14 @@ export function usesDarwinKeychain(platform = process.platform): boolean {
   return platform === 'darwin'
 }
 
+export function keychainServiceName(home: string, userHome = homedir()): string {
+  const resolved = resolve(home)
+  const product = resolve(join(userHome, '.milksu'))
+  if (resolved === product) return KEYCHAIN_SERVICE
+  const sum = createHash('sha256').update(resolved).digest('hex').slice(0, 16)
+  return `${KEYCHAIN_SERVICE}.${sum}`
+}
+
 export function logDarwinKeychainFallback(): void {
   if (fallbackLogged) return
   fallbackLogged = true
@@ -22,9 +33,9 @@ export function logDarwinKeychainFallback(): void {
 }
 
 type KeychainAddon = {
-  get(account: string): string
-  set(account: string, secret: string): void
-  delete(account: string): void
+  get(account: string, service?: string): string
+  set(account: string, secret: string, service?: string): void
+  delete(account: string, service?: string): void
 }
 
 let cached: KeychainAddon | null | undefined
@@ -60,6 +71,12 @@ function mapKeychainError(error: unknown): never {
 }
 
 export class DarwinKeychainSecretStore implements SecretStore {
+  private readonly service: string
+
+  constructor(home: string, userHome = homedir()) {
+    this.service = keychainServiceName(home, userHome)
+  }
+
   available(): boolean {
     return keychainAddon() != null
   }
@@ -68,7 +85,7 @@ export class DarwinKeychainSecretStore implements SecretStore {
     const addon = keychainAddon()
     if (!addon) throw new Error(UNAVAILABLE)
     try {
-      const value = addon.get(account)
+      const value = addon.get(account, this.service)
       if (typeof value !== 'string') throw new SecretNotFoundError()
       return value
     } catch (error) {
@@ -82,7 +99,7 @@ export class DarwinKeychainSecretStore implements SecretStore {
     validateSecretInput(secret)
     if (!secret) throw new Error('credential must not be empty')
     try {
-      addon.set(account, secret)
+      addon.set(account, secret, this.service)
     } catch (error) {
       mapKeychainError(error)
     }
@@ -92,7 +109,7 @@ export class DarwinKeychainSecretStore implements SecretStore {
     const addon = keychainAddon()
     if (!addon) throw new Error(UNAVAILABLE)
     try {
-      addon.delete(account)
+      addon.delete(account, this.service)
     } catch (error) {
       mapKeychainError(error)
     }

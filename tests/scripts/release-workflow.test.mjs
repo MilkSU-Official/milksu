@@ -73,6 +73,13 @@ test('official packaging always uploads OTA artifacts and creates an Admin draft
   assert.match(linuxWorkflow, /node scripts\/publish-release\.mjs/u)
 })
 
+test('Windows and Linux release no longer start a Go milksu-backend', () => {
+  assert.doesNotMatch(windowsWorkflow, /milksu-backend/u)
+  assert.doesNotMatch(linuxWorkflow, /milksu-backend/u)
+  assert.match(windowsWorkflow, /resources\/runtime\/main\.cjs/u)
+  assert.match(linuxWorkflow, /resources\/runtime\/main\.cjs/u)
+})
+
 test('Windows and Linux extraResources copy Sidecar node_modules separately', () => {
   for (const script of [windowsReleaseScript, linuxReleaseScript]) {
     assert.match(script, /to: 'milksu-sidecar\/node_modules'/u)
@@ -80,7 +87,9 @@ test('Windows and Linux extraResources copy Sidecar node_modules separately', ()
       script,
       /node_modules', '@playwright', 'mcp', 'cli\.js'/u,
     )
-    assert.match(
+    assert.match(script, /compileNativeAddons\(/u)
+    assert.match(script, /nativeAddonResources\(/u)
+    assert.doesNotMatch(
       script,
       /node_modules', '@deepseek-ai', 'cordis-plugin-group'/u,
     )

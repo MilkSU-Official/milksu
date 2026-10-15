@@ -105,13 +105,13 @@ jobs:
           MILKSU_INSTANCE_ID=linux-arm64-smoke xvfb-run -a "$app" --no-sandbox \
             >"$RUNNER_TEMP/milksu-app.stdout" 2>"$RUNNER_TEMP/milksu-app.stderr" &
           app_pid=$!
-          trap 'kill $app_pid 2>/dev/null || true; sudo pkill -f milksu-backend 2>/dev/null || true' EXIT
+          trap 'kill $app_pid 2>/dev/null || true' EXIT
           sleep 12
           if ! kill -0 "$app_pid" 2>/dev/null; then
             cat "$RUNNER_TEMP/milksu-app.stdout" || true
             cat "$RUNNER_TEMP/milksu-app.stderr" >&2 || true
             exit 1
           fi
-          pgrep -f '/resources/milksu-backend' >/dev/null
+          test -f /opt/MilkSU/resources/runtime/main.cjs
           kill "$app_pid"
           wait "$app_pid" || true

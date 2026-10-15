@@ -25,8 +25,8 @@ function launcherArgs() {
 }
 
 function commandNeedsElectronAsNode(command) {
-  const base = basename(command).toLowerCase();
-  return base === "electron" || base === "electron.exe";
+  const base = basename(command).replace(/\.exe$/i, "").toLowerCase();
+  return base !== "node";
 }
 
 export function pluginMcpSessionRequiresReload(

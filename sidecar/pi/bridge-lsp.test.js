@@ -11,7 +11,6 @@ const afterText = "const answer: number = 42\n";
 
 function policy(workspace, approvalPolicy = "workspace-auto") {
   return {
-    ctf: false,
     workspace,
     executionMode: "go",
     approvalPolicy,

@@ -220,7 +220,6 @@ const afterText = "const answer: number = 42\n";
 
 function lspPolicy(workspace, approvalPolicy = "workspace-auto", activeTools = ["lsp_fix", "lsp_diagnostics"]) {
   return {
-    ctf: false,
     workspace,
     executionMode: "go",
     approvalPolicy,
