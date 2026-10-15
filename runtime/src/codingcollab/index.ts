@@ -13,7 +13,7 @@ import {
   writeFile,
 } from 'node:fs/promises'
 import { existsSync, mkdirSync, realpathSync } from 'node:fs'
-import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { dirname, isAbsolute, join, resolve, sep } from 'node:path'
 import { tmpdir } from 'node:os'
 import { dataDirectory } from '../home.ts'
 
@@ -86,9 +86,29 @@ function trim(value: unknown): string {
   return String(value ?? '').trim()
 }
 
+function toNativeGitPath(value: string): string {
+  const trimmed = value.trim()
+  const msys = trimmed.match(/^\/([A-Za-z])\/(.*)$/u)
+  if (process.platform === 'win32' && msys) {
+    return `${msys[1].toUpperCase()}:${sep}${msys[2].replaceAll('/', sep)}`
+  }
+  return trimmed
+}
+
+function stripWindowsExtendedPrefix(value: string): string {
+  if (process.platform !== 'win32') return value
+  if (value.startsWith('\\\\?\\UNC\\')) return `\\\\${value.slice(8)}`
+  if (value.startsWith('\\\\?\\')) return value.slice(4)
+  return value
+}
+
 function resolveExistingDir(value: string): string {
-  const absolute = isAbsolute(value) ? value : resolve(value)
-  return realpathSync(absolute)
+  const native = toNativeGitPath(value)
+  const absolute = isAbsolute(native) ? native : resolve(native)
+  const real = typeof realpathSync.native === 'function'
+    ? realpathSync.native(absolute)
+    : realpathSync(absolute)
+  return stripWindowsExtendedPrefix(real)
 }
 
 function sameResolvedDir(left: string, right: string): boolean {
@@ -202,21 +222,18 @@ async function inspectRepository(workspace: string): Promise<{
   head: string
 }> {
   const resolved = resolveExistingDir(workspace)
-  let root = ''
+  let inside = ''
   try {
-    root = await git(resolved, ['rev-parse', '--show-toplevel'])
+    inside = (await git(resolved, ['rev-parse', '--is-inside-work-tree'])).toLowerCase()
   } catch {
     throw new Error('this project is not a Git repository')
   }
-  root = resolveExistingDir(root)
-  let projectPath = ''
-  if (!sameResolvedDir(root, resolved)) {
-    const rel = relative(root, resolved)
-    if (!rel || rel.startsWith('..') || isAbsolute(rel)) {
-      throw new Error('Coding workspace is outside its Git repository')
-    }
-    projectPath = rel.split(sep).join('/')
+  if (inside !== 'true') {
+    throw new Error('this project is not a Git repository')
   }
+  const root = resolveExistingDir(await git(resolved, ['rev-parse', '--show-toplevel']))
+  const prefix = (await git(resolved, ['rev-parse', '--show-prefix'])).replaceAll('\\', '/')
+  const projectPath = prefix.replace(/\/+$/u, '')
   const head = await git(resolved, ['rev-parse', 'HEAD'])
   if (!validGitObjectID(head)) {
     throw new Error('Coding collaboration requires a committed base')
