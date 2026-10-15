@@ -9,7 +9,11 @@ const root = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const temporary = mkdtempSync(join(tmpdir(), 'milksu-plugin-author-'))
 
 function run(...args) {
-  return execFileSync('go', ['run', './cmd/milksu-pluginctl', ...args], {
+  return execFileSync(process.execPath, [
+    '--experimental-strip-types',
+    join(root, 'runtime', 'src', 'pluginctl.ts'),
+    ...args,
+  ], {
     cwd: root,
     encoding: 'utf8',
     env: process.env,

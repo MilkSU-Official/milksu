@@ -153,8 +153,8 @@ deny:
 `
 }
 
-export function sessionManifestForTarget(target: Target, goos: string): string {
-  if (goos !== 'windows') return sessionManifest(target.bundleId)
+export function sessionManifestForTarget(target: Target, os: string): string {
+  if (os !== 'windows') return sessionManifest(target.bundleId)
   const executable = resolve(String(target.executablePath ?? '').trim()).replaceAll("'", "''")
   return `version: 2
 mode: bounded
@@ -191,8 +191,8 @@ deny:
 `
 }
 
-export function driverExecutableName(goos: string): string {
-  return goos === 'windows' || goos === 'win32' ? 'cua-driver.exe' : 'cua-driver'
+export function driverExecutableName(os: string): string {
+  return os === 'windows' || os === 'win32' ? 'cua-driver.exe' : 'cua-driver'
 }
 
 export async function createRuntimeDirectory(root: string, directory: string): Promise<void> {

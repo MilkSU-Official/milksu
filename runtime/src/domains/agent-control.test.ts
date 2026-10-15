@@ -156,7 +156,7 @@ async function stubStores(home: string) {
 
 function stubSettings(command?: string): { get(): AppSettings; exportSidecarEnvironment(): string[] } {
   return {
-    get: () => (command ? { acp_guest: { command } } : {}),
+    get: () => (command ? { acp_agent: { command } } : {}),
     exportSidecarEnvironment: () => [],
   }
 }
@@ -180,9 +180,6 @@ test('RelaunchDesktopApp uses host_request app.relaunch', async () => {
   const ctx = {
     home: await tempHome(),
     emit: () => {},
-    invokeHelper: async () => {
-      throw new Error('helper should not see RelaunchDesktopApp')
-    },
     hostCall: async (method: string, payload?: unknown) => {
       calls.push({ method, payload })
       return true
@@ -281,9 +278,6 @@ test('Agent control RPCs fail with Agent command is not configured', async () =>
     engine,
     emit: () => {},
     home,
-    invokeHelper: async () => {
-      throw new Error('helper should not see Agent control RPCs')
-    },
   } as unknown as HandlerContext
   await assert.rejects(
     () => handleOwnedMethod(ctx, 'renderer', 'ListDshCommands', ['dsh-1']),
@@ -325,9 +319,6 @@ test('fake sidecar records Agent control commands', async () => {
     engine,
     emit: () => {},
     home,
-    invokeHelper: async () => {
-      throw new Error('helper should not see Agent control RPCs')
-    },
   } as unknown as HandlerContext
   try {
     await engine.sendMessage({

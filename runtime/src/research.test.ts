@@ -41,9 +41,6 @@ async function openTemp(): Promise<{ home: string; service: ResearchService; con
     engine,
     emit: () => {},
     home,
-    invokeHelper: async (method) => {
-      throw new Error(`helper should not see ${method}`)
-    },
   }
   return { home, service, conversations, ctx }
 }

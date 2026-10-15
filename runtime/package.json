@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "license": "AGPL-3.0-only",
-  "description": "TypeScript Runtime JSONL host. Electron spawns runtime/dist/main.cjs; Go milksu-backend is the native helper.",
+  "description": "TypeScript Runtime JSONL host. Electron spawns runtime/dist/main.cjs.",
   "exports": {
     ".": "./src/boot.ts",
     "./trace": "./src/trace.ts"

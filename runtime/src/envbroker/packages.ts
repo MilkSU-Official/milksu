@@ -29,7 +29,7 @@ export function resolvePackagesRoot(env: NodeJS.ProcessEnv = process.env): strin
 
   const milksuRoot = String(env.MILKSU_ROOT ?? '').trim()
   if (milksuRoot) {
-    for (const relative of ['runtime/src/envbroker/packages', 'internal/envbroker/packages']) {
+    for (const relative of ['runtime/src/envbroker/packages']) {
       const candidate = join(milksuRoot, relative)
       if (hasCompose(candidate)) return candidate
     }
@@ -37,7 +37,6 @@ export function resolvePackagesRoot(env: NodeJS.ProcessEnv = process.env): strin
 
   for (const candidate of [
     join(process.cwd(), 'runtime', 'src', 'envbroker', 'packages'),
-    join(process.cwd(), 'internal', 'envbroker', 'packages'),
   ]) {
     if (hasCompose(candidate)) return candidate
   }

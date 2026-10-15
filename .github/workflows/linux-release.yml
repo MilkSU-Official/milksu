@@ -56,15 +56,11 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
       - name: Cache Sidecar downloads
         uses: actions/cache@v4
         with:
           path: build/sidecar-cache
-          key: sidecar-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/package-sidecar.mjs', 'scripts/build-windows-cua-driver.mjs', 'package-lock.json', 'go.mod', 'go.sum') }}
+          key: sidecar-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/package-sidecar.mjs', 'scripts/build-windows-cua-driver.mjs', 'package-lock.json') }}
           restore-keys: |
             sidecar-${{ runner.os }}-${{ runner.arch }}-
       - name: Cache Electron downloads
@@ -88,7 +84,7 @@ jobs:
       - name: Validate the Linux build boundary
         run: |
           set -euo pipefail
-          go test ./... -run '^$'
+          npm run runtime:test
           node --test sidecar/pi/current-provider-runtime.test.js sidecar/pi/model-source-routing.test.js sidecar/pi/bridge-vision.test.js
       - name: Build Linux deb
         env:

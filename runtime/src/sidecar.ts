@@ -11,7 +11,7 @@ import { generateTraceId, normalizeTraceId } from './trace.ts'
 import { dataDirectory, resolveHomeRoot, workspacesDirectory } from './home.ts'
 import { codingToolsSidecarEnvironment } from './agentresources/codingtools.ts'
 import type { RpcMessage } from './rpc.ts'
-import { normalizeAcpGuest, type PublicSettings } from './settings.ts'
+import { resolveAcpAgent, type PublicSettings } from './settings.ts'
 
 const PACKAGED_SIDECAR_DIRECTORY = 'milksu-sidecar'
 const DEVELOPMENT_PI_BRIDGE = 'sidecar/pi/run-bridge.mjs'
@@ -19,8 +19,9 @@ const DEVELOPMENT_DSH_BRIDGE = 'sidecar/dsh/run-bridge.mjs'
 
 export type SidecarKernel = 'pi' | 'dsh'
 
-export function sidecarWorkspaceKey(kernel: SidecarKernel, workspace: string): string {
-  return `${kernel}\0${workspace}`
+export function sidecarWorkspaceKey(kernel: SidecarKernel, workspace: string, agentId = ''): string {
+  const id = kernel === 'dsh' ? String(agentId ?? '').trim() : ''
+  return id ? `${kernel}\0${workspace}\0${id}` : `${kernel}\0${workspace}`
 }
 
 export function spawnNodeEnvironment(node: string, env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
@@ -52,7 +53,7 @@ function packagedRuntimeAt(directory: string, bridgeName: string): SidecarRuntim
 }
 
 function projectRootContainsSidecar(root: string): boolean {
-  return regularFile(join(root, 'go.mod')) && regularFile(join(root, DEVELOPMENT_PI_BRIDGE))
+  return regularFile(join(root, 'package.json')) && regularFile(join(root, DEVELOPMENT_PI_BRIDGE))
 }
 
 function moduleDirectory(): string {
@@ -89,24 +90,24 @@ export function findProjectRoot(env: NodeJS.ProcessEnv = process.env): string {
 
 export function resolveSidecarRuntime(
   kernel: SidecarKernel,
-  helperPath = '',
+  sidecarDir = '',
   env: NodeJS.ProcessEnv = process.env,
 ): SidecarRuntime {
   const packagedBridge = kernel === 'dsh' ? 'dsh-bridge.cjs' : 'chat-bridge.cjs'
   const sourceBridge = kernel === 'dsh' ? DEVELOPMENT_DSH_BRIDGE : DEVELOPMENT_PI_BRIDGE
-  const sidecarDir = String(env.MILKSU_SIDECAR_DIR ?? '').trim()
-  if (sidecarDir) {
-    const runtime = packagedRuntimeAt(sidecarDir, packagedBridge)
+  const fromEnv = String(env.MILKSU_SIDECAR_DIR ?? sidecarDir ?? '').trim()
+  if (fromEnv) {
+    const runtime = packagedRuntimeAt(fromEnv, packagedBridge)
     if (runtime) return runtime
-    throw new Error(`MILKSU_SIDECAR_DIR does not contain a complete runtime: ${sidecarDir}`)
+    throw new Error(`MILKSU_SIDECAR_DIR does not contain a complete runtime: ${fromEnv}`)
   }
-  if (helperPath) {
-    const beside = packagedRuntimeAt(join(dirname(helperPath), PACKAGED_SIDECAR_DIRECTORY), packagedBridge)
+  const resources = String(env.MILKSU_RESOURCES ?? '').trim()
+  if (resources) {
+    const beside = packagedRuntimeAt(join(resources, PACKAGED_SIDECAR_DIRECTORY), packagedBridge)
     if (beside) return beside
   }
   const root = findProjectRoot(env)
-  const node = process.env.ELECTRON_RUN_AS_NODE === '1' ? process.execPath : process.execPath
-  return { node, bridge: join(root, sourceBridge), packaged: false }
+  return { node: process.execPath, bridge: join(root, sourceBridge), packaged: false }
 }
 
 export function defaultAgentWorkspace(home = resolveHomeRoot()): string {
@@ -140,7 +141,7 @@ function workspaceRuntimeDirectory(runtimeHome: string, workspace: string): stri
   return join(runtimeHome, 'workspaces', sum)
 }
 
-function encodeAcpGuestArgs(args: string[] | undefined): string {
+function encodeAcpAgentArgs(args: string[] | undefined): string {
   if (!args?.length) return ''
   try {
     return JSON.stringify(args)
@@ -149,7 +150,7 @@ function encodeAcpGuestArgs(args: string[] | undefined): string {
   }
 }
 
-const HELPER_ENV_SKIP = new Set([
+const SIDECAR_PROVIDER_ENV_SKIP = new Set([
   'HOME',
   'LANG',
   'LC_ALL',
@@ -162,7 +163,7 @@ const HELPER_ENV_SKIP = new Set([
 
 export type NativeInvoke = (message: RpcMessage) => Promise<unknown>
 
-export function parseSidecarHelperEnvironment(value: unknown): NodeJS.ProcessEnv {
+export function parseSidecarProviderEnvironment(value: unknown): NodeJS.ProcessEnv {
   const result: NodeJS.ProcessEnv = {}
   if (Array.isArray(value)) {
     for (const entry of value) {
@@ -170,21 +171,21 @@ export function parseSidecarHelperEnvironment(value: unknown): NodeJS.ProcessEnv
       const cut = entry.indexOf('=')
       if (cut <= 0) continue
       const name = entry.slice(0, cut)
-      if (!name || HELPER_ENV_SKIP.has(name)) continue
+      if (!name || SIDECAR_PROVIDER_ENV_SKIP.has(name)) continue
       result[name] = entry.slice(cut + 1)
     }
     return result
   }
   if (value && typeof value === 'object') {
     for (const [name, raw] of Object.entries(value as Record<string, unknown>)) {
-      if (!name || HELPER_ENV_SKIP.has(name) || raw == null) continue
+      if (!name || SIDECAR_PROVIDER_ENV_SKIP.has(name) || raw == null) continue
       if (typeof raw === 'string') result[name] = raw
     }
   }
   return result
 }
 
-export async function loadSidecarHelperEnvironment(
+export async function loadSidecarProviderEnvironment(
   invoke: NativeInvoke | undefined,
 ): Promise<NodeJS.ProcessEnv> {
   if (!invoke) return {}
@@ -196,10 +197,48 @@ export async function loadSidecarHelperEnvironment(
       method: 'ExportSidecarEnvironment',
       args: [],
     })
-    return parseSidecarHelperEnvironment(result)
+    return parseSidecarProviderEnvironment(result)
   } catch {
     return {}
   }
+}
+
+export function pluginMcpLaunch(
+  env: NodeJS.ProcessEnv = process.env,
+): { command: string; args: string[] } {
+  const explicit = String(env.MILKSU_PLUGIN_MCP_COMMAND ?? '').trim()
+  if (explicit) {
+    const rawArgs = String(env.MILKSU_PLUGIN_MCP_ARGS ?? '').trim()
+    let args: string[] = []
+    if (rawArgs) {
+      try {
+        const parsed = JSON.parse(rawArgs) as unknown
+        if (Array.isArray(parsed)) args = parsed.map((item) => String(item))
+      } catch {
+        args = rawArgs.split(/\s+/).filter(Boolean)
+      }
+    }
+    return { command: explicit, args }
+  }
+  const resources = String(env.MILKSU_RESOURCES ?? '').trim()
+  const bundled = resources
+    ? join(resources, 'runtime', 'plugin-mcp.cjs')
+    : ''
+  if (bundled && regularFile(bundled)) {
+    return { command: process.execPath, args: [bundled] }
+  }
+  try {
+    const root = findProjectRoot(env)
+    const source = join(root, 'runtime', 'src', 'plugin-mcp.ts')
+    if (regularFile(source)) {
+      return { command: process.execPath, args: ['--experimental-strip-types', source] }
+    }
+    const dist = join(root, 'runtime', 'dist', 'plugin-mcp.cjs')
+    if (regularFile(dist)) return { command: process.execPath, args: [dist] }
+  } catch {
+    // packaged runtime without a checkout
+  }
+  return { command: process.execPath, args: [] }
 }
 
 export function buildSidecarEnvironment(input: {
@@ -207,10 +246,13 @@ export function buildSidecarEnvironment(input: {
   workspace: string
   kernel: SidecarKernel
   settings: PublicSettings
-  helperPath: string
+  agentId?: string
+  sidecarDir?: string
+  pluginMcpCommand?: string
+  pluginMcpArgs?: string[]
   traceId: string
   env?: NodeJS.ProcessEnv
-  helperEnv?: NodeJS.ProcessEnv | string[]
+  sidecarProviderEnv?: NodeJS.ProcessEnv | string[]
 }): NodeJS.ProcessEnv {
   const env = input.env ?? process.env
   const runtimeHome = sidecarRuntimeHome(input.home)
@@ -242,7 +284,7 @@ export function buildSidecarEnvironment(input: {
     const value = env[name]
     if (value) next[name] = value
   }
-  for (const [name, value] of Object.entries(parseSidecarHelperEnvironment(input.helperEnv))) {
+  for (const [name, value] of Object.entries(parseSidecarProviderEnvironment(input.sidecarProviderEnv))) {
     if (value) next[name] = value
   }
 
@@ -261,8 +303,14 @@ export function buildSidecarEnvironment(input: {
   next.MILKSU_CODING_COLLABORATION_ROOT = join(runtimeHome, 'coding-collaboration')
   next.MILKSU_VISION_CACHE = join(runtimeHome, 'vision-cache.json')
   next.PI_CACHE_RETENTION = 'long'
-  next.MILKSU_PLUGIN_MCP_COMMAND = input.helperPath
+  const mcp = input.pluginMcpCommand
+    ? { command: input.pluginMcpCommand, args: input.pluginMcpArgs ?? [] }
+    : pluginMcpLaunch(env)
+  next.MILKSU_PLUGIN_MCP_COMMAND = mcp.command
+  if (mcp.args.length) next.MILKSU_PLUGIN_MCP_ARGS = JSON.stringify(mcp.args)
   next.MILKSU_PLUGIN_MCP_APPDATA = input.home
+  const sidecarDir = String(input.sidecarDir ?? env.MILKSU_SIDECAR_DIR ?? '').trim()
+  if (sidecarDir) next.MILKSU_SIDECAR_DIR = sidecarDir
   next.MILKSU_USER_HOME = homedir()
   next.MILKSU_WORKSPACE_RUNTIME = runtimeDirectory
   next.MILKSU_BACKGROUND_TASKS_DIR = backgroundTasksDirectory
@@ -270,7 +318,6 @@ export function buildSidecarEnvironment(input: {
   if (env.SSH_AUTH_SOCK) next.MILKSU_USER_SSH_AUTH_SOCK = env.SSH_AUTH_SOCK
   if (env.MILKSU_FACTORY_SKILLS_DIR) next.MILKSU_FACTORY_SKILLS_DIR = env.MILKSU_FACTORY_SKILLS_DIR
   if (env.MILKSU_MODEL_CATALOG_PATH) next.MILKSU_MODEL_CATALOG_PATH = env.MILKSU_MODEL_CATALOG_PATH
-  if (env.MILKSU_SIDECAR_DIR) next.MILKSU_SIDECAR_DIR = env.MILKSU_SIDECAR_DIR
   if (env.MILKSU_CHANNEL) next.MILKSU_CHANNEL = env.MILKSU_CHANNEL
   if (env.MILKSU_APP_VERSION) next.MILKSU_APP_VERSION = env.MILKSU_APP_VERSION
 
@@ -282,12 +329,12 @@ export function buildSidecarEnvironment(input: {
     const dshHome = join(runtimeHome, 'dsh')
     mkdirSync(dshHome, { recursive: true, mode: 0o700 })
     next.DSH_HOME = dshHome
-    const guest = normalizeAcpGuest(input.settings.acp_guest)
-    if (guest?.command) {
-      next.MILKSU_DSH_COMMAND = guest.command
-      const encoded = encodeAcpGuestArgs(guest.args)
+    const resolved = resolveAcpAgent(input.settings, input.agentId)
+    if (resolved?.agent.command) {
+      next.MILKSU_DSH_COMMAND = resolved.agent.command
+      const encoded = encodeAcpAgentArgs(resolved.agent.args)
       if (encoded) next.MILKSU_DSH_ACP_ARGS = encoded
-      for (const [name, value] of Object.entries(guest.env ?? {})) {
+      for (const [name, value] of Object.entries(resolved.agent.env ?? {})) {
         next[name] = value
       }
     }
@@ -306,6 +353,7 @@ export function buildSidecarEnvironment(input: {
 export type SidecarProcess = {
   kernel: SidecarKernel
   workspace: string
+  agentId?: string
   child: ChildProcessWithoutNullStreams
   write(command: Record<string, unknown>): Promise<void>
   kill(): Promise<void>
@@ -315,10 +363,14 @@ export function startSidecarProcess(input: {
   kernel: SidecarKernel
   workspace: string
   env: NodeJS.ProcessEnv
-  helperPath: string
+  sidecarDir?: string
   onLine: (value: unknown) => void
 }): SidecarProcess {
-  const runtime = resolveSidecarRuntime(input.kernel, input.helperPath, process.env)
+  const runtime = resolveSidecarRuntime(
+    input.kernel,
+    input.sidecarDir || '',
+    process.env,
+  )
   const child = spawn(runtime.node, [runtime.bridge], {
     cwd: input.workspace,
     stdio: ['pipe', 'pipe', 'pipe'],

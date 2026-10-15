@@ -52,7 +52,7 @@ test('renderer IPC cannot choose or forward a backend source', () => {
   assert.doesNotMatch(ipcSource, /backend\.invoke\(/u)
 })
 
-test('Electron-owned renderer methods remain handled before Go dispatch', () => {
+test('Electron-owned renderer methods remain handled before Runtime dispatch', () => {
   const ipcSource = sourceBetween(
     "ipcMain.handle('milksu:invoke'",
     "app.on('open-url'",
@@ -88,7 +88,7 @@ test('InstallUpdate lets quitAndInstall own the quit and does not call app.quit'
 test('account credential synchronization uses only the Electron host source', () => {
   const syncSource = sourceBetween(
     'async function syncAccountDecisionAuthorization',
-    'function backendExecutable',
+    'function runtimeScript',
   )
 
   assert.match(

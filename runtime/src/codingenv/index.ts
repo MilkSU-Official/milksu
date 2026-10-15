@@ -54,9 +54,8 @@ export {
   type UsageSnapshot,
 } from './usage.ts'
 export {
-  HelperPtyDriver,
+  NodePtyDriver,
   TerminalManager,
-  createHelperPtyDriver,
   environFromProcess,
   normalizedSize,
   resolveShell,

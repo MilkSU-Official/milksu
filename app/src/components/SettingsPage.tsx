@@ -1,13 +1,19 @@
 import { createStore, useStore, useStoreRuntime } from '@/lib/reactStore'
 import {
-  acpGuestConfigured,
-  acpGuestRuntimeLabel,
-  acpGuestUnavailableReason,
-  formatAcpGuestArgs,
-  formatAcpGuestEnv,
-  parseAcpGuestArgs,
-  parseAcpGuestEnv,
-} from '@/lib/acpGuest'
+  acpAgentConfigured,
+  acpAgentRuntimeLabel,
+  acpAgentUnavailableReason,
+  consumeAcpAgentFocus,
+  peekAcpAgentFocus,
+  derivedAcpAgent,
+  formatAcpAgentArgs,
+  formatAcpAgentEnv,
+  parseAcpAgentArgs,
+  parseAcpAgentEnv,
+  type NamedAcpAgent,
+} from '@/lib/acpAgent'
+import AddAcpAgentDialog from '@/components/AddAcpAgentDialog'
+import { toast } from '@/lib/appToast'
 import { runtimeVersion } from '@/lib/runtimeVersions'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import {
@@ -407,6 +413,8 @@ export default function SettingsPage({
   const [linuxProtocolBusy, setLinuxProtocolBusy] = useState(false)
   // 二级页：权限与操控的管理页（电脑应用、外部浏览器、内置浏览器）和记忆条目页。
   const [managementView, setManagementView] = useState<'computer-use' | 'external-browser' | 'coding-browser' | 'memory-entries' | null>(null)
+  const [addAgentOpen, setAddAgentOpen] = useState(false)
+  const [selectedAcpAgentId, setSelectedAcpAgentId] = useState('')
   const [codingBrowserOverview, setCodingBrowserOverview] = useState<CodingBrowserStatus[] | null>(null)
   const [codingBrowserOverviewLoading, setCodingBrowserOverviewLoading] = useState(false)
   const [codingBrowserStopping, setCodingBrowserStopping] = useState('')
@@ -476,6 +484,36 @@ export default function SettingsPage({
   }
 
   const working = state.working
+  const knownAcpAgentIds = useRef(new Set<string>())
+  useEffect(() => {
+    const agents = working?.acp_agents ?? []
+    const focus = peekAcpAgentFocus()
+    const known = knownAcpAgentIds.current
+    const first = known.size === 0
+    knownAcpAgentIds.current = new Set(agents.map(agent => agent.id))
+    if (focus && agents.some(agent => agent.id === focus)) {
+      consumeAcpAgentFocus()
+      setSelectedAcpAgentId(focus)
+      return
+    }
+    if (!first) {
+      const added = agents.filter(agent => !known.has(agent.id))
+      if (added.length) {
+        setSelectedAcpAgentId(added[added.length - 1].id)
+        return
+      }
+    }
+    if (!agents.length) {
+      setSelectedAcpAgentId('')
+      return
+    }
+    setSelectedAcpAgentId(current => {
+      if (current && agents.some(agent => agent.id === current)) return current
+      const preferred = working?.default_acp_agent_id
+      if (preferred && agents.some(agent => agent.id === preferred)) return preferred
+      return agents[agents.length - 1].id
+    })
+  }, [working?.acp_agents, working?.default_acp_agent_id])
   const saving = state.saving
   const verifying = state.verifying
   const localDataLoading = state.localDataLoading
@@ -1240,73 +1278,138 @@ export default function SettingsPage({
                     divider={false}
                     trailing={(
                       <SettingsGhostPicker
-                        value={working?.default_kernel === 'dsh' && acpGuestConfigured(working.acp_guest) ? 'dsh' : 'pi'}
+                        value={working.default_kernel === 'dsh' && working.default_acp_agent_id
+                          && acpAgentConfigured((working.acp_agents ?? []).find(agent => agent.id === working.default_acp_agent_id))
+                          ? working.default_acp_agent_id
+                          : 'pi'}
                         ariaLabel={t('默认运行时', 'Default runtime')}
                         options={[
                           { value: 'pi', label: runtimeVersion('pi') ? `Pi ${runtimeVersion('pi')}` : 'Pi' },
-                          ...(acpGuestConfigured(working.acp_guest)
-                            ? [{
-                                value: 'dsh',
-                                label: runtimeVersion('dsh')
-                                  ? `${acpGuestRuntimeLabel(t)} ${runtimeVersion('dsh')}`
-                                  : acpGuestRuntimeLabel(t),
-                              }]
-                            : []),
+                          ...(working.acp_agents ?? []).filter(agent => acpAgentConfigured(agent)).map(agent => ({
+                            value: agent.id,
+                            label: agent.name,
+                          })),
                         ]}
                         onChange={store.setDefaultKernel}
                       />
                     )}
                   />
                 </SettingsSection>
-                <SettingsSection title={acpGuestRuntimeLabel(t)}>
-                  <SettingsRow
-                    label={t('命令', 'Command')}
-                    description={t('通过 ACP 接入。填了命令才能在新对话里选这个 Agent。安装包不带这份命令。', 'Connects over ACP. A command is required before new chats can use this agent. The install does not ship the command.')}
-                    stack="always"
-                    trailing={(
-                      <Input
-                        className="settings-control w-full"
-                        value={working?.acp_guest?.command ?? ''}
-                        autoComplete="off"
-                        placeholder={t('可执行文件路径', 'Executable path')}
-                        aria-label={t('Agent 命令', 'Agent command')}
-                        onChange={event => store.setAcpGuestCommand(event.target.value)}
+                <SettingsSection
+                  title={acpAgentRuntimeLabel(t)}
+                  actions={(
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon-sm"
+                      aria-label={t('添加 Agent', 'Add Agent')}
+                      title={t('添加 Agent', 'Add Agent')}
+                      onClick={() => setAddAgentOpen(true)}
+                    >
+                      <Plus className="size-4" />
+                    </Button>
+                  )}
+                >
+                  {(working.acp_agents ?? []).map((agent, index, list) => (
+                    <SettingsRow
+                      key={agent.id}
+                      label={agent.name}
+                      description={agent.command || undefined}
+                      divider={index < list.length - 1}
+                      className={selectedAcpAgentId === agent.id ? 'cursor-pointer bg-accent/60' : 'cursor-pointer'}
+                      onClick={() => setSelectedAcpAgentId(agent.id)}
+                      trailing={(
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon-sm"
+                          aria-label={t(`删除 ${agent.name}`, `Delete ${agent.name}`)}
+                          onClick={event => {
+                            event.stopPropagation()
+                            store.removeAcpAgent(agent.id)
+                            if (selectedAcpAgentId === agent.id) setSelectedAcpAgentId('')
+                          }}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      )}
+                    />
+                  ))}
+                </SettingsSection>
+                {(() => {
+                  const selected = (working.acp_agents ?? []).find(agent => agent.id === selectedAcpAgentId)
+                  if (!selected) return null
+                  return (
+                    <SettingsSection title={selected.name}>
+                      <SettingsRow
+                        label={t('名称', 'Name')}
+                        stack="always"
+                        trailing={(
+                          <Input
+                            className="settings-control w-full"
+                            value={selected.name}
+                            autoComplete="off"
+                            aria-label={t('Agent 名称', 'Agent name')}
+                            onChange={event => store.patchAcpAgent(selected.id, { name: event.target.value })}
+                          />
+                        )}
                       />
-                    )}
+                      <SettingsRow
+                        label={t('命令入口', 'Command')}
+                        stack="always"
+                        trailing={(
+                          <Input
+                            className="settings-control w-full"
+                            value={selected.command ?? ''}
+                            autoComplete="off"
+                            aria-label={t('命令入口', 'Command')}
+                            onChange={event => store.patchAcpAgent(selected.id, { command: event.target.value })}
+                          />
+                        )}
+                      />
+                      <SettingsRow
+                        label={t('启动参数', 'Arguments')}
+                        stack="always"
+                        trailing={(
+                          <Input
+                            className="settings-control w-full"
+                            value={formatAcpAgentArgs(selected.args)}
+                            autoComplete="off"
+                            aria-label={t('启动参数', 'Arguments')}
+                            onChange={event => store.patchAcpAgent(selected.id, { argsText: event.target.value })}
+                          />
+                        )}
+                      />
+                      <SettingsRow
+                        label={t('环境变量', 'Environment')}
+                        stack="always"
+                        divider={false}
+                        trailing={(
+                          <Textarea
+                            className="settings-control min-h-20 w-full"
+                            value={formatAcpAgentEnv(selected.env)}
+                            autoComplete="off"
+                            spellCheck={false}
+                            aria-label={t('环境变量', 'Environment')}
+                            onChange={event => store.patchAcpAgent(selected.id, { envText: event.target.value })}
+                          />
+                        )}
+                      />
+                    </SettingsSection>
+                  )
+                })()}
+                <SettingsSection title={t('协议', 'Protocol')}>
+                  <SettingsRow
+                    label={t('Ask 卡', 'Ask card')}
+                    description={acpAgentUnavailableReason('ask', t)}
                   />
                   <SettingsRow
-                    label={t('参数', 'Arguments')}
-                    description={t('可选。空格分隔，或 JSON 数组。', 'Optional. Space-separated, or a JSON array.')}
-                    stack="always"
-                    trailing={(
-                      <Input
-                        className="settings-control w-full"
-                        value={formatAcpGuestArgs(working?.acp_guest?.args)}
-                        autoComplete="off"
-                        placeholder="--profile acp"
-                        aria-label={t('Agent 参数', 'Agent arguments')}
-                        onChange={event => store.setAcpGuestArgs(event.target.value)}
-                      />
-                    )}
+                    label={t('durable 研究', 'Durable research')}
+                    description={acpAgentUnavailableReason('durable-research', t)}
                   />
                   <SettingsRow
-                    label={t('环境变量', 'Environment')}
-                    description={t('可选。每行 KEY=VALUE。不要把 Provider API Key 填在这里。', 'Optional. One KEY=VALUE per line. Do not put a provider API key here.')}
-                    stack="always"
-                    trailing={(
-                      <Textarea
-                        className="settings-control min-h-20 w-full"
-                        value={formatAcpGuestEnv(working?.acp_guest?.env)}
-                        autoComplete="off"
-                        spellCheck={false}
-                        aria-label={t('Agent 环境变量', 'Agent environment variables')}
-                        onChange={event => store.setAcpGuestEnv(event.target.value)}
-                      />
-                    )}
-                  />
-                  <SettingsRow
-                    label={t('协议缺口', 'Protocol gaps')}
-                    description={`${acpGuestUnavailableReason('ask', t)} ${acpGuestUnavailableReason('durable-research', t)} ${acpGuestUnavailableReason('milksu-workspace', t)}`}
+                    label="milksu_workspace"
+                    description={acpAgentUnavailableReason('milksu-workspace', t)}
                   />
                   <SettingsRow
                     label={t('忙碌时发送', 'Busy send')}
@@ -1324,6 +1427,16 @@ export default function SettingsPage({
                     )}
                   />
                 </SettingsSection>
+                <AddAcpAgentDialog
+                  open={addAgentOpen}
+                  existing={working.acp_agents ?? []}
+                  onOpenChange={setAddAgentOpen}
+                  onAdd={agent => {
+                    store.addAcpAgent(agent)
+                    setSelectedAcpAgentId(agent.id)
+                    toast(t('Agent 已添加', 'Agent added'))
+                  }}
+                />
               </>
             ) : working && category === 'apikeys' ? (
               <>
@@ -2168,56 +2281,78 @@ function createSettingsStore(
     persist()
   }
 
+  function syncDerivedAcpAgent(working: AppSettings) {
+    const agents = working.acp_agents ?? []
+    const derived = derivedAcpAgent(agents, working.default_acp_agent_id)
+    working.acp_agent = derived
+    if (working.default_kernel === 'dsh' && !derived) working.default_kernel = 'pi'
+    if (working.default_acp_agent_id && !agents.some(agent => agent.id === working.default_acp_agent_id)) {
+      working.default_acp_agent_id = agents.find(agent => acpAgentConfigured(agent))?.id
+    }
+  }
+
   function setDefaultKernel(value: string) {
     patchWorking(working => {
-      working.default_kernel = value === 'dsh' && acpGuestConfigured(working.acp_guest) ? 'dsh' : 'pi'
+      if (value === 'pi') {
+        working.default_kernel = 'pi'
+        return
+      }
+      const agent = (working.acp_agents ?? []).find(item => item.id === value)
+      if (!agent || !acpAgentConfigured(agent)) {
+        working.default_kernel = 'pi'
+        return
+      }
+      working.default_kernel = 'dsh'
+      working.default_acp_agent_id = agent.id
+      syncDerivedAcpAgent(working)
     })
     persist()
   }
 
-  function setAcpGuestCommand(value: string) {
+  function addAcpAgent(agent: NamedAcpAgent) {
     patchWorking(working => {
-      const command = String(value ?? '').trim()
-      if (!command) {
-        working.acp_guest = undefined
-        if (working.default_kernel === 'dsh') working.default_kernel = 'pi'
-        return
-      }
-      working.acp_guest = { ...working.acp_guest, command }
+      working.acp_agents = [...(working.acp_agents ?? []), agent]
+      if (!working.default_acp_agent_id) working.default_acp_agent_id = agent.id
+      syncDerivedAcpAgent(working)
     })
     persist()
   }
 
-  function setAcpGuestArgs(value: string) {
+  function removeAcpAgent(id: string) {
     patchWorking(working => {
-      const command = String(working.acp_guest?.command ?? '').trim()
-      if (!command) {
-        working.acp_guest = undefined
-        return
+      working.acp_agents = (working.acp_agents ?? []).filter(agent => agent.id !== id)
+      if (working.default_acp_agent_id === id) {
+        working.default_acp_agent_id = working.acp_agents.find(agent => acpAgentConfigured(agent))?.id
       }
-      const args = parseAcpGuestArgs(value)
-      working.acp_guest = {
-        command,
-        ...(args.length ? { args } : {}),
-        ...(working.acp_guest?.env ? { env: working.acp_guest.env } : {}),
-      }
+      syncDerivedAcpAgent(working)
     })
     persist()
   }
 
-  function setAcpGuestEnv(value: string) {
+  function patchAcpAgent(id: string, patch: { name?: string; command?: string; argsText?: string; envText?: string }) {
     patchWorking(working => {
-      const command = String(working.acp_guest?.command ?? '').trim()
-      if (!command) {
-        working.acp_guest = undefined
-        return
-      }
-      const env = parseAcpGuestEnv(value)
-      working.acp_guest = {
-        command,
-        ...(working.acp_guest?.args?.length ? { args: working.acp_guest.args } : {}),
-        ...(env ? { env } : {}),
-      }
+      working.acp_agents = (working.acp_agents ?? []).map(agent => {
+        if (agent.id !== id) return agent
+        const next: NamedAcpAgent = { ...agent }
+        if (patch.name != null) next.name = patch.name.trim() || agent.name
+        if (patch.command != null) {
+          const command = patch.command.trim()
+          if (command) next.command = command
+          else delete next.command
+        }
+        if (patch.argsText != null) {
+          const args = parseAcpAgentArgs(patch.argsText)
+          if (args.length) next.args = args
+          else delete next.args
+        }
+        if (patch.envText != null) {
+          const env = parseAcpAgentEnv(patch.envText)
+          if (env) next.env = env
+          else delete next.env
+        }
+        return next
+      })
+      syncDerivedAcpAgent(working)
     })
     persist()
   }
@@ -3971,9 +4106,9 @@ function createSettingsStore(
     databaseStateLabels,
     defaultModelKey,
     setDefaultKernel,
-    setAcpGuestCommand,
-    setAcpGuestArgs,
-    setAcpGuestEnv,
+    addAcpAgent,
+    removeAcpAgent,
+    patchAcpAgent,
     setBusySend,
     defaultModelAvailable,
     availableModelCount,

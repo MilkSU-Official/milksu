@@ -97,7 +97,7 @@ export type CompanionRuntimeOptions = {
   home: string
   agentDir: string
   statePath: string
-  helperPath?: string
+  sidecarDir?: string
   settings?: () => AppSettings
   sidecarEnv?: () => string[]
   catalog?: Catalog
@@ -212,7 +212,7 @@ export class CompanionRuntime {
   private readonly home: string
   private readonly agentDir: string
   private readonly statePath: string
-  private readonly helperPath: string
+  private readonly sidecarDir: string
   private readonly settingsFn?: () => AppSettings
   private readonly sidecarEnvFn?: () => string[]
   private readonly catalog?: Catalog
@@ -241,7 +241,7 @@ export class CompanionRuntime {
     this.home = options.home
     this.agentDir = options.agentDir
     this.statePath = options.statePath
-    this.helperPath = options.helperPath ?? ''
+    this.sidecarDir = options.sidecarDir ?? ''
     this.settingsFn = options.settings
     this.sidecarEnvFn = options.sidecarEnv
     this.catalog = options.catalog
@@ -622,9 +622,9 @@ export class CompanionRuntime {
         this.sidecar = startCompanionSidecar({
           home: this.home,
           agentDir: this.agentDir,
-          helperPath: this.helperPath,
+          sidecarDir: this.sidecarDir,
           settings,
-          helperEnv: this.sidecarEnvFn?.(),
+          sidecarProviderEnv: this.sidecarEnvFn?.(),
           onLine: (value) => this.handleLine(value, gen),
         })
       }

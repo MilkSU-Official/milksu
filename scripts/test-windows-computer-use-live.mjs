@@ -202,14 +202,27 @@ function findEditableElement(observation) {
 }
 
 async function buildLiveTarget(workspace) {
-  const source = join(repositoryRoot, 'scripts', 'windows-cua-live-target.go')
+  const source = join(repositoryRoot, 'scripts', 'windows-cua-live-target.c')
   const binary = join(workspace, 'milksu-cua-live-target.exe')
-  await execFileAsync('go', ['build', '-o', binary, source], {
-    cwd: repositoryRoot,
-    encoding: 'utf8',
-    timeout: 60_000,
-  })
-  return binary
+  const attempts = [
+    ['clang', ['-O2', '-o', binary, source, '-luser32', '-lkernel32', '-lshell32']],
+    ['gcc', ['-O2', '-o', binary, source, '-luser32', '-lkernel32', '-lshell32']],
+    ['cl', ['/nologo', '/O2', '/DUNICODE', '/D_UNICODE', `/Fe:${binary}`, source, 'user32.lib', 'kernel32.lib', 'shell32.lib']],
+  ]
+  let lastError = new Error('no C compiler found (clang, gcc, or cl)')
+  for (const [command, args] of attempts) {
+    try {
+      await execFileAsync(command, args, {
+        cwd: repositoryRoot,
+        encoding: 'utf8',
+        timeout: 60_000,
+      })
+      return binary
+    } catch (error) {
+      lastError = error
+    }
+  }
+  throw lastError
 }
 
 async function startLiveTarget(binary, title) {

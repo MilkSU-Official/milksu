@@ -6,9 +6,9 @@
  * All MilkSU state lives under one root (default `~/.milksu`):
  *   <root>/desktop          Electron userData (stable, non-isolated)
  *   <root>/workspaces/...   agent / ctf / browser workspaces
- *   <root>/data, config...  Go runtime (owned by internal/appdata)
+ *   <root>/data, config...  TypeScript Runtime (owned by runtime/src/appdata)
  *
- * Keep env semantics aligned with internal/appdata/directory.go:
+ * Keep env semantics aligned with runtime/src/home.ts:
  * MILKSU_HOME wins, then MILKSU_APPDATA_DIR (root alias), then ~/.milksu.
  */
 

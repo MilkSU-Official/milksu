@@ -35,7 +35,6 @@ const artifactArch = electronArch
 const unpackedDirectoryName = electronArch === 'arm64' ? 'linux-arm64-unpacked' : 'linux-unpacked'
 const outputDirectory = join(repositoryRoot, 'build', 'electron', 'linux', 'stable')
 const releaseDirectory = join(repositoryRoot, 'build', 'release')
-const backendPath = join(repositoryRoot, 'build', 'desktop', 'milksu-backend')
 const sidecarPath = join(repositoryRoot, 'build', 'sidecar', platform.replace('/', '-'))
 
 function run(command, args, options = {}) {
@@ -103,15 +102,9 @@ await writeFile(
 )
 
 await run('npm', ['--prefix', 'app', 'run', 'build'])
-await run('go', [
-  'build',
-  '-trimpath',
-  '-ldflags=-s -w',
-  '-o',
-  backendPath,
-  './cmd/milksu-backend',
+await run(process.execPath, [
+  join(repositoryRoot, 'scripts', 'build-runtime.mjs'),
 ])
-await chmod(backendPath, 0o755)
 await run(process.execPath, [
   join(repositoryRoot, 'scripts', 'package-sidecar.mjs'),
   'build',
@@ -161,7 +154,9 @@ const builderConfig = {
   extraResources: [
     { from: join(repositoryRoot, 'app', 'dist'), to: 'renderer' },
     { from: join(repositoryRoot, 'runtime', 'src', 'envbroker', 'packages'), to: 'envbroker/packages' },
-    { from: backendPath, to: 'milksu-backend' },
+    { from: join(repositoryRoot, 'runtime', 'dist', 'main.cjs'), to: 'runtime/main.cjs' },
+    { from: join(repositoryRoot, 'runtime', 'dist', 'plugin-mcp.cjs'), to: 'runtime/plugin-mcp.cjs' },
+    { from: join(repositoryRoot, 'plugins', 'official'), to: 'plugins/official' },
     { from: sidecarPath, to: 'milksu-sidecar' },
     // electron-builder createFilter skips a source-root node_modules directory.
     { from: join(sidecarPath, 'node_modules'), to: 'milksu-sidecar/node_modules' },
@@ -224,7 +219,7 @@ const unpackedResources = join(outputDirectory, unpackedDirectoryName, 'resource
 for (const required of [
   join(outputDirectory, unpackedDirectoryName, 'milksu'),
   join(unpackedResources, 'renderer', 'index.html'),
-  join(unpackedResources, 'milksu-backend'),
+  join(unpackedResources, 'runtime', 'main.cjs'),
   join(unpackedResources, BUILD_TRACKING_RESOURCE),
   join(unpackedResources, 'milksu-sidecar', 'node'),
   join(unpackedResources, 'milksu-sidecar', 'chat-bridge.cjs'),

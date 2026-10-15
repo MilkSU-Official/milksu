@@ -371,6 +371,7 @@ test("start_research_run injects the session trace id into the workspace request
     undefined,
     () => [],
     () => false,
+    undefined,
     () => id,
   );
   extension({ registerTool(tool) { tools.push(tool); } });

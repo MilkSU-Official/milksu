@@ -146,6 +146,7 @@ const ConversationDock = forwardRef<ConversationDockHandle, {
   turnStatus?: SessionTurnSnapshot
   vulnerabilitySession?: boolean
   kernel?: 'pi' | 'dsh'
+  acpAgentId?: string
   modelMode?: 'auto' | 'manual'
   modelProvider?: string
   modelId?: string
@@ -168,8 +169,9 @@ const ConversationDock = forwardRef<ConversationDockHandle, {
   onControlGoal?: (action: 'pause' | 'resume' | 'clear') => void
   onRespondApproval?: (requestId: string, approved: boolean, scope?: 'once' | 'conversation', choice?: string) => void
   onChangeModel?: (mode: 'auto' | 'manual', provider?: string, model?: string) => void
-  onChangeKernel?: (kernel: 'pi' | 'dsh') => void
-  onMigrateKernel?: (kernel: 'pi' | 'dsh') => void
+  onChangeKernel?: (kernel: 'pi' | 'dsh', agentId?: string) => void
+  onMigrateKernel?: (kernel: 'pi' | 'dsh', agentId?: string) => void
+  onCreateAgent?: (agent: import('@/lib/acpAgent').NamedAcpAgent) => void
   onChangeModelSource?: (preference: 'auto' | 'account' | 'personal') => void
   onChangeCodingPolicy?: (executionMode: CodingExecutionMode, approvalPolicy: CodingApprovalPolicy) => void
   onChangeMcpServers?: (servers: string[], configDigest: string) => void
@@ -199,6 +201,7 @@ const ConversationDock = forwardRef<ConversationDockHandle, {
   turnStatus,
   vulnerabilitySession = false,
   kernel,
+  acpAgentId,
   modelMode,
   modelProvider,
   modelId,
@@ -222,6 +225,7 @@ const ConversationDock = forwardRef<ConversationDockHandle, {
   onChangeModel,
   onChangeKernel,
   onMigrateKernel,
+  onCreateAgent,
   onChangeModelSource,
   onChangeCodingPolicy,
   onChangeMcpServers,
@@ -462,6 +466,7 @@ const ConversationDock = forwardRef<ConversationDockHandle, {
               turnStatus={turnStatus}
               vulnerabilitySession={dockVulnerabilitySession}
               kernel={kernel}
+              acpAgentId={acpAgentId}
               modelMode={modelMode}
               modelProvider={modelProvider}
               modelId={modelId}
@@ -483,6 +488,7 @@ const ConversationDock = forwardRef<ConversationDockHandle, {
               onChangeModel={onChangeModel}
               onChangeKernel={onChangeKernel}
               onMigrateKernel={onMigrateKernel}
+              onCreateAgent={onCreateAgent}
               onChangeModelSource={onChangeModelSource}
               onChangeCodingPolicy={onChangeCodingPolicy}
               onChangeMcpServers={onChangeMcpServers}

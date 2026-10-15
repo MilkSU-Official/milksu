@@ -436,15 +436,6 @@ async function syncAccountModelAuthorization(status) {
   return false
 }
 
-function backendExecutable() {
-  const override = String(process.env.MILKSU_BACKEND_PATH ?? '').trim()
-  if (override && path.isAbsolute(override)) return override
-  const binary = process.platform === 'win32' ? 'milksu-backend.exe' : 'milksu-backend'
-  return app.isPackaged
-    ? path.join(process.resourcesPath, binary)
-    : path.resolve(__dirname, '..', 'build', 'desktop', binary)
-}
-
 function runtimeScript() {
   return app.isPackaged
     ? path.join(process.resourcesPath, 'runtime', 'main.cjs')
@@ -521,7 +512,7 @@ async function installRendererProtocol() {
   })
 }
 
-function createDesktopBackend(executable, hostHandler, eventHandler) {
+function createDesktopBackend(hostHandler, eventHandler) {
   return new BackendRuntime({
     hostHandler,
     eventHandler,
@@ -532,8 +523,6 @@ function createDesktopBackend(executable, hostHandler, eventHandler) {
         hostPid: process.pid,
       })
       env.ELECTRON_RUN_AS_NODE = '1'
-      env.MILKSU_NATIVE_HELPER = executable
-      if (!env.MILKSU_BACKEND_PATH) env.MILKSU_BACKEND_PATH = executable
       const runtimeAppDataDir = resolveRuntimeAppDataDir({
         channel: desktopIdentity.channel,
         isolatedInstance: channelIsolation.isolatedInstance,
@@ -549,6 +538,14 @@ function createDesktopBackend(executable, hostHandler, eventHandler) {
       }
       if (app.isPackaged && process.resourcesPath && !env.MILKSU_RESOURCES) {
         env.MILKSU_RESOURCES = process.resourcesPath
+      }
+      if (!env.NODE_PATH) {
+        env.NODE_PATH = app.isPackaged
+          ? process.resourcesPath
+          : [
+            path.resolve(__dirname, '..', 'build', 'desktop', 'node_modules'),
+            path.resolve(__dirname, '..', 'node_modules'),
+          ].join(path.delimiter)
       }
       const child = spawn(process.execPath, [runtimeScript()], {
         stdio: ['pipe', 'pipe', 'pipe'],
@@ -1773,10 +1770,10 @@ app.whenReady().then(async () => {
   companionSkinHost = createCompanionSkinHost({
     userDataPath: app.getPath('userData'),
     openDirectory: payload => handleHostRequest('dialog.openDirectory', payload),
-    listPetPlugins: async () => {
+    listCompanionPlugins: async () => {
       if (!backend) return []
       try {
-        const rows = await backend.invokeFromElectronHost('ListPetPluginPackages', [])
+        const rows = await backend.invokeFromElectronHost('ListCompanionPluginPackages', [])
         return Array.isArray(rows) ? rows : []
       } catch {
         return []
@@ -1805,7 +1802,7 @@ app.whenReady().then(async () => {
   startupLog('createWindow')
   browserShell = new BrowserShell(mainWindow, upstreamEndpoint)
   const backendSpawnStarted = Date.now()
-  backend = createDesktopBackend(backendExecutable(), handleHostRequest, emitRendererEvent)
+  backend = createDesktopBackend(handleHostRequest, emitRendererEvent)
   startupLog('backend.spawn', `${Date.now() - backendSpawnStarted}ms`)
   await startupTime('backend.ready', () => backend.ready())
   // Local session probe only — never block first paint on account API / credentials.

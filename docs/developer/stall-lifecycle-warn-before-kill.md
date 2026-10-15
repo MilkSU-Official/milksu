@@ -74,11 +74,8 @@ sidecar 新增事件 `turn.stall_warning`，载荷：
 - `budgetMs`：触发告警的软阈值。
 - `payloadBytes`：请求体积估算值，便于读者判断是不是请求太大。
 
-引擎改名表必须认领它（`internal/engine/supervisor.go`），否则会落到 `engine.raw.` 前缀，
-渲染层收不到。注意覆盖测试 `TestEverySidecarEventNameIsClaimedByTheEngine` 把「渲染层
-认识原名」也算作认领，而引擎会给未认领的带点号事件名加前缀——**这条测试挡不住这类
-丢认领**（`turn.heartbeat` 在 #208 里就是这么静默丢的），新增带点号的 sidecar 事件名仍要
-人工核对改名表里有 `case`。
+引擎改名表必须认领它（`runtime/src/events.ts`），否则会落到 `engine.raw.` 前缀，
+渲染层收不到。新增带点号的 sidecar 事件名仍要人工核对改名表里有对应分支。
 
 ## 3. 修二：sidecar 不响应 abort 时，读者亲手重启引擎
 

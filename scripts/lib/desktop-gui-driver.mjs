@@ -536,7 +536,7 @@ export class GuiDriver {
     const missing = launch.mode === 'desktop-start'
       ? await missingDesktopDevArtifacts(this.repositoryRoot)
       : []
-    const needsCompile = missing.some(name => name === 'runtime' || name === 'renderer' || name === 'helper')
+    const needsCompile = missing.some(name => name === 'runtime' || name === 'renderer')
     const extraArgs = options.buildRuntime || launch.buildRuntime || needsCompile ? [] : ['--', '--no-build']
     const childEnv = stripDesktopCredentialEnv({
       ...process.env,

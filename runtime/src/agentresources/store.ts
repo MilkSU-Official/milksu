@@ -1432,14 +1432,11 @@ export function resolveFactorySkillsDir(
   } catch {
     // bundled CJS may not have import.meta.url
   }
-  const helper = String(env.MILKSU_NATIVE_HELPER ?? env.MILKSU_BACKEND_PATH ?? '').trim()
-  if (helper) {
-    const dir = dirname(helper)
+  const resources = String(env.MILKSU_RESOURCES ?? '').trim()
+  if (resources) {
     candidates.push(
-      join(dir, 'skills'),
-      join(dir, '..', 'skills'),
-      join(dir, '..', 'Resources', 'milksu-sidecar', 'skills'),
-      join(dir, '..', 'Resources', 'skills'),
+      join(resources, 'skills'),
+      join(resources, 'milksu-sidecar', 'skills'),
     )
   }
   candidates.push(join(cwd, 'skills'), join(cwd, '..', 'skills'))

@@ -94,7 +94,7 @@ Key/Scope/不可逆外部效果，都可以直接开切片。
 - 还没做的能力不要把实验代码留在 release 构建、默认启动或用户产品面里空转；这不表示不准实现它；
 - 实验代码必须位于独立 CLI、测试目录或不参与 release 的明确构建目标；
 - 新 Desktop RPC API、Preload 能力和 Sidecar 文件必须有真实产品调用者，不能只服务 smoke、fixture 或未来设计；
-- 触碰热点文件时按目标形态落代码（TypeScript Runtime / 经 ACP 接入的 Agent），不要把产品 RPC 加回 `cmd/milksu-backend`。
+- 触碰热点文件时按目标形态落代码（TypeScript Runtime / 经 ACP 接入的 Agent），不要引入 Go 助手进程。
 
 “默认关闭”不等于已经隔离。只要代码仍被打包、注册、初始化、暴露或要求维护兼容，它就是产品
 成本。
@@ -103,7 +103,7 @@ Key/Scope/不可逆外部效果，都可以直接开切片。
 
 测试应观察产品，不应成为产品的一部分：
 
-- Go fixture 放在 `_test.go`、`testdata/` 或独立测试包；
+- Runtime fixture 放在 `runtime/src/**/*.test.ts`、`testdata/` 或独立测试目录；
 - 前端 mock 和 story 不从 `App.tsx` 或其他生产入口导入；
 - 正式 Desktop RPC / Preload 不暴露仅供测试使用的 `Smoke`、`Fixture` 或 `Sample` 方法；
 - 启动路径和 renderer 入口（`app/src/main.tsx`）不运行测试协调器，即使它通常因环境变量而空操作；

@@ -77,31 +77,13 @@ function stubEngine(overrides: Record<string, unknown> = {}): Engine {
   } as unknown as Engine
 }
 
-function conversationWriteGuard() {
-  const calls: Array<{ method: string; source?: string }> = []
-  const invokeHelper = async (method: string, _args: unknown[], source?: 'renderer' | 'electron_host') => {
-    calls.push({ method, source })
-    if (
-      method === 'SaveConversation'
-      || method === 'DeleteConversation'
-      || method === 'DeleteArchivedConversation'
-    ) {
-      throw new Error(`helper must not write conversation JSON via ${method}`)
-    }
-    throw new Error(`unexpected helper method ${method}`)
-  }
-  return { calls, invokeHelper }
-}
-
 async function makeContext(
   overrides: {
     engine?: Engine
-    invokeHelper?: HandlerContext['invokeHelper']
     home?: string
   } = {},
 ): Promise<HandlerContext> {
   const stores = await tempStores()
-  const guard = conversationWriteGuard()
   return {
     conversations: stores.conversations,
     labJobs: stores.labJobs,
@@ -109,7 +91,6 @@ async function makeContext(
     engine: overrides.engine ?? stubEngine(),
     emit: () => {},
     home: overrides.home ?? stores.home,
-    invokeHelper: overrides.invokeHelper ?? guard.invokeHelper,
   }
 }
 
@@ -141,9 +122,8 @@ test('rewindVisibleMessages drops the latest user turn', () => {
   assert.equal(rewindVisibleMessages(messages.slice(0, 2)), null)
 })
 
-test('ForkConversation copies JSON to a new id without helper SaveConversation', async () => {
-  const guard = conversationWriteGuard()
-  const ctx = await makeContext({ invokeHelper: guard.invokeHelper })
+test('ForkConversation copies JSON to a new id', async () => {
+  const ctx = await makeContext({})
   await ctx.conversations.save(conversation('source-1', {
     title: 'Fix login',
     workspacePath: join(ctx.home, 'workspace'),
@@ -166,7 +146,6 @@ test('ForkConversation copies JSON to a new id without helper SaveConversation',
   const forked = await ctx.conversations.get(String(forkedId))
   assert.equal(forked.workspacePath, join(ctx.home, 'workspace'))
   assert.deepEqual(forked.messages.map((item) => item.id), ['u1', 'a1', 'u2', 'a2'])
-  assert.equal(guard.calls.some((item) => item.method === 'SaveConversation'), false)
 })
 
 test('forkConversationRecord uses the sidecar session id when provided', async () => {
@@ -251,10 +230,8 @@ test('HandoffCodingSession to another kernel falls back to stored text when side
 })
 
 test('GenerateConversationTitle writes the model title back to JSON', async () => {
-  const guard = conversationWriteGuard()
   const prompts: string[] = []
   const ctx = await makeContext({
-    invokeHelper: guard.invokeHelper,
     engine: stubEngine({
       generateText: async (prompt: string) => {
         prompts.push(prompt)
@@ -278,8 +255,6 @@ test('GenerateConversationTitle writes the model title back to JSON', async () =
   assert.equal(stored.title, '修复登录回调')
   assert.equal(prompts.length, 1)
   assert.equal(prompts[0]?.includes('请修复登录回调状态恢复'), true)
-  assert.equal(guard.calls.some((item) => item.method === 'GenerateConversationTitle'), false)
-  assert.equal(guard.calls.some((item) => item.method === 'SaveConversation'), false)
 })
 
 test('EnsureCodingArtifactWorkspace stores a workspace path on the conversation JSON', async () => {
@@ -301,7 +276,6 @@ test('EnsureCodingArtifactWorkspace stores a workspace path on the conversation 
       engine: stubEngine(),
       emit: () => {},
       home,
-      invokeHelper: conversationWriteGuard().invokeHelper,
     }
     const workspace = await handleOwnedMethod(ctx, 'renderer', 'EnsureCodingArtifactWorkspace', [
       'coding-1',
@@ -315,16 +289,13 @@ test('EnsureCodingArtifactWorkspace stores a workspace path on the conversation 
   }
 })
 
-test('DeleteConversation removes JSON then drops research without helper DeleteConversation', async () => {
-  const guard = conversationWriteGuard()
-  const ctx = await makeContext({ invokeHelper: guard.invokeHelper })
+test('DeleteConversation removes JSON then drops research', async () => {
+  const ctx = await makeContext({})
   await ctx.conversations.save(conversation('gone-1', { title: 'delete me', kernel: 'pi' }))
   const run = await ctx.research.start('gone-1', 'drop with the conversation', 'trc_550e8400-e29b-41d4-a716-446655440000')
   await handleOwnedMethod(ctx, 'renderer', 'DeleteConversation', ['gone-1'])
   const listed = await ctx.conversations.list()
   assert.equal(listed.some((item) => item.id === 'gone-1'), false)
-  assert.equal(guard.calls.some((item) => item.method === 'DropResearchForConversation'), false)
-  assert.equal(guard.calls.some((item) => item.method === 'DeleteConversation'), false)
   const remaining = await ctx.research.list('gone-1')
   assert.equal(remaining.some((item) => item.id === run.id), false)
   ctx.research.close()

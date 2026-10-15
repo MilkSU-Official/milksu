@@ -63,9 +63,8 @@ export type ManagerOptions = {
   binaryPath?: string
   targetPid?: number
   hostBundleId?: string
-  goos?: string
+  os?: string
   home?: string
-  helperPath?: string
   sidecarDir?: string
   grantDirectory?: string
   startTimeoutMs?: number
@@ -120,9 +119,8 @@ export class Manager {
   private binaryPath: string
   private readonly targetPid: number
   private hostBundleId: string
-  private readonly goos: string
+  private readonly os: string
   private readonly home: string
-  private readonly helperPath: string
   private readonly sidecarDir: string
   private readonly startTimeoutMs: number
   private readonly grants: GrantStore
@@ -142,13 +140,12 @@ export class Manager {
   constructor(options: ManagerOptions = {}) {
     this.binaryPath = String(options.binaryPath ?? '').trim()
     this.targetPid = options.targetPid && options.targetPid > 1 ? options.targetPid : process.pid
-    this.goos = normalizeGoos(options.goos)
+    this.os = normalizeOs(options.os)
     this.home = String(options.home ?? '').trim()
-    this.helperPath = String(options.helperPath ?? '').trim()
     this.sidecarDir = String(options.sidecarDir ?? process.env.MILKSU_SIDECAR_DIR ?? '').trim()
     this.startTimeoutMs = options.startTimeoutMs && options.startTimeoutMs > 0
       ? options.startTimeoutMs
-      : this.goos === 'linux' ? 90_000 : 16_000
+      : this.os === 'linux' ? 90_000 : 16_000
     this.grants = new GrantStore(String(options.grantDirectory ?? '').trim())
     this.permissionProbe = options.permissionProbe ?? (async () => ({ accessibility: false, screenRecording: false }))
     this.permissionOpen = options.permissionOpen ?? (async () => {})
@@ -252,21 +249,21 @@ export class Manager {
     await this.mu.lock()
     const permissions = await this.permissionProbe(false)
     const status = publicStatus(await this.statusLocked(permissions))
-    const goos = this.goos
+    const os = this.os
     this.mu.unlock()
-    if (goos === 'darwin') await this.permissionOpen(kind)
+    if (os === 'darwin') await this.permissionOpen(kind)
     return status
   }
 
   async targets(): Promise<Target[]> {
-    if (this.goos === 'linux') {
+    if (this.os === 'linux') {
       if (!await this.linuxPortal()) {
         const info = await this.linuxDesktop()
         throw new Error(info.problem || LINUX_COMPUTER_USE_PROBLEM)
       }
       return [linuxPortalDesktopTarget()]
     }
-    if (this.goos !== 'darwin' && this.goos !== 'windows') {
+    if (this.os !== 'darwin' && this.os !== 'windows') {
       throw new Error('Computer Use is unavailable on this platform')
     }
     const listed = await this.targetProvider()
@@ -293,11 +290,11 @@ export class Manager {
       }
       throw Object.assign(new Error('Computer Use is already attached to another visible Coding task'), { status })
     }
-    if (this.goos === 'linux') {
+    if (this.os === 'linux') {
       this.mu.unlock()
       return this.startLinuxPortal(id, selection)
     }
-    if (this.goos !== 'darwin' && this.goos !== 'windows') {
+    if (this.os !== 'darwin' && this.os !== 'windows') {
       const permissions = await this.permissionProbe(false)
       const status = publicStatus(await this.statusLocked(permissions))
       this.mu.unlock()
@@ -318,7 +315,7 @@ export class Manager {
       throw Object.assign(error instanceof Error ? error : new Error(String(error)), { status })
     }
     if (
-      this.goos === 'windows'
+      this.os === 'windows'
       && (!String(target.executablePath ?? '').trim() || !isAbsoluteExecutable(target.executablePath ?? ''))
     ) {
       const status = publicStatus(await this.statusLocked(permissions))
@@ -342,7 +339,7 @@ export class Manager {
     try {
       await verifyDriverVersion(
         binaryPath,
-        driverEnvironment(this.goos, dirname(binaryPath), this.hostBundle()),
+        driverEnvironment(this.os, dirname(binaryPath), this.hostBundle()),
         this.commandFactory,
       )
     } catch (error) {
@@ -361,7 +358,7 @@ export class Manager {
     }
     const manifestPath = join(directory, 'session-policy.yaml')
     try {
-      await writeFile(manifestPath, sessionManifestForTarget(target, this.goos), { mode: 0o600 })
+      await writeFile(manifestPath, sessionManifestForTarget(target, this.os), { mode: 0o600 })
     } catch (error) {
       await cleanupRuntimeDirectory(runtimeRoot, directory)
       this.mu.unlock()
@@ -386,7 +383,7 @@ export class Manager {
         manifestPath,
         '--approve-session-policy',
       ],
-      env: driverEnvironment(this.goos, directory, hostBundle),
+      env: driverEnvironment(this.os, directory, hostBundle),
       stdio: 'ignore-stdout',
     })
     const exit = waitForChildExit(child)
@@ -511,7 +508,7 @@ export class Manager {
   }
 
   async prepare(options: PrepareOptions = {}): Promise<PrepareResult> {
-    if (this.goos === 'linux') {
+    if (this.os === 'linux') {
       if (await this.linuxPortal()) {
         return {
           ready: true,
@@ -529,7 +526,7 @@ export class Manager {
         nextStep: '在 GNOME Wayland 上使用系统桌面共享；Hyprland 仍不可用。',
       }
     }
-    if (this.goos !== 'darwin' && this.goos !== 'windows') {
+    if (this.os !== 'darwin' && this.os !== 'windows') {
       return {
         ready: false,
         version: DRIVER_VERSION,
@@ -554,7 +551,7 @@ export class Manager {
     }
     const root = findRepositoryRoot()
     const recipe = root ? windowsBuildScript(root) : ''
-    if (!options.allowBuild || this.goos !== 'windows' || !recipe) {
+    if (!options.allowBuild || this.os !== 'windows' || !recipe) {
       return missingDriverResult(
         recipe,
         recipe
@@ -582,8 +579,8 @@ export class Manager {
         nextStep: '根据构建错误补齐 Visual Studio C++ 或 MinGW 后重试 prepare_computer_use_driver。不要运行 Cua 官方安装脚本。',
       }
     }
-    let source = sourceBuildRuntimeCandidate(root, this.goos)
-    if (!await inspectDriverFile(source)) source = sidecarBuildCandidate(this.goos)
+    let source = sourceBuildRuntimeCandidate(root, this.os)
+    if (!await inspectDriverFile(source)) source = sidecarBuildCandidate(this.os)
     if (!await inspectDriverFile(source)) {
       return {
         ready: false,
@@ -608,27 +605,21 @@ export class Manager {
   }
 
   private prepareCopySources(): string[] {
-    const name = this.goos === 'windows' ? 'cua-driver.exe' : 'cua-driver'
+    const name = this.os === 'windows' ? 'cua-driver.exe' : 'cua-driver'
     const sources: string[] = []
     if (this.sidecarDir) sources.push(join(this.sidecarDir, name))
-    if (this.helperPath) {
-      const dir = join(this.helperPath, '..')
-      sources.push(join(this.helperPath, '..', name))
-      sources.push(join(dir, 'resources', 'milksu-sidecar', name))
-      sources.push(join(dir, '..', 'Resources', 'milksu-sidecar', name))
-    }
-    sources.push(sidecarBuildCandidate(this.goos))
+    sources.push(sidecarBuildCandidate(this.os))
     const root = findRepositoryRoot()
-    if (root) sources.push(sourceBuildRuntimeCandidate(root, this.goos))
+    if (root) sources.push(sourceBuildRuntimeCandidate(root, this.os))
     return sources
   }
 
   private async installPreparedDriver(source: string): Promise<string> {
-    const destination = preparedDriverPath(this.home, this.goos)
+    const destination = preparedDriverPath(this.home, this.os)
     await copyDriverBundle(source, destination)
     await verifyDriverVersion(
       destination,
-      driverEnvironment(this.goos, dirname(destination), this.hostBundle()),
+      driverEnvironment(this.os, dirname(destination), this.hostBundle()),
       this.commandFactory,
     )
     this.binaryPath = destination
@@ -718,10 +709,9 @@ export class Manager {
   private async resolveBinaryLocked(): Promise<string> {
     const path = await resolveDriverBinary({
       binaryPath: this.binaryPath,
-      goos: this.goos,
+      os: this.os,
       home: this.home,
       sidecarDir: this.sidecarDir,
-      helperPath: this.helperPath,
     })
     this.binaryPath = path
     return path
@@ -752,7 +742,7 @@ export class Manager {
     } catch {
       status.available = false
     }
-    if (this.goos === 'linux') {
+    if (this.os === 'linux') {
       if (!await this.linuxPortal()) {
         const info = await this.linuxDesktop()
         status.available = false
@@ -766,7 +756,7 @@ export class Manager {
         status.permissions = { accessibility: true, screenRecording: true }
       }
       if (!this.active) return status
-    } else if (this.goos !== 'darwin' && this.goos !== 'windows') {
+    } else if (this.os !== 'darwin' && this.os !== 'windows') {
       status.available = false
       status.phase = 'unavailable'
       status.problem = LINUX_COMPUTER_USE_PROBLEM
@@ -827,10 +817,10 @@ export class Manager {
   }
 }
 
-function normalizeGoos(value?: string): string {
-  const goos = String(value ?? process.platform).trim()
-  if (goos === 'win32') return 'windows'
-  if (goos === 'darwin' || goos === 'linux' || goos === 'windows') return goos
+function normalizeOs(value?: string): string {
+  const os = String(value ?? process.platform).trim()
+  if (os === 'win32') return 'windows'
+  if (os === 'darwin' || os === 'linux' || os === 'windows') return os
   return process.platform === 'win32' ? 'windows' : process.platform
 }
 

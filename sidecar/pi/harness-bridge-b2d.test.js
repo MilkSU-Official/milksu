@@ -41,7 +41,7 @@ async function withB2dFixture(run, options = {}) {
   // 经层注入的 environment 读，reviewed bundle（listPiBackgroundTaskLog 等）读
   // process.env，两侧必须指向同一临时目录。MILKSU_WORKSPACE_RUNTIME 是受审 spawn 面
   //（bridge-policy reviewedBackgroundOutputPath）的私运行时根：bg 目录必须在它里面
-  //（internal/engine/sidecar.go:313-330 的生产同款接线）。
+  //（runtime/src/sidecar.ts 的生产同款接线）。
   const previousBgDir = process.env.MILKSU_BACKGROUND_TASKS_DIR;
   const previousRuntime = process.env.MILKSU_WORKSPACE_RUNTIME;
   process.env.MILKSU_BACKGROUND_TASKS_DIR = bgTasksDir;

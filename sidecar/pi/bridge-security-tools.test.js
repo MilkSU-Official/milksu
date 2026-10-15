@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { chmod, mkdir, writeFile } from "node:fs/promises";
+import { chmod, mkdir, realpath, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -167,6 +167,22 @@ async function reaFixture() {
   await writeFile(entry, "fixture");
   return { root, workspace, install, nodePath, entry };
 }
+
+test("normalizes REA when the Node binary path is a Homebrew-style symlink", async () => {
+  const value = await reaFixture();
+  const linked = join(value.root, "alias", "node");
+  await mkdir(join(value.root, "alias"));
+  await symlink(value.nodePath, linked);
+  const tools = await normalizeSecurityTools([{
+    id: "rea",
+    command: linked,
+    args: [value.entry, "mcp"],
+    version: "6.1.0",
+    capabilities: ["打开二进制并读取概览"],
+  }]);
+  assert.equal(tools.length, 1);
+  assert.equal(tools[0].command, await realpath(value.nodePath));
+});
 
 test("normalizes REA and builds the reviewed milksu-rea server", async () => {
   const value = await reaFixture();

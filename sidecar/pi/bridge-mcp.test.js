@@ -507,18 +507,22 @@ test("builds Plugin MCP only from the supervised launcher descriptor", async () 
   const appData = join(launcherRoot, "app-data");
   await mkdir(appData);
   const previousCommand = process.env.MILKSU_PLUGIN_MCP_COMMAND;
+  const previousArgs = process.env.MILKSU_PLUGIN_MCP_ARGS;
   const previousAppData = process.env.MILKSU_PLUGIN_MCP_APPDATA;
+  const pluginArgs = ["--experimental-strip-types", join(launcherRoot, "plugin-mcp.ts")];
   try {
     process.env.MILKSU_PLUGIN_MCP_COMMAND = command;
+    process.env.MILKSU_PLUGIN_MCP_ARGS = JSON.stringify(pluginArgs);
     process.env.MILKSU_PLUGIN_MCP_APPDATA = appData;
     const builtIn = await createFirstPartyPluginMcpServer();
+    const canonicalAppData = await realpath(appData);
     assert.equal(builtIn.name, pluginMcpServerName);
     assert.equal(builtIn.server.command, await realpath(command));
-    assert.deepEqual(builtIn.server.args, ["plugin-mcp"]);
+    assert.deepEqual(builtIn.server.args, pluginArgs);
     assert.deepEqual(builtIn.server.env, {
-      MILKSU_APPDATA_DIR: await realpath(appData),
+      MILKSU_APPDATA_DIR: canonicalAppData,
     });
-    assert.equal(builtIn.server.cwd, dirname(await realpath(command)));
+    assert.equal(builtIn.server.cwd, canonicalAppData);
     assert.equal(builtIn.server.lifecycle, "lazy");
     assert.equal(builtIn.server.directTools, false);
 
@@ -555,6 +559,11 @@ test("builds Plugin MCP only from the supervised launcher descriptor", async () 
       delete process.env.MILKSU_PLUGIN_MCP_COMMAND;
     } else {
       process.env.MILKSU_PLUGIN_MCP_COMMAND = previousCommand;
+    }
+    if (previousArgs === undefined) {
+      delete process.env.MILKSU_PLUGIN_MCP_ARGS;
+    } else {
+      process.env.MILKSU_PLUGIN_MCP_ARGS = previousArgs;
     }
     if (previousAppData === undefined) {
       delete process.env.MILKSU_PLUGIN_MCP_APPDATA;

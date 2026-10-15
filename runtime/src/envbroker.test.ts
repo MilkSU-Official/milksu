@@ -175,9 +175,6 @@ async function stubCtx(home: string, hostCall?: HandlerContext['hostCall']): Pro
     engine: {} as Engine,
     emit: () => {},
     home,
-    invokeHelper: async () => {
-      throw new Error('helper should not be called')
-    },
     hostCall,
   }
 }

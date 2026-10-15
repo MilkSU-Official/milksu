@@ -6,13 +6,11 @@ on:
       - '.github/workflows/plugin-gate.yml'
       - 'app/public/plugin-frame-bootstrap.js'
       - 'app/src/**'
-      - 'cmd/milksu-backend/**'
-      - 'cmd/milksu-pluginctl/**'
       - 'desktop/**'
       - 'docs/developer/plugin-**'
-      - 'go.mod'
-      - 'go.sum'
-      - 'internal/plugin/**'
+      - 'runtime/src/plugin/**'
+      - 'runtime/src/plugin-mcp.ts'
+      - 'runtime/src/pluginctl.ts'
       - 'package-lock.json'
       - 'package.json'
       - 'plugins/**'
@@ -61,10 +59,6 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
       - name: Install plugin gate dependencies
         run: |
           npm ci
@@ -73,8 +67,7 @@ jobs:
         run: npm run plugins:check
       - name: Exercise package, trust, storage, runtime and MCP contracts
         run: |
-          go test ./internal/plugin ./plugins
-          go test ./cmd/milksu-backend -run 'Plugin|MCP' -count=1
+          npm run runtime:test
           npm run test:plugin-author
           node --test sidecar/plugin-runtime/*.test.mjs sidecar/pi/bridge-plugin-mcp.test.js desktop/backend-runtime.test.cjs desktop/desktop-rpc-source.test.cjs desktop/renderer-protocol.test.cjs desktop/startup-environment.test.cjs
       - name: Validate renderer plugin contracts

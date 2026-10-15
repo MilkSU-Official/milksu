@@ -89,7 +89,7 @@ describe('background task survives the turn end', () => {
     expect(conversations.store.getState().backgroundTasks['conversation-1'] ?? []).toHaveLength(2)
   })
 
-  // 跨层名字：侧车发 `background_tasks`，但引擎在 `internal/engine/supervisor.go` 的改名表里
+  // 跨层名字：侧车发 `background_tasks`，但引擎在 `runtime/src/events.ts` 的改名表里
   // 把它改写成 `runtime.background_tasks` 再交给渲染层（subagent_tasks/dsh_jobs/compaction_*
   // 都是同一张表）。只认侧车名字 ⇒ 真机上**静默收不到** ⇒ 状态区那行与回合结束提示一起消失。
   it('hears the event under the name the engine actually forwards', async () => {

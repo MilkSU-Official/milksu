@@ -12,15 +12,25 @@ await cp(
   join(root, 'runtime', 'dist', 'envbroker', 'packages'),
   { recursive: true },
 )
-await esbuild.build({
+const shared = {
   absWorkingDir: root,
-  entryPoints: [join(root, 'runtime', 'src', 'main.ts')],
   bundle: true,
   platform: 'node',
   format: 'cjs',
-  outfile,
   legalComments: 'none',
   logLevel: 'warning',
-  external: ['node:sqlite'],
+  external: ['node:sqlite', 'node-pty'],
+}
+await esbuild.build({
+  ...shared,
+  entryPoints: [join(root, 'runtime', 'src', 'main.ts')],
+  outfile,
 })
 process.stdout.write(`runtime bundle ${outfile}\n`)
+const pluginMcp = join(root, 'runtime', 'dist', 'plugin-mcp.cjs')
+await esbuild.build({
+  ...shared,
+  entryPoints: [join(root, 'runtime', 'src', 'plugin-mcp.ts')],
+  outfile: pluginMcp,
+})
+process.stdout.write(`plugin-mcp bundle ${pluginMcp}\n`)

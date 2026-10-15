@@ -19,7 +19,7 @@ Coding Harness adopts a strict **reuse-first** policy:
 
 1. If Pi core already owns the lifecycle, MilkSU calls Pi instead of reimplementing it.
 2. If a reviewed Pi package provides a general Coding capability, MilkSU pins and adapts it instead of shipping an interim clone.
-3. MilkSU-owned code is limited to desktop product boundaries that an extension cannot own safely: workspace/sandbox enforcement, credential isolation, explicit approval transport, Electron/Go RPC event-state projection, and user-data persistence.
+3. MilkSU-owned code is limited to desktop product boundaries that an extension cannot own safely: workspace/sandbox enforcement, credential isolation, explicit approval transport, Electron/Runtime RPC event-state projection, and user-data persistence.
 4. CVE / Lab domain facts stay MilkSU-owned. Do not restore the CTF Agent, Judge loop, or NYU eval bench.
 5. A planned Coding feature with a credible upstream candidate stays visibly `Planned` until that candidate is integrated or rejected with evidence. It must not accumulate a temporary bespoke harness meanwhile.
 
@@ -116,7 +116,7 @@ Pi's official documentation states that Pi runs with the launching process's fil
 2. Record session scope and whether the resource can read, write, execute, access the network, or load more resources.
 3. Keep ambient discovery disabled.
 4. Add a positive Coding smoke assertion, and a CVE / Lab assertion for whatever the domain policy adds or narrows.
-5. Run `npm run sidecar:smoke`, `npm run test:sidecar`, the Go and app (React) regression suites,
+5. Run `npm run sidecar:smoke`, `npm run test:sidecar`, `npm run runtime:test` and the app (React) regression suites,
    `npm run desktop:build`, and `npm run codesign:check` before publishing.
 6. Copy the direct dependency license into `THIRD_PARTY-LICENSES` and record its path in the Sidecar manifest.
 7. Push only to a MilkSU-owned repository. Never open a PR or write to the upstream project.

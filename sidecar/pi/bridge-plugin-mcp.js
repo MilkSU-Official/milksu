@@ -1,14 +1,32 @@
 import { constants } from "node:fs";
 import { access, lstat, realpath } from "node:fs/promises";
-import { dirname, isAbsolute } from "node:path";
+import { basename, isAbsolute } from "node:path";
 
 export const pluginMcpServerName = "milksu-plugins";
 
 const pluginMcpCommandEnvironment = "MILKSU_PLUGIN_MCP_COMMAND";
+const pluginMcpArgsEnvironment = "MILKSU_PLUGIN_MCP_ARGS";
 const pluginMcpAppDataEnvironment = "MILKSU_PLUGIN_MCP_APPDATA";
 
 function launcherValue(name) {
   return String(process.env[name] ?? "").trim();
+}
+
+function launcherArgs() {
+  const raw = launcherValue(pluginMcpArgsEnvironment);
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed.map((item) => String(item));
+  } catch {
+    // Runtime also accepts a whitespace-separated fallback.
+  }
+  return raw.split(/\s+/).filter(Boolean);
+}
+
+function commandNeedsElectronAsNode(command) {
+  const base = basename(command).toLowerCase();
+  return base === "electron" || base === "electron.exe";
 }
 
 export function pluginMcpSessionRequiresReload(
@@ -54,27 +72,30 @@ async function canonicalLauncherDirectory(value, label) {
 }
 
 // This server is intentionally not built from .mcp.json or a renderer payload.
-// The supervised Go launcher supplies exactly one executable and one app-data
+// The TypeScript runtime supplies one executable, its args, and one app-data
 // root. The MCP SDK adds only its small platform environment allowlist; the
 // explicit child environment below contains no model-provider credential.
 export async function createFirstPartyPluginMcpServer() {
   const rawCommand = launcherValue(pluginMcpCommandEnvironment);
   const rawAppData = launcherValue(pluginMcpAppDataEnvironment);
-  if (!rawCommand && !rawAppData) return undefined;
-  if (!rawCommand || !rawAppData) {
+  const args = launcherArgs();
+  if (!rawCommand && !rawAppData && args.length === 0) return undefined;
+  if (!rawCommand || !rawAppData || args.length === 0) {
     throw new Error("MilkSU first-party Plugin MCP launcher descriptor is incomplete");
   }
   const [command, appData] = await Promise.all([
     canonicalLauncherFile(rawCommand, "Plugin MCP command"),
     canonicalLauncherDirectory(rawAppData, "Plugin MCP data directory"),
   ]);
+  const env = { MILKSU_APPDATA_DIR: appData };
+  if (commandNeedsElectronAsNode(command)) env.ELECTRON_RUN_AS_NODE = "1";
   return {
     name: pluginMcpServerName,
     server: {
       command,
-      args: ["plugin-mcp"],
-      env: { MILKSU_APPDATA_DIR: appData },
-      cwd: dirname(command),
+      args,
+      env,
+      cwd: appData,
       lifecycle: "lazy",
       directTools: false,
     },

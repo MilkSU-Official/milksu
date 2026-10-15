@@ -222,7 +222,7 @@ export type Descriptor = {
   dark_theme_tokens?: ThemeTokens
 }
 
-export type PetPluginPackage = {
+export type CompanionPluginPackage = {
   id: string
   name: string
   directory: string

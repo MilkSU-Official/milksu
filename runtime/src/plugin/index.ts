@@ -4,7 +4,7 @@ export { packageDigest } from './digest.ts'
 export { readManifest } from './manifest.ts'
 export type {
   Descriptor,
-  PetPluginPackage,
+  CompanionPluginPackage,
   PluginOptions,
   PluginMCPConfig,
   StagedPackageReview,

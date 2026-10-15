@@ -9,7 +9,7 @@ Current user workspaces are:
 - **实验室**: independent jobs with live targets and reports;
 - **Settings**: provider configuration, local recovery, diagnostics and application controls.
 
-The renderer is not a domain fact source. CVE, Lab, and Coding facts come from TypeScript Runtime projections. Provider credentials stay in the Runtime secret store (macOS Keychain via the native helper) and are never returned through Desktop RPC.
+The renderer is not a domain fact source. CVE, Lab, and Coding facts come from TypeScript Runtime projections. Provider credentials stay in the Runtime secret store (macOS Keychain via N-API) and are never returned through Desktop RPC.
 
 ## Runtime Connections
 
@@ -17,7 +17,7 @@ The renderer is not a domain fact source. CVE, Lab, and Coding facts come from T
 - `../sidecar/pi/bridge.js`: Pi session, reviewed resources and CVE/lab domain tools on top of the Coding loop;
 - `../sidecar/pi/bridge-policy.js`: tool policy transport and platform enforcement;
 - `../sidecar/dsh/`: ACP adapter for a user-supplied Agent command;
-- `../cmd/milksu-backend/`: native helper (Keychain CGO, PTY, Lua, Computer Use OS probes).
+- `../desktop/native/`: N-API addons (Keychain, window list); PTY is `node-pty`, Lua is fengari.
 
 Coding Browser, a user-paired platform browser and Computer Use are separate permission surfaces. They do not inherit one another's profile, Cookie, token, page session or application scope.
 
@@ -25,7 +25,7 @@ Coding Browser, a user-paired platform browser and Computer Use are separate per
 
 - React 19, TypeScript and Vite;
 - Tailwind CSS and shadcn/ui;
-- Electron with a supervised TypeScript Runtime and a native helper;
+- Electron with a supervised TypeScript Runtime;
 - supervised, packaged Node/Pi Sidecars.
 
 ## Development

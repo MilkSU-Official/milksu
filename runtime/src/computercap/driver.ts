@@ -39,7 +39,7 @@ export function defaultCommandFactory(spec: SpawnSpec): ChildProcess {
   })
 }
 
-export function driverEnvironment(goos: string, directory: string, hostBundleId: string): NodeJS.ProcessEnv {
+export function driverEnvironment(os: string, directory: string, hostBundleId: string): NodeJS.ProcessEnv {
   let host = String(hostBundleId ?? '').trim()
   if (!validBundleId(host)) host = DEFAULT_HOST_BUNDLE_ID
   const env: NodeJS.ProcessEnv = {
@@ -49,7 +49,7 @@ export function driverEnvironment(goos: string, directory: string, hostBundleId:
     CUA_DRIVER_RS_TELEMETRY_ENABLED: 'false',
     CUA_LOG: 'warn',
   }
-  if (goos === 'windows' || goos === 'win32') {
+  if (os === 'windows' || os === 'win32') {
     const systemRoot = String(process.env.SystemRoot ?? '').trim() || 'C:\\Windows'
     env.SystemRoot = systemRoot
     env.WINDIR = systemRoot
@@ -84,59 +84,50 @@ export async function inspectDriverFile(path: string): Promise<boolean> {
   }
 }
 
-export async function inspectExecutable(path: string, goos: string): Promise<boolean> {
+export async function inspectExecutable(path: string, os: string): Promise<boolean> {
   try {
     const canonical = resolve(path)
     const info = await lstat(canonical)
     if (info.isSymbolicLink() || !info.isFile()) return false
-    if (goos !== 'windows' && goos !== 'win32' && (info.mode & 0o111) === 0) return false
+    if (os !== 'windows' && os !== 'win32' && (info.mode & 0o111) === 0) return false
     return true
   } catch {
     return false
   }
 }
 
-export function preparedDriverPath(home: string, goos: string): string {
-  return join(home, 'data', 'services', 'computer-use', driverExecutableName(goos))
+export function preparedDriverPath(home: string, os: string): string {
+  return join(home, 'data', 'services', 'computer-use', driverExecutableName(os))
 }
 
 export function binaryCandidates(options: {
   binaryPath?: string
-  goos: string
+  os: string
   home: string
   sidecarDir?: string
-  helperPath?: string
   cwd?: string
 }): string[] {
-  const name = driverExecutableName(options.goos)
+  const name = driverExecutableName(options.os)
   const candidates = [String(options.binaryPath ?? '').trim()]
-  const helper = String(options.helperPath ?? '').trim()
-  if (helper) {
-    const dir = dirname(helper)
-    candidates.push(join(dir, name))
-    candidates.push(join(dir, 'resources', 'milksu-sidecar', name))
-    candidates.push(join(dir, '..', 'Resources', 'milksu-sidecar', name))
-  }
   const sidecar = String(options.sidecarDir ?? process.env.MILKSU_SIDECAR_DIR ?? '').trim()
   if (sidecar) candidates.push(join(sidecar, name))
   let arch = process.arch
   if (arch === 'x64') arch = 'amd64'
   const cwd = options.cwd ?? process.cwd()
-  candidates.push(join(cwd, 'build', 'sidecar', `${options.goos}-${arch}`, name))
-  candidates.push(preparedDriverPath(options.home, options.goos))
+  candidates.push(join(cwd, 'build', 'sidecar', `${options.os}-${arch}`, name))
+  candidates.push(preparedDriverPath(options.home, options.os))
   return candidates.filter(Boolean)
 }
 
 export async function resolveDriverBinary(options: {
   binaryPath?: string
-  goos: string
+  os: string
   home: string
   sidecarDir?: string
-  helperPath?: string
   cwd?: string
 }): Promise<string> {
   for (const candidate of binaryCandidates(options)) {
-    if (await inspectExecutable(candidate, options.goos)) return resolve(candidate)
+    if (await inspectExecutable(candidate, options.os)) return resolve(candidate)
   }
   throw new Error(`MilkSU packaged Cua Driver ${DRIVER_VERSION} is unavailable`)
 }
@@ -330,14 +321,14 @@ export async function runReviewedWindowsBuild(root: string, timeoutMs = 12 * 60_
   }
 }
 
-export function sidecarBuildCandidate(goos: string, cwd = process.cwd()): string {
+export function sidecarBuildCandidate(os: string, cwd = process.cwd()): string {
   let arch = process.arch
   if (arch === 'x64') arch = 'amd64'
-  return join(cwd, 'build', 'sidecar', `${goos}-${arch}`, driverExecutableName(goos))
+  return join(cwd, 'build', 'sidecar', `${os}-${arch}`, driverExecutableName(os))
 }
 
-export function sourceBuildRuntimeCandidate(root: string, goos: string): string {
-  return join(root, 'build', 'sidecar-cache', `cua-windows-${DRIVER_VERSION}`, 'r', driverExecutableName(goos))
+export function sourceBuildRuntimeCandidate(root: string, os: string): string {
+  return join(root, 'build', 'sidecar-cache', `cua-windows-${DRIVER_VERSION}`, 'r', driverExecutableName(os))
 }
 
 export async function cleanupEndpoint(socketPath: string): Promise<void> {

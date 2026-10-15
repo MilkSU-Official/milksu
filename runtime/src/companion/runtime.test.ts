@@ -101,9 +101,6 @@ test('EnsureCompanion starts a fake sidecar and StopCompanion shuts it down', as
     companion: runtime,
     home,
     emit: () => {},
-    invokeHelper: async () => {
-      throw new Error('helper should not see companion RPCs')
-    },
   } as unknown as HandlerContext
 
   assert.equal(isOwnedMethod('EnsureCompanion'), true)

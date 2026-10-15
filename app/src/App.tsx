@@ -75,7 +75,12 @@ import { companionPawState, type CompanionPawState } from '@/lib/companionOverla
 import { withAppSettingsDefaults, type AccountStatus, type AppSettings, type CompanionShellStatus, type UpdateStatus } from '@/types'
 import type { ModelCatalogSnapshot } from '@/types'
 import { imageGenSettingsFromKey, installAppModelSettings, installModelCatalog, loadModelCatalog } from '@/modelCatalog'
-import { installAcpGuest } from '@/lib/acpGuest'
+import {
+  acpAgentConfigured,
+  focusAcpAgent,
+  installAcpAgents,
+  type NamedAcpAgent,
+} from '@/lib/acpAgent'
 import { installRuntimeVersions } from '@/lib/runtimeVersions'
 import { toolBudgetToolName } from '@/lib/toolBudget'
 import type {
@@ -295,6 +300,7 @@ export default function App() {
     problemIds: conversations.problemConversationIds,
     actionError: conversations.conversationActionError,
     kernel: conversations.selectedKernel,
+    acpAgentId: conversations.selectedAcpAgentId,
     modelMode: conversations.selectedModelMode,
     modelProvider: conversations.selectedModelProvider,
     modelId: conversations.selectedModelId,
@@ -447,6 +453,7 @@ export default function App() {
     turnStatus: conv.turnStatus,
     vulnerabilitySession: conv.active?.domainTaskContext?.kind === 'cve',
     kernel: conv.kernel,
+    acpAgentId: conv.acpAgentId,
     modelMode: conv.modelMode,
     modelProvider: conv.modelProvider,
     modelId: conv.modelId,
@@ -486,12 +493,15 @@ export default function App() {
     taskNotifyRef.current = taskNotifySwitchFromSettings(normalized)
     installAppModelSettings(normalized)
     installRuntimeVersions(normalized.runtime_versions)
-    installAcpGuest(normalized.acp_guest)
+    installAcpAgents(normalized.acp_agents ?? [], normalized.default_acp_agent_id)
     applyUiLocale(normalized.locale)
     applyConversationFontSize(normalized.conversation_font_size)
     applyProjectFoldLimit(normalized.sidebar_project_fold_limit)
     applyUiEmphasis({ preset: normalized.ui_emphasis })
-    conversations.setDefaultKernel(normalized.default_kernel ?? FACTORY_DEFAULT_KERNEL)
+    conversations.setDefaultKernel(
+      normalized.default_kernel ?? FACTORY_DEFAULT_KERNEL,
+      normalized.default_acp_agent_id,
+    )
     conversations.setBusySend(normalized.busy_send ?? 'interrupt')
   }
 
@@ -1044,12 +1054,37 @@ export default function App() {
     conversations.setModelSelection(mode, provider, model)
   }
 
-  function changeKernel(kernel: 'pi' | 'dsh') {
-    conversations.setKernel(kernel)
+  function changeKernel(kernel: 'pi' | 'dsh', agentId?: string) {
+    conversations.setKernel(kernel, agentId)
   }
 
-  function migrateKernel(kernel: 'pi' | 'dsh') {
-    void conversations.handoffContext(kernel)
+  function migrateKernel(kernel: 'pi' | 'dsh', agentId?: string) {
+    void conversations.handoffContext(kernel, agentId)
+  }
+
+  async function createAcpAgent(agent: NamedAcpAgent) {
+    const current = settings
+    if (!current) return
+    const agents = [...(current.acp_agents ?? []), agent]
+    const next = withAppSettingsDefaults({
+      ...current,
+      acp_agents: agents,
+      default_acp_agent_id: current.default_acp_agent_id || agent.id,
+    })
+    applySettings(next)
+    focusAcpAgent(agent.id)
+    try {
+      await invokeCommand('save_settings_cmd', { newSettings: next })
+    } catch {
+      await loadSettings()
+      return
+    }
+    toast(t('Agent 已添加', 'Agent added'))
+    if (acpAgentConfigured(agent)) {
+      changeKernel('dsh', agent.id)
+      return
+    }
+    openSettings('runtime')
   }
 
   function toggleThemeMode() {
@@ -1532,6 +1567,7 @@ export default function App() {
     onHandoffContext: conversations.handoffContext,
     onChangeKernel: changeKernel,
     onMigrateKernel: migrateKernel,
+    onCreateAgent: createAcpAgent,
     onControlGoal: conversations.controlGoal,
     onRespondApproval: conversations.respondApproval,
     onEditUser: conversations.editAndResend,
@@ -1779,6 +1815,7 @@ export default function App() {
                 turnStatus={conv.turnStatus}
                 vulnerabilitySession={activeVulnerabilityCodingConversation}
                 kernel={conv.kernel}
+                acpAgentId={conv.acpAgentId}
                 modelMode={conv.modelMode}
                 modelProvider={conv.modelProvider}
                 modelId={conv.modelId}
@@ -1817,6 +1854,7 @@ export default function App() {
                 onChangeModel={changeModel}
                 onChangeKernel={changeKernel}
                 onMigrateKernel={migrateKernel}
+                onCreateAgent={createAcpAgent}
                 onChangeThinkingLevel={conversations.setThinkingLevel}
                 onChangeModelSource={conversations.setModelSourcePreference}
                 onChangeCodingPolicy={conversations.setCodingPolicy}

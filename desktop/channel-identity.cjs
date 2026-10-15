@@ -243,7 +243,7 @@ function allowedProfilePath(profilePath, roots) {
 }
 
 /**
- * Resolve Go runtime MILKSU_APPDATA_DIR for the desktop backend.
+ * Resolve TypeScript Runtime MILKSU_APPDATA_DIR for the desktop backend.
  * @param {{
  *   channel: string,
  *   isolatedInstance?: boolean,

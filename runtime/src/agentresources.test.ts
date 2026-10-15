@@ -56,7 +56,6 @@ async function handlerContext(store: AgentResourceStore, home: string, hostCall?
     engine: {} as Engine,
     emit: () => {},
     home,
-    invokeHelper: async () => null,
     hostCall,
     agentResources: store,
   }

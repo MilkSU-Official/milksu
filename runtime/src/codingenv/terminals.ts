@@ -1,8 +1,36 @@
 import { randomUUID } from 'node:crypto'
 import { access, constants, realpath, stat } from 'node:fs/promises'
 import { isAbsolute, join, resolve } from 'node:path'
-import type { RpcSource } from '../rpc.ts'
+import { createRequireFromModule } from '../module-path.ts'
 import { lookPath } from './paths.ts'
+
+type PtyProcess = {
+  pid: number
+  write(data: string): void
+  resize(columns: number, rows: number): void
+  kill(signal?: string): void
+  onData(listener: (data: string) => void): void
+  onExit(listener: (event: { exitCode: number; signal?: number }) => void): void
+}
+
+type PtyModule = {
+  spawn(
+    file: string,
+    args: string[] | string,
+    options: {
+      name?: string
+      cols?: number
+      rows?: number
+      cwd?: string
+      env?: Record<string, string>
+      useConpty?: boolean
+    },
+  ): PtyProcess
+}
+
+function loadNodePty(): PtyModule {
+  return createRequireFromModule()('node-pty') as PtyModule
+}
 
 export const DEFAULT_COLUMNS = 100
 export const DEFAULT_ROWS = 28
@@ -72,8 +100,6 @@ type PtySink = {
   exit: (ptyId: string, exitCode: number, error?: string) => void
 }
 
-type HelperInvoke = (method: string, args: unknown[], source?: RpcSource) => Promise<unknown>
-
 const BLOCKED_ENV = new Set([
   'ANTHROPIC_API_KEY',
   'DEEPSEEK_API_KEY',
@@ -110,12 +136,6 @@ class Mutex {
     })
     return previous.then(fn).finally(() => release())
   }
-}
-
-function asObject(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : {}
 }
 
 function newTerminalId(): string {
@@ -267,61 +287,114 @@ function appendOutput(entry: TerminalEntry, data: string): void {
   }
 }
 
-export class HelperPtyDriver implements PtyDriver {
-  private sink: PtySink | null = null
-  private readonly invoke: HelperInvoke
+function environmentObject(entries: string[]): Record<string, string> {
+  const environment: Record<string, string> = {}
+  for (const entry of entries) {
+    const cut = entry.indexOf('=')
+    if (cut <= 0) continue
+    environment[entry.slice(0, cut)] = entry.slice(cut + 1)
+  }
+  return environment
+}
 
-  constructor(invoke: HelperInvoke) {
-    this.invoke = invoke
+export class NodePtyDriver implements PtyDriver {
+  private sink: PtySink | null = null
+  private readonly sessions = new Map<string, PtyProcess>()
+  private closed = false
+  private ptyModule: PtyModule | undefined
+
+  constructor(pty?: PtyModule) {
+    this.ptyModule = pty
+  }
+
+  private pty(): PtyModule {
+    if (!this.ptyModule) this.ptyModule = loadNodePty()
+    return this.ptyModule
   }
 
   attach(sink: PtySink): void {
     this.sink = sink
   }
 
-  handleEvent(event: string, payload: unknown): boolean {
-    if (event !== 'pty-output' && event !== 'pty-exit') return false
-    const input = asObject(payload)
-    const id = String(input.id ?? '').trim()
-    if (!id) return true
-    if (event === 'pty-output') {
-      this.sink?.output(id, String(input.data ?? ''))
-      return true
-    }
-    const exitCode = Number(input.exitCode ?? -1)
-    const error = String(input.error ?? '').trim()
-    this.sink?.exit(id, Number.isFinite(exitCode) ? exitCode : -1, error || undefined)
-    return true
-  }
-
   async open(request: PtyOpenRequest): Promise<PtyHandle> {
-    const result = await this.invoke(
-      'OpenPty',
-      [request.command, request.args, request.cwd, request.env, request.columns, request.rows],
-      'electron_host',
-    )
-    const input = asObject(result)
-    const id = String(input.id ?? '').trim()
-    const pid = Number(input.pid ?? 0)
-    if (!id) throw new Error('start project terminal: helper returned no id')
-    return { id, pid: Number.isFinite(pid) ? Math.trunc(pid) : 0 }
+    if (this.closed) throw new Error('PTY helper is closed')
+    const command = request.command.trim()
+    if (!command) throw new Error('shell command is required')
+    const cwd = request.cwd.trim()
+    if (!cwd) throw new Error('project directory is required')
+    const size = normalizedSize(request.columns, request.rows)
+    let ptyProcess: PtyProcess
+    try {
+      ptyProcess = this.pty().spawn(command, request.args, {
+        name: 'xterm-256color',
+        cols: size.columns,
+        rows: size.rows,
+        cwd,
+        env: environmentObject(request.env),
+        useConpty: process.platform === 'win32',
+      })
+    } catch (error) {
+      throw new Error(`start project terminal: ${error instanceof Error ? error.message : error}`)
+    }
+    const id = `pty_${randomUUID().replaceAll('-', '')}`
+    this.sessions.set(id, ptyProcess)
+    ptyProcess.onData((data) => {
+      this.sink?.output(id, data)
+    })
+    ptyProcess.onExit(({ exitCode }) => {
+      this.sessions.delete(id)
+      this.sink?.exit(id, Number.isFinite(exitCode) ? exitCode : -1)
+    })
+    return { id, pid: Number.isFinite(ptyProcess.pid) ? Math.trunc(ptyProcess.pid) : 0 }
   }
 
   async write(id: string, data: string): Promise<void> {
-    await this.invoke('PtyWrite', [id, data], 'electron_host')
+    const session = this.session(id)
+    if (Buffer.byteLength(data, 'utf8') > MAX_INPUT_BYTES) {
+      throw new Error(`terminal input must be at most ${MAX_INPUT_BYTES} bytes`)
+    }
+    session.write(data)
   }
 
   async resize(id: string, columns: number, rows: number): Promise<void> {
-    await this.invoke('PtyResize', [id, columns, rows], 'electron_host')
+    const session = this.session(id)
+    const size = normalizedSize(columns, rows)
+    session.resize(size.columns, size.rows)
   }
 
   async close(id: string): Promise<void> {
-    await this.invoke('ClosePty', [id], 'electron_host')
+    const session = this.sessions.get(id.trim())
+    if (!session) return
+    this.sessions.delete(id.trim())
+    try {
+      session.kill()
+    } catch {
+      // process may already have exited
+    }
   }
-}
 
-export function createHelperPtyDriver(invoke: HelperInvoke): HelperPtyDriver {
-  return new HelperPtyDriver(invoke)
+  async closeAll(): Promise<void> {
+    this.closed = true
+    const running = [...this.sessions.values()]
+    this.sessions.clear()
+    for (const session of running) {
+      try {
+        session.kill()
+      } catch {
+        // process may already have exited
+      }
+    }
+  }
+
+  private session(id: string): PtyProcess {
+    const next = id.trim()
+    if (!next.startsWith('pty_') || next.length > 96) {
+      throw new Error('invalid terminal session id')
+    }
+    const session = this.sessions.get(next)
+    if (!session) throw new Error('terminal session not found')
+    return session
+  }
 }
 
 export class TerminalManager {

@@ -17,7 +17,7 @@ test('folder import, select, and remove stay on the product RPCs', async () => {
   const host = createCompanionSkinHost({
     userDataPath,
     openDirectory: async () => fixture,
-    listPetPlugins: async () => [],
+    listCompanionPlugins: async () => [],
     emit: (event, value) => events.push({ event, value }),
   })
 
@@ -51,7 +51,7 @@ test('plugin pet packages appear only when the host can read a valid skin.json',
   const host = createCompanionSkinHost({
     userDataPath,
     openDirectory: async () => '',
-    listPetPlugins: async () => [{ id: 'pet.plugin', name: 'Pet', directory: pluginDir }],
+    listCompanionPlugins: async () => [{ id: 'pet.plugin', name: 'Pet', directory: pluginDir }],
   })
   const listed = await host.handleHostMethod('ListCompanionSkins')
   assert.equal(listed.skins.some(item => item.id === 'plugin:pet.plugin'), true)

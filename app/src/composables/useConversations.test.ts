@@ -34,6 +34,24 @@ describe('Coding approval conversation recovery', () => {
       messages: [],
     }).thinkingLevel).toBeUndefined()
   })
+  it('keeps a named ACP agent id on the conversation', () => {
+    expect(normalizeConversation({
+      id: 'agent-named',
+      title: 'Named',
+      createdAt: 1,
+      kernel: 'dsh',
+      acpAgentId: 'agt_codex',
+      messages: [],
+    }).acpAgentId).toBe('agt_codex')
+    expect(normalizeConversation({
+      id: 'agent-blank',
+      title: 'Blank',
+      createdAt: 1,
+      kernel: 'dsh',
+      acpAgentId: '  ',
+      messages: [],
+    }).acpAgentId).toBeUndefined()
+  })
   it('shows the no-tools contract and restores the reviewed tool set', () => {
     const reviewed = ['read', 'grep']
     let active = projectAgentTurnPolicy('session.turn_policy', false)
@@ -378,6 +396,11 @@ describe('Coding approval conversation recovery', () => {
   })
 
   it.each([
+    [
+      'Error invoking remote method milksu:invoke: Error: MilkSU desktop runtime is unavailable',
+      '本地运行时已停止，请重新打开应用',
+      'desktop runtime is unavailable',
+    ],
     [
       'Error invoking remote method milksu:invoke: Error: MilkSU Go runtime is unavailable',
       '本地运行时已停止，请重新打开应用',

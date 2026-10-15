@@ -1,5 +1,5 @@
 // Official lab facts come from https://models.dev/. Keep in sync with
-// internal/modelcatalog/context_window.go and sidecar/pi/known-context-window.cjs.
+// runtime/src/modelcatalog/context-window.ts and sidecar/pi/known-context-window.cjs.
 import type { AppSettings } from '@/types'
 
 export const MIN_MODEL_CONTEXT_WINDOW = 1024

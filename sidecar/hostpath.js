@@ -3,7 +3,7 @@ import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 
 // Usable sockaddr_un.sun_path length on Darwin (104 including NUL). Keep in
-// sync with internal/hostpath.
+// sync with runtime/src/computercap/hostpath.ts.
 const unixSocketMaxBytes = 103;
 
 export function ephemeralRoot(env = process.env, platform = process.platform) {

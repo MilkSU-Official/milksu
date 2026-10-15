@@ -24,7 +24,6 @@ export {
 } from './store.ts'
 
 export {
-  HelperSecretKeeper,
   MemorySecretKeeper,
   SettingsSecretKeeper,
   SqliteSecretKeeper,

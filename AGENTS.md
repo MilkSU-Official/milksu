@@ -58,8 +58,8 @@ models.dev 只用来补目录里缺失或占位的字段。
 **每次发版前**再对照一次（见 [三端打包与发版流程](docs/developer/release-process.md) §1.5）。
 下表任一数字与 models.dev 不一致时，连同下列代码副本一起改：
 
-- 上下文 / 输出：`internal/modelcatalog/context_window.go`、`app/src/lib/knownContextWindow.ts`、`sidecar/pi/known-context-window.cjs`
-- 思考档位：`internal/config/model_thinking.go`、`app/src/lib/modelThinking.ts`（models.dev 的 `none` 映射成 Pi 的 `off`）
+- 上下文 / 输出：`runtime/src/modelcatalog/context-window.ts`、`app/src/lib/knownContextWindow.ts`、`sidecar/pi/known-context-window.cjs`
+- 思考档位：`runtime/src/model-thinking.ts`、`app/src/lib/modelThinking.ts`（models.dev 的 `none` 映射成 Pi 的 `off`）
 - 用量美金估算价目：`app/src/lib/knownModelPricing.ts`（个人资料 Coding 页；标成估算，不是账单）
 
 | 系列 | 上下文 | 输出 | 思考 |
@@ -185,7 +185,7 @@ CVE / 实验室领域 chrome，以及桌面授权。
 MilkSU 发 macOS、Windows 和 Linux。每一项新产品能力都要为这三端设计，
 也要为一个不是本开发者的用户设计。
 
-- 不要硬编码操作系统路径或本机路径。产品 Go、Electron、Sidecar、renderer 和打包里
+- 不要硬编码操作系统路径或本机路径。产品 Runtime、Electron、Sidecar、renderer 和打包里
   禁止出现：`/tmp`、`/private/tmp`、`/var/tmp`、`/run/user/<uid>`、`/Users/...`、
   `C:\Users\...`、Homebrew 前缀、`/usr/bin/open`、一个恰好在这台机器上存在的 Docker socket，
   或者只存在于这份 checkout 里的二进制。
@@ -195,14 +195,14 @@ MilkSU 发 macOS、Windows 和 Linux。每一项新产品能力都要为这三�
   `MILKSU_APPDATA_DIR` 是整个状态根的别名，不再是 data 目录）。根下分
   `data/`（stores、agent、domain、services、companion、runtime）、`config/`、
   `workspaces/`、`desktop/`（Electron userData）、`backups/`。
-  路径解析走 `internal/appdata`（Go）和 `desktop/home-root.cjs`（Electron），
-  两边共用同一套 env 语义；旧 app-data 布局由 appdata 的 home 迁移一次性搬进新根，
+  路径解析走 `runtime/src/appdata`、`runtime/src/home.ts` 和 `desktop/home-root.cjs`，
+  共用同一套 env 语义；旧 app-data 布局由 home 迁移一次性搬进新根，
   不建 symlink。用户交付物仍在文档目录 `MilkSU` 下，不进状态根。
-  临时 / 运行时目录用 `os.TempDir()`、Node `os.tmpdir()`，Linux 用 `$XDG_RUNTIME_DIR`，
-  统一走 `internal/hostpath` 和 `sidecar/hostpath.js`。Go、Sidecar 和测试都必须调那个 helper；
+  临时 / 运行时目录用 Node `os.tmpdir()`，Linux 用 `$XDG_RUNTIME_DIR`，
+  统一走 `sidecar/hostpath.js` 和 `runtime/src/computercap/hostpath.ts`。
   测试不得把 `/private/tmp/milksu-...` 粘成期望的产品路径。
   读过平台环境变量之后，像 `%SystemRoot%\System32` 这样有文档的 OS 默认值是允许的。
-  打开文件夹用 Go 给出的可信路径加宿主 shell，不是只在 macOS 上能跑的命令。
+  打开文件夹用 Runtime 给出的可信路径加宿主 shell。
 - 首次运行必须是产品路径：检测机器上有什么、显示设置、给一个默认值，
   并让用户指到某个路径或登录。别的用户必须能在不读仓库、不导出环境变量、
   不复制个人配置的情况下把这个功能打开。
@@ -225,7 +225,8 @@ MilkSU 发 macOS、Windows 和 Linux。每一项新产品能力都要为这三�
 ## 当前产品边界
 
 MilkSU 是 Electron/Chromium 桌面 App。产品 UI 是 React + shadcn。
-Desktop JSONL 进程是 TypeScript Runtime（`runtime/`），Go `milksu-backend` 当原生助手。
+Desktop JSONL 进程是 TypeScript Runtime（`runtime/`）。
+操作系统层是 C/ObjC N-API、`node-pty`、fengari 和 Electron `hostCall`。
 见 [当前系统](docs/architecture/current-system.md)。
 
 TokenFlux 的 API 流量必须走 `https://tokenflux.dev/v1`。
@@ -286,14 +287,15 @@ Pi 会话：Skill 目录只留 `name` + 说明何时使用的 `description`，�
 ## 架构方向
 
 ```text
-React -> Electron Preload / Desktop RPC -> TypeScript Runtime -> Pi sidecar | Agent | 原生助手
+React -> Electron Preload / Desktop RPC -> TypeScript Runtime -> Pi sidecar | Agent
 ```
 
 一次用户发送带一个 `traceId`，贯穿 RPC、Runtime、sidecar、ACP 子进程。
 配置只有 `settings.json` + secret store；环境变量只认 `MILKSU_HOME`。
-会话只有一份投影。原生助手只留钥匙串 CGO、PTY、Lua 解释器、Computer Use 的 OS 探针。
+会话只有一份投影。钥匙串、窗口列表走 `desktop/native` N-API；PTY 走 `node-pty`；
+Lua 走 fengari；Computer Use 权限走 Electron `hostCall`；Linux Portal 走 `dbus-next`。
 
-新职责写进 `runtime/`。不要把产品 RPC 加回 `cmd/milksu-backend/app.go`。
+新职责写进 `runtime/`。不要引入 Go 助手进程。
 发行前的新代码直接实现干净的当前模型。不要为已放弃的设计加迁移、双写或兼容分支。
 旧会话 `workspaceHome: "ctf"` 读成 Coding，不做双写。
 
@@ -357,7 +359,7 @@ React -> Electron Preload / Desktop RPC -> TypeScript Runtime -> Pi sidecar | Ag
   跑的 agent 先读该页「监督者」一节：一项一落地就看结果，`FAIL` 当时复查；
   网络、模型、Key 或会让后面全失败的代码问题要停掉进程，代码问题修好再重跑。
   那不是拿 `test:dsh-complete-loop` 当主入口。
-- Pull Request 上由 `.github/workflows/pr-checks.yml` 跑 Sidecar、Go 和 renderer 三组套件。
+- Pull Request 上由 `.github/workflows/pr-checks.yml` 跑 Sidecar、Runtime 和 renderer 三组套件。
   CI 绿不替代产品回归，产品回归也不替代安装包上的真机验收。
 - 按 `docs/developer/product-code-admission.md` 的要求，
   把 smoke、fixture、benchmark 和验收协调器放在生产启动路径、Desktop RPC 和 renderer 入口之外。
@@ -367,7 +369,7 @@ React -> Electron Preload / Desktop RPC -> TypeScript Runtime -> Pi sidecar | Ag
   列表 chrome / 顶栏 / LIVE 芯片挂载测试，或者锁 CSS 和 class 名的模板 grep 测试。
   一次 UI 改动如果弄坏了这类既有测试，删掉那条断言或那个文件，不要为了让 CI 变绿去改快照。
   保留针对逻辑、Desktop RPC、凭据、路由 / 状态机、文案配对（`uiLocaleCoverage`）
-  和 Sidecar / Go 契约的测试。UI 对着跑起来的 App、按本文件的设计语言审。
+  和 Sidecar / Runtime 契约的测试。UI 对着跑起来的 App、按本文件的设计语言审。
 - 碰到产品 UI 的外来 PR 和选定纵切，必须过本文件的设计语言评审。
   新增能力的外来 PR 和选定纵切，必须过产品化 / 三端评审。
 - 一项能力不会因为存在一个按钮、一个包或一个 fixture 就算完成；要留一个真实任务的结果。

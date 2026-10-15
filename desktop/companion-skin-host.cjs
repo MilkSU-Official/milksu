@@ -61,8 +61,8 @@ function resolvedFromPackage(parsed, source, id) {
 function createCompanionSkinHost(options) {
   const userDataPath = String(options.userDataPath || '')
   const openDirectory = options.openDirectory
-  const listPetPlugins = typeof options.listPetPlugins === 'function'
-    ? options.listPetPlugins
+  const listCompanionPlugins = typeof options.listCompanionPlugins === 'function'
+    ? options.listCompanionPlugins
     : async () => []
   const emit = typeof options.emit === 'function' ? options.emit : () => {}
 
@@ -96,7 +96,7 @@ function createCompanionSkinHost(options) {
   async function listPlugins() {
     let packages = []
     try {
-      packages = await listPetPlugins()
+      packages = await listCompanionPlugins()
     } catch {
       return []
     }
@@ -134,7 +134,7 @@ function createCompanionSkinHost(options) {
   }
 
   async function resolvePlugin(pluginId) {
-    const packages = await listPetPlugins().catch(() => [])
+    const packages = await listCompanionPlugins().catch(() => [])
     const match = (Array.isArray(packages) ? packages : []).find((item) => {
       return String(item?.id ?? item?.ID ?? '') === pluginId
     })

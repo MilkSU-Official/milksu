@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
@@ -8,6 +8,7 @@ import '../domains/settings.ts'
 import { handleOwnedMethod, type HandlerContext } from '../handlers.ts'
 import { ConversationStore } from '../conversations.ts'
 import { LabJobStore } from '../lab.ts'
+import { DarwinKeychainSecretStore } from '../native/keychain.ts'
 import { SettingsStore } from './settings-store.ts'
 import { MemorySecretStore, SqliteSecretStore } from './secret-store.ts'
 import { PRESET_DEEPSEEK_SERVICE_ID, TOKENFLUX_ACCOUNT_URL } from './settings-store.ts'
@@ -16,6 +17,22 @@ const FAKE_KEY = 'sk-test-settings-secret'
 
 async function tempHome(): Promise<string> {
   return mkdtemp(join(tmpdir(), 'milksu-settings-store-'))
+}
+
+async function handlerContext(home: string, store: SettingsStore): Promise<HandlerContext> {
+  const conversations = new ConversationStore(join(home, 'conversations'))
+  await conversations.ensure()
+  const labJobs = new LabJobStore(join(home, 'lab-jobs'))
+  await labJobs.ensure()
+  return {
+    conversations,
+    labJobs,
+    research: { deleteConversation: async () => null } as HandlerContext['research'],
+    engine: {} as HandlerContext['engine'],
+    emit: () => {},
+    home,
+    settings: store,
+  }
 }
 
 test('Save keeps api_key out of settings.json and in sqlite; GetSettings strips it', async () => {
@@ -61,22 +78,7 @@ test('renderer cannot SetAccountModelCredential; electron_host can and json stay
     secrets: new MemorySecretStore(),
     platform: 'linux',
   })
-  const conversations = new ConversationStore(join(home, 'conversations'))
-  await conversations.ensure()
-  const labJobs = new LabJobStore(join(home, 'lab-jobs'))
-  await labJobs.ensure()
-  const ctx: HandlerContext = {
-    conversations,
-    labJobs,
-    research: { deleteConversation: async () => null } as HandlerContext['research'],
-    engine: {} as HandlerContext['engine'],
-    emit: () => {},
-    home,
-    invokeHelper: async () => {
-      throw new Error('helper must not handle settings')
-    },
-    settings: store,
-  }
+  const ctx = await handlerContext(home, store)
 
   await assert.rejects(
     () => handleOwnedMethod(ctx, 'renderer', 'SetAccountModelCredential', [
@@ -120,30 +122,16 @@ test('SaveSettingsCmd emits settings-changed with the public copy', async () => 
     secrets: new MemorySecretStore(),
     platform: 'linux',
   })
-  const conversations = new ConversationStore(join(home, 'conversations'))
-  await conversations.ensure()
-  const labJobs = new LabJobStore(join(home, 'lab-jobs'))
-  await labJobs.ensure()
   const events: Array<{ name: string; payload: unknown }> = []
-  const ctx: HandlerContext = {
-    conversations,
-    labJobs,
-    research: { deleteConversation: async () => null } as HandlerContext['research'],
-    engine: {} as HandlerContext['engine'],
-    emit: (name, payload) => { events.push({ name, payload }) },
-    home,
-    invokeHelper: async () => {
-      throw new Error('helper must not handle settings')
-    },
-    settings: store,
-  }
+  const ctx = await handlerContext(home, store)
+  ctx.emit = (name, payload) => { events.push({ name, payload }) }
   const next = store.get()
-  next.acp_guest = { command: '/usr/bin/dsh', args: ['acp'] }
+  next.acp_agent = { command: '/usr/bin/dsh', args: ['acp'] }
   await handleOwnedMethod(ctx, 'renderer', 'SaveSettingsCmd', [next])
   const changed = events.filter((item) => item.name === 'settings-changed')
   assert.equal(changed.length, 1)
-  const payload = changed[0]?.payload as { acp_guest?: { command?: string } }
-  assert.equal(payload.acp_guest?.command, '/usr/bin/dsh')
+  const payload = changed[0]?.payload as { acp_agent?: { command?: string } }
+  assert.equal(payload.acp_agent?.command, '/usr/bin/dsh')
 })
 
 test('GetSettings handler returns public copy without keys', async () => {
@@ -159,20 +147,7 @@ test('GetSettings handler returns public copy without keys', async () => {
   }
   await store.save(settings)
 
-  const conversations = new ConversationStore(join(home, 'conversations'))
-  await conversations.ensure()
-  const labJobs = new LabJobStore(join(home, 'lab-jobs'))
-  await labJobs.ensure()
-  const ctx: HandlerContext = {
-    conversations,
-    labJobs,
-    research: { deleteConversation: async () => null } as HandlerContext['research'],
-    engine: {} as HandlerContext['engine'],
-    emit: () => {},
-    home,
-    invokeHelper: async () => null,
-    settings: store,
-  }
+  const ctx = await handlerContext(home, store)
   const got = await handleOwnedMethod(ctx, 'renderer', 'GetSettings', []) as Record<string, unknown>
   const providers = got.providers as Record<string, Record<string, unknown>>
   assert.equal(providers[PRESET_DEEPSEEK_SERVICE_ID].api_key, undefined)
@@ -180,26 +155,10 @@ test('GetSettings handler returns public copy without keys', async () => {
   assert.equal(JSON.stringify(got).includes(FAKE_KEY), false)
 })
 
-test('darwin helper secret store is used when platform is darwin', async () => {
+test('darwin credentials stay out of settings.json; sqlite when keychain addon is missing', async () => {
   const home = await tempHome()
-  const helperSecrets = new Map<string, string>()
-  const store = await SettingsStore.open({
-    home,
-    platform: 'darwin',
-    invokeHelper: async (method, args) => {
-      const account = String(args[0] ?? '')
-      if (method === 'GetPlatformSecret') return helperSecrets.get(account) ?? ''
-      if (method === 'SetPlatformSecret') {
-        helperSecrets.set(account, String(args[1] ?? ''))
-        return null
-      }
-      if (method === 'DeletePlatformSecret') {
-        helperSecrets.delete(account)
-        return null
-      }
-      throw new Error(`unexpected helper method ${method}`)
-    },
-  })
+  const keychain = new DarwinKeychainSecretStore()
+  const store = await SettingsStore.open({ home, platform: 'darwin' })
   const settings = store.get()
   settings.providers = settings.providers ?? {}
   settings.providers[PRESET_DEEPSEEK_SERVICE_ID] = {
@@ -208,7 +167,36 @@ test('darwin helper secret store is used when platform is darwin', async () => {
     enabled: true,
   }
   await store.save(settings)
-  assert.equal(helperSecrets.get(`provider:${PRESET_DEEPSEEK_SERVICE_ID}`) === FAKE_KEY, true)
   const json = await readFile(join(home, 'config', 'settings.json'), 'utf8')
   assert.equal(json.includes(FAKE_KEY), false)
+  if (keychain.available()) return
+  const db = new DatabaseSync(join(home, 'config', 'credentials.db'))
+  try {
+    const row = db.prepare('SELECT secret FROM credentials WHERE account = ?').get(
+      `provider:${PRESET_DEEPSEEK_SERVICE_ID}`,
+    ) as { secret?: string } | undefined
+    assert.equal(row?.secret, FAKE_KEY)
+  } finally {
+    db.close()
+  }
+})
+
+test('settings load migrates acp_guest to acp_agent', async () => {
+  const home = await tempHome()
+  await mkdir(join(home, 'config'), { recursive: true, mode: 0o700 })
+  await writeFile(join(home, 'config', 'settings.json'), `${JSON.stringify({
+    active_provider: 'deepseek',
+    active_model: 'deepseek-chat',
+    acp_guest: { command: '/usr/bin/dsh', args: ['acp'] },
+  })}\n`)
+  const store = await SettingsStore.open({ home, platform: 'linux' })
+  assert.equal(store.get().acp_agent?.command, '/usr/bin/dsh')
+  assert.equal(store.get().acp_agents?.[0]?.id, 'agt_legacy')
+  assert.equal(store.get().acp_agents?.[0]?.name, 'Agent')
+  assert.equal(store.get().default_acp_agent_id, 'agt_legacy')
+  assert.equal((store.get() as Record<string, unknown>).acp_guest, undefined)
+  const json = await readFile(join(home, 'config', 'settings.json'), 'utf8')
+  assert.match(json, /"acp_agent"/)
+  assert.match(json, /"acp_agents"/)
+  assert.equal(json.includes('acp_guest'), false)
 })

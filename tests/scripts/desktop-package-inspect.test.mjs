@@ -74,16 +74,8 @@ async function writeMinimalApp({
   await writeFile(join(macos, execName), '#!/bin/sh\necho milksu-fixture\n', 'utf8')
   await chmod(join(macos, execName), 0o755)
   await writeFile(join(resources, iconName), 'icns-fixture', 'utf8')
-  // TCC-bearing Go runtime must exist and share the channel codesign identifier.
-  const backendName = 'milksu-backend'
-  await writeFile(join(resources, backendName), '#!/bin/sh\necho backend\n', 'utf8')
-  await chmod(join(resources, backendName), 0o755)
-  await execFileAsync('/usr/bin/codesign', [
-    '--force',
-    '--sign', '-',
-    '--identifier', id,
-    join(resources, backendName),
-  ])
+  await mkdir(join(resources, 'runtime'), { recursive: true })
+  await writeFile(join(resources, 'runtime', 'main.cjs'), 'module.exports = {}\n', 'utf8')
   const plist = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
@@ -97,6 +89,8 @@ async function writeMinimalApp({
     <key>CFBundleURLSchemes</key><array><string>${accountProtocolScheme}</string></array>
   </dict></array>
   <key>CFBundlePackageType</key><string>APPL</string>
+  <key>NSScreenCaptureUsageDescription</key>
+  <string>MilkSU 使用屏幕录制读取你明确选择的外部 App 窗口，供 Coding Agent 的 Computer Use 完成可见操作。</string>
 </dict></plist>
 `
   await writeFile(join(contents, 'Info.plist'), plist, 'utf8')
@@ -118,19 +112,19 @@ test('inspectPackagedApp accepts ad-hoc signed minimal beta app with sealed trac
     assert.equal(result.plist.accountProtocolScheme, 'milksu-beta')
     assert.equal(result.tracking.channel, 'beta')
     assert.equal(result.codesign.identifier, BETA_APP_ID)
-    assert.equal(result.backend?.identifier, BETA_APP_ID)
+    assert.equal(result.runtime?.path.endsWith('runtime/main.cjs'), true)
   } finally {
     await rm(dir, { recursive: true, force: true })
   }
 })
 
-test('inspectPackagedApp rejects milksu-backend codesign Identifier a.out', async () => {
+test('inspectPackagedApp rejects a leftover milksu-backend binary', async () => {
   const { dir, appPath } = await writeMinimalApp({
     channel: 'stable',
     mutateAfterSign: async ({ appPath: path, resources }) => {
       const backend = join(resources, 'milksu-backend')
-      // Re-sign without --identifier so codesign falls back to a.out-like identity.
-      await execFileAsync('/usr/bin/codesign', ['--force', '--sign', '-', '--identifier', 'a.out', backend])
+      await writeFile(backend, '#!/bin/sh\necho leftover\n', 'utf8')
+      await chmod(backend, 0o755)
       await execFileAsync('/usr/bin/codesign', ['--force', '--deep', '--sign', '-', path])
     },
   })
@@ -138,7 +132,7 @@ test('inspectPackagedApp rejects milksu-backend codesign Identifier a.out', asyn
     const result = await inspectPackagedApp(appPath, 'stable')
     assert.equal(result.ok, false)
     assert.ok(
-      result.issues.some(issue => issue.includes('milksu-backend codesign Identifier expected')),
+      result.issues.some(issue => issue.includes('packaged milksu-backend must not ship')),
       result.issues.join('; '),
     )
   } finally {

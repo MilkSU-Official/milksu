@@ -16,7 +16,6 @@ import {
 import { LabJobStore } from '../lab.ts'
 import {
   TerminalManager,
-  createHelperPtyDriver,
   terminalEnvironment,
   type PtyDriver,
   type PtyHandle,
@@ -69,9 +68,6 @@ async function stubCtx(home: string): Promise<HandlerContext> {
     engine: {} as Engine,
     emit: () => {},
     home,
-    invokeHelper: async (method) => {
-      throw new Error(`helper should not see ${method}`)
-    },
   }
 }
 
@@ -96,7 +92,7 @@ test('terminal environment keeps developer variables and drops provider keys', (
   assert.equal(environment.some((entry) => entry.startsWith('OPENAI_API_KEY=')), false)
 })
 
-test('list is bound to conversationId and fake helper records open/write/close', async () => {
+test('list is bound to conversationId and fake PTY driver records open/write/close', async () => {
   const previous = process.env.OPENAI_API_KEY
   process.env.OPENAI_API_KEY = 'must-not-reach-terminal'
   const driver = new FakePtyDriver()
@@ -146,34 +142,22 @@ test('list is bound to conversationId and fake helper records open/write/close',
   }
 })
 
-test('helper driver records OpenPty write close as electron_host', async () => {
-  const calls: Array<{ method: string; args: unknown[]; source?: string }> = []
-  const driver = createHelperPtyDriver(async (method, args, source) => {
-    calls.push({ method, args, source })
-    if (method === 'OpenPty') return { id: 'pty_helper', pid: 9 }
-    return null
-  })
+test('buffered PTY output is delivered after the session is registered', async () => {
+  const driver = new FakePtyDriver()
   const events: TerminalEvent[] = []
   const manager = new TerminalManager({ driver, emit: (event) => events.push(event) })
-  driver.attach({
-    output: (id, data) => manager.handlePtyOutput(id, data),
-    exit: (id, code, error) => manager.handlePtyExit(id, code, error),
-  })
-  const workspace = await tempDir('milksu-term-helper-')
-  driver.handleEvent('pty-output', { id: 'pty_helper', data: 'buffered' })
+  const workspace = await tempDir('milksu-term-buffer-')
   const started = await manager.start('conversation-one', workspace, 80, 24)
-  assert.equal(started.pid, 9)
+  manager.handlePtyOutput('pty_1', 'buffered')
   assert.equal((await manager.list('conversation-one'))[0]?.output, 'buffered')
   await manager.write('conversation-one', started.id, 'ls\n')
   await manager.closeSession('conversation-one', started.id)
-  assert.equal(calls[0]?.method, 'OpenPty')
-  assert.equal(calls[0]?.source, 'electron_host')
-  assert.equal(calls.some((call) => call.method === 'PtyWrite'), true)
-  assert.equal(calls.some((call) => call.method === 'ClosePty'), true)
-  assert.deepEqual(await manager.list('conversation-two'), [])
+  assert.equal(driver.calls[0]?.op, 'open')
+  assert.equal(driver.calls.some((call) => call.op === 'write'), true)
+  assert.equal(driver.calls.some((call) => call.op === 'close'), true)
 })
 
-test('stop marks the session stopped when the helper exits', async () => {
+test('stop marks the session stopped when the PTY exits', async () => {
   const driver = new FakePtyDriver()
   const events: TerminalEvent[] = []
   const manager = new TerminalManager({ driver, emit: (event) => events.push(event) })
@@ -232,7 +216,10 @@ test('owned handlers list by conversation and reject a missing runtime', async (
   assert.equal(isOwnedMethod('StopCodingTerminal'), true)
   assert.equal(isOwnedMethod('CloseCodingTerminal'), true)
   assert.equal(isOwnedMethod('OpenPty'), false)
-  assert.throws(() => assertInvokeSource('OpenPty', 'renderer'), /unavailable to renderer/)
+  assert.throws(
+    () => assertInvokeSource('ExportSidecarEnvironment', 'renderer'),
+    /unavailable to renderer/,
+  )
 
   const started = await handleOwnedMethod(ctx, 'renderer', 'StartCodingTerminal', [
     'conversation-one',

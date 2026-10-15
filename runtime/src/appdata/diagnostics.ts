@@ -260,7 +260,6 @@ function sanitizeRendererDiagnosticEvents(events: DiagnosticEvent[]): Diagnostic
     if (!valid) continue
     let category = 'renderer'
     if (parts[0] === 'rpc') category = 'desktop-rpc'
-    else if (parts[0] !== 'section-change') category = 'nssctf'
     result.push({
       timestamp: new Date(timestamp).toISOString(),
       category,

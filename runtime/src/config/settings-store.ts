@@ -1,14 +1,17 @@
 import { chmod, mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import { normalizeAcpGuest, stripSecrets, type AcpGuestConfig } from '../settings.ts'
+import { migrateAcpAgents, stripSecrets, type AcpAgentConfig } from '../settings.ts'
 import { configDirectory, credentialsDatabasePath, settingsPath } from '../home.ts'
 import {
   deleteSecretIfPresent,
-  HelperSecretStore,
   SqliteSecretStore,
-  usesDarwinKeychainHelper,
   type SecretStore,
 } from './secret-store.ts'
+import {
+  DarwinKeychainSecretStore,
+  logDarwinKeychainFallback,
+  usesDarwinKeychain,
+} from '../native/keychain.ts'
 import { exportSidecarProviderEnvironment } from './sidecar-provider-env.ts'
 
 export const RELAY_SECRET_ACCOUNT = 'relay'
@@ -65,7 +68,9 @@ export type AppSettings = {
   active_provider?: string
   active_model?: string
   default_kernel?: string
-  acp_guest?: AcpGuestConfig | null
+  acp_agent?: AcpAgentConfig | null
+  acp_agents?: import('../settings.ts').NamedAcpAgent[]
+  default_acp_agent_id?: string
   runtime_versions?: Record<string, string>
   busy_send?: string
   computer_use_enabled?: boolean | null
@@ -507,14 +512,22 @@ function normalizePreferredExternalEditor(value: unknown): string {
   return EXTERNAL_EDITORS.has(id) ? id : 'vscode'
 }
 
+function migrateAcpAgent(value: AppSettings): boolean {
+  const extra = value as AppSettings & Record<string, unknown>
+  const hadLegacy = extra.acp_guest != null || extra.AcpGuest != null
+    || (extra.acp_agent != null && extra.acp_agents == null)
+  migrateAcpAgents(extra)
+  return hadLegacy
+}
+
 export function withDefaults(value: AppSettings): AppSettings {
   const next = clone(value ?? {})
   const defaults = defaultSettings()
   if (!next.active_provider) next.active_provider = defaults.active_provider
   if (!next.active_model) next.active_model = defaults.active_model
-  next.acp_guest = normalizeAcpGuest(next.acp_guest)
+  migrateAcpAgent(next)
   next.default_kernel = normalizeDefaultKernel(next.default_kernel)
-  if (next.default_kernel === 'dsh' && !next.acp_guest) next.default_kernel = 'pi'
+  if (next.default_kernel === 'dsh' && !next.acp_agent) next.default_kernel = 'pi'
   next.busy_send = normalizeBusySend(next.busy_send)
   if (!next.providers) next.providers = {}
   for (const [id, provider] of Object.entries(next.providers)) {
@@ -694,7 +707,6 @@ async function persistSettings(path: string, value: AppSettings): Promise<void> 
 export type SettingsStoreOptions = {
   home: string
   secrets?: SecretStore
-  invokeHelper?: (method: string, args: unknown[]) => Promise<unknown>
   platform?: NodeJS.Platform
 }
 
@@ -1020,9 +1032,11 @@ export class SettingsStore {
       }
       throw error
     }
-    let value = withDefaults(JSON.parse(raw) as AppSettings)
+    const parsed = JSON.parse(raw) as AppSettings & Record<string, unknown>
+    const hadLegacyAgent = parsed.acp_guest != null || parsed.AcpGuest != null
+    let value = withDefaults(parsed)
     validateCustomProviders(value)
-    let migrated = false
+    let migrated = hadLegacyAgent
 
     for (const [name, provider] of Object.entries(value.providers ?? {})) {
       const account = providerSecretAccount(name)
@@ -1089,8 +1103,10 @@ export class SettingsStore {
 }
 
 async function createDefaultSecretStore(options: SettingsStoreOptions): Promise<SecretStore> {
-  if (usesDarwinKeychainHelper(options.platform) && options.invokeHelper) {
-    return new HelperSecretStore(options.invokeHelper)
+  if (usesDarwinKeychain(options.platform)) {
+    const keychain = new DarwinKeychainSecretStore()
+    if (keychain.available()) return keychain
+    logDarwinKeychainFallback()
   }
   return SqliteSecretStore.open(credentialsDatabasePath(options.home))
 }

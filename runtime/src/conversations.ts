@@ -100,6 +100,7 @@ export type StoredConversation = {
   workspacePath?: string
   workspaceHome?: string
   kernel?: string
+  acpAgentId?: string
   parentConversationId?: string
   multitask?: boolean
   modelMode?: string
@@ -166,6 +167,9 @@ const RETIRED_CTF_FIELDS = ['ctfJobId', 'ctfMode', 'ctfRole', 'ctf_job_id', 'ctf
 
 export function normalizeStoredConversation(value: StoredConversation): StoredConversation {
   value.kernel = normalizeKernel(value.kernel)
+  const agentId = String(value.acpAgentId ?? '').trim()
+  if (agentId) value.acpAgentId = agentId
+  else delete value.acpAgentId
   if (String(value.workspaceHome ?? '').trim().toLowerCase() === 'ctf') {
     value.workspaceHome = 'chat'
   }

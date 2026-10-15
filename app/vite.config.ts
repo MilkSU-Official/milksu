@@ -17,12 +17,5 @@ export default defineConfig({
   server: {
     port: 1420,
     strictPort: true,
-    proxy: {
-      '/nssctf-api': {
-        target: 'https://www.nssctf.cn',
-        changeOrigin: true,
-        rewrite: pathValue => pathValue.replace(/^\/nssctf-api/, '/api'),
-      },
-    },
   },
 })

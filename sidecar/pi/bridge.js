@@ -870,7 +870,7 @@ function backgroundToolRequiresApproval(toolName, input) {
 function describeError(error) {
   if (!(error instanceof Error)) return String(error);
   const resource = error.resource ? `\nresource: ${error.resource}` : "";
-  return `${error.stack || error.message}${resource}`;
+  return `${error.message || error.stack}${resource}`;
 }
 
 function extractToolResultContent(result) {
@@ -3619,7 +3619,7 @@ input.on("line", (line) => {
   commandQueue = commandQueue
     .then(() => handleCommand(command))
     .catch((error) => {
-      traceConsoleError(resolveTraceId(command) || sessionTraceIds.get(command.conversationId), "MilkSU Pi Sidecar command failed", error);
+      traceConsoleError(resolveTraceId(command) || sessionTraceIds.get(command.conversationId), "MilkSU Pi Sidecar command failed", describeError(error));
       emit(command.conversationId ?? null, "error", { error: describeError(error) });
     });
 });

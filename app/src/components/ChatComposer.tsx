@@ -91,7 +91,7 @@ import type {
 } from '@/types'
 import type { CodingRecentProject } from '@/codingEnvironmentTypes'
 import type { ContextUsagePresentation } from '@/lib/sessionTurnStatus'
-import { acpGuestUnavailableReason } from '@/lib/acpGuest'
+import { acpAgentUnavailableReason } from '@/lib/acpAgent'
 import type { BusySendPolicy } from '@/lib/agentKernel'
 import {
   dshPlanCopy,
@@ -608,6 +608,7 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
   thinkingLevels?: ModelThinkingLevel[]
   thinkingLevel?: ModelThinkingLevel
   kernel?: 'pi' | 'dsh'
+  acpAgentId?: string
   kernelLocked?: boolean
   multitask?: boolean
   planModeActive?: boolean
@@ -653,8 +654,9 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
   onChangeApprovalPolicy?: (value: string) => void
   onChangeModel?: (value: string) => void
   onChangeThinkingLevel?: (level: ModelThinkingLevel) => void
-  onChangeKernel?: (value: 'pi' | 'dsh') => void
-  onMigrateKernel?: (value: 'pi' | 'dsh') => void
+  onChangeKernel?: (value: 'pi' | 'dsh', agentId?: string) => void
+  onMigrateKernel?: (value: 'pi' | 'dsh', agentId?: string) => void
+  onCreateAgent?: (agent: import('@/lib/acpAgent').NamedAcpAgent) => void
   onShowPermissions?: () => void
   onConsumeGoal?: () => void
   onStartGoal?: () => void
@@ -723,7 +725,7 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
   const [slashQuery, setSlashQuery] = useState<string | null>(null)
   const [slashMenuMaxHeight, setSlashMenuMaxHeight] = useState(COMPOSER_ADD_MENU_HEIGHT_CAP)
   const slashQueryRange = useRef<Range | null>(null)
-  const [pendingMigrateKernel, setPendingMigrateKernel] = useState<'pi' | 'dsh' | null>(null)
+  const [pendingMigrateKernel, setPendingMigrateKernel] = useState<{ kernel: 'pi' | 'dsh'; agentId?: string } | null>(null)
   const [scopeToken, setScopeToken] = useState<ComposerScopeToken | null>(null)
   const pendingScopeSubmit = useRef<ComposerScopeToken | null>(null)
   const commandPanelSlashHandlerRef = useRef<(event: Event) => void>(() => {})
@@ -999,7 +1001,7 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
         : command.id === 'rewind' && kernel === 'dsh'
           ? t('此运行时暂不支持回退', 'This runtime cannot rewind')
           : command.id === 'browser' && kernel === 'dsh'
-            ? acpGuestUnavailableReason('milksu-workspace', t)
+            ? acpAgentUnavailableReason('milksu-workspace', t)
             : command.description,
       disabled: slashCommandDisabled(command.id),
     })).filter(command => (
@@ -1698,18 +1700,20 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
     void focusMessageInput()
   }
 
-  function requestKernelChange(value: 'pi' | 'dsh') {
-    if (kernelLocked && value !== (kernel ?? 'pi')) {
-      setPendingMigrateKernel(value)
+  function requestKernelChange(value: 'pi' | 'dsh', agentId?: string) {
+    const currentId = kernel === 'dsh' ? (props.acpAgentId ?? '') : ''
+    const nextId = value === 'dsh' ? (agentId ?? '') : ''
+    if (kernelLocked && (value !== (kernel ?? 'pi') || nextId !== currentId)) {
+      setPendingMigrateKernel({ kernel: value, agentId: nextId || undefined })
       return
     }
-    props.onChangeKernel?.(value)
+    props.onChangeKernel?.(value, nextId || undefined)
   }
 
   function confirmKernelMigrate() {
     const next = pendingMigrateKernel
     setPendingMigrateKernel(null)
-    if (next) props.onMigrateKernel?.(next)
+    if (next) props.onMigrateKernel?.(next.kernel, next.agentId)
   }
 
   function togglePlanningMode() {
@@ -2122,11 +2126,13 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
                 thinkingLevels={thinkingLevels}
                 thinkingLevel={thinkingLevel}
                 kernel={kernel ?? 'pi'}
+                acpAgentId={props.acpAgentId}
                 contextUsage={contextUsage}
                 onChangeApprovalPolicy={value => props.onChangeApprovalPolicy?.(value)}
                 onChangeModel={value => props.onChangeModel?.(value)}
                 onChangeThinkingLevel={level => props.onChangeThinkingLevel?.(level)}
                 onChangeKernel={requestKernelChange}
+                onCreateAgent={props.onCreateAgent}
                 onShowPermissions={() => props.onShowPermissions?.()}
                 imageHome={imageHome}
                 imageModelKey={imageModelKey}
@@ -2253,7 +2259,7 @@ const ChatComposer = forwardRef<ChatComposerHandle, {
                           <span className="block text-label font-medium">{browserAddLabel}</span>
                           {kernel === 'dsh' ? (
                             <span className="block text-caption text-muted-foreground">
-                              {acpGuestUnavailableReason('milksu-workspace', t)}
+                              {acpAgentUnavailableReason('milksu-workspace', t)}
                             </span>
                           ) : null}
                         </span>

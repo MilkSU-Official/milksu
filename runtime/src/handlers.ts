@@ -33,8 +33,7 @@ import { normalizeGeneratedTitle, titlePrompt } from './conversation-title.ts'
 import { redactSnippet } from './sessionindex/index.ts'
 
 export const ELECTRON_HOST_METHODS = new Set([
-  'ListPetPluginPackages',
-  'RunLuaPlugin',
+  'ListCompanionPluginPackages',
   'SetAccountModelCredential',
   'ClearAccountModelCredential',
   'SetAccountDecisionCredential',
@@ -43,22 +42,6 @@ export const ELECTRON_HOST_METHODS = new Set([
   'PutManagedSecret',
   'DeleteManagedSecret',
   'LookupManagedSecret',
-  'GetPlatformSecret',
-  'SetPlatformSecret',
-  'DeletePlatformSecret',
-  'OpenPty',
-  'PtyWrite',
-  'PtyResize',
-  'ClosePty',
-  'ComputerUseAccessibilityStatus',
-  'ComputerUseListWindows',
-  'ComputerUseRequestScreenRecording',
-  'ComputerUseRequestAccessibility',
-  'ComputerUseSigningStatus',
-  'ComputerUseHostExecutable',
-  'ComputerUseLinuxDesktop',
-  'ComputerUseStartPortal',
-  'ComputerUseStopPortal',
 ])
 
 export const OWNED_METHODS = new Set([
@@ -97,7 +80,6 @@ export type HandlerContext = {
   engine: Engine
   emit: (event: string, payload: unknown) => void
   home: string
-  invokeHelper: (method: string, args: unknown[], source?: RpcSource) => Promise<unknown>
   hostCall?: (method: string, payload?: unknown) => Promise<unknown>
   agentResources?: AgentResourceStore
   codingTools?: CodingToolsService

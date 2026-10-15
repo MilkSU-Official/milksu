@@ -80,7 +80,8 @@ const cuaDriverArchive = {
 const cuaDriverBinarySha256 = 'e9b6136fd1998cd68ba3ade5ee4d3d327756bed7eb67a2d59fc2739adccf042a'
 const cuaSessionPolicyPath = join(
   repositoryRoot,
-  'internal',
+  'runtime',
+  'src',
   'computercap',
   'session-policy.yaml',
 )
@@ -96,8 +97,6 @@ const typescriptLanguageServerVersion = '5.3.0'
 const vueLanguageServerVersion = '2.2.12'
 const typescriptVersion = '6.0.3'
 const diffVersion = '8.0.4'
-const gopherLuaVersion = '1.1.2'
-const modelContextProtocolGoSDKVersion = '1.7.0'
 const goplsVersion = '0.23.0'
 const goplsSource = {
   module: 'golang.org/x/tools/gopls',
@@ -1723,19 +1722,7 @@ async function buildSidecar(platform) {
       join(repositoryRoot, 'third_party', 'licenses', 'cua-MIT.txt'),
       join(licenseOutput, 'cua-MIT.txt'),
     ),
-    copyFile(
-      join(repositoryRoot, 'third_party', 'licenses', 'gopher-lua-MIT.txt'),
-      join(licenseOutput, 'gopher-lua-MIT.txt'),
-    ),
-    copyFile(
-      join(
-        repositoryRoot,
-        'third_party',
-        'licenses',
-        'modelcontextprotocol-go-sdk-LICENSE.txt',
-      ),
-      join(licenseOutput, 'modelcontextprotocol-go-sdk-LICENSE.txt'),
-    ),
+
     copyFile(
       join(diffSource, 'LICENSE'),
       join(licenseOutput, 'diff-BSD-3-Clause.txt'),
@@ -2139,20 +2126,6 @@ async function buildSidecar(platform) {
         licenseFile: 'THIRD_PARTY-LICENSES/diff-BSD-3-Clause.txt',
         scope: 'reviewed-lsp-fix',
       },
-      gopherLua: {
-        package: 'github.com/yuin/gopher-lua',
-        version: gopherLuaVersion,
-        license: 'MIT',
-        licenseFile: 'THIRD_PARTY-LICENSES/gopher-lua-MIT.txt',
-        scope: 'backend-plugin-runtime',
-      },
-      modelContextProtocolGoSDK: {
-        package: 'github.com/modelcontextprotocol/go-sdk',
-        version: modelContextProtocolGoSDKVersion,
-        license: 'Apache-2.0 / MIT / CC-BY-4.0 transition',
-        licenseFile: 'THIRD_PARTY-LICENSES/modelcontextprotocol-go-sdk-LICENSE.txt',
-        scope: 'backend-plugin-mcp',
-      },
     },
     esbuild: { version: '0.28.1' },
     bridges: {
@@ -2197,8 +2170,6 @@ async function smokeSidecar(platform) {
     join(output, 'THIRD_PARTY-LICENSES', 'gopls-BSD-3-Clause.txt'),
     join(output, 'THIRD_PARTY-LICENSES', 'diff-BSD-3-Clause.txt'),
     join(output, 'THIRD_PARTY-LICENSES', 'cua-MIT.txt'),
-    join(output, 'THIRD_PARTY-LICENSES', 'gopher-lua-MIT.txt'),
-    join(output, 'THIRD_PARTY-LICENSES', 'modelcontextprotocol-go-sdk-LICENSE.txt'),
     join(output, photonWasmFileName),
     join(output, 'companion-bridge.cjs'),
     join(output, 'harness-adapter.cjs'),
@@ -3148,12 +3119,7 @@ async function installSidecar(platform, binaryPath) {
       'THIRD_PARTY-LICENSES',
       'cua-MIT.txt',
     ),
-    join(destination, 'THIRD_PARTY-LICENSES', 'gopher-lua-MIT.txt'),
-    join(
-      destination,
-      'THIRD_PARTY-LICENSES',
-      'modelcontextprotocol-go-sdk-LICENSE.txt',
-    ),
+
     join(destination, 'THIRD_PARTY-LICENSES', photonLicenseFile),
     join(destination, photonWasmFileName),
     join(destination, 'computer-use-proxy.cjs'),

@@ -1,5 +1,5 @@
 import { spawn, execFile } from 'node:child_process'
-import { chmod, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
+import { chmod, cp, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
@@ -82,39 +82,137 @@ async function ensureBetaIcon() {
   }
 }
 
+function nodeIncludeDir() {
+  return join(dirname(managedNode), '..', 'include', 'node')
+}
+
+async function compileDarwinAddon(outName, source, frameworks, weakFrameworks = []) {
+  const args = [
+    '-shared',
+    '-undefined', 'dynamic_lookup',
+    '-fobjc-arc',
+    '-fblocks',
+    '-I', nodeIncludeDir(),
+  ]
+  for (const name of frameworks) {
+    args.push('-framework', name)
+  }
+  for (const name of weakFrameworks) {
+    args.push('-weak_framework', name)
+  }
+  args.push('-o', join(root, 'build', 'desktop', outName), join(root, 'desktop', 'native', source))
+  await run('/usr/bin/clang', args)
+}
+
+async function rebuildNodePtyForElectron() {
+  const source = join(root, 'node_modules', 'node-pty')
+  const destDir = join(root, 'build', 'desktop', 'node_modules')
+  const dest = join(destDir, 'node-pty')
+  await mkdir(destDir, { recursive: true })
+  await rm(dest, { recursive: true, force: true })
+  await cp(source, dest, { recursive: true })
+  let ptyVersion = ''
+  try {
+    const ptyPackage = JSON.parse(await readFile(join(dest, 'package.json'), 'utf8'))
+    ptyVersion = String(ptyPackage.version ?? '').trim()
+  } catch {
+    ptyVersion = ''
+  }
+  await writeFile(
+    join(root, 'build', 'desktop', 'package.json'),
+    `${JSON.stringify({
+      name: 'milksu-desktop-native',
+      private: true,
+      dependencies: ptyVersion ? { 'node-pty': ptyVersion } : { 'node-pty': '*' },
+    }, null, 2)}\n`,
+  )
+  const rebuildCli = join(root, 'desktop', 'node_modules', '@electron', 'rebuild', 'lib', 'cli.js')
+  let electronVersion = ''
+  try {
+    const desktopPackage = JSON.parse(await readFile(join(root, 'desktop', 'package.json'), 'utf8'))
+    electronVersion = String(desktopPackage.devDependencies?.electron ?? '').trim()
+  } catch {
+    electronVersion = ''
+  }
+  try {
+    await stat(rebuildCli)
+  } catch {
+    return
+  }
+  if (!electronVersion) return
+  await run(managedNode, [
+    rebuildCli,
+    '--version', electronVersion,
+    '--module-dir', join(root, 'build', 'desktop'),
+    '--only', 'node-pty',
+    '--force',
+  ])
+}
+
+async function compileNativeAddons() {
+  await mkdir(join(root, 'build', 'desktop'), { recursive: true })
+  await rebuildNodePtyForElectron()
+  if (process.platform === 'darwin') {
+    await compileDarwinAddon(
+      'macos-screen-permission.node',
+      'macos-screen-permission.m',
+      ['CoreGraphics', 'Foundation'],
+      ['ScreenCaptureKit'],
+    )
+    await compileDarwinAddon(
+      'macos-keychain.node',
+      'macos-keychain.m',
+      ['Security', 'CoreFoundation'],
+    )
+    await compileDarwinAddon(
+      'macos-windows.node',
+      'macos-windows.m',
+      ['AppKit', 'CoreGraphics', 'Foundation'],
+    )
+  }
+  if (process.platform === 'win32') {
+    const out = join(root, 'build', 'desktop', 'windows-windows.node')
+    const source = join(root, 'desktop', 'native', 'windows-windows.c')
+    await run('clang', [
+      '-shared',
+      '-I', nodeIncludeDir(),
+      '-o', out,
+      source,
+      '-luser32',
+      '-lkernel32',
+    ])
+  }
+}
+
+function nativeAddonResources() {
+  const extras = []
+  const names = []
+  if (process.platform === 'darwin') {
+    names.push(
+      'macos-screen-permission.node',
+      'macos-keychain.node',
+      'macos-windows.node',
+    )
+  }
+  if (process.platform === 'win32') names.push('windows-windows.node')
+  for (const name of names) {
+    extras.push({
+      from: join(root, 'build', 'desktop', name),
+      to: name,
+    })
+  }
+  extras.push({
+    from: join(root, 'build', 'desktop', 'node_modules', 'node-pty'),
+    to: 'node-pty',
+  })
+  return extras
+}
+
 async function buildRuntime() {
   await run(managedNode, [join(root, 'scripts', 'build-runtime.mjs')])
   await run(managedNode, [join(root, 'scripts', 'build-plugins.mjs')])
   await run('npm', ['--prefix', 'app', 'run', 'build'])
-  await mkdir(join(root, 'build', 'desktop'), { recursive: true })
-  if (process.platform === 'darwin') {
-    const nativeModule = join(root, 'build', 'desktop', 'macos-screen-permission.node')
-    await run('/usr/bin/clang', [
-      '-shared',
-      '-undefined', 'dynamic_lookup',
-      '-fobjc-arc',
-      '-fblocks',
-      '-I', join(dirname(managedNode), '..', 'include', 'node'),
-      '-framework', 'CoreGraphics',
-      '-framework', 'Foundation',
-      '-weak_framework', 'ScreenCaptureKit',
-      '-o', nativeModule,
-      join(root, 'desktop', 'native', 'macos-screen-permission.m'),
-    ])
-  }
-  const backendName = process.platform === 'win32' ? 'milksu-backend.exe' : 'milksu-backend'
-  const backend = join(root, 'build', 'desktop', backendName)
-  // Provenance is sealed as extraResources/build-tracking.json before codesign.
-  // Do not embed tracking via ldflags. Strip debug symbols (-s -w) so the local
-  // darwin linker does not require dsymutil under constrained agent sandboxes.
-  await run('go', [
-    'build',
-    '-trimpath',
-    '-ldflags=-s -w',
-    '-o', backend,
-    './cmd/milksu-backend',
-  ])
-  await chmod(backend, 0o755)
+  await compileNativeAddons()
 }
 
 async function writeBuilderConfig(trackingPath) {
@@ -130,11 +228,11 @@ async function writeBuilderConfig(trackingPath) {
   if (!files.includes('linux-update-apply.cjs')) files.push('linux-update-apply.cjs')
   if (!files.includes('update-artifacts.cjs')) files.push('update-artifacts.cjs')
   const extraResources = [
-    ...(desktopPackage.build?.extraResources || []),
-    {
-      from: join(root, 'build', 'desktop', 'macos-screen-permission.node'),
-      to: 'macos-screen-permission.node',
-    },
+    ...(desktopPackage.build?.extraResources || []).filter((item) => {
+      const to = String(item?.to ?? '')
+      return to !== 'milksu-backend' && to !== 'milksu-backend.exe'
+    }),
+    ...nativeAddonResources(),
   ]
   if (!extraResources.some((item) => item?.to === 'runtime/main.cjs')) {
     extraResources.push({
@@ -142,10 +240,22 @@ async function writeBuilderConfig(trackingPath) {
       to: 'runtime/main.cjs',
     })
   }
+  if (!extraResources.some((item) => item?.to === 'runtime/plugin-mcp.cjs')) {
+    extraResources.push({
+      from: join(root, 'runtime', 'dist', 'plugin-mcp.cjs'),
+      to: 'runtime/plugin-mcp.cjs',
+    })
+  }
   if (!extraResources.some((item) => item?.to === 'envbroker/packages')) {
     extraResources.push({
       from: join(root, 'runtime', 'src', 'envbroker', 'packages'),
       to: 'envbroker/packages',
+    })
+  }
+  if (!extraResources.some((item) => item?.to === 'plugins/official')) {
+    extraResources.push({
+      from: join(root, 'plugins', 'official'),
+      to: 'plugins/official',
     })
   }
   extraResources.push({
@@ -316,34 +426,9 @@ async function buildApp() {
     )
   }
 
-  // TCC probes run inside milksu-backend. Sign it with the channel bundle id so
-  // AX/Screen Recording identity matches the shell (not a.out).
+  // TCC probes run in the Electron main process. Native N-API addons ride
+  // extraResources and are signed with the rest of the bundle.
   await ensureOwnerWritable(resolvedSource)
-
-  const backendInApp = join(resolvedSource, 'Contents', 'Resources', 'milksu-backend')
-  if (!(await exists(backendInApp))) {
-    throw new Error(`packaged milksu-backend missing: ${backendInApp}`)
-  }
-  await execFileAsync('/usr/bin/codesign', [
-    '--force',
-    ...(codesignIdentity === '-' ? [] : ['--options', 'runtime', '--timestamp']),
-    '--sign', codesignIdentity,
-    '--identifier', channelConfig.appId,
-    backendInApp,
-  ])
-  // Re-seal the app bundle after mutating an embedded binary.
-  await execFileAsync('/usr/bin/codesign', [
-    '--force',
-    ...(codesignIdentity === '-'
-      ? ['--deep']
-      : [
-          '--options', 'runtime',
-          '--timestamp',
-          '--entitlements', join(root, 'desktop', 'build', 'entitlements.mac.plist'),
-        ]),
-    '--sign', codesignIdentity,
-    resolvedSource,
-  ])
 
   const output = packagedAppPath(root, channelConfig.channel)
   await mkdir(dirname(output), { recursive: true })

@@ -5,8 +5,7 @@
  *
  * MilkSU embeds cua-driver under host attribution. Accessibility / Screen
  * Recording grants must therefore be read from the Electron app identity
- * (com.milksu.app / com.milksu.app.beta), not from the Go runtime binary's
- * separate codesign principal.
+ * (com.milksu.app / com.milksu.app.beta).
  */
 
 /**

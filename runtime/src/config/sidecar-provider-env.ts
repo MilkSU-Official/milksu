@@ -41,7 +41,7 @@ const DSH_PIAI_CATALOG_PROVIDERS = [
 ]
 
 const OFFICIAL_DEEPSEEK_API_ROOT = 'https://api.deepseek.com'
-const HELPER_ENV_SKIP = new Set([
+const SIDECAR_PROVIDER_ENV_SKIP = new Set([
   'HOME',
   'LANG',
   'LC_ALL',
@@ -405,6 +405,6 @@ export function exportSidecarProviderEnvironment(settings: AppSettings): string[
   return appendUnique(environment, extra).filter((entry) => {
     const cut = entry.indexOf('=')
     const name = cut > 0 ? entry.slice(0, cut) : entry
-    return !HELPER_ENV_SKIP.has(name)
+    return !SIDECAR_PROVIDER_ENV_SKIP.has(name)
   })
 }

@@ -49,6 +49,11 @@ function digestFiles(files: Array<{ path: string; payload: Buffer }>): string {
 export function findOfficialSource(env: NodeJS.ProcessEnv = process.env): string {
   const override = String(env.MILKSU_PLUGIN_OFFICIAL ?? '').trim()
   if (override && existsSync(join(override, 'plugins.lock.json'))) return override
+  const resources = String(env.MILKSU_RESOURCES ?? '').trim()
+  if (resources) {
+    const bundled = join(resources, 'plugins', 'official')
+    if (existsSync(join(bundled, 'plugins.lock.json'))) return bundled
+  }
   try {
     const root = findProjectRoot(env)
     const candidate = join(root, 'plugins', 'official')

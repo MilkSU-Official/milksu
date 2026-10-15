@@ -49,17 +49,17 @@ if grep -q 'package-smoke-imagegen-credential-never-log' /tmp/milksu-sidecar.std
   echo 'packaged sidecar smoke leaked the dummy credential' >&2
   exit 1
 fi
-backend=/opt/MilkSU/resources/milksu-backend
-test -x "$backend"
-"$backend" >/tmp/milksu-backend.stdout 2>/tmp/milksu-backend.stderr &
-backend_pid=$!
-trap 'kill "$backend_pid" 2>/dev/null || true' EXIT
+runtime=/opt/MilkSU/resources/runtime/main.cjs
+test -f "$runtime"
+ELECTRON_RUN_AS_NODE=1 /opt/MilkSU/milksu "$runtime" >/tmp/milksu-runtime.stdout 2>/tmp/milksu-runtime.stderr &
+runtime_pid=$!
+trap 'kill "$runtime_pid" 2>/dev/null || true' EXIT
 for _ in $(seq 1 30); do
-  grep -q '"type"[[:space:]]*:[[:space:]]*"ready"' /tmp/milksu-backend.stdout && break
-  kill -0 "$backend_pid"
+  grep -q '"type"[[:space:]]*:[[:space:]]*"ready"' /tmp/milksu-runtime.stdout && break
+  kill -0 "$runtime_pid"
   sleep 0.5
 done
-grep -q '"type"[[:space:]]*:[[:space:]]*"ready"' /tmp/milksu-backend.stdout
-kill "$backend_pid"
-wait "$backend_pid" || true
+grep -q '"type"[[:space:]]*:[[:space:]]*"ready"' /tmp/milksu-runtime.stdout
+kill "$runtime_pid"
+wait "$runtime_pid" || true
 EOS

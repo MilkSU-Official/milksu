@@ -13,12 +13,12 @@ import { projectBridgeEvent, engineLifecycleEvent, type EngineEvent } from './ev
 import {
   readPublicSettings,
   resolvedUserInterfaceLocale,
-  normalizeAcpGuest,
+  resolveAcpAgent,
   type PublicSettings,
 } from './settings.ts'
 import {
   buildSidecarEnvironment,
-  loadSidecarHelperEnvironment,
+  loadSidecarProviderEnvironment,
   resolveAgentWorkspace,
   sidecarWorkspaceKey,
   startSidecarProcess,
@@ -257,19 +257,31 @@ class ControlQueue {
   }
 }
 
+const MAX_PARKED_SIDECARS = 3
+const MAX_PARKED_SIDECARS_HARD = MAX_PARKED_SIDECARS * 2
+const SIDECAR_IDLE_TIMEOUT_MS = 15 * 60 * 1000
+
+function kernelFromWorkspaceKey(key: string): SidecarKernel {
+  const cut = key.indexOf('\0')
+  return (cut > 0 ? key.slice(0, cut) : key) as SidecarKernel
+}
+
 export class Engine {
   private readonly processes = new Map<string, SidecarProcess>()
+  private readonly parked = new Map<string, SidecarProcess>()
+  private readonly parkedAt = new Map<string, number>()
   private readonly starting = new Map<string, Promise<SidecarProcess>>()
   private readonly retiring = new Set<string>()
   private readonly sessionKernel = new Map<string, SidecarKernel>()
   private readonly sessionWorkspaces = new Map<string, string>()
+  private readonly sessionAgentIds = new Map<string, string>()
   private readonly sessions = new Set<string>()
   private readonly busySessions = new Set<string>()
   private readonly researchRuns = new Map<string, string>()
   private readonly controlWaiters = new Map<string, ControlQueue>()
   private readonly home: string
   private readonly conversations: ConversationStore
-  private readonly helperPath: string
+  private readonly sidecarDir: string
   private readonly emit: (event: string, payload: unknown) => void
   private readonly invokeNative?: NativeInvoke
   private research: ResearchService | null = null
@@ -289,7 +301,7 @@ export class Engine {
   constructor(
     home: string,
     conversations: ConversationStore,
-    helperPath: string,
+    sidecarDir: string,
     emit: (event: string, payload: unknown) => void,
     invokeNative?: NativeInvoke,
     resolveResources?: () => AgentResourceStore | undefined,
@@ -297,7 +309,7 @@ export class Engine {
   ) {
     this.home = home
     this.conversations = conversations
-    this.helperPath = helperPath
+    this.sidecarDir = sidecarDir
     this.emit = emit
     this.invokeNative = invokeNative
     this.resolveResources = resolveResources
@@ -370,19 +382,64 @@ export class Engine {
     return live
   }
 
-  private bindSessionWorkspace(sessionId: string, workspace: string, kernel: SidecarKernel): void {
+  private parkedCount(kernel: SidecarKernel): number {
+    let count = 0
+    for (const key of this.parked.keys()) {
+      if (kernelFromWorkspaceKey(key) === kernel) count += 1
+    }
+    return count
+  }
+
+  private kernelStillRunning(kernel: SidecarKernel): boolean {
+    return this.liveProcesses(kernel).length > 0 || this.parkedCount(kernel) > 0
+  }
+
+  private workspaceBusy(kernel: SidecarKernel, workspace: string, agentId = ''): boolean {
+    for (const [id, bound] of this.sessionWorkspaces) {
+      if (
+        bound === workspace
+        && this.sessionKernel.get(id) === kernel
+        && (this.sessionAgentIds.get(id) || '') === agentId
+        && this.busySessions.has(id)
+      ) {
+        return true
+      }
+    }
+    return false
+  }
+
+  private bindSessionWorkspace(
+    sessionId: string,
+    workspace: string,
+    kernel: SidecarKernel,
+    agentId = '',
+  ): void {
     const id = asString(sessionId)
     if (!id || !workspace) return
     this.sessionWorkspaces.set(id, workspace)
     this.sessionKernel.set(id, kernel)
+    if (kernel === 'dsh' && agentId) this.sessionAgentIds.set(id, agentId)
+    else this.sessionAgentIds.delete(id)
+  }
+
+  private copySessionBinding(from: string, to: string): void {
+    const kernel = this.sessionKernel.get(from)
+    if (kernel) this.sessionKernel.set(to, kernel)
+    const workspace = this.sessionWorkspaces.get(from)
+    if (workspace) this.sessionWorkspaces.set(to, workspace)
+    const agentId = this.sessionAgentIds.get(from)
+    if (agentId) this.sessionAgentIds.set(to, agentId)
   }
 
   private processFor(sessionId: string): SidecarProcess | null {
     const kernel = this.sessionKernel.get(sessionId)
     const workspace = this.sessionWorkspaces.get(sessionId)
     if (!kernel || !workspace) return null
-    const bound = this.processes.get(sidecarWorkspaceKey(kernel, workspace))
+    const key = sidecarWorkspaceKey(kernel, workspace, this.sessionAgentIds.get(sessionId) || '')
+    const bound = this.processes.get(key)
     if (bound && bound.child.exitCode === null) return bound
+    const parked = this.parked.get(key)
+    if (parked && parked.child.exitCode === null) return parked
     return null
   }
 
@@ -396,16 +453,74 @@ export class Engine {
     }
   }
 
-  private async stopWorkspaceIfIdle(kernel: SidecarKernel, workspace: string): Promise<void> {
+  private async stopWorkspaceIfIdle(kernel: SidecarKernel, workspace: string, agentId = ''): Promise<void> {
     for (const [id, bound] of this.sessionWorkspaces) {
-      if (bound === workspace && this.sessionKernel.get(id) === kernel && this.sessions.has(id)) {
+      if (
+        bound === workspace
+        && this.sessionKernel.get(id) === kernel
+        && (this.sessionAgentIds.get(id) || '') === agentId
+        && this.sessions.has(id)
+      ) {
         return
       }
     }
-    const key = sidecarWorkspaceKey(kernel, workspace)
+    const key = sidecarWorkspaceKey(kernel, workspace, agentId)
     const proc = this.processes.get(key)
     if (!proc) return
-    await this.retireProcess(key, proc)
+    this.processes.delete(key)
+    this.parked.set(key, proc)
+    this.parkedAt.set(key, Date.now())
+    await this.evictParked(kernel)
+    await this.reapParked(kernel)
+  }
+
+  private async evictParked(kernel: SidecarKernel): Promise<void> {
+    while (this.parkedCount(kernel) > MAX_PARKED_SIDECARS) {
+      const candidate = this.oldestIdleParked(kernel)
+      if (!candidate) {
+        if (this.parkedCount(kernel) > MAX_PARKED_SIDECARS_HARD) {
+          console.error(`[sidecar] parked eviction skipped; ${this.parkedCount(kernel)} ${kernel} sidecar(s) are still busy`)
+        }
+        return
+      }
+      const proc = this.parked.get(candidate)
+      this.parked.delete(candidate)
+      this.parkedAt.delete(candidate)
+      if (proc) await this.retireProcess(candidate, proc)
+    }
+  }
+
+  private oldestIdleParked(kernel: SidecarKernel): string | null {
+    let oldestKey = ''
+    let oldestAt = Number.POSITIVE_INFINITY
+    for (const [key, at] of this.parkedAt) {
+      if (kernelFromWorkspaceKey(key) !== kernel) continue
+      const proc = this.parked.get(key)
+      if (!proc || proc.child.exitCode !== null) continue
+      if (this.workspaceBusy(proc.kernel, proc.workspace, proc.agentId || '')) continue
+      if (at < oldestAt) {
+        oldestAt = at
+        oldestKey = key
+      }
+    }
+    return oldestKey || null
+  }
+
+  private async reapParked(kernel: SidecarKernel): Promise<void> {
+    const now = Date.now()
+    for (const [key, at] of [...this.parkedAt]) {
+      if (kernelFromWorkspaceKey(key) !== kernel) continue
+      if (now - at < SIDECAR_IDLE_TIMEOUT_MS) continue
+      const proc = this.parked.get(key)
+      if (!proc) {
+        this.parkedAt.delete(key)
+        continue
+      }
+      if (this.workspaceBusy(proc.kernel, proc.workspace, proc.agentId || '')) continue
+      this.parked.delete(key)
+      this.parkedAt.delete(key)
+      await this.retireProcess(key, proc)
+    }
   }
 
   private async ensureProcess(
@@ -413,13 +528,22 @@ export class Engine {
     workspace: string,
     settings: PublicSettings,
     traceId: string,
+    agentId = '',
   ): Promise<SidecarProcess> {
-    const key = sidecarWorkspaceKey(kernel, workspace)
+    const key = sidecarWorkspaceKey(kernel, workspace, agentId)
     const existing = this.processes.get(key)
     if (existing && existing.child.exitCode === null) return existing
+    const parked = this.parked.get(key)
+    if (parked && parked.child.exitCode === null) {
+      this.parked.delete(key)
+      this.parkedAt.delete(key)
+      this.processes.set(key, parked)
+      return parked
+    }
+    await this.reapParked(kernel)
     const inflight = this.starting.get(key)
     if (inflight) return inflight
-    const spawn = this.spawnProcess(kernel, workspace, settings, traceId, key)
+    const spawn = this.spawnProcess(kernel, workspace, settings, traceId, key, agentId)
     this.starting.set(key, spawn)
     try {
       return await spawn
@@ -434,37 +558,45 @@ export class Engine {
     settings: PublicSettings,
     traceId: string,
     key: string,
+    agentId = '',
   ): Promise<SidecarProcess> {
-    const helperEnv = this.settingsStore
+    const sidecarProviderEnv = this.settingsStore
       ? this.settingsStore.exportSidecarEnvironment()
-      : await loadSidecarHelperEnvironment(this.invokeNative)
+      : await loadSidecarProviderEnvironment(this.invokeNative)
     const env = buildSidecarEnvironment({
       home: this.home,
       workspace,
       kernel,
       settings,
-      helperPath: this.helperPath,
+      agentId,
+      sidecarDir: this.sidecarDir,
       traceId,
-      helperEnv,
+      sidecarProviderEnv,
     })
     const proc = await this.startSidecar({
       kernel,
       workspace,
       env,
-      helperPath: this.helperPath,
+      sidecarDir: this.sidecarDir,
       onLine: (value) => this.handleSidecarLine(kernel, key, value),
     })
+    proc.agentId = agentId || undefined
     const firstOfKernel = this.liveProcesses(kernel).length === 0
     this.processes.set(key, proc)
     proc.child.once('exit', () => {
       if (this.processes.get(key) === proc) this.processes.delete(key)
+      if (this.parked.get(key) === proc) {
+        this.parked.delete(key)
+        this.parkedAt.delete(key)
+      }
       if (this.retiring.has(key)) return
       for (const [id, bound] of [...this.sessionWorkspaces]) {
         if (bound !== workspace || this.sessionKernel.get(id) !== kernel) continue
+        if ((this.sessionAgentIds.get(id) || '') !== agentId) continue
         this.sessions.delete(id)
         this.busySessions.delete(id)
       }
-      if (this.liveProcesses(kernel).length > 0) return
+      if (this.kernelStillRunning(kernel)) return
       const stopped = engineLifecycleEvent(kernel, 'engine.stopped')
       this.deliverControlEvent(stopped)
       this.deliverSilentEvent(stopped)
@@ -491,9 +623,10 @@ export class Engine {
     if (!silent && event.forkedSessionId) {
       this.sessions.add(event.forkedSessionId)
       const parent = asString(event.sessionId)
-      this.sessionKernel.set(event.forkedSessionId, this.sessionKernel.get(parent) ?? kernel)
-      const parentWorkspace = this.sessionWorkspaces.get(parent)
-      if (parentWorkspace) this.sessionWorkspaces.set(event.forkedSessionId, parentWorkspace)
+      this.copySessionBinding(parent, event.forkedSessionId)
+      if (!this.sessionKernel.get(event.forkedSessionId)) {
+        this.sessionKernel.set(event.forkedSessionId, kernel)
+      }
     }
     if (!silent && event.type === 'assistant.started' && event.sessionId) this.busySessions.add(event.sessionId)
     if (
@@ -614,11 +747,13 @@ export class Engine {
   private async requireAgentCommand(
     kernel: SidecarKernel,
     settings?: PublicSettings,
-  ): Promise<void> {
-    if (kernel !== 'dsh') return
+    agentId?: string,
+  ): Promise<{ id: string; agent: NonNullable<ReturnType<typeof resolveAcpAgent>>['agent'] } | null> {
+    if (kernel !== 'dsh') return null
     const resolved = settings ?? this.settingsStore?.get() ?? await readPublicSettings(this.home)
-    const guest = normalizeAcpGuest(resolved.acp_guest)
-    if (!guest?.command) throw new Error('Agent command is not configured')
+    const agent = resolveAcpAgent(resolved, agentId)
+    if (!agent?.agent.command) throw new Error('Agent command is not configured')
+    return agent
   }
 
   async sendMessage(args: SendMessageArgs): Promise<void> {
@@ -638,12 +773,13 @@ export class Engine {
     const settings = this.settingsStore
       ? this.resolvedTurnSettings()
       : await readPublicSettings(this.home)
-    await this.requireAgentCommand(kernel, settings)
+    const agent = await this.requireAgentCommand(kernel, settings, stored?.acpAgentId)
+    const agentId = kernel === 'dsh' ? (agent?.id || '') : ''
     const provider = asString(args.modelProvider) || asString(settings.active_provider)
     const model = asString(args.modelId) || asString(settings.active_model)
     const policy = normalizeCodingPolicy(args.executionMode, args.approvalPolicy)
     const workspace = resolveAgentWorkspace(args.workspacePath || stored?.workspacePath || '', this.home)
-    this.bindSessionWorkspace(conversationId, workspace, kernel)
+    this.bindSessionWorkspace(conversationId, workspace, kernel, agentId)
     const traceId = normalizeTraceId(args.traceId) || generateTraceId()
 
     let sessionRole = ''
@@ -711,7 +847,7 @@ export class Engine {
       userSkillPaths,
     })
 
-    const proc = await this.ensureProcess(kernel, workspace, settings, traceId)
+    const proc = await this.ensureProcess(kernel, workspace, settings, traceId, agentId)
     await proc.write(command)
     this.sessions.add(conversationId)
     await this.rememberSentAttachments(conversationId, prompt, storedAttachments(args.attachments ?? []))
@@ -1076,9 +1212,11 @@ export class Engine {
     this.busySessions.delete(sessionId)
     const kernel = this.sessionKernel.get(sessionId)
     const workspace = this.sessionWorkspaces.get(sessionId)
+    const agentId = this.sessionAgentIds.get(sessionId) || ''
     this.sessionKernel.delete(sessionId)
     this.sessionWorkspaces.delete(sessionId)
-    if (kernel && workspace) await this.stopWorkspaceIfIdle(kernel, workspace)
+    this.sessionAgentIds.delete(sessionId)
+    if (kernel && workspace) await this.stopWorkspaceIfIdle(kernel, workspace, agentId)
   }
 
   async detachSession(conversationId: string): Promise<void> {
@@ -1259,9 +1397,7 @@ export class Engine {
     const forkedId = asString(event.forkedSessionId)
     if (!forkedId) throw new Error('forked session id is missing')
     this.sessions.add(forkedId)
-    this.sessionKernel.set(forkedId, this.kernelFor(sessionId))
-    const parentWorkspace = this.sessionWorkspaces.get(sessionId)
-    if (parentWorkspace) this.sessionWorkspaces.set(forkedId, parentWorkspace)
+    this.copySessionBinding(sessionId, forkedId)
     return forkedId
   }
 
@@ -1317,9 +1453,7 @@ export class Engine {
       throw new Error('handoff ended without a forked session')
     }
     this.sessions.add(forkedId)
-    this.sessionKernel.set(forkedId, this.kernelFor(sessionId))
-    const parentWorkspace = this.sessionWorkspaces.get(sessionId)
-    if (parentWorkspace) this.sessionWorkspaces.set(forkedId, parentWorkspace)
+    this.copySessionBinding(sessionId, forkedId)
     const compaction = compactionFromEvent(event)
     return {
       sessionId: forkedId,
@@ -1745,9 +1879,11 @@ export class Engine {
     }
     const kernel = this.kernelFor(sessionId, stored)
     const settings = this.settingsStore?.get() ?? await readPublicSettings(this.home)
+    const agent = kernel === 'dsh' ? resolveAcpAgent(settings, stored?.acpAgentId) : null
+    const agentId = agent?.id || ''
     const workspace = resolveAgentWorkspace(workspacePath || stored?.workspacePath || '', this.home)
-    this.bindSessionWorkspace(sessionId, workspace, kernel)
-    return this.ensureProcess(kernel, workspace, settings, generateTraceId())
+    this.bindSessionWorkspace(sessionId, workspace, kernel, agentId)
+    return this.ensureProcess(kernel, workspace, settings, generateTraceId(), agentId)
   }
 
   private async sendBackgroundTaskControl(
@@ -1873,14 +2009,17 @@ export class Engine {
   }
 
   async stopAll(): Promise<void> {
-    const victims = [...this.processes.entries()]
+    const victims = [...this.processes.entries(), ...this.parked.entries()]
     for (const [key] of victims) this.retiring.add(key)
     this.processes.clear()
+    this.parked.clear()
+    this.parkedAt.clear()
     this.starting.clear()
     this.sessions.clear()
     this.busySessions.clear()
     this.sessionKernel.clear()
     this.sessionWorkspaces.clear()
+    this.sessionAgentIds.clear()
     this.researchRuns.clear()
     this.backgroundTasks.clear()
     this.recoveryFailures.clear()
@@ -1944,6 +2083,7 @@ export function applySaveConversationRules(
   value.kernel = normalizeKernel(value.kernel)
   if (existing && hasStarted(existing)) {
     value.kernel = normalizeKernel(existing.kernel)
+    value.acpAgentId = existing.acpAgentId
   }
   if (existing) preserveSentAttachments(existing, value)
   return value

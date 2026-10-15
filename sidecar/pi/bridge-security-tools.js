@@ -16,11 +16,20 @@ function within(root, target) {
 
 async function regularCanonicalFile(path, label) {
   if (!isAbsolute(path)) throw new Error(`${label} must be an absolute path`);
-  const metadata = await lstat(path);
+  // Homebrew (and nvm / fnm) expose `node` as a symlink. Resolve first, then
+  // require the target to be a regular file so the launch line cannot stay on
+  // a replaceable last-component link.
+  let resolved;
+  try {
+    resolved = await realpath(path);
+  } catch {
+    throw new Error(`${label} must be a regular, non-symlink file`);
+  }
+  const metadata = await lstat(resolved);
   if (metadata.isSymbolicLink() || !metadata.isFile()) {
     throw new Error(`${label} must be a regular, non-symlink file`);
   }
-  return realpath(path);
+  return resolved;
 }
 
 function boundedText(value, label, limit = 240) {

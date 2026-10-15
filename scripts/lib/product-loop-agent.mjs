@@ -1,6 +1,6 @@
 /**
  * Resolve a local Agent command for product-loop ACP cases.
- * Does not copy Provider keys into acp_guest.env.
+ * Does not copy Provider keys into acp_agent.env.
  */
 
 import { closeSync, openSync, readSync, statSync } from 'node:fs'
@@ -11,7 +11,7 @@ import { parseArgList } from '../../sidecar/dsh/launch.js'
 const defaultRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const DEFAULT_ACP_ARGS = ['--profile', 'acp']
 
-function guestBinJs(root) {
+function agentBinJs(root) {
   return resolve(root, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js')
 }
 
@@ -47,7 +47,7 @@ export function resolveProductLoopAgentCommand(options = {}) {
   if (configured) {
     return withCommand(configured, parseArgList(env.MILKSU_DSH_ACP_ARGS, DEFAULT_ACP_ARGS))
   }
-  const bin = guestBinJs(root)
+  const bin = agentBinJs(root)
   let st
   try {
     st = statSync(bin)
@@ -59,18 +59,18 @@ export function resolveProductLoopAgentCommand(options = {}) {
   return { command: execPath, args: [bin, '--profile', 'acp'] }
 }
 
-function acpGuestCommand(settings) {
-  const raw = settings?.acp_guest ?? settings?.AcpGuest
+function acpAgentCommand(settings) {
+  const raw = settings?.acp_agent ?? settings?.acp_guest ?? settings?.AcpAgent ?? settings?.AcpGuest
   if (!raw || typeof raw !== 'object') return ''
   return String(raw.command ?? raw.Command ?? '').trim()
 }
 
 export async function ensureProductLoopAgent(driver, options = {}) {
   const settings = (await driver.invoke('GetSettings', []).catch(() => ({}))) || {}
-  if (acpGuestCommand(settings)) return { ok: true }
+  if (acpAgentCommand(settings)) return { ok: true }
   const resolved = resolveProductLoopAgentCommand(options)
   if (!resolved) return { ok: false, detail: 'Agent command is not configured' }
-  const acp_guest = withCommand(resolved.command, resolved.args)
-  await driver.invoke('SaveSettingsCmd', [{ ...settings, acp_guest }])
+  const acp_agent = withCommand(resolved.command, resolved.args)
+  await driver.invoke('SaveSettingsCmd', [{ ...settings, acp_agent }])
   return { ok: true }
 }

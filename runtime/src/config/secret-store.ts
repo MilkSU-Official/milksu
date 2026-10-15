@@ -148,38 +148,10 @@ export class SqliteSecretStore implements SecretStore {
   }
 }
 
-export class HelperSecretStore implements SecretStore {
-  private readonly invoke: (method: string, args: unknown[]) => Promise<unknown>
-
-  constructor(invoke: (method: string, args: unknown[]) => Promise<unknown>) {
-    this.invoke = invoke
-  }
-
-  async get(account: string): Promise<string> {
-    const value = await this.invoke('GetPlatformSecret', [account])
-    if (typeof value !== 'string' || value === '') throw new SecretNotFoundError()
-    return value
-  }
-
-  async set(account: string, secret: string): Promise<void> {
-    validateSecretInput(secret)
-    if (!secret) throw new Error('credential must not be empty')
-    await this.invoke('SetPlatformSecret', [account, secret])
-  }
-
-  async delete(account: string): Promise<void> {
-    await this.invoke('DeletePlatformSecret', [account])
-  }
-}
-
 export async function deleteSecretIfPresent(store: SecretStore, account: string): Promise<void> {
   try {
     await store.delete(account)
   } catch (error) {
     if (!isSecretNotFound(error)) throw error
   }
-}
-
-export function usesDarwinKeychainHelper(platform = process.platform): boolean {
-  return platform === 'darwin'
 }

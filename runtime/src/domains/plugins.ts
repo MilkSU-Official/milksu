@@ -1,15 +1,12 @@
 import { existsSync, statSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { join } from 'node:path'
 import { registerOwnedHandlers } from '../domains.ts'
 import type { HandlerContext } from '../handlers.ts'
 import { dataDirectory } from '../home.ts'
+import { buildPluginMcpConfig } from '../plugin-mcp.ts'
 import { PluginRegistry, findOfficialSource, materializeOfficial } from '../plugin/index.ts'
 import { DEVELOPMENT_HOST_VERSION, type SurfaceSlot, type UIRequest } from '../plugin/types.ts'
 import { findProjectRoot } from '../sidecar.ts'
-
-function nativeHelperPath(): string {
-  return String(process.env.MILKSU_NATIVE_HELPER ?? process.env.MILKSU_BACKEND_PATH ?? '').trim()
-}
 
 const registries = new Map<string, PluginRegistry>()
 
@@ -57,9 +54,9 @@ function resolveTypeScriptWorker(): { node: string; worker: string } {
   } catch {
     // packaged runtime without a checkout
   }
-  const helper = nativeHelperPath()
-  if (helper) {
-    const sidecar = join(dirname(helper), 'milksu-sidecar')
+  const resources = String(process.env.MILKSU_RESOURCES ?? '').trim()
+  if (resources) {
+    const sidecar = join(resources, 'milksu-sidecar')
     const node = join(sidecar, process.platform === 'win32' ? 'node.exe' : 'node')
     const worker = join(sidecar, 'plugin-worker.mjs')
     if (regularFile(node) && regularFile(worker)) return { node, worker }
@@ -99,7 +96,8 @@ async function registryFor(ctx: HandlerContext): Promise<PluginRegistry> {
     nodeExecutable: worker.node,
     typeScriptWorker: worker.worker,
     invokeLua: async (directory, entry, request) => {
-      return ctx.invokeHelper('RunLuaPlugin', [directory, entry, request], 'electron_host')
+      const { invokeLua } = await import('../plugin/lua.ts')
+      return invokeLua(directory, entry, request)
     },
   })
   registries.set(ctx.home, registry)
@@ -138,9 +136,9 @@ registerOwnedHandlers({
     requireSource(ctx, 'ListPlugins', 'renderer')
     return (await registryFor(ctx)).list()
   },
-  async ListPetPluginPackages(ctx) {
-    requireSource(ctx, 'ListPetPluginPackages', 'electron_host')
-    return (await registryFor(ctx)).listPetPluginPackages()
+  async ListCompanionPluginPackages(ctx) {
+    requireSource(ctx, 'ListCompanionPluginPackages', 'electron_host')
+    return (await registryFor(ctx)).listCompanionPluginPackages()
   },
   async SetPluginEnabled(ctx, args) {
     requireSource(ctx, 'SetPluginEnabled', 'renderer')
@@ -247,28 +245,6 @@ registerOwnedHandlers({
   },
   async GetPluginMCPConfig(ctx) {
     requireSource(ctx, 'GetPluginMCPConfig', 'renderer')
-    const command = nativeHelperPath()
-    if (!command || !regularFile(command)) {
-      return { available: false, args: [], configuration: {} }
-    }
-    const args = ['plugin-mcp']
-    return {
-      available: true,
-      command,
-      args,
-      configuration: {
-        mcpServers: {
-          'milksu-plugins': {
-            command,
-            args,
-            env: {
-              MILKSU_APPDATA_DIR: ctx.home,
-              MILKSU_HOME: ctx.home,
-              MILKSU_APP_VERSION: hostVersion(),
-            },
-          },
-        },
-      },
-    }
+    return buildPluginMcpConfig(ctx.home)
   },
 })

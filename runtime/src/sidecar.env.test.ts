@@ -9,11 +9,11 @@ import { readPublicSettings, stripSecrets } from './settings.ts'
 import { resolveHomeRoot } from './home.ts'
 import {
   buildSidecarEnvironment,
-  loadSidecarHelperEnvironment,
+  loadSidecarProviderEnvironment,
   spawnNodeEnvironment,
 } from './sidecar.ts'
 
-const FAKE_KEY = 'fake-helper-secret'
+const FAKE_KEY = 'fake-runtime-secret'
 
 test('spawnNodeEnvironment sets ELECTRON_RUN_AS_NODE unless the binary is named node', () => {
   const base = { PATH: '/usr/bin', HOME: '/tmp' }
@@ -56,7 +56,6 @@ test('sidecar env copies process provider keys and does not read settings.json s
     settings: stripSecrets({
       providers: { deepseek: { api_key: 'from-file', has_api_key: true, enabled: true } },
     }) as Record<string, unknown>,
-    helperPath: '/bin/true',
     traceId: 'trc_11111111-1111-4111-8111-111111111111',
     env: {
       PATH: '/usr/bin',
@@ -70,7 +69,7 @@ test('sidecar env copies process provider keys and does not read settings.json s
   assert.notEqual(env.HOME, '/tmp')
 })
 
-test('sidecar env merges helper provider keys over process env; settings.json still has no key', () => {
+test('sidecar env merges provider env over process env; settings.json still has no key', () => {
   const home = join(tmpdir(), 'milksu-home-unused')
   const settings = stripSecrets({
     providers: { deepseek: { api_key: 'from-file', has_api_key: true, enabled: true } },
@@ -80,34 +79,33 @@ test('sidecar env merges helper provider keys over process env; settings.json st
     workspace: tmpdir(),
     kernel: 'pi',
     settings,
-    helperPath: '/bin/true',
     traceId: 'trc_11111111-1111-4111-8111-111111111111',
     env: {
       PATH: '/usr/bin',
       DEEPSEEK_API_KEY: 'from-process',
       HOME: '/tmp',
     },
-    helperEnv: [
-      'DEEPSEEK_API_KEY=from-helper',
+    sidecarProviderEnv: [
+      'DEEPSEEK_API_KEY=from-provider-env',
       'HOME=/Users/leaked',
       'MILKSU_MODEL_SOURCE_ORDER=personal',
     ],
   })
-  assert.equal(env.DEEPSEEK_API_KEY, 'from-helper')
+  assert.equal(env.DEEPSEEK_API_KEY, 'from-provider-env')
   assert.notEqual(env.DEEPSEEK_API_KEY, 'from-file')
   assert.notEqual(env.DEEPSEEK_API_KEY, 'from-process')
   assert.equal(env.MILKSU_MODEL_SOURCE_ORDER, 'personal')
   assert.notEqual(env.HOME, '/tmp')
   assert.notEqual(env.HOME, '/Users/leaked')
   assert.equal(
-    JSON.stringify(settings).includes('from-file') || JSON.stringify(settings).includes('from-helper'),
+    JSON.stringify(settings).includes('from-file') || JSON.stringify(settings).includes('from-provider-env'),
     false,
   )
 })
 
-test('loadSidecarHelperEnvironment invokes ExportSidecarEnvironment as electron_host', async () => {
+test('loadSidecarProviderEnvironment invokes ExportSidecarEnvironment as electron_host', async () => {
   let seen: { source?: string, method?: string } | undefined
-  const env = await loadSidecarHelperEnvironment(async (message) => {
+  const env = await loadSidecarProviderEnvironment(async (message) => {
     seen = message
     return [`DEEPSEEK_API_KEY=${FAKE_KEY}`]
   })
@@ -116,12 +114,12 @@ test('loadSidecarHelperEnvironment invokes ExportSidecarEnvironment as electron_
   assert.equal(env.DEEPSEEK_API_KEY, FAKE_KEY)
 })
 
-test('fake helper stdout/stderr capture does not contain provider key', async () => {
-  const home = await mkdtemp(join(tmpdir(), 'milksu-helper-env-'))
-  const helperPath = join(home, 'fake-helper.cjs')
-  await writeFile(helperPath, `'use strict'
+test('fake runtime JSONL stdout/stderr capture does not contain provider key', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'milksu-runtime-env-'))
+  const runtimePath = join(home, 'fake-runtime.cjs')
+  await writeFile(runtimePath, `'use strict'
 const readline = require('node:readline')
-process.stderr.write('helper-boot\\n')
+process.stderr.write('runtime-boot\\n')
 process.stdout.write(JSON.stringify({ type: 'ready' }) + '\\n')
 const lines = readline.createInterface({ input: process.stdin, crlfDelay: Infinity })
 lines.on('line', (line) => {
@@ -148,15 +146,15 @@ lines.on('line', (line) => {
 })
 `)
 
-  const child = spawn(process.execPath, [helperPath], {
+  const child = spawn(process.execPath, [runtimePath], {
     stdio: ['pipe', 'pipe', 'pipe'],
     env: { ...process.env, HOME: home },
   })
-  const helperStderr: string[] = []
-  child.stderr.on('data', (chunk) => helperStderr.push(String(chunk)))
+  const childStderr: string[] = []
+  child.stderr.on('data', (chunk) => childStderr.push(String(chunk)))
   const lines = readline.createInterface({ input: child.stdout, crlfDelay: Infinity })
   const waitLine = (predicate: (value: Record<string, unknown>) => boolean) => new Promise<Record<string, unknown>>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('timed out waiting for helper line')), 5000)
+    const timer = setTimeout(() => reject(new Error('timed out waiting for runtime line')), 5000)
     const onLine = (line: string) => {
       let message: Record<string, unknown>
       try { message = JSON.parse(line) as Record<string, unknown> } catch { return }
@@ -181,7 +179,7 @@ lines.on('line', (line) => {
   const stderrWrite = wrap(process.stderr)
   try {
     await waitLine((message) => message.type === 'ready')
-    const helperEnv = await loadSidecarHelperEnvironment(async (message) => {
+    const sidecarProviderEnv = await loadSidecarProviderEnvironment(async (message) => {
       child.stdin.write(`${JSON.stringify(message)}\n`)
       const response = await waitLine((value) => value.type === 'result' && value.id === message.id)
       if (response.error) throw new Error(String(response.error))
@@ -194,16 +192,15 @@ lines.on('line', (line) => {
       settings: stripSecrets({
         providers: { deepseek: { api_key: 'from-file', has_api_key: true, enabled: true } },
       }) as Record<string, unknown>,
-      helperPath,
       traceId: 'trc_11111111-1111-4111-8111-111111111111',
       env: { PATH: '/usr/bin' },
-      helperEnv,
+      sidecarProviderEnv,
     })
     assert.equal(env.DEEPSEEK_API_KEY, FAKE_KEY)
     const publicSettings = await readPublicSettings(home)
     assert.equal(JSON.stringify(publicSettings).includes(FAKE_KEY), false)
     assert.equal(captured.join('').includes(FAKE_KEY), false)
-    assert.equal(helperStderr.join('').includes(FAKE_KEY), false)
+    assert.equal(childStderr.join('').includes(FAKE_KEY), false)
   } finally {
     process.stdout.write = stdoutWrite
     process.stderr.write = stderrWrite

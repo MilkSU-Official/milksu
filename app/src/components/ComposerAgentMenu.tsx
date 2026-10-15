@@ -1,8 +1,14 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Button, Popover, PopoverContent, PopoverTrigger } from '@/components/ui'
-import { Check, ChevronDown, ChevronRight } from 'lucide-react'
-import { acpGuestRuntimeLabel, useAcpGuestConfigured } from '@/lib/acpGuest'
+import { Check, ChevronDown, ChevronRight, Plus } from 'lucide-react'
+import AddAcpAgentDialog from '@/components/AddAcpAgentDialog'
+import {
+  acpAgentConfigured,
+  acpAgentRuntimeLabel,
+  useAcpAgents,
+  type NamedAcpAgent,
+} from '@/lib/acpAgent'
 import { runtimeVersion } from '@/lib/runtimeVersions'
 import { SearchableModelList } from '@/components/SearchableModelPicker'
 import type { SearchableModelGroup, SearchableModelOption } from '@/lib/modelPickerSearch'
@@ -26,6 +32,7 @@ export default function ComposerAgentMenu({
   leading,
   groups,
   kernel = 'pi',
+  acpAgentId,
   thinkingLevels = [],
   thinkingLevel,
   contextLabel,
@@ -33,6 +40,7 @@ export default function ComposerAgentMenu({
   onChangeModel,
   onChangeKernel,
   onChangeThinkingLevel,
+  onCreateAgent,
 }: {
   modelKey: string
   disabled?: boolean
@@ -44,24 +52,29 @@ export default function ComposerAgentMenu({
   leading?: SearchableModelOption[]
   groups: readonly SearchableModelGroup[]
   kernel?: 'pi' | 'dsh'
+  acpAgentId?: string
   thinkingLevels?: ModelThinkingLevel[]
   thinkingLevel?: ModelThinkingLevel
   contextLabel?: string
   showRuntime?: boolean
   onChangeModel?: (value: string) => void
-  onChangeKernel?: (value: 'pi' | 'dsh') => void
+  onChangeKernel?: (value: 'pi' | 'dsh', agentId?: string) => void
   onChangeThinkingLevel?: (level: ModelThinkingLevel) => void
+  onCreateAgent?: (agent: NamedAcpAgent) => void
 }) {
   const t = useT()
-  const acpAvailable = useAcpGuestConfigured()
+  const agents = useAcpAgents()
   const [open, setOpen] = useState(false)
+  const [addOpen, setAddOpen] = useState(false)
   const [pane, setPane] = useState<ComposerAgentPane | null>(null)
   const [flyoutPos, setFlyoutPos] = useState<{ top: number | null; bottom: number | null; left: number } | null>(null)
   const [flyoutMaxH, setFlyoutMaxH] = useState(352)
   const panel = useRef<HTMLDivElement | null>(null)
   const flyoutRef = useRef<HTMLDivElement | null>(null)
-  const runtimeLabel = kernel === 'dsh' ? acpGuestRuntimeLabel(t) : 'Pi'
-  const runtimeOptions: Array<'pi' | 'dsh'> = acpAvailable || kernel === 'dsh' ? ['pi', 'dsh'] : ['pi']
+  const selectedAgent = kernel === 'dsh'
+    ? agents.find(agent => agent.id === acpAgentId) ?? agents.find(agent => acpAgentConfigured(agent))
+    : undefined
+  const runtimeLabel = selectedAgent?.name || (kernel === 'dsh' ? acpAgentRuntimeLabel(t) : 'Pi')
   const thinkingLabel = thinkingLevel ? MODEL_THINKING_LEVEL_LABELS[thinkingLevel] : ''
 
   useEffect(() => {
@@ -117,6 +130,7 @@ export default function ComposerAgentMenu({
   }
 
   return (
+    <>
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
@@ -191,30 +205,61 @@ export default function ComposerAgentMenu({
             </div>
           ) : pane === 'runtime' ? (
             <div className="w-[15.5rem] rounded-md border border-border bg-popover p-1 text-popover-foreground">
-              {runtimeOptions.map(id => (
+              <button
+                type="button"
+                disabled={disabled}
+                className={cn(
+                  'flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-sm',
+                  kernel === 'pi' ? 'bg-accent' : 'hover:bg-accent',
+                )}
+                onClick={() => {
+                  onChangeKernel?.('pi')
+                  setOpen(false)
+                }}
+              >
+                <span className="min-w-0 flex-1 truncate">
+                  Pi
+                  {runtimeVersion('pi') ? (
+                    <span className="ml-1.5 text-caption text-muted-foreground">{runtimeVersion('pi')}</span>
+                  ) : null}
+                </span>
+                {kernel === 'pi' ? <Check className="size-3.5 shrink-0" /> : null}
+              </button>
+              {agents.filter(agent => acpAgentConfigured(agent)).map(agent => {
+                const selected = kernel === 'dsh' && selectedAgent?.id === agent.id
+                return (
+                  <button
+                    key={agent.id}
+                    type="button"
+                    disabled={disabled}
+                    className={cn(
+                      'flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-sm',
+                      selected ? 'bg-accent' : 'hover:bg-accent',
+                    )}
+                    onClick={() => {
+                      onChangeKernel?.('dsh', agent.id)
+                      setOpen(false)
+                    }}
+                  >
+                    <span className="min-w-0 flex-1 truncate">{agent.name}</span>
+                    {selected ? <Check className="size-3.5 shrink-0" /> : null}
+                  </button>
+                )
+              })}
+              {onCreateAgent ? (
                 <button
-                  key={id}
                   type="button"
-                  disabled={disabled || (id === 'dsh' && !acpAvailable)}
-                  className={cn(
-                    'flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-sm',
-                    kernel === id ? 'bg-accent' : 'hover:bg-accent',
-                  )}
+                  disabled={disabled}
+                  className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-sm hover:bg-accent"
                   onClick={() => {
-                    if (id === 'dsh' && !acpAvailable) return
-                    onChangeKernel?.(id)
                     setOpen(false)
+                    setAddOpen(true)
                   }}
                 >
-                  <span className="min-w-0 flex-1 truncate">
-                    {id === 'dsh' ? acpGuestRuntimeLabel(t) : 'Pi'}
-                    {runtimeVersion(id) ? (
-                      <span className="ml-1.5 text-caption text-muted-foreground">{runtimeVersion(id)}</span>
-                    ) : null}
-                  </span>
-                  {kernel === id ? <Check className="size-3.5 shrink-0" /> : null}
+                  <Plus className="size-3.5 shrink-0" />
+                  <span className="min-w-0 flex-1 truncate">{t('添加 Agent', 'Add Agent')}</span>
                 </button>
-              ))}
+              ) : null}
             </div>
           ) : (
             <div
@@ -242,5 +287,14 @@ export default function ComposerAgentMenu({
         document.body,
       ) : null}
     </Popover>
+    {onCreateAgent ? (
+      <AddAcpAgentDialog
+        open={addOpen}
+        existing={agents}
+        onOpenChange={setAddOpen}
+        onAdd={onCreateAgent}
+      />
+    ) : null}
+    </>
   )
 }

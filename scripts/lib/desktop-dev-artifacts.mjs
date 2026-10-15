@@ -7,11 +7,9 @@ import { stat } from 'node:fs/promises'
 import { join } from 'node:path'
 
 export function desktopDevArtifactPaths(root) {
-  const helperName = process.platform === 'win32' ? 'milksu-backend.exe' : 'milksu-backend'
   return {
     runtime: join(root, 'runtime', 'dist', 'main.cjs'),
     renderer: join(root, 'app', 'dist', 'index.html'),
-    helper: join(root, 'build', 'desktop', helperName),
     electron: join(root, 'desktop', 'node_modules', 'electron'),
   }
 }

@@ -184,7 +184,7 @@ import {
 } from '@/lib/codingPolicy'
 import { codingContinuityPresentation } from '@/lib/codingContinuityPresentation'
 import { codingAskToolName, pendingAskMessage } from '@/lib/agentAsk'
-import { acpGuestUnavailableReason } from '@/lib/acpGuest'
+import { acpAgentUnavailableReason } from '@/lib/acpAgent'
 import type {
   AppSettings,
   CodingApprovalPolicy,
@@ -268,6 +268,7 @@ export type ChatPageProps = {
   turnStatus?: SessionTurnSnapshot
   vulnerabilitySession?: boolean
   kernel?: 'pi' | 'dsh'
+  acpAgentId?: string
   modelMode?: 'auto' | 'manual'
   modelId?: string
   modelProvider?: string
@@ -300,8 +301,9 @@ export type ChatPageProps = {
   onEditQueuedGuidance?: (index: number) => void
   onChangeModel?: (mode: 'auto' | 'manual', provider?: string, model?: string) => void
   onChangeThinkingLevel?: (level: ModelThinkingLevel) => void
-  onChangeKernel?: (kernel: 'pi' | 'dsh') => void
-  onMigrateKernel?: (kernel: 'pi' | 'dsh') => void
+  onChangeKernel?: (kernel: 'pi' | 'dsh', agentId?: string) => void
+  onMigrateKernel?: (kernel: 'pi' | 'dsh', agentId?: string) => void
+  onCreateAgent?: (agent: import('@/lib/acpAgent').NamedAcpAgent) => void
   onChangeModelSource?: (preference: 'auto' | 'account' | 'personal') => void
   imageHome?: boolean
   reverseHome?: boolean
@@ -370,6 +372,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
   turnStatus,
   vulnerabilitySession,
   kernel,
+  acpAgentId,
   modelMode,
   modelProvider,
   modelId,
@@ -397,6 +400,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
   onChangeThinkingLevel,
   onChangeKernel,
   onMigrateKernel,
+  onCreateAgent,
   onChangeModelSource,
   imageHome = false,
   reverseHome = false,
@@ -896,19 +900,19 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
         id: 'ask',
         label: t('Ask 卡', 'Ask card'),
         status: 'unavailable' as const,
-        detail: acpGuestUnavailableReason('ask', t),
+        detail: acpAgentUnavailableReason('ask', t),
       },
       {
         id: 'durable-research',
         label: t('Durable 研究', 'Durable research'),
         status: 'unavailable' as const,
-        detail: acpGuestUnavailableReason('durable-research', t),
+        detail: acpAgentUnavailableReason('durable-research', t),
       },
       {
         id: 'milksu-workspace',
         label: 'milksu_workspace',
         status: 'unavailable' as const,
-        detail: acpGuestUnavailableReason('milksu-workspace', t),
+        detail: acpAgentUnavailableReason('milksu-workspace', t),
       },
     ]
   }, [
@@ -3464,6 +3468,7 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
             thinkingLevels={currentThinkingProfile.levels}
             thinkingLevel={currentThinkingLevel}
             kernel={agentKernel}
+            acpAgentId={acpAgentId}
             kernelLocked={Boolean(conversation?.messages.some(message => message.role === 'user' && message.status !== 'queued'))}
             planModeActive={conversation?.planMode?.active === true}
             dshCommands={conversation?.dshCommands}
@@ -3510,8 +3515,9 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
             onChangeApprovalPolicy={changeApprovalPolicy}
             onChangeModel={changeModel}
             onChangeThinkingLevel={level => onChangeThinkingLevel?.(level)}
-            onChangeKernel={value => onChangeKernel?.(value)}
-            onMigrateKernel={value => onMigrateKernel?.(value)}
+            onChangeKernel={(value, agentId) => onChangeKernel?.(value, agentId)}
+            onMigrateKernel={(value, agentId) => onMigrateKernel?.(value, agentId)}
+            onCreateAgent={onCreateAgent}
             onShowPermissions={showCodingPermissions}
             onChooseWorkspace={chooseWorkspaceFromCurrentTask}
             onSelectWorkspace={selectRecentProject}

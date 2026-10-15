@@ -87,35 +87,6 @@ export class SettingsSecretKeeper implements SecretKeeper {
   }
 }
 
-export class HelperSecretKeeper implements SecretKeeper {
-  private readonly invoke: (method: string, args: unknown[]) => Promise<unknown>
-
-  constructor(invoke: (method: string, args: unknown[]) => Promise<unknown>) {
-    this.invoke = invoke
-  }
-
-  async put(account: string, secret: string): Promise<void> {
-    if (!validManagedSecretAccount(account) || !secret.trim()) {
-      throw new Error('managed secret is incomplete')
-    }
-    await this.invoke('PutManagedSecret', [account, secret])
-  }
-
-  async delete(account: string): Promise<void> {
-    if (!validManagedSecretAccount(account)) {
-      throw new Error('managed secret account is not allowed')
-    }
-    await this.invoke('DeleteManagedSecret', [account])
-  }
-
-  async lookup(account: string): Promise<string> {
-    if (!validManagedSecretAccount(account)) {
-      throw new Error('managed secret account is not allowed')
-    }
-    return String(await this.invoke('LookupManagedSecret', [account]) ?? '')
-  }
-}
-
 export class SqliteSecretKeeper implements SecretKeeper {
   private readonly path: string
 

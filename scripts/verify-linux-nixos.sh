@@ -24,8 +24,8 @@ nix-build /packaging/default.nix --arg unpacked /unpacked
 test -x result/bin/milksu
 test -x /unpacked/milksu
 test -x /unpacked/resources/milksu-sidecar/node
-test -x /unpacked/resources/milksu-backend
+test -f /unpacked/resources/runtime/main.cjs
 test -f /unpacked/resources/milksu-sidecar/chat-bridge.cjs
-# Do not execute the Ubuntu-linked Node/Go binaries inside the Nix sandbox;
+# Do not execute the Ubuntu-linked Node binaries inside the Nix sandbox;
 # they need /lib64/ld-linux. Sidecar/Runtime start is covered by Debian/Arch.
 EOS

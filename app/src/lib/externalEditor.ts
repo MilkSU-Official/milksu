@@ -1,4 +1,4 @@
-// Keep in sync with internal/externaleditor/editor.go.
+// Keep in sync with runtime/src/codingenv/editor.ts.
 
 export const DEFAULT_EXTERNAL_EDITOR = 'vscode'
 

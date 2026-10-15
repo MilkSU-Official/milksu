@@ -117,6 +117,7 @@ export default function CodingComposerControls({
   thinkingLevels: thinkingLevelsProp,
   thinkingLevel,
   kernel,
+  acpAgentId,
   contextUsage,
   leading,
   footerEnd,
@@ -127,6 +128,7 @@ export default function CodingComposerControls({
   onChangeModel,
   onChangeThinkingLevel,
   onChangeKernel,
+  onCreateAgent,
   onShowPermissions,
   imageHome = false,
   imageModelKey = '',
@@ -143,6 +145,7 @@ export default function CodingComposerControls({
   thinkingLevels?: ModelThinkingLevel[]
   thinkingLevel?: ModelThinkingLevel
   kernel?: 'pi' | 'dsh'
+  acpAgentId?: string
   contextUsage?: ContextUsagePresentation | null
   leading?: ReactNode
   footerEnd?: ReactNode
@@ -152,7 +155,8 @@ export default function CodingComposerControls({
   onChangeApprovalPolicy?: (value: string) => void
   onChangeModel?: (value: string) => void
   onChangeThinkingLevel?: (level: ModelThinkingLevel) => void
-  onChangeKernel?: (value: 'pi' | 'dsh') => void
+  onChangeKernel?: (value: 'pi' | 'dsh', agentId?: string) => void
+  onCreateAgent?: (agent: import('@/lib/acpAgent').NamedAcpAgent) => void
   onShowPermissions?: () => void
   imageHome?: boolean
   imageModelKey?: string
@@ -309,12 +313,14 @@ export default function CodingComposerControls({
                 }]}
             groups={imageHome ? imageGroups : modelGroups}
             kernel={kernel}
+            acpAgentId={acpAgentId}
             thinkingLevels={imageHome ? [] : thinkingLevels}
             thinkingLevel={thinkingLevel}
             contextLabel={imageHome ? undefined : contextLabel}
             showRuntime={!imageHome}
             onChangeModel={imageHome ? onChangeImageModel : changeModel}
             onChangeKernel={onChangeKernel}
+            onCreateAgent={onCreateAgent}
             onChangeThinkingLevel={onChangeThinkingLevel}
           />
           {accessory}

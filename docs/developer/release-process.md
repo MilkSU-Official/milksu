@@ -40,8 +40,8 @@ xai、google、alibaba）把钉死的模型事实更新一遍。产品运行时�
 
 | 事实 | 改哪里 |
 | --- | --- |
-| 上下文窗口 / 输出上限 | `internal/modelcatalog/context_window.go`、`app/src/lib/knownContextWindow.ts`、`sidecar/pi/known-context-window.cjs`；`AGENTS.md`「模型事实」表 |
-| 思考档位 | `internal/config/model_thinking.go`、`app/src/lib/modelThinking.ts`；`AGENTS.md` 表 |
+| 上下文窗口 / 输出上限 | `runtime/src/modelcatalog/context-window.ts`、`app/src/lib/knownContextWindow.ts`、`sidecar/pi/known-context-window.cjs`；`AGENTS.md`「模型事实」表 |
+| 思考档位 | `runtime/src/model-thinking.ts`、`app/src/lib/modelThinking.ts`；`AGENTS.md` 表 |
 | 用量美金估算价目（USD / 百万 token） | `app/src/lib/knownModelPricing.ts`（个人资料 Coding 页「约 $…」） |
 
 不一致就改齐再进 `release:verify`。资料页金额只是估算，不是账单；TokenFlux / 账户实价可能不同。
@@ -55,7 +55,7 @@ npm run release:verify
 该命令依次运行唯一 canonical suite：
 
 ```text
-node scripts/test-go-product.mjs   # 产品 Go 包，排除 build/ 与 spikes/
+npm run runtime:test
 npm --prefix app test
 npm run test:sidecar
 npm --prefix app run lint
@@ -103,8 +103,8 @@ npm run release:dispatch -- --dry-run
 | 平台 | 默认路径 | 保留的原生门禁 |
 | --- | --- | --- |
 | macOS | GitHub-hosted `macos-release.yml` | Stable 构建、Developer ID 签名、App/DMG 公证、staple、Gatekeeper、DMG 安装布局 |
-| Windows | GitHub Actions | 原生 Go 编译、关键 Sidecar 路由、NSIS 结构、打包 Runtime 与首次启动 |
-| Linux | GitHub Actions | 原生 Go 编译、关键 Sidecar 路由、DEB 结构、打包 Runtime 与 Xvfb 首次启动 |
+| Windows | GitHub Actions | N-API 编译、关键 Sidecar 路由、NSIS 结构、打包 Runtime 与首次启动 |
+| Linux | GitHub Actions | 关键 Sidecar 路由、DEB 结构、打包 Runtime 与 Xvfb 首次启动 |
 
 只有 GitHub-hosted macOS 无法公证时才允许本机例外：`npm run release:mac:local -- --allow-local`。
 

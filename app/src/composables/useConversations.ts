@@ -516,6 +516,9 @@ export function normalizeConversation(raw: Record<string, unknown>): Conversatio
       ? Number(raw.pinnedOrder)
       : undefined,
     kernel: normalizeAgentKernel(raw.kernel),
+    acpAgentId: typeof raw.acpAgentId === 'string' && raw.acpAgentId.trim()
+      ? raw.acpAgentId.trim()
+      : undefined,
     parentConversationId: typeof raw.parentConversationId === 'string'
       && raw.parentConversationId.trim()
       ? raw.parentConversationId.trim()
@@ -828,7 +831,7 @@ export function agentRuntimeErrorMessage(
   if (new RegExp(t('正在恢复运行时', 'Restoring runtime'), 'i').test(raw)) {
     return t('正在恢复运行时。', 'Restoring runtime.')
   }
-  if (new RegExp(`Go runtime is unavailable|${t('本地运行时已停止', 'The local runtime has stopped')}|${t('本地运行时不可用', 'The local runtime is unavailable')}`, 'i').test(raw)) {
+  if (new RegExp(`Go runtime is unavailable|desktop runtime is unavailable|${t('本地运行时已停止', 'The local runtime has stopped')}|${t('本地运行时不可用', 'The local runtime is unavailable')}`, 'i').test(raw)) {
     return t('本地运行时已停止，请重新打开应用。', 'The local runtime has stopped. Reopen the app.')
   }
   if (/Sidecar for this workspace stopped/i.test(raw)) {
@@ -1010,8 +1013,10 @@ type ConversationsState = {
   pendingWorkspacePath: string
   pendingWorkspaceHome: WorkspaceHome
   defaultKernel: AgentKernel
+  defaultAcpAgentId: string
   busySend: BusySendPolicy
   pendingKernel: AgentKernel
+  pendingAcpAgentId: string
   pendingModelMode: 'auto' | 'manual' | undefined
   pendingModelProvider: string | undefined
   pendingModelId: string | undefined
@@ -1046,6 +1051,7 @@ type ConversationsState = {
 type ParkedPendingCanvas = {
   workspacePath: string
   kernel: AgentKernel
+  acpAgentId: string
   modelMode: ConversationsState['pendingModelMode']
   modelProvider: string | undefined
   modelId: string | undefined
@@ -1075,8 +1081,10 @@ export function createConversationsRuntime(options?: {
     pendingWorkspacePath: '',
     pendingWorkspaceHome: 'chat',
     defaultKernel: FACTORY_DEFAULT_KERNEL,
+    defaultAcpAgentId: '',
     busySend: FACTORY_DEFAULT_BUSY_SEND,
     pendingKernel: FACTORY_DEFAULT_KERNEL,
+    pendingAcpAgentId: '',
     pendingModelMode: undefined,
     pendingModelProvider: undefined,
     pendingModelId: undefined,
@@ -1129,10 +1137,14 @@ export function createConversationsRuntime(options?: {
     set pendingWorkspaceHome(value) { store.setState({ pendingWorkspaceHome: value }) },
     get defaultKernel() { return store.getState().defaultKernel },
     set defaultKernel(value) { store.setState({ defaultKernel: value }) },
+    get defaultAcpAgentId() { return store.getState().defaultAcpAgentId },
+    set defaultAcpAgentId(value) { store.setState({ defaultAcpAgentId: value }) },
     get busySend() { return store.getState().busySend },
     set busySend(value) { store.setState({ busySend: value }) },
     get pendingKernel() { return store.getState().pendingKernel },
     set pendingKernel(value) { store.setState({ pendingKernel: value }) },
+    get pendingAcpAgentId() { return store.getState().pendingAcpAgentId },
+    set pendingAcpAgentId(value) { store.setState({ pendingAcpAgentId: value }) },
     get pendingModelMode() { return store.getState().pendingModelMode },
     set pendingModelMode(value) { store.setState({ pendingModelMode: value }) },
     get pendingModelProvider() { return store.getState().pendingModelProvider },
@@ -2018,6 +2030,11 @@ export function createConversationsRuntime(options?: {
     const current = active()
     return current ? normalizeAgentKernel(current.kernel) : s.pendingKernel
   })
+  const selectedAcpAgentId = (() => {
+    const current = active()
+    if (current) return current.acpAgentId ?? ''
+    return s.pendingAcpAgentId
+  })
   const selectedModelMode = (() => active()?.modelMode ?? s.pendingModelMode)
   const selectedModelProvider = (() => active()?.modelProvider ?? s.pendingModelProvider)
   const selectedModelId = (() => active()?.modelId ?? s.pendingModelId)
@@ -2329,6 +2346,7 @@ export function createConversationsRuntime(options?: {
       workspacePath: parent.workspacePath,
       workspaceHome: parent.workspaceHome,
       kernel: 'dsh',
+      acpAgentId: parent.acpAgentId,
       parentConversationId: parent.id,
       modelMode: parent.modelMode,
       modelProvider: parent.modelProvider,
@@ -2623,6 +2641,7 @@ export function createConversationsRuntime(options?: {
     return {
       workspacePath: s.pendingWorkspacePath,
       kernel: s.pendingKernel,
+      acpAgentId: s.pendingAcpAgentId,
       modelMode: s.pendingModelMode,
       modelProvider: s.pendingModelProvider,
       modelId: s.pendingModelId,
@@ -2641,6 +2660,7 @@ export function createConversationsRuntime(options?: {
     s.pendingWorkspaceHome = home
     s.pendingWorkspacePath = next.workspacePath
     s.pendingKernel = next.kernel
+    s.pendingAcpAgentId = next.acpAgentId
     s.pendingModelMode = next.modelMode
     s.pendingModelProvider = next.modelProvider
     s.pendingModelId = next.modelId
@@ -2665,6 +2685,7 @@ export function createConversationsRuntime(options?: {
     s.pendingWorkspaceHome = home
     s.pendingWorkspacePath = ''
     s.pendingKernel = home === 'image' ? 'pi' : s.defaultKernel
+    s.pendingAcpAgentId = s.pendingKernel === 'dsh' ? s.defaultAcpAgentId : ''
     s.pendingModelMode = undefined
     s.pendingModelProvider = undefined
     s.pendingModelId = undefined
@@ -2742,6 +2763,7 @@ export function createConversationsRuntime(options?: {
         ? workspaceOverride
         : s.pendingWorkspacePath || undefined,
       kernel: s.pendingKernel,
+      acpAgentId: s.pendingKernel === 'dsh' && s.pendingAcpAgentId ? s.pendingAcpAgentId : undefined,
       modelMode: s.pendingModelMode,
       modelProvider: s.pendingModelProvider,
       modelId: s.pendingModelId,
@@ -2805,11 +2827,17 @@ export function createConversationsRuntime(options?: {
     }))
   }
 
-  function setDefaultKernel(kernel: AgentKernel) {
+  function setDefaultKernel(kernel: AgentKernel, agentId?: string) {
     const next = normalizeAgentKernel(kernel)
+    const nextAgentId = next === 'dsh' ? String(agentId ?? s.defaultAcpAgentId).trim() : ''
     const previous = s.defaultKernel
+    const previousAgent = s.defaultAcpAgentId
     s.defaultKernel = next
-    if (!s.activeId && s.pendingKernel === previous) s.pendingKernel = next
+    s.defaultAcpAgentId = nextAgentId
+    if (!s.activeId && s.pendingKernel === previous && s.pendingAcpAgentId === previousAgent) {
+      s.pendingKernel = next
+      s.pendingAcpAgentId = nextAgentId
+    }
   }
 
   function setBusySend(value: BusySendPolicy | string) {
@@ -2903,15 +2931,21 @@ export function createConversationsRuntime(options?: {
     }))
   }
 
-  function setKernel(kernel: AgentKernel) {
+  function setKernel(kernel: AgentKernel, agentId?: string) {
     const next = normalizeAgentKernel(kernel)
+    const nextAgentId = next === 'dsh' ? String(agentId ?? s.defaultAcpAgentId).trim() : ''
     if (!s.activeId) {
       s.pendingKernel = next
+      s.pendingAcpAgentId = nextAgentId
       return
     }
     const current = s.conversations.find(item => item.id === s.activeId)
     if (current && conversationKernelLocked(current.messages)) return
-    update(s.activeId, conversation => ({ ...conversation, kernel: next }))
+    update(s.activeId, conversation => ({
+      ...conversation,
+      kernel: next,
+      acpAgentId: nextAgentId || undefined,
+    }))
   }
 
   function setModelSelection(
@@ -3028,6 +3062,7 @@ export function createConversationsRuntime(options?: {
       createdAt: Date.now(),
       workspacePath: task.workspacePath,
       kernel: s.pendingKernel,
+      acpAgentId: s.pendingKernel === 'dsh' && s.pendingAcpAgentId ? s.pendingAcpAgentId : undefined,
       domainTaskContext: task.domainTaskContext,
       messages: [],
     }
@@ -3140,6 +3175,7 @@ export function createConversationsRuntime(options?: {
         workspacePath: s.pendingWorkspacePath || undefined,
         workspaceHome: s.pendingWorkspaceHome === 'chat' ? undefined : s.pendingWorkspaceHome,
         kernel: s.pendingKernel,
+        acpAgentId: s.pendingKernel === 'dsh' && s.pendingAcpAgentId ? s.pendingAcpAgentId : undefined,
         modelMode: s.pendingModelMode,
         modelProvider: s.pendingModelProvider,
         modelId: s.pendingModelId,
@@ -3570,7 +3606,7 @@ export function createConversationsRuntime(options?: {
     }
   }
 
-  async function handoffContext(kernel?: AgentKernel) {
+  async function handoffContext(kernel?: AgentKernel, agentId?: string) {
     const conversation = active()
     if (
       !conversation
@@ -3591,6 +3627,9 @@ export function createConversationsRuntime(options?: {
         ...conversation,
         id: sessionId,
         kernel: targetKernel,
+        acpAgentId: targetKernel === 'dsh'
+          ? (String(agentId ?? '').trim() || conversation.acpAgentId)
+          : undefined,
         title: `${t('接力', 'Handoff')} · ${conversation.title}`.slice(0, 40),
         createdAt: Date.now(),
         messages: handoffVisibleMessages(conversation.messages, handedResult),
@@ -4634,6 +4673,7 @@ export function createConversationsRuntime(options?: {
     get engineNoticeRepeat() { return s.engineNoticeRepeat },
     get busySend() { return s.busySend },
     get selectedKernel() { return selectedKernel() },
+    get selectedAcpAgentId() { return selectedAcpAgentId() },
     get selectedModelMode() { return selectedModelMode() },
     get selectedModelProvider() { return selectedModelProvider() },
     get selectedModelId() { return selectedModelId() },

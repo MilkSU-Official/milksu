@@ -1,6 +1,6 @@
 /**
  * Canonical desktop channel identity for MilkSU stable/beta coexistence.
- * Keep packaging, Electron userData, and Go runtime data roots aligned here.
+ * Keep packaging, Electron userData, and Runtime data roots aligned here.
  */
 
 export const STABLE_APP_ID = 'com.milksu.app'
@@ -132,7 +132,7 @@ export function userDataDirectoryName(channel) {
 }
 
 /**
- * Go runtime data root under a resolved Electron userData path.
+ * Runtime data root under a resolved Electron userData path.
  * @param {string} userDataPath
  */
 export function runtimeDataDirectory(userDataPath) {

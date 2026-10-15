@@ -70,9 +70,6 @@ async function stubCtx(home: string, hostCall?: HostCall): Promise<HandlerContex
     } as Engine,
     emit: () => {},
     home,
-    invokeHelper: async (method) => {
-      throw new Error(`helper should not see ${method}`)
-    },
     hostCall,
   }
 }

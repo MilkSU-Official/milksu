@@ -24,6 +24,7 @@ export interface CodingAgentSurfaceBind {
   turnStatus?: SessionTurnSnapshot
   vulnerabilitySession: boolean
   kernel?: Conversation['kernel']
+  acpAgentId?: string
   modelMode?: Conversation['modelMode']
   modelProvider?: string
   modelId?: string
@@ -53,8 +54,9 @@ export type CodingAgentSurfaceEmit = {
   controlGoal: [action: 'pause' | 'resume' | 'clear']
   respondApproval: [requestId: string, approved: boolean, scope?: 'once' | 'conversation', choice?: string]
   changeModel: [mode: 'auto' | 'manual', provider?: string, model?: string]
-  changeKernel: [kernel: 'pi' | 'dsh']
-  migrateKernel: [kernel: 'pi' | 'dsh']
+  changeKernel: [kernel: 'pi' | 'dsh', agentId?: string]
+  migrateKernel: [kernel: 'pi' | 'dsh', agentId?: string]
+  createAgent: [agent: import('@/lib/acpAgent').NamedAcpAgent]
   changeModelSource: [preference: 'auto' | 'account' | 'personal']
   changeCodingPolicy: [executionMode: CodingExecutionMode, approvalPolicy: CodingApprovalPolicy]
   changeMcpServers: [servers: string[], configDigest: string]

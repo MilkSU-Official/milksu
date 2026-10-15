@@ -1,7 +1,7 @@
 "use strict";
 
 // Official lab facts come from https://models.dev/. Keep in sync with
-// internal/modelcatalog/context_window.go and app/src/lib/knownContextWindow.ts.
+// runtime/src/modelcatalog/context-window.ts and app/src/lib/knownContextWindow.ts.
 const PLACEHOLDER_CONTEXT_WINDOW = 128_000;
 const PLACEHOLDER_MAX_TOKENS = new Set([8_192, 16_384, 32_768]);
 

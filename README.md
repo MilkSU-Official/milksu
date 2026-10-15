@@ -127,7 +127,7 @@ MilkSU 面向个人学习、授权安全研究和本地开发。对目标的探�
 
 ## 本地开发
 
-需要 Node.js、npm、Go。
+需要 Node.js、npm。
 
 ```bash
 npm install
@@ -136,9 +136,9 @@ npm --prefix desktop install
 npm run desktop:start
 ```
 
-`npm install` 会自动安装 lefthook 的 pre-commit hook。提交前它会检查 staged 的 Go 文件是否经过 `gofmt` 格式化，并对改动包运行 `go test`。
+`npm install` 会自动安装 lefthook 的 pre-commit hook。
 
-提交前跑与改动对应的测试：`go test ./...`、`npm run test:sidecar`、`npm --prefix app run test`。
+提交前跑与改动对应的测试：`npm run runtime:test`、`npm run test:sidecar`、`npm --prefix app run test`。
 
 开发入口：[当前开发目标](docs/developer/current-objectives.md)、[当前系统](docs/architecture/current-system.md)。
 
@@ -201,7 +201,7 @@ MilkSU 建立在这些项目之上。第三方保留各自原许可，完整文�
 
 | 项目 | 在 MilkSU 中做什么 | 许可 |
 | --- | --- | --- |
-| Electron | 跨平台桌面壳，托管受管 Go 运行时与 Agent Sidecar | MIT |
+| Electron | 跨平台桌面壳，托管 TypeScript Runtime 与 Agent Sidecar | MIT |
 | React 19 | 产品 UI 框架 | MIT |
 | shadcn/ui + Radix UI | 组件基座（New York、zinc 主题） | MIT |
 | Tailwind CSS v4 | 样式系统 | MIT |
@@ -213,17 +213,15 @@ MilkSU 建立在这些项目之上。第三方保留各自原许可，完整文�
 | Vite、TypeScript、Vitest、oxlint、lefthook | 前端构建、类型、测试与提交门禁 | 各自许可，TypeScript 为 Apache-2.0 |
 | VitePress | 文档站 | MIT |
 
-### Go 运行时与桌面集成
+### TypeScript Runtime 与桌面集成
 
 | 项目 | 在 MilkSU 中做什么 | 许可 |
 | --- | --- | --- |
-| modelcontextprotocol/go-sdk v1.7.0 | 内置与用户 MCP 的服务端 / 客户端 | MIT |
-| modernc.org/sqlite | 纯 Go SQLite，看板娘记忆索引等本地库 | MIT |
-| creack/pty v1.1.24 | 终端伪终端 | MIT |
-| gorilla/websocket v1.5.3 | 桌面 RPC 与事件推送的长连接 | BSD-2-Clause |
-| godbus/dbus v5 | Linux 桌面集成（Portal、通知等） | BSD-2-Clause |
-| gopher-lua v1.1.2 | 插件的 Lua 运行时 | MIT |
-| google/uuid、gopkg.in/yaml.v3 | 通用工具库 | BSD、MIT |
+| `@modelcontextprotocol/sdk` 1.32.1 | 插件 MCP stdio 服务端 | MIT |
+| `node:sqlite` | 本地 sqlite（设置密钥回退、看板娘索引） | 随 Node |
+| `node-pty` 1.2.0-beta.15 | 终端伪终端 | MIT |
+| fengari 0.1.5 | 插件的 Lua 运行时 | MIT |
+| `dbus-next` 0.10.2 | Linux XDG Desktop Portal | MIT |
 
 ### Computer Use 与浏览器
 

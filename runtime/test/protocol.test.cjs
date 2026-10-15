@@ -2,7 +2,7 @@
 
 const assert = require('node:assert/strict')
 const { spawn } = require('node:child_process')
-const { chmod, mkdir, mkdtemp, readFile, writeFile } = require('node:fs/promises')
+const { mkdir, mkdtemp, readFile, writeFile } = require('node:fs/promises')
 const { DatabaseSync } = require('node:sqlite')
 const { tmpdir } = require('node:os')
 const { join } = require('node:path')
@@ -35,25 +35,12 @@ function waitLine(lines, predicate, timeoutMs = 20000) {
   })
 }
 
-async function writeHelper(home, source) {
-  const helperPath = join(home, 'fake-helper.cjs')
-  await writeFile(helperPath, source)
-  const helperBin = join(home, 'helper.sh')
-  await writeFile(
-    helperBin,
-    `#!/bin/sh\nexec ${JSON.stringify(process.execPath)} ${JSON.stringify(helperPath)}\n`,
-  )
-  await chmod(helperBin, 0o755)
-  return helperBin
-}
-
-function startRuntime(home, helperBin) {
+function startRuntime(home) {
   const proc = spawn(process.execPath, [runtimeMain], {
     stdio: ['pipe', 'pipe', 'pipe'],
     env: {
       ...process.env,
       MILKSU_HOME: home,
-      MILKSU_NATIVE_HELPER: helperBin,
     },
   })
   const stderr = []
@@ -62,52 +49,12 @@ function startRuntime(home, helperBin) {
   return { proc, lines, stderr }
 }
 
-test('runtime JSONL host: ready, invoke proxy, event, host_request roundtrip, shutdown', async () => {
+test('runtime JSONL host: ready, owned invoke, host_request roundtrip, shutdown', async () => {
   const home = await mkdtemp(join(tmpdir(), 'milksu-runtime-home-'))
   await mkdir(join(home, 'config'), { recursive: true })
   await mkdir(join(home, 'data', 'stores', 'conversations', 'archived'), { recursive: true })
-  const helperBin = await writeHelper(home, `'use strict'
-const readline = require('node:readline')
-process.stdout.write(JSON.stringify({ type: 'ready' }) + '\\n')
-const lines = readline.createInterface({ input: process.stdin, crlfDelay: Infinity })
-lines.on('line', (line) => {
-  let message
-  try { message = JSON.parse(line) } catch { return }
-  if (message.type === 'shutdown') {
-    process.exit(0)
-    return
-  }
-  if (message.type === 'host_response') {
-    process.stdout.write(JSON.stringify({
-      type: 'result',
-      id: 'invoke-host',
-      result: { path: message.result },
-    }) + '\\n')
-    return
-  }
-  if (message.type !== 'invoke') return
-  if (message.method === 'HelperPing') {
-    process.stdout.write(JSON.stringify({
-      type: 'event',
-      event: 'helper.ping',
-      payload: { ok: true },
-    }) + '\\n')
-    process.stdout.write(JSON.stringify({
-      type: 'result',
-      id: message.id,
-      result: { locale: 'zh' },
-    }) + '\\n')
-    return
-  }
-  process.stdout.write(JSON.stringify({
-    type: 'result',
-    id: message.id,
-    error: 'unsupported desktop method "' + message.method + '"',
-  }) + '\\n')
-})
-`)
 
-  const { proc, lines, stderr } = startRuntime(home, helperBin)
+  const { proc, lines, stderr } = startRuntime(home)
   try {
     const ready = await waitLine(lines, (message) => message.type === 'ready')
     assert.equal(ready.type, 'ready')
@@ -116,13 +63,12 @@ lines.on('line', (line) => {
       type: 'invoke',
       id: 'invoke-1',
       source: 'renderer',
-      method: 'HelperPing',
+      method: 'ListConversations',
       args: [],
     })
-    const event = await waitLine(lines, (message) => message.type === 'event' && message.event === 'helper.ping')
-    assert.deepEqual(event.payload, { ok: true })
-    const catalog = await waitLine(lines, (message) => message.type === 'result' && message.id === 'invoke-1')
-    assert.deepEqual(catalog.result, { locale: 'zh' })
+    const listed = await waitLine(lines, (message) => message.type === 'result' && message.id === 'invoke-1')
+    assert.equal(listed.error, undefined)
+    assert.deepEqual(listed.result, [])
 
     const workspace = join(home, 'picked-workspace')
     await mkdir(workspace)
@@ -168,7 +114,7 @@ lines.on('line', (line) => {
   }
 })
 
-test('runtime owns ListConversations and does not ask the helper', async () => {
+test('runtime owns ListConversations', async () => {
   const home = await mkdtemp(join(tmpdir(), 'milksu-runtime-home-'))
   await mkdir(join(home, 'config'), { recursive: true })
   await mkdir(join(home, 'data', 'stores', 'conversations', 'archived'), { recursive: true })
@@ -179,24 +125,7 @@ test('runtime owns ListConversations and does not ask the helper', async () => {
     workspaceHome: 'ctf',
     messages: [],
   }, null, 2)}\n`)
-  const helperBin = await writeHelper(home, `'use strict'
-const readline = require('node:readline')
-process.stdout.write(JSON.stringify({ type: 'ready' }) + '\\n')
-const lines = readline.createInterface({ input: process.stdin, crlfDelay: Infinity })
-lines.on('line', (line) => {
-  let message
-  try { message = JSON.parse(line) } catch { return }
-  if (message.type === 'shutdown') process.exit(0)
-  if (message.type === 'invoke') {
-    process.stdout.write(JSON.stringify({
-      type: 'result',
-      id: message.id,
-      error: 'helper should not see ' + message.method,
-    }) + '\\n')
-  }
-})
-`)
-  const { proc, lines, stderr } = startRuntime(home, helperBin)
+  const { proc, lines, stderr } = startRuntime(home)
   try {
     await waitLine(lines, (message) => message.type === 'ready')
     await writeLine(proc.stdin, {
@@ -249,7 +178,7 @@ lines.on('line', (line) => {
   }
 })
 
-test('runtime owns fork, rewind, delete and does not let the helper write conversation JSON', async () => {
+test('runtime owns fork, rewind, delete of conversation JSON', async () => {
   const home = await mkdtemp(join(tmpdir(), 'milksu-runtime-session-'))
   await mkdir(join(home, 'config'), { recursive: true })
   await mkdir(join(home, 'data', 'stores', 'conversations', 'archived'), { recursive: true })
@@ -264,35 +193,7 @@ test('runtime owns fork, rewind, delete and does not let the helper write conver
       { id: 'a2', role: 'assistant', content: 'done', timestamp: 4 },
     ],
   }, null, 2)}\n`)
-  const helperBin = await writeHelper(home, `'use strict'
-const readline = require('node:readline')
-process.stdout.write(JSON.stringify({ type: 'ready' }) + '\\n')
-const lines = readline.createInterface({ input: process.stdin, crlfDelay: Infinity })
-lines.on('line', (line) => {
-  let message
-  try { message = JSON.parse(line) } catch { return }
-  if (message.type === 'shutdown') process.exit(0)
-  if (message.type !== 'invoke') return
-  if (message.method === 'SaveConversation' || message.method === 'DeleteConversation') {
-    process.stdout.write(JSON.stringify({
-      type: 'result',
-      id: message.id,
-      error: 'helper must not write conversation JSON via ' + message.method,
-    }) + '\\n')
-    return
-  }
-  if (message.method === 'DropResearchForConversation') {
-    process.stdout.write(JSON.stringify({ type: 'result', id: message.id, result: null }) + '\\n')
-    return
-  }
-  process.stdout.write(JSON.stringify({
-    type: 'result',
-    id: message.id,
-    error: 'helper should not see ' + message.method,
-  }) + '\\n')
-})
-`)
-  const { proc, lines, stderr } = startRuntime(home, helperBin)
+  const { proc, lines, stderr } = startRuntime(home)
   try {
     await waitLine(lines, (message) => message.type === 'ready')
 
@@ -349,28 +250,11 @@ lines.on('line', (line) => {
   }
 })
 
-test('runtime owns ListAgentResourceCatalog and does not ask the helper', async () => {
+test('runtime owns ListAgentResourceCatalog', async () => {
   const home = await mkdtemp(join(tmpdir(), 'milksu-runtime-resources-'))
   await mkdir(join(home, 'config'), { recursive: true })
   await mkdir(join(home, 'data', 'stores', 'conversations', 'archived'), { recursive: true })
-  const helperBin = await writeHelper(home, `'use strict'
-const readline = require('node:readline')
-process.stdout.write(JSON.stringify({ type: 'ready' }) + '\\n')
-const lines = readline.createInterface({ input: process.stdin, crlfDelay: Infinity })
-lines.on('line', (line) => {
-  let message
-  try { message = JSON.parse(line) } catch { return }
-  if (message.type === 'shutdown') process.exit(0)
-  if (message.type === 'invoke') {
-    process.stdout.write(JSON.stringify({
-      type: 'result',
-      id: message.id,
-      error: 'helper should not see ' + message.method,
-    }) + '\\n')
-  }
-})
-`)
-  const { proc, lines, stderr } = startRuntime(home, helperBin)
+  const { proc, lines, stderr } = startRuntime(home)
   try {
     await waitLine(lines, (message) => message.type === 'ready')
     await writeLine(proc.stdin, {
@@ -411,63 +295,7 @@ test('runtime owns GetSettings/SaveSettingsCmd; json has no key; renderer cannot
   const home = await mkdtemp(join(tmpdir(), 'milksu-runtime-settings-'))
   await mkdir(join(home, 'config'), { recursive: true })
   await mkdir(join(home, 'data', 'stores', 'conversations', 'archived'), { recursive: true })
-  const markerPath = join(home, 'platform-secret-accounts.json')
-  const helperBin = await writeHelper(home, `'use strict'
-const { writeFileSync } = require('node:fs')
-const readline = require('node:readline')
-const secrets = new Map()
-const accounts = []
-process.stdout.write(JSON.stringify({ type: 'ready' }) + '\\n')
-const lines = readline.createInterface({ input: process.stdin, crlfDelay: Infinity })
-lines.on('line', (line) => {
-  let message
-  try { message = JSON.parse(line) } catch { return }
-  if (message.type === 'shutdown') {
-    process.exit(0)
-    return
-  }
-  if (message.type !== 'invoke') return
-  if (message.method === 'GetSettings' || message.method === 'SaveSettingsCmd') {
-    process.stdout.write(JSON.stringify({
-      type: 'result',
-      id: message.id,
-      error: 'helper should not see ' + message.method,
-    }) + '\\n')
-    return
-  }
-  if (message.method === 'GetPlatformSecret') {
-    const account = String((message.args && message.args[0]) || '')
-    process.stdout.write(JSON.stringify({
-      type: 'result',
-      id: message.id,
-      result: secrets.get(account) || '',
-    }) + '\\n')
-    return
-  }
-  if (message.method === 'SetPlatformSecret') {
-    const account = String((message.args && message.args[0]) || '')
-    const secret = String((message.args && message.args[1]) || '')
-    secrets.set(account, secret)
-    accounts.push(account)
-    writeFileSync(${JSON.stringify(markerPath)}, JSON.stringify(accounts))
-    process.stdout.write(JSON.stringify({ type: 'result', id: message.id, result: null }) + '\\n')
-    return
-  }
-  if (message.method === 'DeletePlatformSecret') {
-    const account = String((message.args && message.args[0]) || '')
-    secrets.delete(account)
-    process.stdout.write(JSON.stringify({ type: 'result', id: message.id, result: null }) + '\\n')
-    return
-  }
-  process.stdout.write(JSON.stringify({
-    type: 'result',
-    id: message.id,
-    error: 'unsupported desktop method "' + message.method + '"',
-  }) + '\\n')
-})
-`)
-
-  const { proc, lines, stderr } = startRuntime(home, helperBin)
+  const { proc, lines, stderr } = startRuntime(home)
   const fakeKey = 'sk-test-settings-secret'
   try {
     await waitLine(lines, (message) => message.type === 'ready')
@@ -517,19 +345,14 @@ lines.on('line', (line) => {
     assert.equal(providers['custom-relay-deepseek'].has_api_key, true)
     assert.equal(JSON.stringify(after.result).includes(fakeKey), false)
 
-    if (process.platform === 'darwin') {
-      const accounts = JSON.parse(await readFile(markerPath, 'utf8'))
-      assert.equal(accounts.includes('provider:custom-relay-deepseek'), true)
-    } else {
-      const db = new DatabaseSync(join(home, 'config', 'credentials.db'))
-      try {
-        const row = db.prepare('SELECT secret FROM credentials WHERE account = ?').get(
-          'provider:custom-relay-deepseek',
-        )
-        assert.equal(Boolean(row && row.secret === fakeKey), true)
-      } finally {
-        db.close()
-      }
+    const db = new DatabaseSync(join(home, 'config', 'credentials.db'))
+    try {
+      const row = db.prepare('SELECT secret FROM credentials WHERE account = ?').get(
+        'provider:custom-relay-deepseek',
+      )
+      assert.equal(Boolean(row && row.secret === fakeKey), true)
+    } finally {
+      db.close()
     }
 
     await writeLine(proc.stdin, {

@@ -1,6 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { mkdirSync, statSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { join } from 'node:path'
 import readline from 'node:readline'
 import { applyTraceEnv } from '../../../sidecar/trace-id.js'
 import { generateTraceId } from '../trace.ts'
@@ -54,17 +54,18 @@ export function companionStatePath(home = resolveHomeRoot()): string {
 }
 
 export function resolveCompanionSidecarRuntime(
-  helperPath = '',
+  sidecarDir = '',
   env: NodeJS.ProcessEnv = process.env,
 ): { node: string; bridge: string } {
-  const sidecarDir = String(env.MILKSU_SIDECAR_DIR ?? '').trim()
-  if (sidecarDir) {
-    const runtime = packagedRuntimeAt(sidecarDir)
+  const fromEnv = String(env.MILKSU_SIDECAR_DIR ?? sidecarDir ?? '').trim()
+  if (fromEnv) {
+    const runtime = packagedRuntimeAt(fromEnv)
     if (runtime) return runtime
-    throw new Error(`MILKSU_SIDECAR_DIR does not contain a complete companion runtime: ${sidecarDir}`)
+    throw new Error(`MILKSU_SIDECAR_DIR does not contain a complete companion runtime: ${fromEnv}`)
   }
-  if (helperPath) {
-    const beside = packagedRuntimeAt(join(dirname(helperPath), PACKAGED_SIDECAR_DIRECTORY))
+  const resources = String(env.MILKSU_RESOURCES ?? '').trim()
+  if (resources) {
+    const beside = packagedRuntimeAt(join(resources, PACKAGED_SIDECAR_DIRECTORY))
     if (beside) return beside
   }
   const root = findProjectRoot(env)
@@ -74,9 +75,9 @@ export function resolveCompanionSidecarRuntime(
 export function companionSidecarEnvironment(input: {
   home: string
   agentDir: string
-  helperPath: string
+  sidecarDir?: string
   settings: AppSettings
-  helperEnv?: NodeJS.ProcessEnv | string[]
+  sidecarProviderEnv?: NodeJS.ProcessEnv | string[]
   traceId?: string
 }): NodeJS.ProcessEnv {
   const workspace = defaultAgentWorkspace(input.home)
@@ -94,9 +95,9 @@ export function companionSidecarEnvironment(input: {
     workspace,
     kernel: 'pi',
     settings: input.settings,
-    helperPath: input.helperPath,
+    sidecarDir: input.sidecarDir,
     traceId: input.traceId || generateTraceId(),
-    helperEnv: input.helperEnv ?? exportSidecarProviderEnvironment(input.settings),
+    sidecarProviderEnv: input.sidecarProviderEnv ?? exportSidecarProviderEnvironment(input.settings),
   })
   env.MILKSU_COMPANION_AGENT_DIR = input.agentDir
   env.MILKSU_COMPANION_INDEX_PATH = join(indexDir, 'obelisk.sqlite')
@@ -110,16 +111,19 @@ export function companionSidecarEnvironment(input: {
 export function startCompanionSidecar(input: {
   home: string
   agentDir: string
-  helperPath: string
+  sidecarDir?: string
   settings: AppSettings
-  helperEnv?: NodeJS.ProcessEnv | string[]
+  sidecarProviderEnv?: NodeJS.ProcessEnv | string[]
   traceId?: string
   onLine: (value: unknown) => void
   env?: NodeJS.ProcessEnv
 }): CompanionSidecarProcess {
   mkdirSync(input.agentDir, { recursive: true, mode: 0o700 })
   const workspace = defaultAgentWorkspace(input.home)
-  const runtime = resolveCompanionSidecarRuntime(input.helperPath, input.env ?? process.env)
+  const runtime = resolveCompanionSidecarRuntime(
+    input.sidecarDir ?? '',
+    input.env ?? process.env,
+  )
   const child = spawn(runtime.node, [runtime.bridge], {
     cwd: workspace,
     stdio: ['pipe', 'pipe', 'pipe'],

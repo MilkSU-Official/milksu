@@ -36,10 +36,16 @@ export function bindComputerUse(home: string, options: ManagerOptions): void {
 
 export async function closeComputerUse(home: string): Promise<void> {
   const manager = managers.get(home)
-  if (!manager) return
-  managers.delete(home)
-  overrides.delete(home)
-  await manager.close()
+  if (manager) {
+    managers.delete(home)
+    overrides.delete(home)
+    await manager.close()
+  }
+  const portal = portals.get(home)
+  if (portal) {
+    portals.delete(home)
+    await portal.stop()
+  }
 }
 
 export function computerUseDescriptor(home: string, conversationId: string) {
@@ -86,56 +92,69 @@ function asTargets(value: unknown): Target[] {
   })
 }
 
+const portals = new Map<string, { start(path: string): Promise<void>; stop(): Promise<void> }>()
+
+async function portalFor(home: string) {
+  let server = portals.get(home)
+  if (server) return server
+  const { PortalServer } = await import('../computercap/portal.ts')
+  server = new PortalServer()
+  portals.set(home, server)
+  return server
+}
+
 function productionOptions(ctx: HandlerContext): ManagerOptions {
-  const helper = async (method: string, args: unknown[] = []) => {
-    return ctx.invokeHelper(method, args, 'electron_host')
-  }
   return {
     home: ctx.home,
-    helperPath: String(process.env.MILKSU_NATIVE_HELPER ?? process.env.MILKSU_BACKEND_PATH ?? '').trim(),
+    sidecarDir: String(process.env.MILKSU_SIDECAR_DIR ?? '').trim(),
     grantDirectory: join(dataDirectory(ctx.home), 'services', 'computer-use', 'task-authorizations'),
     targetPid: desktopHostPid(),
     hostBundleId: String(process.env.MILKSU_DESKTOP_APP_ID ?? '').trim(),
     permissionProbe: async () => {
       try {
-        return asPermissions(await helper('ComputerUseAccessibilityStatus'))
+        if (!ctx.hostCall) return { accessibility: false, screenRecording: false }
+        return asPermissions(await ctx.hostCall('computerUse.permissions', { prompt: false }))
       } catch {
         return { accessibility: false, screenRecording: false }
       }
     },
     permissionOpen: async (kind) => {
-      if (kind === 'screen-recording') await helper('ComputerUseRequestScreenRecording')
-      else await helper('ComputerUseRequestAccessibility')
+      if (!ctx.hostCall) return
+      await ctx.hostCall('computerUse.openPermissions', { permission: kind })
     },
     signingProbe: async () => {
       try {
-        return asSigning(await helper('ComputerUseSigningStatus'))
+        const { probeSigning } = await import('../native/signing.ts')
+        return asSigning(await probeSigning())
       } catch {
         return { bundleId: '', signature: 'unknown', stableIdentity: false }
       }
     },
-    targetProvider: async () => asTargets(await helper('ComputerUseListWindows')),
-    hostExecutable: async (pid) => String(await helper('ComputerUseHostExecutable', [pid]) ?? ''),
+    targetProvider: async () => {
+      const { listPlatformWindows } = await import('../native/windows.ts')
+      return asTargets(await listPlatformWindows())
+    },
+    hostExecutable: async (pid) => {
+      const { hostExecutable } = await import('../native/windows.ts')
+      return hostExecutable(pid)
+    },
     linuxPortal: async () => {
-      try {
-        const info = await helper('ComputerUseLinuxDesktop') as LinuxDesktopInfo
-        return Boolean(info?.available)
-      } catch {
-        return false
-      }
+      const { probeLinuxDesktop } = await import('../native/linux-desktop.ts')
+      return probeLinuxDesktop().available
     },
     linuxDesktop: async () => {
       try {
-        return await helper('ComputerUseLinuxDesktop') as LinuxDesktopInfo
+        const { probeLinuxDesktop } = await import('../native/linux-desktop.ts')
+        return probeLinuxDesktop() as LinuxDesktopInfo
       } catch {
         return { available: false }
       }
     },
     startPortal: async (socketPath) => {
-      await helper('ComputerUseStartPortal', [socketPath])
+      await (await portalFor(ctx.home)).start(socketPath)
     },
     stopPortal: async () => {
-      await helper('ComputerUseStopPortal')
+      await (await portalFor(ctx.home)).stop()
     },
   }
 }

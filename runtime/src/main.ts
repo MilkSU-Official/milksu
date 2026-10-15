@@ -15,10 +15,10 @@ import { bindAgentResourceStore, bindCodingTools } from './domains/resources.ts'
 import { Engine } from './engine.ts'
 import {
   AttachmentStore,
+  NodePtyDriver,
   ProjectMemoryStore,
   PullRequestPublisher,
   TerminalManager,
-  createHelperPtyDriver,
 } from './codingenv/index.ts'
 import { handleOwnedMethod, isOwnedMethod, assertInvokeSource } from './handlers.ts'
 import { dataDirectory, modelUsagePath, resolveHomeRoot } from './home.ts'
@@ -34,7 +34,6 @@ import {
   createCompanionControl,
   createCompanionSpeaker,
 } from './companion/index.ts'
-import { NativeHelper, resolveNativeHelperPath } from './native-helper.ts'
 import { DesktopHost, JsonlPort, type RpcMessage, type RpcSource } from './rpc.ts'
 import { generateTraceId, normalizeTraceId } from './trace.ts'
 import { userArtifactDirectory, VulnService } from './vuln/index.ts'
@@ -58,13 +57,7 @@ async function main(): Promise<void> {
   const research = ResearchService.open(dataDirectory(home))
   await research.recover()
 
-  const helperPath = resolveNativeHelperPath()
-  if (!helperPath) {
-    throw new Error('MILKSU_NATIVE_HELPER or MILKSU_BACKEND_PATH is required')
-  }
-
   let companion: CompanionRuntime | undefined
-  let ptyDriver: ReturnType<typeof createHelperPtyDriver> | undefined
   const emit = (event: string, payload: unknown) => {
     if (event === 'engine-event' && companion) {
       companion.observeEngineEvent(payload as { type: string; sessionId?: string; error?: string })
@@ -72,48 +65,9 @@ async function main(): Promise<void> {
     void desktop.write({ type: 'event', event, payload })
   }
   const host = new DesktopHost((message) => desktop.write(message))
+  const sidecarDir = String(process.env.MILKSU_SIDECAR_DIR ?? '').trim()
 
-  const helper = new NativeHelper({
-    command: helperPath,
-    env: process.env,
-    onEvent: (event, payload) => {
-      if (ptyDriver?.handleEvent(event, payload)) return
-      emit(event, payload)
-    },
-    onHostRequest: (message) => {
-      void desktop.write({
-        type: 'host_request',
-        id: message.id,
-        method: message.method,
-        payload: message.payload,
-      })
-    },
-    onProtocolError: (error) => {
-      void desktop.write({ type: 'protocol_error', error })
-    },
-  })
-  await helper.start()
-
-  let helperInvokeSeq = 0
-  const invokeHelper = (
-    method: string,
-    args: unknown[],
-    source: RpcSource = 'renderer',
-  ): Promise<unknown> => {
-    helperInvokeSeq += 1
-    return helper.invoke({
-      type: 'invoke',
-      id: `runtime-helper-${helperInvokeSeq}`,
-      source,
-      method,
-      args,
-    })
-  }
-
-  const settings = await SettingsStore.open({
-    home,
-    invokeHelper: (method, args) => invokeHelper(method, args, 'electron_host'),
-  })
+  const settings = await SettingsStore.open({ home })
   const agentResources = await AgentResourceStore.open(
     dataDirectory(home),
     new SettingsSecretKeeper(settings.secretStore()),
@@ -133,7 +87,7 @@ async function main(): Promise<void> {
     pullRequests: new PullRequestPublisher(),
     usage: modelUsage,
   })
-  ptyDriver = createHelperPtyDriver(invokeHelper)
+  const ptyDriver = new NodePtyDriver()
   const terminals = new TerminalManager({
     driver: ptyDriver,
     emit: (event) => emit('coding-terminal-event', event),
@@ -162,9 +116,9 @@ async function main(): Promise<void> {
   const engine = new Engine(
     home,
     conversations,
-    helperPath,
+    sidecarDir,
     emit,
-    (message) => helper.invoke(message),
+    undefined,
     () => agentResources,
   )
   engine.attachResearch(research)
@@ -177,7 +131,7 @@ async function main(): Promise<void> {
     home,
     agentDir: companionAgentDirectory(home),
     statePath: companionStatePath(home),
-    helperPath,
+    sidecarDir,
     settings: () => settings.getResolved(),
     sidecarEnv: () => settings.exportSidecarEnvironment(),
     catalog,
@@ -206,7 +160,6 @@ async function main(): Promise<void> {
     engine,
     emit,
     home,
-    invokeHelper,
     hostCall: (method: string, payload?: unknown) => host.call(method, payload),
     agentResources,
     codingTools,
@@ -232,12 +185,13 @@ async function main(): Promise<void> {
         await handleInvoke(message)
         return
       case 'host_response':
-        if (!host.settle(message)) await helper.forwardRaw(message)
+        host.settle(message)
         return
       case 'shutdown':
         serve.close()
         await companion?.stop()
         await terminals.close()
+        await ptyDriver.closeAll()
         await closeBrowserCap(home)
         await closeComputerUse(home)
         await engine.stopAll()
@@ -245,7 +199,6 @@ async function main(): Promise<void> {
         vuln.close()
         modelUsage.close()
         await markRuntimeCleanExit(home)
-        await helper.shutdown()
         process.exit(0)
         return
       default:
@@ -268,8 +221,7 @@ async function main(): Promise<void> {
         await desktop.write({ type: 'result', id, result: result ?? null })
         return
       }
-      const result = await helper.invoke(message)
-      await desktop.write({ type: 'result', id, result: result ?? null })
+      throw new Error(`unsupported desktop method ${method}`)
     } catch (error) {
       await desktop.write({
         type: 'result',
@@ -283,6 +235,7 @@ async function main(): Promise<void> {
     void (async () => {
       await companion?.stop()
       await terminals.close()
+      await ptyDriver.closeAll()
       await closeBrowserCap(home)
       await closeComputerUse(home)
       await engine.stopAll()
@@ -290,7 +243,6 @@ async function main(): Promise<void> {
       vuln.close()
       modelUsage.close()
       await markRuntimeCleanExit(home)
-      await helper.shutdown()
       process.exit(0)
     })()
   })

@@ -93,9 +93,6 @@ async function stubCtx(home: string, engine?: Partial<Engine>): Promise<HandlerC
     } as Engine,
     emit: () => {},
     home,
-    invokeHelper: async (method) => {
-      throw new Error(`helper should not see ${method}`)
-    },
   }
 }
 

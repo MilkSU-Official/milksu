@@ -16,7 +16,7 @@ import type { PluginOptions } from './types.ts'
 
 const OWNED_PLUGIN_METHODS = [
   'ListPlugins',
-  'ListPetPluginPackages',
+  'ListCompanionPluginPackages',
   'SetPluginEnabled',
   'GetPluginSettingsScript',
   'GetActivePluginTheme',
@@ -118,7 +118,7 @@ async function openRegistry(options: {
 async function handlerContext(
   home: string,
   registry: PluginRegistry,
-  extras: Partial<Pick<HandlerContext, 'emit' | 'invokeHelper' | 'hostCall'>> = {},
+  extras: Partial<Pick<HandlerContext, 'emit' | 'hostCall'>> = {},
 ): Promise<HandlerContext> {
   bindPluginRegistry(home, registry)
   const conversations = new ConversationStore(join(home, 'data', 'stores', 'conversations'))
@@ -132,9 +132,6 @@ async function handlerContext(
     engine: {} as Engine,
     emit: extras.emit ?? (() => {}),
     home,
-    invokeHelper: extras.invokeHelper ?? (async (method) => {
-      throw new Error(`helper should not see ${method}`)
-    }),
     hostCall: extras.hostCall,
   }
 }
@@ -190,7 +187,7 @@ test('official TypeScript plugin can be listed, enabled and disabled', async () 
   }
 })
 
-test('ListPetPluginPackages only returns enabled Companion plugins', async () => {
+test('ListCompanionPluginPackages only returns enabled Companion plugins', async () => {
   const official = await mkdtemp(join(tmpdir(), 'milksu-plugin-official-'))
   await writePlugin(official, tsManifest('pet.plugin', {
     permissions: ['ui.pet'],
@@ -199,21 +196,21 @@ test('ListPetPluginPackages only returns enabled Companion plugins', async () =>
   await writePlugin(official, tsManifest('plain.plugin'))
   await writeLock(official, ['pet.plugin', 'plain.plugin'])
   const { home, registry } = await openRegistry({ official })
-  assert.deepEqual(await registry.listPetPluginPackages(), [])
+  assert.deepEqual(await registry.listCompanionPluginPackages(), [])
   await registry.setEnabled('pet.plugin', true)
   await registry.setEnabled('plain.plugin', true)
-  const packages = await registry.listPetPluginPackages()
+  const packages = await registry.listCompanionPluginPackages()
   assert.equal(packages.length, 1)
   assert.equal(packages[0]?.id, 'pet.plugin')
   assert.ok(packages[0]?.directory)
 
   const ctx = await handlerContext(home, registry)
   try {
-    const listed = await handleOwnedMethod(ctx, 'electron_host', 'ListPetPluginPackages', []) as Array<{ id: string }>
+    const listed = await handleOwnedMethod(ctx, 'electron_host', 'ListCompanionPluginPackages', []) as Array<{ id: string }>
     assert.equal(listed.length, 1)
     assert.equal(listed[0]?.id, 'pet.plugin')
     await assert.rejects(
-      () => handleOwnedMethod(ctx, 'renderer', 'ListPetPluginPackages', []),
+      () => handleOwnedMethod(ctx, 'renderer', 'ListCompanionPluginPackages', []),
       /unavailable to renderer/,
     )
   } finally {
@@ -378,7 +375,7 @@ test('development plugins cannot shadow official packages and reject write tools
   assert.match(issues[0]?.error ?? '', /read-only/)
 })
 
-test('CallPluginUI for a Lua plugin uses the helper invoke path', async () => {
+test('CallPluginUI for a Lua plugin uses invokeLua', async () => {
   const official = await mkdtemp(join(tmpdir(), 'milksu-plugin-official-'))
   await writePlugin(official, alphaManifest('lua.plugin'))
   await writeLock(official, ['lua.plugin'])
@@ -391,22 +388,15 @@ test('CallPluginUI for a Lua plugin uses the helper invoke path', async () => {
     },
   })
   await registry.setEnabled('lua.plugin', true)
-  const value = await registry.callUI('lua.plugin', { action: 'ping', input: {} })
-  assert.deepEqual(value, { ok: true })
-  assert.equal(calls.length, 1)
-  assert.equal(calls[0]?.entry, 'main.lua')
-
-  const ctx = await handlerContext(home, registry, {
-    invokeHelper: async (method, args) => {
-      assert.equal(method, 'RunLuaPlugin')
-      assert.equal(args[1], 'main.lua')
-      return { value: { capability: 'value', value: { from: 'helper' } } }
-    },
-  })
+  const ctx = await handlerContext(home, registry)
   try {
-    // Lua invoke is captured at registry open; this RPC still exercises CallPluginUI ownership.
-    const listed = await handleOwnedMethod(ctx, 'renderer', 'ListPlugins', []) as Array<{ id: string }>
-    assert.equal(listed.length, 1)
+    const value = await handleOwnedMethod(ctx, 'renderer', 'CallPluginUI', [
+      'lua.plugin',
+      { action: 'ping', input: {} },
+    ])
+    assert.deepEqual(value, { ok: true })
+    assert.equal(calls.length, 1)
+    assert.equal(calls[0]?.entry, 'main.lua')
   } finally {
     unbindPluginRegistry(home)
   }
@@ -435,15 +425,21 @@ test('GetPluginMCPConfig points at plugin-mcp without printing secrets', async (
   try {
     const config = await handleOwnedMethod(ctx, 'renderer', 'GetPluginMCPConfig', []) as {
       available: boolean
+      command?: string
       args: string[]
       configuration: Record<string, unknown>
     }
     assert.equal(typeof config.available, 'boolean')
+    const encoded = JSON.stringify(config)
+    assert.equal(encoded.includes('sk-'), false)
+    assert.equal(encoded.includes('api_key'), false)
     if (config.available) {
-      assert.deepEqual(config.args, ['plugin-mcp'])
-      const encoded = JSON.stringify(config)
-      assert.equal(encoded.includes('sk-'), false)
-      assert.equal(encoded.includes('api_key'), false)
+      assert.equal(config.command, process.execPath)
+      assert.ok(config.args.some((value) => String(value).includes('plugin-mcp')))
+      const servers = (config.configuration.mcpServers ?? {}) as Record<string, { env?: Record<string, string> }>
+      const env = servers['milksu-plugins']?.env ?? {}
+      assert.equal(env.MILKSU_HOME, home)
+      assert.equal(env.MILKSU_APPDATA_DIR, home)
     } else {
       assert.deepEqual(config.args, [])
     }

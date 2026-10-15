@@ -14,7 +14,7 @@ import {
   type Descriptor,
   type Manifest,
   type PackageRecord,
-  type PetPluginPackage,
+  type CompanionPluginPackage,
   type PluginAssetResponse,
   type PluginBackgroundChoice,
   type PluginOptions,
@@ -384,14 +384,51 @@ export class PluginRegistry {
     })
   }
 
-  async listPetPluginPackages(): Promise<PetPluginPackage[]> {
+  async externalToolCatalog(): Promise<ToolCallDescriptor[]> {
+    return this.mu.run(async () => {
+      try {
+        await this.refreshStateLocked()
+      } catch {
+        return []
+      }
+      const result: ToolCallDescriptor[] = []
+      for (const record of this.items.values()) {
+        if (
+          record.errorText
+          || !this.state.enabled[record.manifest.id]
+          || !this.state.external[record.manifest.id]
+          || !hasPermission(record.manifest.permissions, 'mcp.external.read')
+        ) {
+          continue
+        }
+        for (const tool of record.manifest.contributes?.tools ?? []) {
+          if (tool.effect === 'read' && tool.external === 'read') {
+            result.push({
+              plugin_id: record.manifest.id,
+              plugin_version: record.manifest.version,
+              plugin_digest: record.digest,
+              tool,
+            })
+          }
+        }
+      }
+      result.sort((left, right) => (
+        left.plugin_id === right.plugin_id
+          ? left.tool.name.localeCompare(right.tool.name)
+          : left.plugin_id.localeCompare(right.plugin_id)
+      ))
+      return result
+    })
+  }
+
+  async listCompanionPluginPackages(): Promise<CompanionPluginPackage[]> {
     return this.mu.run(async () => {
       try {
         await this.refreshStateLocked()
       } catch {
         this.state = defaultState()
       }
-      const result: PetPluginPackage[] = []
+      const result: CompanionPluginPackage[] = []
       for (const record of this.items.values()) {
         if (record.errorText || !this.state.enabled[record.manifest.id]) continue
         if (!hasPermission(record.manifest.permissions, 'ui.pet') || !contributesSlot(record.manifest.contributes?.slots, 'app.pet')) continue

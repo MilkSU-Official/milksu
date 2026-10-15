@@ -240,6 +240,8 @@ function createProgressTool() {
  *   observeResearchAction 研究动作观测（bridge.js observeResearchWorkspaceAction）
  *   researchSecrets      alias → 会话 provider secrets（研究文本脱敏）
  *   isResearchActive     alias → 是否有活跃研究 run（研究浏览器隔离）
+ *   getReverseArtifacts  alias → 会话逆向产物 store（list/preview_reverse_artifact）
+ *   getTraceId           alias → 会话 trace id（start_research_run 注入）
  *   workspace            进程工作区（原型构造用）
  */
 export async function createMilksuDailyToolsExtension(context) {
@@ -259,6 +261,7 @@ export async function createMilksuDailyToolsExtension(context) {
     observeResearchAction,
     researchSecrets = () => [],
     isResearchActive = () => false,
+    getReverseArtifacts = () => [],
     getTraceId = () => "",
     workspace = process.cwd(),
   } = context;
@@ -324,6 +327,7 @@ export async function createMilksuDailyToolsExtension(context) {
         observeResearchAction,
         () => researchSecrets(alias),
         () => isResearchActive(alias),
+        () => getReverseArtifacts(alias),
         () => getTraceId(alias),
       ),
     );

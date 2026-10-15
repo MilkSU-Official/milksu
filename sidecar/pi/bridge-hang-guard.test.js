@@ -66,7 +66,7 @@ test("missing timeout receives the default", () => {
 });
 
 test("the default leaves room for ordinary long builds", () => {
-  // 120s would terminate `npm ci`, `cargo build` and `go test ./...` on a cold cache,
+  // 120s would terminate `npm ci` and `cargo build` on a cold cache,
   // and the model routinely omits `timeout` entirely.
   assert.ok(DEFAULT_BASH_TIMEOUT_SECONDS >= 600);
   assert.ok(DEFAULT_BASH_TIMEOUT_SECONDS < MAX_BASH_TIMEOUT_SECONDS);

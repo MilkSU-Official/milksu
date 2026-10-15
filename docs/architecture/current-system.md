@@ -5,18 +5,18 @@
 本工作树 Desktop JSONL 进程是 TypeScript Runtime：
 
 ```text
-React → Electron Preload / Desktop RPC → TypeScript Runtime → Pi sidecar | Agent | 原生助手
+React → Electron Preload / Desktop RPC → TypeScript Runtime → Pi sidecar | Agent
 ```
 
 本工作树 Desktop 已走 TypeScript Runtime。已发行安装包在本 PR 合进 `main` 并发版之前仍是 Go Application Service。
 
-Electron 主窗口跑产品 renderer。右栏浏览器是同壳的会话隔离 `WebContentsView`。Runtime 不拥有 GUI，也不拥有通用模型循环。Pi 拥有嵌入会话、压缩和工具循环。其余 Agent 在设置里填命令，经 ACP 接入（含原 DSH）。MilkSU 持有桌面授权、凭据、CVE / 实验室领域事实。原生助手只做钥匙串 CGO、PTY、Lua 解释器、Computer Use 的 AX / 屏幕录制 / Portal / 签名身份。
+Electron 主窗口跑产品 renderer。右栏浏览器是同壳的会话隔离 `WebContentsView`。Runtime 不拥有 GUI，也不拥有通用模型循环。Pi 拥有嵌入会话、压缩和工具循环。其余 Agent 由用户添加、各自命名，经 ACP 接入（含原 DSH）。MilkSU 持有桌面授权、凭据、CVE / 实验室领域事实。操作系统层在 Runtime 进程内：C/ObjC N-API、`node-pty`、fengari、`dbus-next`、Electron `hostCall`。
 
-嵌入内核只有 Pi（`@earendil-works/pi-coding-agent` 1.1.0）。其余 Agent：设置里填命令、参数、环境变量，经 ACP 接入；协议不支持的能力在 UI 上灰掉并写一句原因。安装包默认不带这份命令。`MILKSU_DSH_COMMAND` 是这条路径的内部原型。
+嵌入内核只有 Pi（`@earendil-works/pi-coding-agent` 1.1.0）。其余 Agent：设置 → 运行时和输入栏都可以添加多个（Codex / Claude Code / ACP），各自填名称、命令、参数、环境变量，经 ACP 接入；协议不支持的能力在 UI 上灰掉并写一句原因。安装包默认不带这份命令。`MILKSU_DSH_COMMAND` 是这条路径的内部原型。
 
 一次用户发送生成一个 `traceId`，RPC、Runtime 日志、Pi sidecar、ACP 子进程、研究 worker 都带上。
 
-Pi / Agent sidecar 按内核 + 工作区路径各起一条进程，cwd 就是该工作区。删除会话发 `destroy_session`。该工作区没有剩下的会话时停掉这条 sidecar。闲置退出不广播 `engine.stopped`。未打包时 sidecar 和看板娘用 Desktop 的 Electron 二进制起进程，并设 `ELECTRON_RUN_AS_NODE=1`。二进制文件名是 `node` 时不加这项。
+Pi / Agent sidecar 按内核 + 工作区路径各起一条进程，cwd 就是该工作区。ACP Agent 再按 Agent id 分开，同一工作区里两个命名 Agent 不共用进程。删除会话发 `destroy_session`。该工作区没有剩下的会话时停掉这条 sidecar。闲置退出不广播 `engine.stopped`。未打包时 sidecar 和看板娘用 Desktop 的 Electron 二进制起进程，并设 `ELECTRON_RUN_AS_NODE=1`。二进制文件名是 `node` 时不加这项。
 
 Agent sidecar 的 `MILKSU_DSH_PI_AI_ROUTES` 由 Runtime 合成。账户中转、个人 TokenFlux key、以及指向 `https://tokenflux.dev/v1` 的自定义中转都会挂上 `providers.tokenflux`。自定义中转还会用自己的 provider id 再挂一条同样的路由。模型表读 `data/services/model-catalog/tokenflux.json`，带思考档位。TokenFlux 路由带 `compat.supportsDeveloperRole: false`，pi-ai 发 `system`。官方 DeepSeek key 仍走 `llm-deepseek`。
 
@@ -55,7 +55,7 @@ TokenFlux 只走 `https://tokenflux.dev/v1`。Provider Key 不进 renderer、模
 | --- | --- |
 | 桌面壳 | `desktop/main.cjs`、`desktop/preload.cjs` |
 | TypeScript Runtime | `runtime/`（Desktop JSONL 宿主；全部 renderer RPC） |
-| 原生助手 | `cmd/milksu-backend/`（`main` 只注册钥匙串 CGO、PTY、Lua、Computer Use OS 探针；不写 lifespan） |
+| N-API | `desktop/native/`（钥匙串、窗口列表；Electron TCC 走 `hostCall`） |
 | Pi | `sidecar/pi/bridge.js` |
 | Agent | `sidecar/dsh/`（ACP 适配器） |
 | 看板娘 | `runtime/src/companion/`、`sidecar/companion/` |

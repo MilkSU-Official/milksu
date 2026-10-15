@@ -97,10 +97,45 @@ describe('model provider catalog', () => {
       active_provider: 'custom-relay-deepseek',
       active_model: 'deepseek-flash',
       default_kernel: 'acp',
-      acp_guest: { command: '/usr/bin/guest' },
+      acp_agent: { command: '/usr/bin/guest' },
     } as AppSettings)
     expect(withCommand.default_kernel).toBe('dsh')
-    expect(withCommand.acp_guest).toEqual({ command: '/usr/bin/guest' })
+    expect(withCommand.acp_agent).toEqual({ command: '/usr/bin/guest' })
+    expect(withCommand.acp_agents).toEqual([{
+      id: 'agt_legacy',
+      name: 'Agent',
+      kind: 'acp',
+      command: '/usr/bin/guest',
+    }])
+    expect(withCommand.default_acp_agent_id).toBe('agt_legacy')
+    const fromLegacy = withAppSettingsDefaults({
+      active_provider: 'custom-relay-deepseek',
+      active_model: 'deepseek-flash',
+      default_kernel: 'dsh',
+      acp_guest: { command: '/usr/bin/guest' },
+    } as AppSettings & { acp_guest: { command: string } })
+    expect(fromLegacy.acp_agent).toEqual({ command: '/usr/bin/guest' })
+    expect(fromLegacy.default_kernel).toBe('dsh')
+    expect(fromLegacy.acp_agents?.[0]?.id).toBe('agt_legacy')
+  })
+
+  it('keeps multiple named ACP agents', () => {
+    const settings = withAppSettingsDefaults({
+      active_provider: 'custom-relay-deepseek',
+      active_model: 'deepseek-flash',
+      default_kernel: 'dsh',
+      default_acp_agent_id: 'agt_codex',
+      acp_agents: [
+        { id: 'agt_codex', name: 'Codex', kind: 'codex', command: 'npx', args: ['-y', '@agentclientprotocol/codex-acp'] },
+        { id: 'agt_custom', name: 'ACP', kind: 'acp' },
+      ],
+    } as AppSettings)
+    expect(settings.acp_agents).toHaveLength(2)
+    expect(settings.default_kernel).toBe('dsh')
+    expect(settings.acp_agent).toEqual({
+      command: 'npx',
+      args: ['-y', '@agentclientprotocol/codex-acp'],
+    })
   })
 
   it('normalizes busy_send without rewriting other settings', () => {

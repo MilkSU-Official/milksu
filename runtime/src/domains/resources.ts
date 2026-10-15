@@ -4,7 +4,6 @@ import type { HandlerContext } from '../handlers.ts'
 import {
   AgentResourceStore,
   CodingToolsService,
-  HelperSecretKeeper,
   SettingsSecretKeeper,
   builtinMCPWorkspacePrompt,
   builtinSkillWorkspacePrompt,
@@ -94,11 +93,8 @@ async function resourceStore(ctx: HandlerContext): Promise<AgentResourceStore> {
     stores.set(ctx.home, existing)
     return existing
   }
-  const secrets = ctx.settings
-    ? new SettingsSecretKeeper(ctx.settings.secretStore())
-    : new HelperSecretKeeper((method, args) => (
-      ctx.invokeHelper(method, args, 'electron_host')
-    ))
+  if (!ctx.settings) throw new Error('settings store is unavailable')
+  const secrets = new SettingsSecretKeeper(ctx.settings.secretStore())
   const store = await AgentResourceStore.open(dataDirectory(ctx.home), secrets)
   stores.set(ctx.home, store)
   return store
@@ -204,9 +200,8 @@ registerOwnedHandlers({
     if (kind === 'mcp') {
       if (!knownBuiltinMCP(name)) throw new Error(`unknown built-in MCP ${JSON.stringify(name)}`)
       const tools = (await import('./platform.ts')).securityToolsFor(ctx.home)
-      const prepared = tools
-        ? asObject(await tools.codingHandoff(name))
-        : asObject(await ctx.invokeHelper('PrepareSecurityToolCodingHandoff', [name], 'renderer'))
+      if (!tools) throw new Error('security tools are unavailable')
+      const prepared = asObject(await tools.codingHandoff(name))
       handoff.title = String(prepared.title ?? '')
       handoff.prompt = `${String(prepared.prompt ?? '')}${builtinMCPWorkspacePrompt(name)}`
       handoff.visibleText = String(prepared.visibleText ?? '')

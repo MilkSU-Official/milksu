@@ -1,5 +1,9 @@
 import { defaultBusySend, type BusySendPolicy } from '@/lib/agentKernel'
-import { normalizeAcpGuest, selectableAgentKernel } from '@/lib/acpGuest'
+import {
+  derivedAcpAgent,
+  migrateAcpAgents,
+  selectableAgentKernel,
+} from '@/lib/acpAgent'
 import { normalizePreferredExternalEditor } from '@/lib/externalEditor'
 import { normalizeUiEmphasisPreset, type UiEmphasisPreset } from '@/lib/uiEmphasis'
 import { normalizeUiFontSize, type UiFontSize } from '@/lib/uiFonts'
@@ -271,6 +275,8 @@ export interface Conversation {
   workspacePath?: string
   /** Agent runtime pinned for this conversation. Missing records are Pi. */
   kernel?: import('@/lib/agentKernel').AgentKernel
+  /** Named ACP agent for kernel `dsh`. Missing records use the settings default. */
+  acpAgentId?: string
   /** DSH child session spawned from Multitask; hidden from the sidebar. */
   parentConversationId?: string
   /** New sends while the parent is running stay on this conversation. */
@@ -417,8 +423,11 @@ export interface AppSettings {
   active_provider: string
   active_model: string
   default_kernel?: import('@/lib/agentKernel').AgentKernel
-  /** User-provided Agent command (ACP). Empty command means Pi only. */
-  acp_guest?: import('@/lib/acpGuest').AcpGuestConfig
+  /** Named ACP agents. Each has a custom name and a command. */
+  acp_agents?: import('@/lib/acpAgent').NamedAcpAgent[]
+  default_acp_agent_id?: string
+  /** Derived from the default named agent. Kept so older readers still see a command. */
+  acp_agent?: import('@/lib/acpAgent').AcpAgentConfig
   /** Installed agent kernel package versions; injected by the backend, never persisted. */
   runtime_versions?: Record<string, string>
   busy_send?: BusySendPolicy
@@ -783,12 +792,21 @@ export function withAppSettingsDefaults(value: AppSettings): AppSettings {
       : activeInfo?.models.includes(requestedModel)
         ? requestedModel
         : activeInfo?.models[0] ?? fallbackSelection.model
+  const acpMigrated = migrateAcpAgents({
+    acp_agents: value.acp_agents,
+    acp_agent: value.acp_agent,
+    acp_guest: (value as AppSettings & { acp_guest?: AppSettings['acp_agent'] }).acp_guest,
+    default_acp_agent_id: value.default_acp_agent_id,
+  })
+  const acpDefault = derivedAcpAgent(acpMigrated.agents, acpMigrated.defaultId)
   return {
     ...value,
     active_provider: activeProvider,
     active_model: activeModel,
-    acp_guest: normalizeAcpGuest(value.acp_guest),
-    default_kernel: selectableAgentKernel(value.default_kernel, normalizeAcpGuest(value.acp_guest)),
+    acp_agents: acpMigrated.agents,
+    default_acp_agent_id: acpMigrated.defaultId || undefined,
+    acp_agent: acpDefault,
+    default_kernel: selectableAgentKernel(value.default_kernel, acpDefault, acpMigrated.agents),
     busy_send: defaultBusySend(value.busy_send),
     model_routing: normalizeModelRouting(value.model_routing),
     preferred_external_editor: normalizePreferredExternalEditor(value.preferred_external_editor),

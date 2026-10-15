@@ -32,9 +32,6 @@ function stubCtx(home: string, service: VulnService, hostCall?: HandlerContext['
     engine: {} as HandlerContext['engine'],
     emit: () => {},
     home,
-    invokeHelper: async () => {
-      throw new Error('helper should not be called')
-    },
     hostCall,
     vuln: service,
   }

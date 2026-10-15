@@ -62,13 +62,13 @@ async function openCtx(options: {
   permissions?: Permissions
   windows?: Target[]
   signing?: SigningStatus
-}): Promise<{ home: string; ctx: HandlerContext; helperCalls: string[] }> {
+}): Promise<{ home: string; ctx: HandlerContext; probeCalls: string[] }> {
   const home = await mkdtemp(join(tmpdir(), 'milksu-computeruse-'))
   const conversations = new ConversationStore(join(home, 'data', 'stores', 'conversations'))
   await conversations.ensure()
   const labJobs = new LabJobStore(join(home, 'data', 'stores', 'lab-jobs'))
   await labJobs.ensure()
-  const helperCalls: string[] = []
+  const probeCalls: string[] = []
   const windows = options.windows ?? [HOST_WINDOW, TEXT_EDIT]
   const permissions = options.permissions ?? { accessibility: true, screenRecording: true }
   const signing = options.signing ?? {
@@ -80,13 +80,27 @@ async function openCtx(options: {
   const driverPath = await fakeDriverPath(home)
   bindComputerUse(home, {
     home,
-    goos: 'darwin',
+    os: 'darwin',
     binaryPath: driverPath,
     targetPid: 1111,
     hostBundleId: 'com.milksu.app',
     startTimeoutMs: 2000,
     grantDirectory: join(home, 'data', 'services', 'computer-use', 'task-authorizations'),
     commandFactory: commandFactory(driverPath),
+    permissionProbe: async () => permissions,
+    permissionOpen: async (kind) => {
+      probeCalls.push(
+        kind === 'screen-recording'
+          ? 'request-screen-recording'
+          : 'request-accessibility',
+      )
+    },
+    signingProbe: async () => signing,
+    targetProvider: async () => {
+      probeCalls.push('list-windows')
+      return windows
+    },
+    hostExecutable: async () => '',
   })
   const ctx: HandlerContext = {
     conversations,
@@ -98,39 +112,19 @@ async function openCtx(options: {
     } as Engine,
     emit: () => {},
     home,
-    invokeHelper: async (method) => {
-      helperCalls.push(method)
-      switch (method) {
-        case 'ComputerUseAccessibilityStatus':
-          return permissions
-        case 'ComputerUseListWindows':
-          return windows
-        case 'ComputerUseSigningStatus':
-          return signing
-        case 'ComputerUseHostExecutable':
-          return ''
-        case 'ComputerUseLinuxDesktop':
-          return { available: false, problem: 'Computer Use 在当前 Linux 桌面上不可用。' }
-        case 'ComputerUseRequestScreenRecording':
-        case 'ComputerUseRequestAccessibility':
-          return null
-        default:
-          throw new Error(`unexpected helper ${method}`)
-      }
-    },
   }
-  return { home, ctx, helperCalls }
+  return { home, ctx, probeCalls }
 }
 
-test('fake helper window list is filtered and never opens AX', async () => {
-  const { home, ctx, helperCalls } = await openCtx({})
+test('window list is filtered and never opens a permission prompt', async () => {
+  const { home, ctx, probeCalls } = await openCtx({})
   try {
     const targets = await handleOwnedMethod(ctx, 'renderer', 'ListCodingComputerUseTargets', []) as Target[]
     assert.equal(targets.length, 1)
     assert.equal(targets[0]?.bundleId, 'com.apple.TextEdit')
     assert.equal(targets[0]?.pid, 4242)
-    assert.ok(helperCalls.includes('ComputerUseListWindows'))
-    assert.equal(helperCalls.includes('ComputerUseRequestScreenRecording'), false)
+    assert.ok(probeCalls.includes('list-windows'))
+    assert.equal(probeCalls.includes('request-screen-recording'), false)
   } finally {
     await closeComputerUse(home)
   }
@@ -219,8 +213,8 @@ test('StartCodingComputerUse / StopCodingComputerUse match Grant/Revoke', async 
   }
 })
 
-test('RequestCodingComputerUsePermissions uses helper RequestScreenRecording', async () => {
-  const { home, ctx, helperCalls } = await openCtx({
+test('RequestCodingComputerUsePermissions opens the screen-recording panel', async () => {
+  const { home, ctx, probeCalls } = await openCtx({
     permissions: { accessibility: true, screenRecording: false },
   })
   try {
@@ -231,8 +225,8 @@ test('RequestCodingComputerUsePermissions uses helper RequestScreenRecording', a
       ['screen-recording'],
     ) as Status
     assert.equal(status.permissions.screenRecording, false)
-    assert.ok(helperCalls.includes('ComputerUseRequestScreenRecording'))
-    assert.equal(helperCalls.includes('ComputerUseRequestAccessibility'), false)
+    assert.ok(probeCalls.includes('request-screen-recording'))
+    assert.equal(probeCalls.includes('request-accessibility'), false)
   } finally {
     await closeComputerUse(home)
   }

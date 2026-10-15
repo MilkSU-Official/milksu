@@ -1126,21 +1126,21 @@ test('surface scanner fails leaks and unexpected error chrome, not expected form
   assert.equal(packagedLaunch.executable, expectedExecutable)
   assert.equal(resolveProductLoopLaunchPlan({}, '/repo/milksu').mode, 'desktop-start')
   assert.equal(
-    formatMissingDesktopDevArtifacts(['renderer', 'helper', 'electron']),
-    'desktop:start --no-build missing renderer, helper, electron; run npm --prefix desktop install; run npm run desktop:build-dev',
+    formatMissingDesktopDevArtifacts(['renderer', 'electron']),
+    'desktop:start --no-build missing renderer, electron; run npm --prefix desktop install; run npm run desktop:build-dev',
   )
   assert.equal(formatMissingDesktopDevArtifacts([]), '')
   const emptyRoot = await mkdtemp(join(tmpdir(), 'milksu-dev-artifacts-'))
-  assert.deepEqual(await missingDesktopDevArtifacts(emptyRoot), ['runtime', 'renderer', 'helper', 'electron'])
+  assert.deepEqual(await missingDesktopDevArtifacts(emptyRoot), ['runtime', 'renderer', 'electron'])
   const child = new EventEmitter()
   child.exitCode = 1
   child.stdout = new EventEmitter()
   child.stderr = new EventEmitter()
   const readOutput = captureChildOutput(child)
-  child.stderr.emit('data', 'desktop:start --no-build missing helper\n')
+  child.stderr.emit('data', 'desktop:start --no-build missing runtime\n')
   assert.equal(
     desktopStartExitError(child, readOutput).message,
-    'desktop:start exited 1: desktop:start --no-build missing helper',
+    'desktop:start exited 1: desktop:start --no-build missing runtime',
   )
 
   assert.equal(isSurfaceLeakText('No API key for tokenflux/deepseek/deepseek-flash'), true)
@@ -1758,14 +1758,14 @@ test('resolveProductLoopAgentCommand uses checkout bin.js', async () => {
   )
 })
 
-test('ensureProductLoopAgent does not copy API_KEY-like env into acp_guest', async () => {
+test('ensureProductLoopAgent does not copy API_KEY-like env into acp_agent', async () => {
   const root = await mkdtemp(join(tmpdir(), 'milksu-loop-agent-key-'))
   const saved = []
   const driver = {
     async invoke(method, args) {
       if (method === 'GetSettings') {
         return {
-          acp_guest: {
+          acp_agent: {
             command: '',
             env: { DEEPSEEK_API_KEY: 'sk-test', PATH: '/usr/bin' },
           },
@@ -1788,9 +1788,9 @@ test('ensureProductLoopAgent does not copy API_KEY-like env into acp_guest', asy
   })
   assert.equal(result.ok, true)
   assert.equal(saved.length, 1)
-  assert.equal(saved[0].acp_guest.command, '/bin/echo')
-  assert.equal(saved[0].acp_guest.env, undefined)
-  const blob = JSON.stringify(saved[0].acp_guest)
+  assert.equal(saved[0].acp_agent.command, '/bin/echo')
+  assert.equal(saved[0].acp_agent.env, undefined)
+  const blob = JSON.stringify(saved[0].acp_agent)
   assert.equal(blob.includes('sk-test'), false)
   assert.equal(blob.includes('API_KEY'), false)
   assert.equal(blob.includes('PATH'), false)

@@ -386,37 +386,19 @@ export async function inspectPackagedApp(appPath, expectedChannel) {
     issues.push(`sealed build tracking missing or unreadable: ${error?.message || error}`)
   }
 
-  // 5) TCC-bearing Go runtime must share the channel bundle identity with the shell.
-  // Permission probes (AX/Screen Recording) run inside milksu-backend, not the Electron
-  // main binary. Identifier=a.out would create a separate TCC principal and stage-lock
-  // ad-hoc pre-release bootstrap.
-  const backendPath = join(result.appPath, 'Contents', 'Resources', 'milksu-backend')
+  // 5) Runtime JSONL host and native N-API addons live in Resources.
+  const runtimePath = join(result.appPath, 'Contents', 'Resources', 'runtime', 'main.cjs')
   try {
-    await fs.access(backendPath)
-    const { stdout, stderr } = await execFileAsync('/usr/bin/codesign', [
-      '-dv',
-      '--verbose=4',
-      backendPath,
-    ])
-    const text = `${stdout}\n${stderr}`
-    let backendIdentifier = ''
-    for (const rawLine of text.split('\n')) {
-      const line = rawLine.trim()
-      if (line.startsWith('Identifier=')) {
-        backendIdentifier = line.slice('Identifier='.length).trim()
-        break
-      }
-    }
-    result.backend = { path: backendPath, identifier: backendIdentifier }
-    if (!backendIdentifier) {
-      issues.push('milksu-backend codesign Identifier is missing')
-    } else if (backendIdentifier !== config.appId) {
-      issues.push(
-        `milksu-backend codesign Identifier expected ${config.appId}, got ${backendIdentifier}`,
-      )
-    }
+    await fs.access(runtimePath)
+    result.runtime = { path: runtimePath }
   } catch (error) {
-    issues.push(`milksu-backend signing inspect failed: ${error?.message || error}`)
+    issues.push(`packaged runtime/main.cjs missing: ${error?.message || error}`)
+  }
+  try {
+    await fs.access(join(result.appPath, 'Contents', 'Resources', 'milksu-backend'))
+    issues.push('packaged milksu-backend must not ship; Desktop JSONL is TypeScript Runtime')
+  } catch {
+    // expected
   }
 
   // 6) Packed sources: a window whose preload was dropped from the asar loads
