@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Button,
   Dialog,
@@ -19,6 +19,11 @@ import type {
   CodingComputerUsePermission,
   CodingComputerUseStatus,
 } from '@/codingEnvironmentTypes'
+import {
+  PERMISSION_DRIFT_HINT_MS,
+  permissionDriftGuidance,
+  permissionWizardState,
+} from '@/lib/codingComputerUsePermissionWizard'
 import { useT } from '@/hooks/useUiLocale'
 
 const DIALOG_STYLES = `
@@ -74,12 +79,42 @@ export default function CodingComputerUsePermissionDialog({
   const t = useT()
   const pollTimer = useRef<number | null>(null)
   const completionEmitted = useRef(false)
+  // R4 三态判别（CU v2 §3.8）的会话内事实：什么时候点过「打开设置」、什么时候读者
+  // 明确说过「我已开启但没生效」。两者都不是权限真相——真相只认 status 布尔（canary），
+  // 这里只是把「等了很久还没生效」翻译成 drift 态的可操作指引。
+  const [settingsOpenedAt, setSettingsOpenedAt] = useState<Partial<Record<CodingComputerUsePermission, number>>>({})
+  const [userConfirmedNotEffective, setUserConfirmedNotEffective] = useState<Partial<Record<CodingComputerUsePermission, boolean>>>({})
 
   const permissionsReady = Boolean(
     status?.permissions.accessibility && status.permissions.screenRecording,
   )
   const grantedCount = Number(Boolean(status?.permissions.accessibility))
     + Number(Boolean(status?.permissions.screenRecording))
+  // macOS TCC 漂移只在 macOS 上有意义：Windows 恒真（无 TCC）、Linux 走系统桌面共享授权，
+  // 都没有「授权了没注册上」这一态。
+  const signature = String(status?.signing?.signature ?? '')
+  const driftEligible = signature !== 'windows-user-session' && signature !== 'linux-portal'
+  const driftHintMs = driftEligible ? PERMISSION_DRIFT_HINT_MS : Number.POSITIVE_INFINITY
+
+  function requestPermission(permission: CodingComputerUsePermission) {
+    setSettingsOpenedAt(previous => ({ ...previous, [permission]: Date.now() }))
+    onRequestPermissions?.(permission)
+  }
+
+  function confirmNotEffective(permission: CodingComputerUsePermission) {
+    setUserConfirmedNotEffective(previous => ({ ...previous, [permission]: true }))
+  }
+
+  function permissionRowState(permission: CodingComputerUsePermission, granted: boolean) {
+    return permissionWizardState({
+      granted,
+      settingsOpenedAt: settingsOpenedAt[permission] ?? null,
+      // 问答式确认与手动添加指引都是 macOS TCC 语境；其它平台不给这个态。
+      userConfirmedNotEffective: driftEligible && userConfirmedNotEffective[permission] === true,
+      now: Date.now(),
+      driftHintMs,
+    })
+  }
   const componentDescription = useMemo(() => {
     if (!status?.available) {
       return status?.problem || t('正在检查本地组件。', 'Checking local components.')
@@ -166,18 +201,48 @@ export default function CodingComputerUsePermissionDialog({
                     <p className="mt-1 text-xs leading-5 text-muted-foreground">
                       {t('允许 MilkSU 点击、输入和滚动所选 App。', 'Allow MilkSU to click, type, and scroll in the selected app.')}
                     </p>
+                    {(() => {
+                      const state = permissionRowState('accessibility', Boolean(status?.permissions.accessibility))
+                      if (state === 'drift') {
+                        return (
+                          <div
+                            className="mt-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-2.5 py-2 text-xs leading-5 text-amber-700 dark:text-amber-300"
+                            role="alert"
+                            data-testid="permission-drift-accessibility"
+                          >
+                            {permissionDriftGuidance('accessibility', status?.signing ?? null)}
+                          </div>
+                        )
+                      }
+                      if (state === 'ungranted' && driftEligible) {
+                        return (
+                          <button
+                            type="button"
+                            className="mt-1.5 text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                            onClick={() => confirmNotEffective('accessibility')}
+                          >
+                            {t('我已在系统设置开启，但仍未生效', 'I already enabled it in System Settings, but it is not taking effect')}
+                          </button>
+                        )
+                      }
+                      return null
+                    })()}
                   </div>
                   <div className="flex shrink-0 items-center gap-3">
                     <span className={`hidden items-center gap-1.5 text-xs sm:flex ${status?.permissions.accessibility ? 'text-primary' : 'text-amber-500'}`}>
                       {status?.permissions.accessibility ? <CheckCircle2 className="size-3.5" /> : <CircleDot className="size-3.5" />}
-                      {status?.permissions.accessibility ? t('已授权', 'Authorized') : t('待授权', 'Needs authorization')}
+                      {status?.permissions.accessibility
+                        ? t('已授权', 'Authorized')
+                        : permissionRowState('accessibility', false) === 'drift'
+                          ? t('疑似未注册', 'Grant may not have registered')
+                          : t('待授权', 'Needs authorization')}
                     </span>
                     <Button
                       variant="outline"
                       size="sm"
                       disabled={Boolean(status?.permissions.accessibility) || requesting === 'accessibility'}
                       aria-label={t('打开辅助功能系统设置', 'Open Accessibility settings')}
-                      onClick={() => onRequestPermissions?.('accessibility')}
+                      onClick={() => requestPermission('accessibility')}
                     >
                       {requesting === 'accessibility' ? <LoaderCircle className="size-3.5 animate-spin" /> : <ExternalLink className="size-3.5" />}
                       {status?.permissions.accessibility ? t('已完成', 'Done') : t('打开设置', 'Open Settings')}
@@ -194,18 +259,48 @@ export default function CodingComputerUsePermissionDialog({
                     <p className="mt-1 text-xs leading-5 text-muted-foreground">
                       {t('允许 MilkSU 识别所选窗口的可见内容。', 'Allow MilkSU to see the selected window.')}
                     </p>
+                    {(() => {
+                      const state = permissionRowState('screen-recording', Boolean(status?.permissions.screenRecording))
+                      if (state === 'drift') {
+                        return (
+                          <div
+                            className="mt-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-2.5 py-2 text-xs leading-5 text-amber-700 dark:text-amber-300"
+                            role="alert"
+                            data-testid="permission-drift-screen-recording"
+                          >
+                            {permissionDriftGuidance('screen-recording', status?.signing ?? null)}
+                          </div>
+                        )
+                      }
+                      if (state === 'ungranted' && driftEligible) {
+                        return (
+                          <button
+                            type="button"
+                            className="mt-1.5 text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                            onClick={() => confirmNotEffective('screen-recording')}
+                          >
+                            {t('我已在系统设置开启，但仍未生效', 'I already enabled it in System Settings, but it is not taking effect')}
+                          </button>
+                        )
+                      }
+                      return null
+                    })()}
                   </div>
                   <div className="flex shrink-0 items-center gap-3">
                     <span className={`hidden items-center gap-1.5 text-xs sm:flex ${status?.permissions.screenRecording ? 'text-primary' : 'text-amber-500'}`}>
                       {status?.permissions.screenRecording ? <CheckCircle2 className="size-3.5" /> : <CircleDot className="size-3.5" />}
-                      {status?.permissions.screenRecording ? t('已授权', 'Authorized') : t('待授权', 'Needs authorization')}
+                      {status?.permissions.screenRecording
+                        ? t('已授权', 'Authorized')
+                        : permissionRowState('screen-recording', false) === 'drift'
+                          ? t('疑似未注册', 'Grant may not have registered')
+                          : t('待授权', 'Needs authorization')}
                     </span>
                     <Button
                       variant="outline"
                       size="sm"
                       disabled={Boolean(status?.permissions.screenRecording) || requesting === 'screen-recording'}
                       aria-label={t('打开屏幕录制系统设置', 'Open Screen Recording settings')}
-                      onClick={() => onRequestPermissions?.('screen-recording')}
+                      onClick={() => requestPermission('screen-recording')}
                     >
                       {requesting === 'screen-recording' ? <LoaderCircle className="size-3.5 animate-spin" /> : <ExternalLink className="size-3.5" />}
                       {status?.permissions.screenRecording ? t('已完成', 'Done') : t('打开设置', 'Open Settings')}

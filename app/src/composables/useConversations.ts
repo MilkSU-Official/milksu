@@ -91,6 +91,20 @@ import { installedModelContextWindows } from '@/modelCatalog'
 import { decideTurnStall, resolveTurnStallConfig, type TurnStallKind } from '@/lib/turnStall'
 import { decideEngineRestart, resolveEngineRestartConfig } from '@/lib/engineRestart'
 import {
+  projectEngineRecoveryEvent,
+  projectMessageQueuedEvent,
+  projectModelRetryEvent,
+  queuedNoticeExpired,
+  type EngineQueuedNotice,
+  type EngineRecoveryNotice,
+  type EngineRetryNotice,
+  type EngineStallWarning,
+} from '@/lib/agentEngineSignals'
+import {
+  projectComputerUsePermissionGuardSignal,
+  type ComputerUsePermissionGuardSignal,
+} from '@/lib/codingComputerUsePermissionWizard'
+import {
   completedNotifyKey,
   defaultTaskNotifySwitch,
   isAlreadySameProblem,
@@ -324,6 +338,22 @@ interface AgentEvent {
   provider?: string
   model?: string
   message?: string
+  /** R4 引擎韧性事件的读者语言提示对（Go Event 的 Notice/NoticeEnglish）。 */
+  notice?: string
+  noticeEnglish?: string
+  /** model.retry 的 start/end 与 turn.active 的 start/end。 */
+  phase?: string
+  attempt?: number
+  maxRetries?: number
+  errorMessage?: string
+  retryAt?: number
+  /** model.stall 的连接静默秒数与硬阈值秒数。 */
+  stalledSeconds?: number
+  hardKillSeconds?: number
+  /** session.message_queued 的排队位次。 */
+  position?: number
+  total?: number
+  submissionId?: string
   toolName?: string
   toolCallId?: string
   durationMs?: number
@@ -1043,6 +1073,8 @@ type ConversationsState = {
   conversationActionError: string
   pendingComposerDraft: PendingComposerDraft | null
   conversationActionIds: Set<string>
+  /** agent 撞锁窗权限守卫的待处理信号（β.191 死循环修复）：ChatPage 消费后置回 null。 */
+  computerUsePermissionGuard: ComputerUsePermissionGuardSignal | null
 }
 
 type ParkedPendingCanvas = {
@@ -1110,6 +1142,7 @@ export function createConversationsRuntime(options?: {
     conversationActionError: '',
     pendingComposerDraft: null,
     conversationActionIds: new Set<string>(),
+    computerUsePermissionGuard: null,
   }, {
     // 第五单：流式爆发期把一帧内的多次状态写入合并成**一次** React 渲染。
     // 注意状态本身仍然同步更新（getState/各 getter 立刻可见，业务逻辑与测试断言不受影响），
@@ -1197,6 +1230,8 @@ export function createConversationsRuntime(options?: {
     set pendingComposerDraft(value) { store.setState({ pendingComposerDraft: value }) },
     get conversationActionIds() { return store.getState().conversationActionIds },
     set conversationActionIds(value) { store.setState({ conversationActionIds: value }) },
+    get computerUsePermissionGuard() { return store.getState().computerUsePermissionGuard },
+    set computerUsePermissionGuard(value) { store.setState({ computerUsePermissionGuard: value }) },
   }
   const parkedPendingByHome: Partial<Record<WorkspaceHome, ParkedPendingCanvas>> = {}
   const heldSubagentSnapshots = new Map<string, SubagentTask[]>()
@@ -1697,7 +1732,22 @@ export function createConversationsRuntime(options?: {
   const lastStreamEventByConversation = new Map<string, number>()
   const heartbeatAtByConversation = new Map<string, number>()
   // 预算软告警：sidecar 报了「请求超过它自己的预算」，但还没硬掐。真实事件到来即清掉。
-  const engineWarnedAtByConversation = new Map<string, { at: number; stage: string; budgetMs: number; payloadBytes: number }>()
+  const engineWarnedAtByConversation = new Map<string, EngineStallWarning>()
+  // R4 引擎韧性事件的会话级状态：
+  // - model.retry 的重试横幅：start 挂上（带 retryAt 倒计时）、end 只熄倒计时；
+  //   真正收横幅对齐**回合终态**（assistant.completed 出结果 / finishRun 的
+  //   engine.error·settled·中断·引擎停止，见 finishRun 与 assistant.completed 处的清理）；
+  // - session.recovery 的恢复横幅（回合结束/失败即收，见 activeEngineRecovery 的 running 门）；
+  // - session.message_queued 的排队提示（被回合消费或回合结束即收）。
+  const modelRetryByConversation = new Map<string, EngineRetryNotice>()
+  const engineRecoveryByConversation = new Map<string, EngineRecoveryNotice>()
+  const queuedNoticeByConversation = new Map<string, EngineQueuedNotice>()
+  // β.196 parent 记账证据：本回合（runStartedAt 锚定）是否观测到过在跑工作项
+  // （DSH subagent / jobs、multitask 子会话）。键 = 会话 id，值 = 观测时的 runStartedAt。
+  // 新回合的 runStartedAt 必不相同 ⇒ 旧证据自然失效，跨回合不泄漏；finishRun 时顺手清理。
+  // 它是本地清扫计时器路径的前置条件：没有工作项证据的运行标记（慢 TTFB 首字节静默、
+  // 长工具执行、恢复中的会话）归引擎终局事件与读者动作管，本地计时器不得凭年龄收割。
+  const runWorkingItemsAnchor = new Map<string, number>()
   // 只记**真实引擎事件**的时刻（心跳不算，本地乐观标记也不算）：abort 无响应的判据要用它。
   const engineProgressAtByConversation = new Map<string, number>()
   // 最近一次 abort_session 发出的时刻：用来判定 sidecar 是否不响应 abort。
@@ -1709,7 +1759,7 @@ export function createConversationsRuntime(options?: {
 
   function noteEngineStallWarning(
     conversationId: string | undefined,
-    warning: { stage: string; budgetMs: number; payloadBytes: number },
+    warning: { stage: string; budgetMs: number; payloadBytes: number } & Partial<EngineStallWarning>,
   ) {
     if (!conversationId) return
     engineWarnedAtByConversation.set(conversationId, { at: Date.now(), ...warning })
@@ -1986,6 +2036,30 @@ export function createConversationsRuntime(options?: {
     if (!id) return null
     return engineWarnedAtByConversation.get(id) ?? null
   })
+  // ---- R4 引擎韧性可见性（模型重试 / 断点恢复 / 消息排队）----
+  // 三者都只在会话进行中展示：重试与恢复以 running 为门（回合失败/收尾即收横幅），
+  // 排队额外对照 queue_update 的 followUp（消息被消费即收）。
+  const activeModelRetry = (() => {
+    const id = s.activeId
+    if (!id || !s.runningIds.has(id)) return null
+    return modelRetryByConversation.get(id) ?? null
+  })
+  const activeEngineRecovery = (() => {
+    const id = s.activeId
+    if (!id || !s.runningIds.has(id)) return null
+    return engineRecoveryByConversation.get(id) ?? null
+  })
+  const activeQueuedMessage = (() => {
+    const id = s.activeId
+    if (!id) return null
+    const queued = queuedNoticeByConversation.get(id)
+    if (!queued) return null
+    // 队列快照尚未来过（首个 queue_update 之前）⇒ 传 null，判据退化为只看 running。
+    const queue = s.messageQueues.has(id) ? s.messageQueues.get(id) : null
+    const followUp = queue ? queue.followUp : null
+    if (queuedNoticeExpired(queued, s.runningIds.has(id), followUp)) return null
+    return queued
+  })
   const activeResumed = (() => (
     s.activeId ? s.continuity.resumed.has(s.activeId) : false
   ))
@@ -2202,6 +2276,11 @@ export function createConversationsRuntime(options?: {
     clearTurnRunClock(id)
     clearAbortStalled(id)
     clearEngineStallWarning(id)
+    runWorkingItemsAnchor.delete(id)
+    // 回合不再运行（收尾/失败/中断/本地结算都走这里）⇒ 重试横幅条目一并清掉：
+    // getter 的 running 门只挡显示，不清状态——不清的话下一回合 running 一回来，
+    // 上一轮的重试横幅会诈尸。真正的语义锚点见上方 model.retry 注释。
+    modelRetryByConversation.delete(id)
     const next = projectCodingRunFinished(
       s.runningIds,
       s.abortingIds,
@@ -2231,6 +2310,26 @@ export function createConversationsRuntime(options?: {
     const kernel = normalizeAgentKernel(conversation.kernel)
     const started = s.turnStatusById.get(id)?.runStartedAt
     const liveWorkingCount = liveWorkingCountFor(id)
+    // parent 记账证据（β.196 第三案收口）：观测到在跑工作项就记下锚点（runStartedAt）。
+    // 这是关于本回合的**事实**，先于下面的清扫政策门（重试窗口）记录：落在重试窗口里的
+    // roster 清空边沿会被门挡住（窗口内一律不扫，β.194 语义），窗口关闭后计时器路径还能
+    // 凭这份证据补收（roster 已清、ACP 不结算的 d6e3fe42 缺口）。
+    // 无证据的静默期（kunbot 3.5-4s+ 首字节、长工具执行、恢复中的会话）是引擎说了算的
+    // 安静，杂事件落在事件尾部也清不动它；真卡死的回合由停滞看门狗（engine-gone /
+    // model-stalled，带可见告警与停止 / 重启出口）和读者动作收，本地计时器不再单独收割。
+    if (liveWorkingCount > 0 && started !== undefined) {
+      runWorkingItemsAnchor.set(id, started)
+    }
+    const runHadWorkingItems = started !== undefined
+      && runWorkingItemsAnchor.get(id) === started
+    // 引擎管理中的重试窗口（modelRetryByConversation 有条目 = 横幅在场）：退避静默里没有
+    // 运行中的消息残留是**引擎说了算的安静**，不是卡死的运行标记。running 的终局只归
+    // 引擎事件（assistant.settled / engine.error / engine.stopped，各自会删重试条目）与
+    // 读者动作（abort / 丢弃 / 回退）；本地 2 秒启发式清扫不得抢跑收横幅。
+    // β.194 真机事故：死端点退避中段一条无害回执事件（runtime.background_task_controlled）
+    // 落到事件处理尾部的本函数，STALE_PARENT_RUN_MS=2s 判「停滞」清 running+删横幅条目 ⇒
+    // 横幅 2/5 后消失且整轮不回（running 门永假）。
+    if (modelRetryByConversation.has(id)) return
     const workingJustEmptied = extras?.workingJustEmptied === true
     if (!shouldClearParentRun({
       parentMarkedRunning: s.runningIds.has(id),
@@ -2242,6 +2341,7 @@ export function createConversationsRuntime(options?: {
         workingJustEmptied,
       }),
       workingJustEmptied,
+      runHadWorkingItems,
       msSinceRunStart: started === undefined ? Number.POSITIVE_INFINITY : Date.now() - started,
     })) return
     finishRun(id)
@@ -3845,6 +3945,20 @@ export function createConversationsRuntime(options?: {
         stallStage,
         budgetMs,
         payloadBytes,
+        // R4 引擎韧性事件载荷（model.retry / model.stall / session.recovery /
+        // session.message_queued；Go Event 的对应字段）。
+        phase,
+        notice,
+        noticeEnglish,
+        attempt,
+        maxRetries,
+        errorMessage,
+        retryAt,
+        stalledSeconds,
+        hardKillSeconds,
+        position,
+        total,
+        submissionId,
       } = event.payload
       // 预算软告警：sidecar 说「请求已超过它自己的预算」，但还没硬掐。它不是进展，
       // 不能走 noteStreamEvent；交给看门狗立刻举牌（不必等到本地静默阈值）。
@@ -3855,6 +3969,31 @@ export function createConversationsRuntime(options?: {
           budgetMs: Number(budgetMs) || 0,
           payloadBytes: Number(payloadBytes) || 0,
         })
+        return
+      }
+      // R4 model.stall（R1a 看门狗软阈值）：与 turn.stall_warning 同族的「还没硬掐」告警，
+      // 复用同一个停滞横幅面（activeEngineWarning + decideTurnStall 的 engineWarned 位），
+      // 文案优先用事件自带的「连接无响应 x 秒」。不算进展；但事件本身证明引擎进程活着
+      //（看门狗在跑）⇒ 喂心跳，避免「请求停滞」被误读成「进程没了」。
+      if (type === 'model.stall') {
+        const warnedId = String(sessionId ?? '') || String(s.activeId ?? '')
+        noteTurnHeartbeat(sessionId)
+        noteEngineStallWarning(warnedId, {
+          stage: String(stallStage ?? ''),
+          budgetMs: 0,
+          payloadBytes: 0,
+          notice: String(notice ?? '').trim(),
+          noticeEnglish: String(noticeEnglish ?? '').trim(),
+          stalledSeconds: Math.max(0, Math.floor(Number(stalledSeconds) || 0)),
+          hardKillSeconds: Math.max(0, Math.floor(Number(hardKillSeconds) || 0)),
+        })
+        return
+      }
+      // R4 turn.active（R1b 回合生命周期）：一个模型回合的 start/end，比轮询心跳更准的
+      // 「引擎还活着」证明——并进心跳源（noteTurnHeartbeat），但不计入进展时钟
+      //（回合边界不是产出；停滞看门狗的口径见 lib/turnStall.ts）。
+      if (type === 'turn.active') {
+        noteTurnHeartbeat(sessionId)
         return
       }
       // 引擎重启：读者点过重启的那个会话，本地已经接手结算与重发，事件只当回执；
@@ -3900,6 +4039,69 @@ export function createConversationsRuntime(options?: {
       }
       if (type === 'turn.heartbeat') {
         noteTurnHeartbeat(sessionId)
+        return
+      }
+      // R4 引擎韧性状态事件（走到这里 ⇒ 已按进展记过 noteStreamEvent，停滞时钟被刷新）：
+      // - model.retry：重试是引擎**管理中的**静默（它刚说过话），不该被停滞看门狗误判；
+      //   start 挂横幅并带 retryAt 倒计时；end 只把倒计时熄掉（横幅挂到回合出结果才收，
+      //   β.192 真机验收：end 即收会让读者在「下一次尝试」的静默里以为死机而重复发送）。
+      // - session.recovery：崩溃后附着、上一回合仍在飞行 ⇒ 会话回到「进行中」，
+      //   失败横幅清掉；agentRecovery 的恢复按钮以 running 为门（recoverableAgentFailureId
+      //   在 running=true 时返回空）⇒ 引擎自己续跑期间不会再弹「从刚才的断点继续」双横幅。
+      // - session.message_queued：排队提示；何时收起见 queuedNoticeExpired。
+      if (type === 'model.retry') {
+        const retryId = String(sessionId ?? '').trim()
+        if (!retryId) return
+        const retryPhase = String(phase ?? '').trim()
+        const retry = projectModelRetryEvent({
+          phase, attempt, maxRetries, notice, noticeEnglish, errorMessage, retryAt,
+        })
+        if (retry) {
+          modelRetryByConversation.set(retryId, retry)
+        } else if (retryPhase === 'end') {
+          // phase:end = 退避倒计时走完、下一次尝试开跑：横幅保留（挂到回合出结果），
+          // 只熄倒计时（「正在重试…」）。没有 start 过（如渲染器中途附着）⇒ 无横幅可保。
+          const current = modelRetryByConversation.get(retryId)
+          if (current && !current.inFlight) {
+            modelRetryByConversation.set(retryId, { ...current, inFlight: true, retryAt: 0 })
+          }
+        } else {
+          // 载荷既非 start 也非 end（畸形事件）⇒ 不猜语义，按旧口径收横幅。
+          modelRetryByConversation.delete(retryId)
+        }
+        // 重试事件证明引擎进程活着（喂心跳）；重试横幅的挂/收都要立刻上屏。
+        noteTurnHeartbeat(sessionId)
+        s.heartbeatTick = s.heartbeatTick + 1
+        return
+      }
+      if (type === 'session.recovery') {
+        const recoveryId = String(sessionId ?? '').trim()
+        if (!recoveryId) return
+        const recovery = projectEngineRecoveryEvent({ notice, noticeEnglish })
+        if (!recovery) return
+        engineRecoveryByConversation.set(recoveryId, recovery)
+        // 恢复事件证明引擎进程活着；恢复横幅立刻上屏。
+        noteTurnHeartbeat(sessionId)
+        s.heartbeatTick = s.heartbeatTick + 1
+        clearEngineStallWarning(recoveryId)
+        clearProblemTurn(recoveryId)
+        // 引擎说「run 仍在飞行」⇒ 渲染器的 running 位回到真实状态（与 assistant.started
+        // 同款写入）。若恢复后立即收尾，assistant.settled 会照常清掉它。
+        s.runningIds = new Set(s.runningIds).add(recoveryId)
+        return
+      }
+      if (type === 'session.message_queued') {
+        const queuedId = String(sessionId ?? '').trim()
+        if (!queuedId) return
+        const queued = projectMessageQueuedEvent({
+          position, total, text, submissionId, notice, noticeEnglish,
+        })
+        if (queued) {
+          queuedNoticeByConversation.set(queuedId, queued)
+          // 排队事件证明引擎进程活着；排队提示立刻上屏。
+          noteTurnHeartbeat(sessionId)
+          s.heartbeatTick = s.heartbeatTick + 1
+        }
         return
       }
       if (type === 'tool.started' || type === 'tool.progress') {
@@ -4024,6 +4226,10 @@ export function createConversationsRuntime(options?: {
         for (const id of affectedSet) {
           clearTurnRunClock(id)
           clearAbortStalled(id)
+          // 引擎实例没了 = 回合被中断 ⇒ 重试横幅条目同样清掉（这条路不走 finishRun）。
+          modelRetryByConversation.delete(id)
+          // parent 记账证据一并清理（这条终局路径同样不走 finishRun）。
+          runWorkingItemsAnchor.delete(id)
           nextRunning.delete(id)
           nextAborting.delete(id)
         }
@@ -4182,6 +4388,14 @@ export function createConversationsRuntime(options?: {
           sessionId,
           nextQueue,
         )
+        // R4 排队可见的收口：排队消息已被回合消费（followUp 里没了）⇒ 收掉排队横幅。
+        // 回合已结束的情况由 getter 的 running 门兜底（queuedNoticeExpired）。
+        const consumedQueuedNotice = queuedNoticeByConversation.get(sessionId)
+        if (consumedQueuedNotice
+          && queuedNoticeExpired(consumedQueuedNotice, true, nextQueue.followUp)) {
+          queuedNoticeByConversation.delete(sessionId)
+          s.heartbeatTick = s.heartbeatTick + 1
+        }
         if (!nextQueue.steering.length) markQueueStalled(sessionId, false)
         if (appliedSteeringCount > 0) {
           let remaining = appliedSteeringCount
@@ -4201,6 +4415,21 @@ export function createConversationsRuntime(options?: {
           ))
         }
       }
+      // 权限向导自动触发（β.191 真机死循环修复）：agent 在对话里调 milksu_workspace 的
+      // lock_computer_use_window 撞上权限守卫，失败只落在下面的工具结果消息里——读者
+      // 看不到任何提示。这里把失败投影成全局信号（含守卫原文与对话 id），ChatPage
+      // 消费时自动打开三态向导。放在 mapped 之前：信号属于会话，不依赖它此刻是否在
+      // 会话列表里；不 return——工具结果消息照常落到 transcript。
+      const computerUseGuardSignal = projectComputerUsePermissionGuardSignal({
+        type,
+        toolName,
+        text,
+        error,
+        conversationId: sessionId,
+        previous: s.computerUsePermissionGuard,
+        now: Date.now(),
+      })
+      if (computerUseGuardSignal) s.computerUsePermissionGuard = computerUseGuardSignal
       const mapped = s.conversations.map(conversation => {
         if (conversation.id !== sessionId) return conversation
         const messages = [...conversation.messages]
@@ -4400,6 +4629,9 @@ export function createConversationsRuntime(options?: {
             })
           }
         } else if (type === 'assistant.completed') {
+          // 重试的那条 assistant 消息落定 = 回合出了结果 ⇒ 重试横幅在此收起
+          //（finishRun 只覆盖回合整体收尾；多段回合里这是更早、更准的锚点）。
+          modelRetryByConversation.delete(sessionId)
           // Ignore empty aborted shells (legacy bridge synthesized message_done
           // with reason=aborted and no content). Real abort settles via turn_settled.
           const abortedEmpty = !String(text ?? '').trim()
@@ -4652,6 +4884,10 @@ export function createConversationsRuntime(options?: {
     conversationHasProblem,
     dismissProblemTurn,
     get activeProblemTurn() { return activeProblemTurn() },
+    /** agent 撞锁窗权限守卫的待处理信号（engine-event 的 tool.completed 投影）。 */
+    get computerUsePermissionGuard() { return s.computerUsePermissionGuard },
+    /** 消费信号（ChatPage 开完向导后调用）：置 null ⇒ 重挂载/后续渲染不再翻这条旧账。 */
+    consumeComputerUsePermissionGuard() { s.computerUsePermissionGuard = null },
     get backgroundTasks() { return s.backgroundTasks },
     get backgroundTaskOutcome() { return s.backgroundTaskOutcome },
     get activeAborting() { return activeAborting() },
@@ -4666,6 +4902,9 @@ export function createConversationsRuntime(options?: {
     get activeStallKind() { return activeStallKind() },
     get activeEngineUnresponsive() { return activeEngineUnresponsive() },
     get activeEngineWarning() { return activeEngineWarning() },
+    get activeModelRetry() { return activeModelRetry() },
+    get activeEngineRecovery() { return activeEngineRecovery() },
+    get activeQueuedMessage() { return activeQueuedMessage() },
     forceStopConversation,
     wakeStuckTurn,
     restartEngine,

@@ -73,7 +73,8 @@ describe('composer run state', () => {
     })).toBe('parent')
   })
 
-  it('clears a stale parent run after subagents finish and the parent has no residue', () => {
+  it('clears a parent run with roster evidence, but never on marker age alone', () => {
+    // 边沿路径：在跑工作项从非空变空（引擎 roster 事件驱动），事件本身即证据 ⇒ 立即清。
     expect(shouldClearParentRun({
       parentMarkedRunning: true,
       compacting: false,
@@ -83,6 +84,28 @@ describe('composer run state', () => {
       workingJustEmptied: true,
       msSinceRunStart: 80,
     })).toBe(true)
+    // 计时器路径（β.196 收口）：本回合观测到过在跑工作项（runHadWorkingItems）才放行；
+    // 宽限内（< 2s）不清，给下一个工作项入场留时间。
+    expect(shouldClearParentRun({
+      parentMarkedRunning: true,
+      compacting: false,
+      aborting: false,
+      liveWorkingCount: 0,
+      parentHasActiveTurnResidue: false,
+      runHadWorkingItems: true,
+      msSinceRunStart: STALE_PARENT_RUN_MS - 1,
+    })).toBe(false)
+    expect(shouldClearParentRun({
+      parentMarkedRunning: true,
+      compacting: false,
+      aborting: false,
+      liveWorkingCount: 0,
+      parentHasActiveTurnResidue: false,
+      runHadWorkingItems: true,
+      msSinceRunStart: STALE_PARENT_RUN_MS,
+    })).toBe(true)
+    // 没有工作项证据：运行标记的年龄单独不构成清扫理由。慢 TTFB / 长工具静默 /
+    // 恢复中的会话都是引擎说了算的静默，等引擎终局事件或读者动作（β.196 kunbot 案）。
     expect(shouldClearParentRun({
       parentMarkedRunning: true,
       compacting: false,
@@ -90,16 +113,28 @@ describe('composer run state', () => {
       liveWorkingCount: 0,
       parentHasActiveTurnResidue: false,
       msSinceRunStart: STALE_PARENT_RUN_MS,
-    })).toBe(true)
+    })).toBe(false)
+    expect(shouldClearParentRun({
+      parentMarkedRunning: true,
+      compacting: false,
+      aborting: false,
+      liveWorkingCount: 0,
+      parentHasActiveTurnResidue: false,
+      msSinceRunStart: 120_000,
+    })).toBe(false)
+    // 证据在场也翻不过消息残留：回合还有自己的产出在跑就不算完。
     expect(shouldClearParentRun({
       parentMarkedRunning: true,
       compacting: false,
       aborting: false,
       liveWorkingCount: 0,
       parentHasActiveTurnResidue: true,
+      runHadWorkingItems: true,
       workingJustEmptied: true,
       msSinceRunStart: 80,
     })).toBe(false)
+    // 视图口径（composerRunPhase 不掌握 runtime 的工作项证据）⇒ 计时器路径恒假，
+    // Stop/Send 跟随 running 标记的真实生死，不再预演清扫结果。
     expect(composerRunPhase({
       kernel: 'dsh',
       parentMarkedRunning: true,
@@ -108,6 +143,18 @@ describe('composer run state', () => {
       liveWorkingCount: 0,
       parentHasActiveTurnResidue: false,
       msSinceRunStart: STALE_PARENT_RUN_MS,
+    })).toBe('parent')
+    expect(composerShowsStop('parent')).toBe(true)
+    expect(composerAllowsFollowupSend('parent')).toBe(false)
+    // runtime 清掉 running 之后（引擎终局或带证据的清扫）⇒ 视图照常回落 idle。
+    expect(composerRunPhase({
+      kernel: 'dsh',
+      parentMarkedRunning: false,
+      aborting: false,
+      compacting: false,
+      liveWorkingCount: 0,
+      parentHasActiveTurnResidue: false,
+      msSinceRunStart: 0,
     })).toBe('idle')
     expect(composerShowsStop('idle')).toBe(false)
     expect(composerAllowsFollowupSend('idle')).toBe(true)

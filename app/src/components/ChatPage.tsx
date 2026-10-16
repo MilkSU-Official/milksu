@@ -164,6 +164,16 @@ import {
   recoverableAgentFailureId,
 } from '@/lib/agentRecovery'
 import {
+  engineRecoveryLabel as agentEngineRecoveryLabel,
+  engineStallWarningLabel,
+  messageQueuedLabel,
+  modelRetryLabel as agentModelRetryLabel,
+} from '@/lib/agentEngineSignals'
+import {
+  computerUseGuardSignalFresh,
+  isComputerUsePermissionGuardError,
+} from '@/lib/codingComputerUsePermissionWizard'
+import {
   codingProductAction,
   codingReviewPrompt,
   type CodingProductActionKind,
@@ -1190,18 +1200,19 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
   const stalled = stallKind === 'engine-gone' || stallKind === 'model-stalled'
   const stalledElapsed = formatDemoElapsed(streamStaleSeconds * 1000)
   // 预算软告警：sidecar 自己说「请求超过预算」，把原因和体积说给读者，而不是笼统地说「停滞」。
+  // R4 起 model.stall（连接静默软阈值）也走这张脸：文案优先用事件自带的「连接无响应 x 秒」。
   const engineWarning = conversations.activeEngineWarning
-  const engineWarningLabel = engineWarning
-    ? (engineWarning.payloadBytes > 0
-        ? t(
-            `模型请求已超过等待预算 ${formatDemoElapsed(engineWarning.budgetMs)}（请求约 ${(engineWarning.payloadBytes / (1024 * 1024)).toFixed(1)}MB），引擎仍在等。`,
-            `The model request passed its ${formatDemoElapsed(engineWarning.budgetMs)} budget (about ${(engineWarning.payloadBytes / (1024 * 1024)).toFixed(1)}MB) and the engine is still waiting.`,
-          )
-        : t(
-            `模型请求已超过等待预算 ${formatDemoElapsed(engineWarning.budgetMs)}，引擎仍在等。`,
-            `The model request passed its ${formatDemoElapsed(engineWarning.budgetMs)} budget and the engine is still waiting.`,
-          ))
+  const engineWarningLabel = engineStallWarningLabel(engineWarning, formatDemoElapsed)
+  // ---- R4 引擎韧性横幅状态（model.retry / session.recovery / session.message_queued）----
+  // 倒计时按秒走：waitingNow 由下面的秒级时钟驱动（重试期间 running=true ⇒ 时钟在走）。
+  const modelRetryNotice = conversations.activeModelRetry
+  const modelRetryLabelText = modelRetryNotice
+    ? agentModelRetryLabel(modelRetryNotice, waitingNow)
     : ''
+  const engineRecoveryNotice = conversations.activeEngineRecovery
+  const engineRecoveryLabelText = engineRecoveryNotice ? agentEngineRecoveryLabel(engineRecoveryNotice) : ''
+  const queuedMessageNotice = conversations.activeQueuedMessage
+  const queuedMessageLabel = queuedMessageNotice ? messageQueuedLabel(queuedMessageNotice) : ''
   // 停滞进入边沿：从“没停滞”变成停滞的那一刻发一条系统通知（重试还是停止）。
   // 依赖只有 stalled 翻转 + 会话切换 ⇒ 每秒重渲染不会重复发；
   // 去重再兜一层：composable 按 会话+回合起点 记账（重入/StrictMode 也不会重复投递）。
@@ -1219,9 +1230,13 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
   const waitingLabel = (() => {
     // 排在同一个 sidecar 的另一个对话后面是「排队」，不是「停滞」：
     // 在这里说“连接丢了”就是横幅以前撒的那个谎。
+    // β.195 实测收敛：排队/重试的完整状态（哪个会话在跑、第几次、倒计时）由顶部
+    // 钉顶横幅唯一承载，底部等待行只留极简状态词——同一信息两处复读是噪音。
     if (queuedBehindLabel) {
-      return t('排队中（同工作区另一个会话在跑）', 'Queued (another conversation in this workspace is running)')
+      return t('排队中…', 'Queued…')
     }
+    // R4：引擎 durable 重试进行中——退避期没有产出是计划内的。细节在顶部横幅。
+    if (modelRetryNotice) return t('重试中…', 'Retrying…')
     // 工具正在跑就直说：引擎这时候正在干活，说成“等待引擎响应”是假话。
     if (runningToolActive) return t('工具执行中…', 'Tool running…')
     if (stalled) {
@@ -1230,7 +1245,10 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
         : t('引擎没有响应…', 'The engine is not responding…')
     }
     if (streamStale) return t('等待中…', 'Waiting…')
-    return t('等待引擎响应…', 'Waiting for the engine…')
+    // 默认态=回合刚发出去、还没收到任何流：本地引擎已经把请求交给模型了，
+    // 这段静默在等的是云端首字节（kunbot 类中继可长达数秒）——说"等引擎"是把
+    // 锅甩给自家引擎，读者会误判本地出问题。照实说在等模型。
+    return t('已发送，等待模型回复…', 'Sent, waiting for the model…')
   })()
   const contextPanelTitle = ({
     domain: vulnerabilitySession ? t('CVE 领域上下文', 'CVE domain context') : t('领域上下文', 'Domain context'),
@@ -1925,6 +1943,24 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
     }
   }
 
+  // 权限向导自动触发（β.191 真机死循环修复）：agent 在对话里调 lock_computer_use_window
+  // 撞上权限守卫，失败只躺在消息流的工具结果文本里——界面上什么都不弹，读者完全不知道
+  // 该干嘛。store 的 computerUsePermissionGuard 信号（useConversations 的 engine-event
+  // 处理器对 tool.completed 的投影）一到就自动打开三态向导，守卫原文进错误行。只做
+  // 「开向导」这一件事：不切面板、不动 activeId——触发它的对话照常保持当前状态。
+  // 幂等：dock 挂载的 ChatPage 不弹（主界面负责，避免双弹）；向导已开着不重弹；信号
+  // 消费即清且只认新鲜信号 ⇒ 重挂载不翻几分钟前的旧账。
+  const computerUseGuardSignal = conversations.computerUsePermissionGuard
+  useEffect(() => {
+    if (!computerUseGuardSignal) return
+    if (dockSurfaceRef.current) return
+    if (computerUsePermissionDialogOpenRef.current) return
+    if (!computerUseGuardSignalFresh(computerUseGuardSignal, Date.now())) return
+    setComputerUsePermissionError(computerUseGuardSignal.notice.slice(0, 800))
+    setComputerUsePermissionDialogOpen(true)
+    conversations.consumeComputerUsePermissionGuard()
+  }, [computerUseGuardSignal, conversations])
+
   async function startComputerUse(targetKey = selectedComputerUseTargetKeyRef.current) {
     setBrowserPanelError('')
     const target = resolveSelectedComputerUseTarget(computerUseTargetsRef.current, targetKey)
@@ -1954,13 +1990,25 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
         })
       }
     } catch (reason) {
-      toastError(reason, t('Computer Use 可见会话启动失败。', 'The Computer Use visible session failed to start.'))
+      if (isComputerUsePermissionGuardError(reason)) {
+        // R4 权限向导（CU v2 §3.8）：锁窗被权限守卫拦下（manager.Start 前置校验的
+        // 「请先明确授予…」或驱动 canary 同类文案）⇒ 弹三态引导卡（未授权 / 授权未
+        // 注册 / 已生效各给准确指引），守卫原文进对话框错误行；不再只给一条 toast。
+        setComputerUsePermissionError(reason instanceof Error ? reason.message : String(reason ?? ''))
+        setComputerUsePermissionDialogOpen(true)
+      } else {
+        toastError(reason, t('Computer Use 可见会话启动失败。', 'The Computer Use visible session failed to start.'))
+      }
     } finally {
       setComputerUseLoading(false)
     }
     await refreshBrowserPanel()
   }
 
+  /** 解除锁定（CU v2 §3.1-2 的桌面侧入口）：与 milksu_workspace 的
+   * unlock_computer_use_window 动作同一落点（Go StopCodingComputerUse——revoke 停止，
+   * grants 一并清除）。面板锁定态主按钮走这里，回合进行中也可调用：锁错目标时读者
+   * 不必等回合收尾。成功后刷新面板（锁信息、可选窗口回到未锁态）。 */
   async function stopComputerUse() {
     const conversationID = conversationRef.current?.id
     const owned = Boolean(
@@ -1979,10 +2027,11 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
       computerUseStatusRef.current = status
       setComputerUseEvidence(null)
     } catch (reason) {
-      toastError(reason, t('Computer Use 可见会话停止失败。', 'The Computer Use visible session failed to stop.'))
+      toastError(reason, t('Computer Use 解除锁定失败。', 'Failed to unlock the Computer Use window.'))
     } finally {
       setComputerUseLoading(false)
     }
+    await refreshBrowserPanel()
   }
 
   async function refreshEnvironment() {
@@ -3012,13 +3061,15 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
             className="chat-edge-scroll absolute inset-0 overflow-x-hidden overflow-y-auto"
             onScroll={handleChatScroll}
           >
-            {streamStale || queuedBehindLabel ? (
+            {streamStale || queuedBehindLabel || modelRetryNotice || engineRecoveryNotice || queuedMessageNotice ? (
               <div
                 className={cn(
-                  'mx-auto mb-2 w-[72%] rounded-xl border px-3 py-1.5 text-caption',
-                  stalled
-                    ? 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300'
-                    : 'border-border/70 bg-muted/50 text-muted-foreground',
+                  // sticky 钉顶：重试/排队/恢复横幅不随消息滚动被顶出视野（β.193 实测：
+                  // 每次重试的动静把顶部横幅滚走，用户误判死机重复发送，队列滚雪球）。
+                  'sticky top-0 z-20 mx-auto mb-2 w-[72%] rounded-xl border px-3 py-1.5 text-caption',
+                  stalled || modelRetryNotice
+                    ? 'border-amber-500/40 bg-amber-500/90 text-amber-700 dark:bg-amber-950/95 dark:text-amber-300'
+                    : 'border-border/70 bg-muted/95 text-muted-foreground',
                 )}
                 data-testid="stream-stale"
               >
@@ -3028,6 +3079,16 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
                       `排队中：同工作区「${queuedBehindLabel}」正在运行。`,
                       `Queued: "${queuedBehindLabel}" in this workspace is running.`,
                     )}
+                  </span>
+                ) : modelRetryNotice ? (
+                  // R4 model.retry：引擎 durable 重试进行中（退避期内没有产出是计划内的）。
+                  // 失败原因放 title，不打扰正文；横幅挂到回合出结果（assistant.completed/
+                  // finishRun）才收，倒计时随 retryAt 走，end 之后换「正在重试…」。
+                  <span
+                    data-testid="model-retry"
+                    title={modelRetryNotice.errorMessage || undefined}
+                  >
+                    {modelRetryLabelText}
                   </span>
                 ) : runningToolActive ? (
                   t(
@@ -3083,6 +3144,14 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
                       </Button>
                     ) : null}
                   </span>
+                ) : engineRecoveryNotice ? (
+                  // R4 session.recovery：崩溃后引擎附着、上一回合仍在飞行。恢复中不需要
+                  // 读者动手；agentRecovery 的「从刚才的断点继续」按钮以 running 为门，
+                  // 这里把 running 维持住，两块恢复 UI 不会同时出现。
+                  <span data-testid="engine-recovery">{engineRecoveryLabelText}</span>
+                ) : queuedMessageNotice ? (
+                  // R4 session.message_queued：消息排队中（等当前回合结束）；被回合消费即收。
+                  <span data-testid="message-queued">{queuedMessageLabel}</span>
                 ) : (
                   t(`等待中（已 ${streamStaleSeconds}s）`, `Waiting… (${streamStaleSeconds}s)`)
                 )}
@@ -3279,7 +3348,10 @@ const ChatPage = forwardRef<ChatPageHandle, ChatPageProps>(function ChatPage({
                   <p className="chat-model-loading">
                     <AgentPixelLoader
                       label={waitingLabel}
-                      elapsed={waitingElapsed}
+                      // 重试横幅期间藏掉裸秒数：β.192 真机验收里它被读成「重试间隔只有
+                      // 2.0s」。节奏已明说在文案里（「x 秒后重试」/「正在重试…」），
+                      // 再摆一个走表就是两个时间数字打架。
+                      elapsed={modelRetryNotice ? undefined : waitingElapsed}
                       running
                     />
                   </p>

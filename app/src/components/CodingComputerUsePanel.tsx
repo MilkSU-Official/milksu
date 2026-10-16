@@ -165,7 +165,12 @@ export default function CodingComputerUsePanel({
     }
     if (!targets.length && !status?.target) return t('没有可选窗口，请打开目标 App 后重新检测。', 'No windows to choose. Open the target app and recheck.')
     if (!effectiveTarget) return t('请选择一个可见窗口。', 'Choose a visible window.')
-    if (readyForCurrentTask) return t(`已锁定到当前任务。${approvalGuidance}`, `Locked to this task. ${approvalGuidance}`)
+    if (readyForCurrentTask) {
+      return t(
+        `已锁定到当前任务。解除锁定 / 切换目标会中断正在运行的回合，之后可重新选择任意窗口。${approvalGuidance}`,
+        `Locked to this task. Unlock / switch target interrupts a running turn; any window can be chosen afterwards. ${approvalGuidance}`,
+      )
+    }
     return t('权限与窗口已就绪，可启动可见会话。', 'Permissions and window are ready. You can start a visible session.')
   })()
 
@@ -190,16 +195,24 @@ export default function CodingComputerUsePanel({
       }
     }
     if (readyForCurrentTask) {
+      // CU v2 §3.1-2：锁定态的主入口 = 解除锁定 / 切换目标（对齐 milksu_workspace 的
+      // unlock_computer_use_window 动作，桌面侧同一落点 StopCodingComputerUse）。
+      // 关键差异：回合进行中也可点（disabled 只看 loading）——锁错目标的死锁场景
+      //（audit D3：38 分钟无解锁入口）恰恰发生在回合挂着的时候。
+      const unlockConsequence = t(
+        '解除锁定后回到未锁定状态，可重新选择任意窗口；正在运行的回合会被中断。',
+        'Unlocking returns this task to an unlocked state so any window can be chosen again; a running turn is interrupted.',
+      )
       return {
-        label: t('停止可见会话', 'Stop visible session'),
+        label: t('解除锁定 / 切换目标', 'Unlock / switch target'),
         detail: effectiveTarget
           ? matchingOperationEvidence
             ? t(`最近真实操作：${matchingOperationEvidence.summary}`, `Latest real action: ${matchingOperationEvidence.summary}`)
-            : t(`已锁定 ${effectiveTarget.name} · PID ${effectiveTarget.pid} · Window ${effectiveTarget.windowId}；下一步需要 Agent 对该窗口执行一次可见操作并保留工具结果。`, `Locked to ${effectiveTarget.name} · PID ${effectiveTarget.pid} · Window ${effectiveTarget.windowId}. Next, the agent needs to perform one visible action on this window and keep the tool result.`)
-          : t('已锁定当前 Coding 任务。', 'Locked to the current Coding task.'),
+            : t(`已锁定 ${effectiveTarget.name} · PID ${effectiveTarget.pid} · Window ${effectiveTarget.windowId}。${unlockConsequence}`, `Locked to ${effectiveTarget.name} · PID ${effectiveTarget.pid} · Window ${effectiveTarget.windowId}. ${unlockConsequence}`)
+          : t(`已锁定当前 Coding 任务。${unlockConsequence}`, `Locked to the current Coding task. ${unlockConsequence}`),
         action: 'stop' as const,
         variant: 'outline' as const,
-        disabled: loading || running,
+        disabled: loading,
       }
     }
     if (!status?.available) {

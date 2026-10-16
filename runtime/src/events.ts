@@ -10,6 +10,23 @@ type BridgeEvent = {
   stallKind?: string
   budgetMs?: number
   payloadBytes?: number
+  // R4 桌面可见性：引擎韧性批次（R1a/R1b，fix/engine-resilience，即将由 PR #228 带入
+  // sidecar）五个新事件的原始载荷。message/messageEnglish 是中英双语提示对（投影到
+  // EngineEvent 的 notice/noticeEnglish，与 guard.alarm 同一配对形状）；计数字段只在
+  // 各自事件里有意义，落点见 projectBridgeEvent 的五个新 case。
+  phase?: string
+  message?: string
+  messageEnglish?: string
+  attempt?: number
+  maxRetries?: number
+  errorMessage?: string
+  retryAt?: number
+  stage?: string
+  stalledSeconds?: number
+  hardKillSeconds?: number
+  position?: number
+  total?: number
+  submissionId?: string
   error?: string
   toolName?: string
   toolCallId?: string
@@ -95,6 +112,18 @@ export type EngineEvent = {
   stallKind?: string
   budgetMs?: number
   payloadBytes?: number
+  // R4 桌面可见性：引擎韧性事件的载荷。phase 区分 model.retry / turn.active 的
+  // start/end；notice/noticeEnglish 是事件自带的读者语言提示；其余计数只服务各自事件。
+  phase?: string
+  attempt?: number
+  maxRetries?: number
+  errorMessage?: string
+  retryAt?: number
+  stalledSeconds?: number
+  hardKillSeconds?: number
+  position?: number
+  total?: number
+  submissionId?: string
   compaction?: unknown
   steering?: unknown
   followUp?: unknown
@@ -251,6 +280,52 @@ export function projectBridgeEvent(raw: BridgeEvent, kernel: string): EngineEven
       break
     case 'turn.heartbeat':
       event.type = 'turn.heartbeat'
+      break
+    case 'turn_active':
+      // R1b 回合生命周期：一个模型回合（generation）的 start/end。渲染层把它当作
+      // 比 turn.heartbeat 更准的引擎心跳源（回合边界处的活跃证明），不是进展事件。
+      event.type = 'turn.active'
+      event.phase = raw.phase
+      break
+    case 'model_retry':
+      // R1a 网络韧性：引擎 durable 重试排程。phase=start 报「重试中 x/N」，phase=end 收横幅。
+      event.type = 'model.retry'
+      event.phase = raw.phase
+      event.attempt = raw.attempt
+      event.maxRetries = raw.maxRetries
+      event.errorMessage = raw.errorMessage
+      event.retryAt = raw.retryAt
+      event.notice = raw.message
+      event.noticeEnglish = raw.messageEnglish
+      break
+    case 'model_stall':
+      // R1a 看门狗软阈值：连接静默超过软阈值但还没硬掐。与 turn.stall_warning 同族
+      //（预算告警），渲染层复用同一个停滞横幅面，展示事件自带的「连接无响应 x 秒」。
+      event.type = 'model.stall'
+      event.stallStage = raw.stage
+      event.stallKind = 'connection'
+      event.stalledSeconds = raw.stalledSeconds
+      event.hardKillSeconds = raw.hardKillSeconds
+      event.notice = raw.message
+      event.noticeEnglish = raw.messageEnglish
+      break
+    case 'harness_recovery':
+      // R1b 恢复可见：崩溃后重开进程附着、上一回合仍在飞行 ⇒ 渲染层挂「从断点恢复中」
+      // 横幅并把会话标记回进行中（agentRecovery 的失败恢复横幅以 running 为门，自然让位）。
+      event.type = 'session.recovery'
+      event.notice = raw.message
+      event.noticeEnglish = raw.messageEnglish
+      break
+    case 'message_queued':
+      // R1b 排队可见：用户消息落库为 queued（前序回合未完）。排队文本走 text 字段
+      //（message_queued 的 text），位次与总数驱动「排队中第 N 位」提示。
+      event.type = 'session.message_queued'
+      event.position = raw.position
+      event.total = raw.total
+      event.submissionId = raw.submissionId
+      event.text = raw.text
+      event.notice = raw.message
+      event.noticeEnglish = raw.messageEnglish
       break
     case 'turn.stall_warning':
       event.type = 'turn.stall_warning'
