@@ -22,6 +22,7 @@ const {
   nativeImage,
   nativeTheme,
   net,
+  Notification,
   powerMonitor,
   protocol,
   screen,
