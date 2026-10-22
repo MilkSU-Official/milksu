@@ -18,7 +18,7 @@ import type { Permissions, SigningStatus, Status, Target } from './computercap/i
 const FAKE_DRIVER = `const net = require('node:net')
 const args = process.argv.slice(2)
 if (args[0] === '--version') {
-  process.stdout.write('cua-driver 0.29.1\\n')
+  process.stdout.write('cua-driver 0.38.0\\n')
   process.exit(0)
 }
 if (args[0] !== 'serve') process.exit(64)
@@ -193,7 +193,7 @@ test('Grant and Revoke persist and drop task authorization', async () => {
     assert.equal(started.authorized, true)
     assert.equal(started.conversationId, 'conversation-grant')
     assert.equal(started.target.pid, 4242)
-    assert.equal(started.driverVersion, '0.29.1')
+    assert.equal(started.driverVersion, '0.38.0')
     assert.match(started.sessionId ?? '', /^computer_/)
     assert.equal(started.target.executablePath, undefined)
 
@@ -497,7 +497,7 @@ test('workspace actions list, lock, and unlock a visible session', async () => {
       await handleComputerUseWorkspaceAction(ctx, 'conversation-ws', 'computer_use_driver_status', ''),
     ) as { ready: boolean; version: string }
     assert.equal(driver.ready, true)
-    assert.equal(driver.version, '0.29.1')
+    assert.equal(driver.version, '0.38.0')
 
     await assert.rejects(
       () => handleComputerUseWorkspaceAction(ctx, 'conversation-ws', 'lock_computer_use_window', 'not-json'),

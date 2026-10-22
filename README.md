@@ -227,7 +227,7 @@ MilkSU 建立在这些项目之上。第三方保留各自原许可，完整文�
 
 | 项目 | 在 MilkSU 中做什么 | 许可 |
 | --- | --- | --- |
-| Cua Driver 0.29.1 | macOS / Windows 后台 GUI 操作（AX 树 + 截图，不抢鼠标） | MIT |
+| Cua Driver 0.38.0 | macOS / Windows 后台 GUI 操作（AX 树 + 截图，不抢鼠标） | MIT |
 | Playwright MCP | 会话隔离的内置浏览器自动化 | Apache-2.0 |
 
 ### 实验室靶机

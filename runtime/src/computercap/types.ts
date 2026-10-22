@@ -1,4 +1,4 @@
-export const DRIVER_VERSION = '0.29.1'
+export const DRIVER_VERSION = '0.38.0'
 export const DEFAULT_HOST_BUNDLE_ID = 'com.milksu.app'
 export const LINUX_PORTAL_BUNDLE_ID = 'org.freedesktop.portal.Desktop'
 export const LINUX_COMPUTER_USE_PROBLEM =

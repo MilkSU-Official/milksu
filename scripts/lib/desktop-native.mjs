@@ -125,7 +125,11 @@ async function rebuildNodePtyForElectron(root, version) {
       dependencies: ptyVersion ? { 'node-pty': ptyVersion } : { 'node-pty': '*' },
     }, null, 2)}\n`,
   )
+  // @electron/rebuild@4 的 exports 只暴露 ./lib/main.js，子路径解析会被 exports map 拦截；
+  // 从包入口解析结果推导 cli.js 的实际磁盘路径（纯路径拼接不经过 exports 检查）。
+  const rebuildEntry = resolvePackageFile(root, '@electron/rebuild')
   const rebuildCli = resolvePackageFile(root, '@electron/rebuild/lib/cli.js')
+    || (rebuildEntry ? join(dirname(rebuildEntry), 'cli.js') : '')
   if (!rebuildCli) {
     throw new Error('@electron/rebuild is required to rebuild node-pty for Electron')
   }

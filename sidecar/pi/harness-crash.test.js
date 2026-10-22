@@ -9,7 +9,7 @@
 // runtime-data；模型层零网络（pi-ai faux provider）。
 //
 // Node 版本注记（REHEARSAL R11）：本套件跑在本机开发 Node（`node --version`）；打包侧车
-// Node 24.18.0 的 node:sqlite 行为未在本套件覆盖，如实声明，不谎称已验。
+// Node 24.22.1 的 node:sqlite 行为未在本套件覆盖，如实声明，不谎称已验。
 
 import assert from "node:assert/strict";
 import test from "node:test";

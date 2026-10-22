@@ -44,16 +44,22 @@ jobs:
             build/release/milksu.desktop
           if-no-files-found: error
           retention-days: 14
-      - name: Verify deb, Debian 13, Arch and Nix wrappers
+      - name: Verify Debian 13 deb
         run: |
           set -euo pipefail
           version="$(node -p "require('./desktop/package.json').version")"
           package="build/release/MilkSU-Linux-x64-${version}.deb"
           test -f "$package"
           test "$(dpkg-deb -f "$package" Architecture)" = 'amd64'
-          bash scripts/verify-linux-deb-debian13.sh "$package"
-          bash scripts/verify-linux-pacman-arch.sh build/release
-          bash scripts/verify-linux-nixos.sh build/electron/linux/stable/linux-unpacked
+          timeout 20m bash scripts/verify-linux-deb-debian13.sh "$package"
+      - name: Verify Arch pacman package
+        run: |
+          set -euo pipefail
+          timeout 20m bash scripts/verify-linux-pacman-arch.sh build/release
+      - name: Verify NixOS wrapper
+        run: |
+          set -euo pipefail
+          timeout 30m bash scripts/verify-linux-nixos.sh build/electron/linux/stable/linux-unpacked
 
   # Trial only: Apple Silicon VM / ARM runner smoke. Not a GitHub Release artifact.
   package-arm64:
@@ -94,7 +100,7 @@ jobs:
           test -f "$package"
           test "$(dpkg-deb -f "$package" Architecture)" = 'arm64'
           node_runtime='build/sidecar/linux-arm64/node'
-          test "$("$node_runtime" --version)" = 'v24.18.0'
+          test "$("$node_runtime" --version)" = 'v24.22.1'
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends xvfb
           sudo apt-get install -y --no-install-recommends "./$package"

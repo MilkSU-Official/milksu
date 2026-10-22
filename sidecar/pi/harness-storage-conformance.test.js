@@ -6,7 +6,7 @@
 // 本套件用同一入口为每个用例开一个新存储，确认没踩 pi-durable 的存储契约。
 //
 // 注记：JSONL 后端（fsync:true）不进产品，仅在 REHEARSAL 验证过；这里只跑 SQLite。
-// Node 版本：本机开发 Node；打包 Node 24.18.0 的 node:sqlite 行为未覆盖（REHEARSAL R11）。
+// Node 版本：本机开发 Node；打包 Node 24.22.1 的 node:sqlite 行为未覆盖（REHEARSAL R11）。
 
 import test from "node:test";
 import assert from "node:assert/strict";

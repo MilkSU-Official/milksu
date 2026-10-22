@@ -296,7 +296,7 @@ test("injects the selected app PID, exact visible window, session, and window sc
 });
 
 test("normalizes key aliases onto the driver's lowercase key names", () => {
-  // The pinned driver 0.29.1 accepts lowercase `return` (not `Enter`); audit
+  // The pinned driver 0.38.0 accepts lowercase `return` (not `Enter`); audit
   // D4 burned minutes on `Return` rejected and Enter/ENTER retried. Every
   // spelling the model sends must reach press_key as the same canonical name.
   assert.equal(computerUseKeyAliases.enter, "return");

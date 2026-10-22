@@ -55,7 +55,7 @@ function gateClosedDefinitions(conversationId, policy) {
   const requests = [];
   const requestAction = async request => {
     requests.push(request);
-    return JSON.stringify({ ready: true, source: "already", version: "0.29.1" });
+    return JSON.stringify({ ready: true, source: "already", version: "0.38.0" });
   };
   const driverTools = collectExtensionToolDefinitions(
     createComputerUseDriverExtension(conversationId, () => policy, requestAction),
@@ -201,7 +201,7 @@ test("prepare_computer_use_driver gates only the prepare action verbatim", async
   });
   assert.deepEqual(statusResult.content, [{
     type: "text",
-    text: JSON.stringify({ ready: true, source: "already", version: "0.29.1" }),
+    text: JSON.stringify({ ready: true, source: "already", version: "0.38.0" }),
   }]);
 });
 
@@ -590,7 +590,7 @@ test("prepare_computer_use_driver round-trips the desktop status through the rea
         ready: true,
         source: "already",
         path: "/opt/cua-driver",
-        version: "0.29.1",
+        version: "0.38.0",
       }),
     });
     await sending;
@@ -604,7 +604,7 @@ test("prepare_computer_use_driver round-trips the desktop status through the rea
       ready: true,
       source: "already",
       path: "/opt/cua-driver",
-      version: "0.29.1",
+      version: "0.38.0",
     });
   }, { workspaceActionBroker: broker });
 });

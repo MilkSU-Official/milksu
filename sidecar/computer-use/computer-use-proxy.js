@@ -15,7 +15,7 @@ const allowedDeliveryModes = new Set(["background", "foreground"]);
 const allowedDirections = new Set(["up", "down", "left", "right"]);
 
 // The driver's press_key key-name table is lowercase (`return`, `tab`,
-// `escape`, `f1-f12`, letters, digits — verified from the pinned 0.29.1
+// `escape`, `f1-f12`, letters, digits — verified from the pinned 0.38.0
 // binary). Audit D4 burned minutes on case and alias guesses (`Return`
 // rejected, `Enter`/`ENTER` retried), so the proxy normalizes the aliases the
 // model actually sends onto the driver-accepted canonical names before

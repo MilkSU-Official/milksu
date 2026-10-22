@@ -38,7 +38,7 @@ import { buildWindowsCuaDriver } from './build-windows-cua-driver.mjs'
 const execFileAsync = promisify(execFile)
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const repositoryPackageRoot = join(repositoryRoot, 'node_modules')
-const nodeVersion = '24.18.0'
+const nodeVersion = '24.22.1'
 const archifyCommit = '7b49d0b715fd4ba48116bcdecd1ba3789a279613'
 const piVersion = '1.1.0'
 // pi-durable Harness 地基（PR-2 批次 A）：精确钉版，不用 ^（PREP §5.1 缓解措施）。
@@ -70,14 +70,14 @@ const piSubagentsIntegrity = 'sha512-7+67TCpQuYoW2kMu4Kmt4j90hiR8uX8ozg3F/eakApU
 const playwrightMcpVersion = '0.0.78'
 const playwrightVersion = '1.62.0-alpha-1783623505000'
 const playwrightSocketRoot = playwrightSocketRootFor()
-const cuaDriverVersion = '0.29.1'
+const cuaDriverVersion = '0.38.0'
 const cuaDriverTag = `cua-driver-rs-v${cuaDriverVersion}`
-const cuaDriverSourceCommit = '7a8f66ad04e62fccb18cca9965f2964fcaee124e'
+const cuaDriverSourceCommit = '85e2b1318bd77ccf3cfa88ccdf875a4bb7eaed19'
 const cuaDriverArchive = {
   file: `cua-driver-rs-${cuaDriverVersion}-darwin-universal-binary.tar.gz`,
-  sha256: 'ba47526554ea832b4a77566ee946ef3fac1c51bb5e8a0d3f0c150e1377740bc7',
+  sha256: '2bb8dc4a7e69185ffd04c4a9c0eab590bd2c54b72c2c1be13ab675be4f487732',
 }
-const cuaDriverBinarySha256 = 'e9b6136fd1998cd68ba3ade5ee4d3d327756bed7eb67a2d59fc2739adccf042a'
+const cuaDriverBinarySha256 = '92067848d0eeb9de76929fbd06a137af801b0ff6caedbb3109bd7a6cc84a1f9f'
 const cuaSessionPolicyPath = join(
   repositoryRoot,
   'runtime',
@@ -98,6 +98,7 @@ const vueLanguageServerVersion = '2.2.12'
 const typescriptVersion = '6.0.3'
 const diffVersion = '8.0.4'
 const goplsVersion = '0.23.0'
+const goplsGoToolchain = 'go1.26.10'
 const goplsSource = {
   module: 'golang.org/x/tools/gopls',
   moduleSum: 'h1:Dn6mf9WXu9iLnTftDDMb9wV0c6Se7PjzEMqP0LEe08Y=',
@@ -134,23 +135,23 @@ const systemOcrNativePackages = {
 const nodeArchives = {
   'darwin/arm64': {
     file: `node-v${nodeVersion}-darwin-arm64.tar.xz`,
-    sha256: '4477b9f78efb77744cf5eb57a0e9594dba66466b38b4e93fa9f35cb907a095a6',
+    sha256: '654ba79de6155647e22321932b45f2a1ccb705976cc337c9b8e278beb085a628',
   },
   'darwin/amd64': {
     file: `node-v${nodeVersion}-darwin-x64.tar.xz`,
-    sha256: '4a3b6bc81542154430825128d9a279e8b364e8d90581544e506ef7579fd1ab6f',
+    sha256: '65e450f90a6eaacd5000f611861c4ce65fadc87f813795dc4ed0c0e5f2fca2d4',
   },
   'windows/amd64': {
     file: `node-v${nodeVersion}-win-x64.zip`,
-    sha256: '0ae68406b42d7725661da979b1403ec9926da205c6770827f33aac9d8f26e821',
+    sha256: 'd2046d28c2c3dcd211ac5145c0bf30e2047ef9dfb306693c8c6e2eccd8b95fa5',
   },
   'linux/amd64': {
     file: `node-v${nodeVersion}-linux-x64.tar.xz`,
-    sha256: '55aa7153f9d88f28d765fcdad5ae6945b5c0f98a36881703817e4c450fa76742',
+    sha256: '6c172a9ab6718f7b801fb5a7bd486af2ee5e32758086a04b84fcce2aa77095e6',
   },
   'linux/arm64': {
     file: `node-v${nodeVersion}-linux-arm64.tar.xz`,
-    sha256: '58c9520501f6ae2b52d5b210444e24b9d0c029a58c5011b797bc1fe7105886f6',
+    sha256: 'dbabf7a1cbf947e6059ffad2c27b80041db97dea1e553b62afdee7f13fca336e',
   },
 }
 
@@ -539,6 +540,10 @@ async function officialCuaDriverRuntime(platform) {
   if (version.trim() !== `cua-driver ${cuaDriverVersion}`) {
     throw new Error(`unexpected Cua Driver version: ${version.trim()}`)
   }
+  const runtimeBinaryText = (await readFile(runtimeBinary)).toString('latin1')
+  if (runtimeBinaryText.includes('emSign ECC Root CA - G3')) {
+    throw new Error('official Cua Driver still trusts the compromised eMudhra root')
+  }
   return {
     binary: runtimeBinary,
     archive: cuaDriverArchive,
@@ -569,10 +574,12 @@ async function officialGoplsRuntime(platform) {
   const runtimeBinary = join(runtimeRoot, platformBinaryName(platform, 'gopls'))
   const runtimeLicense = join(runtimeRoot, 'LICENSE')
   const metadataPath = join(runtimeRoot, 'build.json')
-  const { stdout: goVersionOutput } = await execFileAsync('go', ['version'])
+  const { stdout: goVersionOutput } = await execFileAsync('go', ['version'], {
+    env: { ...process.env, GOTOOLCHAIN: goplsGoToolchain },
+  })
   const goVersion = goVersionOutput.trim()
   const expectedMetadata = {
-    buildRecipe: 'go-build-trimpath-version-override-v1',
+    buildRecipe: 'go-build-trimpath-version-override-v2-gopls-go1.26.10',
     platform,
     version: goplsVersion,
     module: goplsSource.module,
@@ -616,7 +623,7 @@ async function officialGoplsRuntime(platform) {
       cwd: repositoryRoot,
       maxBuffer: 4 * 1024 * 1024,
       timeout: 120_000,
-      env: { ...process.env, ...envOverrides },
+      env: { ...process.env, GOTOOLCHAIN: goplsGoToolchain, ...envOverrides },
     },
   ).then(result => JSON.parse(result.stdout))
   const moduleDownload = await downloadModule({})
@@ -662,6 +669,7 @@ async function officialGoplsRuntime(platform) {
         GOOS: goos,
         GOARCH: goarch,
         CGO_ENABLED: '0',
+        GOTOOLCHAIN: goplsGoToolchain,
       },
       maxBuffer: 8 * 1024 * 1024,
       timeout: 300_000,
@@ -669,6 +677,21 @@ async function officialGoplsRuntime(platform) {
   )
   await copyFile(sourceLicense, runtimeLicense)
   await chmod(runtimeBinary, 0o755)
+  const { stdout: builtGoVersion } = await execFileAsync('go', ['version', '-m', runtimeBinary], {
+    env: { ...process.env, GOTOOLCHAIN: goplsGoToolchain },
+    timeout: 15_000,
+  })
+  if (!builtGoVersion.includes(goplsGoToolchain)) {
+    throw new Error(`packaged gopls was not built with ${goplsGoToolchain}`)
+  }
+  const builtGoVersionMatch = builtGoVersion.match(/\bgo\d+\.\d+\.\d+\b/)
+  if (!builtGoVersionMatch || builtGoVersionMatch[0] !== goplsGoToolchain) {
+    throw new Error(`packaged gopls reported unexpected Go toolchain: ${builtGoVersion.trim()}`)
+  }
+  const configuredToolchainMatch = goVersion.match(/^go version \S+ (.+)$/)
+  expectedMetadata.goVersion = configuredToolchainMatch
+    ? `go version ${builtGoVersionMatch[0]} ${configuredToolchainMatch[1]}`
+    : `go version ${builtGoVersionMatch[0]}`
   const metadata = {
     ...expectedMetadata,
     binarySha256: await sha256(runtimeBinary),

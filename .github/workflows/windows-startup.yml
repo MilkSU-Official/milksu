@@ -48,10 +48,20 @@ jobs:
       - name: Build and verify the pinned Windows Cua Driver
         shell: pwsh
         run: node scripts/build-windows-cua-driver.mjs verify
+      - name: Reject the compromised eMudhra root in Windows Cua Driver
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $cua = 'build/sidecar-cache/cua-windows-0.38.0/r/cua-driver.exe'
+          $bytes = [IO.File]::ReadAllBytes($cua)
+          $text = [Text.Encoding]::ASCII.GetString($bytes)
+          if ($text.Contains('emSign ECC Root CA - G3')) {
+            throw 'forbidden eMudhra root still present in Windows cua-driver'
+          }
       - name: Probe the Windows Computer Use host boundary
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $env:MILKSU_TEST_CUA_DRIVER = (Resolve-Path 'build/sidecar-cache/cua-windows-0.29.1/r/cua-driver.exe').Path
+          $env:MILKSU_TEST_CUA_DRIVER = (Resolve-Path 'build/sidecar-cache/cua-windows-0.38.0/r/cua-driver.exe').Path
           node --test --experimental-strip-types --test-concurrency=1 runtime/src/computercap.test.ts
           node --test sidecar/computer-use/computer-use-proxy.test.js
