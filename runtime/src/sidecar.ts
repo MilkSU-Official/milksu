@@ -17,6 +17,70 @@ const PACKAGED_SIDECAR_DIRECTORY = 'milksu-sidecar'
 const DEVELOPMENT_PI_BRIDGE = 'sidecar/pi/run-bridge.mjs'
 const DEVELOPMENT_DSH_BRIDGE = 'sidecar/dsh/run-bridge.mjs'
 
+// The bundled MCP client SDK logs capability notices with console.debug, and
+// Node writes console.debug to stdout — the same stream the sidecar JSON
+// protocol uses. One stray diagnostic must never fabricate an engine error;
+// only a stream that is clearly not speaking the protocol at all is one.
+export const SIDECAR_MALFORMED_LINE_LIMIT = 32
+
+const SIDECAR_DIAGNOSTIC_LINE_LIMIT = 512
+
+// Renders one sidecar stdout line for diagnostics: credential-looking
+// substrings redacted, control characters escaped, and the result truncated
+// so one pathological line cannot flood the log.
+export function renderSidecarDiagnosticLine(line: string): string {
+  const redacted = line
+    .replace(/(?:sk[-_]|gsk_|aiza|nss_agent_)[a-z0-9._-]{8,}/gi, '[REDACTED]')
+    .replace(/(bearer\s+)[a-z0-9._~+/=-]{8,}/gi, '$1[REDACTED]')
+    .replace(/\b(api[_ -]?key|key|token|secret|password)\s*[:=]\s*[^\s,;]+/gi, '$1=[REDACTED]')
+    .replace(/([?&](?:api[_-]?key|key|token|secret|password)=)[^&#\s]+/gi, '$1[REDACTED]')
+  const characters = [...redacted]
+  const bounded = characters.length > SIDECAR_DIAGNOSTIC_LINE_LIMIT
+    ? characters.slice(0, SIDECAR_DIAGNOSTIC_LINE_LIMIT).join('') + '…[truncated]'
+    : redacted
+  return JSON.stringify(bounded)
+}
+
+// Reads the sidecar's stdout protocol line by line. Valid JSON lines are
+// forwarded; a non-JSON line is logged (redacted, bounded) and skipped so a
+// stray diagnostic cannot take the session down. Only SIDECAR_MALFORMED_LINE_LIMIT
+// consecutive non-JSON lines declare a protocol error, exactly once per burst,
+// and a later valid line still flows through after the burst.
+export function createSidecarLineReader(input: {
+  kernel: SidecarKernel
+  workspace: string
+  onLine: (value: unknown) => void
+}): (line: string) => void {
+  let malformed = 0
+  return (line: string) => {
+    if (!line.trim()) {
+      // A blank separator line is noise, not protocol corruption.
+      return
+    }
+    let value: unknown
+    try {
+      value = JSON.parse(line)
+    } catch {
+      malformed += 1
+      const rendered = renderSidecarDiagnosticLine(line)
+      if (malformed <= 4 || malformed === SIDECAR_MALFORMED_LINE_LIMIT || malformed % 128 === 0) {
+        console.error(
+          `[sidecar] ${input.kernel} emitted a non-JSON stdout line (workspace=${JSON.stringify(input.workspace)}, consecutive=${malformed}, bytes=${Buffer.byteLength(line)}): ${rendered}`,
+        )
+      }
+      if (malformed === SIDECAR_MALFORMED_LINE_LIMIT) {
+        input.onLine({
+          type: 'error',
+          error: `sidecar stdout produced ${SIDECAR_MALFORMED_LINE_LIMIT} consecutive non-JSON lines; last line: ${rendered}`,
+        })
+      }
+      return
+    }
+    malformed = 0
+    input.onLine(value)
+  }
+}
+
 export type SidecarKernel = 'pi' | 'dsh'
 
 export function sidecarWorkspaceKey(kernel: SidecarKernel, workspace: string, agentId = ''): string {
@@ -398,16 +462,12 @@ export function startSidecarProcess(input: {
   })
   child.stderr.pipe(process.stderr)
   const lines = readline.createInterface({ input: child.stdout, crlfDelay: Infinity })
-  lines.on('line', (line: string) => {
-    try {
-      input.onLine(JSON.parse(line))
-    } catch (error) {
-      input.onLine({
-        type: 'error',
-        error: error instanceof Error ? error.message : 'sidecar protocol error',
-      })
-    }
+  const readLine = createSidecarLineReader({
+    kernel: input.kernel,
+    workspace: input.workspace,
+    onLine: input.onLine,
   })
+  lines.on('line', readLine)
   let writeChain = Promise.resolve()
   return {
     kernel: input.kernel,

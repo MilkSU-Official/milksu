@@ -6,6 +6,26 @@ const METHOD_PATTERN = /^[A-Z][A-Za-z0-9]{0,80}$/u
 const MAX_BACKEND_MESSAGE_BYTES = 128 << 20
 const BACKEND_INVOKE_SOURCE_RENDERER = 'renderer'
 const BACKEND_INVOKE_SOURCE_ELECTRON_HOST = 'electron_host'
+// The runtime's stdout is a first-party JSON protocol, so a stray non-JSON
+// line is logged and skipped instead of failing every pending invocation.
+// Only a stream that is clearly not speaking the protocol at all fails the
+// generation; the desktop↔runtime channel has no third-party logger on it,
+// but the same one-diagnostic-must-not-be-fatal rule applies.
+const MALFORMED_BACKEND_LINE_LIMIT = 32
+const BACKEND_DIAGNOSTIC_LINE_LIMIT = 512
+
+function renderBackendDiagnosticLine(line) {
+  const redacted = String(line)
+    .replace(/(?:sk[-_]|gsk_|aiza|nss_agent_)[a-z0-9._-]{8,}/gi, '[REDACTED]')
+    .replace(/(bearer\s+)[a-z0-9._~+/=-]{8,}/gi, '$1[REDACTED]')
+    .replace(/\b(api[_ -]?key|key|token|secret|password)\s*[:=]\s*[^\s,;]+/gi, '$1=[REDACTED]')
+    .replace(/([?&](?:api[_-]?key|key|token|secret|password)=)[^&#\s]+/gi, '$1[REDACTED]')
+  const characters = [...redacted]
+  const bounded = characters.length > BACKEND_DIAGNOSTIC_LINE_LIMIT
+    ? characters.slice(0, BACKEND_DIAGNOSTIC_LINE_LIMIT).join('') + '…[truncated]'
+    : redacted
+  return JSON.stringify(bounded)
+}
 
 function isClosedPipeError(error) {
   return error?.code === 'EPIPE' || error?.code === 'ERR_STREAM_DESTROYED'
@@ -41,6 +61,7 @@ class BackendRuntime {
     this.nextID = 0
     this.generation = 0
     this.recoverCount = 0
+    this.malformedLines = 0
     this.stopping = false
     this.recovering = false
     this.state = 'starting'
@@ -63,6 +84,7 @@ class BackendRuntime {
     this.generation += 1
     const generation = this.generation
     this.state = 'starting'
+    this.malformedLines = 0
     this.readyPromise = new Promise((resolve, reject) => {
       this.resolveReady = resolve
       this.rejectReady = reject
@@ -127,13 +149,33 @@ class BackendRuntime {
   }
 
   handleLine(line, generation) {
+    if (!line.trim()) {
+      // A blank separator line is noise, not protocol corruption.
+      return
+    }
     let message
     try {
       message = JSON.parse(line)
     } catch {
-      this.failGeneration(generation, new Error('本地运行时返回了无法解析的消息。'))
+      this.malformedLines += 1
+      const rendered = renderBackendDiagnosticLine(line)
+      if (
+        this.malformedLines <= 4
+        || this.malformedLines === MALFORMED_BACKEND_LINE_LIMIT
+        || this.malformedLines % 128 === 0
+      ) {
+        console.error(
+          `[backend-runtime] runtime emitted a non-JSON stdout line (generation=${generation}, consecutive=${this.malformedLines}, bytes=${Buffer.byteLength(line)}): ${rendered}`,
+        )
+      }
+      if (this.malformedLines === MALFORMED_BACKEND_LINE_LIMIT) {
+        this.failGeneration(generation, new Error(
+          `本地运行时连续输出了 ${MALFORMED_BACKEND_LINE_LIMIT} 行无法解析的消息。`,
+        ))
+      }
       return
     }
+    this.malformedLines = 0
     if (message.type === 'ready') {
       if (generation !== this.generation) return
       this.state = 'ready'
@@ -290,6 +332,8 @@ module.exports = {
   runtimeUserError,
   METHOD_PATTERN,
   MAX_BACKEND_MESSAGE_BYTES,
+  MALFORMED_BACKEND_LINE_LIMIT,
+  renderBackendDiagnosticLine,
   BACKEND_INVOKE_SOURCE_RENDERER,
   BACKEND_INVOKE_SOURCE_ELECTRON_HOST,
 }
